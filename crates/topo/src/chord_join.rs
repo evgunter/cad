@@ -2719,10 +2719,13 @@ pub(crate) fn face_azimuth_window<T: Decide>(
     Ok(face_azimuth_images(body, surface, face, band)?.and_then(|images| azimuth_hull(&images)))
 }
 
-/// The azimuth window of each cycle loop of `face` on `surface`'s chart,
-/// the outer loop and its rings alike: the hull of the loop's images,
-/// `None` for a walk with no charted edge. A lone-vertex loop winds
-/// nothing and is not listed.
+/// **The net azimuth each cycle loop of `face` travels** on `surface`'s
+/// chart, the outer loop and its rings alike: the sum over the loop's
+/// images of exit less entry, each image's branch pinned to the one
+/// before ([`run_azimuth_images`]). A loop that closes in
+/// the chart travels zero; one that winds round the chart's pole, a
+/// whole turn. `None` for a walk with no charted edge. A lone-vertex
+/// loop winds nothing and is not listed.
 ///
 /// # Errors
 ///
@@ -2731,12 +2734,12 @@ pub(crate) fn face_azimuth_window<T: Decide>(
 /// # Panics
 ///
 /// As [`face_azimuth_images`].
-pub(crate) fn face_loop_azimuth_windows<T: Decide>(
+pub(crate) fn face_loop_azimuth_travels<T: Decide>(
     body: &Body<T>,
     surface: &geom::Surface<T>,
     face: FaceKey,
     band: Band,
-) -> Result<Vec<Option<(T, T)>>, SplitJoinError> {
+) -> Result<Vec<Option<T>>, SplitJoinError> {
     let data = body.get_face(face).ok_or_else(|| corrupt_face(face))?;
     body.face_loops_linked(face, data)
         .filter_map(|(_, l)| match l.boundary {
@@ -2745,8 +2748,12 @@ pub(crate) fn face_loop_azimuth_windows<T: Decide>(
         })
         .map(|first| {
             let halves = body.loop_walk(first).closed("loop", first);
-            run_azimuth_images(body, surface, face, &halves, band)
-                .map(|images| azimuth_hull(&images))
+            run_azimuth_images(body, surface, face, &halves, band).map(|images| {
+                images
+                    .iter()
+                    .map(|image| image.exit - image.entry)
+                    .reduce(|a, b| a + b)
+            })
         })
         .collect()
 }

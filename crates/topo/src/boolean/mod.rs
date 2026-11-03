@@ -147,7 +147,9 @@ pub(crate) mod sectors;
 pub(crate) mod separating;
 mod shell_witness;
 mod slit;
-pub use boxes::EdgeUncovered;
+pub use boxes::{
+    BoundaryUnknown, EdgeUncovered, FaceCovered, FaceUncovered, edge_cover, face_cover,
+};
 pub use slit::EdgeInFaceGap;
 pub mod solid_contain;
 pub(crate) mod sphere_region;
@@ -335,6 +337,7 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         crate::query::POSE_UNIT_NORM
         | join::BOOL_GERM_PLANE_NORMAL
         | boxes::BOX_CYLINDER_AXIS
+        | boxes::BOX_CONE_AXIS
         | boxes::BOX_SPHERE_AXIS
         | boxes::BOX_SPHERE_SEAM_UNIT
         | separating::PAIR_AXIS
@@ -6242,7 +6245,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
                 .filter(|&k| reduce::face_plane(piercing_body, k).is_none())
                 .collect();
             for face in curved {
-                curved_boxes.insert(face, boxes::face_box(piercing_body, face, pad, band)?);
+                curved_boxes.insert(face, boxes::face_box(piercing_body, face, pad, band));
             }
         }
         let box_holds = |face: FaceKey, p: Point3<T>| {
@@ -7275,7 +7278,7 @@ fn tangent_line<T: Decide>(
     // reading of the carriers.
     let pad = witness_pad::<T>(band);
     let extents = |across| {
-        let frame = boxes::BoxFrame::aimed(across);
+        let frame = geom::cover::Frame::aimed(across);
         [(a, fa), (b, fb)].map(|(body, face)| {
             crate::census::face_reach_in(body, face, band, &frame)
                 .map(|(lo, hi)| (lo.x - pad, hi.x + pad))
@@ -7785,7 +7788,7 @@ fn witness_span<T: Decide>(
                 let aim = geom_core::UnitVec3::new(dir, "bool_tangent_line_aim", band)
                     .map_err(|_| invalid("the tangent line has no direction"))?;
                 let (lo, hi) =
-                    crate::census::face_reach_in(body, f, band, &boxes::BoxFrame::aimed(aim))
+                    crate::census::face_reach_in(body, f, band, &geom::cover::Frame::aimed(aim))
                         .ok_or(invalid(
                             "a face of the pair has no reach along its tangent line",
                         ))?;

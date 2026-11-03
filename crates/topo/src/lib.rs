@@ -1299,6 +1299,9 @@ pub use boolean::{
     point_in_solid, point_in_solid_faces, point_in_solid_of, rest_locus, subtract,
     tangent_pair_relation, union,
 };
+pub use boolean::{
+    BoundaryUnknown, EdgeUncovered, FaceCovered, FaceUncovered, edge_cover, face_cover,
+};
 pub use joint::{Deck, JointElement};
 pub use lineage::{
     ConeCopies, Division, FaceDivisions, Fate, Lineage, LineageError, LineageKey, LineageRows,

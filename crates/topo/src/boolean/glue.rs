@@ -176,14 +176,26 @@ fn ruled(kinds: (geom::SurfaceKind, geom::SurfaceKind)) -> bool {
     )
 }
 
-/// **The ball about the overlap of two overlapping boxes**: its centre,
-/// out to its half-diagonal. The boxes are `f64` hulls the face walk
-/// computed, so the ball enters as computed values.
+/// **The ball about where two covers meet** (two faces', or two
+/// operands' hulls of their faces'): the meet's own ball
+/// ([`geom::cover::Cover::ball`]). A refusal is the meet's identity, so
+/// one side with no cover leaves the other's ball; with neither, the
+/// ball is poison, which every lever reading it escalates.
 pub(super) fn overlap_ball<T: geom_core::Real>(
-    a: &bvh::Aabb,
-    b: &bvh::Aabb,
+    a: &boxes::FaceCovered<T>,
+    b: &boxes::FaceCovered<T>,
 ) -> geom_brep::ExtentBall<T> {
-    geom_brep::ExtentBall::of_overlap(a, b)
+    match (a, b) {
+        (Ok(a), Ok(b)) => geom_brep::ExtentBall::of_cover(&a.clone().meet(b.clone())),
+        (Ok(one), Err(_)) | (Err(_), Ok(one)) => geom_brep::ExtentBall::of_cover(one),
+        (Err(_), Err(_)) => {
+            let poison = geom_core::poison();
+            geom_brep::ExtentBall::of_cover_from(
+                None,
+                geom_core::Point3::new(poison, poison, poison),
+            )
+        }
+    }
 }
 
 /// **The cross pairs whose face boxes overlap**: each face of `a` against
@@ -204,7 +216,7 @@ pub(super) fn overlapping_pairs<T: Decide + Bounds>(
     let boxed = |body: &Body<T>| -> Result<Vec<(FaceKey, bvh::Aabb)>, BooleanError> {
         body.faces()
             .filter(|&(k, face)| keep(body.face_surface_linked(k, face)))
-            .map(|(k, _)| Ok((k, boxes::face_box(body, k, pad, band)?)))
+            .map(|(k, _)| Ok((k, boxes::face_box(body, k, pad, band))))
             .collect()
     };
     pairs_among(&boxed(a)?, &boxed(b)?)
@@ -284,24 +296,47 @@ pub(crate) fn section_door<T: Decide + Bounds>(
         margin,
         discharge: crate::Discharge::of(margin),
     };
-    // The operation's region (C5): the ball about the overlap of the two
-    // operands' boxes, each the hull of its faces' boxes at the sweep's
-    // pad, which holds every section point the operation can use; none
-    // where the boxes do not overlap, so that no face pair does.
-    // Each face's box once: every face's for the region, the served
-    // faces' for the pairs.
+    // The operation's region (C5): the ball about where the two
+    // operands' covers meet, each the hull of its faces' covers, which
+    // holds every section point the operation can use; none where their
+    // boxes at the sweep's pad do not overlap, so that no face pair does.
+    // Each face's cover once: every face's for the region, the served
+    // faces' boxes for the pairs.
     let pad = boxes::sweep_pad(band);
-    let boxed = |body: &Body<T>| -> Result<Vec<(FaceKey, bvh::Aabb)>, BooleanError> {
+    let covered = |body: &Body<T>| -> Vec<(FaceKey, boxes::FaceCovered<T>)> {
         body.faces()
-            .map(|(k, _)| Ok((k, boxes::face_box(body, k, pad, band)?)))
+            .map(|(k, _)| (k, boxes::face_cover(body, k, band)))
             .collect()
     };
-    let (a_boxes, b_boxes) = (boxed(a)?, boxed(b)?);
-    let hull = |boxed: &[(FaceKey, bvh::Aabb)]| {
+    let (a_covers, b_covers) = (covered(a), covered(b));
+    let boxed = |covers: &[(FaceKey, boxes::FaceCovered<T>)]| -> Vec<(FaceKey, bvh::Aabb)> {
+        covers
+            .iter()
+            .map(|(k, c)| {
+                let bx = c
+                    .as_ref()
+                    .map_or_else(|_| bvh::Aabb::poison(), |c| c.aabb(pad));
+                (*k, bx)
+            })
+            .collect()
+    };
+    let (a_boxes, b_boxes) = (boxed(&a_covers), boxed(&b_covers));
+    let hull = |covers: Vec<(FaceKey, boxes::FaceCovered<T>)>| {
+        covers
+            .into_iter()
+            .map(|(_, c)| c)
+            .reduce(|h, c| match (h, c) {
+                (Ok(h), Ok(c)) => Ok(h.hull(c)),
+                (Err(e), _) | (_, Err(e)) => Err(e),
+            })
+    };
+    let box_hull = |boxed: &[(FaceKey, bvh::Aabb)]| {
         boxed.iter().map(|&(_, bx)| bx).reduce(|h, bx| h.hull(&bx))
     };
-    let region = match (hull(&a_boxes), hull(&b_boxes)) {
-        (Some(ha), Some(hb)) if ha.overlaps(&hb) => Some(overlap_ball(&ha, &hb)),
+    let region = match (box_hull(&a_boxes), box_hull(&b_boxes)) {
+        (Some(ha), Some(hb)) if ha.overlaps(&hb) => hull(a_covers)
+            .zip(hull(b_covers))
+            .map(|(ca, cb)| overlap_ball(&ca, &cb)),
         _ => None,
     };
     let served = |body: &Body<T>, boxed: &[(FaceKey, bvh::Aabb)]| -> Vec<(FaceKey, bvh::Aabb)> {

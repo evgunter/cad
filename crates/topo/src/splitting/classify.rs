@@ -11,11 +11,11 @@ use slotmap::SecondaryMap;
 
 use super::{PlaneSide, SplitPlane, SplitReduceError};
 use crate::body::Body;
-use crate::boolean::boxes::BoxFrame;
 use crate::entity::{EdgeKey, VertexKey};
 use crate::null::CurveGeom;
 use crate::validate::{decide, decide_nonzero};
 use crate::vertex_section::VertexRefusal;
+use geom::cover::Frame;
 
 /// **The carrier gate, scoped to what the plane can reach** (C12.1:
 /// the gate retires per arm, never wholesale).
@@ -35,7 +35,7 @@ use crate::vertex_section::VertexRefusal;
 /// the approximation, not the surface the modeller described.
 ///
 /// The reach is read in the plane's own frame
-/// ([`crate::boolean::boxes::BoxFrame::aimed`]), never in the world's
+/// ([`Frame::aimed`]), never in the world's
 /// axes, so whether a cut clears a face is a fact about the two of
 /// them and not about how the body is turned.
 ///
@@ -51,7 +51,7 @@ pub(super) fn carrier_gate<T: Decide>(
     plane: &SplitPlane<T>,
     band: Band,
 ) -> Result<(), SplitReduceError> {
-    let frame = BoxFrame::aimed(plane.normal);
+    let frame = Frame::aimed(plane.normal);
     for (face_key, face) in body.faces() {
         let surface = body.face_surface_linked(face_key, face);
         let kind = surface.kind();
@@ -95,11 +95,12 @@ pub(super) fn carrier_gate<T: Decide>(
 }
 
 /// Whether the plane certainly misses an edge: behind its own reach
-/// (`census::edge_reach_in`) or behind the reach of either face it
+/// (its cover's, `boolean::boxes::edge_cover`) or behind the reach of
+/// either face it
 /// bounds, since an edge lies on both its faces. A spline edge's own
 /// reach is its control net's hull (its cover), which its faces'
 /// reaches may beat. `frame` is the plane's
-/// ([`BoxFrame::aimed`] at its normal).
+/// ([`Frame::aimed`] at its normal).
 ///
 /// `edge` is one this call's caller read out of the body: the gate's
 /// arena walk over the at-rest operand, or `insert_crossings`' snapshot
@@ -112,10 +113,13 @@ fn edge_clears<T: Decide>(
     edge: EdgeKey,
     plane: &SplitPlane<T>,
     band: Band,
-    frame: &BoxFrame<T>,
+    frame: &Frame<T>,
 ) -> bool {
     let e = crate::live::proven(&body.edges, edge, crate::entity::EntityId::Edge);
-    reach_clears(crate::census::edge_reach_in(body, edge, frame), plane, band)
+    let reach = crate::boolean::boxes::edge_cover(body, edge)
+        .ok()
+        .map(|cover| cover.box_in(frame));
+    reach_clears(reach, plane, band)
         || [e.he_plus, e.he_minus].into_iter().any(|he| {
             let face = body.face_of_linked(he);
             reach_clears(
@@ -131,7 +135,7 @@ fn edge_clears<T: Decide>(
 const SPLIT_GATE_BOX_SIDE: &str = "split_gate_box_side";
 
 /// Whether the plane certainly misses a reach read in the plane's
-/// frame ([`BoxFrame::aimed`]), whose first coordinate is the
+/// frame ([`Frame::aimed`]), whose first coordinate is the
 /// component along the plane's normal: the reach's gap from the
 /// plane's own offset along that normal, less the boolean sweep's pad,
 /// decided definitely positive. No reach (an entity the reach lane
@@ -783,7 +787,7 @@ pub(super) fn insert_crossings<T: Decide + crate::props::AtRestPolicy>(
             // It passes only behind a box the plane cannot meet, read
             // here as at the gate, so its whole locus is on one side.
             PlaneCrossingLane::Unlaned => {
-                if edge_clears(body, edge_key, plane, band, &BoxFrame::aimed(plane.normal)) {
+                if edge_clears(body, edge_key, plane, band, &Frame::aimed(plane.normal)) {
                     continue;
                 }
                 return Err(SplitReduceError::CurvedEdgeUnsupported { edge: edge_key });
@@ -1282,8 +1286,8 @@ mod torn_rows {
     /// would answer the census's box.
     #[test]
     fn the_gate_panics_on_a_torn_face_of_an_edge_and_a_torn_surface() {
-        use crate::boolean::boxes::BoxFrame;
         use crate::live::OPERATORS_KEEP_LINKS;
+        use geom::cover::Frame;
         let tol = Tol::witness();
         let band = Band::linear(tol).unwrap();
         let fresh = || crate::test_support_fixtures::geometric_cube::<f64>(tol).body;
@@ -1292,7 +1296,7 @@ mod torn_rows {
             Vec3::unit_z(),
             tol,
         );
-        let frame = BoxFrame::aimed(plane.normal);
+        let frame = Frame::aimed(plane.normal);
 
         let mut body = fresh();
         let crosses = |b: &crate::body::Body<f64>, e| {

@@ -559,11 +559,11 @@ pub(super) fn first_unsupported_pair<T: Decide + Bounds>(
             .faces()
             .map(|(key, f)| {
                 let kind = other.face_surface_linked(key, f).kind();
-                Ok((key, kind, super::boxes::face_box(other, key, pad, band)?))
+                Ok((key, kind, super::boxes::face_box(other, key, pad, band)))
             })
             .collect::<Result<_, BooleanError>>()?;
         for (face, kind) in offenders {
-            let boxed = super::boxes::face_box(body, face, pad, band)?;
+            let boxed = super::boxes::face_box(body, face, pad, band);
             for &(other_face, other_kind, ref other_box) in &others {
                 if boxed.overlaps(other_box)
                     && !covered(operand, face, other_face)
@@ -972,7 +972,7 @@ fn face_tree<T: Decide + Bounds>(
                 max_z: f64::NEG_INFINITY,
             }
         } else {
-            boxes::face_box(y, f, pad, band)?
+            boxes::face_box(y, f, pad, band)
         });
     }
     Ok(bvh::Bvh::build(&face_boxes))

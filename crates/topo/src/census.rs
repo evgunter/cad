@@ -341,7 +341,7 @@ use crate::entity::{
     EdgeKey, EntityId, Face, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey,
 };
 use crate::geometry::PointKey;
-use crate::live::{BoundaryMember, proven};
+use crate::live::proven;
 use crate::null::CurveGeom;
 
 use crate::link::{FaceSector, Germ, Hold, Link, Planar, TouchUnread, TouchVerdict, rest};
@@ -806,7 +806,7 @@ impl Candidates {
             if plant == Some(k) {
                 empty_box()
             } else {
-                face_box(body, k, pad, band).unwrap_or_else(|_| Aabb::poison())
+                face_box(body, k, pad, band)
             }
         };
         // Every face's box, once, where the same-solid tangent-line pass
@@ -6378,7 +6378,7 @@ fn planar_face_pairs<T: Decide>(
 /// **Cost.** A candidate is a pair of boxes overlapping, of one of the
 /// two kinds, across solids. Two cylinder faces whose spans along the
 /// first's axis do not overlap by more than the band
-/// ([`boundary_axial`]) pay Door 1 alone: a face's interior lies
+/// (their covers' supports along it) pay Door 1 alone: a face's interior lies
 /// strictly inside its boundary's span, so spans that meet at most at a
 /// point hold interiors apart. That is the common case of pins stacked
 /// end to end. The rest pay Door 1, and those it decides on one carrier
@@ -6405,7 +6405,14 @@ fn curved_same_side_pairs<T: Decide>(
     // coordinate whose extremes lie on the boundary. Read against the
     // first face's axis; a second face on another axis is a pair Door 1
     // does not read as one carrier, so dropping it loses nothing.
-    let axial = |f, origin, axis| boundary_axial(body, f, body.get_face(f)?, origin, axis);
+    let axial = |f, origin: Point3<T>, axis: Vec3<T>| {
+        let cover = crate::boolean::boxes::face_cover(body, f, band).ok()?;
+        let base = (origin - Point3::origin()).dot(axis);
+        Some((
+            T::zero() - cover.support(-axis) - base,
+            cover.support(axis) - base,
+        ))
+    };
     let mut out = CurvedSameSide::default();
     for (i, &fa) in cands.every_face.iter().enumerate() {
         let Some(ka) = kind(fa) else { continue };
@@ -6428,7 +6435,7 @@ fn curved_same_side_pairs<T: Decide>(
                     match (axial(fa, origin, axis), axial(fb, origin, axis)) {
                         (Some(a), Some(b)) => Some(decide(
                             "census_aligned_axial_overlap",
-                            Margin::of(a.hi.min(b.hi) - a.lo.max(b.lo)),
+                            Margin::of(a.1.min(b.1) - a.0.max(b.0)),
                             band,
                         )),
                         _ => None,
@@ -7023,26 +7030,10 @@ fn same_solid_tangent_pair<T: Decide>(
     }
 }
 
-/// **`boolean::boxes`'s `FaceBoxRule` and the edges' covers, instantiated at
-/// this lane's scalar.** Both the rules — which kinds have a cheap
-/// sound superset, and by what construction — AND the extent
-/// arithmetic that realizes them come from there: the per-kind
-/// extents are written once, against `boxes::Span`, and this lane
-/// enters them with degenerate spans (`lo == hi`) at its own `T`
-/// while the boolean lane enters them with `[lo(), hi()]` brackets at
-/// `f64`. Neither takes a bound the other cannot, and no bound is
-/// derived twice.
-///
-/// What this lane still owns is its answer for a description with no
-/// claim in it: `None`, versus the poison box there. That is not
-/// arithmetic, and `the_two_box_lanes_agree_face_for_face` in
-/// `boolean::boxes` pins that what is left cannot drift.
-///
-/// A NURBS net with poison in any channel — the placeholder, or a
-/// described net poisoned in one — gets the poison box from `face_box`,
-/// which never prunes. Here it answers `None`: this door keeps the
-/// postcondition [`geom_core::CertifiedEnclosure`] states for a
-/// certified bracket — a `Some` never carries a NaN end.
+/// **A face's reach**: its cover's world box
+/// ([`crate::boolean::boxes::face_cover`], [`face_reach_in`]). `None`
+/// for a face with no cover, which this lane's readers refuse on: a
+/// `Some` never carries a NaN end.
 ///
 /// # Panics
 ///
@@ -7052,7 +7043,7 @@ pub(crate) fn face_reach<T: Decide>(
     f: crate::entity::FaceKey,
     band: Band,
 ) -> Option<(Point3<T>, Point3<T>)> {
-    face_reach_in(body, f, band, &crate::boolean::boxes::BoxFrame::World)
+    face_reach_in(body, f, band, &geom::cover::Frame::World)
 }
 
 /// **The axis-aligned hull of `points`**: its low and high corners, each
@@ -7070,9 +7061,8 @@ pub(crate) fn point_hull<T: Decide>(
     }))
 }
 
-/// [`face_reach`] read in `frame` ([`crate::boolean::boxes::BoxFrame`]):
-/// every point and direction the rule reads enters through the frame,
-/// and every extent is the same one.
+/// [`face_reach`] read in `frame`: the face's cover's box there
+/// ([`geom::cover::Cover::box_in`]).
 ///
 /// # Panics
 ///
@@ -7086,309 +7076,11 @@ pub(crate) fn face_reach_in<T: Decide>(
     body: &Body<T>,
     f: crate::entity::FaceKey,
     band: Band,
-    frame: &crate::boolean::boxes::BoxFrame<T>,
+    frame: &geom::cover::Frame<T>,
 ) -> Option<(Point3<T>, Point3<T>)> {
-    let face = proven(&body.faces, f, EntityId::Face);
-    let surface = body.face_surface_linked(f, face);
-    // A cylinder whose axis is no direction is a broken carrier,
-    // and a description with no claim in it answers `None`.
-    match crate::boolean::boxes::face_box_rule(surface, band).ok()? {
-        crate::boolean::boxes::FaceBoxRule::BoundaryHull => boundary_reach(body, f, face, frame),
-        crate::boolean::boxes::FaceBoxRule::ControlNet(patch) => match patch.net_state() {
-            // Poison in any channel bounds the locus on no axis, so
-            // neither state has a claim to make. `None`, not an
-            // exclusion: the face's pairs refuse and its solid is never
-            // the container, where dropping it would under-claim.
-            geom::NetState::Placeholder | geom::NetState::Poisoned => None,
-            geom::NetState::Described => {
-                point_hull(patch.control().iter().map(|p| frame.point(*p)))
-            }
-        },
-        crate::boolean::boxes::FaceBoxRule::SphereWindow { .. } => {
-            Some(crate::boolean::boxes::sphere_reach(body, f, band, frame))
-        }
-        crate::boolean::boxes::FaceBoxRule::TorusWindow {
-            center,
-            axis,
-            major_radius,
-            minor_radius,
-            u_ref,
-        } => {
-            use crate::boolean::boxes::{Span, SpanBox, meet, ring_window_extent, torus_extent};
-            let (c, ax) = (
-                SpanBox::point(frame.point(center)),
-                SpanBox::vector(frame.vector(axis)),
-            );
-            let whole = torus_extent(&c, &ax, major_radius, minor_radius);
-            // The chart window from the boundary's own stored
-            // certified pcurves: the same walk, the same guards and
-            // the same extent as the boolean lane, at this lane's
-            // scalar ([`torus_chart_window`]), once the ring
-            // convention the extent reads is decided.
-            let window = if geom::is_ring_torus(major_radius, minor_radius, band) {
-                torus_chart_window(body, f, major_radius, minor_radius)
-            } else {
-                None
-            };
-            Some(span_pts(match window {
-                None => whole,
-                Some(window) => meet(
-                    ring_window_extent(
-                        &c,
-                        (
-                            &SpanBox::vector(frame.vector(u_ref)),
-                            &SpanBox::vector(frame.vector(axis.cross(u_ref))),
-                            &ax,
-                        ),
-                        (Span::exact(major_radius), Span::exact(minor_radius)),
-                        window,
-                    ),
-                    whole,
-                ),
-            }))
-        }
-        crate::boolean::boxes::FaceBoxRule::CylinderSlab {
-            origin,
-            axis,
-            radius,
-        } => {
-            // The axial extent comes from the boundary's own LOCUS
-            // — not its vertices, and not a box around it: the axial
-            // coordinate is linear along the surface, so the face's
-            // axial extremes lie ON the boundary, but not
-            // necessarily at a boundary VERTEX.
-            let h = boundary_axial(body, f, face, origin, axis.get())?;
-            let slab = span_pts(crate::boolean::boxes::slab_extent(
-                &crate::boolean::boxes::SpanBox::point(frame.point(origin)),
-                &frame.unit(axis),
-                h,
-                radius,
-            ));
-            // The clip to the boundary's reach, mirroring the boolean
-            // lane's `clip_to_boundary`: a cylinder face lies in its
-            // boundary's hull because the cylinder is ruled
-            // (`FaceBoxRule`'s `BoundaryHull` arm), so clipping every
-            // coordinate is sound.
-            Some(match boundary_reach(body, f, face, frame) {
-                Some((blo, bhi)) => (
-                    Point3::new(
-                        slab.0.x.max(blo.x),
-                        slab.0.y.max(blo.y),
-                        slab.0.z.max(blo.z),
-                    ),
-                    Point3::new(
-                        slab.1.x.min(bhi.x),
-                        slab.1.y.min(bhi.y),
-                        slab.1.z.min(bhi.z),
-                    ),
-                ),
-                None => slab,
-            })
-        }
-        crate::boolean::boxes::FaceBoxRule::ConeSlab {
-            apex,
-            axis,
-            half_angle,
-        } => {
-            let h = boundary_axial(body, f, face, apex, axis)?;
-            let apex = crate::boolean::boxes::SpanBox::point(frame.point(apex));
-            let axis = crate::boolean::boxes::SpanBox::vector(frame.vector(axis));
-            Some(span_pts(crate::boolean::boxes::cone_frustum_extent(
-                &apex,
-                &axis,
-                h,
-                half_angle.tan(),
-            )))
-        }
-    }
-}
-
-/// [`face_reach_in`], with a sphere face's first row read off what the
-/// face holds: at each end of that row, where the face places the
-/// sphere's pole `c ± r·d̂` along it definitely `Out`
-/// ([`crate::boolean::curved_face_placement`]), no further than its
-/// boundary reaches ([`boundary_reach`], which bounds every boundary
-/// edge's locus). The other rows, and every other kind, are
-/// [`face_reach_in`]'s.
-///
-/// The argument is the depth gap's for a least depth on a plane
-/// ([`depth_gap`] module docs), with the poles in the foot's place:
-/// `d·p` on a sphere has its only critical points at `c ± r·d̂`, so with
-/// that end's pole not a point of the face its extreme there is on the
-/// boundary.
-///
-/// **Only a definite `Out` narrows**, the one verdict that says the
-/// pole is not a point of the face. `In` and a boundary verdict say it
-/// is. `Trim(None)` (a region with an edge that is not a circle arc,
-/// which [`crate::boolean::sphere_region`] cannot read) and an error (a
-/// pole in an arc's band, or a region no ray settles) say nothing, and
-/// such a face may hold the pole: each keeps the carrier's end. No row
-/// holds those two branches, since no verb is known to build a trimmed
-/// sphere face with such an edge to hold one
-/// (`work/restread/held-reach-keeps-an-unread-pole-with-no-witness.md`).
-///
-/// # Panics
-///
-/// As [`face_reach_in`].
-fn held_reach_in<T: Decide>(
-    body: &Body<T>,
-    f: FaceKey,
-    band: Band,
-    frame: &crate::boolean::boxes::BoxFrame<T>,
-) -> Option<(Point3<T>, Point3<T>)> {
-    let (lo, hi) = face_reach_in(body, f, band, frame)?;
-    let face = proven(&body.faces, f, EntityId::Face);
-    let geom::Surface::Sphere { center, radius, .. } = *body.face_surface_linked(f, face) else {
-        return Some((lo, hi));
-    };
-    let Some((blo, bhi)) = boundary_reach(body, f, face, frame) else {
-        return Some((lo, hi));
-    };
-    let d = frame.rows()[0];
-    let out = |s: T| {
-        matches!(
-            crate::boolean::curved_face_placement(body, f, center + d * (radius.abs() * s), band),
-            Ok(crate::boolean::CurvedPlacement::Trim(Some(
-                FaceContainment::Out
-            )))
-        )
-    };
-    let lo_x = if out(-T::one()) {
-        lo.x.max(blo.x)
-    } else {
-        lo.x
-    };
-    let hi_x = if out(T::one()) { hi.x.min(bhi.x) } else { hi.x };
-    Some((Point3::new(lo_x, lo.y, lo.z), Point3::new(hi_x, hi.y, hi.z)))
-}
-
-/// A torus face's CHART WINDOW at this lane's scalar — the SAME walk
-/// the boolean lane runs, not a mirror of it: both enter
-/// [`crate::boolean::boxes::face_window_steps`] and
-/// [`crate::boolean::boxes::torus_chart_window`], which is where the
-/// two guards and every fail mode live.
-///
-/// # Panics
-///
-/// As [`crate::boolean::boxes::face_window_steps`]: `f` is a face
-/// [`face_reach_in`] resolved, and a torn hop past it is a kernel bug.
-pub(crate) fn torus_chart_window<T: Decide>(
-    body: &Body<T>,
-    f: crate::entity::FaceKey,
-    major: T,
-    minor: T,
-) -> Option<crate::boolean::boxes::TorusWindowPair<T>> {
-    crate::boolean::boxes::torus_chart_window(
-        &crate::boolean::boxes::face_window_steps(body, f),
-        major,
-        minor,
-    )
-}
-
-/// The face boundary's AXIAL range about `(origin, axis)` — the
-/// boundary's own locus projected on the axis, edge by edge (each edge's
-/// cover's support either way, [`crate::boolean::boxes::cover_axial`]),
-/// rather than the corners of a box around it, which at a tilted axis
-/// leaks the box's spread into the window. `None` for a face with no
-/// boundary, or with a boundary edge that has no cover. `face` is `f`'s
-/// record, resolved by [`face_reach_in`]; every hop past it is a link
-/// and panics as there.
-fn boundary_axial<T: Decide>(
-    body: &Body<T>,
-    f: crate::entity::FaceKey,
-    face: &Face,
-    origin: Point3<T>,
-    axis: Vec3<T>,
-) -> Option<crate::boolean::boxes::Span<T>> {
-    use crate::boolean::boxes::{Span, cover_axial, edge_cover_linked};
-    let mut acc: Option<Span<T>> = None;
-    for member in body.face_boundary_linked(f, face) {
-        let (lo, hi) = match member {
-            BoundaryMember::Isolated { point: p, .. } => {
-                let h = (p - origin).dot(axis);
-                (h, h)
-            }
-            BoundaryMember::Edge { ek, edge: e, .. } => {
-                cover_axial(&edge_cover_linked(body, ek, e).ok()?, origin, axis)
-            }
-        };
-        let sp = Span { lo, hi };
-        acc = Some(acc.map_or(sp, |a| a.hull(sp)));
-    }
-    acc
-}
-
-/// Every boundary edge's reach, hulled with the isolated-vertex loops
-/// (which have no edge to speak for them). `None` as soon as one
-/// boundary curve has no sound box — [`face_reach`]'s boundary walk.
-/// `face` is `f`'s record, resolved by [`face_reach_in`]; every hop
-/// past it is a link and panics as there.
-fn boundary_reach<T: Decide>(
-    body: &Body<T>,
-    f: crate::entity::FaceKey,
-    face: &Face,
-    frame: &crate::boolean::boxes::BoxFrame<T>,
-) -> Option<(Point3<T>, Point3<T>)> {
-    let mut acc: Option<(Point3<T>, Point3<T>)> = None;
-    let mut grow = |(lo, hi): (Point3<T>, Point3<T>)| {
-        acc = Some(match acc {
-            None => (lo, hi),
-            Some((l, h)) => (
-                Point3::new(l.x.min(lo.x), l.y.min(lo.y), l.z.min(lo.z)),
-                Point3::new(h.x.max(hi.x), h.y.max(hi.y), h.z.max(hi.z)),
-            ),
-        });
-    };
-    for member in body.face_boundary_linked(f, face) {
-        match member {
-            BoundaryMember::Isolated { point: p, .. } => {
-                let p = frame.point(p);
-                grow((p, p));
-            }
-            BoundaryMember::Edge { ek, edge, .. } => grow(edge_reach_of(body, ek, edge, frame)?),
-        }
-    }
-    acc
-}
-
-/// One edge's reach: its cover's box in `frame`
-/// ([`crate::boolean::boxes::edge_cover`]) at this lane's scalar, read
-/// as [`face_reach_in`] reads a face. `None` where the edge has no
-/// cover, null scaffolding included.
-///
-/// # Panics
-///
-/// Where `ek`, which every caller read out of `body`, or a record past
-/// it does not resolve, as [`face_reach_in`]: a torn curve is not null
-/// scaffolding.
-pub(crate) fn edge_reach_in<T: Decide>(
-    body: &Body<T>,
-    ek: crate::entity::EdgeKey,
-    frame: &crate::boolean::boxes::BoxFrame<T>,
-) -> Option<(Point3<T>, Point3<T>)> {
-    edge_reach_of(body, ek, proven(&body.edges, ek, EntityId::Edge), frame)
-}
-
-/// [`edge_reach_in`] past its edge's lookup: `e` is `ek`'s record.
-fn edge_reach_of<T: Decide>(
-    body: &Body<T>,
-    ek: crate::entity::EdgeKey,
-    e: &crate::entity::Edge,
-    frame: &crate::boolean::boxes::BoxFrame<T>,
-) -> Option<(Point3<T>, Point3<T>)> {
-    use crate::boolean::boxes::{cover_frame, edge_cover_linked};
-    edge_cover_linked(body, ek, e)
+    crate::boolean::boxes::face_cover(body, f, band)
         .ok()
-        .map(|c| c.box_in(&cover_frame(frame)))
-}
-
-/// A [`crate::boolean::boxes::SpanBox`] as this lane's `(lo, hi)`
-/// corner pair, and back.
-pub(crate) fn span_pts<T: Decide>(s: crate::boolean::boxes::SpanBox<T>) -> (Point3<T>, Point3<T>) {
-    (
-        Point3::new(s.x.lo, s.y.lo, s.z.lo),
-        Point3::new(s.x.hi, s.y.hi, s.z.hi),
-    )
+        .map(|cover| cover.box_in(frame))
 }
 
 /// **Why the cross-solid backstop left a pair undecided** — the one
@@ -9067,14 +8759,13 @@ type WorldReach<T> = (Point3<T>, Point3<T>);
 /// read off the two faces.
 ///
 /// The test is the boolean's narrow phase
-/// ([`crate::boolean::separating::apart_by`]): both reaches are read in
-/// the frame the direction aims ([`held_reach_in`]), and the pair clears
-/// only on a gap, less both reaches' [`sweep_pad`], decided definitely
-/// positive at this lane's scalar. Each reach encloses its face's locus
-/// along that direction, so the gap proves the loci disjoint, as a
-/// world-axis gap does. The pad covers the aimed frame's rounding
-/// ([`crate::boolean::boxes::BoxFrame`]), so the clear does not rest on
-/// the user-set escalate threshold.
+/// ([`crate::boolean::separating::apart_by`]): both faces' covers are
+/// read along the direction, a sphere face's with its pole-side cut
+/// along it ([`crate::boolean::boxes::face_cover_toward`]), and the pair
+/// clears only on a gap, less both faces' [`sweep_pad`], decided
+/// definitely positive at this lane's scalar. Each cover holds its
+/// face's locus, so the gap proves the loci disjoint, as a world-axis
+/// gap does.
 fn backstop_apart<T: Decide>(
     body: &Body<T>,
     (fa, ra): (FaceKey, WorldReach<T>),
@@ -9094,7 +8785,7 @@ fn backstop_apart<T: Decide>(
         &axes,
         sweep_pad(band),
         band,
-        &|body, f, frame| held_reach_in(body, f, band, frame),
+        &|body, f, aim| crate::boolean::boxes::face_cover_toward(body, f, band, aim).ok(),
     )
 }
 
@@ -11172,7 +10863,7 @@ pub(crate) fn flush_at_rest<T: Decide + Bounds>(
         CensusStrategy::Realized,
         faces
             .iter()
-            .map(|&f| face_box(body, f, pad, band).unwrap_or_else(|_| Aabb::poison()))
+            .map(|&f| face_box(body, f, pad, band))
             .collect(),
     );
     flush_pairs(body, &geo, (&faces, &boxes), group, band, region)
@@ -14102,8 +13793,7 @@ mod tests {
                     f,
                     0.0,
                     Band::linear(Tol::witness()).unwrap(),
-                )
-                .unwrap();
+                );
                 assert!(
                     [
                         boxed.min_x,
@@ -14190,8 +13880,7 @@ mod tests {
             seeds[0],
             1e-9,
             Band::linear(Tol::witness()).unwrap(),
-        )
-        .unwrap();
+        );
         eprintln!("[face_box] masquerade box = {b:?}");
         let far = bvh::Aabb::from_points([
             Point3::new(0.0, 100.0, 100.0),
@@ -18023,10 +17712,11 @@ mod tests {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod torn_reach_rows {
     use crate::body::Body;
-    use crate::boolean::boxes::BoxFrame;
+    use crate::boolean::boxes::edge_cover;
     use crate::entity::{EntityId, FaceKey, GeomRef, HalfEdgeKey, LoopBoundary};
     use crate::live::OPERATORS_KEEP_LINKS;
     use crate::review_d18::{ROW_FOUR, assert_torn_op_panics};
+    use geom::cover::Frame;
     use geom_core::{Band, Tol};
 
     fn band() -> Band {
@@ -18042,12 +17732,12 @@ mod torn_reach_rows {
     }
 
     fn reach(body: &Body<f64>, face: FaceKey) -> bool {
-        super::face_reach_in(body, face, band(), &BoxFrame::World).is_some()
+        super::face_reach_in(body, face, band(), &Frame::World).is_some()
     }
 
-    /// The face's surface, `boundary_reach` and the edge rule, on a cube
-    /// face (the boundary hull arm): a torn surface, outer loop, curve
-    /// and edge-end point.
+    /// The face's surface, its boundary cover and the edge cover, on a
+    /// cube face (the plane arm): a torn surface, outer loop, curve and
+    /// edge-end point.
     #[test]
     fn the_boundary_hull_panics_on_a_torn_surface_loop_and_curve() {
         let body = crate::test_support_fixtures::geometric_cube::<f64>(Tol::witness()).body;
@@ -18087,7 +17777,7 @@ mod torn_reach_rows {
         let mut torn = body.clone();
         let edge = torn.get_half_edge(first_member(&torn, face)).unwrap().edge;
         assert!(
-            super::edge_reach_in(&torn, edge, &BoxFrame::World).is_some(),
+            edge_cover(&torn, edge).is_ok(),
             "the sound edge has a reach"
         );
         let curve = torn.get_edge(edge).unwrap().curve;
@@ -18104,10 +17794,10 @@ mod torn_reach_rows {
             |b| reach(b, face),
         );
         assert_torn_op_panics(
-            "edge_reach_in (curve)",
+            "edge_cover (curve)",
             &mut torn,
             &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
-            |b| super::edge_reach_in(b, edge, &BoxFrame::World).is_some(),
+            |b| edge_cover(b, edge).is_ok(),
         );
 
         // An edge end's point, which the edge rule reads before the curve.
@@ -18128,8 +17818,7 @@ mod torn_reach_rows {
         );
     }
 
-    /// `boundary_axial` on a cone wall (the cone arm, where the axial
-    /// window is the only boundary read): a torn curve.
+    /// The cone arm's boundary read, on a cone wall: a torn curve.
     #[test]
     fn the_cone_window_panics_on_a_torn_curve() {
         let (mut body, face) =
@@ -18151,8 +17840,7 @@ mod torn_reach_rows {
         );
     }
 
-    /// `boundary_axial`, on a cylinder wall sheet (the slab arm, which
-    /// reads the axial window before the boundary hull): a torn point.
+    /// The cylinder arm's boundary read, on a wall sheet: a torn point.
     #[test]
     fn the_axial_window_panics_on_a_torn_point() {
         let mut body = Body::<f64>::new();

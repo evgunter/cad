@@ -149,7 +149,7 @@ impl Separation {
         let pad = sweep_pad(band);
         let mut boxes = Vec::new();
         for (f, _) in proto.faces() {
-            boxes.push(face_box(proto, f, pad, band)?);
+            boxes.push(face_box(proto, f, pad, band));
         }
         // A face-less prototype encloses nothing; the hull of nothing is
         // the poison box, which overlaps everything — so a face-less
@@ -402,7 +402,7 @@ impl SolidSeparation {
                             what: "solid separation: a solid names a shell the body lost",
                         })?;
                 for &face in &shell.faces {
-                    boxes.push(face_box(body, face, pad, band)?);
+                    boxes.push(face_box(body, face, pad, band));
                 }
             }
             // A face-less solid encloses nothing, and the hull of

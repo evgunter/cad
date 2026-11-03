@@ -9,16 +9,12 @@
 //! predicate runs on a box; classification is untouched (`reduce`
 //! module docs).
 //!
-//! **The contract holds on every scalar, and the arithmetic that
-//! makes it hold is [`Span`]'s.** A description whose coordinates are
-//! brackets is ENCLOSED — the axial projection ranges over the whole
-//! bracket rather than one endpoint of it, and a reference direction
-//! contributes the largest magnitude its bracket admits rather than
-//! its upper end's. (Both were live under-enclosures at the
-//! `Interval` scalar, issue #862; the `f64` lane was never affected,
-//! because there a bracket is a point.) So the sentence above may be
-//! cited plainly — `separation`'s door does, and it is the one where
-//! a box-level non-overlap is a GRANT.
+//! **Every box is a method on the entity's cover** ([`face_cover`],
+//! [`edge_cover`]): its world box bracketed by [`Cover::aabb`], the one
+//! place the bracket is taken, so a description whose coordinates are
+//! brackets is enclosed by the cover's own arithmetic at that scalar.
+//! So the sentence above may be cited plainly — `separation`'s door
+//! does, and it is the one where a box-level non-overlap is a GRANT.
 //!
 //! **A box is a SUPERSET, so overlap between two of them is a MAY,
 //! not a DOES.** Every door that reads non-overlap as a certificate
@@ -111,23 +107,20 @@
 //!   (a box, direction or depth gap), and costs probes, never a wrong
 //!   clear (`bool4r1_probes::probe_d`).
 //! - `census::depth_gap`, arm 1's clear on a gap in depth, GRANTS: it
-//!   reads [`face_box_rule`]'s construction and each boundary edge's
-//!   carrier, never an extent, and covers each edge with the piece its
-//!   carrier names (a chord, the ellipse's ring, the spiric's torus). A cover
-//!   that holds more than its edge — no claim where one
-//!   exists, a ring wider than the arc — can only raise a face's
-//!   greatest depth and lower its least, so a looser reading REFUSES
-//!   a pair that is apart and can never clear one that meets. A cover
-//!   that holds LESS than its edge (a chord named for a curved
-//!   carrier) is the unsound direction: it could clear a pair that
-//!   meets.
-//! - `census::in_plane`, arm 1's clear in a plane, GRANTS: it reads
-//!   carrier's kind only to tell a line edge, whose
-//!   ends decide which side of a plane it lies on, from any other,
-//!   whose reach must lie definitely off the plane. A looser read (a
-//!   line read as curved) only asks more of the edge and REFUSES
-//!   a pair that is apart; a chord named for a curved carrier is the
-//!   unsound direction, reading a curve by its ends.
+//!   reads each face's cover's distance range from an axis or a centre
+//!   ([`face_cover`]), and its boundary's ([`boundary_cover`]) where a
+//!   plane face's least lies on it. A cover that holds more than its
+//!   face can only raise a face's greatest depth and lower its least,
+//!   so a looser reading REFUSES a pair that is apart and can never
+//!   clear one that meets. A cover that holds LESS than its face is the
+//!   unsound direction: it could clear a pair that meets.
+//! - `census::in_plane`, arm 1's clear in a plane, GRANTS: it reads an
+//!   edge's carrier only to tell a straight edge, whose ends decide
+//!   which side of a plane it lies on, from any other, whose cover's
+//!   support must lie definitely off the plane. A looser read (a line
+//!   read as curved) only asks more of the edge and REFUSES a pair that
+//!   is apart; a chord named for a curved carrier is the unsound
+//!   direction, reading a curve by its ends.
 //! - `pieces`'s screen (`pieces::Screen`, its face boxes built by the
 //!   boolean's exit in `boolean/ops.rs` and passed in) PRUNES: two
 //!   shells of one result whose hulled boxes clear are never probed
@@ -159,26 +152,22 @@
 //! the argument above; that gap is `S234` and has an owner rather
 //! than a disclosure.
 //!
-//! [`sweep_pad`] is sized so the padding can never lose an accepted
-//! pair at the sweep's door (its derivation below).
+//! [`sweep_pad`] is the band's own tolerance, sized so the padding can
+//! never lose an accepted pair at the sweep's door (its derivation
+//! below). It charges no float rounding: the covers compute as
+//! `[simple.conditioned]` computes every value.
 //!
-//! [`FaceBoxRule`] is the ONE statement of which surface kinds have a
-//! cheap sound box and by what construction; [`face_box`] is its
-//! `f64`-bracket instantiation and `census`'s `face_reach_in` is its
-//! instantiation at the census's own scalar. **Neither re-derives an
-//! extent**: the per-kind arithmetic lives once, in [`slab_extent`],
-//! [`cone_frustum_extent`], [`ball_extent`], [`torus_extent`],
-//! [`ring_window_extent`], [`torus_rect_extent`] and [`conic_extent`],
-//! written against [`Span`] so a lane on the [`Bounds`] allowlist and a
-//! lane off it can both enter it — the first with `[lo(), hi()]`
-//! brackets at `f64`, the second with degenerate spans at its own `T`.
-//! An EDGE has no rule here: the region it occupies is its cover
-//! ([`edge_cover`]), whose one kind match is `geom`'s
-//! `Curve3::cover_over`, and every edge door reads that cover's methods
-//! ([`edge_box`] its bracketed world box, the census its box in a frame,
-//! the slab arms its support along an axis, [`cover_axial`]). What the
-//! census still owns is its arena WALK and its answer for an edge with
-//! no cover (`None`, versus the poison box here); neither is arithmetic.
+//! **The region an entity occupies is its cover** (DESIGN
+//! `[one-way.places]`): an edge's is [`edge_cover`], whose one kind
+//! match is `geom`'s `Curve3::cover_over`, and a face's is
+//! [`face_cover`], its carrier's cover (`geom`'s `Surface::cover`, the
+//! carrier kind match) met with the trim constraints its one arm per
+//! kind proves. Every bound a door reads is a method on one of them:
+//! [`face_box`] and [`edge_box`] the bracketed world box, the census
+//! its box in a frame (`Cover::box_in`), the narrow phase its support
+//! along a direction. Where an entity has no cover, a pruning door
+//! takes the poison box, which overlaps everything, and a granting door
+//! refuses.
 //!
 //! An allowlisted [`geom_core::Bounds`] seam (ratified 2026-07-29 —
 //! see geom-core `real.rs`, Bounds scope rule; the C10 tree is the
@@ -189,14 +178,12 @@
 
 use bvh::Aabb;
 use geom::Surface;
-use geom::cover::{Cover, ParamWindow};
-use geom::surfaces::nurbs::NurbsSurface;
+use geom::cover::{Cover, ParamWindow, Uncovered};
 use geom_core::spline::SpanLocate;
 use geom_core::{Band, Bounds, Decide, Point3, Real, UnitVec3, Vec3};
 
-use super::BooleanError;
 use crate::body::Body;
-use crate::entity::{Edge, EdgeKey, EntityId, FaceKey, HalfEdgeKey};
+use crate::entity::{Edge, EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
 use crate::live::{BoundaryMember, linked, proven};
 
 /// The sweep's box pad in meters — what candidate generation must add
@@ -210,10 +197,11 @@ use crate::live::{BoundaryMember, linked, proven};
 ///   certification (`Certificate::max_residual ≤ ε`, the same run
 ///   tolerance the linear band's `zero` is built from) — one more
 ///   `zero` per side for vertex-extent honesty;
-/// - `band.escalate()` on top dominates every remaining f64 slop
-///   (crossing-point interpolation and `eval` rounding are
-///   session-box-scale ulps, orders below it) and keeps near-boundary
-///   escalation zones inside candidate range.
+/// - `band.escalate()` on top keeps a point the band leaves undecided
+///   near a face, which a later read escalates, inside candidate range.
+///
+/// Each term is a geometric tolerance of the run's band; none charges
+/// float rounding (`[simple.conditioned]`).
 ///
 /// The sum is deliberately generous, and what that buys differs by
 /// door (module docs). At the sweep's it only admits more candidate
@@ -225,486 +213,600 @@ pub(crate) fn sweep_pad(band: Band) -> f64 {
     band.escalate() + 2.0 * band.zero()
 }
 
-/// The K funnel name of a cylinder face's axis-length decision, taken
-/// where [`face_box_rule`] reads the carrier: the slab reads the axis
-/// as a unit direction, and a carrier's axis is unit only by the
-/// surfaces' at-rest convention. Its comparand is the axis's norm, a
+/// The K funnel name of a cylinder face's axis read as a unit
+/// direction, taken where [`face_cover`]'s cylinder arm reads the
+/// carrier: the slab reads the axis as a unit direction. Its comparand is the axis's norm, a
 /// pure number, levered by the cylinder's radius
 /// ([`UnitVec3::levered`]).
 pub(crate) const BOX_CYLINDER_AXIS: &str = "bool_box_cylinder_axis";
 
-/// One coordinate's ENCLOSURE, in whatever scalar the reading lane
-/// works in — **the form the per-kind extents below are written
-/// against, so that exactly one derivation of them exists.**
-///
-/// Two lanes read those extents and they cannot share a scalar: the
-/// `f64`-bracket lane ([`face_box`], [`edge_box`]) folds a
-/// `T: Bounds` description down to `f64` through `[lo(), hi()]`, and
-/// the census's lane stays in its own `T` (a `Dual` body's box has to
-/// be compared by that lane's `Decide`). A span is what both can
-/// spell: the bracket lane instantiates `Span<f64>` from the
-/// bracket, the census lane instantiates `Span<T>` with `lo == hi`,
-/// and neither takes a bound the other cannot.
-///
-/// The arithmetic here is interval arithmetic, so a description whose
-/// coordinates are themselves enclosures (an `Interval` scalar's) is
-/// enclosed rather than sampled at one arbitrary endpoint. Rounding
-/// is NOT directed. No extent written here takes the root of a
-/// cancelling difference, so the arithmetic's own error is a few ulps
-/// of the box's scale. The `f64` lane's last step is [`Aabb::padded`],
-/// whose outward ulp plus [`sweep_pad`] dominates those few ulps. The
-/// census lane adds no pad, so at `f64` its boxes may fall short of the
-/// locus by them: that this costs nothing rests on what each census
-/// reader compares the box against, which nothing here can check
-/// (`census-lane-span-extents-are-not-self-enclosing`).
-#[derive(Clone, Copy, Debug)]
-pub(crate) struct Span<T> {
-    /// The enclosure's lower end.
-    pub lo: T,
-    /// The enclosure's upper end.
-    pub hi: T,
+/// **Why a face has no cover** ([`face_cover`]): its carrier's own
+/// refusal (a plane, a cylinder and a cone are unbounded whole; a net
+/// can carry poison), and each boundary entity whose refusal left the
+/// boundary unread where the arm reads it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct FaceUncovered {
+    carrier: Uncovered,
+    boundary: Vec<BoundaryUnknown>,
 }
 
-impl<T: Real> Span<T> {
-    /// A degenerate span — one exact value.
-    pub(crate) fn exact(v: T) -> Self {
-        Self { lo: v, hi: v }
-    }
-
-    fn add(self, o: Self) -> Self {
-        Self {
-            lo: self.lo + o.lo,
-            hi: self.hi + o.hi,
-        }
-    }
-
-    /// The hull of two spans.
-    pub(crate) fn hull(self, o: Self) -> Self {
-        Self {
-            lo: self.lo.min(o.lo),
-            hi: self.hi.max(o.hi),
-        }
-    }
-
-    /// Interval product.
-    ///
-    /// **Poison survives a single poisoned END**, which a naive
-    /// min/max fold over the four corner products would drop:
-    /// [`Real::min`] propagates poison, so folding `NaN` against a
-    /// finite corner yields `NaN` — but only because THIS fold is the
-    /// `Real` one. `f64::min` returns the non-NaN operand, and a fold
-    /// written with it would quietly return a finite product for a
-    /// description with a poisoned bracket end. The
-    /// `a_half_poisoned_span_poisons_its_product` row pins it.
-    fn mul(self, o: Self) -> Self {
-        let (a, b, c, d) = (
-            self.lo * o.lo,
-            self.lo * o.hi,
-            self.hi * o.lo,
-            self.hi * o.hi,
-        );
-        Self {
-            lo: Real::min(Real::min(a, b), Real::min(c, d)),
-            hi: Real::max(Real::max(a, b), Real::max(c, d)),
-        }
-    }
-
-    /// Outward by `w` on both ends.
-    fn widen(self, w: T) -> Self {
-        Self {
-            lo: self.lo - w,
-            hi: self.hi + w,
-        }
-    }
-
-    /// An UPPER bound on `|x|` over the span.
-    fn abs_max(self) -> T {
-        self.hi.max(-self.lo)
-    }
+/// **A boundary entity a face reading could not cover**.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum BoundaryUnknown {
+    /// A boundary edge with no cover, and why.
+    Edge(EdgeKey, EdgeUncovered),
+    /// An isolated-vertex loop whose point is not a finite number.
+    Vertex(VertexKey),
 }
 
-/// Three coordinate spans: a box, a point, or a direction, depending
-/// on what the reader wants of it ([`Span`]).
-#[derive(Clone, Copy, Debug)]
-pub(crate) struct SpanBox<T> {
-    /// The x span.
-    pub x: Span<T>,
-    /// The y span.
-    pub y: Span<T>,
-    /// The z span.
-    pub z: Span<T>,
-}
-
-impl<T: Real> SpanBox<T> {
-    /// An exact point or vector as three degenerate spans.
-    pub(crate) fn point(p: Point3<T>) -> Self {
-        Self {
-            x: Span::exact(p.x),
-            y: Span::exact(p.y),
-            z: Span::exact(p.z),
-        }
+impl FaceUncovered {
+    /// The carrier's own refusal.
+    #[must_use]
+    pub fn carrier(&self) -> &Uncovered {
+        &self.carrier
     }
 
-    /// An exact direction as three degenerate spans.
-    pub(crate) fn vector(v: Vec3<T>) -> Self {
+    /// Each boundary entity that left the boundary unread, in boundary
+    /// order; empty where the arm reads no boundary or it read whole.
+    #[must_use]
+    pub fn boundary(&self) -> &[BoundaryUnknown] {
+        &self.boundary
+    }
+
+    /// The refusal of a face whose carrier refused and whose arm read no
+    /// boundary.
+    pub(crate) fn of_carrier(carrier: Uncovered) -> Self {
         Self {
-            x: Span::exact(v.x),
-            y: Span::exact(v.y),
-            z: Span::exact(v.z),
+            carrier,
+            boundary: Vec::new(),
         }
     }
 }
 
-/// The enclosure of a DECIDED unit direction: the [`SpanBox`] of a
-/// [`UnitVec3`], minted only from one, so an extent that takes it
-/// reads a unit axis by type. Two mints: the bracket lane takes the
-/// witness's `f64` bracket ([`UnitSpanBox::bracketed`]); the census
-/// lane takes it at its own scalar, rotated into the frame it reads
-/// ([`BoxFrame::unit`]), which is the witness's components along
-/// orthonormal rows — unit to the rounding of a dot product, as the
-/// witness itself is unit to the rounding of its normalize.
-#[derive(Clone, Copy, Debug)]
-pub(crate) struct UnitSpanBox<T>(SpanBox<T>);
-
-impl<T: Real> UnitSpanBox<T> {
-    /// The enclosure itself.
-    pub(crate) fn get(&self) -> &SpanBox<T> {
-        &self.0
-    }
-}
-
-/// **The frame a box is read in**: the world's axes, or a rotation of
-/// them whose first axis is a decided unit direction.
-///
-/// Every per-kind extent in this module computes coordinate `i` of its
-/// box from coordinate `i` of its inputs alone, save one reading: a
-/// unit axis's room perpendicular to row `i` ([`perp_room`]), which is
-/// the norm of the axis's part off that row, `√(a_j² + a_k²)`, and
-/// which every orthonormal frame keeps as it keeps `a_i`
-/// (`every_extent_reads_each_coordinate_from_that_coordinate_alone`
-/// holds each of them to it, bit for bit), and its soundness argument
-/// reads coordinate `i` as the component along a UNIT direction —
-/// never as anything particular to the world's `x̂`, `ŷ` or `ẑ`. An
-/// extent added here owes the same, and a row in that test. So the same extents, fed the components of their inputs
-/// along the rows of any orthonormal frame, box the face in that
-/// frame, and the first coordinate of an [`Aimed`](Self::Aimed) frame's
-/// box is the face's support along its aim. That is a reading that
-/// turns with the body: the world box of a turned face widens by how
-/// it is turned, and the support along a direction fixed to the face
-/// does not.
-///
-/// The aimed frame is the aim with [`UnitVec3::orthonormal_basis`],
-/// in the cyclic order `(aim, b1, b2)` of the right-handed
-/// `(b1, b2, aim)`, so a cross product of two mapped vectors is the
-/// mapped cross product.
-///
-/// **Rounding.** A point is turned about the WORLD origin, so its
-/// coordinate along a row is a dot product rounded by at most
-/// `γ₃·Σ|nᵢpᵢ| ≤ 3u·|p|`, about one and a half ulps of `|p|`
-/// (`the_aimed_frames_rounding_is_a_few_ulps_of_the_point` measures it
-/// out to `|p| = 10⁸` m). The pad every reader adds is `12 ε`, so it
-/// covers that wherever a coordinate of magnitude `|p|` resolves `ε` at
-/// all — and a body placed where `ulp(|p|) > ε` has vertices the band
-/// cannot place either.
-#[derive(Clone, Copy, Debug)]
-pub(crate) enum BoxFrame<T: Real> {
-    /// The world's axes: every point and vector read as it is stored.
-    World,
-    /// The rows of a right-handed orthonormal frame whose first row is
-    /// the aim.
-    Aimed([Vec3<T>; 3]),
-}
-
-impl<T: Real> BoxFrame<T> {
-    /// The frame whose first axis is `aim`. Its other two rows are
-    /// `orthonormal_basis`'s: a box read in it is scratch that no output
-    /// keeps, and every reading of it is the face's support along the
-    /// aim, which those rows do not move.
-    pub(crate) fn aimed(aim: UnitVec3<T>) -> Self {
-        let (b1, b2) = aim.orthonormal_basis();
-        Self::Aimed([aim.get(), b1, b2])
-    }
-
-    /// The frame's rows: the world's axes, or the aimed frame's.
-    pub(crate) fn rows(&self) -> [Vec3<T>; 3] {
-        match self {
-            Self::World => [Vec3::unit_x(), Vec3::unit_y(), Vec3::unit_z()],
-            Self::Aimed(rows) => *rows,
-        }
-    }
-
-    /// A direction's components along the frame's rows.
-    pub(crate) fn vector(&self, v: Vec3<T>) -> Vec3<T> {
-        match self {
-            Self::World => v,
-            Self::Aimed([a, b, c]) => Vec3::new(a.dot(v), b.dot(v), c.dot(v)),
-        }
-    }
-
-    /// A point's coordinates in the frame, about the world origin.
-    pub(crate) fn point(&self, p: Point3<T>) -> Point3<T> {
-        match self {
-            Self::World => p,
-            Self::Aimed(_) => {
-                let v = self.vector(Vec3::new(p.x, p.y, p.z));
-                Point3::new(v.x, v.y, v.z)
+impl core::fmt::Display for FaceUncovered {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "the face's carrier has {}", self.carrier)?;
+        for unknown in &self.boundary {
+            match unknown {
+                BoundaryUnknown::Edge(ek, why) => write!(f, " and its edge {ek:?}: {why}")?,
+                BoundaryUnknown::Vertex(v) => {
+                    write!(f, " and its lone vertex {v:?} is not a finite point")?;
+                }
             }
         }
-    }
-
-    /// A decided unit direction's components in the frame: a rotation
-    /// of a unit vector is one, so the witness carries.
-    pub(crate) fn unit(&self, u: UnitVec3<T>) -> UnitSpanBox<T> {
-        UnitSpanBox(SpanBox::vector(self.vector(u.get())))
+        Ok(())
     }
 }
 
-impl UnitSpanBox<f64> {
-    /// The witness's `f64` bracket ([`bracket_vector`]).
-    pub(crate) fn bracketed<T: Bounds>(u: UnitVec3<T>) -> Self {
-        Self(bracket_vector(u.get()))
+impl std::error::Error for FaceUncovered {}
+
+/// A face's cover, or why it has none.
+pub type FaceCovered<T> = Result<Cover<T>, FaceUncovered>;
+
+/// A boundary's cover, or every boundary entity that has none.
+pub(crate) type BoundaryCovered<T> = Result<Cover<T>, Vec<BoundaryUnknown>>;
+
+/// The carrier's cover met with a trim constraint the boundary bounds:
+/// a refusal on either side is the meet's identity, and a refusal on
+/// both keeps both.
+fn and_trim<T: Real>(carrier: FaceCovered<T>, trim: BoundaryCovered<T>) -> FaceCovered<T> {
+    match (carrier, trim) {
+        (Ok(c), Ok(t)) => Ok(c.meet(t)),
+        (Ok(c), Err(_)) => Ok(c),
+        (Err(_), Ok(t)) => Ok(t),
+        (Err(mut why), Err(unknowns)) => {
+            why.boundary.extend(unknowns);
+            Err(why)
+        }
     }
 }
 
-/// A description's coordinates as `f64` spans — the bracket lane's
-/// entry into [`SpanBox`]. Poison surfaces as NaN ends rather than
-/// narrowing away, per [`Bounds`].
-fn bracket_point<T: Bounds>(p: Point3<T>) -> SpanBox<f64> {
-    SpanBox {
-        x: Span {
-            lo: p.x.lo(),
-            hi: p.x.hi(),
-        },
-        y: Span {
-            lo: p.y.lo(),
-            hi: p.y.hi(),
-        },
-        z: Span {
-            lo: p.z.lo(),
-            hi: p.z.hi(),
-        },
+/// The cover met with a constraint the reading proved, where it proved
+/// one; an unproven one adds nothing.
+fn and_proven<T: Real>(cover: FaceCovered<T>, constraint: Option<Cover<T>>) -> FaceCovered<T> {
+    match (cover, constraint) {
+        (Ok(c), Some(t)) => Ok(c.meet(t)),
+        (Err(_), Some(t)) => Ok(t),
+        (cover, None) => cover,
     }
 }
 
-/// [`bracket_point`] for a direction.
-fn bracket_vector<T: Bounds>(v: Vec3<T>) -> SpanBox<f64> {
-    bracket_point(Point3::new(v.x, v.y, v.z))
-}
-
-/// The AXIAL SLAB: the axis segment over `h`, widened by `radius`
-/// **perpendicular to the axis and only there**.
-///
-/// A surface point is `origin + h·axis + ρ·û` with `û ⊥ axis`,
-/// `|û| = 1` and `ρ ≤ radius`, so coordinate `i` is
-/// `origin_i + h·axis_i + ρ·û_i` and `|û_i| ≤ √(1 − axis_i²)` — the
-/// most a unit vector perpendicular to a UNIT axis can spend on one
-/// coordinate. The axial coordinate of an axis-aligned cylinder
-/// therefore takes no widening at all, which is the whole content of
-/// the arm: the boundary already bounds the axial extent, and adding
-/// `radius` there claimed a slab longer than the face.
-///
-/// The room is read off the axis's other two components, each bounded
-/// ABOVE ([`Span::abs_max`]), so the perpendicular factor is bounded
-/// above, which is the sound direction ([`perp_room`]); an axis
-/// bracket that does not pin the direction reads as more
-/// perpendicular room, never less, and a poisoned one poisons the box.
-///
-/// The axis is a [`UnitSpanBox`], so `h` is a length along it: the
-/// reader decides the carrier axis's length ([`BOX_CYLINDER_AXIS`]).
-pub(crate) fn slab_extent<T: Real>(
-    origin: &SpanBox<T>,
-    axis: &UnitSpanBox<T>,
-    h: Span<T>,
-    radius: T,
-) -> SpanBox<T> {
-    let axis = axis.get();
-    let room = |i| perp_room(others([axis.x, axis.y, axis.z], i));
-    SpanBox {
-        x: origin.x.add(h.mul(axis.x)).widen(radius * room(0)),
-        y: origin.y.add(h.mul(axis.y)).widen(radius * room(1)),
-        z: origin.z.add(h.mul(axis.z)).widen(radius * room(2)),
+/// **A constraint's read**: `Some` where it decides, `None` where it
+/// does not. Its decisions are spliced onto the open log where the
+/// constraint stands, and spliced superseded where it is absent, since
+/// nothing the cover answers rests on them.
+fn constraint<X, E>(read: impl FnOnce() -> Result<X, E>) -> Option<X> {
+    let (read, log) = geom_core::k_stats::detached(read);
+    match read {
+        Ok(x) => {
+            geom_core::k_stats::splice(log);
+            Some(x)
+        }
+        Err(_) => {
+            geom_core::k_stats::splice_superseded(log);
+            None
+        }
     }
 }
 
-/// The most one coordinate of a UNIT vector perpendicular to a unit
-/// `axis` can be: `√(1 − axis_i²)`, spelled `√(axis_j² + axis_k²)`
-/// over the OTHER two coordinates `(j, k)` of the axis, each bounded
-/// ABOVE so the room is bounded above — the sound direction
-/// ([`slab_extent`]).
+/// The K funnel name of a cone face's axis read as a unit direction,
+/// before the frustum reads its window along it.
+pub(crate) const BOX_CONE_AXIS: &str = "bool_box_cone_axis";
+
+/// **Topo's reading of the region a face can occupy** (DESIGN
+/// `[one-way.places]`, "The region a carrier, an edge or a face can
+/// occupy", and `[one-way.readings]`): its carrier's cover
+/// ([`Surface::cover`]) met with every trim constraint the reading
+/// proves, one arm per kind, each constraint a stage of that one rule.
 ///
-/// The two spellings agree for a unit axis, but `1 − axis_i²` cancels
-/// as the axis nears row `i`: `axis_i²` rounds by `u` absolute, so the
-/// room it leaves is off by about `u/(2·room)` and is exactly zero
-/// below `room ≈ 1e-8`, dropping the widening `radius·room` the axis's
-/// tilt owes. The other two components carry the room to a few ulps of
-/// itself.
-fn perp_room<T: Real>((j, k): (Span<T>, Span<T>)) -> T {
-    (j.abs_max().powi(2) + k.abs_max().powi(2)).sqrt()
+/// - **Plane**: the convex hull of its boundary (each edge's cover,
+///   [`edge_cover`], and each isolated vertex).
+/// - **Cylinder**: the axial slab of its radius over the boundary's
+///   window along the axis, met with the boundary's convex hull. The
+///   axial coordinate has no interior extreme on the chart, and the
+///   carrier is ruled along a direction, so a face lies in its
+///   boundary's convex hull, which needs only that the axis be one.
+/// - **Cone**: the frustum over the boundary's window along the axis,
+///   met with the convex hull of the boundary and, where the face may
+///   hold the apex, the apex: the rulings run through it. A face holds
+///   the apex only where a loop winds round the axis
+///   ([`cone_may_hold_apex`]).
+/// - **Sphere**: the ball, met with the chart rectangle or latitude zone
+///   its boundary spans ([`sphere_window`]), and with the pole-side cut
+///   along an aim where one is read ([`face_cover_toward`]).
+/// - **Torus**: the tube, met with the chart rectangle its boundary's
+///   certified pcurves span ([`torus_chart_window`]) on a ring torus.
+/// - **Spline**: its control net (the fit's, for an approximation).
+///
+/// **A constraint the reading does not prove adds nothing**: an axis
+/// the band does not decide, a window the walk gives up on, a pole it
+/// does not place `Out`. No arm then tries a second construction. A
+/// face whose meet is still the whole carrier refuses.
+///
+/// # Errors
+///
+/// [`FaceUncovered`]: the carrier's refusal, where no trim constraint
+/// bounds the face (a plane or a cylinder whose boundary has an edge
+/// with no cover, a cylinder whose axis is no direction, a net carrying
+/// poison).
+///
+/// # Panics
+///
+/// Where `face`, a face of `body`, or a record on the walk from it does
+/// not resolve, or a loop walk does not close (D2 row 4): a torn
+/// boundary is not one with no cover. The bodies are at rest or an
+/// operation's working copies, whose links hold by
+/// [`crate::live::OPERATORS_KEEP_LINKS`].
+pub fn face_cover<T: Decide>(body: &Body<T>, face: FaceKey, band: Band) -> FaceCovered<T> {
+    face_cover_in(body, face, band, None)
 }
 
-/// The coordinates of `v` other than `i`, in cyclic order — the pair
-/// [`perp_room`] reads for coordinate `i`.
-fn others<T: Copy>(v: [T; 3], i: usize) -> (T, T) {
-    (v[(i + 1) % 3], v[(i + 2) % 3])
+/// [`face_cover`] read along `aim`, which a sphere face's arm reads one
+/// more constraint off: at each end of the aim where the face places
+/// the sphere's pole `c ± r·â` definitely `Out`
+/// ([`crate::boolean::curved_face_placement`]), the face reaches no
+/// further along it than its boundary. `â·x` on a sphere has its only
+/// critical points at those poles, so with one not a point of the face
+/// its extreme that way is on the boundary. Only a definite `Out`
+/// narrows; `In`, a boundary verdict, no verdict and a refusal say the
+/// pole may be a point of the face. The cut is the solid cylinder of
+/// the sphere's radius about the aim through the centre, between the
+/// two reaches: it holds the ball's part on the face's side.
+///
+/// # Errors
+///
+/// As [`face_cover`].
+///
+/// # Panics
+///
+/// As [`face_cover`].
+pub(crate) fn face_cover_toward<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    band: Band,
+    aim: UnitVec3<T>,
+) -> FaceCovered<T> {
+    face_cover_in(body, face, band, Some(aim))
 }
 
-/// The norm of `v`'s components other than `k`: a unit `v`'s share of
-/// a direction perpendicular to it along row `k`, without the
-/// cancellation of `√(1 − v_k²)` ([`perp_room`]).
-fn pick_other<T: Real>(v: Vec3<T>, k: usize) -> T {
-    let (j, l) = others([v.x, v.y, v.z], k);
-    (j.powi(2) + l.powi(2)).sqrt()
+fn face_cover_in<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    band: Band,
+    aim: Option<UnitVec3<T>>,
+) -> FaceCovered<T> {
+    let f = proven(&body.faces, face, EntityId::Face);
+    let surface = body.face_surface_linked(face, f);
+    let carrier = surface.cover().map_err(FaceUncovered::of_carrier);
+    match surface {
+        Surface::Plane { .. } => {
+            and_trim(carrier, boundary_cover(body, face, f).map(Cover::convex))
+        }
+        Surface::Cylinder {
+            origin,
+            axis,
+            radius,
+            ..
+        } => {
+            if !crate::validate::is_direction(axis) {
+                return carrier;
+            }
+            let hull = boundary_cover(body, face, f).map(Cover::convex);
+            let slab = constraint(|| {
+                UnitVec3::levered(
+                    *axis,
+                    BOX_CYLINDER_AXIS,
+                    band,
+                    geom_core::Lever::curvature_radius(*radius),
+                )
+            })
+            .and_then(|unit| {
+                let window = axial(hull.as_ref().ok()?, *origin, unit);
+                Cover::slab(*origin, unit, *radius, window)
+            });
+            and_proven(and_trim(carrier, hull), slab)
+        }
+        Surface::Cone {
+            apex, half_angle, ..
+        } => {
+            let Some(at_apex) = Cover::points(vec![*apex]) else {
+                return carrier;
+            };
+            let boundary = boundary_cover(body, face, f);
+            let hull = if cone_may_hold_apex(body, face, surface, band) {
+                boundary.map(|b| b.hull(at_apex))
+            } else {
+                boundary
+            }
+            .map(Cover::convex);
+            let frustum = cone_axis(surface, band).and_then(|unit| {
+                let window = axial(hull.as_ref().ok()?, *apex, unit);
+                Cover::frustum(*apex, unit, half_angle.tan(), window)
+            });
+            and_proven(and_trim(carrier, hull), frustum)
+        }
+        Surface::Sphere { center, radius, .. } => {
+            let zone = sphere_window(body, face, f, surface, band);
+            let cut = aim.and_then(|aim| pole_side(body, face, f, (*center, *radius), aim, band));
+            and_proven(and_proven(carrier, zone), cut)
+        }
+        Surface::Torus {
+            center,
+            axis,
+            major_radius,
+            minor_radius,
+            u_ref,
+        } => {
+            let ring = constraint(|| {
+                geom::is_ring_torus(*major_radius, *minor_radius, band)
+                    .then_some(())
+                    .ok_or(())
+            });
+            let rect = ring
+                .and_then(|()| {
+                    torus_chart_window(&face_window_steps(body, face), *major_radius, *minor_radius)
+                })
+                .and_then(|(u, v)| {
+                    Cover::patch(
+                        *center,
+                        (*axis, *u_ref),
+                        (*major_radius, *minor_radius),
+                        Some(u),
+                        v,
+                    )
+                });
+            and_proven(carrier, rect)
+        }
+        Surface::Nurbs(_) | Surface::Approx(_) => carrier,
+    }
 }
 
-/// The CONE FRUSTUM over the axial window `h` — the slab whose radius
-/// TRACKS `h` instead of being pinned at the window's widest end.
-///
-/// A cone point at axial coordinate `t` sits at radial offset
-/// `|t|·tan α` EXACTLY, so coordinate `i` of the trimmed face lies in
-/// `apex_i + [min g, max g]` over `t ∈ h`, where
-/// `g(t) = t·axis_i ± |t|·tan α·√(1 − axis_i²)`. That `g` is
-/// piecewise linear with one kink, at `t = 0` (the apex), so its
-/// extremes over a closed window are attained at the two ends or at
-/// the kink — three candidates, hulled, and the result is the
-/// frustum's own box rather than a superset of it.
-///
-/// **Why the radius may not be pinned at the wide end.** A pucker,
-/// a chamfer, a lamp shade: the face occupies a window far from the
-/// apex, where the near and far radii differ by little, but the
-/// window's own `|t|·tan α` at the far end is what a constant-radius
-/// slab claims along the WHOLE window — and out at the near end that
-/// is the widest part of the cone applied where the face is
-/// narrowest. Doors that read box overlap as "may meet" pay that
-/// difference in refusals: it is what named a (Cone, Sphere) germ
-/// pair for a lily tepal seam whose exact frustum clears the carving
-/// ball entirely.
-///
-/// `h0` is the point of the window nearest the apex —
-/// `clamp(0, h.lo, h.hi)`, which IS an end when the window does not
-/// straddle the apex, so the kink candidate costs nothing and needs
-/// no sign decision. The axis is read as UNIT, `h` a length along it:
-/// a premise of the cone carrier's at-rest convention, undecided here.
-pub(crate) fn cone_frustum_extent<T: Real>(
-    apex: &SpanBox<T>,
-    axis: &SpanBox<T>,
-    h: Span<T>,
-    tan_half_angle: T,
-) -> SpanBox<T> {
-    let h0 = h.lo.max(T::zero()).min(h.hi);
-    let rows = [axis.x, axis.y, axis.z];
-    let coord = |o: Span<T>, i: usize| {
-        let a = rows[i];
-        let k = tan_half_angle * perp_room(others(rows, i));
-        let at = |t: T| Span::exact(t).mul(a).widen(t.abs() * k);
-        o.add(at(h.lo).hull(at(h.hi)).hull(at(h0)))
+/// A cone carrier's axis as a unit direction, where the band decides it
+/// one ([`BOX_CONE_AXIS`]).
+fn cone_axis<T: Decide>(cone: &Surface<T>, band: Band) -> Option<UnitVec3<T>> {
+    let Surface::Cone { axis, .. } = cone else {
+        unreachable!("a cone's axis is read of a cone")
     };
-    SpanBox {
-        x: coord(apex.x, 0),
-        y: coord(apex.y, 1),
-        z: coord(apex.z, 2),
-    }
+    constraint(|| UnitVec3::new(*axis, BOX_CONE_AXIS, band))
 }
 
-/// The WHOLE BALL `center ± radius` — every surface point is within
-/// `radius` of the centre in every coordinate.
-pub(crate) fn ball_extent<T: Real>(center: &SpanBox<T>, radius: T) -> SpanBox<T> {
-    SpanBox {
-        x: center.x.widen(radius),
-        y: center.y.widen(radius),
-        z: center.z.widen(radius),
-    }
+/// `cover`'s window along the unit `axis` about `origin`: its support
+/// either way, less the origin's.
+fn axial<T: Real>(cover: &Cover<T>, origin: Point3<T>, axis: UnitVec3<T>) -> ParamWindow<T> {
+    let a = axis.get();
+    let base = (origin - Point3::origin()).dot(a);
+    ParamWindow::new(
+        T::zero() - cover.support(-a) - base,
+        cover.support(a) - base,
+    )
 }
 
-/// The WHOLE TORUS about `center`. A torus point is
-/// `center + (R + r·cos φ)·û + r·sin φ·axis` with `û ⊥ axis` a unit
-/// vector, so coordinate `i` reaches at most
-/// `(R + r)·√(1 − axis_i²) + r·|axis_i|` from the centre — the
-/// perpendicular room of [`slab_extent`] for the in-plane part plus
-/// the tube's own reach along the axis. For an axis-aligned torus
-/// that is exactly the true box. The axis is read as UNIT — a premise
-/// of the torus carrier's at-rest convention, undecided here — and it
-/// is the widening's own: `|axis| > 1` would claim less perpendicular
-/// room than a unit `û` can take.
-pub(crate) fn torus_extent<T: Real>(
-    center: &SpanBox<T>,
-    axis: &SpanBox<T>,
-    major: T,
-    minor: T,
-) -> SpanBox<T> {
-    let rows = [axis.x, axis.y, axis.z];
-    let reach = |i: usize| (major + minor) * perp_room(others(rows, i)) + minor * rows[i].abs_max();
-    SpanBox {
-        x: center.x.widen(reach(0)),
-        y: center.y.widen(reach(1)),
-        z: center.z.widen(reach(2)),
-    }
-}
-
-/// **A RING TORUS over a chart rectangle, in closed form**: per
-/// coordinate, the least and greatest of `e·S(u, v)` over the window
-/// `u × v`, enclosed over every torus the description's spans admit
-/// ([`torus_rect_extent`]).
-///
-/// # Why the rectangle and not a hull of the boundary
-///
-/// [`clip_to_boundary`] is sound on a cylinder because no coordinate
-/// has an interior critical point on a cylinder chart. On a torus every
-/// direction `e` has four, a max, a min and two saddles, so a face
-/// holding one bulges past its own boundary and the boundary hull is
-/// not a bound. The chart rectangle's extent is: the face's region lies
-/// in the rectangle its boundary's certified pcurves span
-/// ([`TorusChartWindow`]), and over a rectangle the extremes have a
-/// closed form.
-///
-/// The closed form reads `R + r·cos v ≥ 0` over the window: every torus
-/// the spans admit is a ring, `R ≥ r ≥ 0`. The box lanes decide that
-/// before they enter here ([`FaceBoxRule`]). The rows `u_ref`,
-/// `v_ref` and `axis` enter as given, so the extent is exact for
-/// `S = c + (R + r·cos v)·(cos u·u_ref + sin u·v_ref) + r·sin v·axis`
-/// whatever their lengths; the meet with [`torus_extent`] every reader
-/// takes inherits that extent's unit-axis premise.
-pub(crate) fn ring_window_extent<T: Decide>(
-    center: &SpanBox<T>,
-    (u_ref, v_ref, axis): (&SpanBox<T>, &SpanBox<T>, &SpanBox<T>),
-    radii: (Span<T>, Span<T>),
-    window: TorusWindowPair<T>,
-) -> SpanBox<T> {
-    let at = |c, p, q, a| torus_rect_extent(c, (p, q, a), radii, window);
-    SpanBox {
-        x: at(center.x, u_ref.x, v_ref.x, axis.x),
-        y: at(center.y, u_ref.y, v_ref.y, axis.y),
-        z: at(center.z, u_ref.z, v_ref.z, axis.z),
-    }
-}
-
-/// Two boxes' INTERSECTION, coordinate by coordinate — the fold that
-/// makes a windowed torus box "never looser than the whole tube"
-/// structural rather than a claim about the window.
-///
-/// Both arguments are supersets of the same locus, so their
-/// intersection is one too, and it inherits [`torus_extent`]'s
-/// UNIT-AXIS premise from the argument it is folded against.
-///
-/// Poison propagates: [`Real::min`] and [`Real::max`] carry it. **A
-/// poisoned WINDOW never reaches here** — [`TorusChartWindow::finish`]
-/// turns a non-finite window end into `None`, and the arm then folds
-/// nothing but the whole tube — so the poison this fold carries is a
-/// poisoned DESCRIPTION's, which poisons both arguments alike.
-pub(crate) fn meet<T: Real>(a: SpanBox<T>, b: SpanBox<T>) -> SpanBox<T> {
-    let one = |x: Span<T>, y: Span<T>| Span {
-        lo: x.lo.max(y.lo),
-        hi: x.hi.min(y.hi),
+/// **Whether a face on `cone` may hold its apex**: unless every loop is
+/// decided to close in the chart, its net azimuth travel within half a
+/// turn of zero (`chord_join::face_loop_azimuth_travels`). The apex is
+/// the chart's pole, and a bounded face holding it has a loop that
+/// winds round it a whole turn, where a loop that closes in the chart
+/// leaves it outside. Every loop, not the outer alone: a file's
+/// designated outer bound can be a hole, and the loop enclosing the
+/// apex then a ring. A loop not read, or a refusal reading one, may
+/// hold it.
+pub(crate) fn cone_may_hold_apex<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    cone: &Surface<T>,
+    band: Band,
+) -> bool {
+    let travels = constraint(|| {
+        crate::chord_join::face_loop_azimuth_travels(body, cone, face, band).map_err(|_| ())
+    });
+    let closes = |travel: Option<T>| {
+        travel.is_some_and(|travel| (T::pi() - travel.abs()).structure_positive())
     };
-    SpanBox {
-        x: one(a.x, b.x),
-        y: one(a.y, b.y),
-        z: one(a.z, b.z),
+    travels.is_none_or(|loops| !loops.into_iter().all(closes))
+}
+
+/// **The boundary's cover**: each boundary edge's cover
+/// ([`edge_cover_linked`]), hulled with each isolated vertex. A face's
+/// region is not in it; a ruled one's is in its convex hull
+/// ([`Cover::convex`]).
+///
+/// # Errors
+///
+/// Every boundary entity that has no cover.
+///
+/// # Panics
+///
+/// As [`face_cover`]: `f` is `face`'s record.
+pub(crate) fn boundary_cover<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    f: &crate::entity::Face,
+) -> BoundaryCovered<T> {
+    let mut acc: Option<BoundaryCovered<T>> = None;
+    for member in body.face_boundary_linked(face, f) {
+        let one = match member {
+            BoundaryMember::Isolated { vertex, point } => {
+                Cover::points(vec![point]).ok_or_else(|| vec![BoundaryUnknown::Vertex(vertex)])
+            }
+            BoundaryMember::Edge { ek, edge, .. } => edge_cover_linked(body, ek, edge)
+                .map_err(|why| vec![BoundaryUnknown::Edge(ek, why)]),
+        };
+        acc = Some(match (acc, one) {
+            (None, one) => one,
+            (Some(Ok(a)), Ok(b)) => Ok(a.hull(b)),
+            (Some(Err(why)), Ok(_)) | (Some(Ok(_)), Err(why)) => Err(why),
+            (Some(Err(mut a)), Err(b)) => {
+                a.extend(b);
+                Err(a)
+            }
+        });
     }
+    let Some(acc) = acc else {
+        unreachable!("{} has an outer loop, so a boundary", EntityId::Face(face))
+    };
+    acc
+}
+
+/// The pole-side cut of a sphere face along `aim` ([`face_cover_toward`]).
+fn pole_side<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    f: &crate::entity::Face,
+    (center, radius): (Point3<T>, T),
+    aim: UnitVec3<T>,
+    band: Band,
+) -> Option<Cover<T>> {
+    let boundary = boundary_cover(body, face, f).ok()?;
+    let (d, r) = (aim.get(), radius.abs());
+    let c = (center - Point3::origin()).dot(d);
+    let out = |s: T| {
+        constraint(
+            || match super::curved_face_placement(body, face, center + d * (r * s), band) {
+                Ok(super::CurvedPlacement::Trim(Some(super::FaceContainment::Out))) => Ok(()),
+                _ => Err(()),
+            },
+        )
+        .is_some()
+    };
+    let lo = out(T::zero() - T::one()).then(|| T::zero() - boundary.support(-d) - c);
+    let hi = out(T::one()).then(|| boundary.support(d) - c);
+    if lo.is_none() && hi.is_none() {
+        return None;
+    }
+    let window = ParamWindow::new(lo.unwrap_or_else(|| T::zero() - r), hi.unwrap_or(r));
+    Cover::slab(center, aim, r, window)
+}
+
+/// The face's padded box: its cover's bracketed world box
+/// ([`face_cover`], [`Cover::aabb`]), or the poison box where it has no
+/// cover, which every door reads in its own fail-loud direction.
+///
+/// # Panics
+///
+/// As [`face_cover`].
+pub(crate) fn face_box<T: Decide + Bounds>(
+    body: &Body<T>,
+    face: FaceKey,
+    pad: f64,
+    band: Band,
+) -> Aabb {
+    face_cover(body, face, band).map_or_else(|_| Aabb::poison(), |c| c.aabb(pad))
+}
+
+/// The K funnel name of a sphere's polar axis read as a unit direction,
+/// before its chart window is read ([`sphere_window`]).
+pub(crate) const BOX_SPHERE_AXIS: &str = "bool_box_sphere_axis";
+
+/// The K funnel name of a sphere's seam direction against its polar
+/// axis: their cosine, levered by the radius, decided zero before the
+/// azimuth window is read in the frame they span ([`sphere_window`]).
+pub(crate) const BOX_SPHERE_SEAM: &str = "bool_box_sphere_seam";
+
+/// The K funnel name of a sphere's seam direction read as a unit
+/// direction, before the azimuth window is read in the frame it spans
+/// ([`sphere_window`]).
+pub(crate) const BOX_SPHERE_SEAM_UNIT: &str = "bool_box_sphere_seam_unit";
+
+/// **A sphere face's chart window**, from the window
+/// `solid_contain::sphere_chart_trim` pins: its latitude extremes and
+/// the azimuth window of its boundary walk, as the chart patch
+/// ([`Cover::patch`], `R = 0`) of the rectangle or the latitude zone.
+///
+/// The trim reads the window off the boundary, and the boundary of a
+/// rectangle is also the boundary of its complement. The rectangle is
+/// therefore taken only when the side the outer loop encodes
+/// (`boundary_material_sign`: the side of the loop that holds no chart
+/// pole, the reading tier 3's curved sense check runs) agrees with the
+/// face's `sense`, which places the face on the rectangle's side of its
+/// boundary. The trim's class then holds no pole inside the face, so
+/// the face lies in the rectangle its boundary spans. The side is read
+/// without the tips the chart image drops: a wrap-tip cap holds the
+/// pole at its tip, outside that class, and its rim alone encodes no
+/// side. A face whose side is unencoded, refused, or in disagreement,
+/// one whose outer loop is a lone vertex or carries null scaffolding,
+/// one outside the trim's class, one whose trim escalates, one whose
+/// axis is not decided unit, and one whose radius is not positive (the
+/// patch's premise) read no window. A face that wraps the azimuth
+/// alone, or whose seam direction is not decided a unit normal of the
+/// axis, reads its latitude zone.
+///
+/// `face` resolved to `f` in the caller, so its outer loop and that
+/// loop's members are links ([`Body::loop_members_linked`]), and a
+/// record the flattening of that loop names is one too: a flattening
+/// that refuses past a cycle loop is a torn body and panics
+/// ([`crate::live::OPERATORS_KEEP_LINKS`]). The trim's `CorruptFace` is
+/// a record miss past `face` too, and panics the same way.
+fn sphere_window<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    f: &crate::entity::Face,
+    surface: &Surface<T>,
+    band: Band,
+) -> Option<Cover<T>> {
+    use super::solid_contain::PointInSolidError;
+    use crate::props::LoopEdgesError;
+    use geom_core::{Margin, Sign};
+    let Surface::Sphere {
+        center,
+        radius,
+        axis,
+        u_ref,
+    } = surface
+    else {
+        unreachable!("a sphere's window is read of a sphere")
+    };
+    if !radius.structure_positive() {
+        return None;
+    }
+    let outer = linked(
+        &body.loops,
+        f.outer,
+        EntityId::Loop,
+        EntityId::Face(face),
+        "outer",
+    );
+    if matches!(
+        body.loop_members_linked(f.outer, outer).as_slice(),
+        [BoundaryMember::Isolated { .. }]
+    ) {
+        return None;
+    }
+    let outer = match crate::props::chart_image_edges(body, f.outer) {
+        Ok((outer, _)) if outer.is_empty() => return None,
+        Ok((outer, _)) => outer,
+        Err(LoopEdgesError::NullScaffoldEdge { .. }) => return None,
+        Err(refusal @ LoopEdgesError::Corrupt { .. }) => torn_outer_loop(body, face, f, refusal),
+    };
+    let side = if f.sense {
+        Sign::Positive
+    } else {
+        Sign::Negative
+    };
+    let (trim, unit) = constraint(|| {
+        if geom_brep::props::boundary_material_sign(surface, &outer, band).ok()
+            != Some(geom_brep::props::MaterialSign::Encoded(side))
+        {
+            return Err(());
+        }
+        let trim = match super::solid_contain::sphere_chart_trim(
+            body, face, *center, *radius, *axis, band,
+        ) {
+            Ok(Some(trim)) => trim,
+            Ok(None) | Err(PointInSolidError::Escalated { .. }) => return Err(()),
+            Err(refusal) => torn_outer_loop(body, face, f, refusal),
+        };
+        let unit = UnitVec3::new(*axis, BOX_SPHERE_AXIS, band).map_err(|_| ())?;
+        Ok((trim, unit))
+    })?;
+    let pole = |sign: T| (sign * *radius, T::zero());
+    let latitude = |(h, rho): (T, T)| h.atan2(rho);
+    let lat = ParamWindow::new(
+        latitude(trim.south.unwrap_or_else(|| pole(T::zero() - T::one()))),
+        latitude(trim.north.unwrap_or_else(|| pole(T::one()))),
+    );
+    let seam = constraint(|| {
+        let seam = UnitVec3::new(*u_ref, BOX_SPHERE_SEAM_UNIT, band).map_err(|_| ())?;
+        let square = crate::validate::decide(
+            BOX_SPHERE_SEAM,
+            Margin::levered(
+                seam.get().dot(unit.get()),
+                geom_brep::ExtentBall::of_sphere(*center, *radius).lever(),
+            ),
+            band,
+        );
+        matches!(square, Ok(Sign::Zero)).then_some(seam).ok_or(())
+    });
+    let patch = |u_ref: Vec3<T>, u: Option<ParamWindow<T>>| {
+        Cover::patch(*center, (unit.get(), u_ref), (T::zero(), *radius), u, lat)
+    };
+    match trim.az.zip(seam) {
+        Some(((lo, hi), seam)) => patch(seam.get(), Some(ParamWindow::new(lo, hi))),
+        None => patch(unit.orthonormal_basis().0, None),
+    }
+}
+
+/// The torn hop under `refusal`, a record-miss refusal of a reading of
+/// `face`'s outer loop ([`crate::props::loop_edges`],
+/// `sphere_chart_trim`) past `face`, which resolved to `f`. Each hop
+/// those readings take is re-read as a link, so the one that does not
+/// resolve panics naming its holder, its field and both premises
+/// ([`crate::live::dangling_link`]).
+#[track_caller]
+fn torn_outer_loop<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    f: &crate::entity::Face,
+    refusal: impl core::fmt::Debug,
+) -> ! {
+    body.face_surface_linked(face, f);
+    let outer = linked(
+        &body.loops,
+        f.outer,
+        EntityId::Loop,
+        EntityId::Face(face),
+        "outer",
+    );
+    for member in body.loop_members_linked(f.outer, outer) {
+        if let BoundaryMember::Edge { he, half, ek, edge } = member {
+            body.edge_curve_linked(ek, edge);
+            body.linked_vertex_point(half.start, EntityId::HalfEdge(he), "start");
+            body.proven_half_edge_end(he);
+        }
+    }
+    unreachable!(
+        "the outer loop of {} refused {refusal:?} with every record on it resolved",
+        EntityId::Face(face)
+    )
 }
 
 /// A torus face's chart window: the `u` (major azimuth) and `v`
-/// (minor angle) channels' spans, in that order.
-pub(crate) type TorusWindowPair<T> = (Span<T>, Span<T>);
+/// (minor angle) channels' windows, in that order.
+pub(crate) type TorusWindowPair<T> = (ParamWindow<T>, ParamWindow<T>);
+
+/// Two ranges' hull, least end first.
+fn hull_of<T: Real>((a, b): (T, T), (c, d): (T, T)) -> (T, T) {
+    (a.min(c), b.max(d))
+}
 
 /// One HALF-EDGE, as the window walk reads it: its stored certified
 /// pcurve cache, its image as the loop's lift places it
@@ -718,10 +820,8 @@ pub(crate) type WindowStep<'a, T> =
 /// pcurves — the ONE walk, for every lane.**
 ///
 /// The caller hands over its own arena traversal as loops of
-/// [`WindowStep`]s and nothing else: `boxes.rs`'s `face_box`, the
-/// census's `face_reach` and the construction rows all enter here, so
-/// the fail modes cannot drift between them the way two hand-written
-/// walks did.
+/// [`WindowStep`]s and nothing else: the face cover's torus arm and the
+/// construction rows both enter here.
 ///
 /// # Why the window is a superset of the face's chart region
 ///
@@ -764,8 +864,8 @@ pub(crate) type WindowStep<'a, T> =
 /// `R − r` (the tube's nearest approach to the axis) and one radian of
 /// `v` by exactly `r`.
 ///
-/// **The factor of two is not "one for each end"** — [`Span::widen`]
-/// already touches both. It is the price of the segment between
+/// **The factor of two is not "one for each end"**: the slack widens
+/// both ends already. It is the price of the segment between
 /// `S(P(t))` and `C(t)` LEAVING the surface: the chart inverse is
 /// Lipschitz on the surface, and a point `envelope` off it is pulled
 /// back only after being projected there, which can cost as much
@@ -774,8 +874,8 @@ pub(crate) type WindowStep<'a, T> =
 /// so [`torus_window_slack`] GUARDS both, and a cache whose envelope
 /// exceeds either gets no window at all.
 pub(crate) struct TorusChartWindow<T: Real> {
-    u: Option<Span<T>>,
-    v: Option<Span<T>>,
+    u: Option<(T, T)>,
+    v: Option<(T, T)>,
     envelope: T,
     /// The current loop's signed travel per channel; `None` once a
     /// loop has been abandoned or has wrapped.
@@ -784,17 +884,14 @@ pub(crate) struct TorusChartWindow<T: Real> {
     ok: bool,
 }
 
-/// The certified slack a torus chart window owes an envelope, or
-/// `None` when the envelope is too large for the argument that
-/// derives it ([`TorusChartWindow`], "the slack").
+/// The certified slack a torus chart window owes an envelope, per
+/// channel `(u, v)` and on each end, or `None` when the envelope is too
+/// large for the argument that derives it ([`TorusChartWindow`], "the
+/// slack").
 ///
 /// `envelope` is in metres and both radii are lengths, so the guard is
 /// a comparison of lengths and reads no angle.
-pub(crate) fn torus_window_slack<T: Real>(
-    envelope: T,
-    major: T,
-    minor: T,
-) -> Option<TorusWindowPair<T>> {
+pub(crate) fn torus_window_slack<T: Real>(envelope: T, major: T, minor: T) -> Option<(T, T)> {
     let half = T::from_f64(0.5);
     let (tube, ring) = (minor, major - minor);
     // **The comparison, in the terms [`Real`] has.** There is no
@@ -810,29 +907,15 @@ pub(crate) fn torus_window_slack<T: Real>(
         return None;
     }
     let two = T::from_f64(2.0);
-    Some((
-        Span {
-            lo: T::zero() - two * envelope / ring,
-            hi: two * envelope / ring,
-        },
-        Span {
-            lo: T::zero() - two * envelope / tube,
-            hi: two * envelope / tube,
-        },
-    ))
+    Some((two * envelope / ring, two * envelope / tube))
 }
 
-/// A value that is not FINITE, in the terms [`Real`] has: `x − x` is
-/// zero for a finite `x`, poison for `±∞` and poison for poison. The
-/// window ends are tested with this rather than with
-/// [`Real::is_poison`] alone, which an infinity walks straight past on
-/// its way to a NaN sample.
-// `x − x` is the test, not a typo: it is the one expression that is
-// zero for every finite value and poison for `±∞` and for poison
-// itself, in a trait with no ordering and no `is_finite`.
-#[allow(clippy::eq_op)]
+/// A value that is not a bounded number for every value it stands for
+/// ([`Real::is_bounded`]): poison, `±∞`, or an enclosure reaching
+/// either. The window ends are tested with this rather than with
+/// [`Real::is_poison`] alone, which an infinity walks straight past.
 fn not_finite<T: Real>(x: T) -> bool {
-    (x - x).is_poison()
+    !x.is_bounded()
 }
 
 impl<T: Real> TorusChartWindow<T> {
@@ -872,20 +955,13 @@ impl<T: Real> TorusChartWindow<T> {
             self.ok = false;
             return;
         };
-        let u = Span {
-            lo: b.u_min,
-            hi: b.u_max,
-        };
-        let v = Span {
-            lo: b.v_min,
-            hi: b.v_max,
-        };
+        let (u, v) = ((b.u_min, b.u_max), (b.v_min, b.v_max));
         let Some(travel) = harmonic_travel(image, t0, t1, *forward) else {
             self.ok = false;
             return;
         };
-        self.u = Some(self.u.map_or(u, |a: Span<T>| a.hull(u)));
-        self.v = Some(self.v.map_or(v, |a: Span<T>| a.hull(v)));
+        self.u = Some(self.u.map_or(u, |a| hull_of(a, u)));
+        self.v = Some(self.v.map_or(v, |a| hull_of(a, v)));
         self.envelope = self.envelope.max(cache.certificate().envelope);
         self.net = self.net.map(|(a, b)| (a + travel.0, b + travel.1));
     }
@@ -917,28 +993,18 @@ impl<T: Real> TorusChartWindow<T> {
 
     /// The window, widened by the certificate slack — see the type
     /// docs. `None` whenever any guard fired, and the arm then keeps
-    /// [`torus_extent`], the box every torus face had before this
-    /// window existed. **The only discrete step in the arm is "window
-    /// or no window", and its cost is not discrete**: no window widens
-    /// to the whole tube, never narrows.
+    /// the whole tube: no window widens, never narrows.
     pub(crate) fn finish(self, major: T, minor: T) -> Option<TorusWindowPair<T>> {
         if !self.ok {
             return None;
         }
         let (u, v) = (self.u?, self.v?);
         let (su, sv) = torus_window_slack(self.envelope, major, minor)?;
-        let u = Span {
-            lo: u.lo + su.lo,
-            hi: u.hi + su.hi,
-        };
-        let v = Span {
-            lo: v.lo + sv.lo,
-            hi: v.hi + sv.hi,
-        };
-        if [u.lo, u.hi, v.lo, v.hi].into_iter().any(not_finite) {
+        let (u, v) = ((u.0 - su, u.1 + su), (v.0 - sv, v.1 + sv));
+        if [u.0, u.1, v.0, v.1].into_iter().any(not_finite) {
             return None;
         }
-        Some((u, v))
+        Some((ParamWindow::new(u.0, u.1), ParamWindow::new(v.0, v.1)))
     }
 }
 
@@ -970,8 +1036,7 @@ pub(crate) fn harmonic_travel<T: Real>(
 
 /// **The face's loops, as [`WindowStep`]s**, read a loop at a time
 /// through [`crate::body::Body::face_boundary_by_loop`]: the window
-/// steps the boolean lane, the census lane and the construction rows
-/// all read.
+/// steps the face cover's torus arm and the construction rows read.
 ///
 /// A lone-vertex loop yields an EMPTY loop, which [`torus_chart_window`]
 /// abandons the window on: it carries no chart image.
@@ -980,7 +1045,8 @@ pub(crate) fn harmonic_travel<T: Real>(
 ///
 /// Where `face`, which every caller resolved in `body`, or a record on
 /// the walk from it does not resolve, or a loop walk does not close
-/// (D2 row 4). The bodies are at rest (the census's) or the boolean's
+/// (D2 row 4), and where an edge does not claim the half-edge its loop
+/// names. The bodies are at rest (the census's) or the boolean's
 /// working copies, whose links hold by
 /// [`crate::live::OPERATORS_KEEP_LINKS`].
 pub(crate) fn face_window_steps<T: Decide>(
@@ -1003,9 +1069,16 @@ pub(crate) fn face_window_steps<T: Decide>(
                 .into_iter()
                 .zip(lifted)
                 .map(|((he, edge), image)| {
+                    let Some(claim) = edge.claim(he) else {
+                        unreachable!(
+                            "{} names {} on its loop, and its edge does not claim it",
+                            EntityId::Face(face),
+                            EntityId::HalfEdge(he)
+                        )
+                    };
                     body.pcurve(he)
                         .zip(image)
-                        .map(|(c, image)| (c, image, edge.he_plus == he))
+                        .map(|(c, image)| (c, image, claim.plus))
                 })
                 .collect()
         })
@@ -1036,35 +1109,6 @@ pub(crate) fn torus_chart_window<T: Real>(
     acc.finish(major, minor)
 }
 
-/// The full conic's centre-±-amplitude box: a conic point's
-/// coordinate `i` is `center_i + a·û_i·cos t + b·v̂_i·sin t`, which
-/// over a full turn reaches exactly `√((a·û_i)² + (b·v̂_i)²)` from the
-/// centre. That is a function of the LOCUS: two descriptions of one
-/// circle whose `u_ref` differ by an in-plane rotation give the same
-/// number, where the triangle-inequality bound `|û_i|·a + |v̂_i|·b`
-/// gives `r` at an axis-aligned `u_ref` and `r√2` at 45°.
-///
-/// The reference directions are bounded by [`Span::abs_max`] — the
-/// largest magnitude the bracket admits, not one endpoint's, which is
-/// what makes the bound hold for a bracket that straddles zero.
-pub(crate) fn conic_extent<T: Real>(
-    center: &SpanBox<T>,
-    u_ref: &SpanBox<T>,
-    v_ref: &SpanBox<T>,
-    semi_u: T,
-    semi_v: T,
-) -> SpanBox<T> {
-    let reach = |u: Span<T>, v: Span<T>| {
-        let (a, b) = (u.abs_max() * semi_u, v.abs_max() * semi_v);
-        (a.powi(2) + b.powi(2)).sqrt()
-    };
-    SpanBox {
-        x: center.x.widen(reach(u_ref.x, v_ref.x)),
-        y: center.y.widen(reach(u_ref.y, v_ref.y)),
-        z: center.z.widen(reach(u_ref.z, v_ref.z)),
-    }
-}
-
 /// A vector's three brackets: the key the narrow phase's axis set
 /// compares two axes by ([`super::separating::AxisKey`]). Two equal keys
 /// are one direction to the bracket, and a candidate dropped as one
@@ -1073,946 +1117,15 @@ pub(crate) fn axis_key<T: Bounds>(v: Vec3<T>) -> [(f64, f64); 3] {
     [v.x, v.y, v.z].map(|c| (c.lo(), c.hi()))
 }
 
-/// The padded box of a full circle ([`super::separating::Circle`]):
-/// [`conic_extent`] at the bracket lane, so coordinate `i` reaches
-/// `radius·√(u_i² + v_i²) = radius·√(1 − n_i²)` from the centre, where
-/// `n` is the plane's normal — the circle's own extent, which turns with
-/// it, not the `2·radius` cube about the centre.
-pub(crate) fn circle_box<T: Bounds>(
-    &super::separating::Circle {
-        center,
-        u_ref,
-        v_ref,
-        radius,
-    }: &super::separating::Circle<T>,
-    pad: f64,
-) -> Aabb {
-    let r = radius.hi();
-    aabb_of(conic_extent(
-        &bracket_point(center),
-        &bracket_vector(u_ref),
-        &bracket_vector(v_ref),
-        r,
-        r,
-    ))
-    .padded(pad)
-}
-
-/// **The one soundness rule for a face's box**, stated per surface
-/// kind: which cheap construction yields a genuine SUPERSET of the
-/// face's locus. Every consumer that bounds a face reads its arm from
-/// here, so no two of them can quietly disagree about which kinds are
-/// boxable.
-///
-/// The variants carry the surface payload the construction needs, so
-/// the kind is matched ONCE and each lane only performs its own
-/// arithmetic. The soundness argument per arm:
-///
-/// - [`BoundaryHull`](Self::BoundaryHull) — **Plane, and a cylinder
-///   whose axis the band does not decide unit** ([`face_box_rule`]).
-///   Either face lies in the convex hull of its boundary: a planar one
-///   trivially, a cylindrical one because the cylinder is ruled along
-///   its axis — the ruling through any point of the face meets the
-///   face in a segment whose two ends lie on its boundary (an edge, a
-///   seam, or an isolated vertex), whatever the radius, origin or
-///   frame. So the hull of the boundary's own certified boxes contains
-///   the face whatever the boundary curves are. The hull of the
-///   boundary VERTICES alone does not: a circular rim bulges past its
-///   endpoints, and this engine's plane×cylinder lane mints exactly
-///   that face.
-/// - [`CylinderSlab`](Self::CylinderSlab) — **Cylinder.** The wall's
-///   belly bulges past its chords, so the box is the whole cylinder
-///   slab over the face's axial range (the axial coordinate is linear
-///   along the surface, so the face's axial extremes lie on its
-///   boundary), widened by the radius **perpendicular to the axis**
-///   ([`slab_extent`] carries the derivation), then clipped to the
-///   boundary hull, which contains the face by the ruled argument
-///   above ([`clip_to_boundary`]).
-/// - [`ConeSlab`](Self::ConeSlab) — **Cone.** The FRUSTUM over the
-///   face's axial window, not a slab of constant radius: a cone point
-///   is `apex + v·(axis·cos α + û·sin α)`, so at axial coordinate
-///   `t = v·cos α` its radial offset is `|t|·tan α` EXACTLY. `t` is
-///   linear in the chart, so its extremes over a trimmed face lie on
-///   the face's boundary exactly as the cylinder's do
-///   ([`cover_axial`]), and [`cone_frustum_extent`] boxes the frustum
-///   that window cuts. Pinning the radius at the window's widest end
-///   instead is what makes a pucker read as if it were the whole
-///   cone, and doors that read overlap as "may meet" pay it in
-///   refusals.
-/// - [`SphereWindow`](Self::SphereWindow) — **Sphere.** A band's belly
-///   bulges past its poles and seam arcs, so the boundary does not
-///   bound the face. Where the face is the chart rectangle its boundary
-///   spans, or lies in the latitude zone its rims bound, the box is that
-///   rectangle's or zone's own support along each coordinate
-///   ([`sphere_reach`], read off the certified trim and its side);
-///   otherwise it is the whole ball `center ± r`, within which every
-///   surface point lies.
-/// - [`ControlNet`](Self::ControlNet) — **NURBS.** The patch bulges
-///   past the hull of its boundary exactly as the sphere does, but it
-///   lies in the hull of its CONTROL NET (nonnegative basis, strictly
-///   positive weights — `geom::surfaces::boxes::nurbs_surface_aabb`
-///   carries the citation), over the whole KNOT DOMAIN and a fortiori
-///   over any trim inside it.
-///
-///   **The premise that carries: the face's trim lies inside the knot
-///   domain.** The convex-hull property is a statement about the
-///   domain the basis is defined on; this kernel's evaluator
-///   EXTRAPOLATES outside it, and an extrapolated point can leave the
-///   control hull by any amount. Nothing in the type system enforces
-///   trim ⊆ domain today — `pcurves.rs`'s chart window is built from
-///   the boundary's own chart boxes and is never compared against
-///   `knot_values_u().domain()`. What holds it up is construction: every
-///   kernel-minted NURBS wall is iso-parameter bounded at the domain
-///   edges. State the premise when you add a constructor that is not.
-/// - [`TorusWindow`](Self::TorusWindow) — **Torus.** The CHART
-///   RECTANGLE the face's boundary occupies, boxed in closed form
-///   ([`ring_window_extent`]) and intersected with the whole tube
-///   ([`torus_extent`]); the whole tube alone when no window can be
-///   read or the ring convention is not decided.
-///
-///   A torus coordinate is not a chart coordinate the way a
-///   cylinder's azimuth is: `e·S` has four interior critical points
-///   on the chart (a max, a min and two saddles), so
-///   [`clip_to_boundary`]'s argument does NOT port and a torus face's
-///   box is the boundary hull only when no critical point lies in the
-///   face. That is a statement about the face's chart REGION, so the
-///   arm needs the region — and it reads it from the boundary's
-///   STORED CERTIFIED pcurves ([`TorusChartWindow`], filled by each
-///   lane's own arena walk), which is a read of certified data
-///   exactly as `EdgeCurve::params` is for a conic edge's arc.
-///
-///   The closed form needs `R + r·cos v ≥ 0`, the ring convention.
-///   Both lanes decide it at the body's scalar under the band through
-///   its one home (`geom::is_ring_torus`), so they take the same arm;
-///   at a bracketed scalar a decided convention holds over the whole
-///   bracket, so every torus the bracket lane's spans admit is a
-///   ring. Where it is not decided, the face keeps the whole tube,
-///   the coarser box the sphere arm's ball is to its rectangle.
-///
-/// **Every surface kind has an arm**, and that is a statement this
-/// enum makes at the type level: there is no `NoSoundBox` on the face
-/// side, so a kind added to [`Surface`] cannot acquire a box by
-/// falling through a wildcard, and none can be silently left without
-/// one either. A face whose surface key does not RESOLVE is a
-/// different answer — a torn body, on which the callers here panic
-/// rather than folding it in here. A box can still
-/// come out POISON (an unboxable boundary edge, a poisoned
-/// description); that is the value, not the rule.
-///
-/// A ball-falling [`SphereWindow`](Self::SphereWindow), a windowless
-/// [`TorusWindow`](Self::TorusWindow) and the conic-fed
-/// [`BoundaryHull`](Self::BoundaryHull) claim more than the trimmed
-/// face occupies on purpose — a cheap SUPERSET is what the contract
-/// asks for, and no cheaper one is known per kind. That looseness is
-/// not free (module docs: three of four doors read it as a refusal),
-/// so it is bounded rather than open-ended:
-/// the six `the_*_arms_box_is_exactly_the_construction_its_rule_states`
-/// rows below pin every arm to exactly the construction stated here.
-pub(crate) enum FaceBoxRule<'a, T: Real> {
-    /// Hull the boundary's certified loci — see the type docs.
-    BoundaryHull,
-    /// The axial slab widened perpendicular to the axis by the radius
-    /// — see the type docs.
-    CylinderSlab {
-        /// The `v = 0` point on the axis.
-        origin: Point3<T>,
-        /// The carrier's axis, its length decided at the read.
-        axis: UnitVec3<T>,
-        /// The cylinder's radius.
-        radius: T,
-    },
-    /// The same slab with the generator's own radius — see the type
-    /// docs.
-    ///
-    /// **No boundary clip, and that is a fence rather than an
-    /// oversight.** The chart argument [`clip_to_boundary`] rests on
-    /// holds here verbatim — azimuth is a coordinate on a cone chart
-    /// too, so a cone face's perpendicular footprint is likewise
-    /// contained in its boundary's, and the same intersection would be
-    /// sound. What stops it is jurisdiction: the cone lanes are a
-    /// different unit's territory, every door that reads a cone box
-    /// today refuses on the KIND before the box's width can matter, and
-    /// tightening a box under a lane nobody is measuring buys nothing
-    /// and moves baselines that unit will have to re-derive. Apply it
-    /// with the cone lane, not before.
-    ConeSlab {
-        /// The apex (`v = 0`).
-        apex: Point3<T>,
-        /// The unit axis direction.
-        axis: Vec3<T>,
-        /// The half-angle α ∈ (0, π/2).
-        half_angle: T,
-    },
-    /// The face's chart rectangle or latitude zone, or the whole ball
-    /// — see the type docs.
-    SphereWindow {
-        /// The sphere's centre.
-        center: Point3<T>,
-        /// Its radius.
-        radius: T,
-    },
-    /// The boundary's chart rectangle in closed form, meeting the
-    /// whole tube — see the type docs.
-    TorusWindow {
-        /// The torus centre.
-        center: Point3<T>,
-        /// The unit axis direction.
-        axis: Vec3<T>,
-        /// The major radius `R`.
-        major_radius: T,
-        /// The minor radius `r`.
-        minor_radius: T,
-        /// The chart's `u = 0` direction — the seam meridian. The
-        /// window is read in THIS frame, so the arm carries it
-        /// rather than re-deriving a basis of its own.
-        u_ref: Vec3<T>,
-    },
-    /// The control net's hull — see the type docs.
-    ControlNet(&'a NurbsSurface<T>),
-}
-
-/// The [`FaceBoxRule`] for a surface — the single place a surface (and,
-/// for a cylinder, the band its axis is decided under) picks its rule. A
-/// kind added to [`Surface`] gets its arm by being written here, never
-/// by falling through a wildcard in some consumer. Takes a RESOLVED
-/// surface: a missing one is a torn body, which is the caller's to
-/// meet and not a rule.
-///
-/// The cylinder's axis is decided here, under [`BOX_CYLINDER_AXIS`]:
-/// [`slab_extent`] reads it as a unit direction and a carrier's axis is
-/// unit only by the surfaces' at-rest convention, which no tier
-/// certifies. Its length is a pure number, levered by the radius, the
-/// arm the slab swings the axis by.
-///
-/// **Where that decision does not land, the face takes the boundary
-/// hull**, which contains a cylinder face by the ruled argument in the
-/// [`FaceBoxRule`] docs. The slab only tightens that hull (or stands in
-/// for a poisoned one), so the fallback gives up tightness, never
-/// soundness. It needs the axis to
-/// be a direction and nothing more — no length, no lever — so a radius
-/// the band reads as zero or in band, which tier 3 admits (it asks
-/// `radius > 0` exactly), boxes rather than refuses. The lever's
-/// escalation is then spliced superseded: the box does not rest on it.
-///
-/// # Errors
-///
-/// The [`LeveredUnitError`](geom_core::LeveredUnitError) of a cylinder
-/// axis that is no direction at all (zero or non-finite) — a broken
-/// cylinder carrier tier 3 refuses at rest, which each lane answers in
-/// its own fail-loud direction.
-pub(crate) fn face_box_rule<T: Decide>(
-    surface: &Surface<T>,
-    band: Band,
-) -> Result<FaceBoxRule<'_, T>, geom_core::LeveredUnitError> {
-    Ok(match surface {
-        Surface::Plane { .. } => FaceBoxRule::BoundaryHull,
-        Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            ..
-        } => {
-            let (read, log) = geom_core::k_stats::detached(|| {
-                UnitVec3::levered(
-                    *axis,
-                    BOX_CYLINDER_AXIS,
-                    band,
-                    geom_core::Lever::curvature_radius(*radius),
-                )
-            });
-            match read {
-                Ok(unit) => {
-                    geom_core::k_stats::splice(log);
-                    FaceBoxRule::CylinderSlab {
-                        origin: *origin,
-                        axis: unit,
-                        radius: *radius,
-                    }
-                }
-                Err(_) if crate::validate::is_direction(axis) => {
-                    geom_core::k_stats::splice_superseded(log);
-                    FaceBoxRule::BoundaryHull
-                }
-                Err(e) => {
-                    geom_core::k_stats::splice(log);
-                    return Err(e);
-                }
-            }
-        }
-        Surface::Sphere { center, radius, .. } => FaceBoxRule::SphereWindow {
-            center: *center,
-            radius: *radius,
-        },
-        Surface::Nurbs(patch) => FaceBoxRule::ControlNet(patch),
-        // The fit IS the face's locus, so the fit's control hull is a
-        // genuine superset of it — the same rule, on the same net. The
-        // certificate bounds the fit's distance from the DESCRIPTION,
-        // which is a statement about intent and has no business
-        // widening a box around the geometry that is actually there.
-        Surface::Approx(a) => FaceBoxRule::ControlNet(a.fit()),
-        Surface::Cone {
-            apex,
-            axis,
-            half_angle,
-            ..
-        } => FaceBoxRule::ConeSlab {
-            apex: *apex,
-            axis: *axis,
-            half_angle: *half_angle,
-        },
-        Surface::Torus {
-            center,
-            axis,
-            major_radius,
-            minor_radius,
-            u_ref,
-        } => FaceBoxRule::TorusWindow {
-            center: *center,
-            axis: *axis,
-            major_radius: *major_radius,
-            minor_radius: *minor_radius,
-            u_ref: *u_ref,
-        },
-    })
-}
-
-/// The K funnel name of a sphere's polar axis read as a unit direction,
-/// before its chart window is read in closed form ([`sphere_window`]).
-pub(crate) const BOX_SPHERE_AXIS: &str = "bool_box_sphere_axis";
-
-/// The K funnel name of a sphere's seam direction against its polar
-/// axis: their cosine, levered by the radius, decided zero before the
-/// azimuth window is read in the frame they span ([`sphere_reach`]).
-pub(crate) const BOX_SPHERE_SEAM: &str = "bool_box_sphere_seam";
-
-/// What [`sphere_window`] reads a sphere face's chart window as:
-/// latitudes in radians on `[−π/2, π/2]`, azimuths measured from
-/// `u_ref` about the axis.
-enum SphereWindow<T: Real> {
-    /// The face is the chart rectangle `az × lat` its boundary spans.
-    Rect {
-        axis: UnitVec3<T>,
-        /// The azimuth window, with the chart's `u_ref` and
-        /// `axis × u_ref`.
-        az: (Span<T>, Vec3<T>, Vec3<T>),
-        lat: Span<T>,
-    },
-    /// The face lies in the latitude zone `lat`: it attains every
-    /// azimuth of its latitudes, or its chart frame is not decided.
-    Zone { axis: UnitVec3<T>, lat: Span<T> },
-    /// No window is read, and the face lies in the whole ball.
-    Ball,
-}
-
-/// The K funnel name of a sphere's seam direction read as a unit
-/// direction, before the azimuth window is read in the frame it spans
-/// ([`sphere_window`]).
-pub(crate) const BOX_SPHERE_SEAM_UNIT: &str = "bool_box_sphere_seam_unit";
-
-/// **A sphere face's reach, in `frame`**: the support of its chart
-/// rectangle along each coordinate ([`torus_rect_extent`] with `R = 0`),
-/// or of its latitude zone, where [`sphere_window`] reads one, and the
-/// whole ball `center ± r` otherwise. Both box lanes read it: the census
-/// at its own scalar, and [`face_box`] at the body's scalar before it
-/// brackets out to `f64`.
-///
-/// A sphere point is `c + r·(cos v·ê(u) + sin v·â)`, so along a unit `e`
-/// the factor `r·cos v` of the azimuth term is non-negative on the
-/// chart's `[−π/2, π/2]`: the best azimuth does not depend on the
-/// latitude, which is the ring torus's argument with `R = 0`. A zone
-/// reads the whole turn there.
-///
-/// The window's ends come through `atan2`, `cos` and `sqrt`, which a
-/// scalar without outward rounding (`f64`, whose `lo()`/`hi()` are
-/// identities) leaves a few ulps of `|c| + r` either side of the exact
-/// support. Each end is therefore charged [`SPHERE_REACH_ULPS`] ulps of
-/// `|c| + r` outward, which bounds every step's rounding only because
-/// no step cancels: the zone's share of the axis's normal plane is the
-/// norm of the axis's other two components, not `√(1 − a²)`. The ball is not: it is the one-rounding `c ± r`
-/// every kind's whole-carrier arm reads.
-///
-/// # Panics
-///
-/// As [`sphere_window`].
-pub(crate) fn sphere_reach<T: Decide>(
-    body: &Body<T>,
-    face: FaceKey,
-    band: Band,
-    frame: &BoxFrame<T>,
-) -> (Point3<T>, Point3<T>) {
-    let f = proven(&body.faces, face, EntityId::Face);
-    let surface = body.face_surface_linked(face, f);
-    let Surface::Sphere { center, radius, .. } = surface else {
-        unreachable!("sphere_reach reads a sphere face")
-    };
-    let c = frame.point(*center);
-    let (axis, az, lat) = match sphere_window(body, face, f, surface, band) {
-        SphereWindow::Ball => {
-            let ball = ball_extent(&SpanBox::point(c), *radius);
-            return (
-                Point3::new(ball.x.lo, ball.y.lo, ball.z.lo),
-                Point3::new(ball.x.hi, ball.y.hi, ball.z.hi),
-            );
-        }
-        SphereWindow::Rect { axis, az, lat } => (axis, Some(az), lat),
-        SphereWindow::Zone { axis, lat } => (axis, None, lat),
-    };
-    let a = frame.vector(axis.get());
-    let at = |c: T, k: usize| {
-        let pick = |v: Vec3<T>| [v.x, v.y, v.z][k];
-        let ax = pick(a);
-        let (p, q, u) = match az {
-            Some((u, u_ref, v_ref)) => (pick(frame.vector(u_ref)), pick(frame.vector(v_ref)), u),
-            // The whole turn: any frame of the axis's normal plane, of
-            // which the coordinate's share is `√(1 − a²)`, read as the
-            // axis's other two components' norm. `1 − a²` cancels as
-            // the row nears the axis and loses the share outright below
-            // `p ≈ 1e-8`, so the radial term `r·p·cos v` went missing
-            // from the box: the term this reach exists to keep.
-            None => (
-                pick_other(a, k),
-                T::zero(),
-                Span {
-                    lo: T::zero(),
-                    hi: T::tau(),
-                },
-            ),
-        };
-        let s = torus_rect_extent(
-            Span::exact(c),
-            (Span::exact(p), Span::exact(q), Span::exact(ax)),
-            (Span::exact(T::zero()), Span::exact(*radius)),
-            (u, lat),
-        );
-        let slack = (c.abs() + *radius) * T::from_f64(SPHERE_REACH_ULPS * f64::EPSILON);
-        (s.lo - slack, s.hi + slack)
-    };
-    let ((xl, xh), (yl, yh), (zl, zh)) = (at(c.x, 0), at(c.y, 1), at(c.z, 2));
-    (Point3::new(xl, yl, zl), Point3::new(xh, yh, zh))
-}
-
-/// The ulps of `|c| + r` [`sphere_reach`] charges each end of a window's
-/// support.
-///
-/// The steps, to first order, in ulps of `|c| + r` (an angle's error
-/// moves `r·cos(…)` by at most `r` times it): the axis and seam
-/// components mapped into the frame, about 1.5 each; the normal-plane
-/// share and `B = √(M² + a²)`, 1.5 each (both are norms of components,
-/// so neither cancels); the crest's `atan2` and each latitude end's
-/// (`atan2` of a dot-product pair), up to 3.5 between them; the angle
-/// difference and its `cos`, 1.5; the products by `r`, 1; the sum with
-/// `c`, 0.5. That is under 12, and the charge is 16. The zone arm once
-/// read its share as `√(1 − a²)`, which no ulp count bounds: it lost the
-/// share outright with the axis `1e-8` off a row.
-/// `sphere_rect_rows::a_zone_reach_charge_covers_random_poses_near_a_box_row`
-/// measures the worst at under 2.5 over 12 000 random caps with axes
-/// near a row, at ε 1e-9, 1e-6 and 1e-12.
-const SPHERE_REACH_ULPS: f64 = 16.0;
-
-/// **A sphere face's chart window**, from the window
-/// `solid_contain::sphere_chart_trim` pins: its latitude extremes and
-/// the azimuth window of its boundary walk.
-///
-/// The trim reads the window off the boundary, and the boundary of a
-/// rectangle is also the boundary of its complement. The rectangle is
-/// therefore taken only when the side the outer loop encodes
-/// (`boundary_material_sign`: the side of the loop that holds no chart
-/// pole, the reading tier 3's curved sense check runs) agrees with the
-/// face's `sense`, which places the face on the rectangle's side of its
-/// boundary. The trim's class then
-/// holds no pole inside the face, so the face lies in the rectangle its
-/// boundary spans. The side is read without the tips the chart image
-/// drops: a wrap-tip cap holds the pole at its tip, outside that class,
-/// and its rim alone encodes no side. A face whose side is unencoded, refused, or in
-/// disagreement, one whose outer loop is a lone vertex or carries null
-/// scaffolding, one outside the trim's class, one whose trim escalates,
-/// and one whose axis is not decided unit all keep the
-/// [`Ball`](SphereWindow::Ball). A face that wraps the azimuth alone,
-/// or whose seam direction is not decided a unit normal of the axis,
-/// keeps its latitude [`Zone`](SphereWindow::Zone).
-///
-/// `face` resolved to `f` in the caller, so its outer loop and that
-/// loop's members are links ([`Body::loop_members_linked`]), and a
-/// record the flattening of that loop names is one too: a flattening
-/// that refuses past a cycle loop is a torn body and panics
-/// ([`crate::live::OPERATORS_KEEP_LINKS`]). The trim's `CorruptFace` is
-/// a record miss past `face` too, and panics the same way.
-fn sphere_window<T: Decide>(
-    body: &Body<T>,
-    face: FaceKey,
-    f: &crate::entity::Face,
-    surface: &Surface<T>,
-    band: Band,
-) -> SphereWindow<T> {
-    use super::solid_contain::PointInSolidError;
-    use crate::props::LoopEdgesError;
-    use geom_core::{Margin, Sign};
-    let Surface::Sphere {
-        center,
-        radius,
-        axis,
-        u_ref,
-    } = surface
-    else {
-        return SphereWindow::Ball;
-    };
-    let outer = linked(
-        &body.loops,
-        f.outer,
-        EntityId::Loop,
-        EntityId::Face(face),
-        "outer",
-    );
-    if matches!(
-        body.loop_members_linked(f.outer, outer).as_slice(),
-        [BoundaryMember::Isolated { .. }]
-    ) {
-        return SphereWindow::Ball;
-    }
-    let outer = match crate::props::chart_image_edges(body, f.outer) {
-        Ok((outer, _)) if outer.is_empty() => return SphereWindow::Ball,
-        Ok((outer, _)) => outer,
-        Err(LoopEdgesError::NullScaffoldEdge { .. }) => return SphereWindow::Ball,
-        Err(refusal @ LoopEdgesError::Corrupt { .. }) => torn_outer_loop(body, face, f, refusal),
-    };
-    let side = if f.sense {
-        Sign::Positive
-    } else {
-        Sign::Negative
-    };
-    if geom_brep::props::boundary_material_sign(surface, &outer, band).ok()
-        != Some(geom_brep::props::MaterialSign::Encoded(side))
-    {
-        return SphereWindow::Ball;
-    }
-    let trim =
-        match super::solid_contain::sphere_chart_trim(body, face, *center, *radius, *axis, band) {
-            Ok(Some(trim)) => trim,
-            Ok(None) | Err(PointInSolidError::Escalated { .. }) => return SphereWindow::Ball,
-            Err(refusal) => torn_outer_loop(body, face, f, refusal),
-        };
-    let Ok(unit) = UnitVec3::new(*axis, BOX_SPHERE_AXIS, band) else {
-        return SphereWindow::Ball;
-    };
-    let pole = |sign: T| (sign * *radius, T::zero());
-    let latitude = |(h, rho): (T, T)| h.atan2(rho);
-    let lat = Span {
-        lo: latitude(trim.south.unwrap_or_else(|| pole(T::zero() - T::one()))),
-        hi: latitude(trim.north.unwrap_or_else(|| pole(T::one()))),
-    };
-    let seam = UnitVec3::new(*u_ref, BOX_SPHERE_SEAM_UNIT, band)
-        .ok()
-        .filter(|seam| {
-            matches!(
-                crate::validate::decide(
-                    BOX_SPHERE_SEAM,
-                    Margin::levered(
-                        seam.get().dot(unit.get()),
-                        geom_brep::ExtentBall::of_sphere(*center, *radius).lever()
-                    ),
-                    band
-                ),
-                Ok(Sign::Zero)
-            )
-        });
-    match trim.az.zip(seam) {
-        Some(((lo, hi), seam)) => {
-            let u_ref = seam.get();
-            SphereWindow::Rect {
-                axis: unit,
-                az: (Span { lo, hi }, u_ref, unit.get().cross(u_ref)),
-                lat,
-            }
-        }
-        None => SphereWindow::Zone { axis: unit, lat },
-    }
-}
-
-/// The torn hop under `refusal`, a record-miss refusal of a reading of
-/// `face`'s outer loop ([`crate::props::loop_edges`],
-/// `sphere_chart_trim`) past `face`, which resolved to `f`. Each hop
-/// those readings take is re-read as a link, so the one that does not
-/// resolve panics naming its holder, its field and both premises
-/// ([`crate::live::dangling_link`]).
-#[track_caller]
-fn torn_outer_loop<T: Decide>(
-    body: &Body<T>,
-    face: FaceKey,
-    f: &crate::entity::Face,
-    refusal: impl core::fmt::Debug,
-) -> ! {
-    body.face_surface_linked(face, f);
-    let outer = linked(
-        &body.loops,
-        f.outer,
-        EntityId::Loop,
-        EntityId::Face(face),
-        "outer",
-    );
-    for member in body.loop_members_linked(f.outer, outer) {
-        if let BoundaryMember::Edge { he, half, ek, edge } = member {
-            body.edge_curve_linked(ek, edge);
-            body.linked_vertex_point(half.start, EntityId::HalfEdge(he), "start");
-            body.proven_half_edge_end(he);
-        }
-    }
-    unreachable!(
-        "the outer loop of {} refused {refusal:?} with every record on it resolved",
-        EntityId::Face(face)
-    )
-}
-
-/// **One coordinate of a ring torus's chart rectangle, in closed
-/// form**: the least and greatest `e·S(u, v)` over `u ∈ U`, `v ∈ V`,
-/// where `e` is a direction, `c` its component of the centre and
-/// `(p, q, a)` its components of `u_ref`, `axis × u_ref` and the axis,
-/// each a span, enclosed over every torus whose components and radii
-/// lie in them.
-///
-/// `e·S − c = (R + r·cos v)·(p·cos u + q·sin u) + r·a·sin v`. The
-/// factor `R + r·cos v` is non-negative on a ring torus (`R ≥ r ≥ 0`)
-/// and on a sphere's chart (`R = 0`, `cos v ≥ 0`), so for every `v` the
-/// best `u` is the one that maximizes `p·cos u + q·sin u = A·cos(u − u*)`
-/// over `U`, whatever `v` is: call that greatest value `M`
-/// ([`most_cos`]). What is left is
-/// `R·M + r·(M·cos v + a·sin v) = R·M + r·B·cos(v − v*)` with
-/// `B = √(M² + a²)`, maximized over `V` the same way. The least value is
-/// the same reading of `−e`. At a point every step is an equality, so
-/// the extent is the rectangle's own and turns with it.
-///
-/// **Over spans, by three facts and no pad.** `M` is a maximum of
-/// functions linear in `(p, q)`, so it is convex there and greatest at
-/// one of the span box's four corners, which are all read. The greatest
-/// `e·S − c` is `max_v [M·(R + r·cos v) + r·a·sin v]`: non-decreasing in
-/// `M`, each function's slope being the non-negative factor, so it is
-/// read at the greatest `M`; and a maximum of functions linear in `a`,
-/// so it is greatest at one of `a`'s two ends. It is then
-/// `R·M + r·B`, linear in each radius, which the span product reads at
-/// their ends, `r ≥ 0` letting `B` be taken at its greater end first.
-/// The rounding is the module's undirected arithmetic ([`Span`]).
-pub(crate) fn torus_rect_extent<T: Decide>(
-    c: Span<T>,
-    (p, q, a): (Span<T>, Span<T>, Span<T>),
-    (major, minor): (Span<T>, Span<T>),
-    (u, v): TorusWindowPair<T>,
-) -> Span<T> {
-    let most = |p: Span<T>, q: Span<T>, a: Span<T>| {
-        let along = |p: T, q: T| (p.powi(2) + q.powi(2)).sqrt() * most_cos(q.atan2(p), u);
-        let m = along(p.lo, q.lo)
-            .max(along(p.lo, q.hi))
-            .max(along(p.hi, q.lo).max(along(p.hi, q.hi)));
-        let lift = |a: T| (m.powi(2) + a.powi(2)).sqrt() * most_cos(a.atan2(m), v);
-        let b = lift(a.lo).max(lift(a.hi));
-        major.mul(Span::exact(m)).hi + minor.mul(Span::exact(b)).hi
-    };
-    let neg = |s: Span<T>| Span {
-        lo: T::zero() - s.hi,
-        hi: T::zero() - s.lo,
-    };
-    Span {
-        lo: c.lo - most(neg(p), neg(q), neg(a)),
-        hi: c.hi + most(p, q, a),
-    }
-}
-
-/// The greatest `cos(t − t*)` over `t ∈ w`: one when `t*` lies in the
-/// window modulo a turn, otherwise the better of the two ends, since a
-/// window that misses the crest is monotone between them. The
-/// membership is read branch-free (`select_le_zero` on the crest's
-/// offset into the window less its width), and a crest a rounding off
-/// an end gives either reading to within that rounding.
-fn most_cos<T: Decide>(crest: T, w: Span<T>) -> T {
-    let into = (crest - w.lo).reduce_periodic(T::tau());
-    let ends = (w.lo - crest).cos().max((w.hi - crest).cos());
-    (into - (w.hi - w.lo)).select_le_zero(T::one(), ends)
-}
-
-/// The face's certified box, padded — [`FaceBoxRule`]'s
-/// `f64`-bracket instantiation, and therefore a genuine superset of
-/// the face's locus.
-///
-/// The per-kind extents are [`slab_extent`] and friends, in
-/// [`Span`] arithmetic: a description whose coordinates are
-/// themselves brackets is ENCLOSED, never sampled at one endpoint.
-/// Poison rides through as NaN ends and comes out the poison box,
-/// which every door reads in its own fail-loud direction.
-///
-/// # Errors
-///
-/// [`BooleanError::ClassificationInvariant`] for a cylinder whose axis
-/// is no direction ([`face_box_rule`]): a broken carrier.
-///
-/// # Panics
-///
-/// Where `face`, which the caller read out of `body`, or a record on
-/// the walk from it does not resolve, or a loop walk does not close
-/// (D2 row 4); a torn curve is not an uncertified one. The bodies are
-/// at rest or the reduction's working copies, whose links hold by
-/// [`crate::live::OPERATORS_KEEP_LINKS`].
-pub(crate) fn face_box<T: Decide + Bounds>(
-    body: &Body<T>,
-    face: FaceKey,
-    pad: f64,
-    band: Band,
-) -> Result<Aabb, BooleanError> {
-    let f = proven(&body.faces, face, EntityId::Face);
-    let surface = body.face_surface_linked(face, f);
-    // The axial window from the boundary's OWN locus, edge by edge
-    // (each edge's cover's support either way, `cover_axial`), not from
-    // the corners of a box around it: at a tilted axis a box's spread in
-    // the other two coordinates leaks into the window, and the frustum's
-    // radius with it. Each end is bracketed outward, and an edge with no
-    // cover claims nothing: a poisoned window, which reaches the poison
-    // box, since the hull here is `Real`'s and carries NaN.
-    let axial_window = |axis: Vec3<T>, origin: Point3<T>| -> Option<Span<f64>> {
-        let bracketed = |(lo, hi): (T, T)| Span {
-            lo: lo.lo(),
-            hi: hi.hi(),
-        };
-        let mut acc: Option<Span<f64>> = None;
-        let mut grow = |s: Span<f64>| acc = Some(acc.map_or(s, |a: Span<f64>| a.hull(s)));
-        for member in body.face_boundary_linked(face, f) {
-            grow(match member {
-                BoundaryMember::Isolated { point: p, .. } => {
-                    let h = (p - origin).dot(axis);
-                    bracketed((h, h))
-                }
-                BoundaryMember::Edge { ek, edge: e, .. } => match edge_cover_linked(body, ek, e) {
-                    Ok(cover) => bracketed(cover_axial(&cover, origin, axis)),
-                    Err(_) => Span::exact(geom_core::poison()),
-                },
-            });
-        }
-        acc
-    };
-    // The torus arm's chart window, read through the ONE walk
-    // (`face_window_steps` -> `torus_chart_window`) the census lane and
-    // the construction rows also enter, so no fail mode can drift
-    // between them.
-    //
-    // The window is accumulated at the BODY's scalar and read out at
-    // this lane's `f64` brackets, each end taken outward
-    // (`lo()`/`hi()`), so a bracketed cache widens the window rather
-    // than narrowing it.
-    let chart_window = |major: T, minor: T| -> Option<TorusWindowPair<f64>> {
-        let steps = face_window_steps(body, face);
-        torus_chart_window(&steps, major, minor).map(|(u, v)| {
-            (
-                Span {
-                    lo: u.lo.lo(),
-                    hi: u.hi.hi(),
-                },
-                Span {
-                    lo: v.lo.lo(),
-                    hi: v.hi.hi(),
-                },
-            )
-        })
-    };
-    let rule = face_box_rule(surface, band).map_err(|_| BooleanError::ClassificationInvariant {
-        what: "face box: a cylinder's axis is no direction (a broken cylinder carrier)",
-    })?;
-    let boxed = match rule {
-        FaceBoxRule::ControlNet(patch) => geom::surfaces::boxes::nurbs_surface_aabb(patch),
-        // The reach is read at the body's scalar and bracketed out, end
-        // by end, as the torus window is.
-        FaceBoxRule::SphereWindow { .. } => {
-            let (lo, hi) = sphere_reach(body, face, band, &BoxFrame::World);
-            Aabb {
-                min_x: lo.x.lo(),
-                min_y: lo.y.lo(),
-                min_z: lo.z.lo(),
-                max_x: hi.x.hi(),
-                max_y: hi.y.hi(),
-                max_z: hi.z.hi(),
-            }
-        }
-        FaceBoxRule::TorusWindow {
-            center,
-            axis,
-            major_radius,
-            minor_radius,
-            u_ref,
-        } => {
-            let (c, ax) = (bracket_point(center), bracket_vector(axis));
-            let whole = torus_extent(&c, &ax, major_radius.hi(), minor_radius.hi());
-            // BOTH ends of each radius bracket: the extent encloses the
-            // whole family of tori they admit, each a ring once the
-            // convention is decided at the body's scalar.
-            let radii = (
-                Span {
-                    lo: major_radius.lo(),
-                    hi: major_radius.hi(),
-                },
-                Span {
-                    lo: minor_radius.lo(),
-                    hi: minor_radius.hi(),
-                },
-            );
-            match geom::is_ring_torus(major_radius, minor_radius, band)
-                .then(|| chart_window(major_radius, minor_radius))
-                .flatten()
-            {
-                None => aabb_of(whole),
-                Some(window) => aabb_of(meet(
-                    ring_window_extent(
-                        &c,
-                        (
-                            &bracket_vector(u_ref),
-                            &bracket_vector(axis.cross(u_ref)),
-                            &ax,
-                        ),
-                        radii,
-                        window,
-                    ),
-                    whole,
-                )),
-            }
-        }
-        FaceBoxRule::CylinderSlab {
-            origin,
-            axis,
-            radius,
-        } => {
-            let Some(h) = axial_window(axis.get(), origin) else {
-                return Ok(Aabb::poison());
-            };
-            let slab = aabb_of(slab_extent(
-                &bracket_point(origin),
-                &UnitSpanBox::bracketed(axis),
-                h,
-                radius.hi(),
-            ));
-            // The slab is the full 2π ring at every height in the
-            // window; the face is a PATCH of it. Clipping the ring to
-            // the boundary's own box is what makes the box trim-scoped
-            // in azimuth as well as axially — see [`clip_to_boundary`]
-            // for why that is sound and why it needs no chart work.
-            clip_to_boundary(slab, boundary_hull(body, face, f))
-        }
-        FaceBoxRule::ConeSlab {
-            apex,
-            axis,
-            half_angle,
-        } => {
-            let Some(h) = axial_window(axis, apex) else {
-                return Ok(Aabb::poison());
-            };
-            let axis_span = bracket_vector(axis);
-            let apex = bracket_point(apex);
-            // An UPPER bound on tan α over the half-angle's bracket:
-            // α ∈ (0, π/2), where sin increases and cos decreases, so
-            // `sin.hi / cos.lo` dominates. A bracket reaching π/2 has
-            // `cos.lo ≤ 0`, and the quotient then poisons the box —
-            // the honest answer for a description that may be a plane.
-            let (sin, cos) = half_angle.sin_cos();
-            aabb_of(cone_frustum_extent(
-                &apex,
-                &axis_span,
-                h,
-                sin.hi() / cos.lo(),
-            ))
-        }
-        FaceBoxRule::BoundaryHull => boundary_hull(body, face, f).unwrap_or_else(Aabb::poison),
-    };
-    Ok(boxed.padded(pad))
-}
-
-/// A [`SpanBox`] of `f64` spans as the [`Aabb`] every door reads.
-/// **Clip a cylinder wall's ring-shaped slab to its boundary's box.**
-///
-/// The slab arm covers the WHOLE turn at every height in the face's
-/// axial window, because the axial coordinate is what the boundary
-/// pins exactly. The azimuth is not pinned there at all, so a corner
-/// round — a quarter turn — is boxed as the whole carrier cylinder,
-/// and every door that reads the box pays for three quarters of a ring
-/// the face does not occupy. That is the mechanism behind #347's
-/// measured bound: a pocket wall 2 mm clear of a corner ARC became a
-/// candidate against the round because it entered the round's
-/// CARRIER.
-///
-/// **Why the boundary's box may be intersected in**, on every
-/// coordinate: a cylinder face lies in its boundary's hull because the
-/// cylinder is ruled ([`FaceBoxRule`]'s `BoundaryHull` arm carries the
-/// argument), so slab ∩ hull is still a superset of the FACE's locus,
-/// which is the module contract. It is derived from boxes this arm
-/// already walks: no chart image, no azimuth window, no `Band`, and no
-/// new way for a box to escalate.
-///
-/// A face with no boundary, or one whose hull came out POISON, keeps
-/// the slab: poison overlaps everything by design, and quietly
-/// intersecting it away would turn "no cheap superset is known" into a
-/// silent claim.
-///
-/// **The two lanes diverge here, and only here.** This lane TESTS for
-/// poison and keeps the slab; the census lane's mirror clamps with
-/// `min`/`max` against its own `boundary_reach`, and a NaN end there
-/// propagates through the clamp rather than being stepped around. Both
-/// are sound — one keeps the wider box, the other keeps the poison —
-/// and neither can narrow a real locus away. It is recorded rather
-/// than unified because the two lanes answer differently for a face
-/// with no claim in it at all (`Aabb::poison()` versus `None`), which
-/// is a difference that predates this clip and belongs to the census's
-/// own contract.
-fn clip_to_boundary(slab: Aabb, hull: Option<Aabb>) -> Aabb {
-    let Some(h) = hull else { return slab };
-    let finite = [h.min_x, h.min_y, h.min_z, h.max_x, h.max_y, h.max_z]
-        .into_iter()
-        .all(f64::is_finite);
-    if !finite {
-        return slab;
-    }
-    Aabb {
-        min_x: slab.min_x.max(h.min_x),
-        min_y: slab.min_y.max(h.min_y),
-        min_z: slab.min_z.max(h.min_z),
-        max_x: slab.max_x.min(h.max_x),
-        max_y: slab.max_y.min(h.max_y),
-        max_z: slab.max_z.min(h.max_z),
-    }
-}
-
-fn aabb_of(s: SpanBox<f64>) -> Aabb {
-    Aabb {
-        min_x: s.x.lo,
-        min_y: s.y.lo,
-        min_z: s.z.lo,
-        max_x: s.x.hi,
-        max_y: s.y.hi,
-        max_z: s.z.hi,
-    }
-}
-
-/// The hull of the face boundary's own certified boxes — every
-/// boundary edge's [`edge_box`], plus the isolated-vertex loops, which
-/// have no edge to speak for them. `None` for a face with no boundary
-/// at all.
-///
-/// Poison propagates: [`Aabb::hull`] carries NaN by construction, so
-/// one unboxable boundary edge poisons the face rather than quietly
-/// contributing nothing.
-///
-/// This is the [`FaceBoxRule::BoundaryHull`] arm, and it is also what
-/// the [`FaceBoxRule::CylinderSlab`] arm reads its axial range from —
-/// the axial coordinate is linear along the surface, so the face's
-/// axial extremes lie on the boundary, but not necessarily at a
-/// boundary VERTEX.
-fn boundary_hull<T: Decide + Bounds>(
-    body: &Body<T>,
-    face: FaceKey,
-    f: &crate::entity::Face,
-) -> Option<Aabb> {
-    let mut acc: Option<Aabb> = None;
-    let mut grow = |x: Aabb| acc = Some(acc.map_or(x, |a: Aabb| a.hull(&x)));
-    for member in body.face_boundary_linked(face, f) {
-        grow(match member {
-            BoundaryMember::Isolated { point: p, .. } => {
-                Aabb::from_points([p]).unwrap_or_else(Aabb::poison)
-            }
-            BoundaryMember::Edge { ek, .. } => edge_box(body, ek, 0.0),
-        });
-    }
-    acc
+/// The padded box of a full circle ([`super::separating::Circle`]): its
+/// cover's ([`Cover::arc`] over the whole turn), so coordinate `i`
+/// reaches `radius·√(u_i² + v_i²)` from the centre, the circle's own
+/// extent, which turns with it. The poison box where a datum is not a
+/// finite number.
+pub(crate) fn circle_box<T: Bounds>(circle: &super::separating::Circle<T>, pad: f64) -> Aabb {
+    circle
+        .cover()
+        .map_or_else(Aabb::poison, |cover| cover.aabb(pad))
 }
 
 /// **Topo's reading of the region an edge can occupy** (DESIGN
@@ -2021,8 +1134,8 @@ fn boundary_hull<T: Decide + Bounds>(
 /// ([`geom::Curve3::cover_over`], which holds the one kind match),
 /// hulled with its two end vertices, which sit on the carrier only to
 /// its certification residual. Every bound on where an edge is reads
-/// this ([`edge_box`], the census's `edge_reach_in`, the containment,
-/// shell and reduction doors) through the cover's methods, and none
+/// this ([`edge_box`], the census's and the narrow phase's reads in a
+/// frame, the containment, shell and reduction doors) through the cover's methods, and none
 /// matches on the carrier's kind.
 ///
 /// # Errors
@@ -2136,10 +1249,7 @@ fn reach_bounds_in<T: SpanLocate>(
 /// Where `edge`, which the caller read out of `body`, its curve or a
 /// record on the way to its ends does not resolve (D2 row 4): a torn
 /// curve is not an uncertified one.
-pub(crate) fn edge_cover<T: SpanLocate>(
-    body: &Body<T>,
-    edge: EdgeKey,
-) -> Result<Cover<T>, EdgeUncovered> {
+pub fn edge_cover<T: SpanLocate>(body: &Body<T>, edge: EdgeKey) -> Result<Cover<T>, EdgeUncovered> {
     edge_cover_linked(body, edge, proven(&body.edges, edge, EntityId::Edge))
 }
 
@@ -2159,6 +1269,22 @@ impl<T: SpanLocate> Body<T> {
     /// ends does not resolve (D2 row 4).
     pub fn edge_cover(&self, edge: EdgeKey) -> Result<Cover<T>, EdgeUncovered> {
         edge_cover(self, edge)
+    }
+}
+
+impl<T: Decide> Body<T> {
+    /// **The region `face` can occupy** (`[one-way.places]`): topo's one
+    /// reading of a face ([`face_cover`]), for a reader outside topo.
+    ///
+    /// # Errors
+    ///
+    /// [`FaceUncovered`], as [`face_cover`].
+    ///
+    /// # Panics
+    ///
+    /// As [`face_cover`].
+    pub fn face_cover(&self, face: FaceKey, band: Band) -> FaceCovered<T> {
+        face_cover(self, face, band)
     }
 }
 
@@ -2201,27 +1327,6 @@ impl core::fmt::Display for EdgeUncovered {
             Self::Ends => f.write_str("an end vertex of the edge is not a finite point"),
         }
     }
-}
-
-/// The cover's frame for a [`BoxFrame`]: the world's, or its rows. An
-/// adapter for the face lanes, which still read their boxes in a
-/// [`BoxFrame`].
-pub(crate) fn cover_frame<T: Real>(frame: &BoxFrame<T>) -> geom::cover::Frame<T> {
-    match frame {
-        BoxFrame::World => geom::cover::Frame::World,
-        BoxFrame::Aimed(rows) => geom::cover::Frame::Rows(*rows),
-    }
-}
-
-/// An edge's range along `axis` about `origin`, from its cover's support
-/// either way: the axial window a slab face reads off its boundary. An
-/// adapter for the face lanes' slab arms.
-pub(crate) fn cover_axial<T: Real>(cover: &Cover<T>, origin: Point3<T>, axis: Vec3<T>) -> (T, T) {
-    let base = (origin - Point3::origin()).dot(axis);
-    (
-        T::zero() - cover.support(-axis) - base,
-        cover.support(axis) - base,
-    )
 }
 
 /// The box of the ball about `c` of radius `r`, from their enclosures,
@@ -2310,55 +1415,8 @@ pub(crate) mod tests {
 
     use super::*;
     use crate::boolean::conic_oracle::exact::Dd;
+    use geom::cover::Frame;
 
-    /// **A spline edge's axial span from its cover holds the curve**
-    /// ([`cover_axial`], about an origin off the curve): random clamped nets of degree one
-    /// to three, rational with weights from 0.02 to 50, a random axis and
-    /// sub-interval, the curve's height along the axis sampled inside the
-    /// span to 1e-12 (a counterexample search; seed logged).
-    #[test]
-    fn a_hull_axial_span_holds_the_curve() {
-        use geom_core::spline::KnotVector;
-        let mut rng = test_utils::fuzz::start("boxes::tests::a_hull_axial_span_holds_the_curve");
-        for _ in 0..test_utils::fuzz::scaled(400) {
-            let p = 1 + rng.below(3);
-            let n = p + 1 + rng.below(5);
-            let mut k = vec![0.0; p + 1];
-            let mut ks: Vec<f64> = (0..n - p - 1).map(|_| rng.range(0.05, 0.95)).collect();
-            ks.sort_by(f64::total_cmp);
-            k.extend(ks);
-            k.extend(vec![1.0; p + 1]);
-            let ctl: Vec<_> = (0..n)
-                .map(|_| Point3::new(rng.range(-1., 1.), rng.range(-1., 1.), rng.range(-1., 1.)))
-                .collect();
-            let w: Vec<f64> = (0..n).map(|_| rng.log_uniform(0.02, 50.0)).collect();
-            let Ok(net) = geom::NurbsCurve3::new(KnotVector::clamped(k, p).unwrap(), ctl, w) else {
-                continue;
-            };
-            let ax =
-                Vec3::new(rng.range(-1., 1.), rng.range(-1., 1.), rng.range(-1., 1.)).normalize();
-            let o = Point3::new(0.3, -0.7, 0.2);
-            let (a, b) = (rng.range(0., 0.5), rng.range(0.5, 1.));
-            let ends = (net.eval(a), net.eval(b));
-            let carrier = geom::Curve3::Nurbs(std::sync::Arc::new(net.clone()));
-            let cover = carrier
-                .cover_over(ParamWindow::new(a, b))
-                .unwrap()
-                .hull(Cover::points(vec![ends.0, ends.1]).unwrap());
-            let (lo, hi) = cover_axial(&cover, o, ax);
-            let span = Span { lo, hi };
-            for i in 0..=200 {
-                let h = (net.eval(a + (b - a) * f64::from(i) / 200.) - o).dot(ax);
-                assert!(
-                    span.lo - 1e-12 <= h && h <= span.hi + 1e-12,
-                    "{h} outside [{}, {}]; {}",
-                    span.lo,
-                    span.hi,
-                    test_utils::fuzz::replay()
-                );
-            }
-        }
-    }
     use crate::entity::LoopBoundary;
     use crate::euler::{FaceSurface, MefSite, MevSite};
     use geom::Curve3;
@@ -2566,7 +1624,7 @@ pub(crate) mod tests {
                 for phi_deg in [0.0_f64, 45.0, 137.0] {
                     let span = span_deg.to_radians();
                     let (body, face) = arc_sector_from(r, span, phi_deg.to_radians());
-                    let b = face_box(&body, face, pad(), witness_band()).unwrap();
+                    let b = face_box(&body, face, pad(), witness_band());
                     // The locus is the convex hull of its boundary and
                     // the box is convex, so sampling the boundary
                     // settles it.
@@ -2594,7 +1652,7 @@ pub(crate) mod tests {
     fn the_boxs_reach_beyond_the_vertex_hull_is_the_whole_bulge() {
         let r = 2.0;
         let (body, face) = arc_sector(r, core::f64::consts::PI);
-        let b = face_box(&body, face, pad(), witness_band()).unwrap();
+        let b = face_box(&body, face, pad(), witness_band());
         // Both boundary vertices and the sector's centre are at y ≤ 0;
         // the rim reaches y = r.
         assert!(
@@ -2767,7 +1825,7 @@ pub(crate) mod tests {
                 let span = span_deg.to_radians();
                 let (z0, z1) = (-0.25 * r, 0.75 * r);
                 let (body, face) = cyl_wall(r, 0.0, span, z0, z1);
-                let b = face_box(&body, face, pad(), witness_band()).unwrap();
+                let b = face_box(&body, face, pad(), witness_band());
                 for i in 0..=64 {
                     let u = span * f64::from(i) / 64.0;
                     for j in 0..=8 {
@@ -2803,7 +1861,7 @@ pub(crate) mod tests {
                     u_ref: Vec3::unit_x(),
                 },
             );
-            let b = face_box(&body, face, pad(), witness_band()).unwrap();
+            let b = face_box(&body, face, pad(), witness_band());
             for i in 0..=32 {
                 let theta = core::f64::consts::PI * f64::from(i) / 32.0;
                 for j in 0..=32 {
@@ -2868,7 +1926,7 @@ pub(crate) mod tests {
             surface.eval(0.0, 0.5).z.abs() < 1e-15,
             "the fixture's boundary must lie in z = 0"
         );
-        let b = face_box(&body, face, pad(), witness_band()).unwrap();
+        let b = face_box(&body, face, pad(), witness_band());
         assert!(
             holds(&b, mid),
             "the patch's own interior point left its box: {b:?}"
@@ -2942,7 +2000,7 @@ pub(crate) mod tests {
                     let phi = phi_deg.to_radians();
                     let span = span_deg.to_radians();
                     let (body, face) = arc_sector_from(r, span, phi);
-                    let b = face_box(&body, face, pad, witness_band()).unwrap();
+                    let b = face_box(&body, face, pad, witness_band());
                     // World angles, NOT `u_ref`-relative: the fixture's
                     // φ renames the carrier's reference direction and
                     // leaves the sector where it is, which is the whole
@@ -3029,7 +2087,7 @@ pub(crate) mod tests {
                 let (z0, z1) = (-0.25 * r, 0.75 * r);
                 let span = span_deg.to_radians();
                 let (body, face) = cyl_wall(r, 0.0, span, z0, z1);
-                let b = face_box(&body, face, pad, witness_band()).unwrap();
+                let b = face_box(&body, face, pad, witness_band());
                 let (cos_lo, cos_hi) = arc_extremes(span, &f64::cos, &[core::f64::consts::PI]);
                 let (sin_lo, sin_hi) = arc_extremes(
                     span,
@@ -3062,10 +2120,10 @@ pub(crate) mod tests {
     /// A cylinder carrier whose axis is `2ẑ` describes the same point
     /// set as the unit one; read bare, the axial window would be twice
     /// the face's and the slab would place it twice again along the
-    /// axis — a box four times the wall's height. Both lanes box it as
-    /// the unit-axis wall. An axis that is no direction is a broken
-    /// carrier: the bracket lane refuses it, the census lane claims
-    /// nothing.
+    /// axis — a box four times the wall's height. Its cover boxes it as
+    /// the unit-axis wall, bracketed and in the census's frame. An axis
+    /// that is no direction is a broken carrier, which proves neither
+    /// the slab nor the hull: the face has no cover.
     #[test]
     fn a_cylinder_axis_is_decided_unit_before_the_slab_reads_it() {
         let (z0, z1) = (-0.25, 0.75);
@@ -3079,9 +2137,9 @@ pub(crate) mod tests {
             *a = axis;
             body
         };
-        let want = face_box(&unit, face, pad(), witness_band()).unwrap();
+        let want = face_box(&unit, face, pad(), witness_band());
         let long = with_axis(Vec3::new(0.0, 0.0, 2.0));
-        let got = face_box(&long, face, pad(), witness_band()).unwrap();
+        let got = face_box(&long, face, pad(), witness_band());
         for (what, w, g) in [
             ("min z", want.min_z, got.min_z),
             ("max z", want.max_z, got.max_z),
@@ -3105,11 +2163,10 @@ pub(crate) mod tests {
         );
         let broken = with_axis(Vec3::new(0.0, 0.0, 0.0));
         assert!(
-            matches!(
-                face_box(&broken, face, pad(), witness_band()),
-                Err(BooleanError::ClassificationInvariant { .. })
-            ),
-            "a zero cylinder axis must refuse the bracket lane's box"
+            face_box(&broken, face, pad(), witness_band())
+                .min_x
+                .is_nan(),
+            "a zero cylinder axis has no cover: the poison box"
         );
         assert!(
             crate::census::face_reach(&broken, face, witness_band()).is_none(),
@@ -3117,16 +2174,16 @@ pub(crate) mod tests {
         );
     }
 
-    /// **A radius the band does not read as positive boxes by the
-    /// boundary hull, never refuses.** Tier 3 admits any cylinder whose
-    /// radius is exactly positive, and the slab's levered axis decision
-    /// refuses one the band reads as zero or in band. Walls of radius 1
-    /// whose arcs bulge past their own vertices (an azimuth extremum
-    /// strictly inside the arc, a near-full turn) are read under a band
-    /// that puts 1 in band, then under one that decides it zero: both
-    /// lanes box each as its boundary's hull, that box holds the wall,
-    /// and the lever's escalation, which the box does not rest on, is
-    /// not left on the log.
+    /// **A radius the band does not read as positive leaves the slab
+    /// out of the meet, never refuses.** Tier 3 admits any cylinder
+    /// whose radius is exactly positive, and the slab's levered axis
+    /// decision refuses one the band reads as zero or in band. Walls of
+    /// radius 1 whose arcs bulge past their own vertices (an azimuth
+    /// extremum strictly inside the arc, a near-full turn) are read
+    /// under a band that puts 1 in band, then under one that decides it
+    /// zero: the cover is the boundary's convex hull, its box holds the
+    /// wall, and the lever's escalation, which the cover does not rest
+    /// on, is not left on the log.
     #[test]
     fn a_cylinder_whose_radius_the_band_does_not_decide_boxes_by_its_boundary() {
         use geom_core::k_stats::{Bracket, Escalation};
@@ -3160,7 +2217,9 @@ pub(crate) mod tests {
                 // Not the band's sweep pad: at these bands it is wider
                 // than the bulge a vertex-only hull would miss.
                 let pad = 1e-9;
-                let hull = boundary_hull(&body, face, f).expect("the wall's boundary boxes");
+                let hull = boundary_cover(&body, face, f)
+                    .expect("the wall's boundary has a cover")
+                    .aabb(0.0);
                 let bracket = Bracket::open();
                 let b = face_box(&body, face, pad, band);
                 let c = crate::census::face_reach(&body, face, band);
@@ -3174,14 +2233,13 @@ pub(crate) mod tests {
                     escalated.is_empty(),
                     "{what}: a definite hull box left escalations on the log: {escalated:?}"
                 );
-                let b = b.unwrap_or_else(|e| panic!("{what}: the wall must box, got {e:?}"));
                 let (lo, hi) =
                     c.unwrap_or_else(|| panic!("{what}: the census must claim the wall"));
                 let h = hull.padded(pad);
                 assert_eq!(
                     [b.min_x, b.min_y, b.min_z, b.max_x, b.max_y, b.max_z],
                     [h.min_x, h.min_y, h.min_z, h.max_x, h.max_y, h.max_z],
-                    "{what}: the bracket lane boxes the wall as its padded boundary hull"
+                    "{what}: the wall's box is its padded boundary hull"
                 );
                 let (blo, bhi) = ([b.min_x, b.min_y, b.min_z], [b.max_x, b.max_y, b.max_z]);
                 let (clo, chi) = ([lo.x, lo.y, lo.z], [hi.x, hi.y, hi.z]);
@@ -3226,7 +2284,7 @@ pub(crate) mod tests {
         // The slab's floor sits this far below; the census lane's arc
         // reach carries its subdivision charge, far inside it.
         let gap = (1.0 - u0.cos()) * 0.7_f64.sin();
-        let b = face_box(&body, face, 0.0, witness_band()).unwrap();
+        let b = face_box(&body, face, 0.0, witness_band());
         let (lo, hi) = crate::census::face_reach(&body, face, witness_band()).unwrap();
         for (what, min_z) in [("bracket", b.min_z), ("census", lo.z)] {
             assert!(
@@ -3306,7 +2364,7 @@ pub(crate) mod tests {
         let (r, z0, z1) = (0.5, 0.0, 1.0);
         let pad = pad();
         let (body, face) = cyl_wall(r, 0.0, core::f64::consts::PI, z0, z1);
-        let b = face_box(&body, face, pad, witness_band()).unwrap();
+        let b = face_box(&body, face, pad, witness_band());
         assert!(
             b.min_z > z0 - r && b.max_z < z1 + r,
             "the slab must not claim the radius along its own axis: {b:?}"
@@ -3344,7 +2402,7 @@ pub(crate) mod tests {
                     u_ref: Vec3::unit_x(),
                 },
             );
-            let b = face_box(&body, face, pad, witness_band()).unwrap();
+            let b = face_box(&body, face, pad, witness_band());
             agrees_with_the_rule(
                 &b,
                 &Aabb {
@@ -3369,7 +2427,7 @@ pub(crate) mod tests {
     fn the_nurbs_arms_box_is_exactly_the_construction_its_rule_states() {
         let pad = pad();
         let (body, face, net) = nurbs_bulge_face();
-        let b = face_box(&body, face, pad, witness_band()).unwrap();
+        let b = face_box(&body, face, pad, witness_band());
         agrees_with_the_rule(
             &b,
             &Aabb {
@@ -3707,7 +2765,7 @@ pub(crate) mod tests {
             let kind = s.kind();
             let (mut body, face) = arc_sector(1.0, core::f64::consts::PI);
             relabel(&mut body, face, s);
-            let b = face_box(&body, face, pad(), witness_band()).unwrap();
+            let b = face_box(&body, face, pad(), witness_band());
             assert!(
                 !b.min_x.is_nan(),
                 "{kind:?} must have a box, got poison: {b:?}"
@@ -4010,7 +3068,7 @@ pub(crate) mod tests {
                     let span = span_deg.to_radians();
                     let (z0, z1) = (0.4 * scale, 1.0 * scale);
                     let (body, face) = cone_wall(alpha, 0.0, span, z0, z1);
-                    let b = face_box(&body, face, pad(), witness_band()).unwrap();
+                    let b = face_box(&body, face, pad(), witness_band());
                     for i in 0..=64 {
                         let u = span * f64::from(i) / 64.0;
                         for j in 0..=8 {
@@ -4049,7 +3107,7 @@ pub(crate) mod tests {
                     let (z0, z1) = (0.4 * scale, 1.0 * scale);
                     let radius = z1 * alpha.tan();
                     let (body, face) = cone_wall(alpha, 0.0, span_deg.to_radians(), z0, z1);
-                    let b = face_box(&body, face, pad, witness_band()).unwrap();
+                    let b = face_box(&body, face, pad, witness_band());
                     agrees_with_the_rule(
                         &b,
                         &Aabb {
@@ -4093,7 +3151,7 @@ pub(crate) mod tests {
                         u_ref,
                     },
                 );
-                let b = face_box(&body, face, pad(), witness_band()).unwrap();
+                let b = face_box(&body, face, pad(), witness_band());
                 for i in 0..=48 {
                     let theta = 2.0 * core::f64::consts::PI * f64::from(i) / 48.0;
                     let radial = u_ref * theta.cos() + v_ref * theta.sin();
@@ -4300,7 +3358,7 @@ pub(crate) mod tests {
                 "the RING guard alone must refuse it as TWO — a second loop can be \
                  pinned on another branch, and the hull would bound neither"
             );
-            let b = face_box(&body, face, pad(), witness_band()).unwrap();
+            let b = face_box(&body, face, pad(), witness_band());
             let reach = |a: f64| (major + minor) * (1.0 - a * a).sqrt() + minor * a.abs();
             agrees_with_the_rule(
                 &b,
@@ -4367,7 +3425,7 @@ pub(crate) mod tests {
             "a face with a MIX of cached and uncached half-edges must abandon the window, \
              not narrow to {full:?}"
         );
-        let b = face_box(&body, face, pad(), witness_band()).unwrap();
+        let b = face_box(&body, face, pad(), witness_band());
         let reach = |a: f64| (major + minor) * (1.0 - a * a).sqrt() + minor * a.abs();
         agrees_with_the_rule(
             &b,
@@ -4397,12 +3455,8 @@ pub(crate) mod tests {
     fn a_torus_windows_slack_is_guarded_by_the_bound_it_rests_on() {
         let (major, minor) = (2.0, 0.5);
         let (su, sv) = torus_window_slack(1e-9, major, minor).expect("a certified envelope");
-        assert!(
-            (su.hi - 2.0 * 1e-9 / (major - minor)).abs() < 1e-24,
-            "{su:?}"
-        );
-        assert!((sv.hi - 2.0 * 1e-9 / minor).abs() < 1e-24, "{sv:?}");
-        assert!((su.lo + su.hi).abs() < 1e-24 && (sv.lo + sv.hi).abs() < 1e-24);
+        assert!((su - 2.0 * 1e-9 / (major - minor)).abs() < 1e-24, "{su:?}");
+        assert!((sv - 2.0 * 1e-9 / minor).abs() < 1e-24, "{sv:?}");
         // Past the tube bound `r/2`, and past the ring bound
         // `(R − r)/2`, in turn — each alone must refuse.
         assert!(torus_window_slack(minor * 0.5 + 1e-9, major, minor).is_none());
@@ -4439,7 +3493,7 @@ pub(crate) mod tests {
                 let v_ref = axis.cross(u_ref);
                 let (u, v) = ((0.0, 22.0_f64.to_radians()), (-1.1, 2.4));
                 let (body, face) = torus_wall(center, axis, u_ref, major, minor, u, v);
-                let b = face_box(&body, face, 0.0, witness_band()).unwrap();
+                let b = face_box(&body, face, 0.0, witness_band());
                 for i in 0..=80 {
                     let uu = u.0 + (u.1 - u.0) * f64::from(i) / 80.0;
                     let radial = u_ref * uu.cos() + v_ref * uu.sin();
@@ -4559,27 +3613,32 @@ pub(crate) mod tests {
     }
 
     /// The arm's construction over a chart window, at an `f64` point
-    /// description: the closed form met with the whole tube, as both
-    /// lanes read it.
+    /// description: the chart patch met with the whole tube.
     fn window_box(
         (center, axis, u_ref): (Point3<f64>, Vec3<f64>, Vec3<f64>),
         (major, minor): (f64, f64),
         (u, v): ((f64, f64), (f64, f64)),
     ) -> Aabb {
-        let (c, ax) = (SpanBox::point(center), SpanBox::vector(axis));
-        aabb_of(meet(
-            ring_window_extent(
-                &c,
-                (
-                    &SpanBox::vector(u_ref),
-                    &SpanBox::vector(axis.cross(u_ref)),
-                    &ax,
-                ),
-                (Span::exact(major), Span::exact(minor)),
-                (Span { lo: u.0, hi: u.1 }, Span { lo: v.0, hi: v.1 }),
-            ),
-            torus_extent(&c, &ax, major, minor),
-        ))
+        whole_tube((center, axis, u_ref), (major, minor))
+            .meet(
+                Cover::patch(
+                    center,
+                    (axis, u_ref),
+                    (major, minor),
+                    Some(ParamWindow::new(u.0, u.1)),
+                    ParamWindow::new(v.0, v.1),
+                )
+                .unwrap(),
+            )
+            .aabb(0.0)
+    }
+
+    /// The whole tube's cover, the torus arm's carrier term.
+    fn whole_tube(
+        (center, axis, u_ref): (Point3<f64>, Vec3<f64>, Vec3<f64>),
+        (major, minor): (f64, f64),
+    ) -> Cover<f64> {
+        Cover::tube(center, axis, u_ref, major, minor).unwrap()
     }
 
     /// The rounding a closed-form side may carry: a few ulps of the
@@ -4655,12 +3714,7 @@ pub(crate) mod tests {
         let v_ref = axis.cross(u_ref);
         let (u, v) = ((0.0, 22.0_f64.to_radians()), (-PI, PI));
         let b = window_box((center, axis, u_ref), (major, minor), (u, v));
-        let whole = aabb_of(torus_extent(
-            &SpanBox::point(center),
-            &SpanBox::vector(axis),
-            major,
-            minor,
-        ));
+        let whole = whole_tube((center, axis, u_ref), (major, minor)).aabb(0.0);
         let at = |uu: f64, vv: f64| {
             center
                 + (u_ref * uu.cos() + v_ref * uu.sin()) * (major + minor * vv.cos())
@@ -4713,147 +3767,21 @@ pub(crate) mod tests {
         );
     }
 
-    /// **A bracketed description is ENCLOSED, and no looser than its
-    /// corners**: [`torus_rect_extent`] over spans of the frame's
-    /// components and both radii holds every torus they admit, a grid
-    /// varying all five independently through their interiors, and
-    /// each end IS the most extreme corner's, since the family's
-    /// extremes are attained at a corner ([`torus_rect_extent`]'s three
-    /// facts). The corners are read by an independent oracle, a dense
-    /// grid of `e·S` over the window, so the row does not grade the
-    /// function with itself. A span product read at one end, or a
-    /// corner of `(p, q)` not read, puts a member outside; a pad or a
-    /// sampled charge leaves the ends off the corners.
-    #[test]
-    fn a_bracketed_torus_window_encloses_every_torus_it_admits() {
-        let sp = |lo: f64, hi: f64| Span { lo, hi };
-        let cases = [
-            // p, q, a, R, r, u window, v window
-            (
-                sp(0.55, 0.62),
-                sp(-0.31, -0.2),
-                sp(0.7, 0.78),
-                sp(1.9, 2.1),
-                sp(0.45, 0.55),
-                sp(0.3, 1.9),
-                sp(-0.7, 0.8),
-            ),
-            (
-                sp(-0.1, 0.12),
-                sp(0.9, 0.99),
-                sp(-0.2, 0.05),
-                sp(4.99, 5.01),
-                sp(0.05, 0.07),
-                sp(-1.0, 3.0),
-                sp(2.5, 9.0),
-            ),
-            (
-                sp(-0.8, -0.6),
-                sp(-0.5, 0.4),
-                sp(-0.3, -0.25),
-                sp(0.75, 0.8),
-                sp(0.2, 0.25),
-                sp(5.5, 7.0),
-                sp(0.0, core::f64::consts::TAU),
-            ),
-        ];
-        let ends = |s: Span<f64>| [s.lo, s.hi];
-        let x = Span::exact;
-        // `e·S − c` over the window on an `n × n` grid: a lower bound on
-        // the greatest and an upper bound on the least, short of them by
-        // the grid's chord error `(R + r)·h²/8` at most.
-        let n = 160;
-        let sampled =
-            |(p, q, a, big, small): (f64, f64, f64, f64, f64), u: Span<f64>, v: Span<f64>| {
-                let (mut lo, mut hi) = (f64::INFINITY, f64::NEG_INFINITY);
-                for i in 0..=n {
-                    let uu = u.lo + (u.hi - u.lo) * f64::from(i) / f64::from(n);
-                    let along = p * uu.cos() + q * uu.sin();
-                    for j in 0..=n {
-                        let vv = v.lo + (v.hi - v.lo) * f64::from(j) / f64::from(n);
-                        let f = (big + small * vv.cos()) * along + small * a * vv.sin();
-                        lo = lo.min(f);
-                        hi = hi.max(f);
-                    }
-                }
-                (lo, hi)
-            };
-        for (k, &(p, q, a, big, small, u, v)) in cases.iter().enumerate() {
-            let got = torus_rect_extent(x(0.0), (p, q, a), (big, small), (u, v));
-            let (mut lo, mut hi) = (f64::INFINITY, f64::NEG_INFINITY);
-            for p in ends(p) {
-                for q in ends(q) {
-                    for a in ends(a) {
-                        for big in ends(big) {
-                            for small in ends(small) {
-                                let (slo, shi) = sampled((p, q, a, big, small), u, v);
-                                lo = lo.min(slo);
-                                hi = hi.max(shi);
-                            }
-                        }
-                    }
-                }
-            }
-            let h = (u.hi - u.lo).max(v.hi - v.lo) / f64::from(n);
-            let chord = (big.hi + small.hi) * 2.0 * h * h / 8.0;
-            assert!(
-                got.lo <= lo && got.hi >= hi,
-                "case {k}: [{}, {}] must enclose the corners' sampled [{lo}, {hi}]",
-                got.lo,
-                got.hi
-            );
-            assert!(
-                lo - got.lo <= chord && got.hi - hi <= chord,
-                "case {k}: [{}, {}] is looser than the corners' sampled [{lo}, {hi}] by more \
-                 than the grid's chord error {chord:e}",
-                got.lo,
-                got.hi
-            );
-            let tol = 16.0 * f64::EPSILON * (big.hi + small.hi);
-            let inner = |s: Span<f64>, i: u32| s.lo + (s.hi - s.lo) * f64::from(i) / 4.0;
-            for i in 0..=4 {
-                for j in 0..=4 {
-                    for l in 0..=4 {
-                        for m in 0..=4 {
-                            for o in 0..=4 {
-                                let one = torus_rect_extent(
-                                    x(0.0),
-                                    (x(inner(p, i)), x(inner(q, j)), x(inner(a, l))),
-                                    (x(inner(big, m)), x(inner(small, o))),
-                                    (u, v),
-                                );
-                                assert!(
-                                    one.lo >= got.lo - tol && one.hi <= got.hi + tol,
-                                    "case {k}: a member's [{}, {}] left the enclosure [{}, {}]",
-                                    one.lo,
-                                    one.hi,
-                                    got.lo,
-                                    got.hi
-                                );
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    /// **The ring convention holds the closed form back, in both lanes
-    /// alike.** A spindle (`R < r`) breaks the closed form's premise:
+    /// **The ring convention holds the closed form back.** A spindle (`R < r`) breaks the closed form's premise:
     /// `R + r·cos v` goes negative, and the best azimuth then depends on
     /// the latitude. Along `u_ref` over `u ∈ [−0.1, 0.1]` and every `v`,
     /// a spindle of `R = 0.3`, `r = 1` reaches `−0.700`, and the closed
     /// form claims only `−0.6965`, so it must never be read there.
     ///
-    /// On a real face both lanes refuse it twice over: the chart window's
+    /// On a real face the arm refuses it twice over: the chart window's
     /// own slack guard reads `R − r` as a length and gives no window for
     /// a spindle (held here on a ring face's caches read under a
     /// spindle's radii), and the convention (`geom::is_ring_torus`) is
     /// not decided. The window guard shadows the convention on a
     /// spindle, so the near-horn face, `R − r` inside the band where the
-    /// window still reads, is what holds the convention alone: each lane
-    /// must take the whole tube there, and a lane whose guard read the
-    /// bracket or skipped the decision takes the rectangle.
+    /// window still reads, is what holds the convention alone: the cover
+    /// must be the whole tube there, and an arm whose guard read the
+    /// bracket or skipped the decision meets the rectangle.
     #[test]
     fn a_torus_outside_the_decided_ring_convention_keeps_the_whole_tube() {
         use core::f64::consts::PI;
@@ -4870,18 +3798,19 @@ pub(crate) mod tests {
                 least = least.min(at(uu, vv));
             }
         }
-        let x = Span::exact;
-        let closed = torus_rect_extent(
-            x(0.0),
-            (x(1.0), x(0.0), x(0.0)),
-            (x(big), x(small)),
-            (Span { lo: u.0, hi: u.1 }, Span { lo: v.0, hi: v.1 }),
-        );
+        let closed = -Cover::patch(
+            Point3::origin(),
+            (Vec3::unit_z(), Vec3::unit_x()),
+            (big, small),
+            Some(ParamWindow::new(u.0, u.1)),
+            ParamWindow::new(v.0, v.1),
+        )
+        .unwrap()
+        .support(-Vec3::unit_x());
         assert!(
-            closed.lo > least + 1e-3,
-            "the closed form's least {} must under-claim the spindle's {least}, or this row \
-             no longer witnesses why the convention is decided",
-            closed.lo
+            closed > least + 1e-3,
+            "the closed form's least {closed} must under-claim the spindle's {least}, or this \
+             row no longer witnesses why the convention is decided"
         );
 
         let band = witness_band();
@@ -4891,14 +3820,8 @@ pub(crate) mod tests {
         );
         let u_ref = pose.1.orthonormal_basis().0;
         let window = ((0.3, 1.9), (-0.7, 0.8));
-        let whole = |major: f64, minor: f64| {
-            aabb_of(torus_extent(
-                &SpanBox::point(pose.0),
-                &SpanBox::vector(pose.1),
-                major,
-                minor,
-            ))
-        };
+        let whole =
+            |major: f64, minor: f64| whole_tube((pose.0, pose.1, u_ref), (major, minor)).aabb(0.0);
         // A ring face's certified caches, read under a spindle's radii:
         // the window's slack guard refuses, so no lane reaches the
         // closed form there whatever its convention reads.
@@ -4926,7 +3849,7 @@ pub(crate) mod tests {
             major - minor
         );
         let want = whole(major, minor);
-        let boxed = face_box(&body, face, 0.0, band).unwrap();
+        let boxed = face_box(&body, face, 0.0, band);
         let (lo, hi) = crate::census::face_reach(&body, face, band).unwrap();
         agrees_with_the_rule(&boxed, &want, major, "face_box on the near-horn face");
         agrees_with_the_rule(
@@ -5043,7 +3966,7 @@ pub(crate) mod tests {
                                 u_ref,
                             },
                         );
-                        let b = face_box(&body, face, pad, witness_band()).unwrap();
+                        let b = face_box(&body, face, pad, witness_band());
                         // The room off each row as the norm of the axis's other
                         // two components, which does not cancel near a row.
                         let reach =
@@ -5071,7 +3994,7 @@ pub(crate) mod tests {
 
                         let (u, v) = ((0.3, 1.9), (-0.7, 0.8));
                         let (body, face) = torus_wall(c, axis, u_ref, major, minor, u, v);
-                        let b = face_box(&body, face, pad, witness_band()).unwrap();
+                        let b = face_box(&body, face, pad, witness_band());
                         // The window comes from the fixture's own caches (the
                         // fidelity row is what pins it to `[u0, u1] × [v0, v1]`);
                         // the CONSTRUCTION is restated here rather than called,
@@ -5208,29 +4131,23 @@ pub(crate) mod tests {
             ("nurbs", 1.0, (nurbs_body, nurbs_face)),
         ];
         for (what, radius, (body, face)) in cases {
-            let boxed = face_box(&body, face, 0.0, witness_band()).unwrap();
+            let boxed = face_box(&body, face, 0.0, witness_band());
             let (lo, hi) = crate::census::face_reach(&body, face, witness_band())
-                .unwrap_or_else(|| panic!("{what}: the census lane claims nothing"));
-            // `census − boolean` outward per side: equal to rounding.
-            for (name, gap, scale) in [
-                ("min_x", boxed.min_x - lo.x, lo.x),
-                ("min_y", boxed.min_y - lo.y, lo.y),
-                ("min_z", boxed.min_z - lo.z, lo.z),
-                ("max_x", hi.x - boxed.max_x, hi.x),
-                ("max_y", hi.y - boxed.max_y, hi.y),
-                ("max_z", hi.z - boxed.max_z, hi.z),
+                .unwrap_or_else(|| panic!("{what}: the census reads no cover"));
+            assert!(radius > 0.0, "{what}: the case's scale");
+            // One cover: the bracket at `f64` is the identity, and the
+            // padded box stands one ulp outside the census's per side.
+            for (name, got, census) in [
+                ("min_x", boxed.min_x, lo.x.next_down()),
+                ("min_y", boxed.min_y, lo.y.next_down()),
+                ("min_z", boxed.min_z, lo.z.next_down()),
+                ("max_x", boxed.max_x, hi.x.next_up()),
+                ("max_y", boxed.max_y, hi.y.next_up()),
+                ("max_z", boxed.max_z, hi.z.next_up()),
             ] {
-                let tol = 4.0 * f64::EPSILON * (scale.abs() + 2.0 * radius);
-                assert!(
-                    gap >= -tol,
-                    "{what}: the census box falls inside the boolean box at {name} by {} \
-                     (past rounding, {tol:e})",
-                    -gap
-                );
-                assert!(
-                    gap <= tol,
-                    "{what}: the census box exceeds the boolean box at {name} by {gap} \
-                     (past rounding, {tol:e})"
+                assert_eq!(
+                    got, census,
+                    "{what}: the face box and the census reach differ at {name}"
                 );
             }
         }
@@ -5276,62 +4193,6 @@ pub(crate) mod tests {
         }
     }
 
-    /// **Poison survives one poisoned END.** [`Span::mul`] folds four
-    /// corner products; whether a `NaN` corner survives depends
-    /// entirely on WHICH min/max the fold uses. `Real::min`
-    /// propagates poison; `f64`'s inherent `min` RETURNS the non-NaN
-    /// operand, so the same fold written against it would hand a
-    /// finite product back for a description with a poisoned bracket
-    /// end — and the poison box, which every door reads in its own
-    /// fail-loud direction, would never be reached.
-    ///
-    /// Planted at the arithmetic because no body can carry a
-    /// half-poisoned bracket at `f64`, where a bracket is a point.
-    #[test]
-    fn a_half_poisoned_span_poisons_its_product() {
-        let poisoned = Span {
-            lo: f64::NAN,
-            hi: 1.0,
-        };
-        let finite = Span { lo: 2.0, hi: 3.0 };
-        for (a, b, what) in [
-            (poisoned, finite, "poisoned lo on the left"),
-            (finite, poisoned, "poisoned lo on the right"),
-            (
-                Span {
-                    lo: -1.0,
-                    hi: f64::NAN,
-                },
-                finite,
-                "poisoned hi on the left",
-            ),
-        ] {
-            let p = a.mul(b);
-            assert!(
-                p.lo.is_nan() && p.hi.is_nan(),
-                "{what}: a poisoned end must poison the product, got {p:?}"
-            );
-        }
-        // And it reaches the box: a slab over a poisoned axial range
-        // is the poison box, not a finite claim.
-        let poison_h = Span {
-            lo: f64::NAN,
-            hi: 1.0,
-        };
-        let slab = slab_extent(
-            &SpanBox::point(Point3::<f64>::origin()),
-            &BoxFrame::World.unit(
-                UnitVec3::new(Vec3::<f64>::unit_z(), BOX_CYLINDER_AXIS, witness_band()).unwrap(),
-            ),
-            poison_h,
-            1.0,
-        );
-        assert!(
-            slab.z.lo.is_nan() && slab.z.hi.is_nan(),
-            "a poisoned axial range must poison the slab: {slab:?}"
-        );
-    }
-
     /// **The frustum tracks its window.** A cone face far from the
     /// apex must be boxed as the frustum that window cuts, not as the
     /// widest ring the cone reaches inside it: the radial half-extent
@@ -5346,114 +4207,28 @@ pub(crate) mod tests {
     #[test]
     fn the_cone_arm_boxes_the_frustum_not_the_widest_ring() {
         let alpha = 0.4_f64;
-        let (z0, z1) = (2.0, 2.5);
-        let apex = SpanBox::point(Point3::<f64>::origin());
-        let axis = SpanBox::vector(Vec3::<f64>::unit_z());
-        let h = Span { lo: z0, hi: z1 };
-        let b = cone_frustum_extent(&apex, &axis, h, alpha.tan());
-        let far = z1 * alpha.tan();
-        assert!(
-            b.x.hi <= far * (1.0 + 1e-12) && b.x.hi >= far * (1.0 - 1e-12),
-            "the widest coordinate reach is the FAR radius {far}, got {}",
-            b.x.hi
-        );
-        assert!(
-            b.z.lo >= z0 - 1e-12 && b.z.hi <= z1 + 1e-12,
-            "the axial coordinate takes no widening at all: {b:?}"
-        );
-        // A window whose far end is ten times out: the frustum box
-        // must NOT be the ten-times ring everywhere.
-        let near = cone_frustum_extent(&apex, &axis, Span { lo: 0.1, hi: 0.2 }, alpha.tan());
-        assert!(
-            near.x.hi < 0.2 * alpha.tan() * 1.000_001,
-            "a window near the apex must claim the near radius: {near:?}"
-        );
-    }
-
-    /// **The bracket defects, planted at the arithmetic.** Both of
-    /// #862's under-enclosures are properties of a DESCRIPTION whose
-    /// coordinates are brackets — invisible at `f64`, where a bracket
-    /// is a point — so they are planted here, on the extents the
-    /// census lane reads (the boolean lane's conic edge box is `geom`'s
-    /// exact door, pinned in that crate), rather than through a body
-    /// at a scalar the row cannot pick.
-    ///
-    /// 1. The axial projection: an axis whose bracket spans two
-    ///    directions must give an axial range that ENCLOSES what
-    ///    either endpoint alone would give, never sit at one of them.
-    ///    (It is [`cover_axial`] that does the projecting now —
-    ///    per boundary edge, not over a box — and the bracket
-    ///    question is the same one.)
-    /// 2. The reference direction: a bracket that straddles zero, or
-    ///    whose lower end is the larger in magnitude, must contribute
-    ///    that larger magnitude — `hi()` alone under-claims.
-    ///
-    /// The slab's perpendicular room reads the same way round: an
-    /// axis coordinate that is not CERTAINLY ±1 gets the room a
-    /// perpendicular unit vector could take, never zero on the
-    /// strength of one endpoint.
-    #[test]
-    fn a_bracketed_description_is_enclosed_not_sampled_at_one_endpoint() {
-        let origin = SpanBox::point(Point3::<f64>::origin());
-        // An axis known only to lie between (0, 0, 1) and (0.6, 0, 0.8).
-        let iv = geom_core::Interval::from_bounds;
-        let at =
-            Cover::points(vec![Point3::new(iv(1.0, 1.0), iv(0.0, 0.0), iv(0.0, 0.0))]).unwrap();
-        let (lo, hi) = cover_axial(
-            &at,
-            Point3::origin(),
-            Vec3::new(iv(0.0, 0.6), iv(0.0, 0.0), iv(0.8, 1.0)),
-        );
-        assert!(
-            lo.lo() <= 0.0 && hi.hi() >= 0.6,
-            "the axial projection must enclose both endpoints' answers, got [{}, {}]",
-            lo.lo(),
-            hi.hi()
-        );
-        // Perpendicular room: `axis.z` is not certainly ±1, so the z
-        // coordinate takes at least the room `√(1 − 0.8²) = 0.6` of the
-        // radius. The slab reads the bracket's decided direction, which
-        // the normalizing divide only widens.
-        let unit = UnitVec3::new(
-            Vec3::new(iv(0.0, 0.6), iv(0.0, 0.0), iv(0.8, 1.0)),
-            BOX_CYLINDER_AXIS,
-            witness_band(),
-        )
-        .unwrap();
-        let slab = slab_extent(
-            &origin,
-            &UnitSpanBox::bracketed(unit),
-            Span::exact(0.0),
-            1.0,
-        );
-        assert!(
-            slab.z.hi >= 0.6 - 1e-12,
-            "an axis coordinate bracketed away from ±1 must keep its perpendicular \
-             room, got {slab:?}"
-        );
-        // A reference direction whose lower end is the larger in
-        // magnitude, and one straddling zero.
-        let conic = conic_extent(
-            &origin,
-            &SpanBox {
-                x: Span { lo: -1.0, hi: -0.9 },
-                y: Span { lo: -0.4, hi: 0.4 },
-                z: Span { lo: 0.0, hi: 0.0 },
-            },
-            &SpanBox::vector(Vec3::<f64>::unit_y()),
-            2.0,
-            0.0,
-        );
-        assert!(
-            conic.x.hi >= 2.0 - 1e-12,
-            "the reference direction's largest magnitude must be the one that \
-             counts, got {conic:?}"
-        );
-        assert!(
-            conic.y.hi >= 0.8 - 1e-12,
-            "a bracket straddling zero must contribute its largest magnitude, \
-             got {conic:?}"
-        );
+        let pi = core::f64::consts::PI;
+        for (z0, z1) in [(2.0, 2.5), (0.1, 0.2)] {
+            // A half turn about `z`, `u ∈ [0, π]`: its `x` reaches the
+            // far radius at `u = 0`, its `−x` at `u = π`.
+            let (body, face) = cone_wall(alpha, 0.0, pi, z0, z1);
+            let b = face_box(&body, face, 0.0, witness_band());
+            let far = z1 * alpha.tan();
+            assert!(
+                (b.max_x - far).abs() <= 1e-12,
+                "[{z0}, {z1}]: the widest coordinate reach is the FAR radius {far}, got {}",
+                b.max_x
+            );
+            assert!(
+                (b.min_z - z0).abs() <= 1e-12 && (b.max_z - z1).abs() <= 1e-12,
+                "[{z0}, {z1}]: the axial coordinate takes no widening, and a face whose loop \
+                 closes in the chart does not reach the apex: {b:?}"
+            );
+            assert!(
+                b.min_y >= -1e-12,
+                "[{z0}, {z1}]: the half turn's box is clipped to its boundary: {b:?}"
+            );
+        }
     }
 
     // ------------------------------------------------------------------
@@ -5806,12 +4581,10 @@ pub(crate) mod tests {
         let mut boxed = 0;
         for &c in &centres {
             for &aim in &aims {
-                let frame = BoxFrame::aimed(UnitVec3::new(aim, "aim", band).unwrap());
-                let BoxFrame::Aimed(rows) = frame else {
-                    unreachable!("an aimed frame has rows")
-                };
-                let iframe: BoxFrame<Interval> =
-                    BoxFrame::Aimed([ivv(rows[0]), ivv(rows[1]), ivv(rows[2])]);
+                let frame = Frame::aimed(UnitVec3::new(aim, "aim", band).unwrap());
+                let rows = frame.rows();
+                let iframe: Frame<Interval> =
+                    Frame::Rows([ivv(rows[0]), ivv(rows[1]), ivv(rows[2])]);
                 for &(big_r, r, d) in &tori {
                     let Ok(carrier) =
                         Curve3::spiric(c, Vec3::unit_z(), Vec3::unit_x(), big_r, r, d, band)
@@ -5823,7 +4596,7 @@ pub(crate) mod tests {
                     let ends = (carrier.eval(t0), carrier.eval(t1));
                     let (lo, hi) = edge_cover_over(&carrier, (t0, t1), ends)
                         .unwrap()
-                        .box_in(&cover_frame(&frame));
+                        .box_in(&frame);
                     let at_f64 = Aabb {
                         min_x: lo.x,
                         min_y: lo.y,
@@ -5836,7 +4609,7 @@ pub(crate) mod tests {
                     let (lo, hi) =
                         edge_cover_over(&icarrier, (iv(t0), iv(t1)), (ivp(ends.0), ivp(ends.1)))
                             .unwrap()
-                            .box_in(&cover_frame(&iframe));
+                            .box_in(&iframe);
                     let at_interval = Aabb {
                         min_x: lo.x.lo(),
                         min_y: lo.y.lo(),
@@ -6162,7 +4935,7 @@ pub(crate) mod tests {
         let (r, u0, u1, z0, z1) = (2.0, 5.9, 6.7, -0.25, 0.75);
         let (body, face) = cyl_wall(r, u0, u1, z0, z1);
         let pad = pad();
-        let b = face_box(&body, face, pad, witness_band()).unwrap();
+        let b = face_box(&body, face, pad, witness_band());
         // Soundness: dense wall samples inside.
         for i in 0..=400 {
             for j in 0..=40 {
@@ -6189,7 +4962,7 @@ pub(crate) mod tests {
         // rounding (the two-lanes row's contract).
         let (lo, hi) =
             crate::census::face_reach(&body, face, witness_band()).expect("census claims the wall");
-        let b0 = face_box(&body, face, 0.0, witness_band()).unwrap();
+        let b0 = face_box(&body, face, 0.0, witness_band());
         for (name, gap, scale) in [
             ("min_x", b0.min_x - lo.x, lo.x),
             ("min_y", b0.min_y - lo.y, lo.y),
@@ -6209,131 +4982,43 @@ pub(crate) mod tests {
         }
     }
 
-    /// **Every extent reads coordinate `i` from coordinate `i` alone** —
-    /// the premise [`BoxFrame`] rests on: an extent that mixed a second
-    /// coordinate into the first would be exact in the world frame and
-    /// unsound in an aimed one, which no world row could see. Each
-    /// extent is run twice on inputs that agree in `x` and disagree in
-    /// `y` and `z`, and its `x` span must not move by a bit. The axis's
-    /// `y` and `z` are the one exception the premise names: they are
-    /// turned and swapped, which keeps the norm of the axis off `x`
-    /// ([`perp_room`]) to the bit.
-    #[test]
-    fn every_extent_reads_each_coordinate_from_that_coordinate_alone() {
-        let v = |x: f64, y: f64, z: f64| SpanBox::vector(Vec3::new(x, y, z));
-        let pt = |x: f64, y: f64, z: f64| SpanBox::point(Point3::new(x, y, z));
-        let same = |what: &str, a: SpanBox<f64>, b: SpanBox<f64>| {
-            assert!(
-                a.x.lo.to_bits() == b.x.lo.to_bits() && a.x.hi.to_bits() == b.x.hi.to_bits(),
-                "{what}: the x span moved with y and z: {:?} vs {:?}",
-                a.x,
-                b.x
-            );
-        };
-        let h = Span { lo: -0.4, hi: 0.9 };
-        // Two readings of the same x components: (0.3, …) etc.
-        for (oy, oz, ay, az) in [(5.0, -2.0, 0.82, -0.5), (-7.0, 3.5, -0.5, -0.82)] {
-            let (o0, o1) = (pt(0.3, 0.2, -0.1), pt(0.3, oy, oz));
-            let (a0, a1) = (v(0.28, 0.5, 0.82), v(0.28, ay, az));
-            let (u0, u1) = (v(0.6, -0.7, 0.2), v(0.6, az, oy));
-            let (w0, w1) = (v(-0.3, 0.1, 0.9), v(-0.3, oz, ay));
-            same(
-                "slab_extent",
-                slab_extent(&o0, &UnitSpanBox(a0), h, 0.7),
-                slab_extent(&o1, &UnitSpanBox(a1), h, 0.7),
-            );
-            same(
-                "cone_frustum_extent",
-                cone_frustum_extent(&o0, &a0, h, 0.4),
-                cone_frustum_extent(&o1, &a1, h, 0.4),
-            );
-            same("ball_extent", ball_extent(&o0, 0.7), ball_extent(&o1, 0.7));
-            same(
-                "torus_extent",
-                torus_extent(&o0, &a0, 0.75, 0.25),
-                torus_extent(&o1, &a1, 0.75, 0.25),
-            );
-            let window = (Span { lo: 0.3, hi: 2.9 }, Span { lo: -1.0, hi: 1.4 });
-            same(
-                "ring_window_extent",
-                ring_window_extent(
-                    &o0,
-                    (&u0, &w0, &a0),
-                    (Span::exact(0.75), Span::exact(0.25)),
-                    window,
-                ),
-                ring_window_extent(
-                    &o1,
-                    (&u1, &w1, &a1),
-                    (Span::exact(0.75), Span::exact(0.25)),
-                    window,
-                ),
-            );
-            same(
-                "conic_extent",
-                conic_extent(&o0, &u0, &w0, 0.9, 0.4),
-                conic_extent(&o1, &u1, &w1, 0.9, 0.4),
-            );
-        }
-    }
-
     /// **An axis near a row keeps its perpendicular room.** A
-    /// cylinder, cone or torus (whole, or over a full chart window)
-    /// whose axis is `t` off `ẑ` reaches
-    /// `radius·sin t` along `z` from its axis point: the room a unit
-    /// direction perpendicular to the axis has along `ẑ`. Spelled
-    /// `√(1 − a_z²)`, the room cancelled and was exactly zero below
-    /// `t ≈ 1e-8`, so a slab of radius `1e3` at `t = 1e-8` sat `1e-5`
-    /// inside its circle along `z`, past any pad its readers take.
+    /// cylinder slab, a cone frustum or a torus (whole, or over a full
+    /// chart window) whose axis is `t` off `ẑ` reaches `radius·sin t`
+    /// along `z` from its axis point: the room a unit direction
+    /// perpendicular to the axis has along `ẑ`. Spelled `√(1 − a_z²)`,
+    /// the room cancels and is exactly zero below `t ≈ 1e-8`, so a slab
+    /// of radius `1e3` at `t = 1e-8` would sit `1e-5` inside its circle
+    /// along `z`: the arms' pieces read the room as a cross product's
+    /// norm, or a norm of components, which does not cancel.
     #[test]
     fn an_axis_near_a_row_keeps_its_perpendicular_room() {
         let r = 1e3;
-        let origin = SpanBox::point(Point3::origin());
+        let origin = Point3::origin();
+        let band = witness_band();
+        let turn = || ParamWindow::new(0.0, core::f64::consts::TAU);
         for t in [1e-12f64, 1e-9, 1e-8, 1e-7, 1e-4, 1e-2] {
             let tilted = Vec3::new(t.sin(), 0.0, t.cos());
-            let axis = SpanBox::vector(tilted);
+            let unit = UnitVec3::new(tilted, BOX_CYLINDER_AXIS, band).unwrap();
             let (u_ref, _) = tilted.orthonormal_basis();
-            let v_ref = tilted.cross(u_ref);
-            let turn = Span {
-                lo: 0.0,
-                hi: core::f64::consts::TAU,
-            };
             let room = r * t.sin();
+            let z = Vec3::unit_z();
+            let slab = Cover::slab(origin, unit, r, ParamWindow::new(0.0, 0.0)).unwrap();
             // The cone's axis point at `h = r` is `r·cos t` up, read to
             // an ulp of `r`.
-            let cone = cone_frustum_extent(&origin, &axis, Span::exact(r), 1.0)
-                .z
-                .hi;
+            let cone = Cover::frustum(origin, unit, 1.0, ParamWindow::new(r, r)).unwrap();
+            let tube = Cover::tube(origin, tilted, u_ref, r, 0.0).unwrap();
+            let patch =
+                Cover::patch(origin, (tilted, u_ref), (r, 0.0), Some(turn()), turn()).unwrap();
             for (what, reach, slack) in [
+                ("the slab", slab.support(z), 0.0),
                 (
-                    "slab_extent",
-                    slab_extent(&origin, &UnitSpanBox(axis), Span::exact(0.0), r)
-                        .z
-                        .hi,
-                    0.0,
-                ),
-                (
-                    "cone_frustum_extent",
-                    cone - r * t.cos(),
+                    "the frustum",
+                    cone.support(z) - r * t.cos(),
                     2.0 * r * f64::EPSILON,
                 ),
-                (
-                    "torus_extent",
-                    torus_extent(&origin, &axis, r, 0.0).z.hi,
-                    0.0,
-                ),
-                (
-                    "ring_window_extent",
-                    ring_window_extent(
-                        &origin,
-                        (&SpanBox::vector(u_ref), &SpanBox::vector(v_ref), &axis),
-                        (Span::exact(r), Span::exact(0.0)),
-                        (turn, turn),
-                    )
-                    .z
-                    .hi,
-                    0.0,
-                ),
+                ("the tube", tube.support(z), 0.0),
+                ("the chart patch", patch.support(z), 0.0),
             ] {
                 assert!(
                     reach >= room * (1.0 - 4.0 * f64::EPSILON) - slack,
@@ -6344,66 +5029,9 @@ pub(crate) mod tests {
         }
     }
 
-    /// **The aimed frame's rounding, measured.** A point's first
-    /// coordinate is the dot product `n·p`, whose rounding is at most
-    /// `γ₃·Σ|nᵢpᵢ| ≤ 3u·|p|` (about one and a half ulps of `|p|`): against
-    /// an error-free reference (each product split exactly by `mul_add`,
-    /// the sum carried in two parts), at `|p|` from a millimetre to
-    /// `10⁸` m. The pad, `12 ε`, covers it wherever a coordinate of
-    /// magnitude `|p|` resolves `ε` at all (`ulp(|p|) ≤ ε`), which is
-    /// what [`BoxFrame`]'s docs lean on.
-    #[test]
-    fn the_aimed_frames_rounding_is_a_few_ulps_of_the_point() {
-        let two_sum = |a: f64, b: f64| {
-            let s = a + b;
-            let bb = s - a;
-            (s, (a - (s - bb)) + (b - bb))
-        };
-        let exact_dot = |n: Vec3<f64>, p: Point3<f64>| {
-            let (mut hi, mut lo) = (0.0f64, 0.0f64);
-            for (a, b) in [(n.x, p.x), (n.y, p.y), (n.z, p.z)] {
-                let prod = a * b;
-                let err = a.mul_add(b, -prod);
-                let (s, e) = two_sum(hi, prod);
-                hi = s;
-                lo += e + err;
-            }
-            (hi, lo)
-        };
-        let band = witness_band();
-        let mut worst = 0.0f64;
-        for (k, scale) in [1e-3, 1.0, 1e3, 1e6, 1e8].into_iter().enumerate() {
-            for i in 0..200u32 {
-                let t = f64::from(i) * 0.731 + k as f64;
-                let n = UnitVec3::new(
-                    Vec3::new(t.sin(), (1.7 * t).cos(), (0.3 * t).sin() + 0.2),
-                    BOX_CYLINDER_AXIS,
-                    band,
-                )
-                .unwrap();
-                let p = Point3::new(
-                    scale * (2.3 * t).cos(),
-                    scale * (1.1 * t).sin(),
-                    scale * (0.7 * t + 1.0).cos(),
-                );
-                let got = BoxFrame::aimed(n).point(p).x;
-                let (hi, lo) = exact_dot(n.get(), p);
-                let norm = (p.x * p.x + p.y * p.y + p.z * p.z).sqrt();
-                let err = ((got - hi) - lo).abs();
-                assert!(
-                    err <= 3.0 * f64::EPSILON / 2.0 * norm,
-                    "the aimed coordinate of {p:?} along {n:?} is off by {err}, over 3u·|p| = {}",
-                    3.0 * f64::EPSILON / 2.0 * norm
-                );
-                worst = worst.max(err / norm);
-            }
-        }
-        println!("the aimed frame's worst rounding: {worst:e}·|p|");
-    }
-
     /// **The spiric edge's reach turns with the frame**: read in frames
     /// aimed off every world axis, the first coordinate of
-    /// `census::edge_reach_in` holds `n·p` for a dense sample of the
+    /// the edge's cover's box holds `n·p` for a dense sample of the
     /// spiric edge over its span — the arm the split gate reads a spiric edge through. A
     /// world-frame row cannot see a component left unrotated here.
     #[test]
@@ -6421,7 +5049,7 @@ pub(crate) mod tests {
             Vec3::new(0.6, 0.7, -0.4),
         ] {
             let n = UnitVec3::new(aim, BOX_CYLINDER_AXIS, band).unwrap();
-            let (lo, hi) = crate::census::edge_reach_in(&body, edge, &BoxFrame::aimed(n)).unwrap();
+            let (lo, hi) = edge_cover(&body, edge).unwrap().box_in(&Frame::aimed(n));
             let (t0, t1) = curve.params();
             for i in 0..=20_000 {
                 let t = t0 + (t1 - t0) * f64::from(i) / 20_000.0;
@@ -6439,7 +5067,7 @@ pub(crate) mod tests {
     }
 
     /// **The census's conic edge reach is the arc's extent in an aimed
-    /// frame**: along each of a [`BoxFrame::aimed`] frame's rows, it
+    /// frame**: along each of a [`Frame::aimed`] frame's rows, its cover's box
     /// contains 40 001 samples of the arc and sits within their spacing's
     /// bulge of them, for runs short of a half-turn to nearly a full
     /// one, from several reference directions.
@@ -6463,9 +5091,9 @@ pub(crate) mod tests {
                 Vec3::new(1.0, 0.0, 0.0),
             ] {
                 let n = UnitVec3::new(aim, BOX_CYLINDER_AXIS, band).unwrap();
-                let frame = BoxFrame::aimed(n);
+                let frame = Frame::aimed(n);
                 let rows = frame.rows();
-                let (lo, hi) = crate::census::edge_reach_in(&body, edge, &frame).unwrap();
+                let (lo, hi) = edge_cover(&body, edge).unwrap().box_in(&frame);
                 let (lo, hi) = ([lo.x, lo.y, lo.z], [hi.x, hi.y, hi.z]);
                 let mut slo = [f64::INFINITY; 3];
                 let mut shi = [f64::NEG_INFINITY; 3];
@@ -6501,17 +5129,17 @@ pub(crate) mod tests {
     }
 }
 
-/// **The chart rectangles' closed forms are their supports**:
-/// [`torus_rect_extent`] on a ring torus and on a sphere (`R = 0`),
-/// each against a dense grid of the rectangle's own points.
+/// **The chart patches the sphere and torus arms meet are their
+/// rectangles' supports** ([`Cover::patch`]) on a ring torus and on a
+/// sphere (`R = 0`), each against a dense grid of the rectangle's own
+/// points.
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod rect_extent_rows {
     use core::f64::consts::PI;
 
-    use geom_core::Vec3;
-
-    use super::{Span, torus_rect_extent};
+    use geom::cover::{Cover, ParamWindow};
+    use geom_core::{Point3, Vec3};
 
     /// The greatest and least of `f` over an `n × n` grid of
     /// `[a0, a1] × [b0, b1]`.
@@ -6535,15 +5163,22 @@ mod rect_extent_rows {
         (lo, hi)
     }
 
-    /// [`torus_rect_extent`] of a point description about the origin.
+    /// The patch about the origin, axis `ŷ`, `u_ref = x̂`, read either
+    /// way along `e`.
     fn point_extent(
-        (p, q, a): (f64, f64, f64),
+        e: Vec3<f64>,
         (major, minor): (f64, f64),
-        window: (Span<f64>, Span<f64>),
+        ((u0, u1), (v0, v1)): ((f64, f64), (f64, f64)),
     ) -> (f64, f64) {
-        let x = Span::exact;
-        let s = torus_rect_extent(x(0.0), (x(p), x(q), x(a)), (x(major), x(minor)), window);
-        (s.lo, s.hi)
+        let patch = Cover::patch(
+            Point3::origin(),
+            (Vec3::unit_y(), Vec3::unit_x()),
+            (major, minor),
+            Some(ParamWindow::new(u0, u1)),
+            ParamWindow::new(v0, v1),
+        )
+        .unwrap();
+        (-patch.support(-e), patch.support(e))
     }
 
     /// `(lo, hi)` encloses the sampled `(slo, shi)` and exceeds it by no
@@ -6560,7 +5195,7 @@ mod rect_extent_rows {
     }
 
     /// **A sphere's chart rectangle has its own extent along a
-    /// direction**: [`torus_rect_extent`] with `R = 0`, against a dense
+    /// direction**: the patch with `R = 0`, against a dense
     /// grid of the rectangle's own points, for azimuth windows from a
     /// sliver to a full turn and across the seam's period, and latitude
     /// windows that reach a pole, hold the equator, and miss it on
@@ -6593,8 +5228,7 @@ mod rect_extent_rows {
                 ] {
                     let e = e * (1.0 / e.norm());
                     let samples = sampled(300, u, v, |a, b| e.dot(point(a, b)));
-                    let span = |(lo, hi)| Span { lo, hi };
-                    let got = point_extent((e.x, -e.z, e.y), (0.0, r), (span(u), span(v)));
+                    let got = point_extent(e, (0.0, r), (u, v));
                     assert_support(
                         &format!("window {u:?} × {v:?}, e = {e:?}"),
                         got,
@@ -6634,8 +5268,7 @@ mod rect_extent_rows {
             ] {
                 let e = e * (1.0 / e.norm());
                 let samples = sampled(600, u, v, |a, b| e.dot(point(a, b)));
-                let span = |(lo, hi)| Span { lo, hi };
-                let got = point_extent((e.x, -e.z, e.y), (major, minor), (span(u), span(v)));
+                let got = point_extent(e, (major, minor), (u, v));
                 assert_support(
                     &format!("window {u:?} × {v:?}, e = {e:?}"),
                     got,
@@ -6657,12 +5290,13 @@ pub(crate) mod sphere_rect_rows {
     use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
     use geom_core::{Band, Point3, Tol, Vec3};
 
-    use super::{BoxFrame, face_box, sphere_reach};
+    use super::{face_box, face_cover};
     use crate::body::Body;
     use crate::construction::{FaceSurface, MefSite, MevSite};
     use crate::entity::{EntityId, FaceKey, GeomRef, LoopBoundary};
     use crate::live::OPERATORS_KEEP_LINKS;
     use crate::review_d18::{ROW_FOUR, assert_torn_op_panics};
+    use geom::cover::Frame;
 
     /// The unit sphere's zone over azimuths `[u0, u1]` and heights
     /// `[h0, h1]`: two latitude rims and two meridian arcs, each on its
@@ -6853,7 +5487,7 @@ pub(crate) mod sphere_rect_rows {
                 "{what}: [{lo}, {hi}] is looser than the sheet's [{slo}, {shi}]"
             );
         };
-        let boxed = face_box(&body, face, 0.0, band).unwrap();
+        let boxed = face_box(&body, face, 0.0, band);
         let (lo, hi) = crate::census::face_reach(&body, face, band).unwrap();
         for (k, e) in [Vec3::unit_x(), Vec3::unit_y(), Vec3::unit_z()]
             .into_iter()
@@ -6879,8 +5513,8 @@ pub(crate) mod sphere_rect_rows {
         ] {
             let aim = aim * (1.0 / aim.norm());
             let frame =
-                BoxFrame::aimed(geom_core::UnitVec3::new(aim, "sphere_rect_rows", band).unwrap());
-            let (lo, _) = sphere_reach(&body, face, band, &frame);
+                Frame::aimed(geom_core::UnitVec3::new(aim, "sphere_rect_rows", band).unwrap());
+            let (lo, _) = face_cover(&body, face, band).unwrap().box_in(&frame);
             let (_, hi) = crate::census::face_reach_in(&body, face, band, &frame).unwrap();
             close(&format!("the reach along {aim:?}"), (lo.x, hi.x), aim);
         }
@@ -7054,15 +5688,17 @@ pub(crate) mod sphere_rect_rows {
         for hc in [0.3, 1.0] {
             for senses in [(true, true), (true, false), (false, true), (false, false)] {
                 let (body, north, _) = strut_cap_ball(-0.5, hc, senses);
-                let (lo, hi) = sphere_reach(&body, north, band, &BoxFrame::World);
-                let boxed = face_box(&body, north, 0.0, band).unwrap();
+                let (lo, hi) = face_cover(&body, north, band)
+                    .unwrap()
+                    .box_in(&Frame::World);
+                let boxed = face_box(&body, north, 0.0, band);
                 let (clo, chi) = crate::census::face_reach(&body, north, band).unwrap();
                 // Every extreme is the ball's: a window read off either
                 // side of the rim `z = −0.5` stops short of one pole,
                 // and a seam's azimuth window short of `x = −1` or of
                 // `y = ±1`.
                 for (lane, lo, hi) in [
-                    ("sphere_reach", [lo.x, lo.y, lo.z], [hi.x, hi.y, hi.z]),
+                    ("face_cover", [lo.x, lo.y, lo.z], [hi.x, hi.y, hi.z]),
                     (
                         "face_box",
                         [boxed.min_x, boxed.min_y, boxed.min_z],
@@ -7114,7 +5750,7 @@ pub(crate) mod sphere_rect_rows {
         let z = z * (1.0 / z.norm());
         let comps = [z.x, z.y, z.z];
         let sin_b = comps[k];
-        let cos_b = super::pick_other(z, k);
+        let cos_b = comps[(k + 1) % 3].hypot(comps[(k + 2) % 3]);
         let best = |sin_b: f64| {
             let (lo, hi) = (s_lo.asin(), s_hi.asin());
             let b = sin_b.atan2(cos_b);
@@ -7164,7 +5800,7 @@ pub(crate) mod sphere_rect_rows {
                         true,
                         tol,
                     );
-                    let boxed = face_box(&body, cap, super::sweep_pad(band), band).unwrap();
+                    let boxed = face_box(&body, cap, super::sweep_pad(band), band);
                     let top = c.z + r * (h0 * t.cos() + (1.0 - h0 * h0).sqrt() * t.sin());
                     assert!(
                         boxed.max_z >= top,
@@ -7183,20 +5819,25 @@ pub(crate) mod sphere_rect_rows {
         );
     }
 
-    /// **The reach's outward charge covers its rounding, measured.**
-    /// Random zones on a seam (the zone arm), with axes within
-    /// `10⁻¹⁰` to `10⁻¹` of a random box row, at scales `1e-3`, `1` and
-    /// `1e3` (those the run's ε resolves), read at pad 0 by all three lanes along every row against
-    /// the exact support ([`zone_support`]). Each lane must enclose the
-    /// face, and `sphere_reach`'s uncharged support must fall short of
-    /// the exact one by no more than the 4 ulps of `|c_k| + r` measured,
-    /// a quarter of the [`super::SPHERE_REACH_ULPS`] it is charged.
+    /// **The zone's support is well-posed near a box row, measured**
+    /// (`[simple.conditioned]`: no charge, and no step that cancels).
+    /// Random zones on a seam (the zone arm), with axes within `10⁻¹⁰`
+    /// to `10⁻¹` of a random box row, at scales `1e-3`, `1` and `1e3`
+    /// (those the run's ε resolves), read at pad 0 along every row,
+    /// against the exact support ([`zone_support`]): each reading falls
+    /// short of it by no more than the 4 ulps of `|c_k| + r` measured.
+    /// A share read as `√(1 − a²)` loses the share outright with the
+    /// axis `1e-8` off a row, which no ulp count bounds.
     #[test]
-    fn a_zone_reach_charge_covers_random_poses_near_a_box_row() {
+    fn a_zones_support_near_a_box_row_is_within_rounding_of_the_exact_one() {
+        // Measured under 2.5 at every ε (12 000 faces at effort 20) with
+        // the old window read; a step that starts to cancel shows here.
+        const MEASURED_WORST_ULPS: f64 = 4.0;
         let tol = Tol::witness();
         let band = Band::linear(tol).unwrap();
-        let mut rng =
-            test_utils::fuzz::start("a_zone_reach_charge_covers_random_poses_near_a_box_row");
+        let mut rng = test_utils::fuzz::start(
+            "a_zones_support_near_a_box_row_is_within_rounding_of_the_exact_one",
+        );
         let rows = [Vec3::unit_x(), Vec3::unit_y(), Vec3::unit_z()];
         let (mut faces, mut worst) = (0usize, 0.0f64);
         let wanted = test_utils::fuzz::scaled(300).max(250);
@@ -7230,8 +5871,8 @@ pub(crate) mod sphere_rect_rows {
             let window = if hc < h0 { (hc, h0) } else { (h0, hc) };
             let frame = frame_about(axis);
             let (body, cap, _) = strut_cap(c, r, frame, (h0, hc), (true, true), true, tol);
-            let (lo, hi) = sphere_reach(&body, cap, band, &BoxFrame::World);
-            let boxed = face_box(&body, cap, 0.0, band).unwrap();
+            let (lo, hi) = face_cover(&body, cap, band).unwrap().box_in(&Frame::World);
+            let boxed = face_box(&body, cap, 0.0, band);
             let (clo, chi) = crate::census::face_reach(&body, cap, band).unwrap();
             assert!(
                 hi.x - lo.x < 2.0 * r || hi.y - lo.y < 2.0 * r || hi.z - lo.z < 2.0 * r,
@@ -7245,46 +5886,34 @@ pub(crate) mod sphere_rect_rows {
                     (boxed.min_y, boxed.max_y),
                     (boxed.min_z, boxed.max_z),
                 ][k];
+                let ulp = (pick(c).abs() + r) * f64::EPSILON;
                 for (lane, (l, h)) in [
-                    ("sphere_reach", (pick(lo), pick(hi))),
+                    ("face_cover", (pick(lo), pick(hi))),
                     ("face_box", b),
                     ("census::face_reach", (pick(clo), pick(chi))),
                 ] {
+                    let short = (l - slo).max(shi - h) / ulp;
+                    worst = worst.max(short);
                     assert!(
-                        l <= slo && h >= shi,
+                        short <= MEASURED_WORST_ULPS,
                         "{lane}, row {k}, axis {axis:?}, c {c:?}, r {r}, window {window:?}: \
-                         [{l}, {h}] does not enclose the face's [{slo}, {shi}]"
+                         [{l}, {h}] falls {short} ulps short of the face's [{slo}, {shi}]; {}",
+                        test_utils::fuzz::replay()
                     );
                 }
-                let ulp = (pick(c).abs() + r) * f64::EPSILON;
-                let slack = ulp * super::SPHERE_REACH_ULPS;
-                let short = ((pick(lo) + slack) - slo).max(shi - (pick(hi) - slack)) / ulp;
-                worst = worst.max(short);
             }
             faces += 1;
         }
-        eprintln!(
-            "{faces} faces: the uncharged reach falls short by at most {worst:.2} ulps of |c| + r"
-        );
-        // Measured under 2.5 at every ε (12 000 faces at effort 20); a
-        // step that starts to cancel again shows here long before it
-        // eats the charge.
-        const MEASURED_WORST_ULPS: f64 = 4.0;
-        assert!(
-            worst <= MEASURED_WORST_ULPS && MEASURED_WORST_ULPS <= super::SPHERE_REACH_ULPS,
-            "the uncharged reach falls short by {worst} ulps, past the {MEASURED_WORST_ULPS} \
-             measured (the charge is {})",
-            super::SPHERE_REACH_ULPS
-        );
+        eprintln!("{faces} faces: the support falls short by at most {worst:.2} ulps of |c| + r");
     }
 
     #[test]
     fn a_torn_record_under_the_sphere_rect_panics() {
         let tol = Tol::witness();
         let band = Band::linear(tol).unwrap();
-        let frame = BoxFrame::World;
+        let frame = Frame::World;
         let (body, face) = sphere_zone_sheet((0.2, 1.4), (-0.3, 0.4), tol);
-        let reach = |b: &Body<f64>| sphere_reach(b, face, band, &frame);
+        let reach = |b: &Body<f64>| face_cover(b, face, band).unwrap().box_in(&frame);
         let (lo, hi) = reach(&body);
         assert!(
             (lo.z + 0.3).abs() < 1e-9 && (hi.z - 0.4).abs() < 1e-9,

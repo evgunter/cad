@@ -68,7 +68,7 @@
 use geom_core::{Band, Decide, Margin, Point3, Sign, UnitVec3, Vec3};
 
 use crate::body::Body;
-use crate::boolean::boxes::{BoxFrame, edge_end_point, sweep_pad};
+use crate::boolean::boxes::{edge_cover, edge_end_point, sweep_pad};
 use crate::boolean::separating::{Item, apart, planar_axis, world_axes};
 use crate::boolean::{CarrierRelation, CurvedPlacement, FaceContainment, face_placement};
 use crate::entity::{EdgeKey, EntityId, FaceKey};
@@ -217,12 +217,12 @@ fn standing<T: Decide>(
                 return false;
             }
         }
-        if !matches!(
-            body.edge_curve_linked(e, edge)
-                .certified()
-                .map(geom_brep::EdgeCurve::carrier),
-            Some(geom::Curve3::Line(_))
-        ) {
+        let straight = body
+            .edge_curve_linked(e, edge)
+            .certified()
+            .and_then(|curve| curve.carrier().as_line())
+            .is_some();
+        if !straight {
             arcs.push(e);
         } else if s0 == Sign::Zero || s1 == Sign::Zero {
             touching.push((e, ends, [s0, s1]));
@@ -232,12 +232,12 @@ fn standing<T: Decide>(
         return false;
     };
     let off = |e: EdgeKey| {
-        let Some((lo, hi)) = super::edge_reach_in(body, e, &BoxFrame::aimed(n)) else {
+        let Ok(cover) = edge_cover(body, e) else {
             return false;
         };
         let gap = match sense {
-            Sign::Positive => lo.x - level,
-            _ => level - hi.x,
+            Sign::Positive => T::zero() - cover.support(-n.get()) - level,
+            _ => level - cover.support(n.get()),
         };
         matches!(
             decide(REGION_ARC_SIDE, Margin::of(gap), band),

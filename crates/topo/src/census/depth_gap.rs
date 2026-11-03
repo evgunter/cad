@@ -21,43 +21,26 @@
 //! (`r` and `R − r` decided positive, [`geom::is_ring_torus`]), since a spindle's points come nearer the core. A cone's
 //! faces have no one depth about its axis.
 //!
-//! **The bounds.** A face is covered by [`Piece`]s: rings (the points
-//! within `r` of a circle of radius `R`; a ball when `R = 0`) and
-//! segments.
+//! **The bounds.** A face's depths are read off its cover
+//! ([`face_cover`]): its distance range from an axis line, from a
+//! centre, or from a core circle. A cylinder, sphere or torus
+//! face lies at its carrier's own level, which is read off the carrier
+//! (a carrier datum, not a region): exactly, where the face is on it.
 //!
-//! - A sphere or torus face lies in its own carrier's ring; a plane's
-//!   boundary is its arcs' rings (an ellipse's within its semi-axes'
-//!   difference of its major circle), its spirics' tori and its line
-//!   segments. These covers hold what they cover.
-//! - A plane, cylinder or cone face lies in the convex hull of its
-//!   boundary (and a cone's apex): from any point its ruling (any line,
-//!   on a plane) leaves the bounded face at the boundary both ways, or
-//!   reaches the apex. A NURBS patch lies in the hull of its net.
-//!
-//! The faces are read through the one per-kind rule, [`FaceBoxRule`]:
-//! a cylinder whose axis does not decide unit there takes the boundary
-//! hull and proposes no depth.
-//!
-//! Each depth is 1-Lipschitz, so on a ring it is within `r` of its value
-//! on the circle, which [`sup_on`] and [`inf_on`] bound in closed form.
-//! The axis and centre depths are convex, so their greatest value on a
-//! hull is their greatest on its generators: any cover bounds them
-//! from above. The core depth is not convex (a disc spans a torus's
-//! hole), so only a cover that holds the face bounds it. A least value
-//! needs a cover that holds the face, or a plane: the axis and centre
+//! A least value has one more source, on a plane: the axis and centre
 //! depths restricted to a plane are strictly convex with their least at
 //! one point (the axis's pierce, the centre's foot), so where the
 //! boolean's point placement puts that point `Out` of the face, the
-//! least depth on the face is the least on its boundary.
+//! least depth on the face is the least on its boundary
+//! ([`boundary_cover`]), which is not convex.
 //!
 //! The margin is the gap less both faces' [`sweep_pad`], the pad the
-//! reach boxes' gap takes: the covers are built from vertices and
-//! carriers each certified within ε of the face, and the pad dominates
-//! that, a placement misread within the band, and the closed forms'
-//! rounding. Only a definite Positive clears; a Zero, a Negative, a
-//! bound that is not a number, an escalation or a face with no claim
-//! leaves the pair to arm 1's refusal. A pair that touches has no gap
-//! and is never cleared here.
+//! reach boxes' gap takes, a tolerance: a placement misread within the
+//! band, and the boundary's vertices certified within ε of the face.
+//! Only a definite Positive clears; a Zero, a Negative, a bound that is
+//! not a number, an escalation or a face with no cover leaves the pair
+//! to arm 1's refusal. A pair that touches has no gap and is never
+//! cleared here.
 //!
 //! The same depths also aim directions ([`toward`]): the offset from an
 //! axis or centre to the other face's nearest segment point, which arm
@@ -65,10 +48,11 @@
 //! more ([`across`]). That proposes; it decides nothing.
 
 use geom::Surface;
+use geom::cover::{Cover, Site};
 use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3, is_finite_length};
 
 use crate::body::Body;
-use crate::boolean::boxes::{FaceBoxRule, edge_end_point, face_box_rule, sweep_pad};
+use crate::boolean::boxes::{boundary_cover, edge_end_point, face_cover, sweep_pad};
 use crate::boolean::{CurvedPlacement, FaceContainment, face_placement};
 use crate::entity::{EntityId, FaceKey};
 use crate::geometry::SurfaceKey;
@@ -92,36 +76,6 @@ pub(crate) const DEPTH_TOWARD: &str = "census_backstop_depth_toward";
 /// the chord), or the offset between two carriers' axes or centres
 /// (metres), before it is read as a unit direction ([`across`]).
 pub(crate) const DEPTH_ACROSS: &str = "census_backstop_depth_across";
-
-/// The points within `minor` of the circle about `center`, of radius
-/// `major`, in the plane normal to `normal` (any `normal` where
-/// `major` is zero).
-#[derive(Clone, Copy, Debug)]
-pub(super) struct Ring<T: geom_core::Real> {
-    pub(super) center: Point3<T>,
-    pub(super) normal: Vec3<T>,
-    pub(super) major: T,
-    pub(super) minor: T,
-}
-
-/// One piece of a [`Cover`].
-#[derive(Clone, Copy, Debug)]
-pub(super) enum Piece<T: geom_core::Real> {
-    Ring(Ring<T>),
-    /// The segment between two points; a point where they are one.
-    Segment(Point3<T>, Point3<T>),
-}
-
-/// A face's cover.
-pub(super) struct Cover<T: geom_core::Real> {
-    pub(super) pieces: Vec<Piece<T>>,
-    /// The pieces hold the face itself, not only its convex hull.
-    pub(super) holds_face: bool,
-    /// The face lies on this plane (a point and a normal), and the
-    /// pieces cover its boundary: its chords exactly, its arcs within
-    /// their rings.
-    pub(super) plane: Option<(Point3<T>, Vec3<T>)>,
-}
 
 /// A depth.
 #[derive(Clone, Copy, Debug)]
@@ -160,7 +114,14 @@ pub(super) enum Source<T: geom_core::Real> {
 /// A face as the depth gap reads it ([`face_read`]).
 pub(super) struct Read<T: geom_core::Real> {
     pub(super) surface: SurfaceKey,
+    /// The face's cover.
     pub(super) cover: Cover<T>,
+    /// The face's plane (a point and a normal) and its boundary's cover,
+    /// where it lies on one.
+    pub(super) plane: Option<((Point3<T>, Vec3<T>), Cover<T>)>,
+    /// The boundary's straight edges by their ends, and its isolated
+    /// vertices as points.
+    pub(super) segments: Vec<(Point3<T>, Point3<T>)>,
     pub(super) depths: Vec<Proposed<T>>,
 }
 
@@ -174,203 +135,108 @@ impl<T: geom_core::Real> Read<T> {
     }
 }
 
-fn point_piece<T: Decide>(p: Point3<T>) -> Piece<T> {
-    Piece::Segment(p, p)
-}
-
-/// The ring an arc of the conic `k` lies in: an ellipse lies within its
-/// semi-axes' difference of its major circle, in its plane.
-pub(super) fn conic_ring<T: Decide>(k: &dyn geom::Conic<T>) -> Ring<T> {
-    Ring {
-        center: k.frame().center,
-        normal: k.frame().axis,
-        major: k.speed_hi(),
-        minor: k.speed_hi() - k.speed_lo(),
-    }
-}
-
-/// **The depth a face's carrier proposes**, read off its
-/// [`FaceBoxRule`] `rule` on the surface `key` (module docs), with the
-/// level every face on the carrier lies at where it has one. Every
-/// radius is read by its magnitude, the one posture the covers take: a
-/// carrier's points lie at `|r|`. `None` for a plane, a net, and a
-/// cylinder whose axis did not decide unit.
+/// **The depth a face's carrier proposes** on the surface `key` (module
+/// docs), with the level every face on the carrier lies at where it has
+/// one. Every radius is read by its magnitude: a carrier's points lie
+/// at `|r|`. `None` for a plane and a net.
 pub(super) fn carrier_depth<T: Decide>(
-    rule: &FaceBoxRule<'_, T>,
+    surface: &Surface<T>,
     key: SurfaceKey,
     band: Band,
 ) -> Option<Proposed<T>> {
-    match *rule {
-        FaceBoxRule::CylinderSlab {
+    let (depth, level) = match *surface {
+        Surface::Cylinder {
             origin,
             axis,
             radius,
-        } => Some(Proposed {
-            depth: Depth::Axis {
-                origin,
-                axis: axis.get(),
-            },
-            level: Some((key, radius.abs())),
-            source: Source::Carrier,
-        }),
-        FaceBoxRule::ConeSlab { apex, axis, .. } => Some(Proposed {
-            depth: Depth::Axis { origin: apex, axis },
-            level: None,
-            source: Source::Carrier,
-        }),
-        FaceBoxRule::SphereWindow { center, radius } => Some(Proposed {
-            depth: Depth::Center { center },
-            level: Some((key, radius.abs())),
-            source: Source::Carrier,
-        }),
-        FaceBoxRule::TorusWindow {
+            ..
+        } => (Depth::Axis { origin, axis }, Some(radius.abs())),
+        Surface::Cone { apex, axis, .. } => (Depth::Axis { origin: apex, axis }, None),
+        Surface::Sphere { center, radius, .. } => (Depth::Center { center }, Some(radius.abs())),
+        Surface::Torus {
             center,
             axis,
             major_radius,
             minor_radius,
             ..
-        } => {
-            let ring = geom::is_ring_torus(major_radius, minor_radius, band);
-            Some(Proposed {
-                depth: Depth::Core {
-                    center,
-                    axis,
-                    major: major_radius.abs(),
-                },
-                level: ring.then_some((key, minor_radius)),
-                source: Source::Carrier,
-            })
-        }
-        FaceBoxRule::BoundaryHull | FaceBoxRule::ControlNet(_) => None,
-    }
+        } => (
+            Depth::Core {
+                center,
+                axis,
+                major: major_radius.abs(),
+            },
+            geom::is_ring_torus(major_radius, minor_radius, band).then_some(minor_radius),
+        ),
+        Surface::Plane { .. } | Surface::Nurbs(_) | Surface::Approx(_) => return None,
+    };
+    Some(Proposed {
+        depth,
+        level: level.map(|level| (key, level)),
+        source: Source::Carrier,
+    })
 }
 
-/// **`f` read for the depth gap** (module docs): its cover, and the
-/// depths it proposes — its carrier's and the axis of every conic on
-/// its boundary, gathered on the one walk that covers the boundary.
-/// `None` for a face with no cover: a cylinder axis that is no
-/// direction, a boundary edge with no sound bound under a hull cover,
-/// or a NURBS net with no claim in it.
+/// **`f` read for the depth gap** (module docs): its cover, its plane
+/// and boundary where it is planar, its straight edges, and the depths
+/// it proposes — its carrier's and the axis of every conic on its
+/// boundary. `None` for a face with no cover, or a plane face whose
+/// boundary has none.
 ///
 /// # Panics
 ///
 /// Where `f` or a record on the walk from it does not resolve, as
-/// [`super::face_reach_in`]: a torn boundary is not one with no claim.
+/// [`face_cover`]: a torn boundary is not one with no claim.
 pub(super) fn face_read<T: Decide>(body: &Body<T>, f: FaceKey, band: Band) -> Option<Read<T>> {
     let face = proven(&body.faces, f, EntityId::Face);
     let surface = body.face_surface_linked(f, face);
-    let rule = face_box_rule(surface, band).ok()?;
-    let mut depths: Vec<Proposed<T>> = carrier_depth(&rule, face.surface, band)
+    let cover = face_cover(body, f, band).ok()?;
+    let plane = match surface {
+        Surface::Plane { origin, normal, .. } => {
+            Some(((*origin, *normal), boundary_cover(body, f, face).ok()?))
+        }
+        _ => None,
+    };
+    let mut depths: Vec<Proposed<T>> = carrier_depth(surface, face.surface, band)
         .into_iter()
         .collect();
-    let mut boundary = Some(Vec::new());
+    let mut segments = Vec::new();
     for member in body.face_boundary_linked(f, face) {
-        let piece = match member {
-            BoundaryMember::Isolated { point, .. } => Some(point_piece(point)),
-            BoundaryMember::Edge { ek, edge, .. } => {
-                let end = |he, field| edge_end_point(body, ek, he, field);
-                let certified = body.edge_curve_linked(ek, edge).certified();
-                match certified.map(geom_brep::EdgeCurve::carrier) {
-                    None | Some(geom::Curve3::Nurbs(_)) => None,
-                    Some(geom::Curve3::Line(_)) => Some(Piece::Segment(
-                        end(edge.he_plus, "he_plus"),
-                        end(edge.he_minus, "he_minus"),
-                    )),
-                    Some(carrier @ (geom::Curve3::Circle(_) | geom::Curve3::Ellipse(_))) => {
-                        let Some(conic) = carrier.conic() else {
-                            unreachable!("a circle or an ellipse reads as a conic")
-                        };
-                        depths.push(Proposed {
-                            depth: Depth::Axis {
-                                origin: conic.frame().center,
-                                axis: conic.frame().axis,
-                            },
-                            level: None,
-                            source: Source::Arc(
-                                end(edge.he_plus, "he_plus"),
-                                end(edge.he_minus, "he_minus"),
-                            ),
-                        });
-                        Some(Piece::Ring(conic_ring(conic)))
-                    }
-                    Some(geom::Curve3::Spiric {
-                        center,
-                        axis,
-                        major_radius,
-                        minor_radius,
-                        ..
-                    }) => Some(Piece::Ring(Ring {
-                        center: *center,
-                        normal: *axis,
-                        major: major_radius.abs(),
-                        minor: minor_radius.abs(),
-                    })),
-                }
+        let (ek, edge) = match member {
+            BoundaryMember::Isolated { point, .. } => {
+                segments.push((point, point));
+                continue;
             }
+            BoundaryMember::Edge { ek, edge, .. } => (ek, edge),
         };
-        match (piece, boundary.as_mut()) {
-            (Some(piece), Some(pieces)) => pieces.push(piece),
-            (None, _) => boundary = None,
-            (Some(_), None) => {}
+        let Some(carrier) = body
+            .edge_curve_linked(ek, edge)
+            .certified()
+            .map(geom_brep::EdgeCurve::carrier)
+        else {
+            continue;
+        };
+        let ends = (
+            edge_end_point(body, ek, edge.he_plus, "he_plus"),
+            edge_end_point(body, ek, edge.he_minus, "he_minus"),
+        );
+        if carrier.as_line().is_some() {
+            segments.push(ends);
+        } else if let Some(conic) = carrier.conic() {
+            depths.push(Proposed {
+                depth: Depth::Axis {
+                    origin: conic.frame().center,
+                    axis: conic.frame().axis,
+                },
+                level: None,
+                source: Source::Arc(ends.0, ends.1),
+            });
         }
     }
-    let hull = |pieces: Option<Vec<Piece<T>>>| {
-        pieces.map(|pieces| Cover {
-            pieces,
-            holds_face: false,
-            plane: None,
-        })
-    };
-    let held = |ring: Ring<T>| {
-        Some(Cover {
-            pieces: vec![Piece::Ring(ring)],
-            holds_face: true,
-            plane: None,
-        })
-    };
-    let cover = match rule {
-        // A plane, or a cylinder whose axis did not decide unit.
-        FaceBoxRule::BoundaryHull => match surface {
-            Surface::Plane { origin, normal, .. } => boundary.map(|pieces| Cover {
-                pieces,
-                holds_face: false,
-                plane: Some((*origin, *normal)),
-            }),
-            _ => hull(boundary),
-        },
-        FaceBoxRule::CylinderSlab { .. } => hull(boundary),
-        FaceBoxRule::ConeSlab { apex, .. } => hull(boundary.map(|mut pieces| {
-            pieces.push(point_piece(apex));
-            pieces
-        })),
-        FaceBoxRule::SphereWindow { center, radius } => held(Ring {
-            center,
-            normal: Vec3::new(T::zero(), T::zero(), T::one()),
-            major: T::zero(),
-            minor: radius.abs(),
-        }),
-        FaceBoxRule::TorusWindow {
-            center,
-            axis,
-            major_radius,
-            minor_radius,
-            ..
-        } => held(Ring {
-            center,
-            normal: axis,
-            major: major_radius.abs(),
-            minor: minor_radius.abs(),
-        }),
-        FaceBoxRule::ControlNet(net) => match net.net_state() {
-            geom::NetState::Placeholder | geom::NetState::Poisoned => None,
-            geom::NetState::Described => hull(Some(
-                net.control().iter().map(|p| point_piece(*p)).collect(),
-            )),
-        },
-    }?;
     Some(Read {
         surface: face.surface,
         cover,
+        plane,
+        segments,
         depths,
     })
 }
@@ -382,97 +248,19 @@ pub(super) fn split<T: Decide>(v: Vec3<T>, n: Vec3<T>) -> (Vec3<T>, T) {
     (v - n * along, along)
 }
 
-/// The distance from `x` to the interval `[lo, hi]`, zero inside it.
-fn outside<T: Decide>(x: T, lo: T, hi: T) -> T {
-    (lo - x).max(x - hi).max(T::zero())
-}
-
-/// What a depth reads of a circle `c + R·e` (`e` a unit vector normal
-/// to the unit `n`): its offset off the depth's axis and its height
-/// along it, each as a range over the circle.
-struct Swing<T> {
-    rho: (T, T),
-    height: (T, T),
-}
-
-/// `|P(c − o) + R·P·e|`, `P` the projection off the unit `a`, lies
-/// between `max(R·|n·a| − |P(c − o)|, |P(c − o)| − R)` (since
-/// `|P·e|² = 1 − (e·a)² ≥ (n·a)²`) and `|P(c − o)| + R`; the height
-/// `(c − o)·a + R·(e·a)` swings by `R·|a_⊥|`, `a`'s part off `n`.
-fn swing<T: Decide>(ring: &Ring<T>, origin: Point3<T>, axis: Vec3<T>) -> Swing<T> {
-    let n = ring.normal / ring.normal.norm();
-    let a = axis / axis.norm();
-    let (off, height) = split(ring.center - origin, a);
-    let off = off.norm();
-    let tilt = split(a, n).0.norm() * ring.major;
-    Swing {
-        rho: (
-            (ring.major * n.dot(a).abs() - off).max(off - ring.major),
-            off + ring.major,
-        ),
-        height: (height - tilt, height + tilt),
+/// **The least and greatest `depth` over what `cover` holds** (module
+/// docs).
+pub(super) fn range_on<T: Decide>(depth: Depth<T>, cover: &Cover<T>) -> (T, T) {
+    let line = |origin, dir| Site::Line(geom::Line { origin, dir });
+    match depth {
+        Depth::Axis { origin, axis } => cover.distance_range(&line(origin, axis)),
+        Depth::Center { center } => cover.distance_range(&Site::Point(center)),
+        Depth::Core {
+            center,
+            axis,
+            major,
+        } => cover.circle_range(center, axis, major),
     }
-}
-
-/// An upper bound on `depth` over `piece` (module docs); `None` for a
-/// segment's core depth, which is not convex, so its ends do not bound
-/// it.
-pub(super) fn sup_on<T: Decide>(depth: Depth<T>, piece: &Piece<T>) -> Option<T> {
-    let ring = match piece {
-        Piece::Ring(ring) => ring,
-        Piece::Segment(_, _) if matches!(depth, Depth::Core { .. }) => return None,
-        Piece::Segment(p, q) => {
-            return greatest([p, q].into_iter().map(|x| Some(exact(depth, *x))));
-        }
-    };
-    let circle = match depth {
-        Depth::Axis { origin, axis } => swing(ring, origin, axis).rho.1,
-        // `|w + R·e|² = w_n² + |w_⊥ + R·e|² ≤ w_n² + (|w_⊥| + R)²`, `w`
-        // from the centre to `c`, split along `n`.
-        Depth::Center { center } => {
-            let (perp, along) = split(ring.center - center, ring.normal);
-            (along.powi(2) + (perp.norm() + ring.major).powi(2)).sqrt()
-        }
-        Depth::Core {
-            center,
-            axis,
-            major,
-        } => {
-            let s = swing(ring, center, axis);
-            let radial = (s.rho.1 - major).abs().max((s.rho.0 - major).abs());
-            let t = s.height.0.abs().max(s.height.1.abs());
-            (radial.powi(2) + t.powi(2)).sqrt()
-        }
-    };
-    Some(circle + ring.minor)
-}
-
-/// A lower bound on `depth` over `piece` (module docs); `None` for a
-/// segment's core depth, which nothing reads.
-pub(super) fn inf_on<T: Decide>(depth: Depth<T>, piece: &Piece<T>) -> Option<T> {
-    let ring = match *piece {
-        Piece::Ring(ring) => ring,
-        Piece::Segment(p, q) => return nearest_offset(depth, p, q).map(|o| o.norm()),
-    };
-    let circle = match depth {
-        Depth::Axis { origin, axis } => swing(&ring, origin, axis).rho.0,
-        // `|w + R·e|² ≥ w_n² + (|w_⊥| − R)²`.
-        Depth::Center { center } => {
-            let (perp, along) = split(ring.center - center, ring.normal);
-            (along.powi(2) + (perp.norm() - ring.major).powi(2)).sqrt()
-        }
-        Depth::Core {
-            center,
-            axis,
-            major,
-        } => {
-            let s = swing(&ring, center, axis);
-            let radial = outside(major, s.rho.0, s.rho.1);
-            let t = outside(T::zero(), s.height.0, s.height.1);
-            (radial.powi(2) + t.powi(2)).sqrt()
-        }
-    };
-    Some(circle - ring.minor)
 }
 
 /// The offset from `depth`'s axis or centre to the nearest point of the
@@ -498,22 +286,6 @@ fn nearest_offset<T: Decide>(depth: Depth<T>, p: Point3<T>, q: Point3<T>) -> Opt
     Some(u + w * s)
 }
 
-/// The exact depth of the point `x`.
-pub(super) fn exact<T: Decide>(depth: Depth<T>, x: Point3<T>) -> T {
-    match depth {
-        Depth::Axis { origin, axis } => split(x - origin, axis).0.norm(),
-        Depth::Center { center } => (x - center).norm(),
-        Depth::Core {
-            center,
-            axis,
-            major,
-        } => {
-            let (off, t) = split(x - center, axis);
-            ((off.norm() - major).powi(2) + t.powi(2)).sqrt()
-        }
-    }
-}
-
 /// The greatest of `bounds`, or `None` where there is none or one is
 /// not a number (`max` would drop it).
 pub(super) fn greatest<T: Decide>(bounds: impl Iterator<Item = Option<T>>) -> Option<T> {
@@ -523,11 +295,6 @@ pub(super) fn greatest<T: Decide>(bounds: impl Iterator<Item = Option<T>>) -> Op
         acc = Some(acc.map_or(b, |m| m.max(b)));
     }
     acc
-}
-
-/// The least of `bounds`, as [`greatest`].
-pub(super) fn least<T: Decide>(bounds: impl Iterator<Item = Option<T>>) -> Option<T> {
-    greatest(bounds.map(|b| b.map(|b| -b))).map(|b| -b)
 }
 
 /// The point where a plane's depth is least: the axis's pierce of it,
@@ -544,15 +311,6 @@ fn least_point<T: Decide>(depth: Depth<T>, (o, n): (Point3<T>, Vec3<T>)) -> Opti
         }
         Depth::Core { .. } => None,
     }
-}
-
-/// An upper bound on `depth` over what `cover` covers: any cover for a
-/// convex depth, only one that holds its face for the core's.
-pub(super) fn upper<T: Decide>(depth: Depth<T>, cover: &Cover<T>) -> Option<T> {
-    let convex = !matches!(depth, Depth::Core { .. });
-    (convex || cover.holds_face)
-        .then(|| greatest(cover.pieces.iter().map(|p| sup_on(depth, p))))
-        .flatten()
 }
 
 /// Whether `lo − hi`, less both faces' pads, is definitely positive.
@@ -575,7 +333,8 @@ fn level_on<T: Decide>(read: &Read<T>, proposed: &Proposed<T>) -> Option<T> {
 
 /// An upper bound on `proposed`'s depth over the face read as `read`.
 fn greatest_on<T: Decide>(read: &Read<T>, proposed: &Proposed<T>) -> Option<T> {
-    level_on(read, proposed).or_else(|| upper(proposed.depth, &read.cover))
+    level_on(read, proposed)
+        .or_else(|| greatest([Some(range_on(proposed.depth, &read.cover).1)].into_iter()))
 }
 
 /// A lower bound on `proposed`'s depth over the face `f`, read as
@@ -591,14 +350,11 @@ fn least_on<T: Decide>(
         return Some(level);
     }
     let depth = proposed.depth;
-    let cover = &read.cover;
-    let on_boundary = || least(cover.pieces.iter().map(|p| inf_on(depth, p)));
-    if cover.holds_face {
-        on_boundary()
-    } else {
-        cover
-            .plane
-            .and_then(|plane| least_point(depth, plane))
+    let held = range_on(depth, &read.cover).0;
+    // On a plane whose least point lies off the face, the boundary's
+    // least is the face's.
+    let on_boundary = read.plane.as_ref().and_then(|(plane, boundary)| {
+        least_point(depth, *plane)
             .filter(|q| [q.x, q.y, q.z].into_iter().all(is_finite_length))
             .filter(|q| {
                 matches!(
@@ -606,8 +362,9 @@ fn least_on<T: Decide>(
                     Ok(CurvedPlacement::Trim(Some(FaceContainment::Out)))
                 )
             })
-            .and_then(|_| on_boundary())
-    }
+            .map(|_| range_on(depth, boundary).0)
+    });
+    greatest([Some(held)].into_iter().chain(on_boundary.map(Some)))
 }
 
 /// **Whether the faces `a`, `b`, read as `ra`, `rb` ([`face_read`]),
@@ -640,8 +397,8 @@ pub(super) fn apart_in_depth<T: Decide>(
 /// boundary segment point, off the axis or from the centre. This only
 /// proposes. Arm 1 reads both faces' reaches along each direction
 /// ([`crate::boolean::separating::apart_by`]), and the gap there is
-/// the certificate, whatever aimed it. A core depth or a cover with no
-/// segment proposes nothing, and neither does an offset the band cannot
+/// the certificate, whatever aimed it. A core depth or a boundary with
+/// no segment proposes nothing, and neither does an offset the band cannot
 /// read as a unit direction.
 ///
 /// The same axis proposed twice (a carrier's and each coaxial rim's)
@@ -659,13 +416,9 @@ pub(super) fn toward<T: Decide>(
         .flat_map(|(own, other)| {
             own.depths.iter().filter_map(|proposed| {
                 let nearest = other
-                    .cover
-                    .pieces
+                    .segments
                     .iter()
-                    .filter_map(|piece| match *piece {
-                        Piece::Segment(p, q) => nearest_offset(proposed.depth, p, q),
-                        Piece::Ring(_) => None,
-                    })
+                    .filter_map(|&(p, q)| nearest_offset(proposed.depth, p, q))
                     .filter(|o| is_finite_length(o.norm()))
                     .reduce(|m, o| {
                         let nearer = o.norm() - m.norm();
@@ -748,6 +501,7 @@ pub(super) fn across<T: Decide>(
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
+    use geom::cover::ParamWindow;
     use geom_core::Tol;
 
     use super::*;
@@ -764,19 +518,29 @@ mod tests {
         Vec3::new(x, y, z)
     }
 
-    fn rim(r: f64, z: f64) -> Piece<f64> {
-        Piece::Ring(Ring {
-            center: p(0.0, 0.0, z),
-            normal: v(0.0, 0.0, 1.0),
-            major: r,
-            minor: 0.0,
-        })
+    /// The circle of radius `r` about `c` in the plane normal to `z`.
+    fn rim_about(c: Point3<f64>, r: f64) -> Cover<f64> {
+        Cover::arc(
+            c,
+            (v(1.0, 0.0, 0.0), v(0.0, 1.0, 0.0)),
+            (r, r),
+            ParamWindow::new(0.0, core::f64::consts::TAU),
+        )
+        .unwrap()
     }
 
     fn z_axis() -> Depth<f64> {
         Depth::Axis {
             origin: p(0.0, 0.0, 0.0),
             axis: v(0.0, 0.0, 2.0),
+        }
+    }
+
+    fn core(major: f64) -> Depth<f64> {
+        Depth::Core {
+            center: p(0.0, 0.0, 0.0),
+            axis: v(0.0, 0.0, 1.0),
+            major,
         }
     }
 
@@ -806,22 +570,14 @@ mod tests {
     #[test]
     fn a_rim_reads_at_its_radius_and_its_offset() {
         let depth = z_axis();
-        assert_eq!(sup_on(depth, &rim(0.85, 3.0)), Some(0.85), "coaxial, above");
-        assert_eq!(inf_on(depth, &rim(0.85, 3.0)), Some(0.85), "coaxial, below");
-        let off = Piece::Ring(Ring {
-            center: p(0.05, 0.0, 0.0),
-            normal: v(0.0, 0.0, 1.0),
-            major: 0.85,
-            minor: 0.0,
-        });
-        assert!(
-            (sup_on(depth, &off).unwrap() - 0.9).abs() < 1e-15,
-            "off the axis, above"
+        assert_eq!(
+            range_on(depth, &rim_about(p(0.0, 0.0, 3.0), 0.85)),
+            (0.85, 0.85),
+            "coaxial"
         );
-        assert!(
-            (inf_on(depth, &off).unwrap() - 0.8).abs() < 1e-15,
-            "off the axis, below"
-        );
+        let (lo, hi) = range_on(depth, &rim_about(p(0.05, 0.0, 0.0), 0.85));
+        assert!((hi - 0.9).abs() < 1e-15, "off the axis, above: {hi}");
+        assert!((lo - 0.8).abs() < 1e-15, "off the axis, below: {lo}");
     }
 
     /// **The offset to a segment runs off the axis to its nearest
@@ -849,69 +605,55 @@ mod tests {
             Some((0.0, 1.0, 5.0)),
             "from a centre"
         );
-        let core = Depth::Core {
-            center: p(0.0, 0.0, 0.0),
-            axis: v(0.0, 0.0, 1.0),
-            major: 2.0,
-        };
-        assert_eq!(at(core, p(0.0, 0.0, 0.0), p(1.0, 0.0, 0.0)), None, "a core");
+        assert_eq!(
+            at(core(2.0), p(0.0, 0.0, 0.0), p(1.0, 0.0, 0.0)),
+            None,
+            "a core"
+        );
     }
 
-    /// **A torus core reads only a cover that holds the face.** The core
-    /// circle lies in the tube, but a disc it bounds spans the hole: as a
-    /// hull cover it gives no bound. A torus face's own ring does. Red
-    /// where the core depth reads a hull.
+    /// **A torus face's tube reads its core at its minor radius, and a
+    /// disc across the hole reaches the core's distance at its centre.**
+    /// Red where a tube's core depth is read through its whole `(ρ, t)`
+    /// box, which reads `0.45·√2` and loses the nested tubes' gap, or
+    /// where a disc's convex hull is read by its rim alone.
     #[test]
-    fn a_core_depth_bounds_a_held_tube_and_never_a_disc_across_the_hole() {
-        let core = Depth::Core {
-            center: p(0.0, 0.0, 0.0),
-            axis: v(0.0, 0.0, 1.0),
-            major: 2.0,
-        };
-        let disc = Cover {
-            pieces: vec![rim(2.0, 0.0)],
-            holds_face: false,
-            plane: Some((p(0.0, 0.0, 0.0), v(0.0, 0.0, 1.0))),
-        };
-        assert_eq!(upper(core, &disc), None, "a disc spans the hole");
-        let tube = Cover {
-            pieces: vec![Piece::Ring(Ring {
-                center: p(0.0, 0.0, 0.0),
-                normal: v(0.0, 0.0, 1.0),
-                major: 2.0,
-                minor: 0.45,
-            })],
-            holds_face: true,
-            plane: None,
-        };
-        assert_eq!(upper(core, &tube), Some(0.45), "the inner tube");
-        assert_eq!(upper(z_axis(), &disc), Some(2.0), "an axis reads the hull");
+    fn a_core_depth_reads_a_tube_at_its_minor_radius_and_a_disc_at_its_centre() {
+        let tube = Cover::tube(
+            p(0.0, 0.0, 0.0),
+            v(0.0, 0.0, 1.0),
+            v(1.0, 0.0, 0.0),
+            2.0,
+            0.45,
+        )
+        .unwrap();
+        assert_eq!(range_on(core(2.0), &tube), (0.0, 0.45), "the tube");
+        let disc = rim_about(p(0.0, 0.0, 0.0), 2.0).convex();
+        assert!(range_on(core(2.0), &disc).1 >= 2.0, "the disc's centre");
+        assert_eq!(range_on(z_axis(), &disc).1, 2.0, "an axis reads the rim");
     }
 
-    fn torus(major: f64, minor: f64) -> FaceBoxRule<'static, f64> {
-        FaceBoxRule::TorusWindow {
-            center: p(0.0, 0.0, 0.0),
-            axis: v(0.0, 0.0, 1.0),
-            major_radius: major,
-            minor_radius: minor,
-            u_ref: v(1.0, 0.0, 0.0),
-        }
-    }
-
-    /// **Only a ring torus gives its faces an exact depth**: a horn or
-    /// spindle torus (`R ≤ r`) has points nearer its core than `r`, and
-    /// a negative tube passes `R − r` alone. A carrier's radius is read
-    /// by its magnitude, as its cover reads it. Red where every torus
-    /// is a ring torus, or a stored radius is taken as a level raw.
+    /// **Only a ring torus lies at its minor radius**: a horn or spindle
+    /// torus (`R ≤ r`) has points nearer its core than `r`, and a
+    /// negative tube passes `R − r` alone. A carrier's radius is read by
+    /// its magnitude, as its cover reads it. Red where every torus is a
+    /// ring torus, or a stored radius is taken as a level raw.
     #[test]
     fn only_a_ring_torus_lies_at_its_minor_radius() {
         let band = band();
         let key = SurfaceKey::default();
-        let level = |rule: FaceBoxRule<'static, f64>| {
-            carrier_depth(&rule, key, band)
+        let level = |surface: Surface<f64>| {
+            carrier_depth(&surface, key, band)
                 .expect("a carrier proposes its depth")
                 .level
                 .map(|(_, r)| r)
+        };
+        let torus = |major_radius, minor_radius| Surface::Torus {
+            center: p(0.0, 0.0, 0.0),
+            axis: v(0.0, 0.0, 1.0),
+            major_radius,
+            minor_radius,
+            u_ref: v(1.0, 0.0, 0.0),
         };
         assert_eq!(level(torus(2.0, 0.5)), Some(0.5), "a ring torus");
         assert_eq!(level(torus(0.5, 0.5)), None, "a horn torus");
@@ -923,61 +665,77 @@ mod tests {
         );
         assert_eq!(level(torus(0.75, -0.3)), None, "a negative tube");
         assert_eq!(
-            level(FaceBoxRule::SphereWindow {
+            level(Surface::Sphere {
                 center: p(0.0, 0.0, 0.0),
                 radius: -0.7,
+                axis: v(0.0, 0.0, 1.0),
+                u_ref: v(1.0, 0.0, 0.0),
             }),
             Some(0.7),
             "a sphere stored with a negative radius"
         );
     }
 
-    /// **An ellipse's ring holds the ellipse**: about its own axis an
-    /// ellipse of semi-axes 2 and 1 spans depths `[1, 2]`, and its ring
-    /// (the major circle, widened by the semi-axes' difference) bounds
-    /// both ends. Red where the ring is read as the major circle alone,
+    /// **An ellipse's cover holds the ellipse**: about its own axis an
+    /// ellipse of semi-axes 2 and 1 spans depths `[1, 2]`, and its cover
+    /// bounds both ends. Red where the arc is read as its major circle,
     /// which puts the least depth at 2.
     #[test]
-    fn an_ellipse_ring_holds_its_minor_vertices() {
+    fn an_ellipses_cover_holds_its_minor_vertices() {
         let carrier = geom::Curve3::Ellipse(geom::Ellipse::new(
             geom::Frame::new(p(0.0, 0.0, 0.0), v(0.0, 0.0, 1.0), v(1.0, 0.0, 0.0)),
             2.0,
             1.0,
         ));
-        let ring = Piece::Ring(conic_ring(carrier.conic().unwrap()));
-        assert!(inf_on(z_axis(), &ring).unwrap() <= 1.0, "the minor vertex");
-        assert!(sup_on(z_axis(), &ring).unwrap() >= 2.0, "the major vertex");
+        let (lo, hi) = range_on(z_axis(), &carrier.cover().unwrap());
+        assert!(lo <= 1.0, "the minor vertex: {lo}");
+        assert!(hi >= 2.0, "the major vertex: {hi}");
     }
 
-    /// **A cone face's hull holds its apex**, wherever the boundary
-    /// runs: a unit square's face restated on a cone whose apex stands
-    /// 5 above it reads, from the square's centre, a greatest depth past
-    /// the apex's 5. Red where the apex is dropped from the hull.
-    #[test]
-    fn a_cone_face_hull_holds_its_apex() {
+    /// A unit brick's top face (`z = 1`) restated on a cone whose apex
+    /// stands at `apex`, about `axis`.
+    fn coned_top(apex: Point3<f64>, axis: Vec3<f64>) -> (Body<f64>, FaceKey) {
         let tol = Tol::witness();
         let mut body =
             crate::test_support_fixtures::brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
-        let (f, key) = body
-            .faces
-            .iter()
-            .next()
-            .map(|(f, face)| (f, face.surface))
-            .expect("a face");
-        let apex = p(0.5, 0.5, 6.0);
+        let top = body
+            .faces()
+            .map(|(f, _)| f)
+            .find(|&f| {
+                let (lo, hi) = super::super::face_reach(&body, f, band()).unwrap();
+                lo.z == 1.0 && hi.z == 1.0
+            })
+            .expect("the top face");
+        let key = body.get_face(top).unwrap().surface;
         *body.surfaces.get_mut(key).expect("its surface") = Surface::Cone {
             apex,
-            axis: v(0.0, 0.0, -1.0),
+            axis,
             half_angle: 0.3,
             u_ref: v(1.0, 0.0, 0.0),
         };
-        let read = face_read(&body, f, band()).expect("a cone face is read");
+        (body, top)
+    }
+
+    /// **A cone face's cover holds its apex where its loop winds round
+    /// the axis, and only there**: the unit square restated on a cone
+    /// whose apex stands 5 above its centre reads, from that centre, a
+    /// greatest depth past the apex's 5; with the axis off to the side
+    /// of the square, its loop does not wind round it, and the cover
+    /// stays within the square's reach. Red where the apex is dropped
+    /// from the hull, or held for every cone face.
+    #[test]
+    fn a_cone_face_holds_its_apex_where_its_loop_winds_round_the_axis() {
         let centre = Depth::Center {
             center: p(0.5, 0.5, 1.0),
         };
+        let (body, top) = coned_top(p(0.5, 0.5, 6.0), v(0.0, 0.0, -1.0));
+        let read = face_read(&body, top, band()).expect("a cone face is read");
+        assert!(range_on(centre, &read.cover).1 >= 5.0, "the apex is held");
+        let (body, top) = coned_top(p(5.0, 0.5, 6.0), v(0.0, 0.0, -1.0));
+        let read = face_read(&body, top, band()).expect("a cone face is read");
         assert!(
-            upper(centre, &read.cover).unwrap() >= 5.0,
-            "the apex is in the hull"
+            range_on(centre, &read.cover).1 < 1.0,
+            "an apex beside the square is not held"
         );
     }
 
@@ -995,12 +753,12 @@ mod tests {
             None,
             "NaN first"
         );
-        assert_eq!(least([Some(1.0), None].into_iter()), None, "no claim");
+        assert_eq!(greatest([Some(1.0), None].into_iter()), None, "no claim");
         assert_eq!(greatest(std::iter::empty::<Option<f64>>()), None, "nothing");
         assert_eq!(
-            least([Some(2.0), Some(1.0)].into_iter()),
-            Some(1.0),
-            "least"
+            greatest([Some(2.0), Some(1.0)].into_iter()),
+            Some(2.0),
+            "greatest"
         );
     }
 
@@ -1008,43 +766,26 @@ mod tests {
     /// passing 0.3 from the axis between ends 1 away.
     #[test]
     fn a_segment_reads_its_nearest_point() {
-        let chord = Piece::Segment(p(-1.0, 0.3, 0.0), p(1.0, 0.3, 5.0));
-        assert!(
-            (inf_on(z_axis(), &chord).unwrap() - 0.3).abs() < 1e-15,
-            "the axis"
-        );
+        let chord = Cover::segment(p(-1.0, 0.3, 0.0), p(1.0, 0.3, 5.0)).unwrap();
+        let (lo, hi) = range_on(z_axis(), &chord);
+        assert!((lo - 0.3).abs() < 1e-15, "the axis: {lo}");
+        assert!((hi - 1.09f64.sqrt()).abs() < 1e-15, "its ends: {hi}");
         let centre = Depth::Center {
             center: p(0.0, 0.0, 2.5),
         };
-        assert!(
-            (inf_on(centre, &chord).unwrap() - 0.3).abs() < 1e-15,
-            "a centre"
-        );
-        assert!(
-            (sup_on(z_axis(), &chord).unwrap() - 1.09f64.sqrt()).abs() < 1e-15,
-            "its ends"
-        );
-        let core = Depth::Core {
-            center: p(0.0, 0.0, 2.5),
-            axis: v(0.0, 0.0, 1.0),
-            major: 0.5,
-        };
-        assert_eq!(sup_on(core, &chord), None, "a core reads no segment");
+        assert!((range_on(centre, &chord).0 - 0.3).abs() < 1e-15, "a centre");
     }
 
     /// A read holding only `depths`.
     fn read_of(depths: Vec<Proposed<f64>>) -> Read<f64> {
         Read {
             surface: SurfaceKey::default(),
-            cover: Cover {
-                pieces: Vec::new(),
-                holds_face: false,
-                plane: None,
-            },
+            cover: Cover::points(vec![p(0.0, 0.0, 0.0)]).unwrap(),
+            plane: None,
+            segments: Vec::new(),
             depths,
         }
     }
-
     fn arc(c: Point3<f64>, n: Vec3<f64>, from: Point3<f64>, to: Point3<f64>) -> Proposed<f64> {
         Proposed {
             depth: Depth::Axis { origin: c, axis: n },

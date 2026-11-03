@@ -4,7 +4,7 @@
 //!
 //! Two padded world boxes that overlap separate their loci along `x̂`,
 //! `ŷ` and `ẑ` only, and the world box of a turned face widens by how
-//! it is turned ([`super::boxes::BoxFrame`]). So an overlap read alone
+//! it is turned. So an overlap read alone
 //! makes "may these two meet" a fact about the pose. Two disjoint
 //! convex hulls have a separating direction, and [`apart`] proposes
 //! directions fixed to the pair rather than to the world:
@@ -15,25 +15,21 @@
 //!   ([`operand_axes`]) — a planar partner's normal, and the turned
 //!   operand's own axes.
 //!
-//! and reads both items' reaches along each through the census lane's
-//! rule ([`crate::census::face_reach_in`],
-//! [`crate::census::edge_reach_in`]) in the frame that direction aims
-//! ([`super::boxes::BoxFrame::aimed`]). The first coordinate of that
-//! reach is the item's support along the direction, so the gap between
-//! two of them does not depend on how the pair is turned.
+//! and reads both items' supports either way along each, off their
+//! covers ([`super::boxes::face_cover`], [`super::boxes::edge_cover`]),
+//! so the gap between two of them does not depend on how the pair is
+//! turned.
 //!
-//! **Soundness.** Every reach is a superset of its item's locus (the
-//! `boxes` module contract, at the census lane's scalar), so a gap
-//! decided positive after both items' pads proves the loci disjoint:
-//! the same certificate a non-overlap of the two padded world boxes
-//! gives, read along another direction. A reach the rule cannot bound
-//! (`None`), an anchor offset the band cannot orient, or a gap in the
-//! band answers "not apart", which keeps the caller's conservative
-//! verdict.
+//! **Soundness.** Every cover holds its item's locus, so a gap decided
+//! positive after both items' pads proves the loci disjoint: the same
+//! certificate a non-overlap of the two padded world boxes gives, read
+//! along another direction. An item with no cover, an anchor offset the
+//! band cannot orient, or a gap in the band answers "not apart", which
+//! keeps the caller's conservative verdict.
 
+use geom::cover::{Cover, ParamWindow};
 use geom_core::{Band, Decide, Margin, Point3, Real, Sign, UnitVec3, Vec3};
 
-use super::boxes::BoxFrame;
 use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey};
 use crate::live::BoundaryMember;
@@ -86,6 +82,19 @@ pub(crate) struct Circle<T: Real> {
     pub(crate) v_ref: Vec3<T>,
     /// The radius.
     pub(crate) radius: T,
+}
+
+impl<T: Real> Circle<T> {
+    /// The circle's cover: its arc over the whole turn. `None` for a
+    /// datum that is not a finite number.
+    pub(crate) fn cover(&self) -> Option<Cover<T>> {
+        Cover::arc(
+            self.center,
+            (self.u_ref, self.v_ref),
+            (self.radius, self.radius),
+            ParamWindow::new(T::zero(), T::tau()),
+        )
+    }
 }
 
 /// The outward normal of every planar face of `a` and of `b`
@@ -213,8 +222,8 @@ impl<T: Decide> OperandAxes<T> {
 ///
 /// # Panics
 ///
-/// As [`crate::census::face_reach_in`]: each item is one the caller
-/// read out of its body, and a torn hop past it is a kernel bug.
+/// As [`super::boxes::face_cover`]: each item is one the caller read
+/// out of its body, and a torn hop past it is a kernel bug.
 pub(crate) fn apart<T: Decide>(
     x: (&Body<T>, Item<T>),
     y: (&Body<T>, Item<T>),
@@ -222,29 +231,30 @@ pub(crate) fn apart<T: Decide>(
     pad: f64,
     band: Band,
 ) -> bool {
-    apart_by(x, y, axes, pad, band, &|body, f, frame| {
-        crate::census::face_reach_in(body, f, band, frame)
+    apart_by(x, y, axes, pad, band, &|body, f, _| {
+        super::boxes::face_cover(body, f, band).ok()
     })
 }
 
-/// A face's reach in a frame: [`crate::census::face_reach_in`], or a
-/// sharper superset of the face's locus a caller reads.
-pub(crate) type FaceReach<'r, T> =
-    dyn Fn(&Body<T>, FaceKey, &BoxFrame<T>) -> Option<(Point3<T>, Point3<T>)> + 'r;
+/// A face's cover read along an aim: [`super::boxes::face_cover`], or
+/// [`super::boxes::face_cover_toward`], which reads one more constraint
+/// off the aim. `None` for a face with no cover.
+pub(crate) type FaceCoverAlong<'r, T> =
+    dyn Fn(&Body<T>, FaceKey, UnitVec3<T>) -> Option<Cover<T>> + 'r;
 
-/// [`apart`], with each face's reach read by `face_reach`, which holds
-/// the face's locus in every frame it is handed.
+/// [`apart`], with each face's cover along a direction read by
+/// `face_cover`.
 ///
 /// # Panics
 ///
-/// As [`apart`], and as `face_reach`.
+/// As [`apart`], and as `face_cover`.
 pub(crate) fn apart_by<T: Decide>(
     (x, xi): (&Body<T>, Item<T>),
     (y, yi): (&Body<T>, Item<T>),
     axes: &[UnitVec3<T>],
     pad: f64,
     band: Band,
-    face_reach: &FaceReach<'_, T>,
+    face_cover: &FaceCoverAlong<'_, T>,
 ) -> bool {
     let between = match (anchor(x, xi), anchor(y, yi)) {
         (Some(p), Some(q)) => UnitVec3::new(q - p, PAIR_AXIS, band).ok(),
@@ -253,11 +263,11 @@ pub(crate) fn apart_by<T: Decide>(
     between
         .iter()
         .chain(axes)
-        .any(|&dir| apart_along(x, xi, y, yi, dir, pad, band, face_reach))
+        .any(|&dir| apart_along(x, xi, y, yi, dir, pad, band, face_cover))
 }
 
 /// [`apart_by`] along one direction.
-#[allow(clippy::too_many_arguments)] // the pair, the direction, the pad, the band and the reach rule
+#[allow(clippy::too_many_arguments)] // the pair, the direction, the pad, the band and the cover rule
 fn apart_along<T: Decide>(
     x: &Body<T>,
     xi: Item<T>,
@@ -266,11 +276,11 @@ fn apart_along<T: Decide>(
     dir: UnitVec3<T>,
     pad: f64,
     band: Band,
-    face_reach: &FaceReach<'_, T>,
+    face_cover: &FaceCoverAlong<'_, T>,
 ) -> bool {
     let (Some((xl, xh)), Some((yl, yh))) = (
-        span_by(x, [xi], dir, face_reach),
-        span_by(y, [yi], dir, face_reach),
+        span_by(x, [xi], dir, face_cover),
+        span_by(y, [yi], dir, face_cover),
     ) else {
         return false;
     };
@@ -278,9 +288,8 @@ fn apart_along<T: Decide>(
     matches!(decide(PAIR_GAP, Margin::of(gap), band), Ok(Sign::Positive))
 }
 
-/// The span of `items`' reaches along `dir`: the least and greatest
-/// support any of them has there, read as the first coordinate of each
-/// reach in the frame `dir` aims. `None` where an item has no reach, or
+/// The span of `items` along `dir`: the least and greatest support any
+/// of their covers has there. `None` where an item has no cover, or
 /// there is no item.
 pub(crate) fn support_along<T: Decide>(
     body: &Body<T>,
@@ -288,63 +297,44 @@ pub(crate) fn support_along<T: Decide>(
     dir: UnitVec3<T>,
     band: Band,
 ) -> Option<(T, T)> {
-    span_by(body, items, dir, &|body, f, frame| {
-        crate::census::face_reach_in(body, f, band, frame)
+    span_by(body, items, dir, &|body, f, _| {
+        super::boxes::face_cover(body, f, band).ok()
     })
 }
 
-/// [`support_along`], with each face's reach read by `face_reach`.
+/// [`support_along`], with each face's cover read by `face_cover`.
 fn span_by<T: Decide>(
     body: &Body<T>,
     items: impl IntoIterator<Item = Item<T>>,
     dir: UnitVec3<T>,
-    face_reach: &FaceReach<'_, T>,
+    face_cover: &FaceCoverAlong<'_, T>,
 ) -> Option<(T, T)> {
-    let frame = BoxFrame::aimed(dir);
+    let d = dir.get();
     let mut span: Option<(T, T)> = None;
     for item in items {
-        let (lo, hi) = reach(body, item, &frame, face_reach)?;
-        span = Some(span.map_or((lo.x, hi.x), |(l, h)| (l.min(lo.x), h.max(hi.x))));
+        let cover = cover(body, item, dir, face_cover)?;
+        let (lo, hi) = (T::zero() - cover.support(-d), cover.support(d));
+        span = Some(span.map_or((lo, hi), |(l, h)| (l.min(lo), h.max(hi))));
     }
     span
 }
 
-/// An item's reach in `frame`, a face's by `face_reach`.
-fn reach<T: Decide>(
+/// An item's cover, a face's by `face_cover` along `dir`; a ball's is
+/// its tube with no spine.
+fn cover<T: Decide>(
     body: &Body<T>,
     item: Item<T>,
-    frame: &BoxFrame<T>,
-    face_reach: &FaceReach<'_, T>,
-) -> Option<(Point3<T>, Point3<T>)> {
-    use super::boxes::{SpanBox, ball_extent, conic_extent};
+    dir: UnitVec3<T>,
+    face_cover: &FaceCoverAlong<'_, T>,
+) -> Option<Cover<T>> {
     match item {
-        Item::Face(f) => face_reach(body, f, frame),
-        Item::Edge(e) => crate::census::edge_reach_in(body, e, frame),
-        Item::Circle(Circle {
-            center,
-            u_ref,
-            v_ref,
-            radius,
-        }) => Some(corners(conic_extent(
-            &SpanBox::point(frame.point(center)),
-            &SpanBox::vector(frame.vector(u_ref)),
-            &SpanBox::vector(frame.vector(v_ref)),
-            radius,
-            radius,
-        ))),
-        Item::Ball { center, radius } => Some(corners(ball_extent(
-            &SpanBox::point(frame.point(center)),
-            radius,
-        ))),
+        Item::Face(f) => face_cover(body, f, dir),
+        Item::Edge(e) => super::boxes::edge_cover(body, e).ok(),
+        Item::Circle(circle) => circle.cover(),
+        Item::Ball { center, radius } => {
+            Cover::tube(center, Vec3::unit_z(), Vec3::unit_x(), T::zero(), radius)
+        }
     }
-}
-
-/// A [`super::boxes::SpanBox`]'s two corners.
-fn corners<T: Real>(b: super::boxes::SpanBox<T>) -> (Point3<T>, Point3<T>) {
-    (
-        Point3::new(b.x.lo, b.y.lo, b.z.lo),
-        Point3::new(b.x.hi, b.y.hi, b.z.hi),
-    )
 }
 
 /// The mean of an item's boundary vertices, or a circle's or ball's

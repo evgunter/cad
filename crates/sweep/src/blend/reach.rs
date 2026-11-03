@@ -2657,12 +2657,7 @@ pub(crate) fn band_reach<T: Decide + Bounds>(
         r.skip.dedup();
         reaches.push(r);
     }
-    let boxes = FaceBoxes::of(body, band).map_err(|e| {
-        degenerate(
-            EntityId::Face(e.0),
-            "a face's stored surface, which its box reads",
-        )
-    })?;
+    let boxes = FaceBoxes::of(body, band);
     // Two chains that share a vertex meet there in a corner or a turn,
     // which the corner predicate and the surgery judge: their bands
     // touch by construction.

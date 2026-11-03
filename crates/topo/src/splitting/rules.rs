@@ -782,19 +782,12 @@ pub(crate) fn face_axial_range<T: Decide>(
 }
 
 /// **How far along a cone's axis a face reaches**: bounds `(lo, hi)` on
-/// `(x − apex)·axis` over `face`, read off its boundary as
-/// [`face_axial_range`] reads it, each edge over the span it holds.
-///
-/// A face on the cone itself can hold the apex inside its boundary (a
-/// tip bounded by its rim alone), where its range is not its
-/// boundary's: the axis coordinate peaks on a smooth surface only at
-/// the boundary, and the apex is not smooth. So a face on a cone keeps
-/// its boundary's range only where every loop's azimuth window is
-/// decided narrower than three quarters of a turn: a boundary loop that
-/// encloses the apex winds a whole turn about the axis. Anywhere else
-/// (a wider window, an unread one, a refusal reading it) the range is
-/// widened to hold the apex. A face on any other surface keeps its
-/// boundary's range: on a plane the coordinate is linear.
+/// `(x − apex)·axis` over `face`, its cover's support either way along
+/// the axis ([`crate::boolean::boxes::face_cover`]). A face on the cone
+/// itself holds the apex in that window where its boundary may wind
+/// round the axis (the cone arm's `cone_may_hold_apex`); a face with no
+/// cover reads the poison window, which every lever reading it
+/// escalates.
 ///
 /// # Errors
 ///
@@ -808,49 +801,16 @@ pub(crate) fn cone_axial_window<T: Decide>(
     let &geom::Surface::Cone { apex, axis, .. } = cone else {
         unreachable!("a window along a cone's axis is asked of a cone")
     };
-    // A floor under every boundary reading, so the folds below start
-    // past nothing the boundary holds.
-    let floor = T::zero() - face_reach_from(body, face, apex)?.length();
-    let along = |p: Point3<T>| (p - apex).dot(axis);
-    let hi = boundary_fold(
-        body,
-        face,
-        floor,
-        (along, |curve| span_of(curve).range_along(apex, axis).1),
-        Real::max,
-    )?;
-    let lo = T::zero()
-        - boundary_fold(
-            body,
-            face,
-            floor,
-            (
-                |p| T::zero() - along(p),
-                |curve| T::zero() - span_of(curve).range_along(apex, axis).0,
-            ),
-            Real::max,
-        )?;
-    let own @ geom::Surface::Cone { .. } = body.proven_face_surface(face) else {
-        return Ok((lo, hi));
+    face_reach_from(body, face, apex)?;
+    let Ok(cover) = crate::boolean::boxes::face_cover(body, face, band) else {
+        let poison = geom_core::poison();
+        return Ok((poison, poison));
     };
-    let widened = (lo.min(T::zero()), hi.max(T::zero()));
-    let quarters = T::from_f64(1.5 * core::f64::consts::PI);
-    // Every loop, not the outer alone: a file's designated outer bound
-    // can be a hole, and the loop enclosing the apex then a ring.
-    let wide = match crate::chord_join::face_loop_azimuth_windows(body, own, face, band) {
-        Ok(windows) => windows
-            .into_iter()
-            .try_fold(T::zero() - quarters, |wide, w| {
-                w.map(|(from, to)| wide.max(to - from - quarters))
-            }),
-        Err(_) => None,
-    };
-    Ok(wide.map_or(widened, |wide| {
-        (
-            wide.select_le_zero(lo, widened.0),
-            wide.select_le_zero(hi, widened.1),
-        )
-    }))
+    let base = (apex - Point3::origin()).dot(axis);
+    Ok((
+        T::zero() - cover.support(-axis) - base,
+        cover.support(axis) - base,
+    ))
 }
 
 /// **A face as the plane×cone arm's reach** ([`geom_brep::Reach::Face`]),

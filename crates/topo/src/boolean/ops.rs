@@ -1887,11 +1887,12 @@ pub(crate) fn place_witness<T: Decide>(
 }
 
 /// One face as the section certificate reads it: its key, its surface's
-/// key and description, and its certified box.
+/// key and description, its cover and its certified box.
 pub(crate) struct FaceRow<T: Real> {
     face: FaceKey,
     key: SurfaceKey,
     surface: geom::Surface<T>,
+    cover: boxes::FaceCovered<T>,
     bbox: bvh::Aabb,
 }
 
@@ -1908,20 +1909,29 @@ pub(crate) fn face_rows<T: Decide + Bounds>(
     body.faces()
         .map(|(face, fd)| {
             let surface = body.face_surface_linked(face, fd).clone();
+            let cover = boxes::face_cover(body, face, band);
+            let bbox = cover
+                .as_ref()
+                .map_or_else(|_| bvh::Aabb::poison(), |c| c.aabb(pad));
             Ok(FaceRow {
                 face,
                 key: fd.surface,
                 surface,
-                bbox: boxes::face_box(body, face, pad, band)?,
+                cover,
+                bbox,
             })
         })
         .collect()
 }
 
-/// The section certificate's [`Reach`](geom_brep::Reach) of
-/// two overlapping face boxes ([`super::glue::overlap_ball`]).
-fn overlap_reach<T: Real>(box_a: &bvh::Aabb, box_b: &bvh::Aabb) -> geom_brep::Reach<T> {
-    geom_brep::Reach::Ball(super::glue::overlap_ball(box_a, box_b))
+/// The section certificate's [`Reach`](geom_brep::Reach) of two faces
+/// whose boxes overlap: the ball of their covers' meet
+/// ([`super::glue::overlap_ball`]).
+fn overlap_reach<T: Real>(
+    a: &boxes::FaceCovered<T>,
+    b: &boxes::FaceCovered<T>,
+) -> geom_brep::Reach<T> {
+    geom_brep::Reach::Ball(super::glue::overlap_ball(a, b))
 }
 
 /// **The section certificate's per-pair rule** for A's face `fa` (the
@@ -1972,7 +1982,7 @@ fn pair_verdict<T: Decide + Bounds + crate::props::AtRestPolicy>(
         None => classify_known(
             &fa.surface,
             &fb.surface,
-            &overlap_reach(&fa.bbox, &fb.bbox),
+            &overlap_reach(&fa.cover, &fb.cover),
             sections.region_for(&fa.surface, &fb.surface),
             T::ssi_lane(),
             band,
@@ -5643,7 +5653,7 @@ pub(super) fn gate<T: Decide + Bounds + AtRestPolicy>(
 ) -> Result<AtRestBody<T>, BooleanError> {
     let mut body = body;
     let pad = super::boxes::sweep_pad(band);
-    let face_box = |body: &Body<T>, f| super::boxes::face_box(body, f, pad, band).ok();
+    let face_box = |body: &Body<T>, f| Some(super::boxes::face_box(body, f, pad, band));
     crate::pieces::sort_into_pieces(&mut body, band, tol, T::quad_lane(), Some(&face_box))
         .map_err(BooleanError::Pieces)?;
     pinched_at_cone_apex(&body, band)?;
@@ -10571,7 +10581,7 @@ mod tests {
             // Each brick its own cell: the axes are read off this pair.
             let axes = crate::boolean::separating::OperandAxes::new(boxes::axis_key);
             for (yf, _) in other.faces() {
-                let face_box = boxes::face_box(&other, yf, pad, band).unwrap();
+                let face_box = boxes::face_box(&other, yf, pad, band);
                 assert!(face_box.overlaps(&ball_box), "{what}: the boxes overlap");
                 assert_eq!(
                     ball_may_reach(
@@ -10743,28 +10753,55 @@ mod from_computed_rows {
     #![allow(clippy::unwrap_used, clippy::expect_used)]
     use super::overlap_reach;
     use crate::revalue_pin::S;
+    use geom_core::Real;
 
-    /// The reach enters as computed values: built at `Sym<f64>` from two
-    /// boxes the face walk would measure from geometry the parameter
-    /// moves, neither its centre nor its radius re-values to the ball
-    /// `p0` measured.
+    /// **The reach is the meet of the two faces' covers, read in the
+    /// body's scalar**: built at `Sym<f64>` from two corner sets the
+    /// parameter moves, its centre and radius re-value to the `p1`
+    /// build's own bits, and none is laundered through an `f64` box.
+    /// One face with no cover leaves the other's ball; both leave no
+    /// ball. Red where the reach is read off the two `f64` boxes, which
+    /// enter as opaque constants, or where a refusal poisons the meet.
     #[test]
-    fn the_reach_takes_its_ball_as_computed() {
-        let found = crate::revalue_pin::revalued([1.0, 1.0 + 1.0e-3], |p, _| {
-            let cube = |lo: f64, hi: f64| bvh::Aabb {
-                min_x: lo,
-                min_y: lo,
-                min_z: lo,
-                max_x: hi,
-                max_y: hi,
-                max_z: hi,
+    fn the_reach_is_the_covers_meet_in_the_bodys_scalar() {
+        use geom::cover::Cover;
+        let found = crate::revalue_pin::revalued([1.0, 1.0 + 1.0e-3], |_, p| {
+            let cube = |lo: S, hi: S| {
+                Cover::points(vec![
+                    geom_core::Point3::new(lo, lo, lo),
+                    geom_core::Point3::new(hi, hi, hi),
+                ])
+                .unwrap()
             };
-            let reach = overlap_reach::<S>(&cube(0.0, p), &cube(0.5 * p, 2.0 * p));
+            let half = S::from_f64(0.5);
+            let two = S::from_f64(2.0);
+            let reach = overlap_reach::<S>(&Ok(cube(S::zero(), p)), &Ok(cube(half * p, two * p)));
             let ball = reach.ball();
             vec![ball.center().x, ball.radius()]
         });
         assert_eq!(found.laundered, 0, "{found:?}");
-        assert_eq!(found.opaque, 2, "{found:?}");
+        assert_eq!(found.kept, 2, "{found:?}");
+        let cube = Cover::points(vec![
+            geom_core::Point3::new(0.0, 0.0, 0.0),
+            geom_core::Point3::new(1.0, 1.0, 1.0),
+        ])
+        .unwrap();
+        let uncovered = || {
+            Err(crate::boolean::FaceUncovered::of_carrier(
+                geom::cover::Uncovered::new(
+                    geom::cover::Entity::Surface(geom::SurfaceKind::Plane),
+                    geom::cover::Unknown::Unbounded,
+                ),
+            ))
+        };
+        let one = overlap_reach::<f64>(&Ok(cube.clone()), &uncovered()).ball();
+        assert_eq!(
+            (one.center().x, one.radius()),
+            (0.5, 0.75f64.sqrt()),
+            "one face uncovered: the other's ball"
+        );
+        let none = overlap_reach::<f64>(&uncovered(), &uncovered()).ball();
+        assert!(none.radius().is_nan(), "both uncovered: no ball");
     }
 }
 

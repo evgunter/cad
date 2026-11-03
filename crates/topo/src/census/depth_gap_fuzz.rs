@@ -1,8 +1,9 @@
-//! **The depth bounds are bounds**: [`depth_gap`]'s closed forms for a
-//! depth's greatest and least value over a ring or a segment, against
-//! the exact depth of points sampled on it.
+//! **The depth bounds are bounds**: [`depth_gap`]'s read of a depth's
+//! least and greatest value over a cover (`range_on`, the cover's
+//! distance range from an axis line, a centre or a core circle), over a
+//! tube or a segment, against the exact depth of points sampled on it.
 //!
-//! A shape-1 counterexample search: random rings and segments of every
+//! A shape-1 counterexample search: random tubes and segments of every
 //! pose against random axes, centres and core circles, half the rings
 //! coaxial with the depth's own axis, the pose the census meets most
 //! and where the bounds are tight. A ring is sampled inside its tube
@@ -12,24 +13,69 @@
 //! hold.
 //!
 //! Two lanes. In `f64` a bound may round past a sample by at most
-//! [`REL`] of the draw's scale. In `Interval` the bound encloses the
-//! closed form's exact value, so only the samples' own rounding stands
-//! between them.
+//! [`REL`] of the draw's scale, the well-posedness the depth's forms
+//! owe. In `Interval` the bound encloses the closed form's exact value,
+//! so only the samples' own rounding stands between them.
 
 #![allow(clippy::unwrap_used)]
 
 test_utils::gated_to![
     "crates/topo/src/census/depth_gap.rs",
     "crates/topo/src/census.rs",
+    "crates/geom/src/cover.rs",
     "crates/geom-core/src/real.rs",
     "crates/geom-core/src/interval.rs",
     "crates/geom-core/src/linalg/",
 ];
 
-use geom_core::{Bounds, Interval, Point3, Vec3};
+use geom::cover::{Cover, ParamWindow};
+use geom_core::{Bounds, Interval, Point3, Real, Vec3};
 use test_utils::fuzz::Rng;
 
-use super::depth_gap::{Depth, Piece, Ring, exact, inf_on, split, sup_on};
+use super::depth_gap::{Depth, range_on, split};
+
+/// A drawn piece: a tube (a circle where `minor` is zero) about a unit
+/// `normal`, or a segment.
+#[derive(Clone, Copy, Debug)]
+enum Piece<T: Real> {
+    Tube {
+        center: Point3<T>,
+        normal: Vec3<T>,
+        u_ref: Vec3<T>,
+        major: T,
+        minor: T,
+        circle: bool,
+    },
+    Segment(Point3<T>, Point3<T>),
+}
+
+fn cover_of<T: Real>(piece: Piece<T>) -> Cover<T> {
+    match piece {
+        Piece::Tube {
+            center,
+            normal,
+            u_ref,
+            major,
+            circle: true,
+            ..
+        } => Cover::arc(
+            center,
+            (u_ref, normal.cross(u_ref)),
+            (major, major),
+            ParamWindow::new(T::zero(), T::tau()),
+        ),
+        Piece::Tube {
+            center,
+            normal,
+            u_ref,
+            major,
+            minor,
+            ..
+        } => Cover::tube(center, normal, u_ref, major, minor),
+        Piece::Segment(a, b) => Cover::segment(a, b),
+    }
+    .unwrap()
+}
 
 /// How far an `f64` bound may round past a sample, relative to the
 /// draw's scale (`1 +` its largest coordinate, plus its reach). The
@@ -41,6 +87,22 @@ const REL: f64 = 1e-14;
 /// four runs at effort 400 (240 000 draws each) stood 1.1e-15 past, at
 /// seed `0x7925458d5bba5dab`; a run at effort 1 typically sees ~1e-17.
 const SAMPLE_REL: f64 = 5e-15;
+
+/// The exact depth of the point `x`: the oracle.
+fn exact<T: geom_core::Decide>(depth: Depth<T>, x: Point3<T>) -> T {
+    match depth {
+        Depth::Axis { origin, axis } => split(x - origin, axis).0.norm(),
+        Depth::Center { center } => (x - center).norm(),
+        Depth::Core {
+            center,
+            axis,
+            major,
+        } => {
+            let (off, t) = split(x - center, axis);
+            ((off.norm() - major).powi(2) + t.powi(2)).sqrt()
+        }
+    }
+}
 
 fn p(x: f64, y: f64, z: f64) -> Point3<f64> {
     Point3::new(x, y, z)
@@ -89,20 +151,19 @@ fn draw(r: &mut Rng, i: usize) -> (Depth<f64>, Piece<f64>, Vec<Point3<f64>>, f64
             .collect();
         return (depth, Piece::Segment(a, b), samples, scale);
     }
-    let ring = Ring {
-        center: if coaxial {
-            origin + n * r.range(-1.0, 1.0)
-        } else {
-            centre(r, far)
-        },
-        normal: n * r.range(0.5, 2.0),
-        major: r.range(0.0, 2.0),
-        minor: if i.is_multiple_of(5) {
+    let center = if coaxial {
+        origin + n * r.range(-1.0, 1.0)
+    } else {
+        centre(r, far)
+    };
+    let (major, minor) = (
+        r.range(0.0, 2.0),
+        if i.is_multiple_of(5) {
             0.0
         } else {
             r.range(0.0, 0.5)
         },
-    };
+    );
     let e1 = split(unit(r), n).0;
     let e1 = e1 / e1.norm();
     let e2 = n.cross(e1);
@@ -110,17 +171,25 @@ fn draw(r: &mut Rng, i: usize) -> (Depth<f64>, Piece<f64>, Vec<Point3<f64>>, f64
         .map(|k| {
             let th = f64::from(k / 2) * core::f64::consts::TAU / 64.0 + r.range(0.0, 0.1);
             let radial = e1 * th.cos() + e2 * th.sin();
-            let on = ring.center + radial * ring.major;
+            let on = center + radial * major;
             if k % 2 == 0 {
-                on + unit(r) * (ring.minor * r.unit())
+                on + unit(r) * (minor * r.unit())
             } else {
                 // On the tube's surface, in the circle's meridian plane.
                 let phi = r.range(0.0, core::f64::consts::TAU);
-                on + (radial * phi.cos() + n * phi.sin()) * ring.minor
+                on + (radial * phi.cos() + n * phi.sin()) * minor
             }
         })
         .collect();
-    (depth, Piece::Ring(ring), samples, scale)
+    let tube = Piece::Tube {
+        center,
+        normal: n,
+        u_ref: e1,
+        major,
+        minor,
+        circle: minor == 0.0,
+    };
+    (depth, tube, samples, scale)
 }
 
 fn iv(x: f64) -> Interval {
@@ -156,12 +225,21 @@ fn lift_depth(d: Depth<f64>) -> Depth<Interval> {
 
 fn lift_piece(piece: Piece<f64>) -> Piece<Interval> {
     match piece {
-        Piece::Ring(ring) => Piece::Ring(Ring {
-            center: ip(ring.center),
-            normal: ivec(ring.normal),
-            major: iv(ring.major),
-            minor: iv(ring.minor),
-        }),
+        Piece::Tube {
+            center,
+            normal,
+            u_ref,
+            major,
+            minor,
+            circle,
+        } => Piece::Tube {
+            center: ip(center),
+            normal: ivec(normal),
+            u_ref: ivec(u_ref),
+            major: iv(major),
+            minor: iv(minor),
+            circle,
+        },
         Piece::Segment(a, b) => Piece::Segment(ip(a), ip(b)),
     }
 }
@@ -173,27 +251,13 @@ fn no_sampled_depth_lies_past_its_bounds() {
     let mut sampled = f64::NEG_INFINITY;
     for i in 0..test_utils::fuzz::scaled(600) {
         let (depth, piece, samples, scale) = draw(&mut r, i);
-        let hi = sup_on(depth, &piece);
-        if hi.is_none() {
-            assert!(
-                matches!((depth, piece), (Depth::Core { .. }, Piece::Segment(..))),
-                "draw {i}: no upper bound on {piece:?} for {depth:?}; {}",
-                test_utils::fuzz::replay()
-            );
-        }
-        let lo = inf_on(depth, &piece);
+        let (lo, hi) = range_on(depth, &cover_of(piece));
         let (idepth, ipiece) = (lift_depth(depth), lift_piece(piece));
-        let (ihi, ilo) = (sup_on(idepth, &ipiece), inf_on(idepth, &ipiece));
-        assert_eq!(
-            (ihi.is_some(), ilo.is_some()),
-            (hi.is_some(), lo.is_some()),
-            "draw {i}: the lanes claim alike; {}",
-            test_utils::fuzz::replay()
-        );
+        let (ilo, ihi) = range_on(idepth, &cover_of(ipiece));
         for x in samples {
             let d = exact(depth, x);
             let id = exact(idepth, ip(x));
-            if let (Some(hi), Some(ihi)) = (hi, ihi) {
+            {
                 over = over.max((d - hi) / scale);
                 assert!(
                     d - hi <= REL * scale,
@@ -211,7 +275,7 @@ fn no_sampled_depth_lies_past_its_bounds() {
                     test_utils::fuzz::replay()
                 );
             }
-            if let (Some(lo), Some(ilo)) = (lo, ilo) {
+            {
                 under = under.max((lo - d) / scale);
                 assert!(
                     lo - d <= REL * scale,
