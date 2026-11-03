@@ -231,6 +231,7 @@ fn reaches_certification(lines: &[String]) -> bool {
 const HOLDERS: &[&str] = &[
     "crates/geom-brep/src/offset_fit.rs",
     "crates/geom-brep/src/offset_meters.rs",
+    "crates/geom-brep/src/pair_section/spline_implicit.rs",
     "crates/geom-brep/src/patch_bound.rs",
     "crates/geom-brep/src/props/mod.rs",
     "crates/geom-brep/src/props/quad/",
@@ -344,13 +345,16 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ("crates/geom-brep/src/pair_section/ruling.rs", 2, 2, ""),
     (
         "crates/geom-brep/src/pair_section/spline_implicit.rs",
-        4,
-        3,
-        "the 3 that ask are `bracket`'s. The remainder is `pivot`'s shift, the upper \
-         end of the foot's lift over the stored normal's length: the stored plane's \
-         normal is certified, and a quotient by a length not proven away from zero \
-         has an end that is not finite, which `band.padded` refuses \
-         (`SectionError::Unaccounted`)",
+        2,
+        0,
+        "held by name since SECTARMS #6412 removed its one `is_certified()` (the \
+         bracket's), which was all the population key saw. Both reads are the \
+         pivot's: `pivot`'s shift, the upper end of the foot's lift over the stored \
+         normal's length (the normal is certified, and a quotient by a length not \
+         proven away from zero has an end that is not finite, which `band.padded` \
+         refuses, `SectionError::Unaccounted`); and `Phi::at`'s `lift`, a sum of \
+         products of certified points, no quotient, which certifies, its upper end \
+         a sound bound on the pivot's stand-off added to a height",
     ),
     (
         "crates/geom-brep/src/pair_section/spline_implicit/curved.rs",
@@ -487,11 +491,14 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     (
         "crates/geom-brep/src/ssi/enclose.rs",
-        21,
+        22,
         21,
         "`Box3`'s disjointness, containment, centre, split, reach meet and \
          intersection all refuse by name, and so do the mignitude \
-         (`zero_free_lower_bound`, 4) and `a_positive`",
+         (`zero_free_lower_bound`, 4) and `a_positive`. The remainder is \
+         `chart_transverse_margin`'s upper end of the stretch times the gradient's \
+         supremum, two finite positive points (each refused otherwise above it), so \
+         the product certifies, and the margin over it rounds down: a lower bound",
     ),
     ("crates/geom-brep/src/ssi/exhaust.rs", 1, 1, ""),
     (
