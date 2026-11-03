@@ -2149,7 +2149,7 @@ impl<T: Decide> Link<T> {
                 },
                 faces: Vec::new(),
                 horns,
-                reach: T::zero(),
+                reach: geom_brep::ExtentBall::point(p).lever(),
                 ball: T::zero(),
             });
         }

@@ -82,6 +82,20 @@ fn whole<T: Decide>(p: Point3<T>, m: Vec3<T>) -> TangentPiece<T> {
     FaceSector::tangent_piece(plane(p, m), true, m, p, fan, band()).expect("a whole plane")
 }
 
+/// **A cone with a whole plane through a tied ray rests as its first
+/// order does**: `verdict` is a rest, or, where the same cone with the
+/// arc a line (`line`, which first order reads, the plane keeping it)
+/// itself refuses in band, that refusal. The first-order reading of a
+/// whole plane a kilometre off at the finest band, on `Interval`, is in
+/// band; a row there reads the second order as far as the first lets it.
+fn rests_as_its_line(verdict: TouchVerdict, line: impl Fn() -> TouchVerdict) -> bool {
+    match (verdict, line()) {
+        (TouchVerdict::Rest(_), _) => true,
+        (v, l @ TouchVerdict::Unread(TouchUnread::InBand)) => v == l,
+        _ => false,
+    }
+}
+
 fn read<T: Decide>(p: Point3<T>, pieces: Vec<TangentPiece<T>>) -> TouchVerdict {
     rest::one_material(&Link::of_tangent(p, pieces).expect("a link"), band())
 }
@@ -391,7 +405,10 @@ fn sheets_along_one_ray_part_by_their_bends<T: Decide>() {
             "two wedges at one point at {p:?}"
         );
         assert!(
-            rest(&read(p, wedge_over_a_plane(p, 1.0))),
+            rests_as_its_line(read(p, wedge_over_a_plane(p, 1.0)), || read(
+                p,
+                wedge_over_a_plane(p, 0.0)
+            )),
             "an arc bending off a plane at {p:?}"
         );
         assert_eq!(
@@ -627,10 +644,10 @@ fn what_one_order_down_leaves_unread_stays_unread<T: Decide>() {
     let up = (escalate + 0.5 * zero) / 2.0;
     for p in apexes::<T>() {
         assert!(
-            matches!(
-                read(p, wedge_over_a_sheet(p, up, 0.0, false)),
-                TouchVerdict::Rest(_)
-            ),
+            rests_as_its_line(read(p, wedge_over_a_sheet(p, up, 0.0, false)), || read(
+                p,
+                wedge_over_a_sheet(p, 0.0, 0.0, false)
+            )),
             "an arc just past the escalation off a plane at {p:?}"
         );
         assert_eq!(

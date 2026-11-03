@@ -37,6 +37,13 @@ use super::{
     TouchUnread, Vec3, ahead, wedge_side,
 };
 use crate::entity::EdgeKey;
+use geom_core::Lever;
+
+/// The arm of a departure `d` from `apex`: the point it reaches, read
+/// from `apex` (the link's own idiom, [`Link::of`]).
+fn reach<T: Decide>(apex: Point3<T>, d: Vec3<T>) -> Lever<T> {
+    geom_brep::ExtentBall::point(apex + d).lever_from(apex)
+}
 
 /// Which way a cusp corner's face lies about its ray ([`cusp`]).
 pub(super) enum Cusp {
@@ -65,11 +72,12 @@ pub(super) fn cusp<T: Decide>(
     [k0, k1]: [Vec3<T>; 2],
     band: Band,
 ) -> Option<Cusp> {
-    let l = d0.norm().min(d1.norm());
+    let arm = reach(apex, d0).min(reach(apex, d1));
+    let l = arm.length();
     let (t0, t1) = (d0.normalize(), d1.normalize());
     let w = m.cross(t0).normalize();
     let residue = Distance::of(apex + t1 * l, apex + t0 * l, w);
-    let bend = Distance::departure(Departure::Parted(k1 - k0), w, l);
+    let bend = Distance::departure(Departure::Parted(k1 - k0), w, arm);
     match metric::settle(
         LINK_SECOND_ORDER,
         bend,
@@ -135,10 +143,11 @@ pub(super) fn thorns<T: Decide>(link: &Link<T>, rd: Reading<T>) -> Result<(), To
             cycle.push(at);
             at = next(at)?;
         }
-        let l = cycle
+        let arm = cycle
             .iter()
-            .flat_map(|&i| horns[i].ends.map(|(d, _)| d.norm()))
-            .fold(horns[start].ends[0].0.norm(), T::min);
+            .flat_map(|&i| horns[i].ends.map(|(d, _)| reach(p, d)))
+            .fold(reach(p, horns[start].ends[0].0), Lever::min);
+        let l = arm.length();
         let vertex = |i: usize| horns[cycle[i]].ends[0];
         let mut side = None;
         for i in 0..cycle.len() {
@@ -146,7 +155,7 @@ pub(super) fn thorns<T: Decide>(link: &Link<T>, rd: Reading<T>) -> Result<(), To
             let (ta, a) = vertex(i);
             for j in (0..cycle.len()).filter(|&j| j != i && j != (i + 1) % cycle.len()) {
                 let (tc, c) = vertex(j);
-                let s = beside(p, (ta, a), (tc, c), face.outward, l, rd).ok_or(unread)?;
+                let s = beside(p, (ta, a), (tc, c), face.outward, arm, rd).ok_or(unread)?;
                 if s == Sign::Zero || side.is_some_and(|x| x != s) {
                     return Err(unread);
                 }
@@ -196,16 +205,17 @@ fn beside<T: Decide>(
     (ta, a): (Vec3<T>, Bound<T>),
     (tc, c): (Vec3<T>, Bound<T>),
     m: Vec3<T>,
-    l: T,
+    arm: Lever<T>,
     rd: Reading<T>,
 ) -> Option<Sign> {
+    let l = arm.length();
     let residue = Distance::of(p + tc.normalize() * l, p + ta.normalize() * l, m);
     if metric::sign(LINK_PLANE, residue, rd.band) != Some(Sign::Zero) {
         return None;
     }
     metric::settle(
         LINK_SECOND_ORDER,
-        Distance::departure(Departure::Parted(c.bend - a.bend), m, l),
+        Distance::departure(Departure::Parted(c.bend - a.bend), m, arm),
         rd.charged(residue),
     )
     .ok()
@@ -256,7 +266,7 @@ enum Run<T: Decide> {
 pub(super) fn parts<T: Decide>(link: &Link<T>, r: Point3<T>, rd: Reading<T>) -> bool {
     let p = link.cone.p;
     let unit = (r - p).normalize();
-    let mut arm = (r - p).norm();
+    let mut arm = reach(p, r - p);
     let mut sheets: Vec<Sheet<T>> = Vec::new();
     for (j, t) in link.cone.sectors.iter().enumerate() {
         match link.cone.side(t, r, rd) {
@@ -299,7 +309,7 @@ pub(super) fn parts<T: Decide>(link: &Link<T>, r: Point3<T>, rd: Reading<T>) -> 
                     } else {
                         at.cross(t.outward)
                     };
-                    arm = arm.min((q - p).norm());
+                    arm = arm.min(reach(p, q - p));
                     sheets.push(Sheet {
                         anchor: b.bend,
                         at,
@@ -324,7 +334,14 @@ pub(super) fn parts<T: Decide>(link: &Link<T>, r: Point3<T>, rd: Reading<T>) -> 
 
 /// Whether two sheets along a ray decidedly do not meet one order down
 /// but at an edge's point they share ([`parts`]).
-fn apart<T: Decide>(p: Point3<T>, a: &Sheet<T>, b: &Sheet<T>, l: T, rd: Reading<T>) -> bool {
+fn apart<T: Decide>(
+    p: Point3<T>,
+    a: &Sheet<T>,
+    b: &Sheet<T>,
+    arm: Lever<T>,
+    rd: Reading<T>,
+) -> bool {
+    let l = arm.length();
     let toward =
         |v: Vec3<T>, n: Vec3<T>| metric::sign_over(LINK_PLANE, Distance::of(p + v * l, p, n), rd);
     if a.edge.is_some() && a.edge == b.edge {
@@ -339,12 +356,19 @@ fn apart<T: Decide>(p: Point3<T>, a: &Sheet<T>, b: &Sheet<T>, l: T, rd: Reading<
             _ => false,
         };
     }
-    misses(p, a, b, l, rd) || misses(p, b, a, l, rd)
+    misses(p, a, b, arm, rd) || misses(p, b, a, arm, rd)
 }
 
 /// Whether the sheet `b` decidedly does not meet the sheet `a`, read
 /// against `a`'s line in the cut ([`parts`]).
-fn misses<T: Decide>(p: Point3<T>, a: &Sheet<T>, b: &Sheet<T>, l: T, rd: Reading<T>) -> bool {
+fn misses<T: Decide>(
+    p: Point3<T>,
+    a: &Sheet<T>,
+    b: &Sheet<T>,
+    arm: Lever<T>,
+    rd: Reading<T>,
+) -> bool {
+    let l = arm.length();
     let toward =
         |v: Vec3<T>, n: Vec3<T>| metric::sign_over(LINK_PLANE, Distance::of(p + v * l, p, n), rd);
     // `b`'s anchor against a line through `a`'s, of normal `n`, with
@@ -357,7 +381,7 @@ fn misses<T: Decide>(p: Point3<T>, a: &Sheet<T>, b: &Sheet<T>, l: T, rd: Reading
         let rd = also.map_or(rd, |d| rd.charged(d)).charged(residue);
         metric::settle(
             LINK_SECOND_ORDER,
-            Distance::departure(Departure::Parted(b.anchor - a.anchor), n, l),
+            Distance::departure(Departure::Parted(b.anchor - a.anchor), n, arm),
             rd,
         )
         .ok()
