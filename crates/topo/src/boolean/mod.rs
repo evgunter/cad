@@ -577,6 +577,17 @@ impl SideCode {
             Self::On => Self::On,
         }
     }
+
+    /// The side of a face's plane the code reads, as a cone is given it
+    /// ([`crate::link::Cone::reads_given`]): out of the material, in
+    /// front of the face, positive.
+    pub(crate) fn plane_side(self) -> Sign {
+        match self {
+            Self::In => Sign::Negative,
+            Self::On => Sign::Zero,
+            Self::Out => Sign::Positive,
+        }
+    }
 }
 
 /// **One operand edge piece's side of the other operand, beside a
@@ -6219,6 +6230,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
                     (operand, c.vertex),
                     Touch {
                         classes: out.classes,
+                        read_against: out.read_against,
                         datum: out.datum,
                         flush: out.flush,
                         face: c.face,
@@ -6373,23 +6385,13 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         // A touching vertex whose partner runs along the face, which
         // refuses should the pair read a sector pair on one plane.
         let mut along = None;
-        for (operand, vertex, own, other, partner, at) in [
-            (
-                Operand::A,
-                c.a,
-                &a_sectors,
-                &b_sectors,
-                c.b,
-                b.resolve_vertex_point(c.b, Proven),
-            ),
-            (
-                Operand::B,
-                c.b,
-                &b_sectors,
-                &a_sectors,
-                c.a,
-                a.resolve_vertex_point(c.a, Proven),
-            ),
+        let (a_at, b_at) = (
+            a.resolve_vertex_point(c.a, Proven),
+            b.resolve_vertex_point(c.b, Proven),
+        );
+        for (operand, vertex, own, other, partner, at, own_at) in [
+            (Operand::A, c.a, &a_sectors, &b_sectors, c.b, b_at, a_at),
+            (Operand::B, c.b, &b_sectors, &a_sectors, c.a, a_at, b_at),
         ] {
             let pair = vtxfac::Partner {
                 vertex: partner,
@@ -6406,7 +6408,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
                         partner,
                         along,
                     };
-                    match vtxfac::partner_side(other, touch.datum, touch.flush, band)? {
+                    match vtxfac::partner_side(&pair, own_at, touch.datum, touch.flush, band)? {
                         vtxfac::PartnerRead::Side { along: on } => {
                             if on {
                                 along.get_or_insert(along_face(AlongFace::FacesInOnePlane));
@@ -6496,7 +6498,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
             own,
             &edges,
             (operand.other(), &touch.pairs),
-            Some((touch.face, touch.datum.normal, &touch.classes)),
+            Some((touch.face, touch.datum.normal, &touch.read_against)),
             band,
         )?
         .map_err(|edge| BooleanError::VertexReadTwice {
@@ -6805,7 +6807,9 @@ fn held_faces<T: Real>(
 struct Touch<T: Real> {
     /// Its pierce's classes, as first read.
     classes: Vec<(HalfEdgeKey, SideCode)>,
-    /// The pierced face's datum they were read against.
+    /// The datum each of them was read against.
+    read_against: Vec<(HalfEdgeKey, vtxfac::PierceDatum<T>)>,
+    /// The pierced face's datum.
     datum: vtxfac::PierceDatum<T>,
     /// Whether a sector of its pierce lies in the face's plane.
     flush: bool,

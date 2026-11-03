@@ -646,6 +646,10 @@ BOUND_AS = {
     # `Node.clearance`, whose bounds are its keyword arguments.
     "Claim": "Node.clearance",
     "ClearanceBounds": "Node.clearance",
+    # Which end of the band a clearance's bound slot holds is spelled
+    # into the slot's word (`clearance_low`, `clearance_high`), the
+    # word `EditError.slot` answers in and `DocEdit.set_param` takes.
+    "BoundEnd": "EditError.slot",
     # A clearance verdict reads through the one `Verdict`: its state,
     # its refusal's class (with the sentence on `reason`), and the pair
     # that decided it, whose two points and distance are a

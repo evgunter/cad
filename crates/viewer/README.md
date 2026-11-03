@@ -2079,6 +2079,39 @@ is its preview.
 - **Variables**: `New variable` adds the variable's row. Its name and
   dimension are what it is (VR2, VR3), and the row edits its value.
 
+### The seated tools whose values have a home
+
+Four seated tools hold no value field; what they used to type is a row
+of the node they insert.
+
+- **Blend.** The form asks for the edges and fillet or chamfer. The
+  insert writes the size at `blend::default_size`: a millimetre,
+  written in the working unit at one significant figure (`1 mm`,
+  `0.1 cm`, `0.04 in`). It is a constant rather than a measure of the
+  picked edges, because the faces beside an edge, not its length,
+  bound the blend a body takes. The size is then the blend's
+  `SlotId::Radius` or `SlotId::ChamferDistance` row.
+- **Mirror.** The form holds no label field (`ToolKind::offers_label`).
+  The gesture's noun is the mirror: the insert writes the image and
+  `body ∪ image` for every body, placed or not, and answers the image
+  as what it made, so the image is labelled `Mirror N` and selected.
+  The union takes no label.
+- **Clearance.** The form asks for the two seats and the bound's shape
+  (at least, at most, exactly, between), which decides how many bound
+  slots the requirement has. The insert writes every end at contact,
+  `0`. Each end is then a slot row of the requirement,
+  `SlotId::ClearanceBound` (`Low` or `High`; `= c` holds the low end),
+  taking a number or a formula. The evaluator reads a bound slot with
+  the measured values bound, as it reads a value claim's payload, and a
+  bound that does not evaluate fails the requirement as a slot fault
+  naming its end (`NodeErrorKind::Expr` at `ClearanceBound`).
+- **The pattern count.** An index's count is one widget
+  (`index_count_ui`), drawn on the index variable's own row and on the
+  rows of every node that reads the index (`props::indices_read`),
+  such as a pattern's placement. A number, a drag or a formula writes
+  the count through `props::index_count_edit`. The pattern form's own
+  count field stays.
+
 ### One open tool, not one optional value per tool
 
 `Tools` holds one `Option<OpenTool>`, an enum with one variant per tool
