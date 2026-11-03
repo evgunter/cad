@@ -48,7 +48,7 @@ pub use super::plane_eq::PlaneRung;
 pub use super::solid_contain::WallRung;
 use crate::face_normal::NormalDecision;
 use geom_brep::curve_face::plane_crossing::ConicRootFault;
-pub use geom_brep::curve_face::plane_crossing::CrossingDecision;
+pub use geom_brep::edge_crossing::CrossingDecision;
 pub use geom_brep::sector_shape::SectorRung;
 pub use geom_brep::{SectionRadius, TorusConvention};
 

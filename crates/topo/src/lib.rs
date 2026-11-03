@@ -1412,7 +1412,8 @@ pub use provenance::{Provenance, SplitLineageCycle};
 // the query DOORS (materializers, predicates) keep their module
 // identity, like `readback`'s.
 pub use face_boxes::{FaceBox, FaceBoxes};
-pub use geom_brep::curve_face::plane_crossing::{ConicRootFault, CrossingDecision};
+pub use geom_brep::curve_face::plane_crossing::ConicRootFault;
+pub use geom_brep::edge_crossing::CrossingDecision;
 pub use mirror::{Reflection, mirror_body};
 pub use pieces::PieceSortError;
 pub use query::{

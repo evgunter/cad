@@ -65,6 +65,7 @@ pub(crate) mod descent;
 pub mod description;
 pub mod dihedral;
 pub mod dihedral_side;
+pub mod edge_crossing;
 pub mod edge_nurbs;
 pub mod edge_wedge;
 pub mod enters;

@@ -46,8 +46,8 @@ pub(crate) const SMOOTH_PIECE_LEVER: &str =
 /// [`Body::split_edge`](crate::construction::Construct::split_edge)'s interiority decision: it passes only on a
 /// crossing definitely inside its edge.
 pub(crate) const SPLIT_PARAM_INTERIOR: SizedDecision = SizedDecision {
-    lever: geom_brep::curve_face::plane_crossing::CROSSING_LEVER,
-    size: geom_brep::curve_face::plane_crossing::CROSSING_SIZE,
+    lever: geom_brep::edge_crossing::CROSSING_LEVER,
+    size: geom_brep::edge_crossing::CROSSING_SIZE,
     passes: SizedPass::Positive,
     side: RefusedSide::Lever,
     no_size: None,

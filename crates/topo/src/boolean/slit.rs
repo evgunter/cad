@@ -2620,7 +2620,7 @@ pub(super) const PARTING_ORDER: &str = "bool_parting_order";
 fn crossing_escalated(diag: geom_core::Indeterminate) -> BooleanError {
     BooleanError::Escalated {
         decision: BooleanDecision::Crossing(
-            geom_brep::curve_face::plane_crossing::CrossingDecision::OnEdge,
+            geom_brep::edge_crossing::CrossingDecision::OnEdge,
         ),
         diag,
     }
