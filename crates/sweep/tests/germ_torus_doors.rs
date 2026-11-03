@@ -1143,7 +1143,7 @@ fn a_cube_in_the_donuts_hole_answers_subtract_and_intersect() {
 }
 
 /// **∖ and ∩ reach the doors ∪ does, both orders.** With the torus on
-/// the revert roster, a subtract or an intersect over the fixtures above
+/// the roster every op reads, a subtract or an intersect over the fixtures above
 /// reaches the same doors as their unions:
 ///
 /// - the near-perpendicular bar's tilted faces cut general spiric

@@ -386,6 +386,14 @@ pub(crate) fn index(k: usize) -> u32 {
 /// section table), citing the C5 routing: a cone against a conic the
 /// inventory excludes, or a partner with no frame, refuses there.
 ///
+/// **ONE roster for every op.** ∖ and ∩ route regions through
+/// `Body::revert` (`A ∖ B ≡ A ∩ revert(B)`), which flips each face's
+/// `sense` bit and leaves its carrier as it is, and every door a kind
+/// on this roster meets reads a signed normal through that bit (the
+/// pierce and sector normals, the slit pass's floor), so each op meets
+/// the same doors as ∪ and refuses where ∪ does. A second list for ∖
+/// and ∩ would be the same fact spelled twice.
+///
 /// **`Approx` is absent by DECISION, not by gap.** Its fit is a
 /// `Nurbs`, which is on the roster, so admitting it on the fitted
 /// kind's authority would run the boolean against the APPROXIMATION
@@ -403,27 +411,6 @@ pub(super) fn boolean_arm_exists<T: Decide>(surface: &geom::Surface<T>) -> bool 
             | geom::Surface::Torus { .. }
             | geom::Surface::Cone { .. }
             | geom::Surface::Nurbs(_)
-    )
-}
-
-/// **The face kinds ∖ and ∩ have a seam lane for** — the same roster
-/// minus `Nurbs`, which has no crossing layer at all
-/// (`BooleanError::CurvedPairUnsupported`'s docs carry the per-class
-/// argument). ONE home, beside its sibling above, so the two rosters
-/// cannot drift apart in two files: the front door in `ops` reads
-/// this rather than spelling a second `matches!`.
-///
-/// `Approx` is off this roster for the reason it is off the one
-/// above, which is strictly stronger here: `Nurbs` has no crossing
-/// layer at all, and an approximating surface's chart is a `Nurbs`'s.
-pub(super) fn revert_arm_exists<T: Decide>(surface: &geom::Surface<T>) -> bool {
-    matches!(
-        surface,
-        geom::Surface::Plane { .. }
-            | geom::Surface::Cylinder { .. }
-            | geom::Surface::Sphere { .. }
-            | geom::Surface::Torus { .. }
-            | geom::Surface::Cone { .. }
     )
 }
 
@@ -583,9 +570,8 @@ pub(super) fn first_unsupported_pair<T: Decide + Bounds>(
 /// by the validator's own verdict, with supported edge carriers. Then
 /// two rules, with different scopes on purpose:
 ///
-/// - **Faces**: a kind off the face-kind `roster` — [`boolean_arm_exists`],
-///   or [`revert_arm_exists`] at the ∖/∩ front door — disqualifies the
-///   operation only through a PAIR it could enter
+/// - **Faces**: a kind off the face-kind `roster` ([`boolean_arm_exists`])
+///   disqualifies the operation only through a PAIR it could enter
 ///   ([`first_unsupported_pair`]) and that the caller's declarations
 ///   do not cover. A torus wall whose box clears the other operand
 ///   does not gate anything, and neither does one whose contact with

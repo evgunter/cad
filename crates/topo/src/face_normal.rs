@@ -1408,6 +1408,30 @@ mod tests {
         );
     }
 
+    /// **A reverted body's spline face reads its outward normal
+    /// negated.** `Body::revert` leaves a spline face's chart as it is
+    /// and flips the face's `sense`, so the reading at the same chart
+    /// point is the original's negation: a door that read the chart's
+    /// normal without the face's bit would read the two alike.
+    #[test]
+    fn a_reverted_spline_face_reads_its_outward_normal_negated() {
+        let (body, face) = face_on(smooth_bump());
+        let reverted = body.revert().unwrap();
+        assert!(
+            !reverted.get_face(face).unwrap().sense,
+            "the reverted face is the sense-false one"
+        );
+        let uv = (0.25, 0.5);
+        let p = Point3::new(0.25, 0.5, 1.0 + 0.4 * 0.25 * 0.75);
+        let lean = Vec3::new(-0.2, 0.0, 1.0).normalize();
+        for (b, want, what) in [(&body, lean, "as built"), (&reverted, -lean, "reverted")] {
+            let n = super::spline_outward_normal_at(b, face, uv, p, band())
+                .unwrap_or_else(|e| panic!("{what}: {e:?}"))
+                .vec();
+            assert!((n - want).norm() < 1e-12, "{what}: {n:?}, want {want:?}");
+        }
+    }
+
     /// **A chart point on a crease refuses by name, and one beside it
     /// reads.** The bump with a double knot at `u = ½` at degree 2 is C⁰
     /// there (`crease_runs`): each side has its own normal. The smooth

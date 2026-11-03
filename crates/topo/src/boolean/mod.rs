@@ -2507,7 +2507,7 @@ impl<T: Real> BooleanReduction<T> {
     }
 }
 
-/// Which site raised [`BooleanError::CurvedPairUnsupported`]. The three
+/// Which site raised [`BooleanError::CurvedPairUnsupported`]. The two
 /// share one meaning — this pair of face kinds has no sound lane under
 /// this op — and differ in when it is known.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -2515,9 +2515,6 @@ pub enum PairRefusalSite {
     /// The operand gate, up front: a kind with no wired arm whose box
     /// may meet an undeclared face of the other operand.
     OperandGate,
-    /// The ∖/∩ front door, up front: a kind with no revert seam lane
-    /// whose box may meet a face of the other operand.
-    RevertRoster,
     /// The crossings path's interior-loop guard, after the reduction:
     /// the section certificate (`section_cert`) could not certify a face
     /// pair free of a closed loop interior to both faces — an
@@ -3661,8 +3658,7 @@ pub enum BooleanError {
     /// a pair it covers is one the pipeline has an answer for. What may
     /// be declared is bounded by the certified carrier inventory, so a
     /// kind with no rung there can never be covered here — which is why
-    /// this refusal still names NURBS (under ∖ and ∩) and `Approx`
-    /// unconditionally.
+    /// this refusal still names `Approx` unconditionally.
     ///
     /// **The overlap that DID fire is a may, not a does.** Boxes are
     /// supersets, so the two faces named here may in exact geometry
@@ -3670,9 +3666,9 @@ pub enum BooleanError {
     /// rule the meeting out, and that if they do meet it has no arm
     /// for the pair.
     ///
-    /// The `op` field carries the op when the kind is admitted for
-    /// OTHERS and refused for this one — `Nurbs` under ∖ and ∩ — and
-    /// is `None` when no op has an arm for the kind.
+    /// The `op` field is `None` at the operand gate, whose roster is
+    /// every op's, and names the op at the interior-loop guard, which
+    /// refuses inside one op's pipeline.
     ///
     /// **What refuses, per class, and why it refuses HERE.** The
     /// blocker left is a JOIN lane, not `revert`:
@@ -3719,39 +3715,35 @@ pub enum BooleanError {
     ///   the window itself, for the TRANSVERSAL poses that march (the
     ///   section value, `geom_brep::pair_section`, carries them and does
     ///   not change this).
-    /// - **NURBS**: no edge×NURBS-face crossing layer at all
-    ///   (deviation 5), and the fallback's extent test is unwritable
-    ///   for the kind ([`BooleanError::NurbsExtentUnsupported`]).
+    /// - **NURBS**: not gated up front, as the torus. Its pairs meet
+    ///   the same typed doors under ∖ and ∩ as under ∪ — the spline
+    ///   crossing lanes', the germ frame's, the held pierce's, and the
+    ///   fallback's extent test, which is unwritable for the kind
+    ///   ([`BooleanError::NurbsExtentUnsupported`]) — since every door
+    ///   that reads a spline face's signed normal reads it through the
+    ///   `sense` bit `Body::revert` flips.
     ///
-    /// **Three sites raise it, and [`PairRefusalSite`] says which.** The
-    /// operand gate and the ∖/∩ revert roster refuse UP FRONT, on the
-    /// operands' kinds and boxes. The crossings path's interior-loop
+    /// **Two sites raise it, and [`PairRefusalSite`] says which.** The
+    /// operand gate refuses UP FRONT, on the operands' kinds and boxes.
+    /// The crossings path's interior-loop
     /// guard (`ops::interior_loop_verdict`) refuses AFTER the pipeline
     /// would have answered: a face pair, one of them not a plane, that
     /// the section certificate cannot clear of a loop no edge event
     /// marks (the reduction saw crossings elsewhere, and the join and
     /// face-region propagation cannot see the loop).
     ///
-    /// The up-front refusals exist because their downstream failure is
-    /// **silent, not typed**: with no crossings found the pipeline
-    /// falls through to vertex-probed containment, and a curved face
-    /// can leave the other solid between its vertices without any
-    /// vertex noticing. The executed witness — a ball half-buried in a
-    /// slab, metered as if wholly contained — is pinned as
-    /// `finding_sphere_class_containment_fallback_is_wrong_today` in
-    /// `crates/sweep/tests/m5_s12_curved_ops.rs`, with its merge-base
-    /// reproduction recorded. That defect predates S12 and stands on
-    /// **union** too; S12 deliberately does not change ∪'s behaviour
-    /// (a revert-wiring unit is the wrong place to re-cut the
-    /// containment fallback), so ∪ is not gated here and the row is
-    /// what keeps it visible.
+    /// The up-front refusal exists because the downstream failure of a
+    /// kind with no arm is **silent, not typed**: with no crossings
+    /// found the pipeline falls through to vertex-probed containment,
+    /// and a curved face can leave the other solid between its
+    /// vertices without any vertex noticing.
     CurvedPairUnsupported {
-        /// The op this refusal is specific to, or `None` when the kind
-        /// has no arm under any op. `Union` is named only by the
-        /// interior-loop guard ([`PairRefusalSite::InteriorLoopGuard`]).
+        /// The op whose pipeline refused, at the interior-loop guard
+        /// ([`PairRefusalSite::InteriorLoopGuard`]); `None` at the
+        /// operand gate, whose roster is every op's.
         op: Option<BooleanOp>,
-        /// Which site refused: the operand gate, the revert roster, or
-        /// the crossings path's interior-loop guard.
+        /// Which site refused: the operand gate, or the crossings
+        /// path's interior-loop guard.
         site: PairRefusalSite,
         /// The operand carrying the face whose kind has no arm.
         operand: Operand,

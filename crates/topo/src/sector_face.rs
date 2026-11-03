@@ -739,7 +739,10 @@ pub(crate) mod tests {
 
     /// The unit cube with its top face recarried on `chart` at `sense`,
     /// its pcurves minted, and the top face.
-    fn spline_topped_cube(chart: geom::NurbsSurface<f64>, sense: bool) -> (Body<f64>, FaceKey) {
+    pub(crate) fn spline_topped_cube(
+        chart: geom::NurbsSurface<f64>,
+        sense: bool,
+    ) -> (Body<f64>, FaceKey) {
         let cube = crate::test_support_fixtures::prism::<f64>(
             &[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)],
             1.0,
@@ -829,6 +832,41 @@ pub(crate) mod tests {
                 assert!(
                     (n - geom_core::Vec3::new(0.0, 0.0, 1.0)).norm() < 1e-12,
                     "sense {sense}, corner {v:?}: {n:?} is not the outward +z"
+                );
+            }
+        }
+    }
+
+    /// **A reverted body's spline face reads `−z` at each corner.** The
+    /// cube's top on the planar chart along `(x, y)` reads `+z` as built;
+    /// `Body::revert` keeps the chart and flips the face's `sense`, so the
+    /// sector normal at each corner of the reverted top is `−z`. A spline
+    /// arm that read the chart's `S_u × S_v` without the bit would read
+    /// `+z` on both.
+    #[test]
+    fn a_reverted_spline_face_reads_its_inward_chart_normal_at_each_corner() {
+        let chart = planar_chart(vec![0.0, 0.0, 1.0, 1.0], 1, &[0.0, 1.0]);
+        let (body, top) = spline_topped_cube(chart, true);
+        let reverted = body.revert().unwrap();
+        assert!(
+            !reverted.get_face(top).unwrap().sense,
+            "the reverted top is the sense-false one"
+        );
+        for (b, z, what) in [(&body, 1.0, "as built"), (&reverted, -1.0, "reverted")] {
+            let vertices = corners(b, top);
+            assert_eq!(vertices.len(), 4, "{what}: the top face has four corners");
+            for v in vertices {
+                let resolved = resolve(b, v, sector_of(b, v, top), band())
+                    .unwrap_or_else(|e| panic!("{what}, corner {v:?}: {e:?}"));
+                assert_eq!(
+                    resolved.carrier,
+                    SectorCarrier::Spline(SurfaceKind::Nurbs),
+                    "{what}"
+                );
+                let n = resolved.at_vertex.tangent();
+                assert!(
+                    (n - geom_core::Vec3::new(0.0, 0.0, z)).norm() < 1e-12,
+                    "{what}, corner {v:?}: {n:?}, want z = {z}"
                 );
             }
         }

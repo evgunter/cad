@@ -118,12 +118,8 @@ mod verbs_gate_r1_probes {
     //! Same pins as the walls themselves — one matcher each,
     //! `wall3_pinned` and `wall4_pinned`, so the two cannot drift.
     //!
-    //! **Why the operand gate's covered-pair rung cannot reach wall 4.**
-    //! It is a SUBTRACT, and the revert roster it refuses at, on the
-    //! loop's NURBS wall, has no covered rung at all: a decided
-    //! coincidence supplies the verdict a germ arm would have, and it
-    //! cannot supply a seam lane to revert through. (Wall 3, a union,
-    //! passes that roster and refuses in the sweep.)
+    //! Wall 4 is a SUBTRACT of the same pair, read through the doors
+    //! the union reads, so it pins wall 3's refusal by identity.
 
     use demo_tour::klein::*;
     use pncad::geom_core::Tol;
@@ -150,8 +146,8 @@ mod verbs_gate_r1_probes {
             .expect_err("the self-intersection still cannot be trimmed");
         println!("klein wall 4: {trimmed:?}");
         assert!(
-            wall4_pinned(&trimmed),
-            "wall 4 must name a NURBS wall of the loop against a planar face of the bulb: \
+            wall4_pinned(&trimmed, &bulb_body, &top),
+            "wall 4 must refuse wall 3's edge of the bulb on a crease of the loop's NURBS wall: \
              {trimmed:?}"
         );
     }

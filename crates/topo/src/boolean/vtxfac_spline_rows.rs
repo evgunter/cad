@@ -144,6 +144,37 @@ fn a_vertex_piercing_a_nurbs_wall_reads_its_side_in_either_sense() {
     }
 }
 
+/// **A vertex piercing a REVERTED body's NURBS wall reads every edge
+/// on the other side**: the wall `Body::revert` hands the subtrahend of
+/// a ∖ carries `sense = false` on an unchanged chart, so the pierce
+/// normal ([`crate::face_normal::spline_outward_normal_at`] at the
+/// placed chart point) points into the cube, and every class swaps.
+/// A pierce lane that read the chart's normal without the face's bit
+/// would read the reverted wall as the original and leave them.
+#[test]
+fn a_vertex_piercing_a_reverted_nurbs_wall_reads_every_edge_swapped() {
+    let (cube, top) = bumped_cube(true);
+    let reverted = cube.revert().unwrap();
+    assert!(
+        !reverted.get_face(top).unwrap().sense,
+        "the reverted wall is the sense-false one"
+    );
+    for (toward, above) in [(-1.0, true), (1.0, false)] {
+        for (pierced, want) in [
+            (&cube, if above { SideCode::Out } else { SideCode::In }),
+            (&reverted, if above { SideCode::In } else { SideCode::Out }),
+        ] {
+            let (mut prism, corner) = prism_at_the_bump(toward);
+            let classes = classify(&mut prism, corner, (pierced, top), Some(UV))
+                .unwrap_or_else(|e| panic!("above {above}: {e:?}"));
+            assert!(
+                classes.len() == 3 && classes.iter().all(|&c| c == want),
+                "above {above}: the corner's three edges read {classes:?}, not all {want:?}"
+            );
+        }
+    }
+}
+
 /// **A pierce of a spline face the sweep placed at no chart point
 /// refuses C5's typed refusal, naming the kind**, as it did before the
 /// face had an arm: the pass reads no foot of its own.

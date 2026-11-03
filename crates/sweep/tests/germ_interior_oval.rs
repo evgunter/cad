@@ -202,7 +202,7 @@ fn refuses_as_the_interior_loop_guard(
 }
 
 /// The refusal names its SITE, so a row can tell the guard from the
-/// ∖/∩ revert roster, which refuses a NURBS pair up front.
+/// operand gate, which refuses a kind with no arm up front.
 fn refuses_at(
     r: Result<topo::BooleanResult<f64>, topo::BooleanError>,
     site: topo::PairRefusalSite,
@@ -233,8 +233,8 @@ fn refuses_at(
 /// only events, so the oval was never seen, and ∪ came back a valid
 /// `Seamed` body of volume `π²/2 + 1.476 − 0.006` — the lens counted
 /// twice; ∩ came back a body missing the lens. Every op now refuses at
-/// the GUARD, in both operand orders of ∖ and ∩: the revert roster has the
-/// torus, so the guard is what keeps ∖ and ∩ off the wrong answer.
+/// the GUARD, in both operand orders of ∖ and ∩: the roster every op
+/// reads has the torus, so the guard is what keeps ∖ and ∩ off the wrong answer.
 #[test]
 fn a_torus_oval_refuses_every_op_at_the_guard() {
     use topo::BooleanOp as Op;
@@ -356,8 +356,8 @@ fn pin_only_bracket() -> AtRestBody<f64> {
 /// `π²R r²`, `R = 2`, `r = 0.5`) and `p ∖ h = 0.594 − 0.006`, each valid
 /// at tier 3 and each placing the witnesses where the two operands do.
 /// The section certificate clears every pair (the row above), so
-/// nothing but the torus's place on the revert roster stands between
-/// these and a refusal.
+/// nothing but the torus's place on the roster stands between these
+/// and a refusal.
 #[test]
 fn the_pin_alone_answers_subtract_and_intersect_in_closed_form() {
     let (h, p) = (half_donut(), pin_only_bracket());

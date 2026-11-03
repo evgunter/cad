@@ -108,19 +108,14 @@
 //!    the partial revolve the open rim's ends meet the cut faces, and
 //!    that corner does not classify (`UnsupportedCorner {
 //!    Indeterminate }`, wall 2).
-//! 4. **Neither join can start** (walls 3, 4). `union` refuses at the
-//!    contact itself: the sweep reads the seam line of the bulb's outer
-//!    neck cylinder, which ends on the rim at z = 3 that the loop's top
-//!    cap meets, against one of the loop's four NURBS walls rising from
-//!    that rim, and the Boolean has no crossing layer for a spline face
-//!    (`CurvedBooleanUnsupported { operand: B, kind: Nurbs }`). The rims
-//!    themselves are circles; no seam far from the contact is read
-//!    first. `subtract` answers
-//!    first at the revert roster with `{ op: Some(Subtract), kind:
-//!    Nurbs, other_kind: Plane }` — a NURBS wall of the loop against a
-//!    planar face of the bulb, a pair whose boxes MAY meet (box overlap
-//!    over-approximates; the kernel cannot rule the meeting out, a
-//!    weaker claim than that they do). So the bottle cannot be one
+//! 4. **Neither join can start** (walls 3, 4). `union` and `subtract`
+//!    stop at one place, the sweep's read of the bulb's cone seam
+//!    against the loop's half-tube wall (`wall3_pinned`): the seam
+//!    crosses the wall on its arc joint, a crease by its knots, where
+//!    the spline-face arm cannot settle a meeting
+//!    (`SplineCrossingUnsettled { why: Crease }`). Every op reads the
+//!    pair through the same doors, so the subtract stops where the
+//!    union does. So the bottle cannot be one
 //!    body, and the self-intersection — the neck piercing the bulb,
 //!    the one place a Klein bottle MUST cross itself in 3-space —
 //!    cannot be trimmed.
@@ -670,23 +665,16 @@ pub fn wall3_pinned<S: Scalar>(
     the_cone_seam && the_half_tube
 }
 
-/// Wall 4's pinned refusal: one of the loop's rational NURBS walls
-/// against a planar face of the bulb, at the ∖/∩ revert roster. Both
-/// kinds and the op are pinned, so a pair that changed kind reds. A
-/// NURBS face has no seam lane under ∖ and ∩, and the roster has no
-/// covered rung whatever the pair; it answers before the sweep that
-/// stops wall 3.
-pub fn wall4_pinned(e: &BooleanError) -> bool {
-    matches!(
-        e,
-        BooleanError::CurvedPairUnsupported {
-            op: Some(BooleanOp::Subtract),
-            operand: Operand::B,
-            kind: SurfaceKind::Nurbs,
-            other_kind: SurfaceKind::Plane,
-            ..
-        }
-    )
+/// Wall 4's pinned refusal: wall 3's, by identity. The subtract reads
+/// the bulb and the loop through the doors the union does, so it stops
+/// at the same edge, the same face and the same crease, in the same
+/// operand order (`bulb ∖ top`, as `bulb ∪ top`).
+pub fn wall4_pinned<S: Scalar>(
+    e: &BooleanError,
+    bulb: &AtRestBody<S>,
+    top: &AtRestBody<S>,
+) -> bool {
+    wall3_pinned(e, bulb, top)
 }
 
 /// Every edge of `body` whose two faces are a cone and a cylinder
@@ -949,10 +937,9 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
                  full revolve of ONE meridian band; the loop over the top is ONE sweep \
                  of the annulus along its whole U-turn spine. The two MEET on annular \
                  faces, each cap flat on the bulb's rim, \
-                 and they cannot be joined: union refuses a NURBS wall of the loop where \
-                 it meets the bulb's neck at the mate, and subtract refuses the loop's NURBS walls against a \
-                 planar face at the revert roster. The neck passes through the flare \
-                 uncut for that second reason";
+                 and they cannot be joined: union and subtract both stop where the bulb's \
+                 cone seam crosses a NURBS wall of the loop on its arc joint, a crease. \
+                 The neck passes through the flare uncut for that reason";
     vec![TourStop {
         name: "klein",
         caption: "Klein bottle — two bodies the kernel cannot join".to_string(),
@@ -1149,7 +1136,7 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
         4,
         "cut the flare where the descending neck passes through it",
         pncad::topo::subtract(&bulb_body, &top, tol),
-        wall4_pinned,
+        |e| wall4_pinned(e, &bulb_body, &top),
         "trim the self-intersection instead of letting the walls interpenetrate",
     );
 

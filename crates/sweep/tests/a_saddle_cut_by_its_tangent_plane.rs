@@ -5,18 +5,19 @@
 //! `x = 0` and `z = 0`, a straight section of two lines crossing at a
 //! point. Two smooth carriers meet in two crossing lines only at a
 //! tangency, so the pair is a spline × plane tangent section, which no
-//! lane builds yet: each op refuses typed at the spline × plane pair,
-//! long before the join pairs germs across the crossing. Its closed
+//! lane builds yet: each op refuses typed at the held pierce of the
+//! saddle's wall on the plane, long before the join pairs germs across
+//! the crossing. Its closed
 //! forms (the block `8`, its part above the plane `1/2`) are the row
 //! `work/splice/a-saddle-cut-by-its-tangent-plane-builds-at-its-closed-form.md`
 //! asks for.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::SurfaceKind::{Nurbs, Plane};
-use geom_core::{Point2, Tol};
+use geom_core::{Point2, Point3, Tol};
 use profile::test_support::bulge_loop;
 use sweep::test_support::{finished, stacked_at};
-use topo::{AtRestBody, BooleanError, PairRefusalSite, intersect, subtract, union};
+use topo::{AtRestBody, BooleanError, FaceKey, Operand, intersect, subtract, union};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -52,45 +53,72 @@ fn above() -> AtRestBody<f64> {
     )
 }
 
-/// **Every op, either way round, refuses at the spline × plane pair**:
-/// intersect and subtract at the revert roster, union at the held
-/// pierce of the saddle's wall on the plane.
+/// The saddle's top wall: its NURBS face whose chart's middle is the
+/// tangency point, the origin.
+fn top_wall(s: &AtRestBody<f64>) -> FaceKey {
+    let walls: Vec<FaceKey> = s
+        .faces()
+        .filter(|(_, fd)| match s.get_surface(fd.surface) {
+            Some(geom::Surface::Nurbs(n)) => {
+                let (u0, u1) = n.knot_values_u().domain();
+                let (v0, v1) = n.knot_values_v().domain();
+                n.eval(0.5 * (u0 + u1), 0.5 * (v0 + v1)).distance(Point3::origin()) < 1e-12
+            }
+            _ => false,
+        })
+        .map(|(f, _)| f)
+        .collect();
+    assert_eq!(walls.len(), 1, "one wall holds the origin at its middle");
+    walls[0]
+}
+
+/// The half-space's face on the plane `y = 0`.
+fn cutting_face(h: &AtRestBody<f64>) -> FaceKey {
+    let faces: Vec<FaceKey> = h
+        .faces()
+        .filter(|(_, fd)| {
+            matches!(
+                h.get_surface(fd.surface),
+                Some(geom::Surface::Plane { origin, normal, .. })
+                    if normal.y.abs() == 1.0 && origin.y == 0.0
+            )
+        })
+        .map(|(f, _)| f)
+        .collect();
+    assert_eq!(faces.len(), 1, "one face of the half-space lies on y = 0");
+    faces[0]
+}
+
+/// **Every op, either way round, refuses at the held pierce of the
+/// saddle's top wall on the cutting plane**: the spline × plane pair is
+/// read by ∪'s doors under every op, so ∩ and ∖ stop where ∪ does,
+/// naming the same two faces by identity, the wall on the saddle's side.
 #[test]
-fn a_saddle_cut_by_its_tangent_plane_refuses_at_the_spline_plane_pair() {
+fn a_saddle_cut_by_its_tangent_plane_refuses_at_the_held_pierce_under_every_op() {
     let (s, h) = (saddle_block(), above());
-    let roster = |r: &Result<topo::BooleanResult<f64>, BooleanError>| {
-        matches!(
-            r,
-            Err(BooleanError::CurvedPairUnsupported {
-                site: PairRefusalSite::RevertRoster,
-                kind: Nurbs,
-                other_kind: Plane,
-                ..
-            })
-        )
-    };
-    let pierce = |r: &Result<topo::BooleanResult<f64>, BooleanError>| {
-        matches!(
-            r,
+    let (wall, cut) = (top_wall(&s), cutting_face(&h));
+    for (op, r, saddle) in [
+        ("s ∩ h", intersect(&s, &h, tol()), Operand::A),
+        ("h ∩ s", intersect(&h, &s, tol()), Operand::B),
+        ("s ∖ h", subtract(&s, &h, tol()), Operand::A),
+        ("h ∖ s", subtract(&h, &s, tol()), Operand::B),
+        ("s ∪ h", union(&s, &h, tol()), Operand::A),
+        ("h ∪ s", union(&h, &s, tol()), Operand::B),
+    ] {
+        let at_pierce = matches!(
+            &r,
             Err(BooleanError::HeldPierceUnbuilt {
+                operand,
+                face,
+                pierced,
                 kind: Nurbs,
                 pierced_kind: Plane,
-                ..
-            })
-        )
-    };
-    for (op, r, at_pierce) in [
-        ("s ∩ h", intersect(&s, &h, tol()), false),
-        ("h ∩ s", intersect(&h, &s, tol()), false),
-        ("s ∖ h", subtract(&s, &h, tol()), false),
-        ("h ∖ s", subtract(&h, &s, tol()), false),
-        ("s ∪ h", union(&s, &h, tol()), true),
-        ("h ∪ s", union(&h, &s, tol()), true),
-    ] {
-        let refused = if at_pierce { pierce(&r) } else { roster(&r) };
+                placed: false,
+            }) if *operand == saddle && *face == wall && *pierced == cut
+        );
         assert!(
-            refused,
-            "{op}: refuses typed at the spline × plane pair, not {r:?}"
+            at_pierce,
+            "{op}: refuses at the held pierce of the top wall {wall:?} on {cut:?}, not {r:?}"
         );
     }
 }

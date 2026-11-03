@@ -1231,6 +1231,8 @@ mod shell7_seam_corner;
 mod spiric_rim;
 #[path = "spline_spiric_operands.rs"]
 mod spline_spiric_operands;
+#[path = "spline_subtract_intersect_census.rs"]
+mod spline_subtract_intersect_census;
 
 #[path = "shell7_r1_diff.rs"]
 mod shell7_r1_diff;

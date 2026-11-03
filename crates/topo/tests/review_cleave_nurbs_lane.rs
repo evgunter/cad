@@ -215,10 +215,13 @@ fn finished_m7_8_cube(tol: Tol) -> topo::AtRestBody<f64> {
 }
 
 /// The boolean subtract of an enclosed M7-8 cube refuses typed BEFORE
-/// its fallback reaches the void door: the revert roster has no
-/// plane × NURBS pair. The row goes red the day the roster admits the
-/// pair, which is the day the void graft's carried certificates become
-/// reachable from the boolean.
+/// its fallback reaches the void door, where ∪ does: the sweep reads an
+/// edge of the enclosing brick against the cube's NURBS wall and cannot
+/// settle the piece at its floor. The refusal names the brick's edge (both
+/// ends on the brick's corners) and the cube's NURBS face, and ∪ of the
+/// same pair refuses with the same payload. The row goes red the day the
+/// sweep settles that read, which is the day the void graft's carried
+/// certificates become reachable from the boolean.
 #[test]
 fn subtracting_an_enclosed_m7_8_cube_refuses_before_the_void_door() {
     let tol = Tol::witness();
@@ -228,20 +231,39 @@ fn subtracting_an_enclosed_m7_8_cube_refuses_before_the_void_door() {
         common::brick::<f64>((-1.0, 2.0), (-1.0, 2.0), (-1.0, 2.0), tol),
         tol,
     );
-    match topo::subtract(&brick, &cube, Tol::witness()) {
-        Err(topo::BooleanError::CurvedPairUnsupported {
-            operand: topo::Operand::B,
-            ..
-        }) => {}
-        Err(e) => panic!("expected the revert roster's refusal, got {e:?}"),
-        Ok(BooleanResult::Empty) => panic!("expected the revert roster's refusal, got Empty"),
-        Ok(BooleanResult::Body(b)) => {
-            panic!(
-                "expected the revert roster's refusal, got a {:?} body",
-                b.kind
-            )
-        }
+    let got = topo::subtract(&brick, &cube, Tol::witness());
+    let Err(topo::BooleanError::SplineCrossingUnsettled {
+        operand: topo::Operand::A,
+        edge,
+        face,
+        face_of: topo::Operand::B,
+        why: geom_brep::roots::Unsettled::Floor,
+    }) = got
+    else {
+        panic!("expected the sweep's unsettled read of a brick edge on the wall, got {got:?}");
+    };
+    let corner = |c: f64| c == -1.0 || c == 2.0;
+    let (t0, t1) = brick.stored_curve(edge).expect("a brick edge").params();
+    let carrier = brick.stored_curve(edge).unwrap().carrier();
+    for p in [carrier.eval(t0), carrier.eval(t1)] {
+        assert!(
+            corner(p.x) && corner(p.y) && corner(p.z),
+            "{edge:?} is an edge of the brick: an end at {p:?}"
+        );
     }
+    assert!(
+        matches!(
+            cube.get_face(face).and_then(|f| cube.get_surface(f.surface)),
+            Some(geom::Surface::Nurbs(_))
+        ),
+        "{face:?} is the cube's NURBS wall"
+    );
+    let united = topo::union(&brick, &cube, Tol::witness());
+    assert_eq!(
+        format!("{united:?}"),
+        format!("{got:?}"),
+        "∪ of the same pair refuses where ∖ does"
+    );
 }
 
 /// A disjoint union with the M7-8 cube reaches the assembly graft and
