@@ -915,10 +915,11 @@ class ChecksError(PncadError):
     a report over a partial one would claim more than was checked),
     `band` (the tolerance forms no band), `evaluation_of_another
     _document` (the evaluation is not an evaluation of this document —
-    DI3, refused before any check runs) or `product_unavailable` (the
+    DI3, refused before any check runs), `product_unavailable` (the
     document's product did not gather, so the registry has no subject
-    for a check that reads one). `node` names the placement on the first arm and
-    is `None` on the others. Its message names each node as the
+    for a check that reads one) or `canceled` (the coincidence door's
+    replay was canceled by the token the evaluation ran under). `node`
+    names the placement on the first arm and is `None` on the others. Its message names each node as the
     evaluation's own document holds it, the gather's included.
 
     NOT a finding. A check that ran and disagreed is a value in the
@@ -1106,7 +1107,7 @@ class McRefusal(PncadError):
     arms' payloads, present on every arm and `None` where that arm
     does not carry one.
 
-    Three ways a run has no estimate. A varying parameter carries a
+    Four ways a run has no estimate. A varying parameter carries a
     BAND, which states limits without a shape and cannot be drawn from
     (`band_has_no_measure`, with `param`) — the run refuses WHOLE
     rather than sampling the rest, because a mean over a subset of the
@@ -1116,7 +1117,8 @@ class McRefusal(PncadError):
     nominal, so there is nothing to replay
     (`nominal_does_not_build`, with `node` and `cause`). Its message
     speaks that node as the document holds it, kind, label and tag;
-    `node` keeps the full id.
+    `node` keeps the full id. Or an evaluation inside the run ran out of
+    its member budget (`stopped`, its budget in the message).
 
     The band arm's `variant` is MeasureUnavailable's own word, because
     it carries that refusal: one fault, one word, whichever door

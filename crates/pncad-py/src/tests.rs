@@ -4523,6 +4523,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
         function: "checks_error_tag",
         values: &[
             "band",
+            "canceled",
             "evaluation_of_another_document",
             "placement_without_value",
             "product_unavailable",
@@ -5069,7 +5070,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "mc_refusal_tag",
-        values: &["no_samples", "nominal_does_not_build"],
+        values: &["no_samples", "nominal_does_not_build", "stopped"],
         delegates: &["measure_unavailable_tag"],
     },
     TagEntry {
@@ -5871,6 +5872,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "severed_edge",
             "space_straddles_cut",
             "split_pin",
+            "stopped",
             "uncut_var_reference",
             "unknown_cut_node",
             "unresolved_var_crosses_cut",
