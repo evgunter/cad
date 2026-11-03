@@ -438,8 +438,13 @@ pub(crate) fn face_outward_normal_at_foot<T: Decide>(
     match *surface {
         geom::Surface::Plane { normal, .. } => return Ok(Some(plane_outward_normal(f, normal))),
         geom::Surface::Cylinder { origin, axis, .. } => {
-            let q = p - origin;
-            clear(Margin::norm3(q - axis * q.dot(axis)))?;
+            clear(Margin::norm3(
+                geom::Line {
+                    origin: origin,
+                    dir: axis,
+                }
+                .offset(p),
+            ))?;
         }
         geom::Surface::Sphere { center, .. } => clear(Margin::norm3(p - center))?,
         geom::Surface::Cone { apex, axis, .. } => {
@@ -453,8 +458,11 @@ pub(crate) fn face_outward_normal_at_foot<T: Decide>(
             major_radius,
             ..
         } => {
-            let q = p - center;
-            let radial = q - axis * q.dot(axis);
+            let radial = geom::Line {
+                origin: center,
+                dir: axis,
+            }
+            .offset(p);
             clear(Margin::norm3(radial))?;
             let core = center + radial * (major_radius / radial.norm());
             clear(Margin::norm3(p - core))?;
@@ -614,17 +622,22 @@ pub(crate) fn cone_point<T: Decide>(
     p: Point3<T>,
     band: Band,
 ) -> Result<ConePoint, geom_core::Indeterminate> {
-    let q = p - apex;
-    let radial = q - axis * q.dot(axis);
+    let radial = geom::Line {
+        origin: apex,
+        dir: axis,
+    }
+    .offset(p);
     // An off-axis reading in the band reads on: the apex test below
     // decides whether the point is the apex or only near the axis.
     if let Ok(Sign::Positive) = decide("cone_off_axis", Margin::norm3(radial), band) {
         return Ok(ConePoint::OffAxis);
     }
-    Ok(match decide("cone_at_apex", Margin::norm3(q), band)? {
-        Sign::Positive | Sign::Negative => ConePoint::NearAxis,
-        Sign::Zero => ConePoint::Apex,
-    })
+    Ok(
+        match decide("cone_at_apex", Margin::norm3(p - apex), band)? {
+            Sign::Positive | Sign::Negative => ConePoint::NearAxis,
+            Sign::Zero => ConePoint::Apex,
+        },
+    )
 }
 
 /// [`cone_point`] as the pierce door reads it: a point with no

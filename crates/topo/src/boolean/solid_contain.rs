@@ -1216,8 +1216,7 @@ fn torus_closed_group<T: Decide>(
 /// `(ρ² − r²)/2r` in metres: the form the certification layer
 /// classifies.
 fn wall_elevation<T: Decide>(origin: Point3<T>, axis: Vec3<T>, radius: T, q: Point3<T>) -> T {
-    let w = q - origin;
-    let radial = w - axis * w.dot(axis);
+    let radial = geom::Line { origin, dir: axis }.offset(q);
     (radial.norm_squared() - radius.powi(2)) / (T::from_f64(2.0) * radius)
 }
 
@@ -2480,7 +2479,7 @@ pub(super) fn line_wall_roots<T: Decide>(
     about: About,
 ) -> Result<WallRoots<T>, WallRootFault> {
     let w0 = q - origin;
-    let w0p = w0 - axis * w0.dot(axis);
+    let w0p = geom::Line { origin, dir: axis }.offset(q);
     let dp = d - axis * d.dot(axis);
     let a2 = dp.norm_squared();
     let two_r = T::from_f64(2.0) * radius;
@@ -3590,9 +3589,8 @@ fn wall_crosses_by_turn<T: Decide>(
                     },
                 radius: r,
             }) => {
-                let w = center - origin;
                 r.abs() * (normal / normal.norm()).cross(axis).norm()
-                    + (w - axis * w.dot(axis)).norm()
+                    + geom::Line { origin, dir: axis }.offset(center).norm()
             }
             _ => return Ok(None),
         };

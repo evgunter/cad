@@ -397,7 +397,11 @@ fn try_circle(curve: &NurbsCurve3<f64>, eps_in: f64) -> Result<Option<(Curve3<f6
         return Ok(None);
     }
     let chord_dir = chord / chord_norm;
-    let off = (s1 - s0) - chord_dir * (s1 - s0).dot(chord_dir);
+    let off = geom::Line {
+        origin: s0,
+        dir: chord_dir,
+    }
+    .offset(s1);
     let sagitta = off.norm();
     if !sagitta.is_finite() {
         return Ok(None);

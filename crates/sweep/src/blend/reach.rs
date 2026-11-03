@@ -1039,8 +1039,11 @@ fn straight_reach<T: Decide + Bounds>(
             // The sector: the plane through the spine and each foot, on
             // P's side.
             for f in [st.fa, st.fb] {
-                let u = f - c;
-                let w = (st.p - c) - u * ((st.p - c).dot(u) / u.dot(u));
+                let w = geom::Line {
+                    origin: c,
+                    dir: f - c,
+                }
+                .offset(st.p);
                 cross.push((Role::Other, half_space(c, w, st.p)));
             }
             let reach = (st.p - c).norm();

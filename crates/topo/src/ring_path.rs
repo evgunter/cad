@@ -1101,8 +1101,11 @@ impl<T: Decide> Quadric<T> {
             band,
         )? == Sign::Zero
         {
-            let w = k - centre;
-            let w = w - axis * w.dot(axis);
+            let w = geom::Line {
+                origin: centre,
+                dir: axis,
+            }
+            .offset(k);
             return Ok(Some(arc(ArcLoop {
                 split: LoopSplit::Side {
                     origin: centre,
@@ -1314,8 +1317,7 @@ pub(crate) fn path_parity<T: Decide>(
                         own,
                     },
                 ) => {
-                    let w = p.circle.frame.origin - c;
-                    let e = w - a * w.dot(a);
+                    let e = geom::Line { origin: c, dir: a }.offset(p.circle.frame.origin);
                     let e = e / e.norm();
                     let Some(roots) =
                         plane_roots(&p, (p.circle.frame.origin, e), arrival, slack, band)?
@@ -1345,10 +1347,8 @@ pub(crate) fn path_parity<T: Decide>(
                     if arrival {
                         continue;
                     }
-                    let rho_less = |p: Point3<T>| {
-                        let w = p - c;
-                        (w - a * w.dot(a)).norm() - major
-                    };
+                    let rho_less =
+                        |p: Point3<T>| geom::Line { origin: c, dir: a }.offset(p).norm() - major;
                     let side = |p| {
                         decide_m(
                             "split_ring_path_crest_side",

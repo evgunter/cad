@@ -835,9 +835,12 @@ impl<T: Decide> Course<T> for Line<T> {
 /// `a`'s distance from the axis through `base` along unit `axis`, its
 /// height from `base`, and the unit radial direction.
 pub(crate) fn polar<T: Decide>(base: Point3<T>, axis: Vec3<T>, a: Point3<T>) -> (T, T, Vec3<T>) {
-    let w = a - base;
-    let h = w.dot(axis);
-    let radial = w - axis * h;
+    let axis_line = geom::Line {
+        origin: base,
+        dir: axis,
+    };
+    let h = (a - base).dot(axis);
+    let radial = axis_line.offset(a);
     let rho = radial.norm();
     (rho, h, radial / rho)
 }

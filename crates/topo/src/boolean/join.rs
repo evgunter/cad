@@ -6874,10 +6874,12 @@ mod frame_dispatch_tests {
             );
             let corners: Vec<_> = body.vertex_points().collect();
             let (corner, through) = corners[g.below(corners.len())];
-            let radial = {
-                let w = through - frame.origin;
-                (w - axis * w.dot(axis)).normalize()
-            };
+            let radial = geom::Line {
+                origin: frame.origin,
+                dir: axis,
+            }
+            .offset(through)
+            .normalize();
             let w = if g.unit() < 0.3 {
                 axis.cross(radial)
             } else {

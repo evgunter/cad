@@ -389,8 +389,7 @@ pub(super) fn singular_at<T: Decide>(
     band: Band,
 ) -> Result<bool, Indeterminate> {
     let off_axis = |origin: geom_core::Point3<T>, axis: geom_core::Vec3<T>| {
-        let w = p - origin;
-        (w - axis * w.dot(axis)).norm()
+        geom::Line { origin, dir: axis }.offset(p).norm()
     };
     let arm = match *s {
         geom::Surface::Cone { apex, .. } => (p - apex).norm(),

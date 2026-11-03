@@ -2279,12 +2279,10 @@ fn mint_carrier<T: Decide>(
         let old_dir = old.eval(old_span.1) - old.eval(old_span.0);
         let q_mid = old.mid_point(old_span.0, old_span.1);
         let off = |l: &Curve3<T>| {
-            let Some(geom::Line { origin, dir }) = l.as_line() else {
+            let Some(line) = l.as_line() else {
                 unreachable!("{edge:?}: a generator pair is two lines")
             };
-            let d = dir.normalize();
-            let v = q_mid - origin;
-            (v - d * v.dot(d)).norm()
+            line.offset(q_mid).norm()
         };
         let chosen = match decide(
             "offset_axial_generator_side",
