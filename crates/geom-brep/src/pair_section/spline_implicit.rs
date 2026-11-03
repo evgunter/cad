@@ -385,7 +385,13 @@ impl SplineImplicitPose<f64> {
         else {
             unreachable!("the pose holds a plane")
         };
-        let foot = geom::Frame::new(origin, normal, u_ref).foot(self.ball().center());
+        // The foot on the unit normal, kept inline: the plane-foot home
+        // (`Frame::foot`) divides by `normal·normal`, and on the probe's
+        // corner-touching plane that lands the pivot exactly on the corner,
+        // which flips its verdict (`pivot-on-a-corner-flips-a-corner-touch`).
+        let n = normal / normal.norm();
+        let c = self.ball().center();
+        let foot = c - n * (c - origin).dot(n);
         let (a, o, m) = (
             foot.map(Interval::from_certified),
             origin.map(Interval::from_certified),
