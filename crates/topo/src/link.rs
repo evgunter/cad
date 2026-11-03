@@ -122,6 +122,11 @@ const LINK_ROUND: &str = "link_round_offset";
 /// normal, so its part in the plane turns the sector's fan
 /// ([`in_plane`]).
 const LINK_TANGENT_FRAME: &str = "link_tangent_frame";
+/// K name: one order down at a ray of a tangent link where first order
+/// ties ([`second_order`]): a curve's point, or a sheet's, against
+/// another sheet's plane or line along the ray, in metres at the arm —
+/// its bend's Taylor term (`κ·l²/2`), the first-order residue charged.
+const LINK_SECOND_ORDER: &str = "link_second_order";
 /// K name: two coplanar faces' outward normals, one of each link,
 /// aligned or opposed ([`geom_brep::classify_material_pairing_as`]).
 const LINK_NORMAL: &str = "link_normal";
@@ -278,6 +283,17 @@ pub(crate) mod metric {
         /// The slack as a distance: zero where there is none.
         pub(crate) fn slack(&self) -> T {
             self.slack.unwrap_or(T::zero())
+        }
+
+        /// **This reading with `residue` charged to its slack**: a sign
+        /// read one order down is taken only where it holds with the
+        /// first order's residue at the same arm moved against it
+        /// ([`super::second_order`]).
+        pub(crate) fn charged(self, residue: Distance<T>) -> Reading<T> {
+            Reading {
+                slack: Some(self.slack() + residue.0.abs()),
+                ..self
+            }
         }
     }
 
@@ -548,20 +564,30 @@ pub(crate) struct LinkFace<T: Real> {
     /// Where the sector is the face's tangent cone at `p` rather than
     /// real points of it ([`FaceSector::tangent`]): what
     /// [`rest::one_material`] holds such a link to before it reads it.
-    tangent: Option<Tangent>,
+    tangent: Option<Tangent<T>>,
 }
 
 /// **What a tangent sector keeps of its face** ([`FaceSector::tangent`]):
 /// whether its plane is the face's own, and the edges its bounds run
 /// along at the point.
 #[derive(Clone, Copy, Debug)]
-pub(crate) struct Tangent {
+pub(crate) struct Tangent<T: Real> {
     /// The face is planar: the sector's plane is the face's own.
     plane_exact: bool,
-    /// The edges along the sector's first ray and its last, each with
-    /// whether the ray is the edge's own (a line, not a curve's
-    /// tangent); `None` for a closed sector, which has no bound.
-    bounds: Option<[(EdgeKey, bool); 2]>,
+    /// The edges along the sector's first ray and its last; `None` for
+    /// a closed sector, which has no bound.
+    bounds: Option<[Bound<T>; 2]>,
+}
+
+/// **The edge a tangent sector's bound runs along at the point**: its
+/// key, whether the ray is the edge's own (a line, not a curve's
+/// tangent), and its curvature vector there, zero on a line — what the
+/// reading one order down places the edge by ([`second_order`]).
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Bound<T: Real> {
+    pub(crate) edge: EdgeKey,
+    pub(crate) line: bool,
+    pub(crate) bend: Vec3<T>,
 }
 
 /// **Where a face meets the point, to first order** — the shape
@@ -575,8 +601,8 @@ pub(crate) enum TangentFan<T: Real> {
     Corner {
         d0: Vec3<T>,
         d1: Vec3<T>,
-        /// The edges along `d0` and `d1`, each with whether it is a line.
-        bounds: [(EdgeKey, bool); 2],
+        /// The edges along `d0` and `d1`.
+        bounds: [Bound<T>; 2],
         /// The loop leaves the vertex back along the half-edge it came in
         /// by, reversed: a spur's tip, its sector the whole turn.
         spur: bool,
@@ -586,7 +612,7 @@ pub(crate) enum TangentFan<T: Real> {
     Edge {
         along: Vec3<T>,
         reach: T,
-        edge: (EdgeKey, bool),
+        edge: Bound<T>,
     },
     /// Inside the face: its whole tangent plane, read out to `reach`,
     /// its fan turned from the part in the plane of one of the carrier's
@@ -648,6 +674,9 @@ pub struct Link<T: Real> {
     cone: Cone<T>,
     /// Each sector's face, by the sector's index in the cone.
     faces: Vec<LinkFace<T>>,
+    /// The tangent cones' horns, which no sector of the cone stands for
+    /// ([`Horn`], [`Link::of_tangent`]).
+    horns: Vec<Horn<T>>,
     /// The farthest wedge point from `p`.
     reach: T,
     /// The radius of the ball about `p` the link's wedges fill: the
@@ -2028,15 +2057,60 @@ impl<T: Decide> Link<T> {
         Ok(Self {
             cone: Cone::of(p, sectors)?,
             faces,
+            horns: Vec::new(),
             reach,
             ball,
         })
     }
 
+    /// **A link of faces' tangent cones and horns**
+    /// ([`FaceSector::tangent_piece`]): [`Link::of`] over the sectors, and
+    /// where every face is a horn, a cone of no sector, its material
+    /// nowhere but the horns'.
+    pub(crate) fn of_tangent(
+        p: Point3<T>,
+        pieces: Vec<TangentPiece<T>>,
+    ) -> Result<Self, TouchUnread> {
+        let (mut sectors, mut horns) = (Vec::new(), Vec::new());
+        for piece in pieces {
+            match piece {
+                TangentPiece::Sector(s) => sectors.push(s),
+                TangentPiece::Horn(h) => horns.push(h),
+            }
+        }
+        if sectors.is_empty() && !horns.is_empty() {
+            return Ok(Self {
+                cone: Cone {
+                    p,
+                    sectors: Vec::new(),
+                    tie: horns
+                        .iter()
+                        .map(|h| (h.apex - p).norm())
+                        .fold(T::zero(), |r, l| r.max(l)),
+                    inside: 0,
+                },
+                faces: Vec::new(),
+                horns,
+                reach: T::zero(),
+                ball: T::zero(),
+            });
+        }
+        let link = Self::of(p, sectors)?;
+        let tie = horns
+            .iter()
+            .map(|h| (h.apex - p).norm())
+            .fold(link.cone.tie, |r, l| r.max(l));
+        Ok(Self {
+            cone: Cone { tie, ..link.cone },
+            horns,
+            ..link
+        })
+    }
+
     /// Whether a sector of the link is a face's tangent cone
-    /// ([`FaceSector::tangent`]).
+    /// ([`FaceSector::tangent`]), or the link holds a horn.
     fn tangent(&self) -> bool {
-        self.faces.iter().any(|f| f.tangent.is_some())
+        !self.horns.is_empty() || self.faces.iter().any(|f| f.tangent.is_some())
     }
 
     /// The link's cone.
@@ -2304,11 +2378,16 @@ impl<T: Decide> FaceSector<T> {
     /// of the face: the sector is the face only to first order, which
     /// [`rest::one_material`] reads as [`Tangent`] says.
     ///
-    /// A corner whose two departures are one direction (a cusp: the face
-    /// a horn about the ray, or the whole plane but it, as its edges bend)
-    /// is [`TouchUnread::Unreadable`], its sector being second order; a
-    /// spur's tip, the loop back along the half-edge it came in by, is the
-    /// whole turn. One whose turn reads in band is [`TouchUnread::InBand`].
+    /// A corner whose two departures are one direction (a cusp) is read
+    /// one order down, by which side of the shared tangent each edge
+    /// bends to ([`second_order::cusp`]): the whole plane but a horn
+    /// about the ray is the whole turn, its two bounds on the ray; a
+    /// horn about it is no sector, and is [`TouchUnread::Unreadable`] here
+    /// ([`FaceSector::tangent_piece`] keeps it); one the bends do not part
+    /// is [`TouchUnread::Unreadable`]. A spur's tip, the loop back along
+    /// the half-edge it came in by, is the whole turn. One whose turn
+    /// reads in band is [`TouchUnread::InBand`].
+    #[cfg(test)]
     pub(crate) fn tangent(
         surface: geom::Surface<T>,
         sense: bool,
@@ -2317,6 +2396,22 @@ impl<T: Decide> FaceSector<T> {
         fan_of: TangentFan<T>,
         band: Band,
     ) -> Result<Self, TouchUnread> {
+        match Self::tangent_piece(surface, sense, outward, apex, fan_of, band)? {
+            TangentPiece::Sector(sector) => Ok(sector),
+            TangentPiece::Horn(_) => Err(TouchUnread::Unreadable),
+        }
+    }
+
+    /// [`FaceSector::tangent`], a cusp corner that is a horn kept as its
+    /// [`Horn`].
+    pub(crate) fn tangent_piece(
+        surface: geom::Surface<T>,
+        sense: bool,
+        outward: Vec3<T>,
+        apex: Point3<T>,
+        fan_of: TangentFan<T>,
+        band: Band,
+    ) -> Result<TangentPiece<T>, TouchUnread> {
         let plane_exact = matches!(surface, geom::Surface::Plane { .. });
         let (wedges, closed, bounds) = match fan_of {
             TangentFan::Corner {
@@ -2325,7 +2420,16 @@ impl<T: Decide> FaceSector<T> {
                 bounds,
                 spur,
             } => (
-                corner_fan(apex, outward, (d0, d1), spur, band)?,
+                match corner_fan(apex, outward, (d0, d1), bounds.map(|b| b.bend), spur, band)? {
+                    CornerTurn::Fan(wedges) => wedges,
+                    CornerTurn::Horn => {
+                        return Ok(TangentPiece::Horn(Horn {
+                            outward,
+                            apex,
+                            ends: [(d0, bounds[0]), (d1, bounds[1])],
+                        }));
+                    }
+                },
                 false,
                 Some(bounds),
             ),
@@ -2339,7 +2443,7 @@ impl<T: Decide> FaceSector<T> {
                 (fan(apex, outward, along, reach, false), true, None)
             }
         };
-        Ok(Self {
+        Ok(TangentPiece::Sector(Self {
             sector: Sector {
                 outward,
                 apex,
@@ -2355,7 +2459,47 @@ impl<T: Decide> FaceSector<T> {
                     bounds,
                 }),
             },
-        })
+        }))
+    }
+}
+
+/// **A face's tangent cone at the point, or its horn** ([`FaceSector::tangent_piece`]).
+pub(crate) enum TangentPiece<T: Real> {
+    Sector(FaceSector<T>),
+    Horn(Horn<T>),
+}
+
+/// **A cusp corner that is a horn about its ray**: its two edges leave
+/// the vertex along one tangent and the face lies between them, so to
+/// first order it is the ray alone, no sector. One order down it is the
+/// segment between its edges' bends across the ray, which
+/// [`second_order::thorns`] reads.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Horn<T: Real> {
+    /// The face's outward unit normal at the corner.
+    pub(crate) outward: Vec3<T>,
+    /// The corner's vertex.
+    pub(crate) apex: Point3<T>,
+    /// The departure out of the vertex and the one back into it, each
+    /// scaled to its reach, with its edge.
+    pub(crate) ends: [(Vec3<T>, Bound<T>); 2],
+}
+
+/// How a corner's fan turns ([`corner_fan`]).
+#[derive(Debug)]
+enum CornerTurn<T: Real> {
+    Fan(Vec<Segment<T>>),
+    Horn,
+}
+
+#[cfg(test)]
+impl<T: Real> CornerTurn<T> {
+    /// The fan's wedges; `None` for a horn.
+    fn fan(self) -> Option<Vec<Segment<T>>> {
+        match self {
+            Self::Fan(wedges) => Some(wedges),
+            Self::Horn => None,
+        }
     }
 }
 
@@ -2393,15 +2537,18 @@ fn in_plane<T: Decide>(
 /// a half and, where `d1` lies past it, three quarters of a turn from
 /// `d0`, scaled to the shorter departure. `d1` on `d0`'s line is half a
 /// turn where it points back along it, and a cusp where it points the
-/// same way. A `spur`'s tip, whose two departures are one half-edge's,
-/// is the whole turn from `d0`, read off nothing.
+/// same way, read by its edges' `bends` ([`second_order::cusp`]): the
+/// whole turn from `d0` round to `d1`, or a horn. A `spur`'s tip, whose
+/// two departures are one half-edge's, is the whole turn from `d0`,
+/// read off nothing.
 fn corner_fan<T: Decide>(
     apex: Point3<T>,
     m: Vec3<T>,
     (d0, d1): (Vec3<T>, Vec3<T>),
+    bends: [Vec3<T>; 2],
     spur: bool,
     band: Band,
-) -> Result<Vec<Segment<T>>, TouchUnread> {
+) -> Result<CornerTurn<T>, TouchUnread> {
     let rd = Reading {
         band,
         slack: None,
@@ -2412,14 +2559,17 @@ fn corner_fan<T: Decide>(
     let reach = d0.norm().min(d1.norm());
     let quarter = m.cross(u);
     let mut rays = vec![a];
-    if spur {
+    let whole = |rays: &mut Vec<Point3<T>>, end: Point3<T>| {
         rays.extend([
             apex + quarter * reach,
             apex - u * reach,
             apex - quarter * reach,
-            a,
+            end,
         ]);
-        return Ok(rays.windows(2).map(|w| (w[0], w[1])).collect());
+        CornerTurn::Fan(rays.windows(2).map(|w| (w[0], w[1])).collect())
+    };
+    if spur {
+        return Ok(whole(&mut rays, a));
     }
     match wedge_side(apex, m, a, b, rd) {
         Some(Sign::Positive) => {}
@@ -2433,13 +2583,20 @@ fn corner_fan<T: Decide>(
         }
         Some(Sign::Zero) => match ahead(apex, a, b, rd) {
             Some(Sign::Negative) => rays.push(apex + quarter * reach),
-            Some(_) => return Err(TouchUnread::Unreadable),
+            Some(Sign::Positive) => {
+                return match second_order::cusp(apex, m, (d0, d1), bends, band) {
+                    Some(second_order::Cusp::Whole) => Ok(whole(&mut rays, b)),
+                    Some(second_order::Cusp::Horn) => Ok(CornerTurn::Horn),
+                    None => Err(TouchUnread::Unreadable),
+                };
+            }
+            Some(Sign::Zero) => return Err(TouchUnread::Unreadable),
             None => return Err(TouchUnread::InBand),
         },
         None => return Err(TouchUnread::InBand),
     }
     rays.push(b);
-    Ok(rays.windows(2).map(|w| (w[0], w[1])).collect())
+    Ok(CornerTurn::Fan(rays.windows(2).map(|w| (w[0], w[1])).collect()))
 }
 
 /// The fan about `p` normal to `outward` whose every chord stands past
@@ -3590,7 +3747,7 @@ pub(crate) mod rest {
     fn kept_bound<T: Decide>(
         link: &Link<T>,
         j: usize,
-        (edge, line): (super::EdgeKey, bool),
+        super::Bound { edge, line, .. }: super::Bound<T>,
         r: Point3<T>,
         rd: Reading<T>,
     ) -> bool {
@@ -3599,10 +3756,10 @@ pub(crate) mod rest {
         else {
             return false;
         };
-        tags.into_iter().zip(rays).any(|((e, l), b)| {
+        tags.into_iter().zip(rays).any(|(tag, b)| {
             wedge_side(p, t.outward, b, r, rd) == Some(Sign::Zero)
                 && ahead(p, b, r, rd) == Some(Sign::Positive)
-                && (e == edge || (l && line))
+                && (tag.edge == edge || (tag.line && line))
         })
     }
 
@@ -3662,7 +3819,8 @@ pub(crate) mod rest {
             let (Some(bounds), Some(rays)) = (tangent(k).and_then(|t| t.bounds), s.bounds()) else {
                 continue;
             };
-            for ((edge, line), r) in bounds.into_iter().zip(rays) {
+            for (bound, r) in bounds.into_iter().zip(rays) {
+                let line = bound.line;
                 for (j, t) in sectors.iter().enumerate() {
                     if j == k {
                         continue;
@@ -3678,13 +3836,13 @@ pub(crate) mod rest {
                     }
                     let kept = match t.place(p, r, rd) {
                         Ok(Place::Outside) => true,
-                        Ok(Place::Bound) => kept_bound(link, j, (edge, line), r, rd),
+                        Ok(Place::Bound) => kept_bound(link, j, bound, r, rd),
                         Ok(Place::Inside) => {
                             line && on_carrier(&link.faces[j], (p, t.outward), r, rd)
                         }
                         Err(_) => return Some(TouchUnread::InBand),
                     };
-                    if !kept {
+                    if !kept && !super::second_order::parts(link, r, rd) {
                         return Some(TouchUnread::Unreadable);
                     }
                 }
@@ -3779,6 +3937,13 @@ pub(crate) mod rest {
         }
         if let Some(why) = first_order(link, rd) {
             return TouchVerdict::Unread(why);
+        }
+        if let Err(why) = super::second_order::thorns(link, rd) {
+            return TouchVerdict::Unread(why);
+        }
+        // Every face a horn: the material is the thorns', each read whole.
+        if link.cone.sectors.is_empty() {
+            return TouchVerdict::Rest(Rest { _sealed: () });
         }
         let mut notes = Notes::default();
         let near = |q| within(link.cone.p, q, link.ball);
@@ -4028,6 +4193,9 @@ mod round_rows;
 mod cleared_rows;
 #[cfg(test)]
 mod tangent_rows;
+mod second_order;
+#[cfg(test)]
+mod second_order_rows;
 
 #[cfg(test)]
 mod tests {
@@ -5034,9 +5202,13 @@ mod tests {
                 })
                 .collect::<Vec<String>>()
         };
+        // The reading one order down, a child module in its own file.
+        let second = code_only(include_str!("link/second_order.rs"));
+        let second = &second[..];
         let mut stray = Vec::new();
         for needle in ["Margin::", "decide(", "classify_material_pairing"] {
             stray.extend(outside(touch, needle, &[]));
+            stray.extend(outside(second, needle, &[]));
         }
         for needle in ["Margin::", "decide("] {
             stray.extend(outside(module, needle, &[&metric]));
@@ -5063,6 +5235,7 @@ mod tests {
         ] {
             stray.extend(outside(module, needle, &[]));
             stray.extend(outside(touch, needle, &[]));
+            stray.extend(outside(second, needle, &[]));
         }
         // Structure, read only at these call sites, each where a candidate
         // is skipped or a branch hulled, never where a sign is decided.
@@ -5116,6 +5289,7 @@ mod tests {
         ] {
             stray.extend(outside(module, needle, &sites));
             stray.extend(outside(touch, needle, &[]));
+            stray.extend(outside(second, needle, &[]));
         }
         for needle in [
             "Margin::",

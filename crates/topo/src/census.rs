@@ -8859,19 +8859,20 @@ impl<T: Decide> Link<T> {
         p: Point3<T>,
         band: Band,
     ) -> Result<Self, TouchUnread> {
-        let mut sectors = Vec::new();
+        let mut pieces = Vec::new();
         for (&f, all) in holds {
-            sectors.extend(tangent_sectors(body, geo, f, p, all, band)?);
+            pieces.extend(tangent_sectors(body, geo, f, p, all, band)?);
         }
-        Self::of(p, sectors)
+        Self::of_tangent(p, pieces)
     }
 }
 
 /// **Face `f`'s tangent sectors at `p`**, held as `holds` say
 /// ([`Link::tangent_of`]): one per pass of its loops through a corner it
-/// is held at, then one per pass along an edge it is held inside whose
-/// ends are no such corner, and where neither holds it, its whole
-/// tangent plane.
+/// is held at (a horn where a cusp corner is one,
+/// [`crate::link::FaceSector::tangent_piece`]), then one per pass along
+/// an edge it is held inside whose ends are no such corner, and where
+/// neither holds it, its whole tangent plane.
 fn tangent_sectors<T: Decide>(
     body: &Body<T>,
     geo: &Geo<T>,
@@ -8879,8 +8880,8 @@ fn tangent_sectors<T: Decide>(
     p: Point3<T>,
     holds: &[Held],
     band: Band,
-) -> Result<Vec<FaceSector<T>>, TouchUnread> {
-    use crate::link::TangentFan;
+) -> Result<Vec<crate::link::TangentPiece<T>>, TouchUnread> {
+    use crate::link::{Bound, TangentFan};
     let face = body.get_face(f).ok_or(TouchUnread::Corrupt)?;
     let surface = body
         .get_surface(face.surface)
@@ -8897,17 +8898,28 @@ fn tangent_sectors<T: Decide>(
             let into = half.prev;
             let back = body.mate(into).ok_or(TouchUnread::Corrupt)?;
             let normal = corner_normal(body, half.start, back, band)?;
-            let (d0, l0) = departure(body, half.start, he)?;
-            let (d1, l1) = departure(body, half.start, back)?;
+            let (d0, line0, bend0) = departure(body, half.start, he)?;
+            let (d1, line1, bend1) = departure(body, half.start, back)?;
             let e_in = body.get_half_edge(into).ok_or(TouchUnread::Corrupt)?.edge;
             let apex = *geo.vmap.get(&half.start).ok_or(TouchUnread::Corrupt)?;
             let fan = TangentFan::Corner {
                 d0,
                 d1,
-                bounds: [(half.edge, l0), (e_in, l1)],
+                bounds: [
+                    Bound {
+                        edge: half.edge,
+                        line: line0,
+                        bend: bend0,
+                    },
+                    Bound {
+                        edge: e_in,
+                        line: line1,
+                        bend: bend1,
+                    },
+                ],
                 spur: back == he,
             };
-            out.push(FaceSector::tangent(
+            out.push(FaceSector::tangent_piece(
                 surface.clone(),
                 face.sense,
                 normal,
@@ -8928,13 +8940,17 @@ fn tangent_sectors<T: Decide>(
             if !held_edge(half.edge) || corner(half.start) || corner(end) {
                 continue;
             }
-            let (along, line) = direction_at(body, he, p)?;
+            let (along, line, bend) = direction_at(body, he, p)?;
             let fan = TangentFan::Edge {
                 along,
                 reach: reach()?,
-                edge: (half.edge, line),
+                edge: Bound {
+                    edge: half.edge,
+                    line,
+                    bend,
+                },
             };
-            out.push(FaceSector::tangent(
+            out.push(FaceSector::tangent_piece(
                 surface.clone(),
                 face.sense,
                 foot_normal(body, f, p, band)?,
@@ -8950,7 +8966,7 @@ fn tangent_sectors<T: Decide>(
             reach: reach()?,
             frame: carrier_frame(&surface).ok_or(TouchUnread::Unreadable)?,
         };
-        out.push(FaceSector::tangent(
+        out.push(FaceSector::tangent_piece(
             surface, face.sense, normal, p, fan, band,
         )?);
     }
@@ -9013,28 +9029,29 @@ fn foot_normal<T: Decide>(
     }
 }
 
-/// Where half-edge `he` leaves its start `v`, scaled to its reach, and
-/// whether it is a line: the splitting lane's reading
+/// Where half-edge `he` leaves its start `v`, scaled to its reach,
+/// whether it is a line, and its curvature vector there (nothing on a
+/// line): the splitting lane's reading
 /// ([`crate::splitting::neighborhood::chord`]), a line's chord or a
 /// curve's tangent scaled to its extent.
 fn departure<T: Decide>(
     body: &Body<T>,
     v: VertexKey,
     he: HalfEdgeKey,
-) -> Result<(Vec3<T>, bool), TouchUnread> {
+) -> Result<(Vec3<T>, bool, Vec3<T>), TouchUnread> {
     let (_, dir, bend) =
         crate::splitting::neighborhood::chord(body, v, he).map_err(|_| TouchUnread::Unreadable)?;
-    Ok((dir, bend.is_none()))
+    Ok((dir, bend.is_none(), bend.map_or(Vec3::zero(), |b| b.curvature)))
 }
 
-/// Half-edge `he`'s unit direction at `p`, a point inside its edge, and
-/// whether the edge is a line: a line's chord, a curve's tangent at
-/// `p`'s foot on its carrier.
+/// Half-edge `he`'s unit direction at `p`, a point inside its edge,
+/// whether the edge is a line, and its curvature vector there: a line's
+/// chord, a curve's tangent and bend at `p`'s foot on its carrier.
 fn direction_at<T: Decide>(
     body: &Body<T>,
     he: HalfEdgeKey,
     p: Point3<T>,
-) -> Result<(Vec3<T>, bool), TouchUnread> {
+) -> Result<(Vec3<T>, bool, Vec3<T>), TouchUnread> {
     let half = body.get_half_edge(he).ok_or(TouchUnread::Corrupt)?;
     let edge = body.get_edge(half.edge).ok_or(TouchUnread::Corrupt)?;
     let curve = body
@@ -9045,8 +9062,15 @@ fn direction_at<T: Decide>(
     let (t0, t1) = curve.params();
     let line = matches!(curve.carrier(), geom::Curve3::Line(_));
     let t = curve.carrier().foot(p, geom::mid_param(t0, t1)).t();
-    let d = curve.carrier().deriv(t).normalize();
-    Ok((if he == edge.he_plus { d } else { -d }, line))
+    let deriv = curve.carrier().deriv(t);
+    let d = deriv.normalize();
+    let bend = if line {
+        Vec3::zero()
+    } else {
+        let d2 = curve.carrier().deriv2(t);
+        (d2 - d * d2.dot(d)) / deriv.norm_squared()
+    };
+    Ok((if he == edge.he_plus { d } else { -d }, line, bend))
 }
 
 impl<T: Decide> Link<T> {

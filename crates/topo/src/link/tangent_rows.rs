@@ -63,6 +63,15 @@ fn cylinder() -> geom::Surface<f64> {
     }
 }
 
+/// The bound along `edge`, a line or a curve with no bend.
+fn tag(edge: EdgeKey, line: bool) -> Bound<f64> {
+    Bound {
+        edge,
+        line,
+        bend: Vec3::zero(),
+    }
+}
+
 /// A whole tangent plane `z = 0` of `surface` at the origin, outward
 /// `±z`.
 fn whole(surface: geom::Surface<f64>, up: bool) -> FaceSector<f64> {
@@ -101,7 +110,7 @@ fn corner_at(
         .map(|k| {
             let (a, b) = (k, (k + 1) % n);
             let m = ring[a].cross(ring[b]).normalize();
-            let tag = |i: usize| (keys[i], !curves.contains(&i));
+            let tag = |i: usize| tag(keys[i], !curves.contains(&i));
             let (m, d0, d1, bounds) = if (m.dot(axis) < 0.0) == inside {
                 (m, ring[a], ring[b], [tag(a), tag(b)])
             } else {
@@ -140,7 +149,10 @@ fn a_corners_fan_turns_as_its_departures_do() {
     };
     for (deg, wedges) in [(90.0, 1), (191.0, 3), (300.0, 4), (180.0, 2)] {
         let fan =
-            corner_fan(Point3::origin(), z, (at(0.0), at(deg)), false, band()).expect("a fan");
+            corner_fan(Point3::origin(), z, (at(0.0), at(deg)), [Vec3::zero(); 2], false, band())
+                .expect("a fan")
+                .fan()
+                .expect("a fan");
         assert_eq!(fan.len(), wedges, "{deg}°: {fan:?}");
         for &(a, b) in &fan {
             let (a, b) = (a - Point3::origin(), b - Point3::origin());
@@ -161,7 +173,7 @@ fn a_corners_fan_turns_as_its_departures_do() {
     }
     assert!(
         matches!(
-            corner_fan(Point3::origin(), z, (at(0.0), at(0.0) * 0.5), false, band()),
+            corner_fan(Point3::origin(), z, (at(0.0), at(0.0) * 0.5), [Vec3::zero(); 2], false, band()),
             Err(TouchUnread::Unreadable)
         ),
         "a cusp"
@@ -393,10 +405,13 @@ fn two_whole_planes_are_read_one_plane_either_way_round() {
 fn a_spurs_tip_is_the_whole_turn_and_a_cusp_refuses() {
     let z = v(0.0, 0.0, 1.0);
     let d = v(2.0, 0.0, 0.0);
-    let tip = corner_fan(Point3::origin(), z, (d, d), true, band()).expect("a spur's tip");
+    let tip = corner_fan(Point3::origin(), z, (d, d), [Vec3::zero(); 2], true, band())
+        .expect("a spur's tip")
+        .fan()
+        .expect("a spur's tip");
     assert_eq!(tip.len(), 4, "{tip:?}");
     assert!(matches!(
-        corner_fan(Point3::origin(), z, (d, d), false, band()),
+        corner_fan(Point3::origin(), z, (d, d), [Vec3::zero(); 2], false, band()),
         Err(TouchUnread::Unreadable)
     ));
 }
@@ -438,8 +453,8 @@ fn a_bound_is_kept_only_on_a_bound_it_lies_ahead_on() {
         FaceSector::tangent(cylinder(), true, n, Point3::origin(), fan, band()).unwrap()
     };
     let s = vec![
-        half(v(0.0, 0.0, 1.0), [(a, true), (d, false)]),
-        half(v(0.0, -1.0, 0.0), [(d, false), (c, true)]),
+        half(v(0.0, 0.0, 1.0), [tag(a, true), tag(d, false)]),
+        half(v(0.0, -1.0, 0.0), [tag(d, false), tag(c, true)]),
     ];
     assert_eq!(read(s), TouchVerdict::Unread(TouchUnread::Unreadable));
 }
@@ -456,7 +471,7 @@ fn a_near_full_turn_off_one_edge_is_a_cusp() {
     for d1 in [v(2.0, tiny, 0.0), v(2.0, -tiny, 0.0)] {
         assert!(
             matches!(
-                corner_fan(Point3::origin(), z, (d0, d1), false, band()),
+                corner_fan(Point3::origin(), z, (d0, d1), [Vec3::zero(); 2], false, band()),
                 Err(TouchUnread::Unreadable)
             ),
             "{d1:?}"
