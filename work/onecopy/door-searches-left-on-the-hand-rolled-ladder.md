@@ -24,6 +24,9 @@ say why its rule is different; where it ranks differently from
 
 ## Ranked differently from `Evidence`: settle the order first
 
+(`pcurve_cache`'s meridian frame, `side_reader::cast_aims` and
+`edge_nurbs::measured_ends` also rank or default differently: below.)
+
 - **`geom_brep::chart_singularity::place_on_boundary`** (the
   inside-edge loop) ranks an in-band edge (`Near::InBand`) ahead of an
   unsettled sampled carrier (`Near::Unsettled`), the reverse of
@@ -61,17 +64,91 @@ say why its rule is different; where it ranks differently from
 - **`topo::boolean::sectors`' bounds loop** reads every bound, keeps the
   first escalation, and refuses where two decided bounds disagree.
 
-## Ported by the same pattern, not reached in that PR
+## The rest, each with what a port needs
 
-`geom_brep::curve_face::composite::cut` (the `SPLITS` `find_map`),
-`geom_brep::pair_section::gap` (the cell's branch loop),
-`geom_brep::ssi::refine` (the halving round), `topo::one_region`,
-`topo::boolean::fate` (the ring vertex loop), `topo::boolean::slit` (the
-piece loop), `topo::link` (the sector loop), `topo::side_reader` (the
-aimed rays), `topo::boolean::vtxfac` (the pierce pass: a definite
-refusal answers, escalations kept), and `geom_brep::edge_nurbs::measured_ends`
-(the identity polarity over two ends, read whole, with a third "bare"
-outcome).
+- **`geom_brep::curve_face::composite::cut`** (the `SPLITS` `find_map`).
+  A straight port: `Answering::First` (the share that answers is where
+  the piece is cut). `Reading::Past` answers, `Near(Some)` is in band,
+  and `Near(None)` or a share outside the piece passes. Map
+  `Climb::Passed` to `Unsettled::Tangency` and `Undecided` to
+  `Escalated` (`touch_or_tangency`). The floor refusal ahead of the loop
+  stays outside. It was not reached in the first tranche only because
+  the tranche was the cause-dropping searches.
+- **`geom_brep::pair_section::gap::critical_gap`** (the cell's branch
+  loop). Only the inner loop over one or two branches is ladder-shaped
+  (First, `Open` in band). The outer search is a worklist: a kept cell is
+  bisected, not refused, and there are budget and floor refusals. `climb`
+  has no "a kept rung spawns more rungs" mode, so the worklist stays
+  hand-written.
+- **`geom_brep::ssi::refine::fit_minimum`** (the halving round). Its
+  refusal is a census over every rung: `ShortBranchUncertified` needs
+  every gap in band, and the exhaustion refusals carry per-kind counts.
+  `Evidence` keeps only the ranked first of each kind, so a port needs a
+  counting `E` or a tally beside the ladder. Answering also mutates
+  `states`, and the ladder repeats per round.
+- **`topo::one_region::read_cycle`** (with `door_side`). A small port:
+  `Any`, with the in-band diag carrying its vertex through
+  `Rung::map_kept`. `door_side` deliberately turns its limits
+  (`RayExhausted`, `EdgeCarrierUnsupported`, `CorruptFace`) into passes
+  (exempt), and a port must keep them as `Passes`, not `Blocked`, or
+  `Read::Exempt` becomes a refusal.
+- **`topo::boolean::fate::rehome`** (the ring vertex loop). `Any`.
+  `ContainError::Escalated` is in band and every other error passes.
+  Note that limits pass silently today. `Passed` maps to
+  `Limit::RingUnplaced`, and a corrupt point lookup aborts. The loop over
+  rings around it is a batch, not a ladder.
+- **`topo::boolean::slit::holding`** (the piece loop). `Any`. It keeps
+  the first of `Unread` (limit-like) and an escalation, unranked. Under
+  `climb` a later `Unread` would outrank an earlier escalation, which
+  changes the named refusal. Decide whether `Unread` is a limit first.
+  `unplaced`'s `crossed_only` post-filter, which can turn the refusal into
+  "not in", stays after the ladder.
+- **`topo::link::Cone::reads_given`** (the reference loop). `Any`. Each
+  rung is itself a conjunction over every other sector, and a refusal on
+  the `Out` reach is dropped while one on the `Near` reach is kept. A
+  port folds the inner sector read into one rung, maps an `Out`-reach
+  refusal to `Passes` (or chains two climbs with `Evidence::then`), and
+  splits `Unread::Unsettled` into a limit and an in-band reading.
+- **`topo::side_reader::cast_aims`** (the aimed rays). `Any` (the family
+  docs say so). Its ranking is the reverse of `Evidence`'s, and that is
+  deliberate: an in-band `Pair` refuses, while a set-aside ray,
+  including `SetAsideWhy::Limit`, falls through to the volume reader as
+  `Rays::Unread`. A port maps `SetAside` to `Passes` with a side list. A
+  limit mapped to `Blocked` would outrank the pair and refuse where the
+  volume should answer.
+- **`topo::boolean::vtxfac` pierce pass** (`boolean_reduce_declared_strategy`
+  in `boolean/mod.rs`, and `vtxfac::faces_holding_pierce`). This is a
+  collect-every-`Ok` batch with side effects (its readings mint), not a
+  search: only its refusals are ladder-shaped. A port would use `Ok` →
+  `Passes` with results stashed through `FnMut`, a definite refusal →
+  `Rung::Aborts`, and `Escalated` → in band, ideally after the
+  read-then-mint split `faces_holding_pierce` already makes.
+- **`geom_brep::edge_nurbs::measured_ends`**. It is identity-shaped (a
+  miss answers), always reads both ends, and has a third kept kind
+  (`bare`: in band with its enclosure reaching zero) ranked BELOW in band,
+  which defers to the caller's `stall`. `Evidence` has no such rank, so a
+  port needs a third kept kind or a flag beside the ladder.
+- **`geom_brep::pcurve_cache`'s sphere meridian frame**
+  (`toward(u_ref).or_else(|| toward(cv)).unwrap_or(false)`). A two-rung
+  `First` ladder whose in-band reading is dropped like a Zero, defaulting
+  to the chart's side (a D9 tie-break) and never refusing. A port is
+  `climb(First, [u_ref, cv], …)` with `Passed` and `Undecided` both mapped
+  to `false`. Someone has to decide whether recording the swallowed
+  in-band reading live is wanted: it moves the record at every sphere
+  chart frame.
+
+## The `Any` premise is prose nothing checks
+
+`whole_body_side` (every off-plane point of an un-cut body reads one
+side), `stands::ladder` (the complex crosses no probed surface) and the
+chord-join side ladders (a ring does not cross its curve, assumed on
+`Ellipse`, `Spiric` and NURBS edges) each declare `Answering::Any` on a
+premise no code checks. If a premise fails, the first decided reading
+wins silently, as it did before `climb`. A debug check that reads one
+more decided rung and asserts it agrees would make the premise a fact.
+It costs a reading per ladder, and no current row reaches a violation.
+Filed here as part of this row, not separately: a check is worth adding
+where a port's premise is weakest (the NURBS ring edges first).
 
 ## Not a site
 
