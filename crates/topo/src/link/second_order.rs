@@ -5,31 +5,13 @@
 //! ray where sheets' bounds or planes meet without an edge they share,
 //! whether the sheets part across it ([`parts`]).
 //!
-//! **The picture one order down.** Along a ray `u` from the point `p`,
-//! cut the faces by the plane square to `u` at distance `s` and scale
-//! the cut by `2/s²`. An edge leaving `p` along `u` with curvature vector
-//! `κ` meets the cut at `κ`, to that order; a face whose tangent plane
-//! holds `u` meets it in a straight line, through its edges' points, of
-//! the face's outward normal `m` (its normal section's bend shifts the
-//! line along `m`, and the line's direction is `m × u`); a face whose
-//! sector is bounded by an edge along `u` meets it in the half of that
-//! line on the sector's side of the edge's point; a horn, in the segment
-//! between its two edges' points. Every reading here is a sign of that
-//! picture, read at the arm `l` as the Taylor term `κ·l²/2` in metres
-//! ([`Distance::departure`], `Parted`).
-//!
-//! **The band charged.** The rays the picture is drawn along tie only
-//! to the band: two edges' tangents, or a ray and a face's plane, may
-//! part at first order by a residue `δ` with `δ·l` decided zero. Each
-//! sign is taken with that residue at the same arm charged against it
-//! ([`Reading::charged`]), so it clears the band with the first order's
-//! part moved against it. Then at every scale `s` from the arm down to
-//! `s₀ = 2δ/|Δκ|` the second-order term outweighs the first-order one
-//! and the picture is the one read; below `s₀` the faces stand within
-//! `δ·s₀ ≤ 2(δl)²/(|Δκ|l²)` of it, which, the bend's term at `l` being
-//! past the escalation threshold `K·zero` and `δl` within the zero band,
-//! is within `4·zero/K` of the picture: inside the band. The verdict is
-//! the faces' at every scale the band resolves.
+//! The picture these read, the cut square to the tied ray scaled by
+//! `2/s²`, and why a sign read at the arm with the first order's residue
+//! charged ([`Reading::charged`]) is the germ's, are argued once, in
+//! `crates/topo/README.md` beside the first-order link claim. Every
+//! reading here is a sign of that picture at the arm `l`, the Taylor
+//! term `κ·l²/2` in metres ([`Distance::departure`], `Parted`), under
+//! the K row [`LINK_SECOND_ORDER`].
 
 use super::metric::{self, Departure, Distance, Reading};
 use super::{
@@ -43,6 +25,12 @@ use geom_core::Lever;
 /// from `apex` (the link's own idiom, [`Link::of`]).
 fn reach<T: Decide>(apex: Point3<T>, d: Vec3<T>) -> Lever<T> {
     geom_brep::ExtentBall::point(apex + d).lever_from(apex)
+}
+
+/// The side of the plane through `p` of normal `n` that the direction
+/// `v` reaches at the arm `l`.
+fn toward<T: Decide>(p: Point3<T>, l: T, v: Vec3<T>, n: Vec3<T>, rd: Reading<T>) -> Option<Sign> {
+    metric::sign_over(LINK_PLANE, Distance::of(p + v * l, p, n), rd)
 }
 
 /// Which way a cusp corner's face lies about its ray ([`cusp`]).
@@ -65,6 +53,10 @@ pub(super) enum Cusp {
 /// shorter departure, the departures' first-order parting across the
 /// ray charged ([`Reading::charged`]); `None` where it does not part
 /// them.
+///
+/// Not `geom_brep::tied_germ_turn`, which reads the same sign: it decides
+/// through `dihedral::decide`, a levered reading the link's doors keep
+/// out (S4), and charges no first-order residue.
 pub(super) fn cusp<T: Decide>(
     apex: Point3<T>,
     m: Vec3<T>,
@@ -245,24 +237,16 @@ enum Run<T: Decide> {
 
 /// **Whether the sheets along the ray through `r` part one order
 /// down**, where first order leaves a bound of one lying on another's
-/// plane, inside its sector or on its bound
-/// ([`super::rest::one_material`]'s first-order hold). Every sector of
-/// the link whose plane holds the ray is a sheet along it: a planar one
-/// holding it inside, the whole line of its plane through the point; one
-/// bounded along it, the half-line from its edge's point into the
-/// sector, the bound's own side. Every two must decidedly not meet, but
-/// at the point of an edge they share (an edge's two faces, which must
-/// not fold onto each other): one stays strictly on one side of the
-/// other's line (its anchor off it, and not turning toward it), or
-/// touches the line only at its own anchor, which lies decidedly behind
-/// the other's, or runs along it away from it. Then the sheets along the
-/// ray are curves no two of which meet off an edge, each bounding the
-/// material on its outward side, so the cone, which sees them meet on
-/// the ray, reads the faces' winding about it as the cut does.
-///
-/// A horn along the ray is no sheet here: [`thorns`] refuses a horn
-/// whose ray a sector of the cone reaches. A curved sector holding the
-/// ray inside is false.
+/// plane ([`super::rest::one_material`]'s first-order hold). The sheets
+/// are the sectors whose planes hold the ray: a planar one holding it
+/// inside, the whole line through the point; one bounded along it, the
+/// half-line from its edge's point into the sector. Every two must
+/// decidedly not meet but at an edge's point they share, without
+/// folding there: one strictly on one side of the other's line, or
+/// touching it only at its own anchor, decidedly behind the other's, or
+/// running along it away from it. A horn is no sheet ([`thorns`] refuses
+/// one a sector reaches); a curved sector holding the ray inside is
+/// false.
 pub(super) fn parts<T: Decide>(link: &Link<T>, r: Point3<T>, rd: Reading<T>) -> bool {
     let p = link.cone.p;
     let unit = (r - p).normalize();
@@ -342,8 +326,7 @@ fn apart<T: Decide>(
     rd: Reading<T>,
 ) -> bool {
     let l = arm.length();
-    let toward =
-        |v: Vec3<T>, n: Vec3<T>| metric::sign_over(LINK_PLANE, Distance::of(p + v * l, p, n), rd);
+    let toward = |v, n| toward(p, l, v, n, rd);
     if a.edge.is_some() && a.edge == b.edge {
         // One edge's two faces, from its one point: they part unless
         // they run on along one line one way.
@@ -369,8 +352,7 @@ fn misses<T: Decide>(
     rd: Reading<T>,
 ) -> bool {
     let l = arm.length();
-    let toward =
-        |v: Vec3<T>, n: Vec3<T>| metric::sign_over(LINK_PLANE, Distance::of(p + v * l, p, n), rd);
+    let toward = |v, n| toward(p, l, v, n, rd);
     // `b`'s anchor against a line through `a`'s, of normal `n`, with
     // `also` charged beside the anchors' first-order parting.
     let off = |n: Vec3<T>, also: Option<Distance<T>>| {

@@ -8435,7 +8435,11 @@ enum SelfTouch {
     /// refuses, a curved edge with no certified curve, sheets along a
     /// tied ray that one order down meet or do not part, a curved sheet
     /// holding such a ray inside it, or two whole tangent planes on one
-    /// plane (two kissing balls at any pose included);
+    /// plane (two kissing balls at any pose included). A sign one order
+    /// down that the band leaves undecided, in band or moved there by the
+    /// first order's charged residue, is [`TouchUnread::Unreadable`] too:
+    /// this `why` does not part an in-band reading one order down from a
+    /// structural refusal.
     /// [`TouchUnread::Degenerate`] for two sectors read lying on each
     /// other, which takes in a slit or a doubled sheet of planar faces as
     /// well as tangent sectors that coincide.
@@ -8761,7 +8765,7 @@ impl<T: Decide> Link<T> {
 /// **Face `f`'s tangent sectors at `p`**, held as `holds` say
 /// ([`Link::tangent_of`]): one per pass of its loops through a corner it
 /// is held at (a horn where a cusp corner is one,
-/// [`crate::link::FaceSector::tangent_piece`]), then one per pass along
+/// [`crate::link::FaceSector::tangent`]), then one per pass along
 /// an edge it is held inside whose ends are no such corner, and where
 /// neither holds it, its whole tangent plane.
 fn tangent_sectors<T: Decide>(
@@ -8810,7 +8814,7 @@ fn tangent_sectors<T: Decide>(
                 ],
                 spur: back == he,
             };
-            out.push(FaceSector::tangent_piece(
+            out.push(FaceSector::tangent(
                 surface.clone(),
                 face.sense,
                 normal,
@@ -8843,7 +8847,7 @@ fn tangent_sectors<T: Decide>(
                     bend,
                 },
             };
-            out.push(FaceSector::tangent_piece(
+            out.push(FaceSector::tangent(
                 surface.clone(),
                 face.sense,
                 foot_normal(body, f, p, band)?,
@@ -8859,7 +8863,7 @@ fn tangent_sectors<T: Decide>(
             reach: reach()?,
             frame: carrier_frame(&surface).ok_or(TouchUnread::Unreadable)?,
         };
-        out.push(FaceSector::tangent_piece(
+        out.push(FaceSector::tangent(
             surface, face.sense, normal, p, fan, band,
         )?);
     }
@@ -8964,8 +8968,7 @@ fn direction_at<T: Decide>(
     let bend = if line {
         Vec3::zero()
     } else {
-        let d2 = curve.carrier().deriv2(t);
-        (d2 - d * d2.dot(d)) / deriv.norm_squared()
+        geom_brep::curvature_vector(deriv, curve.carrier().deriv2(t))
     };
     Ok((if he == edge.he_plus { d } else { -d }, line, bend))
 }

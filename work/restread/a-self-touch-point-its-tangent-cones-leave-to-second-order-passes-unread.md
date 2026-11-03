@@ -146,11 +146,17 @@ skipped, named and counted:
 | a slit (an inside plane and a coplanar face of the other sense, `review_6020_seam_poses`), stopped at an arc's tangent in that plane | 30 (27, and 3 of the cusps) |
 | sectors on each other (`Degenerate`), `bisector_nodes`' equal cylinders | 14 |
 | a lune: a horn beside two cylinder sectors coinciding at first order (`two_wedge_ends_on_one_line`) | 4 (cusps) |
-| an arc's tangent in a curved face's tangent plane (`a_rim_flush_…`) | 2 |
+| a curved sheet holding the tied ray inside it, whose line `parts` does not read: an arc's tangent in a curved face's tangent plane (`a_rim_flush_…`, 2) and a bound on a bound (`a_hole_sharing_the_rim_…`, 1) | 3 |
 | a cone's apex | 2 |
-| a bound on a bound (`a_hole_sharing_the_rim_…`) | 1 |
 | a foot normal | 1 |
 | a `resolve` refusal | 1 |
+| a thorn the cone round it reaches (its ray not decidedly outside the cone's material, or inside it for a needle), which may be a real overlap | 0 |
+
+The last class reaches no sweep row; it is witnessed at body level,
+where a thorn grafted round a box corner's ray stays skipped
+(`census::self_touch_curved`). A sign one order down left in band is
+`Unreadable` with the structural refusals: the skip's `why` does not
+part them.
 
 Of the cusps, 36 read and 7 are still skipped; of the bounds on a
 bound, 35 read and 1 is still skipped (4 triples carried both tags).

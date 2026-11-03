@@ -17,6 +17,32 @@ fn band() -> Band {
     Band::linear(Tol::witness()).expect("the witness tolerance is a band")
 }
 
+/// The sector [`FaceSector::tangent`] reads a face as: a cusp corner it
+/// keeps as a horn is no sector, and refuses here.
+fn sector<T: Decide>(
+    surface: geom::Surface<T>,
+    sense: bool,
+    outward: Vec3<T>,
+    apex: Point3<T>,
+    fan_of: TangentFan<T>,
+    band: Band,
+) -> Result<FaceSector<T>, TouchUnread> {
+    match FaceSector::tangent(surface, sense, outward, apex, fan_of, band)? {
+        TangentPiece::Sector(sector) => Ok(sector),
+        TangentPiece::Horn(_) => Err(TouchUnread::Unreadable),
+    }
+}
+
+impl<T: Real> CornerTurn<T> {
+    /// The fan's wedges; `None` for a horn.
+    fn fan(self) -> Option<Vec<Segment<T>>> {
+        match self {
+            Self::Fan(wedges) => Some(wedges),
+            Self::Horn => None,
+        }
+    }
+}
+
 fn v(x: f64, y: f64, z: f64) -> Vec3<f64> {
     Vec3::new(x, y, z)
 }
@@ -80,7 +106,7 @@ fn whole(surface: geom::Surface<f64>, up: bool) -> FaceSector<f64> {
         reach: 2.0,
         frame: [v(1.0, 0.0, 0.0), v(0.0, 1.0, 0.0), v(0.0, 0.0, 1.0)],
     };
-    FaceSector::tangent(surface, true, n, Point3::origin(), fan, band()).expect("a whole plane")
+    sector(surface, true, n, Point3::origin(), fan, band()).expect("a whole plane")
 }
 
 /// A corner at the origin over `ring` (its rays, around its axis), its
@@ -122,7 +148,7 @@ fn corner_at(
                 bounds,
                 spur: false,
             };
-            FaceSector::tangent(plane(m), true, m, p, fan, band()).expect("a corner's face")
+            sector(plane(m), true, m, p, fan, band()).expect("a corner's face")
         })
         .collect()
 }
@@ -312,7 +338,7 @@ fn ball(c: Point3<f64>, r: f64, a: Vec3<f64>) -> geom::Surface<f64> {
 fn whole_at(s: geom::Surface<f64>, n: Vec3<f64>, p: Point3<f64>, reach: f64) -> FaceSector<f64> {
     let frame = crate::census::carrier_frame(&s).expect("an analytic carrier");
     let fan = TangentFan::Inside { reach, frame };
-    FaceSector::tangent(s, true, n, p, fan, band()).expect("a whole plane")
+    sector(s, true, n, p, fan, band()).expect("a whole plane")
 }
 
 fn read_at(p: Point3<f64>, sectors: Vec<FaceSector<f64>>) -> TouchVerdict {
@@ -470,7 +496,7 @@ fn a_bound_is_kept_only_on_a_bound_it_lies_ahead_on() {
             bounds,
             spur: false,
         };
-        FaceSector::tangent(cylinder(), true, n, Point3::origin(), fan, band()).unwrap()
+        sector(cylinder(), true, n, Point3::origin(), fan, band()).unwrap()
     };
     let s = vec![
         half(v(0.0, 0.0, 1.0), [tag(a, true), tag(d, false)]),
@@ -514,7 +540,7 @@ fn corner_on(other: geom::Surface<f64>, sense: bool) -> TouchVerdict {
     let n = v(0.0, 0.0, 1.0);
     let frame = crate::census::carrier_frame(&other).unwrap();
     let fan = TangentFan::Inside { reach: 2.0, frame };
-    let whole = FaceSector::tangent(other, sense, n, Point3::origin(), fan, band()).unwrap();
+    let whole = sector(other, sense, n, Point3::origin(), fan, band()).unwrap();
     let ring = [v(1.0, 0.0, 0.0), v(-0.2, 0.3, 1.0), v(-0.1, -0.4, 1.0)];
     let mut s = corner(&ring, true, &k, &[]);
     s.push(whole);

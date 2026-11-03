@@ -2122,7 +2122,7 @@ impl<T: Decide> Link<T> {
     }
 
     /// **A link of faces' tangent cones and horns**
-    /// ([`FaceSector::tangent_piece`]): [`Link::of`] over the sectors, and
+    /// ([`FaceSector::tangent`]): [`Link::of`] over the sectors, and
     /// where every face is a horn, a cone of no sector, its material
     /// nowhere but the horns'.
     pub(crate) fn of_tangent(
@@ -2136,15 +2136,18 @@ impl<T: Decide> Link<T> {
                 TangentPiece::Horn(h) => horns.push(h),
             }
         }
+        // Each horn's vertex is a key tied into `p`: the cone is read over
+        // the farthest of them as over its sectors' own.
+        let tied = horns
+            .iter()
+            .map(|h| (h.apex - p).norm())
+            .fold(T::zero(), |r, l| r.max(l));
         if sectors.is_empty() && !horns.is_empty() {
             return Ok(Self {
                 cone: Cone {
                     p,
                     sectors: Vec::new(),
-                    tie: horns
-                        .iter()
-                        .map(|h| (h.apex - p).norm())
-                        .fold(T::zero(), |r, l| r.max(l)),
+                    tie: tied,
                     inside: 0,
                 },
                 faces: Vec::new(),
@@ -2154,12 +2157,11 @@ impl<T: Decide> Link<T> {
             });
         }
         let link = Self::of(p, sectors)?;
-        let tie = horns
-            .iter()
-            .map(|h| (h.apex - p).norm())
-            .fold(link.cone.tie, |r, l| r.max(l));
         Ok(Self {
-            cone: Cone { tie, ..link.cone },
+            cone: Cone {
+                tie: link.cone.tie.max(tied),
+                ..link.cone
+            },
             horns,
             ..link
         })
@@ -2441,29 +2443,12 @@ impl<T: Decide> FaceSector<T> {
     /// one order down, by which side of the shared tangent each edge
     /// bends to ([`second_order::cusp`]): the whole plane but a horn
     /// about the ray is the whole turn, its two bounds on the ray; a
-    /// horn about it is no sector, and is [`TouchUnread::Unreadable`] here
-    /// ([`FaceSector::tangent_piece`] keeps it); one the bends do not part
-    /// is [`TouchUnread::Unreadable`]. A spur's tip, the loop back along
-    /// the half-edge it came in by, is the whole turn. One whose turn
-    /// reads in band is [`TouchUnread::InBand`].
-    #[cfg(test)]
+    /// horn about it is no sector, and is kept as its [`Horn`]
+    /// ([`TangentPiece::Horn`]); one the bends do not part is
+    /// [`TouchUnread::Unreadable`]. A spur's tip, the loop back along the
+    /// half-edge it came in by, is the whole turn. One whose turn reads in
+    /// band is [`TouchUnread::InBand`].
     pub(crate) fn tangent(
-        surface: geom::Surface<T>,
-        sense: bool,
-        outward: Vec3<T>,
-        apex: Point3<T>,
-        fan_of: TangentFan<T>,
-        band: Band,
-    ) -> Result<Self, TouchUnread> {
-        match Self::tangent_piece(surface, sense, outward, apex, fan_of, band)? {
-            TangentPiece::Sector(sector) => Ok(sector),
-            TangentPiece::Horn(_) => Err(TouchUnread::Unreadable),
-        }
-    }
-
-    /// [`FaceSector::tangent`], a cusp corner that is a horn kept as its
-    /// [`Horn`].
-    pub(crate) fn tangent_piece(
         surface: geom::Surface<T>,
         sense: bool,
         outward: Vec3<T>,
@@ -2522,7 +2507,7 @@ impl<T: Decide> FaceSector<T> {
     }
 }
 
-/// **A face's tangent cone at the point, or its horn** ([`FaceSector::tangent_piece`]).
+/// **A face's tangent cone at the point, or its horn** ([`FaceSector::tangent`]).
 pub(crate) enum TangentPiece<T: Real> {
     Sector(FaceSector<T>),
     Horn(Horn<T>),
@@ -2549,17 +2534,6 @@ pub(crate) struct Horn<T: Real> {
 enum CornerTurn<T: Real> {
     Fan(Vec<Segment<T>>),
     Horn,
-}
-
-#[cfg(test)]
-impl<T: Real> CornerTurn<T> {
-    /// The fan's wedges; `None` for a horn.
-    fn fan(self) -> Option<Vec<Segment<T>>> {
-        match self {
-            Self::Fan(wedges) => Some(wedges),
-            Self::Horn => None,
-        }
-    }
 }
 
 /// **A unit direction in the plane through `apex` of unit normal `m`**,

@@ -111,7 +111,7 @@ pub use certify::{
     SplineFoot, StatedImage, StatedSpan, WindingReading, folded_parallelism, sample_param,
     schedule_param, side_row_certifies,
 };
-pub use conic_bend::{BendBounds, ConicBend, ConicDeparture, conic_bend_side};
+pub use conic_bend::{BendBounds, ConicBend, ConicDeparture, conic_bend_side, curvature_vector};
 pub use description::{
     ChartCurve, CurveSelector, EdgeAuthority, EdgeDescription, EdgeDescriptionSpec, SharedRow,
     Structural, authority_of,

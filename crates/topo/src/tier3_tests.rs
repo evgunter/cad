@@ -2339,7 +2339,9 @@ fn the_second_order_band_has_three_outcomes_and_they_are_three_answers() {
 /// `geom_brep::interior_stations`. So the rows that pin the walk and
 /// the hook speak for both: a loop, a `"tangent_second_order"` decide
 /// or a material read inlined back into either file's production code
-/// reds here. The `#[cfg(test)]` modules are blanked first: a row there
+/// reds here, as it does in the link's reading one order down
+/// (`link/second_order.rs`), which reads another picture and spells
+/// neither. The `#[cfg(test)]` modules are blanked first: a row there
 /// asserting a predicate name is not a second spelling.
 #[test]
 fn check_4_and_the_rim_route_their_second_order_reading_through_the_one_walk() {
@@ -2405,6 +2407,15 @@ fn check_4_and_the_rim_route_their_second_order_reading_through_the_one_walk() {
     scan(
         "src/boolean/rim_wedge.rs",
         &[("second_order_walk(", 1), ("MaterialStations::new(", 1)],
+        &[walk.as_slice(), material.as_slice()].concat(),
+    );
+    // The link's reading one order down is of another picture (a cone's
+    // cut square to a tied ray, not a dihedral along an edge), so it
+    // calls no walk; it spells none of the walk's or the material
+    // readers' names either.
+    scan(
+        "src/link/second_order.rs",
+        &[],
         &[walk.as_slice(), material.as_slice()].concat(),
     );
 }

@@ -1199,17 +1199,28 @@ for good. So the germ about `u` is the cut's picture along the ray:
   the cut does.
 
 Each such sign is the bend's Taylor term at the arm `l` in metres
-(`κ·l²/2`), decided with the first order's residue there charged
+(`Δκ·l²/2`), decided with the first order's residue there charged
 (`Reading::charged`): the two departures' parting off the plane it is
-read against, `δ·l` decided zero, and a sheet's lean along a line it
-runs on at first order. The residue's part grows as `δ·s` and the
-bend's as `Δκ·s²/2`, so the picture read holds at every scale from the
-arm down to `s₀ = 2δ/|Δκ|`, and below `s₀` the faces stand within
-`δ·s₀ ≤ 2(δl)²/(|Δκ|l²) ≤ 4·zero/K` of it, the bend's term at the arm
-being past the escalation `K·zero`: inside the band. A sign the charge
-leaves in band, a picture whose sheets meet, a horn beside a sector
-along its ray, and a curved sheet holding a tied ray inside it (its
-line is not read) are left unread.
+read against (`δ·l`, decided zero), the ray's lean off a plane it lies
+on, and a sheet's lean along a line it runs on at first order. The
+sign of `Δκ` is jet data at `p`, and that is all the reading claims:
+nothing here bounds the third-order terms out at the arm, and the
+argument does not need it. What the charge buys is that the residue
+the first order left cannot reverse that sign at any scale the band
+resolves. The residue's part grows as `δ·s` and the bend's as
+`Δκ·s²/2`, so the bend's outweighs it above `s₀ = 2δ/|Δκ|`. With
+`|Δκ|·l²/2 − δ·l` past the escalation `K·zero` (`K` the band's
+escalation over its zero) and `δ·l` within `zero`, `s₀ < l/K`; and
+below `s₀` each term is at most `δ·s₀ ≤ (δl)²/(|Δκ|l²/2) ≤ zero/K`:
+inside the band. Left unread:
+
+- a sign the charge leaves in band;
+- a picture whose sheets meet;
+- a horn beside a sector along its ray;
+- a thorn the cone round it reaches (the ray not decidedly outside the
+  cone's material for a thorn, inside it for a needle), which may be a
+  real overlap;
+- a curved sheet holding a tied ray inside it, whose line is not read.
 
 **Confirmed pairs.** Every face-pair rung (`Declared::confine` around the
 vertex–vertex, vertex–edge, vertex–face and edge–edge lanes,

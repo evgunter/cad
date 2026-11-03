@@ -49,3 +49,7 @@ diff does not reach the fuzz's draw or its oracle): seed
 `0xa194f9d0b0758284` at the default ε, effort 1, reports
 `ε 1e-6, cone 18, split` and `ε 1e-6, cone 18, conic`, the same
 message.
+
+**A third seed from the same lane** (found by PR 6422's review):
+seed `0x5a8a9d9e82406bc6` at ε 1e-12 reports `cone 31, split`, the
+same message, and is red at that branch's merge base `dc4e9b279e` too.
