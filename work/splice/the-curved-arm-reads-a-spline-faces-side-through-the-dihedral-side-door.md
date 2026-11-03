@@ -2,11 +2,12 @@
 id: the-curved-arm-reads-a-spline-faces-side-through-the-dihedral-side-door
 kind: issue
 title: The sweep's curved arm still refuses a spline face before reading a side; the dihedral side door is not yet its spline arm
-status: open
+status: dispatched
 opened: 2026-10-26
 priority: P1
 cost: E
 refs: [a-span-is-read-against-a-faces-boundary-edges-first, the-side-of-a-spline-face-is-read-by-no-dihedral]
+branch: splice/kind-reads
 ---
 
 

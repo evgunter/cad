@@ -2,10 +2,11 @@
 id: split-section-boundary-curved-arm-untested-past-the-edge-gate
 kind: issue
 title: The section-boundary describer's Spiric/Nurbs arm has no test, because the split operand gate refuses those edge kinds first
-status: open
+status: dispatched
 opened: 2026-10-01
 priority: P1
 cost: E
+branch: splice/kind-reads
 ---
 
 Filed by CLEAVE's edge-midpoint lane (PR 3645).
