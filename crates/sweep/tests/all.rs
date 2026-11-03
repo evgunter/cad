@@ -150,6 +150,8 @@ mod a_slit_tip_on_a_curved_face_reads_its_full_turn;
 mod a_spiric_cut_far_off_and_turned_reads_as_at_home;
 #[path = "a_split_edge_joins_back_on_its_carrier.rs"]
 mod a_split_edge_joins_back_on_its_carrier;
+#[path = "a_split_edge_joins_back_at_every_parameter.rs"]
+mod a_split_edge_joins_back_at_every_parameter;
 #[path = "a_split_through_a_wrap_edges_vertex.rs"]
 mod a_split_through_a_wrap_edges_vertex;
 #[path = "a_swaying_loft_corner_meters.rs"]
