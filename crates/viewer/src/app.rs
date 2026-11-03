@@ -12029,6 +12029,183 @@ mod properties_pane_tests {
             }
         }
     }
+
+    /// The seated tools' values on the node's rows: the index's count
+    /// row, and the mirror tool's label.
+    mod seated_homed {
+        use super::{Driven, extrude, placement};
+        use crate::session::{Selection, SessionOp};
+        use eframe::egui;
+        use pncad::document::{Node, RecipeNodeId, VarId};
+
+        /// The count field beside the run reading `count of …`, typed
+        /// over with `text` and committed with Enter.
+        fn type_count(driven: &mut Driven, text: &str) {
+            let painted = driven.quiet();
+            let label = painted
+                .iter()
+                .find(|(run, _)| run.starts_with("count of "))
+                .map(|(_, rect)| *rect)
+                .unwrap_or_else(|| panic!("a count row is drawn: {painted:?}"));
+            let field = painted
+                .iter()
+                .filter(|(run, rect)| {
+                    !run.is_empty()
+                        && (rect.center().y - label.center().y).abs() < 2.0
+                        && rect.min.x > label.max.x
+                })
+                .map(|(_, rect)| rect.center())
+                .min_by(|a, b| a.x.total_cmp(&b.x))
+                .unwrap_or_else(|| panic!("the count's field is beside it: {painted:?}"));
+            driven.click_at(field);
+            let key = |key, modifiers| egui::Event::Key {
+                key,
+                physical_key: None,
+                pressed: true,
+                repeat: false,
+                modifiers,
+            };
+            driven.frame(vec![key(egui::Key::A, egui::Modifiers::COMMAND)]);
+            driven.frame(vec![egui::Event::Text(text.to_owned())]);
+            driven.frame(vec![key(egui::Key::Enter, egui::Modifiers::default())]);
+            driven.settle();
+        }
+
+        /// The pattern's index and its placement.
+        fn pattern(driven: &Driven) -> (VarId, RecipeNodeId) {
+            let doc = driven.app.session.committed_doc();
+            let index = *doc
+                .var_ids()
+                .iter()
+                .find(|&&var| {
+                    doc.var(var)
+                        .is_some_and(|held| held.def().index().is_some())
+                })
+                .expect("the pattern declares its index");
+            let row = *doc
+                .ids()
+                .iter()
+                .find(|&&id| {
+                    matches!(doc.node(id), Some(Node::Place { .. }))
+                        && crate::props::indices_read(doc, id) == [index]
+                })
+                .expect("the pattern's placement reads its index");
+            (index, row)
+        }
+
+        /// How many members the placement's family evaluates to.
+        fn members(driven: &Driven, row: RecipeNodeId) -> usize {
+            let eval = driven.app.session.evaluation().expect("landed");
+            match &eval.value(row).expect("the family evaluated").payload {
+                pncad::prelude::ValuePayload::Instances(members) => members.len(),
+                other => panic!("a family evaluates to its members: {other:?}"),
+            }
+        }
+
+        /// **The index's count is one row, reached from the index and from
+        /// the pattern's placement**: the same widget on the index
+        /// variable's own row and on the placement's rows, each writing
+        /// the count through `props::index_count_edit`, and the pattern
+        /// follows. A count is typed in both places and dragged on the
+        /// index's own field.
+        ///
+        /// Red if either place draws no count row, a count typed there
+        /// does not reach the index or the family, or a drag on the
+        /// index does not.
+        #[test]
+        fn the_index_count_row_edits_the_count_from_the_index_and_from_the_placement() {
+            let mut driven = Driven::with(vec![SessionOp::AddPattern {
+                input: extrude().into(),
+                count: 3,
+                rule: crate::session::PatternRuleSpec::Linear {
+                    direction: crate::session::PatternDirection::Axis(
+                        pncad::document::TargetAxis::X,
+                    ),
+                    spacing: crate::test_support::len(0.2),
+                },
+            }]);
+            driven.settle();
+            let (index, row) = pattern(&driven);
+            assert_eq!(members(&driven, row), 3, "the premise");
+            let count = |driven: &Driven| {
+                crate::props::index_count_row(driven.app.session.committed_doc(), index)
+                    .expect("an index")
+                    .formula
+            };
+
+            driven.select(Selection::Variable(index));
+            type_count(&mut driven, "5");
+            assert_eq!(count(&driven), "5", "typed on the index's own row");
+            assert_eq!(members(&driven, row), 5, "the family follows");
+
+            driven.select(Selection::Node(row));
+            type_count(&mut driven, "2");
+            assert_eq!(count(&driven), "2", "typed on the placement's row");
+            assert_eq!(members(&driven, row), 2, "the family follows");
+
+            // The field's drag: a count dragged on an index is its count.
+            let gesture = crate::session::ValueGestureName::Variable(index);
+            driven.app.perform_batch(vec![
+                gesture.begin(),
+                gesture.preview(4.0),
+                gesture.commit(),
+            ]);
+            driven.settle();
+            assert_eq!(count(&driven), "4", "dragged on the index's field");
+            assert_eq!(members(&driven, row), 4, "the family follows");
+        }
+
+        /// **The mirror tool holds no label field, and its insert labels
+        /// and selects the mirror**: `Mirror 1`, on the mirror, not on the
+        /// union of the symmetric part.
+        ///
+        /// Red if the form draws a label field, or the label or the
+        /// selection lands on the union.
+        #[test]
+        fn the_mirror_tool_labels_and_selects_the_mirror_without_a_label_field() {
+            let mut driven = Driven::with(Vec::new());
+            driven.settle();
+            let cap = crate::session::FaceSelection {
+                name: pncad::prelude::StableName {
+                    kind: pncad::prelude::EntityKind::Face,
+                    node: extrude(),
+                    path: vec![pncad::select::RoleSeg::Cap(pncad::select::CapEnd::End)],
+                },
+                node: placement(),
+                body: 0,
+            };
+            driven.app.tools.open(crate::tools::ToolKind::Mirror);
+            driven.click_through(vec![Selection::Face(cap)]);
+            driven.click(crate::pane::create::COMBINE_BODIES);
+            let painted = driven.quiet();
+            assert!(
+                !painted.iter().any(|(run, _)| run == "label"),
+                "the mirror form holds no label field: {painted:?}"
+            );
+            driven.click(&crate::tools::ToolKind::Mirror.commit());
+            driven.settle();
+            let doc = driven.app.session.committed_doc();
+            let of = |want: fn(&Node<pncad::document::ProfileProgram>) -> bool| {
+                *doc.ids()
+                    .iter()
+                    .find(|&&id| doc.node(id).is_some_and(want))
+                    .expect("inserted")
+            };
+            let image = of(|node| matches!(node, Node::Mirror { .. }));
+            let part = of(|node| matches!(node, Node::Union { .. }));
+            assert_eq!(
+                doc.label(image).map(|label| label.as_str().to_owned()),
+                Some("Mirror 1".to_owned()),
+                "the mirror carries the label"
+            );
+            assert_eq!(doc.label(part), None, "the union carries none");
+            assert_eq!(
+                driven.app.session.selection(),
+                &Selection::Node(image),
+                "the mirror is selected"
+            );
+        }
+    }
 }
 
 /// **A click in the viewport while the index seam is busy**, driven
