@@ -158,7 +158,7 @@ fn a_ruling_in_band_certifies_through_the_projected_lane() {
 }
 
 /// A ruling in band standing `0.6·zero` off the wall: its incidence
-/// reads on, and the projected envelope carries the miss whole, inside
+/// reads on, and the projected envelope bounds the whole miss, inside
 /// the band, at both scalars.
 #[test]
 fn a_ruling_in_band_off_the_wall_inside_the_band_certifies_carrying_its_miss() {
