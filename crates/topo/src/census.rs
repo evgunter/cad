@@ -8807,10 +8807,9 @@ fn backstop_apart<T: Decide>(
 ///    (the cradle witness), value-equal walls at gap zero
 ///    (boss-in-hole), and the embedded ball cap (the delta witness)
 ///    land here; the certified excluder this stands in for is the C9
-///    exclusion ring. The reach boxes are SOUND per-kind supersets:
-///    [`face_reach`] is [`crate::boolean::boxes::FaceBoxRule`] — the
-///    ONE face-box rule — with this module's own arena walk over the
-///    module's own per-kind extents, so no bound is derived twice. A
+///    exclusion ring. The reach boxes are SOUND supersets: [`face_reach`]
+///    is the face's cover's box ([`crate::boolean::boxes::face_cover`],
+///    the one reading of a face), so no bound is derived twice. A
 ///    description with no claim in it (a placeholder patch) refuses
 ///    WITHOUT a distance test rather than under-claiming its reach. A
 ///    planar face vf-NAMED by a record whose vertex is on the OTHER
@@ -8908,8 +8907,8 @@ fn backstop_apart<T: Decide>(
 /// at vertex/line granularity. Such a pair is THIS arm's: the conformal
 /// arm takes same-carrier CURVED faces only, and the confirm pass
 /// takes declared pairs only, so the unrecorded cap pair has no other
-/// home. Its plane is boxable ([`crate::boolean::boxes::FaceBoxRule`]
-/// hulls the boundary's certified edge reaches, arcs included), so
+/// home. Its plane is boxable ([`crate::boolean::boxes::face_cover`]
+/// hulls the boundary's certified edge covers, arcs included), so
 /// this arm can clear the separated majority instead of refusing
 /// every one of them.
 ///

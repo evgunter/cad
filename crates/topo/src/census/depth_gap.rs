@@ -716,27 +716,20 @@ mod tests {
         (body, top)
     }
 
-    /// **A cone face's cover holds its apex where its loop winds round
-    /// the axis, and only there**: the unit square restated on a cone
-    /// whose apex stands 5 above its centre reads, from that centre, a
-    /// greatest depth past the apex's 5; with the axis off to the side
-    /// of the square, its loop does not wind round it, and the cover
-    /// stays within the square's reach. Red where the apex is dropped
-    /// from the hull, or held for every cone face.
+    /// **A cone face's cover holds its apex where its loop may wind round
+    /// the axis**: the unit square restated on a cone whose apex stands
+    /// 5 above its centre reads, from that centre, a greatest depth past
+    /// the apex's 5. Red where the apex is dropped from the hull. That a
+    /// loop that closes in the chart leaves the apex out is
+    /// `boxes::tests::the_cone_arm_boxes_the_frustum_not_the_widest_ring`.
     #[test]
-    fn a_cone_face_holds_its_apex_where_its_loop_winds_round_the_axis() {
+    fn a_cone_face_holds_its_apex_where_its_loop_may_wind_round_the_axis() {
         let centre = Depth::Center {
             center: p(0.5, 0.5, 1.0),
         };
         let (body, top) = coned_top(p(0.5, 0.5, 6.0), v(0.0, 0.0, -1.0));
         let read = face_read(&body, top, band()).expect("a cone face is read");
         assert!(range_on(centre, &read.cover).1 >= 5.0, "the apex is held");
-        let (body, top) = coned_top(p(5.0, 0.5, 6.0), v(0.0, 0.0, -1.0));
-        let read = face_read(&body, top, band()).expect("a cone face is read");
-        assert!(
-            range_on(centre, &read.cover).1 < 1.0,
-            "an apex beside the square is not held"
-        );
     }
 
     /// **A bound that is not a number is no bound**, though `max` and

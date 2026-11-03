@@ -1881,7 +1881,7 @@ pub(crate) mod tests {
     /// while its centre control point lifts the surface to `z = 1/4`,
     /// carried on an arc sector's topology. Returns the body, the
     /// face, and the control net's own hull — which is the unit cube,
-    /// and is what [`FaceBoxRule::ControlNet`] claims.
+    /// and is what the spline arm's net claims.
     fn nurbs_bulge_face() -> (Body<f64>, FaceKey, (Point3<f64>, Point3<f64>)) {
         use geom::surfaces::nurbs::NurbsSurface;
         use geom_core::spline::KnotVector;
@@ -2217,9 +2217,7 @@ pub(crate) mod tests {
                 // Not the band's sweep pad: at these bands it is wider
                 // than the bulge a vertex-only hull would miss.
                 let pad = 1e-9;
-                let hull = boundary_cover(&body, face, f)
-                    .expect("the wall's boundary has a cover")
-                    .aabb(0.0);
+                let hull = boundary_cover(&body, face, f).expect("the wall's boundary has a cover");
                 let bracket = Bracket::open();
                 let b = face_box(&body, face, pad, band);
                 let c = crate::census::face_reach(&body, face, band);
@@ -2235,7 +2233,7 @@ pub(crate) mod tests {
                 );
                 let (lo, hi) =
                     c.unwrap_or_else(|| panic!("{what}: the census must claim the wall"));
-                let h = hull.padded(pad);
+                let h = hull.aabb(pad);
                 assert_eq!(
                     [b.min_x, b.min_y, b.min_z, b.max_x, b.max_y, b.max_z],
                     [h.min_x, h.min_y, h.min_z, h.max_x, h.max_y, h.max_z],
@@ -2268,7 +2266,7 @@ pub(crate) mod tests {
     /// world coordinate**, the axis-parallel one included. The wall's
     /// axis is tilted about `y`, so the slab's `z` extent carries the
     /// radius widening `r·sin θ`; the face lies in its boundary's hull
-    /// (the ruled argument in [`FaceBoxRule`]'s docs). Over
+    /// (the ruled argument in [`face_cover`]'s docs). Over
     /// `u ∈ [1, 3]` a point's height is `v·cos θ − r·cos u·sin θ`, so
     /// the floor is the bottom rim's `u = 1` corner, `(1 − cos 1)·sin θ`
     /// above the slab's. Both lanes box the wall to that floor and
@@ -2449,8 +2447,9 @@ pub(crate) mod tests {
     /// The header states which direction each consumer reads a loose
     /// box in. That is a roster, and a roster is right only until the
     /// next door lands. This row walks `topo/src` and counts every
-    /// CALL of [`face_box`], [`face_box_rule`], [`edge_box`] and the
-    /// edge's cover ([`edge_cover`], [`edge_cover_linked`],
+    /// CALL of [`face_box`], [`edge_box`], the face's cover
+    /// ([`face_cover`], [`face_cover_toward`], [`boundary_cover`]) and
+    /// the edge's ([`edge_cover`], [`edge_cover_linked`],
     /// [`edge_cover_of`]) in code — comments and
     /// literals blanked by
     /// [`crate::source_walk::CodeOnly`], the more competent of this
@@ -2511,8 +2510,9 @@ pub(crate) mod tests {
     ///   cell budget runs out, and then a refusal as uncertified. A
     ///   box TIGHTER than its face would be the unsound direction: a
     ///   pruned face is never metered.
-    /// - `census.rs` — `face_reach_in` and `edge_reach_in`, this module's
-    ///   extents entered at the census's own scalar. **Refuses**:
+    /// - `census.rs` — `face_reach_in`, the face's cover's box at the
+    ///   census's own scalar, and the backstop's aimed covers
+    ///   ([`face_cover_toward`]). **Refuses**:
     ///   arm 2 clears for free only on a definitely negative margin
     ///   against a CONTAINING box, so over-width would send a separated
     ///   pair to the material test instead of clearing it — a case the
@@ -2524,13 +2524,34 @@ pub(crate) mod tests {
     ///   candidates.
     ///   **Prunes**: a loose box only adds candidates, each read
     ///   exactly; a box tighter than its face would drop a flush pair.
-    /// - `census/depth_gap.rs` — arm 1's depth-gap clear: one
-    ///   [`face_box_rule`] read, which picks a face's cover and its
-    ///   carrier's depth. **Refuses**: it grants on a gap, and every
-    ///   cover it builds from the rule only holds MORE than its face
-    ///   when loose, which narrows the gap. A rule that named a cover
-    ///   holding less would be the unsound direction. A looser
-    ///   proposal (an axis not offered) only withholds a depth.
+    ///   And the aligned pairs' axial spans, each cylinder face's cover's
+    ///   support along the first's axis. **Refuses**: a looser span
+    ///   overlaps where the faces are apart and sends the pair to Door
+    ///   1.
+    /// - `census/depth_gap.rs` — arm 1's depth-gap clear: a face's cover
+    ///   and, on a plane, its boundary's. **Refuses**: it grants on a
+    ///   gap, and a cover only holds MORE than its face when loose,
+    ///   which narrows the gap. A cover holding less would be the
+    ///   unsound direction. A looser proposal (an axis not offered) only
+    ///   withholds a depth.
+    /// - `census/in_plane.rs` — arm 1's clear in a plane: a curved
+    ///   edge's cover's support off the plane. **Refuses**, as the
+    ///   module docs say.
+    /// - `boolean/separating.rs` — the narrow phase: each item's cover's
+    ///   support along a direction that turns with the pair. **Refuses**
+    ///   where it grants (the operand gate, the census, the fallback):
+    ///   a looser cover closes a gap that parts the pair.
+    /// - `splitting/classify.rs` — the split gate's edge read: an
+    ///   unarmed edge's cover in the plane's frame. **Refuses**: a
+    ///   looser box reaches the plane and refuses the cut by kind.
+    /// - `splitting/rules.rs` — `cone_axial_window`, a face's cover's
+    ///   window along a cone's axis, a lever. **Refuses**: a wider window
+    ///   lengthens the lever, which decides less readily.
+    /// - `shell.rs`, `boolean/ruled_region.rs`,
+    ///   `splitting/containment.rs` — an edge's cover read in a frame,
+    ///   as a ruled region's or a containment walk's bound.
+    ///   **Refuses**: a looser cover reads a nearer edge, which only
+    ///   withholds a clear.
     ///
     /// `boolean/boxes.rs` is excluded by path: it is the definition
     /// site, every call in it is this suite's own or one arm calling
@@ -2546,9 +2567,11 @@ pub(crate) mod tests {
     /// **What this cannot match**, stated rather than implied:
     ///
     /// 1. A door in another CRATE. The walk is `topo/src` because
-    ///    that is the tree this crate can see. All six functions are
-    ///    `pub(crate)`, so no such door can exist today — that, and
-    ///    not a survey, is what carries the claim out of crate.
+    ///    that is the tree this crate can see. `face_cover` and
+    ///    `edge_cover` are public now (`topo::face_cover`,
+    ///    `topo::edge_cover`), so a door outside the crate is not
+    ///    counted here; their readers outside are `cover-app-readers`'
+    ///    to inventory.
     /// 2. A door reading a box through a helper defined here: a
     ///    wrapper's own callers are invisible to a textual walk.
     /// 3. A door under another name: a `use … as` rename, or the
@@ -2569,16 +2592,17 @@ pub(crate) mod tests {
     /// fifth instance gets found by accident.
     #[test]
     fn every_door_that_reads_a_box_is_inventoried() {
-        // `census.rs` counts TEN: the pre-filter's `face_box` read (one
+        // `census.rs` counts TWELVE: the pre-filter's `face_box` read (one
         // box per face, read by the planar and every-face classes) and
         // its `edge_box` read, the flush door's `face_box` read (the
         // pruning door over its candidates), pass 2′'s curved-edge `edge_box` read
         // (`census::Candidates::build`, the pruning door) and
         // `collinear_overlaps`' `edge_box` read (the same pruning door),
-        // a `face_box_rule` read of its own and two edge-cover reads (the
-        // boundary's axial window and the edge reach), and two that are
-        // not doors — two rows in its test module call `face_box` to
-        // pin what a described net carrying poison answers there. The
+        // three face-cover reads of its own (`face_reach_in`, the aligned
+        // pairs' axial spans and the backstop's aimed covers), and four
+        // that are not doors — two rows in its test module call
+        // `face_box` to pin what a described net carrying poison answers
+        // there, and two torn-body rows call `edge_cover`. The
         // number is stated with that content rather than filtered,
         // because this pin's protection is that an
         // occurrence cannot arrive, leave or move unnoticed — which it
@@ -2592,31 +2616,42 @@ pub(crate) mod tests {
         // sort's screen calls. Another of `ops.rs`'s four is not a door:
         // `the_approx_arm_asks_whether_the_ball_reaches_the_face` boxes
         // its bricks' faces to hand the arm's question what the scan
-        // hands it. `boolean/torn_hop_rows.rs`' four are not
+        // hands it. `boolean/separating.rs`'s four are two doors and their
+        // two default covers: the narrow phase's face and edge reads.
+        // `boolean/torn_hop_rows.rs`' four are not
         // doors either: its torn-body witnesses call `face_box` and
         // `edge_box` to show a torn link panics. Nor is
         // `boolean/carrier_touch_rows.rs`' one: a spiric-edge witness
         // calls `edge_box` to show its ball lies inside the edge's box,
         // so that only the edge's own floor can clear it.
-        const PINNED: [(&str, usize); 13] = [
+        const PINNED: [(&str, usize); 20] = [
             ("boolean/carrier_touch.rs", 1),
             ("boolean/carrier_touch_rows.rs", 1),
             ("boolean/glue.rs", 2),
             ("boolean/mod.rs", 1),
             ("boolean/ops.rs", 4),
             ("boolean/reduce.rs", 6),
+            ("boolean/ruled_region.rs", 1),
+            ("boolean/separating.rs", 4),
             ("boolean/torn_hop_rows.rs", 4),
-            ("census.rs", 10),
-            ("census/depth_gap.rs", 1),
+            ("census.rs", 12),
+            ("census/depth_gap.rs", 2),
+            ("census/in_plane.rs", 1),
             ("face_boxes.rs", 1),
             ("pieces.rs", 1),
             ("separation.rs", 2),
+            ("shell.rs", 2),
+            ("splitting/classify.rs", 1),
+            ("splitting/containment.rs", 1),
+            ("splitting/rules.rs", 1),
             ("validate.rs", 1),
         ];
         const HOME: &str = "boolean/boxes.rs";
-        const DOORS: [&str; 6] = [
+        const DOORS: [&str; 8] = [
             "face_box",
-            "face_box_rule",
+            "face_cover",
+            "face_cover_toward",
+            "boundary_cover",
             "edge_box",
             "edge_cover",
             "edge_cover_linked",
@@ -3087,16 +3122,16 @@ pub(crate) mod tests {
         }
     }
 
-    /// **`ConeSlab`** — the FRUSTUM the face's axial window cuts. The
-    /// axial coordinate takes no widening at all, and the radial
-    /// half-width is the window's own far radius `z₁·tan α`, not the
-    /// widest ring the whole cone reaches.
+    /// **The cone arm** — the FRUSTUM the face's axial window cuts, met
+    /// with the boundary's hull. The axial coordinate takes no widening
+    /// at all, and a face whose loop closes in the chart holds no apex,
+    /// so the window is the rims' `[z0, z1]`; the hull clips the
+    /// frustum's ring to the rims' own arcs.
     ///
     /// Both rims are circles PERPENDICULAR to the axis, so their
-    /// axial image is a point ([`cover_axial`]) and the window is
-    /// exactly `[z0, z1]` whatever the azimuth span — which is what
-    /// makes this row a formula in the fixture's own parameters
-    /// rather than in a box around its boundary.
+    /// axial image is a point and the window is exactly `[z0, z1]`
+    /// whatever the azimuth span — which is what makes this row a
+    /// formula in the fixture's own parameters.
     #[test]
     fn the_cone_arms_box_is_exactly_the_construction_its_rule_states() {
         let pad = pad();
@@ -3105,17 +3140,31 @@ pub(crate) mod tests {
             for &scale in &[0.002, 1.0, 40.0] {
                 for span_deg in [30.0_f64, 170.0, 200.0, 350.0] {
                     let (z0, z1) = (0.4 * scale, 1.0 * scale);
-                    let radius = z1 * alpha.tan();
-                    let (body, face) = cone_wall(alpha, 0.0, span_deg.to_radians(), z0, z1);
+                    let (r0, r1) = (z0 * alpha.tan(), z1 * alpha.tan());
+                    let span = span_deg.to_radians();
+                    let (body, face) = cone_wall(alpha, 0.0, span, z0, z1);
                     let b = face_box(&body, face, pad, witness_band());
+                    // The frustum met with the boundary's hull: the two
+                    // rims' arc extremes (the seams run between them),
+                    // which the frustum's far ring holds.
+                    let (cos_lo, cos_hi) = arc_extremes(span, &f64::cos, &[core::f64::consts::PI]);
+                    let (sin_lo, sin_hi) = arc_extremes(
+                        span,
+                        &f64::sin,
+                        &[
+                            core::f64::consts::FRAC_PI_2,
+                            3.0 * core::f64::consts::FRAC_PI_2,
+                        ],
+                    );
+                    let (lo, hi) = (|c: f64| (r0 * c).min(r1 * c), |c: f64| (r0 * c).max(r1 * c));
                     agrees_with_the_rule(
                         &b,
                         &Aabb {
-                            min_x: -radius - pad,
-                            min_y: -radius - pad,
+                            min_x: lo(cos_lo) - pad,
+                            min_y: lo(sin_lo) - pad,
                             min_z: z0 - pad,
-                            max_x: radius + pad,
-                            max_y: radius + pad,
+                            max_x: hi(cos_hi) + pad,
+                            max_y: hi(sin_hi) + pad,
                             max_z: z1 + pad,
                         },
                         scale,
@@ -3967,10 +4016,11 @@ pub(crate) mod tests {
                             },
                         );
                         let b = face_box(&body, face, pad, witness_band());
-                        // The room off each row as the norm of the axis's other
-                        // two components, which does not cancel near a row.
-                        let reach =
-                            |a: f64, j: f64, k: f64| (major + minor) * j.hypot(k) + minor * a.abs();
+                        // The tube's support along a unit row: `R·|e⊥| + r`,
+                        // the room off the row read as the norm of the
+                        // axis's other two components, which does not
+                        // cancel near a row.
+                        let reach = |_: f64, j: f64, k: f64| major * j.hypot(k) + minor;
                         let (rx, ry, rz) = (
                             reach(axis.x, axis.y, axis.z),
                             reach(axis.y, axis.z, axis.x),
@@ -4036,33 +4086,17 @@ pub(crate) mod tests {
         );
     }
 
-    /// **The two box lanes, side by side on one body** — what #700
-    /// asked for and nothing did.
-    ///
-    /// The face extents are shared, so on every arm but one this row
-    /// is not guarding arithmetic: it guards what is NOT shared, the
-    /// census's own arena walk of a face's boundary against this
-    /// module's. Those two walks can drift — a loop order, an
-    /// isolated-vertex loop, a half-edge's edge — and a divergence
-    /// between the census's boxes and the boolean sweep's is exactly
-    /// the shape that produces a wrong census verdict with both
+    /// **The face box and the census reach are one cover's**, on every
+    /// arm: the sweep's bracketed box ([`face_box`]) and the census's
+    /// box at its own scalar (`census::face_reach`) both read
+    /// [`face_cover`], so at `f64`, where the bracket is the identity,
+    /// they differ by [`Aabb::padded`]'s outward ulp and nothing else.
+    /// What that catches: a door that reads a face's box past its cover
+    /// (a second walk of the boundary, a second construction), which is
+    /// exactly the shape that produces a wrong census verdict with both
     /// halves looking correct on their own.
     ///
-    /// The conic EDGE box is one closed form on both lanes,
-    /// `geom::curves::boxes`'s directional extremum, run certified at
-    /// [`Interval`](geom_core::Interval) here and at the arena's own
-    /// scalar in the census, so the row pins equality to rounding on
-    /// every arm, the arcs' included. What that catches: a conic edge
-    /// dropped from either lane's walk, and any widening of either
-    /// box past a few ulps. What it does NOT catch: a dropped chord
-    /// that the hull already covers (the sector's two radii both end
-    /// at the origin, which the arc's box carries), so a walk drift
-    /// is loud only where the edge it loses is load-bearing for the
-    /// hull.
-    ///
-    /// Compared at `pad = 0`, where the only other difference the
-    /// module admits is [`Aabb::padded`]'s outward ulp and the
-    /// certified lane's outward rounding.
+    /// Compared at `pad = 0`.
     #[test]
     fn the_two_box_lanes_agree_face_for_face() {
         let sphere = Surface::Sphere {
@@ -5938,7 +5972,7 @@ pub(crate) mod sphere_rect_rows {
             GeomRef::Curve(curve)
         );
         assert_torn_op_panics(
-            "sphere_reach (flattening)",
+            "face_cover (flattening)",
             &mut torn,
             &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
             |b| reach(b),
@@ -5955,7 +5989,7 @@ pub(crate) mod sphere_rect_rows {
             GeomRef::Point(point)
         );
         assert_torn_op_panics(
-            "sphere_reach (trim)",
+            "face_cover (trim)",
             &mut torn,
             &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
             |b| reach(b),

@@ -50,7 +50,7 @@
 //! pin.
 //!
 //! **This door needs no surface-kind gate of its own.** It shares the one
-//! [`crate::boolean::boxes::FaceBoxRule`]; what differs is only what a
+//! reading of a face, [`crate::boolean::boxes::face_cover`]; what differs is only what a
 //! POISON box MEANS at each door, and that difference is what lets the
 //! rule be shared. In the sweep, poison prunes nothing, so an unboxable
 //! face reaches the exact predicates. Here, poison overlaps everything, so

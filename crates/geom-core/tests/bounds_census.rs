@@ -244,7 +244,7 @@ const ROSTER: &[Site] = &[
     },
     Site {
         path: "crates/geom/src/curves/boxes.rs",
-        subject: "fn lifted<T: Bounds>",
+        subject: "lifted",
         why: Payload("`lift` over a conic carrier, before its readings"),
     },
     Site {
@@ -545,21 +545,6 @@ const ROSTER: &[Site] = &[
     },
     Site {
         path: "crates/sweep/src/blend/surgery.rs",
-        subject: "boxed_reach",
-        why: Selection(
-            "a certified latitude range over an ellipse, spiric or NURBS piece. Its only \
-             bracket reads are the `boxes` constructors' above, whose f64 endpoints it \
-             lifts back by `from_f64` — so at a dual the box corners carry no tangent, \
-             though the true range moves with the carrier's seeds: the #874 shape, were \
-             the range ever built on. It is not: its sole consumer \
-             `support_boundary_clearance` turns it into the margin `ring_clearance` \
-             decides, whose passing branch builds nothing from the margin and whose \
-             refusing branch carries it as a payload, so it inherits that door's DL5(b) \
-             disposition and no other",
-        ),
-    },
-    Site {
-        path: "crates/sweep/src/blend/surgery.rs",
         subject: "old_misses",
         why: Payload(
             "a test-side ORACLE inside `misses_is_the_relative_bracket_read`, generic so \
@@ -567,21 +552,6 @@ const ROSTER: &[Site] = &[
              `CircleFrame::misses` predicate, whose bracket reads become the bool one \
              `assert_eq!` compares and stop",
         ),
-    },
-    Site {
-        path: "crates/topo/src/boolean/boxes.rs",
-        subject: "bracket_point",
-        why: Payload("the C10 span-box reader: brackets into an f64 `SpanBox`"),
-    },
-    Site {
-        path: "crates/topo/src/boolean/boxes.rs",
-        subject: "bracket_vector",
-        why: Payload("as `bracket_point`, over a vector"),
-    },
-    Site {
-        path: "crates/topo/src/boolean/boxes.rs",
-        subject: "bracketed",
-        why: Payload("as `bracket_vector`, over a decided unit direction (`UnitSpanBox`)"),
     },
     Site {
         path: "crates/topo/src/boolean/boxes.rs",
@@ -595,8 +565,8 @@ const ROSTER: &[Site] = &[
         path: "crates/topo/src/boolean/boxes.rs",
         subject: "circle_box",
         why: Payload(
-            "the extent scan's section-circle box: a centre's, a frame's and a radius's \
-             brackets into an f64 `bvh::Aabb` through `conic_extent`, padded, and stop",
+            "the extent scan's section-circle box: its cover's bracketed world box \
+             (`Cover::aabb`), padded, and stop",
         ),
     },
     Site {

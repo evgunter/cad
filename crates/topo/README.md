@@ -126,12 +126,13 @@ side clears only
   directions only (`boolean::separating::apart_by`), not the world axes,
   a sphere face is taken to reach no further than its boundary at an
   end whose pole the face places definitely `Out`
-  (`census::held_reach_in`); or
+  (`boolean::boxes::face_cover_toward`, the sphere arm's pole-side
+  cut); or
 - on a definitely-positive gap in depth (the distance from an axis
   line, a centre or a circle that either face's carrier or a conic on
   its boundary proposes) between one face's least depth and the
-  other's greatest, each bounded through rings and segments that cover
-  the face or its convex hull (`census::depth_gap`): the nested walls,
+  other's greatest, each bounded through the face's cover, and on a
+  plane its boundary's (`census::depth_gap`): the nested walls,
   bores and plugs no direction separates, or
 - for two planar faces, where each meets the other's plane, read in
   that plane to the band's Zero (`census::in_plane`): on one carrier

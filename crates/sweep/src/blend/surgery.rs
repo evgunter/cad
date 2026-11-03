@@ -282,13 +282,6 @@ pub(super) fn scaffolding(at: EntityId, detail: &'static str) -> BlendError {
     BlendError::BodyNotIntact { at, breach, detail }
 }
 
-/// **Row 1**, a stored carrier at `at` whose defining length does not
-/// decide under the run's band.
-pub(super) fn degenerate(at: EntityId, detail: &'static str) -> BlendError {
-    let breach = Breach::Degenerate;
-    BlendError::BodyNotIntact { at, breach, detail }
-}
-
 /// **Row 4, announced rather than panicked** — a step of this carve
 /// reached a state its own earlier steps rule out. The input was fine;
 /// the surgery contradicted itself. Row 4's other sites panic because

@@ -272,22 +272,25 @@ fn a_turned_face_touching_or_cutting_a_torus_is_never_cleared() {
     }
 }
 
-/// The same cubes moved `0.5` off the torus: tier 3′ passes, cleared
-/// along the face's own normal (no world axis separates the pair). Not
-/// nearer: the whole torus's extent along a row is
-/// `(R + r)·|a⊥| + r·|aᵢ|` (`boxes::torus_extent`), which overshoots the
-/// support `R·|a⊥| + r` by about 0.37 at the first normal, and a gap of
-/// `1e-4` refuses.
+/// The same cubes moved off the torus, `0.5` and `1e-3`: tier 3′
+/// passes, cleared along the face's own normal (no world axis separates
+/// the pair). The torus face's cover reads the tube's own support along
+/// a turned direction, `R·|e⊥| + r` (`geom::cover::Cover::tube`), so a
+/// cube `1e-3` off clears; a box read as `(R + r)·|a⊥| + r·|aᵢ|`
+/// overshoots that support by about 0.37 at the first normal and
+/// refuses it.
 #[test]
 fn a_turned_face_clear_of_a_torus_passes_tier_3_prime() {
     for m in TORUS_NORMALS {
-        let tag = format!("m = {m:?}, 0.5 off");
-        let mut body = torus();
-        topo::graft_disjoint(&mut body, &cube_on_torus(m, 0.5)).unwrap();
-        assert_eq!(
-            topo::validate_pseudomanifold(&body, &ContactRecords::default(), tol()),
-            Ok(()),
-            "{tag}: tier 3′ passes"
-        );
+        for gap in [0.5, 1e-3] {
+            let tag = format!("m = {m:?}, {gap} off");
+            let mut body = torus();
+            topo::graft_disjoint(&mut body, &cube_on_torus(m, gap)).unwrap();
+            assert_eq!(
+                topo::validate_pseudomanifold(&body, &ContactRecords::default(), tol()),
+                Ok(()),
+                "{tag}: tier 3′ passes"
+            );
+        }
     }
 }
