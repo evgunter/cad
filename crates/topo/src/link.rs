@@ -2532,7 +2532,7 @@ pub(crate) struct Ruled<T: Real> {
 /// as the unit directions square to the edge that bound it (the face's
 /// tangent and the chord) and the unit normals of its two planes toward
 /// it, read at `lever` from `p`.
-pub(crate) struct Chord<T: Real> {
+pub(crate) struct RuledChord<T: Real> {
     /// The stand-in, handed out only by [`chords_clear`].
     sector: FaceSector<T>,
     bounds: [Vec3<T>; 2],
@@ -2576,7 +2576,7 @@ impl<T: Decide> FaceSector<T> {
         p: Point3<T>,
         plane: Vec3<T>,
         band: Band,
-    ) -> Result<Chord<T>, TouchUnread> {
+    ) -> Result<RuledChord<T>, TouchUnread> {
         use Sign::{Negative, Positive, Zero};
         let (centre, axis, apex) = match face.surface {
             geom::Surface::Cylinder { origin, axis, .. } => {
@@ -2648,7 +2648,7 @@ impl<T: Decide> FaceSector<T> {
             None => axis,
         };
         let ball = off(q - p, next).norm();
-        Ok(Chord {
+        Ok(RuledChord {
             sector: Self {
                 sector: Sector {
                     outward,
@@ -2670,7 +2670,7 @@ impl<T: Decide> FaceSector<T> {
     }
 }
 
-impl<T: Decide> Chord<T> {
+impl<T: Decide> RuledChord<T> {
     /// Whether the unit direction `d`, square to the edge, lies
     /// decidedly outside the lens: behind one of its two planes.
     fn leaves(&self, p: Point3<T>, d: Vec3<T>, band: Band) -> Result<(), TouchUnread> {
@@ -2702,7 +2702,7 @@ impl<T: Decide> Chord<T> {
 /// band, [`TouchUnread::InBand`].
 pub(crate) fn chords_clear<T: Decide>(
     p: Point3<T>,
-    chords: Vec<Chord<T>>,
+    chords: Vec<RuledChord<T>>,
     others: &[Vec3<T>],
     band: Band,
 ) -> Result<Vec<FaceSector<T>>, TouchUnread> {
