@@ -1,0 +1,34 @@
+import subprocess, sys, os
+R='/home/user/cad/crates/geom-brep/src/props/quad/rotational.rs'
+RR='/home/user/cad/crates/geom-brep/src/props/rational_rim.rs'
+muts = [
+ ("M1 drop v_sign", R, "z\n                    .scale(pt(v_sign))\n", "z\n"),
+ ("M2 u' sign net", R, "let du = b[0]\n        .mul(db[1])\n        .sub(b[1].mul(db[0]))", "let du = b[1]\n        .mul(db[0])\n        .sub(b[0].mul(db[1]))"),
+ ("M3 branch turn ignores traversal", R, "if p.forward { turns } else { -turns }", "turns"),
+ ("M4 branch turn off by one", R, "Ok(k as i64)", "Ok(k as i64 + 1)"),
+ ("M5 circle drops last cut piece", R, "FramedQ::Circle { centre, a, b, cuts } => {\n            let mut total = [Interval::zero(); 3];\n            let mut removable = [0.0_f64; 3];\n            for w in cuts.windows(2) {", "FramedQ::Circle { centre, a, b, cuts } => {\n            let mut total = [Interval::zero(); 3];\n            let mut removable = [0.0_f64; 3];\n            for w in cuts.windows(2).take(1) {"),
+ ("M6 residual pad dropped", R, "let pad = chart.residual(entry.length, env);", "let pad = { let _ = (entry, env); [0.0_f64, 0.0] };"),
+ ("M7 chart term ignores rationals", R, "    term.rationals\n        .iter()\n        .fold", "    term.rationals\n        .iter().take(0)\n        .fold"),
+ ("M8 projected traversal ignored", R, "if p.forward { [f, g] } else { [-f, -g] }", "{ let _ = p.forward; [f, g] }"),
+ ("M9 v_off dropped", R, ".add(Jet::cst(v_off - pt(anchor)))", ".add(Jet::cst(-pt(anchor)))"),
+ ("M10 line u' sign", R, "let du = x\n        .scale(dir[1])\n        .sub(y.scale(dir[0]))", "let du = y\n        .scale(dir[0])\n        .sub(x.scale(dir[1]))"),
+ ("M11 net drops a span", RR, "    for span in &e.spans {\n        let (part, rem) = composite_by(", "    for span in e.spans.iter().skip(1) {\n        let (part, rem) = composite_by("),
+ ("M12 vector area x1.2", RR, "let scale = w.sqr().recip().scale(pt(0.5));", "let scale = w.sqr().recip().scale(pt(0.6));"),
+ ("M13 branch_turns tolerance 0.75", R, "off.hi() < 0.25", "off.hi() < 0.75"),
+]
+sel = sys.argv[1:] 
+env = dict(os.environ, CARGO_TARGET_DIR='/home/user/r1-target')
+for name, path, old, new in muts:
+    if sel and not any(name.startswith(s) for s in sel): continue
+    src = open(path).read()
+    assert src.count(old) == 1, (name, src.count(old))
+    open(path,'w').write(src.replace(old,new))
+    try:
+        r = subprocess.run(['timeout','580','cargo','test','-q','-p','geom-brep','--lib','--','rotational','rational_rim'],cwd='/home/user/cad',env=env,capture_output=True,text=True)
+        out = r.stdout + r.stderr
+        fails = [l.strip() for l in out.splitlines() if l.strip().startswith('props::') and 'FAILED' in l] or [l for l in out.splitlines() if l.startswith('    props::')]
+        res = [l for l in out.splitlines() if 'test result' in l]
+        if 'error[' in out: res=['BUILD ERROR '+ [l for l in out.splitlines() if 'error[' in l][0]]
+        print(name, '|', res, '|', sorted(set(fails)), flush=True)
+    finally:
+        open(path,'w').write(src)
