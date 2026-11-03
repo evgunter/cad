@@ -561,6 +561,7 @@ fn conic_bend(margin: f64) -> Result<(), BooleanError> {
         BoundSupport::Conic {
             extent: geom_core::test_support::fixture_lever(extent),
             bend,
+            arc: None,
         },
         n,
         crate::bound_side::FaceBend::Plane,

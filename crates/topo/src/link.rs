@@ -132,11 +132,11 @@ const LINK_NORMAL: &str = "link_normal";
 
 /// **The one door every verdict sign of the touch analysis comes
 /// through**, and the bound-side reading's ([`crate::bound_side`]). A
-/// [`Distance`] has a private field and three constructors, from a point
+/// [`Distance`] has a private field and four constructors, from a point
 /// and a plane, from a bound's departure off a plane at its reach, and
-/// from a segment and a sphere's or a cylinder's carrier, so a quantity
-/// none of them builds cannot be decided here as a verdict. Two of the
-/// three are not a point's exact distance: a round carrier's is its
+/// from a point or a segment and a sphere's or a cylinder's carrier, so
+/// a quantity none of them builds cannot be decided here as a verdict.
+/// Two of them are not a point's exact distance: a round carrier's is its
 /// lowest point's along the segment, and a bound's departure one order
 /// down is the leading Taylor term of its point's distance from the
 /// face (`κ·l²/2`, [`Departure::Parted`]), in metres and read as that
@@ -217,6 +217,17 @@ pub(crate) mod metric {
         /// ([`AtTheAxis`](super::AtTheAxis)).
         pub(crate) fn off(round: &super::Round<T>, seg: (Point3<T>, Point3<T>)) -> Option<Self> {
             match round.lowest_on(seg) {
+                Ok(d) => Some(Self(d)),
+                Err(_) => None,
+            }
+        }
+
+        /// The point `q`'s signed distance from a sphere's or a
+        /// cylinder's carrier, positive away from its material
+        /// ([`Round::offset`](super::Round::offset)). `None` where it has
+        /// no value ([`AtTheAxis`](super::AtTheAxis)).
+        pub(crate) fn at(round: &super::Round<T>, q: Point3<T>) -> Option<Self> {
+            match round.offset(q) {
                 Ok(d) => Some(Self(d)),
                 Err(_) => None,
             }
@@ -5464,11 +5475,13 @@ mod tests {
         let of = body("\n        pub(crate) fn of(");
         let departure = body("\n        pub(crate) fn departure(");
         let off = body("\n        pub(crate) fn off(");
+        let at = body("\n        pub(crate) fn at(");
         assert!(
-            [&of, &departure, &off]
+            [&of, &departure, &off, &at]
                 .iter()
                 .all(|r| metric.contains(&r.start)),
-            "`Distance::of`, `Distance::departure` and `Distance::off` are in `mod metric`"
+            "`Distance::of`, `Distance::departure`, `Distance::off` and `Distance::at` are in \
+             `mod metric`"
         );
         let builds: Vec<usize> = module
             .match_indices("Self(")
@@ -5477,13 +5490,14 @@ mod tests {
             .filter(|i| metric.contains(i))
             .collect();
         assert!(
-            builds.len() == 3
+            builds.len() == 4
                 && of.contains(&builds[0])
                 && departure.contains(&builds[1])
-                && off.contains(&builds[2]),
-            "`Distance` is built three times, inside `Distance::of` from a plane, inside \
+                && off.contains(&builds[2])
+                && at.contains(&builds[3]),
+            "`Distance` is built four times, inside `Distance::of` from a plane, inside \
              `Distance::departure` from a bound's departure off a plane, and inside \
-             `Distance::off` from a round carrier: {} builds",
+             `Distance::off` and `Distance::at` from a round carrier: {} builds",
             builds.len()
         );
         assert!(
@@ -5531,13 +5545,18 @@ mod tests {
                 .contains("match round.lowest_on(seg) {\n                Ok(d) => Some(Self(d)),"),
             "`Distance::off` is the round carrier's closed form, and nothing else"
         );
+        assert!(
+            door[at.start - metric.start..at.end - metric.start]
+                .contains("match round.offset(q) {\n                Ok(d) => Some(Self(d)),"),
+            "`Distance::at` is the round carrier's closed form at a point, and nothing else"
+        );
         assert_eq!(
             door.matches("-> Self").count()
                 + door.matches("-> Option<Self>").count()
                 + door.matches("-> Distance").count(),
-            3,
-            "`Distance::of`, `Distance::departure` and `Distance::off` are `mod metric`'s only \
-             functions returning a `Distance`"
+            4,
+            "`Distance::of`, `Distance::departure`, `Distance::off` and `Distance::at` are \
+             `mod metric`'s only functions returning a `Distance`"
         );
     }
 }

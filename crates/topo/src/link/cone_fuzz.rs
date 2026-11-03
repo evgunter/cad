@@ -1475,6 +1475,7 @@ fn reach_of(f: [f64; 3], bound: Option<Bounds>) -> (Vec3<f64>, BoundSupport<f64>
         Some(Bounds::Conic) => BoundSupport::Conic {
             extent: geom_core::test_support::fixture_lever(v.norm()),
             bend: flat_bend(),
+            arc: None,
         },
         None => BoundSupport::straight_bisector(geom_core::test_support::fixture_lever(v.norm())),
     };
@@ -2833,6 +2834,7 @@ fn a_curved_bound_tied_with_a_sheet_reads_its_bend_against_the_exact_oracle() {
             let reach = BoundSupport::Conic {
                 extent,
                 bend: geom_brep::ConicBend::of(&circle, tangent, circle.deriv2(0.0), span),
+                arc: crate::bound_side::ConicArc::on(&circle, 0.0, span),
             };
             let dir = tangent.normalize() * extent.length();
             let exact = if side > 0.0 {

@@ -3107,7 +3107,8 @@ mod tests {
             radius: 1.0,
             u_ref: y,
         };
-        let bend_b = crate::bound_side::FaceBend::at(&bore, o);
+        // A bore: the material outside the cylinder.
+        let bend_b = crate::bound_side::FaceBend::at(&bore, false, o);
         let (cb, fb) = face_on(bore);
         // The bore's circle through the point, leaving along `x`.
         let circle = geom::Curve3::circle(Point3::new(0.0, -1.0, 0.0), -z, 1.0, y);
@@ -3120,6 +3121,7 @@ mod tests {
             BoundSupport::Conic {
                 extent,
                 bend: ConicBend::of(&circle, tangent, circle.deriv2(0.0), span),
+                arc: crate::bound_side::ConicArc::on(&circle, 0.0, span),
             },
         );
         let chord = |d: Vec3<f64>| {
