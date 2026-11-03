@@ -1,0 +1,28 @@
+diff --git a/crates/topo/src/transform.rs b/crates/topo/src/transform.rs
+index 42dedab4d..a37b1e3d4 100644
+--- a/crates/topo/src/transform.rs
++++ b/crates/topo/src/transform.rs
+@@ -236,18 +236,11 @@ impl TransformError {
+             ),
+             // The fit door's meter ends at a build at every door that
+             // reads the map's refusal.
+-            Self::ApproxRecertify { source } => match at {
+-                Some(_) => write!(
+-                    f,
+-                    "a moved approximating surface could not be re-certified or re-fitted: {}",
+-                    source.render(Reading::Build)
+-                ),
+-                None => write!(
+-                    f,
+-                    "a moved approximating surface could not be re-certified or re-fitted: \
+-                     {source}"
+-                ),
+-            },
++            Self::ApproxRecertify { source } => write!(
++                f,
++                "a moved approximating surface could not be re-certified or re-fitted: {}",
++                source.render(Reading::Build)
++            ),
+             Self::NurbsPlaceholder => write!(
+                 f,
+                 "a spline (NURBS) surface or carrier cannot be transformed yet. {}",
