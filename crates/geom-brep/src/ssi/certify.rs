@@ -3784,19 +3784,18 @@ mod tests {
 
     /// **Limb 3's side arm holds a branch along a side lying on a curved
     /// partner.** The exact quarter cylinder of radius 1 about the `z`
-    /// axis, its `u = 0` ruling from `(1, 0, 0)` to `(1, 0, 1)`, against
-    /// the cylinder about the `z`-parallel line through `(0, −√3, 0)`,
-    /// whose surface passes through that ruling and crosses the wall
-    /// there at 60°: the carrier is the ruling, its pcurve the wall's
-    /// side. No zero on the side is simple, so the windows on it hold the
-    /// side's stretch, read against the partner's form, or nothing. The
-    /// partner is read on the ruling itself and with its radius grown by
-    /// half the band's zero, where the side stands half an ε off it and
-    /// the form along it is about twice the band raw: the stretch is read
-    /// in metres and its quick reach test unclamped. Red against the
-    /// curved side readers dropped, against the stretch's `|φ|` read raw
-    /// against ε, and against the reach test's `≤ 1` clamp applied to the
-    /// curved form.
+    /// axis, its `u = 0` ruling from `(1, 0, 0)` to `(1, 0, 1)`, against a
+    /// cylinder about a `z`-parallel line whose surface passes through
+    /// that ruling and crosses the wall there at 60°: the carrier is the
+    /// ruling, its pcurve the wall's side. No zero on the side is simple,
+    /// so the windows on it hold the side's stretch, read against the
+    /// partner's form, or nothing. The partner is read at radius 2 on the
+    /// ruling itself; grown by half the band's zero, where its crossing
+    /// moves just inside the quarter and the windows' walk reads it; and at
+    /// radius 10⁴ through the same ruling at the same angle, whose form
+    /// along the side reads past ε raw from its own rounding (`|q|²` near
+    /// 10⁸) and within it in metres. Red against the curved side readers
+    /// dropped, and against the stretch's `|φ|` read raw against ε.
     #[test]
     #[allow(clippy::unwrap_used)]
     fn the_side_arm_holds_a_branch_along_a_side_on_a_curved_partner() {
@@ -3832,12 +3831,13 @@ mod tests {
         )
         .unwrap();
         let band = Band::new(1e-9, 1e-8).unwrap();
-        for grow in [0.0, 0.5 * band.zero()] {
+        let (c, s) = (0.5, 0.75_f64.sqrt());
+        for (radius, grow) in [(2.0, 0.0), (2.0, 0.5 * band.zero()), (1.0e4, 0.0)] {
             let partner = Surface::Cylinder {
-                origin: Point3::new(0.0, -3.0_f64.sqrt(), 0.0),
+                origin: Point3::new(1.0 - radius * c, -radius * s, 0.0),
                 axis: Vec3::new(0.0, 0.0, 1.0),
                 u_ref: Vec3::new(1.0, 0.0, 0.0),
-                radius: 2.0 + grow,
+                radius: radius + grow,
             };
             let lane = Lane::Chart {
                 partner: &partner,
@@ -3847,7 +3847,7 @@ mod tests {
             let got = certify_located(&carrier, lane, 1.0, band, super::Limbs::All);
             assert!(
                 got.is_ok(),
-                "the ruling on the partner grown by {grow:e}: {:?}",
+                "the ruling on the partner of radius {radius} grown by {grow:e}: {:?}",
                 got.err().map(|e| e.error)
             );
         }
