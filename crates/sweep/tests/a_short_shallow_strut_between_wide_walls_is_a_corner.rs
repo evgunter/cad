@@ -86,8 +86,9 @@ fn a_short_shallow_strut_between_wide_walls_rests_as_their_intersection() {
     let mid = Point3::new(0.0, 0.0, h / 2.0);
     let reach = topo::edge_wedge_reach(&body, strut).unwrap();
     assert!(
-        reach >= 1.0,
-        "the walls reach a metre from the strut: {reach}"
+        reach.length() >= 1.0,
+        "the walls reach a metre from the strut: {}",
+        reach.length()
     );
     assert_eq!(
         geom_brep::classify_dihedral(&sf, &sg, mid, reach, band),
@@ -95,7 +96,13 @@ fn a_short_shallow_strut_between_wide_walls_rests_as_their_intersection() {
         "levered at the walls' extent the turn is a corner"
     );
     assert_eq!(
-        geom_brep::classify_dihedral(&sf, &sg, mid, h, band),
+        geom_brep::classify_dihedral(
+            &sf,
+            &sg,
+            mid,
+            geom_core::test_support::fixture_lever(h),
+            band
+        ),
         Ok(DihedralClass::Smooth),
         "levered at the strut's own length the same turn reads smooth"
     );

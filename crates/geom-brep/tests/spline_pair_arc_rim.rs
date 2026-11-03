@@ -28,6 +28,7 @@ use geom_brep::{
     ArcRimRefusal, PcurveCheck, PlaneNurbsLimbs, PlaneNurbsRefusal, SsiLimb, nurbs_pair_limbs,
 };
 use geom_core::spline::KnotVector;
+use geom_core::test_support::fixture_lever;
 use geom_core::{Point3, Vec3};
 
 type Limbs = Result<PlaneNurbsLimbs<f64>, PlaneNurbsRefusal>;
@@ -100,7 +101,7 @@ fn limbs(
     a: &NurbsSurface<f64>,
     b: &NurbsSurface<f64>,
 ) -> Limbs {
-    nurbs_pair_limbs(carrier, params, a, b, 1.0, band())
+    nurbs_pair_limbs(carrier, params, a, b, fixture_lever(1.0), band())
 }
 
 /// Whether `got` refused at limb 3 because the rim lies along chart

@@ -164,8 +164,8 @@ pub(crate) struct Drafts {
     /// is a number sitting in a field, but this one decides what the
     /// viewport draws: the add-profile preview is taken from these
     /// drafts each frame, so a pre-selected shape meant that merely
-    /// opening "Add feature" — to reach the extrude form, say — put a
-    /// circle in the picture that nobody had asked for. `None` is the
+    /// opening "Add feature" — to reach another of its tools, say — put
+    /// a circle in the picture that nobody had asked for. `None` is the
     /// form at rest: no shape fields, no preview, and the commit
     /// disabled until a shape is chosen.
     pub(crate) profile_shape: Option<ShapeKind>,
@@ -189,17 +189,6 @@ pub(crate) struct Drafts {
     /// here is not a hole by being added: it is one when an earlier
     /// loop contains it.
     pub(crate) profile_more: Vec<ProfileShape>,
-    /// The extrude form's distance, metres.
-    pub(crate) extrude_distance: f64,
-    /// The revolve tool's angle, radians.
-    pub(crate) revolve_angle: f64,
-    /// The revolve tool's point on its axis, metres, in the profile's
-    /// own 2-D coordinates.
-    pub(crate) revolve_axis_through: Point2<f64>,
-    /// The revolve tool's axis heading from the profile's x axis,
-    /// radians. Opens a quarter turn, along the profile's +y, the axis
-    /// a profile drawn beside it turns about.
-    pub(crate) revolve_axis_heading: f64,
     /// The pattern tool's rule choice.
     pub(crate) pattern_kind: PatternLayoutChoice,
     /// Its output choice — which of the two doors the commit button
@@ -1006,8 +995,8 @@ pub(crate) struct NameDraft {
 
 impl Default for Drafts {
     /// The creation forms' sensible defaults (the GAUTH-1 spec): a
-    /// 10 mm circle or rectangle, a 10 mm extrude, a full-turn revolve,
-    /// a split plane and a pattern axis through the origin along +z.
+    /// 10 mm circle or rectangle, a split plane and a pattern axis
+    /// through the origin along +z.
     /// Everything else starts empty.
     fn default() -> Self {
         Self {
@@ -1049,10 +1038,6 @@ impl Default for Drafts {
             profile_radius: 0.01,
             profile_extent: [0.01, 0.01],
             profile_more: Vec::new(),
-            extrude_distance: 0.01,
-            revolve_angle: core::f64::consts::TAU,
-            revolve_axis_through: Point2::origin(),
-            revolve_axis_heading: core::f64::consts::FRAC_PI_2,
             pattern_kind: PatternLayoutChoice::Linear,
             pattern_output: PatternOutputChoice::Instances,
             pattern_count: 3,

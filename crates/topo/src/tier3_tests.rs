@@ -1394,7 +1394,7 @@ fn a_planted_arc_past_a_turn_is_typed_at_rest_and_a_kernel_bug_at_a_re_mint() {
         start,
         end,
         |_| None,
-        1.0,
+        geom_core::test_support::fixture_lever(1.0),
         coarse,
         geom_brep::NurbsLane::certified(),
     )
@@ -1479,7 +1479,7 @@ fn pillow_with_an_arc_past_a_turn_in(
         start,
         end,
         |k| body.get_surface(k).cloned(),
-        1.0,
+        geom_core::test_support::fixture_lever(1.0),
         coarse,
         geom_brep::NurbsLane::certified(),
     )
@@ -2439,7 +2439,7 @@ fn the_must_carry_rule_and_tier_3_answer_one_family_through_one_walk() {
             &carrier,
             0.0,
             1.0,
-            reach,
+            geom_core::test_support::fixture_lever(reach),
             band,
         )
     };
@@ -2861,7 +2861,7 @@ fn material_reads_stop_with_their_decided_margin_and_end_as_their_decision() {
             sin_theta: 0.0,
             kappa_rel,
         },
-        arm,
+        arm: geom_core::test_support::fixture_lever(arm),
     };
     // Check 4's one push of a stop.
     let finding = |stop: crate::validate::MaterialStop| ValidationError::SliverDihedral {
@@ -2881,7 +2881,13 @@ fn material_reads_stop_with_their_decided_margin_and_end_as_their_decision() {
     ] {
         let wall = leaning(degrees);
         assert_eq!(
-            geom_brep::classify_dihedral(&floor, &wall, origin, arm, band),
+            geom_brep::classify_dihedral(
+                &floor,
+                &wall,
+                origin,
+                geom_core::test_support::fixture_lever(arm),
+                band
+            ),
             Ok(geom_brep::DihedralClass::Smooth),
             "{label}: check 4 reaches the pairing"
         );
@@ -3677,7 +3683,13 @@ fn an_inside_out_slab_just_past_the_band_is_refused() {
 /// point of itself (the planes at their feet on the world's axes, the
 /// cylinder at `z = 0` on its axis), as a construction that places
 /// its carriers' origins away from the body does.
-fn half_disc(r: f64, h: f64, (cx, cy, z0): (f64, f64, f64), far: bool, tol: Tol) -> Body<f64> {
+pub(crate) fn half_disc(
+    r: f64,
+    h: f64,
+    (cx, cy, z0): (f64, f64, f64),
+    far: bool,
+    tol: Tol,
+) -> Body<f64> {
     let k = if far { 0.0 } else { 1.0 };
     let mut p = crate::fixtures::raw_prism(2, tol);
     let xy = [(cx + r, cy), (cx - r, cy)];

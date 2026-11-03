@@ -46,7 +46,6 @@ use crate::combine::{
 use crate::matetool::{MateTool, MateToolEvent};
 use crate::pickcache::NotIndexed;
 use crate::pickindex::{PickIndex, PickKinds};
-use crate::revolvetool::RevolveTool;
 use crate::seats::SeatEvent;
 use crate::session::{Selection, SessionOp};
 use crate::vocab::vocabulary;
@@ -58,8 +57,6 @@ vocabulary! {
     pub enum ToolKind {
         /// The mate tool: two picks, a face, an edge or a vertex each.
         Mate,
-        /// The revolve tool: a profile and an axis.
-        Revolve,
         /// The boolean tool: any number of bodies for union and
         /// intersect, two for subtract.
         Boolean,
@@ -105,7 +102,6 @@ impl ToolKind {
     pub fn label(self) -> &'static str {
         match self {
             Self::Mate => "mate",
-            Self::Revolve => "revolve",
             Self::Boolean => "boolean",
             Self::Split => "split",
             Self::Transform => "transform",
@@ -172,9 +168,6 @@ impl ToolKind {
             // seats are picked in the tree.
             Self::Mate | Self::Mirror | Self::Clearance => PickKinds::FacesOnly,
             Self::Blend => PickKinds::EdgesOnly,
-            // Its one seat reads a profile, which a click on the
-            // profile's outline picks.
-            Self::Revolve => PickKinds::Any,
             // Their seats read bodies, picked through a face or an
             // edge; none reads a profile, so none is offered one.
             Self::Boolean
@@ -194,7 +187,6 @@ impl ToolKind {
     pub fn commits(self, op: &SessionOp) -> bool {
         match self {
             Self::Mate
-            | Self::Revolve
             | Self::Boolean
             | Self::Split
             | Self::Transform
@@ -214,7 +206,6 @@ impl ToolKind {
 /// commits a [`SessionOp::Place`] or a [`SessionOp::SetBundle`].
 fn committed_by(op: &SessionOp) -> Option<ToolKind> {
     match op {
-        SessionOp::AddRevolve { .. } => Some(ToolKind::Revolve),
         SessionOp::AddBoolean { .. } => Some(ToolKind::Boolean),
         SessionOp::AddSplit { .. } => Some(ToolKind::Split),
         SessionOp::AddMirror { .. } => Some(ToolKind::Mirror),
@@ -280,6 +271,7 @@ fn committed_by(op: &SessionOp) -> Option<ToolKind> {
         | SessionOp::AddDrawnProfile { .. }
         | SessionOp::EditProfile { .. }
         | SessionOp::AddExtrude { .. }
+        | SessionOp::AddRevolve { .. }
         | SessionOp::AddInstance { .. }
         | SessionOp::AcceptPartVersion { .. } => None,
     }
@@ -363,15 +355,18 @@ fn compose(name: &str, what: &impl core::fmt::Display) -> String {
 vocabulary! {
     /// **A panel or field that commits and is not one of the modal
     /// tools** ([`ToolKind`]), named by what it does: the creation
-    /// pane's add-profile and extrude forms, the profile
+    /// pane's add-profile form, the extrude and revolve buttons beside
+    /// a selected profile, the profile
     /// editor's apply, and the label field a create form and
     /// the properties pane each carry.
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub enum FormKind {
         /// The creation pane's add-profile form.
         AddProfile,
-        /// The creation pane's extrude form.
+        /// The extrude button beside a selected profile.
         Extrude,
+        /// The revolve button beside a selected profile.
+        Revolve,
         /// The profile editor's apply.
         EditProfile,
         /// A node's label field, on a create form or in the properties
@@ -389,6 +384,7 @@ impl FormKind {
         match self {
             Self::AddProfile => "add profile",
             Self::Extrude => "extrude",
+            Self::Revolve => "revolve",
             Self::EditProfile => "edit profile",
             Self::Label => "label",
         }
@@ -479,8 +475,6 @@ impl ToolNotice {
 pub enum OpenTool {
     /// The mate tool.
     Mate(MateTool),
-    /// The revolve tool.
-    Revolve(RevolveTool),
     /// The boolean tool.
     Boolean(BooleanTool),
     /// The split tool.
@@ -508,7 +502,6 @@ impl OpenTool {
     pub fn kind(&self) -> ToolKind {
         match self {
             Self::Mate(_) => ToolKind::Mate,
-            Self::Revolve(_) => ToolKind::Revolve,
             Self::Boolean(_) => ToolKind::Boolean,
             Self::Split(_) => ToolKind::Split,
             Self::Transform(_) => ToolKind::Transform,
@@ -578,7 +571,6 @@ impl Tools {
     pub fn open(&mut self, kind: ToolKind) {
         self.open = Some(match kind {
             ToolKind::Mate => OpenTool::Mate(MateTool::new()),
-            ToolKind::Revolve => OpenTool::Revolve(RevolveTool::new()),
             ToolKind::Boolean => OpenTool::Boolean(BooleanTool::new()),
             ToolKind::Split => OpenTool::Split(SplitTool::new()),
             ToolKind::Transform => OpenTool::Transform(TransformTool::new()),
@@ -624,14 +616,6 @@ impl Tools {
     /// `edit` and `remove`), closing whatever was open.
     pub fn open_mate(&mut self, tool: MateTool) {
         self.open = Some(OpenTool::Mate(tool));
-    }
-
-    /// The open revolve tool.
-    pub fn revolve(&self) -> Option<RevolveTool> {
-        match &self.open {
-            Some(OpenTool::Revolve(tool)) => Some(tool.clone()),
-            _ => None,
-        }
     }
 
     /// The open boolean tool.
@@ -856,9 +840,6 @@ impl Tools {
                         notices.extend(tool.pick(doc, edge, index).map(ToolNotice::Blend));
                     }
                 }
-                Some(OpenTool::Revolve(tool)) => {
-                    on_node_pick(selection, |node| tool.pick(doc, node));
-                }
                 Some(OpenTool::Boolean(tool)) => {
                     on_body_pick(selection, |node, body| tool.pick_at(doc, node, body));
                 }
@@ -925,7 +906,6 @@ impl Tools {
             Some(OpenTool::Transform(tool)) => tool.respeak(doc),
             Some(OpenTool::Mate(tool)) => tool.respeak(doc),
             Some(OpenTool::Blend(tool)) => tool.respeak(doc),
-            Some(OpenTool::Revolve(tool)) => tool.respeak(doc),
             Some(OpenTool::Boolean(tool)) => tool.respeak(doc),
             Some(OpenTool::Split(tool)) => tool.respeak(doc),
             Some(OpenTool::Pattern(tool)) => tool.respeak(doc),
@@ -947,8 +927,7 @@ impl Tools {
             Some(OpenTool::Clearance(tool)) => tool.held(),
             None
             | Some(
-                OpenTool::Revolve(_)
-                | OpenTool::Boolean(_)
+                OpenTool::Boolean(_)
                 | OpenTool::Split(_)
                 | OpenTool::Transform(_)
                 | OpenTool::Pattern(_)
@@ -967,7 +946,6 @@ impl Tools {
             | Some(
                 OpenTool::Mate(_)
                 | OpenTool::Blend(_)
-                | OpenTool::Revolve(_)
                 | OpenTool::Transform(_)
                 | OpenTool::Part(_)
                 | OpenTool::Clearance(_),
@@ -1016,7 +994,6 @@ impl Tools {
                     None => Vec::new(),
                 };
             }
-            OpenTool::Revolve(tool) => tool.reconcile(doc),
             OpenTool::Boolean(tool) => tool.reconcile(doc),
             OpenTool::Split(tool) => tool.reconcile(doc),
             OpenTool::Transform(tool) => {

@@ -469,7 +469,8 @@ fn a_decided_zero_chain_arm_ends_as_its_in_band_sibling_does() {
     let mid = (b.zero() + b.escalate()) / 2.0;
     let short = b.zero() / 2.0;
     for (arm, what) in [(mid, "in band"), (short, "decided zero")] {
-        let err = chain_g1(x, x, arm, v, b).unwrap_err();
+        let lever = || geom_core::test_support::fixture_lever(arm);
+        let err = chain_g1(x, x, lever(), v, b).unwrap_err();
         assert!(
             matches!(
                 err,
@@ -503,7 +504,7 @@ fn a_decided_zero_chain_arm_ends_as_its_in_band_sibling_does() {
             continue;
         };
         let tighter = Band::new(offered / 2.0, offered / 2.0 * k).expect("a tighter band");
-        chain_g1(x, x, arm, v, tighter)
+        chain_g1(x, x, lever(), v, tighter)
             .unwrap_or_else(|e| panic!("{what}: below the offer the junction passes: {e}"));
     }
 }

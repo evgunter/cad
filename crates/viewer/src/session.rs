@@ -3467,11 +3467,11 @@ impl DocSession {
     /// Insert one profile node ([`SessionOp::AddProfile`]), drawn on its
     /// own plane.
     ///
-    /// No loop-count or nesting judgment here: an empty list, a
-    /// degenerate loop and a non-nested pair all go to `commit`, where
-    /// the edit door's authoring-time check refuses them typed in the
-    /// profile layer's own words — the one rule authored and
-    /// hand-written programs share.
+    /// No loop-count or nesting judgment here: every list goes to
+    /// `commit`, where the edit door's authoring-time check refuses a
+    /// degenerate loop or a non-nested pair typed in the profile
+    /// layer's own words — the one rule authored and hand-written
+    /// programs share. An empty list is the empty region, and inserts.
     fn add_profile(&self, loops: Vec<LoopProgram<Formula>>) -> Result<Creating, Refusal> {
         Ok(creating(move |run| {
             run.insert(Node::Profile(ProfileProgram {
@@ -6390,8 +6390,8 @@ mod tests {
     use pncad::geom_core::Tol;
 
     /// **An action that swallows a refusal commits nothing.** The
-    /// action lands a square profile, has an empty one refused (an
-    /// empty loop list), ignores the refusal, lands a second square and
+    /// action lands a square profile, has a degenerate one refused (a
+    /// zero-radius circle), ignores the refusal, lands a second square and
     /// answers success; the door still refuses the whole action, so
     /// neither square is committed. This reds if the run goes on past a
     /// refusal, which would commit the two squares around it.
@@ -6403,8 +6403,16 @@ mod tests {
         let before = session.history().len();
         let outcome = session.commit_run(|run| {
             run.insert(square())?;
+            let degenerate = crate::sketch::loop_program(
+                &crate::session::ProfileShape::Circle {
+                    centre: [0.0, 0.0],
+                    radius: 0.0,
+                },
+                crate::props::Notation::CANONICAL,
+            )
+            .expect("a zero radius lowers");
             let _ = run.insert(Node::Profile(ProfileProgram {
-                loops: Vec::new(),
+                loops: vec![degenerate],
                 ids: Vec::new(),
                 on: None,
             }));

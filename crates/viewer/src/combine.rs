@@ -4,8 +4,8 @@
 //!
 //! # Shape
 //!
-//! The revolve tool's shape, once per tool here, on the shared seat
-//! machinery [`crate::seats`] carries: single-select stays ruled (GQ7), so
+//! One shape per tool here, on the shared seat machinery
+//! [`crate::seats`] carries: single-select stays ruled (GQ7), so
 //! each tool holds its picks in tool state and consumes the ordinary
 //! selection stream — a tree click is a node pick directly, a viewport
 //! face or edge pick reaches the node whose DRAWN body the ray met

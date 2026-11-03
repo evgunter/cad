@@ -29,8 +29,8 @@ use geom::Curve3;
 use geom::Surface;
 use geom_core::period::{Exact, Extent, NotForward, TurnRate, TurnRows};
 use geom_core::{
-    Band, Decide, Indeterminate, InfSpeed, LeveredUnitError, Margin, Point3, Real, RigidMotion,
-    Sign, UNIT_DIRECTION_ARM, UnitVec3, UnitVec3Error, Vec3,
+    Band, Decide, Indeterminate, InfSpeed, Lever, LeveredUnitError, Margin, Point3, Real,
+    RigidMotion, Sign, UNIT_DIRECTION_ARM, UnitVec3, UnitVec3Error, Vec3,
 };
 
 use super::closure::{self, ChartLoop, EdgeTurn, Joint};
@@ -596,7 +596,12 @@ pub fn require_one_chart_branch<T: Decide>(
         } => {
             for (i, e) in outer.iter().enumerate() {
                 let Curve3::Circle(geom::Circle {
-                    frame: geom::Frame { axis: n_c, .. },
+                    frame:
+                        geom::Frame {
+                            center: c_c,
+                            axis: n_c,
+                            ..
+                        },
                     radius: r_c,
                 }) = e.carrier
                 else {
@@ -606,7 +611,10 @@ pub fn require_one_chart_branch<T: Decide>(
                 // rim/meridian split, on the parse's own margin.
                 if classify(
                     "props_circle_axis_class",
-                    Margin::levered(n_c.dot(axis), r_c),
+                    Margin::levered(
+                        n_c.dot(axis),
+                        crate::ExtentBall::of_circle(c_c, r_c).lever(),
+                    ),
                     band,
                     PropsCheck::Inventory,
                 )? != Sign::Zero
@@ -619,7 +627,11 @@ pub fn require_one_chart_branch<T: Decide>(
                 // the parse's own names.
                 for (m, _) in sphere_meridian_pole_margins(e, center, radius, axis, n_c, band)? {
                     if matches!(
-                        decide("props_meridian_pole", Margin::levered(m, radius), band),
+                        decide(
+                            "props_meridian_pole",
+                            Margin::levered(m, Lever::curvature_radius(radius)),
+                            band
+                        ),
                         Ok(Sign::Positive)
                     ) {
                         return Err(PropsError::NotOneChartBranch {
@@ -827,8 +839,8 @@ fn require_extent<T: Decide>(margin: Margin<T>, band: Band) -> Result<(), PropsE
 /// axis origin:
 ///
 /// - carrier axis **parallel** to the surface axis
-///   (`props_rim_axis_parallel`): `‖n_c × â‖·r_c`, the tilt metered at
-///   the rim radius;
+///   (`props_rim_axis_parallel`): `‖n_c × â‖·r_c`, the tilt levered over
+///   the rim circle (`rim`);
 /// - rim centre **on the axis line** (`props_rim_center_on_axis`):
 ///   `‖w − â(w·â)‖`.
 ///
@@ -840,13 +852,13 @@ fn require_extent<T: Decide>(margin: Margin<T>, band: Band) -> Result<(), PropsE
 fn require_rim_incidence<T: Decide>(
     w: Vec3<T>,
     n_c: Vec3<T>,
-    r_c: T,
+    rim: Lever<T>,
     axis: Vec3<T>,
     band: Band,
 ) -> Result<(), PropsError> {
     require_zero(
         "props_rim_axis_parallel",
-        Margin::levered(n_c.cross(axis).norm(), r_c),
+        Margin::levered(n_c.cross(axis).norm(), rim),
         band,
         Premise::Inventory,
     )?;
@@ -947,12 +959,14 @@ impl<T: Decide> Rim<T> {
 /// but the torus, which is why one scalar was enough until it was not.
 #[derive(Clone, Copy)]
 struct RimArms<T> {
-    /// The lever a [`RimLevel::Unit`] difference turns about.
+    /// The lever a [`RimLevel::Unit`] difference turns about: the
+    /// surface's radius of curvature across the rims.
     /// **Never consumed for a [`RimLevel::Length`] kind** — an axial or
     /// slant level difference is already the point deviation and
     /// reaches the funnel bare.
-    level: T,
-    /// The lever an azimuthal difference (Δu) turns about.
+    level: Lever<T>,
+    /// The rate (metres per radian) an azimuthal difference (Δu) is
+    /// metered at.
     azimuth: T,
 }
 
@@ -962,7 +976,7 @@ impl<T: Real> RimArms<T> {
     /// rim's own radius, [`cone_arm`]).
     fn uniform(r: T) -> Self {
         Self {
-            level: r,
+            level: Lever::curvature_radius(r),
             azimuth: r,
         }
     }
@@ -970,7 +984,10 @@ impl<T: Real> RimArms<T> {
     /// The torus: a minor-circle direction pair moves a point at
     /// `minor`, an azimuthal angle moves one at `major`.
     fn split(level: T, azimuth: T) -> Self {
-        Self { level, azimuth }
+        Self {
+            level: Lever::curvature_radius(level),
+            azimuth,
+        }
     }
 }
 
@@ -1817,7 +1834,7 @@ fn cylinder_boundary<T: Decide>(
                 // leaves the cylinder to second.
                 require_zero(
                     "props_meridian_axial",
-                    Margin::levered(dir.cross(axis).norm(), e.t1 - e.t0),
+                    Margin::metered(e.t1 - e.t0, InfSpeed::new(dir.cross(axis).norm())),
                     band,
                     Premise::Inventory,
                 )?;
@@ -1832,7 +1849,10 @@ fn cylinder_boundary<T: Decide>(
             }) => {
                 let s = classify(
                     "props_circle_axis_class",
-                    Margin::levered(n_c.dot(axis), r_c),
+                    Margin::levered(
+                        n_c.dot(axis),
+                        crate::ExtentBall::of_circle(center, r_c).lever(),
+                    ),
                     band,
                     PropsCheck::Inventory,
                 )?;
@@ -1852,7 +1872,10 @@ fn cylinder_boundary<T: Decide>(
                 // one whose centre is `o` off the axis by `o`.
                 require_zero(
                     "props_cylinder_circle_tilt",
-                    Margin::levered(T::one() - n_c.dot(axis).abs(), r_c),
+                    Margin::levered(
+                        T::one() - n_c.dot(axis).abs(),
+                        crate::ExtentBall::of_circle(center, r_c).lever(),
+                    ),
                     band,
                     Premise::OnSurface,
                 )?;
@@ -1863,7 +1886,13 @@ fn cylinder_boundary<T: Decide>(
                     band,
                     Premise::OnSurface,
                 )?;
-                require_rim_incidence(w, n_c, r_c, axis, band)?;
+                require_rim_incidence(
+                    w,
+                    n_c,
+                    crate::ExtentBall::of_circle(center, r_c).lever(),
+                    axis,
+                    band,
+                )?;
                 let v = (center - origin).dot(axis);
                 // The axial arc length itself — meters.
                 rims.push(Rim::decided(
@@ -2259,9 +2288,10 @@ fn require_cone_circle<T: Decide>(
     r_c: T,
     band: Band,
 ) -> Result<Sign, PropsError> {
+    let rim = crate::ExtentBall::of_circle(center, r_c).lever();
     let s = classify(
         "props_circle_axis_class",
-        Margin::levered(n_c.dot(axis), r_c),
+        Margin::levered(n_c.dot(axis), rim),
         band,
         PropsCheck::Inventory,
     )?;
@@ -2282,14 +2312,19 @@ fn require_cone_circle<T: Decide>(
         "props_cone_circle_tilt",
         Margin::levered(
             n_c.cross(axis).norm() * sin_a + (T::one() - cos_t) * cos_a,
-            r_c,
+            rim,
         ),
         band,
         Premise::OnSurface,
     )?;
     require_zero(
         "props_cone_circle_off_axis",
-        Margin::levered(cos_a, (w - axis * w.dot(axis)).norm()),
+        // Unsourced lever: the rim centre's measured offset from the axis,
+        // a residual projected by `cos α`, not an extent, curvature or rate.
+        Margin::levered(
+            cos_a,
+            geom_core::Lever::unsourced((w - axis * w.dot(axis)).norm()),
+        ),
         band,
         Premise::OnSurface,
     )?;
@@ -2474,7 +2509,12 @@ fn require_cone_generator<T: Decide>(
         "props_meridian_generator",
         Margin::levered(
             cone_offset(dir.cross(axis).norm(), dir.dot(axis).abs(), sin_a, cos_a),
-            (e.p0() - apex).norm().max((e.p1() - apex).norm()),
+            crate::Reach::Span {
+                carrier: e.carrier.clone(),
+                t0: e.t0,
+                t1: e.t1,
+            }
+            .lever_from(apex),
         ),
         band,
         Premise::Inventory,
@@ -2665,7 +2705,7 @@ fn require_cone_holes<T: Decide>(
 /// unless the loop has gone round the axis between them, which is a
 /// seam's two copies of one vertex, a period apart on the chart
 /// (`props_cone_loop_vertex_sheet`: the azimuth the loop turns between
-/// them, a whole number of turns, against half a turn, levered by the
+/// them, a whole number of turns, against half a turn, metered at the
 /// vertex's radius). A vertex on the apex has no azimuth, and a loop
 /// that passes the apex twice is pinched there.
 fn require_cone_loop_vertices_distinct<T: Decide>(
@@ -2700,7 +2740,7 @@ fn require_cone_loop_vertices_distinct<T: Decide>(
             let rho = (r - axis * r.dot(axis)).norm();
             if classify(
                 "props_cone_loop_vertex_sheet",
-                Margin::levered((a - b).abs() - T::pi(), rho),
+                Margin::metered((a - b).abs() - T::pi(), InfSpeed::new(rho)),
                 band,
                 PropsCheck::Inventory,
             )? != Sign::Positive
@@ -2863,7 +2903,7 @@ fn cone_loop_winding<T: Decide>(
         arm = arm.max(a.norm()).max(b.norm());
         let sense = |n: Vec3<T>, rho: T| match classify(
             "props_cone_arc_sense",
-            Margin::levered(n.dot(axis), rho),
+            Margin::levered(n.dot(axis), Lever::curvature_radius(rho)),
             band,
             PropsCheck::Inventory,
         )? {
@@ -2904,7 +2944,7 @@ fn cone_loop_winding<T: Decide>(
                     thirds = thirds
                         + match classify(
                             "props_cone_arc_turn",
-                            Margin::levered(principal * sense, rho),
+                            Margin::metered(principal * sense, InfSpeed::new(rho)),
                             band,
                             PropsCheck::Inventory,
                         )? {
@@ -3006,7 +3046,13 @@ fn cone_boundary<T: Decide>(
                 radius: r_c,
             }) => {
                 let s = require_cone_circle(apex, axis, sin_a, cos_a, center, n_c, r_c, band)?;
-                require_rim_incidence(center - apex, n_c, r_c, axis, band)?;
+                require_rim_incidence(
+                    center - apex,
+                    n_c,
+                    crate::ExtentBall::of_circle(center, r_c).lever(),
+                    axis,
+                    band,
+                )?;
                 let v = (center - apex).dot(axis) / cos_a;
                 // The signed slant arc length itself — meters.
                 rims.push(Rim::decided(
@@ -3469,7 +3515,7 @@ fn require_solid_angle<T: Decide>(
 ) -> Result<(), PropsError> {
     match classify(
         name,
-        Margin::levered(angle, radius),
+        Margin::levered(angle, Lever::curvature_radius(radius)),
         band,
         PropsCheck::Inventory,
     )? {
@@ -3718,7 +3764,7 @@ fn require_cusp_free<T: Decide>(
 ) -> Result<(), PropsError> {
     match classify(
         "props_sphere_loop_cusp",
-        Margin::levered((depart + arrive).norm(), radius),
+        Margin::levered((depart + arrive).norm(), Lever::curvature_radius(radius)),
         band,
         PropsCheck::Exact,
     )? {
@@ -3785,7 +3831,10 @@ fn side_of_sphere_loops<T: Decide>(
             for (left, side) in [(true, Sign::Positive), (false, Sign::Negative)] {
                 if classify(
                     "props_sphere_face_area",
-                    Margin::levered(claimed_area(center, gauss, left), radius),
+                    Margin::levered(
+                        claimed_area(center, gauss, left),
+                        Lever::curvature_radius(radius),
+                    ),
                     band,
                     PropsCheck::Inventory,
                 )? == Sign::Positive
@@ -4111,7 +4160,10 @@ pub fn sphere_region_cover<T: Decide>(
     // Above the threshold `c` spheres, below it, or in its band.
     let above = |c: f64| match classify(
         "props_sphere_region_cover",
-        Margin::levered(census - T::from_computed(c) * sphere, region.radius),
+        Margin::levered(
+            census - T::from_computed(c) * sphere,
+            Lever::curvature_radius(region.radius),
+        ),
         band,
         PropsCheck::Inventory,
     ) {
@@ -4217,7 +4269,7 @@ fn pole_side<T: Decide>(
     Ok(
         match classify(
             "props_sphere_pole_winding",
-            Margin::levered(turning, radius),
+            Margin::levered(turning, Lever::curvature_radius(radius)),
             band,
             PropsCheck::Inventory,
         )? {
@@ -4438,7 +4490,10 @@ fn arc_point_margin<T: Decide>(arc: &SphereArc<T>, p: Point3<T>) -> Margin<T> {
     let rr = arc.radius.powi(2);
     let q = p - arc.centre;
     let (ps, pc) = (q.dot(w0) / rr, q.dot(arc.axis.cross(w0)) / rr);
-    Margin::levered(span_membership(ps, pc, arc.extent.get()), arc.radius)
+    Margin::levered(
+        span_membership(ps, pc, arc.extent.get()),
+        Lever::curvature_radius(arc.radius),
+    )
 }
 
 /// **The rim span door**: [`require_circle_span`] at a coaxial
@@ -4703,7 +4758,11 @@ fn sphere_meridian_span_levels<T: Decide>(
         // poison makes the folded `±r0` poison too, which the extent
         // and level decides downstream refuse typed; a poisoned span
         // is refused upstream by certification before this parse.
-        match decide("props_meridian_pole", Margin::levered(m, radius), band) {
+        match decide(
+            "props_meridian_pole",
+            Margin::levered(m, Lever::curvature_radius(radius)),
+            band,
+        ) {
             Ok(Sign::Positive | Sign::Zero) | Err(_) => {
                 levels.push(extreme);
                 cosines.push(T::zero());
@@ -4756,7 +4815,10 @@ fn sphere_boundary<T: Decide>(
         };
         let s = classify(
             "props_circle_axis_class",
-            Margin::levered(n_c.dot(axis), r_c),
+            Margin::levered(
+                n_c.dot(axis),
+                crate::ExtentBall::of_circle(c_c, r_c).lever(),
+            ),
             band,
             PropsCheck::Inventory,
         )?;
@@ -4773,7 +4835,13 @@ fn sphere_boundary<T: Decide>(
                 // must also point ALONG the axis (w ∥ â) with the
                 // carrier axis parallel — together they place the
                 // circle on the sphere as the iso-v rim.
-                require_rim_incidence(w, n_c, r_c, axis, band)?;
+                require_rim_incidence(
+                    w,
+                    n_c,
+                    crate::ExtentBall::of_circle(c_c, r_c).lever(),
+                    axis,
+                    band,
+                )?;
                 let sin_v = w.dot(axis) / radius;
                 let cos_v = r_c / radius;
                 // Dimensionless latitude DIRECTION pair, both
@@ -4940,7 +5008,7 @@ fn fold_torus_pieces<T: Decide>(pieces: Vec<TorusPiece<'_, T>>, minor: T) -> Vec
         same && matches!(
             decide(
                 "props_torus_pieces_meet",
-                Margin::levered(gap, minor),
+                Margin::metered(gap, InfSpeed::new(minor)),
                 exact_band()
             ),
             Ok(Sign::Zero)
@@ -5465,7 +5533,10 @@ fn torus_classify<'a, T: Decide>(
         };
         let s = classify(
             "props_circle_axis_class",
-            Margin::levered(n_c.dot(axis), r_c),
+            Margin::levered(
+                n_c.dot(axis),
+                crate::ExtentBall::of_circle(c_c, r_c).lever(),
+            ),
             band,
             PropsCheck::Inventory,
         )?;
@@ -5476,11 +5547,20 @@ fn torus_classify<'a, T: Decide>(
                 let cos_v = (r_c - major) / minor;
                 require_zero(
                     "props_rim_fit",
-                    Margin::levered((sin_v.powi(2) + cos_v.powi(2)).sqrt() - T::one(), minor),
+                    Margin::levered(
+                        (sin_v.powi(2) + cos_v.powi(2)).sqrt() - T::one(),
+                        Lever::curvature_radius(minor),
+                    ),
                     band,
                     Premise::Inventory,
                 )?;
-                require_rim_incidence(c_c - center, n_c, r_c, axis, band)?;
+                require_rim_incidence(
+                    c_c - center,
+                    n_c,
+                    crate::ExtentBall::of_circle(c_c, r_c).lever(),
+                    axis,
+                    band,
+                )?;
                 // Dimensionless minor-angle direction pair.
                 let level = RimLevel::Unit(sin_v, cos_v);
                 classified.push(TorusEdge::Rim(Rim::decided(
@@ -5652,7 +5732,7 @@ fn fold_chain<T: Decide>(
             let gap = if forward { b.t0 - a.t1 } else { a.t0 - b.t1 };
             if classify(
                 "props_meridian_pieces_meet",
-                Margin::levered(gap, minor),
+                Margin::metered(gap, InfSpeed::new(minor)),
                 exact,
                 PropsCheck::Inventory,
             )? != Sign::Zero
@@ -5708,7 +5788,7 @@ fn torus_meridian_orient<T: Decide>(
 ) -> Result<Sign, PropsError> {
     // The axis is a pure number, levered by the anchor meridian's reach
     // from the torus centre, where the frame it aims is consumed.
-    let reach = (c_c - center).norm() + minor;
+    let reach = crate::ExtentBall::of_circle(c_c, minor).lever_from(center);
     let aim = UnitVec3::levered(axis, "props_torus_axis", band, reach).map_err(|e| match e {
         LeveredUnitError::Direction(e) => {
             torus_frame_refused(e, "props_torus_axis", "torus axis length not measurable")
@@ -5738,7 +5818,10 @@ fn torus_meridian_orient<T: Decide>(
     let tau = frame.v().get();
     let orient = classify(
         "props_meridian_orient",
-        Margin::levered(n_c.dot(tau), minor),
+        Margin::levered(
+            n_c.dot(tau),
+            crate::ExtentBall::of_circle(c_c, minor).lever(),
+        ),
         band,
         PropsCheck::Inventory,
     )?;
