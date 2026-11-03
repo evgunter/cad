@@ -6376,11 +6376,9 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
             a.resolve_vertex_point(c.a, Proven),
             b.resolve_vertex_point(c.b, Proven),
         );
-        // The pair's tie: how far each partner stands off the other's point.
-        let tie = (a_at - b_at).norm();
-        for (operand, vertex, own, other, partner, at) in [
-            (Operand::A, c.a, &a_sectors, &b_sectors, c.b, b_at),
-            (Operand::B, c.b, &b_sectors, &a_sectors, c.a, a_at),
+        for (operand, vertex, own, other, partner, at, own_at) in [
+            (Operand::A, c.a, &a_sectors, &b_sectors, c.b, b_at, a_at),
+            (Operand::B, c.b, &b_sectors, &a_sectors, c.a, a_at, b_at),
         ] {
             let pair = vtxfac::Partner {
                 vertex: partner,
@@ -6397,8 +6395,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
                         partner,
                         along,
                     };
-                    let rd = crate::link::metric::Reading::tied(band, tie);
-                    match vtxfac::partner_side(other, touch.datum, touch.flush, rd)? {
+                    match vtxfac::partner_side(&pair, own_at, touch.datum, touch.flush, band)? {
                         vtxfac::PartnerRead::Side { along: on } => {
                             if on {
                                 along.get_or_insert(along_face(AlongFace::FacesInOnePlane));

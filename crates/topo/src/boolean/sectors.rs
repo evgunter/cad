@@ -938,55 +938,53 @@ pub(super) fn bound_read<T: Decide>(
 /// **A bound's side of a face, as a cone is handed it**
 /// ([`crate::link::Cone::reads_given`]): the one bound-side reading
 /// ([`crate::bound_side::read`], with its descent) on the cone's
-/// reading, as the side of the face's plane it gives: off the face, or
-/// on it where the bound rides it to the orders read. Where it gives
-/// none, why ([`Ungiven`]): each site says what that hands the cone.
-/// Handed no side, the cone reads that sector's side of the bound's
-/// point itself, and refuses by its own cause only where the sector
-/// holds the point: a bound in band of a face's plane far outside the
-/// face is read off it.
+/// reading, as the side of the face's plane it gives — off the face, or
+/// on it where the bound rides it to the orders read — and, where it
+/// gives none, what the site hands instead. A bound tied at first order
+/// whose descent parts from the face to no order read (a parting in the
+/// band's gap or within the slack, an uncertified bend, a conic's bend on
+/// a plane that reads no side) is handed as `unparted` says. A reading
+/// in band (at first order, its charge or the descent's own arm) hands
+/// nothing. Handed nothing, the cone reads that sector's side of the
+/// bound's point itself and refuses by its own cause only where the
+/// sector holds the point: a bound in band of a face's plane far outside
+/// the face is read off it.
 pub(crate) fn given_side<T: Decide>(
     dir: Vec3<T>,
     reach: BoundSupport<T>,
     face: FaceDatum<T>,
     rd: Reading<T>,
-) -> Result<Sign, Ungiven> {
+    unparted: Unparted,
+) -> Option<Sign> {
+    let on_face = match unparted {
+        Unparted::OnTheFace => Some(Sign::Zero),
+        Unparted::Nothing => None,
+    };
     let side = match crate::bound_side::read(dir, reach, face, rd) {
         Ok(FirstOrder::Off(side)) => side,
         Ok(FirstOrder::Tied(tie)) => match tie.descend() {
             Ok(Descent::Leaves(side)) => side,
-            Ok(Descent::Rides) => return Ok(Sign::Zero),
-            Ok(Descent::Unresolved(crate::bound_side::Unresolved::Slack)) => {
-                return Err(Ungiven::Slack);
-            }
-            Ok(Descent::Unresolved(_)) | Err(ReadFault::Bend(_)) => {
-                return Err(Ungiven::Unresolved);
-            }
-            Err(_) => return Err(Ungiven::Undecided),
+            Ok(Descent::Rides) => return Some(Sign::Zero),
+            Ok(Descent::Unresolved(_)) | Err(ReadFault::Bend(_)) => return on_face,
+            Err(_) => return None,
         },
-        Err(BoundSideFault::Read(ReadFault::Bend(_))) => return Err(Ungiven::Unresolved),
-        Err(_) => return Err(Ungiven::Undecided),
+        Err(BoundSideFault::Read(ReadFault::Bend(_))) => return on_face,
+        Err(_) => return None,
     };
-    Ok(code_of(side).plane_side())
+    Some(code_of(side).plane_side())
 }
 
-/// Why [`given_side`] gave no side.
+/// **What a cone site hands for a bound tied with a face that parts from
+/// it to no order read** ([`given_side`]), each site's choice by name.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum Ungiven {
-    /// The bound tied with the face at first order and its descent
-    /// parted from it to no order read on the band: a parting in the
-    /// band's gap, an uncertified bend, or a conic's bend on a plane that
-    /// reads no side ([`BooleanDecision::ConicBend`]). What
-    /// [`bound_read`] reads `On`, and the vertex-on-face pass holds on the
-    /// face.
-    Unresolved,
-    /// The descent reads no side clear of the reading's slack
-    /// ([`crate::bound_side::Unresolved::Slack`]): a side a tie's offset
-    /// could move. What [`bound_read`] reads `On`.
-    Slack,
-    /// Any other reading in band: at first order, its charge, or the
-    /// descent's own arm.
-    Undecided,
+pub(crate) enum Unparted {
+    /// On the face (`Zero`): its `On(k)` is the coincidence ladder's, or a
+    /// typed refusal (recl's line cone, its held face).
+    OnTheFace,
+    /// Nothing: the cone reads the bound's point itself, so an edge a
+    /// slack hides is read in band, not published on the face
+    /// (`vtxfac::cone_classes`).
+    Nothing,
 }
 
 /// A side of a face as a sector code: into the material (against the

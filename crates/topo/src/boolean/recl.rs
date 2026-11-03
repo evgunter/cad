@@ -580,21 +580,16 @@ fn flank_read<T: Decide>(
 /// **A representative's side of a sheet's face in a line cone**
 /// ([`resolve_edge_edge`]): the one bound-side reading, on the cone's
 /// reading, as [`flank_read`] reads a flanker against its reference. A
-/// bound its descent leaves unresolved, on the band or over the cone's
-/// slack, is on the face, as [`flank_read`] keys it, and the coincidence
-/// ladder reads it ([`crate::link::Material::On`]); `None` where the
-/// reading is in band ([`super::sectors::Ungiven::Undecided`]).
+/// bound its descent leaves unparted from the face, on the band or over
+/// the cone's slack, is on the face, as [`flank_read`] keys it, and the
+/// coincidence ladder reads it ([`crate::link::Material::On`]).
 fn sheet_side<T: Decide>(
     (dir, reach): Rep<T>,
     sheet: &BoolSector<T>,
     rd: crate::link::metric::Reading<T>,
 ) -> Option<Sign> {
-    use super::sectors::Ungiven;
-    match super::sectors::given_side(dir, reach, sheet.datum(), rd) {
-        Ok(side) => Some(side),
-        Err(Ungiven::Unresolved | Ungiven::Slack) => Some(Sign::Zero),
-        Err(Ungiven::Undecided) => None,
-    }
+    use super::sectors::Unparted;
+    super::sectors::given_side(dir, reach, sheet.datum(), rd, Unparted::OnTheFace)
 }
 
 /// A flanker's key, and whether its bound tied with the
@@ -1797,7 +1792,7 @@ pub(super) fn resolve_edge_edge<T: Decide>(
             for (k, sheet) in from.iter().enumerate() {
                 let side = match sheet {
                     Sheet::Sector(oi) => sheet_side((dir, reach), &secs_of(other)[*oi], rd),
-                    Sheet::Held(face) => Some(face.datum.side(dir, reach, rd)?.plane_side()),
+                    Sheet::Held(face) => face.datum.given(dir, reach, rd),
                 };
                 given.extend(side.map(|side| (k, side)));
             }
@@ -3211,7 +3206,9 @@ mod tests {
     /// `K = 1.4`. Flush at one point, the flank lies on A's face and the
     /// coincidence ladder asks for the faces' `Rest`. Dipped `1.5·zero` at
     /// one point, the band decides the flank into A's material, and the
-    /// pass goes on to a parity arc read in band. With the tie `0.9·zero`,
+    /// pass goes on to a parity arc read in band. Dipped `1.2·zero` at one
+    /// point, in band, the reading hands no side and the cone reads the
+    /// flank in band of A's face: its side. With the tie `0.9·zero`,
     /// the band decides the dip and the slack (`1.8·zero`) does not: the
     /// flank's side is unresolved, so it lies on A's face to the orders
     /// read, and the ladder asks for the faces' `Rest`, as flush.
@@ -3280,6 +3277,16 @@ mod tests {
             |d: &BooleanDecision| matches!(d, BooleanDecision::Coincidence(Coincide::Carriers, _));
         let flush = run(0.0, 0.0);
         assert!(carriers(&flush), "flush, the ladder's question: {flush:?}");
+        // Dipped in band at one point: no side, so the cone reads the flank
+        // in band of A's face, that side, not the ladder's question.
+        let in_band = run(0.0, 1.2 * zero);
+        assert!(
+            matches!(
+                in_band,
+                BooleanDecision::Coincidence(Coincide::SectorSide, _)
+            ),
+            "dipped in band, the flank's side: {in_band:?}"
+        );
         let dipped = run(0.0, 1.5 * zero);
         assert!(
             !carriers(&dipped),

@@ -715,12 +715,10 @@ fn read_edge(
     let gathered = Cone::gathered(o, corners, touched.map(|(n, _)| n)).expect("a cone of faces");
     let given: Vec<_> = touched
         .map(|(_, class)| {
-            let side = match class {
-                SideCode::In => Sign::Negative,
-                SideCode::On => Sign::Zero,
-                SideCode::Out => Sign::Positive,
-            };
-            (gathered.inside(0).expect("the touched disc"), side)
+            (
+                gathered.inside(0).expect("the touched disc"),
+                class.plane_side(),
+            )
         })
         .into_iter()
         .collect();
@@ -1881,11 +1879,7 @@ fn check_touched(what: &str, band: Band, rng: &mut Rng, family: &mut Family) -> 
             continue;
         }
         let label = format!("{what}, bent probe {k} {far:?}, given {:?}", side(-h));
-        let against = match side(-h) {
-            SideCode::In => Sign::Negative,
-            SideCode::On => Sign::Zero,
-            SideCode::Out => Sign::Positive,
-        };
+        let against = side(-h).plane_side();
         let cone = Cone::gathered(
             o,
             crate::boolean::sectors::fans(&sectors, o),
@@ -2753,7 +2747,7 @@ fn a_given_side_never_contradicts_the_exact_oracle() {
 /// given `q`'s side, the material the half-space behind the plane.
 #[test]
 fn a_curved_bound_tied_with_a_sheet_reads_its_bend_against_the_exact_oracle() {
-    use crate::boolean::sectors::{NO_CURVATURE, given_side};
+    use crate::boolean::sectors::{NO_CURVATURE, Unparted, given_side};
     let mut rng = test_utils::fuzz::start("link_tied_sheet_fuzz");
     let draws = test_utils::fuzz::scaled(120);
     let mut wrong = Vec::new();
@@ -2767,7 +2761,7 @@ fn a_curved_bound_tied_with_a_sheet_reads_its_bend_against_the_exact_oracle() {
         let band = Band::linear_at(Tol::witness(), eps).unwrap();
         let o = Point3::new(0.0, 0.0, 0.0);
         let before = wrong.len();
-        let (mut read, mut given, mut ungiven, mut unread) = (0, 0, 0, 0);
+        let (mut read, mut given, mut ungiven, mut unread, mut near) = (0, 0, 0, 0, 0);
         for c in 0..draws {
             let Some(m) = line_material(&mut rng) else {
                 continue;
@@ -2803,9 +2797,17 @@ fn a_curved_bound_tied_with_a_sheet_reads_its_bend_against_the_exact_oracle() {
             let k = rng.below(m.faces.len());
             let piece = &m.faces[k][rng.below(m.faces[k].len())];
             let n = piece.normal;
-            // A direction inside the piece, on its plane.
-            let t = rng.range(0.1, 0.9);
+            // A direction inside the piece, on its plane: in half the draws
+            // a few bands off one of its bound rays, so the arc's tangent
+            // point stands within the band of the sector across that ray.
             let (a, b) = (norm3(piece.start_far), norm3(piece.end_far));
+            let t = if rng.below(2) == 0 {
+                rng.range(0.1, 0.9)
+            } else {
+                let sin = cross3(a, b).iter().map(|x| x * x).sum::<f64>().sqrt();
+                let t = band.zero() * rng.range(0.2, 3.0) / sin.max(1e-3);
+                if rng.below(2) == 0 { t } else { 1.0 - t }
+            };
             let on = norm3([0, 1, 2].map(|i| a[i] * (1.0 - t) + b[i] * t));
             let h = dot(on, n);
             let u = norm3([0, 1, 2].map(|i| on[i] - h * n[i]));
@@ -2845,20 +2847,21 @@ fn a_curved_bound_tied_with_a_sheet_reads_its_bend_against_the_exact_oracle() {
             );
             let rd = cone.reading(band);
             read += 1;
-            match given_side(dir, reach, datum, rd) {
-                Ok(got) if got != exact => {
+            // Handed nothing where unparted, as `cone_classes` hands it: a
+            // side given is the bend's exact side.
+            match given_side(dir, reach, datum, rd, Unparted::Nothing) {
+                Some(got) if got != exact => {
                     wrong.push(format!(
                         "{what}, sector {k}, κ {kappa:.3e}, tie {tie_len:.3e}: the bound-side \
                          reading gives {got:?}, exactly {exact:?}"
                     ));
                     continue;
                 }
-                Ok(_) => given += 1,
-                Err(_) if tie_len > 0.0 => ungiven += 1,
-                Err(why) => {
+                Some(_) => given += 1,
+                None if tie_len > 0.0 => ungiven += 1,
+                None => {
                     wrong.push(format!(
-                        "{what}, sector {k}, κ {kappa:.3e}: at one point the bend reads no side \
-                         ({why:?})"
+                        "{what}, sector {k}, κ {kappa:.3e}: at one point the bend reads no side"
                     ));
                     continue;
                 }
@@ -2874,8 +2877,26 @@ fn a_curved_bound_tied_with_a_sheet_reads_its_bend_against_the_exact_oracle() {
                 .collect();
             let slack = 2.0 * tie_len;
             let flip = least_flip(&others, qa);
+            // Where another sector stands within the band and the slack of
+            // the tangent ray's point, every sector is given that point's
+            // exact side of its plane too, and the exact oracle judges.
+            let mut sides = vec![(k, exact)];
             if flip <= band.zero() + slack {
-                continue;
+                if flip == 0.0 {
+                    continue;
+                }
+                let mut all = true;
+                for (j, f) in m.faces.iter().enumerate().filter(|&(j, _)| j != k) {
+                    match dot_q(f[0].normal, qa).sign() {
+                        1 => sides.push((j, Sign::Positive)),
+                        -1 => sides.push((j, Sign::Negative)),
+                        _ => all = false,
+                    }
+                }
+                if !all {
+                    continue;
+                }
+                near += 1;
             }
             // The arc's directions as they leave: just off the tangent ray
             // on the bend's side, nearer it than any other sector stands.
@@ -2883,7 +2904,7 @@ fn a_curved_bound_tied_with_a_sheet_reads_its_bend_against_the_exact_oracle() {
             let leaving = [0, 1, 2].map(|i| qa[i] + side * off * n[i]);
             let truth = oracle.class(leaving, &mut rng);
             let what = format!("{what}, sector {k}, κ {kappa:.3e}, tie {tie_len:.3e}, at {qa:?}");
-            let got = match cone.reads_tied(q, &[(k, exact)], band) {
+            let got = match cone.reads_tied(q, &sides, band) {
                 Ok(got) => got,
                 Err(why) => {
                     if why.contradicted() {
@@ -3004,8 +3025,8 @@ fn a_curved_bound_tied_with_a_sheet_reads_its_bend_against_the_exact_oracle() {
         );
         println!(
             "[fuzz] link_tied_sheet_fuzz at ε {eps:e}: {} wrong; {read} readings, the bound-side \
-             reading giving {given} the bend's side and {ungiven} off the point none, {unread} \
-             read nothing",
+             reading giving {given} the bend's side and {ungiven} off the point none, {near} \
+             with another sector within the band and slack of it, {unread} read nothing",
             wrong.len() - before,
         );
     }

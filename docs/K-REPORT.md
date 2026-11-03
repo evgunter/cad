@@ -3491,3 +3491,7 @@ slack), as the held face's already is; the touched face's side at
 reads it. `link_plane` keeps every sample it had: the cone still reads
 the probe's point against each sector's plane, which a given side is
 compared with (`link::Cone::reads_given`), so no reading moved from it.
+`link_wedge` and `link_ahead` gain samples: where a sector's given side
+is taken, the cone places the probe on that sector's plane
+(`Sector::place`) to read it off a face's interior, or to certify it off
+the sector, a place it did not read there before.
