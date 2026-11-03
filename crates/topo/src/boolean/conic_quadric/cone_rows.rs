@@ -855,3 +855,25 @@ fn a_small_carrier_through_the_apex_refuses_at_the_rung_that_cannot_read_it() {
         );
     }
 }
+
+/// **The apex's spread bound refuses where either factor of `λ` is not
+/// positive** ([`apex_spread_bound`]). With `|ε₀| = 50`, `ε₁ = 0` and
+/// `|G(0)| = R = 1`, `G(0)` alone gives `10`, the window `Φ = 20`: past
+/// `√12`, so `1 − Φ²/12 < 0`, and `|G(0)| − RΦ < 0` too. Their product is
+/// positive, and read as `λ` it would give a finite "bound" that holds
+/// nothing: the bound reads infinite, which refuses. A small spread
+/// inside its window is bounded, and finite: `|ε₀| = 10⁻¹⁸`,
+/// `|ε₁| = 10⁻⁹`, `|G(0)| = 1`, `R = 0.1`.
+#[test]
+fn the_apex_spread_bound_refuses_where_a_factor_is_not_positive() {
+    let both_negative = apex_spread_bound((50.0, 0.0), 1.0, 1.0);
+    assert!(
+        both_negative.is_infinite(),
+        "two negative factors bound nothing, got {both_negative}"
+    );
+    let small = apex_spread_bound((1e-18, 1e-9), 1.0, 0.1);
+    assert!(
+        small.is_finite() && small > 0.0 && small < 1e-8,
+        "a small spread is bounded, got {small}"
+    );
+}

@@ -229,9 +229,22 @@ fn against_a_box(
     share: fn(f64) -> f64,
     expect: fn(f64, f64, &str, &str) -> Expect,
 ) {
+    against_a_box_at(what, &[30.0, 45.0, 60.0], bx, share, expect);
+}
+
+/// [`against_a_box`] at the apertures `alphas` (degrees), the lattice
+/// widened to the box.
+fn against_a_box_at(
+    what: &str,
+    alphas: &[f64],
+    bx: ((f64, f64), (f64, f64), (f64, f64)),
+    share: fn(f64) -> f64,
+    expect: fn(f64, f64, &str, &str) -> Expect,
+) {
     let ((x0, x1), (y0, y1), (z0, z1)) = bx;
     let vb = (x1 - x0) * (y1 - y0) * (z1 - z0);
-    for alpha in [30.0f64, 45.0, 60.0] {
+    let reach = x1.abs().max(z0.abs()).max(z1.abs()) + 0.5;
+    for &alpha in alphas {
         let r = alpha.to_radians().tan();
         for turn in TURNS {
             let (b, m) = turned_box(bx, turn);
@@ -247,7 +260,10 @@ fn against_a_box(
                     (&c, &ra, volume(alpha)),
                     (&b, &rb, vb),
                     share(volume(alpha)),
-                    (Point3::new(-2.5, -0.25, -2.5), Point3::new(2.5, 1.85, 2.5)),
+                    (
+                        Point3::new(-reach, -0.25, -reach),
+                        Point3::new(reach, 1.85, reach),
+                    ),
                 );
             }
         }
@@ -264,8 +280,10 @@ fn an_edge_across_the_apex_holds_half_the_cones_top() {
         "an edge across the apex",
         ((0.0, 2.0), (0.55, 1.0), (-2.0, 2.3)),
         |v| v * 0.45f64.powi(3) / 2.0,
-        // The tipped cone's seam inside the box's quadrant, turned 2 or
-        // π: the kept face is cut along two rulings on both sides of it.
+        // Turned 2 or π, the tipped cone's seam lies outside the box, in
+        // the remainder `∪` and `cone ∖ box` keep: the remainder's face
+        // runs from the box's one ruling round through the seam to its
+        // other, two lobes meeting only at the apex.
         |_, turn, form, op| pinched(form == "tipped" && (turn == 2.0 || turn == PI), op),
     );
 }
@@ -280,9 +298,10 @@ fn an_edge_along_the_axis_holds_a_quarter_of_the_cones_top() {
         "an edge along the axis",
         ((0.0, 2.0), (0.55, 1.6), (0.0, 2.1)),
         |v| v * 0.45f64.powi(3) / 4.0,
-        // The seam inside the box's quadrant: the tipped cone's turned 2,
-        // π, 3π/2 or a hair short of the whole turn, the revolved cone's
-        // turned 2 or a hair short.
+        // A seam outside the box, in the kept remainder, between the
+        // box's two rulings (the remainder's face two lobes meeting only
+        // at the apex): the tipped cone's turned 2, π, 3π/2 or just short
+        // of the whole turn, the revolved cone's turned 2 or just short.
         |_, turn, form, op| {
             let tipped = [2.0, PI, 3.0 * FRAC_PI_2, TURNS[6]].contains(&turn);
             let revolved = [2.0, TURNS[6]].contains(&turn);
@@ -389,4 +408,23 @@ fn a_box_corner_a_fraction_of_the_band_off_the_apex_refuses_at_the_apex() {
             }
         }
     }
+}
+
+/// **The 80° cone's top against a box clear of its rim builds** (the
+/// direct witness the `x90` row's open-conic refusal leaves wanting):
+/// the box `[0, 6] × [0.55, 1] × [−6, 6.3]` across the apex, its top
+/// holding the apex and its side the axis, wider than the 80° cone's
+/// top above `y = 0.55` (radius `0.45·tan 80° ≈ 2.55`), so its far sides
+/// clear it. Every op either way round holds half the cone above
+/// `y = 0.55`, `V·0.45³/2`, but the named pinches of the across-the-apex
+/// row.
+#[test]
+fn an_80_degree_cones_top_against_a_box_clear_of_its_rim_builds() {
+    against_a_box_at(
+        "the 80° cone across the apex",
+        &[80.0],
+        ((0.0, 6.0), (0.55, 1.0), (-6.0, 6.3)),
+        |v| v * 0.45f64.powi(3) / 2.0,
+        |_, turn, form, op| pinched(form == "tipped" && (turn == 2.0 || turn == PI), op),
+    );
 }

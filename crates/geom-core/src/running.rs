@@ -36,7 +36,8 @@ pub const SHORT_CHAIN_ULPS: f64 = 16.0;
 /// direction, or of a point placed at a scale, carries
 /// ([`direction_rounding`]): its evaluation and normalization, a few
 /// correctly rounded operations each. A ROUNDING estimate, as
-/// [`SHORT_CHAIN_ULPS`] is.
+/// [`SHORT_CHAIN_ULPS`] is; its guard measures it against exact
+/// arithmetic (`the_direction_charge_holds_a_normalized_directions_rounding`).
 pub const DIRECTION_UNITS: f64 = 4.0;
 
 /// **The rounding a computed direction or point carries at `scale`**:
@@ -259,6 +260,60 @@ pub fn unit_defect<T: Real>(v: Vec3<T>) -> Rounded<T> {
 #[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
+
+    /// **[`DIRECTION_UNITS`]'s guard.** A unit direction computed by
+    /// `Vec3::normalize` from exact inputs is off the true one by at most
+    /// `DIRECTION_UNITS·u` in each component: its norm (three squares, two
+    /// sums, a root) and its division round a few times each. Read
+    /// exactly, `c² · Σ vⱼ² − vᵢ²` for each computed component `c` is the
+    /// error times `(c + t)·Σ vⱼ²`, `t` the true component, so the error is
+    /// that expansion over `2|c|·Σ vⱼ²` to first order. Over directions of
+    /// every octant and scale, the worst stays under the charge, and is
+    /// more than one `u`: the charge is neither short nor vacuous.
+    #[test]
+    fn the_direction_charge_holds_a_normalized_directions_rounding() {
+        use crate::exact::Expansion;
+        let mut seed = 0x9e37_79b9_7f4a_7c15u64;
+        let mut next = || {
+            seed = seed
+                .wrapping_mul(6_364_136_223_846_793_005)
+                .wrapping_add(1_442_695_040_888_963_407);
+            #[allow(clippy::cast_precision_loss)]
+            let x = (seed >> 11) as f64 / (1u64 << 53) as f64;
+            2.0 * x - 1.0
+        };
+        let mut worst = 0.0f64;
+        for k in 0..20_000 {
+            let scale = [1e-3, 1.0, 1e3][k % 3];
+            let v = Vec3::new(next() * scale, next() * scale, next() * scale);
+            if v.norm() < 1e-2 * scale {
+                continue;
+            }
+            let c = v.normalize();
+            let sum = [v.x, v.y, v.z].iter().fold(0.0, |s, &x| s + x * x);
+            for (ci, vi) in [(c.x, v.x), (c.y, v.y), (c.z, v.z)] {
+                if ci.abs() < 1e-3 {
+                    continue;
+                }
+                let mut e = Expansion::default();
+                let square = Expansion::product(ci, ci);
+                for vj in [v.x, v.y, v.z] {
+                    e.add_expansion(&square.scaled(vj).scaled(vj));
+                }
+                e.add_expansion(&Expansion::product(vi, vi).negated());
+                let residual: f64 = e.components().iter().sum();
+                worst = worst.max(residual.abs() / (2.0 * ci.abs() * sum) / UNIT_ROUNDOFF);
+            }
+        }
+        assert!(
+            worst <= DIRECTION_UNITS,
+            "a normalized component off by {worst} u, past the charge's {DIRECTION_UNITS}"
+        );
+        assert!(
+            worst > 1.0,
+            "the worst is {worst} u: the charge would be vacuous"
+        );
+    }
 
     /// **A divisor within its own rounding of zero divides nothing.** The
     /// vertex-section sine at a torus saddle reads `2e-16 ± 8.9e-16`:

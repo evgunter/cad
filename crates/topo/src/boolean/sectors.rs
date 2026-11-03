@@ -180,6 +180,10 @@ impl<T: geom_core::Real> BoolSector<T> {
     /// bounds' sum points inside the cone, off every ruling, and for a fan
     /// over a half-turn wide away from it: its middle is the ruling
     /// halfway round from `start` to `end` in the face's sweep, unit.
+    /// The two bounds' azimuth is the fan's window because no sector at
+    /// an apex spans a whole turn: [`push_apex_corner`] cuts every whole
+    /// turn by the window the corner's shape decided. So no row holds an
+    /// unsplit whole-turn apex sector; none can be built.
     pub(super) fn middle(&self) -> Vec3<T>
     where
         T: Decide,
@@ -654,22 +658,27 @@ fn push_apex_corner<T: Decide>(
     let ApexShape {
         arm,
         window,
+        whole_turn,
         mut rulings,
     } = apex_corner_shape((end, start), apex, bounds, across, band)?;
     let arm = metering_arm(arm);
     let (unit_end, unit_start) = (end.normalize(), start.normalize());
-    // The vertex–vertex lane's quarters: the window as the shape decided
-    // it, read from the next bound in the face's sweep, in four equal
-    // turns, the own bound's side first. A whole turn is `2π` by the
-    // corner's bounds, never the two bounds' azimuth: where they are one
-    // ruling only to rounding (a wrap edge's two departures, one of them
-    // shortened by a split), that azimuth reads a hair past zero, and the
-    // quarters collapse onto the seam.
+    // Every cut is read off the window the shape decided, from the next
+    // bound in the face's sweep: `2π` for a whole turn by the corner's
+    // bounds, which two bounds one ruling only to rounding do not read.
+    // The vertex–vertex lane cuts it in four equal turns, the own bound's
+    // side first. The pierce lane cuts at its extremal rulings, and a
+    // whole turn none cuts at its half turn. So no sector at an apex
+    // spans a whole turn, and its two bounds' azimuth
+    // ([`BoolSector::middle`]) reads its window.
     if !matches!(partners, Partners::Pierced(_)) {
-        rulings = [T::from_f64(0.75), T::from_f64(0.5), T::from_f64(0.25)]
+        rulings = crate::sector_shape::TurnOrder::FromOwn
+            .quarter_fractions()
             .into_iter()
-            .map(|k| apex.ruling_from(unit_start, window * k))
+            .map(|k| apex.ruling_from(unit_start, window * T::from_f64(k)))
             .collect();
+    } else if whole_turn && rulings.is_empty() {
+        rulings.push(apex.ruling_from(unit_start, window * T::from_f64(0.5)));
     }
     // A ruling is a straight line on the cone.
     let inner = BoundSupport::straight_bisector(arm);

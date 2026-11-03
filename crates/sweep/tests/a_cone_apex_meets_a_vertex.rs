@@ -388,7 +388,9 @@ fn a_small_box_whose_side_holds_the_wrap_seam_builds_every_op() {
 /// `[0, 5] × [−5, 0] × [0, 5]` turned a quarter about `x` and cornered
 /// at the apex, its side holding the axis and the wrap edge's ruling.
 /// Every op reaches the 80° cone's hyperbolic section at the box's far
-/// faces (`GermSectionOpenConic`, the join's open-conic limit). The
+/// faces (`GermSectionOpenConic`, the join's open-conic limit); the 80°
+/// cone's apex against a box clear of its rim builds every op
+/// (`a_cone_apex_on_an_edge::an_80_degree_cones_top_against_a_box_clear_of_its_rim_builds`). The
 /// vertex pair at the apex reads the cone's whole turn in four true
 /// quarters, its window `2π` by the corner's bounds
 /// (`boolean::sectors::push_apex_corner`); read off the two bounds'

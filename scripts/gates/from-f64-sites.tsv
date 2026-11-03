@@ -188,3 +188,4 @@ crates/geom-brep/src/chart_singularity.rs	1	constant	band.escalate()	the band's 
 crates/geom-brep/src/chart_singularity.rs	1	constant	2.0 * (m as f64 + 8.0) * geom_core::UNIT_ROUNDOFF	a summation's rounding factor, from the count of its terms
 crates/geom-brep/src/chart_singularity.rs	1	constant	2.0 * samples.len() as f64	the count of steps a walk's error bound is shared over
 crates/geom-brep/src/chart_singularity.rs	1	constant	c	a half-turn threshold's multiple of π, a literal at each call (±1, ±3)
+crates/topo/src/boolean/sectors.rs	1	constant	k	a quarter cut of a whole turn, a fraction from TurnOrder::quarter_fractions

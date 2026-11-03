@@ -130,17 +130,21 @@
 //! `G = k + R cos(φ − β)` a first harmonic and `ε₀ = F(θ_a)`,
 //! `ε₁ = F′(θ_a)`. Each reading is its own row:
 //!
-//! - **the apex on the carrier** (`bool_conic_cone_apex`), at the
-//!   anomaly of the apex's own in-plane coordinates. Not decided on it:
-//!   the arms read the carrier, and their apex rung refuses what lies
-//!   near it;
+//! - **the apex on the carrier** (`bool_conic_cone_apex`), read at the
+//!   anomaly of the apex's own in-plane coordinates (`Conic::angle_of`):
+//!   on a circle the carrier's nearest point to the apex's projection,
+//!   on an ellipse in general not, so the distance read is at least the
+//!   carrier's. Conservative both ways: a carrier read clear of the apex
+//!   goes to the arms, whose apex rung refuses a root beside it, and the
+//!   `δ` the spread is bounded by is that reading's, never smaller than
+//!   the true distance. Not decided on it: the arms read the carrier;
 //! - **the apex's spread** (`bool_conic_cone_apex_spread`), a bound:
 //!   on a window `|φ| ≤ Φ` about the apex, `|G| ≥ |G(0)| − RΦ` and
 //!   `2 sin²(φ/2) ≥ (1 − Φ²/12)φ²/2`, so with `λ` their product the roots
 //!   there lie within `(|ε₁| + √(ε₁² + 2λ|ε₀|))/λ` of `θ_a`. `Φ` is twice
 //!   what `G(0)` alone gives, and a bound past it, or a `λ` not positive,
 //!   refuses. The `ε`s are bounded by the geometry, `δ²/R` and
-//!   `2δ·speed/R` at the carrier's distance `δ` from the apex, not by the
+//!   `2δ·speed/R` at that point's distance `δ` from the apex, not by the
 //!   rounded coefficients, whose noise the root would amplify. Past the
 //!   band: [`Unsettled::AtApex`];
 //! - **`G`'s roots** (`bool_conic_cone_deflated_depth`, `|k| − R`):
@@ -150,7 +154,7 @@
 //!   (`bool_conic_cone_deflated_clear`), bracketed by a definite change
 //!   of the cone's residual (`bool_conic_cone_deflated_side`), and metered
 //!   (`bool_conic_cone_root_slack`): `|F|` at the root over a lower bound
-//!   on `|F′|` across the whole bracket, `|F′(θ)| − w(ρ₁ + 4ρ₂)` with
+//!   on `|F′|` across the whole bracket, `|F′(θ)| − 2·noise − w(ρ₁ + 4ρ₂)` with
 //!   `ρₖ` the harmonics' amplitudes, at the carrier's top speed. The
 //!   arms' meter (geom_brep's `RootSlack`) decides the same arc under the
 //!   same row, its slope read on a window about the root inside the
@@ -518,8 +522,10 @@ const CONE_DEFLATED_CLEAR: &str = "bool_conic_cone_deflated_clear";
 
 /// What [`through_the_apex`] reads of a conic against the cone.
 enum ThroughTheApex<T: geom_core::Real> {
-    /// The apex is definitely off the carrier: the door's two arms read
-    /// it.
+    /// The apex is definitely off the carrier where it is read, at the
+    /// apex's own anomaly (on an ellipse not the nearest point, a
+    /// distance at least the carrier's): the door's two arms read it, and
+    /// their apex rung refuses a root beside the apex.
     Clear,
     /// The carrier passes through the apex, read whole: the apex's
     /// double root and the deflated form's roots, each certified, or a
@@ -544,8 +550,9 @@ fn through_the_apex<T: Decide>(
     use ThroughTheApex::{Clear, Read};
     let two = T::from_f64(2.0);
     let mid = (t0 + t1) / two;
-    let wrap = |x: T| x.sin().atan2(x.cos());
     let near_mid = |theta: T| geom_brep::half_angle::near_midpoint(mid, theta);
+    // A parameter difference as a turn in `(−π, π]`, the same rule.
+    let wrap = |x: T| geom_brep::half_angle::near_midpoint(T::zero(), x);
     // Past every bound: a reading no bound holds refuses.
     let unbounded = T::from_f64(f64::INFINITY);
     // The apex's parameter on the conic, its projection's off the plane.
@@ -579,20 +586,8 @@ fn through_the_apex<T: Decide>(
         delta.powi(2) / h.per,
         two * delta * conic.speed_hi() / h.per,
     );
-    // A bound, not a model: on the window `|φ| ≤ Φ`, `|G| ≥ |G(0)| − RΦ`
-    // (`|G′| ≤ R`) and `2 sin²(φ/2) ≥ (1 − Φ²/12)·φ²/2`, so a root of `F`
-    // there has `λφ²/2 ≤ ε₀ + ε₁|φ|`, `λ` their product, and lies within
-    // `(ε₁ + √(ε₁² + 2λε₀))/λ` of the apex. The window is twice what
-    // `G(0)` alone gives; a bound past it, or a `λ` not positive, holds
-    // nothing and refuses. Outside the window `F`'s roots are `G`'s,
-    // bracketed below: `F` has at most four per turn, two of them the
-    // apex's.
-    let at_zero = (e1 + (e1.powi(2) + two * g0.abs() * e0).sqrt()) / g0.abs();
-    let window = two * at_zero;
-    let lambda = (g0.abs() - r * window) * (T::one() - window.powi(2) / T::from_f64(12.0));
-    let bound = (e1 + (e1.powi(2) + two * lambda.max(T::zero()) * e0).sqrt()) / lambda;
-    let spread_phi =
-        lambda.select_le_zero(unbounded, (bound - window).select_le_zero(bound, unbounded));
+    // A bound, not a model ([`apex_spread_bound`]).
+    let spread_phi = apex_spread_bound((e0, e1), g0.abs(), r);
     let spread = spread_phi * conic.speed_hi();
     match decide(CONE_APEX_SPREAD, Margin::of(spread), band) {
         Ok(Sign::Zero) => {}
@@ -614,8 +609,10 @@ fn through_the_apex<T: Decide>(
     // over `±w` about it (`w` sixty-four escalation bands of arc), the one
     // root of `F` there by the deflation's count, and metered: the true
     // root lies in the bracket, where `|F′|` is at least its value at the
-    // root less `w` times `F″`'s bound (`|F″| ≤ ρ₁ + 4ρ₂`, the harmonics'
-    // amplitudes), so it lies within `(|F| + noise)/that` of the root,
+    // root, less its rounding (`2·noise`, the derivative's coefficients
+    // at most twice `F`'s) and `w` times `F″`'s bound (`|F″| ≤ ρ₁ + 4ρ₂`,
+    // the harmonics' amplitudes), so it lies within `(|F| + noise)/that`
+    // of the root,
     // at the carrier's top speed an arc that must be definitely in the
     // band (`bool_conic_cone_root_slack`, the arms' quantity with a
     // whole-bracket slope bound in place of their window's). A shallow
@@ -684,6 +681,33 @@ fn through_the_apex<T: Decide>(
         Ok(Sign::Zero | Sign::Negative) | Err(_) => return Read(Err(Unsettled::Tangency)),
     }
     Read(Ok(Roots::<T, 4>::all(found).widen()))
+}
+
+/// **The apex's spread** (module docs, "Through the apex"), in radians
+/// of the carrier's parameter: how far from the apex's own parameter a
+/// root of `F` can lie, given `|ε₀|`, `|ε₁|` bounded by the geometry,
+/// `|G(0)|` and `G`'s amplitude `R`. On the window `|φ| ≤ Φ`,
+/// `|G| ≥ |G(0)| − RΦ` (`|G′| ≤ R`) and `2 sin²(φ/2) ≥ (1 − Φ²/12)·φ²/2`,
+/// so a root there has `λφ²/2 ≤ ε₀ + ε₁|φ|`, `λ` their product, and lies
+/// within `(ε₁ + √(ε₁² + 2λε₀))/λ`. The window is twice what `G(0)` alone
+/// gives. Each factor of `λ` must be positive on its own (two negative
+/// factors make a positive product that bounds nothing), and the bound
+/// must lie inside the window: otherwise it holds nothing and reads
+/// infinite, which refuses. Outside the window `F`'s roots are `G`'s,
+/// bracketed by the caller: `F` has at most four per turn, two of them
+/// the apex's.
+fn apex_spread_bound<T: Decide>((e0, e1): (T, T), g0: T, r: T) -> T {
+    let two = T::from_f64(2.0);
+    // Past every bound: a reading no bound holds refuses.
+    let unbounded = T::from_f64(f64::INFINITY);
+    let at_zero = (e1 + (e1.powi(2) + two * g0 * e0).sqrt()) / g0;
+    let window = two * at_zero;
+    let least_g = g0 - r * window;
+    let least_sine = T::one() - window.powi(2) / T::from_f64(12.0);
+    let lambda = least_g.max(T::zero()) * least_sine.max(T::zero());
+    let bound = (e1 + (e1.powi(2) + two * lambda * e0).sqrt()) / lambda;
+    let within = (bound - window).select_le_zero(bound, unbounded);
+    least_g.select_le_zero(unbounded, least_sine.select_le_zero(unbounded, within))
 }
 
 /// The apex rung (module docs, "Against a cone"): `roots` stand only if

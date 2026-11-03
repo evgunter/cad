@@ -652,7 +652,7 @@ fn span_roots<T: Decide>(
     // reads it only against the span's ends, never as an identity. The
     // `t₀` retry below serves its straddle.
     for c in candidates.into_iter().flatten() {
-        let centred = mid + (c - mid).reduce_periodic_centred(tau);
+        let centred = geom_brep::half_angle::near_midpoint(mid, c);
         let (interior, t) = match verdict_at(centred) {
             Ok(v) => v,
             Err(first) => {
