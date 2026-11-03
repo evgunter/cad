@@ -918,9 +918,11 @@ fn one_site<T: Decide>(
     if used0 || used1 || g0.a_locus != g1.a_locus || g0.b_locus != g1.b_locus {
         return Ok(None);
     }
-    if !(g0.a_locus.edge().is_some() && g0.b_locus.edge().is_some())
-        && rides_carried(&red.sections, (&red.a, g0.a_face), (&red.b, g0.b_face))?
-    {
+    if germ_rides_carried(
+        &red.sections,
+        ((&red.a, g0.a_face), (&red.b, g0.b_face)),
+        &g0,
+    )? {
         return Ok(Some((g0, None)));
     }
     let Some(loops) = germ_loops(red, &g0, band)? else {
@@ -3296,12 +3298,29 @@ pub(super) fn germ_branch<T: Decide>(
     match (locus_a.edge(), locus_b.edge()) {
         (Some(_), Some(_)) => return Ok(super::Branch::Only),
         // A germ along an edge of one solid inside the other's face lies
-        // on both faces' surfaces, so on their section: on a pair the
-        // join carries, it rides the component its site's foot lies on
-        // (a parallel pair's seam lying on the other wall is one of the
-        // pair's rulings); on any other, its edge's own curve.
-        (Some(_), None) | (None, Some(_)) => {
-            if !rides_carried(sections, (body_a, face_a), (body_b, face_b))? {
+        // on both faces' surfaces, so on their section. A conic edge
+        // rides its own plane (the edge-plane lane); a straight one has
+        // no plane, and on a pair the join carries it rides the component
+        // its site's foot lies on (a parallel pair's seam lying on the
+        // other wall is one of the pair's rulings). Any other rides its
+        // edge's own curve, or refuses where the join reads it.
+        (Some(edge), None) | (None, Some(edge)) => {
+            let body = if locus_a.edge().is_some() {
+                body_a
+            } else {
+                body_b
+            };
+            let straight = body
+                .get_edge(edge)
+                .and_then(|e| body.get_curve_geom(e.curve))
+                .and_then(crate::null::CurveGeom::certified)
+                .ok_or(BooleanError::JoinDesync {
+                    what: "an OnEdge germ's edge carries no certified curve",
+                })?
+                .carrier()
+                .as_line()
+                .is_some();
+            if !straight || !rides_carried(sections, (body_a, face_a), (body_b, face_b))? {
                 return Ok(super::Branch::Only);
             }
         }
@@ -3496,11 +3515,11 @@ pub(super) fn line_of<T: Decide>(
 }
 
 /// **The section a germ rides, carried**, where the germ lies inside a
-/// face of at least one operand on a pair the join carries
-/// ([`rides_carried`]); `None` otherwise, the pair read by its frame. A
-/// germ along an edge of both solids rides the edges' own curve, and one
-/// along an edge of one solid the component its site's foot names
-/// ([`germ_branch`]).
+/// face of at least one operand and rides the carried lane
+/// ([`germ_rides_carried`]); `None` otherwise, the pair read by its
+/// frame. A germ along an edge of both solids rides the edges' own
+/// curve, and one along a straight edge of one solid the component its
+/// site's foot names ([`germ_branch`]).
 ///
 /// # Errors
 ///
@@ -3510,11 +3529,8 @@ fn germ_section<'r, T: Decide>(
     red: &'r BooleanReduction<T>,
     germ: &HalfGerm<T>,
 ) -> Result<Option<&'r geom_brep::CarriedSection<T>>, BooleanError> {
-    if germ.a_locus.edge().is_some() && germ.b_locus.edge().is_some() {
-        return Ok(None);
-    }
     let faces = ((&red.a, germ.a_face), (&red.b, germ.b_face));
-    if !rides_carried(&red.sections, faces.0, faces.1)? {
+    if !germ_rides_carried(&red.sections, faces, germ)? {
         return Ok(None);
     }
     match red.sections.carried(faces.0, faces.1) {
@@ -3750,6 +3766,23 @@ pub(super) fn bisector_loops<T: geom_core::Real>(
             sum: n2,
             diff: n1,
         },
+    }
+}
+
+/// **Whether a germ rides the carried lane**: a germ inside a face of
+/// each operand where its pair does ([`rides_carried`]); one along an
+/// edge of one solid where its mint named a component of the pair's
+/// section ([`germ_branch`], which read the pair the same way); one along
+/// an edge of both solids never.
+fn germ_rides_carried<T: Decide>(
+    sections: &super::section_table::SectionTable<T>,
+    (a, b): ((&Body<T>, FaceKey), (&Body<T>, FaceKey)),
+    germ: &HalfGerm<T>,
+) -> Result<bool, BooleanError> {
+    match (germ.a_locus.edge(), germ.b_locus.edge()) {
+        (None, None) => rides_carried(sections, a, b),
+        (Some(_), None) | (None, Some(_)) => Ok(matches!(germ.branch, super::Branch::Component(_))),
+        (Some(_), Some(_)) => Ok(false),
     }
 }
 

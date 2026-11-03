@@ -64,7 +64,7 @@ sites are not measured here (`memories/refusal-text-is-not-cause.md`):
 and the pins above are flipped: the two `shaft_and_bearing` scenes then
 join the registry, and stage 6's census counts their coaxial rows.
 
-## 2026-11-02: the cylinder × coaxial sphere union builds at f64 (SECTARMS stage 3b-i)
+## 2026-11-02: the cylinder × coaxial sphere and torus unions build at f64 (SECTARMS stage 3b-i)
 
 On branch `sectarms/cylinder-carried-closed-form`, the join's carried
 lane chords closed-form components (`chord_join::carried_chord_spec`).
@@ -72,13 +72,12 @@ The coaxial pair's two circles are now cut as the circles they are, so
 `corpus::shaft_and_bearing::with_a_ball`'s union builds at `f64` at all
 three ε.
 - The door records four `OnCarrier` rows at `CoaxialSphere`, so a
-  document now reaches that site. Pinned by
-  `coincidence_door::the_shaft_and_ball_union_is_green_at_f64_on_its_coaxial_rows`.
+  document now reaches that site.
 - At `Interval` the union escalates, so the scene stays beside the
   registry.
-- The tangent cone scene refuses as before. The cylinder × coaxial
-  torus scene (`rounded_mouth`) still refuses `CurvedBooleanUnsupported`
-  on the torus, but no longer for want of a lane for the pair's closed
-  forms: the carried lane takes a torus pair's coaxial parallels (the
-  coaxial torus × torus pair of `sweep/tests/germ_circle_torus.rs` now
-  builds). What refuses it there is not measured here.
+- `corpus::shaft_and_bearing::rounded_mouth`'s union (cylinder × coaxial
+  torus) builds at `f64` too, at its exact volume. The door records two
+  `Coaxial` rows at `CoaxialCylinderTorus`, proven by one construction.
+  It escalates at `Interval`. Both scenes are pinned by
+  `coincidence_door::the_coaxial_stage6_unions_are_green_at_f64_on_their_coaxial_rows`.
+- The tangent cone scene refuses as before.

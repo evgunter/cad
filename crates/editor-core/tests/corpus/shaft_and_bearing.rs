@@ -23,8 +23,8 @@
 //! - [`rounded_mouth`]: the mouth of the bore rounded by a profile
 //!   fillet, so the bore opens through a torus, and the shaft wider than
 //!   the bore and narrower than its mouth, its wall crossing the torus
-//!   on a circle (the site `CoaxialCylinderTorus`). Its union refuses at
-//!   `f64`.
+//!   on a circle (the site `CoaxialCylinderTorus`). Its union is green
+//!   at `f64` and escalates at `Interval`.
 //! - [`with_a_ball`]: the collar a ball, its centre on the shaft's axis
 //!   (the site `CoaxialSphere`), turned so no edge of the ball
 //!   crosses the shaft's wall. Its union is green at `f64` and escalates
@@ -200,7 +200,7 @@ pub fn collar_by_values() -> CorpusDoc {
 }
 
 /// **The scene with the bore's mouth rounded** (module docs): beside
-/// the registry, its union refused.
+/// the registry, its union green at `f64` and escalating at `Interval`.
 pub fn rounded_mouth() -> CorpusDoc {
     scene(
         (
