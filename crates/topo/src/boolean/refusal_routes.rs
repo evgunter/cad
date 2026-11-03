@@ -8,7 +8,7 @@
 //!   the kernel's own, so it ends on the kernel-defect sentence.
 //! - [`BooleanDecision`]: which decision `BooleanError::Escalated`
 //!   escalated on, set at the site that wraps the escalation.
-//!   [`BooleanDecision::render`] composes the whole sentence from the
+//!   [`BooleanDecision::written`] composes the whole sentence from the
 //!   decision and its verdict: a coincidence between the two solids its
 //!   subject ([`Coincide::subject`]) and its own ending from its own
 //!   pass set, led by the declaration where one read ahead of it would
@@ -1693,19 +1693,12 @@ impl BooleanDecision {
         }
     }
 
-    /// The whole sentence an escalation of this decision renders, at the
-    /// Boolean that built the geometry: the subject, the payload and the
-    /// one ending the verdict gives.
-    #[must_use]
-    pub(crate) fn render(self, diag: &Indeterminate) -> String {
-        diag.undecided(self.subject(), self.recourse(diag))
-            .to_string()
-    }
-
-    /// [`Self::render`] where its holder is read at a door, and its
-    /// payload alone where it is read at none (the holder's `Display`).
-    /// The ending is the Boolean's whichever door reads the holder: only
-    /// a build reports this decision.
+    /// **The sentence an escalation of this decision says**: the
+    /// subject, the payload and, where its holder is read at a door, the
+    /// one ending the verdict gives; the payload alone where it is read
+    /// at none (the holder's `Display`). The ending is the Boolean's
+    /// whichever door reads the holder: only a build reports this
+    /// decision.
     pub(crate) fn written(
         self,
         diag: &Indeterminate,
@@ -1722,7 +1715,7 @@ impl BooleanDecision {
         })
     }
 
-    /// [`Self::render`] at the split door ([`crate::SplitFinishError::ResultEscalated`]):
+    /// [`Self::written`]'s sentence at the split door ([`crate::SplitFinishError::ResultEscalated`]):
     /// a reading of the result's side ([`Self::ShellRole`]) ends in the
     /// split's own spelling of its
     /// lever, every other decision as at the Boolean.

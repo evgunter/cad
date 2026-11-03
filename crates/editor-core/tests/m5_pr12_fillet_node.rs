@@ -195,10 +195,7 @@ fn an_inadmissible_radius_fails_the_node_typed() {
     match ev.nodes.get(&head) {
         Some(NodeResult::Failed(e)) => match &e.kind {
             NodeErrorKind::Blend { error: inner, .. } => {
-                let text = format!(
-                    "{inner_at}",
-                    inner_at = inner.render(geom_brep::recourse::Reading::Build)
-                );
+                let text = inner.render(geom_brep::recourse::Reading::Build);
                 assert!(
                     text.contains("cannot certify"),
                     "the refusal must carry the kernel's own wording: {text}"

@@ -604,18 +604,10 @@ fn the_pcurve_pass_reaches_the_same_charts_either_side_of_the_map() {
         Tol::witness(),
     )
     .expect("the body moves");
-    let here = topo::mint_pcurves(&mut body, Tol::witness()).map_err(|e| {
-        format!(
-            "{e_at}",
-            e_at = e.render(geom_brep::recourse::Reading::Build)
-        )
-    });
-    let there = topo::mint_pcurves(&mut moved, Tol::witness()).map_err(|e| {
-        format!(
-            "{e_at}",
-            e_at = e.render(geom_brep::recourse::Reading::Build)
-        )
-    });
+    let here = topo::mint_pcurves(&mut body, Tol::witness())
+        .map_err(|e| e.render(geom_brep::recourse::Reading::Build));
+    let there = topo::mint_pcurves(&mut moved, Tol::witness())
+        .map_err(|e| e.render(geom_brep::recourse::Reading::Build));
     // The TEXT, not the boolean: both sides refuse today, so comparing
     // `is_ok()` would compare `false` with `false` and pass on any two
     // refusals whatever.
@@ -699,10 +691,7 @@ fn a_narrowed_window_refuses_at_the_validator_and_at_the_map() {
     );
     // Door-neutral text: the refusal names the window, not whichever
     // door happened to raise it.
-    let text = format!(
-        "{e_at}",
-        e_at = e.render(geom_brep::recourse::Reading::Build)
-    );
+    let text = e.render(geom_brep::recourse::Reading::Build);
     assert!(
         !text.contains("approx_offset_surface"),
         "the window refusal must not name the storage door from the map: {text}"

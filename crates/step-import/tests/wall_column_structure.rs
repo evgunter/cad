@@ -209,10 +209,7 @@ fn the_refusal_names_which_invariant_the_wall_broke() {
         // Built from its own type, never read back out of the enum that
         // wraps it.
         let inner = format!("{source}");
-        let rendered = format!(
-            "{}",
-            StepImportError::WallColumnStructure { id: 4271, source }.render()
-        );
+        let rendered = StepImportError::WallColumnStructure { id: 4271, source }.render();
         assert!(
             rendered.contains("#4271"),
             "the refusal must name the edge: {rendered}"

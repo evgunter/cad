@@ -309,10 +309,7 @@ fn spine_unsupported_names_the_canal_surface_unit() {
     };
     match run_battery(&req, band()) {
         Err(e @ BlendError::SpineUnsupported { .. }) => {
-            let text = format!(
-                "{e_at}",
-                e_at = e.render(geom_brep::recourse::Reading::Build)
-            );
+            let text = e.render(geom_brep::recourse::Reading::Build);
             assert!(
                 text.contains("canal-surface"),
                 "the refusal must name the missing front door: {text}"
@@ -329,14 +326,8 @@ fn spine_unsupported_names_the_canal_surface_unit() {
 // ---------------------------------------------------------------------
 
 fn assert_same_recourse(definite: &BlendError, escalated: &BlendError, fragment: &str) {
-    let d = format!(
-        "{definite_at}",
-        definite_at = definite.render(geom_brep::recourse::Reading::Build)
-    );
-    let e = format!(
-        "{escalated_at}",
-        escalated_at = escalated.render(geom_brep::recourse::Reading::Build)
-    );
+    let d = definite.render(geom_brep::recourse::Reading::Build);
+    let e = escalated.render(geom_brep::recourse::Reading::Build);
     assert!(d.contains(fragment), "definite arm lost its recourse: {d}");
     assert!(e.contains(fragment), "escalated arm lost its recourse: {e}");
     assert!(
@@ -577,11 +568,9 @@ fn trio_convexity_sign() {
     let knife = plane_wedge(x, -x, e).unwrap_err();
     assert!(matches!(knife, BlendError::KnifeEdge { .. }), "{knife:?}");
     assert!(
-        format!(
-            "{knife_at}",
-            knife_at = knife.render(geom_brep::recourse::Reading::Build)
-        )
-        .contains("cusp or slit"),
+        knife
+            .render(geom_brep::recourse::Reading::Build)
+            .contains("cusp or slit"),
         "{knife_at}",
         knife_at = knife.render(geom_brep::recourse::Reading::Build)
     );

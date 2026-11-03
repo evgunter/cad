@@ -112,8 +112,7 @@ fn cap(r: f64, h: f64) -> f64 {
 /// `Err(text)` for a typed refusal.
 fn outcome(name: &str, text: &str) -> Result<(f64, usize), String> {
     let tol = Tol::witness();
-    let imported = import_step(text, &ImportOptions::default(), tol)
-        .map_err(|e| format!("{e_at}", e_at = e.render()))?;
+    let imported = import_step(text, &ImportOptions::default(), tol).map_err(|e| e.render())?;
     let StepImport::Solid {
         body,
         normalizations,
@@ -487,7 +486,7 @@ fn a_meridian_landing_beside_a_rim_vertex() {
             }
             Ok(_) => panic!("a solid"),
             Err(e) => {
-                let text = format!("{e_at}", e_at = e.render());
+                let text = e.render();
                 report.push(format!("delta {delta:e}: {text}"));
                 // The file states entities #1..#47; a refusal naming a
                 // higher id names topology the import minted, which the

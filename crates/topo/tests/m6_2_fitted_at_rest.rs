@@ -219,21 +219,15 @@ fn the_dual_holds_neither_lane_and_each_refusal_names_its_scalar() {
         ),
         "WITHHELD: the refusal is the fitted-lane one, naming the scalar: {err:?}"
     );
-    let withheld = format!(
-        "{err_at}",
-        err_at = err.render(geom_brep::recourse::Reading::Build)
-    );
+    let withheld = err.render(geom_brep::recourse::Reading::Build);
     assert!(
         withheld.contains("f64 scalar") && !withheld.contains("may not certify"),
         "TEXT: the refusal names f64 and does not deny it the right it has: {withheld}"
     );
-    let msg = format!(
-        "{}",
-        PcurveCertifyError::FittedLaneUnsupported {
-            scalar: <Dual64 as Real>::NAME
-        }
-        .render(geom_brep::recourse::Reading::Build)
-    );
+    let msg = PcurveCertifyError::FittedLaneUnsupported {
+        scalar: <Dual64 as Real>::NAME,
+    }
+    .render(geom_brep::recourse::Reading::Build);
     assert!(
         msg.contains("dual scalar") && msg.contains("certification rights"),
         "TEXT: the refusal names the scalar and who holds the door: {msg}"

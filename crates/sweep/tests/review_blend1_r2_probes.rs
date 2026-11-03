@@ -564,10 +564,7 @@ fn the_seam_vertex_recourse_names_a_door_that_answers() {
     let refused = fillet_edges(&source, &arcs[..1], 0.1, tol()).map_err(|r| r.error);
     match refused {
         Err(e @ BlendError::UnsupportedCorner { .. }) => {
-            let msg = format!(
-                "{e_at}",
-                e_at = e.render(geom_brep::recourse::Reading::Build)
-            );
+            let msg = e.render(geom_brep::recourse::Reading::Build);
             println!("recourse: {msg}");
             assert!(
                 msg.contains("rim whole"),

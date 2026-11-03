@@ -494,10 +494,7 @@ fn the_join_dispatchs_refusal_says_what_it_actually_wires() {
         face,
         kind: geom::SurfaceKind::Nurbs,
     };
-    let msg = format!(
-        "{err_at}",
-        err_at = err.render(geom_brep::recourse::Reading::Build)
-    );
+    let msg = err.render(geom_brep::recourse::Reading::Build);
     // What the JOIN dispatch wires, stated as the recourse: a plane
     // face against a plane, cylinder, sphere or cone face, or a torus
     // face where the plane holds its axis or stands square to it — so

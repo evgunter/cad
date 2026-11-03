@@ -493,10 +493,7 @@ fn the_surgery_front_door_refuses_its_named_gaps() {
         Tol::witness(),
     )
     .expect_err("a curved end face is a run-out, not built");
-    let text = format!(
-        "{err_at}",
-        err_at = err.render(geom_brep::recourse::Reading::Build)
-    );
+    let text = err.render(geom_brep::recourse::Reading::Build);
     assert!(
         text.contains(sweep::blend::battery::END_FACE_CURVED),
         "the refusal names the run-out gap: {text}"
@@ -523,10 +520,7 @@ fn the_surgery_front_door_refuses_its_named_gaps() {
         Tol::witness(),
     )
     .expect_err("an open rim arc stops at a seam vertex");
-    let text = format!(
-        "{err_at}",
-        err_at = err.render(geom_brep::recourse::Reading::Build)
-    );
+    let text = err.render(geom_brep::recourse::Reading::Build);
     assert!(
         text.contains("chart-seam vertex") && text.contains("request the rim whole"),
         "the refusal names the seam vertex and the whole rim: {text}"

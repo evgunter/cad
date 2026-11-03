@@ -480,10 +480,7 @@ fn an_overrunning_sliver_corner_refuses_or_stays_valid() {
         Err(e) => {
             // Typed refusal is an honest answer; assert it is one of
             // the verb's own documented arms, not a panic elsewhere.
-            let text = format!(
-                "{e_at}",
-                e_at = e.render(geom_brep::recourse::Reading::Build)
-            );
+            let text = e.render(geom_brep::recourse::Reading::Build);
             assert!(!text.is_empty(), "a refusal names itself: {e:?}");
         }
         Ok(out) => {
@@ -548,10 +545,7 @@ fn a_nonpositive_setback_refuses_as_invalid_input() {
             matches!(err.error, BlendError::NonpositiveSize { .. }),
             "a nonpositive setback names the request, not the corner, at d = {d}: {err:?}"
         );
-        let text = format!(
-            "{err_at}",
-            err_at = err.render(geom_brep::recourse::Reading::Build)
-        );
+        let text = err.render(geom_brep::recourse::Reading::Build);
         assert!(
             !text.contains("dependent support normals"),
             "the refusal must not assert a false fact about the body: {text}"

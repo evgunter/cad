@@ -179,10 +179,7 @@ fn f1_the_clearance_screen_is_conservative_by_direction_on_the_hexagon() {
                     (gap - 1.0).abs() < 1e-9,
                     "the binding gap is the hexagon's SIDE, not its apothem: {gap}"
                 );
-                let text = format!(
-                    "{e_at}",
-                    e_at = e.render(geom_brep::recourse::Reading::Build)
-                );
+                let text = e.render(geom_brep::recourse::Reading::Build);
                 assert!(
                     text.contains("cannot certify") && text.contains("conservative by direction"),
                     "the screen must not assert the face IS consumed: {text}"

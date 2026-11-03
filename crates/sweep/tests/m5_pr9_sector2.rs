@@ -235,12 +235,7 @@ fn the_must_carry_fires_when_the_description_is_conventional() {
     let msg = errs
         .iter()
         .find(|e| matches!(e, topo::ValidationError::TangentNotIntrinsic { .. }))
-        .map(|e| {
-            format!(
-                "{e_at}",
-                e_at = e.render(geom_brep::recourse::Reading::AtRest)
-            )
-        })
+        .map(|e| e.render(geom_brep::recourse::Reading::AtRest))
         .unwrap();
     assert!(
         msg.starts_with(

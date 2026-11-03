@@ -491,12 +491,7 @@ fn r2_check9_gap_ladder_on_a_near_ring() {
                 let hits: Vec<String> = es
                     .iter()
                     .filter(|e| matches!(e, topo::ValidationError::RingMeetsOuter { .. }))
-                    .map(|e| {
-                        format!(
-                            "{e_at}",
-                            e_at = e.render(geom_brep::recourse::Reading::AtRest)
-                        )
-                    })
+                    .map(|e| e.render(geom_brep::recourse::Reading::AtRest))
                     .collect();
                 if hits.is_empty() {
                     format!("none (other errors: {} of them)", es.len())

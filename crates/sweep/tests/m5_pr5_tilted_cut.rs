@@ -849,10 +849,7 @@ fn near_graze_escalates_typed() {
         geom_core::Tol::witness(),
     );
     let err = split(&body, &plane, Tol::witness()).unwrap_err();
-    let msg = format!(
-        "{err_at}",
-        err_at = err.render(geom_brep::recourse::Reading::Build)
-    );
+    let msg = err.render(geom_brep::recourse::Reading::Build);
     assert!(
         format!("{err:?}").contains("split_conic_belly_graze"),
         "{err:?}"

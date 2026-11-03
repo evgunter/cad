@@ -256,11 +256,8 @@ fn p2_face_clearance_refuses_when_two_blends_meet_across_a_face() {
             // which the screen is EXACT — so here it really does mean
             // the face is consumed, and the row says which case it is.
             assert!(
-                format!(
-                    "{e_at}",
-                    e_at = e.render(geom_brep::recourse::Reading::Build)
-                )
-                .contains("cannot certify")
+                e.render(geom_brep::recourse::Reading::Build)
+                    .contains("cannot certify")
             );
         }
         other => panic!("expected a face-consumption refusal, got {other:?}"),
