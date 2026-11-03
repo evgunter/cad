@@ -67,7 +67,7 @@ crate-visible               2  boolean/plane_eq.rs
 crate-visible              20  boolean/records.rs
 crate-visible               8  boolean/reduce.rs
 crate-visible              24  boolean/refusal_routes.rs
-crate-visible              61  boolean/region.rs
+crate-visible              59  boolean/region.rs
 crate-visible               8  boolean/rim_wedge.rs
 crate-visible               6  boolean/ruled_region.rs
 crate-visible              12  boolean/section_cert.rs
@@ -79,7 +79,7 @@ crate-visible               4  boolean/sphere_region.rs
 crate-visible               1  boolean/spline_known.rs
 crate-visible              11  boolean/spline_region.rs
 crate-visible               4  boolean/spline_region_rows.rs
-crate-visible               4  boolean/torus_region.rs
+crate-visible               3  boolean/torus_region.rs
 crate-visible               2  boolean/voids.rs
 crate-visible               4  boolean/vtxfac.rs
 crate-visible               5  boolean/zip.rs
@@ -246,7 +246,6 @@ ambiguous classify                       # offset_axial.rs
 ambiguous face_carrier                   # readback.rs
 ambiguous face_rows                      # null.rs
 ambiguous fans                           # link/oracle_rows.rs
-ambiguous found                          # census/pierce_fuzz.rs
 ambiguous holds                          # census/depth_gap.rs
 ambiguous in_band                        # census.rs, validate.rs
 ambiguous maximal_faces_gate             # lib.rs
@@ -263,7 +262,6 @@ ambiguous read                           # bound_side.rs, census.rs, census/curv
 ambiguous rect                           # chart_region.rs
 ambiguous section_report                 # lib.rs
 ambiguous sheet                          # chart_region.rs, chord_join/cone_ring_rows.rs, chord_join/sphere_island_rows.rs, chord_join/torus_ring_rows.rs, injective.rs, row_walk_proofs.rs
-ambiguous span                           # census/curved.rs
 ambiguous spiric_cap                     # census.rs
 ambiguous split                          # census/depth_gap.rs, clearance.rs, link/cone_fuzz.rs, props.rs
 ambiguous sweep_pad                      # lib.rs
