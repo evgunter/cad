@@ -2355,7 +2355,7 @@ fn precedence<L: LeafSet>(expr: &ExprTree<L>) -> u8 {
 /// A reader writes the name `names` gives its variable, so the text
 /// parses back to a name leaf that lowers, against the same names, to
 /// the same reader. A reader `names` has no name for writes
-/// `#<16 hex>`, its full id, which the parser refuses.
+/// `#<ordinal>:<hex>`, its full id, which the parser refuses.
 pub fn unparse<'n, L: LeafSet>(
     expr: &ExprTree<L>,
     names: &impl Fn(VarId) -> Option<&'n VarName>,

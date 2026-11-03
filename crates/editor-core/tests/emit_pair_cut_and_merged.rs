@@ -1,13 +1,13 @@
 //! **A pair boolean that cuts a face and merges part of it in one step
-//! publishes no face under the name its merge retires** (N3).
+//! names each piece for what it holds** (N2, N3).
 //!
 //! `bg` = `b` ∪ `g`: `b` = x 0.5..1.5, and `g` a slab over
 //! x 0.3..0.4 standing through the y = 0 plane and both cap planes.
-//! `bg` ∪ `a`, `a` = x 0..1, is flush with `b` on all four families. `g` cuts `a`'s y = 0 wall into x 0..0.3 and x 0.4..1, and
-//! the second piece merges with `b`'s wall, so the merge lists `a`'s
-//! wall as a constituent. The merge is then the parent of both pieces:
-//! each is published as a `Borders` piece of it, and neither under
-//! `a`'s retired wall name.
+//! `bg` ∪ `a`, `a` = x 0..1, is flush with `b` on all four families. `g`
+//! cuts `a`'s y = 0 wall into x 0..0.3 and x 0.4..1, and the second
+//! piece merges with `b`'s wall. The first piece holds `a`'s wall alone
+//! and is a `Borders` piece of it; the second holds both walls and is a
+//! `Borders` piece of their merge. No constituent is published bare.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::blocks::{block, block_on, failure, run};
@@ -19,7 +19,7 @@ use editor_core::{
 use geom_core::Tol;
 
 #[test]
-fn a_face_cut_and_merged_in_one_pair_step_publishes_no_constituent() {
+fn a_face_cut_and_merged_in_one_pair_step_names_each_piece_for_what_it_holds() {
     let doc = ProfileDoc::empty_derived("emit_pair_cut_and_merged", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
     let (doc, b) = block_on(doc, a, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
@@ -72,10 +72,6 @@ fn a_face_cut_and_merged_in_one_pair_step_publishes_no_constituent() {
                 t.lookup(c).is_none(),
                 "{c:?}, a constituent of {row:?}, is published"
             );
-            assert!(
-                !t.iter().any(|(n, _)| is_piece_of(n, c)),
-                "a piece of {c:?}, a constituent of {row:?}, is published"
-            );
             match crate::fixture::resolve_at_mint(ctx, c) {
                 Resolution::Failed(f) => assert!(
                     f.offers.contains(row),
@@ -87,7 +83,8 @@ fn a_face_cut_and_merged_in_one_pair_step_publishes_no_constituent() {
         }
     }
     // `a`'s y = 0 wall is cut by `g` and partly merged with `b`'s: the
-    // merge is its parent, held as two faces, each a piece of it.
+    // merged rest is a piece of the merge, and the piece `g` cuts off a
+    // piece of `a`'s wall.
     assert_eq!(
         cut_parents.len(),
         1,
@@ -96,7 +93,20 @@ fn a_face_cut_and_merged_in_one_pair_step_publishes_no_constituent() {
     let parent = cut_parents.first().expect("one cut parent");
     assert_eq!(
         t.iter().filter(|(n, _)| is_piece_of(n, parent)).count(),
-        2,
-        "the y = 0 merge is held as the piece `g` cuts off and the merged rest"
+        1,
+        "the y = 0 merge is held as the merged rest"
+    );
+    let Some(RoleSeg::Merged(set)) = parent.path.first() else {
+        unreachable!("a cut parent is a merge");
+    };
+    let alone: Vec<&StableName> = t
+        .iter()
+        .map(|(n, _)| n)
+        .filter(|n| set.iter().any(|c| is_piece_of(n, c)))
+        .collect();
+    assert_eq!(
+        alone.len(),
+        1,
+        "one piece holds a constituent alone, the one `g` cuts off: {alone:?}"
     );
 }

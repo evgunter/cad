@@ -365,3 +365,4 @@ and bodies unchanged. No orchestrator yet.
     - a translated pose refuses through `PROJECT_EPS_POINT`'s absolute 1e-13;
     - a crease march escalates;
     - 7 s cell-budget refusals.
+- 2026-11-03 — (SPLICE orchestrator) **`a-nurbs-wall-against-a-plane-has-no-germ-frame` now has an everyday witness.** The wavy loft united with a box across its corners (editor-core `wavy_loft`) passes its held-pierce site on `splice/held-pierce` and stops at `GermFrameUnsupported { a_face: 4v1, a_kind: Nurbs, b_face: 6v1, b_kind: Plane }`, from `join::pair_section_frame_at`'s `NoArm` fallback. That is a normal verb on normal geometry, so the row may merit P0 by the band definitions; the band is yours to set. The lane adds the reproducer to the row, with SPLICE's owed end-to-end row (the union builds, its corner crossings named and tied), which now waits on it.

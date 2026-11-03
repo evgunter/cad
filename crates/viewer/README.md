@@ -725,8 +725,8 @@ the thing these walks exist to keep readable); `scratch`, `body`,
 `gesture` and `resolver` are their presence, rendered as the elisions
 `Some(<Doc>)`, `Some(<Body>)`, `Some(<Gesture>)` and
 `Some(<DirResolver>)`; `index` is the generation it describes
-inside one, `Some(<PickIndex for Generation(4)>)`; and `stage` and
-`seeded` are the key and the generation they are for. Summarising is what
+inside one, `Some(<PickIndex for Generation(4)>)`; and `seeded` is
+the generation it is for. Summarising is what
 a `#[derive(Debug)]` cannot do at all, which is the reason these are
 written out rather than derived; the recipe and result DAGs are what
 makes that reason bite.
@@ -745,10 +745,10 @@ reading of four `fmt` bodies rather than a grep: in each of the four
 walks — `Derived`, `LandedRun` and `DocSession` in `session`,
 `PickCache` in `pickcache` — read every `.field(…)` call, **30 of
 them**, and take the ones whose value argument is not the destructured
-binding itself. **Eleven calls, nine fields**: `checks` and `index`
+binding itself. **Ten calls, eight fields**: `checks` and `index`
 each spend two arms, and the absent arm renders `None`, which is the
 whole field. `viewer`'s `tests/debug_dumps.rs` holds seven of them to
-their spellings — all but `stage` and `seeded` — and is the
+their spellings — all but `seeded` — and is the
 only reader of these dumps in the tree. What holds the NEXT summarised
 field to the rule is not a check: the destructuring makes the compiler
 send whoever adds a field to the walk, the rule is stated here and in
@@ -2031,18 +2031,23 @@ A create gesture asks for two things and nothing else:
 - **which kind of node.** The button pressed says it. A choice that
   decides the node's kind, or which nodes exist, is a button and not a
   field: union, intersect or subtract; fillet or chamfer; a pattern's
-  rule and whether its copies are fused; a clearance bound's shape.
+  rule and whether its copies are fused. A clearance bound's shape
+  (at least, at most, exactly, between) is not one: it decides neither
+  the node's kind nor which nodes exist, so it is a row on the
+  requirement, and the create gesture inserts at least.
 - **what the node reads**: the selection, or the tool's picks. These
   are the profile an extrude or revolve sweeps, a boolean's members, a
-  split's target, a blend's edge set, and the face a profile is drawn
-  on. A live node's reads change only by the slot door or
+  split's target and the plane it cuts along (any plane the document
+  can read: a planar face, or a plane already defined), a blend's edge
+  set, and the face a profile is drawn on. A live node's reads change only by the slot door or
   `SetMembers` (DM6, `crates/editor-core/REFERENCES.md`), so they are
   stated at insert.
 
 It inserts the node with default values and selects the node its noun
 names (the pattern, not the pattern's placement). A default is worked
-out from the reads where it can be: the split plane through the
-target's centre, a revolve's axis off its profile's extent.
+out from the reads where it can be: a revolve's axis lies off its
+profile's extent. A pattern inserts with default values, which its
+placement and count rows edit.
 
 Every value is edited afterwards on the node's one edit surface: its
 Properties slot rows, the profile editor, or the placement editor.
@@ -2081,8 +2086,8 @@ is its preview.
 
 ### The seated tools whose values have a home
 
-Four seated tools hold no value field; what they used to type is a row
-of the node they insert.
+Six seated tools hold no value field; what they used to type is a row
+of the node they insert, or a pick.
 
 - **Blend.** The form asks for the edges and fillet or chamfer. The
   insert writes the size at `blend::default_size`: a millimetre,
@@ -2109,8 +2114,41 @@ of the node they insert.
   (`index_count_ui`), drawn on the index variable's own row and on the
   rows of every node that reads the index (`props::indices_read`),
   such as a pattern's placement. A number, a drag or a formula writes
-  the count through `props::index_count_edit`. The pattern form's own
-  count field stays.
+  the count through `props::index_count_edit`.
+- **Split.** The form asks for the target and the plane it is cut
+  along (`combine::SplitTool`), and the button is withheld, naming the
+  missing pick, until both are held. The plane is a face pick, read as
+  its plane on the body it was picked on (`matetool::plane_of`), and
+  held as the mirror holds its own (`combine::PlaneSeats`, one value
+  for both tools); the first face pick seats the target too, a
+  later one re-picks the plane, and a tree pick re-picks the target. A
+  `Plane` variable, or a `Frame` read through its `xy`, is taken as the
+  plane when the selection names it (`Selection::Variable`); no
+  Properties row lists a pose variable, so that pick comes through the
+  selection stream (a driver, the op vocabulary), not a row.
+  `SessionOp::AddSplit` takes the plane as `SplitPlane`: that face, or a
+  plane read written whole. The insert
+  selects the split. Nothing is staged before it: the split's own
+  evaluation, read on its tree row, says whether a side is empty.
+  After the insert the plane is the split's `OperandSlot::Tool`, which
+  only the operand slot door (`DocEdit::SetParam` with a read)
+  re-points; no row of the viewer writes it.
+- **Pattern.** The form asks for the body, the rule (linear or
+  circular) and the output (instances or fused). The insert writes the
+  defaults the code owns (`combine::PATTERN_COUNT` and the rest beside
+  it): `4` copies; a row along the target's `x` (`combine::STEP_ALONG`,
+  the axis a duplicate steps along) spaced by the duplicate's clearing
+  step (`DocSession::clearing_step`, `combine::duplicate_step`) rounded
+  up to one significant figure in the working unit
+  (`combine::row_spacing`), so the copies clear the body; a ring about
+  the target's `z`
+  (`combine::RING_ABOUT`) stepped a quarter turn (`combine::RING_STEP`).
+  The count is the index's count row. The spacing and the step are the
+  placement editor's slide and spin value rows on the pattern's
+  placement, each a number or a formula reading the index by its name,
+  `k`, `k1`, … (`combine::fresh_index`): a formula's text names a
+  variable by its name, so an index with no name could not be written
+  into a row.
 
 ### One open tool, not one optional value per tool
 

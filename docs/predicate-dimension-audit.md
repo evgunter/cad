@@ -576,7 +576,6 @@ which is what actually moves the number.
 | boolean/join.rs (`along_facing`) | bool_join_foot_heading | unit germ dir · the carrier's unit tangent at the site's foot, levered by the section's own scale (`CarriedSection::lever`, the cylinder's radius for cylinder × sphere), so a germ's heading is its own and read once per operation (`SectionTable::germ_foot`) | m (levered) | OK |
 | boolean/join.rs (`along_facing`) | bool_join_foot_ahead | the carrier parameter from one site's foot to the other's, the way the germ leaves, metered by the carrier's speed at the germ's foot | m | OK |
 | boolean/join.rs (`nearer_along`) | bool_join_foot_travel | a DIFFERENCE of two such parameters, metered by that speed: which partner's foot the germ reaches first | m | OK |
-| boolean/join.rs (`rulings_normal`) | bool_join_cc_rulings_normal | the unit length of the parallel cylinder pose's rulings-plane normal (`CylinderCylinderPose::rulings_plane`, a unit offset direction the pose decided apart from zero), read to mint the chart normal | m (unit) | OK |
 | boolean/join.rs:1093 | bool_ring_run_winding | (n̂ · Newell sum) / run perimeter — 2A/P, the run's mean width | m | FIXED (F4; was a bare **m² AREA**) |
 | boolean/ops.rs:1194–1480 | bool_sphere_* | radius/gap differences; sin × radius | m | OK |
 | boolean/plane_eq.rs:174/233 | bool_plane_parallel | sin(n̂1,n̂2) × arm | m | OK |
@@ -606,9 +605,23 @@ which is what actually moves the number.
 | boolean/conic_quadric (the cone arm, an on-surface answer) | bool_conic_cone_on_surface | `(max(\|lo\|, \|hi\|) + noise) / floor`: a constant `F`'s reach read through the floor on `\|F\|` per metre of residual, an upper bound on the residual's magnitude (m) | m | OK |
 | boolean/conic_quadric (the cone arm, each certified root) | bool_conic_cone_apex | `\|C(θ) − apex\|`, the root's distance from the apex (m, `Margin::norm3`) | m | OK |
 | boolean/reduce.rs (`line_cone_roots`) | bool_line_cone_apex | the edge segment's distance from the apex: the line's foot on the apex clamped to the span (m, `Margin::norm3`) | m | OK |
+| boolean/reduce.rs (`line_cone_roots`, `apex_root_spread`) | bool_line_cone_apex_spread | `max \|τ±\|·\|dir\|`: how far along the edge the line's roots lie from its end, read from the cone's form about the end itself (m, `Margin::of`) | m | OK |
 | boolean/reduce.rs (`line_cone_roots`) | bool_line_cone_lead | `A/\|dir\|² = cos²(∠(dir, â)) − cos²α` levered by the segment's length (dimensionless × m) | m | OK |
 | boolean/reduce.rs (`line_cone_roots`) | bool_line_cone_depth | `disc/(\|A\|·R)`: `−disc/A` is the negated quadric form `G` at the vertex (m²), over `R ≥ \|q(t*)\|`, a ceiling on the form's factor `ρ cos α + \|h\| sin α` there: a lower bound on the residual's magnitude at the vertex (m) | m | OK |
 | boolean/reduce.rs (`line_cone_roots`) | bool_line_cone_root_slack | `\|dir\|·NOISE_ULPS·u/2·(\|w₀\| + \|dir\|\|t\|)²/(2√disc)` less the root's arc distance outside the span: `G`'s rounding (m²) over `\|G′\|` (m²/param) at the line's speed (m/param) | m | OK |
+| boolean/fan.rs (`face_side_code`, `nappe_classes`) | bool_fan_side | `nappe_offset`: `ρ cos α − z sin α` at the bound's reach point, its signed distance from the nappe (m, `Margin::of`) | m | OK |
+| boolean/fan.rs (`meeting`, `nappe_classes`) | bool_fans_coaxial | `‖a₁ × a₂‖` of the two nappes' unit axes, levered by the sectors' arm (dimensionless × m) | m | OK |
+| boolean/fan.rs (`meeting`, `nappe_classes`, `fan_within_signs`) | bool_fan_nappe | `a₁ · a₂` of the nappes' unit axes, or the direction's along the nappe's, levered by the arm (dimensionless × m) | m | OK |
+| boolean/fan.rs (`meeting`, `nappe_classes`) | bool_fans_one_cone | `α₁ − α₂`, the half-angles' difference (rad), levered by the arm | m | OK |
+| boolean/fan.rs (`meeting`, through `geom_brep::cone_cone_apex_meeting`) | bool_fans_meet | `disc = 1 − ‖base‖²`, where the fans' planes' line meets the unit sphere (dimensionless), levered by the arm | m | OK |
+| boolean/fan.rs (`conditioned`: `meeting`'s crossing arm, the join's `cone_apex_plane`) | bool_fans_meet_conditioning | `arm·4u/‖a₁ × a₂‖`: how far a common ruling can sit at `arm` from where the closed form's own arithmetic (the cross product's rounding) places it (m, `Margin::of`) | m | OK |
+| boolean/fan.rs (`plane_fan`) | bool_fan_plane_normal | the partner plane's normal, normalised levered by the fan's arm (`UnitVec3::levered`) | m | OK |
+| boolean/fan.rs (`fans_overlap`) | bool_fan_bounds_along | the fan's turn `u × v · â` between two bound directions (dimensionless), levered by the bound's reach | m | OK |
+| boolean/sectors.rs (`extreme_directions`) | bool_sector_partner_tilt | `‖v‖`, the part of the partner face's normal or axis square to the fan's axis or in the sector's plane (dimensionless), levered by the sector's arm | m | OK |
+| boolean/fan.rs (`cones_share_apex`: the section certificate's cone pair, the join's `pair_section_frame_at` and `segment_arm`) | bool_cones_share_apex | `‖p₁ − p₂‖`, the two cones' apexes' gap (m, `Margin::of`) | m | OK |
+| boolean/join.rs (`partners`, two cones through one apex) | bool_join_on_ruling | `‖d̂ × (p₂ − p₁)‖`: the partner site's distance from the germ's own ruling (unit direction × metres, `Margin::of`) | m | OK |
+| boolean/join.rs (`cone_apex_plane`) | bool_join_cone_apex_plane | `base × across` of `geom_brep::cone_cone_apex_meeting`, normalised levered by the germ's reach from the apex (`UnitVec3::levered`) | m | OK |
+| boolean/section_cert.rs (`cone_cone`) | section_cone_pair_common_rulings | `disc` of `geom_brep::cone_cone_apex_meeting` per nappe pairing (dimensionless), levered by the reach | m | OK |
 | boolean/reduce.rs (`wall_crossing`, a cone face's roots) | bool_cone_root_nappe | the root's elevation off the face's own nappe (`geom_brep::cone_elevation` with that nappe), a length | m | OK |
 | boolean/arcs.rs (`arcs_along`) | bool_arc_along / bool_arc_ahead | `\|t̂ × d̂\|` and `t̂ · d̂` of two unit tangents, each levered at the arc's radius (`Margin::levered`): sin and cos of the angle between them × radius, the offset the arc's far side swings by | m | OK |
 | boolean/sectors.rs (`on_planar_face`, read by `runs_in`) | bool_germ_tie_plane | a point's signed height over a face's plane, `(p − o) · n̂` with `n̂` unit | m | OK |

@@ -2,11 +2,12 @@
 id: section-area-skips-a-spiric-or-nurbs-section-edge
 kind: issue
 title: certify_section_area reads a spiric or NURBS section edge as its chord
-status: open
+status: dispatched
 opened: 2026-10-03
 priority: P1
 cost: E
 refs: [3984]
+branch: splice/kind-reads
 ---
 
 

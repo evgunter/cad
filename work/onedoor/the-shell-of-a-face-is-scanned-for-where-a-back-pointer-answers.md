@@ -2,10 +2,13 @@
 id: the-shell-of-a-face-is-scanned-for-where-a-back-pointer-answers
 kind: issue
 title: boolean/ops.rs scans every shell's face list for the shell of a face, where Face::shell answers in one lookup
-status: open
+status: closed
 opened: 2026-09-19
 priority: P1
 cost: E
+closed: 2026-11-03
+pr: 6433
+branch: onedoor/one-spelling-trio
 ---
 
 
@@ -53,3 +56,7 @@ is a posture change and not a mechanical substitution.
 shell, and it is the only site in the tree that spells this hop the
 reverse way. The census that found it is recorded on
 `work/dup/solid-of-face-has-eleven-hand-written-walks-outside-it.md`.
+
+## Closed (PR 6433, 2026-11-03)
+
+`apply_recuts` now reads `Face::shell` through `live::proven`, and the shell through `live::linked`. The operand's solid read moves the same way, through `live::proven`. All three are row 4, since the operand is an at-rest body that every door keeps tier-1-valid. The face↔shell check is validate's pass 7, not pass 10.

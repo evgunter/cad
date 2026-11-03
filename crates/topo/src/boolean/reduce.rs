@@ -77,6 +77,7 @@ use crate::null::CurveGeom;
 use crate::offset_nappe::NappeRefusal;
 use crate::sector_shape::SlitTips;
 use crate::splitting::{ConicPlaneMeet, PlaneCrossingLane, PlaneSide as SplitSide};
+use crate::sweep_trace::SweepPairs;
 use crate::validate::decide;
 use crate::vertex_section::{Offset, SectionPlane, VertexRefusal};
 use geom_brep::roots::{Roots, Unsettled};
@@ -105,20 +106,6 @@ pub enum SweepStrategy {
     /// is not built (see `sweep_direction`).
     #[cfg(feature = "sweep-testing")]
     Idealized,
-}
-
-/// One direction's sweep observations, for the differential suite's
-/// superset pin: `examined` = pairs whose exact classification ran
-/// (the candidate set), `accepted` = pairs where the exact predicates
-/// accepted at least one event (a crossing inside the face, or an
-/// endpoint contact). Pairs are `(edge of x, face of y)` in
-/// examination order.
-#[derive(Debug, Default, Clone)]
-pub struct SweepTrace {
-    /// Every candidate pair the exact path examined.
-    pub examined: Vec<(EdgeKey, FaceKey)>,
-    /// The subset of pairs that produced an accepted event.
-    pub accepted: Vec<(EdgeKey, FaceKey)>,
 }
 
 /// The suite's failure-injection seam (pin iii — "the suite must be
@@ -1014,7 +1001,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
     band: Band,
     strategy: SweepStrategy,
     knobs: &SweepKnobs,
-    mut trace: Option<&mut SweepTrace>,
+    mut trace: Option<&mut SweepPairs<(EdgeKey, FaceKey)>>,
     deferred: &mut Vec<DeferredTouch>,
     axes: &super::separating::OperandAxes<T>,
     tol: Tol,
@@ -1076,7 +1063,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 break;
             };
             if let Some(tr) = trace.as_deref_mut() {
-                tr.examined.push((edge_key, face));
+                tr.examine((edge_key, face));
             }
             let edge =
                 x.get_edge(edge_key)
@@ -1126,7 +1113,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                         | CurvedEvent::Along { recorded: false }
                 ) && let Some(tr) = trace.as_deref_mut()
                 {
-                    tr.accepted.push((edge_key, face));
+                    tr.accept_last();
                 }
                 // A wall crossing is split and recorded HERE, with the
                 // same triple the conic × plane root above uses: the
@@ -1392,7 +1379,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                             )?;
                         }
                         if hit && let Some(tr) = trace.as_deref_mut() {
-                            tr.accepted.push((edge_key, face));
+                            tr.accept_last();
                         }
                         continue;
                     }
@@ -1407,7 +1394,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                         if vertex_on_face(x_is, y, w, pw, face, &plane, on, contacts, band, tol)?
                             && let Some(tr) = trace.as_deref_mut()
                         {
-                            tr.accepted.push((edge_key, face));
+                            tr.accept_last();
                         }
                         continue;
                     }
@@ -1435,7 +1422,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                             if !matches!(containment, FaceContainment::Out)
                                 && let Some(tr) = trace.as_deref_mut()
                             {
-                                tr.accepted.push((edge_key, face));
+                                tr.accept_last();
                             }
                             match containment {
                                 FaceContainment::Out => {}
@@ -1544,7 +1531,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                             )?;
                         }
                         if hit && let Some(tr) = trace.as_deref_mut() {
-                            tr.accepted.push((edge_key, face));
+                            tr.accept_last();
                         }
                         continue;
                     }
@@ -1578,7 +1565,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                     if !matches!(containment, FaceContainment::Out)
                         && let Some(tr) = trace.as_deref_mut()
                     {
-                        tr.accepted.push((edge_key, face));
+                        tr.accept_last();
                     }
                     match containment {
                         FaceContainment::Out => {}
@@ -1705,7 +1692,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                         )?;
                     }
                     if hit && let Some(tr) = trace.as_deref_mut() {
-                        tr.accepted.push((edge_key, face));
+                        tr.accept_last();
                     }
                 }
             }
@@ -1753,7 +1740,7 @@ pub(super) fn sweep_and_settle<T: Decide + Bounds + crate::props::AtRestPolicy>(
     band: Band,
     strategy: SweepStrategy,
     [ab_knobs, ba_knobs]: [&SweepKnobs; 2],
-    [mut ab_trace, mut ba_trace]: [Option<&mut SweepTrace>; 2],
+    [mut ab_trace, mut ba_trace]: [Option<&mut SweepPairs<(EdgeKey, FaceKey)>>; 2],
     tol: Tol,
 ) -> Result<(), BooleanError> {
     let mut deferred = Vec::new();
@@ -1959,8 +1946,8 @@ pub(super) struct DeferredTouch {
 ///
 /// Each fragment, walked from the deferred key along `he_plus` to the
 /// edge's far end, is read again by [`curved_face_arm`] against the
-/// deferred face; a pair it accepts is written to its direction's
-/// trace, as the sweep writes one. A fragment that clears or records is
+/// deferred face, and is written to its direction's trace as the sweep
+/// writes one: examined, and accepted where the arm accepts. A fragment that clears or records is
 /// done; one whose touch is still inside it, or that the arm reads as a
 /// crossing, answers the pair's typed frontier. So does a pair nothing
 /// split, read again exactly as it was deferred.
@@ -1972,7 +1959,7 @@ pub(super) fn settle_deferred<T: Decide + Bounds + crate::props::AtRestPolicy>(
     declared: &super::GluedPairs<T>,
     contacts: &mut ContactAcc,
     band: Band,
-    mut traces: [Option<&mut SweepTrace>; 2],
+    mut traces: [Option<&mut SweepPairs<(EdgeKey, FaceKey)>>; 2],
     tol: Tol,
 ) -> Result<(), BooleanError> {
     for d in deferred {
@@ -1993,6 +1980,9 @@ pub(super) fn settle_deferred<T: Decide + Bounds + crate::props::AtRestPolicy>(
                         what: "a deferred edge's fragment vanished",
                     })?;
             let ((u, pu), (v, pv)) = edge_ends(x, &edge)?;
+            if let Some(tr) = trace.as_deref_mut() {
+                tr.examine((fragment, d.face));
+            }
             match curved_face_arm(
                 x, y, d.x_is, fragment, &edge, u, v, d.face, pu, pv, declared, contacts, band, tol,
             )? {
@@ -2005,7 +1995,7 @@ pub(super) fn settle_deferred<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 | CurvedEvent::Lies { recorded: true, .. }
                 | CurvedEvent::Along { recorded: true } => {
                     if let Some(tr) = trace.as_deref_mut() {
-                        tr.accepted.push((fragment, d.face));
+                        tr.accept_last();
                     }
                 }
                 CurvedEvent::Deferred | CurvedEvent::Pierce { .. } => return Err(d.refusal),
@@ -5005,6 +4995,35 @@ pub(super) fn line_wall_roots_of<T: Decide>(
     })))
 }
 
+/// **How far along a line its roots against a cone lie from its point
+/// `e` off the apex** (`bool_line_cone_apex_spread`, a length): the
+/// cone's quadric form along `e + τ·dir`, read about `e` itself,
+/// `Q(e,e) + 2τ·Q(e,dir) + τ²·Q(dir,dir)` with
+/// `Q(x,y) = cos²α(x·y − (x·â)(y·â)) − sin²α(x·â)(y·â)`. Every term is
+/// built from the small `e`, so nothing cancels: its roots `τ±` give the
+/// spread `max |τ±|·|dir|`, and where it has none the line's closest
+/// approach `|Q(e,dir)/Q(dir,dir)|·|dir|` stands for them. Along the axis
+/// it is the line's offset itself. A degenerate `Q(dir,dir)` (a ruling)
+/// is the lead rung's, read before.
+fn apex_root_spread<T: Decide>(
+    e: geom_core::Vec3<T>,
+    dir: geom_core::Vec3<T>,
+    (axis, half_angle): (geom_core::Vec3<T>, T),
+) -> T {
+    let (sin, cos) = half_angle.sin_cos();
+    let (cc, ss) = (cos.powi(2), sin.powi(2));
+    let q = |x: geom_core::Vec3<T>, y: geom_core::Vec3<T>| {
+        let (xa, ya) = (x.dot(axis), y.dot(axis));
+        cc * (x.dot(y) - xa * ya) - ss * xa * ya
+    };
+    let (a, b, c) = (q(dir, dir), q(e, dir), q(e, e));
+    // No real roots: the closest approach, `disc` read as zero.
+    let root = (b.powi(2) - a * c).max(T::zero()).sqrt();
+    let speed = dir.norm();
+    let (t1, t2) = ((T::zero() - b + root) / a, (T::zero() - b - root) / a);
+    t1.abs().max(t2.abs()) * speed
+}
+
 /// **The certified roots of the LINE `origin + dir·t` against a CONE**:
 /// the cone's quadric form along it, the quadratic
 /// [`super::solid_contain::line_cone_quadratic`] `G = A t² + 2B t + C`
@@ -5013,8 +5032,17 @@ pub(super) fn line_wall_roots_of<T: Decide>(
 ///
 /// - **`bool_line_cone_apex`** — the segment `[t0, t1]`'s distance from
 ///   the apex. Not definitely positive: the edge reaches the apex, where
-///   the cone's gradient vanishes, and the lane refuses
+///   the cone's gradient vanishes. An edge that ends there (an end's
+///   distance Zero) and is no ruling meets the cone at that end alone,
+///   its residual `A·(t − t_end)²`: one double root at the end, which
+///   the caller reads as the end's incidence. Otherwise the lane refuses
 ///   [`Unsettled::AtApex`] rather than read a root there.
+/// - **`bool_line_cone_apex_spread`** — within the band of the apex is
+///   not at it: how far along the edge the line's roots lie from the end
+///   ([`apex_root_spread`], read about the end, so exact to rounding).
+///   Not definitely in the band (a needle cone and a line near its
+///   axis), or in the band's gap: the lane refuses [`Unsettled::AtApex`]
+///   rather than place the root at the end.
 /// - **`bool_line_cone_lead`** — `A/|dir|²` levered by the segment's
 ///   length: how far the line turns off a generator over the edge. Zero:
 ///   the quadratic degenerates (a ruling, or a line parallel to one) and
@@ -5049,10 +5077,6 @@ fn line_cone_roots<T: Decide>(
     let foot = ((T::zero() - w0.dot(dir)) / dd)
         .max(t0.min(t1))
         .min(t0.max(t1));
-    match decide("bool_line_cone_apex", Margin::norm3(at(foot)), band).map_err(escalate)? {
-        Sign::Positive => {}
-        Sign::Zero | Sign::Negative => return Ok(Err(Unsettled::AtApex)),
-    }
     let [a2, b2, c2] = super::solid_contain::line_cone_quadratic(
         origin,
         dir,
@@ -5065,6 +5089,46 @@ fn line_cone_roots<T: Decide>(
     // Unsourced lever: a length read off the parameter span, not the
     // edge's end points; the end points' distance rounds differently.
     let length = geom_core::Lever::unsourced(dir.norm() * (t1 - t0).abs());
+    match decide("bool_line_cone_apex", Margin::norm3(at(foot)), band).map_err(escalate)? {
+        Sign::Positive => {}
+        Sign::Zero | Sign::Negative => {
+            // An edge that ENDS at the apex: the cone's form is
+            // homogeneous about its apex, so along a line through it the
+            // residual is `A·(t − t_end)²`, zero at that end alone unless
+            // the line is a ruling (`A` zero, the lead rung's). Its one
+            // root is the end's, a double one there: the end's incidence
+            // is the apex vertex, read as a vertex's (`NoInterior`), never
+            // a crossing. An edge through the apex inside the span is not
+            // read here.
+            for end in [t0, t1] {
+                if decide("bool_line_cone_apex", Margin::norm3(at(end)), band).map_err(escalate)?
+                    != Sign::Zero
+                {
+                    continue;
+                }
+                let lead = a2 / dd;
+                if decide("bool_line_cone_lead", Margin::levered(lead, length), band)
+                    .map_err(escalate)?
+                    == Sign::Zero
+                {
+                    return Ok(Err(Unsettled::Degenerate));
+                }
+                // In the band, not AT the apex: the end's meeting with the
+                // apex only where the line's roots lie within the band of
+                // the end along the edge ([`apex_root_spread`]). An in-band
+                // spread is the apex's, refused typed, never escalated.
+                return match decide(
+                    "bool_line_cone_apex_spread",
+                    Margin::of(apex_root_spread(at(end), dir, (axis, half_angle))),
+                    band,
+                ) {
+                    Ok(Sign::Zero) => Ok(Ok(Roots::<T, 2>::all([end, end]).widen())),
+                    Ok(Sign::Positive | Sign::Negative) | Err(_) => Ok(Err(Unsettled::AtApex)),
+                };
+            }
+            return Ok(Err(Unsettled::AtApex));
+        }
+    }
     match decide(
         "bool_line_cone_lead",
         Margin::levered(a2 / dd, length),
@@ -8296,6 +8360,64 @@ mod line_cone_rows {
             matches!(short, Err(Unsettled::Tangency)),
             "a segment ending half a metre short of the apex, got {short:?}"
         );
+    }
+
+    /// **An edge ending at the apex meets it at that end alone**: its one
+    /// root is a double one there, at either end, at the apex or within a
+    /// twentieth of the zero band of it. A ruling ending there is
+    /// degenerate (the lead rung), and an end in the band whose roots can
+    /// spread past it along the edge refuses at the apex (the spread rung):
+    /// a line within a milliradian of a generator, half a zero band off.
+    #[test]
+    fn an_edge_ending_at_the_apex_has_its_double_root_at_that_end() {
+        let b = band();
+        for (label, origin, span, end) in [
+            ("ending at the apex", [-1.0, 0.0, 0.3], (0.0, 1.0), 1.0),
+            ("starting at the apex", [-1.0, 0.0, 0.3], (1.0, 2.0), 1.0),
+            (
+                "ending in band of it",
+                [-1.0, 0.05 * b.zero(), 0.3],
+                (0.0, 1.0),
+                1.0,
+            ),
+        ] {
+            let got = roots(origin, [1.0, 0.0, -0.3], span);
+            let Ok(CircleRoots::Certified(found)) = got else {
+                panic!("{label}: got {got:?}");
+            };
+            assert!(
+                found.roots().len() == 2 && found.roots().iter().all(|&t| t == end),
+                "{label}: a double root at the end, got {found:?}"
+            );
+        }
+        let ruling = roots([-1.0, 0.0, -1.0], [1.0, 0.0, 1.0], (0.0, 1.0));
+        assert!(
+            matches!(ruling, Err(Unsettled::Degenerate)),
+            "a ruling ending at the apex, got {ruling:?}"
+        );
+        let steep = roots(
+            [-1.0, 0.5 * b.zero(), -1.001],
+            [1.0, 0.0, 1.001],
+            (0.0, 1.0),
+        );
+        assert!(
+            matches!(steep, Err(Unsettled::AtApex)),
+            "a line beside a generator ending in band of the apex, got {steep:?}"
+        );
+        // Its spread in the band's gap (about `2.3e-9` at the witness
+        // band): the apex's, refused typed, never escalated.
+        let gap = roots([-1.0, 0.5 * b.zero(), -1.05], [1.0, 0.0, 1.05], (0.0, 1.0));
+        assert!(
+            matches!(gap, Err(Unsettled::AtApex)),
+            "a spread in the escalation band, got {gap:?}"
+        );
+        // Along the axis the spread is the line's offset itself: half a
+        // zero band off, the end is the apex's.
+        let axial = roots([0.5 * b.zero(), 0.0, -1.0], [0.0, 0.0, 1.0], (0.0, 1.0));
+        let Ok(CircleRoots::Certified(found)) = axial else {
+            panic!("an axial line ending half a band off the apex, got {axial:?}");
+        };
+        assert!(found.roots().iter().all(|&t| t == 1.0), "{found:?}");
     }
 
     /// **Each root is placed along the edge** (the root-slack rung's row),

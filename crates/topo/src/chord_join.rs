@@ -2539,6 +2539,51 @@ fn chord_spec<T: Decide>(
     }))
 }
 
+/// **The plane through a cone face's apex against the cone**, read as the
+/// C5 table's cone arm reads it for a chord ([`wall_section`]): the same
+/// lane, `geom_brep::plane_cone_section`, at the same reach of the face
+/// at `at`, its classification handed back whole. The vertex–vertex
+/// pair search reads where a plane meets a fan of the cone's rulings by
+/// it (`boolean::fan`), and a plane touching the cone at the apex alone
+/// is no chord's case but a meeting there alone, which the chord reading
+/// refuses as its invariant.
+///
+/// # Errors
+///
+/// [`SplitJoinError::SectionInvariant`] for a face that is not a cone;
+/// the face's reach's refusals; the lane's ([`SplitJoinError::Escalated`]
+/// on an escalation).
+pub(crate) fn cone_apex_plane_section<T: Decide>(
+    body: &Body<T>,
+    band: Band,
+    (origin, normal): (Point3<T>, UnitVec3<T>),
+    face: FaceKey,
+    at: VertexKey,
+) -> Result<geom_brep::PlaneConeSection<T>, SplitJoinError> {
+    let wall = body
+        .get_face(face)
+        .and_then(|f| body.get_surface(f.surface))
+        .cloned()
+        .ok_or_else(|| corrupt_face(face))?;
+    let SectionReach::Cone(reach) = section_reach(body, at, face, (&wall, None), band)? else {
+        return Err(SplitJoinError::SectionInvariant {
+            face,
+            what: "a cone apex's plane section read on a face that is not a cone",
+        });
+    };
+    let plane_s = geom_brep::PlaneSite {
+        origin,
+        normal: normal.get(),
+    };
+    geom_brep::plane_cone_section(&plane_s, &wall, &reach, band).map_err(|e| match e {
+        geom_brep::SectionError::Escalated(diag) => SplitJoinError::Escalated { face, diag },
+        other => SplitJoinError::Section {
+            face,
+            source: other,
+        },
+    })
+}
+
 /// What the split plane cuts a curved face in: the face's wall surface
 /// and THE C5 table's verdict for the pair. `None` for a planar face;
 /// a kind the split's gate refuses is refused typed. `at` is a vertex
@@ -2909,13 +2954,22 @@ fn bool_planar_chord_spec<T: Decide>(
 /// its arc with the component's evidence of lying on both surfaces
 /// ([`SplineArc::of_section`]), which the ring lane's closing reads.
 ///
+/// A closed-form component (a line, a circle or an ellipse) is its own
+/// evidence: it lies on both surfaces exactly, so its chord is the
+/// carrier itself over the two sites' parameters, run back where it
+/// leaves backward ([`geom::Curve3::reversed`], `t ↦ −t`, as the
+/// spline's reflection), with no spline arc; the ring lane reads its arc
+/// as the curve it is. A site's foot on a closed loop of closed form
+/// is read in the turn its seat starts, its angle reduced into the
+/// span.
+///
 /// # Errors
 ///
 /// [`SplitJoinError::Escalated`] for a reading in the band;
 /// [`SplitJoinError::SectionInvariant`] for a component whose carrier is
-/// no spline or holds no certificate, a site off the component, a
-/// departure across it or of the split's datum, and an arc that would
-/// cross the seat.
+/// a spiric, or a spline holding no certificate, a site off the
+/// component, a departure across it or of the split's datum, and an arc
+/// that would cross the seat.
 fn carried_chord_spec<T: Decide>(
     body: &mut Body<T>,
     band: Band,
@@ -2931,11 +2985,22 @@ fn carried_chord_spec<T: Decide>(
         .ok_or_else(|| corrupt_face(face))?
         .surface;
     let component = &ctx.component;
-    let geom::Curve3::Nurbs(net) = &component.carrier else {
-        return Err(invariant("a carried component's carrier is not a spline"));
-    };
     let carrier = &component.carrier;
+    let spline = match carrier {
+        geom::Curve3::Nurbs(net) => Some(net),
+        geom::Curve3::Line(_) | geom::Curve3::Circle(_) | geom::Curve3::Ellipse(_) => None,
+        geom::Curve3::Spiric { .. } => {
+            return Err(invariant("a carried component's carrier is a spiric"));
+        }
+    };
     let (lo, hi) = component.span;
+    // A closed form's parameter is an angle: a foot on a closed one is
+    // read in the turn its seat starts, `[lo, hi)`. That no chord on a
+    // closed loop crosses the seat rests on the seat being one of the
+    // loop's sites, the least foot of any (`boolean::join`'s
+    // `carried_seats`), not on anything read here: the forward reading
+    // below refuses a chord that would cross it.
+    let turn = (spline.is_none() && component.closed()).then_some(hi - lo);
     let seat = carrier.eval(lo);
     let at_seat = |p: Point3<T>| -> Result<bool, SplitJoinError> {
         if !component.closed() {
@@ -2949,7 +3014,28 @@ fn carried_chord_spec<T: Decide>(
     let foot = |p: Point3<T>| -> Result<T, SplitJoinError> {
         let foot = carrier.foot(p, lo);
         match foot.on_carrier(band) {
-            Ok(geom::OnCarrier::On { .. }) => Ok(foot.t()),
+            Ok(geom::OnCarrier::On { .. }) => {
+                let t = match turn {
+                    Some(turn) => lo + (foot.t() - lo).reduce_periodic(turn),
+                    None => foot.t(),
+                };
+                // A site of an open closed form (a ruling the region
+                // cuts, an arc between nodes) lies within its span: the
+                // section was listed over the region every site lies in.
+                debug_assert!(
+                    spline.is_some()
+                        || component.closed()
+                        || match (t.point_value(), lo.point_value(), hi.point_value()) {
+                            (Some(t), Some(lo), Some(hi)) => {
+                                let slack = band.escalate() * (1.0 + t.abs());
+                                lo - slack <= t && t <= hi + slack
+                            }
+                            _ => true,
+                        },
+                    "a carried chord's end lies past its open component's span"
+                );
+                Ok(t)
+            }
             Ok(geom::OnCarrier::Off) => {
                 Err(invariant("a carried chord's end lies off its component"))
             }
@@ -3011,18 +3097,34 @@ fn carried_chord_spec<T: Decide>(
         ));
     }
     let (lo_cut, hi_cut) = if up { (t1, t2) } else { (t2, t1) };
-    let piece = cut_arc(net, (lo_cut, hi_cut)).ok_or(invariant(
-        "a carried chord's arc could not be cut from its component's carrier",
-    ))?;
-    let forward_arc = geom::Curve3::Nurbs(std::sync::Arc::new(piece.clone()));
-    let arc = SplineArc::of_section(component, &forward_arc, (lo_cut, hi_cut)).ok_or(invariant(
-        "a carried chord's component holds no certificate of lying on its surfaces",
-    ))?;
+    let ((forward, backward), arc) = match spline {
+        Some(net) => {
+            let piece = cut_arc(net, (lo_cut, hi_cut)).ok_or(invariant(
+                "a carried chord's arc could not be cut from its component's carrier",
+            ))?;
+            let forward_arc = geom::Curve3::Nurbs(std::sync::Arc::new(piece.clone()));
+            let arc = SplineArc::of_section(component, &forward_arc, (lo_cut, hi_cut)).ok_or(
+                invariant(
+                    "a carried chord's component holds no certificate of lying on its surfaces",
+                ),
+            )?;
+            let back = || {
+                Some(geom::Curve3::Nurbs(std::sync::Arc::new(
+                    geom_brep::reversed_column(&piece),
+                )))
+            };
+            ((forward_arc, if up { None } else { back() }), Some(arc))
+        }
+        None => (
+            (carrier.clone(), if up { None } else { carrier.reversed() }),
+            None,
+        ),
+    };
     let (carrier, t_start, t_end) = if up {
-        (forward_arc, t1, t2)
+        (forward, t1, t2)
     } else {
         (
-            geom::Curve3::Nurbs(std::sync::Arc::new(geom_brep::reversed_column(&piece))),
+            backward.ok_or(invariant("a carried chord's carrier could not be run back"))?,
             T::zero() - t1,
             T::zero() - t2,
         )
@@ -3047,7 +3149,7 @@ fn carried_chord_spec<T: Decide>(
             param_end: t_end,
         },
         ends: None,
-        arc: Some(arc),
+        arc,
     })
 }
 

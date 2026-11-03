@@ -98,6 +98,7 @@ mod ellipse_torus;
 // The variant roster the sample-coverage row reads (test builds only).
 #[cfg(test)]
 pub(crate) use contain::ContainErrorKind;
+mod fan;
 mod fate;
 mod finish;
 mod fragments;
@@ -177,6 +178,8 @@ use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, ShellKey, VertexKey};
 use crate::euler::EulerOpError;
 use crate::live::Proven;
 use crate::merge_faces::MergeCoplanarError;
+#[cfg(feature = "sweep-testing")]
+use crate::sweep_trace::SweepPairs;
 use crate::validate::ValidationError;
 
 pub use carrier_eq::{
@@ -206,8 +209,6 @@ pub use edge_join::{
 };
 pub use holdings::{Held, HeldRefusal, Holdings};
 pub use join::CompletedPolygonPair;
-#[doc(hidden)]
-pub use nary::MemberLineage;
 pub use nary::{
     Apart, FaceDescent, JudgedRow, MemberFace, MemberInputs, NaryEnd, NaryJudgement, NaryMember,
     NaryOp, NaryRefusal, NaryRun, NaryStep, nary_boolean, nary_boolean_apart,
@@ -224,7 +225,7 @@ pub use records::{CarryRefusal, Contact, ContactKind, ContactPairError, ContactR
 pub(crate) use records::{Parting, incident};
 #[cfg(feature = "sweep-testing")]
 pub use reduce::PlantedDegradation;
-pub use reduce::{SweepStrategy, SweepTrace};
+pub use reduce::SweepStrategy;
 pub use shell_witness::ShellOrientation;
 pub use zip::Fusions;
 #[cfg(feature = "sweep-testing")]
@@ -298,6 +299,13 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         | slit::RIDER_ON_CURVED => Coincide::EdgeOnCurvedFace.subject(),
         slit::RIDER_ON_PLANE => Coincide::EdgeOnPlane.subject(),
         "bool_sector_within"
+        | "bool_fan_side"
+        | "bool_fan_nappe"
+        | "bool_fans_coaxial"
+        | "bool_fans_one_cone"
+        | "bool_fans_meet"
+        | "bool_fans_meet_conditioning"
+        | "bool_fan_bounds_along"
         | "bool_rider_wall_side"
         | slit::RIDER_WALL_BEND_ACROSS
         | "bool_rider_wall_coplanar"
@@ -2075,23 +2083,24 @@ impl<T: Real> GluedPairs<T> {
 
 /// Every structural tangency of `body`, as `(face, its kind, other
 /// face, its kind)` both ways: the two faces across an edge described
-/// `TangentIntersection` of exactly their two surfaces.
+/// `TangentIntersection` that the at-rest adjacency reading accepts.
 fn tangent_struts<T: Real>(
     body: &Body<T>,
 ) -> Vec<(FaceKey, geom::SurfaceKind, FaceKey, geom::SurfaceKind)> {
     let mut out = Vec::new();
     for (ek, edge) in body.edges() {
         let sides = crate::readback::edge_sides_of(body, ek, edge);
-        let ((f1, f2), (s1, s2)) = (sides.faces(), sides.surfaces());
+        let (f1, f2) = sides.faces();
         let Some(curve) = body
             .get_curve_geom(edge.curve)
             .and_then(crate::null::CurveGeom::certified)
         else {
             continue;
         };
-        if let geom_brep::EdgeDescription::TangentIntersection { pair, .. } = curve.description()
-            && f1 != f2
-            && *pair == geom_brep::SurfacePair::new(s1, s2)
+        if matches!(
+            curve.description(),
+            geom_brep::EdgeDescription::TangentIntersection { .. }
+        ) && crate::attach::Named::of_description(curve.description()).adjacent_at_rest(sides)
         {
             let kind = |f| body.proven_face_surface(f).kind();
             let (k1, k2) = (kind(f1), kind(f2));
@@ -3058,14 +3067,17 @@ pub enum BooleanError {
         band: Band,
     },
     /// A vertex the boolean classifies is the apex of a cone face of
-    /// `operand` and pairs with a vertex of the other operand. A sector
-    /// there is a fan of the cone's rulings, and the vertex–vertex pair
-    /// algebra over a fan is unbuilt. Only an apex against an apex
-    /// reaches it: a corner or an edge of the other operand at the apex
-    /// has an edge through the apex, which refuses
-    /// [`BooleanError::CrossingAtConeApex`] first
-    /// (`work/splitdoor/a-cone-with-its-apex-against-its-copy-refuses-normal-at-cone-apex.md`);
-    /// a pierce of the other operand's face at the apex reads.
+    /// `operand` and pairs with a vertex of the other operand, and a
+    /// reading of the pair has no arm for a fan of the cone's rulings.
+    /// The vertex–vertex lane reads a fan's side, membership and meeting
+    /// against a plane or another fan (`boolean::fan`); what refuses here
+    /// is a reader still built on a sector's plane
+    /// (`boolean::sectors::BoolSector::plane`: the reclassification of a
+    /// crossing record that a fan bounds), a fan's bound the edge rules
+    /// leave `On` the partner's face (`boolean::recl::recl_edges`), and a
+    /// whole-turn cone vertex whose partner is anything but the fans of one
+    /// cone, on one nappe (`boolean::fan::nappe_classes`)
+    /// (`work/splitdoor/a-cone-with-its-apex-against-its-copy-refuses-normal-at-cone-apex.md`).
     VertexPairAtConeApex {
         /// The operand the cone face belongs to.
         operand: Operand,
@@ -3669,11 +3681,12 @@ pub enum BooleanError {
     /// - **Cone**: not gated up front, as the torus. The germ-pair JOIN
     ///   dispatch — `join::bool_connect`'s match on the two germ faces'
     ///   surfaces — wires only the pairs `meeting_recourse` names: a
-    ///   plane against a plane, cylinder, sphere or cone, a sphere pair
-    ///   (on its radical plane) and a cylinder pair with parallel offset
-    ///   axes (on its rulings). Its catch-all raises
+    ///   plane against a plane, cylinder, sphere or cone, and a sphere
+    ///   pair (on its radical plane); a pair the section table carries
+    ///   (two cylinders, a cylinder and a sphere) rides its carried
+    ///   components. Its catch-all raises
     ///   [`BooleanError::CurvedBooleanUnsupported`], not this error,
-    ///   and a torus or `(Cylinder, Sphere)` germ lands there too; a
+    ///   and a torus germ the table does not carry lands there too; a
     ///   cone against a curved face refuses one door earlier, at its
     ///   germ frame ([`BooleanError::GermFrameUnsupported`]).
     ///
@@ -4850,9 +4863,9 @@ impl core::fmt::Display for BooleanError {
             ),
             Self::VertexPairAtConeApex { operand, .. } => write!(
                 f,
-                "the tip of a cone face of the {} operand meets the tip of a cone face of \
-                 the other part, and two cone tips meeting is not yet supported. \
-                 Recourse: move the parts so the two tips are apart",
+                "the tip of a cone face of the {} operand meets a vertex of the other part \
+                 (a corner, a wedge's edge or another cone's tip) in a way the kernel cannot \
+                 yet read around the tip. Recourse: move the parts so the tip is clear of it",
                 operand_word(*operand),
             ),
             Self::ApexSection { reading, .. } => write!(
@@ -5744,13 +5757,20 @@ pub fn boolean_reduce<T: Decide + Bounds + crate::props::AtRestPolicy>(
 /// [`BooleanError`] — the same gates and sweep refusals as
 /// [`boolean_reduce`].
 #[cfg(feature = "sweep-testing")]
+#[allow(clippy::type_complexity)] // (A→B, B→A) traces
 pub fn sweep_traces<T: Decide + Bounds + crate::props::AtRestPolicy>(
     a_operand: &Body<T>,
     b_operand: &Body<T>,
     strategy: SweepStrategy,
     plant: Option<PlantedDegradation>,
     tol: Tol,
-) -> Result<(SweepTrace, SweepTrace), BooleanError> {
+) -> Result<
+    (
+        SweepPairs<(EdgeKey, FaceKey)>,
+        SweepPairs<(EdgeKey, FaceKey)>,
+    ),
+    BooleanError,
+> {
     sweep_traces_with_pad(a_operand, b_operand, strategy, plant, None, tol)
 }
 
@@ -5766,6 +5786,7 @@ pub fn sweep_traces<T: Decide + Bounds + crate::props::AtRestPolicy>(
 ///
 /// [`BooleanError`] as [`sweep_traces`].
 #[cfg(feature = "sweep-testing")]
+#[allow(clippy::type_complexity)] // (A→B, B→A) traces
 pub fn sweep_traces_with_pad<T: Decide + Bounds + crate::props::AtRestPolicy>(
     a_operand: &Body<T>,
     b_operand: &Body<T>,
@@ -5773,7 +5794,13 @@ pub fn sweep_traces_with_pad<T: Decide + Bounds + crate::props::AtRestPolicy>(
     plant: Option<PlantedDegradation>,
     pad_override: Option<f64>,
     tol: Tol,
-) -> Result<(SweepTrace, SweepTrace), BooleanError> {
+) -> Result<
+    (
+        SweepPairs<(EdgeKey, FaceKey)>,
+        SweepPairs<(EdgeKey, FaceKey)>,
+    ),
+    BooleanError,
+> {
     let band = Band::linear(tol)?;
     let none = Glue::none();
     let decls = &*glue::decided_glue(a_operand, b_operand, &none, band)?;
@@ -5794,8 +5821,8 @@ pub fn sweep_traces_with_pad<T: Decide + Bounds + crate::props::AtRestPolicy>(
     let mut a = a_operand.clone();
     let mut b = b_operand.clone();
     let mut acc = reduce::ContactAcc::default();
-    let mut ab = SweepTrace::default();
-    let mut ba = SweepTrace::default();
+    let mut ab = SweepPairs::default();
+    let mut ba = SweepPairs::default();
     let ab_knobs = reduce::SweepKnobs {
         plant: plant.map(|p| p.face),
         pad_override,
@@ -5832,11 +5859,20 @@ pub fn sweep_traces_with_pad<T: Decide + Bounds + crate::props::AtRestPolicy>(
 ///
 /// [`BooleanError`] as [`sweep_traces`].
 #[cfg(feature = "sweep-testing")]
+#[allow(clippy::type_complexity)] // (split A, split B, A→B trace, B→A trace)
 pub fn sweep_split(
     a_operand: &Body<f64>,
     b_operand: &Body<f64>,
     tol: Tol,
-) -> Result<(Body<f64>, Body<f64>, SweepTrace, SweepTrace), BooleanError> {
+) -> Result<
+    (
+        Body<f64>,
+        Body<f64>,
+        SweepPairs<(EdgeKey, FaceKey)>,
+        SweepPairs<(EdgeKey, FaceKey)>,
+    ),
+    BooleanError,
+> {
     let band = Band::linear(tol)?;
     let declared = GluedPairs::default();
     reduce::gate_operand_pairs(
@@ -5851,7 +5887,7 @@ pub fn sweep_split(
     let mut a = a_operand.clone();
     let mut b = b_operand.clone();
     let mut acc = reduce::ContactAcc::default();
-    let (mut ab, mut ba) = (SweepTrace::default(), SweepTrace::default());
+    let (mut ab, mut ba) = (SweepPairs::default(), SweepPairs::default());
     let knobs = reduce::SweepKnobs::default();
     reduce::sweep_and_settle(
         (&mut a, &mut b),
@@ -6353,23 +6389,24 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
     let mut classified = Vec::with_capacity(contacts.vv.len());
     let mut line_touches = Vec::new();
     for (i, c) in contacts.vv.iter().map(|c| c.record).enumerate() {
-        let a_sectors = sectors::build_sectors(
-            &a,
-            Operand::A,
-            c.a,
-            &tips[0],
-            sectors::ApexPlane::None,
-            band,
-        )?;
-        let b_sectors = sectors::build_sectors(
-            &b,
-            Operand::B,
-            c.b,
-            &tips[1],
-            sectors::ApexPlane::None,
-            band,
-        )?;
-        sectors::apex_pair_refusal([(Operand::A, &a_sectors), (Operand::B, &b_sectors)])?;
+        // Each vertex's sectors, cut where the other's faces turn their
+        // side along them ([`sectors::Partners::Faces`]), which only a
+        // cone's apex on either side can do: what those faces are at the
+        // vertex is read off an uncut walk first.
+        let none = sectors::Partners::None;
+        let a_plain = sectors::build_sectors(&a, Operand::A, c.a, &tips[0], &none, band)?;
+        let b_plain = sectors::build_sectors(&b, Operand::B, c.b, &tips[1], &none, band)?;
+        let (a_sectors, b_sectors) = if a_plain.iter().chain(&b_plain).any(|s| s.apex().is_some()) {
+            let faces = |plain: &[sectors::BoolSector<T>]| {
+                sectors::Partners::Faces(plain.iter().map(|s| s.at_vertex).collect())
+            };
+            (
+                sectors::build_sectors(&a, Operand::A, c.a, &tips[0], &faces(&b_plain), band)?,
+                sectors::build_sectors(&b, Operand::B, c.b, &tips[1], &faces(&a_plain), band)?,
+            )
+        } else {
+            (a_plain, b_plain)
+        };
         // A touching vertex whose partner runs along the face, which
         // refuses should the pair read a sector pair on one plane.
         let mut along = None;
@@ -6422,8 +6459,12 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
                     .push(pair),
             }
         }
-        let mut records =
-            sectors::pair_search([&a, &b], [&a_sectors, &b_sectors], &contacts, band)?;
+        let mut records = sectors::pair_search(
+            ([&a, &b], [c.a, c.b]),
+            [&a_sectors, &b_sectors],
+            &contacts,
+            band,
+        )?;
         // A partner along the touched face, its side unread, refuses
         // where a sector pair lies on one plane, before `recl_sectors`
         // reads one.
@@ -6481,7 +6522,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
             own_point(operand, vertex),
             own,
             &edges,
-            &touch.pairs,
+            (operand.other(), &touch.pairs),
             Some((touch.face, touch.datum.normal, &touch.read_against)),
             band,
         )?
@@ -6498,8 +6539,14 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
     }
     for (&(operand, vertex), (own, pairs)) in &paired {
         let edges: Vec<_> = own.iter().filter(|s| s.end_edge()).map(|s| s.he).collect();
-        let classes =
-            vtxfac::cone_classes(own_point(operand, vertex), own, &edges, pairs, None, band)?;
+        let classes = vtxfac::cone_classes(
+            own_point(operand, vertex),
+            own,
+            &edges,
+            (operand.other(), pairs),
+            None,
+            band,
+        )?;
         let classes = match (classes, pairs.as_slice()) {
             (Ok(classes), _) => classes,
             (Err(in_band), [one]) => {
