@@ -18639,3 +18639,106 @@ mod door_roster {
         assert!(read(-0.3).is_empty(), "a lemon is inside the range");
     }
 }
+
+#[cfg(test)]
+mod rev6473_r2_probes {
+    /// A horn stored a hair past `R = r`, inside the band's zero, passes
+    /// `spindle_sheet` as a horn; what do its apexes read, and what does
+    /// tier 3 report?
+    #[test]
+    #[allow(clippy::unwrap_used)]
+    fn probe_a_horn_a_hair_past_r() {
+        let tol = geom_core::Tol::witness();
+        let band = geom_core::Band::linear(tol).unwrap();
+        let minor = 0.5_f64;
+        let major = minor + 0.25 * band.zero();
+        assert!(major > minor, "the probe is a hair past the horn");
+        println!("band zero {} R-r {}", band.zero(), major - minor);
+        println!(
+            "spindle_sheet: {:?}",
+            geom::spindle_sheet(major, minor, band)
+        );
+        let sheet = geom::Surface::Spindle {
+            center: geom_core::Point3::new(0.5, 0.5, 0.5),
+            axis: geom_core::Vec3::new(0.0, 0.0, 1.0),
+            major_radius: major,
+            minor_radius: minor,
+            u_ref: geom_core::Vec3::new(1.0, 0.0, 0.0),
+        };
+        let chart = crate::chart::Chart::of(&sheet).unwrap();
+        println!("poles: {:?}", chart.poles());
+        let inv = geom::ChartInverse::of(&sheet).unwrap();
+        println!(
+            "singular_points: {:?}",
+            geom_brep::chart_singularity::singular_points(&inv)
+        );
+        let mut body =
+            crate::test_support_fixtures::brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
+        let face = body.faces().next().unwrap().0;
+        let key = body.get_face(face).unwrap().surface;
+        *body.surfaces.get_mut(key).unwrap() = sheet;
+        let errs = crate::AtRestBody::validate(body, tol)
+            .err()
+            .unwrap_or_default();
+        for e in &errs {
+            println!("ERR {e:?}");
+        }
+        let apex_spoke = errs.iter().any(|e| {
+            matches!(
+                e,
+                crate::ValidationError::SheetApexReached { .. }
+                    | crate::ValidationError::ChartSingularityUndecided { .. }
+                    | crate::ValidationError::ChartSingularityNotAVertex { .. }
+            )
+        });
+        assert!(
+            chart
+                .poles()
+                .iter()
+                .all(|(p, v)| p.x.is_finite() && v.is_finite()),
+            "a horn decided in range has finite apexes"
+        );
+        assert!(apex_spoke, "the apex check speaks on a horn face");
+    }
+
+    /// A lemon whose apexes sit on the brick's top and bottom face
+    /// centres: does tier 3's apex check ever speak on a sheet face?
+    #[test]
+    #[allow(clippy::unwrap_used)]
+    fn probe_the_apex_arm_speaks_on_a_lemon() {
+        let tol = geom_core::Tol::witness();
+        // r = 0.5, R = -0.3: apex height sqrt(0.25 - 0.09) = 0.4 about z = 0.5,
+        // so apexes at z = 0.9 and 0.1; put centre at z = 0.4 so the upper apex is
+        // at (0.5, 0.5, 0.8)... instead: centre (0.5,0.5,0.5), r^2-R^2 = 0.25 gives
+        // R=0 (excluded); use r = 0.5, R = -0.3, centre z = 0.6 -> apexes z 1.0, 0.2.
+        let mut kinds = Vec::new();
+        let mut body =
+            crate::test_support_fixtures::brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
+        let faces: Vec<_> = body.faces().map(|(k, _)| k).collect();
+        for face in faces {
+            let key = body.get_face(face).unwrap().surface;
+            *body.surfaces.get_mut(key).unwrap() = geom::Surface::Spindle {
+                center: geom_core::Point3::new(0.5, 0.5, 0.6),
+                axis: geom_core::Vec3::new(0.0, 0.0, 1.0),
+                major_radius: -0.3,
+                minor_radius: 0.5,
+                u_ref: geom_core::Vec3::new(1.0, 0.0, 0.0),
+            };
+        }
+        let errs = crate::AtRestBody::validate(body, tol)
+            .err()
+            .unwrap_or_default();
+        for e in &errs {
+            let d = format!("{e:?}");
+            kinds.push(d.split([' ', '{', '(']).next().unwrap().to_string());
+        }
+        kinds.sort();
+        kinds.dedup();
+        println!("LEMON KINDS {kinds:?}");
+        assert!(
+            errs.iter()
+                .any(|e| matches!(e, crate::ValidationError::SheetApexReached { .. })),
+            "a face on a lemon whose apex sits in a face's closure reports SheetApexReached"
+        );
+    }
+}
