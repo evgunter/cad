@@ -684,12 +684,14 @@ impl StepImportError {
     }
 }
 
+#[cfg(not(e1e_probe))]
 impl fmt::Display for StepImportError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.write(f, false)
     }
 }
 
+#[cfg(not(e1e_probe))]
 impl std::error::Error for StepImportError {}
 
 #[cfg(test)]
