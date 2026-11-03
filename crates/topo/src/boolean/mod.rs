@@ -8587,10 +8587,12 @@ mod tests {
     /// added to `SurfaceKind` fails here until someone decides its arm.
     #[test]
     fn only_tangencies_that_are_a_global_side_certify_one() {
-        use geom::SurfaceKind::{self, Approx, Cone, Cylinder, Nurbs, Plane, Sphere, Torus};
-        let all = [Plane, Cylinder, Cone, Sphere, Torus, Nurbs, Approx];
+        use geom::SurfaceKind::{
+            self, Approx, Cone, Cylinder, Nurbs, Plane, Sphere, Spindle, Torus,
+        };
+        let all = [Plane, Cylinder, Cone, Sphere, Torus, Spindle, Nurbs, Approx];
         let visit = |k: SurfaceKind| match k {
-            Plane | Cylinder | Cone | Sphere | Torus | Nurbs | Approx => k,
+            Plane | Cylinder | Cone | Sphere | Torus | Spindle | Nurbs | Approx => k,
         };
         let admitted: Vec<(SurfaceKind, SurfaceKind)> = all
             .iter()

@@ -95,6 +95,7 @@ fn boolean_refusal_surface_kind(e: &BooleanError) -> Option<&'static str> {
                 SurfaceKind::Sphere => "sphere",
                 SurfaceKind::Cone => "cone",
                 SurfaceKind::Torus => "torus",
+                SurfaceKind::Spindle => "spindle",
                 SurfaceKind::Nurbs => "nurbs",
                 SurfaceKind::Approx => "approx",
             })

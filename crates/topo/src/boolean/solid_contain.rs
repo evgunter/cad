@@ -6085,6 +6085,13 @@ mod kind_arm_tests {
                         minor_radius: 0.1,
                         u_ref: x,
                     },
+                    SurfaceKind::Spindle => Surface::Spindle {
+                        center: o,
+                        axis: z,
+                        major_radius: -0.3,
+                        minor_radius: 0.5,
+                        u_ref: x,
+                    },
                     SurfaceKind::Nurbs => Surface::nurbs_placeholder(),
                     SurfaceKind::Approx => Surface::Approx(std::sync::Arc::new(
                         crate::fixtures::bowed_offset_approx::<f64>(),

@@ -260,6 +260,7 @@ fn surface_sig(surface: &Surface<f64>) -> Vec<u64> {
         Surface::Torus { .. } => 4,
         Surface::Nurbs(_) => 5,
         Surface::Approx(_) => 6,
+        Surface::Spindle { .. } => 7,
     };
     match surface.data() {
         SurfaceData::Analytic(data) => core::iter::once(tag)
