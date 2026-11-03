@@ -2548,7 +2548,8 @@ class TestTeapot(unittest.TestCase):
     hollowed by `Node.shell` and OPENED at its mouth, a revolved lid
     whose three latitude rims roll through `Node.fillet`, a revolved
     spout placed against the pot, a `Node.tube` handle, and the two
-    unions the operand gate has no arm for.
+    unions, each refused past the operand gate
+    (`test_both_joins_refuse_through_the_document`).
 
     Every selection here is a NAME the evaluation answered: the mouth
     is the pot's `Band` at the mouth-disc segment (a full revolve sweeps
@@ -3288,22 +3289,25 @@ class TestTeapot(unittest.TestCase):
         self.assertEqual(refusal.inner_kind, "result_invalid")
 
         # spout union vessel: PAST the pair rung, because a loft's
-        # walls are Nurbs and that arm exists — and dead where the
-        # spout leaves the belly: a spline (NURBS) edge of the spout
-        # has to be split where the solids meet, and the Boolean
-        # cannot yet find a point's parameter on a spline (SPLICE's
-        # `a-meeting-on-a-spline-boundary-edge-has-no-split-parameter`).
+        # walls are Nurbs and that arm exists; PAST the split of the
+        # spout's spline seam where the solids meet; and PAST the
+        # spout's walls' reading of the belly's pierce point. Dead in
+        # the join, where no section frame traces the belly's sphere
+        # against the spout's spline wall (SECTARMS'
+        # `a-nurbs-face-against-a-cone-or-sphere-has-no-section-arm`).
         # Making the spout the shape a potter draws did not make it
         # joinable; it moved the refusal off a pair nobody modelled
-        # and onto the meeting itself. Pinned by the refusal's arm, not
-        # a sentence of its text.
+        # and onto the meeting itself. Pinned by the refusal's arm, and
+        # by the two face kinds its narration names.
         self.assertFalse(ev.succeeded(spout_join))
         with self.assertRaises(EvaluationError) as caught:
             ev.value(spout_join)
         refusal = caught.exception
         self.assertEqual(refusal.kind, "boolean")
-        self.assertEqual(refusal.inner_kind, "point_split_carrier_unsupported")
+        self.assertEqual(refusal.inner_kind, "germ_frame_unsupported")
         text = str(refusal)
+        self.assertIn("sphere face", text)
+        self.assertIn("spline (NURBS) face", text)
         # NOT the pair rung any more, and this is the half that would
         # go quietly wrong if it were only asserted positively.
         self.assertNotIn("may meet", text)
