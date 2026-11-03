@@ -2522,7 +2522,7 @@ where
             let (faces, ask, over) = (candidate.faces(), candidate.ask(), candidate.enclosure());
             let [bx, by] = rebuilt.as_ref().map_err(Clone::clone)?;
             crate::clearance::closest_pair(
-                (bx.as_ref(), by.as_ref()),
+                (&**bx, &**by),
                 faces,
                 lane.on_face_stations(candidate),
                 (ask, b),
@@ -2581,7 +2581,7 @@ impl Witnessing<'_> {
         &self,
         sides: [(RecipeNodeId, u32); 2],
         tol: Tol,
-    ) -> Result<[Arc<topo::AtRestBody<f64>>; 2], String> {
+    ) -> Result<[super::ReadIn<f64>; 2], String> {
         let framed = |(at, index): (RecipeNodeId, u32)| {
             let value = value_of(self.results, at)
                 .map_err(|kind| format!("the f64 rebuild has no value for a seat: {kind}"))?;
@@ -2591,20 +2591,14 @@ impl Witnessing<'_> {
         let (fa, fb) = (framed(sides[0])?, framed(sides[1])?);
         let computing =
             super::Framed::computing_among([fa, fb]).unwrap_or_else(|| unreachable!("two seats"));
-        // At `f64` both arms hold the finished body (`Held`): read as it
-        // is, no taker's relog, as main read it ungated.
+        // A reader: each seat read as a body, no taker's finish.
         let read = |f| {
-            computing
-                .read_in(f, tol)
-                .map(|held| match held {
-                    super::Held::Finished(body) | super::Held::Leaf(body) => body,
-                })
-                .map_err(|kind| {
-                    format!(
-                        "the f64 rebuild could not read a seat into the frame its pair is \
-                         decided in: {kind}"
-                    )
-                })
+            computing.read_in(f, tol).map_err(|kind| {
+                format!(
+                    "the f64 rebuild could not read a seat into the frame its pair is decided \
+                     in: {kind}"
+                )
+            })
         };
         Ok([read(fa)?, read(fb)?])
     }
@@ -3192,11 +3186,12 @@ impl<T: Decide + topo::AtRestPolicy> MemberRead<T> {
     /// Boolean takes it ([`super::Held::finished`]).
     fn taken_in(&self, computing: &super::Framed<T>, tol: Tol) -> Result<Member<T>, NodeErrorKind> {
         let read = computing.read_in(&self.framed, tol)?;
-        let body = read.finished(tol)?;
-        let framed = if read.same(self.framed.holding()) {
+        let own = read.held().is_some();
+        let body = read.taken(tol)?;
+        let framed = if own {
             self.framed.clone()
         } else {
-            super::Framed::held(read, computing.frame().clone())
+            super::Framed::in_frame(Arc::clone(&body), computing.frame().clone())
         };
         Ok(Member {
             read: self.read,

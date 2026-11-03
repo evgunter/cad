@@ -7203,12 +7203,20 @@ impl AtRestPolicy for f64 {
 
     /// The finish, its decisions held off this node's verdict log and
     /// kept on the body for the taker to relog
-    /// (`docs/predicate-dimension-audit.md` F31).
+    /// (`docs/predicate-dimension-audit.md` F31). A refusal has no
+    /// taker: its record is relogged here, so the failure carries what
+    /// its frame recorded on the way to it.
     fn leaf(body: Body<Self>, tol: Tol) -> Result<Self::Leaf, crate::NotFinished> {
         let scope = geom_core::k_stats::Bracket::open();
         let finished = Self::finish(body, tol);
         let record = scope.finish();
-        finished.map(|body| body.holding(record))
+        match finished {
+            Ok(body) => Ok(body.holding(record)),
+            Err(refused) => {
+                geom_core::k_stats::relog(&record);
+                Err(refused)
+            }
+        }
     }
 
     fn take(
@@ -7355,12 +7363,20 @@ impl AtRestPolicy for geom_core::Probe {
 
     /// The finish, its decisions held off this node's verdict log and
     /// kept on the body for the taker to relog
-    /// (`docs/predicate-dimension-audit.md` F31).
+    /// (`docs/predicate-dimension-audit.md` F31). A refusal has no
+    /// taker: its record is relogged here, so the failure carries what
+    /// its frame recorded on the way to it.
     fn leaf(body: Body<Self>, tol: Tol) -> Result<Self::Leaf, crate::NotFinished> {
         let scope = geom_core::k_stats::Bracket::open();
         let finished = Self::finish(body, tol);
         let record = scope.finish();
-        finished.map(|body| body.holding(record))
+        match finished {
+            Ok(body) => Ok(body.holding(record)),
+            Err(refused) => {
+                geom_core::k_stats::relog(&record);
+                Err(refused)
+            }
+        }
     }
 
     fn take(

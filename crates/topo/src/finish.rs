@@ -152,6 +152,32 @@ pub fn take<T: AtRestPolicy>(
     T::take(leaf, tol)
 }
 
+#[cfg(debug_assertions)]
+thread_local! {
+    static FINISHES: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+}
+
+/// One tier-3 run of a certifying scalar's finish
+/// ([`AtRestPolicy::finish`], through [`AtRestBody`]'s constructor).
+pub(crate) fn count_finish() {
+    #[cfg(debug_assertions)]
+    FINISHES.with(|n| n.set(n.get().saturating_add(1)));
+}
+
+/// **The tier-3 finishes run on this thread so far**: each run of a
+/// certifying scalar's [`AtRestPolicy::finish`], refusals included,
+/// wherever it was reached from (a door's own, a leaf's, a taker's).
+///
+/// `cfg(debug_assertions)`-gated, as `editor_core::gathers_on_this_thread`
+/// is and for the same reason: this workspace's release profile keeps
+/// debug assertions. A caller reads a DIFFERENCE across the operation it
+/// asks about; the absolute value means nothing.
+#[cfg(debug_assertions)]
+#[must_use]
+pub fn finishes_on_this_thread() -> u64 {
+    FINISHES.with(std::cell::Cell::get)
+}
+
 /// **`body` finished at its scalar** ([`AtRestPolicy::finish`]), the
 /// one spelling a caller outside the policy names.
 ///

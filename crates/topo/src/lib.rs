@@ -1440,6 +1440,8 @@ pub use provenance::{Provenance, SplitLineageCycle};
 // identity, like `readback`'s.
 pub use face_boxes::{FaceBox, FaceBoxes};
 pub use finish::{FindingFamily, FinishedBody, LeafBody, NotFinished, Replay, finish, take};
+#[cfg(debug_assertions)]
+pub use finish::finishes_on_this_thread;
 pub use mirror::{Reflection, mirror_body};
 pub use pieces::PieceSortError;
 pub use query::{

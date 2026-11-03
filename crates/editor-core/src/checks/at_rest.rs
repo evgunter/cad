@@ -370,7 +370,7 @@ impl RowCell {
 /// one computing frame (`Framed::computing_among`), the other read into
 /// it through `relative`.
 struct ReadCells<'e, T: topo::AtRestPolicy + Decide> {
-    cells: Vec<(crate::eval::Held<T>, EntityRef)>,
+    cells: Vec<(crate::eval::ReadIn<T>, EntityRef)>,
     computing: &'e crate::eval::Framed<T>,
 }
 
@@ -442,7 +442,7 @@ impl Saying {
 /// it: an axis off a cylinder, a cone or a torus, a centre off a sphere;
 /// `None` for any other cell.
 fn pose_kind<T: Decide + topo::AtRestPolicy>(
-    (body, ent): &(crate::eval::Held<T>, EntityRef),
+    (body, ent): &(crate::eval::ReadIn<T>, EntityRef),
 ) -> Option<crate::VarKind> {
     use geom::SurfaceKind as S;
     let EntityKey::Face(face) = ent.key else {
@@ -1575,11 +1575,18 @@ fn intersection(
     b: usize,
     tol: Tol,
 ) -> Result<Option<topo::BooleanBody<f64>>, Unlocalized> {
-    match topo::intersect(
-        product.copies[a].body.at_f64(),
-        product.copies[b].body.at_f64(),
-        tol,
-    ) {
+    // The intersection takes the two copies as finished bodies: a copy
+    // the gather read through a placement's map is finished here, once.
+    let operand = |i: usize| product.copies[i].body.clone().taken(tol);
+    let (body_a, body_b) = match (operand(a), operand(b)) {
+        (Ok(x), Ok(y)) => (x, y),
+        (Err(refused), _) | (_, Err(refused)) => {
+            return Err(Unlocalized::Refused {
+                refusal: refused.to_string(),
+            });
+        }
+    };
+    match topo::intersect(&*body_a, &*body_b, tol) {
         Ok(topo::BooleanResult::Body(result)) => Ok(Some(result)),
         Ok(topo::BooleanResult::Empty) => Ok(None),
         Err(refusal) => Err(Unlocalized::Refused {

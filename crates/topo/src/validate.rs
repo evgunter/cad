@@ -10574,6 +10574,7 @@ impl<T: Real> AtRestBody<T> {
     where
         T: geom_core::Decide + geom_core::CertifiedBounds + crate::props::AtRestPolicy,
     {
+        crate::finish::count_finish();
         validate_geometric_certificate(&body, tol)?;
         Ok(Self { body, held: None })
     }

@@ -745,8 +745,10 @@ pub struct GatheredCopy<T: Decide + topo::AtRestPolicy> {
     /// also its name rows' index.
     pub output: u32,
     /// The placed body, in the frame the product computed in
-    /// ([`Product::body`]'s), as its source held it ([`crate::eval::Held`]).
-    pub body: crate::eval::Held<T>,
+    /// ([`Product::body`]'s): its source's own where the two are one
+    /// frame, else its source's body mapped, construction state
+    /// ([`crate::eval::ReadIn`]).
+    pub body: crate::eval::ReadIn<T>,
     /// The bridge from `body`'s arena to the aggregate's.
     pub keys: Arc<topo::GraftKeys>,
 }
@@ -1156,7 +1158,7 @@ fn gather<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
 
 /// One grafted source: the source, its graft's key bridge, and its body
 /// read into the gather's computing frame.
-type Grafted<'s, T> = (&'s Source<T>, Arc<topo::GraftKeys>, crate::eval::Held<T>);
+type Grafted<'s, T> = (&'s Source<T>, Arc<topo::GraftKeys>, crate::eval::ReadIn<T>);
 
 /// Why a grafted source's position among a product's inputs fits a `u32`
 /// ([`crate::names::to_u32`]): each grafts at least one solid into the
@@ -1196,8 +1198,9 @@ fn gather_sources<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
         if body.body().solids().next().is_none() {
             continue;
         }
-        // A source is read as it stands (a leaf where it is one), as main
-        // read it: the aggregate is what finishes, once, below.
+        // A source is read, not taken: its body as it stands, or mapped
+        // into the product's frame as construction state. The aggregate
+        // is what finishes, once, below.
         let read = computing
             .get_or_insert(body)
             .read_in(body, tol)

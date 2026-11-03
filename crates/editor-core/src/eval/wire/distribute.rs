@@ -90,11 +90,9 @@ impl<T: Decide + topo::AtRestPolicy> Operand<T> {
         own: &Arc<T::Finished>,
         tol: Tol,
     ) -> Result<Arc<T::Finished>, NodeErrorKind> {
-        let read = into.read_in(&self.body, tol)?;
-        if read.same(self.body.holding()) {
-            Ok(Arc::clone(own))
-        } else {
-            Ok(read.finished(tol)?)
+        match into.read_in(&self.body, tol)? {
+            crate::eval::ReadIn::Held(_) => Ok(Arc::clone(own)),
+            mapped @ crate::eval::ReadIn::Mapped(_) => Ok(mapped.taken(tol)?),
         }
     }
 

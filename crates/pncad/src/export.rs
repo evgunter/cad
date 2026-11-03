@@ -40,10 +40,10 @@ use geom_core::Tol;
 use step_export::{StepExportError, StepOptions, step_string};
 use topo::AtRestBody;
 
-/// **Why a body could not be read into its space's coordinates**
-/// ([`body_in_space`]): the kernel refused the rigid map of its frame,
-/// or the mapped body, which the read finishes at its end as every
-/// placement does, is not a finished body.
+/// **Why a body could not be written as it stands in its space's
+/// coordinates**: the kernel refused the rigid map of its frame
+/// ([`body_in_space`]), or the mapped body, which the writer takes as a
+/// finished body ([`editor_core::ReadIn::taken`]), does not finish.
 #[derive(Debug)]
 pub enum ComposeError {
     /// The kernel refused the rigid map ([`editor_core::in_space`]).
@@ -184,17 +184,18 @@ pub fn step_for_node(
             });
         }
     };
-    let body = body_in_space(body, tol).map_err(ExportError::Compose)?;
-    step_string(body.at_f64(), options, tol).map_err(ExportError::Step)
+    let body = body_in_space(body, tol)
+        .map_err(ExportError::Compose)?
+        .taken(tol)
+        .map_err(|findings| ExportError::Compose(ComposeError::NotFinished(findings)))?;
+    step_string(&body, options, tol).map_err(ExportError::Step)
 }
 
 /// **A body value as it stands in its space**, the façade's read-out
-/// door: the body composed through [`editor_core::in_space`] and ended
-/// at the end of the map as its scalar's leaf
-/// ([`topo::AtRestPolicy::leaf`]: finished at `f64` and `Probe`, tier 2
-/// at the box scalars, where a read-out reads geometry and a taker that
-/// needs a finished body finishes it); shared as it is where it is in
-/// its space's coordinates already.
+/// door: the body composed through [`editor_core::in_space`], read as
+/// construction state ([`editor_core::ReadIn::Mapped`]) that a writer
+/// needing a finished body finishes ([`editor_core::ReadIn::taken`]);
+/// shared as it is where it is in its space's coordinates already.
 ///
 /// A read-out is an export in D10 `[placement.world]`'s sense: what it
 /// answers (a host-language body, its points and measures) has no way
@@ -203,21 +204,17 @@ pub fn step_for_node(
 ///
 /// # Errors
 ///
-/// [`ComposeError`] when the kernel refuses the frame's rigid map or
-/// the mapped body's leaf refuses.
+/// [`ComposeError::Transform`] when the kernel refuses the frame's rigid
+/// map.
 pub fn body_in_space<T: geom_core::Decide + topo::AtRestPolicy>(
     body: &editor_core::Framed<T>,
     tol: Tol,
-) -> Result<editor_core::Held<T>, ComposeError> {
+) -> Result<editor_core::ReadIn<T>, ComposeError> {
     match editor_core::in_space(body) {
-        None => Ok(body.holding().clone()),
-        Some(map) => {
-            let mapped =
-                topo::transform_rigid(body.body(), &map, tol).map_err(ComposeError::Transform)?;
-            T::leaf(mapped, tol)
-                .map(|leaf| editor_core::Held::Leaf(std::sync::Arc::new(leaf)))
-                .map_err(ComposeError::NotFinished)
-        }
+        None => Ok(editor_core::ReadIn::Held(body.holding().clone())),
+        Some(map) => topo::transform_rigid(body.body(), &map, tol)
+            .map(|mapped| editor_core::ReadIn::Mapped(std::sync::Arc::new(mapped)))
+            .map_err(ComposeError::Transform),
     }
 }
 
