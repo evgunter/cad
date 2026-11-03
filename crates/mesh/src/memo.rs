@@ -1242,6 +1242,21 @@ impl KeyWriter {
                         self.f64(*origin);
                         self.f64(*span);
                     }
+                    FramedCarrier::Line {
+                        point,
+                        dir,
+                        origin,
+                        span,
+                    } => {
+                        self.u8(2);
+                        for v in [point, dir] {
+                            self.f64(v.x);
+                            self.f64(v.y);
+                            self.f64(v.z);
+                        }
+                        self.f64(*origin);
+                        self.f64(*span);
+                    }
                 }
                 self.knots(image.breaks());
                 for quarters in [image.azimuth(), image.tube()] {

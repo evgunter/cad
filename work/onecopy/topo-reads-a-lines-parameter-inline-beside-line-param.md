@@ -2,10 +2,11 @@
 id: topo-reads-a-lines-parameter-inline-beside-line-param
 kind: issue
 title: topo reads a line's parameter inline, (p − origin)·dir, beside geom::Line::param
-status: open
+status: dispatched
 opened: 2026-11-03
 priority: P1
 cost: E
+branch: onecopy/small-reads
 ---
 
 

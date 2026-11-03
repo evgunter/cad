@@ -15,6 +15,7 @@ use crate::ring_path::cone_islands::{Frame, band, frames, plane, scales};
 use crate::ring_path::torus_islands::{
     Island, IslandEdge, crest_islands, islands, meridian, on_torus, parallel, spiric_islands, torus,
 };
+use geom_core::k_stats::Bracket;
 
 fn tol() -> Tol {
     Tol::witness()
@@ -256,13 +257,19 @@ fn scaled_frames() -> Vec<Frame> {
 /// reading missed would show on the paths that cross it.
 #[test]
 fn a_torus_ring_run_winds_its_island_as_the_oracle_does() {
-    winds_as_the_oracle(islands);
+    winds_as_the_oracle(islands, 113);
 }
 
 /// The winding rows over the islands `islands` names in each frame.
-fn winds_as_the_oracle(islands: fn(Frame) -> Vec<(&'static str, Island)>) {
+fn winds_as_the_oracle(
+    islands: fn(Frame) -> Vec<(&'static str, Island)>,
+    twice_verdicts_per_run: usize,
+) {
     let mut seen = [0usize; 2];
     let mut paths = 0usize;
+    // The verdicts the winding read and the ones a read of every path
+    // takes: the winding stops at the first path that decides.
+    let mut verdicts = [0usize; 2];
     for f in scaled_frames() {
         for mirror in [false, true] {
             for sense in [true, false] {
@@ -285,13 +292,19 @@ fn winds_as_the_oracle(islands: fn(Frame) -> Vec<(&'static str, Island)>) {
                             let reading = IslandReading::new(&body, face, run, Some(&spec), band())
                                 .unwrap()
                                 .unwrap();
-                            for (k, path) in reading
-                                .paths(&body, face, band())
-                                .unwrap()
-                                .into_iter()
-                                .enumerate()
-                            {
-                                if let Ok(Some(sign)) = path.and_then(|p| reading.read(p, band())) {
+                            let lazy = Bracket::open();
+                            let read = reading.winding(&body, face, band());
+                            let lazy = lazy.finish().verdicts.len();
+                            assert!(
+                                matches!(read, Ok(Ok(Some(sign))) if sign == want),
+                                "{read:?}"
+                            );
+                            // Production's enumeration, read to the end: no
+                            // path answers, so every one is asked.
+                            let full = Bracket::open();
+                            let mut k = 0;
+                            let swept = reading.read_paths(&body, face, band(), |path| {
+                                if let Ok(Some(sign)) = reading.read(path, band()) {
                                     assert_eq!(
                                         sign, want,
                                         "{name}, mirror {mirror}, sense {sense}, back {back}, \
@@ -299,7 +312,14 @@ fn winds_as_the_oracle(islands: fn(Frame) -> Vec<(&'static str, Island)>) {
                                     );
                                     paths += 1;
                                 }
-                            }
+                                k += 1;
+                                Ok(None::<()>)
+                            });
+                            assert!(swept.is_ok(), "{name}: the references walk: {swept:?}");
+                            let full = full.finish().verdicts.len();
+                            assert!(lazy <= full, "{name}: the winding reads {lazy} > {full}");
+                            verdicts[0] += lazy;
+                            verdicts[1] += full;
                         }
                     }
                 }
@@ -309,6 +329,17 @@ fn winds_as_the_oracle(islands: fn(Frame) -> Vec<(&'static str, Island)>) {
     assert!(seen[0] > 0 && seen[1] > 0, "both windings read: {seen:?}");
     let runs = seen[0] + seen[1];
     assert!(paths > 4 * runs, "{paths} paths decided over {runs} runs");
+    assert!(
+        4 * verdicts[0] < verdicts[1],
+        "the winding stops at the first deciding path: {verdicts:?}"
+    );
+    assert_eq!(
+        2 * verdicts[0],
+        twice_verdicts_per_run * runs,
+        "twice the verdicts the winding records, per run ({runs} at this band's scales): a \
+         change here moves the K record (a path or a reference read past the first that \
+         decides, or one fewer)"
+    );
 }
 
 /// A point of the sheet inside `island` and one outside it, off its
@@ -409,7 +440,7 @@ fn re_homes_as_the_oracle(islands: fn(Frame) -> Vec<(&'static str, Island)>) {
 /// into the island exactly when it lies inside.
 #[test]
 fn a_run_on_a_spiric_oval_winds_its_island_as_the_oracle_does() {
-    winds_as_the_oracle(spiric_islands);
+    winds_as_the_oracle(spiric_islands, 116);
     re_homes_as_the_oracle(spiric_islands);
 }
 
@@ -462,6 +493,6 @@ fn a_ring_on_the_runs_planes_off_its_arcs_stays() {
 /// it lies inside.
 #[test]
 fn a_run_on_the_tubes_top_or_bottom_circle_winds_its_island_as_the_oracle_does() {
-    winds_as_the_oracle(crest_islands);
+    winds_as_the_oracle(crest_islands, 113);
     re_homes_as_the_oracle(crest_islands);
 }
