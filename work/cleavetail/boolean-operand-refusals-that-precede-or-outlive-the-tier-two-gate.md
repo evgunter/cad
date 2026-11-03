@@ -62,7 +62,7 @@ listed above, panic naming the record (D2 row 4): each reads a gated
 operand or the pipeline's working copy of one, and both are bodies every
 door keeps tier-1-valid. The `ContainError::Corrupt` mapping refuses
 `ClassificationInvariant`, as `ops.rs`'s does, naming no vertex
-(`work/issues/corrupt-operand-means-two-things-and-one-site-fabricates-a-vertex.md`
+(`work/inside/corrupt-operand-means-two-things-and-one-site-fabricates-a-vertex.md`
 keeps what that arm means). `gate_maximal_faces` reads sides through
 `readback::edge_sides_of`, which panics on a torn edge. Half 1 stands
 for a scaffolding (tier-2) operand; a torn one panics whichever check

@@ -12,7 +12,7 @@ pr: 6429
 ---
 
 
-Split out of `work/issues/main-reds-without-an-item-met-by-pcert-e1b`
+Split out of `work/green/main-reds-without-an-item-met-by-pcert-e1b`
 by GREEN (`green/full-suite-pins`, 2026-10-28), which pinned the row.
 SPLICESEAM holds the lofted-cylinder operand's other red
 (`the-lofted-cylinder-operand-runs-out-of-quadrature-budget-at-1e-12`).

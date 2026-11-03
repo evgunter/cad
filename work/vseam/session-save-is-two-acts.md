@@ -141,7 +141,7 @@ Save, and the save dialog appends `.pncad` to a typed name that lacks
 it. The fork is refused while a value gesture is open, and is allowed
 during a free move. The doors are measured in `crates/viewer/tests/doc_io.rs`.
 
-Filed from the sweep: `work/issues/the-tour-gallery-writes-its-documents-around-the-store`,
+Filed from the sweep: `work/vseam/the-tour-gallery-writes-its-documents-around-the-store`,
 plus a dated note on `work/doctail/the-save-format-drops-its-edit-log`
 (the die corpus still writes a non-empty log).
 

@@ -215,7 +215,7 @@ Moved from SECTSITE to SECT on 2026-11-02, by `git mv`, when SECTSITE merged bac
 `wall_probes` pins `GermSectionSpiric { section: RoutesToGeneralRung {
 pair: "plane×torus", .. } }`, quoted above. A blocker inherits the band
 of what waits on it (`work/README.md`, Priority), and the demo joins are
-P0 (`work/issues/curved-demo-joins-build.md`).
+P0 (`work/splice/curved-demo-joins-build.md`).
 
 **The D10 hold has lifted.** INTENT closed on 2026-10-30 with D10's
 umbrella row (#6103, `docs/doc-ledger/intent-leaves-the-tracker.md`), so

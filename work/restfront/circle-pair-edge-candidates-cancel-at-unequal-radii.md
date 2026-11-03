@@ -81,13 +81,13 @@ Interval encloses (it is an identity). The tangent arm's foot
 not this one's.
 
 A shared `geom_core` home for that algebra is
-`work/issues/circle-pair-radical-chord-has-no-shared-home.md`; fixing
+`work/profile/circle-pair-radical-chord-has-no-shared-home.md`; fixing
 this site before it lands mints another copy.
 
 ## Outcome
 
 Fixed by PATHS on `paths/circle-pair-shared-home`, with the shared home
-(`work/issues/circle-pair-radical-chord-has-no-shared-home.md`).
+(`work/profile/circle-pair-radical-chord-has-no-shared-home.md`).
 `validate.rs` `circle_pair` decides `ring_outer_circles_apart` and
 `_nested` from `geom_core::Circles` (`external()`, and `-internal()`,
 the same value as `|r₁ − r₂| − d` bit for bit), and arm 5's circle ×

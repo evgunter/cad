@@ -109,7 +109,7 @@ The review raised the posture from light and earned it.
   variant: **bit-for-bit this defect, still live**.
 - `work/fix/remap-name-misses-lose-the-id-they-caught-at-six-refactor-sites.md`
 - `emit-topo-destroys-the-edge-key-in-a-split-lineage-cycle`
-- `work/issues/every-band-construction-is-the-class-not-every-map-err.md`
+- `work/meta/every-band-construction-is-the-class-not-every-map-err.md`
   — the methodology finding, and the transferable one: **sweep the
   construction of the thing whose cause can be lost, not the syntax of
   one way of losing it.** `clearance.rs:1076` was invisible because the
