@@ -231,7 +231,7 @@ use pncad::profile::SketchPlane;
 use pncad::sweep::blend::{BlendError, CornerConfig, fillet_edges};
 use pncad::sweep::{LoftError, Revolution, RevolveAxis, revolve, sweep_body};
 use pncad::topo::readback::euler_counts;
-use pncad::topo::{AtRestBody, Body, BooleanError, BooleanOp, EdgeKey, Operand};
+use pncad::topo::{AtRestBody, Body, BooleanError, EdgeKey, Operand};
 
 use crate::booleans::finished;
 use crate::scalar::{Scalar, frame_across};
