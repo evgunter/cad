@@ -145,7 +145,9 @@ fn a_line_across_the_rim_meets_it() {
             assert!((t - (x - 0.5)).abs() < 1e-12, "at the arc: {t}");
             // `(√0.75, 0.5)` is the arc's azimuth π/6: the meeting names
             // where on the boundary edge it put the point.
-            let s = on_edge.expect("a meeting inside the arc holds its parameter there");
+            let Some(s) = on_edge else {
+                panic!("a meeting inside the arc holds its parameter there")
+            };
             assert!((s - PI / 6.0).abs() < 1e-12, "on the arc: {s}");
         }
         other => panic!("a line across the arc: {other:?}"),

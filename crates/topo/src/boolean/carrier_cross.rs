@@ -171,7 +171,7 @@ pub(super) fn read_boundary<T: Decide>(
     face: FaceKey,
     swept: &Span<'_, T>,
     band: Band,
-) -> Result<Option<Result<(Boundary<T>, Held<T>), BoundaryRefusal>>, BooleanError> {
+) -> Result<Option<Result<HeldBoundary<T>, BoundaryRefusal>>, BooleanError> {
     Ok(face_boundary(y, face)?
         .filter(|b| b.lone.is_empty())
         .map(|b| {
@@ -194,6 +194,9 @@ pub(super) fn read_boundary<T: Decide>(
 /// A boundary edge a [`Boundary::Meets`] lies strictly inside, and the
 /// parameter on its span where the meeting reading put the point.
 pub(super) type Held<T> = Option<(EdgeKey, T)>;
+
+/// The boundary pass's answer and the parameter its meeting holds.
+pub(super) type HeldBoundary<T> = (Boundary<T>, Held<T>);
 
 /// **The split parameter a meeting holds** for the boundary entity the
 /// pre-pass placed its point on: the meeting reading's parameter where
