@@ -8945,8 +8945,8 @@ fn departure<T: Decide>(
 /// **Half-edge `he`'s unit direction at `p`**, a point inside its edge,
 /// and whether the edge is a line. A line's is its carrier's direction,
 /// the same at every point. A curve's is its tangent at the parameter
-/// the edge's span certifies `p` on ([`curved::unit_tangent_on_interior`]):
-/// a point the span does not certify on its interior refuses, an
+/// the edge's span certifies `p` on ([`curved::param_on_interior`]): a
+/// point the span does not certify on its interior refuses, an
 /// escalation as [`TouchUnread::InBand`] and anything else as
 /// [`TouchUnread::Unreadable`].
 fn half_edge_tangent<T: Decide>(
@@ -8967,8 +8967,8 @@ fn half_edge_tangent<T: Decide>(
         Some(line) => (line.dir.normalize(), true),
         None => {
             let mut refused = Vec::new();
-            match curved::unit_tangent_on_interior(body, half.edge, p, band, &mut refused) {
-                Some(Some(d)) => (d, false),
+            match curved::param_on_interior(body, half.edge, p, band, &mut refused) {
+                Some(Some(t)) => (carrier.deriv(t).normalize(), false),
                 Some(None) => return Err(TouchUnread::Unreadable),
                 None => {
                     let escalated = refused
