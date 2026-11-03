@@ -119,6 +119,8 @@ mod flat_cone_harmonic_images;
 mod flat_cone_tilted_ellipse;
 #[path = "germ_pose_gate.rs"]
 mod germ_pose_gate;
+#[path = "implicit_chart_section.rs"]
+mod implicit_chart_section;
 #[path = "imported_chart_arc_rim.rs"]
 mod imported_chart_arc_rim;
 #[path = "interior_iso_column.rs"]
