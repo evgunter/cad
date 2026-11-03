@@ -18600,4 +18600,41 @@ mod door_roster {
             }
         }
     }
+
+    /// **Tier 3 decides a stored spindle sheet's range by name**: a
+    /// brick face re-stored on a sheet whose major radius is zero (the
+    /// sphere between lemon and apple) or past the horn reports
+    /// `DegenerateSpindle` naming that end, and one on a lemon reports
+    /// none (its edges' own refusals are other checks').
+    #[test]
+    fn a_stored_spindle_sheet_is_refused_outside_its_range() {
+        use geom::SpindleEnd;
+        let tol = geom_core::Tol::witness();
+        let read = |major_radius: f64| {
+            let mut body =
+                crate::test_support_fixtures::brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
+            let face = body.faces().next().unwrap().0;
+            let key = body.get_face(face).unwrap().surface;
+            *body.surfaces.get_mut(key).unwrap() = geom::Surface::Spindle {
+                center: geom_core::Point3::new(0.5, 0.5, 0.5),
+                axis: geom_core::Vec3::new(0.0, 0.0, 1.0),
+                major_radius,
+                minor_radius: 0.5,
+                u_ref: geom_core::Vec3::new(1.0, 0.0, 0.0),
+            };
+            crate::AtRestBody::validate(body, tol)
+                .err()
+                .unwrap_or_default()
+                .into_iter()
+                .filter_map(|e| match e {
+                    crate::ValidationError::DegenerateSpindle { miss, .. } => Some(miss.end),
+                    _ => None,
+                })
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(read(0.0), vec![SpindleEnd::Sphere], "R = 0 is the sphere");
+        assert_eq!(read(0.75), vec![SpindleEnd::Horn], "R > r is a ring");
+        assert_eq!(read(-0.5), vec![SpindleEnd::Far], "R = −r closes the lemon");
+        assert!(read(-0.3).is_empty(), "a lemon is inside the range");
+    }
 }

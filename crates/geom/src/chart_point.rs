@@ -8,7 +8,8 @@
 //!
 //! Every angle is read off the geometry as an [`Azimuth`] in its
 //! [`Window`] (C4): the azimuth and a torus's tube angle in the angle
-//! window, a sphere's latitude in its own. So a point's coordinates are
+//! window, a sphere's latitude and a spindle sheet's tube angle in the
+//! latitude's. So a point's coordinates are
 //! named in the same windows as every placed pcurve image, and the band
 //! the reading takes is the band its cut-side decisions are read at.
 //!
@@ -272,11 +273,22 @@ impl<T: Decide> ChartInverse<T> {
                 Azimuth::of(h, rho).principal_in(Window::Latitude, band),
                 off("chart_point_on_axis", rho),
             ),
-            ChartArm::Torus { major, .. } | ChartArm::Spindle { major, .. } => {
+            ChartArm::Torus { major, .. } => {
                 let tube = Azimuth::of(h, rho - major);
                 (
                     Azimuth::of(y, x).principal(band),
                     tube.principal(band),
+                    off("chart_point_on_axis", rho)
+                        || off("chart_point_on_tube_circle", tube.length()),
+                )
+            }
+            // A sheet's `v` is closed on `[−v*, v*]` about zero, read in the
+            // latitude's window, which holds it whole for `v* < π − 1`.
+            ChartArm::Spindle { major, .. } => {
+                let tube = Azimuth::of(h, rho - major);
+                (
+                    Azimuth::of(y, x).principal(band),
+                    tube.principal_in(Window::Latitude, band),
                     off("chart_point_on_axis", rho)
                         || off("chart_point_on_tube_circle", tube.length()),
                 )
@@ -379,6 +391,18 @@ mod tests {
                 u_ref: Vec3::new(1.0, 0.0, 0.0),
             });
         }
+        // A lemon (`v* ≈ 1.459`) and an apple (`v* ≈ 2.16`), both
+        // windows holding the walk's `|v| ≤ 1.42`: the sheet's foot is
+        // read by the signed major radius.
+        for major_radius in [-0.1, 0.5] {
+            all.push(Surface::Spindle {
+                center: Point3::new(0.2, -0.1, 0.3),
+                axis: Vec3::new(0.0, 0.6, 0.8),
+                major_radius,
+                minor_radius: 0.9,
+                u_ref: Vec3::new(1.0, 0.0, 0.0),
+            });
+        }
         for surface in &all {
             for i in 0..48 {
                 let u = -3.1 + 0.13 * f64::from(i);
@@ -431,6 +455,30 @@ mod tests {
         }
         let near = sphere.eval(0.3, core::f64::consts::FRAC_PI_2 - 1e-6);
         assert!(!sphere.chart_point(near, band()).unwrap().singular);
+        // A spindle sheet's two apexes, at the ends `±v*` of its window
+        // (`cos v* = −R/r`), lie on its axis.
+        for major_radius in [-0.1, 0.5] {
+            let sheet = Surface::Spindle {
+                center: Point3::new(0.2, -0.1, 0.3),
+                axis: Vec3::new(0.0, 0.6, 0.8),
+                major_radius,
+                minor_radius: 0.9,
+                u_ref: Vec3::new(1.0, 0.0, 0.0),
+            };
+            let v_star = (-major_radius / 0.9_f64).acos();
+            for v in [v_star, -v_star] {
+                let apex = sheet.eval(0.3, v);
+                assert!(
+                    sheet.chart_point(apex, band()).unwrap().singular,
+                    "R = {major_radius}: the apex at v = {v} reads singular"
+                );
+            }
+            let near = sheet.eval(0.3, v_star - 1e-3);
+            assert!(
+                !sheet.chart_point(near, band()).unwrap().singular,
+                "R = {major_radius}: a point inside the window reads its foot"
+            );
+        }
         for alpha in [1.2, 1.4] {
             let wide = Surface::Cone {
                 apex: Point3::new(0.2, -0.1, 0.3),

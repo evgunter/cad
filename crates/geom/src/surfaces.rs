@@ -2273,6 +2273,35 @@ mod tests {
     /// refusal says so rather than offering one. A ring a hair inside
     /// the convention, the same distance on the positive side, keeps
     /// its offer, and the tolerance it names decides the convention.
+    /// **The sheet's range at both ends and at the sphere between**:
+    /// a lemon, an apple and a horn pass; `R = −r`, `R = 0` and a ring
+    /// past `r` each refuse naming their end, decided; a margin inside
+    /// the band refuses undecided.
+    #[test]
+    fn a_spindle_sheet_is_decided_inside_its_range() {
+        let band = geom_core::Band::new(1e-9, 1e-8).unwrap();
+        for (major, minor) in [(-0.4, 1.0), (0.4, 1.0), (1.0, 1.0)] {
+            assert_eq!(
+                spindle_sheet(major, minor, band),
+                Ok(()),
+                "R = {major}, r = {minor} is a sheet"
+            );
+        }
+        for (major, minor, end) in [
+            (-1.0, 1.0, SpindleEnd::Far),
+            (-1.5, 1.0, SpindleEnd::Far),
+            (0.0, 1.0, SpindleEnd::Sphere),
+            (1.5, 1.0, SpindleEnd::Horn),
+        ] {
+            let miss = spindle_sheet(major, minor, band).unwrap_err();
+            assert_eq!(miss.end, end, "R = {major}, r = {minor}");
+            assert!(miss.verdict.is_ok(), "R = {major}: decided, not in band");
+        }
+        let in_band = spindle_sheet(1.0 + 5e-9, 1.0, band).unwrap_err();
+        assert_eq!(in_band.end, SpindleEnd::Horn);
+        assert!(in_band.verdict.is_err(), "a horn in band is undecided");
+    }
+
     #[test]
     fn a_ring_convention_zero_on_the_spindle_side_offers_no_tolerance() {
         let band = Band::new(1e-9, 1e-8).unwrap();
