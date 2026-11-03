@@ -68,7 +68,8 @@ use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Sign, Vec3};
 use crate::azimuth;
 pub use nurbs::{CurveWindow2, CurveWindow3, NurbsCurve2, NurbsCurve3};
 pub use on_carrier::{
-    CarrierRefusal, Clearance, Foot, OnCarrier, PieceRead, PieceStep, ellipse_level_clearance,
+    CarrierEscalation, CarrierRefusal, Clearance, Foot, OnCarrier, PieceRead, PieceStep,
+    PieceWalkRefusal, ellipse_level_clearance,
 };
 pub use projection::{Projection2, Projection3, ProjectionInconclusive};
 
@@ -206,6 +207,94 @@ pub enum CurveKind {
     Spiric,
     /// A [`Curve3::Nurbs`], described or the placeholder.
     Nurbs,
+}
+
+impl<T: SpanLocate> Curve3<T> {
+    /// **Whether `other` is this carrier by content**: one kind, and
+    /// every value that states it one plain constant
+    /// ([`SpanLocate::plain_constant`]) equal to its counterpart. Exact,
+    /// not margined: it answers whether two carriers are one stated
+    /// value, as a restatement verbatim makes them (a split's two
+    /// children), never whether two statements describe one locus. A
+    /// value carrying anything beyond its constant (an interval wider
+    /// than a point, a derivative, a symbol) answers no.
+    #[must_use]
+    pub fn same_content(&self, other: &Self) -> bool {
+        let same = |a: T, b: T| matches!((a.plain_constant(), b.plain_constant()), (Some(x), Some(y)) if x == y);
+        let point = |p: Point3<T>, q: Point3<T>| same(p.x, q.x) && same(p.y, q.y) && same(p.z, q.z);
+        let vec = |v: Vec3<T>, w: Vec3<T>| same(v.x, w.x) && same(v.y, w.y) && same(v.z, w.z);
+        let frame = |f: &Frame<T>, g: &Frame<T>| {
+            let Frame {
+                center,
+                axis,
+                u_ref,
+            } = *f;
+            let Frame {
+                center: c,
+                axis: a,
+                u_ref: u,
+            } = *g;
+            point(center, c) && vec(axis, a) && vec(u_ref, u)
+        };
+        match (self, other) {
+            (Self::Line(Line { origin, dir }), Self::Line(Line { origin: o, dir: d })) => {
+                point(*origin, *o) && vec(*dir, *d)
+            }
+            (
+                Self::Circle(Circle { frame: f, radius }),
+                Self::Circle(Circle {
+                    frame: g,
+                    radius: r,
+                }),
+            ) => frame(f, g) && same(*radius, *r),
+            (
+                Self::Ellipse(Ellipse {
+                    frame: f,
+                    semi_u,
+                    semi_v,
+                }),
+                Self::Ellipse(Ellipse {
+                    frame: g,
+                    semi_u: su,
+                    semi_v: sv,
+                }),
+            ) => frame(f, g) && same(*semi_u, *su) && same(*semi_v, *sv),
+            (
+                Self::Spiric {
+                    center,
+                    axis,
+                    u_ref,
+                    major_radius,
+                    minor_radius,
+                    offset,
+                },
+                Self::Spiric {
+                    center: c,
+                    axis: a,
+                    u_ref: u,
+                    major_radius: big,
+                    minor_radius: small,
+                    offset: off,
+                },
+            ) => {
+                point(*center, *c)
+                    && vec(*axis, *a)
+                    && vec(*u_ref, *u)
+                    && same(*major_radius, *big)
+                    && same(*minor_radius, *small)
+                    && same(*offset, *off)
+            }
+            (Self::Nurbs(n), Self::Nurbs(m)) => n.same_content(m, same),
+            (
+                Self::Line(_)
+                | Self::Circle(_)
+                | Self::Ellipse(_)
+                | Self::Spiric { .. }
+                | Self::Nurbs(_),
+                _,
+            ) => false,
+        }
+    }
 }
 
 impl<T: Real> Curve3<T> {

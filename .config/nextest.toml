@@ -53,6 +53,8 @@ not (
   (binary_id(geom::all) & test(=curves_piece_coverage_meter::a_stall_in_any_piece_refuses_at_any_scale)) |
   (binary_id(sweep::all) & test(=face_face_touch::a_record_whose_faces_the_op_divides_lands_on_the_pair_holding_its_line)) |
   (binary_id(sweep::all) & (test(=an_edge_on_a_ruling_lying_in_its_own_face::a_keel_on_a_cylinders_ruling_through_its_face_refuses_at_tier_3_prime) | test(=an_edge_on_a_ruling_lying_in_its_own_face::a_ridge_on_a_cylinders_ruling_resting_on_its_floor_passes_tier_3_prime))) |
+  (binary_id(sweep::all) & test(=a_split_edge_joins_back_on_its_carrier::each_analytic_kind_joins_back_exactly_across_a_grid_of_splits)) |
+  (binary_id(sweep::all) & test(=band_turn_overrun_chamfer::the_sweep_fills_concave_overruns)) |
   (binary_id(sweep::all) & test(=holdings_of_a_sunk_boss::a_bar_over_a_sunk_boss_holds_both_wall_halves_in_every_order)) |
   (binary_id(sweep::all) & test(=holdings_of_a_sunk_boss::two_bars_over_a_sunk_boss_leave_each_wall_piece_one_half_in_every_order)) |
   (binary_id(sweep::all) & (test(=copied_carriers_at_interval::random_copied_carriers_extrude_at_interval_without_contradiction) | test(=a_long_bound_beside_a_short_arm::a_boss_beside_a_holes_long_edge_at_every_angle) | test(=a_long_bound_beside_a_short_arm::two_slabs_beside_a_short_arm) | test(=a_minted_vertex_on_a_curved_face::two_wedges_sharing_the_tangent_plane_face_answer_every_op))) |
@@ -202,7 +204,7 @@ not (
   (binary_id(geom::all) & (test(=n3r1_probes::n3r1_interval_brackets_are_dominated_by_the_box) | test(=curves_piece_coverage_meter::the_join_never_reads_below_the_chord_assemblies))) |
   (binary_id(sweep::all) & (test(=review_5956_r1_probes::r3_seeded_random_apex_poses_never_panic_or_mislead) | test(=a_cone_apex_on_a_plane_through_it::a_cut_along_two_rulings_through_a_wrap_tipped_apex_refuses_the_pinch_by_name) | test(=split_through_a_ruling::a_frustum_split_through_a_ruling_answers) | test(=band_strip_mouth_cups::a_cups_floor_a_hair_across_the_band_surface_crosses_and_one_inside_goes) | test(=band_turn_overrun_oracles::whole_rims_build_at_the_clip_oracle))) |
   (binary_id(step-import::all) & (test(=wild::wild_bodies_are_a_fixed_point_of_our_own_dialect))) |
-  (binary_id(topo) & (test(=census::two_carrier_records::line_through_faces::review_5006_delta::d3_conic_trims) | test(=boolean::boxes::sphere_rect_rows::a_zone_reach_charge_covers_random_poses_near_a_box_row))) |
+  (binary_id(topo) & (test(=census::two_carrier_records::line_through_faces::review_5006_delta::d3_conic_trims) | test(=census::two_carrier_records::line_through_faces::review_5006_delta::an_apex_in_band_of_the_line_does_not_hide_a_spike_elsewhere) | test(=boolean::boxes::sphere_rect_rows::a_zone_reach_charge_covers_random_poses_near_a_box_row))) |
   (binary_id(topo::all) & (test(=a_vertex_read_by_two_sector_passes::a_partner_tipped_off_the_face_still_ends_the_cut)))
 )
 """
