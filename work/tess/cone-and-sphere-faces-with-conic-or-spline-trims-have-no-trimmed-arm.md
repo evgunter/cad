@@ -32,7 +32,7 @@ plane/cone/sphere/torus chart — …" }`.
   form for a circle's image (`chords::sphere_uv_speeds`) and refuses a
   projected spline image typed.
 - The torus and plane cases are
-  `work/issues/trimmed-tessellation-lacks-torus-and-plane-arms.md`.
+  `work/tess/trimmed-tessellation-lacks-torus-and-plane-arms.md`.
 
 **What a fix owes.** For the cone, an arm like the cylinder's (its
 certificate `cert::cert_cone` is UV-based, so the arm needs the conic's

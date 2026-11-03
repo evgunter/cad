@@ -63,7 +63,7 @@ caller at `germ_section_frame`. Re-opened here by the SEAT orchestrator
 because lint refuses a row parked on a fired trigger; CURVED schedules
 it. Note for the pinch design: the channel carries stored SCALAR
 fields only — axis-flavoured declarations are
-`work/issues/axis-flavoured-declarations-have-no-channel.md`.
+`work/wire/axis-flavoured-declarations-have-no-channel.md`.
 
 ## Re-pointed from the D10 hold (2026-10-08)
 

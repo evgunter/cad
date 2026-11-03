@@ -183,7 +183,7 @@ means the line matches the rule but asserts no ratification.
   rewritten, and approving the cut does not ratify each paragraph that
   crossed it. So every verdict below traces its
   clause to the commit that first wrote it, never to the file it sits
-  in now. Filed as `work/issues/gui-design-holds-agent-text-that-reads-as-ratified`.
+  in now. Filed as `work/vdoc/gui-design-holds-agent-text-that-reads-as-ratified`.
 - The G-clause sources: G1, G2 and the three micro-decisions (now G4)
   are `5267a9193` (2026-07-19, *"G1 (agreed 2026-07-19)"*,
   *"Ratified micro-decisions (2026-07-19)"*). GQ2 is `57d762ef1`
@@ -448,7 +448,7 @@ filed one row per owning slate:
 - **GUARD**: `work/guard/gates-readme-cites-a-deleted-memory`, a
   side-finding. `scripts/gates/README.md:111` cites
   `memories/interval-square-poison.md`, which `4ffcde545` deleted.
-- **No owner**: `work/issues/gui-design-holds-agent-text-that-reads-as-ratified`.
+- **No owner**: `work/vdoc/gui-design-holds-agent-text-that-reads-as-ratified`.
 
 ## Closed (2026-09-28): the correction pass
 

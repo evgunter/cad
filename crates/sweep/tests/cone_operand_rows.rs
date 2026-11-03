@@ -453,7 +453,7 @@ fn bite() -> AtRestBody<f64> {
 /// **A cone against an oblique cylinder has no frame.** P1, the bite,
 /// and P2, the bite with P2a's brick beside it as a second lump: every
 /// op refuses `GermFrameUnsupported` on the cone × cylinder pair
-/// (`work/sect/cone-germ-pairs-against-a-curved-face-have-no-section-frame.md`),
+/// (`work/sectcone/cone-germ-pairs-against-a-curved-face-have-no-section-frame.md`),
 /// in the operands' order.
 #[test]
 fn the_bite_refuses_at_the_germ_frame() {

@@ -574,7 +574,7 @@ fn a_ball_escaping_through_a_plane_and_a_sphere() {
 /// are small regions the sphere arm reads by the fan form, so its
 /// volume lands within about `1e-9` of the lens in either order (it
 /// read `−54%` and `−86%` before) and its at-infinity side decides, so
-/// it is a legal operand (`work/cleave/a-built-sliver-is-not-a-legal-operand.md`).
+/// it is a legal operand (`work/heldrecords/a-built-sliver-is-not-a-legal-operand.md`).
 #[test]
 fn a_large_ball_near_external_tangency_is_pinned() {
     if Tol::witness().get().eps != 1e-9 {
@@ -630,7 +630,7 @@ fn a_large_ball_near_external_tangency_is_pinned() {
     // centre, where its cap's flux has no lever to cancel. The `b ∩ a` sliver at a `1e-5` gap reads `2.5e-3`
     // off: that is the flux's own `R·Area` against `c·A⃗` cancellation,
     // FLUXTAIL's `a-sphere-faces-flux-cancels-r-times-its-area-against-its-vector-area`
-    // (`work/cleave/a-built-sliver-is-not-a-legal-operand.md` has the
+    // (`work/heldrecords/a-built-sliver-is-not-a-legal-operand.md` has the
     // table), held at its measured size so it cannot grow unseen.
     for gap in [2e-6, 3e-6, 5e-6, 1e-5] {
         let d = 51.0 - gap;

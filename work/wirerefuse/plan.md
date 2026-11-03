@@ -26,4 +26,4 @@ Opened 2026-10-28 by splitting WIREREST and WIRETAIL. On 2026-11-02, PRs 6291, 6
 
 ## Review posture
 
-Inherits WIRE's (`work/wire/plan.md`): protocol v7, single reviews.
+Inherits WIRE's (WIRE's plan, recoverable by `docs/doc-ledger/wire-leaves-the-tracker.md`): protocol v7, single reviews.

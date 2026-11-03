@@ -165,4 +165,4 @@ Main's refusals the pins assert as they stand, filed:
 - GERMCERT `a-sector-direction-read-off-a-needles-short-run-carries-its-rounding-over-1-w`;
 - HONE `the-subtract-volume-backstop-holds-flush-operands-bit-exact-and-refuses-a-correct-bar`;
 - HONE `a-vertex-near-a-tilted-faces-carrier-but-w-from-its-face-refuses-vertex-on-face`;
-- `work/issues/the-witness-ladder-reads-one-interior-candidate-per-face-so-one-in-band-hides-a-definite-one`.
+- `work/flush/the-witness-ladder-reads-one-interior-candidate-per-face-so-one-in-band-hides-a-definite-one`.
