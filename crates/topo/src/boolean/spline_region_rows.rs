@@ -964,12 +964,7 @@ fn a_placeholder_at_each_joint_across_a_closed_charts_seam_reads_as_the_bare_fac
     ];
     for ring in [None, Some(&hole[..])] {
         let (bare, face) = holed_sheet(&chart, &outer, ring);
-        let loops: Vec<_> = {
-            let f = bare.get_face(face).unwrap();
-            core::iter::once(f.outer)
-                .chain(f.rings.iter().copied())
-                .collect()
-        };
+        let loops: Vec<_> = bare.get_face(face).unwrap().loop_keys().collect();
         let want: Vec<_> = probes
             .iter()
             .map(|&(u, v)| place(&bare, face, chart.eval(u, v)))
