@@ -4,6 +4,9 @@ kind: issue
 title: Tier 3's wedge pass and the census each compose the dihedral class with the material pairing, the question geom_brep::classify_edge_wedge now answers in one door
 status: open
 opened: 2026-11-02
+priority: P1
+cost: M
+design: true
 ---
 
 Filed by the REFS lane (`work/refs/select-all-edges-picks-edges-a-fillet-refuses.md`), from its sweep for readers of an edge's dihedral.
@@ -21,3 +24,7 @@ Filed by the REFS lane (`work/refs/select-all-edges-picks-edges-a-fillet-refuses
 Why the REFS unit did not move them: check 4 asks the UNSIGNED tangent-plane class (`sin θ · arm`, predicate `dihedral_wedge`, its collapsed-arm gate `dihedral_arm` and its `LeverEscalation` rungs) at every interior station, reads spline faces through `classify_seam`, and descends to the jet for the cusp/slit end; the door reads the SIGNED margin `((n₊ × n₋)·τ̂)·arm` at one point of analytic faces. Moving check 4 onto the door changes its predicate population, its escalation types and its spline arm, which is this program's ground, not a blend unit's.
 
 What converging would take: the door taking the station's walk direction and a spline face (as `classify_seam` does), or check 4 and the census reading the door's material half (`Smooth`/`Knife`) where they now pair `DihedralClass::Smooth` with `classify_material_pairing` by hand. Either way the material pairing stays the one function it already is; what is duplicated is the composition.
+
+## Re-read (ONEDOOR, 2026-11-03)
+
+All three composition sites are confirmed at `d1ac6881`. There is a fourth, which the row does not list: `boolean/rim_wedge.rs`. It spells its own first-order `classify_dihedral` loop, then runs check 4's `MaterialStations` inside `second_order_walk`. A related half-composer is `splitting/rules.rs` `edge_wedge`: `classify_dihedral`, then the convex/concave sign via `enters_material`, with no pairing. The census's population is two planar faces at an edge–edge crossing point, not one edge's own pair. Banded P1 (one logic composed at several sites), priced M, with `design` set because the signed and unsigned first-order reads are a real choice.
