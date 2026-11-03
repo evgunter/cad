@@ -5,8 +5,9 @@
 //! general lane (the mint's `General` producer is degree 1, so a
 //! circle's image refuses at its map wherever its foot path bends).
 //! A circle the pick does not show, or whose row the certificate
-//! refuses or reads in band, refuses `NoGeneralLane`, recording
-//! nothing, whatever form its description takes.
+//! refuses or reads in band, takes the same disposition whatever form
+//! its description takes; in band, that is `NoGeneralLane`, recording
+//! nothing.
 //!
 //! The fixture is the unit cylinder sheet over `[0, TURN] × [0, 1]`
 //! (`topo::test_support::cyl_wall_sheet_keyed`), its rims the circles
@@ -213,21 +214,26 @@ fn rim_image_on_the_ring<T: AtRestPolicy + geom_core::Bounds>() {
             "{form:?}: on the true ring the rim is its row, at {}: {got:?}",
             T::NAME
         );
-        // Bent in band, and bent past it: the same refusal.
+        // Bent in band: the certificate reads the row in band, and the
+        // circle refuses "not yet".
         let near = derived::<T>(in_band_push, form);
         assert!(
             no_lane(&near),
             "{form:?}: a row read in band refuses \"not yet\", at {}: {near:?}",
             T::NAME
         );
-        let far = derived::<T>(OFF_PUSH, form);
-        assert_eq!(
-            far.err(),
-            near.err(),
-            "{form:?}: in band refuses as a refused row does, at {}",
-            T::NAME
-        );
     }
+    // Bent past the band: the certificate refuses the row, and every form
+    // takes the same disposition. What that disposition ends as is a
+    // spline chart's missing incidence test's
+    // (`work/pcert/a-spline-chart-has-no-incidence-test-so-a-lane-choice-refusal-cannot-tell-off-from-uncovered.md`),
+    // so this row pins only that the forms agree.
+    assert_eq!(
+        derived::<T>(OFF_PUSH, Form::Intersection).err(),
+        derived::<T>(OFF_PUSH, Form::Scaffold).err(),
+        "a refused row ends alike in every form, at {}",
+        T::NAME
+    );
 }
 
 /// A bend the row's certificate refuses definitely.

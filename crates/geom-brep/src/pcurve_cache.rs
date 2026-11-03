@@ -9249,11 +9249,15 @@ pub(crate) const POSE_LEVER: &str = "a carrier through a pole, the cone's apex o
 
 /// **Why D3's lane choice found no general image** for a carrier the
 /// chart's incidence test does not show off it
-/// ([`PcurveCertifyError::NoGeneralLane`]).
+/// ([`PcurveCertifyError::NoGeneralLane`]). A spline chart has no
+/// incidence test, so there the carrier is one that no exact class
+/// showed, whether or not it lies on the chart.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum LaneGap {
     /// No general lane is written for this (chart, carrier) pair
-    /// ([`projected::has_lane`]).
+    /// ([`projected::has_lane`] on an analytic chart; on a spline chart,
+    /// a circle the arc rim's row does not hold, which the mint's
+    /// degree-1 `General` image cannot certify).
     Unwritten,
     /// The lane is written for the pair but does not image this pose: its
     /// partition found no piece sector ([`projected::SectorChannel`])

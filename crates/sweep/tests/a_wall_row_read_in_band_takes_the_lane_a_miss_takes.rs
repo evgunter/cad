@@ -7,13 +7,13 @@
 //! chart whose seams are described as `IsoLine` images on the
 //! neighbouring walls and whose rims are its `IsoArc` rows. The wall is
 //! re-charted in place onto its surface moved by a distance inside the
-//! band, or past it, its edges' descriptions left as they were:
+//! band, its edges' descriptions left as they were:
 //!
 //! - a seam's pick (`pcurve_iso_wall_seam`) shows no column, and the
 //!   seam takes its `General` image;
 //! - a rim's pick (`pcurve_iso_arc_row_direction`) shows no row, and a
 //!   circle on a spline chart has no general lane yet: the rim refuses
-//!   "not yet", the same refusal in band as decided off.
+//!   "not yet".
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -23,9 +23,6 @@ use crate::common::semicircle_wall::{
 use geom_brep::PcurveCertifyError;
 use geom_core::{Bounds, Vec3};
 use topo::{AtRestPolicy, Body, FaceKey, HalfEdgeKey, Pcurve, PcurveMintError};
-
-/// A distance decided off: far past `K·ε` at every tolerance row.
-const OFF: f64 = 1e-3;
 
 /// The arc wall, its rims (the `IsoArc` rows) and its seams (the
 /// columns, `u` held).
@@ -117,33 +114,28 @@ fn a_seam_in_the_band_takes_its_general_image_at_interval() {
     a_seam_in_the_band_takes_its_general_image::<geom_core::Interval>();
 }
 
-/// **A rim in the band refuses "not yet", as one decided off does.** The
-/// wall moved along `z`, its rows' normal: `in_band()`, where every
-/// arc-rim candidate is undecided at the probe, and `OFF`, where every
-/// one is decided off. Either way the rim is not shown on a row, a
-/// circle on a spline chart has no general lane, and the rim refuses
-/// that gap: the same refusal, ending "not yet" with no tolerance offer.
-fn a_rim_in_the_band_refuses_as_one_off_its_row<T: AtRestPolicy + Bounds>() {
+/// **A rim in the band refuses "not yet".** The wall moved `in_band()`
+/// along `z`, its rows' normal: every arc-rim candidate is undecided at
+/// the probe, so the rim is not shown on a row, and a circle on a spline
+/// chart has no general lane: it refuses that gap, ending "not yet" with
+/// no tolerance offer.
+///
+/// There is no decided-off twin of this row. A spline chart has no
+/// incidence test (`work/pcert/a-spline-chart-has-no-incidence-test-so-a-lane-choice-refusal-cannot-tell-off-from-uncovered.md`),
+/// so a rim decided off its wall ends in the same gap rather than as its
+/// incidence read. No row should pin that. No door reaches it on a body
+/// the kernel built either: the mint images only certified edges, and a
+/// spline-adjacent edge's certificate reads the carrier against its wall
+/// at the door.
+fn a_rim_in_the_band_refuses_not_yet<T: AtRestPolicy + Bounds>() {
     let body = semicircle_prism::<T>();
     let (wall, rims, _) = wall_rows(&body);
     let near = moved(&body, wall, Vec3::new(0.0, 0.0, in_band()));
-    let far = moved(&body, wall, Vec3::new(0.0, 0.0, OFF));
     for h in rims {
-        // The poses: every row in band at the pick on the near wall,
-        // every row decided off on the far one.
-        let pick = |b: &Body<T>| {
-            let (carrier, (t0, t1), surface) = edge_on_wall(b, h);
-            geom_brep::pick_arc_rim(&carrier, (t0, t1 - t0), &surface, band()).map(|p| p.is_some())
-        };
+        let (carrier, (t0, t1), surface) = edge_on_wall(&near, h);
         assert!(
-            pick(&near).is_err(),
+            geom_brep::pick_arc_rim(&carrier, (t0, t1 - t0), &surface, band()).is_err(),
             "{h:?}: the pick reads in band, at {}",
-            T::NAME
-        );
-        assert_eq!(
-            pick(&far),
-            Ok(false),
-            "{h:?}: the pick decides every row off, at {}",
             T::NAME
         );
         let got = derived(&near, h);
@@ -164,12 +156,6 @@ fn a_rim_in_the_band_refuses_as_one_off_its_row<T: AtRestPolicy + Bounds>() {
                 T::NAME
             )
         };
-        assert_eq!(
-            derived(&far, h).err().as_ref(),
-            Some(refused),
-            "{h:?}: in band refuses as decided off, at {}",
-            T::NAME
-        );
         for at in [
             geom_brep::recourse::Reading::Build,
             geom_brep::recourse::Reading::AtRest,
@@ -185,11 +171,11 @@ fn a_rim_in_the_band_refuses_as_one_off_its_row<T: AtRestPolicy + Bounds>() {
 }
 
 #[test]
-fn a_rim_in_the_band_refuses_as_one_off_its_row_at_f64() {
-    a_rim_in_the_band_refuses_as_one_off_its_row::<f64>();
+fn a_rim_in_the_band_refuses_not_yet_at_f64() {
+    a_rim_in_the_band_refuses_not_yet::<f64>();
 }
 
 #[test]
-fn a_rim_in_the_band_refuses_as_one_off_its_row_at_interval() {
-    a_rim_in_the_band_refuses_as_one_off_its_row::<geom_core::Interval>();
+fn a_rim_in_the_band_refuses_not_yet_at_interval() {
+    a_rim_in_the_band_refuses_not_yet::<geom_core::Interval>();
 }

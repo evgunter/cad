@@ -4,11 +4,15 @@ kind: issue
 title: The mint's degree-1 General image of a curved carrier on a spline chart refuses its map residual with a tolerance offer and a kernel-bug ending
 status: open
 opened: 2026-11-03
-priority: P2
+priority: P1
 cost: M
 ---
 
-Filed by PCERT unit E5 (PR 6484, review T2).
+Filed by PCERT unit E5 (PR 6484, review T2). It is the same class as
+E4's fix U2 (`pcert/circle-general-lane`): a carrier that takes its lane
+must never end in a tolerance offer. E4's lane filed
+`an-ellipses-general-lane-is-written-on-no-chart` (the analytic charts'
+projected lane), not this spline-chart producer.
 
 ## What
 
