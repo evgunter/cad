@@ -83,6 +83,25 @@ fn level(y: f64) -> Surface<f64> {
     }
 }
 
+/// The flat wall `z = α·x` over `y ∈ [0, ½]` whose chart path bends
+/// (`m5_pr7_ssi`'s `bent_path_flat_wall`): `x = X·[(s − ½) − κh(s − ½)² −
+/// μh]`, `h = 4t(1 − t)`, biquadratic, cut by `z = 0` in the line
+/// `x = z = 0`.
+fn bent_path_flat_wall(alpha: f64, width: f64, kappa: f64, mu: f64) -> NurbsSurface<f64> {
+    let lin = [-0.5, 0.0, 0.5];
+    let square = [0.25, -0.25, 0.25];
+    let hump = [0.0, 2.0, 0.0];
+    let k = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+    let mut control = Vec::with_capacity(9);
+    for i in 0..3 {
+        for (j, h) in hump.iter().enumerate() {
+            let x = width * (lin[i] - kappa * square[i] * h - mu * h);
+            control.push(Point3::new(x, 0.25 * f64::from(j as u8), alpha * x));
+        }
+    }
+    NurbsSurface::new(k.clone(), k, control, vec![1.0; 9]).unwrap()
+}
+
 fn dome_domain() -> SsiDomain {
     SsiDomain {
         center: Point3::new(0.5, -0.2, 0.5),
@@ -163,12 +182,32 @@ fn the_plane_reads_one_section_on_both_traces() {
             wall_domain(),
         ));
     }
+    fixtures.push((
+        "flat wall whose chart path bends".into(),
+        Surface::Plane {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            normal: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        },
+        bent_path_flat_wall(1e-6, 0.01, 0.8, 0.2),
+        SsiDomain {
+            center: Point3::new(0.0, 0.0, 0.0),
+            half_extent: 1.0,
+            extent: 1.0,
+            floor_scale: 1.0,
+        },
+    ));
     let mut table = String::new();
     let mut moved = Vec::new();
     for (what, plane, wall, domain) in &fixtures {
         let r4 = read(PlaneSection::of(plane, wall, *domain, b).and_then(PlaneSection::all));
-        let r2 = read(ImplicitSection::of(plane, wall, *domain, b).and_then(ImplicitSection::all));
+        let full = ImplicitSection::of(plane, wall, *domain, b).and_then(ImplicitSection::all);
+        let detail = full.as_ref().err().map(|e| format!("{e:?}"));
+        let r2 = read(full);
         table.push_str(&format!("{what}: ℝ⁴ {r4:?} | 1×2 {r2:?}\n"));
+        if let (Read::Decided { .. }, Some(d)) = (&r4, &detail) {
+            table.push_str(&format!("    the 1×2 refusal: {d}\n"));
+        }
         match (&r4, &r2) {
             (Read::Decided { .. }, Read::Refused(_)) => moved.push(what.clone()),
             (Read::Decided { .. }, Read::Decided { .. }) if r4 != r2 => moved.push(what.clone()),
