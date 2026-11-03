@@ -47,7 +47,11 @@ fn mid<T: Bounds>(x: T) -> f64 {
 
 /// A round bar of radius `a` along `x` over `[x0, x1]`, its axis at
 /// `(y, z)`.
-fn rod<T: Decide + AtRestPolicy>((x0, x1): (f64, f64), (y, z): (f64, f64), a: f64) -> Body<T> {
+fn rod<T: Decide + AtRestPolicy<Finished = topo::AtRestBody<T>>>(
+    (x0, x1): (f64, f64),
+    (y, z): (f64, f64),
+    a: f64,
+) -> Body<T> {
     bar(
         (x0, (y, z)),
         (x1, (y, z)),
@@ -58,7 +62,7 @@ fn rod<T: Decide + AtRestPolicy>((x0, x1): (f64, f64), (y, z): (f64, f64), a: f6
 }
 
 /// The convex block at scale `k`.
-fn block<T: Decide + Bounds + AtRestPolicy>(k: f64) -> Body<T> {
+fn block<T: Decide + Bounds + AtRestPolicy<Finished = topo::AtRestBody<T>>>(k: f64) -> Body<T> {
     brick((0.0, k), (0.0, k), (0.0, k), tol())
 }
 
@@ -79,14 +83,19 @@ fn concave_at(k: f64, (u, v): (f64, f64)) -> (f64, f64) {
 
 /// The convex block at scale `k` less a blind bore of radius `a` at
 /// corner coordinates `c`, from the end face `x = 0` to depth `h`.
-fn blind_bore<T: Decide + Bounds + AtRestPolicy>(k: f64, c: (f64, f64), a: f64, h: f64) -> Body<T> {
+fn blind_bore<T: Decide + Bounds + AtRestPolicy<Finished = topo::AtRestBody<T>>>(
+    k: f64,
+    c: (f64, f64),
+    a: f64,
+    h: f64,
+) -> Body<T> {
     boolean(false, block(k), rod((-0.2 * k, h), convex_at(k, c), a))
 }
 
 /// The die at scale `k` and lean `s` with a pin of radius `a` at corner
 /// coordinates `c`, from inside the first end wall's material to
 /// `x = x1`.
-fn pin<T: Decide + Bounds + AtRestPolicy>(
+fn pin<T: Decide + Bounds + AtRestPolicy<Finished = topo::AtRestBody<T>>>(
     k: f64,
     s: f64,
     c: (f64, f64),
@@ -139,7 +148,9 @@ pub(crate) fn cup_faces<T: Real + Bounds>(
 /// `dv` to `1e-12` of the scale `k` cubed, the enclosure a claim and its
 /// midpoint on the closed form.
 #[allow(clippy::too_many_arguments)] // the row's own reads, one per argument.
-pub(crate) fn assert_taken<T: Decide + Bounds + AtRestPolicy + geom_core::CertifiedBounds>(
+pub(crate) fn assert_taken<
+    T: Decide + Bounds + AtRestPolicy<Finished = topo::AtRestBody<T>> + geom_core::CertifiedBounds,
+>(
     verb: Verb,
     body: &Body<T>,
     edges: &[EdgeKey],

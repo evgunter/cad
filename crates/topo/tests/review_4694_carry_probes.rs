@@ -17,7 +17,7 @@ fn tol() -> Tol {
 }
 
 fn box_of(x: (f64, f64), y: (f64, f64), z: (f64, f64), what: &str) -> AtRestBody<f64> {
-    finished(what, brick(x, y, z, tol()), tol())
+    finished(what, brick::<f64>(x, y, z, tol()), tol())
 }
 
 fn union_of(a: &AtRestBody<f64>, b: &AtRestBody<f64>) -> BooleanBody<f64> {

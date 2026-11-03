@@ -42,6 +42,7 @@ fn yz_prism(lp: ProfileLoop<f64>, x0: f64, dist: f64) -> Body<f64> {
     )
     .expect("the profile extrudes")
     .body
+    .into_body()
 }
 
 /// A 240° arc of the circle about `(y, z) = (1.3, 0)`, `r = 0.5`, from

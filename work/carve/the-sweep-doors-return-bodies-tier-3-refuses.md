@@ -2,11 +2,13 @@
 id: the-sweep-doors-return-bodies-tier-3-refuses
 kind: issue
 title: extrude, revolve, loft, sweep, fillet and chamfer gate their results by a tier-2 debug assert alone, and extrude returns bodies tier 3 refuses
-status: parked
+status: closed
 opened: 2026-10-14
 priority: P3
 cost: M
 blocked_on: [the-at-rest-result-gate-and-its-typing-live-in-five-homes]
+closed: 2026-11-03
+pr: 6371
 ---
 
 
@@ -72,3 +74,5 @@ editor gates) are the question ONEHOME's
 weighs for all five doors. Building a sixth home first would be what
 that row retires. This row waits for that row's answer, then builds
 the sweep doors' instance of it. (CARVE orchestrator)
+
+**Closed (2026-11-03, PR 6371, ONEHOME orchestrator).** Each sweep door now finishes its own result through the scalar's leaf. At `f64` that is the full finish. At the box scalars it is a tier-2 `Replay` behind one switch, and a taker finishes it, per Ev's ruling on PR 6371. The switch's own rows retire it (`work/onehome/delete-the-box-scalar-sweep-leaf-switch.md`).

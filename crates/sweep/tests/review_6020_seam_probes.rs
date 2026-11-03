@@ -28,6 +28,7 @@ fn revolved(pts: &[(f64, f64)]) -> Body<f64> {
     sweep::revolve(&profile, axis, sweep::Revolution::Full, tol())
         .unwrap()
         .body
+        .into_body()
 }
 
 const TUBE: [(f64, f64); 4] = [(0.5, 0.0), (1.0, 0.0), (1.0, 1.0), (0.5, 1.0)];
@@ -236,8 +237,8 @@ fn review_6020_boolean_seam_poses() {
                 ] {
                     let n = n * s;
                     let [below, above] = quadrature(false, p, n);
-                    let tube = topo::AtRestBody::validate(revolved(&TUBE), tol()).unwrap();
-                    let cube = topo::AtRestBody::validate(cube_on(p, n), tol()).unwrap();
+                    let tube = topo::finish(revolved(&TUBE), tol()).unwrap();
+                    let cube = topo::finish(cube_on(p, n), tol()).unwrap();
                     let cases: [(&str, Result<_, _>, f64); 4] = [
                         ("tube − cube", topo::subtract(&tube, &cube, tol()), below),
                         ("tube ∩ cube", topo::intersect(&tube, &cube, tol()), above),

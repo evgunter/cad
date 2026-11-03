@@ -25,7 +25,7 @@ use verbs::{Shell, VerbError, VerbOut};
 /// can supply.
 type RunShellAtDual = fn(
     &Shell<Dual64>,
-    &topo::AtRestBody<Dual64>,
+    &topo::Replay<Dual64>,
     Tol,
     ShellDoor<Dual64>,
 ) -> Result<VerbOut<Dual64>, VerbError<Dual64>>;

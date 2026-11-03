@@ -48,6 +48,7 @@ fn prism(pts: &[(f64, f64)], h: f64) -> Body<f64> {
     )
     .expect("a polygon extrudes")
     .body
+    .into_body()
 }
 
 /// The convex polygon inset by `t`: each edge's line moved inward,
@@ -102,7 +103,7 @@ fn shoelace(pts: &[(f64, f64)]) -> f64 {
 #[test]
 fn r2a_valence4_nonconcurring_corner_refuses_typed() {
     let tol = Tol::witness();
-    let body = cube(1.0, tol);
+    let body = cube::<f64>(1.0, tol);
     let out = chamfer_edges(
         &sweep::test_support::at_rest(&body, tol),
         &query::all_edges(&body),
@@ -152,7 +153,7 @@ fn r2a_valence4_concurring_corner_builds_in_closed_form() {
     let tol = Tol::witness();
     let (a, d, t, s) = (1.0, 0.2, 0.02, 0.02);
     let c = (2.0 * s * core::f64::consts::SQRT_2 - t) / 3.0_f64.sqrt();
-    let body = cube(a, tol);
+    let body = cube::<f64>(a, tol);
     let out = chamfer_edges(
         &sweep::test_support::at_rest(&body, tol),
         &query::all_edges(&body),
@@ -160,7 +161,7 @@ fn r2a_valence4_concurring_corner_builds_in_closed_form() {
         tol,
     )
     .expect("a cube's twelve edges chamfer");
-    let mut chamfered = out.body;
+    let mut chamfered = out.body.into_body();
 
     // One ChartMove per face (each face its own plane), the distance
     // signed along the STORED normal so every plane moves INWARD.

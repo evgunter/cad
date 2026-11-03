@@ -84,7 +84,7 @@ fn a_hexagon_unions_a_box_on_its_corner_edge_soundly() {
     let hex = prism(&HEX, (0.0, 2.0));
     let b = finished(
         "the box",
-        brick((-0.5, -0.25), (-0.5, -0.25), (-1.0, 3.0), tol()),
+        brick::<f64>((-0.5, -0.25), (-0.5, -0.25), (-1.0, 3.0), tol()),
         tol(),
     );
     let (va, vb) = (0.75 * 2.0, 0.0625 * 4.0);
@@ -105,12 +105,12 @@ fn a_hexagon_unions_a_box_on_its_corner_edge_soundly() {
 fn the_multi_spike_corner_meet_passes_tier_3() {
     let a = finished(
         "brick A",
-        brick((0.0, 2.0), (0.0, 2.0), (0.0, 1.0), tol()),
+        brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 1.0), tol()),
         tol(),
     );
     let b = finished(
         "brick B",
-        brick((1.0, 3.0), (1.0, 3.0), (0.0, 1.0), tol()),
+        brick::<f64>((1.0, 3.0), (1.0, 3.0), (0.0, 1.0), tol()),
         tol(),
     );
     let ab = match topo::intersect(&a, &b, tol()).unwrap() {
@@ -152,7 +152,7 @@ fn a_pole_struts_halves_face_their_own_meridians() {
     let ball = finished("the ball", ball, tol());
     let b = finished(
         "the box",
-        brick((-1.0, 0.25), (-1.0, 1.0), (-1.0, 0.0), tol()),
+        brick::<f64>((-1.0, 0.25), (-1.0, 1.0), (-1.0, 0.0), tol()),
         tol(),
     );
     let (r, h) = (0.5f64, 0.25f64);
@@ -213,7 +213,7 @@ fn a_pole_struts_halves_face_their_own_meridians() {
         assert!((v - want).abs() < 1e-9, "{what}: volume {v} against {want}");
         let far = finished(
             "the far box",
-            brick((5.0, 6.0), (5.0, 6.0), (5.0, 6.0), tol()),
+            brick::<f64>((5.0, 6.0), (5.0, 6.0), (5.0, 6.0), tol()),
             tol(),
         );
         assert_sound(

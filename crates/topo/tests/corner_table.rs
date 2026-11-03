@@ -23,7 +23,7 @@ use topo::{BooleanResult, BooleanResultKind, mass_properties, union};
 const TOP_VOL: f64 = 4.0 * 3.0 * 0.25; // 3.0
 const PER_LEG_GAIN: f64 = 0.5 * 0.5 * 1.125 - 0.5 * 0.5 * 0.125; // 0.25
 
-fn top<T: Decide + topo::AtRestPolicy>() -> topo::AtRestBody<T> {
+fn top<T: Decide + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>>() -> topo::AtRestBody<T> {
     let tol = Tol::witness();
     finished(
         "the top",
@@ -32,7 +32,10 @@ fn top<T: Decide + topo::AtRestPolicy>() -> topo::AtRestBody<T> {
     )
 }
 
-fn leg<T: Decide + topo::AtRestPolicy>(cx: f64, cy: f64) -> topo::AtRestBody<T> {
+fn leg<T: Decide + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>>(
+    cx: f64,
+    cy: f64,
+) -> topo::AtRestBody<T> {
     let (x0, x1) = if cx == 0.0 {
         (0.0, 0.5)
     } else {

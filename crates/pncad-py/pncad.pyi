@@ -5829,9 +5829,10 @@ class Evaluation:
         reads the run's ambient tolerance, which is the ε the body was
         built under. An explicit one that is not finite and strictly
         positive is an `ExportError`; the rule is the writer's and is
-        quoted from it, not restated. The body is gated at rest first,
-        so one the gate refuses raises `ExportError` tagged
-        `body_invalid` rather than reaching the writer."""
+        quoted from it, not restated. The body is finished already (a
+        value holds a finished body), so the door gates nothing of its
+        own; one whose frame cannot be composed into its space raises
+        `ExportError` tagged `compose_refused`."""
 
 def evaluate(
     doc: Doc,
@@ -6446,8 +6447,7 @@ class AtRestEvidence:
         `malformed` (the gathered body fails a check of its own
         structure or geometry), `inside_arrival` (a touch or overlap
         inside one arrival that nothing backs), `not_gathered` (a `⊔`
-        the product does not read whose operands did not gather),
-        `not_run` (this evaluation's scalar runs no census at rest) or
+        the product does not read whose operands did not gather) or
         `carried` (a part's own, with its route)."""
 
     @property
@@ -6455,7 +6455,7 @@ class AtRestEvidence:
         """The validator finding's word on `no_lane`, `malformed` and
         `inside_arrival` (`ValidationError`'s vocabulary), the gather
         refusal's on `not_gathered` (`ProductError`'s); `None` on
-        `not_run` and `carried`."""
+        `carried`."""
 
     @property
     def carried(self) -> Optional[CarriedAtRestFinding]:
@@ -6572,7 +6572,7 @@ class InterferenceFinding:
 
     @property
     def unlocalized(self) -> Optional[str]:
-        """Why the overlap has no site — `refused`, `invalid`,
+        """Why the overlap has no site — `refused`,
         `empty`, `unnamed`, `containment` or `lane` — or `None`. An unlocalized overlap is
         loud and nothing quiets it."""
 

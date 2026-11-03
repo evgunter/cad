@@ -57,7 +57,7 @@ fn probe_overthick_box_fails_loud() {
     let r = topo::shell(
         &finished(
             "the operand",
-            block(2.0, 3.0, 4.0, Tol::witness()),
+            block::<f64>(2.0, 3.0, 4.0, Tol::witness()),
             Tol::witness(),
         ),
         1.9,
@@ -84,7 +84,7 @@ fn probe_overthick_box_fails_loud() {
 #[test]
 fn probe_overhalf_slab_fails_loud() {
     let r = topo::shell(
-        &finished("the operand", operands::slab(), Tol::witness()),
+        &finished("the operand", operands::slab::<f64>(), Tol::witness()),
         0.6,
         Tol::witness(),
     );
@@ -108,7 +108,7 @@ fn probe_overhalf_slab_fails_loud() {
 #[test]
 fn probe_exact_half_slab_fails_loud() {
     let r = topo::shell(
-        &finished("the operand", operands::slab(), Tol::witness()),
+        &finished("the operand", operands::slab::<f64>(), Tol::witness()),
         0.5,
         Tol::witness(),
     );
@@ -503,7 +503,7 @@ fn probe_opened_vessel_cup() {
 /// fires. A key minted past the operand's face count cannot resolve.
 #[test]
 fn probe_stale_designation_refuses_typed() {
-    let body = block(2.0, 3.0, 4.0, Tol::witness());
+    let body = block::<f64>(2.0, 3.0, 4.0, Tol::witness());
     let big = prism(
         corners(&[
             (0.0, 0.0),

@@ -119,6 +119,7 @@ fn build(f: &Fixture, s: f64) -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 /// The sense of the revolve's azimuth: a profile point `(ρ, y)` at
@@ -427,7 +428,7 @@ fn posed_bodies(f: &Fixture, s: f64) -> Vec<(&'static str, Affine3<f64>, AtRestB
             let at_rest = transform_rigid(&body, &geom_core::test_support::rigid(&map, tol), tol)
                 .map_err(|e| format!("posing it refused ({e})"))
                 .and_then(|posed| {
-                    <f64 as topo::AtRestPolicy>::gate_at_rest_kept(posed, tol)
+                    topo::finish(posed, tol)
                         .map_err(|e| format!("the posed body is not finished ({e:?})"))
                 });
             match at_rest {

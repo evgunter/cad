@@ -66,6 +66,7 @@ fn extruded(plane: SketchPlane<f64>, lp: profile::ProfileLoop<f64>, h: f64) -> B
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 fn polygon(pts: &[(f64, f64)]) -> profile::ProfileLoop<f64> {
@@ -100,7 +101,7 @@ fn cut(
     y: (f64, f64),
     z: (f64, f64),
 ) -> Result<AtRestBody<f64>, BooleanError> {
-    let cutter = finished("the cutter", brick(x, y, z, tol()), tol());
+    let cutter = finished("the cutter", brick::<f64>(x, y, z, tol()), tol());
     topo::subtract(a, &cutter, tol()).map(|r| r.body().expect("a body remains").body.clone())
 }
 
@@ -146,7 +147,7 @@ fn assert_sound(body: &Body<f64>, expect: f64, what: &str) {
 fn an_axis_lap_builds_every_op_as_its_planar_twin_does() {
     let (rod_v, diamond_v, cutter_v) = (PI * R * R * LEN, 2.0 * R * R * LEN, 2.0 * 1.5);
     for y in [(0.0, 1.0), (-1.0, 0.0)] {
-        let cutter = finished("the lap cutter", brick(ACROSS, y, LAP, tol()), tol());
+        let cutter = finished("the lap cutter", brick::<f64>(ACROSS, y, LAP, tol()), tol());
         for (name, body, v, held) in [
             ("rod", rod(), rod_v, PI * R * R / 2.0),
             ("diamond", diamond(), diamond_v, R * R),
@@ -433,7 +434,7 @@ fn an_engraved_one_arc_c_builds_at_every_sweep() {
     let (vc, vbox) = (PI * 2.5, 2.0 * 2.0 * 1.0);
     let block = finished(
         "the box",
-        brick((-1.0, 1.0), (-1.0, 1.0), (0.0, 1.0), tol()),
+        brick::<f64>((-1.0, 1.0), (-1.0, 1.0), (0.0, 1.0), tol()),
         tol(),
     );
     for (ro, ri) in [(0.25, 0.15), (0.4, 0.1)] {

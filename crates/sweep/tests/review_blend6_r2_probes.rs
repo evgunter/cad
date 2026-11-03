@@ -279,13 +279,14 @@ fn cylinder(r: f64, h: f64) -> Body<f64> {
     )
     .expect("a circular prism")
     .body
+    .into_body()
 }
 
 /// Every refusal the shipped fixtures reach through EITHER door, each
 /// labelled. Used by the verb-neutrality invariant.
 fn reachable_refusals() -> Vec<(&'static str, BlendError)> {
     let mut out = chamfer_refusals();
-    let body = cube(L, Tol::witness());
+    let body = cube::<f64>(L, Tol::witness());
     let edges = query::all_edges(&body);
     let t = Tol::witness();
 
@@ -319,7 +320,7 @@ fn reachable_refusals() -> Vec<(&'static str, BlendError)> {
 
 /// Every refusal the shipped fixtures reach through the CHAMFER door.
 fn chamfer_refusals() -> Vec<(&'static str, BlendError)> {
-    let body = cube(L, Tol::witness());
+    let body = cube::<f64>(L, Tol::witness());
     let edges = query::all_edges(&body);
     let t = Tol::witness();
     let mut out = vec![(
@@ -425,6 +426,7 @@ fn l_bracket() -> Body<f64> {
     )
     .expect("an L-bracket extrudes")
     .body
+    .into_body()
 }
 
 /// The bracket's one concave edge — the vertical through (0.5, 0.5).

@@ -21,7 +21,7 @@ use topo::splitting::{SplitError, split};
 
 /// The unit cylinder about `z`, `0 ≤ z ≤ 1`.
 fn cylinder(tol: Tol) -> topo::AtRestBody<f64> {
-    topo::AtRestBody::validate(
+    topo::finish(
         sweep::test_support::prism(
             vec![(Point2::new(1.0, 0.0), 1.0), (Point2::new(-1.0, 0.0), 1.0)],
             1.0,

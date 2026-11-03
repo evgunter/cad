@@ -388,7 +388,7 @@ fn a_dual_scalar_refuses_the_spline_seam_re_anchor_by_name() {
     )
     .expect("the square prism lofts at a dual")
     .body;
-    let mut moved = body.clone();
+    let mut moved = body.clone().into_body();
     let cap = top_cap(&body);
     let Err(ReplaceFaceError::NurbsLaneUnsupported { scalar, .. }) = topo::replace_face_offset(
         &mut moved,
@@ -423,6 +423,7 @@ fn vase() -> Body<f64> {
     )
     .expect("the vase lofts")
     .body
+    .into_body()
 }
 
 /// The shell moves every chart at once and mints every new surface
@@ -657,6 +658,7 @@ fn tilted_top_prism() -> Body<f64> {
     sweep::loft_body::<f64>(&[square(), square()], &places, 1, Tol::witness())
         .expect("the tilted-top prism lofts")
         .body
+        .into_body()
 }
 
 /// The march arm builds nothing yet: the moved tilted cap's section of
@@ -758,7 +760,7 @@ fn at_interval_the_prism_moves_by_the_shortcut_and_a_slanted_rim_refuses_by_name
         .map(|z| profile::SketchPlane::xy_at(geom_core::Point3::new(0.0, 0.0, *z)))
         .collect::<Vec<_>>();
     let loft = |turn: f64| {
-        sweep::loft_body::<Interval>(
+        sweep::test_support::loft_body_construction::<Interval>(
             &sweep::test_support::lift_sections::<Interval>(&[square(0.0), square(turn)]),
             &sweep::test_support::lift_places::<Interval>(&places, geom_core::Tol::witness()),
             1,
@@ -856,7 +858,7 @@ fn a_moved_plane_meets_a_fitted_cap_along_their_certified_section() {
     // section through the plane × NURBS lane over the fit, and takes the
     // volume over the fitted cap's trimmed region: a bicubic chart, past
     // the exact outer rule's window, so the composite arm's.
-    let at_rest = topo::AtRestBody::validate(moved, Tol::witness())
+    let at_rest = topo::finish(moved, Tol::witness())
         .unwrap_or_else(|e| panic!("the moved box passes tier 3: {e:?}"));
     let props = topo::mass_properties(
         &at_rest,

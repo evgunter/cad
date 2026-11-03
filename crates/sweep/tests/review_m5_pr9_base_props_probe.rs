@@ -29,7 +29,8 @@ fn symmetric_double_rim_split_volume_at_base() {
         Tol::witness(),
     )
     .unwrap()
-    .body;
+    .body
+    .into_body();
     let true_vol = std::f64::consts::PI * 0.25 * 1.0;
     let v0 = topo::test_support::pinned_volume(
         "the measured body",

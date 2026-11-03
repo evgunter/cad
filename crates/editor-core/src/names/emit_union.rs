@@ -4311,7 +4311,7 @@ mod tests {
             SelfMember {
                 union: RecipeNodeId::new(0, 9),
                 read: VarId::new(1, 7),
-                body: built.body,
+                body: built.body.into_body(),
                 table: (*table).clone(),
             }
         }

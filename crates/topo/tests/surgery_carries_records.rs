@@ -27,7 +27,7 @@ fn region() -> Option<topo::RegionLane<f64>> {
 }
 
 fn box_of(x: (f64, f64), y: (f64, f64), z: (f64, f64), what: &str) -> AtRestBody<f64> {
-    finished(what, brick(x, y, z, tol()), tol())
+    finished(what, brick::<f64>(x, y, z, tol()), tol())
 }
 
 /// Two unit cubes kissing at the corner `(1, 1, 1)`: one vertex–vertex

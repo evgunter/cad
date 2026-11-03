@@ -204,7 +204,7 @@ fn prism(shape: &Shape, pose: &Affine3<f64>, stations: &[Point2<f64>]) -> AtRest
         tol,
     )
     .unwrap();
-    let mut upright = ex.body;
+    let mut upright = ex.body.into_body();
     if !stations.is_empty() {
         let [run] = &ex.walls[0]
             .iter()
@@ -283,7 +283,7 @@ fn a_prism_with_arc_walls_through_a_slab_builds_every_op() {
     let tol = Tol::witness();
     let slab = finished(
         "the slab",
-        brick((-4.0, 4.0), (-4.0, 4.0), (-0.5, 0.5), tol),
+        brick::<f64>((-4.0, 4.0), (-4.0, 4.0), (-0.5, 0.5), tol),
         tol,
     );
     for shape in shapes() {
@@ -302,7 +302,7 @@ fn a_prism_with_a_station_on_its_arc_rims_through_a_slab_builds_every_op() {
     let tol = Tol::witness();
     let slab = finished(
         "the slab",
-        brick((-4.0, 4.0), (-4.0, 4.0), (-0.5, 0.5), tol),
+        brick::<f64>((-4.0, 4.0), (-4.0, 4.0), (-0.5, 0.5), tol),
         tol,
     );
     let p = Point2::new;

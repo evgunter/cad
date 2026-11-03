@@ -103,7 +103,7 @@ fn a_slab_crossing_one_section_circle_four_times_builds_under_every_boolean() {
         );
         let slab = finished(
             "the slab",
-            brick((c, 3.0), (-3.0, 3.0), (za, zb), Tol::witness()),
+            brick::<f64>((c, 3.0), (-3.0, 3.0), (za, zb), Tol::witness()),
             Tol::witness(),
         );
         let slab_volume = (3.0 - c) * 6.0 * (zb - za);
@@ -181,7 +181,7 @@ fn four_crossings_above_the_centre_wind_the_sphere_ring() {
     );
     let slab = finished(
         "the slab",
-        brick((c, 3.0), (-3.0, 3.0), (za, zb), Tol::witness()),
+        brick::<f64>((c, 3.0), (-3.0, 3.0), (za, zb), Tol::witness()),
         Tol::witness(),
     );
     let shared = slab_share(c, za, zb);

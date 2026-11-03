@@ -36,6 +36,7 @@ fn revolved(lp: ProfileLoop<f64>) -> Body<f64> {
     )
     .expect("the meridian revolves")
     .body
+    .into_body()
 }
 
 /// A meridian whose belly is an arc from `(r0, y0)` to `(r1, y1)`
@@ -142,6 +143,7 @@ fn wedge() -> Body<f64> {
     )
     .expect("a quarter revolve")
     .body
+    .into_body()
 }
 
 /// The distinct incident surface kinds at every vertex, as a sorted

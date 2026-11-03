@@ -71,12 +71,12 @@ fn glued(
 fn probe_overhang_partial_both_faces() {
     let plate = finished(
         "plate",
-        brick((0.0, 4.0), (0.0, 4.0), (0.0, 1.0), Tol::witness()),
+        brick::<f64>((0.0, 4.0), (0.0, 4.0), (0.0, 1.0), Tol::witness()),
         Tol::witness(),
     );
     let over = finished(
         "over",
-        brick((2.0, 6.0), (2.0, 6.0), (1.0, 2.0), Tol::witness()),
+        brick::<f64>((2.0, 6.0), (2.0, 6.0), (1.0, 2.0), Tol::witness()),
         Tol::witness(),
     );
     glued(&plate, &over, 32.0);
@@ -99,17 +99,17 @@ fn probe_overhang_partial_both_faces() {
 fn probe_symmetric_two_patch_bridge() {
     let a = finished(
         "a",
-        brick((0.0, 3.0), (0.0, 1.0), (0.0, 1.0), Tol::witness()),
+        brick::<f64>((0.0, 3.0), (0.0, 1.0), (0.0, 1.0), Tol::witness()),
         Tol::witness(),
     );
     let bridge_blank = finished(
         "bridge_blank",
-        brick((0.0, 3.0), (0.0, 1.0), (1.0, 2.0), Tol::witness()),
+        brick::<f64>((0.0, 3.0), (0.0, 1.0), (1.0, 2.0), Tol::witness()),
         Tol::witness(),
     );
     let notch = finished(
         "notch",
-        brick((1.0, 2.0), (-0.5, 1.5), (0.5, 1.5), Tol::witness()),
+        brick::<f64>((1.0, 2.0), (-0.5, 1.5), (0.5, 1.5), Tol::witness()),
         Tol::witness(),
     );
     let BooleanResult::Body(b) = subtract(&bridge_blank, &notch, Tol::witness()).unwrap() else {
@@ -180,7 +180,7 @@ fn probe_subtract_notch_rests_on_b() {
     );
     let b = finished(
         "b",
-        brick((1.0, 2.0), (1.0, 2.0), (0.0, 1.0), Tol::witness()),
+        brick::<f64>((1.0, 2.0), (1.0, 2.0), (0.0, 1.0), Tol::witness()),
         Tol::witness(),
     );
     let BooleanResult::Body(sub) = subtract(&a, &b, Tol::witness())

@@ -143,10 +143,10 @@ pub use eval::measure::ObservedRefusal;
 pub use eval::{
     At, BooleanValue, CancelToken, CanonicalSegment, CarriedChain, CarriedIn, CarriedLevel, Carry,
     ComputingTwist, ContentBits, ContentKey, DEFAULT_MEMBER_BUDGET, DirectionRefusal, Epoch,
-    EvalCounters, EvalOptions, EvalOutcome, EvalScalar, Evaluation, Framed, NamingKey, NodeError,
-    NodeErrorClass, NodeErrorKind, NodeRefusal, NodeResult, NodeStanding, NodeValue, PartFault,
-    Piece, Pieces, PoseValue, ProfileLane, ProfilePieces, SplitSide, ValuePayload, evaluate,
-    traced_faces,
+    EvalCounters, EvalOptions, EvalOutcome, EvalScalar, Evaluation, Framed, Held, NamingKey,
+    NodeError, NodeErrorClass, NodeErrorKind, NodeRefusal, NodeResult, NodeStanding, NodeValue,
+    PartFault, Piece, Pieces, PoseValue, ProfileLane, ProfilePieces, ReadIn, SplitSide,
+    ValuePayload, evaluate, traced_faces,
 };
 pub use refusal::Refusal;
 pub use sentence::{Labelled, Labels, PASS_A_RESOLVER, Recourse, Staged};
@@ -214,8 +214,8 @@ pub use placement::{AxisRefusal, Frame, FrameFault};
 #[cfg(debug_assertions)]
 pub use product::gathers_on_this_thread;
 pub use product::{
-    AssembleGather, Product, ProductError, ProductErrorKind, ProductRefusal, SourceFinding,
-    assemble_gathers, product, product_named, product_recorded,
+    AssembleGather, Product, ProductError, ProductErrorKind, ProductRefusal, assemble_gathers,
+    product, product_named, product_recorded,
 };
 pub use program::{
     DrawnOn, LoopProgram, ProfileDoc, ProfilePayload, ProfileProgram, ProgramArcData,

@@ -146,7 +146,7 @@ pub enum TransformError {
     /// leaves behind (a lone `mev_null` on a fresh face, say). At a
     /// build, a caller reaches it by moving a body in the middle of its
     /// own edit, so it ends in that edit's lever
-    /// ([`crate::Unfinished::SCAFFOLDING_RECOURSE`]). Tier 2 refuses it
+    /// ([`crate::SCAFFOLDING_RECOURSE`]). Tier 2 refuses it
     /// at rest, and the import door mints none, so read there it is a
     /// stored contradiction and ends in the door's defect ending.
     NullScaffold {
@@ -207,7 +207,7 @@ impl TransformError {
                     format!(
                         "the body still carries what an edit left behind, which the map cannot \
                          move. Recourse: {}",
-                        crate::Unfinished::SCAFFOLDING_RECOURSE
+                        crate::SCAFFOLDING_RECOURSE
                     )
                 }
                 _ => format!(

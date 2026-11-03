@@ -64,7 +64,7 @@ fn corner_pose(
     tol: Tol,
 ) -> (AtRestBody<f64>, AtRestBody<f64>) {
     let prism = common::prism::<f64>(profile, 1.0, tol).body;
-    let prism = AtRestBody::validate(prism, tol).expect("the prism is at rest");
+    let prism = topo::finish(prism, tol).expect("the prism is at rest");
     let m = cube_axis(e, a, d);
     let (u, w) = basis(m);
     let cube = common::mapped_cube::<f64>(
@@ -75,7 +75,7 @@ fn corner_pose(
         },
         tol,
     );
-    let cube = AtRestBody::validate(cube, tol).expect("the cube is at rest");
+    let cube = topo::finish(cube, tol).expect("the cube is at rest");
     (prism, cube)
 }
 
@@ -303,7 +303,7 @@ fn a_wedge_beside_a_lump_is_a_solid_of_its_own() {
         },
         tol,
     );
-    let block = AtRestBody::validate(block, tol).expect("the block is at rest");
+    let block = topo::finish(block, tol).expect("the block is at rest");
     let both = topo::union(&piece, &block, tol).expect("the piece and the block unite");
     let both = both.body().expect("the union is not empty");
     let solids: Vec<usize> = both.body.solids().map(|(_, s)| s.shells.len()).collect();
@@ -325,7 +325,7 @@ fn shells_per_solid(meet: &topo::BooleanBody<f64>) -> Vec<usize> {
 
 /// A brick at rest.
 fn brick(x: (f64, f64), y: (f64, f64), z: (f64, f64), tol: Tol) -> AtRestBody<f64> {
-    AtRestBody::validate(common::brick::<f64>(x, y, z, tol), tol).expect("the brick is at rest")
+    topo::finish(common::brick::<f64>(x, y, z, tol), tol).expect("the brick is at rest")
 }
 
 /// A unit brick ∩ a brick standing on it from `z = 1 - t`: a slab `t`

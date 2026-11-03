@@ -230,7 +230,7 @@ impl From<ReadbackError> for InterrogateError {
 /// # Errors
 ///
 /// The node's standing ([`InterrogateError::Standing`]) and [`InterrogateError::NoSuchName`].
-pub fn denotation<T: Decide>(
+pub fn denotation<T: topo::AtRestPolicy + Decide>(
     ev: &Evaluation<T>,
     at: impl Into<crate::At>,
     name: &StableName,
@@ -260,7 +260,7 @@ pub fn denotation<T: Decide>(
 /// FACES, and the wrapped [`ReadbackError`]. The kind is asked first,
 /// so a non-face name is refused `WrongKind` whether or not it is
 /// tied ([`key_in`]).
-pub fn face_frame<T: Decide>(
+pub fn face_frame<T: topo::AtRestPolicy + Decide>(
     ev: &Evaluation<T>,
     at: impl Into<crate::At>,
     name: &StableName,
@@ -282,7 +282,7 @@ pub fn face_frame<T: Decide>(
 ///
 /// As [`face_frame`]: the node's standing, `NoSuchName`, `WrongKind` for
 /// a non-face name, `Ambiguous`, and the wrapped [`ReadbackError`].
-pub fn face_carrier_kind<T: Decide>(
+pub fn face_carrier_kind<T: topo::AtRestPolicy + Decide>(
     ev: &Evaluation<T>,
     at: impl Into<crate::At>,
     name: &StableName,
@@ -297,7 +297,7 @@ pub fn face_carrier_kind<T: Decide>(
 /// # Errors
 ///
 /// As [`face_frame`], with `WrongKind` for a non-edge name.
-pub fn edge_frame<T: Decide>(
+pub fn edge_frame<T: topo::AtRestPolicy + Decide>(
     ev: &Evaluation<T>,
     at: impl Into<crate::At>,
     name: &StableName,
@@ -322,7 +322,7 @@ pub fn edge_frame<T: Decide>(
 ///
 /// As [`face_frame`]: the node's standing, `NoSuchName`, `WrongKind` for
 /// a non-edge name, `Ambiguous`, and the wrapped [`ReadbackError`].
-pub fn edge_carrier_kind<T: Decide>(
+pub fn edge_carrier_kind<T: topo::AtRestPolicy + Decide>(
     ev: &Evaluation<T>,
     at: impl Into<crate::At>,
     name: &StableName,
@@ -336,7 +336,7 @@ pub fn edge_carrier_kind<T: Decide>(
 /// # Errors
 ///
 /// As [`face_frame`], with `WrongKind` for a non-vertex name.
-pub fn vertex_position<T: Decide>(
+pub fn vertex_position<T: topo::AtRestPolicy + Decide>(
     ev: &Evaluation<T>,
     at: impl Into<crate::At>,
     name: &StableName,
@@ -401,7 +401,7 @@ pub(crate) fn entity_point<T: Decide>(
 /// The node's standing, then `NoSuchName`/`WrongKind`/`WholeBody`/`Ambiguous`
 /// through [`key_in`], which asks them in that order, then the output
 /// body, and the wrapped [`ReadbackError`] the kernel door refuses with.
-fn read<T: Decide, K: Denoted, R: InItsSpace<T>>(
+fn read<T: topo::AtRestPolicy + Decide, K: Denoted, R: InItsSpace<T>>(
     ev: &Evaluation<T>,
     at: crate::At,
     name: &StableName,
@@ -464,7 +464,7 @@ impl<T: geom_core::Real> InItsSpace<T> for CurveKind {
 /// The node's standing; [`InterrogateError::SeveralOutputs`] for a node
 /// named alone whose outputs carry names apart; `NoSuchName` for a read
 /// no output of the evaluated document defines.
-pub(crate) fn table_at<T: Decide>(
+pub(crate) fn table_at<T: topo::AtRestPolicy + Decide>(
     ev: &Evaluation<T>,
     at: impl Into<crate::At>,
 ) -> Result<(crate::VarId, &super::NameTable), InterrogateError> {
@@ -642,7 +642,7 @@ fn kind_mismatch(wanted: EntityKind, found: EntityKind) -> InterrogateError {
 /// The node's output body at `index` — the same body ordering the
 /// naming emission used (single-body ops: 0; a split's halves by
 /// [`SplitHalf::output_body`]; a family's members by member index).
-pub(crate) fn output_body<T: Decide>(
+pub(crate) fn output_body<T: topo::AtRestPolicy + Decide>(
     payload: &ValuePayload<T>,
     index: u32,
 ) -> Result<&crate::eval::Framed<T>, InterrogateError> {

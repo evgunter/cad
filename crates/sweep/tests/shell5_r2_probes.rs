@@ -187,6 +187,7 @@ fn can(r: f64, z0: f64, z1: f64) -> Body<f64> {
     )
     .expect("the meridian revolves")
     .body
+    .into_body()
 }
 
 /// **A CURVED void wall thinner than `2t`, with every planar wall
@@ -299,8 +300,8 @@ fn r2_an_island_under_its_walls_solid_is_refused_and_the_sorted_product_shells()
     assert_eq!(body.solids().count(), 1, "one solid");
     assert_eq!(body.shells().count(), 3, "three shells in it");
     let solid = body.solids().next().unwrap().0;
-    let errors = topo::AtRestBody::validate(body, tol)
-        .expect_err("two pieces under one solid is not a finished body");
+    let errors =
+        topo::finish(body, tol).expect_err("two pieces under one solid is not a finished body");
     assert_eq!(
         errors,
         vec![topo::ValidationError::SolidOuterShells { solid, outer: 2 }],
@@ -310,7 +311,7 @@ fn r2_an_island_under_its_walls_solid_is_refused_and_the_sorted_product_shells()
     let inner = topo::shell(
         &finished(
             "the operand",
-            brick((2.0, 4.0), (2.0, 4.0), (2.0, 4.0), Tol::witness()),
+            brick::<f64>((2.0, 4.0), (2.0, 4.0), (2.0, 4.0), Tol::witness()),
             tol,
         ),
         0.25,

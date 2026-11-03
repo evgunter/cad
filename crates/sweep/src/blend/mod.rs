@@ -1384,7 +1384,7 @@ pub enum Breach {
     /// hold: an edge with no certified carrier (a null edge), or a
     /// lone-vertex cycle. The one breach with a way through, and it is
     /// the advice every door gives an operand with scaffolding at rest
-    /// ([`topo::Unfinished::SCAFFOLDING_RECOURSE`]): a direct battery
+    /// ([`topo::SCAFFOLDING_RECOURSE`]): a direct battery
     /// caller hands in a body no door gated.
     Scaffolding,
     /// The entity's stored carrier is degenerate: a length it is built on,
@@ -1753,39 +1753,14 @@ pub enum BlendError {
         /// What the plan was reading there.
         detail: &'static str,
     },
-    /// **The operand is well-formed but not a closed solid at rest**:
-    /// it carries no tier-3 verdict (a dual's scalar runs no at-rest
-    /// gate), and tier 2 ([`topo::validate_closed`]) refuses it for
-    /// construction scaffolding an edit left behind — a strut's
-    /// valence-1 vertex, an empty loop, a null edge, a shell in pieces.
-    /// The blend serves finished solids only; no recourse is a blend
-    /// recourse.
-    ScaffoldingOperand {
-        /// The validator's tier-2 findings, each naming its entity.
-        errors: Vec<topo::ValidationError>,
-    },
-    /// **The operand holds material wound negative**, read where no
-    /// tier-3 verdict rides it: a solid whose signed volume check 7
-    /// decides definitely negative
-    /// ([`topo::ValidationError::NegativeVolume`]), or a shell check 10
-    /// finds bounding negative material inside a solid whose total is
-    /// positive ([`topo::ValidationError::ShellWinding`]). Its faces
-    /// bound the complement of the region they enclose, and the blend
-    /// would round that complement.
-    InsideOutOperand {
-        /// The validator's findings, each naming its solid (and, for a
-        /// shell, the shell).
-        errors: Vec<topo::ValidationError>,
-    },
-    /// **The operand holds a joinable vertex**, read where no tier-3
-    /// verdict rides it: tier 3's check 11 finds a vertex the join would
-    /// take ([`topo::ValidationError::JoinableVertexAtRest`]), or one
-    /// whose reading lands in the sliver band
-    /// ([`topo::ValidationError::JoinUndecidedAtRest`]). A finished body
-    /// holds none; this one is construction state.
-    UnjoinedOperand {
-        /// The check-11 findings, each naming its vertex.
-        errors: Vec<topo::ValidationError>,
+    /// **The blended body is not a finished body**
+    /// ([`topo::AtRestPolicy::finish`] at the door's end): every finding,
+    /// each read through its family. The operand was finished, so each
+    /// finding is a defect in what the blend built or a reading in band
+    /// its family's lever reaches.
+    NotFinished {
+        /// The finish's findings.
+        findings: topo::NotFinished,
     },
     /// **The surgery's OWN invariant did not hold** (D2 addendum row 4,
     /// announced instead of panicked): a carve step reached a state its
@@ -1960,9 +1935,7 @@ impl BlendError {
             | Self::UnsupportedCorner { .. }
             | Self::Escalated { .. }
             | Self::NonpositiveSize { .. }
-            | Self::ScaffoldingOperand { .. }
-            | Self::InsideOutOperand { .. }
-            | Self::UnjoinedOperand { .. }
+            | Self::NotFinished { .. }
             | Self::RingClearance { .. }
             | Self::Certify { .. }
             | Self::Op { .. }
@@ -1974,16 +1947,6 @@ impl BlendError {
 impl From<BandError> for BlendError {
     fn from(source: BandError) -> Self {
         Self::Band(source)
-    }
-}
-
-impl From<topo::Unfinished> for BlendError {
-    fn from(unfinished: topo::Unfinished) -> Self {
-        match unfinished {
-            topo::Unfinished::Scaffolding(errors) => Self::ScaffoldingOperand { errors },
-            topo::Unfinished::InsideOut(errors) => Self::InsideOutOperand { errors },
-            topo::Unfinished::Unjoined(errors) => Self::UnjoinedOperand { errors },
-        }
     }
 }
 
@@ -2163,19 +2126,13 @@ impl fmt::Display for BlendError {
                 write!(f, "{detail} — {what}, so the body is not intact there. ")?;
                 match breach {
                     Breach::Scaffolding => {
-                        write!(f, "Recourse: {}", topo::Unfinished::SCAFFOLDING_RECOURSE)
+                        write!(f, "Recourse: {}", topo::SCAFFOLDING_RECOURSE)
                     }
                     _ => write!(f, "There is no way through"),
                 }
             }
-            Self::ScaffoldingOperand { .. } => {
-                write!(f, "the body {}", topo::Unfinished::SCAFFOLDING_REFUSAL)
-            }
-            Self::InsideOutOperand { .. } => {
-                write!(f, "the body {}", topo::Unfinished::INSIDE_OUT_REFUSAL)
-            }
-            Self::UnjoinedOperand { .. } => {
-                write!(f, "the body {}", topo::Unfinished::UNJOINED_REFUSAL)
+            Self::NotFinished { findings } => {
+                write!(f, "the blended body is not a finished body: {findings}")
             }
             Self::SurgeryInvariant { at, detail } => write!(
                 f,
@@ -2348,14 +2305,11 @@ mod recourse_tests {
     /// `blend_recourse_followability::a_nonpositive_size_gives_advice_the_recourse_table_says_it_has_none_of`
     /// and
     /// `blend_recourse_followability::a_repeated_edge_gives_advice_the_recourse_table_says_it_has_none_of`
-    /// execute both requests. `ScaffoldingOperand`, `InsideOutOperand`
-    /// and `UnjoinedOperand` route here too and end in `topo::Unfinished`'s
-    /// shared refusal, as `BodyNotIntact`'s scaffolding breach ends in
-    /// its recourse, whose advice
-    /// `pole_slit_window::a_slit_operand_refuses_at_both_blend_doors_at_a_dual`
-    /// and
+    /// execute both requests. `NotFinished` routes here too: each of its
+    /// findings ends in its family's recourse, as `BodyNotIntact`'s
+    /// scaffolding breach ends in its recourse, whose advice
     /// `blend_operand_gate::the_counterclockwise_wedge_blends_outward_at_both_doors`
-    /// follow. Reading this row as "no advice" is what made an
+    /// follows. Reading this row as "no advice" is what made an
     /// inventory keyed on the constants miss them.
     ///
     /// **What the match enforces, and what it does not.** The match is
@@ -2409,9 +2363,7 @@ mod recourse_tests {
             BlendError::RepeatedEdge { .. } => Recourse::None,
             BlendError::NonpositiveSize { .. } => Recourse::None,
             BlendError::BodyNotIntact { .. } => Recourse::None,
-            BlendError::ScaffoldingOperand { .. } => Recourse::None,
-            BlendError::InsideOutOperand { .. } => Recourse::None,
-            BlendError::UnjoinedOperand { .. } => Recourse::None,
+            BlendError::NotFinished { .. } => Recourse::None,
             // The surgery's own invariant (row 4, announced).
             BlendError::SurgeryInvariant { .. } => Recourse::None,
             BlendError::Certify { .. } => Recourse::None,
@@ -2564,9 +2516,13 @@ mod recourse_tests {
                 breach: Breach::Degenerate,
                 detail: "a face's stored surface, which the face box reads",
             },
-            BlendError::ScaffoldingOperand { errors: Vec::new() },
-            BlendError::InsideOutOperand { errors: Vec::new() },
-            BlendError::UnjoinedOperand { errors: Vec::new() },
+            BlendError::NotFinished {
+                findings: topo::NotFinished::for_tests(vec![
+                    topo::ValidationError::NegativeVolume {
+                        solid: topo::entity::SolidKey::default(),
+                    },
+                ]),
+            },
             BlendError::SurgeryInvariant {
                 at: EntityId::Face(FaceKey::default()),
                 detail: "an invariant this carve's own earlier steps establish",
@@ -2670,7 +2626,7 @@ mod recourse_tests {
             .to_string()
         };
         let none = "There is no way through".to_owned();
-        let finish = format!("Recourse: {}", topo::Unfinished::SCAFFOLDING_RECOURSE);
+        let finish = format!("Recourse: {}", topo::SCAFFOLDING_RECOURSE);
         for (breach, cause, way) in [
             (Breach::Unresolved, format!("{at} did not resolve"), &none),
             (

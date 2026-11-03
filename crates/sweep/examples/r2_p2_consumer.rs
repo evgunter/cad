@@ -78,6 +78,7 @@ fn prism(scale: f64) -> Body<f64> {
     sweep::loft_body::<f64>(&sections, &places, 2, Tol::witness())
         .expect("prism builds")
         .body
+        .into_body()
 }
 
 fn is_flat(body: &Body<f64>, key: topo::SurfaceKey, scale: f64) -> bool {

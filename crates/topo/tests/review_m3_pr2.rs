@@ -37,7 +37,7 @@ fn plane_y<T: geom_core::Decide>(y: f64, ny: f64) -> SplitPlane<T> {
 /// corner leaves between two coplanar walls stays a scaffold. So no split
 /// door takes it, and the row reads the reduction past the door.
 fn refused_for_its_straight_corner(body: &Body<f64>) {
-    let errors = <f64 as topo::AtRestPolicy>::gate_at_rest_kept(body.clone(), Tol::witness())
+    let errors = topo::finish(body.clone(), Tol::witness())
         .expect_err("a straight corner keeps a scaffold between coplanar walls");
     assert!(
         matches!(errors.as_slice(), [ValidationError::ScaffoldAtRest { .. }]),
@@ -443,9 +443,8 @@ fn r5_crossing_vertex_on_is_declared_not_measured() {
             // passes refuses it, naming its null edges. The declared-ON cache
             // in `red.sides` is therefore the only currency downstream — which
             // is exactly the declared-coincidence design, pinned here.
-            let errors =
-                <f64 as topo::AtRestPolicy>::gate_at_rest_kept(red.body.clone(), Tol::witness())
-                    .expect_err("the reduced body is not a finished body");
+            let errors = topo::finish(red.body.clone(), Tol::witness())
+                .expect_err("the reduced body is not a finished body");
             assert!(
                 !errors.is_empty()
                     && errors

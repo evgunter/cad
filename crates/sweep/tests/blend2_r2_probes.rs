@@ -65,7 +65,8 @@ fn sequential(src: &Body<f64>, order: &[(f64, f64)], r: f64) -> f64 {
         assert!(!arcs.is_empty(), "rim {sel:?} still selectable");
         body = fillet_edges(&sweep::test_support::at_rest(&body, tol()), &arcs, r, tol())
             .unwrap_or_else(|e| panic!("rim {sel:?} fillets sequentially at r = {r}, got {e:?}"))
-            .body;
+            .body
+            .into_body();
     }
     validate_geometric(&body, tol()).unwrap_or_else(|e| panic!("sequential tier 3, got {e:?}"));
     volume(&body)

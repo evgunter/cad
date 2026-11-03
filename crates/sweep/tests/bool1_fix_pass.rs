@@ -45,6 +45,7 @@ fn extruded(loops: Vec<ProfileLoop<f64>>, h: f64) -> Body<f64> {
     )
     .expect("the profile extrudes")
     .body
+    .into_body()
 }
 
 /// The issue-1152 notched block with the notch floor at `1 + dy`.

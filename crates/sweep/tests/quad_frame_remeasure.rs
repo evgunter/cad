@@ -177,6 +177,7 @@ fn lofted_loop(
     loft_body::<f64>(&sections, &places, vdeg, tol())
         .unwrap()
         .body
+        .into_body()
 }
 
 fn verdict(r: Result<(), Vec<ValidationError>>) -> String {
@@ -289,6 +290,7 @@ fn arc_prism_at(s: f64, dx: f64) -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 #[test]

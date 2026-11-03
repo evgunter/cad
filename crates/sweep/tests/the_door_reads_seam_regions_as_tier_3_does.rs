@@ -32,6 +32,7 @@ fn cyl(cx: f64, cy: f64, r: f64, z0: f64, z1: f64) -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 fn turned(b: &Body<f64>, axis: Vec3<f64>, angle: f64) -> Body<f64> {
@@ -242,16 +243,32 @@ fn corpus(part: Part) -> (Vec<(String, AB)>, Stops) {
         ball_poled(0.5, v(5.0, 0.0, 0.0), v(0.0, 0.0, 1.0), tol),
         tol,
     );
-    let bigbrick = finished("k", brick((-2.0, 2.0), (-2.0, 2.0), (-2.0, 2.0), tol), tol);
-    let halfbrick = finished("k", brick((-2.0, 2.0), (-2.0, 2.0), (0.2, 2.0), tol), tol);
-    let tallbar = finished("k", brick((-0.3, 0.3), (-0.2, 0.2), (-2.0, 2.0), tol), tol);
+    let bigbrick = finished(
+        "k",
+        brick::<f64>((-2.0, 2.0), (-2.0, 2.0), (-2.0, 2.0), tol),
+        tol,
+    );
+    let halfbrick = finished(
+        "k",
+        brick::<f64>((-2.0, 2.0), (-2.0, 2.0), (0.2, 2.0), tol),
+        tol,
+    );
+    let tallbar = finished(
+        "k",
+        brick::<f64>((-0.3, 0.3), (-0.2, 0.2), (-2.0, 2.0), tol),
+        tol,
+    );
     let rod = at_rest(&cyl(0.1, 0.0, 0.3, -2.0, 2.0), tol);
     let rodx = at_rest(
         &turned(&cyl(0.0, 0.1, 0.25, -2.0, 2.0), v(1.0, 0.0, 0.0), 0.7),
         tol,
     );
     let stub = at_rest(&cyl(0.5, 0.2, 0.4, 0.3, 2.0), tol);
-    let eqbrick = finished("k", brick((-2.0, 2.0), (-2.0, 2.0), (0.0, 2.0), tol), tol);
+    let eqbrick = finished(
+        "k",
+        brick::<f64>((-2.0, 2.0), (-2.0, 2.0), (0.0, 2.0), tol),
+        tol,
+    );
     for (an, a) in [("unit", &unit), ("tilt", &tilt)] {
         for (bn, b) in [
             ("small_in", &small_in),
@@ -521,7 +538,7 @@ fn a_corrupt_body_does_not_finish_and_the_raw_door_panics_only_where_it_did() {
         let c = b.with_entity_removed_for_tests(id).unwrap();
         // The typed door is not reached: no removal finishes.
         assert!(
-            topo::AtRestBody::validate(c.clone(), tol).is_err(),
+            topo::finish(c.clone(), tol).is_err(),
             "{id:?}: the body with it removed finishes"
         );
         match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
@@ -581,7 +598,7 @@ fn a_whole_flipped_shell_of_two_does_not_finish_and_the_raw_door_measures_it_wro
     for (shell, s) in hollow.shells() {
         let fl = flipped(&hollow, &s.faces);
         assert!(
-            topo::AtRestBody::validate(fl.clone(), tol).is_err(),
+            topo::finish(fl.clone(), tol).is_err(),
             "{shell:?} flipped does not finish"
         );
         // Raw door: the subject is a flipped shell tier 3 refuses, and what the door reads of it.

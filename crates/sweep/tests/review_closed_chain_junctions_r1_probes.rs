@@ -353,6 +353,7 @@ fn extruded(vs: Vec<(Point2<f64>, f64)>, h: f64) -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 /// A stadium: two lines and two semicircles, CCW.

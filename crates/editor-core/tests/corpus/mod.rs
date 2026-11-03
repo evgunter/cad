@@ -451,7 +451,7 @@ pub fn eval<T: editor_core::EvalScalar>(doc: &ProfileDoc) -> Evaluation<T> {
 }
 
 /// The per-node failure report of an evaluation (empty when green).
-pub fn failures<T: Decide>(ev: &Evaluation<T>) -> Vec<String> {
+pub fn failures<T: topo::AtRestPolicy + Decide>(ev: &Evaluation<T>) -> Vec<String> {
     ev.nodes
         .iter()
         .filter_map(|(id, r)| match r {

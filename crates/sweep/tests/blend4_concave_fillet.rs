@@ -356,7 +356,7 @@ fn every_minted_fillet_face_faces_its_own_void() {
         }
     }
 
-    let cube_body = cube(2.0, Tol::witness());
+    let cube_body = cube::<f64>(2.0, Tol::witness());
     let cube_edges: Vec<EdgeKey> = cube_body.edges().map(|(k, _)| k).collect();
     let cut = fillet_edges(
         &sweep::test_support::at_rest(&cube_body, Tol::witness()),
@@ -458,7 +458,7 @@ fn the_corner_recourse_is_followable_on_both_sides() {
         "the refusal ships the corner recourse, got {text}"
     );
     // Both clauses of the sentence, executed at the refused size.
-    let cube_body = cube(2.0, Tol::witness());
+    let cube_body = cube::<f64>(2.0, Tol::witness());
     let cube_edges: Vec<EdgeKey> = cube_body.edges().map(|(k, _)| k).collect();
     fillet_edges(
         &sweep::test_support::at_rest(&cube_body, Tol::witness()),

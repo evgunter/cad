@@ -232,7 +232,7 @@ const FULL: Frustum = Frustum {
 fn brick(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> AtRestBody<f64> {
     finished(
         "the brick",
-        sweep::test_support::brick(x, y, z, Tol::witness()),
+        sweep::test_support::brick::<f64>(x, y, z, Tol::witness()),
         Tol::witness(),
     )
 }

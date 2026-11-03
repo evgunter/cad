@@ -145,7 +145,7 @@ fn plain_body_volume(session: &mut DocSession, node: RecipeNodeId, tol: Tol) -> 
     };
     pncad::topo::test_support::pinned_volume(
         "mass properties",
-        &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(body.body()), tol)
+        &pncad::topo::finish(pncad::topo::Body::clone(body.body()), tol)
             .expect("the measured body passes tier 3"),
         tol,
     )

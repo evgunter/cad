@@ -103,15 +103,11 @@ fn assert_parts_are_their_bodies(ev: &Evaluation<Interval>, doc: &ProfileDoc, la
         let ValuePayload::Body(part) = &ev.value(id).expect("the copy").payload else {
             panic!("{label}: a body value");
         };
-        let read: &Arc<Body<Interval>> = match &ev.value(of).expect("the input").payload {
-            ValuePayload::Instances(v) => v[1].shared(),
+        let read: &editor_core::Held<Interval> = match &ev.value(of).expect("the input").payload {
+            ValuePayload::Instances(v) => v[1].holding(),
             other => panic!("{label}: {}", other.kind_name()),
         };
-        assert!(
-            Arc::ptr_eq(part.shared(), read),
-            "{label}: node {}'s Arc",
-            id.0
-        );
+        assert!(part.holding().same(read), "{label}: node {}'s Arc", id.0);
         assert_eq!(bits(part.body()), bits(read), "{label}: node {}", id.0);
     }
 }

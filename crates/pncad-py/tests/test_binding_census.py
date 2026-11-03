@@ -1391,10 +1391,6 @@ BOUND_AS = {
     "ProfilePieces": "Doc.pieces",
     "ProductReadFault": "EditError.inner_variant",
     "Pick": "PickRead",
-    # What a `PieceInvalid` refusal lists, one per failing source body;
-    # the arm crosses as its tag word, its first failing piece as
-    # `node`, and every piece, output and finding in its message.
-    "SourceFinding": "ProductError.node",
     "RAD": "rad",
     "RecipeNodeId": "NodeId",
     "ResolveFault": "EvaluationError.kind",
@@ -2904,6 +2900,14 @@ NOT_BOUND = {
     # the composing door export and the viewer's picture call, which
     # Python reaches through `export_step`.
     "Framed": INTERIOR,
+    # What a body value holds, a finished body or the box scalars' sweep
+    # leaf (the switch at `topo::AtRestPolicy::leaf`): Python reads it as
+    # the `Body` it derefs to, never as the enum.
+    "Held": INTERIOR,
+    # A body read into a frame (`Framed::read_in`, the read-out
+    # `body_in_space`): a value's own `Held`, or its body mapped as
+    # construction state. Python reads it as the `Body` it derefs to.
+    "ReadIn": INTERIOR,
     "in_space": INTERIOR,
     "Composing": INTERIOR,
     # What an evaluation built, counted (debug builds only): a row's
@@ -3545,7 +3549,6 @@ MEMBERS_BOUND_AS = {
     "AtRestEvidence::Malformed": "AtRestEvidence.variant",
     "AtRestEvidence::InsideArrival": "AtRestEvidence.variant",
     "AtRestEvidence::NotGathered": "AtRestEvidence.variant",
-    "AtRestEvidence::NotRun": "AtRestEvidence.variant",
     # A part's own census findings, carried: a route is three facts and
     # Python reads all three without holding the type, and the
     # finding's nodes are said from the part's (`str(row.finding)`), a
@@ -3821,7 +3824,6 @@ MEMBERS_BOUND_AS = {
     "ProductError::StrandedProduct": "ProductError.variant",
     "ProductError::ProductOutsideWorld": "ProductError.variant",
     "ProductError::Graft": "ProductError.variant",
-    "ProductError::PieceInvalid": "ProductError.variant",
     "ProductError::ProductInvalid": "ProductError.variant",
     "ProductError::ContactLineage": "ProductError.variant",
     "ProductError::Frame": "ProductError.variant",

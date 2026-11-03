@@ -93,8 +93,10 @@ pub enum NodeErrorClass {
     WrongOperand,
     /// [`NodeErrorKind::EmptyOperand`].
     EmptyOperand,
-    /// [`NodeErrorKind::UnfinishedOperand`].
-    UnfinishedOperand,
+    /// [`NodeErrorKind::NotFinished`].
+    NotFinished,
+    /// [`NodeErrorKind::UnfinishedLeaf`].
+    UnfinishedLeaf,
     /// [`NodeErrorKind::EmptyHalf`].
     EmptyHalf,
     /// [`NodeErrorKind::MemberOutOfRange`].
@@ -244,7 +246,8 @@ impl NodeErrorKind {
             Self::Seed { .. } => C::Seed,
             Self::WrongOperand { .. } => C::WrongOperand,
             Self::EmptyOperand { .. } => C::EmptyOperand,
-            Self::UnfinishedOperand { .. } => C::UnfinishedOperand,
+            Self::NotFinished { .. } => C::NotFinished,
+            Self::UnfinishedLeaf { .. } => C::UnfinishedLeaf,
             Self::EmptyHalf { .. } => C::EmptyHalf,
             Self::MemberOutOfRange { .. } => C::MemberOutOfRange,
             Self::MemberRefused { .. } => C::MemberRefused,
@@ -386,7 +389,8 @@ mod tests {
         Seed,
         WrongOperand,
         EmptyOperand,
-        UnfinishedOperand,
+        NotFinished,
+        UnfinishedLeaf,
         EmptyHalf,
         MemberOutOfRange,
         MemberRefused,
@@ -596,11 +600,20 @@ mod tests {
                 found: "profile",
             },
             C::EmptyOperand => K::EmptyOperand { input: n(3) },
-            C::UnfinishedOperand => K::UnfinishedOperand {
+            C::NotFinished => K::NotFinished {
+                findings: topo::NotFinished::for_tests(vec![
+                    topo::ValidationError::ScaffoldAtRest {
+                        edge: topo::EdgeKey::default(),
+                    },
+                ]),
+            },
+            C::UnfinishedLeaf => K::UnfinishedLeaf {
                 input: n(3),
-                errors: vec![topo::ValidationError::ScaffoldAtRest {
-                    edge: topo::EdgeKey::default(),
-                }],
+                findings: topo::NotFinished::for_tests(vec![
+                    topo::ValidationError::ScaffoldAtRest {
+                        edge: topo::EdgeKey::default(),
+                    },
+                ]),
             },
             C::EmptyHalf => K::EmptyHalf {
                 input: n(3),

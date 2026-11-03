@@ -40,7 +40,7 @@ fn a_thin_cap_measures_to_its_closed_form() {
     {
         let slab = finished(
             "the slab",
-            brick((-2.0, 2.0), (-2.0, 2.0), (1.0 - h, 3.0), tol),
+            brick::<f64>((-2.0, 2.0), (-2.0, 2.0), (1.0 - h, 3.0), tol),
             tol,
         );
         let body = topo::intersect(&slab, &ball, tol)

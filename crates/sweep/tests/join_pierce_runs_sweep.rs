@@ -260,8 +260,7 @@ fn boxes_within(boxes: &[([f64; 3], [f64; 3])], planes: &[([f64; 3], f64)]) -> f
 
 /// `body` as a boolean operand: the at-rest gate's finished body.
 pub(crate) fn finished(what: &str, body: Body<f64>) -> AtRestBody<f64> {
-    AtRestBody::validate(body, tol())
-        .unwrap_or_else(|e| panic!("{what} is not a finished body: {e:?}"))
+    topo::finish(body, tol()).unwrap_or_else(|e| panic!("{what} is not a finished body: {e:?}"))
 }
 
 /// One run of an op: its tag, its result and the oracle's volume.

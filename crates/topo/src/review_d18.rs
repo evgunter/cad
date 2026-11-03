@@ -3552,12 +3552,6 @@ fn judge_read(
     }
 }
 
-/// The boolean's floor: its operand gate reads the whole operand first,
-/// so on a torn body it never answers, and what the sweep requires of
-/// it is the premise panic.
-#[cfg(not(debug_assertions))]
-const UNION_PREMISE: &str = "union: row-4 premise panics";
-
 /// The mints' floor: a torn body whose clone carried pcurve rows into
 /// the mint, so that a write hoisted above a premise panic shows in the
 /// clone's snapshot.
@@ -3710,15 +3704,9 @@ fn read_every_key(body: &Body<f64>, capture: &PanicCapture) -> Exposure {
         deep_snapshot(&trial) == snapshot,
         "revert wrote to the torn body it read"
     );
-    // A torn body never finishes, so it reaches the boolean the one way
-    // the gate is still asked: carried with no verdict.
-    let other = crate::AtRestBody::not_run(
-        crate::test_support_fixtures::geometric_cube::<f64>(Tol::witness()).body,
-    );
-    let torn = crate::AtRestBody::not_run(body.clone());
-    judge_read(capture, &mut census, "union", || {
-        Ok(crate::boolean::union(&torn, &other, Tol::witness()).is_ok())
-    });
+    // A torn body never finishes, and the boolean takes the scalar's
+    // finished body only, so no union reads it: there is no read here
+    // to judge.
     for (l, _) in body.loops() {
         judge_read(capture, &mut census, "planar_loop_winding", || {
             Ok(body.planar_loop_winding(l, Vec3::unit_z(), band).is_some())
@@ -3974,13 +3962,9 @@ fn torn_bodies_fail_reads_only_on_a_row_four_premise() {
         .collect();
     let premise_doors: Vec<&str> = premise_doors.iter().map(String::as_str).collect();
     census.require_each(
-        &[&[PREMISE, UNION_PREMISE][..], &premise_doors].concat(),
+        &[&[PREMISE][..], &premise_doors].concat(),
         1,
-        &format!(
-            "no read met a tear, or the boolean answered a torn operand without naming its \
-             premise — {}",
-            fuzz::replay()
-        ),
+        &format!("no read met a tear — {}", fuzz::replay()),
     );
 }
 

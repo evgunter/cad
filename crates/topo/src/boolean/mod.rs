@@ -113,7 +113,6 @@ mod nary;
 mod node;
 mod ops;
 mod overlap;
-pub(crate) use ops::{AtRestRefusal, at_rest_refusal};
 pub(crate) use ops::{GluedSurfacePair, GluedSurfaces};
 pub(crate) mod section_cert;
 mod section_table;
@@ -3272,32 +3271,18 @@ pub enum BooleanError {
     /// positive ([`ValidationError::ShellWinding`]), or a solid check 7
     /// passed in band that a ray reads inside-out
     /// ([`ValidationError::SliverInsideOut`]). Its faces bound the
-    /// complement of the region they enclose. A finished body never
-    /// holds one of the first two; the door reads both checks itself on
-    /// an operand whose scalar runs no at-rest gate (a dual,
-    /// [`crate::AtRestOutcome::NotRunAtThisScalar`]). The third it reads
-    /// up front on each sliver the at-rest gate passed and on every solid
-    /// of a dual's operand, where one point outside the solid's faces'
-    /// reach boxes decides; and wherever a witness read of the operand
-    /// meets its side at infinity inside its material. In each case it
-    /// refuses rather than answering for the complement.
+    /// complement of the region they enclose. A finished body holds none
+    /// of the first two at a certifying scalar. The third the door reads
+    /// up front on each sliver the at-rest gate passed, where one point
+    /// outside the solid's faces' reach boxes decides, and wherever a
+    /// witness read of the operand meets its side at infinity inside its
+    /// material. In each case it refuses rather than answering for the
+    /// complement.
     InsideOutOperand {
         /// The offending operand.
         operand: Operand,
         /// The validator's findings, each naming its solid (and, for a
         /// shell, the shell).
-        errors: Vec<ValidationError>,
-    },
-    /// An operand holds a vertex the join would take, or one whose
-    /// reading lands in the sliver band (tier 3's check 11,
-    /// [`ValidationError::JoinableVertexAtRest`] /
-    /// [`ValidationError::JoinUndecidedAtRest`]). A finished body holds
-    /// none; the door reads the check itself on an operand whose scalar
-    /// runs no at-rest gate (a dual), as it reads checks 7 and 10.
-    UnjoinedOperand {
-        /// The offending operand.
-        operand: Operand,
-        /// The check-11 findings, each naming its vertex.
         errors: Vec<ValidationError>,
     },
     /// F7: two adjacent faces of one operand are structurally or
@@ -3345,9 +3330,7 @@ pub enum BooleanError {
         /// The sector's face.
         face: FaceKey,
     },
-    /// A reduction/classification predicate escalated (in-band margin),
-    /// or the finished result holds a shell certified in band
-    /// ([`BooleanDecision::ShellRole`], which definite cuts can compose):
+    /// A reduction/classification predicate escalated (in-band margin):
     /// the operand pair is ill-conditioned at this ε — a genuine sliver
     /// (F6). Never a snap, never a guess.
     Escalated {
@@ -4103,24 +4086,14 @@ pub enum BooleanError {
     /// whole: never its re-description of a kept boundary, which refuses
     /// as the Boolean's own description does ([`BooleanMerge`]).
     Merge(BooleanMerge),
-    /// The result did not pass the door's at-rest gate (tier 3,
-    /// [`crate::AtRestPolicy::gate_at_rest_kept`]; tiers 1 and 2 and
-    /// the scaffold fence where the scalar runs none), loudly — no body
-    /// below it is ever returned. A result whose every finding is a
-    /// shell certified in band is the operands' instead, refused
-    /// [`BooleanError::Escalated`] on [`BooleanDecision::ShellRole`];
-    /// this carries the rest. Where the scalar runs the at-rest
-    /// gate, the operands are finished bodies, so no finding is carried
-    /// in from an operand: each is either a defect in what the door
-    /// built or a wrong verdict of the validator's own (a valid sliver
-    /// refused on a sign check 7 misreads), and a kernel defect either
-    /// way. Where it runs none (a dual), an operand carries no verdict:
-    /// the door has read only its tiers 1 and 2, its edges and its
-    /// orientation, so a finding may also trace to a defect of an
-    /// operand's that those reads do not see.
+    /// The result is not a finished body ([`crate::AtRestPolicy::finish`]):
+    /// every finding, each read through its family. The operands are
+    /// finished bodies, so no finding is carried in from an operand:
+    /// each is a defect in what the door built, a wrong verdict of the
+    /// validator's own, or a reading in band its family's lever reaches.
     ResultInvalid {
-        /// The validator's findings.
-        errors: Vec<ValidationError>,
+        /// The finish's findings.
+        findings: crate::NotFinished,
     },
     /// The result would be unbounded (only reachable with complement
     /// operands, e.g. ∪ of a body with its own complement) — no
@@ -4343,8 +4316,6 @@ pub enum BooleanErrorKind {
     ScaffoldingOperand,
     /// [`BooleanError::InsideOutOperand`].
     InsideOutOperand,
-    /// [`BooleanError::UnjoinedOperand`].
-    UnjoinedOperand,
     /// [`BooleanError::NonMaximalFaces`].
     NonMaximalFaces,
     /// [`BooleanError::CoplanarNeighbours`].
@@ -4468,22 +4439,6 @@ pub enum BooleanErrorKind {
 }
 
 impl BooleanError {
-    /// The operand gate's refusal on `operand`
-    /// ([`crate::AtRestBody::gate_unverdicted`]), typed for the Boolean.
-    pub(crate) fn unfinished(operand: Operand, unfinished: crate::validate::Unfinished) -> Self {
-        match unfinished {
-            crate::validate::Unfinished::Scaffolding(errors) => {
-                Self::ScaffoldingOperand { operand, errors }
-            }
-            crate::validate::Unfinished::InsideOut(errors) => {
-                Self::InsideOutOperand { operand, errors }
-            }
-            crate::validate::Unfinished::Unjoined(errors) => {
-                Self::UnjoinedOperand { operand, errors }
-            }
-        }
-    }
-
     /// An escalation of the coincidence `which` between parts of the two
     /// solids, at a site whose door read the pair's declaration as
     /// `read` ahead of it ([`BooleanDecision::Coincidence`]): the refusal
@@ -4618,7 +4573,6 @@ impl BooleanError {
             Self::PointInFaceRefused { .. } => BooleanErrorKind::PointInFaceRefused,
             Self::ScaffoldingOperand { .. } => BooleanErrorKind::ScaffoldingOperand,
             Self::InsideOutOperand { .. } => BooleanErrorKind::InsideOutOperand,
-            Self::UnjoinedOperand { .. } => BooleanErrorKind::UnjoinedOperand,
             Self::NonMaximalFaces { .. } => BooleanErrorKind::NonMaximalFaces,
             Self::CoplanarNeighbours { .. } => BooleanErrorKind::CoplanarNeighbours,
             Self::NonFiniteSectorChord { .. } => BooleanErrorKind::NonFiniteSectorChord,
@@ -5005,19 +4959,13 @@ impl core::fmt::Display for BooleanError {
                 f,
                 "the {} operand {}",
                 operand_word(*operand),
-                crate::validate::Unfinished::SCAFFOLDING_REFUSAL,
+                crate::validate::SCAFFOLDING_REFUSAL,
             ),
             Self::InsideOutOperand { operand, .. } => write!(
                 f,
                 "the {} operand {}",
                 operand_word(*operand),
-                crate::validate::Unfinished::INSIDE_OUT_REFUSAL,
-            ),
-            Self::UnjoinedOperand { operand, .. } => write!(
-                f,
-                "the {} operand {}",
-                operand_word(*operand),
-                crate::validate::Unfinished::UNJOINED_REFUSAL,
+                crate::validate::INSIDE_OUT_REFUSAL,
             ),
             Self::NonMaximalFaces { operand, .. } => write!(
                 f,
@@ -5531,10 +5479,9 @@ impl core::fmt::Display for BooleanError {
                 write!(f, "seam zip correspondence failed: {what} (kernel bug)")
             }
             Self::Merge(e) => write!(f, "coplanar-merge output stage refused: {e}"),
-            Self::ResultInvalid { errors } => crate::validate::write_result_not_at_rest(
+            Self::ResultInvalid { findings } => write!(
                 f,
-                format_args!("the Boolean's result"),
-                errors,
+                "the Boolean's result is not a finished body, so no body is returned: {findings}"
             ),
             Self::UnrepresentableResult => write!(
                 f,
@@ -5660,7 +5607,7 @@ impl std::error::Error for BooleanError {}
 /// use geom_core::Tol;
 /// use topo::{AtRestBody, Body, BooleanOp, boolean_reduce};
 ///
-/// let body = AtRestBody::validate(Body::<f64>::new(), Tol::witness()).unwrap();
+/// let body = topo::finish(Body::<f64>::new(), Tol::witness()).unwrap();
 /// let _ = boolean_reduce(BooleanOp::Union, &body, &body, Tol::witness());
 /// ```
 ///
@@ -5685,7 +5632,7 @@ impl std::error::Error for BooleanError {}
 /// use geom_core::Tol;
 /// use topo::{AtRestBody, Body, BooleanOp, boolean_reduce};
 ///
-/// let body = AtRestBody::validate(Body::<f64>::new(), Tol::witness()).unwrap();
+/// let body = topo::finish(Body::<f64>::new(), Tol::witness()).unwrap();
 /// let _ = boolean_reduce(BooleanOp::Union, &body, &body, Tol::witness());
 /// ```
 ///
@@ -5693,16 +5640,16 @@ impl std::error::Error for BooleanError {}
 ///
 /// [`BooleanError`] — see each variant; the first failure wins and the
 /// operands are never mutated (the clones are dropped).
-pub fn boolean_reduce<T: Decide + Bounds + crate::props::AtRestPolicy>(
+pub fn boolean_reduce<F: crate::FinishedBody>(
     op: BooleanOp,
-    a_operand: &crate::AtRestBody<T>,
-    b_operand: &crate::AtRestBody<T>,
+    a_operand: &F,
+    b_operand: &F,
     tol: Tol,
-) -> Result<BooleanReduction<T>, BooleanError> {
+) -> Result<BooleanReduction<F::Scalar>, BooleanError>
+where
+    F::Scalar: Decide + Bounds,
+{
     let band = Band::linear(tol)?;
-    for (operand, body) in [(Operand::A, a_operand), (Operand::B, b_operand)] {
-        reduce::gate_unverdicted_operand(body, operand, band, tol)?;
-    }
     let none = Glue::none();
     let decls = &*glue::decided_glue(a_operand, b_operand, &none, band)?;
     boolean_reduce_declared_strategy(
@@ -9191,12 +9138,6 @@ mod tests {
                     solid: crate::entity::SolidKey::default(),
                 }],
             },
-            BooleanError::UnjoinedOperand {
-                operand: Operand::A,
-                errors: vec![ValidationError::JoinableVertexAtRest {
-                    vertex: VertexKey::default(),
-                }],
-            },
             BooleanError::NonMaximalFaces {
                 operand: Operand::A,
                 edge,
@@ -9391,7 +9332,11 @@ mod tests {
                 b_face: face,
             },
             BooleanError::ZipCorrespondence { what: "a record" },
-            BooleanError::ResultInvalid { errors: Vec::new() },
+            BooleanError::ResultInvalid {
+                findings: crate::NotFinished::new(vec![ValidationError::NegativeVolume {
+                    solid: crate::entity::SolidKey::default(),
+                }]),
+            },
             BooleanError::UnrepresentableResult,
             BooleanError::Revert {
                 operand: Operand::B,
@@ -9472,7 +9417,6 @@ mod tests {
                 BooleanErrorKind::PointInFaceRefused => "PointInFaceRefused",
                 BooleanErrorKind::ScaffoldingOperand => "ScaffoldingOperand",
                 BooleanErrorKind::InsideOutOperand => "InsideOutOperand",
-                BooleanErrorKind::UnjoinedOperand => "UnjoinedOperand",
                 BooleanErrorKind::NonMaximalFaces => "NonMaximalFaces",
                 BooleanErrorKind::CoplanarNeighbours => "CoplanarNeighbours",
                 BooleanErrorKind::NonFiniteSectorChord => "NonFiniteSectorChord",

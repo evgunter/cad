@@ -46,7 +46,7 @@ fn ball(r: f64) -> Result<topo::Body<f64>, String> {
         Revolution::Full,
         Tol::witness(),
     )
-    .map(|r| r.body)
+    .map(|r| r.body.into_body())
     .map_err(|e| format!("revolve: {e:?}"))
 }
 
@@ -73,7 +73,7 @@ fn slab(d: f64, l: f64) -> Result<topo::Body<f64>, sweep::ExtrudeError> {
         },
         Tol::witness(),
     )
-    .map(|r| r.body)
+    .map(|r| r.body.into_body())
 }
 
 fn attempt(r: f64, gap: f64) {
@@ -101,7 +101,7 @@ fn attempt(r: f64, gap: f64) {
             return;
         }
     };
-    let finish = |what: &str, body| match topo::AtRestBody::validate(body, Tol::witness()) {
+    let finish = |what: &str, body| match topo::finish(body, Tol::witness()) {
         Ok(body) => Some(body),
         Err(e) => {
             println!("    {what} REFUSED at validation: {e:?}");

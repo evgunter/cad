@@ -588,7 +588,9 @@ BOUNDS_ALLOWLIST=(
   # headers are the boolean lane's own, ratified for the sweep's BVH
   # brackets, and each is a caller spelling the pair verb's header
   # (`run_pair`); none of them reads a bound.
-  'crates/editor-core/src/eval/wire.rs 17 2026-07-29 (M5 PR 8), the driver amendment'
+  # wire.rs 17 -> 16 (ONEHOME, finished-body doors): `finished_operand`,
+  # the consumer re-gate, is deleted with its bound; no seam moved.
+  'crates/editor-core/src/eval/wire.rs 16 2026-07-29 (M5 PR 8), the driver amendment'
   # M5 PR 11, the certified-quadrature plumbing.
   #
   # 19 -> 23 (TRIM-2 PR-1, the trimmed-region quadrature). The seam is
@@ -670,7 +672,12 @@ BOUNDS_ALLOWLIST=(
   # `T: AtRestPolicy` beside its `T: CertifiedBounds`, so the symbolic
   # arm of `clearance_lane` answers exactly where its base scalar's
   # does. It asks the base's policy and reads no bracket.
-  'crates/topo/src/props.rs 14 M5 PR 11, the certified-quadrature plumbing'
+  # props.rs 14 -> 11 (ONEHOME, finished-body doors): `mass_properties`,
+  # `classify_shells` and `classify_shells_of` take the scalar's finished
+  # body (`F: FinishedBody`), so their `Decide + CertifiedBounds` is now
+  # `F::Scalar: CertifiedBounds` in a `where` clause: the same certified
+  # seam, named on the finished body's scalar.
+  'crates/topo/src/props.rs 11 M5 PR 11, the certified-quadrature plumbing'
   # quad_lane.rs 14 -> 15: `closed_form` re-derives a closed-form
   # face's flux at the interval scalar, lifting the face's geometry
   # through `Interval::from_certified` (`Decide + CertifiedBounds`), and
@@ -756,7 +763,11 @@ BOUNDS_ALLOWLIST=(
   # selection only narrows what the screen meters to what the exact
   # meter downstream meters whole.
   'crates/sweep/src/blend/battery.rs 21 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
-  'crates/sweep/src/blend/build.rs 5 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
+  # build.rs 5 -> 3 (ONEHOME, finished-body doors): `fillet_edges` and
+  # `chamfer_edges` take the scalar's finished body (`F: FinishedBody`),
+  # so their `T: Decide + Bounds` is now `F::Scalar: Bounds` in a
+  # `where` clause, which names the same seam and no compound bound.
+  'crates/sweep/src/blend/build.rs 3 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   # surgery.rs 14 -> 15: `support_boundary_clearance` is the ring
   # carry-through pass's support-boundary arm split into its own
   # function — the same edge-blend seam, reading brackets only where
@@ -915,7 +926,10 @@ BOUNDS_ALLOWLIST=(
   # reaches the box and nothing else, each candidate read exactly.
   'crates/topo/src/census.rs 8 2026-07-29 (M5 PR 8), the driver amendment'
   'crates/topo/src/face_boxes.rs 1 2026-07-29 (M5 PR 8), the driver amendment'
-  'crates/topo/src/shell.rs 2 2026-09-02, the certified at-rest validator'
+  # shell.rs 2 -> 1 (ONEHOME, finished-body doors): `shell` takes the
+  # scalar's finished body (`F: FinishedBody`), so its compound bound is
+  # spelled on `F::Scalar` in a `where` clause; the seam is unchanged.
+  'crates/topo/src/shell.rs 1 2026-09-02, the certified at-rest validator'
   # SEAT-4, in the `Bounds` trait's own doc rather than the
   # `bounds_allowlist` ledger: the verb dispatch site, which decides
   # nothing and reads no bracket. 2 -> 1: SEAT-9 was the shell

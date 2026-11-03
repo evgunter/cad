@@ -27,7 +27,6 @@ use super::section_loops::{self, NestFault, SenseFault};
 use super::{KnifeEdge, PlaneSide, SplitError, SplitPlane, SplitReduceError, split_scratch};
 use crate::body::Body;
 use crate::entity::{HalfEdgeKey, LoopBoundary, LoopKey};
-use crate::validate::AtRestBody;
 use geom_brep::props::chord_bulge;
 use geom_core::Tol;
 
@@ -287,17 +286,15 @@ impl<T: Real> std::error::Error for SectionError<T> {}
 /// [`SectionError`]: [`SectionError::Split`] passes the reduce and join
 /// stages' refusals through unchanged, save a curved wall's knife-edge
 /// contact, which refuses as [`SectionError::KnifeEdge`] rather than
-/// reporting a trace with the contact in it; an operand that carries
-/// no verdict and is not what a finished body
-/// promises refuses as [`super::split`]'s does
-/// ([`SplitReduceError::ScaffoldingOperand`],
-/// [`SplitReduceError::InsideOutOperand`]).
-pub fn plane_section<T: geom_core::Decide + crate::props::AtRestPolicy>(
-    operand: &AtRestBody<T>,
-    plane: &SplitPlane<T>,
+/// reporting a trace with the contact in it.
+pub fn plane_section<F: crate::FinishedBody>(
+    operand: &F,
+    plane: &SplitPlane<F::Scalar>,
     tol: Tol,
-) -> Result<Section<T>, SectionError<T>> {
-    super::gate_finished(operand, tol).map_err(|e| SectionError::from(SplitError::Reduce(e)))?;
+) -> Result<Section<F::Scalar>, SectionError<F::Scalar>>
+where
+    F::Scalar: geom_core::Decide,
+{
     let band = geom_core::Band::linear(tol)
         .map_err(|e| SectionError::Split(SplitError::Reduce(SplitReduceError::from(e))))?;
     let (red, completed, _fragments) = split_scratch(operand, plane, tol)?;
@@ -331,7 +328,7 @@ pub fn plane_section<T: geom_core::Decide + crate::props::AtRestPolicy>(
                 return Err(SectionError::WindingUndecided { corner, diag });
             }
         };
-        let chart = |w: Vec3<T>| Vec2::new(w.dot(u), w.dot(v));
+        let chart = |w: Vec3<F::Scalar>| Vec2::new(w.dot(u), w.dot(v));
         let mut uv = Vec::with_capacity(halves.len());
         let mut edges = Vec::with_capacity(halves.len());
         for half in &halves {

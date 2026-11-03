@@ -288,7 +288,7 @@ fn a_plane_tilted_against_the_balls_chart_builds_under_every_boolean() {
     ] {
         let a = finished(
             "the box",
-            sweep::test_support::brick((0.5, 3.0), (-2.0, 2.0), z, Tol::witness()),
+            sweep::test_support::brick::<f64>((0.5, 3.0), (-2.0, 2.0), z, Tol::witness()),
             Tol::witness(),
         );
         assert_every_op(

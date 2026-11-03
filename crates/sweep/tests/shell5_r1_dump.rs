@@ -33,6 +33,7 @@ fn revolved(pts: &[(f64, f64)]) -> Body<f64> {
     )
     .expect("the meridian revolves")
     .body
+    .into_body()
 }
 
 /// Faces whose plane has the given unit normal (chart normal, not
@@ -94,7 +95,7 @@ fn dump(label: &str, out: &Result<topo::Shelled<f64>, topo::ShellError<f64>>) {
             );
             // A body tier 3 refuses prints its refusal (and its tier-3 line
             // below) and is not measured.
-            match topo::AtRestBody::validate(topo::Body::clone(b), Tol::witness()) {
+            match topo::finish(topo::Body::clone(b), Tol::witness()) {
                 Err(errors) => println!("[dump] {label}: not at rest {errors:?}"),
                 Ok(finished) => match topo::mass_properties(
                     &finished,

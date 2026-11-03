@@ -56,6 +56,7 @@ fn revolved(pts: &[(f64, f64)]) -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 /// Narrowing upward: apex at `y = 2`, the face on the mirror nappe.
@@ -529,7 +530,8 @@ fn steep_frusta_in_a_generic_pose_split_at_a_shallow_tilt() {
         if eps < measured_from {
             match answer {
                 Err(SplitError::Finish(SplitFinishError::ResultNotAtRest {
-                    ref errors, ..
+                    findings: ref errors,
+                    ..
                 })) if !errors.is_empty()
                     && errors
                         .iter()

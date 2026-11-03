@@ -1539,6 +1539,39 @@ Flagged, NOT fixed here (dispositions):
   **Carried as `k_stats::unlogged("F30", ..)`**. Not a `decide_flagged`
   site; `LEDGER_FLAGGED_SITES` does not move.
 
+- **F31** (added by ONEHOME's finished-body lane, PR 6371)
+  `topo/src/props.rs` `AtRestPolicy::leaf` at `f64` and `Probe`: the
+  finish of a body the box scalars hold as a tier-2 leaf. That is a
+  sweep door's result, a placement's mapped image
+  (`editor_core::Framed::read_in`), a twist, a mirror and an assemble's
+  graft. Every row keeps its own dimension. What this row argues is why
+  the decisions are held off the building node's verdict log and logged
+  at the taker instead.
+  - At the box scalars the same body is tier 2 alone, and tier 3 runs
+    where a consumer takes it as a finished body (`topo::take`, logged
+    there). Main ran tier 3 nowhere but at that taker.
+  - So at the point scalars the finish runs where the body is built,
+    under a `k_stats::Bracket`, and its `Recorded` is kept on the body.
+    The taker relogs it (`k_stats::relog`, whose own contract is "a pass
+    the caller does not run because it knows what that pass decides").
+    Both lanes then log tier 3 at the taker, once, and the `f64`
+    witness's verdict vector is the box leaf's. Logged at the building
+    node instead, every M10 drive with a sweep refused `flip_crossing`
+    (measured on PR 6371: 61 rows). Held but never relogged, every leaf
+    whose sweep fed a taker refused it too (PR 6371 review r1, M1).
+  - A reader that is not a taker (a measure, a clearance, a pick) relogs
+    nothing and finishes nothing: a body it reads through a placement's
+    map is construction state (`ReadIn::Mapped`), finished only by a
+    taker, once.
+  - The rows that hold the two logs equal are
+    `editor-core/tests/onehome_switch_parity_interval.rs` (a slab under a
+    union, and a slab placed then unioned, certify in one leaf).
+  - It goes with the switch
+    (`work/onehome/delete-the-box-scalar-sweep-leaf-switch.md`).
+
+  **Carried as a held `Recorded` relogged at `topo::take`**. Not a
+  `decide_flagged` site; `LEDGER_FLAGGED_SITES` does not move.
+
 **Every `props/curved.rs` row above is cited BY TARGET NAME, not by
 line** (S176(a)). The line numbers they carried were written against a
 2026-08 tree and had already rotted at #877's merge base; #877 moved

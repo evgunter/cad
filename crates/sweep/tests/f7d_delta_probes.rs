@@ -30,6 +30,7 @@ fn cone() -> Body<f64> {
     revolve(&vp, axis_y(), Revolution::Full, Tol::witness())
         .unwrap()
         .body
+        .into_body()
 }
 
 /// D5 — the cone with STORED PCURVE CACHES: its base disc is built

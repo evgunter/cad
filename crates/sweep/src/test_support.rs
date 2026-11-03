@@ -127,7 +127,7 @@ use geom::NurbsCurve3;
 use geom_core::{Affine3, Band, Bounds, Decide, Point2, Point3, Real, RigidMotion, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane, test_support::bulge_loop};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
-use topo::{Body, BooleanInputs, EdgeKey, FaceKey, LoopBoundary};
+use topo::{Body, BooleanInputs, EdgeKey, FaceKey, LeafBody as _, LoopBoundary};
 
 use crate::blend::BlendKind;
 use crate::blend::battery::{
@@ -222,11 +222,11 @@ pub fn brick<T: Decide + topo::AtRestPolicy>(
 /// well inside `|x| < 50`; a body that reached the brick would be read
 /// as an overlap, not as a gate.
 pub fn assert_legal_operand(what: &str, body: &Body<f64>, tol: Tol) {
-    let body = topo::AtRestBody::validate(body.clone(), tol)
+    let body = topo::finish(body.clone(), tol)
         .unwrap_or_else(|e| panic!("{what}: the result is no finished body: {e:?}"));
     let far = finished(
         "the far brick",
-        brick((50.0, 51.0), (50.0, 51.0), (50.0, 51.0), tol),
+        brick::<f64>((50.0, 51.0), (50.0, 51.0), (50.0, 51.0), tol),
         tol,
     );
     if let Err(e) = topo::union(&body, &far, tol) {
@@ -235,6 +235,20 @@ pub fn assert_legal_operand(what: &str, body: &Body<f64>, tol: Tol) {
 }
 
 pub use topo::test_support::finished;
+
+/// **A sweep door's leaf, taken** through the one taker door
+/// ([`topo::take`]), for rows that hand a door's result to a door that
+/// takes finished bodies.
+///
+/// # Errors
+///
+/// The finish's findings, at the box scalars.
+pub fn taken<T: topo::AtRestPolicy>(
+    leaf: T::Leaf,
+    tol: Tol,
+) -> Result<T::Finished, topo::NotFinished> {
+    topo::take::<T>(&std::sync::Arc::new(leaf), tol).map(std::sync::Arc::unwrap_or_clone)
+}
 
 /// `body`, cloned and finished ([`finished`]): the operand of ONE blend
 /// door call on a fixture held by reference. Each call clones and pays
@@ -247,7 +261,7 @@ pub use topo::test_support::finished;
 /// caller's line.
 #[must_use]
 #[track_caller]
-pub fn at_rest<T: topo::AtRestPolicy>(body: &Body<T>, tol: Tol) -> topo::AtRestBody<T> {
+pub fn at_rest<T: topo::AtRestPolicy>(body: &Body<T>, tol: Tol) -> T::Finished {
     let caller = core::panic::Location::caller();
     finished(&format!("the blend operand at {caller}"), body.clone(), tol)
 }
@@ -515,7 +529,7 @@ pub fn try_revolved_about_y_at<T: Decide + topo::AtRestPolicy>(
         origin: Point2::new(T::zero(), T::zero()),
         dir: Vec2::new(T::zero(), T::one()),
     };
-    crate::revolve(&profile, axis, rev, tol).map(|r| r.body)
+    crate::revolve(&profile, axis, rev, tol).map(|r| r.body.into_body())
 }
 
 /// **The dome**: a sphere zone of radius `r` from the equator up 45°,
@@ -896,6 +910,7 @@ pub fn extruded<T: Decide + topo::AtRestPolicy>(
     )
     .expect("the fixture's profile extrudes")
     .body
+    .into_body()
 }
 
 /// The K funnel name a FIXTURE's computed frame axes are decided
@@ -1164,7 +1179,7 @@ pub fn swept_elbow_lofted(tol: Tol) -> Lofted<f64> {
 
 /// [`swept_elbow_lofted`]'s body alone.
 pub fn swept_elbow(tol: Tol) -> Body<f64> {
-    swept_elbow_lofted(tol).body
+    swept_elbow_lofted(tol).body.into_body()
 }
 
 // ---------------------------------------------------------------------
@@ -1280,6 +1295,7 @@ pub fn loft_prism_at(zs: &[f64], tol: Tol) -> Body<f64> {
     crate::loft_body::<f64>(&loft_prism_sections(), &stacked_at(zs), PRISM_V_DEGREE, tol)
         .expect("the prism's sections skin")
         .body
+        .into_body()
 }
 
 /// **The loft prism**: [`loft_prism_sections`] stacked at [`PRISM_Z`]
@@ -1316,6 +1332,7 @@ pub fn lofted_cylinder(h: f64, tol: Tol) -> Body<f64> {
     )
     .expect("the circle lofts")
     .body
+    .into_body()
 }
 
 // ------------------------------------------------------------------
@@ -1372,7 +1389,7 @@ pub fn faces_around<T: Real>(body: &Body<T>, face: FaceKey) -> Vec<FaceKey> {
 /// accounted for, mint or source alike. The
 /// per-row COUNTS (feet, splits, retired seam vertices) stay in the
 /// rows, because they are the fixture's, not the walk's.
-pub fn assert_naming_totality<T: Real>(
+pub fn assert_naming_totality<T: topo::AtRestPolicy>(
     source: &Body<T>,
     out: &Blended<T>,
     requested: &[EdgeKey],
@@ -2094,9 +2111,9 @@ pub fn rod_with_flat_at(
         .collect(),
     );
     let cutter = extruded(sketch_at(-0.5 * len), vec![square], 2.0 * len, tol);
-    let rod = topo::AtRestBody::validate(rod, tol)
-        .map_err(|e| format!("the rod is not a finished body: {e:?}"))?;
-    let cutter = topo::AtRestBody::validate(cutter, tol)
+    let rod =
+        topo::finish(rod, tol).map_err(|e| format!("the rod is not a finished body: {e:?}"))?;
+    let cutter = topo::finish(cutter, tol)
         .map_err(|e| format!("the cutter is not a finished body: {e:?}"))?;
     Ok(topo::subtract(&rod, &cutter, tol)
         .map_err(|e| format!("the flat does not mill: {e:?}"))?
@@ -2564,4 +2581,70 @@ fn turn_readings_of<T: Decide>(
     let reading = crate::blend::battery::turn_reading(body, vertex, [&links[0], &links[1]], third)
         .unwrap_or_else(|err| panic!("the turn reads, got {err}"));
     (reading.gap, reading.chords)
+}
+
+/// **The loft doors before their finish**: [`crate::loft_body`],
+/// [`crate::loft_profiles`] and [`crate::sweep_body`] with the built
+/// body in construction state, every key kept. For the suites that read
+/// a loft's walls at an enclosure scalar whose finish does not run on
+/// them: at `Interval`, check 7's quadrature refuses a NURBS wall whose
+/// pcurve endpoints are not exact structure, so the door refuses the
+/// body, and the walls those suites measure are read here instead.
+///
+/// # Errors
+///
+/// The door's own, short of its finish.
+pub fn loft_body_construction<T: geom_core::Decide + topo::AtRestPolicy>(
+    sections: &[crate::skin::Section<impl crate::skin::SectionLoop<T>>],
+    places: &[profile::SketchPlane<T>],
+    v_degree: usize,
+    tol: geom_core::Tol,
+) -> Result<crate::Lofted<T, topo::Body<T>>, crate::LoftError> {
+    crate::loft::loft_body_construction(sections, places, v_degree, tol)
+}
+
+/// [`loft_body_construction`]'s twin for [`crate::loft_profiles`].
+///
+/// # Errors
+///
+/// The door's own, short of its finish.
+pub fn loft_profiles_construction<T: geom_core::Decide + topo::AtRestPolicy>(
+    sections: &[profile::ValidatedProfile<T>],
+    v_degree: usize,
+    tol: geom_core::Tol,
+) -> Result<crate::Lofted<T, topo::Body<T>>, crate::LoftError> {
+    crate::loft::loft_profiles_construction(sections, v_degree, tol)
+}
+
+/// [`loft_body_construction`]'s twin for [`crate::sweep_body`].
+///
+/// # Errors
+///
+/// The door's own, short of its finish.
+pub fn sweep_body_construction<T: geom_core::Decide + topo::AtRestPolicy>(
+    profile: &[impl crate::skin::SectionLoop<T>],
+    plane: profile::SketchPlane<T>,
+    path: &geom::NurbsCurve3<f64>,
+    stations: usize,
+    v_degree: usize,
+    tol: geom_core::Tol,
+) -> Result<crate::Lofted<T, topo::Body<T>>, crate::LoftError> {
+    crate::loft::sweep_body_construction(profile, plane, path, stations, v_degree, tol)
+}
+
+/// **[`crate::revolve()`] before its finish**: the built body in
+/// construction state, every key kept. For the suites that read what
+/// the revolve's CONSTRUCTION decides (a `k_stats` bracket over the
+/// door), apart from the decisions its finish makes.
+///
+/// # Errors
+///
+/// The door's own, short of its finish.
+pub fn revolve_construction<T: geom_core::Decide + topo::AtRestPolicy>(
+    profile: &profile::ValidatedProfile<T>,
+    axis: crate::RevolveAxis<T>,
+    revolution: crate::Revolution<T>,
+    tol: geom_core::Tol,
+) -> Result<crate::Revolved<T, topo::Body<T>>, crate::RevolveError> {
+    crate::revolve::revolve_construction(profile, axis, revolution, tol)
 }

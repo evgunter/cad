@@ -544,6 +544,7 @@ pub fn quintic_prism() -> Body<f64> {
     )
     .expect("the quintic prism lofts")
     .body
+    .into_body()
 }
 
 /// **The square prism**: two identical unbulged unit squares two apart,
@@ -559,6 +560,7 @@ pub fn square_prism() -> Body<f64> {
     sweep::loft_body::<f64>(&[sq(), sq()], &stacked(&[0.0, 2.0], 1.0), 1, Tol::witness())
         .expect("the square prism lofts")
         .body
+        .into_body()
 }
 
 /// **The arc prism**: three identical [`arc_section`]s stacked one
@@ -580,6 +582,7 @@ pub fn arc_prism() -> Body<f64> {
     )
     .expect("the arc prism lofts")
     .body
+    .into_body()
 }
 
 /// The tilted cylinder cut, upper part: a cylinder split by a plane at
@@ -722,6 +725,7 @@ pub fn bulged_extrusion() -> Body<f64> {
     )
     .expect("extrude")
     .body
+    .into_body()
 }
 
 /// The **sup-norm distance** between two points — the largest

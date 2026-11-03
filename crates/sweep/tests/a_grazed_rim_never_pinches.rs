@@ -47,7 +47,7 @@ fn a_grazed_rim_lands_whole_or_refuses_typed() {
     let rod = finished("the rod", prism_on(plane, disc, 2.0, tol()), tol());
     let block = finished(
         "the block",
-        brick((-2.0, 2.0), (-2.0, 2.0), (0.0, 2.0), tol()),
+        brick::<f64>((-2.0, 2.0), (-2.0, 2.0), (0.0, 2.0), tol()),
         tol(),
     );
     let bored: AtRestBody<f64> = match topo::subtract(&block, &rod, tol()) {

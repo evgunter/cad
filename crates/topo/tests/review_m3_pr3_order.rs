@@ -16,7 +16,7 @@ use geom_core::Tol;
 use geom_core::{Point3, Vec3};
 use topo::{Body, SplitPart, SplitPlane, mass_properties, split, validate_closed};
 
-fn body_of<T: geom_core::Real>(part: &SplitPart<T>) -> &Body<T> {
+fn body_of<T: topo::AtRestPolicy>(part: &SplitPart<T>) -> &Body<T> {
     part.body().expect("side has material")
 }
 

@@ -34,7 +34,7 @@
 
 use std::sync::Arc;
 
-use geom_core::{Decide, Real, RigidMotion, RigidMotionError, Tol};
+use geom_core::{Real, RigidMotion, RigidMotionError, Tol};
 use topo::Body;
 
 /// **The map from a body's coordinates into its space's.**
@@ -102,28 +102,124 @@ impl<T: Real> Frame<T> {
     }
 }
 
-/// **A body value** (the copies ruling): the body in its own
-/// coordinates and the map from them into its space's.
-#[derive(Debug, Clone)]
-pub struct Framed<T: Decide> {
-    body: Arc<Body<T>>,
-    frame: Frame<T>,
+/// **The body a value holds**: a finished body, or its scalar's leaf
+/// ([`topo::AtRestPolicy::Leaf`]) where a sweep door, a placement's
+/// image or an assemble's graft built it. Read as a body through
+/// [`Deref`](core::ops::Deref); a consumer that takes a finished body
+/// takes it through [`Held::finished`], the evaluator's one taker door.
+///
+/// At `f64` and `Probe` both arms hold a finished body. At the box
+/// scalars a leaf is tier 2 alone (the switch at
+/// [`topo::AtRestPolicy::leaf`]), and a finished body stays finished:
+/// its taker does not run tier 3 again, at either lane.
+#[derive(Debug)]
+pub enum Held<T: topo::AtRestPolicy> {
+    /// A finished body: a Boolean's, a split's, a shell's, a blend's.
+    Finished(Arc<T::Finished>),
+    /// The scalar's leaf.
+    Leaf(Arc<T::Leaf>),
 }
 
-impl<T: Decide> Framed<T> {
-    /// A body in its space's coordinates: a construction's, computed in
-    /// its own.
-    #[must_use]
-    pub fn own(body: Arc<Body<T>>) -> Self {
-        Self {
-            body,
-            frame: Frame::Own,
+impl<T: topo::AtRestPolicy> Clone for Held<T> {
+    fn clone(&self) -> Self {
+        match self {
+            Self::Finished(body) => Self::Finished(Arc::clone(body)),
+            Self::Leaf(body) => Self::Leaf(Arc::clone(body)),
+        }
+    }
+}
+
+impl<T: topo::AtRestPolicy> core::ops::Deref for Held<T> {
+    type Target = Body<T>;
+
+    fn deref(&self) -> &Body<T> {
+        match self {
+            Self::Finished(body) => body,
+            Self::Leaf(body) => body,
+        }
+    }
+}
+
+impl<T: topo::AtRestPolicy> Held<T> {
+    /// **The finished body**, as a door that takes finished operands
+    /// takes it: the held one, or the leaf through the one taker door
+    /// ([`topo::take`]: its finish record relogged at `f64` and `Probe`,
+    /// tier 3 run and logged at the box scalars).
+    ///
+    /// # Errors
+    ///
+    /// The finish's findings, at the box scalars; an evaluator node
+    /// reads them as [`super::NodeErrorKind::UnfinishedLeaf`].
+    pub fn finished(&self, tol: Tol) -> Result<Arc<T::Finished>, topo::NotFinished> {
+        match self {
+            Self::Finished(body) => Ok(Arc::clone(body)),
+            Self::Leaf(leaf) => topo::take::<T>(leaf, tol),
         }
     }
 
-    /// `body` in `frame`: an operation's result, computed in the frame
-    /// of the operand it computed in.
-    pub(crate) fn in_frame(body: Arc<Body<T>>, frame: Frame<T>) -> Self {
+    /// Whether the two hold one body, by `Arc`.
+    #[must_use]
+    pub fn same(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Finished(a), Self::Finished(b)) => Arc::ptr_eq(a, b),
+            (Self::Leaf(a), Self::Leaf(b)) => Arc::ptr_eq(a, b),
+            _ => false,
+        }
+    }
+}
+
+impl Held<f64> {
+    /// **The finished body at `f64`**, where both arms hold one: read as
+    /// it is, for an `f64`-only reader that is no taker (no relog).
+    #[must_use]
+    pub fn at_f64(&self) -> &topo::AtRestBody<f64> {
+        self.arc()
+    }
+
+    /// [`Self::at_f64`]'s `Arc`: what two values are compared by.
+    #[must_use]
+    pub fn arc(&self) -> &Arc<topo::AtRestBody<f64>> {
+        match self {
+            Self::Finished(body) | Self::Leaf(body) => body,
+        }
+    }
+}
+
+/// **A body value** (the copies ruling): the body in its own
+/// coordinates ([`Held`]) and the map from them into its space's.
+#[derive(Debug, Clone)]
+pub struct Framed<T: topo::AtRestPolicy> {
+    body: Held<T>,
+    frame: Frame<T>,
+}
+
+impl<T: topo::AtRestPolicy> Framed<T> {
+    /// A finished body in its space's coordinates: a construction's,
+    /// computed in its own.
+    #[must_use]
+    pub fn own(body: Arc<T::Finished>) -> Self {
+        Self::held(Held::Finished(body), Frame::Own)
+    }
+
+    /// A leaf in its space's coordinates ([`topo::AtRestPolicy::leaf`]).
+    #[must_use]
+    pub fn own_leaf(body: Arc<T::Leaf>) -> Self {
+        Self::held(Held::Leaf(body), Frame::Own)
+    }
+
+    /// A finished `body` in `frame`: an operation's result, computed in
+    /// the frame of the operand it computed in.
+    pub(crate) fn in_frame(body: Arc<T::Finished>, frame: Frame<T>) -> Self {
+        Self::held(Held::Finished(body), frame)
+    }
+
+    /// A leaf `body` in `frame`.
+    pub(crate) fn in_frame_leaf(body: Arc<T::Leaf>, frame: Frame<T>) -> Self {
+        Self::held(Held::Leaf(body), frame)
+    }
+
+    /// `body` in `frame`.
+    pub(crate) fn held(body: Held<T>, frame: Frame<T>) -> Self {
         Self { body, frame }
     }
 
@@ -135,9 +231,9 @@ impl<T: Decide> Framed<T> {
         &self.body
     }
 
-    /// The body, shared.
+    /// What it holds ([`Held`]); [`Held::finished`] is the taker door.
     #[must_use]
-    pub fn shared(&self) -> &Arc<Body<T>> {
+    pub fn holding(&self) -> &Held<T> {
         &self.body
     }
 
@@ -145,9 +241,9 @@ impl<T: Decide> Framed<T> {
     /// that write a value by hand where an evaluation put one.
     #[cfg(any(test, feature = "test-support"))]
     #[must_use]
-    pub fn with_body(&self, body: Arc<Body<T>>) -> Self {
+    pub fn with_body(&self, body: Arc<T::Finished>) -> Self {
         Self {
-            body,
+            body: Held::Finished(body),
             frame: self.frame.clone(),
         }
     }
@@ -207,7 +303,7 @@ impl<T: Decide> Framed<T> {
     /// The composition's overflow.
     pub(crate) fn moved(&self, motion: &RigidMotion<T>) -> Result<Self, RigidMotionError> {
         Ok(Self {
-            body: Arc::clone(&self.body),
+            body: self.body.clone(),
             frame: self.frame.moved(motion)?,
         })
     }
@@ -252,10 +348,12 @@ impl<T: Decide> Framed<T> {
     }
 }
 
-impl<T: Decide + topo::AtRestPolicy> Framed<T> {
-    /// **`other`'s body in this one's coordinates**, mapped once
-    /// ([`Self::relative`]), or `other`'s own `Arc` where the two are in
-    /// one frame.
+impl<T: topo::AtRestPolicy> Framed<T> {
+    /// **`other`'s body in this one's coordinates** ([`ReadIn`]): what it
+    /// holds, as it holds it, where the two are in one frame; else its
+    /// body mapped once ([`Self::relative`]), construction state no door
+    /// has finished. A reader reads it as a body; a taker finishes it,
+    /// once, through [`ReadIn::taken`].
     ///
     /// # Errors
     ///
@@ -265,15 +363,74 @@ impl<T: Decide + topo::AtRestPolicy> Framed<T> {
         &self,
         other: &Self,
         tol: Tol,
-    ) -> Result<Arc<Body<T>>, super::NodeErrorKind> {
+    ) -> Result<ReadIn<T>, super::NodeErrorKind> {
         match self.relative(other).map_err(super::NodeErrorKind::Motion)? {
-            None => Ok(Arc::clone(&other.body)),
+            None => Ok(ReadIn::Held(other.body.clone())),
             Some(map) => {
                 super::counters::rigid_map();
                 topo::transform::transform_rigid(&other.body, &map, tol)
-                    .map(Arc::new)
+                    .map(|mapped| ReadIn::Mapped(Arc::new(mapped)))
                     .map_err(super::NodeErrorKind::Transform)
             }
+        }
+    }
+}
+
+/// **A body read into a frame** ([`Framed::read_in`]): a value's own
+/// [`Held`], or its body mapped into the frame, which is construction
+/// state. ReadIn as a body through [`Deref`](core::ops::Deref); a door
+/// that takes a finished body takes it through [`ReadIn::taken`], which
+/// finishes a mapped body once, where it is taken.
+#[derive(Debug)]
+pub enum ReadIn<T: topo::AtRestPolicy> {
+    /// What the value holds, as it holds it: the two are in one frame.
+    Held(Held<T>),
+    /// The value's body mapped into the frame: construction state.
+    Mapped(Arc<Body<T>>),
+}
+
+impl<T: topo::AtRestPolicy> Clone for ReadIn<T> {
+    fn clone(&self) -> Self {
+        match self {
+            Self::Held(held) => Self::Held(held.clone()),
+            Self::Mapped(body) => Self::Mapped(Arc::clone(body)),
+        }
+    }
+}
+
+impl<T: topo::AtRestPolicy> core::ops::Deref for ReadIn<T> {
+    type Target = Body<T>;
+
+    fn deref(&self) -> &Body<T> {
+        match self {
+            Self::Held(held) => held,
+            Self::Mapped(body) => body,
+        }
+    }
+}
+
+impl<T: topo::AtRestPolicy> ReadIn<T> {
+    /// **The finished body**, as a door that takes finished operands
+    /// takes it: a held one through [`Held::finished`], a mapped one
+    /// finished here ([`topo::finish`], logged where it is taken).
+    ///
+    /// # Errors
+    ///
+    /// The finish's findings; an evaluator node reads them as
+    /// [`super::NodeErrorKind::UnfinishedLeaf`].
+    pub fn taken(self, tol: Tol) -> Result<Arc<T::Finished>, topo::NotFinished> {
+        match self {
+            Self::Held(held) => held.finished(tol),
+            Self::Mapped(body) => topo::finish::<T>(Arc::unwrap_or_clone(body), tol).map(Arc::new),
+        }
+    }
+
+    /// The value's own [`Held`], where it was read as it holds it.
+    #[must_use]
+    pub fn held(&self) -> Option<&Held<T>> {
+        match self {
+            Self::Held(held) => Some(held),
+            Self::Mapped(_) => None,
         }
     }
 }

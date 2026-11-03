@@ -45,6 +45,7 @@ use profile::test_support::bulge_loop;
 use profile::{ProfileLoop, RawLoop};
 use sweep::ExtrudeSide;
 use sweep::test_support::{block, brick, extruded, prism, sketch_at};
+use topo::FinishedBody as _;
 use topo::{Body, EdgeKey};
 
 /// The 4 x 4 x 1 slab, `z in [0, 1]` — the plainest operand a boolean
@@ -230,6 +231,7 @@ pub fn framed_bar(o: Point3<f64>, d: geom_core::Vec3<f64>, t0: f64, t1: f64, w: 
     )
     .expect("the framed bar extrudes")
     .body
+    .into_body()
 }
 
 /// **A prism whose right side is a half-round**, unit high, and the
@@ -416,7 +418,11 @@ pub fn parallelepiped_at<T: Decide + Bounds + topo::AtRestPolicy>(s: f64) -> Bod
 
 /// The axis-aligned block `x × y × z` ([`brick`]), at rest.
 pub fn bar(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> topo::AtRestBody<f64> {
-    sweep::test_support::finished("the bar", brick(x, y, z, Tol::witness()), Tol::witness())
+    sweep::test_support::finished(
+        "the bar",
+        brick::<f64>(x, y, z, Tol::witness()),
+        Tol::witness(),
+    )
 }
 
 /// A body about `y` from radius `inner` (0 for a rod) to `outer` over

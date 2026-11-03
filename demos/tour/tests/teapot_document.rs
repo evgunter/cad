@@ -743,6 +743,6 @@ fn a_split_carries_a_held_slits_band() {
 
 /// `body` finished for a blend door, which takes finished bodies only.
 fn finished(what: &str, body: Body<f64>, tol: Tol) -> AtRestBody<f64> {
-    AtRestBody::validate(body, tol)
+    pncad::topo::finish(body, tol)
         .unwrap_or_else(|e| panic!("{what} is not a finished body: {e:?}"))
 }

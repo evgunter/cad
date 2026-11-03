@@ -55,6 +55,7 @@ fn revolved_at(pts: &[(f64, f64)], axis_x: f64, z0: f64) -> Body<f64> {
     )
     .expect("the meridian revolves")
     .body
+    .into_body()
 }
 
 fn subtract(a: &Body<f64>, b: &Body<f64>) -> Body<f64> {

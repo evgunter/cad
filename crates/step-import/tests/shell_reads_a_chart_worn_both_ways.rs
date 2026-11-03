@@ -14,7 +14,7 @@ use std::collections::BTreeMap;
 use geom_core::Tol;
 use step_export::{StepOptions, step_string};
 use step_import::{ImportOptions, StepImport, import_step};
-use topo::{AtRestBody, Body, FaceKey, ShellError};
+use topo::{Body, FaceKey, ShellError};
 
 /// The Z-step profile, counterclockwise: `[0,2]×[−1,0] ∪ [1,3]×[0,1]`.
 const Z_STEP: [(f64, f64); 8] = [
@@ -119,7 +119,7 @@ fn a_chart_worn_both_ways_is_finished_and_shell_refuses_it() {
 
     let apart = imported(&text);
     assert!(shared_charts(&apart).is_empty(), "control: no chart shared");
-    let apart = AtRestBody::validate(apart, tol).expect("control: the Z-step is finished");
+    let apart = topo::finish(apart, tol).expect("control: the Z-step is finished");
     topo::shell(&apart, 0.1, tol).expect("control: the Z-step on two planes shells");
 
     let shared = imported(&share_the_y0_plane(&text));
@@ -130,7 +130,7 @@ fn a_chart_worn_both_ways_is_finished_and_shell_refuses_it() {
     );
     assert_eq!(shared.solids().count(), 1, "one solid wears it");
     let wearers = [charts[0][0].0, charts[0][1].0];
-    let shared = AtRestBody::validate(shared, tol)
+    let shared = topo::finish(shared, tol)
         .unwrap_or_else(|e| panic!("the shared-chart Z-step is a finished body: {e:?}"));
     match topo::shell(&shared, 0.1, tol) {
         Err(ShellError::ChartSenseMixed { face, other }) => assert!(

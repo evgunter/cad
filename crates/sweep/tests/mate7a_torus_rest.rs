@@ -483,8 +483,7 @@ fn the_rim_routing_reads_the_second_faces_sense_and_not_the_firsts() {
         let s = b.get_face(fb).expect("the wall face resolves").sense;
         b.set_face_sense(fb, !s).expect("the key is live");
     }
-    let errors = topo::AtRestBody::validate(b, Tol::witness())
-        .expect_err("inward walls are not a finished body");
+    let errors = topo::finish(b, Tol::witness()).expect_err("inward walls are not a finished body");
     let mut inverted: Vec<_> = errors
         .iter()
         .map(|e| match e {

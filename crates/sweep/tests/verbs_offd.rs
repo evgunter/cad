@@ -59,6 +59,7 @@ fn revolved(points: &[(f64, f64)]) -> Body<f64> {
     )
     .expect("the fixture polygon revolves")
     .body
+    .into_body()
 }
 
 /// A tube whose outer wall is a cylinder BELOW and a cone ABOVE. The
@@ -463,7 +464,8 @@ fn a_shared_surface_key_refuses_typed() {
         Tol::witness(),
     )
     .expect("the disc extrudes")
-    .body;
+    .body
+    .into_body();
     let wall = body
         .faces()
         .find(|(_, f)| matches!(body.get_surface(f.surface), Some(Surface::Cylinder { .. })))

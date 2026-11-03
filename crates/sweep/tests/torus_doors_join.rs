@@ -85,7 +85,7 @@ fn stop(got: Result<topo::BooleanResult<f64>, topo::BooleanError>) -> Stop {
     use geom_brep::PropsError;
     use topo::{BooleanError, MassPropsError, ValidationError};
     match got {
-        Err(BooleanError::ResultInvalid { errors }) => match errors.as_slice() {
+        Err(BooleanError::ResultInvalid { findings: errors }) => match errors.as_slice() {
             [
                 ValidationError::VolumeUncomputable {
                     source:

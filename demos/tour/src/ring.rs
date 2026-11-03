@@ -406,7 +406,7 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
             up: 'y',
         },
         bodies: vec![
-            SceneBody::plain("hollowring", [0.42, 0.66, 0.74], ring.body)
+            SceneBody::plain("hollowring", [0.42, 0.66, 0.74], ring.body.into_body())
                 .transparent(45)
                 .step_at_frontier(
                     |e| {

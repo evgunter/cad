@@ -371,7 +371,7 @@ fn lofted_cylinder_census() -> Vec<String> {
 fn cavity() -> (AtRestBody<f64>, f64) {
     let tol = Tol::witness();
     let (_, cavity) = vessel_cavity(1.0 / 128.0);
-    let cavity = AtRestBody::validate(cavity, tol).expect("the cavity passes the at-rest gate");
+    let cavity = topo::finish(cavity, tol).expect("the cavity passes the at-rest gate");
     let v = topo::test_support::pinned_volume("the cavity measures", &cavity, tol).volume;
     (cavity, v)
 }

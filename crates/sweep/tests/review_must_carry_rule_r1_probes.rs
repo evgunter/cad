@@ -220,7 +220,7 @@ fn stadium(h: f64) -> Result<Body<f64>, ExtrudeError> {
         },
         Tol::witness(),
     )
-    .map(|e| e.body)
+    .map(|e| e.body.into_body())
 }
 
 /// **C2, extrude.** The heights that put a sagitta levered at the
@@ -269,7 +269,7 @@ fn lipped_ring(chord: f64) -> Result<Body<f64>, RevolveError> {
         dir: Vec2::new(0.0, 1.0),
     };
     let theta = 2.0 * (chord / 2.0).asin();
-    revolve(&profile, axis, Revolution::Partial(theta), Tol::witness()).map(|r| r.body)
+    revolve(&profile, axis, Revolution::Partial(theta), Tol::witness()).map(|r| r.body.into_body())
 }
 
 /// **C2, revolve.** The angles that put a sagitta levered at the

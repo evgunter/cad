@@ -491,7 +491,7 @@ impl Mesh {
 /// and the validators already set.
 pub(crate) fn tessellate(
     py: Python<'_>,
-    body: &Arc<pncad::topo::Body<f64>>,
+    body: &pncad::topo::Body<f64>,
     chordal: &Length,
 ) -> PyResult<Mesh> {
     let tol = pncad::tolerance::Tol::witness();

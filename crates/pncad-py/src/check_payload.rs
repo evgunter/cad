@@ -65,8 +65,7 @@ pub struct CheckEvidencePayload<'a> {
     pub reason: Option<Cow<'a, str>>,
     /// **The shell door's own refusal**, as the branchable word
     /// ([`crate::tags::shell_classify_error_tag`]) — which of its
-    /// ways it refused, on the two arms that carry one; the
-    /// validator's finding's word on `not_at_rest`; and on `at_rest`,
+    /// ways it refused, on the two arms that carry one; and on `at_rest`,
     /// the inner validator finding's or gather refusal's word
     /// ([`AtRestPayload::inner_variant`]).
     pub inner_variant: Option<&'static str>,
@@ -207,7 +206,7 @@ pub fn check_payload(evidence: &CheckEvidence) -> CheckEvidencePayload<'_> {
                 ..none
             }
         }
-        // The validator's first finding crosses as its own word and
+        // The finish's first finding crosses as its own word and
         // sentence, the way the shell door's refusal does.
         CheckEvidence::NotAtRest { errors } => CheckEvidencePayload {
             reason: errors.first().map(|e| Cow::Owned(e.to_string())),
@@ -286,8 +285,8 @@ pub struct AtRestPayload {
     pub reason: String,
     /// The validator finding's word on `no_lane`, `malformed` and
     /// `inside_arrival`, and the gather refusal's on `not_gathered`;
-    /// `None` on `not_run` and `carried`, which hold no refusal of
-    /// their own (a carried row's own evidence crosses whole).
+    /// `None` on `carried`, which holds no refusal of its own (a
+    /// carried row's own evidence crosses whole).
     pub inner_variant: Option<&'static str>,
 }
 
@@ -299,7 +298,7 @@ pub fn at_rest_payload(evidence: &AtRestEvidence) -> AtRestPayload {
         | AtRestEvidence::Malformed(error)
         | AtRestEvidence::InsideArrival(error) => Some(validation_error_tag(error)),
         AtRestEvidence::NotGathered(refusal) => Some(product_error_tag(refusal.error())),
-        AtRestEvidence::NotRun | AtRestEvidence::Carried(_) => None,
+        AtRestEvidence::Carried(_) => None,
     };
     AtRestPayload {
         variant: at_rest_evidence_tag(evidence),

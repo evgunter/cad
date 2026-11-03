@@ -315,7 +315,7 @@ fn r1_the_ring_gate_still_meters_on_the_concave_side() {
             D,
             Tol::witness(),
         )
-        .map(|o| o.body)
+        .map(|o| o.body.into_body())
     };
 
     // The fixture's own clearance: the ring at 2.5 against a trimline
@@ -352,7 +352,7 @@ fn r1_the_cavity_gains_what_the_mirrored_cube_loses() {
     let a = 2.0_f64;
 
     // (i) What the same chamfer REMOVES from a cube of side a.
-    let cube_body = cube(a, Tol::witness());
+    let cube_body = cube::<f64>(a, Tol::witness());
     let cube_edges: Vec<EdgeKey> = cube_body.edges().map(|(k, _)| k).collect();
     let chamfered_cube = topo::test_support::finished(
         "chamfered_cube",

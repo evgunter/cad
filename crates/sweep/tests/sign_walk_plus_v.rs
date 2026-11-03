@@ -43,6 +43,7 @@ fn arc_loft(s: f64) -> Body<f64> {
     )
     .expect("the arc loft lofts")
     .body
+    .into_body()
 }
 
 /// The roster: bodies at scales spanning the schedule's reach, so that
@@ -93,7 +94,7 @@ fn strip_loft(s: f64, delta: f64, reversed: bool) -> Option<Body<f64>> {
         Tol::witness(),
     )
     .ok()
-    .map(|l| l.body)
+    .map(|l| l.body.into_body())
 }
 
 /// **A deciding predicate run out at the wall is THE refusal, and it
@@ -492,6 +493,7 @@ fn strip_loft_at(s: f64, delta: f64, dx: f64) -> Body<f64> {
     )
     .expect("the translated strip lofts")
     .body
+    .into_body()
 }
 
 /// **THE SIGN WALK TAKES EVERY OPEN SOLID PAST THE NUMBER'S

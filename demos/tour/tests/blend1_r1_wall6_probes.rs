@@ -92,7 +92,7 @@ fn lily_lantern(tol: Tol) -> (Body<f64>, [(f64, f64); 4]) {
     )
     .expect("the lantern revolves")
     .body;
-    (lantern, rims)
+    (lantern.into_body(), rims)
 }
 
 /// The stored radius of an edge's carrier circle — a read-back off the
@@ -259,6 +259,6 @@ fn t4_one_mouth_arc_gets_the_recourse_whose_request_carves() {
 
 /// `body` finished for a blend door, which takes finished bodies only.
 fn finished(what: &str, body: Body<f64>, tol: Tol) -> AtRestBody<f64> {
-    AtRestBody::validate(body, tol)
+    pncad::topo::finish(body, tol)
         .unwrap_or_else(|e| panic!("{what} is not a finished body: {e:?}"))
 }

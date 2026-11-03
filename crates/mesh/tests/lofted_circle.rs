@@ -133,6 +133,7 @@ fn lofted_round(r0: f64, r1: f64, arcs: usize) -> topo::Body<f64> {
     )
     .expect("the round lofts")
     .body
+    .into_body()
 }
 
 /// The review's twenty δ of `lofted-rational-walls-refuse-at-some-deltas`:
@@ -235,6 +236,7 @@ fn uneven_station_round(r: [f64; 5], e: f64) -> topo::Body<f64> {
     )
     .expect("the uneven-station round lofts")
     .body
+    .into_body()
 }
 
 /// **Bands are not column-aligned, and the outcome stays sound**

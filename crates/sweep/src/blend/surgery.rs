@@ -956,12 +956,6 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
 
     body.close_already_checked();
     let mut body = blended;
-    #[cfg(debug_assertions)]
-    debug_assert_eq!(
-        topo::validate_closed(&body),
-        Ok(()),
-        "surgery postcondition: the result is not tier-2 valid (kernel bug)",
-    );
 
     // **A retirement names a SOURCE key, in BOTH arenas** —
     // [`Retired`](super::naming::Retired)'s whole meaning, and the one
@@ -1115,6 +1109,8 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
     rec.dead.vertices.dedup();
     rec.dead.faces.sort_unstable();
     rec.source = topo::SourceGeometry::of(source);
+    // The door's finish: the blended body leaves finished at its scalar.
+    let body = T::finish(body, tol).map_err(|findings| BlendError::NotFinished { findings })?;
     Ok(Blended {
         body,
         shells,

@@ -292,7 +292,7 @@ fn a_re_charted_balls_rows_name_its_input_shells_faces() {
         .map(|(_, shell)| shell.faces.iter().map(|&f| topo::Cell::Face(f)).collect())
         .collect();
     assert_eq!(shells.len(), 2, "two disjoint balls, two shells");
-    let a = finished("operand A", slab(), Tol::witness());
+    let a = finished("operand A", slab::<f64>(), Tol::witness());
     let out = boolean_op_with(
         BooleanOp::Subtract,
         &a,
@@ -352,7 +352,7 @@ fn in_band_extent_escalates_instead_of_answering() {
     // Center above the slab so that r − |s| = mid for the top face.
     let b = ball_poled_y(1.0, Vec3::new(2.0, 2.0, 2.0 - mid), Tol::witness());
     let b = finished("the ball", b, Tol::witness());
-    let slab = finished("the slab", slab(), Tol::witness());
+    let slab = finished("the slab", slab::<f64>(), Tol::witness());
     let err =
         topo::union(&slab, &b, Tol::witness()).expect_err("an in-band extent must not answer");
     let BooleanError::Escalated { .. } = err else {

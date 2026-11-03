@@ -250,8 +250,8 @@ fn r2_a_solid_of_only_cavities_is_refused_at_the_gate() {
         Vec3::new(10.0, 0.0, 0.0),
     );
     let voids_solid = body.solids().next().unwrap().0;
-    let errors = topo::AtRestBody::validate(body, tol())
-        .expect_err("a solid of only cavities is not a finished body");
+    let errors =
+        topo::finish(body, tol()).expect_err("a solid of only cavities is not a finished body");
     assert_eq!(
         errors,
         vec![topo::ValidationError::NegativeVolume { solid: voids_solid }],
@@ -274,8 +274,8 @@ fn r2_a_solid_of_only_cavities_is_refused_at_the_gate() {
 fn r2_two_outer_shells_under_one_solid_are_refused_at_the_gate() {
     let body = split_slab(false);
     let solid = body.solids().next().unwrap().0;
-    let errors = topo::AtRestBody::validate(body, tol())
-        .expect_err("two pieces under one solid is not a finished body");
+    let errors =
+        topo::finish(body, tol()).expect_err("two pieces under one solid is not a finished body");
     assert_eq!(
         errors,
         vec![topo::ValidationError::SolidOuterShells { solid, outer: 2 }],
@@ -699,12 +699,12 @@ fn r2_e2e_consumer_seat() {
 fn split_slab(moved: bool) -> Body<f64> {
     let slab = finished(
         "the slab",
-        brick((0.0, 6.0), (0.0, 1.0), (0.0, 1.0), Tol::witness()),
+        brick::<f64>((0.0, 6.0), (0.0, 1.0), (0.0, 1.0), Tol::witness()),
         tol(),
     );
     let wall = finished(
         "the wall",
-        brick((2.5, 3.5), (-1.0, 2.0), (-1.0, 2.0), Tol::witness()),
+        brick::<f64>((2.5, 3.5), (-1.0, 2.0), (-1.0, 2.0), Tol::witness()),
         tol(),
     );
     let Ok(topo::BooleanResult::Body(b)) = topo::subtract(&slab, &wall, tol()) else {
@@ -852,7 +852,7 @@ fn r2_point_in_solid_of_one_cap_answers_beside_a_shared_sphere_chart() {
     );
     let slab = finished(
         "the slab",
-        brick((-2.0, 2.0), (-2.0, 2.0), (-0.2, 0.2), Tol::witness()),
+        brick::<f64>((-2.0, 2.0), (-2.0, 2.0), (-0.2, 0.2), Tol::witness()),
         tol(),
     );
     let Ok(topo::BooleanResult::Body(b)) = topo::subtract(&ball, &slab, tol()) else {
@@ -1108,12 +1108,12 @@ fn r2_three_solids_on_one_sphere_chart_open_additively() {
     );
     let upper = finished(
         "the upper slab",
-        brick((-2.0, 2.0), (-2.0, 2.0), (0.3, 0.5), Tol::witness()),
+        brick::<f64>((-2.0, 2.0), (-2.0, 2.0), (0.3, 0.5), Tol::witness()),
         tol,
     );
     let lower = finished(
         "the lower slab",
-        brick((-2.0, 2.0), (-2.0, 2.0), (-0.5, -0.3), Tol::witness()),
+        brick::<f64>((-2.0, 2.0), (-2.0, 2.0), (-0.5, -0.3), Tol::witness()),
         tol,
     );
     let Ok(topo::BooleanResult::Body(b)) = topo::subtract(&ball, &upper, tol) else {
@@ -1287,7 +1287,7 @@ fn r2_point_in_solid_reads_one_sphere_chart_across_two_shells_of_one_solid() {
     );
     let slab = finished(
         "the slab",
-        brick((-2.0, 2.0), (-2.0, 2.0), (-0.2, 0.2), Tol::witness()),
+        brick::<f64>((-2.0, 2.0), (-2.0, 2.0), (-0.2, 0.2), Tol::witness()),
         tol(),
     );
     let Ok(topo::BooleanResult::Body(b)) = topo::subtract(&ball, &slab, tol()) else {

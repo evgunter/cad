@@ -50,7 +50,6 @@ use std::sync::Arc;
 
 use geom_core::Decide;
 use sweep::{Extruded, Revolution, RevolveAxis, Revolved};
-use topo::Body;
 use verbs::{Sweep, VerbRecord};
 
 use crate::eval::NodeErrorKind;
@@ -59,9 +58,10 @@ use crate::node::RecipeNodeId;
 
 /// **What a sweep produced, read out of its record**: the body and the
 /// names emitted from the birth record.
-pub(crate) struct SweptOut<T: Decide> {
-    /// The swept body, moved out of the record.
-    pub(crate) body: Body<T>,
+pub(crate) struct SweptOut<T: topo::AtRestPolicy> {
+    /// The swept body, moved out of the record: the door's leaf
+    /// ([`topo::AtRestPolicy::leaf`]).
+    pub(crate) body: T::Leaf,
     /// The names, emitted before the record was taken apart.
     pub(crate) table: Arc<NameTable>,
 }
@@ -86,7 +86,7 @@ pub(crate) type RecordReader<T> = fn(
 /// `A` is the argument shape of this verb's payload (see the module
 /// docs). Every field is direct per-instance data: a function pointer
 /// per instance, no match over the kernel's verb vocabulary anywhere in this file.
-pub(crate) struct ProfileVerb<T: Decide, A> {
+pub(crate) struct ProfileVerb<T: topo::AtRestPolicy + Decide, A> {
     /// **Resolved arguments → the kernel verb.** The one place a
     /// document's evaluated distance, or its resolved axis and
     /// classified revolution, becomes a [`verbs::Sweep`] payload.
@@ -116,7 +116,7 @@ fn build_revolve<T: Decide>((axis, revolution): (RevolveAxis<T>, Revolution<T>))
 /// The extrude family's arm of the record channel. Exhaustive with no
 /// wildcard (D3): a family added to the channel breaks this at compile
 /// time and is routed here deliberately.
-fn extrude_record<T: Decide>(record: VerbRecord<T>) -> Option<Extruded<T>> {
+fn extrude_record<T: topo::AtRestPolicy + Decide>(record: VerbRecord<T>) -> Option<Extruded<T>> {
     match record {
         VerbRecord::Extrude(built) => Some(built),
         VerbRecord::Blend(_)
@@ -128,7 +128,7 @@ fn extrude_record<T: Decide>(record: VerbRecord<T>) -> Option<Extruded<T>> {
 }
 
 /// The revolve family's arm of the record channel, the same shape.
-fn revolve_record<T: Decide>(record: VerbRecord<T>) -> Option<Revolved<T>> {
+fn revolve_record<T: topo::AtRestPolicy + Decide>(record: VerbRecord<T>) -> Option<Revolved<T>> {
     match record {
         VerbRecord::Revolve(built) => Some(built),
         VerbRecord::Blend(_)
@@ -144,7 +144,7 @@ fn revolve_record<T: Decide>(record: VerbRecord<T>) -> Option<Revolved<T>> {
 /// body is moved rather than copied. The record comes out of the
 /// channel through [`super::read_record`], the one home of the
 /// foreign-family refusal.
-fn read_extrude<T: Decide>(
+fn read_extrude<T: topo::AtRestPolicy + Decide>(
     id: RecipeNodeId,
     record: VerbRecord<T>,
     pieces: &crate::eval::ProfilePieces,
@@ -157,7 +157,7 @@ fn read_extrude<T: Decide>(
 }
 
 /// The revolve's reader.
-fn read_revolve<T: Decide>(
+fn read_revolve<T: topo::AtRestPolicy + Decide>(
     id: RecipeNodeId,
     record: VerbRecord<T>,
     pieces: &crate::eval::ProfilePieces,
@@ -174,7 +174,7 @@ fn read_revolve<T: Decide>(
 /// A function rather than a `const` for the reason the blends' and the
 /// boolean's are: the struct is generic in the lane scalar and a
 /// module-level const cannot be; the call is monomorphized and inlined.
-pub(crate) fn extrude<T: Decide>() -> ProfileVerb<T, (T, sweep::ExtrudeSide)> {
+pub(crate) fn extrude<T: topo::AtRestPolicy + Decide>() -> ProfileVerb<T, (T, sweep::ExtrudeSide)> {
     ProfileVerb {
         build: build_extrude,
         read: read_extrude,
@@ -183,7 +183,8 @@ pub(crate) fn extrude<T: Decide>() -> ProfileVerb<T, (T, sweep::ExtrudeSide)> {
 }
 
 /// The revolve's correspondence.
-pub(crate) fn revolve<T: Decide>() -> ProfileVerb<T, (RevolveAxis<T>, Revolution<T>)> {
+pub(crate) fn revolve<T: topo::AtRestPolicy + Decide>()
+-> ProfileVerb<T, (RevolveAxis<T>, Revolution<T>)> {
     ProfileVerb {
         build: build_revolve,
         read: read_revolve,

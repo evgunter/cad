@@ -899,14 +899,15 @@ pub fn product_body(doc: &Doc<ProfileProgram>, tol: Tol) -> Result<Body<f64>, Sc
 ///
 /// # Errors
 ///
-/// The door's [`ProductError::Frame`] refusal.
+/// The door's [`ProductError::Frame`] and [`ProductError::ProductInvalid`]
+/// refusals.
 pub fn product_in_world(
     product: pncad::document::Product<f64>,
     doc: &Doc<ProfileProgram>,
     tol: Tol,
 ) -> Result<Body<f64>, ProductError> {
     let composed = match pncad::export::product_body_in_space(&product, doc, tol) {
-        Ok(std::borrow::Cow::Owned(body)) => Some(body),
+        Ok(std::borrow::Cow::Owned(body)) => Some(body.into_body()),
         Ok(std::borrow::Cow::Borrowed(_)) => None,
         Err(error) => return Err(error),
     };
@@ -930,7 +931,9 @@ pub fn product_of_evaluation(
     evaluation: &pncad::document::Evaluation<f64>,
     tol: Tol,
 ) -> Result<Body<f64>, SceneError> {
-    product(doc, evaluation, tol).map_err(|error| no_product(error, doc))
+    product(doc, evaluation, tol)
+        .map(|body| body.into_body())
+        .map_err(|error| no_product(error, doc))
 }
 
 /// The scene of a product SOMEONE ELSE gathered.

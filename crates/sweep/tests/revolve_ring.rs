@@ -137,9 +137,13 @@ fn hollow_torus_runs_no_crossing_machinery() {
     let inner = profile::circle(Point2::new(rc, 0.0), ri, tol).unwrap();
     let vp = validated(vec![outer.into(), inner.into()]);
 
+    // The construction alone is bracketed: the door's finish reads the
+    // shells' roles through the shared side reader, whose predicates
+    // are the Boolean's.
     let bracket = geom_core::k_stats::Bracket::open();
-    let t = revolve(&vp, axis_y(), Revolution::Full, tol).unwrap();
+    sweep::test_support::revolve_construction(&vp, axis_y(), Revolution::Full, tol).unwrap();
     let verdicts = bracket.finish().verdicts;
+    let t = revolve(&vp, axis_y(), Revolution::Full, tol).unwrap();
     assert!(
         !verdicts.is_empty(),
         "the construction decides through the funnel"

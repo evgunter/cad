@@ -308,7 +308,8 @@ fn the_fenced_poses_keep_their_own_outcomes() {
         tol,
     )
     .unwrap()
-    .body;
+    .body
+    .into_body();
     // The overlap of two unit discs whose centres are 1.2 apart, four
     // high.
     let lens = 2.0 * 0.6_f64.acos() - 0.6 * (4.0_f64 - 1.44).sqrt();
@@ -404,6 +405,6 @@ fn a_rod_through_a_drum_wall_reaches_the_volume_lane() {
 /// whose spline-chorded wall has no volume lane
 /// (`work/spiricarm/a-projected-boundary-on-an-analytic-chart-has-no-volume-lane.md`).
 fn at_the_volume_lane(e: &BooleanError) -> bool {
-    matches!(e, BooleanError::ResultInvalid { errors }
-        if errors.iter().any(|v| matches!(v, topo::ValidationError::VolumeUncomputable { .. })))
+    matches!(e, BooleanError::ResultInvalid { findings }
+        if findings.iter().any(|v| matches!(v, topo::ValidationError::VolumeUncomputable { .. })))
 }

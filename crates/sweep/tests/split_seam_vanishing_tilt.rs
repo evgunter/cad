@@ -29,13 +29,13 @@ fn tol() -> Tol {
 
 fn cylinder(phi: f64) -> AtRestBody<f64> {
     let circle = vec![(Point2::new(1.0, 0.0), 1.0), (Point2::new(-1.0, 0.0), 1.0)];
-    let body = AtRestBody::validate(sweep::test_support::prism(circle, 1.0, tol()), tol())
+    let body = topo::finish(sweep::test_support::prism(circle, 1.0, tol()), tol())
         .expect("the unit cylinder is finished");
     let turn =
         Affine3::rotation_about_axis(Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0), phi);
     let turned = topo::transform_rigid(&body, &geom_core::test_support::rigid(&turn, tol()), tol())
         .expect("a rigid turn");
-    AtRestBody::validate(turned, tol()).expect("the turned cylinder is finished")
+    topo::finish(turned, tol()).expect("the turned cylinder is finished")
 }
 
 /// The findings the ellipse's centre-form rounding, amplified by its
@@ -131,7 +131,10 @@ fn a_split_through_a_seam_vertex_returns_no_side_tier_three_refuses() {
                             );
                         }
                         Err(SplitError::Finish(
-                            ref err @ SplitFinishError::ResultNotAtRest { ref errors, .. },
+                            ref err @ SplitFinishError::ResultNotAtRest {
+                                findings: ref errors,
+                                ..
+                            },
                         )) => {
                             refused_at_rest += 1;
                             assert!(
@@ -141,8 +144,8 @@ fn a_split_through_a_seam_vertex_returns_no_side_tier_three_refuses() {
                             );
                             let msg = err.to_string();
                             assert!(
-                                msg.contains("did not pass the at-rest gate")
-                                    && msg.ends_with(&errors[0].to_string()),
+                                msg.contains("is not a finished body")
+                                    && msg.contains(&errors[0].to_string()),
                                 "{pose}: the refusal renders its first finding whole: {msg}"
                             );
                         }
@@ -155,10 +158,7 @@ fn a_split_through_a_seam_vertex_returns_no_side_tier_three_refuses() {
                             assert!(
                                 !matches!(
                                     err,
-                                    SplitError::Finish(
-                                        SplitFinishError::ResultInvalid { .. }
-                                            | SplitFinishError::ResultEscalated { .. }
-                                    )
+                                    SplitError::Finish(SplitFinishError::ResultInvalid { .. })
                                 ),
                                 "{pose}: a side the at-rest gate refuses on the carrier's \
                                  findings is `ResultNotAtRest`: {err:?}"

@@ -173,7 +173,10 @@ fn revolve_loops(loops: &[Loop]) -> Body<f64> {
         origin: Point2::new(0.0, 0.0),
         dir: geom_core::Vec2::new(0.0, 1.0),
     };
-    revolve(&vp, axis, Revolution::Full, tol()).unwrap().body
+    revolve(&vp, axis, Revolution::Full, tol())
+        .unwrap()
+        .body
+        .into_body()
 }
 
 #[test]

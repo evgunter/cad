@@ -83,7 +83,8 @@ fn curved_notch_body(b: f64) -> AtRestBody<f64> {
         "the curved notch",
         sweep::extrude(&vp, depth, tol())
             .expect("the curved notch extrudes")
-            .body,
+            .body
+            .into_body(),
     )
 }
 

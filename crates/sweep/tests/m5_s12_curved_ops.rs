@@ -96,6 +96,7 @@ fn plate() -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 const R: f64 = 0.35;
@@ -125,6 +126,7 @@ fn notched() -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 /// The notch's own volume debit: a half-disc of radius 0.5 through the
@@ -511,7 +513,7 @@ fn the_die_pip_sphere_shape_now_cuts_at_the_opened_door() {
     assert!(
         topo::subtract(
             &finished("the plate", plate(), Tol::witness()),
-            &finished("the boss", m5_boss(3, 0.3, 1.0), Tol::witness()),
+            &finished("the boss", m5_boss::<f64>(3, 0.3, 1.0), Tol::witness()),
             Tol::witness()
         )
         .is_ok(),

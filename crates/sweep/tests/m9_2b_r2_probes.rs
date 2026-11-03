@@ -42,6 +42,7 @@ fn holed_plate() -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 /// The through-boss: radius 0.5 at (2, 2), three 120-deg arcs with

@@ -98,8 +98,7 @@ fn boxed(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> impl Fn(Point3<f64>) ->
 
 /// One boolean of two bodies through the public door, `None` on a refusal.
 fn op(which: &str, a: &Body<f64>, b: &Body<f64>, tol: Tol) -> Result<Option<Body<f64>>, String> {
-    let rest =
-        |x: &Body<f64>| topo::AtRestBody::validate(x.clone(), tol).map_err(|e| format!("{e:?}"));
+    let rest = |x: &Body<f64>| topo::finish(x.clone(), tol).map_err(|e| format!("{e:?}"));
     let (a, b) = (rest(a)?, rest(b)?);
     let r = match which {
         "union" => topo::union(&a, &b, tol),

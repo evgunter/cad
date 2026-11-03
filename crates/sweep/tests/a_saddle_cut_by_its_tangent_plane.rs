@@ -47,7 +47,7 @@ fn saddle_block() -> AtRestBody<f64> {
 fn above() -> AtRestBody<f64> {
     finished(
         "the half-space",
-        topo::test_support::brick((-4.0, 4.0), (0.0, 4.0), (-4.0, 4.0), tol()),
+        topo::test_support::brick::<f64>((-4.0, 4.0), (0.0, 4.0), (-4.0, 4.0), tol()),
         tol(),
     )
 }

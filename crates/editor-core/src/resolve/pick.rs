@@ -580,7 +580,7 @@ impl<'a> PickTarget<'a> {
     /// [`NodePick::build`] refuses, and so mints nothing for), and the
     /// two witnesses of the raw-assembly class itself.
     #[cfg(any(test, feature = "test-support"))]
-    pub fn new<T: Decide>(
+    pub fn new<T: Decide + topo::AtRestPolicy>(
         eval: &Evaluation<T>,
         node: RecipeNodeId,
         body: u32,
@@ -893,7 +893,7 @@ struct PickEntry {
     /// The body tessellated: a value whose frame alone moved (a copy
     /// under a value edit) holds this same `Arc`, and is served this
     /// tessellation under its own frame.
-    body: Arc<topo::Body<f64>>,
+    body: crate::eval::Held<f64>,
     naming_key: NamingKey,
     /// δ and the ambient ε and k, by bit pattern.
     tolerances: [u64; 3],
@@ -1266,7 +1266,7 @@ impl NodePick {
         if let Some(entry) = memo.nodes.get_mut(&(node, body))
             && entry.pick.document == eval.document
             && ((entry.content_key == value.content_key && entry.naming_key == value.naming_key)
-                || Arc::ptr_eq(&entry.body, body_arc.shared()))
+                || entry.body.same(body_arc.holding()))
             && entry.tolerances == tolerances
         {
             entry.picture = picture;
@@ -1303,7 +1303,7 @@ impl NodePick {
             (node, body),
             PickEntry {
                 content_key: value.content_key,
-                body: Arc::clone(body_arc.shared()),
+                body: body_arc.holding().clone(),
                 naming_key: value.naming_key,
                 tolerances,
                 pick: pick.clone(),
@@ -1857,7 +1857,7 @@ impl PartialEq for PickHit {
 ///
 /// [`HitTestError`] as above — the targets' pairing first, then their
 /// standing, then the winning face's inversion.
-pub fn pick_face<T: Decide>(
+pub fn pick_face<T: topo::AtRestPolicy + Decide>(
     eval: &Evaluation<T>,
     targets: &[PickTarget<'_>],
     ray: &Ray,

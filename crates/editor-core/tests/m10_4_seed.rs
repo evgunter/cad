@@ -227,7 +227,7 @@ fn with_count() -> ProfileDoc {
     doc
 }
 
-fn every_node_refuses_seed(ev: &Evaluation<impl geom_core::Decide>, expect: impl Fn(&SeedError)) {
+fn every_node_refuses_seed(ev: &Evaluation<impl topo::AtRestPolicy>, expect: impl Fn(&SeedError)) {
     assert!(!ev.order.is_empty());
     for id in &ev.order {
         match ev.result(*id) {

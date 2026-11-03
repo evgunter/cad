@@ -97,7 +97,11 @@ fn plug_volume(tilt: f64) -> f64 {
 
 /// The plug (`slab ∩ rod`) and the holed slab (`slab ∖ rod`).
 fn plug_and_hole(tilt: f64, tol: Tol) -> (AtRestBody<f64>, AtRestBody<f64>) {
-    let slab = finished("the slab", brick(SLAB[0], SLAB[1], SLAB[2], tol), tol);
+    let slab = finished(
+        "the slab",
+        brick::<f64>(SLAB[0], SLAB[1], SLAB[2], tol),
+        tol,
+    );
     let rod = finished("the rod", rod(tilt, tol), tol);
     let body = |what: &str, out| match out {
         Ok(BooleanResult::Body(b)) => b.body,
@@ -214,7 +218,7 @@ fn every_op(
         // holds the brick beside it.
         let far = finished(
             "the far brick",
-            brick((50.0, 51.0), (50.0, 51.0), (50.0, 51.0), tol),
+            brick::<f64>((50.0, 51.0), (50.0, 51.0), (50.0, 51.0), tol),
             tol,
         );
         let joined = topo::union(&out.body, &far, tol)
@@ -369,7 +373,11 @@ fn a_spun_tilted_plug_in_its_hole_reads_as_plugged() {
     let tilt: f64 = 0.3;
     let (s, c) = tilt.sin_cos();
     let spin = Affine3::rotation_about_axis(Point3::new(0.0, 0.0, 0.5), Vec3::new(s, 0.0, c), 1.0);
-    let slab = finished("the slab", brick(SLAB[0], SLAB[1], SLAB[2], tol), tol);
+    let slab = finished(
+        "the slab",
+        brick::<f64>(SLAB[0], SLAB[1], SLAB[2], tol),
+        tol,
+    );
     let rod0 = finished("the rod", rod(tilt, tol), tol);
     let rod1 = posed("the spun rod", &rod0, &spin, tol);
     let body = |what: &str, out| match out {
@@ -415,10 +423,14 @@ fn a_spun_tilted_plug_in_its_hole_reads_as_plugged() {
 fn a_proud_tilted_plug_unites_to_the_slab_and_its_stub() {
     let tol = Tol::witness();
     let tilt = 0.3;
-    let slab = finished("the slab", brick(SLAB[0], SLAB[1], SLAB[2], tol), tol);
+    let slab = finished(
+        "the slab",
+        brick::<f64>(SLAB[0], SLAB[1], SLAB[2], tol),
+        tol,
+    );
     let tall = finished(
         "the tall slab",
-        brick(SLAB[0], SLAB[1], (0.0, 1.5), tol),
+        brick::<f64>(SLAB[0], SLAB[1], (0.0, 1.5), tol),
         tol,
     );
     let rod0 = finished("the rod", rod(tilt, tol), tol);

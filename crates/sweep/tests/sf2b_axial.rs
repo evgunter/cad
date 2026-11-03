@@ -40,6 +40,7 @@ fn revolved(lp: ProfileLoop<f64>, turn: Revolution<f64>) -> Body<f64> {
     )
     .expect("the meridian revolves")
     .body
+    .into_body()
 }
 
 /// **The sphere-zone vase**: a belly on a sphere centred on the axis,

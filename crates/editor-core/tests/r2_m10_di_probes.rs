@@ -21,7 +21,7 @@
 //!    here asserts the whole after-eval is deep-digest-identical to a
 //!    fresh evaluation of the bumped document.
 //! 3. **The census door at `Dual64`.** The gather's census is the third
-//!    DL3 gating site (`AtRestPolicy::gate_at_rest_declared`) and the
+//!    DL3 gating site (`AtRestPolicy::census_at_rest`) and the
 //!    unit's suites never drive it at a dual; the row here does, over
 //!    every corpus document, its gathers compared with `f64`.
 //! 4. **An own-authored consumer document** built through the public
@@ -267,7 +267,7 @@ impl Fnv {
 }
 
 /// The deep per-node value-channel digest (module docs, instrument 1).
-fn deep_digest<T: Decide + Bounds>(ev: &Evaluation<T>) -> u64 {
+fn deep_digest<T: topo::AtRestPolicy + Decide + Bounds>(ev: &Evaluation<T>) -> u64 {
     let mut d = Fnv::new();
     for &id in &ev.order {
         d.u64(u64::from(id.0.ordinal()));
@@ -441,12 +441,12 @@ fn threaded_prior_never_contaminates_values_at_dual64() {
 }
 
 /// Instrument 3: the census door (DL3's third gating site,
-/// `AtRestPolicy::gate_at_rest_declared`) at `Dual64`, over the whole
+/// `AtRestPolicy::census_at_rest`) at `Dual64`, over the whole
 /// corpus — including the mate-carrying documents: a document gathers
 /// at `Dual64` exactly where it gathers at `f64`, with a bit-identical
-/// value channel, and its census is structurally absent there
-/// (`topo::AtRestOutcome::NotRunAtThisScalar`, no finding kept), so a
-/// dual's product certifies nothing. The E4 pairing discipline — a dual
+/// value channel, and its census is structurally absent there (no
+/// finding kept, and the product's body is a `topo::Replay`, which
+/// carries no verdict), so a dual's product certifies nothing. The E4 pairing discipline — a dual
 /// pass rides BESIDE a validated base-scalar run — is what makes that
 /// sound.
 #[test]
@@ -464,12 +464,7 @@ fn the_census_door_is_absent_at_dual64_and_the_gather_matches_f64() {
                 a.body(&f.body);
                 b.body(&d.body);
                 assert_eq!(a.0, b.0, "{}: the product's value channel", doc.name);
-                assert_eq!(
-                    d.body.outcome(),
-                    topo::AtRestOutcome::NotRunAtThisScalar,
-                    "{}: no census runs at a dual",
-                    doc.name
-                );
+                let _: &topo::Replay<Dual64> = &d.body;
                 assert!(d.census.is_empty(), "{}: and keeps no finding", doc.name);
                 gathered += 1;
             }
@@ -528,9 +523,9 @@ fn own_document_builds_at_dual64_with_f64_value_channel() {
     let p_f = product_recorded(&doc, &ev_f, tol);
     let p_d = product_recorded(&doc, &ev_d, tol);
     // The two arms agree EXCEPT where the certified at-rest gate
-    // decides: `PieceInvalid` is minted only by `gate_at_rest`, which
-    // is structurally absent at `Dual` (DUAL-DESIGN DL3), so an f64
-    // gate refusal — which this document produces at tight ε, where
+    // decides: `ProductInvalid` past tier 2 is minted only by a
+    // certifying scalar's finish, which a dual's `Replay` does not run
+    // (DUAL-DESIGN DL3), so an f64 gate refusal — which this document produces at tight ε, where
     // `props_quad_converged` escalates on the arc-walled split — is
     // the RATIFIED divergence, and Dual64 gathering Ok beside it is
     // the design working. Any other refusal runs identical code on a
@@ -541,7 +536,7 @@ fn own_document_builds_at_dual64_with_f64_value_channel() {
             "f64 gathered but Dual64 refused: {:?}",
             p_d.as_ref().err()
         ),
-        Err(ProductError::PieceInvalid { .. }) => assert!(
+        Err(ProductError::ProductInvalid { .. }) => assert!(
             p_d.is_ok(),
             "the at-rest gate is structurally absent at Dual64 (DL3), so an \
              f64 gate refusal must leave the Dual64 gather Ok; got {:?}",
@@ -563,10 +558,9 @@ fn own_document_builds_at_dual64_with_f64_value_channel() {
 /// all-planar body it returns `Ok(())` — a tier-3 pass computed at a
 /// dual, sound by value-channel delegation but indistinguishable at
 /// the call site from a certified-scalar pass. Beside it,
-/// `AtRestPolicy::gate_at_rest::<Dual64>` returns
-/// `Ok(NotRunAtThisScalar)` — the fix pass made the two adjacent
-/// doors' successes different WORDS (`topo::AtRestOutcome`), which is
-/// what this row originally put on record.
+/// `AtRestPolicy::finish::<Dual64>` returns a `topo::Replay` — tier 2
+/// alone, carrying no verdict — so the two adjacent doors' successes
+/// are different TYPES, which is what this row puts on record.
 #[test]
 fn direct_validation_door_behavior_at_dual64() {
     let tol = Tol::witness();
@@ -580,11 +574,11 @@ fn direct_validation_door_behavior_at_dual64() {
     // entry carries the +V invariant's certified bound and cannot be
     // called at a dual at all.
     let direct = topo::validate_geometric_structural(&body, tol);
-    let policy = <Dual64 as topo::AtRestPolicy>::gate_at_rest(&body, tol);
-    assert_eq!(
-        policy,
-        Ok(topo::AtRestOutcome::NotRunAtThisScalar),
-        "the policy arm must say it did not run — never a grant"
+    let policy: Result<topo::Replay<Dual64>, _> =
+        <Dual64 as topo::AtRestPolicy>::finish(body.clone(), tol);
+    assert!(
+        policy.is_ok(),
+        "the policy arm replays tier 2 and grants nothing: {policy:?}"
     );
     if let Some(nurbs) = docs.iter().find(|d| d.name == "loft_prism")
         && let Some(result) = nurbs.result

@@ -373,6 +373,8 @@ mod on_verdict_rows;
 mod onb_seam_class_interval;
 #[path = "onb_wall_normal_census.rs"]
 mod onb_wall_normal_census;
+#[path = "onehome_switch_parity_interval.rs"]
+mod onehome_switch_parity_interval;
 #[path = "rv_payloadrefs_probes.rs"]
 mod rv_payloadrefs_probes;
 
@@ -578,8 +580,8 @@ mod pierce_ring_engraving;
 mod pirad_wire;
 #[path = "place_mate_frame_offset.rs"]
 mod place_mate_frame_offset;
-#[path = "product_gate_attribution.rs"]
-mod product_gate_attribution;
+#[path = "product_finishes_once.rs"]
+mod product_finishes_once;
 #[path = "props_verdict_shapes.rs"]
 mod props_verdict_shapes;
 

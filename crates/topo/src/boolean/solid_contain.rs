@@ -451,8 +451,8 @@ impl PointInSolidError {
     /// **What a solid read inside-out is owed**, whichever reader found
     /// its material holding the side at infinity: this door
     /// ([`Self::InsideOut`]), the Boolean's per-solid read of an operand
-    /// ([`crate::ValidationError::SliverInsideOut`]), or an unverdicted
-    /// door's check 7 and check 10 ([`crate::Unfinished::InsideOut`]). The
+    /// ([`crate::ValidationError::SliverInsideOut`]), or the finish's
+    /// check 7 and check 10 ([`crate::ValidationError::NegativeVolume`]). The
     /// lever is the solid's orientation, so every such refusal ends in it.
     pub const INSIDE_OUT_RECOURSE: &'static str = inside_out_recourse!();
 

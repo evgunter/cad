@@ -25,7 +25,7 @@ use sweep::blend::build::fillet_edges;
 use sweep::blend::{BlendError, BlendKind, Breach};
 use sweep::test_support::block;
 use topo::construction::Construct;
-use topo::{AtRestBody, Body, EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, ValidationError};
+use topo::{Body, EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, ValidationError};
 
 /// The unit block, one of its faces, and that face's outer anchor
 /// half-edge, at whose start the rows put their scaffolding.
@@ -53,9 +53,10 @@ fn fillet(body: &Body<f64>, edges: &[EdgeKey]) -> Result<(), BlendError> {
 
 /// What the at-rest gate says of a body that does not finish.
 fn unfinished(body: &Body<f64>) -> Vec<ValidationError> {
-    AtRestBody::validate(body.clone(), Tol::witness())
+    topo::finish(body.clone(), Tol::witness())
         .map(drop)
         .expect_err("a body carrying scaffolding does not finish")
+        .into_findings()
 }
 
 fn block_edges(body: &Body<f64>) -> Vec<EdgeKey> {
@@ -171,7 +172,7 @@ fn the_raw_battery_refuses_a_null_strut_as_scaffolding_with_the_doors_advice() {
         )
         .expect("a null strut at the anchor's start");
     let band = geom_core::Band::linear(Tol::witness()).expect("the witness band");
-    let advice = format!("Recourse: {}", topo::Unfinished::SCAFFOLDING_RECOURSE);
+    let advice = format!("Recourse: {}", topo::SCAFFOLDING_RECOURSE);
     for (what, request) in [
         ("the block's edges", edges),
         ("the strut", vec![strut.edge]),
@@ -198,7 +199,7 @@ fn the_raw_battery_refuses_a_null_strut_as_scaffolding_with_the_doors_advice() {
             );
             let text = e.to_string();
             assert!(
-                text.ends_with(&advice) && topo::Unfinished::SCAFFOLDING_REFUSAL.ends_with(&advice),
+                text.ends_with(&advice) && topo::SCAFFOLDING_REFUSAL.ends_with(&advice),
                 "{what}, {kind:?}: the battery and the gate give one advice: {text}"
             );
         }

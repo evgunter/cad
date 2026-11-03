@@ -488,7 +488,7 @@ fn a_near_square_rod_minus_a_box_builds() {
     for r in SCALES {
         let cutter = finished(
             "the box",
-            brick(
+            brick::<f64>(
                 (-2.0 * r, 2.0 * r),
                 (-2.0 * r, 2.0 * r),
                 (0.5 * r, 2.0 * r),
@@ -700,7 +700,7 @@ fn a_near_square_frustum_minus_a_box_builds() {
         let y0 = 0.5 * scale;
         let cutter = finished(
             "the box",
-            brick(
+            brick::<f64>(
                 (-4.0 * scale, 4.0 * scale),
                 (y0, 4.0 * scale),
                 (-4.0 * scale, 4.0 * scale),

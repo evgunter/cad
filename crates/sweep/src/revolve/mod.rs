@@ -201,12 +201,14 @@ pub enum Revolution<T: Real> {
 /// (partial: fixed point; full: pole/apex) — and a station inside a
 /// run has none either.
 #[derive(Debug)]
-pub struct Revolved<T: Real> {
-    /// The built body — a closed solid passing tiers 1–3. A declared
-    /// cusp joint (`.cusp()`) sweeps a latitude rim at material wedge 0
-    /// (2π on a hole loop), which tier 3 holds legal because its
-    /// tangency is jet-determinate.
-    pub body: Body<T>,
+pub struct Revolved<T: topo::AtRestPolicy, B = <T as topo::AtRestPolicy>::Leaf> {
+    /// The built body, the door's leaf ([`topo::AtRestPolicy::leaf`]:
+    /// finished at `f64` and `Probe`, tier 2 alone at the box scalars);
+    /// construction state (`Body<T>`)
+    /// inside the builders. A declared cusp joint (`.cusp()`) sweeps a
+    /// latitude rim at material wedge 0 (2π on a hole loop), which tier
+    /// 3 holds legal because its tangency is jet-determinate.
+    pub body: B,
     /// The solid.
     pub solid: SolidKey,
     /// The primary (outer-boundary) shell.
@@ -248,6 +250,37 @@ pub struct Revolved<T: Real> {
     pub poles: Vec<Vec<Option<VertexKey>>>,
     /// The wedge caps and meridian edges — shaped by the case split.
     pub kind: RevolvedKind,
+    /// The scalar the body is at.
+    pub(crate) scalar: core::marker::PhantomData<fn() -> T>,
+}
+
+impl<T: topo::AtRestPolicy> Revolved<T, Body<T>> {
+    /// The built body as its scalar's leaf ([`topo::AtRestPolicy::leaf`]),
+    /// every key kept.
+    pub(crate) fn leaf(self, tol: Tol) -> Result<Revolved<T>, topo::NotFinished> {
+        let Self {
+            body,
+            solid,
+            shell,
+            cavities,
+            bands,
+            rims,
+            poles,
+            kind,
+            scalar,
+        } = self;
+        Ok(Revolved {
+            body: T::leaf(body, tol)?,
+            solid,
+            shell,
+            cavities,
+            bands,
+            rims,
+            poles,
+            kind,
+            scalar,
+        })
+    }
 }
 
 /// One cavity shell of a full revolve, keyed by its origin.
@@ -296,7 +329,7 @@ pub struct BandWall {
     pub segments: Vec<usize>,
 }
 
-impl<T: Real> Revolved<T> {
+impl<T: topo::AtRestPolicy, B> Revolved<T, B> {
     /// The cavity shell `origin` revolved to, if the revolve built one.
     #[must_use]
     pub fn cavity(&self, origin: CavityOrigin) -> Option<ShellKey> {
@@ -473,7 +506,9 @@ impl From<ReadbackError> for WedgeCapsError {
 /// // with it, onto x.
 /// assert!(caps.end.axis.x.abs() > 0.99);
 /// ```
-pub fn revolved_caps<T: Real>(r: &Revolved<T>) -> Result<WedgeFrames<T>, WedgeCapsError> {
+pub fn revolved_caps<T: topo::AtRestPolicy, B: core::ops::Deref<Target = Body<T>>>(
+    r: &Revolved<T, B>,
+) -> Result<WedgeFrames<T>, WedgeCapsError> {
     let RevolvedKind::Partial {
         start_cap, end_cap, ..
     } = r.kind
@@ -493,6 +528,13 @@ pub fn revolved_caps<T: Real>(r: &Revolved<T>) -> Result<WedgeFrames<T>, WedgeCa
 pub enum RevolveError {
     /// The run's tolerance could not form a classification band.
     Band(BandError),
+    /// The revolved body is not a finished body
+    /// ([`topo::AtRestPolicy::finish`] at the door's end): every finding,
+    /// each read through its family.
+    NotFinished {
+        /// The finish's findings.
+        findings: topo::NotFinished,
+    },
     /// The profile has no loops: the empty region sweeps nothing.
     EmptyProfile,
     /// The axis direction's length is **not a finite number**: its
@@ -809,6 +851,9 @@ impl fmt::Display for RevolveError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Band(e) => write!(f, "{e}"),
+            Self::NotFinished { findings } => {
+                write!(f, "the revolved body is not a finished body: {findings}")
+            }
             Self::EmptyProfile => f.write_str(crate::EMPTY_PROFILE),
             Self::NonFiniteAxis => write!(
                 f,
@@ -1056,8 +1101,10 @@ fn partial_angle_reverses<T: Decide>(t: T, r_max: T, band: Band) -> Result<bool,
 ///
 /// The sketch placement is the profile's own; the axis and angle
 /// classify per the module docs' conventions (named trilean predicates
-/// throughout). On success the returned body passes tiers 1–3 — the
-/// caller re-validates at rest per the workspace convention.
+/// throughout). The door ends in its scalar's leaf
+/// ([`topo::AtRestPolicy::leaf`]): on success the body is the scalar's
+/// leaf, finished at `f64` and `Probe` and tier 2 alone at the box
+/// scalars, and a body the leaf refuses is [`RevolveError::NotFinished`].
 ///
 /// # Errors
 ///
@@ -1078,6 +1125,20 @@ pub fn revolve<T: Decide + topo::AtRestPolicy>(
     revolution: Revolution<T>,
     tol: Tol,
 ) -> Result<Revolved<T>, RevolveError> {
+    revolve_construction(profile, axis, revolution, tol)?
+        .leaf(tol)
+        .map_err(|findings| RevolveError::NotFinished { findings })
+}
+
+/// **[`revolve`] before its finish**: the built body in construction
+/// state, every key kept — what the door's construction decides,
+/// without the decisions its finish makes.
+pub(crate) fn revolve_construction<T: Decide + topo::AtRestPolicy>(
+    profile: &ValidatedProfile<T>,
+    axis: RevolveAxis<T>,
+    revolution: Revolution<T>,
+    tol: Tol,
+) -> Result<Revolved<T, Body<T>>, RevolveError> {
     let band = Band::linear(tol).map_err(RevolveError::Band)?;
     if profile.loops().is_empty() {
         return Err(RevolveError::EmptyProfile);

@@ -992,7 +992,7 @@ impl Selector {
 /// consumes the stored selection reads `node` as its input, so it is
 /// poisoned through it while it has no value, and refuses the empty
 /// selection once it has one.
-pub fn select<T: Decide>(
+pub fn select<T: topo::AtRestPolicy + Decide>(
     ev: &Evaluation<T>,
     at: impl Into<crate::At>,
     sel: &Selector,
@@ -1060,7 +1060,7 @@ pub fn select<T: Decide>(
 /// table entry pointing outside its node's payload would raise for any
 /// `geom` at all (an emitter invariant violation, reported not
 /// swallowed).
-pub fn select_where<T: Decide>(
+pub fn select_where<T: topo::AtRestPolicy + Decide>(
     ev: &Evaluation<T>,
     at: impl Into<crate::At>,
     sel: &Selector,

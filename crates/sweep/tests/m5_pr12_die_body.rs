@@ -20,7 +20,7 @@ use topo::query;
 use topo::{Body, EdgeKey, FaceKey};
 
 fn die(l: f64, r: f64) -> Filleted<f64> {
-    let body = cube(l, Tol::witness());
+    let body = cube::<f64>(l, Tol::witness());
     let edges = query::all_edges(&body);
     assert_eq!(edges.len(), 12, "a box has twelve edges");
     fillet_edges(

@@ -183,9 +183,14 @@ fn assert_swept_order(what: &str, t: &Revolved<f64>, n: usize) {
 #[test]
 fn the_c_profile_revolves_to_a_column_with_a_cavity() {
     let vp = validated(vec![notched_column(3.0, &[(0.5, 1.0, 2.0)])]);
+    // The construction alone is bracketed: the door's finish reads the
+    // shells' roles through the shared side reader, whose predicates
+    // are the Boolean's.
     let bracket = geom_core::k_stats::Bracket::open();
-    let t = revolve(&vp, axis_y(), Revolution::Full, Tol::witness()).unwrap();
+    sweep::test_support::revolve_construction(&vp, axis_y(), Revolution::Full, Tol::witness())
+        .unwrap();
     let verdicts = bracket.finish().verdicts;
+    let t = revolve(&vp, axis_y(), Revolution::Full, Tol::witness()).unwrap();
     let crossing: Vec<_> = verdicts
         .iter()
         .filter(|v| v.predicate.starts_with("bool_"))

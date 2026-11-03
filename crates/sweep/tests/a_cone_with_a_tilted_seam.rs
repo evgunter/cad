@@ -41,7 +41,8 @@ fn revolved(polygon: &[(f64, f64)]) -> Body<f64> {
         Tol::witness(),
     )
     .unwrap()
-    .body;
+    .body
+    .into_body();
     body.merge_coplanar_faces(Tol::witness()).unwrap();
     body
 }
@@ -77,12 +78,12 @@ fn tilted_cone(tilt: f64) -> Result<AtRestBody<f64>, String> {
             u_ref: leaning,
         },
     ));
-    AtRestBody::validate(body, Tol::witness()).map_err(|e| format!("{e:?}"))
+    topo::finish(body, Tol::witness()).map_err(|e| format!("{e:?}"))
 }
 
 /// The coaxial pin of radius `r` over `y ∈ [−1, 2]`.
 fn pin(r: f64) -> AtRestBody<f64> {
-    AtRestBody::validate(
+    topo::finish(
         revolved(&[(0.0, -1.0), (r, -1.0), (r, 2.0), (0.0, 2.0)]),
         Tol::witness(),
     )

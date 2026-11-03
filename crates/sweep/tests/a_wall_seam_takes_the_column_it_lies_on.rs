@@ -41,6 +41,7 @@ fn semicircle_prism() -> Body<f64> {
     sweep::loft_body::<f64>(&[profile(), profile()], &stacked_at(&[0.0, 1.0]), 1, tol())
         .expect("the prism builds")
         .body
+        .into_body()
 }
 
 /// The arc wall: the face whose rows include the `IsoArc` rims.
@@ -388,7 +389,8 @@ fn at_a_dual_a_split_seam_takes_its_stated_column() {
         tol(),
     )
     .expect("the dual prism builds")
-    .body;
+    .body
+    .into_body();
     let seam = body
         .pcurves()
         .find(|(_, c)| matches!(c.pcurve(), Pcurve::IsoLine { pl, .. } if pl.x.lo() == 0.0))

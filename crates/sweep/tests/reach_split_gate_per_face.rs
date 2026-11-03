@@ -446,7 +446,7 @@ fn a_spline_edge_whose_belly_crosses_the_plane_refuses() {
     for part in [validate(&body), validate_closed(&body)] {
         assert_eq!(part, Ok(()), "the re-described body is well formed");
     }
-    let errors = <f64 as topo::AtRestPolicy>::gate_at_rest_kept(body.clone(), Tol::witness())
+    let errors = topo::finish(body.clone(), Tol::witness())
         .expect_err("the face the spline bounds stores no row");
     let rim_faces = topo::readback::edge_sides(&body, edge).unwrap().faces();
     assert!(
@@ -587,7 +587,7 @@ fn a_sphere_face_whose_side_is_not_certified_keeps_the_ball() {
             },
         )
         .unwrap();
-    let errors = <f64 as topo::AtRestPolicy>::gate_at_rest_kept(reverted.clone(), Tol::witness())
+    let errors = topo::finish(reverted.clone(), Tol::witness())
         .expect_err("a zone bounding its complement is not a finished body's");
     assert!(
         errors.iter().any(

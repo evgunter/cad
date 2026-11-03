@@ -33,6 +33,7 @@ fn prism(pts: &[(f64, f64)], h: f64) -> Body<Interval> {
     )
     .expect("a polygon extrudes")
     .body
+    .into_body()
 }
 
 /// The door at `T = Interval`, on a box: every corner solve, every

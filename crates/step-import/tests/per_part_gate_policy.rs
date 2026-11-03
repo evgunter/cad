@@ -34,7 +34,7 @@ fn the_import_loop_calls_the_per_part_policy_around_its_per_solid_gate() {
     let ItemBody::Body(block) = item_body(&code, heads[0]) else {
         panic!("{what}: the policy's `if` has no block");
     };
-    let gates = required_matches(&code, what, "gate(&one");
+    let gates = required_matches(&code, what, "gate(one");
     assert!(
         gates.iter().all(|at| block.contains(at)),
         "{what}: the per-solid gate is called outside the block `topo::per_part_gate_owed` \

@@ -37,6 +37,7 @@ fn cone() -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 fn frustum() -> Body<f64> {
@@ -54,6 +55,7 @@ fn frustum() -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 fn quarter_cone() -> Body<f64> {
@@ -65,6 +67,7 @@ fn quarter_cone() -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 /// A deterministic low-discrepancy sample of a box (golden-ratio
@@ -419,7 +422,7 @@ fn r2_planar_base_cap_interior_is_on_the_boundary() {
 #[test]
 fn r2_e2e_cone_boolean_tessellate() {
     let a = finished("the quarter cone", quarter_cone(), Tol::witness());
-    let b = brick((5.0, 6.0), (0.0, 1.0), (-1.0, 0.0), Tol::witness());
+    let b = brick::<f64>((5.0, 6.0), (0.0, 1.0), (-1.0, 0.0), Tol::witness());
     let b = finished("the brick", b, Tol::witness());
     let out = topo::union(&a, &b, Tol::witness()).expect("the cone arm unlocks this union");
     let result = out.body().expect("a disjoint union is not empty");
@@ -571,7 +574,8 @@ fn r2_planar_cap_misread_blast_radius() {
         Tol::witness(),
     )
     .unwrap()
-    .body;
+    .body
+    .into_body();
     let cone_body = cone();
     let frus = frustum();
     let qc = quarter_cone();

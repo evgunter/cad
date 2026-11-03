@@ -40,6 +40,7 @@ fn prism(pts: &[(f64, f64)], h: f64) -> Body<f64> {
     )
     .expect("a polygon extrudes")
     .body
+    .into_body()
 }
 
 /// Shoelace area of a CCW polygon.
@@ -163,7 +164,7 @@ fn r1a_hexagon_cavity_corners_sit_at_minus_t_on_all_three_planes() {
             t,
             Tol::witness(),
         )
-        .map(|shelled| shelled.body),
+        .map(|shelled| shelled.body.into_body()),
     ) else {
         return;
     };
@@ -267,7 +268,7 @@ fn r1b_the_unpinned_oblique_fixtures_against_their_closed_forms() {
 
 #[test]
 fn r1c_chamfered_cube_is_a_valence_four_planar_corner() {
-    let body = sweep::test_support::cube(1.0, Tol::witness());
+    let body = sweep::test_support::cube::<f64>(1.0, Tol::witness());
     let edges: Vec<topo::EdgeKey> = body.edges().map(|(k, _)| k).collect();
     let chamfered = sweep::chamfer::chamfer_edges(
         &sweep::test_support::at_rest(&body, Tol::witness()),
@@ -322,7 +323,7 @@ fn r1c_chamfered_cube_is_a_valence_four_planar_corner() {
             0.05,
             Tol::witness(),
         )
-        .map(|shelled| shelled.body),
+        .map(|shelled| shelled.body.into_body()),
     );
 }
 
@@ -349,7 +350,7 @@ fn r1d_the_straight_footprint_vertex_through_shell() {
             t,
             Tol::witness(),
         )
-        .map(|shelled| shelled.body),
+        .map(|shelled| shelled.body.into_body()),
     ) {
         let got = topo::test_support::pinned_volume(
             "props",
@@ -579,7 +580,7 @@ fn r1f_one_curved_face_among_planars() {
             0.02,
             Tol::witness(),
         )
-        .map(|shelled| shelled.body),
+        .map(|shelled| shelled.body.into_body()),
     );
 }
 
@@ -600,7 +601,7 @@ fn r1g_box_control() {
             0.25,
             Tol::witness(),
         )
-        .map(|shelled| shelled.body),
+        .map(|shelled| shelled.body.into_body()),
     ) {
         let got = topo::test_support::pinned_volume(
             "props",

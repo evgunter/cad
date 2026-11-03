@@ -33,6 +33,7 @@ fn prism(pts: &[(f64, f64)], h: f64) -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 fn ball_at(r: f64, c: Vec3<f64>) -> AtRestBody<f64> {
     let lp = bulge_loop(vec![
@@ -63,7 +64,7 @@ fn ball_at(r: f64, c: Vec3<f64>) -> AtRestBody<f64> {
 /// the assembly refusal.
 #[test]
 fn probe_a_pipped_cube_all_edges() {
-    let c = finished("the cube", cube(1.0, Tol::witness()), Tol::witness());
+    let c = finished("the cube", cube::<f64>(1.0, Tol::witness()), Tol::witness());
     let ball = ball_at(0.09, Vec3::new(0.5, 0.5, 1.04));
     let pipped = boolean_op_with(
         BooleanOp::Subtract,
@@ -142,7 +143,7 @@ fn probe_b_hexagonal_prism_over_refusal() {
 /// each rim arc's he_plus run WITH its carrier?
 #[test]
 fn probe_d_rim_arc_orientation() {
-    let c = finished("the cube", cube(1.0, Tol::witness()), Tol::witness());
+    let c = finished("the cube", cube::<f64>(1.0, Tol::witness()), Tol::witness());
     let ball = ball_at(0.09, Vec3::new(0.5, 0.5, 1.04));
     let pipped = boolean_op_with(
         BooleanOp::Subtract,
@@ -270,7 +271,7 @@ fn probe_e_hexagon_tier3_error() {
 /// `m5_pr12_die::deviation_1`.
 #[test]
 fn probe_g_door_a_fields() {
-    let c = cube(1.0, Tol::witness());
+    let c = cube::<f64>(1.0, Tol::witness());
     let edges = query::all_edges(&c);
     let blank = finished(
         "the blank",
@@ -312,7 +313,7 @@ fn probe_g_door_a_fields() {
 /// leaves are each a chart rectangle, so nothing stops.
 #[test]
 fn probe_h_door_a_closed_tool() {
-    let c = cube(1.0, Tol::witness());
+    let c = cube::<f64>(1.0, Tol::witness());
     let edges = query::all_edges(&c);
     let blank = finished(
         "the blank",
@@ -367,7 +368,7 @@ fn probe_h_door_a_closed_tool() {
 /// refusal variant, faithfully replicated from the die test.
 #[test]
 fn probe_i_door_a_full_tool() {
-    let c = cube(1.0, Tol::witness());
+    let c = cube::<f64>(1.0, Tol::witness());
     let edges = query::all_edges(&c);
     let blank = finished(
         "the blank",
@@ -520,7 +521,7 @@ fn probe_f_skinny_triangle_refusal_boundary() {
 /// battery pass, does construction succeed, and what do the tiers say?
 #[test]
 fn probe_c_oblique_trihedron() {
-    let c1 = cube(1.0, Tol::witness());
+    let c1 = cube::<f64>(1.0, Tol::witness());
     // A slab rotated so one face slices the (1,1,1) corner obliquely.
     let c2 = cube(3.0, Tol::witness());
     let rot = Affine3::rotation_about_axis(

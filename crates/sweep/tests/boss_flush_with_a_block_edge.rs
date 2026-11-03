@@ -21,12 +21,12 @@ fn scene() -> (AtRestBody<f64>, AtRestBody<f64>) {
     (
         finished(
             "the block",
-            brick((-20.0, 20.0), (-10.0, 10.0), (0.0, 10.0), tol),
+            brick::<f64>((-20.0, 20.0), (-10.0, 10.0), (0.0, 10.0), tol),
             tol,
         ),
         finished(
             "the boss",
-            brick((10.0, 20.0), (-5.0, 5.0), (10.0, 14.0), tol),
+            brick::<f64>((10.0, 20.0), (-5.0, 5.0), (10.0, 14.0), tol),
             tol,
         ),
     )
@@ -80,7 +80,7 @@ fn a_cylinder_through_the_block_with_flush_caps_unions_to_the_block() {
     let tol = Tol::witness();
     let block = finished(
         "the block",
-        brick((-20.0, 20.0), (-10.0, 10.0), (0.0, 10.0), tol),
+        brick::<f64>((-20.0, 20.0), (-10.0, 10.0), (0.0, 10.0), tol),
         tol,
     );
     for n in [2, 3] {

@@ -30,7 +30,7 @@ fn tol() -> Tol {
 type Span = (f64, f64);
 
 fn box_of(x: Span, y: Span, z: Span) -> AtRestBody<f64> {
-    finished("a brick", brick(x, y, z, tol()), tol())
+    finished("a brick", brick::<f64>(x, y, z, tol()), tol())
 }
 
 fn vol(b: &AtRestBody<f64>) -> f64 {

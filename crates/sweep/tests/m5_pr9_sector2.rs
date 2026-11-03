@@ -45,6 +45,7 @@ fn cylinder_body() -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 #[test]
@@ -143,6 +144,7 @@ fn filleted_block() -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 #[test]

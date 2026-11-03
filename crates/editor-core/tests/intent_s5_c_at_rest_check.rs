@@ -776,25 +776,6 @@ fn a_hosts_gap_over_picks_quiets_no_carried_finding() {
     );
 }
 
-// ---- Row 18: not run at this scalar ----
-
-/// **(Row 18) At `Dual64` the census does not run, and the at-rest
-/// check says so: one `NotRun` finding.** The registry cannot be run at
-/// a dual (it carries no chart-coherence lane), so the row reads the
-/// resident's reading of the dual's gather directly.
-///
-/// *Breaks if* a dual's gather reads as a clean report.
-#[test]
-fn a_dual_runs_no_census_and_says_so() {
-    let (slab, ..) = crate::intent_s5_b_interference::slab_overlap();
-    let run = corpus::eval::<geom_core::Dual64>(&slab);
-    let product = editor_core::product_recorded(&slab, &run, Tol::witness()).expect("it gathers");
-    assert_eq!(
-        editor_core::test_support::at_rest_could_not_look(&product, Tol::witness()),
-        vec![AtRestEvidence::NotRun]
-    );
-}
-
 // ---- An in-band pair is no overlap's evidence ----
 
 /// **A pair read in band stands as its own finding, beside an overlap it

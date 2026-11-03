@@ -253,12 +253,12 @@ fn door_refuses_a_hollow_cavity() {
     let hollow = match subtract(
         &finished(
             "the block",
-            brick((1.0, 5.0), (1.0, 5.0), (1.0, 5.0), Tol::witness()),
+            brick::<f64>((1.0, 5.0), (1.0, 5.0), (1.0, 5.0), Tol::witness()),
             Tol::witness(),
         ),
         &finished(
             "the cavity",
-            brick((2.0, 4.0), (2.0, 4.0), (2.0, 4.0), Tol::witness()),
+            brick::<f64>((2.0, 4.0), (2.0, 4.0), (2.0, 4.0), Tol::witness()),
             Tol::witness(),
         ),
         Tol::witness(),

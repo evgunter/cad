@@ -70,6 +70,7 @@ fn bulged_box() -> Body<f64> {
     )
     .expect("the bulged box extrudes")
     .body
+    .into_body()
 }
 
 /// A partial revolve of `angle` radians: the drum meridian, wedge cut.
@@ -96,6 +97,7 @@ fn wedge_of(angle: f64, r: f64, h: f64) -> Body<f64> {
     )
     .expect("the wedge revolves")
     .body
+    .into_body()
 }
 
 /// **P1 — the axis gate on a curved body that is not a body of

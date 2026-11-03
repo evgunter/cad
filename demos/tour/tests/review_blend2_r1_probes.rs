@@ -57,6 +57,7 @@ fn vase() -> Body<f64> {
     )
     .expect("the meridian fully revolves")
     .body
+    .into_body()
 }
 
 /// A ball of radius `rad` centred at `(x, y, 0)`, authored as a
@@ -97,7 +98,7 @@ fn ball(x: f64, y: f64, rad: f64) -> AtRestBody<f64> {
         t,
     )
     .expect("the ball moves");
-    AtRestBody::validate(moved, t).expect("the ball is a finished body")
+    pncad::topo::finish(moved, t).expect("the ball is a finished body")
 }
 
 fn volume(body: &Body<f64>) -> f64 {
@@ -161,7 +162,8 @@ fn p1_four_chained_rims_carve_in_one_call_through_the_facade() {
             assert_eq!(r.len(), 1, "one rim at y = {y} before its carve");
             b = fillet_edges(&finished("b", b.clone(), tol()), &r, ROLL, tol())
                 .unwrap_or_else(|e| panic!("the y = {y} rim fillets sequentially, got {e:?}"))
-                .body;
+                .body
+                .into_body();
         }
         validate_geometric(&b, tol()).expect("sequential tier 3");
         volume(&b)
@@ -200,7 +202,8 @@ fn p2_one_call_and_sequential_carry_the_same_face_shapes() {
             tol(),
         )
         .expect("sequential")
-        .body;
+        .body
+        .into_body();
     }
     assert_eq!(
         face_shapes(&one.body),
@@ -258,7 +261,7 @@ fn p3_the_boundary_refusal_names_the_split_exactly_when_it_is_splittable() {
             r,
             tol(),
         ) {
-            Ok(out) => b = out.body,
+            Ok(out) => b = out.body.into_body(),
             Err(e) => {
                 println!("   [blend2-r1] sequential also refuses at y = {y}: {e}");
                 sequential_ok = false;
@@ -300,7 +303,7 @@ fn p3_the_boundary_refusal_names_the_split_exactly_when_it_is_splittable() {
 /// dome-topped boss (`ring_clearance_forms`).
 #[test]
 fn p4_a_ball_subtracted_into_a_revolves_cap_builds_its_closed_form() {
-    let vase = AtRestBody::validate(vase(), tol()).expect("the vase is a finished body");
+    let vase = pncad::topo::finish(vase(), tol()).expect("the vase is a finished body");
     let out = subtract(&vase, &ball(0.45, 1.8, 0.08), tol())
         .expect("a ball subtracted into the vase's top annulus builds");
     let body = &out.body().expect("material remains").body;
@@ -356,6 +359,7 @@ fn pinched_vase() -> Body<f64> {
     )
     .expect("the pinched meridian revolves")
     .body
+    .into_body()
 }
 
 /// **P5 — the spool measurement that RECHARACTERIZED the zone's
@@ -394,7 +398,7 @@ fn p5_the_spool_refuses_identically_both_ways_and_names_the_split() {
                 r,
                 tol(),
             ) {
-                Ok(out) => b = out.body,
+                Ok(out) => b = out.body.into_body(),
                 Err(_) => {
                     seq_ok = false;
                     break;
@@ -434,6 +438,6 @@ fn p5_the_spool_refuses_identically_both_ways_and_names_the_split() {
 
 /// `body` finished for a blend door, which takes finished bodies only.
 fn finished(what: &str, body: Body<f64>, tol: Tol) -> AtRestBody<f64> {
-    AtRestBody::validate(body, tol)
+    pncad::topo::finish(body, tol)
         .unwrap_or_else(|e| panic!("{what} is not a finished body: {e:?}"))
 }

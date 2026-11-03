@@ -139,7 +139,11 @@ fn subtract(a: &AtRestBody<f64>, b: &AtRestBody<f64>) -> Body<f64> {
 
 /// The pipped cube and its twelve surviving box edges.
 fn pipped_and_box_edges() -> (Body<f64>, Vec<EdgeKey>) {
-    let cube0 = finished("the cube", cube(DIE_L, Tol::witness()), Tol::witness());
+    let cube0 = finished(
+        "the cube",
+        cube::<f64>(DIE_L, Tol::witness()),
+        Tol::witness(),
+    );
     let box_edges: Vec<_> = cube0.edges().map(|(k, _)| k).collect();
     let pipped = subtract(&cube0, &pip_tool());
     let surviving: Vec<_> = box_edges
@@ -386,7 +390,7 @@ fn composed_die() -> Body<f64> {
     )
     .expect("the rims fillet to tori");
     assert_eq!(out.band_faces.len(), 21, "one torus band per rim");
-    out.body
+    out.body.into_body()
 }
 
 /// **Bit replay (D9)**: the composed die twice in one process, same

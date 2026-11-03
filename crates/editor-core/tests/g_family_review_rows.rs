@@ -433,7 +433,7 @@ fn a_lump_of_one_copy_inside_a_lump_of_another_builds_what_the_slow_path_builds(
             panic!("{:?}", ev.result(u))
         };
         let props = topo::mass_properties(
-            &topo::AtRestBody::validate(body.body().clone(), Tol::witness()).expect("valid"),
+            &topo::finish(body.body().clone(), Tol::witness()).expect("valid"),
             Tol::witness(),
             topo::test_support::pinned_resolution(Tol::witness()),
         )
@@ -582,7 +582,7 @@ fn a_count_edit_serves_the_first_members_from_the_memo() {
     let (b0, b1) = (bodies(&first), bodies(&after));
     assert_eq!(b1.len(), 6);
     let shared: Vec<bool> = (0..4)
-        .map(|i| std::sync::Arc::ptr_eq(b0[i].shared(), b1[i].shared()))
+        .map(|i| std::sync::Arc::ptr_eq(b0[i].holding().arc(), b1[i].holding().arc()))
         .collect();
     assert!(
         shared.iter().all(|&s| s),

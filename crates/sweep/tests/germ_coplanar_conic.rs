@@ -69,6 +69,7 @@ fn boxed(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<f64> {
     )
     .expect("the box extrudes")
     .body
+    .into_body()
 }
 
 fn revolved(lp: ProfileLoop<f64>) -> Body<f64> {
@@ -80,6 +81,7 @@ fn revolved(lp: ProfileLoop<f64>) -> Body<f64> {
     )
     .expect("the profile revolves")
     .body
+    .into_body()
 }
 
 /// The donut `R = 2`, `r = 1/2` about `y`, its meridian authored as two

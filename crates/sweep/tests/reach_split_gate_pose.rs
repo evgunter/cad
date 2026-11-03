@@ -121,6 +121,7 @@ fn build(f: &Fixture) -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 /// The face's support along the body-frame unit normal `n`, as

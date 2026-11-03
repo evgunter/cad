@@ -6060,7 +6060,9 @@ fn body_reach(ev: &Evaluation<f64>, node: pncad::document::RecipeNodeId) -> Opti
     let value = ev.usable(node).ok()?;
     let body = match &value.payload {
         ValuePayload::Body(b)
-        | ValuePayload::Boolean(pncad::document::BooleanValue::Body { body: b, .. }) => b.shared(),
+        | ValuePayload::Boolean(pncad::document::BooleanValue::Body { body: b, .. }) => {
+            b.holding().arc()
+        }
         _ => return None,
     };
     body.vertices()
@@ -6105,7 +6107,7 @@ fn frame_off(
     let solid = match &value.payload {
         ValuePayload::Body(b)
         | ValuePayload::Boolean(pncad::document::BooleanValue::Body { body: b, .. }) => {
-            std::sync::Arc::clone(b.shared())
+            std::sync::Arc::clone(b.holding().arc())
         }
         _ => return Err(PinRefusal::NotABody { node }),
     };

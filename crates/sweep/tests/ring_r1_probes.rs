@@ -251,9 +251,13 @@ fn boolean_admissible_fixture_still_runs_no_crossing_machinery() {
         Point2::new(1.25, 2.5),
     ]);
     let vp = validated(vec![outer, h1, h2]);
+    // The construction alone is bracketed: the door's finish reads the
+    // shells' roles through the shared side reader, whose predicates
+    // are the Boolean's.
     let bracket = geom_core::k_stats::Bracket::open();
-    let t = revolve(&vp, axis_y(), Revolution::Full, tol).unwrap();
+    sweep::test_support::revolve_construction(&vp, axis_y(), Revolution::Full, tol).unwrap();
     let verdicts = bracket.finish().verdicts;
+    let t = revolve(&vp, axis_y(), Revolution::Full, tol).unwrap();
     assert!(!verdicts.is_empty());
     let crossing: Vec<_> = verdicts
         .iter()

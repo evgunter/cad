@@ -59,7 +59,8 @@ fn cone(theta: Option<f64>) -> Body<f64> {
         Tol::witness(),
     )
     .unwrap()
-    .body;
+    .body
+    .into_body();
     if theta.is_none() {
         body.merge_coplanar_faces(Tol::witness()).unwrap();
     }
@@ -281,7 +282,8 @@ fn apex_closed_faces_describe() {
             Tol::witness(),
         )
         .unwrap()
-        .body,
+        .body
+        .into_body(),
     ));
     for (name, body) in &bodies {
         let faces = cone_faces(body);

@@ -173,6 +173,7 @@ fn apex_wedge(t: f64) -> Body<f64> {
     )
     .expect("the meridian revolves")
     .body
+    .into_body()
 }
 
 /// The caps of a wedge about `+y`: its plane faces whose normals lie
@@ -491,6 +492,7 @@ fn frustum_wedge_body(y0: f64, y1: f64, t: f64) -> Body<f64> {
     )
     .expect("the meridian revolves")
     .body
+    .into_body()
 }
 
 /// [`frustum_wedge_body`] to `y = 1`, finished, with its truth.
@@ -536,7 +538,11 @@ fn a_half_space_flush_with_a_frustum_wedge_cap_builds_the_union() {
                 let d = off * eps;
                 let (wedge, sw) = frustum_wedge(y0, t);
                 let bx = [(-2.0, 2.0), (-1.0, 2.0), (-d, 2.0)];
-                let brick = finished("the half-space", brick(bx[0], bx[1], bx[2], tol), tol);
+                let brick = finished(
+                    "the half-space",
+                    brick::<f64>(bx[0], bx[1], bx[2], tol),
+                    tol,
+                );
                 let sb = Solid::Brick(bx);
                 let label = format!("y0 = {y0}, tan α = {t}, {off}·ε over the cap");
                 let face = brick
@@ -610,7 +616,8 @@ fn frustum_and_virtual_apex_box(apex_y: f64, pose: &Affine3<f64>) -> [(AtRestBod
     ]);
     let mut frustum = revolve(&validated(vec![meridian]), axis_y(), Revolution::Full, tol)
         .expect("the meridian revolves")
-        .body;
+        .body
+        .into_body();
     frustum.merge_coplanar_faces(tol).unwrap();
     let frustum =
         topo::transform_rigid(&frustum, &geom_core::test_support::rigid(pose, tol), tol).unwrap();

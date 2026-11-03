@@ -676,7 +676,7 @@ fn a_half_rods_rim_across_a_rods_wall_moves_with_its_flat_face() {
     let tol = Tol::witness();
     let under = finished(
         "the half-space under y = 0",
-        brick((-50.0, 50.0), (-50.0, 0.0), (-50.0, 50.0), tol),
+        brick::<f64>((-50.0, 50.0), (-50.0, 0.0), (-50.0, 50.0), tol),
         tol,
     );
     let half = match topo::subtract(&rod_z(0.0, 2.0), &under, tol) {
@@ -743,7 +743,7 @@ fn a_half_rods_rim_across_a_rods_wall_moves_with_its_flat_face() {
             let mut moved = bb.body.clone().into_body();
             topo::replace_face_offset(&mut moved, flat, d, tol)
                 .unwrap_or_else(|e| panic!("{op}, d = {d}: the flat face moves: {e}"));
-            let moved = AtRestBody::validate(moved, tol)
+            let moved = topo::finish(moved, tol)
                 .unwrap_or_else(|e| panic!("{op}, d = {d}: the moved body is finished: {e:?}"));
             topo::validate_geometric(&moved, tol)
                 .unwrap_or_else(|e| panic!("{op}, d = {d}: tier 3: {e:?}"));

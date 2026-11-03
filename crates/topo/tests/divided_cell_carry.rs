@@ -21,7 +21,7 @@ fn band() -> Band {
 }
 
 fn box_of(x: (f64, f64), y: (f64, f64), z: (f64, f64), what: &str) -> AtRestBody<f64> {
-    common::finished(what, common::brick(x, y, z, tol()), tol())
+    common::finished(what, common::brick::<f64>(x, y, z, tol()), tol())
 }
 
 fn union_of(a: &AtRestBody<f64>, b: &AtRestBody<f64>) -> BooleanBody<f64> {

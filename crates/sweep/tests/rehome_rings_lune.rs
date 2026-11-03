@@ -69,6 +69,7 @@ fn extruded(plane: SketchPlane<f64>, loops: &[&[(f64, f64, f64)]], h: f64) -> Bo
     )
     .expect("the profile extrudes")
     .body
+    .into_body()
 }
 
 fn bored_disc(outer: &[(f64, f64, f64)], (cx, cy): (f64, f64)) -> Body<f64> {

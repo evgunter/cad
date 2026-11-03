@@ -677,7 +677,10 @@ fn driver(
 
 /// `ev`, which the driver evaluated from the document `pin` is of,
 /// stamped with that pin.
-fn stamped<T: geom_core::Decide>(mut ev: Evaluation<T>, pin: crate::ContentPin) -> Evaluation<T> {
+fn stamped<T: topo::AtRestPolicy + geom_core::Decide>(
+    mut ev: Evaluation<T>,
+    pin: crate::ContentPin,
+) -> Evaluation<T> {
     ev.pin = Some(Ok(pin));
     ev
 }
@@ -710,7 +713,7 @@ fn leaf_opts(box_: ParamBox, resolver: Option<&Arc<dyn crate::part::PartResolver
 
 /// The measured value of `value`, or the refusal rendered with the node
 /// it came from ([`Evaluation::reading`]).
-fn measure_of<T: geom_core::Decide + Copy>(
+fn measure_of<T: topo::AtRestPolicy + geom_core::Decide + Copy>(
     doc: &Doc<ProfileProgram>,
     ev: &Evaluation<T>,
     value: VarId,
@@ -760,7 +763,7 @@ impl ValueBits for Dual64 {
 
 impl BuildIdentity {
     /// `ev`'s identity, or why it has none to bind by.
-    fn of<T: ValueBits>(ev: &Evaluation<T>) -> Result<Self, BindingViolation> {
+    fn of<T: topo::AtRestPolicy + ValueBits>(ev: &Evaluation<T>) -> Result<Self, BindingViolation> {
         match ev.outcome {
             EvalOutcome::Completed => {}
             EvalOutcome::Canceled => return Err(BindingViolation::Incomplete),

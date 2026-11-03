@@ -235,7 +235,7 @@ fn shelling_a_spline_capped_box_refuses_past_the_door() {
     let at_rest = finished("the spline-capped box", body, Tol::witness());
     let e = topo::shell(&at_rest, T, Tol::witness())
         .expect_err("the fitted cavity cap's quadrature is not built");
-    let ShellError::NotValid { errors } = &e else {
+    let ShellError::NotValid { findings: errors } = &e else {
         panic!("expected the thin solid's tier-3 refusal, got {e}");
     };
     assert!(
@@ -407,6 +407,7 @@ fn stadium_prism() -> Body<f64> {
     )
     .expect("the stadium extrudes")
     .body
+    .into_body()
 }
 
 /// The `2 × 2 × 1` box with every edge filleted at 0.3, or only its
@@ -442,4 +443,5 @@ fn filleted_box(every: bool) -> Body<f64> {
     sweep::blend::fillet_edges(&finished("the box", block, tol), &edges, 0.3, tol)
         .expect("the fillet builds")
         .body
+        .into_body()
 }

@@ -225,7 +225,7 @@ fn the_rim_crossing_rods_build_in_every_op() {
     let tol = Tol::witness();
     let far = finished(
         "a brick far away",
-        sweep::test_support::brick((50.0, 51.0), (50.0, 51.0), (50.0, 51.0), tol),
+        sweep::test_support::brick::<f64>((50.0, 51.0), (50.0, 51.0), (50.0, 51.0), tol),
         tol,
     );
     for pose in rim_poses() {
@@ -403,7 +403,7 @@ fn cut_and_tipped(
     let tol = Tol::witness();
     let cutter = finished(
         "the cutter",
-        sweep::test_support::brick((x - 1.0, x + 1.0), (y - 1.0, y + 1.0), (z0, z1), tol),
+        sweep::test_support::brick::<f64>((x - 1.0, x + 1.0), (y - 1.0, y + 1.0), (z0, z1), tol),
         tol,
     );
     let cut = topo::intersect(&rod(r, (x, y), (-far, far)), &cutter, tol).expect("the cut rod");

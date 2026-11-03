@@ -65,6 +65,7 @@ fn cyl(r: f64, h: f64) -> Body<Interval> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 fn spin(b: &Body<Interval>, axis: Vec3<Interval>, angle: f64) -> Body<Interval> {

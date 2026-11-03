@@ -288,7 +288,12 @@ fn judge(
                 let cert = topo::validate_geometric_certificate(&bb.body, tol).is_ok();
                 let far = finished(
                     "the far brick",
-                    sweep::test_support::brick((50.0, 51.0), (50.0, 51.0), (50.0, 51.0), tol),
+                    sweep::test_support::brick::<f64>(
+                        (50.0, 51.0),
+                        (50.0, 51.0),
+                        (50.0, 51.0),
+                        tol,
+                    ),
                     tol,
                 );
                 let operand = topo::union(&bb.body, &far, tol).is_ok();
@@ -622,7 +627,7 @@ pub struct NtPrism {
 impl NtPrism {
     /// The prism as an operand.
     pub fn body(&self, tol: Tol) -> AtRestBody<f64> {
-        AtRestBody::validate(
+        topo::finish(
             topo::test_support::prism::<f64>(&self.profile, self.h, tol).body,
             tol,
         )
@@ -691,7 +696,7 @@ pub fn nt_cube(v: V3, m: V3, tol: Tol) -> AtRestBody<f64> {
         },
         tol,
     );
-    AtRestBody::validate(cube, tol).expect("a mapped cube is a valid operand")
+    topo::finish(cube, tol).expect("a mapped cube is a valid operand")
 }
 
 /// The near-tangent census's prisms, by name.

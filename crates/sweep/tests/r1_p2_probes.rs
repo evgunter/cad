@@ -72,6 +72,7 @@ fn prism(scale: f64) -> Body<f64> {
     sweep::loft_body::<f64>(&sections, &places, 2, Tol::witness())
         .expect("the offset square prism builds")
         .body
+        .into_body()
 }
 
 fn is_flat_wall(body: &Body<f64>, key: topo::SurfaceKey, scale: f64) -> bool {
@@ -569,7 +570,8 @@ fn r1_dual_scalar_wall_seam_arm_names_the_missing_lane() {
         Tol::witness(),
     )
     .expect("the offset square prism builds at Dual64")
-    .body;
+    .body
+    .into_body();
     let bowed = body
         .faces()
         .find_map(|(_, f)| match body.get_surface(f.surface) {

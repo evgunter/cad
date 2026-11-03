@@ -157,6 +157,7 @@ pub(crate) mod fuse;
 // rustdoc reason as the sector modules below.
 pub mod face_boxes;
 pub mod face_normal;
+mod finish;
 #[cfg(test)]
 pub(crate) mod fixtures;
 // This crate's own sources, read as source. A sibling of `fixtures`
@@ -665,26 +666,82 @@ pub mod test_support {
         body.merge_coplanar_faces_unjoined(&crate::boolean::GluedSurfaces::none(), tol)
     }
 
-    /// `body` finished for a door that takes finished bodies (the
-    /// boolean's): through the scalar's at-rest gate
-    /// ([`crate::AtRestPolicy::gate_at_rest_kept`]).
+    /// **A fixture that is, or becomes, a finished body**: a door's
+    /// finished result as it is, or construction state through its
+    /// scalar's [`crate::AtRestPolicy::finish`].
+    pub trait Finishing {
+        /// The scalar whose finished body this is, or becomes.
+        type Scalar: crate::AtRestPolicy;
+
+        /// The finished body.
+        ///
+        /// # Panics
+        ///
+        /// Naming `what` and every finding, where the finish refuses.
+        fn finished(
+            self,
+            what: &str,
+            tol: geom_core::Tol,
+        ) -> <Self::Scalar as crate::AtRestPolicy>::Finished;
+    }
+
+    impl<T: crate::AtRestPolicy> Finishing for Body<T> {
+        type Scalar = T;
+
+        #[allow(clippy::panic)]
+        #[track_caller]
+        fn finished(self, what: &str, tol: geom_core::Tol) -> T::Finished {
+            match T::finish(self, tol) {
+                Ok(body) => body,
+                Err(e) => panic!("{what} is not a finished body: {e:?}"),
+            }
+        }
+    }
+
+    impl<T: crate::AtRestPolicy<Finished = Self>> Finishing for crate::AtRestBody<T> {
+        type Scalar = T;
+
+        fn finished(self, _what: &str, _tol: geom_core::Tol) -> Self {
+            self
+        }
+    }
+
+    /// A replay is a dual's finished body and a box scalar's leaf
+    /// ([`crate::AtRestPolicy::leaf`]): taken through the one taker door
+    /// ([`crate::take`]), which at a dual passes it through and at the
+    /// box scalars runs tier 3.
+    impl<T: crate::AtRestPolicy<Leaf = crate::Replay<T>>> Finishing for crate::Replay<T>
+    where
+        T::Finished: Clone,
+    {
+        type Scalar = T;
+
+        #[allow(clippy::panic)]
+        #[track_caller]
+        fn finished(self, what: &str, tol: geom_core::Tol) -> T::Finished {
+            match crate::take::<T>(&std::sync::Arc::new(self), tol) {
+                Ok(body) => std::sync::Arc::unwrap_or_clone(body),
+                Err(e) => panic!("{what} is not a finished body: {e:?}"),
+            }
+        }
+    }
+
+    /// `body` finished for a door that takes finished bodies: a door's
+    /// finished result as it is, construction state through the scalar's
+    /// [`crate::AtRestPolicy::finish`] ([`Finishing`]).
     ///
     /// # Panics
     ///
-    /// Naming `what` and the validator's findings, where the gate
-    /// refuses it — a fixture that is not a finished body.
+    /// Naming `what` and the findings, where the finish refuses — a
+    /// fixture that is not a finished body.
     #[must_use]
-    #[allow(clippy::panic)]
     #[track_caller]
-    pub fn finished<T: crate::AtRestPolicy>(
+    pub fn finished<B: Finishing>(
         what: &str,
-        body: Body<T>,
+        body: B,
         tol: geom_core::Tol,
-    ) -> crate::AtRestBody<T> {
-        match T::gate_at_rest_kept(body, tol) {
-            Ok(body) => body,
-            Err(e) => panic!("{what} is not a finished body: {e:?}"),
-        }
+    ) -> <B::Scalar as crate::AtRestPolicy>::Finished {
+        body.finished(what, tol)
     }
 
     /// **What of `body` lies along a line**: the line through `origin`
@@ -878,7 +935,7 @@ pub mod test_support {
     ///
     /// The reduction's or the join's refusal.
     pub fn split_through_the_join<T: geom_core::Decide + crate::props::AtRestPolicy>(
-        operand: &crate::AtRestBody<T>,
+        operand: &T::Finished,
         plane: &crate::SplitPlane<T>,
         tol: geom_core::Tol,
     ) -> Result<Body<T>, crate::SplitError> {
@@ -961,6 +1018,23 @@ pub mod test_support {
             BooleanError::DegenerateTorus { convention, .. } => {
                 decision(BooleanDecision::Torus(*convention))
             }
+            // A result that does not finish is keyed by its findings'
+            // own variants: an in-band reading (a shell certified in
+            // band) and a definite one (a negative volume) are two
+            // decisions, and the editor's offers stay distinct.
+            BooleanError::ResultInvalid { findings } => {
+                let mut variants: Vec<String> = findings
+                    .iter()
+                    .map(|finding| {
+                        let debug = format!("{finding:?}");
+                        let end = debug.find([' ', '{', '(']).unwrap_or(debug.len());
+                        debug[..end].to_owned()
+                    })
+                    .collect();
+                variants.sort();
+                variants.dedup();
+                format!("ResultInvalid({})", variants.join(","))
+            }
             other => format!("{:?}", other.kind()),
         };
         let defect = err.to_string().contains(geom_core::KERNEL_DEFECT_ENDING)
@@ -976,7 +1050,6 @@ pub mod test_support {
     fn decision_key(d: crate::BooleanDecision) -> String {
         match d {
             crate::BooleanDecision::Coincidence(which, _) => format!("Coincidence({which:?})"),
-            crate::BooleanDecision::ShellRole { .. } => "ShellRole".to_owned(),
             other => format!("{other:?}"),
         }
     }
@@ -1377,17 +1450,20 @@ pub use pcurves::{
     pcurve_of,
 };
 pub use props::{
-    AtRestOutcome, AtRestPolicy, CertifiedBody, Certifier, MassMeasurement, MassProperties,
-    MassPropsError, QuadLane, RoleNames, Settle, SettleVerdict, ShellClassification,
-    ShellClassifyError, ShellClassifyPayload, ShellDoor, ShellRole, SignCertificate, SignLimit,
-    SignNames, Stop, Unmet, VolumeEnclosure, classify_shells, classify_shells_of,
-    classify_shells_structural, mass_properties, mass_properties_structural,
+    AtRestPolicy, CertifiedBody, Certifier, MassMeasurement, MassProperties, MassPropsError,
+    QuadLane, RoleNames, Settle, SettleVerdict, ShellClassification, ShellClassifyError,
+    ShellClassifyPayload, ShellDoor, ShellRole, SignCertificate, SignLimit, SignNames, Stop, Unmet,
+    VolumeEnclosure, classify_shells, classify_shells_of, classify_shells_structural,
+    mass_properties, mass_properties_structural,
 };
 pub use provenance::{Provenance, SplitLineageCycle};
 // The query VOCABULARY rides at the root like every other type;
 // the query DOORS (materializers, predicates) keep their module
 // identity, like `readback`'s.
 pub use face_boxes::{FaceBox, FaceBoxes};
+#[cfg(debug_assertions)]
+pub use finish::finishes_on_this_thread;
+pub use finish::{FindingFamily, FinishedBody, LeafBody, NotFinished, Replay, finish, take};
 pub use mirror::{Reflection, mirror_body};
 pub use pieces::PieceSortError;
 pub use query::{
@@ -1421,10 +1497,11 @@ pub use splitting::{
 pub use transform::{TransformError, transform_rigid};
 pub use validate::{
     AtRestBody, CensusContact, CensusSubject, CensusUnsupportedCause, ContactMark,
-    CrossingSideVerdict, OrientationUnread, RingContact, RingPairContact, SingularityLies,
-    StaleDeclaration, Undecidable, Unfinished, ValidationError, WedgeCheck, contact_marks,
-    contact_marks_structural, validate, validate_closed, validate_geometric,
-    validate_geometric_certificate, validate_geometric_certificate_structural,
-    validate_geometric_structural, validate_pseudomanifold, validate_pseudomanifold_certificate,
+    CrossingSideVerdict, INSIDE_OUT_REFUSAL, OrientationUnread, RingContact, RingPairContact,
+    SCAFFOLDING_RECOURSE, SCAFFOLDING_REFUSAL, SingularityLies, StaleDeclaration, Undecidable,
+    ValidationError, WedgeCheck, contact_marks, contact_marks_structural, validate,
+    validate_closed, validate_geometric, validate_geometric_certificate,
+    validate_geometric_certificate_structural, validate_geometric_structural,
+    validate_pseudomanifold, validate_pseudomanifold_certificate,
     validate_pseudomanifold_certificate_structural, validate_pseudomanifold_structural,
 };

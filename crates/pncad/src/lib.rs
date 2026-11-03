@@ -136,7 +136,7 @@
 //!     .line_to(Start, tol)?;
 //! let profile = validated(SketchPlane::<f64>::xy(), vec![square.into()], tol)?;
 //! let body = extrude(&profile, Extrusion::Distance { depth: real(1.0), side: ExtrudeSide::Along }, tol)?.body;
-//! let body = AtRestBody::validate(body, tol).map_err(|e| format!("{e:?}"))?; // tier 3, at rest
+//! // The door finishes its result: `body` is tier-3 valid, at rest.
 //! let unit = Settle::Contains { lo: 1.0 - 1e-6, hi: 1.0 + 1e-6, name: "example_unit_cube" };
 //! assert_eq!(mass_properties(&body, tol, unit)?.stop, Stop::Settled(SettleVerdict::Holds(true)));
 //! # Ok::<(), Box<dyn std::error::Error>>(())

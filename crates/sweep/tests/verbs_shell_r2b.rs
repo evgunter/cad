@@ -60,6 +60,7 @@ fn revolved(loops: Vec<ProfileLoop<f64>>) -> Body<f64> {
     )
     .expect("the meridian revolves")
     .body
+    .into_body()
 }
 
 fn extruded(loops: Vec<ProfileLoop<f64>>, h: f64) -> Body<f64> {
@@ -76,6 +77,7 @@ fn extruded(loops: Vec<ProfileLoop<f64>>, h: f64) -> Body<f64> {
     )
     .expect("it extrudes")
     .body
+    .into_body()
 }
 
 /// **Claim 3's MINT on MY OWN stepped meridian** — eight stations, all
@@ -167,7 +169,7 @@ fn r2b_two_holed_designation_refuses_typed() {
     let top = plane_chart_at_z(&body, 0.6);
     println!("[r2b] two-holed top chart: {} face(s)", top.len());
     let opened = topo::shell_open(&finished("the operand", body.clone(), tol), 0.05, &top, tol)
-        .map(|shelled| shelled.body);
+        .map(|shelled| shelled.body.into_body());
     match &opened {
         Err(ShellError::OpenFaceRimNotExpressible { what, .. }) => {
             println!("[r2b] typed refusal: {what}");
@@ -190,7 +192,7 @@ fn r2b_one_holed_extrusion() {
     let body = extruded(vec![outer, hole], 0.6);
     let top = plane_chart_at_z(&body, 0.6);
     let opened = topo::shell_open(&finished("the operand", body.clone(), tol), 0.05, &top, tol)
-        .map(|shelled| shelled.body);
+        .map(|shelled| shelled.body.into_body());
     match &opened {
         Ok(cup) => {
             println!(
@@ -265,7 +267,7 @@ fn r2b_partial_revolve_reaches_the_rim() {
         let body = swept.body;
         let chart = plane_chart_at_y(&body, h);
         let opened = topo::shell_open(&finished("the operand", body.clone(), tol), t, &chart, tol)
-            .map(|shelled| shelled.body);
+            .map(|shelled| shelled.body.into_body());
         match &opened {
             Ok(cup) => {
                 println!(

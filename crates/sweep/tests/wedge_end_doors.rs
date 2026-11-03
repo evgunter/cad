@@ -75,6 +75,7 @@ fn plate_with_hole() -> Body<f64> {
         1.0,
     )
     .body
+    .into_body()
 }
 
 /// The DECLARED cusp ([`sweep::test_support::lune`]).

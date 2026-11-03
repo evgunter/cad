@@ -168,7 +168,7 @@ fn the_box_oracle_reads_the_closed_forms() {
 /// the result's volume does not read a torus face holding a ring
 /// (`RingOnCurvedFace`), as on a ringed torus wall no lane reads.
 pub(crate) fn stops_past_the_join(e: &BooleanError) -> bool {
-    matches!(e, BooleanError::ResultInvalid { errors } if !errors.is_empty()
+    matches!(e, BooleanError::ResultInvalid { findings: errors } if !errors.is_empty()
     && errors.iter().all(|e| {
         matches!(
             e,

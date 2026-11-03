@@ -83,7 +83,7 @@ fn cube_topped(surface: Surface<f64>) -> (Body<f64>, FaceKey) {
     )
     .unwrap();
     assert!(
-        <f64 as topo::AtRestPolicy>::gate_at_rest_kept(body.clone(), Tol::witness()).is_err(),
+        topo::finish(body.clone(), Tol::witness()).is_err(),
         "the swapped top is not a finished body"
     );
     (body, cube.seed.face)

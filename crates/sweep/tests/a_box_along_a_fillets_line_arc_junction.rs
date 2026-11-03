@@ -61,7 +61,11 @@ fn prism(what: &str, chain: Vec<(Point2<f64>, f64)>, pose: &Affine3<f64>) -> AtR
         depth: 1.0,
         side: ExtrudeSide::Along,
     };
-    posed(what, extrude(&profile, depth, tol()).unwrap().body, pose)
+    posed(
+        what,
+        extrude(&profile, depth, tol()).unwrap().body.into_body(),
+        pose,
+    )
 }
 
 /// The rounded prism `A`: `4 − CORNER`.

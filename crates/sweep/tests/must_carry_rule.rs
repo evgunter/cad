@@ -146,7 +146,7 @@ fn filleted_block(h: f64) -> Result<Body<f64>, ExtrudeError> {
         },
         Tol::witness(),
     )
-    .map(|e| e.body)
+    .map(|e| e.body.into_body())
 }
 
 /// The eight smooth struts of [`filleted_block`] — the count is the
@@ -178,6 +178,7 @@ fn tangent_strut_prism(free: f64) -> Body<f64> {
     )
     .expect("the tangent-strut prism extrudes")
     .body
+    .into_body()
 }
 
 /// [`tangent_strut_prism`]'s profile, or the profile door's refusal.
@@ -239,7 +240,7 @@ fn bored_ring(r_bore: f64) -> Result<Body<f64>, sweep::RevolveError> {
         origin: Point2::new(0.0, 0.0),
         dir: Vec2::new(0.0, 1.0),
     };
-    revolve(&profile, axis, Revolution::Full, Tol::witness()).map(|r| r.body)
+    revolve(&profile, axis, Revolution::Full, Tol::witness()).map(|r| r.body.into_body())
 }
 
 /// The one smooth latitude join of [`bored_ring`].

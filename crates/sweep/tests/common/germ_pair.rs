@@ -38,6 +38,7 @@ pub fn cyl(r: f64, h: f64) -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 pub fn spin(b: &Body<f64>, axis: Vec3<f64>, angle: f64) -> Body<f64> {

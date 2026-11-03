@@ -67,6 +67,7 @@ fn lofted_prism() -> Body<f64> {
     sweep::loft_body::<f64>(&[sq(), sq()], &stacked_at(&[0.0, 1.0]), 1, tol())
         .expect("the prism builds")
         .body
+        .into_body()
 }
 
 fn start_point(body: &Body<f64>, he: HalfEdgeKey) -> Point3<f64> {

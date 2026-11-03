@@ -119,7 +119,7 @@ fn transformed_tool_subtracts_exactly() {
     // subtract — the moved body composes with the boolean pipeline.
     let base = finished(
         "base",
-        brick((0.0, 2.0), (0.0, 2.0), (0.0, 2.0), Tol::witness()),
+        brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0), Tol::witness()),
         Tol::witness(),
     );
     let tool = brick(

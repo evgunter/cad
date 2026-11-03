@@ -42,7 +42,8 @@ fn revolved(polygon: &[(f64, f64)], theta: Option<f64>) -> Body<f64> {
         Tol::witness(),
     )
     .unwrap()
-    .body;
+    .body
+    .into_body();
     if theta.is_none() {
         body.merge_coplanar_faces(Tol::witness()).unwrap();
     }
@@ -275,7 +276,8 @@ fn a_tilted_slab_cuts_ellipses_cleared_by_w2() {
         Tol::witness(),
     )
     .unwrap()
-    .body;
+    .body
+    .into_body();
     assert_all_tiers(&frustum);
     for (what, body) in [
         ("the seamed frustum", frustum),

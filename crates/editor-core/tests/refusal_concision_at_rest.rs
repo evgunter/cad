@@ -18,8 +18,11 @@
 //! — plus one line per finding. Every admission must admit something a
 //! sample renders, so one its owner's fix made stale goes red.
 //!
-//! **The wrappers rendered.** A could-not-look finding's evidence, and
-//! the product gate's refusal, alone and as the registry's refusal.
+//! **The wrappers rendered.** A could-not-look finding's evidence, an
+//! operation's finish refusing its own result (`NodeErrorKind::NotFinished`),
+//! a consumer's finish refusing a box scalar's sweep leaf
+//! (`NodeErrorKind::UnfinishedLeaf`),
+//! and the product gate's refusal, alone and as the registry's refusal.
 //!
 //! **What a row here cannot see.** A refusal listing several findings
 //! is several lines under one header, and its length grows with the
@@ -29,20 +32,17 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use editor_core::{AtRestEvidence, ChecksError, ProductError, RecipeNodeId, SourceFinding};
-use test_utils::refusal::tagged;
+use editor_core::{AtRestEvidence, ChecksError, NodeErrorKind, ProductError};
 use topo::ValidationError;
 
 /// The labels a finding legitimately opens with, each on the routes
 /// (or the one sample) whose rendering writes it: the two badges' names
-/// as the viewer writes them, and the product gate's placement address.
+/// as the viewer writes them.
 const LABELS: &[(&str, &str)] = &[
     ("at rest", "at rest"),
     ("checks, product", "checks"),
     ("product", "product"),
     ("checks, product", "product"),
-    ("product", "piece 000000000005 output 0"),
-    ("checks, product", "piece 000000000005 output 0"),
     // A sentence whose clause carries no word the shape check reads as
     // a sentence's: a numeral subject and a bare verb.
     ("InstanceInterference", "two instances overlap"),
@@ -97,15 +97,27 @@ const KERNEL_KEYED: &[&str] = &[
 /// Every wrapper `error` can arrive in, rendered as the viewer draws it.
 fn renderings(error: &ValidationError) -> Vec<(&'static str, String)> {
     let at_rest = AtRestEvidence::NoLane(error.clone());
-    let product = ProductError::PieceInvalid {
-        findings: vec![SourceFinding {
-            node: RecipeNodeId::new(0, tagged(5)),
-            output: 0,
-            errors: vec![error.clone()],
-        }],
+    let findings = topo::NotFinished::for_tests(vec![error.clone()]);
+    let product = ProductError::ProductInvalid {
+        findings: findings.clone(),
     };
     vec![
         ("at rest", format!("at rest: {at_rest}")),
+        (
+            "finish",
+            NodeErrorKind::NotFinished {
+                findings: findings.clone(),
+            }
+            .to_string(),
+        ),
+        (
+            "leaf",
+            NodeErrorKind::UnfinishedLeaf {
+                input: editor_core::RecipeNodeId::new(0, test_utils::refusal::tagged(3)),
+                findings,
+            }
+            .to_string(),
+        ),
         ("product", product.to_string()),
         (
             "checks, product",
@@ -151,7 +163,11 @@ fn every_at_rest_finding_renders_to_the_standard() {
             // One finding line, under a header where the wrapper writes
             // one: a line break inside a finding (a `\` continuation left
             // inside a literal) would split it across the list.
-            let lines = if route == "at rest" { 1 } else { 2 };
+            let lines = if matches!(route, "at rest" | "finish" | "leaf") {
+                1
+            } else {
+                2
+            };
             if text.lines().count() != lines {
                 problems.push(format!(
                     "{name} renders {} lines, not {lines}: {text}",

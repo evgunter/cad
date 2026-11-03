@@ -44,7 +44,8 @@ fn ext(what: &str, loops: Vec<ProfileLoop<f64>>, z0: f64, h: f64) -> AtRestBody<
         tol(),
     )
     .unwrap()
-    .body;
+    .body
+    .into_body();
     finished(what, body, tol())
 }
 
@@ -657,7 +658,8 @@ fn try_ext(
         },
         tol(),
     )?
-    .body;
+    .body
+    .into_body();
     Ok(finished("sliver", body, tol()))
 }
 

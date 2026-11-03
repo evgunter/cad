@@ -108,7 +108,7 @@ fn debug_assertions_are_on() -> bool {
 fn r1_e2e_gauge_is_silent_at_the_interval_lane() {
     use geom_core::Interval;
     let (sections, places) = r1_sections();
-    let lofted = loft_body::<Interval>(
+    let lofted = sweep::test_support::loft_body_construction::<Interval>(
         &sweep::test_support::lift_sections::<Interval>(&sections),
         &sweep::test_support::lift_places::<Interval>(&places, geom_core::Tol::witness()),
         2,

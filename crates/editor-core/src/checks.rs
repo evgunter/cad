@@ -447,12 +447,13 @@ pub enum CheckEvidence {
         /// The typed refusal from the shell door.
         source: ShellClassifyError,
     },
-    /// The subject is not a finished body: tier 3 refuses it, so its
-    /// shells are not classified (the shell door reads finished bodies,
-    /// `&AtRestBody`) and the component count is not read. A finding,
-    /// never a silent skip (F6).
+    /// The subject is not a finished body: tier 3 refuses it where the
+    /// shell door takes it (at the box scalars, a sweep's leaf, the
+    /// switch at `topo::AtRestPolicy::leaf`), so its shells are not
+    /// classified and the component count is not read. A finding, never
+    /// a silent skip (F6), and the walk goes on to the other outputs.
     NotAtRest {
-        /// The validator's findings on the subject, verbatim.
+        /// The finish's findings on the subject, verbatim.
         errors: Vec<topo::ValidationError>,
     },
     /// An expectation with no subject: `expected_components` carries
@@ -969,15 +970,9 @@ impl SaidFinding<'_> {
             | CheckEvidence::Escalated { .. }
             | CheckEvidence::Unsupported { .. }
             | CheckEvidence::StaleExpectation { .. } => "",
-            CheckEvidence::AtRest { evidence } => match evidence {
-                at_rest::AtRestEvidence::NotRun => {
-                    "Recourse: evaluate the document at f64, where the census runs, rather \
-                     than reading this silence as a clean assembly"
-                }
-                // The kernel's verdict, the gather's refusal and the
-                // part's row each end in their own recourse.
-                _ => "",
-            },
+            // The kernel's verdict, the gather's refusal and the part's
+            // row each end in their own recourse.
+            CheckEvidence::AtRest { .. } => "",
         }
     }
 }
@@ -1073,13 +1068,6 @@ fn interference_words(
             match why {
                 at_rest::Unlocalized::Refused { refusal }
                 | at_rest::Unlocalized::Containment { refusal } => f.write_str(refusal),
-                at_rest::Unlocalized::Invalid { errors } => {
-                    write!(
-                        f,
-                        "a copy is not a valid body ({} finding(s))",
-                        errors.len()
-                    )
-                }
                 at_rest::Unlocalized::Empty => {
                     f.write_str("it is thinner than the boolean's tolerance")
                 }
@@ -1436,7 +1424,7 @@ impl core::error::Error for CheckRefusal {}
 ///   residents that read no subject have already answered by then, so
 ///   their own refusals still come first.
 #[derive(Debug)]
-pub enum Subject<'a, T: Decide> {
+pub enum Subject<'a, T: topo::AtRestPolicy + Decide> {
     /// The gathered product, borrowed for the run.
     Product(&'a product::Product<T>),
     /// Nothing is placed in the world, so there is no product to be
@@ -1450,7 +1438,7 @@ pub enum Subject<'a, T: Decide> {
     },
 }
 
-impl<T: Decide> Subject<'_, T> {
+impl<T: topo::AtRestPolicy + Decide> Subject<'_, T> {
     /// The subject a gather REFUSAL is — and which of two arms it is
     /// is decided HERE, on [`product::ProductErrorKind::means_no_body`].
     ///
@@ -1498,8 +1486,8 @@ impl<T: Decide> Subject<'_, T> {
 /// component count of a subject is its number of definitely-`Outer`
 /// shells ([`topo::classify_shells`]) — an internal void is boundary,
 /// not a component, at every tolerance row — compared EXACTLY (`!=`)
-/// against the expectation. A subject tier 3 refuses is not classified
-/// and surfaces as [`CheckEvidence::NotAtRest`]; a shell the door cannot
+/// against the expectation. Every subject is a finished body, as the
+/// door that built it returned it; a shell the door cannot
 /// classify surfaces as its own typed finding
 /// ([`CheckEvidence::Escalated`] / [`CheckEvidence::Unsupported`]). Neither
 /// is a silent skip.
@@ -1860,7 +1848,7 @@ pub(crate) fn door_rows<P: crate::ProfilePayload, T: crate::mate::SolveScalar + 
 /// value's carried rows, in evaluation order, each once per part row
 /// ([`at_rest::once_per_part_row`]), so a part placed twice, or an
 /// instance and its placements, ask once, by the first route.
-pub(crate) fn carried_coincidences<T: Decide>(
+pub(crate) fn carried_coincidences<T: topo::AtRestPolicy + Decide>(
     ev: &Evaluation<T>,
 ) -> Vec<at_rest::CarriedCoincidenceRows> {
     let mut rows = Vec::new();
@@ -1988,25 +1976,27 @@ fn connectedness<P: crate::ProfilePayload, T: Decide + CertifiedBounds + AtRestP
         };
         for (output_ix, body, _contacts, _rows) in sources {
             unconsumed.remove(&(placement, output_ix));
-            // The shell door reads a finished body. Nothing upstream keeps a
-            // placement's verdict in its value yet (F2 carries it), so the placement is
-            // gated here, once.
-            let body = match T::gate_at_rest_kept(body.body().clone(), tol) {
-                Ok(body) => body,
-                Err(errors) => {
+            // The shell door takes a finished body: a box scalar's leaf
+            // is taken here (`Held::finished`), and one that does not
+            // finish is this output's finding; the walk goes on.
+            let finished = match body.holding().finished(tol) {
+                Ok(finished) => finished,
+                Err(findings) => {
                     report.findings.push(CheckFinding {
                         check: CheckId::Connectedness,
                         subject: FindingSubject::Output {
                             placement,
                             output_ix,
                         },
-                        evidence: CheckEvidence::NotAtRest { errors },
+                        evidence: CheckEvidence::NotAtRest {
+                            errors: findings.as_slice().to_vec(),
+                        },
                         quiet: None,
                     });
                     continue;
                 }
             };
-            match classify_shells(&body, tol) {
+            match classify_shells(&*finished, tol) {
                 Ok(classes) => {
                     let outer = classes
                         .iter()
@@ -2109,7 +2099,10 @@ fn connectedness<P: crate::ProfilePayload, T: Decide + CertifiedBounds + AtRestP
 /// Placements in document order, and within one copy the door's own
 /// total order — its findings, then its unexamined loops. A pure function of the
 /// evaluation and eps, as the door itself is.
-fn chart_coherence<P: crate::ProfilePayload, T: Decide + ChartCoherenceLane>(
+fn chart_coherence<
+    P: crate::ProfilePayload,
+    T: Decide + ChartCoherenceLane + topo::AtRestPolicy,
+>(
     doc: &Doc<P>,
     ev: &Evaluation<T>,
     tol: Tol,
@@ -2300,7 +2293,7 @@ fn at_rest<P: crate::ProfilePayload, T: at_rest::LocalizeLane>(
 /// A caller wanting only the body says so with a `.map(|(body, _)| …)`
 /// at its own site, where dropping the records is a visible decision
 /// rather than this door's silent narrowing.
-pub fn subject_body<T: Decide>(
+pub fn subject_body<T: topo::AtRestPolicy + Decide>(
     ev: &Evaluation<T>,
     placement: RecipeNodeId,
     output_ix: u32,
@@ -2513,8 +2506,12 @@ mod tests {
             evidence,
             quiet,
         };
-        let not_run = || CheckEvidence::AtRest {
-            evidence: super::at_rest::AtRestEvidence::NotRun,
+        let malformed = || CheckEvidence::AtRest {
+            evidence: super::at_rest::AtRestEvidence::Malformed(
+                topo::ValidationError::UncertifiableSurface {
+                    face: topo::FaceKey::default(),
+                },
+            ),
         };
         let report = |findings| super::ChecksReport {
             document,
@@ -2526,7 +2523,7 @@ mod tests {
             at_rest: super::Severity::Error,
             ..super::ChecksConfig::default()
         };
-        let could_not_look = report(vec![at(not_run(), None)]);
+        let could_not_look = report(vec![at(malformed(), None)]);
         assert!(super::enforce_checks(&could_not_look, &error).is_ok());
         let loud = report(vec![finding(super::CheckId::Connectedness, 2)]);
         let connectedness_error = super::ChecksConfig {

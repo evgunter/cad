@@ -423,7 +423,7 @@ fn the_holdings_over_a_cut_in_name_only_their_operands_faces() {
         for op in [topo::NaryOp::Union, topo::NaryOp::Intersect] {
             let what = format!("n-ary {op:?}, {order}");
             let inputs = topo::MemberInputs::default();
-            let members = [
+            let members: [topo::NaryMember<'_, f64>; 2] = [
                 topo::NaryMember {
                     body: x,
                     inputs: &inputs,

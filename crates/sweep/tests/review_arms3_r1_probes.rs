@@ -414,7 +414,7 @@ fn sheet_center_degrades_to_axis_then_nan_past_tangency() {
 /// ridge-through-ridge contact typed, `ZipCorrespondence`, so the
 /// chamfer is the machinery that actually mints valence-4 today.)
 fn chamfered_cube() -> Body<f64> {
-    let body = sweep::test_support::cube(1.0, tol());
+    let body = sweep::test_support::cube::<f64>(1.0, tol());
     let edges: Vec<EdgeKey> = body.edges().map(|(k, _)| k).collect();
     sweep::chamfer::chamfer_edges(
         &sweep::test_support::at_rest(&body, tol()),
@@ -424,6 +424,7 @@ fn chamfered_cube() -> Body<f64> {
     )
     .expect("a cube's twelve edges chamfer")
     .body
+    .into_body()
 }
 
 /// **The seam recognition must not swallow a real N-edge vertex.** A

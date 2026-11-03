@@ -999,7 +999,7 @@ overlap of two copies' material, quiet when an assertion says so;
 `carried_interference` is one a document BELOW this one reported
 between its own copies; `at_rest` is a pair the census could not look
 at, whose `AtRestEvidence` says why (`no_lane`, `malformed`,
-`inside_arrival`, `not_gathered`, `not_run`, or `carried` from a part,
+`inside_arrival`, `not_gathered`, or `carried` from a part,
 the file to open). Two copies that touch are no at-rest finding: the
 touch is a row of the product, mated or not, which the
 `unproven-coincidence` check reports unless the door proves it. A

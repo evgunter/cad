@@ -36,13 +36,13 @@ fn a_zero_corner_kiss_keeps_the_first_operands_point_over_a_lower_key() {
     let delta = tol().eps() / 4.0;
     let a = common::finished(
         "a",
-        common::brick_with_fresh_keys((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol()),
+        common::brick_with_fresh_keys::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol()),
         tol(),
     );
     let lo = 1.0 + delta;
     let b = common::finished(
         "b",
-        common::brick((lo, 2.0), (lo, 2.0), (lo, 2.0), tol()),
+        common::brick::<f64>((lo, 2.0), (lo, 2.0), (lo, 2.0), tol()),
         tol(),
     );
     topo::take_shared_points();

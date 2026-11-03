@@ -16,16 +16,19 @@ use crate::common;
 use common::{brick, finished, prism_z};
 use geom_core::{Decide, Tol};
 use topo::{
-    AtRestBody, Body, BooleanBody, BooleanError, BooleanResult, subtract, union, validate_closed,
+    Body, BooleanBody, BooleanError, BooleanResult, subtract, union, validate_closed,
     validate_pseudomanifold,
 };
 
-type BoolOp<T> = fn(&AtRestBody<T>, &AtRestBody<T>, Tol) -> Result<BooleanResult<T>, BooleanError>;
+type BoolOp<T> =
+    fn(&topo::AtRestBody<T>, &topo::AtRestBody<T>, Tol) -> Result<BooleanResult<T>, BooleanError>;
 
-fn run<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>(
+fn run<
+    T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>,
+>(
     op: BoolOp<T>,
-    a: &AtRestBody<T>,
-    b: &AtRestBody<T>,
+    a: &topo::AtRestBody<T>,
+    b: &topo::AtRestBody<T>,
 ) -> BooleanBody<T> {
     match op(a, b, Tol::witness()).unwrap() {
         BooleanResult::Body(body) => body,
@@ -34,26 +37,33 @@ fn run<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>(
 }
 
 /// A brick at rest.
-fn block<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>(
+fn block<
+    T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>,
+>(
     what: &str,
     x: (f64, f64),
     y: (f64, f64),
     z: (f64, f64),
-) -> AtRestBody<T> {
+) -> topo::AtRestBody<T> {
     finished(what, brick::<T>(x, y, z, Tol::witness()), Tol::witness())
 }
 
 /// The wedge whose edge runs along the cube's convex edge `(1, 1, z)`,
 /// from `z0` up.
-fn wedge<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>(z0: f64) -> AtRestBody<T> {
+fn wedge<
+    T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>,
+>(
+    z0: f64,
+) -> topo::AtRestBody<T> {
     let profile = [(1.0, 1.0), (-1.0, 0.2), (0.2, -1.0)];
     let body = prism_z::<T>(&profile, z0, 2.0, Tol::witness()).body;
     finished("wedge", body, Tol::witness())
 }
 
 /// The pinch results, by name.
-fn pinches<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>()
--> Vec<(&'static str, BooleanBody<T>)> {
+fn pinches<
+    T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>,
+>() -> Vec<(&'static str, BooleanBody<T>)> {
     let t = Tol::witness();
     let ell = prism_z::<T>(
         &[
@@ -92,7 +102,9 @@ fn pinches<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>()
 /// passing them, so the gate refuses each, over the whole edge and over
 /// `z ∈ [0.5, 1]` only. They return with the re-pairing
 /// (`work/topo/revert-re-pairs-the-sheets-on-a-line-where-coincident-edges-meet.md`).
-fn assert_edge_pinches_refuse<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>() {
+fn assert_edge_pinches_refuse<
+    T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>,
+>() {
     let t = Tol::witness();
     let notched = run(
         subtract,
@@ -148,7 +160,9 @@ fn pinches_along_an_operand_edge_refuse_their_overlapping_wedges_interval() {
 /// each touch along a line: the kissing cube's two bottom edges lie
 /// along the L's notch rim. Red if the reduction writes the edge-edge
 /// row only where both wedges read Out.
-fn assert_pinches_pass<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>() {
+fn assert_pinches_pass<
+    T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>,
+>() {
     for (name, r) in pinches::<T>() {
         let lines = 2;
         assert_eq!(

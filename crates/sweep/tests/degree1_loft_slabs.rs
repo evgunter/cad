@@ -413,7 +413,7 @@ fn a_higher_degree_loft_keeps_one_wall_per_segment() {
 fn the_output_stage_merge_keeps_every_slab_wall() {
     let zs = heights(4, "uniform");
     let lofted = loft(Shape::Square, &zs, |_| 1.0);
-    let mut merged = lofted.body.clone();
+    let mut merged = lofted.body.clone().into_body();
     let outcome = merged.merge_coplanar_faces(tol()).unwrap();
     assert!(
         outcome.groups.is_empty(),

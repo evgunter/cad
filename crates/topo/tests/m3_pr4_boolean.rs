@@ -13,14 +13,14 @@ use geom_core::Decide;
 use geom_core::Tol;
 use topo::test_support::arena_counts;
 use topo::{
-    AtRestBody, Body, BooleanError, BooleanOp, BooleanReduction, Operand, ValidationError,
-    boolean_reduce, validate,
+    Body, BooleanError, BooleanOp, BooleanReduction, Operand, ValidationError, boolean_reduce,
+    validate,
 };
 
-fn reduce_ok<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
+fn reduce_ok<T: Decide + geom_core::Bounds + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>>(
     op: BooleanOp,
-    a: &AtRestBody<T>,
-    b: &AtRestBody<T>,
+    a: &topo::AtRestBody<T>,
+    b: &topo::AtRestBody<T>,
 ) -> BooleanReduction<T> {
     let before = (arena_counts(a), arena_counts(b));
     // M4 PR 5: intended flush contacts are DECLARED (the test author's
@@ -41,7 +41,11 @@ fn reduce_ok<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
 /// null edge + one ring strut in the pierced face (the vtxfacclassify
 /// ring sequence), all correspondence-keyed. Op-independent here (no
 /// Eq. 15.3 row is hit).
-fn two_bricks<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(op: BooleanOp) {
+fn two_bricks<
+    T: Decide + geom_core::Bounds + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>,
+>(
+    op: BooleanOp,
+) {
     let a = finished(
         "operand A",
         brick::<T>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0), Tol::witness()),
@@ -113,7 +117,9 @@ fn two_bricks_all_ops() {
 /// B-bottom edge (Tables II/III rows live), Eq. 15.3's ⁻ row decides
 /// (opposite orientation). Union sees crossings (the stacked bodies
 /// merge through the shared plane); the census is pinned per op.
-fn stacked_bricks<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
+fn stacked_bricks<
+    T: Decide + geom_core::Bounds + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>,
+>(
     op: BooleanOp,
     expect_pairs_nonzero: bool,
 ) {
@@ -154,7 +160,9 @@ fn stacked_bricks_full_coplanar_face() {
 /// search finds NO crossing (the cones touch at one point); the
 /// declared v-v contact is the entire result. Near-miss variants: a gap
 /// inside the sliver band escalates typed; a definite gap is clean.
-fn corner_kiss<T: Decide + geom_core::Bounds + topo::AtRestPolicy>() {
+fn corner_kiss<
+    T: Decide + geom_core::Bounds + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>,
+>() {
     let a = finished(
         "operand A",
         brick::<T>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness()),
@@ -209,7 +217,9 @@ fn corner_kiss_touch_and_near_miss() {
 /// an interior point of both (the OnEdge lane splits BOTH edges into a
 /// declared v-v pair). Census hand-traced: two such crossings, plus one
 /// vertex-on-face contact per side in the shared tangent plane z = 2.
-fn skew_edge_cross<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
+fn skew_edge_cross<
+    T: Decide + geom_core::Bounds + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>,
+>(
     op: BooleanOp,
 ) -> BooleanReduction<T> {
     let a = finished(
@@ -289,7 +299,9 @@ fn vertex_on_face_tangential_rest() {
 /// coplanar edge-face pair itself is skipped — the documented catch),
 /// and the shared plane's collinear edge segments put the Tables II/III
 /// edge-edge machinery live at every minted v-v pair.
-fn collinear_overlap<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
+fn collinear_overlap<
+    T: Decide + geom_core::Bounds + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>,
+>(
     op: BooleanOp,
 ) -> BooleanReduction<T> {
     let a = finished(
@@ -338,7 +350,7 @@ fn null_edge_operand_refuses() {
             topo::construction::NewVertexSide::Above,
         )
         .unwrap();
-    let errors = AtRestBody::validate(b, Tol::witness()).unwrap_err();
+    let errors = topo::finish(b, Tol::witness()).unwrap_err();
     assert_eq!(
         errors,
         [
@@ -402,7 +414,7 @@ fn non_maximal_operand_refuses() {
     let [seam] = seams[..] else {
         panic!("one seam edge splits the top face: {seams:?}");
     };
-    let scaffold = AtRestBody::validate(b.clone(), tol).unwrap_err();
+    let scaffold = topo::finish(b.clone(), tol).unwrap_err();
     assert_eq!(
         scaffold,
         [ValidationError::ScaffoldAtRest { edge: seam }],

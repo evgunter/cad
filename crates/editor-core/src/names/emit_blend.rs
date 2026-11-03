@@ -420,7 +420,7 @@ mod tie_tests {
             ),
         )
         .expect("the extrude names");
-        (built.body, table)
+        (built.body.into_body(), table)
     }
 
     /// **A join that takes an edge the blend minted outright refuses**:

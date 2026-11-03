@@ -27,6 +27,14 @@
 //!    comparison. An assertion the leaf could not decide is still an
 //!    indeterminacy, and bisects under 1.
 //!
+//! **What a certified leaf has not had** (Ev on PR 6371, the box
+//! scalars' switch at `topo::AtRestPolicy::leaf`): at the box scalars a
+//! sweep door's body is tier 2 alone, and tier 3 runs only where a
+//! consumer takes it as a finished body (a Boolean's, a split's, a
+//! shell's or a blend's operand, the product). So a leaf whose document
+//! is sweeps alone has had tier 2, not tier 3, over its box, until the
+//! switch's rows land (`work/onehome/delete-the-box-scalar-sweep-leaf-switch.md`).
+//!
 //! **What the wrapper adds, and what it does not** (ERROR-DESIGN E12).
 //! The numeric channel is `Interval`'s, verbatim and bit for bit —
 //! `Sym<T>` computes every operation at `T` and mints a DAG node beside
@@ -505,7 +513,7 @@ impl Default for DriveConfig {
 /// [`DriveRefusal::WitnessDoesNotBuild`] unless every node of the
 /// witness's `order` is `Ok`. A consumer that takes
 /// [`VerdictVector::of`] over some other evaluation can see `Absent`.
-pub fn certifying_vector<T: geom_core::Decide, P>(
+pub fn certifying_vector<T: topo::AtRestPolicy + geom_core::Decide, P>(
     doc: &Doc<P>,
     ev: &Evaluation<T>,
 ) -> VerdictVector {
@@ -1574,7 +1582,7 @@ fn classify(
 /// in the lane scalar at `Decide`, the weakest bound its reads need,
 /// because the two lanes above differ only in which scalar produced the
 /// evaluation and in nothing this function looks at.
-fn classify_replay<T: geom_core::Decide>(
+fn classify_replay<T: topo::AtRestPolicy + geom_core::Decide>(
     doc: &Doc<ProfileProgram>,
     box_: &ParamBox,
     leaf: &Evaluation<T>,

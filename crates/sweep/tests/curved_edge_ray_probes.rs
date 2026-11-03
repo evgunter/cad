@@ -84,7 +84,7 @@ fn fixtures(tol: Tol) -> Vec<(&'static str, Body<f64>)> {
         tol,
     );
     let block = brick::<f64>((-1.0, 1.0), (-1.0, 0.0), (-1.0, 1.0), tol);
-    let at_rest = |b: &Body<f64>| topo::AtRestBody::validate(b.clone(), tol).expect("at rest");
+    let at_rest = |b: &Body<f64>| topo::finish(b.clone(), tol).expect("at rest");
     match topo::union(&at_rest(&block), &at_rest(&frustum), tol) {
         Ok(r) => match r.body() {
             Some(b) => out.push(("cone frustum on a box", b.body.clone().into_body())),
@@ -154,7 +154,7 @@ fn probe_curved_bodies_aimed_rays() {
                 body.clone()
             };
             let what = format!("eps={:e} {name} inverted={inverted}", tol.eps());
-            if let Err(e) = topo::AtRestBody::validate(body.clone(), tol) {
+            if let Err(e) = topo::finish(body.clone(), tol) {
                 println!(
                     "CER {what}: not at rest: {}",
                     format!("{e:?}").chars().take(300).collect::<String>()

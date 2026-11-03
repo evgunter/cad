@@ -42,7 +42,8 @@ fn a_slanted_edge_leaving_a_kiss_line_is_not_read_on_it() {
             [(0.0, 1.0), (2.0, 1.0), (1.0, 2.0), (0.0, 2.0)],
         ),
     ] {
-        let prism: AtRestBody<f64> = finished("prism", prism_z(&profile, 1.0, 2.0, t()).body, t());
+        let prism: AtRestBody<f64> =
+            finished("prism", prism_z::<f64>(&profile, 1.0, 2.0, t()).body, t());
         for (order, a, b) in [
             ("block ∪ prism", &block, &prism),
             ("prism ∪ block", &prism, &block),

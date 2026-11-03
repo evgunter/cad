@@ -63,7 +63,7 @@ fn a_sealed_shelled_box_is_an_outer_and_a_void() {
     let hollow = topo::shell(
         &finished(
             "the operand",
-            block(w, d, h, Tol::witness()),
+            block::<f64>(w, d, h, Tol::witness()),
             Tol::witness(),
         ),
         t,
@@ -156,7 +156,7 @@ const VALIDATOR_SHARED: &[&str] = &[
 
 #[test]
 fn shell_runs_no_intersection_machinery() {
-    let body = block(2.0, 3.0, 4.0, Tol::witness());
+    let body = block::<f64>(2.0, 3.0, 4.0, Tol::witness());
     let bracket = Bracket::open();
     let hollow = topo::shell(
         &finished("the operand", body.clone(), Tol::witness()),
@@ -382,7 +382,7 @@ fn the_hollow_boxs_record_names_both_walls_and_their_thin_solids() {
     let (operand_solid, _) = hollow.solids().next().expect("one solid");
     let shelled = topo::shell(&finished("the operand", hollow.clone(), tol), t, tol)
         .expect("a hollow box shells");
-    let (body, record) = (&shelled.body, &shelled.naming);
+    let (body, record) = (&*shelled.body, &shelled.naming);
 
     let operand_faces: Vec<FaceKey> = hollow.faces().map(|(k, _)| k).collect();
     assert_eq!(operand_faces.len(), 12, "six walls, six cavity walls");
@@ -1330,7 +1330,7 @@ fn a_nonpositive_thickness_refuses_typed() {
         let e = topo::shell(
             &finished(
                 "the operand",
-                block(2.0, 3.0, 4.0, Tol::witness()),
+                block::<f64>(2.0, 3.0, 4.0, Tol::witness()),
                 Tol::witness(),
             ),
             t,
@@ -1351,7 +1351,7 @@ fn an_infinite_thickness_refuses_at_the_gate() {
     let e = topo::shell(
         &finished(
             "the operand",
-            block(2.0, 3.0, 4.0, Tol::witness()),
+            block::<f64>(2.0, 3.0, 4.0, Tol::witness()),
             Tol::witness(),
         ),
         f64::INFINITY,
@@ -1500,8 +1500,8 @@ fn a_mixed_sense_chart_built_from_outside_is_refused_at_the_gate() {
 
     // The inner wall now wears a carrier its edges do not lie on, so
     // the body is not finished and the verb is never handed it.
-    let errors = topo::AtRestBody::validate(body, Tol::witness())
-        .expect_err("the re-charted tube is not a finished body");
+    let errors =
+        topo::finish(body, Tol::witness()).expect_err("the re-charted tube is not a finished body");
     assert!(
         errors
             .iter()
@@ -2218,7 +2218,8 @@ fn the_old_rim_composition_refuses_at_the_glue_on_an_annular_cap() {
     let (body, y) = (tube(0.30, 0.50, 0.40), 0.40);
     let mut sealed = topo::shell(&finished("the operand", body.clone(), tol), t, tol)
         .expect("the sealed shell")
-        .body;
+        .body
+        .into_body();
     let mouth = plane_chart_at_y(&sealed, y);
     let counterpart = plane_chart_at_y(&sealed, y - t);
     assert_eq!(
@@ -2271,7 +2272,8 @@ fn a_re_slit_annular_caps_old_glue_reaches_check_9_through_an_outer_edge() {
     let (body, y) = (tube(0.30, 0.50, 0.40), 0.40);
     let mut sealed = topo::shell(&finished("the operand", body.clone(), tol), t, tol)
         .expect("the sealed shell")
-        .body;
+        .body
+        .into_body();
     let mouth = plane_chart_at_y(&sealed, y);
     let counterpart = plane_chart_at_y(&sealed, y - t);
     assert_eq!(
@@ -2708,7 +2710,8 @@ fn r2_probe_composed_door_vs_old_battery_on_a_check_9_body() {
     for (what, body, y) in [("an axis-touching cap", vessel(0.5, 0.4), 0.4)] {
         let mut sealed = topo::shell(&finished("the operand", body.clone(), tol), t, tol)
             .expect("the sealed shell")
-            .body;
+            .body
+            .into_body();
         let mouth = plane_chart_at_y(&sealed, y);
         let counterpart = plane_chart_at_y(&sealed, y - t);
         let plane_of =
@@ -2777,7 +2780,8 @@ fn r2_probe_other_two_passes_dump() {
             "vessel_sealed".into(),
             topo::shell(&finished("the operand", vessel(0.5, 0.4), tol), t, tol)
                 .expect("sealed")
-                .body,
+                .body
+                .into_body(),
         ),
     ];
     corpus.push((
@@ -2788,12 +2792,14 @@ fn r2_probe_other_two_passes_dump() {
             tol,
         )
         .expect("sealed")
-        .body,
+        .body
+        .into_body(),
     ));
     for (what, body, y) in [("corrupt_vessel", vessel(0.5, 0.4), 0.4)] {
         let mut sealed = topo::shell(&finished("the operand", body.clone(), tol), t, tol)
             .expect("sealed")
-            .body;
+            .body
+            .into_body();
         let mouth = plane_chart_at_y(&sealed, y);
         let counterpart = plane_chart_at_y(&sealed, y - t);
         let plane_of =
@@ -3016,6 +3022,7 @@ fn holed_box(side: f64, bore: f64, h: f64) -> Body<f64> {
     )
     .expect("the holed square extrudes")
     .body
+    .into_body()
 }
 
 /// **The whole audit of one record, against the operand AND the result.**
@@ -3035,7 +3042,7 @@ fn holed_box(side: f64, bore: f64, h: f64) -> Body<f64> {
 ///   the correspondence pinned rather than the column shapes: rotating
 ///   a source column by one reds here.
 fn audit_record(what: &str, source: &Body<f64>, chart: &[FaceKey], shelled: &topo::Shelled<f64>) {
-    let (body, record) = (&shelled.body, &shelled.naming);
+    let (body, record) = (&*shelled.body, &shelled.naming);
     assert_eq!(
         topo::validate_geometric(body, Tol::witness()),
         Ok(()),
@@ -3594,7 +3601,12 @@ fn audit_cases() -> Vec<(&'static str, Body<f64>, Vec<FaceKey>, f64)> {
             0.05,
         ),
         ("the tube's outer wall", tube_outer, tube_wall, 0.05),
-        ("the hollow tube's void wall", hollow_tube, void_wall, 0.02),
+        (
+            "the hollow tube's void wall",
+            hollow_tube.into_body(),
+            void_wall,
+            0.02,
+        ),
     ]
 }
 
@@ -3626,10 +3638,10 @@ fn the_record_reads_against_the_body_on_every_arm() {
 fn the_sealed_boxs_record_names_every_wall_and_its_twin() {
     let (w, d, h, t) = (2.0, 3.0, 4.0, 0.25);
     let tol = Tol::witness();
-    let source = block(w, d, h, Tol::witness());
+    let source = block::<f64>(w, d, h, Tol::witness());
     let shelled =
         topo::shell(&finished("the operand", source.clone(), tol), t, tol).expect("the box shells");
-    let (body, record) = (&shelled.body, &shelled.naming);
+    let (body, record) = (&*shelled.body, &shelled.naming);
     let roles = face_roles(body);
     let role = |face: FaceKey| {
         roles
@@ -3748,7 +3760,7 @@ fn a_designated_face_with_a_hole_records_its_promoted_rim() {
             tol,
         )
         .unwrap_or_else(|e| panic!("{what} must open: {e}"));
-        let (body, record) = (&shelled.body, &shelled.naming);
+        let (body, record) = (&*shelled.body, &shelled.naming);
         let rim = &record.rims[0];
         assert_eq!(rim.holes.len(), 1, "{what}: one hole to pair");
         let hole = &rim.holes[0];

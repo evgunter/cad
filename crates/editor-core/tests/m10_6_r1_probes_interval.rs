@@ -117,7 +117,7 @@ fn bounds(relation: AssertionRelation, bound: f64) -> ClearanceBounds<Formula> {
     }
 }
 
-fn assertion_verdict<T: geom_core::Decide>(
+fn assertion_verdict<T: topo::AtRestPolicy + geom_core::Decide>(
     ev: &editor_core::Evaluation<T>,
     node: RecipeNodeId,
 ) -> AssertionVerdict<T> {

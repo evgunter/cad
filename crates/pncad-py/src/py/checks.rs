@@ -1113,7 +1113,7 @@ pub(crate) fn subject_body(
     d::subject_body(&evaluation.inner, placement.0, output_ix)
         .map(|(body, contacts)| {
             pncad::export::body_in_space(&body, Tol::witness())
-                .map(|body| Body::recorded(body, contacts))
+                .map(|body| Body::recorded(Body::host(body), contacts))
                 .map_err(|err| crate::py::value::compose_err(py, *placement, &err))
         })
         .transpose()

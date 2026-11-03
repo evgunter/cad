@@ -122,8 +122,7 @@ fn circle_at_rest(
     let [edge] = circle[..] else {
         panic!("the plant leaves one scaffold, the circle: {circle:?}");
     };
-    let errors =
-        topo::AtRestBody::validate(a.clone(), tol).expect_err("the planted circle is a scaffold");
+    let errors = topo::finish(a.clone(), tol).expect_err("the planted circle is a scaffold");
     assert!(
         errors.contains(&topo::ValidationError::ScaffoldAtRest { edge }),
         "the at-rest gate names the circle's scaffold: {errors:?}"
@@ -194,8 +193,8 @@ fn an_edge_spanning_less_than_the_band_still_refuses_undecided() {
     let diameter = (band.zero() + band.escalate()) / 2.0;
     let (body, top, _) = disc_in_top(1.0, diameter / 2.0);
     let (rested, _) = circle_at_rest(&body, top, 1.0, diameter / 2.0);
-    let rested = topo::AtRestBody::validate(rested, tol)
-        .expect("the circle's dihedral reads smooth at the top's extent");
+    let rested =
+        topo::finish(rested, tol).expect("the circle's dihedral reads smooth at the top's extent");
     let far = common::brick::<f64>((10.0, 11.0), (0.0, 1.0), (0.0, 1.0), tol);
     let err = topo::union(&rested, &common::finished("the far brick", far, tol), tol)
         .expect_err("the gate refuses the pair");

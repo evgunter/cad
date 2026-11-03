@@ -861,7 +861,8 @@ fn an_approx_face_refuses_typed_at_a_scalar_with_no_fit_lane() {
         Tol::witness(),
     )
     .expect("a square prism extrudes at Interval")
-    .body;
+    .body
+    .into_body();
     let face = body
         .faces()
         .find(|(_, f)| {

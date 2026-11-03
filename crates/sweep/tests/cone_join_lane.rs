@@ -301,7 +301,7 @@ fn the_slabs_chords_are_its_faces_circles_on_both_sides() {
     let frustum = widening();
     let slab = finished(
         "B4's slab",
-        brick((-2.0, 2.0), (0.3, 0.6), (-2.0, 2.0), tol),
+        brick::<f64>((-2.0, 2.0), (0.3, 0.6), (-2.0, 2.0), tol),
         tol,
     );
     let cone = cone_of(&frustum);
@@ -608,7 +608,7 @@ fn poses() -> [Pose; 3] {
             cone: widening(),
             other: finished(
                 "B4's slab",
-                brick((-2.0, 2.0), (0.3, 0.6), (-2.0, 2.0), tol),
+                brick::<f64>((-2.0, 2.0), (0.3, 0.6), (-2.0, 2.0), tol),
                 tol,
             ),
             volumes: (
@@ -807,14 +807,18 @@ fn a_parabola_or_a_hyperbola_refuses_at_the_frame_in_every_op() {
             "C2",
             finished(
                 "C2's brick",
-                brick((0.3, 6.3), (-3.0, 3.0), (-3.0, 3.0), tol),
+                brick::<f64>((0.3, 6.3), (-3.0, 3.0), (-3.0, 3.0), tol),
                 tol,
             ),
             geom_brep::OpenConic::Hyperbola,
         ),
         (
             "B1",
-            finished("B1", brick((0.6, 2.0), (0.3, 0.8), (-0.2, 0.2), tol), tol),
+            finished(
+                "B1",
+                brick::<f64>((0.6, 2.0), (0.3, 0.8), (-0.2, 0.2), tol),
+                tol,
+            ),
             geom_brep::OpenConic::Hyperbola,
         ),
         (

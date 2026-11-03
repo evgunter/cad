@@ -34,7 +34,7 @@ fn main() {
         .expect("usage: export_acceptance <outdir>");
     std::fs::create_dir_all(&outdir).expect("create outdir");
     for (name, body, delta) in common::acceptance_bodies() {
-        let body = topo::AtRestBody::validate(body, tol)
+        let body = topo::finish(body, tol)
             .unwrap_or_else(|e| panic!("{name}: tier-3 validation failed: {e:?}"));
         let props = topo::mass_properties(&body, tol, resolution(tol))
             .expect("mass properties")

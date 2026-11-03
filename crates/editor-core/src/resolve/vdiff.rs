@@ -210,7 +210,7 @@ impl FlipSet {
     }
 }
 
-fn status<T: Decide>(run: &Evaluation<T>, id: RecipeNodeId) -> RunStatus {
+fn status<T: topo::AtRestPolicy + Decide>(run: &Evaluation<T>, id: RecipeNodeId) -> RunStatus {
     match run.usable(id) {
         Ok(_) => RunStatus::Ok,
         Err(NodeStanding::Failed { .. }) => RunStatus::Failed,
@@ -245,7 +245,10 @@ fn sign_ix(s: Sign) -> usize {
 /// diff identically; the caller chooses what the two runs differ by
 /// (parameter edit, ε change, recipe edit) and this function does not
 /// care.
-pub fn diff_verdicts<T: Decide, U: Decide>(old: &Evaluation<T>, new: &Evaluation<U>) -> FlipSet {
+pub fn diff_verdicts<T: topo::AtRestPolicy + Decide, U: topo::AtRestPolicy + Decide>(
+    old: &Evaluation<T>,
+    new: &Evaluation<U>,
+) -> FlipSet {
     let ids: BTreeSet<RecipeNodeId> = old.nodes.keys().chain(new.nodes.keys()).copied().collect();
     let mut out = BTreeMap::new();
     for id in ids {
@@ -389,7 +392,7 @@ pub struct VerdictSummary {
 }
 
 /// Projects an evaluation onto its serializable verdict populations.
-pub fn verdict_summary<T: Decide>(run: &Evaluation<T>) -> VerdictSummary {
+pub fn verdict_summary<T: topo::AtRestPolicy + Decide>(run: &Evaluation<T>) -> VerdictSummary {
     let mut nodes = BTreeMap::new();
     for &id in &run.order {
         // The SAME projection the in-process engine counts with
@@ -598,7 +601,7 @@ impl VerdictVector {
     /// decided nothing" from "this node failed before deciding
     /// anything", and a certificate that could not tell those apart
     /// would certify a leaf whose build refused; the tag closes that.
-    pub fn of<T: Decide>(ev: &Evaluation<T>) -> Self {
+    pub fn of<T: topo::AtRestPolicy + Decide>(ev: &Evaluation<T>) -> Self {
         let rows = ev
             .order
             .iter()

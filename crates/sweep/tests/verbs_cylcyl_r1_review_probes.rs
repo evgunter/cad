@@ -34,6 +34,7 @@ fn cyl(cx: f64, cy: f64, r: f64, z0: f64, z1: f64) -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 fn turned(b: &Body<f64>, axis: Vec3<f64>, angle: f64) -> Body<f64> {
@@ -163,8 +164,8 @@ fn every_reachable_crossing_pose_refuses_typed_or_answers_correctly() {
                         BooleanErrorKind::NodeUnbuilt
                             | BooleanErrorKind::GermFrameUnsupported
                             | BooleanErrorKind::FallbackExtentUnsupported
-                    ) || matches!(&e, BooleanError::ResultInvalid { errors }
-                        if errors.iter().all(|v| matches!(v, topo::ValidationError::VolumeUncomputable { .. }))),
+                    ) || matches!(&e, BooleanError::ResultInvalid { findings }
+                        if findings.iter().all(|v| matches!(v, topo::ValidationError::VolumeUncomputable { .. }))),
                     "{name}/{op_name}: refused {:?}, not a frontier refusal: {e}",
                     e.kind()
                 ),
@@ -384,6 +385,7 @@ fn revolved_cyl(r: f64, h: f64) -> Body<f64> {
     sweep::revolve(&vp, axis, sweep::Revolution::Full, tol)
         .unwrap()
         .body
+        .into_body()
 }
 
 /// The gate catches a crossing pose built from REVOLVE-minted
@@ -487,7 +489,7 @@ fn the_r6_bracket_pocket_edge_no_longer_reaches_the_corner_wall() {
     // the corpus `rounded_plate` above carries.
     let pocket = finished(
         "the pocket",
-        brick((8.0, 28.0), (10.0, 30.0), (-2.0, 5.0), tol),
+        brick::<f64>((8.0, 28.0), (10.0, 30.0), (-2.0, 5.0), tol),
         tol,
     );
 
@@ -590,6 +592,7 @@ fn rounded_plate(w: f64, h: f64, r: f64, thick: f64) -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 /// The D5 trap stays closed through the PUBLIC boolean door: the

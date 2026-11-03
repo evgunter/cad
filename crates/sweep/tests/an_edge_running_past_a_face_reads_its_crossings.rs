@@ -54,7 +54,8 @@ fn extrude_on(
         tol(),
     )
     .unwrap()
-    .body;
+    .body
+    .into_body();
     finished(what, body, tol())
 }
 

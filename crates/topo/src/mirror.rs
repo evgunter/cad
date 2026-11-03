@@ -51,10 +51,10 @@
 //! through it as through a copy. Its volume is the source's, which the
 //! tier-3 `+V` invariant checks: without step 2 it is negative. Like
 //! every door it owes a finished body and, like
-//! [`crate::transform_rigid`], it does not gate its own result: a reader
-//! that takes finished bodies gates what it reads
-//! ([`crate::AtRestPolicy::gate_at_rest_kept`]), and the tests gate every
-//! image they build.
+//! [`crate::transform_rigid`], it does not gate its own result: the
+//! placement door that calls it finishes what it ships
+//! ([`crate::AtRestPolicy::finish`]), and the tests finish every image
+//! they build.
 //!
 //! # The audit's residuals (P3)
 //!

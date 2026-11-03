@@ -689,7 +689,8 @@ fn a_carried_region_at_the_certified_scalar_holds_its_volume() {
         };
         at(sweep::revolve(&vp, axis, sweep::Revolution::Full, tol)
             .unwrap()
-            .body)
+            .body
+            .into_body())
     };
     let far = at(topo::transform_rigid(
         &ring,

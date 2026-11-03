@@ -425,7 +425,7 @@ impl From<BandError> for SelectRefusal {
 /// An atom with its recipe references already resolved against the
 /// evaluation: the reference read once and the value expression evaluated
 /// once, rather than per candidate.
-pub(crate) enum Prepared<T: Decide> {
+pub(crate) enum Prepared<T: topo::AtRestPolicy + Decide> {
     /// [`GeomPred::CurveKind`].
     Curve(CurveKindSet),
     /// [`GeomPred::SurfaceKind`].
@@ -457,7 +457,7 @@ pub(crate) enum Prepared<T: Decide> {
 /// [`SelectRefusal::NotALength`], [`SelectRefusal::BadValue`] — faults
 /// of the query's own references, so they surface before a single
 /// margin is taken.
-pub(crate) fn prepare<T: Decide>(
+pub(crate) fn prepare<T: topo::AtRestPolicy + Decide>(
     ev: &Evaluation<T>,
     var: crate::VarId,
     geom: &[GeomPred],
@@ -525,7 +525,7 @@ pub(crate) fn prepare<T: Decide>(
 /// candidate's position. The EXACT atoms never error: a missing
 /// carrier, a wrong entity kind or an unreadable adjacency is an
 /// honest NO, which is what makes a purely-exact filter total.
-pub(crate) fn candidate_matches<T: Decide>(
+pub(crate) fn candidate_matches<T: topo::AtRestPolicy + Decide>(
     framed: &crate::eval::Framed<T>,
     key: EntityKey,
     atoms: &[Prepared<T>],

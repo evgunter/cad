@@ -114,6 +114,7 @@ fn revolved_collar() -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 /// A three-arc peg along the world Y axis, y ∈ [y0, y0 + h].

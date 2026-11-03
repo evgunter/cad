@@ -23,7 +23,7 @@ fn plane_y(c: f64) -> SplitPlane<f64> {
     )
 }
 
-fn body_of<T: geom_core::Real>(part: &SplitPart<T>) -> &Body<T> {
+fn body_of<T: topo::AtRestPolicy>(part: &SplitPart<T>) -> &Body<T> {
     part.body().expect("side has material")
 }
 

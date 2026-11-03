@@ -70,8 +70,8 @@ const KERNEL_KEYED: &[&str] = &[
     "Split/Finish/ResultInvalid",
     "Split/Pcurves",
     "Transform/Pcurve",
-    "UnfinishedOperand/ScaffoldingEmptyLoop",
-    "UnfinishedOperand/ScaffoldingStrutVertex",
+    "NotFinished/ScaffoldingEmptyLoop",
+    "NotFinished/ScaffoldingStrutVertex",
     "Loft/Pcurve",
     "Blend/BodyNotIntact/Unresolved",
     "Blend/BodyNotIntact/Unwalked",
@@ -96,6 +96,7 @@ const KERNEL_KEYED: &[&str] = &[
     "Naming/WayInZeroBand",
     "Naming/JoinedPieceOffRoot",
     "Naming/BandVerdictsDisagree",
+    "Shell/NotValid",
     "Shell/Partition",
     "Shell/Insert",
     "Shell/Rim",
@@ -107,8 +108,6 @@ const KERNEL_KEYED: &[&str] = &[
 const OVER_BUDGET: &[(&str, usize)] = &[
     // work/profiletail/profile-arms-the-weld-renders-fall-short-of-the-shape-guard.md
     ("Profile/ArcBelowSceneResolution", 85),
-    // work/honeword/split-finish-arms-the-weld-renders-fall-short-of-the-shape-guard.md
-    ("Split/Finish/ResultEscalated", 90),
 ];
 
 /// The clause labels a surface legitimately opens with that read, by
@@ -206,12 +205,6 @@ pub(crate) const ADMISSIONS: &[Admission<'static>] = &[
         row: "Revolve/SmoothJoinRefuted",
         span: "EdgeKey(null)",
         filed: "work/lathe/sweep-arms-the-weld-renders-fall-short-of-the-shape-guard.md",
-    },
-    // A shell-role escalation names the aimed ray's faces by key.
-    Admission {
-        row: "Split/Finish/ResultEscalated",
-        span: "FaceKey(null) and FaceKey(null)",
-        filed: "work/honeword/split-finish-arms-the-weld-renders-fall-short-of-the-shape-guard.md",
     },
     // A merge refusal names its edge by key.
     Admission {
@@ -776,7 +769,7 @@ test_utils::f6_variants! {
         Expr, Profile, ProfileReplay, ProfileLaneReplay, Trace, Extrude, Revolve, Tube, Split, ContactCarry, Blend,
         Boolean, Transform, Mirror, Motion, Skin, Loft, CurvedSolidFrontier, MissingInput, UnresolvedRead, SelectResolve,
         ToleranceConflict, ParamBox, Seed, WrongOperand, EmptyOperand,
-        UnfinishedOperand, EmptyHalf, MemberOutOfRange, MemberRefused, IndicesUnrelated,
+        NotFinished, UnfinishedLeaf, EmptyHalf, MemberOutOfRange, MemberRefused, IndicesUnrelated,
         IndexCount, IndexCountOutOfRange, NoSuchPiece, PieceShape,
         DegenerateDirection, NonFiniteDirection, UnderflowedDirection, Band, MissingSlot,
         Escalated, MeasureEscalated, PlacementAxisEscalated, PoseDirectionEscalated,
@@ -818,7 +811,7 @@ mod kernel {
         pub(super) const EXTRUDE_ERROR: ExtrudeError = [
             Band, EmptyProfile, DegenerateExtrusion, NegativeDepth, ObliqueExtrusion,
             ExtrusionEscalated, CosurfaceEscalated, SliverJoin, SliverRim,
-            SmoothJoinRefuted, CapPlane, SidePlane, Op, Pcurve,
+            SmoothJoinRefuted, CapPlane, SidePlane, Op, Pcurve, NotFinished,
         ];
     }
 
@@ -830,7 +823,7 @@ mod kernel {
             SliverRadius, ArcCrossesAxis, SliverAxisClearance, UnsupportedToroid,
             NonManifoldAxisContact, AxisGapEscalated, HoleTouchesAxis, VoidInsertion,
             CosurfaceEscalated, SliverJoin, SliverRim, SmoothJoinRefuted,
-            PinnedRunStation, CapPlane, Op, Pcurve,
+            PinnedRunStation, CapPlane, Op, Pcurve, NotFinished,
         ];
     }
 
@@ -859,7 +852,7 @@ mod kernel {
             SectionRim, SectionNotFinite, PlacementNotFinite, ReversedStacking, DegenerateStacking,
             PinnedCorner, PinnedCornerUnsupported, CornerEscalated, SectionsTouch,
             ClearanceUndecided, ClearanceFault, FarSectionNotForward, FarStackingEscalated,
-            StackingEscalated,
+            StackingEscalated, NotFinished,
         ];
     }
 
@@ -871,7 +864,7 @@ mod kernel {
             ConvexitySignFlip, UnsupportedCorner, SpineUnsupported,
             ChamferArmUnsupported, Escalated, RepeatedEdge, NonpositiveSize,
             UnsupportedChain, UnsupportedRunOut, UnsupportedGeometry, BodyNotIntact,
-            ScaffoldingOperand, InsideOutOperand, UnjoinedOperand, SurgeryInvariant,
+            NotFinished, SurgeryInvariant,
             RingClearance, WhollyInside, Certify, Op, Join,
         ];
     }
@@ -944,8 +937,7 @@ mod kernel {
         /// `SplitReduceError`'s arms, for the `Split/Reduce/` rows.
         pub(super) const SPLIT_REDUCE_ERROR: SplitReduceError = [
             Band, CurvedBooleanUnsupported, CurvedEdgeUnsupported, CrossingEscalated,
-            TangencyUnsupported, KnifeEdge, ScaffoldingOperand, InsideOutOperand,
-            UnjoinedOperand, SliverVertex, SliverSector, SectionGermsEscalated,
+            TangencyUnsupported, KnifeEdge, SliverVertex, SliverSector, SectionGermsEscalated,
             SectionGermsUnordered, ApexSection, ApexUndecided, NonFiniteSectorChord,
             UnderflowedSectorChord,
             ConsecutiveOnSectors, StaleVertex, LoneVertex, NullEdgeAtVertex,
@@ -976,7 +968,7 @@ mod kernel {
             Band, ConeCornerEscalated, ConeCornerUnread, ConeFusionDesync, DescribeEscalated, DescribeSideEscalated, DescribeBendEscalated,
             EdgeOnFacesEscalated, SmoothJoinRefuted, SectionWindingUndecided, KnifeEdge,
             NestingContradiction, SlitUnplaced, SlitHoming, ResultInvalid,
-            ResultNotAtRest, ResultEscalated, EdgeJoin, Merge,
+            ResultNotAtRest, EdgeJoin, Merge,
         ];
     }
 
@@ -1218,7 +1210,7 @@ fn forward(kind: &NodeErrorKind) -> Forward {
             welded(levels)
         }
         NodeErrorKind::Boolean(_) => Forward::Unwelded(UNWELDED_BOOLEAN),
-        NodeErrorKind::UnfinishedOperand { .. } => {
+        NodeErrorKind::NotFinished { .. } | NodeErrorKind::UnfinishedLeaf { .. } => {
             Forward::RenderedIn("crates/editor-core/tests/refusal_concision_at_rest.rs")
         }
         NodeErrorKind::PoseRead { .. }
@@ -1697,48 +1689,64 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         row(
-            "UnfinishedOperand/NegativeVolume",
-            NodeErrorKind::UnfinishedOperand {
-                input: RecipeNodeId::new(0, tagged(3)),
-                errors: vec![topo::ValidationError::NegativeVolume {
-                    solid: topo::SolidKey::default(),
-                }],
+            "NotFinished/NegativeVolume",
+            NodeErrorKind::NotFinished {
+                findings: topo::NotFinished::for_tests(vec![
+                    topo::ValidationError::NegativeVolume {
+                        solid: topo::SolidKey::default(),
+                    },
+                ]),
             },
         ),
         row(
-            "UnfinishedOperand/ScaffoldAtRest",
-            NodeErrorKind::UnfinishedOperand {
-                input: RecipeNodeId::new(0, tagged(3)),
-                errors: vec![topo::ValidationError::ScaffoldAtRest {
-                    edge: topo::EdgeKey::default(),
-                }],
+            "NotFinished/ScaffoldAtRest",
+            NodeErrorKind::NotFinished {
+                findings: topo::NotFinished::for_tests(vec![
+                    topo::ValidationError::ScaffoldAtRest {
+                        edge: topo::EdgeKey::default(),
+                    },
+                ]),
             },
         ),
         row(
-            "UnfinishedOperand/ScaffoldingEmptyLoop",
-            NodeErrorKind::UnfinishedOperand {
-                input: RecipeNodeId::new(0, tagged(3)),
-                errors: vec![topo::ValidationError::ScaffoldingEmptyLoop {
-                    loop_: topo::LoopKey::default(),
-                }],
+            "NotFinished/ScaffoldingEmptyLoop",
+            NodeErrorKind::NotFinished {
+                findings: topo::NotFinished::for_tests(vec![
+                    topo::ValidationError::ScaffoldingEmptyLoop {
+                        loop_: topo::LoopKey::default(),
+                    },
+                ]),
             },
         ),
         row(
-            "UnfinishedOperand/ScaffoldingStrutVertex",
-            NodeErrorKind::UnfinishedOperand {
-                input: RecipeNodeId::new(0, tagged(3)),
-                errors: vec![topo::ValidationError::ScaffoldingStrutVertex {
-                    vertex: topo::VertexKey::default(),
-                }],
+            "NotFinished/ScaffoldingStrutVertex",
+            NodeErrorKind::NotFinished {
+                findings: topo::NotFinished::for_tests(vec![
+                    topo::ValidationError::ScaffoldingStrutVertex {
+                        vertex: topo::VertexKey::default(),
+                    },
+                ]),
             },
         ),
         row(
-            "UnfinishedOperand/DescriptionNotAdjacent",
-            NodeErrorKind::UnfinishedOperand {
+            "NotFinished/DescriptionNotAdjacent",
+            NodeErrorKind::NotFinished {
+                findings: topo::NotFinished::for_tests(vec![
+                    topo::ValidationError::DescriptionNotAdjacent {
+                        edge: topo::EdgeKey::default(),
+                    },
+                ]),
+            },
+        ),
+        row(
+            "UnfinishedLeaf/NegativeVolume",
+            NodeErrorKind::UnfinishedLeaf {
                 input: RecipeNodeId::new(0, tagged(3)),
-                errors: vec![topo::ValidationError::DescriptionNotAdjacent {
-                    edge: topo::EdgeKey::default(),
-                }],
+                findings: topo::NotFinished::for_tests(vec![
+                    topo::ValidationError::NegativeVolume {
+                        solid: topo::SolidKey::default(),
+                    },
+                ]),
             },
         ),
         row(
@@ -2025,6 +2033,16 @@ fn extrude() -> Vec<(String, NodeErrorKind)> {
         ),
         ("Op", E::Op { source: euler() }),
         ("Pcurve", E::Pcurve(pcurve())),
+        (
+            "NotFinished",
+            E::NotFinished {
+                findings: topo::NotFinished::for_tests(vec![
+                    topo::ValidationError::NegativeVolume {
+                        solid: topo::SolidKey::default(),
+                    },
+                ]),
+            },
+        ),
     ]
     .into_iter()
     .map(|(n, e)| row(&format!("Extrude/{n}"), NodeErrorKind::Extrude(e)))
@@ -2194,6 +2212,16 @@ fn revolve_arms() -> Vec<(&'static str, sweep::RevolveError)> {
         ),
         ("Op", E::Op { source: euler() }),
         ("Pcurve", E::Pcurve(pcurve())),
+        (
+            "NotFinished",
+            E::NotFinished {
+                findings: topo::NotFinished::for_tests(vec![
+                    topo::ValidationError::NegativeVolume {
+                        solid: topo::SolidKey::default(),
+                    },
+                ]),
+            },
+        ),
     ]
 }
 
@@ -2273,20 +2301,6 @@ fn split() -> Vec<(String, NodeErrorKind)> {
                 wall: face,
                 at: topo::KnifeEdgeSite::Vertex(vertex),
             }),
-        ),
-        (
-            "ScaffoldingOperand",
-            R::ScaffoldingOperand {
-                errors: vec![topo::ValidationError::ScaffoldingStrutVertex { vertex }],
-            },
-        ),
-        (
-            "InsideOutOperand",
-            R::InsideOutOperand {
-                errors: vec![topo::ValidationError::NegativeVolume {
-                    solid: topo::SolidKey::default(),
-                }],
-            },
         ),
         (
             "SliverVertex",
@@ -2421,12 +2435,6 @@ fn split() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         ("Euler", R::Euler(euler())),
-        (
-            "UnjoinedOperand",
-            R::UnjoinedOperand {
-                errors: vec![topo::ValidationError::JoinableVertexAtRest { vertex }],
-            },
-        ),
         (
             "LineageRow",
             R::LineageRow(topo::RowRefusal {
@@ -2756,25 +2764,9 @@ fn split() -> Vec<(String, NodeErrorKind)> {
             "ResultNotAtRest",
             F::ResultNotAtRest {
                 side: topo::PlaneSide::Above,
-                errors: vec![topo::ValidationError::JoinableVertexAtRest { vertex }],
-            },
-        ),
-        (
-            "ResultEscalated",
-            F::ResultEscalated {
-                side: topo::PlaneSide::Below,
-                decision: topo::BooleanDecision::ShellRole {
-                    near: face,
-                    far: face,
-                    others: 1,
-                },
-                // A margin so deep in the band that no tolerance above
-                // `EPS_MIN` decides it, so the sentence offers none at
-                // any eps row and its length is one number.
-                diag: geom_core::Indeterminate {
-                    margin: geom_core::MarginDiag::value(1.0e-20),
-                    ..diag()
-                },
+                findings: topo::NotFinished::for_tests(vec![
+                    topo::ValidationError::JoinableVertexAtRest { vertex },
+                ]),
             },
         ),
         (
@@ -3555,6 +3547,16 @@ fn loft() -> Vec<(String, NodeErrorKind)> {
                 source: diag(),
             },
         ),
+        (
+            "NotFinished",
+            E::NotFinished {
+                findings: topo::NotFinished::for_tests(vec![
+                    topo::ValidationError::NegativeVolume {
+                        solid: topo::SolidKey::default(),
+                    },
+                ]),
+            },
+        ),
     ]
     .into_iter()
     .map(|(n, e)| row(&format!("Loft/{n}"), NodeErrorKind::Loft(e)))
@@ -3853,20 +3855,6 @@ fn blend() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         (
-            "ScaffoldingOperand",
-            E::ScaffoldingOperand {
-                errors: vec![topo::ValidationError::ScaffoldingStrutVertex { vertex }],
-            },
-        ),
-        (
-            "InsideOutOperand",
-            E::InsideOutOperand {
-                errors: vec![topo::ValidationError::NegativeVolume {
-                    solid: topo::SolidKey::default(),
-                }],
-            },
-        ),
-        (
             "Certify",
             E::Certify {
                 site: "blend face pcurves",
@@ -3874,9 +3862,11 @@ fn blend() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         (
-            "UnjoinedOperand",
-            E::UnjoinedOperand {
-                errors: vec![topo::ValidationError::JoinableVertexAtRest { vertex }],
+            "NotFinished",
+            E::NotFinished {
+                findings: topo::NotFinished::for_tests(vec![
+                    topo::ValidationError::JoinableVertexAtRest { vertex },
+                ]),
             },
         ),
         (
@@ -5351,31 +5341,20 @@ fn part_products() -> Vec<(String, NodeErrorKind)> {
         .collect()
 }
 
-/// The instance rows of the three gather classes whose sentence
-/// forwards the kernel's own refusal, which no document reaches: a
-/// placement the at-rest gate refuses, an aggregate it refuses, and a graft the
-/// kernel refuses. Each is built as the instance carries it, the
+/// The instance rows of the two gather classes whose sentence forwards
+/// the kernel's own refusal, which no document reaches: an aggregate
+/// the finish refuses, and a graft the kernel refuses. Each is built as the instance carries it, the
 /// gather's refusal whole.
 fn part_products_forwarding() -> Vec<(String, NodeErrorKind)> {
-    use editor_core::{PartFault, ProductError, SourceFinding};
+    use editor_core::{PartFault, ProductError};
     let inside_out = || topo::ValidationError::NegativeVolume {
         solid: topo::SolidKey::default(),
     };
     [
         (
-            "Part/PartProduct(PieceInvalid)",
-            ProductError::PieceInvalid {
-                findings: vec![SourceFinding {
-                    node: RecipeNodeId::new(0, tagged(3)),
-                    output: 0,
-                    errors: vec![inside_out()],
-                }],
-            },
-        ),
-        (
             "Part/PartProduct(ProductInvalid)",
             ProductError::ProductInvalid {
-                errors: vec![inside_out()],
+                findings: topo::NotFinished::for_tests(vec![inside_out()]),
             },
         ),
         (
@@ -5623,10 +5602,12 @@ fn shell() -> Vec<(String, NodeErrorKind)> {
             (
                 "NotValid",
                 S::NotValid {
-                    errors: vec![topo::ValidationError::ShellDisconnected {
-                        shell,
-                        components: 2,
-                    }],
+                    findings: topo::NotFinished::for_tests(vec![
+                        topo::ValidationError::ShellDisconnected {
+                            shell,
+                            components: 2,
+                        },
+                    ]),
                 },
             ),
         ]
@@ -6015,7 +5996,7 @@ fn every_escalated_check_finding_ends_in_its_decisions_recourse() {
     };
     let head = "check connectedness: placement 000000000004 output 0: ";
     if (tol.eps() - 1e-9).abs() < 1e-15 {
-        let at_rest = |b| topo::AtRestBody::validate(b, tol).expect("the brick is at rest");
+        let at_rest = |b| topo::finish(b, tol).expect("the brick is at rest");
         let outer = at_rest(topo::test_support::brick::<f64>(
             (-1.0, 2.0),
             (-1.0, 2.0),
@@ -6157,17 +6138,6 @@ fn check_findings() -> Vec<(String, editor_core::CheckFinding)> {
             ),
         ),
         (
-            "NotAtRest",
-            finding(
-                CheckId::Connectedness,
-                E::NotAtRest {
-                    errors: vec![topo::ValidationError::NegativeVolume {
-                        solid: topo::SolidKey::default(),
-                    }],
-                },
-            ),
-        ),
-        (
             "Escalated",
             finding(
                 CheckId::Connectedness,
@@ -6260,15 +6230,6 @@ fn check_findings() -> Vec<(String, editor_core::CheckFinding)> {
                     finding: Box::new(interference(editor_core::Overlap::Unlocalized(
                         editor_core::Unlocalized::Lane,
                     ))),
-                },
-            ),
-        ),
-        (
-            "AtRest(not run)",
-            finding(
-                CheckId::AtRest,
-                E::AtRest {
-                    evidence: editor_core::AtRestEvidence::NotRun,
                 },
             ),
         ),

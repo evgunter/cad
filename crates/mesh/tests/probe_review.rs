@@ -35,6 +35,7 @@ fn rational_pie() -> Body<f64> {
     loft_body::<f64>(&sections, &places, 1, Tol::witness())
         .expect("the rational pie lofts")
         .body
+        .into_body()
 }
 
 /// The five fixtures the Z1 rows drive, and the two deltas they drive

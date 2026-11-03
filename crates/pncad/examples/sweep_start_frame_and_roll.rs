@@ -45,7 +45,7 @@ fn main() {
         match pncad::sweep::sweep_body::<f64>(&section, place, &path, stations, 3, tol) {
             Ok(swept) => {
                 let m = pncad::topo::mass_properties(
-                    &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(&swept.body), tol)
+                    &pncad::topo::finish(pncad::topo::Body::clone(&swept.body), tol)
                         .expect("the measured body passes tier 3"),
                     tol,
                     pncad::topo::Settle::Resolution(pncad::quantity::Length::from_meters(1.024e-6)),
@@ -106,7 +106,7 @@ fn main() {
     let sections: Vec<_> = (0..stations).map(|_| section.clone()).collect();
     let loft = pncad::sweep::loft_body::<f64>(&sections, &places, 3, tol).expect("loft");
     let ml = pncad::topo::mass_properties(
-        &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(&loft.body), tol)
+        &pncad::topo::finish(pncad::topo::Body::clone(&loft.body), tol)
             .expect("the measured body passes tier 3"),
         tol,
         pncad::topo::Settle::Resolution(pncad::quantity::Length::from_meters(1.024e-6)),

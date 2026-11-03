@@ -189,24 +189,17 @@ impl ExtrudeSide {
 /// Everything [`extrude`] built, keyed: the body plus the handles tests
 /// and downstream passes (tessellation, mass properties) address it by.
 #[derive(Debug)]
-pub struct Extruded<T: Real> {
-    /// The built body — a closed solid, tiers 1–2 by construction.
-    ///
-    /// **Tier 3 holds for every body whose joints and cap rims classify
-    /// definitely transverse or jet-determinately tangent** — a
-    /// declared cusp joint (`.cusp()`) included: its strut subtends
-    /// material wedge 0 (2π on a hole loop), which tier 3 holds legal
-    /// because the tangency is jet-determinate. The one shape minted
-    /// here that it does not cover:
-    ///
-    /// - a cap rim the dihedral lever reads definitely SMOOTH keeps the
-    ///   conventional description (module docs, step 6) and is
-    ///   refused as `topo::ValidationError::SliverDihedral` under
-    ///   `material_wedge_side`: a smooth cap–wall pair has no material
-    ///   side. There is nothing to do at the door — the refusal is the
-    ///   honest verdict on that body — and the run's K is what decides
-    ///   whether an admitted extrusion can reach it (crate docs).
-    pub body: Body<T>,
+pub struct Extruded<T: topo::AtRestPolicy> {
+    /// The built body, the door's leaf ([`topo::AtRestPolicy::leaf`]):
+    /// finished at `f64` and `Probe`, tier 2 alone at the box scalars,
+    /// where the consumer that takes a finished body finishes it. A body
+    /// the leaf refuses refuses the door ([`ExtrudeError::NotFinished`]): among them a
+    /// cap rim the dihedral lever reads definitely SMOOTH, which keeps
+    /// the conventional description (module docs, step 6) and is
+    /// refused as `topo::ValidationError::SliverDihedral` under
+    /// `material_wedge_side`, since a smooth cap–wall pair has no
+    /// material side.
+    pub body: T::Leaf,
     /// The solid.
     pub solid: SolidKey,
     /// Its single shell.
@@ -277,7 +270,7 @@ fn sweep_order(reversed: bool, n: usize, c: usize) -> usize {
     if reversed { n - 1 - c } else { c }
 }
 
-impl<T: Real> Extruded<T> {
+impl<T: topo::AtRestPolicy> Extruded<T> {
     /// The CANONICAL vertex where the sweep starts canonical segment
     /// `segment` of an `n`-segment loop: the segment's own start vertex,
     /// or on a reversed extrusion (which traverses each segment from its
@@ -358,6 +351,13 @@ pub enum ExtrudeError {
     /// The run's tolerance could not form a classification band (see
     /// [`BandError`]).
     Band(BandError),
+    /// The extruded body is not a finished body
+    /// ([`topo::AtRestPolicy::finish`] at the door's end): every finding,
+    /// each read through its family.
+    NotFinished {
+        /// The finish's findings.
+        findings: topo::NotFinished,
+    },
     /// The profile has no loops: the empty region sweeps nothing.
     EmptyProfile,
     /// The extrusion is definitely degenerate: the vector's normal
@@ -506,6 +506,9 @@ impl fmt::Display for ExtrudeError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Band(e) => write!(f, "{e}"),
+            Self::NotFinished { findings } => {
+                write!(f, "the extruded body is not a finished body: {findings}")
+            }
             Self::EmptyProfile => f.write_str(crate::EMPTY_PROFILE),
             Self::DegenerateExtrusion => write!(
                 f,
@@ -740,17 +743,15 @@ struct LoopBase {
 /// The sketch placement is the profile's own
 /// ([`profile::SketchPlane`]); the extrusion vector or depth
 /// is classified against the plane normal per the crate docs' direction
-/// conventions. On success the returned body is closed and passes
-/// tiers 1–2 (`topo::validate`, `validate_closed`) by construction —
-/// the door runs its operators under one surgery scope
-/// (`topo::surgery`), so tier 1 is not re-derived per operator and the
-/// tier-2 debug assertion on the finished body, which subsumes it, is
-/// what this door pays — and passes tier 3
-/// (`topo::validate_geometric`) except at the smooth cap rim
-/// [`Extruded::body`] names. It closes with the whole-body pcurve mint
-/// (`topo::mint_pcurves`), so every curved wall stores its certified
-/// rows at rest. The caller re-validates at rest per the workspace
-/// convention.
+/// conventions. The door runs its operators under one surgery scope
+/// (`topo::surgery`), so tier 1 is not re-derived per operator, closes
+/// with the whole-body pcurve mint (`topo::mint_pcurves`), so every
+/// curved wall stores its certified rows at rest, and ends in its
+/// scalar's leaf ([`topo::AtRestPolicy::leaf`]): on success the body is
+/// the scalar's leaf, finished at `f64` and `Probe` and tier 2 alone at
+/// the box scalars, and a body the leaf refuses (a measured case at
+/// `f64`: a near-flat arc side on a tilted plane, where check 7 cannot
+/// integrate the cap) is [`ExtrudeError::NotFinished`].
 ///
 /// # Errors
 ///
@@ -1123,16 +1124,10 @@ pub fn extrude<T: Decide + topo::AtRestPolicy>(
     }
 
     body.close_already_checked();
-    #[cfg(debug_assertions)]
-    debug_assert_eq!(
-        topo::validate_closed(&built),
-        Ok(()),
-        "extrude postcondition: result is not tier-2 valid (kernel bug)",
-    );
     topo::mint_pcurves(&mut built, tol).map_err(ExtrudeError::Pcurve)?;
 
     Ok(Extruded {
-        body: built,
+        body: T::leaf(built, tol).map_err(|findings| ExtrudeError::NotFinished { findings })?,
         solid: seed.solid,
         shell: seed.shell,
         top: top_face,

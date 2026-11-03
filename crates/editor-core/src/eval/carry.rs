@@ -36,7 +36,7 @@ use crate::coincide::CitedInput;
 /// carry ([`Self::members`]), whose records are keyed in that member's
 /// arena. It holds no records, pieces or census of its own.
 #[derive(Debug, Clone)]
-pub struct Carry<T: Decide> {
+pub struct Carry<T: topo::AtRestPolicy + Decide> {
     /// **The contact records its body carries**, keyed in its arena:
     /// a boolean's own, declared across an instance seam, kept by its
     /// source's door, or its source's own.
@@ -96,7 +96,7 @@ pub struct Carry<T: Decide> {
     pub members: Option<Arc<[Carry<T>]>>,
 }
 
-impl<T: Decide> Default for Carry<T> {
+impl<T: topo::AtRestPolicy + Decide> Default for Carry<T> {
     /// A body of its own: no records, findings or pieces, one part.
     fn default() -> Self {
         Self {
@@ -112,7 +112,7 @@ impl<T: Decide> Default for Carry<T> {
     }
 }
 
-impl<T: Decide> Carry<T> {
+impl<T: topo::AtRestPolicy + Decide> Carry<T> {
     /// **What a value that carries its source's carries** (D10
     /// `[placement.placement]`), the one door every copy's carry goes
     /// through, and a mirror's image's: this carry's records, each
@@ -285,7 +285,7 @@ impl<'m, T: Decide> Stands<'m, T> {
 /// **Pieces moved by `map`** with their holder: every piece at every
 /// depth stands where its holder stands, so `map` composes onto each
 /// piece's frame. `None` where there are no pieces.
-fn moved_pieces<T: Decide>(
+fn moved_pieces<T: topo::AtRestPolicy + Decide>(
     pieces: Option<&Arc<super::Pieces<T>>>,
     map: &RigidMotion<T>,
 ) -> Result<Option<Arc<super::Pieces<T>>>, NodeErrorKind> {

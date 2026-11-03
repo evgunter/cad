@@ -40,6 +40,7 @@ fn prism(bulge: f64) -> Body<f64> {
     sweep::loft_body::<f64>(&[profile(), profile()], &stacked_at(&[0.0, 1.0]), 1, tol())
         .expect("the prism builds")
         .body
+        .into_body()
 }
 
 /// Every cap rim's half-edge on its wall, with its stored image: the

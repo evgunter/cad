@@ -10,17 +10,8 @@
 //!
 //! The doors that take an operand ([`split`], [`split_reduce`],
 //! [`plane_section`], [`vertex_sides`]) take a finished one
-//! ([`crate::AtRestBody`]): a body tier 3 passed, or one whose scalar runs
-//! no at-rest gate (a dual). Over the latter the door reads what the type
-//! promises itself before anything else, with the Boolean's read
-//! ([`crate::AtRestBody::gate_unverdicted`]):
-//!
-//! - tier 2, over the whole body: a strut, an empty loop, a null edge or
-//!   a shell in pieces refuses [`SplitReduceError::ScaffoldingOperand`];
-//! - orientation, as tier 3 reads it: check 7 per solid, then check 10
-//!   per shell. A solid whose total is negative, or a shell bounding
-//!   negative material inside a solid whose total is positive, refuses
-//!   [`SplitReduceError::InsideOutOperand`].
+//! ([`crate::AtRestPolicy::Finished`]), and read nothing it promises
+//! again.
 //!
 //! Pipeline of [`split_reduce`] (functional: operates on a clone, the
 //! operand is untouched):
@@ -100,7 +91,6 @@ use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, VertexKey};
 use crate::euler::EulerOpError;
 use crate::null::NullEdge;
-use crate::validate::{AtRestBody, Unfinished, ValidationError};
 use geom_core::Tol;
 use slotmap::SecondaryMap;
 
@@ -459,35 +449,6 @@ pub enum SplitReduceError {
     /// ON vertex (`rules::apply_rule_a`): the knife edge [`KnifeEdge`]
     /// names.
     KnifeEdge(KnifeEdge),
-    /// The operand is well-formed but not a closed solid at rest: tier 2
-    /// ([`crate::validate_closed`]) refuses it for construction
-    /// scaffolding an edit left behind — a strut's valence-1 vertex, an
-    /// empty loop, a null edge, a shell in pieces. The split serves
-    /// finished solids only.
-    ScaffoldingOperand {
-        /// The validator's tier-2 findings, each naming its entity.
-        errors: Vec<ValidationError>,
-    },
-    /// The operand holds material wound negative: a solid whose signed
-    /// volume tier 3's check 7 decides definitely negative
-    /// ([`ValidationError::NegativeVolume`]), or a shell check 10 finds
-    /// bounding a region of winding −1 inside a solid whose total is
-    /// positive ([`ValidationError::ShellWinding`]). Its faces bound the
-    /// complement of the region they enclose, and each side would carry
-    /// that complement's half.
-    InsideOutOperand {
-        /// The validator's findings, each naming its solid (and, for a
-        /// shell, the shell).
-        errors: Vec<ValidationError>,
-    },
-    /// The operand holds a vertex the join would take, or one whose
-    /// reading lands in the sliver band (tier 3's check 11): a body every
-    /// finisher would have joined, read where its scalar runs no at-rest
-    /// gate ([`AtRestBody::gate_unverdicted`]).
-    UnjoinedOperand {
-        /// The check-11 findings, each naming its vertex.
-        errors: Vec<ValidationError>,
-    },
     /// Whether a vertex lies on the plane is undecided (F6): its distance
     /// from the plane, or from a section the plane ends at it
     /// ([`crate::vertex_section`]), lies in the ambiguity band, beyond ε,
@@ -736,18 +697,6 @@ impl From<BandError> for SplitReduceError {
     }
 }
 
-impl SplitReduceError {
-    /// The operand gate's refusal ([`AtRestBody::gate_unverdicted`]),
-    /// typed for the split.
-    pub(crate) fn unfinished(unfinished: Unfinished) -> Self {
-        match unfinished {
-            Unfinished::Scaffolding(errors) => Self::ScaffoldingOperand { errors },
-            Unfinished::InsideOut(errors) => Self::InsideOutOperand { errors },
-            Unfinished::Unjoined(errors) => Self::UnjoinedOperand { errors },
-        }
-    }
-}
-
 impl From<EulerOpError> for SplitReduceError {
     fn from(e: EulerOpError) -> Self {
         Self::Euler(e.from_driver())
@@ -801,15 +750,6 @@ impl core::fmt::Display for SplitReduceError {
                  cut is not supported yet. Recourse: move the split plane off the tangency"
             ),
             Self::KnifeEdge(k) => write!(f, "{k}"),
-            Self::ScaffoldingOperand { .. } => {
-                write!(f, "the body {}", Unfinished::SCAFFOLDING_REFUSAL)
-            }
-            Self::InsideOutOperand { .. } => {
-                write!(f, "the body {}", Unfinished::INSIDE_OUT_REFUSAL)
-            }
-            Self::UnjoinedOperand { .. } => {
-                write!(f, "the body {}", Unfinished::UNJOINED_REFUSAL)
-            }
             Self::SliverVertex { diag, .. } => diag
                 .undecided(
                     "whether a vertex lies on the split plane",
@@ -947,12 +887,14 @@ impl std::error::Error for SplitReduceError {}
 /// # Errors
 ///
 /// As the corresponding [`split_reduce`] stages.
-pub fn vertex_sides<T: geom_core::Decide + crate::props::AtRestPolicy>(
-    body: &AtRestBody<T>,
-    plane: &SplitPlane<T>,
+pub fn vertex_sides<F: crate::FinishedBody>(
+    body: &F,
+    plane: &SplitPlane<F::Scalar>,
     tol: Tol,
-) -> Result<(SecondaryMap<VertexKey, PlaneSide>, Vec<VertexKey>), SplitReduceError> {
-    gate_finished(body, tol)?;
+) -> Result<(SecondaryMap<VertexKey, PlaneSide>, Vec<VertexKey>), SplitReduceError>
+where
+    F::Scalar: geom_core::Decide,
+{
     carrier_gate_and_sides(body, plane, tol)
 }
 
@@ -980,30 +922,18 @@ pub(crate) fn carrier_gate_and_sides<T: geom_core::Decide>(
 ///
 /// [`SplitReduceError`] — see each variant; the first failure wins and
 /// the operand is never mutated (the clone is dropped).
-pub fn split_reduce<T: geom_core::Decide + crate::props::AtRestPolicy>(
-    operand: &AtRestBody<T>,
-    plane: &SplitPlane<T>,
+pub fn split_reduce<F: crate::FinishedBody>(
+    operand: &F,
+    plane: &SplitPlane<F::Scalar>,
     tol: Tol,
-) -> Result<SplitReduction<T>, SplitReduceError> {
-    gate_finished(operand, tol)?;
+) -> Result<SplitReduction<F::Scalar>, SplitReduceError>
+where
+    F::Scalar: geom_core::Decide,
+{
     reduce(operand, plane, tol)
 }
 
-/// **The split's finished-body gate**, every door's first read: what a
-/// finished body promises, read where no verdict rides the operand
-/// ([`AtRestBody::gate_unverdicted`], the Boolean's read too), refused
-/// typed. The carrier gate (`classify::carrier_gate`) runs after it,
-/// inside the pipeline.
-pub(super) fn gate_finished<T: geom_core::Decide + crate::props::AtRestPolicy>(
-    operand: &AtRestBody<T>,
-    tol: Tol,
-) -> Result<(), SplitReduceError> {
-    operand
-        .gate_unverdicted("the split's operand", geom_core::Band::linear(tol)?, tol)
-        .map_err(SplitReduceError::unfinished)
-}
-
-/// [`split_reduce`] behind the finished-body gate.
+/// [`split_reduce`]'s pipeline over a body.
 pub(crate) fn reduce<T: geom_core::Decide + crate::props::AtRestPolicy>(
     operand: &Body<T>,
     plane: &SplitPlane<T>,
@@ -1206,11 +1136,10 @@ pub(crate) fn split_scratch<T: geom_core::Decide + crate::props::AtRestPolicy>(
 /// The reduction's or the join's refusal.
 #[cfg(any(test, feature = "test-support"))]
 pub(crate) fn through_the_join<T: geom_core::Decide + crate::props::AtRestPolicy>(
-    operand: &AtRestBody<T>,
+    operand: &T::Finished,
     plane: &SplitPlane<T>,
     tol: Tol,
 ) -> Result<Body<T>, SplitError> {
-    gate_finished(operand, tol)?;
     Ok(split_scratch(operand, plane, tol)?.0.body)
 }
 
@@ -1247,11 +1176,8 @@ pub(crate) fn through_the_join<T: geom_core::Decide + crate::props::AtRestPolicy
 /// section-face normals follow this call's plane (above face m = −n,
 /// below face m = +n).
 ///
-/// **The operand is a finished body** ([`AtRestBody`]); one that carries
-/// no verdict (a dual's) is read for what the type promises, per solid,
-/// before a several-solid operand is read as one solid
-/// ([`SplitReduceError::ScaffoldingOperand`],
-/// [`SplitReduceError::InsideOutOperand`]).
+/// **The operand is a finished body** ([`crate::AtRestPolicy::Finished`]),
+/// read for nothing it promises again.
 ///
 /// # Panics
 ///
@@ -1264,25 +1190,24 @@ pub(crate) fn through_the_join<T: geom_core::Decide + crate::props::AtRestPolicy
 /// [`SplitError`], each stage's typed refusals passed through whole (no
 /// degenerate body is ever emitted). Each side is gated at tier 2
 /// ([`SplitFinishError::ResultInvalid`]) and, as sorted into its
-/// solids, at the scalar's at-rest gate
-/// ([`crate::AtRestPolicy::gate_at_rest`], the gate the Boolean's result
-/// passes, its findings typed as the Boolean types them:
-/// [`SplitFinishError::ResultEscalated`] for shells in band,
-/// [`SplitFinishError::ResultNotAtRest`] otherwise). So at a certifying
-/// scalar no side is returned that [`crate::validate_geometric`]
-/// refuses; at a dual the gate runs nothing beyond tier 2. A pinch side's
+/// solids, finished at its scalar ([`crate::AtRestPolicy::finish`], the
+/// gate the Boolean's result passes; [`SplitFinishError::ResultNotAtRest`]
+/// carries every finding). So at a certifying scalar no side is returned
+/// that [`crate::validate_geometric`] refuses. A pinch side's
 /// touching pieces need no contact record, since their copies of the
 /// pinched vertex share its point key, and the ON verdict that pinched
 /// them is in [`SplitResult::coincidences`].
-pub fn split<T: geom_core::Decide + crate::props::AtRestPolicy>(
-    operand: &AtRestBody<T>,
-    plane: &SplitPlane<T>,
+pub fn split<F: crate::FinishedBody>(
+    operand: &F,
+    plane: &SplitPlane<F::Scalar>,
     tol: Tol,
-) -> Result<SplitResult<T>, SplitError> {
-    gate_finished(operand, tol)?;
+) -> Result<SplitResult<F::Scalar>, SplitError>
+where
+    F::Scalar: geom_core::Decide,
+{
     let band = geom_core::Band::linear(tol).map_err(SplitReduceError::from)?;
     let flat;
-    let operand: &Body<T> = if operand.solids().nth(1).is_some() {
+    let operand: &Body<F::Scalar> = if operand.solids().nth(1).is_some() {
         let mut body = Body::clone(operand);
         body.merge_all_solids()
             .map_err(|e| SplitError::Finish(finish::SplitFinishError::from(e)))?;
@@ -1301,11 +1226,19 @@ pub fn split<T: geom_core::Decide + crate::props::AtRestPolicy>(
     // ([`finish::SplitPart::Body`]).
     let at_rest = |side, part| match part {
         finish::RawPart::Body(mut body) => {
-            crate::pieces::sort_into_pieces(&mut body, band, tol, T::quad_lane(), None)
-                .map_err(SplitError::Pieces)?;
-            T::gate_at_rest_kept(body, tol)
+            crate::pieces::sort_into_pieces(
+                &mut body,
+                band,
+                tol,
+                <F::Scalar as crate::props::AtRestPolicy>::quad_lane(),
+                None,
+            )
+            .map_err(SplitError::Pieces)?;
+            <F::Scalar as crate::props::AtRestPolicy>::finish(body, tol)
                 .map(finish::SplitPart::Body)
-                .map_err(|errors| SplitError::from(SplitFinishError::not_at_rest(side, errors)))
+                .map_err(|findings| {
+                    SplitError::from(SplitFinishError::ResultNotAtRest { side, findings })
+                })
         }
         finish::RawPart::Empty => Ok(finish::SplitPart::Empty),
     };

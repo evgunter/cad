@@ -227,6 +227,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::PI;
+use pncad::topo::LeafBody as _;
 
 use pncad::authoring::{p2, v2, validated};
 use pncad::geom::NurbsCurve3;
@@ -487,6 +488,7 @@ pub fn bulb<S: Scalar>(loop_: ConstructedLoop<S>, revolution: Revolution<S>, tol
     )
     .expect("the meridian band revolves")
     .body
+    .into_body()
 }
 
 /// The spine's descent, at angle `psi` on the 90° arc centred one
@@ -573,7 +575,7 @@ pub fn swept_loop<S: Scalar>(
         v_degree,
         tol,
     )
-    .map(|l| l.body)
+    .map(|l| l.body.into_body())
 }
 
 /// The bottle: the bulb and the loop, each finished, and the spine the
@@ -729,6 +731,7 @@ fn roll_the_meridian_blends<S: Scalar>(
     )
     .unwrap_or_else(|e| panic!("the outer corner rolls at RF − WALL/2: {e:?}"))
     .body
+    .into_body()
 }
 
 /// A sharp band's two neck→flare corners as `(inner wall's, outer
@@ -1217,8 +1220,7 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
         6,
         "export the hollow ring as STEP (a multi-shell curved solid)",
         pncad::step_export::step_string(
-            &pncad::topo::AtRestBody::validate(hollow64.body, tol)
-                .expect("the hollow ring is at rest"),
+            &hollow64.body,
             &pncad::step_export::StepOptions {
                 product_name: "hollow_ring".into(),
                 ..Default::default()

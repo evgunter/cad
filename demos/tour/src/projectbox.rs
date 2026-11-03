@@ -19,6 +19,7 @@
 
 use core::f64::consts::{PI, TAU};
 use pncad::sweep::ExtrudeSide;
+use pncad::topo::LeafBody as _;
 
 use pncad::geom::NurbsCurve3;
 use pncad::geom_core::Point3;
@@ -155,7 +156,7 @@ pub fn spring<S: Scalar>(
         path_start_frame(p.map(S::from_computed), d.map(S::from_computed), tol)
             .expect("the coil's start tangent fixes a frame"),
     );
-    sweep_body::<S>(&wire, place, &path, stations, 3, tol).map(|l| l.body)
+    sweep_body::<S>(&wire, place, &path, stations, 3, tol).map(|l| l.body.into_body())
 }
 
 /// The continuum volume of a wire of cross-section `area` swept along
@@ -204,7 +205,7 @@ fn standing_spring(tol: Tol) -> (pncad::topo::Body<f64>, f64) {
             .into(),
     ];
     let round = spring::<f64>(&round, PER_TURN, tol).expect("the round-wire coil builds");
-    let round = pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(&round), tol)
+    let round = pncad::topo::finish(pncad::topo::Body::clone(&round), tol)
         .unwrap_or_else(|e| panic!("the round-wire coil passes tier 3: {e:?}"));
     let measured = pncad::topo::mass_properties(&round, tol, crate::printed())
         .unwrap_or_else(|e| panic!("wall 1 (the round-wire spring's volume) refuses: {e:?}"));

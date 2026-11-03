@@ -180,7 +180,8 @@ fn standing(
     doc: &d::ProfileDoc,
     tol: Tol,
 ) -> Result<topo::Body<f64>, d::ProductError> {
-    pncad::export::product_body_in_space(product, doc, tol).map(std::borrow::Cow::into_owned)
+    pncad::export::product_body_in_space(product, doc, tol)
+        .map(|body| body.into_owned().into_body())
 }
 
 /// **`product_named`'s body**: the aggregate as it stands in the world

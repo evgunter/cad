@@ -295,7 +295,7 @@ fn a_cut_along_two_rulings_through_a_wrap_tipped_apex_refuses_the_pinch_by_name(
     let (lo, hi) = (Point3::new(-0.3, 0.95, -0.3), Point3::new(0.0, 1.2, 0.3));
     let b = finished(
         "the box",
-        topo::test_support::brick((lo.x, hi.x), (lo.y, hi.y), (lo.z, hi.z), tol()),
+        topo::test_support::brick::<f64>((lo.x, hi.x), (lo.y, hi.y), (lo.z, hi.z), tol()),
         tol(),
     );
     let the_box = move |p: Point3<f64>| {

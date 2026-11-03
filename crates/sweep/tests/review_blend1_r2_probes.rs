@@ -515,7 +515,7 @@ fn a_cylinder_capped_both_ends_carves_both_seam_split_rims() {
         let out = fillet_edges(&sweep::test_support::at_rest(&body, tol()), &arcs, r, tol())
             .unwrap_or_else(|e| panic!("{name} rim fillets, got {e:?}"));
         bands += out.band_faces.len();
-        body = out.body;
+        body = out.body.into_body();
     }
     assert_eq!(bands, 2, "one band per rim");
     validate_geometric(&body, tol()).expect("tier-3 valid");

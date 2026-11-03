@@ -43,19 +43,24 @@ fn uslab() -> AtRestBody<f64> {
 }
 
 /// The brick `x × y × z`, finished.
-fn finished_brick<T: Decide + topo::AtRestPolicy>(
+fn finished_brick<T: Decide + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>>(
     x: (f64, f64),
     y: (f64, f64),
     z: (f64, f64),
-) -> AtRestBody<T> {
+) -> topo::AtRestBody<T> {
     let tol = Tol::witness();
     finished("brick", brick::<T>(x, y, z, tol), tol)
 }
 
-type BoolOp<T> = fn(&AtRestBody<T>, &AtRestBody<T>, Tol) -> Result<BooleanResult<T>, BooleanError>;
+type BoolOp<T> =
+    fn(&topo::AtRestBody<T>, &topo::AtRestBody<T>, Tol) -> Result<BooleanResult<T>, BooleanError>;
 
 /// Functional run: operands bitwise untouched, result tier-1+2 valid.
-fn run<T: Decide>(op: BoolOp<T>, a: &AtRestBody<T>, b: &AtRestBody<T>) -> BooleanResult<T> {
+fn run<T: topo::AtRestPolicy<Finished = topo::AtRestBody<T>> + Decide>(
+    op: BoolOp<T>,
+    a: &topo::AtRestBody<T>,
+    b: &topo::AtRestBody<T>,
+) -> BooleanResult<T> {
     let (a0, b0) = (format!("{a:?}"), format!("{b:?}"));
     let r = op(a, b, Tol::witness()).unwrap();
     assert_eq!(format!("{a:?}"), a0, "operand A untouched");
@@ -67,7 +72,9 @@ fn run<T: Decide>(op: BoolOp<T>, a: &AtRestBody<T>, b: &AtRestBody<T>) -> Boolea
     r
 }
 
-fn body_of<T: Decide>(r: &BooleanResult<T>) -> &BooleanBody<T> {
+fn body_of<T: topo::AtRestPolicy<Finished = topo::AtRestBody<T>> + Decide>(
+    r: &BooleanResult<T>,
+) -> &BooleanBody<T> {
     match r {
         BooleanResult::Body(b) => b,
         BooleanResult::Empty => panic!("expected a body"),
@@ -87,7 +94,11 @@ fn assert_props(body: &Body<f64>, volume: f64, area: f64) {
 
 /// A refusal must be typed, deterministic, and leave operands bitwise
 /// untouched — never a silent wrong body.
-fn assert_typed_refusal<T: Decide>(op: BoolOp<T>, a: &AtRestBody<T>, b: &AtRestBody<T>) -> String {
+fn assert_typed_refusal<T: topo::AtRestPolicy<Finished = topo::AtRestBody<T>> + Decide>(
+    op: BoolOp<T>,
+    a: &topo::AtRestBody<T>,
+    b: &topo::AtRestBody<T>,
+) -> String {
     let (a0, b0) = (format!("{a:?}"), format!("{b:?}"));
     let e1 = op(a, b, Tol::witness()).map(|_| ()).unwrap_err();
     let e2 = op(a, b, Tol::witness()).map(|_| ()).unwrap_err();
@@ -622,12 +633,12 @@ fn duality_extended_corpus() {
     let corpus: Vec<(&str, AtRestBody<f64>, AtRestBody<f64>)> = vec![
         (
             "minus-x-pocket",
-            finished_brick((0.0, 2.0), (0.0, 2.0), (0.0, 2.0)),
-            finished_brick((-0.75, 0.5), (0.75, 1.25), (0.75, 1.25)),
+            finished_brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0)),
+            finished_brick::<f64>((-0.75, 0.5), (0.75, 1.25), (0.75, 1.25)),
         ),
         (
             "edge-notch",
-            finished_brick((0.0, 2.0), (0.0, 2.0), (0.0, 2.0)),
+            finished_brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0)),
             finished_brick((1.5, 2.5), (0.5, 1.0), (1.5, 2.5)),
         ),
         (

@@ -37,6 +37,7 @@ fn polyline(pts: &[(f64, f64)], turn: Revolution<f64>) -> Body<f64> {
     )
     .expect("revolves")
     .body
+    .into_body()
 }
 
 fn dump(label: &str, body: &Body<f64>) {
@@ -71,7 +72,7 @@ fn dump(label: &str, body: &Body<f64>) {
         println!("[r1diff] {label}: vertex {k:?} point={:?}", p);
     }
     // A body tier 3 refuses prints its refusal and is not measured.
-    match topo::AtRestBody::validate(topo::Body::clone(body), tol()) {
+    match topo::finish(topo::Body::clone(body), tol()) {
         Err(errors) => println!("[r1diff] {label}: not at rest {errors:?}"),
         Ok(finished) => match topo::mass_properties(
             &finished,
@@ -95,7 +96,7 @@ fn shelled(label: &str, body: &Body<f64>, t: f64) -> Option<Body<f64>> {
     match topo::shell(&finished("the operand", body.clone(), tol()), t, tol()) {
         Ok(s) => {
             dump(label, &s.body);
-            Some(s.body)
+            Some(s.body.into_body())
         }
         Err(e) => {
             println!("[r1diff] {label}: shell Err {e}");

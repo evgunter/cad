@@ -825,7 +825,7 @@ fn an_edge_bounding_one_face_without_the_wrap_flag_is_refused() {
     )
     .body;
     let full = revolved(
-        vec![circle(3.0, 0.0, 0.5, TAU)],
+        vec![circle::<f64>(3.0, 0.0, 0.5, TAU)],
         sweep::Revolution::Full,
         "the full turn",
     )
@@ -838,7 +838,7 @@ fn an_edge_bounding_one_face_without_the_wrap_flag_is_refused() {
         let edges = wrap_edges(&body);
         assert_eq!(edges.len(), wraps, "{what}: its wrap edges");
         for (_, edge) in edges {
-            let mut forged = body.clone();
+            let mut forged = body.clone().into_body();
             unflag(&mut forged, edge);
             assert_eq!(validate(&forged), Ok(()), "{what}: tier 1");
             assert_eq!(validate_closed(&forged), Ok(()), "{what}: tier 2");
@@ -1127,7 +1127,8 @@ fn a_moved_closed_walls_wrap_edge_is_a_row_of_its_fit() {
     let section = vec![circle(0.0, 0.0, 1.0, TAU)];
     let mut body = sweep::loft_body::<f64>(&[section.clone(), section], &places, 1, tol())
         .expect("the cylinder lofts")
-        .body;
+        .body
+        .into_body();
     let [(wall, strut)] = wrap_edges(&body)[..] else {
         panic!("one wrap edge");
     };

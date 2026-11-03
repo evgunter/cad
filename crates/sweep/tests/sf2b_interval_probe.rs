@@ -54,6 +54,7 @@ fn revolved(lp: ProfileLoop<Interval>, turn: Revolution<Interval>) -> Body<Inter
     )
     .expect("the meridian revolves")
     .body
+    .into_body()
 }
 
 /// **The sphere-zone vase at `T = Interval`.** Every corner solve is a

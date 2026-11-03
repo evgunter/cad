@@ -83,7 +83,7 @@ fn dump(label: &str, body: &Body<f64>) {
         );
     }
     // A body tier 3 refuses prints its refusal and is not measured.
-    match topo::AtRestBody::validate(topo::Body::clone(body), tol()) {
+    match topo::finish(topo::Body::clone(body), tol()) {
         Err(errors) => println!("[dump] {label}: not at rest {errors:?}"),
         Ok(finished) => match topo::mass_properties(
             &finished,
@@ -107,7 +107,7 @@ fn dump(label: &str, body: &Body<f64>) {
 fn shelled(label: &str, body: &Body<f64>, t: f64) -> Option<Body<f64>> {
     // A hand-split operand is construction state (tier 3's check 11):
     // the gate's refusal is the dump's line for it.
-    let operand = match topo::AtRestBody::validate(body.clone(), tol()) {
+    let operand = match topo::finish(body.clone(), tol()) {
         Ok(operand) => operand,
         Err(e) => {
             println!("[dump] {label}: not at rest {e:?}");
@@ -117,7 +117,7 @@ fn shelled(label: &str, body: &Body<f64>, t: f64) -> Option<Body<f64>> {
     match topo::shell(&operand, t, tol()) {
         Ok(s) => {
             dump(label, &s.body);
-            Some(s.body)
+            Some(s.body.into_body())
         }
         Err(e) => {
             println!("[dump] {label}: shell Err {e}");
@@ -146,6 +146,7 @@ fn revolved_about(
     revolve(&profile, axis, turn, tol())
         .expect("the meridian revolves")
         .body
+        .into_body()
 }
 
 fn revolved(lp: ProfileLoop<f64>, turn: Revolution<f64>) -> Body<f64> {
@@ -231,29 +232,27 @@ fn torus_vessel(centre_rho: f64) -> Body<f64> {
 fn tube_torus(wall: Option<f64>) -> Body<f64> {
     let (c, a, u) = (Point3::new(0.0, 0.0, 0.0), Vec3::unit_y(), Vec3::unit_x());
     match wall {
-        None => {
-            tube_along_arc::<f64>(
-                tube_frame(c, a, u, tol()),
-                2.0,
-                TubeWindow::Full,
-                0.5,
-                tol(),
-            )
-            .expect("the solid torus builds")
-            .body
-        }
-        Some(w) => {
-            tube_along_arc_hollow::<f64>(
-                tube_frame(c, a, u, tol()),
-                2.0,
-                TubeWindow::Full,
-                0.5,
-                w,
-                tol(),
-            )
-            .expect("the hollow torus builds")
-            .body
-        }
+        None => tube_along_arc::<f64>(
+            tube_frame(c, a, u, tol()),
+            2.0,
+            TubeWindow::Full,
+            0.5,
+            tol(),
+        )
+        .expect("the solid torus builds")
+        .body
+        .into_body(),
+        Some(w) => tube_along_arc_hollow::<f64>(
+            tube_frame(c, a, u, tol()),
+            2.0,
+            TubeWindow::Full,
+            0.5,
+            w,
+            tol(),
+        )
+        .expect("the hollow torus builds")
+        .body
+        .into_body(),
     }
 }
 
@@ -386,7 +385,7 @@ fn shell7_dump_corpus() {
     dump("collinear cap, operand", &cap);
     match topo::shell(&finished("the operand", cap.clone(), tol()), 0.05, tol()) {
         Ok(s) => dump("collinear cap", &s.body),
-        Err(topo::ShellError::NotValid { errors }) => {
+        Err(topo::ShellError::NotValid { findings: errors }) => {
             println!("[dump] collinear cap: shell NotValid {errors:?}")
         }
         Err(e) => println!("[dump] collinear cap: shell Err {e}"),
@@ -405,7 +404,7 @@ fn shell7_dump_corpus() {
     dump("two-arc sphere, operand", &ball);
     match topo::shell(&finished("the operand", ball.clone(), tol()), 0.05, tol()) {
         Ok(s) => dump("two-arc sphere", &s.body),
-        Err(topo::ShellError::NotValid { errors }) => {
+        Err(topo::ShellError::NotValid { findings: errors }) => {
             println!("[dump] two-arc sphere: shell NotValid {errors:?}")
         }
         Err(e) => println!("[dump] two-arc sphere: shell Err {e}"),

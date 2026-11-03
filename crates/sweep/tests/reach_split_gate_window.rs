@@ -177,6 +177,7 @@ fn build(f: &Fixture, s: f64) -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 /// The sense of the revolve's azimuth: a profile point `(ρ, y)` at

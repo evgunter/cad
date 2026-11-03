@@ -56,6 +56,7 @@ fn cyl(r: f64, z0: f64, z1: f64) -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 /// A radius-`r` ball at `centre`, poles on world Y (the pip corpus's
@@ -481,7 +482,7 @@ fn the_join_dispatchs_refusal_says_what_it_actually_wires() {
         },
     )
     .unwrap();
-    let errors = topo::AtRestBody::validate(b, Tol::witness())
+    let errors = topo::finish(b, Tol::witness())
         .expect_err("a NURBS placeholder wall is not a finished body");
     assert!(
         errors.iter().any(

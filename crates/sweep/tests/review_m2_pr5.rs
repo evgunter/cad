@@ -712,14 +712,15 @@ fn survives_forged_seam_on_pi_meridian_is_refused() {
         (Point2::new(0.0, 1.0), 0.0),
     ]);
     let vp = validated(vec![lp]);
-    let mut t = revolve(&vp, axis_y(), Revolution::Full, Tol::witness()).unwrap();
+    let t = revolve(&vp, axis_y(), Revolution::Full, Tol::witness()).unwrap();
+    let mut body = t.body.clone().into_body();
     let RevolvedKind::Full { pi_meridians, .. } = &t.kind else {
         panic!("full")
     };
     let pi_edge = pi_meridians[0].unwrap();
-    let sphere_key = wall_key(&t.body, t.walls()[0][0].unwrap());
-    let e = t.body.get_edge(pi_edge).unwrap();
-    let c = t.body.get_curve_geom(e.curve).unwrap().certified().unwrap();
+    let sphere_key = wall_key(&body, t.walls()[0][0].unwrap());
+    let e = body.get_edge(pi_edge).unwrap();
+    let c = body.get_curve_geom(e.curve).unwrap().certified().unwrap();
     let (carrier, (t0, t1)) = (c.carrier().clone(), c.params());
     let forged = geom_brep::EdgeCurveSpec {
         description: EdgeDescriptionSpec::wrap(sphere_key),
@@ -727,11 +728,10 @@ fn survives_forged_seam_on_pi_meridian_is_refused() {
         param_start: t0,
         param_end: t1,
     };
-    t.body
-        .set_edge_curve(pi_edge, forged, Tol::witness())
+    body.set_edge_curve(pi_edge, forged, Tol::witness())
         .expect("the π meridian is an image of the sphere, so its one meter certifies");
     assert_eq!(
-        topo::validate_geometric(&t.body, Tol::witness()),
+        topo::validate_geometric(&body, Tol::witness()),
         Err(vec![topo::ValidationError::DescriptionNotAdjacent {
             edge: pi_edge
         }]),
@@ -881,10 +881,11 @@ fn survives_start_point_witness_on_full_rim_is_refused() {
         Point2::new(1.0, 1.0),
     ]);
     let vp = validated(vec![lp]);
-    let mut t = revolve(&vp, axis_y(), Revolution::Full, Tol::witness()).unwrap();
+    let t = revolve(&vp, axis_y(), Revolution::Full, Tol::witness()).unwrap();
+    let mut body = t.body.clone().into_body();
     let rim = t.rims[0][0].unwrap();
-    let e = t.body.get_edge(rim).unwrap();
-    let c = t.body.get_curve_geom(e.curve).unwrap().certified().unwrap();
+    let e = body.get_edge(rim).unwrap();
+    let c = body.get_curve_geom(e.curve).unwrap().certified().unwrap();
     let EdgeDescription::Intersection { pair, .. } = *c.description() else {
         panic!("intersection rim");
     };
@@ -899,15 +900,14 @@ fn survives_start_point_witness_on_full_rim_is_refused() {
         param_start: t0,
         param_end: t1,
     };
-    let err = t
-        .body
+    let err = body
         .set_edge_curve(rim, forged, Tol::witness())
         .unwrap_err();
     assert!(
         matches!(err, topo::EulerOpError::Certification { .. }),
         "start-point witness must fail the mid-parameter pin: {err:?}"
     );
-    assert_all_tiers(&t.body);
+    assert_all_tiers(&body);
 }
 
 // =====================================================================
@@ -1414,7 +1414,8 @@ fn survives_forged_seam_on_a_plane_annulus_edge_is_refused() {
         Point2::new(1.0, 1.0),
     ]);
     let vp = validated(vec![lp]);
-    let mut t = revolve(&vp, axis_y(), Revolution::Full, Tol::witness()).unwrap();
+    let t = revolve(&vp, axis_y(), Revolution::Full, Tol::witness()).unwrap();
+    let mut body = t.body.clone().into_body();
     let RevolvedKind::Full { meridians, .. } = &t.kind else {
         panic!("full")
     };
@@ -1423,19 +1424,19 @@ fn survives_forged_seam_on_a_plane_annulus_edge_is_refused() {
     // meridian.
     assert_eq!(meridians[0][0], None, "a plane wall has no meridian");
     let annulus = t.walls()[0][0].unwrap();
-    let plane_key = wall_key(&t.body, annulus);
+    let plane_key = wall_key(&body, annulus);
     assert!(matches!(
-        t.body.get_surface(plane_key),
+        body.get_surface(plane_key),
         Some(Surface::Plane { .. })
     ));
     // The annulus's outer circle: its whole outer cycle.
-    let face = t.body.get_face(annulus).unwrap();
-    let LoopBoundary::Cycle { first } = t.body.get_loop(face.outer).unwrap().boundary else {
+    let face = body.get_face(annulus).unwrap();
+    let LoopBoundary::Cycle { first } = body.get_loop(face.outer).unwrap().boundary else {
         panic!("the annulus's outer cycle");
     };
-    let circle = t.body.get_half_edge(first).unwrap().edge;
-    let e = t.body.get_edge(circle).unwrap();
-    let c = t.body.get_curve_geom(e.curve).unwrap().certified().unwrap();
+    let circle = body.get_half_edge(first).unwrap().edge;
+    let e = body.get_edge(circle).unwrap();
+    let c = body.get_curve_geom(e.curve).unwrap().certified().unwrap();
     let (carrier, (t0, t1)) = (c.carrier().clone(), c.params());
     let forged = geom_brep::EdgeCurveSpec {
         description: EdgeDescriptionSpec::wrap(plane_key),
@@ -1443,8 +1444,7 @@ fn survives_forged_seam_on_a_plane_annulus_edge_is_refused() {
         param_start: t0,
         param_end: t1,
     };
-    let err = t
-        .body
+    let err = body
         .set_edge_curve(circle, forged, Tol::witness())
         .unwrap_err();
     assert_eq!(
@@ -1452,7 +1452,7 @@ fn survives_forged_seam_on_a_plane_annulus_edge_is_refused() {
         topo::EulerOpError::DescriptionNotAdjacent { edge: Some(circle) },
         "Seam on a plane annulus's circle must be refused"
     );
-    assert_all_tiers(&t.body);
+    assert_all_tiers(&body);
 }
 
 #[test]

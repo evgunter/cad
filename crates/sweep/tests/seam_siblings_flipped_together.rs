@@ -220,7 +220,7 @@ fn a_holed_region_reads_its_side_by_its_area() {
     );
     let slab = finished(
         "slab",
-        brick((-0.5, 0.5), (-2.0, 2.0), (-2.0, 2.0), tol),
+        brick::<f64>((-0.5, 0.5), (-2.0, 2.0), (-2.0, 2.0), tol),
         tol,
     );
     let body = Body::clone(
@@ -398,7 +398,7 @@ fn a_lone_lune_through_both_poles_flips_into_another_valid_body() {
     );
     let block = finished(
         "block",
-        brick((-3.0, 0.0), (-2.0, 2.0), (-2.0, 2.0), tol),
+        brick::<f64>((-3.0, 0.0), (-2.0, 2.0), (-2.0, 2.0), tol),
         tol,
     );
     let body = Body::clone(
