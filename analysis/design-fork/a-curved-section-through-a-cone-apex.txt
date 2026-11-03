@@ -1,0 +1,6 @@
+fork: a-curved-section-through-a-cone-apex (SPLITDOOR cone-apex B3: germ frame and certified count for a cone x curved-carrier section through the apex; the curved-face VF pierce)
+drawn: 2026-11-03T08:00Z, od -An -tu1 -N1 /dev/urandom (twice)
+bytes: 158 227
+arm: 2 designers
+mapping: A = Fable designer, B = Opus designer
+protocol: 2126b860b6
