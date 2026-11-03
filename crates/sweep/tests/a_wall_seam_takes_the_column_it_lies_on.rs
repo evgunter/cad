@@ -13,7 +13,7 @@
 
 use geom::{NurbsSurface, Surface};
 use geom_brep::EdgeDescriptionSpec;
-use geom_core::{Point2, Point3, Tol, Vec3};
+use geom_core::{Point2, Point3, Tol};
 use profile::test_support::bulge_loop;
 use std::sync::Arc;
 use sweep::test_support::stacked_at;
@@ -239,31 +239,7 @@ fn seams(body: &Body<f64>, wall: FaceKey) -> Vec<HalfEdgeKey> {
         .collect()
 }
 
-/// **A seam whose every candidate escalates answers the escalation.**
-/// The arc wall re-charted onto its surface moved `in_band()` along
-/// `y`, which is the wall's normal at both seams: each seam's stated
-/// column, each closed-form column and the column the foot names all
-/// sit inside the band at the probe. The derivation answers
-/// `Escalated`, and does not go on to the seam's `General` image, which
-/// would chart a carrier the probe could not place.
-#[test]
-fn a_seam_in_the_band_answers_the_escalation() {
-    let body = semicircle_prism();
-    let wall = arc_wall(&body);
-    let lift = Vec3::new(0.0, in_band(), 0.0);
-    let moved = recharted(&body, wall, |n| n.map_points(|p| p + lift), false);
-    let seams = seams(&body, wall);
-    assert_eq!(seams.len(), 2, "the arc wall has two seams");
-    for h in seams {
-        let got = derived(&moved, h);
-        assert!(
-            matches!(got, Err(topo::PcurveMintError::Escalated { .. })),
-            "{h:?}: a seam in the band escalates: {got:?}"
-        );
-    }
-}
-
-/// **An escalated candidate does not block a later one that holds.** A
+/// **An in-band candidate does not block a later one that holds.** A
 /// flat wall re-charted onto its plane stretched `in_band()` past each
 /// seam: the stated column at each chart boundary sits inside the band
 /// at the probe, and the column the start's foot names holds exactly.
@@ -508,13 +484,13 @@ fn flat_wall_shifted_in_v(body: &Body<f64>) -> (Body<f64>, FaceKey) {
     (shifted, flat)
 }
 
-/// **An escalated stated column does not outrank a closed form that
+/// **An in-band stated column does not outrank a closed form that
 /// holds.** On the shifted flat wall each seam's stated columns (at the
 /// boundary and at the foot) sit inside the band at the probe, and the
 /// chart's own boundary column holds exactly. Each seam takes that
 /// column, `v` running over the shifted domain.
 #[test]
-fn an_escalated_stated_column_gives_way_to_a_closed_form_that_holds() {
+fn an_in_band_stated_column_gives_way_to_a_closed_form_that_holds() {
     let body = semicircle_prism();
     let (shifted, flat) = flat_wall_shifted_in_v(&body);
     for h in seams(&body, flat) {
@@ -529,15 +505,17 @@ fn an_escalated_stated_column_gives_way_to_a_closed_form_that_holds() {
     }
 }
 
-/// **An escalated stated column is answered when nothing holds.** Split
-/// a seam of the shifted flat wall at its midpoint: each child's stated
-/// columns still sit inside the band, and the whole-domain closed forms
-/// are now definitely off (they would map half the seam onto all of
-/// `v`). A spline seam is offered no measured column, so nothing holds:
-/// the derivation answers the escalation, not the child's `General`
-/// image.
+/// **A split seam whose stated column is in band takes its `General`
+/// image.** Split a seam of the shifted flat wall at its midpoint: each
+/// child's stated columns still sit inside the band, and the
+/// whole-domain closed forms are now definitely off (they would map half
+/// the seam onto all of `v`). A spline seam is offered no measured
+/// column, so nothing is shown: the pick is a lane choice (D3), and the
+/// child takes its `General` image, as one decided off every column
+/// would (`a_wall_row_read_in_band_takes_the_lane_a_miss_takes` holds the
+/// seam moved into the band whole).
 #[test]
-fn an_escalated_stated_column_is_answered_when_nothing_holds() {
+fn an_in_band_stated_column_with_nothing_shown_takes_the_general_image() {
     let body = semicircle_prism();
     let (mut shifted, flat) = flat_wall_shifted_in_v(&body);
     let seam = seams(&body, flat)[0];
@@ -553,8 +531,8 @@ fn an_escalated_stated_column_is_answered_when_nothing_holds() {
             .expect("each child has a half on the flat wall");
         let got = derived(&shifted, on_flat);
         assert!(
-            matches!(got, Err(topo::PcurveMintError::Escalated { .. })),
-            "{on_flat:?}: the in-band stated column is answered: {got:?}"
+            matches!(got, Ok(Pcurve::General(_))),
+            "{on_flat:?}: nothing shown, the child takes its General image: {got:?}"
         );
     }
 }

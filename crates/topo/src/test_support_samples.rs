@@ -414,11 +414,7 @@ fn plane_nurbs_refusals() -> Vec<PlaneNurbsRefusal> {
             limb: geom_brep::SsiLimb::Tube,
             cause: diag(),
         },
-        PlaneNurbsRefusal::ArcRim(geom_brep::ArcRimRefusal::Escalated {
-            check: geom_brep::PcurveCheck::MapResidual,
-            cause: diag(),
-        }),
-        PlaneNurbsRefusal::ArcRim(geom_brep::ArcRimRefusal::Refused {
+        PlaneNurbsRefusal::ArcRim(geom_brep::ArcRimRefusal {
             iso: Some(geom_brep::PcurveCheck::MapResidual),
             limb: geom_brep::SsiLimb::HullValueChart,
             bound: MarginDiag::value(4.6e-4),
@@ -518,13 +514,11 @@ fn certify_errors() -> Vec<CertifyError> {
         },
         CertifyError::UnresolvedSurface { key },
         CertifyError::Unimplemented,
-        CertifyError::PlaneNurbs(PlaneNurbsRefusal::ArcRim(
-            geom_brep::ArcRimRefusal::Refused {
-                iso: None,
-                limb: geom_brep::SsiLimb::HullValueChart,
-                bound: MarginDiag::value(4.6e-4),
-            },
-        )),
+        CertifyError::PlaneNurbs(PlaneNurbsRefusal::ArcRim(geom_brep::ArcRimRefusal {
+            iso: None,
+            limb: geom_brep::SsiLimb::HullValueChart,
+            bound: MarginDiag::value(4.6e-4),
+        })),
         CertifyError::IntersectionSameSurface { key },
         CertifyError::Row {
             surface: key,
@@ -2059,17 +2053,6 @@ pub(crate) fn nested_coverage_gaps() -> Vec<String> {
     out.extend(gaps::<_, PlaneNurbsRefusalKind>(
         "PlaneNurbsRefusal",
         &plane_nurbs_refusals(),
-    ));
-    let arc_rims: Vec<geom_brep::ArcRimRefusal> = plane_nurbs_refusals()
-        .into_iter()
-        .filter_map(|e| match e {
-            PlaneNurbsRefusal::ArcRim(r) => Some(r),
-            _ => None,
-        })
-        .collect();
-    out.extend(gaps::<_, geom_brep::edge_nurbs::ArcRimRefusalKind>(
-        "ArcRimRefusal",
-        &arc_rims,
     ));
     out.extend(gaps::<_, geom_brep::edge_nurbs::AnalyticRung3RefusalKind>(
         "AnalyticRung3Refusal",

@@ -3300,11 +3300,7 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
         // An arc rim's refusal reads as its exact image's check where
         // that names a limb, and as its fitted path's otherwise, as its
         // decision does (`ArcRimRefusal::decision`).
-        CertifyError::PlaneNurbs(P::ArcRim(geom_brep::ArcRimRefusal::Refused {
-            iso,
-            limb,
-            bound,
-        })) => {
+        CertifyError::PlaneNurbs(P::ArcRim(geom_brep::ArcRimRefusal { iso, limb, bound })) => {
             let limb = iso
                 .and_then(geom_brep::PcurveCheck::incidence_limb)
                 .unwrap_or(*limb);
@@ -3472,12 +3468,10 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
         CertifyError::PlaneNurbs(P::TransversalityEscalated { .. }) => {
             certify_undecided(CertCheck::Transversality)
         }
-        // Both are lifted to `CertifyError::Escalated` at the door
+        // Lifted to `CertifyError::Escalated` at the door
         // (`from_plane_nurbs`), as every lane escalation is; read here by
-        // their own decision for a caller holding the lane's refusal.
-        CertifyError::PlaneNurbs(
-            p @ (P::Escalated { .. } | P::ArcRim(geom_brep::ArcRimRefusal::Escalated { .. })),
-        ) => p
+        // its own decision for a caller holding the lane's refusal.
+        CertifyError::PlaneNurbs(p @ P::Escalated { .. }) => p
             .decision()
             .map_or(KIND, |(check, _)| certify_undecided(check)),
         CertifyError::AnalyticRung3(A::Escalated { limb, .. }) => certify_undecided(limb.check()),

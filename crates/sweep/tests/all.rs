@@ -170,6 +170,8 @@ mod a_tube_ending_on_a_ball;
 mod a_vertex_on_a_grazing_plane;
 #[path = "a_vertex_piercing_a_lens_wall.rs"]
 mod a_vertex_piercing_a_lens_wall;
+#[path = "a_wall_row_read_in_band_takes_the_lane_a_miss_takes.rs"]
+mod a_wall_row_read_in_band_takes_the_lane_a_miss_takes;
 #[path = "a_wall_seam_takes_the_column_it_lies_on.rs"]
 mod a_wall_seam_takes_the_column_it_lies_on;
 #[path = "a_wrap_tip_reads_its_full_turn_in_the_boolean.rs"]

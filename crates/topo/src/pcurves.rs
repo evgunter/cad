@@ -1164,8 +1164,8 @@ impl RowSpace {
 ///   description names no chart coordinate; one on a boundary row (a
 ///   cap–wall rim) maps as that row. The residency is a pick over the
 ///   columns and rows and their two directions, each judged at the
-///   edge's ends and a quarter span in ([`probe_pick`]), definite or
-///   escalated; then over the
+///   edge's ends and a quarter span in ([`probe_pick`]), a candidate
+///   it does not show passing to the next step; then over the
 ///   row, and for a line the column, whose moving map the carrier's
 ///   end feet measure (a sub-edge, a cap rim an offset moved, and for
 ///   a line an interior column). An Intersection circle is offered to
@@ -1210,20 +1210,25 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
     };
     // The ARC-RIM class: a circle on one of the chart's boundary rows,
     // over the whole row or part of it, its image the row on the
-    // chart's own rational-quadratic parameter (`Pcurve::IsoArc`). An
-    // IsoUnsupported refusal says this carrier is not such a rim.
+    // chart's own rational-quadratic parameter (`Pcurve::IsoArc`). The
+    // row and the `u` direction are one pick, and the arc the closed
+    // form or the row measures, the incidence lane's too
+    // ([`geom_brep::pick_arc_rim`]); the full arc-rim certification
+    // still follows. The pick is a lane choice (D3): a circle it does
+    // not show on a row, in band or decided off, takes the general lane
+    // a circle on a spline chart does not have yet, and refuses "not
+    // yet" recording nothing.
     let arc_rim = || -> Result<Pcurve<T>, PcurveMintError> {
-        // The row and the `u` direction are one pick, and the arc the
-        // closed form or the row measures, the incidence lane's too
-        // ([`geom_brep::pick_arc_rim`]); the full arc-rim certification
-        // still follows.
         match geom_brep::pick_arc_rim(&carrier, (t0, span), surface, band) {
             Ok(Some(cand)) => Ok(cand),
-            Err(cause) => Err(PcurveMintError::Escalated { half_edge, cause }),
-            Ok(None) => Err(refuse(
-                "no boundary row of this chart, in either u direction, holds the circle \
-                 at the probe — not an arc rim of this chart",
-            )),
+            Ok(None) | Err(_) => Err(PcurveMintError::Certify {
+                half_edge,
+                error: PcurveCertifyError::NoGeneralLane {
+                    chart: surface.kind(),
+                    carrier: carrier.kind(),
+                    gap: geom_brep::LaneGap::Unwritten,
+                },
+            }),
         }
     };
 
@@ -1286,7 +1291,10 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
                 }
             })
         });
-        let mut deferred = match probe_pick(
+        // Each pick is a lane choice (D3): a candidate the probe shows
+        // is taken, and one it does not, in band or decided off, passes
+        // to the next step and in the end to the general image.
+        if let Ok(Some(cand)) = probe_pick(
             what,
             &carrier,
             (t0, span),
@@ -1294,10 +1302,8 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
             band,
             stated.into_iter().chain(columns).chain(rows),
         ) {
-            Ok(Some(cand)) => return Ok(cand),
-            Ok(None) => None,
-            Err(cause) => Some(cause),
-        };
+            return Ok(cand);
+        }
         // ---- The fixed schedule found nothing: MEASURE the map. ----
         // The candidates above assume the carrier traverses the chart's
         // WHOLE domain along its moving axis, because that is what a
@@ -1320,8 +1326,7 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
         // Boor collapse; an `Intersection` spline seam on an interior
         // column takes `General` below (#498)
         // (`work/pcert/a-spline-seam-on-an-interior-column-is-offered-no-measured-column.md`).
-        if deferred.is_none()
-            && (row_space.forward || row_space.backward)
+        if (row_space.forward || row_space.backward)
             && let (Some(f0), Some(f1)) = (
                 derive_chart_foot(carrier.eval(t0), surface).ok().flatten(),
                 derive_chart_foot(carrier.eval(t1), surface).ok().flatten(),
@@ -1344,7 +1349,7 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
                     p0: Point2::new(x, f0.y - sv * t0),
                     pl: Vec2::new(T::zero(), sv),
                 });
-            match probe_pick(
+            if let Ok(Some(cand)) = probe_pick(
                 what,
                 &carrier,
                 (t0, span),
@@ -1352,44 +1357,30 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
                 band,
                 rows.chain(columns),
             ) {
-                Ok(Some(cand)) => return Ok(cand),
-                Ok(None) => {}
-                Err(cause) => deferred = Some(cause),
+                return Ok(cand);
             }
         }
-        // A circle on a boundary row is the arc rim's, where the arc-rim
-        // certification holds; any other circle, an IsoUnsupported
-        // answer, is not, and neither is a pick that certification
-        // definitely refuses: the spline-pair edge certificates take a
-        // circle carrier, so an `Intersection` circle on a spline chart
-        // that is no arc rim falls through to `General` like any other
-        // locus.
-        if deferred.is_none() && matches!(carrier, geom::Curve3::Circle(..)) {
-            match arc_rim() {
-                Err(PcurveMintError::Certify {
-                    error: PcurveCertifyError::IsoUnsupported { .. },
-                    ..
-                }) => {}
-                // An undecided certification is the rim's to report:
-                // the mint certifies the pick again and escalates it.
-                // A definite refusal of the rim's locus says the circle
-                // is not this row, and falls through; any other refusal
-                // is about the chart or the run, not the candidate, and
-                // leaves with its own words.
-                Ok(rim) => match PcurveCache::certify(rim.clone(), t0, t1, &carrier, surface, band)
-                {
-                    Ok(_)
-                    | Err(
-                        PcurveCertifyError::Escalated { .. }
-                        | PcurveCertifyError::FittedEscalated { .. },
-                    ) => return Ok(rim),
-                    Err(
-                        PcurveCertifyError::ResidualExceeded { .. }
-                        | PcurveCertifyError::IsoUnsupported { .. },
-                    ) => {}
-                    Err(error) => return Err(PcurveMintError::Certify { half_edge, error }),
-                },
-                refused => return refused,
+        // A circle on a boundary row is the arc rim's, where the pick
+        // shows it and the arc-rim certification holds. The certificate
+        // is the lane choice's second reading: refused, or read in band,
+        // the circle is not shown on this row and falls through, since
+        // the spline-pair edge certificates take a circle carrier, so an
+        // `Intersection` circle on a spline chart that is no arc rim
+        // takes `General` like any other locus. Any other refusal is
+        // about the chart or the run, not the candidate, and leaves with
+        // its own words.
+        if matches!(carrier, geom::Curve3::Circle(..))
+            && let Ok(Some(rim)) = geom_brep::pick_arc_rim(&carrier, (t0, span), surface, band)
+        {
+            match PcurveCache::certify(rim.clone(), t0, t1, &carrier, surface, band) {
+                Ok(_) => return Ok(rim),
+                Err(
+                    PcurveCertifyError::Escalated { .. }
+                    | PcurveCertifyError::FittedEscalated { .. }
+                    | PcurveCertifyError::ResidualExceeded { .. }
+                    | PcurveCertifyError::IsoUnsupported { .. },
+                ) => {}
+                Err(error) => return Err(PcurveMintError::Certify { half_edge, error }),
             }
         }
         // ---- Nothing exact holds. Store the image as it is. ----
@@ -1402,13 +1393,6 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
         // is straight to ε. A closed-form carrier's degree-1 image
         // refuses at the hull where a circle or ellipse bends the foot
         // path, as the edge certificate's own does.
-        //
-        // An escalated candidate outranks the image and its refusal
-        // alike: a candidate that escalates keeps escalating, and the
-        // derived image only ever speaks on a DEFINITE fall-through.
-        if let Some(cause) = deferred {
-            return Err(PcurveMintError::Escalated { half_edge, cause });
-        }
         derive_general_image(&carrier, (t0, t1), wall)
             .map(|image| Pcurve::General(std::sync::Arc::new(image)))
             .map_err(|error| PcurveMintError::Certify { half_edge, error })

@@ -211,22 +211,33 @@ fn at_a_dual_the_diagonal_has_no_fitted_door_and_the_faces_stay_uncached() {
     );
 }
 
-/// **An escalated candidate outranks the `General` image.** Lifted off
-/// the chart by a distance inside the band (ε, K·ε), the row edge's
-/// boundary-row candidate escalates at the probe, every other candidate
-/// is definitely off, and the derivation answers the escalation. It does
-/// not go on to derive the edge's `General` image, which would chart a
-/// carrier the probe could not place.
-#[test]
-fn an_escalated_candidate_outranks_the_general_image() {
+/// **An in-band candidate takes the `General` image.** Lifted off the
+/// chart by a distance inside the band (ε, K·ε), the row edge's
+/// boundary-row candidate is undecided at the probe and every other
+/// candidate is definitely off. The pick is a lane choice (D3): what the
+/// probe does not show, in band or decided off, takes the general lane,
+/// so the derivation goes on to the edge's `General` image, whose own
+/// certificate does not rest on the pick.
+fn an_in_band_candidate_takes_the_general_image<T: AtRestPolicy + geom_core::Bounds>() {
     let tol = Tol::witness();
     let lift = tol.eps() * tol.k().sqrt();
-    let (body, _, [row, _, _]) = lamina::<f64>(lift);
+    let (body, _, [row, _, _]) = lamina::<T>(lift);
     let got = topo::pcurve_of(&body, row, band());
     assert!(
-        matches!(got, Err(PcurveMintError::Escalated { .. })),
-        "a row in the band escalates rather than deriving its General image: {got:?}"
+        matches!(&got, Ok(image) if kind(image) == Kind::General),
+        "a row in the band derives its General image, at {}: {got:?}",
+        T::NAME
     );
+}
+
+#[test]
+fn an_in_band_candidate_takes_the_general_image_at_f64() {
+    an_in_band_candidate_takes_the_general_image::<f64>();
+}
+
+#[test]
+fn an_in_band_candidate_takes_the_general_image_at_interval() {
+    an_in_band_candidate_takes_the_general_image::<geom_core::Interval>();
 }
 
 /// **An Intersection seam on an interior column takes its exact
@@ -330,4 +341,80 @@ fn an_intersection_seam_on_an_interior_column_takes_its_exact_column() {
             "the column the feet measure: {got} against {want}"
         );
     }
+}
+
+/// **An in-band `Intersection` seam takes the `General` image.** The
+/// bored block's top cap re-charted onto the bilinear patch
+/// `(u, v) ↦ (3u, 2v, 2 + δ)`, `δ` inside the band: each hole's rim
+/// (an `Intersection` line) is undecided against every row and column
+/// the probe offers it, closed-form and measured alike. The pick is a
+/// lane choice (D3), so each rim takes its `General` image, as one
+/// decided off every iso would.
+fn an_in_band_seam_takes_the_general_image<T: AtRestPolicy + geom_core::Bounds>() {
+    let tol = Tol::witness();
+    let lift = tol.eps() * tol.k().sqrt();
+    let mut body = topo::test_support::holed_block::<T>(3.0, &[0.75, 2.25], tol);
+    topo::test_support::describe_as_intersections(&mut body, tol);
+    let top = body
+        .faces()
+        .find(|(_, f)| {
+            !f.rings.is_empty()
+                && matches!(
+                    body.get_surface(f.surface),
+                    Some(Surface::Plane { normal, .. }) if normal.z.lo() > 0.5
+                )
+        })
+        .map(|(k, _)| k)
+        .expect("the top cap holds the holes");
+    let unit = || KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+    let z = 2.0 + lift;
+    let patch = NurbsSurface::new(
+        unit(),
+        unit(),
+        vec![
+            Point3::new(0.0, 0.0, z),
+            Point3::new(0.0, 2.0, z),
+            Point3::new(3.0, 0.0, z),
+            Point3::new(3.0, 2.0, z),
+        ],
+        vec![1.0; 4],
+    )
+    .unwrap();
+    // Lifts RechartStrandsDescriptions: the cap on a chart the band's
+    // width off its rims is the row's premise.
+    body.set_face_surface_unvouched_for_tests(
+        top,
+        FaceSurface::New {
+            surface: Surface::Nurbs(Arc::new(patch.map_scalar(T::from_f64))),
+            sense: true,
+        },
+    )
+    .unwrap();
+    let rings = body.get_face(top).unwrap().rings.clone();
+    let rims: Vec<HalfEdgeKey> = body
+        .half_edges()
+        .filter(|(_, he)| rings.contains(&he.parent_loop))
+        .map(|(k, _)| k)
+        .collect();
+    assert_eq!(rims.len(), 8, "two holes of four rims each");
+    for h in rims {
+        let mut b = body.clone();
+        b.detach_pcurve(h);
+        let got = topo::pcurve_of(&b, h, band());
+        assert!(
+            matches!(&got, Ok(image) if kind(image) == Kind::General),
+            "{h:?}: a rim in the band derives its General image, at {}: {got:?}",
+            T::NAME
+        );
+    }
+}
+
+#[test]
+fn an_in_band_seam_takes_the_general_image_at_f64() {
+    an_in_band_seam_takes_the_general_image::<f64>();
+}
+
+#[test]
+fn an_in_band_seam_takes_the_general_image_at_interval() {
+    an_in_band_seam_takes_the_general_image::<geom_core::Interval>();
 }

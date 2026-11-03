@@ -213,7 +213,7 @@ fn verdict(name: &str, got: &Limbs) -> (Verdict, f64) {
         Err(PlaneNurbsRefusal::Limb { limb, margin }) => (Verdict::Refused(*limb), upper(*margin)),
         // A circle no boundary row holds reads its fitted image, and its
         // limb's refusal carries that no exact image held.
-        Err(PlaneNurbsRefusal::ArcRim(geom_brep::ArcRimRefusal::Refused {
+        Err(PlaneNurbsRefusal::ArcRim(geom_brep::ArcRimRefusal {
             iso: None,
             limb,
             bound,
