@@ -49,6 +49,8 @@ pub enum Door {
     /// A spiric span against an analytic face: no producer reaches a
     /// boolean with one.
     Spiric,
+    /// Any span against a spindle sheet's face: no lane yet.
+    Sheet,
 }
 
 /// How [`route`] reads a pair of kinds.
@@ -68,7 +70,7 @@ pub struct Route {
 #[must_use]
 pub fn route(curve: CurveKind, surface: SurfaceKind) -> Route {
     use CurveKind::{Circle, Ellipse, Line, Nurbs, Spiric};
-    use SurfaceKind::{Approx, Cone, Cylinder, Plane, Sphere, Torus};
+    use SurfaceKind::{Approx, Cone, Cylinder, Plane, Sphere, Spindle, Torus};
     let built = |door, note| Route {
         door,
         implemented: true,
@@ -115,6 +117,10 @@ pub fn route(curve: CurveKind, surface: SurfaceKind) -> Route {
             Door::Spiric,
             "a spiric operand edge, deferred until its first producer \
              (work/reachhold/spiric-operand-edges-reopen-with-their-first-producer)",
+        ),
+        (Line | Circle | Ellipse | Spiric | Nurbs, Spindle) => unbuilt(
+            Door::Sheet,
+            "a span against a spindle sheet's face, which has no lane yet",
         ),
     }
 }

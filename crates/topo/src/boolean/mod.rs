@@ -176,7 +176,7 @@ use crate::coincidence::{Cited, Cites};
 use crate::contact::GlueClass;
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, ShellKey, VertexKey};
 use crate::euler::EulerOpError;
-use crate::live::Proven;
+use crate::live::{BoundaryMember, Proven};
 use crate::merge_faces::MergeCoplanarError;
 #[cfg(feature = "sweep-testing")]
 use crate::sweep_trace::SweepPairs;
@@ -7131,12 +7131,12 @@ fn given_verdicts<T: Decide>(
             GlueClass::Tangent => {
                 let kinds = (kind(a, fa), kind(b, fb));
                 let given = given.ok_or(invariant("a given pair carries no decision"))?;
-                if let Some(line) = given.line {
-                    let (origin, dir) = line;
-                    let (_, overlap) = witness_span(a, fa, b, fb, (origin, dir), band, pad)?;
+                if let Some((origin, dir)) = given.line {
+                    let line = geom::Line { origin, dir };
+                    let (_, overlap) = witness_span(a, fa, b, fb, &line, band, pad)?;
                     if locus_through_both_faces(
                         [(a, fa, Operand::A, kinds.0), (b, fb, Operand::B, kinds.1)],
-                        &geom::Curve3::Line(geom::Line { origin, dir }),
+                        &geom::Curve3::Line(line),
                         overlap,
                         DeclarationRead::Spent(GlueClass::Tangent),
                         band,
@@ -7150,7 +7150,7 @@ fn given_verdicts<T: Decide>(
                         verified
                             .coincidences
                             .push(tangent_row(fa, fb, given.margin));
-                        verified.lines.insert((fa, fb), line);
+                        verified.lines.insert((fa, fb), (origin, dir));
                     }
                 }
                 verified.tangent.insert(
@@ -7367,9 +7367,10 @@ fn tangent_line<T: Decide>(
     };
     match geom_brep::tangent_locus_of_faces(sa, sb, reach, band, extents) {
         Ok(geom_brep::TangentLocus::Line { origin, dir, gap }) => {
-            let (span, overlap) = witness_span(a, fa, b, fb, (origin, dir), band, pad)?;
+            let line = geom::Line { origin, dir };
+            let (span, overlap) = witness_span(a, fa, b, fb, &line, band, pad)?;
             Ok(Ok(TangentLine {
-                carrier: geom::Curve3::Line(geom::Line { origin, dir }),
+                carrier: geom::Curve3::Line(line),
                 span,
                 overlap,
                 gap,
@@ -7862,21 +7863,21 @@ fn witness_span<T: Decide>(
     fa: FaceKey,
     b: &Body<T>,
     fb: FaceKey,
-    (origin, dir): (Point3<T>, geom_core::Vec3<T>),
+    line: &geom::Line<T>,
     band: Band,
     pad: T,
 ) -> Result<((T, T), (T, T)), BooleanError> {
-    let along = |p: Point3<T>| (p - origin).dot(dir);
+    let along = |p: Point3<T>| line.param(p);
     let span = |body: &Body<T>, f, operand| -> Result<(T, T), BooleanError> {
         let invalid = |what| BooleanError::InvalidInput { operand, what };
         let mut ts: Vec<T> = face_boundary_points(body, f, operand)?
             .into_iter()
             .map(along)
             .collect();
-        match conic_reach(body, f, along, dir) {
+        match conic_reach(body, f, along, line.dir) {
             Some(extra) => ts.extend(extra),
             None => {
-                let aim = geom_core::UnitVec3::new(dir, "bool_tangent_line_aim", band)
+                let aim = geom_core::UnitVec3::new(line.dir, "bool_tangent_line_aim", band)
                     .map_err(|_| invalid("the tangent line has no direction"))?;
                 let (lo, hi) =
                     crate::census::face_reach_in(body, f, band, &boxes::BoxFrame::aimed(aim))
@@ -7902,8 +7903,9 @@ fn witness_span<T: Decide>(
 
 /// The reach along `dir` (unit; `along` the parameter of a point) of
 /// each circle and ellipse edge of `f`'s boundary, its carrier's two
-/// extremes; `None` where an edge is neither one nor a line, or the
-/// boundary cannot be walked.
+/// extremes; `None` where an edge is neither one nor a line, or `f`
+/// does not resolve. Every hop past the face is a link
+/// ([`Body::face_boundary_by_loop`]).
 fn conic_reach<T: Decide>(
     body: &Body<T>,
     f: FaceKey,
@@ -7912,13 +7914,12 @@ fn conic_reach<T: Decide>(
 ) -> Option<Vec<T>> {
     let face = body.get_face(f)?;
     let mut out = Vec::new();
-    for lk in core::iter::once(face.outer).chain(face.rings.iter().copied()) {
-        let crate::entity::LoopBoundary::Cycle { first } = body.get_loop(lk)?.boundary else {
-            continue;
-        };
-        for he in body.loop_cycle(first)? {
-            let edge = body.get_edge(body.get_half_edge(he)?.edge)?;
-            let (center, reach) = match *body.get_curve_geom(edge.curve)?.certified()?.carrier() {
+    for (_, members, _) in body.face_boundary_by_loop(f, face) {
+        for member in members {
+            let BoundaryMember::Edge { ek, edge, .. } = member else {
+                continue;
+            };
+            let (center, reach) = match *body.edge_curve_linked(ek, edge).certified()?.carrier() {
                 geom::Curve3::Line(_) => continue,
                 geom::Curve3::Circle(geom::Circle {
                     frame: geom::Frame { center, axis, .. },
@@ -8252,7 +8253,9 @@ fn boundary_cuts<T: Decide>(
 
 /// The face's boundary vertex positions (outer loop then rings, cycle
 /// order; an empty loop contributes its lone vertex) — the witness-
-/// extent datum of `verify_tangent_declaration`.
+/// extent datum of `verify_tangent_declaration`. The face is the
+/// caller's declaration, so its miss is the operand's refusal; every hop
+/// past it is a link ([`Body::face_boundary_linked`]).
 fn face_boundary_points<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
@@ -8263,26 +8266,10 @@ fn face_boundary_points<T: Decide>(
         what: "declared face's boundary is unwalkable",
     };
     let f = body.get_face(face).ok_or_else(bad)?;
-    let mut out = Vec::new();
-    for lk in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
-        let l = body.get_loop(lk).ok_or_else(bad)?;
-        let vertex_point = |vk| -> Result<Point3<T>, BooleanError> {
-            body.get_vertex(vk)
-                .and_then(|v| body.get_point(v.point))
-                .copied()
-                .ok_or_else(bad)
-        };
-        match l.boundary {
-            crate::entity::LoopBoundary::Empty { vertex } => out.push(vertex_point(vertex)?),
-            crate::entity::LoopBoundary::Cycle { first } => {
-                for he in body.loop_cycle(first).ok_or_else(bad)? {
-                    let start = body.get_half_edge(he).ok_or_else(bad)?.start;
-                    out.push(vertex_point(start)?);
-                }
-            }
-        }
-    }
-    Ok(out)
+    Ok(body
+        .face_boundary_linked(face, f)
+        .map(|member| body.member_point(&member))
+        .collect())
 }
 
 fn validate_declarations<T: Decide>(
@@ -8570,10 +8557,12 @@ mod tests {
     /// added to `SurfaceKind` fails here until someone decides its arm.
     #[test]
     fn only_tangencies_that_are_a_global_side_certify_one() {
-        use geom::SurfaceKind::{self, Approx, Cone, Cylinder, Nurbs, Plane, Sphere, Torus};
-        let all = [Plane, Cylinder, Cone, Sphere, Torus, Nurbs, Approx];
+        use geom::SurfaceKind::{
+            self, Approx, Cone, Cylinder, Nurbs, Plane, Sphere, Spindle, Torus,
+        };
+        let all = [Plane, Cylinder, Cone, Sphere, Torus, Spindle, Nurbs, Approx];
         let visit = |k: SurfaceKind| match k {
-            Plane | Cylinder | Cone | Sphere | Torus | Nurbs | Approx => k,
+            Plane | Cylinder | Cone | Sphere | Torus | Spindle | Nurbs | Approx => k,
         };
         let admitted: Vec<(SurfaceKind, SurfaceKind)> = all
             .iter()

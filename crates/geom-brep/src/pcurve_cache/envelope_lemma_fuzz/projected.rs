@@ -211,7 +211,9 @@ fn on_chart(surf: &Surface<f64>, s: &mut fuzz::Rng) -> Curve3<f64> {
                 arc(center + r * major_radius, r, axis, minor_radius, a, span)
             }
         }
-        Surface::Nurbs(_) | Surface::Approx(_) => unreachable!("analytic charts only"),
+        Surface::Spindle { .. } | Surface::Nurbs(_) | Surface::Approx(_) => {
+            unreachable!("the projected lane's charts only")
+        }
     }
 }
 
@@ -241,13 +243,7 @@ fn domain(c: &Curve3<f64>) -> (f64, f64) {
 
 /// The densely sampled `max |S(P(t)) − C(t)|`.
 fn sampled(p: &Pcurve<f64>, c: &Curve3<f64>, surf: &Surface<f64>, t0: f64, t1: f64) -> f64 {
-    (0..=256)
-        .map(|i| {
-            let t = t0 + (t1 - t0) * f64::from(i) / 256.0;
-            let q = p.eval(t);
-            surf.eval(q.x, q.y).distance(c.eval(t))
-        })
-        .fold(0.0, f64::max)
+    super::super::harmonic_sup_rows::sampled_residual(p, (t0, t1), c, surf, 256)
 }
 
 /// The smallest distance of the carrier from the chart's singular set
@@ -1049,6 +1045,129 @@ fn an_off_chart_spline_refuses_by_incidence() {
         "{err:?}"
     );
     let _ = Tol::witness();
+}
+
+/// **A line near a cylinder's ruling images on the projected lane, and
+/// its envelope dominates** (`projected::line_off_cylinder_sup`): a line
+/// whose radial speed reads in the band or definite, standing up to
+/// half the zero band off the wall, over a span on which its lean along
+/// the wall moves it by at most `0.3·zero` more, derives the projected
+/// image, certifies at `f64` and at `Interval`, and its envelope covers
+/// the sampled displacement. The same row with its stored line moved
+/// (point and direction, the `Fidelity` term) covers its own displacement
+/// wherever it certifies. A counterexample search.
+#[test]
+fn a_line_near_a_ruling_certifies_and_its_envelope_dominates() {
+    let mut s = fuzz::start("projected_cylinder_line");
+    let b = band();
+    let f = Interval::from_f64;
+    let slack = 1e-13;
+    for _ in 0..fuzz::scaled(48) {
+        let surf = surface(Chart::Cylinder, &mut s);
+        let Surface::Cylinder {
+            origin,
+            axis,
+            radius,
+            u_ref,
+        } = surf
+        else {
+            unreachable!("a cylinder")
+        };
+        let r = rad(axis, u_ref, s.range(-PI, PI));
+        let tang = axis.cross(r);
+        let lean = if s.below(2) == 0 {
+            b.zero() + (b.escalate() - b.zero()) * s.range(0.05, 0.95)
+        } else {
+            10f64.powf(s.range(-6.0, -2.0)).max(4.0 * b.escalate())
+        };
+        let side = if s.below(2) == 0 { 1.0 } else { -1.0 };
+        let dir = axis * s.range(0.3, 3.0) + tang * (side * lean);
+        let off = b.zero() * s.range(-0.5, 0.5);
+        let mid = s.range(-2.0, 2.0);
+        let h = ((0.6 * b.zero() * radius).sqrt() / lean).min(2.0) * s.range(0.1, 1.0);
+        let at_mid = origin + r * (radius + off) + axis * s.range(-1.0, 1.0);
+        let carrier = Curve3::line(at_mid - dir * mid, dir);
+        let (t0, t1) = (mid - h, mid + h);
+        let what = format!("{carrier:?} [{t0}, {t1}] on {surf:?} — {}", fuzz::replay());
+        let image = super::super::chart_pcurve_over(&carrier, t0, t1, &surf, b)
+            .unwrap_or_else(|e| panic!("{what}: the derivation refused: {e:?}"));
+        let Pcurve::Projected(p) = &image else {
+            panic!("{what}: a line off its ruling takes the projected lane: {image:?}")
+        };
+        assert!(
+            matches!(p.carrier(), FramedCarrier::Line { .. }),
+            "{what}: {p:?}"
+        );
+        let worst = sampled(&image, &carrier, &surf, t0, t1);
+        let env = PcurveCache::certify(image.clone(), t0, t1, &carrier, &surf, b)
+            .unwrap_or_else(|e| panic!("{what}: f64 certification refused: {e:?}"))
+            .certificate()
+            .envelope;
+        assert!(
+            env >= worst - slack && env < b.zero(),
+            "{what}: the f64 envelope {env:e} covers the sampled {worst:e} inside the band"
+        );
+        let (ci, si) = (lift(&carrier), surf.map_scalar(f));
+        let image_i = super::super::chart_pcurve_over(&ci, f(t0), f(t1), &si, b)
+            .unwrap_or_else(|e| panic!("{what}: interval derivation refused: {e:?}"));
+        let env_i = PcurveCache::certify(image_i, f(t0), f(t1), &ci, &si, b)
+            .unwrap_or_else(|e| panic!("{what}: interval certification refused: {e:?}"))
+            .certificate()
+            .envelope
+            .hi();
+        assert!(
+            env_i >= worst,
+            "{what}: the Interval envelope {env_i:e} covers the sampled {worst:e}"
+        );
+        // The stored line moved off the carrier, inside the band.
+        let mut moved = (**p).clone();
+        let (dp, dd) = (
+            unit(&mut s) * (0.3 * b.zero()),
+            unit(&mut s) * (0.1 * b.zero()),
+        );
+        let FramedCarrier::Line { point, dir, .. } = &mut moved.carrier else {
+            unreachable!("matched above")
+        };
+        *point = *point + dp;
+        *dir = *dir + dd / (t0.abs().max(t1.abs()).max(1.0));
+        let moved_image = Pcurve::Projected(Box::new(moved.clone()));
+        let worst = sampled(&moved_image, &carrier, &surf, t0, t1);
+        if let Ok(cache) =
+            PcurveCache::certify_projected(moved.clone(), t0, t1, &carrier, &surf, b, None)
+        {
+            let env = cache.certificate().envelope;
+            assert!(
+                env >= worst - slack,
+                "{what}: moved, the f64 envelope {env:e} covers the sampled {worst:e}"
+            );
+        }
+        let lift3 = |v: Vec3<f64>| Vec3::new(f(v.x), f(v.y), f(v.z));
+        let FramedCarrier::Line {
+            point,
+            dir,
+            origin: o,
+            span,
+        } = moved.carrier
+        else {
+            unreachable!("matched above")
+        };
+        let mut moved_i = super::super::projected::project(&ci, Some((f(t0), f(t1))), &si, b)
+            .unwrap_or_else(|e| panic!("{what}: interval projection refused: {e:?}"));
+        moved_i.carrier = FramedCarrier::Line {
+            point: lift3(point),
+            dir: lift3(dir),
+            origin: f(o),
+            span: f(span),
+        };
+        if let Ok(cache) = PcurveCache::certify_projected(moved_i, f(t0), f(t1), &ci, &si, b, None)
+        {
+            let env = cache.certificate().envelope.hi();
+            assert!(
+                env >= worst,
+                "{what}: moved, the Interval envelope {env:e} covers the sampled {worst:e}"
+            );
+        }
+    }
 }
 
 /// Rational quadratic arcs of the circle `c + r·(cos θ·e₁ + sin θ·e₂)`,
@@ -1865,13 +1984,8 @@ fn the_plane_envelope_dominates_a_carrier_off_the_plane() {
         .map(|(terms, _)| terms)
         .expect("the plane reads no door")
         .total();
-    let dense = (0..=2048)
-        .map(|i| {
-            let t = f64::from(i) / 2048.0;
-            let q = pcurve.eval(t);
-            plane.eval(q.x, q.y).distance(c.eval(t))
-        })
-        .fold(0.0, f64::max);
+    let dense =
+        super::super::harmonic_sup_rows::sampled_residual(&pcurve, (0.0, 1.0), &c, &plane, 2048);
     assert!(
         env >= dense && dense > 0.5 * h,
         "envelope {env:e}, dense {dense:e}"
