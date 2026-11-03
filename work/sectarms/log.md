@@ -382,3 +382,8 @@ and bodies unchanged. No orchestrator yet.
   - **D4 (escalation diagnostic):** reported on the node-distance margin.
   - **D5 (span membership):** a new metered predicate, with an audit row.
   - **D6 (held nodes):** Straddles counts as held; `n̂` is the outward radial.
+
+- 2026-11-03 — **3b-ii: near-node chords lose transversality.** Retiring the bisector lane removes its auxiliary plane, so a chord near a node is described as wall ∩ partner wall. Three near-node rows built before and now refuse typed (`NotTransverse` / `Escalated{Transversality}`), at δ = 1e-6, 3e-7, and 1e-4 at 35°.
+  - Ruled (a): re-pin them as typed refusals, measure the δ threshold per family, and disclose the regression.
+  - File a P2 that names option (b) as an open design question: describing a planar-conic chord against its own plane.
+  - No unsoundness, but it is a capability regression to raise with Ev at hand-back if the threshold turns out wide.
