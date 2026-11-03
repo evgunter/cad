@@ -8181,6 +8181,7 @@ mod apex_plane_rows {
         let up = Vec3::new(0.0, 1.0, 0.0);
         let tilted = |t: f64| Vec3::new(t.sin(), t.cos(), 0.0);
         let g = Vec3::new(0.0, -(0.5f64.cos()), 0.5f64.sin());
+        // Unsourced lever: a fixture's unit ball about the apex, no extent to read it off.
         let reach = geom_brep::ExtentBall::unsourced(Point3::origin(), 1.0);
         let (fa, fb) = (FaceKey::default(), FaceKey::default());
         let (one, near, nearer) = (cone(up), cone(tilted(1e-3)), cone(tilted(2e-8)));

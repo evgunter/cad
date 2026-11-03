@@ -571,16 +571,18 @@ mod rows {
                 u_ref: Vec3::new(1.0, 0.0, 0.0),
                 sense,
             };
+            // Unsourced lever: a fixture's unit arm, with no edge to read it off.
+            let unit = Lever::unsourced(1.0);
             let sector = BoolSector {
                 he: HalfEdgeKey::from(key(1)),
                 start,
                 end: apex.ruling_from(start, core::f64::consts::FRAC_PI_2),
-                start_reach: Reach::straight_bisector(Lever::unsourced(1.0)),
-                end_reach: Reach::straight_bisector(Lever::unsourced(1.0)),
+                start_reach: Reach::straight_bisector(unit),
+                end_reach: Reach::straight_bisector(unit),
                 face: FaceKey::from(key(2)),
                 at_vertex: BoolFace::Apex(apex),
                 bend: crate::bound_side::FaceBend::Plane,
-                arm: Lever::unsourced(1.0),
+                arm: unit,
             };
             let partner = super::super::vtxfac::Partner {
                 vertex: VertexKey::default(),
@@ -627,16 +629,18 @@ mod rows {
             u_ref: side,
             sense: true,
         };
+        // Unsourced lever: the grid's given arm, with no edge to read it off.
+        let arm = Lever::unsourced(arm);
         BoolSector {
             he: HalfEdgeKey::from(key(face)),
             start,
             end: apex.ruling_from(start, core::f64::consts::FRAC_PI_2),
-            start_reach: Reach::straight_bisector(Lever::unsourced(arm)),
-            end_reach: Reach::straight_bisector(Lever::unsourced(arm)),
+            start_reach: Reach::straight_bisector(arm),
+            end_reach: Reach::straight_bisector(arm),
             face: FaceKey::from(key(face)),
             at_vertex: BoolFace::Apex(apex),
             bend: crate::bound_side::FaceBend::Plane,
-            arm: Lever::unsourced(arm),
+            arm,
         }
     }
 
