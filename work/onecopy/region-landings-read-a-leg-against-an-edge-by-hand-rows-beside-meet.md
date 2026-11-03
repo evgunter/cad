@@ -2,12 +2,12 @@
 id: region-landings-read-a-leg-against-an-edge-by-hand-rows-beside-meet
 kind: issue
 title: topo::boolean's region landings read a leg against a boundary edge by hand rows (plane crossing, collinear test, first-harmonic roots) beside curve_pair::meet
-status: dispatched
+status: open
 opened: 2026-11-03
 priority: P1
 cost: M
 refs: [boundary-cuts-reads-line-against-conics-through-their-planes]
-branch: onecopy/meet-reads
+design: true
 ---
 
 Found by the full review of PR 6451, which moved `boolean::boundary_cuts` onto the boundary pass.
