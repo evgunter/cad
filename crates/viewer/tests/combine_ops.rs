@@ -29,7 +29,7 @@ use test_utils::refusal::tagged;
 use viewer::session::BooleanSpec;
 
 use common::drawn::spacing_of;
-use common::{ang, body_volume, len, len3, near, scl3, session_insert, shape};
+use common::{ang, body_volume, circle_at, len, len3, near, scl3, session_insert};
 use pncad::document::BooleanValue;
 use pncad::document::Speaker;
 use pncad::document::SplitSide;
@@ -48,8 +48,8 @@ use viewer::combine::{
 use viewer::pickindex::PickKinds;
 use viewer::seats::{Seat, SeatError, SeatEvent, seat_line};
 use viewer::session::{
-    DocSession, GestureFrameFault, NodeKindWanted, PartSelectSpec, PatternRuleSpec, ProfileShape,
-    Refusal, Selection, SessionOp,
+    DocSession, GestureFrameFault, NodeKindWanted, PartSelectSpec, PatternRuleSpec, Refusal,
+    Selection, SessionOp,
 };
 use viewer::tools::{ToolKind, Tools};
 
@@ -498,10 +498,7 @@ fn the_boolean_door_refuses_a_non_body_operand_and_glues_a_repeated_body() {
     let profile = session_insert(
         &mut session,
         SessionOp::AddProfile {
-            loops: vec![shape(&ProfileShape::Circle {
-                centre: [0.0, 0.0],
-                radius: 0.01,
-            })],
+            loops: vec![circle_at([0.0, 0.0], 0.01)],
         },
     );
     // A profile and an id the document never held are each "not a
@@ -567,10 +564,7 @@ fn the_split_door_takes_a_body_and_a_plane_in_its_coordinates() {
     let profile = session_insert(
         &mut session,
         SessionOp::AddProfile {
-            loops: vec![shape(&ProfileShape::Circle {
-                centre: [0.0, 0.0],
-                radius: 0.01,
-            })],
+            loops: vec![circle_at([0.0, 0.0], 0.01)],
         },
     );
     let refused = session.perform(SessionOp::AddSplit {
