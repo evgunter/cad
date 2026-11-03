@@ -11767,6 +11767,9 @@ mod placement_rows;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::panic)]
 mod radial_pair_rows;
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod cylinder_line_rows;
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -14173,8 +14176,8 @@ mod iso_family {
     //! **[`chart_iso_family`]'s cylinder arm**: a ruling is `U`, a rim
     //! `V`, an oblique section no family; a line tilted off the wall is
     //! refused by its incidence read, and one whose tilt off the axis is
-    //! in the band refuses undecided — the mint's tie-break takes the
-    //! ruling's form there, which no family may be read off.
+    //! in the band refuses undecided — the mint takes the general lane
+    //! there, which lies on no family.
     use super::{IsoFamily, IsoFamilyRefusal, chart_iso_family};
     use geom::{Curve3, Surface};
     use geom_core::{Band, Point3, Vec3};

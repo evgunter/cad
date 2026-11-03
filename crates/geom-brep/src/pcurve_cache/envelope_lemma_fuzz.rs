@@ -104,8 +104,8 @@ enum Class {
     CylinderRim,
     CylinderSection,
     CylinderRuling,
-    /// A circle in a plane holding the axis, its radius in the band: the
-    /// radial amplitude decides Zero or in band and the meridian form is
+    /// A circle in a plane holding the axis, its radius inside the zero
+    /// band: the radial amplitude decides Zero and the meridian form is
     /// taken, so its whole radial motion is the meridian's `Drift`.
     CylinderMeridianCircle,
     ConeRim,
@@ -127,13 +127,9 @@ enum Class {
     /// rim and parallel classes' zero-winding arm (the winding is an
     /// area, `ρ²`, metered at the chart's lever).
     AxisCircle,
-    /// A line leaning off a cylinder's axis: a radial part that moves
-    /// with no winding, so the moving class's zero-winding arm with its
-    /// `Line` term.
-    CylinderLeaningLine,
 }
 
-const CLASSES: [Class; 16] = [
+const CLASSES: [Class; 15] = [
     Class::CylinderRim,
     Class::CylinderSection,
     Class::CylinderRuling,
@@ -149,7 +145,6 @@ const CLASSES: [Class; 16] = [
     Class::TorusMeridian,
     Class::SmallCircle,
     Class::AxisCircle,
-    Class::CylinderLeaningLine,
 ];
 
 /// Whether a carrier of `class` is imaged to round-off by the arm its
@@ -157,9 +152,8 @@ const CLASSES: [Class; 16] = [
 /// band, so the mint's incidence read admits them, but not exactly on
 /// the class their derivation selects: `SmallCircle` and
 /// `CylinderMeridianCircle` (their radial motion is the admitted
-/// drift), `AxisCircle` (its plane tilted inside the band) and
-/// `CylinderLeaningLine` (its lean along the wall); they are there to
-/// reach the zero-winding arms. The near-pole meridian's derivation
+/// drift) and `AxisCircle` (its plane tilted inside the band); they are
+/// there to reach the zero-winding arms. The near-pole meridian's derivation
 /// reads its meridian plane off an `a_r` a few ulps long, so its image
 /// is off by that conditioning.
 fn images_exactly(class: Class) -> bool {
@@ -169,7 +163,6 @@ fn images_exactly(class: Class) -> bool {
             | Class::CylinderMeridianCircle
             | Class::SphereMeridianNearPole
             | Class::AxisCircle
-            | Class::CylinderLeaningLine
     )
 }
 
@@ -263,10 +256,10 @@ fn on_chart(s: &mut fuzz::Rng, class: Class) -> (Surface<f64>, Curve3<f64>) {
         }
         Class::CylinderMeridianCircle => {
             // In the plane tangent to the wall, which holds the axis: its
-            // radial amplitude is its radius, in the band, and it leaves
-            // the wall by its sagitta `ρ²/2R`, far inside it.
+            // radial amplitude is its radius, inside the zero band, and it
+            // leaves the wall by its sagitta `ρ²/2R`, far inside it.
             let (chart, radius, v0) = cylinder(s);
-            let rho = band().escalate() * s.range(0.02, 0.98);
+            let rho = band().zero() * s.range(0.02, 0.9);
             let start = tang * s.range(-1.0, 1.0) + axis * s.range(-1.0, 1.0);
             (
                 chart,
@@ -406,7 +399,7 @@ fn on_chart(s: &mut fuzz::Rng, class: Class) -> (Surface<f64>, Curve3<f64>) {
             // the zero band, so a turning class's two radial coefficients
             // disagree (its `Radius` pair). A cylinder holds no circle
             // about its axis but its rims: its zero-winding arm is
-            // `SmallCircle`'s and `CylinderLeaningLine`'s.
+            // `SmallCircle`'s.
             let rho = band().zero() * 10f64.powf(s.range(-1.5, 4.0));
             let theta = (band().zero() / rho).min(1.0) * s.range(0.0, 0.9);
             let normal = (axis + tang * theta).normalize();
@@ -454,20 +447,6 @@ fn on_chart(s: &mut fuzz::Rng, class: Class) -> (Surface<f64>, Curve3<f64>) {
                     normal * sign(s),
                     rho,
                     (r - normal * r.dot(normal)).normalize(),
-                ),
-            )
-        }
-        Class::CylinderLeaningLine => {
-            // Leaning along the wall, not out of it: over any span drawn
-            // (`|t| ≤ 3π`) it leaves the wall by `(t·b)²/2R`, inside half
-            // the zero band, while its radial part moves.
-            let (chart, radius, v0) = cylinder(s);
-            let lean = (radius * band().zero()).sqrt() / (3.0 * PI) * s.range(0.05, 0.95);
-            (
-                chart,
-                Curve3::line(
-                    at + r * radius + axis * v0,
-                    axis * s.range(-3.0, 3.0) + tang * (sign(s) * lean),
                 ),
             )
         }
@@ -687,10 +666,7 @@ fn arm_terms() -> Vec<(&'static str, Vec<EnvelopeTerm>)> {
     use EnvelopeTerm::{Centre, Drift, Line, Radius};
     let cases: [(&str, &[EnvelopeTerm]); 14] = [
         ("cylinder moving", &[Centre, Radius]),
-        (
-            "cylinder moving, zero winding",
-            &[Line, Centre, Radius, Drift],
-        ),
+        ("cylinder moving, zero winding", &[Centre, Radius, Drift]),
         ("cylinder meridian", &[Line, Radius, Drift]),
         ("cone ruling, by direction", &[Radius, Line]),
         ("cone ruling, anchored", &[Radius, Line]),

@@ -571,18 +571,11 @@ fn a_projected_cone_reads_its_half_angle_drift_at_its_norm() {
 }
 
 /// `radial-amplitude`: a rim of a cylinder of radius `0.7·escalate`
-/// reads its radial circle at `0.7·escalate`, in the band, and takes
-/// the meridian (where check 2 then escalates, as the moving class's
-/// winding gate does: no carrier of a cylinder this thin certifies).
-/// The coefficient sum reads `1.4·escalate` and decides it moving. The
-/// rim's centre is on the axis, so its radial part is exactly zero and
-/// names no direction: the meridian, taken in band as a tie-break, reads
-/// its azimuth off the chart's `u_ref` (exactly `0`), at `f64` and at
-/// `Interval` alike, where it read `atan2(0, 0)` and refused only at
-/// `Interval` (PR 5225's delta review, G1). Its placement's lever is the
-/// rim's reach from the axis, `0.7·escalate`: not zero, so the copy is
-/// named, by the marks' tie-break in band, and both scalars name the
-/// same one, a whole number of turns from `0`.
+/// reads its radial circle at `0.7·escalate`, in the band: D3's lane
+/// choice takes the general lane, which a circle on a cylinder does not
+/// have yet, so the class reading ends "not yet" (`ChartClass`), at
+/// `f64` and at `Interval`. The coefficient sum reads `1.4·escalate` and
+/// decides it moving.
 #[test]
 fn a_sub_band_rim_reads_its_radial_circle_at_its_sup() {
     let r = 0.7 * band().escalate();
@@ -593,22 +586,26 @@ fn a_sub_band_rim_reads_its_radial_circle_at_its_sup() {
         r,
         Vec3::unit_x(),
     );
+    let in_band = |derived: &Result<_, PcurveCertifyError>| {
+        matches!(
+            derived,
+            Err(PcurveCertifyError::Escalated {
+                check: PcurveCheck::ChartClass,
+                cause,
+                ..
+            }) if cause.predicate == Some("pcurve_chart_radial_moving")
+        )
+    };
     let derived = derive_harmonic(
         &carrier,
         &surface,
         super::Placement::own(&carrier, &surface),
         band(),
-    );
-    let Ok((image, Derivation::CylinderMeridian)) = &derived else {
-        panic!("f64: the sub-band rim takes the meridian: {derived:?}")
-    };
-    let Some((at_f64, ..)) = image.harmonic_form() else {
-        panic!("f64: the meridian's image is harmonic: {image:?}")
-    };
-    assert_eq!(
-        at_f64.x - TAU * (at_f64.x / TAU).round(),
-        0.0,
-        "f64: the meridian's azimuth is 0 modulo a turn: {at_f64:?}"
+    )
+    .map(|(_, d)| d);
+    assert!(
+        in_band(&derived),
+        "f64: the sub-band rim's class reads in band: {derived:?}"
     );
     let f = Interval::from_f64;
     let (carrier, surface) = (carrier.map_scalar(f), surface.map_scalar(f));
@@ -617,15 +614,10 @@ fn a_sub_band_rim_reads_its_radial_circle_at_its_sup() {
         &surface,
         super::Placement::own(&carrier, &surface),
         band(),
-    );
+    )
+    .map(|(_, d)| d);
     assert!(
-        matches!(
-            &derived,
-            Ok((image, Derivation::CylinderMeridian))
-                if image.harmonic_form().is_some_and(|(p0, ..)| {
-                    p0.x.lo() <= at_f64.x && at_f64.x <= p0.x.hi()
-                })
-        ),
-        "Interval: the sub-band rim takes the meridian on f64's copy {at_f64:?}: {derived:?}"
+        in_band(&derived),
+        "Interval: the sub-band rim's class reads in band: {derived:?}"
     );
 }
