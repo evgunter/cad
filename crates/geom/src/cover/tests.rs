@@ -1568,5 +1568,9 @@ fn a_meets_ball_is_its_boxs_where_the_pieces_overlap_in_part() {
         Cover::points(vec![Point3::new(a, 0.0, 0.0), Point3::new(b, 0.0, 0.0)]).unwrap()
     };
     let (c, r) = pair(0.0, 2.0).meet(pair(1.0, 3.0)).ball();
-    assert_eq!((c.x, c.y, c.z, r), (1.5, 0.0, 0.0, 0.5), "the overlap's ball");
+    assert_eq!(
+        (c.x, c.y, c.z, r),
+        (1.5, 0.0, 0.0, 0.5),
+        "the overlap's ball"
+    );
 }
