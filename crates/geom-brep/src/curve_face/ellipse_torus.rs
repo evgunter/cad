@@ -1001,7 +1001,7 @@ mod torus_rows {
     /// `scripts/oracles/ellipse_torus_mpmath.py` then re-solves each pose
     /// at 40 digits and checks the count, every root's place along the
     /// arc, every `Miss` and every bound. Run:
-    /// `cargo nextest run -p topo --lib --run-ignored only
+    /// `cargo nextest run -p geom-brep --lib --run-ignored only
     /// dump_for_the_mpmath_oracle --no-capture | sed -n 's/^ETDUMP //p' >
     /// /tmp/et.jsonl`, then
     /// `python3 scripts/oracles/ellipse_torus_mpmath.py /tmp/et.jsonl`.

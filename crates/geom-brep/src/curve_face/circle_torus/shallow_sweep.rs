@@ -18,7 +18,6 @@ test_utils::gated_to![
     "crates/geom-core/src/bisect.rs",
     "crates/geom-brep/src/curve_face/conic_oracle.rs",
     "crates/geom-brep/src/curve_face/conic_oracle/",
-    "crates/topo/src/boolean/solid_contain.rs",
     "crates/geom-brep/src/implicit.rs",
     "crates/geom-core/src/predicate.rs",
     "crates/geom-core/src/running.rs",

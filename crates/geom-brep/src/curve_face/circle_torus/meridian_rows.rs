@@ -230,6 +230,7 @@ fn posed(
 #[test]
 fn the_meridian_rung_at_any_pose_scale_and_band() {
     use test_utils::fuzz;
+    // A frozen stream label, not a module path: renaming it changes the draws.
     let mut rng = fuzz::start("boolean::circle_torus::meridian_poses");
     let per_cell = fuzz::scaled(1);
     let unit = |rng: &mut fuzz::Rng| loop {

@@ -39,7 +39,8 @@ pub enum Door {
     /// A circle or an ellipse against a cylinder, a cone or a sphere: the
     /// residual's trigonometric polynomial in the conic's angle.
     ConicQuadric,
-    /// A circle or an ellipse against a torus.
+    /// A circle or an ellipse against a torus ([`circle_torus`],
+    /// [`ellipse_torus`]).
     ConicTorus,
     /// A spline span against an analytic face: the face's residual
     /// composed along the span (the ring composite).

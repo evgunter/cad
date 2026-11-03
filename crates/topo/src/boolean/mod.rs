@@ -2991,7 +2991,7 @@ pub enum BooleanError {
     /// torus or a cone (away from its apex: [`Self::CrossingAtConeApex`]),
     /// whose
     /// crossing parameters come from the certified root lanes (the line
-    /// quadratics and quartic, and `boolean::circle_roots`' doors) and
+    /// quadratics and quartic, and `geom_brep::curve_face::circle_roots`' doors) and
     /// whose landing point the face's region
     /// places. What this variant reports is the rest: a tangency (not a
     /// crossing at any order the lanes see), a line parallel to a cone's

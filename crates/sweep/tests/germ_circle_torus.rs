@@ -1,5 +1,5 @@
 //! GERM: the circle × torus root lane at the boolean's crossing layer
-//! (`topo::boolean::circle_torus`, routed from the circle rung of
+//! (`geom_brep::curve_face::circle_torus`, routed from the circle rung of
 //! `reduce::curved_face_arm` through `wall_crossing`).
 //!
 //! Before the lane, a circle edge against a torus face was decided only
