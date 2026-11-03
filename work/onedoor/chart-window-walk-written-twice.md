@@ -2,11 +2,13 @@
 id: chart-window-walk-written-twice
 kind: issue
 title: One home for the chart-window walk: chord_join::run_azimuth_window and solid_contain::torus_chart_windows are the same construction written twice
-status: open
+status: closed
 opened: 2026-09-01
 refs: [1464]
 priority: P1
 cost: E
+closed: 2026-11-03
+pr: 6480
 ---
 
 ## From GitHub issue 1483
@@ -77,3 +79,11 @@ What this item asks for is now one walk, not two:
 `chord_join::face_azimuth_window` / `face_azimuth_images` is the only
 copy left, and its hosting in `chord_join.rs` (the 2026-10-03 evidence
 above) is what remains.
+
+## Closed (PR 6480, 2026-11-03)
+
+The one chart-window walk now lives in `topo::chart_window`, a crate-root reading beside `chart.rs` (`[topo.homes]` arm 2), out of `chord_join`, whose chords never read it. It brings its pole and apex rule, its tests, and five K names renamed to the `chart_window_` prefix, recorded in K-REPORT's census note. Its body readings come from `live.rs`: `chord_join::vertex_point` was a copy of `Body::resolve_vertex_point` and is deleted, and `outer_cycle`'s walk is now `Body::outer_cycle_linked`.
+
+Two rows remain:
+- the walk still refuses in `chord_join::SplitJoinError` (`the-chart-window-walk-refuses-in-the-chord-joins-error`);
+- three walks of a loop's chart images each claim to be the one (`three-walks-of-a-loops-chart-images-each-claim-to-be-the-one`).

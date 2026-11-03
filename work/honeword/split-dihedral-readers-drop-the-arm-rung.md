@@ -44,7 +44,7 @@ through them.
 
 ## The boolean seam and merge doors drop the verdict too (ENCL, PR 4366)
 
-`boolean::ops::seam_reading` and `must_carry_reading` hand on
+`pcurves::seam_reading` and `must_carry_reading` hand on
 `(DihedralReading::Lever(escalation.rung()), escalation.diag())`, and
 `merge_faces::DihedralReading::Lever` carries a bare `LeverRung` too, so
 an arm the gate decided collapsed reaches `seam_refusal` and

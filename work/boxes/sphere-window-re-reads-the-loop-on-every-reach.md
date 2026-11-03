@@ -31,3 +31,5 @@ out of the frame loop. Either key it per face for one body snapshot,
 or hand the frame-free window to `sphere_reach` from a caller that
 reads it once. Make no cache that can outlive the body it was read
 from.
+
+**Re-cited (onedoor/carrier-and-window, 2026-11-03).** `chord_join::face_azimuth_window` is now `topo::chart_window::face_azimuth_window`.
