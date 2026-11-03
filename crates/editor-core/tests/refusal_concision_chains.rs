@@ -2018,7 +2018,7 @@ fn extrude() -> Vec<(String, NodeErrorKind)> {
             "SmoothJoinRefuted",
             E::SmoothJoinRefuted {
                 edge: topo::EdgeKey::default(),
-                mixed: Some(geom_brep::MixedStations {
+                mixed: Some(geom_brep::MixedStations::Class {
                     transverse: 3,
                     smooth: 4,
                 }),
@@ -2180,7 +2180,7 @@ fn revolve_arms() -> Vec<(&'static str, sweep::RevolveError)> {
             "SmoothJoinRefuted",
             E::SmoothJoinRefuted {
                 edge: topo::EdgeKey::default(),
-                mixed: Some(geom_brep::MixedStations {
+                mixed: Some(geom_brep::MixedStations::Class {
                     transverse: 3,
                     smooth: 4,
                 }),
@@ -2628,7 +2628,7 @@ fn split() -> Vec<(String, NodeErrorKind)> {
                 "TangentChordRefuted",
                 J::TangentChordRefuted {
                     face,
-                    mixed: Some(geom_brep::MixedStations {
+                    mixed: Some(geom_brep::MixedStations::Class {
                         transverse: 3,
                         smooth: 4,
                     }),
@@ -2710,7 +2710,7 @@ fn split() -> Vec<(String, NodeErrorKind)> {
             "SmoothJoinRefuted",
             F::SmoothJoinRefuted {
                 edge,
-                mixed: Some(geom_brep::MixedStations {
+                mixed: Some(geom_brep::MixedStations::Class {
                     transverse: 3,
                     smooth: 4,
                 }),
@@ -5606,7 +5606,7 @@ fn shell() -> Vec<(String, NodeErrorKind)> {
                 "RimSeamMixed",
                 S::RimSeamMixed {
                     edge: topo::EdgeKey::default(),
-                    stations: geom_brep::MixedStations {
+                    stations: geom_brep::MixedStations::Class {
                         transverse: 3,
                         smooth: 4,
                     },
@@ -5803,7 +5803,7 @@ fn replace_face() -> Vec<(String, topo::ReplaceFaceError<f64>)> {
                 "MixedEdge",
                 R::MixedEdge {
                     edge,
-                    stations: geom_brep::MixedStations {
+                    stations: geom_brep::MixedStations::Class {
                         transverse: 3,
                         smooth: 4,
                     },

@@ -2,7 +2,7 @@
 id: onedoor
 kind: program
 title: ONEDOOR — one boolean door with two homes - the description ladder, the operand gates, the sweep trace, the chart walk, the carrier door's placement, and the shared cores of the boolean and split pipeline
-status: ready
+status: active
 opened: 2026-11-02
 group: kernel/boolean/one-home
 prefix: onedoor/

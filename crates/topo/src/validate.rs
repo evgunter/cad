@@ -387,15 +387,11 @@
 //! other scaffolding shapes).
 
 use core::fmt;
-use core::ops::ControlFlow;
 use std::borrow::Cow;
 
 use geom::{NetState, Surface};
 use geom_brep::recourse::{Reading, Refused, RefusedArm, RefusedSide, SizedDecision, SizedPass};
-use geom_brep::{
-    CertCheck, CertifyError, DihedralClass, MaterialPairing, MaterialWedge,
-    classify_material_pairing,
-};
+use geom_brep::{CertCheck, CertifyError};
 use geom_core::one_line::on_one_line;
 use geom_core::{Band, BandError, Decide, Indeterminate, Margin, NOT_YET_ENDING, Real, Sign, Tol};
 use slotmap::{Key, SecondaryMap};
@@ -984,8 +980,8 @@ pub enum ContactMark {
     SmoothUnderdetermined,
     /// A `Seam`-described edge — exempt by kind, as always.
     ///
-    /// **Not [`geom_brep::MaterialWedge::Seam`]**, which sits four
-    /// lines away in the same check and means something else entirely:
+    /// **Not [`geom_brep::WedgeVerdict::Seam`]**, which check 4 maps
+    /// onto these marks and means something else entirely:
     /// that one is the material VERDICT wedge π (the two faces
     /// continue one another), while this one is a statement about the
     /// edge's DESCRIPTION (a chart seam), and an exemption rather than
@@ -1361,11 +1357,14 @@ pub enum ValidationError {
         edge: EdgeKey,
     },
     /// Tier 3, check 4: an edge's two faces read definitely transverse
-    /// at one interior station and definitely smooth at its neighbour
-    /// (D2's mixed edge). The dihedral is continuous along the edge, so
-    /// the two bracket an in-band point the schedule did not sample:
-    /// the edge is certifiable as neither a corner nor a smooth join,
-    /// whatever its description.
+    /// at one interior station and definitely smooth at its neighbour,
+    /// or a convex corner at one and a concave one at its neighbour (D2's
+    /// mixed edge). The signed dihedral is continuous along the edge, so
+    /// the two bracket an in-band point the schedule did not sample: the
+    /// edge is certifiable as neither a corner nor a smooth join,
+    /// whatever its description. Along a tangency, the stations' material
+    /// pairings or ends can also differ ([`geom_brep::MixedStations`]),
+    /// a material verdict the stations never established.
     MixedDihedral {
         /// The mixed edge.
         edge: EdgeKey,
@@ -1476,7 +1475,7 @@ pub enum ValidationError {
     /// It is the one refusal the opposed pairing earns: a definite
     /// κ_rel is a jet-determinate wedge end, legal at rest, and a
     /// collapsed one yields no wedge end at all — exclusive by
-    /// construction (`MaterialArmOutcome`), not by a precedence.
+    /// construction (`geom_brep::WedgeVerdict`), not by a precedence.
     ///
     /// In-band κ_rel is NOT this: an osculation the run cannot decide
     /// escalates as [`Self::SliverDihedral`] with the
@@ -2724,7 +2723,7 @@ pub enum CrossingSideVerdict {
     SameSide,
     /// The side question did not reach a verdict at a candidate that
     /// held the crossing: the dihedral or the sense algebra
-    /// (`geom_brep::classify_material_pairing`) escalated in band.
+    /// (`geom_brep::Tangency::pairing`) escalated in band.
     /// Escalated typed ([`ValidationError::CensusEscalated`]), never
     /// sampled, never a fake side verdict. A pair whose carriers are
     /// DEFINITELY transverse at the crossing never reaches this arm at
@@ -2975,6 +2974,9 @@ pub enum WedgeCheck {
     /// The first-order wedge between the faces' tangent planes, metered
     /// at a definitely positive arm: a crease or a smooth join.
     Dihedral,
+    /// On an edge creased at a station, whether the crease there is
+    /// convex or concave.
+    Sign,
     /// On a definitely-smooth edge, whether the faces separate at second
     /// order (the surfaces determine the locus) or not.
     SecondOrder,
@@ -2982,18 +2984,21 @@ pub enum WedgeCheck {
     /// are aligned or opposed ([`geom_brep::MATERIAL_PAIRING`]): in band,
     /// or decided zero over an arm too short to read a side.
     MaterialPairing,
-    /// On a definitely-smooth edge, which material side each face is on
-    /// and which end of the wedge they make, where the samples disagree
-    /// or a side read after the decisions before it came out definite
-    /// reads undecided.
+    /// On a definitely-smooth edge, which end of the wedge opposed faces
+    /// make, where the side read after the decisions before it came out
+    /// definite reads undecided (stations whose ends differ are a
+    /// [`ValidationError::MixedDihedral`]).
     MaterialSide,
 }
 
-/// Check 4's finding for an edge whose first-order dihedral refused at
-/// a sample: an arm the gate decided collapsed is a verdict of its own
+/// Check 4's finding for an edge whose wedge escalated at a station: an
+/// arm the gate decided collapsed is a verdict of its own
 /// ([`ValidationError::NoDihedralArm`]); anything undecided is a sliver
 /// of the rung that escalated.
-fn dihedral_finding(edge: EdgeKey, escalation: geom_brep::LeverEscalation) -> ValidationError {
+pub(crate) fn dihedral_finding(
+    edge: EdgeKey,
+    escalation: geom_brep::WedgeEscalation,
+) -> ValidationError {
     match escalation.collapsed_arm() {
         Some(verdict) => ValidationError::NoDihedralArm { edge, verdict },
         None => ValidationError::SliverDihedral {
@@ -3005,14 +3010,17 @@ fn dihedral_finding(edge: EdgeKey, escalation: geom_brep::LeverEscalation) -> Va
 }
 
 impl WedgeCheck {
-    /// The check a first-order wedge escalation names, by the rung of
-    /// [`geom_brep::classify_dihedral`] that escalated: its arm is a
-    /// length, which ends as one ([`WedgeCheck::Arm`]), and its reading
-    /// the wedge's angle ([`WedgeCheck::Dihedral`]).
-    const fn of_rung(rung: geom_brep::LeverRung) -> Self {
+    /// The check a wedge escalation names, one for one with the rung of
+    /// the whole-edge fold ([`geom_brep::edge_wedge_over`]) that
+    /// escalated.
+    const fn of_rung(rung: geom_brep::WedgeRung) -> Self {
         match rung {
-            geom_brep::LeverRung::Arm => Self::Arm,
-            geom_brep::LeverRung::Reading => Self::Dihedral,
+            geom_brep::WedgeRung::Arm => Self::Arm,
+            geom_brep::WedgeRung::Wedge => Self::Dihedral,
+            geom_brep::WedgeRung::Sign => Self::Sign,
+            geom_brep::WedgeRung::Pairing => Self::MaterialPairing,
+            geom_brep::WedgeRung::Bend => Self::SecondOrder,
+            geom_brep::WedgeRung::End => Self::MaterialSide,
         }
     }
 
@@ -3027,6 +3035,11 @@ impl WedgeCheck {
                 concat!(
                     geom_core::undecided!("the angle between two faces at an edge"),
                     " (a sliver)"
+                )
+            }
+            Self::Sign => {
+                geom_core::undecided!(
+                    "whether two faces at an edge meet at a convex or a concave corner"
                 )
             }
             Self::SecondOrder => {
@@ -3052,13 +3065,17 @@ impl WedgeCheck {
                 .recourse(arm, Reading::AtRest)
                 .into(),
             Self::Dihedral => WEDGE.recourse(arm, Reading::AtRest).into(),
+            // A corner's class decided, its sign did not: the signed
+            // wedge has the class's magnitude wherever the walk runs along
+            // the crease, so it reaches the band only where the edge's
+            // curve leaves the faces' crossing — a body built wrong.
+            Self::Sign => DEFECT.into(),
             Self::SecondOrder => SEPARATION.recourse(arm, Reading::AtRest).into(),
             Self::MaterialPairing => geom_brep::MATERIAL_PAIRING
                 .recourse(arm, Reading::AtRest)
                 .into(),
-            // A split along the edge, or a side read after the decisions
-            // before it came out definite: no margin of its own gives a
-            // size or a lever.
+            // A side read after the decisions before it came out
+            // definite: no margin of its own gives a size or a lever.
             Self::MaterialSide => DEFECT.into(),
         }
     }
@@ -4528,8 +4545,13 @@ impl ValidationError {
             Self::SliverDihedral { check, cause, .. } => {
                 write!(f, "{}. {}", check.lead(), check.ending(cause))
             }
-            Self::MixedDihedral { stations, .. } => {
+            Self::MixedDihedral { stations, .. } if stations.is_first_order() => {
                 write!(f, "along an edge, {stations}. Recourse: {}", WEDGE.lever)
+            }
+            // A pairing or an end that differs along a tangency: a
+            // material verdict no edit is known to reach.
+            Self::MixedDihedral { stations, .. } => {
+                write!(f, "along an edge, {stations}. {DEFECT}")
             }
             Self::TransverseNotIntrinsic { .. } => write!(
                 f,
@@ -6905,249 +6927,84 @@ fn plus_v_errors<T: Decide>(
     errors
 }
 
-/// What check 4's **material arm** concluded about one edge.
-///
-/// One value rather than a pair of flags, because the outcomes are
-/// mutually exclusive BY CONSTRUCTION and this type is where that is
-/// enforced: a collapsed κ_rel yields no end, so an edge can never
-/// read as both a lamina and a jet-determinate wedge end.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum MaterialArmOutcome {
-    /// One material wedge for the whole edge (every sample agreed).
-    Wedge(MaterialWedge),
-    /// Opposed material sides whose jets **osculate** — conformal
-    /// contact along the locus, refused as [`ValidationError::LaminaWedge`].
-    Lamina,
-    /// The samples did not deliver ONE verdict: the named predicate
-    /// classified differently at different samples along the edge (or,
-    /// unreachably, at none of them). Escalated, never silent — see
-    /// [`material_arm_outcome`].
-    Split {
-        /// The predicate whose per-sample verdicts disagreed.
-        predicate: &'static str,
-    },
-}
-
-/// **The material arm's per-station reads**, taken inside the
-/// second-order walk ([`geom_brep::second_order_walk`]): the faces'
-/// material pairing before each station's second-order decision, and
-/// the wedge end after a `Positive` one. A read that escalates stops
-/// the walk with its cause and the check it was ([`MaterialStop`]),
-/// which the caller reports.
-///
-/// The one home of those reads: check 4 walks an edge's
-/// [`geom_brep::interior_stations`] with it and reports a stop as
-/// `SliverDihedral`; `boolean::rim_wedge` walks a closed rim's every
-/// uniform phase with it and returns a stop's cause. Both fold the
-/// flags through [`MaterialStations::outcome`].
-pub(crate) struct MaterialStations<'s, T: Real> {
-    s_plus: &'s Surface<T>,
-    sense_plus: bool,
-    s_minus: &'s Surface<T>,
-    sense_minus: bool,
-    band: Band,
-    opposed: bool,
-    aligned: bool,
-    side: Option<MaterialWedge>,
-    side_mixed: bool,
-}
-
-impl<'s, T: Real> MaterialStations<'s, T> {
-    /// No station read yet: both pairings still possible, no end seen.
-    pub(crate) fn new(
-        s_plus: &'s Surface<T>,
-        sense_plus: bool,
-        s_minus: &'s Surface<T>,
-        sense_minus: bool,
-        band: Band,
-    ) -> Self {
-        Self {
-            s_plus,
-            sense_plus,
-            s_minus,
-            sense_minus,
-            band,
-            opposed: true,
-            aligned: true,
-            side: None,
-            side_mixed: false,
-        }
-    }
-
-    /// The stations' flags folded by [`material_arm_outcome`], given
-    /// whether the walk found the contact jet-determinate.
-    pub(crate) fn outcome(&self, jet_determinate: bool) -> MaterialArmOutcome {
-        material_arm_outcome(
-            self.aligned,
-            self.opposed,
-            jet_determinate,
-            self.side,
-            self.side_mixed,
-        )
-    }
-}
-
-/// Which of [`MaterialStations`]' reads stopped the walk, and its cause.
-#[derive(Clone, Copy, Debug)]
-pub(crate) struct MaterialStop {
-    /// [`WedgeCheck::MaterialPairing`] or [`WedgeCheck::MaterialSide`].
-    pub(crate) check: WedgeCheck,
-    /// The read's escalation, with the margin its decision decided.
-    pub(crate) cause: Indeterminate,
-}
-
-impl<T: Decide> geom_brep::StationHook<T> for MaterialStations<'_, T> {
-    type Break = MaterialStop;
-
-    fn before_decision(&mut self, station: &geom_brep::Station<T>) -> ControlFlow<MaterialStop> {
-        match classify_material_pairing(
-            self.s_plus,
-            self.sense_plus,
-            self.s_minus,
-            self.sense_minus,
-            station.p,
-            station.arm,
-            self.band,
-        ) {
-            Ok(MaterialPairing::Aligned) => self.opposed = false,
-            Ok(MaterialPairing::Opposed) => self.aligned = false,
-            Err(cause) => {
-                return ControlFlow::Break(MaterialStop {
-                    check: WedgeCheck::MaterialPairing,
-                    cause,
-                });
-            }
-        }
-        ControlFlow::Continue(())
-    }
-
-    /// Which end, decided only where it is asked: the SIGN, in the
-    /// material frame, of the quantity whose magnitude just classified
-    /// definitely positive — so neither `Zero` nor an escalation is
-    /// reachable through a margin the run can read. Both are announced
-    /// anyway, through the gate that refuses a `Zero` with its margin: a
-    /// state that cannot occur is reported, never swallowed, and a
-    /// validator's "I cannot say" is an error in its vector, not a panic.
-    fn after_positive(&mut self, station: &geom_brep::Station<T>) -> ControlFlow<MaterialStop> {
-        let signed = geom_brep::material_kappa_rel(station.jet.kappa_rel, self.sense_plus);
-        let this = match decide_nonzero(
-            "material_cusp_side",
-            Margin::sagitta(signed, station.arm.length()),
-            self.band,
-        ) {
-            Ok(geom_core::k_stats::NonzeroSign::Positive) => MaterialWedge::Cusp,
-            Ok(geom_core::k_stats::NonzeroSign::Negative) => MaterialWedge::Slit,
-            Err(cause) => {
-                return ControlFlow::Break(MaterialStop {
-                    check: WedgeCheck::MaterialSide,
-                    cause,
-                });
-            }
-        };
-        match self.side {
-            Some(seen) if seen != this => self.side_mixed = true,
-            _ => self.side = Some(this),
-        }
-        ControlFlow::Continue(())
-    }
-}
-
-/// The material arm's fold: the flags [`MaterialStations`]
-/// accumulates over one contact's stations, resolved into the ONE
-/// outcome that contact earns. Schedule-blind: it reads flags, not
-/// samples.
-///
-/// Total and pure, which is the point. Two of its input states —
-/// a pairing that split (`aligned == opposed`) and a wedge end that
-/// split (`side_mixed`) — are not known to be reachable through
-/// certified geometry, and an unreachable state's handling can only be
-/// pinned by CALLING the fold with it; `material_arm_split_states_escalate`
-/// does exactly that.
-///
-/// Both split states **escalate** rather than fall silent. Silence
-/// there would validate a wedge end clean on an edge whose own samples
-/// disagreed about which material configuration it is — a legality
-/// verdict the samples never established. This is the same
-/// posture the sibling decisions already take one order up
-/// (`material_wedge_side`'s unreachable `Zero` is announced as
-/// `Invalid` rather than guessed), and it is NOT the first-order
-/// pass's mixed transverse/smooth exemption: that one exempts an edge
-/// from a DEMAND (carry an intrinsic description), while this one
-/// would exempt it from a REFUSAL.
-pub(crate) fn material_arm_outcome(
-    aligned: bool,
-    opposed: bool,
-    jet_determinate: bool,
-    side: Option<MaterialWedge>,
-    side_mixed: bool,
-) -> MaterialArmOutcome {
-    match (aligned, opposed) {
-        // Every sample: one material side. The two faces continue one
-        // another and the wedge is the legal π seam — a verdict the
-        // second-order margin has no say in.
-        (true, false) => MaterialArmOutcome::Wedge(MaterialWedge::Seam),
-        // Every sample: opposed material sides. The wedge is one of
-        // the two ends, and which one is the second-order question.
-        (false, true) => {
-            if !jet_determinate {
-                MaterialArmOutcome::Lamina
-            } else {
-                match side {
-                    Some(wedge) if !side_mixed => MaterialArmOutcome::Wedge(wedge),
-                    // Split, or (unreachably, with CERT_SAMPLES = 9)
-                    // no sample at all: both are "the end did not
-                    // resolve", and neither may pass as legal.
-                    _ => MaterialArmOutcome::Split {
-                        predicate: "material_cusp_side",
-                    },
-                }
-            }
-        }
-        // The pairing itself split across samples, or classified at no
-        // sample: no material configuration is established for this
-        // edge at all.
-        _ => MaterialArmOutcome::Split {
-            predicate: "material_wedge_side",
-        },
-    }
-}
-
-/// The material arm's REFUSAL, read off its outcome: the second half
-/// of check 4's material decision, and pure for the same reason the
-/// fold is — the states that matter most here are the ones no fixture
-/// can force, so the only way to pin what each one emits is to call
-/// this with it (`material_arm_error_table`).
-///
-/// `None` here is a legality verdict rather than an absence: every
-/// settled wedge is legal at rest, the two ends included, because the
-/// fold hands out an end only over a jet-determinate tangency.
-pub(crate) fn material_arm_error(
-    outcome: Option<MaterialArmOutcome>,
+/// **An edge's wedge walk** ([`geom_brep::WedgeWalk::along_edge`]): the
+/// face of its `he_plus` as the plus face and of its `he_minus` as the
+/// minus face, each with its `Face::sense` bit, and the interior stations
+/// of its certified curve, whose increasing parameter is the way
+/// `he_plus` walks it (`crate::entity`'s orientation section). The one
+/// door from an edge to its wedge's faces and walk, so no reader pairs a
+/// face order with a direction by hand (`geom_brep::Convexity`'s
+/// convention). `None` where a record on the way does not resolve, which
+/// tier 1 rules out.
+pub(crate) fn edge_wedge_walk<T: geom_core::Decide>(
+    body: &Body<T>,
     edge: EdgeKey,
-    band: Band,
-) -> Option<ValidationError> {
-    match outcome? {
+) -> Option<geom_brep::WedgeWalk<'_, T>> {
+    let e = body.get_edge(edge)?;
+    let curve = body.curves.get(e.curve).and_then(CurveGeom::certified)?;
+    let sides = crate::readback::edge_sides(body, edge).ok()?;
+    let side = |side: crate::readback::EdgeSide| {
+        Some(geom_brep::SideFace {
+            surface: body.surfaces.get(side.surface)?,
+            sense: body.get_face(side.face)?.sense,
+        })
+    };
+    let (t0, t1) = curve.params();
+    Some(geom_brep::WedgeWalk::along_edge(
+        side(sides.plus)?,
+        side(sides.minus)?,
+        curve.carrier(),
+        t0,
+        t1,
+    ))
+}
+
+/// **Check 4's reading of an edge's wedge**: the contact mark the
+/// whole-edge fold's verdict earns ([`geom_brep::edge_wedge_over`]), and
+/// the finding it raises, if any. `wrap` is a chart seam's edge, marked
+/// [`ContactMark::Seam`] by its description's kind wherever its wedge
+/// decided; `conventional` a description whose form claims the pair
+/// under-determines the locus, which a crease refuses (D2's
+/// prefer-intrinsic).
+///
+/// Pure, so that every verdict's finding is pinned by calling it,
+/// including the pairing and end disagreements no certified geometry is
+/// known to reach (`wedge_reading_table`). A settled wedge is legal at
+/// rest — the crease, the seam, and the two ends because the fold hands
+/// one out only over a jet-determinate tangency — and the lamina and
+/// every mixed edge refuse. A mixed edge refuses rather than falls
+/// silent: silence would validate a wedge end on an edge whose own
+/// stations disagreed.
+pub(crate) fn wedge_reading(
+    verdict: geom_brep::WedgeVerdict,
+    edge: EdgeKey,
+    wrap: bool,
+    conventional: bool,
+) -> (ContactMark, Option<ValidationError>) {
+    use geom_brep::{Bend, WedgeVerdict as V};
+    let mark = match verdict {
+        V::InBand(_) | V::Mixed(_) => ContactMark::Unmarked,
+        _ if wrap => ContactMark::Seam,
+        V::Crease(_) => ContactMark::Transverse,
+        V::Seam {
+            bend: Bend::Determinate,
+        }
+        | V::End(_) => ContactMark::Tangent,
+        V::Seam {
+            bend: Bend::UnderDetermined,
+        }
+        | V::Lamina => ContactMark::SmoothUnderdetermined,
+    };
+    let finding = match verdict {
+        V::InBand(escalation) => Some(dihedral_finding(edge, escalation)),
+        V::Mixed(stations) => Some(ValidationError::MixedDihedral { edge, stations }),
+        V::Crease(_) if conventional => Some(ValidationError::TransverseNotIntrinsic { edge }),
         // Conformal contact: refused, and no declaration is consulted
         // because none would cure it.
-        MaterialArmOutcome::Lamina => Some(ValidationError::LaminaWedge { edge }),
-        // The samples disagreed: escalate, naming the predicate that
-        // split. Never silence — see `material_arm_outcome`.
-        MaterialArmOutcome::Split { predicate } => Some(ValidationError::SliverDihedral {
-            edge,
-            check: WedgeCheck::MaterialSide,
-            cause: Indeterminate {
-                margin: geom_core::MarginDiag::INVALID,
-                band,
-                predicate: Some(predicate),
-                terminal_sliver: false,
-            },
-        }),
-        // A settled wedge is legal: the seam and a transverse wedge
-        // always, and the two ends because the fold only hands one out
-        // over a jet-determinate tangency (D1's second-order arm) —
-        // derived from the body exactly as the seam is.
-        MaterialArmOutcome::Wedge(_) => None,
-    }
+        V::Lamina => Some(ValidationError::LaminaWedge { edge }),
+        V::Crease(_) | V::Seam { .. } | V::End(_) => None,
+    };
+    (mark, finding)
 }
 
 /// The per-edge tier-3 contact MARKS at rest (OQ7 level (i), M5 PR 9):
@@ -7843,8 +7700,8 @@ pub(crate) fn tier3_local_checks_marked<
     // ------------------------------------------------------------------
     // Tier 3, checks 4–5 (one edge sweep, samples shared):
     //
-    // 4. Dihedral classification at interior samples (edge-arena order;
-    //    first failing sample, one error per edge), levered at the
+    // 4. The edge's wedge at interior samples (edge-arena order; the
+    //    first escalating sample, one error per edge), levered at the
     //    faces' extent (`crate::wedge_reach`). Exempt BY KIND:
     //    Nurbs-ADJACENT edges
     //    (M6-3 flip B — see the in-loop note: implicit-form gradients
@@ -7859,28 +7716,17 @@ pub(crate) fn tier3_local_checks_marked<
     //    per edge-face pair). Curved-face containment is NOT checked
     //    (`validate_geometric`'s not-yet-checked list; #638).
     //
-    // S10, one category per ARM — not one per check, because check 4
-    // has two arms and they differ:
+    // S10:
     //
-    // - **Check 4, first-order pass: CATEGORY C.** It takes the two
-    //   SURFACES (never the faces) and classifies the UNSIGNED
-    //   tangent-plane wedge from implicit-form gradients: transverse
-    //   or smooth, never which side the material is on. No
-    //   sense, and its verdict is invariant under `revert`.
-    // - **Check 4, MATERIAL arm: CATEGORY A.** It hands the door both
-    //   faces' `Face::sense` bits, and must — the material side IS the face
-    //   orientation, and the whole content of "unsigned" above is that
-    //   the first-order pass cannot see it (D1's ratified wedge table,
-    //   the #131 second-order ruling; the arm's own note sits at its
-    //   code below). Its verdict is NOT revert-invariant: reverting a
-    //   body maps `Cusp` ↔ `Slit`, which is the ruling's own symmetry.
+    // - **Check 4: CATEGORY A.** It hands the whole-edge fold both
+    //   faces' `Face::sense` bits, and must — a crease's sign and a
+    //   tangency's material side ARE the face orientation (D1's ratified
+    //   wedge table, the #131 second-order ruling). The class the fold
+    //   reads first takes the two SURFACES only and is invariant under
+    //   `revert`; the fold's verdict is not: reverting a body maps
+    //   `Cusp` ↔ `Slit` and convex ↔ concave, the ruling's own symmetry.
     // - **Check 5: CATEGORY C.** It tests `(p − origin)·n` against
     //   `Zero`, sign-invariant for the same reason as check 3.
-    //
-    // (This header said CATEGORY C of both checks, on the strength of
-    // a deferral the material arm retired. Two contradictory category
-    // claims about one function is exactly what the D6 hand-multiply
-    // discipline reads this header to prevent.)
     // ------------------------------------------------------------------
     for (edge_key, edge) in body.edges.iter() {
         // Null scaffolding cannot reach the tier-3 passes: the coarse
@@ -7908,208 +7754,51 @@ pub(crate) fn tier3_local_checks_marked<
         let reach = reaches.get(edge_key).copied().unwrap_or_else(|| {
             unreachable!("check 2 read {edge_key:?}'s reach under this loop's guards")
         });
-        // The interior schedule's stations, evaluated once (D9: the same
-        // parameters certification used) and shared by checks 4 and 5
-        // and check 4's second-order walk.
-        let samples: Vec<_> = geom_brep::interior_stations(curve.carrier(), t0, t1).collect();
-        // Check 4: dihedral — plus the prefer-intrinsic enforcement
-        // (D2): an edge whose every interior sample is definitely
-        // Transverse carries `Intersection` at rest. Reusing the SAME
-        // per-sample classifications (never classifying twice), this
-        // check refuses a conventional description there — `OnPair`,
-        // or a `Chart` that is not a wrap — whoever stated it. A
-        // definitely-smooth edge, a seam between two faces of one
-        // surface among them, keeps its conventional description (the
-        // D2 conventional split), an escalation reports `SliverDihedral`
-        // and exempts the edge, and a mixed sample set is refused
-        // (`MixedDihedral`).
+        // Check 4: the whole-edge wedge fold over the stations
+        // (`geom_brep::edge_wedge_over`), read by `wedge_reading`: a
+        // crease, the π seam, a wedge end or the lamina, a split or a
+        // mixed edge, or an escalation, whose finding exempts the edge
+        // from the rest of the check. A crease refuses a conventional
+        // description (D2's prefer-intrinsic), whoever stated it; a
+        // definitely-smooth edge, a seam between two faces of one surface
+        // among them, keeps its conventional one (the D2 conventional
+        // split).
         //
         // **Nurbs-adjacent edges are exempt BY KIND** (M6-3 flip B):
-        // implicit-form
-        // gradients are poison on a NURBS surface, so
-        // `classify_dihedral` cannot run there, and no derived contact
-        // class exists to enforce. That is not a gap being papered
-        // over — a definitional wall junction's contact class is fixed
-        // by the profile's corner structure (Q8/C11), carried by the
-        // conventional `Chart` descriptions (iso images, and declared
-        // images) the loft/sweep builder mints, and no wedge verdict is
-        // derivable
-        // on it; the mark stays `Unmarked` (unjudged, exactly the
-        // escalation posture — never a blessing).
-        // An `Approx` face is exempt on the SAME terms and by the same
-        // rule: its geometry is a spline fit, whose implicit-form
-        // gradient is poison, so `classify_dihedral` cannot run there
-        // either. O5 records the inheritance explicitly — narrowing it
-        // (deriving a dihedral class from the DESCRIPTION rather than
-        // the fit) is its own conversation, not smuggled in here.
+        // implicit-form gradients are poison on a NURBS surface, so the
+        // dihedral cannot be read there, and no derived contact class
+        // exists to enforce. A definitional wall junction's contact class
+        // is fixed by the profile's corner structure (Q8/C11), carried by
+        // the conventional `Chart` descriptions the loft/sweep builder
+        // mints; the mark stays `Unmarked` (unjudged, exactly the
+        // escalation posture — never a blessing). An `Approx` face is
+        // exempt on the same terms: its geometry is a spline fit. O5
+        // records the inheritance explicitly — narrowing it (deriving a
+        // dihedral class from the DESCRIPTION rather than the fit) is its
+        // own conversation.
+        //
+        // S10 CATEGORY A: the fold reads both faces' `Face::sense` bits,
+        // and must — a crease's sign and a tangency's material side ARE
+        // the face orientation. Its class reads neither, and is
+        // revert-invariant; reverting a body maps `Cusp` ↔ `Slit` and
+        // convex ↔ concave, the ruling's own symmetry.
         let nurbs_adjacent = s_plus.spline_chart().is_some() || s_minus.spline_chart().is_some();
-        let mut escalated = false;
-        let mut readings = Vec::with_capacity(samples.len());
         // The must-carry rule's demand keys on the description's FORM:
         // a conventional form claims the pair under-determines the
         // locus, which the rule decides whoever stated it.
         let conventional = curve.description().is_conventional();
-        if !nurbs_adjacent {
-            for &(p, _) in &samples {
-                match geom_brep::classify_dihedral(s_plus, s_minus, p, reach, band) {
-                    Ok(class) => readings.push(class == DihedralClass::Transverse),
-                    Err(escalation) => {
-                        errors.push(dihedral_finding(edge_key, escalation));
-                        escalated = true;
-                        break;
-                    }
-                }
-            }
-        }
-        let read = !nurbs_adjacent && !escalated;
-        let all_transverse = read && readings.iter().all(|&t| t);
-        let all_smooth = read && !readings.contains(&true);
-        if read {
-            if all_transverse && conventional {
-                errors.push(ValidationError::TransverseNotIntrinsic { edge: edge_key });
-            }
-            // A mixed edge (D2): the dihedral is continuous along it,
-            // so neighbouring stations that disagree bracket an in-band
-            // point no station read.
-            if let Some(stations) = geom_brep::MixedStations::bracketing(&readings) {
-                errors.push(ValidationError::MixedDihedral {
-                    edge: edge_key,
-                    stations,
-                });
-            }
-        }
-        // The contact MARK (OQ7 level (i), M5 PR 9) and the symmetric
-        // must-carry (level (ii)). A definitely-smooth edge descends
-        // one order — the jet's second-order margin at the SAME
-        // schedule samples: definite at every sample ⇒ a
-        // jet-determinate tangency (the surfaces determine the locus);
-        // a zero-side sample ⇒ under-determined (G2 conventional —
-        // exempt BY THE PREDICATE); in-band ⇒ SliverDihedral with the
-        // `tangent_second_order` cause (F6), which exempts the edge
-        // here. Nurbs-adjacent edges are exempt by kind (flip B
-        // above): no jet is
-        // derivable from a poison implicit form, so they carry
-        // `Unmarked`.
-        // The two `Unmarked` arms are deliberately separate branches
-        // (not `nurbs_adjacent || escalated`): one is an exemption BY
-        // KIND, the other an escalation already reported — same mark,
-        // different reasons, and the reader should see both.
-        //
-        // **Check 4's MATERIAL arm** (D1's ratified verdict table, the
-        // #131 second-order ruling) rides the same schedule, because
-        // it is the same classification with the faces' material sides
-        // put back. The first-order pass compares tangent PLANES and
-        // is therefore unsigned — wedge 0, π and 2π all read Smooth —
-        // so a definitely-smooth edge asks two more questions:
-        //
-        // - **which arm**: the two faces' outward normals (each `∇F`
-        //   selected by that face's `Face::sense` bit, minted inside
-        //   the door) aligned ⇒ one material side ⇒ the
-        //   legal π seam; opposed ⇒ the wedge is 0 or 2π
-        //   (`material_wedge_side`);
-        // - **which end**, on the opposed arm: the jet's κ_rel signed
-        //   into the plus face's outward frame — positive is the cusp
-        //   (material is the vanishing crescent), negative the knife
-        //   slit (`material_cusp_side`). `revert` negates every
-        //   outward normal at once, so it maps one end to the other
-        //   and the pair is legal together or not at all.
-        //
-        // The ends are legal iff the tangency is jet-determinate —
-        // derived from the body exactly as the π seam is; whether a
-        // cusp is WANTED was declared where the tangency was created,
-        // and is not this pass's question. The second-order band has
-        // three outcomes and they are three different answers:
-        // definite κ_rel is the determinate contact the arm admits;
-        // a definitely-collapsed κ_rel is conformal contact along the
-        // locus — a lamina, refused as `LaminaWedge`; in-band is
-        // `SliverDihedral`, the honest escalation. A whole-edge
-        // verdict needs every sample to agree, and an edge whose
-        // samples DISAGREE — about the pairing, or about which end —
-        // escalates (`MaterialArmOutcome::Split`) rather than falling
-        // silent: silence there would validate a wedge end clean on the
-        // strength of its own samples contradicting one another. That
-        // is the opposite of the first-order pass's mixed
-        // transverse/smooth exemption, which exempts an edge from a
-        // DEMAND rather than from a REFUSAL.
-        //
-        // S10 CATEGORY A: this arm reads `Face::sense`, and must —
-        // the material side IS the face orientation, and the deferral
-        // this closes was precisely that the first-order pass cannot
-        // see it.
-        let mut arm: Option<MaterialArmOutcome> = None;
-        #[allow(clippy::if_same_then_else)]
         let mark = if nurbs_adjacent {
             ContactMark::Unmarked
-        } else if escalated {
-            ContactMark::Unmarked
-        } else if curve.description().is_wrap() {
-            ContactMark::Seam
-        } else if all_transverse {
-            arm = Some(MaterialArmOutcome::Wedge(MaterialWedge::Transverse));
-            ContactMark::Transverse
-        } else if all_smooth {
-            let sense_plus = match body.get_face(f_plus) {
-                Some(face) => face.sense,
-                None => continue, // unreachable on tier-1 input
-            };
-            let sense_minus = match body.get_face(f_minus) {
-                Some(face) => face.sense,
-                None => continue, // unreachable on tier-1 input
-            };
-            let mut stations =
-                MaterialStations::new(s_plus, sense_plus, s_minus, sense_minus, band);
-            let walk = geom_brep::second_order_walk(
-                s_plus,
-                s_minus,
-                samples.iter().copied(),
-                reach,
-                band,
-                &mut stations,
-            );
-            let (jet_determinate, escalation) = match walk {
-                geom_brep::SecondOrderWalk::Determinate => (true, None),
-                // One zero-side station denies the WHOLE edge its
-                // determinacy — on the opposed arm, the lamina refusal:
-                // a wedge end is legal only where the surfaces determine
-                // the locus along the edge, the rule the mark follows
-                // too (`SmoothUnderdetermined`). ε-tightening makes
-                // zero-side verdicts rarer, so it can only remove this
-                // refusal, never introduce one.
-                geom_brep::SecondOrderWalk::UnderDetermined => (false, None),
-                geom_brep::SecondOrderWalk::InBand(cause) => {
-                    (true, Some((WedgeCheck::SecondOrder, cause)))
-                }
-                geom_brep::SecondOrderWalk::Stopped(stop) => (true, Some((stop.check, stop.cause))),
-            };
-            let jet_escalated = escalation.is_some();
-            if let Some((check, cause)) = escalation {
-                errors.push(ValidationError::SliverDihedral {
-                    edge: edge_key,
-                    check,
-                    cause,
-                });
-            }
-            if !jet_escalated {
-                arm = Some(stations.outcome(jet_determinate));
-            }
-            if jet_escalated {
-                ContactMark::Unmarked
-            } else if jet_determinate {
-                ContactMark::Tangent
-            } else {
-                ContactMark::SmoothUnderdetermined
-            }
         } else {
-            ContactMark::Unmarked
+            let Some(walk) = edge_wedge_walk(body, edge_key) else {
+                continue; // unreachable on tier-1 input
+            };
+            let verdict = geom_brep::edge_wedge_over(&walk, reach, band);
+            let wrap = curve.description().is_wrap();
+            let (mark, finding) = wedge_reading(verdict, edge_key, wrap, conventional);
+            errors.extend(finding);
+            mark
         };
-        // The verdict table's refusing rows, read off the ONE outcome
-        // the arm produced (`MaterialArmOutcome` — the states are
-        // exclusive by construction, so nothing here ranks anything).
-        // `None` is an edge the arm never judged: exempt by kind, or
-        // already escalated with its own error.
-        if let Some(error) = material_arm_error(arm, edge_key, band) {
-            errors.push(error);
-        }
         if mark == ContactMark::Tangent
             && conventional
             && geom_brep::tangent_certificate_lane(curve.carrier(), s_plus, s_minus)

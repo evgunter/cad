@@ -3047,12 +3047,10 @@ fn carried_chord_spec<T: Decide>(
             Ok(geom::OnCarrier::Off) => {
                 Err(invariant("a carried chord's end lies off its component"))
             }
-            Err(geom::CarrierRefusal::Escalated(diag) | geom::CarrierRefusal::Straddle(diag)) => {
-                Err(escalated(diag))
-            }
-            Err(geom::CarrierRefusal::Exhausted | geom::CarrierRefusal::Unbounded) => Err(
+            Err(refusal) => Err(refusal.escalation().map_or(
                 invariant("a carried chord end's distance from its component could not be read"),
-            ),
+                escalated,
+            )),
         }
     };
     let (p1, p2) = (vertex_point(body, u1), vertex_point(body, u2));

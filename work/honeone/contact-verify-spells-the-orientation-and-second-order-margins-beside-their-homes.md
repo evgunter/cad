@@ -55,3 +55,5 @@ The 2026-10-29 re-read re-parked this row, in prose, on
 That row closed on 2026-10-30 (PR 6079), and the D10 hold lifted the
 same day (#6103), so nothing named here gates the row. Dispatchable:
 re-read the sites against main first.
+
+**2026-11-03 (ONEDOOR wedge fold, PR 6443):** `geom_brep::material_kappa_rel` stays `pub` for `contact_verify.rs` alone. Every other reader takes the end through the whole-edge fold (`geom_brep::edge_wedge_over`), so when this row folds `contact_verify`'s second-order arm onto that home, `material_kappa_rel` should go to `pub(crate)`. That is the visibility fence this row owes.

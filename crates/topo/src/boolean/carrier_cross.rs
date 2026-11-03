@@ -44,16 +44,16 @@
 //! face's boundary pre-pass, which names that entity; a crossing the
 //! pre-pass puts off every boundary entity is two readings that
 //! disagree, and answers [`BoundaryCrossing::Unread`]. So does every
-//! refusal the pass types past the band's own escalation, and a face
-//! holding a lone vertex (a pierce ring), which has no boundary pre-pass:
-//! the caller keeps its frontier door.
+//! refusal the pass types past the band's own escalation, and a crossing
+//! on a face holding a lone vertex (a pierce ring), which has no boundary
+//! pre-pass: the caller keeps its frontier door.
 //!
 //! The rows cited here (`full_turn_bore_mate`, `a_closed_conic_in_the_partners_face`,
 //! `sheets_part_on_slanted_rims`, `face_face_touch`) live in
 //! `crates/sweep/tests`.
 
-use geom_brep::curve_face::{self, Boundary, BoundaryRefusal};
-use geom_brep::curve_pair::{MeetFault, Span};
+use geom_brep::curve_face::{self, Boundary, BoundaryRefusal, OnBoundary};
+use geom_brep::curve_pair::{Hit, Span};
 use geom_core::{Band, Decide, Point3};
 
 use super::contain::FaceContainment;
@@ -161,11 +161,13 @@ pub(super) fn boundary_crossing<T: Decide>(
 
 /// **The boundary pass over `face`'s boundary** ([`curve_face::boundary`]),
 /// read against `swept`: its answer with the parameter its meeting holds
-/// ([`HeldBoundary`]), or its refusal; or `None` where the
-/// boundary holds a lone vertex (a pierce ring), which the pre-pass that
-/// places a crossing cannot read, or an edge with no certified curve,
-/// which the pass cannot. Such a face answers `None` before any decision
-/// of the pass is made, so it never escalates.
+/// ([`HeldBoundary`]), or its refusal; or `None` in two cases. A face
+/// with an edge that holds no certified curve, which the pass cannot
+/// read, answers `None` before any of the pass's decisions, so it never
+/// escalates. A meeting on a face holding a lone vertex (a pierce ring)
+/// answers `None` as well: the pre-pass that places a meeting cannot
+/// read such a face ([`super::contain::curved_boundary_containment`]).
+/// Its clear, its run along an edge and its refusals stand as they are.
 ///
 /// # Errors
 ///
@@ -181,31 +183,30 @@ pub(super) fn read_boundary<T: Decide>(
     swept: &Span<'_, T>,
     band: Band,
 ) -> Result<Option<Result<HeldBoundary<T>, BoundaryRefusal>>, BooleanError> {
-    Ok(face_boundary(y, face)?
-        .filter(|b| b.lone.is_empty())
-        .map(|b| {
-            curve_face::boundary(swept, &b.spans(), band).map(|boundary| {
-                let held = match boundary {
-                    Boundary::Meets {
-                        edge,
-                        on_edge: Some(t),
-                        ..
-                    } => Some(Held {
-                        edge: b.edges[edge].key,
-                        t,
-                    }),
-                    Boundary::Meets { on_edge: None, .. }
-                    | Boundary::Along { .. }
-                    | Boundary::Clear => None,
-                };
-                HeldBoundary { boundary, held }
-            })
-        }))
+    Ok(face_boundary(y, face)?.and_then(|b| {
+        let held = |boundary: Boundary<T>| {
+            let held = match boundary {
+                Boundary::Meets {
+                    at: OnBoundary::Edge(edge, Hit::On { t, .. }),
+                    ..
+                } => Some(Held {
+                    edge: b.edges[edge].key,
+                    t,
+                }),
+                Boundary::Meets { .. } | Boundary::Along { .. } | Boundary::Clear => None,
+            };
+            HeldBoundary { boundary, held }
+        };
+        match curve_face::boundary(swept, &b.spans(), &b.lone_points(), band) {
+            Ok(Boundary::Meets { .. }) if !b.lone.is_empty() => None,
+            answer => Some(answer.map(held)),
+        }
+    }))
 }
 
 /// **A split parameter a meeting holds**: the parameter on a boundary
 /// edge's span where the meeting reading put the point strictly inside
-/// that edge ([`Boundary::Meets`]' `on_edge`), and the edge it was read
+/// that edge ([`Boundary::Meets`]' `at`), and the edge it was read
 /// on. It is minted only by [`read_boundary`] and kept only by
 /// [`held_on`], and it answers its parameter only for its own edge
 /// ([`Self::on`]), so no split can take it for another.
@@ -274,14 +275,18 @@ impl<T: Decide> FaceBoundary<'_, T> {
             .collect()
     }
 
+    /// The lone vertices' points, as the pass takes them.
+    fn lone_points(&self) -> Vec<Point3<T>> {
+        self.lone.iter().map(|&(_, p)| p).collect()
+    }
+
     /// **Every meeting of `swept` with the boundary** ([`curve_face::read`]).
     pub(super) fn read(
         &self,
         swept: &Span<'_, T>,
         band: Band,
     ) -> Result<curve_face::BoundaryReading<T>, BoundaryRefusal> {
-        let lone: Vec<_> = self.lone.iter().map(|&(_, p)| p).collect();
-        curve_face::read(swept, &self.spans(), &lone, band)
+        curve_face::read(swept, &self.spans(), &self.lone_points(), band)
     }
 }
 
@@ -317,22 +322,13 @@ pub(super) fn face_boundary<T: Decide>(
                 let CurveGeom::Certified(curve) = y.edge_curve_linked(ek, edge) else {
                     return Ok(None);
                 };
-                let end = |h, field| {
-                    crate::live::linked(
-                        &y.half_edges,
-                        h,
-                        EntityId::HalfEdge,
-                        EntityId::Edge(ek),
-                        field,
-                    )
-                    .start
-                };
+                // A span runs forward from its `he_plus`'s start.
+                let (from, to) = crate::query::edge_ends(y, ek);
                 boundary.edges.push(BoundaryEdge {
                     key: ek,
                     start: (half.start, start),
                     curve,
-                    // A span runs forward from its `he_plus`'s start.
-                    ends: [end(edge.he_plus, "he_plus"), end(edge.he_minus, "he_minus")],
+                    ends: [from, to],
                 });
             }
         }
@@ -363,20 +359,7 @@ pub(super) fn boundary_refusal(
             })
         }
         BoundaryRefusal::Unread(_) => Ok(()),
-        BoundaryRefusal::Fault(fault) => Err(boundary_fault(fault)),
-    }
-}
-
-/// A boundary pass's [`BoundaryRefusal::Fault`]: a kernel fault, the
-/// readings that contradict named.
-pub(super) fn boundary_fault(fault: MeetFault) -> BooleanError {
-    match fault {
-        MeetFault::Contradiction { readings } => {
-            BooleanError::ClassificationInvariant { what: readings }
-        }
-        _ => BooleanError::ClassificationInvariant {
-            what: "boundary pass: a carrier the meeting table misread",
-        },
+        BoundaryRefusal::Fault { what } => Err(BooleanError::ClassificationInvariant { what }),
     }
 }
 
@@ -416,6 +399,62 @@ mod crossing_rows {
     use crate::test_support_fixtures::{CylFrame, cyl_wall_sheet};
     use geom::Curve3;
     use geom_core::{Band, Point3, Tol, Vec3};
+
+    /// **A pierce ring answers what needs no placing.** The wall sheet
+    /// with a lone vertex at azimuth 0.8, height 0.5 (a strut killed by
+    /// `kemr`): a ruling past it, inside the sheet, is clear, and the
+    /// ruling through it meets the boundary at the lone vertex, which the
+    /// boundary pre-pass cannot place, so it is unread. Red when a lone
+    /// vertex is left out of the pass (the ruling through it clear) or
+    /// a face holding one answers nothing.
+    #[test]
+    fn a_pierce_ring_answers_a_clear_span_and_leaves_a_meeting_at_it_unread() {
+        use crate::euler::MevSite;
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let mut body = crate::body::Body::<f64>::new();
+        let frame = CylFrame::canonical(1.0);
+        let face = cyl_wall_sheet(&mut body, frame, (0.2, 1.4), (0.0, 1.0), tol);
+        let outer = body.get_face(face).unwrap().outer;
+        let crate::entity::LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary
+        else {
+            panic!("the sheet's outer loop is a cycle");
+        };
+        let at = |u: f64, v: f64| Point3::new(u.cos(), u.sin(), v);
+        let strut = body
+            .mev_line(
+                MevSite::Fan {
+                    he1: first,
+                    he2: first,
+                },
+                at(0.8, 0.5),
+                tol,
+            )
+            .unwrap();
+        body.kemr(strut.he_plus, strut.he_minus).unwrap();
+        let ruling = |u: f64| Curve3::line(at(u, 0.0), Vec3::unit_z());
+        let read = |u: f64| {
+            boundary_crossing(
+                &body,
+                (Operand::B, EdgeKey::default(), true),
+                face,
+                &ruling(u),
+                (0.2, 0.8),
+                band,
+            )
+            .unwrap()
+        };
+        let past = read(0.5);
+        assert!(
+            matches!(past, BoundaryCrossing::Clear),
+            "past the ring: {past:?}"
+        );
+        let through = read(0.8);
+        assert!(
+            matches!(through, BoundaryCrossing::Unread),
+            "through it: {through:?}"
+        );
+    }
 
     /// **A held parameter is kept only for the edge it was read on**
     /// ([`super::held_on`]): the pre-pass placing the point on that edge
