@@ -303,8 +303,8 @@ fn r4_straight_cap_corner_single_wedge_single_null_edge() {
 }
 
 /// R5 — "crossing vertices are ON by construction": what the declared
-/// coincidence actually is, measured. Diagonal crossing edges at 1e5
-/// coordinate scale against a diagonal plane: the interpolated point is
+/// coincidence actually is, measured. Diagonal crossing edges at the
+/// session box's scale against a diagonal plane: the interpolated point is
 /// genuinely OFF the plane (extended-precision residual ≈ 5e-14 here —
 /// nonzero, so ON is a declaration, not a measurement), while the f64
 /// margin predicate itself often computes exactly 0 for its own
@@ -321,29 +321,22 @@ fn r4_straight_cap_corner_single_wedge_single_null_edge() {
 /// (a), (b) and (d) run in the default build.
 #[test]
 fn r5_crossing_vertex_on_is_declared_not_measured() {
-    // Pinned to limb 2's kernel limit at ε = 1e-12: its 2 km edges,
-    // outside the session box
-    // (`work/shell/the-session-box-is-not-enforced-at-construction.md`),
-    // measure their ends against their planes in certification arithmetic
-    // at [0, 1.5e-11], the data's own rounding at that length — an
-    // enclosure reaching zero, so only an upper bound, and the
-    // composite's stall stands. It claims no miss.
     test_utils::kernel_limit::pinned_row(
         geom_core::Tol::witness().eps(),
-        &[1e-12],
+        &[],
         "r5_crossing_vertex_on_is_declared_not_measured",
         || {
-            // Plane x + 3y = 400000, normal (1,3,0)/√10; crossing edges hit it
+            // Plane x + 3y = 0, normal (1,3,0)/√10; crossing edges hit it
             // at non-dyadic parameters.
             let profile = [
-                (99004.0, 98986.0),
-                (101007.0, 99000.0),
-                (101011.0, 101017.0),
-                (98993.0, 101003.0),
+                (-498.0, -507.0),
+                (503.5, -500.0),
+                (505.5, 508.5),
+                (-503.5, 501.5),
             ];
             let l = 10.0f64.sqrt();
             let plane = topo::test_support::split_plane(
-                Point3::new(100000.0, 100000.0, 0.0),
+                Point3::new(0.0, 0.0, 0.0),
                 Vec3::new(1.0 / l, 3.0 / l, 0.0),
                 geom_core::Tol::witness(),
             );
@@ -392,7 +385,7 @@ fn r5_crossing_vertex_on_is_declared_not_measured() {
                 let operand =
                     topo::test_support::finished("the fixture", fx_p.body.clone(), Tol::witness());
                 let plane_p = topo::test_support::split_plane(
-                    Point3::new(Probe(100000.0), Probe(100000.0), Probe(0.0)),
+                    Point3::new(Probe(0.0), Probe(0.0), Probe(0.0)),
                     Vec3::new(Probe(1.0 / l), Probe(3.0 / l), Probe(0.0)),
                     geom_core::Tol::witness(),
                 );

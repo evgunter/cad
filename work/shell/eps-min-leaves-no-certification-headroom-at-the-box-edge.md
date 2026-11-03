@@ -34,3 +34,10 @@ limit.
 64?) times `SESSION_BOX_EXTENT · 2⁻⁵²`, or a smaller box at fine ε?
 
 - 2026-11-02 — moved from OFFSET to SHELL by `git mv` when OFFSET merged into SHELL, id and body unchanged (the track budget now counts only P0, P1 and unbanded rows, and OFFSET had fallen far under it).
+- 2026-11-02 — PR 6380 (`onehome/run-owns-rounding`) replaced the
+  `EPS_MIN` this body cites (`SESSION_BOX_EXTENT · 2⁻⁵²`) with the run's
+  admission rule: `eps_min(K) = max(16·u·box / (K − 1), u·box)`
+  (`geom_core::tolerance::eps_min`), ≈ 1.97e-13 m at K = 10. The rule
+  covers a short division-free chain's rounding at the box's edge, not a
+  certificate's bound; the measured bounds above (1.1e-12 to 4.4e-12) are
+  still several times the new floor, so the question stands as asked.

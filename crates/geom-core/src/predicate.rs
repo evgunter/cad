@@ -40,23 +40,29 @@
 //! threshold to build sound geometry from" — sliver faces and
 //! near-degenerate features, D4 ¶3's "almost always a modeling mistake".
 //! The band is indeterminate *even under exact arithmetic*; consistently,
-//! the interval instantiation (M0 PR 4) will treat an enclosure inside
-//! the band as indeterminate even when it is a single point. Under this
-//! reading, f64 evaluation noise is absorbed informally — f64 answers are
-//! best-effort, and certification is the interval instantiation's job
-//! (Q1's architecture). The rejected alternative reading — a thin
-//! symmetric noise buffer around ε, K = 1 + η/ε for a per-predicate
-//! evaluation-noise bound η — would accept some models this reading
-//! rejects, but it rests on per-predicate conditioning claims that cannot
-//! be verified until interval replay exists, and it makes the certified
-//! Zero region subtly smaller than the *defined* coincidence region. In
-//! fairness to that reading, its K = 1 + η/ε would be a *measurable*
-//! quantity — derived from an actual per-predicate noise bound — whereas
-//! the sliver band's K (default [`DEFAULT_K`] = 10; run-configurable since M2 PR 7) is a semantic choice, an
-//! honest guess about how much clearance beyond ε sound geometry needs,
-//! pending the M0 multi-ε experiments. We take the design statement over
-//! the measured buffer here, but the buffer reading's K is the more
-//! principled *number* and that is not a point in this reading's favor.
+//! the interval instantiation treats an enclosure inside the band as
+//! indeterminate even when it is a single point.
+//!
+//! **f64 rounding is the run's, not the predicate's** (DESIGN
+//! `[simple.conditioned]`). The rule: every margin is posed
+//! well-conditioned where its sign is decided, and at `f64` is then read
+//! as if exact; a predicate does not charge, pad or estimate its own
+//! rounding. The sites outside geom-core that still do are each a listed
+//! exception, `scripts/gates/bare-rounding-sites.tsv`, which
+//! `scripts/gates/bare-rounding-allowlist.sh` counts and which only
+//! shrinks, every production row scheduled for its re-posing by a work
+//! row. The one
+//! statement about rounding is the run's admission rule
+//! ([`crate::tolerance::admissible`]): a run is admitted only where the
+//! headroom `(K − 1)·ε` covers the rounding of a short, division-free
+//! chain on in-box coordinates, so a margin that rounds across ε lands in
+//! the band rather than past it. A margin whose error a vanishing
+//! quantity amplifies (a division by a sine, a squared residual over a
+//! small `2r`) is a defect, re-posed (a pose decided first, a distance
+//! form), and never covered by K. The `Interval` lane accounts for
+//! rounding where a result must, and an ill-posed margin's enclosure lands
+//! in the band, which is terminal.
+//!
 //! The consequence users see here: a model whose true margin lands in
 //! (ε, K·ε) fails loudly rather than building; the fix is to widen the
 //! feature or shrink ε.
@@ -152,7 +158,7 @@ use core::fmt;
 
 use crate::Readable;
 use crate::spline::SpanLocate;
-use crate::tolerance::{EPS_MIN, Tol};
+use crate::tolerance::{Tol, eps_min};
 
 /// The **default** ambiguity multiplier K = 10, re-exported from the
 /// tolerance module: a band's `escalate` threshold is K times its
@@ -340,10 +346,11 @@ impl fmt::Display for BandError {
 
 impl std::error::Error for BandError {}
 
-/// `v` as an offer: kept where it lies above [`EPS_MIN`], the smallest ε a
-/// run admits, and withheld at or below it (D4 ¶4).
-fn above_floor(v: f64) -> Option<f64> {
-    (v > EPS_MIN).then_some(v)
+/// `v` as an offer at multiplier `k`: kept where it lies above
+/// [`eps_min`] of `k`, the smallest ε a run at that K admits ([`EPS_MIN`](crate::tolerance::EPS_MIN)
+/// at the default K), and withheld at or below it (D4 ¶4).
+fn above_floor(v: f64, k: f64) -> Option<f64> {
+    (v > eps_min(k)).then_some(v)
 }
 
 /// The two thresholds a margin is classified against: `zero` (the
@@ -445,13 +452,13 @@ impl Band {
 
     /// **The tolerance a refusal of `margin` offers to tighten below**,
     /// or `None` where it offers none because that tolerance
-    /// ([`Band::tolerance_deciding`]) is no larger than [`EPS_MIN`]: "below
+    /// ([`Band::tolerance_deciding`]) is no larger than [`EPS_MIN`](crate::tolerance::EPS_MIN): "below
     /// it" would ask for an ε no run admits (D4 ¶4). The one home of the
     /// floor rule for a point margin a decision passes on; readers that
     /// predict an ending ask this rather than restating the comparison.
     #[must_use]
     pub fn offer_deciding(self, margin: f64) -> Option<f64> {
-        above_floor(self.tolerance_deciding(margin))
+        above_floor(self.tolerance_deciding(margin), self.escalate / self.zero)
     }
 
     /// The band for **linear** margins (meters): (ε, K·ε) from the run's
@@ -471,7 +478,8 @@ impl Band {
     ///   infinity: the run's ε is within a factor K of `f64::MAX`. The
     ///   one arm a run's tolerance reaches, at the top of the range
     ///   [`Tolerance`](crate::tolerance::Tolerance) admits (any finite
-    ///   ε ≥ [`EPS_MIN`], any finite K > 1), and unreachable for any
+    ///   ε ≥ [`eps_min`](crate::tolerance::eps_min) of its K, any finite
+    ///   K > 1), and unreachable for any
     ///   physically meaningful tolerance (D4 ¶4's session box is 1 km,
     ///   ε ≈ 1e-9). The repair is a smaller ε.
     /// - [`BandError::Empty`] when K·ε rounds back onto ε, so `zero` ==
@@ -481,10 +489,14 @@ impl Band {
     ///   can round away entirely. It needs a subnormal ε (in fact
     ///   ε ≤ 2⁻¹⁰²³, since above that even the least admissible
     ///   K = 1 + 2⁻⁵² clears the half-ulp) and a K near 1. **No normal ε
-    ///   collapses at any admitted K**, so no run's ε does (the floor
-    ///   [`EPS_MIN`] is normal): this arm is reached only through
-    ///   [`Band::linear_at`] and [`Band::angular_at`], at a scale the
-    ///   caller names. The repair is to raise that scale, or K.
+    ///   collapses at any admitted K**, so no run's ε does (every
+    ///   admitted ε is at least its K's
+    ///   [`eps_min`](crate::tolerance::eps_min), never below a coordinate's
+    ///   spacing at the box edge, which is normal): this arm is reached only through
+    ///   [`Band::linear_at`], at a scale the caller names: a K near 1 is
+    ///   admitted only with an ε whose angle over any finite arm is
+    ///   normal, so [`Band::angular_at`] never reaches it at an admitted
+    ///   run. The repair is to raise that scale, or K.
     ///
     /// Neither is a panic and neither is a silently invalid band: D9
     /// makes the residue a typed error.
@@ -583,8 +595,10 @@ impl Band {
     ///   - [`BandError::InvalidValue`] on `zero` if θ overflows to
     ///     infinity, at a `lever_arm` below ε/`f64::MAX`. The repair is
     ///     the arm, not ε. θ never rounds to 0 at a run's ε: that needs
-    ///     `lever_arm` ≥ ε·2¹⁰⁷⁵, past `f64::MAX` for every ε ≥
-    ///     [`EPS_MIN`].
+    ///     `lever_arm` ≥ ε·2¹⁰⁷⁵, past `f64::MAX` for every ε a run
+    ///     admits, each at least its K's
+    ///     [`eps_min`](crate::tolerance::eps_min), never below a
+    ///     coordinate's spacing at the box edge.
     ///   - [`BandError::InvalidValue`] on `escalate` if θ is finite but
     ///     K·θ overflows — the same overflow residue [`Band::linear`]
     ///     documents, reached here through a tiny arm rather than a huge ε.
@@ -1462,7 +1476,7 @@ enum Shows {
     /// [`SizedWords::refused`], and no other does.
     NoSize,
     /// A nonzero size wholly on a side the decision passes, its nearer
-    /// end away from zero, that only a tolerance at or below [`EPS_MIN`]
+    /// end away from zero, that only a tolerance at or below [`EPS_MIN`](crate::tolerance::EPS_MIN)
     /// decides.
     Floor,
     /// An enclosure touching or straddling zero that does not show no
@@ -1480,7 +1494,7 @@ enum Shows {
 }
 
 /// The sentence a refusal's ending adds where only a tolerance at or
-/// below [`EPS_MIN`] decides its `size` ([`MarginDiag::sized_recourse`]):
+/// below [`EPS_MIN`](crate::tolerance::EPS_MIN) decides its `size` ([`MarginDiag::sized_recourse`]):
 /// the one spelling of it.
 #[must_use]
 pub fn floor_note(size: &str) -> String {
@@ -2076,7 +2090,7 @@ impl MarginDiag {
     ///   reading in band or past it wholly on a side the decision
     ///   refuses — [`SizedWords::no_size`], or the ending
     ///   [`SizedWords::refused`] names in its place;
-    /// - where only a tolerance at or below [`EPS_MIN`] decides it,
+    /// - where only a tolerance at or below [`EPS_MIN`](crate::tolerance::EPS_MIN) decides it,
     ///   [`floor_note`];
     /// - where it is poisoned, [`SizedWords::unreadable`]
     ///   ([`MarginDiag::unreadable_note`]);
@@ -2118,7 +2132,7 @@ impl MarginDiag {
     /// intended, re-export the file with its uncertainty declared below
     /// {near} m and tighten the tolerance below {near/K} m", both steps
     /// together, since neither alone keeps the size; where only a
-    /// tolerance at or below [`EPS_MIN`] decides it, [`floor_note`], true
+    /// tolerance at or below [`EPS_MIN`](crate::tolerance::EPS_MIN) decides it, [`floor_note`], true
     /// of the number whatever the file stores. No decision's note rides
     /// there: the door cannot tell a zero the file stores exactly from a
     /// rounded one, and one message serves every reading within ε_in
@@ -2927,7 +2941,7 @@ impl Indeterminate {
     }
 
     /// Whether [`Indeterminate::ending`] offers a tolerance: a smaller
-    /// one a run admits, above [`EPS_MIN`] (D4 ¶4), decides the margin
+    /// one a run admits, above [`EPS_MIN`](crate::tolerance::EPS_MIN) (D4 ¶4), decides the margin
     /// onto a sign the refused decision passes.
     /// For a door that re-quotes an escalation at a reading it meters,
     /// which only an escalation with a tolerance to offer can be.
@@ -3151,7 +3165,7 @@ impl Decide for f64 {
 mod tests {
     use super::*;
     use crate::interval::certification::Certification;
-    use crate::tolerance::Tol;
+    use crate::tolerance::{EPS_MIN, Tol};
     use proptest::prelude::*;
 
     /// **The session box's arm is the box's extent, and levers as one.**
@@ -3336,13 +3350,13 @@ mod tests {
             (Positive, e(2e-9, 5e-9), Shows::Offer(2e-10)),
             (Positive, e(-5e-9, -2e-9), Shows::NoSize),
             (Positive, e(-2e-9, 3e-9), Shows::Unresolved),
-            (Positive, e(-2e-12, 6e-12), Shows::Unresolved),
+            (Positive, e(-1.5e-12, 6e-12), Shows::Unresolved),
             (Positive, e(-5e-10, 0.0), Shows::NoSize),
             (Positive, v(0.0), Shows::NoSize),
             (Positive, v(-5e-10), Shows::NoSize),
             (Positive, v(5e-10), Shows::Offer(5e-11)),
-            (Positive, v(2e-12), Shows::Floor),
-            (Positive, e(2e-12, 3e-12), Shows::Floor),
+            (Positive, v(1.5e-12), Shows::Floor),
+            (Positive, e(1.5e-12, 3e-12), Shows::Floor),
             (Positive, v(5e-8), Shows::Past),
             (Positive, v(-5e-8), Shows::Refused),
             (Positive, e(-5e-8, -2e-8), Shows::Refused),
@@ -3355,7 +3369,7 @@ mod tests {
             (Negative, e(-5e-9, -2e-9), Shows::Offer(2e-10)),
             (Negative, e(2e-9, 5e-9), Shows::NoSize),
             (Negative, e(-2e-9, 0.0), Shows::Unresolved),
-            (AnySign, v(-2e-12), Shows::Floor),
+            (AnySign, v(-1.5e-12), Shows::Floor),
             (AnySign, MarginDiag::INVALID, Shows::Unreadable),
             // A set that passes zero reads zero as passing, as `admits`
             // does, so a reading at or across zero shows some size; its
@@ -3364,7 +3378,7 @@ mod tests {
             (NonNegative, e(0.0, 3e-9), Shows::Unresolved),
             (NonNegative, v(0.0), Shows::Unresolved),
             (AnySign, e(-2e-9, 3e-9), Shows::Unresolved),
-            (AnySign, e(-2e-12, 3e-12), Shows::Unresolved),
+            (AnySign, e(-1.5e-12, 3e-12), Shows::Unresolved),
             (AnySign, v(-0.0), Shows::Unresolved),
         ];
         for (pass, margin, want) in rows {
@@ -3422,8 +3436,8 @@ mod tests {
         let margins = [
             MarginDiag::value(5e-9),
             MarginDiag::value(-5e-10),
-            MarginDiag::value(2e-12),
-            MarginDiag::enclosure(-2e-12, 6e-12),
+            MarginDiag::value(1.5e-12),
+            MarginDiag::enclosure(-1.5e-12, 6e-12),
             MarginDiag::value(1.0),
             MarginDiag::value(-1.0),
             MarginDiag::enclosure(-5e-8, -2e-8),
@@ -3579,7 +3593,7 @@ mod tests {
                 "Recourse: L; n".to_owned(),
             ),
             (
-                MarginDiag::value(2e-12),
+                MarginDiag::value(1.5e-12),
                 words(Some("n")),
                 format!("Recourse: L; {}", floor_note("length")),
             ),
@@ -3595,7 +3609,7 @@ mod tests {
     }
 
     /// **No offer quotes a tolerance at or below ε_min** (D4 ¶4): a
-    /// positive margin whose `|m|/K` is no larger than [`EPS_MIN`] ends
+    /// positive margin whose `|m|/K` is no larger than [`EPS_MIN`](crate::tolerance::EPS_MIN) ends
     /// in the lever and the floor's sentence, never the decision's
     /// no-size note — at rest, as an enclosure and in a gate's
     /// escalation, whose whole sentence is pinned so the fact is said

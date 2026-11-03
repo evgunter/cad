@@ -601,7 +601,10 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
         ),
         (
             "InvalidTolerance",
-            EditError::InvalidTolerance { value: -1.0e-7 },
+            EditError::InvalidTolerance {
+                value: -1.0e-7,
+                k: geom_core::tolerance::DEFAULT_K,
+            },
         ),
         (
             "MetaUnversioned",

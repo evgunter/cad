@@ -556,7 +556,7 @@ pub(crate) fn persist_err(py: Python<'_>, err: &d::PersistError) -> PyErr {
         ),
         // `value` IS the document's recorded ε — the same concept the
         // conflict arm reports as `document` — so it crosses there.
-        E::ToleranceInvalid { value } => (
+        E::ToleranceInvalid { value, .. } => (
             none(),
             none(),
             none(),

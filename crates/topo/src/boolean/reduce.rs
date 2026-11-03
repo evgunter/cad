@@ -7573,79 +7573,11 @@ mod clearance_rows {
         );
     }
 
-    /// **A short arc a thousand kilometres out is charged its samples'
-    /// rounding.** The third delta review's pin: an ellipse stored with
-    /// `major = −0.556`, `minor = 1.02`, centred 1000 km out, an arc of
-    /// ±3e-4 rad about its vertex, against a 0.118 m ball, at ε = 1e-12.
-    /// The ball was placed 2.1e-11 m off by its nominal, but its stored
-    /// centre rounds at that distance's ulp, and the true least distance
-    /// of the STORED geometry is −5.3e-12 m — in band. On an arc that
-    /// short the chord-dip charge is negligible, so the arc enclosure's
-    /// margin is its samples' own: read without their rounding charge
-    /// (`geom_brep::conic_arc_residual_range`'s `sample_rounding`), the
-    /// rung certified the touch clear.
-    #[test]
-    fn a_short_arc_far_out_is_charged_its_samples_rounding() {
-        let band = Band::new(1e-12, 1e-11).unwrap();
-        let axis = Vec3::new(
-            -0.331_547_126_719_510_5,
-            -0.144_826_239_786_666_6,
-            0.932_256_329_039_010_6,
-        );
-        let center = Point3::new(
-            -793_186.577_792_401_4,
-            241_909.440_601_441_78,
-            -783_085.727_290_743_7,
-        );
-        let (major, minor) = (-0.556_277_953_009_113_9, 1.019_942_477_711_699_2);
-        let u_ref = Vec3::new(
-            -0.346_444_852_811_330_7,
-            -0.900_421_850_752_487_9,
-            -0.263_090_202_493_364_96,
-        );
-        let e = geom::Curve3::Ellipse(geom::Ellipse::new(
-            geom::Frame::new(center, axis, u_ref),
-            major,
-            minor,
-        ));
-        let x = Vec3::new(1.0, 0.0, 0.0);
-        let s = geom::Surface::Sphere {
-            center: Point3::new(
-                -793_187.576_342_526_2,
-                241_909.907_376_568_15,
-                -783_086.009_900_933_8,
-            ),
-            radius: 0.117_972_233_474_760_74,
-            axis,
-            u_ref: (x - axis * x.dot(axis)).normalize(),
-        };
-        let vertex: f64 = 4.712_388_980_384_69;
-        let (sv, cv) = vertex.sin_cos();
-        let least = distance_from_anchor(&s, |anchor| {
-            (center - anchor) + u_ref * (major * cv) + axis.cross(u_ref) * (minor * sv)
-        });
-        assert!(
-            least.abs() <= 1e-11,
-            "the pose is a touch in band: {least:e}"
-        );
-        let conic = e.conic().unwrap();
-        let got = conic_clearance(
-            &s,
-            &conic,
-            (4.712_088_980_384_689_5, 4.712_688_980_384_69),
-            band,
-        );
-        assert!(
-            !matches!(got, Some(Ok(Sign::Positive))),
-            "a touch {least:e} m off certified clear: {got:?}"
-        );
-    }
-
     /// **No certified clearance on a graze, through the rung.** Circles,
     /// and ellipses in all eight stored orders and signs (eccentricity
-    /// up to 40), metre- or kilometre-sized, centred up to a metre, a
-    /// kilometre or a thousand kilometres out (where a sampled residual's
-    /// coordinate rounding, `u·|p|`, passes the band at 1e-12), each meeting a sphere or a wall (radius 1 µm to 1 m, the
+    /// up to 40), metre- or fifty-metre-scaled, centred up to a metre, a
+    /// hundred or three hundred metres out, all inside the session box,
+    /// each meeting a sphere or a wall (radius 1 µm to 1 m, the
     /// wall's axis across the outward normal) at a vertex, set off along
     /// the outward normal by `gap`, −40 to 40 bands. The vertex is the
     /// carrier's least distance from the surface (the carrier bends away
@@ -7665,7 +7597,7 @@ mod clearance_rows {
                 let n = unit(&mut rng);
                 let u = unit(&mut rng);
                 let u_ref = (u - n * u.dot(n)).normalize();
-                let scale = if rng.below(2) == 0 { 1.0 } else { 1000.0 };
+                let scale = if rng.below(2) == 0 { 1.0 } else { 50.0 };
                 let big = scale * rng.range(0.5, 5.0);
                 let circle = i % 9 == 8;
                 let combo = i % 8;
@@ -7679,7 +7611,7 @@ mod clearance_rows {
                 } else {
                     (small, big)
                 };
-                let far = [1.0, 1e3, 1e6][rng.below(3)];
+                let far = [1.0, 1e2, 3e2][rng.below(3)];
                 let center = Point3::new(
                     rng.range(-far, far),
                     rng.range(-far, far),

@@ -2348,7 +2348,6 @@ impl LoftFault {
         }
     }
 }
-
 /// Typed, specific edit refusal (spec D6: no stringly errors).
 ///
 /// **The variable-read naming convention is stated here and nowhere
@@ -3191,6 +3190,10 @@ pub enum EditError {
     InvalidTolerance {
         /// The refused value.
         value: f64,
+        /// The K the value was asked at, captured when refused
+        /// (`geom_core::tolerance::k_admitted`), so the refusal's text
+        /// does not depend on when it is rendered.
+        k: f64,
     },
     /// A `SetAppearanceMeta` value violating the D7 producer
     /// convention (a map carrying an integer `"v"` version field).
@@ -3820,7 +3823,7 @@ impl EditError {
                 expected: _,
                 found: _,
             }
-            | Self::InvalidTolerance { value: _ }
+            | Self::InvalidTolerance { value: _, k: _ }
             | Self::PlacementAxis { error: _ } => {}
         }
         again
@@ -4656,14 +4659,16 @@ impl EditError {
                 write!(f, "no {} attribute is set on {name}", kind.noun())?;
                 tail.recourse(f, format_args!("clear only an attribute the name carries"))
             }
-            Self::InvalidTolerance { value } => {
-                use geom_core::tolerance::{EPS_MIN, EpsFloor};
-                write!(f, "tolerance {value:e} is not admissible: {EpsFloor}")?;
+            Self::InvalidTolerance { value, k } => {
+                use geom_core::tolerance::{EpsFloor, eps_min};
+                let floor = EpsFloor { k: *k };
+                write!(f, "tolerance {value:e} is not admissible: {floor}")?;
                 tail.recourse(
                     f,
                     format_args!(
                         "keep the tolerance the document records, or offer a length in metres of \
-                         at least {EPS_MIN:e}"
+                         at least {:.2e}",
+                        eps_min(floor.k)
                     ),
                 )
             }
@@ -8779,7 +8784,10 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
             // save/load validator also asks of a snapshot
             // (`crate::doc::epsilon_admissible`).
             if !crate::doc::epsilon_admissible(*eps) {
-                return Err(EditError::InvalidTolerance { value: *eps });
+                return Err(EditError::InvalidTolerance {
+                    value: *eps,
+                    k: geom_core::tolerance::k_admitted(*eps),
+                });
             }
             new.epsilon = *eps;
             EditRecord {

@@ -1386,7 +1386,8 @@ pub(crate) fn finding_solids<T: Decide>(
         // Every other finding is about one body's own topology or
         // geometry, never a pair of solids. Listed rather than a
         // wildcard, so a finding topo adds is placed here by hand.
-        E::Band { .. }
+        E::OutsideSessionBox { .. }
+        | E::Band { .. }
         | E::DanglingDescription { .. }
         | E::UncertifiableSurface { .. }
         | E::PoisonedSurfaceDescription { .. }

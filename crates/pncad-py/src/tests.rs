@@ -2750,7 +2750,13 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     );
 
     // ---- scalars and addresses ----
-    carries(&E::InvalidTolerance { value: -1.0 }, &["value"]);
+    carries(
+        &E::InvalidTolerance {
+            value: -1.0,
+            k: pncad::tolerance::DEFAULT_K,
+        },
+        &["value"],
+    );
     carries(
         &E::PinUnchanged {
             node: sp(1),
@@ -6152,6 +6158,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "orphan_entity",
             "orphan_geometry",
             "outer_listed_as_ring",
+            "outside_session_box",
             "parent_loop_mismatch",
             "pcurve",
             "pinch_corner_crossed",

@@ -3052,10 +3052,12 @@ pub(crate) fn witness_site_fault<P>(doc: &Doc<P>, node: RecipeNodeId) -> Option<
     }
 }
 
-/// **The recorded ε's admission rule**: the run's own, whose home is
-/// [`geom_core::tolerance::eps_admissible`]. Asked by the edit door that
-/// records an ε ([`crate::DocEdit::SetTolerance`]) and by the save/load
-/// validator's snapshot walk, so the two doors cannot disagree.
+/// **The recorded ε's admission rule**: the run's own, at the K the ε
+/// would run at, whose home is [`geom_core::tolerance::eps_admissible`].
+/// Asked by the edit door that records an ε
+/// ([`crate::DocEdit::SetTolerance`]) and by the save/load validator's
+/// snapshot walk, so the two doors and the run's commitment cannot
+/// disagree.
 pub(crate) fn epsilon_admissible(eps: f64) -> bool {
     geom_core::tolerance::eps_admissible(eps)
 }

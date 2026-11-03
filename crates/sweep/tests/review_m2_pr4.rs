@@ -27,8 +27,7 @@ use profile::{
 use sweep::{ExtrudeError, Extruded, Extrusion, extrude};
 use topo::readback::{EulerCounts, euler_counts};
 use topo::{
-    Body, EdgeKey, EulerOpError, FaceKey, LoopBoundary, LoopKey, validate, validate_closed,
-    validate_geometric,
+    Body, EdgeKey, FaceKey, LoopBoundary, LoopKey, validate, validate_closed, validate_geometric,
 };
 
 fn eps() -> f64 {
@@ -1032,59 +1031,42 @@ fn survives_digon_caps_apex_determined() {
     }
 }
 
-/// Far-from-origin profiles (1e8 m offsets): the all-line L must build
-/// at every ε row (translate-to-origin Newell); the arc profile is
-/// allowed to either build tier-valid or refuse TYPED (certification
-/// residuals at 1e8 exceed ε = 1e-9/1e-12 honestly) — never panic,
-/// never a silently invalid body.
+/// Far-from-origin profiles: the all-line L at 500 m builds and passes
+/// every tier (translate-to-origin Newell); the same L at 1e8 m is past
+/// the session box, and the finished-body gate refuses it by the box,
+/// alone.
 #[test]
 fn survives_far_offset_profiles_honest() {
-    // Lines only: exact dyadic data at 1e8 — must succeed at every ε.
-    let off = 1.0e8;
-    let lp = ProfileLoop::polygon([
-        Point2::new(off, off),
-        Point2::new(off + 2.0, off),
-        Point2::new(off + 2.0, off + 1.0),
-        Point2::new(off, off + 1.0),
-    ]);
-    let t = extrude(
-        &validated(vec![lp]),
-        Extrusion::Distance {
-            depth: 1.5,
-            side: ExtrudeSide::Along,
-        },
-        Tol::witness(),
-    )
-    .unwrap();
-    assert_all_tiers(&t.body);
-    assert!(signed_volume(&t.body) > 0.0);
-
-    // Arc carrier at 1e8: honesty check (typed either way).
-    let lp = circle_loop(off, off, 0.5);
-    match Profile::new(SketchPlane::xy(), vec![lp]).validate(Tol::witness()) {
-        Err(_) => {} // typed refusal at the profile gate is honest
-        Ok(vp) => match extrude(
-            &vp,
+    let l_at = |off: f64| {
+        let lp = ProfileLoop::polygon([
+            Point2::new(off, off),
+            Point2::new(off + 2.0, off),
+            Point2::new(off + 2.0, off + 1.0),
+            Point2::new(off, off + 1.0),
+        ]);
+        extrude(
+            &validated(vec![lp]),
             Extrusion::Distance {
-                depth: 1.0,
+                depth: 1.5,
                 side: ExtrudeSide::Along,
             },
             Tol::witness(),
-        ) {
-            Ok(t) => assert_all_tiers(&t.body),
-            Err(e) => assert!(
-                matches!(
-                    e,
-                    ExtrudeError::Op {
-                        source: EulerOpError::Certification { .. }
-                    } | ExtrudeError::CapPlane { .. }
-                        | ExtrudeError::SliverJoin { .. }
-                        | ExtrudeError::CosurfaceEscalated { .. }
-                ),
-                "far-offset arc refusal must be a typed geometry error, got {e:?}"
-            ),
-        },
-    }
+        )
+        .unwrap()
+        .body
+    };
+    let near = l_at(5.0e2);
+    assert_all_tiers(&near);
+    assert!(signed_volume(&near) > 0.0);
+    let far = l_at(1.0e8);
+    let errors = topo::validate_geometric(&far, Tol::witness()).unwrap_err();
+    assert!(
+        matches!(
+            &errors[..],
+            [topo::ValidationError::OutsideSessionBox { .. }]
+        ),
+        "the 1e8 m L is past the session box: {errors:?}"
+    );
 }
 
 // =====================================================================

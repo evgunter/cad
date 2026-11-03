@@ -77,7 +77,7 @@ fn an_overlapping_row_is_judged_and_fuses() {
 
 #[test]
 fn a_far_tangent_row_is_judged_and_fuses() {
-    for x0 in [1.0e3, 1.0e6, 1.0e8] {
+    for x0 in [1.0e2, 5.0e2, 9.9e2] {
         let got = row_union(x0, 1.0, 1.0, 3);
         assert!(got.0 > 0, "{x0}: {got:?}");
         assert_eq!(got.1, 1, "{x0}: {got:?}");
@@ -89,7 +89,7 @@ fn a_far_tangent_row_is_judged_and_fuses() {
 /// builds a wrong count.
 #[test]
 fn a_far_near_tangent_row_builds_one_body_or_three() {
-    for (x0, gap) in [(1.0e6, 1e-9), (1.0e6, 1e-12), (0.0, 1e-12), (0.0, 1e-9)] {
+    for (x0, gap) in [(9.9e2, 1e-9), (9.9e2, 1e-12), (0.0, 1e-12), (0.0, 1e-9)] {
         let doc = ProfileDoc::empty_derived("r1", Tol::witness());
         let (doc, b) = block(doc, (x0, x0 + 1.0), (0.0, 1.0), 1.0);
         let (doc, _, row) = fixture::row(doc, b, ("k", 3), TargetAxis::X, 1.0 + gap);

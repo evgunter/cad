@@ -1088,8 +1088,12 @@ pub(super) fn one_curve<T: Decide>(
 /// rounding, and the larger is taken, so the gap does not depend on the
 /// order of the pair.
 ///
-/// **The gap carries its own rounding charge**, so no reading of it is
-/// bare. With `m` a conic's larger semi-axis magnitude, the computed
+/// **The gap carries the rounding its conics' stored semi-axes
+/// amplify**, so no reading of it is bare: carrier terms, which the run's
+/// admission rule (`geom_core::tolerance::admissible`) does not cover,
+/// read here on this chain's own derived count rather than
+/// [`crate::carrier_resolution`]'s fitted one. With `m` a conic's larger
+/// semi-axis magnitude, the computed
 /// semi-axis vectors are off by `√17·u·m` (`v̂ = n̂ × û` by `4u`), the
 /// computed `Q`'s columns are unit to within about `4.5u`, and its
 /// products and the norms round by `4u·m` and `5u·g`: within

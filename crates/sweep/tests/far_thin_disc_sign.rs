@@ -1,6 +1,6 @@
 //! **A far thin disc's sign is read off its exact volume.** A 4-arc disc
 //! (one cylindrical wall, so the walk is not all-planar) of radius 1 mm
-//! and height `h`, kilometres from the world origin. Its `f64` divergence
+//! and height `h`, near the session box's edge. Its `f64` divergence
 //! sum is right to four digits here, but an enclosure of it taken about
 //! the world origin is wider than the volume, so an inside-out disc used
 //! to pass check 7 and a valid one to escalate in the shell
@@ -19,12 +19,12 @@ use topo::{
 /// The discs these rows read: `(h, d)`, every height thin enough that
 /// the world-origin enclosure straddled at the distances it is placed at.
 const DISCS: [(f64, f64); 6] = [
-    (1e-7, 1e3),
-    (1e-7, 5e3),
-    (1e-7, 2e4),
-    (1e-6, 5e3),
-    (1e-6, 2e4),
-    (1e-5, 2e4),
+    (1e-7, 5e2),
+    (1e-7, 8e2),
+    (1e-7, 9.5e2),
+    (1e-6, 8e2),
+    (1e-6, 9.5e2),
+    (1e-5, 9.5e2),
 ];
 
 const R: f64 = 1e-3;
@@ -32,7 +32,7 @@ const R: f64 = 1e-3;
 /// The disc of height `h` whose axis foot is `d` metres out along a skew
 /// direction, and that foot; `None`, standing down loudly, where the
 /// fixture's own extrusion refuses — a position whose rounding is not
-/// well below ε (`ulp(2e4) ≈ 3.6e-12`, at ε 1e-12) is not a body here.
+/// well below ε is not a body here.
 fn disc(h: f64, d: f64, tol: Tol) -> Option<(Body<f64>, Point3<f64>)> {
     let foot = Point3::new(0.6 * d, 0.48 * d, 0.64 * d);
     let built = std::panic::catch_unwind(|| {
@@ -117,7 +117,7 @@ fn far_thin_discs_are_read_by_their_exact_volume() {
             assert_eq!(got, at, "{what}, {name}: inside and beside the disc");
         }
     }
-    // Every disc builds at ε 1e-9, and the three within 5 km at 1e-12;
+    // Every disc builds at ε 1e-9, and the three within 800 m at 1e-12;
     // at 1e-6 none is a body.
     if tol.eps() <= 1e-9 {
         assert!(
@@ -133,12 +133,12 @@ fn far_thin_discs_are_read_by_their_exact_volume() {
 #[test]
 fn a_box_less_a_far_thin_disc_is_a_valid_hollow() {
     let tol = Tol::witness();
-    let (h, d) = (1e-6, 5e3);
+    let (h, d) = (1e-6, 8e2);
     if !buildable(h, tol) {
         return;
     }
     let Some((disc, foot)) = disc(h, d, tol) else {
-        panic!("the 5 km disc builds wherever its walls clear the band");
+        panic!("the 800 m disc builds wherever its walls clear the band");
     };
     let a = 4.0 * R;
     let boxy = brick::<f64>(
@@ -209,7 +209,7 @@ fn tilted_cut(h: f64, tilt: f64, tol: Tol) -> Option<Body<f64>> {
 /// at ε 1e-9, so the sign is far from the band; a quadrature face taken
 /// about the world origin used to leave the valid disc refused
 /// `VolumeSignUnresolved` 5 km out. At 1e-12 the pose `h 1e-6, tilt 0.8,
-/// 5e3 m, turned 0.7` refused `QuadratureBudget` on its wall while the
+/// 5e3 m, turned 0.7` (measured there; the rows sit inside the box) refused `QuadratureBudget` on its wall while the
 /// cylinder lane read each trim end's trig off its vertex, `ε` wide over
 /// `r = 1 mm`
 /// (`work/quadtail/a-micron-thin-cylinder-wall-runs-the-quadrature-out-of-budget-on-its-map-residual-pad.md`);
@@ -226,7 +226,7 @@ fn far_tilted_cut_discs_are_read_by_their_exact_volume() {
             let Some(cut) = tilted_cut(h, tilt, tol) else {
                 continue;
             };
-            for d in [5e3, 2e4] {
+            for d in [8e2, 9.5e2] {
                 for angle in [0.0, 0.7] {
                     let what = format!("h {h:e}, tilt {tilt}, {d:e} m, turned {angle}");
                     let turn = Affine3::rotation_about_axis(

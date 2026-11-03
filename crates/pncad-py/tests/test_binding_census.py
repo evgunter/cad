@@ -3926,6 +3926,7 @@ MEMBERS_BOUND_AS = {
     # the FINDING rather than the exception: `len(findings) ==
     # failure_count`, one `variant` each (`crates/pncad-py/src/
     # validation.rs`).
+    "ValidationError::OutsideSessionBox": "ValidationFinding.variant",
     "ValidationError::Band": "ValidationFinding.variant",
     "ValidationError::DanglingDescription": "ValidationFinding.variant",
     "ValidationError::UncertifiableSurface": "ValidationFinding.variant",

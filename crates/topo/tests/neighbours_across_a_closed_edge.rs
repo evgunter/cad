@@ -149,7 +149,7 @@ fn circle_at_rest(
 }
 
 /// **(b)**: the top and a disc on its plane meet along a circle whose
-/// chord is 0, at scales 1e-3, 1 and 1e3 (the disc's radius the
+/// chord is 0, at scales 1e-3, 1 and 50 (the disc's radius the
 /// brick's height), the body finished and united with a far brick
 /// through the public door. Levered at the circle's extent, the gate
 /// decides they face the same way and lie on one plane, and refuses
@@ -158,7 +158,7 @@ fn circle_at_rest(
 /// undecided at margin 0.
 #[test]
 fn a_disc_on_its_hosts_plane_refuses_as_not_maximal() {
-    for s in [1e-3, 1.0, 1e3] {
+    for s in [1e-3, 1.0, 5e1] {
         let (body, top, _) = disc_in_top(s, s);
         let (rested, circle) = circle_at_rest(&body, top, s, s);
         let tol = Tol::witness();

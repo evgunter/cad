@@ -8349,7 +8349,7 @@ mod tests {
         let floor = floor_note("length");
         let band = Band::new(1e-9, 1e-8).unwrap();
         let rejected =
-            decide_positive("interval_span_forward", Margin::of(2e-12), band).unwrap_err();
+            decide_positive("interval_span_forward", Margin::of(1.5e-12), band).unwrap_err();
         let in_band = Indeterminate {
             margin: MarginDiag::value(3.0 * EPS_MIN),
             band: Band::new(2.0 * EPS_MIN, 20.0 * EPS_MIN).unwrap(),
@@ -8363,7 +8363,7 @@ mod tests {
                 cause: rejected,
             }
             .render(Reading::Build),
-            "the stored parameter interval's length at sample 0 escalated: margin 2e-12 lies \
+            "the stored parameter interval's length at sample 0 escalated: margin 1.5e-12 lies \
              within the zero band (±1e-9). Recourse: move the geometry so this edge runs \
              forward over a clear length; no tolerance a run admits decides this length",
             "the whole sentence, so a second statement of the floor goes red"

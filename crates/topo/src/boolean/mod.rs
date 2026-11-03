@@ -289,6 +289,7 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         "bool_vertex_face_side" => Coincide::VertexOnFace.subject(),
         reduce::factored_crossing::FACTORED_PLANE_SIDE => Coincide::VertexOnCurvedFace.subject(),
         crate::vertex_section::VERTEX_SECTION_SIDE => Coincide::VertexOnSection.subject(),
+        crate::session_box::SESSION_BOX_REACH => "whether a body lies inside the session box",
         "bool_held_carrier_datum" => {
             "whether a face lies on the carrier of a face its pierce point's vertex bounds"
         }

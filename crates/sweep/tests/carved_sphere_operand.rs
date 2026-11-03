@@ -330,16 +330,16 @@ fn a_tilted_cut_of_a_ball_is_an_operand() {
 /// 0.063 deep inside B, so in the union. One of A's faces there has a
 /// vertex at A's `−y` pole, the point's antipode, which every great
 /// circle through the point meets at `s = π`; the arcs a ray can decide
-/// on lie behind the point. Asked at the unit scale and at ×1e3.
+/// on lie behind the point. Asked at the unit scale and at ×1e2.
 #[test]
 fn a_point_whose_antipode_is_a_face_vertex_is_read() {
     let tol = Tol::witness();
     let band = Band::linear(tol).unwrap();
-    for scale in [1.0, 1e3] {
+    for scale in [1.0, 1e2] {
         if scale > 1.0 && tol.eps() < 1e-10 {
             test_utils::vacuity::stood_down(
-                "the ×1e3 antipodal pose at this ε",
-                "a revolved ball of radius 1e3 is not finished at 1e-12, so this pose is not read",
+                "the ×1e2 antipodal pose at this ε",
+                "a revolved ball of radius 1e2 is not read at 1e-12",
             );
             continue;
         }

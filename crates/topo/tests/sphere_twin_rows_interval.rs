@@ -201,6 +201,8 @@ fn a_turned_half_cap_at_a_tight_k_keeps_its_twin() {
         .and_then(|e| e.parse::<f64>().ok())
         .unwrap_or(geom_core::tolerance::DEFAULT_EPS);
     let k = 1.5;
+    // K = 1.5 admits no ε below its own floor: a finer row commits that.
+    let eps = eps.max(geom_core::tolerance::eps_min(k));
     if geom_core::Tolerance::init(geom_core::Tolerance { eps, k }).is_err() {
         assert_eq!(
             Tol::witness().k(),

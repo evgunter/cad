@@ -3966,7 +3966,8 @@ mod line_conic_review {
 }
 
 /// **A curved walk's sign is read off its exact volume too.** A 1 mm
-/// half-disc 1 µm thick, 5 km from the world origin (exact volume
+/// half-disc 1 µm thick, 900 m from the world origin, inside the session
+/// box (exact volume
 /// `π·(1e-3)²·1e-6/2`): upright it passes check 7 and reads `Outer`,
 /// inside out it is refused `NegativeVolume` and reads `Void`, whether
 /// its carriers are anchored at the body or far along themselves. Taken
@@ -3996,7 +3997,7 @@ fn a_far_thin_curved_body_is_read_by_its_exact_volume() {
 
 fn far_thin_half_disc_reads(far: bool, tol: Tol) {
     use crate::ShellRole::{Outer, Void};
-    let d = 5e3;
+    let d = 9e2;
     let upright = half_disc(1e-3, 1e-6, (0.6 * d, 0.48 * d, 0.64 * d), far, tol);
     let exact = std::f64::consts::PI * 1e-6 * 1e-6 / 2.0;
     // The far-anchored disc's `f64` sum is the filed measurement
