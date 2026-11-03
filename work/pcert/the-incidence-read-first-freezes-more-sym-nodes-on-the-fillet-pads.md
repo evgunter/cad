@@ -4,6 +4,8 @@ kind: issue
 title: PCERT E1c's incidence read first raises the plain walks' frozen nodes on the fillet pads three- to fourfold
 status: open
 opened: 2026-11-01
+priority: P4
+cost: M
 ---
 
 

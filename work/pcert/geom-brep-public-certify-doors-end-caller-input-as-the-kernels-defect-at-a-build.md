@@ -4,6 +4,8 @@ kind: issue
 title: geom-brep's public pcurve certify doors end a caller's input as the kernel's defect at a build
 status: open
 opened: 2026-11-03
+priority: P3
+cost: M
 ---
 
 

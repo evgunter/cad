@@ -95,3 +95,7 @@ lengths decided and a typed refusal naming which axis:
 Both are named as "not this unit" in `docs/FRAME-WITNESS-SPEC.md` §1,
 and both are one call to the mint once EXCH decides who owns the band
 at the ε_in direction reader — the same unlock this row already names.
+
+## The basis is kept as a plane's `u_ref` (FRAME, PR 6465, 2026-11-03)
+
+Found by FRAME's class sweep for a roll picked off a world axis. `crates/step-import/src/recognize.rs:231` stores `normal.orthonormal_basis()`'s first vector as `Surface::Plane.u_ref`. Since PR 6465, `Vec3::orthonormal_basis`'s doc (`crates/geom-core/src/linalg/vec.rs`) says the pair is "for scratch and input coordinates only, never a frame that is kept", and that a minted reference is a function of the inputs, not of the axes (D10 `[placement.frame]`). The site's comment argues the file's coordinates are the input; whether a STEP plane's `u_ref`, kept in the body, is input coordinates or a kept frame is exch's call. Recorded here so the bare door's retirement and the kept `u_ref` are decided together.

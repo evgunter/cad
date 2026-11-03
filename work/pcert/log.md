@@ -933,3 +933,10 @@ E1c waits on the answer.
     - `geom-brep-public-certify-doors-end-caller-input-as-the-kernels-defect-at-a-build`;
     - `plane-nurbs-refusal-ending-groups-the-producers-refusals-into-none`.
   - Next: E2 → E3 → E4.
+- 2026-11-03 — **Tail banded; the sitting continues on six P1 rows.** After the P1 `pcurve-certify-error-arms-with-no-ending` merged (PR 6448), no P0 or P1 row was dispatchable, and 19 unbanded rows had put the load at 54/36. They are now banded by `work/README.md`'s definitions; load is 21/36.
+  - **P1, the D3 lane units:** E2 `a-line-on-a-cylinder-has-no-general-lane` (re-banded from P3), E4 `a-circles-general-lane-is-written-only-on-the-sphere` and E5 `a-mint-side-class-pick-escalates-in-band-where-its-general-lane-exists`. Ev ruled on `[ev]` PR 5186 that every class a lane choice reads has a general lane; until each is built, a class is handled by a special case. That is the P1 definition, and the same band the 3617 ruling gave the C4 routes.
+  - **P1, two implementations of one thing:** `plane-nurbs-refusal-ending-groups-the-producers-refusals-into-none` (the sibling of the P1 just closed), `harmonic3-circle-and-ellipse-arms-re-spell-conic-of` and `the-projected-image-inverts-chart-points-by-a-second-spelling`.
+  - **P2:** the full-turn conic read, `site_rows`' spline-carrier bypass, and the spiric run edge.
+  - **P3:** the rest of the refusal-vocabulary residue.
+  - **P4:** the frozen-node cost item.
+  - Order: E2 → E3 → E4, E5 beside. `plane-nurbs-refusal-ending…` and the two second-spelling rows fit between units, wherever they touch different code from the unit in flight.

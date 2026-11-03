@@ -11,7 +11,6 @@
 //! `one_door_for_coincident_sections`'s.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::linalg::frame::path_start_frame;
 use geom_core::spline::KnotVector;
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use profile::test_support::bulge_loop;
@@ -365,8 +364,7 @@ fn a_tight_bend_tube_sweeps_from_any_start() {
         vec![1.0, h, 1.0],
     )
     .unwrap();
-    let place =
-        SketchPlane::from_frame(path_start_frame(path.eval(0.0), path.deriv(0.0), tol).unwrap());
+    let place = crate::common::normal_start_place(&path);
     let frame = place.placement();
     let d = Point3::new(0.0, 0.0, 0.0) - place.origin();
     let toward = d.dot(frame.linear.c1).atan2(d.dot(frame.linear.c0));
@@ -458,8 +456,7 @@ fn a_sweep_turning_about_a_profile_corner_refuses_as_unsupported() {
         vec![1.0, h, 1.0],
     )
     .unwrap();
-    let place =
-        SketchPlane::from_frame(path_start_frame(path.eval(0.0), path.deriv(0.0), tol).unwrap());
+    let place = crate::common::normal_start_place(&path);
     // The circle's centre, and the direction from it to the path's start,
     // in the start frame's sketch coordinates.
     let frame = place.placement();
