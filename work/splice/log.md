@@ -1326,3 +1326,18 @@ general regularity sweep. SECTARMS's cylinder × cylinder unit adopts
   - **Four builds now refuse instead of shipping on a sampled read.** Their way back is the P0 `an-unread-rider-related-only-by-its-own-vertices-refuses`: the same-operand lineage exemption, together with the missing operand at-rest check.
 - 2026-11-03 21:50Z — **PR 6437 merged** (`5f6aaf16`), the fifth unit of the sitting.
   - **Dispatched** `splice/same-operand-rider` (`session_013QoYWV9rr7vjvRgLfvwNip`) from main `5f6aaf16`, for the P0 `an-unread-rider-related-only-by-its-own-vertices-refuses`. A phase 0 is required: are the four stops this case; what establishes each operand's at-rest guarantee for spline or spiric carriers, and whose it is to build; is `split_root` lineage reliable. The exemption and the guarantee ship together. Letter H, so DUAL, concurrent pair.
+- 2026-11-03 22:20Z — **PR 6476 dual review** (frozen at `1bcc5148`; R1 `session_013QoYWVuWAyCF8EZweeT5ae`, evidence `splice/review-6476-r1` @ `56a5be97`; R2 `session_013QoYWV4a6xpVA2SyVsF4Vo`, `splice/review-6476-r2` @ `61d02722`). Both APPROVE-WITH-FIXES, no MAJOR, tally 0. Neither built a wrong ∖/∩ body. Blinding byte 186.
+  - **Correspondence pre-note.** Bilateral, all MINOR and executed:
+    - the PR's "∖/∩ refuse where ∪ does" is false: op-dependent reclassification at shared caps and a flush slab;
+    - the census cannot go red on a `sense` bug: its build branch never runs, and its point oracle refuses NURBS;
+    - the census harness is a drifted copy (style).
+  - **Unilateral R1:**
+    - the reversal premise is wrong: ∖ classifies unreverted, and `revert` runs after classification (MINOR, by inspection);
+    - SPLITDOOR's spline-roster obligation fired unacknowledged (MINOR);
+    - `AtRestBody::validate` admits a cavity whose spline walls carry the wrong sense, at the true volume (executed, and filed via the fix pass).
+  - **Unilateral R2:**
+    - under a mutant skipping the NURBS flip in `revert`, `around ∖ prism` builds a mis-sensed void that every row but the unit rows passes (executed, within MINOR 2);
+    - `wall4_pinned` is a bare alias (style).
+  - **Tally candidates:** none.
+  - **Fix pass:** the union. The orchestrator reads it.
+  - **Class (logged):** a census whose build branch never runs, and whose oracles cannot see orientation, guards only its refusals; "matches ∪'s refusal" was standing in for a soundness argument that the op-dependent tables make false.
