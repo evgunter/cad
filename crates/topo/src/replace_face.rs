@@ -898,9 +898,10 @@ impl<T: Real> ReplaceFaceError<T> {
             } => write!(
                 f,
                 "the offset {} face meets a {} neighbour along a curve the kernel cannot \
-                 state: {verdict}. {NOT_YET_ENDING}",
+                 state: {}. {NOT_YET_ENDING}",
                 kind.adjective(),
-                other_kind.adjective()
+                other_kind.adjective(),
+                read_at(verdict, at)
             ),
             Self::CornerSection { verdict, .. } => write!(
                 f,

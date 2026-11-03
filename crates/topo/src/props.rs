@@ -321,7 +321,7 @@ impl MassPropsError {
             Self::Face { source, .. } => write!(
                 f,
                 "a face's share of the volume and surface area cannot be computed: {}",
-                geom_brep::recourse::read_at(source, at)
+                geom_brep::recourse::read_at(source, geom_brep::recourse::at_rest(at))
             ),
             Self::RingOnCurvedFace { .. } => write!(
                 f,
@@ -5892,14 +5892,16 @@ impl ShellClassifyError {
         match self {
             Self::Band { .. } => write!(f, "the shells cannot be classified: {}", self.payload()),
             Self::Escalated { .. }
-            | Self::Props { .. }
             | Self::ZeroVolume { .. }
             | Self::Straddles { .. }
             | Self::SignUnresolved { .. }
             | Self::RayInBand { .. }
             | Self::Corner { .. } => write!(f, "{}", self.payload()),
-            // The ray's own refusal ends where it is read.
+            // A nested refusal ends where it is read.
             Self::Ray { source, .. } => {
+                return write!(f, "{}", geom_brep::recourse::read_at(source, at));
+            }
+            Self::Props { source, .. } => {
                 return write!(f, "{}", geom_brep::recourse::read_at(source, at));
             }
         }?;

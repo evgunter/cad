@@ -963,7 +963,9 @@ pub mod test_support {
             }
             other => format!("{:?}", other.kind()),
         };
-        let defect = err.to_string().contains(geom_core::KERNEL_DEFECT_ENDING)
+        let defect = err
+            .render(geom_brep::recourse::Reading::Build)
+            .contains(geom_core::KERNEL_DEFECT_ENDING)
             || matches!(
                 err.kind(),
                 BooleanErrorKind::ClassificationInvariant | BooleanErrorKind::JoinDesync
