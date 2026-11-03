@@ -34,25 +34,24 @@ mod driven {
         let mut driver = started("drive-profile");
         let before = driver.session().tree_rows().len();
         assert!(
-            !driver.shows("Add profile"),
-            "the creation forms start folded"
+            !driver.shows("New profile"),
+            "the creation sections start folded"
         );
         driver.click("Add feature", 0).expect("the section opens");
-        assert!(
-            !driver.shows("Add profile"),
-            "the open section offers the form's door, not the form"
-        );
-        driver.click("Add profile…", 0).expect("the form opens");
-        driver.click("rectangle", 0).expect("the shape is chosen");
         driver
-            .click("Add profile", 0)
+            .click("New profile", 0)
             .expect("the profile is added");
+        driver.settle().expect("settles");
+        driver
+            .click("Add rectangle loop", 0)
+            .expect("the editor is open on it");
+        driver.settle().expect("settles");
         let rows = driver.session().tree_rows();
-        assert_eq!(rows.len(), before + 1, "one node per Add");
+        assert_eq!(rows.len(), before + 1, "one node per New profile");
         let added = rows.last().expect("a row").spoken.to_string();
         assert!(
             added.contains("Profile 2"),
-            "the new row is the profile the form named: {added}"
+            "the new row is the profile the insert named: {added}"
         );
         assert!(
             driver.dump().contains("Profile 2"),
@@ -83,21 +82,24 @@ mod driven {
         driver.click("Create document", 0).expect("created");
         driver.settle().expect("settles");
         driver.click("Add feature", 0).expect("the section opens");
-        driver.click("Add profile…", 0).expect("the form opens");
-        driver.click("path", 0).expect("the path shape");
+        driver
+            .click("New profile", 0)
+            .expect("the profile is added");
+        driver.settle().expect("settles");
+        driver.click("Add path loop", 0).expect("the path template");
+        driver.settle().expect("settles");
         driver.click("line_to", 0).expect("a line row");
         driver.click("arc_to", 0).expect("an arc row");
+        driver.settle().expect("settles");
         driver.click("0.50", 0).expect("the arc's field");
         driver.type_text("1").expect("typed");
         driver
             .key(egui::Key::Enter, egui::Modifiers::NONE)
             .expect("entered");
-        driver.click("×", 2).expect("a row removed");
-        driver.click("×", 2).expect("another row removed");
         driver.settle().expect("settles");
-        driver
-            .click("Add profile", 0)
-            .expect("the profile is added");
+        driver.click("×", 2).expect("a row removed");
+        driver.settle().expect("settles");
+        driver.click("×", 2).expect("another row removed");
         driver.settle().expect("settles");
         for slot in [SlotId::Origin(Axis3::X), SlotId::AxisHeading] {
             // The tree row, by the prefix its fresh tag follows.
