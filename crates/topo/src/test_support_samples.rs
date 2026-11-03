@@ -2596,3 +2596,38 @@ mod tests {
         assert!(wrong.is_empty(), "{}", wrong.join("\n"));
     }
 }
+
+#[cfg(test)]
+mod probe6474 {
+    use super::*;
+    use geom_brep::recourse::{ReadAt, Reading};
+    #[test]
+    fn probe6474_print() {
+        let doors: [(&str, ReadAt); 3] = [
+            ("build", ReadAt::from(Reading::Build)),
+            ("rest", Reading::AtRest.into()),
+            ("file", geom_core::FileCoincidence::new(1e-6).into()),
+        ];
+        let mut out = String::new();
+        let mut errs: Vec<CertifyError> = Vec::new();
+        for r in plane_nurbs_refusals() { errs.push(CertifyError::PlaneNurbs(r)); }
+        errs.push(CertifyError::PlaneNurbs(PlaneNurbsRefusal::PlaceholderWall));
+        for r in analytic_rung3_refusals() { errs.push(CertifyError::AnalyticRung3(r)); }
+        for e in certify_errors() {
+            if matches!(e, CertifyError::NoGeneralLane { .. }) { errs.push(e); }
+        }
+        for e in &errs {
+            for (n, at) in doors {
+                out += &format!("CE {e:?} @{n}: {}\n", e.render(at));
+            }
+            let v = crate::ValidationError::EdgeCertification { edge: crate::EdgeKey::default(), error: e.clone() };
+            out += &format!("VE {e:?} @rest: {}\n", v.render(Reading::AtRest));
+        }
+        for e in pcurve_certify_errors() {
+            for (n, at) in doors {
+                out += &format!("PC {e:?} @{n}: {}\n", e.render(at));
+            }
+        }
+        std::fs::write(std::env::var("PROBE_OUT").unwrap(), out).unwrap();
+    }
+}
