@@ -2,11 +2,12 @@
 id: chart-window-walk-written-twice
 kind: issue
 title: One home for the chart-window walk: chord_join::run_azimuth_window and solid_contain::torus_chart_windows are the same construction written twice
-status: open
+status: dispatched
 opened: 2026-09-01
 refs: [1464]
 priority: P1
 cost: E
+branch: onedoor/carrier-and-window
 ---
 
 ## From GitHub issue 1483
