@@ -206,6 +206,12 @@ macro_rules! ended_by_write {
     };
 }
 
+/// **The recourse for a tolerance that forms no usable band.** A run's
+/// ε is finite and at least `EPS_MIN` (D4 ¶4), so the one way it fails
+/// to form a band is K·ε overflowing: the repair is a smaller ε.
+pub const BAND_TOLERANCE_RECOURSE: &str = "Recourse: set a smaller tolerance, so that K times it \
+     stays finite; a run admits none below the floor its session box sets";
+
 /// The defect ending at `at` ([`ReadAt::culprit`]).
 #[must_use]
 pub fn defect_ending(at: impl Into<ReadAt>) -> &'static str {

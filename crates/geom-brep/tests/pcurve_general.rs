@@ -553,8 +553,8 @@ fn a_general_image_wrong_between_samples_refuses_at_the_hull() {
             "{name}: check 4's hull reads the bend at its break"
         );
         assert_eq!(
-            refusal.ending(Reading::AtRest).as_deref(),
-            Some(geom_brep::recourse::defect_ending(Reading::AtRest)),
+            refusal.ending(Reading::AtRest),
+            geom_brep::recourse::defect_ending(Reading::AtRest),
             "{name}: a stored image a millimetre off is a stored contradiction: {refusal_at}",
             refusal_at = refusal.render(geom_brep::recourse::Reading::Build)
         );
