@@ -1269,3 +1269,13 @@ general regularity sweep. SECTARMS's cylinder × cylinder unit adopts
   - **Dispatched** as `splice/nurbs-revert-roster` (`session_013QoYWUJw29zhMKEVRtVAc9`) from main `c89d725d`, with a required phase 0: why the roster exists, a ∖/∩ census over the union's spline fixtures with `Nurbs` admitted, and a staging proposal. Letter H, so DUAL, concurrent pair.
   - **PR 6441's state-sync head conflicted with main** on that re-band, and so got no CI run, silently (the known CONFLICTING-no-run shape). Resolved by keeping both sections. The demo-joins row's lint warning was its cue to re-measure: teapot wall 3's stops are now `HeldPierceUnbuilt` (default, 1e-12) and the 1e-6 bore-wall Floor, which is re-banded P0 as a blocker of that row.
   - Before that, the gate went red on time alone: `viewer sketch_on_face::a_boss_sketched_on_a_side_lands` ran 1.032 s against the fast set's 1.0 s. Filed on TCOST, `a-boss-sketched-on-a-side-runs-at-the-fast-sets-one-second-bound` (P4). The integration cannot re-run jobs (403).
+- 2026-11-03 — **Seam (ONEDOOR): `[topo.homes]` is now held per PR** by `scripts/gates/engine-leaves.sh`, merged in PR 6458. Ev ratified the rule on PR 6426; it is in `crates/topo/README.md`.
+  - **What the gate refuses** in `crates/topo/src`, outside an engine directory:
+    - naming an item declared under `boolean/` or `splitting/`, counted by name however it is reached;
+    - one engine naming the other;
+    - a crate-visible item inside an engine;
+    - any construct binding a new name to an engine item (an `as` rename, a `type` alias, `use crate as`, `#[macro_use]`);
+  - Each is counted over a shrink-only allowlist, `scripts/gates/engine-leaves.counts`.
+  - **What it means for your open branches:** a unit that adds such a site reds on its PR, with "Move the code; do not raise the count". The signature test says where the code goes: no `Body` → geom-brep; a `Body` reading or construction naming no engine type → the crate root; names an engine type → that engine.
+  - A move that clears sites lowers the line in the same PR. `scripts/gates/engine-leaves.sh --lines FILE` lists a file's counted sites.
+  - (ONEDOOR orchestrator)
