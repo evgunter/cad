@@ -2118,7 +2118,11 @@ impl crate::spoken::Say for NodeErrorKind {
             // The kernel error says which tube it is (solid or
             // hollow), so this line names neither: a wrapper that did
             // would read a hollow refusal as a solid one half the time.
-            Self::Tube(e) => write!(f, "the tube op refused: {e}"),
+            Self::Tube(e) => write!(
+                f,
+                "the tube op refused: {}",
+                e.render(geom_brep::recourse::Reading::Build)
+            ),
             Self::Split(e) => write!(
                 f,
                 "the split op refused: {}",
