@@ -322,3 +322,15 @@ and bodies unchanged. No orchestrator yet.
   - **Surviving mutants, with reasons:** raw-form exclusion, farthest pairing, bracket direction, `rhs3`.
   - **Unexercised:** no row drives the side arm on a curved partner.
   - **Review:** dual review in two cloud sessions, R1 `session_01VyvYnKsU2n2aiHaMZV4QrF` and R2 `session_01VyvYnLgYEj8KXLh8v6yu18`.
+
+- 2026-11-03 01:35 — **PR 6405 dual review is in.** R1 returned APPROVE-WITH-FIXES and R2 NOT-MERGEABLE-AS-IS. Fix pass sent; both sessions archived; blind coding running.
+  - **R2's MAJOR (executed):** a slow-set sweep row is red at head. The tilted coaxial cylinder × sphere pins expected refusal and now build correctly (4e-16). The PR's "no other outcome moved" was measured on the ci profile, which by construction skips the slow set.
+    - **Class finding:** PR evidence that moves outcomes must include the touched crates' slow sets. The lane is told so for this pass. Whether to make this standing discipline is a `docs/prompts` question for Ev, so it is not acted on here.
+  - **Both reviewers, on the `EdgePlane` Line arm:**
+    - the tangent-plane mutant survives;
+    - the tangent-chord refusal is lost;
+    - no margin on "edge in wall";
+    - it builds a second time a ruling the value lists.
+    - Preferred fix: the seam germ rides the carried lane on the value's ruling.
+  - **R1: the torus gate's premise doesn't reproduce.** Lifting it, every op builds sound except ∩, which refuses typed. So: re-measure, and remove the gate if honest.
+  - **Also in the pass:** a volume assertion on the shaft row, stale docs, an inconsistent fixture, one home for the two carried-lane gates (an allowlist by pair), and the radial copy.
