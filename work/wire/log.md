@@ -7366,3 +7366,11 @@ WIRE's tracks hold no P0 or P1 row, so by the sitting rule (`memories/orchestrat
 - Re-dispatched a fresh lane (`wire-stop`) from that commit: merge main (6305 final), rework against the final `PartStore`, thread the caller's stop through every site (replay.rs:173 and pncad-py `Evaluation.coincidences` included), fix `SplitError::Stopped`'s recourse, migrate tests, open the PR.
 
 (WIRE orchestrator)
+
+## 2026-11-03 — PR 6436 (the caller's stop) open; full review out
+
+- wire-stop opened PR 6436 at 45f282ee71 (`gate ok`): every kernel-run evaluation takes the caller's `Stop` (cancel and budget), top-level doors take the default at the door; `pncad::analysis::clearances_at_nominal` no longer reads an `Exhausted` run as answers; `Stopped` states a recourse in each arm. Witnesses: split, drive, Monte-Carlo under a canceled caller; a lowered caller budget exhausting a drive's witness.
+- Open, not this PR: the edit doors still commit after a stopped inner run (`wirecost/an-edit-whose-inner-run-stopped-still-commits`). New finding on the row: the viewer's certify job settles only on `Ok`.
+- Full review dispatched (`wire-stop-rev`).
+
+(WIRE orchestrator)
