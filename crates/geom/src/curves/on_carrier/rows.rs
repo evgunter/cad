@@ -255,13 +255,9 @@ fn a_closed_splines_foot_is_found_from_any_seed() {
     );
 }
 
-/// A cubic hairpin's two branches tie across a wide `Interval` box: the
-/// polish keeps the seed's branch, whose tangent no point of the box
-/// has, and a narrower box picks the right one. So the tie reaches the
-/// log as the driver's cue to refine.
-#[test]
-fn a_tie_across_a_hairpins_branches_reaches_the_log() {
-    use geom_core::{Bounds, Interval, Real, k_stats::detached};
+/// The cubic hairpin both feet rows read: two branches `0.2` apart, the
+/// point on the near one at `t = 0.08`.
+fn hairpin() -> (Curve3<f64>, Point3<f64>) {
     let h = 0.2;
     let c = Curve3::Nurbs(std::sync::Arc::new(
         crate::NurbsCurve3::new(
@@ -278,24 +274,95 @@ fn a_tie_across_a_hairpins_branches_reaches_the_log() {
         .unwrap(),
     ));
     let p = c.eval(0.08);
+    (c, p)
+}
+
+/// **A tie across a hairpin's branches is the certificate's to read**.
+/// On an `Interval` box of ±0.05 about a point on the near branch,
+/// seeded on the far one, every polish candidate ties and the polish
+/// keeps the seed's branch. That pick is a heuristic's and stays out of
+/// the log (ledger row F32); what a reader can hold is the certificate,
+/// and it gives no `On` at the far branch: it refuses or escalates,
+/// which a narrower box answers.
+#[test]
+fn a_tie_across_a_hairpins_branches_is_the_certificates_to_read() {
+    use geom_core::{Bounds, Interval, Real, k_stats::detached};
+    let (c, p) = hairpin();
     let ci: Curve3<Interval> = c.map_scalar(Interval::from_f64);
     let w = |x: f64| Interval::from_bounds(x - 0.05, x + 0.05);
-    let (foot, rec) = detached(|| {
-        ci.foot(
-            Point3::new(w(p.x), w(p.y), w(p.z)),
-            Interval::from_f64(0.92),
-        )
-    });
+    let q = Point3::new(w(p.x), w(p.y), w(p.z));
+    let seed = Interval::from_f64(0.92);
+    let (foot, rec) = detached(|| ci.foot(q, seed));
     assert!(
         foot.seed().lo() > 0.5,
         "the tie keeps the seed's branch: {:?}",
         foot.seed()
     );
     assert!(
-        rec.recorded()
+        !rec.recorded()
             .escalations
             .iter()
             .any(|e| e.predicate() == "curve_foot_polish"),
-        "a tie across branches, which refining resolves, must reach the driver"
+        "the polish's tie-break is a heuristic's and stays out of the log"
     );
+    let (on, rec) = detached(|| foot.on_carrier(band()));
+    assert!(
+        on.is_err(),
+        "the certificate gives no answer at the far branch: {on:?}"
+    );
+    assert!(
+        !rec.recorded().escalations.is_empty() || matches!(on, Err(CarrierRefusal::Unwalked(_))),
+        "the certificate's refusal is the driver's to read: {on:?}"
+    );
+}
+
+/// **A foot on a far branch at `f64` is the certificate's to read**: on
+/// a cubic spline of five knot spans, a point on the carrier at
+/// `t = 0.35` polishes, from every seed but its own parameter, to a
+/// stationary point near `t = 0.03`, 0.05 away. No tie and no log is involved, so no tie log
+/// could catch it; what a reader can hold is the certificate, and it
+/// says neither `On` (the foot's gap is far past the band) nor `Off`
+/// (the point is on the carrier): it escalates.
+#[test]
+fn a_foot_on_a_far_branch_at_f64_is_the_certificates_to_read() {
+    let c = Curve3::Nurbs(std::sync::Arc::new(
+        crate::NurbsCurve3::new(
+            geom_core::spline::KnotVector::clamped(
+                vec![0.0, 0.0, 0.0, 0.0, 0.2, 0.4, 0.6, 0.8, 1.0, 1.0, 1.0, 1.0],
+                3,
+            )
+            .unwrap(),
+            vec![
+                Point3::new(0.25350192097619306, 1.366246580479202, 0.10734265927471985),
+                Point3::new(
+                    0.8036949878629633,
+                    0.013067913669976727,
+                    0.03308834410972377,
+                ),
+                Point3::new(1.480946409416911, 0.4537707418975514, 0.1764560519141859),
+                Point3::new(0.03646373591417751, 1.0290841026582689, 0.07594285140734353),
+                Point3::new(0.4630589620214056, 1.7067471422313527, 0.031091972942131577),
+                Point3::new(1.1544836707277542, 0.48528073793130444, 0.01100075298321821),
+                Point3::new(0.7893432608276867, 1.5915056214557455, 0.025122531729525922),
+                Point3::new(1.2935210084059152, 1.3895124153536436, 0.08367157011772855),
+            ],
+            vec![1.0; 8],
+        )
+        .unwrap(),
+    ));
+    let p = c.eval(0.35);
+    for seed in [0.0, 0.3, 0.5, 1.0] {
+        let foot = c.foot(p, seed);
+        assert!(
+            foot.gap() > 1e-3,
+            "seed {seed}: the search lands on the far branch, at {} gap {:e}",
+            foot.seed(),
+            foot.gap()
+        );
+        assert_eq!(
+            name(foot.on_carrier(band())),
+            "escalated",
+            "seed {seed}: neither on at the far foot nor off the carrier"
+        );
+    }
 }

@@ -1577,6 +1577,38 @@ Flagged, NOT fixed here (dispositions):
   still reach the sink under `curve_foot_branch`. Not a `decide_flagged`
   site; `LEDGER_FLAGGED_SITES` does not move.
 
+- **F32** (added by ONECOPY's foot-certificate unit) `curve_foot_polish`
+  — `geom/src/curves/on_carrier.rs` `smaller`, the polish's tie-break
+  between two candidate feet on an ellipse, a spiric oval or a spline:
+  `b − a`, the difference of two gaps (metres). It keeps the best of a
+  spline's seeds and of its polished ends, and it keeps or stops each
+  Gauss–Newton step. An undecided pick keeps the candidate already
+  held, at `f64` and at `Interval` alike, and two tied candidates can
+  lie on different branches of a spline: the pick moves the foot.
+  What keeps it off the logged doors is that **no reader can rest on
+  the pick**, by construction:
+  - A foot has no bare parameter. The point's parameter is
+    `OnCarrier::On`'s, certified by a gap in the band's zero
+    (`curve_carrier_gap`, logged), or `Foot::nearest`'s, certified by
+    the kind (a line, a circle, which have no polish). `Foot::seed` is
+    the parameter as found, for a further search, and its contract
+    certifies nothing.
+  - Every verdict a foot gives is read and logged in `Foot::on_carrier`
+    (`curve_carrier_gap`, `curve_carrier_clear`,
+    `curve_carrier_piece_clear`, `curve_carrier_straddle`). So a pick on
+    the wrong branch costs that reading's own escalation or refusal,
+    never a wrong answer, and the driver's cue lands on the reading a
+    narrower box answers
+    (`geom::curves::on_carrier::rows::a_tie_across_a_hairpins_branches_is_the_certificates_to_read`).
+  - Logged, the pick escalates at `Interval` on every spline foot (four
+    or more) and every ellipse or spiric foot (one or more), whatever
+    the box: a standing cue to bisect that `editor-core`'s
+    `drive::log_read` reads as the leaf's verdict and no box answers.
+
+  **Carried as `k_stats::check_unlogged(.., "F32")`**. Its K samples
+  still reach the sink under `curve_foot_polish`. Not a `decide_flagged`
+  site; `LEDGER_FLAGGED_SITES` does not move.
+
 **Every `props/curved.rs` row above is cited BY TARGET NAME, not by
 line** (S176(a)). The line numbers they carried were written against a
 2026-08 tree and had already rotted at #877's merge base; #877 moved
