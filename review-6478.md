@@ -101,13 +101,11 @@ figures (17 s ∪, 3.6 s of it measurement) are new; the release cost now is unm
 ends continuous, so the "whole turns join the loop's count" path is never exercised at a
 nonzero value. That is why M3 survives even my reversed winding loop. Confidence: **likely**.
 
-**NOTE-9: the sector breaks bear on tightness, not soundness.** The integrand
-`(xy′−yx′)/(x²+y²)` is smooth off the axis, so any tiling is sound. `of_image`'s break mapping
-(`mid(origin + span·s)`) is never exercised by a row (the circle and line rows pass `cuts` by
-hand). That is harmless to containment. Confidence: **likely**.
+**NOTE-9: sector breaks bear on tightness, not soundness** (the integrand is smooth off the axis);
+`of_image`'s break mapping is exercised by no row (rows pass `cuts` by hand). **likely**.
 
 ## Style
-Questions exercised: Q1, Q2, Q5, Q6, Q7, Q8. Q3 and Q4 were not exercised in depth.
+Exercised: Q1, Q2, Q5, Q6, Q7, Q8 (not Q3, Q4 in depth). Also `end_slack`'s `√2 taken as 3/2`: **unsure**.
 - **Q1:** `projected_integrals`' `Circle` and `Line` arms repeat one cut-loop accumulator
   (`rotational.rs:~556–598`). `projected_metric_length` repeats one piece loop twice more
   (`~620–650`), and `rational_rim.rs:rational_rate_bound` is a third copy of that
@@ -122,8 +120,6 @@ Questions exercised: Q1, Q2, Q5, Q6, Q7, Q8. Q3 and Q4 were not exercised in dep
 - **Q6:** `face_cost`'s borrowed weights (`w_rational`, `W_SPIRIC`, `w_rational(1)` for a line)
   are disclosed as unmeasured, with no work row or guard. So is the "witness at 1e-6 only by
   measured envelopes" claim. **likely**.
-- **Q2:** `end_slack`'s `√2 taken as 3/2` and its `(1 + 1e-12)` are magic constants justified
-  in prose. **unsure**.
 - **Q8:** I read `rotational.rs` lines 1–1240 end to end (the header has grown to about 100
   lines) and skimmed its tests.
 
@@ -154,6 +150,5 @@ Questions exercised: Q1, Q2, Q5, Q6, Q7, Q8. Q3 and Q4 were not exercised in dep
 10. **P1 row: mostly honest**, NOTE-7.
 
 ## Disclosures
-- I read no other reviewer branch, PR comment or review. I read the PR body and the check runs.
-- The mutant driver edited the checkout temporarily and restored each file. The probes sit on
-  their own branch.
+- No other reviewer branch, PR comment or review read; I read the PR body and check runs. The
+  mutant driver edited the checkout temporarily and restored each file.
