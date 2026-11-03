@@ -22,7 +22,6 @@ use core::f64::consts::FRAC_PI_4;
 use geom::NurbsCurve3;
 use geom::Surface;
 use geom_core::interval::Interval;
-use geom_core::linalg::frame::path_start_frame;
 use geom_core::{Band, Bounds, CertifiedBounds, Decide, Point2, Point3, Real, Tol, Vec3};
 use profile::test_support::bulge_loop;
 use profile::{ProfileLoop, SketchPlane};
@@ -274,8 +273,7 @@ fn bowl() -> (Lofted<f64>, FaceKey) {
     let path = NurbsCurve3::<f64>::interpolate(&pts, 3).expect("the bowl path interpolates");
     let (lo, _) = path.domain();
 
-    let start = path_start_frame(path.eval(lo), path.deriv(lo), Tol::witness())
-        .expect("the path's start tangent fixes a frame");
+    let start = crate::common::start_frame(path.eval(lo), path.deriv(lo));
     let swept = sweep_body::<f64>(
         &rect(-H, H, -H, H),
         SketchPlane::from_frame(start),
