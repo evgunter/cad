@@ -1256,11 +1256,11 @@ fn conic_or_line_on<T: Decide>(
             geom::Curve3::Circle(..) | geom::Curve3::Ellipse(..),
             &geom::Surface::Plane { origin, normal, .. },
         ) => {
-            return match crate::splitting::plane_crossing_lane(
+            return match geom_brep::curve_face::plane_crossing::plane_crossing_lane(
                 carrier, t0, t1, origin, normal, band,
             ) {
-                crate::splitting::PlaneCrossingLane::Conic(
-                    crate::splitting::ConicPlaneMeet::Parallel { offset },
+                geom_brep::curve_face::plane_crossing::PlaneCrossingLane::Conic(
+                    geom_brep::curve_face::plane_crossing::ConicPlaneMeet::Parallel { offset },
                 ) => match crate::validate::decide(
                     "bool_conic_face_plane_offset",
                     Margin::of(offset),
@@ -2484,7 +2484,9 @@ pub(super) const PARTING_ORDER: &str = "bool_parting_order";
 /// edges meet.
 fn crossing_escalated(diag: geom_core::Indeterminate) -> BooleanError {
     BooleanError::Escalated {
-        decision: BooleanDecision::Crossing(crate::splitting::CrossingDecision::OnEdge),
+        decision: BooleanDecision::Crossing(
+            geom_brep::curve_face::plane_crossing::CrossingDecision::OnEdge,
+        ),
         diag,
     }
 }

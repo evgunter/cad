@@ -1559,7 +1559,7 @@ impl EulerOpError {
             ),
             Self::SplitParamEscalated { diag, .. } => geom_brep::recourse::undecided_at(
                 diag,
-                crate::split::CROSSING_INTERIOR,
+                geom_brep::curve_face::plane_crossing::CROSSING_INTERIOR,
                 at.map(|at| {
                     crate::split::split_param_ending(
                         geom_brep::recourse::RefusedArm::Undecided(diag),

@@ -1667,7 +1667,7 @@ Notes (verified honest, kept for the design conversation):
   second-order margin refused and `1/κ_rel` does not exist) reads only
   on a path that already refuses.
 - **N5** `ps_frame_seam`, `pcurve_sphere_chart_frame` and
-  `split_conic_phase_frame` (and `split_chart_azimuth_frame`, retired by
+  `plane_crossing_phase_frame` (and `split_chart_azimuth_frame`, retired by
   PCERT B1: its read goes through `geom_brep::Azimuth::principal`) are
   deterministic BRANCH/frame selections whose arms are all documented
   as verdict-neutral; their margins pollute per-predicate K telemetry

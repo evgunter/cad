@@ -795,7 +795,7 @@ fn even_crossing_belly_cut_at_interval() {
 // M3 fix rows: end-to-end trilean arms of the conic crossing lane
 // ---------------------------------------------------------------------
 
-/// `split_conic_crossing_root` Zero arm, end to end: the y = 0 plane's
+/// `plane_crossing_crossing_root` Zero arm, end to end: the y = 0 plane's
 /// rim roots land EXACTLY on the profile corners — nothing is
 /// inserted (the vertex sweep owns them), and the ON set is exactly
 /// the four original corners.
@@ -835,7 +835,7 @@ fn definite_roots_mint_four_crossings() {
     }
 }
 
-/// `split_conic_belly_graze` in-band, end to end: a plane 3ε shy of
+/// `plane_crossing_belly_graze` in-band, end to end: a plane 3ε shy of
 /// the rim apex is an ill-conditioned graze — CrossingEscalated, with
 /// the predicate named and the shared recourse riding the payload.
 #[test]
@@ -851,7 +851,7 @@ fn near_graze_escalates_typed() {
     let err = split(&body, &plane, Tol::witness()).unwrap_err();
     let msg = err.render(geom_brep::recourse::Reading::Build);
     assert!(
-        format!("{err:?}").contains("split_conic_belly_graze"),
+        format!("{err:?}").contains("plane_crossing_belly_graze"),
         "{err:?}"
     );
     // One recourse, the split's own: a split takes no declaration.

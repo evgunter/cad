@@ -10,7 +10,7 @@
 //! An edge lying on one wall therefore meets the partner wall exactly
 //! where it crosses one of the two bisector planes, each crossing a
 //! first-order root of a line or a conic against a plane, the planar
-//! lanes' own (`splitting::plane_crossing_lane`), landing on the ellipse
+//! lanes' own (`geom_brep::curve_face::plane_crossing`), landing on the ellipse
 //! that plane carries. Near a node, where the walls are tangent, the
 //! quadric reads a seam `δ` off it through a discriminant of order `δ²`;
 //! here its two crossings stand `2δ/sin θ` apart, linear in the offset,
@@ -26,8 +26,8 @@ use super::{CurvedEvent, Landing, Placement, edge_face_read, landing, vertex_on_
 use crate::body::Body;
 use crate::boolean::{BooleanDecision, BooleanError, Coincide, Operand, node};
 use crate::entity::{Edge, FaceKey, VertexKey};
-use crate::splitting::{ConicPlaneMeet, PlaneCrossingLane};
 use crate::validate::decide;
+use geom_brep::curve_face::plane_crossing::{ConicPlaneMeet, PlaneCrossingLane};
 
 /// The predicate an end's distance from a bisector plane is decided on:
 /// whether the end lies on the partner wall, read through the planes.
@@ -106,7 +106,9 @@ pub(super) fn factored_crossing<T: Decide + crate::props::AtRestPolicy>(
     // Each plane's crossings strictly inside the span.
     let mut roots: [Vec<T>; 2] = [Vec::new(), Vec::new()];
     for (i, (centre, normal)) in planes.into_iter().enumerate() {
-        match crate::splitting::plane_crossing_lane(carrier, t0, t1, centre, normal, band) {
+        match geom_brep::curve_face::plane_crossing::plane_crossing_lane(
+            carrier, t0, t1, centre, normal, band,
+        ) {
             // Affine along a line: one root, strictly inside exactly
             // where the ends straddle the plane.
             PlaneCrossingLane::Line => {

@@ -73,8 +73,6 @@
 
 mod classify;
 pub mod containment;
-pub(crate) use classify::{ConicPlaneMeet, PlaneCrossingLane, plane_crossing_lane};
-pub use classify::{ConicRootFault, CrossingDecision};
 pub(crate) mod finish;
 mod insert;
 pub(crate) mod join;
@@ -93,6 +91,7 @@ mod section_loops;
 pub(crate) mod spiric_arc;
 pub(crate) mod spline_arc;
 
+use geom_brep::curve_face::plane_crossing::ConicRootFault;
 use geom_brep::recourse::{LeverOnly, Reading, RefusedArm};
 use geom_core::{Band, BandError, Indeterminate, MarginDiag, Point3, Real, UnitVec3, Vec3};
 

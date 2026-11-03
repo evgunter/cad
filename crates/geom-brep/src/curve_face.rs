@@ -30,7 +30,8 @@ use crate::curve_pair::{Hit, MeetFault, Meetings, Span, meet};
 /// boundary has left the span undecided.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Door {
-    /// A line or a conic against a plane: the plane-crossing lane.
+    /// A line or a conic against a plane: the plane-crossing lane
+    /// ([`plane_crossing`]).
     PlaneCrossing,
     /// A line against a cylinder, a cone, a sphere or a torus: the
     /// certified roots of the surface's residual along the line.
@@ -346,6 +347,7 @@ fn carrier(refusal: geom::CarrierRefusal) -> BoundaryRefusal {
 }
 
 pub mod composite;
+pub mod plane_crossing;
 #[cfg(test)]
 mod review_rows;
 #[cfg(test)]

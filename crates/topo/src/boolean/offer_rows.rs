@@ -1287,8 +1287,8 @@ fn ellipse_roots(beyond: bool) -> Result<(), BooleanError> {
 /// `carrier` over `span` against the plane `x = x0`, as the conic root
 /// lane reads it.
 fn conic_roots(carrier: &geom::Curve3<f64>, span: (f64, f64), x0: f64) -> Result<(), BooleanError> {
-    use crate::splitting::{ConicPlaneMeet, PlaneCrossingLane};
-    match crate::splitting::plane_crossing_lane(
+    use geom_brep::curve_face::plane_crossing::{ConicPlaneMeet, PlaneCrossingLane};
+    match geom_brep::curve_face::plane_crossing::plane_crossing_lane(
         carrier,
         span.0,
         span.1,

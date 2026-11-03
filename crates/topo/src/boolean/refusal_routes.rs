@@ -48,8 +48,8 @@ pub use super::plane_eq::PlaneRung;
 pub use super::solid_contain::WallRung;
 use crate::face_normal::NormalDecision;
 pub use crate::sector_shape::SectorRung;
-use crate::splitting::ConicRootFault;
-pub use crate::splitting::CrossingDecision;
+use geom_brep::curve_face::plane_crossing::ConicRootFault;
+pub use geom_brep::curve_face::plane_crossing::CrossingDecision;
 pub use geom_brep::{SectionRadius, TorusConvention};
 
 /// Which fact contradicted a glued pair's class: the carrier ladder
