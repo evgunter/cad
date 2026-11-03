@@ -4799,7 +4799,7 @@ mod tests {
     #[test]
     fn a_fin_a_slack_thin_is_not_read_off_one_face() {
         let zero = band().zero();
-        let band = Band::new(zero, 1.4 * zero).unwrap();
+        let band = Band::new(zero, 1.4 * zero).expect("a band");
         let (s, r) = (1.5 * zero, 0.25);
         let cone = Cone::gathered(
             O,
