@@ -37,3 +37,9 @@ Coordinate with their owners in the PR.
 
 - **`geom_brep::Reach::lever_from` reads the whole carrier's cover**, not the span's. `cover-edge-doors` tried the span cover and seven topo rows went red, because the face reaches depend on the whole turn. This unit narrows it to the span and re-measures those rows.
 - **`splitting::containment::certify_plane`** still matches on `Curve3` for its in-plane levers: a conic's whole-conic `speed_hi`, a spiric's `R + r + |d|`, and a spline's control points. `cover-edge-doors`' sweep missed it. It reads the edge cover.
+
+## Added 2026-11-03: ONEHOME's per-kind `ExtentBall` constructors
+
+ONEHOME's PR 6391 (`onehome/one-extent`, merged 2026-11-02T23:05Z) made `geom_brep::Reach` the one consumed-extent type, as `crates/geom-core/README.md` "Float rounding" ratifies. That is the type this unit builds from cover queries.
+
+It also gave `ExtentBall` per-kind region constructors: `of_sphere`, `of_circle`, `of_conic`, `of_control_net(_from)` and `of_spiric_oval`. It re-added `of_torus`, which PR 6383 had retired onto `of_cover`. Each is a second reading of a region beside the cover (`[one-way.places]`, "The region a carrier, an edge or a face can occupy"). This unit folds them into `ExtentBall::of_cover` of the consumed entity's cover, keeping the geometric-source discipline PR 6391's `Lever` and `lever-sources.sh` gate enforce. Coordinate with ONEHOME in the PR: the lever-sources gate's home list may need `geom/src/cover*`.
