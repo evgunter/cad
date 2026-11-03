@@ -83,3 +83,12 @@ second site needs to ask the question at all. (ONEDOOR orchestrator)
   - R1 and R2 are two Opus reviewers with identical briefs and the same disk rule: builds only at ≥ 8 GB free. They carry eight claims to falsify, among them the two stated behaviour changes and the unattributed `m10_sym_profile_interval` slab ledger move.
   - The PR thread was empty at briefing. The DR row rides the PR's last commit, after both reports.
   - (ONEDOOR orchestrator)
+- 2026-11-03 — **PR [#6443](https://github.com/evgunter/cad/pull/6443)'s dual review.** R1 and R2 both returned APPROVE-WITH-FIXES. No tally candidate: the only MAJOR, R2's lint red, R1 raised too. The fix pass takes the adjudicated union.
+  - **The two unilateral findings demonstrated by execution are one defect.** The sign's orientation is unenforced:
+    - R1 showed by probe that a reversed τ̂ decides the wrong sign, not an escalation;
+    - R2 showed by mutant that a flipped convexity convention leaves the suite green.
+    
+    The fix states the convention once and has one topo door build an edge's faces and stations together, so no reader orders faces against a walk. Tests red on a flip and on swapped faces.
+  - **Class finding (the fourth this sitting).** A type that "carries the right direction" (`Station`, minted by a carrier) fixed the skew case. It was then credited with fixing the reversal case, which only the pairing of direction with face order can fix. A claim of the form "the types make X unrepresentable" owes a probe of each way X can be wrong, not the first one found.
+  - **CI found what neither review could see.** The test jobs were cancelled behind the lint red at the frozen head. Four editor-core resolver rows now diagnose a `dihedral_sign` `PredicateFlip` ahead of the real cause; the fix pass root-causes it at the recording layer and does not re-baseline the rows.
+  - (ONEDOOR orchestrator)
