@@ -8,6 +8,7 @@ priority: P1
 cost: H
 refs: [tier-3-prime-reads-no-side-where-a-solid-touches-itself-at-a-point-on-a-curved-face]
 branch: restread/self-touch-second-order
+pr: 6422
 ---
 
 
