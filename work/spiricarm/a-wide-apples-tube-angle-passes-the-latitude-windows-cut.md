@@ -20,3 +20,16 @@ A window centred on zero with its cut at `±π`, where only a horn's cusp lies, 
 
 A sheet's points read their `v` in `[−v*, v*]` for every `R` in `(−r, r]`, pinned by an apple near the horn in `chart_point`'s foot test.
 
+
+## Evidence (stage 1 piece 2)
+
+Once the revolve mints sheets, a wide apple reaches a body. The band
+`|v| ≤ 2.4` of `R = 0.8, r = 1` (`v* ≈ 2.50`, past `π − 1`) between two
+cones to `y = ±1.2`, built as `crates/sweep/tests/a_conical_ended_football_revolves.rs`
+builds its bands, revolves, passes tier 3 and measures its exact volume
+and area at ε = 1e-9 and 1e-12: the props lane lifts its own branch. The
+mesh does not: `mesh::tessellate` at δ = 1e-2 refuses
+`UnsupportedCurvedDomain { off_bbox: 54, first_uv: (3.03, 2.4) }`, the
+sheet's rim at `v = −2.4` read a turn off, at `+3.88`. So the window is
+what keeps the wide apple out of the football suite; that row of the
+suite is the pin once this is fixed.

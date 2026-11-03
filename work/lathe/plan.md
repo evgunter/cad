@@ -61,11 +61,10 @@ Opened 2026-10-06 by CARVE's second priority-seam cut
 
 ### The slate
 
-**13 budget points** of dispatchable work against a ceiling of 30.
+**10 budget points** of dispatchable work against a ceiling of 30.
 
 | pri | item | cost | title |
 |---|---|---|---|
-| P1 | `revolve-axis-clearance-is-the-torus-convention-under-another-name` | M | revolve's axis_arc_clearance decides the ring-torus convention R - r under its own name |
 | P2 | `carve-refusals-short-of-the-shape-guard` | M | refusals the viewer draws that state no recourse, by the shape guard's census |
 | P2 | `copysign-stands-in-for-a-nappe-and-a-max-fold-and-hulls` | E | the nappe selector and the revolve max-fold spell a two-way choice with copysign |
 | P2 | `loft-arc-columns-end-on-the-carrier-not-the-vertex` | M | an arc's NURBS column starts and ends on the carrier, not on the stored vertices |
@@ -82,9 +81,9 @@ is parked on `self-overlapping-spines-build-and-validate`.
 ### Order
 
 `revolve-axis-clearance-is-the-torus-convention-under-another-name`
-first: it is the one entrenching row, and its repair shape is written.
-`copysign-stands-in-for-a-nappe-and-a-max-fold-and-hulls` is the same
-file and a cheap rider. The three refusal-text rows (the shape guard, the revolve angle's
+closed with SPIRICARM's spindle sheet, which retired the decision.
+`copysign-stands-in-for-a-nappe-and-a-max-fold-and-hulls` is a cheap
+row in the same file. The three refusal-text rows (the shape guard, the revolve angle's
 recourse, the tube's word budget) can run together.
 
 ### Review posture
