@@ -1483,7 +1483,7 @@ fn a_stored_chart_edge_on_a_moved_chart_ends_as_its_incidence_read() {
             carrier.eval(t0),
             carrier.eval(t1),
             &lookup,
-            1.0,
+            geom_core::test_support::fixture_lever(1.0),
             b,
             geom_brep::NurbsLane::certified(),
         )
@@ -1504,7 +1504,7 @@ fn a_stored_chart_edge_on_a_moved_chart_ends_as_its_incidence_read() {
                         carrier.eval(t0),
                         carrier.eval(t1),
                         |_| Some(chart.clone()),
-                        1.0,
+                        geom_core::test_support::fixture_lever(1.0),
                         b,
                         geom_brep::NurbsLane::certified(),
                         stated,
