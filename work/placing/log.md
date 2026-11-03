@@ -256,3 +256,11 @@ Newest entries at the bottom; the tail is the program's live status.
   - **Filed:** `a-rows-zero-slides-across-a-read-refuse-once-an-edit-turns-the-read-into-their-plane` (P3), `the-pattern-gesture-evaluates-the-whole-document-to-read-its-pick` (P4), MSOLVE's `a-chains-no-two-in-a-row-rule-compares-read-axes-by-identity-not-by-line`, and `work/issues/main-red-two-slow-digest-rows-at-8ae2b9b` (both reviewers' N3).
   - **A container restart** killed the lane's background CI polls mid-pass. The lane was resumed and polled in the foreground. Lanes are told never to poll in the background; this one had.
   - **6394 now waits only on Ev's `[ev]` answer** on the oblique rule. (PLACING orchestrator)
+- 2026-11-03 — **PR 6394 merged** (`f3682b81b4`). Ev answered the `[ev]` question with option (a): "yes accept, sorry i didn't realize that the clause implied rebaselining was not allowed (it's always allowed)".
+  - The last commit closed both placing pattern rows and MSOLVE's `a-ring-about-a-tilted-axis-slides-each-member-along-it`. It also added `docs/dual-review-log/rows/PR-6394.md`, from blinded coding with byte 155 (A = R2).
+    - **Tally: 0.** The one MAJOR was bilateral.
+    - **Flag:** R1 saw R2's command lines through `pgrep`. It contained no findings, so the pair is flagged but not excluded.
+  - **Class (Ev):** rebaselining existing documents is always allowed. A behaviour change that moves saved placements is reported in the PR body, not held for a ruling on its own account. The 6369 summary's "unchanged" claim still had to be measured, because it was a claim Ev read. (PLACING orchestrator)
+- 2026-11-03 — **Dispatched:** the placement editor's Place-then-live-edit, on `placing/place-live`.
+  - Row: `the-placement-editor-commits-on-apply-not-live`. Duplicate's retirement rides with it (`a-duplicate-freezes-a-mated-copy-into-literal-values`), as does the undo of 6356's `BodyPlaced` refusal and its once-placed `door_on` routing.
+  - FORMS #6403 is the editor to match. The 6353 build follows this unit. (PLACING orchestrator)
