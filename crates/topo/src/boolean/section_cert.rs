@@ -526,6 +526,9 @@ pub(crate) struct Touch<T: Real> {
     /// stand deepest in each other, and on both carriers within the
     /// margin. Each arm says which point it reads.
     pub at: Point3<T>,
+    /// Whether it is two cones' touch at their common apex, which
+    /// [`certify`] clears as the vertex pair's ([`Cleared::TouchAtVertex`]).
+    pub apex: bool,
 }
 
 /// Why a component was cleared.
@@ -544,17 +547,12 @@ pub(crate) enum Cleared {
     /// A touch on a pair with no event, its centre placed `Out` of the
     /// named face.
     TouchOut(Side),
-    /// Two cones' touch at their common apex ([`APEX_TOUCHES`]), a vertex
+    /// Two cones' touch at their common apex ([`Touch::apex`]), a vertex
     /// of both faces: the touch is that vertex pair's, whose contact is
     /// the pair's event there and whose neighbourhood the vertex lanes
     /// read with their fan arms.
     TouchAtVertex,
 }
-
-/// The touches [`certify`] clears as [`Cleared::TouchAtVertex`]: two
-/// cones' at their common apex, coaxial or not.
-pub(super) const APEX_TOUCHES: [&str; 2] =
-    ["section_cone_coaxial_apexes", super::fan::CONES_SHARE_APEX];
 
 /// Why a pair refused.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -694,6 +692,7 @@ fn touch<T: Real>(p: Pinch, names: &[&'static str], at: impl FnOnce() -> Point3<
         Section::Touch(Touch {
             name: p.name,
             at: at(),
+            apex: false,
         })
     } else {
         p.into()
@@ -1163,7 +1162,10 @@ fn cone_pair<T: Decide>(
                 band,
             ) {
                 Ok(_) => essential_pair(true, true),
-                Err(tan) => touch(tan, &["section_cone_coaxial_apexes"], || apex),
+                Err(tan) => match touch(tan, &["section_cone_coaxial_apexes"], || apex) {
+                    Section::Touch(t) => Section::Touch(Touch { apex: true, ..t }),
+                    other => other,
+                },
             },
             AxisPose::Parallel { .. } => {
                 let other = Cone::new(apex2, d, half_angle2, u_ref2);
@@ -1384,6 +1386,7 @@ fn cone_cone<T: Decide>(
             return Section::Touch(Touch {
                 name: COMMON,
                 at: one.apex,
+                apex: true,
             });
         }
         let c = Component::closed_form(true, [false, false], None);
@@ -1872,6 +1875,7 @@ pub(super) fn of_pair_section<T: Decide>(
                 Some(at) => Section::Touch(Touch {
                     name: zero.decision.name(),
                     at,
+                    apex: false,
                 }),
                 None => Section::Tangent(zero.decision.name()),
             },
@@ -2008,7 +2012,7 @@ pub(crate) fn certify<T: Decide>(
         // has been shown to stand in for.
         Section::Touch(t) => {
             let placed = place(t.at, band);
-            if APEX_TOUCHES.contains(&t.name)
+            if t.apex
                 && let [
                     Some(FaceContainment::OnVertex(_)),
                     Some(FaceContainment::OnVertex(_)),

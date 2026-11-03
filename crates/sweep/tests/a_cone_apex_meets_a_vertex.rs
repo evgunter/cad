@@ -406,22 +406,37 @@ fn a_box_whose_side_holds_the_80_degree_wrap_seam_refuses_typed() {
         * Affine3::rotation_about_axis(Point3::origin(), Vec3::new(1.0, 0.0, 0.0), PI / 2.0);
     let b = moved(&block, m);
     let c = finished("c", one_wrap_edge(cone(80.0), true).0, tol());
-    for (order, x, y) in [("cone first", &c, &b), ("box first", &b, &c)] {
-        for (op, r) in [
-            ("∪", union(x, y, tol())),
-            ("∩", intersect(x, y, tol())),
-            ("∖", subtract(x, y, tol())),
-            ("∖ back", subtract(y, x, tol())),
-        ] {
-            assert!(
-                matches!(
-                    r,
-                    Err(topo::BooleanError::VertexPairAtConeApex { .. }
-                        | topo::BooleanError::GermSectionOpenConic { .. })
-                ),
-                "{order} {op}: {r:?}"
-            );
-        }
+    // Each op names its refusal: where the box's part is kept against the
+    // cone's face (`box ∖ cone`, and every op read box first but
+    // `box ∖ cone`), the fan bound on the box's side; the others reach
+    // the 80° cone's hyperbolic section at the box's far faces first.
+    let pair = |r: &Result<BooleanResult<f64>, topo::BooleanError>| match r {
+        Err(topo::BooleanError::VertexPairAtConeApex { .. }) => "vertex pair",
+        Err(topo::BooleanError::GermSectionOpenConic { .. }) => "open conic",
+        _ => "other",
+    };
+    for (order, x, y, want) in [
+        (
+            "cone first",
+            &c,
+            &b,
+            ["open conic", "open conic", "open conic", "vertex pair"],
+        ),
+        (
+            "box first",
+            &b,
+            &c,
+            ["vertex pair", "vertex pair", "vertex pair", "open conic"],
+        ),
+    ] {
+        let got = [
+            union(x, y, tol()),
+            intersect(x, y, tol()),
+            subtract(x, y, tol()),
+            subtract(y, x, tol()),
+        ];
+        let got = got.each_ref().map(pair);
+        assert_eq!(got, want, "{order}: ∪, ∩, ∖, ∖ back");
     }
 }
 

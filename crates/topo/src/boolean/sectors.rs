@@ -2793,12 +2793,12 @@ pub(super) fn pair_codes<T: Decide>(
     let code = |dir, reach, other| super::fan::face_side_code(dir, reach, other, band);
     Ok((
         (
-            code(sa.start, sa.start_reach, (Operand::B, sb))?,
-            code(sa.end, sa.end_reach, (Operand::B, sb))?,
+            code(sa.start, sa.start_reach, sb)?,
+            code(sa.end, sa.end_reach, sb)?,
         ),
         (
-            code(sb.start, sb.start_reach, (Operand::A, sa))?,
-            code(sb.end, sb.end_reach, (Operand::A, sa))?,
+            code(sb.start, sb.start_reach, sa)?,
+            code(sb.end, sb.end_reach, sa)?,
         ),
     ))
 }

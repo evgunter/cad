@@ -3211,8 +3211,18 @@ fn cone_apex_plane<T: Decide>(
     let (b1, b2) = (onto(a1), onto(a2));
     // Nearly coaxial past what the axes can place the rulings to
     // (`fan::conditioned`): no frame is read.
-    super::fan::conditioned(b1.cross(b2).norm(), reach.lever_from(apex), band)
-        .map_err(|()| frame_refusal(FrameError::NoArm, (one_face, one), (two_face, two)))?;
+    match super::fan::conditioned(b1.cross(b2).norm(), reach.lever_from(apex), band)
+        .map_err(|diag| BooleanError::coincidence(Coincide::Section, DeclarationRead::Moot, diag))?
+    {
+        super::fan::Conditioned::Read => {}
+        super::fan::Conditioned::Unread => {
+            return Err(frame_refusal(
+                FrameError::NoArm,
+                (one_face, one),
+                (two_face, two),
+            ));
+        }
+    }
     let m = geom_brep::cone_cone_apex_meeting((b1, h1.cos()), (b2, h2.cos()));
     UnitVec3::levered(
         m.base.cross(m.across),
@@ -8146,3 +8156,40 @@ mod join_carrier_site_rows;
 #[cfg(test)]
 #[path = "join_walk_order_rows.rs"]
 mod join_walk_order_rows;
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod apex_plane_rows {
+    use super::*;
+
+    fn cone(axis: Vec3<f64>) -> geom::Surface<f64> {
+        geom::Surface::Cone {
+            apex: Point3::origin(),
+            axis,
+            half_angle: 0.5,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        }
+    }
+
+    /// **The plane two cones through one apex cross in is read only where
+    /// their axes place their rulings** ([`cone_apex_plane`], through
+    /// `fan::conditioned`): the 0.5 rad cone against itself tilted `1e-3`
+    /// spans its rulings' plane; tilted `2e-8`, past what `arm·4u/s` reads
+    /// to the witness band, it refuses the frame by name
+    /// (`GermFrameUnsupported`).
+    #[test]
+    fn two_cones_rulings_plane_is_read_only_where_their_axes_place_it() {
+        let band = Band::linear(geom_core::Tol::witness()).unwrap();
+        let up = Vec3::new(0.0, 1.0, 0.0);
+        let tilted = |t: f64| Vec3::new(t.sin(), t.cos(), 0.0);
+        let g = Vec3::new(0.0, -(0.5f64.cos()), 0.5f64.sin());
+        let reach = geom_brep::ExtentBall::new(Point3::origin(), 1.0);
+        let (fa, fb) = (FaceKey::default(), FaceKey::default());
+        let (one, near, nearer) = (cone(up), cone(tilted(1e-3)), cone(tilted(2e-8)));
+        assert!(cone_apex_plane((fa, &one), (fb, &near), g, reach, band).is_ok());
+        assert!(matches!(
+            cone_apex_plane((fa, &one), (fb, &nearer), g, reach, band),
+            Err(BooleanError::GermFrameUnsupported { .. })
+        ));
+    }
+}

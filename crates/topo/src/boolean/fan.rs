@@ -69,7 +69,9 @@ pub(super) fn nappe_axis<T: Decide>(apex: &ConeApex<T>, like: Vec3<T>) -> Vec3<T
 /// departure tangent, whatever its own bend. Against a fan that ray needs
 /// no face charge either: the cone is homogeneous about its apex, so the
 /// ray's offset from the nappe is linear along it, `l·offset(d̂)`, and a
-/// definite sign at the reach is the sign at every distance.
+/// definite sign at the reach is the sign at every distance. It has no
+/// descent: a bound on the nappe to first order reads On, and nothing
+/// reads it one order down.
 ///
 /// # Errors
 ///
@@ -77,7 +79,7 @@ pub(super) fn nappe_axis<T: Decide>(apex: &ConeApex<T>, like: Vec3<T>) -> Vec3<T
 pub(super) fn face_side_code<T: Decide>(
     dir: Vec3<T>,
     reach: Reach<T>,
-    (_, other): (Operand, &BoolSector<T>),
+    other: &BoolSector<T>,
     band: Band,
 ) -> Result<SideCode, BooleanError> {
     let apex = match &other.at_vertex {
@@ -210,11 +212,11 @@ pub(super) fn meeting<T: Decide>(
                 face: a.face,
                 kind: geom::SurfaceKind::Cone,
             };
-            match one_cone((pa, a.start), (pb, b.start), arm, band)? {
+            let apart = match one_cone((pa, axa), (pb, axb), arm, band)? {
                 Coaxial::OneCone => return Ok(Meeting::Coincident),
                 Coaxial::Other => return Ok(Meeting::Rays(Vec::new())),
-                Coaxial::Apart(s) => conditioned(s, arm, band).map_err(|()| tangency())?,
-            }
+                Coaxial::Apart(s) => s,
+            };
             let m = geom_brep::cone_cone_apex_meeting(
                 (axa, pa.half_angle.cos()),
                 (axb, pb.half_angle.cos()),
@@ -226,7 +228,16 @@ pub(super) fn meeting<T: Decide>(
             match decide("bool_fans_meet", Margin::levered(m.disc, arm), band).map_err(escalate)? {
                 Sign::Negative => Ok(Meeting::Rays(Vec::new())),
                 Sign::Zero => Err(tangency()),
-                Sign::Positive => Ok(Meeting::Rays(m.rulings().to_vec())),
+                // The rulings are read only where the axes place them to
+                // the band ([`conditioned`]); a meeting at the apex alone
+                // reads no ruling and needs no such gate.
+                Sign::Positive => match conditioned(apart, arm, band).map_err(escalate)? {
+                    Conditioned::Read => Ok(Meeting::Rays(m.rulings().to_vec())),
+                    Conditioned::Unread => Err(BooleanError::VertexPairAtConeApex {
+                        operand: a_op,
+                        face: a.face,
+                    }),
+                },
             }
         }
     }
@@ -238,7 +249,10 @@ pub(super) const CONES_SHARE_APEX: &str = "bool_cones_share_apex";
 /// **Whether two cones share their apex**: the apexes' gap
 /// (`bool_cones_share_apex`, a length) decided in the band. The one home
 /// of the question, which the section certificate's cone pair and both
-/// of the join's cone-pair readings ask.
+/// of the join's cone-pair readings ask. It lives beside the fan arms
+/// because a shared apex is what makes two cone faces' sectors fans of
+/// one vertex: the certificate and the join ask it of the pair the
+/// vertex lane reads, so the lane's module is the one all three import.
 ///
 /// # Errors
 ///
@@ -262,7 +276,7 @@ pub(super) enum Coaxial<T> {
 }
 
 /// **The one-cone ladder** for two fans at one apex, each read by its
-/// nappe's axis (a ruling `like` it leaves along): coaxial
+/// nappe's axis ([`nappe_axis`], the caller's): coaxial
 /// (`bool_fans_coaxial`, `‖a₁ × a₂‖` levered by `arm`), then on one nappe
 /// (`bool_fan_nappe`, `a₁·a₂`), then of one aperture (`bool_fans_one_cone`).
 /// The one home of the reading, which [`meeting`] and [`nappe_classes`]
@@ -272,13 +286,12 @@ pub(super) enum Coaxial<T> {
 ///
 /// [`BooleanError::coincidence`] on an escalation.
 pub(super) fn one_cone<T: Decide>(
-    (pa, like_a): (&ConeApex<T>, Vec3<T>),
-    (pb, like_b): (&ConeApex<T>, Vec3<T>),
+    (pa, a): (&ConeApex<T>, Vec3<T>),
+    (pb, b): (&ConeApex<T>, Vec3<T>),
     arm: T,
     band: Band,
 ) -> Result<Coaxial<T>, BooleanError> {
     let escalate = |diag| BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag);
-    let (a, b) = (nappe_axis(pa, like_a), nappe_axis(pb, like_b));
     let apart = a.cross(b).norm();
     if decide("bool_fans_coaxial", Margin::levered(apart, arm), band).map_err(escalate)?
         != Sign::Zero
@@ -302,18 +315,41 @@ pub(super) fn one_cone<T: Decide>(
     })
 }
 
+/// What [`conditioned`] reads of two fans' common rulings.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum Conditioned {
+    /// The axes place the rulings to the band.
+    Read,
+    /// Definitely not: the fans are nearly coaxial past what the
+    /// formula's arithmetic can place a ruling to.
+    Unread,
+}
+
 /// **Whether two fans' common rulings are read to the band**
-/// (`bool_fans_meet_conditioning`): the axes fix the plane the rulings
-/// turn in only to `~u/s`, `s = ‖a₁ × a₂‖` and `u` the unit roundoff
-/// (`geom_brep::cone_cone_apex_meeting`'s floor), so at `arm` a ruling is
-/// placed to `arm·8u/s`. Not in the band, the fans are nearly coaxial
-/// past what their axes can say, and the caller refuses.
-pub(super) fn conditioned<T: Decide>(s: T, arm: T, band: Band) -> Result<(), ()> {
-    let spread = arm * T::from_f64(8.0 * geom_core::UNIT_ROUNDOFF) / s;
-    match decide("bool_fans_meet_conditioning", Margin::of(spread), band) {
-        Ok(Sign::Zero) => Ok(()),
-        _ => Err(()),
-    }
+/// (`bool_fans_meet_conditioning`). The inputs are exact; what the
+/// closed form ([`geom_brep::cone_cone_apex_meeting`]) loses is its own
+/// arithmetic, and the rulings' turn about the axes' plane is read off
+/// `a₁ × a₂`, whose components each round by about `2u` (`u` the unit
+/// roundoff) on a length `s = ‖a₁ × a₂‖`: a direction placed to `~4u/s`,
+/// so a ruling at `arm` to `arm·4u/s`. Asked only where the fans cross
+/// along rulings, which is all it gates.
+///
+/// # Errors
+///
+/// The decision's diagnostic where it escalates: neither a refusal of
+/// the reading nor a tangency.
+pub(super) fn conditioned<T: Decide>(
+    s: T,
+    arm: T,
+    band: Band,
+) -> Result<Conditioned, geom_core::Indeterminate> {
+    let spread = arm * T::from_f64(4.0 * geom_core::UNIT_ROUNDOFF) / s;
+    Ok(
+        match decide("bool_fans_meet_conditioning", Margin::of(spread), band)? {
+            Sign::Zero => Conditioned::Read,
+            Sign::Positive | Sign::Negative => Conditioned::Unread,
+        },
+    )
 }
 
 /// [`meeting`]'s plane-and-fan arm: the plane through the apex with unit
@@ -478,8 +514,9 @@ pub(super) fn nappe_classes<T: Decide>(
             return Err(unbuilt(first.face));
         };
         let arm = first.arm.min(s.arm);
+        let axes = (nappe_axis(apex, first.start), nappe_axis(other, s.start));
         let one = matches!(
-            one_cone((apex, first.start), (other, s.start), arm, band)?,
+            one_cone((apex, axes.0), (other, axes.1), arm, band)?,
             Coaxial::OneCone
         ) && other.material_inside() == apex.material_inside();
         if !one {
@@ -569,6 +606,64 @@ mod rows {
                 vec![(down, inside), (across, outside), (along, SideCode::On)],
                 "material inside {sense}"
             );
+        }
+    }
+    /// A fan sector of the cone at `(0, 1, 0)` whose nappe axis is `down`
+    /// turned, of half-angle `half`, a quarter turn wide.
+    fn fan_about(down: Vec3<f64>, half: f64, face: u64) -> BoolSector<f64> {
+        let key = |n: u64| slotmap::KeyData::from_ffi((1 << 32) | n);
+        let side = down.cross(Vec3::new(0.0, 0.0, 1.0)).normalize();
+        let start = down * half.cos() + side * half.sin();
+        let apex = ConeApex {
+            apex: Point3::new(0.0, 1.0, 0.0),
+            axis: down * -1.0,
+            half_angle: half,
+            u_ref: side,
+            sense: true,
+        };
+        BoolSector {
+            he: HalfEdgeKey::from(key(face)),
+            start,
+            end: apex.ruling_from(start, core::f64::consts::FRAC_PI_2),
+            start_reach: Reach::straight_bisector(1.0),
+            end_reach: Reach::straight_bisector(1.0),
+            face: FaceKey::from(key(face)),
+            at_vertex: BoolFace::Apex(apex),
+            bend: crate::bound_side::FaceBend::Plane,
+            arm: 1.0,
+        }
+    }
+
+    /// **Two fans' common rulings are read only where the axes place them**
+    /// ([`conditioned`], [`meeting`]): the 0.5 rad cone against itself
+    /// tilted `1e-3` meets along two rulings; tilted `2e-8` (its axes
+    /// definitely apart at the witness band, `arm·4u/s` definitely past
+    /// it), its rulings refuse by name, neither read nor called a
+    /// tangency; and fans of apertures `0.01` apart, tilted as little,
+    /// meet at the apex alone, which no ruling is read for, so the gate
+    /// does not ask.
+    #[test]
+    fn a_fans_rulings_are_read_only_where_their_axes_place_them() {
+        let down = Vec3::new(0.0, -1.0, 0.0);
+        let tilted = |t: f64| Vec3::new(t.sin(), -t.cos(), 0.0);
+        let meet = |a: &BoolSector<f64>, b: &BoolSector<f64>| {
+            meeting((Operand::A, None, a), (Operand::B, None, b), band())
+        };
+        let one = fan_about(down, 0.5, 1);
+        match meet(&one, &fan_about(tilted(1e-3), 0.5, 2)) {
+            Ok(Meeting::Rays(rays)) => assert_eq!(rays.len(), 2),
+            other => panic!("tilted 1e-3: {other:?}"),
+        }
+        assert!(
+            matches!(
+                meet(&one, &fan_about(tilted(2e-8), 0.5, 3)),
+                Err(BooleanError::VertexPairAtConeApex { .. })
+            ),
+            "tilted 2e-8"
+        );
+        match meet(&one, &fan_about(tilted(2e-8), 0.51, 4)) {
+            Ok(Meeting::Rays(rays)) => assert!(rays.is_empty()),
+            other => panic!("apart in aperture: {other:?}"),
         }
     }
 }
