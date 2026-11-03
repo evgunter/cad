@@ -3159,17 +3159,19 @@ fn a_far_plane_wall_pair_certifies_or_refuses_by_scale() {
 }
 
 /// **A wall too large for its coordinates refuses by its scale.** A wall
-/// near the origin scaled to `ε·1e15` m reaches about a million metres,
-/// so its points, which are the 1×2 trace's states, lie where adjacent
-/// coordinates are 2.3e-10 m apart and settle no finer than 1.9e-9 m,
-/// past ε: the march refuses by the wall's reach, on the ℝ³ lane,
-/// bounded by the wall itself. (The plane's ℝ⁴ trace read its states on
-/// the plane's chart window about the origin, and refused by the wall's
-/// chart instead.)
+/// near the origin scaled to `ε·1e15` m: its points, which are the 1×2
+/// trace's states, lie where adjacent coordinates are far apart, and a
+/// step of its chart moves it far, so the march's states settle no finer
+/// than the coarser of the two, past ε, and the march refuses by that
+/// scale. Which binds depends on ε: at 1e-9 and 1e-12 the wall's
+/// coordinates (on the ℝ³ lane, bounded by the wall itself), at 1e-6 its
+/// chart, whose speed is then 1.1e9 m per chart unit. (The plane's ℝ⁴
+/// trace read its states on the plane's chart window about the origin,
+/// and refused by the wall's chart at every ε.)
 #[test]
 fn a_wall_too_large_for_its_coordinates_refuses_by_its_scale() {
-    use geom_brep::ReachBound;
     use geom_brep::recourse::Reading;
+    use geom_brep::{ExhaustLane, ReachBound};
 
     let m = band().zero() * 1.0e15;
     let wide = wall_from_cols(certifiable_cols().map(|(u, v)| (u * m, v * m)));
@@ -3177,17 +3179,31 @@ fn a_wall_too_large_for_its_coordinates_refuses_by_its_scale() {
     let Err(ref err @ SsiError::SettlingUnresolvable(s)) = r else {
         panic!("the {m:e} m wall: expected the settling door, got {r:?}");
     };
-    assert!(
-        matches!(s.lane, geom_brep::ExhaustLane::R3) && s.bound == ReachBound::Geometry,
-        "the wall's own coordinates bind: {s:?}"
-    );
-    assert!(s.reach >= m, "the wall's reach: {s:?}");
     let shown = err.render(Reading::Build);
-    assert!(
-        shown.contains("where the geometry reaches")
-            && shown.contains("Recourse: move the geometry nearer the origin"),
-        "{shown}"
-    );
+    match s.lane {
+        ExhaustLane::R3 => {
+            assert!(
+                s.bound == ReachBound::Geometry && s.reach >= m,
+                "the wall's own coordinates bind: {s:?}"
+            );
+            assert!(
+                shown.contains("where the geometry reaches")
+                    && shown.contains("Recourse: move the geometry nearer the origin"),
+                "{shown}"
+            );
+        }
+        ExhaustLane::Chart { speed } => {
+            assert_eq!(s.reach, 1.0, "the wall's knot domain");
+            assert!(
+                shown.contains(&format!(
+                    "at a certified chart speed of {:e} m per chart unit",
+                    speed.get()
+                )) && shown
+                    .contains("Recourse: bring the spline face within the model's size range"),
+                "{shown}"
+            );
+        }
+    }
 }
 
 /// **A short branch traces at the caller's extent.** The collapsed net

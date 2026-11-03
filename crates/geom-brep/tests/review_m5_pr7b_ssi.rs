@@ -84,30 +84,37 @@ fn deviation2a_the_inflected_walls_fit_deviation_is_measured_without_the_ring() 
     // directly, 200k samples.
     //
     // The march runs at ε = 1e-9, handed to `trace_deviation`
-    // explicitly, and keeps each step only where its predicted state lies
-    // on the locus, so the section's curvature zero, where the
-    // `h_fit ∝ (ε/κ³)^¼` rung unbinds, is stepped as finely as the locus
-    // asks: the march's own deviation measures 2.13e-10 m at u = 0.528 on
-    // the 1×2 trace (1.31e-10 m at u = 0.536 on the plane's retired ℝ⁴
-    // trace, which sampled the locus differently).
+    // explicitly, on the 1×2 trace (`ImplicitChartR2`). Its own deviation
+    // measures 2.41e-9 m at u = 0.533, at the section's curvature zero,
+    // where the `h_fit ∝ (ε/κ³)^¼` rung unbinds and only the residual
+    // test holds the step. That test reads the one residual `f∘S`, which
+    // does not see the wall pcurve's timing along the track. The retired
+    // ℝ⁴ trace read `S − P` and measured 1.31e-10 m here
+    // (work/sectarms/the-implicit-chart-march-does-not-read-its-pcurves-timing.md).
     // The door then refines the trace where the certificate, at the
-    // ambient band, refuses it. On a band whose zero is above that
-    // deviation nothing is refined, and the scan reads the march's within
-    // ±7%; on a finer one (ε 1e-12) the gaps are halved until the limbs
-    // are answered, and the scan reads below it (measured 2.27e-11 m).
+    // ambient band, refuses it:
+    // - on a band whose zero is above that deviation nothing is refined,
+    //   and the scan reads the march's own within ±7%;
+    // - at ε 1e-9 the certificate refuses limb 2 and one round brings the
+    //   pair below it (measured 2.13e-10 m);
+    // - at ε 1e-12 the halving runs into the step budget on limb 1 before
+    //   it reaches the span at the curvature zero, and the door returns
+    //   its last refused triple, whose scan still reads the march's own.
     let w = nurbs_wall();
     let (max, u_at_max) = trace_deviation(&w, 1e-9, 200_000);
     eprintln!("[review] inflected-wall fit deviation: {max:.3e} m at u = {u_at_max:.4}");
-    let march = 2.13e-10;
-    if band().zero() > 1.1 * march {
-        assert!(
-            (0.93 * march..=1.07 * march).contains(&max),
-            "the march's own deviation, unrefined: {max:e} at u = {u_at_max:.4}"
-        );
-    } else {
+    let march = 2.41e-9;
+    let refined = band().zero() <= 1.1 * march && band().zero() >= 1e-10;
+    if refined {
         assert!(
             max < 0.93 * march,
             "the march's deviation is not refined at ε {:e}: {max:e}",
+            band().zero()
+        );
+    } else {
+        assert!(
+            (0.93 * march..=1.07 * march).contains(&max),
+            "the march's own deviation, unrefined at ε {:e}: {max:e} at u = {u_at_max:.4}",
             band().zero()
         );
     }
