@@ -684,7 +684,6 @@ impl PcurveMintError {
 
 /// The payload alone: the ending is read at the door that reports the
 /// refusal ([`PcurveMintError::render`]).
-#[cfg(not(e1e_probe))]
 impl core::fmt::Display for PcurveMintError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         self.write_payload(f)
@@ -697,7 +696,6 @@ impl geom_brep::recourse::Ended for PcurveMintError {
     }
 }
 
-#[cfg(not(e1e_probe))]
 impl std::error::Error for PcurveMintError {}
 
 impl PcurveMintError {

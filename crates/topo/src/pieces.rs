@@ -185,7 +185,6 @@ impl PieceSortError {
 
 geom_brep::ended_by_write!(PieceSortError);
 
-#[cfg(not(e1e_probe))]
 impl std::error::Error for PieceSortError {}
 
 /// Sorts every solid of `body` into pieces (module docs). `quad` is the

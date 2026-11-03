@@ -222,7 +222,6 @@ impl<T: Real> VerbError<T> {
 
 geom_brep::ended_by_write!([T: Real] VerbError<T>);
 
-#[cfg(not(e1e_probe))]
 impl<T: Real> core::error::Error for VerbError<T> {}
 
 /// **The scalar every run door runs at**: the bound set the op doors

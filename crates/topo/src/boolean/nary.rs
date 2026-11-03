@@ -482,7 +482,6 @@ impl NaryRefusal {
 
 geom_brep::ended_by_write!(NaryRefusal);
 
-#[cfg(not(e1e_probe))]
 impl core::error::Error for NaryRefusal {}
 
 /// **One carrier pair a judgement glued**: the kernel's verdict, the

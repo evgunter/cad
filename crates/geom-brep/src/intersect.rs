@@ -837,7 +837,6 @@ impl SectionError {
 
 crate::ended_by_write!(SectionError);
 
-#[cfg(not(e1e_probe))]
 impl std::error::Error for SectionError {}
 
 /// **Whose radius a section arm's operand guard reads** (D4 ¶1 (i)): an

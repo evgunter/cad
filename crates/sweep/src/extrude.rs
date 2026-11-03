@@ -610,7 +610,6 @@ impl ExtrudeError {
 
 geom_brep::ended_by_write!(ExtrudeError);
 
-#[cfg(not(e1e_probe))]
 impl std::error::Error for ExtrudeError {}
 
 impl From<EulerOpError> for ExtrudeError {

@@ -1044,7 +1044,6 @@ impl<T: Real> ReplaceFaceError<T> {
 
 geom_brep::ended_by_write!([T: Real] ReplaceFaceError<T>);
 
-#[cfg(not(e1e_probe))]
 impl<T: Real> std::error::Error for ReplaceFaceError<T> {}
 
 /// "1 error", "3 errors": a validator report's size, as a refusal says it.

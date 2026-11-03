@@ -5219,7 +5219,6 @@ impl ValidationError {
 
 geom_brep::ended_by_write!(ValidationError);
 
-#[cfg(not(e1e_probe))]
 impl std::error::Error for ValidationError {}
 
 /// How a ring meets its face's outer loop

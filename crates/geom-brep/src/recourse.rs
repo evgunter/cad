@@ -95,13 +95,8 @@ impl Reading {
 /// [`Ended::ended`] at the door that reads it, so no `Display` answers
 /// one door's question for another. Each implementor's inherent
 /// `render(at)` is the same text.
-#[cfg(not(e1e_probe))]
 pub trait Ended: core::fmt::Display {
     /// This refusal's text ended at `at`.
-    fn ended(&self, at: ReadAt) -> String;
-}
-#[cfg(e1e_probe)]
-pub trait Ended {
     fn ended(&self, at: ReadAt) -> String;
 }
 
@@ -110,10 +105,7 @@ pub trait Ended {
 pub fn read_at<E: Ended + ?Sized>(refusal: &E, at: Option<ReadAt>) -> impl core::fmt::Display + '_ {
     core::fmt::from_fn(move |f| match at {
         Some(at) => f.write_str(&refusal.ended(at)),
-        #[cfg(not(e1e_probe))]
         None => core::fmt::Display::fmt(refusal, f),
-        #[cfg(e1e_probe)]
-        None => panic!(),
     })
 }
 
@@ -173,7 +165,6 @@ macro_rules! ended_by_write {
             }
         }
 
-        #[cfg(not(e1e_probe))]
         impl<$($gen)*> core::fmt::Display for $ty {
             fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
                 self.write(f, None)

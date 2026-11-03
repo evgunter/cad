@@ -545,7 +545,6 @@ impl PointInLoopError {
 
 geom_brep::ended_by_write!(PointInLoopError);
 
-#[cfg(not(e1e_probe))]
 impl std::error::Error for PointInLoopError {}
 
 impl PointInLoopError {

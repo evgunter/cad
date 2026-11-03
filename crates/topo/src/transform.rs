@@ -266,7 +266,6 @@ geom_brep::ended_by_write!(TransformError);
 // `Display` renders its nested payload's own `Display` in full, so the
 // chain is already in the message and a walker would re-read what it
 // just printed.
-#[cfg(not(e1e_probe))]
 impl std::error::Error for TransformError {}
 
 fn map_vec<T: Real>(map: &Affine3<T>, v: Vec3<T>) -> Vec3<T> {

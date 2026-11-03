@@ -678,7 +678,6 @@ impl LoftError {
 
 geom_brep::ended_by_write!(LoftError);
 
-#[cfg(not(e1e_probe))]
 impl std::error::Error for LoftError {}
 
 impl From<EulerOpError> for LoftError {

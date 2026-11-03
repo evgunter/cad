@@ -5673,7 +5673,6 @@ impl BooleanError {
 
 geom_brep::ended_by_write!(BooleanError);
 
-#[cfg(not(e1e_probe))]
 impl std::error::Error for BooleanError {}
 
 /// **`boolean_reduce`** — reduction + classification + paired

@@ -2341,7 +2341,6 @@ impl PcurveCertifyError {
 
 /// The payload alone: the ending is read at the door that reports the
 /// refusal ([`PcurveCertifyError::render`]).
-#[cfg(not(e1e_probe))]
 impl core::fmt::Display for PcurveCertifyError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         self.write_payload(f)
@@ -2354,7 +2353,6 @@ impl crate::recourse::Ended for PcurveCertifyError {
     }
 }
 
-#[cfg(not(e1e_probe))]
 impl std::error::Error for PcurveCertifyError {}
 
 impl PcurveCertifyError {

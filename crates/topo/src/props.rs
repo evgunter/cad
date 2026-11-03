@@ -381,7 +381,6 @@ impl MassPropsError {
 
 geom_brep::ended_by_write!(MassPropsError);
 
-#[cfg(not(e1e_probe))]
 impl std::error::Error for MassPropsError {}
 
 /// Volume and surface area of `body` over the exact B-rep (module
@@ -5925,7 +5924,6 @@ impl ShellClassifyError {
 
 geom_brep::ended_by_write!(ShellClassifyError);
 
-#[cfg(not(e1e_probe))]
 impl std::error::Error for ShellClassifyError {}
 
 /// Per-shell signed volume and outer/void role for every shell of

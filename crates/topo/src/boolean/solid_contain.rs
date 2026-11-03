@@ -693,7 +693,6 @@ impl PointInSolidError {
 
 geom_brep::ended_by_write!(PointInSolidError);
 
-#[cfg(not(e1e_probe))]
 impl std::error::Error for PointInSolidError {}
 
 /// The face's plane, F5-gated: origin and **outward** normal (the

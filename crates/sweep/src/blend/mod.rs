@@ -240,7 +240,6 @@ impl BlendRefusal {
 
 geom_brep::ended_by_write!(BlendRefusal);
 
-#[cfg(not(e1e_probe))]
 impl core::error::Error for BlendRefusal {}
 
 /// **The question a blend gate asks**, closed (D4 ¶1 (i)): one variant
@@ -2279,7 +2278,6 @@ impl BlendError {
 
 geom_brep::ended_by_write!(BlendError);
 
-#[cfg(not(e1e_probe))]
 impl core::error::Error for BlendError {}
 
 /// **Every recourse sentence this module can append, with the short

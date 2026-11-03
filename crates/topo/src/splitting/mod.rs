@@ -947,7 +947,6 @@ impl SplitReduceError {
 
 geom_brep::ended_by_write!(SplitReduceError);
 
-#[cfg(not(e1e_probe))]
 impl std::error::Error for SplitReduceError {}
 
 /// The non-mutating prefix of the reduction — the finished-body gate,
@@ -1182,7 +1181,6 @@ impl SplitError {
 
 geom_brep::ended_by_write!(SplitError);
 
-#[cfg(not(e1e_probe))]
 impl std::error::Error for SplitError {}
 
 /// Runs reduce + join on a scratch clone, returning the joined

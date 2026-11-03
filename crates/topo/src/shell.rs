@@ -843,7 +843,6 @@ impl<T: Real> ShellError<T> {
 
 geom_brep::ended_by_write!([T: Real] ShellError<T>);
 
-#[cfg(not(e1e_probe))]
 impl<T: Real> std::error::Error for ShellError<T> {}
 
 /// **A face-replacement refusal as the shell op's user reads it.** The

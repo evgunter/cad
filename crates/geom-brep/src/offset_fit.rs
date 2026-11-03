@@ -789,7 +789,6 @@ impl crate::recourse::Ended for OffsetFitError {
     }
 }
 
-#[cfg(not(e1e_probe))]
 impl core::fmt::Display for OffsetFitError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         self.write_payload(f)
@@ -950,7 +949,6 @@ impl OffsetFitError {
     }
 }
 
-#[cfg(not(e1e_probe))]
 impl std::error::Error for OffsetFitError {}
 
 // The certificate RECORD lives in `geom` (`geom::OffsetCertificate`):

@@ -966,7 +966,6 @@ impl SplitJoinError {
 
 geom_brep::ended_by_write!(SplitJoinError);
 
-#[cfg(not(e1e_probe))]
 impl std::error::Error for SplitJoinError {}
 
 /// The corruption refusal naming the half-edge the join was reading.

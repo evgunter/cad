@@ -408,7 +408,6 @@ impl ContainError {
 
 geom_brep::ended_by_write!(ContainError);
 
-#[cfg(not(e1e_probe))]
 impl std::error::Error for ContainError {}
 
 impl ContainError {

@@ -1289,7 +1289,6 @@ impl MergeCoplanarError {
 
 geom_brep::ended_by_write!(MergeCoplanarError);
 
-#[cfg(not(e1e_probe))]
 impl std::error::Error for MergeCoplanarError {}
 
 impl From<EulerOpError> for MergeCoplanarError {

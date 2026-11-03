@@ -534,7 +534,6 @@ impl ChartRegionError {
 
 geom_brep::ended_by_write!(ChartRegionError);
 
-#[cfg(not(e1e_probe))]
 impl std::error::Error for ChartRegionError {}
 
 /// **The chart-region door, as a value** — what lets a `Decide`-generic

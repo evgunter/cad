@@ -1023,7 +1023,6 @@ impl RevolveError {
 
 geom_brep::ended_by_write!(RevolveError);
 
-#[cfg(not(e1e_probe))]
 impl std::error::Error for RevolveError {}
 
 impl From<EulerOpError> for RevolveError {

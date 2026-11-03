@@ -748,7 +748,6 @@ impl PropsError {
 
 crate::ended_by_write!(PropsError);
 
-#[cfg(not(e1e_probe))]
 impl std::error::Error for PropsError {}
 
 /// The flux and area of a **planar** face from its loops (outer +

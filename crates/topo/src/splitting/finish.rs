@@ -1232,7 +1232,6 @@ impl SplitFinishError {
 
 geom_brep::ended_by_write!(SplitFinishError);
 
-#[cfg(not(e1e_probe))]
 impl std::error::Error for SplitFinishError {}
 
 /// The finish step (module docs). Consumes the joined scratch body

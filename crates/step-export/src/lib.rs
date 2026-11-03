@@ -397,7 +397,6 @@ impl StepExportError {
 
 geom_brep::ended_by_write!(StepExportError);
 
-#[cfg(not(e1e_probe))]
 impl std::error::Error for StepExportError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
