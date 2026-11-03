@@ -530,9 +530,10 @@ fn the_witness_is_offered_only_for_the_shown_documents_run() {
 
 /// **The create door writes each shape of bound**, through the
 /// document's own insert door: `≥`, `≤`, `=` and the band, each the
-/// clearance tool's choice, every end at the one length it is given.
+/// clearance tool's choice, every end at the one length it is given; a
+/// band's upper end is then moved at its own row.
 ///
-/// Red if a choice writes another shape.
+/// Red if a choice writes another shape, or the band's ends swap.
 #[test]
 fn the_clearance_tool_writes_each_shape_of_bound() {
     use viewer::combine::{ClearanceBoundChoice, ClearanceTool};
@@ -547,6 +548,16 @@ fn the_clearance_tool_writes_each_shape_of_bound() {
             .op(choice.bounds(len(0.005)))
             .expect("both seats are held");
         let id = add(&mut session, op);
+        // A band's upper end moved apart at its own row, so ends that
+        // swapped would read back swapped.
+        if choice == ClearanceBoundChoice::Between {
+            let moved = session.perform(SessionOp::SetSlotExpression {
+                node: id,
+                slot: pncad::document::SlotId::ClearanceBound(pncad::document::BoundEnd::High),
+                text: "20 mm".to_owned(),
+            });
+            assert!(moved.refusal.is_none(), "{:?}", moved.refusal);
+        }
         let doc = session.committed_doc();
         let Some(Node::Assertion(pncad::document::Claim::Clearance { a, b, bounds })) =
             doc.node(id)
@@ -566,7 +577,7 @@ fn the_clearance_tool_writes_each_shape_of_bound() {
             ClearanceBoundChoice::Equal => ClearanceBounds::Equal(0.005),
             ClearanceBoundChoice::Between => ClearanceBounds::Within {
                 lo: 0.005,
-                hi: 0.005,
+                hi: 0.02,
             },
         };
         assert_eq!(written, want, "{choice:?}");

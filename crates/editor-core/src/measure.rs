@@ -599,20 +599,15 @@ impl<S> ClearanceBounds<S> {
         }
     }
 
-    /// The bound expressions, low to high (`= c` reads one).
+    /// The bound expressions, low to high (`= c` reads one): the
+    /// [`Self::rows`]' expressions, in their order.
     pub fn exprs(&self) -> Vec<&S> {
-        match self {
-            Self::AtLeast(c) | Self::AtMost(c) | Self::Equal(c) => vec![c],
-            Self::Within { lo, hi } => vec![lo, hi],
-        }
+        self.rows().into_iter().map(|(_, e)| e).collect()
     }
 
     /// [`Self::exprs`], exclusive.
     pub fn exprs_mut(&mut self) -> Vec<&mut S> {
-        match self {
-            Self::AtLeast(c) | Self::AtMost(c) | Self::Equal(c) => vec![c],
-            Self::Within { lo, hi } => vec![lo, hi],
-        }
+        self.rows_mut().into_iter().map(|(_, e)| e).collect()
     }
 
     /// The same bounds over other expressions.

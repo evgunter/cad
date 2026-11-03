@@ -2242,6 +2242,17 @@ impl<P: crate::program::SlotPayload<S>, S: Slot> Node<P, S> {
     /// ([`crate::mate::Coord::value_label`]), which its address does not
     /// carry.
     pub fn slot_label(&self, slot: SlotId) -> String {
+        // `= c` has one bound, which is no end of a band.
+        if let (
+            SlotId::ClearanceBound(_),
+            Node::Assertion(crate::measure::Claim::Clearance {
+                bounds: crate::measure::ClearanceBounds::Equal(_),
+                ..
+            }),
+        ) = (slot, self)
+        {
+            return String::from("bound");
+        }
         let value = match slot {
             SlotId::ValueSlide { constraint } | SlotId::ValueSpin { constraint } => {
                 crate::mate::solve::bundle_of(self)

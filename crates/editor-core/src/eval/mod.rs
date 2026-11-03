@@ -4659,20 +4659,23 @@ where
             for (index, &(var, dim)) in reads.iter().enumerate() {
                 let read = measure::observe(doc, env, results, var, dim).map_err(|refusal| {
                     match refusal {
-                        measure::ObservedRefusal::Expr(source) => NodeErrorKind::PayloadExpr {
-                            what: match (claim, index) {
-                                (crate::measure::Claim::Value { .. }, 0) => {
+                        // A clearance's bound is a slot, and is named so.
+                        measure::ObservedRefusal::Expr(source) => match claim {
+                            crate::measure::Claim::Clearance { bounds, .. } => {
+                                let Some(&(slot, _)) = bounds.rows().get(index) else {
+                                    unreachable!("one read per bound row, in row order")
+                                };
+                                NodeErrorKind::Expr { slot, source }
+                            }
+                            crate::measure::Claim::Value { .. } => NodeErrorKind::PayloadExpr {
+                                what: if index == 0 {
                                     "the assertion's value,"
-                                }
-                                (crate::measure::Claim::Value { .. }, _) => {
+                                } else {
                                     "the assertion's bound,"
-                                }
-                                (crate::measure::Claim::Clearance { .. }, _) => {
-                                    "the clearance's bound,"
-                                }
+                                },
+                                index,
+                                source,
                             },
-                            index,
-                            source,
                         },
                         // Every measure under the value is upstream of
                         // this node, and a failed one poisoned it above.

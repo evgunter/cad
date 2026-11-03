@@ -12105,11 +12105,11 @@ mod properties_pane_tests {
         /// **The index's count is one row, reached from the index and from
         /// the pattern's placement**: the same widget on the index
         /// variable's own row and on the placement's rows, each writing
-        /// the count through `props::index_count_edit`, and the pattern
-        /// follows.
+        /// the count through `props::index_count_edit`, typed or dragged,
+        /// and the pattern follows.
         ///
-        /// Red if either place draws no count row, or a count typed there
-        /// does not reach the index or the family.
+        /// Red if either place draws no count row, or a count typed or
+        /// dragged there does not reach the index or the family.
         #[test]
         fn the_index_count_row_edits_the_count_from_the_index_and_from_the_placement() {
             let mut driven = Driven::with(vec![SessionOp::AddPattern {
@@ -12138,6 +12138,17 @@ mod properties_pane_tests {
             type_count(&mut driven, "2");
             assert_eq!(count(&driven), "2", "typed on the placement's row");
             assert_eq!(members(&driven, row), 2, "the family follows");
+
+            // The field's drag: a count dragged on an index is its count.
+            let gesture = crate::session::ValueGestureName::Variable(index);
+            driven.app.perform_batch(vec![
+                gesture.begin(),
+                gesture.preview(4.0),
+                gesture.commit(),
+            ]);
+            driven.settle();
+            assert_eq!(count(&driven), "4", "dragged on the index's field");
+            assert_eq!(members(&driven, row), 4, "the family follows");
         }
 
         /// **The mirror tool holds no label field, and its insert labels
