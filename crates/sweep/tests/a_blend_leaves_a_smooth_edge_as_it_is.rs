@@ -62,8 +62,12 @@ fn a_two_arc_bore_with_every_edge_requested_rounds_and_leaves_its_struts() {
     assert_eq!(struts.len(), 2, "a two-arc bore has two struts");
     let operand = at_rest(&body, tol());
     let all = all_edges(&body);
-    let out = fillet_edges(&operand, &all, 0.001, tol())
-        .unwrap_or_else(|e| panic!("the fillet of every edge refused: {e}"));
+    let out = fillet_edges(&operand, &all, 0.001, tol()).unwrap_or_else(|e| {
+        panic!(
+            "the fillet of every edge refused: {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        )
+    });
     for verb in [BlendKind::Fillet, BlendKind::Chamfer] {
         assert_blends_as_without(verb, &body, &all, &struts, 0.001, tol());
     }

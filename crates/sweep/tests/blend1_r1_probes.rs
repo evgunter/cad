@@ -282,7 +282,12 @@ fn p3_a_petrie_hexagon_cycle_never_assembles_into_a_closed_chain() {
         0.1,
         tol(),
     )
-    .unwrap_or_else(|r| panic!("a sharp-cornered hexagon cycle mitres its turns, got {r}"));
+    .unwrap_or_else(|r| {
+        panic!(
+            "a sharp-cornered hexagon cycle mitres its turns, got {r_at}",
+            r_at = r.render(geom_brep::recourse::Reading::Build)
+        )
+    });
     validate_geometric(&out.body, tol()).expect("the mitred hexagon is tier-3 valid");
     let rec = out.naming.as_ref().expect("births");
     assert_eq!(

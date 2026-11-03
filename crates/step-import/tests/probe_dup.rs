@@ -25,7 +25,7 @@ fn report(tag: &str, text: &str) {
             );
         }
         Ok(StepImport::Wireframe { .. }) => println!("{tag}: WIREFRAME"),
-        Err(e) => println!("{tag}: REFUSES: {e}"),
+        Err(e) => println!("{tag}: REFUSES: {e_at}", e_at = e.render()),
     }
 }
 

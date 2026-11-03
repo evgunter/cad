@@ -104,7 +104,7 @@ fn a_callers_key_that_does_not_resolve_is_refused_stale_under_its_role() {
         role: "faces",
         key: EntityId::Face(face),
     }
-    .to_string();
+    .render(geom_brep::recourse::Reading::Build);
     assert_eq!(
         test_utils::refusal::recourse_markers(&text),
         0,

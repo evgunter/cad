@@ -892,7 +892,7 @@ pub fn batch_refusal(
 /// ([`frame_status`]'s rank 1), as a second refusal of one frame does
 /// under [`Refusal::preferred`].
 pub fn refusal_message(refusal: &Refusal) -> Message {
-    Message::new(Subject::Document, refusal.to_string(), Retold::Again)
+    Message::new(Subject::Document, crate::shown(refusal), Retold::Again)
 }
 
 /// **The status line after a whole FRAME**: what the open tool said
@@ -1998,7 +1998,7 @@ pub fn unindexed_refusal(refusal: &NotIndexed) -> Message {
 ///
 /// [`Retold::Again`]: the same δ says it again.
 pub fn delta_refusal(error: &SceneError) -> Message {
-    Message::new(SceneError::SUBJECT, error.to_string(), Retold::Again)
+    Message::new(SceneError::SUBJECT, crate::shown(error), Retold::Again)
 }
 
 /// **What a δ field holding something that is not a number says.**
@@ -2759,7 +2759,7 @@ pub fn scene_badge(error: Option<&SceneError>) -> Option<Badge> {
     error.map(|error| {
         Badge::read(
             SceneError::SUBJECT,
-            format!("scene: {error}"),
+            format!("scene: {}", crate::shown(error)),
             Tone::Actionable,
         )
     })

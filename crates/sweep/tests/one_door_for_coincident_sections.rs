@@ -49,7 +49,7 @@ fn a_slab_short_of_the_band_refuses_at_the_fold_at_every_scale() {
         if step <= eps {
             match out {
                 Err(e @ LoftError::DegenerateStacking { slab: 1 }) => {
-                    let msg = e.to_string();
+                    let msg = e.render(geom_brep::recourse::Reading::Build);
                     assert!(
                         msg.contains(
                             "sections 1 and 2 do not step along section 1's normal at tolerance"
@@ -286,7 +286,7 @@ fn a_hinged_section_refuses_naming_its_hinge() {
                 },
             ) => {
                 assert_eq!(s, segment, "{what}: the hinged segment is named");
-                let msg = e.to_string();
+                let msg = e.render(geom_brep::recourse::Reading::Build);
                 assert!(
                     msg.contains(&format!(
                         "loft sections 0 and 1 hold segment {segment} (both its corners) of \

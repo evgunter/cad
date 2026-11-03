@@ -130,7 +130,12 @@ fn a_d_hole_fillets_both_creases_at_the_rod_closed_form() {
             r,
             tol(),
         )
-        .unwrap_or_else(|e| panic!("{what}: both creases carve, got {e}"));
+        .unwrap_or_else(|e| {
+            panic!(
+                "{what}: both creases carve, got {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        });
         assert_eq!(out.blend_faces.len(), 2, "{what}: one band per crease");
         assert!(out.corner_faces.is_empty() && out.band_faces.is_empty());
         assert_eq!(

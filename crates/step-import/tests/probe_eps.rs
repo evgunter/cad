@@ -37,7 +37,10 @@ fn declared_uncertainty_is_never_raised_to_a_floor() {
                 );
             }
             Ok(other) => panic!("not a solid: {other:?}"),
-            Err(e) => println!("declared {declared} mm -> REFUSES: {e}"),
+            Err(e) => println!(
+                "declared {declared} mm -> REFUSES: {e_at}",
+                e_at = e.render()
+            ),
         }
     }
     // And the explicit override, below and above the window.
@@ -54,7 +57,7 @@ fn declared_uncertainty_is_never_raised_to_a_floor() {
                 println!("override {over:e} -> eps_in {:e}", i.eps_in());
                 assert_eq!(i.eps_in(), over, "the override must be verbatim");
             }
-            Err(e) => println!("override {over:e} -> REFUSES: {e}"),
+            Err(e) => println!("override {over:e} -> REFUSES: {e_at}", e_at = e.render()),
         }
     }
 }

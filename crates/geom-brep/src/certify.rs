@@ -1199,6 +1199,12 @@ impl CertifyError {
     }
 }
 
+impl crate::recourse::Ended for CertifyError {
+    fn ended(&self, at: ReadAt) -> String {
+        self.render(at)
+    }
+}
+
 /// Why the transversality margin is undefined when its tangent planes
 /// are ([`CertCheck::TangentPlanes`]): the sentence its refusal says in
 /// place of the margin's numbers, which read nothing.

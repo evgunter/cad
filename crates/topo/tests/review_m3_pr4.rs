@@ -459,9 +459,15 @@ fn notch_fill_dense_ties() {
             Err(
                 e @ (BooleanError::ClassificationInvariant { .. } | BooleanError::Escalated { .. }),
             ) => {
-                eprintln!("op {op:?}: refused: {e}");
+                eprintln!(
+                    "op {op:?}: refused: {e_at}",
+                    e_at = e.render(geom_brep::recourse::Reading::Build)
+                );
             }
-            Err(e) => panic!("unexpected error class: {e}"),
+            Err(e) => panic!(
+                "unexpected error class: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            ),
         }
     }
 }

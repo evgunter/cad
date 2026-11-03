@@ -3246,7 +3246,7 @@ mod tests {
             BooleanDecision::Coincidence(Coincide::Sectors, DeclarationRead::Moot)
         );
         assert_eq!(diag.predicate, Some("bool_sector_within"));
-        let text = err.to_string();
+        let text = err.render(geom_brep::recourse::Reading::Build);
         assert!(
             text.starts_with("how two corners of the two solids overlap where they meet is ")
                 && text.contains(
@@ -3428,7 +3428,7 @@ mod tests {
                 Some(arm),
                 "{arm:e}: the margin the funnel read"
             );
-            let text = err.to_string();
+            let text = err.render(geom_brep::recourse::Reading::Build);
             let ending = geom_core::MarginDiag::value(arm).sized_recourse(
                 b,
                 geom_core::SizedWords {
@@ -4441,7 +4441,8 @@ mod tests {
             )
         );
         assert_eq!(diag.predicate, Some("tangent_sector_order2"));
-        let text = BooleanError::Escalated { decision, diag }.to_string();
+        let text =
+            BooleanError::Escalated { decision, diag }.render(geom_brep::recourse::Reading::Build);
         assert!(
             text.starts_with(
                 "which way a face of one solid curves away from a face of the other that it \
@@ -4490,7 +4491,8 @@ mod tests {
         };
         assert_eq!(decision, BooleanDecision::LeverArm(LeverArm::SectorSide));
         assert_eq!(diag.predicate, Some("enters_material_rise"));
-        let text = BooleanError::Escalated { decision, diag }.to_string();
+        let text =
+            BooleanError::Escalated { decision, diag }.render(geom_brep::recourse::Reading::Build);
         assert_eq!(recourse_markers(&text), 1, "{text}");
         assert!(
             subjectless_escalations(&text).is_empty() && stage_prefixes(&text, &[]).is_empty(),
@@ -4518,7 +4520,7 @@ mod tests {
             b,
         )
         .expect_err("a zero-band extent refuses the arm gate");
-        let text = err.to_string();
+        let text = err.render(geom_brep::recourse::Reading::Build);
         // The arm re-quotes the rise it meters only where it offers a
         // tolerance to decide both (D4 ¶4's floor withholds one); else it
         // keeps its own margin. Either way the offer obeys the floor.
@@ -4568,7 +4570,8 @@ mod tests {
         };
         assert_eq!(decision, BooleanDecision::LeverArm(LeverArm::SectorSide));
         assert_eq!(diag.predicate, Some("enters_material_arm"));
-        let text = BooleanError::Escalated { decision, diag }.to_string();
+        let text =
+            BooleanError::Escalated { decision, diag }.render(geom_brep::recourse::Reading::Build);
         assert!(
             text.contains(&format!("margin {mid:e} lies inside the ambiguity band"))
                 && text.ends_with(&format!(

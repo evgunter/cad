@@ -12973,7 +12973,10 @@ mod tests {
                 subject: CensusSubject::FacePair(pair.0, pair.1),
             }
         );
-        assert_eq!(lane[0].to_string(), LANE_UNSUPPORTED_SENTENCE);
+        assert_eq!(
+            lane[0].render(geom_brep::recourse::Reading::AtRest),
+            LANE_UNSUPPORTED_SENTENCE
+        );
     }
 
     /// **The `None` path at the conformal face-pair arm, observed.** The
@@ -13548,7 +13551,7 @@ mod tests {
             panic!("the census's own finding: {errors:?}");
         };
         assert!(*face == cap && gaps.off_corner(), "{errors:?}");
-        let text = errors[0].to_string();
+        let text = errors[0].render(geom_brep::recourse::Reading::AtRest);
         assert!(
             text.ends_with(geom_core::KERNEL_OR_FILE_DEFECT_ENDING)
                 && !text.contains("could not be checked"),

@@ -424,7 +424,10 @@ fn a_revolve_latitude_join_with_an_in_band_margin_refuses_typed() {
             );
             assert_in_band_payload(source);
         }
-        Err(other) => panic!("the in-band latitude join must refuse as a sliver JOIN, not {other}"),
+        Err(other) => panic!(
+            "the in-band latitude join must refuse as a sliver JOIN, not {other_at}",
+            other_at = other.render(geom_brep::recourse::Reading::Build)
+        ),
         Ok(_) => panic!("an in-band second-order margin was built silently"),
     }
 }
