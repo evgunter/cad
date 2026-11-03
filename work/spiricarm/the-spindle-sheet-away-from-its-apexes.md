@@ -8,6 +8,7 @@ priority: P0
 cost: H
 parent: horn-and-spindle-tori-have-no-representation
 branch: spiricarm/spindle-sheet
+pr: 6473
 ---
 
 
