@@ -4,6 +4,8 @@ kind: issue
 title: The frame-seam census rows assert a seam count over minted planes whose frames no longer come from orthonormal_basis
 status: open
 opened: 2026-10-21
+priority: P3
+cost: E
 ---
 
 
