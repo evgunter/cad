@@ -114,3 +114,9 @@
   - The pick germ is covered by four existing body rows with closed-form volumes. No new body row was written.
   - **Coupling:** TANGRIM 6385 adds `BoundSupport::Conic { arc }`.
   - **Next:** once 6408 merges, the lane re-merges main and polls CI to green. Rule 1's draw (letter M) happens on that frozen head.
+
+- 2026-11-03: PR 6407 is green at `1482661a`.
+  - Main's second compile break (`overlap.rs` Lever) was fixed upstream.
+  - The lane made `a_partners_descended_bound_is_read_over_its_offset` ε-relative; it had failed at 1e-6/1e-12.
+  - Review tier: dual, letter M. Rule 1's draw gave byte 177 (mod 3 = 0), so this is a holdout: a concurrent pair reviewing the same frozen head. The blinded-coding byte was drawn and recorded.
+  - Two Opus reviews were dispatched with an identical brief, which includes a claim on the amended item 3 (A′).
