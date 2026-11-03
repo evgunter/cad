@@ -35,6 +35,7 @@ import datetime as dt
 import fnmatch
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -43,9 +44,7 @@ from dataclasses import dataclass, field
 
 WORK = "work"
 STATUS_FILE = "work/STATUS.md"
-ISSUES_DIR = "issues"
-FREE_FILES = {"README.md", "STATUS.md"}       # unparsed: top of work/, and
-                                              # README.md inside work/issues/
+FREE_FILES = {"README.md", "STATUS.md"}       # unparsed, at the top of work/
 NARRATIVE = {"plan.md", "log.md", "process-observations.md"}   # inside a program, unparsed
 LOG_EXEMPT = {"docs/MODEL-AB-LOG.md",        # the non-program logs in docs/
               "docs/DUAL-REVIEW-LOG.md",
@@ -175,7 +174,7 @@ class Bail(Exception):
 @dataclass
 class Item:
     path: str                       # repo-relative
-    program: str | None             # directory name, None under issues/
+    program: str | None             # directory name
     fields: dict[str, object]
     body: str
     order: list[str] = field(default_factory=list)
@@ -336,22 +335,7 @@ def load_tree(root: str) -> tuple[list[Item], list[str]]:
         if os.path.isfile(full):
             if entry not in FREE_FILES:
                 errors.append(f"{rel}: a file at the top of {WORK}/ must be one of {sorted(FREE_FILES)}; "
-                              f"items live in a program directory or {WORK}/{ISSUES_DIR}/")
-            continue
-        if entry == ISSUES_DIR:
-            for name in sorted(os.listdir(full)):
-                p = os.path.join(full, name)
-                if os.path.isdir(p) or not name.endswith(".md"):
-                    errors.append(f"{rel}/{name}: only `.md` items belong under {WORK}/{ISSUES_DIR}/")
-                    continue
-                # The directory's own signpost, not an item: it says what
-                # belongs here (issues with no owner yet) so a lane reading
-                # the directory does not have to infer the rule from the
-                # files already in it. Unparsed for the same reason
-                # `work/README.md` is.
-                if name in FREE_FILES:
-                    continue
-                _load_item(p, f"{rel}/{name}", None, items, errors)
+                              f"items live in a program directory")
             continue
         if not ID_RE.match(entry) or entry != entry.lower():
             errors.append(f"{rel}/: a program directory is a lowercase id")
@@ -604,8 +588,6 @@ def lint(root: str, warnings: list[str] | None = None) -> list[str]:
                 errors.append(f"{it.path}: program.md must have kind program")
             elif it.id and it.id != stem:
                 errors.append(f"{it.path}: id `{it.id}` must equal the file name")
-            if it.program is None and it.kind not in ("issue", ""):
-                errors.append(f"{it.path}: only kind issue lives under {WORK}/{ISSUES_DIR}/")
         if it.id:
             if it.id in by_id:
                 errors.append(f"{it.path}: id `{it.id}` is already {by_id[it.id].path}")
@@ -850,19 +832,6 @@ def render(root: str, only_program: str | None = None, today: dt.date | None = N
     if only_program:
         return "\n".join(out)
 
-    # unowned issues
-    unowned = [it for it in by_program.get(None, []) if it.status != "closed"]
-    out.append("## Issues no program owns")
-    out.append("")
-    if unowned:
-        out.append("| item | opened | title |")
-        out.append("|---|---|---|")
-        for it in sorted(unowned, key=lambda i: (str(i.get("opened")), i.id)):
-            out.append(f"| `{it.id}` | {it.get('opened')} | {it.get('title')} |")
-    else:
-        out.append("None.")
-    out.append("")
-
     # blocked
     blocked = [it for it in live if it.get("blocked_on")]
     out.append("## Blocked")
@@ -941,15 +910,11 @@ def cmd_new(root: str, item_id: str, kind: str, title: str, program: str | None,
         raise Bail(f"`{item_id}` is not an id")
     if kind == "program":
         raise Bail("a program is created by hand: work/<id>/program.md, plan.md, log.md")
-    if program:
-        d = os.path.join(root, WORK, program)
-        if not os.path.isfile(os.path.join(d, "program.md")):
-            raise Bail(f"no program `{program}`")
-    else:
-        if kind != "issue":
-            raise Bail(f"a {kind} needs --program; only issues live under {WORK}/{ISSUES_DIR}/")
-        d = os.path.join(root, WORK, ISSUES_DIR)
-        os.makedirs(d, exist_ok=True)
+    if not program:
+        raise Bail("an item needs --program: every item lives on the slate of the program that owns it")
+    d = os.path.join(root, WORK, program)
+    if not os.path.isfile(os.path.join(d, "program.md")):
+        raise Bail(f"no program `{program}`")
     path = os.path.join(d, item_id + ".md")
     if os.path.exists(path):
         raise Bail(f"{os.path.relpath(path, root)} exists")
@@ -1120,11 +1085,6 @@ def _fixture(root: str) -> None:
            "group: kernel/shape\nprefix: topo/\npaths: [crates/topo/*]\n---\n")
     _write(root, "work/topo/T-1.md",
            "---\nid: T-1\nkind: unit\ntitle: done\nstatus: closed\nopened: 2026-08-01\nclosed: 2026-08-19\n---\n")
-    _write(root, "work/issues/stray-thing.md",
-           "---\nid: stray-thing\nkind: issue\ntitle: unowned\nstatus: open\nopened: 2026-09-02\n---\n")
-    # The directory's signpost, carrying no front matter. `clean fixture`
-    # below is what proves it is skipped rather than parsed as an item.
-    _write(root, "work/issues/README.md", "# issues with no owner yet\n")
     subprocess.run(["git", "-C", root, "add", "-A"], check=True)
     subprocess.run(["git", "-C", root, "commit", "-q", "-m", "fixture"], check=True)
 
@@ -1153,7 +1113,7 @@ def selftest() -> int:
         expect("clean fixture", lint(root, warns))
         expect("clean fixture (warnings)", warns)
         text = render(root, today=far)
-        for needle in ("`MESH-2`", "`stray-thing`", "## Blocked", "MESH-2, #1601", "`kernel/shape/topo`"):
+        for needle in ("`MESH-2`", "## Blocked", "MESH-2, #1601", "`kernel/shape/topo`"):
             if needle not in text:
                 failures.append(f"render lacks {needle!r}")
         if "MESH-1" not in text.split("## Untouched")[1]:
@@ -1180,15 +1140,18 @@ def selftest() -> int:
         expect("after set", lint(root))
         os.remove(os.path.join(root, rel))
 
-        # THE EXEMPTION IS README.md ALONE, not "prose under issues/". Without
-        # this, a skip that widened to any un-parsed .md would let a malformed
-        # item sit in the directory unread, which is the failure the whole
-        # front-matter contract exists to prevent.
-        _write(root, "work/issues/NOTES.md", "loose prose, no front matter\n")
-        expect("a non-README .md in issues/ is still an item",
-               lint(root), "front matter")
-        os.remove(os.path.join(root, "work/issues/NOTES.md"))
-        expect("issues/ clean again", lint(root))
+        # `new` refuses an item with no --program, and a directory of items
+        # with no program.md (the retired `work/issues/` shape) is a lint error.
+        try:
+            cmd_new(root, "STRAY-1", "issue", "stray", None, [])
+            failures.append("`new` without --program should refuse")
+        except Bail:
+            pass
+        _write(root, "work/issues/stray-thing.md",
+               "---\nid: stray-thing\nkind: issue\ntitle: unowned\nstatus: open\nopened: 2026-09-02\n---\n")
+        expect("an ownerless directory of items is refused", lint(root), "no program.md")
+        shutil.rmtree(os.path.join(root, "work/issues"))
+        expect("ownerless directory gone", lint(root))
 
         # one mutation per rule, each restored
         cases: list[tuple[str, str, str, str]] = [
@@ -1204,7 +1167,6 @@ def selftest() -> int:
             ("group required", "work/mesh/program.md", "group: kernel\n", ""),
             ("program field on a unit", "work/mesh/MESH-1.md", "pr: 1605", "prefix: x/"),
             ("nested yaml refused", "work/mesh/MESH-1.md", "pr: 1605", "pr:\n  - 1605"),
-            ("unit outside a program", "work/issues/stray-thing.md", "kind: issue", "kind: unit"),
             ("parked on a fired trigger", "work/mesh/MESH-1.md",
              "status: review\nopened: 2026-09-01\npr: 1605\nblocked_on: [MESH-2, 1601]",
              "status: parked\nopened: 2026-09-01\npr: 1605\nblocked_on: [T-1]"),
@@ -1227,7 +1189,7 @@ def selftest() -> int:
         expectations = ["unknown key", "no item", "must equal the file name", "must be one of",
                         "needs a `closed:` date", "non-empty `blocked_on`",
                         "matches no tracked path", "must end in `/`", "lowercase segments joined by `/`", "missing `group`", "not a field of kind unit",
-                        "indented line", "only kind issue lives under",
+                        "indented line",
                         "nothing else gates this row", "so prune the fired entry",
                         "cite the ratification in the body",
                         "`cost: D` is legacy", "either `true` or absent",
@@ -1571,7 +1533,7 @@ def main(argv: list[str]) -> int:
     s.add_argument("id")
     s.add_argument("--kind", required=True, choices=[k for k in KINDS if k != "program"])
     s.add_argument("--title", required=True)
-    s.add_argument("--program")
+    s.add_argument("--program", required=True, help="the program whose slate the item goes on")
     s.add_argument("--set", dest="assignments", action="append", default=[], metavar="KEY=VALUE",
                    help="extra header fields, one per --set")
     s = sub.add_parser("set")

@@ -467,7 +467,7 @@ fn an_arch_started_inside_the_stem_glues_to_the_same_volume() {
 /// stem's and its tube 8 mm inside the stem's, a near tube-circle
 /// tangency, and the accounting over the smaller torus's ball refuses
 /// `CellBudget` at the compiled ε, on the tube at 1e-6
-/// (`work/sect/the-torus-doors-tube-straddles-transverse-poses-at-a-coarse-band.md`)
+/// (`work/secttorus/the-torus-doors-tube-straddles-transverse-poses-at-a-coarse-band.md`)
 /// and on the thin stem's limb 2 at 1e-12 (the kernel limit [`stem`]
 /// names),
 /// as a cylinder × sphere pose near its node does

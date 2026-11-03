@@ -257,7 +257,7 @@ Props' arms that become reachable only through an invalid body are PROPS' to ret
 ### Not in this unit
 
 - The wrap tip, which is `tier-3-admits-a-wrap-tip-only-on-its-faces-chart-singularity` (parked). Add no valence-1 exemption.
-- The shared corner-turn loop walk (`work/issues/loop-readers-each-derive-a-corners-turn-with-no-shared-loop-walk.md`). The new home's winding reading is a loop walk on a chart, so write it as one walk that row can extend, not as a private helper. Name that coupling in the PR.
+- The shared corner-turn loop walk (`work/restfront/loop-readers-each-derive-a-corners-turn-with-no-shared-loop-walk.md`). The new home's winding reading is a loop walk on a chart, so write it as one walk that row can extend, not as a private helper. Name that coupling in the PR.
 
 ## Closed (PR 6054, 2026-10-30)
 

@@ -170,3 +170,24 @@
   - **48 near-apex box-corner poses now refuse `CrossingAtConeApex`.** In each one, the edge's true double root lies 1.3–3e-9 off its end: past the zero band, inside escalation, so the kernel's contract is to refuse. The old bound snapped the root onto the end, so those bodies were built on an undecided root. They were right to the oracle's resolution, but uncertified. The reviewer recomputed every family.
   - **CLASS logged, not B1's.** `.plane(op)?` is a bare guard in front of `tangent()`'s `unreachable!` (recl.rs and sectors.rs, 18 sites). The invariant holds by statement order alone.
   - **Filed:** `a-box-corner-just-off-a-cone-apex-refuses-box-first-edge-undescribed`. (SPLITDOOR orchestrator)
+- 2026-11-03 — **Closed** `a-cone-with-its-apex-against-its-copy-refuses-normal-at-cone-apex` (PR 6424, cone-apex unit B2: the apex against an edge or a face). DUAL tier, letter H, concurrent pair. Both reviews returned APPROVE-WITH-FIXES with no MAJOR, and no op that builds on main refuses. Row `docs/dual-review-log/rows/PR-6424.md`.
+  - **What it does.** An edge through or ending at the apex places its double root there, read on B1's exact `apex_root_spread`, re-anchored at the foot. The conic through the apex is read by `conic_quadric`'s "Through the apex". The trace refuses `TraceFault::Apex`. Box edges through the apex build at their closed forms in every op, either way round, at every quarter turn, with the pinch sets named.
+  - **CLASS (both reviewers): new band rungs pinned only on their accepting side.** Every rung of both arms now has a row that goes red without it.
+  - **CLASS: unit A's `sectors::push_apex_corner` read a whole turn as the two bounds' azimuth.** At a wrap seam whose two departures are one ruling only to rounding, that reads about 1e-16, so the quarters collapsed onto the seam. Box first, this refused `VertexPairAtConeApex`. Found by R2 as an order asymmetry.
+    - Fixed: `ApexShape` carries the window its shape decided.
+    - Its sibling, `BoolSector::middle`, is closed by construction: no whole-turn apex sector is left unsplit.
+    - The fix went to a FULL delta review, which accepted it (mutant M10 witnesses it).
+    - The recl guard it left unreached is owned by the filed P3 `recl-fan-on-guard-has-no-reaching-row`.
+  - **R1's 0.3ε edge-end asymmetry** is folded into `a-box-corner-just-off-a-cone-apex-refuses-box-first-edge-undescribed`. (SPLITDOOR orchestrator)
+- 2026-11-03 — **B3 sent to a designer pair, which agreed; `[ev]` PR 6432 opened.** The cone × curved section through the apex is a node of the section value: one rule, germs minted from arc ends. That widens C5's node sentence, so it waits on Ev. Both designers re-homed the build to SECTARMS's cone arms (fork 224's frontier), leaving SPLITDOOR a follow-on: the pierce germ, and retiring the gate. The B3 row stays open, P1, its design question on 6432. (SPLITDOOR orchestrator)
+- 2026-11-03 — **Friction:** main's velocity cost B1 (PR 6345) three re-merges in about 6 hours. Each one conflicted in code main's other programs had just reworked: the typed levers, `pair_search`, `cone_classes`. The full local gate outran main each time. Mitigation from the third re-merge on: merge, run the fast checks only, push, and let CI be the full gate, merging the moment `gate ok` is green. (SPLITDOOR orchestrator)
+- 2026-11-03 — **The sitting ends; the track is handed back `ready`** (sitting rule: no P0 or P1 row remains dispatchable).
+  - Since resuming on 2026-11-01, this sitting merged:
+    - the P0 keel (6061) and its follow-ups;
+    - cone-apex units A (6266), B1 (6345) and B2 (6424);
+    - the section-line components (6310);
+    - the wrap-tip, prism-tilt, face-line lean and rims rows.
+  - **B3** (`a-cone-by-curved-carrier-section-through-the-apex-has-no-germ-frame-or-certified-count`, P1) is `parked` on `[ev]` PR 6432, where its design question waits on Ev. If Ev approves, the build re-homes to SECTARMS's cone arms, and this row narrows to SPLITDOOR's follow-on: the pierce mints its apex germ from the node, and `vtxfac`'s curved-apex gate retires.
+    - **Owed when Ev answers:** fill in fork row 249's second half and its mapping (on `analysis/design-fork/a-curved-section-through-a-cone-apex`), and leave a seam note on SECTARMS's log.
+  - What remains is the P2 tail; its place on the board is its urgency. (SPLITDOOR orchestrator)
+- 2026-11-03 — **`[ev]` PR 6432 merged.** Ev approved the node reading. The C5 node clause is now one criterion, and it covers a cone's apex and a spindle torus's tips; a horn torus's centre and a spline's singular tip refuse. Fork row 251 is filled in. B3 is re-parked on SECTCONE's `cone-germ-pairs-against-a-curved-face-have-no-section-frame`, narrowed to SPLITDOOR's follow-on. A seam note is on `work/sectcone/log.md`. (SPLITDOOR orchestrator)

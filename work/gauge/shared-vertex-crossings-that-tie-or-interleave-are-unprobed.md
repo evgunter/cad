@@ -90,7 +90,7 @@ interleave arm has a witness: cleave's
 `y ∩ cube`, `cube ∪ y` and `cube ∖ y` refuse `SharedVertexCrossings` at
 the cube's corner. The band's pair crosses that corner four times, and
 the pairing those ops take has no run clear of the other two corners'
-cuts either way round (`work/cleave/three-corners-alternating-round-a-corner-refuse-at-the-join.md`).
+cuts either way round (`work/cleavetail/three-corners-alternating-round-a-corner-refuse-at-the-join.md`).
 
 ## Measured (FLUSH touch-key lane, 2026-10-12): the reconcile arm is reached
 

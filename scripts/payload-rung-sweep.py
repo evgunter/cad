@@ -258,7 +258,7 @@ DISPOSITIONS: dict[str, tuple[str, str]] = {
                   "boolean-error.md"),
     "Diagnosis": ("argued", "the telemetry half, deliberately interior, "
                             "crates/pncad/src/select.rs"),
-    "KProbe": ("filed", "work/lib/kprobe-is-a-rung-under-drive-config-on-the-analysis-list.md"),
+    "KProbe": ("filed", "work/bind/kprobe-is-a-rung-under-drive-config-on-the-analysis-list.md"),
     "MetaValue": ("argued", "NOT_CARRIED, the metadata family; crates/pncad/src/document.rs "
                             "says why the value tree stays out"),
     "Minted": ("argued", "NOT_CARRIED, the mint family (crates/pncad/tests/all.rs): a "
@@ -283,7 +283,7 @@ DISPOSITIONS: dict[str, tuple[str, str]] = {
                         "in crates/topo/src/validate.rs"),
     "WedgeCheck": ("argued", "non-carriage with its falsifier, beside the declaration "
                    "in crates/topo/src/validate.rs; the carry is "
-                   "work/lib/wedge-check-is-a-rung-under-sliver-dihedral.md"),
+                   "work/bind/wedge-check-is-a-rung-under-sliver-dihedral.md"),
     # Why the coincidence door's walk reached no construction (D10): carried
     # where `Residual` is, through `document::coincide` (the module is
     # re-exported whole), and said in Python by the residual's sentence.
@@ -325,22 +325,22 @@ DISPOSITIONS: dict[str, tuple[str, str]] = {
     # discriminant.
     "MappedSource": ("argued", "non-carriage with its falsifier, crates/pncad/src/prelude.rs"),
     "Pcurve": ("argued", "non-carriage with its falsifier, crates/pncad/src/prelude.rs"),
-    "AdoptionCandidate": ("filed", "work/lib/payload-rungs-behind-struct-payloads.md"),
-    "BifurcationKind": ("filed", "work/lib/payload-rungs-behind-struct-payloads.md"),
-    "DecisionSite": ("filed", "work/lib/payload-rungs-behind-struct-payloads.md"),
-    "Discharge": ("filed", "work/lib/payload-rungs-behind-struct-payloads.md"),
-    "EntityKey": ("filed", "work/lib/payload-rungs-behind-struct-payloads.md"),
-    "Implicated": ("filed", "work/lib/payload-rungs-behind-struct-payloads.md"),
-    "JoinReading": ("filed", "work/lib/payload-rungs-behind-struct-payloads.md"),
-    "OperandKeys": ("filed", "work/lib/payload-rungs-behind-struct-payloads.md"),
-    "Cell": ("filed", "work/lib/payload-rungs-behind-struct-payloads.md"),
-    "Origin": ("filed", "work/lib/payload-rungs-behind-struct-payloads.md"),
-    "Map": ("filed", "work/lib/payload-rungs-behind-struct-payloads.md"),
+    "AdoptionCandidate": ("filed", "work/bind/payload-rungs-behind-struct-payloads.md"),
+    "BifurcationKind": ("filed", "work/bind/payload-rungs-behind-struct-payloads.md"),
+    "DecisionSite": ("filed", "work/bind/payload-rungs-behind-struct-payloads.md"),
+    "Discharge": ("filed", "work/bind/payload-rungs-behind-struct-payloads.md"),
+    "EntityKey": ("filed", "work/bind/payload-rungs-behind-struct-payloads.md"),
+    "Implicated": ("filed", "work/bind/payload-rungs-behind-struct-payloads.md"),
+    "JoinReading": ("filed", "work/bind/payload-rungs-behind-struct-payloads.md"),
+    "OperandKeys": ("filed", "work/bind/payload-rungs-behind-struct-payloads.md"),
+    "Cell": ("filed", "work/bind/payload-rungs-behind-struct-payloads.md"),
+    "Origin": ("filed", "work/bind/payload-rungs-behind-struct-payloads.md"),
+    "Map": ("filed", "work/bind/payload-rungs-behind-struct-payloads.md"),
     # `topo::coincidence::Relation`, reachable through `document::coincidence`;
     # the `Relation` `document` carries by name is `editor_core`'s.
-    "Relation": ("filed", "work/lib/payload-rungs-behind-struct-payloads.md"),
-    "RowCell": ("filed", "work/lib/payload-rungs-behind-struct-payloads.md"),
-    "UncrossableCarrier": ("filed", "work/lib/payload-rungs-behind-struct-payloads.md"),
+    "Relation": ("filed", "work/bind/payload-rungs-behind-struct-payloads.md"),
+    "RowCell": ("filed", "work/bind/payload-rungs-behind-struct-payloads.md"),
+    "UncrossableCarrier": ("filed", "work/bind/payload-rungs-behind-struct-payloads.md"),
 }
 
 # The same table for the CROSS-LIST set — a payload that IS curated, on no list

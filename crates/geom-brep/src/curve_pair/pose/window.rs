@@ -290,7 +290,7 @@ impl<T: Decide> Window<'_, T> {
     /// `b`'s unit coordinates.
     fn foot_seed(&self, q: Point3<T>) -> T {
         let (x, y) = self.b.unit_in_plane(q);
-        super::angle(y, x)
+        geom::Azimuth::of(y, x).principal_as(super::row::BRANCH, Band::least())
     }
 
     /// **The pieces of `(l, r)`, each read**, halved until each reads or
