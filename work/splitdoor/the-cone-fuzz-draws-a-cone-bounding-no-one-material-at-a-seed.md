@@ -35,8 +35,10 @@ that branch's earlier head `656e9bd920`. The failing check is fixture code only
 (`drawn`, `cone_oracle`, `one_material`). A third,
 `0xbdef491a30087e7a`, fails it at its ε-1e-9 draw (`cone 30, split`).
 A fourth, `0xea18fcee647dcd12`, at its ε-1e-12 draw (`cone 15,
-split`). The fuzz draws a fresh seed per run, so a replay needs the
-seed given.
+split`). A fifth, `0x6c4c058888f82e3b`, at the default ε: "the drawn
+cone bounds no one material", found by RESTREAD's verifier on PR 6415
+and red at that PR's merge base too. The fuzz draws a fresh seed per
+run, so a replay needs the seed given.
 
 ## Done when
 

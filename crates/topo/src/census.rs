@@ -2207,11 +2207,6 @@ pub(crate) fn edge_is_line<T: Real>(body: &Body<T>, ek: crate::entity::EdgeKey) 
         .is_some_and(|c| !c.is_curved())
 }
 
-/// Every loop of `face` — the outer, then the rings.
-fn face_loops(face: &Face) -> impl Iterator<Item = LoopKey> + '_ {
-    core::iter::once(face.outer).chain(face.rings.iter().copied())
-}
-
 /// Every loop of `face` with its walk: `Ok(cycle)` for a cycle loop
 /// `body` can walk, `Err(loop)` for one it cannot — a lost loop, an
 /// empty (lone-vertex) loop, an unwalkable cycle. What an unwalkable
@@ -2223,7 +2218,7 @@ pub(crate) fn face_cycles<'a, T: Real>(
     body: &'a Body<T>,
     face: &'a Face,
 ) -> impl Iterator<Item = Result<Vec<HalfEdgeKey>, LoopKey>> + 'a {
-    face_loops(face).map(move |lk| {
+    face.loop_keys().map(move |lk| {
         let Some(loop_) = body.loops.get(lk) else {
             return Err(lk);
         };
@@ -4612,7 +4607,7 @@ fn boundary_crossings<T: Decide>(
         return None;
     };
     let mut cuts = Vec::new();
-    for lk in face_loops(face) {
+    for lk in face.loop_keys() {
         let lp = match carrier_loop(body, lk, EF_CROSS_CONIC, band) {
             Ok(lp) => lp,
             Err(err) => {
@@ -8315,9 +8310,11 @@ fn read_touch<T: Decide>(
 /// [`rest::judge`]: a rest is that, and a crossing is a face sheet inside
 /// the wedge, or the wedge inside the face's material, which leaves the
 /// edge's two faces no consecutive pair about a material sector of
-/// their own. Every other verdict leaves the side unread and refuses as
-/// that verdict names. `None` for a rest, or for an edge of another
-/// solid, whose touch arm 2 reads.
+/// their own. A face of the edge that is a cylinder or cone the edge is
+/// a ruling of stands in as its chord across the edge
+/// ([`Link::chord_on_edge`]). Every other verdict leaves the side unread
+/// and refuses as that verdict names. `None` for a rest, or for an edge
+/// of another solid, whose touch arm 2 reads.
 fn edge_in_own_face<T: Decide>(
     body: &Body<T>,
     geo: &Geo<T>,
@@ -8335,6 +8332,12 @@ fn edge_in_own_face<T: Decide>(
         Link::touch_in_face(body, geo, face, p, band),
     ) {
         (Ok(a), Ok(b)) => rest::judge(&a, &b, band),
+        (Err(TouchUnread::Unreadable), Ok(b)) => {
+            match Link::chord_on_edge(body, geo, edge, face, p, band) {
+                Ok(a) => rest::judge(&a, &b, band),
+                Err(v) => v.into(),
+            }
+        }
         (Err(v), _) | (_, Err(v)) => v.into(),
     };
     match verdict {
@@ -9016,6 +9019,82 @@ impl<T: Decide> Link<T> {
         }
         let mut sectors = Vec::new();
         for &f in &keys {
+            sectors.extend(FaceSector::of(
+                body,
+                geo,
+                f,
+                p,
+                &[Hold::Edge(edge.v0, edge.v1)],
+                band,
+            )?);
+        }
+        Self::of(p, sectors)
+    }
+
+    /// **The link at a point `p` inside a line edge with a face that is a
+    /// cylinder or cone the edge is a ruling of**, against the planar
+    /// face `floor` the edge lies in: each such face as its chord
+    /// ([`FaceSector::chord`]), a planar face as [`Link::touch_on_edge`]
+    /// reads it, and no face of the edge inside a chord's lens
+    /// ([`crate::link::chords_clear`]).
+    fn chord_on_edge(
+        body: &Body<T>,
+        geo: &Geo<T>,
+        e: EdgeKey,
+        floor: FaceKey,
+        p: Point3<T>,
+        band: Band,
+    ) -> Result<Self, TouchUnread> {
+        use crate::link::Ruled;
+        let edge = geo.line_edge(e).ok_or(TouchUnread::Unreadable)?;
+        let outward = |f: FaceKey| {
+            crate::face_normal::face_outward_normal(body, f)
+                .map(|n| n.vec())
+                .ok_or(TouchUnread::Corrupt)
+        };
+        let plane = outward(floor)?;
+        let halves = body.get_edge(e).ok_or(TouchUnread::Corrupt)?;
+        // Read per pass, not per face as `touch_on_edge` gathers them: a
+        // face along the edge twice is two sheets, two directions into it
+        // and, ruled, two chords.
+        let (mut planar, mut into, mut chords) = (Vec::new(), Vec::new(), Vec::new());
+        for he in [halves.he_plus, halves.he_minus] {
+            let f = body.face_of_half_edge(he).ok_or(TouchUnread::Corrupt)?;
+            let (along, _, _) = direction_at(body, he, p)?;
+            if planar_face(geo, f).is_some() {
+                into.push(outward(f)?.cross(along).normalize());
+                if !planar.contains(&f) {
+                    planar.push(f);
+                }
+                continue;
+            }
+            let face = body.get_face(f).ok_or(TouchUnread::Corrupt)?;
+            // The face's other edges, which end on the edge's ends too, but
+            // for a cone's seam through its apex (a loop `[e, circle, e⁻¹]`):
+            // there the lever stays under `ρ/2`, short of the apex.
+            let mut clear: Option<T> = None;
+            for cycle in face_cycles(body, face) {
+                for other in cycle.map_err(|_| TouchUnread::Corrupt)? {
+                    let half = body.get_half_edge(other).ok_or(TouchUnread::Corrupt)?;
+                    if half.edge != e {
+                        let c = crate::link::clearance(body, other, p)?;
+                        clear = Some(clear.map_or(c, |r| r.min(c)));
+                    }
+                }
+            }
+            let clear = clear.ok_or(TouchUnread::Corrupt)?;
+            let ruled = Ruled {
+                surface: body.face_surface_linked(f, face).clone(),
+                sense: face.sense,
+                outward: foot_normal(body, f, p, band)?,
+                along,
+                ends: [edge.p0, edge.p1],
+                clear,
+            };
+            chords.push(FaceSector::chord(&ruled, p, plane, band)?);
+        }
+        let mut sectors = crate::link::chords_clear(p, chords, &into, band)?;
+        for f in planar {
             sectors.extend(FaceSector::of(
                 body,
                 geo,
