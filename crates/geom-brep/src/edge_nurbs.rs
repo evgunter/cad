@@ -471,8 +471,15 @@ impl CarrierDomainRefusal {
     }
 }
 
-impl core::fmt::Display for CarrierDomainRefusal {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl CarrierDomainRefusal {
+    /// What was refused, without its recourse
+    /// ([`CARRIER_DOMAIN_RECOURSE`]), for a holder that ends it at its
+    /// door.
+    pub fn payload(&self) -> impl core::fmt::Display + '_ {
+        core::fmt::from_fn(|f| self.write_payload(f))
+    }
+
+    fn write_payload(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let (lo, hi) = (Readable(self.lo), Readable(self.hi));
         match self.fault {
             CarrierDomainFault::Interval => write!(
@@ -490,8 +497,14 @@ impl core::fmt::Display for CarrierDomainRefusal {
         write!(
             f,
             ", so the chart image, which lives on the carrier's own parameter, cannot be \
-             expressed on it. {CARRIER_DOMAIN_RECOURSE}"
+             expressed on it"
         )
+    }
+}
+
+impl core::fmt::Display for CarrierDomainRefusal {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "{}. {CARRIER_DOMAIN_RECOURSE}", self.payload())
     }
 }
 

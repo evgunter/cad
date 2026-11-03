@@ -109,9 +109,9 @@ impl Reading {
 /// `ended` through [`read_at`]. The trait exists for that generic half.
 pub trait Ended: core::fmt::Display {
     /// This refusal's payload, followed by the ending, if any, that the
-    /// door `at` gives it. A refusal no decision ends at that door (a
-    /// decided arm whose ending its holder states, a structural refusal
-    /// carrying its own recourse) is its payload alone.
+    /// door `at` gives it. An implementor whose every arm names a
+    /// decision ends every arm; one with an arm no decision ends at that
+    /// door writes that arm's payload alone, and its holder ends it.
     fn ended(&self, at: ReadAt) -> String;
 }
 
@@ -205,6 +205,12 @@ macro_rules! ended_by_write {
         $crate::ended_by_write!([] $ty);
     };
 }
+
+/// **The recourse for a tolerance that forms no usable band.** A run's
+/// ε is finite and at least `EPS_MIN` (D4 ¶4), so the one way it fails
+/// to form a band is K·ε overflowing: the repair is a smaller ε.
+pub const BAND_TOLERANCE_RECOURSE: &str = "Recourse: set a smaller tolerance, so that K times it \
+     stays finite; a run admits none below the floor its session box sets";
 
 /// The defect ending at `at` ([`ReadAt::culprit`]).
 #[must_use]
