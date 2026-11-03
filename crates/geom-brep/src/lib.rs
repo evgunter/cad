@@ -66,6 +66,7 @@ pub mod description;
 pub mod dihedral;
 pub mod dihedral_side;
 pub mod edge_nurbs;
+pub mod edge_wedge;
 pub mod enters;
 #[cfg(test)]
 mod exact_q;
@@ -117,14 +118,14 @@ pub use description::{
     Structural, authority_of,
 };
 pub use dihedral::{
-    DIHEDRAL_ARM, DIHEDRAL_ARM_CLAUSE, DIHEDRAL_ARM_NOUN, DihedralClass, DihedralReading,
-    EdgeWedge, EdgeWedgeEscalation, MATERIAL_PAIRING, MATERIAL_PAIRING_CLAUSE, MaterialPairing,
-    MaterialWedge, MixedStations, MustCarryDescription, MustCarryEscalation, MustCarryRefusal,
-    MustCarryVerdict, PairRefusal, PositiveArm, RestLocus, SeamEscalation, SeamFace, SecondOrder,
-    SecondOrderWalk, SmoothJoin, Station, StationHook, classify_dihedral, classify_edge_wedge,
-    classify_material_pairing, classify_material_pairing_as, classify_seam, folded_lever_arm,
-    interior_stations, material_kappa_rel, must_carry_description, must_carry_over_edge,
-    reask_chart, reask_pair, second_order_walk, tangent_second_order,
+    Convexity, Corner, DIHEDRAL_ARM, DIHEDRAL_ARM_CLAUSE, DIHEDRAL_ARM_NOUN, Dihedral,
+    DihedralClass, DihedralReading, EdgeWedge, EdgeWedgeEscalation, MATERIAL_PAIRING,
+    MATERIAL_PAIRING_CLAUSE, MaterialPairing, MaterialWedge, MixedStations, MustCarryDescription,
+    MustCarryEscalation, MustCarryRefusal, MustCarryVerdict, PairRefusal, PositiveArm, RestLocus,
+    SeamEscalation, SeamFace, SecondOrder, SmoothJoin, Station, Tangency, WedgeEscalation,
+    WedgeRung, classify_dihedral, classify_edge_wedge, classify_material_pairing_as, classify_seam,
+    dihedral_class, folded_lever_arm, interior_stations, material_kappa_rel,
+    must_carry_description, must_carry_over_edge, reask_chart, reask_pair, tangent_second_order,
 };
 pub use dihedral_side::{
     ChartPointRefusal, CreaseReading, EdgeHalf, EdgeWalk, FaceSide, SideEscalation, SideFace,
@@ -138,6 +139,7 @@ pub use edge_nurbs::{
     nurbs_pair_limbs, pick_arc_rim, plane_nurbs_incidence, plane_nurbs_limbs, probe_pick,
     sub_arc_joint,
 };
+pub use edge_wedge::{Bend, WedgeVerdict, edge_wedge_over};
 pub use enters::{
     EntersMaterial, LeverEscalation, LeverRung, NormalAlignment, OutwardNormal, ParallelNormal,
     ParallelSense, ReferenceNormal, TiedGermsError, WallBend, WallBendError, bends_into_material,

@@ -29,13 +29,14 @@
 //! `Smooth`. Signing it takes the faces' material sides — each face's
 //! outward normal, its own `∇F` selected by the face's `Face::sense`
 //! bit — and that is
-//! [`classify_material_pairing`]: aligned normals mean one material
+//! [`Tangency::pairing`]: aligned normals mean one material
 //! side and the legal π seam; opposed normals mean the wedge is one of
 //! the two ends. Which end is a SECOND-order fact, and
 //! [`material_kappa_rel`] is the discriminant — the jet's κ_rel signed
 //! into the plus face's outward frame. [`MaterialWedge`] carries the
-//! table these two compose into, and the tier-3 validator is where the
-//! declaration and the jet margin decide legality.
+//! table these two compose into; the whole-edge fold
+//! ([`crate::edge_wedge_over`]) composes them over an edge's stations,
+//! and its readers decide legality from its verdict.
 //!
 //! # The margin and its lever arm (D4 ¶1)
 //!
@@ -169,7 +170,7 @@ macro_rules! dihedral_arm_clause {
 /// decision's size and its clause's "faces wide enough".
 pub const DIHEDRAL_ARM_NOUN: &str = "the width the faces' angle is measured across";
 
-/// **The material pairing** ([`classify_material_pairing`]) as a
+/// **The material pairing** ([`Tangency::pairing`]) as a
 /// decision a refusal ends: it passes on either definite sign and
 /// refuses in band and at zero. It is asked past a definitely-smooth
 /// dihedral at the same point and arm, where the wedge `sin θ · arm` is
@@ -180,7 +181,7 @@ pub const DIHEDRAL_ARM_NOUN: &str = "the width the faces' angle is measured acro
 /// band-decided arms end in the arm's lever with the tolerance the
 /// margin gives (D4 ¶1 (i)); the door quotes the wedge where that
 /// tolerance would leave the wedge undecided
-/// ([`classify_material_pairing`]). A zero margin needs
+/// ([`Tangency::pairing`]). A zero margin needs
 /// `arm ≤ √2·ε` past an arm gate that decided `arm ≥ K·ε`, so a decided
 /// Zero is reached only at `K < √2`.
 pub const MATERIAL_PAIRING: SizedDecision = SizedDecision {
@@ -216,7 +217,7 @@ pub enum DihedralClass {
     /// legal. Tangent *planes* are all that is compared, so the seam
     /// (π), the cusp (0) and the knife slit (2π) all land here; which
     /// of the three it is takes the faces' material sides
-    /// ([`MaterialWedge`], [`classify_material_pairing`]) and, for the
+    /// ([`MaterialWedge`], [`Tangency::pairing`]) and, for the
     /// two ends, the second-order jet.
     Smooth,
 }
@@ -313,20 +314,27 @@ pub(crate) fn decide_nonzero_reported<T: Decide>(
 }
 
 /// **`dihedral_wedge`** — classifies the wedge between `s1` and `s2` at
-/// the on-locus point `p` (module docs). Margin: `sin θ · r` in meters,
-/// θ the tangent-plane angle from implicit gradients, `r` the folded
-/// lever arm `min(curvature arms, reach)`; classified against the
-/// run's linear band.
+/// the on-locus point `p` (module docs) and hands back the reading as a
+/// token of its class: a [`Corner`] where the tangent planes are
+/// definitely distinct, a [`Tangency`] where they coincide. Margin:
+/// `sin θ · r` in meters, θ the tangent-plane angle from implicit
+/// gradients, `r` the folded lever arm `min(curvature arms, reach)`;
+/// classified against the run's linear band. It reads no face sense
+/// and no edge direction, so it is invariant under `revert` and under
+/// the order of the walk; the sign of a corner and the material pairing
+/// of a tangency are the tokens' own questions
+/// ([`Corner::convexity`], [`Tangency::pairing`]), each asked only of
+/// the class it belongs to.
 ///
 /// `reach` is the faces' extent (module docs): how far the farther of
 /// the edge's two faces runs from it, never the edge's own extent.
 ///
 /// # Errors
 ///
-/// [`LeverEscalation`]: [`crate::LeverRung::Reading`], predicate
+/// [`WedgeEscalation`]: [`WedgeRung::Wedge`], predicate
 /// `"dihedral_wedge"` — the margin landed in the sliver band, or was
 /// poisoned (off-locus garbage, a surface singularity such as the cone
-/// apex, an unimplemented `Nurbs` kind); or [`crate::LeverRung::Arm`],
+/// apex, an unimplemented `Nurbs` kind); or [`WedgeRung::Arm`],
 /// predicate `"dihedral_arm"` — the folded lever arm is collapsed
 /// (coincident with zero, in-band, or poisoned), so no angle can
 /// classify at this site (the collapsed-arm gate, module docs) —
@@ -337,10 +345,344 @@ pub fn classify_dihedral<T: Decide>(
     p: Point3<T>,
     reach: geom_core::Lever<T>,
     band: Band,
+) -> Result<Dihedral<T>, WedgeEscalation> {
+    read_dihedral(s1, s2, p, reach, band)
+        .map(|(dihedral, _)| dihedral)
+        .map_err(|e| e.into_lever().into())
+}
+
+/// [`classify_dihedral`]'s class alone, with its escalation as the
+/// levered reading's rungs: for a reader whose refusals carry a
+/// [`LeverEscalation`].
+///
+/// # Errors
+///
+/// As [`classify_dihedral`]: [`crate::LeverRung::Reading`] where it
+/// escalates at [`WedgeRung::Wedge`], [`crate::LeverRung::Arm`] where at
+/// [`WedgeRung::Arm`].
+pub fn dihedral_class<T: Decide>(
+    s1: &Surface<T>,
+    s2: &Surface<T>,
+    p: Point3<T>,
+    reach: geom_core::Lever<T>,
+    band: Band,
 ) -> Result<DihedralClass, LeverEscalation> {
     wedge_decided(s1, s2, p, reach, band)
         .map(|(class, _)| class)
-        .map_err(WedgeEscalation::into_lever)
+        .map_err(FirstOrderEscalation::into_lever)
+}
+
+/// The first-order reading at `p` as its token, with the wedge
+/// decision's reporting margin: the one reading [`classify_dihedral`],
+/// [`dihedral_class`] and [`wedge_decided`] share.
+fn read_dihedral<T: Decide>(
+    s1: &Surface<T>,
+    s2: &Surface<T>,
+    p: Point3<T>,
+    reach: geom_core::Lever<T>,
+    band: Band,
+) -> Result<(Dihedral<T>, geom_core::MarginDiag), FirstOrderEscalation> {
+    let (g1, g2) = (implicit_gradient(s1, p), implicit_gradient(s2, p));
+    let arm = folded_lever_arm(s1, s2, p, reach);
+    let (class, margin) = wedge_of(g1, g2, arm, band)?;
+    let reading = Reading {
+        normals: [g1.normalize(), g2.normalize()],
+        arm,
+    };
+    let dihedral = match class {
+        DihedralClass::Transverse => Dihedral::Corner(Corner(reading)),
+        DihedralClass::Smooth => Dihedral::Tangent(Tangency(reading)),
+    };
+    Ok((dihedral, margin))
+}
+
+/// What a decided dihedral read at its point: each face's unit normal as
+/// its carrier states it (no sense folded in), in the order the faces
+/// were given, and the folded lever arm its class was metered over.
+#[derive(Clone, Copy, Debug)]
+struct Reading<T: Real> {
+    normals: [geom_core::Vec3<T>; 2],
+    arm: geom_core::Lever<T>,
+}
+
+/// **A decided dihedral**, as its class's token: what
+/// [`classify_dihedral`] returns. Each token carries the two faces' unit
+/// normals and the folded arm the class was read over, and answers only
+/// the question its class poses: a corner its sign, a tangency its
+/// material pairing.
+#[derive(Clone, Copy, Debug)]
+pub enum Dihedral<T: Real> {
+    /// Tangent planes definitely distinct: a corner.
+    Corner(Corner<T>),
+    /// Tangent planes coincident at tolerance: the seam, the cusp or the
+    /// knife slit, which the faces' material sides and the jet tell apart.
+    Tangent(Tangency<T>),
+}
+
+impl<T: Real> Dihedral<T> {
+    /// The class, unsigned.
+    #[must_use]
+    pub const fn class(&self) -> DihedralClass {
+        match self {
+            Self::Corner(_) => DihedralClass::Transverse,
+            Self::Tangent(_) => DihedralClass::Smooth,
+        }
+    }
+}
+
+/// **A corner**: two faces whose tangent planes [`classify_dihedral`]
+/// decided definitely distinct at a point.
+#[derive(Clone, Copy, Debug)]
+pub struct Corner<T: Real>(Reading<T>);
+
+/// **A tangency**: two faces whose tangent planes [`classify_dihedral`]
+/// decided coincident at a point.
+#[derive(Clone, Copy, Debug)]
+pub struct Tangency<T: Real>(Reading<T>);
+
+/// Which way a corner's material wedge turns.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Convexity {
+    /// Material wedge below π.
+    Convex,
+    /// Material wedge above π.
+    Concave,
+}
+
+impl core::fmt::Display for Convexity {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(match self {
+            Self::Convex => "convex",
+            Self::Concave => "concave",
+        })
+    }
+}
+
+/// The signed wedge `((n₊ × n₋)·τ̂)·arm` in meters over two OUTWARD
+/// normals and the direction `tau` the plus face's loop walks the edge:
+/// positive convex, negative concave. Swapping the faces reverses the
+/// walk too, so the sign is the edge's and not the order's.
+fn signed_wedge<T: Real>(
+    n_plus: geom_core::Vec3<T>,
+    n_minus: geom_core::Vec3<T>,
+    tau: geom_core::Vec3<T>,
+    arm: geom_core::Lever<T>,
+) -> Margin<T> {
+    Margin::levered(n_plus.cross(n_minus).dot(tau.normalize()), arm)
+}
+
+impl<T: Decide> Corner<T> {
+    /// **`dihedral_sign`** — the corner's convexity at `station`: the
+    /// signed wedge `((n₊ × n₋)·τ̂)·arm` over the token's normals, each
+    /// turned outward by its face's `Face::sense` bit (`senses`, in the
+    /// faces' order), with `τ̂` the station's direction, which is the
+    /// plus face's walk where the station's carrier is the edge's. The
+    /// corner is decided, so the sign has a side to read: a decided zero
+    /// is refused with the margin, not read as either.
+    ///
+    /// A direction that is not the edge's can only cost a decision: the
+    /// class was read without it, and a wrong `τ̂` shrinks the margin
+    /// toward the band, where this escalates.
+    ///
+    /// # Errors
+    ///
+    /// [`WedgeRung::Sign`] in band, decided zero, or poisoned.
+    pub fn convexity(
+        &self,
+        station: &Station<T>,
+        senses: [bool; 2],
+        band: Band,
+    ) -> Result<Convexity, WedgeEscalation> {
+        let [n_plus, n_minus] = self.0.outward(senses);
+        decide_nonzero(
+            "dihedral_sign",
+            signed_wedge(n_plus, n_minus, station.tau, self.0.arm),
+            band,
+        )
+        .map(|sign| match sign {
+            NonzeroSign::Positive => Convexity::Convex,
+            NonzeroSign::Negative => Convexity::Concave,
+        })
+        .map_err(|diag| WedgeEscalation::at(WedgeRung::Sign, diag))
+    }
+}
+
+impl<T: Decide> Tangency<T> {
+    /// **`material_wedge_side`** — the tangency's material pairing:
+    /// whether the faces' outward normals (the token's normals, each
+    /// turned by its face's `Face::sense` bit, `senses` in the faces'
+    /// order) are aligned, the π seam, or opposed, the cusp or the slit.
+    /// Metered as `cos θ · arm` over the arm the class was read on. This
+    /// is the C1 lemma the declared-contact verifier decides between
+    /// bodies (`contact_tangent_opposed`), read edge-locally between two
+    /// faces of one body.
+    ///
+    /// # Errors
+    ///
+    /// [`WedgeRung::Pairing`]: in band, poisoned, or decided zero —
+    /// normals that name no side. On a definitely-smooth point the
+    /// margin is the folded arm, so either refusal is an arm too short to
+    /// read a side over, ended by [`MATERIAL_PAIRING`]. Where the
+    /// tolerance it would offer leaves the class's wedge in band, the
+    /// refusal quotes the wedge instead, under `"material_pairing_wedge"`
+    /// (`pairing_at_wedge`).
+    pub fn pairing(
+        &self,
+        senses: [bool; 2],
+        band: Band,
+    ) -> Result<MaterialPairing, WedgeEscalation> {
+        let [n_plus, n_minus] = self.0.outward(senses);
+        let arm = self.0.arm;
+        let (pairing, cos_theta, sin_theta) =
+            pairing_of_normals("material_wedge_side", n_plus, n_minus, arm, band);
+        pairing
+            .map_err(|refusal| pairing_at_wedge(refusal, cos_theta, sin_theta, arm, band))
+            .map_err(|diag| WedgeEscalation::at(WedgeRung::Pairing, diag))
+    }
+
+    /// [`Tangency::pairing`] decided as `name`, for a face-pair reader
+    /// that keeps its own population in the K report. A refusal keeps the
+    /// pairing's own margin.
+    ///
+    /// # Errors
+    ///
+    /// [`WedgeRung::Pairing`] under `name`: in band, poisoned, or decided
+    /// zero.
+    pub fn pairing_as(
+        &self,
+        name: &'static str,
+        senses: [bool; 2],
+        band: Band,
+    ) -> Result<MaterialPairing, WedgeEscalation> {
+        let [n_plus, n_minus] = self.0.outward(senses);
+        pairing_of_normals(name, n_plus, n_minus, self.0.arm, band)
+            .0
+            .map_err(|diag| WedgeEscalation::at(WedgeRung::Pairing, diag))
+    }
+}
+
+impl<T: Real> Reading<T> {
+    /// The two normals turned outward by their faces' sense bits.
+    fn outward(&self, [plus, minus]: [bool; 2]) -> [geom_core::Vec3<T>; 2] {
+        let [a, b] = self.normals;
+        [
+            OutwardNormal::from_chart(a, plus).vec(),
+            OutwardNormal::from_chart(b, minus).vec(),
+        ]
+    }
+}
+
+/// **A station on an edge**: a point of its carrier and the carrier's
+/// derivative there, which is the direction the edge's `he_plus` walks
+/// it. Minted only by a carrier at a parameter ([`Station::on`]), so a
+/// direction cannot be paired with a point it was not read at.
+#[derive(Clone, Copy, Debug)]
+pub struct Station<T: Real> {
+    p: Point3<T>,
+    tau: geom_core::Vec3<T>,
+}
+
+impl<T: Real> Station<T> {
+    /// `carrier`'s point and derivative at parameter `t`.
+    #[must_use]
+    pub fn on(carrier: &geom::Curve3<T>, t: T) -> Self
+    where
+        T: Decide,
+    {
+        let (p, tau) = carrier.ders1(t);
+        Self { p, tau }
+    }
+
+    /// The point.
+    #[must_use]
+    pub const fn point(&self) -> Point3<T> {
+        self.p
+    }
+
+    /// The carrier's derivative at the point, unnormalized.
+    #[must_use]
+    pub const fn tangent(&self) -> geom_core::Vec3<T> {
+        self.tau
+    }
+}
+
+/// **Which decision of an edge's wedge could not be taken**: the one
+/// rung vocabulary of [`classify_dihedral`], its tokens' questions and
+/// the whole-edge fold ([`crate::edge_wedge_over`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum WedgeRung {
+    /// The folded lever arm the wedge is metered over
+    /// ([`DIHEDRAL_ARM`], `"dihedral_arm"`).
+    Arm,
+    /// The unsigned first-order wedge `sin θ · arm`
+    /// (`"dihedral_wedge"`): a corner or a tangency.
+    Wedge,
+    /// A corner's sign (`"dihedral_sign"`, [`Corner::convexity`]).
+    Sign,
+    /// A tangency's material pairing (`"material_wedge_side"`,
+    /// [`Tangency::pairing`]; [`MATERIAL_PAIRING`]).
+    Pairing,
+    /// The second-order bend of two faces that meet smoothly
+    /// (`"tangent_second_order"`).
+    Bend,
+    /// Which end of the wedge, 0 or 2π, opposed faces make
+    /// (`"material_cusp_side"`).
+    End,
+}
+
+/// An escalation of an edge's wedge, with the rung that raised it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct WedgeEscalation {
+    rung: WedgeRung,
+    diag: Indeterminate,
+    /// The sign the arm gate decided and refused, carried whole from the
+    /// arm's reading: `Some` on the arm's rung alone.
+    refused: Option<Sign>,
+}
+
+impl WedgeEscalation {
+    /// A rung other than the arm's, escalated with `diag`.
+    pub(crate) const fn at(rung: WedgeRung, diag: Indeterminate) -> Self {
+        Self {
+            rung,
+            diag,
+            refused: None,
+        }
+    }
+
+    /// The rung that could not decide.
+    #[must_use]
+    pub const fn rung(self) -> WedgeRung {
+        self.rung
+    }
+
+    /// Its diagnostics.
+    #[must_use]
+    pub const fn diag(self) -> Indeterminate {
+        self.diag
+    }
+
+    /// The arm's verdict where its gate decided it not there, quoting the
+    /// escalation's margin ([`LeverEscalation::collapsed_arm`]).
+    #[must_use]
+    pub fn collapsed_arm(&self) -> Option<crate::recourse::Refused> {
+        crate::enters::collapsed_arm(self.refused, self.diag)
+    }
+}
+
+impl From<LeverEscalation> for WedgeEscalation {
+    /// The levered first-order reading's rungs: its arm, and the wedge it
+    /// meters.
+    fn from(lever: LeverEscalation) -> Self {
+        Self {
+            rung: match lever.rung() {
+                crate::LeverRung::Arm => WedgeRung::Arm,
+                crate::LeverRung::Reading => WedgeRung::Wedge,
+            },
+            diag: lever.diag(),
+            refused: lever.refused(),
+        }
+    }
 }
 
 /// **One face of a seam**, as [`classify_seam`] reads it at the seam's
@@ -481,7 +823,7 @@ fn seam_face_reading<T: Decide>(
 /// Why [`wedge_decided`] could not classify: a rung of the levered
 /// reading, or no tangent plane to read an angle between.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) enum WedgeEscalation {
+pub(crate) enum FirstOrderEscalation {
     /// The arm gate or the wedge's own reading escalated.
     Lever(LeverEscalation),
     /// The wedge's margin is invalid because a surface's implicit
@@ -495,10 +837,10 @@ pub(crate) enum WedgeEscalation {
     NoTangentPlane(Indeterminate),
 }
 
-impl WedgeEscalation {
+impl FirstOrderEscalation {
     /// The levered escalation [`classify_dihedral`] reports: a missing
     /// tangent plane is the wedge reading's own invalid margin.
-    fn into_lever(self) -> LeverEscalation {
+    pub(crate) fn into_lever(self) -> LeverEscalation {
         match self {
             Self::Lever(e) => e,
             Self::NoTangentPlane(diag) => LeverEscalation::reading(diag),
@@ -509,20 +851,15 @@ impl WedgeEscalation {
 /// [`classify_dihedral`], keeping the wedge decision's reporting
 /// margin for a refusal that quotes it (certification's
 /// `NotTransverse`), and naming a missing tangent plane as its own
-/// cause ([`WedgeEscalation::NoTangentPlane`]).
+/// cause ([`FirstOrderEscalation::NoTangentPlane`]).
 pub(crate) fn wedge_decided<T: Decide>(
     s1: &Surface<T>,
     s2: &Surface<T>,
     p: Point3<T>,
     reach: geom_core::Lever<T>,
     band: Band,
-) -> Result<(DihedralClass, geom_core::MarginDiag), WedgeEscalation> {
-    wedge_of(
-        implicit_gradient(s1, p),
-        implicit_gradient(s2, p),
-        folded_lever_arm(s1, s2, p, reach),
-        band,
-    )
+) -> Result<(DihedralClass, geom_core::MarginDiag), FirstOrderEscalation> {
+    read_dihedral(s1, s2, p, reach, band).map(|(dihedral, margin)| (dihedral.class(), margin))
 }
 
 /// The wedge between two faces whose normals at the point are `n1` and
@@ -534,13 +871,13 @@ fn wedge_of<T: Decide>(
     n2: geom_core::Vec3<T>,
     arm: geom_core::Lever<T>,
     band: Band,
-) -> Result<(DihedralClass, geom_core::MarginDiag), WedgeEscalation> {
+) -> Result<(DihedralClass, geom_core::MarginDiag), FirstOrderEscalation> {
     let magnitudes = n1.norm() * n2.norm();
     let sin_theta = n1.cross(n2).norm() / magnitudes;
     // The collapsed-arm gate (module docs): the wedge margin is only
     // meaningful through a definitely-positive arm.
     decide_positive("dihedral_arm", Margin::of(arm.length()), band).map_err(|gate| {
-        WedgeEscalation::Lever(at_wedge(
+        FirstOrderEscalation::Lever(at_wedge(
             LeverEscalation::arm(gate),
             arm.length(),
             sin_theta,
@@ -559,9 +896,9 @@ fn wedge_of<T: Decide>(
     let Decided { sign, margin } =
         decide_reported("dihedral_wedge", margin, band).map_err(|diag| {
             if diag.margin.is_invalid() && !magnitudes.is_poison() {
-                WedgeEscalation::NoTangentPlane(diag)
+                FirstOrderEscalation::NoTangentPlane(diag)
             } else {
-                WedgeEscalation::Lever(LeverEscalation::reading(diag))
+                FirstOrderEscalation::Lever(LeverEscalation::reading(diag))
             }
         })?;
     let class = match sign {
@@ -652,7 +989,7 @@ fn wedge_reads_zero_at_the_arm<T: Decide>(sin_theta: T, band: Band) -> bool {
 /// the two accumulates into a gap. One home for the fold, because
 /// three sites must lever against the SAME arm or their margins are
 /// not comparable: the first-order wedge ([`classify_dihedral`]), the
-/// material pairing ([`classify_material_pairing`]) and the
+/// material pairing ([`Tangency::pairing`]) and the
 /// second-order jet margin the tier-3 validator decides.
 ///
 /// `crate::certify` reaches it directly and through
@@ -664,7 +1001,7 @@ fn wedge_reads_zero_at_the_arm<T: Decide>(sin_theta: T, band: Band) -> bool {
 /// curvature, which this fold's [`curvature_lever_arm`] is not on a
 /// cone or a torus. Nor does `contact_verify`'s
 /// `contact_tangent_opposed`, the same C1 lemma as
-/// [`classify_material_pairing`] between bodies: it levers its normals'
+/// [`Tangency::pairing`] between bodies: it levers its normals'
 /// dot by the faces' extent, as `crate::certify`'s
 /// `tangent_gap_orientation` does.
 /// A new site levering against its own fold is a silent
@@ -780,41 +1117,35 @@ pub fn interior_stations<T: Decide>(
     carrier: &geom::Curve3<T>,
     t0: T,
     t1: T,
-) -> impl Iterator<Item = (Point3<T>, geom_core::Vec3<T>)> + '_ {
-    (1..crate::CERT_SAMPLES - 1).map(move |i| carrier.ders1(crate::sample_param(t0, t1, i)))
+) -> impl Iterator<Item = Station<T>> + '_ {
+    (1..crate::CERT_SAMPLES - 1).map(move |i| Station::on(carrier, crate::sample_param(t0, t1, i)))
 }
 
-/// One station of [`second_order_walk`]: the contact point, and the
-/// two quantities its second-order margin is read from.
-/// Kernel-internal, as [`second_order_walk`] is.
-#[doc(hidden)]
+/// One station of [`second_order_walk`]: the two quantities its
+/// second-order margin is read from at the station's point.
 #[derive(Clone, Copy, Debug)]
-pub struct Station<T: Real> {
-    /// The contact point the caller's schedule placed.
-    pub p: Point3<T>,
-    /// The pair's jet at `p` along the carrier tangent
+pub(crate) struct JetStation<T: Real> {
+    /// The pair's jet at the point along the carrier tangent
     /// ([`crate::tangent_jet`]).
-    pub jet: crate::TangentJet<T>,
-    /// The folded lever arm at `p` ([`folded_lever_arm`]).
-    pub arm: geom_core::Lever<T>,
+    pub(crate) jet: crate::TangentJet<T>,
+    /// The folded lever arm at the point ([`folded_lever_arm`]).
+    pub(crate) arm: geom_core::Lever<T>,
 }
 
 /// A caller's per-station reads inside [`second_order_walk`]: one
 /// before the station's second-order decision, one after a `Positive`
 /// one. Either may stop the walk, which then answers
 /// [`SecondOrderWalk::Stopped`] with the hook's break value. `()` is
-/// the hook that reads nothing and never stops. Kernel-internal, as
-/// [`second_order_walk`] is.
-#[doc(hidden)]
-pub trait StationHook<T: Real> {
+/// the hook that reads nothing and never stops.
+pub(crate) trait StationHook<T: Real> {
     /// What a stopped walk carries back.
     type Break;
     /// Read at each station before its second-order decision.
-    fn before_decision(&mut self, _station: &Station<T>) -> ControlFlow<Self::Break> {
+    fn before_decision(&mut self, _station: &JetStation<T>) -> ControlFlow<Self::Break> {
         ControlFlow::Continue(())
     }
     /// Read at each station whose second-order decision was `Positive`.
-    fn after_positive(&mut self, _station: &Station<T>) -> ControlFlow<Self::Break> {
+    fn after_positive(&mut self, _station: &JetStation<T>) -> ControlFlow<Self::Break> {
         ControlFlow::Continue(())
     }
 }
@@ -823,10 +1154,9 @@ impl<T: Real> StationHook<T> for () {
     type Break = core::convert::Infallible;
 }
 
-/// [`second_order_walk`]'s answer. Kernel-internal, as the walk is.
-#[doc(hidden)]
+/// [`second_order_walk`]'s answer.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub enum SecondOrderWalk<B> {
+pub(crate) enum SecondOrderWalk<B> {
     /// Every station read `Positive`.
     Determinate,
     /// The first station not `Positive` read `Zero`/`Negative`.
@@ -853,21 +1183,17 @@ pub enum SecondOrderWalk<B> {
 ///
 /// The walk assumes the caller has established the contact as smooth
 /// first-order at every station; it does not gate.
-///
-/// Kernel-internal: public only for `topo`, and hidden from the docs of
-/// the crates that re-export this one.
-#[doc(hidden)]
-pub fn second_order_walk<T: Decide, H: StationHook<T>>(
+pub(crate) fn second_order_walk<T: Decide, H: StationHook<T>>(
     s1: &Surface<T>,
     s2: &Surface<T>,
-    stations: impl IntoIterator<Item = (Point3<T>, geom_core::Vec3<T>)>,
+    stations: impl IntoIterator<Item = Station<T>>,
     reach: geom_core::Lever<T>,
     band: Band,
     hook: &mut H,
 ) -> SecondOrderWalk<H::Break> {
-    for (p, tau) in stations {
-        let station = Station {
-            p,
+    for station in stations {
+        let (p, tau) = (station.p, station.tau);
+        let station = JetStation {
             jet: crate::tangent::tangent_jet(s1, s2, p, tau),
             arm: folded_lever_arm(s1, s2, p, reach),
         };
@@ -1032,8 +1358,8 @@ pub fn must_carry_over_edge<T: Decide>(
     band: Band,
 ) -> MustCarryVerdict {
     let mut transverse = Vec::with_capacity(crate::CERT_SAMPLES as usize - 2);
-    for (p, _) in interior_stations(carrier, t0, t1) {
-        match classify_dihedral(s1, s2, p, reach, band) {
+    for station in interior_stations(carrier, t0, t1) {
+        match dihedral_class(s1, s2, station.point(), reach, band) {
             Ok(DihedralClass::Smooth) => transverse.push(false),
             Ok(DihedralClass::Transverse) => transverse.push(true),
             Err(escalation) => {
@@ -1067,19 +1393,36 @@ pub fn must_carry_over_edge<T: Decide>(
     }
 }
 
-/// **Two neighbouring stations that disagree** — one read definitely
-/// transverse, the other definitely smooth — named by their indices in
-/// the certification schedule (`1..`[`crate::CERT_SAMPLES`]`-1`, the
-/// `sample` a certification refusal names). The dihedral is
-/// continuous along the edge, so between them it passes through the
-/// ambiguous band at a point no station read (D2): the edge is
-/// certifiable as neither a corner nor a smooth join.
+/// **Two neighbouring stations that disagree**, named by their indices
+/// in the certification schedule (`1..`[`crate::CERT_SAMPLES`]`-1`, the
+/// `sample` a certification refusal names): one read a corner and the
+/// other a tangency, or two corners of opposite sign. The signed
+/// dihedral is continuous along the edge, so between them it passes
+/// through the ambiguous band at a point no station read (D2): the edge
+/// is certifiable as neither a corner nor a smooth join.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct MixedStations {
-    /// The station that read the faces meeting at a corner.
-    pub transverse: u32,
-    /// Its neighbour, which read them meeting smoothly.
-    pub smooth: u32,
+pub enum MixedStations {
+    /// A corner beside a tangency.
+    Class {
+        /// The station that read the faces meeting at a corner.
+        transverse: u32,
+        /// Its neighbour, which read them meeting smoothly.
+        smooth: u32,
+    },
+    /// A convex corner beside a concave one.
+    Sign {
+        /// The station that read the corner convex.
+        convex: u32,
+        /// Its neighbour, which read it concave.
+        concave: u32,
+    },
+}
+
+/// The schedule sample interior station `k` is.
+fn interior_sample(k: usize) -> u32 {
+    u32::try_from(k + 1).unwrap_or_else(|_| {
+        unreachable!("an interior station indexes a schedule of `CERT_SAMPLES` samples")
+    })
 }
 
 impl MixedStations {
@@ -1099,28 +1442,42 @@ impl MixedStations {
     }
 
     /// The first neighbouring pair of interior stations whose
-    /// first-order readings disagree, over the readings in schedule
+    /// first-order classes disagree, over the readings in schedule
     /// order (`true` = transverse, interior station `k` being schedule
     /// sample `k + 1`); `None` where they all agree. The one home of the
-    /// bracket the must-carry rule and tier 3 name.
+    /// class bracket the must-carry rule and the whole-edge fold name.
     #[must_use]
     pub fn bracketing(transverse: &[bool]) -> Option<Self> {
         let k = transverse.windows(2).position(|w| w[0] != w[1])?;
-        let sample = |i: usize| {
-            u32::try_from(i + 1).unwrap_or_else(|_| {
-                unreachable!("an interior station indexes a schedule of `CERT_SAMPLES` samples")
-            })
-        };
-        let (a, b) = (sample(k), sample(k + 1));
+        let (a, b) = (interior_sample(k), interior_sample(k + 1));
         Some(if transverse[k] {
-            Self {
+            Self::Class {
                 transverse: a,
                 smooth: b,
             }
         } else {
-            Self {
+            Self::Class {
                 transverse: b,
                 smooth: a,
+            }
+        })
+    }
+
+    /// The first neighbouring pair of interior stations, all corners,
+    /// whose signs disagree (`true` = convex), as
+    /// [`MixedStations::bracketing`] reads classes.
+    pub(crate) fn sign_flip(convex: &[bool]) -> Option<Self> {
+        let k = convex.windows(2).position(|w| w[0] != w[1])?;
+        let (a, b) = (interior_sample(k), interior_sample(k + 1));
+        Some(if convex[k] {
+            Self::Sign {
+                convex: a,
+                concave: b,
+            }
+        } else {
+            Self::Sign {
+                convex: b,
+                concave: a,
             }
         })
     }
@@ -1128,12 +1485,18 @@ impl MixedStations {
 
 impl core::fmt::Display for MixedStations {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(
-            f,
-            "the faces meet at a corner at sample {} and smoothly at sample {}, so they \
-             turn tangent between them, too near to classify",
-            self.transverse, self.smooth
-        )
+        match *self {
+            Self::Class { transverse, smooth } => write!(
+                f,
+                "the faces meet at a corner at sample {transverse} and smoothly at sample \
+                 {smooth}, so they turn tangent between them, too near to classify"
+            ),
+            Self::Sign { convex, concave } => write!(
+                f,
+                "the faces meet at a convex corner at sample {convex} and a concave one at \
+                 sample {concave}, so they turn tangent between them, too near to classify"
+            ),
+        }
     }
 }
 
@@ -1579,60 +1942,6 @@ pub enum MaterialPairing {
     Opposed,
 }
 
-/// **`material_wedge_side`** — the material pairing of two faces at an
-/// on-locus point where the tangent planes already classified
-/// [`DihedralClass::Smooth`].
-///
-/// `sense_plus`/`sense_minus` are the faces' `Face::sense` BITS, not
-/// signs to multiply by: each selects whether the face's own implicit
-/// gradient already points out of the material or must be negated, so
-/// the door mints each outward normal ITSELF — through
-/// [`implicit_outward_normal`], the one home of that fold on a curved
-/// carrier — and `n̂₊ · n̂₋` is the sign the wedge turns on: aligned ⇒ π,
-/// opposed ⇒ 0 or 2π. The parameter is the bit rather than an
-/// [`crate::enters::OutwardNormal`] because the normals are this door's own to
-/// compute, and rather than a `T` ±1 for the reason
-/// [`crate::enters::OutwardNormal::from_chart`]'s doc gives.
-/// This is the C1 lemma the declared-contact
-/// verifier already decides between bodies (`contact_tangent_opposed`),
-/// read edge-locally between two faces of ONE body — the same
-/// construction, the dot of unit normals as a displacement in meters,
-/// levered here by the folded arm ([`folded_lever_arm`]) and there by
-/// the faces' extent.
-///
-/// # Errors
-///
-/// [`Indeterminate`]: predicate `"material_wedge_side"` — the margin
-/// landed in the band or was poisoned, or classified `Zero`: normals
-/// that name no side. That rejection carries the decided margin, as
-/// every gate's does. On a definitely-smooth sample the margin is the
-/// folded arm, so either refusal is an arm too short to read a side
-/// over, ended by [`MATERIAL_PAIRING`]. Where the tolerance it would
-/// offer leaves the smooth verdict's wedge in band, the refusal quotes
-/// the wedge instead, under `"material_pairing_wedge"`
-/// (`pairing_at_wedge`).
-pub fn classify_material_pairing<T: Decide>(
-    s_plus: &Surface<T>,
-    sense_plus: bool,
-    s_minus: &Surface<T>,
-    sense_minus: bool,
-    p: Point3<T>,
-    arm: geom_core::Lever<T>,
-    band: Band,
-) -> Result<MaterialPairing, Indeterminate> {
-    let (pairing, cos_theta, sin_theta) = pairing_reading(
-        "material_wedge_side",
-        s_plus,
-        sense_plus,
-        s_minus,
-        sense_minus,
-        p,
-        arm,
-        band,
-    );
-    pairing.map_err(|refusal| pairing_at_wedge(refusal, cos_theta, sin_theta, arm, band))
-}
-
 /// **An edge's material wedge, signed**: what [`classify_edge_wedge`]
 /// decides of the dihedral between an edge's two faces.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -1657,7 +1966,7 @@ pub enum EdgeWedgeEscalation {
     /// The signed dihedral landed in band or was poisoned.
     Sign(Indeterminate),
     /// The sign decided zero and the material pairing
-    /// ([`classify_material_pairing`]) refused.
+    /// ([`Tangency::pairing`]) refused.
     Side(Indeterminate),
 }
 
@@ -1712,7 +2021,7 @@ impl<T: Real> PositiveArm<T> {
 /// Both normals are perpendicular to the edge, so their cross product
 /// lies along `τ̂`, and a sign decided zero says the normals are
 /// parallel to within the band: which way is the material pairing
-/// ([`classify_material_pairing`]'s decision, on these normals at the
+/// ([`Tangency::pairing`]'s decision, on these normals at the
 /// same arm), aligned ([`EdgeWedge::Smooth`]) or opposed
 /// ([`EdgeWedge::Knife`]). Returns the signed margin it decided beside
 /// the class.
@@ -1731,7 +2040,7 @@ pub fn classify_edge_wedge<T: Decide>(
     band: Band,
 ) -> Result<(EdgeWedge, Margin<T>), EdgeWedgeEscalation> {
     let (n_plus, n_minus, arm) = (n_plus.vec(), n_minus.vec(), arm.get());
-    let margin = Margin::levered(n_plus.cross(n_minus).dot(tau.normalize()), arm);
+    let margin = signed_wedge(n_plus, n_minus, tau, arm);
     let wedge = match decide(name, margin, band).map_err(EdgeWedgeEscalation::Sign)? {
         Sign::Positive => EdgeWedge::Convex,
         Sign::Negative => EdgeWedge::Concave,
@@ -1759,7 +2068,7 @@ pub fn classify_edge_wedge<T: Decide>(
 /// # Errors
 ///
 /// [`Indeterminate`] under `name`: in band, poisoned, or decided zero.
-#[allow(clippy::too_many_arguments)] // `classify_material_pairing`'s signature plus the name
+#[allow(clippy::too_many_arguments)] // two faces read at a point, the arm and the name
 pub fn classify_material_pairing_as<T: Decide>(
     name: &'static str,
     s_plus: &Surface<T>,
@@ -1932,7 +2241,7 @@ mod tests {
         let floor = plane(Vec3::unit_z(), Vec3::unit_x());
         let wall = plane(Vec3::unit_x(), Vec3::unit_y());
         let err =
-            classify_dihedral(&floor, &wall, Point3::origin(), fixture_lever(mid), b).unwrap_err();
+            dihedral_class(&floor, &wall, Point3::origin(), fixture_lever(mid), b).unwrap_err();
         assert_eq!(
             (err.rung(), err.diag().predicate),
             (LeverRung::Arm, Some("dihedral_arm_wedge"))
@@ -1958,8 +2267,7 @@ mod tests {
             Vec3::unit_x(),
         );
         let undecided =
-            classify_dihedral(&floor, &leaning, Point3::origin(), fixture_lever(arm), b)
-                .unwrap_err();
+            dihedral_class(&floor, &leaning, Point3::origin(), fixture_lever(arm), b).unwrap_err();
         assert_eq!(undecided.rung(), LeverRung::Arm);
         assert_eq!(
             undecided.diag().margin.rejected_sign(),
@@ -1968,7 +2276,7 @@ mod tests {
         );
         assert_eq!(undecided.collapsed_arm(), None, "{undecided:?}");
         let wall = plane(Vec3::unit_x(), Vec3::unit_y());
-        let collapsed = classify_dihedral(
+        let collapsed = dihedral_class(
             &floor,
             &wall,
             Point3::origin(),
@@ -2147,9 +2455,8 @@ mod tests {
         let theta = 1.0_f64;
         let leaning = plane(Vec3::new(0.0, theta.sin(), theta.cos()), Vec3::unit_x());
         for extent in [mid, 0.5 * b.zero()] {
-            let err =
-                classify_dihedral(&floor, &leaning, Point3::origin(), fixture_lever(extent), b)
-                    .unwrap_err();
+            let err = dihedral_class(&floor, &leaning, Point3::origin(), fixture_lever(extent), b)
+                .unwrap_err();
             let geom_core::ErrorTextReading::Value(m) =
                 err.diag().margin.diagnostic_f64_for_error_text()
             else {
@@ -2167,7 +2474,7 @@ mod tests {
             assert!((m - theta.sin() * extent).abs() <= 1e-6 * m, "{m:e}");
         }
         let err =
-            classify_dihedral(&floor, &floor, Point3::origin(), fixture_lever(mid), b).unwrap_err();
+            dihedral_class(&floor, &floor, Point3::origin(), fixture_lever(mid), b).unwrap_err();
         assert_eq!(
             (err.rung(), err.diag().predicate),
             (LeverRung::Arm, Some("dihedral_arm"))
@@ -2199,7 +2506,7 @@ mod tests {
         let b = band();
         let extent = 7.0 * eps();
         let quoted = |s1: &Surface<f64>, s2: &Surface<f64>, p: Point3<f64>| {
-            let err = classify_dihedral(s1, s2, p, fixture_lever(extent), b).unwrap_err();
+            let err = dihedral_class(s1, s2, p, fixture_lever(extent), b).unwrap_err();
             let geom_core::ErrorTextReading::Value(m) =
                 err.diag().margin.diagnostic_f64_for_error_text()
             else {
@@ -2228,7 +2535,7 @@ mod tests {
         let p = c0 + r(Vec3::new(0.0, 0.0, 0.3));
         assert_eq!(quoted(&cyl, &pl, p), (Some("dihedral_arm"), extent));
         assert_eq!(
-            classify_dihedral(
+            dihedral_class(
                 &cyl,
                 &pl,
                 p,
@@ -2249,7 +2556,7 @@ mod tests {
             );
             let below = just_below_the_offer(b, extent);
             assert_eq!(
-                classify_dihedral(&floor, &at(theta), o, fixture_lever(extent), below).unwrap(),
+                dihedral_class(&floor, &at(theta), o, fixture_lever(extent), below).unwrap(),
                 DihedralClass::Smooth,
                 "{theta:e}"
             );
@@ -2262,7 +2569,7 @@ mod tests {
         assert!((m - theta.sin() * extent).abs() <= 1e-6 * m, "{m:e}");
         let o = Point3::origin();
         assert!(
-            classify_dihedral(
+            dihedral_class(
                 &floor,
                 &at(theta),
                 o,
@@ -2272,7 +2579,7 @@ mod tests {
             .is_err()
         );
         assert_eq!(
-            classify_dihedral(
+            dihedral_class(
                 &floor,
                 &at(theta),
                 o,
@@ -2320,7 +2627,7 @@ mod tests {
             MustCarryVerdict::Transverse.description::<f64>(pair, witness),
             Err(MustCarryRefusal::Refuted)
         ));
-        let stations = MixedStations {
+        let stations = MixedStations::Class {
             transverse: 3,
             smooth: 4,
         };
@@ -2339,7 +2646,7 @@ mod tests {
     fn mixed_stations_name_the_first_disagreeing_neighbours() {
         let (t, s) = (true, false);
         let mixed = |transverse, smooth| {
-            Some(MustCarryVerdict::Mixed(MixedStations {
+            Some(MustCarryVerdict::Mixed(MixedStations::Class {
                 transverse,
                 smooth,
             }))
@@ -2355,7 +2662,7 @@ mod tests {
         for (row, want) in rows {
             assert_eq!(MixedStations::corner_verdict(row), want, "{row:?}");
         }
-        let text = MixedStations {
+        let text = MixedStations::Class {
             transverse: 2,
             smooth: 3,
         }
@@ -2589,7 +2896,7 @@ mod tests {
     impl<T: Real> StationHook<T> for Script {
         type Break = usize;
 
-        fn before_decision(&mut self, _: &Station<T>) -> ControlFlow<usize> {
+        fn before_decision(&mut self, _: &JetStation<T>) -> ControlFlow<usize> {
             let i = self.next;
             self.next += 1;
             self.before.push(i);
@@ -2599,7 +2906,7 @@ mod tests {
             }
         }
 
-        fn after_positive(&mut self, _: &Station<T>) -> ControlFlow<usize> {
+        fn after_positive(&mut self, _: &JetStation<T>) -> ControlFlow<usize> {
             let i = self.next - 1;
             self.after.push(i);
             match self.break_after {
@@ -2762,7 +3069,7 @@ mod tests {
     fn perpendicular_planes_are_transverse() {
         let s1 = plane(Vec3::unit_z(), Vec3::unit_x());
         let s2 = plane(Vec3::unit_x(), Vec3::unit_y());
-        let c = classify_dihedral(&s1, &s2, Point3::origin(), fixture_lever(1.0), band()).unwrap();
+        let c = dihedral_class(&s1, &s2, Point3::origin(), fixture_lever(1.0), band()).unwrap();
         assert_eq!(c, DihedralClass::Transverse);
     }
 
@@ -2770,12 +3077,12 @@ mod tests {
     fn identical_and_antiparallel_planes_are_smooth() {
         let s1 = plane(Vec3::unit_z(), Vec3::unit_x());
         let s2 = plane(Vec3::unit_z(), Vec3::unit_y());
-        let c = classify_dihedral(&s1, &s2, Point3::origin(), fixture_lever(1.0), band()).unwrap();
+        let c = dihedral_class(&s1, &s2, Point3::origin(), fixture_lever(1.0), band()).unwrap();
         assert_eq!(c, DihedralClass::Smooth);
         // Tangent PLANES are compared: the sign of the normal is a
         // chart artifact, and the antiparallel pair is smooth too.
         let s3 = plane(-Vec3::unit_z(), Vec3::unit_x());
-        let c = classify_dihedral(&s1, &s3, Point3::origin(), fixture_lever(1.0), band()).unwrap();
+        let c = dihedral_class(&s1, &s3, Point3::origin(), fixture_lever(1.0), band()).unwrap();
         assert_eq!(c, DihedralClass::Smooth);
     }
 
@@ -2789,7 +3096,7 @@ mod tests {
         let s1 = plane(Vec3::unit_z(), Vec3::unit_x());
         let s2 = plane(n, Vec3::unit_y());
         let err =
-            classify_dihedral(&s1, &s2, Point3::origin(), fixture_lever(1.0), band()).unwrap_err();
+            dihedral_class(&s1, &s2, Point3::origin(), fixture_lever(1.0), band()).unwrap_err();
         assert_eq!(
             (err.rung(), err.diag().predicate),
             (LeverRung::Reading, Some("dihedral_wedge"))
@@ -2813,12 +3120,12 @@ mod tests {
         // the line through the origin parallel to y (lowest generator).
         let s1 = plane(Vec3::unit_z(), Vec3::unit_x());
         let p = Point3::origin();
-        let c = classify_dihedral(&s1, &cyl, p, fixture_lever(10.0), band()).unwrap();
+        let c = dihedral_class(&s1, &cyl, p, fixture_lever(10.0), band()).unwrap();
         assert_eq!(c, DihedralClass::Smooth);
         // A definitely-tilted plane through the same line: transverse.
         let tilt = std::f64::consts::FRAC_PI_4;
         let s2 = plane(Vec3::new(tilt.sin(), 0.0, tilt.cos()), Vec3::unit_y());
-        let c = classify_dihedral(&s2, &cyl, p, fixture_lever(10.0), band()).unwrap();
+        let c = dihedral_class(&s2, &cyl, p, fixture_lever(10.0), band()).unwrap();
         assert_eq!(c, DihedralClass::Transverse);
     }
 
@@ -2835,8 +3142,8 @@ mod tests {
             u_ref: Vec3::unit_x(),
         };
         let s1 = plane(Vec3::unit_z(), Vec3::unit_x());
-        let err = classify_dihedral(&cone, &s1, Point3::origin(), fixture_lever(1.0), band())
-            .unwrap_err();
+        let err =
+            dihedral_class(&cone, &s1, Point3::origin(), fixture_lever(1.0), band()).unwrap_err();
         assert_eq!(
             (
                 err.rung(),
@@ -2873,8 +3180,8 @@ mod tests {
             u_ref: Vec3::unit_x(),
         };
         let s1 = plane(Vec3::unit_z(), Vec3::unit_x());
-        let err = classify_dihedral(&cone, &s1, Point3::origin(), fixture_lever(1.0), band())
-            .unwrap_err();
+        let err =
+            dihedral_class(&cone, &s1, Point3::origin(), fixture_lever(1.0), band()).unwrap_err();
         let diag = err.diag();
         let geom_core::ErrorTextReading::Value(m) = diag.margin.diagnostic_f64_for_error_text()
         else {
@@ -2908,6 +3215,21 @@ mod tests {
         }
     }
 
+    /// The material pairing of two faces read tangent at `p` over
+    /// `reach`, through the tangency token, the one door that asks it.
+    fn pairing(
+        s1: &Surface<f64>,
+        sense1: bool,
+        s2: &Surface<f64>,
+        sense2: bool,
+        p: Point3<f64>,
+    ) -> Result<MaterialPairing, WedgeEscalation> {
+        match classify_dihedral(s1, s2, p, fixture_lever(1.0), band()).unwrap() {
+            Dihedral::Tangent(t) => t.pairing([sense1, sense2], band()),
+            Dihedral::Corner(_) => panic!("the faces read a corner at {p:?}"),
+        }
+    }
+
     /// Two coplanar faces on one tangent plane: material sides agree
     /// (both senses set on the same normal) ⇒ the legal π seam; flip
     /// one face's sense and the same geometry is the 0/2π pair. The
@@ -2919,16 +3241,15 @@ mod tests {
         let s2 = plane(Vec3::unit_z(), Vec3::unit_y());
         let p = Point3::origin();
         assert_eq!(
-            classify_dihedral(&s1, &s2, p, fixture_lever(1.0), band()).unwrap(),
+            dihedral_class(&s1, &s2, p, fixture_lever(1.0), band()).unwrap(),
             DihedralClass::Smooth
         );
         assert_eq!(
-            classify_material_pairing(&s1, true, &s2, true, p, fixture_lever(1.0), band()).unwrap(),
+            pairing(&s1, true, &s2, true, p).unwrap(),
             MaterialPairing::Aligned
         );
         assert_eq!(
-            classify_material_pairing(&s1, true, &s2, false, p, fixture_lever(1.0), band())
-                .unwrap(),
+            pairing(&s1, true, &s2, false, p).unwrap(),
             MaterialPairing::Opposed
         );
         // Antiparallel STORED normals with agreeing senses are the
@@ -2937,8 +3258,7 @@ mod tests {
         // the sense bit, and the pairing sees only the product.
         let s3 = plane(-Vec3::unit_z(), Vec3::unit_x());
         assert_eq!(
-            classify_material_pairing(&s1, true, &s3, false, p, fixture_lever(1.0), band())
-                .unwrap(),
+            pairing(&s1, true, &s3, false, p).unwrap(),
             MaterialPairing::Aligned
         );
     }
@@ -2964,7 +3284,7 @@ mod tests {
         };
         let p = Point3::origin();
         assert_eq!(
-            classify_dihedral(&inner, &outer, p, fixture_lever(1.0), band()).unwrap(),
+            dihedral_class(&inner, &outer, p, fixture_lever(1.0), band()).unwrap(),
             DihedralClass::Smooth
         );
         // Material between them: the inner cylinder bounds it from
@@ -2972,8 +3292,7 @@ mod tests {
         // its sense bit is clear against the outward-pointing implicit
         // gradient), the outer from outside (sense bit set).
         assert_eq!(
-            classify_material_pairing(&inner, false, &outer, true, p, fixture_lever(1.0), band())
-                .unwrap(),
+            pairing(&inner, false, &outer, true, p).unwrap(),
             MaterialPairing::Opposed
         );
         let jet = crate::tangent_jet(&inner, &outer, p, Vec3::unit_y());
@@ -2999,8 +3318,7 @@ mod tests {
         let s2 = plane(Vec3::unit_z(), Vec3::unit_y());
         let p = Point3::origin();
         assert_eq!(
-            classify_material_pairing(&s1, true, &s2, false, p, fixture_lever(1.0), band())
-                .unwrap(),
+            pairing(&s1, true, &s2, false, p).unwrap(),
             MaterialPairing::Opposed
         );
         let jet = crate::tangent_jet(&s1, &s2, p, Vec3::unit_y());
@@ -3024,35 +3342,11 @@ mod tests {
         );
     }
 
-    /// The pairing escalates on a poisoned gradient exactly as the
-    /// first-order classifier does — the cone apex, again.
-    #[test]
-    fn material_pairing_escalates_on_poison() {
-        let cone = Surface::Cone {
-            apex: Point3::origin(),
-            axis: Vec3::unit_z(),
-            half_angle: std::f64::consts::FRAC_PI_6,
-            u_ref: Vec3::unit_x(),
-        };
-        let s1 = plane(Vec3::unit_z(), Vec3::unit_x());
-        let err = classify_material_pairing(
-            &cone,
-            true,
-            &s1,
-            true,
-            Point3::origin(),
-            fixture_lever(1.0),
-            band(),
-        )
-        .unwrap_err();
-        assert_eq!(err.margin, geom_core::MarginDiag::INVALID);
-    }
-
     /// Nurbs (representable-unimplemented) escalates as poison too.
     #[test]
     fn nurbs_escalates() {
         let s1 = plane(Vec3::unit_z(), Vec3::unit_x());
-        let err = classify_dihedral(
+        let err = dihedral_class(
             &s1,
             &Surface::nurbs_placeholder(),
             Point3::origin(),
@@ -3108,7 +3402,7 @@ mod tests {
             DihedralClass::Transverse,
             "2δ = 0.98 r: the radial enclosure excludes zero"
         );
-        let Err(WedgeEscalation::NoTangentPlane(diag)) = wedge(0.51 * r) else {
+        let Err(FirstOrderEscalation::NoTangentPlane(diag)) = wedge(0.51 * r) else {
             panic!(
                 "2δ = 1.02 r: the radial enclosure reaches zero, so the tangent plane is \
                  undefined: {:?}",
@@ -3117,7 +3411,7 @@ mod tests {
         };
         assert_eq!(diag.predicate, Some("dihedral_wedge"), "{diag:?}");
         assert_eq!(diag.margin, geom_core::MarginDiag::INVALID, "{diag:?}");
-        let public = classify_dihedral(
+        let public = dihedral_class(
             &cap,
             &cyl(0.51 * r),
             p(0.51 * r),
@@ -3143,7 +3437,7 @@ mod tests {
             band(),
         );
         assert!(
-            matches!(off_locus, Err(WedgeEscalation::Lever(e)) if e.rung() == LeverRung::Reading),
+            matches!(off_locus, Err(FirstOrderEscalation::Lever(e)) if e.rung() == LeverRung::Reading),
             "a poisoned point poisons the gradient, which is not a missing tangent plane: \
              {off_locus:?}"
         );
@@ -3481,7 +3775,7 @@ mod seam_rows {
             sin * reach > 2.0 * b.escalate(),
             "κ̄ {kappa} too small for the row"
         );
-        let planes = classify_dihedral(
+        let planes = dihedral_class(
             &plane(Vec3::new(0.0, 0.0, 1.0)),
             &plane(Vec3::new(0.0, -sin, (1.0 - sin * sin).sqrt())),
             ORIGIN,
@@ -3522,7 +3816,7 @@ mod seam_rows {
             out.z
         );
         assert_eq!(
-            classify_dihedral(
+            dihedral_class(
                 &plane(Vec3::new(0.0, -s, c)),
                 &plane(Vec3::new(0.0, 0.0, 1.0)),
                 ORIGIN,
@@ -3599,7 +3893,7 @@ mod seam_rows {
         let (sd, cd) = (100.0 * band().zero()).sin_cos();
         let other = plane(Vec3::new(0.0, -(s * cd + c * sd), c * cd - s * sd));
         assert_eq!(
-            classify_dihedral(
+            dihedral_class(
                 &plane(Vec3::new(0.0, -s, c)),
                 &other,
                 ORIGIN,
@@ -3628,7 +3922,7 @@ mod seam_rows {
         let delta = 50.0 * band().zero();
         let other = plane(Vec3::new(0.0, -delta.sin(), delta.cos()));
         assert_eq!(
-            classify_dihedral(
+            dihedral_class(
                 &plane(Vec3::new(0.0, 0.0, 1.0)),
                 &other,
                 ORIGIN,
@@ -3677,7 +3971,7 @@ mod seam_rows {
                         chart_arm,
                         band()
                     ),
-                    classify_dihedral(a, b, ORIGIN, fixture_lever(1.0), band())
+                    dihedral_class(a, b, ORIGIN, fixture_lever(1.0), band())
                         .map_err(SeamEscalation::Lever),
                     "{what}, {a:?} against {b:?}"
                 );
