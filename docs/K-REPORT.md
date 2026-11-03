@@ -3495,3 +3495,49 @@ compared with (`link::Cone::reads_given`), so no reading moved from it.
 is taken, the cone places the probe on that sector's plane
 (`Sector::place`) to read it off a face's interior, or to certify it off
 the sector, a place it did not read there before.
+
+## Census note (2026-11-03): the curve × face doors take their own modules' prefixes
+
+Not a sweep and not a threshold change — a **rename**, recorded here
+because the census is the thing it changes. `[topo.homes]` arm 1 moved
+the Body-free curve × face doors out of `topo` and beside
+`geom_brep::curve_face::route`, and a K name's prefix is the module that
+decides the margin. Each name below is one site and one population, so
+each is renamed and nothing pools: margins, bands, outcomes and order
+are untouched, only the `predicate` column moves, and the census count
+is the same on both sides.
+
+The plane-crossing door (`geom_brep::curve_face::plane_crossing`, until
+now `topo::splitting::classify::plane_crossing_lane`, decided for the
+split and the Boolean alike under a split prefix):
+
+| old | new |
+|---|---|
+| `split_conic_plane_parallel` | `plane_crossing_plane_parallel` |
+| `split_conic_belly_graze` | `plane_crossing_belly_graze` |
+| `split_conic_phase_frame` | `plane_crossing_phase_frame` |
+| `split_conic_graze_side` | `plane_crossing_graze_side` |
+| `split_conic_crossing_root` | `plane_crossing_crossing_root` |
+| `split_conic_root_order` | `plane_crossing_root_order` |
+
+The circle × torus door (`geom_brep::curve_face::circle_torus`, until
+now `topo::boolean::circle_torus`): each `bool_circle_torus_X` is
+`circle_torus_X`, for X in `coaxial_tilt`, `coaxial_offset`,
+`coaxial_residual`, `meridian`, `plane_height`, `contour_residual`,
+`contour_side`, `root_slack`, `pole`, `pole_conditioning`, `noise`,
+`disc`, `shape`, `depth`, `odd`, `split`, `split_lead`, `sub_clear`,
+`sub_monotone`, `sub_side`, `sub_width` and `sub_root_slack` (22 names).
+
+The ellipse × torus door (`geom_brep::curve_face::ellipse_torus`): each
+`bool_ellipse_torus_X` is `ellipse_torus_X`, for X in `sub_clear`,
+`sub_monotone`, `sub_side`, `sub_width` and `root_slack` (5 names).
+
+Not renamed: the rows a door hands the shared root cores
+(`geom_brep::curve_face::circle_roots`) — `bool_conic_quadric_*`,
+`bool_sphere_region_roots_*`, `bool_ruled_region_roots_*`,
+`bool_torus_region_roots_*`, `bool_sphere_cut_roots_*` — are named by
+the door that reads them, which has not moved; and the sector rungs
+(`sector_arm`, `sector_reflex`, `sector_straight`, now decided in
+`geom_brep::sector_shape`) already carry their module's prefix. The
+committed CSVs under `docs/k-report-data/` and the addenda above keep
+the old spellings, as the sweeps wrote them.
