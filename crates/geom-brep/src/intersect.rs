@@ -763,21 +763,15 @@ impl SectionError {
                 f,
                 "the two surfaces' configuration is ill-conditioned at this tolerance: {diag}"
             ),
-            Self::RadiusEscalated { radius, diag } => match at {
-                Some(at) => core::fmt::Display::fmt(
-                    &diag.undecided(
-                        radius.subject(),
-                        radius.sized().recourse(RefusedArm::Undecided(diag), at),
-                    ),
-                    f,
-                ),
-                None => write!(
-                    f,
-                    concat!("{}", geom_core::undecided!("", payload)),
+            Self::RadiusEscalated { radius, diag } => write!(
+                f,
+                "{}",
+                crate::recourse::undecided_at(
+                    diag,
                     radius.subject(),
-                    diag.payload()
-                ),
-            },
+                    at.map(|at| radius.sized().recourse(RefusedArm::Undecided(diag), at)),
+                )
+            ),
             Self::RoutesToGeneralRung { pair, why } => write!(f, "the {pair} section: {why}"),
             Self::NoRegion { pair } => write!(
                 f,

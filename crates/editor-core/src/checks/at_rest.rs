@@ -87,8 +87,9 @@ pub enum AtRestEvidence {
     Carried(Box<CarriedAtRestFinding>),
 }
 
-// The kernel's own verdict, forwarded verbatim through its `Display`:
-// its tier-3′ messages end in their own recourse.
+// The kernel's own verdict, forwarded verbatim and ended at rest, the
+// door the check reads it at: its tier-3′ messages end in their own
+// recourse.
 impl crate::spoken::Say for AtRestEvidence {
     fn say(
         &self,

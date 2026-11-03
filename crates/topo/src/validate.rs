@@ -4847,7 +4847,11 @@ impl ValidationError {
                 match at.map(|at| (at, error.recourse(at))) {
                     Some((_, Some(recourse))) => write!(f, "{}. {recourse}", error.payload()),
                     // A nested refusal of the shell door, at a build.
-                    Some((_, None)) => write!(f, "{}", error.render(Reading::Build)),
+                    Some((at, None)) => write!(
+                        f,
+                        "{}",
+                        read_at(error, geom_brep::recourse::at_build(Some(at)))
+                    ),
                     None => write!(f, "{}", error.payload()),
                 }
             }

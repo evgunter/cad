@@ -787,10 +787,9 @@ impl<T: Real> ReplaceFaceError<T> {
             Self::Offset { error, .. } => write!(f, "{error}"),
             // The fit door's meter ends at a build at every door that
             // reads the replacement's refusal.
-            Self::Fit { error, .. } => match at {
-                Some(_) => f.write_str(&error.render(geom_brep::recourse::Reading::Build)),
-                None => write!(f, "{error}"),
-            },
+            Self::Fit { error, .. } => {
+                write!(f, "{}", read_at(error, geom_brep::recourse::at_build(at)))
+            }
             Self::IsoRow { error, .. } => write!(f, "{error}"),
             Self::ApproxLaneUnsupported { scalar, .. } => write!(
                 f,

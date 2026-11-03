@@ -236,18 +236,11 @@ impl TransformError {
             ),
             // The fit door's meter ends at a build at every door that
             // reads the map's refusal.
-            Self::ApproxRecertify { source } => match at {
-                Some(_) => write!(
-                    f,
-                    "a moved approximating surface could not be re-certified or re-fitted: {}",
-                    source.render(Reading::Build)
-                ),
-                None => write!(
-                    f,
-                    "a moved approximating surface could not be re-certified or re-fitted: \
-                     {source}"
-                ),
-            },
+            Self::ApproxRecertify { source } => write!(
+                f,
+                "a moved approximating surface could not be re-certified or re-fitted: {}",
+                read_at(source, geom_brep::recourse::at_build(at))
+            ),
             Self::NurbsPlaceholder => write!(
                 f,
                 "a spline (NURBS) surface or carrier cannot be transformed yet. {}",

@@ -292,10 +292,10 @@ pub enum SceneError {
 }
 
 impl SceneError {
-    /// The payload-carrying arms forward to their payload's own
-    /// `Display` — [`ProductError`] and `mesh`'s `TessellateError`
-    /// each name their own failure, and this layer does not restate
-    /// it.
+    /// The payload-carrying arms forward to their payload's own text —
+    /// [`ProductError`]'s `Display` and `mesh`'s `TessellateError` read
+    /// at `at` — each naming its own failure, which this layer does not
+    /// restate.
     fn write(
         &self,
         f: &mut core::fmt::Formatter<'_>,

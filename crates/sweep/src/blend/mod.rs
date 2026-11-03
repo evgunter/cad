@@ -2858,7 +2858,7 @@ mod recourse_tests {
     /// **No refusal this enum can render carries a `Debug` field
     /// dump.**
     ///
-    /// A `BlendError` reaches Python as the text of its `Display`, and
+    /// A `BlendError` reaches Python as its text rendered at a build, and
     /// `pncad-py`'s prose gate asserts on every raise that the text
     /// carries no `" { "` — the fingerprint `Debug` puts on a
     /// named-field struct or struct variant. That assertion is live in

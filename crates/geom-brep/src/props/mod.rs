@@ -720,22 +720,15 @@ impl PropsError {
                 ))
                 .unwrap_or_default()
             ),
-            Self::Escalated { cause, check } => match at {
-                Some(at) => write!(
-                    f,
-                    "{}",
-                    cause.undecided(
-                        check.subject(),
-                        check.ending(RefusedArm::Undecided(cause), at)
-                    )
-                ),
-                None => write!(
-                    f,
-                    concat!("{}", geom_core::undecided!("", payload)),
+            Self::Escalated { cause, check } => write!(
+                f,
+                "{}",
+                crate::recourse::undecided_at(
+                    cause,
                     check.subject(),
-                    cause.payload()
-                ),
-            },
+                    at.map(|at| check.ending(RefusedArm::Undecided(cause), at)),
+                )
+            ),
             Self::QuadratureUnsupported { what } => write!(
                 f,
                 "a quadrature input is outside the certified inventory ({what}). Recourse: \

@@ -5784,9 +5784,9 @@ impl fmt::Display for VolumeEnd {
     }
 }
 
-/// What a [`ShellClassifyError`] found, without the shell's key or a
-/// stage label: the one text its `Display` and a document-level finding
-/// both render.
+/// What a [`ShellClassifyError`] found, without the shell's key, a
+/// stage label or an ending: the one text its payload `Display` and a
+/// document-level finding both write.
 #[derive(Clone, Copy, Debug)]
 pub struct ShellClassifyPayload<'a>(&'a ShellClassifyError);
 

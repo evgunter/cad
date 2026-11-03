@@ -166,18 +166,14 @@ impl TorusRefusal {
     ) -> core::fmt::Result {
         let sized = self.convention.sized();
         match (&self.verdict, at) {
-            (TorusVerdict::Undecided(diag), Some(at)) => core::fmt::Display::fmt(
-                &diag.undecided(
+            (TorusVerdict::Undecided(diag), at) => write!(
+                f,
+                "{}",
+                crate::recourse::undecided_at(
+                    diag,
                     self.convention.subject(),
-                    sized.recourse(RefusedArm::Undecided(diag), at),
-                ),
-                f,
-            ),
-            (TorusVerdict::Undecided(diag), None) => write!(
-                f,
-                concat!("{}", geom_core::undecided!("", payload)),
-                self.convention.subject(),
-                diag.payload()
+                    at.map(|at| sized.recourse(RefusedArm::Undecided(diag), at)),
+                )
             ),
             (TorusVerdict::Refused(verdict), at) => {
                 f.write_str(&self.convention.refused("a torus's", *verdict))?;

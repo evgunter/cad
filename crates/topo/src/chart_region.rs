@@ -247,8 +247,8 @@ pub enum ChartRegionError {
     /// incidence on the plane: decided off it, read at a pose, or
     /// undecided. It carries that read, which each reader ends at its own
     /// door by the one map (`geom_brep::IncidenceRead::ending`; at rest,
-    /// the validator's classifier); its `Display` ends at rest, the ending
-    /// true at every door.
+    /// the validator's classifier); its `Display` is the payload alone,
+    /// and `render(at)` ends it at the reader's door.
     TrimOffFace {
         /// The face whose loop refused.
         face: FaceKey,

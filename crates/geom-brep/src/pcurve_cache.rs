@@ -2254,12 +2254,8 @@ impl PcurveCertifyError {
             ),
             Self::FittedEscalated { decision, cause } => write!(
                 f,
-                concat!(
-                    "pcurve certification: the fitted lane's certificate escalated — {}",
-                    geom_core::undecided!("", payload)
-                ),
-                decision,
-                cause.payload()
+                "pcurve certification: the fitted lane's certificate escalated — {}",
+                crate::recourse::undecided_at(cause, decision, None)
             ),
             Self::Escalated {
                 check,
@@ -11611,8 +11607,8 @@ mod tests {
 
     /// **A pcurve escalation renders at the door it is read at**
     /// ([`PcurveCertifyError::render`]): its defect ending names the
-    /// kernel at a build, as its `Display` does, the kernel or the file at
-    /// rest, and the file at the import door. Red if a door's render
+    /// kernel at a build, the kernel or the file at rest, and the file at
+    /// the import door; its `Display` names none. Red if a door's render
     /// reads a build.
     #[test]
     fn a_pcurve_escalation_renders_at_its_door() {
