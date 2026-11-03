@@ -67,7 +67,7 @@ fn r1_circle_at_and_eval_agree_bit_for_bit() {
         let c = Point3::new(cx, cy, cz);
         let a = Vec3::new(ax, ay, az);
         let u = Vec3::new(ux, uy, uz);
-        let door = Curve3::circle_at(c, a, r, u, t);
+        let door = Curve3::circle_at(&geom::Frame::new(c, a, u), r, t);
         let via = Curve3::circle(c, a, r, u).eval(t);
         assert_eq!(
             (door.x.to_bits(), door.y.to_bits(), door.z.to_bits()),
@@ -78,7 +78,7 @@ fn r1_circle_at_and_eval_agree_bit_for_bit() {
         let ci = Point3::new(iv(cx), iv(cy), iv(cz));
         let ai = Vec3::new(iv(ax), iv(ay), iv(az));
         let ui = Vec3::new(iv(ux), iv(uy), iv(uz));
-        let door_i = Curve3::circle_at(ci, ai, iv(r), ui, iv(t));
+        let door_i = Curve3::circle_at(&geom::Frame::new(ci, ai, ui), iv(r), iv(t));
         let via_i = Curve3::circle(ci, ai, iv(r), ui).eval(iv(t));
         assert_eq!(
             format!("{:?}{:?}{:?}", door_i.x, door_i.y, door_i.z),

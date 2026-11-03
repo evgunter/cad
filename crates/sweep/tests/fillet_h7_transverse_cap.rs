@@ -175,9 +175,12 @@ fn carve_and_check(source: &Body<f64>, what: &str) -> Blended<f64> {
                 .and_then(|g| g.certified())
                 .expect("a certified arc");
             let Curve3::Circle(geom::Circle {
-                frame: geom::Frame {
-                    origin: center, axis: ax, ..
-                },
+                frame:
+                    geom::Frame {
+                        origin: center,
+                        axis: ax,
+                        ..
+                    },
                 radius: rr,
             }) = *c.carrier()
             else {
@@ -660,11 +663,12 @@ fn a_cut_off_arc_at_the_wrong_radius_or_centre_is_refused_at_the_attachment_gate
         .unwrap()
         .clone();
     let Curve3::Circle(geom::Circle {
-        frame: geom::Frame {
-            origin: center,
-            axis,
-            u_ref,
-        },
+        frame:
+            geom::Frame {
+                origin: center,
+                axis,
+                u_ref,
+            },
         radius,
     }) = *c.carrier()
     else {

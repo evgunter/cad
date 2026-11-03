@@ -1842,9 +1842,12 @@ fn cylinder_boundary<T: Decide>(
                 levels.push((e.p1() - origin).dot(axis));
             }
             Curve3::Circle(geom::Circle {
-                frame: geom::Frame {
-                    origin: center, axis: n_c, ..
-                },
+                frame:
+                    geom::Frame {
+                        origin: center,
+                        axis: n_c,
+                        ..
+                    },
                 radius: r_c,
             }) => {
                 let s = classify(
@@ -2264,9 +2267,12 @@ fn require_on_cone<T: Decide>(
             require_cone_generator(apex, axis, sin_a, cos_a, dir, e, band)
         }
         Curve3::Circle(geom::Circle {
-            frame: geom::Frame {
-                origin: center, axis: n_c, ..
-            },
+            frame:
+                geom::Frame {
+                    origin: center,
+                    axis: n_c,
+                    ..
+                },
             radius: r_c,
         }) => require_cone_circle(apex, axis, sin_a, cos_a, center, n_c, r_c, band).map(|_| ()),
         Curve3::Ellipse(..) => require_cone_ellipse(apex, axis, sin_a, cos_a, e, band),
@@ -2382,11 +2388,12 @@ fn require_cone_ellipse<T: Decide>(
     band: Band,
 ) -> Result<(), PropsError> {
     let Curve3::Ellipse(geom::Ellipse {
-        frame: geom::Frame {
-            origin: center,
-            axis: n,
-            u_ref,
-        },
+        frame:
+            geom::Frame {
+                origin: center,
+                axis: n,
+                u_ref,
+            },
         semi_u,
         semi_v,
     }) = e.carrier
@@ -2935,9 +2942,12 @@ fn cone_loop_winding<T: Decide>(
             // The stored turn about the rim's own centre, carried to the
             // axis at each end.
             Curve3::Circle(geom::Circle {
-                frame: geom::Frame {
-                    axis: n, origin: center, ..
-                },
+                frame:
+                    geom::Frame {
+                        axis: n,
+                        origin: center,
+                        ..
+                    },
                 ..
             }) => {
                 own_turn = sense(n, rho)? * (e.t1 - e.t0);
@@ -3064,9 +3074,12 @@ fn cone_boundary<T: Decide>(
                 levels.push((e.p1() - apex).dot(axis) / cos_a);
             }
             Curve3::Circle(geom::Circle {
-                frame: geom::Frame {
-                    origin: center, axis: n_c, ..
-                },
+                frame:
+                    geom::Frame {
+                        origin: center,
+                        axis: n_c,
+                        ..
+                    },
                 radius: r_c,
             }) => {
                 let s = require_cone_circle(apex, axis, sin_a, cos_a, center, n_c, r_c, band)?;

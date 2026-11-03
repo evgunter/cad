@@ -14,7 +14,7 @@
 //! two entities refuses when either is unbounded.
 //!
 //! Every bound is a method on the cover and matches on no kind:
-//! [`Cover::support`] along a direction, [`Cover::box_in`] a [`Frame`],
+//! [`Cover::support`] along a direction, [`Cover::box_in`] a [`BoxAxes`],
 //! [`Cover::distance_range`] from a [`Site`], [`Cover::ball`], and at a
 //! bracketed scalar [`Cover::aabb`], the one place the bracket is taken.
 //! **The values follow `[simple.conditioned]`**: at `f64` each is the
@@ -30,7 +30,7 @@ use bvh::Aabb;
 use geom_core::{Bounds, Point3, Real, UnitVec3, Vec3};
 
 use crate::curves::boxes::ArcWindow;
-use crate::{CurveKind, Line, SurfaceKind};
+use crate::{CurveKind, Frame, Line, SurfaceKind};
 
 mod readings;
 pub use readings::SPLINE_PIECES;
@@ -72,21 +72,21 @@ impl<T: Real> ParamWindow<T> {
     }
 }
 
-/// **The frame a box is read in** ([`Cover::box_in`]): the world's axes,
+/// **The axes a box is read in** ([`Cover::box_in`]): the world's axes,
 /// or three rows. Coordinate `i` of the box is the cover's support along
 /// `±` row `i`, so with orthonormal rows the box is the cover's box in
-/// that frame, and the first coordinate of an aimed frame is the support
+/// those axes, and the first coordinate of aimed axes is the support
 /// along its aim, which turns with the entity.
 #[derive(Clone, Copy, Debug)]
-pub enum Frame<T: Real> {
+pub enum BoxAxes<T: Real> {
     /// The world's axes.
     World,
     /// Three rows: each coordinate of a point is its component along one.
     Rows([Vec3<T>; 3]),
 }
 
-impl<T: Real> Frame<T> {
-    /// The frame whose first row is `aim`, the other two
+impl<T: Real> BoxAxes<T> {
+    /// The axes whose first row is `aim`, the other two
     /// [`UnitVec3::orthonormal_basis`]'s, in the cyclic order
     /// `(aim, b1, b2)` of the right-handed `(b1, b2, aim)`.
     pub fn aimed(aim: UnitVec3<T>) -> Self {
@@ -94,7 +94,7 @@ impl<T: Real> Frame<T> {
         Self::Rows([aim.get(), b1, b2])
     }
 
-    /// The frame's rows.
+    /// The rows.
     pub fn rows(&self) -> [Vec3<T>; 3] {
         match self {
             Self::World => [Vec3::unit_x(), Vec3::unit_y(), Vec3::unit_z()],
@@ -262,9 +262,7 @@ enum Piece<T: Real> {
 
 #[derive(Clone, Copy, Debug)]
 struct Arc<T: Real> {
-    center: Point3<T>,
-    u_ref: Vec3<T>,
-    v_ref: Vec3<T>,
+    frame: Frame<T>,
     semi_u: T,
     semi_v: T,
     window: ParamWindow<T>,
@@ -320,10 +318,7 @@ struct Patch<T: Real> {
 /// [`Tube::new`], because the region does not depend on their signs.
 #[derive(Clone, Copy, Debug)]
 struct Tube<T: Real> {
-    center: Point3<T>,
-    axis: Vec3<T>,
-    u_ref: Vec3<T>,
-    v_ref: Vec3<T>,
+    frame: Frame<T>,
     major: T,
     minor: T,
 }
@@ -340,6 +335,10 @@ fn finite_point<T: Real>(p: Point3<T>) -> bool {
 
 fn finite_vec<T: Real>(v: Vec3<T>) -> bool {
     finite(&[v.x, v.y, v.z])
+}
+
+fn finite_frame<T: Real>(f: &Frame<T>) -> bool {
+    finite_point(f.origin) && finite_vec(f.axis) && finite_vec(f.u_ref)
 }
 
 /// `√λ_max` of the Gram matrix of `x` and `y`: the longest
@@ -362,8 +361,8 @@ fn off_line<T: Real>(v: Vec3<T>, d: Vec3<T>) -> Vec3<T> {
 }
 
 /// The box whose row `i` spans `±` the support along row `i`.
-fn rows_box<T: Real>(frame: &Frame<T>, support: impl Fn(Vec3<T>) -> T) -> (Point3<T>, Point3<T>) {
-    let [a, b, c] = frame.rows();
+fn rows_box<T: Real>(axes: &BoxAxes<T>, support: impl Fn(Vec3<T>) -> T) -> (Point3<T>, Point3<T>) {
+    let [a, b, c] = axes.rows();
     let span = |r: Vec3<T>| (T::zero() - support(-r), support(r));
     let ((xl, xh), (yl, yh), (zl, zh)) = (span(a), span(b), span(c));
     (Point3::new(xl, yl, zl), Point3::new(xh, yh, zh))
@@ -454,26 +453,14 @@ impl<T: Real> Cover<T> {
         (finite_point(a) && finite_point(b)).then(|| Self::piece(Piece::Segment([a, b])))
     }
 
-    /// The conic arc `center + semi_u·cos t·u_ref + semi_v·sin t·v_ref`
-    /// over `window`: a circle's or an ellipse's, `v_ref = axis × u_ref`
-    /// as its evaluator crosses it. Any frame and either sign. `None` for
-    /// a datum that is not a finite number.
-    pub fn arc(
-        center: Point3<T>,
-        (u_ref, v_ref): (Vec3<T>, Vec3<T>),
-        (semi_u, semi_v): (T, T),
-        window: ParamWindow<T>,
-    ) -> Option<Self> {
-        (finite_point(center)
-            && finite_vec(u_ref)
-            && finite_vec(v_ref)
-            && finite(&[semi_u, semi_v])
-            && window.finite())
-        .then(|| {
+    /// The conic arc `origin + semi_u·cos t·u_ref + semi_v·sin t·v_ref`
+    /// over `window`: a circle's or an ellipse's on its [`Frame`]. Any
+    /// frame and either sign. `None` for a datum that is not a finite
+    /// number.
+    pub fn arc(frame: &Frame<T>, (semi_u, semi_v): (T, T), window: ParamWindow<T>) -> Option<Self> {
+        (finite_frame(frame) && finite(&[semi_u, semi_v]) && window.finite()).then(|| {
             Self::piece(Piece::Arc(Arc {
-                center,
-                u_ref,
-                v_ref,
+                frame: *frame,
                 semi_u,
                 semi_v,
                 window,
@@ -538,13 +525,12 @@ impl<T: Real> Cover<T> {
     /// `v ⊂ [−π/2, π/2]`) does. The caller decides it before it builds
     /// one. `None` for a datum that is not a finite number.
     pub fn patch(
-        center: Point3<T>,
-        (axis, u_ref): (Vec3<T>, Vec3<T>),
+        frame: &Frame<T>,
         (major, minor): (T, T),
         u: Option<ParamWindow<T>>,
         v: ParamWindow<T>,
     ) -> Option<Self> {
-        let tube = Tube::new(center, axis, u_ref, major, minor)?;
+        let tube = Tube::new(frame, major, minor)?;
         (u.is_none_or(ParamWindow::finite) && v.finite()).then(|| {
             Self::piece(Piece::Patch(Patch {
                 tube,
@@ -560,14 +546,8 @@ impl<T: Real> Cover<T> {
     /// `center + R·ρ(u) + r·(cos v·ρ(u) + sin v·axis)`, for any frame and
     /// either sign of either radius. `None` for a datum that is not a
     /// finite number.
-    pub fn tube(
-        center: Point3<T>,
-        axis: Vec3<T>,
-        u_ref: Vec3<T>,
-        major: T,
-        minor: T,
-    ) -> Option<Self> {
-        Tube::new(center, axis, u_ref, major, minor).map(|t| Self::piece(Piece::Tube(t)))
+    pub fn tube(frame: &Frame<T>, major: T, minor: T) -> Option<Self> {
+        Tube::new(frame, major, minor).map(|t| Self::piece(Piece::Tube(t)))
     }
 
     /// The convex hull of a control net's points. `None` for no point or
@@ -595,11 +575,11 @@ impl<T: Real> Cover<T> {
         self.0.support(dir)
     }
 
-    /// **The box in `frame`**: per row, the least and greatest coordinate
+    /// **The box in `axes`**: per row, the least and greatest coordinate
     /// any point of the region can have along it, as the low and high
     /// corners.
-    pub fn box_in(&self, frame: &Frame<T>) -> (Point3<T>, Point3<T>) {
-        rows_box(frame, |e| self.support(e))
+    pub fn box_in(&self, axes: &BoxAxes<T>) -> (Point3<T>, Point3<T>) {
+        rows_box(axes, |e| self.support(e))
     }
 
     /// **The nearest and farthest the region stands from `site`**: a
@@ -617,11 +597,11 @@ impl<T: Real> Cover<T> {
 
 impl<T: Bounds> Cover<T> {
     /// **The world box, bracketed and padded by `pad`**: each end of
-    /// [`Cover::box_in`] at [`Frame::World`] taken at its bracket's outer
+    /// [`Cover::box_in`] at [`BoxAxes::World`] taken at its bracket's outer
     /// end, then [`Aabb::padded`]. Poison anywhere reaches a NaN bound,
     /// which overlaps everything.
     pub fn aabb(&self, pad: f64) -> Aabb {
-        let (lo, hi) = self.box_in(&Frame::World);
+        let (lo, hi) = self.box_in(&BoxAxes::World);
         Aabb {
             min_x: lo.x.lo(),
             min_y: lo.y.lo(),
@@ -674,21 +654,21 @@ impl<T: Real> Node<T> {
 }
 
 impl<T: Real> Tube<T> {
-    fn new(center: Point3<T>, axis: Vec3<T>, u_ref: Vec3<T>, major: T, minor: T) -> Option<Self> {
-        (finite_point(center) && finite_vec(axis) && finite_vec(u_ref) && finite(&[major, minor]))
-            .then(|| Self {
-                center,
-                axis,
-                u_ref,
-                v_ref: axis.cross(u_ref),
-                major: major.abs(),
-                minor: minor.abs(),
-            })
+    fn new(frame: &Frame<T>, major: T, minor: T) -> Option<Self> {
+        (finite_frame(frame) && finite(&[major, minor])).then(|| Self {
+            frame: *frame,
+            major: major.abs(),
+            minor: minor.abs(),
+        })
     }
 
     /// `e`'s components along `u_ref`, `v_ref` and the axis.
     fn components(&self, e: Vec3<T>) -> (T, T, T) {
-        (self.u_ref.dot(e), self.v_ref.dot(e), self.axis.dot(e))
+        (
+            self.frame.u_ref.dot(e),
+            self.frame.v_ref().dot(e),
+            self.frame.axis.dot(e),
+        )
     }
 
     /// The whole tube's support: `c·e + |R|·M + |r|·√(M² + aₑ²)`, `M` the
@@ -701,7 +681,7 @@ impl<T: Real> Tube<T> {
         let (p, q, a) = self.components(e);
         let m = (p.powi(2) + q.powi(2)).sqrt();
         let reach = self.major * m + self.minor * (m.powi(2) + a.powi(2)).sqrt();
-        vec_of(self.center).dot(e) + reach
+        vec_of(self.frame.origin).dot(e) + reach
     }
 
     /// The longest radial direction `|ρ(u)|`, and the longest tube offset
@@ -710,7 +690,7 @@ impl<T: Real> Tube<T> {
     /// `|ρ·axis| ≤ √((u_ref·a)² + (v_ref·a)²)`, in which the Gram bound is
     /// non-decreasing.
     fn reaches(&self) -> (T, T) {
-        let (u, v, a) = (self.u_ref, self.v_ref, self.axis);
+        let (u, v, a) = (self.frame.u_ref, self.frame.v_ref(), self.frame.axis);
         let rho = gram_top(u.norm_squared(), v.norm_squared(), u.dot(v));
         let tilt = (u.dot(a).powi(2) + v.dot(a).powi(2)).sqrt();
         (rho, gram_top(rho.powi(2), a.norm_squared(), tilt))
@@ -719,16 +699,14 @@ impl<T: Real> Tube<T> {
     fn ball(&self) -> Ball<T> {
         let (rho, off) = self.reaches();
         let r = self.major * rho + self.minor * off;
-        (self.center, r)
+        (self.frame.origin, r)
     }
 
     /// The spine circle's range ([`Arc::range`], which holds any frame),
     /// less and plus the longest tube offset.
     fn range(&self, site: &Site<T>) -> (T, T) {
         let spine = Arc {
-            center: self.center,
-            u_ref: self.u_ref,
-            v_ref: self.v_ref,
+            frame: self.frame,
             semi_u: self.major,
             semi_v: self.major,
             window: ParamWindow::new(T::zero(), T::tau()),
@@ -756,7 +734,7 @@ impl<T: Real> Patch<T> {
         let b = ArcWindow::new(self.v.lo, self.v.hi)
             .extent(T::zero(), self.minor * m, self.minor * a)
             .1;
-        vec_of(t.center).dot(e) + self.major * m + b
+        vec_of(t.frame.origin).dot(e) + self.major * m + b
     }
 }
 
@@ -815,9 +793,9 @@ impl<T: Real> Frustum<T> {
 impl<T: Real> Arc<T> {
     fn support(&self, e: Vec3<T>) -> T {
         let (_, hi) = ArcWindow::new(self.window.lo, self.window.hi).extent(
-            vec_of(self.center).dot(e),
-            self.semi_u * self.u_ref.dot(e),
-            self.semi_v * self.v_ref.dot(e),
+            vec_of(self.frame.origin).dot(e),
+            self.semi_u * self.frame.u_ref.dot(e),
+            self.semi_v * self.frame.v_ref().dot(e),
         );
         hi
     }
@@ -839,9 +817,9 @@ impl<T: Real> Arc<T> {
         if let Site::Point(at) = site {
             return (self.point_near(*at), self.point_far(*at));
         }
-        let w = site.relative(vec_of(self.center));
-        let p = site.direction(self.u_ref * self.semi_u);
-        let q = site.direction(self.v_ref * self.semi_v);
+        let w = site.relative(vec_of(self.frame.origin));
+        let p = site.direction(self.frame.u_ref * self.semi_u);
+        let q = site.direction(self.frame.v_ref() * self.semi_v);
         let two = T::from_f64(2.0);
         let half = T::from_f64(0.5);
         let k = w.norm_squared() + (p.norm_squared() + q.norm_squared()) * half;
@@ -869,15 +847,15 @@ impl<T: Real> Arc<T> {
     /// `v̂` and their normal.
     fn circle_about(&self, at: Point3<T>) -> Circle<T> {
         let half = T::from_f64(0.5);
-        let u_len = self.u_ref.norm();
-        let u_hat = self.u_ref / u_len;
-        let v_off = self.v_ref - u_hat * self.v_ref.dot(u_hat);
+        let u_len = self.frame.u_ref.norm();
+        let u_hat = self.frame.u_ref / u_len;
+        let v_off = self.frame.v_ref() - u_hat * self.frame.v_ref().dot(u_hat);
         let v_hat = v_off / v_off.norm();
-        let rho = (self.semi_u * u_len + self.semi_v * self.v_ref.dot(v_hat)) * half;
-        let dp = self.u_ref * self.semi_u - u_hat * rho;
-        let dq = self.v_ref * self.semi_v - v_hat * rho;
+        let rho = (self.semi_u * u_len + self.semi_v * self.frame.v_ref().dot(v_hat)) * half;
+        let dp = self.frame.u_ref * self.semi_u - u_hat * rho;
+        let dq = self.frame.v_ref() * self.semi_v - v_hat * rho;
         let dev = gram_top(dp.norm_squared(), dq.norm_squared(), dp.dot(dq));
-        let w = at - self.center;
+        let w = at - self.frame.origin;
         Circle {
             u_hat,
             v_hat,
@@ -940,7 +918,7 @@ impl<T: Real> Arc<T> {
         let pieces = (0..4).fold((point(lo) - at).norm(), |far, k| {
             let s0 = lo + quarter * T::from_f64(f64::from(k));
             let s1 = s0 + quarter;
-            let bulge = (point(s0 + quarter * T::from_f64(0.5)) - self.center) * shift;
+            let bulge = (point(s0 + quarter * T::from_f64(0.5)) - self.frame.origin) * shift;
             let (x0, x1) = (point(s0), point(s1));
             [x0 + bulge, x1, x1 + bulge]
                 .into_iter()
@@ -952,13 +930,18 @@ impl<T: Real> Arc<T> {
     /// The arc's point at `t`.
     fn point(&self, t: T) -> Point3<T> {
         let (s, c) = t.sin_cos();
-        self.center + self.u_ref * (self.semi_u * c) + self.v_ref * (self.semi_v * s)
+        self.frame.origin
+            + self.frame.u_ref * (self.semi_u * c)
+            + self.frame.v_ref() * (self.semi_v * s)
     }
 
     fn ball(&self, world: (Point3<T>, Point3<T>)) -> Ball<T> {
-        let (p, q) = (self.u_ref * self.semi_u, self.v_ref * self.semi_v);
+        let (p, q) = (
+            self.frame.u_ref * self.semi_u,
+            self.frame.v_ref() * self.semi_v,
+        );
         let r = gram_top(p.norm_squared(), q.norm_squared(), p.dot(q));
-        let whole = (self.center, r);
+        let whole = (self.frame.origin, r);
         smaller(whole, box_ball(world))
     }
 }
@@ -977,7 +960,7 @@ impl<T: Real> Piece<T> {
     }
 
     fn world_box(&self) -> (Point3<T>, Point3<T>) {
-        rows_box(&Frame::World, |e| self.support(e))
+        rows_box(&BoxAxes::World, |e| self.support(e))
     }
 
     fn distance_range(&self, site: &Site<T>) -> (T, T) {

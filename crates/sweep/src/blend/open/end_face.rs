@@ -851,7 +851,12 @@ impl<T: Decide + Bounds> CapSliver<T> {
                         radius,
                     }) => (center, axis, radius, radius, u_ref),
                     ref ellipse @ Curve3::Ellipse(geom::Ellipse {
-                        frame: geom::Frame { origin: center, axis, .. },
+                        frame:
+                            geom::Frame {
+                                origin: center,
+                                axis,
+                                ..
+                            },
                         ..
                     }) => {
                         let Some(f) = ellipse.major_frame() else {

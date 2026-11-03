@@ -2653,7 +2653,11 @@ impl<T: Real> CircleFrame<T> {
     /// The point at `t`, through [`Curve3::circle_at`] — the circle
     /// arm of `Curve3::eval`.
     fn at(self, t: T) -> Point3<T> {
-        Curve3::circle_at(self.center, self.axis, self.radius, self.u_ref, t)
+        Curve3::circle_at(
+            &geom::Frame::new(self.center, self.axis, self.u_ref),
+            self.radius,
+            t,
+        )
     }
 
     /// **The angle of the circle point `q` past parameter `t`**, read

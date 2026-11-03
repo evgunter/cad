@@ -166,15 +166,13 @@ pub mod test_support;
 
 pub use azimuth::{ANGLE_WINDOW_START, Azimuth, LATITUDE_WINDOW_START, Window};
 pub use chart_point::{ChartArm, ChartInverse, ChartPoint, NoClosedInverse};
-pub use convention::{
-    ConventionEnd, ConventionMeasure, RepresentabilityMargin, SquareFrame,
-};
+pub use convention::{ConventionEnd, ConventionMeasure, RepresentabilityMargin, SquareFrame};
 pub use curves::second_derivative::{SecondDerivativeUnbounded, nonrational_second_derivative_sup};
 pub use curves::{
     CarrierRefusal, Circle, Clearance, Collocation, ComposeError, Conic, Curve3, CurveData,
     CurveDatum, CurveKind, CurveWindow2, CurveWindow3, Ellipse, EllipseInvalid, FIT_REMOVAL_BUDGET,
-    FitError, FitOutcome, Foot, Line, MajorFrame, NurbsCurve2, NurbsCurve3, OnCarrier,
-    PieceRead, PieceStep, Projection2, Projection3, ProjectionInconclusive, RefitSkip, SeamSide,
+    FitError, FitOutcome, Foot, Line, MajorFrame, NurbsCurve2, NurbsCurve3, OnCarrier, PieceRead,
+    PieceStep, Projection2, Projection3, ProjectionInconclusive, RefitSkip, SeamSide,
     SpiricInvalid, compose_chain, ellipse_level_clearance, on_span_branch, spiric_curvature_sup,
     spiric_f_range, spiric_period_rate_bounds, spiric_radial, spiric_rate_bounds,
     spiric_window_rate_bounds,

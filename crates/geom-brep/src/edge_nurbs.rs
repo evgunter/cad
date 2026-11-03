@@ -950,11 +950,12 @@ pub fn arc_rim_measured<T: Decide>(
     band: Band,
 ) -> Vec<Pcurve<T>> {
     let Curve3::Circle(geom::Circle {
-        frame: geom::Frame {
-            origin: center,
-            axis,
-            u_ref,
-        },
+        frame:
+            geom::Frame {
+                origin: center,
+                axis,
+                u_ref,
+            },
         ..
     }) = *carrier
     else {

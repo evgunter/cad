@@ -220,11 +220,12 @@ fn the_line_arm_has_no_cut_to_widen_at() {
 fn the_anchored_form_costs_the_lane_a_few_ulps_and_no_selection() {
     let (carrier64, carrier) = pair();
     let Curve3::Circle(geom::Circle {
-        frame: geom::Frame {
-            origin: center,
-            axis,
-            u_ref,
-        },
+        frame:
+            geom::Frame {
+                origin: center,
+                axis,
+                u_ref,
+            },
         ..
     }) = carrier
     else {

@@ -984,7 +984,12 @@ mod tests {
             let CurveRecognition::Promoted {
                 curve:
                     Curve3::Circle(geom::Circle {
-                        frame: geom::Frame { origin: center, axis, .. },
+                        frame:
+                            geom::Frame {
+                                origin: center,
+                                axis,
+                                ..
+                            },
                         radius: r,
                     }),
                 residual,
@@ -1539,7 +1544,12 @@ mod r2_probes {
             let CurveRecognition::Promoted {
                 curve:
                     Curve3::Circle(geom::Circle {
-                        frame: geom::Frame { origin: center, axis, .. },
+                        frame:
+                            geom::Frame {
+                                origin: center,
+                                axis,
+                                ..
+                            },
                         radius: r,
                     }),
                 residual,

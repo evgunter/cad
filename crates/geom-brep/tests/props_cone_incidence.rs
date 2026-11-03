@@ -379,11 +379,12 @@ fn section_at(c: &Cone, tilt: f64, l: f64) -> Curve3<f64> {
 /// `d` off the cone, as one closed edge.
 fn ellipse_stretched(c: &Cone, d: f64) -> Spec {
     let Curve3::Ellipse(geom::Ellipse {
-        frame: geom::Frame {
-            origin: center,
-            axis,
-            u_ref,
-        },
+        frame:
+            geom::Frame {
+                origin: center,
+                axis,
+                u_ref,
+            },
         semi_u,
         semi_v,
     }) = section(c)

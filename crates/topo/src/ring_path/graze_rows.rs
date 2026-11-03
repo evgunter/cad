@@ -380,11 +380,12 @@ fn split_ellipse(
     size: f64,
 ) -> [LoopArc<f64>; 2] {
     let geom::Curve3::Ellipse(geom::Ellipse {
-        frame: geom::Frame {
-            origin: center,
-            axis,
-            u_ref,
-        },
+        frame:
+            geom::Frame {
+                origin: center,
+                axis,
+                u_ref,
+            },
         semi_u,
         semi_v,
     }) = *c

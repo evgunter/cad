@@ -567,7 +567,12 @@ pub(crate) fn loop_circle<T: Decide>(
             .map(|c| c.carrier().clone());
         match carrier {
             Some(geom::Curve3::Circle(geom::Circle {
-                frame: geom::Frame { origin: center, axis, .. },
+                frame:
+                    geom::Frame {
+                        origin: center,
+                        axis,
+                        ..
+                    },
                 radius,
             })) => match circle {
                 None => {

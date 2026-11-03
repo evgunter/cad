@@ -922,7 +922,8 @@ impl<T: Real> Curve3<T> {
 }
 
 impl<T: Real> Curve3<T> {
-    /// **A circle carrier's point at parameter `t`**, from its fields:
+    /// **A circle carrier's point at parameter `t`**, from its frame and
+    /// radius:
     /// [`Conic::point_at`] on the circle they make, the very expression
     /// [`Curve3::eval`] and [`Curve3::ders1`] reach, so a caller that
     /// builds a point here builds the node either would. That is what
@@ -935,14 +936,8 @@ impl<T: Real> Curve3<T> {
     /// its `Nurbs` arm's sealed span selection, and evaluation-code
     /// discipline forbids a generic caller from carrying a second bound
     /// beside `Real` to reach it.
-    pub fn circle_at(
-        center: Point3<T>,
-        axis: Vec3<T>,
-        radius: T,
-        u_ref: Vec3<T>,
-        t: T,
-    ) -> Point3<T> {
-        Circle::new(Frame::new(center, axis, u_ref), radius).point_at(t)
+    pub fn circle_at(frame: &Frame<T>, radius: T, t: T) -> Point3<T> {
+        Circle::new(*frame, radius).point_at(t)
     }
 }
 
@@ -1152,7 +1147,7 @@ impl<T: SpanLocate> Curve3<T> {
                 minor_radius,
                 offset,
             } => {
-                let ((s, c), m) = azimuth::basis(*axis, *u_ref, t);
+                let ((s, c), m) = azimuth::basis(&Frame::new(*center, *axis, *u_ref), t);
                 let (_, f) = spiric_radial(*major_radius, *minor_radius, *offset, c);
                 *center + *u_ref * *offset + m * f + *axis * (*minor_radius * s)
             }
@@ -1193,14 +1188,14 @@ impl<T: SpanLocate> Curve3<T> {
             Curve3::Circle(c) => c.derivative_at(t),
             Curve3::Ellipse(e) => e.derivative_at(t),
             Curve3::Spiric {
+                center,
                 axis,
                 u_ref,
                 major_radius,
                 minor_radius,
                 offset,
-                ..
             } => {
-                let ((s, c), m) = azimuth::basis(*axis, *u_ref, t);
+                let ((s, c), m) = azimuth::basis(&Frame::new(*center, *axis, *u_ref), t);
                 let (rho, f) = spiric_radial(*major_radius, *minor_radius, *offset, c);
                 let f1 = -(*minor_radius * rho * s) / f;
                 m * f1 + *axis * (*minor_radius * c)
@@ -1251,7 +1246,7 @@ impl<T: SpanLocate> Curve3<T> {
                 minor_radius,
                 offset,
             } => {
-                let ((s, c), m) = azimuth::basis(*axis, *u_ref, t);
+                let ((s, c), m) = azimuth::basis(&Frame::new(*center, *axis, *u_ref), t);
                 let (rho, f) = spiric_radial(*major_radius, *minor_radius, *offset, c);
                 let f1 = -(*minor_radius * rho * s) / f;
                 (
@@ -1282,14 +1277,14 @@ impl<T: SpanLocate> Curve3<T> {
             Curve3::Circle(c) => c.second_derivative_at(t),
             Curve3::Ellipse(e) => e.second_derivative_at(t),
             Curve3::Spiric {
+                center,
                 axis,
                 u_ref,
                 major_radius,
                 minor_radius,
                 offset,
-                ..
             } => {
-                let ((s, c), m) = azimuth::basis(*axis, *u_ref, t);
+                let ((s, c), m) = azimuth::basis(&Frame::new(*center, *axis, *u_ref), t);
                 let r = *minor_radius;
                 let (rho, f) = spiric_radial(*major_radius, r, *offset, c);
                 let f2 = -(r
@@ -2834,7 +2829,12 @@ mod tests {
             let ci = c.map_scalar(Interval::from_f64);
             let (center, axis, r) = match ci {
                 Curve3::Circle(crate::Circle {
-                    frame: crate::Frame { origin: center, axis, .. },
+                    frame:
+                        crate::Frame {
+                            origin: center,
+                            axis,
+                            ..
+                        },
                     radius,
                 }) => (center, axis, radius),
                 _ => panic!("fixture is a circle"),

@@ -557,7 +557,12 @@ fn square_pose_at(
     let lever = geom_brep::pair_section::torus::lever(
         foot,
         geom_brep::ExtentBall::of_cover(
-            &geom::cover::Cover::tube(ring.c, ring.a, ring.b1, ring.big_r, ring.r).unwrap(),
+            &geom::cover::Cover::tube(
+                &geom::Frame::new(ring.c, ring.a, ring.b1),
+                ring.big_r,
+                ring.r,
+            )
+            .unwrap(),
         ),
     );
     let tilt = if rng.unit() < 0.3 {

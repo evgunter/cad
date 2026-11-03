@@ -304,11 +304,12 @@ fn a_spiric_off_its_torus_between_samples_refuses_on_limb_2() {
 fn an_ellipse_off_its_cylinder_between_samples_refuses_on_limb_2() {
     let (cylinder, plane, ellipse) = ellipse_pair(PI / 5.0);
     let Curve3::Ellipse(geom::Ellipse {
-        frame: geom::Frame {
-            origin: center,
-            axis,
-            u_ref,
-        },
+        frame:
+            geom::Frame {
+                origin: center,
+                axis,
+                u_ref,
+            },
         semi_u,
         semi_v,
     }) = ellipse

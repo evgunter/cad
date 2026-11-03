@@ -1566,7 +1566,11 @@ pub(crate) fn arc_distance_floor<T: Decide>(
                 unreachable!("a circle or an ellipse")
             };
             let (major, minor) = (conic.speed_hi(), conic.speed_lo());
-            let geom::Frame { origin: center, axis, .. } = *conic.frame();
+            let geom::Frame {
+                origin: center,
+                axis,
+                ..
+            } = *conic.frame();
             let n = axis / axis.norm();
             let w = q - center;
             let height = w.dot(n);

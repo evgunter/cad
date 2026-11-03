@@ -64,11 +64,12 @@ fn section_of(half_angle: f64, tilt: f64) -> Curve3<f64> {
 /// The same locus traversed backwards (the arc-side rule's cw arm).
 fn reversed(e: &Curve3<f64>) -> Curve3<f64> {
     let &Curve3::Ellipse(geom::Ellipse {
-        frame: geom::Frame {
-            origin: center,
-            axis,
-            u_ref,
-        },
+        frame:
+            geom::Frame {
+                origin: center,
+                axis,
+                u_ref,
+            },
         semi_u,
         semi_v,
     }) = e
@@ -87,11 +88,12 @@ fn reversed(e: &Curve3<f64>) -> Curve3<f64> {
 /// odd turn, the semi-axes swapped.
 fn seamed(e: &Curve3<f64>, k: u32) -> Curve3<f64> {
     let &Curve3::Ellipse(geom::Ellipse {
-        frame: geom::Frame {
-            origin: center,
-            axis,
-            u_ref,
-        },
+        frame:
+            geom::Frame {
+                origin: center,
+                axis,
+                u_ref,
+            },
         semi_u,
         semi_v,
     }) = e
@@ -354,9 +356,12 @@ fn read_off_the_sum(
     let (
         &Pcurve::FocalSection(focal),
         &Curve3::Ellipse(geom::Ellipse {
-            frame: geom::Frame {
-                origin: center, u_ref: e_u, ..
-            },
+            frame:
+                geom::Frame {
+                    origin: center,
+                    u_ref: e_u,
+                    ..
+                },
             semi_u,
             ..
         }),
@@ -818,11 +823,12 @@ fn an_off_section_carrier_is_imaged_to_its_own_distance_from_the_cone() {
         Err(why) => return refused(why),
     };
     let Curve3::Ellipse(geom::Ellipse {
-        frame: geom::Frame {
-            origin: center,
-            axis,
-            u_ref,
-        },
+        frame:
+            geom::Frame {
+                origin: center,
+                axis,
+                u_ref,
+            },
         semi_u,
         semi_v,
     }) = exact

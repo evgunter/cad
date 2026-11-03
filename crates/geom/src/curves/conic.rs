@@ -361,7 +361,7 @@ impl<T: Real> Circle<T> {
     }
 
     fn azimuth(&self, theta: T) -> azimuth::AzimuthFrame<T> {
-        azimuth::frame(self.frame.axis, self.frame.u_ref, theta)
+        azimuth::frame(&self.frame, theta)
     }
 }
 
@@ -388,7 +388,7 @@ impl<T: Real> Conic<T> for Circle<T> {
     }
 
     fn second_derivative_at(&self, theta: T) -> Vec3<T> {
-        let ((s, c), v_ref) = azimuth::basis(self.frame.axis, self.frame.u_ref, theta);
+        let ((s, c), v_ref) = azimuth::basis(&self.frame, theta);
         (self.frame.u_ref * (-c) + v_ref * (-s)) * self.radius
     }
 
@@ -530,7 +530,7 @@ impl<T: Real> Ellipse<T> {
     }
 
     fn basis(&self, theta: T) -> ((T, T), Vec3<T>) {
-        azimuth::basis(self.frame.axis, self.frame.u_ref, theta)
+        azimuth::basis(&self.frame, theta)
     }
 }
 

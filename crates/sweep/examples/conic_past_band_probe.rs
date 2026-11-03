@@ -174,11 +174,12 @@ const U: f64 = f64::EPSILON / 2.0;
 fn arcs(e: &Curve3<f64>, coord: impl Fn(Point3<f64>) -> f64, lo: f64, hi: f64) -> Vec<(f64, f64)> {
     let tau = core::f64::consts::TAU;
     let Curve3::Ellipse(geom::Ellipse {
-        frame: geom::Frame {
-            origin: center,
-            axis,
-            u_ref,
-        },
+        frame:
+            geom::Frame {
+                origin: center,
+                axis,
+                u_ref,
+            },
         semi_u,
         semi_v,
     }) = *e
@@ -291,9 +292,12 @@ fn read(
             apex, axis, u_ref, ..
         },
         &Curve3::Ellipse(geom::Ellipse {
-            frame: geom::Frame {
-                u_ref: e_u, origin: center, ..
-            },
+            frame:
+                geom::Frame {
+                    u_ref: e_u,
+                    origin: center,
+                    ..
+                },
             semi_u,
             ..
         }),

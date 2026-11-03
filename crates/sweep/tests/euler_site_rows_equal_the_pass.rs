@@ -149,11 +149,12 @@ fn split_at(body: &mut Body<f64>, e: EdgeKey, angle: Option<f64>) -> VertexKey {
 /// The angle of `p` on a circle carrier.
 fn angle_on(c: &Curve3<f64>, p: Point3<f64>) -> f64 {
     let Curve3::Circle(geom::Circle {
-        frame: geom::Frame {
-            origin: center,
-            axis,
-            u_ref,
-        },
+        frame:
+            geom::Frame {
+                origin: center,
+                axis,
+                u_ref,
+            },
         ..
     }) = c
     else {

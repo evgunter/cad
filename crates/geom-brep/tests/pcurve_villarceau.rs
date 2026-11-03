@@ -576,11 +576,12 @@ fn each_villarceau_gate_alone_refuses_typed() {
         unreachable!()
     };
     let Curve3::Circle(geom::Circle {
-        frame: geom::Frame {
-            origin: center,
-            axis: n,
-            u_ref,
-        },
+        frame:
+            geom::Frame {
+                origin: center,
+                axis: n,
+                u_ref,
+            },
         radius,
     }) = villarceau(0.4, 1.0, 1.0, 0.0)
     else {

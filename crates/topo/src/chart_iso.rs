@@ -94,7 +94,12 @@ pub fn classify_kind(chart: &Chart, curve: &geom_brep::EdgeCurve<f64>) -> Option
             u_raw: mid_azimuth(chart, curve),
         }),
         Curve3::Circle(geom::Circle {
-            frame: geom::Frame { origin: center, axis, .. },
+            frame:
+                geom::Frame {
+                    origin: center,
+                    axis,
+                    ..
+                },
             radius,
         }) => {
             if axis.dot(chart.axis()).abs() > 0.5 {

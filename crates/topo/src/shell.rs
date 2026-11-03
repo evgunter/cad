@@ -4535,7 +4535,7 @@ fn edge_box_in<T: Decide>(
 /// The `(u, v)` box of `frame` holding `cover`: its box in the frame's
 /// rows, about the frame's origin.
 fn cover_box_in<T: Decide>(cover: &geom::cover::Cover<T>, frame: &InPlane<T>) -> [(T, T); 2] {
-    let (lo, hi) = cover.box_in(&geom::cover::Frame::Rows([frame.u, frame.v, frame.n]));
+    let (lo, hi) = cover.box_in(&geom::cover::BoxAxes::Rows([frame.u, frame.v, frame.n]));
     let o = frame.origin - geom_core::Point3::origin();
     let (ou, ov) = (o.dot(frame.u), o.dot(frame.v));
     [(lo.x - ou, lo.y - ov), (hi.x - ou, hi.y - ov)]
@@ -5216,7 +5216,7 @@ fn moved_walls<T: Decide>(
                             let p = geom_core::Point3::new(poison, poison, poison);
                             (p, p)
                         },
-                        |c| c.box_in(&geom::cover::Frame::World),
+                        |c| c.box_in(&geom::cover::BoxAxes::World),
                     );
                     points.extend([lo, hi]);
                 }

@@ -1871,11 +1871,12 @@ pub fn arc_cap<T: geom_core::Decide + crate::props::AtRestPolicy>(
     tol: Tol,
 ) -> (Body<T>, FaceKey) {
     let Curve3::Circle(geom::Circle {
-        frame: geom::Frame {
-            origin: center,
-            axis,
-            u_ref,
-        },
+        frame:
+            geom::Frame {
+                origin: center,
+                axis,
+                u_ref,
+            },
         radius,
     }) = carrier
     else {

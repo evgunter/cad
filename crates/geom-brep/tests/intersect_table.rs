@@ -183,7 +183,11 @@ fn plane_cylinder_tilted_is_the_exact_ellipse() {
     };
     // Axes: a = r/cos φ, b = r.
     let Curve3::Ellipse(geom::Ellipse {
-        frame: geom::Frame { origin: center, axis, .. },
+        frame: geom::Frame {
+            origin: center,
+            axis,
+            ..
+        },
         semi_u,
         semi_v,
     }) = e
@@ -226,7 +230,11 @@ fn plane_cylinder_rim_stays_rung_1_circle() {
         panic!("expected the rim circle, got {s:?}");
     };
     let Curve3::Circle(geom::Circle {
-        frame: geom::Frame { origin: center, axis, .. },
+        frame: geom::Frame {
+            origin: center,
+            axis,
+            ..
+        },
         radius,
     }) = c
     else {
@@ -616,7 +624,11 @@ fn plane_cone_axis_normal_circle() {
         panic!("expected the circle, got {s:?}");
     };
     let Curve3::Circle(geom::Circle {
-        frame: geom::Frame { origin: center, axis, .. },
+        frame: geom::Frame {
+            origin: center,
+            axis,
+            ..
+        },
         radius,
     }) = c
     else {
@@ -913,7 +925,12 @@ pub(crate) fn cs_circles<T: geom_core::Decide>(s: &PairSection<T>) -> Vec<(Point
         .iter()
         .map(|c| match c.carrier {
             ClassCarrier::Closed(Curve3::Circle(geom::Circle {
-                frame: geom::Frame { origin: center, axis, .. },
+                frame:
+                    geom::Frame {
+                        origin: center,
+                        axis,
+                        ..
+                    },
                 radius,
             })) => (center, axis, radius),
             ref other => panic!("a coaxial circle, got {other:?}"),
@@ -1775,7 +1792,11 @@ fn plane_sphere_cut_is_the_exact_circle_zero_residual() {
         panic!("expected the circle, got {s:?}");
     };
     let Curve3::Circle(geom::Circle {
-        frame: geom::Frame { origin: center, axis, .. },
+        frame: geom::Frame {
+            origin: center,
+            axis,
+            ..
+        },
         radius,
     }) = c
     else {
@@ -1861,11 +1882,12 @@ fn sphere_sphere_cut_is_the_exact_circle_zero_residual() {
         panic!("expected the circle");
     };
     let Curve3::Circle(geom::Circle {
-        frame: geom::Frame {
-            origin: center,
-            axis,
-            u_ref,
-        },
+        frame:
+            geom::Frame {
+                origin: center,
+                axis,
+                u_ref,
+            },
         radius,
     }) = c
     else {
@@ -2873,11 +2895,12 @@ fn cone_cylinder_tilted_and_offset_route_to_rung_3() {
         cone_cylinder_section(&cone, &anti, fixture_lever(1.0), band())
             .expect("an antiparallel coaxial cylinder still cuts");
     let Curve3::Circle(geom::Circle {
-        frame: geom::Frame {
-            origin: center,
-            axis: c_axis,
-            ..
-        },
+        frame:
+            geom::Frame {
+                origin: center,
+                axis: c_axis,
+                ..
+            },
         ..
     }) = c1
     else {

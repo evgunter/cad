@@ -1467,11 +1467,21 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
                 Operand::B => &ga,
             };
             let (geom::Curve3::Circle(geom::Circle {
-                frame: geom::Frame { origin: center, axis, .. },
+                frame:
+                    geom::Frame {
+                        origin: center,
+                        axis,
+                        ..
+                    },
                 ..
             })
             | geom::Curve3::Ellipse(geom::Ellipse {
-                frame: geom::Frame { origin: center, axis, .. },
+                frame:
+                    geom::Frame {
+                        origin: center,
+                        axis,
+                        ..
+                    },
                 ..
             })) = along.carrier
             else {
@@ -1512,7 +1522,12 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
                     let radical = match geom_brep::sphere_sphere_section(&ga, &gb, band) {
                         Ok(geom_brep::SphereSphereSection::Circle(geom::Curve3::Circle(
                             geom::Circle {
-                                frame: geom::Frame { origin: center, axis, .. },
+                                frame:
+                                    geom::Frame {
+                                        origin: center,
+                                        axis,
+                                        ..
+                                    },
                                 ..
                             },
                         ))) => (center, germ_normal(germ_reach(&red.a)?, center, axis)?),
@@ -2800,11 +2815,21 @@ fn germ_section_loops<T: Decide>(
         return match along.carrier {
             geom::Curve3::Line(_) => Ok(None),
             geom::Curve3::Circle(geom::Circle {
-                frame: geom::Frame { origin: center, axis, .. },
+                frame:
+                    geom::Frame {
+                        origin: center,
+                        axis,
+                        ..
+                    },
                 ..
             })
             | geom::Curve3::Ellipse(geom::Ellipse {
-                frame: geom::Frame { origin: center, axis, .. },
+                frame:
+                    geom::Frame {
+                        origin: center,
+                        axis,
+                        ..
+                    },
                 ..
             }) => Ok(Some(SectionLoops::conic((center, axis)))),
             geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => {
@@ -4134,7 +4159,12 @@ fn conic_section_frame_at<T: Decide>(
             };
             return match geom_brep::plane_sphere_section(plane_s, sph_s, band) {
                 Ok(geom_brep::PlaneSphereSection::Circle(geom::Curve3::Circle(geom::Circle {
-                    frame: geom::Frame { origin: center, axis, .. },
+                    frame:
+                        geom::Frame {
+                            origin: center,
+                            axis,
+                            ..
+                        },
                     ..
                 }))) => Ok(Some((center, axis))),
                 Ok(geom_brep::PlaneSphereSection::Circle(_)) => Err(FrameError::Desync(
@@ -4170,7 +4200,12 @@ fn conic_section_frame_at<T: Decide>(
             return match geom_brep::sphere_sphere_section(sa, sb, band) {
                 Ok(geom_brep::SphereSphereSection::Circle(geom::Curve3::Circle(
                     geom::Circle {
-                        frame: geom::Frame { origin: center, axis, .. },
+                        frame:
+                            geom::Frame {
+                                origin: center,
+                                axis,
+                                ..
+                            },
                         ..
                     },
                 ))) => Ok(Some((center, axis))),
@@ -4233,12 +4268,22 @@ fn conic_section_frame_at<T: Decide>(
     };
     match section {
         Ok(geom_brep::PlaneCylinderSection::Rim(geom::Curve3::Circle(geom::Circle {
-            frame: geom::Frame { origin: center, axis, .. },
+            frame:
+                geom::Frame {
+                    origin: center,
+                    axis,
+                    ..
+                },
             ..
         })))
         | Ok(geom_brep::PlaneCylinderSection::TiltedEllipse(geom::Curve3::Ellipse(
             geom::Ellipse {
-                frame: geom::Frame { origin: center, axis, .. },
+                frame:
+                    geom::Frame {
+                        origin: center,
+                        axis,
+                        ..
+                    },
                 ..
             },
         ))) => Ok(Some((center, axis))),
@@ -4350,11 +4395,21 @@ pub(super) fn pk_section<T: Decide>(
     match geom_brep::plane_cone_section(plane, cone, reach, band) {
         Ok(
             geom_brep::PlaneConeSection::TiltedEllipse(geom::Curve3::Ellipse(geom::Ellipse {
-                frame: geom::Frame { origin: center, axis, .. },
+                frame:
+                    geom::Frame {
+                        origin: center,
+                        axis,
+                        ..
+                    },
                 ..
             }))
             | geom_brep::PlaneConeSection::AxisNormalCircle(geom::Curve3::Circle(geom::Circle {
-                frame: geom::Frame { origin: center, axis, .. },
+                frame:
+                    geom::Frame {
+                        origin: center,
+                        axis,
+                        ..
+                    },
                 ..
             })),
         ) => Ok(PkSection::Loop(center, axis)),
@@ -4457,7 +4512,12 @@ fn pt_germ_frame<T: Decide>(
     let carried = || FrameError::Desync("plane×torus classification carried another carrier");
     let circle = |curve: geom::Curve3<T>| match curve {
         geom::Curve3::Circle(geom::Circle {
-            frame: geom::Frame { origin: center, axis, .. },
+            frame:
+                geom::Frame {
+                    origin: center,
+                    axis,
+                    ..
+                },
             ..
         }) => Ok(SectionLoop {
             center,

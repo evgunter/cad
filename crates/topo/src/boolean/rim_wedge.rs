@@ -798,7 +798,12 @@ fn crossings<T: Decide>(
         }
         (
             geom::Curve3::Circle(geom::Circle {
-                frame: geom::Frame { origin: center, axis, .. },
+                frame:
+                    geom::Frame {
+                        origin: center,
+                        axis,
+                        ..
+                    },
                 radius,
             }),
             _,

@@ -2206,10 +2206,10 @@ impl core::fmt::Display for EdgeUncovered {
 /// The cover's frame for a [`BoxFrame`]: the world's, or its rows. An
 /// adapter for the face lanes, which still read their boxes in a
 /// [`BoxFrame`].
-pub(crate) fn cover_frame<T: Real>(frame: &BoxFrame<T>) -> geom::cover::Frame<T> {
+pub(crate) fn cover_frame<T: Real>(frame: &BoxFrame<T>) -> geom::cover::BoxAxes<T> {
     match frame {
-        BoxFrame::World => geom::cover::Frame::World,
-        BoxFrame::Aimed(rows) => geom::cover::Frame::Rows(*rows),
+        BoxFrame::World => geom::cover::BoxAxes::World,
+        BoxFrame::Aimed(rows) => geom::cover::BoxAxes::Rows(*rows),
     }
 }
 
@@ -5725,7 +5725,7 @@ pub(crate) mod tests {
             let ends = (carrier.eval(t0), carrier.eval(t1));
             let cover = edge_cover_over(&carrier, (t0, t1), ends).unwrap();
             let bracketed = cover.aabb(0.0);
-            let (lo, hi) = cover.box_in(&geom::cover::Frame::World);
+            let (lo, hi) = cover.box_in(&geom::cover::BoxAxes::World);
             let census = Aabb {
                 min_x: lo.x,
                 min_y: lo.y,
@@ -6695,7 +6695,12 @@ pub(crate) mod sphere_rect_rows {
             .unwrap();
         let arc = |body: &mut Body<f64>, carrier: Curve3<f64>, (t0, t1): (f64, f64)| {
             let Curve3::Circle(geom::Circle {
-                frame: geom::Frame { origin: center, axis, .. },
+                frame:
+                    geom::Frame {
+                        origin: center,
+                        axis,
+                        ..
+                    },
                 ..
             }) = carrier
             else {
@@ -6943,7 +6948,12 @@ pub(crate) mod sphere_rect_rows {
         let arc =
             |body: &mut Body<f64>, carrier: Curve3<f64>, u_ref: Vec3<f64>, (t0, t1): (f64, f64)| {
                 let Curve3::Circle(geom::Circle {
-                    frame: geom::Frame { origin: center, axis, .. },
+                    frame:
+                        geom::Frame {
+                            origin: center,
+                            axis,
+                            ..
+                        },
                     ..
                 }) = carrier
                 else {

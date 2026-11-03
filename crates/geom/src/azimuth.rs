@@ -43,10 +43,12 @@ use geom_core::k_stats::decide;
 use geom_core::predicate::Band;
 use geom_core::{Decide, Margin, Real, Sign, Vec3};
 
+use crate::Frame;
+
 /// `((sin u, cos u), v_ref)` — the trig pair from **one** `sin_cos`
-/// call and the third frame vector `v_ref = axis × u_ref`.
-pub(crate) fn basis<T: Real>(axis: Vec3<T>, u_ref: Vec3<T>, u: T) -> ((T, T), Vec3<T>) {
-    ((u.sin_cos()), axis.cross(u_ref))
+/// call and the frame's [`Frame::v_ref`].
+pub(crate) fn basis<T: Real>(frame: &Frame<T>, u: T) -> ((T, T), Vec3<T>) {
+    ((u.sin_cos()), frame.v_ref())
 }
 
 /// The unit vector at an azimuth: `u_ref·c + v_ref·s`. A newtype
@@ -73,8 +75,9 @@ pub(crate) struct AzimuthFrame<T: Real> {
 /// The azimuthal frame at angle `u`, from one `sin_cos` call, with the
 /// associations exactly as written (D9); the two formulas are on
 /// [`AzimuthFrame`]'s fields.
-pub(crate) fn frame<T: Real>(axis: Vec3<T>, u_ref: Vec3<T>, u: T) -> AzimuthFrame<T> {
-    let ((s, c), v_ref) = basis(axis, u_ref, u);
+pub(crate) fn frame<T: Real>(frame: &Frame<T>, u: T) -> AzimuthFrame<T> {
+    let ((s, c), v_ref) = basis(frame, u);
+    let u_ref = frame.u_ref;
     AzimuthFrame {
         radial: Radial(u_ref * c + v_ref * s),
         tangential: Tangential(u_ref * (-s) + v_ref * c),
@@ -353,12 +356,12 @@ mod tests {
             let (s, c) = Real::sin_cos(u);
             let v_ref = axis.cross(u_ref);
 
-            let ((bs, bc), bv) = basis(axis, u_ref, u);
+            let ((bs, bc), bv) = basis(&crate::Frame::new(geom_core::Point3::origin(), axis, u_ref), u);
             assert_eq!(bs.to_bits(), s.to_bits(), "basis sin at {u}");
             assert_eq!(bc.to_bits(), c.to_bits(), "basis cos at {u}");
             assert_eq!(bits(bv), bits(v_ref), "basis v_ref at {u}");
 
-            let f = frame(axis, u_ref, u);
+            let f = frame(&crate::Frame::new(geom_core::Point3::origin(), axis, u_ref), u);
             assert_eq!(
                 bits(f.radial.0),
                 bits(u_ref * c + v_ref * s),
@@ -388,11 +391,11 @@ mod tests {
     fn probe_the_renaming_destructure_is_the_residue_the_types_do_not_close() {
         let axis = Vec3::new(0.0, 0.0, 1.0);
         let u_ref = Vec3::new(1.0, 0.0, 0.0);
-        let f = frame(axis, u_ref, 0.3f64);
+        let f = frame(&crate::Frame::new(geom_core::Point3::origin(), axis, u_ref), 0.3f64);
         let AzimuthFrame {
             radial: tangential,
             tangential: radial,
-        } = frame(axis, u_ref, 0.3f64);
+        } = frame(&crate::Frame::new(geom_core::Point3::origin(), axis, u_ref), 0.3f64);
         assert_eq!(radial.0.x, f.tangential.0.x);
         assert_eq!(tangential.0.x, f.radial.0.x);
     }

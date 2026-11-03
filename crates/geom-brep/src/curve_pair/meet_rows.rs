@@ -70,7 +70,12 @@ pub(super) fn distance(c: &Curve3<f64>, q: Point3<f64>) -> f64 {
             (w - u * w.dot(u)).norm()
         }
         Curve3::Circle(geom::Circle {
-            frame: geom::Frame { origin: center, axis, .. },
+            frame:
+                geom::Frame {
+                    origin: center,
+                    axis,
+                    ..
+                },
             radius,
         }) => {
             let w = q - center;

@@ -905,7 +905,7 @@ impl<T: SpanLocate> Surface<T> {
                 radius,
                 u_ref,
             } => {
-                let radial = azimuth::frame(axis, u_ref, u).radial.0;
+                let radial = azimuth::frame(&Frame::new(origin, axis, u_ref), u).radial.0;
                 origin + radial * radius + axis * v
             }
             &Surface::Cone {
@@ -915,7 +915,7 @@ impl<T: SpanLocate> Surface<T> {
                 u_ref,
             } => {
                 let (s_a, c_a) = half_angle.sin_cos();
-                let radial = azimuth::frame(axis, u_ref, u).radial.0;
+                let radial = azimuth::frame(&Frame::new(apex, axis, u_ref), u).radial.0;
                 apex + axis * (v * c_a) + radial * (v * s_a)
             }
             &Surface::Sphere {
@@ -925,7 +925,7 @@ impl<T: SpanLocate> Surface<T> {
                 u_ref,
             } => {
                 let (s_v, c_v) = v.sin_cos();
-                let radial = azimuth::frame(axis, u_ref, u).radial.0;
+                let radial = azimuth::frame(&Frame::new(center, axis, u_ref), u).radial.0;
                 center + (radial * c_v + axis * s_v) * radius
             }
             &Surface::Torus {
@@ -936,7 +936,7 @@ impl<T: SpanLocate> Surface<T> {
                 u_ref,
             } => {
                 let (s_v, c_v) = v.sin_cos();
-                let radial = azimuth::frame(axis, u_ref, u).radial.0;
+                let radial = azimuth::frame(&Frame::new(center, axis, u_ref), u).radial.0;
                 center + radial * (major_radius + minor_radius * c_v) + axis * (minor_radius * s_v)
             }
             Surface::Nurbs(n) => n.eval(u, v),
@@ -1059,7 +1059,7 @@ impl<T: SpanLocate> Surface<T> {
                 radius,
                 u_ref,
             } => {
-                let f = azimuth::frame(axis, u_ref, u);
+                let f = azimuth::frame(&Frame::new(origin, axis, u_ref), u);
                 let radial = f.radial.0;
                 let tangential = f.tangential.0;
                 SurfaceJet {
@@ -1078,7 +1078,7 @@ impl<T: SpanLocate> Surface<T> {
                 u_ref,
             } => {
                 let (s_a, c_a) = half_angle.sin_cos();
-                let f = azimuth::frame(axis, u_ref, u);
+                let f = azimuth::frame(&Frame::new(apex, axis, u_ref), u);
                 let radial = f.radial.0;
                 let tangential = f.tangential.0;
                 SurfaceJet {
@@ -1097,7 +1097,7 @@ impl<T: SpanLocate> Surface<T> {
                 u_ref,
             } => {
                 let (s_v, c_v) = v.sin_cos();
-                let f = azimuth::frame(axis, u_ref, u);
+                let f = azimuth::frame(&Frame::new(center, axis, u_ref), u);
                 let radial = f.radial.0;
                 let tangential = f.tangential.0;
                 SurfaceJet {
@@ -1117,7 +1117,7 @@ impl<T: SpanLocate> Surface<T> {
                 u_ref,
             } => {
                 let (s_v, c_v) = v.sin_cos();
-                let f = azimuth::frame(axis, u_ref, u);
+                let f = azimuth::frame(&Frame::new(center, axis, u_ref), u);
                 let radial = f.radial.0;
                 let tangential = f.tangential.0;
                 SurfaceJet {

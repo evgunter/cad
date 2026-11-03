@@ -7805,11 +7805,12 @@ fn run_iso_arc_checks<T: Decide>(
         return Err(PcurveCertifyError::PlaceholderChart);
     }
     let Curve3::Circle(geom::Circle {
-        frame: geom::Frame {
-            origin: center,
-            axis,
-            u_ref,
-        },
+        frame:
+            geom::Frame {
+                origin: center,
+                axis,
+                u_ref,
+            },
         radius,
     }) = carrier
     else {

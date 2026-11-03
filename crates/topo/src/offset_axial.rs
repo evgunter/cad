@@ -2765,7 +2765,12 @@ fn param_on<T: Decide>(
         // A circle's motion is the angle between the two points' rays
         // about its own centre, read off the points themselves.
         Curve3::Circle(geom::Circle {
-            frame: geom::Frame { origin: center, axis, .. },
+            frame:
+                geom::Frame {
+                    origin: center,
+                    axis,
+                    ..
+                },
             ..
         }) => {
             let n = axis.normalize();

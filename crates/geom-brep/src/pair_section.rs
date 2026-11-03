@@ -1140,7 +1140,9 @@ fn cylinder_sphere<T: Decide>(pose: CylinderSpherePose<T>) -> PairSection<T> {
             pose.center + pose.axis * station,
             pose.axis,
             pose.r,
-            geom::Frame::new(pose.center, pose.axis, pose.u_ref).square().u_ref,
+            geom::Frame::new(pose.center, pose.axis, pose.u_ref)
+                .square()
+                .u_ref,
         )
     };
     let ring = |carrier| {

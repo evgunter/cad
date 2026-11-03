@@ -112,11 +112,12 @@ pub fn ellipse_pcurve_on_plane(
     t1: f64,
 ) -> Result<NurbsCurve2<f64>, PcurveError> {
     let &Curve3::Ellipse(geom::Ellipse {
-        frame: geom::Frame {
-            origin: center,
-            axis,
-            u_ref,
-        },
+        frame:
+            geom::Frame {
+                origin: center,
+                axis,
+                u_ref,
+            },
         semi_u,
         semi_v,
     }) = carrier

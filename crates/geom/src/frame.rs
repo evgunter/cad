@@ -182,7 +182,10 @@ mod tests {
         let p = Point3::new(1.25, 0.5, -0.75);
         let (x, y, h) = f.local(p);
         let back = f.at_local((x, y, h));
-        assert!((back - p).norm() < 1e-14, "at_local inverts local: {back:?}");
+        assert!(
+            (back - p).norm() < 1e-14,
+            "at_local inverts local: {back:?}"
+        );
         let foot = f.foot(p);
         assert!(f.height(foot).abs() < 1e-14, "the foot lies on the plane");
         assert!(
@@ -199,8 +202,8 @@ mod tests {
     fn a_motion_moves_a_frame_as_it_moves_the_points_the_frame_places() {
         let band = Band::linear(Tol::witness()).unwrap();
         let axis = UnitVec3::new(Vec3::new(1.0, 2.0, -0.5), "test", band).unwrap();
-        let m = RigidMotion::rotation_then_translation(axis, 0.7, Vec3::new(0.3, -0.2, 1.1))
-            .unwrap();
+        let m =
+            RigidMotion::rotation_then_translation(axis, 0.7, Vec3::new(0.3, -0.2, 1.1)).unwrap();
         let f = tilted();
         let moved = f.moved(&m);
         let at = (0.4, -1.3, 0.9);

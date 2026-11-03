@@ -1306,9 +1306,7 @@ mod tests {
             at(1.0),
             ConsumedExtent::new(geom_brep::ExtentBall::of_cover(
                 &geom::cover::Cover::tube(
-                    Point3::origin(),
-                    Vec3::unit_z(),
-                    Vec3::unit_x(),
+                    &geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
                     5.0,
                     0.06,
                 )

@@ -421,7 +421,9 @@ fn mint_band(
                 Curve3::Circle(geom::Circle {
                     frame:
                         geom::Frame {
-                            origin: center, axis: n, ..
+                            origin: center,
+                            axis: n,
+                            ..
                         },
                     radius,
                 }) => {

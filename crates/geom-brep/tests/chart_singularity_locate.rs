@@ -600,7 +600,11 @@ fn spurs_through_both_poles_leave_their_sides_to_the_rim() {
     use geom_brep::chart_singularity::holds;
     let rim = section(Vec3::new(1.0, 0.0, 0.0), 0.6);
     let Curve3::Circle(geom::Circle {
-        frame: geom::Frame { origin: center, u_ref, .. },
+        frame: geom::Frame {
+            origin: center,
+            u_ref,
+            ..
+        },
         ..
     }) = rim.clone()
     else {

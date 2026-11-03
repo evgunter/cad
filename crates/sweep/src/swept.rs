@@ -656,17 +656,18 @@ fn register_placed_carrier_end<T: Real>(
     tol: Tol,
 ) {
     let Curve3::Circle(geom::Circle {
-        frame: geom::Frame {
-            origin: center,
-            axis,
-            u_ref,
-        },
+        frame:
+            geom::Frame {
+                origin: center,
+                axis,
+                u_ref,
+            },
         radius,
     }) = *carrier
     else {
         return;
     };
-    let end = Curve3::circle_at(center, axis, radius, u_ref, param_end);
+    let end = Curve3::circle_at(&geom::Frame::new(center, axis, u_ref), radius, param_end);
     let sketch = arc.carrier_end(start);
     let placed = place.point(sketch);
     for (built, held) in [(end.x, placed.x), (end.y, placed.y), (end.z, placed.z)] {
@@ -1723,7 +1724,11 @@ mod tests {
             };
             let sign = |m: S| m.sign_within(band).map(|d| d.sign).ok();
             let rim = (q_from - center).norm();
-            let end = Curve3::circle_at(center, axis, radius, u_ref, spec.param_end);
+            let end = Curve3::circle_at(
+                &geom::Frame::new(center, axis, u_ref),
+                radius,
+                spec.param_end,
+            );
             [
                 sign(rim - radius),
                 sign((rim + b) * b - (radius + b) * b),
