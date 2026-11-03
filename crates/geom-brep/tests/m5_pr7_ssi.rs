@@ -1111,11 +1111,13 @@ fn shape_iii_the_wall_cut_certifies_all_three_limbs_and_refuses_a_corrupted_pcur
         cert.tube_transversality > 0.0,
         "SUBSTRATE: limb 3 has a real margin"
     );
-    // The ℝ⁴ shape's products: both pcurves, on the carrier's own
-    // parameter (the OQ4 identity the certified path now consumes).
+    // The 1×2 shape's product: the wall's pcurve, on the carrier's own
+    // parameter (the OQ4 identity the certified path consumes), and none
+    // on the plane, which the trace does not chart (the uncertified
+    // door gives the plane's as the carrier's affine image).
     assert!(
-        b.pcurve_a.is_some() && b.pcurve_b.is_some(),
-        "SUBSTRATE: the ℝ⁴ arm fits both pcurves"
+        b.pcurve_a.is_none() && b.pcurve_b.is_some(),
+        "SUBSTRATE: the 1×2 arm fits the wall's pcurve alone"
     );
     // And the table says RETIRED where a caller reads it (C12.1: the
     // arm retires WITH its proof, and the note records the date).
@@ -2333,7 +2335,7 @@ fn the_c5_table_retires_the_arm_whose_proof_is_complete() {
         assert!(r.implemented, "{a:?}×{b:?} should be retired by PR 7");
         assert!(r.note.contains("IMPLICIT PAIR"), "{}", r.note);
     }
-    // The ℝ⁴ arm is live with all three limbs, and the note claims the
+    // The plane × NURBS arm is live with all three limbs, and the note claims the
     // FULL certificate rather than a partial one — an arm goes
     // implemented only WITH its proof.
     for (a, b) in [
@@ -2343,7 +2345,7 @@ fn the_c5_table_retires_the_arm_whose_proof_is_complete() {
         let r = route(a, b);
         assert_eq!(r.rung, Rung::General);
         assert!(r.implemented, "{a:?}×{b:?} is implemented");
-        assert!(r.note.contains("PARAMETRIC PAIR"), "{}", r.note);
+        assert!(r.note.contains("IMPLICIT × CHART"), "{}", r.note);
         assert!(r.note.contains("certifies the whole chain"), "{}", r.note);
         assert!(r.note.contains("Bernstein composition"), "{}", r.note);
     }
@@ -3156,13 +3158,17 @@ fn a_far_plane_wall_pair_certifies_or_refuses_by_scale() {
     }
 }
 
-/// **A wall whose own chart is too coarse for the march refuses by that
-/// chart's scale.** A wall near the origin scaled to `ε·1e15` m moves
-/// about `3ε·1e15` m per chart unit, so the accounting floor of ε is a
-/// third of `1e-15` chart units, which `[0, 1]` resolves, while a chart
-/// step there is several ε in metres.
+/// **A wall too large for its coordinates refuses by its scale.** A wall
+/// near the origin scaled to `ε·1e15` m reaches about a million metres,
+/// so its points, which are the 1×2 trace's states, lie where adjacent
+/// coordinates are 2.3e-10 m apart and settle no finer than 1.9e-9 m,
+/// past ε: the march refuses by the wall's reach, on the ℝ³ lane,
+/// bounded by the wall itself. (The plane's ℝ⁴ trace read its states on
+/// the plane's chart window about the origin, and refused by the wall's
+/// chart instead.)
 #[test]
-fn a_wall_whose_chart_cannot_settle_the_march_refuses_by_its_chart() {
+fn a_wall_too_large_for_its_coordinates_refuses_by_its_scale() {
+    use geom_brep::ReachBound;
     use geom_brep::recourse::Reading;
 
     let m = band().zero() * 1.0e15;
@@ -3171,16 +3177,15 @@ fn a_wall_whose_chart_cannot_settle_the_march_refuses_by_its_chart() {
     let Err(ref err @ SsiError::SettlingUnresolvable(s)) = r else {
         panic!("the {m:e} m wall: expected the settling door, got {r:?}");
     };
-    let geom_brep::ExhaustLane::Chart { speed } = s.lane else {
-        panic!("the chart's settling refused on the ℝ³ lane: {s:?}");
-    };
-    assert_eq!(s.reach, 1.0, "the wall's knot domain");
+    assert!(
+        matches!(s.lane, geom_brep::ExhaustLane::R3) && s.bound == ReachBound::Geometry,
+        "the wall's own coordinates bind: {s:?}"
+    );
+    assert!(s.reach >= m, "the wall's reach: {s:?}");
     let shown = err.render(Reading::Build);
     assert!(
-        shown.contains(&format!(
-            "at a certified chart speed of {:e} m per chart unit",
-            speed.get()
-        )) && shown.contains("Recourse: bring the spline face within the model's size range"),
+        shown.contains("where the geometry reaches")
+            && shown.contains("Recourse: move the geometry nearer the origin"),
         "{shown}"
     );
 }
@@ -4731,8 +4736,11 @@ fn a_curved_domes_level_loop_certifies_at_every_eps() {
 /// so the curvature rungs would step across each inflection at the
 /// domain's diagonal. The residual test keeps a step only where its
 /// predicted state lies on the locus, so the march halves there, and
-/// the arc certifies on the march's samples, no round of refinement: 62
-/// at 1e-6, 327 at 1e-9 and 1873 at 1e-12.
+/// the arc certifies on the march's samples, no round of refinement: on
+/// the 1×2 trace (the plane folded onto the residual × chart trace), 51
+/// at 1e-6, 265 at 1e-9 and 1435 at 1e-12. (The plane's ℝ⁴ trace took
+/// 62, 327 and 1873: its state carried the plane's chart, whose steps
+/// it also bounded.)
 #[test]
 fn a_curved_domes_oblique_arc_certifies_across_its_inflections() {
     let d = 0.5;
@@ -4746,9 +4754,9 @@ fn a_curved_domes_oblique_arc_certifies_across_its_inflections() {
     let at = format!("ε {:e}", eps());
     let r = ssi::plane_nurbs_ssi(&oblique, &dome_wall(d), dom, band());
     let samples = match eps() {
-        1.0e-6 => 58..66,
-        1.0e-9 => 315..340,
-        1.0e-12 => 1840..1910,
+        1.0e-6 => 47..56,
+        1.0e-9 => 255..276,
+        1.0e-12 => 1400..1470,
         _ => {
             vacuity::stood_down(
                 &at,
@@ -4845,14 +4853,17 @@ fn rounds_at_the_wall(
 
 /// **A loop past the step budget refuses typed at the wall.** At ε 8e-15
 /// the dome's level loop takes about 19 350 marched samples, inside the
-/// branch's 20 000 steps, and limb 2 reads it in band at about 8.8e-15 m;
-/// refinement's first round would overrun the steps, so the wall refuses
-/// before it, naming the one refused round. At 9e-15 the loop certifies
-/// on its marched samples, so 8e-15 is where this row's subject is. A branch never grows past the
-/// wall, and the refusal is the resource limit, not a verdict on the
-/// carrier. One round shows no refused residual falling or stopping, so
-/// the ending is the curvature-held march's: the domain, then the
-/// tolerance.
+/// branch's 20 000 steps, and limb 2 reads it in band at about 8.4e-15 m.
+/// One refinement round fits the budget, to about 19 860 samples, and its
+/// refused residual does not fall (8.38e-15 to 8.39e-15 m), so the wall
+/// refuses before the next round, naming the two refused rounds and the
+/// arithmetic's floor. At 9e-15 the loop certifies on its marched
+/// samples, so 8e-15 is where this row's subject is. A branch never
+/// grows past the wall, and the refusal is the resource limit, not a
+/// verdict on the carrier. (The plane's ℝ⁴ trace marched about 19 350
+/// samples too, but its first round would have overrun the steps, so it
+/// refused on one round, the residual's trend unread, with the march's
+/// levers.)
 #[test]
 fn a_loop_past_the_step_budget_refuses_typed_at_the_wall() {
     let d = 1.0;
@@ -4867,17 +4878,23 @@ fn a_loop_past_the_step_budget_refuses_typed_at_the_wall() {
     }
     let r = ssi::plane_nurbs_ssi(&level, &dome_wall(d), dom, band_at(8e-15));
     let (samples, rounds, shown, trend) = rounds_at_the_wall("the level loop at 8e-15", &r);
-    assert_eq!(trend, ResidualTrend::Falling, "one round shows no stall");
-    assert!(
-        (19_100..19_600).contains(&samples),
-        "the march's samples: {samples}"
+    assert_eq!(
+        trend,
+        ResidualTrend::Stalled,
+        "the refused residual stopped falling"
     );
-    assert_eq!(rounds.len(), 1, "one refused round: {rounds:?}");
     assert!(
-        shown.contains("refining the branch's")
-            && shown.contains("name a domain around just the feature traced")
-            && !shown.contains("floor"),
-        "the march's levers, no floor claimed: {shown}"
+        (19_700..20_000).contains(&samples),
+        "one round's samples: {samples}"
+    );
+    assert_eq!(rounds.len(), 2, "two refused rounds: {rounds:?}");
+    assert!(
+        (19_100..19_600).contains(&rounds[0].samples),
+        "the march's samples: {rounds:?}"
+    );
+    assert!(
+        shown.contains("stopped falling") && shown.contains("the arithmetic's floor"),
+        "the floor claimed: {shown}"
     );
 }
 
@@ -5961,6 +5978,18 @@ fn a_flat_wall_whose_chart_path_bends_answers_as_the_plane_it_is() {
                 vacuity::stood_down(&at, "the slope across the v = 0 side is inside the band");
                 return;
             }
+            // At ε 1e-12 the 1×2 trace's carrier meets limb 3's one-arc
+            // proof short of its end, as the ℝ⁴ trace's did at μ 0.1
+            // (`work/ssiarith/ssi-limb-three-refuses-a-bent-chart-path-line-at-eps-1e-12.md`).
+            // The ℝ⁴ trace read one branch here, from the v = 0 side to
+            // the v = 1, within its certified sup of the line.
+            Err(SsiError::TubeNotOneArc {
+                cause: geom_brep::ssi::certify::OneArcRefusal::Short,
+                ..
+            }) if eps < 1e-9 => {
+                vacuity::stood_down(&at, "limb 3's one-arc proof falls short of the end");
+                return;
+            }
             Err(e) => panic!("{at}: expected the line, got {e}"),
         };
         let [b] = out.branches.as_slice() else {
@@ -6106,8 +6135,20 @@ fn a_sliver_the_march_could_step_through_refuses_as_near_tangent() {
     }
     for (what, wall) in &walls {
         let r = ssi::plane_nurbs_ssi(&plane, wall, dom, b);
+        // The pairs bending by β = ±3: on the 1×2 trace the march from a
+        // crossing keeps its own branch until the two converge past the
+        // knot, where its step falls in the band, so the march's refusal
+        // stands, the step's, carrying the Hermite's tube refused near
+        // tangent (C3). (The plane's ℝ⁴ trace stepped onto the twin and
+        // refused on the tube itself, `TubeStraddles`.)
+        let step_over_tube = matches!(
+            &r,
+            Err(SsiError::MarchStepInBand { limb, .. })
+                if matches!(**limb, SsiError::TubeStraddles { .. })
+        );
         assert!(
-            near_tangent(&r),
+            near_tangent(&r)
+                || (what.starts_with("pair β = ") && !what.contains("β = 1,") && step_over_tube),
             "{what}: the near-tangent lever, got {r:?}"
         );
     }

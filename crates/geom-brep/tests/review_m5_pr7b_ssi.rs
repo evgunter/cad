@@ -87,7 +87,9 @@ fn deviation2a_the_inflected_walls_fit_deviation_is_measured_without_the_ring() 
     // explicitly, and keeps each step only where its predicted state lies
     // on the locus, so the section's curvature zero, where the
     // `h_fit ∝ (ε/κ³)^¼` rung unbinds, is stepped as finely as the locus
-    // asks: the march's own deviation measures 1.31e-10 m at u = 0.536.
+    // asks: the march's own deviation measures 2.13e-10 m at u = 0.528 on
+    // the 1×2 trace (1.31e-10 m at u = 0.536 on the plane's retired ℝ⁴
+    // trace, which sampled the locus differently).
     // The door then refines the trace where the certificate, at the
     // ambient band, refuses it. On a band whose zero is above that
     // deviation nothing is refined, and the scan reads the march's within
@@ -96,7 +98,7 @@ fn deviation2a_the_inflected_walls_fit_deviation_is_measured_without_the_ring() 
     let w = nurbs_wall();
     let (max, u_at_max) = trace_deviation(&w, 1e-9, 200_000);
     eprintln!("[review] inflected-wall fit deviation: {max:.3e} m at u = {u_at_max:.4}");
-    let march = 1.31e-10;
+    let march = 2.13e-10;
     if band().zero() > 1.1 * march {
         assert!(
             (0.93 * march..=1.07 * march).contains(&max),

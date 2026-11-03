@@ -382,8 +382,8 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
         (Plane, Nurbs) | (Nurbs, Plane) => PairRoute {
             rung: Rung::General,
             implemented: true,
-            note: "traced on the wall's chart as f∘S = 0 (C3's 1×2 residual × chart trace) by \
-                   geom_brep::ssi::ImplicitSection, read at a seed or whole, which \
+            note: "traced on the IMPLICIT × CHART pair (1×2 SVD, C3: f∘S = 0 on the wall's \
+                   chart) by geom_brep::ssi::ImplicitSection, read at a seed or whole, which \
                    certifies the whole chain: \
                    the trace, the shared-parameter fit of the carrier and the \
                    wall's pcurve, the certified foot points, the chart uniqueness tube, \
@@ -421,13 +421,12 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
             PairRoute {
                 rung: Rung::General,
                 implemented: false,
-                note: "a NURBS operand routes to the general rung with the ℝ⁴ \
-                       PARAMETRIC-PAIR trace shape; the general-rung marcher traces \
-                       it and the tensor-composite sup bound that certifies \
-                       plane×NURBS is the substrate these arms reuse. What is \
-                       missing is the rest of the CERTIFICATE: the analytic partner \
-                       needs its chart-form uniqueness tube (written for the plane) \
-                       — arms retire one at a time, each with its proof",
+                note: "a NURBS operand routes to the general rung with the 1×2 \
+                       IMPLICIT × CHART trace shape, the plane×NURBS arm's: its \
+                       section is read whole, certified by the chart uniqueness tube \
+                       read against the partner's form, through the section value \
+                       (pair_section). What is missing is this table's door onto \
+                       that reading — arms retire one at a time, each with its proof",
             }
         }
         // ---- Approx: an intersection operand is its fit, as it is for

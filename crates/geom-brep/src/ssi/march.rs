@@ -235,6 +235,21 @@ impl Readout {
         }
     }
 
+    /// The residual read at the operands' own points, which lie in the
+    /// box `operands` wherever the caller's domain reaches (the 1×2
+    /// trace's states are the wall's points), with `ulps` of their
+    /// spacing as noise.
+    pub(crate) fn on_operands(operands: Box3, ulps: f64) -> Self {
+        let (reach, gap) = exhaust::coordinate_gap(operands);
+        Self {
+            lane: ExhaustLane::R3,
+            reach,
+            gap,
+            bound: ReachBound::Geometry,
+            noise: ulps * gap,
+        }
+    }
+
     /// The residual read at coordinates written about a curved partner's
     /// centre or axis, `framed` the wall's box in that frame, with `ulps`
     /// of their spacing as noise.
@@ -2561,15 +2576,16 @@ pub(crate) mod tests {
     /// **The step rungs read the carrier's curvature, not the state
     /// curve's.** The plane `y = −1/8` cuts the dome
     /// `y = −4·s(1−s)·t(1−t)` (a quadratic 3×3 net, `x = s`, `z = t`) in
-    /// a loop of 3-D curvature 1.4–4.7/m. The wall's pcurve bends in its
-    /// chart as much as the plane's, so the ℝ⁴ state curve's curvature
-    /// over speed² is √2 times the carrier's. At ε = 1e-9 the fit rung
+    /// a loop of 3-D curvature 1.4–4.7/m, traced on the 1×2 system with
+    /// the plane as its partner, whose state curve is the wall's pcurve,
+    /// bending in its chart unlike the carrier. At ε = 1e-9 the fit rung
     /// holds every step, so each chord is `(24·δ·ε/κ³)^¼` at the
     /// carrier's own curvature κ, read here off the circle through three
     /// consecutive marched points rather than off the stepper. Every
-    /// chord lies within 5% of it, and the loop takes about 1030 steps.
-    /// A rung read on the state curve makes every chord 2^(−3/8) ≈ 0.77
-    /// of it.
+    /// chord the rung sized lies within 5% of it (the last, which closes
+    /// the loop onto its seed, is the closure's), and the loop takes
+    /// about 1030 steps. A rung read on the state curve moves the chords
+    /// off it.
     #[test]
     fn the_fit_rung_reads_the_carriers_curvature_on_a_curved_wall() {
         use super::{RectEnd, RectExit, SSI_STEP_DEVIATION};
@@ -2627,7 +2643,9 @@ pub(crate) mod tests {
             .map(|x| sys.point(x) - Point3::origin())
             .collect();
         let target = 24.0 * SSI_STEP_DEVIATION * eps;
-        for i in 1..p.len() - 1 {
+        // The last chord closes the loop onto the seed, a step the
+        // closure ends, not one the rung sized.
+        for i in 1..p.len() - 2 {
             let (a, b) = (p[i] - p[i - 1], p[i + 1] - p[i - 1]);
             let kappa = 2.0 * a.cross(b).norm() / (a.norm() * b.norm() * (b - a).norm());
             let chord = (p[i + 1] - p[i]).norm();

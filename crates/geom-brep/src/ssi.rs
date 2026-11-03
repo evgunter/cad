@@ -3505,35 +3505,6 @@ fn quadric_readout(a: &Surface<f64>, b: &Surface<f64>, slab: Box3) -> Readout {
     Readout::spatial(slab, operands, SSI_QUADRIC_NOISE_ULPS)
 }
 
-/// **The spline lane's readout**, at every door that marches a plane ×
-/// NURBS pair: the plane's `window` cut down to the wall's control
-/// hull, where every state's residual is read, and the wall's chart
-/// `root`, through which Newton moves, whichever is louder.
-///
-/// The chart's spacing crosses into metres at the sup speed, which
-/// over-states its noise, so the march settles no finer than either
-/// resolves and may refuse a wall a slower axis would carry. On a
-/// rational wall the over-statement is larger: the sup speed grows with
-/// the wall's absolute coordinates
-/// (`work/ssi/rational-chart-sup-speed-grows-with-translation.md`).
-fn spline_readout(
-    window: Box3,
-    wall: &NurbsSurface<f64>,
-    root: UvRect,
-    speed: geom_core::SupSpeed<f64>,
-) -> Readout {
-    let hull = wall
-        .control()
-        .iter()
-        .map(|&p| Box3::between(p, p))
-        .reduce(Box3::hull);
-    Readout::spatial(window, hull, SSI_SPLINE_NOISE_ULPS).or_chart(
-        root,
-        speed,
-        SSI_SPLINE_NOISE_ULPS,
-    )
-}
-
 /// **plane × NURBS wall**, read whole: [`ImplicitSection::all`] on
 /// [`ImplicitSection::of`], every branch of the section over the wall's
 /// knot rectangle and the accounting that they are all of them. Its

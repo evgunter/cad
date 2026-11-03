@@ -441,13 +441,17 @@ impl<'a> ImplicitWall<'a> {
             })
     }
 
-    /// The wall's own readout: its coordinates and its chart's.
+    /// The wall's own readout: its coordinates, which bound the states
+    /// (they are the wall's points), and its chart's.
     fn readout(
         wall: &geom::NurbsSurface<f64>,
         root: super::exhaust::UvRect,
         speed: geom_core::SupSpeed<f64>,
     ) -> Result<super::march::Readout, super::SsiError> {
-        Ok(super::spline_readout(Self::hull(wall)?, wall, root, speed))
+        Ok(
+            super::march::Readout::on_operands(Self::hull(wall)?, super::SSI_SPLINE_NOISE_ULPS)
+                .or_chart(root, speed, super::SSI_SPLINE_NOISE_ULPS),
+        )
     }
 
     /// **The tolerance a march against `curved` settles to**: the louder
