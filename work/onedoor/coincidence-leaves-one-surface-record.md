@@ -2,10 +2,11 @@
 id: coincidence-leaves-one-surface-record
 kind: unit
 title: Every act that decides two surface records are one carrier leaves the faces on one record ([coincidence.door], PR 6427): the boolean's glue, the split's ON face, the chord join's tangent plane, a sweep's coplanar caps
-status: open
+status: dispatched
 opened: 2026-11-03
 priority: P1
 cost: H
+branch: onedoor/one-surface-record
 ---
 
 
