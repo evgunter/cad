@@ -361,13 +361,14 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
             distance: len(MERLON_H),
         },
     );
+    let edge = vertical_edge(&mut session, block);
     let pattern = session_insert(
         &mut session,
         SessionOp::AddPattern {
             input: block.into(),
             count: 4,
             rule: PatternRuleSpec::Circular {
-                axis: viewer::PatternDirection::Edge(vertical_edge(&mut session, block)),
+                axis: viewer::PatternDirection::Edge(edge),
                 step: ang(FRAC_PI_2),
             },
         },
