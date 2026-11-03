@@ -32,10 +32,8 @@ test gaps that mutants pass through.
   - The enclosure misses the truth at (δ, L) = (1e-9, 10) [flux `[1.000000006, 1.000000014]`],
     (1e-9, 1e3), (1e-6, 10) [off by 1e-5] and (1e-6, 1e3) [off by 1e-3].
   - It holds only at L ≤ r.
-- The PR lists this as "Unproven", but nothing at the claim site records it. The lane's module
-  docs ("Honesty pads (both directions accounted)") promise that the bracket covers a true
-  boundary within `e` of the pcurve.
-- No swap row can see this: every swapped carrier lies on the cylinder (`env ≈ 0`).
+- The PR lists it "Unproven", but nothing at the claim site does, and the module docs promise a
+  bracket covering any boundary within `e`. No swap row can see it (every `env ≈ 0`).
 - Body-level effect: not measured. At ε 1e-9, with the measured envelopes (≤7.8e-11) and levers
   of order 1, it falls below `VOLUME_CLAIM`. At ε 1e-6, or for a body far from its centre, it
   does not.
@@ -53,9 +51,7 @@ filter `rotational rational_rim`.
   survives my added reversed winding loop, because see NOTE-8.
 - M13, `branch_turns`'s quarter-turn tolerance raised to 0.75: survives. No row presents an
   image whose ends and turn disagree, so the refusal arm is unexercised.
-- Killed: M1 (`v_sign`, by the mirrored row), M2 (net `u′` sign), M4 (an off-by-one turn), M5
-  (a dropped circle piece), M7 (the chart term's rationals dropped), M8 (projected traversal
-  ignored), M11 (a dropped net span).
+- Killed: M1 (`v_sign`), M2, M4 (off-by-one turn), M5 (dropped circle piece), M7, M8, M11.
 - Confidence: **sure**.
 
 **MINOR-3: the swap rows' chart term is circular.**
@@ -71,9 +67,8 @@ filter `rotational rational_rim`.
 **MINOR-4: rows read against `differential::resolution_pad` pin far less than they measure.**
 - Where: `tang_circle_cylinder.rs:a_tilted_rod_…` (budget ≈1.3e-5) and
   `parallel_cylinder_join.rs` (≈1.6e-5).
-- The derivation is a sound ceiling. The meter is `width/(3·mid(area))`, and a boolean's surface
-  area is at most the operands' (up to `mid(area)` vs the true area, which is negligible). No
-  previously tight row is loosened: every row it governs refused before.
+- A sound ceiling (meter `width/(3·mid(area))`; result area ≤ operands'); no tight row is
+  loosened, since every row it governs refused before.
 - But SOUND there admits `|v − w| ≤ 1e-7 + pad`, with pad up to about 130–160× `VOLUME_CLAIM`.
 - The measured pads are 1.8e-7 and 2.3e-6 and the volumes agree to about 1e-9, yet nothing pins
   that. A 50× loosening, or a 1e-6 volume error, stays green.
@@ -136,14 +131,11 @@ Questions exercised: Q1, Q2, Q5, Q6, Q7, Q8. Q3 and Q4 were not exercised in dep
 1. **One lane, no copy: upheld.** `cylinder.rs` → `rotational.rs`. The spiric helpers moved to
    `taylor.rs` byte-for-byte. No `cylinder_cut_face` caller remains outside `#[cfg(test)]`. The
    harmonic arm is the old one plus fast paths (NOTE-6).
-2. **Integrand and enclosure: upheld.**
-   - The net, circle and line formulas match `u′ = (xy′−yx′)/(x²+y²)`, with `v = v_off + v_sign·z`.
-   - The deck map's linear part is `diag(1, ±1)` (`map_affine`), so ignoring `u_off` and the
-     `u` sign is right.
-   - My new row `r1_a_swapped_plane_section_holds_the_closed_form` is green. It is an exact
-     rational-quadratic plane section, where `u` and `v` both vary, read short, past a quarter
-     turn, across the seam, and over most of a turn.
-   - Gaps remain: M9, M10.
+2. **Integrand and enclosure: upheld.** The formulas match `u′ = (xy′−yx′)/(x²+y²)` and
+   `v = v_off + v_sign·z`; the deck map's linear part is `diag(1, ±1)` (`map_affine`), so
+   ignoring `u_off` is right. My row `r1_a_swapped_plane_section_holds_the_closed_form` (an exact
+   plane section, `u` and `v` both varying: short, past a quarter turn, across the seam, most of
+   a turn) is green. Gaps remain: M9, M10.
 3. **Closure: upheld in logic.** A wrong count is refused or `round()`s to the true integer.
    But its nonzero and refusal paths are unwitnessed (M3, M13, NOTE-8).
 4. **`o·A⃗`: falsified.** MAJOR-1, by execution.
