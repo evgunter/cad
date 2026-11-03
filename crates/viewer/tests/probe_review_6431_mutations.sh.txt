@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+cd ~/.local/share/cad-work/forms-review-6431/cad
+export CARGO_TARGET_DIR=/home/user/forms-review-6431-target CARGO_INCREMENTAL=0
+OUT=~/.local/share/cad-work/forms-review-6431/scratch/mut
+F='test(/the_split_tool_cuts_along_a_picked_face_and_its_plane_re_picks|the_split_button_waits_for_its_plane|the_pattern_form_takes_no_values_and_a_rows_defaults|a_rings_defaults_edit_on_its_rows/)'
+mut() { # name file python-replace-old python-replace-new
+  name=$1; file=$2
+  python3 - "$file" "$3" "$4" <<'PY'
+import sys
+p,o,n=sys.argv[1:4]; s=open(p).read(); assert s.count(o)==1,(p,o); open(p,'w').write(s.replace(o,n))
+PY
+  local-scripts/with-build-slot.sh -- cargo nextest run -p viewer --features app --no-fail-fast -E "$F" > $OUT/$name.log 2>&1
+  echo "$name rc=$?" >> $OUT/summary.txt
+  grep -E "^\s+(PASS|FAIL) \[" $OUT/$name.log | sort -u >> $OUT/summary.txt
+  git checkout -- crates/viewer/src
+}
+: > $OUT/summary.txt
+mut M1_flip crates/viewer/src/session.rs 'RoleRead::plain(crate::matetool::plane_of(Operand::select(on, vec![name])))' 'RoleRead::plain(Operand::Pose(Box::new(pncad::document::pose::PoseDef::Flip { pose: RoleRead::plain(crate::matetool::plane_of(Operand::select(on, vec![name]))) })))'
+mut M2_unblocked crates/viewer/src/pane/create.rs 'self.tool_commit_row(ui, ToolKind::Split, blocked.as_deref(), |_, _| Ok(op?));' 'let _ = blocked; self.tool_commit_row(ui, ToolKind::Split, None, |_, _| Ok(op?));'
+mut M3_selects crates/viewer/src/session/op.rs '                    | Self::AddSplit { .. }
+' ''
+mut M4_count3 crates/viewer/src/combine.rs 'pub const PATTERN_COUNT: i64 = 4;' 'pub const PATTERN_COUNT: i64 = 3;'
+mut M5_step crates/viewer/src/combine.rs 'pub const RING_STEP: f64 = core::f64::consts::FRAC_PI_2;' 'pub const RING_STEP: f64 = core::f64::consts::FRAC_PI_3;'
+mut M6_along crates/viewer/src/combine.rs 'pub const ROW_ALONG: pncad::document::TargetAxis = pncad::document::TargetAxis::X;' 'pub const ROW_ALONG: pncad::document::TargetAxis = pncad::document::TargetAxis::Y;'
+mut M7_spacing crates/viewer/src/pane/create.rs 'notation.length_literal(spacing)?,' 'notation.length_literal(2.0 * spacing)?,'
+echo ALLDONE >> $OUT/summary.txt

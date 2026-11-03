@@ -62,6 +62,8 @@ mod common;
 mod corpus;
 mod fixture;
 
+#[path = "probe_review_6431.rs"]
+mod probe_review_6431;
 #[path = "assembly_display.rs"]
 mod assembly_display;
 #[path = "assembly_walk.rs"]
