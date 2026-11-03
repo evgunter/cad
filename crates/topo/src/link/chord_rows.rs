@@ -390,3 +390,35 @@ fn the_lever_stays_inside_the_sections_circle() {
         );
     }
 }
+
+/// **An edge tilted off the ruling inside the face's tangent plane
+/// refuses.** The edge through `p` along `z` turned `0.01` toward the
+/// face's tangent at `60°`, both ends and its direction on that line: it
+/// lies in the tangent plane, so only the carrier's own ruling parts it
+/// from the edge. `Unreadable`. Red if the ruling is read off the edge's
+/// direction rather than the carrier.
+#[test]
+fn an_edge_tilted_in_the_tangent_plane_refuses() {
+    for p in AT {
+        for (what, carrier) in CARRIERS {
+            let h = dir(FRAC_PI_3);
+            let outward = -(Z.cross(h));
+            let edge = (Z + h * 0.01).normalize();
+            let ruled = Ruled {
+                surface: carrier.surface(p, -outward, 1.0),
+                sense: true,
+                outward,
+                along: -edge,
+                ends: [p - edge * 2.0, p + edge * 2.0],
+                clear: 1.0,
+            };
+            assert!(
+                matches!(
+                    FaceSector::chord(&ruled, p, v(0.0, 1.0, 0.0), band()),
+                    Err(TouchUnread::Unreadable)
+                ),
+                "{what} at {p:?}"
+            );
+        }
+    }
+}
