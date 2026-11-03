@@ -3421,7 +3421,8 @@ fn co_requested_trim<T: Decide>(
         .find(|l| l.edge == edge)
     {
         let (origin, dir) = open_trimline(l, face)?;
-        let at = |p: Point3<T>| (p - origin).dot(dir) / dir.dot(dir);
+        let line = geom::Line { origin, dir };
+        let at = |p: Point3<T>| line.param(p);
         let window = (at(stored.eval(ta)), at(stored.eval(tb)));
         return Ok(Some((Curve3::Line(geom::Line { origin, dir }), window)));
     }
@@ -5707,8 +5708,10 @@ mod tests {
             "a stale support is Unresolved: {e:?}"
         );
         assert!(
-            e.to_string().ends_with(&format!("did not resolve, {tail}")),
-            "{e}"
+            e.render(geom_brep::recourse::Reading::Build)
+                .ends_with(&format!("did not resolve, {tail}")),
+            "{e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
         );
 
         let mut lone = topo::Body::<f64>::new();
@@ -5729,8 +5732,12 @@ mod tests {
             "a cycle that does not walk is Unwalked: {e:?}"
         );
         assert!(
-            e.to_string().contains("the walk from ") && e.to_string().ends_with(tail),
-            "{e}"
+            e.render(geom_brep::recourse::Reading::Build)
+                .contains("the walk from ")
+                && e.render(geom_brep::recourse::Reading::Build)
+                    .ends_with(tail),
+            "{e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
         );
 
         topo::instance::graft_disjoint_all(&mut body, &cube(L * 0.5, Tol::witness()))
@@ -5754,7 +5761,7 @@ mod tests {
             ),
             "a link across shells is Disagrees: {e:?}"
         );
-        let text = e.to_string();
+        let text = e.render(geom_brep::recourse::Reading::Build);
         assert!(
             text.contains("resolved, but its structure disagrees")
                 && !text.contains("did not resolve"),
@@ -5818,7 +5825,7 @@ mod tests {
             ),
             "a zero-axis cylinder is Degenerate at its face: {e:?}"
         );
-        let text = e.to_string();
+        let text = e.render(geom_brep::recourse::Reading::Build);
         assert!(
             text.ends_with(&format!(
                 "stored carrier is degenerate under the run's band, {tail}"

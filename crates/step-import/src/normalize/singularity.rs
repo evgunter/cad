@@ -451,16 +451,6 @@ fn use_edges(solid: &SolidSpec, uses: &[EdgeUse]) -> Vec<LoopEdge<f64>> {
         .collect()
 }
 
-/// **The parameter at which `carrier` passes nearest `x`**, where a
-/// minted meridian meets the boundary: a line's projection, or a
-/// circle's angle about its centre in its own frame (the convention
-/// [`crate::geometry::endpoint_params`] derives edge intervals in),
-/// brought to the representative at or past `from` and short of a turn
-/// beyond it. `None` for any other carrier.
-fn param_at(carrier: &Curve3<f64>, x: Point3<f64>, from: f64) -> Option<f64> {
-    home::foot(carrier, x, from)
-}
-
 /// The two uses of the single edge at `vertex` in face `fi`'s loop: the
 /// one arriving at the vertex and the one leaving it, when the face
 /// uses that edge once each way (a seam ending at a strut tip).
@@ -701,7 +691,7 @@ fn first_hit(
         // crosses it nowhere, and meets it at its ends).
         for v in [spec.start, spec.end] {
             let p = solid.vertices[&v];
-            if let Some(t) = foot(&ray.carrier, p, read) {
+            if let Some(t) = param_on(&ray.carrier, p, read) {
                 offer(walked(t), Hit::Vertex(v), p, &mut best);
             }
         }
@@ -709,7 +699,9 @@ fn first_hit(
             crossings(&ray.carrier, &spec.carrier, read).ok_or(foreign_carrier(face.id))?
         {
             let delta = walked(t_ray);
-            let te = param_at(&spec.carrier, p, spec.t0).ok_or(foreign_carrier(face.id))?;
+            // On the edge's own turn, at or past its start, the convention
+            // `crate::geometry::endpoint_params` derives edge intervals in.
+            let te = home::foot(&spec.carrier, p, spec.t0).ok_or(foreign_carrier(face.id))?;
             // At one of the edge's ends, decided at the pass's band as
             // the singular point itself is: within it, the landing is
             // that vertex; past it, the edge is split there; between,
@@ -732,7 +724,7 @@ fn first_hit(
         }
     }
     for &s in singular {
-        if let Some(t) = foot(&ray.carrier, s, read) {
+        if let Some(t) = param_on(&ray.carrier, s, read) {
             let delta = walked(t);
             if best.as_ref().is_none_or(|(b, ..)| delta < *b - lead) {
                 offer(delta, Hit::Singular(s), s, &mut best);
@@ -750,9 +742,10 @@ fn first_hit(
     }
 }
 
-/// The parameter of `carrier` at `x`, when `x` lies on it within ε_in.
-fn foot(carrier: &Curve3<f64>, x: Point3<f64>, read: &Read) -> Option<f64> {
-    let t = param_at(carrier, x, 0.0)?;
+/// The parameter of `carrier` at `x`, when `x` lies on it within ε_in:
+/// its [`home::foot`] on the turn at or past `0`.
+fn param_on(carrier: &Curve3<f64>, x: Point3<f64>, read: &Read) -> Option<f64> {
+    let t = home::foot(carrier, x, 0.0)?;
     ((carrier.eval(t) - x).norm() <= read.eps).then_some(t)
 }
 
@@ -880,7 +873,7 @@ fn crossings(
             if ((p - c).norm() - r).abs() > read.escalate {
                 return Some(Vec::new());
             }
-            let t = foot(
+            let t = param_on(
                 ray,
                 p,
                 &Read {
@@ -1335,12 +1328,16 @@ mod review_on_boundary {
                             assert!(
                                 (d > zero(run) && d < esc(run))
                                     || (d > zero(file) && d < esc(file)),
-                                "eps {eps} eps_in {eps_in}: refused at d = {d}: {e}"
+                                "eps {eps} eps_in {eps_in}: refused at d = {d}: {e_at}",
+                                e_at = e.render()
                             );
                             // The file's band is named where it, too,
                             // reads the distance in band.
                             let StepImportError::SingularityUndecided { band, .. } = e else {
-                                panic!("eps {eps} eps_in {eps_in}: refused at d = {d}: {e}")
+                                panic!(
+                                    "eps {eps} eps_in {eps_in}: refused at d = {d}: {e_at}",
+                                    e_at = e.render()
+                                )
                             };
                             let in_file = d > zero(file) && d < esc(file);
                             assert_eq!(

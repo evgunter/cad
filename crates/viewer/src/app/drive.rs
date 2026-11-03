@@ -396,10 +396,18 @@ pub enum DriveError {
     Picture(String),
 }
 
-impl core::fmt::Display for DriveError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl DriveError {
+    fn write(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        at: Option<pncad::geom_brep::recourse::ReadAt>,
+    ) -> core::fmt::Result {
         match self {
-            Self::Startup(error) => write!(f, "the app could not start: {error}"),
+            Self::Startup(error) => write!(
+                f,
+                "the app could not start: {}",
+                pncad::geom_brep::recourse::read_at(error.as_ref(), at)
+            ),
             Self::NotOnScreen {
                 text,
                 nth,
@@ -417,6 +425,8 @@ impl core::fmt::Display for DriveError {
         }
     }
 }
+
+pncad::geom_brep::ended_by_write!(DriveError);
 
 impl std::error::Error for DriveError {}
 

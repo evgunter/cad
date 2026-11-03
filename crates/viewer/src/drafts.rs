@@ -268,14 +268,22 @@ pub(crate) enum Pending {
     Shape(RecordedProgramError),
 }
 
-impl std::fmt::Display for Pending {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Pending {
+    fn write(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        at: Option<pncad::geom_brep::recourse::ReadAt>,
+    ) -> core::fmt::Result {
         match self {
-            Self::Door(refusal) => write!(f, "{refusal}"),
+            Self::Door(refusal) => {
+                write!(f, "{}", pncad::geom_brep::recourse::read_at(refusal, at))
+            }
             Self::Shape(error) => write!(f, "{error}"),
         }
     }
 }
+
+pncad::geom_brep::ended_by_write!(Pending);
 
 /// **One change to the shape of the profile editor's draft** — what a
 /// click asks for, applied after the fields of its frame

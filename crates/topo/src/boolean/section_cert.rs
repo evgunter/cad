@@ -1283,7 +1283,7 @@ fn cone_cylinder<T: Decide>(
     }
     // A chart of the cylinder for the ruling reader, picked off the axes.
     // No output keeps it, but the reader's verdict may read it
-    // (`work/issues/a-section-certificates-witness-point-is-picked-off-the-axes.md`).
+    // (`work/orbit/a-section-certificates-witness-point-is-picked-off-the-axes.md`).
     let (f1, f2) = d.orthonormal_basis();
     let zero = Vec3::new(T::zero(), T::zero(), T::zero());
     let wall = ruling::Chart {
@@ -1689,7 +1689,7 @@ fn sphere_plane<T: Decide>(
             // A witness picked off the axes. No output keeps it, but W3
             // and the no-event decision read it, so which point decides
             // can follow the computing frame
-            // (`work/issues/a-section-certificates-witness-point-is-picked-off-the-axes.md`).
+            // (`work/orbit/a-section-certificates-witness-point-is-picked-off-the-axes.md`).
             let (b1, _) = n.orthonormal_basis();
             lone(cs - n * d + b1 * rad)
         }

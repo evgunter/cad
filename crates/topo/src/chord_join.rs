@@ -284,7 +284,7 @@ pub enum SplitJoinError {
     ///
     /// A section loop that closes on one vertex bounds nothing however
     /// large the section it should be
-    /// (`work/cleave/a-revolved-tube-split-across-its-axis-refuses-a-degenerate-section.md`).
+    /// (`a-revolved-tube-split-across-its-axis-refuses-a-degenerate-section` (closed with CLEAVE: `docs/doc-ledger/cleave-leaves-the-tracker.md`)).
     /// A pinch at a vertex does not reach it: the split's reduction keeps
     /// one vertex per piece round a vertex on each side, so pieces
     /// meeting there do not share one. A pinch along an edge in the
@@ -301,7 +301,7 @@ pub enum SplitJoinError {
     /// A slit trace whose tree holds an edge that is not a line: its
     /// slit would be two coincident curved edges, which no contact record
     /// backs and tier 3′ refuses
-    /// (`work/cleave/a-curved-slit-fails-tier-3-prime-on-its-two-coincident-arcs.md`).
+    /// (`work/heldrecords/a-curved-slit-fails-tier-3-prime-on-its-two-coincident-arcs.md`).
     CurvedSlitTrace {
         /// The completed null face.
         face: FaceKey,
@@ -659,8 +659,14 @@ fn order_ending(diag: &Indeterminate) -> String {
     }
 }
 
-impl core::fmt::Display for SplitJoinError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl SplitJoinError {
+    fn write(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        at: Option<geom_brep::recourse::ReadAt>,
+    ) -> core::fmt::Result {
+        use core::fmt::Display as _;
+        use geom_brep::recourse::read_at;
         match self {
             Self::OrderEscalated { diag } => write!(
                 f,
@@ -686,7 +692,7 @@ impl core::fmt::Display for SplitJoinError {
                 f,
                 "an arc lying in the cut, wrapped round at both ends by the material \
                  across it, would leave two coincident arcs that no contact record backs \
-                 (`work/cleave/a-curved-slit-fails-tier-3-prime-on-its-two-coincident-arcs.md`). \
+                 (`work/heldrecords/a-curved-slit-fails-tier-3-prime-on-its-two-coincident-arcs.md`). \
                  {}",
                 geom_core::NOT_YET_ENDING
             ),
@@ -744,7 +750,7 @@ impl core::fmt::Display for SplitJoinError {
                 geom_core::KERNEL_DEFECT_ENDING
             ),
             Self::Band(e) => write!(f, "{e}"),
-            Self::Euler(e) => write!(f, "an Euler operation refused: {e}"),
+            Self::Euler(e) => write!(f, "an Euler operation refused: {}", read_at(e, at)),
             Self::SectionEndEscalated {
                 reading: SectionEndReading::OnPlane,
                 diag,
@@ -773,12 +779,16 @@ impl core::fmt::Display for SplitJoinError {
                     }
                     _ => "whether a section curve lies on the surfaces it is cut from",
                 };
-                let ending = geom_brep::recourse::Unsized::Fit.recourse(
-                    geom_brep::recourse::RefusedArm::Undecided(diag),
-                    geom_brep::recourse::Reading::Build,
-                );
-                diag.undecided(subject, format!("{SECTION_UNRESOLVED_CAUSE} {ending}"))
-                    .fmt(f)
+                let ending = at.map(|at| {
+                    let ending = geom_brep::recourse::Unsized::Fit
+                        .recourse(geom_brep::recourse::RefusedArm::Undecided(diag), at);
+                    format!("{SECTION_UNRESOLVED_CAUSE} {ending}")
+                });
+                write!(
+                    f,
+                    "{}",
+                    geom_brep::recourse::undecided_at(diag, subject, ending)
+                )
             }
             Self::SectionUnresolved {
                 miss:
@@ -789,15 +799,22 @@ impl core::fmt::Display for SplitJoinError {
                     },
                 ..
             } => {
-                let ending = geom_brep::recourse::Unsized::Fit.recourse(
-                    geom_brep::recourse::RefusedArm::SignCertain(Some(*margin)),
-                    geom_brep::recourse::Reading::Build,
-                );
                 write!(
                     f,
                     "a section curve's end misses its vertex: {check} at sample {sample} is \
-                     {margin:e}, definitely past the tolerance. {SECTION_WITHIN_CAUSE} {ending}"
-                )
+                     {margin:e}, definitely past the tolerance"
+                )?;
+                match at {
+                    Some(at) => write!(
+                        f,
+                        ". {SECTION_WITHIN_CAUSE} {}",
+                        geom_brep::recourse::Unsized::Fit.recourse(
+                            geom_brep::recourse::RefusedArm::SignCertain(Some(*margin)),
+                            at,
+                        )
+                    ),
+                    None => Ok(()),
+                }
             }
             // The join keeps the carrier constructor's subject and
             // offers its own door's levers.
@@ -812,7 +829,11 @@ impl core::fmt::Display for SplitJoinError {
                 diag.payload()
             ),
             Self::Section { source, .. } => {
-                write!(f, "the section through a curved face refused: {source}")
+                write!(
+                    f,
+                    "the section through a curved face refused: {}",
+                    read_at(source, at)
+                )
             }
             Self::OpenConicChord { conic, .. } => write!(
                 f,
@@ -855,7 +876,7 @@ impl core::fmt::Display for SplitJoinError {
                 // Worded by what was read and ended by the one map; a
                 // refusal that carried no read is no incidence refusal.
                 let Some(read) = R::of(refusal) else {
-                    return write!(f, "{refusal}");
+                    return write!(f, "{}", read_at(refusal, at));
                 };
                 let what = match read {
                     _ if read.is_definite() && !matches!(read, R::Off(_)) => {
@@ -865,11 +886,11 @@ impl core::fmt::Display for SplitJoinError {
                     R::AtPose(_) => "sits, within the band, where it holds no curve of its kind",
                     R::Undecided(_) => "is not shown on it",
                 };
-                write!(
-                    f,
-                    "an edge of a {kind} face the join divides {what}. {}",
-                    read.ending(geom_brep::recourse::Reading::Build)
-                )
+                write!(f, "an edge of a {kind} face the join divides {what}")?;
+                match at {
+                    Some(at) => write!(f, ". {}", read.ending(at)),
+                    None => Ok(()),
+                }
             }
             Self::RunImageNotYet { kind, .. } => write!(
                 f,
@@ -942,6 +963,8 @@ impl core::fmt::Display for SplitJoinError {
         }
     }
 }
+
+geom_brep::ended_by_write!(SplitJoinError);
 
 impl std::error::Error for SplitJoinError {}
 
@@ -6592,12 +6615,12 @@ mod tests {
                     // straddle's enclosure reads as subdividable is open on the
                     // cleave row `split-escalations-end-a-poisoned-margin-in-the-plane-lever`.)
                     assert!(
-                        err.to_string().contains(&format!(
+                        err.render(geom_brep::recourse::Reading::Build).contains(&format!(
                             "{}. Recourse: subdivide the parameter box for a tighter enclosure, or \
                          move the geometry",
                             diag.payload()
                         )),
-                        "k = {k}: {err}"
+                        "k = {k}: {err_at}", err_at = err.render(geom_brep::recourse::Reading::Build)
                     );
                 }
             },
@@ -6876,7 +6899,7 @@ mod tests {
                     escalation,
                     diag,
                 })
-                .to_string();
+                .render(geom_brep::recourse::Reading::Build);
                 assert_eq!(
                     text,
                     format!(
@@ -7018,7 +7041,8 @@ mod tests {
     #[test]
     fn section_area_pair_carries_the_shared_recourse() {
         let face = FaceKey::default();
-        let msg = SplitJoinError::DegenerateSection { face }.to_string();
+        let msg =
+            SplitJoinError::DegenerateSection { face }.render(geom_brep::recourse::Reading::Build);
         assert_eq!(msg.matches(JOIN_RECOURSE).count(), 1, "{msg}");
         assert!(!msg.contains("declare"), "{msg}");
 
@@ -7031,7 +7055,7 @@ mod tests {
                 terminal_sliver: false,
             },
         }
-        .to_string();
+        .render(geom_brep::recourse::Reading::Build);
         assert_eq!(msg.matches(JOIN_RECOURSE).count(), 1, "{msg}");
         assert!(!msg.contains("declare"), "{msg}");
     }
@@ -8481,7 +8505,7 @@ mod pole_branch_rows {
         let Err(e @ SplitJoinError::PoleEdgesCoincide { .. }) = got else {
             panic!("an exact overlap at the pole: {got:?}");
         };
-        let said = e.to_string();
+        let said = e.render(geom_brep::recourse::Reading::Build);
         assert!(
             said.contains("overlap") && said.contains("cusp"),
             "the refusal names both readings: {said}"
@@ -8667,7 +8691,7 @@ mod run_image_incidence {
                 matches!(mapped, SplitJoinError::RunImageIncidence { .. }),
                 "{refusal:?}: {mapped:?}"
             );
-            let text = mapped.to_string();
+            let text = mapped.render(geom_brep::recourse::Reading::Build);
             assert!(text.contains(ending), "{refusal:?}: {text}");
             assert_eq!(
                 text.matches("Recourse").count() + text.matches("defect").count(),

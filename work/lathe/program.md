@@ -8,8 +8,8 @@ group: kernel/sweep/loft
 prefix: lathe/
 tag: (LATHE orchestrator)
 ab_band: 18400-18499
-paths: [crates/sweep/src/extrude.rs, crates/sweep/src/revolve/*, crates/sweep/src/swept.rs, crates/sweep/src/lib.rs, crates/sweep/README.md, crates/sweep/src/skin.rs, crates/sweep/src/loft.rs]
-keep_out: [OPENED 2026-10-31 by CARVE's fourth priority-seam cut (work/README.md Track size) when CARVE measured 71 budget points - CARVE keeps the loft and sweep rows on the same crate and the revolve's other decisions and refusals on revolve/* came here with CARVETAIL, so run scripts/work.py territory on your branch and announce the seam where changes are coupled, STRUT holds the rule-with-several-homes rows on extrude.rs, the full revolve's one band is FOREIGN's ruling (PR 6014; FOREIGN is now IMPORTGATE) and its import flip waits on this program's build, editor-core's derived-frame rows are INLANE's and SYM's - a fix here that moves them is announced on their logs, CARVETAIL merged in on 2026-11-02 (docs/doc-ledger/carvetail-leaves-the-tracker.md) - its notes: opened 2026-10-06 by CARVE's second priority-seam cut (work/README.md Track size) when CARVE measured 62.5 budget points - CARVE keeps its seven P0 rows on the same files and is active on them - so run scripts/work.py territory on your branch and announce the seam in the PR where the changes are coupled - STRUT took the two rows whose charter is one rule with several homes (extrude-arc-walls-are-ruled-in-n-not-w and sweep-body-makes-every-caller-derive-its-start-frame) - three rows here are parked on the D10 hold (work/intent/d10-one-way-to-say-intent-is-unbuilt.md) and each says why in its own body]
+paths: [crates/sweep/src/extrude.rs, crates/sweep/src/revolve/*, crates/sweep/src/swept.rs, crates/sweep/src/lib.rs, crates/sweep/README.md, crates/sweep/src/skin.rs, crates/sweep/src/loft.rs, crates/sweep/src/loft/*]
+keep_out: [OPENED 2026-10-31 by CARVE's fourth priority-seam cut (work/README.md Track size) when CARVE measured 71 budget points - CARVE keeps the loft and sweep rows on the same crate and the revolve's other decisions and refusals on revolve/* came here with CARVETAIL, so run scripts/work.py territory on your branch and announce the seam where changes are coupled, STRUT holds the rule-with-several-homes rows on extrude.rs, the full revolve's one band is FOREIGN's ruling (PR 6014; FOREIGN is now IMPORTGATE) and its import flip waits on this program's build, editor-core's derived-frame rows are INLANE's and SYM's - a fix here that moves them is announced on their logs, CARVETAIL merged in on 2026-11-02 (docs/doc-ledger/carvetail-leaves-the-tracker.md) - its notes: opened 2026-10-06 by CARVE's second priority-seam cut (work/README.md Track size) when CARVE measured 62.5 budget points - CARVE keeps its seven P0 rows on the same files and is active on them - so run scripts/work.py territory on your branch and announce the seam in the PR where the changes are coupled - STRUT took the two rows whose charter is one rule with several homes (extrude-arc-walls-are-ruled-in-n-not-w and sweep-body-makes-every-caller-derive-its-start-frame) - three rows here were parked on the D10 hold - which lifted when INTENT closed on 2026-10-30 (#6103) - and each says in its own body what it waits on now - CARVE closed on 2026-11-03 (Ev, in chat; docs/doc-ledger/carve-leaves-the-tracker.md) with nothing dispatchable - its two parked rows (the self-overlapping spine's embedding certificate on CLEAR's window door, and the sweep doors' tier-3 gate on ONEHOME's gate home) moved here, and crates/sweep/src/loft/* came with them for the pinned-corner door in stacking.rs - BAND holds blend/* fillet.rs and chamfer.rs, STRUT test_support.rs]
 ---
 
 **The bodies extrude and revolve build, and the readings they refuse
@@ -47,7 +47,8 @@ and not on the stored vertices. Three refusal-text rows hold the
 sweep verbs' refusals to the shape guard and the word budget, and give
 the revolve angle's refusals the recourse the pattern step's have.
 
-Three more rows are parked on the D10 hold (INTENT builds it), and
-each row's body says which part of D10 it waits on: the half-revolve's
-caps, the loft's declared-continuation walls and the opposite-turning
-loft joint.
+Three more rows were parked on the D10 hold, which lifted when INTENT
+closed (2026-10-30, #6103): the half-revolve's caps and the loft's
+declared-continuation walls are released and open, and the
+opposite-turning loft joint is parked on its own blocker
+(`self-overlapping-spines-build-and-validate`).

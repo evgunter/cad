@@ -128,7 +128,7 @@ pub(crate) fn feature_row_ui(
                 egui::Checkbox::new(&mut shown, "shown"),
             );
             let toggle = match hide_refusal {
-                Some(refusal) => toggle.on_disabled_hover_text(refusal.to_string()),
+                Some(refusal) => toggle.on_disabled_hover_text(crate::shown(refusal)),
                 None => toggle,
             };
             if toggle.changed() {
@@ -320,7 +320,11 @@ fn lines_under(ui: &mut egui::Ui, row: &TreeRow, theme: &Theme) -> Option<Recipe
         Some(Readout::Asserted(asserted)) => match &asserted.verdict {
             AssertionVerdict::Unevaluated {
                 reason: reason @ UnevaluatedReason::Indeterminate { .. },
-            } => advisory_line(ui, &reason.to_string(), theme),
+            } => advisory_line(
+                ui,
+                &reason.render(pncad::geom_brep::recourse::Reading::AtRest),
+                theme,
+            ),
             AssertionVerdict::Holds { .. }
             | AssertionVerdict::Violated { .. }
             | AssertionVerdict::Clearance(_) => {}
@@ -1532,7 +1536,7 @@ mod tests {
         let reason = match verdict_of(&fixture, fixture.indeterminate) {
             AssertionVerdict::Unevaluated {
                 reason: reason @ UnevaluatedReason::Indeterminate { .. },
-            } => reason.to_string(),
+            } => reason.render(pncad::geom_brep::recourse::Reading::AtRest),
             other => panic!("the premise: a margin of 2ε is in the sliver band: {other:?}"),
         };
         let state = state_of(&fixture, fixture.indeterminate);

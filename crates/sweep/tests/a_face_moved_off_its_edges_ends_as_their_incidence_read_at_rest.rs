@@ -139,7 +139,7 @@ fn incidence_findings(what: &str, errors: &[ValidationError]) -> Vec<(IncidenceR
             );
         }
         if let Some(read) = e.incidence_read() {
-            reads.push((read, e.to_string()));
+            reads.push((read, e.render(geom_brep::recourse::Reading::AtRest)));
         }
     }
     reads

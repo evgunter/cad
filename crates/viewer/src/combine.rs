@@ -1656,8 +1656,12 @@ pub enum DuplicateFault {
     },
 }
 
-impl core::fmt::Display for DuplicateFault {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl DuplicateFault {
+    fn write(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        at: Option<pncad::geom_brep::recourse::ReadAt>,
+    ) -> core::fmt::Result {
         match self {
             Self::NotLanded => f.write_str(
                 "the document has not evaluated yet, so there is no body to measure a copy's \
@@ -1684,7 +1688,8 @@ impl core::fmt::Display for DuplicateFault {
             ),
             Self::Unmeasured { input, error } => write!(
                 f,
-                "{input}'s body could not be measured for the copy's step: {error}"
+                "{input}'s body could not be measured for the copy's step: {}",
+                pncad::geom_brep::recourse::read_at(error, at)
             ),
             Self::NoExtent { input } => {
                 write!(f, "{input}'s body has no width to step a copy by")
@@ -1697,6 +1702,8 @@ impl core::fmt::Display for DuplicateFault {
         }
     }
 }
+
+pncad::geom_brep::ended_by_write!(DuplicateFault);
 
 impl core::error::Error for DuplicateFault {}
 

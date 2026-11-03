@@ -2140,7 +2140,7 @@ class TestCrosslapGlued(unittest.TestCase):
     through edges the boolean's carve of its discarded material killed
     (`BooleanNaming::carved_lineage`), so they are named as those
     pieces, and no chord reads through to the merged face's several
-    constituents (`work/wire/a-merged-face-with-several-same-side-constituents-has-no-chord-rule.md`)."""
+    constituents (`a-merged-face-with-several-same-side-constituents-has-no-chord-rule` (closed with WIRE: `docs/doc-ledger/wire-leaves-the-tracker.md`))."""
 
     def beams(self, doc):
         a = slab(doc, (0, 4), (1.75, 2.25), (0, 0.5))

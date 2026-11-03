@@ -21,7 +21,7 @@ So one refusal sentence now prints one format. Two sibling renderings of the sam
 - **geom-core `predicate.rs`, `impl Display for IndeterminatePayload`** (SCALAR): every arm prints `{margin:e}` and the band's `({zero:e}, {escalate:e})`. Every undecided arm's payload goes through it.
 - **sweep `blend/mod.rs`, `impl Display for ClassifiedMargin`** (owner: BAND / CARVE, per `work.py territory`): it prints `margin {reading:e} m` and `band ({zero:e}, {escalate:e})`. It does so on purpose, to match `IndeterminatePayload` (its doc comment cites the E3 review), so it moves with that payload, not on its own.
 
-The bare-`{}` population is the separate row `work/issues/refusal-floats-outside-the-spline-stack-render-through-f64-display.md`, which also notes the `{:e}` sites as a second spelling.
+The bare-`{}` population is the separate row `work/reroute/refusal-floats-outside-the-spline-stack-render-through-f64-display.md`, which also notes the `{:e}` sites as a second spelling.
 
 ## Ask
 

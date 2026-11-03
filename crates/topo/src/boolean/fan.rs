@@ -333,7 +333,8 @@ pub(super) enum Conditioned {
 /// arithmetic, and the rulings' turn about the axes' plane is read off
 /// `a₁ × a₂`, whose components each round by about `2u` (`u` the unit
 /// roundoff) on a length `s = ‖a₁ × a₂‖`: a direction placed to `~4u/s`,
-/// so a ruling at `arm` to `arm·4u/s`. Asked only where the fans cross
+/// so a ruling at `arm` to `arm·4u/s`
+/// ([`geom_core::running::direction_rounding`]). Asked only where the fans cross
 /// along rulings, which is all it gates.
 ///
 /// # Errors
@@ -345,7 +346,7 @@ pub(super) fn conditioned<T: Decide>(
     arm: Lever<T>,
     band: Band,
 ) -> Result<Conditioned, geom_core::Indeterminate> {
-    let spread = arm.length() * T::from_f64(4.0 * geom_core::UNIT_ROUNDOFF) / s;
+    let spread = geom_core::running::direction_rounding(arm.length()) / s;
     Ok(
         match decide("bool_fans_meet_conditioning", Margin::of(spread), band)? {
             Sign::Zero => Conditioned::Read,
@@ -709,7 +710,7 @@ mod rows {
                         meeting((Operand::A, None, &a), (Operand::B, None, b), band)
                     };
                     let lever = arm * tilt.sin();
-                    let spread = arm * 4.0 * geom_core::UNIT_ROUNDOFF / tilt.sin();
+                    let spread = geom_core::running::direction_rounding(arm) / tilt.sin();
                     let apart = lever > 20.0 * eps;
                     let coaxial = lever < 0.5 * eps;
                     match meet(&fan_at(tilted(tilt), 0.6, 2, arm)) {

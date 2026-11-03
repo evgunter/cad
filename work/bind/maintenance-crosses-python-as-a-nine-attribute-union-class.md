@@ -4,7 +4,7 @@ kind: issue
 title: Maintenance crosses Python as one class with nine attributes, seven of them None for a strand
 status: open
 opened: 2026-09-16
-refs: [2753, payload-accessor-wildcards-remain-in-checks-and-assembly]
+refs: [2753]
 priority: P4
 cost: E
 ---

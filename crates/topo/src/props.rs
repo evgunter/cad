@@ -44,7 +44,7 @@ use geom_brep::props::quad::{LaneEnd, LaneRun, LaneStop, RoundWindow};
 use geom_brep::props::{
     CarrierId, FaceContribution, LoopEdge, PropsError, curved_face_holding, planar_face,
 };
-use geom_brep::recourse::{Classified, Reading, RefusedArm, RefusedSide, SizedDecision, SizedPass};
+use geom_brep::recourse::{Classified, RefusedArm, RefusedSide, SizedDecision, SizedPass};
 use geom_core::interval::{self, Interval};
 use geom_core::k_stats::Detached;
 use geom_core::{
@@ -308,15 +308,20 @@ pub enum MassPropsError {
     },
 }
 
-impl fmt::Display for MassPropsError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl MassPropsError {
+    fn write(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        at: Option<geom_brep::recourse::ReadAt>,
+    ) -> core::fmt::Result {
         match self {
             Self::Band { error } => {
                 write!(f, "the volume and surface area cannot be computed: {error}")
             }
             Self::Face { source, .. } => write!(
                 f,
-                "a face's share of the volume and surface area cannot be computed: {source}"
+                "a face's share of the volume and surface area cannot be computed: {}",
+                geom_brep::recourse::read_at(source, geom_brep::recourse::at_rest(at))
             ),
             Self::RingOnCurvedFace { .. } => write!(
                 f,
@@ -373,6 +378,8 @@ impl fmt::Display for MassPropsError {
         }
     }
 }
+
+geom_brep::ended_by_write!(MassPropsError);
 
 impl std::error::Error for MassPropsError {}
 
@@ -2853,7 +2860,8 @@ mod face_walk_composition_tests {
         let log = bracket.finish();
         assert!(
             matches!(err, MassPropsError::Corrupt { what } if what == "the injected refusal"),
-            "the fold reported another face's refusal: {err}"
+            "the fold reported another face's refusal: {err_at}",
+            err_at = err.render(geom_brep::recourse::Reading::AtRest)
         );
         assert_eq!(
             log.verdicts.iter().map(|v| v.predicate).collect::<Vec<_>>(),
@@ -3252,7 +3260,8 @@ mod continuation_refusal_order_tests {
         let err = refusal_at(1);
         assert!(
             !matches!(err, MassPropsError::Face { face, .. } if face == FaceKey::null()),
-            "the continuation refused on the face short of the resolution: {err}"
+            "the continuation refused on the face short of the resolution: {err_at}",
+            err_at = err.render(geom_brep::recourse::Reading::AtRest)
         );
     }
 
@@ -3270,7 +3279,10 @@ mod continuation_refusal_order_tests {
         let measured = certificate(&body, vec![run_of(skeletal, LaneStop::Wall)])
             .measure(crate::test_support::pinned_resolution(Tol::witness()))
             .unwrap_or_else(|err| {
-                panic!("the continuation resumed a face its lane had stopped: {err}")
+                panic!(
+                    "the continuation resumed a face its lane had stopped: {err_at}",
+                    err_at = err.render(geom_brep::recourse::Reading::AtRest)
+                )
             });
         assert_eq!(measured.stop, Stop::Wall, "the bracket, at the wall");
     }
@@ -3278,8 +3290,14 @@ mod continuation_refusal_order_tests {
     #[test]
     fn the_reported_refusal_is_the_same_at_four_threads() {
         assert_eq!(
-            format!("{}", refusal_at(4)),
-            format!("{}", refusal_at(1)),
+            format!(
+                "{}",
+                refusal_at(4).render(geom_brep::recourse::Reading::AtRest)
+            ),
+            format!(
+                "{}",
+                refusal_at(1).render(geom_brep::recourse::Reading::AtRest)
+            ),
             "the refusal the continuation names moved with the pool width"
         );
     }
@@ -5766,9 +5784,9 @@ impl fmt::Display for VolumeEnd {
     }
 }
 
-/// What a [`ShellClassifyError`] found, without the shell's key or a
-/// stage label: the one text its `Display` and a document-level finding
-/// both render.
+/// What a [`ShellClassifyError`] found, without the shell's key, a
+/// stage label or an ending: the one text its payload `Display` and a
+/// document-level finding both write.
 #[derive(Clone, Copy, Debug)]
 pub struct ShellClassifyPayload<'a>(&'a ShellClassifyError);
 
@@ -5873,35 +5891,38 @@ impl ShellClassifyError {
             | Self::SignUnresolved { .. } => geom_brep::recourse::Unsized::Defect.recourse(arm, at),
         })
     }
-
-    /// [`ShellClassifyError::recourse`] read at a build, where the shell
-    /// door's own `Display` reads it. A reader over stored geometry reads
-    /// it at rest itself, where a poisoned margin's note names the file.
-    #[must_use]
-    pub fn ending(&self) -> Option<String> {
-        self.recourse(Reading::Build)
-    }
 }
 
-impl fmt::Display for ShellClassifyError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl ShellClassifyError {
+    fn write(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        at: Option<geom_brep::recourse::ReadAt>,
+    ) -> core::fmt::Result {
         match self {
             Self::Band { .. } => write!(f, "the shells cannot be classified: {}", self.payload()),
             Self::Escalated { .. }
-            | Self::Props { .. }
             | Self::ZeroVolume { .. }
             | Self::Straddles { .. }
             | Self::SignUnresolved { .. }
             | Self::RayInBand { .. }
-            | Self::Corner { .. }
-            | Self::Ray { .. } => write!(f, "{}", self.payload()),
+            | Self::Corner { .. } => write!(f, "{}", self.payload()),
+            // A nested refusal ends where it is read.
+            Self::Ray { source, .. } => {
+                return write!(f, "{}", geom_brep::recourse::read_at(source, at));
+            }
+            Self::Props { source, .. } => {
+                return write!(f, "{}", geom_brep::recourse::read_at(source, at));
+            }
         }?;
-        match self.ending() {
+        match at.and_then(|at| self.recourse(at)) {
             Some(ending) => write!(f, ". {ending}"),
             None => Ok(()),
         }
     }
 }
+
+geom_brep::ended_by_write!(ShellClassifyError);
 
 impl std::error::Error for ShellClassifyError {}
 
@@ -8182,7 +8203,7 @@ mod recourse_tests {
         ];
         assert_eq!(arms.len(), 5, "an arm was added without a row here");
         for arm in &arms {
-            let msg = arm.to_string();
+            let msg = arm.render(geom_brep::recourse::Reading::AtRest);
             let lower = msg.to_lowercase();
             // Where there is no way through, the sentence says so.
             assert!(

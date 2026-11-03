@@ -47,6 +47,10 @@
 //! refusal the pass types past the band's own escalation, and a face
 //! holding a lone vertex (a pierce ring), which has no boundary pre-pass:
 //! the caller keeps its frontier door.
+//!
+//! The rows cited here (`full_turn_bore_mate`, `a_closed_conic_in_the_partners_face`,
+//! `sheets_part_on_slanted_rims`, `face_face_touch`) live in
+//! `crates/sweep/tests`.
 
 use geom_brep::curve_face::{self, Boundary, BoundaryRefusal};
 use geom_brep::curve_pair::{MeetFault, Span};
@@ -70,6 +74,9 @@ pub(super) enum BoundaryCrossing<T: geom_core::Real> {
         at: FaceContainment,
         /// The margin that decided `p` on that boundary entity.
         margin: geom_core::MarginDiag,
+        /// The meeting's parameter on the boundary edge `at` names
+        /// ([`Held`]).
+        on_edge: Option<Held<T>>,
     },
     /// Certified: no boundary vertex or crossing lies strictly inside the
     /// edge. Its interior meets the boundary nowhere, or runs along one
@@ -117,9 +124,17 @@ pub(super) fn boundary_crossing<T: Decide>(
     band: Band,
 ) -> Result<BoundaryCrossing<T>, BooleanError> {
     let swept = Span::new(carrier, (t0, t1));
-    let t = match read_boundary(y, face, &swept, band)? {
-        Some(Ok(Boundary::Meets { t, .. })) => t,
-        Some(Ok(Boundary::Along { .. } | Boundary::Clear)) => return Ok(BoundaryCrossing::Clear),
+    let (t, held) = match read_boundary(y, face, &swept, band)? {
+        Some(Ok(HeldBoundary {
+            boundary: Boundary::Meets { t, .. },
+            held,
+        })) => (t, held),
+        Some(Ok(HeldBoundary {
+            boundary: Boundary::Along { .. } | Boundary::Clear,
+            ..
+        })) => {
+            return Ok(BoundaryCrossing::Clear);
+        }
         Some(Err(BoundaryRefusal::Touch(diag))) => return Ok(BoundaryCrossing::Touch(diag)),
         Some(Err(refusal)) => {
             return boundary_refusal(refusal, (y_is.other(), face, edge), on_carrier)
@@ -132,14 +147,21 @@ pub(super) fn boundary_crossing<T: Decide>(
         match super::contain::curved_boundary_containment(y, face, p, band)
             .map_err(|e| super::reduce::esc(e, y_is, face))?
         {
-            Some((at, margin)) => BoundaryCrossing::At { t, p, at, margin },
+            Some((at, margin)) => BoundaryCrossing::At {
+                t,
+                p,
+                at,
+                margin,
+                on_edge: held_on(at, held),
+            },
             None => BoundaryCrossing::Unread,
         },
     )
 }
 
 /// **The boundary pass over `face`'s boundary** ([`curve_face::boundary`]),
-/// read against `swept`: its answer or refusal, or `None` where the
+/// read against `swept`: its answer with the parameter its meeting holds
+/// ([`HeldBoundary`]), or its refusal; or `None` where the
 /// boundary holds a lone vertex (a pierce ring), which the pre-pass that
 /// places a crossing cannot read, or an edge with no certified curve,
 /// which the pass cannot. Such a face answers `None` before any decision
@@ -158,14 +180,76 @@ pub(super) fn read_boundary<T: Decide>(
     face: FaceKey,
     swept: &Span<'_, T>,
     band: Band,
-) -> Result<Option<Result<Boundary<T>, BoundaryRefusal>>, BooleanError> {
+) -> Result<Option<Result<HeldBoundary<T>, BoundaryRefusal>>, BooleanError> {
     Ok(face_boundary(y, face)?
         .filter(|b| b.lone.is_empty())
-        .map(|b| curve_face::boundary(swept, &b.spans(), band)))
+        .map(|b| {
+            curve_face::boundary(swept, &b.spans(), band).map(|boundary| {
+                let held = match boundary {
+                    Boundary::Meets {
+                        edge,
+                        on_edge: Some(t),
+                        ..
+                    } => Some(Held {
+                        edge: b.edges[edge].key,
+                        t,
+                    }),
+                    Boundary::Meets { on_edge: None, .. }
+                    | Boundary::Along { .. }
+                    | Boundary::Clear => None,
+                };
+                HeldBoundary { boundary, held }
+            })
+        }))
+}
+
+/// **A split parameter a meeting holds**: the parameter on a boundary
+/// edge's span where the meeting reading put the point strictly inside
+/// that edge ([`Boundary::Meets`]' `on_edge`), and the edge it was read
+/// on. It is minted only by [`read_boundary`] and kept only by
+/// [`held_on`], and it answers its parameter only for its own edge
+/// ([`Self::on`]), so no split can take it for another.
+///
+/// A split at it rather than at the carrier's read-back of the point
+/// (`reduce::split_other_at_point`) is the reading that placed the point
+/// on the edge, certified on the carrier and on the branch inside the
+/// span; a spline has no read-back at all.
+#[derive(Debug, Clone, Copy)]
+pub(super) struct Held<T> {
+    edge: EdgeKey,
+    t: T,
+}
+
+impl<T: Copy> Held<T> {
+    /// The parameter, where `edge` is the edge it was read on.
+    pub(super) fn on(self, edge: EdgeKey) -> Option<T> {
+        (self.edge == edge).then_some(self.t)
+    }
+}
+
+/// The boundary pass's answer, and the parameter its meeting holds.
+#[derive(Debug, Clone, Copy)]
+pub(super) struct HeldBoundary<T: geom_core::Real> {
+    pub(super) boundary: Boundary<T>,
+    pub(super) held: Option<Held<T>>,
+}
+
+/// **The held parameter for the boundary entity the pre-pass placed the
+/// meeting's point on**: kept where the pre-pass names the edge the
+/// meeting lies inside, else dropped, and the split reads the point on
+/// the edge's carrier itself. A meeting at a vertex holds none, and
+/// splits no boundary edge.
+pub(super) fn held_on<T: Copy>(at: FaceContainment, held: Option<Held<T>>) -> Option<Held<T>> {
+    match (at, held) {
+        (FaceContainment::OnEdge(ey), Some(h)) if h.edge == ey => Some(h),
+        _ => None,
+    }
 }
 
 /// A boundary edge as the pass reads it.
 pub(super) struct BoundaryEdge<'a, T: geom_core::Real> {
+    /// The edge.
+    pub(super) key: EdgeKey,
     /// Its half-edge's start vertex, and that vertex's point.
     pub(super) start: (VertexKey, Point3<T>),
     /// Its certified curve.
@@ -244,6 +328,7 @@ pub(super) fn face_boundary<T: Decide>(
                     .start
                 };
                 boundary.edges.push(BoundaryEdge {
+                    key: ek,
                     start: (half.start, start),
                     curve,
                     // A span runs forward from its `he_plus`'s start.
@@ -331,6 +416,43 @@ mod crossing_rows {
     use crate::test_support_fixtures::{CylFrame, cyl_wall_sheet};
     use geom::Curve3;
     use geom_core::{Band, Point3, Tol, Vec3};
+
+    /// **A held parameter is kept only for the edge it was read on**
+    /// ([`super::held_on`]): the pre-pass placing the point on that edge
+    /// keeps it, and one placing it on another edge or at a vertex drops
+    /// it, so the split reads the point on the edge the pre-pass named.
+    #[test]
+    fn a_held_parameter_is_kept_only_for_its_own_edge() {
+        use super::{FaceContainment, Held, held_on};
+        let tol = Tol::witness();
+        let mut body = crate::body::Body::<f64>::new();
+        cyl_wall_sheet(
+            &mut body,
+            CylFrame::canonical(1.0),
+            (0.2, 1.4),
+            (0.0, 1.0),
+            tol,
+        );
+        let mut edges = body.edges().map(|(k, _)| k);
+        let (read_on, other) = (edges.next().unwrap(), edges.next().unwrap());
+        let vertex = body.vertices().map(|(k, _)| k).next().unwrap();
+        let held = Some(Held {
+            edge: read_on,
+            t: 0.25,
+        });
+        let kept = held_on(FaceContainment::OnEdge(read_on), held);
+        assert_eq!(kept.and_then(|h| h.on(read_on)), Some(0.25), "its own edge");
+        assert_eq!(kept.and_then(|h| h.on(other)), None, "and only its own");
+        assert!(
+            held_on(FaceContainment::OnEdge(other), held).is_none(),
+            "another edge"
+        );
+        assert!(
+            held_on(FaceContainment::OnVertex(vertex), held).is_none(),
+            "a vertex"
+        );
+        assert!(held_on(FaceContainment::In, held).is_none(), "the interior");
+    }
 
     #[test]
     fn a_tilted_circle_meets_a_rim_no_vertex_projects_onto() {

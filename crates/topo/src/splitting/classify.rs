@@ -4,7 +4,7 @@
 //! `split_edge` lane — with the conic crossing-root lane for
 //! circle/ellipse carriers.
 
-use geom_brep::recourse::{Reading, RefusedArm, RefusedSide, SizedDecision, SizedPass};
+use geom_brep::recourse::{RefusedArm, RefusedSide, SizedDecision, SizedPass};
 use geom_core::k_stats::NonzeroSign;
 use geom_core::{Band, Decide, Margin, Point3, Sign, Tol};
 use slotmap::SecondaryMap;
@@ -351,12 +351,14 @@ impl CrossingDecision {
         }
     }
 
-    /// The one ending `diag`'s escalation carries, at the operation that
-    /// placed the crossing.
+    /// The one ending `diag`'s escalation carries, read at `at`.
     #[must_use]
-    pub(crate) fn ending_of(self, diag: &geom_core::Indeterminate) -> String {
-        self.sized()
-            .recourse(RefusedArm::Undecided(diag), Reading::Build)
+    pub(crate) fn ending_of(
+        self,
+        diag: &geom_core::Indeterminate,
+        at: impl Into<geom_brep::recourse::ReadAt>,
+    ) -> String {
+        self.sized().recourse(RefusedArm::Undecided(diag), at)
     }
 }
 
@@ -652,7 +654,7 @@ fn span_roots<T: Decide>(
     // reads it only against the span's ends, never as an identity. The
     // `t₀` retry below serves its straddle.
     for c in candidates.into_iter().flatten() {
-        let centred = mid + (c - mid).reduce_periodic_centred(tau);
+        let centred = geom_brep::half_angle::near_midpoint(mid, c);
         let (interior, t) = match verdict_at(centred) {
             Ok(v) => v,
             Err(first) => {
@@ -1210,7 +1212,7 @@ mod tests {
                     edge: crate::EdgeKey::default(),
                     fault,
                 }
-                .to_string();
+                .render(geom_brep::recourse::Reading::Build);
                 assert!(
                     split.contains("within the zero band")
                         && split.ends_with(&format!(
@@ -1223,13 +1225,14 @@ mod tests {
                     decision: BooleanDecision::of_conic_root(fault, DeclarationRead::Moot),
                     diag,
                 }
-                .to_string();
+                .render(geom_brep::recourse::Reading::Build);
                 assert!(
                     boolean.contains("if this gap is intended, tighten the tolerance below")
                         && !boolean.contains("unreadable"),
                     "{label}: the Boolean's sized ending: {boolean}"
                 );
-                let census = crate::ValidationError::CensusEscalated { cause: diag }.to_string();
+                let census = crate::ValidationError::CensusEscalated { cause: diag }
+                    .render(geom_brep::recourse::Reading::AtRest);
                 assert!(
                     census.ends_with(&format!("Recourse: {}", geom_core::COINCIDENCE_RECOURSE))
                         && !census.contains("defect"),

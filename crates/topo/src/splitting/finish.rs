@@ -1043,8 +1043,14 @@ pub(crate) fn rechart_section<T: Decide + crate::props::AtRestPolicy>(
     })
 }
 
-impl core::fmt::Display for SplitFinishError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl SplitFinishError {
+    fn write(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        at: Option<geom_brep::recourse::ReadAt>,
+    ) -> core::fmt::Result {
+        use core::fmt::Display as _;
+        use geom_brep::recourse::read_at;
         match self {
             Self::DegenerateSide { side, .. } => write!(
                 f,
@@ -1062,7 +1068,7 @@ impl core::fmt::Display for SplitFinishError {
                  classify it by"
             ),
             Self::Corrupt => write!(f, "the finish traversal failed (corrupt body)"),
-            Self::Euler(e) => write!(f, "an Euler operation refused: {e}"),
+            Self::Euler(e) => write!(f, "an Euler operation refused: {}", read_at(e, at)),
             Self::Band(e) => write!(f, "{e}"),
             Self::DescribeEscalated { diag, .. } => diag
                 .undecided(
@@ -1090,15 +1096,18 @@ impl core::fmt::Display for SplitFinishError {
                  half-edge ({what}). {}",
                 geom_core::KERNEL_DEFECT_ENDING
             ),
-            Self::DescribeSideEscalated { diag, .. } => diag
-                .undecided(
+            Self::DescribeSideEscalated { diag, .. } => write!(
+                f,
+                "{}",
+                geom_brep::recourse::undecided_at(
+                    diag,
                     geom_brep::MATERIAL_PAIRING_CLAUSE,
-                    geom_brep::MATERIAL_PAIRING.recourse(
-                        geom_brep::recourse::RefusedArm::Undecided(diag),
-                        geom_brep::recourse::Reading::Build,
-                    ),
+                    at.map(|at| {
+                        geom_brep::MATERIAL_PAIRING
+                            .recourse(geom_brep::recourse::RefusedArm::Undecided(diag), at)
+                    }),
                 )
-                .fmt(f),
+            ),
             Self::DescribeBendEscalated { diag, .. } => diag
                 .undecided(
                     "whether two faces touching along the cut curve apart there or share their \
@@ -1174,19 +1183,22 @@ impl core::fmt::Display for SplitFinishError {
             Self::EdgeJoin { side, refusal } => {
                 write!(
                     f,
-                    "the piece on the {} side of the plane: {refusal}",
-                    side.word()
+                    "the piece on the {} side of the plane: {}",
+                    side.word(),
+                    read_at(refusal, at)
                 )
             }
             Self::Merge { side, error } => write!(
                 f,
-                "the piece on the {} side of the plane: {error}",
-                side.word()
+                "the piece on the {} side of the plane: {}",
+                side.word(),
+                read_at(error, at)
             ),
             Self::ResultNotAtRest { side, errors } => crate::validate::write_result_not_at_rest(
                 f,
                 format_args!("the piece on the {} side of the plane", side.word()),
                 errors,
+                at,
             ),
             Self::ResultEscalated {
                 side,
@@ -1202,9 +1214,10 @@ impl core::fmt::Display for SplitFinishError {
                 [first, ..] => write!(
                     f,
                     "the piece on the {} side of the plane is not a closed solid ({} \
-                     finding(s)); the first: {first}",
+                     finding(s)); the first: {}",
                     side.word(),
                     errors.len(),
+                    read_at(first, geom_brep::recourse::at_rest(at)),
                 ),
                 [] => write!(
                     f,
@@ -1216,6 +1229,8 @@ impl core::fmt::Display for SplitFinishError {
         }
     }
 }
+
+geom_brep::ended_by_write!(SplitFinishError);
 
 impl std::error::Error for SplitFinishError {}
 
@@ -1484,7 +1499,7 @@ pub(super) fn split_finish<T: Decide + crate::props::AtRestPolicy>(
 /// keeps its own face** — sound by cancellation for volumes,
 /// point-in-solid and tier 3, though tier 3′ reads what lies inside it
 /// on both faces
-/// (`work/cleave/a-hole-in-an-elliptic-section-keeps-a-face-of-its-own-that-tier-3-prime-refuses.md`).
+/// (`work/heldrecords/a-hole-in-an-elliptic-section-keeps-a-face-of-its-own-that-tier-3-prime-refuses.md`).
 ///
 /// # Errors
 ///
@@ -2552,7 +2567,7 @@ mod smooth_arm_rows {
             };
             let refusal = super::describe_section_boundary(&mut body, face, band, tol())
                 .expect_err("a refused pairing refuses the split");
-            let text = refusal.to_string();
+            let text = refusal.render(geom_brep::recourse::Reading::Build);
             assert!(
                 text.starts_with(concat!(
                     geom_brep::material_pairing_clause!(),
@@ -2592,7 +2607,10 @@ mod smooth_arm_rows {
             };
             let tighter = Band::new(below, k * below).unwrap();
             if let Err(other) = super::describe_section_boundary(&mut body, face, tighter, tol()) {
-                panic!("{label}: refuses again below the offer: {other}");
+                panic!(
+                    "{label}: refuses again below the offer: {other_at}",
+                    other_at = other.render(geom_brep::recourse::Reading::Build)
+                );
             }
         }
     }
@@ -2708,7 +2726,7 @@ mod escalation_endings {
                     diag: Some(diag),
                 },
             ] {
-                let text = refusal.to_string();
+                let text = refusal.render(geom_brep::recourse::Reading::Build);
                 assert!(
                     text.contains(" is undecided: ") && text.ends_with(tail),
                     "the lever alone, got {text}"
@@ -2719,7 +2737,7 @@ mod escalation_endings {
             edge: EdgeKey::default(),
             diag: poisoned,
         }
-        .to_string();
+        .render(geom_brep::recourse::Reading::Build);
         assert!(
             text.contains(&format!("{tail}; ")),
             "a poisoned margin: the lever and the note, got {text}"
@@ -2791,7 +2809,7 @@ mod edge_on_faces_rows {
                     "{check:?} in band on a line, {refusal:?}: {got:?}"
                 );
                 assert_eq!(
-                    got.to_string(),
+                    got.render(geom_brep::recourse::Reading::Build),
                     format!(
                         "whether an edge along the cut lies on both faces it bounds is \
                          undecided: {}. Recourse: move the split plane or the geometry so each \
@@ -2942,7 +2960,7 @@ mod at_rest_rows {
             ),
             "an in-band pair alone escalates on it: {refusal:?}"
         );
-        let msg = refusal.to_string();
+        let msg = refusal.render(geom_brep::recourse::Reading::Build);
         assert!(
             msg.starts_with("the piece on the below side of the plane: ")
                 && msg.contains("whether a shell of the result bounds material or a cavity")

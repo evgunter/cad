@@ -175,7 +175,7 @@ pub(crate) const FILED: &[(&str, &str)] = &[
     ("Blend/SurgeryInvariant", "at face FaceKey"),
     // work/honeword/split-finish-arms-the-weld-renders-fall-short-of-the-shape-guard.md
     ("Split/Finish/Merge", "merge_coplanar_faces"),
-    // work/issues/unowned-viewer-refusals-short-of-the-shape-guard.md
+    // work/chrome/unowned-viewer-refusals-short-of-the-shape-guard.md
     (
         "Naming/SplitLineage",
         "split lineage of edge EdgeKey  cycles",
@@ -231,7 +231,7 @@ pub(crate) const ADMISSIONS: &[Admission<'static>] = &[
 /// through", and none of the shared unlabelled repairs — by exact row
 /// id, grouped under the row that files them with their owner.
 pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
-    // work/wire/wire-refusals-short-of-the-shape-guard.md
+    // wire-refusals-short-of-the-shape-guard (closed with WIRE: docs/doc-ledger/wire-leaves-the-tracker.md)
     "AssertionDimension",
     "CurvedSolidFrontier",
     "DegenerateDirection",
@@ -248,7 +248,7 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "MissingInput",
     "ParamBox/AxisUnrepresentable",
     "ParamBox/UnknownParam",
-    // work/wire/wire-refusals-short-of-the-shape-guard.md
+    // wire-refusals-short-of-the-shape-guard (closed with WIRE: docs/doc-ledger/wire-leaves-the-tracker.md)
     "ShellLaneUnsupported",
     "ToleranceConflict",
     "UnschedulableCycle",
@@ -323,7 +323,7 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "Skin/SectionProfile",
     "Tube/DegenerateWindow",
     "Tube/FullRangeWindow",
-    // work/issues/unowned-viewer-refusals-short-of-the-shape-guard.md
+    // work/chrome/unowned-viewer-refusals-short-of-the-shape-guard.md
     "Check/ChartCoherence(meridian closure)",
     "Check/ChartCoherence(rim)",
     "Check/ChartCoherenceUnexamined(corrupt)",
@@ -655,7 +655,7 @@ const DRIVER_CARRIED: &[&str] = &[
 
 #[test]
 fn every_driver_carried_chain_ends_in_the_operators_own_recourse() {
-    let carried = payloads::euler().to_string();
+    let carried = payloads::euler().render(geom_brep::recourse::Reading::Build);
     let (_, recourse) = carried
         .split_once("Recourse: ")
         .expect("the sample operation refusal states a recourse");
@@ -6061,7 +6061,10 @@ fn every_escalated_check_finding_ends_in_its_decisions_recourse() {
         let words = "the sign of a shell's volume cannot be read: this scalar carries no \
                      interval to certify its sums, and the volume lies within their rounding";
         let ending = geom_core::NOT_YET_ENDING;
-        assert_eq!(source.to_string(), format!("{words}. {ending}"));
+        assert_eq!(
+            source.render(geom_brep::recourse::Reading::Build),
+            format!("{words}. {ending}")
+        );
         let text = render(CheckEvidence::Unsupported {
             source: source.clone(),
         });
@@ -6587,7 +6590,7 @@ fn longest_breach() -> &'static str {
     .max_by_key(|&breach| {
         let detail = "";
         BlendError::BodyNotIntact { at, breach, detail }
-            .to_string()
+            .render(geom_brep::recourse::Reading::Build)
             .split_whitespace()
             .count()
     })

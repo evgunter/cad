@@ -74,7 +74,12 @@ fn both_lanes(op: BooleanOp, a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
         SweepStrategy::Realized,
         Tol::witness(),
     )
-    .unwrap_or_else(|e| panic!("{op:?} (realized): {e}"));
+    .unwrap_or_else(|e| {
+        panic!(
+            "{op:?} (realized): {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        )
+    });
     let idealized = boolean_op_with(
         op,
         a,
@@ -83,7 +88,12 @@ fn both_lanes(op: BooleanOp, a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
         SweepStrategy::Idealized,
         Tol::witness(),
     )
-    .unwrap_or_else(|e| panic!("{op:?} (idealized): {e}"));
+    .unwrap_or_else(|e| {
+        panic!(
+            "{op:?} (idealized): {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        )
+    });
     let rb = realized.body().expect("a body").body.clone().into_body();
     let ib = idealized.body().expect("a body").body.clone().into_body();
     assert_eq!(

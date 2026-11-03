@@ -6,7 +6,7 @@ status: open
 opened: 2026-10-06
 priority: P4
 cost: E
-refs: [intersection-pair-order-is-unpinned-and-extrude-disagrees-with-itself, rule-g-trades-sixteen-of-the-links-carrier-on-surface-2]
+refs: [rule-g-trades-sixteen-of-the-links-carrier-on-surface-2]
 ---
 
 

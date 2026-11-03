@@ -128,6 +128,7 @@ crates/sweep/src/test_support.rs	1	fixture	(core::f64::consts::FRAC_PI_2 / 4.0).
 crates/sweep/src/test_support.rs	4	fixture	<fn>	a fixture's f64 points lifted into T, and its placements' twelve constants admitted again at T
 crates/topo/src/boolean/carrier_touch.rs	1	constant	band.escalate()	the band's escalation width, a tolerance
 crates/topo/src/boolean/circle_roots.rs	1	constant	band.zero()	the band's zero width, a tolerance (a leg's start on the plane, which picks its roots' representative)
+crates/topo/src/boolean/conic_quadric/mod.rs	1	constant	band.escalate()	the band's escalation width, a tolerance (a root bracket's width through the apex)
 crates/topo/src/boolean/join.rs	1	constant	band.zero()	the band's zero width, a tolerance
 crates/topo/src/boolean/mod.rs	1	constant	boxes::sweep_pad(band)	the band's sweep pad, a tolerance
 crates/topo/src/boolean/rim_wedge.rs	1	constant	k	a fixed wrap count
@@ -187,3 +188,4 @@ crates/geom-brep/src/chart_singularity.rs	1	constant	band.escalate()	the band's 
 crates/geom-brep/src/chart_singularity.rs	1	constant	2.0 * (m as f64 + 8.0) * geom_core::UNIT_ROUNDOFF	a summation's rounding factor, from the count of its terms
 crates/geom-brep/src/chart_singularity.rs	1	constant	2.0 * samples.len() as f64	the count of steps a walk's error bound is shared over
 crates/geom-brep/src/chart_singularity.rs	1	constant	c	a half-turn threshold's multiple of π, a literal at each call (±1, ±3)
+crates/topo/src/boolean/sectors.rs	1	constant	k	a quarter cut of a whole turn, a fraction from TurnOrder::quarter_fractions

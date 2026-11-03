@@ -40,6 +40,7 @@
 //! | [`sphere_torus_ssi`], [`cylinder_torus_ssi`], [`torus_torus_ssi`] | **ℝ³** implicit pair, 2×3 SVD | the torus pairs, each past its pose's critical gap, the torus read through its quartic and converted to metres per span (`certify`'s torus arm) |
 //! | [`PlaneSection`] | **ℝ⁴** parametric×parametric, 3×4 SVD | shape (iii)'s substrate — **retired 2026-07-31**, all three limbs (M5 PR 7b); one complete operation read at a seed or whole (`plane`), [`plane_nurbs_ssi`] its whole reading |
 //! | [`Section`] | **ℝ⁴** on two NURBS charts, 3×4 SVD | the shelled loft's wall–wall seams — all three limbs, the third the two-chart tube; one complete operation read at a seed or whole (`pair`) |
+//! | [`ImplicitSection`] | **ℝ²** residual × chart, 1×2 SVD | a cylinder, sphere or ring torus against a NURBS wall where the classification's sweep declines — all three limbs, the third the chart tube read against the partner's form; one complete operation read at a seed or whole (`implicit_chart`) |
 //!
 //! # The plane×NURBS arm's retirement (M5 PR 7b)
 //!
@@ -122,6 +123,7 @@ mod ends;
 pub mod exhaust;
 mod four;
 mod handle;
+mod implicit_chart;
 pub mod jet;
 pub mod march;
 mod one_arc;
@@ -142,7 +144,7 @@ use geom_core::{Band, Indeterminate, MarginDiag, NOT_YET_ENDING, Point3, Real, S
 
 use crate::certify::CertCheck;
 use crate::recourse::{
-    ReadAt, Reading, Refused, RefusedArm, RefusedSide, SizedDecision, Unsized, defect_ending,
+    ReadAt, Refused, RefusedArm, RefusedSide, SizedDecision, Unsized, defect_ending,
 };
 
 pub use boundary::{
@@ -157,6 +159,7 @@ pub use exhaust::{
     SSI_FLOOR, SSI_MAX_CELLS, SSI_SEED_FLOOR,
 };
 pub(crate) use four::{RowCrossing, RowUnreadable, row_crossing, row_piece};
+pub use implicit_chart::ImplicitSection;
 pub use march::{
     BranchEnd, ReachBound, SSI_IDEALIZED_STEP, SSI_NEWTON_ITERS, SSI_NEWTON_TOL,
     SSI_QUADRIC_NOISE_ULPS, SSI_SETTLE_MAX, SSI_SPLINE_NOISE_ULPS, SSI_STEP_DEVIATION,
@@ -172,10 +175,10 @@ use exhaust::{RateClause, SweepFloor, UvRect};
 use march::{MarchContext, MarchTol, Readout, SlabEnd, Trace, march_both, trace_points};
 use system::{Chart, ImplicitPairR3, ParametricPairR4};
 
-/// The two chart-parameter sample sequences of an ℝ⁴ trace — the
-/// coordinate projections that become the two pcurves, on the carrier's
-/// own parameter (the OQ4 identity).
-type ChartSamples<'a> = (&'a [geom_core::Point2<f64>], &'a [geom_core::Point2<f64>]);
+/// The chart-parameter sample sequences of a trace, one per operand
+/// with a chart — the feet that become the pcurves, on the carrier's own
+/// parameter (the OQ4 identity).
+type ChartSamples<'a> = [Option<&'a [geom_core::Point2<f64>]>; 2];
 
 /// A fitted rung-3 branch's curves: the 3-D carrier, and the two
 /// pcurves when the trace shape produced them (the ℝ⁴ shape does; the
@@ -774,6 +777,13 @@ pub enum SsiError {
         /// The settled seed, `(u₁, v₁, u₂, v₂)`.
         state: [f64; 4],
     },
+    /// [`SsiError::SeedOutsideTube`] on the 1×2 residual × chart lane
+    /// ([`ImplicitSection::branch_at`]), whose state is the wall's chart
+    /// point alone.
+    SeedOutsideChartTube {
+        /// The settled seed, the wall's `(u, v)`.
+        state: [f64; 2],
+    },
     /// A NURBS operand's chart cannot carry a length in metres into its
     /// parameters: a chart speed along one axis is zero or has no finite
     /// bound, or the chart is constant across the traced locus. Refused
@@ -928,6 +938,9 @@ impl core::fmt::Display for SsiError {
                 let what = match bound {
                     ReachBound::Geometry => "geometry",
                     ReachBound::Domain => "domain",
+                    ReachBound::Partner => {
+                        "spline face, written about the curved partner's centre or axis,"
+                    }
                 };
                 write!(
                     f,
@@ -1310,6 +1323,11 @@ impl core::fmt::Display for SsiError {
                 "ssi: the branch certified from the seed settled at {state:?} does not hold it \
                  in its uniqueness tube"
             ),
+            Self::SeedOutsideChartTube { state } => write!(
+                f,
+                "ssi: the branch certified from the seed settled at {state:?} on the wall does \
+                 not hold it in its uniqueness tube"
+            ),
             Self::ChartSpeed(r) => write!(f, "ssi: {}", r.what()),
             Self::TubeDegenerate(d) => write!(f, "ssi: {}", d.what()),
             Self::WrongLane { expected } => write!(
@@ -1442,7 +1460,8 @@ impl SsiError {
     /// both through [`SsiError::render`]. No SSI door takes a
     /// declaration, so no ending offers one.
     #[must_use]
-    pub fn ending(&self, reading: Reading) -> String {
+    pub fn ending(&self, reading: impl Into<crate::recourse::ReadAt>) -> String {
+        let reading = reading.into();
         match self {
             Self::TransversalityBand { verdict, .. } => {
                 crate::certify::recourse(CertCheck::Transversality, verdict.arm(), reading)
@@ -1503,6 +1522,7 @@ impl SsiError {
                 let scale = match (r.lane, r.bound) {
                     (ExhaustLane::R3, ReachBound::Geometry) => exhaust::R3_SCALE,
                     (ExhaustLane::R3, ReachBound::Domain) => DOMAIN_SCALE,
+                    (ExhaustLane::R3, ReachBound::Partner) => PARTNER_SCALE,
                     (ExhaustLane::Chart { .. }, _) => exhaust::CHART_SCALE,
                 };
                 scale.recourse(RefusedArm::SignCertain(None), reading)
@@ -1660,7 +1680,9 @@ impl SsiError {
             Self::PairBoundaryUnresolved { .. } | Self::PairRowTangent => {
                 PAIR_BOUNDARY_RECOURSE.to_owned()
             }
-            Self::SeedOutsideTube { .. } => SEED_RECOURSE.to_owned(),
+            Self::SeedOutsideTube { .. } | Self::SeedOutsideChartTube { .. } => {
+                SEED_RECOURSE.to_owned()
+            }
             // Limb 1 with no residual to state: its own decision.
             Self::FootPointInconclusive { .. } => crate::certify::recourse(
                 SsiLimb::OnLocus.check(),
@@ -1703,8 +1725,14 @@ impl SsiError {
     /// The payload and the ending read at `reading`
     /// ([`SsiError::ending`]).
     #[must_use]
-    pub fn render(&self, reading: Reading) -> String {
+    pub fn render(&self, reading: impl Into<crate::recourse::ReadAt>) -> String {
         format!("{self}. {}", self.ending(reading))
+    }
+}
+
+impl crate::recourse::Ended for SsiError {
+    fn ended(&self, at: crate::recourse::ReadAt) -> String {
+        self.render(at)
     }
 }
 
@@ -2165,7 +2193,7 @@ const GRAZE: SizedDecision = SizedDecision {
 const GRAZE_SIDE: &str = "the plane or the curve so they cross";
 
 /// The graze's ending, its lever naming `side` where the curve is one.
-fn graze_recourse(side: Option<ChartSide>, verdict: &BandVerdict, reading: Reading) -> String {
+fn graze_recourse(side: Option<ChartSide>, verdict: &BandVerdict, reading: ReadAt) -> String {
     let text = GRAZE.recourse(verdict.arm(), reading);
     match side {
         Some(side) => text.replacen(
@@ -2249,7 +2277,7 @@ fn step_cap_words(cap: StepCap) -> &'static str {
 /// The step budget's ending, by the rungs that held the branch's steps:
 /// [`SsiError::StepBudget`]'s, and a refinement's that met the budget
 /// while its refused residual was still falling, which the curvature held.
-fn step_budget_recourse(bound: StepBound, reading: Reading) -> &'static str {
+fn step_budget_recourse(bound: StepBound, reading: ReadAt) -> &'static str {
     match bound {
         StepBound::Cap(StepCap::Idealized) | StepBound::Both(StepCap::Idealized) => {
             STEP_BUDGET_IDEALIZED_RECOURSE
@@ -2337,10 +2365,7 @@ const WALL_COLLAPSED_RECOURSE: &str = "Recourse: move the geometry so the spline
 /// exactly what PR 6's cache door checks
 /// (`|S(P(t)) − C(t)| ≤ ε`), and it is why the ℝ⁴ trace discharges OQ4
 /// without any re-plumbing.
-fn fit_branch(
-    points: &[Point3<f64>],
-    charts: Option<ChartSamples<'_>>,
-) -> Result<FittedBranch, SsiError> {
+fn fit_branch(points: &[Point3<f64>], charts: ChartSamples<'_>) -> Result<FittedBranch, SsiError> {
     let params = NurbsCurve3::<f64>::chord_parameters(points)?;
     // **Interpolation, not approximation, and the reason is
     // refinement.** The march aims its spacing at a cubic within ε of
@@ -2357,19 +2382,22 @@ fn fit_branch(
     // through `approximate_with_params` (which exists, and takes the
     // same shared parameters) is a profiled optimization for a later
     // PR, not a semantic change.
-    // One collocation system for the three fits: they share the
-    // parameters, so they share the matrix, factored once.
+    // One collocation system for every fit, the carrier's and each
+    // pcurve's: they share the parameters, so they share the matrix,
+    // factored once.
     let collocation = Collocation::new(&params, SSI_FIT_DEGREE)?;
     let carrier = NurbsCurve3::<f64>::interpolate_on(points, &collocation)?;
-    let (mut pa, mut pb) = (None, None);
-    if let Some((a, b)) = charts {
-        // Pcurves interpolate the traced parameter samples ON THE
-        // CARRIER'S PARAMETERS. Interpolation (not approximation) so
-        // the map is exact at every sample; compaction of a pcurve is
-        // an optimization, and the certificate is what governs.
-        pa = Some(NurbsCurve2::<f64>::interpolate_on(a, &collocation)?);
-        pb = Some(NurbsCurve2::<f64>::interpolate_on(b, &collocation)?);
-    }
+    // Pcurves interpolate the traced parameter samples ON THE CARRIER'S
+    // PARAMETERS, one per side that has a chart. Interpolation (not
+    // approximation) so the map is exact at every sample; compaction of
+    // a pcurve is an optimization, and the certificate is what governs.
+    let [a, b] = charts;
+    let pa = a
+        .map(|a| NurbsCurve2::<f64>::interpolate_on(a, &collocation))
+        .transpose()?;
+    let pb = b
+        .map(|b| NurbsCurve2::<f64>::interpolate_on(b, &collocation))
+        .transpose()?;
     Ok((carrier, pa, pb))
 }
 
@@ -2601,6 +2629,19 @@ impl core::fmt::Display for SsiDecision {
 const DOMAIN_SCALE: SizedDecision = SizedDecision {
     lever: "name a domain around the feature traced, nearer the origin, or move the geometry \
             nearer the origin, where its coordinates resolve the tolerance",
+    size: "scale",
+    passes: SizedPass::Positive,
+    side: RefusedSide::Lever,
+    no_size: None,
+};
+
+/// The march's settling against a curved partner whose own frame reaches
+/// further than its coordinates resolve: the wall's points stand that
+/// far from the partner's centre or axis wherever the scene is placed
+/// ([`ReachBound::Partner`]).
+const PARTNER_SCALE: SizedDecision = SizedDecision {
+    lever: "use a curved partner whose radius is nearer the spline face's own size, or a coarser \
+            tolerance; moving the scene does not move the partner's frame",
     size: "scale",
     passes: SizedPass::Positive,
     side: RefusedSide::Lever,
@@ -3433,7 +3474,7 @@ fn finish_r3(
         band,
         |states, limbs| {
             let points: Vec<Point3<f64>> = states.iter().map(|s| sys.point(s)).collect();
-            let (carrier, _, _) = fit_branch(&points, None)?;
+            let (carrier, _, _) = fit_branch(&points, [None, None])?;
             let cert = certify::certify_located(
                 &carrier,
                 certify::Lane::Spatial {
@@ -4632,7 +4673,7 @@ mod ending_tests {
             Point3::new(2.0, 0.0, 0.0),
             Point3::new(3.0, 0.0, 0.0),
         ];
-        let error = super::fit_branch(&points, None).err();
+        let error = super::fit_branch(&points, [None, None]).err();
         assert!(
             matches!(
                 error,
@@ -4647,7 +4688,7 @@ mod ending_tests {
     }
 
     /// How many arms [`SsiError`] has: [`arm`]'s numbering.
-    const ARMS: usize = 49;
+    const ARMS: usize = 50;
 
     /// Each arm's number. No wildcard: a new arm does not compile until
     /// it is numbered, and [`each_ssi_ending_is_its_decisions`] then
@@ -4703,6 +4744,7 @@ mod ending_tests {
             SsiError::DegenerateTorus(_) => 46,
             SsiError::CoincidentTori => 47,
             SsiError::PairRowTangent => 48,
+            SsiError::SeedOutsideChartTube { .. } => 49,
         }
     }
 
@@ -4800,6 +4842,17 @@ mod ending_tests {
                     bound: ReachBound::Domain,
                     settle: 3e-8,
                     tolerance: 1e-9,
+                }),
+            ),
+            (
+                "settling, partner",
+                SsiError::SettlingUnresolvable(SettlingRefusal {
+                    lane: ExhaustLane::R3,
+                    reach: 1.0e4,
+                    gap: 1.8e-12,
+                    bound: ReachBound::Partner,
+                    settle: 3.6e-12,
+                    tolerance: 1e-12,
                 }),
             ),
             (
@@ -5022,7 +5075,7 @@ mod ending_tests {
             (
                 "unsupported, routing",
                 SsiError::UnsupportedCertificate {
-                    what: super::certify::CHART_TUBE_NEEDS_PLANE,
+                    what: super::certify::CHART_TUBE_NEEDS_FORM,
                 },
             ),
             (
@@ -5210,6 +5263,10 @@ mod ending_tests {
                 SsiError::SeedOutsideTube {
                     state: [0.25, 0.5, 0.75, 0.5],
                 },
+            ),
+            (
+                "seed outside chart tube",
+                SsiError::SeedOutsideChartTube { state: [0.75, 0.5] },
             ),
             (
                 "escalated",
