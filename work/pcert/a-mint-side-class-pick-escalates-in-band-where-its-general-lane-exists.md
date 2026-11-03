@@ -4,6 +4,8 @@ kind: issue
 title: The mint-side class picks (arc rim, iso row) escalate in band, and the arc rim's definite arm refuses IsoUnsupported, where the general lane exists (D3)
 status: open
 opened: 2026-10-20
+priority: P1
+cost: M
 ---
 
 

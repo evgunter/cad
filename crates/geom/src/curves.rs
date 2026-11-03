@@ -556,6 +556,19 @@ impl<T: Real> Curve3<T> {
         }
     }
 
+    /// **Whether the carrier's parameter is an angle**: a circle, an
+    /// ellipse and a spiric oval repeat every turn, so a parameter names
+    /// its point modulo `τ`; a line and a spline do not. The one reading
+    /// of a carrier's period, matched exhaustively so a new kind decides
+    /// here.
+    #[must_use]
+    pub fn is_periodic(&self) -> bool {
+        match self {
+            Curve3::Circle(_) | Curve3::Ellipse(_) | Curve3::Spiric { .. } => true,
+            Curve3::Line(_) | Curve3::Nurbs(_) => false,
+        }
+    }
+
     /// Whether the carrier bends: it does not read as a line
     /// ([`Self::as_line`]). A curved span's chord midpoint is off it, and
     /// its chord is not its extent.
@@ -1444,7 +1457,7 @@ impl<T: SpanLocate> Curve3<T> {
     /// flip, and decided by two unrelated last bits.
     pub fn param_near(&self, p: Point3<T>, near: T) -> Option<T> {
         match self {
-            Curve3::Line(Line { origin, dir }) => Some((p - *origin).dot(*dir)),
+            Curve3::Line(line) => Some(line.param(p)),
             Curve3::Circle(c) => Some(c.param_near(p, near)),
             Curve3::Ellipse(e) => Some(e.param_near(p, near)),
             Curve3::Spiric {
@@ -1494,6 +1507,26 @@ mod tests {
             assert!(
                 (p - foot).dot(line.dir).abs() < 1e-12,
                 "|dir| = {scale}: the way to the foot is square to the line"
+            );
+        }
+    }
+
+    /// **A line's `param_near` is its foot's parameter at any `dir`
+    /// length**: the parameter whose point is the foot, so a reading that
+    /// took `dir` as unit, `t·|dir|²`, fails at every length but one.
+    #[test]
+    fn a_lines_param_near_is_its_foots_at_any_dir_length() {
+        let origin = Point3::new(0.5, -1.0, 2.0);
+        let p = Point3::new(3.0, 1.0, -0.5);
+        for scale in [0.25, 3.0] {
+            let line = Line {
+                origin,
+                dir: Vec3::new(1.0, -2.0, 2.0) / 3.0 * scale,
+            };
+            let t = Curve3::Line(line).param_near(p, 0.0).unwrap();
+            assert!(
+                (line.origin + line.dir * t - line.foot(p)).norm() < 1e-12,
+                "|dir| = {scale}: param_near's point is the foot"
             );
         }
     }

@@ -1057,11 +1057,13 @@ EdgeDescription =
 
 *From:* [pure-model], [unrepresentable].
 
-Plane / cylinder / cone / sphere / torus are first-class variants
-alongside NURBS (as in Parasolid), not converted to NURBS. Most
+Plane / cylinder / cone / sphere / ring torus / spindle sheet are
+first-class variants alongside NURBS (as in Parasolid), not converted to
+NURBS. A spindle sheet is one sheet of a spindle or horn torus, the
+lemon or the apple, with a signed major radius choosing which. Most
 mechanical geometry is analytic; analytic×analytic intersections have
-closed forms, while NURBS×NURBS is a numerical marching problem. A
-seventh variant, `Approx`, is the certified approximating class
+closed forms, while NURBS×NURBS is a numerical marching problem. An
+eighth variant, `Approx`, is the certified approximating class
 (OFFSET-DESIGN O2): a fitted NURBS carrying the intensional description
 of what it approximates plus a certificate bounding the distance,
 re-derived per face and never trusted from storage.
@@ -1070,7 +1072,10 @@ re-derived per face and never trusted from storage.
 objects. Intersection requires pairwise dispatch, and a closed enum
 gives compile-time exhaustiveness, so adding an analytic kind means
 adding a variant and letting the compiler enumerate every dispatch
-site. The `Nurbs` variant is the universal fallback: any exotic surface
+site. A kind is a locus with one chart shape: its chart, implicit
+residual and normal agree at every point, and which of its chart's
+coordinates are periodic and which points are singular is fixed by the
+kind, with no tolerance. The `Nurbs` variant is the universal fallback: any exotic surface
 is at minimum representable. Same design for curves (line / circle /
 ellipse / spiric / NURBS — the spiric is the axis-parallel plane×torus
 section, one oval, in the torus's own minor angle).
