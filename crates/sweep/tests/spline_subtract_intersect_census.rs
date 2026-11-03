@@ -329,6 +329,10 @@ fn case(
     lines
 }
 
+/// A spline operand: its name, the body, its volume, a point inside it
+/// and a point on its wall.
+type Operand<'a> = (&'a str, &'a AtRestBody<f64>, f64, [f64; 3], [f64; 3]);
+
 #[test]
 fn subtract_and_intersect_of_a_spline_operand_refuse_where_union_does_or_build_right() {
     let t = tol();
@@ -338,7 +342,7 @@ fn subtract_and_intersect_of_a_spline_operand_refuse_where_union_does_or_build_r
     let saddle = finished("the saddle block", saddle(), t);
     let mut lines = Vec::new();
     // Each operand, its volume, a point inside it and a point on its wall.
-    let operands: [(&str, &AtRestBody<f64>, f64, [f64; 3], [f64; 3]); 3] = [
+    let operands: [Operand<'_>; 3] = [
         ("loft prism", &prism, 9.0, [0.0, 0.0, 1.0], [0.0, 1.0, 1.0]),
         (
             "lofted cylinder",
