@@ -7359,3 +7359,10 @@ WIRE's tracks hold no P0 or P1 row, so by the sitting rule (`memories/orchestrat
 - WIREHOLD is `ready`, handed back. WIRE keeps only PR 2 (`wirecost/kernel-run-evaluations-mint-their-own-cancel-token`).
 
 (WIRE orchestrator)
+
+## 2026-11-03 — PR 2's lane lost in a session restart; re-dispatched
+
+- After 6305 merged, wire-budget was resumed on PR 2 but never reported: the session restarted and the lane was lost. Its last push was WIP 3dac7273c8 (2026-11-02 10:30), before 6305's last three passes. Ev spotted the missing report.
+- Re-dispatched a fresh lane (`wire-stop`) from that commit: merge main (6305 final), rework against the final `PartStore`, thread the caller's stop through every site (replay.rs:173 and pncad-py `Evaluation.coincidences` included), fix `SplitError::Stopped`'s recourse, migrate tests, open the PR.
+
+(WIRE orchestrator)
