@@ -2125,8 +2125,9 @@ of the node they insert, or a pick.
   `Plane` variable, or a `Frame` read through its `xy`, is taken as the
   plane when the selection names it (`Selection::Variable`); no
   Properties row lists a pose variable, so that pick comes through the
-  selection stream (a driver, the op vocabulary), not a row. `SessionOp::AddSplit` takes the plane as
-  `SplitPlane`: that face, or a plane read written whole. The insert
+  selection stream (a driver, the op vocabulary), not a row.
+  `SessionOp::AddSplit` takes the plane as `SplitPlane`: that face, or a
+  plane read written whole. The insert
   selects the split. Nothing is staged before it: the split's own
   evaluation, read on its tree row, says whether a side is empty.
   After the insert the plane is the split's `OperandSlot::Tool`, which
