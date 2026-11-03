@@ -4,7 +4,7 @@ kind: issue
 title: A meeting the boundary pass finds on a spline boundary edge refuses PointSplitCarrierUnsupported: the split asks param_near for a parameter the meeting already holds
 status: open
 opened: 2026-10-26
-priority: P1
+priority: P0
 cost: M
 refs: [a-span-is-read-against-a-faces-boundary-edges-first, an-analytic-edge-against-a-nurbs-face-has-no-crossing-lane]
 ---
@@ -44,3 +44,7 @@ whatever the boundary leaves undecided is the interior arm's
 Moved from SPLICE to SPLICECARRIER on 2026-10-28, by `git mv` in SPLICE's split along its seams (Track size; Ev, in chat, 2026-10-28).
 
 Moved from SPLICECARRIER to SPLICE on 2026-11-02, by `git mv`, when SPLICECARRIER merged back into SPLICE: the track budget now counts only the P0, P1 and unbanded rows a sitting dispatches (Ev, in chat, 2026-11-02), so the four tracks of SPLICE's 2026-10-28 split came in under one budget.
+
+## Re-banded P0 (2026-11-03)
+
+This row is teapot wall 3's current stop: `demos/tour/src/teapot.rs` `wall_probes` pins `PointSplitCarrierUnsupported { operand: B }` on the spout. A blocker inherits the band of what waits on it (`work/README.md`, Priority), and the demo joins are P0 (`work/issues/curved-demo-joins-build.md`).

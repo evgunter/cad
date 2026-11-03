@@ -4,7 +4,7 @@ kind: issue
 title: the skin cuts a spline wall at each sub-arc joint (a double knot inside an arc wider than MAX_SUB_ARC), so a lofted arc wall carries no C⁰ knot inside it
 status: open
 opened: 2026-10-28
-priority: P1
+priority: P0
 cost: H
 refs: [loft-of-three-or-more-sections-at-degree-one-is-unmeshable]
 ---
@@ -31,3 +31,7 @@ Filed by the TESS orchestrator at the ruling.
 From SPLICE's `splice/rim-sector-clearance`, at ε 1e-9, 1e-6 and 1e-12 alike. With the neck seam cleared at the loop's rim, the union of the bulb and the loop (klein wall 3, `demos/tour/src/klein.rs` `wall3_pinned`) refuses `SplineCrossingUnsettled { edge 4v1, face 3v3, why: Crease }`. Face 3v3 is a half tube of the swept loop, its section two quarter arcs joined at a double knot `u = ½` (`crease_values() == [0.5]`) in the seam plane `y = 0`. The flare cone's seam line, edge 4v1 from `(0.312, 0, 2.443)` along `(½, 0, −√3/2)`, crosses the wall transversally on that joint, near `t ≈ 0.577`, chart `(0.5, 0.819)`. The spline-face arm refuses any meeting on a crease (`geom_brep::curve_face::spline_face`, the crease rule). Once the sweep mints an edge at the joint, as this row owes, the crossing is a meeting on a boundary edge, which the boundary pass reads.
 
 - 2026-11-02 — moved from CARVETAIL to LATHE by `git mv` when CARVETAIL merged into LATHE, id and body unchanged (the track budget now counts only P0, P1 and unbanded rows, and CARVETAIL had fallen far under it).
+
+## Re-banded P0 (2026-11-03)
+
+This row is klein wall 3's current stop: `demos/tour/src/klein.rs` `wall3_pinned` pins `SplineCrossingUnsettled { why: Crease }` on the loop's half-tube joint, the crossing described above. A blocker inherits the band of what waits on it (`work/README.md`, Priority), and the demo joins are P0 (`work/issues/curved-demo-joins-build.md`, which tracks each join's stop). `tier-3-refuses-a-carrier-with-an-interior-c0-knot` stays P1 behind it: it is sequencing, not on klein's path.

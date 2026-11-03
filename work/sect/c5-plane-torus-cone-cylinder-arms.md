@@ -5,8 +5,9 @@ title: C5 table - plane x torus and cone x cylinder section arms (blocking the K
 status: open
 opened: 2026-08-27
 refs: [VERBS-C5ARMS, 1048]
-priority: P1
-cost: H
+priority: P0
+cost: X
+points: 16
 design: true
 ---
 
@@ -184,7 +185,7 @@ stop past the join at two doors filed on their owners
 returns a wrong body. An oval pinched near the inner equator refuses its
 island's winding
 (`work/germ/a-planar-island-on-a-pinched-oval-refuses-its-winding.md`).
-What this row still carries is U-H1, held by D10.
+What this row still carried then was U-H1, held by D10 (the hold lifted on 2026-10-30, below).
 
 
 ## Moved to SECT (2026-10-25)
@@ -207,3 +208,26 @@ spiric quartic this row's general rung holds. The wall pins this
 payload in `demos/tour/src/lily.rs`.
 
 Moved from SECTSITE to SECT on 2026-11-02, by `git mv`, when SECTSITE merged back into SECT: the track budget now counts only the P0, P1 and unbanded rows a sitting dispatches (Ev, in chat, 2026-11-02), so SECT and the three tracks cut from it (SECTTAIL, SECTRUNG, SECTSITE) came in under one budget.
+
+## Re-banded P0 and re-priced X (2026-11-03)
+
+**Band.** This row is lily wall 8's current stop: `demos/tour/src/lily.rs`
+`wall_probes` pins `GermSectionSpiric { section: RoutesToGeneralRung {
+pair: "plane×torus", .. } }`, quoted above. A blocker inherits the band
+of what waits on it (`work/README.md`, Priority), and the demo joins are
+P0 (`work/issues/curved-demo-joins-build.md`).
+
+**The D10 hold has lifted.** INTENT closed on 2026-10-30 with D10's
+umbrella row (#6103, `docs/doc-ledger/intent-leaves-the-tracker.md`), so
+U-H1's touching poses (F0: a torus sector on the plane, the tangent
+circle, the Villarceau pair; `docs/GERM-TORUS-PLANE-FRAME-SPEC.md` §3)
+are dispatchable. Lily wall 8 does not need them: it needs the general
+rung, a tilted plane cutting the spiric quartic.
+
+**Cost.** Open since 2026-08-27, this row has already carried two
+section arms (PRs 1577, 1864) and four units (U-T1 to U-T4) and still
+holds two pieces of different shape: the general-rung plane × torus
+section the lily needs (the ℝ³ implicit pair, whose torus halves exist,
+`cone-torus-rung-three-arm-waits-on-the-cone`'s "What already exists")
+and U-H1. Priced at two hard rows, 16 points; split it when the first
+is dispatched.
