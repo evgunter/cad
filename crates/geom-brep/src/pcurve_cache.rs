@@ -2569,9 +2569,9 @@ impl Lever {
         match self {
             Self::CarrierDomain => crate::CARRIER_DOMAIN_RECOURSE.to_owned(),
             Self::FittedDoor => format!(
-                "Recourse: only a scalar with certification rights holds the fitted door, \
-                 {holders} (the {sym} one over a certifying base): replay the body at one, or, \
-                 if the run is at one already, pass the call its door",
+                "Recourse: replay the body at a scalar with certification rights, which alone \
+                 holds the fitted door ({holders}, the {sym} one over a certifying base), or, if \
+                 the run is at one already, pass the call its door",
                 holders = crate::ScalarList(crate::FITTED_DOOR_HOLDERS),
                 sym = <geom_core::Sym<f64> as geom_core::Real>::NAME,
             ),
