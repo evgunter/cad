@@ -146,7 +146,7 @@ mod verbs_gate_r1_probes {
             .expect_err("the self-intersection still cannot be trimmed");
         println!("klein wall 4: {trimmed:?}");
         assert!(
-            wall4_pinned(&trimmed, &bulb_body, &top),
+            wall4_pinned(&trimmed, &joined, &bulb_body, &top),
             "wall 4 must refuse wall 3's rim arc of the loop on the bulb's neck cylinder: \
              {trimmed:?}"
         );

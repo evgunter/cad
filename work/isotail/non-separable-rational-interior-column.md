@@ -64,8 +64,10 @@ Rational-in-both-directions nets do exist:
   extractor too (a 180° × 90° torus patch at `u* = 0.5` refuses `IsoUnsupported`).
 
 What is missing is a door that places an interior column on such a wall:
-- a cut at a section plane refuses earlier, at
-  `CurvedPairUnsupported { Subtract, RevertRoster, Nurbs, Plane }`;
+- a cut at a section plane refused earlier, at
+  `CurvedPairUnsupported { Subtract, RevertRoster, Nurbs, Plane }`,
+  until SPLICE's PR 6476 deleted the ∖/∩ revert roster (2026-11-03);
+  where such a cut stops now is unmeasured;
 - step-import's edge ladder states no `Chart` description;
 - no sphere or torus has a line on an interior column;
 - the 77 STEP files in the tree hold one rational surface family, and it is constant

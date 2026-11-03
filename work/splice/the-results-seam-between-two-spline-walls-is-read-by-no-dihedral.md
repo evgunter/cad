@@ -56,7 +56,7 @@ the witness, as `classify_dihedral` reads it (bit for bit on two
 analytic faces); a spline face at the witness's parameters on its own
 chart, read off the edge's pcurve on that face
 (`topo::pcurves::pcurve_of` at the middle of the edge's interval,
-`ops::seam_face`), never a foot. There the normal is the chart's
+`pcurves::seam_face`), never a foot. There the normal is the chart's
 `S_u × S_v` through `regular_jet` and `chart_normal_at`, so a seam within
 the band of a crease, a closed chart's seam or an irregular point
 refuses as `EdgeUndescribed { failure: Crease }`, and a spline face with

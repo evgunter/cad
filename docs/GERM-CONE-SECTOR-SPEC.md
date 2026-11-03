@@ -8,6 +8,8 @@ the operand gate and precedes the cone admission spec's U7 (`docs/doc-ledger/ger
 roster flip). The spec is deleted when its last unit merges.
 
 Read on `c333c6ac65`. Line numbers ride beside names and may rot.
+(2026-11-03: `revert_arm_exists`, the second roster §0 names, was
+deleted by SPLICE's PR 6476; every op now reads `boolean_arm_exists`.)
 
 ## 0. Measured: the chain on main
 

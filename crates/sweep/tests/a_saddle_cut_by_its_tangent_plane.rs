@@ -5,19 +5,18 @@
 //! `x = 0` and `z = 0`, a straight section of two lines crossing at a
 //! point. Two smooth carriers meet in two crossing lines only at a
 //! tangency, so the pair is a spline × plane tangent section, which no
-//! lane builds yet: each op refuses typed at the held pierce of the
-//! saddle's wall on the plane, long before the join pairs germs across
-//! the crossing. Its closed
+//! lane builds yet: each op refuses typed at the spline × plane pair, in
+//! the join, where no frame names the wall × plane germ pair's section. Its closed
 //! forms (the block `8`, its part above the plane `1/2`) are the row
 //! `work/splice/a-saddle-cut-by-its-tangent-plane-builds-at-its-closed-form.md`
 //! asks for.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::SurfaceKind::{Nurbs, Plane};
-use geom_core::{Point2, Point3, Tol};
+use geom_core::{Point2, Tol};
 use profile::test_support::bulge_loop;
 use sweep::test_support::{finished, stacked_at};
-use topo::{AtRestBody, BooleanError, FaceKey, Operand, intersect, subtract, union};
+use topo::{AtRestBody, BooleanError, intersect, subtract, union};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -53,74 +52,81 @@ fn above() -> AtRestBody<f64> {
     )
 }
 
-/// The saddle's top wall: its NURBS face whose chart's middle is the
-/// tangency point, the origin.
-fn top_wall(s: &AtRestBody<f64>) -> FaceKey {
-    let walls: Vec<FaceKey> = s
+/// The saddle's top wall: the NURBS face whose net lies on `y = x·z`.
+fn saddle_wall(s: &AtRestBody<f64>) -> topo::FaceKey {
+    let walls: Vec<_> = s
         .faces()
         .filter(|(_, fd)| match s.get_surface(fd.surface) {
             Some(geom::Surface::Nurbs(n)) => {
-                let (u0, u1) = n.knot_values_u().domain();
-                let (v0, v1) = n.knot_values_v().domain();
-                n.eval(0.5 * (u0 + u1), 0.5 * (v0 + v1))
-                    .distance(Point3::origin())
-                    < 1e-12
+                n.control().iter().all(|p| (p.y - p.x * p.z).abs() < 1e-12)
             }
             _ => false,
         })
         .map(|(f, _)| f)
         .collect();
-    assert_eq!(walls.len(), 1, "one wall holds the origin at its middle");
+    assert_eq!(walls.len(), 1, "one saddle wall: {walls:?}");
     walls[0]
 }
 
-/// The half-space's face on the plane `y = 0`.
-fn cutting_face(h: &AtRestBody<f64>) -> FaceKey {
-    let faces: Vec<FaceKey> = h
+/// The half-space's face on `y = 0`.
+fn cut_face(h: &AtRestBody<f64>) -> topo::FaceKey {
+    let faces: Vec<_> = h
         .faces()
         .filter(|(_, fd)| {
             matches!(
                 h.get_surface(fd.surface),
                 Some(geom::Surface::Plane { origin, normal, .. })
-                    if normal.y.abs() == 1.0 && origin.y == 0.0
+                    if origin.y.abs() < 1e-12 && normal.y.abs() > 1.0 - 1e-12
             )
         })
         .map(|(f, _)| f)
         .collect();
-    assert_eq!(faces.len(), 1, "one face of the half-space lies on y = 0");
+    assert_eq!(faces.len(), 1, "one face on y = 0: {faces:?}");
     faces[0]
 }
 
-/// **Every op, either way round, refuses at the held pierce of the
-/// saddle's top wall on the cutting plane**: the spline × plane pair is
-/// read by ∪'s doors under every op, so ∩ and ∖ stop where ∪ does,
-/// naming the same two faces by identity, the wall on the saddle's side.
+/// **Every op, either way round, refuses at the spline × plane pair**:
+/// in the join, at the germ frame of the saddle's wall against the
+/// half-space's face `y = 0`
+/// (`work/sectarms/a-nurbs-wall-against-a-plane-has-no-germ-frame.md`),
+/// the two faces named by identity in the operands' order.
+/// Its held pierce reads first: the block's corner edges pierce the
+/// plane at `(±1, 0, ±1)`, a unit off the wall, which reads them off
+/// its carrier.
 #[test]
-fn a_saddle_cut_by_its_tangent_plane_refuses_at_the_held_pierce_under_every_op() {
+fn a_saddle_cut_by_its_tangent_plane_refuses_at_the_germ_frame_under_every_op() {
     let (s, h) = (saddle_block(), above());
-    let (wall, cut) = (top_wall(&s), cutting_face(&h));
-    for (op, r, saddle) in [
-        ("s ∩ h", intersect(&s, &h, tol()), Operand::A),
-        ("h ∩ s", intersect(&h, &s, tol()), Operand::B),
-        ("s ∖ h", subtract(&s, &h, tol()), Operand::A),
-        ("h ∖ s", subtract(&h, &s, tol()), Operand::B),
-        ("s ∪ h", union(&s, &h, tol()), Operand::A),
-        ("h ∪ s", union(&h, &s, tol()), Operand::B),
+    let (wall, cut) = (saddle_wall(&s), cut_face(&h));
+    // The A face first: the saddle's wall in `s ∪ h`, the cut face in
+    // `h ∪ s`.
+    let frame = |r: &Result<topo::BooleanResult<f64>, BooleanError>, saddle_first: bool| {
+        let (a, b) = if saddle_first {
+            (wall, cut)
+        } else {
+            (cut, wall)
+        };
+        let (a_kind, b_kind) = if saddle_first {
+            (Nurbs, Plane)
+        } else {
+            (Plane, Nurbs)
+        };
+        matches!(
+            r,
+            Err(BooleanError::GermFrameUnsupported { a_face, a_kind: ak, b_face, b_kind: bk })
+                if (*a_face, *ak, *b_face, *bk) == (a, a_kind, b, b_kind)
+        )
+    };
+    for (op, r, saddle_first) in [
+        ("s ∩ h", intersect(&s, &h, tol()), true),
+        ("h ∩ s", intersect(&h, &s, tol()), false),
+        ("s ∖ h", subtract(&s, &h, tol()), true),
+        ("h ∖ s", subtract(&h, &s, tol()), false),
+        ("s ∪ h", union(&s, &h, tol()), true),
+        ("h ∪ s", union(&h, &s, tol()), false),
     ] {
-        let at_pierce = matches!(
-            &r,
-            Err(BooleanError::HeldPierceUnbuilt {
-                operand,
-                face,
-                pierced,
-                kind: Nurbs,
-                pierced_kind: Plane,
-                placed: false,
-            }) if *operand == saddle && *face == wall && *pierced == cut
-        );
         assert!(
-            at_pierce,
-            "{op}: refuses at the held pierce of the top wall {wall:?} on {cut:?}, not {r:?}"
+            frame(&r, saddle_first),
+            "{op}: refuses typed at the spline × plane pair, not {r:?}"
         );
     }
 }

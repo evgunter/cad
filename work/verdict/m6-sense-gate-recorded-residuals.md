@@ -163,3 +163,32 @@ The import-side consequence is
 ## Home
 
 `work/issues/`: the four residuals span `validate` check 6, the props sense gate and the NURBS vocabulary, and no open program's charter claims the set — VERBS cites only residual 1, as VERBS-CONE's known trap.
+
+## Residual 3, extended: a ∖ void's spline walls flipped back finish at rest (SPLICE PR 6476 review, 2026-11-03)
+
+Now that ∖ and ∩ admit spline faces (PR 6476), a reversal that ignored
+`sense` on spline faces would build a wrong body that nothing catches.
+The reproducer comes from PR 6476's first reviewer:
+
+- `brick ∖ prism`, with the brick `[−3, 3]² × [−1, 3]` around
+  `sweep::test_support::loft_prism`, builds a cavity whose four NURBS
+  walls are `sense = false`.
+- Flip each wall back (`Body::flipped_face_sense_for_tests`). That is
+  the body a reversal ignoring `sense` on NURBS faces would build.
+- `AtRestBody::validate` admits it.
+- `mass_properties` reads the same `135 m³` for it.
+
+The planar caps the walls meet keep the reverted sense, so the walls'
+material sides disagree with their neighbours at every wall–cap edge,
+and still no check refuses. This is residual 3's `spline_chart()` skip,
+exercised for the first time on a body a public op returns.
+
+Pinned as found:
+`crates/sweep/tests/spline_subtract_intersect_census.rs::finding_a_cavity_with_its_spline_walls_unreversed_passes_the_gate_at_the_true_volume`.
+That row goes red the day the gate refuses it. Its companion
+`a_subtracted_spline_void_carries_its_walls_reverted` holds that the
+void door does flip them.
+
+The gate's territory (`crates/topo/src/validate.rs`) is RESTGATE's
+among its siblings (`work.py territory`), so the flip condition lands
+there.

@@ -20,9 +20,11 @@ it and both its faces go into the face's material (`walls_inside`,
 which reads a spline floor's normal at its placement's in-trim foot,
 `slit::spline_floor`). No fixture reaches it: a flat or wavy loft's
 spline side less a revolved ring, or less a turned brick whose edge
-lies in that side, refuses `CurvedPairUnsupported` at the roster
-(`site: RevertRoster`, Nurbs against Cone or Plane) before the
-parting runs.
+lies in that side, refused `CurvedPairUnsupported` at the ∖/∩ revert
+roster (`site: RevertRoster`, Nurbs against Cone or Plane) before the
+parting ran, until SPLICE's PR 6476 deleted that roster (2026-11-03).
+∖ now reaches the doors ∪ does on such a pair. Whether one of those
+fixtures reaches the rider arm is unmeasured.
 
 ## Fix
 

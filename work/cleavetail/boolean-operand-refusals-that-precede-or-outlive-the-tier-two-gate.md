@@ -22,8 +22,10 @@ reads its geometry runs first:
 
 - `crates/topo/src/boolean/ops.rs` `boolean_op_with` (≈:481): the ∖/∩
   front door's `reduce::first_unsupported_pair` (`RevertRoster` →
-  `CurvedPairUnsupported`) runs on the raw operands before
-  `gate_operand_pairs`.
+  `CurvedPairUnsupported`) ran on the raw operands before
+  `gate_operand_pairs`. SPLICE's PR 6476 (2026-11-03) deleted that
+  front door, so this ordering is gone and the item below is the half
+  that remains.
 - `crates/topo/src/boolean/mod.rs` `boolean_reduce_declared_strategy`
   (≈:3029-3031): `validate_declarations`, `verify_declared_contacts` and
   `DeclaredPairs::build` read carriers and face extents of undeclared-

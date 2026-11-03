@@ -127,3 +127,49 @@ Also run: the saddle against its tangent half-space, and
 - topo, sweep and editor-core's full default-ε suites (slow set
   included) show no other change. Six further reds there are
   inherited: they fail identically on c89d725d's own tree.
+
+## Phase 0 corrected (PR 6476's dual review, 2026-11-03)
+
+The review found two claims above to be wrong. Both are corrected here
+and in the PR.
+
+**∖ does not classify through a reverted operand.** Both operands are
+classified as given. The op enters only through op-dependent code:
+
+- the on-sector lump, `boolean::tables::eq15_3_lump`, reached from
+  `vtxfac::classify_vertex_on_face`;
+- the kept copy of a coincident pair (`tables::kept_copy`,
+  `lump_keeps_one`);
+- the join's `stands_on`, which reads the subtrahend's normals flipped.
+
+`Body::revert` runs afterwards, on the kept subtrahend pieces:
+
+- `finish.rs`, Eq. 15.1's `(B in A)⁻¹`;
+- the operand-B fallback (`ops.rs`);
+- the void door's cavity (`voids.rs`).
+
+The reverted pieces are then grafted. So the real new exposure is that
+op-dependent code with spline faces in it, and the graft of reverted
+NURBS-carrying pieces. Rows that reach it today:
+
+- **`eq15_3_lump` on a spline-adjacent on-sector**: reached by the
+  shared-cap and stacked placements. ∪ refuses there
+  `CurvedBooleanUnsupported`, ∩ and ∖ `NurbsExtentUnsupported`.
+- **`stands_on`**: reads planar faces only (`face_plane`), so no
+  spline face reaches it.
+- **The finish revert of a seamed spline piece**: reached by no row,
+  since no seamed spline result builds.
+- **The void door's revert and graft**: reached by `brick ∖ prism`
+  (`a_subtracted_spline_void_carries_its_walls_reverted`).
+
+The reverted-face rows the PR adds test the readers a reverted spline
+face meets the next time a result is an operand.
+
+**∖ and ∩ do not always refuse where ∪ does.** At a flush or stacked
+cap, or a brick sharing a cap plane, ∪ refuses
+`CurvedBooleanUnsupported { Nurbs }`. There ∩ and ∖ refuse
+`NurbsExtentUnsupported`, and at a shared cap the reverse holds in the
+B-first orders. The Phase 0 placements never put a cap on a partner's
+face, so they missed it. What every op does owe, and the census now
+asserts, is a typed refusal at any door or a built body that passes
+its oracles.

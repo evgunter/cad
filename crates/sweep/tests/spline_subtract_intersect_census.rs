@@ -1,20 +1,35 @@
-//! **∖ and ∩ of a spline operand refuse where ∪ does, or build right.**
-//! One roster serves every op (`boolean::reduce::boolean_arm_exists`):
-//! ∖ and ∩ route regions through `Body::revert`, which flips each face's
-//! `sense` and keeps its carrier, so a spline face meets the doors under
-//! ∖ and ∩ that it meets under ∪. This census holds that fact over the
-//! spline operands against a partner of every kind, in both operand
-//! orders, so the day a ∪ lane starts building a spline body its ∖ and ∩
-//! are checked rather than carried along unseen. Each run of ∖ or ∩:
+//! **Every op of a spline operand ends in a typed refusal or a checked
+//! body.** One face-kind roster serves every op
+//! (`boolean::reduce::boolean_arm_exists`), so a loft or sweep body
+//! reaches ∖ and ∩ wherever it reaches ∪. The doors are not the same
+//! under each op: ∖ and ∩ classify the operands unreverted through
+//! op-dependent tables (an on-sector's Eq. 15.3 lump,
+//! `boolean::tables::eq15_3_lump`; the kept side of a coincident pair;
+//! the subtrahend's flipped normals in the join's `stands_on`), and ∖
+//! reverts its kept subtrahend pieces only after classification, so a
+//! placement can stop at another door under ∖ or ∩ than under ∪ (a cap
+//! shared with or stacked on the partner reaches the crossings path
+//! under ∪ and the extent re-gate under ∩ and ∖). This census holds
+//! what every op does owe, over the spline operands against a partner
+//! of every kind, in both operand orders, so the day a lane starts
+//! building a spline body its ∖ and ∩ are checked rather than carried
+//! along unseen. Each run:
 //!
-//! - **refuses**: never a kernel invariant, and where ∪ of the same
-//!   operand order refuses, with ∪'s refusal exactly, variant and payload;
+//! - **refuses** typed, at whatever door, never a kernel invariant;
 //! - **or builds**, and its body is held to the volume oracle — the
-//!   closed form where the partner lies inside the operand, and
-//!   otherwise inclusion–exclusion, every op that builds implying one
-//!   shared `V(O ∩ B)` inside `[0, min(V(O), V(B))]` — and to a point
-//!   sample against both operands, at every point `point_in_solid`
+//!   closed form where the placement has one, and inclusion–exclusion
+//!   always, every op that builds implying one shared `V(O ∩ B)` inside
+//!   `[0, min(V(O), V(B))]` ([`crate::common::op_census`]) — and to a
+//!   point sample against both operands, at every point `point_in_solid`
 //!   decides in all three bodies.
+//!
+//! **What it cannot see.** `point_in_solid` decides no point against a
+//! NURBS face, so the point sample is silent against a spline operand,
+//! and a volume reads the same whatever `sense` a closed spline shell's
+//! faces carry; a wrong `sense` on a built spline face is the void row's
+//! below (`a_subtracted_spline_void_carries_its_walls_reverted`) and the
+//! at-rest gate's gap
+//! (`finding_a_cavity_with_its_spline_walls_unreversed_passes_the_gate_at_the_true_volume`).
 //!
 //! The operands: the loft prism (`V = 9`), the lofted cylinder
 //! (`V = 2π`), the wavy loft (2 × 2 squares at `z = 0, 1, 2, 3` offset
@@ -23,7 +38,10 @@
 //! `V(O ∩ B) = 1/2`). The partners: a brick, a cylinder rod, a ball, a
 //! cone frustum and a ring torus, each wholly inside the operand and
 //! across its wall; a lofted cylinder across the wall; a peg through the
-//! top cap; a slab through every wall.
+//! top cap; a slab through every wall; and the reviewers' placements
+//! (PR 6476) against the prism and the lofted cylinder — stacked on a
+//! cap, around it sharing a cap plane, face to face with a wall, inside
+//! on a cap or a wall, touching a wall along a ruling.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::PI;
@@ -34,7 +52,11 @@ use sweep::test_support::{
     ball_poled_z, cylinder_of_arcs_at, finished, loft_prism, lofted_cylinder, revolved_about_y,
     stacked_at,
 };
-use topo::{AtRestBody, BooleanError, BooleanResult, SolidContainment};
+use topo::{AtRestBody, BooleanResult, SolidContainment};
+
+use crate::common::op_census::{
+    Run, assert_one_meet, band, kernel_invariant, result_volume, six_runs,
+};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -124,26 +146,6 @@ fn brick(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> (topo::Body<f64>, f64) 
     )
 }
 
-/// The refusals that name a broken kernel rather than an input or a
-/// frontier.
-fn kernel_invariant(e: &BooleanError) -> bool {
-    matches!(
-        e,
-        BooleanError::ClassificationInvariant { .. } | BooleanError::JoinDesync { .. }
-    ) || matches!(e, BooleanError::Join(j) if matches!(j.error(), topo::SplitJoinError::SectionInvariant { .. }))
-}
-
-/// How far a volume `v` may read from its oracle beyond the brackets.
-fn band(v: f64) -> f64 {
-    1e-6 * v.abs().max(1.0)
-}
-
-/// `body`'s volume at 1e-6 m and its bracket's half-width.
-fn measure(what: &str, body: &AtRestBody<f64>) -> (f64, f64) {
-    let m = topo::test_support::volume_at(what, body, tol(), 1e-6);
-    (m.volume, m.volume_pad)
-}
-
 /// 400 points of the box `lo..hi`, a fixed xorshift sequence.
 fn samples(lo: Point3<f64>, hi: Point3<f64>) -> Vec<Point3<f64>> {
     let mut s = 0x2545_f491_4f6c_dd1d_u64;
@@ -195,36 +197,6 @@ fn sample_box(bodies: [&topo::Body<f64>; 2]) -> (Point3<f64>, Point3<f64>) {
     )
 }
 
-/// Which region of the two operands an op keeps.
-#[derive(Clone, Copy)]
-enum Keep {
-    Union,
-    Meet,
-    OLessB,
-    BLessO,
-}
-
-impl Keep {
-    fn holds(self, in_o: bool, in_b: bool) -> bool {
-        match self {
-            Keep::Union => in_o || in_b,
-            Keep::Meet => in_o && in_b,
-            Keep::OLessB => in_o && !in_b,
-            Keep::BLessO => in_b && !in_o,
-        }
-    }
-
-    /// `V(O ∩ B)` from the op's volume.
-    fn meet(self, vo: f64, vb: f64, got: f64) -> f64 {
-        match self {
-            Keep::Union => vo + vb - got,
-            Keep::Meet => got,
-            Keep::OLessB => vo - got,
-            Keep::BLessO => vb - got,
-        }
-    }
-}
-
 /// One case: spline operand `o` of closed-form volume `vo`, partner `b`
 /// of `vb`, `meet` the closed-form `V(O ∩ B)` where there is one.
 /// Returns the census lines.
@@ -236,48 +208,22 @@ fn case(
     vb: f64,
     meet: Option<f64>,
 ) -> Vec<String> {
-    let t = tol();
-    let union_ob = topo::union(o, b, t);
-    let union_bo = topo::union(b, o, t);
-    let (meet_ob, meet_bo) = (topo::intersect(o, b, t), topo::intersect(b, o, t));
-    let (less_ob, less_bo) = (topo::subtract(o, b, t), topo::subtract(b, o, t));
-    let runs = [
-        ("O∪B", &union_ob, None, Keep::Union),
-        ("B∪O", &union_bo, None, Keep::Union),
-        ("O∩B", &meet_ob, Some(&union_ob), Keep::Meet),
-        ("B∩O", &meet_bo, Some(&union_bo), Keep::Meet),
-        ("O∖B", &less_ob, Some(&union_ob), Keep::OLessB),
-        ("B∖O", &less_bo, Some(&union_bo), Keep::BLessO),
-    ];
     let (lo, hi) = sample_box([o, b]);
     let pts = samples(lo, hi);
     let mut lines = Vec::new();
     let mut implied: Vec<(&str, f64, f64)> = Vec::new();
-    for (op, got, union_of_order, keep) in runs {
+    for Run { op, keep, got, .. } in six_runs(o, b) {
         let line = format!("{name} / {op}: ");
         match got {
             Err(e) => {
                 assert!(
-                    !kernel_invariant(e),
+                    !kernel_invariant(&e),
                     "{line}a kernel invariant, not a refusal: {e:?}"
                 );
-                if let Some(Err(u)) = union_of_order {
-                    assert_eq!(
-                        format!("{e:?}"),
-                        format!("{u:?}"),
-                        "{line}refuses other than ∪ of the same order"
-                    );
-                }
                 lines.push(format!("{line}refuses {e:?}"));
             }
             Ok(r) => {
-                let (v, pad, body) = match r {
-                    BooleanResult::Empty => (0.0, 0.0, None),
-                    BooleanResult::Body(bb) => {
-                        let (v, pad) = measure(&format!("{line}the result"), &bb.body);
-                        (v, pad, Some(&bb.body))
-                    }
-                };
+                let (v, pad) = result_volume(&format!("{line}the result"), &r);
                 let m = keep.meet(vo, vb, v);
                 if let Some(want) = meet {
                     topo::test_support::assert_volume_near(
@@ -289,6 +235,10 @@ fn case(
                     );
                 }
                 implied.push((op, m, pad));
+                let body = match &r {
+                    BooleanResult::Empty => None,
+                    BooleanResult::Body(bb) => Some(&bb.body),
+                };
                 let mut decided = 0;
                 for &q in &pts {
                     let (Some(in_o), Some(in_b)) = (inside(o, q), inside(b, q)) else {
@@ -313,28 +263,18 @@ fn case(
             }
         }
     }
-    if let Some(&(_, first, first_pad)) = implied.first() {
-        let slack = 1e-9 * vo.max(vb) + first_pad;
-        assert!(
-            (-slack..=vo.min(vb) + slack).contains(&first),
-            "{name}: V(O ∩ B) = {first} lies outside [0, min(V(O), V(B))]"
-        );
-        for &(op, m, pad) in &implied {
-            assert!(
-                (m - first).abs() <= 1e-9 * vo.max(vb) + pad + first_pad,
-                "{name}: {op} implies V(O ∩ B) = {m}, the others {first}"
-            );
-        }
-    }
+    assert_one_meet(name, &implied, vo, 0.0, vb);
     lines
 }
+
+type Box3 = ((f64, f64), (f64, f64), (f64, f64));
 
 /// A spline operand: its name, the body, its volume, a point inside it
 /// and a point on its wall.
 type Operand<'a> = (&'a str, &'a AtRestBody<f64>, f64, [f64; 3], [f64; 3]);
 
 #[test]
-fn subtract_and_intersect_of_a_spline_operand_refuse_where_union_does_or_build_right() {
+fn every_op_of_a_spline_operand_refuses_typed_or_builds_right() {
     let t = tol();
     let prism = finished("the loft prism", loft_prism(t), t);
     let lcyl = finished("the lofted cylinder", lofted_cylinder(2.0, t), t);
@@ -392,6 +332,148 @@ fn subtract_and_intersect_of_a_spline_operand_refuse_where_union_does_or_build_r
             lines.extend(case(&format!("{on} × {pn}"), o, vo, &pb, vb, meet));
         }
     }
+    // The reviewers' placements (PR 6476): the prism's box is
+    // `[−1.375, 1.375] × [−1, 1] × [0, 2]`, its caps at `z = 0, 2`, its
+    // `±y` walls flat at `y = ±1`.
+    let prism_placements: [(&str, Box3, f64); 15] = [
+        (
+            "stacked under, wide",
+            ((-3.0, 3.0), (-3.0, 3.0), (-1.0, 0.0)),
+            0.0,
+        ),
+        (
+            "stacked over, wide (a flush slab on the cap)",
+            ((-3.0, 3.0), (-3.0, 3.0), (2.0, 3.0)),
+            0.0,
+        ),
+        (
+            "stacked under, the footprint",
+            ((-1.0, 1.0), (-1.0, 1.0), (-1.0, 0.0)),
+            0.0,
+        ),
+        (
+            "stacked under, small",
+            ((-0.5, 0.5), (-0.5, 0.5), (-1.0, 0.0)),
+            0.0,
+        ),
+        (
+            "around, sharing the bottom",
+            ((-3.0, 3.0), (-3.0, 3.0), (0.0, 3.0)),
+            9.0,
+        ),
+        (
+            "around, sharing the top",
+            ((-3.0, 3.0), (-3.0, 3.0), (-1.0, 2.0)),
+            9.0,
+        ),
+        (
+            "around, sharing both caps",
+            ((-3.0, 3.0), (-3.0, 3.0), (0.0, 2.0)),
+            9.0,
+        ),
+        (
+            "face to face on the −y wall, small",
+            ((-0.2, 0.2), (-2.0, -1.0), (0.8, 1.2)),
+            0.0,
+        ),
+        (
+            "face to face on the −y wall, wide",
+            ((-3.0, 3.0), (-2.0, -1.0), (-1.0, 3.0)),
+            0.0,
+        ),
+        (
+            "a bar under the cap's corner strip",
+            ((0.5, 3.0), (-3.0, 3.0), (-1.0, 0.0)),
+            0.0,
+        ),
+        (
+            "stacked under, off one edge",
+            ((-0.5, 0.5), (-0.5, 3.0), (-1.0, 0.0)),
+            0.0,
+        ),
+        (
+            "inside, on the bottom cap",
+            ((-0.5, 0.5), (-0.5, 0.5), (0.0, 0.5)),
+            0.25,
+        ),
+        (
+            "inside, on the −y wall",
+            ((-0.2, 0.2), (-1.0, -0.5), (0.8, 1.2)),
+            0.08,
+        ),
+        (
+            "inside, in the bottom −y corner",
+            ((-0.2, 0.2), (-1.0, -0.5), (0.0, 0.4)),
+            0.08,
+        ),
+        (
+            "inside, a hair off the −y wall",
+            ((-0.2, 0.2), (-0.99, -0.5), (0.8, 1.2)),
+            0.4 * 0.49 * 0.4,
+        ),
+    ];
+    for (pn, (x, y, z), meet) in prism_placements {
+        let (bk, vb) = brick(x, y, z);
+        let bk = finished(pn, bk, t);
+        lines.extend(case(
+            &format!("loft prism × {pn}"),
+            &prism,
+            9.0,
+            &bk,
+            vb,
+            Some(meet),
+        ));
+    }
+    let vc = 2.0 * PI;
+    let mut cylinder_placements: Vec<(String, topo::Body<f64>, f64, f64)> = Vec::new();
+    for (pn, (x, y, z), meet) in [
+        (
+            "stacked under, wide",
+            ((-2.0, 2.0), (-2.0, 2.0), (-1.0, 0.0)),
+            0.0,
+        ),
+        (
+            "around, sharing the bottom",
+            ((-2.0, 2.0), (-2.0, 2.0), (0.0, 3.0)),
+            vc,
+        ),
+        (
+            "around, sharing both caps",
+            ((-2.0, 2.0), (-2.0, 2.0), (0.0, 2.0)),
+            vc,
+        ),
+        (
+            "a brick touching the wall along a ruling",
+            ((1.0, 2.0), (-0.5, 0.5), (0.5, 1.5)),
+            0.0,
+        ),
+    ] {
+        let (bk, vb) = brick(x, y, z);
+        cylinder_placements.push((pn.to_string(), bk, vb, meet));
+    }
+    cylinder_placements.push((
+        "a lofted cylinder stacked on its cap".into(),
+        moved(lofted_cylinder(1.0, t), [0.0, 0.0, 2.0]),
+        PI,
+        0.0,
+    ));
+    cylinder_placements.push((
+        "a lofted cylinder beside it, boxes overlapping".into(),
+        moved(lofted_cylinder(2.0, t), [1.5, 1.5, 0.0]),
+        vc,
+        0.0,
+    ));
+    for (pn, pb, vb, meet) in cylinder_placements {
+        let pb = finished(&pn, pb, t);
+        lines.extend(case(
+            &format!("lofted cylinder × {pn}"),
+            &lcyl,
+            vc,
+            &pb,
+            vb,
+            Some(meet),
+        ));
+    }
     let (h, vh) = brick((-4.0, 4.0), (0.0, 4.0), (-4.0, 4.0));
     let h = finished("the half-space", h, t);
     lines.extend(case(
@@ -405,4 +487,83 @@ fn subtract_and_intersect_of_a_spline_operand_refuse_where_union_does_or_build_r
     for line in &lines {
         println!("{line}");
     }
+}
+
+/// The brick `[−3, 3]² × [−1, 3]` around the loft prism, and the
+/// prism.
+fn prism_in_a_brick() -> (AtRestBody<f64>, AtRestBody<f64>) {
+    let t = tol();
+    let prism = finished("the loft prism", loft_prism(t), t);
+    let (b, _) = brick((-3.0, 3.0), (-3.0, 3.0), (-1.0, 3.0));
+    (finished("the brick around", b, t), prism)
+}
+
+/// The NURBS faces of `body`, each with its `sense`.
+fn spline_walls(body: &topo::Body<f64>) -> Vec<(topo::FaceKey, bool)> {
+    body.faces()
+        .filter(|(_, f)| matches!(body.get_surface(f.surface), Some(geom::Surface::Nurbs(_))))
+        .map(|(k, f)| (k, f.sense))
+        .collect()
+}
+
+/// **The void a ∖ leaves of a spline operand carries its NURBS walls
+/// reverted** (adopted from PR 6476's review). `brick ∖ prism`, the brick
+/// around the prism, builds: the brick with the prism as a void, whose
+/// four NURBS walls the void door hands through `Body::revert`
+/// (`boolean::voids`). Each must read `sense = false`. Nothing else at
+/// the op level reads it: with `Body::revert` skipping the flip on NURBS
+/// faces, the census and `spline_spiric_operands` stay green and the
+/// volume still reads 135 m³ (the finding below).
+#[test]
+fn a_subtracted_spline_void_carries_its_walls_reverted() {
+    let (around, prism) = prism_in_a_brick();
+    let BooleanResult::Body(out) =
+        topo::subtract(&around, &prism, tol()).expect("brick ∖ prism builds")
+    else {
+        panic!("brick ∖ prism is a body");
+    };
+    let walls = spline_walls(&out.body);
+    assert_eq!(walls.len(), 4, "the void's four NURBS walls: {walls:?}");
+    assert!(
+        walls.iter().all(|&(_, sense)| !sense),
+        "every wall of the void is reverted: {walls:?}"
+    );
+}
+
+/// **FINDING: a cavity whose spline walls carry the wrong `sense` passes
+/// the at-rest gate at the true volume** (adopted from PR 6476's
+/// review; `work/verdict/m6-sense-gate-recorded-residuals.md`, residual 3).
+/// `brick ∖ prism` builds a cavity with sense-false NURBS walls; flipping
+/// each back — what a reversal that ignored `sense` on spline faces would
+/// build — is admitted by `AtRestBody::validate`, and its volume reads
+/// the same 135 m³. So neither the gate nor a volume oracle sees a wrong
+/// `sense` on a spline face. Pinned as found: red the day the gate
+/// refuses it.
+#[test]
+fn finding_a_cavity_with_its_spline_walls_unreversed_passes_the_gate_at_the_true_volume() {
+    let t = tol();
+    let (around, prism) = prism_in_a_brick();
+    let Ok(BooleanResult::Body(cavity)) = topo::subtract(&around, &prism, t) else {
+        panic!("brick ∖ prism builds");
+    };
+    let v_right = topo::test_support::volume_at("the cavity", &cavity.body, t, 1e-6).volume;
+    let cavity: topo::Body<f64> = (*cavity.body).clone();
+    let walls = spline_walls(&cavity);
+    assert_eq!(walls.len(), 4, "the cavity's four NURBS walls");
+    assert!(
+        walls.iter().all(|&(_, sense)| !sense),
+        "the cavity's walls are sense-false"
+    );
+    let mut wrong = cavity;
+    for &(k, _) in &walls {
+        wrong = wrong.flipped_face_sense_for_tests(k).unwrap();
+    }
+    let admitted = AtRestBody::validate(wrong, t).expect("the gate admits the wrong-sense cavity");
+    let v_wrong =
+        topo::test_support::volume_at("the wrong-sense cavity", &admitted, t, 1e-6).volume;
+    assert!((v_right - 135.0).abs() < 1e-6, "the cavity: {v_right}");
+    assert!(
+        (v_wrong - 135.0).abs() < 1e-6,
+        "the wrong-sense cavity reads the true volume: {v_wrong}"
+    );
 }

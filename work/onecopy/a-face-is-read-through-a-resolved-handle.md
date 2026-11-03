@@ -2,12 +2,12 @@
 id: a-face-is-read-through-a-resolved-handle
 kind: unit
 title: A face's loops, boundary, cycles and edges are read through one resolved handle (body.proven_face / linked_face → FaceView) in place of the source × shape grid of Body methods
-status: parked
+status: dispatched
 opened: 2026-11-03
 priority: P1
 cost: M
 refs: [6460]
-blocked_on: [a-faces-loops-are-walked-inline-beside-face-loops-linked]
+branch: onecopy/face-view
 ---
 
 

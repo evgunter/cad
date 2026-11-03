@@ -367,6 +367,9 @@ fn composite_rows<T: Real>(
         Surface::Nurbs(_) | Surface::Approx(_) => {
             return Err(unread("a spline face has no canonical form"));
         }
+        Surface::Spindle { .. } => {
+            return Err(unread("a spindle sheet's face has no composite lane yet"));
+        }
     };
     // The net's hull in the chart frame bounds every point of the span,
     // so the divisor read over it bounds every point's.

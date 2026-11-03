@@ -658,16 +658,18 @@ pub fn wall3_pinned<S: Scalar>(
     the_rim_arc && the_neck
 }
 
-/// Wall 4's pinned refusal: wall 3's, by identity. The subtract reads
-/// the bulb and the loop through the doors the union does, so it stops
-/// at the same edge and the same face, in the same operand order
-/// (`bulb ∖ top`, as `bulb ∪ top`).
+/// Wall 4's pinned refusal: wall 3's (`wall3_pinned`), and the same
+/// error as wall 3's `union` returns, payload and all, `union` being
+/// `wall3`. The subtract stops at the union's edge and face in the same
+/// operand order (`bulb ∖ top`, as `bulb ∪ top`); a wall 4 that moved
+/// to another stop, or a wall 3 that moved without it, reds.
 pub fn wall4_pinned<S: Scalar>(
     e: &BooleanError,
+    wall3: &BooleanError,
     bulb: &AtRestBody<S>,
     top: &AtRestBody<S>,
 ) -> bool {
-    wall3_pinned(e, bulb, top)
+    wall3_pinned(e, bulb, top) && format!("{e:?}") == format!("{wall3:?}")
 }
 
 /// Every edge of `body` whose two faces are a cone and a cylinder
@@ -1129,7 +1131,11 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
         4,
         "cut the flare where the descending neck passes through it",
         pncad::topo::subtract(&bulb_body, &top, tol),
-        |e| wall4_pinned(e, &bulb_body, &top),
+        |e| {
+            pncad::topo::union(&bulb_body, &top, tol)
+                .err()
+                .is_some_and(|w3| wall4_pinned(e, &w3, &bulb_body, &top))
+        },
         "trim the self-intersection instead of letting the walls interpenetrate",
     );
 

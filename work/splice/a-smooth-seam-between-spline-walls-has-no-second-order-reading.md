@@ -32,7 +32,7 @@ reads.
 ## The likely shape
 
 The stations' chart parameters off each face's pcurve, as
-`ops::seam_face` reads the witness's; the first order through
+`pcurves::seam_face` reads the witness's; the first order through
 `classify_seam`; the second order's relative normal curvature from the
 two charts' jets at those parameters, levered over the same bracket the
 first order reads (`classify_seam`): an arm between `NurbsLane::chart_arm`'s
