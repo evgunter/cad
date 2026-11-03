@@ -108,3 +108,18 @@ the same count at every turned pose, ε and op, and the poses whose seam
 rulings sit at `±x` (spins `(0, 0)`) do not reach it, so the seam
 rulings' placement against the copied ellipse is the first thing to
 read.
+
+## 2026-11-03: the crossing rods build past the copy (sectarms 3b-ii)
+
+On branch `sectarms/cylinder-node-listing` (cylinder × cylinder stage
+3b-ii: the bisector pose rides the carried lane, its nodes listed on the
+value), every op of `crates/sweep/tests/crossing_equal_rods.rs` builds
+SOUND at its closed form. That covers both orders, spins `(0.4, 0.3)`
+and `(1.0, −0.7)` with `B` from `x = 0.2`, and `(0.4, 0.3)` from
+`x = 0.5`, at ε 1e-9. Before, these refused `UnpairedLooseEnds`. The
+pins are renamed `crossing_rods_build_past_the_ellipse_edge_copy*`.
+
+The mechanism was not traced in that unit: the walls' own section now
+rides the carried lane rather than the bisector-plane lane. Whether an
+ellipse edge copy is still asked anywhere is this row's open question.
+This fixture no longer reaches it.

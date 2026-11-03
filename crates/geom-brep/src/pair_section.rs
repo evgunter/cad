@@ -2383,28 +2383,13 @@ impl<T: Decide> CarriedComponent<T> {
         let (lo, hi) = self.span;
         let t = lo + (t - lo).reduce_periodic(T::pi() * T::from_f64(2.0));
         let speed = self.carrier.ders1(t).1.norm();
-        match geom_core::k_stats::decide_reported(
+        match geom_core::k_stats::decide_nonzero(
             SITE_IN_SPAN,
             Margin::metered(hi - t, geom_core::InfSpeed::new(speed)),
             band,
         ) {
-            Ok(Decided {
-                sign: Sign::Positive,
-                ..
-            }) => Ok(Some(t)),
-            Ok(Decided {
-                sign: Sign::Negative,
-                ..
-            }) => Ok(None),
-            Ok(Decided {
-                sign: Sign::Zero,
-                margin,
-            }) => Err(SiteRefusal::Escalated(Indeterminate {
-                margin,
-                terminal_sliver: false,
-                band,
-                predicate: Some(SITE_IN_SPAN),
-            })),
+            Ok(geom_core::k_stats::NonzeroSign::Positive) => Ok(Some(t)),
+            Ok(geom_core::k_stats::NonzeroSign::Negative) => Ok(None),
             Err(diag) => Err(SiteRefusal::Escalated(diag)),
         }
     }
@@ -2592,7 +2577,7 @@ fn at_node<T: Decide>(
     nodes: &[SectionNode<T>],
     p: Point3<T>,
     band: Band,
-) -> Result<(Option<usize>, Vec<MarginDiag>), SiteRefusal> {
+) -> Result<(Option<usize>, Vec<Decided>), SiteRefusal> {
     let mut found = None;
     let mut apart = Vec::with_capacity(nodes.len());
     for (n, node) in nodes.iter().enumerate() {
@@ -2608,7 +2593,7 @@ fn at_node<T: Decide>(
             Sign::Zero => found = Some(n),
             Sign::Positive | Sign::Negative => {}
         }
-        apart.push(d.margin);
+        apart.push(d);
     }
     Ok((found, apart))
 }
@@ -2661,12 +2646,15 @@ impl<T: Decide> CarriedSection<T> {
                     .flatten()
                     .find(|n| node_of_ends(c).contains(&Some(*n)));
                 return Err(match shared {
-                    Some(n) => SiteRefusal::Escalated(geom_core::Indeterminate {
-                        margin: apart[n],
-                        terminal_sliver: false,
+                    // The site's distance from the node, decided off
+                    // it, rejected: the reading near the crossing needs
+                    // the site at it.
+                    Some(n) => SiteRefusal::Escalated(geom_core::k_stats::gate_rejection(
+                        SITE_AT_NODE,
+                        apart[n],
                         band,
-                        predicate: Some(SITE_AT_NODE),
-                    }),
+                        geom_core::SizedPass::Zero,
+                    )),
                     None => SiteRefusal::Desync("a site lies on two components of its section"),
                 });
             }
