@@ -142,3 +142,7 @@ second site needs to ask the question at all. (ONEDOOR orchestrator)
   - the chart-window walk out of `chord_join` into its own crate-root reading, with the K rename.
 
   Review tier: single style review. Both are moves with no behaviour change, and behaviour moving stops the lane. **Seams:** the one-surface-record lane (`carrier_pair.rs`) and the crossing-doors lane (the Body-free doors). (ONEDOOR orchestrator)
+- 2026-11-03 — **One-surface-record, second report.** The census's one-record arm gained the fallback its two-record arm had (`one_record_overlap`), which cleared four rows. Two residues remained, and I ruled on both:
+  - **The two closed-conic rows** pin the precise `CensusUnsupported` (abutting curved faces have no lane). Before this unit they ended at the backstop's `CensusUndecidable`: both refuse, and the new one names the gap. The capability itself goes to CHARTTAIL as its own row.
+  - **The torax lune** re-pins to the shell's new refusal at the axis edge, but only if `TogetherAxialCorner` keeps a witness elsewhere. The cause is the shell door's keying by record, already filed on SHELL.
+  - (ONEDOOR orchestrator)
