@@ -49,7 +49,8 @@
 //!   `−F(V)·Δu` and a ruling (`u` constant) nothing, both read exactly.
 //! - **Projected** ([`ProjectedEdgeQ`]): the chart's inverse applied to
 //!   the carrier written in the chart's frame (`Pcurve::Projected`), a
-//!   rational net ([`FramedQ::Net`]) or a circle ([`FramedQ::Circle`]).
+//!   rational net ([`FramedQ::Net`]), a circle ([`FramedQ::Circle`]) or a
+//!   line ([`FramedQ::Line`]).
 //!   At the frame point `(x, y, z)` the azimuth's rate is
 //!   `u′ = (x·y′ − y·x′)/(x² + y²)`, which reads no branch, and the
 //!   cylinder's level is `v = v_off + v_sign·z` (the image's deck map).
@@ -118,7 +119,7 @@ use crate::props::rational_rim::{
     rational_vector_area_split,
 };
 use crate::props::spiric::{W_SPIRIC, w_rational};
-use crate::props::taylor::{Jet, composite, node, trig_jets, trig_range};
+use crate::props::taylor::{Jet, composite, composite_by, node, trig_jets, trig_range};
 
 /// Weight of one harmonic piece of a cylinder edge, in [`FACE_WORK_WALL`](super::run::FACE_WORK_WALL)'s unit.
 const W_CYLINDER: usize = 3;
@@ -132,8 +133,9 @@ pub(super) fn round_cost(edges: usize, round: usize) -> usize {
 /// The work of round `round` on `face`: a harmonic edge's pieces at
 /// [`W_CYLINDER`], a projected net's and a rational chart term's at a
 /// rational rim's weight per span ([`w_rational`]: the same piece forms,
-/// read by Horner), and a projected circle's at a spiric's per
-/// interval ([`W_SPIRIC`]: the same trig jets and one reciprocal).
+/// read by Horner), a projected circle's at a spiric's per interval
+/// ([`W_SPIRIC`]: the same trig jets and one reciprocal), and a projected
+/// line's at a degree-1 rim's per interval.
 fn face_cost(face: &RotationalFaceQ, round: usize) -> usize {
     let rational = |e: &RationalEdgeQ| w_rational(e.degree()) * e.span_count();
     let edges: usize = face
@@ -145,6 +147,7 @@ fn face_cost(face: &RotationalFaceQ, round: usize) -> usize {
             EdgeTermQ::Projected(p) => match &p.carrier {
                 FramedQ::Net(net) => rational(net),
                 FramedQ::Circle { cuts, .. } => W_SPIRIC * cuts.len().saturating_sub(1),
+                FramedQ::Line { cuts, .. } => w_rational(1) * cuts.len().saturating_sub(1),
             },
         })
         .sum();
@@ -226,6 +229,15 @@ pub enum FramedQ {
         /// The interval's ends and the breaks between them.
         cuts: Vec<f64>,
     },
+    /// A line `point + dir·t`, read over `cuts` as a circle is.
+    Line {
+        /// The point at `t = 0`.
+        point: RVec3,
+        /// The direction, per unit of the parameter.
+        dir: RVec3,
+        /// The interval's ends and the breaks between them.
+        cuts: Vec<f64>,
+    },
 }
 
 /// One projected trim-loop edge of the lane (module docs), bracketed by
@@ -292,6 +304,21 @@ impl ProjectedEdgeQ {
             ));
         };
         let breaks = image.breaks().interior();
+        let vec = |v: geom_core::Vec3<T>| [iv(v.x), iv(v.y), iv(v.z)];
+        // A circle's or a line's breaks are on `s = (t − origin)/span`, read
+        // where the image placed them, at the lane scalar: any `f64` cut
+        // tiles the interval exactly.
+        let cuts = |origin: T, span: T| {
+            let mut cuts = vec![lo];
+            cuts.extend(
+                breaks
+                    .iter()
+                    .map(|&s| mid(iv(origin + span * T::from_f64(s))))
+                    .filter(|&t| lo < t && t < hi),
+            );
+            cuts.push(hi);
+            cuts
+        };
         let carrier = match image.carrier() {
             FramedCarrier::Net(net) => FramedQ::Net(rational_edge_q_split(
                 &net.map_scalar(iv),
@@ -306,25 +333,22 @@ impl ProjectedEdgeQ {
                 b,
                 origin,
                 span,
-            } => {
-                // A break is read where the image placed it, at the lane
-                // scalar: any `f64` cut tiles the interval exactly.
-                let mut cuts = vec![lo];
-                cuts.extend(
-                    breaks
-                        .iter()
-                        .map(|&s| mid(iv(*origin + *span * T::from_f64(s))))
-                        .filter(|&t| lo < t && t < hi),
-                );
-                cuts.push(hi);
-                let vec = |v: geom_core::Vec3<T>| [iv(v.x), iv(v.y), iv(v.z)];
-                FramedQ::Circle {
-                    centre: vec(*centre),
-                    a: vec(*a),
-                    b: vec(*b),
-                    cuts,
-                }
-            }
+            } => FramedQ::Circle {
+                centre: vec(*centre),
+                a: vec(*a),
+                b: vec(*b),
+                cuts: cuts(*origin, *span),
+            },
+            FramedCarrier::Line {
+                point,
+                dir,
+                origin,
+                span,
+            } => FramedQ::Line {
+                point: vec(*point),
+                dir: vec(*dir),
+                cuts: cuts(*origin, *span),
+            },
         };
         let pair = |p: geom_core::Point2<T>| (iv(p.x), iv(p.y));
         Ok(Self {
@@ -596,6 +620,18 @@ fn circle_rate(centre: RVec3, a: RVec3, b: RVec3, c: Jet, s: Jet) -> (Jet, Jet) 
     (du, at(2))
 }
 
+/// The jets of `u′` and `z` of a projected line at the jet `t` of its
+/// parameter.
+fn line_rate(point: RVec3, dir: RVec3, t: Jet) -> (Jet, Jet) {
+    let at = |k: usize| Jet::cst(point[k]).add(t.scale(dir[k]));
+    let (x, y) = (at(0), at(1));
+    let du = x
+        .scale(dir[1])
+        .sub(y.scale(dir[0]))
+        .mul(x.sqr().add(y.sqr()).recip());
+    (du, at(2))
+}
+
 /// `[−∫F du, −∫G du, ∫du]` of a projected edge in its carrier's own
 /// order at `pieces` per span or cut interval, and the part of each
 /// width a later round removes.
@@ -623,6 +659,27 @@ fn projected_integrals(
                     let (du, z) = circle_rate(*centre, *a, *b, c, s);
                     terms(du, z)
                 });
+                for k in 0..3 {
+                    total[k] = total[k] + part[k];
+                    removable[k] += rem[k];
+                }
+            }
+            (total, removable)
+        }
+        FramedQ::Line { point, dir, cuts } => {
+            let mut total = [Interval::zero(); 3];
+            let mut removable = [0.0_f64; 3];
+            for w in cuts.windows(2) {
+                let (part, rem) = composite_by(
+                    pt(w[0]),
+                    pt(w[1]),
+                    pieces,
+                    |_, _| (),
+                    |(), t| {
+                        let (du, z) = line_rate(*point, *dir, Jet::var(t));
+                        terms(du, z)
+                    },
+                );
                 for k in 0..3 {
                     total[k] = total[k] + part[k];
                     removable[k] += rem[k];
@@ -668,6 +725,20 @@ fn projected_metric_length(e: &ProjectedEdgeQ, lever: Interval) -> f64 {
                     let (c, s) = trig_range(p, q);
                     let (_, cj, sj) = trig_jets(over, c, s);
                     let (du, z) = circle_rate(*centre, *a, *b, cj, sj);
+                    total += (pt(rate(du, z)) * (pt(q) - pt(p))).hi();
+                }
+            }
+            total
+        }
+        FramedQ::Line { point, dir, cuts } => {
+            let mut total = 0.0_f64;
+            for w in cuts.windows(2) {
+                for i in 0..PROJECTED_ENTRY_PIECES {
+                    let (p, q) = (
+                        node(w[0], w[1], PROJECTED_ENTRY_PIECES, i),
+                        node(w[0], w[1], PROJECTED_ENTRY_PIECES, i + 1),
+                    );
+                    let (du, z) = line_rate(*point, *dir, Jet::var(Interval::from_bounds(p, q)));
                     total += (pt(rate(du, z)) * (pt(q) - pt(p))).hi();
                 }
             }

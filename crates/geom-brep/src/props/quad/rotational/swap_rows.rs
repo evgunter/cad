@@ -537,3 +537,50 @@ fn a_projected_circle_holds_the_closed_form() {
     encloses(got.flux, flux, "a projected circle: flux");
     encloses(got.area, area, "a projected circle: area");
 }
+
+/// **A projected line holds the closed form**: the rectangle's right
+/// ruling read as a line in the chart's frame (`FramedQ::Line`, cut at a
+/// break), the rest harmonic, about the chart's own origin.
+#[test]
+fn a_projected_line_holds_the_closed_form() {
+    let chart = Chart::tilted(Point3::new(0.4, -0.2, 0.3), 0.8);
+    let (us, vs) = ((0.3, 1.4), (0.2, 1.1));
+    let (flux, area, _) = rectangle_truth(chart, us, vs, chart.o, 1.0);
+    let r = chart.r;
+    let line = EdgeTermQ::Projected(ProjectedEdgeQ {
+        carrier: FramedQ::Line {
+            point: [pt(r * us.1.cos()), pt(r * us.1.sin()), Interval::zero()],
+            dir: [Interval::zero(), Interval::zero(), Interval::one()],
+            cuts: vec![vs.0, 0.7, vs.1],
+        },
+        v_off: Interval::zero(),
+        v_sign: 1.0,
+        forward: true,
+        ends: [(pt(us.1), pt(vs.0)), (pt(us.1), pt(vs.1))],
+        env: Interval::zero(),
+    });
+    let mut loops: Vec<EdgeTermQ> = rectangle(chart, us, vs, &[])
+        .into_iter()
+        .map(|e| EdgeTermQ::Harmonic(e.harmonic))
+        .collect();
+    loops[1] = line;
+    let face = RotationalFaceQ {
+        chart: RotationalChartQ::Cylinder { radius: pt(r) },
+        chart_term: ChartTermQ {
+            closed: Interval::zero(),
+            lever: [Interval::zero(); 3],
+            rationals: Vec::new(),
+        },
+        loops: vec![loops],
+    };
+    let band = Band::linear(Tol::witness()).unwrap();
+    let got = met(rotational_cut_face_rounds::<f64>(
+        &face,
+        band,
+        RoundWindow::SCHEDULE,
+        &mut to_target(1e-9),
+    ))
+    .unwrap();
+    encloses(got.flux, flux, "a projected line: flux");
+    encloses(got.area, area, "a projected line: area");
+}
