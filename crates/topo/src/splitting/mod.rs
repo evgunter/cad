@@ -1173,7 +1173,8 @@ impl SplitError {
             Self::Pcurves(e) => write!(f, "{}", read_at(e, at)),
             Self::Pieces(e) => write!(
                 f,
-                "a side of the split could not be sorted into solids: {e}"
+                "a side of the split could not be sorted into solids: {}",
+                read_at(e, at)
             ),
         }
     }

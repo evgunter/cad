@@ -5582,7 +5582,11 @@ impl BooleanError {
                     read_at(e, at)
                 )
             }
-            Self::Pieces(e) => write!(f, "the result could not be sorted into solids: {e}"),
+            Self::Pieces(e) => write!(
+                f,
+                "the result could not be sorted into solids: {}",
+                read_at(e, at)
+            ),
             Self::Revert { operand, source } => {
                 let operand = operand_word(*operand);
                 write!(

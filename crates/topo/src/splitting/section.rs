@@ -263,6 +263,7 @@ impl<T: Real> SectionError<T> {
 
 geom_brep::ended_by_write!([T: Real] SectionError<T>);
 
+#[cfg(not(e1e_probe))]
 impl<T: Real> std::error::Error for SectionError<T> {}
 
 /// Computes the section regions of `operand` against `plane` without

@@ -308,15 +308,20 @@ pub enum MassPropsError {
     },
 }
 
-impl fmt::Display for MassPropsError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl MassPropsError {
+    fn write(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        at: Option<geom_brep::recourse::ReadAt>,
+    ) -> core::fmt::Result {
         match self {
             Self::Band { error } => {
                 write!(f, "the volume and surface area cannot be computed: {error}")
             }
             Self::Face { source, .. } => write!(
                 f,
-                "a face's share of the volume and surface area cannot be computed: {source}"
+                "a face's share of the volume and surface area cannot be computed: {}",
+                geom_brep::recourse::read_at(source, at)
             ),
             Self::RingOnCurvedFace { .. } => write!(
                 f,
@@ -374,6 +379,9 @@ impl fmt::Display for MassPropsError {
     }
 }
 
+geom_brep::ended_by_write!(MassPropsError);
+
+#[cfg(not(e1e_probe))]
 impl std::error::Error for MassPropsError {}
 
 /// Volume and surface area of `body` over the exact B-rep (module

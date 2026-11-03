@@ -157,6 +157,7 @@ impl OverlapRefusal {
 
 geom_brep::ended_by_write!(OverlapRefusal);
 
+#[cfg(not(e1e_probe))]
 impl core::error::Error for OverlapRefusal {}
 
 /// **Whether faces `a` and `b`, which a verdict put on one carrier,

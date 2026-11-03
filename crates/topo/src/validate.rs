@@ -4835,9 +4835,9 @@ impl ValidationError {
                     "a shell's role in its solid cannot be read, so the solid's shells cannot \
                      be wound: ",
                 )?;
-                match at.map(|at| error.recourse(at)) {
-                    Some(Some(recourse)) => write!(f, "{}. {recourse}", error.payload()),
-                    Some(None) => write!(f, "{error}"),
+                match at.map(|at| (at, error.recourse(at))) {
+                    Some((_, Some(recourse))) => write!(f, "{}. {recourse}", error.payload()),
+                    Some((at, None)) => write!(f, "{}", error.render(at)),
                     None => write!(f, "{}", error.payload()),
                 }
             }
