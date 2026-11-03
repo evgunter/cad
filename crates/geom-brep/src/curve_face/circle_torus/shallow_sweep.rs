@@ -4,20 +4,20 @@
 //! against the unit torus, a placed torus at the ten-metre scale, and a
 //! near-parallel carrier whose tilt can land in the band's gap — decided
 //! at `ε = 1e-6, 1e-9, 1e-12` on both lanes, against the exact oracle
-//! ([`crate::boolean::conic_oracle::exact`]). On every pose at least
+//! ([`crate::curve_face::conic_oracle::exact`]). On every pose at least
 //! `Kε` deep, a certified answer has the true count, and each certified
 //! root lies within `Kε` of arc of a true one and each true one within
 //! `Kε` of a certified one; a `Miss` has no true root; nothing else is
 //! certified. A refusal is always allowed.
 
 test_utils::gated_to![
-    "crates/topo/src/boolean/circle_torus.rs",
-    "crates/topo/src/boolean/circle_roots.rs",
+    "crates/geom-brep/src/curve_face/circle_torus.rs",
+    "crates/geom-brep/src/curve_face/circle_roots.rs",
     "crates/geom-brep/src/half_angle.rs",
     "crates/geom-brep/src/quartic.rs",
     "crates/geom-core/src/bisect.rs",
-    "crates/topo/src/boolean/conic_oracle.rs",
-    "crates/topo/src/boolean/conic_oracle/",
+    "crates/geom-brep/src/curve_face/conic_oracle.rs",
+    "crates/geom-brep/src/curve_face/conic_oracle/",
     "crates/topo/src/boolean/solid_contain.rs",
     "crates/geom-brep/src/implicit.rs",
     "crates/geom-core/src/predicate.rs",
@@ -29,7 +29,7 @@ test_utils::gated_to![
 use core::f64::consts::{PI, TAU};
 
 use super::*;
-use crate::boolean::conic_oracle::exact;
+use crate::curve_face::conic_oracle::exact;
 use geom_core::{Bounds, Interval, Real};
 use test_utils::fuzz::{self, Rng};
 
@@ -158,10 +158,16 @@ fn near_parallel(rng: &mut Rng) -> Pose {
         .max(1e-3);
     let z = Vec3::new(0.0, 0.0, 1.0);
     let tilt = rng.log_uniform(1e-15, 1e-3);
-    let towards = z.cross(crate::boolean::conic_oracle::unit(rng)).normalize();
+    let towards = z
+        .cross(crate::curve_face::conic_oracle::unit(|lo, hi| {
+            rng.range(lo, hi)
+        }))
+        .normalize();
     let axis = (z + towards * tilt).normalize();
     let u_ref = axis
-        .cross(crate::boolean::conic_oracle::unit(rng))
+        .cross(crate::curve_face::conic_oracle::unit(|lo, hi| {
+            rng.range(lo, hi)
+        }))
         .normalize();
     let ang = rng.range(0.0, TAU);
     let (t0, t1) = arc(rng);
@@ -191,7 +197,7 @@ fn draw(rng: &mut Rng, family: usize) -> Pose {
                 rng.range(-10.0, 10.0),
                 rng.range(-10.0, 10.0),
             ];
-            let a = crate::boolean::conic_oracle::unit(rng);
+            let a = crate::curve_face::conic_oracle::unit(|lo, hi| rng.range(lo, hi));
             let big = rng.range(0.3, 3.0);
             let small = big * rng.range(0.05, 0.6);
             let rho = rng.log_uniform(0.1, 10.0);

@@ -2309,7 +2309,7 @@ pub(crate) mod tests {
     //! list rather than any box.
 
     use super::*;
-    use crate::boolean::conic_oracle::exact::Dd;
+    use geom_brep::curve_face::conic_oracle::exact::Dd;
 
     /// **A spline edge's axial span from its cover holds the curve**
     /// ([`cover_axial`], about an origin off the curve): random clamped nets of degree one
@@ -5538,7 +5538,7 @@ pub(crate) mod tests {
     /// construction both do — near the fold that rounding moves `f` by
     /// far more than an ulp.
     ///
-    /// [`Dd`]: crate::boolean::conic_oracle::exact::Dd
+    /// [`Dd`]: geom_brep::curve_face::conic_oracle::exact::Dd
     fn spiric_f_dd(big_r: f64, r: f64, d: f64, cos_v: f64) -> Dd {
         let rho = Dd::of(big_r).add(Dd::of(r).mul(Dd::of(cos_v)));
         rho.sub(Dd::of(d)).mul(rho.add(Dd::of(d))).sqrt()

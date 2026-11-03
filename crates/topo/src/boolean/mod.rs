@@ -79,22 +79,16 @@ mod carrier_cross;
 pub mod carrier_eq;
 pub(crate) mod carrier_pair;
 mod carrier_touch;
-mod circle_roots;
-mod circle_torus;
 pub(crate) mod combine;
 #[cfg(test)]
 mod cone_frame_rows;
 mod conic_quadric;
 pub mod contact_verify;
-// The conic rows' shared test oracles (test builds only).
-#[cfg(test)]
-mod conic_oracle;
 mod contain;
 mod discard;
 #[cfg(feature = "door-tier3-meter")]
 mod door_meter;
 pub(crate) mod edge_join;
-mod ellipse_torus;
 // The variant roster the sample-coverage row reads (test builds only).
 #[cfg(test)]
 pub(crate) use contain::ContainErrorKind;
@@ -4501,6 +4495,18 @@ pub enum BooleanErrorKind {
 }
 
 impl BooleanError {
+    /// A conic root door's refusal ([`geom_brep::curve_face::circle_roots::DoorRefusal`]),
+    /// its in-band sign an escalation as `decision`.
+    pub(in crate::boolean) fn of_conic_door(
+        decision: BooleanDecision,
+    ) -> impl Fn(geom_brep::curve_face::circle_roots::DoorRefusal) -> Self {
+        use geom_brep::curve_face::circle_roots::DoorRefusal;
+        move |refusal| match refusal {
+            DoorRefusal::Escalated(diag) => Self::Escalated { decision, diag },
+            DoorRefusal::Invariant(what) => Self::ClassificationInvariant { what },
+        }
+    }
+
     /// The operand gate's refusal on `operand`
     /// ([`crate::AtRestBody::gate_unverdicted`]), typed for the Boolean.
     pub(crate) fn unfinished(operand: Operand, unfinished: crate::validate::Unfinished) -> Self {

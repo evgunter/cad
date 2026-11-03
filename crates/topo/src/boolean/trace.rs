@@ -21,9 +21,9 @@ use geom::{Curve3, Surface, SurfaceKind};
 use geom_brep::roots::{Roots, Unsettled};
 use geom_core::{Band, Decide, Indeterminate, InfSpeed, Margin, Point3, Real, Sign, Vec3};
 
-use super::BooleanError;
-use super::circle_roots::CircleRoots;
+use super::{BooleanDecision, BooleanError};
 use crate::validate::decide;
+use geom_brep::curve_face::circle_roots::CircleRoots;
 
 /// The funnel row a crossing's sense is decided on: the cosine between
 /// the piece's direction and the outward normal, levered by the piece's
@@ -309,9 +309,14 @@ pub fn circle_crossings<T: Decide>(
                 radius,
             });
             let found = match surface {
-                Surface::Torus { .. } => {
-                    super::circle_torus::circle_torus_roots(&circle, T::zero(), tau, surface, band)
-                }
+                Surface::Torus { .. } => geom_brep::curve_face::circle_torus::circle_torus_roots(
+                    &circle,
+                    T::zero(),
+                    tau,
+                    surface,
+                    band,
+                )
+                .map_err(BooleanError::of_conic_door(BooleanDecision::ArcTorusRoots)),
                 _ => super::conic_quadric::conic_quadric_roots(
                     &circle,
                     T::zero(),

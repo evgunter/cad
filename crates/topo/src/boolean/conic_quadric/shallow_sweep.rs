@@ -4,7 +4,7 @@
 //! `1e-11` to `1e-3` m, either side) at a random point, tangent there in
 //! a random direction — the poses the ladder arm answers — decided at
 //! `ε = 1e-6, 1e-9, 1e-12` on both lanes against the exact oracle
-//! ([`crate::boolean::conic_oracle::exact`]). On every pose at least `Kε`
+//! ([`geom_brep::curve_face::conic_oracle::exact`]). On every pose at least `Kε`
 //! deep, a certified answer has the true count and each certified root
 //! lies within `Kε` of arc of a true one and each true one within `Kε` of
 //! a certified one; a `Miss` has no true root; nothing else is
@@ -12,12 +12,12 @@
 
 test_utils::gated_to![
     "crates/topo/src/boolean/conic_quadric/mod.rs",
-    "crates/topo/src/boolean/circle_roots.rs",
+    "crates/geom-brep/src/curve_face/circle_roots.rs",
     "crates/geom-brep/src/half_angle.rs",
     "crates/geom-brep/src/quartic.rs",
     "crates/geom-core/src/bisect.rs",
-    "crates/topo/src/boolean/conic_oracle.rs",
-    "crates/topo/src/boolean/conic_oracle/",
+    "crates/geom-brep/src/curve_face/conic_oracle.rs",
+    "crates/geom-brep/src/curve_face/conic_oracle/",
     "crates/topo/src/boolean/solid_contain.rs",
     "crates/geom-brep/src/implicit.rs",
     "crates/geom-core/src/predicate.rs",
@@ -29,7 +29,7 @@ test_utils::gated_to![
 use core::f64::consts::{PI, TAU};
 
 use super::*;
-use crate::boolean::conic_oracle::{exact, unit};
+use geom_brep::curve_face::conic_oracle::{exact, unit};
 use geom_core::{Bounds, Interval, Point3, Real, Vec3};
 use test_utils::fuzz::{self, Rng};
 
@@ -53,8 +53,8 @@ fn draw(rng: &mut Rng, family: usize) -> Pose {
     );
     let r = rng.log_uniform(0.01, 10.0);
     let (surface, on, normal, tangent) = if family == 1 {
-        let n = unit(rng);
-        let t = n.cross(unit(rng)).normalize();
+        let n = unit(|lo, hi| rng.range(lo, hi));
+        let t = n.cross(unit(|lo, hi| rng.range(lo, hi))).normalize();
         let s = geom::Surface::Sphere {
             center: o,
             radius: r,
@@ -63,7 +63,7 @@ fn draw(rng: &mut Rng, family: usize) -> Pose {
         };
         (s, o + n * r, n, t)
     } else {
-        let axis = unit(rng);
+        let axis = unit(|lo, hi| rng.range(lo, hi));
         let (e1, e2) = axis.orthonormal_basis();
         let phi = rng.range(0.0, TAU);
         let radial = e1 * phi.cos() + e2 * phi.sin();

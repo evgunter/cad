@@ -40,7 +40,7 @@ test_utils::gated_to!(
     "crates/topo/src/boolean/region.rs",
     "crates/topo/src/boolean/solid_contain.rs",
     "crates/topo/src/boolean/contain.rs",
-    "crates/topo/src/boolean/circle_roots.rs",
+    "crates/geom-brep/src/curve_face/circle_roots.rs",
     "crates/topo/src/splitting/",
     "crates/sweep/tests/germ_plane_torus_chord.rs",
     "crates/sweep/tests/germ_plane_torus_frame.rs",

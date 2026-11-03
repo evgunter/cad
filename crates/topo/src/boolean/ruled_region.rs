@@ -28,7 +28,7 @@
 //!    the leg's own or misses it; a planar section's plane meets the leg
 //!    at the roots of a first harmonic in the leg's parameter, certified
 //!    by the shared door
-//!    ([`super::circle_roots::first_harmonic_roots_in_band`]); a line
+//!    ([`geom_brep::curve_face::circle_roots::first_harmonic_roots_in_band`]); a line
 //!    edge, a ruling, crosses the leg's plane once, in closed form. A
 //!    ruling leg meets a circle or a section in the edge's own parameter
 //!    against the leg's meridian plane (the plane through the axis and
@@ -131,8 +131,6 @@
 use geom::Conic;
 use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
 
-use super::BooleanDecision;
-use super::circle_roots::{FirstHarmonic, FirstHarmonicRows, first_harmonic_roots_in_band};
 use super::region::{
     self, End, Fault, Landing, Legs, Line, Paths, Region, RegionEdge, RegionRefusal, Round,
     Scaffolding, circle_edge_hit, found, in_band, span, targets,
@@ -143,6 +141,9 @@ use crate::entity::{FaceKey, LoopKey};
 use crate::ray_walk::{self, RayFault, SegmentRows};
 use crate::splitting::containment::ConicRows;
 use crate::validate::decide;
+use geom_brep::curve_face::circle_roots::{
+    FirstHarmonic, FirstHarmonicRows, first_harmonic_roots_in_band,
+};
 use geom_brep::roots::Roots;
 
 const ROOT_ROWS: FirstHarmonicRows = FirstHarmonicRows {
@@ -150,7 +151,6 @@ const ROOT_ROWS: FirstHarmonicRows = FirstHarmonicRows {
     coaxial: "bool_ruled_region_roots_coaxial",
     extreme: "bool_ruled_region_roots_extreme",
     root_slack: "bool_ruled_region_roots_slack",
-    decision: BooleanDecision::CONTAINMENT_UNNAMED,
 };
 
 /// A conic edge's boundary reading's rows (module docs).

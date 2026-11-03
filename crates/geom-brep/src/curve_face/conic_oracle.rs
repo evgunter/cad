@@ -1,5 +1,5 @@
-//! The test oracles the boolean's conic rows share — the conic doors'
-//! rows, the subdivision's guard rows and the clearance rung's rows: a
+//! The test oracles the conic doors' rows share — the doors'
+//! rows, the subdivision's guard rows and `topo`'s clearance rows: a
 //! random unit vector, the ellipse and torus fixtures, the TRUE signed
 //! distance from a sphere, a wall or a torus, a function's crossings and
 //! extremes along a parameter (each refined, so a pair of crossings
@@ -7,18 +7,15 @@
 //! matched against them.
 
 use geom_core::{Point3, Vec3};
-use test_utils::fuzz;
 
-pub(super) mod exact;
+pub mod exact;
 
-/// A uniformly drawn unit vector, away from the degenerate short ones.
-pub(super) fn unit(rng: &mut fuzz::Rng) -> Vec3<f64> {
+/// A uniformly drawn unit vector, away from the degenerate short ones,
+/// each component drawn by `range(-1, 1)` (a fuzz harness's uniform
+/// draw).
+pub fn unit(mut range: impl FnMut(f64, f64) -> f64) -> Vec3<f64> {
     loop {
-        let v = Vec3::new(
-            rng.range(-1.0, 1.0),
-            rng.range(-1.0, 1.0),
-            rng.range(-1.0, 1.0),
-        );
+        let v = Vec3::new(range(-1.0, 1.0), range(-1.0, 1.0), range(-1.0, 1.0));
         if v.norm() > 0.2 && v.norm() < 1.0 {
             return v.normalize();
         }
@@ -28,12 +25,7 @@ pub(super) fn unit(rng: &mut fuzz::Rng) -> Vec3<f64> {
 /// The ring torus `(center, axis, big, small)`, its axis normalized and
 /// its `u_ref` any unit vector square to it — the one torus fixture the
 /// conic rows build.
-pub(super) fn torus(
-    center: Point3<f64>,
-    axis: Vec3<f64>,
-    big: f64,
-    small: f64,
-) -> geom::Surface<f64> {
+pub fn torus(center: Point3<f64>, axis: Vec3<f64>, big: f64, small: f64) -> geom::Surface<f64> {
     let axis = axis.normalize();
     geom::Surface::Torus {
         center,
@@ -51,7 +43,7 @@ pub(super) fn torus(
 /// `(a − anchor) + …` from stored values a few metres apart, which is
 /// exact, rather than a point it rounded at the scale of its
 /// coordinates.
-pub(super) fn distance_from_anchor(
+pub fn distance_from_anchor(
     s: &geom::Surface<f64>,
     from: impl Fn(Point3<f64>) -> Vec3<f64>,
 ) -> f64 {
@@ -83,13 +75,13 @@ pub(super) fn distance_from_anchor(
 }
 
 /// The true signed distance of `p` from a sphere, a wall or a torus.
-pub(super) fn distance(s: &geom::Surface<f64>, p: Point3<f64>) -> f64 {
+pub fn distance(s: &geom::Surface<f64>, p: Point3<f64>) -> f64 {
     distance_from_anchor(s, |anchor| p - anchor)
 }
 
 /// The ellipse `c + a·û cos θ + b·v̂ sin θ` on the unit normal `n`, its
 /// `û` the part of `u` square to `n`.
-pub(super) fn ellipse(c: [f64; 3], n: [f64; 3], u: [f64; 3], a: f64, b: f64) -> geom::Curve3<f64> {
+pub fn ellipse(c: [f64; 3], n: [f64; 3], u: [f64; 3], a: f64, b: f64) -> geom::Curve3<f64> {
     let n = Vec3::from_array(n).normalize();
     let u = Vec3::from_array(u);
     geom::Curve3::Ellipse(geom::Ellipse::new(
@@ -147,7 +139,7 @@ fn trough(v: &[f64], k: usize) -> Option<(usize, usize)> {
 /// included: at every sampled local extremum of `|f|`, the extremum is
 /// refined by golden section, and one that crosses zero is bisected on
 /// both sides.
-pub(super) fn crossings(f: impl Fn(f64) -> f64, t0: f64, t1: f64) -> Vec<f64> {
+pub fn crossings(f: impl Fn(f64) -> f64, t0: f64, t1: f64) -> Vec<f64> {
     let at = |k: usize| t0 + (t1 - t0) * k as f64 / f64::from(SAMPLES);
     let v: Vec<f64> = (0..=SAMPLES as usize).map(|k| f(at(k))).collect();
     let mut out: Vec<f64> = (0..SAMPLES as usize)
@@ -170,7 +162,7 @@ pub(super) fn crossings(f: impl Fn(f64) -> f64, t0: f64, t1: f64) -> Vec<f64> {
 
 /// `f`'s least and greatest values on `[t0, t1]`, every sampled local
 /// extremum refined by golden section, the first and last cells' included.
-pub(super) fn extremes(f: impl Fn(f64) -> f64, t0: f64, t1: f64) -> (f64, f64) {
+pub fn extremes(f: impl Fn(f64) -> f64, t0: f64, t1: f64) -> (f64, f64) {
     let at = |k: usize| t0 + (t1 - t0) * k as f64 / f64::from(SAMPLES);
     let v: Vec<f64> = (0..=SAMPLES as usize).map(|k| f(at(k))).collect();
     let (mut lo, mut hi) = (f64::INFINITY, f64::NEG_INFINITY);
@@ -189,7 +181,7 @@ pub(super) fn extremes(f: impl Fn(f64) -> f64, t0: f64, t1: f64) -> (f64, f64) {
 }
 
 /// The crossings of the true distance from `s` along `e` on `[t0, t1]`.
-pub(super) fn oracle(e: &geom::Curve3<f64>, s: &geom::Surface<f64>, t0: f64, t1: f64) -> Vec<f64> {
+pub fn oracle(e: &geom::Curve3<f64>, s: &geom::Surface<f64>, t0: f64, t1: f64) -> Vec<f64> {
     crossings(|t| distance(s, e.eval(t)), t0, t1)
 }
 
@@ -197,7 +189,7 @@ pub(super) fn oracle(e: &geom::Curve3<f64>, s: &geom::Surface<f64>, t0: f64, t1:
 /// oracle in number and place, every one on the surface and within `π`
 /// of the arc's midpoint.
 #[allow(clippy::panic)]
-pub(super) fn assert_matches_oracle(
+pub fn assert_matches_oracle(
     label: &str,
     (e, s): (&geom::Curve3<f64>, &geom::Surface<f64>),
     t0: f64,
@@ -207,7 +199,7 @@ pub(super) fn assert_matches_oracle(
         &geom::Surface<f64>,
         f64,
         f64,
-    ) -> Result<super::circle_roots::CircleRoots<f64>, geom_brep::roots::Unsettled>,
+    ) -> Result<super::circle_roots::CircleRoots<f64>, crate::roots::Unsettled>,
 ) {
     use core::f64::consts::PI;
     let t1 = t0 + 1.0;

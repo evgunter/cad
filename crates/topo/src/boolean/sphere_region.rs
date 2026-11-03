@@ -23,7 +23,7 @@
 //!    leg's own centre: the sphere's for a ray, a two-leg path's
 //!    parallel's for its second leg), certified by
 //!    the shared first-harmonic door, each root as a direction from the
-//!    arc's centre ([`super::circle_roots::first_harmonic_root_directions`]);
+//!    arc's centre ([`geom_brep::curve_face::circle_roots::first_harmonic_root_directions`]);
 //!    a root counts where it lies inside its arc's span, at the ray
 //!    parameter `s` it sits at. Neither reading is an angle with a cut. A
 //!    root is read against the end of its span nearer it (the side of
@@ -139,8 +139,6 @@
 
 use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
 
-use super::BooleanDecision;
-use super::circle_roots::{FirstHarmonic, FirstHarmonicRows, first_harmonic_root_directions};
 use super::region::{
     self, End, Fault, Landing, Leg, Legs, Path, Paths, Region, RegionEdge, RegionRefusal, Round,
     Scaffolding, between, circle_edge_hit, found, span_at_nearer_end, targets,
@@ -151,13 +149,15 @@ use crate::entity::{FaceKey, LoopKey};
 use crate::ray_walk::{self, RayFault};
 use crate::splitting::containment::{ConicRows, SCHEDULE};
 use crate::validate::decide;
+use geom_brep::curve_face::circle_roots::{
+    FirstHarmonic, FirstHarmonicRows, first_harmonic_root_directions,
+};
 
 const ROOT_ROWS: FirstHarmonicRows = FirstHarmonicRows {
     noise: "bool_sphere_region_roots_noise",
     coaxial: "bool_sphere_region_roots_coaxial",
     extreme: "bool_sphere_region_roots_extreme",
     root_slack: "bool_sphere_region_roots_slack",
-    decision: BooleanDecision::CONTAINMENT_UNNAMED,
 };
 
 /// The boundary reading's rows (module docs).

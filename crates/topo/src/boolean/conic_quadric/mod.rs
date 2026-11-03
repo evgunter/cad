@@ -1,7 +1,7 @@
 //! **The conic × quadric root door**: the certified crossings of a
 //! CIRCLE or ELLIPSE carrier with a sphere, a cylinder wall or a cone. It
 //! reads the residual's harmonics from their one home and hands them to
-//! one of the shared root cores ([`super::circle_roots`]), whose answer
+//! one of the shared root cores ([`geom_brep::curve_face::circle_roots`]), whose answer
 //! it gives. Its one root reading of its own is a cone's carrier through
 //! the apex ("Through the apex" below), which the cores cannot certify
 //! and which it reads in closed form before them.
@@ -170,11 +170,11 @@
 
 use geom_core::{Band, Decide, Margin, Sign};
 
-use super::circle_roots::{
-    CircleRoots, FirstHarmonic, FirstHarmonicRows, door_half_angle_roots, first_harmonic_roots,
-};
 use super::{BooleanDecision, BooleanError};
 use crate::validate::decide;
+use geom_brep::curve_face::circle_roots::{
+    CircleRoots, FirstHarmonic, FirstHarmonicRows, door_half_angle_roots, first_harmonic_roots,
+};
 use geom_brep::half_angle::{
     DegreeTwo, HalfAngleFrame, HalfAngleRows, RootSlack, SubdivisionFrame, SubdivisionRows,
 };
@@ -200,16 +200,13 @@ mod shallow_sweep;
 /// The arm switch's row (module docs, "Two arms").
 const SECOND_HARMONIC: &str = "bool_conic_quadric_second_harmonic";
 
-/// The first-harmonic arm's rows, per surface decision.
-const fn first_rows(decision: BooleanDecision) -> FirstHarmonicRows {
-    FirstHarmonicRows {
-        noise: "bool_conic_quadric_first_noise",
-        coaxial: "bool_conic_quadric_first_constant",
-        extreme: "bool_conic_quadric_first_extreme",
-        root_slack: "bool_conic_quadric_first_root_slack",
-        decision,
-    }
-}
+/// The first-harmonic arm's rows.
+const FIRST_ROWS: FirstHarmonicRows = FirstHarmonicRows {
+    noise: "bool_conic_quadric_first_noise",
+    coaxial: "bool_conic_quadric_first_constant",
+    extreme: "bool_conic_quadric_first_extreme",
+    root_slack: "bool_conic_quadric_first_root_slack",
+};
 
 /// The ladder's noise meter's row (module docs, "Two arms").
 const LADDER_NOISE: &str = "bool_conic_quadric_ladder_noise";
@@ -294,9 +291,10 @@ pub(super) fn conic_quadric_roots<T: Decide>(
                 conic.speed_hi(),
                 t0,
                 t1,
-                &first_rows(BooleanDecision::ArcSphereRoots),
+                &FIRST_ROWS,
                 band,
             )
+            .map_err(BooleanError::of_conic_door(BooleanDecision::ArcSphereRoots))
             .map(|found| found.map(Roots::widen));
         }
         (
@@ -319,15 +317,9 @@ pub(super) fn conic_quadric_roots<T: Decide>(
         frame,
     } = quadric_ladder(&conic, surface, (t0, t1)).ok_or_else(desync)?;
     if let Some(first) = first_harmonic_arm(&h, frame.walk.noise, band) {
-        return first_harmonic_roots(
-            &first,
-            conic.speed_hi(),
-            t0,
-            t1,
-            &first_rows(decision),
-            band,
-        )
-        .map(|found| found.map(Roots::widen));
+        return first_harmonic_roots(&first, conic.speed_hi(), t0, t1, &FIRST_ROWS, band)
+            .map_err(BooleanError::of_conic_door(decision))
+            .map(|found| found.map(Roots::widen));
     }
     door_half_angle_roots(
         &DegreeTwo::new(h.c0, h.c1, h.s1, h.c2, h.s2),
@@ -339,9 +331,9 @@ pub(super) fn conic_quadric_roots<T: Decide>(
             residual: &|theta| geom_brep::conic_quadric_residual(&conic, quadric, theta),
             f_per_metre_hi: T::one(),
         },
-        decision,
         band,
     )
+    .map_err(BooleanError::of_conic_door(decision))
 }
 
 /// A conic against a sphere or a wall, read for the door's two arms: its
@@ -472,15 +464,9 @@ fn cone_roots<T: Decide>(
         return Ok(found);
     }
     let found = if let Some(first) = first_harmonic_arm(&h, noise, band) {
-        let found = first_harmonic_roots(
-            &first,
-            conic.speed_hi(),
-            t0,
-            t1,
-            &first_rows(BooleanDecision::ArcConeRoots),
-            band,
-        )?
-        .map(Roots::widen);
+        let found = first_harmonic_roots(&first, conic.speed_hi(), t0, t1, &FIRST_ROWS, band)
+            .map_err(BooleanError::of_conic_door(BooleanDecision::ArcConeRoots))?
+            .map(Roots::widen);
         if let Ok(Roots::On(OnCarrier)) = found {
             // `|res| ≤ |F| / floor`: a constant `F` in the band certifies
             // the carrier on the cone only once its whole reach, read
@@ -506,9 +492,9 @@ fn cone_roots<T: Decide>(
             ladder_frame(conic, (t0, t1), noise, h.floor),
             &LADDER_ROWS,
             &meter,
-            BooleanDecision::ArcConeRoots,
             band,
-        )?
+        )
+        .map_err(BooleanError::of_conic_door(BooleanDecision::ArcConeRoots))?
     };
     Ok(found.and_then(|roots| off_the_apex(conic, apex, roots, band)))
 }

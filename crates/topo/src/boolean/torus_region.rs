@@ -24,7 +24,7 @@
 //!    once, at its point on the leg's half-plane, read off the leg's
 //!    frame. Every other edge meets a leg at the roots of a first
 //!    harmonic, certified by the shared first-harmonic door
-//!    ([`super::circle_roots::first_harmonic_roots_in_band`]): the leg's
+//!    ([`geom_brep::curve_face::circle_roots::first_harmonic_roots_in_band`]): the leg's
 //!    parameter against the edge's plane, except where that plane is
 //!    tangent to the torus at the crossing (below), where a circle edge
 //!    on a meridian leg is read in its own parameter against the leg's
@@ -136,11 +136,6 @@
 
 use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
 
-use super::BooleanDecision;
-use super::circle_roots::{
-    FirstHarmonic, FirstHarmonicRoots, FirstHarmonicRows, first_harmonic_leg_roots,
-    first_harmonic_roots_in_band,
-};
 use super::region::{
     self, End, Fault, Landing, Legs, Paths, Region, RegionEdge, RegionRefusal, Round, Scaffolding,
     circle_edge_hit, found, in_band, span,
@@ -154,6 +149,10 @@ use crate::splitting::pieced_arc::{ArcHit, ArcRefusal, ArcRows, PiecedArc};
 use crate::splitting::spiric_arc::{Oval, SpiricArc};
 use crate::splitting::{Uncrossable, UncrossableCarrier};
 use crate::validate::decide;
+use geom_brep::curve_face::circle_roots::{
+    FirstHarmonic, FirstHarmonicRoots, FirstHarmonicRows, first_harmonic_leg_roots,
+    first_harmonic_roots_in_band,
+};
 use geom_brep::roots::{RootRefusal, Roots};
 
 const ROOT_ROWS: FirstHarmonicRows = FirstHarmonicRows {
@@ -161,7 +160,6 @@ const ROOT_ROWS: FirstHarmonicRows = FirstHarmonicRows {
     coaxial: "bool_torus_region_roots_coaxial",
     extreme: "bool_torus_region_roots_extreme",
     root_slack: "bool_torus_region_roots_slack",
-    decision: BooleanDecision::CONTAINMENT_UNNAMED,
 };
 
 /// The row a place is read against a first leg's corner on.

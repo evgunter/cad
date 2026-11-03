@@ -1,6 +1,6 @@
 //! **The ellipse × torus root door**: the certified crossings of an
-//! ELLIPSE carrier with a torus. Like the conic × quadric door
-//! ([`super::conic_quadric`]) it owns no root machinery: it reads the
+//! ELLIPSE carrier with a torus. Like `topo`'s conic × quadric door it
+//! owns no root machinery: it reads the
 //! residual's harmonics from their one home and hands them to the shared
 //! certified subdivision ([`super::circle_roots`]), whose answer it gives.
 //!
@@ -11,11 +11,11 @@
 //! harmonic vanishes) and `h = (C − c)·â` of degree one, so `F` is a
 //! trigonometric polynomial of degree FOUR — an octic in the tangent
 //! half-angle, up to eight crossings per turn
-//! ([`geom_brep::ConicTorusHarmonics`]). No half-angle ladder runs: its
+//! ([`crate::ConicTorusHarmonics`]). No half-angle ladder runs: its
 //! octic has no certified solver, and the quartic ladder's only part in
 //! the degree-2 doors is its escalations. The shared certified
-//! subdivision answers alone ([`geom_brep::half_angle::certified_subdivision`],
-//! at degree four), under the `bool_ellipse_torus_sub_*` rows, with the
+//! subdivision answers alone ([`crate::half_angle::certified_subdivision`],
+//! at degree four), under the `ellipse_torus_sub_*` rows, with the
 //! circle × torus door's metering: `F`'s rounding charged against its
 //! term bound, read in residual metres through the floor
 //! `2r(R² − r²)` on `|F|` per metre of residual. Its answers are
@@ -23,13 +23,13 @@
 //! escalation.
 //!
 //! **Every root's slack is charged from the computation's own running
-//! bound** (`bool_ellipse_torus_root_slack`): the residual at the root,
+//! bound** (`ellipse_torus_root_slack`): the residual at the root,
 //! evaluated with a first-order bound on its rounding
-//! ([`geom_brep::conic_torus_residual`]), plus its own magnitude, over
+//! ([`crate::conic_torus_residual`]), plus its own magnitude, over
 //! the residual's least slope near the root — `F`'s least slope over the
 //! smaller of the carrier's and the surface's ceilings on `|F|` per
 //! metre of residual — at the carrier's top speed, must be definitely
-//! inside the band ([`geom_brep::half_angle::RootSlack`]). A shallow
+//! inside the band ([`crate::half_angle::RootSlack`]). A shallow
 //! crossing whose root the representation cannot place refuses
 //! [`Unsettled::Meter`] there.
 //!
@@ -40,19 +40,18 @@
 
 use geom_core::{Band, Decide};
 
-use super::circle_roots::{CircleRoots, door_refusal};
-use super::{BooleanDecision, BooleanError};
-use geom_brep::half_angle::{
+use super::circle_roots::{CircleRoots, DoorRefusal, door_refusal};
+use crate::half_angle::{
     RootSlack, SubdivisionFrame, SubdivisionRows, TrigPoly, certified_subdivision,
 };
-use geom_brep::roots::{Roots, Unsettled};
+use crate::roots::{Roots, Unsettled};
 use geom_core::rounding_charge;
 /// The torus arm's subdivision rows (module docs).
 const TORUS_ROWS: SubdivisionRows = SubdivisionRows {
-    clear: "bool_ellipse_torus_sub_clear",
-    monotone: "bool_ellipse_torus_sub_monotone",
-    side: "bool_ellipse_torus_sub_side",
-    width: "bool_ellipse_torus_sub_width",
+    clear: "ellipse_torus_sub_clear",
+    monotone: "ellipse_torus_sub_monotone",
+    side: "ellipse_torus_sub_side",
+    width: "ellipse_torus_sub_width",
 };
 
 /// The certified crossings of the `carrier` ellipse with the `surface`
@@ -61,18 +60,18 @@ const TORUS_ROWS: SubdivisionRows = SubdivisionRows {
 ///
 /// # Errors
 ///
-/// [`BooleanError::ClassificationInvariant`] when `carrier` is not an
+/// [`DoorRefusal::Invariant`] when `carrier` is not an
 /// ellipse or `surface` not a torus — the caller dispatched on those
 /// kinds, so a mismatch is a desync, never an answer. The subdivision's
-/// sign in band escalates as [`BooleanDecision::ArcTorusRoots`], its
+/// sign in band is [`DoorRefusal::Escalated`], its
 /// fault is the kernel's, and its limit is the inner [`Unsettled`].
-pub(super) fn ellipse_torus_roots<T: Decide>(
+pub fn ellipse_torus_roots<T: Decide>(
     carrier: &geom::Curve3<T>,
     t0: T,
     t1: T,
     surface: &geom::Surface<T>,
     band: Band,
-) -> Result<Result<CircleRoots<T>, Unsettled>, BooleanError> {
+) -> Result<Result<CircleRoots<T>, Unsettled>, DoorRefusal> {
     let (
         geom::Curve3::Ellipse(..),
         Some(conic),
@@ -85,10 +84,10 @@ pub(super) fn ellipse_torus_roots<T: Decide>(
         },
     ) = (carrier, carrier.conic(), surface)
     else {
-        return Err(BooleanError::ClassificationInvariant {
-            what: "the ellipse × torus root door was handed a carrier that is not an ellipse or \
+        return Err(DoorRefusal::Invariant(
+            "the ellipse × torus root door was handed a carrier that is not an ellipse or \
                    a surface that is not a torus",
-        });
+        ));
     };
     torus_walk(
         &conic,
@@ -101,12 +100,12 @@ pub(super) fn ellipse_torus_roots<T: Decide>(
 }
 
 /// The torus arm's root-slack row.
-const TORUS_ROOT_SLACK: &str = "bool_ellipse_torus_root_slack";
+const TORUS_ROOT_SLACK: &str = "ellipse_torus_root_slack";
 
 /// [`ellipse_torus_roots`]' walk, its root-slack meter under `slack` (`None`
 /// only in this module's rows, which show the meter is what decides).
 /// The meter's ceiling on `|F| / |res|` is the smaller of the carrier's
-/// and the surface's ([`geom_brep::ConicTorusHarmonics`]): a root it
+/// and the surface's ([`crate::ConicTorusHarmonics`]): a root it
 /// meters reads ON the surface.
 fn torus_walk<T: Decide>(
     conic: &dyn geom::Conic<T>,
@@ -115,41 +114,38 @@ fn torus_walk<T: Decide>(
     surface: &geom::Surface<T>,
     slack: Option<&'static str>,
     band: Band,
-) -> Result<Result<CircleRoots<T>, Unsettled>, BooleanError> {
+) -> Result<Result<CircleRoots<T>, Unsettled>, DoorRefusal> {
     let (center, axis, major_radius, minor_radius) = torus;
-    let h = geom_brep::conic_torus_harmonics(conic, center, axis, major_radius, minor_radius);
+    let h = crate::conic_torus_harmonics(conic, center, axis, major_radius, minor_radius);
     let placed = |theta: T| {
-        geom_brep::conic_torus_residual(conic, center, axis, major_radius, minor_radius, theta)
+        crate::conic_torus_residual(conic, center, axis, major_radius, minor_radius, theta)
     };
     let meter = slack.map(|row| RootSlack {
         row,
         residual: &placed,
         f_per_metre_hi: h.f_per_metre_hi.min(h.f_per_metre_surface),
     });
-    door_refusal(
-        certified_subdivision(
-            &TrigPoly {
-                cos: h.cos,
-                sin: h.sin,
-                degree: 4,
-            },
-            &|theta| geom_brep::implicit_residual(surface, conic.point_at(theta)),
-            &SubdivisionFrame {
-                t0,
-                t1,
-                speed_hi: conic.speed_hi(),
-                noise: rounding_charge(h.terms),
-                f_per_metre: h.f_per_metre_lo,
-                f_per_metre_hi: h.f_per_metre_surface,
-                residual_reach: Some(minor_radius / T::from_f64(2.0)),
-                jet: None,
-            },
-            &TORUS_ROWS,
-            meter.as_ref(),
-            band,
-        ),
-        BooleanDecision::ArcTorusRoots,
-    )
+    door_refusal(certified_subdivision(
+        &TrigPoly {
+            cos: h.cos,
+            sin: h.sin,
+            degree: 4,
+        },
+        &|theta| crate::implicit_residual(surface, conic.point_at(theta)),
+        &SubdivisionFrame {
+            t0,
+            t1,
+            speed_hi: conic.speed_hi(),
+            noise: rounding_charge(h.terms),
+            f_per_metre: h.f_per_metre_lo,
+            f_per_metre_hi: h.f_per_metre_surface,
+            residual_reach: Some(minor_radius / T::from_f64(2.0)),
+            jet: None,
+        },
+        &TORUS_ROWS,
+        meter.as_ref(),
+        band,
+    ))
     .map(|found| found.map(Roots::widen))
 }
 
@@ -164,7 +160,7 @@ mod tests {
     use core::f64::consts::{PI, TAU};
 
     use super::*;
-    use crate::boolean::conic_oracle::{self, distance, ellipse, oracle};
+    use crate::curve_face::conic_oracle::{self, distance, ellipse, oracle};
     use geom_core::{Point3, Tol, Vec3};
 
     fn band() -> Band {
@@ -172,7 +168,7 @@ mod tests {
     }
 
     fn torus(c: [f64; 3], axis: [f64; 3], big: f64, small: f64) -> geom::Surface<f64> {
-        crate::boolean::conic_oracle::torus(
+        crate::curve_face::conic_oracle::torus(
             Point3::from_array(c),
             Vec3::from_array(axis),
             big,
@@ -271,13 +267,8 @@ mod tests {
                     unreachable!("a torus")
                 };
                 let conic = e.conic().unwrap();
-                let h = geom_brep::conic_torus_harmonics(
-                    &conic,
-                    center,
-                    axis,
-                    major_radius,
-                    minor_radius,
-                );
+                let h =
+                    crate::conic_torus_harmonics(&conic, center, axis, major_radius, minor_radius);
                 let noise = rounding_charge(h.terms) / h.f_per_metre_lo;
                 let slope = truth
                     .iter()
@@ -358,7 +349,7 @@ mod tests {
         for (carrier, surface) in [(&circle, &ring), (&e, &ball)] {
             let got = ellipse_torus_roots(carrier, 0.0, 1.0, surface, band());
             assert!(
-                matches!(got, Err(BooleanError::ClassificationInvariant { .. })),
+                matches!(got, Err(DoorRefusal::Invariant(_))),
                 "a wrong kind refuses as a kernel invariant, got {got:?}"
             );
         }
@@ -377,8 +368,8 @@ mod torus_rows {
     use std::fmt::Write as _;
 
     use super::*;
-    use crate::boolean::circle_roots::door_answer;
-    use crate::boolean::conic_oracle::{distance, exact, unit};
+    use crate::curve_face::circle_roots::door_answer;
+    use crate::curve_face::conic_oracle::{distance, exact, unit};
     use geom_core::{Point3, Vec3};
     use test_utils::fuzz;
 
@@ -405,8 +396,8 @@ mod torus_rows {
         } else {
             Vec3::new(0.0, 0.0, 0.0)
         };
-        let n = unit(rng);
-        let u = unit(rng);
+        let n = unit(|lo, hi| rng.range(lo, hi));
+        let u = unit(|lo, hi| rng.range(lo, hi));
         let big = scale * rng.range(0.1, 2.0);
         let small = big / rng.range(1.0, 20.0);
         let (major, minor) = if rng.below(2) == 0 {
@@ -429,7 +420,7 @@ mod torus_rows {
         // tube's near point lies along it, `gap` from `p` — a few bands
         // either side of zero on a graze, a crossing's depth otherwise.
         let off = {
-            let w = unit(rng);
+            let w = unit(|lo, hi| rng.range(lo, hi));
             (w - tangent * w.dot(tangent)).normalize()
         };
         let gap = if family == 1 {
@@ -440,16 +431,16 @@ mod torus_rows {
         let core = p + off * (tube + gap);
         // The core circle passes through `core` square to `off` there.
         let along = {
-            let w = unit(rng);
+            let w = unit(|lo, hi| rng.range(lo, hi));
             (w - off * w.dot(off)).normalize()
         };
         let axis = {
-            let w = unit(rng);
+            let w = unit(|lo, hi| rng.range(lo, hi));
             let w = w - along * w.dot(along);
             w.normalize()
         };
         let to_hub = axis.cross(along).normalize();
-        let s = crate::boolean::conic_oracle::torus(core + to_hub * ring, axis, ring, tube);
+        let s = crate::curve_face::conic_oracle::torus(core + to_hub * ring, axis, ring, tube);
         let t0 = rng.range(0.0, TAU);
         let t1 = t0 + rng.range(0.1, TAU);
         (e, s, t0, t1)
@@ -560,7 +551,7 @@ mod torus_rows {
                 self.semi[0],
                 self.semi[1],
             ));
-            let s = crate::boolean::conic_oracle::torus(
+            let s = crate::curve_face::conic_oracle::torus(
                 Point3::from_array(self.hub),
                 Vec3::from_array(self.t_axis),
                 self.radii[0],
@@ -787,7 +778,7 @@ mod torus_rows {
             let (e, s) = pose.build();
             let mid = (t0 + t1) / 2.0;
             let exact = exact::truth(&e, &s);
-            let sampled = crate::boolean::conic_oracle::oracle(&e, &s, mid - PI, mid + PI);
+            let sampled = crate::curve_face::conic_oracle::oracle(&e, &s, mid - PI, mid + PI);
             // The sampled oracle's `f64` distance places the graze pair only
             // to its own rounding over the pair's shallow slope.
             for (name, roots, reach) in
@@ -1006,7 +997,7 @@ mod torus_rows {
     /// line per pose, tagged `ETDUMP` — the carrier, the torus, the arc,
     /// the band, the door's answer, and the residual with its running
     /// rounding bound at every certified root
-    /// ([`geom_brep::conic_torus_residual`]).
+    /// ([`crate::conic_torus_residual`]).
     /// `scripts/oracles/ellipse_torus_mpmath.py` then re-solves each pose
     /// at 40 digits and checks the count, every root's place along the
     /// arc, every `Miss` and every bound. Run:
@@ -1051,14 +1042,14 @@ mod torus_rows {
                             ("certified", found.roots().to_vec())
                         }
                         Ok(Ok(CircleRoots::Miss)) => ("miss", vec![]),
-                        Ok(Err(_)) | Err(BooleanError::Escalated { .. }) => ("uncertain", vec![]),
+                        Ok(Err(_)) | Err(DoorRefusal::Escalated(_)) => ("uncertain", vec![]),
                         other => panic!("{other:?}"),
                     };
                     let conic = e.conic().expect("an ellipse");
                     let bounds: Vec<[f64; 2]> = roots
                         .iter()
                         .map(|&t| {
-                            let r = geom_brep::conic_torus_residual(
+                            let r = crate::conic_torus_residual(
                                 &conic,
                                 *hub,
                                 *t_axis,

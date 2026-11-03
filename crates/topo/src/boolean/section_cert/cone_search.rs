@@ -42,7 +42,7 @@
 test_utils::gated_to![
     "crates/topo/src/boolean/section_cert.rs",
     "crates/topo/src/boolean/section_cert/ruling.rs",
-    "crates/topo/src/boolean/circle_roots.rs",
+    "crates/geom-brep/src/curve_face/circle_roots.rs",
     "crates/geom-brep/src/half_angle.rs",
     "crates/geom-core/src/bisect.rs",
     "crates/geom-brep/src/implicit.rs",

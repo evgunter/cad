@@ -346,7 +346,15 @@ fn carrier(refusal: geom::CarrierRefusal) -> BoundaryRefusal {
     }
 }
 
+pub mod circle_roots;
+pub mod circle_torus;
 pub mod composite;
+// The conic rows' shared test oracles (test builds, and `topo`'s through
+// `test-support`).
+#[cfg(any(test, feature = "test-support"))]
+#[doc(hidden)]
+pub mod conic_oracle;
+pub mod ellipse_torus;
 pub mod plane_crossing;
 #[cfg(test)]
 mod review_rows;

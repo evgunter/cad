@@ -25,7 +25,7 @@ use geom_core::{Point3, Vec3};
 /// Also the spiric box rows' exact reference (`boolean::boxes`'
 /// `spiric_f_reference`).
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(in crate::boolean) struct Dd {
+pub struct Dd {
     hi: f64,
     lo: f64,
 }
@@ -50,11 +50,11 @@ fn quick_two_sum(a: f64, b: f64) -> Dd {
 impl Dd {
     const ZERO: Self = Self { hi: 0.0, lo: 0.0 };
 
-    pub(in crate::boolean) fn of(x: f64) -> Self {
+    pub fn of(x: f64) -> Self {
         Self { hi: x, lo: 0.0 }
     }
 
-    pub(in crate::boolean) fn add(self, o: Self) -> Self {
+    pub fn add(self, o: Self) -> Self {
         let s = two_sum(self.hi, o.hi);
         let t = two_sum(self.lo, o.lo);
         let s = quick_two_sum(s.hi, s.lo + t.hi);
@@ -68,11 +68,11 @@ impl Dd {
         }
     }
 
-    pub(in crate::boolean) fn sub(self, o: Self) -> Self {
+    pub fn sub(self, o: Self) -> Self {
         self.add(o.neg())
     }
 
-    pub(in crate::boolean) fn mul(self, o: Self) -> Self {
+    pub fn mul(self, o: Self) -> Self {
         let p = self.hi * o.hi;
         let e = self.hi.mul_add(o.hi, -p);
         quick_two_sum(p, e + (self.hi * o.lo + self.lo * o.hi))
@@ -91,7 +91,7 @@ impl Dd {
         quick_two_sum(q1, q2).add(Self::of(q3))
     }
 
-    pub(in crate::boolean) fn sqrt(self) -> Self {
+    pub fn sqrt(self) -> Self {
         if self.hi <= 0.0 {
             return Self::ZERO;
         }
@@ -110,7 +110,7 @@ impl Dd {
         }
     }
 
-    pub(in crate::boolean) fn to_f64(self) -> f64 {
+    pub fn to_f64(self) -> f64 {
         self.hi + self.lo
     }
 }
@@ -250,19 +250,19 @@ enum Form {
 
 /// A conic's true crossings with a surface ([`truth`]).
 #[derive(Debug)]
-pub(in crate::boolean) struct Truth {
+pub struct Truth {
     /// Each crossing's parameter, in `[0, 2π)`, ascending.
-    pub(in crate::boolean) roots: Vec<f64>,
+    pub roots: Vec<f64>,
     /// The least `|d|` of the true signed distance over the residual's
     /// extremes along the carrier (`∞` with none).
-    pub(in crate::boolean) depth: f64,
+    pub depth: f64,
     /// The least `|d + d²/2r|` over the same extremes, `r` the radius
     /// the surface's linearized residual divides by (a sphere's or a
     /// wall's, a torus's tube): the least value at an extreme of the
-    /// residual `geom_brep::implicit_residual` classifies against the
+    /// residual `crate::implicit_residual` classifies against the
     /// band, which agrees with `d` only to first order. A pose is outside
     /// a band `K·ε` deep when this is at least `K·ε`.
-    pub(in crate::boolean) residual_depth: f64,
+    pub residual_depth: f64,
 }
 
 /// The true crossings of `carrier`, a circle or an ellipse, with `surface`,
@@ -272,10 +272,7 @@ pub(in crate::boolean) struct Truth {
 ///
 /// On any other carrier or surface: the oracle reads these kinds only.
 #[allow(clippy::panic)]
-pub(in crate::boolean) fn truth(
-    carrier: &geom::Curve3<f64>,
-    surface: &geom::Surface<f64>,
-) -> Truth {
+pub fn truth(carrier: &geom::Curve3<f64>, surface: &geom::Surface<f64>) -> Truth {
     let (center, axis, (a, b), u_ref) = match *carrier {
         geom::Curve3::Circle(geom::Circle {
             frame:

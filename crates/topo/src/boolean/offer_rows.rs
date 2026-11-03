@@ -2522,13 +2522,6 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::Containment",
         1,
     ),
-    ("circle_torus.rs", "-", "BooleanDecision::ArcTorusRoots", 1),
-    (
-        "circle_torus.rs",
-        "escalated",
-        "BooleanDecision::ArcTorusRoots",
-        1,
-    ),
     (
         "conic_quadric/mod.rs",
         "cone_roots",
@@ -2551,12 +2544,6 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "conic_quadric/mod.rs",
         "quadric_ladder",
         "BooleanDecision::ArcSphereRoots",
-        1,
-    ),
-    (
-        "ellipse_torus.rs",
-        "torus_walk",
-        "BooleanDecision::ArcTorusRoots",
         1,
     ),
     (
@@ -2926,10 +2913,10 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     (
-        "ruled_region.rs",
-        "-",
-        "BooleanDecision::CONTAINMENT_UNNAMED",
-        1,
+        "reduce.rs",
+        "wall_crossing",
+        "BooleanDecision::ArcTorusRoots",
+        2,
     ),
     (
         "sectors.rs",
@@ -3000,21 +2987,15 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("slit.rs", "walls_inside", "BooleanDecision::of_normal", 1),
     ("slit.rs", "walls_inside", "Coincide::Sectors", 1),
     (
-        "sphere_region.rs",
-        "-",
-        "BooleanDecision::CONTAINMENT_UNNAMED",
-        1,
-    ),
-    (
         "torus_frame_rows.rs",
         "a_torus_off_its_ring_is_refused_as_the_pierce_refuses_it",
         "BooleanDecision::Torus",
         1,
     ),
     (
-        "torus_region.rs",
-        "-",
-        "BooleanDecision::CONTAINMENT_UNNAMED",
+        "trace.rs",
+        "circle_crossings",
+        "BooleanDecision::ArcTorusRoots",
         1,
     ),
     (

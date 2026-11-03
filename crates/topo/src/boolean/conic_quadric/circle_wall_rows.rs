@@ -10,7 +10,7 @@
 use core::f64::consts::TAU;
 
 use super::*;
-use crate::boolean::conic_oracle::{crossings, extremes};
+use geom_brep::curve_face::conic_oracle::{crossings, extremes};
 use geom_core::{Bounds, Interval, Point3, Real, Tol, Vec3};
 
 fn band() -> Band {
