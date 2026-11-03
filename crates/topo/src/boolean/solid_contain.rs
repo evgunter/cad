@@ -969,10 +969,7 @@ fn face_geo_arms<T: Decide>(
                 center,
                 radius,
                 representative,
-                sense: body
-                    .get_face(representative)
-                    .ok_or(PointInSolidError::CorruptFace { face })?
-                    .sense,
+                sense: proven(&body.faces, representative, EntityId::Face).sense,
             }),
             None => match sphere_face_region(body, face, center, radius)? {
                 Some(region) => Ok(FaceGeo::SpherePatch {
@@ -998,10 +995,7 @@ fn face_geo_arms<T: Decide>(
                     major_radius,
                     minor_radius,
                     representative,
-                    sense: body
-                        .get_face(representative)
-                        .ok_or(PointInSolidError::CorruptFace { face })?
-                        .sense,
+                    sense: proven(&body.faces, representative, EntityId::Face).sense,
                 });
             }
             match torus_face_region(body, face)? {
@@ -1114,18 +1108,19 @@ pub(crate) fn uncrossable<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<Po
 ///
 /// # Errors
 ///
-/// [`PointInSolidError::CorruptFace`] for a missing face, and
 /// [`loop_extent_from`]'s refusal of a loop that does not walk.
+///
+/// # Panics
+///
+/// Where `face`, a face of the selection, does not resolve.
 fn partial_reach<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     anchor: Point3<T>,
 ) -> Result<Lever<T>, PointInSolidError> {
-    let f = body
-        .get_face(face)
-        .ok_or(PointInSolidError::CorruptFace { face })?;
+    let f = proven(&body.faces, face, EntityId::Face);
     let mut reach = geom_brep::ExtentBall::point(anchor).lever();
-    for lk in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
+    for (lk, _, _) in body.face_loops_linked(face, f) {
         reach = reach.max(loop_extent_from(body, lk, anchor)?);
     }
     Ok(reach)
@@ -1734,13 +1729,6 @@ pub(crate) fn point_in_face<T: Decide>(
     let f = body
         .get_face(face)
         .ok_or(PointInSolidError::CorruptFace { face })?;
-    // An empty outer loop bounds no region (mid-op scaffolding never
-    // reaches this query; treat as no-hit).
-    let boundary =
-        |lk, field| linked(&body.loops, lk, EntityId::Loop, EntityId::Face(face), field).boundary;
-    if matches!(boundary(f.outer, "outer"), LoopBoundary::Empty { .. }) {
-        return Ok(Some(false));
-    }
     let region = |lk| -> Result<LoopContainment, PointInSolidError> {
         point_in_loop_projected(body, lk, normal, p, band).map_err(|e| match e {
             PointInLoopError::Uncrossable(cause) => {
@@ -1749,19 +1737,23 @@ pub(crate) fn point_in_face<T: Decide>(
             e => PointInSolidError::Loop(e),
         })
     };
-    match region(f.outer)? {
-        LoopContainment::Out => return Ok(Some(false)),
-        LoopContainment::OnBoundary => return Ok(None),
-        LoopContainment::In => {}
-    }
-    for &ring in &f.rings {
-        if matches!(boundary(ring, "rings"), LoopBoundary::Empty { .. }) {
-            continue; // a lone ring vertex excludes no area
+    for (lk, l, role) in body.face_loops_linked(face, f) {
+        let outer = role.is_outer();
+        if let LoopBoundary::Empty { .. } = l.boundary {
+            // An empty outer loop bounds no region (mid-op scaffolding
+            // never reaches this query; treat as no-hit); a lone ring
+            // vertex excludes no area.
+            if outer {
+                return Ok(Some(false));
+            }
+            continue;
         }
-        match region(ring)? {
-            LoopContainment::In => return Ok(Some(false)),
-            LoopContainment::OnBoundary => return Ok(None),
-            LoopContainment::Out => {}
+        match (region(lk)?, outer) {
+            (LoopContainment::OnBoundary, _) => return Ok(None),
+            (LoopContainment::Out, true) | (LoopContainment::In, false) => {
+                return Ok(Some(false));
+            }
+            (LoopContainment::In, true) | (LoopContainment::Out, false) => {}
         }
     }
     Ok(Some(true))
@@ -1839,6 +1831,14 @@ pub fn point_in_solid_of<T: Decide + crate::props::AtRestPolicy>(
 /// SELECTION's faces by key and act for a representative among them: a
 /// chart is body-wide, and a wearer outside the selection bounds
 /// material the query is not about.
+///
+/// # Panics
+///
+/// A selection is of the body it was made from: [`point_in_solid_faces`]
+/// reads its faces as keys that body enumerated, so a selection made from
+/// another body panics there at a face key that does not resolve in the
+/// body probed — a misuse of the API's keys, not a refusal of either
+/// body.
 #[derive(Clone, Debug)]
 pub struct SolidFaces {
     faces: Vec<FaceKey>,
@@ -1964,6 +1964,11 @@ impl SolidFaces {
 ///
 /// The core's ([`point_in_solid`]'s), plus
 /// [`PointInSolidError::ZeroVolumeBody`] for an empty selection.
+///
+/// # Panics
+///
+/// Where `sel` was made from another body and one of its faces does not
+/// resolve in `body` ([`SolidFaces`]).
 pub fn point_in_solid_faces<T: Decide + crate::props::AtRestPolicy>(
     body: &Body<T>,
     sel: &SolidFaces,
@@ -2329,10 +2334,8 @@ pub(crate) fn selection_reach<T: Decide>(
 ) -> Result<Lever<T>, PointInSolidError> {
     let mut reach = geom_brep::ExtentBall::point(q).lever();
     for &face in faces {
-        let f = body
-            .get_face(face)
-            .ok_or(PointInSolidError::CorruptFace { face })?;
-        for l in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
+        let f = proven(&body.faces, face, EntityId::Face);
+        for (l, _, _) in body.face_loops_linked(face, f) {
             reach = reach.max(loop_extent_from(body, l, q)?);
         }
     }

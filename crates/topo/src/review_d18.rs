@@ -1811,9 +1811,7 @@ fn null_records_maintained(
     for (face, record) in before.null_faces() {
         let held = record.loops().iter().all(|&l| {
             after.get_loop(l).is_some_and(|data| data.face == face)
-                && after
-                    .get_face(face)
-                    .is_some_and(|data| data.outer == l || data.rings.contains(&l))
+                && after.get_face(face).is_some_and(|data| data.holds_loop(l))
         });
         match (held, after.null_face_pair(face)) {
             (true, Some(kept)) if kept == record => counts[0] += 1,

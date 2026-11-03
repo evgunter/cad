@@ -63,7 +63,7 @@ pub(crate) fn face_loop_azimuth_windows<T: Decide>(
 ) -> Result<Vec<Option<(T, T)>>, SplitJoinError> {
     let data = body.get_face(face).ok_or_else(|| corrupt_face(face))?;
     body.face_loops_linked(face, data)
-        .filter_map(|(_, l)| match l.boundary {
+        .filter_map(|(_, l, _)| match l.boundary {
             LoopBoundary::Cycle { first } => Some(first),
             _ => None,
         })

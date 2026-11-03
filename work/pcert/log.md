@@ -940,3 +940,23 @@ E1c waits on the answer.
   - **P3:** the rest of the refusal-vocabulary residue.
   - **P4:** the frozen-node cost item.
   - Order: E2 → E3 → E4, E5 beside. `plane-nurbs-refusal-ending…` and the two second-spelling rows fit between units, wherever they touch different code from the unit in flight.
+- 2026-11-03 — **`harmonic3-circle-and-ellipse-arms-re-spell-conic-of` closed** (PR 6468): there was no code to change. PR 6349 (onehome) had already made `carrier_harmonic` read `Conic::of` / `semi_axis_vectors()`, bit-identical at f64 and at Interval. Filed `work/shell/topo-stands-and-shell-moved-walls-re-spell-a-conics-frame-by-kind.md`. Review tier: the orchestrator's read.
+- 2026-11-03 — **E2 merged** (PR 6470): a line on a cylinder has a general (projected) lane, as Ev ruled on `[ev]` PR 5186.
+  - The lane: `has_lane` admits (Line, Cylinder), and check 4's line arm bounds incidence by a Bernstein convex-hull sup of ρ² − R², converted through the cylinder arm's own `over`.
+  - The fold goes: a Zero radial reading takes the meridian form, and an in-band reading takes the general lane. `chart_iso_family`'s re-read is gone.
+  - The departure, accepted: a definite non-Zero radial reading on a line now takes the general lane, not the moving arm. The moving arm built an atan2(0,0) channel that certification always refused; the review measured 12,517 such lines on main, none certifying.
+  - The retired D3 clause is out of the README C4 page and the code prose.
+  - Review tier: single FULL. Review: APPROVE-WITH-FIXES, 0 MAJOR. A 150k-draw counterexample search found nothing, and the `line-cylinder-ends` mutant reds it. No public verb regressed.
+  - Fix list R, read by the orchestrator:
+    - the stale prose;
+    - a third consumer (`props_meridian_axial`) named on the filed row;
+    - the 88/14,412 lane changes disclosed, with a band-scale row;
+    - G1's pin;
+    - the shared residual sampler;
+    - the iso guard narrowed;
+    - the row closed.
+  - Cost about 1.0× main.
+  - Filed:
+    - `a-ruling-read-in-band-meets-consumers-that-read-no-projected-image` (P2);
+    - **`the-ruling-question-is-read-in-two-units` (P1)**: props meters a ruling's tilt over the edge, while the mint reads its radial speed per unit parameter.
+  - Next: E4 and the projected-image second spelling (both on `projected.rs`), E5 after plane-nurbs, and E3.
