@@ -17,10 +17,15 @@ two records that arm never read them: they went to the cross-solid
 backstop or the same-solid residue. So no two-record lane certified
 these pairs. They were unread, or read `CensusUndecidable`.
 
-The arm now goes to `one_record_overlap`. Where the region walk refuses
-`TouchingBoundary` or `SeamBranch`, it takes the faces' own reading
-(`face_interiors_meet`) where that reads `false`, which is a certificate.
-That cleared `curved_mergedoor`'s floating and mid-bore pegs.
+The arm now goes to `one_record_overlap`. Wherever the region door
+refuses for want of a lane (`TouchingBoundary`, `SeamBranch`,
+`NonPlanarTrim`, `ArmUnbounded`, ...; not `Escalated` or `Corrupt`), it
+takes the faces' own reading (`face_interiors_meet`) where that reads
+`false`, which is a certificate. That cleared:
+- `curved_mergedoor`'s floating and mid-bore pegs;
+- `full_turn_bore_mate`;
+- `rest_mate_every_op`'s arc-split bores;
+- `two_rims_review_probes`' rod on a step.
 
 What remains is two rows in `crates/sweep/tests/a_closed_conic_in_the_partners_face.rs`:
 `a_boss_over_a_hole_by_pose` and

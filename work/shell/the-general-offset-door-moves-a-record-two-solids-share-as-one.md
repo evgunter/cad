@@ -27,3 +27,12 @@ moved plane by its chart and its move (`offset_together.rs`
 `MovedPlane::same_move`), which parts the kiss. The general door wants
 the same: a chart group and a moved chart's slot per solid and record.
 The corner-kiss rows pin the refusal until then.
+
+The same keying meets a revolve's caps. A half-turn revolve now leaves
+its two coplanar caps on one record (`sweep::revolve`,
+`RevolvedKind::Partial::coplanar_caps`), the two worn at opposite senses.
+`crates/sweep/tests/torax_axial.rs`
+`torax_the_half_turn_lune_refuses_the_parallel_cap_pair` pins `topo::shell`
+refusing at the corner (`TogetherAxialCorner`, "parallel"). It now refuses
+`TogetherEdgeDisagreement` at the axis edge: the door moves the one record
+by one distance, where the two caps' material sides want it moved two ways.
