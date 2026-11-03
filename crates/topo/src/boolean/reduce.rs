@@ -5674,10 +5674,11 @@ fn split_logged<T: Decide + crate::props::AtRestPolicy>(
 /// On a circle, `p` must lie ON the carrier for the azimuth to name the
 /// event. One foot ([`geom::Curve3::foot`]) answers both: the carrier's
 /// own reading at it decides that `p` is on the circle
-/// ([`geom::Foot::on_carrier`]), and its azimuth, which the foot places
-/// within half a turn of the span's middle, is the parameter, as every
-/// other carrier's [`point_param`] is its own placement near that
-/// middle. The angular half of "on the ARC" is not repeated here: `split_edge`'s
+/// ([`geom::Foot::on_carrier`]), and its azimuth is the parameter, as
+/// every other carrier's is [`point_param`]. Either is then read on the
+/// branch within half a turn of the span's middle
+/// ([`geom_brep::curve_pair::Span::branch`]), the one placement of a
+/// parameter in the span for every kind. The angular half of "on the ARC" is not repeated here: `split_edge`'s
 /// interiority gate is exactly that question, metered in metres at the
 /// radius.
 ///
@@ -5716,20 +5717,21 @@ fn split_other_at_point<T: Decide + crate::props::AtRestPolicy>(
                 }));
             }
         }
-        // The edge's certificate holds its turn, which is never over one
-        // ([`geom_brep::CertifiedTurn`]), so the branch about the span's
-        // middle, the foot's, is the one inside it.
         foot.t()
     } else {
         point_param(y, y_is, edge, &curve, p)?
     };
+    // The edge's certificate holds its turn, which is never over one
+    // ([`geom_brep::CertifiedTurn`]), so the branch about the span's
+    // middle is the one inside it.
+    let t = geom_brep::curve_pair::Span::new(curve.carrier(), curve.params()).branch(t);
     split_logged(y, y_is, edge, t, Some(p), by, tol, contacts)
 }
 
 /// **The parameter of `p` on `edge`'s curve**: its carrier's
-/// [`geom::Curve3::param_near`] anchored at the span's midpoint, the
-/// branch inside the stored span ([`split_other_at_point`] carries the
-/// derivation). `p` must lie on the carrier.
+/// [`geom::Curve3::param_near`] anchored at the span's midpoint, which
+/// [`split_other_at_point`] reads on the branch inside the stored span.
+/// `p` must lie on the carrier.
 ///
 /// # Errors
 ///
