@@ -100,8 +100,10 @@
 //! stepper, is what runs at every `T`.
 //!
 //! The [`frame`] submodule (LIB-U4b) is the placement vocabulary:
-//! point-at, mirror, and the path-start frame, as plain [`Affine3`]
-//! values rather than a new type. It is the one deciding module here —
+//! point-at (a [`RigidMotion`]) and mirror (an [`Affine3`], since a
+//! reflection is not a frame). A frame across a direction with no
+//! stated reference is a written frame turned onto it
+//! ([`RigidMotion::turned_onto`]); the module's docs list the doors. It is the one deciding module here —
 //! its degeneracy policy is stated in its own docs and routed through
 //! the predicate funnel, so the totality contract above is unchanged
 //! for everything else in this layer.
@@ -109,7 +111,7 @@
 //! Two types here carry a decided fact. The [`UnitVec3`] witness is a
 //! direction whose length decided positive under a band and was then
 //! normalized; it is minted by its normalizing constructor, by exact
-//! negation, by [`frame`]'s deciding ladders, and by a rigid motion
+//! negation, by [`frame`]'s deciding doors, and by a rigid motion
 //! acting on a direction. The [`RigidMotion`] witness is a proper rigid
 //! motion — a frame's origin and right-handed orthonormal triple —
 //! minted by construction (rotations about a witness, translations,

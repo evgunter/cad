@@ -2428,6 +2428,79 @@ mod turned_onto_rows {
         }
     }
 
+    /// **The door is `turned_between(w, d) ∘ frame`, bit for bit**: over
+    /// written frames (`RigidMotion::turned` about a random axis by a
+    /// random rational turn, at a random origin) and directions `d` off
+    /// the pole (`w·d > −0.999`), the three axes are exactly the
+    /// composition's and the origin is the frame's own. A counterexample
+    /// search, so the seed varies (logged; `CAD_FUZZ_SEED` replays it).
+    #[test]
+    fn the_door_is_the_least_turn_composed_onto_the_frame_bit_for_bit() {
+        use test_utils::fuzz;
+        let mut rng = fuzz::start("rigid_motion::turned_onto_rows::composition");
+        let dir = |rng: &mut fuzz::Rng| loop {
+            let v = Vec3::new(
+                rng.range(-1.0, 1.0),
+                rng.range(-1.0, 1.0),
+                rng.range(-1.0, 1.0),
+            );
+            if v.norm() > 0.1 {
+                return unit(v);
+            }
+        };
+        let mut checked = 0usize;
+        for i in 0..fuzz::scaled(2_000) {
+            let origin = Point3::new(
+                rng.range(-1e3, 1e3),
+                rng.range(-1e3, 1e3),
+                rng.range(-1e3, 1e3),
+            );
+            let den = 1 + rng.below(24) as u64;
+            let num = rng.below(2 * den as usize) as i64 - den as i64;
+            let frame = RigidMotion::turned(origin, dir(&mut rng), Turns::new(num, den).unwrap());
+            let d = dir(&mut rng);
+            if frame.w().get().dot(d.get()) <= -0.999 {
+                continue;
+            }
+            let got = onto(frame, d).unwrap_or_else(|e| {
+                panic!(
+                    "draw {i}: off the pole the door builds, got {e:?}; {}",
+                    fuzz::replay()
+                )
+            });
+            let want = RigidMotion::turned_between(frame.w(), d, frame.origin(), SITE, band())
+                .unwrap()
+                .compose(frame)
+                .unwrap();
+            for (axis, g, w) in [
+                ("u", got.u(), want.u()),
+                ("v", got.v(), want.v()),
+                ("w", got.w(), want.w()),
+            ] {
+                let (g, w) = (g.get(), w.get());
+                assert!(
+                    [g.x, g.y, g.z].map(f64::to_bits) == [w.x, w.y, w.z].map(f64::to_bits),
+                    "draw {i}: {axis} is {g:?}, the composition's is {w:?}; {}",
+                    fuzz::replay()
+                );
+            }
+            let bits = |p: Point3<f64>| [p.x, p.y, p.z].map(f64::to_bits);
+            assert!(
+                bits(got.origin()) == bits(frame.origin()),
+                "draw {i}: the origin moved to {:?} from {:?}; {}",
+                got.origin(),
+                frame.origin(),
+                fuzz::replay()
+            );
+            checked += 1;
+        }
+        assert!(
+            checked * 2 > fuzz::scaled(2_000),
+            "most draws are off the pole: {checked} checked; {}",
+            fuzz::replay()
+        );
+    }
+
     /// **At `−w` and across the band around it the door refuses**:
     /// opposed when decided, undecided between the band's thresholds,
     /// and it builds past them. It never picks a half turn itself.

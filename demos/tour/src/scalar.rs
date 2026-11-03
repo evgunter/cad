@@ -32,6 +32,9 @@ use pncad::geom_core::Probe;
 /// written turn (`RigidMotion::turned`). The tube scenes' [`axis_frame`]
 /// still decides an exact (axis, reference) pair under this name
 /// (`work/frame/exact-axis-and-reference-frames-still-decide.md`).
+/// [`frame_across`] decides under it too: its direction's length, and
+/// whether that direction is off the world −z by more than the band
+/// (the least turn's opposition decision).
 pub const TOUR_FRAME_AXIS: &str = "tour_frame_axis";
 
 /// **A sketch plane from two computed directions**, orthonormalized at
@@ -103,8 +106,8 @@ pub fn axis_frame<S: Scalar>(
 /// # Panics
 ///
 /// If the band cannot be formed, if `dir` has no length, or if it is
-/// the world −z, where no least turn is THE one and a scene writes a
-/// different frame.
+/// not decided off the world −z (the band around it, `−z` included),
+/// where a scene writes a different frame.
 pub fn frame_across<S: Scalar>(
     origin: pncad::geom_core::Point3<S>,
     dir: pncad::geom_core::Vec3<S>,

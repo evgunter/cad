@@ -245,9 +245,9 @@ class TestTheFrameValue(unittest.TestCase):
         with self.assertRaises(TypeError):
             {Frame.translation((0 * m, 0 * m, 0 * m))}
 
-    def test_the_frame_trio_builds_and_refuses(self):
-        """`point_at` — the frame constructor, with its typed
-        refusals."""
+    def test_point_at_builds_and_refuses_a_degenerate_aim_or_roll_reference(self):
+        """`point_at` builds a proper frame, and refuses typed when the
+        aim has no length or the roll reference lies along it."""
         aimed = Frame.point_at(
             (0 * m, 0 * m, 0 * m), (0 * m, 0 * m, 1 * m), (0.0, 1.0, 0.0)
         )

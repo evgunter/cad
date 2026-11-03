@@ -205,7 +205,8 @@ pub fn narration(tol: Tol) {
         "   the START placement is the kernel's, not this caller's: \
          RigidMotion::axes_xy(start point).turned_onto(start tangent) is the world \
          frame turned by the least turn so its local +Z is that tangent, REFUSING \
-         typed only at the world -z, where no least turn is the one. A different \
+         typed across the band around the world -z, where the least turn is not \
+         decided (at -z itself there is no one least turn). A different \
          roll is a rotation composed about the tangent, not a second door (the \
          twisted_tube scene below is that caller)"
     );

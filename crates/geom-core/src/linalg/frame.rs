@@ -21,8 +21,9 @@
 //!   rather than two points;
 //! - **no reference**: a frame the author writes (`axes_xy(p)` for a
 //!   sweep's start) turned onto the direction by the least turn,
-//!   [`RigidMotion::turned_onto`]. It refuses at the written frame's
-//!   pole, `−w`, and the recourse there is to write another frame;
+//!   [`RigidMotion::turned_onto`]. It refuses across the band around
+//!   the written frame's pole, `−w` included, and the recourse there is
+//!   to write another frame;
 //! - **along a path**: `sweep::sweep_places`, the start frame carried
 //!   station to station by the rotation-minimizing frame;
 //! - [`Vec3::orthonormal_basis`] is for scratch and input coordinates
@@ -38,8 +39,8 @@
 //!
 //! # The roll convention (one sentence, pinned)
 //!
-//! For [`point_at`] the frame's local **+Z is the aim direction**, and the **roll reference lies in the local +Y
-//! half-plane**: the reference's component perpendicular to the aim is
+//! For [`point_at`] the frame's local **+Z is the aim direction**, and
+//! the **roll reference lies in the local +Y half-plane**: the reference's component perpendicular to the aim is
 //! a positive multiple of local +Y, and the reference has no local +X
 //! component. Equivalently, with `ẑ` the unit aim and `r` the
 //! reference: `x̂ = normalize(r × ẑ)`, `ŷ = ẑ × x̂`. The frame is
@@ -120,12 +121,13 @@
 //! vocabulary is shared; the code is not. PATHS' placements are
 //! typestate transitions in a 2-D profile algebra that consume DOFs
 //! from a bound tip and record a program step; these are total 3-D
-//! value constructors over [`RigidMotion`] with no lattice, no tip, and no
-//! recording. The one thing a unification could share — the
+//! value constructors over [`RigidMotion`] with no lattice, no tip,
+//! and no recording. The one thing a unification could share — the
 //! tangent-onto-direction rotation — is three lines in each and
 //! carries different degeneracy policies (PATHS refuses at the
-//! typestate; here the least turn refuses at its pole). Sharing the words is the whole
-//! win; sharing an abstraction would cost a layer.
+//! typestate; here the least turn refuses across the band around its
+//! pole). Sharing the words is the whole win; sharing an abstraction
+//! would cost a layer.
 
 use crate::linalg::{Affine3, Mat3, Point3, RigidMotion, UnitVec3, UnitVec3Error, Vec3};
 use crate::predicate::{Band, BandError, COINCIDENCE_RECOURSE, Decide, Indeterminate};

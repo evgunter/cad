@@ -127,4 +127,54 @@ mod start_frame {
             }
         }
     }
+
+    /// **The tube's START frame is the world frame turned onto the start
+    /// tangent by the least turn**, read against the closed form rather
+    /// than against the door that builds it. With `t̂ = (a, b, c)` the
+    /// unit start tangent, the least turn taking `ẑ` onto `t̂` is the
+    /// rotation about `ẑ × t̂` (Rodrigues), which takes `x̂` to
+    /// `(1 − a²/(1+c), −ab/(1+c), −a)` and `ŷ` to
+    /// `(−ab/(1+c), 1 − b²/(1+c), −b)`.
+    ///
+    /// The carried-frame oracle above is built from the same start
+    /// frame as `tube_places`, so it cannot see a wrong start roll; this
+    /// row can. ANTI-VACUITY: the spine's start tangent is asserted off
+    /// `±ẑ` by a margin, so the closed form's `x̂` is not `x̂` itself.
+    #[test]
+    fn the_tube_starts_from_the_world_frame_turned_onto_its_start_tangent() {
+        let tol = Tol::witness();
+        let spine = cubic_spine();
+        let (lo, _) = spine.domain();
+        let t = spine.deriv(lo).normalize();
+        let (a, b, c) = (t.x, t.y, t.z);
+        assert!(
+            a.hypot(b) > 0.1 && c > -0.9,
+            "the start tangent ({a}, {b}, {c}) leans off ±z, so the turn is not trivial"
+        );
+        let k = 1.0 / (1.0 + c);
+        let want_u = [1.0 - a * a * k, -a * b * k, -a];
+        let want_v = [-a * b * k, 1.0 - b * b * k, -b];
+        let start = &tube_places(&spine, 0.0, tol)[0];
+        for (axis, got, want) in [
+            ("u", start.u().get(), want_u),
+            ("v", start.v().get(), want_v),
+        ] {
+            let off = [got.x - want[0], got.y - want[1], got.z - want[2]]
+                .iter()
+                .fold(0.0_f64, |m, e| m.max(e.abs()));
+            assert!(
+                off < 1e-14,
+                "the start frame's {axis} must be the least turn's, off by {off:e}: got \
+                 ({}, {}, {}), closed form {want:?}",
+                got.x,
+                got.y,
+                got.z
+            );
+        }
+        let off_w = (start.normal().get() - t).norm();
+        assert!(
+            off_w < 1e-15,
+            "the start frame's +Z is the start tangent, off by {off_w:e}"
+        );
+    }
 }

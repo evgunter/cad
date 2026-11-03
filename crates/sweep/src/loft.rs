@@ -1791,9 +1791,10 @@ fn arc_all<T: Real>(arc: &geom_core::Arc2<T>, holds: impl Fn(T) -> bool + Copy) 
 /// the path's start and turns it onto the start tangent,
 /// `RigidMotion::axes_xy(start).turned_onto(tangent, …)`: its local +Z
 /// is the start tangent and its roll the written frame's, carried by
-/// the least turn, refused typed only at that frame's −z. A caller
-/// wanting a different roll composes a rotation about the tangent onto
-/// that frame; there is no second door.
+/// the least turn, refused typed across the band around that frame's
+/// −z, where the least turn is not decided (`−z` itself included). A
+/// caller wanting a different roll composes a rotation about the
+/// tangent onto that frame; there is no second door.
 ///
 /// # Errors
 ///
