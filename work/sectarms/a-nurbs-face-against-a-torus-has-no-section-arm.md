@@ -2,11 +2,12 @@
 id: a-nurbs-face-against-a-torus-has-no-section-arm
 kind: issue
 title: A NURBS face against a torus face has no C5 section arm, so lily wall 8 (the leaf grown out of the stem) cannot join once its spline seams cross
-status: open
+status: parked
 opened: 2026-10-29
 priority: P0
 cost: H
 refs: [a-nurbs-face-against-a-cone-or-sphere-has-no-section-arm, a-spline-span-against-a-curved-face-is-not-dispatched-to-the-composite]
+blocked_on: [c5-plane-torus-cone-cylinder-arms]
 ---
 
 
