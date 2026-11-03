@@ -435,3 +435,14 @@ and bodies unchanged. No orchestrator yet.
   - **Mutants:** m9 and m10 survive, because no row reaches those arms (filed P3).
   - **D5 deviation:** an in-span Zero now escalates rather than desyncing.
   - **Review:** the dual review is dispatched to two cloud sessions.
+
+- 2026-11-03 18:05 — **PR 6466 dual review is in.** R1 and R2 both returned APPROVE-WITH-FIXES, with no MAJOR. Each built an oracle independent of Q that confirms the node listing, site reading and germ minting. Fix pass sent, both sessions archived, blind coding running.
+  - **Regression reach, measured by R2:** both seams refuse at 1.8e-4 and build from 2e-4.
+    - The issue's "B builds from 1.1e-4" is false. It is corrected, and threshold rows are added for both seams.
+    - The issue is what Ev reads, so the correction matters.
+  - **Must fix (beyond the threshold):**
+    - the ray order is rebuilt by hand beside `SectionNode::ray`;
+    - `crossing_equal_rods` moved to building with no traced cause (trace it, and update the HONEJOIN row);
+    - an undisclosed widening of chord-end reading through `reads`' pad;
+    - D3's ellipse agreement is held only by prose (add a `debug_assert` or route it through `site()`).
+  - **Fix-or-file:** several, including a second public `Sense` enum and three spellings of the node-end projection.
