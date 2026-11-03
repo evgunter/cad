@@ -2904,6 +2904,10 @@ NOT_BOUND = {
     # leaf (the switch at `topo::AtRestPolicy::leaf`): Python reads it as
     # the `Body` it derefs to, never as the enum.
     "Held": INTERIOR,
+    # A body read into a frame (`Framed::read_in`, the read-out
+    # `body_in_space`): a value's own `Held`, or its body mapped as
+    # construction state. Python reads it as the `Body` it derefs to.
+    "ReadIn": INTERIOR,
     "in_space": INTERIOR,
     "Composing": INTERIOR,
     # What an evaluation built, counted (debug builds only): a row's
