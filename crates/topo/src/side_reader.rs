@@ -1098,7 +1098,8 @@ mod pre_filter_tests {
     }
 
     /// The brick with a point of `faces[0]` removed: that planar face's
-    /// in-face walk refuses (`Desync`), and its plane still reads.
+    /// in-face walk panics on the vertex's point link, and its plane still
+    /// reads.
     fn with_unwalkable_first_face(body: &mut Body<f64>, faces: &[FaceKey]) {
         let point = body
             .half_edges
@@ -1114,11 +1115,11 @@ mod pre_filter_tests {
         body.points.remove(point);
     }
 
-    /// **The walk refusal a spline face now answers instead of.** On a
-    /// selection whose first planar face's in-face walk refuses, the
-    /// first aim used to return that refusal; with a spline face in the
-    /// selection no aim is taken, so the volume reads, limited by the
-    /// spline face. Without the spline face the walk's refusal stands.
+    /// **A spline face takes no aim.** On a selection whose first planar
+    /// face's in-face walk breaks, the first aim reads that face and
+    /// panics on its torn link; with a spline face in the selection no
+    /// aim is taken, so the face is never walked and the volume reads,
+    /// limited by the spline face.
     #[test]
     fn a_spline_face_reads_the_volume_where_a_planar_aims_walk_refuses() {
         let tol = Tol::witness();
@@ -1126,12 +1127,14 @@ mod pre_filter_tests {
         let (mut body, faces) = brick_and_faces(tol);
         with_unwalkable_first_face(&mut body, &faces);
         let sel = SolidFaces::select(&body, faces.clone()).expect("the faces select");
-        let read = side_at_infinity(&body, &sel, band, || {
-            Err::<SolidContainment, _>("the volume")
-        });
+        let report = crate::surgery::tests::panic_message(std::panic::AssertUnwindSafe(|| {
+            let _ = side_at_infinity(&body, &sel, band, || {
+                Err::<SolidContainment, _>("the volume")
+            });
+        }));
         assert!(
-            read.is_err(),
-            "without a spline face the first aim's walk refusal is the answer"
+            report.contains("'s point names"),
+            "without a spline face the first aim walks the torn face: {report}"
         );
 
         let spline = *faces.last().expect("a brick has faces");
