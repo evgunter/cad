@@ -956,21 +956,29 @@ the ball about the overlap of the two operands' boxes, padded, which
 holds every section point the operation can use. No face's or site's
 extent enters it, so two faces on one carrier read one value. A
 component is closed, or open with both ends on the domain's boundary,
-or ends at a node (Edge descriptions): a node is
-decided on the pose as a Zero tangency whose section still has
-carriers, or as a cone's apex lying on the other surface, placed in
-closed form or enclosed alone in a certified box, and a site at it
-reads as the node. The value lists each node with a normal, its two
-tangent lines and the side of each other the surfaces lie on in the
-sectors between them, all read off the section's quadratic form there,
-indefinite and nondegenerate: at a tangency the surfaces' relative
-second fundamental form, with their common normal; at a cone's apex the
-cone's form restricted to the other surface's tangent plane there,
-with that surface's normal, the lines the two rulings in that plane.
-At an apex that form definite is a touch, the apex an isolated point
-of the section; degenerate, a ruling in the tangent plane, refuses
-against a curved surface, and against a plane is the section's own
-line. Each arc end at a node names its line and the sense it
+or ends at a node (Edge descriptions). A node is a point of
+the section where one surface's residual `f`, restricted to the other
+surface `S` where `S` is smooth, has a critical point at value zero
+whose Hessian is indefinite and nondegenerate: by the Morse lemma, two
+branches crossing transversally there. The Hessian of `f|S` at such a
+point is `f`'s second-order form on `S`'s tangent plane `T`, corrected
+by `S`'s curvature in proportion to `∇f`'s component along `S`'s
+normal; it is the node's one datum. Two cases meet the condition, and
+they differ only in that correction. At a tangency of two smooth
+surfaces `∇f` is normal to `S` and nonzero, and the Hessian is their
+relative second fundamental form. At a cone's apex lying on `S`,
+`∇f = 0`, the correction vanishes, and the Hessian is the cone's own
+form on `T`, its null lines the two rulings in `T`. A node is decided
+on the pose (a Zero tangency whose section still has carriers, or the
+apex's closed-form margin), placed in closed form or enclosed alone in
+a certified box, and a site at it reads as the node. The value lists
+each node with `S`'s normal, its two tangent lines (the Hessian's null
+lines) and the side of each other the surfaces lie on in the sectors
+between them, all read off that Hessian. Where it is definite the
+point is a touch, an isolated point of the section; where it is
+degenerate, the contact is of higher order and refuses (against a
+plane the cone's degenerate apex is no contact of higher order but the
+section's own line, read as such). Each arc end at a node names its line and the sense it
 leaves along. A germ leaving a node is minted from its arc end, and no
 reading of a site names an arc there.
 Arcs that share nodes are one node-joined set (`NodeSet`), the
