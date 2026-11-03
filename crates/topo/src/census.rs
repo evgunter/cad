@@ -6633,6 +6633,33 @@ fn report_found_pairs(found: &[FoundPair], declared: &Declared, errors: &mut Vec
     }
 }
 
+/// **Whether two faces of one surface record share interior**: the
+/// region door in the shared chart, and where its walk refuses at a
+/// shared boundary or a seam branch, the faces' own reading
+/// ([`face_interiors_meet`]), on a carrier that is one by key: its
+/// `false` is a certificate on either path. Its `true` is not (it reads
+/// the cones of two crossings it parts as shared interior, and two
+/// opposed faces abutting along a rim are such a pair), so there, and
+/// where it reads nothing, the region door's refusal stands.
+fn one_record_overlap<T: Decide>(
+    body: &Body<T>,
+    geo: &Geo<T>,
+    lane: RegionLane<T>,
+    (fa, fb): (FaceKey, FaceKey),
+    band: Band,
+) -> Result<crate::chart_region::ChartOverlap, ChartRegionError> {
+    use crate::chart_region::ChartOverlap;
+    match lane.chart_overlap(body, fa, body, fb, band) {
+        Err(refusal @ (ChartRegionError::TouchingBoundary | ChartRegionError::SeamBranch)) => {
+            match face_interiors_meet(body, geo, fa, fb, band) {
+                Ok(false) => Ok(ChartOverlap::Empty),
+                Ok(true) | Err(_) => Err(refusal),
+            }
+        }
+        read => read,
+    }
+}
+
 /// **The conformal face-pair arm** (M9-2, C2's structural rung run as
 /// a census sweep): for every pair of CURVED faces sharing one
 /// `SurfaceKey` with OPPOSED senses — the only configuration that is
@@ -6691,7 +6718,7 @@ fn sweep_conformal_patches<T: Decide>(
                 if da.sense == db.sense {
                     continue; // SameOriented: flush material, not contact (C1)
                 }
-                match region.map(|lane| lane.chart_overlap(body, fa, body, fb, band)) {
+                match region.map(|lane| one_record_overlap(body, geo, lane, (fa, fb), band)) {
                     None => {
                         // The pass holds no CERTIFIED region door (the
                         // `_structural` twin's value at every scalar,
