@@ -62,7 +62,9 @@ fn top_wall(s: &AtRestBody<f64>) -> FaceKey {
             Some(geom::Surface::Nurbs(n)) => {
                 let (u0, u1) = n.knot_values_u().domain();
                 let (v0, v1) = n.knot_values_v().domain();
-                n.eval(0.5 * (u0 + u1), 0.5 * (v0 + v1)).distance(Point3::origin()) < 1e-12
+                n.eval(0.5 * (u0 + u1), 0.5 * (v0 + v1))
+                    .distance(Point3::origin())
+                    < 1e-12
             }
             _ => false,
         })

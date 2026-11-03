@@ -373,7 +373,12 @@ fn subtract_and_intersect_of_a_spline_operand_refuse_where_union_does_or_build_r
             partners.push((format!("a torus {at}"), moved(to, p), vt, within(vt)));
         }
         let lc = moved(lofted_cylinder(0.5, t), [w[0], w[1], w[2] - 0.25]);
-        partners.push(("a lofted cylinder across the wall".into(), lc, PI * 0.5, None));
+        partners.push((
+            "a lofted cylinder across the wall".into(),
+            lc,
+            PI * 0.5,
+            None,
+        ));
         let (peg, vpeg) = brick((-0.25, 0.25), (-0.25, 0.25), (top - 0.25, top + 0.5));
         partners.push(("a peg through the top cap".into(), peg, vpeg, None));
         let (slab, vs) = brick((-3.0, 3.0), (-0.25, 0.25), (c[2] - 0.25, c[2] + 0.25));
