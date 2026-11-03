@@ -696,6 +696,12 @@ const SECTOR_APEX_WINDOW: &str = "sector_apex_window";
 pub(crate) struct ApexShape<T: Real> {
     /// The metering arm, as [`SectorShape::arm`].
     pub arm: T,
+    /// The azimuth the face's sweep turns through from the next bound to
+    /// its own ([`crate::sector_face::ConeApex::azimuth_from`]), as the
+    /// window was decided: the whole turn `2π` where the corner is one
+    /// (a strut's one edge, a wrap edge's tip), whatever the two bounds'
+    /// rounding reads. Its readers subdivide the window by it.
+    pub window: T,
     /// The unit rulings the sector is subdivided at, in orbit order (from
     /// its own bound toward the next): none, one or two.
     pub rulings: Vec<Vec3<T>>,
@@ -774,6 +780,7 @@ fn apex_shape<T: Decide>(
     {
         return Ok(ApexShape {
             arm,
+            window,
             rulings: Vec::new(),
         });
     }
@@ -803,7 +810,11 @@ fn apex_shape<T: Decide>(
             rulings.push(g);
         }
     }
-    Ok(ApexShape { arm, rulings })
+    Ok(ApexShape {
+        arm,
+        window,
+        rulings,
+    })
 }
 
 /// [`apex_shape`], with a window that reads no width read by `bounds`

@@ -7,10 +7,12 @@
 //! both forms: its apex reached by one wrap edge
 //! (`common::wrap_tip::one_wrap_edge`) and revolved by `sweep::revolve`.
 //! Against a box one of whose edges runs through the apex, turned about
-//! the cone's axis so that the edge meets the cone's seam at no special
-//! angle, each op, either way round, holds its closed form, tiers 3 and
-//! 3′ over the contacts it records, and a lattice of points the analytic
-//! region places:
+//! the cone's axis by generic turns, every quarter turn and just short
+//! of the whole turn (where a box side lies just off the tipped cone's
+//! seam), each op either way round (`∩` and `∪` with each operand first,
+//! and both differences) holds its closed form, tiers 3 and 3′ over the
+//! contacts it records, and a lattice of points the analytic region
+//! places:
 //!
 //! - **an edge across the apex**, the box's top holding the apex and its
 //!   side `x = 0` the axis: the box holds half the cone above its floor;
@@ -24,15 +26,14 @@
 //! (`a_cone_apex_on_a_plane_through_it`). Which face is cut that way is
 //! the turn's: the wrap-tipped cone has one face, the revolved cone two,
 //! parted at its seam. The ops that keep the box's part, `∩` and
-//! `box ∖ cone`, build at every pose.
-//! The poses that pinch are named (turned 2: the tipped cone across the
-//! apex, both forms along the axis), so a pose that starts or stops
-//! pinching turns its row red.
+//! `box ∖ cone`, build at every pose. The poses that pinch are named,
+//! every aperture alike, so a pose that starts or stops pinching turns
+//! its row red.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common::membership::{self, Region};
 use crate::common::wrap_tip::{NORTH, one_wrap_edge};
-use core::f64::consts::PI;
+use core::f64::consts::{FRAC_PI_2, PI, TAU};
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use sweep::Revolution;
 use sweep::test_support::{finished, revolved_about_y};
@@ -94,28 +95,38 @@ fn volume(alpha: f64) -> f64 {
     PI * alpha.to_radians().tan().powi(2) / 3.0
 }
 
-/// One operand of [`four_ops`]: the body, its region, its volume.
+/// One operand of [`six_ops`]: the body, its region, its volume.
 type Operand<'a> = (&'a AtRestBody<f64>, &'a dyn Fn() -> Region, f64);
 
-/// Holds the four ops of `a` and `b` to the volumes `share` (their
-/// intersection's) sets, and to their regions at the `7³` lattice over
-/// `lattice`, with tiers 3 and 3′ over the contacts each result records.
-/// Where `pinch`, `a ∪ b` and `a ∖ b` must refuse
-/// `ResultPinchedAtConeApex` by name instead, and every other op builds;
-/// elsewhere every op builds.
-fn four_ops(
+/// What one op of a pose is held to.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Expect {
+    /// It builds, at its closed form and its region.
+    Builds,
+    /// It refuses `ResultPinchedAtConeApex` by name: the cone's face cut
+    /// along two rulings through its apex is left pinched there, which
+    /// props cannot yet measure (`a_cone_apex_on_a_plane_through_it`).
+    Pinches,
+}
+
+/// Holds the six ops of `a` and `b` (`a` the cone), either way round:
+/// `∩` and `∪` with each first, `a ∖ b` and `b ∖ a`, to the volumes
+/// `share` (their intersection's) sets, and to their regions at the `7³`
+/// lattice over `lattice`, with tiers 3 and 3′ over the contacts each
+/// result records, or to the refusal `expect` names for the op.
+fn six_ops(
     what: &str,
-    pinch: bool,
+    expect: &dyn Fn(&str) -> Expect,
     (a, ra, va): Operand,
     (b, rb, vb): Operand,
     share: f64,
     lattice: (Point3<f64>, Point3<f64>),
 ) {
-    let both: Region = {
+    let both = || -> Region {
         let (x, y) = (ra(), rb());
         Box::new(move |p| x(p).min(y(p)))
     };
-    let either: Region = {
+    let either = || -> Region {
         let (x, y) = (ra(), rb());
         Box::new(move |p| x(p).max(y(p)))
     };
@@ -128,24 +139,26 @@ fn four_ops(
         Box::new(move |p| y(p).min(-x(p)))
     };
     for (op, result, want, region) in [
-        ("a ∩ b", intersect(a, b, tol()), share, both),
-        ("a ∪ b", union(a, b, tol()), va + vb - share, either),
+        ("a ∩ b", intersect(a, b, tol()), share, both()),
+        ("b ∩ a", intersect(b, a, tol()), share, both()),
+        ("a ∪ b", union(a, b, tol()), va + vb - share, either()),
+        ("b ∪ a", union(b, a, tol()), va + vb - share, either()),
         ("a ∖ b", subtract(a, b, tol()), va - share, a_less),
         ("b ∖ a", subtract(b, a, tol()), vb - share, b_less),
     ] {
         let what = format!("{what}, {op}");
-        if pinch && matches!(op, "a ∪ b" | "a ∖ b") {
-            // The cone's face cut along two rulings through its apex is
-            // left pinched there, which props cannot yet measure
-            // (`a_cone_apex_on_a_plane_through_it`): typed, by name.
-            assert!(
-                matches!(
-                    result,
-                    Err(topo::BooleanError::ResultPinchedAtConeApex { .. })
-                ),
-                "{what}: expected to pinch at the apex, got {result:?}"
-            );
-            continue;
+        match expect(op) {
+            Expect::Pinches => {
+                assert!(
+                    matches!(
+                        result,
+                        Err(topo::BooleanError::ResultPinchedAtConeApex { .. })
+                    ),
+                    "{what}: expected to pinch at the apex, got {result:?}"
+                );
+                continue;
+            }
+            Expect::Builds => {}
         }
         match result {
             Ok(BooleanResult::Body(body)) => {
@@ -189,21 +202,38 @@ fn turned_box(
     (moved(&topo::test_support::brick(x, y, z, tol()), m), m)
 }
 
+/// What an op of a pose is held to where the pose pinches (`pose`):
+/// the ops keeping the cone's remainder, `∪` either way round and
+/// `cone ∖ box`, refuse pinched at the apex; every other op builds.
+fn pinched(pose: bool, op: &str) -> Expect {
+    if pose && matches!(op, "a ∪ b" | "b ∪ a" | "a ∖ b") {
+        Expect::Pinches
+    } else {
+        Expect::Builds
+    }
+}
+
+/// The turns about the axis every box is read at: generic ones, the
+/// quarter turns, and a ten-thousandth of a radian short of the whole
+/// turn, where the box's side lies just off the tipped cone's seam: past
+/// the band at every ε row, so every row reads the one pose (a turn
+/// inside the band reads the seam's own pose, within the band of it).
+const TURNS: [f64; 7] = [0.0, 0.4, FRAC_PI_2, 2.0, PI, 3.0 * FRAC_PI_2, TAU - 1e-4];
+
 /// Holds every op of each cone form against the box `bx` (volume `vb`)
-/// turned about the axis by each turn, to `share(V)` of the cone `V`.
-/// `pinches(turn, form)` names the poses whose `a ∪ b` and `a ∖ b`
-/// refuse pinched at the apex ([`four_ops`]).
+/// turned about the axis by each of [`TURNS`], to `share(V)` of the cone
+/// `V`, or to the refusal `expect(α, turn, form, op)` names ([`six_ops`]).
 fn against_a_box(
     what: &str,
     bx: ((f64, f64), (f64, f64), (f64, f64)),
     share: fn(f64) -> f64,
-    pinches: fn(f64, &str) -> bool,
+    expect: fn(f64, f64, &str, &str) -> Expect,
 ) {
     let ((x0, x1), (y0, y1), (z0, z1)) = bx;
     let vb = (x1 - x0) * (y1 - y0) * (z1 - z0);
     for alpha in [30.0f64, 45.0, 60.0] {
         let r = alpha.to_radians().tan();
-        for turn in [0.0, 0.4, 2.0] {
+        for turn in TURNS {
             let (b, m) = turned_box(bx, turn);
             for (form, body) in forms(alpha) {
                 let c = finished("c", body, tol());
@@ -211,9 +241,9 @@ fn against_a_box(
                     move || the_cone(r),
                     move || moved_region(membership::cuboid(bx.0, bx.1, bx.2), m),
                 );
-                four_ops(
+                six_ops(
                     &format!("{what}, {alpha}°, turned {turn}, {form}"),
-                    pinches(turn, form),
+                    &|op| expect(alpha, turn, form, op),
                     (&c, &ra, volume(alpha)),
                     (&b, &rb, vb),
                     share(volume(alpha)),
@@ -234,10 +264,9 @@ fn an_edge_across_the_apex_holds_half_the_cones_top() {
         "an edge across the apex",
         ((0.0, 2.0), (0.55, 1.0), (-2.0, 2.3)),
         |v| v * 0.45f64.powi(3) / 2.0,
-        // Turned 2, the tipped cone's wrap seam falls inside the box's
-        // quadrant: the kept face is cut along two rulings on both
-        // sides of it, every aperture.
-        |turn, form| turn == 2.0 && form == "tipped",
+        // The tipped cone's seam inside the box's quadrant, turned 2 or
+        // π: the kept face is cut along two rulings on both sides of it.
+        |_, turn, form, op| pinched(form == "tipped" && (turn == 2.0 || turn == PI), op),
     );
 }
 
@@ -251,8 +280,67 @@ fn an_edge_along_the_axis_holds_a_quarter_of_the_cones_top() {
         "an edge along the axis",
         ((0.0, 2.0), (0.55, 1.6), (0.0, 2.1)),
         |v| v * 0.45f64.powi(3) / 4.0,
-        // Turned 2, both forms' seams fall inside the box's quadrant,
-        // every aperture.
-        |turn, _| turn == 2.0,
+        // The seam inside the box's quadrant: the tipped cone's turned 2,
+        // π, 3π/2 or a hair short of the whole turn, the revolved cone's
+        // turned 2 or a hair short.
+        |_, turn, form, op| {
+            let tipped = [2.0, PI, 3.0 * FRAC_PI_2, TURNS[6]].contains(&turn);
+            let revolved = [2.0, TURNS[6]].contains(&turn);
+            pinched(if form == "tipped" { tipped } else { revolved }, op)
+        },
     );
+}
+
+/// **An edge ending a fraction of the band off the apex refuses box
+/// first, and builds cone first** (pinned as it stands; filed as
+/// `work/splitdoor/a-box-corner-just-off-a-cone-apex-refuses-box-first-edge-undescribed.md`,
+/// with the corner poses of the same root). The box
+/// `[0, 2] × [0.55, 1] × [z₀, 2.3]`, `z₀ = ±0.3` zero bands, turned `0.4`
+/// about the 45° cone's axis: its edge along `x` at `z₀` passes three
+/// tenths of a band from the apex. Cone first, the apex vertex is placed
+/// against the box's faces, and `∩` holds a quarter of the cone above
+/// `y = 0.55` less the slab `z₀` thick, `V·0.45³/4 − z₀·tan α·0.45²/2`,
+/// and `cone ∖ box` the rest, each to the band times the cut's area. Box first, `∩` and `box ∖ cone` refuse
+/// `EdgeUndescribed`: the section edge beside the apex certifies to no
+/// analytic bound (`AnalyticRung3`'s `KernelLimit`).
+#[test]
+fn an_edge_ending_just_off_the_apex_refuses_box_first_and_builds_cone_first() {
+    let zero = geom_core::Band::linear(tol()).unwrap().zero();
+    let r = 45f64.to_radians().tan();
+    for z0 in [0.3 * zero, -0.3 * zero] {
+        let (b, _) = turned_box(((0.0, 2.0), (0.55, 1.0), (z0, 2.3)), 0.4);
+        let share = volume(45.0) * 0.45f64.powi(3) / 4.0 - z0 * r * 0.45f64.powi(2) / 2.0;
+        for (form, body) in forms(45.0) {
+            let what = format!("z₀ {z0:e}, {form}");
+            let c = finished("c", body, tol());
+            for (op, got, want) in [
+                ("cone first ∩", intersect(&c, &b, tol()), share),
+                ("cone ∖ box", subtract(&c, &b, tol()), volume(45.0) - share),
+            ] {
+                let Ok(BooleanResult::Body(body)) = got else {
+                    panic!("{what}, {op}: builds, got {got:?}");
+                };
+                let v = topo::test_support::pinned_volume(op, &body.body, tol());
+                // The apex lies within the band of the box's face, which
+                // may read it on the face: the result is held to the band
+                // times the cut's area (under a square metre).
+                assert!(
+                    (v.volume - want).abs() <= v.volume_pad + zero,
+                    "{what}, {op}: {} against {want}",
+                    v.volume
+                );
+            }
+            for (op, got) in [
+                ("box first ∩", intersect(&b, &c, tol())),
+                ("box ∖ cone", subtract(&b, &c, tol())),
+            ] {
+                let named = matches!(&got, Err(topo::BooleanError::EdgeUndescribed { .. }))
+                    && format!("{got:?}").contains("AnalyticRung3(KernelLimit");
+                assert!(
+                    named,
+                    "{what}, {op}: EdgeUndescribed at the analytic rung, got {got:?}"
+                );
+            }
+        }
+    }
 }

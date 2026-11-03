@@ -651,15 +651,21 @@ fn push_apex_corner<T: Decide>(
         Partners::Pierced(across) => *across,
     };
     // In orbit order, from the own bound.
-    let ApexShape { arm, mut rulings } =
-        apex_corner_shape((end, start), apex, bounds, across, band)?;
+    let ApexShape {
+        arm,
+        window,
+        mut rulings,
+    } = apex_corner_shape((end, start), apex, bounds, across, band)?;
     let arm = metering_arm(arm);
     let (unit_end, unit_start) = (end.normalize(), start.normalize());
-    // The vertex–vertex lane's quarters: the window, read from the next
-    // bound in the face's sweep (the whole turn where the bounds are one
-    // ruling), in four equal turns, the own bound's side first.
+    // The vertex–vertex lane's quarters: the window as the shape decided
+    // it, read from the next bound in the face's sweep, in four equal
+    // turns, the own bound's side first. A whole turn is `2π` by the
+    // corner's bounds, never the two bounds' azimuth: where they are one
+    // ruling only to rounding (a wrap edge's two departures, one of them
+    // shortened by a split), that azimuth reads a hair past zero, and the
+    // quarters collapse onto the seam.
     if !matches!(partners, Partners::Pierced(_)) {
-        let window = apex.azimuth_from(unit_start, unit_end);
         rulings = [T::from_f64(0.75), T::from_f64(0.5), T::from_f64(0.25)]
             .into_iter()
             .map(|k| apex.ruling_from(unit_start, window * k))

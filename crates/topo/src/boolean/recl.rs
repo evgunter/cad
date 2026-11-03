@@ -1138,7 +1138,11 @@ pub(super) fn recl_edges<T: Decide>(
             // they settle a planar sector's On bound by its plane. It
             // refuses by name, as the readers with no fan arm do
             // (`BoolSector::plane`), rather than read as the kernel's
-            // own fault.
+            // own fault. No row reaches it: the poses that did (the 80°
+            // cone's `x90` box, a 30° wrap-tipped cone against a box edge
+            // along its axis) left the bound `On` only through the apex
+            // corner's quarters collapsing onto the seam, which
+            // `sectors::push_apex_corner` no longer reads.
             for (operand, s) in [(Operand::A, &a_sectors[r.a]), (Operand::B, &b_sectors[r.b])] {
                 if s.apex().is_some() {
                     return Err(BooleanError::VertexPairAtConeApex {
