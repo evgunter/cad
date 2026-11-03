@@ -7,8 +7,9 @@
 //! and the shared [`crate::sector_face`] walk names the constructor
 //! itself for its curved arms.
 //!
-//! Seven doors, one flip. By key: [`face_outward_normal`] answers for
-//! a PLANE, where the normal does not depend on where you stand,
+//! Eight doors, one flip. By key: [`face_outward_normal`] answers for
+//! a PLANE, where the normal does not depend on where you stand
+//! ([`face_plane`] answers it with the plane's origin beside it),
 //! [`face_outward_normal_at`] answers at a POINT, which is what a
 //! curved carrier requires and what the plane arm returns unchanged,
 //! [`face_outward_normal_at_foot`] answers at the FOOT of a point on
@@ -136,6 +137,30 @@ pub fn face_outward_normal<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<O
     let f = body.get_face(face)?;
     match body.face_surface_linked(face, f) {
         geom::Surface::Plane { normal, .. } => Some(plane_outward_normal(f, *normal)),
+        _ => None,
+    }
+}
+
+/// A planar face's plane: a point on it and its unit OUTWARD normal,
+/// [`face_outward_normal`]'s fold with the plane's origin beside it.
+/// Consumers that compare a residual `(p − o)·n̂` with Zero, or hand
+/// the normal to a ray-parity test, read it sign-blind; those that read
+/// a material side off the sign (`side_code`, a containment ray's
+/// `d·n̂`) are why the fold is here.
+///
+/// `None` for a face that is not a plane, and for a `face` that does
+/// not resolve: the key may be a public door's caller's.
+///
+/// # Panics
+///
+/// Where `face` resolves and its surface does not (D2 row 4): a torn
+/// surface is not a non-planar one.
+pub(crate) fn face_plane<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<(Point3<T>, Vec3<T>)> {
+    let f = body.get_face(face)?;
+    match body.face_surface_linked(face, f) {
+        geom::Surface::Plane { origin, normal, .. } => {
+            Some((*origin, plane_outward_normal(f, *normal).vec()))
+        }
         _ => None,
     }
 }
@@ -978,7 +1003,7 @@ mod tests {
     ///    [`OutwardNormal`] is a wrapper, not a capability: `.vec()` is
     ///    public and a consumer can multiply what comes back.
     /// 4. **A file that reads the plane normal through a helper** —
-    ///    `face_plane(..).normal` — and flips that. No plane-surface
+    ///    `face_plane`'s normal — and flips that. No plane-surface
     ///    pattern appears, so the textual pair never matches.
     /// 5. **A mint inside a `macro_rules!` body or assembled from a
     ///    string literal.** The code view blanks literals and does not

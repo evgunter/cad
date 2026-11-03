@@ -1617,7 +1617,7 @@ fn aimed_pair(gap: f64) -> Result<(), BooleanError> {
         body.faces()
             .map(|(k, _)| k)
             .find(|&f| {
-                let (o, n) = super::super::solid_contain::face_plane(&body, f).unwrap();
+                let (o, n) = crate::face_normal::face_plane(&body, f).unwrap();
                 n.z.abs() > 0.99 && (o.z - z).abs() < 1e-12
             })
             .unwrap()

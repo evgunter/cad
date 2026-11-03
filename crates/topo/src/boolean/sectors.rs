@@ -2202,11 +2202,8 @@ fn on_planar_face<T: Decide>(
     p: Point3<T>,
     band: Band,
 ) -> Result<PlaneRead, BooleanError> {
-    use super::solid_contain::{PointInSolidError, face_plane};
-    let (origin, normal) = match face_plane(body, face) {
-        Ok(plane) => plane,
-        Err(PointInSolidError::KindUnsupported { .. }) => return Ok(PlaneRead::NotPlane),
-        Err(e) => return Err(BooleanError::Containment(e)),
+    let Some((origin, normal)) = crate::face_normal::face_plane(body, face) else {
+        return Ok(PlaneRead::NotPlane);
     };
     let height = Margin::of((p - origin).dot(normal));
     match decide("bool_germ_tie_plane", height, band).map_err(|diag| {
@@ -2227,11 +2224,9 @@ fn in_trim<T: Decide>(
     p: Point3<T>,
     band: Band,
 ) -> Result<Option<PlaneRead>, BooleanError> {
-    use super::solid_contain::{PointInSolidError, face_plane};
-    match face_plane(body, face) {
-        Ok((_, normal)) => trim_read(body, face, normal, p, band).map(Some),
-        Err(PointInSolidError::KindUnsupported { .. }) => Ok(None),
-        Err(e) => Err(BooleanError::Containment(e)),
+    match crate::face_normal::face_plane(body, face) {
+        Some((_, normal)) => trim_read(body, face, normal, p, band).map(Some),
+        None => Ok(None),
     }
 }
 

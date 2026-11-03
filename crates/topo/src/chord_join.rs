@@ -5932,8 +5932,8 @@ impl ChordJoiner {
 /// `point_in_loop_is_blind_to_the_normals_sign_on_an_arc_bearing_loop`
 /// for the conic rows.
 ///
-/// The contrast with [`crate::boolean::solid_contain`]'s `face_plane`,
-/// which multiplies although its own consumer is equally sign-blind,
+/// The contrast with [`crate::face_normal::face_plane`], which
+/// multiplies although its own consumer is equally sign-blind,
 /// is a naming contract rather than a correctness one: that door
 /// promises an OUTWARD normal to whoever calls it next. This one
 /// promises a chart normal and is named for it, so it is not a site

@@ -1131,14 +1131,10 @@ fn stands_on<T: Decide>(
     };
     // A ∖ B reads B's complement, whose faces face the other way.
     let flips = red.op == super::BooleanOp::Subtract;
-    use super::solid_contain::{PointInSolidError, face_plane};
     let desync = |what| BooleanError::JoinDesync { what };
-    let plane = |body: &Body<T>, face: FaceKey| match face_plane(body, face) {
-        Ok((_, n)) => Ok(Some(n)),
-        Err(PointInSolidError::KindUnsupported { .. }) => Ok(None),
-        Err(e) => Err(BooleanError::Containment(e)),
-    };
-    let Some(n_f) = plane(y, f)? else {
+    let plane =
+        |body: &Body<T>, face: FaceKey| crate::face_normal::face_plane(body, face).map(|(_, n)| n);
+    let Some(n_f) = plane(y, f) else {
         return Ok(false);
     };
     let edge = x
@@ -1152,7 +1148,7 @@ fn stands_on<T: Decide>(
         let face = x
             .face_of_half_edge(h)
             .ok_or(desync("a germ's closed edge has a half with no face"))?;
-        let Some(n) = plane(x, face)? else {
+        let Some(n) = plane(x, face) else {
             continue;
         };
         let arm = crate::wedge_reach(x, [face, face], curve.carrier(), curve.params());
