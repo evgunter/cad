@@ -398,7 +398,7 @@ use geom_core::{Band, Decide, Margin, Point3, Real, Sign, Vec3};
 use super::contain::FaceContainment;
 use crate::validate::decide;
 use geom_brep::pair_section::{Pinch, signs, signs_across};
-use geom_brep::{AxisPose, ExtentBall, Turn, axis_pose};
+use geom_brep::{AxisPose, ExtentBall, Reach, Turn, axis_pose};
 
 /// Which face of the pair a statement is about.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -407,27 +407,6 @@ pub(crate) enum Side {
     F,
     /// The pair's second face.
     G,
-}
-
-/// The region where a pair's section can matter: the ball about the
-/// centre of the overlap of the two faces' certified boxes, radius its
-/// half-diagonal (module docs, the lever and its pivot).
-#[derive(Clone, Copy, Debug)]
-pub(crate) struct Reach<T: Real> {
-    /// The overlap box's centre.
-    pub centre: Point3<T>,
-    /// Its half-diagonal.
-    pub radius: T,
-}
-
-impl<T: Real> Reach<T> {
-    /// The reach as a consumed extent: its foot on an axis is the pivot
-    /// a datum on that axis is read at, and its farthest distance from a
-    /// point the travel of a turn about it (module docs, the lever and
-    /// its pivot).
-    fn ball(self) -> ExtentBall<T> {
-        ExtentBall::new(self.centre, self.radius)
-    }
 }
 
 /// One connected component of a pair's section.
@@ -738,7 +717,7 @@ fn swapped<T: Real>(s: Section<T>) -> Section<T> {
 pub(crate) fn classify<T: Decide>(
     f: &geom::Surface<T>,
     g: &geom::Surface<T>,
-    reach: Reach<T>,
+    reach: &Reach<T>,
     region: Option<ExtentBall<T>>,
     lane: Option<geom_brep::SsiLane<T>>,
     band: Band,
@@ -759,7 +738,7 @@ pub(crate) fn classify<T: Decide>(
 pub(crate) fn classify_known<T: Decide>(
     f: &geom::Surface<T>,
     g: &geom::Surface<T>,
-    reach: Reach<T>,
+    reach: &Reach<T>,
     region: Option<ExtentBall<T>>,
     lane: Option<geom_brep::SsiLane<T>>,
     band: Band,
@@ -875,7 +854,7 @@ fn spline_implicit<T: Decide>(
 fn torus_pair<T: Decide>(
     t: &geom::Surface<T>,
     p: &geom::Surface<T>,
-    reach: Reach<T>,
+    reach: &Reach<T>,
     band: Band,
 ) -> Section<T> {
     let &geom::Surface::Torus {
@@ -1080,7 +1059,7 @@ pub(super) fn torus_plane_loops<T: Decide>(
 fn cone_pair<T: Decide>(
     k: &geom::Surface<T>,
     p: &geom::Surface<T>,
-    reach: Reach<T>,
+    reach: &Reach<T>,
     band: Band,
 ) -> Section<T> {
     let &geom::Surface::Cone {
@@ -1200,18 +1179,13 @@ impl<T: Real> Cone<T> {
         geom_brep::cone_elevation(self.apex, self.a, self.alpha, None, p)
     }
 
-    /// The farthest the pair's reach stands from the apex.
-    fn reach_lever(&self, reach: Reach<T>) -> T {
-        (reach.centre - self.apex).norm() + reach.radius
-    }
-
     /// The generator lines as a ruling chart: the azimuth `θ` from
     /// `u_ref`, `t` along the generator. Its reach speed is the turn's at
     /// the reach's farthest distance from the apex.
-    fn chart(&self, reach: Reach<T>) -> ruling::Chart<T> {
+    fn chart(&self, reach: &Reach<T>) -> ruling::Chart<T> {
         let (s, c) = self.sc;
         let zero = Vec3::new(T::zero(), T::zero(), T::zero());
-        let lever = self.reach_lever(reach);
+        let lever = reach.lever_from(self.apex).length();
         ruling::Chart {
             base: self.apex,
             offset: ruling::Swing::fixed(zero),
@@ -1270,19 +1244,22 @@ fn cone_cylinder<T: Decide>(
     o: Point3<T>,
     d: Vec3<T>,
     rc: T,
-    reach: Reach<T>,
+    reach: &Reach<T>,
     band: Band,
 ) -> Section<T> {
     let (_, c) = cone.sc;
     let (off, dist) = perp_to(cone.apex - o, d);
     let foot = cone.apex - off;
-    let lever = cone.reach_lever(reach);
+    let lever = reach.lever_from(cone.apex).length();
     if let Err(tan) = signs([("section_cone_cylinder_apex", dist - rc)], band) {
         return tan.into();
     }
     match sign(
         "section_cone_cylinder_aperture",
-        Margin::levered(d.dot(cone.a).abs() - c, lever + lever),
+        Margin::levered(
+            d.dot(cone.a).abs() - c,
+            reach.ball().twice_lever_from(cone.apex),
+        ),
         band,
     ) {
         Some(Sign::Positive | Sign::Negative) => {}
@@ -1339,7 +1316,7 @@ fn cone_cone<T: Decide>(
     one: &Cone<T>,
     two: &Cone<T>,
     parallel: bool,
-    reach: Reach<T>,
+    reach: &Reach<T>,
     band: Band,
 ) -> Section<T> {
     const APEX: &str = "section_cone_pair_apex";
@@ -1354,9 +1331,12 @@ fn cone_cone<T: Decide>(
         return tan.into();
     }
     if parallel {
-        let lever = one.reach_lever(reach).max(two.reach_lever(reach));
+        let ball = reach.ball();
+        let lever = ball
+            .twice_lever_from(one.apex)
+            .max(ball.twice_lever_from(two.apex));
         let gap = one.sc.1.powi(2) - two.sc.1.powi(2);
-        match sign(APERTURE, Margin::levered(gap, lever + lever), band) {
+        match sign(APERTURE, Margin::levered(gap, lever), band) {
             Some(Sign::Zero) => return cone_plane_pair(one, two, reach, band),
             Some(Sign::Positive | Sign::Negative) => {}
             None => return Section::Tangent(APERTURE),
@@ -1385,7 +1365,7 @@ fn cone_cone<T: Decide>(
 fn cone_plane_pair<T: Decide>(
     one: &Cone<T>,
     two: &Cone<T>,
-    reach: Reach<T>,
+    reach: &Reach<T>,
     band: Band,
 ) -> Section<T> {
     let delta = one.apex - two.apex;
@@ -1436,14 +1416,11 @@ fn cone_plane<T: Decide>(
     cone: &Cone<T>,
     p0: Point3<T>,
     n: Vec3<T>,
-    reach: Reach<T>,
+    reach: &Reach<T>,
     band: Band,
 ) -> Section<T> {
     let (s, _) = cone.sc;
-    let lever = (reach.centre - cone.apex).norm()
-        + (reach.centre - p0).dot(n).abs()
-        + reach.radius
-        + reach.radius;
+    let lever = reach.ball().lever_from_point_and_plane(cone.apex, (p0, n));
     let na = n.dot(cone.a);
     match sign(
         "section_cone_plane_aperture",

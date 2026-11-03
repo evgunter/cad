@@ -65,3 +65,9 @@ root, since the sweep's residual is a lower bound.
 `cone_pair`, `torus_pair` and the square and cone searches. The cylinder unit
 removes only the cylinder use. The rest is rebased onto the operation region,
 or retired, by this row's build.
+
+## Note (ONEHOME, 2026-11-02)
+
+`section_cert::Reach` no longer exists: the section certificate reads a
+`geom_brep::Reach::Ball` over the face boxes' overlap
+(`ExtentBall::of_overlap`, PR on `onehome/one-extent`).

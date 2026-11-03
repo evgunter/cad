@@ -130,7 +130,7 @@ pub(crate) fn certify<T: AtRestPolicy>(
     start: Point3<T>,
     end: Point3<T>,
     surfaces: impl Fn(SurfaceKey) -> Option<Surface<T>>,
-    reach: T,
+    reach: geom_core::Lever<T>,
     band: Band,
 ) -> Result<EdgeCurve<T>, CertifyError> {
     certify_stated(origin, spec, start, end, surfaces, reach, band, None)
@@ -146,7 +146,7 @@ pub(crate) fn certify_stated<T: AtRestPolicy>(
     start: Point3<T>,
     end: Point3<T>,
     surfaces: impl Fn(SurfaceKey) -> Option<Surface<T>>,
-    reach: T,
+    reach: geom_core::Lever<T>,
     band: Band,
     stated: Option<&StatedImage<T>>,
 ) -> Result<EdgeCurve<T>, CertifyError> {
@@ -162,7 +162,7 @@ pub(crate) fn recertify<T: AtRestPolicy>(
     start: Point3<T>,
     end: Point3<T>,
     surfaces: impl Fn(SurfaceKey) -> Option<Surface<T>>,
-    reach: T,
+    reach: geom_core::Lever<T>,
     band: Band,
 ) -> Result<T::Carries<Certificate<T>>, CertifyError> {
     recertify_stated(origin, curve, start, end, surfaces, reach, band, None)
@@ -177,7 +177,7 @@ pub(crate) fn recertify_stated<T: AtRestPolicy>(
     start: Point3<T>,
     end: Point3<T>,
     surfaces: impl Fn(SurfaceKey) -> Option<Surface<T>>,
-    reach: T,
+    reach: geom_core::Lever<T>,
     band: Band,
     stated: Option<&StatedImage<T>>,
 ) -> Result<T::Carries<Certificate<T>>, CertifyError> {
@@ -194,7 +194,7 @@ pub(crate) fn certifying_attach<T: Decide + geom_core::CertifiedBounds>(
     start: Point3<T>,
     end: Point3<T>,
     surfaces: impl Fn(SurfaceKey) -> Option<Surface<T>>,
-    reach: T,
+    reach: geom_core::Lever<T>,
     band: Band,
     stated: Option<&StatedImage<T>>,
 ) -> Result<EdgeCurve<T>, CertifyError> {
@@ -210,7 +210,7 @@ pub(crate) fn certifying_reattach<T: Decide + geom_core::CertifiedBounds>(
     start: Point3<T>,
     end: Point3<T>,
     surfaces: impl Fn(SurfaceKey) -> Option<Surface<T>>,
-    reach: T,
+    reach: geom_core::Lever<T>,
     band: Band,
     stated: Option<&StatedImage<T>>,
 ) -> Result<T::Carries<Certificate<T>>, CertifyError> {

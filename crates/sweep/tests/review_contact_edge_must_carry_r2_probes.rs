@@ -89,14 +89,13 @@ fn contacts(body: &Body<f64>) -> Vec<Contact> {
         );
         let carrier = c.carrier();
         let (t0, t1) = c.params();
-        let chord = carrier.eval(t0).distance(carrier.eval(t1));
-        let extent = edge_extent_inf(carrier, t0, t1, chord);
+        let extent = edge_extent_inf(carrier, t0, t1, (carrier.eval(t0), carrier.eval(t1)));
         let min_margin = (1..CERT_SAMPLES - 1)
             .map(|i| {
                 let t = sample_param(t0, t1, i);
                 let reading =
                     tangent_second_order(s1, s2, carrier.eval(t), carrier.deriv(t), extent, band);
-                Margin::sagitta(reading.jet.kappa_rel.abs(), reading.arm).value()
+                Margin::sagitta(reading.jet.kappa_rel.abs(), reading.arm.length()).value()
             })
             .fold(f64::INFINITY, f64::min);
         out.push(Contact {

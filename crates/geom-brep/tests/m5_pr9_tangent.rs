@@ -18,6 +18,7 @@ use geom_brep::{
     CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec,
     PlaneCylinderSection, SurfacePair,
 };
+use geom_core::test_support::fixture_lever;
 use geom_core::{Interval, MarginDiag, Point3, Real, Vec3};
 
 /// The authored tangent pair: the unit cylinder about z and the plane
@@ -65,10 +66,7 @@ fn the_c5_table_classifies_the_authored_pair_as_a_tangent_line() {
     let out = geom_brep::plane_cylinder_section(
         &tangent_plane(),
         &cylinder(),
-        &geom_brep::Reach::Measured {
-            at: Point3::origin(),
-            lever: 1.0,
-        },
+        &geom_brep::Reach::of_frame(Point3::origin(), (1.0, 1.0)),
         band(),
     )
     .expect("a clean tangency classifies definitely");
@@ -92,7 +90,7 @@ fn the_authored_tangent_pair_certifies_with_the_full_jet_schedule() {
         p0,
         p1,
         |k| map.get(k).cloned(),
-        1.0,
+        fixture_lever(1.0),
         band(),
         geom_brep::NurbsLane::certified(),
     )
@@ -120,7 +118,7 @@ fn the_tangent_predicates_reach_the_k_funnel() {
         p0,
         p1,
         |k| map.get(k).cloned(),
-        1.0,
+        fixture_lever(1.0),
         band(),
         geom_brep::NurbsLane::certified(),
     )
@@ -181,7 +179,7 @@ fn a_g2_flat_pair_refuses_second_order_definitely() {
         p0,
         p1,
         |k| map.get(k).cloned(),
-        1.0,
+        fixture_lever(1.0),
         band(),
         geom_brep::NurbsLane::certified(),
     )
@@ -248,7 +246,7 @@ fn an_in_band_second_order_margin_escalates_f6() {
         p0,
         p1,
         |k| map.get(k).cloned(),
-        1.0,
+        fixture_lever(1.0),
         band(),
         geom_brep::NurbsLane::certified(),
     )
@@ -285,7 +283,7 @@ fn a_skewed_carrier_fails_normal_parallelism() {
         p0,
         p1,
         |k| map.get(k).cloned(),
-        1.0,
+        fixture_lever(1.0),
         band(),
         geom_brep::NurbsLane::certified(),
     )
@@ -324,7 +322,7 @@ fn an_off_surface_carrier_fails_the_residual_schedule_at_band_scale() {
         p0,
         p1,
         |k| map.get(k).cloned(),
-        1.0,
+        fixture_lever(1.0),
         band(),
         geom_brep::NurbsLane::certified(),
     )
@@ -373,7 +371,7 @@ fn the_certificate_reads_the_pairs_gap_beside_the_carriers_residuals() {
                 p0,
                 p1,
                 |k| map.get(k).cloned(),
-                1.0,
+                fixture_lever(1.0),
                 band(),
                 geom_brep::NurbsLane::certified(),
             ),
@@ -451,7 +449,7 @@ fn the_coaxial_circle_class_was_retired_into_the_lane_at_pr_12() {
         p0,
         p1,
         |k| map.get(k).cloned(),
-        1.0,
+        fixture_lever(1.0),
         band(),
         geom_brep::NurbsLane::certified(),
     )
@@ -501,7 +499,7 @@ fn a_coaxial_cone_sphere_contact_circle_certifies() {
         p0,
         p1,
         |k| map.get(k).cloned(),
-        1.0,
+        fixture_lever(1.0),
         band(),
         geom_brep::NurbsLane::certified(),
     )
@@ -548,7 +546,7 @@ fn outside_the_span_bound_lane_refuses_typed() {
         p0,
         p1,
         |k| map.get(k).cloned(),
-        1.0,
+        fixture_lever(1.0),
         band(),
         geom_brep::NurbsLane::certified(),
     )
@@ -575,7 +573,7 @@ fn certify_ruling(
         p0,
         p1,
         |k| map.get(k).cloned(),
-        1.0,
+        fixture_lever(1.0),
         band(),
         geom_brep::NurbsLane::certified(),
     )
@@ -742,7 +740,7 @@ fn certify_line_at(
         p0,
         p1,
         |k| map.get(k).cloned(),
-        1.0,
+        fixture_lever(1.0),
         band(),
         geom_brep::NurbsLane::certified(),
     )
@@ -863,7 +861,7 @@ fn certify_line_at_interval(
         p0,
         p1,
         |k| map.get(k).cloned(),
-        geom_core::Real::from_f64(1.0),
+        fixture_lever(geom_core::Real::from_f64(1.0)),
         band(),
         geom_brep::NurbsLane::certified(),
     );
@@ -920,7 +918,7 @@ fn a_renamed_refusal_leaves_no_second_order_escalation_on_the_log() {
         &plane_through_line(r, tilt).map_scalar(lift),
         Point3::new(lift(r), lift(0.0), lift(0.5)),
         Vec3::new(lift(0.0), lift(0.0), lift(1.0)),
-        lift(1.0),
+        fixture_lever(lift(1.0)),
         band(),
     );
     let Err(cause) = so.verdict else {
