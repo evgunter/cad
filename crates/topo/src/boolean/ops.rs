@@ -1208,6 +1208,8 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     // Each parted edge now bounds a face of each operand, as a seam does.
     seam_edges.extend(parted.iter().flat_map(|p| [p.kept, p.minted]));
     body.sweep_and_close();
+    #[cfg(debug_assertions)]
+    crate::validate::assert_one_record_per_carrier(&finished, tol);
     let body = gate(finished, band, tol)?;
     interior_loops?;
     let (graft_vertices, graft_edges, graft_dead_edges, mut graft_faces) = graft_rows(&fin.graft);
@@ -5671,8 +5673,6 @@ pub(super) fn gate<T: Decide + Bounds + AtRestPolicy>(
     crate::pieces::sort_into_pieces(&mut body, band, tol, T::quad_lane(), Some(&face_box))
         .map_err(BooleanError::Pieces)?;
     pinched_at_cone_apex(&body, band)?;
-    #[cfg(debug_assertions)]
-    crate::validate::assert_one_record_per_carrier(&body, tol);
     #[cfg(feature = "door-tier3-meter")]
     let from = std::time::Instant::now();
     let kept = T::gate_at_rest_kept(body, tol);
@@ -7890,6 +7890,8 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 crate::pcurves::mint_pcurves(&mut body, tol)
                     .map_err(|source| BooleanError::Pcurves { source })?;
             }
+            #[cfg(debug_assertions)]
+            crate::validate::assert_one_record_per_carrier(&body, tol);
             let body = gate(body, band, tol)?;
             let FallbackFates {
                 substituted,
@@ -8237,6 +8239,8 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
         [&a_view, &b_view],
         band,
     )?;
+    #[cfg(debug_assertions)]
+    crate::validate::assert_one_record_per_carrier(&body, tol);
     let body = gate(body, band, tol)?;
     let own = |v: VertexKey| carved.contains(&v).then_some(v);
     let absent = |_: VertexKey| None;
