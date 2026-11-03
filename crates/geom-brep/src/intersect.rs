@@ -1710,7 +1710,7 @@ pub fn cylinder_axes_parallel_reported<T: Decide>(
 /// either foot it bounds the same separation across the reach (the
 /// argument [`Reach::lever_between`] makes), so the lesser holds and
 /// the answer does not depend on operand order.
-pub(crate) fn parallel_swing<T: Real>(
+pub(crate) fn parallel_swing<T: geom_core::spline::SpanLocate>(
     reach: &Reach<T>,
     line1: (Point3<T>, Vec3<T>),
     line2: (Point3<T>, Vec3<T>),
@@ -1791,7 +1791,7 @@ pub fn cylinder_axes_coplanar_reported<T: Decide>(
 /// The feet of `reach`'s point on two axes `oᵢ + s·aᵢ` ([`Reach::foot_on`]):
 /// the first foot, and the offset from it to the second's. The one
 /// place the cylinder pair's rows read where its axes stand.
-fn axes_feet<T: Real>(
+fn axes_feet<T: geom_core::spline::SpanLocate>(
     reach: &Reach<T>,
     (o1, a1): (Point3<T>, Vec3<T>),
     (o2, a2): (Point3<T>, Vec3<T>),
@@ -1826,7 +1826,7 @@ pub struct ParallelAxes<T: Real> {
 /// Shared with the tangent-locus lane and topo's radical plane of a
 /// parallel cylinder pair.
 #[must_use]
-pub fn parallel_axes_at<T: Real>(
+pub fn parallel_axes_at<T: geom_core::spline::SpanLocate>(
     reach: &Reach<T>,
     line1: (Point3<T>, Vec3<T>),
     line2: (Point3<T>, Vec3<T>),
@@ -2456,7 +2456,7 @@ pub fn plane_cone_section<T: Decide>(
 /// floored at the least positive `f64`, which leaves `H` at its `ρ = 0`
 /// value `2|δ|/σ`.
 #[allow(clippy::many_single_char_names)] // the derivation's own symbols
-fn pair_bound<T: Real>(
+fn pair_bound<T: geom_core::spline::SpanLocate>(
     reach: &Reach<T>,
     (apex, a, cos_a, sin_a, seam_width): (Point3<T>, Vec3<T>, T, T, T),
     (d, m, s): (T, T, T),

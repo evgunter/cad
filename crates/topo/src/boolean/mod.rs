@@ -146,6 +146,7 @@ pub(crate) mod sectors;
 pub(crate) mod separating;
 mod shell_witness;
 mod slit;
+pub use boxes::EdgeUncovered;
 pub use slit::EdgeInFaceGap;
 pub mod solid_contain;
 pub(crate) mod sphere_region;

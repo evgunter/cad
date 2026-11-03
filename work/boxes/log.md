@@ -406,3 +406,31 @@ Unparked: `cover-edge-doors`, `cover-topo-faces`. `torus-extent-overreaches-…`
 
 **Class finding, logged.** The ratified "tighter construction is written into the arm, never at a reader" is exactly the rule a door-repointing unit breaks. Repointing a door that had its own tightening tends to keep that tightening at the reader, `min`'d with the cover. Every later cover unit's brief names this.
 - 2026-11-03 — **Coupling with ONEHOME** (PR 6391, `onehome/one-extent`): it re-minted the retired `of_torus` and added five more per-kind `ExtentBall` constructors. They are folded onto `cover-levers`, with a seam note on ONEHOME's log. Class instance: a door retired in one program is re-minted by a parallel program that never saw the retirement. The `cover-kind-match-gate` unit is what stops that structurally; until it lands, seam notes are the only defence. (BOXES orchestrator)
+
+## 2026-11-03 — `cover-edge-doors` lands (PR 6399)
+
+(BOXES orchestrator) The tier was single FULL review plus two delta reviews of the fix passes; the second fix pass added new enclosure constructions, the blossom restriction and the spiric window rectangle. Three fix passes in all:
+1. Tightening moved into the arms. The readers read the cover alone. One topo edge reading. Fail-loud restored. `SPEED_MARGIN` deleted as a rounding charge.
+2. The pass that ran over the container restart; its lane was resumed, not restarted, and its pushed work was intact.
+3. The fix's own copies retired: one restriction routine (`restrict_window`), `edge_reach_from` deleted, one end reading, one `geom_core::poison()`, and `spiric_arc_aabb` as an independent reference.
+
+Moved, disclosed:
+- spline reaches tighten sharply (a wild window 17.8·R → 1.0·R);
+- a closed spiric loosens 1.8%, filed as `a-closed-spirics-cover-is-the-period-rectangle-with-no-tighter-stage`;
+- the maximal-faces gate now refuses a reshaped fixture correctly, and the gate's old intent is pinned on a short-carrier row.
+
+Closed: `cover-edge-doors` and `an-edges-extent-has-four-dispatchers`.
+
+Filed:
+- the bound creep (`cover-readings-bound-creep-into-conic-only-readers`, P4);
+- evidence on `an-edges-diameter-and-exactness-have-no-cover-method`;
+- earlier, `a-spline-window-restriction-has-four-spellings` on NURBS.
+
+`cover-levers` is now parked on `cover-topo-faces` alone.
+
+**Class finding.** Every fix pass on this build has minted a copy of something it closed:
+- 6383: a second torus support and `Frame`;
+- 6399 pass 1: reader-side tightening;
+- 6399 pass 2: a second restriction routine and a copied arm.
+
+The style lane's Q1 caught each one. The pattern is now in the briefs, and the `cover-kind-match-gate` unit is the structural answer.
