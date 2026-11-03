@@ -3096,6 +3096,8 @@ pub fn validation_error_tag(err: &ValidationError) -> &'static str {
         ValidationError::ApproxLaneUnsupported { .. } => "approx_lane_unsupported",
         ValidationError::DegenerateTorus { .. } => "degenerate_torus",
         ValidationError::DegenerateTorusEscalated { .. } => "degenerate_torus_escalated",
+        ValidationError::DegenerateSpindle { .. } => "degenerate_spindle",
+        ValidationError::SheetApexReached { .. } => "sheet_apex_reached",
         ValidationError::PoisonedSurfaceDatum { .. } => "poisoned_surface_datum",
         ValidationError::UnrepresentableSurfaceDatum { .. } => "unrepresentable_surface_datum",
         ValidationError::PoisonedCurveDatum { .. } => "poisoned_curve_datum",

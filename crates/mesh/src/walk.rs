@@ -1392,6 +1392,13 @@ mod tests {
                 minor_radius: minor,
                 u_ref,
             },
+            ChartKind::Spindle { major, minor } => Surface::Spindle {
+                center: o,
+                axis,
+                major_radius: major,
+                minor_radius: minor,
+                u_ref,
+            },
         };
         Chart::of(&surface).unwrap()
     }

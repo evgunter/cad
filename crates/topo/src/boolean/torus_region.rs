@@ -142,12 +142,13 @@ use super::circle_roots::{
     first_harmonic_roots_in_band,
 };
 use super::region::{
-    self, End, Fault, Landing, Legs, Paths, Region, RegionEdge, RegionRefusal, Round, Scaffolding,
+    self, End, Fault, Landing, Legs, Paths, Region, RegionEdge, RegionRefusal, Round,
     circle_edge_hit, found, in_band, span,
 };
 use super::solid_contain::PointInSolidError;
 use crate::body::Body;
 use crate::entity::{FaceKey, LoopKey};
+use crate::null::Scaffolding;
 use crate::ray_walk::RayFault;
 use crate::splitting::containment::ConicRows;
 use crate::splitting::pieced_arc::{ArcHit, ArcRefusal, ArcRows, PiecedArc};
@@ -1318,7 +1319,7 @@ mod tests {
     /// **Null scaffolding is stepped over**: a wall with a null edge
     /// fanned into its outer loop has the same region as the wall
     /// without it, where an uncertified edge between two points has
-    /// none.
+    /// none: the same null edge with its far end parted.
     #[test]
     fn a_walls_null_edge_bounds_nothing() {
         let wall = || {
@@ -1348,6 +1349,21 @@ mod tests {
             );
             assert_eq!(got, plain.contains(at(u, v), b), "at ({u}, {v})");
         }
+        let null = nulled
+            .edges()
+            .find(|&(e, d)| nulled.edge_curve_linked(e, d).null_scaffold().is_some())
+            .map(|(e, _)| e)
+            .unwrap();
+        let far = nulled
+            .get_half_edge(nulled.get_edge(null).unwrap().he_minus)
+            .unwrap()
+            .start;
+        let moved = nulled.add_point(at(1.0, 0.0));
+        nulled.get_vertex_mut(far).unwrap().point = moved;
+        assert!(
+            matches!(torus_face_region(&nulled, nulled_face), Ok(None)),
+            "a parted null edge is a gap in the boundary"
+        );
     }
 
     /// **A point opposite an arc's middle is past its span**, at every

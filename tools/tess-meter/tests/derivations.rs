@@ -1310,7 +1310,7 @@ fn the_roster_pin_reads_the_declaration_and_a_short_roster_reds_it() {
         .collect();
     assert_eq!(
         missing,
-        ["cylinder", "sphere", "torus", "nurbs", "approx"],
+        ["cylinder", "sphere", "torus", "spindle", "nurbs", "approx"],
         "the containment separates a roster short a tag from a complete one"
     );
 }

@@ -1284,3 +1284,7 @@ general regularity sweep. SECTARMS's cylinder × cylinder unit adopts
   - **Fix pass:** carrier content equality is `geom::Curve3::same_content`, which destructures every field. Both reviews' rows are adopted. The closed fixture is now C¹. The `join.rs` lead is filed as `a-germ-site-is-footed-on-its-section-again`.
   - **Slow sets** on the fix head: sweep 3537/3537 (98 min), geom 551/551, topo 3902 plus the two known main reds.
   - **Correction:** the 12:14Z dispatch entry names the protocol `18e21edce5`. That hash came from this shallow checkout's graft. The protocol in force is `24b76fff0e`, which the row records; its text did not change in between.
+- 2026-11-03 — **PR 6435 merges** (`held-pierce`), closing `a-spline-wall-cannot-say-whether-it-holds-a-pierce-point` (P0).
+  - The spline trim lifts past the sweep's placeholders through a crate-private door, with one `is_placeholder` predicate; the public `Body::loop_lift` is strict.
+  - The orchestrator read the fix pass. Slow sets on `985e2f4c`: topo 3909 plus the two known main reds, sweep 3536/3536, the tour green at three ε.
+  - The demo-joins row (`curved-demo-joins-build`, now SPLICE's own since main retired `work/issues/`) swaps this row for SECTARMS' NURBS × sphere arm as teapot wall 3's default and 1e-12 blocker.

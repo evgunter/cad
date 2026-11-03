@@ -147,7 +147,10 @@ pub(crate) fn uv_of(
 fn periodic(surface: &Surface<f64>) -> (bool, bool) {
     match surface {
         Surface::Plane { .. } => (false, false),
-        Surface::Cylinder { .. } | Surface::Cone { .. } | Surface::Sphere { .. } => (true, false),
+        Surface::Cylinder { .. }
+        | Surface::Cone { .. }
+        | Surface::Sphere { .. }
+        | Surface::Spindle { .. } => (true, false),
         Surface::Torus { .. } => (true, true),
         // The conservative answer for a chart this module cannot
         // invert: assume both directions wrap, as the spline arm does.

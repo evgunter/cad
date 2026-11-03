@@ -17,9 +17,11 @@ use super::{Cover, Covered, Entity, Lattice, ParamWindow, Uncovered, Unknown};
 use crate::{Curve3, Line, Surface};
 
 impl<T: Real> Surface<T> {
-    /// **The region the whole carrier occupies**: a sphere's or a torus's
-    /// tube (the sphere's with no spine; along a unit `e` in a unit
-    /// orthogonal frame the support is `c·e + R·|e⊥| + r`), a spline's
+    /// **The region the whole carrier occupies**: a sphere's, a torus's or
+    /// a spindle sheet's tube (the sphere's with no spine, the sheet's
+    /// about the spine `|R|`, which holds its whole revolved circle; along
+    /// a unit `e` in a unit orthogonal frame the support is
+    /// `c·e + R·|e⊥| + r`), a spline's
     /// control net (the fit's, for an approximating surface).
     ///
     /// # Errors
@@ -49,6 +51,17 @@ impl<T: Real> Surface<T> {
                 minor_radius,
                 u_ref,
             } => Cover::tube(*center, *axis, *u_ref, *major_radius, *minor_radius)
+                .ok_or_else(|| refuse(Unknown::NonFinite)),
+            // The sheet lies on its whole revolved circle, which is the
+            // tube about the circle of radius `|R|`: the signed centre
+            // and its mirror across the axis sweep the same set.
+            Surface::Spindle {
+                center,
+                axis,
+                major_radius,
+                minor_radius,
+                u_ref,
+            } => Cover::tube(*center, *axis, *u_ref, major_radius.abs(), *minor_radius)
                 .ok_or_else(|| refuse(Unknown::NonFinite)),
             Surface::Nurbs(patch) => net(entity, patch.control()),
             Surface::Approx(approx) => net(entity, approx.fit().control()),
