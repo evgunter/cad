@@ -303,7 +303,7 @@ fn loops<T: Decide>(
         .get_face(face)
         .ok_or(OverlapRefusal::StaleFace { face })?;
     let mut out = Vec::new();
-    for (_, members) in body.face_boundary_by_loop(face, f) {
+    for (_, members, _) in body.face_boundary_by_loop(face, f) {
         let mut cycle = Vec::with_capacity(members.len());
         for member in members {
             match member {

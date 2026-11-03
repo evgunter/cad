@@ -2390,7 +2390,7 @@ impl<T: Decide> Body<T> {
         to: VertexKey,
     ) -> Option<HalfEdgeKey> {
         let face_data = self.get_face(face)?;
-        for loop_key in core::iter::once(face_data.outer).chain(face_data.rings.iter().copied()) {
+        for loop_key in face_data.loop_keys() {
             let Some(loop_data) = self.get_loop(loop_key) else {
                 continue;
             };
@@ -3580,9 +3580,10 @@ impl<T: Decide> Body<T> {
     /// [`Body::require_run_of`]'s `Whole` proof is.
     #[track_caller]
     pub(crate) fn require_loop_unlisted(&self, l: LoopKey, clearing: Clearing<'_>) {
-        let stray = self.faces.iter().find(|&(face, data)| {
-            (data.outer == l || data.rings.contains(&l)) && !clearing.clears_face(face)
-        });
+        let stray = self
+            .faces
+            .iter()
+            .find(|&(face, data)| data.holds_loop(l) && !clearing.clears_face(face));
         if let Some((face, _)) = stray {
             kill_leaves_dangling(EntityId::Face(face), EntityId::Loop(l));
         }
@@ -4253,8 +4254,8 @@ impl<T: Decide> Body<T> {
     ) -> SiteFace<T> {
         let face_data = proven(&self.faces, face, EntityId::Face);
         let surface = self.face_surface_linked(face, face_data).clone();
-        let loops = core::iter::once(face_data.outer)
-            .chain(face_data.rings.iter().copied())
+        let loops = face_data
+            .loop_keys()
             .filter(|&lk| Some(lk) != killed)
             .map(|lk| match rewired.iter().find(|(k, _)| *k == lk) {
                 Some((_, halves)) => SiteLoop::Rewired(halves.clone()),
@@ -7306,10 +7307,7 @@ mod removal_census {
         ),
         (
             "DanglingTopology: Face -> Loop",
-            Read(
-                "require_loop_unlisted",
-                &["data.outer ==", "data.rings.contains"],
-            ),
+            Read("require_loop_unlisted", &["data.holds_loop("]),
         ),
         (
             "DanglingTopology: Face -> Shell",

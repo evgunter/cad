@@ -2,12 +2,14 @@
 id: the-face-walk-units-follow-ups-from-its-review
 kind: issue
 title: PR 6362 follow-ups: the join's germ faces panic in one file and refuse typed in the next; no pin for a stale proven face key
-status: dispatched
+status: closed
 opened: 2026-11-02
 priority: P1
 cost: E
 refs: [6362]
 branch: onecopy/face-loops
+closed: 2026-11-03
+pr: 6460
 ---
 
 From the delta review of PR 6362 (`boolean-walks-face-to-surface-inline-at-two-dozen-sites`, `slit-reads-a-faces-edges-through-its-own-walk`), recorded at merge.

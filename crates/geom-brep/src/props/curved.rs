@@ -229,7 +229,9 @@ pub fn boundary_material_sign_holding<T: Decide>(
         } => torus_material_sign(center, axis, major_radius, minor_radius, loops, band),
         // As `curved_face_loops`: no closed form for a spline or for an
         // offset description over one.
-        Surface::Nurbs(_) | Surface::Approx(_) => Err(PropsError::Unimplemented),
+        Surface::Spindle { .. } | Surface::Nurbs(_) | Surface::Approx(_) => {
+            Err(PropsError::Unimplemented)
+        }
     }
 }
 
@@ -404,7 +406,9 @@ pub fn require_iso_rectangle<T: Decide>(
         }
         // As `curved_face`: no rim inventory for a spline or for an
         // offset description over one.
-        Surface::Nurbs(_) | Surface::Approx(_) => Err(PropsError::Unimplemented),
+        Surface::Spindle { .. } | Surface::Nurbs(_) | Surface::Approx(_) => {
+            Err(PropsError::Unimplemented)
+        }
     }
 }
 
@@ -486,17 +490,14 @@ pub fn require_iso_rectangle<T: Decide>(
 ///   would refuse an equatorial full circle for nothing. The
 ///   rim/meridian split is `props_circle_axis_class`, the parse's own
 ///   name and the parse's own margin.
-/// * **torus — immune on a ring torus, dormant otherwise.** Rims are
-///   major circles at constant `v`; meridians are minor circles in an
-///   axial plane, and on a ring torus (`major > minor`) such a circle
-///   never meets the axis, so its `u` is constant over the whole
-///   circle and no span can leave the branch. `major ≤ minor` — the
-///   horn and spindle tori, whose minor circle DOES cross the axis —
-///   is dormant rather than checked here, the same dormancy
-///   `mesh`'s walk records for `Chart::poles` being empty on a torus:
-///   `revolve` refuses both at construction and `topo::validate`'s
-///   tier-3 `DegenerateTorus` covers the import door. This arm's
-///   blind spot, stated so it reads as a decision.
+/// * **torus — immune.** Rims are major circles at constant `v`;
+///   meridians are minor circles in an axial plane, and on a ring torus
+///   (`major > minor`, the kind's convention, which tier 3's
+///   `DegenerateTorus` holds at rest) such a circle never meets the
+///   axis, so its `u` is constant over the whole circle and no span
+///   can leave the branch. A spindle sheet, whose meridian circle does
+///   cross the axis, is its own kind and refuses
+///   [`PropsError::Unimplemented`].
 /// * **plane — not its question**, refused typed exactly as
 ///   [`require_iso_rectangle`] refuses it.
 ///
@@ -646,7 +647,9 @@ pub fn require_one_chart_branch<T: Decide>(
             Ok(())
         }
         Surface::Torus { .. } => Ok(()),
-        Surface::Nurbs(_) | Surface::Approx(_) => Err(PropsError::Unimplemented),
+        Surface::Spindle { .. } | Surface::Nurbs(_) | Surface::Approx(_) => {
+            Err(PropsError::Unimplemented)
+        }
     }
 }
 
@@ -1710,7 +1713,9 @@ pub fn curved_face_holding<T: Decide>(
         // a spline has no entry and neither does an offset description
         // over one. `Approx` refuses here rather than answer as its
         // fitted kind would.
-        Surface::Nurbs(_) | Surface::Approx(_) => Err(PropsError::Unimplemented),
+        Surface::Spindle { .. } | Surface::Nurbs(_) | Surface::Approx(_) => {
+            Err(PropsError::Unimplemented)
+        }
     }
 }
 
@@ -1794,7 +1799,9 @@ pub fn closed_surface<T: Real>(
             minor: minor_radius,
         }),
         Surface::Plane { .. } | Surface::Cylinder { .. } | Surface::Cone { .. } => None,
-        Surface::Nurbs(_) | Surface::Approx(_) => return Err(PropsError::Unimplemented),
+        Surface::Spindle { .. } | Surface::Nurbs(_) | Surface::Approx(_) => {
+            return Err(PropsError::Unimplemented);
+        }
     })
 }
 

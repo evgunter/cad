@@ -519,57 +519,19 @@ pub struct SolidOwners {
 }
 
 impl SolidOwners {
-    /// Builds the map in one walk of the solids' ownership lists.
+    /// Builds the map in one walk of the solids' ownership lists, the
+    /// offset doors' scope walk over every solid. The map is a lookup,
+    /// and a caller that gets `None` learns that this body does not
+    /// place the entity, which is a fact it can act on.
     ///
-    /// An entity the walk cannot resolve — a shell, face or loop key
-    /// that is stale, or a cycle that does not close — is simply
-    /// skipped, with everything it would have led to: never guessed
-    /// at. The map is a lookup, and a caller that gets `None` learns
-    /// that this body does not place the entity, which is a fact it can
-    /// act on.
+    /// # Panics
+    ///
+    /// Where a record on the walk does not resolve or a loop's walk does
+    /// not close (D2 row 4): every hop is a link of the record before it,
+    /// and every public door keeps the body tier-1-valid.
+    #[track_caller]
     pub fn of<T: geom_core::Real>(body: &Body<T>) -> Self {
-        // The crate builds this index a second time, as the working
-        // set of the simultaneous offset doors
-        // (`offset_together::Scope`): the same walk, over named solids
-        // only, refusing where this one skips — its doc says why the
-        // two stay separate doors. On a tier-1-valid body they agree
-        // about every face and vertex, and `owner_index` below reds if
-        // they stop.
-        let mut faces = slotmap::SecondaryMap::new();
-        let mut vertices = slotmap::SecondaryMap::new();
-        for (solid_key, solid) in body.solids() {
-            for &shell_key in &solid.shells {
-                let Some(shell) = body.get_shell(shell_key) else {
-                    continue;
-                };
-                for &face in &shell.faces {
-                    faces.insert(face, solid_key);
-                    let Some(f) = body.get_face(face) else {
-                        continue;
-                    };
-                    for r#loop in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
-                        let Some(l) = body.get_loop(r#loop) else {
-                            continue;
-                        };
-                        match l.boundary {
-                            crate::entity::LoopBoundary::Empty { vertex } => {
-                                vertices.insert(vertex, solid_key);
-                            }
-                            crate::entity::LoopBoundary::Cycle { first } => {
-                                let Some(cycle) = body.loop_cycle(first) else {
-                                    continue;
-                                };
-                                for he in cycle {
-                                    if let Some(half) = body.get_half_edge(he) {
-                                        vertices.insert(half.start, solid_key);
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
+        let (faces, vertices) = crate::offset_together::Scope::whole(body).into_owners();
         Self { faces, vertices }
     }
 
@@ -586,11 +548,11 @@ impl SolidOwners {
 
 #[cfg(test)]
 mod owner_index {
-    //! [`SolidOwners`] against the other owner index this crate builds,
-    //! the offset scope's ([`crate::offset_together::Scope`]). Both
-    //! walk solids → shells → faces → loops; a lone vertex is the
-    //! entity a walk that reached vertices through half-edges alone
-    //! would miss, since it has none.
+    //! [`SolidOwners`], the offset scope's walk over every solid
+    //! ([`crate::offset_together::Scope::whole`]), against the scope of
+    //! each solid alone. The walk runs solids → shells → faces → loops;
+    //! a lone vertex is the entity a walk that reached vertices through
+    //! half-edges alone would miss, since it has none.
 
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -651,15 +613,15 @@ mod owner_index {
         )
     }
 
-    /// **The two owner indices agree about every face and every vertex
-    /// of a tier-1-valid body, lone vertices included, and both are
-    /// total on it.** Equality alone would pass two indices that both
-    /// dropped a lone vertex, so totality is asserted separately.
+    /// **The whole body's owner index and each solid's scope agree
+    /// about every face and every vertex of a tier-1-valid body, lone
+    /// vertices included, and the index is total on it.** Agreement
+    /// alone would pass two walks that both dropped a lone vertex, so
+    /// totality is asserted separately.
     #[test]
     fn solid_owners_and_the_scope_walk_place_every_entity_alike() {
         let (body, solids, lone) = lone_vertices();
         let owners = SolidOwners::of(&body);
-        let whole = Scope::whole(&body);
         let each: Vec<Scope> = solids
             .iter()
             .map(|&s| Scope::of_solids(&body, &[s]))
@@ -679,7 +641,13 @@ mod owner_index {
         for (face, _) in body.faces() {
             let placed = owners.face(face);
             assert!(placed.is_some(), "SolidOwners places every face: {face:?}");
-            assert_eq!(placed, whole.solid_of(face), "face {face:?}");
+            for (scope, &solid) in each.iter().zip(&solids) {
+                assert_eq!(
+                    placed == Some(solid),
+                    scope.holds_face(face),
+                    "face {face:?} against the scope of {solid:?}"
+                );
+            }
         }
         for (vertex, _) in body.vertices() {
             let placed = owners.vertex(vertex);

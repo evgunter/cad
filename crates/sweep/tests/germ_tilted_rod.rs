@@ -227,6 +227,10 @@ fn stop_word(r: &Result<BooleanResult<f64>, BooleanError>) -> String {
     use topo::{MassPropsError, ValidationError};
     match r {
         Err(BooleanError::GermFrameUnsupported { .. }) => "frame".to_owned(),
+        Err(BooleanError::EdgeInFace {
+            gap: topo::EdgeInFaceGap::CarrierUnread,
+            ..
+        }) => "unread rider".to_owned(),
         Err(BooleanError::CurvedBooleanUnsupported {
             kind: SurfaceKind::Torus,
             ..
@@ -241,7 +245,7 @@ fn stop_word(r: &Result<BooleanResult<f64>, BooleanError>) -> String {
                     source: MassPropsError::RingOnCurvedFace { .. },
                     ..
                 },
-            ] => TORUS_WALL.to_owned(),
+            ] => "ring volume".to_owned(),
             [
                 ValidationError::VolumeUncomputable {
                     source:
@@ -252,10 +256,14 @@ fn stop_word(r: &Result<BooleanResult<f64>, BooleanError>) -> String {
                     ..
                 },
             ] => {
-                if what.starts_with("a trimmed face with no volume lane on its chart")
-                    || what.starts_with("a torus wall edge beside a spiric")
+                if what
+                    .starts_with("curved-cut face half-edge carries a pcurve with no harmonic form")
                 {
-                    TORUS_WALL.to_owned()
+                    "projected volume".to_owned()
+                } else if what.starts_with("conic trim on a cone/sphere/torus chart") {
+                    "conic trim volume".to_owned()
+                } else if what.starts_with("a torus wall edge beside a spiric") {
+                    "spiric wall volume".to_owned()
                 } else {
                     format!("quadrature volume: {what}")
                 }
@@ -266,29 +274,92 @@ fn stop_word(r: &Result<BooleanResult<f64>, BooleanError>) -> String {
     }
 }
 
-/// **Where every run of [`other_spins_and_steeper_tilts_refuse_at_their_germs`]
-/// stops**, measured alike at the compiled ε, 1e-6 and 1e-12: the result
-/// gate's volume on a torus wall the chords trim — a trim the chart
-/// table has no lane for, a ring left on it, or a spiric beside a chord.
-/// The gate reports the first face it reads that refuses, and every face
-/// that refuses here is a torus wall (the rod's chorded wall measures
-/// through the rotational lane), so the one word reads alike in every
-/// face order.
-// Pinned red at every ε row, on
-// work/spiricarm/a-torus-wall-trimmed-by-a-spline-rim-has-no-volume-lane.md
-// and work/spiricarm/a-torus-wall-holding-a-spiric-beside-a-spline-chord-has-no-volume-lane.md.
-// As the torus chart's lane lands, the runs move on to their next stop
-// or to a body held to its volume, and the row is re-pinned there.
-const TORUS_WALL: &str = "torus wall volume";
+/// [`other_spins_and_steeper_tilts_refuse_at_their_germs`]' stops by pose
+/// and op ([`every_op`]'s order),
+/// measured alike at the compiled ε, 1e-6 and 1e-12: each at the result
+/// gate's volume, by the refusal's cause, but the steeper tilt's union,
+/// at the slit pass's rider reading.
+// Pinned red at every ε row, each word on its owner's row:
+// "projected volume" (a cylinder wall the chords bound) on
+// work/spiricarm/a-projected-boundary-on-an-analytic-chart-has-no-volume-lane.md;
+// "conic trim volume" and "ring volume" (a torus wall the chords trim,
+// or one left holding a ring) on
+// work/spiricarm/a-torus-wall-trimmed-by-a-spline-rim-has-no-volume-lane.md;
+// "spiric wall volume" (a torus wall holding a spiric beside a chord) on
+// work/spiricarm/a-torus-wall-holding-a-spiric-beside-a-spline-chord-has-no-volume-lane.md.
+// "unread rider" (the steeper tilt's union, an unread carrier refused at
+// the slit pass's rider reading) on
+// work/splice/an-unread-rider-related-only-by-its-own-vertices-refuses.md.
+// As each lands, its words move on to the run's next stop or to a body
+// held to its volume, and the table is re-pinned there.
+const OTHER_SPINS_STOPS: [[&str; 5]; 8] = [
+    [
+        "ring volume",
+        "projected volume",
+        "conic trim volume",
+        "ring volume",
+        "projected volume",
+    ],
+    [
+        "ring volume",
+        "projected volume",
+        "conic trim volume",
+        "ring volume",
+        "projected volume",
+    ],
+    [
+        "ring volume",
+        "projected volume",
+        "conic trim volume",
+        "ring volume",
+        "projected volume",
+    ],
+    [
+        "ring volume",
+        "projected volume",
+        "projected volume",
+        "ring volume",
+        "projected volume",
+    ],
+    [
+        "spiric wall volume",
+        "projected volume",
+        "projected volume",
+        "spiric wall volume",
+        "projected volume",
+    ],
+    [
+        "spiric wall volume",
+        "projected volume",
+        "projected volume",
+        "spiric wall volume",
+        "projected volume",
+    ],
+    [
+        "unread rider",
+        "projected volume",
+        "projected volume",
+        "spiric wall volume",
+        "projected volume",
+    ],
+    [
+        "unread rider",
+        "projected volume",
+        "spiric wall volume",
+        "spiric wall volume",
+        "projected volume",
+    ],
+];
 
 /// **The other spins, and the steeper tilts, refuse typed** before any
-/// body is built, on every op, at the torus wall's door
-/// ([`TORUS_WALL`], the same at every ε row): each wall germ takes its site's foot on the
+/// body is built, on every op, each at its pinned door
+/// ([`OTHER_SPINS_STOPS`], the same at every ε row): each wall germ takes its site's foot on the
 /// carried section, which each op marches once, and the run passes the
 /// join, which leaves the wall's closed spline chord's vertex standing
 /// (the chord creases there, at its clamped ends), to the
-/// result gate's volume on the torus wall (its owners are beside
-/// [`TORUS_WALL`]).
+/// result gate's volume (a face the fitted chords bound, a conic trim, a
+/// spiric beside a chord, or a ring left on a curved face; each word's
+/// owner is beside [`OTHER_SPINS_STOPS`]).
 #[test]
 fn other_spins_and_steeper_tilts_refuse_at_their_germs() {
     let h = half_donut();
@@ -303,6 +374,7 @@ fn other_spins_and_steeper_tilts_refuse_at_their_germs() {
         (0.7, FRAC_PI_2),
     ];
     let eps = Tol::witness().eps();
+    let want = OTHER_SPINS_STOPS;
     let mut got = Vec::new();
     for &(beta, spin) in &poses {
         let c = rod(beta, spin);
@@ -319,9 +391,10 @@ fn other_spins_and_steeper_tilts_refuse_at_their_germs() {
     }
     let off: Vec<String> = got
         .iter()
+        .zip(want)
         .zip(poses)
-        .filter(|(g, _)| g.iter().any(|w| w != TORUS_WALL))
-        .map(|(g, (beta, spin))| format!("β {beta}, spin {spin}: {g:?}"))
+        .filter(|((g, w), _)| g.iter().map(String::as_str).ne(w.iter().copied()))
+        .map(|((g, _), (beta, spin))| format!("β {beta}, spin {spin}: {g:?}"))
         .collect();
     assert!(off.is_empty(), "at ε {eps:e}:\n{}", off.join("\n"));
 }

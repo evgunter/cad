@@ -768,9 +768,10 @@ fn kemr_candidates(body: &Body<f64>, _tol: Tol) -> Vec<OpChoice> {
 
 fn mekr_candidates(body: &Body<f64>, _tol: Tol) -> Vec<OpChoice> {
     let mut out = Vec::new();
-    for (_, face) in body.faces() {
-        let loops: Vec<LoopKey> = core::iter::once(face.outer)
-            .chain(face.rings.iter().copied())
+    for (fk, face) in body.faces() {
+        let loops: Vec<LoopKey> = body
+            .face_loops_linked(fk, face)
+            .map(|(lk, ..)| lk)
             .collect();
         for &target in &loops {
             for &ring in &face.rings {
@@ -942,10 +943,8 @@ fn shell_component_faces(body: &Body<f64>, shell: ShellKey) -> Vec<Vec<FaceKey>>
         let mut pending = vec![seed];
         while let Some(face_key) = pending.pop() {
             let face = body.get_face(face_key).expect("face resolves");
-            for loop_key in core::iter::once(face.outer).chain(face.rings.iter().copied()) {
-                let LoopBoundary::Cycle { first } =
-                    body.get_loop(loop_key).expect("loop resolves").boundary
-                else {
+            for (_, loop_data, _) in body.face_loops_linked(face_key, face) {
+                let LoopBoundary::Cycle { first } = loop_data.boundary else {
                     continue; // empty loop: glues only its vertex
                 };
                 for member in body.loop_cycle(first).expect("valid body: cycle closes") {
@@ -1855,7 +1854,7 @@ fn first_cycle_ring(body: &Body<f64>) -> Option<LoopKey> {
 /// A mekr site absorbing the first empty ring into a sibling loop of
 /// its face.
 fn first_empty_ring_site(body: &Body<f64>) -> Option<MekrSite> {
-    for (_, face) in body.faces() {
+    for (fk, face) in body.faces() {
         for &ring in &face.rings {
             let LoopBoundary::Empty { vertex: w } =
                 body.get_loop(ring).expect("loop resolves").boundary
@@ -1863,11 +1862,11 @@ fn first_empty_ring_site(body: &Body<f64>) -> Option<MekrSite> {
                 continue;
             };
             // Prefer a cycle target (outer first, then other rings).
-            for target in core::iter::once(face.outer).chain(face.rings.iter().copied()) {
+            for (target, target_data, _) in body.face_loops_linked(fk, face) {
                 if target == ring {
                     continue;
                 }
-                match body.get_loop(target).expect("loop resolves").boundary {
+                match target_data.boundary {
                     LoopBoundary::Cycle { first } => {
                         return Some(MekrSite::EmptyRing {
                             target: first,

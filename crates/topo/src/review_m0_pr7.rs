@@ -288,7 +288,7 @@ fn spine_census<T: Real>(body: &Body<T>) -> SpineCensus {
                     continue;
                 };
                 faces += 1;
-                for &lp in core::iter::once(&face.outer).chain(face.rings.iter()) {
+                for lp in face.loop_keys() {
                     let Some(l) = body.get_loop(lp) else {
                         continue;
                     };

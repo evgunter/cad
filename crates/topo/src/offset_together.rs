@@ -113,7 +113,7 @@ use crate::attach::Rechart;
 use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, FaceKey, SolidKey, VertexKey};
 use crate::geometry::SurfaceKey;
-use crate::live::{NAMES_ONLY_LIVE, linked, proven};
+use crate::live::{BoundaryMember, NAMES_ONLY_LIVE, linked, proven};
 use crate::offset_restate::chart_moves;
 use crate::replace_face::ReplaceFaceError;
 
@@ -815,20 +815,12 @@ pub(crate) fn unplaced_in_scope(vertex: VertexKey) -> ! {
 /// `solid` back-pointer and its owner's list are validated against
 /// each other), so no valid body has one.
 ///
-/// **The same owner index, as a public door, is
-/// [`SolidOwners`](crate::SolidOwners)**, and the two stay separate
-/// because they answer differently: that one indexes every solid of
-/// the body and SKIPS what does not resolve, so an absent entry is its
-/// answer; this one walks only the solids it names and PANICS on an
-/// unresolved link of one of them, a torn body (D2 row 4), because a
-/// door must not solve over a scope it could only partly read. Nor is
-/// [`Body::faces_of_solid`] a home for either walk's face half: it
-/// reads the faces' own back-pointers where both walks read the
-/// solids' shell lists, answers for one solid per whole-arena scan,
-/// and drops a face whose shell does not resolve where this walk
-/// panics. On a tier-1-valid body the two indices agree
-/// about every face and vertex, lone vertices included, and
-/// `separation::owner_index` reds if they stop.
+/// **[`SolidOwners`](crate::SolidOwners) is the same owner index as a
+/// public door**, built from [`Scope::whole`]. Nor is
+/// [`Body::faces_of_solid`] a home for the walk's face half: it reads
+/// the faces' own back-pointers where this walk reads the solids' shell
+/// lists, answers for one solid per whole-arena scan, and drops a face
+/// whose shell does not resolve where this walk panics.
 #[derive(Clone)]
 pub(crate) struct Scope {
     /// The solids in scope. A `Vec` and a linear `contains`, like
@@ -870,6 +862,17 @@ impl Scope {
         scope
     }
 
+    /// The owner of each face and of each vertex the scope holds — the
+    /// maps [`SolidOwners`](crate::SolidOwners) answers from.
+    pub(crate) fn into_owners(
+        self,
+    ) -> (
+        SecondaryMap<FaceKey, SolidKey>,
+        SecondaryMap<VertexKey, SolidKey>,
+    ) {
+        (self.faces, self.vertices)
+    }
+
     /// Walks the shells of every solid of `solids` the maps do not
     /// already hold, extending them. Idempotent: a solid already in
     /// `built` costs nothing. Every hop is a link of the record before
@@ -886,21 +889,10 @@ impl Scope {
                     self.faces.insert(face, solid);
                     let holder = EntityId::Shell(shell);
                     let f = linked(&body.faces, face, EntityId::Face, holder, "faces");
-                    let loops = core::iter::once(("outer", f.outer))
-                        .chain(f.rings.iter().map(|&ring| ("rings", ring)));
-                    for (field, r#loop) in loops {
-                        let holder = EntityId::Face(face);
-                        match linked(&body.loops, r#loop, EntityId::Loop, holder, field).boundary {
-                            crate::entity::LoopBoundary::Empty { vertex } => {
-                                self.vertices.insert(vertex, solid);
-                            }
-                            crate::entity::LoopBoundary::Cycle { first } => {
-                                for he in body.loop_walk(first).closed("loop", first) {
-                                    let half = proven(&body.half_edges, he, EntityId::HalfEdge);
-                                    self.vertices.insert(half.start, solid);
-                                    self.edges.insert(half.edge, solid);
-                                }
-                            }
+                    for member in body.face_boundary_linked(face, f) {
+                        self.vertices.insert(member.vertex(), solid);
+                        if let BoundaryMember::Edge { ek, .. } = member {
+                            self.edges.insert(ek, solid);
                         }
                     }
                 }

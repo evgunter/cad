@@ -1404,7 +1404,7 @@ impl<T: Decide> Body<T> {
     /// take the old key out of the arena. So this reads no surface.
     ///
     /// The face's rows are its loops' rows, and each loop's walk is
-    /// [`crate::pcurves::loop_rows`], the walk
+    /// [`Body::proven_face_cycles`]', the walk
     /// [`crate::pcurves::validate_pcurves`] reads the same face with.
     /// One walk is what makes "the rows the door removed" and "the rows
     /// the validator would have read" the same set by construction
@@ -1422,7 +1422,7 @@ impl<T: Decide> Body<T> {
     #[track_caller]
     pub(crate) fn face_cycles(&self, face: FaceKey) -> Vec<HalfEdgeKey> {
         let mut halves = Vec::new();
-        for (r#loop, cycle) in crate::pcurves::face_loop_walks(self, face) {
+        for (r#loop, cycle) in self.proven_face_cycles(face) {
             self.require_run_of(cycle.iter().copied(), r#loop, RunExtent::Whole, &[]);
             halves.extend(cycle);
         }
@@ -1447,7 +1447,7 @@ impl<T: Decide> Body<T> {
         let mut out = Vec::new();
         for face in faces {
             let mut halves = Vec::new();
-            for (r#loop, cycle) in crate::pcurves::face_loop_walks(self, face) {
+            for (r#loop, cycle) in self.proven_face_cycles(face) {
                 // `require_run_of`'s member proof, without the set it
                 // builds per loop.
                 for &member in &cycle {
@@ -1476,19 +1476,6 @@ impl<T: Decide> Body<T> {
             );
         }
         out
-    }
-
-    /// [`Body::face_cycles`] without the whole-loop proof: the members of
-    /// every cycle bounding `face`, outer loop then rings, each in `next`
-    /// order, for a face this call resolved or read out of a record. The
-    /// walk is [`crate::pcurves::face_loop_walks`], so a miss panics as
-    /// that walk does.
-    #[track_caller]
-    pub(crate) fn face_cycles_linked(&self, face: FaceKey) -> Vec<HalfEdgeKey> {
-        crate::pcurves::face_loop_walks(self, face)
-            .into_iter()
-            .flat_map(|(_, cycle)| cycle)
-            .collect()
     }
 
     /// Do these two surface keys hold one DESCRIPTION, so a pcurve

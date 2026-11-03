@@ -71,14 +71,15 @@ pub(crate) fn region_errors<T: Decide>(
         let torus = match surface {
             geom::Surface::Sphere { .. }
             | geom::Surface::Cylinder { .. }
-            | geom::Surface::Cone { .. } => false,
+            | geom::Surface::Cone { .. }
+            | geom::Surface::Spindle { .. } => false,
             geom::Surface::Torus { .. } => true,
             geom::Surface::Plane { .. } | geom::Surface::Nurbs(_) | geom::Surface::Approx(_) => {
                 continue;
             }
         };
         let Ok(cycles) = crate::surface_boundary::surface_cycle_windings(body, face) else {
-            continue; // tier 1 refuses a boundary that does not walk
+            continue; // a rotation that does not close: tier 1 refuses it
         };
         let readings = if torus {
             match torus_readings(&cycles) {

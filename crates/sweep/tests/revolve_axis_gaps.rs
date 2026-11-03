@@ -188,7 +188,7 @@ fn the_c_profile_revolves_to_a_column_with_a_cavity() {
     let verdicts = bracket.finish().verdicts;
     let crossing: Vec<_> = verdicts
         .iter()
-        .filter(|v| v.predicate.starts_with("bool_"))
+        .filter(|v| crate::common::crossing::decided_by_crossing(v.predicate))
         .collect();
     assert!(
         crossing.is_empty(),
