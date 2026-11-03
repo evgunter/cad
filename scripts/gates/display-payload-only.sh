@@ -14,29 +14,52 @@
 # but the test-only mounts, and in it no inline `#[cfg(test)]` module;
 # comments and string literals stripped):
 #
-#  1. NO `impl … Display for …` BODY SPELLS A READING OR RENDERS AT ONE:
-#     no `Reading::`, no `ReadAt::`, no `render…(` call, no `.ended(`, no
-#     `at_build(` / `at_rest(`. A `render(f, …)` call is a formatter
-#     helper's (its first argument is the formatter, never a door) and is
-#     not counted.
+#  1. NO BODY THAT WRITES A PAYLOAD REACHES AN ENDING. Two kinds of
+#     body are read:
+#     - every `impl … Display for …` body. It may not spell a reading
+#       (`Reading::`, `ReadAt::`), call `render…(` (a `render(f, …)`
+#       formatter helper excepted), `.ended(`, `Ended::ended(`,
+#       `defect_ending(`, `unreadable_margin_note(`,
+#       `recourse::at_build(` / `at_rest(`, `read_at(_, Some(…))`, its
+#       own `write(f, Some(…))`, or `.ending(…)` with anything but a
+#       constant lever (an all-caps constant, or a `.recourse` field);
+#     - every function that takes an optional reading,
+#       `…: Option<ReadAt>`: the `write(f, at)` that
+#       `geom_brep::ended_by_write!` wraps, `EulerOpError::text`, a
+#       decision's `written(diag, at)`. Its `None` is the payload, so it
+#       may reach an ending only through the `at` a `Some` binds. It may
+#       not spell a reading (`ReadAt::is_build`, the one door test,
+#       excepted), call `Ended::ended(`, `read_at(_, Some(…))` or
+#       `write(f, Some(…))`. `geom_brep::recourse`, the mechanism's
+#       home, is not read.
 #  2. THE PRODUCTION SPELLING SITES ARE PINNED PER FILE AND PER READING
-#     (`display-payload-only.counts`): `Reading::Build` and the
-#     `recourse::at_build(` door count under `build`, `Reading::AtRest`
-#     and `recourse::at_rest(` under `at_rest`, `ReadAt::File` under
-#     `import`. A new site moves its file's pin, so it is added knowingly
-#     and read beside its reason; a site that goes moves it down.
+#     (`display-payload-only.counts`): `Reading::Build` and
+#     `recourse::at_build(` count under `build`, `Reading::AtRest` and
+#     `recourse::at_rest(` under `at_rest`, `ReadAt::File` under
+#     `import`. Only the path-qualified `recourse::at_…(` is a reading:
+#     a bare `at_rest(` is another function. A new site moves its file's
+#     pin, so it is added knowingly and read beside its reason; a site
+#     that goes moves it down.
 #
-# WHAT IT CANNOT SEE. A reading reached through a variable (`render(at)`,
-# a door's `at` passed down) is not a spelling and is not counted: that
-# is the point of the rule, the reading travels from the door. A helper
-# function that spells a reading and is called from a `Display` passes
-# rule 1 (the helper is counted under rule 2, in its own file, so the
-# site is pinned but its caller is not named). A constant ending string
-# (`KERNEL_DEFECT_ENDING`, validate's `DEFECT`) is text, not a reading,
-# and a `Display` that writes one is not caught; such a constant answers
-# one door at every door, which is what
-# `work/pcert/a-displays-constant-ending-answers-one-door-at-every-door.md`
-# tracks.
+# WHAT STAYS BLIND.
+#  - A reading reached through a variable (`render(at)`, a door's `at`
+#    passed down) is not a spelling: that is the point, the reading
+#    travels from the door. Inside an optional body the gate does not
+#    tell a `Some` arm from a `None` arm. An unwrapped `at` exists only
+#    in a `Some` arm, so a call taking it cannot sit in a `None` arm.
+#    But a `.ending(…)` or `defect_ending(…)` taking a reading built some
+#    other way there is not seen. Review holds that, and the rows that
+#    pin a type's payload against its door renders (`TrimOffFace`'s,
+#    the split's) hold it where they exist.
+#  - A helper that spells a reading inside it, called from a body, passes
+#    rule 1. The helper is counted under rule 2 in its own file, so the
+#    site is pinned but its caller is not named.
+#  - A constant ending string (`KERNEL_DEFECT_ENDING`, validate's
+#    `DEFECT`) is text, not a reading, and a body that writes one is not
+#    caught. Such a constant answers one door at every door; the
+#    remaining ones, and the fixed-door helpers, are listed by
+#    `file:line` in
+#    `work/pcert/a-displays-constant-ending-answers-one-door-at-every-door.md`.
 set -euo pipefail
 # shellcheck source=scripts/gates/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
@@ -128,12 +151,41 @@ def without_test_mods(text):
 
 
 DISPLAY = re.compile(r"\bimpl\b[^{;]*?\bDisplay\s+for\s+[^{;]*\{")
-SPELLS = re.compile(
-    r"\bReading::|\bReadAt::|\brender\w*\s*\((?!\s*f\s*[,)])|\.ended\s*\(|\bat_build\s*\(|\bat_rest\s*\("
+# A function that takes an optional reading (`at: Option<ReadAt>`): a
+# refusal's `write(f, at)` (what `ended_by_write!` wraps), `text(at)`,
+# a decision's `written(diag, at)`. Its body writes the payload when
+# `at` is `None` and may end it only through that `at`.
+OPTIONAL = re.compile(
+    r"\bfn\s+\w+\s*(?:<[^>]*>)?\s*\([^)]*?:\s*Option\s*<\s*(?:[\w:]*::)?ReadAt\s*>[^)]*\)[^{;]*\{"
 )
+# What reaches an ending, in any of the bodies.
+BOTH = [
+    r"\bReading::",
+    r"\bReadAt::(?!is_build\b)",
+    r"\bEnded::ended\s*\(",
+    r"\bread_at\s*\([^;]*?,\s*Some\s*\(",
+    r"\bwrite\s*\(\s*f\s*,\s*Some\s*\(",
+]
+# What reaches an ending only in a `Display`: a `write(f, at)` reaches
+# these through the `at` a `Some` arm binds, which a `None` arm does
+# not have.
+DISPLAY_ONLY = [
+    r"\brender\w*\s*\((?!\s*f\s*[,)])",
+    r"\.ended\s*\(",
+    r"\bdefect_ending\s*\(",
+    r"\bunreadable_margin_note\s*\(",
+    r"\brecourse::at_(?:build|rest)\s*\(",
+    # An ending taken with anything but a constant lever.
+    r"\.ending\s*\((?!\s*(?:[\w:]*::)?[A-Z][A-Z0-9_]*\s*\)|\s*[\w.]*\.recourse\s*\))",
+]
+SPELLS = re.compile("|".join(BOTH + DISPLAY_ONLY))
+SPELLS_OPTIONAL = re.compile("|".join(BOTH))
+# Only the mechanism's own home spells a reading inside an optional
+# body (`at_build`, `at_rest`, `read_at`).
+HOME = "crates/geom-brep/src/recourse.rs"
 KEYS = [
-    ("build", re.compile(r"\bReading::Build\b|(?<!fn )\bat_build\s*\(")),
-    ("at_rest", re.compile(r"\bReading::AtRest\b|(?<!fn )\bat_rest\s*\(")),
+    ("build", re.compile(r"\bReading::Build\b|\brecourse::at_build\s*\(")),
+    ("at_rest", re.compile(r"\bReading::AtRest\b|\brecourse::at_rest\s*\(")),
     ("import", re.compile(r"\bReadAt::File\b")),
 ]
 
@@ -141,11 +193,14 @@ offences, counts = [], {}
 for path in files:
     with open(path, encoding="utf-8") as fh:
         code = without_test_mods(strip(fh.read()))
-    for m in DISPLAY.finditer(code):
-        body = code[m.end() - 1:matching(code, m.end() - 1) + 1]
-        for s in SPELLS.finditer(body):
-            line = code.count("\n", 0, m.end() - 1 + s.start()) + 1
-            offences.append(f"{path}:{line}: {s.group(0)}")
+    for pat, spells in ((DISPLAY, SPELLS), (OPTIONAL, SPELLS_OPTIONAL)):
+        if pat is OPTIONAL and path == HOME:
+            continue
+        for m in pat.finditer(code):
+            body = code[m.end() - 1:matching(code, m.end() - 1) + 1]
+            for s in spells.finditer(body):
+                line = code.count("\n", 0, m.end() - 1 + s.start()) + 1
+                offences.append(f"{path}:{line}: {s.group(0)}")
     for key, pat in KEYS:
         n = len(pat.findall(code))
         if n:
@@ -177,7 +232,7 @@ PY
   fi
   if grep -q '^DISPLAY ' <<<"$report"; then
     grep '^DISPLAY ' <<<"$report"
-    gate_error "a Display impl spells a reading or renders at one: a refusal's Display is its payload alone. Write the type once as \`fn write(&self, f, at: Option<ReadAt>)\` (\`geom_brep::ended_by_write!\`), nest refusals through \`recourse::read_at(e, at)\`, and let the door that reports it call \`render(at)\` with its own reading"
+    gate_error "a Display impl, or a write(f, at) body, reaches an ending: a refusal's Display is its payload alone. Write the type once as \`fn write(&self, f, at: Option<ReadAt>)\` (\`geom_brep::ended_by_write!\`), nest refusals through \`recourse::read_at(e, at)\`, and let the door that reports it call \`render(at)\` with its own reading"
     exit 1
   fi
   if grep -qE '^(ROSE|FELL) ' <<<"$report"; then
@@ -185,7 +240,7 @@ PY
     gate_error "the production sites that spell a reading moved — set $BASELINE to the new per-file counts in the change that moves them, so each new site is added knowingly: a door renders at its own reading, and a nested refusal ended at another door than its reader's is a finding to file"
     exit 1
   fi
-  gate_ok "no Display spells a reading; the production spelling sites at their per-file pins (build $(sed -n 's/^TOTAL build //p' <<<"$report"), at rest $(sed -n 's/^TOTAL at_rest //p' <<<"$report"), import $(sed -n 's/^TOTAL import //p' <<<"$report"))"
+  gate_ok "no Display or write(f, at) body reaches an ending; the production spelling sites at their per-file pins (build $(sed -n 's/^TOTAL build //p' <<<"$report"), at rest $(sed -n 's/^TOTAL at_rest //p' <<<"$report"), import $(sed -n 's/^TOTAL import //p' <<<"$report"))"
 }
 
 gate_plant_clean() {
@@ -228,15 +283,58 @@ plant_not_sites() {
     >> "$1/crates/clean/src/lib.rs"
 }
 
+# The shapes review 6430 r1 showed passing the first version of rule 1,
+# one case each: a Display through `Ended::ended`, `read_at(_, Some)`,
+# `defect_ending`, its own `write(f, Some)` and `.ending(reading)`, and a
+# `write(f, at)` body that renders at a build whatever `at` is.
+plant_display_ufcs() {
+  printf 'impl core::fmt::Display for E {\n    fn fmt(&self, f: &mut F) -> R {\n        f.write_str(&geom_brep::recourse::Ended::ended(&self.0, self.1))\n    }\n}\n' \
+    >> "$1/crates/clean/src/lib.rs"
+}
+plant_display_read_at_some() {
+  printf 'impl core::fmt::Display for E {\n    fn fmt(&self, f: &mut F) -> R {\n        write!(f, "{}", read_at(&self.0, Some(self.1)))\n    }\n}\n' \
+    >> "$1/crates/clean/src/lib.rs"
+}
+plant_display_defect_ending() {
+  printf 'impl core::fmt::Display for E {\n    fn fmt(&self, f: &mut F) -> R {\n        f.write_str(geom_brep::recourse::defect_ending(self.1))\n    }\n}\n' \
+    >> "$1/crates/clean/src/lib.rs"
+}
+plant_display_write_some() {
+  printf 'impl core::fmt::Display for E {\n    fn fmt(&self, f: &mut F) -> R {\n        self.write(f, Some(self.1))\n    }\n}\n' \
+    >> "$1/crates/clean/src/lib.rs"
+}
+plant_display_ending_of_a_reading() {
+  printf 'impl core::fmt::Display for E {\n    fn fmt(&self, f: &mut F) -> R {\n        f.write_str(&self.0.ending(self.1))\n    }\n}\n' \
+    >> "$1/crates/clean/src/lib.rs"
+}
+plant_write_body_renders_at_a_build() {
+  printf 'impl E {\n    fn write(&self, f: &mut F, at: Option<geom_brep::recourse::ReadAt>) -> R {\n        f.write_str(&self.0.render(Reading::Build))\n    }\n}\n' \
+    >> "$1/crates/clean/src/lib.rs"
+}
+# A write(f, at) body that ends only through its `at`, and a Display of
+# a constant lever, are no door's spelling.
+plant_write_body_through_at() {
+  printf 'crates/clean/src/lib.rs build 1\n' >> "$1/$BASELINE"
+  printf 'impl E {\n    fn write(&self, f: &mut F, at: Option<geom_brep::recourse::ReadAt>) -> R {\n        match at {\n            Some(at) if at.is_build() => f.write_str(&self.0.render(at)),\n            _ => write!(f, "{} {}", read_at(&self.1, at), read_at(&self.2, geom_brep::recourse::at_build(at))),\n        }\n    }\n}\nimpl core::fmt::Display for L {\n    fn fmt(&self, f: &mut F) -> R {\n        f.write_str(&self.0.ending(COINCIDENCE_RECOURSE))\n    }\n}\n' \
+    >> "$1/crates/clean/src/lib.rs"
+}
+
 gate_selftest() {
   gate_selftest_clean
-  gate_selftest_case "a Display impl spells a reading" plant_display_renders
-  gate_selftest_case "a Display impl spells a reading" plant_display_spells_through_a_variable
+  gate_selftest_case "reaches an ending" plant_display_renders
+  gate_selftest_case "reaches an ending" plant_display_spells_through_a_variable
+  gate_selftest_case "reaches an ending" plant_display_ufcs
+  gate_selftest_case "reaches an ending" plant_display_read_at_some
+  gate_selftest_case "reaches an ending" plant_display_defect_ending
+  gate_selftest_case "reaches an ending" plant_display_write_some
+  gate_selftest_case "reaches an ending" plant_display_ending_of_a_reading
+  gate_selftest_case "reaches an ending" plant_write_body_renders_at_a_build
+  gate_selftest_passes "a write body that ends only through its at, and a constant lever" plant_write_body_through_at
   gate_selftest_case "spell a reading moved" plant_new_site
   gate_selftest_case "spell a reading moved" plant_site_gone
   gate_selftest_passes "two sites at their pins" plant_pinned_site
   gate_selftest_passes "a formatter helper, a test module and a comment" plant_not_sites
-  printf '%s selftest OK: passes a clean fixture, sites at their pins, a formatter helper, a test module and a comment; fires on a Display that renders at a reading or through a variable, on a new spelling site and on one gone\n' "$(gate_name)"
+  printf '%s selftest OK: passes a clean fixture, sites at their pins, a formatter helper, a test module, a comment, a write body ending only through its at and a constant lever; fires on a Display that renders at a reading or through a variable, through Ended::ended, read_at(_, Some), defect_ending, write(f, Some) or .ending(reading), on a write body that renders at a build, and on a new spelling site and one gone\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"

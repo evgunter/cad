@@ -1613,7 +1613,7 @@ impl EulerOpError {
                 // A stored row re-certified over a child is the
                 // split's own construction, ended at a build at every
                 // door that reports the split.
-                read_at(error, at.map(|_| Reading::Build.into()))
+                read_at(error, geom_brep::recourse::at_build(at))
             ),
             Self::SplitJointUndecided {
                 edge,

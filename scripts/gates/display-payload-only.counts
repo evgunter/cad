@@ -1,6 +1,6 @@
 # Production sites that spell a reading (scripts/gates/display-payload-only.sh):
 # path reading count. A change that moves one sets it here.
-crates/editor-core/src/checks.rs at_rest 4
+crates/editor-core/src/checks.rs at_rest 3
 crates/editor-core/src/checks.rs build 1
 crates/editor-core/src/checks/at_rest.rs at_rest 1
 crates/editor-core/src/checks/at_rest.rs build 3
@@ -9,13 +9,14 @@ crates/editor-core/src/eval/mod.rs build 11
 crates/editor-core/src/names/emit.rs build 1
 crates/editor-core/src/product.rs at_rest 3
 crates/editor-core/src/product.rs build 1
+crates/editor-core/src/resolve/pick.rs at_rest 1
 crates/geom-brep/src/certify.rs import 1
 crates/geom-brep/src/recourse.rs at_rest 1
-crates/geom-brep/src/recourse.rs build 2
+crates/geom-brep/src/recourse.rs build 3
 crates/geom-brep/src/recourse.rs import 1
 crates/pncad-py/src/check_payload.rs at_rest 1
 crates/pncad-py/src/check_payload.rs build 1
-crates/pncad-py/src/py/mesh.rs at_rest 1
+crates/pncad-py/src/py/mesh.rs at_rest 2
 crates/pncad-py/src/py/value.rs at_rest 3
 crates/pncad-py/src/py/value.rs build 1
 crates/pncad/src/export.rs at_rest 2
@@ -24,10 +25,7 @@ crates/step-export/src/lib.rs build 1
 crates/step-import/src/error.rs at_rest 1
 crates/step-import/src/error.rs build 1
 crates/step-import/src/error.rs import 1
-crates/sweep/src/test_support.rs at_rest 1
-crates/topo/src/attach.rs at_rest 1
 crates/topo/src/boolean/contain.rs build 1
-crates/topo/src/boolean/edge_join.rs build 2
 crates/topo/src/boolean/ops.rs build 1
 crates/topo/src/boolean/refusal_routes.rs build 4
 crates/topo/src/chart_region.rs build 1
@@ -36,13 +34,10 @@ crates/topo/src/lib.rs build 1
 crates/topo/src/merge_faces.rs build 1
 crates/topo/src/props.rs at_rest 1
 crates/topo/src/replace_face.rs build 1
-crates/topo/src/split.rs build 1
-crates/topo/src/splitting/classify.rs build 1
 crates/topo/src/splitting/finish.rs at_rest 1
-crates/topo/src/splitting/mod.rs at_rest 2
 crates/topo/src/splitting/mod.rs build 1
-crates/topo/src/transform.rs build 2
+crates/topo/src/transform.rs build 1
 crates/topo/src/validate.rs at_rest 14
 crates/topo/src/validate.rs build 4
-crates/viewer/src/app.rs at_rest 1
+crates/viewer/src/lib.rs at_rest 1
 crates/viewer/src/pane/features.rs at_rest 1

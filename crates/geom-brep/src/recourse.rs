@@ -50,6 +50,14 @@ pub enum ReadAt {
 }
 
 impl ReadAt {
+    /// Whether this is a build's door ([`Reading::Build`]): the one test
+    /// a refusal's `write` takes where a build ends differently, so no
+    /// reading is spelled inside a refusal's text.
+    #[must_use]
+    pub const fn is_build(self) -> bool {
+        matches!(self, Self::Run(Reading::Build))
+    }
+
     /// **The culprit a defect ending names at this door** (D4 ¶1 (iv)):
     /// the one chooser every defect ending read through this module
     /// takes, sized or not. A run door names its own

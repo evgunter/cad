@@ -197,7 +197,7 @@ impl TransformError {
         f: &mut core::fmt::Formatter<'_>,
         at: Option<geom_brep::recourse::ReadAt>,
     ) -> core::fmt::Result {
-        use geom_brep::recourse::{ReadAt, Reading, read_at};
+        use geom_brep::recourse::{ReadAt, read_at};
         let defect = at.map(geom_brep::recourse::defect_ending);
         let ended = |defect: Option<&str>| defect.map(|d| format!(". {d}")).unwrap_or_default();
         match self {
@@ -208,7 +208,7 @@ impl TransformError {
                 "an edge the map moved failed re-certification: {}",
                 read_at(source, at)
             ),
-            Self::NullScaffold { .. } if at == Some(ReadAt::Run(Reading::Build)) => write!(
+            Self::NullScaffold { .. } if at.is_some_and(ReadAt::is_build) => write!(
                 f,
                 "the body still carries what an edit left behind, which the map cannot \
                  move. Recourse: {}",

@@ -813,7 +813,7 @@ impl JoinRefusal {
         f: &mut core::fmt::Formatter<'_>,
         at: Option<geom_brep::recourse::ReadAt>,
     ) -> core::fmt::Result {
-        use geom_brep::recourse::{ReadAt, Reading, defect_ending, unreadable_margin_note};
+        use geom_brep::recourse::{defect_ending, unreadable_margin_note};
         const IMAGE: &str = "two edges meeting at a vertex on one surface read their family off a chart image \
              that did not derive";
         match self {
@@ -828,7 +828,7 @@ impl JoinRefusal {
                 write!(f, "{JOIN_SUBJECT} is undecided ({})", diag.payload())?;
                 match at {
                     None => Ok(()),
-                    Some(ReadAt::Run(Reading::Build)) => write!(f, ". {}", diag.ending(JOIN_LEVER)),
+                    Some(at) if at.is_build() => write!(f, ". {}", diag.ending(JOIN_LEVER)),
                     Some(at) => write!(
                         f,
                         ". {}",
@@ -870,7 +870,7 @@ impl JoinRefusal {
                 )?;
                 match at {
                     None => Ok(()),
-                    Some(ReadAt::Run(Reading::Build)) => {
+                    Some(at) if at.is_build() => {
                         write!(f, ". {}", geom_core::KERNEL_LIMIT_RECOURSE)
                     }
                     Some(at) => write!(f, ". {}", defect_ending(at)),
