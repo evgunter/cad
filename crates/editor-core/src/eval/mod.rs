@@ -2105,13 +2105,25 @@ impl crate::spoken::Say for NodeErrorKind {
                 ),
             ),
             // Every node is read at the build that ran it.
-            Self::Extrude(e) => write!(f, "the extrude op refused: {}", e.render(geom_brep::recourse::Reading::Build)),
-            Self::Revolve(e) => write!(f, "the revolve op refused: {}", e.render(geom_brep::recourse::Reading::Build)),
+            Self::Extrude(e) => write!(
+                f,
+                "the extrude op refused: {}",
+                e.render(geom_brep::recourse::Reading::Build)
+            ),
+            Self::Revolve(e) => write!(
+                f,
+                "the revolve op refused: {}",
+                e.render(geom_brep::recourse::Reading::Build)
+            ),
             // The kernel error says which tube it is (solid or
             // hollow), so this line names neither: a wrapper that did
             // would read a hollow refusal as a solid one half the time.
             Self::Tube(e) => write!(f, "the tube op refused: {e}"),
-            Self::Split(e) => write!(f, "the split op refused: {}", e.render(geom_brep::recourse::Reading::Build)),
+            Self::Split(e) => write!(
+                f,
+                "the split op refused: {}",
+                e.render(geom_brep::recourse::Reading::Build)
+            ),
             Self::ContactCarry { refusal } => {
                 use topo::CarryRefusal as R;
                 let what = match refusal {
@@ -2143,15 +2155,35 @@ impl crate::spoken::Say for NodeErrorKind {
                 verb,
                 error,
                 edge: None,
-            } => write!(f, "the {verb} op refused: {}", error.render(geom_brep::recourse::Reading::Build)),
+            } => write!(
+                f,
+                "the {verb} op refused: {}",
+                error.render(geom_brep::recourse::Reading::Build)
+            ),
             // No cause is guessed here: the kernel's refusal names its
             // own, and a coincidence refusal carries its own recourse.
-            Self::Boolean(e) => write!(f, "the Boolean op refused: {}", e.render(geom_brep::recourse::Reading::Build)),
-            Self::Transform(e) => write!(f, "the transform op refused: {}", e.render(geom_brep::recourse::Reading::Build)),
-            Self::Mirror(e) => write!(f, "the mirror refused: {}", e.render(geom_brep::recourse::Reading::Build)),
+            Self::Boolean(e) => write!(
+                f,
+                "the Boolean op refused: {}",
+                e.render(geom_brep::recourse::Reading::Build)
+            ),
+            Self::Transform(e) => write!(
+                f,
+                "the transform op refused: {}",
+                e.render(geom_brep::recourse::Reading::Build)
+            ),
+            Self::Mirror(e) => write!(
+                f,
+                "the mirror refused: {}",
+                e.render(geom_brep::recourse::Reading::Build)
+            ),
             Self::Motion(e) => write!(f, "the placement's motion refused: {e}"),
             Self::Skin(e) => write!(f, "the skin construction refused: {e}"),
-            Self::Loft(e) => write!(f, "the loft assembly refused: {}", e.render(geom_brep::recourse::Reading::Build)),
+            Self::Loft(e) => write!(
+                f,
+                "the loft assembly refused: {}",
+                e.render(geom_brep::recourse::Reading::Build)
+            ),
             Self::CurvedSolidFrontier { what } => write!(f, "not yet buildable: {what}"),
             Self::MissingInput { input } => {
                 write!(f, "{} names no live node", by.node_as(*input, "input"))
@@ -2386,7 +2418,11 @@ impl crate::spoken::Say for NodeErrorKind {
                 by.read(*read),
                 Said(refusal.as_ref(), by)
             ),
-            Self::Shell(e) => write!(f, "the shell op refused: {}", e.render(geom_brep::recourse::Reading::Build)),
+            Self::Shell(e) => write!(
+                f,
+                "the shell op refused: {}",
+                e.render(geom_brep::recourse::Reading::Build)
+            ),
             Self::ShellLaneUnsupported { scalar } => write!(
                 f,
                 "the shell door has no lane at the {scalar} scalar: hollowing validates what it \

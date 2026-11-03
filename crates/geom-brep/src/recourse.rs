@@ -107,10 +107,7 @@ pub trait Ended {
 
 /// **A nested refusal as its holder writes it**: ended at `at`, or its
 /// payload alone where `at` is `None` (the holder's own `Display`).
-pub fn read_at<E: Ended + ?Sized>(
-    refusal: &E,
-    at: Option<ReadAt>,
-) -> impl core::fmt::Display + '_ {
+pub fn read_at<E: Ended + ?Sized>(refusal: &E, at: Option<ReadAt>) -> impl core::fmt::Display + '_ {
     core::fmt::from_fn(move |f| match at {
         Some(at) => f.write_str(&refusal.ended(at)),
         #[cfg(not(e1e_probe))]
@@ -460,12 +457,14 @@ pub const INCIDENCE_AT_POSE: LeverOnly = LeverOnly {
             or so no piece of it sits there",
 };
 
-/// **An edge's curve whose incidence on its face is undecided**: not
-/// shown on the face and not shown off it, so its lever moves the
-/// geometry until the reading decides, at every door.
+/// **A boundary whose incidence on its face is undecided**: an edge's
+/// curve or a flat face's corner, not shown on the face and not shown
+/// off it, so its lever moves the geometry until the reading decides,
+/// at every door. The refusal's own sentence says which of the two was
+/// read; the lever fits both.
 pub const INCIDENCE_UNSHOWN: LeverOnly = LeverOnly {
-    lever: "the edge's curve is not shown on the face it bounds at this tolerance: move the \
-            geometry so it lies clearly on that face",
+    lever: "move the geometry so the boundary lies clearly on the face it bounds at this \
+            tolerance",
 };
 
 impl LeverOnly {

@@ -777,10 +777,7 @@ impl OffsetFitError {
         reading: impl Into<crate::recourse::ReadAt>,
     ) -> String {
         match self {
-            Self::Meter(e) => format!(
-                "{METER_UNFITTED}: {}",
-                e.render_with_lever(lever, reading)
-            ),
+            Self::Meter(e) => format!("{METER_UNFITTED}: {}", e.render_with_lever(lever, reading)),
             other => other.payload().to_string(),
         }
     }

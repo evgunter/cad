@@ -760,13 +760,13 @@ impl<T: Real> ShellError<T> {
             Self::Lift { error, .. } => write!(
                 f,
                 "the rim could not be lifted back onto a designated open face: {}",
-                AsShelled(error, at)
+                core::fmt::from_fn(|f| AsShelled(error, at).write(f))
             ),
             Self::Face { error, .. } => {
                 write!(
                     f,
                     "a face could not be offset inward: {}",
-                    AsShelled(error, at)
+                    core::fmt::from_fn(|f| AsShelled(error, at).write(f))
                 )
             }
             Self::OpenFaceStale { .. } => {
@@ -938,8 +938,10 @@ fn ended(ending: Option<impl core::fmt::Display>) -> impl core::fmt::Display {
     })
 }
 
-impl<T: Real> core::fmt::Display for AsShelled<'_, T> {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl<T: Real> AsShelled<'_, T> {
+    /// The face-replacement refusal as the shell op's user reads it,
+    /// ended at the door it carries, or its payload alone at none.
+    fn write(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         use ReplaceFaceError as R;
         use geom_brep::offset_meters::{Meter, MeterError as M};
         use geom_brep::recourse::{Refused, read_at};
@@ -5426,7 +5428,8 @@ mod tests {
                 error: geom_brep::OffsetFitError::Meter(meter),
             };
             (
-                AsShelled(&error, Some(Reading::Build.into())).to_string(),
+                core::fmt::from_fn(|f| AsShelled(&error, Some(Reading::Build.into())).write(f))
+                    .to_string(),
                 ending,
             )
         };

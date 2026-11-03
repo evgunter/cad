@@ -540,7 +540,11 @@ impl BlendDecision {
     /// The one ending a refusal of this decision carries on `arm`
     /// ([`Self::recourse_with`] at the decision's own lever).
     #[must_use]
-    pub fn recourse(self, arm: RefusedArm<'_>, at: impl Into<geom_brep::recourse::ReadAt>) -> String {
+    pub fn recourse(
+        self,
+        arm: RefusedArm<'_>,
+        at: impl Into<geom_brep::recourse::ReadAt>,
+    ) -> String {
         self.recourse_with(self.lever(), arm, at)
     }
 
@@ -2051,7 +2055,11 @@ impl BlendError {
                      of its boundary features are {} m apart, nearer than the blend sets \
                      back from them; the screen is conservative by direction{}",
                     Measured(*gap),
-                    ended(door.map(|door| BlendDecision::FaceClearance.recourse_with(lever, margin.arm(), door)))
+                    ended(door.map(|door| BlendDecision::FaceClearance.recourse_with(
+                        lever,
+                        margin.arm(),
+                        door
+                    )))
                 )
             }
             Self::FaceClearance {
@@ -2076,7 +2084,9 @@ impl BlendError {
                 write!(
                     f,
                     "{whom} {how} the material its band {what} ({margin}){}",
-                    ended(door.map(|door| BlendDecision::FaceClearance.recourse(margin.arm(), door)))
+                    ended(
+                        door.map(|door| BlendDecision::FaceClearance.recourse(margin.arm(), door))
+                    )
                 )
             }
             Self::KnifeEdge { margin, .. } => write!(
@@ -2231,7 +2241,9 @@ impl BlendError {
                 write!(
                     f,
                     "{what} the part of a face the blend {fate} ({margin}{how}){}",
-                    ended(door.map(|door| BlendDecision::RingClearance.recourse(margin.arm(), door)))
+                    ended(
+                        door.map(|door| BlendDecision::RingClearance.recourse(margin.arm(), door))
+                    )
                 )
             }
             Self::WhollyInside { at, chain, margin } => {
@@ -2254,7 +2266,11 @@ impl BlendError {
                 write!(f, "{site} — {}", geom_brep::recourse::read_at(source, door))
             }
             Self::Op { site, source } => {
-                write!(f, "assembly refused at {site} — {}", geom_brep::recourse::read_at(source.as_ref(), door))
+                write!(
+                    f,
+                    "assembly refused at {site} — {}",
+                    geom_brep::recourse::read_at(source.as_ref(), door)
+                )
             }
             Self::Join { refusal } => write!(f, "{}", geom_brep::recourse::read_at(refusal, door)),
         }

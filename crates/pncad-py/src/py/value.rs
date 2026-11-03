@@ -1293,9 +1293,13 @@ impl Value {
             | d::AssertionVerdict::Violated { measured, bound } => {
                 (Some(*measured), Some(*bound), None, None, None)
             }
-            d::AssertionVerdict::Unevaluated { reason } => {
-                (None, None, Some(reason.to_string()), None, None)
-            }
+            d::AssertionVerdict::Unevaluated { reason } => (
+                None,
+                None,
+                Some(reason.render(pncad::geom_brep::recourse::Reading::AtRest)),
+                None,
+                None,
+            ),
             d::AssertionVerdict::Clearance(report) => match report.verdict() {
                 a::ClearanceVerdict::Holds | a::ClearanceVerdict::Exceeded => {
                     (None, None, None, None, None)

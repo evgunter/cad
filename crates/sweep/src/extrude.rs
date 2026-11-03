@@ -597,7 +597,11 @@ impl ExtrudeError {
                 "the wall of loop {loop_index} segment {segment_index} is not planar: {source}"
             ),
             Self::Op { source } => {
-                write!(f, "an Euler operation refused: {}", geom_brep::recourse::read_at(source, at))
+                write!(
+                    f,
+                    "an Euler operation refused: {}",
+                    geom_brep::recourse::read_at(source, at)
+                )
             }
             Self::Pcurve(source) => write!(f, "{}", geom_brep::recourse::read_at(source, at)),
         }

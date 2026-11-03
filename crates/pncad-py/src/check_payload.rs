@@ -204,7 +204,9 @@ pub fn check_payload(evidence: &CheckEvidence) -> CheckEvidencePayload<'_> {
             CheckEvidencePayload {
                 // The shell door's reading, at a build, as the check
                 // reads it.
-                reason: Some(Cow::Owned(source.render(pncad::geom_brep::recourse::Reading::Build))),
+                reason: Some(Cow::Owned(
+                    source.render(pncad::geom_brep::recourse::Reading::Build),
+                )),
                 inner_variant: Some(shell_classify_error_tag(source)),
                 ..none
             }
@@ -212,7 +214,9 @@ pub fn check_payload(evidence: &CheckEvidence) -> CheckEvidencePayload<'_> {
         // The validator's first finding crosses as its own word and
         // sentence, the way the shell door's refusal does.
         CheckEvidence::NotAtRest { errors } => CheckEvidencePayload {
-            reason: errors.first().map(|e| Cow::Owned(e.render(pncad::geom_brep::recourse::Reading::AtRest))),
+            reason: errors
+                .first()
+                .map(|e| Cow::Owned(e.render(pncad::geom_brep::recourse::Reading::AtRest))),
             inner_variant: errors.first().map(validation_error_tag),
             ..none
         },

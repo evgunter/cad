@@ -129,7 +129,9 @@ impl OverlapRefusal {
                     write!(f, "the meeting table misread a carrier (a kernel fault)")
                 }
             },
-            Self::Boundary(e) => write!(f, "reading a face's boundary: {}", read_at(e.as_ref(), at)),
+            Self::Boundary(e) => {
+                write!(f, "reading a face's boundary: {}", read_at(e.as_ref(), at))
+            }
             Self::Corner(e) => write!(
                 f,
                 "reading two corners against each other: {}",

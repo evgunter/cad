@@ -132,9 +132,12 @@ fn tessellate_err(py: Python<'_>, err: &mesh::TessellateError) -> PyErr {
         T::UnsupportedCurvedShape { source, .. } => {
             fields[4] = (
                 "note",
-                PyString::new(py, &source.render(pncad::geom_brep::recourse::Reading::AtRest))
-                    .unbind()
-                    .into_any(),
+                PyString::new(
+                    py,
+                    &source.render(pncad::geom_brep::recourse::Reading::AtRest),
+                )
+                .unbind()
+                .into_any(),
             );
             Ok(())
         }

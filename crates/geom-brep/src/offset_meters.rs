@@ -139,9 +139,9 @@ use geom_core::{Band, Indeterminate, Margin, Readable, SupSpeed};
 
 use crate::dihedral::decide_reported;
 use crate::patch_bound::{PatchBoundError, PatchCell, patch_cells_refined};
-use crate::recourse::{ReadAt, Refused, RefusedArm, RefusedSide, SizedDecision, SizedPass};
 #[cfg(test)]
 use crate::recourse::Reading;
+use crate::recourse::{ReadAt, Refused, RefusedArm, RefusedSide, SizedDecision, SizedPass};
 use crate::shape_operator::FundamentalForms;
 
 /// The refinement ladder the door walks, coarsest first (D9: a fixed

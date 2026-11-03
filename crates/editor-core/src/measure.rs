@@ -767,18 +767,28 @@ pub enum UnevaluatedReason {
     },
 }
 
-impl core::fmt::Display for UnevaluatedReason {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl UnevaluatedReason {
+    fn write(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        at: Option<geom_brep::recourse::ReadAt>,
+    ) -> core::fmt::Result {
         match self {
             Self::Indeterminate { cause } => write!(
                 f,
                 "the measured value and the bound are not separated at this tolerance, so the \
-                 assertion has no verdict. {}",
-                ASSERT_BOUND_DECISION.recourse(RefusedArm::Undecided(cause), Reading::AtRest)
+                 assertion has no verdict{}",
+                at.map(|at| format!(
+                    ". {}",
+                    ASSERT_BOUND_DECISION.recourse(RefusedArm::Undecided(cause), at)
+                ))
+                .unwrap_or_default()
             ),
         }
     }
 }
+
+geom_brep::ended_by_write!(UnevaluatedReason);
 
 impl<T> AssertionVerdict<T> {
     /// Does the assertion hold? `None` when there is no verdict — the

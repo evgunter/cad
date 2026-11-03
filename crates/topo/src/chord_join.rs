@@ -784,7 +784,11 @@ impl SplitJoinError {
                         .recourse(geom_brep::recourse::RefusedArm::Undecided(diag), at);
                     format!("{SECTION_UNRESOLVED_CAUSE} {ending}")
                 });
-                write!(f, "{}", geom_brep::recourse::undecided_at(diag, subject, ending))
+                write!(
+                    f,
+                    "{}",
+                    geom_brep::recourse::undecided_at(diag, subject, ending)
+                )
             }
             Self::SectionUnresolved {
                 miss:

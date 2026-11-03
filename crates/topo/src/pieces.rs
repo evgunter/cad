@@ -172,7 +172,10 @@ impl PieceSortError {
                 geom_core::KERNEL_OR_FILE_DEFECT_ENDING,
             ),
             Self::Move(e) => (
-                format!("moving a piece into its own solid failed: {}", read_at(e, at)),
+                format!(
+                    "moving a piece into its own solid failed: {}",
+                    read_at(e, at)
+                ),
                 geom_core::KERNEL_DEFECT_ENDING,
             ),
         };

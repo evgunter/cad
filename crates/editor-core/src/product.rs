@@ -245,7 +245,11 @@ impl crate::finding::Finding for SourceLine<'_> {
     }
 
     fn story(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{}", self.error.render(geom_brep::recourse::Reading::AtRest))
+        write!(
+            f,
+            "{}",
+            self.error.render(geom_brep::recourse::Reading::AtRest)
+        )
     }
 
     fn recourse(&self) -> &str {
@@ -342,7 +346,12 @@ impl ProductError {
     ) -> core::fmt::Result {
         // The findings are the at-rest gate's.
         let list = |f: &mut core::fmt::Formatter<'_>, errors: &[ValidationError]| {
-            crate::finding::render_lines(f, errors.iter().map(|e| e.render(geom_brep::recourse::Reading::AtRest)))
+            crate::finding::render_lines(
+                f,
+                errors
+                    .iter()
+                    .map(|e| e.render(geom_brep::recourse::Reading::AtRest)),
+            )
         };
         let piece = |id: RecipeNodeId| by.node_as(id, "piece");
         match self {

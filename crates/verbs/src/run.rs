@@ -1,7 +1,6 @@
 //! The dispatch sites over the kernel's op doors, one per declared
 //! door, and what comes back out of them.
 
-
 use geom_core::{Bounds, Decide, Real, Tol};
 use profile::ValidatedProfile;
 use sweep::blend::BlendRefusal;

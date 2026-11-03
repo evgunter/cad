@@ -597,7 +597,11 @@ impl PropsCheck {
     /// **The one ending a refusal of this check carries** on `arm`, read
     /// at `reading` — [`crate::recourse`]'s table, one row per check.
     #[must_use]
-    pub fn ending(self, arm: RefusedArm<'_>, reading: impl Into<crate::recourse::ReadAt>) -> String {
+    pub fn ending(
+        self,
+        arm: RefusedArm<'_>,
+        reading: impl Into<crate::recourse::ReadAt>,
+    ) -> String {
         let reading = reading.into();
         match self {
             Self::Exact => Unsized::Defect.recourse(arm, reading),
@@ -720,7 +724,10 @@ impl PropsError {
                 Some(at) => write!(
                     f,
                     "{}",
-                    cause.undecided(check.subject(), check.ending(RefusedArm::Undecided(cause), at))
+                    cause.undecided(
+                        check.subject(),
+                        check.ending(RefusedArm::Undecided(cause), at)
+                    )
                 ),
                 None => write!(
                     f,

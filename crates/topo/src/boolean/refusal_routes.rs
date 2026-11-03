@@ -1714,7 +1714,11 @@ impl BooleanDecision {
         let ending = at.map(|_| self.recourse(diag));
         let subject = self.subject();
         core::fmt::from_fn(move |f| {
-            write!(f, "{}", geom_brep::recourse::undecided_at(diag, subject, ending.clone()))
+            write!(
+                f,
+                "{}",
+                geom_brep::recourse::undecided_at(diag, subject, ending.clone())
+            )
         })
     }
 

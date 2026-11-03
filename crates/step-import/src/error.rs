@@ -675,7 +675,10 @@ impl StepImportError {
                  to graft into the result body at the kernel’s disjoint-graft door: \
                  {}",
                 // The graft's own reading, at a build.
-                read_at(source.as_ref(), ended.then_some(ReadAt::Run(Reading::Build)))
+                read_at(
+                    source.as_ref(),
+                    ended.then_some(ReadAt::Run(Reading::Build))
+                )
             ),
         }
     }

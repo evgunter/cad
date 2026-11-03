@@ -190,12 +190,11 @@ pub use geom::{ANGLE_WINDOW_START, Azimuth, LATITUDE_WINDOW_START};
 use crate::certify::{CERT_SAMPLES, sample_param};
 use crate::harmonic::{harmonic_sup, harmonic_sup_scalar};
 use crate::ladder::{IdentityLadder, read_identity};
-use crate::recourse::{
-    ReadAt, RefusedArm, RefusedSide::StoredContradiction, SizedDecision, SpanDecision,
-    Unsized,
-};
 #[cfg(test)]
 use crate::recourse::Reading;
+use crate::recourse::{
+    ReadAt, RefusedArm, RefusedSide::StoredContradiction, SizedDecision, SpanDecision, Unsized,
+};
 use crate::ssi::{SsiDecision, SsiLimb};
 
 /// **One chart coordinate of a harmonic image** ([`Pcurve::Harmonic`]).

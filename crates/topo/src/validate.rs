@@ -4360,11 +4360,14 @@ impl ValidationError {
         }
     }
 
-    /// The at-rest ending of a finding [`Self::incidence_read`] reads.
-    fn incidence_ending(&self) -> String {
-        self.incidence_read()
-            .map(|read| read.ending(Reading::AtRest))
-            .unwrap_or_else(|| unreachable!("incidence_ending: a finding with no incidence read"))
+    /// The ending, at `at`, of a finding [`Self::incidence_read`] reads,
+    /// after its joint (`". …"`); nothing where it is read at no door.
+    fn incidence_ending(&self, at: Option<geom_brep::recourse::ReadAt>) -> String {
+        let read = self
+            .incidence_read()
+            .unwrap_or_else(|| unreachable!("incidence_ending: a finding with no incidence read"));
+        at.map(|at| format!(". {}", read.ending(at)))
+            .unwrap_or_default()
     }
 
     /// Whether this is one of tier 3's check-11 verdicts
@@ -4507,29 +4510,29 @@ impl ValidationError {
             ),
             Self::PlanarFaceResidual { .. } => write!(
                 f,
-                "a corner of a flat face lies off that face's plane. {}",
-                self.incidence_ending()
+                "a corner of a flat face lies off that face's plane{}",
+                self.incidence_ending(at)
             ),
             Self::PlanarFaceEscalated { .. } => write!(
                 f,
                 concat!(
                     geom_core::undecided!("whether a corner of a flat face lies on its plane"),
-                    ". {}"
+                    "{}"
                 ),
-                self.incidence_ending()
+                self.incidence_ending(at)
             ),
             Self::PlanarBoundaryResidual { .. } => write!(
                 f,
-                "an edge of a flat face leaves that face's plane between its ends. {}",
-                self.incidence_ending()
+                "an edge of a flat face leaves that face's plane between its ends{}",
+                self.incidence_ending(at)
             ),
             Self::PlanarBoundaryEscalated { .. } => write!(
                 f,
                 concat!(
                     geom_core::undecided!("whether an edge of a flat face stays on its plane"),
-                    ". {}"
+                    "{}"
                 ),
-                self.incidence_ending()
+                self.incidence_ending(at)
             ),
             Self::SliverDihedral { check, cause, .. } => {
                 write!(f, "{}. {}", check.lead(), check.ending(cause))
