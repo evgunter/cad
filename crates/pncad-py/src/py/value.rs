@@ -401,7 +401,7 @@ fn measurement_err(py: Python<'_>, err: &topo::MassPropsError) -> PyErr {
     typed_err(
         py,
         ErrorClass::Validation(ValidationRefusal::MassProperties),
-        err.to_string(),
+        err.render(pncad::geom_brep::recourse::Reading::AtRest),
         &fields,
     )
 }
@@ -824,7 +824,7 @@ impl Body {
                 failures.len(),
                 failures
                     .iter()
-                    .map(ToString::to_string)
+                    .map(|e| e.render(pncad::geom_brep::recourse::Reading::AtRest))
                     .collect::<Vec<_>>()
                     .join("; ")
             ),
@@ -1293,9 +1293,13 @@ impl Value {
             | d::AssertionVerdict::Violated { measured, bound } => {
                 (Some(*measured), Some(*bound), None, None, None)
             }
-            d::AssertionVerdict::Unevaluated { reason } => {
-                (None, None, Some(reason.to_string()), None, None)
-            }
+            d::AssertionVerdict::Unevaluated { reason } => (
+                None,
+                None,
+                Some(reason.render(pncad::geom_brep::recourse::Reading::AtRest)),
+                None,
+                None,
+            ),
             d::AssertionVerdict::Clearance(report) => match report.verdict() {
                 a::ClearanceVerdict::Holds | a::ClearanceVerdict::Exceeded => {
                     (None, None, None, None, None)
@@ -2070,7 +2074,10 @@ pub(crate) fn compose_err(py: Python<'_>, node: NodeId, err: &topo::TransformErr
     typed_err(
         py,
         ErrorClass::Export,
-        format!("the body could not be composed into its space: {err}"),
+        format!(
+            "the body could not be composed into its space: {}",
+            err.render(pncad::geom_brep::recourse::Reading::Build)
+        ),
         &fields,
     )
 }
@@ -2575,7 +2582,7 @@ pub(crate) fn import_step(
         Err(err) => Err(typed_err(
             py,
             ErrorClass::StepImport,
-            err.to_string(),
+            err.render(),
             &[
                 (
                     "variant",

@@ -50,6 +50,14 @@ pub enum ReadAt {
 }
 
 impl ReadAt {
+    /// Whether this is a build's door ([`Reading::Build`]): the one test
+    /// a refusal's `write` takes where a build ends differently, so no
+    /// reading is spelled inside a refusal's text.
+    #[must_use]
+    pub const fn is_build(self) -> bool {
+        matches!(self, Self::Run(Reading::Build))
+    }
+
     /// **The culprit a defect ending names at this door** (D4 ¶1 (iv)):
     /// the one chooser every defect ending read through this module
     /// takes, sized or not. A run door names its own
@@ -88,6 +96,114 @@ impl Reading {
             Self::AtRest => Culprit::Stored(StoredCulprit::KernelOrFile),
         }
     }
+}
+
+/// **A refusal whose ending is read at a door** (D4 ¶1): its `Display`
+/// is its payload alone, and its ending exists only through
+/// [`Ended::ended`] at the door that reads it, so no `Display` answers
+/// one door's question for another.
+///
+/// Each implementor's inherent `render(at)` is the same function: a door
+/// calls `render` with the reading it holds (a [`Reading`] or a
+/// [`ReadAt`] converts); a holder generic over its nested refusals calls
+/// `ended` through [`read_at`]. The trait exists for that generic half.
+pub trait Ended: core::fmt::Display {
+    /// This refusal's payload, followed by the ending, if any, that the
+    /// door `at` gives it. A refusal no decision ends at that door (a
+    /// decided arm whose ending its holder states, a structural refusal
+    /// carrying its own recourse) is its payload alone.
+    fn ended(&self, at: ReadAt) -> String;
+}
+
+/// **A nested refusal as its holder writes it**: ended at `at`, or its
+/// payload alone where `at` is `None` (the holder's own `Display`).
+pub fn read_at<E: Ended + ?Sized>(refusal: &E, at: Option<ReadAt>) -> impl core::fmt::Display + '_ {
+    core::fmt::from_fn(move |f| match at {
+        Some(at) => f.write_str(&refusal.ended(at)),
+        None => core::fmt::Display::fmt(refusal, f),
+    })
+}
+
+/// **An undecided reading's sentence ended at a door, or its payload
+/// alone**: [`Indeterminate::undecided`]'s sentence where `ending` is
+/// `Some`, and `"{subject} is undecided: {payload}"` where the holder
+/// is read at no door (its `Display`).
+pub fn undecided_at<'a, S: core::fmt::Display + 'a>(
+    diag: &'a Indeterminate,
+    subject: S,
+    ending: Option<String>,
+) -> impl core::fmt::Display + 'a {
+    core::fmt::from_fn(move |f| match &ending {
+        Some(ending) => core::fmt::Display::fmt(&diag.undecided(&subject, ending), f),
+        None => write!(
+            f,
+            concat!("{}", geom_core::undecided!("", payload)),
+            subject,
+            diag.payload()
+        ),
+    })
+}
+
+/// **A door for a nested refusal its holder ends at a build whatever
+/// door reads the holder**: `at` itself where the holder is its payload
+/// alone (`None`), and a build otherwise. Each call is a site that ends
+/// a refusal at a door other than the reader's, counted per file by
+/// `scripts/gates/display-payload-only.sh`.
+#[must_use]
+pub fn at_build(at: Option<ReadAt>) -> Option<ReadAt> {
+    at.map(|_| ReadAt::Run(Reading::Build))
+}
+
+/// **A door for a nested refusal its holder ends at rest whatever door
+/// reads the holder**: [`at_build`]'s sibling, for a finding of the
+/// at-rest gate reported inside an operation's refusal.
+#[must_use]
+pub fn at_rest(at: Option<ReadAt>) -> Option<ReadAt> {
+    at.map(|_| ReadAt::Run(Reading::AtRest))
+}
+
+/// **The three items of a refusal written once for both readings**: a
+/// type with `fn write(&self, f, at: Option<ReadAt>)` gets its payload
+/// `Display` (`at` = `None`), its inherent `render(at)` and its
+/// [`Ended`] impl from this.
+///
+/// It is a macro, not a blanket impl or a default method, because
+/// `Display` is a foreign trait: coherence refuses
+/// `impl<T: …> Display for T`, so every refusal must state its own
+/// `Display`. Without this, each of the 46 refusals written this way
+/// would repeat the same three items by hand. It ties `Display` to
+/// `write(f, None)` and `render` to `write(f, Some(at))`; it does not
+/// stop a `write` from writing an ending when `at` is `None`, which
+/// `scripts/gates/display-payload-only.sh` and the payload rows hold.
+#[macro_export]
+macro_rules! ended_by_write {
+    ([$($gen:tt)*] $ty:ty) => {
+        impl<$($gen)*> $ty {
+            /// This refusal's text ended at the door `at` reads it
+            /// (`recourse::Ended`); its `Display` is the
+            /// payload alone.
+            #[must_use]
+            pub fn render(&self, at: impl Into<$crate::recourse::ReadAt>) -> String {
+                let at = at.into();
+                core::fmt::from_fn(|f| self.write(f, Some(at))).to_string()
+            }
+        }
+
+        impl<$($gen)*> core::fmt::Display for $ty {
+            fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+                self.write(f, None)
+            }
+        }
+
+        impl<$($gen)*> $crate::recourse::Ended for $ty {
+            fn ended(&self, at: $crate::recourse::ReadAt) -> String {
+                self.render(at)
+            }
+        }
+    };
+    ($ty:ty) => {
+        $crate::ended_by_write!([] $ty);
+    };
 }
 
 /// The defect ending at `at` ([`ReadAt::culprit`]).
@@ -356,12 +472,14 @@ pub const INCIDENCE_AT_POSE: LeverOnly = LeverOnly {
             or so no piece of it sits there",
 };
 
-/// **An edge's curve whose incidence on its face is undecided**: not
-/// shown on the face and not shown off it, so its lever moves the
-/// geometry until the reading decides, at every door.
+/// **A boundary whose incidence on its face is undecided**: an edge's
+/// curve or a flat face's corner, not shown on the face and not shown
+/// off it, so its lever moves the geometry until the reading decides,
+/// at every door. The refusal's own sentence says which of the two was
+/// read; the lever fits both.
 pub const INCIDENCE_UNSHOWN: LeverOnly = LeverOnly {
-    lever: "the edge's curve is not shown on the face it bounds at this tolerance: move the \
-            geometry so it lies clearly on that face",
+    lever: "move the geometry so the boundary lies clearly on the face it bounds at this \
+            tolerance",
 };
 
 impl LeverOnly {

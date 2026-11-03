@@ -355,8 +355,12 @@ fn mirrors_to_its_image(what: &str, body: Body<f64>) {
     let v = volume(&body);
     for (plane, reflection) in planes() {
         let label = format!("{what} across {plane}");
-        let image = mirror_body(&body, &reflection, tol())
-            .unwrap_or_else(|e| panic!("{label}: the mirror refused: {e}"));
+        let image = mirror_body(&body, &reflection, tol()).unwrap_or_else(|e| {
+            panic!(
+                "{label}: the mirror refused: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        });
         let image = finished(&label, image);
         same_volume(&label, &v, &image);
         charts_are_the_convention(&label, &body, &image, &reflection);
@@ -373,8 +377,12 @@ fn mirrors_to_its_image(what: &str, body: Body<f64>) {
                 "{label}: point {k:?} is the reflection of the source's"
             );
         }
-        let back = mirror_body(&image, &reflection, tol())
-            .unwrap_or_else(|e| panic!("{label}: mirroring back refused: {e}"));
+        let back = mirror_body(&image, &reflection, tol()).unwrap_or_else(|e| {
+            panic!(
+                "{label}: mirroring back refused: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        });
         let back = finished(&format!("{label}, mirrored back"), back);
         for (k, p) in body.points() {
             let q = back

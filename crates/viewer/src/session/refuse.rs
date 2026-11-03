@@ -861,7 +861,7 @@ impl Refusal {
     }
 }
 
-impl core::fmt::Display for Refusal {
+impl Refusal {
     /// Renders each arm through its payload's OWN `Display` wherever
     /// the payload has one — `EditError`, `DimensionError` and
     /// `PersistError` (inside [`DocIoError`]) all do, and using them is
@@ -872,7 +872,11 @@ impl core::fmt::Display for Refusal {
     /// wording is this layer's own sentence, so it is
     /// composed here (and here only — [`Refusal::affordance`] is its
     /// single home).
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+    fn write(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        at: Option<pncad::geom_brep::recourse::ReadAt>,
+    ) -> core::fmt::Result {
         match self {
             Self::DrivenByExpression {
                 slot,
@@ -928,7 +932,9 @@ impl core::fmt::Display for Refusal {
             // Nothing is doubled: `EditError`'s arms state the problem
             // and carry no category prefix of their own, so this reads
             // as one sentence rather than as two openings.
-            Self::Duplicate(fault) => write!(f, "{fault}"),
+            Self::Duplicate(fault) => {
+                write!(f, "{}", pncad::geom_brep::recourse::read_at(fault, at))
+            }
             Self::Frame(fault) => write!(f, "{fault}"),
             Self::Edit(error) => write!(f, "the edit was refused: {error}"),
             Self::Dimension(error) => write!(f, "{error}"),
@@ -994,6 +1000,8 @@ impl core::fmt::Display for Refusal {
         }
     }
 }
+
+pncad::geom_brep::ended_by_write!(Refusal);
 
 impl core::error::Error for Refusal {}
 

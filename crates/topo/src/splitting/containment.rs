@@ -134,7 +134,7 @@
 use geom::Conic;
 use geom::cover::{Cover, Site};
 use geom_brep::ExtentBall;
-use geom_brep::recourse::{LeverOnly, Reading, RefusedArm, RefusedSide, SizedDecision, SizedPass};
+use geom_brep::recourse::{LeverOnly, RefusedArm, RefusedSide, SizedDecision, SizedPass};
 use geom_core::period::{Exact, Extent, Period, Turn, TurnRow, TurnRows, TurnUndecided, Within};
 use geom_core::{
     Band, Decide, Indeterminate, InfSpeed, Lever, Margin, MarginDiag, Point3, Sign, Vec3,
@@ -237,7 +237,13 @@ impl LoopDecision {
     /// ray's margin is no size the user chose, and the plane is a
     /// residual, so each ends in its lever alone.
     #[must_use]
-    pub fn ending(self, escalation: Escalation, diag: &Indeterminate, reading: Reading) -> String {
+    pub fn ending(
+        self,
+        escalation: Escalation,
+        diag: &Indeterminate,
+        reading: impl Into<geom_brep::recourse::ReadAt>,
+    ) -> String {
+        let reading: geom_brep::recourse::ReadAt = reading.into();
         let arm = escalation.arm(diag);
         let sized = |size, passes| placement_sized(self.lever(), size, passes);
         match self {
@@ -498,20 +504,27 @@ impl PointInLoopError {
     }
 }
 
-impl core::fmt::Display for PointInLoopError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl PointInLoopError {
+    fn write(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        at: Option<geom_brep::recourse::ReadAt>,
+    ) -> core::fmt::Result {
         match self {
             Self::Escalated {
                 decision,
                 escalation,
                 diag,
                 ..
-            } => diag
-                .undecided(
+            } => write!(
+                f,
+                "{}",
+                geom_brep::recourse::undecided_at(
+                    diag,
                     decision.subject(),
-                    decision.ending(*escalation, diag, Reading::Build),
+                    at.map(|at| decision.ending(*escalation, diag, at)),
                 )
-                .fmt(f),
+            ),
             Self::RayExhausted { .. } => write!(
                 f,
                 geom_core::undecided!("whether a point lies in a loop", payload),
@@ -529,6 +542,8 @@ impl core::fmt::Display for PointInLoopError {
         }
     }
 }
+
+geom_brep::ended_by_write!(PointInLoopError);
 
 impl std::error::Error for PointInLoopError {}
 
@@ -2156,6 +2171,7 @@ fn conic_crossings<T: Decide>(
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
+    use geom_brep::recourse::Reading;
 
     /// [`ConicArc::of`] over a fixture span, its extent decided forward
     /// as certification decides it.

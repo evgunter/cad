@@ -272,7 +272,7 @@ fn moving_a_body_mid_edit_asks_to_finish_the_edit() {
         "{err:?}"
     );
     assert_eq!(
-        err.to_string(),
+        err.render(geom_brep::recourse::Reading::Build),
         "the body still carries what an edit left behind, which the map cannot move. \
          Recourse: finish that edit first",
         "a build"

@@ -652,8 +652,12 @@ impl SphereTrimCause {
 // unbuilt lane, the counts, the distances. The arms whose own doc says
 // no at-rest construction mints them state that they are kernel bugs
 // rather than offering a recourse that does not exist.
-impl core::fmt::Display for TessellateError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl TessellateError {
+    fn write(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        at: Option<geom_brep::recourse::ReadAt>,
+    ) -> core::fmt::Result {
         match self {
             Self::InvalidChordalTolerance { value } => write!(
                 f,
@@ -770,11 +774,12 @@ impl core::fmt::Display for TessellateError {
             Self::UnsupportedCurvedShape { source, .. } => write!(
                 f,
                 "tessellate: a curved face's domain is not an iso-parameter \
-                 rectangle by props' shape predicate ({source}) — the \
+                 rectangle by props' shape predicate ({}) — the \
                  swept-rectangle lane meshes chart rectangles only, and a \
                  notched or L-shaped iso domain waits for the certified-\
                  quadrature lane; split the face into rectangles or re-author \
                  it",
+                geom_brep::recourse::read_at(source, at),
             ),
             Self::MeridianFreeCurvedFace { surface, .. } => {
                 use geom::SurfaceKind as K;
@@ -895,5 +900,7 @@ impl core::fmt::Display for TessellateError {
         }
     }
 }
+
+geom_brep::ended_by_write!(TessellateError);
 
 impl core::error::Error for TessellateError {}

@@ -1044,7 +1044,10 @@ fn a_placement_tier_3_refuses_is_reported_not_at_rest() {
         }]
     );
     let rendered = report.findings[0].to_string();
-    assert!(rendered.contains(&errors[0].to_string()), "{rendered}");
+    assert!(
+        rendered.contains(&errors[0].render(geom_brep::recourse::Reading::AtRest)),
+        "{rendered}"
+    );
     let refusal = enforce_checks(&report, &cfg).unwrap_err();
     assert_eq!(refusal.findings, report.findings);
 }

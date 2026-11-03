@@ -550,7 +550,7 @@ fn a_negative_depth_refuses_naming_the_other_side() {
             matches!(err, ExtrudeError::NegativeDepth { side: s, .. } if s == side),
             "{side:?}: {err:?}"
         );
-        let text = err.to_string();
+        let text = err.render(geom_brep::recourse::Reading::Build);
         let problems = test_utils::refusal::problems("NegativeDepth", &text, &[], false);
         assert!(problems.is_empty(), "{problems:#?}");
         assert!(
@@ -569,7 +569,12 @@ fn a_negative_depth_refuses_naming_the_other_side() {
             },
             Tol::witness(),
         )
-        .unwrap_or_else(|e| panic!("the recourse, followed, builds ({side:?}): {e}"));
+        .unwrap_or_else(|e| {
+            panic!(
+                "the recourse, followed, builds ({side:?}): {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        });
         // What `-1` along `side` meant before a depth was a size: one
         // unit toward the OTHER side.
         let toward = match side {
@@ -913,14 +918,22 @@ fn a_profile_with_no_loops_refuses_at_every_sweep() {
     )
     .map(|_| ());
     assert_eq!(extruded, Err(ExtrudeError::EmptyProfile), "extrude");
-    assert_eq!(ExtrudeError::EmptyProfile.to_string(), WORDS, "extrude");
+    assert_eq!(
+        ExtrudeError::EmptyProfile.render(geom_brep::recourse::Reading::Build),
+        WORDS,
+        "extrude"
+    );
     let axis = RevolveAxis {
         origin: Point2::new(0.0, 0.0),
         dir: geom_core::Vec2::new(0.0, 1.0),
     };
     let revolved = sweep::revolve(&empty, axis, Revolution::Full, tol).map(|_| ());
     assert_eq!(revolved, Err(RevolveError::EmptyProfile), "revolve");
-    assert_eq!(RevolveError::EmptyProfile.to_string(), WORDS, "revolve");
+    assert_eq!(
+        RevolveError::EmptyProfile.render(geom_brep::recourse::Reading::Build),
+        WORDS,
+        "revolve"
+    );
 
     let in_section_1 = SkinError::EmptyProfile { section: Some(1) };
     assert_eq!(

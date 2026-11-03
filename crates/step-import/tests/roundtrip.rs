@@ -83,7 +83,12 @@ fn committed_corpus_row(name: &str) {
         Tol::witness(),
         topo::test_support::pinned_resolution(Tol::witness()),
     )
-    .unwrap_or_else(|e| panic!("{name}: {e}"));
+    .unwrap_or_else(|e| {
+        panic!(
+            "{name}: {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::AtRest)
+        )
+    });
     let expected_m3 = expect.kernel_volume_mm3 * 1e-9;
     let native_pad_m3 = expect.kernel_volume_pad_mm3 * 1e-9;
     let ulp = expected_m3.next_up() - expected_m3;
@@ -150,7 +155,12 @@ fn fixed_point() {
         };
         let (body1, _) = import_body(name);
         let export1 = step_export::step_string(&at_rest(&body1), &options, Tol::witness())
-            .unwrap_or_else(|e| panic!("{name}: re-export 1: {e}"));
+            .unwrap_or_else(|e| {
+                panic!(
+                    "{name}: re-export 1: {e_at}",
+                    e_at = e.render(geom_brep::recourse::Reading::Build)
+                )
+            });
         // STEP has no native contact concept, so export drops the kiss
         // record and the re-import's gate records the touch again.
         let reimport = step_import::import_step(
@@ -158,7 +168,7 @@ fn fixed_point() {
             &step_import::ImportOptions::default(),
             Tol::witness(),
         )
-        .unwrap_or_else(|e| panic!("{name}: re-import: {e}"));
+        .unwrap_or_else(|e| panic!("{name}: re-import: {e_at}", e_at = e.render()));
         let line_promotions = reimport
             .curve_promotions()
             .iter()
@@ -211,7 +221,12 @@ fn fixed_point() {
             "{name}: certified volume bit-identical across the adoption pass"
         );
         let export2 = step_export::step_string(&at_rest(body2.body()), &options, Tol::witness())
-            .unwrap_or_else(|e| panic!("{name}: re-export 2: {e}"));
+            .unwrap_or_else(|e| {
+                panic!(
+                    "{name}: re-export 2: {e_at}",
+                    e_at = e.render(geom_brep::recourse::Reading::Build)
+                )
+            });
         if line_promotions == 0 {
             assert_eq!(
                 export1, export2,
@@ -241,12 +256,17 @@ fn fixed_point() {
                 &step_import::ImportOptions::default(),
                 Tol::witness(),
             )
-            .unwrap_or_else(|e| panic!("{name}: re-import 2: {e}")) else {
+            .unwrap_or_else(|e| panic!("{name}: re-import 2: {e_at}", e_at = e.render())) else {
                 panic!("{name}: re-import 2 lost the solid");
             };
             let export3 =
                 step_export::step_string(&at_rest(body3.body()), &options, Tol::witness())
-                    .unwrap_or_else(|e| panic!("{name}: re-export 3: {e}"));
+                    .unwrap_or_else(|e| {
+                        panic!(
+                            "{name}: re-export 3: {e_at}",
+                            e_at = e.render(geom_brep::recourse::Reading::Build)
+                        )
+                    });
             assert_eq!(
                 export2, export3,
                 "{name}: fixed point from the second cycle on"

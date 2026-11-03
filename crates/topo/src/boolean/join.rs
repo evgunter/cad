@@ -6087,7 +6087,7 @@ mod loop_roles_rows {
         );
         // The curved-face frontier reads as what the Boolean cannot yet
         // do, not as a kernel defect.
-        let text = err.to_string();
+        let text = err.render(geom_brep::recourse::Reading::Build);
         assert!(
             text.ends_with(geom_core::NOT_YET_ENDING) && !text.contains("kernel"),
             "{text}"
@@ -6250,8 +6250,10 @@ mod self_check_rows {
             "{check:?}: {err:?}"
         );
         assert!(
-            err.to_string().ends_with(KERNEL_DEFECT_ENDING),
-            "{check:?}: {err}"
+            err.render(geom_brep::recourse::Reading::Build)
+                .ends_with(KERNEL_DEFECT_ENDING),
+            "{check:?}: {err_at}",
+            err_at = err.render(geom_brep::recourse::Reading::Build)
         );
     }
 
@@ -6925,7 +6927,7 @@ mod frame_dispatch_tests {
                             crate::boolean::DeclarationRead::Moot,
                             diag,
                         )
-                        .to_string();
+                        .render(geom_brep::recourse::Reading::Build);
                         assert!(
                         said.ends_with(
                             "Recourse: move the parts so they clearly meet or clearly stand apart there"
@@ -7077,7 +7079,8 @@ mod frame_dispatch_tests {
         };
         assert_eq!(decision, BooleanDecision::Radius(SectionRadius::Cylinder));
         assert_eq!(diag.predicate, Some("cs_cylinder_radius"));
-        let text = BooleanError::Escalated { decision, diag }.to_string();
+        let text =
+            BooleanError::Escalated { decision, diag }.render(geom_brep::recourse::Reading::Build);
         assert_eq!(test_utils::refusal::recourse_markers(&text), 1, "{text}");
         assert!(
             test_utils::refusal::subjectless_escalations(&text).is_empty()
