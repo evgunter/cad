@@ -945,8 +945,8 @@ impl PickedEntity for crate::session::VertexSelection {
 /// pick — and every node and fact its words name as the document held
 /// them then ([`held_by`]), spoken again after each operation
 /// ([`HeldPick::respoken`]). The one shape for a held pick: the mate
-/// tool's two, the mirror's plane, the add-profile form's face and its
-/// two trace latches. Its row, its panel line and its drop notice all
+/// tool's two, the mirror's plane, and the traced-profile form's two
+/// latches. Its row, its panel line and its drop notice all
 /// say it from here ([`Say`]), so a drop says what the line said,
 /// whatever the document lost in between.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -1679,7 +1679,9 @@ fn blamed_mates(fault: &MateFault) -> Vec<RecipeNodeId> {
         | MateFault::Backwards { mate, .. }
         | MateFault::Unoriented { mate }
         | MateFault::SideUnevaluated { mate, .. } => vec![mate.placement],
-        MateFault::NoChart { value, .. } => vec![value.placement],
+        MateFault::NoChart { value, .. } | MateFault::ReadUnevaluated { value, .. } => {
+            vec![value.placement]
+        }
         // A claim about one bundle: its placement is the row.
         MateFault::Overconstrained { placement, .. } | MateFault::Unpinned { placement, .. } => {
             vec![*placement]

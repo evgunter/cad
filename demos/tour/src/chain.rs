@@ -420,8 +420,8 @@ pub fn chain(links: usize, joint_sigma: f64, bound: f64, tol: Tol) -> Chain {
     let link_values = |k: usize| {
         vec![
             (Coord::Spin(Some(TargetAxis::Z)), theta(k)),
-            (Coord::Slide(TargetAxis::X), along(k, Formula::cos)),
-            (Coord::Slide(TargetAxis::Y), along(k, Formula::sin)),
+            (Coord::slide(TargetAxis::X), along(k, Formula::cos)),
+            (Coord::slide(TargetAxis::Y), along(k, Formula::sin)),
         ]
     };
     let mut bars: Vec<RecipeNodeId> = Vec::with_capacity(links);

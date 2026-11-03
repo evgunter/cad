@@ -118,9 +118,9 @@ fn seated(doc: ProfileDoc, mate: Mate<Formula>, shift: f64) -> (ProfileDoc, Mate
         doc,
         mate,
         &[
-            (Coord::Slide(TargetAxis::X), len(shift)),
+            (Coord::slide(TargetAxis::X), len(shift)),
             (
-                Coord::Slide(TargetAxis::Y),
+                Coord::slide(TargetAxis::Y),
                 Formula::zero(Dimension::Length),
             ),
             (Coord::SPIN, Formula::zero(Dimension::Angle)),

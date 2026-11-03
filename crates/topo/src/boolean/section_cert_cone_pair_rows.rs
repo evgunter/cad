@@ -407,7 +407,7 @@ fn classify_at(
     super::classify(
         f,
         g,
-        Reach { centre, radius },
+        &geom_brep::Reach::Ball(geom_brep::ExtentBall::of_sphere(centre, radius)),
         None,
         Some(geom_brep::SsiLane::marched()),
         band,

@@ -38,8 +38,8 @@ fn two_families() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let (doc, j) = fixture::index(doc, "j", 5);
     let (doc, cell) = block(doc, (0.0, 0.5), (0.0, 0.5), 0.5);
     let slide = |index| Formula::mul(fixture::scalar_of(index), fixture::len(1.0)).unwrap();
-    let (doc, a) = fixture::family_of(doc, cell, vec![(Coord::Slide(TargetAxis::X), slide(i))]);
-    let (doc, b) = fixture::family_of(doc, cell, vec![(Coord::Slide(TargetAxis::X), slide(j))]);
+    let (doc, a) = fixture::family_of(doc, cell, vec![(Coord::slide(TargetAxis::X), slide(i))]);
+    let (doc, b) = fixture::family_of(doc, cell, vec![(Coord::slide(TargetAxis::X), slide(j))]);
     (doc, a, b)
 }
 
@@ -126,7 +126,7 @@ fn a_family_a_level_down_and_later_in_order_crosses_after() {
     let (doc, j) = fixture::index(doc, "j", 5);
     let (doc, cell) = block(doc, (0.0, 0.5), (0.0, 0.5), 0.5);
     let slide = Formula::mul(fixture::scalar_of(i), fixture::len(1.0)).unwrap();
-    let (doc, p) = fixture::family_of(doc, cell, vec![(Coord::Slide(TargetAxis::X), slide)]);
+    let (doc, p) = fixture::family_of(doc, cell, vec![(Coord::slide(TargetAxis::X), slide)]);
     let (doc, profile) = fixture::on_frame(
         doc,
         [0.0, 0.0, 0.0],
@@ -224,8 +224,8 @@ fn outer_values_over_empty_inner_indices_run_out() {
         doc,
         cell,
         vec![
-            (Coord::Slide(TargetAxis::X), slide(i)),
-            (Coord::Slide(TargetAxis::Y), slide(j)),
+            (Coord::slide(TargetAxis::X), slide(i)),
+            (Coord::slide(TargetAxis::Y), slide(j)),
         ],
     );
     let ev = run(&doc, None, &budget(1_000, false));
@@ -247,7 +247,7 @@ fn row_part(name: &str, n: i64) -> (ProfileDoc, RecipeNodeId) {
     let (doc, k) = fixture::index(doc, "k", n);
     let (doc, cell) = block(doc, (0.0, 0.5), (0.0, 0.5), 0.5);
     let slide = Formula::mul(fixture::scalar_of(k), fixture::len(1.0)).unwrap();
-    fixture::family_of(doc, cell, vec![(Coord::Slide(TargetAxis::X), slide)])
+    fixture::family_of(doc, cell, vec![(Coord::slide(TargetAxis::X), slide)])
 }
 
 /// A document `name` instancing each of `parts`, in order, and its

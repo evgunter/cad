@@ -158,6 +158,7 @@ REGISTER=(
   "crates/topo/src/boolean/ops.rs|pinched_at_cone_apex|else { continue|1|audited: a lone-vertex loop holds one vertex once, so it passes no vertex twice; the at-rest gate after this scan reads it as it reads every loop"
   "crates/topo/src/boolean/ops.rs|face_boundary_meets||1|unaudited"
   "crates/topo/src/boolean/rim_wedge.rs|face_boundary_arcs||1|unaudited"
+  "crates/topo/src/boolean/overlap.rs|loops||1|audited: the discarded variant is refused by name — a face holding a lone vertex answers OverlapRefusal::Unread, so no witness is read past it"
   "crates/topo/src/stands.rs|face_loops||1|unaudited"
   "crates/topo/src/boolean/solid_contain.rs|boundary_point||1|audited: the discarded variant is refused by name — an outer loop with no cycle has no boundary point, and the arm returns CorruptFace for the face"
   "crates/topo/src/boolean/solid_contain.rs|sphere_chart_trim||1|unaudited"

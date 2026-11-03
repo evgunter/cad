@@ -78,7 +78,7 @@ use crate::entity::{
     Edge, EdgeKey, EntityId, Face, FaceKey, GeomRef, HalfEdge, HalfEdgeKey, Loop, LoopKey, Shell,
     ShellKey, Solid, SolidKey, Vertex, VertexKey,
 };
-use crate::euler::{EulerOpError, RunSite};
+use crate::euler::EulerOpError;
 use crate::geometry::{CurveKey, PointKey, SurfaceKey};
 use crate::joint::JointElement;
 use crate::live::{Arg, lookup};
@@ -1486,21 +1486,6 @@ impl<T: Real> Body<T> {
         self.half_edges.get(mate).map(|half_edge| half_edge.next)
     }
 
-    /// Where a null edge moving the orbit run `first ..= last` (walked
-    /// clockwise, [`Body::orbit_step`]) to a new vertex lands: the
-    /// run's fan end is the orbit successor of `last`, read in the body
-    /// as it stands, so earlier splices at the vertex are counted.
-    /// [`RunSite::WholeOrbit`] when that successor is `first` again;
-    /// `None` on a stale key or a broken mate.
-    pub(crate) fn run_site(&self, first: HalfEdgeKey, last: HalfEdgeKey) -> Option<RunSite> {
-        let he2 = self.orbit_step(last)?;
-        Some(if he2 == first {
-            RunSite::WholeOrbit { corner: first }
-        } else {
-            RunSite::Fan { he1: first, he2 }
-        })
-    }
-
     /// The shared bounded-walk engine: iterates `step` from `first` until
     /// it returns to `first` (`Closed`), a link fails to resolve
     /// (`Broken`), or the member count exceeds the half-edge arena length
@@ -2320,47 +2305,6 @@ mod tests {
             assert_eq!(t.body.get_half_edge(he).unwrap().start, t.vertices[0]);
         }
         assert_eq!(t.body.vertex_orbit(HalfEdgeKey::default()), None);
-    }
-
-    /// A run's fan end is its last member's orbit successor, and a run
-    /// holding the whole orbit is the strut in the corner before its
-    /// first member, from whichever member the run starts.
-    #[test]
-    fn run_site_reads_the_fan_end_and_names_the_whole_orbit() {
-        let cube = crate::test_support_fixtures::geometric_cube::<f64>(Tol::witness());
-        let body = cube.body;
-        let (_, v) = body.vertices().next().unwrap();
-        let orbit = body.vertex_orbit(v.emanating.unwrap()).unwrap();
-        let [h0, h1, h2] = orbit[..] else {
-            panic!("a cube corner has valence 3: {orbit:?}");
-        };
-        assert_eq!(
-            body.run_site(h0, h1),
-            Some(RunSite::Fan { he1: h0, he2: h2 }),
-            "a two-edge run ends at the third"
-        );
-        assert_eq!(
-            body.run_site(h2, h2),
-            Some(RunSite::Fan { he1: h2, he2: h0 }),
-            "a one-edge run ends at its successor"
-        );
-        for (first, last) in [(h0, h2), (h1, h0), (h2, h1)] {
-            let site = body.run_site(first, last);
-            assert_eq!(
-                site,
-                Some(RunSite::WholeOrbit { corner: first }),
-                "the run {first:?} ..= {last:?} holds the whole orbit"
-            );
-            assert_eq!(
-                site.unwrap().mev_site(),
-                crate::construction::MevSite::Fan {
-                    he1: first,
-                    he2: first
-                },
-                "the whole orbit's null edge is the strut before {first:?}"
-            );
-        }
-        assert_eq!(body.run_site(h0, HalfEdgeKey::default()), None);
     }
 
     /// The vertex doors answer the orbit's projection, each entity once

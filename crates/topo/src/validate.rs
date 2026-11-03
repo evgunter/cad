@@ -513,7 +513,13 @@ pub(crate) fn resolved<T: Decide>(
     band: Band,
 ) -> Result<(), geom_core::MarginDiag> {
     let k = T::from_f64(band.escalate() / band.zero());
-    match decide_reported(name, Margin::levered(k, rounding), band) {
+    match decide_reported(
+        name,
+        // Unsourced lever: the reading's own rounding, a length that K scales, not an arm a
+        // dimensionless datum is levered across; no extent, curvature or session box is it.
+        Margin::levered(k, geom_core::Lever::unsourced(rounding)),
+        band,
+    ) {
         Ok(geom_core::Decided {
             sign: Sign::Zero, ..
         }) => Ok(()),
@@ -583,7 +589,7 @@ pub(crate) fn decide_levered<T: Decide>(
 pub(crate) fn decide_at_lever<T: Decide>(
     names: (&'static str, &'static str),
     lever: geom_brep::LeverBounds<T>,
-    margin: impl Fn(T) -> Margin<T>,
+    margin: impl Fn(geom_core::Lever<T>) -> Margin<T>,
     band: Band,
 ) -> Result<Sign, Indeterminate> {
     match lever {
@@ -6957,7 +6963,7 @@ impl<T: Decide> geom_brep::StationHook<T> for MaterialStations<'_, T> {
         let signed = geom_brep::material_kappa_rel(station.jet.kappa_rel, self.sense_plus);
         let this = match decide_nonzero(
             "material_cusp_side",
-            Margin::sagitta(signed, station.arm),
+            Margin::sagitta(signed, station.arm.length()),
             self.band,
         ) {
             Ok(geom_core::k_stats::NonzeroSign::Positive) => MaterialWedge::Cusp,
@@ -7638,7 +7644,8 @@ pub(crate) fn tier3_local_checks_marked<
     // collected once, and each edge's reach is read once and shared by
     // its re-certification and its dihedral check (`crate::WedgeReach`).
     let wedges = crate::WedgeReach::new(body);
-    let mut reaches: slotmap::SecondaryMap<EdgeKey, T> = slotmap::SecondaryMap::new();
+    let mut reaches: slotmap::SecondaryMap<EdgeKey, geom_core::Lever<T>> =
+        slotmap::SecondaryMap::new();
 
     // ------------------------------------------------------------------
     // Tier 3, check 2: carrier re-certification + description adjacency
@@ -9004,9 +9011,9 @@ impl<T: Real> Departure<T> {
     /// The unit direction `dir` scaled to `lever`.
     pub(crate) fn along(dir: geom_core::Vec3<T>, lever: geom_brep::LeverBounds<T>) -> Self {
         match lever {
-            geom_brep::LeverBounds::Exact(arm) => Self::Exact(dir * arm),
+            geom_brep::LeverBounds::Exact(arm) => Self::Exact(dir * arm.length()),
             geom_brep::LeverBounds::Between { below, above } => {
-                Self::Between(dir * below, dir * above)
+                Self::Between(dir * below.length(), dir * above.length())
             }
         }
     }
@@ -9187,7 +9194,8 @@ pub(crate) fn mate<T: Real>(body: &Body<T>, he: HalfEdgeKey) -> Option<HalfEdgeK
 /// `he`'s edge and its departure from `he`'s start, scaled to the
 /// edge's extent so a cross product over its length is a lever: a line
 /// by its chord, a conic or spiric arc by its walk tangent there at the
-/// arc's reach from that start ([`geom_brep::edge_reach_bounds`]). The
+/// arc's reach from that start, its edge cover's far distance from
+/// above (`boolean::boxes::edge_reach_bounds`). The
 /// wedge acts on every sign, so its lever is the region's own measure
 /// from where it is read; where that is known only from both sides (an
 /// ellipse or spiric arc, whose bound from above can pass it many times
@@ -9205,8 +9213,8 @@ pub(crate) fn side<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Option<CornerS
     let departure = match curve.carrier() {
         geom::Curve3::Line(_) => Some(Departure::Exact(p1 - p0)),
         geom::Curve3::Circle(..) | geom::Curve3::Ellipse(..) | geom::Curve3::Spiric { .. } => {
-            let (t0, t1) = curve.params();
-            let lever = geom_brep::edge_reach_bounds(curve.carrier(), t0, t1, p0);
+            let e = body.edges.get(h.edge)?;
+            let lever = crate::boolean::boxes::edge_reach_bounds(body, h.edge, e, p0)?;
             Some(Departure::along(
                 curve.walk_tangents(plus).0.normalize(),
                 lever,
@@ -10158,7 +10166,7 @@ fn window<T: Decide>(segment: MeetSegment<T>, p: geom_core::Point3<T>, band: Ban
                 [carrier.eval(t0), carrier.eval(t1)],
                 carrier.eval(mid),
                 carrier.eval(mid + T::pi()),
-                T::one(),
+                geom_core::InfSpeed::new(T::one()),
                 &RING_OUTER_ARC_TRIM,
                 band,
             ) {
@@ -13548,6 +13556,7 @@ mod tests {
             ("a near-tangent wedge", &floor, &tilted, 1.0, Reads::Angle),
         ];
         for (row, s1, s2, extent, want) in rows {
+            let extent = geom_core::test_support::fixture_lever(extent);
             let escalation = geom_brep::classify_dihedral(s1, s2, Point3::origin(), extent, band)
                 .expect_err("each pose escalates");
             let finding = dihedral_finding(EdgeKey::default(), escalation);
@@ -14906,8 +14915,9 @@ mod tests {
     /// where its two readings disagree.** A spline with clustered knots
     /// and weights 1e±3, on a window where its parameter crawls: its
     /// reach from the start is read from below by the samples and from
-    /// above through the whole carrier's speed bound, about 90 times
-    /// over. A side `θ = 1e-6` off the corner's first bound stands
+    /// above through the whole carrier's net, a reading with no window,
+    /// many times over (the edge's own cover reads the window and meets
+    /// the reach). A side `θ = 1e-6` off the corner's first bound stands
     /// `θ·reach` off it, Zero at the bound from below and definitely
     /// inside at the bound from above, so neither verdict answers for
     /// the reach between them: the wedge refuses with their straddle,
@@ -14949,10 +14959,16 @@ mod tests {
             .unwrap(),
         ));
         let (t0, t1) = (0.2, 0.2001);
-        let lever = geom_brep::edge_reach_bounds(&wild, t0, t1, wild.eval(t0));
+        // A bound from above that passes the reach many times over: the
+        // whole carrier's net, which a reader with no window would read.
+        let start = wild.eval(t0);
+        let loose = geom_brep::ExtentBall::of_cover_from(Some(&wild.cover().unwrap()), start)
+            .lever_from(start);
+        let lever = geom_brep::edge_reach_bounds(&wild, (t0, t1), start, loose);
         let geom_brep::LeverBounds::Between { below, above } = lever else {
             panic!("a spline's reach is known from both sides, got {lever:?}");
         };
+        let (below, above) = (below.length(), above.length());
         assert!(
             above > 50.0 * below,
             "the window's bound from above passes the samples' reach many times: {below}, {above}"
@@ -14978,7 +14994,7 @@ mod tests {
             s,
             t,
             |_| None,
-            1.0,
+            geom_core::test_support::fixture_lever(1.0),
             Band::linear(tol).unwrap(),
             geom_brep::NurbsLane::certified(),
         )
@@ -15015,7 +15031,7 @@ mod tests {
             s,
             t,
             |_| None,
-            1.0,
+            geom_core::test_support::fixture_lever(1.0),
             Band::linear(tol).unwrap(),
             geom_brep::NurbsLane::certified(),
         )
@@ -15762,7 +15778,7 @@ mod tests {
             start,
             end,
             surfaces,
-            1.0,
+            geom_core::test_support::fixture_lever(1.0),
             Band::linear(tol).unwrap(),
             geom_brep::NurbsLane::certified(),
         )
@@ -16231,7 +16247,7 @@ mod tests {
             start,
             end,
             |_| None,
-            1.0,
+            geom_core::test_support::fixture_lever(1.0),
             Band::linear(tol).unwrap(),
             geom_brep::NurbsLane::certified(),
         )

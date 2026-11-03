@@ -17,6 +17,7 @@ use geom_brep::plane_nurbs_limbs;
 use geom_brep::ssi::SsiTube;
 use geom_core::sym::revalue::{record, revalue};
 use geom_core::sym::with_session;
+use geom_core::test_support::fixture_lever;
 use geom_core::{Point3, Real, Sym, SymBudget};
 
 type S = Sym<f64>;
@@ -40,7 +41,7 @@ fn the_plane_nurbs_lanes_computed_values_are_unknowns() {
                 carrier.knot_values().domain(),
                 &plane,
                 &wall,
-                S::one(),
+                fixture_lever(S::one()),
                 band(),
             )
             .expect("the true locus certifies at Sym")

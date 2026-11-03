@@ -88,6 +88,9 @@ pub enum VerbRecord<T: Real> {
         /// The face pairs the op glued on its own decision — what an
         /// n-ary union's pairwise judgement hands its fold steps.
         verdicts: Vec<GlueVerdict<T>>,
+        /// Per result face, and per discarded face, the operand faces
+        /// whose area it holds.
+        holdings: Box<topo::Holdings>,
     },
     /// The extrude door's whole bundle — body, solid, shell, caps,
     /// side walls per loop, struts per loop.
@@ -293,6 +296,7 @@ impl Boolean {
                     naming,
                     coincidences,
                     verdicts,
+                    holdings,
                 } = bb;
                 Ok(PairOut::Out(VerbOut {
                     body,
@@ -301,6 +305,7 @@ impl Boolean {
                         contacts,
                         naming,
                         verdicts,
+                        holdings: Box::new(holdings),
                     },
                     coincidences,
                 }))

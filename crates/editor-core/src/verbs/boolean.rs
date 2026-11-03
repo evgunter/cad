@@ -120,6 +120,7 @@ fn boolean_record<T: geom_core::Real>(record: VerbRecord<T>) -> Option<BooleanRe
             contacts,
             naming,
             verdicts: _,
+            holdings: _,
         } => Some(BooleanRecord {
             kind,
             contacts,

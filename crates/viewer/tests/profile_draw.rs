@@ -180,21 +180,19 @@ fn a_profile_whose_evaluation_refused_draws_nothing() {
 #[test]
 fn a_validated_sub_tolerance_arc_draws_as_its_line() {
     use pncad::profile::{ArcData, Step, Target};
-    use viewer::session::{DocSession, ProfileShape, SessionOp};
+    use viewer::session::{DocSession, SessionOp};
 
     let tol = Tol::witness();
     let mut session = DocSession::inline(Doc::empty_derived("profile-draw-undrawable", tol), tol);
-    let template = ProfileShape::Path {
-        steps: vec![
-            Step::At(Point2::new(0.0, 0.0)),
-            Step::ArcTo(ArcData::Bulge {
-                target: Target::Point(Point2::new(0.01, 0.0)),
-                b: 1.0e-320,
-            }),
-            Step::LineTo(Target::Point(Point2::new(0.005, 0.01))),
-            Step::LineTo(Target::Start),
-        ],
-    };
+    let template = vec![
+        Step::At(Point2::new(0.0, 0.0)),
+        Step::ArcTo(ArcData::Bulge {
+            target: Target::Point(Point2::new(0.01, 0.0)),
+            b: 1.0e-320,
+        }),
+        Step::LineTo(Target::Point(Point2::new(0.005, 0.01))),
+        Step::LineTo(Target::Start),
+    ];
     let profile = common::session_insert(
         &mut session,
         SessionOp::AddProfile {
