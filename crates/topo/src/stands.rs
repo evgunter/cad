@@ -65,7 +65,7 @@ use crate::boolean::solid_contain::{SolidFaces, face_plane, point_in_face, point
 use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, ShellKey, VertexKey};
 use crate::live::{Proven, proven};
 use crate::props::{QuadLane, ShellRole};
-use geom_brep::ladder::Ranked;
+use geom_brep::ladder::{Answering, Ranked, Rung, climb_evidence};
 
 /// What one witness read against the probed surfaces.
 #[derive(Debug)]
@@ -156,7 +156,14 @@ impl From<LadderRefusal> for PointInSolidError {
 
 /// **The witness ladder** over the cell complex `faces` of `body`
 /// (module docs): each witness is handed to `probe`, and the first
-/// decisive one is the reading.
+/// decisive one is the reading. It is the ladder
+/// ([`climb_evidence`]) whose answer is a side, and which a refusal that
+/// propagates aborts ([`Rung::Aborts`]). One decisive witness names
+/// every side (module docs), so a witness set aside ahead of it is
+/// superseded in the record ([`Answering::Any`]); ahead of an abort it
+/// stays live. A witness is found
+/// inside its rung, so the readings that find it (a face's interior
+/// point) are recorded in rung order with the probe's.
 ///
 /// # Errors
 ///
@@ -169,73 +176,77 @@ pub(crate) fn ladder<T: Decide, S, E: From<LadderRefusal>>(
     band: Band,
     mut probe: impl FnMut(Point3<T>) -> Result<Witness<S>, E>,
 ) -> Result<Reading<S>, E> {
-    let mut tally = Tally::default();
-    let mut side = |q: Point3<T>| -> Result<Option<S>, E> {
-        Ok(match probe(q)? {
-            Witness::Side(s) => Some(s),
-            Witness::On => {
-                tally.on_boundary += 1;
-                None
-            }
-            Witness::Blocked(e) => {
-                tally.kept.blocked(e);
-                None
-            }
-            Witness::InBand(e) => {
-                tally.in_band += 1;
-                tally.kept.in_band(e);
-                None
-            }
-        })
-    };
-    let mut halves: Vec<(FaceKey, HalfEdgeKey)> = Vec::new();
+    /// One rung: a cell whose witness is read.
+    enum Cell {
+        Vertex(HalfEdgeKey),
+        Edge(HalfEdgeKey),
+        Face(FaceKey),
+    }
+    let mut halves: Vec<HalfEdgeKey> = Vec::new();
     for &face in faces {
-        halves.extend(
-            face_loops(body, face)?
-                .into_iter()
-                .flatten()
-                .map(|he| (face, he)),
-        );
+        halves.extend(face_loops(body, face)?.into_iter().flatten());
     }
     // Every half-edge is one the face walk read, so each hop from it is
     // a link.
-    let half = |(_, he): (FaceKey, HalfEdgeKey)| proven(&body.half_edges, he, EntityId::HalfEdge);
-
+    let half = |he: HalfEdgeKey| proven(&body.half_edges, he, EntityId::HalfEdge);
     let mut seen_vertex: SecondaryMap<VertexKey, ()> = SecondaryMap::new();
-    for &fh in &halves {
-        let v = half(fh).start;
-        if seen_vertex.insert(v, ()).is_some() {
-            continue;
-        }
-        let p = body.resolve_vertex_point(v, Proven);
-        if let Some(s) = side(p)? {
-            return Ok(Reading::Side(s));
-        }
-    }
-
     let mut seen_edge: SecondaryMap<EdgeKey, ()> = SecondaryMap::new();
-    for &fh in &halves {
-        let e = half(fh).edge;
-        if seen_edge.insert(e, ()).is_some() {
-            continue;
-        }
-        let Some(curve) = witnessed_curve(body, e) else {
-            continue;
+    // The witness a cell offers: `None` for one already read, or one
+    // that offers none.
+    let mut witness = |cell: Cell| -> Result<Option<Point3<T>>, LadderRefusal> {
+        Ok(match cell {
+            Cell::Vertex(he) => {
+                let v = half(he).start;
+                if seen_vertex.insert(v, ()).is_some() {
+                    return Ok(None);
+                }
+                Some(body.resolve_vertex_point(v, Proven))
+            }
+            Cell::Edge(he) => {
+                let e = half(he).edge;
+                if seen_edge.insert(e, ()).is_some() {
+                    return Ok(None);
+                }
+                witnessed_curve(body, e).map(|curve| curve.mid_point())
+            }
+            Cell::Face(face) => planar_interior_point(body, face, band)?,
+        })
+    };
+    let cells = (halves.iter().map(|&he| Cell::Vertex(he)))
+        .chain(halves.iter().map(|&he| Cell::Edge(he)))
+        .chain(faces.iter().map(|&f| Cell::Face(f)));
+    // A refusal about the complex (it does not walk) or the probed
+    // surface aborts: it rests on every witness set aside ahead of it,
+    // which a tighter tolerance might have decided first.
+    let (mut on_boundary, mut in_band) = (0, 0);
+    let climbed = climb_evidence(Answering::Any, cells, |cell| {
+        let q = match witness(cell) {
+            Ok(Some(q)) => q,
+            Ok(None) => return Rung::Passes,
+            Err(refusal) => return Rung::Aborts(Err(E::from(refusal))),
         };
-        if let Some(s) = side(curve.mid_point())? {
-            return Ok(Reading::Side(s));
+        match probe(q) {
+            Ok(Witness::Side(s)) => Rung::Answers(Ok(s)),
+            Ok(Witness::On) => {
+                on_boundary += 1;
+                Rung::Passes
+            }
+            Ok(Witness::Blocked(e)) => Rung::Blocked(e),
+            Ok(Witness::InBand(e)) => {
+                in_band += 1;
+                Rung::InBand(e)
+            }
+            Err(e) => Rung::Aborts(Err(e)),
         }
+    });
+    match climbed {
+        Ok((_, answer)) => answer.map(Reading::Side),
+        Err(kept) => Ok(Reading::Undecided(Tally {
+            on_boundary,
+            in_band,
+            kept,
+        })),
     }
-
-    for &face in faces {
-        if let Some(q) = planar_interior_point(body, face, band)?
-            && let Some(s) = side(q)?
-        {
-            return Ok(Reading::Side(s));
-        }
-    }
-
-    Ok(Reading::Undecided(tally))
 }
 
 /// **A point certified strictly inside `face`, where `face` is planar**

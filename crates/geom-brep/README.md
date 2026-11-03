@@ -747,8 +747,10 @@ validity is judged on what the producer returns. Every class of carrier
 a chart can hold has a route into a certified row, and a face no route
 covers refuses at the producer rather than reaching rest uncached.
 A closed-form class gate is a lane choice (D3): in band or definite,
-the carrier takes a lane whose certificate does not rest on the class,
-its projected image where the chart has one. Whether the carrier lies
+the carrier takes the general lane, its projected image, whose
+certificate does not rest on the class; the closed form is taken only
+where the class is shown, and a pair whose general lane is not yet
+written refuses "not yet". Whether the carrier lies
 on the chart at all is a residual, not a class gate: a definite miss
 is a contradiction between what the edge states and its geometry,
 ended by the door that reads it (D4 ¶1 (iv)), and a read in band, at a

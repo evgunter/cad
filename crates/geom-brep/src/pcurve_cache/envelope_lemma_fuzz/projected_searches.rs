@@ -383,13 +383,8 @@ fn the_envelope_dominates_pushed_nets_and_corners() {
             continue;
         };
         let p64 = Pcurve::Projected(Box::new(image64));
-        let dense = (0..=4000)
-            .map(|i| {
-                let t = f64::from(i) / 4000.0;
-                let q = p64.eval(t);
-                surf.eval(q.x, q.y).distance(c.eval(t))
-            })
-            .fold(0.0, f64::max);
+        let dense =
+            super::super::harmonic_sup_rows::sampled_residual(&p64, (0.0, 1.0), &c, &surf, 4000);
         let (ci, si) = (lift(&c), surf.map_scalar(Interval::from_f64));
         let Ok(image) = project(&ci, None, &si, b) else {
             continue;
