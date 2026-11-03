@@ -658,12 +658,16 @@ fn cut_face_lane<T: Decide + Bounds + CertifiedEnclosure>(
                        boundary integral is not wired",
                 });
             };
+            let pair = |p: geom_core::Point2<T>| (iv(p.x), iv(p.y));
             edges.push(quad::EdgeTermQ::Projected(quad::ProjectedEdgeQ::of_image(
-                image,
                 projected,
-                (t0, t1),
+                (iv(t0), iv(t1)),
                 le.forward,
+                // The ends through the image's own evaluator, on the lane,
+                // crossed into certification arithmetic.
+                [pair(image.eval(t0)), pair(image.eval(t1))],
                 env,
+                iv,
             )?));
         }
         terms.push(edges);

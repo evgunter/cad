@@ -106,17 +106,15 @@
 
 use geom_core::interval::certification::Certification;
 use geom_core::interval::{Interval, certified_hi};
-use geom_core::{Band, Bounds, CertifiedBounds, Decide, SpanLocate};
+use geom_core::{Band, Bounds, Decide};
 
 use super::RVec3;
 use super::run::{Accept, EDGE_INIT_PIECES, FaceCutBounds, LaneRun, RoundWindow, Run, face_extent};
 use super::trig::{limit, rotate, spread_cos, spread_sin, trig_at, trig_over};
-use crate::pcurve_cache::{FramedCarrier, Pcurve, ProjectedChart, ProjectedImage};
 use crate::props::PropsError;
 use crate::props::bracket::{AbsEnclosure, mid, pt};
 use crate::props::rational_rim::{
-    RationalEdgeQ, rational_edge_q_split, rational_integrals, rational_rate_bound,
-    rational_vector_area_split,
+    RationalEdgeQ, rational_integrals, rational_rate_bound, rational_vector_area_split,
 };
 use crate::props::spiric::{W_SPIRIC, w_rational};
 use crate::props::taylor::{Jet, composite, composite_by, node, trig_jets, trig_range};
@@ -257,109 +255,6 @@ pub struct ProjectedEdgeQ {
     pub ends: [(Interval, Interval); 2],
     /// The pcurve certificate envelope (metres through the map).
     pub env: Interval,
-}
-
-impl ProjectedEdgeQ {
-    /// **A projected cylinder image as the lane reads it**: `image`'s
-    /// carrier in the chart's frame over the edge's carrier interval
-    /// `(t0, t1)`, cut at its sector breaks; its deck map's level part;
-    /// and its ends, `pcurve`'s own evaluator's at the lane scalar
-    /// crossed into certification arithmetic, in carrier order. `pcurve`
-    /// is the image as the loop reads it (its lift), `image` its
-    /// projected row.
-    ///
-    /// # Errors
-    ///
-    /// [`PropsError::QuadratureUnsupported`] for an image whose inverse is
-    /// not the cylinder's, a deck sign other than exactly `±1`, inexact
-    /// carrier interval ends, or a net the curved rims' rule cannot
-    /// decompose ([`crate::props::rational_rim::rational_edge_q_split`]).
-    pub fn of_image<T: SpanLocate + CertifiedBounds>(
-        pcurve: &Pcurve<T>,
-        image: &ProjectedImage<T>,
-        (t0, t1): (T, T),
-        forward: bool,
-        env: Interval,
-    ) -> Result<Self, PropsError> {
-        let unsupported = |what| PropsError::QuadratureUnsupported { what };
-        let iv = Interval::from_certified;
-        let exact = |x: Interval| (x.is_certified() && x.lo() == x.hi()).then_some(x.lo());
-        if !matches!(image.chart(), ProjectedChart::Cylinder) {
-            return Err(unsupported(
-                "a projected image on the cylinder lane whose inverse is another chart's",
-            ));
-        }
-        let (_, v_off, v_sign) = image.deck();
-        let v_sign = match exact(iv(v_sign)) {
-            Some(s) if s == 1.0 || s == -1.0 => s,
-            _ => {
-                return Err(unsupported(
-                    "a projected image whose deck map's level sign is not exactly ±1",
-                ));
-            }
-        };
-        let (Some(lo), Some(hi)) = (exact(iv(t0)), exact(iv(t1))) else {
-            return Err(unsupported(
-                "a projected edge whose carrier interval ends are not exact parameters",
-            ));
-        };
-        let breaks = image.breaks().interior();
-        let vec = |v: geom_core::Vec3<T>| [iv(v.x), iv(v.y), iv(v.z)];
-        // A circle's or a line's breaks are on `s = (t − origin)/span`, read
-        // where the image placed them, at the lane scalar: any `f64` cut
-        // tiles the interval exactly.
-        let cuts = |origin: T, span: T| {
-            let mut cuts = vec![lo];
-            cuts.extend(
-                breaks
-                    .iter()
-                    .map(|&s| mid(iv(origin + span * T::from_f64(s))))
-                    .filter(|&t| lo < t && t < hi),
-            );
-            cuts.push(hi);
-            cuts
-        };
-        let carrier = match image.carrier() {
-            FramedCarrier::Net(net) => FramedQ::Net(rational_edge_q_split(
-                &net.map_scalar(iv),
-                (iv(t0), iv(t1)),
-                true,
-                geom_core::Point3::origin(),
-                breaks,
-            )?),
-            FramedCarrier::Circle {
-                centre,
-                a,
-                b,
-                origin,
-                span,
-            } => FramedQ::Circle {
-                centre: vec(*centre),
-                a: vec(*a),
-                b: vec(*b),
-                cuts: cuts(*origin, *span),
-            },
-            FramedCarrier::Line {
-                point,
-                dir,
-                origin,
-                span,
-            } => FramedQ::Line {
-                point: vec(*point),
-                dir: vec(*dir),
-                cuts: cuts(*origin, *span),
-            },
-        };
-        let pair = |p: geom_core::Point2<T>| (iv(p.x), iv(p.y));
-        Ok(Self {
-            carrier,
-            v_off: iv(v_off),
-            v_sign,
-            forward,
-            ends: [pair(pcurve.eval(t0)), pair(pcurve.eval(t1))],
-            env,
-        })
-    }
 }
 
 /// One trim-loop edge of the lane: how its Green-form terms are read

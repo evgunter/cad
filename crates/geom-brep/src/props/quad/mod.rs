@@ -62,6 +62,7 @@ mod cells;
 mod green;
 mod net;
 mod patch;
+mod projected_edge;
 mod rational;
 mod rotational;
 mod run;

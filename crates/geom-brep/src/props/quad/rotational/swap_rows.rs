@@ -267,13 +267,18 @@ fn face(
                 Deck::Mirrored => image.mirror_v().unwrap(),
             };
             let projected = image.projected().unwrap();
+            let at = |t: f64| {
+                let p = image.eval(t);
+                (pt(p.x), pt(p.y))
+            };
             out.push(EdgeTermQ::Projected(
                 ProjectedEdgeQ::of_image(
-                    &image,
                     projected,
-                    (0.0, 1.0),
+                    (pt(0.0), pt(1.0)),
                     e.harmonic.forward,
+                    [at(0.0), at(1.0)],
                     pt(env),
+                    pt,
                 )
                 .unwrap(),
             ));
