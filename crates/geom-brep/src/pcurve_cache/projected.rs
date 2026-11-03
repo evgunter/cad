@@ -913,6 +913,12 @@ pub(crate) fn chart_frame<T: Real>(surface: &Surface<T>) -> Option<(Point3<T>, [
             axis,
             u_ref,
             ..
+        }
+        | Surface::Spindle {
+            center,
+            axis,
+            u_ref,
+            ..
         } => frame(center, axis, u_ref),
         Surface::Nurbs(_) | Surface::Approx(_) => return None,
     })
@@ -1107,7 +1113,7 @@ pub(crate) fn chart_at<T: Decide>(
                 };
             ProjectedChart::Cone { sin, cos, nappe }
         }
-        Surface::Nurbs(_) | Surface::Approx(_) => {
+        Surface::Spindle { .. } | Surface::Nurbs(_) | Surface::Approx(_) => {
             return Err(PcurveCertifyError::UnsupportedChart {
                 chart: surface.kind(),
             });
@@ -1609,7 +1615,7 @@ impl<S: Real> Meters<S> {
                 major: cross(major_radius),
                 minor: cross(minor_radius),
             },
-            Surface::Nurbs(_) | Surface::Approx(_) => return None,
+            Surface::Spindle { .. } | Surface::Nurbs(_) | Surface::Approx(_) => return None,
         })
     }
 
@@ -2287,6 +2293,11 @@ pub(super) fn projected_envelope<T: Decide>(
         terms.add(EnvelopeTerm::Incidence, sup);
         return Ok((terms, super::ImageName::Derived));
     }
+    if let Surface::Spindle { .. } = surface {
+        return Err(PcurveCertifyError::UnsupportedChart {
+            chart: surface.kind(),
+        });
+    }
     let twin = super::orthonormal_chart(surface);
     let Some((o, e)) = chart_frame(&twin) else {
         unreachable!("an analytic chart has a frame")
@@ -2445,7 +2456,10 @@ pub(super) fn projected_envelope<T: Decide>(
         _ => return Err(refuse("the stored carrier is not the edge's carrier kind")),
     };
     let (u_arm, v_arm) = match *surface {
-        Surface::Plane { .. } | Surface::Nurbs(_) | Surface::Approx(_) => {
+        Surface::Plane { .. }
+        | Surface::Spindle { .. }
+        | Surface::Nurbs(_)
+        | Surface::Approx(_) => {
             unreachable!("answered above")
         }
         Surface::Cylinder { .. }
@@ -2483,7 +2497,10 @@ pub(super) fn projected_envelope<T: Decide>(
             (major_radius + minor_radius) / reach(major_radius - minor_radius - incidence - d)?
                 + minor_radius / reach(minor_radius - incidence - d)?
         }
-        Surface::Plane { .. } | Surface::Nurbs(_) | Surface::Approx(_) => {
+        Surface::Plane { .. }
+        | Surface::Spindle { .. }
+        | Surface::Nurbs(_)
+        | Surface::Approx(_) => {
             unreachable!("answered above")
         }
     };

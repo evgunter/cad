@@ -677,9 +677,7 @@ pub fn examine_chart_coherence(body: &Body<f64>, tol: Tol) -> CoherenceReport {
     let eps = tol.eps();
     let mut report = CoherenceReport::default();
     for (fk, face) in body.faces() {
-        let loops: Vec<LoopKey> = core::iter::once(face.outer)
-            .chain(face.rings.iter().copied())
-            .collect();
+        let loops: Vec<LoopKey> = face.loop_keys().collect();
         let Some(surface) = body.get_surface(face.surface) else {
             report.unexamined.extend(loops.iter().map(|&lk| Unexamined {
                 face: fk,

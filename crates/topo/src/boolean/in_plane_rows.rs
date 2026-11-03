@@ -192,7 +192,7 @@ fn each_edge_face_record_cites_its_own_pieces_ends() {
                 "{what}: the piece runs {ends:?}: {pu:?} {pv:?}"
             );
             let piece_end = |cell| cell == Cell::Vertex(u) || cell == Cell::Vertex(v);
-            let bounding = super::face_vertices(y, face).unwrap();
+            let bounding = super::face_vertices(y, face);
             let on_face = |cell| match cell {
                 Cell::Face(f) => f == face,
                 Cell::Vertex(w) => bounding.contains(&w),

@@ -601,8 +601,11 @@ fn height_and_radius<T: Decide>(w: Vec3<T>, axis: Vec3<T>) -> (T, T) {
     (h, (w - axis * h).norm())
 }
 
-/// Whether `a` is decided smaller than `b`: a heuristic's choice, read
-/// on the least band so it takes the sign alone, and no verdict.
+/// Whether `a` is decided smaller than `b`, read on the least band so it
+/// takes the sign alone. Logged: an undecided pick keeps the candidate
+/// already held, and two tied candidates can lie on different branches
+/// of a spline, so the foot's parameter rests on it and a narrower box
+/// answers it.
 fn smaller<T: Decide>(a: T, b: T) -> bool {
     decide("curve_foot_polish", Margin::of(b - a), Band::least()) == Ok(Sign::Positive)
 }
