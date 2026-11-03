@@ -43,7 +43,8 @@ The margin-scale designers split on the far-centre ellipse: (A) mint a fitted sp
   `|offset| + speed_hi`, `carrier_resolution`, `Rounded` or Interval:
   `implicit::sample_rounding`, `ring_path` (`path_resolution`),
   `chord_join` (section pins), `curve_pair::pose` (`one_curve_gap`,
-  `line_conic`, the window terms), `splitting::containment::conic_arc_ball`,
+  `line_conic`, the window terms), `splitting::containment::conic_arc_ball`
+  (since retired on main by the edge-cover refactor),
   `circle_roots::conic_off_plane` (so `ruled_region`'s leg roots),
   `ellipse_torus`, `section_loops::conics_clear` (a relative pad, lean),
   `curve_face::spline_face`, `carrier_net::harmonic`. Bounds only (an

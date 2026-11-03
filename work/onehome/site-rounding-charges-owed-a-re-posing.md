@@ -89,8 +89,6 @@ re-posing that empties a file lowers or drops its row in the same change.
 - `geom_brep::pair_section::spline_implicit::bracket`,
   `pair_section::torus` (`decide`, `sphere_gap`),
   `pair_section::torus_arms` (`square_pose`, `square_folds`).
-- `geom::curves` (`spiric_period_box`, `spiric_f_enclosed`): a spiric's
-  squared-form charges.
 - `profile::sugar::offset_circles`: the least lever, at `LEVER_ULPS`.
 - `topo::boolean::boxes::sphere_reach`, `topo::boolean::circle_roots`
   (`conic_off_plane`, `harmonic_crossing`),
@@ -104,8 +102,6 @@ re-posing that empties a file lowers or drops its row in the same change.
   (with `BelowSceneResolution`), which guard a carrier stored far from the
   arc it serves: they wait on
   `work/onehome/a-conics-point-is-evaluated-from-its-far-centre-not-its-vertex.md`.
-- `topo::splitting::containment::conic_arc_ball`'s `|C₀|` pad: the same
-  far-centre conic.
 - The gate's `far-centre` rows, which wait on the same row:
   `topo::ring_path` (`resolution`'s spread about the reading's own point,
   and `path_resolution`'s conic arcs through `carrier_resolution`),
@@ -121,3 +117,9 @@ re-posing that empties a file lowers or drops its row in the same change.
 - `geom_core::one_line`'s charge (inside geom-core): its precision arm is
   reached only by spans of several kilometres at K = 10, past the box,
   and by a run whose K is near 1.
+
+- 2026-11-03 — retired on main by the boxes cover refactor (PR merged
+  before PR 6380's last merge of main), so dropped from this list and
+  from the gate's rows: `geom::curves`'s spiric charges
+  (`spiric_period_box`, `spiric_f_enclosed`) and
+  `topo::splitting::containment::conic_arc_ball`'s `|C₀|` pad.

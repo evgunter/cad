@@ -56,6 +56,7 @@ crates/geom-brep/src/ssi/compensated.rs	test	3	oracle
 crates/geom-brep/src/ssi/enclose.rs	test	5	oracle
 crates/geom-brep/src/ssi/one_arc.rs	test	1	oracle
 crates/geom-brep/tests/coplanar_ellipses_one_locus.rs	test	1	oracle
+crates/geom-brep/tests/edge_extent_bounds.rs	test	1	oracle
 crates/geom-brep/tests/flat_cone_harmonic_images.rs	test	1	oracle
 crates/geom-brep/tests/flat_cone_tilted_ellipse.rs	test	1	oracle
 crates/geom-brep/tests/interior_iso_review.rs	test	1	oracle
@@ -80,9 +81,8 @@ crates/geom-brep/tests/span_reach_differential.rs	test	1	oracle
 crates/geom-brep/tests/span_reach_hunt.rs	test	1	oracle
 crates/geom-brep/tests/tori_coincide.rs	test	1	oracle
 crates/geom-brep/tests/torus_doors_ssi.rs	test	1	oracle
-crates/geom/src/cover/tests.rs	test	2	oracle
-crates/geom/src/curves.rs	prod	2	re-pose
-crates/geom/src/curves.rs	test	1	oracle
+crates/geom/src/cover/tests.rs	test	3	oracle
+crates/geom/src/curves.rs	test	3	oracle
 crates/geom/src/curves/conic.rs	prod	3	far-centre
 crates/geom/src/curves/fit.rs	test	1	oracle
 crates/geom/src/surfaces/nurbs.rs	test	1	oracle
@@ -160,7 +160,7 @@ crates/sweep/tests/torax_axial.rs	test	1	oracle
 crates/sweep/tests/torus_touch_off_faces.rs	test	1	oracle
 crates/sweep/tests/vrev_acceptance_set.rs	test	1	oracle
 crates/topo/src/boolean/boxes.rs	prod	1	re-pose
-crates/topo/src/boolean/boxes.rs	test	11	oracle
+crates/topo/src/boolean/boxes.rs	test	13	oracle
 crates/topo/src/boolean/circle_roots.rs	prod	2	re-pose
 crates/topo/src/boolean/circle_torus.rs	prod	3	re-pose
 crates/topo/src/boolean/conic_quadric/circle_sphere_rows.rs	test	1	oracle
@@ -197,7 +197,6 @@ crates/topo/src/ring_path.rs	test	3	oracle
 crates/topo/src/ring_path/graze_rows.rs	test	4	oracle
 crates/topo/src/sector_shape.rs	prod	2	re-pose
 crates/topo/src/separation.rs	prod	1	re-pose
-crates/topo/src/splitting/containment.rs	prod	1	far-centre
 crates/topo/src/splitting/section_loops.rs	prod	1	re-pose
 crates/topo/src/vertex_section.rs	prod	4	re-pose
 crates/topo/tests/a_seamless_pipe_cut_by_an_oblique_plane_measures.rs	test	1	oracle
