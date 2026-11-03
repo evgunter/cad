@@ -82,7 +82,7 @@ item existed:
   `impl Display for Verb` in `crates/profile`, which is not this
   program's territory, and forwarding the verb in prose from the viewer
   instead would mint a fourth spelling of the word list — the defect
-  `work/issues/the-prose-word-for-a-kind-has-four-spellings-and-only-display-is-censused.md`
+  `work/census/the-prose-word-for-a-kind-has-four-spellings-and-only-display-is-censused.md`
   is about.
 
 So `verb-and-dimension-render-through-debug` should not be closed on
@@ -118,7 +118,7 @@ re-scope into this program still reading as open.
 register's rule that a citation whose subject has moved is disclosed and
 not shifted onto whatever now sits at the number: `sketch.rs:663` is not
 the `write!` (the file moved again after the row was filed), and
-`work/issues/the-prose-word-for-a-kind-has-four-spellings-and-only-display-is-censused.md`
+`work/census/the-prose-word-for-a-kind-has-four-spellings-and-only-display-is-censused.md`
 is now `work/census/…`, live on CENSUS' slate and untouched by this.
 
 **What this cost, said plainly.** VNEWS' §Order correction of earlier

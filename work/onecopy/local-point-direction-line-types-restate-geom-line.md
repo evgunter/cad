@@ -2,10 +2,12 @@
 id: local-point-direction-line-types-restate-geom-line
 kind: issue
 title: Five local (point, direction) line types restate geom::Line
-status: open
+status: dispatched
 opened: 2026-11-02
 priority: P2
 cost: M
+branch: onecopy/frame-readings
+rides_with: the-frame-carries-every-placement-reading
 ---
 
 

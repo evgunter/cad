@@ -1238,6 +1238,14 @@ general regularity sweep. SECTARMS's cylinder × cylinder unit adopts
   - The 1e-12 row went from 159 s to 29 s.
   - Filed: `tint/volume-rows-hold-a-midpoint-within-a-band-plus-an-unbounded-pad` (11 sites), plus evidence on `issues/a-tilted-plane-cut-through-a-tube-measures-1e-7-off-the-closed-form`.
   - Main reds the lane met, all already filed: BOXES' inventory, FLUSH's needle cavity, and SPLITDOOR's `the-cone-fuzz-draws-a-cone-bounding-no-one-material-at-a-seed`.
+- 2026-11-03 — **PR 6441 merges** (`split-parameter`), closing `a-meeting-on-a-spline-boundary-edge-has-no-split-parameter`. The orchestrator read the fix pass; there was no re-review.
+  - A held parameter is now a `carrier_cross::Held` minted only by the boundary read, answering only for its own edge; a mismatch at the split refuses `ClassificationInvariant`.
+  - The kernel row tells the line's parameter from the arc's.
+  - The PR body states the analytic 1-ulp movement.
+  - `sheets_part`'s held arm is reached 63 times on analytic rims, and a spline row for it is filed (P3).
+  - `teapot::wall3_pinned` derives its corners from the authored stations.
+  - No frame moves.
+  - Teapot wall 3 passes the split. The `held-pierce` lane re-pins it on its next stop (6441 landed first).
 - 2026-11-03 12:14Z — **PR 6434 (`spline-join`) dual review dispatched**: letter H, so a CONCURRENT pair on the frozen head `fd976ed601588ad07e8ea84826f57b32befe04d7`, with an identical brief (`splice/briefs` `briefs-1103/review-6434.md` and `review-common.md`). R1 is `session_013QoYWUqVJ5KZ3vgavTAENm` (evidence `splice/review-6434-r1`); R2 is `session_013QoYWWUaG2SNpMwyoPGr64` (evidence `splice/review-6434-r2`). The protocol is `18e21edce5`. Neither reviewer received a relaxation.
   - **The PR:** a uniform "carried" rung in `edge_join::joined_spec`. A killed edge on a content-equal carrier, at an equal parameter at the vertex, gives the joined far parameter, with no inverse and no period. Period and `param_near` stay as the fallback.
   - **What moved:** a split pair's joined interval is now the parent's exactly. On a spiric that is 1 ulp from `param_near`.
@@ -1261,3 +1269,4 @@ general regularity sweep. SECTARMS's cylinder × cylinder unit adopts
   - **Dispatched** as `splice/nurbs-revert-roster` (`session_013QoYWUJw29zhMKEVRtVAc9`) from main `c89d725d`, with a required phase 0: why the roster exists, a ∖/∩ census over the union's spline fixtures with `Nurbs` admitted, and a staging proposal. Letter H, so DUAL, concurrent pair.
   - **PR 6441's state-sync head conflicted with main** on that re-band, and so got no CI run, silently (the known CONFLICTING-no-run shape). Resolved by keeping both sections. The demo-joins row's lint warning was its cue to re-measure: teapot wall 3's stops are now `HeldPierceUnbuilt` (default, 1e-12) and the 1e-6 bore-wall Floor, which is re-banded P0 as a blocker of that row.
   - Before that, the gate went red on time alone: `viewer sketch_on_face::a_boss_sketched_on_a_side_lands` ran 1.032 s against the fast set's 1.0 s. Filed on TCOST, `a-boss-sketched-on-a-side-runs-at-the-fast-sets-one-second-bound` (P4). The integration cannot re-run jobs (403).
+- 2026-11-03 — Note from FRAME: the python row is red on main at `TestTeapot.test_both_joins_refuse_through_the_document`, which still expects `point_split_carrier_unsupported` after PR 6441. Filed on your slate as `the-teapot-north-star-row-still-expects-the-point-split-refusal`. FRAME's PR 6465 merges over it as an inherited red. (FRAME orchestrator)

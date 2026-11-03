@@ -7,6 +7,11 @@
 //! certificate of a curved aim onto its surface — the questions whose
 //! margins tie exactly at a symmetric nominal. A trimmed sphere's aim
 //! (a lens of two balls) certifies nothing onto its sphere either.
+//!
+//! A curved aim's on-carrier foot is not among what the rows see: its
+//! branch flip is decided outside the log (`curve_foot_branch`, audit row
+//! F31), and `work/onecopy/the-side-readers-curved-aim-foot-is-unguarded`
+//! holds guarding it another way.
 
 #![allow(clippy::expect_used)]
 
@@ -18,10 +23,9 @@ use topo::{AtRestBody, ContactRecords};
 /// The predicates no aimed ray at these bodies may take: a cap's
 /// in-face walk, a wall's region walk, a curved aim's on-chart
 /// certificate.
-const WALKS: [&str; 5] = [
+const WALKS: [&str; 4] = [
     "point_in_loop",
     "point_in_arc_loop",
-    "curve_foot_branch",
     "bool_ruled_region",
     "bool_pierce_normal_on",
 ];
@@ -86,7 +90,7 @@ fn a_rod_and_a_drilled_plate_read_their_side_by_turns_alone() {
     for (what, body, walks) in [
         ("rod", rod(0.0, 1.0), &WALKS[..]),
         ("drilled plate", drilled, &WALKS[..]),
-        ("lens", lens, &WALKS[4..]),
+        ("lens", lens, &WALKS[3..]),
     ] {
         assert!(
             topo::validate_pseudomanifold(&body, &ContactRecords::default(), tol).is_ok(),

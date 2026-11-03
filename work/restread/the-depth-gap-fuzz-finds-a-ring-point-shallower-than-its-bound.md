@@ -43,4 +43,4 @@ PR 5956 (cone apex) does not touch `census/`. Reproduce with
 
 ## Another seed (2026-11-03)
 
-Seed `0xf23e6cc2b421332e` (PR 6430 CI) is written up in `work/issues/a-sampled-depth-on-a-zero-minor-ring-lies-past-its-core-bound.md`.
+Seed `0xf23e6cc2b421332e` (PR 6430 CI) is written up in `work/restread/a-sampled-depth-on-a-zero-minor-ring-lies-past-its-core-bound.md`.

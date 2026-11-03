@@ -16,7 +16,7 @@ That row's dated "ruled" section is the build spec. It is Ev's ruling
 on `[ev]` PR 6298: `docs/DESIGN.md` `[placement]` and
 `crates/editor-core/REFERENCES.md` DM1, as merged. This is the
 editor-core half. The library half is
-`work/lib/doc-sketch-on-face-retires-for-a-profile-drawn-on-the-face`,
+`work/pydoor/doc-sketch-on-face-retires-for-a-profile-drawn-on-the-face`,
 and the viewer half is `work/vseam/on-the-picked-face-draws-the-profile-there`.
 
 ## The build
