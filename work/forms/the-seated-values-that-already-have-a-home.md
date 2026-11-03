@@ -8,6 +8,7 @@ closed: 2026-11-03
 priority: P1
 cost: M
 parent: creating-a-thing-and-editing-it-are-two-implementations
+pr: 6414
 branch: forms/seated-homed
 refs: [a-seated-tools-values-have-no-home-after-insert, a-mirror-of-an-unplaced-body-labels-its-union-mirror]
 ---
