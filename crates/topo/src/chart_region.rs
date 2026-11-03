@@ -3793,6 +3793,35 @@ mod tests {
         Band::new(1e-9, 1e-8).unwrap()
     }
 
+    /// **A trim off its plane ends by the door that reads it**: a
+    /// definite miss names the kernel at a build and the kernel or the
+    /// file at rest, and its `Display` names neither. Red if the region
+    /// query's refusal ends at one door for every reader.
+    #[test]
+    fn a_trim_off_its_face_ends_by_the_readers_door() {
+        use geom_brep::recourse::Reading;
+        let off = ChartRegionError::TrimOffFace {
+            face: FaceKey::default(),
+            half_edge: HalfEdgeKey::default(),
+            read: geom_brep::IncidenceRead::Off(None),
+        };
+        let (build, rest) = (off.render(Reading::Build), off.render(Reading::AtRest));
+        assert!(
+            build.ends_with(geom_core::KERNEL_DEFECT_ENDING),
+            "a build names the kernel: {build}"
+        );
+        assert!(
+            rest.ends_with(geom_core::KERNEL_OR_FILE_DEFECT_ENDING),
+            "at rest the kernel or the file: {rest}"
+        );
+        let payload = off.to_string();
+        assert!(
+            !payload.contains(geom_core::KERNEL_DEFECT_ENDING)
+                && !payload.contains(geom_core::KERNEL_OR_FILE_DEFECT_ENDING),
+            "the payload names no culprit: {payload}"
+        );
+    }
+
     /// **A poisoned overlap decision ends in the build's defect ending**
     /// (D4 ¶1 (i)): no declaration or move makes an unreadable margin
     /// readable. A margin that was read keeps the coincidence menu.
