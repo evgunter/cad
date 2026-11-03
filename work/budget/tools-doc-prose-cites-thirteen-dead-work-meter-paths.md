@@ -107,7 +107,7 @@ not walk.
 
 ## The same class outside `tools/`, and where it belongs
 
-`work/issues/dead-work-citations-from-shipped-code-and-docs` is the
+`work/meta/dead-work-citations-from-shipped-code-and-docs` is the
 class row — no single owner, spanning crates — and it already carries
 the `work/docm/` family. Running its question over `crates/*/src` and
 `crates/*/tests`, which **nobody had run**, adds five citations in

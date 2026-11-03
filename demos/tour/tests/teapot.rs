@@ -37,8 +37,8 @@ mod spout_belly_section_probe {
     //! **The NURBS × implicit arm on the pair wall 3 meets on**: the
     //! belly's sphere against each of the spout's NURBS walls, classified
     //! through the value's door with the march door. A measurement, not
-    //! a gate: wall 3 stops upstream of the section (the spline seam
-    //! split), so nothing reads this pair yet. Run with
+    //! a gate: wall 3 stops upstream of the section (a spline wall's
+    //! held pierce), so nothing reads this pair yet. Run with
     //! `cd demos/tour && cargo test --release --test all -- --ignored
     //! spout_belly_section_probe --nocapture`.
 

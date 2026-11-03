@@ -3256,7 +3256,7 @@ fn name_boolean_vertices<T: Decide>(
             // and fewer than two seam lines (an ordinary declared union
             // reached this on the A side before maximal edges joined its
             // vertex away,
-            // `work/wire/a-merged-face-with-several-same-side-constituents-has-no-chord-rule.md`),
+            // `a-merged-face-with-several-same-side-constituents-has-no-chord-rule` (closed with WIRE: `docs/doc-ledger/wire-leaves-the-tracker.md`)),
             // its mirror, several edges of each operand, or a vertex on
             // a seam between two faces of one operand. The body is sound
             // and nothing proves these shapes unreachable, so what is

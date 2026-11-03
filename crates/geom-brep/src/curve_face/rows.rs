@@ -11,7 +11,7 @@ use geom::{Curve3, CurveKind, SurfaceKind};
 use geom_core::{Band, Point3, Vec3};
 
 use super::{Boundary, BoundaryRefusal, Door, OnBoundary, boundary, route};
-use crate::curve_pair::Span;
+use crate::curve_pair::{Hit, Span};
 
 const ZERO: f64 = 1e-9;
 
@@ -121,7 +121,7 @@ fn a_run_shorter_than_the_span_meets_at_its_vertex() {
         Boundary::Meets { t, point, at } => {
             assert!(
                 matches!(at, OnBoundary::Vertex(2)),
-                "the vertex is the third edge's start: {at:?}"
+                "the vertex is the third edge's start, which splits no boundary edge: {at:?}"
             );
             assert!((t - FRAC_PI_2).abs() < 1e-12, "at the corner: {t}");
             assert!((point - Point3::new(0.0, 1.0, 0.0)).norm() < 1e-12);
@@ -136,8 +136,16 @@ fn a_line_across_the_rim_meets_it() {
     let x = 0.75_f64.sqrt();
     match read(&line([0.5, 0.5, 0.0], [1.0, 0.0, 0.0]), (0.0, 1.5)).unwrap() {
         Boundary::Meets { t, at, .. } => {
-            assert!(matches!(at, OnBoundary::Edge(1, _)), "the arc: {at:?}");
+            let OnBoundary::Edge(1, on_edge) = at else {
+                panic!("the arc: {at:?}")
+            };
             assert!((t - (x - 0.5)).abs() < 1e-12, "at the arc: {t}");
+            // `(√0.75, 0.5)` is the arc's azimuth π/6: the meeting names
+            // where on the boundary edge it put the point.
+            let Hit::On { t: s, .. } = on_edge else {
+                panic!("a meeting inside the arc holds its parameter there: {on_edge:?}")
+            };
+            assert!((s - PI / 6.0).abs() < 1e-12, "on the arc: {s}");
         }
         other => panic!("a line across the arc: {other:?}"),
     }
