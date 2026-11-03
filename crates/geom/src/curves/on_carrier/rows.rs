@@ -254,3 +254,48 @@ fn a_closed_splines_foot_is_found_from_any_seed() {
         "{miss} points on a closed spline missed by their foot"
     );
 }
+
+/// A cubic hairpin's two branches tie across a wide `Interval` box: the
+/// polish keeps the seed's branch, whose tangent no point of the box
+/// has, and a narrower box picks the right one. So the tie reaches the
+/// log as the driver's cue to refine.
+#[test]
+fn a_tie_across_a_hairpins_branches_reaches_the_log() {
+    use geom_core::{Bounds, Interval, Real, k_stats::detached};
+    let h = 0.2;
+    let c = Curve3::Nurbs(std::sync::Arc::new(
+        crate::NurbsCurve3::new(
+            geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0], 3)
+                .unwrap(),
+            vec![
+                Point3::new(0.0, 0.0, 0.0),
+                Point3::new(1.4, 0.0, 0.0),
+                Point3::new(1.4, h, 0.0),
+                Point3::new(0.0, h, 0.0),
+            ],
+            vec![1.0; 4],
+        )
+        .unwrap(),
+    ));
+    let p = c.eval(0.08);
+    let ci: Curve3<Interval> = c.map_scalar(Interval::from_f64);
+    let w = |x: f64| Interval::from_bounds(x - 0.05, x + 0.05);
+    let (foot, rec) = detached(|| {
+        ci.foot(
+            Point3::new(w(p.x), w(p.y), w(p.z)),
+            Interval::from_f64(0.92),
+        )
+    });
+    assert!(
+        foot.t().lo() > 0.5,
+        "the tie keeps the seed's branch: {:?}",
+        foot.t()
+    );
+    assert!(
+        rec.recorded()
+            .escalations
+            .iter()
+            .any(|e| e.predicate() == "curve_foot_polish"),
+        "a tie across branches, which refining resolves, must reach the driver"
+    );
+}

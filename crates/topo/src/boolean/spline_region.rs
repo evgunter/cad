@@ -34,7 +34,9 @@
 //! # The trim, in the chart
 //!
 //! The trim is read in the face's chart from C4's derived pcurves, lifted
-//! along each loop ([`crate::Body::loop_lift`]), each half-edge's image
+//! along each loop past its placeholders
+//! ([`crate::pcurves::loop_lift_past_placeholders`]: mid-boolean, the
+//! sweep's null edges at the crossing vertices), each half-edge's image
 //! taken over its edge's span and in its walk's direction, and the
 //! chart-space gap at a joint closed by a segment. A loop that winds a
 //! closed channel bounds no chart polygon and is not read. Each loop's
@@ -748,7 +750,7 @@ struct Trim {
 
 impl Trim {
     /// The trim of `face` on `chart` (`cells` its Bézier decomposition);
-    /// `None` where a loop has no lift or winds, an image is of a kind
+    /// `None` where a loop has no lift past its placeholders or winds, an image is of a kind
     /// with no piece reading here, the lift applies a period the chart
     /// is not decided closed in, or a ring's place in the outer loop's
     /// cover is not decided.
@@ -795,10 +797,13 @@ impl Trim {
         };
         let mut chains = Vec::new();
         for (lk, _, _) in body.face_loops_linked(face, face_data) {
-            let lift = body.loop_lift(lk).ok()?;
+            let lift = crate::pcurves::loop_lift_past_placeholders(body, lk).ok()?;
             if lift.is_empty() {
                 return None;
             }
+            // A skipped placeholder's joints are the identity
+            // (`loop_lift_past_placeholders`), so the members' elements
+            // wind as the whole loop's.
             let elements: Option<Vec<_>> = lift.iter().map(|r| body.joint(r.half_edge)).collect();
             if !Winding::of(elements?).is_zero() {
                 return None;

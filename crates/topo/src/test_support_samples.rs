@@ -94,6 +94,12 @@ fn zero_verdict(margin: f64) -> Refused {
     })
 }
 
+/// A spindle sheet of tube radius 1 whose major radius misses its
+/// range: decided at `0` (the sphere), undecided a hair past the horn.
+fn spindle_miss(major: f64) -> geom::SpindleMiss {
+    geom::spindle_sheet(major, 1.0, band()).expect_err("the major radius misses the range")
+}
+
 /// A positive-passing gate's rejection of a reading past the band on
 /// the refused side.
 fn rejected_negative(predicate: &'static str) -> Indeterminate {
@@ -1432,6 +1438,18 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
         ValidationError::DegenerateTorus {
             face,
             verdict: negative_verdict(-1e-3),
+        },
+        ValidationError::DegenerateSpindle {
+            face,
+            miss: spindle_miss(0.0),
+        },
+        ValidationError::DegenerateSpindle {
+            face,
+            miss: spindle_miss(1.0 + 0.5 * band().escalate()),
+        },
+        ValidationError::SheetApexReached {
+            face,
+            point: geom_brep::chart_singularity::Singularity::SheetApexUp,
         },
         ValidationError::DescriptionNotAdjacent { edge },
         ValidationError::PlanarFaceResidual { face, vertex },

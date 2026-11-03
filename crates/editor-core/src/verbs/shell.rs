@@ -437,6 +437,7 @@ fn fold_offset_error<T: Real>(
         },
         O::NotClosedUnderOffset => O::NotClosedUnderOffset,
         O::ApproxNesting => O::ApproxNesting,
+        O::SpindleSheet => O::SpindleSheet,
         O::Escalated { source } => O::Escalated { source },
     }
 }

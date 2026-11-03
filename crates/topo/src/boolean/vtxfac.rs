@@ -84,7 +84,7 @@ use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
 
 use super::contain::FaceContainment;
 use super::plane_eq::PlaneEqError;
-use super::reduce::face_plane;
+use super::reduce::plane_desc;
 use std::collections::BTreeMap;
 
 use super::sectors::{
@@ -538,14 +538,14 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     // The pierced face's oriented datum at `p`, from the one door.
     // `n_pierced` carries the material side, typed so the sense flip
     // cannot be dropped on the way; on a PLANE it is bit-identically
-    // what [`face_plane`] reports as its `normal`
-    // ([`super::reduce::face_plane`] builds it from this very door),
+    // what [`crate::face_normal::face_plane`] reports as its normal
+    // (it builds it from this very door),
     // which is what keeps the planar lane's arithmetic unmoved.
     //
     // `plane` itself survives only for Delta 2's planar carrier
     // algebra, which needs an ORIGIN as well as a direction; the
     // curved lane refuses there rather than building one (below).
-    let plane = face_plane(pierced_body, contact.face);
+    let plane = plane_desc(pierced_body, contact.face);
     let unbuilt = || BooleanError::CurvedBooleanUnsupported {
         operand: pierced_op,
         face: contact.face,
@@ -1874,7 +1874,7 @@ fn held_reads<T: Decide + crate::props::AtRestPolicy>(
     let read_face = |face| -> Result<Option<HeldRead<T>>, BooleanError> {
         // The face's outward normal at the point, its bend there (`None`
         // on a plane), and the reading that puts the point on it.
-        let (held_normal, held_lever, on) = match face_plane(piercing_body, face) {
+        let (held_normal, held_lever, on) = match plane_desc(piercing_body, face) {
             None => {
                 // A curved face is read only where its box can hold the
                 // point, as a plane is only where the point is on it.
@@ -1925,8 +1925,10 @@ fn held_reads<T: Decide + crate::props::AtRestPolicy>(
                     super::contain::CurvedPlacement::OffCarrier
                     | super::contain::CurvedPlacement::Trim(Some(_)) => return Ok(None),
                 }
-                // A spline face's trim never places a point In; were one
-                // to, the face has no residual and no normal to build on.
+                // A spline face read In has no residual to put the point on
+                // its carrier, and no arm reads its normal: no operand
+                // reaches it
+                // (`work/splice/a-spline-wall-holding-a-pierce-point-has-no-operand-that-reaches-it.md`).
                 let Some(side) = side else {
                     return Err(unbuilt(face, kind, true));
                 };
@@ -4246,7 +4248,7 @@ mod tests {
             .faces()
             .map(|(k, _)| k)
             .find(|&f| {
-                face_plane(&cube, f).is_some_and(|p| {
+                plane_desc(&cube, f).is_some_and(|p| {
                     p.normal.x * m[0] + p.normal.y * m[1] + p.normal.z * m[2] < -0.99
                 })
             })

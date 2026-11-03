@@ -391,6 +391,7 @@ use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdge, HalfEdgeKey, LoopKey};
 use crate::joint::{Deck, JointElement, Winding};
 use crate::live::{linked, proven};
+use crate::null::Scaffolding;
 use crate::props::AtRestPolicy;
 
 /// Typed refusal of the pcurve minting pass (D4 ¶3).
@@ -757,6 +758,9 @@ fn chart_mints<T: Real>(chart: DescribedChart<'_, T>) -> bool {
         // (rim/ruling; polar/meridian; parallel/meridian) and mint
         // stored caches wherever the pass runs.
         Surface::Cone { .. } | Surface::Sphere { .. } | Surface::Torus { .. } => true,
+        // A spindle sheet's chart takes the pass, whose mint refuses it
+        // typed until its classes are written.
+        Surface::Spindle { .. } => true,
         // Described NURBS charts mint (M6-3; RATIONAL charts since
         // M8-3): every loft/sweep wall boundary is an iso-parameter
         // curve of the wall it bounds. Seams and LINE cap rims have
@@ -808,6 +812,100 @@ pub fn pcurve_of<T: AtRestPolicy>(
         return nurbs_iso_derive(body, half_edge, &surface, band);
     }
     analytic_derive(&carrier, t0, t1, &surface, band, half_edge)
+}
+
+/// **A face of a seam, as [`seam_reading`] takes it**: a
+/// [`geom_brep::SeamFace`] whose spline face is always read at its chart,
+/// since only [`seam_face`] mints one (and, in tests, `SeamSide::analytic`,
+/// which refuses a spline chart).
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct SeamSide<'s, T: Real>(geom_brep::SeamFace<'s, T>);
+
+impl<'s, T: Real> SeamSide<'s, T> {
+    /// `surface` read by its implicit form; `None` on a spline chart,
+    /// which [`seam_face`] reads.
+    #[cfg(test)]
+    pub(crate) fn analytic(surface: &'s Surface<T>) -> Option<Self> {
+        surface
+            .spline_chart()
+            .is_none()
+            .then_some(Self(geom_brep::SeamFace::Analytic(surface)))
+    }
+}
+
+/// Why [`seam_reading`] read no class: [`geom_brep::SeamEscalation`] less
+/// the caller's error a [`SeamSide`] cannot make.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) enum SeamUnread {
+    /// The arm gate or the wedge's own reading escalated.
+    Lever(geom_brep::LeverEscalation),
+    /// A spline face's chart has no one normal at the point.
+    Crease(geom_brep::CreaseReading),
+}
+
+/// **The dihedral of a seam's two faces**, each read by its kind
+/// ([`geom_brep::classify_seam`]), a spline face's arm bracketed by its
+/// chart's certified lower bound at this scalar. The boolean's seam
+/// describer and the split's section-boundary describer both read it.
+pub(crate) fn seam_reading<T: Decide + AtRestPolicy>(
+    faces: [SeamSide<'_, T>; 2],
+    witness: geom_core::Point3<T>,
+    reach: geom_core::Lever<T>,
+    band: Band,
+) -> Result<geom_brep::DihedralClass, SeamUnread> {
+    geom_brep::classify_seam(
+        faces.map(|f| f.0),
+        witness,
+        reach,
+        |chart, p, reach| T::spline_chart_arm(chart, p, reach).ok(),
+        band,
+    )
+    .map_err(|refusal| match refusal {
+        geom_brep::SeamEscalation::Lever(e) => SeamUnread::Lever(e),
+        geom_brep::SeamEscalation::Crease(c) => SeamUnread::Crease(c),
+        geom_brep::SeamEscalation::SplineReadAsAnalytic => unreachable!(
+            "a SeamSide reads every spline face at its chart: seam_face and \
+             SeamSide::analytic mint no other"
+        ),
+    })
+}
+
+/// **A face of a seam edge, as its dihedral reads it** at the edge's
+/// witness ([`SeamSide`]), the face `surface` bounded by
+/// `half_edge`, whose edge's curve is `curve`: an analytic face at the
+/// witness; a spline face at the witness's parameters on its own chart,
+/// read off an image of the edge in that chart ([`pcurve_of`]) at the
+/// edge's own parameter of the witness, the middle of its interval.
+/// The image is the stored one where the half-edge has it, and otherwise
+/// the one the chart's description derives, an iso row or arc rim of the
+/// chart. Either is the edge on the face's own sheet, where a projection
+/// foot of the witness could land on another sheet of the chart; a
+/// stored `Pcurve::Fitted` image was itself fitted through the chart's
+/// feet of a trace, placed on the face's sheet when it was minted.
+///
+/// `None`, unplaced, on a spline face with no image of the edge in its
+/// chart to read the witness's parameters off, or on a null edge (no
+/// `curve`). A null edge's witness could be placed off its neighbour in
+/// the face's loop, but no class would follow: its zero-length chord gives
+/// the wedge no reach, so its dihedral escalates at the arm whatever the
+/// faces read.
+pub(crate) fn seam_face<'s, T: Decide + AtRestPolicy>(
+    body: &Body<T>,
+    half_edge: HalfEdgeKey,
+    surface: &'s Surface<T>,
+    curve: Option<&geom_brep::EdgeCurve<T>>,
+    band: Band,
+) -> Option<SeamSide<'s, T>> {
+    let Some(chart) = surface.spline_chart() else {
+        return Some(SeamSide(geom_brep::SeamFace::Analytic(surface)));
+    };
+    let (t0, t1) = curve?.params();
+    let image = pcurve_of(body, half_edge, band).ok()?;
+    let uv = image.eval(geom::mid_param(t0, t1));
+    Some(SeamSide(geom_brep::SeamFace::Spline {
+        chart,
+        uv: (uv.x, uv.y),
+    }))
 }
 
 /// **A transverse seam's `Intersection`, its selector chosen by D2's
@@ -1926,7 +2024,9 @@ impl<T: Decide> ChartPeriods<T> {
 fn polar_arm<T: Real>(surface: &Surface<T>) -> Option<T> {
     match *surface {
         Surface::Sphere { radius, .. } => Some(radius),
-        Surface::Torus { minor_radius, .. } => Some(minor_radius),
+        Surface::Torus { minor_radius, .. } | Surface::Spindle { minor_radius, .. } => {
+            Some(minor_radius)
+        }
         // The second channel is not an ANGLE on these charts, so no
         // polar radius levers it. That does not make it metres: on a
         // plane, cylinder or cone `v` IS a length, but a spline
@@ -2242,6 +2342,10 @@ pub(crate) fn lift_decks(elements: &[JointElement]) -> Vec<Deck> {
 /// same chain moved by one deck transformation, and every reader reads
 /// the chain, not its offset.
 ///
+/// A rowless half is a gap, whatever its edge: a finished body holds
+/// no null edge, and mid-operation a reader that steps over one asks
+/// the crate's lift past placeholders.
+///
 /// # Errors
 ///
 /// [`LiftGap`] naming the first half-edge, in cycle order, that stores
@@ -2257,6 +2361,45 @@ pub fn loop_lift<T: Decide>(
     body: &Body<T>,
     r#loop: LoopKey,
 ) -> Result<Vec<LiftedRow<'_, T>>, LiftGap> {
+    lift_loop(body, r#loop, Scaffolding::Refused)
+}
+
+/// **[`loop_lift`] past the loop's placeholders**
+/// ([`crate::null::is_placeholder`]): a placeholder's rowless halves are
+/// left out of the chain, as the analytic region reader leaves the edge
+/// out of its boundary ([`Scaffolding::Skipped`]). The skip is exact.
+/// The edge is one point, so the halves either side of it meet there,
+/// and the mint gives the joints into its halves
+/// [`JointElement::IDENTITY`](crate::joint::JointElement::IDENTITY) while
+/// the joint out of it keeps its successor's element
+/// (`Body::mev_fan_execute`), so every other member's lift is the one
+/// it has with the placeholder gone. A null edge whose ends have parted
+/// is no placeholder, and any other rowless half is a gap, as in
+/// [`loop_lift`].
+///
+/// # Errors
+///
+/// [`loop_lift`]'s, but for a placeholder's half.
+///
+/// # Panics
+///
+/// [`loop_lift`]'s, and [`crate::null::is_placeholder`]'s.
+#[track_caller]
+pub(crate) fn loop_lift_past_placeholders<T: Decide>(
+    body: &Body<T>,
+    r#loop: LoopKey,
+) -> Result<Vec<LiftedRow<'_, T>>, LiftGap> {
+    lift_loop(body, r#loop, Scaffolding::Skipped)
+}
+
+/// The one lift [`loop_lift`] and [`loop_lift_past_placeholders`]
+/// read, a placeholder's half as `scaffolding` says.
+#[track_caller]
+fn lift_loop<T: Decide>(
+    body: &Body<T>,
+    r#loop: LoopKey,
+    scaffolding: Scaffolding,
+) -> Result<Vec<LiftedRow<'_, T>>, LiftGap> {
     let cycle = loop_rows(body, r#loop);
     let face = proven(&body.loops, r#loop, EntityId::Loop).face;
     let surface = body.proven_face_surface(face);
@@ -2267,9 +2410,16 @@ pub fn loop_lift<T: Decide>(
     let mut rows = Vec::with_capacity(cycle.len());
     let mut elements = Vec::with_capacity(cycle.len());
     for &half_edge in &cycle {
-        let (Some(row), Some(element)) = (body.pcurve(half_edge), body.joint(half_edge)) else {
+        let Some(element) = body.joint(half_edge) else {
             return Err(LiftGap { half_edge });
         };
+        let row = body.pcurve(half_edge);
+        if row.is_none()
+            && !(scaffolding == Scaffolding::Skipped
+                && crate::null::is_placeholder(body, edge_record(body, half_edge).0))
+        {
+            return Err(LiftGap { half_edge });
+        }
         rows.push(row);
         elements.push(element);
     }
@@ -2277,7 +2427,8 @@ pub fn loop_lift<T: Decide>(
         .into_iter()
         .zip(rows)
         .zip(lift_decks(&elements))
-        .map(|((half_edge, row), lift)| {
+        .filter_map(|((half_edge, row), lift)| Some((half_edge, row?, lift)))
+        .map(|(half_edge, row, lift)| {
             let pcurve = lift
                 .apply(row.pcurve(), surface, periods)
                 .ok_or(LiftGap { half_edge })?;
@@ -4106,6 +4257,15 @@ enum Singular {
 /// singular everywhere. That is a property of the net, not of the vertex, and
 /// the chart-space gap that spline joints still state
 /// ([`spline_gap_closes`]) is what keeps its skip safe.
+/// Whether `surface`'s chart has a singular point at all, asked of the
+/// chart's own list ([`geom_brep::chart_singularity::singular_points`])
+/// rather than of a kind roster: a tip off every point of a non-empty
+/// set is off it, and one on a chart with none has no set to be on.
+fn has_singular_set<T: geom_core::Real>(surface: &Surface<T>) -> bool {
+    geom::ChartInverse::of(surface)
+        .is_ok_and(|chart| !geom_brep::chart_singularity::singular_points(&chart).is_empty())
+}
+
 fn singular_at<T: Decide>(
     chart: DescribedChart<'_, T>,
     vertex: geom_core::Point3<T>,
@@ -4115,7 +4275,7 @@ fn singular_at<T: Decide>(
         // The singular points, from their one home, each read by the one
         // incidence reading: on the set where on one of them, off where
         // off every one, and otherwise the first escalation.
-        Surface::Sphere { .. } | Surface::Cone { .. } => {
+        Surface::Sphere { .. } | Surface::Cone { .. } | Surface::Spindle { .. } => {
             use geom_brep::chart_singularity::{singular_points, vertex_at_singular_point};
             let Ok(inverse) = geom::ChartInverse::of(chart.surface()) else {
                 return Singular::Off;
@@ -4179,9 +4339,9 @@ fn axis_distance<T: Real>(chart: DescribedChart<'_, T>, vertex: geom_core::Point
     };
     match *chart.surface() {
         Surface::Cylinder { radius, .. } => Some(radius),
-        Surface::Sphere { center, axis, .. } | Surface::Torus { center, axis, .. } => {
-            Some(off_axis(center, axis))
-        }
+        Surface::Sphere { center, axis, .. }
+        | Surface::Torus { center, axis, .. }
+        | Surface::Spindle { center, axis, .. } => Some(off_axis(center, axis)),
         Surface::Cone { apex, axis, .. } => Some(off_axis(apex, axis)),
         Surface::Plane { .. } | Surface::Nurbs(_) | Surface::Approx(_) => None,
     }
@@ -4858,7 +5018,8 @@ pub(crate) fn chart_period<T: AtRestPolicy>(chart: &Surface<T>, band: Band) -> O
         Surface::Cylinder { .. }
         | Surface::Cone { .. }
         | Surface::Sphere { .. }
-        | Surface::Torus { .. } => Some(Period::new(T::tau())),
+        | Surface::Torus { .. }
+        | Surface::Spindle { .. } => Some(Period::new(T::tau())),
         Surface::Nurbs(_) | Surface::Approx(_) => chart_u_period(chart, band),
     }
 }
@@ -5229,7 +5390,7 @@ pub(crate) fn pcurve_pass<T: AtRestPolicy>(body: &Body<T>, band: Band) -> Pcurve
         // ([`Winding::closes`]), so no verdict hangs on which half-edge
         // is `first`.
         let periods = ChartPeriods::of(surface, band);
-        let has_singular_points = matches!(surface, Surface::Sphere { .. } | Surface::Cone { .. });
+        let has_singular_points = has_singular_set(surface);
         let image_of = |he: HalfEdgeKey| -> Option<(Pcurve<T>, T, T)> {
             let plus = is_plus(body, he);
             let (image, t0, t1) = match body.pcurve(he) {
@@ -9766,5 +9927,84 @@ mod net_period_rows {
             matches!(joint::<f64>(&n, 2.0, 5.0), Err(PinMiss::Discontinuity)),
             "the fold refuses as decided"
         );
+    }
+}
+
+#[cfg(test)]
+mod singular_set_rows {
+    use geom::Surface;
+    use geom_core::{Point3, Vec3};
+
+    /// **A wrap tip's reading asks the chart for its singular set**: a
+    /// sphere, a cone and a spindle sheet (lemon, apple and horn) have
+    /// one, so a tip off it reads `Off`; a plane, a cylinder and a ring
+    /// torus have none, so a tip there reads `NoSingularSet`. A sheet
+    /// left off reads its tip as having no set to be on.
+    #[test]
+    fn the_sheet_has_a_singular_set_its_tips_are_read_against() {
+        let (o, z, x) = (
+            Point3::new(0.2, -0.1, 0.3),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        );
+        let sheet = |major_radius: f64| Surface::Spindle {
+            center: o,
+            axis: z,
+            major_radius,
+            minor_radius: 1.0,
+            u_ref: x,
+        };
+        for (surface, has) in [
+            (sheet(-0.4), true),
+            (sheet(0.4), true),
+            (sheet(1.0), true),
+            (
+                Surface::Sphere {
+                    center: o,
+                    radius: 1.0,
+                    axis: z,
+                    u_ref: x,
+                },
+                true,
+            ),
+            (
+                Surface::Cone {
+                    apex: o,
+                    axis: z,
+                    half_angle: 0.4,
+                    u_ref: x,
+                },
+                true,
+            ),
+            (
+                Surface::Plane {
+                    origin: o,
+                    normal: z,
+                    u_ref: x,
+                },
+                false,
+            ),
+            (
+                Surface::Cylinder {
+                    origin: o,
+                    axis: z,
+                    radius: 1.0,
+                    u_ref: x,
+                },
+                false,
+            ),
+            (
+                Surface::Torus {
+                    center: o,
+                    axis: z,
+                    major_radius: 2.0,
+                    minor_radius: 0.5,
+                    u_ref: x,
+                },
+                false,
+            ),
+        ] {
+            assert_eq!(super::has_singular_set(&surface), has, "{surface:?}");
+        }
     }
 }

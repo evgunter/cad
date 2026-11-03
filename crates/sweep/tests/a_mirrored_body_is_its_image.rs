@@ -249,7 +249,8 @@ fn chart_map(s: &Surface<f64>, (u, v): (f64, f64)) -> (f64, f64) {
         Surface::Cylinder { .. }
         | Surface::Cone { .. }
         | Surface::Sphere { .. }
-        | Surface::Torus { .. } => (-u, v),
+        | Surface::Torus { .. }
+        | Surface::Spindle { .. } => (-u, v),
         Surface::Nurbs(_) | Surface::Approx(_) => (u, v),
     }
 }
@@ -266,9 +267,10 @@ fn chart_gap(s: &Surface<f64>, p: (f64, f64), q: (f64, f64)) -> f64 {
         let (du, dv) = (q.0 - a, q.1 - b);
         match s {
             Surface::Plane { .. } | Surface::Nurbs(_) | Surface::Approx(_) => du.hypot(dv),
-            Surface::Cylinder { .. } | Surface::Cone { .. } | Surface::Sphere { .. } => {
-                unwound(du).hypot(dv)
-            }
+            Surface::Cylinder { .. }
+            | Surface::Cone { .. }
+            | Surface::Sphere { .. }
+            | Surface::Spindle { .. } => unwound(du).hypot(dv),
             Surface::Torus { .. } => unwound(du).hypot(unwound(dv)),
         }
     };
