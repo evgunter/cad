@@ -966,21 +966,25 @@ by `S`'s curvature in proportion to `∇f`'s component along `S`'s
 normal; it is the node's one datum. Two cases meet the condition, and
 they differ only in that correction. At a tangency of two smooth
 surfaces `∇f` is normal to `S` and nonzero, and the Hessian is their
-relative second fundamental form. At a cone's apex lying on `S`,
-`∇f = 0`, the correction vanishes, and the Hessian is the cone's own
-form on `T`, its null lines the two rulings in `T`. Among the analytic
-surfaces these are the only two: a plane, a sphere, a cylinder and a
-ring torus (`R > r`, the only torus admitted) are smooth everywhere,
-and a cone is singular only at its apex. A spline net can be singular
-at a collapsed side (a pole, `chart_singularity::spline_collapsed_row`)
-where its tangent vectors span no plane, a pointed tip; on another
-surface that is the same criterion with the tip's tangent cone in the
-cone's form's place, and it refuses by name until that tangent cone is
+relative second fundamental form. At a singular point of `f`'s own
+surface lying on `S`, `∇f = 0`, the correction vanishes, and the
+Hessian is `f`'s own quadratic form on `T`, the restriction of the
+point's tangent cone. Of the analytic surfaces, a plane, a sphere, a
+cylinder and a ring torus are smooth everywhere; the singular points
+are a cone's apex, whose form's null lines on `T` are the two rulings
+in `T`, and a spindle torus's two tips on its axis, conical points
+whose quadratic form is nondegenerate and so reads as an apex does. A
+horn torus's centre has a degenerate quadratic form, so it is no
+node and refuses as contact of higher order. A spline net can be
+singular at a collapsed side (a pole,
+`chart_singularity::spline_collapsed_row`) where its tangent vectors
+span no plane, a pointed tip: the same criterion with the tip's tangent
+cone as the form, and it refuses by name until that tangent cone is
 read. Where neither surface is smooth at the point (two cones through
 one apex) the criterion does not apply: their section is the rulings
 they share. A node is decided
-on the pose (a Zero tangency whose section still has carriers, or the
-apex's closed-form margin), placed in closed form or enclosed alone in
+on the pose (a Zero tangency whose section still has carriers, or a
+singular point's closed-form margin), placed in closed form or enclosed alone in
 a certified box, and a site at it reads as the node. The value lists
 each node with `S`'s normal, its two tangent lines (the Hessian's null
 lines) and the side of each other the surfaces lie on in the sectors
