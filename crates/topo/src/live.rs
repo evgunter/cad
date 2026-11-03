@@ -460,7 +460,7 @@ impl<T: Real> Body<T> {
     /// order: each isolated-vertex loop's vertex and point, and each
     /// closed loop cycle member with its edge. Every hop is a link, and a
     /// loop walk that does not close on the half-edges claiming the loop
-    /// panics ([`Body::loop_walk_of`], [`crate::body::Walk::closed`]).
+    /// panics ([`Body::loop_walk_of`], [`crate::body::Walk::closed_in`]).
     pub(crate) fn face_boundary_linked<'a>(
         &'a self,
         face: FaceKey,
@@ -614,7 +614,7 @@ impl<T: Real> Body<T> {
             }
             LoopBoundary::Cycle { first } => self
                 .loop_walk_of(first, lk)
-                .closed("loop", first)
+                .closed_in(lk, first)
                 .into_iter()
                 .map(|he| {
                     let half = proven(&self.half_edges, he, EntityId::HalfEdge);
