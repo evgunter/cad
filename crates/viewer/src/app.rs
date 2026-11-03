@@ -12118,7 +12118,9 @@ mod properties_pane_tests {
                 input: extrude().into(),
                 count: 3,
                 rule: crate::session::PatternRuleSpec::Linear {
-                    direction: crate::test_support::scl3([1.0, 0.0, 0.0]),
+                    direction: crate::session::PatternDirection::Axis(
+                        pncad::document::TargetAxis::X,
+                    ),
                     spacing: crate::test_support::len(0.2),
                 },
             }]);
