@@ -72,3 +72,9 @@
   - **R2's MAJOR** (unilateral as a class; R1 raised the one instance as a MINOR): a sweep of 5,415 brick booleans found 31 second-subtract configurations where `Holdings` (merged in 6387) cites a member face not coplanar with the finished face. Per-face naming would publish those wrong names; they were right on main.
   - **Fix pass:** root-cause the kernel `SubstitutedFace` record, and independently make `Holdings` refuse typed rather than cite a face not under the face.
   - **Process slip:** I removed the per-face lane's worktree at its report, so the lane could not be resumed; a fresh lane took the fix pass. Keep a lane's worktree until its PR merges.
+- 2026-11-03 — **PR 6381 fix pass green (`6f64c6be`).**
+  - **MAJOR B, root-caused in topo `fate::cut`:** a fate edge `Along` at both ends with opposed copies took the end-0 half's mate. That mate lay in a null scaffolding face, which inherited a perpendicular wall's lineage. Fixed, and `Holdings::of_records` now refuses typed (`NotUnder`/`CarrierUnread`) rather than cite a face not under the face. A 720-boolean row shows 15 `NotUnder` refusals with only the guard and none with the fix.
+  - **MAJOR A:** the slow rows return to main's values with no re-pin.
+  - **Not fixed:** the near-half diamond, where 8 of 24 orders publish where main refused. The lane's refusal attempt over-refused, so it was reverted; evidence went onto BORDERS' P2 row.
+  - **Delta re-check:** asked of R2, with its 5,415-boolean sweep.
+  - **Main reds routed (not ours):** topo `boxes::tests::every_door_that_reads_a_box_is_inventoried` (a `ruled_region.rs` box read missing from the pinned list) and `m10_sym_profile_interval`.
