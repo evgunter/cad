@@ -860,7 +860,7 @@ fn review_probe_6485_search() {
         let noise = 64.0 * f64::EPSILON * (scale + far);
         worst[fam] = worst[fam].max(sup / hi.max(1e-300));
         if let Ok(path) = std::env::var("RP_DUMP") {
-            if sup > 0.99 * hi {
+            if sup > 0.99 * hi || envelope < sup - noise {
                 use std::io::Write;
                 let mut f = std::fs::OpenOptions::new().create(true).append(true).open(path).unwrap();
                 writeln!(f, "{fam}|{t0:?}|{t1:?}|{hi:?}|{envelope:?}|{sup:?}|{carrier:?}|{surface:?}").unwrap();
