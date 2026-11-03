@@ -1979,17 +1979,14 @@ pub(crate) fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
                         .map_err(|e| of_attachment(edge, carrier, e))?;
                     }
                 }
-                Err(geom_brep::SeamEscalation::Lever(escalation)) => {
+                Err(crate::pcurves::SeamUnread::Lever(escalation)) => {
                     return Err(SplitFinishError::DescribeEscalated {
                         edge,
                         diag: escalation.diag(),
                     });
                 }
-                Err(geom_brep::SeamEscalation::Crease(_)) => {
+                Err(crate::pcurves::SeamUnread::Crease(_)) => {
                     return Err(undescribed(crate::EdgeDescribeFailure::Crease));
-                }
-                Err(geom_brep::SeamEscalation::SplineReadAsAnalytic) => {
-                    unreachable!("seam_face reads every spline face by its chart")
                 }
             }
         }

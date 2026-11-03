@@ -3071,15 +3071,12 @@ pub(crate) fn describe_edges<T: Decide + crate::props::AtRestPolicy>(
         let faces = [face(sides.plus, surf1)?, face(sides.minus, surf2)?];
         match crate::pcurves::seam_reading(faces, witness, reach, band).map_err(|refusal| {
             match refusal {
-                geom_brep::SeamEscalation::Lever(e) => {
+                crate::pcurves::SeamUnread::Lever(e) => {
                     let (reading, diag) = DihedralReading::of_lever(e);
                     DescribeRefusal::undecided(edge, reading, diag)
                 }
-                geom_brep::SeamEscalation::Crease(_) => {
+                crate::pcurves::SeamUnread::Crease(_) => {
                     DescribeRefusal::failed(edge, EdgeDescribeFailure::Crease)
-                }
-                geom_brep::SeamEscalation::SplineReadAsAnalytic => {
-                    unreachable!("seam_face reads every spline face by its chart")
                 }
             }
         })? {
@@ -3222,14 +3219,17 @@ pub(super) fn seam_class<T: Decide + crate::props::AtRestPolicy>(
     reach: T,
     band: Band,
 ) -> Result<geom_brep::DihedralClass, BooleanError> {
-    let faces = [surf1, surf2].map(geom_brep::SeamFace::Analytic);
+    let faces = [surf1, surf2].map(|s| {
+        crate::pcurves::SeamSide::analytic(s)
+            .unwrap_or_else(|| unreachable!("seam_class reads analytic pairs: {s:?}"))
+    });
     let reach = geom_core::test_support::fixture_lever(reach);
     crate::pcurves::seam_reading(faces, witness, reach, band).map_err(|refusal| match refusal {
-        geom_brep::SeamEscalation::Lever(e) => {
+        crate::pcurves::SeamUnread::Lever(e) => {
             let (reading, diag) = DihedralReading::of_lever(e);
             seam_refusal(reading, diag)
         }
-        geom_brep::SeamEscalation::Crease(_) | geom_brep::SeamEscalation::SplineReadAsAnalytic => {
+        crate::pcurves::SeamUnread::Crease(_) => {
             unreachable!("seam_class reads analytic pairs: {surf1:?} {surf2:?}")
         }
     })
@@ -11088,7 +11088,7 @@ mod spline_seam_rows {
     fn reading(
         body: &Body<f64>,
         edge: EdgeKey,
-    ) -> Result<geom_brep::DihedralClass, geom_brep::SeamEscalation> {
+    ) -> Result<geom_brep::DihedralClass, crate::pcurves::SeamUnread> {
         let sides = crate::readback::edge_sides_of(body, edge, body.get_edge(edge).unwrap());
         let surface = |side: crate::readback::EdgeSide| body.get_surface(side.surface).unwrap();
         let curve = body.stored_curve(edge).unwrap();

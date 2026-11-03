@@ -548,7 +548,8 @@ pub enum SplitJoinError {
     /// nothing of the rest); a section edge, the area it bounds past its
     /// chord.
     RunEdgeCarrierUnsupported {
-        /// The face whose loop the run is on.
+        /// The face whose loop holds the edge: the plane face the run is
+        /// on, or the section face whose area is certified.
         face: FaceKey,
         /// The edge: its split pieces' root.
         edge: EdgeKey,
