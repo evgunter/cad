@@ -2,10 +2,12 @@
 id: a-leaves-verdict-carries-no-witness-point
 kind: issue
 title: A bound's Leaves verdict is decided on the leading term of its parting, with no witness point of the bound clearing the band
-status: open
+status: closed
 opened: 2026-11-01
 priority: P1
 cost: M
+closed: 2026-11-03
+pr: 6385
 ---
 
 
@@ -160,3 +162,34 @@ bend no reading certifies (a spiric section's) reads no bend
 (`sectors.rs` `bound_bend`), so the pair stays touching there too,
 as `runs_into` already read it. What a witness would add is the
 crescent's extent at a finite reach, which nothing reads today.
+
+## Closed
+
+2026-11-03, PR 6385. Full review (one MAJOR, five MINORs), fix pass,
+then a targeted re-review with no MAJOR, and a last small pass.
+
+A tied line or conic edge against a sphere or a cylinder now stands
+only on its witness (`bound_side::Tie::witnessed`): the edge's own
+point at the parting's arm, its signed distance from the face's
+material (`link::Round::offset`, through `metric::Distance::at`),
+decided on the tie's own `Reading`. Decided on the parting's side →
+`Leaves`; back within the zero band → `Unresolved::Returned`; in the
+gap → `Gap`; against the parting → `ReadFault::Witness`; no point →
+`ReadFault::Unwitnessed`.
+
+Bisectors, edges against cones and tori, and hand-stated jets keep
+their parting's verdict. The six gap rows stay on `Unresolved::Gap`
+(five are bisectors; the rim-offset row reads `Rides`), and the sheath
+stays on `Uncertified`.
+
+Outcome: no move at the default ε, 1e-6 or 1e-12 (`-p sweep -p topo`,
+slow set included).
+
+Residue:
+- `a-bisectors-tie-is-read-on-its-leading-term-with-no-witness` (P2)
+- `the-shipped-parting-sites-decide-on-the-leading-term-with-no-witness` (P2)
+- `a-witness-contradiction-refuses-where-the-local-germ-side-was-right` (P2)
+- `a-tied-bounds-first-order-residue-is-not-read-beside-its-zero-band-parting` (P3)
+- `a-fourth-conic-arc-spelling-beside-three` (P3)
+- `a-face-bend-holds-the-face-and-its-sense-twice-unchecked` (P3)
+- `unresolved-gap-and-read-fault-witness-each-mean-two-things` (P3)
