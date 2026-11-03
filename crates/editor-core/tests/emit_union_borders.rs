@@ -40,7 +40,7 @@ use geom_core::Tol;
 /// target's own frame: a slide is a coordinate on the target's own axes,
 /// its start cap where the identity orientation puts the copy's.
 fn moved(doc: ProfileDoc, placed: RecipeNodeId, axis: TargetAxis, to: f64) -> ProfileDoc {
-    let slot = value_slot(&doc, placed, Coord::Slide(axis));
+    let slot = value_slot(&doc, placed, Coord::slide(axis));
     let by = to;
     step(
         doc,

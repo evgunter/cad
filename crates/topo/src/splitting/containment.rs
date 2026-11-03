@@ -83,7 +83,7 @@
 //! - **`point_in_arc_loop_{segment,boundary,side,advance}`**: the four
 //!   rows above, over the loop's STRAIGHT edges.
 //! - **`point_in_arc_loop_arm`**: the schedule gate, with the curved
-//!   edges' balls' reach in the extent.
+//!   edges' covers' reach in the extent.
 //! - **`point_in_arc_loop_reach`**: a ray's clearance from a spiric
 //!   piece's ball, less its reach, where anything undecided halves the
 //!   piece.
@@ -132,6 +132,7 @@
 //! whole band ([`geom_core::k_stats::straddle`]).
 
 use geom::Conic;
+use geom::cover::{Cover, Site};
 use geom_brep::ExtentBall;
 use geom_brep::recourse::{LeverOnly, Reading, RefusedArm, RefusedSide, SizedDecision, SizedPass};
 use geom_core::period::{Exact, Extent, Period, Turn, TurnRow, TurnRows, TurnUndecided, Within};
@@ -1352,9 +1353,9 @@ pub(crate) struct CarrierLoop<T: geom_core::Real> {
     pub(crate) keys: Vec<EdgeKey>,
     /// The edges on their carriers.
     pub(crate) edges: Vec<LoopEdge<T>>,
-    /// The balls holding each curved edge's carrier arc ([`step_ball`]),
-    /// which with `verts` hold the whole loop ([`extent_from`]).
-    balls: Vec<ArcBalls<T>>,
+    /// The covers of each edge's carrier arc ([`step_cover`]), which
+    /// with `verts` hold the whole loop ([`extent_from`]).
+    covers: Vec<Cover<T>>,
 }
 
 /// One step of a loop's cycle, read with no decision: its start
@@ -1392,37 +1393,26 @@ fn cycle_steps<T: Decide>(
     steps
 }
 
-/// **Two balls, each holding one curved edge's arc**: a reader of the
-/// edge's extent takes the nearer of them, and a reader of its side of
-/// a plane the clearer. A conic's are its whole carrier's
-/// ([`carrier_ball`]) and its arc's own ([`conic_arc_ball`]): neither
-/// holds the other, since a short arc at the end of a long ellipse's
-/// major axis lies far outside the ball of its own size about the
-/// centre, and the carrier's ball reaches the far end of the ellipse.
-/// Any other carrier's are its one ball, twice.
-pub(crate) type ArcBalls<T> = [(Point3<T>, T); 2];
-
-/// The balls holding a step's edge beyond its end vertices
-/// ([`ArcBalls`]): `None` for a chord.
+/// The cover of a step's edge (`boolean::boxes::edge_cover`): `None`
+/// for null scaffolding, a zero-length chord its vertex holds.
 ///
 /// # Errors
 ///
-/// [`PointInLoopError::CorruptLoop`] for a spline edge with no control
-/// points.
-fn step_ball<T: Decide>(
+/// [`PointInLoopError::CorruptLoop`] for an edge with no cover: a
+/// carrier whose own reading refuses (a spline net carrying poison, data
+/// or a computed point that is not finite), or an end vertex that is not
+/// a finite point.
+fn step_cover<T: Decide>(
+    body: &Body<T>,
     r#loop: LoopKey,
     step: &LoopStep<'_, T>,
-) -> Result<Option<ArcBalls<T>>, PointInLoopError> {
-    let Some(curve) = step.curve else {
-        return Ok(None);
-    };
-    match carrier_ball(curve.carrier(), curve.params()) {
-        Some(ball) => Ok(Some([
-            ball,
-            conic_arc_ball(curve.carrier(), curve.params()).unwrap_or(ball),
-        ])),
-        None if !curve.carrier().is_curved() => Ok(None),
-        None => Err(PointInLoopError::CorruptLoop { r#loop }),
+) -> Result<Option<Cover<T>>, PointInLoopError> {
+    match crate::boolean::boxes::edge_cover(body, step.edge) {
+        Ok(cover) => Ok(Some(cover)),
+        Err(crate::boolean::EdgeUncovered::Scaffold) => Ok(None),
+        Err(crate::boolean::EdgeUncovered::Carrier(_) | crate::boolean::EdgeUncovered::Ends) => {
+            Err(PointInLoopError::CorruptLoop { r#loop })
+        }
     }
 }
 
@@ -1449,11 +1439,11 @@ pub(crate) fn carrier_loop<T: Decide>(
     let mut verts = Vec::new();
     let mut keys = Vec::new();
     let mut edges = Vec::new();
-    let mut balls = Vec::new();
+    let mut covers = Vec::new();
     for step in &steps {
         verts.push(step.point);
         keys.push(step.edge);
-        balls.extend(step_ball(r#loop, step)?);
+        covers.extend(step_cover(body, r#loop, step)?);
         let Some(curve) = step.curve else {
             edges.push(LoopEdge::Chord);
             continue;
@@ -1522,72 +1512,8 @@ pub(crate) fn carrier_loop<T: Decide>(
         verts,
         keys,
         edges,
-        balls,
+        covers,
     })
-}
-
-/// **A ball holding the arc `span` of `carrier`**, `(center, radius)`,
-/// read off the carrier's own data with no decision: a conic within its
-/// larger semi-axis of its centre, a spiric arc within its speed bound
-/// times its half-width of its midpoint, a spline within its control
-/// hull's ball. `None` for a line, whose segment
-/// its two end vertices hold, and for a spline with no control points.
-pub(crate) fn carrier_ball<T: Decide>(
-    carrier: &geom::Curve3<T>,
-    (t0, t1): (T, T),
-) -> Option<(Point3<T>, T)> {
-    match *carrier {
-        geom::Curve3::Line(_) => None,
-        geom::Curve3::Circle(_) | geom::Curve3::Ellipse(_) => {
-            carrier.conic().map(|k| (k.frame().center, k.speed_hi()))
-        }
-        // The arc from its midpoint: no point of it lies further from
-        // `P(mid)` than the oval's speed bound times half the parameter
-        // width.
-        geom::Curve3::Spiric { .. } => Some((
-            carrier.mid_point(t0, t1),
-            geom_core::bisect::reach(geom::carrier_speed::speed_range(carrier).1, (t0, t1)),
-        )),
-        // Positive weights put a NURBS curve inside its control
-        // hull, so inside any ball holding every control point: the
-        // one about the control points' bounding-box centre, to the
-        // farthest of them.
-        geom::Curve3::Nurbs(ref n) => {
-            let control = n.control();
-            let first = *control.first()?;
-            let (mut lo, mut hi) = (first, first);
-            for p in control {
-                lo = Point3::new(lo.x.min(p.x), lo.y.min(p.y), lo.z.min(p.z));
-                hi = Point3::new(hi.x.max(p.x), hi.y.max(p.y), hi.z.max(p.z));
-            }
-            let center = lo + (hi - lo) * T::from_f64(0.5);
-            let mut reach = T::zero();
-            for p in control {
-                reach = reach.max((*p - center).norm());
-            }
-            Some((center, reach))
-        }
-    }
-}
-
-/// **A ball holding the arc `span` of a conic `carrier`, of the arc's
-/// own size**: about the arc's middle point, to half the span's width
-/// times a bound on the speed over it ([`geom::Conic::speed_over`]),
-/// widened by the rounding of that middle point at the coordinates the
-/// carrier is placed at. `None` for any carrier but a circle or an
-/// ellipse.
-pub(crate) fn conic_arc_ball<T: Decide>(
-    carrier: &geom::Curve3<T>,
-    (t0, t1): (T, T),
-) -> Option<(Point3<T>, T)> {
-    let axes = carrier.conic()?;
-    let center = axes.frame().center;
-    let speed = geom_core::SupSpeed::new(axes.speed_over((t0, t1)));
-    let placed = geom_core::rounding_charge((center - Point3::origin()).norm() + axes.speed_hi());
-    Some((
-        carrier.mid_point(t0, t1),
-        geom_core::bisect::reach(speed, (t0, t1)) + placed,
-    ))
 }
 
 /// **A lower bound on the distance from `q` to the arc `span` of
@@ -1595,9 +1521,10 @@ pub(crate) fn conic_arc_ball<T: Decide>(
 /// that gave it ([`ArcFloor`]): a line's own segment; a circle's or an
 /// ellipse's own arc (`ring_path::Conic::distance_floor`, the arc of
 /// the circle over the same span less the conic's distance from it);
-/// any other carrier's ball ([`carrier_ball`]), and its arc's pieces
-/// past it ([`ArcPieces`]). A conic carries its whole annulus's floor
-/// beside its arc's. `None` for a spline with no control points. The one home of the question "is this edge
+/// any other carrier's cover over the span (its nearest distance,
+/// [`geom::cover::Cover::distance_range`]), and its arc's pieces past it
+/// ([`ArcPieces`]). A conic carries its whole annulus's floor beside its
+/// arc's. `None` for a carrier with no cover over the span. The one home of the question "is this edge
 /// clear of that point by more than a radius", which the clearance
 /// cell door and the boolean's touch gate both ask.
 pub(crate) fn arc_distance_floor<T: Decide>(
@@ -1636,9 +1563,12 @@ pub(crate) fn arc_distance_floor<T: Decide>(
             }
         }
         geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => {
-            let (center, reach) = carrier_ball(carrier, (t0, t1))?;
+            // The carrier's half of an edge's cover: the callers read
+            // carrier spans, some with no edge record behind them, and
+            // read their ends as vertices of their own.
+            let cover = crate::boolean::boxes::arc_cover(carrier, (t0, t1)).ok()?;
             ArcFloor::Ball {
-                ball: ((q - center).norm() - reach).max(T::zero()),
+                ball: cover.distance_range(&Site::Point(q)).0,
                 pieces: ArcPieces {
                     carrier,
                     span: (t0, t1),
@@ -1721,31 +1651,33 @@ impl<T: Decide> ArcPieces<'_, T> {
 }
 
 /// **How far from `q` the loop reaches**: the radius of a ball about
-/// `q` holding every vertex of `loop` and every edge's whole carrier
-/// arc ([`carrier_ball`]). It asks no decision, so it cannot refuse on
-/// geometry; it over-estimates (a conic's ball is its carrier's, not its
-/// arc's), which is the direction its callers need.
+/// `q` holding every vertex of `loop` and every edge's carrier arc
+/// ([`step_cover`]). It asks no decision, so it cannot refuse on
+/// geometry; it over-estimates, which is the direction its callers
+/// need.
 ///
 /// # Errors
 ///
 /// [`PointInLoopError::CorruptLoop`] for a loop that does not walk, a
-/// spline edge with no control points, or a poisoned extent.
+/// edge with no cover (a spline net carrying poison, data or a computed
+/// point that is not finite, an end vertex that is not a finite point), or a
+/// poisoned extent.
 pub(crate) fn loop_extent_from<T: Decide>(
     body: &Body<T>,
     r#loop: LoopKey,
     q: Point3<T>,
 ) -> Result<Lever<T>, PointInLoopError> {
-    let (verts, balls) = loop_hull(body, r#loop)?;
-    extent_from(r#loop, q, &verts, &balls)
+    let (verts, covers) = loop_hull(body, r#loop)?;
+    extent_from(r#loop, q, &verts, &covers)
 }
 
-/// The points and balls [`extent_from`] folds for `loop`, read with no
-/// decision: every vertex, and each curved edge's [`step_ball`].
+/// The points and covers [`extent_from`] folds for `loop`, read with no
+/// decision: every vertex, and each edge's [`step_cover`].
 #[allow(clippy::type_complexity)] // two lists, each named at its reader
 pub(crate) fn loop_hull<T: Decide>(
     body: &Body<T>,
     r#loop: LoopKey,
-) -> Result<(Vec<Point3<T>>, Vec<ArcBalls<T>>), PointInLoopError> {
+) -> Result<(Vec<Point3<T>>, Vec<Cover<T>>), PointInLoopError> {
     let corrupt = || PointInLoopError::CorruptLoop { r#loop };
     let first = match body.get_loop(r#loop).ok_or_else(corrupt)?.boundary {
         LoopBoundary::Cycle { first } => first,
@@ -1755,17 +1687,16 @@ pub(crate) fn loop_hull<T: Decide>(
         }
     };
     let steps = cycle_steps(body, first);
-    let mut balls = Vec::new();
+    let mut covers = Vec::new();
     for step in &steps {
-        balls.extend(step_ball(r#loop, step)?);
+        covers.extend(step_cover(body, r#loop, step)?);
     }
-    Ok((steps.iter().map(|s| s.point).collect(), balls))
+    Ok((steps.iter().map(|s| s.point).collect(), covers))
 }
 
 /// **The radius of a ball about `from` holding a loop**, given its
-/// vertices and the balls holding each curved edge ([`ArcBalls`]):
-/// `|v − from|`, and for each edge the nearer of its balls'
-/// `|center − from| + radius`, folded by their maximum. A poisoned term
+/// vertices and each edge's cover: `|v − from|`, and each cover's
+/// farthest distance from `from`, folded by their maximum. A poisoned term
 /// is refused rather than folded, so no lever built on the extent
 /// carries it on.
 ///
@@ -1776,7 +1707,7 @@ fn extent_from<T: Decide>(
     r#loop: LoopKey,
     from: Point3<T>,
     verts: &[Point3<T>],
-    balls: &[ArcBalls<T>],
+    covers: &[Cover<T>],
 ) -> Result<Lever<T>, PointInLoopError> {
     let poisoned = |term: Lever<T>| match term.length().is_poison() {
         true => Err(PointInLoopError::CorruptLoop { r#loop }),
@@ -1786,12 +1717,10 @@ fn extent_from<T: Decide>(
     for v in verts {
         extent = extent.max(poisoned(ExtentBall::point(*v).lever_from(from))?);
     }
-    for pair in balls {
-        // Unsourced lever: an edge's ball is `topo`'s own (center, radius) read of its carrier
-        // ([`step_ball`]), not a ball the extent's home mints.
-        let [near, far] =
-            pair.map(|(center, radius)| ExtentBall::unsourced(center, radius).lever_from(from));
-        extent = extent.max(poisoned(near)?.min(poisoned(far)?));
+    for cover in covers {
+        extent = extent.max(poisoned(
+            ExtentBall::of_cover_from(Some(cover), from).lever_from(from),
+        )?);
     }
     Ok(extent)
 }
@@ -2062,7 +1991,7 @@ fn carrier_walk<T: Decide>(
     let escalate = PointInLoopError::on_margin(r#loop, LoopDecision::Ray);
     let (verts, edges) = (&lp.verts, &lp.edges);
     // The loop's reach from `q`: the schedule gate's lever.
-    let extent = extent_from(r#loop, q, verts, &lp.balls)?;
+    let extent = extent_from(r#loop, q, verts, &lp.covers)?;
     let n = verts.len();
     // ---- Boundary pass, and which conics carry `q`. ----
     let mut on_carrier = vec![false; n];
@@ -2150,11 +2079,11 @@ pub(crate) fn loop_reach<T: Decide>(
     body: &Body<T>,
     r#loop: LoopKey,
 ) -> Result<(Point3<T>, Lever<T>), PointInLoopError> {
-    let (verts, balls) = loop_hull(body, r#loop)?;
+    let (verts, covers) = loop_hull(body, r#loop)?;
     let anchor = *verts
         .first()
         .ok_or(PointInLoopError::CorruptLoop { r#loop })?;
-    Ok((anchor, extent_from(r#loop, anchor, &verts, &balls)?))
+    Ok((anchor, extent_from(r#loop, anchor, &verts, &covers)?))
 }
 
 /// How many times the ray `q + d·t`, `t > 0`, crosses the arc `k` —
@@ -3349,12 +3278,14 @@ mod spline_cap_rows {
 #[allow(clippy::panic)]
 mod arc_ball_rows {
     use super::*;
+    use geom::cover::ParamWindow;
 
     /// **A short arc at the end of a long ellipse's major axis has a ball
     /// of its own size.** A seam split `10⁻⁷` off a unit wall's tangent
     /// plane cuts an ellipse of semi-major `10⁷`, of which the side keeps
     /// the arc about `v` up to height 1. Its carrier's ball is `10⁷`
-    /// across; its arc's holds each of its points and is under 3 m.
+    /// across; its arc's cover's holds each of its points and is under
+    /// 3 m.
     #[test]
     fn a_short_arc_of_a_long_ellipse_has_a_ball_of_its_own_size() {
         let (a, b) = (1e7, 1.0);
@@ -3365,9 +3296,10 @@ mod arc_ball_rows {
             b,
         ));
         let span = (-4.5e-4, 4.5e-4);
-        let Some((mid, radius)) = conic_arc_ball(&carrier, span) else {
-            panic!("an ellipse's arc has a ball")
-        };
+        let (mid, radius) = carrier
+            .cover_over(ParamWindow::new(span.0, span.1))
+            .unwrap_or_else(|_| panic!("an ellipse's arc has a cover"))
+            .ball();
         assert!(radius < 3.0, "the arc's ball is of its size: {radius}");
         for k in 0..=64 {
             let t = span.0 + (span.1 - span.0) * f64::from(k) / 64.0;

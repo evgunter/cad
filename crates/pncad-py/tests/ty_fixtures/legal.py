@@ -497,8 +497,8 @@ index_j: DocEdit = DocEdit.declare_var(VarName("j"), VarDecl.index(Formula.count
 index_count: Formula | None = VarDecl.index(5).count
 family: NodeId = doc.insert(Node.linear_pattern(VarName("k"), plate, doc.world, [("x", Formula.length_in(0.5, m))]))
 grid: Node = Node.grid((VarName("k"), "x", 0.5 * m), (VarName("j"), "y", 0.5 * m), plate, doc.world)
-ring: Node = Node.circular_pattern(doc, VarName("k"), plate, doc.world, (spin_axis, spin_axis, "z"), step=90 * deg)
-bolts: Node = Node.bolt_circle(doc, VarName("k"), 5, plate, doc.world, (spin_axis, spin_axis, "z"))
+ring: Node = Node.circular_pattern(doc, VarName("k"), plate, doc.world, (spin_axis, spin_axis), step=90 * deg)
+bolts: Node = Node.bolt_circle(doc, VarName("k"), 5, plate, doc.world, (spin_axis, spin_axis))
 seen: Recognised | None = doc.recognise(family)
 grid_member: IndexedRead = family[1, 2]
 members_of: list[tuple[list[int], Value]] = evaluate(doc).value(family).members()

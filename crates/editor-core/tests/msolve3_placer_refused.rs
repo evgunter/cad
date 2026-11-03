@@ -136,7 +136,7 @@ fn options(store: &Arc<PartStore>) -> EvalOptions {
 /// `i` — the name carries the `Member { (k, i) }` qualifier.
 fn patterned(
     label: &str,
-    values: impl FnOnce(VarId) -> Vec<(Coord, Formula)>,
+    values: impl FnOnce(VarId) -> Vec<(Coord<editor_core::Operand>, Formula)>,
     count: i64,
     i: u32,
 ) -> Scene {
@@ -150,7 +150,7 @@ fn patterned(
 }
 
 /// A row's values: member `k` slid `scalar(k)·2` along x.
-fn row(k: VarId) -> Vec<(Coord, Formula)> {
+fn row(k: VarId) -> Vec<(Coord<editor_core::Operand>, Formula)> {
     fixture::slides_along(k, [1.0, 0.0, 0.0], 2.0)
 }
 
@@ -209,7 +209,7 @@ fn a1_a_value_that_does_not_evaluate_names_the_slot() {
         |k| {
             let mut values = row(k);
             values.push((
-                Coord::Slide(TargetAxis::Y),
+                Coord::slide(TargetAxis::Y),
                 Formula::mul(len(1e200), scl(1e200)).expect("length times scalar is a length"),
             ));
             values

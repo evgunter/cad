@@ -207,8 +207,8 @@ fn cut_family_n(overlap_kept_first: bool, product_plain: bool, n: i64) -> usize 
         &doc,
         Vec::new(),
         vec![
-            (Coord::Slide(TargetAxis::X), slide),
-            (Coord::Slide(TargetAxis::Z), fixture::len(-1.0)),
+            (Coord::slide(TargetAxis::X), slide),
+            (Coord::slide(TargetAxis::Z), fixture::len(-1.0)),
         ],
     );
     let rt = fixture::body_read(&doc, tool.into());
@@ -470,7 +470,7 @@ fn per_member_assembles(reversed: bool) -> (ProfileDoc, RecipeNodeId, RecipeNode
     let (doc, lid) = fixture::family_of(
         doc,
         slab,
-        vec![(Coord::Slide(TargetAxis::Z), fixture::len(0.3))],
+        vec![(Coord::slide(TargetAxis::Z), fixture::len(0.3))],
     );
     let target = fixture::space(&doc, slab);
     let (doc, tall) = insert(

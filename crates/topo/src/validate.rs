@@ -9194,7 +9194,8 @@ pub(crate) fn mate<T: Real>(body: &Body<T>, he: HalfEdgeKey) -> Option<HalfEdgeK
 /// `he`'s edge and its departure from `he`'s start, scaled to the
 /// edge's extent so a cross product over its length is a lever: a line
 /// by its chord, a conic or spiric arc by its walk tangent there at the
-/// arc's reach from that start ([`geom_brep::edge_reach_bounds`]). The
+/// arc's reach from that start, its edge cover's far distance from
+/// above (`boolean::boxes::edge_reach_bounds`). The
 /// wedge acts on every sign, so its lever is the region's own measure
 /// from where it is read; where that is known only from both sides (an
 /// ellipse or spiric arc, whose bound from above can pass it many times
@@ -9212,8 +9213,8 @@ pub(crate) fn side<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Option<CornerS
     let departure = match curve.carrier() {
         geom::Curve3::Line(_) => Some(Departure::Exact(p1 - p0)),
         geom::Curve3::Circle(..) | geom::Curve3::Ellipse(..) | geom::Curve3::Spiric { .. } => {
-            let (t0, t1) = curve.params();
-            let lever = geom_brep::edge_reach_bounds(curve.carrier(), t0, t1, p0);
+            let e = body.edges.get(h.edge)?;
+            let lever = crate::boolean::boxes::edge_reach_bounds(body, h.edge, e, p0)?;
             Some(Departure::along(
                 curve.walk_tangents(plus).0.normalize(),
                 lever,
@@ -14914,8 +14915,9 @@ mod tests {
     /// where its two readings disagree.** A spline with clustered knots
     /// and weights 1e±3, on a window where its parameter crawls: its
     /// reach from the start is read from below by the samples and from
-    /// above through the whole carrier's speed bound, about 90 times
-    /// over. A side `θ = 1e-6` off the corner's first bound stands
+    /// above through the whole carrier's net, a reading with no window,
+    /// many times over (the edge's own cover reads the window and meets
+    /// the reach). A side `θ = 1e-6` off the corner's first bound stands
     /// `θ·reach` off it, Zero at the bound from below and definitely
     /// inside at the bound from above, so neither verdict answers for
     /// the reach between them: the wedge refuses with their straddle,
@@ -14957,7 +14959,12 @@ mod tests {
             .unwrap(),
         ));
         let (t0, t1) = (0.2, 0.2001);
-        let lever = geom_brep::edge_reach_bounds(&wild, t0, t1, wild.eval(t0));
+        // A bound from above that passes the reach many times over: the
+        // whole carrier's net, which a reader with no window would read.
+        let start = wild.eval(t0);
+        let loose = geom_brep::ExtentBall::of_cover_from(Some(&wild.cover().unwrap()), start)
+            .lever_from(start);
+        let lever = geom_brep::edge_reach_bounds(&wild, (t0, t1), start, loose);
         let geom_brep::LeverBounds::Between { below, above } = lever else {
             panic!("a spline's reach is known from both sides, got {lever:?}");
         };

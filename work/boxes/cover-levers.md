@@ -6,7 +6,7 @@ status: parked
 opened: 2026-11-02
 priority: P1
 cost: H
-blocked_on: [cover-topo-faces, cover-edge-doors]
+blocked_on: [cover-topo-faces]
 ---
 
 
