@@ -406,3 +406,5 @@ and bodies unchanged. No orchestrator yet.
   - **SECTARMS (now 11/30):** `a-nurbs-face-against-a-torus-has-no-section-arm` is parked on `c5-plane-torus-cone-cylinder-arms`, lily wall 8's next stop. SECTARMS keeps the NURBS × implicit arm and the cylinder pairs.
   - **SECT (now 22/30):** keeps the one-site and on-carrier join arms, the ball × cylinder cost row and its remainder.
   - **Citations:** paths citing the moved rows in crates, demos, docs and other programs' rows were re-pointed. The fork log is left as the historical record.
+
+- 2026-11-03 13:45 — **PR 6412 merged** (NURBS 3a, the 1×2 lane and the whole reading; dual review, tally 0, row PR-6412.md). **NURBS stage 4 asked for a plan**: the plane folds into the arm and its ℝ⁴ whole reading retires. It goes ahead of 3b, which waits on cylinder 3b-ii's node listing.
