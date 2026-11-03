@@ -70,3 +70,11 @@ f64 arm could pick the wrong side silently; the miss is bounded by about
 `2Kε` at the lever. The Interval arm widens to both generators instead.
 
 The one home this item proposes should take the decided form.
+
+## More copies (PR 6488 review, R2)
+
+The same sinusoid solve, `atan2` of the two amplitudes for the phase and `acos` of the offset's ratio for the half-width, is also spelled at:
+- `crates/topo/src/ring_path.rs` `plane_roots` (~:1849-1850, `cb.atan2(ca)`);
+- `crates/topo/src/shell.rs` `cut_counting` (~:4979-4983, `b.atan2(a)`);
+- `crates/topo/src/offset_axial.rs` `solve_corner` (~:1683-1684, `b_co.atan2(a_co)`, `cos_d.acos()`);
+- `crates/geom-brep/src/curve_face/circle_roots.rs` `FirstHarmonic::conic_off_plane` (~:241) and `harmonic_crossing` (~:432), now in the same directory as `crates/geom-brep/src/curve_face/plane_crossing.rs`'s `conic_plane_candidates` and `span_roots`, with nothing in either naming the other.

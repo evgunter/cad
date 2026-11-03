@@ -68,3 +68,5 @@ Neither pattern sees a sum spelled inline without a binding named
 `two_sum`.
 
 Moved from `work/issues/` to `work/reroute/` on 2026-11-03, when the `work/issues/` bucket was retired (Ev's direction, in chat); id and body unchanged.
+
+**Two `Dd` types in one crate** (PR 6488 review, R2): `crates/geom-brep/src/ssi/compensated.rs` `Dd` (~:52, `pub(crate)`, with `fast_two_sum`) and `crates/geom-brep/src/curve_face/conic_oracle/exact.rs` `Dd` (~:28, `pub` behind `test-support`) now sit in the same crate, after `conic_oracle` moved there from `topo`. The one type the fix makes can start as either.
