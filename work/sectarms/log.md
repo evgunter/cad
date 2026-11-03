@@ -270,7 +270,7 @@ and bodies unchanged. No orchestrator yet.
   - **3b-ii** waits on the bisector lane's retirement and on **design fork F1, "a germ leaves a node"**: which component a site at a node and a germ leaving it ride, and by what decision; one rule for every pair with nodes (cylinders now, spline and cone nodes later).
   - The fork draw puts three designers on F1 (bytes on `analysis/design-fork/a-germ-leaves-a-node`). They are dispatched concurrently with one problem statement and no candidates.
 
-- 2026-11-02 21:10 — **Fork F1 "a germ leaves a node" goes to Ev as `[ev]` PR 6398** (row 246, three designers, two rounds; all agree).
+- 2026-11-02 21:10 — **Fork F1 "a germ leaves a node" goes to Ev as `[ev]` PR 6398** (row 248, renumbered from 246, three designers, two rounds; all agree).
   - **Mint, don't locate:** germs at a node are minted from arc ends the value lists.
   - **The node on the value:** each node is listed with its normal, two tangent lines and sector side, read off the relative second fundamental form.
   - **Site readings:** a site reads `AtNode | OnArc`, and escalates in band.
@@ -340,3 +340,8 @@ and bodies unchanged. No orchestrator yet.
   - Q2: the section is per pair, and n-ary booleans fold two at a time. Within a pair, a nondegenerate Q gives exactly two lines. Degenerate contact and a third face of an input through a node both refuse typed.
   - One unknown was filed: `a-third-input-through-a-tangent-node-vertex-is-untested` (P3).
   - Ev said 3–5 look good, pending 1 and 2.
+
+- 2026-11-03 06:05 — **Ev approved fork F1 on PR 6398** ("i still don't see what you mean, but seems fine"; points 3–5 "look good").
+  - **Follow-up Q1, answered:** an arc's identity is its row in the component list (index, curve and span, end nodes), and the boolean walks the rows. Ev was not fully persuaded on Q1 but approved.
+  - **PR housekeeping:** the fork row was renumbered 246 → 248 (246 was taken on main), the mapping and decision commit landed, and the `[ev]` is off the title. The PR merges on green.
+  - **Unblocked:** cylinder 3b-ii (bisector retirement on the node listing) and NURBS 3b (node ends).
