@@ -529,7 +529,10 @@ enum ThroughTheApex<T: geom_core::Real> {
 
 /// **A conic through the cone's apex** (module docs, "Through the
 /// apex"): [`ThroughTheApex::Clear`] where the apex is definitely off
-/// the carrier; otherwise the carrier read whole.
+/// the carrier; otherwise the carrier read whole. It reads the whole
+/// turn, not the caller's arc, as the door's arms do: a refusal stands
+/// even where the arc holds neither the apex nor the root it could not
+/// read.
 fn through_the_apex<T: Decide>(
     conic: &dyn geom::Conic<T>,
     (apex, axis, half_angle): (geom_core::Point3<T>, geom_core::Vec3<T>, T),

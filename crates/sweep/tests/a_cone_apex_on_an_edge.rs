@@ -344,3 +344,49 @@ fn an_edge_ending_just_off_the_apex_refuses_box_first_and_builds_cone_first() {
         }
     }
 }
+
+/// **A box corner a fraction of the band off the apex refuses
+/// `CrossingAtConeApex`**, every op either way round, both forms (the
+/// refusal's end-to-end row). The box `[0, 2] × [−2, 0] × [0, 2]` turned
+/// `1.1` about `(0.3, 0.8, −0.5)`, its corner moved off the apex by a
+/// fraction of the zero band: `0.9` of it down or up the axis at 30°,
+/// `0.3` of it in toward the axis at 45°. One box edge near the corner
+/// passes within the band of the apex, but its two roots there lie
+/// `1.3` to `3` zero bands from its end along it, past the band
+/// (`boolean::reduce::line_cone_roots`' spread rung): neither the end's
+/// incidence with the apex vertex nor a crossing the band places, so the
+/// edge refuses at the apex, naming the box as the edge's operand.
+#[test]
+fn a_box_corner_a_fraction_of_the_band_off_the_apex_refuses_at_the_apex() {
+    let zero = tol().eps();
+    let rot = Affine3::rotation_about_axis(Point3::origin(), Vec3::new(0.3, 0.8, -0.5), 1.1);
+    for (alpha, off) in [
+        (30.0f64, Vec3::new(0.0, -0.9, 0.0)),
+        (30.0, Vec3::new(0.0, 0.9, 0.0)),
+        (45.0, Vec3::new(1.0, 0.0, 1.0).normalize() * 0.3),
+    ] {
+        let block = topo::test_support::brick((0.0, 2.0), (-2.0, 0.0), (0.0, 2.0), tol());
+        let m =
+            Affine3::translation(Vec3::new(0.0, 1.0, 0.0) + rot.transform_vec(off * zero)) * rot;
+        let b = moved(&block, m);
+        for (form, body) in forms(alpha) {
+            let c = finished("c", body, tol());
+            for (op, box_is, got) in [
+                ("cone ∩ box", topo::Operand::B, intersect(&c, &b, tol())),
+                ("box ∩ cone", topo::Operand::A, intersect(&b, &c, tol())),
+                ("cone ∪ box", topo::Operand::B, union(&c, &b, tol())),
+                ("box ∪ cone", topo::Operand::A, union(&b, &c, tol())),
+                ("cone ∖ box", topo::Operand::B, subtract(&c, &b, tol())),
+                ("box ∖ cone", topo::Operand::A, subtract(&b, &c, tol())),
+            ] {
+                assert!(
+                    matches!(
+                        got,
+                        Err(topo::BooleanError::CrossingAtConeApex { operand, .. }) if operand == box_is
+                    ),
+                    "{alpha}°, {off:?}, {form}, {op}: CrossingAtConeApex on the box's edge, got {got:?}"
+                );
+            }
+        }
+    }
+}

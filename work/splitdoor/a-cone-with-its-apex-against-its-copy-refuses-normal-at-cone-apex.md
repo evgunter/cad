@@ -104,10 +104,25 @@ planar, an edge, or another cone through the apex.
     (`boolean::reduce::line_cone_roots`);
   - a conic through the apex is read whole (`boolean::conic_quadric`,
     "Through the apex").
-  Builds: a box edge across the apex and along its axis
+  - the vertex–vertex lane's apex quarters are true quarters of a
+    whole turn whatever the seam's rounding (`sectors::push_apex_corner`).
+  Builds: a box edge across the apex and along its axis, every op
+  either way round, at every quarter turn
   (`crates/sweep/tests/a_cone_apex_on_an_edge.rs`).
 
-What stays is the apex against a CURVED partner: a cone × curved-carrier
+What B2 does not deliver, each refused by name and pinned:
+
+- a cone face cut along two rulings on both sides of its seam, kept by
+  `∪` or `cone ∖ box`: `ResultPinchedAtConeApex`, the props limit
+  (`work/conearm/props-measures-a-cone-loop-pinched-at-its-apex.md`);
+- a box corner or edge a fraction of the band off the apex: box first
+  `EdgeUndescribed` while cone first builds
+  (`a-box-corner-just-off-a-cone-apex-refuses-box-first-edge-undescribed`),
+  or `CrossingAtConeApex` where the edge's roots spread past the band;
+- a box side holding a wide cone's seam reaches the join's open-conic
+  limit (`GermSectionOpenConic`).
+
+What stays besides is the apex against a CURVED partner: a cone × curved-carrier
 section through the apex, and the curved-face pierce. That is
 `a-cone-by-curved-carrier-section-through-the-apex-has-no-germ-frame-or-certified-count`,
 a design question with the sphere poses as its witnesses.

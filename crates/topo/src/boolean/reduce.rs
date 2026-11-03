@@ -2074,8 +2074,11 @@ fn edge_covers<T: Decide>(
 /// pierces; everything else — a tangency, a line parallel to a cone's
 /// generator, an undeclared on-carrier edge, a trim with no verdict —
 /// refuses typed at the named frontier door
-/// ([`BooleanError::CurvedPierceUnsupported`]), and a root at a cone's
-/// apex at its own ([`BooleanError::CrossingAtConeApex`]). An in-band
+/// ([`BooleanError::CurvedPierceUnsupported`]), and a root within the band
+/// of a cone's apex that the root doors cannot place there (its spread
+/// along the carrier past the band) at its own
+/// ([`BooleanError::CrossingAtConeApex`]); a carrier through the apex
+/// has its double root there, placed on the face's apex vertex. An in-band
 /// clearance escalates (F6, the same margin's other half) — except an
 /// uncovered conic's against one of those four kinds, where the
 /// certified roots decide what the enclosures could not. Spiric and
@@ -2186,7 +2189,9 @@ fn edge_covers<T: Decide>(
 /// wherever its second harmonic is in the zero band (a circle against a
 /// sphere, a circle square to a wall's axis), a quartic in the tangent
 /// half-angle otherwise. Against a cone the same door reads the cone's
-/// quadric form, of degree two along a conic, and refuses at the apex.
+/// quadric form, of degree two along a conic: a carrier through the apex
+/// whole, its apex root answered as the double root there, and a root
+/// beside the apex the band cannot place refused.
 /// Against a torus a circle's residual is of
 /// degree two ([`super::circle_torus`]) and an ellipse's of degree four
 /// ([`super::ellipse_torus`]). Every such door's
@@ -4578,8 +4583,10 @@ fn place_crossing<T: Decide>(
             Ok(Sign::Negative) => return Ok(Placed::Unplaced),
             // No row reaches this: a crossing whose nappe the band cannot
             // tell lies within a few gaps of the apex, where the root doors
-            // refuse at the apex first and the composite cannot read past
-            // the band between it and the other sheet
+            // answer only the apex's own double root (the carrier through
+            // the apex, placed on its vertex) and refuse a root beside it
+            // (`Unsettled::AtApex`), and the composite cannot read past the
+            // band between it and the other sheet
             // (`work/splice/the-cone-nappe-gap-arm-has-no-reaching-row`).
             Err(diag) => return Ok(Placed::NappeGap(diag)),
         }

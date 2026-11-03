@@ -72,9 +72,8 @@ The result short of the gate shows the pose's cone face, the wrap-tipped
 The face is valid: the lower band and the upper three-quarter sector,
 glued along the seam. The fix is in props. The loop's turn across the
 apex is the angle between its in and out rulings, taken on the face's
-side, which needs the face's material side at the apex. Why the same
-pose at 30° and 45° measures is not traced: at turn 0 both build every
-op, for a reason not yet traced.
+side, which needs the face's material side at the apex. At 30° and 45°
+the same pose measured; why was not traced here (see "Closed" below).
 
 Filed on CONEARM's slate, beside its sibling
 `props-measures-a-cone-loop-pinched-at-its-apex` (a loop meeting itself
@@ -92,5 +91,17 @@ it. The loop's verdict no longer depends on where the loop starts. Rows:
 - on B2, the 60° turn-0 pose of
   `a_cone_apex_on_an_edge::an_edge_along_the_axis_holds_a_quarter_of_the_cones_top`,
   which builds now that the pin no longer accepts this refusal.
+
+— SPLITDOOR
+
+The 30°/45° question (2026-11-03, B2 fix pass): the verdict depended
+on where the loop started, and the 30° and 45° faces' loops need only
+have started on the other side of the apex to read the turn whole. That
+is not traced to their keys, and nothing is left to trace: since the
+rotation every start reads one measure (`apex_start_rows`), and
+`a_cone_apex_on_an_edge`'s rows now hold all three apertures, both
+forms, at every quarter turn and just short of the whole turn, against
+their closed forms or a named pinch. A pose that differs by aperture
+would turn them red.
 
 — SPLITDOOR
