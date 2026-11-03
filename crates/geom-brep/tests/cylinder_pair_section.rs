@@ -305,7 +305,7 @@ fn the_bisector_pose_lists_two_nodes_and_four_arcs() {
             let ComponentShape::Open { ends } = c.shape else {
                 panic!("{label}: an arc has ends: {:?}", c.shape);
             };
-            let [Some(from), Some(to)] = ends.nodes.both().map(|e| e.map(|e| e.node)) else {
+            let [Some(from), Some(to)] = ends.nodes.nodes() else {
                 panic!("{label}: an arc ends at nodes: {ends:?}");
             };
             assert_ne!(from, to, "{label}: from one node to the other");
@@ -985,7 +985,7 @@ fn the_bisector_nodes_list_their_frame_off_the_relative_form() {
                     l0.cross(l1).dot(node.normal) > 0.1,
                     "{label}: the lines turn counterclockwise about the normal"
                 );
-                let rays = [l0, l1, -l0, -l1];
+                let rays = node.rays();
                 for i in 0..4 {
                     let m = (rays[i] + rays[(i + 1) % 4]).normalize();
                     let q = second_form(x, m) - second_form(y, m);
@@ -1077,9 +1077,11 @@ fn a_node_the_region_does_not_hold_is_not_listed() {
 /// each node reads as the node. Under a band whose escalation edge
 /// stands just past its zero (`1e-4`, `1.1e-4`), a site `1.3e-4` from a
 /// node between two of its rays lies within the band of both arcs while
-/// decided off the node: it escalates, at its foot's place on the arc
-/// or on its distance from the node, never naming one; so does a site
-/// in the band of the node itself.
+/// decided off the node, and within the band of each arc's end there:
+/// it escalates on its foot's place on the first arc
+/// (`section_site_in_span`), never naming one. A site in the band of the
+/// node itself escalates on its distance from it
+/// (`section_site_at_node`).
 #[test]
 fn a_site_reads_as_a_node_or_as_one_arc() {
     use geom_brep::{SiteReading, SiteRefusal};
@@ -1112,24 +1114,25 @@ fn a_site_reads_as_a_node_or_as_one_arc() {
     let tight = Band::new(1e-4, 1.1e-4).unwrap();
     let node = section.nodes()[0];
     let tight_carried = section.carry(None, tight).expect("closed forms carry");
-    let near_node = |p: Point3<f64>| match tight_carried.site(p, tight) {
-        Err(SiteRefusal::Escalated(d)) => {
-            matches!(
-                d.predicate,
-                Some("section_site_at_node" | "section_site_in_span")
-            )
-        }
-        _ => false,
+    let escalates_on = |p: Point3<f64>| match tight_carried.site(p, tight) {
+        Err(SiteRefusal::Escalated(d)) => d.predicate,
+        _ => None,
     };
+    // Between two rays: decided off the node, within the band of each arc
+    // and of each arc's end there, so the first arc's span reading
+    // escalates.
     let between = node.point + (node.lines[0] + node.lines[1]).normalize() * 1.3e-4;
-    assert!(
-        near_node(between),
+    assert_eq!(
+        escalates_on(between),
+        Some("section_site_in_span"),
         "near a node, on two of its arcs: {:?}",
         tight_carried.site(between, tight)
     );
+    // In the band of the node itself: its distance escalates first.
     let near = node.point + node.lines[0] * 1.05e-4;
-    assert!(
-        near_node(near),
+    assert_eq!(
+        escalates_on(near),
+        Some("section_site_at_node"),
         "in band of the node: {:?}",
         tight_carried.site(near, tight)
     );

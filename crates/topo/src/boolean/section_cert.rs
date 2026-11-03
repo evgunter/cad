@@ -1841,9 +1841,10 @@ pub(super) fn of_pair_section<T: Decide>(
     // touches. Any other tangency is R-tan, or a touch at one point: the
     // pinch among them, whose node the value does not list while its
     // lobes mint no carrier.
-    let pinched = components
-        .iter()
-        .any(|c| matches!(c.carrier, ClassCarrier::Unminted(why) if why == geom_brep::PINCH));
+    let pinched = matches!(
+        section.pose(),
+        geom_brep::PairPose::CylinderCylinder(pose) if pose.pinched()
+    );
     let crossed = !section.nodes().is_empty()
         && components
             .iter()

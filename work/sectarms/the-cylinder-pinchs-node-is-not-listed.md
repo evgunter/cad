@@ -37,12 +37,12 @@ Nothing reads it until the pinch's arcs are built, so it waits for them.
 
 - `topo::boolean::section_cert` (`of_pair_section`): `unbounded` would
   read a straddled pinch (no listed node, every lobe cut) as a tangent
-  ruling; it excludes a section holding a `PINCH` lobe by its note,
-  which listing the node retires.
+  ruling; it excludes the pinch by its pose
+  (`CylinderCylinderPose::pinched`), which listing the node retires.
 - `geom-brep/tests/cylinder_pair_section.rs`
   `the_pinch_lists_no_node_and_refuses_to_carry` pins the absence.
 
 ## Done when
 
 The pinch lists its node, its frame and its lobes' four ends, and the
-`PINCH` exclusion in `section_cert` is gone.
+`pinched` exclusion in `section_cert` is gone.

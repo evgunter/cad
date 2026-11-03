@@ -109,7 +109,7 @@ mod torus_arms;
 pub mod torus_coincidence;
 pub mod winds;
 
-pub use cylinders::{CcDecision, CcNode, CcStance, CylinderCylinderPose, PINCH, RegionPlacement};
+pub use cylinders::{CcDecision, CcNode, CcStance, CylinderCylinderPose, RegionPlacement};
 pub use gap::Gap;
 pub use spline_implicit::SplineImplicitPose;
 pub use spline_pair::{KnownPair, KnownRow, SplinePairPose};
@@ -619,6 +619,12 @@ impl NodeEnds {
     pub fn both(self) -> [Option<NodeEnd>; 2] {
         [self.start, self.end]
     }
+
+    /// The nodes the ends stand at, start first.
+    #[must_use]
+    pub fn nodes(self) -> [Option<usize>; 2] {
+        self.both().map(|e| e.map(|e| e.node))
+    }
 }
 
 /// **An arc end at a node** (C5): the node, by its index in
@@ -631,7 +637,7 @@ pub struct NodeEnd {
     /// The node's tangent line it leaves along.
     pub line: NodeLine,
     /// The sense it leaves that line along.
-    pub sense: Sense,
+    pub sense: RaySense,
 }
 
 /// One of a node's two tangent lines ([`SectionNode::lines`]).
@@ -645,7 +651,7 @@ pub enum NodeLine {
 
 /// The sense an arc leaves a node along its line.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Sense {
+pub enum RaySense {
     /// Along the line's vector.
     Along,
     /// Against it.
@@ -701,26 +707,40 @@ pub struct SectionNode<T: Real> {
 impl<T: Real> SectionNode<T> {
     /// The ray along `line` in `sense`, unit.
     #[must_use]
-    pub fn ray(&self, line: NodeLine, sense: Sense) -> Vec3<T> {
+    pub fn ray(&self, line: NodeLine, sense: RaySense) -> Vec3<T> {
         let l = match line {
             NodeLine::First => self.lines[0],
             NodeLine::Second => self.lines[1],
         };
         match sense {
-            Sense::Along => l,
-            Sense::Against => -l,
+            RaySense::Along => l,
+            RaySense::Against => -l,
         }
     }
 
-    /// The ray's place in the turn about `normal`, `0..4`.
+    /// The rays in their turn about `normal`, by line and sense: ray `i`
+    /// is `RAYS[i]`, the one home of the order.
+    pub const RAYS: [(NodeLine, RaySense); 4] = [
+        (NodeLine::First, RaySense::Along),
+        (NodeLine::Second, RaySense::Along),
+        (NodeLine::First, RaySense::Against),
+        (NodeLine::Second, RaySense::Against),
+    ];
+
+    /// The ray's place in the turn about `normal`, `0..4`
+    /// ([`Self::RAYS`]).
     #[must_use]
-    pub const fn ray_index(line: NodeLine, sense: Sense) -> usize {
-        match (line, sense) {
-            (NodeLine::First, Sense::Along) => 0,
-            (NodeLine::Second, Sense::Along) => 1,
-            (NodeLine::First, Sense::Against) => 2,
-            (NodeLine::Second, Sense::Against) => 3,
-        }
+    pub fn ray_index(line: NodeLine, sense: RaySense) -> usize {
+        Self::RAYS
+            .iter()
+            .position(|&r| r == (line, sense))
+            .unwrap_or_else(|| unreachable!("every line and sense is a ray"))
+    }
+
+    /// The four rays, unit, in their turn ([`Self::RAYS`]).
+    #[must_use]
+    pub fn rays(&self) -> [Vec3<T>; 4] {
+        Self::RAYS.map(|(line, sense)| self.ray(line, sense))
     }
 
     /// The surface lying on `normal`'s side of the other in sector `i`
@@ -2368,8 +2388,8 @@ impl<T: Decide> CarriedComponent<T> {
     /// that is a question: on an open arc of a circle or an ellipse,
     /// whose carrier runs on past the span's ends round the whole conic.
     /// `t` is read in the turn the span starts, and decided under its
-    /// last end on the parameter metered by the carrier's speed there
-    /// (`section_site_in_span`); a closed form's other component on its
+    /// last end on the parameter metered by the carrier's speed at the
+    /// foot (`section_site_in_span`); a closed form's other component on its
     /// conic takes the rest. A foot at the span's end stands within the
     /// band of its end's node, which every reading of a site tests first
     /// ([`at_node`]): one decided off the node and reaching here lies
@@ -2408,11 +2428,11 @@ impl<T: Decide> CarriedComponent<T> {
             )),
             [Some(a), _] if a == n => Ok(ArcPlace::AtEnd {
                 t: self.span.0,
-                up: true,
+                end: SpanEnd::Start,
             }),
             [_, Some(b)] if b == n => Ok(ArcPlace::AtEnd {
                 t: self.span.1,
-                up: false,
+                end: SpanEnd::End,
             }),
             _ => Err(SiteRefusal::Desync(
                 "a site at a node lies on a component with no end there",
@@ -2545,18 +2565,27 @@ pub enum SiteReading<T: Real> {
     OnArc(SiteFoot<T>),
 }
 
+/// **One end of a component's span**: its first parameter or its last
+/// ([`NodeEnds`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SpanEnd {
+    /// The span's first parameter: the component leaves it forward.
+    Start,
+    /// Its last: the component leaves it backward.
+    End,
+}
+
 /// **Where a site stands on one component** ([`CarriedComponent::place`]):
 /// at one of its ends at a node, or at a foot parameter off every node.
 #[derive(Clone, Copy, Debug)]
 pub enum ArcPlace<T: Real> {
-    /// At an end standing at a node: the span's end parameter there, and
-    /// whether the component leaves the node forward in its parameter
-    /// (the span's first end).
+    /// At an end standing at a node: the span's parameter there, and
+    /// which end it is.
     AtEnd {
         /// The span's end parameter.
         t: T,
-        /// The span's first end: the component leaves the node forward.
-        up: bool,
+        /// Which end.
+        end: SpanEnd,
     },
     /// At the foot parameter `t`.
     At(T),
@@ -2640,10 +2669,20 @@ impl<T: Decide> CarriedSection<T> {
                 continue;
             };
             if let Some(first) = found {
+                // The nearest node the two arcs share.
                 let shared = node_of_ends(&self.components[first.component])
                     .into_iter()
                     .flatten()
-                    .find(|n| node_of_ends(c).contains(&Some(*n)));
+                    .filter(|n| node_of_ends(c).contains(&Some(*n)))
+                    .min_by(|&m, &n| {
+                        let d = |k: usize| {
+                            (p - self.nodes[k].point)
+                                .norm()
+                                .point_value()
+                                .unwrap_or(f64::INFINITY)
+                        };
+                        d(m).total_cmp(&d(n))
+                    });
                 return Err(match shared {
                     // The site's distance from the node, decided off
                     // it, rejected: the reading near the crossing needs
@@ -2686,7 +2725,7 @@ impl<T: Decide> CarriedSection<T> {
 /// The nodes an open component's ends stand at, start first.
 fn node_of_ends<T: Real>(c: &CarriedComponent<T>) -> [Option<usize>; 2] {
     match c.shape {
-        ComponentShape::Open { ends } => ends.nodes.both().map(|e| e.map(|e| e.node)),
+        ComponentShape::Open { ends } => ends.nodes.nodes(),
         ComponentShape::Loop | ComponentShape::Point => [None, None],
     }
 }

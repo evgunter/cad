@@ -219,50 +219,21 @@ pub(super) fn bisectors<T: Decide>(
     }
 }
 
-/// **A cylinder wall's sense at a point of it**: whether its outward
-/// normal `n` there points along `radial`, the point less its foot on
-/// the axis (`true`, the wall bounds a rod) or against it (a bore): the
-/// pierce's reading of the fact.
-///
-/// # Errors
-///
-/// [`BooleanError::ClassificationInvariant`] where the two read square:
-/// a wall of radius `r` read against its own radius is `±r`, which the
-/// section table decided definite on this band before it served the
-/// pair (`geom`'s `ellipse_minor_positive`, the minor semi-axis `r`). An
-/// undecided margin escalates [`super::Coincide::Sectors`].
-pub(super) fn wall_sense<T: Decide>(
-    n: geom_core::Vec3<T>,
-    radial: geom_core::Vec3<T>,
-    band: Band,
-) -> Result<bool, BooleanError> {
-    use geom_core::{Margin, Sign};
-    match crate::validate::decide("bool_node_wall_sense", Margin::of(n.dot(radial)), band) {
-        Ok(Sign::Positive) => Ok(true),
-        Ok(Sign::Negative) => Ok(false),
-        Ok(Sign::Zero) => Err(BooleanError::ClassificationInvariant {
-            what: "a wall reads its outward normal square to its own radius",
-        }),
-        Err(diag) => Err(BooleanError::coincidence(
-            super::Coincide::Sectors,
-            super::DeclarationRead::Moot,
-            diag,
-        )),
-    }
-}
-
-/// **A face's sense at a node** (C5): whether its outward normal `n`
-/// there points along the node's common normal `normal` (`true`) or
-/// against it, the one read per face the node pass takes, levered at the
-/// section's scale `arm`. The face is tangent to its partner at the node,
-/// so `n` is `±normal`, and the margin `±arm`.
+/// **A wall's sense at a point of it where it is tangent to its
+/// partner**: whether its outward normal `n` there points along `normal`
+/// (`true`) or against it, `normal` unit, the margin levered at `arm`.
+/// The one reading of the fact: at a node, `normal` is the node's common
+/// normal and `arm` the section's scale (the node pass); at a pierce,
+/// the radial, the point less its foot on the axis, at the wall's radius
+/// (the pierce: `true` where the wall bounds a rod, `false` a bore).
 ///
 /// # Errors
 ///
 /// [`BooleanError::ClassificationInvariant`] where the two read square,
-/// which a face tangent at the node never does; an undecided margin
-/// escalates [`super::Coincide::Sectors`].
-pub(super) fn face_sense<T: Decide>(
+/// which a wall tangent to its partner there never does (`n` is
+/// `±normal`, the margin `±arm`); an undecided margin escalates
+/// [`super::Coincide::Sectors`].
+pub(super) fn wall_sense<T: Decide>(
     n: geom_core::Vec3<T>,
     normal: geom_core::Vec3<T>,
     arm: geom_core::Lever<T>,
@@ -270,14 +241,14 @@ pub(super) fn face_sense<T: Decide>(
 ) -> Result<bool, BooleanError> {
     use geom_core::{Margin, Sign};
     match crate::validate::decide(
-        "bool_node_face_sense",
+        "bool_node_wall_sense",
         Margin::levered(n.dot(normal), arm),
         band,
     ) {
         Ok(Sign::Positive) => Ok(true),
         Ok(Sign::Negative) => Ok(false),
         Ok(Sign::Zero) => Err(BooleanError::ClassificationInvariant {
-            what: "a face reads its outward normal square to a node's common normal",
+            what: "a wall reads its outward normal square to its partner's",
         }),
         Err(diag) => Err(BooleanError::coincidence(
             super::Coincide::Sectors,
@@ -367,7 +338,13 @@ pub(super) fn bisector_datum<T: Decide>(
     // The pierced wall's residual grows radially, away from its axis.
     let w = p - origin;
     let radial = w - axis * (w.dot(axis) / axis.norm_squared());
-    let outward = wall_sense(n_pierced.vec(), radial, band)?;
+    let r = radial.norm();
+    let outward = wall_sense(
+        n_pierced.vec(),
+        radial / r,
+        geom_core::Lever::curvature_radius(r),
+        band,
+    )?;
     let grows = (other == Sign::Positive) == (piercing == Operand::A);
     Ok(Some(geom_brep::OutwardNormal::from_chart(
         on.1,
@@ -517,7 +494,7 @@ mod tests {
                 assert_eq!(section.nodes().len(), 2, "{label}: two nodes");
                 for (n, node) in section.nodes().iter().enumerate() {
                     let arcs = super::node_arcs(listed, n).unwrap();
-                    let rays = [node.lines[0], node.lines[1], -node.lines[0], -node.lines[1]];
+                    let rays = node.rays();
                     for (i, &k) in arcs.iter().enumerate() {
                         let geom_brep::ClassCarrier::Span { curve, span } = &listed[k].carrier
                         else {

@@ -1004,6 +1004,37 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
         if on_wall[t].is_none() && !tangent[t] && s.apex().is_some() {
             apex_germ_on_a_line(cells.1, branch)?;
         }
+        // The plane the sweep found the pierce a root of and the arc the
+        // site reads on are one ellipse's: the datum is that plane's
+        // normal, the arc's carrier lies in it.
+        #[cfg(debug_assertions)]
+        if let (Some(datum), super::Branch::Component(k)) = (on_wall[t], branch) {
+            let (body_a, body_b) = match piercing {
+                Operand::A => (&*piercing_body, pierced_body),
+                Operand::B => (pierced_body, &*piercing_body),
+            };
+            if let Some(Ok(section)) = declared
+                .sections
+                .carried((body_a, cells.0.0), (body_b, cells.0.1))
+            {
+                let in_plane = match &section.components()[k].carrier {
+                    geom::Curve3::Ellipse(e) => e
+                        .frame
+                        .axis
+                        .normalize()
+                        .cross(datum.vec().normalize())
+                        .norm()
+                        .point_value()
+                        .is_none_or(|sine| sine < 1e-9),
+                    _ => false,
+                };
+                debug_assert!(
+                    in_plane,
+                    "a pierce's recorded bisector plane names another ellipse than the arc its \
+                     site reads on"
+                );
+            }
+        }
         Ok((cells, dir, branch))
     };
     let run_germs = runs
@@ -1014,8 +1045,8 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
         })
         .collect::<Result<Vec<_>, BooleanError>>()?;
     // The germs the ring orders its struts by ([`mint_ring`]). A germ
-    // riding a bisector plane's ellipse (`on_wall`) has no bend in the
-    // face.
+    // running in the bisector plane the sweep found its pierce on
+    // (`on_wall`) has no bend in the face.
     let bend_of = |t: usize, d: Vec3<T>| {
         let face = sectors[t].face;
         let surface = piercing_body.proven_face_surface(face);
@@ -1481,7 +1512,7 @@ fn ring_struts<T: Decide>(
 /// **The runs.** Round the node the surfaces' sides alternate sector by
 /// sector, as the value lists them. Which side of a wall is its solid's
 /// material is the face's sense: its outward normal against `n̂`, read
-/// once per face ([`super::node::face_sense`]). The runs are the two
+/// once per face ([`super::node::wall_sense`]). The runs are the two
 /// opposite sectors of B's wall inside A's material: those where B lies
 /// on the side of A its material is, below A along `n̂` where A's
 /// outward normal is `n̂`. The node is a pierce of B's face by A's ring
@@ -1500,7 +1531,7 @@ fn ring_struts<T: Decide>(
 /// # Errors
 ///
 /// Either face's normal refusing at the node, or its sense
-/// ([`super::node::face_sense`]); [`germ_order`]'s and [`mint_ring`]'s
+/// ([`super::node::wall_sense`]); [`germ_order`]'s and [`mint_ring`]'s
 /// refusals; the Euler operators'.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn mint_node<T: Decide + crate::props::AtRestPolicy>(
@@ -1531,14 +1562,14 @@ pub(super) fn mint_node<T: Decide + crate::props::AtRestPolicy>(
     // Each face's sense: its outward normal along the node's normal or
     // against it, the walls being tangent there.
     let along = |operand, body: &Body<T>, face| -> Result<bool, BooleanError> {
-        super::node::face_sense(outward(operand, body, face)?, node.normal, arm, band)
+        super::node::wall_sense(outward(operand, body, face)?, node.normal, arm, band)
     };
     let (a_along, b_along) = (
         along(Operand::A, a, faces.0)?,
         along(Operand::B, b, faces.1)?,
     );
     let normals_agree = a_along == b_along;
-    let rays = [node.lines[0], node.lines[1], -node.lines[0], -node.lines[1]];
+    let rays = node.rays();
     let germ = |i: usize| -> Germ<T> {
         (
             cells,

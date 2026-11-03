@@ -108,17 +108,32 @@ rulings sit at `±x` (spins `(0, 0)`) do not reach it, so the seam
 rulings' placement against the copied ellipse is the first thing to
 read.
 
-## 2026-11-03: the crossing rods build past the copy (sectarms 3b-ii)
+## 2026-11-03: the loose ends traced and gone (sectarms 3b-ii, PR 6466)
 
-On branch `sectarms/cylinder-node-listing` (cylinder × cylinder stage
-3b-ii: the bisector pose rides the carried lane, its nodes listed on the
-value), every op of `crates/sweep/tests/crossing_equal_rods.rs` builds
-SOUND at its closed form. That covers both orders, spins `(0.4, 0.3)`
-and `(1.0, −0.7)` with `B` from `x = 0.2`, and `(0.4, 0.3)` from
-`x = 0.5`, at ε 1e-9. Before, these refused `UnpairedLooseEnds`. The
-pins are renamed `crossing_rods_build_past_the_ellipse_edge_copy*`.
+**The cause, traced on main `27205d771f`.** At spins `(0.4, 0.3)`, B from
+`x = 0.2`, `A ∪ B`, a probe dumped the join's open records:
+- A's seam ruling meets A's mitre ellipse at `(0.921, 0.389, 0.921)`, a
+  vertex of A on B's wall.
+- The sweep's factored crossing found that pierce on the `z = x`
+  bisector plane and recorded its `Positive` branch. The pierce pass then
+  gave that branch to both of the vertex's germs, including the one along
+  A's ellipse edge (`OnEdge` × `InFace`).
+- That edge's other end, where it meets B's cap at `(0.2, 0.98, 0.2)`,
+  rides `Only`, as every germ along an edge does.
+- Facing pairs only germs whose branches agree, so the two ends of one
+  edge never paired: `UnpairedLooseEnds { count: 4 }`.
 
-The mechanism was not traced in that unit: the walls' own section now
-rides the carried lane rather than the bisector-plane lane. Whether an
-ellipse edge copy is still asked anywhere is this row's open question.
-This fixture no longer reaches it.
+At spins `(0, 0)` the seam sits at `±x`, off B's wall, so no pierce
+records a branch.
+
+**The fix (sectarms 3b-ii).** The recorded plane is now only the pierce's
+datum. The germ's branch is read on the section value
+(`join::germ_branch`), which gives an edge germ `Only`. Every op of
+`crates/sweep/tests/crossing_equal_rods.rs` builds SOUND at its closed
+form, at every pinned spin, both orders, at ε 1e-9. The pins are renamed
+`crossing_rods_build_past_the_ellipse_edge_copy*`.
+
+**What is left of this row** is the enclosure's width at `(0, 0)`, judged
+against `PAD_CEILING`; the loose ends are gone. The ellipse copy itself
+landed in SPLITDOOR's change above, and this fixture no longer witnesses
+anything else of the title.

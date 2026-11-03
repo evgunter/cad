@@ -22,8 +22,8 @@ use geom_core::{Band, Decide, Decided, Margin, MarginDiag, Point3, Real, Sign, V
 use super::ruling::{self, RuledCylinders, SweepRefusal};
 use super::{
     ClassCarrier, Coincident, ComponentEnds, ComponentShape, Components, NodeEnd, NodeEnds,
-    NodeLine, NodeSet, PairPose, PairSection, PairSide, SectionComponent, SectionDecision,
-    SectionNode, Sense, TANGENT_COMPONENT, ZeroVerdict,
+    NodeLine, NodeSet, PairPose, PairSection, PairSide, RaySense, SectionComponent,
+    SectionDecision, SectionNode, TANGENT_COMPONENT, ZeroVerdict,
 };
 use crate::ExtentBall;
 use crate::extent::Reach;
@@ -534,6 +534,19 @@ impl<T: Decide> CylinderCylinderPose<T> {
         }
     }
 
+    /// **Whether the pose is the pinch** ([`CcNode::Pinch`]): the thinner
+    /// wall touching the fatter from inside at one node, its lobes
+    /// minting no carrier.
+    pub fn pinched(&self) -> bool {
+        matches!(
+            self.stance,
+            CcStance::Crossing {
+                node: Some(CcNode::Pinch),
+                ..
+            }
+        )
+    }
+
     /// **The nodes the pose places in closed form**: the bisector's two,
     /// `p ∓ r·n̂` about the axes' meeting point `p`, or the pinch's one
     /// on the common perpendicular, `r₁` from the first axis on the side
@@ -691,7 +704,8 @@ pub(crate) fn bisector_ellipses<T: Decide>(
 /// `(π/2, 3π/2)`, then `e₂` likewise.
 ///
 /// All of it is closed form, read off the walls' relative second
-/// fundamental form at a node. The node `i` is `p ∓ r·ν̂`, `ν̂` the unit
+/// fundamental form at a node. The node `i` is the pose's `p ∓ r·ν̂`
+/// ([`CylinderCylinderPose::nodes`]), `ν̂` the unit
 /// `a₁ × a₂`, and the walls' outward radials there are both `n̂ = ∓ν̂`,
 /// their common normal. On the tangent plane, spanned by the axes,
 /// `IIₖ(v) = (|v|² − (v·aₖ)²)/r`, so `Q(v) = ((v·a₂)² − (v·a₁)²)/r`:
@@ -711,30 +725,35 @@ pub(crate) fn bisector_ellipses<T: Decide>(
 /// `−a₂` at node 1.
 fn bisector_nodes<T: Decide>(
     pose: &CylinderCylinderPose<T>,
-    (foot, normal): (Point3<T>, Vec3<T>),
+    normal: Vec3<T>,
     [e1, e2]: [&Curve3<T>; 2],
     against: &dyn Fn(ExtentBall<T>) -> RegionPlacement,
+    band: Band,
 ) -> (Vec<SectionNode<T>>, [NodeEnds; 4]) {
     let u = |e: &Curve3<T>| match e {
         Curve3::Ellipse(e) => e.frame.u_ref,
         _ => unreachable!("the bisector pose's sections are ellipses"),
     };
     let (u1, u2) = (u(e1), u(e2));
-    let r = pose.radii[0].abs();
+    let points = pose.nodes();
     let mut nodes = Vec::new();
     let mut index = [None, None];
     for (i, side) in [(0, T::one()), (1, -T::one())] {
         let n_hat = normal * (T::zero() - side);
-        let point = foot + n_hat * r;
+        let point = points[i];
+        // Each wall's outward radial there, `r`-long, is `r·n̂` to within
+        // the band: the walls agree on the node's normal.
         debug_assert!(
-            pose.lines.iter().all(|&(origin, axis)| {
-                let w = point - origin;
-                let radial = (w - axis * w.dot(axis)) / r;
-                (radial - n_hat)
-                    .norm()
-                    .point_value()
-                    .is_none_or(|d| d < 1e-6)
-            }),
+            pose.lines
+                .iter()
+                .zip(pose.radii)
+                .all(|(&(origin, axis), r)| {
+                    let w = point - origin;
+                    ((w - axis * w.dot(axis)) - n_hat * r.abs())
+                        .norm()
+                        .point_value()
+                        .is_none_or(|d| d <= band.escalate())
+                }),
             "both walls' outward radials at a bisector node are its common normal"
         );
         if against(ExtentBall::point(point)) == RegionPlacement::Outside {
@@ -753,7 +772,7 @@ fn bisector_nodes<T: Decide>(
         });
     }
     let end = |i: usize, line, sense| index[i].map(|node| NodeEnd { node, line, sense });
-    let (along, against_) = (Sense::Along, Sense::Against);
+    let (along, against_) = (RaySense::Along, RaySense::Against);
     let (first, second) = (NodeLine::First, NodeLine::Second);
     let ends = [
         // `e₁` over `(−π/2, π/2)`, from node 1 to node 0, along `+u₁`.
@@ -916,7 +935,7 @@ pub(super) fn cylinder_cylinder<T: Decide>(
                     }
                     let [e1, e2] = bisector_ellipses(foot, (axis, pose.lines[1].1), r1, band)?;
                     let (bisector, ends) =
-                        bisector_nodes(&pose, (foot, normal), [&e1, &e2], &against);
+                        bisector_nodes(&pose, normal, [&e1, &e2], &against, band);
                     nodes = bisector;
                     let half = T::pi() * T::from_f64(0.5);
                     let arcs = [
@@ -936,9 +955,10 @@ pub(super) fn cylinder_cylinder<T: Decide>(
                             ComponentShape::Open {
                                 ends: ComponentEnds {
                                     // An end at a node the region does not
-                                    // hold runs past the region.
-                                    cut: placed == RegionPlacement::Straddles
-                                        || at.both().contains(&None),
+                                    // hold runs past the region, so its
+                                    // ellipse straddles it: the node,
+                                    // decided outside, is a point of it.
+                                    cut: placed == RegionPlacement::Straddles,
                                     nodes: at,
                                     ..ComponentEnds::default()
                                 },
@@ -1055,7 +1075,7 @@ fn node_joined<T: Real>(
     winds: [bool; 2],
 ) -> Vec<NodeSet> {
     let ends = |c: &SectionComponent<T>| match c.shape {
-        ComponentShape::Open { ends } => ends.nodes.both().map(|e| e.map(|e| e.node)),
+        ComponentShape::Open { ends } => ends.nodes.nodes(),
         ComponentShape::Loop | ComponentShape::Point => [None, None],
     };
     let mut sets: Vec<NodeSet> = Vec::new();

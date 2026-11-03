@@ -925,8 +925,8 @@ fn a_carried_ellipse_chord_starts_at_its_nodes_span_end() {
     let open = geom_brep::ComponentShape::Open {
         ends: geom_brep::ComponentEnds {
             nodes: geom_brep::NodeEnds {
-                start: end(0, geom_brep::Sense::Along),
-                end: end(1, geom_brep::Sense::Against),
+                start: end(0, geom_brep::RaySense::Along),
+                end: end(1, geom_brep::RaySense::Against),
             },
             ..geom_brep::ComponentEnds::default()
         },

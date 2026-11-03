@@ -4452,13 +4452,13 @@ fn along_facing<T: Decide>(
                     ));
                 };
                 return match section.end_at(k, n).map_err(FootRefusal::Site)? {
-                    geom_brep::ArcPlace::AtEnd { t, up } => Ok(GermFoot {
+                    geom_brep::ArcPlace::AtEnd { t, end } => Ok(GermFoot {
                         foot: geom_brep::SiteFoot {
                             component: k,
                             t,
                             tangent: section.components()[k].carrier.ders1(t).1,
                         },
-                        up,
+                        up: end == geom_brep::SpanEnd::Start,
                     }),
                     geom_brep::ArcPlace::At(_) => Err(FootRefusal::Desync(
                         "a site at a node read off its arc's end",

@@ -24,9 +24,9 @@ is transverse to the wall everywhere.
 The two walls are tangent at a node, and their dihedral grows like the
 distance from it. A chord from a pierce to the node, where an operand
 edge crosses the partner wall `δ` off the node, is `2δ` long at a
-dihedral of about `δ`. Its edge certification reads the crossing angle,
-which is about `0.28·δ²` for A's seam and `0.84·δ²` for B's (unit rods at
-right angles). Below the escalation edge it refuses typed:
+dihedral of about `δ`. The crossing angle its certification binds on
+measures `0.2795·δ²` for either seam (unit rods at right angles). Below
+the escalation edge it refuses typed:
 `Euler(Certification { NotTransverse })` where the angle reads `Zero`,
 and `Escalated { check: Transversality }` in the band.
 
@@ -34,30 +34,48 @@ and `Escalated { check: Transversality }` in the band.
 capability regression**, the one outcome stage 3b-ii moved toward
 refusing.
 
-## The rows and their measurements (ε 1e-9, band `[1e-9, 1e-8]`)
+## The measured threshold (ε 1e-9, band `[1e-9, 1e-8]`)
+
+Unit rods at right angles, one seam turned `δ` off a node. Every op,
+both orders, both poses: 12 cells per seam per `δ`, from a census run on
+the branch. The margin is the first failing sample's.
+
+| δ | A's seam | B's seam |
+|---|---|---|
+| 1.2e-4 | refuses, `Transversality` escalated, `4.02e-9` | refuses, `8.05e-9` (another chord, sample 6) |
+| 1.5e-4 | refuses, `6.29e-9` | refuses, `6.29e-9` |
+| 1.8e-4 | refuses, `9.06e-9` | refuses, `9.06e-9` |
+| 1.9e-4 | builds | builds |
+| 2e-4 | builds | builds |
+| 2.2e-4 | builds | builds |
+
+The binding margin is `0.2795·δ²` for both seams, past `1e-8` from
+`δ ≈ 1.89e-4`, so **both seams build from about `2e-4`, or `2·√escalate`**.
+The earlier "`0.84·δ²`, from `1.1e-4`" for B's seam read the margin of
+another chord (sample 5), not the one that binds. That was corrected
+on the dual review's measurement (R2).
+
+`bisector_nodes::a_seam_builds_from_twice_root_band_off_a_node` guards
+the threshold: `1.8e-4` refuses typed, and `2e-4` builds at the
+Steinmetz solid's closed form, for both seams.
+
+## The rows below the threshold
 
 `crates/sweep/tests/bisector_nodes.rs`:
-- `the_near_node_poses_at_the_witness_band`: each seam at
-  - `δ = 1e-6`: `NotTransverse`, margin `2.8e-13` (A's seam), `2.0e-12`
+- `the_near_node_poses_at_the_witness_band`, each seam:
+  - `δ = 1e-6`: `NotTransverse`, margin `2.8e-13` (A's) and `2.0e-12`
     (B's);
-  - `δ = 1e-4`: `Transversality` escalated, margin `2.8e-9` (A's),
-    `8.4e-9` (B's).
-
-  Every op, both orders, both poses. The caps still build.
-- `an_edge_near_a_node_crosses_through_the_bisector_planes`: each seam
-  at `δ = 30·escalate` (`3e-7`): `NotTransverse`, margin `2.5e-14` (A's)
-  and `1.8e-13` (B's). At `5·√escalate` everything builds.
+  - `δ = 1e-4`: `Transversality` escalated, `2.8e-9` and `8.4e-9`.
+  The caps still build.
+- `an_edge_near_a_node_crosses_through_the_bisector_planes`: each seam at
+  `δ = 30·escalate` (`3e-7`): `NotTransverse`, `2.5e-14` and `1.8e-13`.
+  At `5·√escalate` everything builds.
 - `an_oblique_seam_near_a_node_builds`: at `δ = √escalate` (`1e-4`),
-  `Transversality` escalated, margin `4.7e-9` at 35°, `r = 1`, and
-  `1.65e-9` at 60°, `r = 0.5`. At `3·√escalate` and `5·√escalate`
-  everything builds.
+  `Transversality` escalated, `4.7e-9` at 35°, `r = 1`, and `1.65e-9` at
+  60°, `r = 0.5`. At `3·√escalate` and `5·√escalate` everything builds at
+  its closed form.
 
-**Measured reach.** The margin is quadratic in `δ`, so a seam builds from
-about `δ ≈ √(escalate / 0.28)`. That is about `2e-4` at ε 1e-9 for A's
-seam on unit rods, and about `1.1e-4` for B's. The smallest `δ` that
-builds in the census is `3·√escalate = 3e-4` (both oblique poses).
-`5·√escalate = 5e-4` builds in every family. The band-relative rows
-scale with ε.
+The band-relative rows scale with ε.
 
 ## Open design question (for a future fork; not recommended here)
 

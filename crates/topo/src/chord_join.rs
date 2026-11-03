@@ -3063,7 +3063,7 @@ fn carried_chord_spec<T: Decide>(
         (lo, None)
     } else {
         match place(p1)? {
-            geom_brep::ArcPlace::AtEnd { t, up } => (t, Some(up)),
+            geom_brep::ArcPlace::AtEnd { t, end } => (t, Some(end == geom_brep::SpanEnd::Start)),
             geom_brep::ArcPlace::At(t) => (t, None),
         }
     };
