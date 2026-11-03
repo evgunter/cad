@@ -172,35 +172,63 @@ coset of the kind's `Subgroup` (A11 (1)).
 - A mate declares no contact. It places a copy; whether two copies
   touch is the at-rest census's to find (A5).
 
-A `Value { coord, by }` names no mate: it is a coordinate of the
-target space, setting one freedom the bundle's mates leave to a
-`Length` or an `Angle` (`Coord::Slide(X | Y | Z)`, `Coord::Spin(None)`
-beside a mate fixing a direction, `Coord::Spin(Some(X | Y | Z))` for a
-chain): a plane mate's two slides and its spin, an axis mate's one
-slide and its spin, a direction mate's three slides and its spin.
+A `Value { coord, by }` names no mate: it sets one freedom the
+bundle's mates leave to a `Length` or an `Angle`, and names the
+direction it runs along or the axis it turns about. A slide runs along
+the mated direction (`Coord::Slide(None)`, beside an axis or a
+direction mate), along a target axis (`Coord::Slide(Some(X | Y | Z))`,
+carried by the least turn beside a mate), or along a `Direction` or an
+`Axis` read off a body in the target space that does not read this
+placement, plainly or through a role (`Coord::SlideAlong`, its read at
+`OperandSlot::Along`). A spin is the one about the target's own
+direction beside a mate fixing one (`Coord::Spin(None)`), or a link of
+a chain where none is fixed, about a target axis
+(`Coord::Spin(Some(X | Y | Z))`) or about an `Axis` read in the target
+space (`Coord::SpinAbout`, at `OperandSlot::About`). A plane mate leaves
+two slides and its spin, an axis mate one slide and its spin, a
+direction mate three slides and its spin. A read is space-checked and
+re-pointed as a mate's `to` is, and evaluated with it
+(`MateFault::ReadUnevaluated`).
 Where a mate fixes a direction `d`, the mate's `orient` (an
 `Orientation`, one of the 24 ways the copy's axes lie along the target
 space's, the identity unless written) puts the copy's mated direction
 `d_c` at `n = O·d_c`, and the least turn `S` carries `n` onto `d`; the
 copy's turn is `rot(a, θ)·S·O`, `a` the target's own direction (its
 outward normal for a plane: `d` with every flip on the target's side
-undone, `mate::flipped`). A slide is the copy's origin measured
-from the target space's along a target axis as `S` carries it, and the
-spin `θ` is the turn left about `a`, whatever the contact's sense, so a
-flip written on either side of a rest turns its spin the same way
-(`mate/value.rs`, `Chart`). Where
-`n` is a target axis, the slide `S` carries onto `d` is the one a plane
-mate fixes and an axis mate leaves; otherwise the written slides are
-admitted only where they span what the mate leaves
-(`NoChartWhy::SlidesDoNotSpan`). The one pole, `n = −d`, is the
-orientation written backwards: inside the band about it the chart
-refuses `MateFault::Backwards`, naming the orientation to write. The chart reads no body a pose is read off, so a value edit
-never rides with one. Where no mate fixes a direction (no mate, or a
-lone point mate), the rotation is a chain of at most three spins about
-the target space's own axes, through the mated point for a point mate,
-no two in a row about one axis, applied in the order written, and the
-slides run along those axes. Zero says the copy's own coordinates agree
-with the target space's as far as the mates allow.
+undone, `mate::flipped`), and the spin `θ` is the turn left about `a`,
+whatever the contact's sense, so a flip written on either side of a
+rest turns its spin the same way (`mate/value.rs`, `Chart`). The copy
+stands where its mates and its spin seat it — the point of what the
+mates leave nearest the target's origin — plus the sum of its slides,
+each its value along its direction, a unit direction in what the mates
+leave (`Chart::slide_direction`): the mated direction is `a`; a carried
+axis lies there where `n` is a target axis (the slide `S` carries onto
+`d` is then the one a plane mate fixes and an axis mate leaves) or the
+mate leaves every translation, and otherwise **runs along its part in
+what the mates leave**, a unit direction decided once from the source's
+geometry; a read direction is admitted where it lies in what the mates
+leave, decided at evaluation and refusing typed, since it moves with
+its body. So on axes that lie in what the mates leave the sum is the
+copy's origin measured along them, as it is on the target's own axes;
+where the source's mated direction is oblique in its own coordinates
+each carried slide moves the copy exactly its value, in the plane or
+the line the mate leaves, along its axis's shadow there. The written
+slides are admitted only where they are independent and span what the
+mates leave: carried axes alone where their parts do, decided once
+(`NoChartWhy::SlidesDoNotSpan`, naming the slides to write), and any
+set with a read direction at evaluation (`NoChartWhy::ReadSlidesDoNotSpan`).
+The one pole, `n = −d`, is the orientation written backwards: inside
+the band about it the chart refuses `MateFault::Backwards`, naming the
+orientation to write. The chart reads no body a pose is read off, so a
+value edit never rides with one. Where no mate fixes a direction (no
+mate, or a lone point mate), the rotation is a chain of at most three
+spins, each about the target space's own axis or a read axis (through
+the mated point for a point mate, about the read line itself with no
+mate), no two in a row about one axis, applied in the order written;
+the copy then stands at the sum of its slides, along the target space's
+axes or read directions, the three admitted where they are independent.
+Zero says the copy's own coordinates agree with the target space's as
+far as the mates allow.
 
 The door admits a constraint on what the recipe shows: two poses of one
 kind, `on` reading the copy, and of the bundle that no
@@ -214,6 +242,8 @@ freedom left unnamed; it reads no geometry, so a copy stands exactly
 where its author means it. A gesture names the slides from the
 source's geometry before calling the constructor: it reads `n` off the
 evaluated copy and writes the slides `mate::slides_left_along` leaves
+(and beside a slide along a read direction with no mate, the target
+axes `mate::slides_across` leaves, `Placed::unmated_across`)
 (`Recording::sketch_on_face`, `Recording::constrain` and `remove_mate`,
 the viewer's mate tool and snap). The raw edit doors stay structural,
 so where the slides they fill do not span the solve refuses
