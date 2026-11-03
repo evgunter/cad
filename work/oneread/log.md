@@ -136,3 +136,14 @@
   - **My earlier ruling was incomplete.** "The touched face has no exposure" covered only the partners' offset, not the vertex's own offset off the face. Filed `a-touched-faces-side-is-read-about-a-vertex-up-to-zero-off-the-face` (P3, E); it predates this PR in the pierce.
   - The 1e-6 near-tangent main red is already filed (`work/issues/main-red-near-tangent-pierce-poses-w60-a4-census-undecidable-at-1e-6.md`).
   - CLEAVE's stale `pierce_side_reported` citation is noted on its log.
+
+- 2026-11-03: PR 6407 fix pass reported (`9927bbac`, green). Read and accepted:
+  - **The A′ certificate:** one strict Inside face, and every other sector either decided off its plane or placed Outside. Both reviews' probes are pinned, and the box corner reads In as on main.
+  - **Wirings:** each one goes red under its mutant.
+  - **The ungiven policy:** one home, `given_side(.., Unparted)`.
+  - **Naming:** 0 changes. No moved class reaches a naming test, which is stated in the body.
+  - **True-curve oracle:** 0 disagreements at default and 1e-12; unwitnessed at 1e-6.
+  - **Re-taken diffs:** 0 ops moved at three ε.
+
+  The row `PR-6407` (holdout pair, coding byte 192) is the PR's last commit (`24d9c28c`), with 0 tallied. The MAJOR was found by both reviews, one rating it a MINOR with a fix asked before merge, so this is no M-tier miss. The unit row and its spec row close with the PR.
+- 2026-11-03: **track handed back as `ready`.** No P0/P1 row remains, and the material-reader arc is done (PRs 6228, 6247, 6282, 6337, 6363, 6378 and 6407). Twelve rows remain, at P2 and below; the plan's slate lists them. The P2s are `recl-reads-one-wedge-pair-at-a-time-on-a-contact-line` and the census wall-tangent row. Every lane and reviewer session of this sitting is archived or finishing.
