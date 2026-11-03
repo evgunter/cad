@@ -280,6 +280,35 @@ pub(crate) enum Hand {
     Improper,
 }
 
+/// **The map an isometry door applies**: a rigid motion, or a reflection
+/// as its affine map. A frame under a proper map is [`geom::Frame::moved`];
+/// under an improper one each kind states its own image ([`Hand`]).
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum Isometry<T: Real> {
+    /// A rigid motion.
+    Proper(RigidMotion<T>),
+    /// An improper isometry's map (determinant `−1`).
+    Improper(Affine3<T>),
+}
+
+impl<T: Real> Isometry<T> {
+    /// The map as an affine one.
+    fn affine(&self) -> Affine3<T> {
+        match self {
+            Self::Proper(motion) => motion.to_affine(),
+            Self::Improper(map) => *map,
+        }
+    }
+
+    /// Whether the map keeps orientation.
+    fn hand(&self) -> Hand {
+        match self {
+            Self::Proper(_) => Hand::Proper,
+            Self::Improper(_) => Hand::Improper,
+        }
+    }
+}
+
 impl Hand {
     /// `v` under `map`'s linear part, negated under an improper map:
     /// the axis that keeps a right-handed frame's sense of turning
@@ -484,17 +513,17 @@ fn map_approx<T: Decide>(
 /// The carrier `map ∘ c` on `c`'s own parameter, under either hand: a
 /// carrier has no outward side, and keeping its parameter keeps every
 /// edge's range and its forward half-edge.
-fn map_carrier<T: Real>(
-    map: &Affine3<T>,
-    hand: Hand,
-    c: &Curve3<T>,
-) -> Result<Curve3<T>, TransformError> {
-    let frame = |f: &geom::Frame<T>| {
-        geom::Frame::new(
+fn map_carrier<T: Real>(iso: &Isometry<T>, c: &Curve3<T>) -> Result<Curve3<T>, TransformError> {
+    let (map, hand) = (&iso.affine(), iso.hand());
+    // A conic's frame: the frame's own image under a motion, and under a
+    // reflection the axial axis, so the image keeps its parameter.
+    let frame = |f: &geom::Frame<T>| match iso {
+        Isometry::Proper(motion) => f.moved(motion),
+        Isometry::Improper(map) => geom::Frame::new(
             map.transform_point(f.origin),
-            hand.axial(map, f.axis),
+            -map_vec(map, f.axis),
             map_vec(map, f.u_ref),
-        )
+        ),
     };
     Ok(match *c {
         Curve3::Line(geom::Line { origin, dir }) => {
@@ -577,7 +606,7 @@ pub fn transform_rigid<T: Decide + crate::props::AtRestPolicy>(
     motion: &RigidMotion<T>,
     tol: Tol,
 ) -> Result<Body<T>, TransformError> {
-    let mut out = map_isometry(body, &motion.to_affine(), Hand::Proper, tol)?;
+    let mut out = map_isometry(body, &Isometry::Proper(*motion), tol)?;
     // Pcurve caches (M5 PR 6, C4): the SAME posture as carriers and
     // witnesses — construction-fresh re-derivation against the mapped
     // geometry, never a mapped stored cache. A rigid map carries the
@@ -728,10 +757,10 @@ impl OrientationClass {
 /// the chart.
 pub(crate) fn map_isometry<T: Decide + crate::props::AtRestPolicy>(
     body: &Body<T>,
-    map: &Affine3<T>,
-    hand: Hand,
+    iso: &Isometry<T>,
     tol: Tol,
 ) -> Result<Body<T>, TransformError> {
+    let (map, hand) = (&iso.affine(), iso.hand());
     let band = Band::linear(tol).map_err(TransformError::Band)?;
     let mut out = body.clone();
 
@@ -776,7 +805,7 @@ pub(crate) fn map_isometry<T: Decide + crate::props::AtRestPolicy>(
         let start = endpoint(&out, he_plus, false)?;
         let end = endpoint(&out, he_plus, true)?;
         let (param_start, param_end) = old.params();
-        let carrier = map_carrier(map, hand, old.carrier())?;
+        let carrier = map_carrier(iso, old.carrier())?;
         // A sketch pushforward is stated in 3-space, so the authority
         // record travels with the map.
         let declared = || {
@@ -1026,7 +1055,10 @@ mod tests {
     #[test]
     fn the_carrier_placeholder_is_what_refuses() {
         assert!(matches!(
-            map_carrier(&aside(), Hand::Proper, &Curve3::nurbs_placeholder()),
+            map_carrier(
+                &Isometry::Proper(aside_motion()),
+                &Curve3::nurbs_placeholder()
+            ),
             Err(TransformError::NurbsPlaceholder)
         ));
     }
@@ -1061,7 +1093,8 @@ mod tests {
     fn a_described_carrier_maps_by_its_control_points() {
         let map = aside();
         let before = described_carrier();
-        let after = map_carrier(&map, Hand::Proper, &before).expect("a described net maps");
+        let after =
+            map_carrier(&Isometry::Proper(aside_motion()), &before).expect("a described net maps");
         let (Curve3::Nurbs(b), Curve3::Nurbs(a)) = (&before, &after) else {
             panic!("the variant changed under the map");
         };
@@ -1074,6 +1107,125 @@ mod tests {
         for (p, q) in b.control().iter().zip(a.control()) {
             let want = map.transform_point(*p);
             assert_eq!((q.x, q.y, q.z), (want.x, want.y, want.z));
+        }
+    }
+    /// A reflection across a plane tilted off every world axis.
+    fn reflection() -> Affine3<f64> {
+        let band = Band::linear(Tol::witness()).expect("the witness band");
+        let n = geom_core::UnitVec3::new(Vec3::new(1.0, 2.0, 2.0) / 3.0, "mirror", band)
+            .expect("a unit normal");
+        crate::mirror::Reflection::across_unit(Point3::new(0.3, -0.2, 0.1), n).to_affine()
+    }
+
+    /// **A reflection keeps each carrier kind's parameter**: the image
+    /// carrier at `t` is the reflected point at `t`, by each kind's own
+    /// rule (a conic's axial axis; a spiric's seam and stand-off negated).
+    #[test]
+    fn a_reflection_keeps_a_carriers_parameter_kind_by_kind() {
+        let m = reflection();
+        let (c, a) = (Point3::new(0.5, -1.0, 2.0), Vec3::new(2.0, 2.0, 1.0) / 3.0);
+        let u = Vec3::new(1.0, -2.0, 2.0) / 3.0;
+        let frame = geom::Frame::new(c, a, u);
+        let kinds = [
+            ("circle", Curve3::Circle(geom::Circle::new(frame, 0.7))),
+            (
+                "ellipse",
+                Curve3::Ellipse(geom::Ellipse::new(frame, 0.9, 0.4)),
+            ),
+            (
+                "spiric",
+                Curve3::Spiric {
+                    center: c,
+                    axis: a,
+                    u_ref: u,
+                    major_radius: 2.0,
+                    minor_radius: 0.5,
+                    offset: 0.2,
+                },
+            ),
+        ];
+        for (kind, carrier) in kinds {
+            let image = map_carrier(&Isometry::Improper(m), &carrier).expect("an analytic carrier");
+            for k in 0..12 {
+                let t = f64::from(k) * 0.53 - 2.0;
+                let off = (image.eval(t) - m.transform_point(carrier.eval(t))).norm();
+                assert!(
+                    off < 1e-12,
+                    "{kind}: the image at {t} is {off} off the reflected point"
+                );
+            }
+        }
+    }
+
+    /// **A reflection's chart images, kind by kind**: a plane's chart
+    /// maps forward (its normal axial), every analytic chart of
+    /// revolution with its azimuth negated (its frame forward).
+    #[test]
+    fn a_reflection_maps_each_analytic_chart_kind_by_kind() {
+        let m = reflection();
+        let (o, a) = (Point3::new(0.5, -1.0, 2.0), Vec3::new(2.0, 2.0, 1.0) / 3.0);
+        let u_ref = Vec3::new(1.0, -2.0, 2.0) / 3.0;
+        let kinds = [
+            (
+                "plane",
+                Surface::Plane {
+                    origin: o,
+                    normal: a,
+                    u_ref,
+                },
+                1.0,
+            ),
+            (
+                "cylinder",
+                Surface::Cylinder {
+                    origin: o,
+                    axis: a,
+                    radius: 0.7,
+                    u_ref,
+                },
+                -1.0,
+            ),
+            (
+                "cone",
+                Surface::Cone {
+                    apex: o,
+                    axis: a,
+                    half_angle: 0.4,
+                    u_ref,
+                },
+                -1.0,
+            ),
+            (
+                "sphere",
+                Surface::Sphere {
+                    center: o,
+                    radius: 0.7,
+                    axis: a,
+                    u_ref,
+                },
+                -1.0,
+            ),
+            (
+                "torus",
+                Surface::Torus {
+                    center: o,
+                    axis: a,
+                    major_radius: 2.0,
+                    minor_radius: 0.5,
+                    u_ref,
+                },
+                -1.0,
+            ),
+        ];
+        for (kind, surface, azimuth) in kinds {
+            let image = map_surface(&m, Hand::Improper, &surface, Tol::witness())
+                .expect("an analytic surface");
+            for k in 0..9 {
+                let (s, t) = (f64::from(k) * 0.61 - 2.0, f64::from(k) * 0.17 - 0.6);
+                let want = m.transform_point(surface.eval(azimuth * s, t));
+                let off = (image.eval(s, t) - want).norm();
+                assert!(off < 1e-12, "{kind}: the image at ({s}, {t}) is {off} off");
+            }
         }
     }
 

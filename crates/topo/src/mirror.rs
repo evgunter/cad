@@ -68,7 +68,7 @@ use geom_core::linalg::frame::{FrameError, mirror_across_plane, mirror_across_un
 use geom_core::{Affine3, Decide, Point3, Real, Tol, UnitVec3, Vec3};
 
 use crate::body::Body;
-use crate::transform::{Hand, TransformError, map_isometry};
+use crate::transform::{Isometry, TransformError, map_isometry};
 
 /// A reflection across a plane, decided at its one door
 /// ([`Reflection::across`]): its linear part is a Householder matrix,
@@ -121,7 +121,7 @@ pub fn mirror_body<T: Decide + crate::props::AtRestPolicy>(
     tol: Tol,
 ) -> Result<Body<T>, TransformError> {
     let owes_rows = body.pcurves().next().is_some();
-    let mut inside_out = map_isometry(body, &reflection.map, Hand::Improper, tol)?;
+    let mut inside_out = map_isometry(body, &Isometry::Improper(reflection.map), tol)?;
     inside_out.pcurves.clear();
     inside_out.joints.clear();
     let mut out = inside_out.reverted();
