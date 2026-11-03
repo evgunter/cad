@@ -262,29 +262,32 @@ fn a_tangent_tilted_under_the_band_reads_by_its_bend() {
 }
 
 /// **A tangent on the face with the arc's point in band refuses in
-/// band.** A cylinder or cone tangent to the face `y = 0`, so wide across
-/// the edge that the arc's point at the lever `½` rises the band's
-/// geometric middle off it: `InBand`. Red if the tangent's Zero is taken
-/// to decide with its point unread.
+/// band.** A cylinder or cone tangent to the face `y = 0` along `+x`,
+/// bending up, so wide across the edge that the arc's point at the lever
+/// `½` rises the band's geometric middle off it: the chord itself
+/// refuses `InBand`. Red if the tangent's Zero is taken to decide with
+/// its point unread.
 #[test]
 fn a_tangent_with_its_arcs_point_in_band_refuses_in_band() {
     let band = band();
     let lever = 0.5;
     let rho = lever * lever / (2.0 * (band.zero() * band.escalate()).sqrt());
+    let outward = -(Z.cross(dir(0.0)));
     for p in AT {
         for (what, carrier) in CARRIERS {
-            assert_eq!(
-                judged(
-                    p,
-                    (0.0, FRAC_PI_2),
-                    carrier,
-                    true,
-                    rho,
-                    v(0.0, 1.0, 0.0),
-                    1.0,
-                    [p - Z * 2.0, p + Z * 2.0]
+            let ruled = Ruled {
+                surface: carrier.surface(p, -outward, rho),
+                sense: true,
+                outward,
+                along: -Z,
+                ends: [p - Z * 2.0, p + Z * 2.0],
+                clear: 1.0,
+            };
+            assert!(
+                matches!(
+                    FaceSector::chord(&ruled, p, v(0.0, 1.0, 0.0), band),
+                    Err(TouchUnread::InBand)
                 ),
-                TouchVerdict::Unread(TouchUnread::InBand),
                 "{what} at {p:?}"
             );
         }
