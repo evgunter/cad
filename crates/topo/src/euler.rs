@@ -4194,8 +4194,8 @@ impl<T: Decide> Body<T> {
                 continue;
             }
             seen.push(face);
-            let face_data = proven(&self.faces, face, EntityId::Face);
-            let surface = self.face_surface_linked(face, face_data);
+            let face_data = self.proven_face(face);
+            let surface = face_data.surface();
             if let Some(from) = crate::pcurves::site_rows_from(self, face, surface) {
                 minted.push((face, from));
             }
@@ -4252,9 +4252,10 @@ impl<T: Decide> Body<T> {
         rewired: &[(LoopKey, Vec<SiteHalf>)],
         killed: Option<LoopKey>,
     ) -> SiteFace<T> {
-        let face_data = proven(&self.faces, face, EntityId::Face);
-        let surface = self.face_surface_linked(face, face_data).clone();
+        let face_data = self.proven_face(face);
+        let surface = face_data.surface().clone();
         let loops = face_data
+            .record()
             .loop_keys()
             .filter(|&lk| Some(lk) != killed)
             .map(|lk| match rewired.iter().find(|(k, _)| *k == lk) {
@@ -4302,9 +4303,9 @@ impl<T: Decide> Body<T> {
         moved: bool,
         halves: Vec<SiteHalf>,
     ) -> Result<SiteFace<T>, EulerOpError> {
-        let from_data = proven(&self.faces, from, EntityId::Face);
+        let from_data = self.proven_face(from);
         let chart = match surface {
-            FaceSurface::Inherit => self.face_surface_linked(from, from_data).clone(),
+            FaceSurface::Inherit => from_data.surface().clone(),
             FaceSurface::Shared { key, .. } => self
                 .get_surface(*key)
                 .cloned()

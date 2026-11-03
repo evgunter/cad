@@ -167,9 +167,9 @@ pub fn surface_cycle_windings<T: Real>(
     face: FaceKey,
 ) -> Result<Vec<WoundCycle>, &'static str> {
     let unresolved = "a surface boundary walked a key that does not resolve";
-    let f = body.get_face(face).ok_or(unresolved)?;
-    let members: Vec<HalfEdgeKey> = body
-        .face_boundary_linked(face, f)
+    let f = body.passed_face(face).ok_or(unresolved)?;
+    let members: Vec<HalfEdgeKey> = f
+        .boundary()
         .filter_map(|member| member.half_edge())
         .collect();
     // `h` is a member of the walk or a half-edge the walk turned to, so

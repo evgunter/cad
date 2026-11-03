@@ -45,7 +45,7 @@ use slotmap::SecondaryMap;
 
 use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, FaceKey};
-use crate::live::{BoundaryMember, proven};
+use crate::live::BoundaryMember;
 
 /// The reach of the wedge between `faces` along the edge on `carrier`
 /// over `(t0, t1)`: the farthest either face's boundary vertices (module
@@ -147,9 +147,9 @@ impl<'a, T: Decide> WedgeReach<'a, T> {
             return Rc::clone(points);
         }
         let body = self.body;
-        let data = proven(&body.faces, face, EntityId::Face);
+        let data = body.proven_face(face);
         let mut points = Vec::new();
-        for (_, members, _) in body.face_boundary_by_loop(face, data) {
+        for (_, members, _) in data.boundary_by_loop() {
             for member in members {
                 match member {
                     BoundaryMember::Isolated { point, .. } => points.push(point),

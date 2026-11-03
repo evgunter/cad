@@ -315,8 +315,8 @@ fn fixed_partners<T: Decide>(
         if halves.len() <= 2 {
             continue;
         }
-        let face_data = body.get_face(face).ok_or_else(|| corrupt_face(face))?;
-        let wall = body.face_surface_linked(face, face_data);
+        let face_data = body.passed_face(face).ok_or_else(|| corrupt_face(face))?;
+        let wall = face_data.surface();
         let mut crossings = Vec::with_capacity(halves.len());
         for &h in &halves {
             let start = body.get_half_edge(h).ok_or_else(|| corrupt_he(h))?.start;
@@ -336,7 +336,7 @@ fn fixed_partners<T: Decide>(
                         red.plane.normal,
                         above_set,
                         h,
-                        (wall, face_data.sense),
+                        (wall, face_data.record().sense),
                     )?,
                 },
                 germ,
@@ -406,9 +406,15 @@ fn split_leave<T: Decide>(
     half: HalfEdgeKey,
 ) -> Result<geom_core::Vec3<T>, SplitJoinError> {
     let face = he_face(body, half)?;
-    let face_data = body.get_face(face).ok_or_else(|| corrupt_face(face))?;
-    let wall = body.face_surface_linked(face, face_data);
-    leave_on(body, plane_normal, above_set, half, (wall, face_data.sense))
+    let face_data = body.passed_face(face).ok_or_else(|| corrupt_face(face))?;
+    let wall = face_data.surface();
+    leave_on(
+        body,
+        plane_normal,
+        above_set,
+        half,
+        (wall, face_data.record().sense),
+    )
 }
 
 /// [`split_leave`] past its face's lookup: `wall` and `sense` are the

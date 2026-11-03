@@ -1843,7 +1843,7 @@ impl<T: Decide> GluedPairs<T> {
                 continue;
             }
             // The door verified every face a certificate names.
-            let surface = body(target).proven_face_surface(target.1);
+            let surface = body(target).proven_face(target.1).surface();
             *side = read_cover_side(body(parent), parent.1, surface, band);
         }
         Ok(pairs)
@@ -2102,7 +2102,7 @@ fn tangent_struts<T: Real>(
             geom_brep::EdgeDescription::TangentIntersection { .. }
         ) && crate::attach::Named::of_description(curve.description()).adjacent_at_rest(sides)
         {
-            let kind = |f| body.proven_face_surface(f).kind();
+            let kind = |f| body.proven_face(f).surface().kind();
             let (k1, k2) = (kind(f1), kind(f2));
             out.push((f1, k1, f2, k2));
             out.push((f2, k2, f1, k1));
@@ -7116,7 +7116,7 @@ fn given_verdicts<T: Decide>(
     band: Band,
 ) -> Result<VerifiedGlue<T>, BooleanError> {
     let invariant = |what| BooleanError::ClassificationInvariant { what };
-    let kind = |body: &Body<T>, f| body.proven_face_surface(f).kind();
+    let kind = |body: &Body<T>, f| body.proven_face(f).surface().kind();
     let pad = witness_pad::<T>(band);
     let mut verified = VerifiedGlue::default();
     for &GluedPair {
@@ -7472,8 +7472,8 @@ pub(crate) fn tangent_pair_at_rest<T: Decide>(
 /// record or the census names: its surface and sense.
 #[track_caller]
 fn record_face<T: Real>(body: &Body<T>, f: FaceKey) -> (&geom::Surface<T>, bool) {
-    let face = crate::live::proven(&body.faces, f, crate::entity::EntityId::Face);
-    (body.face_surface_linked(f, face), face.sense)
+    let face = body.proven_face(f);
+    (face.surface(), face.record().sense)
 }
 
 /// A record's tangent line known to run through both faces' interiors
@@ -7580,9 +7580,9 @@ fn glued_face<T: Real>(
 ) -> Result<(geom::Surface<T>, bool), BooleanError> {
     let invalid = |what| BooleanError::InvalidInput { operand, what };
     let face = body
-        .get_face(f)
+        .passed_face(f)
         .ok_or_else(|| invalid("a glued face's key does not resolve"))?;
-    Ok((body.face_surface_linked(f, face).clone(), face.sense))
+    Ok((face.surface().clone(), face.record().sense))
 }
 
 /// **The glue door's tangency check** (C4's `Tangent`, claiming nothing
@@ -7904,16 +7904,16 @@ fn witness_span<T: Decide>(
 /// each circle and ellipse edge of `f`'s boundary, its carrier's two
 /// extremes; `None` where an edge is neither one nor a line, or `f`
 /// does not resolve. Every hop past the face is a link
-/// ([`Body::face_boundary_by_loop`]).
+/// ([`crate::live::FaceView::boundary_by_loop`]).
 fn conic_reach<T: Decide>(
     body: &Body<T>,
     f: FaceKey,
     along: impl Fn(Point3<T>) -> T,
     dir: geom_core::Vec3<T>,
 ) -> Option<Vec<T>> {
-    let face = body.get_face(f)?;
+    let face = body.passed_face(f)?;
     let mut out = Vec::new();
-    for (_, members, _) in body.face_boundary_by_loop(f, face) {
+    for (_, members, _) in face.boundary_by_loop() {
         for member in members {
             let BoundaryMember::Edge { ek, edge, .. } = member else {
                 continue;
@@ -8216,7 +8216,7 @@ fn boundary_cuts<T: Decide>(
 /// order; an empty loop contributes its lone vertex) — the witness-
 /// extent datum of `verify_tangent_declaration`. The face is the
 /// caller's declaration, so its miss is the operand's refusal; every hop
-/// past it is a link ([`Body::face_boundary_linked`]).
+/// past it is a link ([`crate::live::FaceView::boundary`]).
 fn face_boundary_points<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
@@ -8226,9 +8226,8 @@ fn face_boundary_points<T: Decide>(
         operand,
         what: "declared face's boundary is unwalkable",
     };
-    let f = body.get_face(face).ok_or_else(bad)?;
-    Ok(body
-        .face_boundary_linked(face, f)
+    let f = body.passed_face(face).ok_or_else(bad)?;
+    Ok(f.boundary()
         .map(|member| body.member_point(&member))
         .collect())
 }

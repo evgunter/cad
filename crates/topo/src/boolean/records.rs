@@ -259,16 +259,15 @@ pub(crate) fn incident<T: Real>(body: &Body<T>, cells: [Cell; 2]) -> bool {
         [Cell::Vertex(v), Cell::Edge(e)] => {
             half_edges(e).is_some_and(|hs| hs.iter().any(|(_, h)| h.start == v))
         }
-        [Cell::Vertex(v), Cell::Face(f)] => body.get_face(f).is_some_and(|face| {
-            body.face_loops_linked(f, face)
-                .any(|(_, l, _)| match l.boundary {
-                    LoopBoundary::Empty { vertex } => vertex == v,
-                    LoopBoundary::Cycle { first } => body
-                        .loop_walk(first)
-                        .closed("loop", first)
-                        .into_iter()
-                        .any(|h| proven(&body.half_edges, h, EntityId::HalfEdge).start == v),
-                })
+        [Cell::Vertex(v), Cell::Face(f)] => body.passed_face(f).is_some_and(|face| {
+            face.loops().any(|(_, l, _)| match l.boundary {
+                LoopBoundary::Empty { vertex } => vertex == v,
+                LoopBoundary::Cycle { first } => body
+                    .loop_walk(first)
+                    .closed("loop", first)
+                    .into_iter()
+                    .any(|h| proven(&body.half_edges, h, EntityId::HalfEdge).start == v),
+            })
         }),
         [Cell::Edge(e), Cell::Face(f)] => {
             body.get_face(f).is_some()

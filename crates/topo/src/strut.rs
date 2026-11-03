@@ -111,8 +111,8 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
         face: FaceKey,
         toward_free: HalfEdgeKey,
     ) -> Result<StrutPrune, StrutRefusal> {
-        let record = proven(&self.faces, face, EntityId::Face);
-        if self.face_surface_linked(face, record).kind() != geom::SurfaceKind::Plane {
+        let record = self.proven_face(face);
+        if record.surface().kind() != geom::SurfaceKind::Plane {
             return Err(StrutRefusal::Curved);
         }
         let toward = proven(&self.half_edges, toward_free, EntityId::HalfEdge);
@@ -121,7 +121,7 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
             unreachable!("strut half {toward_free:?} resolved above, and a live half has an end")
         });
         let lone = self.strut_tip(toward_free).then_some((other_end, ring));
-        if lone.is_some() && ring == record.outer {
+        if lone.is_some() && ring == record.record().outer {
             return Err(StrutRefusal::LoneOutline);
         }
         Ok(StrutPrune {

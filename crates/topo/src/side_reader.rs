@@ -305,9 +305,9 @@ fn aim_at<T: Decide>(
         Err(e) => return Err(e),
     }
     let f = body
-        .get_face(face)
+        .passed_face(face)
         .ok_or(PointInSolidError::CorruptFace { face })?;
-    let surface = body.face_surface_linked(face, f);
+    let surface = f.surface();
     let aim = match *geo {
         FaceGeo::Cylinder { ref region, .. } | FaceGeo::Cone { ref region, .. } => {
             match region.aim() {
@@ -347,7 +347,7 @@ fn aim_at<T: Decide>(
     let chart = geom_brep::implicit_gradient(surface, aim);
     Ok(Some((
         aim,
-        geom_brep::OutwardNormal::from_chart(chart, f.sense).vec(),
+        geom_brep::OutwardNormal::from_chart(chart, f.record().sense).vec(),
     )))
 }
 
@@ -367,7 +367,7 @@ fn aim_at<T: Decide>(
 /// ([`ray_crossings`]). `None` for a face with another edge, or one whose
 /// outer loop has none.
 fn loop_aim<T: Decide>(body: &Body<T>, face: FaceKey, normal: Vec3<T>) -> Option<Point3<T>> {
-    let edges = body.proven_face_edges(face);
+    let edges = body.proven_face(face).edges();
     let outer = proven(&body.faces, face, EntityId::Face).outer;
     let first = *edges.first()?;
     if proven(&body.half_edges, first.half, EntityId::HalfEdge).parent_loop != outer {
@@ -424,7 +424,7 @@ fn beyond<T: Decide>(
 ) -> Result<T, PointInSolidError> {
     let mut reach = selection_reach(body, faces, aim)?.length();
     for &face in faces {
-        match body.proven_face_surface(face).cover() {
+        match body.proven_face(face).surface().cover() {
             Ok(cover) => {
                 reach = reach.max(cover.distance_range(&geom::cover::Site::Point(aim)).1);
             }
@@ -452,15 +452,16 @@ fn beyond<T: Decide>(
 ///
 /// Both faces' loops are walked in place, a loop at a time; `a` and `b`
 /// are faces a ray crossed, so a stale one panics
-/// ([`Body::proven_face_boundary`]).
+/// ([`crate::live::FaceView::boundary`]).
 pub(crate) fn meet<T: geom_core::Real>(body: &Body<T>, a: FaceKey, b: FaceKey) -> bool {
     if a == b {
         return true;
     }
-    // Not `Body::proven_face_edges`, which collects and resolves every mate: this reads
+    // Not `FaceView::edges`, which collects and resolves every mate: this reads
     // only the starts, in place, once per pair of faces.
     let starts = |face: FaceKey| {
-        body.proven_face_boundary(face)
+        body.proven_face(face)
+            .boundary()
             .filter_map(|member| member.half_edge().map(|_| member.vertex()))
     };
     starts(a).any(|v| starts(b).any(|w| w == v))
@@ -864,7 +865,7 @@ pub(crate) fn edge_frames(body: &Body<f64>, fractions: &[f64], band: Band) -> Ve
     };
     let mut out = Vec::new();
     for (face, _) in body.faces() {
-        for fe in body.proven_face_edges(face) {
+        for fe in body.proven_face(face).edges() {
             let Some(edge) = body.edges.get(fe.edge) else {
                 continue;
             };

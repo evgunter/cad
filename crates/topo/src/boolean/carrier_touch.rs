@@ -305,8 +305,8 @@ fn ball_off_face<T: Decide + Bounds>(
     {
         return Ok(false);
     }
-    let f = crate::live::proven(&y.faces, face, EntityId::Face);
-    for member in y.face_boundary_linked(face, f) {
+    let f = y.proven_face(face);
+    for member in f.boundary() {
         let clear_of_ball = match member {
             BoundaryMember::Isolated { point, .. } => clear((point - foot).norm(), radius, band),
             BoundaryMember::Edge { ek, .. } => edge_clear_of_ball(y, ek, foot, radius, band)?,
@@ -315,7 +315,7 @@ fn ball_off_face<T: Decide + Bounds>(
             return Ok(false);
         }
     }
-    let placed = match *y.face_surface_linked(face, f) {
+    let placed = match *f.surface() {
         geom::Surface::Plane { normal, .. } => {
             super::contain::contfp_decided(y, face, normal, foot, band)
                 .map(|(at, _)| CurvedPlacement::Trim(Some(at)))

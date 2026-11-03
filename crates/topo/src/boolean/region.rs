@@ -297,9 +297,9 @@ pub(crate) fn boundary<T: Decide>(
     admits: &[geom::CurveKind],
 ) -> Result<Option<Vec<RegionEdge<T>>>, PointInSolidError> {
     let corrupt = || PointInSolidError::CorruptFace { face };
-    let f = body.get_face(face).ok_or_else(corrupt)?;
+    let f = body.passed_face(face).ok_or_else(corrupt)?;
     let mut null = Vec::new();
-    for (_, members, role) in body.face_boundary_by_loop(face, f) {
+    for (_, members, role) in f.boundary_by_loop() {
         for member in members {
             // A lone ring vertex bounds no area; an outer loop must.
             if role.is_outer() && matches!(member, BoundaryMember::Isolated { .. }) {

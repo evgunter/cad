@@ -41,6 +41,7 @@ not (
   (binary_id(topo) & test(=boolean::sphere_region::tests::every_two_leg_path_that_decides_agrees_with_the_face)) |
   (binary_id(topo) & test(=live::tests::a_faces_loops_are_walked_in_one_place)) |
   (binary_id(topo) & test(=live::tests::loop_keys_is_read_only_where_a_miss_is_reported)) |
+  (binary_id(topo) & test(=live::tests::the_unchecked_cycles_are_read_only_where_a_miss_is_reported)) |
   (binary_id(topo) & test(=link::cone_fuzz::a_curved_bound_tied_with_a_sheet_reads_its_bend_against_the_exact_oracle)) |
   (binary_id(topo) & test(=boolean::holdings_rows::a_unions_holdings_read_alike_in_every_member_order)) |
   (binary_id(topo) & test(=boolean::holdings_rows::every_brick_booleans_face_holds_only_member_faces_on_its_plane)) |

@@ -428,7 +428,8 @@ pub(super) fn part_riders<T: Decide + crate::props::AtRestPolicy>(
         // A slit or a zero-area ring in a curved face is neither meshed
         // nor measured, so the parting refuses on any face it would part
         // that is no plane.
-        let plane = |f: FaceKey| matches!(body.proven_face_surface(f), geom::Surface::Plane { .. });
+        let plane =
+            |f: FaceKey| matches!(body.proven_face(f).surface(), geom::Surface::Plane { .. });
         if let Some(&(curved, ..)) = parting.iter().find(|&&(f, ..)| !plane(f)) {
             return Err(BooleanError::EdgeInFace {
                 edge,
@@ -613,12 +614,12 @@ impl Sliver {
 /// # Panics
 ///
 /// Where `face`, a face of `body` both callers enumerate, or a record on
-/// the walk of its outline does not resolve ([`Body::proven_face_edges`]).
+/// the walk of its outline does not resolve ([`crate::live::FaceView::edges`]).
 pub(super) fn sliver_halves<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<[HalfEdgeKey; 2]> {
     if !proven(&body.faces, face, EntityId::Face).rings.is_empty() {
         return None;
     }
-    let [h, k] = body.proven_face_edges(face)[..] else {
+    let [h, k] = body.proven_face(face).edges()[..] else {
         return None;
     };
     (h.edge != k.edge
@@ -1049,7 +1050,7 @@ fn holding<T: Decide>(
         // A spline face, read by its ends and midpoint; any other pair
         // read here lies on nothing.
         Ok(None) => {
-            let spline = body.proven_face_surface(f).spline_chart().is_some();
+            let spline = body.proven_face(f).surface().spline_chart().is_some();
             if !spline || !names.ends {
                 return Ok(None);
             }
@@ -1135,7 +1136,7 @@ fn cuts<T: Decide>(
     along: &Span<'_, T>,
     band: Band,
 ) -> Result<Vec<T>, BooleanError> {
-    let loops = [(f, body.proven_face_edge_set(f))];
+    let loops = [(f, body.proven_face(f).edge_set())];
     let mut at: Vec<T> = Vec::new();
     for record in named {
         let crossings = match crossing_named(body, record, e, &loops, along, band) {
@@ -1237,7 +1238,7 @@ pub(super) fn carrier_on_surface<T: Decide>(
     f: FaceKey,
     band: Band,
 ) -> Result<Option<bool>, BooleanError> {
-    let surface = body.proven_face_surface(f);
+    let surface = body.proven_face(f).surface();
     conic_or_line_on(carrier, (t0, t1), surface, band)
 }
 
@@ -1693,7 +1694,7 @@ fn walls_inside<T: Decide>(
         // Bent alike, the wall's sheet and the floor's are one to the
         // order read ([`coplanar_wall_inside`]).
         let coplanar = || coplanar_wall_inside(normal, floor, arm, band, refused);
-        let surface = |face: FaceKey| body.proven_face_surface(face);
+        let surface = |face: FaceKey| body.proven_face(face).surface();
         inside[k] = match crate::validate::decide(
             "bool_rider_wall_side",
             Margin::levered(into.dot(floor), arm),
@@ -1774,7 +1775,7 @@ fn spline_floor<T: Decide>(
     band: Band,
 ) -> Result<Option<geom_core::Vec3<T>>, BooleanError> {
     use crate::face_normal::{NormalAtError, SplineNormalError};
-    let chart = body.proven_face_surface(f);
+    let chart = body.proven_face(f).surface();
     if chart.spline_chart().is_none() {
         return Ok(None);
     }
@@ -2076,7 +2077,7 @@ fn divide<T: Decide + crate::props::AtRestPolicy>(
     let refused = |gap| BooleanError::EdgeInFace { edge, face, gap };
     let loops: Vec<(FaceKey, BTreeSet<EdgeKey>)> = faces
         .iter()
-        .map(|&f| (f, body.proven_face_edge_set(f)))
+        .map(|&f| (f, body.proven_face(f).edge_set()))
         .collect();
     // The face whose loops hold `cell`, which a refusal about it names.
     // The face whose loops hold `cell`, which a refusal about it names:
@@ -2526,7 +2527,7 @@ fn touches_boundary_between<T: Decide>(
     if on_face_loops(body, face, v) {
         return false;
     }
-    let boundary = body.proven_face_edge_set(face);
+    let boundary = body.proven_face(face).edge_set();
     contacts
         .vertex_edge()
         .any(|(x, g)| x == v && boundary.contains(&g))
@@ -2567,7 +2568,8 @@ fn on_face_loops<T: Decide>(body: &Body<T>, face: FaceKey, v: VertexKey) -> bool
 /// The half-edges of `face`'s loops leaving `v`: one per pass of a loop
 /// through it.
 fn loop_leaving<T: Decide>(body: &Body<T>, face: FaceKey, v: VertexKey) -> Vec<HalfEdgeKey> {
-    body.proven_face_edges(face)
+    body.proven_face(face)
+        .edges()
         .into_iter()
         .filter(|e| e.ends[0] == v)
         .map(|e| e.half)

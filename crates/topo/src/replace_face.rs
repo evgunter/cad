@@ -1562,9 +1562,9 @@ fn planned_charts<T: Decide + crate::props::AtRestPolicy>(
         .iter()
         .map(|&(faces, d)| {
             let face = faces[0];
-            let face_data = body.get_face(face).expect("a live face");
-            let old_key = face_data.surface;
-            let old_surface = body.face_surface_linked(face, face_data).clone();
+            let face_data = body.proven_face(face);
+            let old_key = face_data.record().surface;
+            let old_surface = face_data.surface().clone();
             assert!(
                 !matches!(old_surface, Surface::Cone { .. }),
                 "a cone's nappe and apex window are the door's"
@@ -1638,9 +1638,9 @@ pub fn offset_corner_arms_for_tests<T: Decide + crate::props::AtRestPolicy>(
     tol: Tol,
 ) -> Vec<(EdgeKey, Curve3<T>, T)> {
     let band = Band::linear(tol).expect("the witness band");
-    let face_data = body.get_face(face).expect("a live face");
-    let old_key = face_data.surface;
-    let old_surface = body.face_surface_linked(face, face_data).clone();
+    let face_data = body.proven_face(face);
+    let old_key = face_data.record().surface;
+    let old_surface = face_data.surface().clone();
     let new_surface = mint_offset(
         face,
         &old_surface,
@@ -1923,12 +1923,12 @@ pub(crate) fn offset_charts_staged<T: Decide + crate::props::AtRestPolicy>(
     let mut charts: Vec<MovedChart<'_, T>> = Vec::with_capacity(moves.len());
     for &(faces, d) in moves {
         let face = faces[0];
-        let face_data = proven(&body.faces, face, EntityId::Face);
-        let old_key = face_data.surface;
+        let face_data = body.proven_face(face);
+        let old_key = face_data.record().surface;
         if let Some(&other) = groups.of(old_key).iter().find(|k| !faces.contains(k)) {
             return Err(ReplaceFaceError::SharedSurfaceKey { face, other });
         }
-        let old_surface = body.face_surface_linked(face, face_data).clone();
+        let old_surface = face_data.surface().clone();
         // **The cone's mirror nappe is a consumer obligation, and this is
         // where this door discharges it.** `geom_brep::ConeOffset`'s
         // action moves the surface along the OPENING nappe's normal
@@ -2404,12 +2404,12 @@ fn cone_v_range<T: Decide>(
 /// each once — including the seams INTERNAL to the group, which move
 /// with the chart exactly as its outer edges do. Every member resolved
 /// at the door, and the walk from it reads links, so a miss panics
-/// naming the record ([`Body::proven_face_half_edges`]).
+/// naming the record ([`crate::live::FaceView::half_edges`]).
 #[track_caller]
 fn group_boundary<T: geom_core::Decide>(body: &Body<T>, group: &[FaceKey]) -> Vec<EdgeKey> {
     let mut out: Vec<EdgeKey> = Vec::new();
     for &face in group {
-        for he in body.proven_face_half_edges(face) {
+        for he in body.proven_face(face).half_edges() {
             let edge = proven(&body.half_edges, he, EntityId::HalfEdge).edge;
             if !out.contains(&edge) {
                 out.push(edge);
@@ -2546,7 +2546,7 @@ fn plan_edge<'s, T: Decide>(
         // (`IsoRowError::Interior`) rather than reading another row.
         let extract = row.filter(|&(axis, at, _)| {
             self_shared || {
-                let held = body.proven_face_surface(other);
+                let held = body.proven_face(other).surface();
                 crate::offset_derive::holds_the_move(old_surface, held, Some((axis, at)), d, band)
             }
         });

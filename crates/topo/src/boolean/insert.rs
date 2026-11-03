@@ -2466,8 +2466,8 @@ fn record_germ_dir<T: Decide>(
         }
         return germ_dir(sa, sb, read, band);
     }
-    let s_a = a_body.proven_face_surface(sa.face).clone();
-    let s_b = b_body.proven_face_surface(sb.face).clone();
+    let s_a = a_body.proven_face(sa.face).surface().clone();
+    let s_b = b_body.proven_face(sb.face).surface().clone();
     let reach = declared.reach_of(super::Operand::A, sa.face, super::Operand::B, sb.face)?;
     let d = match geom_brep::tangent_locus(&s_a, &s_b, reach, band) {
         Ok(geom_brep::TangentLocus::Line { dir, .. }) => dir.normalize(),

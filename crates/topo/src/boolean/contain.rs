@@ -434,14 +434,13 @@ pub(crate) fn driver_face_stale(face: FaceKey) -> ! {
     )
 }
 
-/// `face`'s outer loop and rings ([`Body::face_loops_linked`]), the face
+/// `face`'s outer loop and rings ([`crate::live::FaceView::loops`]), the face
 /// the caller's key.
 fn face_loops<T: Decide>(body: &Body<T>, face: FaceKey) -> Result<Vec<LoopKey>, ContainError> {
-    let face_data = body.get_face(face).ok_or(ContainError::StaleFace(face))?;
-    Ok(body
-        .face_loops_linked(face, face_data)
-        .map(|(lk, _, _)| lk)
-        .collect())
+    let face_data = body
+        .passed_face(face)
+        .ok_or(ContainError::StaleFace(face))?;
+    Ok(face_data.loops().map(|(lk, _, _)| lk).collect())
 }
 
 /// **`contfp`** — classifies point `q` (already on the plane of `face`,
@@ -846,8 +845,8 @@ pub(crate) fn face_placement<T: Decide>(
     band: Band,
     on_plane: &'static str,
 ) -> Result<CurvedPlacement, PlacementError> {
-    let f = proven(&body.faces, face, EntityId::Face);
-    match *body.face_surface_linked(face, f) {
+    let f = body.proven_face(face);
+    match *f.surface() {
         geom::Surface::Plane { origin, normal, .. } => {
             match decide(on_plane, Margin::of((q - origin).dot(normal)), band) {
                 Ok(Sign::Zero) => contfp(body, face, normal, q, band)
@@ -924,8 +923,8 @@ fn curved_interior_placement<T: Decide>(
     band: Band,
     cut: Option<&[usize]>,
 ) -> Result<(CurvedPlacement, Option<(f64, f64)>), ContainError> {
-    let face_data = proven(&body.faces, face, EntityId::Face);
-    let analytic = match *body.face_surface_linked(face, face_data) {
+    let face_data = body.proven_face(face);
+    let analytic = match *face_data.surface() {
         geom::Surface::Cylinder {
             origin,
             axis,
@@ -1510,8 +1509,8 @@ mod tests {
         let body = holed.body;
         let band = Band::linear(Tol::witness()).unwrap();
         let mut loops = 0;
-        for (fk, f) in body.faces() {
-            for (lk, ..) in body.face_loops_linked(fk, f) {
+        for f in body.face_views() {
+            for (lk, ..) in f.loops() {
                 loops += 1;
                 assert!(
                     loop_circle(&body, lk, band)

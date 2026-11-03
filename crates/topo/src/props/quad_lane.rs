@@ -1861,7 +1861,7 @@ mod tests {
         use crate::entity::{FaceKey, LoopBoundary};
         use crate::props::{
             FaceRun, QuadLane, References, corner_of, decide_faces_serially, face_flux, face_loops,
-            flat_loops, rederive, resolve_face, round_hook, shell_polygons, vertex_rings,
+            flat_loops, rederive, round_hook, shell_polygons, vertex_rings,
         };
 
         /// `m · 2^e`, exactly.
@@ -1994,8 +1994,9 @@ mod tests {
                 den: Dyadic::of(1.0),
             };
             for (key, _) in body.faces() {
-                let (face, surface) = resolve_face(body, key);
-                let loops = flat_loops(body, face).unwrap();
+                let face = body.proven_face(key);
+                let surface = face.surface();
+                let loops = flat_loops(body, face.record()).unwrap();
                 let rings = vertex_rings(body, surface, &loops, lane)
                     .unwrap()
                     .expect("a planar face bounded by lines");
@@ -2165,13 +2166,14 @@ mod tests {
             let mut polygon = Interval::zero();
             for run in &runs {
                 let centre = corner_of(lane, run);
-                let (face, surface) = resolve_face(&body, run.face);
-                let loops = face_loops(&body, face).unwrap();
+                let face = body.proven_face(run.face);
+                let surface = face.surface();
+                let loops = face_loops(&body, face.record()).unwrap();
                 let (c, _) = super::super::closed_form(
                     surface,
                     &loops,
-                    &crate::props::face_tips(&body, face).unwrap(),
-                    face.sense,
+                    &crate::props::face_tips(&body, face.record()).unwrap(),
+                    face.record().sense,
                     band,
                     centre,
                     None,
@@ -2180,8 +2182,13 @@ mod tests {
                 flux = flux + c.flux;
                 area = area + c.area;
                 polygon = polygon
-                    + match vertex_rings(&body, surface, &flat_loops(&body, face).unwrap(), lane)
-                        .unwrap()
+                    + match vertex_rings(
+                        &body,
+                        surface,
+                        &flat_loops(&body, face.record()).unwrap(),
+                        lane,
+                    )
+                    .unwrap()
                     {
                         Some(rings) => {
                             let &geom::Surface::Plane { normal, .. } = surface else {

@@ -284,8 +284,8 @@ fn domed_cube() -> (Body<f64>, FaceKey) {
 /// Every row `face` stores, image and joint element by half-edge, in
 /// loop and cycle order, as text: the byte-level record a door leaves.
 fn rows_of(body: &Body<f64>, face: FaceKey) -> Vec<String> {
-    let data = body.get_face(face).unwrap();
-    body.face_loops_linked(face, data)
+    let data = body.proven_face(face);
+    data.loops()
         .filter_map(|(_, l, _)| match l.boundary {
             crate::entity::LoopBoundary::Cycle { first } => Some(first),
             crate::entity::LoopBoundary::Empty { .. } => None,

@@ -72,8 +72,8 @@ fn arc(pair: SurfacePair, carrier: &Curve3<f64>, (t0, t1): (f64, f64)) -> EdgeCu
 
 /// Each boundary edge of `face`: its carrier and its midpoint.
 fn arcs(body: &Body<f64>, face: crate::FaceKey) -> Vec<(Curve3<f64>, Point3<f64>)> {
-    let fd = body.get_face(face).expect("the face");
-    body.face_boundary_linked(face, fd)
+    let fd = body.proven_face(face);
+    fd.boundary()
         .filter_map(|m| match m {
             crate::live::BoundaryMember::Edge { ek, .. } => Some(ek),
             crate::live::BoundaryMember::Isolated { .. } => None,

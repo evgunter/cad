@@ -94,7 +94,7 @@ use crate::boolean::{CarryRefusal, Cell};
 use crate::chord_join::SplitJoinError;
 use crate::entity::{EdgeKey, EntityId, FaceKey, LoopBoundary, ShellKey, SolidKey, VertexKey};
 use crate::euler::{EulerOpError, FaceSurface};
-use crate::live::{BoundaryMember, linked, proven};
+use crate::live::{BoundaryMember, proven};
 use geom::Surface;
 use geom_core::Tol;
 
@@ -1727,16 +1727,16 @@ fn nest_slit<T: Decide + crate::props::AtRestPolicy>(
 /// ([`Body::rechart_restating`], which restates the carrier and
 /// interval). A declared authority travels verbatim. `face` is a face
 /// the split made, so a stale one panics ([`proven`]), as a miss on the
-/// walk of its loops does ([`Body::face_boundary_by_loop`]).
+/// walk of its loops does ([`crate::live::FaceView::boundary_by_loop`]).
 pub(crate) fn section_plane_restatements<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     stranded: &[EdgeKey],
 ) -> Vec<(EdgeKey, geom_brep::EdgeDescriptionSpec<T>)> {
-    let face_data = proven(&body.faces, face, EntityId::Face);
-    let chart = face_data.surface;
+    let face_data = body.proven_face(face);
+    let chart = face_data.record().surface;
     let mut out: Vec<(EdgeKey, geom_brep::EdgeDescriptionSpec<T>)> = Vec::new();
-    for (_, members, _) in body.face_boundary_by_loop(face, face_data) {
+    for (_, members, _) in face_data.boundary_by_loop() {
         for member in members {
             let BoundaryMember::Edge {
                 ek: edge,
@@ -1813,7 +1813,7 @@ pub(crate) fn section_plane_restatements<T: Decide>(
 /// one panics, and is not an edge with no description. `face` is the
 /// face the split promoted and every hop of its walk is a link, so its
 /// edges are read once, before the writes, which describe edges and move
-/// none ([`Body::proven_face_edges`]).
+/// none ([`crate::live::FaceView::edges`]).
 pub(crate) fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     face: FaceKey,
@@ -1821,7 +1821,7 @@ pub(crate) fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
     tol: Tol,
 ) -> Result<(), SplitFinishError> {
     let s_self = proven(&body.faces, face, EntityId::Face).surface;
-    for face_edge in body.proven_face_edges(face) {
+    for face_edge in body.proven_face(face).edges() {
         let (he, edge, mate) = (face_edge.half, face_edge.edge, face_edge.mate);
         let other_face = face_edge.across;
         let edge_data = proven(&body.edges, edge, EntityId::Edge).clone();
@@ -1834,8 +1834,8 @@ pub(crate) fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
         let p0 = body.resolve_vertex_point(start, crate::live::Proven);
         let p1 = body.resolve_vertex_point(end, crate::live::Proven);
         let (surf_self, surf_other) = (
-            body.proven_face_surface(face),
-            body.proven_face_surface(other_face),
+            body.proven_face(face).surface(),
+            body.proven_face(other_face).surface(),
         );
         let existing = body
             .edge_curve_linked(edge, &edge_data)
@@ -2136,14 +2136,8 @@ fn classify_shell<T: Decide>(
     // No section face: an uncut component — classify by its first
     // off-plane vertex (deterministic face-list/cycle order walk).
     for &face in &shell_data.faces {
-        let face_data = linked(
-            &body.faces,
-            face,
-            EntityId::Face,
-            EntityId::Shell(shell),
-            "faces",
-        );
-        for member in body.face_boundary_linked(face, face_data) {
+        let face_data = body.linked_face(face, EntityId::Shell(shell), "faces");
+        for member in face_data.boundary() {
             let BoundaryMember::Edge { half, .. } = member else {
                 continue;
             };
@@ -2189,8 +2183,8 @@ pub(crate) fn carve<T: Decide>(
         for &face in &shell_data.faces {
             faces.push(face);
             let holder = EntityId::Shell(shell);
-            let face_data = linked(&body.faces, face, EntityId::Face, holder, "faces");
-            for (l, members, _) in body.face_boundary_by_loop(face, face_data) {
+            let face_data = body.linked_face(face, holder, "faces");
+            for (l, members, _) in face_data.boundary_by_loop() {
                 loops.push(l);
                 for member in members {
                     vertices.insert(member.vertex(), ());

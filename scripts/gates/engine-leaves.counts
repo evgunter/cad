@@ -100,7 +100,7 @@ names-boolean               7  attach.rs
 names-boolean              14  body.rs
 names-boolean               4  bound_side.rs
 names-boolean              11  cell_region.rs
-names-boolean             509  census.rs
+names-boolean             508  census.rs
 names-boolean               2  census/curved.rs
 names-boolean              33  census/depth_gap.rs
 names-boolean              26  census/in_plane.rs
@@ -120,7 +120,7 @@ names-boolean              10  construction.rs
 names-boolean               4  contact.rs
 names-boolean               2  entity.rs
 names-boolean               3  euler.rs
-names-boolean               5  euler_ring.rs
+names-boolean               4  euler_ring.rs
 names-boolean               7  face_boxes.rs
 names-boolean               1  face_normal.rs
 names-boolean               1  fixtures.rs
@@ -132,7 +132,7 @@ names-boolean              77  lib.rs
 names-boolean              99  lineage.rs
 names-boolean               3  link.rs
 names-boolean              88  link/cone_fuzz.rs
-names-boolean               6  live.rs
+names-boolean               9  live.rs
 names-boolean              43  merge_faces.rs
 names-boolean               1  merge_faces_kept_rows.rs
 names-boolean               3  offset_axial.rs

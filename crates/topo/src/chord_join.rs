@@ -2346,11 +2346,11 @@ fn chord_spec<T: Decide>(
     body.get_vertex(u1).ok_or(SplitJoinError::Corrupt {
         entity: EntityId::Vertex(u1),
     })?;
-    let face_data = body.get_face(face).ok_or_else(|| corrupt_face(face))?;
-    let wall_key = face_data.surface;
+    let face_data = body.passed_face(face).ok_or_else(|| corrupt_face(face))?;
+    let wall_key = face_data.record().surface;
     // The surface is a link of the face the join divides, mid-operation
     // ([`crate::live::OPERATORS_KEEP_LINKS`]): a torn one is not curved.
-    if let geom::Surface::Plane { .. } = body.face_surface_linked(face, face_data) {
+    if let geom::Surface::Plane { .. } = face_data.surface() {
         // The boolean's planar-side chord of a curved germ pair
         // takes its own lane (M5 PR 9); every other lane keeps
         // the straight chord BIT-IDENTICALLY.
@@ -2790,8 +2790,8 @@ pub(crate) fn face_loop_azimuth_windows<T: Decide>(
     face: FaceKey,
     band: Band,
 ) -> Result<Vec<Option<(T, T)>>, SplitJoinError> {
-    let data = body.get_face(face).ok_or_else(|| corrupt_face(face))?;
-    body.face_loops_linked(face, data)
+    let data = body.passed_face(face).ok_or_else(|| corrupt_face(face))?;
+    data.loops()
         .filter_map(|(_, l, _)| match l.boundary {
             LoopBoundary::Cycle { first } => Some(first),
             _ => None,
@@ -2824,8 +2824,8 @@ pub fn face_azimuth_window_traces<T: Decide>(
     face: FaceKey,
     band: Band,
 ) -> Result<Option<(T, T)>, SplitJoinError> {
-    let data = body.get_face(face).ok_or_else(|| corrupt_face(face))?;
-    face_azimuth_window(body, body.face_surface_linked(face, data), face, band)
+    let data = body.passed_face(face).ok_or_else(|| corrupt_face(face))?;
+    face_azimuth_window(body, data.surface(), face, band)
 }
 
 /// The azimuth hull of a walk's images: the window every caller folds.
@@ -4168,9 +4168,9 @@ pub(crate) fn chart_island_winding<T: Decide>(
     closure: (Point3<T>, UnitVec3<T>),
     band: Band,
 ) -> Result<Result<Sign, Indeterminate>, SplitJoinError> {
-    let face_data = body.get_face(face).ok_or_else(|| corrupt_face(face))?;
-    let sense = face_data.sense;
-    let surface = body.face_surface_linked(face, face_data).clone();
+    let face_data = body.passed_face(face).ok_or_else(|| corrupt_face(face))?;
+    let sense = face_data.record().sense;
+    let surface = face_data.surface().clone();
     let WallChart {
         origin: centre,
         axis,
@@ -4448,8 +4448,8 @@ impl<T: Decide> IslandReading<T> {
         band: Band,
     ) -> Result<Result<Self, Indeterminate>, SplitJoinError> {
         let invariant = |what| SplitJoinError::SectionInvariant { face, what };
-        let face_data = body.get_face(face).ok_or_else(|| corrupt_face(face))?;
-        let surface = body.face_surface_linked(face, face_data);
+        let face_data = body.passed_face(face).ok_or_else(|| corrupt_face(face))?;
+        let surface = face_data.surface();
         let quadric = Quadric::of(surface).ok_or_else(|| ring_island_unread(face, surface))?;
         let cycle = body.loop_cycle(h1).ok_or_else(|| corrupt_he(h1))?;
         let end = cycle
@@ -4499,7 +4499,7 @@ impl<T: Decide> IslandReading<T> {
             Err(diag) => return Ok(Err(diag)),
         }
         arcs.push(chord);
-        let left = quadric.outward(q, face_data.sense).cross(travel);
+        let left = quadric.outward(q, face_data.record().sense).cross(travel);
         Ok(Ok(Self {
             quadric,
             arcs,
@@ -5633,9 +5633,9 @@ impl ChordJoiner {
         tol: Tol,
     ) -> Result<(), SplitJoinError> {
         let invariant = |what| SplitJoinError::SectionInvariant { face: oldf, what };
-        let old = body.get_face(oldf).ok_or_else(|| corrupt_face(oldf))?;
-        let outer = old.outer;
-        let surface = body.face_surface_linked(oldf, old);
+        let old = body.passed_face(oldf).ok_or_else(|| corrupt_face(oldf))?;
+        let outer = old.record().outer;
+        let surface = old.surface();
         if RimSide::of(surface) != Some(RimSide::Plane) {
             return Err(invariant(
                 "a null strut's chords divide a face that is not a plane",

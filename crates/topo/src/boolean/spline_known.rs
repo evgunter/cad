@@ -26,8 +26,8 @@ use geom_core::k_stats::{Magnitude, decide_magnitude};
 use geom_core::{Band, Decide, Margin, Point2};
 
 use crate::body::Body;
-use crate::entity::{EntityId, FaceKey, HalfEdgeKey};
-use crate::live::{BoundaryMember, proven};
+use crate::entity::{FaceKey, HalfEdgeKey};
+use crate::live::BoundaryMember;
 use crate::props::AtRestPolicy;
 
 /// **The rows and corners `F` of `a` and `G` of `b` share** (module
@@ -88,8 +88,8 @@ fn images<T: Decide + AtRestPolicy>(
     face: FaceKey,
     band: Band,
 ) -> Vec<(HalfEdgeKey, geom_brep::Pcurve<T>)> {
-    let fd = proven(&body.faces, face, EntityId::Face);
-    body.face_boundary_linked(face, fd)
+    let fd = body.proven_face(face);
+    fd.boundary()
         .filter_map(|member| match member {
             BoundaryMember::Edge { he, .. } => Some(he),
             BoundaryMember::Isolated { .. } => None,

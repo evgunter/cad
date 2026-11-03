@@ -427,22 +427,18 @@ fn line_meetings<T: Decide>(
 }
 
 /// Each walkable loop of `face` — its outer loop, then every ring — as
-/// its half-edge cycle ([`Body::face_cycles_by_loop`], every hop past
+/// its half-edge cycle ([`crate::live::FaceView::cycles`], every hop past
 /// the face a link). A loop with no cycle (a lone vertex) has no edge
 /// and bounds no area, so it is left out.
 fn face_loops<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
 ) -> Result<Vec<Vec<HalfEdgeKey>>, LadderRefusal> {
-    let f = body.get_face(face).ok_or(LadderRefusal::Desync {
+    let f = body.passed_face(face).ok_or(LadderRefusal::Desync {
         face,
         what: "face no longer resolves",
     })?;
-    Ok(body
-        .face_cycles_by_loop(face, f)
-        .map(|(_, cycle)| cycle)
-        .filter(|cycle| !cycle.is_empty())
-        .collect())
+    Ok(f.cycles().map(|(_, cycle)| cycle).collect())
 }
 
 /// [`face_loops`] as each half-edge's start point.

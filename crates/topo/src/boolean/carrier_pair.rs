@@ -91,8 +91,8 @@ pub enum PairUnread {
 /// an at-rest operand by tier 1, mid-operation by
 /// [`crate::live::OPERATORS_KEEP_LINKS`]).
 fn face_ball<T: Decide>(body: &Body<T>, face: FaceKey, band: Band) -> Option<ExtentBall<T>> {
-    let f = body.get_face(face)?;
-    let ball = match body.face_surface_linked(face, f).cover() {
+    let f = body.passed_face(face)?;
+    let ball = match f.surface().cover() {
         Ok(cover) => ExtentBall::of_cover(&cover),
         Err(_) => {
             let (lo, hi) = crate::census::face_reach(body, face, band)?;
@@ -111,9 +111,9 @@ fn face_ball<T: Decide>(body: &Body<T>, face: FaceKey, band: Band) -> Option<Ext
 /// like any other), and a miss panics (on an at-rest body by tier 1,
 /// mid-operation by [`crate::live::OPERATORS_KEEP_LINKS`]).
 pub(crate) fn face_witnesses<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<Vec<Point3<T>>> {
-    let f = body.get_face(face)?;
+    let f = body.passed_face(face)?;
     Some(
-        body.face_boundary_linked(face, f)
+        f.boundary()
             .map(|member| match member {
                 BoundaryMember::Isolated { point, .. } => point,
                 BoundaryMember::Edge { he, half, .. } => {
@@ -183,17 +183,17 @@ pub(crate) fn pair_extent<T: Decide>(
 /// public door keeps live, and which the reduction's operators keep
 /// live mid-operation ([`crate::live::OPERATORS_KEEP_LINKS`]).
 pub fn face_carrier<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<CarrierDesc<T>> {
-    let f = body.get_face(face)?;
+    let f = body.passed_face(face)?;
     // `sense` is the material-side bit: true means the face's outward
     // normal IS the chart normal, which for a sphere/cylinder chart
     // points away from the centre/axis. Read as a BIT, never as a
     // comparison on `T` — the scalar backends order intervals, not
     // signs (S10's exact-bit discipline).
-    let outward = f.sense;
-    match body.face_surface_linked(face, f) {
+    let outward = f.record().sense;
+    match f.surface() {
         geom::Surface::Plane { origin, normal, .. } => Some(CarrierDesc::Plane {
             origin: *origin,
-            normal: plane_outward_normal(f, *normal).vec(),
+            normal: plane_outward_normal(f.record(), *normal).vec(),
         }),
         geom::Surface::Sphere { center, radius, .. } => Some(CarrierDesc::Sphere {
             center: *center,

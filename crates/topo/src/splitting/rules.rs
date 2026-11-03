@@ -295,7 +295,7 @@ pub(super) fn apply_rule_a<T: Decide>(
                     // refusal (the surfaces under-determine the
                     // contact — never guess); in-band escalates (F6:
                     // an osculating pair is a sliver at this ε).
-                    let surface = body.proven_face_surface(face);
+                    let surface = body.proven_face(face).surface();
                     let p_base = body.resolve_vertex_point(vertex, Proven);
                     let kappa = geom_brep::implicit_max_normal_curvature(surface, p_base);
                     // Ledger row F11: the sagitta is metered at the
@@ -548,7 +548,7 @@ fn edge_wedge<T: Decide>(
         face: mate_face,
         reading: SectorReading::Escalated(diag),
     };
-    let sector_surface = |f| body.proven_face_surface(f);
+    let sector_surface = |f| body.proven_face(f).surface();
     let (s_own, s_mate) = (sector_surface(own_face), sector_surface(mate_face));
     let (_, along, _) = chord(body, vertex, he)?;
     let extent = crate::boolean::sectors::departure_arm_lever(along);
@@ -721,7 +721,7 @@ pub(crate) fn face_reach_from<T: Decide>(
     at: Point3<T>,
 ) -> Result<Lever<T>, UnboundedFace> {
     let over_span = matches!(
-        body.proven_face_surface(face),
+        body.proven_face(face).surface(),
         geom::Surface::Plane { .. } | geom::Surface::Cylinder { .. }
     );
     boundary_lever(body, face, at, |curve| {
@@ -830,7 +830,7 @@ pub(crate) fn cone_axial_window<T: Decide>(
             ),
             Real::max,
         )?;
-    let own @ geom::Surface::Cone { .. } = body.proven_face_surface(face) else {
+    let own @ geom::Surface::Cone { .. } = body.proven_face(face).surface() else {
         return Ok((lo, hi));
     };
     let widened = (lo.min(T::zero()), hi.max(T::zero()));
@@ -931,10 +931,10 @@ fn boundary_fold<T: Decide, R: Copy>(
     ),
     max: impl Fn(R, R) -> R,
 ) -> Result<R, UnboundedFace> {
-    let face_data = proven(&body.faces, face, EntityId::Face);
+    let face_data = body.proven_face(face);
     let mut extent = floor;
-    let outer = face_data.outer;
-    for (loop_key, members, _) in body.face_boundary_by_loop(face, face_data) {
+    let outer = face_data.record().outer;
+    for (loop_key, members, _) in face_data.boundary_by_loop() {
         for member in members {
             let p = match member {
                 // An unbounded face has no finite lever arm.

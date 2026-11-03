@@ -70,9 +70,9 @@ use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3, is_finite_length};
 use crate::body::Body;
 use crate::boolean::boxes::{FaceBoxRule, edge_end_point, face_box_rule, sweep_pad};
 use crate::boolean::{CurvedPlacement, FaceContainment, face_placement};
-use crate::entity::{EntityId, FaceKey};
+use crate::entity::FaceKey;
 use crate::geometry::SurfaceKey;
-use crate::live::{BoundaryMember, proven};
+use crate::live::BoundaryMember;
 use crate::validate::decide;
 
 /// K name: the gap between one face's least depth and the other's
@@ -257,14 +257,14 @@ pub(super) fn carrier_depth<T: Decide>(
 /// Where `f` or a record on the walk from it does not resolve, as
 /// [`super::face_reach_in`]: a torn boundary is not one with no claim.
 pub(super) fn face_read<T: Decide>(body: &Body<T>, f: FaceKey, band: Band) -> Option<Read<T>> {
-    let face = proven(&body.faces, f, EntityId::Face);
-    let surface = body.face_surface_linked(f, face);
+    let face = body.proven_face(f);
+    let surface = face.surface();
     let rule = face_box_rule(surface, band).ok()?;
-    let mut depths: Vec<Proposed<T>> = carrier_depth(&rule, face.surface, band)
+    let mut depths: Vec<Proposed<T>> = carrier_depth(&rule, face.record().surface, band)
         .into_iter()
         .collect();
     let mut boundary = Some(Vec::new());
-    for member in body.face_boundary_linked(f, face) {
+    for member in face.boundary() {
         let piece = match member {
             BoundaryMember::Isolated { point, .. } => Some(point_piece(point)),
             BoundaryMember::Edge { ek, edge, .. } => {
@@ -369,7 +369,7 @@ pub(super) fn face_read<T: Decide>(body: &Body<T>, f: FaceKey, band: Band) -> Op
         },
     }?;
     Some(Read {
-        surface: face.surface,
+        surface: face.record().surface,
         cover,
         depths,
     })

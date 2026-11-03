@@ -144,7 +144,7 @@ use crate::body::Body;
 use crate::census::CollinearOverlap;
 use crate::entity::{EdgeKey, EntityId, FaceKey, GeomRef, HalfEdgeKey};
 use crate::geometry::CurveKey;
-use crate::live::{OPERATORS_KEEP_LINKS, Proven, dangling_link, link};
+use crate::live::{FaceView, OPERATORS_KEEP_LINKS, Proven, dangling_link, link};
 use crate::null::CurveGeom;
 
 impl<T: Real> Body<T> {
@@ -198,10 +198,9 @@ impl<T: Real> Body<T> {
                 == crate::transform::OrientationClass::Plane
         };
         let plane_faces: BTreeSet<FaceKey> = self
-            .faces
-            .iter()
-            .filter(|&(face, data)| is_plane(self.face_surface_linked(face, data)))
-            .map(|(face, _)| face)
+            .face_views()
+            .filter(|face| is_plane(face.surface()))
+            .map(FaceView::key)
             .collect();
         let plane_images: BTreeSet<CurveKey> = self
             .curves

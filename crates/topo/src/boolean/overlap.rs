@@ -197,10 +197,10 @@ pub(crate) fn overlap_as<T: Decide>(
 ) -> Result<bool, OverlapRefusal> {
     for (body, face) in [a, b] {
         let f = body
-            .get_face(face)
+            .passed_face(face)
             .ok_or(OverlapRefusal::StaleFace { face })?;
         if matches!(
-            body.face_surface_linked(face, f).kind(),
+            f.surface().kind(),
             geom::SurfaceKind::Nurbs | geom::SurfaceKind::Approx
         ) {
             return Err(OverlapRefusal::SplineCarrier { face });
@@ -300,10 +300,10 @@ fn loops<T: Decide>(
     (body, face): (&Body<T>, FaceKey),
 ) -> Result<Vec<Vec<HalfEdgeKey>>, OverlapRefusal> {
     let f = body
-        .get_face(face)
+        .passed_face(face)
         .ok_or(OverlapRefusal::StaleFace { face })?;
     let mut out = Vec::new();
-    for (_, members, _) in body.face_boundary_by_loop(face, f) {
+    for (_, members, _) in f.boundary_by_loop() {
         let mut cycle = Vec::with_capacity(members.len());
         for member in members {
             match member {

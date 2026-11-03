@@ -29,7 +29,7 @@ use crate::entity::{EntityId, FaceKey, LoopBoundary, LoopKey, Shell, ShellKey, S
 #[cfg(debug_assertions)]
 use crate::euler::ArenaDelta;
 use crate::euler::{EulerOpError, RunExtent};
-use crate::live::{Arg, link, linked, lookup, proven};
+use crate::live::{Arg, link, linked, lookup};
 use crate::provenance::Provenance;
 
 impl<T: Decide> Body<T> {
@@ -86,17 +86,17 @@ impl<T: Decide> Body<T> {
             let mut pending = vec![seed];
             component.insert(seed, label);
             while let Some(face_key) = pending.pop() {
-                let face = proven(&self.faces, face_key, EntityId::Face).clone();
+                let face = self.proven_face(face_key);
                 // The move builds its lists from the shell's, so a face
                 // the walk glued on from outside them would join two
                 // components through a face it does not move.
                 assert!(
-                    face.shell == shell && listed.contains_key(face_key),
+                    face.record().shell == shell && listed.contains_key(face_key),
                     "movefac reached {face_key:?}, which is not shell {shell:?}'s in both \
                      directions: on a tier-1-valid body a face's shell lists it and an edge's \
                      two faces share a shell"
                 );
-                for (loop_key, loop_data, _) in self.face_loops_linked(face_key, &face) {
+                for (loop_key, loop_data, _) in face.loops() {
                     assert!(
                         loop_data.face == face_key,
                         "{face_key:?} lists loop {loop_key:?}, which names face {:?}: on a \

@@ -120,7 +120,7 @@ pub(super) fn read<T: Decide>(
     };
     let mut seen = std::collections::BTreeSet::new();
     for &(face, _) in geos {
-        for fe in body.proven_face_edges(face) {
+        for fe in body.proven_face(face).edges() {
             let (e, other) = (fe.edge, fe.across);
             if meets.lines.contains(&e) || !seen.insert(e) {
                 continue;
@@ -242,7 +242,7 @@ fn narrow<T: Decide>(
     let met = meets.met.clone();
     for m in &met {
         for &face in &m.faces {
-            for fe in body.proven_face_edges(face) {
+            for fe in body.proven_face(face).edges() {
                 let e = fe.edge;
                 // A line edge between two crossed planes is read exactly
                 // ([`super::edge_meets`]), and one met is marked where it

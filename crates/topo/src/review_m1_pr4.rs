@@ -480,13 +480,10 @@ fn some_single_op_reaches(
         }
     }
     // mekr: all four site shapes over all loop pairs of each face.
-    for (fk, face) in body.faces() {
-        let loops: Vec<LoopKey> = body
-            .face_loops_linked(fk, face)
-            .map(|(lk, ..)| lk)
-            .collect();
+    for face in body.face_views() {
+        let loops: Vec<LoopKey> = face.loops().map(|(lk, ..)| lk).collect();
         for &target_l in &loops {
-            for &ring in &face.rings {
+            for &ring in &face.record().rings {
                 if target_l == ring {
                     continue;
                 }
@@ -705,9 +702,9 @@ fn shell_components(body: &Body<f64>, shell: crate::entity::ShellKey) -> Vec<She
     // face -> vertices it touches
     let mut face_vertices: SecondaryMap<FaceKey, Vec<VertexKey>> = SecondaryMap::new();
     for &face in &faces {
-        let face_data = body.get_face(face).unwrap();
+        let face_data = body.proven_face(face);
         let mut vs = Vec::new();
-        for (_, l, _) in body.face_loops_linked(face, face_data) {
+        for (_, l, _) in face_data.loops() {
             match l.boundary {
                 LoopBoundary::Empty { vertex } => vs.push(vertex),
                 LoopBoundary::Cycle { first } => {
@@ -755,9 +752,9 @@ fn shell_components(body: &Body<f64>, shell: crate::entity::ShellKey) -> Vec<She
         let mut comp_edges: SecondaryMap<crate::entity::EdgeKey, ()> = SecondaryMap::new();
         let mut rings = 0usize;
         for &face in &comp_faces {
-            let face_data = body.get_face(face).unwrap();
-            rings += face_data.rings.len();
-            for (_, l, _) in body.face_loops_linked(face, face_data) {
+            let face_data = body.proven_face(face);
+            rings += face_data.record().rings.len();
+            for (_, l, _) in face_data.loops() {
                 if let LoopBoundary::Cycle { first } = l.boundary {
                     for he in body.loop_cycle(first).unwrap() {
                         comp_edges.insert(body.get_half_edge(he).unwrap().edge, ());

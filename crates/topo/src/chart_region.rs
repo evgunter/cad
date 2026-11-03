@@ -1175,15 +1175,16 @@ fn plane_frame<T: Decide>(
 }
 
 /// Every boundary vertex of a face, outer loop then rings, cycle order
-/// (fixed schedule, D9): [`Body::face_boundary_linked`], every hop past
+/// (fixed schedule, D9): [`crate::live::FaceView::boundary`], every hop past
 /// the face a link. A lone-vertex loop is refused, as a face that does
 /// not resolve is.
 fn face_boundary_points<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
 ) -> Result<Vec<geom_core::Point3<T>>, ChartRegionError> {
-    let face_data = body.get_face(face).ok_or(ChartRegionError::Corrupt)?;
-    body.face_boundary_linked(face, face_data)
+    let face_data = body.passed_face(face).ok_or(ChartRegionError::Corrupt)?;
+    face_data
+        .boundary()
         .map(|member| match member {
             BoundaryMember::Isolated { .. } => Err(ChartRegionError::Corrupt),
             BoundaryMember::Edge { .. } => Ok(body.member_point(&member)),
@@ -2433,13 +2434,17 @@ fn declared_chart<T: Decide + Bounds>(
     body_b: &Body<T>,
     face_b: FaceKey,
 ) -> Result<Surface<T>, ChartRegionError> {
-    let fa = body_a.get_face(face_a).ok_or(ChartRegionError::Corrupt)?;
-    let fb = body_b.get_face(face_b).ok_or(ChartRegionError::Corrupt)?;
-    let s_a = body_a.face_surface_linked(face_a, fa);
-    if std::ptr::eq(body_a, body_b) && fa.surface == fb.surface {
+    let fa = body_a
+        .passed_face(face_a)
+        .ok_or(ChartRegionError::Corrupt)?;
+    let fb = body_b
+        .passed_face(face_b)
+        .ok_or(ChartRegionError::Corrupt)?;
+    let s_a = fa.surface();
+    if std::ptr::eq(body_a, body_b) && fa.record().surface == fb.record().surface {
         return Ok(s_a.clone());
     }
-    let s_b = body_b.face_surface_linked(face_b, fb);
+    let s_b = fb.surface();
     if surface_bits_equal(s_a, s_b) {
         Ok(s_a.clone())
     } else {

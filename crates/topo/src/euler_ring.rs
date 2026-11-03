@@ -234,7 +234,6 @@
 
 use geom_brep::EdgeCurveSpec;
 use geom_core::{Decide, Point3};
-use slotmap::SecondaryMap;
 
 use crate::attach::KillMove;
 use crate::body::{Body, CYCLES_ARE_CLAIMANTS};
@@ -1237,7 +1236,7 @@ impl<T: Decide> Body<T> {
     /// the loop's new face is on a different CHART from its old one,
     /// and touches nothing when it is not. A face re-charted in place
     /// takes the same answer, one chart decision over every loop the
-    /// face has ([`Body::face_cycles`] proves them).
+    /// face has ([`crate::live::FaceView::whole_half_edges`] proves them).
     ///
     /// A pcurve row is a curve stated in a FACE's chart, keyed on a
     /// half-edge ([`crate::pcurves`]). Re-parenting a loop changes
@@ -1381,101 +1380,6 @@ impl<T: Decide> Body<T> {
             self.pcurves.remove(half_edge);
             self.joints.remove(half_edge);
         }
-    }
-
-    /// The rows a face re-charted in place drops: every half-edge of
-    /// every loop of `face`, outer then rings, each loop proven whole
-    /// ([`Body::whole_cycle`]). [`Body::drop_rows_on_chart_change`]'s
-    /// answer for a whole FACE, taken in the setter's plan phase and
-    /// handed to [`Body::drop_rows`] in its mutation phase.
-    ///
-    /// A surface setter re-charts a face in place — no loop moves, no
-    /// key changes, and every row the face stores is suddenly a curve
-    /// stated in the chart the face LEFT. That is the loop doors'
-    /// question with the two sides swapped, so it takes their answer:
-    /// same chart, every row stands; a different chart, the face's
-    /// rows go, deriving nothing.
-    ///
-    /// **The chart decision is the caller's, and is taken once.** The
-    /// loop doors ask [`Body::same_chart`] per loop because each loop
-    /// arrives from a face of its own; a face re-charted in place has
-    /// ONE pair of keys for all of its rows, and its setter compares
-    /// them where both still resolve — before any orphan sweep can
-    /// take the old key out of the arena. So this reads no surface.
-    ///
-    /// The face's rows are its loops' rows, and each loop's walk is
-    /// [`Body::proven_face_cycles`]', the walk
-    /// [`crate::pcurves::validate_pcurves`] reads the same face with.
-    /// One walk is what makes "the rows the door removed" and "the rows
-    /// the validator would have read" the same set by construction
-    /// rather than by agreement; the whole proof is what makes it every
-    /// row the face holds, so none is left stated in the chart it left.
-    ///
-    /// `face` is one the caller has already resolved.
-    ///
-    /// # Panics
-    ///
-    /// Where `face` or one of its loops does not resolve, or a loop's
-    /// walk is not whole ([`Body::whole_cycle`]): the caller resolved
-    /// `face`, and on a tier-1-valid body a face's loops are live and
-    /// whole.
-    #[track_caller]
-    pub(crate) fn face_cycles(&self, face: FaceKey) -> Vec<HalfEdgeKey> {
-        let mut halves = Vec::new();
-        for (r#loop, cycle) in self.proven_face_cycles(face) {
-            self.require_run_of(cycle.iter().copied(), r#loop, RunExtent::Whole, &[]);
-            halves.extend(cycle);
-        }
-        halves
-    }
-
-    /// [`Body::face_cycles`] of each face of `faces`, in order, under
-    /// ONE whole-arena pass for all of them: the half-edge arena is read
-    /// once for every face's loops, where a face at a time reads it once
-    /// per loop. The same proofs, the same panics.
-    ///
-    /// # Panics
-    ///
-    /// As [`Body::face_cycles`].
-    #[track_caller]
-    pub(crate) fn faces_cycles(
-        &self,
-        faces: impl IntoIterator<Item = FaceKey>,
-    ) -> Vec<Vec<HalfEdgeKey>> {
-        let mut loops: SecondaryMap<LoopKey, ()> = SecondaryMap::new();
-        let mut members: SecondaryMap<HalfEdgeKey, ()> = SecondaryMap::new();
-        let mut out = Vec::new();
-        for face in faces {
-            let mut halves = Vec::new();
-            for (r#loop, cycle) in self.proven_face_cycles(face) {
-                // `require_run_of`'s member proof, without the set it
-                // builds per loop.
-                for &member in &cycle {
-                    assert!(
-                        self.claims(member, r#loop),
-                        "{member:?}, walked as a member of loop {:?}'s cycle, does not claim \
-                         it: {CYCLES_ARE_CLAIMANTS}",
-                        r#loop
-                    );
-                    members.insert(member, ());
-                }
-                loops.insert(r#loop, ());
-                halves.extend(cycle);
-            }
-            out.push(halves);
-        }
-        if let Some((stray, data)) = self
-            .half_edges
-            .iter()
-            .find(|&(he, data)| loops.contains_key(data.parent_loop) && !members.contains_key(he))
-        {
-            unreachable!(
-                "{stray:?} claims loop {:?} and its cycle walk does not reach it: \
-                 {CYCLES_ARE_CLAIMANTS}",
-                data.parent_loop
-            );
-        }
-        out
     }
 
     /// Do these two surface keys hold one DESCRIPTION, so a pcurve

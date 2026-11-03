@@ -287,18 +287,18 @@ pub(crate) enum BoundaryStop {
 /// read. A sweep lifts a face's boundary once and asks it of every
 /// cell; the lift reads no bracket and decides nothing. A face that does
 /// not resolve is unreadable; past it every hop is a link
-/// ([`Body::face_boundary_linked`]).
+/// ([`crate::live::FaceView::boundary`]).
 pub(crate) fn lift_boundary<T: Decide + CertifiedBounds>(
     body: &Body<T>,
     face: FaceKey,
 ) -> Vec<BoundaryStop> {
     let mut stops = Vec::new();
-    let Some(f) = body.get_face(face) else {
+    let Some(f) = body.passed_face(face) else {
         stops.push(BoundaryStop::Unreadable);
         return stops;
     };
     let on_face = |he| body.face_of_linked(he) == face;
-    for member in body.face_boundary_linked(face, f) {
+    for member in f.boundary() {
         stops.push(BoundaryStop::Vertex(
             body.member_point(&member).map(Interval::from_certified),
         ));

@@ -580,7 +580,7 @@ fn contains<T: Decide>(
         super::contain::ContainError::StaleFace(face) => super::contain::driver_face_stale(face),
         _ => unread,
     };
-    let read = match body.proven_face_surface(face) {
+    let read = match body.proven_face(face).surface() {
         geom::Surface::Plane { normal, .. } => {
             super::contain::contfp(body, face, *normal, p, band).map(Some)
         }
@@ -961,10 +961,10 @@ pub(crate) fn face_boundary_arcs<T: Real>(
     face: FaceKey,
 ) -> Vec<(bool, &geom_brep::EdgeCurve<T>)> {
     let mut out = Vec::new();
-    let Some(f) = body.get_face(face) else {
+    let Some(f) = body.passed_face(face) else {
         return out;
     };
-    for member in body.face_boundary_linked(face, f) {
+    for member in f.boundary() {
         let crate::live::BoundaryMember::Edge { he, ek, edge, .. } = member else {
             continue;
         };

@@ -511,8 +511,8 @@ fn joinable<T: Decide>(
     };
     let (sf, sg) = s1.surfaces();
     let surface = |side: crate::readback::EdgeSide| {
-        let face = proven(&body.faces, side.face, EntityId::Face);
-        body.face_surface_linked(side.face, face)
+        let face = body.proven_face(side.face);
+        face.surface()
     };
     let (surf_f, surf_g) = (surface(s1.plus), surface(s1.minus));
     let planar = |s: &geom::Surface<T>| matches!(s, geom::Surface::Plane { .. });
@@ -1508,7 +1508,8 @@ mod join_door {
             .faces()
             .map(|(f, _)| f)
             .find(|&f| {
-                body.face_loops_linked(f, body.get_face(f).unwrap())
+                body.proven_face(f)
+                    .loops()
                     .all(|(_, l, _)| match l.boundary {
                         crate::LoopBoundary::Cycle { first } => body
                             .loop_cycle(first)

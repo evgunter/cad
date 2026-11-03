@@ -335,8 +335,8 @@ pub(crate) fn resolve<T: Decide>(
         });
     }
     // The charted arms need the face's own chart and the base vertex.
-    let face_data = crate::live::proven(&body.faces, face, EntityId::Face);
-    let sense = face_data.sense;
+    let face_data = body.proven_face(face);
+    let sense = face_data.record().sense;
     let point = || {
         body.point_of(
             vertex,
@@ -350,7 +350,7 @@ pub(crate) fn resolve<T: Decide>(
             carrier,
         })
     };
-    let surface = body.face_surface_linked(face, face_data);
+    let surface = face_data.surface();
     if let Some(chart) = surface.spline_chart() {
         let kind = surface.kind();
         let normal = spline_normal(

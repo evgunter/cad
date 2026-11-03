@@ -278,14 +278,14 @@ pub(crate) fn torus_face_region<T: Decide>(
     face: FaceKey,
 ) -> Result<Option<TorusFaceRegion<T>>, PointInSolidError> {
     let corrupt = || PointInSolidError::CorruptFace { face };
-    let f = crate::live::proven(&body.faces, face, crate::entity::EntityId::Face);
+    let f = body.proven_face(face);
     let &geom::Surface::Torus {
         center,
         axis,
         major_radius,
         minor_radius,
         u_ref,
-    } = body.face_surface_linked(face, f)
+    } = f.surface()
     else {
         return Err(corrupt());
     };
@@ -299,8 +299,8 @@ pub(crate) fn torus_face_region<T: Decide>(
         major: major_radius,
         minor: minor_radius,
         u_ref,
-        sense: f.sense,
-        outer: f.outer,
+        sense: f.record().sense,
+        outer: f.record().outer,
         edges,
     }))
 }

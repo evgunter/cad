@@ -313,7 +313,7 @@ fn kind_arm(a: geom::SurfaceKind, b: geom::SurfaceKind) -> KindArm {
 /// **A face's surface, with its key in `body`**: the face is one a germ
 /// was recorded against or one a segment's halves lie on now, a key the
 /// kernel recorded or read out of its own records, so a stale one is a
-/// kernel bug and panics naming it ([`Body::proven_face_surface`]), as
+/// kernel bug and panics naming it ([`Body::proven_face`]), as
 /// the section table's reads of the same faces do.
 ///
 /// That no other walk reads a surface in this file is held by
@@ -324,8 +324,8 @@ fn face_surface<T: geom_core::Real>(
     body: &Body<T>,
     face: FaceKey,
 ) -> (crate::geometry::SurfaceKey, &geom::Surface<T>) {
-    let data = crate::live::proven(&body.faces, face, crate::entity::EntityId::Face);
-    (data.surface, body.face_surface_linked(face, data))
+    let face = body.proven_face(face);
+    (face.record().surface, face.surface())
 }
 
 /// **A segment's germ face pair, as [`bool_connect`] reads it** before
@@ -7979,8 +7979,7 @@ mod face_surface_tests {
         let reads: Vec<usize> = [
             "get_surface(",
             ".face_surface(",
-            "proven_face_surface(",
-            "face_surface_linked(",
+            ".surface()",
             "carrier_surface(",
         ]
         .iter()

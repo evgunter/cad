@@ -133,9 +133,9 @@ pub(crate) fn surface_outward_normal<T: Real>(
 /// Where the surface a resolved face names does not resolve (D2 row 4):
 /// a torn surface is not a non-planar one.
 pub fn face_outward_normal<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<OutwardNormal<T>> {
-    let f = body.get_face(face)?;
-    match body.face_surface_linked(face, f) {
-        geom::Surface::Plane { normal, .. } => Some(plane_outward_normal(f, *normal)),
+    let f = body.passed_face(face)?;
+    match f.surface() {
+        geom::Surface::Plane { normal, .. } => Some(plane_outward_normal(f.record(), *normal)),
         _ => None,
     }
 }
@@ -310,12 +310,12 @@ pub(crate) fn face_outward_normal_at<T: Decide>(
     p: Point3<T>,
     band: Band,
 ) -> Result<Option<OutwardNormal<T>>, NormalAtError> {
-    let Some(f) = body.get_face(face) else {
+    let Some(f) = body.passed_face(face) else {
         return Ok(None);
     };
-    let surface = body.face_surface_linked(face, f);
+    let surface = f.surface();
     match surface {
-        geom::Surface::Plane { normal, .. } => Ok(Some(plane_outward_normal(f, *normal))),
+        geom::Surface::Plane { normal, .. } => Ok(Some(plane_outward_normal(f.record(), *normal))),
         geom::Surface::Cylinder { .. }
         | geom::Surface::Sphere { .. }
         | geom::Surface::Torus { .. } => {
@@ -347,7 +347,7 @@ pub(crate) fn face_outward_normal_at<T: Decide>(
             let grad = geom_brep::implicit_gradient(surface, p);
             let margin = Margin::levered(grad.norm() - T::one(), arm);
             match decide("bool_pierce_normal_on_chart", margin, band) {
-                Ok(Sign::Zero) => Ok(Some(OutwardNormal::from_chart(grad, f.sense))),
+                Ok(Sign::Zero) => Ok(Some(OutwardNormal::from_chart(grad, f.record().sense))),
                 Ok(Sign::Positive | Sign::Negative) => Err(NormalAtError::OffSurface),
                 Err(diag) => Err(NormalAtError::Escalated {
                     decision: NormalDecision::OnSurface,
@@ -369,7 +369,7 @@ pub(crate) fn face_outward_normal_at<T: Decide>(
             }
             cone_axis_clearance(*apex, *axis, p, band)?;
             match on {
-                Ok(_) => Ok(Some(surface_outward_normal(surface, p, f.sense))),
+                Ok(_) => Ok(Some(surface_outward_normal(surface, p, f.record().sense))),
                 Err(diag) => Err(NormalAtError::Escalated {
                     decision: NormalDecision::OnSurface,
                     diag,
@@ -416,16 +416,18 @@ pub(crate) fn face_outward_normal_at_foot<T: Decide>(
     p: Point3<T>,
     band: Band,
 ) -> Result<Option<OutwardNormal<T>>, FootNormalError> {
-    let Some(f) = body.get_face(face) else {
+    let Some(f) = body.passed_face(face) else {
         return Ok(None);
     };
     let clear = |margin: Margin<T>| match decide("foot_off_locus", margin, band) {
         Ok(Sign::Positive | Sign::Negative) => Ok(()),
         Ok(Sign::Zero) | Err(_) => Err(FootNormalError::NoFoot { band }),
     };
-    let surface = body.face_surface_linked(face, f);
+    let surface = f.surface();
     match *surface {
-        geom::Surface::Plane { normal, .. } => return Ok(Some(plane_outward_normal(f, normal))),
+        geom::Surface::Plane { normal, .. } => {
+            return Ok(Some(plane_outward_normal(f.record(), normal)));
+        }
         geom::Surface::Cylinder { origin, axis, .. } => {
             let q = p - origin;
             clear(Margin::norm3(q - axis * q.dot(axis)))?;
@@ -453,7 +455,9 @@ pub(crate) fn face_outward_normal_at_foot<T: Decide>(
         }
     }
     Ok(Some(geom_brep::implicit_outward_normal(
-        surface, f.sense, p,
+        surface,
+        f.record().sense,
+        p,
     )))
 }
 
@@ -512,8 +516,8 @@ pub(crate) fn spline_outward_normal_at<T: Decide>(
     band: Band,
 ) -> Result<OutwardNormal<T>, SplineNormalError> {
     use geom_brep::ChartPointRefusal;
-    let f = body.get_face(face).ok_or(SplineNormalError::StaleFace)?;
-    let surface = body.face_surface_linked(face, f);
+    let f = body.passed_face(face).ok_or(SplineNormalError::StaleFace)?;
+    let surface = f.surface();
     let chart = surface.spline_chart().ok_or(SplineNormalError::NotSpline)?;
     if surface.is_placeholder_chart() {
         return Err(SplineNormalError::PlaceholderChart);
@@ -522,7 +526,7 @@ pub(crate) fn spline_outward_normal_at<T: Decide>(
     let reach = geom_brep::ExtentBall::of_control_net_from(chart.control(), p).lever();
     geom_brep::chart_point_normal(
         chart,
-        f.sense,
+        f.record().sense,
         uv,
         p,
         reach,

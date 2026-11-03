@@ -42,7 +42,7 @@ use geom_core::{Band, Decide, Decided, Indeterminate, Margin, Point3, Sign, Unit
 
 use crate::body::Body;
 use crate::chord_join::{SectionCase, WallSection, wall_section};
-use crate::entity::{EntityId, FaceKey, HalfEdgeKey, VertexKey};
+use crate::entity::{FaceKey, HalfEdgeKey, VertexKey};
 use crate::sector_face::SectorFaceError;
 use crate::sector_shape::SlitTips;
 use crate::splitting::{
@@ -246,8 +246,8 @@ fn skew<T: Decide>(normal: Vec3<T>, plane: SectionPlane<T>, at: Point3<T>) -> T 
 /// this reading resolves sectors through [`crate::sector_face::resolve`],
 /// which has an arm for every kind read here.
 fn read_kind<T: Decide>(body: &Body<T>, face: FaceKey, at: Point3<T>, band: Band) -> bool {
-    let f = crate::live::proven(&body.faces, face, EntityId::Face);
-    match *body.face_surface_linked(face, f) {
+    let f = body.proven_face(face);
+    match *f.surface() {
         geom::Surface::Cone { apex, axis, .. } => !matches!(
             crate::face_normal::cone_point(apex, axis, at, band),
             Ok(crate::face_normal::ConePoint::Apex)
@@ -348,8 +348,8 @@ fn section_sine<T: Decide>(
     plane: SectionPlane<T>,
     band: Band,
 ) -> Option<Rounded<T>> {
-    let f = crate::live::proven(&body.faces, face, EntityId::Face);
-    let wall = body.face_surface_linked(face, f).clone();
+    let f = body.proven_face(face);
+    let wall = f.surface().clone();
     if let Ok(Some(WallSection {
         case: SectionCase::Straight(_) | SectionCase::Tangent(_),
         ..

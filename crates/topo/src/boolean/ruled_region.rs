@@ -338,8 +338,8 @@ pub(crate) fn ruled_face_region<T: Decide>(
     face: FaceKey,
 ) -> Result<Option<RuledFaceRegion<T>>, PointInSolidError> {
     let corrupt = || PointInSolidError::CorruptFace { face };
-    let f = crate::live::proven(&body.faces, face, crate::entity::EntityId::Face);
-    let surface = match *body.face_surface_linked(face, f) {
+    let f = body.proven_face(face);
+    let surface = match *f.surface() {
         geom::Surface::Cylinder {
             origin,
             axis,
@@ -379,8 +379,8 @@ pub(crate) fn ruled_face_region<T: Decide>(
     let scale = reach_bound(&surface, &covers);
     Ok(Some(RuledFaceRegion {
         surface,
-        sense: f.sense,
-        outer: f.outer,
+        sense: f.record().sense,
+        outer: f.record().outer,
         scale,
         edges,
     }))

@@ -52,8 +52,9 @@ pub(super) fn carrier_gate<T: Decide>(
     band: Band,
 ) -> Result<(), SplitReduceError> {
     let frame = BoxFrame::aimed(plane.normal);
-    for (face_key, face) in body.faces() {
-        let surface = body.face_surface_linked(face_key, face);
+    for face in body.face_views() {
+        let face_key = face.key();
+        let surface = face.surface();
         let kind = surface.kind();
         match kind {
             geom::SurfaceKind::Plane | geom::SurfaceKind::Cylinder | geom::SurfaceKind::Cone => {}

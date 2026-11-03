@@ -306,7 +306,7 @@ pub(super) fn face_boundary<T: Decide>(
     face: FaceKey,
 ) -> Result<Option<FaceBoundary<'_, T>>, BooleanError> {
     let face_data = y
-        .get_face(face)
+        .passed_face(face)
         .ok_or(BooleanError::ClassificationInvariant {
             what: "boundary pass: face lost",
         })?;
@@ -314,7 +314,7 @@ pub(super) fn face_boundary<T: Decide>(
         edges: Vec::new(),
         lone: Vec::new(),
     };
-    for member in y.face_boundary_linked(face, face_data) {
+    for member in face_data.boundary() {
         match member {
             BoundaryMember::Isolated { vertex, point } => boundary.lone.push((vertex, point)),
             BoundaryMember::Edge { he, half, ek, edge } => {

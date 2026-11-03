@@ -174,18 +174,23 @@ pub fn tangent_pair_relation<T: Decide>(
     // This is a public door, so a stale face key is the caller's input
     // and refuses typed.
     let (face_a, face_b) = (
-        a.get_face(fa).ok_or(ContactRefusal::NotCertifiable {
+        a.passed_face(fa).ok_or(ContactRefusal::NotCertifiable {
             what: "the A-side face does not resolve",
         })?,
-        b.get_face(fb).ok_or(ContactRefusal::NotCertifiable {
+        b.passed_face(fb).ok_or(ContactRefusal::NotCertifiable {
             what: "the B-side face does not resolve",
         })?,
     );
-    let (s1, s2) = (
-        a.face_surface_linked(fa, face_a),
-        b.face_surface_linked(fb, face_b),
-    );
-    tangent_locus_relation(s1, face_a.sense, s2, face_b.sense, carrier, t0, t1, band)
+    tangent_locus_relation(
+        face_a.surface(),
+        face_a.record().sense,
+        face_b.surface(),
+        face_b.record().sense,
+        carrier,
+        t0,
+        t1,
+        band,
+    )
 }
 
 /// [`tangent_pair_relation`]'s body, at the SURFACE level: the two
