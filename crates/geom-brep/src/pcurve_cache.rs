@@ -11847,6 +11847,8 @@ mod circle_lane_rows;
 #[allow(clippy::unwrap_used, clippy::panic)]
 mod cone_line_rows;
 #[cfg(test)]
+mod review_6485_probe;
+#[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::panic)]
 mod cylinder_line_rows;
 #[cfg(test)]
