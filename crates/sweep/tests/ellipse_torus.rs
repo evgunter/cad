@@ -211,7 +211,7 @@ fn a_torus_just_clear_of_the_rim_is_decided_by_its_roots() {
                 .zip([Some(drum + ring), None, Some(drum), Some(ring)])
         {
             // At ε 1e-6 the wall pair's march straddles its tube
-            // (`work/sect/the-torus-doors-tube-straddles-transverse-poses-at-a-coarse-band.md`),
+            // (`work/secttorus/the-torus-doors-tube-straddles-transverse-poses-at-a-coarse-band.md`),
             // and the certificate refuses R-march at the extent scan.
             let r = match r {
                 Err(BooleanError::FallbackExtentUnsupported { .. }) if eps == 1e-6 => continue,
@@ -264,7 +264,7 @@ fn ops(
 /// op stops at the join: an oblique plane × torus germ pair cuts a
 /// general spiric quartic, refused by name. At ε 1e-6 a germ on the wall
 /// × torus pair may be minted first, and its march's tube straddles
-/// (`work/sect/the-torus-doors-tube-straddles-transverse-poses-at-a-coarse-band.md`).
+/// (`work/secttorus/the-torus-doors-tube-straddles-transverse-poses-at-a-coarse-band.md`).
 #[test]
 fn a_torus_crossing_the_rim_reaches_the_join() {
     let a = drum_lower();

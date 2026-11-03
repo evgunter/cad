@@ -118,8 +118,14 @@ fn the_rest_of_the_rims_circle_does_not_lie_along_it() {
 #[test]
 fn a_run_shorter_than_the_span_meets_at_its_vertex() {
     match read(&unit_circle(Vec3::unit_z()), (0.0, PI)).unwrap() {
-        Boundary::Meets { t, point, edge } => {
+        Boundary::Meets {
+            t,
+            point,
+            edge,
+            on_edge,
+        } => {
             assert_eq!(edge, 2, "the vertex is the third edge's start");
+            assert_eq!(on_edge, None, "a vertex splits no boundary edge");
             assert!((t - FRAC_PI_2).abs() < 1e-12, "at the corner: {t}");
             assert!((point - Point3::new(0.0, 1.0, 0.0)).norm() < 1e-12);
         }
@@ -132,9 +138,17 @@ fn a_run_shorter_than_the_span_meets_at_its_vertex() {
 fn a_line_across_the_rim_meets_it() {
     let x = 0.75_f64.sqrt();
     match read(&line([0.5, 0.5, 0.0], [1.0, 0.0, 0.0]), (0.0, 1.5)).unwrap() {
-        Boundary::Meets { t, edge, .. } => {
+        Boundary::Meets {
+            t, edge, on_edge, ..
+        } => {
             assert_eq!(edge, 1, "the arc");
             assert!((t - (x - 0.5)).abs() < 1e-12, "at the arc: {t}");
+            // `(√0.75, 0.5)` is the arc's azimuth π/6: the meeting names
+            // where on the boundary edge it put the point.
+            let Some(s) = on_edge else {
+                panic!("a meeting inside the arc holds its parameter there")
+            };
+            assert!((s - PI / 6.0).abs() < 1e-12, "on the arc: {s}");
         }
         other => panic!("a line across the arc: {other:?}"),
     }
