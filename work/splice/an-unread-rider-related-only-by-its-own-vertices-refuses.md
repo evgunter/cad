@@ -2,12 +2,12 @@
 id: an-unread-rider-related-only-by-its-own-vertices-refuses
 kind: issue
 title: An unread carrier related to a face only by vertices the two share in one operand refuses as a rider: the lofted cylinder's unions and the tilted rod's other spins stop there
-status: dispatched
+status: parked
 opened: 2026-11-03
 priority: P0
 cost: M
-refs: [a-spline-rider-reads-as-lying-in-no-plane-face, check-9-meeting-arms-silent-off-a-plane-and-on-ellipse-spiric-nurbs-edges]
-branch: splice/same-operand-rider
+refs: [a-spline-rider-reads-as-lying-in-no-plane-face, check-9-meeting-arms-silent-off-a-plane-and-on-ellipse-spiric-nurbs-edges, a-section-spiric-on-a-cap-plane-reads-unread-against-the-wall-it-ends-on]
+blocked_on: [the-at-rest-gate-certifies-embedding]
 ---
 
 Filed by SPLICE's `splice/kind-reads` lane (PR 6437), at the orchestrator's
@@ -116,3 +116,91 @@ without either rests on an assumption nothing holds.
    notch keel (`slit::spline_rider::a_spline_keel_across_a_notch_refuses_unread`),
    whose ends lie on the face by records, still refuses.
 
+## 2026-11-03: Phase 0, parked on CLEAR's embedding gate (SPLICE `splice/same-operand-rider`, PR 6487)
+
+**Measured** on main at `5f6aaf16` (default ε), with a probe in
+`slit::riders` where `holding` refuses `SplineFace` or `CarrierUnread`. The
+probe printed each edge's provenance and split root, which operand's input
+image (through `ops::KeyView`) the edge, its root, the face and both ends lie
+in, the ends' `slit::partners`, and every record naming the pair.
+
+- **The three cylinder stops are this case.** In `O ∪ B` (far), `B ∪ O`
+  (far) and `B ∖ O` (around), the edge is a rim circle arc, its own split
+  root, and the face is the cylinder's other spline wall. The edge, its root,
+  the face and both shared vertices all lie in one operand's input. There is
+  no partner, no record and no crossing (`Names { ends: true, record: false }`).
+- **The tilted rod's β 0.7 union (spins 0 and π/2) is not.** Its edge is a
+  section chord the join minted (`Mef` at one spin, `Mekr` at the other), in
+  neither operand's input. It bounds the donut's torus wall and the rod's
+  plane cap, so its carrier is a spiric in the cap's plane. It is asked against
+  the rod's cylinder wall, whose rim holds both its ends. The lineage
+  exemption must leave it refused. It is its own row,
+  `a-section-spiric-on-a-cap-plane-reads-unread-against-the-wall-it-ends-on`,
+  so this row's rows to build again are the three cylinder builds.
+
+**The guarantee is CLEAR's `the-at-rest-gate-certifies-embedding`.**
+`docs/DESIGN.md` `[topology.tiers]` already states it. A finished body's
+boundary is embedded off its recorded contacts: it meets itself only along
+its own edges and recorded contacts, certified by the clearance engine's
+injectivity question. That is exactly what the exemption rests on, and the
+gate is unbuilt. Nothing nearer gives it:
+
+- **Check 9 does not.** Check 9, with RESTFRONT's
+  `check-9-meeting-arms-silent-off-a-plane-and-on-ellipse-spiric-nurbs-edges`
+  arms completed, reads one face's loops against each other (a ring against
+  its outer loop). It never reads an edge against a face it does not bound.
+- **Tier 3 does not.** No tier-3 check reads that pair for any carrier kind:
+  it is global self-intersection, first on `validate_geometric`'s "does NOT
+  yet check" list.
+- **Analytic carriers never needed it.** `slit::carrier_on_surface` reads
+  them `On` or `Off` geometrically. Only the `Placed::Unread` arm would rest
+  on the operand being at rest.
+- **`AtRestBody` does not.** It promises `validate_geometric_certificate`,
+  which is tiers 1–3. PR 6371's `finish` is still tiers 1–3.
+- **A check at the boolean's entry would be building CLEAR's gate early,
+  in a scoped form.** It would be a face-set query through
+  `topo::clearance::Side`, asked only for the pairs the exemption clears. At
+  `f64` it has no lane: `AtRestPolicy::clearance_lane` is `None` there, and
+  splitting it is item 1 of CLEAR's row. Its spline departure arm outruns its
+  depth budget at a loft's cap corner
+  (`departure-reads-a-spline-sides-zero-to-second-order-so-a-cap-corner-outruns-the-depth-budget`),
+  and that corner is this row's own witness.
+
+**Options.**
+- (a) The exemption waits on CLEAR's gate. **Ruled:** the SPLICE
+  orchestrator chose (a). The kernel stays fail-loud until the gate checks
+  what `[topology.tiers]` promises.
+- (b) The exemption ships citing the ratified clause as the operand type's
+  contract, with nothing holding it at runtime until CLEAR lands. Not built;
+  it is to be put to Ev as the alternative.
+
+**Lineage, for when the row resumes.**
+- **`Body::split_root` is edges only.** It chases `Provenance::SplitEdge`, and
+  the graft forwards provenance. A join chord is its own root and lies in no
+  input.
+- **Faces have no split root.** A face's operand is read from:
+  - the key view's image (A `Direct`, B `Graft`);
+  - `Descendants::fragments`, the join's chord-mef divisions, in clone keys
+    before the view;
+  - the join's absorbed faces.
+- **Three steps can leave one operand's key on geometry that is partly the
+  other's.** All run before `part_riders`:
+  - the coplanar merge (`OutputStage::merged`), which can keep A's face key
+    on a region that took in B's face;
+  - edge joins (`OutputStage::edge_joins`, `killed_lineage`), which can join
+    pieces of both operands into one edge;
+  - the zip's substitutions (`Descendants::cells`).
+- **Lineage is therefore computed exactly in `ops.rs`**, where `views`,
+  `desc` and `OutputStage` live at both `part_riders` calls, and handed to the
+  slit pass. It is not read from `split_root` inside `slit.rs`.
+- **A fused vertex leaves no vertex-vertex record.** `carry` drops a record
+  whose two cells became one (`record` → `Contact::new`), so `slit::partners`
+  does not see a zip fusion. Condition 2 would read the zip's fusion rows
+  instead: `Descendants::vertex_merges()`, `share_points`' point classes and
+  `cone_splits`.
+- **Conditions 2 and 3 may add nothing.** With exact lineage, condition 1
+  carries the soundness argument: a piece of an input edge and a fragment of
+  an input face of one embedded operand meet only along the face's own
+  boundary. Conditions 2 and 3 are kept only if some bug can turn a row red
+  through them. Otherwise they go: a check no bug can turn red is
+  documentation.
