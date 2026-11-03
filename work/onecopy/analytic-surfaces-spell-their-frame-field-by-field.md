@@ -6,6 +6,7 @@ status: open
 opened: 2026-11-02
 priority: P1
 cost: H
+design: true
 ---
 
 Found by the ONEHOME orchestrator while adjudicating PR 6328's style review (2026-11-02).
