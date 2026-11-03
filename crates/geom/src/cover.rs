@@ -229,6 +229,7 @@ enum Node<T: Real> {
     Piece(Piece<T>),
     Meet(Box<[Node<T>; 2]>),
     Hull(Box<[Node<T>; 2]>),
+    Convex(Box<Node<T>>),
 }
 
 /// The closed set of shapes. A frame a piece holds is read as the
@@ -589,6 +590,14 @@ impl<T: Real> Cover<T> {
         Self(Node::Hull(Box::new([self.0, other.0])))
     }
 
+    /// **The region's convex hull**: what lies on a segment between two
+    /// of its points. A face of a ruled carrier lies in its boundary's,
+    /// which [`Cover::hull`] of the boundary's pieces does not hold.
+    #[must_use]
+    pub fn convex(self) -> Self {
+        Self(Node::Convex(Box::new(self.0)))
+    }
+
     /// **The support along `dir`**: an upper bound on `x·dir` over the
     /// region. `dir` need not be unit; the support is linear in it.
     pub fn support(&self, dir: Vec3<T>) -> T {
@@ -640,7 +649,12 @@ impl<T: Real> Node<T> {
             Node::Piece(p) => p.support(e),
             Node::Meet(both) => both[0].support(e).min(both[1].support(e)),
             Node::Hull(both) => both[0].support(e).max(both[1].support(e)),
+            Node::Convex(inner) => inner.support(e),
         }
+    }
+
+    fn world_box(&self) -> (Point3<T>, Point3<T>) {
+        rows_box(&Frame::World, |e| self.support(e))
     }
 
     fn distance_range(&self, site: &Site<T>) -> (T, T) {
@@ -656,19 +670,39 @@ impl<T: Real> Node<T> {
                     (both[0].distance_range(site), both[1].distance_range(site));
                 (n0.min(n1), f0.max(f1))
             }
+            // A distance from a point or a line is convex, so its
+            // greatest over the hull is its greatest over the region; its
+            // least is the hull's box's or ball's.
+            Node::Convex(inner) => {
+                let far = inner.distance_range(site).1;
+                let near = match site {
+                    Site::Point(q) => box_range(self.world_box(), *q)
+                        .0
+                        .max(ball_range(inner.ball(), site).0),
+                    Site::Line(_) => ball_range(inner.ball(), site).0,
+                };
+                (near, far)
+            }
         }
     }
 
     fn ball(&self) -> Ball<T> {
         match self {
             Node::Piece(p) => p.ball(),
-            Node::Meet(both) => smaller(both[0].ball(), both[1].ball()),
+            // Both balls hold the region, and so does the ball about the
+            // meet's box, which is narrower than either piece's where the
+            // two overlap only in part.
+            Node::Meet(both) => smaller(
+                smaller(both[0].ball(), both[1].ball()),
+                box_ball(self.world_box()),
+            ),
             Node::Hull(both) => {
                 let ((c0, r0), (c1, r1)) = (both[0].ball(), both[1].ball());
                 let c = c0 + (c1 - c0) * T::from_f64(0.5);
                 let r = ((c - c0).norm() + r0).max((c - c1).norm() + r1);
                 (c, r)
             }
+            Node::Convex(inner) => inner.ball(),
         }
     }
 }

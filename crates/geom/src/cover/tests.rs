@@ -1525,3 +1525,48 @@ fn a_tilted_circle_arcs_range_at_interval_is_decided() {
         }
     }
 }
+
+/// **A convex hull's least distance is its hull's, not its pieces'**:
+/// two points at `x = ±1` stand 1 from the origin, which lies on the
+/// segment between them. Their hull reads 1 there, the union's own
+/// least; their convex hull reads 0, and its greatest stays 1. Red
+/// where the convex node reads its inner region's least.
+#[test]
+fn a_convex_hulls_least_distance_reaches_between_its_pieces() {
+    let pair = || {
+        Cover::points(vec![Point3::new(-1.0, 0.0, 0.0)])
+            .unwrap()
+            .hull(Cover::points(vec![Point3::new(1.0, 0.0, 0.0)]).unwrap())
+    };
+    let origin = Site::Point(Point3::origin());
+    assert_eq!(pair().distance_range(&origin), (1.0, 1.0), "the union");
+    let (near, far) = pair().convex().distance_range(&origin);
+    assert_eq!((near, far), (0.0, 1.0), "the convex hull");
+    let line = Site::Line(Line {
+        origin: Point3::new(0.0, -3.0, 0.0),
+        dir: Vec3::unit_y(),
+    });
+    assert_eq!(
+        pair().convex().distance_range(&line).0,
+        0.0,
+        "a line through the hull"
+    );
+    assert_eq!(
+        pair().convex().support(Vec3::unit_x()),
+        1.0,
+        "the support is the region's"
+    );
+}
+
+/// **A meet's ball is narrower than either piece's where they overlap
+/// in part**: two unit-radius point sets' boxes `[0, 2]` and `[1, 3]`
+/// along `x` meet in `[1, 2]`, whose ball has radius ½. Red where the
+/// meet reads the smaller piece ball alone (radius 1).
+#[test]
+fn a_meets_ball_is_its_boxs_where_the_pieces_overlap_in_part() {
+    let pair = |a: f64, b: f64| {
+        Cover::points(vec![Point3::new(a, 0.0, 0.0), Point3::new(b, 0.0, 0.0)]).unwrap()
+    };
+    let (c, r) = pair(0.0, 2.0).meet(pair(1.0, 3.0)).ball();
+    assert_eq!((c.x, c.y, c.z, r), (1.5, 0.0, 0.0, 0.5), "the overlap's ball");
+}
