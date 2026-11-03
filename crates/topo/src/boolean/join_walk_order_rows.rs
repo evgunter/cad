@@ -32,7 +32,7 @@
 
 use super::super::section_table::SectionTable;
 use super::super::{BooleanError, Branch, HalfGerm, Locus};
-use super::{Faced, Reach, Turn, along_facing, germ_arm, keep_nearer, nearer_along};
+use super::{Faced, PartnerDistance, Turn, along_facing, germ_arm, keep_nearer, nearer_along};
 use crate::HalfEdgeKey;
 use crate::chord_join::SplitJoinError;
 use geom::{Curve3, Surface};
@@ -116,7 +116,7 @@ fn from_germ(order: &[usize]) -> Vec<usize> {
 /// [`nearer_along`] folded over them in input order, as
 /// `loose_partners` folds a germ's partners; then again over the rest.
 /// Read from the germ, so the germ leads.
-fn ranked(mut left: Vec<(usize, Reach<f64>)>) -> Result<Vec<usize>, BooleanError> {
+fn ranked(mut left: Vec<(usize, PartnerDistance<f64>)>) -> Result<Vec<usize>, BooleanError> {
     let mut out = vec![0];
     while !left.is_empty() {
         let mut best = None;
@@ -189,7 +189,7 @@ fn lanes(wall: &Surface<f64>, conic: &Curve3<f64>, ts: &[f64], sense: f64, off: 
         .map(|&(i, (p, ahead))| {
             let turn = Turn::facing(frame(conic), (g, dir), (p, -ahead), band())?
                 .expect("a partner facing back along the walk faces the germ");
-            let reach = Reach {
+            let reach = PartnerDistance {
                 arm: germ_arm(Some(turn), band())?,
                 chord: (p - g).norm(),
                 turn: Some(turn),
@@ -255,7 +255,7 @@ fn feet(
     section: &geom_brep::CarriedSection<f64>,
     (g, dir): Site,
     partners: &[(usize, Site)],
-) -> Vec<(usize, Reach<f64>)> {
+) -> Vec<(usize, PartnerDistance<f64>)> {
     let pillow = crate::fixtures::pillow(Tol::witness());
     let table = SectionTable::default();
     let mut halves = slotmap::SlotMap::<HalfEdgeKey, ()>::with_key();
@@ -280,7 +280,7 @@ fn feet(
                 Ok(_) => panic!("site {i}: a partner facing back does not face the germ"),
                 Err(e) => panic!("site {i}: {e:?}"),
             };
-            let reach = Reach {
+            let reach = PartnerDistance {
                 arm: germ_arm::<f64>(None, band()).unwrap(),
                 chord: (p - g).norm(),
                 turn: None,
@@ -309,10 +309,7 @@ fn a_tilted_ellipse_on_a_cylinder_walks_one_order_in_both_lanes() {
         normal,
         u_ref: Vec3::unit_z().cross(normal).normalize(),
     };
-    let reach = geom_brep::Reach::Measured {
-        at: origin,
-        lever: 4.0,
-    };
+    let reach = geom_brep::Reach::fixture(origin, 4.0);
     let conic = match geom_brep::plane_cylinder_section(&plane, &wall, &reach, band()).unwrap() {
         geom_brep::PlaneCylinderSection::TiltedEllipse(c) => c,
         other => panic!("{other:?}"),
@@ -380,10 +377,7 @@ fn steep() -> (Surface<f64>, Curve3<f64>) {
         normal,
         u_ref: Vec3::unit_z().cross(normal).normalize(),
     };
-    let reach = geom_brep::Reach::Measured {
-        at: origin,
-        lever: 64.0,
-    };
+    let reach = geom_brep::Reach::fixture(origin, 64.0);
     let conic = match geom_brep::plane_cylinder_section(&plane, &wall, &reach, band()).unwrap() {
         geom_brep::PlaneCylinderSection::TiltedEllipse(c) => c,
         other => panic!("{other:?}"),

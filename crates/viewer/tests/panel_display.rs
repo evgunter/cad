@@ -1147,7 +1147,7 @@ fn pattern(count: i64, fused: bool) -> (DocSession, RecipeNodeId) {
     let mut session = common::inline_without_door(Doc::empty_derived("pattern-rows", tol), tol);
     let body = common::xy_box_in(&mut session, [0.02, 0.02, 0.01]);
     let rule = viewer::session::PatternRuleSpec::Linear {
-        direction: common::scl3([1.0, 0.0, 0.0]),
+        direction: viewer::PatternDirection::Axis(pncad::document::TargetAxis::X),
         spacing: common::len(0.07),
     };
     let input = body.into();

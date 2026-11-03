@@ -25,6 +25,7 @@ use geom_brep::{
     AnalyticRung3Refusal, CERT_SAMPLES, CertifyError, EdgeCurve, EdgeCurveSpec,
     EdgeDescriptionSpec, NurbsLane, SurfacePair, implicit_residual, sample_param,
 };
+use geom_core::test_support::fixture_lever;
 use geom_core::{Band, Point3, Vec3};
 
 /// The torus of the spiric rows: centre `(1, 2, 3)`, axis `y`.
@@ -49,7 +50,8 @@ fn spiric_plane() -> Surface<f64> {
 
 /// One of the two exact ovals `x = 1.1` cuts from [`torus`].
 fn spiric() -> Curve3<f64> {
-    let section = plane_torus_section(&spiric_plane(), &torus(), 1.0, band()).unwrap();
+    let section =
+        plane_torus_section(&spiric_plane(), &torus(), fixture_lever(1.0), band()).unwrap();
     let PlaneTorusSection::SpiricOvals { s1, .. } = section else {
         panic!("expected the two spiric ovals, got {section:?}");
     };
@@ -103,7 +105,7 @@ fn certify(
         carrier.eval(t0),
         carrier.eval(t1),
         &lookup,
-        1.0,
+        fixture_lever(1.0),
         band,
         NurbsLane::certified(),
     )
@@ -243,10 +245,10 @@ fn every_closed_form_kind_owes_limb_2_through_the_lane() {
         };
         let (start, end) = (carrier.eval(t0), carrier.eval(t1));
         let lane = NurbsLane::certified();
-        let edge = EdgeCurve::certify(spec, start, end, &lookup, 1.0, band(), lane)
+        let edge = EdgeCurve::certify(spec, start, end, &lookup, fixture_lever(1.0), band(), lane)
             .unwrap_or_else(|e| panic!("{name}: the exact carrier certifies: {e:?}"));
         let at_rest = edge
-            .recertify(start, end, &lookup, 1.0, band(), lane)
+            .recertify(start, end, &lookup, fixture_lever(1.0), band(), lane)
             .unwrap_or_else(|e| panic!("{name}: rest re-derives the certificate: {e:?}"));
         assert_eq!(
             format!("{at_rest:?}"),

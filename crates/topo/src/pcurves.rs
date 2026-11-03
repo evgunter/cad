@@ -4881,7 +4881,12 @@ fn joint_has_room<T: Decide>(
     matches!(
         decide(
             "loop_windings_joint_room",
-            Margin::levered(quarter_chord, lever),
+            Margin::levered(
+                quarter_chord,
+                // Unsourced lever: the joint ends' least distance from the axis, `d − 2ε`, a
+                // band-deflated radius of revolution; no extent read or curvature arm states it.
+                geom_core::Lever::unsourced(lever),
+            ),
             band,
         ),
         Ok(Sign::Positive)

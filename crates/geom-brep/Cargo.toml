@@ -28,6 +28,7 @@ probe = ["geom-core/probe"]
 strum = { version = "0.28", features = ["derive"], optional = true }
 geom-core = { path = "../geom-core" }
 geom = { path = "../geom" }
+bvh = { path = "../bvh" }
 # The geometry-arena key types live here (typed slotmap keys): the
 # intensional descriptions reference surfaces *by arena key* (D2), and
 # `topo`'s Body re-exports these same types for its geometry arenas.

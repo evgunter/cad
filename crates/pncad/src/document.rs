@@ -453,6 +453,10 @@ pub use editor_core::{
 /// curated lists answers in a `LeverRefusal`, so it rides its carrier
 /// here rather than being spelled on a list that owns its vocabulary.
 pub use editor_core::LeverRefusal;
+/// The target axes a bundle with no mate's other slides run along,
+/// beside slides along picked directions: what a row along a read
+/// direction is written across ([`crate::pattern::linear_pattern`]).
+pub use editor_core::mate::slides_across;
 pub use editor_core::{
     Composing, Constraint, ConstraintKind, Coord, FrameMove, Mate, MateFault, MateRef, MateSide,
     Member, NoChartWhy, OVERCONSTRAINED_RECOURSE, Orientation, PinRefusal, Placed, Placing,

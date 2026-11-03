@@ -139,7 +139,7 @@ impl Scene {
         &mut self,
         block: RecipeNodeId,
         mate: editor_core::Mate<Formula>,
-        values: &[(Coord, Formula)],
+        values: &[(Coord<editor_core::Operand>, Formula)],
     ) -> MateRef {
         let (doc, id) = fixture::mated(self.doc.clone(), block, mate, values);
         self.doc = doc;
@@ -169,8 +169,8 @@ impl Scene {
             block,
             mate,
             &[
-                (Coord::Slide(TargetAxis::X), len(x)),
-                (Coord::Slide(TargetAxis::Y), len(y)),
+                (Coord::slide(TargetAxis::X), len(x)),
+                (Coord::slide(TargetAxis::Y), len(y)),
             ],
         )
     }

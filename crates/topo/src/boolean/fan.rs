@@ -30,12 +30,14 @@
 
 use geom_core::{Band, Decide, Margin, Point3, Sign, UnitVec3, Vec3};
 
-use super::sectors::{BoolFace, BoolSector, Reach};
+use super::sectors::{BoolFace, BoolSector};
 use super::{BooleanError, Coincide, DeclarationRead, Operand, SideCode};
 use crate::body::Body;
+use crate::bound_side::BoundSupport;
 use crate::entity::VertexKey;
 use crate::sector_face::ConeApex;
 use crate::validate::decide;
+use geom_core::Lever;
 
 /// **A point's signed distance from a cone's nappe**, read at the apex:
 /// `ρ·cos α − z·sin α` for the point's offset `(z, ρ)` along and off the
@@ -78,7 +80,7 @@ pub(super) fn nappe_axis<T: Decide>(apex: &ConeApex<T>, like: Vec3<T>) -> Vec3<T
 /// The plane reading's; [`BooleanError::coincidence`] on an escalation.
 pub(super) fn face_side_code<T: Decide>(
     dir: Vec3<T>,
-    reach: Reach<T>,
+    reach: BoundSupport<T>,
     other: &BoolSector<T>,
     band: Band,
 ) -> Result<SideCode, BooleanError> {
@@ -114,7 +116,7 @@ pub(super) fn face_side_code<T: Decide>(
 pub(super) fn fan_within_signs<T: Decide>(
     s: &BoolSector<T>,
     apex: &ConeApex<T>,
-    (dir, lever): (Vec3<T>, impl Fn(Reach<T>) -> T),
+    (dir, lever): (Vec3<T>, impl Fn(BoundSupport<T>) -> Lever<T>),
     read: DeclarationRead,
     band: Band,
 ) -> Result<(Sign, Sign), BooleanError> {
@@ -288,7 +290,7 @@ pub(super) enum Coaxial<T> {
 pub(super) fn one_cone<T: Decide>(
     (pa, a): (&ConeApex<T>, Vec3<T>),
     (pb, b): (&ConeApex<T>, Vec3<T>),
-    arm: T,
+    arm: Lever<T>,
     band: Band,
 ) -> Result<Coaxial<T>, BooleanError> {
     let escalate = |diag| BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag);
@@ -340,10 +342,10 @@ pub(super) enum Conditioned {
 /// the reading nor a tangency.
 pub(super) fn conditioned<T: Decide>(
     s: T,
-    arm: T,
+    arm: Lever<T>,
     band: Band,
 ) -> Result<Conditioned, geom_core::Indeterminate> {
-    let spread = arm * T::from_f64(4.0 * geom_core::UNIT_ROUNDOFF) / s;
+    let spread = arm.length() * T::from_f64(4.0 * geom_core::UNIT_ROUNDOFF) / s;
     Ok(
         match decide("bool_fans_meet_conditioning", Margin::of(spread), band)? {
             Sign::Zero => Conditioned::Read,
@@ -427,12 +429,12 @@ pub(super) fn fans_overlap<T: Decide>(
     let (Some(pa), Some(pb)) = (a.apex(), b.apex()) else {
         unreachable!("fans_overlap reads two fans")
     };
-    let strictly = |s: &BoolSector<T>, p: &ConeApex<T>, d: Vec3<T>, r: Reach<T>| {
-        let own = r.length();
+    let strictly = |s: &BoolSector<T>, p: &ConeApex<T>, d: Vec3<T>, r: BoundSupport<T>| {
+        let own = r.lever();
         fan_within_signs(
             s,
             p,
-            (d, |b: Reach<T>| b.length().min(own)),
+            (d, |b: BoundSupport<T>| b.lever().min(own)),
             DeclarationRead::Moot,
             band,
         )
@@ -449,7 +451,7 @@ pub(super) fn fans_overlap<T: Decide>(
         }
     }
     let escalate = |diag| BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag);
-    let along = |u: Vec3<T>, v: Vec3<T>, lever: T| -> Result<bool, BooleanError> {
+    let along = |u: Vec3<T>, v: Vec3<T>, lever: Lever<T>| -> Result<bool, BooleanError> {
         Ok(decide(
             "bool_fan_bounds_along",
             Margin::levered(pa.turn(u, v), lever),
@@ -542,7 +544,7 @@ pub(super) fn nappe_classes<T: Decide>(
 #[allow(clippy::unwrap_used, clippy::panic)]
 mod rows {
     use super::*;
-    use crate::boolean::sectors::Reach;
+    use crate::bound_side::BoundSupport as Reach;
     use crate::entity::{FaceKey, HalfEdgeKey, VertexKey};
 
     fn band() -> Band {
@@ -573,12 +575,12 @@ mod rows {
                 he: HalfEdgeKey::from(key(1)),
                 start,
                 end: apex.ruling_from(start, core::f64::consts::FRAC_PI_2),
-                start_reach: Reach::straight_bisector(1.0),
-                end_reach: Reach::straight_bisector(1.0),
+                start_reach: Reach::straight_bisector(Lever::unsourced(1.0)),
+                end_reach: Reach::straight_bisector(Lever::unsourced(1.0)),
                 face: FaceKey::from(key(2)),
                 at_vertex: BoolFace::Apex(apex),
                 bend: crate::bound_side::FaceBend::Plane,
-                arm: 1.0,
+                arm: Lever::unsourced(1.0),
             };
             let partner = super::super::vtxfac::Partner {
                 vertex: VertexKey::default(),
@@ -629,12 +631,12 @@ mod rows {
             he: HalfEdgeKey::from(key(face)),
             start,
             end: apex.ruling_from(start, core::f64::consts::FRAC_PI_2),
-            start_reach: Reach::straight_bisector(arm),
-            end_reach: Reach::straight_bisector(arm),
+            start_reach: Reach::straight_bisector(Lever::unsourced(arm)),
+            end_reach: Reach::straight_bisector(Lever::unsourced(arm)),
             face: FaceKey::from(key(face)),
             at_vertex: BoolFace::Apex(apex),
             bend: crate::bound_side::FaceBend::Plane,
-            arm,
+            arm: Lever::unsourced(arm),
         }
     }
 

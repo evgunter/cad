@@ -173,7 +173,7 @@ fn metered_lever(body: &Body<f64>, edge: EdgeKey) -> Option<f64> {
     };
     run_battery(&req, band())
         .ok()
-        .map(|v| v.chains[0].first().arm_len)
+        .map(|v| v.chains[0].first().arm_len.length())
 }
 
 /// A dome ring: a sphere zone of radius `r` rising off a flat base
@@ -306,12 +306,12 @@ fn straight_edges_meter_bit_identically_to_the_endpoint_chord() {
             for link in chain.links() {
                 let want = endpoint_chord(&body, link.edge);
                 assert_eq!(
-                    link.arm_len.to_bits(),
+                    link.arm_len.length().to_bits(),
                     want.to_bits(),
                     "straight edge {:?}: metered {} is not bit-identical to the endpoint \
                      chord {want} (w={w} h={h} d={d})",
                     link.edge,
-                    link.arm_len
+                    link.arm_len.length()
                 );
             }
         }
@@ -479,10 +479,10 @@ fn closed_rims_decide_both_convexity_signs_at_diameter_levers() {
             "a dome's equator is a convex closed rim (r={r})"
         );
         assert!(
-            (link.arm_len - 2.0 * r).abs() < 1e-9,
+            (link.arm_len.length() - 2.0 * r).abs() < 1e-9,
             "the closed rim levers its own diameter {}, got {}",
             2.0 * r,
-            link.arm_len
+            link.arm_len.length()
         );
 
         // Concave: a boss of radius `r` through a plate whose top
@@ -520,10 +520,10 @@ fn closed_rims_decide_both_convexity_signs_at_diameter_levers() {
             "a boss root is a concave closed rim (r={r} h={h})"
         );
         assert!(
-            (link.arm_len - 2.0 * rim_r).abs() < 1e-9,
+            (link.arm_len.length() - 2.0 * rim_r).abs() < 1e-9,
             "the closed rim levers its own diameter {}, got {}",
             2.0 * rim_r,
-            link.arm_len
+            link.arm_len.length()
         );
     }
 }

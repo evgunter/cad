@@ -109,7 +109,6 @@ use pncad::document::{
 };
 use pncad::geom_core::Tol;
 use viewer::props::Notation;
-use viewer::sketch::ProfileShape;
 
 // The literal, edit, frame, rectangle and δ doors are `viewer`'s own
 // `test_support` (its `test-support` feature, on for these suites through
@@ -125,15 +124,32 @@ pub fn band() -> pncad::geom_core::Band {
     pncad::geom_core::Band::linear(Tol::witness()).expect("the witnessed band")
 }
 
-/// One form template lowered CANONICALLY — what a suite means when it
-/// authors a shape without a word about notation.
+/// One loop of steps at plain numbers lowered CANONICALLY — what a
+/// suite means when it authors a loop without a word about notation.
 ///
 /// The suites that DO care which unit a literal remembers say so by
-/// naming the notation (`sketch::loop_program` with one of its own),
+/// naming the notation (`sketch::path_program` with one of its own),
 /// which is the point of the units riding the lowering rather than
 /// the op.
-pub fn shape(template: &ProfileShape) -> LoopProgram<Formula> {
-    viewer::sketch::loop_program(template, Notation::CANONICAL).expect("a finite template")
+pub fn shape(steps: &[pncad::profile::Step<f64>]) -> LoopProgram<Formula> {
+    viewer::sketch::path_program(steps, Notation::CANONICAL, &|_, _| None).expect("finite steps")
+}
+
+/// A circle of `radius` on `centre`, as [`shape`] lowers it.
+pub fn circle_at(centre: [f64; 2], radius: f64) -> LoopProgram<Formula> {
+    shape(&[pncad::profile::Step::Circle {
+        centre: pncad::geom_core::Point2::from_array(centre),
+        radius,
+    }])
+}
+
+/// A `width` by `height` rectangle on `centre`, as [`shape`] lowers it.
+pub fn rectangle_at(centre: [f64; 2], width: f64, height: f64) -> LoopProgram<Formula> {
+    shape(&[pncad::profile::Step::Rectangle {
+        centre: pncad::geom_core::Point2::from_array(centre),
+        width,
+        height,
+    }])
 }
 
 /// The name of the parametric fixture's driving variable.
@@ -415,7 +431,7 @@ pub fn mate_into(
     doc: &mut Doc<ProfileProgram>,
     placement: RecipeNodeId,
     mate: pncad::document::Mate<Formula>,
-    values: Vec<(pncad::document::Coord, Formula)>,
+    values: Vec<(pncad::document::Coord<pncad::document::Operand>, Formula)>,
     tol: Tol,
 ) -> pncad::document::MateRef {
     let (next, mate) = viewer::test_support::mated(doc, placement, mate, values, tol);
@@ -487,11 +503,7 @@ pub fn rectangle_in(session: &mut DocSession, width: f64, height: f64) -> Recipe
     session_insert(
         session,
         SessionOp::AddProfile {
-            loops: vec![shape(&ProfileShape::Rectangle {
-                centre: [0.0, 0.0],
-                width,
-                height,
-            })],
+            loops: vec![rectangle_at([0.0, 0.0], width, height)],
         },
     )
 }
@@ -965,7 +977,7 @@ pub fn proposed(
 pub fn transformed(
     session: &mut DocSession,
     node: RecipeNodeId,
-    values: &[(pncad::document::Coord, Formula)],
+    values: &[(pncad::document::Coord<pncad::document::Operand>, Formula)],
 ) -> SessionOp {
     transformed_at(session, node, None, values)
 }
@@ -976,7 +988,7 @@ pub fn transformed_at(
     session: &mut DocSession,
     node: RecipeNodeId,
     body: Option<u32>,
-    values: &[(pncad::document::Coord, Formula)],
+    values: &[(pncad::document::Coord<pncad::document::Operand>, Formula)],
 ) -> SessionOp {
     session.pump();
     let tol = session.tol();
@@ -984,7 +996,7 @@ pub fn transformed_at(
     let mut tool = viewer::matetool::MateTool::moving(doc, node, body)
         .unwrap_or_else(|event| panic!("the Transform tool opens on {node:?}: {event}"));
     for (coord, by) in values {
-        tool.type_value(*coord, by.clone());
+        tool.type_value(coord.clone(), by.clone());
     }
     tool.proposal(doc, ev, tol)
         .unwrap_or_else(|error| panic!("the draft proposes an Apply: {error}"))
@@ -993,11 +1005,11 @@ pub fn transformed_at(
 
 /// **The three slides the Transform tool types**, each zero the constant
 /// `0` ([`translation`]).
-pub fn slides(by: [f64; 3]) -> Vec<(pncad::document::Coord, Formula)> {
+pub fn slides(by: [f64; 3]) -> Vec<(pncad::document::Coord<pncad::document::Operand>, Formula)> {
     pncad::document::TargetAxis::ALL
         .into_iter()
         .zip(translation(by))
-        .map(|(axis, by)| (pncad::document::Coord::Slide(axis), by))
+        .map(|(axis, by)| (pncad::document::Coord::slide(axis), by))
         .collect()
 }
 

@@ -162,7 +162,7 @@ fn the_same_touching_pair_undeclared_is_the_f1_hard_error() {
 /// A 1 m patch about the origin: the extent these exact-axis fixtures'
 /// locus verdicts are consumed over (no row here turns on the lever).
 fn metre_patch() -> geom_brep::ExtentBall<f64> {
-    geom_brep::ExtentBall::new(Point3::origin(), 1.0)
+    geom_brep::ExtentBall::of_sphere(Point3::origin(), 1.0)
 }
 
 fn plane_at(z: f64) -> Surface<f64> {

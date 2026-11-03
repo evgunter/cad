@@ -391,7 +391,7 @@ fn attack_all_fourteen_edit_variants_round_trip() {
     let placed = editor_core::Placed::of(
         &doc,
         Vec::new(),
-        vec![(editor_core::Coord::Slide(editor_core::TargetAxis::X), slide)],
+        vec![(editor_core::Coord::slide(editor_core::TargetAxis::X), slide)],
     );
     let row = push(
         &mut doc,

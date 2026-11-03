@@ -83,7 +83,7 @@ fn a_second_cut_on_a_seam_leaves_the_other_pieces_names() {
             // The value is a coordinate on the plate's own `y` (its start
             // cap is where the identity orientation puts the notch's):
             // this slides the notch 4 toward `−y`.
-            slot: crate::fixture::value_slot(&doc, tr, Coord::Slide(TargetAxis::Y)),
+            slot: crate::fixture::value_slot(&doc, tr, Coord::slide(TargetAxis::Y)),
             value: len(-4.0).into(),
             fresh: Vec::new(),
         },

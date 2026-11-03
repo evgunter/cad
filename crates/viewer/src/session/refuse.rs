@@ -1077,7 +1077,7 @@ impl VersionOffer {
 }
 
 /// **Why a gesture's frame could not be made** — a split's cutting
-/// plane, a circular pattern's axis. Each is made of numbers the gesture carries, taken at their
+/// plane, a pattern's direction or axis. Each is made of numbers the gesture carries, taken at their
 /// nominal values in the document, and read off a body's own geometry
 /// (spec §5, the restate ladder).
 #[derive(Debug, Clone)]
@@ -1117,6 +1117,12 @@ pub enum GestureFrameFault {
     /// No frame reads off a traced face and a plane face
     /// ([`pncad::trace::traced_frame`]).
     Traced(std::sync::Arc<pncad::trace::TracedFrameFault>),
+    /// The geometry picked for a pattern reads no direction where it
+    /// stands, or, for a ring, no axis.
+    NoHeading {
+        /// The field, as the form names it.
+        field: &'static str,
+    },
 }
 
 impl core::fmt::Display for GestureFrameFault {
@@ -1134,6 +1140,11 @@ impl core::fmt::Display for GestureFrameFault {
             Self::Direction { field, refusal } => write!(f, "the {field} {refusal}"),
             Self::Geometry(refusal) => write!(f, "{refusal}"),
             Self::Traced(fault) => write!(f, "{fault}"),
+            Self::NoHeading { field } => write!(
+                f,
+                "the {field} picked reads none where it stands: pick a straight edge, a flat \
+                 face for its normal or a round edge or face for its axis"
+            ),
         }
     }
 }
