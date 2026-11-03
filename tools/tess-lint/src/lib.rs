@@ -853,8 +853,8 @@ pub const EXPECTED_HEADER: &str = "scene,face,name,chart,delta,triangles,u0,u1,v
 /// `the_lints_roster_admits_every_tag_this_crate_emits` reads this
 /// declaration out of this file and asserts it admits every tag
 /// `SurfaceKind::name` emits, with its own falsification guard.
-pub const CHART_TAGS: [&str; 7] = [
-    "plane", "cylinder", "cone", "sphere", "torus", "nurbs", "approx",
+pub const CHART_TAGS: [&str; 8] = [
+    "plane", "cylinder", "cone", "sphere", "torus", "spindle", "nurbs", "approx",
 ];
 
 /// The [`CHART_TAGS`] whose faces the Hessian-sized lane sizes, so
@@ -3331,7 +3331,7 @@ mod tests {
         // pairing's voice, saying nothing about a roster the gate
         // joins on.
         const REFUSED: &str = "chart: \"hessian\" is not one of \
-                               plane, cylinder, cone, sphere, torus, nurbs, approx \
+                               plane, cylinder, cone, sphere, torus, spindle, nurbs, approx \
                                (sweep drift?)";
         for (text, line) in [
             (with_field(&scene(100, 2.5e1), CHART, "hessian"), 3),
@@ -3355,7 +3355,7 @@ mod tests {
         assert_eq!(
             CHART_TAGS,
             [
-                "plane", "cylinder", "cone", "sphere", "torus", "nurbs", "approx"
+                "plane", "cylinder", "cone", "sphere", "torus", "spindle", "nurbs", "approx"
             ],
             "the tags `geom::SurfaceKind::name` emits"
         );

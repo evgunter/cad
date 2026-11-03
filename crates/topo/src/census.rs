@@ -8884,7 +8884,8 @@ pub(crate) fn carrier_frame<T: Real>(surface: &geom::Surface<T>) -> Option<[Vec3
         geom::Surface::Cylinder { u_ref, axis, .. }
         | geom::Surface::Cone { u_ref, axis, .. }
         | geom::Surface::Sphere { u_ref, axis, .. }
-        | geom::Surface::Torus { u_ref, axis, .. } => (u_ref, axis),
+        | geom::Surface::Torus { u_ref, axis, .. }
+        | geom::Surface::Spindle { u_ref, axis, .. } => (u_ref, axis),
         geom::Surface::Nurbs(_) | geom::Surface::Approx(_) => return None,
     };
     Some([u, a.cross(u), a])

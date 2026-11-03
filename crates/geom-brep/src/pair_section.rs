@@ -1011,7 +1011,7 @@ pub fn pair_section<T: Decide>(
     lane: Option<SsiLane<T>>,
     band: Band,
 ) -> Result<SectionRead<T>, SectionError> {
-    use SurfaceKind::{Approx, Cone, Cylinder, Nurbs, Plane, Sphere, Torus};
+    use SurfaceKind::{Approx, Cone, Cylinder, Nurbs, Plane, Sphere, Spindle, Torus};
     let (ka, kb) = (a.kind(), b.kind());
     match (ka, kb) {
         (Cylinder, Sphere) | (Sphere, Cylinder) => match CylinderSpherePose::decide(a, b, band) {
@@ -1062,7 +1062,11 @@ pub fn pair_section<T: Decide>(
         | (Cone, Plane | Cylinder | Cone | Sphere | Torus | Nurbs | Approx)
         | (Sphere, Plane | Cone | Sphere)
         | (Torus, Plane | Cone)
-        | (Nurbs | Approx, Cone) => Ok(SectionRead::Elsewhere(route(ka, kb))),
+        | (Nurbs | Approx, Cone)
+        | (Spindle, Plane | Cylinder | Cone | Sphere | Torus | Spindle | Nurbs | Approx)
+        | (Plane | Cylinder | Cone | Sphere | Torus | Nurbs | Approx, Spindle) => {
+            Ok(SectionRead::Elsewhere(route(ka, kb)))
+        }
     }
 }
 
@@ -1095,10 +1099,10 @@ pub fn spline_pair_section<T: Decide>(
 /// reader that asks it.
 #[must_use]
 pub fn serves(kind: SurfaceKind) -> bool {
-    use SurfaceKind::{Approx, Cone, Cylinder, Nurbs, Plane, Sphere, Torus};
+    use SurfaceKind::{Approx, Cone, Cylinder, Nurbs, Plane, Sphere, Spindle, Torus};
     match kind {
         Cylinder | Sphere | Torus => true,
-        Plane | Cone | Nurbs | Approx => false,
+        Plane | Cone | Spindle | Nurbs | Approx => false,
     }
 }
 
@@ -1110,11 +1114,12 @@ pub fn serves(kind: SurfaceKind) -> bool {
 /// rectangle bounds the pair, and the region never cuts it.
 #[must_use]
 pub fn traced_in_r3(a: SurfaceKind, b: SurfaceKind) -> bool {
-    use SurfaceKind::{Approx, Cone, Cylinder, Nurbs, Plane, Sphere, Torus};
-    // The cone's residual is not in metres yet (C2 limb 2).
+    use SurfaceKind::{Approx, Cone, Cylinder, Nurbs, Plane, Sphere, Spindle, Torus};
+    // The cone's residual is not in metres yet (C2 limb 2); a spindle
+    // sheet has no section lane yet.
     let residual = |kind| match kind {
         Plane | Cylinder | Sphere | Torus => true,
-        Cone | Nurbs | Approx => false,
+        Cone | Spindle | Nurbs | Approx => false,
     };
     residual(a) && residual(b)
 }
