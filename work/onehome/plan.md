@@ -1,6 +1,6 @@
 # ONEHOME — the plan
 
-No orchestrator yet. Live state is `work/onehome/log.md`'s tail and the
+Live state is `work/onehome/log.md`'s tail and the
 item files beside this plan.
 
 Branch prefix **`onehome/`**; away-channel tag `(ONEHOME orchestrator)`.
@@ -64,29 +64,68 @@ work that travels with them.
 
 ## The slate
 
-**32.5 budget points** of dispatchable work against a ceiling of 35.
+**39 budget points** of dispatchable work against a ceiling of 35, after
+the 2026-11-03 cut (below): still over, because what is left is the
+in-flight and staged clusters and the rows filed against them, which do
+not part from them cleanly. The next sitting that frees one of those
+clusters re-measures and cuts again if it is still over.
 
-| pri | item | cost | title |
-|---|---|---|---|
-| P1 | `boolean-defect-displays-end-three-ways` | E | TornComponent, SeamOrientation and ZipCorrespondence end '(kernel bug)', not the defect ending, so offer_key reads them as typed refusals |
-| P1 | `boolean-walks-face-to-surface-inline-at-two-dozen-sites` | M | The Boolean walks from a face to its surface inline at about two dozen sites, each with its own refusal |
-| P1 | `boundary-meets-circle-only-at-reads-curve-meetings-itself` | M | reduce::boundary_meets_circle_only_at decides where a face's boundary meets a circle by plane sides and off-circle rows, a second reading of the curve-pair meeting question |
-| P1 | `certified-line-carrier-is-read-in-five-places` | E | "is this edge a certified Line" is spelled separately in five splitting/join files; one helper |
-| P1 | `circle-and-ellipse-frame-arms-re-spell-conic-of` | E | LoopArc::of and the section outline's Circle and Ellipse arms re-spell geom_brep::Conic::of |
-| P1 | `coincidence-intent-has-too-many-spellings` | M | Coincidence intent can be said in too many ways (shared key, face-pair declaration, split declaration, carried records, derived datum, shared parameters); weigh whether they reduce to fewer |
-| P1 | `identity-data-reads-its-ladder-from-geom-brep` | E | carrier_eq::identity_data carries its own copy of the identity-ladder rule geom_brep::ladder::read_identity now owns |
-| P1 | `inside-out-operand-reading-has-two-homes-and-four-spellings` | E | The inside-out operand reading has two loops, four spelled-out recourse sentences and convention-held unreachable arms |
-| P1 | `point-on-circle-is-a-second-point-on-carrier-reading` | E | contain::point_on_circle (bool_contact_arc) reads a split point's distance from its circle beside the point-on-span reading's gap row, which the boundary pre-pass now reads |
-| P1 | `restating-a-chart-image-across-an-authority-has-several-spellings` | E | restating an edge as a chart image while carrying its declared authority across is spelled at three sites |
-| P1 | `run-loops-of-split-and-pierce-are-twins` | M | splitting/insert.rs's run loop and boolean/vtxfac.rs's are near-verbatim twins: one home? |
-| P1 | `section-cert-reach-parallels-extent-ball` | E | section_cert's Reach is a parallel type to ExtentBall, adapted at every use; line_tilt is hosted in carrier_eq for two consumers |
-| P1 | `semi-axes-by-size-misses-seven-inline-sites` | E | Seven inline readings of the larger semi-axis bypass Curve3::semi_axes_by_size, and one production bind still says major |
-| P1 | `the-at-rest-result-gate-and-its-typing-live-in-five-homes` | M | Five doors gate a result at rest and type the refusal, each in its own words: only the Boolean and the split share the typing |
-| P1 | `the-split-reads-a-slit-twice-by-geometry-and-by-topology` | M | The split reads a slit two ways: spur_tips by geometry, section_kind by topology |
-| P1 | `the-split-walk-and-the-boolean-sector-pass-read-a-bounds-side-two-ways` | M | entry_side and sectors::side_code read one bound's side of a plane two ways, and disagree at every first-order tie |
-| P1 | `three-readings-of-a-points-rounding-charge-it-three-ways` | M | A conic point's rounding is read three ways: carrier_resolution (relative to the window), implicit::sample_rounding and ring_path::resolution (absolute) |
-| P1 | `two-germ-readers-sign-one-line-two-ways` | E | The v-v crossing germ is signed by sector membership and the pierce germ by its transition's codes: two readers of one question |
-| P1 | `vertex-section-quotient-has-no-room-precondition-and-four-offset-spellings` | M | The vertex section reading divides by a sine its bound can exceed, charges the wall normal by assertion, and spells offset and side three ways |
+- **In flight**: PR 6371 (`onehome/finished-body`, dual tier, `[ev]`
+  question on the PR) carries `the-at-rest-result-gate-and-its-typing-live-in-five-homes`
+  and `a-dual-reaches-the-at-rest-gate-and-is-told-not-run`;
+  `certified-body-is-a-second-finished-body-type` is its neighbour.
+  PR 6380 (`onehome/run-owns-rounding`, `[ev]`) carries
+  `three-readings-of-a-points-rounding-charge-it-three-ways`; filed
+  against it: `the-session-box-reach-misses-a-curved-faces-bulge`,
+  `a-lever-carries-a-callers-length-through-its-geometric-constructors`
+  (Ev on PR 6380), `unsourced-levers-await-a-source` (Ev's ruling),
+  `a-conics-point-is-evaluated-from-its-far-centre-not-its-vertex`
+  (waits on its measurement), and the rounding rows `half-angle-taylor-carries-value-error-tuples-beside-rounded`,
+  `a-chart-walks-area-clearing-its-bound-restates-rounded-room`,
+  `the-splits-sliver-vertex-states-the-planes-subject-for-the-section-reading`
+  and `a-rigid-motion-rewrites-and-recertifies-every-edge` (PR 6329's
+  principle).
+- **Staged**: `topo::star` stages 2–3 on `run-loops-of-split-and-pierce-are-twins`
+  (stage 1 merged in PR 6392; stage 2 takes the dual tier), folding
+  `the-pierce-reads-a-struts-facing-the-stars-site-already-names`,
+  `the-vertex-pair-planner-nests-struts-across-pairs-beside-ring-tree`,
+  `two-germ-readers-sign-one-line-two-ways` and items 3–4 of
+  `vertex-section-quotient-has-no-room-precondition-and-four-offset-spellings`.
+- **Extent**: `extent-reads-made-outside-the-extent-home` and
+  `consumed-extent-wraps-extent-ball` wait beside BOXES' `cover-levers`.
+- `a-closed-keel-in-the-section-plane-divides-the-section-into-two-regions`
+  is a builder gap found in PR 6365's review, unbanded.
+
+| pri | item | cost | status | title |
+|---|---|---|---|---|
+| P1 | `a-chart-walks-area-clearing-its-bound-restates-rounded-room` | E | open | A chart walk's area clearing its error bound restates Rounded's room on a type of its own |
+| P1 | `a-conics-point-is-evaluated-from-its-far-centre-not-its-vertex` | M | open | A near-graze conic point is summed from its far centre, so its rounding is ~u·ρ; evaluated from the arc's vertex it is ~u·ρ·θ² and certifies the near-gap poses PR 6349 now refuses |
+| P1 | `a-lever-carries-a-callers-length-through-its-geometric-constructors` | M | open | A Lever can carry any length a caller writes through its geometric constructors, against the README's 'never from a length a caller vouches for' |
+| P1 | `a-rigid-motion-rewrites-and-recertifies-every-edge` | M | open | transform_rigid rewrites every coordinate of a finished body and re-certifies every edge, where an isometry of a certified body could stay certified or be carried as a placement |
+| P1 | `certified-body-is-a-second-finished-body-type` | M | open | topo::CertifiedBody (body + the gate's sign certificate) is a second finished-body type beside AtRestBody |
+| P1 | `half-angle-taylor-carries-value-error-tuples-beside-rounded` | M | open | half_angle's taylor carries (value, error) tuples and spells room by hand beside running::Rounded |
+| P1 | `run-loops-of-split-and-pierce-are-twins` | M | open | splitting/insert.rs's run loop and boolean/vtxfac.rs's are near-verbatim twins: one home? |
+| P1 | `the-at-rest-result-gate-and-its-typing-live-in-five-homes` | M | dispatched | Five doors gate a result at rest and type the refusal, each in its own words: only the Boolean and the split share the typing |
+| P1 | `the-pierce-reads-a-struts-facing-the-stars-site-already-names` | M | open | vtxfac's piercing runs read a strut's facing geometrically (strut_faces_first) where the star's site names it topologically |
+| P1 | `the-splits-sliver-vertex-states-the-planes-subject-for-the-section-reading` | E | open | The split's SliverVertex states the plane's subject for the section reading's margin |
+| P1 | `the-vertex-pair-planner-nests-struts-across-pairs-beside-ring-tree` | M | open | boolean/insert.rs nests one shared vertex's struts across pairs by holds_whole, a second nesting reading beside star::ring_tree |
+| P1 | `three-readings-of-a-points-rounding-charge-it-three-ways` | M | dispatched | A conic point's rounding is read three ways: carrier_resolution (relative to the window), implicit::sample_rounding and ring_path::resolution (absolute) |
+| P1 | `two-germ-readers-sign-one-line-two-ways` | E | open | The v-v crossing germ is signed by sector membership and the pierce germ by its transition's codes: two readers of one question |
+| P1 | `unsourced-levers-await-a-source` | M | open | 74 lever arms fit none of the three sources and are pinned unsourced, awaiting Ev's ruling or a re-posing |
+| P1 | `vertex-section-quotient-has-no-room-precondition-and-four-offset-spellings` | M | open | The vertex section reading divides by a sine its bound can exceed, charges the wall normal by assertion, and spells offset and side three ways |
+| P2 | `a-dual-reaches-the-at-rest-gate-and-is-told-not-run` | M | dispatched | AtRestBody<T: Real> admits a dual, carrying AtRestOutcome::NotRunAtThisScalar, where a certification bound on T would make a dual at the gate fail to typecheck |
+| P2 | `extent-reads-made-outside-the-extent-home` | M | open | consumed-extent reads still made outside geom_brep's extent home, and hidden levers outside Margin::levered |
+| P3 | `consumed-extent-wraps-extent-ball` | E | open | topo::ConsumedExtent is a public newtype over ExtentBall, a third name for the consumed extent |
+| — | `a-closed-keel-in-the-section-plane-divides-the-section-into-two-regions` | — | open | A closed keel lying in the section plane divides the section into two regions where drop_slits promises one |
+| — | `the-session-box-reach-misses-a-curved-faces-bulge` | — | open | The session box reads a body's vertices and edges, so a curved face's far side no edge rides is missed |
+
+## The 2026-11-03 cut
+
+ONEHOME's orchestrator ran out of usage with the track at 70 budget
+points against 35. The 16 rows it had not started moved to ONECOPY
+(`work/onecopy/`): a carrier's geometric readings in `geom`, and topo's
+face walks, refusal mappings and ladder searches. A row there that
+turns out to need one of the clusters above moves back.
 
 ## Exit criteria
 
