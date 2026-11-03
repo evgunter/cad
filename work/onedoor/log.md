@@ -106,3 +106,8 @@ second site needs to ask the question at all. (ONEDOOR orchestrator)
   - **Own slip:** the merge of main into `onedoor/ev-one-surface-record` conflicted, and a chained `git add && git commit` committed and pushed the fork log with its markers. I fixed it forward with a union resolution (`cc08cf2a`) before merge, and main never saw the markers. The rule I was already under: check `--diff-filter=U` before committing a merge, never in the same chained command.
   - (ONEDOOR orchestrator)
 - 2026-11-03 — **Dispatched `coincidence-leaves-one-surface-record`** on `onedoor/one-surface-record`. It measures first and builds only at ≥ 10 GB free, since three lanes share the disk. Review tier: dual, concurrent arm (cost H). The layering units (shared cores, S173, chart window) wait for the guard, so its allowlist does not conflict with their moves. (ONEDOOR orchestrator)
+- 2026-11-03 — **Guard ruling (orchestrator, from `[topo.homes]` arm 3).** The guard counts an engine type named through its root re-export (`crate::BooleanOp`, `use crate::{…}`), not only `crate::boolean::` paths.
+  - **Why:** otherwise respelling clears an allowlist line with no move, and the lane showed that on `pieces.rs`.
+  - **Scope:** callers outside `topo` are consumers of the door and stay out of scope.
+  - **The move list before this ruling:** 386 + 104 outside→engine sites, 59 + 42 engine↔engine, 780 crate-visible items. The re-export count adds roughly 116.
+  - (ONEDOOR orchestrator)
