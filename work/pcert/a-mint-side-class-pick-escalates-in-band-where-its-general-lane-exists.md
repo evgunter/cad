@@ -2,10 +2,12 @@
 id: a-mint-side-class-pick-escalates-in-band-where-its-general-lane-exists
 kind: issue
 title: The mint-side class picks (arc rim, iso row) escalate in band, and the arc rim's definite arm refuses IsoUnsupported, where the general lane exists (D3)
-status: open
+status: closed
 opened: 2026-10-20
 priority: P1
 cost: M
+pr: 6484
+closed: 2026-11-03
 ---
 
 
@@ -46,3 +48,23 @@ In band takes the lane definite takes: the fitted or general image,
 with the pick recording nothing. Where the arc rim has no general lane,
 refuse lever-only "not yet" on both arms. Each site needs a row with an
 in-band pose, and a mutant that restores the escalation and reds it.
+
+## Closed
+
+Unit E5 (PR 6484). The lane-choice consumers of `pick_arc_rim` and
+`probe_pick` read an in-band pick as "not shown" and take the lane a
+definite reading takes:
+
+- the plane and pair lanes' `exact_arc_rim` read the fitted image,
+  whether the pick or the certificate read in band
+  (`ArcRimRefusal::Escalated` is gone);
+- `pick_arc_rim` runs its measured step past an in-band closed form;
+- `iso_schedule` passes an in-band candidate on to `General`, and an
+  Intersection circle whose arc-rim certificate reads in band takes
+  `General`;
+- the mint's `arc_rim` arm refuses `NoGeneralLane` ("not yet") at both
+  readings.
+
+The loft's section rim, the one consumer left reading it as an
+escalation, is
+`work/pcert/a-loft-section-rims-in-band-pick-offers-a-tolerance.md`.
