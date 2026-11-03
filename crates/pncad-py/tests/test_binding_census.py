@@ -2579,6 +2579,10 @@ NOT_BOUND = {
     "Labelled": SHAPE,
     "Labels": SHAPE,
     "PASS_A_RESOLVER": SHAPE,
+    # The one recourse of a run out of its member budget: read in the
+    # message of every refusal that states it (`Evaluation.exhausted`'s
+    # runs, and each door's `stopped` arm).
+    "RAISE_THE_MEMBER_BUDGET": SHAPE,
     "Recourse": SHAPE,
     "Staged": SHAPE,
     "Real": SHAPE,
