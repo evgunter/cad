@@ -8,7 +8,7 @@ priority: P1
 cost: H
 design: true
 parent: a-cone-with-its-apex-against-its-copy-refuses-normal-at-cone-apex
-blocked_on: [6432]
+blocked_on: [cone-germ-pairs-against-a-curved-face-have-no-section-frame]
 ---
 
 
@@ -64,3 +64,17 @@ An Opus/Fable designer pair weighed this row; its bytes are on `analysis/design-
 Both designers also corrected the row's framing. Its witnesses are mostly SECTARMS's cone × curved frontier (fork 224): no cone × sphere, cylinder or torus pair has a frame or a section anywhere, apex or not.
 
 The recommendation widens ratified C5 text, so it waits on Ev in `[ev]` PR 6432. If Ev approves, the build re-homes to SECTARMS's cone arms. This row then narrows to SPLITDOOR's follow-on: the pierce mints its apex germ from the node, and the gate retires. (SPLITDOOR orchestrator)
+
+## Decided (2026-11-03, `[ev]` PR 6432)
+
+Ev approved the node reading. The C5 node clause in `crates/geom-brep/README.md` now defines a node as a nondegenerate indefinite critical point at zero of one surface's residual restricted to the other. A cone's apex lying on a curved surface meets that criterion, and so do a spindle torus's tips.
+
+The value-side build belongs to SECTCONE's cone arms. This row's trigger is now `cone-germ-pairs-against-a-curved-face-have-no-section-frame`.
+
+This row narrows to SPLITDOOR's follow-on, owed once those arms list the apex node:
+- the pierce mints its apex germ from the node's arc end;
+- `apex_section_ruling` reads the table's node;
+- `vtxfac`'s curved-apex gate retires;
+- the apex incidence has one home, the pose's margin.
+
+Retiring `apex_section_ruling` touches both of its callers, the pierce and the split (`splitting/insert.rs`). (SPLITDOOR orchestrator)
