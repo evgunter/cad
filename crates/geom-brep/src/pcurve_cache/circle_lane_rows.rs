@@ -687,3 +687,223 @@ fn a_circles_projected_envelope_covers_its_residual() {
         );
     }
 }
+
+// ---------------------------------------------------------------------------
+// Review probe (PR 6485, reviewer lane): an independent counterexample
+// search, shaped differently from the PR's own. Not for merge.
+
+fn rp_rotate(v: Vec3<f64>, k: Vec3<f64>, ang: f64) -> Vec3<f64> {
+    let k = k.normalize();
+    let (s, c) = ang.sin_cos();
+    v * c + k.cross(v) * s + k * (k.dot(v) * (1.0 - c))
+}
+
+fn rp_unit(s: &mut fuzz::Rng) -> Vec3<f64> {
+    loop {
+        let v = Vec3::new(s.range(-1.0, 1.0), s.range(-1.0, 1.0), s.range(-1.0, 1.0));
+        let n = v.norm();
+        if n > 0.1 && n <= 1.0 {
+            return v * (1.0 / n);
+        }
+    }
+}
+
+/// The densest residual: 16384 samples then a local golden refine
+/// around the worst one.
+fn rp_residual(image: &Pcurve<f64>, (t0, t1): (f64, f64), carrier: &Curve3<f64>, surface: &Surface<f64>) -> f64 {
+    let at = |t: f64| {
+        let q = image.eval(t);
+        surface.eval(q.x, q.y).distance(carrier.eval(t))
+    };
+    let n = 16384u32;
+    let h = (t1 - t0) / f64::from(n);
+    let (mut best, mut bt) = (0.0_f64, t0);
+    for i in 0..=n {
+        let t = t0 + h * f64::from(i);
+        let v = at(t);
+        if v > best {
+            best = v;
+            bt = t;
+        }
+    }
+    let (mut lo, mut hi) = ((bt - h).max(t0), (bt + h).min(t1));
+    for _ in 0..60 {
+        let m1 = lo + (hi - lo) * 0.382;
+        let m2 = lo + (hi - lo) * 0.618;
+        if at(m1) > at(m2) { hi = m2 } else { lo = m1 }
+    }
+    best.max(at(0.5 * (lo + hi)))
+}
+
+#[test]
+fn review_probe_6485_search() {
+    let mut s = fuzz::start("review_probe_6485");
+    let b = band();
+    let n: usize = std::env::var("RP_N").ok().and_then(|v| v.parse().ok()).unwrap_or(400);
+    let only: Option<usize> = std::env::var("RP_FAMILY").ok().and_then(|v| v.parse().ok());
+    let mut tally = [[0usize; 4]; 8];
+    let mut worst = [0.0_f64; 8];
+    for trial in 0..n {
+        let fam = only.unwrap_or_else(|| s.below(8));
+        let scale = s.log_uniform(1e-2, 50.0);
+        let far = if s.below(2) == 0 { 0.0 } else { s.log_uniform(1.0, 1000.0) };
+        let place = Point3::new(far, -0.5 * far, 0.3 * far);
+        let axis = rp_unit(&mut s);
+        let u_ref = axis.cross(rp_unit(&mut s)).normalize();
+        let sign = |s: &mut fuzz::Rng| if s.below(2) == 0 { 1.0 } else { -1.0 };
+        let alpha_x = |s: &mut fuzz::Rng| match s.below(3) {
+            0 => s.log_uniform(0.003, 0.1),
+            1 => s.range(1.3, 1.567),
+            _ => s.range(0.1, 1.3),
+        };
+        let ratio_x = |s: &mut fuzz::Rng| match s.below(3) {
+            0 => s.log_uniform(1e-3, 0.1),
+            1 => 1.0 - s.log_uniform(1e-5, 0.1),
+            _ => s.range(0.1, 0.9),
+        };
+        let (surface, carrier) = match fam {
+            0 | 1 => {
+                let alpha = alpha_x(&mut s);
+                let surface = Surface::Cone { apex: place, axis, half_angle: alpha, u_ref };
+                let h = sign(&mut s) * scale * if fam == 1 { s.log_uniform(1e-4, 1e-2) } else { s.range(0.3, 2.0) };
+                let tau = if s.below(2) == 0 {
+                    cone_tilt_for(&surface, alpha, h, b.zero() * s.log_uniform(1e-3, 0.95))
+                } else {
+                    s.range(b.zero(), b.escalate()) / (h.abs() * alpha.tan())
+                };
+                if !tau.is_finite() || tau.abs() > 1.4 - alpha.min(1.4) + 0.1 { continue; }
+                let c = cone_section_circle(&surface, alpha, h, tau);
+                (surface, c)
+            }
+            2..=4 => {
+                let ratio = if fam == 2 { s.log_uniform(1e-3, 0.1) } else if fam == 3 { 1.0 - s.log_uniform(1e-5, 0.1) } else { ratio_x(&mut s) };
+                let (major, minor) = (scale, scale * ratio);
+                let surface = Surface::Torus { center: place, axis, major_radius: major, minor_radius: minor, u_ref };
+                let c = if fam < 4 {
+                    let delta = (2.0 * minor * b.zero() * s.log_uniform(1e-3, 0.95)).sqrt();
+                    let phi = s.range(-3.1, 3.1);
+                    let centre = Vec3::new(phi.cos(), phi.sin(), 0.0) * delta + Vec3::new(0.0, 0.0, minor * sign(&mut s));
+                    framed_circle(&surface, centre, Vec3::unit_x(), Vec3::unit_y(), major)
+                } else {
+                    let theta = s.range(-3.14, 3.14);
+                    let (z, rho) = (minor * theta.sin(), major + minor * theta.cos());
+                    let tau = (s.range(b.zero(), b.escalate()) / rho).asin();
+                    let (st, ct) = tau.sin_cos();
+                    framed_circle(&surface, Vec3::new(0.0, 0.0, z), Vec3::unit_x(), Vec3::new(0.0, ct, st), rho)
+                };
+                (surface, c)
+            }
+            5 | 6 => {
+                let alpha = alpha_x(&mut s);
+                let surface = Surface::Cone { apex: place, axis, half_angle: alpha, u_ref };
+                let (sa, ca) = alpha.sin_cos();
+                let phi = s.range(-3.1, 3.1);
+                let g = Vec3::new(sa * phi.cos(), sa * phi.sin(), ca) * sign(&mut s);
+                // fam 5: anchored off the apex along the axis in band;
+                // fam 6: rotated about the apex by an in-band angle at unit reach.
+                let c = if fam == 5 {
+                    let h = s.range(b.zero(), b.escalate()) * sign(&mut s);
+                    Curve3::line(world(&surface, g * (h / ca)), world_dir(&surface, g))
+                } else {
+                    let w = rp_unit(&mut s);
+                    let g2 = rp_rotate(g, w, s.range(b.zero(), b.escalate()) / scale);
+                    Curve3::line(world(&surface, Vec3::zero()), world_dir(&surface, g2))
+                };
+                (surface, c)
+            }
+            _ => {
+                let radius = scale;
+                let surface = Surface::Cylinder { origin: place, axis, radius, u_ref };
+                let phi = s.range(-3.1, 3.1);
+                let (sp, cp) = phi.sin_cos();
+                let psi = s.range(-1.5, 1.5);
+                let tangent = Vec3::new(-sp, cp, 0.0);
+                let c = framed_circle(&surface, Vec3::new(cp * radius, sp * radius, s.range(-1.0, 1.0) * scale),
+                    tangent * psi.cos() + Vec3::unit_z() * psi.sin(), Vec3::unit_z() * psi.cos() - tangent * psi.sin(),
+                    s.log_uniform(b.zero() * 0.01, b.escalate() * 10.0));
+                (surface, c)
+            }
+        };
+        let offset = rp_unit(&mut s) * (0.3 * b.zero() * f64::from(u8::from(s.below(2) == 0)));
+        let dr = 0.3 * b.zero() * s.range(-1.0, 1.0) * f64::from(u8::from(s.below(2) == 0));
+        let (carrier, t0, t1) = match carrier {
+            Curve3::Circle(geom::Circle { frame: geom::Frame { center, axis: n, u_ref: x }, radius }) => {
+                let t0 = s.range(-4.0, 4.0);
+                let t1 = t0 + if s.below(4) == 0 { TAU } else { s.range(0.05, 6.0) };
+                (Curve3::circle(center + offset, n, (radius + dr).abs(), x), t0, t1)
+            }
+            Curve3::Line(geom::Line { origin, dir }) => {
+                let t0 = sign(&mut s) * s.log_uniform(1e-6, 1.0) * scale;
+                let len = if s.below(3) == 0 { t0.abs() * s.range(1.0, 3.0) } else { s.log_uniform(1e-3, 3.0) * scale };
+                (Curve3::line(origin + offset, dir), t0, t0 + len)
+            }
+            _ => unreachable!(),
+        };
+        let (r64, ri) = derived(&carrier, (t0, t1), &surface);
+        if std::env::var("RP_VERBOSE").is_ok() {
+            let kind = |r: &Result<Pcurve<f64>, PcurveCertifyError>| match r {
+                Ok(p) if p.projected().is_some() => "projected".to_string(),
+                Ok(_) => "closed".to_string(),
+                Err(e) => { let s = format!("{e:?}"); s.chars().take(70).collect() }
+            };
+            println!("[rp] fam {fam}: {}", kind(&r64));
+        }
+        let (Ok(image), Ok(image_i)) = (r64, ri) else { tally[fam][0] += 1; continue; };
+        if image.projected().is_none() || image_i.projected().is_none() { tally[fam][0] += 1; continue; }
+        let terms = check_4_terms(&image, &image_i, &carrier, (t0, t1), &surface);
+        let Ok((envelope, hi)) = terms else {
+            if std::env::var("RP_VERBOSE").is_ok() { println!("[rp4] fam {fam}: {:?}", terms.err().map(|e| format!("{e:?}").chars().take(80).collect::<String>())); }
+            tally[fam][1] += 1; continue;
+        };
+        tally[fam][2] += 1;
+        let sup = rp_residual(&image, (t0, t1), &carrier, &surface);
+        let noise = 64.0 * f64::EPSILON * (scale + far);
+        worst[fam] = worst[fam].max(sup / hi.max(1e-300));
+        if let Ok(path) = std::env::var("RP_DUMP") {
+            if sup > 0.99 * hi {
+                use std::io::Write;
+                let mut f = std::fs::OpenOptions::new().create(true).append(true).open(path).unwrap();
+                writeln!(f, "{fam}|{t0:?}|{t1:?}|{hi:?}|{envelope:?}|{sup:?}|{carrier:?}|{surface:?}").unwrap();
+            }
+        }
+        if sup > hi.min(envelope) && std::env::var("RP_VERBOSE").is_ok() {
+            println!("[rpx] fam {fam}: sup {sup:e} env {envelope:e} hi {hi:e} noise {noise:e} zero {:e}", b.zero());
+        }
+        if envelope < sup - noise {
+            println!("[f64miss] fam {fam}: env {envelope:e} sup {sup:e} rel {:.2e} scale {scale:e} far {far:e} surface {surface:?}", (sup - envelope) / sup);
+            let f64cert = PcurveCache::certify(image.clone(), t0, t1, &carrier, &surface, b).map(|c| c.certificate().envelope);
+            println!("[f64miss]   f64 certify: {f64cert:?}");
+            if let Ok(e) = f64cert {
+                if sup > b.zero() && e < b.zero() {
+                    println!("[overband] fam {fam}: certified f64 envelope {e:e} < zero {:e} < residual {sup:e}; {carrier:?} {surface:?} ({t0},{t1})", b.zero());
+                }
+            }
+        }
+        assert!(
+            hi >= sup - noise,
+            "trial {trial} fam {fam}: envelopes {envelope:e} / {hi:e} under residual {sup:e}; scale {scale:e} far {far:e} span ({t0},{t1}) carrier {carrier:?} surface {surface:?} — {}",
+            fuzz::replay()
+        );
+        let f = Interval::from_f64;
+        let cert_i = PcurveCache::certify(image_i.clone(), f(t0), f(t1), &carrier.map_scalar(f), &surface.map_scalar(f), b);
+        let cert_f = PcurveCache::certify(image.clone(), t0, t1, &carrier, &surface, b);
+        for (sc, e) in [("f64", cert_f.err()), ("Interval", cert_i.err())] {
+            if let Some(e) = e {
+                let k = format!("{e:?}");
+                let k: String = k.chars().take_while(|c| *c != ',').collect();
+                println!("[certerr] fam {fam} {sc}: {k}");
+                if matches!(e, PcurveCertifyError::ResidualExceeded { .. }) {
+                    println!("[resex] fam {fam} {sc}: sup {sup:e} env {envelope:e} hi {hi:e} {carrier:?} {surface:?} ({t0},{t1})");
+                }
+            }
+        }
+        if let Ok(cache) = PcurveCache::certify(image_i, f(t0), f(t1), &carrier.map_scalar(f), &surface.map_scalar(f), b) {
+            tally[fam][3] += 1;
+            let e = cache.certificate().envelope.hi();
+            assert!(e >= sup - noise, "trial {trial} fam {fam}: certified Interval envelope {e:e} under residual {sup:e}; {carrier:?} {surface:?} ({t0},{t1})");
+        }
+    }
+    for (fam, [none, refused, read, certified]) in tally.iter().enumerate() {
+        println!("[probe] fam {fam}: no-projected {none}, check4-refused {refused}, read {read}, certified@Interval {certified}, worst residual/envelope {:.4}", worst[fam]);
+    }
+}

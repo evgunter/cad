@@ -1,0 +1,35 @@
+diff --git a/crates/geom-brep/src/circle_chart.rs b/crates/geom-brep/src/circle_chart.rs
+index 91f1d5a6f..3c6b43c1b 100644
+--- a/crates/geom-brep/src/circle_chart.rs
++++ b/crates/geom-brep/src/circle_chart.rs
+@@ -154,6 +154,9 @@ pub(crate) fn rho_floor<T: Real>(c: Vec3<T>, a: Vec3<T>, b: Vec3<T>) -> T {
+             .chain(rho_sq.0[1..].iter().copied())
+             .collect(),
+     );
++    if option_env!("RP_MUT") == Some("rho") {
++        return (k0 + harmonics.sup()).max(T::zero()).sqrt();
++    }
+     (k0 - harmonics.sup()).max(T::zero()).sqrt()
+ }
+ 
+diff --git a/crates/geom-brep/src/pcurve_cache/projected.rs b/crates/geom-brep/src/pcurve_cache/projected.rs
+index a40cfc70e..b8c62bcb1 100644
+--- a/crates/geom-brep/src/pcurve_cache/projected.rs
++++ b/crates/geom-brep/src/pcurve_cache/projected.rs
+@@ -2219,6 +2219,7 @@ fn axial_less<T: Real>(chart: &ProjectedChart<T>, (lo, hi): (T, T), d: T) -> T {
+             nappe: Nappe::Mirror,
+             ..
+         } => T::zero() - hi - d,
++        ProjectedChart::Cone { .. } if option_env!("RP_MUT") == Some("axial") => lo,
+         ProjectedChart::Cone { .. } => lo - d,
+         _ => T::zero(),
+     }
+@@ -2447,7 +2448,7 @@ pub(super) fn projected_envelope<T: Decide>(
+                         )?;
+                         sup = sup.max(part);
+                     }
+-                    sup
++                    if option_env!("RP_MUT") == Some("coneline") { sup * T::from_f64(0.5) } else { sup }
+                 }
+                 _ => unreachable!("`has_lane` admits a line on a cylinder or a cone"),
+             };
