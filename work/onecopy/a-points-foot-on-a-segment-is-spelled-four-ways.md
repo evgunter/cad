@@ -19,6 +19,8 @@ A point's foot on a segment is the line's parameter held to `[0, 1]` (or to `[0,
 - `crates/topo/src/link.rs` `lowest_on`'s ray arm: `apex + u·max(u·(q − apex), 0)`, a ray's foot (held at one end only).
 - `crates/topo/src/census.rs` `distance`, its edge arm: `(u − p0)·dir` held to `[0, len]` on a line edge's segment (`EdgeGeo`).
 
+Two more reads of a segment's parameter beside them: `census.rs` `ee_bound_backed` (`(q − p0)·dir` on an `EdgeGeo`, read against its `[0, len]`), and `validate.rs`'s projection onto `(b − a).normalize()` near its segment checks.
+
 Test-only spellings beside them, which may stay as independent oracles: `ring_path.rs` `segment_arc_distance` (`#[cfg(test)]`).
 
 Before you fix it, decide the home: a `Line::param` held to a parameter span (the edge's own `(t0, t1)`) fits all four, since a segment is a line edge's span; a `Segment` type would be a second holder of the line. `sector_shape`'s Body-free functions are moving to `geom-brep` under ONEDOOR's `crossing-doors-leave-topo-for-geom-brep`, so coordinate with that row.
