@@ -121,7 +121,11 @@ fn half_revolve_axis_edge_stays_conventional() {
         panic!("partial revolve");
     };
     let key = |f: &topo::FaceKey| t.body.get_face(*f).unwrap().surface;
-    assert_eq!(key(start_cap), key(end_cap), "the coplanar caps wear one record");
+    assert_eq!(
+        key(start_cap),
+        key(end_cap),
+        "the coplanar caps wear one record"
+    );
     assert_declared_image_in(&t.body, start_meridians[0][3], key(start_cap));
     let row = coplanar_caps.expect("the caps' coincidence is recorded");
     let mut cells = row.cells.map(|c| match c {
@@ -142,7 +146,13 @@ fn a_wedge_keeps_its_caps_on_two_records() {
     // θ = π/2: the caps meet at a corner along the axis, two carriers,
     // so nothing is decided one and no row is recorded.
     let vp = validated(vec![square()]);
-    let t = revolve(&vp, axis_y(), Revolution::Partial(FRAC_PI_2), Tol::witness()).unwrap();
+    let t = revolve(
+        &vp,
+        axis_y(),
+        Revolution::Partial(FRAC_PI_2),
+        Tol::witness(),
+    )
+    .unwrap();
     let RevolvedKind::Partial {
         start_cap,
         end_cap,
@@ -153,7 +163,11 @@ fn a_wedge_keeps_its_caps_on_two_records() {
         panic!("partial revolve");
     };
     let key = |f: &topo::FaceKey| t.body.get_face(*f).unwrap().surface;
-    assert_ne!(key(start_cap), key(end_cap), "the wedge's caps are two surfaces");
+    assert_ne!(
+        key(start_cap),
+        key(end_cap),
+        "the wedge's caps are two surfaces"
+    );
     assert_eq!(*coplanar_caps, None, "no coincidence is decided");
 }
 

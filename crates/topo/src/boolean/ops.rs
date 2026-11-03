@@ -5550,8 +5550,10 @@ impl OneCarrierPairs {
                     // preserve them); B bridges through the graft.
                     let ka = fa.surface;
                     let kb = graft.surfaces.get(fb.surface).copied()?;
-                    (ka != kb && result.get_surface(ka).is_some() && result.get_surface(kb).is_some())
-                        .then_some(())?;
+                    (ka != kb
+                        && result.get_surface(ka).is_some()
+                        && result.get_surface(kb).is_some())
+                    .then_some(())?;
                     let (kept, other) = super::glue::kept_first((Operand::A, ka), kb);
                     // ∖ reads B reverted, and a reverted plane turns its
                     // chart where every other kind turns its faces' senses.

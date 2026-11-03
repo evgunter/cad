@@ -171,7 +171,8 @@ fn an_undecided_joint_corner_escalates_rather_than_parts() {
     };
     let (out, _) = split_offset("surfaces", 0.0);
     assert!(
-        out.as_ref().is_err_and(|e| e.starts_with("SharedSurfaceKey")),
+        out.as_ref()
+            .is_err_and(|e| e.starts_with("SharedSurfaceKey")),
         "surfaces: the general door keys a chart by its record, which the two cubes' glued \
          faces share (work/shell/the-general-offset-door-moves-a-record-two-solids-share-as-one.md): {out:?}"
     );
