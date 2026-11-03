@@ -1238,3 +1238,8 @@ general regularity sweep. SECTARMS's cylinder × cylinder unit adopts
   - The 1e-12 row went from 159 s to 29 s.
   - Filed: `tint/volume-rows-hold-a-midpoint-within-a-band-plus-an-unbounded-pad` (11 sites), plus evidence on `issues/a-tilted-plane-cut-through-a-tube-measures-1e-7-off-the-closed-form`.
   - Main reds the lane met, all already filed: BOXES' inventory, FLUSH's needle cavity, and SPLITDOOR's `the-cone-fuzz-draws-a-cone-bounding-no-one-material-at-a-seed`.
+- 2026-11-03 12:14Z — **PR 6434 (`spline-join`) dual review dispatched**: letter H, so a CONCURRENT pair on the frozen head `fd976ed601588ad07e8ea84826f57b32befe04d7`, with an identical brief (`splice/briefs` `briefs-1103/review-6434.md` and `review-common.md`). R1 is `session_013QoYWUqVJ5KZ3vgavTAENm` (evidence `splice/review-6434-r1`); R2 is `session_013QoYWWUaG2SNpMwyoPGr64` (evidence `splice/review-6434-r2`). The protocol is `18e21edce5`. Neither reviewer received a relaxation.
+  - **The PR:** a uniform "carried" rung in `edge_join::joined_spec`. A killed edge on a content-equal carrier, at an equal parameter at the vertex, gives the joined far parameter, with no inverse and no period. Period and `param_near` stay as the fallback.
+  - **What moved:** a split pair's joined interval is now the parent's exactly. On a spiric that is 1 ulp from `param_near`.
+  - **Filed:** `a-spline-join-beside-another-carrier-has-no-far-parameter` (P2, no producer).
+  - **Claims the pair carries:** orientation and overlap of the carried interval; the parked tier-3 crease check (`measuredoor/tier-3-…`), which means a creased carrier can still exist at rest today.
