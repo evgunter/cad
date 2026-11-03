@@ -16,6 +16,12 @@
 //!   never by surface arithmetic; a point meeting there is a meeting on
 //!   the face's boundary. Only a span the boundary leaves undecided
 //!   ([`Boundary::Clear`]) is read against the face's interior.
+//! - **The boundary, located** ([`located`]): the same pass read past
+//!   each member it cannot read, which is then undecided over the window
+//!   of the span it can meet ([`Undecided`]). A reader that cuts the
+//!   span takes the meetings and the windows' ends together
+//!   ([`Located::cuts`]), and asks which window a run reaches
+//!   ([`Located::undecided_over`]).
 //!
 //! The pass is given no topology and no surface: the boundary is its
 //! spans, in the face's walk order, and its lone vertices, so it serves
@@ -163,7 +169,8 @@ pub enum BoundaryRefusal {
     Touch(Indeterminate),
     /// A reading could not run: a root finder, a meter or a walk that
     /// could not certify, or a pose with no closed form. Nothing is known
-    /// about the span's interior.
+    /// of where the member meets the span, outside its window
+    /// ([`located`]) or in it.
     Unread(MeetFault),
     /// The meeting table misread a carrier, or two of its readings
     /// contradict: a kernel fault, never a pose.
@@ -228,16 +235,18 @@ pub struct Undecided<T: geom_core::Real> {
 /// the meetings of every member it read, and every member it did not.
 #[derive(Clone, Debug)]
 pub struct Located<T: geom_core::Real> {
-    /// The members read, as [`read`] gives them.
-    pub reading: BoundaryReading<T>,
+    /// The members read, as [`read`] gives them. Private: a meeting is
+    /// read through [`Located::cuts`], beside the windows.
+    reading: BoundaryReading<T>,
     /// The members not read, in the pass's order.
-    pub undecided: Vec<Undecided<T>>,
+    undecided: Vec<Undecided<T>>,
 }
 
 /// **The boundary pass**: `span` read against a face's boundary, given
 /// as its edges in the face's walk order (each edge's start vertex and
-/// its span) and its lone vertices. Every member is read, so a refusal
-/// anywhere on the boundary refuses the pass. Each vertex is read on the
+/// its span) and its lone vertices. The members are read in order, and
+/// the first that refuses refuses the pass ([`located`] reads on past
+/// it). Each vertex is read on the
 /// span ([`Span::contact`]); each edge's start vertex before the edge's
 /// span, which is read through [`crate::curve_pair::meet`]. A shared run
 /// is read through its witnesses, of which one strictly inside the span
@@ -328,6 +337,14 @@ impl<T: Decide> Located<T> {
     }
 }
 
+/// A member of the boundary as the pass reads it.
+enum Member<'s, 'a, T: geom_core::Real> {
+    /// A vertex's point, and where it sits on the boundary.
+    Vertex(Point3<T>, OnBoundary<T>),
+    /// The edge at this index in the walk, and its span.
+    Edge(usize, &'s Span<'a, T>),
+}
+
 /// [`read`] and [`located`]'s one walk; `past` reads on past a member's
 /// refusal.
 fn pass<T: Decide>(
@@ -362,37 +379,37 @@ fn pass<T: Decide>(
         }),
     };
     let mut met_edges = Vec::with_capacity(edges.len());
-    let members = lone
+    // The members in the pass's order: the lone vertices, then each
+    // edge's start vertex before the edge.
+    let lone_members = lone
         .iter()
         .enumerate()
-        .map(|(i, &point)| (point, OnBoundary::Lone(i), None))
-        .chain(
-            edges
-                .iter()
-                .enumerate()
-                .map(|(i, (start, edge))| (*start, OnBoundary::Vertex(i), Some((i, edge)))),
-        );
-    for (point, on_boundary, edge) in members {
+        .map(|(i, &point)| Member::Vertex(point, OnBoundary::Lone(i)));
+    let walk_members = edges.iter().enumerate().flat_map(|(i, (start, edge))| {
+        [
+            Member::Vertex(*start, OnBoundary::Vertex(i)),
+            Member::Edge(i, edge),
+        ]
+    });
+    for member in lone_members.chain(walk_members) {
         if !past && !pass.undecided.is_empty() {
             break;
         }
-        vertex(&mut pass, point, on_boundary);
-        let Some((i, edge)) = edge else { continue };
-        if !past && !pass.undecided.is_empty() {
-            break;
-        }
-        match meet(span, edge, band) {
-            Ok(met) => met_edges.push((i, met)),
-            Err(refusal) => {
-                let (e0, e1) = edge.params();
-                let cover = edge
-                    .carrier()
-                    .cover_over(geom::cover::ParamWindow::new(e0, e1));
-                pass.undecided.push(Undecided {
-                    window: window(cover.ok()),
-                    why: BoundaryRefusal::of(refusal.fault),
-                });
-            }
+        match member {
+            Member::Vertex(point, on_boundary) => vertex(&mut pass, point, on_boundary),
+            Member::Edge(i, edge) => match meet(span, edge, band) {
+                Ok(met) => met_edges.push((i, met)),
+                Err(refusal) => {
+                    let (e0, e1) = edge.params();
+                    let cover = edge
+                        .carrier()
+                        .cover_over(geom::cover::ParamWindow::new(e0, e1));
+                    pass.undecided.push(Undecided {
+                        window: window(cover.ok()),
+                        why: BoundaryRefusal::of(refusal.fault),
+                    });
+                }
+            },
         }
     }
     for (i, met) in met_edges {

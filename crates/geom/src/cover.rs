@@ -364,9 +364,17 @@ fn off_line<T: Real>(v: Vec3<T>, d: Vec3<T>) -> Vec3<T> {
 /// The box whose row `i` spans `±` the support along row `i`.
 fn rows_box<T: Real>(frame: &Frame<T>, support: impl Fn(Vec3<T>) -> T) -> (Point3<T>, Point3<T>) {
     let [a, b, c] = frame.rows();
-    let span = |r: Vec3<T>| (T::zero() - support(-r), support(r));
+    let span = |r: Vec3<T>| support_range(&support, r);
     let ((xl, xh), (yl, yh), (zl, zh)) = (span(a), span(b), span(c));
     (Point3::new(xl, yl, zl), Point3::new(xh, yh, zh))
+}
+
+/// **A support's range along `dir`**: the least and greatest `x·dir`
+/// over a region whose support is `support`, its value along `−dir`
+/// negated and along `dir`. The one spelling, for [`Cover::range_along`]
+/// and every box.
+fn support_range<T: Real>(support: &impl Fn(Vec3<T>) -> T, dir: Vec3<T>) -> (T, T) {
+    (T::zero() - support(-dir), support(dir))
 }
 
 /// A ball, `(centre, radius)`.
@@ -598,7 +606,7 @@ impl<T: Real> Cover<T> {
     /// **The range along `dir`**: the least and greatest `x·dir` any
     /// point of the region can have, the support along `−dir` and `dir`.
     pub fn range_along(&self, dir: Vec3<T>) -> (T, T) {
-        (T::zero() - self.support(-dir), self.support(dir))
+        support_range(&|e| self.support(e), dir)
     }
 
     /// **The box in `frame`**: per row, the least and greatest coordinate

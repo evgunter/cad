@@ -19606,7 +19606,6 @@ mod two_carrier_records {
                 z: f64,
                 overlap: (f64, f64),
             ) -> (Result<bool, usize>, bool) {
-                let b = Band::linear(Tol::witness()).unwrap();
                 let origin = geom_core::Point3::new(0.0, y, z);
                 let dir = geom_core::Vec3::unit_x();
                 let read =
@@ -19614,20 +19613,21 @@ mod two_carrier_records {
                 let n = 20000;
                 let oracle = (0..=n).any(|i| {
                     let t = overlap.0 + (overlap.1 - overlap.0) * f64::from(i) / f64::from(n);
-                    matches!(
-                        crate::boolean::face_placement(
-                            body,
-                            face,
-                            origin + dir * t,
-                            b,
-                            "probe_oracle"
-                        ),
-                        Ok(crate::boolean::CurvedPlacement::Trim(Some(
-                            FaceContainment::In
-                        )))
-                    )
+                    placed_in(body, face, origin + dir * t)
                 });
                 (read, oracle)
+            }
+
+            /// The oracle's reading of a point: decided strictly inside
+            /// `face`.
+            fn placed_in(body: &Body<f64>, face: FaceKey, p: geom_core::Point3<f64>) -> bool {
+                let b = Band::linear(Tol::witness()).unwrap();
+                matches!(
+                    crate::boolean::face_placement(body, face, p, b, "probe_oracle"),
+                    Ok(crate::boolean::CurvedPlacement::Trim(Some(
+                        FaceContainment::In
+                    )))
+                )
             }
 
             /// The shared reading over `overlap` of the line through
@@ -19903,6 +19903,82 @@ mod two_carrier_records {
                         assert!(
                             matches!(got, Err(ref why) if why.contains(&plate_at)),
                             "ledge {k}esc without the spike, plate first {plate_first}: {got:?}"
+                        );
+                    }
+                }
+            }
+
+            /// **Two different faces read the line as the oracle does**:
+            /// every ordered pair of six plates (a plain one, the ledge
+            /// beside a spike and without it, the apex beside a spike, a
+            /// notch whose floor stands in band, and a ledge running up
+            /// to the line) against the oracle that scans 40001 stations
+            /// and each plate's own spike, both faces In at one. An answer
+            /// must be the oracle's; a refusal is allowed only where the
+            /// oracle is false. Red where a window is ignored (an `Ok`
+            /// the oracle contradicts) or a refused member unreads its
+            /// whole face where the oracle holds the line (`Err` over a
+            /// true contact). It cannot see a refusal the oracle calls
+            /// false, nor a contact narrower than the scan with no
+            /// station listed for it.
+            #[test]
+            fn two_different_faces_read_the_line_as_the_oracle_does() {
+                let e = esc();
+                let n = 40000;
+                // A plate's outline, and the stations its own spike holds.
+                type Plate = (Vec<(f64, f64)>, Vec<f64>);
+                let plates: Vec<Plate> = vec![
+                    (
+                        vec![(0.0, -1.0), (4.0, -1.0), (4.0, 0.5), (0.0, 0.5)],
+                        vec![],
+                    ),
+                    (ledge_beside_a_spike(0.5 * e, true), vec![3.0]),
+                    (ledge_beside_a_spike(0.5 * e, false), vec![]),
+                    (apex_beside_a_spike(3.0 * Tol::witness().eps()), vec![2.0]),
+                    (
+                        vec![
+                            (0.0, -1.0),
+                            (4.0, -1.0),
+                            (4.0, 0.5),
+                            (2.6, 0.5),
+                            (2.6, -0.5 * e),
+                            (2.2, -0.8 * e),
+                            (2.2, 0.5),
+                            (0.0, 0.5),
+                        ],
+                        vec![2.4],
+                    ),
+                    (
+                        vec![
+                            (0.0, -1.0),
+                            (4.0, -1.0),
+                            (4.0, 0.5),
+                            (1.8, 0.5),
+                            (1.8, -0.5 * e),
+                            (0.2, -0.8 * e),
+                            (0.2, -0.5),
+                            (0.0, -0.5),
+                        ],
+                        vec![1.9],
+                    ),
+                ];
+                let inn = |f: &(Body<f64>, FaceKey), x: f64| {
+                    placed_in(&f.0, f.1, geom_core::Point3::new(x, 0.0, 1.0))
+                };
+                let faces: Vec<_> = plates.iter().map(|(o, x)| (top_of(o), x.clone())).collect();
+                for (fi, (f, fx)) in faces.iter().enumerate() {
+                    for (gi, (g, gx)) in faces.iter().enumerate() {
+                        let xs = (0..=n)
+                            .map(|i| 4.0 * f64::from(i) / f64::from(n))
+                            .chain(fx.iter().chain(gx).copied());
+                        let oracle = xs.into_iter().any(|x| inn(f, x) && inn(g, x));
+                        let read = read_pair([(&f.0, f.1), (&g.0, g.1)], 0.0, 1.0, (0.0, 4.0));
+                        assert!(
+                            match read {
+                                Ok(r) => r == oracle,
+                                Err(_) => !oracle,
+                            },
+                            "plates {fi} × {gi}: {read:?} oracle {oracle}"
                         );
                     }
                 }

@@ -9,15 +9,17 @@
 //! the same.
 //!
 //! Each boundary edge of either face is cut where it meets the other
-//! face's boundary (the curve × face boundary pass,
-//! [`geom_brep::curve_face::read`], which reads curve against curve on
-//! any carrier), and each piece's middle is placed in the other face
+//! face's boundary, and at each end of the window of a boundary member
+//! the pass could not read (the curve × face boundary pass, located,
+//! [`geom_brep::curve_face::located`], which reads curve against curve
+//! on any carrier). Each piece's middle is placed in the other face
 //! through the kernel's one point dispatch (`face_placement`). A piece
 //! strictly inside the other face is a witness: the face's area beside
-//! it lies in the other's. A piece lying along the other face's boundary
-//! is a witness where the two faces lie on one side of it, read as the
-//! boolean's fate cuts read a direction against a corner
-//! (`fate::corner_holds`).
+//! it lies in the other's. Outside every window, a piece lying along the
+//! other face's boundary is a witness where the two faces lie on one
+//! side of it, read as the boolean's fate cuts read a direction against
+//! a corner (`fate::corner_holds`). A piece a window reaches may hold a
+//! cut no reading placed, so only strictly inside is a witness there.
 //!
 //! With no witness the regions share no area. Where two regions meet in
 //! area, their meeting is bounded by boundary of one or the other; a
@@ -74,7 +76,8 @@ pub enum OverlapRefusal {
     /// A point of one face read in band of the other's plane.
     OnPlane(Indeterminate),
     /// The boundary pass over an edge refused: a meeting in band, or a
-    /// reading that could not run.
+    /// reading that could not run. Its member's window reached a piece
+    /// read not strictly inside, or its reading faulted.
     Meeting(BoundaryRefusal),
     /// A face's boundary could not be read as the boundary pass reads it.
     Boundary(Arc<BooleanError>),

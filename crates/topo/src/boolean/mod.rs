@@ -8110,20 +8110,14 @@ pub(crate) fn line_through_both_faces<T: Decide, E>(
         unread(i, why, held);
         None
     };
-    let mut cuts = vec![overlap.0, overlap.1];
-    let mut unknown = [None, None];
-    let mut located = [None, None];
-    for (i, &(body, face)) in faces.iter().enumerate() {
-        match boundary_cuts(body, face, locus, overlap, band) {
-            Ok(read) => {
-                cuts.extend(read.cuts());
-                located[i] = Some(read);
-            }
-            Err(why) => unknown[i] = Some(why),
-        }
-    }
-    let mut cuts: Vec<T> = cuts
+    // Each face's located boundary pass, or why its cuts are unknown.
+    let read = faces.map(|(body, face)| boundary_cuts(body, face, locus, overlap, band));
+    let mut cuts: Vec<T> = [overlap.0, overlap.1]
         .into_iter()
+        .chain(
+            read.iter()
+                .flat_map(|r| r.as_ref().map(|l| l.cuts()).unwrap_or_default()),
+        )
         .filter(|t| !t.is_poison())
         .map(|t| t.max(overlap.0).min(overlap.1))
         .collect();
@@ -8138,17 +8132,16 @@ pub(crate) fn line_through_both_faces<T: Decide, E>(
     let speed = locus.deriv(geom::mid_param(overlap.0, overlap.1)).norm();
     // The first of face `i`'s undecided windows the run reaches into.
     let undecided_over = |i: usize, run: &[T]| {
-        located[i]
+        read[i]
             .as_ref()
-            .and_then(|l: &geom_brep::curve_face::Located<T>| {
-                l.undecided_over((run[0], run[1]), speed, band)
-            })
+            .ok()
+            .and_then(|l| l.undecided_over((run[0], run[1]), speed, band))
             .map(|u| u.why)
     };
     // A face's out at a station settles the run only where its cuts are
     // known over it: no boundary of it crosses the run.
     let settles = |i: usize, at: Option<bool>, run: &[T]| {
-        at == Some(false) && unknown[i].is_none() && undecided_over(i, run).is_none()
+        at == Some(false) && read[i].is_ok() && undecided_over(i, run).is_none()
     };
     let mut held = None;
     let mut open: Vec<(usize, geom_brep::curve_face::BoundaryRefusal)> = Vec::new();
@@ -8176,7 +8169,7 @@ pub(crate) fn line_through_both_faces<T: Decide, E>(
                     if at != Some(false) {
                         continue;
                     }
-                    if unknown[i].is_some() {
+                    if read[i].is_err() {
                         open_unknown = true;
                     } else if let Some(why) = undecided_over(i, run)
                         && !open.iter().any(|&(f, _)| f == i)
@@ -8192,8 +8185,8 @@ pub(crate) fn line_through_both_faces<T: Decide, E>(
     }
     if open_unknown || !open.is_empty() {
         let mut why = Vec::new();
-        for (i, unread_face) in unknown.into_iter().enumerate() {
-            if let Some(u) = unread_face {
+        for (i, face_read) in read.into_iter().enumerate() {
+            if let Err(u) = face_read {
                 unread(i, u, &mut why);
             }
         }
