@@ -80,3 +80,5 @@ Cut from DOORS into HELD (DOORS over budget at 52 of 30 once D′3's triggers fi
 ## Narrowed (2026-11-02, PLACING, branch `placing/bundle-editor-transform`)
 
 The transform gesture's half is gone: `SessionOp::AddTransform`, `gesture_frame` and `gesture_moves` retired, and the Transform tool opens the placement editor on its pick, where a rotation is a typed spin value and a variable keeps driving it. `moves_of` is still asked by `frame_off` and by the duplicate.
+
+**FORMS, PR 6431 (2026-11-03).** The split no longer reads a frame off geometry: `DocSession::read_off`, `frame_off`, `nominals` and `frame_along` are deleted with the split form's point and normal, and so are `seed_split_plane`, `drafts.split_origin` and `splitplane`. A split's plane is a picked face or a plane read (`SessionOp::AddSplit`'s `SplitPlane`). The circular pattern no longer reaches `read_off` either; `moves_of` keeps its other callers.
