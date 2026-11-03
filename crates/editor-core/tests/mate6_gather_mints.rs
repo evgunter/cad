@@ -402,6 +402,7 @@ fn a_mated_record_cites_the_census_row_the_lint_reports() {
         &stand,
         &ev,
         &editor_core::ChecksConfig::default(),
+        &editor_core::Stop::default(),
         Tol::witness(),
     )
     .expect("checks run over the stand");
@@ -455,7 +456,7 @@ fn door(doc: &ProfileDoc, at: RecipeNodeId, row: &NamedCoincidence, ev: &Evaluat
         &[(at, std::slice::from_ref(row))],
         ev.resolver(),
         Tol::witness(),
-        &editor_core::CancelToken::new(),
+        &editor_core::Stop::default(),
     )
     .expect("an uncanceled door");
     proofs.remove(0).remove(0)
@@ -813,7 +814,7 @@ fn a_row_at_rest_no_mate_states_is_read_off_the_replays_copies() {
         &[(ids[0], std::slice::from_ref(&row))],
         None,
         Tol::witness(),
-        &editor_core::CancelToken::new(),
+        &editor_core::Stop::default(),
     )
     .expect("an uncanceled door");
     assert_eq!(

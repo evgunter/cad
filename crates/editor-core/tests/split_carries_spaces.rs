@@ -68,6 +68,7 @@ fn split(doc: &ProfileDoc, cut: &[RecipeNodeId], seed: &str) -> Result<SplitOutc
         DocumentId::derive(seed),
         Tol::witness(),
         None,
+        &editor_core::Stop::default(),
     )
 }
 
