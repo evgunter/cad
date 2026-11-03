@@ -34,5 +34,4 @@ crates/topo/src/chord_join.rs 1
 crates/topo/src/offset_axial.rs 2
 crates/topo/src/pcurves.rs 1
 crates/topo/src/ring_path.rs 2
-crates/topo/src/splitting/containment.rs 1
 crates/topo/src/validate.rs 1

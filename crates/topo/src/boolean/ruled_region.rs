@@ -372,7 +372,11 @@ pub(crate) fn ruled_face_region<T: Decide>(
     let Some(edges) = region::boundary(body, face, Scaffolding::Skipped, &ruled)? else {
         return Ok(None);
     };
-    let scale = reach_bound(&surface, &edges);
+    let covers: Vec<_> = edges
+        .iter()
+        .map(|e| super::boxes::edge_cover(body, e.edge))
+        .collect();
+    let scale = reach_bound(&surface, &covers);
     Ok(Some(RuledFaceRegion {
         surface,
         sense: f.sense,
@@ -384,21 +388,25 @@ pub(crate) fn ruled_face_region<T: Decide>(
 
 /// The lever of a face's crossings ([`RuledFaceRegion::reach`]): the
 /// cylinder's radius, or a bound on the farthest the cone face's
-/// boundary reaches from the apex, never under it. It is bounded edge by
-/// edge: a segment's distance from the apex is convex along it, so its
-/// farther end bounds it, and a conic lies within its larger semi-axis
-/// of its centre.
-fn reach_bound<T: Decide>(surface: &Ruled<T>, edges: &[Edge<T>]) -> T {
+/// boundary reaches from the apex, never under it: edge by edge, its
+/// edge cover's farthest distance from the apex
+/// ([`super::boxes::edge_cover`], one per edge in `covers`), poison for an edge with no cover (its
+/// carrier's reading refuses, or an end vertex is not a finite point),
+/// which the readings levered at it escalate. The boundary was read
+/// certified, so no edge of it is null scaffolding.
+fn reach_bound<T: Decide>(
+    surface: &Ruled<T>,
+    covers: &[Result<geom::cover::Cover<T>, super::EdgeUncovered>],
+) -> T {
     match *surface {
         Ruled::Cylinder { radius, .. } => radius,
-        Ruled::Cone { apex, .. } => edges
+        Ruled::Cone { apex, .. } => covers
             .iter()
-            .map(|e| match e.carrier {
-                geom::Curve3::Line(_) => (e.at(e.t0) - apex).norm().max((e.at(e.t1) - apex).norm()),
-                ref conic => {
-                    let c = conic_of(conic);
-                    (c.frame().center - apex).norm() + c.speed_hi()
-                }
+            .map(|cover| {
+                cover.as_ref().map_or_else(
+                    |_| geom_core::poison(),
+                    |c| c.distance_range(&geom::cover::Site::Point(apex)).1,
+                )
             })
             .fold(T::zero(), T::max),
     }
