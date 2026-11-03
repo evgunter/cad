@@ -573,7 +573,7 @@ impl PcurveMintError {
     pub fn ending(&self, at: impl Into<geom_brep::recourse::ReadAt>) -> Option<String> {
         let at = at.into();
         match self {
-            Self::Certify { error, .. } => error.ending(at),
+            Self::Certify { error, .. } => Some(error.ending(at)),
             Self::Escalated { cause, .. } | Self::NetStretchUndecided { cause, .. } => Some(
                 geom_brep::recourse::not_yet(geom_brep::recourse::RefusedArm::Undecided(cause), at),
             ),
@@ -709,8 +709,7 @@ const JOINT_WITHOUT_ROOM_RECOURSE: &str = "Recourse: ask about a face whose loop
      from the pole or apex, or ask at a smaller ε";
 
 /// The recourse for a placeholder chart, whichever enum refuses it.
-pub(crate) const PLACEHOLDER_RECOURSE: &str =
-    "Recourse: describe the surface first, then ask again";
+pub(crate) const PLACEHOLDER_RECOURSE: &str = geom_brep::pcurve_cache::PLACEHOLDER_RECOURSE;
 
 /// A chart that is not the placeholder
 /// ([`Surface::is_placeholder_chart`]) — the only kind of chart the

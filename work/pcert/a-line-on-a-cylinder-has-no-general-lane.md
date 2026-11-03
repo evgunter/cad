@@ -4,7 +4,7 @@ kind: issue
 title: A line on a cylinder has no general (projected) lane, so an in-band ruling reading has no lane that does not rest on the answer
 status: open
 opened: 2026-10-15
-priority: P3
+priority: P1
 cost: M
 refs: [band-scale-torus-geometry-ends-as-a-kernel-defect]
 ---

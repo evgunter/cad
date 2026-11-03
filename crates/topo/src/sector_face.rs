@@ -39,30 +39,10 @@
 //! reverses in the same breath as the sense bit, so a second
 //! sense fold would cancel this one.
 //!
-//! # Why the code is here and not in either lane
+//! A carrier a caller has no arm for is reported as a [`SectorCarrier`]
+//! and refused by that caller.
 //!
-//! This walk used to exist **twice**, once per lane, and the splitting
-//! copy's own doc called itself *"the twin of"* the
-//! boolean's. They differed in exactly three things, none of them
-//! geometric: the error type they refuse into, whether the caller is
-//! told the face was planar, and whether a `Sphere` face has a wired
-//! arm. The first two are adaptation the callers do; the third is
-//! reported here as a [`SectorCarrier`] and refused by the caller that
-//! has no arm for it. What is left — the traversal and every arm's
-//! normal — is one body.
-//!
-//! Like [`crate::sector_shape`], this module is a **top-level sibling**
-//! of `boolean/` and `splitting/` precisely so neither half hosts the
-//! other's core; both lanes already depend on this scope
-//! (`crate::body`, `crate::entity`), so sharing here adds no dependency
-//! edge between the halves and no public API.
-//!
-//! `sector_shape`'s docs name this unification as the trigger to
-//! re-open whether that module belongs in `geom-brep` instead. **It
-//! fires and resolves the other way**: this body takes a [`Body`] and
-//! three arena keys, so `geom-brep` — which has no `Body` and no arena
-//! — cannot host it at any price. The crate root is the deepest scope
-//! that can, and the two shared sector modules belong together.
+//! Its home follows `[topo.homes]` (`crates/topo/README.md`).
 
 use geom::SurfaceKind;
 use geom_brep::OutwardNormal;

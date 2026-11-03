@@ -6876,7 +6876,7 @@ mod unit_vector_witness_through_the_facade {
     /// decide the same direction a second time to the same bits.
     #[test]
     fn a_users_witnesses_reach_the_doors() {
-        use pncad::geom_core::linalg::frame::{mirror_across_plane, path_start_frame, point_at};
+        use pncad::geom_core::linalg::frame::{mirror_across_plane, point_at};
         let band = Band::linear(Tol::witness()).unwrap();
         let origin = Point3::new(1.0, 2.0, 3.0);
         let normal = UnitVec3::new(Vec3::new(0.0, 0.0, 2.5), POSE_UNIT_NORM, band).unwrap();
@@ -6903,8 +6903,12 @@ mod unit_vector_witness_through_the_facade {
         )
         .unwrap();
         assert_eq!(bits(frame.linear() * Vec3::unit_z()), bits(normal.get()));
-        let start = path_start_frame(ao, dir.get(), Tol::witness()).unwrap();
-        assert_eq!(bits(start.linear() * Vec3::unit_z()), bits(dir.get()));
+        // The least turn takes the witness itself, with no second
+        // decision of the direction.
+        let start = pncad::geom_core::RigidMotion::axes_xy(ao)
+            .turned_onto(dir, "facade_turned_onto", band)
+            .unwrap();
+        assert!((start.w().get() - dir.get()).norm() < 1e-15);
         let mirror = mirror_across_plane(origin, normal.get(), Tol::witness()).unwrap();
         let p = mirror.transform_point(Point3::new(1.0, 2.0, 4.0));
         assert!((p.z - 2.0).abs() < 1e-12, "{p:?}");
