@@ -100,7 +100,7 @@ fn served(got: Loops, what: &str) -> SectionLoops<f64> {
 /// The branch the site `p` lies on.
 fn branch(loops: &SectionLoops<f64>, p: Point3<f64>) -> Branch {
     match loops.branch_at(p, band()) {
-        Ok(Some(branch)) => branch,
+        Ok(branch) => branch,
         other => panic!("{p:?} lies on a loop: {other:?}"),
     }
 }

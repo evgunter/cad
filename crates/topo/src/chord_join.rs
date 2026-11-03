@@ -1295,6 +1295,9 @@ pub(crate) struct CarriedCtx<T: Real> {
     pub(crate) partner_key: Option<SurfaceKey>,
     /// The section's own scale ([`geom_brep::CarriedSection::lever`]).
     pub(crate) lever: geom_core::Lever<T>,
+    /// The section's nodes ([`geom_brep::CarriedSection::nodes`]), which a
+    /// chord's ends are read at first.
+    pub(crate) nodes: Vec<geom_brep::SectionNode<T>>,
 }
 
 /// The section conic — the curve both chord lanes take an arc
@@ -2995,9 +2998,10 @@ fn carried_chord_spec<T: Decide>(
     };
     let (lo, hi) = component.span;
     // A closed form's parameter is an angle: a foot on a closed one is
-    // read in the turn its seat starts, `[lo, hi)`. That no chord on a
-    // closed loop crosses the seat rests on the seat being one of the
-    // loop's sites, the least foot of any (`boolean::join`'s
+    // read in the turn its seat starts, `[lo, hi)`, as an open arc's is
+    // read in the turn its span starts (`CarriedComponent::reads`). That
+    // no chord on a closed loop crosses the seat rests on the seat being
+    // one of the loop's sites, the least foot of any (`boolean::join`'s
     // `carried_seats`), not on anything read here: the forward reading
     // below refuses a chord that would cross it.
     let turn = (spline.is_none() && component.closed()).then_some(hi - lo);
@@ -3011,71 +3015,67 @@ fn carried_chord_spec<T: Decide>(
                 == Sign::Zero,
         )
     };
-    let foot = |p: Point3<T>| -> Result<T, SplitJoinError> {
-        let foot = carrier.foot(p, lo);
-        match foot.on_carrier(band) {
-            Ok(geom::OnCarrier::On { .. }) => {
-                let t = match turn {
-                    Some(turn) => lo + (foot.t() - lo).reduce_periodic(turn),
-                    None => foot.t(),
-                };
-                // A site of an open closed form (a ruling the region
-                // cuts, an arc between nodes) lies within its span: the
-                // section was listed over the region every site lies in.
-                debug_assert!(
-                    spline.is_some()
-                        || component.closed()
-                        || match (t.point_value(), lo.point_value(), hi.point_value()) {
-                            (Some(t), Some(lo), Some(hi)) => {
-                                let slack = band.escalate() * (1.0 + t.abs());
-                                lo - slack <= t && t <= hi + slack
-                            }
-                            _ => true,
-                        },
-                    "a carried chord's end lies past its open component's span"
-                );
-                Ok(t)
-            }
-            Ok(geom::OnCarrier::Off) => {
-                Err(invariant("a carried chord's end lies off its component"))
-            }
-            Err(geom::CarrierRefusal::Escalated(diag) | geom::CarrierRefusal::Straddle(diag)) => {
-                Err(escalated(diag))
-            }
-            Err(geom::CarrierRefusal::Exhausted | geom::CarrierRefusal::Unbounded) => Err(
-                invariant("a carried chord end's distance from its component could not be read"),
-            ),
+    // The section's reading of a site, asked of this component: at a
+    // node, its arc's end there, which fixes the way it leaves; off every
+    // node, its foot.
+    let place = |p: Point3<T>| -> Result<geom_brep::ArcPlace<T>, SplitJoinError> {
+        match component.place(&ctx.nodes, p, band) {
+            Ok(geom_brep::ArcPlace::At(t)) => Ok(geom_brep::ArcPlace::At(match turn {
+                Some(turn) => lo + (t - lo).reduce_periodic(turn),
+                None => t,
+            })),
+            Ok(end) => Ok(end),
+            Err(geom_brep::SiteRefusal::Escalated(diag)) => Err(escalated(diag)),
+            Err(geom_brep::SiteRefusal::Desync(what)) => Err(invariant(what)),
         }
     };
-    let (p1, p2) = (vertex_point(body, u1), vertex_point(body, u2));
-    let seat1 = at_seat(p1)?;
-    let from = if seat1 { lo } else { foot(p1)? };
-    let tangent = carrier.deriv(from);
     if leave.datum != Datum::Germ {
         return Err(invariant(
             "a carried chord's departure is not a germ's direction",
         ));
     }
-    let along = leave.dir.dot(tangent) / tangent.norm();
-    let up = match decide(
-        "chord_carried_leave",
-        Margin::levered(along, ctx.lever),
-        band,
-    )
-    .map_err(escalated)?
-    {
-        Sign::Positive => true,
-        Sign::Negative => false,
-        Sign::Zero => {
-            return Err(invariant(
-                "the section's direction of departure handed to a chord end has no component \
-                 along the section there",
-            ));
+    let (p1, p2) = (vertex_point(body, u1), vertex_point(body, u2));
+    let seat1 = at_seat(p1)?;
+    let (from, at_end) = if seat1 {
+        (lo, None)
+    } else {
+        match place(p1)? {
+            geom_brep::ArcPlace::AtEnd { t, up } => (t, Some(up)),
+            geom_brep::ArcPlace::At(t) => (t, None),
+        }
+    };
+    let tangent = carrier.deriv(from);
+    let up = match at_end {
+        Some(up) => up,
+        None => {
+            let along = leave.dir.dot(tangent) / tangent.norm();
+            match decide(
+                "chord_carried_leave",
+                Margin::levered(along, ctx.lever),
+                band,
+            )
+            .map_err(escalated)?
+            {
+                Sign::Positive => true,
+                Sign::Negative => false,
+                Sign::Zero => {
+                    return Err(invariant(
+                        "the section's direction of departure handed to a chord end has no \
+                         component along the section there",
+                    ));
+                }
+            }
         }
     };
     let (start, stop) = if up { (lo, hi) } else { (hi, lo) };
     let t1 = if seat1 { start } else { from };
-    let t2 = if at_seat(p2)? { stop } else { foot(p2)? };
+    let t2 = if at_seat(p2)? {
+        stop
+    } else {
+        match place(p2)? {
+            geom_brep::ArcPlace::AtEnd { t, .. } | geom_brep::ArcPlace::At(t) => t,
+        }
+    };
     // The travel in parameter, metered by the carrier's speed at the
     // chord's start. Only its sign is consumed, and the margin's sign is
     // the travel's own (the speed is positive): the point speed sets only

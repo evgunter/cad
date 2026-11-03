@@ -511,7 +511,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     declared: &super::GluedPairs<T>,
     contacts: &super::ReductionContacts,
     reread: Option<SectorRead>,
-    branch: Option<super::Branch>,
+    plane: Option<usize>,
     chart: Option<(f64, f64)>,
     tips: &crate::sector_shape::SlitTips,
     band: Band,
@@ -646,17 +646,17 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     // which is why the primitive takes the typed one.
     //
     // **The pierced wall through the bisector plane the sweep found the
-    // pierce on** (`branch`), for a sector of a wall that crosses the
+    // pierce on** (`plane`), for a sector of a wall that crosses the
     // pierced wall as an equal pair ([`super::node::bisector_datum`]).
     // There the two walls' normals stand only about the node's distance
     // apart, and the plane's signed normal stands in for the pierced
     // face's tangent plane: a bound on that wall reads its side across
-    // the plane, with no curvature charge, and the sector's germ rides
-    // the plane's ellipse. A pierce the sweep recorded no branch for
-    // reads nothing here.
-    let on_wall: Vec<Option<OutwardNormal<T>>> = match branch {
+    // the plane, with no curvature charge, and the sector's germ runs in
+    // the plane. A pierce the sweep recorded no plane for reads nothing
+    // here.
+    let on_wall: Vec<Option<OutwardNormal<T>>> = match plane {
         None => vec![None; n],
-        Some(branch) => sectors
+        Some(plane) => sectors
             .iter()
             .map(|s| {
                 let Some(planes) = super::node::bisectors(
@@ -673,7 +673,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
                 };
                 super::node::bisector_datum(
                     planes,
-                    branch,
+                    plane,
                     (piercing, faces),
                     p,
                     (pierced_surface, n_pierced),
@@ -968,13 +968,13 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
             Operand::A => ((s.face, contact.face), (own, pierced)),
             Operand::B => ((contact.face, s.face), (pierced, own)),
         };
-        let (dir, branch) = match (on_wall[t], branch) {
-            (Some(plane), Some(branch)) => (pierce_germ_dir(s, plane.vec(), out, band)?, branch),
-            _ => {
+        let dir = match on_wall[t] {
+            Some(plane) => pierce_germ_dir(s, plane.vec(), out, band)?,
+            None => {
                 // A tangent sector's germ runs along its bound on the
                 // tangency locus, where its plane and the pierced face's
                 // tangent plane are one.
-                let dir = match (tangent[t], codes, s.apex()) {
+                match (tangent[t], codes, s.apex()) {
                     (true, (SideCode::On, _), _) => Leaned::upright(s.start.normalize()),
                     (true, (_, SideCode::On), _) => Leaned::upright(s.end.normalize()),
                     // At a cone's apex a bound the plane holds is a section
@@ -988,21 +988,22 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
                         band,
                     )?),
                     _ => pierce_germ_dir(s, n_pierced.vec(), out, band)?,
-                };
-                let branch = germ_branch(
-                    &declared.sections,
-                    (&*piercing_body, pierced_body),
-                    piercing,
-                    cells,
-                    (p, dir.dir),
-                    band,
-                )?;
-                if !tangent[t] && s.apex().is_some() {
-                    apex_germ_on_a_line(cells.1, branch)?;
                 }
-                (dir, branch)
             }
         };
+        // The germ's branch is its site's reading on the pair's section,
+        // the plane the sweep found it on included.
+        let branch = germ_branch(
+            &declared.sections,
+            (&*piercing_body, pierced_body),
+            piercing,
+            cells,
+            (p, dir.dir),
+            band,
+        )?;
+        if on_wall[t].is_none() && !tangent[t] && s.apex().is_some() {
+            apex_germ_on_a_line(cells.1, branch)?;
+        }
         Ok((cells, dir, branch))
     };
     let run_germs = runs
@@ -1464,54 +1465,57 @@ fn ring_struts<T: Decide>(
     Ok((struts, ties))
 }
 
-/// **A node of an equal cylinder pair's section, built** (the sibling of
-/// the pierce ring, [`mint_ring`]): the point `node` where the two
-/// bisector-plane ellipses cross, inside A's face `faces.0` and B's face
-/// `faces.1`, which the walls are tangent at. Neither operand has a
-/// vertex there, so each wall takes a ring vertex at the node
-/// ([`ring_vertex_in`]) and the section's four arcs leave it.
+/// **A node of a pair's section, built** (the sibling of the pierce
+/// ring, [`mint_ring`]): the node the section value lists (`node`, C5),
+/// inside A's face `faces.0` and B's face `faces.1`, which the walls are
+/// tangent at. Neither operand has a vertex there, so each wall takes a
+/// ring vertex at the node ([`ring_vertex_in`]) and the section's four
+/// arcs leave it.
 ///
-/// The arcs' tangents are `tangents`, the pose's bisector normals
-/// (`e₁`'s along `â₁ + â₂`, then `e₂`'s along `â₁ − â₂`, with `â₁` A's
-/// wall's axis), and `radial` the node less the axes' meeting point. Round the node each wall's four
-/// sectors between the arcs alternate sides of the other cylinder (the
-/// section table's `nodes`): on A's wall the sectors about `±â₁` lie
-/// outside B's cylinder and those about `±â₂` inside; on B's wall the
-/// same sectors, the other way round. Which side of a cylinder is its
-/// solid's material is the face's sense. So the node is a pierce of B's
-/// face by A's ring vertex whose two runs are the sectors of B's wall
-/// inside A's material — about `±â₁` where A's face bounds a rod, `±â₂`
-/// where it bounds a bore — each bounded by one arc of each ellipse.
-/// B's ring, minted as the pierce's ring ([`mint_ring`]), spans them In,
-/// and A's struts span the same sectors on A's wall. Both rings hang
-/// their struts by one tree ([`ring_struts`]), ordered about B's normal,
-/// A's facing each germ with the other half of its strut from B's, as a
-/// held pierce's strut does ([`faces_holding_pierce`]); where the walls'
-/// senses differ (a rod against a bore) A's normal at the node is B's
+/// **One germ per arc end.** `arcs` names the component whose end leaves
+/// the node along each ray, in the rays' turn about the node's normal
+/// `n̂` ([`geom_brep::SectionNode::ray_index`]); each germ runs along its
+/// ray and rides that component, both as the value lists them, so
+/// nothing about a germ is decided here.
+///
+/// **The runs.** Round the node the surfaces' sides alternate sector by
+/// sector, as the value lists them. Which side of a wall is its solid's
+/// material is the face's sense: its outward normal against `n̂`, read
+/// once per face ([`super::node::face_sense`]). The runs are the two
+/// opposite sectors of B's wall inside A's material: those where B lies
+/// on the side of A its material is, below A along `n̂` where A's
+/// outward normal is `n̂`. The node is a pierce of B's face by A's ring
+/// vertex with those runs: B's ring, minted as the pierce's ring
+/// ([`mint_ring`]), spans them In, and A's struts span the same sectors
+/// on A's wall. A run starts at the germ its sector is entered by,
+/// turning counterclockwise about B's outward normal: the listed turn
+/// where that normal is `n̂`, the turn reversed where it is `−n̂`. Both
+/// rings hang their struts by one tree ([`ring_struts`]), ordered about
+/// B's normal, A's facing each germ with the other half of its strut
+/// from B's, as a held pierce's strut does ([`faces_holding_pierce`]);
+/// where the walls' senses differ A's normal at the node is B's
 /// reversed, so A's struts read each run in A's own turn: from B's end
 /// germ, In. `arm` meters the germs' order.
 ///
-/// The germs ride their arcs' ellipses: `e₁`'s the split's positive
-/// branch, `e₂`'s its negative one ([`crate::ring_path::LoopSplit`]'s
-/// bisector).
-///
 /// # Errors
 ///
-/// Either face's normal refusing at the node; [`germ_order`]'s and
-/// [`mint_ring`]'s refusals; the Euler operators'.
+/// Either face's normal refusing at the node, or its sense
+/// ([`super::node::face_sense`]); [`germ_order`]'s and [`mint_ring`]'s
+/// refusals; the Euler operators'.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn mint_node<T: Decide + crate::props::AtRestPolicy>(
     (a, b): (&mut Body<T>, &mut Body<T>),
     faces: (crate::entity::FaceKey, crate::entity::FaceKey),
-    (node, radial): (geom_core::Point3<T>, Vec3<T>),
-    tangents: [Vec3<T>; 2],
+    node: &geom_brep::SectionNode<T>,
+    arcs: [usize; 4],
     arm: geom_core::Lever<T>,
     band: Band,
     tol: Tol,
 ) -> Result<RingOut<T>, BooleanError> {
+    let point = node.point;
     // Each face's outward normal at the node, which it lies on.
     let outward = |operand, body: &Body<T>, face| -> Result<Vec3<T>, BooleanError> {
-        match crate::face_normal::face_outward_normal_at(body, face, node, band) {
+        match crate::face_normal::face_outward_normal_at(body, face, point, band) {
             Ok(Some(n)) => Ok(n.vec()),
             Ok(None) => Err(BooleanError::ClassificationInvariant {
                 what: "a node's face has no outward normal",
@@ -1524,72 +1528,40 @@ pub(super) fn mint_node<T: Decide + crate::props::AtRestPolicy>(
         faces,
         (super::Locus::InFace(faces.0), super::Locus::InFace(faces.1)),
     );
-    // **The runs, by the walls' senses.** Round the node the sectors
-    // about `±â₁` on A's wall lie outside B's cylinder and those about
-    // `±â₂` inside it; on B's wall those about `±â₁` lie inside A's
-    // cylinder and those about `±â₂` outside it. The runs are B's
-    // sectors inside A's material: those about `±â₁` where A's face
-    // bounds a rod (its material on its axis's side), about `±â₂` where
-    // it bounds a bore. Each wall's sense is its outward normal against
-    // the radial `node − p`, which the walls, tangent at the node, are
-    // both square to: `±r`.
-    let sense = |operand, body: &Body<T>, face| -> Result<bool, BooleanError> {
-        super::node::wall_sense(outward(operand, body, face)?, radial, band)
+    // Each face's sense: its outward normal along the node's normal or
+    // against it, the walls being tangent there.
+    let along = |operand, body: &Body<T>, face| -> Result<bool, BooleanError> {
+        super::node::face_sense(outward(operand, body, face)?, node.normal, arm, band)
     };
-    let (a_rod, b_rod) = (
-        sense(Operand::A, a, faces.0)?,
-        sense(Operand::B, b, faces.1)?,
+    let (a_along, b_along) = (
+        along(Operand::A, a, faces.0)?,
+        along(Operand::B, b, faces.1)?,
     );
-    // The walls' outward normals at the node are both `±radial`, so
-    // they agree where the senses do and are opposed where they differ.
-    let normals_agree = a_rod == b_rod;
-    // Each tangent turned toward that axis, so a run's two germs bound
-    // the sector about it and their opposites the one about its
-    // opposite. The tangents are the pose's bisector normals, `e₁`'s
-    // along `â₁ + â₂` and `e₂`'s along `â₁ − â₂` (the pose's own
-    // `bisector_planes`), whose sides of each axis are fixed by their
-    // construction once the pose decided the axes crossing: `â₁ + â₂`
-    // leans toward both axes, `â₁ − â₂` toward `â₁` and away from `â₂`,
-    // each by `cos(θ/2)` or `sin(θ/2)`. No margin is read here: a turn
-    // too small to tell is the pose's parallelism, decided before any
-    // node exists.
-    let (g1, g2) = (tangents[0], if a_rod { tangents[1] } else { -tangents[1] });
-    let germ = |d: Vec3<T>, branch| -> Germ<T> { (cells, Leaned::upright(d), branch) };
-    let (on_e1, on_e2) = (super::Branch::Positive, super::Branch::Negative);
-    // A run's start is the germ its sector is entered by, turning
-    // counterclockwise about B's outward normal: `e₂`'s where `e₁`'s
-    // tangent turns to `e₂`'s that way.
-    let e1_first = match decide(
-        "bool_node_run_turn",
-        Margin::levered(g1.cross(g2).dot(normal), arm),
-        band,
-    ) {
-        Ok(Sign::Positive) => false,
-        Ok(Sign::Negative) => true,
-        // The arcs cross square, `g₁ ⟂ g₂` in the tangent plane whose
-        // normal this reads, so the margin is `±r`: definite wherever the
-        // section table decided the ellipses' minor semi-axis `r`
-        // (`geom`'s `ellipse_minor_positive`) on this band.
-        Ok(Sign::Zero) => {
-            return Err(BooleanError::ClassificationInvariant {
-                what: "a node's two arcs leave it along one line",
-            });
-        }
-        Err(diag) => {
-            return Err(BooleanError::coincidence(
-                Coincide::Sectors,
-                DeclarationRead::Moot,
-                diag,
-            ));
-        }
+    let normals_agree = a_along == b_along;
+    let rays = [
+        node.lines[0],
+        node.lines[1],
+        -node.lines[0],
+        -node.lines[1],
+    ];
+    let germ = |i: usize| -> Germ<T> {
+        (
+            cells,
+            Leaned::upright(rays[i]),
+            super::Branch::Component(arcs[i]),
+        )
     };
-    let run = |d1: Vec3<T>, d2: Vec3<T>| {
-        let (x, y) = (germ(d1, on_e1), germ(d2, on_e2));
-        if e1_first { (x, y) } else { (y, x) }
+    // B lies inside A's material in sector `i` where it stands on the
+    // side of A that A's outward normal points away from.
+    let inside = |i: usize| (node.above_in(i) == geom_brep::PairSide::First) == a_along;
+    let first = if inside(0) { 0 } else { 1 };
+    let run = |i: usize| {
+        let (x, y) = (germ(i), germ((i + 1) % 4));
+        if b_along { (x, y) } else { (y, x) }
     };
-    let run_germs = [run(g1, g2), run(-g1, -g2)];
+    let run_germs = [run(first), run(first + 2)];
     // A's struts, one per run, hung by the ring's tree.
-    let (wa, loop_a) = ring_vertex_in(a, faces.0, node, tol)?;
+    let (wa, loop_a) = ring_vertex_in(a, faces.0, point, tol)?;
     let provisional: Vec<PlannedRun<T>> = run_germs
         .iter()
         .map(|&(s, e)| PlannedRun {
@@ -1606,7 +1578,7 @@ pub(super) fn mint_node<T: Decide + crate::props::AtRestPolicy>(
     let plan = RingPlan {
         contact,
         piercing: Operand::A,
-        point: node,
+        point,
         normal,
         runs: provisional,
     };
@@ -1618,12 +1590,10 @@ pub(super) fn mint_node<T: Decide + crate::props::AtRestPolicy>(
     // The runs' starts and the tree's facing turn about B's normal, and
     // `mev_null_run` reads a run in A's own turn (the sense theorem's
     // forward wedge, `join`'s module docs). Where the normals agree that
-    // is the same turn, and A's runs lie out of B's material: two rods'
-    // runs about `±â₁` outside B's cylinder, two bores' about `±â₂`
-    // inside it. Where they are opposed A's turn is B's reversed, so each
-    // run starts at the germ it ends at in B's, the tree's facing names
-    // A's start as it names B's, and the run lies in B's material: a rod's about `±â₁`
-    // outside the bore's cylinder, a bore's about `±â₂` inside the rod's.
+    // is the same turn, and A's runs lie out of B's material. Where they
+    // are opposed A's turn is B's reversed, so each run starts at the
+    // germ it ends at in B's, the tree's facing names A's start as it
+    // names B's, and the run lies in B's material.
     let run_side = if normals_agree {
         NewVertexSide::Above
     } else {

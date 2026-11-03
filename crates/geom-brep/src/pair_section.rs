@@ -62,7 +62,7 @@
 //! counted a ruled pair ([`ruling`]) that match is its exhaustiveness and
 //! no cell sweep runs. A reader that needs a list no closed form
 //! counts carries. A site's component is its foot on the carried section
-//! ([`CarriedSection::foot`]), the one reading of it. Only `carry`
+//! ([`CarriedSection::site`]), the one reading of it. Only `carry`
 //! builds a `CarriedSection`, and it refuses where a component has no
 //! carrier, so no reader takes a foot on a carrier that does not exist.
 //! The march is written at `f64`, and [`SsiLane`] is the door to it:
@@ -109,7 +109,7 @@ mod torus_arms;
 pub mod torus_coincidence;
 pub mod winds;
 
-pub use cylinders::{CcDecision, CcNode, CcStance, CylinderCylinderPose, RegionPlacement};
+pub use cylinders::{CcDecision, CcNode, CcStance, CylinderCylinderPose, PINCH, RegionPlacement};
 pub use gap::Gap;
 pub use spline_implicit::SplineImplicitPose;
 pub use spline_pair::{KnownPair, KnownRow, SplinePairPose};
@@ -578,7 +578,7 @@ pub enum ComponentShape {
 /// **Where an open component ends**: the sides of each surface's
 /// parameter rectangle it reaches (rim ends, in the order the section was
 /// asked of), whether it reaches the operation's region (a cut end), and
-/// the nodes it ends at, by their index in [`PairSection::nodes`].
+/// the nodes it ends at ([`NodeEnds`]).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ComponentEnds {
     /// The rectangle sides it reaches on each surface.
@@ -588,7 +588,7 @@ pub struct ComponentEnds {
     /// its carrier exact there).
     pub cut: bool,
     /// The nodes its ends stand at.
-    pub nodes: [Option<usize>; 2],
+    pub nodes: NodeEnds,
 }
 
 impl ComponentEnds {
@@ -600,13 +600,137 @@ impl ComponentEnds {
             ..Self::default()
         }
     }
+}
 
-    /// From the node `from` to the node `to`.
+/// **The node ends of an open component**, by the end of its carrier's
+/// span each stands at: `start` at the span's first parameter, `end` at
+/// its last. An end at no listed node is `None`.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct NodeEnds {
+    /// The end at the span's first parameter.
+    pub start: Option<NodeEnd>,
+    /// The end at the span's last parameter.
+    pub end: Option<NodeEnd>,
+}
+
+impl NodeEnds {
+    /// Both ends, start first.
     #[must_use]
-    pub fn nodes(from: usize, to: usize) -> Self {
-        Self {
-            nodes: [Some(from), Some(to)],
-            ..Self::default()
+    pub fn both(self) -> [Option<NodeEnd>; 2] {
+        [self.start, self.end]
+    }
+}
+
+/// **An arc end at a node** (C5): the node, by its index in
+/// [`PairSection::nodes`], and the ray it leaves the node along, named by
+/// the node's tangent line and the sense along it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct NodeEnd {
+    /// The node's index.
+    pub node: usize,
+    /// The node's tangent line it leaves along.
+    pub line: NodeLine,
+    /// The sense it leaves that line along.
+    pub sense: Sense,
+}
+
+/// One of a node's two tangent lines ([`SectionNode::lines`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum NodeLine {
+    /// `lines[0]`.
+    First,
+    /// `lines[1]`.
+    Second,
+}
+
+/// The sense an arc leaves a node along its line.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Sense {
+    /// Along the line's vector.
+    Along,
+    /// Against it.
+    Against,
+}
+
+/// One surface of the pair, in the order the section was asked of.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PairSide {
+    /// The first.
+    First,
+    /// The second.
+    Second,
+}
+
+impl PairSide {
+    /// The other surface.
+    #[must_use]
+    pub const fn other(self) -> Self {
+        match self {
+            Self::First => Self::Second,
+            Self::Second => Self::First,
+        }
+    }
+}
+
+/// **A node of the section, as the value lists it** (C5): its point, the
+/// surfaces' common unit normal there, its two tangent lines and the side
+/// of each other the surfaces lie on in the sectors between them, all
+/// read off the surfaces' relative second fundamental form
+/// `Q = II₁ − II₂` there, indefinite and nondegenerate: the lines are
+/// `Q`'s null lines, and `Q`'s sign on a sector says which surface lies
+/// on the normal's side of the other there.
+///
+/// The four rays in their turn counterclockwise about `normal` are
+/// `+lines[0]`, `+lines[1]`, `−lines[0]`, `−lines[1]` ([`Self::ray_index`]),
+/// and sector `i` runs from ray `i` to ray `i + 1`. `above` is the side
+/// on sector 0, and the sides alternate round the node.
+#[derive(Clone, Copy, Debug)]
+pub struct SectionNode<T: Real> {
+    /// The node.
+    pub point: Point3<T>,
+    /// The surfaces' common unit normal.
+    pub normal: Vec3<T>,
+    /// The two tangent lines, unit: `lines[1]` turned from `lines[0]`
+    /// counterclockwise about `normal` by less than a half turn.
+    pub lines: [Vec3<T>; 2],
+    /// The surface lying on `normal`'s side of the other in sector 0,
+    /// from `+lines[0]` to `+lines[1]`.
+    pub above: PairSide,
+}
+
+impl<T: Real> SectionNode<T> {
+    /// The ray along `line` in `sense`, unit.
+    #[must_use]
+    pub fn ray(&self, line: NodeLine, sense: Sense) -> Vec3<T> {
+        let l = match line {
+            NodeLine::First => self.lines[0],
+            NodeLine::Second => self.lines[1],
+        };
+        match sense {
+            Sense::Along => l,
+            Sense::Against => -l,
+        }
+    }
+
+    /// The ray's place in the turn about `normal`, `0..4`.
+    #[must_use]
+    pub const fn ray_index(line: NodeLine, sense: Sense) -> usize {
+        match (line, sense) {
+            (NodeLine::First, Sense::Along) => 0,
+            (NodeLine::Second, Sense::Along) => 1,
+            (NodeLine::First, Sense::Against) => 2,
+            (NodeLine::Second, Sense::Against) => 3,
+        }
+    }
+
+    /// The surface lying on `normal`'s side of the other in sector `i`
+    /// (from ray `i` to ray `i + 1`, mod 4).
+    #[must_use]
+    pub const fn above_in(&self, sector: usize) -> PairSide {
+        if sector % 2 == 0 {
+            self.above
+        } else {
+            self.above.other()
         }
     }
 }
@@ -806,7 +930,7 @@ pub struct PairSection<T: Real> {
     pose: PairPose<T>,
     decided: Vec<ZeroVerdict>,
     components: Components<T>,
-    nodes: Vec<Point3<T>>,
+    nodes: Vec<SectionNode<T>>,
     node_sets: Vec<NodeSet>,
     lever: geom_core::Lever<T>,
 }
@@ -1233,12 +1357,18 @@ impl<T: Decide> PairSection<T> {
         &self.components
     }
 
-    /// **The nodes the pose placed** (D2): points where branches of the
-    /// section cross and the surfaces are tangent, each decided on the
-    /// pose as a `Zero` tangency whose section still has carriers. An
-    /// open component names the ones it ends at
-    /// ([`ComponentEnds::nodes`]).
-    pub fn nodes(&self) -> &[Point3<T>] {
+    /// **The lever a direction's angle to the section is read at**
+    /// ([`CarriedSection::lever`]).
+    pub fn lever(&self) -> geom_core::Lever<T> {
+        self.lever
+    }
+
+    /// **The nodes the value lists** (C5, [`SectionNode`]): points where
+    /// branches of the section cross and the surfaces are tangent, each
+    /// decided on the pose as a `Zero` tangency whose section still has
+    /// carriers, listed where the domain holds it. An open component
+    /// names the ones it ends at ([`ComponentEnds::nodes`]).
+    pub fn nodes(&self) -> &[SectionNode<T>] {
         &self.nodes
     }
 
@@ -1370,6 +1500,7 @@ impl<T: Decide> PairSection<T> {
         };
         Ok(CarriedSection {
             components,
+            nodes: self.nodes.clone(),
             lever: self.lever,
         })
     }
@@ -2210,7 +2341,7 @@ impl<T: Decide> CarriedComponent<T> {
     /// component**: its foot on the carrier where `p` is within the band
     /// padded by [`Self::pad`] ([`Curve3::on_carrier`], [`Band::padded`]),
     /// `None` where it is past it. The one reading of "a point on this
-    /// component", by [`CarriedSection::foot`] and the counted section's
+    /// component", by [`CarriedSection::site`] and the counted section's
     /// cross-check alike.
     ///
     /// # Errors
@@ -2223,7 +2354,7 @@ impl<T: Decide> CarriedComponent<T> {
             .map_err(|_| SiteRefusal::Desync("a component's tube pads no band"))?;
         let foot = self.carrier.foot(p, self.span.0);
         match foot.on_carrier(padded) {
-            Ok(OnCarrier::On { .. }) => Ok(Some(foot.t())),
+            Ok(OnCarrier::On { .. }) => self.within_span(foot.t(), band),
             Ok(OnCarrier::Off) => Ok(None),
             Err(CarrierRefusal::Escalated(diag) | CarrierRefusal::Straddle(diag)) => {
                 Err(SiteRefusal::Escalated(diag))
@@ -2232,6 +2363,87 @@ impl<T: Decide> CarriedComponent<T> {
                 "a point's distance from a fitted component could not be read",
             )),
         }
+    }
+
+    /// **Whether the foot parameter `t` lies within the span**, where
+    /// that is a question: on an open arc of a circle or an ellipse,
+    /// whose carrier runs on past the span's ends round the whole conic.
+    /// `t` is read in the turn the span starts, and decided under its
+    /// last end on the parameter metered by the carrier's speed there
+    /// (`section_site_in_span`); a closed form's other component on its
+    /// conic takes the rest. A foot at the span's end stands at its end's
+    /// node, which every reading of a site tests first ([`at_node`]), so
+    /// one reaching here is a desync; an undecided one escalates. Any
+    /// other component's foot is its own.
+    fn within_span(&self, t: T, band: Band) -> Result<Option<T>, SiteRefusal> {
+        if self.closed() || !matches!(self.carrier, Curve3::Circle(_) | Curve3::Ellipse(_)) {
+            return Ok(Some(t));
+        }
+        let (lo, hi) = self.span;
+        let t = lo + (t - lo).reduce_periodic(T::pi() * T::from_f64(2.0));
+        let speed = self.carrier.ders1(t).1.norm();
+        match geom_core::k_stats::decide(
+            "section_site_in_span",
+            Margin::metered(hi - t, geom_core::InfSpeed::new(speed)),
+            band,
+        ) {
+            Ok(Sign::Positive) => Ok(Some(t)),
+            Ok(Sign::Negative) => Ok(None),
+            Ok(Sign::Zero) => Err(SiteRefusal::Desync(
+                "a site off its section's nodes reads at the end of an arc",
+            )),
+            Err(diag) => Err(SiteRefusal::Escalated(diag)),
+        }
+    }
+
+    /// **This component's end at the node `n`** ([`ArcPlace::AtEnd`]).
+    ///
+    /// # Errors
+    ///
+    /// [`SiteRefusal::Desync`] where it has no end at `n`, or both: an
+    /// arc with both ends at one node is read at it by the end its germ
+    /// leaves along, which no germ names yet.
+    pub fn end_at(&self, n: usize) -> Result<ArcPlace<T>, SiteRefusal> {
+        match node_of_ends(self) {
+            [Some(a), Some(b)] if a == n && b == n => Err(SiteRefusal::Desync(
+                "an arc with both ends at one node is read at it by the end its germ leaves \
+                 along, which no germ names",
+            )),
+            [Some(a), _] if a == n => Ok(ArcPlace::AtEnd {
+                t: self.span.0,
+                up: true,
+            }),
+            [_, Some(b)] if b == n => Ok(ArcPlace::AtEnd {
+                t: self.span.1,
+                up: false,
+            }),
+            _ => Err(SiteRefusal::Desync(
+                "a site at a node lies on a component with no end there",
+            )),
+        }
+    }
+
+    /// **Where the site `p` stands on this component**, the section's
+    /// reading of a site ([`CarriedSection::site`]) asked of a component
+    /// already named: the node among `nodes` it stands at, tested first,
+    /// read as this component's end there; otherwise its foot.
+    ///
+    /// # Errors
+    ///
+    /// [`SiteRefusal`]: a site off this component, or at a node it has no
+    /// single end at, is a desync.
+    pub fn place(
+        &self,
+        nodes: &[SectionNode<T>],
+        p: Point3<T>,
+        band: Band,
+    ) -> Result<ArcPlace<T>, SiteRefusal> {
+        if let (Some(n), _) = at_node(nodes, p, band)? {
+            return self.end_at(n);
+        }
+        self.reads(p, band)?.map(ArcPlace::At).ok_or(SiteRefusal::Desync(
+            "a site lies off the component it was read on",
+        ))
     }
 
     /// [`Self::reads`] as the carry reads it.
@@ -2304,10 +2516,11 @@ fn distinct<T: Decide>(
 }
 
 /// **A section whose every component holds a carrier** (module docs),
-/// made only by [`PairSection::carry`].
+/// made only by [`PairSection::carry`], with the nodes the value lists.
 #[derive(Clone, Debug)]
 pub struct CarriedSection<T: Real> {
     components: Vec<CarriedComponent<T>>,
+    nodes: Vec<SectionNode<T>>,
     lever: geom_core::Lever<T>,
 }
 
@@ -2323,10 +2536,75 @@ pub struct SiteFoot<T: Real> {
     pub tangent: Vec3<T>,
 }
 
+/// **What a site of a carried section is** (C5): a node, which names no
+/// arc, or a point of one component off every node.
+#[derive(Clone, Copy, Debug)]
+pub enum SiteReading<T: Real> {
+    /// The node with this index ([`CarriedSection::nodes`]).
+    AtNode(usize),
+    /// A point of one component, off every node.
+    OnArc(SiteFoot<T>),
+}
+
+/// **Where a site stands on one component** ([`CarriedComponent::place`]):
+/// at one of its ends at a node, or at a foot parameter off every node.
+#[derive(Clone, Copy, Debug)]
+pub enum ArcPlace<T: Real> {
+    /// At an end standing at a node: the span's end parameter there, and
+    /// whether the component leaves the node forward in its parameter
+    /// (the span's first end).
+    AtEnd {
+        /// The span's end parameter.
+        t: T,
+        /// The span's first end: the component leaves the node forward.
+        up: bool,
+    },
+    /// At the foot parameter `t`.
+    At(T),
+}
+
+/// The node-distance predicate a site's reading tests first.
+const SITE_AT_NODE: &str = "section_site_at_node";
+
+/// **The node `p` stands at**, among `nodes`, the first test of every
+/// reading of a site (C5): `p`'s distance from each node against the
+/// band. The decided distances come back with it, the margins an
+/// in-band reading near a node escalates on.
+fn at_node<T: Decide>(
+    nodes: &[SectionNode<T>],
+    p: Point3<T>,
+    band: Band,
+) -> Result<(Option<usize>, Vec<MarginDiag>), SiteRefusal> {
+    let mut found = None;
+    let mut apart = Vec::with_capacity(nodes.len());
+    for (n, node) in nodes.iter().enumerate() {
+        let d = geom_core::k_stats::decide_reported(
+            SITE_AT_NODE,
+            Margin::norm3(p - node.point),
+            band,
+        )
+        .map_err(SiteRefusal::Escalated)?;
+        match d.sign {
+            Sign::Zero if found.is_some() => {
+                return Err(SiteRefusal::Desync("a site stands at two nodes of its section"));
+            }
+            Sign::Zero => found = Some(n),
+            Sign::Positive | Sign::Negative => {}
+        }
+        apart.push(d.margin);
+    }
+    Ok((found, apart))
+}
+
 impl<T: Decide> CarriedSection<T> {
     /// The components.
     pub fn components(&self) -> &[CarriedComponent<T>] {
         &self.components
+    }
+
+    /// The nodes the value lists ([`PairSection::nodes`]).
+    pub fn nodes(&self) -> &[SectionNode<T>] {
+        &self.nodes
     }
 
     /// **The lever a direction's angle to a component is read at**: the
@@ -2339,32 +2617,76 @@ impl<T: Decide> CarriedSection<T> {
         self.lever
     }
 
-    /// **The site `p`'s foot**: the one component it lies on
-    /// ([`CarriedComponent::reads`]), the foot parameter there, and the
-    /// carrier's tangent. A site on none, or on two, is a desync.
+    /// **The site `p`, read** (C5): the node it stands at, tested first,
+    /// and otherwise the one component it lies on
+    /// ([`CarriedComponent::reads`]), with the foot parameter and the
+    /// carrier's tangent there. A site at a node names no arc.
     ///
     /// # Errors
     ///
-    /// [`SiteRefusal`].
-    pub fn foot(&self, p: Point3<T>, band: Band) -> Result<SiteFoot<T>, SiteRefusal> {
-        let mut found = None;
+    /// [`SiteRefusal`]: a site on no component, or on two that share no
+    /// node, is a desync; one on two arcs that share a node it is not
+    /// decided at escalates on its distance from that node, an in-band
+    /// reading near a crossing.
+    pub fn site(&self, p: Point3<T>, band: Band) -> Result<SiteReading<T>, SiteRefusal> {
+        let (node, apart) = at_node(&self.nodes, p, band)?;
+        if let Some(n) = node {
+            return Ok(SiteReading::AtNode(n));
+        }
+        let mut found: Option<SiteFoot<T>> = None;
         for (k, c) in self.components.iter().enumerate() {
-            if let Some(t) = c.reads(p, band)? {
-                if found.is_some() {
-                    return Err(SiteRefusal::Desync(
-                        "a site lies on two components of its section",
-                    ));
-                }
-                found = Some(SiteFoot {
-                    component: k,
-                    t,
-                    tangent: c.carrier.ders1(t).1,
+            let Some(t) = c.reads(p, band)? else {
+                continue;
+            };
+            if let Some(first) = found {
+                let shared = node_of_ends(&self.components[first.component])
+                    .into_iter()
+                    .flatten()
+                    .find(|n| node_of_ends(c).contains(&Some(*n)));
+                return Err(match shared {
+                    Some(n) => SiteRefusal::Escalated(geom_core::Indeterminate {
+                        margin: apart[n],
+                        terminal_sliver: false,
+                        band,
+                        predicate: Some(SITE_AT_NODE),
+                    }),
+                    None => SiteRefusal::Desync("a site lies on two components of its section"),
                 });
             }
+            found = Some(SiteFoot {
+                component: k,
+                t,
+                tangent: c.carrier.ders1(t).1,
+            });
         }
-        found.ok_or(SiteRefusal::Desync(
-            "a site lies on no component of its section",
-        ))
+        found
+            .map(SiteReading::OnArc)
+            .ok_or(SiteRefusal::Desync(
+                "a site lies on no component of its section",
+            ))
+    }
+
+    /// **Component `k`'s end at the node `n`** ([`ArcPlace::AtEnd`]).
+    ///
+    /// # Errors
+    ///
+    /// [`SiteRefusal::Desync`] where `k` has no end at `n`, or both: an
+    /// arc with both ends at one node is read at it by the end its germ
+    /// leaves along, which no germ names yet.
+    pub fn end_at(&self, k: usize, n: usize) -> Result<ArcPlace<T>, SiteRefusal> {
+        let c = self
+            .components
+            .get(k)
+            .ok_or(SiteRefusal::Desync("a site's component is not in its section"))?;
+        c.end_at(n)
+    }
+}
+
+/// The nodes an open component's ends stand at, start first.
+fn node_of_ends<T: Real>(c: &CarriedComponent<T>) -> [Option<usize>; 2] {
+    match c.shape {
+        ComponentShape::Open { ends } => ends.nodes.both().map(|e| e.map(|e| e.node)),
+        ComponentShape::Loop | ComponentShape::Point => [None, None],
     }
 }
 

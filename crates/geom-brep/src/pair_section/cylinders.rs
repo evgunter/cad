@@ -21,8 +21,9 @@ use geom_core::{Band, Decide, Decided, Margin, MarginDiag, Point3, Real, Sign, V
 
 use super::ruling::{self, RuledCylinders, SweepRefusal};
 use super::{
-    ClassCarrier, Coincident, ComponentEnds, ComponentShape, Components, NodeSet, PairPose,
-    PairSection, SectionComponent, SectionDecision, TANGENT_COMPONENT, ZeroVerdict,
+    ClassCarrier, Coincident, ComponentEnds, ComponentShape, Components, NodeEnd, NodeEnds,
+    NodeLine, NodeSet, PairPose, PairSection, PairSide, SectionComponent, SectionDecision,
+    SectionNode, Sense, TANGENT_COMPONENT, ZeroVerdict,
 };
 use crate::ExtentBall;
 use crate::extent::Reach;
@@ -683,6 +684,101 @@ pub(crate) fn bisector_ellipses<T: Decide>(
     Ok([mk(n1, sin_half)?, mk(n2, cos_half)?])
 }
 
+/// **The bisector pose's nodes as the value lists them** ([`SectionNode`]),
+/// each where the region holds it (a node decided outside it is not
+/// listed, and an arc's end there is `None`), and the four arcs' node
+/// ends in [`cylinder_cylinder`]'s order: `e₁` over `(−π/2, π/2)` and
+/// `(π/2, 3π/2)`, then `e₂` likewise.
+///
+/// All of it is closed form, read off the walls' relative second
+/// fundamental form at a node. The node `i` is `p ∓ r·ν̂`, `ν̂` the unit
+/// `a₁ × a₂`, and the walls' outward radials there are both `n̂ = ∓ν̂`,
+/// their common normal. On the tangent plane, spanned by the axes,
+/// `IIₖ(v) = (|v|² − (v·aₖ)²)/r`, so `Q(v) = ((v·a₂)² − (v·a₁)²)/r`:
+/// its null lines are along `a₁ + a₂` and `a₁ − a₂`, the ellipses'
+/// tangents there, and the first wall stands on `n̂`'s side of the second
+/// (`Q < 0`, it curves away less) in the sectors about `±a₁`.
+///
+/// Each ellipse's `u_ref` is that line, exactly: `e₁`'s
+/// `tilted_section_major(n₁, a₁ × n₁) = ν̂ × n₁ … = −n₂` and `e₂`'s
+/// `−n₁`, `(n₁, n₂, ν̂)` right-handed since `(a₁ − a₂) × (a₁ + a₂) =
+/// 2·a₁ × a₂`. With `v_ref = n × u_ref`, `e₁(π/2) = p − r·ν̂` and
+/// `e₂(−π/2) = p − r·ν̂`: node 0. So the arc over `(−π/2, π/2)` of
+/// either leaves both its nodes along `+u_ref`, the other along
+/// `−u_ref`. The lines are `[u₁, u₂]` at node 0 and `[u₁, −u₂]` at node 1,
+/// `u₁ × u₂ = n₂ × n₁ = −ν̂` turning counterclockwise about each node's
+/// `n̂`; the first sector, from `u₁` to `±u₂`, holds `−a₁` at node 0 and
+/// `−a₂` at node 1.
+fn bisector_nodes<T: Decide>(
+    pose: &CylinderCylinderPose<T>,
+    (foot, normal): (Point3<T>, Vec3<T>),
+    [e1, e2]: [&Curve3<T>; 2],
+    against: &dyn Fn(ExtentBall<T>) -> RegionPlacement,
+) -> (Vec<SectionNode<T>>, [NodeEnds; 4]) {
+    let u = |e: &Curve3<T>| match e {
+        Curve3::Ellipse(e) => e.frame.u_ref,
+        _ => unreachable!("the bisector pose's sections are ellipses"),
+    };
+    let (u1, u2) = (u(e1), u(e2));
+    let r = pose.radii[0].abs();
+    let mut nodes = Vec::new();
+    let mut index = [None, None];
+    for (i, side) in [(0, T::one()), (1, -T::one())] {
+        let n_hat = normal * (T::zero() - side);
+        let point = foot + n_hat * r;
+        debug_assert!(
+            pose.lines.iter().all(|&(origin, axis)| {
+                let w = point - origin;
+                let radial = (w - axis * w.dot(axis)) / r;
+                (radial - n_hat).norm().point_value().is_none_or(|d| d < 1e-6)
+            }),
+            "both walls' outward radials at a bisector node are its common normal"
+        );
+        if against(ExtentBall::point(point)) == RegionPlacement::Outside {
+            continue;
+        }
+        index[i] = Some(nodes.len());
+        nodes.push(SectionNode {
+            point,
+            normal: n_hat,
+            lines: [u1, if i == 0 { u2 } else { -u2 }],
+            above: if i == 0 {
+                PairSide::First
+            } else {
+                PairSide::Second
+            },
+        });
+    }
+    let end = |i: usize, line, sense| {
+        index[i].map(|node| NodeEnd { node, line, sense })
+    };
+    let (along, against_) = (Sense::Along, Sense::Against);
+    let (first, second) = (NodeLine::First, NodeLine::Second);
+    let ends = [
+        // `e₁` over `(−π/2, π/2)`, from node 1 to node 0, along `+u₁`.
+        NodeEnds {
+            start: end(1, first, along),
+            end: end(0, first, along),
+        },
+        // `e₁` over `(π/2, 3π/2)`, from node 0 to node 1, along `−u₁`.
+        NodeEnds {
+            start: end(0, first, against_),
+            end: end(1, first, against_),
+        },
+        // `e₂` over `(−π/2, π/2)`, from node 0 to node 1, along `+u₂`.
+        NodeEnds {
+            start: end(0, second, along),
+            end: end(1, second, against_),
+        },
+        // `e₂` over `(π/2, 3π/2)`, from node 1 to node 0, along `−u₂`.
+        NodeEnds {
+            start: end(1, second, along),
+            end: end(0, second, against_),
+        },
+    ];
+    (nodes, ends)
+}
+
 /// **The rulings of parallel walls**, in closed form: the chord of the
 /// two cross-section circles, `x` along `û` from the first axis's foot
 /// and `±h` across, `x = (d² + r₁² − r₂²)/(2d)` and `h² = r₁² − x²`, `d`
@@ -755,6 +851,7 @@ pub(super) fn cylinder_cylinder<T: Decide>(
         })
     };
     let mut set_winds = [false, false];
+    let mut nodes = Vec::new();
     let components = match pose.stance {
         CcStance::Parallel { .. } => Components::Counted(match pose.parallel_section() {
             Some(ParallelSection::Rulings(points)) => points
@@ -817,17 +914,18 @@ pub(super) fn cylinder_cylinder<T: Decide>(
                         });
                     }
                     let [e1, e2] = bisector_ellipses(foot, (axis, pose.lines[1].1), r1, band)?;
+                    let (bisector, ends) =
+                        bisector_nodes(&pose, (foot, normal), [&e1, &e2], &against);
+                    nodes = bisector;
                     let half = T::pi() * T::from_f64(0.5);
-                    // `e₁` runs from the second node to the first over
-                    // `(−π/2, π/2)`, `e₂` from the first to the second.
                     let arcs = [
-                        (&e1, (T::zero() - half, half), [1, 0]),
-                        (&e1, (half, half + T::pi()), [0, 1]),
-                        (&e2, (T::zero() - half, half), [0, 1]),
-                        (&e2, (half, half + T::pi()), [1, 0]),
+                        (&e1, (T::zero() - half, half)),
+                        (&e1, (half, half + T::pi())),
+                        (&e2, (T::zero() - half, half)),
+                        (&e2, (half, half + T::pi())),
                     ];
                     let mut listed = Vec::new();
-                    for (curve, span, [from, to]) in arcs {
+                    for ((curve, span), at) in arcs.into_iter().zip(ends) {
                         let placed = ExtentBall::of_conic(curve)
                             .map_or(RegionPlacement::Straddles, &against);
                         if placed == RegionPlacement::Outside {
@@ -836,8 +934,12 @@ pub(super) fn cylinder_cylinder<T: Decide>(
                         listed.push(component(
                             ComponentShape::Open {
                                 ends: ComponentEnds {
-                                    cut: placed == RegionPlacement::Straddles,
-                                    ..ComponentEnds::nodes(from, to)
+                                    // An end at a node the region does not
+                                    // hold runs past the region.
+                                    cut: placed == RegionPlacement::Straddles
+                                        || at.both().contains(&None),
+                                    nodes: at,
+                                    ..ComponentEnds::default()
                                 },
                             },
                             // The winding is the node-joined set's.
@@ -856,13 +958,15 @@ pub(super) fn cylinder_cylinder<T: Decide>(
                 }
                 Some(CcNode::Pinch) | None => Components::Counted(match pose.placed {
                     RegionPlacement::Outside => Vec::new(),
+                    // The pinch's node is not listed while its lobes
+                    // mint no carrier.
                     placed @ (RegionPlacement::Inside | RegionPlacement::Straddles) => (0..2)
                         .map(|_| {
                             component(
                                 ComponentShape::Open {
                                     ends: ComponentEnds {
                                         cut: placed == RegionPlacement::Straddles,
-                                        ..ComponentEnds::nodes(0, 0)
+                                        ..ComponentEnds::default()
                                     },
                                 },
                                 [false, false],
@@ -928,7 +1032,6 @@ pub(super) fn cylinder_cylinder<T: Decide>(
         },
     };
     decided.extend(pose.tangency());
-    let nodes = pose.nodes();
     let node_sets = match &components {
         Components::Counted(listed) => node_joined(listed, nodes.len(), set_winds),
         Components::Marched | Components::Reaching(_) => Vec::new(),
@@ -951,7 +1054,7 @@ fn node_joined<T: Real>(
     winds: [bool; 2],
 ) -> Vec<NodeSet> {
     let ends = |c: &SectionComponent<T>| match c.shape {
-        ComponentShape::Open { ends } => ends.nodes,
+        ComponentShape::Open { ends } => ends.nodes.both().map(|e| e.map(|e| e.node)),
         ComponentShape::Loop | ComponentShape::Point => [None, None],
     };
     let mut sets: Vec<NodeSet> = Vec::new();

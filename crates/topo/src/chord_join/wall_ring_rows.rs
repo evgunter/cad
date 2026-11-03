@@ -684,6 +684,7 @@ fn closed_form_chord(
         partner_key: None,
         // The unit wall's radius, the scale its sections turn on.
         lever: geom_core::Lever::curvature_radius(1.0),
+        nodes: Vec::new(),
     };
     let leave = Departure {
         dir,

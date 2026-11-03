@@ -2167,11 +2167,10 @@ pub struct HalfGerm<T: Real> {
 /// **Which loop of its face pair's section a germ rides.** On a pair the
 /// operation's section table holds, the loop is a component of the
 /// pair's carried section, by its index: the component the germ's site
-/// has its foot on ([`geom_brep::CarriedSection::foot`]). On the pairs
+/// has its foot on ([`geom_brep::CarriedSection::site`]). On the pairs
 /// read by a frame, a section of two loops — a plane cutting a torus in
-/// two circles or two ovals, two equal cylinders with intersecting axes
-/// in two bisector-plane ellipses — tells its loops apart by a margin at
-/// a point of the section (`ring_path::LoopSplit`); a section of two
+/// two circles or two ovals — tells its loops apart by a margin at a
+/// point of the section (`ring_path::LoopSplit`); a section of two
 /// lines through a point — a plane through a cone's apex — tells its
 /// lines apart by the line a germ's site lies on, or at the point the
 /// line it runs along. Each is decided
@@ -2184,11 +2183,12 @@ pub enum Branch {
     /// The section is one loop, loops sharing one frame, or one line;
     /// or the germ runs along an edge, whose own curve it rides.
     Only,
-    /// The loop on the split's positive side.
+    /// The loop on the split's positive side (a plane×torus section).
     Positive,
     /// The loop on its negative side.
     Negative,
-    /// The component of the pair's carried section with this index.
+    /// The component of the pair's carried section with this index: at
+    /// a node, the arc whose end the germ was minted from.
     Component(usize),
     /// The line with this index of a straight section of two lines
     /// through one point: a plane through a cone's apex, in the order
@@ -2801,13 +2801,13 @@ pub enum NodeWhy {
 }
 
 thread_local! {
-    /// Whether the pierce pass reads none of the branches the sweep
-    /// recorded ([`forget_branches`]).
+    /// Whether the pierce pass reads none of the bisector planes the
+    /// sweep recorded ([`forget_branches`]).
     static FORGET_BRANCHES: core::cell::Cell<bool> = const { core::cell::Cell::new(false) };
 }
 
 /// Makes every boolean on this thread read its pierces as though the
-/// sweep had recorded no branch for any of them, until called with
+/// sweep had recorded no bisector plane for any of them, until called with
 /// `false`: each pierce then reads the pierced face's tangent plane, the
 /// fallback a missing record takes (`vtxfac::classify_vertex_on_face`).
 /// `sweep-testing` only.
@@ -6127,9 +6127,9 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         tol,
     )?;
     let mut mints = core::mem::take(&mut acc.splits);
-    let mut branches = acc.take_branches();
+    let mut planes = acc.take_planes();
     if FORGET_BRANCHES.with(core::cell::Cell::get) {
-        branches.clear();
+        planes.clear();
     }
     let charts = acc.take_charts();
     let (mut contacts, mut pending) = acc.finish();
@@ -6188,7 +6188,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
                 &declared,
                 &contacts,
                 reread,
-                branches.get(&(operand, c.vertex)).copied(),
+                planes.get(&(operand, c.vertex)).copied(),
                 charts.get(&(operand, c.vertex, c.face)).copied(),
                 &tips[usize::from(operand == Operand::B)],
                 band,
@@ -6226,7 +6226,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
                             &declared,
                             &contacts,
                             rereads.get(&(operand, c.vertex)).copied(),
-                            branches.get(&(operand, c.vertex)).copied(),
+                            planes.get(&(operand, c.vertex)).copied(),
                             charts.get(&(operand, c.vertex, c.face)).copied(),
                             &tips[usize::from(operand == Operand::B)],
                             band,

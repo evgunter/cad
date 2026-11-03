@@ -176,7 +176,7 @@ pub(super) fn factored_crossing<T: Decide + crate::props::AtRestPolicy>(
                     p,
                     at,
                     on,
-                    branch: Some(branch_of(i)),
+                    plane: Some(i),
                     chart: None,
                 }));
             }
@@ -214,7 +214,7 @@ pub(super) fn factored_crossing<T: Decide + crate::props::AtRestPolicy>(
                 x_is, y, w, pw, face, on.margin, contacts, band, tol,
             )?);
             if ends[k][1 - i].sign != Sign::Zero {
-                contacts.branches.insert((x_is, w), branch_of(i));
+                contacts.planes.insert((x_is, w), i);
             }
         }
     }
@@ -224,16 +224,4 @@ pub(super) fn factored_crossing<T: Decide + crate::props::AtRestPolicy>(
     Placement::undeclared_no_interior(placed)
         .map(Some)
         .ok_or_else(frontier)
-}
-
-/// The branch of the plane at `index` in [`node::bisectors`]' order:
-/// the `â₁ − â₂` plane's ellipse is the bisector split's positive loop
-/// (`ring_path::LoopSplit::Bisector`), the `â₁ + â₂` plane's its
-/// negative one.
-fn branch_of(index: usize) -> crate::boolean::Branch {
-    if index == 0 {
-        crate::boolean::Branch::Positive
-    } else {
-        crate::boolean::Branch::Negative
-    }
 }

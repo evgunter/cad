@@ -1195,7 +1195,7 @@ fn coaxial_frame(cyl: f64, sph: f64) -> Result<(), BooleanError> {
 
 /// **The germ mint's reading of the site `site` on the section of `c`
 /// and `s`**: the pair classified, carried through the march's lane,
-/// and the site's foot on it ([`geom_brep::CarriedSection::foot`]).
+/// and the site's foot on it ([`geom_brep::CarriedSection::site`]).
 fn section_site(
     c: &geom::Surface<f64>,
     s: &geom::Surface<f64>,

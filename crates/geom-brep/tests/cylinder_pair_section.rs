@@ -285,7 +285,7 @@ fn the_bisector_pose_lists_two_nodes_and_four_arcs() {
     let (a, b) = (drum(), placed(Vec3::unit_y(), 0.4, (0.6, 0.0, 0.0)));
     for (label, x, y) in [("a, b", &a, &b), ("b, a", &b, &a)] {
         let section = built(x, y, region());
-        let nodes = section.nodes().to_vec();
+        let nodes: Vec<Point3<f64>> = section.nodes().iter().map(|n| n.point).collect();
         assert_eq!(nodes.len(), 2, "{label}: two nodes");
         for p in &nodes {
             on_both(*p, x, y, label);
@@ -305,7 +305,7 @@ fn the_bisector_pose_lists_two_nodes_and_four_arcs() {
             let ComponentShape::Open { ends } = c.shape else {
                 panic!("{label}: an arc has ends: {:?}", c.shape);
             };
-            let [Some(from), Some(to)] = ends.nodes else {
+            let [Some(from), Some(to)] = ends.nodes.both().map(|e| e.map(|e| e.node)) else {
                 panic!("{label}: an arc ends at nodes: {ends:?}");
             };
             assert_ne!(from, to, "{label}: from one node to the other");
@@ -324,24 +324,22 @@ fn the_bisector_pose_lists_two_nodes_and_four_arcs() {
 }
 
 /// **The pinch refuses typed**: perpendicular axes `e = r₁ − r₂` apart,
-/// the thinner wall touching the fatter from inside. One node in closed
-/// form, `r₁` from the first axis and `r₂` from the second, recorded as a
-/// `Zero` tangency; its lobes have no carrier, so carrying refuses as an
-/// unbuilt arm, never as a desync.
+/// the thinner wall touching the fatter from inside, recorded as a
+/// `Zero` tangency. Its lobes have no carrier, so carrying refuses as an
+/// unbuilt arm, never as a desync, and the value lists no node while
+/// they mint none: which lobe leaves along which ray is not assigned.
 #[test]
-fn the_pinch_lists_its_node_and_refuses_to_carry() {
+fn the_pinch_lists_no_node_and_refuses_to_carry() {
     let a = drum();
     let b = wall(Point3::new(0.0, 0.3, 0.0), Vec3::unit_x(), 0.2);
     for (label, x, y) in [("a, b", &a, &b), ("b, a", &b, &a)] {
         let section = built(x, y, region());
-        let [node] = section.nodes() else {
-            panic!("{label}: one node: {:?}", section.nodes());
-        };
-        on_both(*node, x, y, label);
         assert!(
-            (*node - Point3::new(0.0, 0.5, 0.0)).norm() < 1e-9,
-            "{label}: the pinch on the common perpendicular: {node:?}"
+            section.nodes().is_empty(),
+            "{label}: no node listed: {:?}",
+            section.nodes()
         );
+        assert_eq!(listed(&section).len(), 2, "{label}: two lobes");
         assert_eq!(
             section.tangency().map(|z| z.decision.name()),
             Some("cc_crossing_nest"),
@@ -652,7 +650,7 @@ fn a_region_clear_of_the_pair_lists_nothing() {
 fn a_region_that_cuts_the_bisector_flags_the_long_arcs_cut() {
     let (a, b) = (drum(), placed(Vec3::unit_y(), 0.4, (0.6, 0.0, 0.0)));
     let whole = built(&a, &b, region());
-    let meet = whole.nodes()[0] + (whole.nodes()[1] - whole.nodes()[0]) * 0.5;
+    let meet = whole.nodes()[0].point + (whole.nodes()[1].point - whole.nodes()[0].point) * 0.5;
     let section = built(&a, &b, ExtentBall::of_sphere(meet, 0.6));
     let got = listed(&section);
     assert_eq!(got.len(), 4, "four arcs");
@@ -661,7 +659,7 @@ fn a_region_that_cuts_the_bisector_flags_the_long_arcs_cut() {
         .map(|c| match c.shape {
             ComponentShape::Open { ends } => {
                 assert!(
-                    ends.nodes.iter().all(Option::is_some),
+                    ends.nodes.both().iter().all(Option::is_some),
                     "an arc keeps its nodes"
                 );
                 ends.cut
