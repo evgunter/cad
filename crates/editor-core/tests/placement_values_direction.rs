@@ -293,10 +293,10 @@ fn a_read_slide_beside_a_rest_steps_its_value_in_the_plane() {
     let b = rested(|doc, w| along_the_rest(slant(doc, w), 0.6)).expect("the rest places");
     let h = core::f64::consts::FRAC_1_SQRT_2;
     let step = [0.3 * h, 0.3 * h, 0.0];
-    for k in 0..3 {
+    for (k, step) in step.iter().enumerate() {
         assert!(
-            (a.translation[k] - step[k]).abs() < 1e-12
-                && (b.translation[k] - a.translation[k] - step[k]).abs() < 1e-12,
+            (a.translation[k] - step).abs() < 1e-12
+                && (b.translation[k] - a.translation[k] - step).abs() < 1e-12,
             "coordinate {k}: the block stands at {:?}, then {:?}",
             a.translation,
             b.translation
