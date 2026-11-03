@@ -3213,7 +3213,9 @@ mod tests {
         let band = Band::new(zero, 1.4 * zero).unwrap();
         let o = Point3::new(0.0, 0.0, 0.0);
         let z = Vec3::new(0.0, 0.0, 1.0);
-        let (l, radius) = (1e-4, 2.5);
+        // The ball parts from the edge by `l²/2R` at its reach: `2·zero`.
+        let radius = 2.5;
+        let l = (4.0 * radius * zero).sqrt();
         let tied = Vec3::new(l, 0.0, 0.5 * zero);
         let partner = [BoolSector {
             he: HalfEdgeKey::default(),
