@@ -1227,6 +1227,8 @@ mod shell8_r1_probes;
 #[path = "shell8_r2_probes.rs"]
 mod shell8_r2_probes;
 
+#[path = "review_6476_probes.rs"]
+mod review_6476_probes;
 #[path = "shell7_seam_corner.rs"]
 mod shell7_seam_corner;
 #[path = "spiric_rim.rs"]
