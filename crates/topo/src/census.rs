@@ -19618,16 +19618,20 @@ mod two_carrier_records {
                 (read, oracle)
             }
 
-            /// The oracle's reading of a point: decided strictly inside
-            /// `face`.
-            fn placed_in(body: &Body<f64>, face: FaceKey, p: geom_core::Point3<f64>) -> bool {
+            /// The oracle's reading of a point: whether it is decided
+            /// strictly inside `face`; `None` where the placement refuses.
+            fn placed(body: &Body<f64>, face: FaceKey, p: geom_core::Point3<f64>) -> Option<bool> {
                 let b = Band::linear(Tol::witness()).unwrap();
-                matches!(
-                    crate::boolean::face_placement(body, face, p, b, "probe_oracle"),
-                    Ok(crate::boolean::CurvedPlacement::Trim(Some(
-                        FaceContainment::In
-                    )))
-                )
+                let at = crate::boolean::face_placement(body, face, p, b, "probe_oracle").ok()?;
+                Some(matches!(
+                    at,
+                    crate::boolean::CurvedPlacement::Trim(Some(FaceContainment::In))
+                ))
+            }
+
+            /// [`placed`], a refusal read as not inside.
+            fn placed_in(body: &Body<f64>, face: FaceKey, p: geom_core::Point3<f64>) -> bool {
+                placed(body, face, p) == Some(true)
             }
 
             /// The shared reading over `overlap` of the line through
@@ -19684,21 +19688,10 @@ mod two_carrier_records {
                     // narrow, so the tab's middle is read as well: In
                     // there is a run of the line inside the face, and a
                     // middle in band is a run the reading may hold.
-                    let middle = crate::boolean::face_placement(
-                        &body,
-                        top,
-                        geom_core::Point3::new(1.1 + w / 2.0, 0.0, 1.0),
-                        Band::linear(Tol::witness()).unwrap(),
-                        "probe_oracle",
-                    );
-                    let oracle = scanned
-                        || matches!(
-                            middle,
-                            Ok(crate::boolean::CurvedPlacement::Trim(Some(
-                                FaceContainment::In
-                            )))
-                        );
-                    let in_band = middle.is_err();
+                    let middle =
+                        placed(&body, top, geom_core::Point3::new(1.1 + w / 2.0, 0.0, 1.0));
+                    let oracle = scanned || middle == Some(true);
+                    let in_band = middle.is_none();
                     let tag = format!("d1 tab {k}esc");
                     if in_band && read.is_err() {
                         rows.push(format!("{tag}: middle in band, read held"));
