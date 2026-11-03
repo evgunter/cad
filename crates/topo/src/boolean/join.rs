@@ -8175,11 +8175,11 @@ mod apex_plane_rows {
     /// their axes place their rulings** ([`cone_apex_plane`], through
     /// `fan::conditioned`): the 0.5 rad cone against itself tilted `1e-3`
     /// spans its rulings' plane; tilted `2e-8`, past what `arm·4u/s` reads
-    /// to the witness band, it refuses the frame by name
+    /// to a fixed 1e-9 band (pinned, so the row reads alike at every ε), it refuses the frame by name
     /// (`GermFrameUnsupported`).
     #[test]
     fn two_cones_rulings_plane_is_read_only_where_their_axes_place_it() {
-        let band = Band::linear(geom_core::Tol::witness()).unwrap();
+        let band = Band::new(1e-9, 1e-8).unwrap();
         let up = Vec3::new(0.0, 1.0, 0.0);
         let tilted = |t: f64| Vec3::new(t.sin(), t.cos(), 0.0);
         let g = Vec3::new(0.0, -(0.5f64.cos()), 0.5f64.sin());

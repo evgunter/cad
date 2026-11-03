@@ -546,7 +546,7 @@ mod rows {
     use crate::entity::{FaceKey, HalfEdgeKey, VertexKey};
 
     fn band() -> Band {
-        Band::linear(geom_core::Tol::witness()).unwrap()
+        Band::new(1e-9, 1e-8).unwrap()
     }
 
     /// **A whole-turn cone partner reads each bound by its nappe**
@@ -611,6 +611,10 @@ mod rows {
     /// A fan sector of the cone at `(0, 1, 0)` whose nappe axis is `down`
     /// turned, of half-angle `half`, a quarter turn wide.
     fn fan_about(down: Vec3<f64>, half: f64, face: u64) -> BoolSector<f64> {
+        fan_at(down, half, face, 1.0)
+    }
+    /// [`fan_about`] with its bounds' reaches and arm `arm`.
+    fn fan_at(down: Vec3<f64>, half: f64, face: u64, arm: f64) -> BoolSector<f64> {
         let key = |n: u64| slotmap::KeyData::from_ffi((1 << 32) | n);
         let side = down.cross(Vec3::new(0.0, 0.0, 1.0)).normalize();
         let start = down * half.cos() + side * half.sin();
@@ -625,19 +629,19 @@ mod rows {
             he: HalfEdgeKey::from(key(face)),
             start,
             end: apex.ruling_from(start, core::f64::consts::FRAC_PI_2),
-            start_reach: Reach::straight_bisector(1.0),
-            end_reach: Reach::straight_bisector(1.0),
+            start_reach: Reach::straight_bisector(arm),
+            end_reach: Reach::straight_bisector(arm),
             face: FaceKey::from(key(face)),
             at_vertex: BoolFace::Apex(apex),
             bend: crate::bound_side::FaceBend::Plane,
-            arm: 1.0,
+            arm,
         }
     }
 
     /// **Two fans' common rulings are read only where the axes place them**
     /// ([`conditioned`], [`meeting`]): the 0.5 rad cone against itself
     /// tilted `1e-3` meets along two rulings; tilted `2e-8` (its axes
-    /// definitely apart at the witness band, `arm·4u/s` definitely past
+    /// definitely apart at the row's fixed `1e-9` band, `arm·4u/s` definitely past
     /// it), its rulings refuse by name, neither read nor called a
     /// tangency; and fans of apertures `0.01` apart, tilted as little,
     /// meet at the apex alone, which no ruling is read for, so the gate
@@ -665,5 +669,72 @@ mod rows {
             Ok(Meeting::Rays(rays)) => assert!(rays.is_empty()),
             other => panic!("apart in aperture: {other:?}"),
         }
+    }
+
+    /// **Near-coaxial fans across the ε × arm × tilt grid** ([`meeting`],
+    /// [`one_cone`], [`conditioned`]): at bands `ε` = 1e-6, 1e-9 and
+    /// 1e-12 (escalating at `10ε`), arms 1e-3, 1 and 1e2, tilts 1e-3 down
+    /// to 1e-12. Fans of one aperture (sharing rulings) whose axes are
+    /// definitely apart (`arm·sin t` past `10ε`), and whose rulings the
+    /// formula places (`arm·4u/sin t` under `ε`), **build**: two rulings,
+    /// no refusal. Decided coaxial (`arm·sin t` under `ε`), they are one
+    /// cone's fans. Between, they read, are one cone or refuse by name
+    /// (`VertexPairAtConeApex`, or a decision's escalation), never a
+    /// tangency. Fans of apertures `0.1` apart meet at the apex alone
+    /// wherever the axes are decided, and escalate (`bool_fans_coaxial`)
+    /// only with `arm·sin t` in the gap.
+    #[test]
+    fn near_coaxial_fans_meet_or_refuse_by_name_across_the_grid() {
+        let down = Vec3::new(0.0, -1.0, 0.0);
+        let tilted = |t: f64| Vec3::new(t.sin(), -t.cos(), 0.0);
+        let mut built = 0;
+        for eps in [1e-6, 1e-9, 1e-12] {
+            let band = Band::new(eps, 10.0 * eps).unwrap();
+            for arm in [1e-3, 1.0, 1e2] {
+                let a = fan_at(down, 0.5, 1, arm);
+                for k in 3..=12 {
+                    let tilt = 10f64.powi(-k);
+                    let what = format!("ε {eps:e}, arm {arm:e}, tilt {tilt:e}");
+                    let meet = |b: &BoolSector<f64>| {
+                        meeting((Operand::A, None, &a), (Operand::B, None, b), band)
+                    };
+                    let lever = arm * tilt.sin();
+                    let spread = arm * 4.0 * geom_core::UNIT_ROUNDOFF / tilt.sin();
+                    let apart = lever > 20.0 * eps;
+                    let coaxial = lever < 0.5 * eps;
+                    match meet(&fan_at(tilted(tilt), 0.6, 2, arm)) {
+                        Ok(Meeting::Rays(rays)) => {
+                            assert!(rays.is_empty(), "apertures apart, {what}")
+                        }
+                        Err(BooleanError::Escalated { .. }) if !apart && !coaxial => {}
+                        other => panic!("apertures apart, {what}: {other:?}"),
+                    }
+                    let got = meet(&fan_at(tilted(tilt), 0.5, 3, arm));
+                    match &got {
+                        Ok(Meeting::Rays(rays)) => assert_eq!(rays.len(), 2, "shared, {what}"),
+                        Ok(Meeting::Coincident) => assert!(!apart, "shared, {what}: {got:?}"),
+                        Err(
+                            BooleanError::VertexPairAtConeApex { .. }
+                            | BooleanError::Escalated { .. },
+                        ) => {}
+                        other => panic!("shared, {what}: {other:?}"),
+                    }
+                    if apart && spread < 0.5 * eps {
+                        assert!(
+                            matches!(&got, Ok(Meeting::Rays(r)) if r.len() == 2),
+                            "axes apart and placed, {what}: {got:?}"
+                        );
+                        built += 1;
+                    }
+                    if coaxial {
+                        assert!(
+                            matches!(&got, Ok(Meeting::Coincident)),
+                            "coaxial, {what}: {got:?}"
+                        );
+                    }
+                }
+            }
+        }
+        assert!(built >= 19, "{built} apart pairs built");
     }
 }
