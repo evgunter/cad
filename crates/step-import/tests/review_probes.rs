@@ -14,7 +14,7 @@ fn import_text(text: &str) -> Result<StepImport, StepImportError> {
 
 fn solid(text: &str, what: &str) -> topo::Body<f64> {
     match import_step(text, &ImportOptions::default(), Tol::witness())
-        .unwrap_or_else(|e| panic!("{what}: {e}"))
+        .unwrap_or_else(|e| panic!("{what}: {e_at}", e_at = e.render()))
     {
         StepImport::Solid { body, .. } => body.into_body(),
         StepImport::Wireframe { .. } => panic!("{what}: wireframe"),
@@ -113,7 +113,8 @@ fn a1_deleted_face_refuses() {
     let err = import_text(&text).expect_err("a shell missing a face must refuse");
     assert!(
         matches!(err, StepImportError::Topology { .. }),
-        "expected a typed topology refusal, got: {err}"
+        "expected a typed topology refusal, got: {err_at}",
+        err_at = err.render()
     );
 }
 
@@ -141,10 +142,13 @@ fn c3a_rotated_circle_axis_refuses_adoption() {
             assert!(!attempts.is_empty(), "attempts carried as data");
             println!(
                 "c3a refusals: {}",
-                StepImportError::Adoption { id, attempts, file }
+                StepImportError.render()::Adoption { id, attempts, file }
             );
         }
-        other => panic!("expected Adoption, got: {other}"),
+        other => panic!(
+            "expected Adoption, got: {other_at}",
+            other_at = other.render()
+        ),
     }
 }
 
@@ -161,10 +165,13 @@ fn c3b_cylinder_radius_mismatch_refuses_adoption() {
         StepImportError::Adoption { id, attempts, file } => {
             println!(
                 "c3b refusals: {}",
-                StepImportError::Adoption { id, attempts, file }
+                StepImportError.render()::Adoption { id, attempts, file }
             );
         }
-        other => panic!("expected Adoption, got: {other}"),
+        other => panic!(
+            "expected Adoption, got: {other_at}",
+            other_at = other.render()
+        ),
     }
 }
 
@@ -181,10 +188,13 @@ fn c3c_wrong_surface_pair_refuses_adoption() {
         StepImportError::Adoption { id, attempts, file } => {
             println!(
                 "c3c refusals: {}",
-                StepImportError::Adoption { id, attempts, file }
+                StepImportError.render()::Adoption { id, attempts, file }
             );
         }
-        other => panic!("expected Adoption, got: {other}"),
+        other => panic!(
+            "expected Adoption, got: {other_at}",
+            other_at = other.render()
+        ),
     }
 }
 
@@ -201,10 +211,13 @@ fn c3d_curve_off_intersection_refuses_adoption() {
         StepImportError::Adoption { id, attempts, file } => {
             println!(
                 "c3d refusals: {}",
-                StepImportError::Adoption { id, attempts, file }
+                StepImportError.render()::Adoption { id, attempts, file }
             );
         }
-        other => panic!("expected Adoption, got: {other}"),
+        other => panic!(
+            "expected Adoption, got: {other_at}",
+            other_at = other.render()
+        ),
     }
 }
 
@@ -304,7 +317,7 @@ fn f6_face_sense_flip_is_not_healed() {
         "#40 = ADVANCED_FACE('', (#39), #5, .F.);",
     );
     match import_text(&text) {
-        Err(e) => println!("f6 .T.->.F.: typed refusal: {e}"),
+        Err(e) => println!("f6 .T.->.F.: typed refusal: {e_at}", e_at = e.render()),
         Ok(StepImport::Solid { body, .. }) => {
             let tier3 = topo::validate_geometric(body.body(), Tol::witness());
             let out = export(body.body(), "cube");
@@ -331,13 +344,14 @@ fn f6_reversed_face_unflip_is_not_healed() {
     );
     match import_text(&text) {
         Err(e) => {
-            println!("f6 .F.->.T.: typed refusal: {e}");
+            println!("f6 .F.->.T.: typed refusal: {e_at}", e_at = e.render());
             // PINNED (M6-6): the un-reversal is not healed — it is
             // refused pre-body with the orientation-inverted diagnosis
             // (the import rider's cylinder/cone wall cross-check).
             assert!(
-                e.to_string().contains("ORIENTATION-INVERTED"),
-                "the refusal must carry the orientation-inverted diagnosis: {e}"
+                e.render().contains("ORIENTATION-INVERTED"),
+                "the refusal must carry the orientation-inverted diagnosis: {e_at}",
+                e_at = e.render()
             );
         }
         Ok(StepImport::Solid { body, .. }) => {
@@ -392,7 +406,10 @@ fn f6_edge_sense_flip_refuses_typed() {
     let err = import_text(&text).expect_err("edge same_sense .F. is outside the subset");
     match err {
         StepImportError::Topology { id, .. } => assert_eq!(id, 14),
-        other => panic!("expected Topology, got: {other}"),
+        other => panic!(
+            "expected Topology, got: {other_at}",
+            other_at = other.render()
+        ),
     }
 }
 
@@ -445,7 +462,8 @@ fn g7_nonapex_cone_derives_but_cannot_launder_a_wrong_apex() {
                 | StepImportError::Assembly { .. }
                 | StepImportError::Topology { .. }
         ),
-        "expected a geometric refusal from the kernel's own gates, got: {err}"
+        "expected a geometric refusal from the kernel's own gates, got: {err_at}",
+        err_at = err.render()
     );
 }
 
@@ -472,7 +490,10 @@ fn g7_reversed_bound_is_honored_and_breaks_the_manifold() {
             "the refusal must come from the manifold check on an edge, not from the \
              bound record (which is now legal)"
         ),
-        other => panic!("expected Topology naming the doubly-traversed edge, got: {other}"),
+        other => panic!(
+            "expected Topology naming the doubly-traversed edge, got: {other_at}",
+            other_at = other.render()
+        ),
     }
 }
 
@@ -525,7 +546,10 @@ fn g7_nonunit_vector_rescales_without_moving_the_solid() {
         );
         match import_text(&text).expect_err("a non-positive magnitude describes no line") {
             StepImportError::MalformedRecord { id, .. } => assert_eq!(id, 12),
-            other => panic!("expected MalformedRecord naming the VECTOR, got: {other}"),
+            other => panic!(
+                "expected MalformedRecord naming the VECTOR, got: {other_at}",
+                other_at = other.render()
+            ),
         }
     }
 }
@@ -552,7 +576,8 @@ fn g7_conversion_based_unit_without_a_factor_must_refuse() {
     let err = import_text(&text).expect_err("a factorless conversion unit must refuse typed");
     assert!(
         matches!(err, StepImportError::DanglingReference { to: 9990, .. }),
-        "expected the missing factor to be named, got: {err}"
+        "expected the missing factor to be named, got: {err_at}",
+        err_at = err.render()
     );
 }
 
@@ -609,7 +634,12 @@ fn h8_eps_in_not_consumed() {
             },
             Tol::witness(),
         )
-        .unwrap_or_else(|e| panic!("eps_in {eps} must not affect certification: {e}"));
+        .unwrap_or_else(|e| {
+            panic!(
+                "eps_in {eps} must not affect certification: {e_at}",
+                e_at = e.render()
+            )
+        });
         let StepImport::Solid { body, eps_in, .. } = import else {
             panic!("wireframe?")
         };

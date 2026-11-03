@@ -252,7 +252,7 @@ fn assert_sub_tolerance_obligation(row: &str) {
             Ok(StepImport::Wireframe { .. }) => panic!("{row}/{name}: not a wireframe"),
             Err(e) => {
                 // A refusal is fine; a refusal that says nothing is not.
-                let text = e.to_string();
+                let text = e.render();
                 assert!(
                     text.starts_with("step import:") && text.len() > 40,
                     "{row}/{name}: a refusal must name what it refused: {text}"
@@ -309,8 +309,12 @@ fn sub_tolerance_geometry_is_refused_not_silently_imported() {
 /// Imports a FreeCAD fixture, panicking on refusal.
 fn import_freecad(name: &str) -> StepImport {
     let text = freecad_fixture(name);
-    import_step(&text, &ImportOptions::default(), Tol::witness())
-        .unwrap_or_else(|e| panic!("importing FreeCAD fixture {name}: {e}"))
+    import_step(&text, &ImportOptions::default(), Tol::witness()).unwrap_or_else(|e| {
+        panic!(
+            "importing FreeCAD fixture {name}: {e_at}",
+            e_at = e.render()
+        )
+    })
 }
 
 /// The imported body plus its ε_in and reported normalizations.
@@ -495,7 +499,12 @@ fn cross_dialect_fixed_point() {
                     )
                 });
         let reimport = import_step(&export1, &ImportOptions::default(), Tol::witness())
-            .unwrap_or_else(|e| panic!("{name}: re-import of our own dialect: {e}"));
+            .unwrap_or_else(|e| {
+                panic!(
+                    "{name}: re-import of our own dialect: {e_at}",
+                    e_at = e.render()
+                )
+            });
         let StepImport::Solid { body: body2, .. } = reimport else {
             panic!("{name}: re-import lost the solid");
         };
@@ -752,7 +761,8 @@ fn face_bound_orientation_is_honored_independently_of_face_sense() {
         .expect_err("a cube whose reversed bounds are flattened is not a closed shell");
     assert!(
         matches!(err, step_import::StepImportError::Topology { .. }),
-        "expected a typed topology refusal, got: {err}"
+        "expected a typed topology refusal, got: {err_at}",
+        err_at = err.render()
     );
 
     // (ii) The counterexample class: cone_apex's cap is face .F. with
@@ -770,7 +780,8 @@ fn face_bound_orientation_is_honored_independently_of_face_sense() {
         .expect_err("reversing one bound un-closes the shell");
     assert!(
         matches!(err, step_import::StepImportError::Topology { .. }),
-        "expected a typed topology refusal, got: {err}"
+        "expected a typed topology refusal, got: {err_at}",
+        err_at = err.render()
     );
 }
 
@@ -841,11 +852,13 @@ fn ambiguous_outerness_refuses_typed() {
         .expect_err("two disjoint rings have no outer bound");
     assert!(
         matches!(err, step_import::StepImportError::Topology { .. }),
-        "expected a typed refusal naming the face, got: {err}"
+        "expected a typed refusal naming the face, got: {err_at}",
+        err_at = err.render()
     );
     assert!(
-        format!("{err}").contains("outer") || format!("{err}").contains("bound"),
-        "the refusal must say what it could not decide: {err}"
+        format!("{err_at}", err_at = err.render()).contains("outer")
+            || format!("{err_at}", err_at = err.render()).contains("bound"),
+        "the refusal must say what it could not decide: {err_at}"
     );
 }
 
@@ -983,7 +996,10 @@ fn refusals_survive_the_dialect_relaxations() {
             .expect_err("a non-positive magnitude describes no line")
         {
             E::MalformedRecord { id, .. } => assert_eq!(id, 28, "the refusal names the VECTOR"),
-            other => panic!("expected MalformedRecord, got: {other}"),
+            other => panic!(
+                "expected MalformedRecord, got: {other_at}",
+                other_at = other.render()
+            ),
         }
     }
 
@@ -1157,7 +1173,10 @@ fn refusals_survive_the_dialect_relaxations() {
             assert_eq!(id, 194, "the refusal names the transform entity");
             assert!(what.contains("mirror"), "and says why: {what}");
         }
-        other => panic!("expected Structure naming the transform, got: {other}"),
+        other => panic!(
+            "expected Structure naming the transform, got: {other_at}",
+            other_at = other.render()
+        ),
     }
 
     // (e) **FLIPPED (M7-4 Leg B).** A conversion-based length unit —
@@ -1201,7 +1220,10 @@ fn refusals_survive_the_dialect_relaxations() {
             assert_eq!(id, 166, "the refusal names the unit");
             assert!(found.contains("plane angle"), "and both sides: {found}");
         }
-        other => panic!("expected UnsupportedUnit, got: {other}"),
+        other => panic!(
+            "expected UnsupportedUnit, got: {other_at}",
+            other_at = other.render()
+        ),
     }
 
     // (f) And the orphan rule, NARROWED but not retired: a solid no
@@ -1218,7 +1240,10 @@ fn refusals_survive_the_dialect_relaxations() {
         .expect_err("an orphan solid must refuse")
     {
         E::Structure { id, .. } => assert_eq!(id, 165, "the refusal names the orphan solid"),
-        other => panic!("expected Structure naming the orphan, got: {other}"),
+        other => panic!(
+            "expected Structure naming the orphan, got: {other_at}",
+            other_at = other.render()
+        ),
     }
 }
 
@@ -1418,7 +1443,7 @@ fn eps_in_is_the_scaled_declaration_and_the_override_wins() {
             },
             Tol::witness(),
         )
-        .unwrap_or_else(|e| panic!("{name}: {e}"));
+        .unwrap_or_else(|e| panic!("{name}: {e_at}", e_at = e.render()));
         assert_eq!(
             overridden.eps_in(),
             2.5e-8,

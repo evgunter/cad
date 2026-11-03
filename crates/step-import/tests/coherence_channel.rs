@@ -69,7 +69,7 @@ fn own_examined(name: &str) -> (Body<f64>, CoherenceReport) {
             coherence.expect("the examination was asked for, so the report is present"),
         ),
         Ok(StepImport::Wireframe { .. }) => panic!("{name} imported as a wireframe"),
-        Err(e) => panic!("importing {name}: {e}"),
+        Err(e) => panic!("importing {name}: {e_at}", e_at = e.render()),
     }
 }
 
@@ -507,8 +507,8 @@ fn a_refusing_file_refuses_identically_with_the_examination_asked_for() {
         panic!("TAIL_TURBINE's spline-carried edge must refuse in both calls");
     };
     assert_eq!(
-        off.to_string(),
-        on.to_string(),
+        off.render(),
+        on.render(),
         "the refusal changed when the examination was asked for"
     );
 }

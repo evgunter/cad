@@ -316,6 +316,9 @@ fn n2r2_class12_step_import_overflow_real() {
         Ok(_) => eprintln!(
             "[class 12] import of a 1.E999 coordinate -> Ok (a non-finite real entered a body)"
         ),
-        Err(e) => eprintln!("[class 12] import of a 1.E999 coordinate -> Err: {e}"),
+        Err(e) => eprintln!(
+            "[class 12] import of a 1.E999 coordinate -> Err: {e_at}",
+            e_at = e.render()
+        ),
     }
 }

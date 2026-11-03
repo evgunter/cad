@@ -2571,7 +2571,7 @@ pub(crate) fn import_step(
         Err(err) => Err(typed_err(
             py,
             ErrorClass::StepImport,
-            err.to_string(),
+            err.render(),
             &[
                 (
                     "variant",

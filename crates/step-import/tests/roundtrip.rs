@@ -168,7 +168,7 @@ fn fixed_point() {
             &step_import::ImportOptions::default(),
             Tol::witness(),
         )
-        .unwrap_or_else(|e| panic!("{name}: re-import: {e}"));
+        .unwrap_or_else(|e| panic!("{name}: re-import: {e_at}", e_at = e.render()));
         let line_promotions = reimport
             .curve_promotions()
             .iter()
@@ -256,7 +256,7 @@ fn fixed_point() {
                 &step_import::ImportOptions::default(),
                 Tol::witness(),
             )
-            .unwrap_or_else(|e| panic!("{name}: re-import 2: {e}")) else {
+            .unwrap_or_else(|e| panic!("{name}: re-import 2: {e_at}", e_at = e.render())) else {
                 panic!("{name}: re-import 2 lost the solid");
             };
             let export3 =

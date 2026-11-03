@@ -724,7 +724,7 @@ mod join_text {
             }),
             file: FileCoincidence::new(1e-6),
         };
-        (diag, error.to_string())
+        (diag, error.render())
     }
 
     #[test]
@@ -768,7 +768,7 @@ mod join_text {
             file: FileCoincidence::new(1e-6),
         };
         assert_eq!(
-            error.to_string(),
+            error.render(),
             format!(
                 "step import: joining the edges of the solid at #7: the join of two edges \
                  meeting at a vertex on one curve refused (JoinDesync). {DAMAGED_FILE_ENDING}"
@@ -804,7 +804,7 @@ mod nested_at_the_door {
             },
             file: FileCoincidence::new(1e-6),
         };
-        let text = error.to_string();
+        let text = error.render();
         assert!(
             text.starts_with("step import: the assembly placement stated at #9 refused")
                 && text.ends_with(DAMAGED_FILE_ENDING),
@@ -830,7 +830,7 @@ mod nested_at_the_door {
             },
             file: FileCoincidence::new(1e-6),
         };
-        let text = error.to_string();
+        let text = error.render();
         assert!(
             text.starts_with("step import: pcurve re-mint on the adopted body:")
                 && text.ends_with(DAMAGED_FILE_ENDING),
@@ -862,7 +862,7 @@ mod nested_at_the_door {
                 },
                 file: FileCoincidence::new(1e-6),
             };
-            let text = error.to_string();
+            let text = error.render();
             assert!(text.ends_with(DAMAGED_FILE_ENDING), "{margin:?}: {text}");
             for word in ["ε_in", "declared", "kernel defect"] {
                 assert!(!text.contains(word), "{margin:?}: {word}: {text}");

@@ -162,7 +162,7 @@ fn solid(name: &str) -> (topo::Body<f64>, f64) {
     match import_step(&wild(name), &ImportOptions::default(), Tol::witness()) {
         Ok(StepImport::Solid { body, eps_in, .. }) => (body.into_body(), eps_in),
         Ok(StepImport::Wireframe { .. }) => panic!("{name}: a solid was expected"),
-        Err(e) => panic!("{name}: {e}"),
+        Err(e) => panic!("{name}: {e_at}", e_at = e.render()),
     }
 }
 
@@ -289,7 +289,10 @@ fn assert_sub_tolerance_obligation(row: &str) {
             Ok(StepImport::Wireframe { .. }) => panic!("{row}/{name}: not a wireframe"),
             // A typed refusal is the other half of the obligation, and
             // outside the window it is the expected half.
-            Err(e) => println!("{row}/{name}: refuses typed at ε {eps:e}: {e}"),
+            Err(e) => println!(
+                "{row}/{name}: refuses typed at ε {eps:e}: {e_at}",
+                e_at = e.render()
+            ),
         }
     }
     println!("{row}: {certified} of 13 wild fixtures still certify at ε {eps:e}");
@@ -545,7 +548,7 @@ fn wild_refusals_are_typed_and_name_their_class() {
         let err = import_step(&wild(name), &ImportOptions::default(), Tol::witness())
             .err()
             .unwrap_or_else(|| panic!("{name}: this fixture must refuse"));
-        let message = err.to_string();
+        let message = err.render();
         assert!(
             message.contains(class),
             "{name}: refusal must name {class:?}, got: {message}"
