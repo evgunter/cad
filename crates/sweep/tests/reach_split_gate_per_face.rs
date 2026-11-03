@@ -145,8 +145,12 @@ fn a_plane_clear_of_a_sphere_or_torus_face_splits_the_body() {
         assert_volume(&body, PI + top, &format!("{name}: the uncut body"));
         for phi in [0.0, 0.3] {
             let what = format!("{name}, phi {phi}");
-            let result = split(&body, &plane(phi, 0.5), Tol::witness())
-                .unwrap_or_else(|e| panic!("{what}: {e}"));
+            let result = split(&body, &plane(phi, 0.5), Tol::witness()).unwrap_or_else(|e| {
+                panic!(
+                    "{what}: {e_at}",
+                    e_at = e.render(geom_brep::recourse::Reading::Build)
+                )
+            });
             let (above, below) = halves(&result, &what);
             assert_volume(&below, PI / 2.0, &format!("{what}: below"));
             assert_volume(&above, PI / 2.0 + top, &format!("{what}: above"));
@@ -257,7 +261,12 @@ fn a_plane_missing_a_spline_body_returns_it_whole() {
         &over,
         Tol::witness(),
     )
-    .unwrap_or_else(|e| panic!("{e}"));
+    .unwrap_or_else(|e| {
+        panic!(
+            "{e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        )
+    });
     let (SplitPart::Empty, SplitPart::Body(below)) = (&result.above, &result.below) else {
         panic!("the plane over the loft leaves it all below");
     };

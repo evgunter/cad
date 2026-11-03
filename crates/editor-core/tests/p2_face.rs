@@ -144,6 +144,7 @@ fn split(
         DocumentId::derive(&format!("{label}-part")),
         Tol::witness(),
         o.resolver.as_ref(),
+        &editor_core::Stop::default(),
     )
     .unwrap_or_else(|e| panic!("{label}: split refused: {e}"))
 }
@@ -155,6 +156,7 @@ fn split_err(doc: &ProfileDoc, ids: &[RecipeNodeId], label: &str, o: &EvalOption
         DocumentId::derive(&format!("{label}-part")),
         Tol::witness(),
         o.resolver.as_ref(),
+        &editor_core::Stop::default(),
     ) {
         Ok(_) => panic!("{label}: split admitted what it should refuse"),
         Err(e) => e,
@@ -298,6 +300,7 @@ fn a_named_number_a_kept_mates_target_and_a_cut_node_read_refuses() {
         DocumentId::derive(&format!("{label}-part")),
         Tol::witness(),
         o.resolver.as_ref(),
+        &editor_core::Stop::default(),
     ) {
         Err(SplitError::UncutVarReference { var, kept_node, .. }) => {
             assert_eq!(var.name().map(editor_core::VarName::as_str), Some("gap"));
@@ -334,6 +337,7 @@ fn a_valued_mate_reading_a_mate_placed_copy_crosses_split() {
         DocumentId::derive(&format!("{label}-part")),
         Tol::witness(),
         o.resolver.as_ref(),
+        &editor_core::Stop::default(),
     )
     .unwrap_or_else(|e| panic!("a valued mate on a mate-placed copy crosses: {e}"));
     let mut store = p.store.clone();

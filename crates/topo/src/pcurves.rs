@@ -589,22 +589,14 @@ impl PcurveMintError {
         }
     }
 
-    /// This refusal's text read at `at`: a certification refusal nested
-    /// whole renders at that door ([`PcurveCertifyError::render`]).
-    #[must_use]
-    pub fn render(&self, at: impl Into<geom_brep::recourse::ReadAt>) -> String {
-        match self {
-            Self::Certify { half_edge, error } => format!(
-                "the pcurve of half-edge {half_edge:?} failed certification: {}",
-                error.render(at)
-            ),
-            _ => core::fmt::from_fn(|f| self.write_payload(f)).to_string(),
-        }
-    }
-
-    /// Every arm's text but a nested certification refusal's, which no
-    /// door reads differently.
-    fn write_payload(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+    /// This refusal's text, a nested certification refusal ended at `at`
+    /// ([`PcurveCertifyError::render`]) and its payload alone where `at`
+    /// is `None`. Every other arm reads alike at every door.
+    fn write(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        at: Option<geom_brep::recourse::ReadAt>,
+    ) -> core::fmt::Result {
         match self {
             Self::Stale { role, key } => write!(
                 f,
@@ -616,7 +608,11 @@ impl PcurveMintError {
                  so it has no chart image. Recourse: describe the edge \
                  (`Body::set_edge_curve`), then ask again"
             ),
-            Self::Certify { .. } => unreachable!("`render` writes a nested certification refusal"),
+            Self::Certify { half_edge, error } => write!(
+                f,
+                "the pcurve of half-edge {half_edge:?} failed certification: {}",
+                geom_brep::recourse::read_at(error, at)
+            ),
             Self::LoopDiscontinuity { half_edge } => write!(
                 f,
                 "the pcurve of half-edge {half_edge:?} does not meet its predecessor's in \
@@ -679,12 +675,7 @@ impl PcurveMintError {
     }
 }
 
-/// Read at a build: the pcurve pass a body's own operation runs.
-impl core::fmt::Display for PcurveMintError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.write_str(&self.render(geom_brep::recourse::Reading::Build))
-    }
-}
+geom_brep::ended_by_write!(PcurveMintError);
 
 impl std::error::Error for PcurveMintError {}
 
@@ -820,27 +811,64 @@ pub fn pcurve_of<T: AtRestPolicy>(
     analytic_derive(&carrier, t0, t1, &surface, band, half_edge)
 }
 
+/// **A face of a seam, as [`seam_reading`] takes it**: a
+/// [`geom_brep::SeamFace`] whose spline face is always read at its chart,
+/// since only [`seam_face`] mints one (and, in tests, `SeamSide::analytic`,
+/// which refuses a spline chart).
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct SeamSide<'s, T: Real>(geom_brep::SeamFace<'s, T>);
+
+impl<'s, T: Real> SeamSide<'s, T> {
+    /// `surface` read by its implicit form; `None` on a spline chart,
+    /// which [`seam_face`] reads.
+    #[cfg(test)]
+    pub(crate) fn analytic(surface: &'s Surface<T>) -> Option<Self> {
+        surface
+            .spline_chart()
+            .is_none()
+            .then_some(Self(geom_brep::SeamFace::Analytic(surface)))
+    }
+}
+
+/// Why [`seam_reading`] read no class: [`geom_brep::SeamEscalation`] less
+/// the caller's error a [`SeamSide`] cannot make.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) enum SeamUnread {
+    /// The arm gate or the wedge's own reading escalated.
+    Lever(geom_brep::LeverEscalation),
+    /// A spline face's chart has no one normal at the point.
+    Crease(geom_brep::CreaseReading),
+}
+
 /// **The dihedral of a seam's two faces**, each read by its kind
 /// ([`geom_brep::classify_seam`]), a spline face's arm bracketed by its
 /// chart's certified lower bound at this scalar. The boolean's seam
 /// describer and the split's section-boundary describer both read it.
 pub(crate) fn seam_reading<T: Decide + AtRestPolicy>(
-    faces: [geom_brep::SeamFace<'_, T>; 2],
+    faces: [SeamSide<'_, T>; 2],
     witness: geom_core::Point3<T>,
     reach: geom_core::Lever<T>,
     band: Band,
-) -> Result<geom_brep::DihedralClass, geom_brep::SeamEscalation> {
+) -> Result<geom_brep::DihedralClass, SeamUnread> {
     geom_brep::classify_seam(
-        faces,
+        faces.map(|f| f.0),
         witness,
         reach,
         |chart, p, reach| T::spline_chart_arm(chart, p, reach).ok(),
         band,
     )
+    .map_err(|refusal| match refusal {
+        geom_brep::SeamEscalation::Lever(e) => SeamUnread::Lever(e),
+        geom_brep::SeamEscalation::Crease(c) => SeamUnread::Crease(c),
+        geom_brep::SeamEscalation::SplineReadAsAnalytic => unreachable!(
+            "a SeamSide reads every spline face at its chart: seam_face and \
+             SeamSide::analytic mint no other"
+        ),
+    })
 }
 
 /// **A face of a seam edge, as its dihedral reads it** at the edge's
-/// witness ([`geom_brep::SeamFace`]), the face `surface` bounded by
+/// witness ([`SeamSide`]), the face `surface` bounded by
 /// `half_edge`, whose edge's curve is `curve`: an analytic face at the
 /// witness; a spline face at the witness's parameters on its own chart,
 /// read off an image of the edge in that chart ([`pcurve_of`]) at the
@@ -864,17 +892,17 @@ pub(crate) fn seam_face<'s, T: Decide + AtRestPolicy>(
     surface: &'s Surface<T>,
     curve: Option<&geom_brep::EdgeCurve<T>>,
     band: Band,
-) -> Option<geom_brep::SeamFace<'s, T>> {
+) -> Option<SeamSide<'s, T>> {
     let Some(chart) = surface.spline_chart() else {
-        return Some(geom_brep::SeamFace::Analytic(surface));
+        return Some(SeamSide(geom_brep::SeamFace::Analytic(surface)));
     };
     let (t0, t1) = curve?.params();
     let image = pcurve_of(body, half_edge, band).ok()?;
     let uv = image.eval(geom::mid_param(t0, t1));
-    Some(geom_brep::SeamFace::Spline {
+    Some(SeamSide(geom_brep::SeamFace::Spline {
         chart,
         uv: (uv.x, uv.y),
-    })
+    }))
 }
 
 /// **A transverse seam's `Intersection`, its selector chosen by D2's
@@ -6852,7 +6880,7 @@ mod recourse_tests {
         ];
         assert_eq!(arms.len(), 12, "an arm was added without a row here");
         for arm in &arms {
-            let msg = arm.to_string();
+            let msg = arm.render(geom_brep::recourse::Reading::Build);
             match arm {
                 // A caller's own key states the fact: no recourse, and
                 // no defect claim.
@@ -6867,7 +6895,10 @@ mod recourse_tests {
                     assert!(msg.contains(&band_error.to_string()), "{msg}");
                 }
                 PcurveMintError::Certify { .. } => {
-                    assert!(msg.contains(&certify_error.to_string()), "{msg}");
+                    assert!(
+                        msg.contains(&certify_error.render(geom_brep::recourse::Reading::Build)),
+                        "{msg}"
+                    );
                 }
                 _ => {
                     let lower = msg.to_lowercase();
@@ -6898,7 +6929,7 @@ mod recourse_tests {
             },
         };
         assert_eq!(
-            finding.to_string(),
+            finding.render(geom_brep::recourse::Reading::Build),
             "the pcurve of half-edge HalfEdgeKey(null) failed certification: pcurve \
              certification: the fitted lane's certificate escalated — whether the fitted carrier \
              passes limb 2 (control-hull sup-norm bound through its pcurve) is undecided: \
@@ -6954,7 +6985,7 @@ mod derive_without_a_door {
         let PcurveCertifyError::FittedLaneUnsupported { scalar: "dual" } = err else {
             panic!("a dual derives no general image, and says so by name: {err:?}");
         };
-        let text = err.to_string();
+        let text = err.render(geom_brep::recourse::Reading::Build);
         assert!(
             text.contains("dual scalar")
                 && text.contains("certification rights")

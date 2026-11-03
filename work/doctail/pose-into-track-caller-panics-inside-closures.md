@@ -10,3 +10,12 @@ opened: 2026-10-21
 Found by `wire-emithelpers`'s sweep (branch `wire/emit-helpers-row-four`), 2026-10-21. `pose_into` (`crates/editor-core/src/edit.rs:1760`) is `#[track_caller]`, but it raises its `unreachable!` inside a `def.kept().unwrap_or_else(|| …)` closure, and its `.expect` inside a `map_or_else` closure. The closure is not `#[track_caller]`, so the panic reports `pose_into`'s own line, not its caller's. PR 5503's review named the shape. The repair is a `let … else` or a `match`.
 
 This is pose ground, which is placement-adjacent, so WIRE left it alone under the D10 hold. Check that hold before taking this row.
+
+## The D10 hold has lifted (2026-11-03)
+
+INTENT closed on 2026-10-30 with D10's umbrella row (#6103,
+`docs/doc-ledger/intent-leaves-the-tracker.md`), so the hold this row
+says to check no longer stands. Dispatchable, and likely overtaken:
+`pose_into` (now `crates/editor-core/src/edit.rs:1896`) raises its
+`unreachable!` in a `let … else` and its `.expect` outside any
+closure, which is the repair above. Confirm and close.

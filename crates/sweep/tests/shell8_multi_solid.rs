@@ -278,10 +278,14 @@ fn a_simultaneous_door_moves_one_solid_and_leaves_the_other_bitwise() {
     let mut work = pair.clone();
     let e = topo::offset_planes_together(&mut work, &partial, band(), tol())
         .expect_err("a partially named solid has corners this door cannot solve");
-    println!("[8] partial solid: {e}");
+    println!(
+        "[8] partial solid: {e_at}",
+        e_at = e.render(geom_brep::recourse::Reading::Build)
+    );
     assert!(
         matches!(e, topo::ReplaceFaceError::TogetherPartialSet { .. }),
-        "{e}"
+        "{e_at}",
+        e_at = e.render(geom_brep::recourse::Reading::Build)
     );
 
     // Every face of ONE solid: builds, and the other is bitwise.
@@ -325,8 +329,15 @@ fn a_body_with_no_solid_refuses_typed() {
     let empty: Body<f64> = Body::new();
     let e = topo::shell(&finished("the operand", empty.clone(), tol()), 0.05, tol())
         .expect_err("nothing to thicken");
-    println!("[8] empty operand: {e}");
-    assert!(matches!(e, ShellError::NoSolid), "{e}");
+    println!(
+        "[8] empty operand: {e_at}",
+        e_at = e.render(geom_brep::recourse::Reading::Build)
+    );
+    assert!(
+        matches!(e, ShellError::NoSolid),
+        "{e_at}",
+        e_at = e.render(geom_brep::recourse::Reading::Build)
+    );
 }
 
 // ---------------------------------------------------------------------

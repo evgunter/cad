@@ -3071,15 +3071,12 @@ pub(crate) fn describe_edges<T: Decide + crate::props::AtRestPolicy>(
         let faces = [face(sides.plus, surf1)?, face(sides.minus, surf2)?];
         match crate::pcurves::seam_reading(faces, witness, reach, band).map_err(|refusal| {
             match refusal {
-                geom_brep::SeamEscalation::Lever(e) => {
+                crate::pcurves::SeamUnread::Lever(e) => {
                     let (reading, diag) = DihedralReading::of_lever(e);
                     DescribeRefusal::undecided(edge, reading, diag)
                 }
-                geom_brep::SeamEscalation::Crease(_) => {
+                crate::pcurves::SeamUnread::Crease(_) => {
                     DescribeRefusal::failed(edge, EdgeDescribeFailure::Crease)
-                }
-                geom_brep::SeamEscalation::SplineReadAsAnalytic => {
-                    unreachable!("seam_face reads every spline face by its chart")
                 }
             }
         })? {
@@ -3222,14 +3219,17 @@ pub(super) fn seam_class<T: Decide + crate::props::AtRestPolicy>(
     reach: T,
     band: Band,
 ) -> Result<geom_brep::DihedralClass, BooleanError> {
-    let faces = [surf1, surf2].map(geom_brep::SeamFace::Analytic);
+    let faces = [surf1, surf2].map(|s| {
+        crate::pcurves::SeamSide::analytic(s)
+            .unwrap_or_else(|| unreachable!("seam_class reads analytic pairs: {s:?}"))
+    });
     let reach = geom_core::test_support::fixture_lever(reach);
     crate::pcurves::seam_reading(faces, witness, reach, band).map_err(|refusal| match refusal {
-        geom_brep::SeamEscalation::Lever(e) => {
+        crate::pcurves::SeamUnread::Lever(e) => {
             let (reading, diag) = DihedralReading::of_lever(e);
             seam_refusal(reading, diag)
         }
-        geom_brep::SeamEscalation::Crease(_) | geom_brep::SeamEscalation::SplineReadAsAnalytic => {
+        crate::pcurves::SeamUnread::Crease(_) => {
             unreachable!("seam_class reads analytic pairs: {surf1:?} {surf2:?}")
         }
     })
@@ -6772,23 +6772,23 @@ fn apply_recuts<T: Decide + Bounds + crate::props::AtRestPolicy>(
         let src: &Body<T> = if operand == Operand::A { a } else { b };
         let corrupt = |what| BooleanError::ClassificationInvariant { what };
         let solid = single_solid(src).map_err(|_| corrupt("re-cut operand is not one solid"))?;
-        // Shell of each group's representative face, arena order.
-        let shell_of = |face: FaceKey| -> Result<ShellKey, BooleanError> {
-            src.shells()
-                .find(|(_, sd)| sd.faces.contains(&face))
-                .map(|(k, _)| k)
-                .ok_or(corrupt("re-cut representative face has no shell"))
-        };
         let mut rotated: Vec<(Body<T>, Vec<FaceKey>)> = Vec::new();
         let mut cut_shells: Vec<ShellKey> = Vec::new();
         for r in &mine {
-            let shell = shell_of(r.representative)?;
+            // The representative is a face of the at-rest operand the
+            // scan read, so it and its `shell` link resolve (D2 row 4).
+            let face = r.representative;
+            let shell = proven(&src.faces, face, EntityId::Face).shell;
             cut_shells.push(shell);
-            let faces = src
-                .get_shell(shell)
-                .ok_or(corrupt("re-cut shell lost"))?
-                .faces
-                .clone();
+            let faces = linked(
+                &src.shells,
+                shell,
+                EntityId::Shell,
+                EntityId::Face(face),
+                "shell",
+            )
+            .faces
+            .clone();
             let ball = carve(src, solid, &[shell])
                 .map_err(|_| corrupt("re-cut carve of the sphere shell failed"))?;
             recut_lean(r.axis, r.align, r.radius, band)?;
@@ -6856,9 +6856,9 @@ fn apply_recuts<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 .map_err(|_| corrupt("re-cut rotation failed to re-certify"))?;
             rotated.push((turned, faces));
         }
-        let keep: Vec<ShellKey> = src
-            .shells_of_solid(solid)
-            .ok_or(corrupt("re-cut solid lost"))?
+        // `single_solid` resolved `solid` on this operand.
+        let keep: Vec<ShellKey> = proven(&src.solids, solid, EntityId::Solid)
+            .shells
             .iter()
             .copied()
             .filter(|s| !cut_shells.contains(s))
@@ -8013,7 +8013,7 @@ fn fallback_fates<T: Decide + AtRestPolicy>(
                     face,
                     by: fe.kept,
                     kind: e.kind(),
-                    what: e.to_string(),
+                    what: e.render(geom_brep::recourse::Reading::Build),
                 }));
             }
             (Err(e), _) => {
@@ -8699,7 +8699,7 @@ mod tests {
         assert_eq!(
             gate(described, band, tol)
                 .map(|_| ())
-                .map_err(|e| e.to_string()),
+                .map_err(|e| e.render(geom_brep::recourse::Reading::Build)),
             Ok(()),
             "the described box passes"
         );
@@ -9147,7 +9147,7 @@ mod tests {
         // The refusal names the face kind that stopped it and ends on
         // what the person can do; the lift blocker is the variant's
         // rustdoc, not the sentence.
-        let msg = err.to_string();
+        let msg = err.render(geom_brep::recourse::Reading::Build);
         assert!(msg.contains("spline (NURBS) face"), "{msg}");
         assert!(msg.contains("Recourse: "), "{msg}");
     }
@@ -10208,7 +10208,7 @@ mod tests {
             &[(kept, strut)],
             DescribeRefusal::undecided(strut, DihedralReading::Bend, diag),
         ))
-        .to_string();
+        .render(geom_brep::recourse::Reading::Build);
         assert!(
             text.contains("seam") && !text.contains("kept face"),
             "the boolean words it as its own seam's: {text}"
@@ -10335,7 +10335,7 @@ mod tests {
                 format!("{own:?}"),
                 "the merge door's refusal comes back as the boolean's own"
             );
-            (merged.to_string(), own)
+            (merged.render(geom_brep::recourse::Reading::Build), own)
         };
         let lever = "Recourse: move the geometry so each edge and vertex that meets a face lies \
                      clearly on it or clearly off it, and an edge that ends on it leaves it at a \
@@ -10353,7 +10353,7 @@ mod tests {
             "a line chord read in band of its face is the edge's reading: {err:?}"
         );
         assert_eq!(
-            err.to_string(),
+            err.render(geom_brep::recourse::Reading::Build),
             format!(
                 "whether an edge of the result lies on both faces it bounds is undecided: {}. \
                  {lever}",
@@ -11088,7 +11088,7 @@ mod spline_seam_rows {
     fn reading(
         body: &Body<f64>,
         edge: EdgeKey,
-    ) -> Result<geom_brep::DihedralClass, geom_brep::SeamEscalation> {
+    ) -> Result<geom_brep::DihedralClass, crate::pcurves::SeamUnread> {
         let sides = crate::readback::edge_sides_of(body, edge, body.get_edge(edge).unwrap());
         let surface = |side: crate::readback::EdgeSide| body.get_surface(side.surface).unwrap();
         let curve = body.stored_curve(edge).unwrap();

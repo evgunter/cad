@@ -359,7 +359,7 @@ fn a_chain_stopping_at_a_seam_vertex_refuses_seam_vertex() {
                 ..
             },
         ) => {
-            let text = e.to_string();
+            let text = e.render(geom_brep::recourse::Reading::Build);
             assert!(
                 text.contains(sweep::blend::FILLET3_SEAM_VERTEX_RECOURSE),
                 "the seam recourse is the one appended: {text}"

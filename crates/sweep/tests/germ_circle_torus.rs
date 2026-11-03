@@ -131,8 +131,9 @@ fn accepted_against_torus(
     let (ab, _) = sweep_traces(a, b, SweepStrategy::Realized, None, Tol::witness())
         .unwrap_or_else(|e| panic!("the sweep refused: {e:?}"));
     let walls = torus_faces(b);
-    ab.accepted
-        .into_iter()
+    ab.accepted()
+        .iter()
+        .copied()
         .filter(|(e, f)| edges.contains(e) && walls.contains(f))
         .collect()
 }
@@ -213,11 +214,11 @@ fn the_lily_seams_cross_each_others_carriers_only_outside_the_windows() {
                 .count()
         };
         assert_eq!(
-            pairs(&trace.examined),
+            pairs(trace.examined()),
             walls.len(),
             "{label}: examined against every wall face"
         );
-        assert_eq!(pairs(&trace.accepted), 0, "{label}: and no event on any");
+        assert_eq!(pairs(trace.accepted()), 0, "{label}: and no event on any");
     }
 }
 
@@ -488,11 +489,15 @@ fn a_small_tilted_seam_crosses_the_wall_on_the_quartic_arm() {
 /// and no chain of `B`'s arcs runs along it; the interior question
 /// certifies that the ARC meets `B`'s boundary nowhere strictly inside
 /// its span, so its ends place it and the sweep answers. The two tubes'
-/// coplanar start caps are one plane by margin and glue, so the op
-/// itself stops later, in the join: past the plane × torus germ pairs, a
-/// torus × torus pair, coaxial, whose section is two parallels in closed
-/// form, matched by foot, and refused at the join's segment arm, which
-/// has none for the pair.
+/// coplanar start caps are one plane by margin and glue. Past the plane
+/// × torus germ pairs, the torus × torus pair is coaxial, its section two
+/// parallels in closed form, matched by foot, and the join cuts both
+/// sides' chords from them on the carried lane (SECTARMS stage 3b-i;
+/// before, the join had no arm for the pair and refused
+/// `CurvedBooleanUnsupported`). Both unions and both differences build,
+/// tiers 1 to 3, their volumes agreeing by inclusion and exclusion; the
+/// intersection, in both orders, escalates at the merge
+/// (`NeighbourCoincidence`, `carrier_torus_witness`), typed.
 #[test]
 fn a_coaxial_seam_on_the_torus_is_placed_by_its_arc() {
     let tol = Tol::witness();
@@ -520,7 +525,7 @@ fn a_coaxial_seam_on_the_torus_is_placed_by_its_arc() {
     // Read once against B's wall and recorded there, never split: a
     // split re-reads the seam's fragment against the same face.
     assert_eq!(
-        (on_walls(&ab.examined), on_walls(&ab.accepted)),
+        (on_walls(ab.examined()), on_walls(ab.accepted())),
         (1, 1),
         "the whole seam arc is placed on B's wall by its ends: {ab:?}"
     );
@@ -528,17 +533,62 @@ fn a_coaxial_seam_on_the_torus_is_placed_by_its_arc() {
         sweep::test_support::finished("A", a, tol),
         sweep::test_support::finished("B", b, tol),
     );
-    for (op, x, y) in [("A ∪ B", &a, &b), ("B ∪ A", &b, &a)] {
-        let r = topo::union(x, y, tol);
+    let volume = |op: &str, r: Result<topo::BooleanResult<f64>, BooleanError>| {
+        let out = r.unwrap_or_else(|e| panic!("{op}: builds: {e:?}"));
+        let body = out.body().unwrap_or_else(|| panic!("{op}: a body"));
+        assert_eq!(topo::validate(&body.body), Ok(()), "{op}: tier 1");
+        assert_eq!(topo::validate_closed(&body.body), Ok(()), "{op}: tier 2");
+        assert_eq!(
+            topo::validate_geometric(&body.body, tol),
+            Ok(()),
+            "{op}: tier 3"
+        );
+        topo::test_support::pinned_volume(op, &body.body, tol).volume
+    };
+    let (va, vb) = (
+        topo::test_support::pinned_volume("A", &a, tol).volume,
+        topo::test_support::pinned_volume("B", &b, tol).volume,
+    );
+    let a_less_b = volume("A − B", topo::subtract(&a, &b, tol));
+    let shared = va - a_less_b;
+    assert!(shared > 0.0, "the tubes share volume: {shared}");
+    for (op, got, want) in [
+        (
+            "A ∪ B",
+            volume("A ∪ B", topo::union(&a, &b, tol)),
+            va + vb - shared,
+        ),
+        (
+            "B ∪ A",
+            volume("B ∪ A", topo::union(&b, &a, tol)),
+            va + vb - shared,
+        ),
+        (
+            "B − A",
+            volume("B − A", topo::subtract(&b, &a, tol)),
+            vb - shared,
+        ),
+    ] {
+        assert!(
+            (got - want).abs() <= 1e-9 * want,
+            "{op}: {got} against {want} by inclusion and exclusion"
+        );
+    }
+    for (op, x, y) in [("A ∩ B", &a, &b), ("B ∩ A", &b, &a)] {
+        let r = topo::intersect(x, y, tol);
         assert!(
             matches!(
-                r,
-                Err(BooleanError::CurvedBooleanUnsupported {
-                    kind: geom::SurfaceKind::Torus,
-                    ..
-                })
+                &r,
+                Err(BooleanError::Merge(m)) if matches!(
+                    m.error(),
+                    topo::MergeCoplanarError::Escalated {
+                        decision: topo::MergeDecision::NeighbourCoincidence,
+                        ..
+                    }
+                )
             ),
-            "{op}: the join's torus × torus segment: {r:?}"
+            "{op}: escalates at the merge: {:?}",
+            r.err()
         );
     }
 }

@@ -29,7 +29,7 @@ The screen is `geom_brep::classify_seam` at each station, with each
 spline face read at the station's parameters on its own chart. The
 routine takes surfaces and a rim, not the edge, so it has no pcurve to
 read them off; the rim's half-edges' pcurves (`topo::pcurves::pcurve_of`)
-are where they are, as `ops::seam_face` reads them for a seam's witness.
+are where they are, as `pcurves::seam_face` reads them for a seam's witness.
 The material arm needs the same chart normals, signed by each face's
 sense, over the same bracketed arm `classify_seam` reads (`NurbsLane::chart_arm`'s
 lower bound at the station, and the reach).

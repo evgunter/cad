@@ -577,7 +577,7 @@ fn a_spinning_top_seam_vertex_refuses_and_the_whole_rim_carves() {
                 ..
             },
         ) => {
-            let text = e.to_string();
+            let text = e.render(geom_brep::recourse::Reading::Build);
             assert!(
                 text.contains("request the rim whole"),
                 "the recourse names the request: {text}"
