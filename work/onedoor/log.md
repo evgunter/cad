@@ -166,3 +166,9 @@ second site needs to ask the question at all. (ONEDOOR orchestrator)
     - **(c) A soundness note that rests on "the one reader" is an unenforced census.** It goes false the day a second reader appears. Here `trace` and `in_band_sweep` also read the root. The fix restates the note as the door's guarantee.
     - **(d) A rename that moves names without moving their citations leaves open rows ungreppable.** About 15–30 open items were affected. The fix pass updates open items. The general cure is `lane-prefixed-k-names-outside-their-lane`, filed by the fix pass.
   - (ONEDOOR orchestrator)
+- 2026-11-03 — **One-surface-record reported at `cf3e055f`.** Sweep is 3538/3540. Topo, editor-core, step and clippy are clean. Rulings:
+  - **(1) Closed-conic pins.** Option (c) stands, widened to admit the `SeamBranch` refusal as well, scoped to one record with opposite senses. The capability is filed on CHARTTAIL.
+  - **(2) torax.** The pinned parallel-caps refusal is now unreachable from any public build, because a revolve leaves coplanar caps on one record. If the row now succeeds validly, it is re-baselined to success, and the branch becomes a stated invariant (or an arm-level unit row, if a Body built at that level can still reach it). There is no dead refusal.
+  - **(3) The `bisector_nodes` regression.** The unification discards closed-form chart images, so quadrature can no longer integrate them. Ruled option (a): the coincidence door returns the chart relation as its evidence, and `unify_surfaces` restates the images through geom-brep's one transport door. Option (b), teaching quadrature fitted images, was not taken.
+  - **Class:** a decision that discards the evidence it decided on forces a later reader to re-derive it, here as a lossy fit. The coincidence act knows the frame relation, so it hands it on.
+  - (ONEDOOR orchestrator)
