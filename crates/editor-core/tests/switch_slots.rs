@@ -574,7 +574,7 @@ fn slide_z(n: u64, by: f64) -> editor_core::Constraint<Formula> {
     value(
         n,
         editor_core::Value {
-            coord: editor_core::Coord::Slide(editor_core::TargetAxis::Z),
+            coord: editor_core::Coord::slide(editor_core::TargetAxis::Z),
             by: len(by),
         },
     )

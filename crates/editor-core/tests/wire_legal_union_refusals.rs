@@ -127,7 +127,7 @@ impl SunkBossCut {
     /// is charted on the plane its copy's start cap is mated to, its `y`
     /// the world's.
     fn moved(&self, k: usize, y: f64) -> Self {
-        let slot = value_slot(&self.doc, self.placements[k], Coord::Slide(TargetAxis::Y));
+        let slot = value_slot(&self.doc, self.placements[k], Coord::slide(TargetAxis::Y));
         let (doc, _) = step(
             self.doc.clone(),
             DocEdit::SetParam {

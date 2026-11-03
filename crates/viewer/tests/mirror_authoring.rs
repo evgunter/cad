@@ -324,7 +324,7 @@ fn the_part_is_drawn_where_its_copy_stands_and_moves_with_it() {
         "in its own space the image is across the block's own wall"
     );
 
-    let slide_x = pncad::document::Coord::Slide(pncad::document::TargetAxis::X);
+    let slide_x = pncad::document::Coord::slide(pncad::document::TargetAxis::X);
     let constraint = match session.committed_doc().node(copy) {
         Some(Node::Place { constraints, .. }) => constraints
             .iter()

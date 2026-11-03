@@ -206,13 +206,13 @@ fn pinned_chain(doc: ProfileDoc, part: DocRef) -> (ProfileDoc, RecipeNodeId) {
         (Coord::Spin(Some(TargetAxis::Y)), ang(0.2)),
         (Coord::Spin(Some(TargetAxis::Z)), spin()),
         (Coord::Spin(Some(TargetAxis::X)), ang(0.3)),
-        (Coord::Slide(TargetAxis::X), plus(len(5.0), ax)),
+        (Coord::slide(TargetAxis::X), plus(len(5.0), ax)),
         (
-            Coord::Slide(TargetAxis::Y),
+            Coord::slide(TargetAxis::Y),
             plus(times(c, ay.clone()), times(-s, lift())),
         ),
         (
-            Coord::Slide(TargetAxis::Z),
+            Coord::slide(TargetAxis::Z),
             plus(times(s, ay), times(c, lift())),
         ),
     ];
