@@ -773,13 +773,12 @@ numerically (certified by its transversality or order-k jet margin);
 `EdgeDescription::Chart { surface, pcurve,
 wrap }` is a locus one chart defines (wraps, iso lines, splits whose two
 faces share one surface), with `EdgeAuthority` recording who determined
-the locus. Which form an edge between two faces takes is decided in one
-home, `topo::rest_locus` (`RestLocus`): one surface
-record is one surface; two records the carrier-equality ladder reads
-as one carrier over the faces' region are one surface too, since
-incidence on both is incidence on one, and the edge rests in the first
-record's chart; two distinct carriers, or a kind outside the ladder,
-are the pair, carrying a structural selector where the pair's curve has
+the locus. Which form an edge between two faces takes is read off its
+sides by key alone: both halves on one face is a wrap, two faces on one
+surface record are that record's chart, and two records are the pair.
+Two records are never one surface at rest, because the act that decided
+a coincidence leaves the faces on one record (DESIGN `[coincidence.door]`).
+The pair carries a structural selector where the pair's curve has
 a closed form and a witness otherwise; a coincidence in band
 is refused at the structural act that made the two faces adjacent, and
 a rung that cannot decide or a region that does not read refuses typed,
@@ -1731,8 +1730,7 @@ reading of their kind. A curve no lane can yet select refuses typed,
 naming the lane, native or imported alike; a coincidence of two surfaces
 in band is refused at the structural act that made them adjacent. A locus one chart defines
 (parameterization seams — infinite-order contact, the seam's position
-pure convention; iso-lines; splits whose two faces share one surface;
-two records that read as one carrier) is `Chart`: one (surface,
+pure convention; iso-lines; splits whose two faces share one surface) is `Chart`: one (surface,
 `Pcurve`) form covers all of them (PCURVE-UNIFY-DESIGN); the exact
 classes stay as certification lanes, not variants. A `MappedCurve`
 survives as the `Scaffold` payload, as a structural selector and as the
