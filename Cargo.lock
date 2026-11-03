@@ -4194,6 +4194,7 @@ dependencies = [
 name = "verbs"
 version = "0.0.0"
 dependencies = [
+ "geom-brep",
  "geom-core",
  "profile",
  "sweep",

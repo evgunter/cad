@@ -1,7 +1,6 @@
 //! The dispatch sites over the kernel's op doors, one per declared
 //! door, and what comes back out of them.
 
-use core::fmt;
 
 use geom_core::{Bounds, Decide, Real, Tol};
 use profile::ValidatedProfile;
@@ -204,19 +203,27 @@ pub enum VerbError<T: Real> {
     Shell(Box<ShellError<T>>),
 }
 
-impl<T: Real> fmt::Display for VerbError<T> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl<T: Real> VerbError<T> {
+    fn write(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        at: Option<geom_brep::recourse::ReadAt>,
+    ) -> core::fmt::Result {
+        use geom_brep::recourse::read_at;
         match self {
-            Self::Blend(refusal) => write!(f, "{refusal}"),
-            Self::Boolean(refusal) => write!(f, "{refusal}"),
-            Self::Extrude(refusal) => write!(f, "{refusal}"),
-            Self::Revolve(refusal) => write!(f, "{refusal}"),
-            Self::Split(refusal) => write!(f, "{refusal}"),
-            Self::Shell(refusal) => write!(f, "{refusal}"),
+            Self::Blend(refusal) => write!(f, "{}", read_at(refusal, at)),
+            Self::Boolean(refusal) => write!(f, "{}", read_at(refusal, at)),
+            Self::Extrude(refusal) => write!(f, "{}", read_at(refusal, at)),
+            Self::Revolve(refusal) => write!(f, "{}", read_at(refusal, at)),
+            Self::Split(refusal) => write!(f, "{}", read_at(refusal, at)),
+            Self::Shell(refusal) => write!(f, "{}", read_at(refusal.as_ref(), at)),
         }
     }
 }
 
+geom_brep::ended_by_write!([T: Real] VerbError<T>);
+
+#[cfg(not(e1e_probe))]
 impl<T: Real> core::error::Error for VerbError<T> {}
 
 /// **The scalar every run door runs at**: the bound set the op doors
