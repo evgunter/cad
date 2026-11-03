@@ -82,9 +82,7 @@ use geom_core::{Band, Interval, Margin, Sign, Vec3};
 
 use crate::ssi::SsiError;
 use crate::ssi::enclose::{NurbsBoxes, UvWindow};
-use crate::ssi::exhaust::{
-    REGULAR_SURVIVORS, SweepFloor, UvRect, sweep_chart_regular,
-};
+use crate::ssi::exhaust::{REGULAR_SURVIVORS, SweepFloor, UvRect, sweep_chart_regular};
 use crate::ssi::residual::ImplicitForm;
 
 mod critical;

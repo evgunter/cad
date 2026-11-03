@@ -108,7 +108,11 @@ impl Form {
 pub(crate) const PLANE: &str = "plane";
 
 /// The refusal of a surface that is no implicit partner.
-const NOT_A_PARTNER: &str = concat!("only ", implicit_partners!(), " is an implicit partner here");
+const NOT_A_PARTNER: &str = concat!(
+    "only ",
+    implicit_partners!(),
+    " is an implicit partner here"
+);
 
 impl ImplicitForm {
     /// **The kind of `surface`, where an implicit form is minted from

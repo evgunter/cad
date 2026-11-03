@@ -145,8 +145,8 @@ pub use exhaust::{
     SSI_FLOOR, SSI_MAX_CELLS, SSI_SEED_FLOOR,
 };
 pub(crate) use four::{RowCrossing, RowUnreadable, row_crossing, row_piece};
-pub use implicit_chart::{ImplicitSection, SectionReading};
 pub(crate) use implicit_chart::PassKey;
+pub use implicit_chart::{ImplicitSection, SectionReading};
 pub use march::{
     BranchEnd, ReachBound, SSI_IDEALIZED_STEP, SSI_NEWTON_ITERS, SSI_NEWTON_TOL,
     SSI_QUADRIC_NOISE_ULPS, SSI_SETTLE_MAX, SSI_SPLINE_NOISE_ULPS, SSI_STEP_DEVIATION,
@@ -920,9 +920,7 @@ impl core::fmt::Display for SsiError {
                 let what = match bound {
                     ReachBound::Geometry => "geometry",
                     ReachBound::Domain => "domain",
-                    ReachBound::Partner => {
-                        "spline face, written in the partner's frame,"
-                    }
+                    ReachBound::Partner => "spline face, written in the partner's frame,",
                 };
                 write!(
                     f,

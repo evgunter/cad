@@ -728,7 +728,10 @@ pub(super) fn section(
             .map(|c| ChartReach::side(c.at.side))
             .chain(pass.contacts.iter().map(contact_reach))
             .fold(ChartReach::default(), ChartReach::or);
-        (reach, std::sync::Arc::new((reading.pass_key(), pass.clone())))
+        (
+            reach,
+            std::sync::Arc::new((reading.pass_key(), pass.clone())),
+        )
     };
     let decided = match sweep::sweep(
         reading.boxes(),

@@ -77,9 +77,7 @@ use geom_core::interval::max_bound;
 use geom_core::{Interval, Point3, SizedPass, SupSpeed};
 
 use super::SsiError;
-use super::enclose::{
-    Box3, UvWindow, has_implicit_enclosure, implicit_enclosure,
-};
+use super::enclose::{Box3, UvWindow, has_implicit_enclosure, implicit_enclosure};
 use super::four::{Box4, PairBoxes};
 use crate::recourse::{RefusedArm, RefusedSide, SizedDecision, defect_ending};
 

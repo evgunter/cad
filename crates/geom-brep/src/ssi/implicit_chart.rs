@@ -275,8 +275,11 @@ impl<'a> ImplicitSection<'a> {
                 d.floor_scale,
             ]
             .map(f64::to_bits),
-            band: [self.lane.wall.band().zero(), self.lane.wall.band().escalate()]
-                .map(f64::to_bits),
+            band: [
+                self.lane.wall.band().zero(),
+                self.lane.wall.band().escalate(),
+            ]
+            .map(f64::to_bits),
         }
     }
 
@@ -507,11 +510,21 @@ mod tests {
             .unwrap()
             .with_pass((&key, pass.clone()))
             .unwrap();
-        assert_eq!(same.all().unwrap().branches.len(), 2, "the carried pass reads");
+        assert_eq!(
+            same.all().unwrap().branches.len(),
+            2,
+            "the carried pass reads"
+        );
         let wider = Band::new(2e-9, 2e-8).unwrap();
         for (what, other) in [
-            ("another height", ImplicitSection::of(&high, &wall, domain(), band())),
-            ("another band", ImplicitSection::of(&low, &wall, domain(), wider)),
+            (
+                "another height",
+                ImplicitSection::of(&high, &wall, domain(), band()),
+            ),
+            (
+                "another band",
+                ImplicitSection::of(&low, &wall, domain(), wider),
+            ),
         ] {
             let got = other.unwrap().with_pass((&key, pass.clone()));
             assert!(

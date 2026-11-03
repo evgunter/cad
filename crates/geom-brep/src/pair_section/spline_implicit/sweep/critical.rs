@@ -176,7 +176,6 @@ pub(super) fn along_line(
     (metres, super::sine(g, norm(g), d, norm(d)))
 }
 
-
 /// The inverse of a 2×2 matrix, `None` where it is singular or not
 /// finite.
 fn inverse2(m: [[f64; 2]; 2]) -> Option<[[f64; 2]; 2]> {

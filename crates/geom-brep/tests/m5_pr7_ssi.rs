@@ -3183,7 +3183,11 @@ fn a_wall_too_large_for_its_coordinates_refuses_by_its_scale() {
         chart_binds,
         "at ε {:e} the {} readout binds: {s:?}",
         band().zero(),
-        if chart_binds { "chart's" } else { "wall's coordinates'" }
+        if chart_binds {
+            "chart's"
+        } else {
+            "wall's coordinates'"
+        }
     );
     match s.lane {
         ExhaustLane::R3 => {
@@ -6174,7 +6178,10 @@ fn a_sliver_the_march_could_step_through_refuses_as_near_tangent() {
                 "{what}: the march's step in the band over the tube refused, got {r:?}"
             );
         } else {
-            assert!(near_tangent(&r), "{what}: the near-tangent lever, got {r:?}");
+            assert!(
+                near_tangent(&r),
+                "{what}: the near-tangent lever, got {r:?}"
+            );
         }
     }
 }
