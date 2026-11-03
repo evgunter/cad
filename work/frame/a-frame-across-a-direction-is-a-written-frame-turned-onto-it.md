@@ -2,11 +2,13 @@
 id: a-frame-across-a-direction-is-a-written-frame-turned-onto-it
 kind: unit
 title: A frame across a direction is a written frame turned onto it by the least turn; path_start_frame and its ladder retire
-status: dispatched
+status: closed
 opened: 2026-11-03
 priority: P1
 cost: M
 branch: frame/turned-onto
+closed: 2026-11-03
+pr: 6465
 ---
 
 
@@ -37,3 +39,7 @@ Sweep for the class: any other site that picks a roll off a world axis by a rule
 Out of scope, filed: the least turn's two arithmetics (`msolve/the-least-turn-has-two-arithmetics-and-the-chart-decides-its-pole-a-third-way`). STRUT's `sweep-body-makes-every-caller-derive-its-start-frame` may build sugar on `turned_onto` later; this unit does not.
 
 Review tier: **single FULL**. The door is a one-line composition, but the unit retires a public door, moves its callers and re-baselines renders. The claims to falsify are spec items 1, 3 and 5.
+
+## Closed
+
+Landed by PR 6465 (2026-11-03): `RigidMotion::turned_onto`, the retirement of `path_start_frame` and its ladder, interior stations on `sweep_places`, and the "which door" paragraph in `linalg::frame`.
