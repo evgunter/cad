@@ -57,10 +57,10 @@ mod tests {
             "the ring reads back as a ring"
         );
         let got = digest();
-        println!("IMPELLER_DIGEST {got:?}");
         assert_eq!(got, WANT, "the impeller's product moved");
     }
 
-    /// The digest at the hand-written ring (`origin/main` before PR 6394).
-    const WANT: (u64, u64, usize) = (0, 0, 0);
+    /// The digest at the hand-written ring, which both reviews of PR 6394
+    /// measured bit-identical to this one.
+    const WANT: (u64, u64, usize) = (4_614_309_978_810_060_332, 2_236_884_451_822_836_043, 108);
 }
