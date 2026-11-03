@@ -923,3 +923,203 @@ fn the_parallel_rulings_are_read_at_the_region_wherever_an_origin_is_stored() {
         }
     }
 }
+
+/// The cylinder `s`'s axis, unit, and radius.
+fn axis_of(s: &Surface<f64>) -> (Point3<f64>, Vec3<f64>, f64) {
+    let Surface::Cylinder {
+        origin,
+        axis,
+        radius,
+        ..
+    } = *s
+    else {
+        panic!("a cylinder: {s:?}")
+    };
+    (origin, axis.normalize(), radius)
+}
+
+/// The cylinder `s`'s second fundamental form at a point, along the unit
+/// tangent `v`, against its outward radial: `(|v|² − (v·â)²)/r`.
+fn second_form(s: &Surface<f64>, v: Vec3<f64>) -> f64 {
+    let (_, a, r) = axis_of(s);
+    (v.norm_squared() - v.dot(a).powi(2)) / r
+}
+
+/// **The value lists each bisector node with its frame, read off the
+/// walls' relative second fundamental form** (C5): at three angles
+/// between the axes, in both orders, each node's normal is both walls'
+/// outward radial there; its lines are unit, square to it, turned
+/// counterclockwise about it, and null for `Q = II₁ − II₂`; the side it
+/// lists on each sector is `Q`'s sign at the sector's middle (the first
+/// wall stands on the normal's side where it curves away less, `Q < 0`).
+/// Each node has one arc end along each of its four rays, and each end's
+/// ray is the way its carrier leaves the node: `+C′` at the span's first
+/// end, `−C′` at its last (the derivative as the test's oracle).
+#[test]
+fn the_bisector_nodes_list_their_frame_off_the_relative_form() {
+    use geom_brep::{PairSide, SectionNode};
+    for angle in [0.4, 1.1, 2.0] {
+        let (a, b) = (drum(), placed(Vec3::unit_y(), angle, (0.6, 0.0, 0.0)));
+        for (label, x, y) in [("a, b", &a, &b), ("b, a", &b, &a)] {
+            let label = format!("{angle} rad, {label}");
+            let section = built(x, y, region());
+            assert_eq!(section.nodes().len(), 2, "{label}: two nodes");
+            for node in section.nodes() {
+                for s in [x, y] {
+                    let (o, ax, r) = axis_of(s);
+                    let w = node.point - o;
+                    let radial = (w - ax * w.dot(ax)) / r;
+                    assert!(
+                        (radial - node.normal).norm() < 1e-9,
+                        "{label}: the normal is each wall's outward radial"
+                    );
+                }
+                let [l0, l1] = node.lines;
+                for l in [l0, l1] {
+                    assert!((l.norm() - 1.0).abs() < 1e-12, "{label}: a unit line");
+                    assert!(l.dot(node.normal).abs() < 1e-12, "{label}: tangent");
+                    let q = second_form(x, l) - second_form(y, l);
+                    assert!(q.abs() < 1e-9, "{label}: a null line of Q, Q = {q:e}");
+                }
+                assert!(
+                    l0.cross(l1).dot(node.normal) > 0.1,
+                    "{label}: the lines turn counterclockwise about the normal"
+                );
+                let rays = [l0, l1, -l0, -l1];
+                for i in 0..4 {
+                    let m = (rays[i] + rays[(i + 1) % 4]).normalize();
+                    let q = second_form(x, m) - second_form(y, m);
+                    let want = if q < 0.0 {
+                        PairSide::First
+                    } else {
+                        PairSide::Second
+                    };
+                    assert_eq!(node.above_in(i), want, "{label}: sector {i}, Q = {q:e}");
+                }
+            }
+            let mut ends = [[0usize; 4]; 2];
+            for c in listed(&section) {
+                let ComponentShape::Open { ends: at } = c.shape else {
+                    panic!("{label}: an arc: {:?}", c.shape);
+                };
+                let ClassCarrier::Span { curve, span } = &c.carrier else {
+                    panic!("{label}: {:?}", c.carrier);
+                };
+                for (end, t, sign) in [(at.nodes.start, span.0, 1.0), (at.nodes.end, span.1, -1.0)] {
+                    let end = end.expect("each arc end stands at a node");
+                    let node = &section.nodes()[end.node];
+                    let d = curve.deriv(t);
+                    let leaves = d * (sign / d.norm());
+                    assert!(
+                        (node.ray(end.line, end.sense) - leaves).norm() < 1e-9,
+                        "{label}: the end's ray is the way its carrier leaves the node"
+                    );
+                    ends[end.node][SectionNode::<f64>::ray_index(end.line, end.sense)] += 1;
+                }
+            }
+            assert_eq!(ends, [[1; 4]; 2], "{label}: one arc end along each ray");
+        }
+    }
+}
+
+/// **A node the region does not hold is not listed** (C5: a node is
+/// listed where the domain holds it). A region about one node holds it
+/// and cuts all four arcs: one node, each arc ending there at one end
+/// and cut at the other, one node-joined set. A region about the axes'
+/// meeting point too small to reach either node cuts all four arcs and
+/// lists no node: each arc is cut at both ends, and no set joins them.
+#[test]
+fn a_node_the_region_does_not_hold_is_not_listed() {
+    let (a, b) = (drum(), placed(Vec3::unit_y(), 0.4, (0.6, 0.0, 0.0)));
+    let whole = built(&a, &b, region());
+    let node0 = whole.nodes()[0].point;
+    let one = built(&a, &b, ExtentBall::of_sphere(node0, 0.3));
+    let [node] = one.nodes() else {
+        panic!("one node: {:?}", one.nodes());
+    };
+    assert!((node.point - node0).norm() < 1e-12, "the node the region holds");
+    let arcs = listed(&one);
+    assert_eq!(arcs.len(), 4, "every arc reaches the region");
+    for c in arcs {
+        let ComponentShape::Open { ends } = c.shape else {
+            panic!("an arc: {:?}", c.shape);
+        };
+        let at: Vec<usize> = ends.nodes.both().iter().flatten().map(|e| e.node).collect();
+        assert_eq!(at, [0], "one end at the listed node: {ends:?}");
+        assert!(ends.cut, "the other end runs past the region");
+    }
+    assert_eq!(one.node_sets().len(), 1, "one set");
+    assert_eq!(one.node_sets()[0].arcs, [0, 1, 2, 3], "joined at the node");
+    one.carry(None, band()).expect("closed forms carry");
+
+    let meet = node0 + (whole.nodes()[1].point - node0) * 0.5;
+    let none = built(&a, &b, ExtentBall::of_sphere(meet, 0.45));
+    assert!(none.nodes().is_empty(), "no node: {:?}", none.nodes());
+    let arcs = listed(&none);
+    assert_eq!(arcs.len(), 4, "every arc reaches the region");
+    for c in arcs {
+        let ComponentShape::Open { ends } = c.shape else {
+            panic!("an arc: {:?}", c.shape);
+        };
+        assert_eq!(ends.nodes.both(), [None, None], "no end at a node");
+        assert!(ends.cut, "cut");
+    }
+    assert!(none.node_sets().is_empty(), "no set");
+}
+
+/// **A site reads as a node or as one arc** (C5), node first: on the
+/// carried bisector section, a site inside an arc's span reads that arc
+/// and no other (its ellipse's other arc lies on the same carrier), and
+/// each node reads as the node. Under a band whose escalation edge
+/// stands just past its zero (`1e-4`, `1.1e-4`), a site `1.3e-4` from a
+/// node between two of its rays lies within the band of both arcs while
+/// decided off the node: it escalates, at its foot's place on the arc
+/// or on its distance from the node, never naming one; so does a site
+/// in the band of the node itself.
+#[test]
+fn a_site_reads_as_a_node_or_as_one_arc() {
+    use geom_brep::{SiteReading, SiteRefusal};
+    let (a, b) = (drum(), placed(Vec3::unit_y(), 0.4, (0.6, 0.0, 0.0)));
+    let section = built(&a, &b, region());
+    let carried = section.carry(None, band()).expect("closed forms carry");
+    for (k, c) in carried.components().iter().enumerate() {
+        let (lo, hi) = c.span;
+        for f in [0.1, 0.5, 0.9] {
+            let t = lo + f * (hi - lo);
+            match carried.site(c.carrier.eval(t), band()) {
+                Ok(SiteReading::OnArc(foot)) => {
+                    assert_eq!(foot.component, k, "arc {k} at {f}: its own arc");
+                    assert!((foot.t - t).abs() < 1e-9, "arc {k} at {f}: {} for {t}", foot.t);
+                }
+                other => panic!("arc {k} at {f}: {other:?}"),
+            }
+        }
+    }
+    for (n, node) in carried.nodes().iter().enumerate() {
+        assert!(
+            matches!(carried.site(node.point, band()), Ok(SiteReading::AtNode(m)) if m == n),
+            "node {n}"
+        );
+    }
+    let tight = Band::new(1e-4, 1.1e-4).unwrap();
+    let node = section.nodes()[0];
+    let tight_carried = section.carry(None, tight).expect("closed forms carry");
+    let near_node = |p: Point3<f64>| match tight_carried.site(p, tight) {
+        Err(SiteRefusal::Escalated(d)) => {
+            matches!(d.predicate, Some("section_site_at_node" | "section_site_in_span"))
+        }
+        _ => false,
+    };
+    let between = node.point + (node.lines[0] + node.lines[1]).normalize() * 1.3e-4;
+    assert!(
+        near_node(between),
+        "near a node, on two of its arcs: {:?}",
+        tight_carried.site(between, tight)
+    );
+    let near = node.point + node.lines[0] * 1.05e-4;
+    assert!(
+        near_node(near),
+        "in band of the node: {:?}",
+        tight_carried.site(near, tight)
+    );
+}

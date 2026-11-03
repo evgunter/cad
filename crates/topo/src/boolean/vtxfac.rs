@@ -511,7 +511,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     declared: &super::GluedPairs<T>,
     contacts: &super::ReductionContacts,
     reread: Option<SectorRead>,
-    plane: Option<usize>,
+    bisector_plane: Option<usize>,
     chart: Option<(f64, f64)>,
     tips: &crate::sector_shape::SlitTips,
     band: Band,
@@ -646,7 +646,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     // which is why the primitive takes the typed one.
     //
     // **The pierced wall through the bisector plane the sweep found the
-    // pierce on** (`plane`), for a sector of a wall that crosses the
+    // pierce on** (`bisector_plane`), for a sector of a wall that crosses the
     // pierced wall as an equal pair ([`super::node::bisector_datum`]).
     // There the two walls' normals stand only about the node's distance
     // apart, and the plane's signed normal stands in for the pierced
@@ -654,9 +654,9 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     // the plane, with no curvature charge, and the sector's germ runs in
     // the plane. A pierce the sweep recorded no plane for reads nothing
     // here.
-    let on_wall: Vec<Option<OutwardNormal<T>>> = match plane {
+    let on_wall: Vec<Option<OutwardNormal<T>>> = match bisector_plane {
         None => vec![None; n],
-        Some(plane) => sectors
+        Some(bisector_plane) => sectors
             .iter()
             .map(|s| {
                 let Some(planes) = super::node::bisectors(
@@ -673,7 +673,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
                 };
                 super::node::bisector_datum(
                     planes,
-                    plane,
+                    bisector_plane,
                     (piercing, faces),
                     p,
                     (pierced_surface, n_pierced),
@@ -1551,15 +1551,7 @@ pub(super) fn mint_node<T: Decide + crate::props::AtRestPolicy>(
             super::Branch::Component(arcs[i]),
         )
     };
-    // B lies inside A's material in sector `i` where it stands on the
-    // side of A that A's outward normal points away from.
-    let inside = |i: usize| (node.above_in(i) == geom_brep::PairSide::First) == a_along;
-    let first = if inside(0) { 0 } else { 1 };
-    let run = |i: usize| {
-        let (x, y) = (germ(i), germ((i + 1) % 4));
-        if b_along { (x, y) } else { (y, x) }
-    };
-    let run_germs = [run(first), run(first + 2)];
+    let run_germs = node_runs(node, a_along, b_along).map(|(s, e)| (germ(s), germ(e)));
     // A's struts, one per run, hung by the ring's tree.
     let (wa, loop_a) = ring_vertex_in(a, faces.0, point, tol)?;
     let provisional: Vec<PlannedRun<T>> = run_germs
@@ -1642,6 +1634,26 @@ pub(super) fn mint_node<T: Decide + crate::props::AtRestPolicy>(
     edges.append(&mut out.edges);
     out.edges = edges;
     Ok(out)
+}
+
+/// **A node's two runs**, each its start and end ray by index in the
+/// rays' turn about the node's normal ([`geom_brep::SectionNode::ray_index`]):
+/// the two opposite sectors of B's wall inside A's material, where B
+/// stands on the side of A that A's outward normal points away from
+/// (`a_along`: A's outward normal is the node's normal), each entered
+/// turning counterclockwise about B's outward normal (`b_along`, likewise).
+pub(super) fn node_runs<T: geom_core::Real>(
+    node: &geom_brep::SectionNode<T>,
+    a_along: bool,
+    b_along: bool,
+) -> [(usize, usize); 2] {
+    let inside = |i: usize| (node.above_in(i) == geom_brep::PairSide::First) == a_along;
+    let first = if inside(0) { 0 } else { 1 };
+    let run = |i: usize| {
+        let (x, y) = (i, (i + 1) % 4);
+        if b_along { (x, y) } else { (y, x) }
+    };
+    [run(first), run(first + 2)]
 }
 
 /// A pierce [`faces_holding_pierce`] adds: its strut, its half of the

@@ -576,7 +576,7 @@ fn a_frame_handed_another_pairs_extent_is_a_desync() {
 /// each about its own bisector plane's normal. At a `φ` in the band the
 /// pose's own row escalates (`cc_axes_parallel`). Read on the section
 /// value's pose across a region of the walls' radius
-/// ([`super::join::bisector_loops`]), as the join reads it.
+/// (`geom_brep::CylinderCylinderPose::bisector_planes`).
 #[test]
 #[allow(clippy::expect_used)]
 fn declared_equal_walls_meeting_at_a_sliver_are_the_bisector_loops() {
@@ -606,26 +606,18 @@ fn declared_equal_walls_meeting_at_a_sliver_are_the_bisector_loops() {
         geom_brep::CylinderCylinderPose::decide(x, y, &region, b).expect("two cylinders")
     };
     for (label, x, y) in [("a, b", &a, &c), ("b, a", &c, &a)] {
-        let planes = pose(x, y)
+        let (center, normals) = pose(x, y)
             .unwrap_or_else(|e| panic!("{label}: a decided pose, got {e:?}"))
             .bisector_planes()
             .unwrap_or_else(|| panic!("{label}: the bisector pose"));
-        let super::join::SectionLoops::Two { loops, .. } = super::join::bisector_loops(planes)
-        else {
-            panic!("{label}: the two bisector loops");
-        };
-        let normals: Vec<Vec3<f64>> = loops.iter().map(|lp| lp.axis.normalize()).collect();
-        for lp in &loops {
-            assert!(
-                (lp.center - Point3::origin()).norm() < 1e-15,
-                "{label}: centre {:?}",
-                lp.center
-            );
-        }
+        assert!(
+            (center - Point3::origin()).norm() < 1e-15,
+            "{label}: centre {center:?}"
+        );
         assert!(
             normals.iter().any(|m| m.cross(across).norm() < 1e-12)
                 && normals.iter().any(|m| m.cross(along).norm() < 1e-12),
-            "{label}: the loops turn about the bisector planes' normals, got {normals:?}"
+            "{label}: the bisector planes' normals, got {normals:?}"
         );
     }
     let c = wall(((b.zero() + b.escalate()) / 2.0).asin());

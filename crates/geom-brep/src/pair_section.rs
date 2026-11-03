@@ -2371,10 +2371,11 @@ impl<T: Decide> CarriedComponent<T> {
     /// `t` is read in the turn the span starts, and decided under its
     /// last end on the parameter metered by the carrier's speed there
     /// (`section_site_in_span`); a closed form's other component on its
-    /// conic takes the rest. A foot at the span's end stands at its end's
-    /// node, which every reading of a site tests first ([`at_node`]), so
-    /// one reaching here is a desync; an undecided one escalates. Any
-    /// other component's foot is its own.
+    /// conic takes the rest. A foot at the span's end stands within the
+    /// band of its end's node, which every reading of a site tests first
+    /// ([`at_node`]): one decided off the node and reaching here lies
+    /// within the band of two arcs crossing there, and escalates, as an
+    /// undecided one does. Any other component's foot is its own.
     fn within_span(&self, t: T, band: Band) -> Result<Option<T>, SiteRefusal> {
         if self.closed() || !matches!(self.carrier, Curve3::Circle(_) | Curve3::Ellipse(_)) {
             return Ok(Some(t));
@@ -2382,16 +2383,28 @@ impl<T: Decide> CarriedComponent<T> {
         let (lo, hi) = self.span;
         let t = lo + (t - lo).reduce_periodic(T::pi() * T::from_f64(2.0));
         let speed = self.carrier.ders1(t).1.norm();
-        match geom_core::k_stats::decide(
-            "section_site_in_span",
+        match geom_core::k_stats::decide_reported(
+            SITE_IN_SPAN,
             Margin::metered(hi - t, geom_core::InfSpeed::new(speed)),
             band,
         ) {
-            Ok(Sign::Positive) => Ok(Some(t)),
-            Ok(Sign::Negative) => Ok(None),
-            Ok(Sign::Zero) => Err(SiteRefusal::Desync(
-                "a site off its section's nodes reads at the end of an arc",
-            )),
+            Ok(Decided {
+                sign: Sign::Positive,
+                ..
+            }) => Ok(Some(t)),
+            Ok(Decided {
+                sign: Sign::Negative,
+                ..
+            }) => Ok(None),
+            Ok(Decided {
+                sign: Sign::Zero,
+                margin,
+            }) => Err(SiteRefusal::Escalated(Indeterminate {
+                margin,
+                terminal_sliver: false,
+                band,
+                predicate: Some(SITE_IN_SPAN),
+            })),
             Err(diag) => Err(SiteRefusal::Escalated(diag)),
         }
     }
@@ -2565,6 +2578,9 @@ pub enum ArcPlace<T: Real> {
 
 /// The node-distance predicate a site's reading tests first.
 const SITE_AT_NODE: &str = "section_site_at_node";
+
+/// The predicate a foot on an open conic arc is read within its span by.
+const SITE_IN_SPAN: &str = "section_site_in_span";
 
 /// **The node `p` stands at**, among `nodes`, the first test of every
 /// reading of a site (C5): `p`'s distance from each node against the

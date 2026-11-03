@@ -475,4 +475,101 @@ mod tests {
             "a pierce at a node, on both planes"
         );
     }
+
+    /// **A node's germs leave along its arc ends, and its runs are B's
+    /// sectors inside A's material** (C5). Two unit walls whose axes meet
+    /// at three angles, in both orders, read on the value: at each node
+    /// each ray has exactly one arc end, the component a germ along it
+    /// rides, and the ray is the way that component's carrier leaves the
+    /// node (`+C′` at its span's first end, `−C′` at its last, the
+    /// derivative as the oracle). For each pair of face senses the two
+    /// runs are opposite sectors whose middle, stepped `h` along B's wall,
+    /// lies inside A's material (inside A's cylinder for a rod, outside it
+    /// for a bore), each turning from its start to its end counterclockwise
+    /// about B's outward normal.
+    #[test]
+    fn a_node_mints_a_germ_at_each_arc_end_and_runs_through_bs_sectors_inside_a() {
+        let unit = |v: Vec3<f64>| v / v.norm();
+        let o = Point3::new(0.0, 0.0, 0.0);
+        let wall = |axis: Vec3<f64>| geom::Surface::Cylinder {
+            origin: o,
+            axis,
+            radius: 1.0,
+            u_ref: unit(axis.orthonormal_basis().0),
+        };
+        let axis_of = |s: &geom::Surface<f64>| match s {
+            geom::Surface::Cylinder { axis, .. } => unit(*axis),
+            _ => unreachable!(),
+        };
+        for angle in [0.5_f64, 1.2, 2.3] {
+            let (wa, wb) = (
+                wall(Vec3::new(0.0, 0.0, 1.0)),
+                wall(Vec3::new(angle.sin(), 0.0, angle.cos())),
+            );
+            for (label, x, y) in [("a, b", &wa, &wb), ("b, a", &wb, &wa)] {
+                let label = format!("{angle} rad, {label}");
+                let region = geom_brep::ExtentBall::of_sphere(o, 3.0);
+                let section = match geom_brep::pair_section(x, y, Some(region), None, band()) {
+                    Ok(geom_brep::SectionRead::Built(section)) => section,
+                    other => panic!("{label}: {other:?}"),
+                };
+                let listed = section.counted().unwrap();
+                assert_eq!(section.nodes().len(), 2, "{label}: two nodes");
+                for (n, node) in section.nodes().iter().enumerate() {
+                    let arcs = super::node_arcs(listed, n).unwrap();
+                    let rays = [
+                        node.lines[0],
+                        node.lines[1],
+                        -node.lines[0],
+                        -node.lines[1],
+                    ];
+                    for (i, &k) in arcs.iter().enumerate() {
+                        let geom_brep::ClassCarrier::Span { curve, span } = &listed[k].carrier
+                        else {
+                            panic!("{label}: an arc's carrier");
+                        };
+                        let leaves = [(span.0, 1.0), (span.1, -1.0)]
+                            .into_iter()
+                            .filter(|&(t, _)| (curve.eval(t) - node.point).norm() < 1e-9)
+                            .map(|(t, sign)| curve.deriv(t) * sign)
+                            .map(unit)
+                            .collect::<Vec<_>>();
+                        assert!(
+                            leaves.iter().any(|d| (*d - rays[i]).norm() < 1e-9),
+                            "{label}: node {n}, ray {i} leaves along arc {k}'s carrier"
+                        );
+                    }
+                    let (ax, ay) = (axis_of(x), axis_of(y));
+                    for (a_along, b_along) in [(true, true), (true, false), (false, true), (false, false)] {
+                        let runs = super::super::vtxfac::node_runs(node, a_along, b_along);
+                        assert_eq!(
+                            (runs[1].0, runs[1].1),
+                            ((runs[0].0 + 2) % 4, (runs[0].1 + 2) % 4),
+                            "{label}: opposite sectors"
+                        );
+                        let n_b = if b_along { node.normal } else { -node.normal };
+                        for (s0, e0) in runs {
+                            let m = unit(rays[s0] + rays[e0]);
+                            let h = 1e-2;
+                            let q = node.point + m * h
+                                - node.normal * ((1.0 - m.dot(ay).powi(2)) * h * h / 2.0);
+                            let w = q - o;
+                            let off_a = (w - ax * w.dot(ax)).norm() - 1.0;
+                            assert!(
+                                (off_a < 0.0) == a_along,
+                                "{label}: node {n}, run ({s0}, {e0}), senses \
+                                 ({a_along}, {b_along}): B's sector inside A's material, \
+                                 {off_a:e} off A's wall"
+                            );
+                            assert!(
+                                rays[s0].cross(rays[e0]).dot(n_b) > 0.1,
+                                "{label}: node {n}, run ({s0}, {e0}): counterclockwise about \
+                                 B's outward normal"
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
 }

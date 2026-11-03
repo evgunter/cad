@@ -661,6 +661,20 @@ fn vertex_at(body: &Body<f64>, p: Point3<f64>) -> VertexKey {
 fn closed_form_chord(
     component: geom_brep::CarriedComponent<f64>,
     partner: geom::Surface<f64>,
+    ends: (Point3<f64>, Point3<f64>),
+    dir: Vec3<f64>,
+) -> (
+    Result<SectionChord<f64>, SplitJoinError>,
+    geom_brep::SurfacePair,
+) {
+    node_chord(component, partner, Vec::new(), ends, dir)
+}
+
+/// [`closed_form_chord`] on a section listing `nodes`.
+fn node_chord(
+    component: geom_brep::CarriedComponent<f64>,
+    partner: geom::Surface<f64>,
+    nodes: Vec<geom_brep::SectionNode<f64>>,
     (from, to): (Point3<f64>, Point3<f64>),
     dir: Vec3<f64>,
 ) -> (
@@ -684,7 +698,7 @@ fn closed_form_chord(
         partner_key: None,
         // The unit wall's radius, the scale its sections turn on.
         lever: geom_core::Lever::curvature_radius(1.0),
-        nodes: Vec::new(),
+        nodes,
     };
     let leave = Departure {
         dir,
@@ -854,6 +868,95 @@ fn a_carried_circle_chord_runs_back_where_it_leaves_back() {
         );
         let ends = (at(a, 0.5), at(b, 0.5));
         let (got, described) = closed_form_chord(comp, partner.clone(), ends, dir);
+        let chord = got.unwrap_or_else(|e| panic!("{what}: {e:?}"));
+        runs_between(&chord, described, ends, what);
+        let (t0, t1) = (chord.spec.param_start, chord.spec.param_end);
+        assert!(
+            (t0 - want.0).abs() < 1e-12 && (t1 - want.1).abs() < 1e-12,
+            "{what}: over [{t0}, {t1}], not {want:?}"
+        );
+    }
+}
+
+/// **A carried chord on an arc between nodes starts at its node's span
+/// end and runs the way that end leaves** (C5): the unit wall cut by the
+/// plane through `(0, 0, 0.5)` tilted 0.3 about `x`, whose ellipse's arc
+/// over `(π/2, 3π/2)` ends at two nodes. From the node at `3π/2`, which
+/// a positional foot reads at `−π/2`, off the span, to the site at `π`,
+/// it is the ellipse run back over `[−3π/2, −π]`, the way the span's last
+/// end leaves, whatever the germ's direction says; from the node at
+/// `π/2` forward to `π`, over `[π/2, π]`; and from the site at `π` on to
+/// the node at `3π/2`, over `[π, 3π/2]`.
+#[test]
+fn a_carried_ellipse_chord_starts_at_its_nodes_span_end() {
+    use core::f64::consts::{FRAC_PI_2, PI};
+    let tilt = 0.3_f64;
+    let center = Point3::new(0.0, 0.0, 0.5);
+    let normal = Vec3::new(0.0, tilt.sin(), tilt.cos());
+    let ellipse = geom::Curve3::ellipse(
+        center,
+        normal,
+        1.0,
+        1.0 / tilt.cos(),
+        Vec3::unit_x(),
+        band(),
+    )
+    .unwrap();
+    let partner = geom::Surface::Plane {
+        origin: center,
+        normal,
+        u_ref: Vec3::unit_x(),
+    };
+    let span = (FRAC_PI_2, FRAC_PI_2 + PI);
+    let node_at = |t: f64| geom_brep::SectionNode {
+        point: ellipse.eval(t),
+        normal: Vec3::new(t.cos(), t.sin(), 0.0),
+        lines: [ellipse.deriv(t).normalize(), Vec3::unit_z()],
+        above: geom_brep::PairSide::First,
+    };
+    let nodes = vec![node_at(span.0), node_at(span.1)];
+    let end = |node, sense| {
+        Some(geom_brep::NodeEnd {
+            node,
+            line: geom_brep::NodeLine::First,
+            sense,
+        })
+    };
+    let open = geom_brep::ComponentShape::Open {
+        ends: geom_brep::ComponentEnds {
+            nodes: geom_brep::NodeEnds {
+                start: end(0, geom_brep::Sense::Along),
+                end: end(1, geom_brep::Sense::Against),
+            },
+            ..geom_brep::ComponentEnds::default()
+        },
+    };
+    let tangent = |t: f64| ellipse.deriv(t).normalize();
+    let site = ellipse.eval(PI);
+    for (what, ends, dir, want) in [
+        (
+            "back from the node at 3π/2",
+            (nodes[1].point, site),
+            // The germ's own direction is the end's ray; the chord does
+            // not read it at a node.
+            tangent(PI),
+            (-1.5 * PI, -PI),
+        ),
+        (
+            "forward from the node at π/2",
+            (nodes[0].point, site),
+            -tangent(PI),
+            (FRAC_PI_2, PI),
+        ),
+        (
+            "on from π to the node at 3π/2",
+            (site, nodes[1].point),
+            tangent(PI),
+            (PI, 1.5 * PI),
+        ),
+    ] {
+        let comp = closed_form(ellipse.clone(), span, open);
+        let (got, described) = node_chord(comp, partner.clone(), nodes.clone(), ends, dir);
         let chord = got.unwrap_or_else(|e| panic!("{what}: {e:?}"));
         runs_between(&chord, described, ends, what);
         let (t0, t1) = (chord.spec.param_start, chord.spec.param_end);

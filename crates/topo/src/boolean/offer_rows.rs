@@ -1215,7 +1215,7 @@ fn section_site(
         .carry(Some(geom_brep::SsiLane::marched()), band())
         .map_err(|e| unbuilt(super::super::section_table::Uncarried::Carry(&e)))?;
     carried
-        .foot(site, band())
+        .site(site, band())
         .map(|_| ())
         .map_err(super::super::join::site_refusal)
 }
@@ -3041,7 +3041,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("vtxfac.rs", "germ_order", "Coincide::Sectors", 1),
-    ("vtxfac.rs", "mint_node", "Coincide::Sectors", 1),
+    ("node.rs", "face_sense", "Coincide::Sectors", 1),
     ("node.rs", "wall_sense", "Coincide::Sectors", 1),
     (
         "node.rs",
