@@ -169,6 +169,9 @@ fn one_loop() -> Read {
     }
 }
 
+/// A named plane × wall pose and the reading it is pinned to.
+type Fixture = (String, Surface<f64>, NurbsSurface<f64>, SsiDomain, Read);
+
 /// **Each fixture reads the section the plane's ℝ⁴ lane read**, the
 /// one move excepted (module docs). The far wall at 520 m refuses by its
 /// scale where ε is too fine for its coordinates (1e-12), as it did; the
@@ -191,7 +194,7 @@ fn the_plane_reads_the_section_its_lane_read() {
         extent: 1.0,
         floor_scale: 1.0,
     };
-    let mut fixtures: Vec<(String, Surface<f64>, NurbsSurface<f64>, SsiDomain, Read)> = vec![
+    let mut fixtures: Vec<Fixture> = vec![
         (
             "certifiable wall".into(),
             cutting_plane(0.0),
