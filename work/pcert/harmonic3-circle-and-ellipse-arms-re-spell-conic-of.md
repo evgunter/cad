@@ -5,7 +5,7 @@ title: pcurve_cache's Harmonic3 Circle and Ellipse arms re-spell geom_brep::Coni
 status: closed
 opened: 2026-10-14
 closed: 2026-11-03
-pr: 0
+pr: 6468
 ---
 
 Found by the class sweep on `cleave/carrier-cross-one-curve` (conic
