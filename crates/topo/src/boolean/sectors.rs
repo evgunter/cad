@@ -665,6 +665,7 @@ fn push_apex_corner<T: Decide>(
     // ruling only to rounding (a wrap edge's two departures, one of them
     // shortened by a split), that azimuth reads a hair past zero, and the
     // quarters collapse onto the seam.
+    let window = if std::env::var("MUT").as_deref() == Ok("M10") { apex.azimuth_from(unit_start, unit_end) } else { window };
     if !matches!(partners, Partners::Pierced(_)) {
         rulings = [T::from_f64(0.75), T::from_f64(0.5), T::from_f64(0.25)]
             .into_iter()
