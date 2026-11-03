@@ -612,13 +612,7 @@ fn perturbed(s: &mut fuzz::Rng, carrier: &Curve3<f64>, delta: f64) -> Curve3<f64
 /// The sampled sup of `|S(P(t)) − C(t)|` over `[t0, t1]`: a lower
 /// estimate of the true sup, the oracle every row compares against.
 fn sampled_sup(p: &Pcurve<f64>, s: &Surface<f64>, c: &Curve3<f64>, t0: f64, t1: f64) -> f64 {
-    (0..=4096)
-        .map(|k| {
-            let t = t0 + (t1 - t0) * (f64::from(k) / 4096.0);
-            let q = p.eval(t);
-            s.eval(q.x, q.y).distance(c.eval(t))
-        })
-        .fold(0.0, f64::max)
+    super::harmonic_sup_rows::sampled_residual(p, (t0, t1), c, s, 4096)
 }
 
 /// The arm a derivation selected, as the coverage census names it: the

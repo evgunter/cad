@@ -14,7 +14,7 @@ use core::f64::consts::PI;
 
 use geom_core::{Bounds, Interval};
 
-use super::harmonic_sup_rows::{band, covers, zero};
+use super::harmonic_sup_rows::{band, covers, sampled_residual, zero};
 use super::*;
 
 fn cylinder(radius: f64) -> Surface<f64> {
@@ -119,7 +119,7 @@ fn certifies_projected(
         envelope < zero() && hi < zero(),
         "{what}: the envelopes {envelope:e} (f64) and {hi:e} (Interval) are inside the band"
     );
-    let sup = sampled_residual(&image, span, carrier, surface);
+    let sup = sampled_residual(&image, span, carrier, surface, 4096);
     let slack = 64.0 * f64::EPSILON;
     assert!(
         envelope >= sup - slack && hi >= sup - slack,
@@ -127,21 +127,6 @@ fn certifies_projected(
          residual {sup:e}"
     );
     envelope
-}
-
-fn sampled_residual(
-    image: &Pcurve<f64>,
-    (t0, t1): (f64, f64),
-    carrier: &Curve3<f64>,
-    surface: &Surface<f64>,
-) -> f64 {
-    (0..=4096)
-        .map(|i| {
-            let t = t0 + (t1 - t0) * f64::from(i) / 4096.0;
-            let q = image.eval(t);
-            surface.eval(q.x, q.y).distance(carrier.eval(t))
-        })
-        .fold(0.0, f64::max)
 }
 
 /// A ruling whose tilt along the wall reads in the band takes the
@@ -392,6 +377,41 @@ fn the_line_incidence_sup_covers_the_segments_distance() {
             assert!(
                 at_f64 <= 1.01 * sampled + slack,
                 "{what}: the sup {at_f64:e} is tight to the sampled {sampled:e}"
+            );
+        }
+    }
+}
+
+/// A ruling in band on a band-scale cylinder (`R` under the escalation
+/// threshold): the projected lane's sector reaches the axis or reads in
+/// band there, so the pair ends "not yet" (`NoGeneralLane` at a pose, or
+/// the general lane's own escalation), never as a kernel defect, at
+/// `f64` and at `Interval`.
+#[test]
+fn a_ruling_in_band_on_a_band_scale_cylinder_ends_not_yet() {
+    let not_yet = |e: &PcurveCertifyError| {
+        matches!(
+            e,
+            PcurveCertifyError::NoGeneralLane {
+                gap: LaneGap::Pose { .. },
+                ..
+            } | PcurveCertifyError::Escalated {
+                check: PcurveCheck::GeneralLane,
+                ..
+            }
+        ) && !e
+            .render(crate::recourse::Reading::Build)
+            .contains(geom_core::KERNEL_DEFECT_ENDING)
+    };
+    for k in [0.3, 0.9] {
+        let surface = cylinder(k * band().escalate());
+        for phi in [0.3, 2.0] {
+            let carrier = line_at(&surface, phi, 0.0, in_band());
+            let (at_f64, at_interval) = derived(&carrier, (-0.5, 0.5), &surface);
+            assert!(
+                at_f64.as_ref().err().is_some_and(not_yet)
+                    && at_interval.as_ref().err().is_some_and(not_yet),
+                "R {k}·escalate, φ {phi}: ends not yet: {at_f64:?} / {at_interval:?}"
             );
         }
     }

@@ -443,13 +443,8 @@ fn the_cones_fidelity_channels_add() {
         .unwrap()
         .translate(1.0, v);
     let (t0, t1) = (0.0, TAU);
-    let sup = (0..=4096)
-        .map(|i| {
-            let t = t0 + (t1 - t0) * f64::from(i) / 4096.0;
-            let q = stored.eval(t);
-            surface.eval(q.x, q.y).distance(carrier.eval(t))
-        })
-        .fold(0.0, f64::max);
+    let sup =
+        super::harmonic_sup_rows::sampled_residual(&stored, (t0, t1), &carrier, &surface, 4096);
     assert!(
         sup > 1.38 * v,
         "the displacement {sup:e} is the acute-angle one, past 1.38·v"
@@ -568,6 +563,62 @@ fn a_projected_cone_reads_its_half_angle_drift_at_its_norm() {
     let lane = Some(crate::FittedLane::<Interval>::certified());
     PcurveCache::certify_projected(image_i, f(t0), f(t1), &carrier_i, &surface_i, band(), lane)
         .unwrap_or_else(|e| panic!("certifies at Interval: {e:?}"));
+}
+
+/// A rim of a cylinder of radius `0.7·zero`, centred on the axis: its
+/// radial circle reads Zero, so it takes the meridian, whose radial part
+/// is exactly zero and names no direction. The meridian reads its
+/// azimuth off the chart's `u_ref` (exactly `0`), at `f64` and at
+/// `Interval` alike, where it read `atan2(0, 0)` and refused only at
+/// `Interval` (PR 5225's delta review, G1). Its placement's lever is the
+/// rim's reach from the axis, `0.7·zero`: not zero, so the copy is
+/// named, and both scalars name the same one, a whole number of turns
+/// from `0`.
+#[test]
+fn a_meridian_centred_on_the_axis_reads_azimuth_zero() {
+    let r = 0.7 * zero();
+    let surface = cylinder(r);
+    let carrier = circle(
+        Point3::new(0.0, 0.0, 0.25),
+        Vec3::unit_z(),
+        r,
+        Vec3::unit_x(),
+    );
+    let derived = derive_harmonic(
+        &carrier,
+        &surface,
+        super::Placement::own(&carrier, &surface),
+        band(),
+    );
+    let Ok((image, Derivation::CylinderMeridian)) = &derived else {
+        panic!("f64: the sub-zero rim takes the meridian: {derived:?}")
+    };
+    let Some((at_f64, ..)) = image.harmonic_form() else {
+        panic!("f64: the meridian's image is harmonic: {image:?}")
+    };
+    assert_eq!(
+        at_f64.x - TAU * (at_f64.x / TAU).round(),
+        0.0,
+        "f64: the meridian's azimuth is 0 modulo a turn: {at_f64:?}"
+    );
+    let f = Interval::from_f64;
+    let (carrier, surface) = (carrier.map_scalar(f), surface.map_scalar(f));
+    let derived = derive_harmonic(
+        &carrier,
+        &surface,
+        super::Placement::own(&carrier, &surface),
+        band(),
+    );
+    assert!(
+        matches!(
+            &derived,
+            Ok((image, Derivation::CylinderMeridian))
+                if image.harmonic_form().is_some_and(|(p0, ..)| {
+                    p0.x.lo() <= at_f64.x && at_f64.x <= p0.x.hi()
+                })
+        ),
+        "Interval: the sub-zero rim takes the meridian on f64's copy {at_f64:?}: {derived:?}"
+    );
 }
 
 /// `radial-amplitude`: a rim of a cylinder of radius `0.7·escalate`

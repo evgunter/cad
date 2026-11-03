@@ -241,13 +241,7 @@ fn domain(c: &Curve3<f64>) -> (f64, f64) {
 
 /// The densely sampled `max |S(P(t)) − C(t)|`.
 fn sampled(p: &Pcurve<f64>, c: &Curve3<f64>, surf: &Surface<f64>, t0: f64, t1: f64) -> f64 {
-    (0..=256)
-        .map(|i| {
-            let t = t0 + (t1 - t0) * f64::from(i) / 256.0;
-            let q = p.eval(t);
-            surf.eval(q.x, q.y).distance(c.eval(t))
-        })
-        .fold(0.0, f64::max)
+    super::super::harmonic_sup_rows::sampled_residual(p, (t0, t1), c, surf, 256)
 }
 
 /// The smallest distance of the carrier from the chart's singular set
@@ -1988,13 +1982,8 @@ fn the_plane_envelope_dominates_a_carrier_off_the_plane() {
         .map(|(terms, _)| terms)
         .expect("the plane reads no door")
         .total();
-    let dense = (0..=2048)
-        .map(|i| {
-            let t = f64::from(i) / 2048.0;
-            let q = pcurve.eval(t);
-            plane.eval(q.x, q.y).distance(c.eval(t))
-        })
-        .fold(0.0, f64::max);
+    let dense =
+        super::super::harmonic_sup_rows::sampled_residual(&pcurve, (0.0, 1.0), &c, &plane, 2048);
     assert!(
         env >= dense && dense > 0.5 * h,
         "envelope {env:e}, dense {dense:e}"

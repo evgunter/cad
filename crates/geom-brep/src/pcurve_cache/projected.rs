@@ -2097,8 +2097,8 @@ fn read_round<T: Decide>(
 /// `f(q0) = (ρ₀ − r)(ρ₀ + r)`, `f(q1)` likewise, and the middle one
 /// `q0·q1 − r² = (f(q0) + f(q1) − |q1 − q0|²)/2` (`x`, `y` only), so `|f|`
 /// is at most their largest magnitude `F` over the segment. Then
-/// `|ρ − r| = |f|/(ρ + r)` with `ρ ≥ r − F/r`, as for a net on the
-/// cylinder (module docs): `F / (r + max(0, r − F/r))`. Every operation
+/// `|ρ − r| = |f|/(ρ + r)` with `ρ ≥ r − F/r`, the cylinder's metre
+/// conversion ([`Meters::over`]) with no floor on `ρ`. Every operation
 /// is outward-rounded at `Interval`, so the bound holds for every
 /// segment whose ends lie in the enclosures `q0`, `q1`.
 pub(crate) fn line_off_cylinder_sup<T: Real>(q0: Vec3<T>, q1: Vec3<T>, r: T) -> T {
@@ -2113,7 +2113,13 @@ pub(crate) fn line_off_cylinder_sup<T: Real>(q0: Vec3<T>, q1: Vec3<T>, r: T) -> 
     let big = f0.abs().max(f1.abs()).max(middle.abs());
     #[cfg(test)]
     let big = super::mutants::line_off_cylinder(f0, f1, middle).unwrap_or(big);
-    big / (r + (r - big / r).max(T::zero()))
+    let Ok(sup) = Meters::Cylinder { radius: r }.over(
+        big,
+        T::zero(),
+        (0.0, 0.0),
+        Ok::<T, core::convert::Infallible>,
+    );
+    sup
 }
 
 /// Check 4 of a projected row (module docs): the envelope's terms, with
@@ -2240,7 +2246,7 @@ pub(super) fn projected_envelope<T: Decide>(
                 dir: along,
             }),
         ) => {
-            let (true, &Surface::Cylinder { radius, .. }) = (has_lane(carrier, surface), &twin)
+            let (true, &Surface::Cylinder { radius, .. }) = (has_lane(carrier, surface), surface)
             else {
                 return Err(refuse("a line's projected image is written for a cylinder"));
             };

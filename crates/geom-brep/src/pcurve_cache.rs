@@ -2865,10 +2865,9 @@ pub enum EnvelopeStatement {
     ///
     /// - **Cylinder, moving** (`β = ±1`; the image's radial is
     ///   `R·(â_r·cos t + β·e×â_r·sin t)` and `R·â_r = a_r·(1 + k)`):
-    ///   `−w_r + k·a_r·cos t + (β·e×a_r·(1 + k) − b_r)·sin t − l_r·t` ⇒
-    ///   **centre** `‖w_r‖` + **radius** `σ(k·a_r, β·e×a_r·(1 + k) −
-    ///   b_r)` + **line** `‖l_r‖·T`. The axial channel is the carrier's
-    ///   own and cancels.
+    ///   `−w_r + k·a_r·cos t + (β·e×a_r·(1 + k) − b_r)·sin t` (a conic,
+    ///   `l = 0`) ⇒ **centre** `‖w_r‖` + **radius** `σ(k·a_r, β·e×a_r·(1 +
+    ///   k) − b_r)`. The axial channel is the carrier's own and cancels.
     /// - **Cylinder, meridian** (radial motion decided Zero):
     ///   `(R·ŵ_r − w_r) − a_r·cos t −
     ///   b_r·sin t − l_r·t` ⇒ **radius** `|R − ‖w_r‖|` + **drift**
@@ -6099,7 +6098,6 @@ fn incidence<T: Decide>(
         ) => {
             let radial = |v: Vec3<T>| v - axis * v.dot(axis);
             let (w_r, a_r, b_r) = (radial(c - origin), radial(a), radial(b));
-            terms.add(Line, radial(l).norm() * reach);
             match derivation {
                 Derivation::CylinderMoving { beta } => {
                     terms.add(Centre, w_r.norm());
@@ -6113,7 +6111,10 @@ fn incidence<T: Decide>(
                         None,
                     );
                 }
+                // Only a line reaches the meridian with a linear part:
+                // the moving arm is a conic's, whose `l` is zero.
                 _ => {
+                    terms.add(Line, radial(l).norm() * reach);
                     terms.add(Radius, norm_gap(radius, radius.powi(2), w_r));
                     terms.add(Drift, harmonic_sup(a_r, b_r));
                 }
@@ -9465,6 +9466,10 @@ pub enum IsoFamilyRefusal {
     Undecided(Indeterminate),
 }
 
+/// The cylinder arm's ruling reading: whether the carrier's radial part
+/// moves.
+const RADIAL_MOVING: &str = "pcurve_chart_radial_moving";
+
 /// What the chart-class reading of [`chart_iso_family`] asks of an
 /// edge, after "whether": the one spelling of that question.
 pub const ISO_FAMILY_CLAUSE: &str = "runs along a cylinder's ruling or around it";
@@ -9509,10 +9514,12 @@ pub fn chart_iso_family<T: Decide>(
     }
     let derivation = match derive_class(carrier, surface, Placement::own(carrier, surface), band) {
         Ok((_, derivation)) => derivation,
+        // The ruling reading in band; any other class reading in band
+        // keeps its own ending.
         Err(Underived::General {
             undecided: Some(cause),
             ..
-        }) if matches!(surface, Surface::Cylinder { .. }) => {
+        }) if cause.predicate == Some(RADIAL_MOVING) => {
             return Err(IsoFamilyRefusal::Undecided(cause));
         }
         // A line shown off the ruling: its image is the general one, on
@@ -9612,7 +9619,7 @@ fn derive_class<T: Decide>(
             // speed, not how far it leaves a ruling over the edge
             // (`work/pcert/the-ruling-question-is-read-in-two-units.md`).
             let moving = radial_amplitude(&form, axis);
-            let reading = decide("pcurve_chart_radial_moving", Margin::of(moving), band);
+            let reading = decide(RADIAL_MOVING, Margin::of(moving), band);
             #[cfg(test)]
             let reading = match reading {
                 Err(_) if mutants::radial_fold() => Ok(Sign::Zero),
