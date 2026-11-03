@@ -1140,9 +1140,8 @@ def selftest() -> int:
         expect("after set", lint(root))
         os.remove(os.path.join(root, rel))
 
-        # EVERY ITEM HAS AN OWNER: there is no unowned bucket. `new` refuses
-        # an item with no --program, and a directory of items with no
-        # program.md (the retired `work/issues/` shape) is a lint error.
+        # `new` refuses an item with no --program, and a directory of items
+        # with no program.md (the retired `work/issues/` shape) is a lint error.
         try:
             cmd_new(root, "STRAY-1", "issue", "stray", None, [])
             failures.append("`new` without --program should refuse")

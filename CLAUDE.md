@@ -37,8 +37,8 @@ a new memory has to earn that.
 ## Filing an issue
 
 Issues are files, not GitHub issues. Run
-`python3 scripts/work.py new <semantic-name> --kind issue --title "..." --program <p>`
-(every item has an owner; `work/README.md` says how to pick it), write the finding in
+`python3 scripts/work.py new <semantic-name> --kind issue --title "..." --program <p>`,
+write the finding in
 the body with its `file:line` citations, and commit it on your branch;
 `python3 scripts/work.py lint` must pass.
 

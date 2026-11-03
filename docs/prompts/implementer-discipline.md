@@ -188,9 +188,7 @@ slate of the program whose ground they land on, in the same PR that found
 them** — no permission, no routing through anyone. `work/README.md` settles
 it: *"a finding goes straight onto the slate of the program whose ground it
 lands on"*, and *"a lane does not need the owner's permission to put a
-finding where it belongs"* (Rules, "Filing and ownership"). There is no
-unowned bucket: a finding with no obvious owner goes to the live program whose
-charter it fits best.
+finding where it belongs"* (Rules, "Filing and ownership").
 
 `python3 scripts/work.py territory --files -` says who owns a path. Grep that
 program's directory first: if a row already covers your finding, add your

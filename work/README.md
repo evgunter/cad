@@ -361,11 +361,10 @@ lost. That is the whole test. (Ev, in chat, 2026-09-20.)
   that program's directory: a lane does not need the owner's
   permission to put a finding where it belongs.
   (`python3 scripts/work.py territory --files -` says who owns a path.)
-- **Every item has an owner; there is no unowned bucket** (Ev,
-  2026-11-03, retiring `work/issues/`). A finding whose ground no
-  program's `paths` cover, or several cover, goes on the slate of the
-  live program whose charter it fits best. If that program disagrees,
-  it re-homes the item by moving it; nothing waits ownerless meanwhile.
+- **A finding whose ground no program's `paths` cover, or several
+  cover, goes on the slate of the live program whose charter it fits
+  best** (Ev, 2026-11-03). If that program disagrees, it re-homes the
+  item by moving it.
 - **Claiming moves the file.** A program claiming another's item
   MOVES it into its own directory with
   `git mv` in the PR that claims it, keeps the id, and sets `parent:`
@@ -457,8 +456,7 @@ lost. That is the whole test. (Ev, in chat, 2026-09-20.)
   directory (Ev, 2026-09-06): to a live program whose charter it fits,
   or to a new program the closing program opens for it when the
   residue coheres into a track of its own (a dozen items on one
-  territory are a successor's opening slate). Every residue item lands
-  on some program's slate; there is no unowned bucket.
+  territory are a successor's opening slate).
 - **The sweep sees items, not sentences.** A residue mentioned in an
   item's `## Closed` prose reads as a record of work done, so it dies
   with the directory. Disclosing a residue is therefore not scheduling
