@@ -354,3 +354,181 @@ impl<'a> ImplicitSection<'a> {
         })
     }
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tests {
+    use geom::{NurbsSurface, Surface};
+    use geom_core::spline::KnotVector;
+    use geom_core::{Band, Point3, Vec3};
+
+    use super::{ImplicitSection, SectionReading};
+    use crate::ssi::handle::TubeCell;
+    use crate::ssi::{ChartAxis, ChartEnd, SsiBoundaryContact, SsiDomain};
+
+    /// A biquadratic over `[0, 1]²` whose height is `z(i, j)` at control
+    /// point `(i, j)`.
+    fn net(z: &dyn Fn(usize, usize) -> f64) -> NurbsSurface<f64> {
+        let k = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        let control = (0..9)
+            .map(|n| {
+                let (i, j) = (n / 3, n % 3);
+                Point3::new(0.5 * i as f64, 0.5 * j as f64, z(i, j))
+            })
+            .collect();
+        NurbsSurface::new(k.clone(), k, control, vec![1.0; 9]).unwrap()
+    }
+
+    /// The horizontal plane at height `h`.
+    fn level(h: f64) -> Surface<f64> {
+        Surface::Plane {
+            origin: Point3::new(0.5, 0.5, h),
+            normal: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        }
+    }
+
+    fn domain() -> SsiDomain {
+        SsiDomain {
+            center: Point3::new(0.5, 0.5, 0.0),
+            half_extent: 2.0,
+            extent: 1.0,
+            floor_scale: 1.0,
+        }
+    }
+
+    fn band() -> Band {
+        Band::new(1e-9, 1e-8).unwrap()
+    }
+
+    /// **A plane section of a chart minted once reads as of a fresh
+    /// mint.** [`ImplicitSection::of_charted`] handed the wall's chart,
+    /// minted once and shared by two sections in turn (the second reads
+    /// every cell the first formed), answers both seeds with the same
+    /// branches and tubes as [`ImplicitSection::of`], bit for bit.
+    #[test]
+    fn a_plane_section_of_a_chart_minted_once_reads_as_a_fresh_mint() {
+        let (plane, wall) = (level(0.1), net(&|i, _| [0.25, -0.25, 0.25][i]));
+        let r = 0.1_f64.sqrt();
+        let read = |mut section: ImplicitSection<'_>| {
+            for x in [0.5 - r, 0.5 + r] {
+                section.branch_at(Point3::new(x + 1e-3, 0.4, 0.1)).unwrap();
+            }
+            format!("{:?} {:?}", section.banked.branches, section.banked.tubes)
+        };
+        let fresh = read(ImplicitSection::of(&plane, &wall, domain(), band()).unwrap());
+        let chart = super::ChartedNurbs::mint(&wall).unwrap();
+        for turn in 0..2 {
+            let charted = ImplicitSection::of_charted(
+                &plane,
+                (&wall, |_| Ok(chart.clone())),
+                domain(),
+                band(),
+            )
+            .unwrap();
+            assert!(
+                read(charted) == fresh,
+                "turn {turn}: the charted section reads otherwise"
+            );
+        }
+    }
+
+    /// **A chart of another wall is refused.**
+    /// [`ImplicitSection::of_charted`] handed another wall's chart refuses
+    /// with [`SsiError::WrongLane`] in every build, before any reading.
+    #[test]
+    fn a_chart_of_another_wall_is_refused() {
+        let plane = level(0.1);
+        let (wall, other) = (
+            net(&|i, _| [0.25, -0.25, 0.25][i]),
+            net(&|i, _| [0.3, -0.2, 0.3][i]),
+        );
+        let chart = super::ChartedNurbs::mint(&other).unwrap();
+        let got =
+            ImplicitSection::of_charted(&plane, (&wall, |_| Ok(chart.clone())), domain(), band());
+        assert!(
+            matches!(got, Err(super::SsiError::WrongLane { .. })),
+            "a mispaired chart came back {:?}",
+            got.err()
+        );
+    }
+
+    /// **Each seed is answered by the branch through it.** The trough
+    /// `z = (x − ½)²` cut at `z = 0.1` has two branches, at
+    /// `x = ½ ± √0.1`. A seed beside each is answered by a branch whose
+    /// certified tube holds the state it settled to, the two answers are
+    /// different branches, a second seed on a branch already certified
+    /// traces nothing, and `all` keeps both and accounts the rectangle.
+    #[test]
+    fn each_seed_is_answered_by_the_branch_through_it() {
+        let (plane, wall) = (level(0.1), net(&|i, _| [0.25, -0.25, 0.25][i]));
+        let mut section = ImplicitSection::of(&plane, &wall, domain(), band()).unwrap();
+        let r = 0.1_f64.sqrt();
+        for x in [0.5 - r, 0.5 + r] {
+            let SectionReading::Branch(branch) =
+                section.branch_at(Point3::new(x + 1e-3, 0.4, 0.1)).unwrap()
+            else {
+                panic!("the seed beside x = {x} settles on a branch");
+            };
+            let mid = branch.witness;
+            assert!(
+                (mid.x - x).abs() < 1e-6,
+                "the branch at x = {x} passes {mid:?}"
+            );
+        }
+        assert_eq!(section.banked.branches.len(), 2, "two branches certified");
+        for (i, x) in [0.5 - r, 0.5 + r].into_iter().enumerate() {
+            let tube = &section.banked.tubes[i];
+            let state = [x, 0.7];
+            assert!(
+                tube.iter().any(|c| c.holds_state(&state)),
+                "branch {i}'s tube holds the section at x = {x}"
+            );
+        }
+        section.branch_at(Point3::new(0.5 + r, 0.7, 0.1)).unwrap();
+        assert_eq!(
+            section.banked.branches.len(),
+            2,
+            "a seed on a certified branch is that branch"
+        );
+        let out = section.all().unwrap();
+        assert_eq!(out.branches.len(), 2, "{out:?}");
+        assert!(out.exhaustiveness.accounted > 0, "{}", out.exhaustiveness);
+    }
+
+    /// **A seed a side region holds is answered by the region.** The
+    /// plane `z = 0` holds the bottom row of a wall rising from it, which
+    /// the boundary pass reports as a `Side` region; a seed on that row
+    /// settles in the region, and the region is the answer.
+    #[test]
+    fn a_seed_in_a_side_region_is_answered_by_it() {
+        let (plane, wall) = (level(0.0), net(&|_, j| 0.5 * j as f64));
+        let mut section = ImplicitSection::of(&plane, &wall, domain(), band()).unwrap();
+        let reading = section.branch_at(Point3::new(0.5, 0.0, 0.0)).unwrap();
+        let SectionReading::Region(SsiBoundaryContact::Side { side, .. }) = reading else {
+            panic!("the bottom row is a side region, got {reading:?}");
+        };
+        assert_eq!(
+            (side.fixed, side.end),
+            (ChartAxis::V, ChartEnd::Low),
+            "the region is the bottom row"
+        );
+    }
+
+    /// **A seed a corner region holds is answered by the corner.** The
+    /// plane `z = 0` meets the tilted wall `z = x + y` only at its corner
+    /// `(0, 0)`; a seed there settles in the corner region.
+    #[test]
+    fn a_seed_in_a_corner_region_is_answered_by_it() {
+        let (plane, wall) = (level(0.0), net(&|i, j| 0.5 * (i + j) as f64));
+        let mut section = ImplicitSection::of(&plane, &wall, domain(), band()).unwrap();
+        let reading = section.branch_at(Point3::new(0.0, 0.0, 0.0)).unwrap();
+        assert!(
+            matches!(
+                reading,
+                SectionReading::Region(SsiBoundaryContact::Corner { .. })
+            ),
+            "the wall meets the plane at its corner, got {reading:?}"
+        );
+    }
+}
