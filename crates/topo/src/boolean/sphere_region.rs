@@ -425,6 +425,7 @@ impl<T: Decide> Paths<T> for SphereFaceRegion<T> {
         let end = End {
             place: first.arc(corner),
             row: "bool_sphere_region_corner",
+            open: false,
         };
         let center = self.center;
         let then = move || Leg::whole(region::parallel(center, a, corner, then_forward));

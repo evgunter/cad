@@ -7,7 +7,7 @@
 //! its own rows. Where a leg meets an edge is the curve-pair meeting
 //! question, read once for every door ([`landings`]).
 
-use geom_brep::curve_pair::{self, Hit as Met, MeetFault, Span};
+use geom_brep::curve_pair::{self, Hit as Met, MeetFault, Span, SpanEnd};
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
 
 use super::solid_contain::PointInSolidError;
@@ -167,7 +167,7 @@ pub(crate) type Landing<T> = (Point3<T>, T, bool);
 /// runs ([`Course::span`]); where along it each landing lies is the
 /// skeleton's to read ([`Leg::place`]). An edge on the leg's own carrier
 /// (a shared run) is no crossing: the leg runs along it where it reaches
-/// it ([`Leg::along`]).
+/// it ([`Leg::along`]); nor is a meeting at an open end ([`End::open`]).
 ///
 /// # Errors
 ///
@@ -180,17 +180,20 @@ pub(crate) fn landings<T: Decide, C: Course<T>>(
     band: Band,
 ) -> Result<Vec<Landing<T>>, Fault> {
     let course = leg.course.carrier();
-    let span = leg.course.span(leg.end.map(|end| end.place), edge);
+    let (params, whole) = leg.course.span(leg.end.map(|end| end.place), edge);
+    let run = Span::new(&course, params);
+    let run = if whole { run.endless() } else { run };
     let on_edge = Span::new(&edge.carrier, (edge.t0, edge.t1));
-    let met = curve_pair::meet(&Span::new(&course, span), &on_edge, band)
-        .map_err(|refusal| set_aside(refusal.fault))?;
+    let met = curve_pair::meet(&run, &on_edge, band).map_err(|refusal| set_aside(refusal.fault))?;
     if met.shared.is_some() {
         leg.along(edge, at, band)?;
         return Ok(Vec::new());
     }
+    let open = leg.end.is_some_and(|end| end.open);
     Ok(met
         .points
         .into_iter()
+        .filter(|m| !(open && matches!(m.on_a, Met::End(SpanEnd::Stop))))
         .map(|m| (m.point, on_edge.at(m.on_b), matches!(m.on_b, Met::End(_))))
         .collect())
 }
@@ -438,18 +441,24 @@ pub(crate) trait Course<T: Decide> {
     /// The course as a carrier.
     fn carrier(&self) -> geom::Curve3<T>;
 
-    /// The span of [`Course::carrier`] a leg runs from its start: to the
-    /// place `end` where it is bounded, and otherwise its whole turn, or
-    /// along a line past every point of `edge`.
-    fn span(&self, end: Option<T>, edge: &RegionEdge<T>) -> (T, T);
+    /// The span of [`Course::carrier`] a leg runs from its start, and
+    /// whether it is a whole turn, whose start is no end of it
+    /// ([`Span::endless`]): to the place `end` where it is bounded, and
+    /// otherwise round the whole turn, or along a line past every point
+    /// of `edge`.
+    fn span(&self, end: Option<T>, edge: &RegionEdge<T>) -> ((T, T), bool);
 }
 
-/// Where a bounded leg stops: its place along the leg, and the row a
-/// place is read against it on.
+/// Where a bounded leg stops: its place along the leg, the row a place
+/// is read against it on, and whether the leg runs up to it and not onto
+/// it (`open`): a cone's apex, where every generator meets and nothing
+/// carries a side across, so a meeting there is no crossing of the leg.
+/// A corner is closed: the path turns there.
 #[derive(Clone, Copy)]
 pub(crate) struct End<T: geom_core::Real> {
     pub(crate) place: T,
     pub(crate) row: &'static str,
+    pub(crate) open: bool,
 }
 
 /// One leg of a path along its course `C`, ending at `end` where it is
@@ -790,12 +799,12 @@ impl<T: Decide> Course<T> for Round<T> {
         geom::Curve3::circle(self.center, self.normal, self.radius, self.e1)
     }
 
-    /// An arc length's angle.
-    fn span(&self, end: Option<T>, _: &RegionEdge<T>) -> (T, T) {
-        (
-            T::zero(),
-            end.map_or_else(T::tau, |place| place / self.radius),
-        )
+    /// Places are arc lengths, so an angle is a place over the radius.
+    fn span(&self, end: Option<T>, _: &RegionEdge<T>) -> ((T, T), bool) {
+        match end {
+            None => ((T::zero(), T::tau()), true),
+            Some(place) => ((T::zero(), place / self.radius), false),
+        }
     }
 }
 
@@ -828,13 +837,13 @@ impl<T: Decide> Course<T> for Line<T> {
     /// Unbounded, out to twice the edge's farthest reach from the start
     /// ([`geom_brep::ExtentBall::of_edge_from`]), so every meeting with
     /// the edge lies inside the span, clear of its far end.
-    fn span(&self, end: Option<T>, edge: &RegionEdge<T>) -> (T, T) {
+    fn span(&self, end: Option<T>, edge: &RegionEdge<T>) -> ((T, T), bool) {
         let far = || {
             let ball =
                 geom_brep::ExtentBall::of_edge_from(&edge.carrier, (edge.t0, edge.t1), self.start);
             ball.radius() * T::from_f64(2.0)
         };
-        (T::zero(), end.unwrap_or_else(far))
+        ((T::zero(), end.unwrap_or_else(far)), false)
     }
 }
 
@@ -940,6 +949,7 @@ mod tests {
             end: end.map(|place| End {
                 place,
                 row: "test_region_end",
+                open: false,
             }),
         }
     }

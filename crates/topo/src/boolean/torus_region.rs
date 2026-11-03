@@ -369,6 +369,7 @@ impl<T: Decide> Paths<T> for TorusFaceRegion<T> {
         let end = End {
             place: first.course.arc(corner),
             row: CORNER,
+            open: false,
         };
         let then = move || {
             if parallel_first {

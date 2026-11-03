@@ -597,3 +597,30 @@ fn a_generator_from_the_apex_keeps_its_nappe() {
     assert_eq!(quarter.contains(on_cone(0.7, -1.0), b()), Ok(Some(false)));
     assert_eq!(quarter.contains(on_cone(0.7, 1.0), b()), Ok(Some(true)));
 }
+
+/// **A generator toward the apex lands nowhere at the apex.** A ruling
+/// leg run back toward the cone's apex ends there, and every generator
+/// edge through the apex meets it at that end: the leg runs up to the
+/// apex and not onto it, so the meeting is no crossing of it. A
+/// generator edge clear of the apex is met nowhere, and the rim the leg
+/// crosses short of the apex is its one landing.
+#[test]
+fn a_generator_toward_the_apex_lands_nowhere_at_it() {
+    let through = segment(1, on_cone(1.0, 0.0), on_cone(1.0, 2.0));
+    let clear = segment(2, on_cone(2.0, 0.5), on_cone(2.0, 2.0));
+    let below = cone_rim(3, 0.5, (0.0, TAU), true);
+    let region = cone(vec![through.clone(), clear.clone(), below.clone()], 2.0);
+    let leg = region.ruling(on_cone(0.0, 1.0), false);
+    assert!(
+        leg.end.is_some_and(|end| end.open),
+        "the leg ends at the apex"
+    );
+    let at = |e: &Edge<f64>| {
+        crate::boolean::region::landings(e, &leg, RuledFaceRegion::<f64>::AT, b())
+            .ok()
+            .map(|l| l.len())
+    };
+    assert_eq!(at(&through), Some(0), "the generator through the apex");
+    assert_eq!(at(&clear), Some(0), "a generator clear of the apex");
+    assert_eq!(at(&below), Some(1), "the rim short of the apex");
+}

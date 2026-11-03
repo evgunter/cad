@@ -258,7 +258,7 @@ impl<T: Decide> region::Course<T> for LegShape<T> {
         }
     }
 
-    fn span(&self, end: Option<T>, edge: &Edge<T>) -> (T, T) {
+    fn span(&self, end: Option<T>, edge: &Edge<T>) -> ((T, T), bool) {
         match self {
             Self::Parallel(round) => round.span(end, edge),
             Self::Ruling(line) => line.span(end, edge),
@@ -544,7 +544,11 @@ impl<T: Decide> RuledFaceRegion<T> {
         };
         Leg {
             course: LegShape::Ruling(Line { start: a, dir }),
-            end: end.map(|place| End { place, row: END }),
+            end: end.map(|place| End {
+                place,
+                row: END,
+                open: true,
+            }),
         }
     }
 
@@ -671,6 +675,7 @@ impl<T: Decide> Paths<T> for RuledFaceRegion<T> {
             End {
                 place: end,
                 row: END,
+                open: false,
             },
             then,
         ))

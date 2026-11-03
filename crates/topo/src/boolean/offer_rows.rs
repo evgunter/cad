@@ -2926,12 +2926,6 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     (
-        "ruled_region.rs",
-        "-",
-        "BooleanDecision::CONTAINMENT_UNNAMED",
-        1,
-    ),
-    (
         "sectors.rs",
         "read_refusal",
         "BooleanDecision::ConicBend",
@@ -3000,21 +2994,9 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("slit.rs", "walls_inside", "BooleanDecision::of_normal", 1),
     ("slit.rs", "walls_inside", "Coincide::Sectors", 1),
     (
-        "sphere_region.rs",
-        "-",
-        "BooleanDecision::CONTAINMENT_UNNAMED",
-        1,
-    ),
-    (
         "torus_frame_rows.rs",
         "a_torus_off_its_ring_is_refused_as_the_pierce_refuses_it",
         "BooleanDecision::Torus",
-        1,
-    ),
-    (
-        "torus_region.rs",
-        "-",
-        "BooleanDecision::CONTAINMENT_UNNAMED",
         1,
     ),
     (
