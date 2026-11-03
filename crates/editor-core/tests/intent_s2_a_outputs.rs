@@ -347,6 +347,7 @@ fn a_split_carries_a_named_output_onto_its_nodes_new_one() {
         editor_core::DocumentId::derive("s2a-split-part"),
         Tol::witness(),
         None,
+        &editor_core::Stop::default(),
     )
     .expect("splits");
     let carried = out.node_map[&extrude];
@@ -591,6 +592,7 @@ fn instance_named_bracket(
         editor_core::DocumentId::derive(&format!("{seed}-part")),
         Tol::witness(),
         None,
+        &editor_core::Stop::default(),
     )
     .expect("splits");
     let mut store = fixture::resolver::PartStore::default();

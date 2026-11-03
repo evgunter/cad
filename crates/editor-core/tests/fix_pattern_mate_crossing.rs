@@ -218,6 +218,7 @@ fn a_family_headed_mate_edge_crosses_a_cut_of_its_target_and_severs_a_cut_of_its
         DocumentId::derive("fix-xs-torn-part"),
         Tol::witness(),
         o.resolver.as_ref(),
+        &editor_core::Stop::default(),
     )
     .expect("a cut of the family side splits");
     // The kept top is an instance, so its face is its part's name, which
@@ -237,6 +238,7 @@ fn a_family_headed_mate_edge_crosses_a_cut_of_its_target_and_severs_a_cut_of_its
         DocumentId::derive("fix-xs-torn-top-part"),
         Tol::witness(),
         o.resolver.as_ref(),
+        &editor_core::Stop::default(),
     )
     .expect_err("a cut placement's read of a kept member is severed");
     let editor_core::SplitError::SeveredEdge {
@@ -262,6 +264,7 @@ fn a_family_headed_mate_edge_crosses_a_cut_of_its_target_and_severs_a_cut_of_its
         DocumentId::derive("fix-xs-severed-part"),
         Tol::witness(),
         o.resolver.as_ref(),
+        &editor_core::Stop::default(),
     )
     .expect_err("a severed recipe edge refuses");
     let editor_core::SplitError::SeveredEdge {
@@ -286,6 +289,7 @@ fn a_family_headed_mate_edge_crosses_a_cut_of_its_target_and_severs_a_cut_of_its
         DocumentId::derive("fix-xs-whole-part"),
         Tol::witness(),
         o.resolver.as_ref(),
+        &editor_core::Stop::default(),
     )
     .expect("a whole cut splits");
     assert!(
@@ -310,6 +314,7 @@ fn the_recorded_map_rewrites_a_family_head_s_ids_and_never_its_member_value() {
         DocumentId::derive("fix-xs-remap-part"),
         Tol::witness(),
         o.resolver.as_ref(),
+        &editor_core::Stop::default(),
     )
     .expect("a whole cut splits");
 
@@ -407,6 +412,7 @@ fn an_underqualified_family_head_reaches_the_seam_and_contributes_no_crossing() 
         DocumentId::derive("fix-xs-nested-part"),
         Tol::witness(),
         o.resolver.as_ref(),
+        &editor_core::Stop::default(),
     )
     .expect("the cut is closed: the kept top reads the cut side");
     assert!(
@@ -520,6 +526,7 @@ fn a_top_seated_on_a_family_member_is_proven_by_its_mate() {
         &doc,
         &ev,
         &editor_core::ChecksConfig::default(),
+        &editor_core::Stop::default(),
         Tol::witness(),
     )
     .expect("checks run over the legs");

@@ -29,7 +29,9 @@ fn unproven(doc: &ProfileDoc, ev: &Evaluation<f64>) -> Vec<editor_core::CheckFin
         unused: Advisory::Off,
         ..ChecksConfig::default()
     };
-    let report = editor_core::run_checks(doc, ev, &cfg, Tol::witness()).expect("the checks run");
+    let report =
+        editor_core::run_checks(doc, ev, &cfg, &editor_core::Stop::default(), Tol::witness())
+            .expect("the checks run");
     assert!(
         report
             .findings
@@ -61,7 +63,7 @@ fn proofs(doc: &ProfileDoc, node: RecipeNodeId, rows: &[NamedCoincidence]) -> Ve
         &[(node, rows)],
         None,
         Tol::witness(),
-        &editor_core::CancelToken::new(),
+        &editor_core::Stop::default(),
     )
     .expect("an uncanceled door")
     .pop()
@@ -802,7 +804,14 @@ fn the_check_off_is_visibly_skipped() {
         unproven_coincidence: Advisory::Off,
         ..ChecksConfig::default()
     };
-    let report = editor_core::run_checks(&doc, &ev, &cfg, Tol::witness()).expect("the checks run");
+    let report = editor_core::run_checks(
+        &doc,
+        &ev,
+        &cfg,
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .expect("the checks run");
     assert!(report.skipped.contains(&CheckId::UnprovenCoincidence));
     assert!(
         report
@@ -901,8 +910,14 @@ fn a_reunited_splits_section_caps_are_one_construction() {
             "every row of the reunion is one construction, with no replay"
         );
     }
-    let report = editor_core::run_checks(&doc, &ev, &ChecksConfig::default(), Tol::witness())
-        .expect("the checks run");
+    let report = editor_core::run_checks(
+        &doc,
+        &ev,
+        &ChecksConfig::default(),
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .expect("the checks run");
     assert!(
         !report.skipped.contains(&CheckId::UnprovenCoincidence),
         "the premise: the check ran"
@@ -1887,7 +1902,7 @@ fn proved_rows(
         &nodes,
         None,
         Tol::witness(),
-        &editor_core::CancelToken::new(),
+        &editor_core::Stop::default(),
     )
     .expect("an uncanceled door");
     nodes
@@ -1964,7 +1979,7 @@ fn census_the_door_over_the_corpus() {
             &nodes,
             None,
             Tol::witness(),
-            &editor_core::CancelToken::new(),
+            &editor_core::Stop::default(),
         )
         .expect("an uncanceled door");
         let door = t.elapsed();
@@ -2052,7 +2067,7 @@ fn the_door_proves_half_the_composed_dies_joints() {
             &nodes,
             None,
             Tol::witness(),
-            &editor_core::CancelToken::new(),
+            &editor_core::Stop::default(),
         )
         .expect("an uncanceled door")
         .into_iter()
@@ -2251,7 +2266,7 @@ fn two_copies_meeting_by_the_same_face_are_not_one_construction() {
                 &[(node, &rows[..])],
                 None,
                 Tol::witness(),
-                &editor_core::CancelToken::new(),
+                &editor_core::Stop::default(),
             )
             .expect("the door runs");
             let rung = match proof[0][0] {
@@ -2305,6 +2320,7 @@ fn a_report_settled_at_rest_is_the_synchronous_report() {
         &ev,
         editor_core::Subject::Product(&gathered),
         &cfg,
+        &editor_core::Stop::default(),
         tol,
     )
     .expect("the checks run");
@@ -2335,7 +2351,7 @@ fn a_report_settled_at_rest_is_the_synchronous_report() {
     );
     let job = job.expect("a row asks for the door");
     at_rest.settle(
-        job.run(&cd.doc, &editor_core::CancelToken::new())
+        job.run(&cd.doc, &editor_core::Stop::default())
             .expect("an uncanceled door"),
     );
     assert_eq!(at_rest, sync);
@@ -3425,7 +3441,7 @@ fn proofs_with(
         &[(node, rows)],
         opts.resolver.as_ref(),
         Tol::witness(),
-        &editor_core::CancelToken::new(),
+        &editor_core::Stop::default(),
     )
     .expect("an uncanceled door")
     .remove(0)

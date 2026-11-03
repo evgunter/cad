@@ -461,6 +461,7 @@ fn every_registered_assertion_holds_over_the_certified_leaves_within_budget() {
             &entry.doc,
             &analyzed,
             &DriveConfig::default(),
+            &editor_core::Stop::default(),
             Tol::witness(),
         ) {
             Ok(v) => v,
@@ -557,8 +558,10 @@ fn every_registered_assertion_holds_over_the_certified_leaves_within_budget() {
                     node,
                     &leaf.box_,
                     verdict.symbolic(),
+                    &editor_core::Stop::default(),
                     Tol::witness(),
-                ) else {
+                )
+                .expect("the replay is not stopped") else {
                     panic!(
                         "{}: assertion node {} did not evaluate over a certified leaf",
                         entry.name, node.0
@@ -685,6 +688,7 @@ fn accounting_text() -> String {
                 max_leaves: 4096,
                 ..DriveConfig::default()
             },
+            &editor_core::Stop::default(),
             Tol::witness(),
         )
         .expect("the nominal builds");
@@ -736,8 +740,14 @@ fn a_band_only_documents_budget_reads_forced_and_a_uniform_ones_priced() {
     // actually meets.
     let analyzed = forced;
     let band = band_placement();
-    let verdict = drive(&band, &analyzed, &DriveConfig::default(), Tol::witness())
-        .expect("the nominal builds");
+    let verdict = drive(
+        &band,
+        &analyzed,
+        &DriveConfig::default(),
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .expect("the nominal builds");
     let rendered = MassBudget::of(verdict.accounting(), &analyzed).render(&band);
     assert!(
         rendered.contains("FORCED, not priced"),
@@ -837,7 +847,10 @@ fn the_certifying_filter_moves_the_witness_key_and_the_move_is_goldened() {
             None,
             &CancelToken::new(),
             // The witness's own options, as the drive builds them.
-            &editor_core::drive::witness_options(&analyzed_box(d, &AnalysisPolicy::default())),
+            &editor_core::drive::witness_options(
+                &analyzed_box(d, &AnalysisPolicy::default()),
+                &editor_core::Stop::default(),
+            ),
             Tol::witness(),
         );
         let full = VerdictVector::of(&ev);
