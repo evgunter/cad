@@ -1784,7 +1784,7 @@ pub fn naming_error_tag(err: &NamingError) -> &'static str {
         NamingError::UnsupportedSeamSides { shape, .. } => seam_sides_shape_tag(shape),
         NamingError::UnsupportedJoin { shape, .. } => join_shape_tag(shape),
         NamingError::UnsupportedUnionName { shape, .. } => union_name_shape_tag(shape),
-        NamingError::UnsupportedUnjudgedGlue { .. } => "unsupported_unjudged_glue",
+        NamingError::HoldingsUnread { .. } => "holdings_unread",
         NamingError::UnsupportedTurnedCell { .. } => "unsupported_turned_cell",
         // The PRECISION-LIMIT arms: a lever the model holds, neither a
         // kernel bug nor a missing rule.
