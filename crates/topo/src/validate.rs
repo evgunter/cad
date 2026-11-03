@@ -980,8 +980,8 @@ pub enum ContactMark {
     SmoothUnderdetermined,
     /// A `Seam`-described edge — exempt by kind, as always.
     ///
-    /// **Not [`geom_brep::MaterialWedge::Seam`]**, which sits four
-    /// lines away in the same check and means something else entirely:
+    /// **Not [`geom_brep::WedgeVerdict::Seam`]**, which check 4 maps
+    /// onto these marks and means something else entirely:
     /// that one is the material VERDICT wedge π (the two faces
     /// continue one another), while this one is a statement about the
     /// edge's DESCRIPTION (a chart seam), and an exemption rather than
@@ -1357,11 +1357,14 @@ pub enum ValidationError {
         edge: EdgeKey,
     },
     /// Tier 3, check 4: an edge's two faces read definitely transverse
-    /// at one interior station and definitely smooth at its neighbour
-    /// (D2's mixed edge). The dihedral is continuous along the edge, so
-    /// the two bracket an in-band point the schedule did not sample:
-    /// the edge is certifiable as neither a corner nor a smooth join,
-    /// whatever its description.
+    /// at one interior station and definitely smooth at its neighbour,
+    /// or a convex corner at one and a concave one at its neighbour (D2's
+    /// mixed edge). The signed dihedral is continuous along the edge, so
+    /// the two bracket an in-band point the schedule did not sample: the
+    /// edge is certifiable as neither a corner nor a smooth join,
+    /// whatever its description. Along a tangency, the stations' material
+    /// pairings or ends can also differ ([`geom_brep::MixedStations`]),
+    /// a material verdict the stations never established.
     MixedDihedral {
         /// The mixed edge.
         edge: EdgeKey,
@@ -2981,10 +2984,10 @@ pub enum WedgeCheck {
     /// are aligned or opposed ([`geom_brep::MATERIAL_PAIRING`]): in band,
     /// or decided zero over an arm too short to read a side.
     MaterialPairing,
-    /// On a definitely-smooth edge, which material side each face is on
-    /// and which end of the wedge they make, where the samples disagree
-    /// or a side read after the decisions before it came out definite
-    /// reads undecided.
+    /// On a definitely-smooth edge, which end of the wedge opposed faces
+    /// make, where the side read after the decisions before it came out
+    /// definite reads undecided (stations whose ends differ are a
+    /// [`ValidationError::MixedDihedral`]).
     MaterialSide,
 }
 
@@ -3061,14 +3064,18 @@ impl WedgeCheck {
             Self::Arm => geom_brep::DIHEDRAL_ARM
                 .recourse(arm, Reading::AtRest)
                 .into(),
-            Self::Dihedral | Self::Sign => WEDGE.recourse(arm, Reading::AtRest).into(),
+            Self::Dihedral => WEDGE.recourse(arm, Reading::AtRest).into(),
+            // A corner's class decided, its sign did not: the signed
+            // wedge has the class's magnitude wherever the walk runs along
+            // the crease, so it reaches the band only where the edge's
+            // curve leaves the faces' crossing — a body built wrong.
+            Self::Sign => DEFECT.into(),
             Self::SecondOrder => SEPARATION.recourse(arm, Reading::AtRest).into(),
             Self::MaterialPairing => geom_brep::MATERIAL_PAIRING
                 .recourse(arm, Reading::AtRest)
                 .into(),
-            // A split along the edge, or a side read after the decisions
-            // before it came out definite: no margin of its own gives a
-            // size or a lever.
+            // A side read after the decisions before it came out
+            // definite: no margin of its own gives a size or a lever.
             Self::MaterialSide => DEFECT.into(),
         }
     }
@@ -4547,8 +4554,13 @@ impl ValidationError {
             Self::SliverDihedral { check, cause, .. } => {
                 write!(f, "{}. {}", check.lead(), check.ending(cause))
             }
-            Self::MixedDihedral { stations, .. } => {
+            Self::MixedDihedral { stations, .. } if stations.is_first_order() => {
                 write!(f, "along an edge, {stations}. Recourse: {}", WEDGE.lever)
+            }
+            // A pairing or an end that differs along a tangency: a
+            // material verdict no edit is known to reach.
+            Self::MixedDihedral { stations, .. } => {
+                write!(f, "along an edge, {stations}. {DEFECT}")
             }
             Self::TransverseNotIntrinsic { .. } => write!(
                 f,
@@ -6924,6 +6936,38 @@ fn plus_v_errors<T: Decide>(
     errors
 }
 
+/// **An edge's wedge walk** ([`geom_brep::WedgeWalk::along_edge`]): the
+/// face of its `he_plus` as the plus face and of its `he_minus` as the
+/// minus face, each with its `Face::sense` bit, and the interior stations
+/// of its certified curve, whose increasing parameter is the way
+/// `he_plus` walks it (`crate::entity`'s orientation section). The one
+/// door from an edge to its wedge's faces and walk, so no reader pairs a
+/// face order with a direction by hand (`geom_brep::Convexity`'s
+/// convention). `None` where a record on the way does not resolve, which
+/// tier 1 rules out.
+pub(crate) fn edge_wedge_walk<T: geom_core::Decide>(
+    body: &Body<T>,
+    edge: EdgeKey,
+) -> Option<geom_brep::WedgeWalk<'_, T>> {
+    let e = body.get_edge(edge)?;
+    let curve = body.curves.get(e.curve).and_then(CurveGeom::certified)?;
+    let sides = crate::readback::edge_sides(body, edge).ok()?;
+    let side = |side: crate::readback::EdgeSide| {
+        Some(geom_brep::SideFace {
+            surface: body.surfaces.get(side.surface)?,
+            sense: body.get_face(side.face)?.sense,
+        })
+    };
+    let (t0, t1) = curve.params();
+    Some(geom_brep::WedgeWalk::along_edge(
+        side(sides.plus)?,
+        side(sides.minus)?,
+        curve.carrier(),
+        t0,
+        t1,
+    ))
+}
+
 /// **Check 4's reading of an edge's wedge**: the contact mark the
 /// whole-edge fold's verdict earns ([`geom_brep::edge_wedge_over`]), and
 /// the finding it raises, if any. `wrap` is a chart seam's edge, marked
@@ -6933,29 +6977,28 @@ fn plus_v_errors<T: Decide>(
 /// prefer-intrinsic).
 ///
 /// Pure, so that every verdict's finding is pinned by calling it,
-/// including the two splits no certified geometry is known to reach
-/// (`wedge_reading_table`). A settled wedge is legal at rest — the
-/// crease, the seam, and the two ends because the fold hands one out
-/// only over a jet-determinate tangency — and the lamina and both
-/// splits refuse. A split escalates rather than falls silent: silence
-/// would validate a wedge end on an edge whose own stations disagreed.
+/// including the pairing and end disagreements no certified geometry is
+/// known to reach (`wedge_reading_table`). A settled wedge is legal at
+/// rest — the crease, the seam, and the two ends because the fold hands
+/// one out only over a jet-determinate tangency — and the lamina and
+/// every mixed edge refuse. A mixed edge refuses rather than falls
+/// silent: silence would validate a wedge end on an edge whose own
+/// stations disagreed.
 pub(crate) fn wedge_reading(
     verdict: geom_brep::WedgeVerdict,
     edge: EdgeKey,
-    band: Band,
     wrap: bool,
     conventional: bool,
 ) -> (ContactMark, Option<ValidationError>) {
     use geom_brep::{Bend, WedgeVerdict as V};
     let mark = match verdict {
-        V::InBand(_) | V::Mixed(_) | V::Split { .. } => ContactMark::Unmarked,
+        V::InBand(_) | V::Mixed(_) => ContactMark::Unmarked,
         _ if wrap => ContactMark::Seam,
         V::Crease(_) => ContactMark::Transverse,
         V::Seam {
             bend: Bend::Determinate,
         }
-        | V::Cusp
-        | V::Slit => ContactMark::Tangent,
+        | V::End(_) => ContactMark::Tangent,
         V::Seam {
             bend: Bend::UnderDetermined,
         }
@@ -6968,20 +7011,7 @@ pub(crate) fn wedge_reading(
         // Conformal contact: refused, and no declaration is consulted
         // because none would cure it.
         V::Lamina => Some(ValidationError::LaminaWedge { edge }),
-        V::Split { rung } => Some(ValidationError::SliverDihedral {
-            edge,
-            check: WedgeCheck::MaterialSide,
-            cause: Indeterminate {
-                margin: geom_core::MarginDiag::INVALID,
-                band,
-                predicate: Some(match rung {
-                    geom_brep::WedgeRung::End => "material_cusp_side",
-                    _ => "material_wedge_side",
-                }),
-                terminal_sliver: false,
-            },
-        }),
-        V::Crease(_) | V::Seam { .. } | V::Cusp | V::Slit => None,
+        V::Crease(_) | V::Seam { .. } | V::End(_) => None,
     };
     (mark, finding)
 }
@@ -7733,9 +7763,6 @@ pub(crate) fn tier3_local_checks_marked<
         let reach = reaches.get(edge_key).copied().unwrap_or_else(|| {
             unreachable!("check 2 read {edge_key:?}'s reach under this loop's guards")
         });
-        // The interior schedule's stations (D9: the same parameters
-        // certification used), whose direction is the plus face's walk.
-        let samples: Vec<_> = geom_brep::interior_stations(curve.carrier(), t0, t1).collect();
         // Check 4: the whole-edge wedge fold over the stations
         // (`geom_brep::edge_wedge_over`), read by `wedge_reading`: a
         // crease, the π seam, a wedge end or the lamina, a split or a
@@ -7772,27 +7799,12 @@ pub(crate) fn tier3_local_checks_marked<
         let mark = if nurbs_adjacent {
             ContactMark::Unmarked
         } else {
-            let sense = |f| body.get_face(f).map(|face| face.sense);
-            let (Some(sense_plus), Some(sense_minus)) = (sense(f_plus), sense(f_minus)) else {
+            let Some(walk) = edge_wedge_walk(body, edge_key) else {
                 continue; // unreachable on tier-1 input
             };
-            let verdict = geom_brep::edge_wedge_over(
-                [
-                    geom_brep::SideFace {
-                        surface: s_plus,
-                        sense: sense_plus,
-                    },
-                    geom_brep::SideFace {
-                        surface: s_minus,
-                        sense: sense_minus,
-                    },
-                ],
-                &samples,
-                reach,
-                band,
-            );
+            let verdict = geom_brep::edge_wedge_over(&walk, reach, band);
             let wrap = curve.description().is_wrap();
-            let (mark, finding) = wedge_reading(verdict, edge_key, band, wrap, conventional);
+            let (mark, finding) = wedge_reading(verdict, edge_key, wrap, conventional);
             errors.extend(finding);
             mark
         };

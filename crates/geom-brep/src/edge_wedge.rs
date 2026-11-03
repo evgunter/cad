@@ -31,9 +31,9 @@ use geom_core::k_stats::NonzeroSign;
 use geom_core::{Band, Decide, Margin, Real};
 
 use crate::dihedral::{
-    Convexity, Dihedral, JetStation, MaterialWedge, MixedStations, SecondOrderWalk, Station,
-    StationHook, Tangency, WedgeEscalation, WedgeRung, classify_dihedral, decide_nonzero,
-    material_kappa_rel, second_order_walk,
+    Convexity, Dihedral, JetStation, MaterialPairing, MixedStations, SecondOrderWalk, Station,
+    StationHook, Tangency, WedgeEnd, WedgeEscalation, WedgeRung, classify_dihedral, decide_nonzero,
+    interior_stations, material_kappa_rel, second_order_walk,
 };
 
 /// Whether two faces that meet smoothly along an edge separate at second
@@ -47,48 +47,136 @@ pub enum Bend {
     UnderDetermined,
 }
 
-/// [`edge_wedge_over`]'s verdict.
+/// [`edge_wedge_over`]'s verdict: **D1's tier-3 table, in one enum.**
+///
+/// The first-order class compares tangent planes and is unsigned: wedge
+/// 0, π and 2π all read tangent. The verdict signs it by the two faces'
+/// outward normals (each face's chart normal selected by its
+/// `Face::sense` bit):
+///
+/// | verdict | wedge | legality |
+/// |---|---|---|
+/// | [`Crease`](Self::Crease) | ∈ (0, 2π) at the θ = ε/r margin | legal |
+/// | [`Seam`](Self::Seam) | π | legal |
+/// | [`End`](Self::End) (`Cusp`) | 0 | legal iff jet-determinate |
+/// | [`End`](Self::End) (`Slit`) | 2π | legal iff jet-determinate |
+/// | [`Lamina`](Self::Lamina) | 0 or 2π, osculating | refused |
+///
+/// The fold hands out an end only over a jet-determinate tangency, so an
+/// end it returns is legal. In-band readings escalate
+/// ([`InBand`](Self::InBand)); stations that disagree are
+/// [`Mixed`](Self::Mixed).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum WedgeVerdict {
     /// A corner at every station, of one sign.
     Crease(Convexity),
     /// Tangent at every station with the outward normals aligned: the
     /// wedge is π, the legal seam, whatever the bend.
+    ///
+    /// **Not `topo::ContactMark::Seam`**, which is a statement about an
+    /// edge's DESCRIPTION (a chart seam, exempt by kind) rather than a
+    /// material verdict; each name is load-bearing in its own vocabulary.
     Seam {
         /// Whether the surfaces determine the locus along the edge.
         bend: Bend,
     },
-    /// Tangent with the outward normals opposed and the material in the
-    /// vanishing crescent between the faces: wedge 0, over a
-    /// jet-determinate tangency.
-    Cusp,
-    /// The cusp's `revert` image: wedge 2π, over a jet-determinate
-    /// tangency.
-    Slit,
+    /// Tangent at every station with the outward normals opposed and the
+    /// jets separating at every station: one end of the wedge range,
+    /// jet-determinate.
+    End(WedgeEnd),
     /// Tangent with the outward normals opposed and the jets osculating
     /// at a station: conformal contact along the locus.
     Lamina,
-    /// The stations did not deliver one material verdict: their pairings
-    /// disagreed ([`WedgeRung::Pairing`]) or, over opposed faces, their
-    /// ends did ([`WedgeRung::End`]).
-    Split {
-        /// The decision whose readings disagreed.
-        rung: WedgeRung,
-    },
-    /// Neighbouring stations disagree about the class or the sign.
+    /// Neighbouring stations disagree about the class, the sign, the
+    /// pairing or the end.
     Mixed(MixedStations),
     /// A decision at a station escalated.
     InBand(WedgeEscalation),
 }
 
-/// **The whole-edge wedge fold** (module docs): the wedge `faces` make
-/// along the edge whose `stations` are given in schedule order, the class
-/// metered over `reach`, the faces' extent (`topo::wedge_reach`).
-///
-/// The stations are the edge's own ([`crate::interior_stations`] of its
-/// carrier, whose direction is the plus face's walk) or, for a contact
-/// with no edge yet, its carrier's. `faces` are in that order: the plus
-/// face first, each with its `Face::sense` bit.
+/// **The faces and stations of one wedge read, built together**, so the
+/// face order and the walk cannot be paired by hand ([`Convexity`]'s
+/// convention). Non-empty by construction: each door yields at least one
+/// station.
+#[derive(Clone, Debug)]
+pub struct WedgeWalk<'a, T: Real> {
+    plus: crate::SideFace<'a, T>,
+    minus: crate::SideFace<'a, T>,
+    first: (u32, Station<T>),
+    rest: Vec<(u32, Station<T>)>,
+}
+
+impl<'a, T: Decide> WedgeWalk<'a, T> {
+    /// **An edge's walk**: `plus` is the face of the edge's `he_plus`,
+    /// `minus` the face of its `he_minus`, and the stations are the
+    /// certification schedule's interior over `[t0, t1]` on `carrier`,
+    /// the edge's own curve, whose increasing parameter is the way
+    /// `he_plus` walks the edge. `topo`'s one caller builds it from an
+    /// edge key (`topo::validate`'s `edge_wedge_walk`).
+    #[must_use]
+    pub fn along_edge(
+        plus: crate::SideFace<'a, T>,
+        minus: crate::SideFace<'a, T>,
+        carrier: &geom::Curve3<T>,
+        t0: T,
+        t1: T,
+    ) -> Self {
+        let first = (1, Station::on(carrier, crate::sample_param(t0, t1, 1)));
+        let rest = interior_stations(carrier, t0, t1)
+            .zip(1_u32..)
+            .skip(1)
+            .map(|(station, i)| (i, station))
+            .collect();
+        Self {
+            plus,
+            minus,
+            first,
+            rest,
+        }
+    }
+
+    /// **A closed rim's walk**: the circle `circle` at `n` uniform phases
+    /// from its `u_ref`, numbered `0..n`, with `plus` read first. A rim
+    /// is no loop's walk, so the sign a crease reads here is the
+    /// circle's, not either face's; what a rim reads of it is only
+    /// whether it holds all the way round, which no reversal of the
+    /// circle changes.
+    #[must_use]
+    pub fn around_circle(
+        plus: crate::SideFace<'a, T>,
+        minus: crate::SideFace<'a, T>,
+        circle: &geom::Curve3<T>,
+        n: core::num::NonZeroU32,
+    ) -> Self {
+        let phase = |i: u32| {
+            let phase = core::f64::consts::TAU * (f64::from(i) / f64::from(n.get()));
+            Station::on(circle, T::from_f64(phase))
+        };
+        Self {
+            plus,
+            minus,
+            first: (0, phase(0)),
+            rest: (1..n.get()).map(|i| (i, phase(i))).collect(),
+        }
+    }
+
+    /// The stations in schedule order, each with its sample.
+    fn stations(&self) -> impl Iterator<Item = (u32, Station<T>)> + '_ {
+        core::iter::once(self.first).chain(self.rest.iter().copied())
+    }
+}
+
+/// One station's first-order read: a signed corner, or a tangency with
+/// the station it was read at.
+#[derive(Clone, Copy)]
+enum Read<T: Real> {
+    Corner(Convexity),
+    Tangent(Station<T>, Tangency<T>),
+}
+
+/// **The whole-edge wedge fold** (module docs): the wedge `walk`'s faces
+/// make along its stations, the class metered over `reach`, the faces'
+/// extent (`topo::wedge_reach`).
 ///
 /// Every station is classified, and every corner signed, before any is
 /// metered second-order: an escalation anywhere is the verdict, else a
@@ -97,116 +185,108 @@ pub enum WedgeVerdict {
 /// positive decides.
 #[must_use]
 pub fn edge_wedge_over<T: Decide>(
-    faces: [crate::SideFace<'_, T>; 2],
-    stations: &[Station<T>],
+    walk: &WedgeWalk<'_, T>,
     reach: geom_core::Lever<T>,
     band: Band,
 ) -> WedgeVerdict {
-    let [plus, minus] = faces;
+    let (plus, minus) = (walk.plus, walk.minus);
     let senses = [plus.sense, minus.sense];
-    let mut corner = Vec::with_capacity(stations.len());
-    let mut convex = Vec::with_capacity(stations.len());
-    let mut tangents = Vec::with_capacity(stations.len());
-    for station in stations {
-        match classify_dihedral(plus.surface, minus.surface, station.point(), reach, band) {
-            Ok(Dihedral::Corner(c)) => match c.convexity(station, senses, band) {
-                Ok(sign) => {
-                    corner.push(true);
-                    convex.push(sign == Convexity::Convex);
-                }
-                Err(escalation) => return WedgeVerdict::InBand(escalation),
-            },
-            Ok(Dihedral::Tangent(t)) => {
-                corner.push(false);
-                tangents.push(t);
-            }
-            Err(escalation) => return WedgeVerdict::InBand(escalation),
-        }
-    }
-    if let Some(mixed) = MixedStations::bracketing(&corner) {
-        return WedgeVerdict::Mixed(mixed);
-    }
-    if let Some(&first) = convex.first() {
-        return MixedStations::sign_flip(&convex).map_or_else(
-            || {
-                WedgeVerdict::Crease(if first {
-                    Convexity::Convex
-                } else {
-                    Convexity::Concave
-                })
-            },
-            WedgeVerdict::Mixed,
-        );
-    }
-    let mut reads = MaterialReads::new(&tangents, plus.sense, senses, band);
-    let determinate = match second_order_walk(
+    let read = |(i, station): (u32, Station<T>)| match classify_dihedral(
         plus.surface,
         minus.surface,
-        stations.iter().copied(),
+        station.point(),
+        reach,
+        band,
+    )? {
+        Dihedral::Corner(c) => Ok((i, Read::Corner(c.convexity(&station, senses, band)?))),
+        Dihedral::Tangent(t) => Ok((i, Read::Tangent(station, t))),
+    };
+    let reads: Result<Vec<_>, WedgeEscalation> = walk.stations().map(read).collect();
+    let reads = match reads {
+        Ok(reads) => reads,
+        Err(escalation) => return WedgeVerdict::InBand(escalation),
+    };
+    let class: Vec<_> = reads
+        .iter()
+        .map(|&(i, r)| (i, matches!(r, Read::Corner(_))))
+        .collect();
+    if let Some(mixed) = MixedStations::class(&class) {
+        return WedgeVerdict::Mixed(mixed);
+    }
+    let corners: Vec<_> = reads
+        .iter()
+        .filter_map(|&(i, r)| match r {
+            Read::Corner(c) => Some((i, c)),
+            Read::Tangent(..) => None,
+        })
+        .collect();
+    if let Some(&(_, first)) = corners.first() {
+        return MixedStations::sign(&corners)
+            .map_or(WedgeVerdict::Crease(first), WedgeVerdict::Mixed);
+    }
+    let tangents: Vec<_> = reads
+        .iter()
+        .filter_map(|&(i, r)| match r {
+            Read::Tangent(station, t) => Some((station, (i, t))),
+            Read::Corner(_) => None,
+        })
+        .collect();
+    let mut reads = MaterialReads::new(plus.sense, senses, band);
+    let bend = match second_order_walk(
+        plus.surface,
+        minus.surface,
+        tangents,
         reach,
         band,
         &mut reads,
     ) {
-        SecondOrderWalk::Determinate => true,
-        SecondOrderWalk::UnderDetermined => false,
+        SecondOrderWalk::Determinate => Bend::Determinate,
+        SecondOrderWalk::UnderDetermined => Bend::UnderDetermined,
         SecondOrderWalk::InBand(cause) => {
             return WedgeVerdict::InBand(WedgeEscalation::at(WedgeRung::Bend, cause));
         }
         SecondOrderWalk::Stopped(escalation) => return WedgeVerdict::InBand(escalation),
     };
-    material_outcome(
-        reads.aligned,
-        reads.opposed,
-        determinate,
-        reads.side,
-        reads.side_mixed,
-    )
+    material_outcome(&reads.pairings, bend, &reads.ends)
 }
 
 /// **The material reads at each tangent station**, taken inside the
-/// second-order walk: the pairing before the station's second-order
-/// decision, and the end after a positive one. A read that escalates
-/// stops the walk with its rung.
-struct MaterialReads<'a, T: Real> {
-    tangents: &'a [Tangency<T>],
-    next: usize,
+/// second-order walk, each station handed its own tangency beside it:
+/// the pairing before the station's second-order decision, and the end
+/// after a positive one. A read that escalates stops the walk with its
+/// rung.
+struct MaterialReads {
     sense_plus: bool,
     senses: [bool; 2],
     band: Band,
-    opposed: bool,
-    aligned: bool,
-    side: Option<MaterialWedge>,
-    side_mixed: bool,
+    pairings: Vec<(u32, MaterialPairing)>,
+    ends: Vec<(u32, WedgeEnd)>,
 }
 
-impl<'a, T: Real> MaterialReads<'a, T> {
-    /// No station read yet: both pairings still possible, no end seen.
-    fn new(tangents: &'a [Tangency<T>], sense_plus: bool, senses: [bool; 2], band: Band) -> Self {
+impl MaterialReads {
+    /// No station read yet.
+    const fn new(sense_plus: bool, senses: [bool; 2], band: Band) -> Self {
         Self {
-            tangents,
-            next: 0,
             sense_plus,
             senses,
             band,
-            opposed: true,
-            aligned: true,
-            side: None,
-            side_mixed: false,
+            pairings: Vec::new(),
+            ends: Vec::new(),
         }
     }
 }
 
-impl<T: Decide> StationHook<T> for MaterialReads<'_, T> {
+impl<T: Decide> StationHook<T> for MaterialReads {
     type Break = WedgeEscalation;
+    type Item = (u32, Tangency<T>);
 
-    fn before_decision(&mut self, _station: &JetStation<T>) -> ControlFlow<WedgeEscalation> {
-        let tangency = self.tangents.get(self.next).unwrap_or_else(|| {
-            unreachable!("the walk reads only the stations the fold read tangent")
-        });
-        self.next += 1;
+    fn before_decision(
+        &mut self,
+        _station: &JetStation<T>,
+        &(i, tangency): &(u32, Tangency<T>),
+    ) -> ControlFlow<WedgeEscalation> {
         match tangency.pairing(self.senses, self.band) {
-            Ok(crate::MaterialPairing::Aligned) => self.opposed = false,
-            Ok(crate::MaterialPairing::Opposed) => self.aligned = false,
+            Ok(pairing) => self.pairings.push((i, pairing)),
             Err(escalation) => return ControlFlow::Break(escalation),
         }
         ControlFlow::Continue(())
@@ -217,62 +297,92 @@ impl<T: Decide> StationHook<T> for MaterialReads<'_, T> {
     /// definitely positive — so neither `Zero` nor an escalation is
     /// reachable through a margin the run can read. Both are announced
     /// anyway, through the gate that refuses a `Zero` with its margin.
-    fn after_positive(&mut self, station: &JetStation<T>) -> ControlFlow<WedgeEscalation> {
+    fn after_positive(
+        &mut self,
+        station: &JetStation<T>,
+        &(i, _): &(u32, Tangency<T>),
+    ) -> ControlFlow<WedgeEscalation> {
         let signed = material_kappa_rel(station.jet.kappa_rel, self.sense_plus);
-        let this = match decide_nonzero(
+        let end = match decide_nonzero(
             "material_cusp_side",
             Margin::sagitta(signed, station.arm.length()),
             self.band,
         ) {
-            Ok(NonzeroSign::Positive) => MaterialWedge::Cusp,
-            Ok(NonzeroSign::Negative) => MaterialWedge::Slit,
+            Ok(NonzeroSign::Positive) => WedgeEnd::Cusp,
+            Ok(NonzeroSign::Negative) => WedgeEnd::Slit,
             Err(cause) => {
                 return ControlFlow::Break(WedgeEscalation::at(WedgeRung::End, cause));
             }
         };
-        match self.side {
-            Some(seen) if seen != this => self.side_mixed = true,
-            _ => self.side = Some(this),
-        }
+        self.ends.push((i, end));
         ControlFlow::Continue(())
     }
 }
 
-/// **The material fold**: the flags the reads leave over one contact's
-/// tangent stations, resolved into the one verdict that contact earns.
-/// Schedule-blind: it reads flags, not samples.
+/// **The material fold**: the readings one contact's tangent stations
+/// left, in schedule order, resolved into the one verdict that contact
+/// earns. Total and pure.
 ///
-/// Total and pure. Two of its input states — a pairing that split
-/// (`aligned == opposed`) and an end that split (`side_mixed`) — are
-/// not known to be reachable through certified geometry, and both
-/// resolve to [`WedgeVerdict::Split`] rather than to a wedge: a legal
-/// verdict the stations never established.
+/// Pairings that differ, or ends that differ, are [`WedgeVerdict::Mixed`]
+/// naming the stations, never the wedge seen first. Opposed faces
+/// whose bend is not determinate are the lamina, and so are opposed
+/// faces with no end read: an end is read after every positive bend, so
+/// none read means no station's bend decided positive.
 pub(crate) fn material_outcome(
-    aligned: bool,
-    opposed: bool,
-    determinate: bool,
-    side: Option<MaterialWedge>,
-    side_mixed: bool,
+    pairings: &[(u32, MaterialPairing)],
+    bend: Bend,
+    ends: &[(u32, WedgeEnd)],
 ) -> WedgeVerdict {
-    match (aligned, opposed) {
-        (true, false) => WedgeVerdict::Seam {
-            bend: if determinate {
-                Bend::Determinate
-            } else {
-                Bend::UnderDetermined
-            },
+    if let Some(mixed) = MixedStations::pairing(pairings) {
+        return WedgeVerdict::Mixed(mixed);
+    }
+    match pairings.first() {
+        Some((_, MaterialPairing::Aligned)) => WedgeVerdict::Seam { bend },
+        _ if bend == Bend::UnderDetermined => WedgeVerdict::Lamina,
+        _ => match (MixedStations::end(ends), ends.first()) {
+            (Some(mixed), _) => WedgeVerdict::Mixed(mixed),
+            (None, Some(&(_, end))) => WedgeVerdict::End(end),
+            (None, None) => WedgeVerdict::Lamina,
         },
-        (false, true) if !determinate => WedgeVerdict::Lamina,
-        (false, true) => match side {
-            Some(MaterialWedge::Cusp) if !side_mixed => WedgeVerdict::Cusp,
-            Some(MaterialWedge::Slit) if !side_mixed => WedgeVerdict::Slit,
-            _ => WedgeVerdict::Split {
-                rung: WedgeRung::End,
-            },
+    }
+}
+
+/// **The end read's stop on a zero κ_rel**, raised by the fold's own hook
+/// after a positive bend: the contradiction no margin the walk reads can
+/// reach, for a reader's row that must see the stop the fold raises.
+///
+/// # Panics
+///
+/// Never: a plane meets itself smoothly, and a zero end always stops.
+#[cfg(any(test, feature = "test-support"))]
+#[must_use]
+#[allow(clippy::panic)]
+pub fn zero_end_stop(band: Band) -> WedgeEscalation {
+    let floor = geom::Surface::Plane {
+        origin: geom_core::Point3::new(0.0, 0.0, 0.0),
+        normal: geom_core::Vec3::unit_z(),
+        u_ref: geom_core::Vec3::unit_x(),
+    };
+    let arm = geom_core::test_support::fixture_lever(1.0);
+    let Ok(Dihedral::Tangent(tangency)) = classify_dihedral(
+        &floor,
+        &floor,
+        geom_core::Point3::new(0.0, 0.0, 0.0),
+        arm,
+        band,
+    ) else {
+        panic!("a plane meets itself smoothly");
+    };
+    let station = JetStation {
+        jet: crate::TangentJet {
+            sin_theta: 0.0,
+            kappa_rel: 0.0,
         },
-        _ => WedgeVerdict::Split {
-            rung: WedgeRung::Pairing,
-        },
+        arm,
+    };
+    match MaterialReads::new(true, [true, true], band).after_positive(&station, &(1, tangency)) {
+        ControlFlow::Break(stop) => stop,
+        ControlFlow::Continue(()) => panic!("a zero end stops the walk"),
     }
 }
 
@@ -284,41 +394,60 @@ mod tests {
     use geom_core::test_support::fixture_lever;
     use geom_core::{MarginDiag, Point3, Sign, Vec3};
 
-    /// **The material fold, state by state**, including the two split
-    /// states no certified geometry is known to reach: each resolves to a
-    /// split naming its decision, never to the wedge it saw first.
+    /// **The material fold, state by state**, including the states no
+    /// certified geometry is known to reach: pairings or ends that differ
+    /// name their stations, never the wedge seen first.
     #[test]
-    fn the_material_fold_splits_where_the_stations_disagree() {
-        use MaterialWedge::{Cusp, Slit};
+    fn the_material_fold_names_the_stations_that_disagree() {
+        use MaterialPairing::{Aligned, Opposed};
+        use WedgeEnd::{Cusp, Slit};
         use WedgeVerdict as V;
-        let seam = |bend| V::Seam { bend };
-        let split = |rung| V::Split { rung };
-        let rows = [
-            ((true, false, true, None, false), seam(Bend::Determinate)),
+        let (det, under) = (Bend::Determinate, Bend::UnderDetermined);
+        type Row<'a> = (&'a [(u32, MaterialPairing)], Bend, &'a [(u32, WedgeEnd)], V);
+        let rows: [Row<'_>; 9] = [
             (
-                (true, false, false, None, false),
-                seam(Bend::UnderDetermined),
+                &[(1, Aligned), (2, Aligned)],
+                det,
+                &[(1, Cusp)],
+                V::Seam { bend: det },
             ),
-            ((false, true, true, Some(Cusp), false), V::Cusp),
-            ((false, true, true, Some(Slit), false), V::Slit),
-            ((false, true, false, None, false), V::Lamina),
-            ((false, true, false, Some(Cusp), false), V::Lamina),
-            ((false, true, true, Some(Cusp), true), split(WedgeRung::End)),
-            ((false, true, true, None, false), split(WedgeRung::End)),
+            (&[(1, Aligned)], under, &[], V::Seam { bend: under }),
             (
-                (false, false, true, Some(Cusp), false),
-                split(WedgeRung::Pairing),
+                &[(1, Opposed), (2, Opposed)],
+                det,
+                &[(1, Cusp), (2, Cusp)],
+                V::End(Cusp),
+            ),
+            (&[(1, Opposed)], det, &[(1, Slit)], V::End(Slit)),
+            (&[(1, Opposed)], under, &[], V::Lamina),
+            (
+                &[(1, Opposed), (2, Opposed)],
+                under,
+                &[(1, Cusp)],
+                V::Lamina,
             ),
             (
-                (true, true, true, Some(Cusp), false),
-                split(WedgeRung::Pairing),
+                &[(1, Opposed), (2, Opposed)],
+                det,
+                &[(1, Slit), (2, Cusp)],
+                V::Mixed(MixedStations::End { cusp: 2, slit: 1 }),
+            ),
+            (&[(1, Opposed)], det, &[], V::Lamina),
+            (
+                &[(1, Opposed), (2, Aligned)],
+                det,
+                &[(1, Cusp)],
+                V::Mixed(MixedStations::Pairing {
+                    aligned: 2,
+                    opposed: 1,
+                }),
             ),
         ];
-        for ((aligned, opposed, determinate, side, mixed), want) in rows {
+        for (pairings, bend, ends, want) in rows {
             assert_eq!(
-                material_outcome(aligned, opposed, determinate, side, mixed),
+                material_outcome(pairings, bend, ends),
                 want,
-                "{aligned} {opposed} {determinate} {side:?} {mixed}"
+                "{pairings:?} {bend:?} {ends:?}"
             );
         }
     }
@@ -335,49 +464,59 @@ mod tests {
         }
     }
 
-    /// The stations of a carrier along the x axis.
-    fn along_x() -> Vec<Station<f64>> {
-        let axis = geom::Curve3::line(Point3::new(0.0, 0.0, 0.0), Vec3::unit_x());
-        crate::interior_stations(&axis, 0.0, 1.0).collect()
-    }
-
     fn face(surface: &Surface<f64>, sense: bool) -> crate::SideFace<'_, f64> {
         crate::SideFace { surface, sense }
     }
 
-    /// **A corner is signed by its faces' senses and the walk**: a floor
-    /// and a wall meeting along x read convex one way round and concave
-    /// with the wall's material flipped, and a walk reversed by swapping
-    /// the faces keeps the sign.
+    /// The unit stretch of the x axis from `from`, walked along `dir`.
+    fn line(from: f64, dir: f64) -> geom::Curve3<f64> {
+        geom::Curve3::line(Point3::new(from, 0.0, 0.0), Vec3::new(dir, 0.0, 0.0))
+    }
+
+    /// The fold over `plus` then `minus`, walked along `carrier`.
+    fn read(
+        plus: crate::SideFace<'_, f64>,
+        minus: crate::SideFace<'_, f64>,
+        carrier: &geom::Curve3<f64>,
+    ) -> WedgeVerdict {
+        let walk = WedgeWalk::along_edge(plus, minus, carrier, 0.0, 1.0);
+        edge_wedge_over(&walk, fixture_lever(1.0), band())
+    }
+
+    /// **The sign convention, pinned** ([`Convexity`]): a floor whose
+    /// outward normal is `+z` (the plus face) and a wall whose outward
+    /// normal is `+y`, the floor walking the edge along `−x`, is a block's
+    /// top front edge, convex; walked along `+x` the same pair is the
+    /// inside corner, concave. A flipped convention reds both rows.
     #[test]
-    fn a_crease_reads_its_sign_off_the_senses_and_the_walk() {
+    fn the_top_front_edge_of_a_block_reads_convex() {
         let (floor, wall) = (plane(Vec3::unit_z()), plane(Vec3::unit_y()));
-        let stations = along_x();
-        let read = |a, b| edge_wedge_over([a, b], &stations, fixture_lever(1.0), band());
-        let convex = read(face(&floor, true), face(&wall, true));
-        let concave = read(face(&floor, true), face(&wall, false));
-        assert!(
-            matches!(convex, WedgeVerdict::Crease(_)) && matches!(concave, WedgeVerdict::Crease(_)),
-            "both read creases: {convex:?} {concave:?}"
-        );
-        assert_ne!(
-            convex, concave,
-            "flipping one face's material flips the sign"
-        );
-        let reversed: Vec<_> = {
-            let back = geom::Curve3::line(Point3::new(1.0, 0.0, 0.0), -Vec3::unit_x());
-            crate::interior_stations(&back, 0.0, 1.0).collect()
-        };
         assert_eq!(
-            edge_wedge_over(
-                [face(&wall, true), face(&floor, true)],
-                &reversed,
-                fixture_lever(1.0),
-                band()
-            ),
-            convex,
-            "swapping the faces reverses the walk and keeps the sign"
+            read(face(&floor, true), face(&wall, true), &line(1.0, -1.0)),
+            WedgeVerdict::Crease(Convexity::Convex)
         );
+        assert_eq!(
+            read(face(&floor, true), face(&wall, true), &line(0.0, 1.0)),
+            WedgeVerdict::Crease(Convexity::Concave)
+        );
+    }
+
+    /// **A corner is signed by its faces' senses, the face order and the
+    /// walk**: flipping one face's material flips the sign, swapping the
+    /// faces against the same walk flips it (the reader's order matters,
+    /// which is why the walk builds both), and swapping them while
+    /// reversing the walk — the edge read through its other half —
+    /// keeps it.
+    #[test]
+    fn a_crease_reads_its_sign_off_the_senses_the_order_and_the_walk() {
+        let (floor, wall) = (plane(Vec3::unit_z()), plane(Vec3::unit_y()));
+        let (back, forth) = (line(1.0, -1.0), line(0.0, 1.0));
+        let convex = WedgeVerdict::Crease(Convexity::Convex);
+        let concave = WedgeVerdict::Crease(Convexity::Concave);
+        assert_eq!(read(face(&floor, true), face(&wall, true), &back), convex);
+        assert_eq!(read(face(&floor, true), face(&wall, false), &back), concave);
+        assert_eq!(read(face(&wall, true), face(&floor, true), &back), concave);
+        assert_eq!(read(face(&wall, true), face(&floor, true), &forth), convex);
     }
 
     /// **A tangency reads its material through the walk**: coplanar faces
@@ -386,39 +525,66 @@ mod tests {
     #[test]
     fn coplanar_faces_read_the_seam_or_the_lamina_by_their_senses() {
         let floor = plane(Vec3::unit_z());
-        let stations = along_x();
-        let read = |a, b| edge_wedge_over([a, b], &stations, fixture_lever(1.0), band());
+        let axis = line(0.0, 1.0);
         assert_eq!(
-            read(face(&floor, true), face(&floor, true)),
+            read(face(&floor, true), face(&floor, true), &axis),
             WedgeVerdict::Seam {
                 bend: Bend::UnderDetermined
             }
         );
         assert_eq!(
-            read(face(&floor, true), face(&floor, false)),
+            read(face(&floor, true), face(&floor, false), &axis),
             WedgeVerdict::Lamina
         );
     }
 
-    /// **A sign flip names the first disagreeing neighbours** as the
-    /// class bracket does, convex first, whichever side it lies on.
+    /// **An edge's walk numbers its stations as the schedule does**
+    /// (`1..CERT_SAMPLES-1`), and a rim's from phase 0, so a bracket
+    /// names the samples its own schedule read.
+    #[test]
+    fn the_walks_number_their_stations_by_their_schedules() {
+        let floor = plane(Vec3::unit_z());
+        let edge = WedgeWalk::along_edge(
+            face(&floor, true),
+            face(&floor, true),
+            &line(0.0, 1.0),
+            0.0,
+            1.0,
+        );
+        let samples: Vec<u32> = edge.stations().map(|(i, _)| i).collect();
+        assert_eq!(samples, (1..crate::CERT_SAMPLES - 1).collect::<Vec<_>>());
+        let circle = geom::Curve3::circle(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::unit_z(),
+            1.0,
+            Vec3::unit_x(),
+        );
+        let n = core::num::NonZeroU32::new(5).unwrap();
+        let rim = WedgeWalk::around_circle(face(&floor, true), face(&floor, true), &circle, n);
+        let phases: Vec<u32> = rim.stations().map(|(i, _)| i).collect();
+        assert_eq!(phases, vec![0, 1, 2, 3, 4]);
+    }
+
+    /// **A bracket names the first disagreeing neighbours** by their
+    /// samples, each in its role, whichever side it lies on.
     #[test]
     fn the_brackets_name_the_first_disagreeing_neighbours() {
+        use Convexity::{Concave, Convex};
         assert_eq!(
-            MixedStations::sign_flip(&[true, true, false, false]),
+            MixedStations::sign(&[(1, Convex), (2, Convex), (3, Concave), (4, Concave)]),
             Some(MixedStations::Sign {
                 convex: 2,
                 concave: 3
             })
         );
         assert_eq!(
-            MixedStations::sign_flip(&[false, true]),
+            MixedStations::sign(&[(0, Concave), (1, Convex)]),
             Some(MixedStations::Sign {
-                convex: 2,
-                concave: 1
+                convex: 1,
+                concave: 0
             })
         );
-        assert_eq!(MixedStations::sign_flip(&[true, true]), None);
+        assert_eq!(MixedStations::sign(&[(1, Convex), (2, Convex)]), None);
     }
 
     /// **The end read stops with its gate's decided Zero**, not a
@@ -427,17 +593,7 @@ mod tests {
     /// through a margin it reads, so the hook is called directly.
     #[test]
     fn a_zero_end_stops_with_its_decided_margin() {
-        let mut reads = MaterialReads::<f64>::new(&[], true, [true, true], band());
-        let station = JetStation {
-            jet: crate::TangentJet {
-                sin_theta: 0.0,
-                kappa_rel: 0.0,
-            },
-            arm: fixture_lever(1.0),
-        };
-        let ControlFlow::Break(stop) = reads.after_positive(&station) else {
-            panic!("a zero end stops the walk");
-        };
+        let stop = zero_end_stop(band());
         assert_eq!(
             (
                 stop.rung(),

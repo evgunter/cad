@@ -3438,7 +3438,7 @@ pub enum BooleanError {
         /// Which end of the wedge range the two faces' material
         /// subtends at the rim — the routing's own verdict, taken on the
         /// geometry.
-        wedge: geom_brep::MaterialWedge,
+        wedge: geom_brep::WedgeEnd,
     },
     /// **A pierce point that a curved face of the piercing operand may
     /// hold, where the Boolean cannot build a vertex**
@@ -7768,7 +7768,9 @@ fn verify_tangency<T: Decide>(
 /// rim the glue door glues; the cusp family has no locus arm for a
 /// circle ([`BooleanError::RimCuspArmUnbuilt`]); a junction the routing
 /// cannot place is outside what the classification acts on
-/// ([`BooleanError::TangencyUnsupported`]). The reading is the
+/// ([`BooleanError::TangencyUnsupported`], unrouted), and a rim whose
+/// stations disagree or with a spline face is refused with the same
+/// error, no reading of the pair settling it. The reading is the
 /// operands', the same under every op: the junction the result carries
 /// per op needs the membership, which this stage does not hold (filed:
 /// `work/contacthold/a-touch-only-rim-with-no-derivable-locus-refuses-every-op-as-a-cusp.md`).
@@ -7816,10 +7818,13 @@ fn route_rim<T: Decide>(
             wedge,
         })),
         // A rim whose stations disagree, or one with a spline face the
-        // routing reads no wedge of: a junction it cannot place.
-        rim_wedge::RimRouting::Mixed(_)
-        | rim_wedge::RimRouting::Split(_)
-        | rim_wedge::RimRouting::SplineFace => Err(Refused(BooleanError::TangencyUnsupported)),
+        // routing reads no wedge of: no reading of the pair settles it, so
+        // it is refused (`TangencyFailure::Refused`), not routed. The
+        // mixed seam's own error (`BooleanError::MixedSeam`) names an
+        // edge of the result, which a rim between two operands is not.
+        rim_wedge::RimRouting::Mixed(_) | rim_wedge::RimRouting::SplineFace => {
+            Err(Refused(BooleanError::TangencyUnsupported))
+        }
         // The table verified the pair tangent with a definite
         // second-order margin, so neither a crossing nor an osculating
         // lamina remains for the routing to find.

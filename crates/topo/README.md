@@ -1129,8 +1129,9 @@ backs. `SameSide` refuses, naming the verdict in the refusal's typed
 reads as an interference between two copies at rest, so no bool may
 stand there. `Undecided` escalates
 `CensusEscalated`. The side is read by handing both faces' `Face::sense`
-bits to `geom_brep::classify_material_pairing` after `classify_dihedral`
-establishes the smooth precondition. The census reads sides in three
+bits to the tangency token `classify_dihedral` returns
+(`geom_brep::Tangency::pairing`), so the pairing is asked only where the
+dihedral read smooth. The census reads sides in three
 other places, all through the touch analysis's `rest` module: pass 4,
 of an edge lying in a face of its own solid (`edge_in_own_face`, by
 `rest::judge`); arm 2's touches between two solids

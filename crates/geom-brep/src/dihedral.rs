@@ -3,13 +3,18 @@
 //! list; the classifier for construction, M2-PLAN PR 3).
 //!
 //! Given the two surfaces meeting at an edge and a point on the locus,
-//! [`classify_dihedral`] classifies the wedge:
+//! [`classify_dihedral`] classifies the wedge and returns the class as a
+//! token that answers only its class's question:
 //!
-//! - **Transverse** — tangent planes definitely distinct: the edge is a
-//!   genuine corner, and an [`crate::EdgeDescription::Intersection`]
-//!   description is well-conditioned there (the margin below *is* D2's
-//!   transversality margin).
-//! - **Smooth** — tangent planes coincide at tolerance. This is
+//! - **Transverse** ([`Dihedral::Corner`], a [`Corner`] whose one
+//!   question is its sign, [`Corner::convexity`]) — tangent planes
+//!   definitely distinct: the edge is a genuine corner, and an
+//!   [`crate::EdgeDescription::Intersection`] description is
+//!   well-conditioned there (the margin below *is* D2's transversality
+//!   margin).
+//! - **Smooth** ([`Dihedral::Tangent`], a [`Tangency`] whose one question
+//!   is its material pairing, [`Tangency::pairing`]) — tangent planes
+//!   coincide at tolerance. This is
 //!   UNSIGNED and therefore not a legality verdict: the legal π seam
 //!   (coplanar splits, smooth profile joins, seams), the cusp (wedge
 //!   0) and the knife slit (2π) all classify `Smooth`, because
@@ -33,10 +38,10 @@
 //! side and the legal π seam; opposed normals mean the wedge is one of
 //! the two ends. Which end is a SECOND-order fact, and
 //! [`material_kappa_rel`] is the discriminant — the jet's κ_rel signed
-//! into the plus face's outward frame. [`MaterialWedge`] carries the
-//! table these two compose into; the whole-edge fold
-//! ([`crate::edge_wedge_over`]) composes them over an edge's stations,
-//! and its readers decide legality from its verdict.
+//! into the plus face's outward frame. The whole-edge fold
+//! ([`crate::edge_wedge_over`]) composes them over an edge's stations
+//! into the table's one enum, [`crate::WedgeVerdict`], and its readers
+//! decide legality from that verdict.
 //!
 //! # The margin and its lever arm (D4 ¶1)
 //!
@@ -217,7 +222,7 @@ pub enum DihedralClass {
     /// legal. Tangent *planes* are all that is compared, so the seam
     /// (π), the cusp (0) and the knife slit (2π) all land here; which
     /// of the three it is takes the faces' material sides
-    /// ([`MaterialWedge`], [`Tangency::pairing`]) and, for the
+    /// ([`Tangency::pairing`], [`crate::WedgeVerdict`]) and, for the
     /// two ends, the second-order jet.
     Smooth,
 }
@@ -442,6 +447,17 @@ pub struct Corner<T: Real>(Reading<T>);
 pub struct Tangency<T: Real>(Reading<T>);
 
 /// Which way a corner's material wedge turns.
+///
+/// **The convention** ([`Corner::convexity`]): the plus face is the face
+/// of the edge's `he_plus`, `τ̂` the direction `he_plus` walks the edge,
+/// which is the carrier's increasing parameter (`topo::entity`'s
+/// orientation section: the curve's parameter direction agrees with
+/// `he_plus`), and `n₊`, `n₋` the two faces' OUTWARD normals. The corner
+/// is convex exactly where `(n₊ × n₋)·τ̂ > 0`. A floor whose outward
+/// normal is `+z` (the plus face) meeting a wall whose outward normal is
+/// `+y` along an edge the floor walks in `−x` is the top front edge of a
+/// block: convex. The pair of faces and the walk are produced together
+/// ([`WedgeWalk`]), so no reader orders one against the other by hand.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Convexity {
     /// Material wedge below π.
@@ -488,17 +504,22 @@ fn signed_wedge<T: Real>(
 pub const DIHEDRAL_SIGN: &str = "dihedral_sign";
 
 impl<T: Decide> Corner<T> {
-    /// **`dihedral_sign`** — the corner's convexity at `station`: the
-    /// signed wedge `((n₊ × n₋)·τ̂)·arm` over the token's normals, each
-    /// turned outward by its face's `Face::sense` bit (`senses`, in the
-    /// faces' order), with `τ̂` the station's direction, which is the
-    /// plus face's walk where the station's carrier is the edge's. The
+    /// **`dihedral_sign`** ([`DIHEDRAL_SIGN`]) — the corner's convexity
+    /// at `station`: the signed wedge `((n₊ × n₋)·τ̂)·arm` over the
+    /// token's normals, each turned outward by its face's `Face::sense`
+    /// bit (`senses`, the plus face's first), with `τ̂` the station's
+    /// direction, under [`Convexity`]'s convention: the plus face is the
+    /// face of `he_plus` and `τ̂` the way `he_plus` walks the edge. The
     /// corner is decided, so the sign has a side to read: a decided zero
     /// is refused with the margin, not read as either.
     ///
-    /// A direction that is not the edge's can only cost a decision: the
-    /// class was read without it, and a wrong `τ̂` shrinks the margin
-    /// toward the band, where this escalates.
+    /// **A direction is only as good as its convention.** A `τ̂` SKEW to
+    /// the crease (a carrier that leaves the faces' crossing) shrinks the
+    /// margin toward the band, where this escalates. A `τ̂` REVERSED, or
+    /// the faces swapped against the walk, decides the opposite sign
+    /// definitely: nothing here can tell. That is why the faces and the
+    /// stations are built together ([`WedgeWalk`]) and read only through
+    /// the fold.
     ///
     /// # Errors
     ///
@@ -553,26 +574,6 @@ impl<T: Decide> Tangency<T> {
             pairing_of_normals("material_wedge_side", n_plus, n_minus, arm, band);
         pairing
             .map_err(|refusal| pairing_at_wedge(refusal, cos_theta, sin_theta, arm, band))
-            .map_err(|diag| WedgeEscalation::at(WedgeRung::Pairing, diag))
-    }
-
-    /// [`Tangency::pairing`] decided as `name`, for a face-pair reader
-    /// that keeps its own population in the K report. A refusal keeps the
-    /// pairing's own margin.
-    ///
-    /// # Errors
-    ///
-    /// [`WedgeRung::Pairing`] under `name`: in band, poisoned, or decided
-    /// zero.
-    pub fn pairing_as(
-        &self,
-        name: &'static str,
-        senses: [bool; 2],
-        band: Band,
-    ) -> Result<MaterialPairing, WedgeEscalation> {
-        let [n_plus, n_minus] = self.0.outward(senses);
-        pairing_of_normals(name, n_plus, n_minus, self.0.arm, band)
-            .0
             .map_err(|diag| WedgeEscalation::at(WedgeRung::Pairing, diag))
     }
 }
@@ -1126,11 +1127,9 @@ fn second_order_verdict<T: Decide>(
 /// home of the schedule the must-carry rule's first-order gate,
 /// [`second_order_walk`] and tier 3's check 4 read.
 ///
-/// Kernel-internal: public only so `topo`'s tier 3 reads the same
-/// stations, and hidden from the docs of the crates that re-export this
-/// one.
-#[doc(hidden)]
-pub fn interior_stations<T: Decide>(
+/// An edge's wedge reads them through [`WedgeWalk::along_edge`], which
+/// pairs them with the edge's faces.
+pub(crate) fn interior_stations<T: Decide>(
     carrier: &geom::Curve3<T>,
     t0: T,
     t1: T,
@@ -1157,18 +1156,30 @@ pub(crate) struct JetStation<T: Real> {
 pub(crate) trait StationHook<T: Real> {
     /// What a stopped walk carries back.
     type Break;
+    /// What the caller hands the hook with each station, beside it in
+    /// the walk's schedule, so the hook never looks a station's reads up.
+    type Item;
     /// Read at each station before its second-order decision.
-    fn before_decision(&mut self, _station: &JetStation<T>) -> ControlFlow<Self::Break> {
+    fn before_decision(
+        &mut self,
+        _station: &JetStation<T>,
+        _item: &Self::Item,
+    ) -> ControlFlow<Self::Break> {
         ControlFlow::Continue(())
     }
     /// Read at each station whose second-order decision was `Positive`.
-    fn after_positive(&mut self, _station: &JetStation<T>) -> ControlFlow<Self::Break> {
+    fn after_positive(
+        &mut self,
+        _station: &JetStation<T>,
+        _item: &Self::Item,
+    ) -> ControlFlow<Self::Break> {
         ControlFlow::Continue(())
     }
 }
 
 impl<T: Real> StationHook<T> for () {
     type Break = core::convert::Infallible;
+    type Item = ();
 }
 
 /// [`second_order_walk`]'s answer.
@@ -1203,18 +1214,18 @@ pub(crate) enum SecondOrderWalk<B> {
 pub(crate) fn second_order_walk<T: Decide, H: StationHook<T>>(
     s1: &Surface<T>,
     s2: &Surface<T>,
-    stations: impl IntoIterator<Item = Station<T>>,
+    stations: impl IntoIterator<Item = (Station<T>, H::Item)>,
     reach: geom_core::Lever<T>,
     band: Band,
     hook: &mut H,
 ) -> SecondOrderWalk<H::Break> {
-    for station in stations {
+    for (station, item) in stations {
         let (p, tau) = (station.p, station.tau);
         let station = JetStation {
             jet: crate::tangent::tangent_jet(s1, s2, p, tau),
             arm: folded_lever_arm(s1, s2, p, reach),
         };
-        if let ControlFlow::Break(b) = hook.before_decision(&station) {
+        if let ControlFlow::Break(b) = hook.before_decision(&station, &item) {
             return SecondOrderWalk::Stopped(b);
         }
         match second_order_verdict(&station.jet, station.arm, band) {
@@ -1225,7 +1236,7 @@ pub(crate) fn second_order_walk<T: Decide, H: StationHook<T>>(
             Ok(_) => return SecondOrderWalk::UnderDetermined,
             Err(source) => return SecondOrderWalk::InBand(source),
         }
-        if let ControlFlow::Break(b) = hook.after_positive(&station) {
+        if let ControlFlow::Break(b) = hook.after_positive(&station, &item) {
             return SecondOrderWalk::Stopped(b);
         }
     }
@@ -1390,7 +1401,7 @@ pub fn must_carry_over_edge<T: Decide>(
     match second_order_walk(
         s1,
         s2,
-        interior_stations(carrier, t0, t1),
+        interior_stations(carrier, t0, t1).map(|station| (station, ())),
         reach,
         band,
         &mut (),
@@ -1411,12 +1422,17 @@ pub fn must_carry_over_edge<T: Decide>(
 }
 
 /// **Two neighbouring stations that disagree**, named by their indices
-/// in the certification schedule (`1..`[`crate::CERT_SAMPLES`]`-1`, the
-/// `sample` a certification refusal names): one read a corner and the
-/// other a tangency, or two corners of opposite sign. The signed
-/// dihedral is continuous along the edge, so between them it passes
-/// through the ambiguous band at a point no station read (D2): the edge
-/// is certifiable as neither a corner nor a smooth join.
+/// in the schedule they were read on (an edge's certification schedule,
+/// `1..`[`crate::CERT_SAMPLES`]`-1`, the `sample` a certification refusal
+/// names; a rim's uniform phases from `0`): one read a corner and the
+/// other a tangency, two corners of opposite sign, or, along a tangency,
+/// two pairings or two ends that differ. The signed dihedral is
+/// continuous along the edge, so between a class or a sign that differ
+/// it passes through the ambiguous band at a point no station read (D2):
+/// the edge is certifiable as neither a corner nor a smooth join. A
+/// pairing or an end that differs is a material verdict the stations
+/// never established, not known to be reachable through certified
+/// geometry.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum MixedStations {
     /// A corner beside a tangency.
@@ -1433,6 +1449,21 @@ pub enum MixedStations {
         /// Its neighbour, which read it concave.
         concave: u32,
     },
+    /// A tangency whose outward normals read aligned beside one whose
+    /// normals read opposed.
+    Pairing {
+        /// The station that read them aligned.
+        aligned: u32,
+        /// Its neighbour, which read them opposed.
+        opposed: u32,
+    },
+    /// Opposed faces reading a cusp beside a slit.
+    End {
+        /// The station that read the cusp.
+        cusp: u32,
+        /// Its neighbour, which read the slit.
+        slit: u32,
+    },
 }
 
 /// The schedule sample interior station `k` is.
@@ -1440,6 +1471,15 @@ fn interior_sample(k: usize) -> u32 {
     u32::try_from(k + 1).unwrap_or_else(|_| {
         unreachable!("an interior station indexes a schedule of `CERT_SAMPLES` samples")
     })
+}
+
+/// **The first neighbouring readings that disagree**, over readings in
+/// schedule order each with its sample: the reading `is` matches first,
+/// then the other. The one home of every bracket [`MixedStations`] names.
+fn bracket<R: Copy + PartialEq>(reads: &[(u32, R)], is: impl Fn(R) -> bool) -> Option<(u32, u32)> {
+    let w = reads.windows(2).find(|w| w[0].1 != w[1].1)?;
+    let ([a, b], first) = ([w[0].0, w[1].0], w[0].1);
+    Some(if is(first) { (a, b) } else { (b, a) })
 }
 
 impl MixedStations {
@@ -1452,51 +1492,42 @@ impl MixedStations {
         if !transverse.contains(&true) {
             return None;
         }
-        Some(
-            Self::bracketing(transverse)
-                .map_or(MustCarryVerdict::Transverse, MustCarryVerdict::Mixed),
-        )
+        let reads: Vec<_> = transverse
+            .iter()
+            .enumerate()
+            .map(|(k, &t)| (interior_sample(k), t))
+            .collect();
+        Some(Self::class(&reads).map_or(MustCarryVerdict::Transverse, MustCarryVerdict::Mixed))
     }
 
-    /// The first neighbouring pair of interior stations whose
-    /// first-order classes disagree, over the readings in schedule
-    /// order (`true` = transverse, interior station `k` being schedule
-    /// sample `k + 1`); `None` where they all agree. The one home of the
-    /// class bracket the must-carry rule and the whole-edge fold name.
+    /// The first disagreeing class bracket (`true` = transverse).
+    pub(crate) fn class(reads: &[(u32, bool)]) -> Option<Self> {
+        bracket(reads, |t| t).map(|(transverse, smooth)| Self::Class { transverse, smooth })
+    }
+
+    /// The first disagreeing sign bracket.
+    pub(crate) fn sign(reads: &[(u32, Convexity)]) -> Option<Self> {
+        bracket(reads, |c| c == Convexity::Convex)
+            .map(|(convex, concave)| Self::Sign { convex, concave })
+    }
+
+    /// The first disagreeing pairing bracket.
+    pub(crate) fn pairing(reads: &[(u32, MaterialPairing)]) -> Option<Self> {
+        bracket(reads, |p| p == MaterialPairing::Aligned)
+            .map(|(aligned, opposed)| Self::Pairing { aligned, opposed })
+    }
+
+    /// The first disagreeing end bracket.
+    pub(crate) fn end(reads: &[(u32, WedgeEnd)]) -> Option<Self> {
+        bracket(reads, |e| e == WedgeEnd::Cusp).map(|(cusp, slit)| Self::End { cusp, slit })
+    }
+
+    /// Whether the disagreement is first-order — the class or a corner's
+    /// sign, which the geometry can be moved to settle — rather than a
+    /// material verdict along a tangency, which no edit is known to reach.
     #[must_use]
-    pub fn bracketing(transverse: &[bool]) -> Option<Self> {
-        let k = transverse.windows(2).position(|w| w[0] != w[1])?;
-        let (a, b) = (interior_sample(k), interior_sample(k + 1));
-        Some(if transverse[k] {
-            Self::Class {
-                transverse: a,
-                smooth: b,
-            }
-        } else {
-            Self::Class {
-                transverse: b,
-                smooth: a,
-            }
-        })
-    }
-
-    /// The first neighbouring pair of interior stations, all corners,
-    /// whose signs disagree (`true` = convex), as
-    /// [`MixedStations::bracketing`] reads classes.
-    pub(crate) fn sign_flip(convex: &[bool]) -> Option<Self> {
-        let k = convex.windows(2).position(|w| w[0] != w[1])?;
-        let (a, b) = (interior_sample(k), interior_sample(k + 1));
-        Some(if convex[k] {
-            Self::Sign {
-                convex: a,
-                concave: b,
-            }
-        } else {
-            Self::Sign {
-                convex: b,
-                concave: a,
-            }
-        })
+    pub const fn is_first_order(self) -> bool {
+        matches!(self, Self::Class { .. } | Self::Sign { .. })
     }
 }
 
@@ -1512,6 +1543,16 @@ impl core::fmt::Display for MixedStations {
                 f,
                 "the faces meet at a convex corner at sample {convex} and a concave one at \
                  sample {concave}, so they turn tangent between them, too near to classify"
+            ),
+            Self::Pairing { aligned, opposed } => write!(
+                f,
+                "the material of two smoothly meeting faces lies on one side at sample \
+                 {aligned} and on opposite sides at sample {opposed}"
+            ),
+            Self::End { cusp, slit } => write!(
+                f,
+                "two smoothly meeting faces close a cusp at sample {cusp} and a slit at \
+                 sample {slit}"
             ),
         }
     }
@@ -1889,43 +1930,16 @@ impl DihedralReading {
     }
 }
 
-/// **The material wedge** an edge's two faces subtend at a sample —
-/// D1's ratified tier-3 verdict table, in one enum.
+/// **Which end of the wedge range** two tangent faces with opposed
+/// outward normals make (D1's tier-3 table, [`crate::WedgeVerdict`]): the
+/// material in the vanishing crescent between them, or everywhere but.
 ///
-/// The first-order classifier ([`DihedralClass`]) compares tangent
-/// *planes* and is therefore unsigned: wedge 0, π and 2π all read
-/// `Smooth`. The material verdict is that classification signed by the
-/// two faces' outward normals (each face's chart normal selected by
-/// its `Face::sense` bit), so
-/// it distinguishes the three:
-///
-/// | verdict | wedge | legality |
-/// |---|---|---|
-/// | [`Transverse`](Self::Transverse) | ∈ (0, 2π) at the θ = ε/r margin | legal |
-/// | [`Seam`](Self::Seam) | π | legal |
-/// | [`Cusp`](Self::Cusp) | 0 | legal iff jet-determinate |
-/// | [`Slit`](Self::Slit) | 2π | legal iff jet-determinate |
-///
-/// The two ends are one verdict under `revert`: reverting a body
-/// negates every face's outward normal, which negates the material
-/// κ_rel and maps `Cusp` ↔ `Slit` — so the pair is legal together or
-/// not at all, exactly as the ruling states.
-///
-/// In-band κ_rel escalates and a collapsed κ_rel (osculation —
-/// conformal contact, the lamina) is neither: it fails the
-/// jet-determinacy condition, and no contact declaration cures it.
+/// The two ends are one verdict under `revert`: reverting a body negates
+/// every face's outward normal, which negates the material κ_rel and maps
+/// `Cusp` ↔ `Slit` — so the pair is legal together or not at all, exactly
+/// as the ruling states.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum MaterialWedge {
-    /// Wedge ∈ (0, 2π), bounded away from both ends: a genuine corner.
-    Transverse,
-    /// Wedge = π: the smooth seam — one material side, two faces.
-    ///
-    /// **Not `topo::ContactMark::Seam`**, which is a statement about an
-    /// edge's DESCRIPTION (a chart seam, exempt by kind) rather than a
-    /// material verdict. The two names sit four lines apart in tier
-    /// 3's check 4; each is load-bearing in its own vocabulary, so the
-    /// collision is named rather than renamed.
-    Seam,
+pub enum WedgeEnd {
     /// Wedge = 0: a cusp, material in the vanishing crescent between
     /// two tangent faces.
     Cusp,
@@ -1934,12 +1948,11 @@ pub enum MaterialWedge {
     Slit,
 }
 
-impl MaterialWedge {
+impl WedgeEnd {
     /// The verdict's name, for messages.
-    pub fn name(self) -> &'static str {
+    #[must_use]
+    pub const fn name(self) -> &'static str {
         match self {
-            Self::Transverse => "transverse",
-            Self::Seam => "seam (wedge π)",
             Self::Cusp => "cusp (wedge 0)",
             Self::Slit => "slit (wedge 2π)",
         }
@@ -1968,11 +1981,12 @@ pub enum EdgeWedge {
     /// Material wedge above π.
     Concave,
     /// The sign decided zero with the outward normals aligned: wedge
-    /// π, the two faces continuing one another ([`MaterialWedge::Seam`]).
+    /// π, the two faces continuing one another (the seam,
+    /// [`crate::WedgeVerdict::Seam`]).
     Smooth,
     /// The sign decided zero with the outward normals opposed: wedge 0
-    /// or 2π, a cusp or a knife slit ([`MaterialWedge::Cusp`],
-    /// [`MaterialWedge::Slit`]; which end is the jet's question, not
+    /// or 2π, a cusp or a knife slit ([`WedgeEnd::Cusp`],
+    /// [`WedgeEnd::Slit`]; which end is the jet's question, not
     /// this door's).
     Knife,
 }
@@ -2222,9 +2236,9 @@ fn wedge_reads_zero_at_the_offer<T: Decide>(sin_theta: T, cos_theta: T, band: Ba
 /// their shared tangent plane along the plus face's OUTWARD normal.
 /// Positive ⇒ the plus sheet sits above the minus sheet on the side
 /// its own material is NOT, so the material is the vanishing crescent
-/// between them ([`MaterialWedge::Cusp`]); negative ⇒ that crescent is
+/// between them ([`WedgeEnd::Cusp`]); negative ⇒ that crescent is
 /// the void and the material is everything else
-/// ([`MaterialWedge::Slit`]).
+/// ([`WedgeEnd::Slit`]).
 pub fn material_kappa_rel<T: Real>(kappa_rel: T, sense_plus: bool) -> T {
     if sense_plus { -kappa_rel } else { kappa_rel }
 }
@@ -2912,8 +2926,9 @@ mod tests {
 
     impl<T: Real> StationHook<T> for Script {
         type Break = usize;
+        type Item = ();
 
-        fn before_decision(&mut self, _: &JetStation<T>) -> ControlFlow<usize> {
+        fn before_decision(&mut self, _: &JetStation<T>, (): &()) -> ControlFlow<usize> {
             let i = self.next;
             self.next += 1;
             self.before.push(i);
@@ -2923,7 +2938,7 @@ mod tests {
             }
         }
 
-        fn after_positive(&mut self, _: &JetStation<T>) -> ControlFlow<usize> {
+        fn after_positive(&mut self, _: &JetStation<T>, (): &()) -> ControlFlow<usize> {
             let i = self.next - 1;
             self.after.push(i);
             match self.break_after {
@@ -2951,7 +2966,7 @@ mod tests {
         second_order_walk(
             &cylinder(1.0),
             &cylinder(r2),
-            interior_stations(&axis, f(0.0), f(1.0)),
+            interior_stations(&axis, f(0.0), f(1.0)).map(|station| (station, ())),
             fixture_lever(f(1.0)),
             band(),
             script,

@@ -352,10 +352,15 @@ fn brick_with_face(surface: geom::Surface<f64>) -> (Body<f64>, topo::FaceKey) {
 /// The relabelled brick's at-rest refusal, checked to sit on the
 /// relabelled face and nowhere else: one `DescriptionNotAdjacent` for
 /// each of the face's four boundary edges (lines the relabelled
-/// surface does not hold), any `MixedDihedral` on those edges, and one
+/// surface does not hold), exactly the `MixedDihedral`s `mixed` names
+/// (by their stations), each on a distinct one of those edges, and one
 /// pcurve finding on one of the face's own half-edges, which is
 /// returned.
-fn refused_on_the_relabelled_face(b: Body<f64>, face: topo::FaceKey) -> topo::PcurveMintError {
+fn refused_on_the_relabelled_face(
+    b: Body<f64>,
+    face: topo::FaceKey,
+    mixed: &[geom_brep::MixedStations],
+) -> topo::PcurveMintError {
     let outer = b.get_face(face).unwrap().outer;
     let topo::LoopBoundary::Cycle { first } = b.get_loop(outer).unwrap().boundary else {
         panic!("the relabelled face's outer loop is a cycle")
@@ -372,13 +377,29 @@ fn refused_on_the_relabelled_face(b: Body<f64>, face: topo::FaceKey) -> topo::Pc
     // A boundary line the relabelled surface does not hold can also meet
     // it at a corner whose sign turns along the line: a mixed wedge, on
     // one of the face's own edges.
+    let mut seen = Vec::new();
     errors.retain(|e| match e {
-        topo::ValidationError::MixedDihedral { edge, .. } => {
+        topo::ValidationError::MixedDihedral { edge, stations } => {
             assert!(edges.contains(edge), "a mixed wedge off the face: {e:?}");
+            seen.push((*edge, *stations));
             false
         }
         _ => true,
     });
+    let mut on: Vec<_> = seen.iter().map(|&(edge, _)| edge).collect();
+    on.dedup();
+    assert_eq!(on.len(), seen.len(), "one mixed wedge per edge: {seen:?}");
+    let mut got: Vec<_> = seen
+        .iter()
+        .map(|&(_, stations)| format!("{stations:?}"))
+        .collect();
+    let mut want: Vec<_> = mixed
+        .iter()
+        .map(|stations| format!("{stations:?}"))
+        .collect();
+    got.sort();
+    want.sort();
+    assert_eq!(got, want, "the mixed wedges on the relabelled face");
     assert_eq!(errors.len(), 5, "four edges and one pcurve: {errors:?}");
     let mut not_adjacent: Vec<_> = errors
         .iter()
@@ -433,7 +454,7 @@ fn tilted_cone_brick() -> (Body<f64>, topo::FaceKey) {
 #[test]
 fn a_probe_on_a_tilted_cones_locus_is_always_refused() {
     let (a, face) = tilted_cone_brick();
-    let finding = refused_on_the_relabelled_face(a, face);
+    let finding = refused_on_the_relabelled_face(a, face, &[]);
     assert!(
         matches!(
             finding,
@@ -454,7 +475,8 @@ fn a_probe_on_a_tilted_cones_locus_is_always_refused() {
 /// onto its face does not finish either. The at-rest gate refuses it
 /// on that face: its four lines lie off the torus, and a line pcurve
 /// cannot be charted on a torus at all (`CarrierOffChart`, torus chart,
-/// line carrier).
+/// line carrier). Two of the lines meet the torus at a corner whose sign
+/// turns along them (`MixedDihedral`, a sign bracket each).
 #[test]
 fn a_probe_on_a_tilted_toruss_locus_is_always_examined() {
     let axis = Vec3::new(1.0, 2.0, 2.0).normalize();
@@ -465,7 +487,20 @@ fn a_probe_on_a_tilted_toruss_locus_is_always_examined() {
         minor_radius: 0.2,
         u_ref: axis.orthonormal_basis().0,
     });
-    let finding = refused_on_the_relabelled_face(a, face);
+    let finding = refused_on_the_relabelled_face(
+        a,
+        face,
+        &[
+            geom_brep::MixedStations::Sign {
+                convex: 5,
+                concave: 6,
+            },
+            geom_brep::MixedStations::Sign {
+                convex: 2,
+                concave: 1,
+            },
+        ],
+    );
     assert!(
         matches!(
             finding,
@@ -489,7 +524,7 @@ fn a_probe_on_a_tilted_toruss_locus_is_always_examined() {
 #[test]
 fn a_cone_relabelled_brick_clear_of_the_probe_is_refused_at_rest() {
     let (a, face) = tilted_cone_brick();
-    let finding = refused_on_the_relabelled_face(a, face);
+    let finding = refused_on_the_relabelled_face(a, face, &[]);
     assert!(
         matches!(
             finding,

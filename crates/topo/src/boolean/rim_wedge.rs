@@ -42,7 +42,6 @@
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Vec3};
 
 use crate::{Body, FaceKey};
-use geom_brep::MaterialWedge;
 use geom_brep::ladder::{Answering, Climb, IdentityLadder, Rung, climb, read_identity};
 
 /// A rim circle, in the data the curve carries: centre, unit axis,
@@ -68,7 +67,7 @@ pub(crate) enum RimRouting {
     Seam,
     /// Wedge 0 or 2π: outward normals opposed along the rim
     /// ([`super::BooleanError::RimCuspArmUnbuilt`]).
-    Cusp(MaterialWedge),
+    Cusp(geom_brep::WedgeEnd),
     /// Opposed sides whose jets osculate — conformal contact along the
     /// locus, which is a `Rest` claim wearing a rim's clothes.
     Lamina,
@@ -76,12 +75,11 @@ pub(crate) enum RimRouting {
     /// corner, which is the ordinary crossing lanes' business and not a
     /// rim contact at all.
     Transverse,
-    /// Neighbouring stations disagree about the class or the sign: the
-    /// rim is not one contact, and no single routing is honest for it.
+    /// Neighbouring stations disagree about the class, the sign, the
+    /// material pairing or, over opposed faces, which end of the wedge
+    /// they make, named by their phases (`0..CERT_SAMPLES`): the rim is
+    /// not one contact, and no single routing is honest for it.
     Mixed(geom_brep::MixedStations),
-    /// The stations disagree about the material pairing or, over opposed
-    /// faces, which end of the wedge they make.
-    Split(geom_brep::WedgeRung),
     /// A spline-chart face on either side: exempt by kind, the implicit
     /// gradients the routing reads being poison on a fit.
     SplineFace,
@@ -989,6 +987,14 @@ fn face_boundary_circles<T: Real>(body: &Body<T>, face: FaceKey) -> Vec<Rim<T>> 
         .collect()
 }
 
+/// The rim's schedule: the certification schedule's sample count, as
+/// phases round the closed circle (checked non-zero when compiled).
+const RIM_PHASES: core::num::NonZeroU32 = match core::num::NonZeroU32::new(geom_brep::CERT_SAMPLES)
+{
+    Some(n) => n,
+    None => panic!("the certification schedule has samples"),
+};
+
 /// **The routing itself**: the wedge the two faces' material subtends
 /// across the rim, read by the whole-edge fold
 /// ([`geom_brep::edge_wedge_over`]) at stations around the circle — the
@@ -1000,15 +1006,19 @@ fn face_boundary_circles<T: Real>(body: &Body<T>, face: FaceKey) -> Vec<Rim<T>> 
 /// pairing read there would call a corner a seam. Its verdicts route one
 /// for one:
 ///
-/// - a crease ⇒ [`RimRouting::Transverse`], whatever its sign (the
-///   circle's direction is not either face's walk, so the sign read
-///   there is not the edge's, and can only cost an escalation);
+/// - a crease ⇒ [`RimRouting::Transverse`], whatever its sign. The walk
+///   is the circle's ([`geom_brep::WedgeWalk::around_circle`]), which is
+///   neither face's: a skew direction would escalate, but this one runs
+///   along the rim, so the sign decides, and decides the circle's
+///   orientation rather than the faces'. It is never read as convex or
+///   concave here; what the rim reads of it is only whether it holds all
+///   the way round, which reversing the circle cannot change;
 /// - the π seam, either bend ⇒ [`RimRouting::Seam`]; the two ends ⇒
 ///   [`RimRouting::Cusp`]; the lamina ⇒ [`RimRouting::Lamina`];
-/// - stations that disagree, about the class or the sign ⇒
-///   [`RimRouting::Mixed`], or about the pairing or the end ⇒
-///   [`RimRouting::Split`]: a rim that is a corner in one place and a
-///   tangency in another is not one contact;
+/// - stations that disagree, about the class, the sign, the pairing or
+///   the end ⇒ [`RimRouting::Mixed`], naming them by phase: a rim that
+///   is a corner in one place and a tangency in another is not one
+///   contact;
 /// - an escalation ⇒ its diagnostics, verbatim;
 /// - a spline-chart face on either side ⇒ [`RimRouting::SplineFace`],
 ///   exempt by kind: the implicit gradients the fold reads are poison
@@ -1019,7 +1029,7 @@ fn face_boundary_circles<T: Real>(body: &Body<T>, face: FaceKey) -> Vec<Rim<T>> 
 /// rim from its own `u_ref`. **That schedule differs from tier 3's on
 /// purpose**: an edge is an open arc whose endpoints are vertices
 /// already classified by other rules, so the validator samples its
-/// interior (`geom_brep::interior_stations`); a rim is a closed circle
+/// interior (`geom_brep::WedgeWalk::along_edge`); a rim is a closed circle
 /// with no endpoint to exclude, so every sample is interior to it.
 ///
 /// `reach` is the lever arm the wedge's margins are metered at — the
@@ -1044,28 +1054,20 @@ pub(crate) fn classify_shared_rim<T: Decide>(
         return Ok(RimRouting::SplineFace);
     }
     let circle = geom::Curve3::circle(rim.center, rim.axis, rim.radius, rim.u_ref);
-    let n = geom_brep::CERT_SAMPLES;
-    let stations: Vec<_> = (0..n)
-        .map(|i| {
-            let phase = core::f64::consts::TAU * (f64::from(i) / f64::from(n));
-            geom_brep::Station::on(&circle, T::from_f64(phase))
-        })
-        .collect();
     let face = |surface, sense| geom_brep::SideFace { surface, sense };
+    let walk = geom_brep::WedgeWalk::around_circle(
+        face(s_plus, sense_plus),
+        face(s_minus, sense_minus),
+        &circle,
+        RIM_PHASES,
+    );
     use geom_brep::WedgeVerdict as V;
-    match geom_brep::edge_wedge_over(
-        [face(s_plus, sense_plus), face(s_minus, sense_minus)],
-        &stations,
-        reach,
-        band,
-    ) {
+    match geom_brep::edge_wedge_over(&walk, reach, band) {
         V::Crease(_) => Ok(RimRouting::Transverse),
         V::Seam { .. } => Ok(RimRouting::Seam),
-        V::Cusp => Ok(RimRouting::Cusp(MaterialWedge::Cusp)),
-        V::Slit => Ok(RimRouting::Cusp(MaterialWedge::Slit)),
+        V::End(end) => Ok(RimRouting::Cusp(end)),
         V::Lamina => Ok(RimRouting::Lamina),
         V::Mixed(stations) => Ok(RimRouting::Mixed(stations)),
-        V::Split { rung } => Ok(RimRouting::Split(rung)),
         V::InBand(escalation) => Err(escalation.diag()),
     }
 }
@@ -1302,7 +1304,7 @@ mod redfirst {
         );
         assert_eq!(
             opposed,
-            RimRouting::Cusp(geom_brep::MaterialWedge::Slit),
+            RimRouting::Cusp(geom_brep::WedgeEnd::Slit),
             "the crescent between the sheets is the void, so the material is the slit"
         );
         assert_ne!(

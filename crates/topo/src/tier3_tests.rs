@@ -23,7 +23,7 @@ use crate::euler::FaceSurface;
 use crate::fixtures::{refile_shells, test_curve};
 use crate::policy_lane::KernelSite;
 use crate::validate::{ValidationError, validate, validate_geometric, wedge_reading};
-use geom_brep::MaterialWedge;
+use geom_brep::WedgeEnd;
 use geom_core::Indeterminate;
 use geom_core::Tol;
 
@@ -2189,7 +2189,7 @@ fn a_jet_determinate_cusp_is_legal_at_rest_with_nothing_declared() {
     let tol = Tol::witness();
     let p = cusp_prism(tol);
     let kiss = kiss_edge(&p);
-    assert_eq!(material_end(&p.body, kiss), MaterialWedge::Cusp);
+    assert_eq!(material_end(&p.body, kiss), WedgeEnd::Cusp);
     assert_eq!(validate_geometric(&p.body, tol), Ok(()));
     let marks = crate::validate::contact_marks(&p.body, tol).expect("the cusp prism is valid");
     assert_eq!(
@@ -2250,10 +2250,10 @@ fn revert_maps_the_legal_cusp_to_the_legal_slit() {
     let kiss = kiss_edge(&p);
     let reverted = p.body.revert().unwrap();
     assert_eq!(validate(&reverted), Ok(()));
-    assert_eq!(material_end(&p.body, kiss), MaterialWedge::Cusp);
+    assert_eq!(material_end(&p.body, kiss), WedgeEnd::Cusp);
     assert_eq!(
         material_end(&reverted, kiss),
-        MaterialWedge::Slit,
+        WedgeEnd::Slit,
         "the cusp's revert image is the slit"
     );
     assert_eq!(
@@ -2331,12 +2331,16 @@ fn the_second_order_band_has_three_outcomes_and_they_are_three_answers() {
 
 /// **Check 4 and the shared-rim routing spell no wedge reading of their
 /// own.** Both read an edge's wedge through `geom_brep::edge_wedge_over`
-/// once; the validator takes its stations from
-/// `geom_brep::interior_stations`. The walk, its hook and the pairing of
-/// a corner are out of their reach by type (crate-private, or asked only
-/// of a tangency token), so what this row pins is the rest: a class read,
-/// a pairing, a `"tangent_second_order"` decide or a material read
-/// inlined back into either file's production code reds here. The
+/// once, over a walk built by its one door: the validator's
+/// `WedgeWalk::along_edge` (inside `edge_wedge_walk`), the rim's
+/// `WedgeWalk::around_circle`. The walk, its hook, the edge's interior
+/// stations and the pairing of a corner are out of their reach by type
+/// (crate-private, or asked only of a tangency token), so what this row
+/// pins is the rest: a class read (`classify_dihedral`, `dihedral_class`),
+/// a sign or a pairing (`.convexity(`, `"dihedral_sign"`, `.pairing(`,
+/// `pairing_as(`, `classify_material_pairing_as(`), a station minted by
+/// hand, a `"tangent_second_order"` decide or a material read inlined
+/// back into either file's production code reds here. The
 /// `#[cfg(test)]` modules are blanked first: a row there asserting a
 /// predicate name is not a second spelling.
 #[test]
@@ -2388,7 +2392,13 @@ fn check_4_and_the_rim_read_the_wedge_through_the_one_fold() {
         "tangent_second_order(",
         "tangent_jet(",
         "classify_dihedral(",
+        "dihedral_class(",
+        ".convexity(",
+        "\"dihedral_sign\"",
         ".pairing(",
+        "pairing_as(",
+        "classify_material_pairing_as(",
+        "Station::on(",
         "material_kappa_rel(",
     ];
     let material = [
@@ -2398,12 +2408,20 @@ fn check_4_and_the_rim_read_the_wedge_through_the_one_fold() {
     ];
     scan(
         "src/validate.rs",
-        &[("edge_wedge_over(", 1), ("interior_stations(", 1)],
+        &[
+            ("edge_wedge_over(", 1),
+            ("WedgeWalk::along_edge(", 1),
+            ("WedgeWalk::around_circle(", 0),
+        ],
         &reads,
     );
     scan(
         "src/boolean/rim_wedge.rs",
-        &[("edge_wedge_over(", 1)],
+        &[
+            ("edge_wedge_over(", 1),
+            ("WedgeWalk::around_circle(", 1),
+            ("WedgeWalk::along_edge(", 0),
+        ],
         &[reads.as_slice(), material.as_slice()].concat(),
     );
 }
@@ -2554,7 +2572,7 @@ fn kiss_edge(p: &crate::fixtures::RawPrism) -> crate::entity::EdgeKey {
 /// signed into the plus face's outward frame, positive the cusp and
 /// negative the slit. For an edge whose faces' material sides oppose
 /// and whose κ_rel is definite — the caller's fixture guarantees both.
-fn material_end(body: &Body<f64>, edge: crate::entity::EdgeKey) -> MaterialWedge {
+fn material_end(body: &Body<f64>, edge: crate::entity::EdgeKey) -> WedgeEnd {
     let e = body.get_edge(edge).unwrap();
     let curve = body
         .get_curve_geom(e.curve)
@@ -2573,9 +2591,9 @@ fn material_end(body: &Body<f64>, edge: crate::entity::EdgeKey) -> MaterialWedge
     let signed = geom_brep::material_kappa_rel(jet.kappa_rel, plus.sense);
     assert!(signed != 0.0, "a definite κ_rel is the fixture's premise");
     if signed > 0.0 {
-        MaterialWedge::Cusp
+        WedgeEnd::Cusp
     } else {
-        MaterialWedge::Slit
+        WedgeEnd::Slit
     }
 }
 
@@ -2645,27 +2663,27 @@ fn kissing_cylinder_pillow(
 
 /// **What each verdict of the fold EMITS at tier 3, and the mark it
 /// earns** — `wedge_reading`, check 4's half of the decision, called
-/// with every verdict because the splits are states no fixture can reach:
-/// a mutation dropping a split's finding on the floor would keep every
-/// fixture green while restoring the silence the split exists to end.
+/// with every verdict because the pairing and end disagreements are
+/// states no fixture can reach: a mutation dropping their finding on the
+/// floor would keep every fixture green while restoring the silence the
+/// finding exists to end.
 ///
 /// Every settled wedge is legal — the two ends included, because the
 /// fold hands one out only over a jet-determinate tangency — and the
-/// lamina and both splits are what refuse. A crease refuses only a
+/// lamina and every mixed edge are what refuse. A crease refuses only a
 /// conventional description; a wrap edge is marked a seam by kind
 /// wherever its wedge settled.
 #[test]
 fn wedge_reading_table() {
     use crate::validate::ContactMark as M;
-    use geom_brep::{Bend, Convexity, WedgeRung, WedgeVerdict as V};
-    let band = geom_core::Band::linear(Tol::witness()).unwrap();
+    use geom_brep::{Bend, Convexity, MixedStations, WedgeVerdict as V};
     let edge = crate::fixtures::raw_prism(3, Tol::witness())
         .body
         .edges()
         .next()
         .expect("the fixture has edges")
         .0;
-    let read = |verdict, wrap, conventional| wedge_reading(verdict, edge, band, wrap, conventional);
+    let read = |verdict, wrap, conventional| wedge_reading(verdict, edge, wrap, conventional);
     let settled = [
         (V::Crease(Convexity::Convex), M::Transverse),
         (V::Crease(Convexity::Concave), M::Transverse),
@@ -2681,8 +2699,8 @@ fn wedge_reading_table() {
             },
             M::SmoothUnderdetermined,
         ),
-        (V::Cusp, M::Tangent),
-        (V::Slit, M::Tangent),
+        (V::End(WedgeEnd::Cusp), M::Tangent),
+        (V::End(WedgeEnd::Slit), M::Tangent),
     ];
     for (verdict, mark) in settled {
         assert_eq!(
@@ -2716,29 +2734,45 @@ fn wedge_reading_table() {
         ),
         "a lamina is refused"
     );
-    for (rung, predicate) in [
-        (WedgeRung::Pairing, "material_wedge_side"),
-        (WedgeRung::End, "material_cusp_side"),
+    for (stations, ending) in [
+        (
+            MixedStations::Sign {
+                convex: 2,
+                concave: 3,
+            },
+            None,
+        ),
+        (
+            MixedStations::Class {
+                transverse: 1,
+                smooth: 2,
+            },
+            None,
+        ),
+        (
+            MixedStations::Pairing {
+                aligned: 1,
+                opposed: 2,
+            },
+            Some(geom_core::KERNEL_OR_FILE_DEFECT_ENDING),
+        ),
+        (
+            MixedStations::End { cusp: 3, slit: 4 },
+            Some(geom_core::KERNEL_OR_FILE_DEFECT_ENDING),
+        ),
     ] {
-        match read(V::Split { rung }, false, false) {
-            (M::Unmarked, Some(ValidationError::SliverDihedral { check, cause, .. })) => {
-                assert_eq!(check, crate::validate::WedgeCheck::MaterialSide);
-                assert_eq!(cause.predicate, Some(predicate));
-            }
-            other => panic!("a split must escalate, got {other:?}"),
+        let (mark, finding) = read(V::Mixed(stations), true, false);
+        assert_eq!(mark, M::Unmarked, "{stations:?}");
+        let Some(finding @ ValidationError::MixedDihedral { stations: s, .. }) = finding else {
+            panic!("a mixed edge is refused, naming its stations, wrap or not: {stations:?}");
+        };
+        assert_eq!(s, stations);
+        let text = finding.render(geom_brep::recourse::Reading::AtRest);
+        match ending {
+            Some(defect) => assert!(text.ends_with(defect), "{text}"),
+            None => assert!(text.contains("Recourse: move the geometry"), "{text}"),
         }
     }
-    let stations = geom_brep::MixedStations::Sign {
-        convex: 2,
-        concave: 3,
-    };
-    assert!(
-        matches!(
-            read(V::Mixed(stations), true, false),
-            (M::Unmarked, Some(ValidationError::MixedDihedral { stations: s, .. })) if s == stations
-        ),
-        "a mixed edge is refused, naming its stations, wrap or not"
-    );
 }
 
 /// The tolerance a refusal's text offers, read off its sentence.
@@ -2820,19 +2854,22 @@ fn material_reads_stop_with_their_decided_margin_and_end_as_their_decision() {
             "{label}: offers {quoted:e}, wants {offered:e}"
         );
     }
-    let cause = geom_core::k_stats::decide_nonzero(
-        "material_cusp_side",
-        geom_core::Margin::sagitta(0.0, 1.0),
-        band,
-    )
-    .expect_err("a zero end refuses");
+    // The end read's own stop, as the fold raises it, through check 4's
+    // finding: a broken rung-to-check mapping reds this.
+    let stop = geom_brep::edge_wedge::zero_end_stop(band);
+    let finding = crate::validate::dihedral_finding(edge, stop);
+    assert!(
+        matches!(
+            finding,
+            ValidationError::SliverDihedral {
+                check: crate::validate::WedgeCheck::MaterialSide,
+                ..
+            }
+        ),
+        "{finding:?}"
+    );
     assert_eq!(
-        ValidationError::SliverDihedral {
-            edge,
-            check: crate::validate::WedgeCheck::MaterialSide,
-            cause,
-        }
-        .render(geom_brep::recourse::Reading::AtRest),
+        finding.render(geom_brep::recourse::Reading::AtRest),
         format!(
             "which side of an edge the material of its two smoothly meeting faces lies on could \
              not be read consistently along it. {}",
@@ -4170,4 +4207,55 @@ fn a_lane_free_read_never_takes_the_rounded_sums_sign() {
         !matches!(&read, Err(e) if e.contains(&ValidationError::NegativeVolume { solid })),
         "upright through the structural door: {read:?}"
     );
+}
+
+/// **Check 4's door reads each corner's sign by the kernel's convention**
+/// (`geom_brep::Convexity`): on an L-shaped prism every edge is a convex
+/// crease but the one vertical edge at the inner corner, which is
+/// concave. A door that handed the fold its faces swapped against the
+/// walk, or a fold whose convention flipped, reads every row the other
+/// way round.
+#[test]
+fn the_wedge_door_signs_an_l_prisms_corners() {
+    let tol = Tol::witness();
+    let body = crate::test_support_fixtures::prism_z::<f64>(
+        &[
+            (0.0, 0.0),
+            (2.0, 0.0),
+            (2.0, 1.0),
+            (1.0, 1.0),
+            (1.0, 2.0),
+            (0.0, 2.0),
+        ],
+        0.0,
+        1.0,
+        tol,
+    )
+    .body;
+    let band = geom_core::Band::linear(tol).unwrap();
+    let mut concave = Vec::new();
+    for (edge, e) in body.edges() {
+        let walk = crate::validate::edge_wedge_walk(&body, edge).expect("a live edge");
+        let reach = crate::edge_wedge_reach(&body, edge).expect("a certified curve");
+        let verdict = geom_brep::edge_wedge_over(&walk, reach, band);
+        let geom_brep::WedgeVerdict::Crease(sign) = verdict else {
+            panic!("every edge of a prism is a crease: {verdict:?}");
+        };
+        if sign == geom_brep::Convexity::Concave {
+            let p = |he| {
+                let v = body.get_half_edge(he).unwrap().start;
+                *body.get_point(body.get_vertex(v).unwrap().point).unwrap()
+            };
+            concave.push((p(e.he_plus), p(e.he_minus)));
+        }
+    }
+    let [(a, b)] = concave[..] else {
+        panic!("one concave edge, got {concave:?}");
+    };
+    for q in [a, b] {
+        assert!(
+            (q.x - 1.0).abs() < 1e-12 && (q.y - 1.0).abs() < 1e-12,
+            "the concave edge is the inner corner's: {a:?} {b:?}"
+        );
+    }
 }
