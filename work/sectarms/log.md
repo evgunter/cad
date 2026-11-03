@@ -387,3 +387,14 @@ and bodies unchanged. No orchestrator yet.
   - Ruled (a): re-pin them as typed refusals, measure the δ threshold per family, and disclose the regression.
   - File a P2 that names option (b) as an open design question: describing a planar-conic chord against its own plane.
   - No unsoundness, but it is a capability regression to raise with Ev at hand-back if the threshold turns out wide.
+
+- 2026-11-03 — **PR 6412 fix pass accepted.** All five must-fix items are fixed, each with a mutant that goes red:
+  - march tolerance minted only where a march runs;
+  - margin rows pinned;
+  - an `rhs3` row;
+  - a curved side-arm row;
+  - `ReachBound::Partner`.
+  
+  Three issues filed (P3), and one item declined with a reason. The row is the last commit (`7b8f4e3`, tally 0), and the PR merges on green.
+  
+  Process note: the lane's local clippy never ran, because another lane's nextest held the build slot for over an hour. CI lint stands in.
