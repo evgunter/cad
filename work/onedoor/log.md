@@ -64,3 +64,4 @@ second site needs to ask the question at all. (ONEDOOR orchestrator)
   - The geom-brep remap doors gain total forms, on SELECT ground. The note is on SELECT's log.
   - The same `remapped(.., |k| Some(..)) else` shape in `replace_face.rs` is SHELL's, and is noted there.
   - (ONEDOOR orchestrator)
+- 2026-11-03 — **Dispatched `stored-description-adjacent-is-the-gates-reading-not-tier-3s`** on `onedoor/at-rest-adjacency`. The unit gives tier 3, `stored_description_adjacent` and `merge_faces`' postcondition one at-rest adjacency reading; the write gate keeps its transient reading, named as such. Review tier: single style review, since it moves tier 3's reader. It is independent of SELECT, and of PR 6427's ruling, which only extends the same reading. (ONEDOOR orchestrator)

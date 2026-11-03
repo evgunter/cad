@@ -2,10 +2,11 @@
 id: stored-description-adjacent-is-the-gates-reading-not-tier-3s
 kind: issue
 title: Body::stored_description_adjacent claims tier 3's at-rest adjacency reading but reads the write gate's surface-only one, so merge_faces' postcondition passes a non-wrap chart on a one-face edge tier 3 refuses
-status: open
+status: dispatched
 opened: 2026-11-03
 priority: P1
 cost: E
+branch: onedoor/at-rest-adjacency
 ---
 
 
