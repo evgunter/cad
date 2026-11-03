@@ -133,12 +133,17 @@ fn off_chart(e: &PcurveMintError) -> bool {
     matches!(
         e,
         PcurveMintError::Certify {
-            error: PcurveCertifyError::CarrierOffChart { margin: None, .. },
+            error: PcurveCertifyError::CarrierOffChart {
+                margin: Some(geom_brep::OffMargin::Past(_)),
+                ..
+            },
             ..
         }
-    ) && e.to_string().ends_with(geom_core::KERNEL_DEFECT_ENDING)
+    ) && e
+        .render(geom_brep::recourse::Reading::Build)
+        .ends_with(geom_core::KERNEL_DEFECT_ENDING)
         && topo::ValidationError::Pcurve { finding: e.clone() }
-            .to_string()
+            .render(geom_brep::recourse::Reading::AtRest)
             .ends_with(geom_core::KERNEL_OR_FILE_DEFECT_ENDING)
 }
 
@@ -595,7 +600,12 @@ fn a_torus_face_bounded_by_a_villarceau_arc_mints_on_either_family() {
                 topo::construction::FaceSurface::Inherit,
                 tol(),
             )
-            .unwrap_or_else(|e| panic!("family {family}: the Villarceau split refuses: {e}"));
+            .unwrap_or_else(|e| {
+                panic!(
+                    "family {family}: the Villarceau split refuses: {e_at}",
+                    e_at = e.render(geom_brep::recourse::Reading::Build)
+                )
+            });
         for he in [made.he_plus, made.he_minus] {
             let row = body
                 .pcurve(he)
@@ -684,7 +694,10 @@ fn a_strut_off_its_face_ends_by_the_door_whoever_placed_it() {
             matches!(
                 finding,
                 PcurveMintError::Certify {
-                    error: PcurveCertifyError::CarrierOffChart { margin: None, .. },
+                    error: PcurveCertifyError::CarrierOffChart {
+                        margin: Some(geom_brep::OffMargin::Past(_)),
+                        ..
+                    },
                     ..
                 }
             ),
@@ -692,9 +705,11 @@ fn a_strut_off_its_face_ends_by_the_door_whoever_placed_it() {
         );
         let minted = topo::mint_pcurves_of(&mut body, &[wall], tol()).unwrap_err();
         assert_eq!(&minted, finding, "the mint and tier 3 refuse alike");
-        let built = minted.to_string();
-        let wrapped = sweep::ExtrudeError::Pcurve(minted.clone()).to_string();
-        let at_rest = topo::ValidationError::Pcurve { finding: minted }.to_string();
+        let built = minted.render(geom_brep::recourse::Reading::Build);
+        let wrapped =
+            sweep::ExtrudeError::Pcurve(minted.clone()).render(geom_brep::recourse::Reading::Build);
+        let at_rest = topo::ValidationError::Pcurve { finding: minted }
+            .render(geom_brep::recourse::Reading::AtRest);
         for (door, text, culprit) in [
             ("build", &built, geom_core::KERNEL_DEFECT_ENDING),
             (
@@ -713,7 +728,20 @@ fn a_strut_off_its_face_ends_by_the_door_whoever_placed_it() {
                 "declared {declared} at {door}: {text}"
             );
         }
-        texts.push([built, wrapped, at_rest]);
+        texts.push([built, wrapped, at_rest].map(|t| unquoted(&t)));
     }
     assert_eq!(texts[0], texts[1], "who placed the strut moves no ending");
+}
+
+/// `text` without the margin its read quotes: the two placements read
+/// the one miss from coordinates rounded at their own reach, so the
+/// quoted number may differ in its last place while the words may not.
+fn unquoted(text: &str) -> String {
+    match text.find(" (margin ") {
+        Some(at) => {
+            let close = at + text[at..].find(')').expect("the quote closes");
+            format!("{}{}", &text[..at], &text[close + 1..])
+        }
+        None => text.to_owned(),
+    }
 }

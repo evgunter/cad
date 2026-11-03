@@ -162,7 +162,12 @@ fn a_plane_cutting_the_blades_loft_clears() {
     for (what, plane) in [("across the spine", &across), ("lengthwise", &along)] {
         for (i, w) in walls.iter().enumerate() {
             let t = std::time::Instant::now();
-            let got = topo::test_support::section_verdict(plane, w, (Point3::origin(), 1.0), band);
+            let got = topo::test_support::section_verdict(
+                plane,
+                w,
+                geom_brep::ExtentBall::of_sphere(Point3::origin(), 1.0),
+                band,
+            );
             eprintln!(
                 "plane {what} × blade wall {i}: {got} in {:.2?}",
                 t.elapsed()
@@ -300,7 +305,10 @@ fn the_sweep_against_the_whole_reading_it_skips() {
             s.components(),
             match &whole {
                 Ok(s) => format!("{:?}", s.components()).chars().take(60).collect(),
-                Err(e) => format!("refused: {e}"),
+                Err(e) => format!(
+                    "refused: {e_at}",
+                    e_at = e.render(geom_brep::recourse::Reading::Build)
+                ),
             },
             t.elapsed()
         );

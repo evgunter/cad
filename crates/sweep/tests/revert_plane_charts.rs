@@ -210,6 +210,7 @@ fn a_stored_pcurve_row_on_a_plane_face_is_mirrored_and_its_certificate_travels_v
     let rerun = mirrored
         .recertify(
             &carrier3,
+            row.params(),
             reverted_plane,
             band,
             <f64 as topo::AtRestPolicy>::fitted_lane(),
@@ -222,6 +223,7 @@ fn a_stored_pcurve_row_on_a_plane_face_is_mirrored_and_its_certificate_travels_v
     );
     let stale = row.recertify(
         &carrier3,
+        row.params(),
         reverted_plane,
         band,
         <f64 as topo::AtRestPolicy>::fitted_lane(),
@@ -375,7 +377,7 @@ fn a_plane_face_with_an_iso_line_or_nurbs_image_reverts_and_recertifies() {
             start,
             end,
             surfaces,
-            1.0,
+            geom_core::test_support::fixture_lever(1.0),
             band,
             geom_brep::NurbsLane::certified(),
         );
@@ -395,7 +397,7 @@ fn a_plane_face_with_an_iso_line_or_nurbs_image_reverts_and_recertifies() {
                 start,
                 end,
                 surfaces,
-                1.0,
+                geom_core::test_support::fixture_lever(1.0),
                 band,
                 geom_brep::NurbsLane::certified(),
             )

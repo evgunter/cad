@@ -2,7 +2,8 @@
 id: the-add-profile-form-takes-numbers-and-no-formula
 kind: issue
 title: The add-profile form takes only numbers: a step's argument cannot be written as a variable or a formula until the profile is committed
-status: dispatched
+status: closed
+closed: 2026-11-02
 opened: 2026-10-31
 priority: P1
 cost: E
@@ -61,3 +62,16 @@ has to be authored twice.
   tool's axis among them) have the same shape. Whether this row widens
   to them or each form gets its own is the FORMS orchestrator's call;
   the profile form is the one Ev hit.
+
+## Closed — 2026-11-02, branch `forms/profile-unit`
+
+Closed with `the-profile-create-form-is-a-second-profile-editor`: the
+add-profile form, its number-only drafts (`ProfileShape`,
+`loop_program`) and its scratch-resolver preview are deleted. A
+profile is made by New profile and filled in in the profile editor,
+whose every field takes a name or a formula
+(`pane::profile`'s `held_field`, landed by
+`an-expression-typed-over-held-profile-edits-is-refused`). The
+other creation forms' number fields are
+`the-extrude-and-revolve-forms-take-no-variables` and the census in
+`creating-a-thing-and-editing-it-are-two-implementations`.

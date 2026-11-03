@@ -911,8 +911,12 @@ fn two_curved_stubs_are_two_solids_and_export_at_both_tolerances() {
             uncertainty_m: Some(eps),
             ..StepOptions::default()
         };
-        step_string(&common::at_rest(&stubs), &options, Tol::witness())
-            .unwrap_or_else(|e| panic!("the two stubs export at {eps}: {e}"));
+        step_string(&common::at_rest(&stubs), &options, Tol::witness()).unwrap_or_else(|e| {
+            panic!(
+                "the two stubs export at {eps}: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        });
     }
 }
 

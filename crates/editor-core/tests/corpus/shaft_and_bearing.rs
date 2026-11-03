@@ -17,17 +17,18 @@
 //! ([`super::stage6_beside_the_registry`]): its union is green at `f64`
 //! and escalates at `Interval`, which `coincidence_door.rs` pins beside
 //! its rows. So do two more, each the same three parts with one changed,
-//! whose unions refuse at `f64`; `coincidence_door.rs` pins each
-//! refusal, the place a coaxial classification needs the boolean to
-//! reach:
+//! the places a coaxial classification needs the boolean to reach;
+//! `coincidence_door.rs` pins where each stops:
 //!
 //! - [`rounded_mouth`]: the mouth of the bore rounded by a profile
 //!   fillet, so the bore opens through a torus, and the shaft wider than
 //!   the bore and narrower than its mouth, its wall crossing the torus
-//!   on a circle (the site `CoaxialCylinderTorus`);
+//!   on a circle (the site `CoaxialCylinderTorus`). Its union is green
+//!   at `f64` and escalates at `Interval`.
 //! - [`with_a_ball`]: the collar a ball, its centre on the shaft's axis
 //!   (the site `CoaxialSphere`), turned so no edge of the ball
-//!   crosses the shaft's wall.
+//!   crosses the shaft's wall. Its union is green at `f64` and escalates
+//!   at `Interval`.
 //!
 //! A fourth, [`one_radius`], is the scene itself with the bore, the
 //! shaft and the collar's bore all reading one `Length` variable,
@@ -110,7 +111,7 @@ fn on_the_axis(
 ) -> RecipeNodeId {
     let placed = editor_core::Placed {
         mates: vec![crate::fixture::mate(body.axis(), housing.axis())],
-        values: vec![(Coord::Slide(TargetAxis::Y), by), (Coord::SPIN, spin)],
+        values: vec![(Coord::slide(TargetAxis::Y), by), (Coord::SPIN, spin)],
     };
     placed_in(r, &housing.body(), body.body(), placed)
 }
@@ -199,7 +200,7 @@ pub fn collar_by_values() -> CorpusDoc {
 }
 
 /// **The scene with the bore's mouth rounded** (module docs): beside
-/// the registry, its union refused.
+/// the registry, its union green at `f64` and escalating at `Interval`.
 pub fn rounded_mouth() -> CorpusDoc {
     scene(
         (
@@ -230,7 +231,7 @@ pub fn rounded_mouth() -> CorpusDoc {
 }
 
 /// **The scene with a ball for the collar** (module docs): beside the
-/// registry, its union refused.
+/// registry, its union green at `f64` and escalating at `Interval`.
 pub fn with_a_ball() -> CorpusDoc {
     scene(
         (
@@ -284,9 +285,9 @@ fn scene(
             let by_values = editor_core::Placed {
                 mates: Vec::new(),
                 values: vec![
-                    (Coord::Slide(TargetAxis::X), len(0.0)),
-                    (Coord::Slide(TargetAxis::Y), len(BELOW)),
-                    (Coord::Slide(TargetAxis::Z), len(0.0)),
+                    (Coord::slide(TargetAxis::X), len(0.0)),
+                    (Coord::slide(TargetAxis::Y), len(BELOW)),
+                    (Coord::slide(TargetAxis::Z), len(0.0)),
                     (Coord::Spin(Some(TargetAxis::X)), none()),
                     (Coord::Spin(Some(TargetAxis::Y)), none()),
                     (Coord::Spin(Some(TargetAxis::Z)), none()),
@@ -317,9 +318,9 @@ fn scene(
             let across = editor_core::Placed {
                 mates: Vec::new(),
                 values: vec![
-                    (Coord::Slide(TargetAxis::X), zero()),
-                    (Coord::Slide(TargetAxis::Y), len(BELOW)),
-                    (Coord::Slide(TargetAxis::Z), zero()),
+                    (Coord::slide(TargetAxis::X), zero()),
+                    (Coord::slide(TargetAxis::Y), len(BELOW)),
+                    (Coord::slide(TargetAxis::Z), zero()),
                     (Coord::Spin(Some(TargetAxis::X)), back()),
                     (Coord::Spin(Some(TargetAxis::Y)), back()),
                     (

@@ -428,7 +428,7 @@ impl<T: Decide> CylinderSpherePose<T> {
 
     /// The sphere's own ball, which holds the section.
     pub fn ball(&self) -> ExtentBall<T> {
-        ExtentBall::new(self.center, self.big_r)
+        ExtentBall::of_sphere(self.center, self.big_r)
     }
 
     /// The cylinder's radius `r` and the sphere's `R`, both decided
@@ -808,7 +808,7 @@ pub struct PairSection<T: Real> {
     components: Components<T>,
     nodes: Vec<Point3<T>>,
     node_sets: Vec<NodeSet>,
-    lever: T,
+    lever: geom_core::Lever<T>,
 }
 
 /// **A node-joined set of a counted section's components** (C5): arcs
@@ -992,8 +992,7 @@ pub enum SectionRead<T: Real> {
 /// no bounded side asked with no `region` ([`SectionError::NoRegion`]);
 /// a spline and an implicit surface asked with no `lane`
 /// ([`SectionError::NoMarch`]), and with one, the pass's and the whole
-/// reading's refusals, mapped by name, and a curved partner's declined
-/// sweep ([`SectionError::RoutesToGeneralRung`]; [`spline_implicit`]).
+/// reading's refusals, mapped by name ([`spline_implicit`]).
 ///
 /// `region` is the operation's (C5): the ball about the overlap of the
 /// two operands' boxes, padded, which holds every section point the
@@ -1198,7 +1197,7 @@ fn cylinder_sphere<T: Decide>(pose: CylinderSpherePose<T>) -> PairSection<T> {
     };
     decided.extend(pose.tangency());
     PairSection {
-        lever: pose.r,
+        lever: geom_core::Lever::curvature_radius(pose.r),
         pose: PairPose::CylinderSphere(pose),
         decided,
         components: Components::Counted(components),
@@ -1627,9 +1626,11 @@ impl<T: Decide> PairSection<T> {
     /// carrier's period), and the joined carrier is certified again
     /// against the pose's operands through `lane`, since the shifted
     /// knots are rounded. The seated carrier runs from `at`'s point
-    /// round to it. A component that is open, or whose carrier is a
-    /// closed form, is returned as it is: a closed form's parameter is an
-    /// angle, which a chord reads on any branch.
+    /// round to it. A closed form (a circle or an ellipse, whose
+    /// parameter is an angle) is seated by its span alone, `at` to `at`
+    /// plus a turn, its carrier as it is and its witness the new span's
+    /// middle. A component that is open, or a
+    /// spline holding no certificate, is returned as it is.
     ///
     /// # Errors
     ///
@@ -1643,7 +1644,19 @@ impl<T: Decide> PairSection<T> {
         at: T,
         band: Band,
     ) -> Result<CarriedComponent<T>, CarryError> {
-        if !component.closed() || component.certificate.is_none() {
+        if !component.closed() {
+            return Ok(component.clone());
+        }
+        if matches!(component.carrier, Curve3::Circle(_) | Curve3::Ellipse(_)) {
+            let (lo, hi) = component.span;
+            let span = (at, at + (hi - lo));
+            return Ok(CarriedComponent {
+                span,
+                witness: component.carrier.mid_point(span.0, span.1),
+                ..component.clone()
+            });
+        }
+        if component.certificate.is_none() {
             return Ok(component.clone());
         }
         let lane = lane.ok_or(CarryError::NoLane { scalar: T::NAME })?;
@@ -1729,11 +1742,11 @@ pub struct SsiLane<T: Real> {
     /// A spline wall and an implicit surface's classification past what
     /// the scalar reads ([`spline_implicit`]): a curved partner's hull and
     /// door, the boundary pass, the regularity sweep, and where it
-    /// declines a plane's whole reading.
+    /// declines the whole reading.
     spline: fn(SplineImplicitPose<T>, Band) -> Result<PairSection<T>, SectionError>,
-    /// A spline wall and an implicit surface's section read whole, on the
-    /// pass its classification carried: a plane's; a curved partner's
-    /// is unbuilt.
+    /// A spline wall and an implicit surface's section read whole: a
+    /// plane's on the pass its classification carried, a curved
+    /// partner's on the 1×2 trace.
     whole: fn(&SplineImplicitPose<T>, Band) -> Result<PairSection<T>, SectionError>,
     /// Two spline walls' section, read whole ([`spline_pair`]).
     spline_pair: fn(SplinePairPose<T>, Band) -> Result<PairSection<T>, SectionError>,
@@ -2294,7 +2307,7 @@ fn distinct<T: Decide>(
 #[derive(Clone, Debug)]
 pub struct CarriedSection<T: Real> {
     components: Vec<CarriedComponent<T>>,
-    lever: T,
+    lever: geom_core::Lever<T>,
 }
 
 /// A site's place on its component: the component, the foot parameter,
@@ -2315,11 +2328,13 @@ impl<T: Decide> CarriedSection<T> {
         &self.components
     }
 
-    /// **The length a direction's angle to a component is levered by**:
-    /// the scale every component of the section turns on, the cylinder's
-    /// radius for cylinder × sphere and a torus's minor radius (the
-    /// smaller of two) for a torus pair.
-    pub fn lever(&self) -> T {
+    /// **The lever a direction's angle to a component is read at**: the
+    /// scale every component of the section turns on, a curvature radius
+    /// for the analytic pairs (the cylinder's for cylinder × sphere, the
+    /// smaller cylinder's for two cylinders, a torus's minor radius, the
+    /// smaller of two, for a torus pair) and the net ball's radius for a
+    /// spline pair.
+    pub fn lever(&self) -> geom_core::Lever<T> {
         self.lever
     }
 
@@ -2599,7 +2614,7 @@ mod wiring {
             Point3::new(0.1, 0.0, 0.0),
             Vec3::new(0.0, 0.3f64.sin(), 0.3f64.cos()),
         );
-        let region = crate::ExtentBall::new(Point3::origin(), 1.5);
+        let region = crate::ExtentBall::of_sphere(Point3::origin(), 1.5);
         let section = match super::pair_section(&a, &b, Some(region), None, band()) {
             Ok(super::SectionRead::Built(s)) => s,
             other => panic!("the value builds the pair: {other:?}"),

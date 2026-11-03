@@ -88,11 +88,11 @@ pub(super) fn classify(f: &Surface<f64>, g: &Surface<f64>) -> Section<f64> {
     super::classify(
         f,
         g,
-        super::Reach {
-            centre: p(0.0, 0.0, 0.0),
-            radius: LEVER / 2.0,
-        },
-        Some(geom_brep::ExtentBall::new(p(0.0, 0.0, 0.0), LEVER)),
+        &geom_brep::Reach::Ball(geom_brep::ExtentBall::of_sphere(
+            p(0.0, 0.0, 0.0),
+            LEVER / 2.0,
+        )),
+        Some(geom_brep::ExtentBall::of_sphere(p(0.0, 0.0, 0.0), LEVER)),
         Some(geom_brep::SsiLane::marched()),
         band(),
     )
@@ -103,10 +103,10 @@ fn unmarched(f: &Surface<f64>, g: &Surface<f64>) -> Section<f64> {
     super::classify(
         f,
         g,
-        super::Reach {
-            centre: p(0.0, 0.0, 0.0),
-            radius: LEVER / 2.0,
-        },
+        &geom_brep::Reach::Ball(geom_brep::ExtentBall::of_sphere(
+            p(0.0, 0.0, 0.0),
+            LEVER / 2.0,
+        )),
         None,
         None,
         band(),
@@ -158,7 +158,7 @@ pub(super) fn tangent(s: &Section<f64>) -> &'static str {
     }
 }
 
-fn touch(s: &Section<f64>) -> Touch<f64> {
+pub(super) fn touch(s: &Section<f64>) -> Touch<f64> {
     match s {
         Section::Touch(t) => *t,
         other => panic!("not a touch: {other:?}"),
@@ -425,10 +425,10 @@ fn a_general_torus_pose_is_read_from_its_march() {
     let unmarched = super::classify(
         &donut(),
         &rod,
-        super::Reach {
-            centre: p(0.0, 0.0, 0.0),
-            radius: LEVER / 2.0,
-        },
+        &geom_brep::Reach::Ball(geom_brep::ExtentBall::of_sphere(
+            p(0.0, 0.0, 0.0),
+            LEVER / 2.0,
+        )),
         None,
         None,
         band(),
@@ -747,11 +747,8 @@ fn a_cylinder_pair_the_region_cuts_counts_two_unbounded_arcs() {
     let s = super::classify(
         &a,
         &b,
-        super::Reach {
-            centre: p(0.0, 0.0, 0.0),
-            radius: 1.5,
-        },
-        Some(geom_brep::ExtentBall::new(p(0.0, 0.0, 0.0), 1.5)),
+        &geom_brep::Reach::Ball(geom_brep::ExtentBall::of_sphere(p(0.0, 0.0, 0.0), 1.5)),
+        Some(geom_brep::ExtentBall::of_sphere(p(0.0, 0.0, 0.0), 1.5)),
         Some(geom_brep::SsiLane::marched()),
         band(),
     );
@@ -1238,9 +1235,13 @@ fn torus_tangencies_off_an_elliptic_extreme_are_not_touches() {
     }
 }
 
-/// **A touch clears only on a pair with no event, and only out of a
-/// face.** `Out` of either face clears on that side; a touch on both
-/// faces, or one no face places, refuses R-tan; and an event on the
+/// **A touch clears out of a face on a pair with no event, or at a
+/// vertex of both faces.** `Out` of either face clears on that side; a
+/// touch of two cones at their common apex, a vertex each face holds, is
+/// that vertex pair's, its event the pair's own, so it clears evented or
+/// not, and no other touch at a vertex does; a touch inside both
+/// faces, or at a vertex of one alone, or one no face places, refuses
+/// R-tan; and any other event on the
 /// pair refuses whatever the placement — the clearance argument needs
 /// the pair's own silence (mutant: reading the placement on an evented
 /// pair).
@@ -1249,6 +1250,7 @@ fn a_touch_clears_only_out_of_a_face_on_a_silent_pair() {
     let s = Section::Touch(Touch {
         name: "section_sphere_plane_reach",
         at: p(0.0, 0.0, 1.0),
+        apex: false,
     });
     let tan = Err(Refusal::Tangent("section_sphere_plane_reach"));
     let rule = |evented: bool, place: [Option<FaceContainment>; 2]| {
@@ -1258,6 +1260,37 @@ fn a_touch_clears_only_out_of_a_face_on_a_silent_pair() {
     assert_eq!(rule(false, [IN, OUT]), Ok(vec![Cleared::TouchOut(Side::G)]));
     assert_eq!(rule(false, [IN, IN]), tan);
     assert_eq!(rule(false, [None, None]), tan);
+    let vertex = Some(FaceContainment::OnVertex(
+        crate::entity::VertexKey::default(),
+    ));
+    // A touch at a vertex both faces hold is not cleared as a vertex
+    // pair's unless it is two cones' at their common apex, which the
+    // touch says by its type, not its name.
+    assert_eq!(rule(false, [vertex, vertex]), tan);
+    assert_eq!(rule(true, [vertex, vertex]), tan);
+    assert_eq!(rule(false, [vertex, IN]), tan);
+    assert_eq!(rule(true, [vertex, OUT]), tan);
+    for name in [
+        "section_cone_coaxial_apexes",
+        super::super::fan::CONES_SHARE_APEX,
+    ] {
+        let apex = Section::Touch(Touch {
+            name,
+            at: p(0.0, 0.0, 1.0),
+            apex: true,
+        });
+        let rule = |evented: bool, place: [Option<FaceContainment>; 2]| {
+            certify(&apex, evented, band(), |_| Sheet::Not, |_, _| place)
+        };
+        for evented in [false, true] {
+            assert_eq!(
+                rule(evented, [vertex, vertex]),
+                Ok(vec![Cleared::TouchAtVertex]),
+                "{name}, evented {evented}"
+            );
+        }
+        assert_eq!(rule(true, [vertex, IN]), Err(Refusal::Tangent(name)));
+    }
     assert_eq!(rule(true, [OUT, OUT]), tan);
     assert_eq!(rule(true, [OUT, IN]), tan);
 }
@@ -3176,15 +3209,13 @@ fn a_plane_touch_near_the_top_parallel_stands_on_both_carriers() {
             for t in [1e-4, 1e-5, 1e-6, 1e-7, 1e-8] {
                 let x = tor.at(u, PI / 2.0 - t);
                 let pl = Partner::Plane(x, tor.normal(u, PI / 2.0 - t));
-                let reach = Reach {
-                    centre: tor.c,
-                    radius: 5.0 * scale,
-                };
+                let reach =
+                    geom_brep::Reach::Ball(geom_brep::ExtentBall::of_sphere(tor.c, 5.0 * scale));
                 let label = format!("×{scale:e}, axis {axis:?}, u {u}, t {t:e}");
                 match super::classify(
                     &tor.surface(),
                     &pl.surface(),
-                    reach,
+                    &reach,
                     None,
                     Some(geom_brep::SsiLane::marched()),
                     band,
@@ -3227,10 +3258,7 @@ fn a_ball_touching_a_wall_near_its_axis_stands_on_both_carriers() {
     for scale in [1e-3, 1.0, 1e3] {
         let rc = scale;
         let base = Point3::origin() + v(0.3, -0.2, 0.1) * scale;
-        let reach = Reach {
-            centre: base,
-            radius: 2.0 * scale,
-        };
+        let reach = geom_brep::Reach::Ball(geom_brep::ExtentBall::of_sphere(base, 2.0 * scale));
         let (mut touches, mut poses) = (0, 0);
         for i in 0..16 {
             let z = 1.0 - (f64::from(i) + 0.5) / 8.0;
@@ -3257,7 +3285,7 @@ fn a_ball_touching_a_wall_near_its_axis_stands_on_both_carriers() {
                         super::classify(
                             &ball.surface(),
                             &wall.surface(),
-                            reach,
+                            &reach,
                             None,
                             Some(geom_brep::SsiLane::marched()),
                             band,
@@ -3265,7 +3293,7 @@ fn a_ball_touching_a_wall_near_its_axis_stands_on_both_carriers() {
                         super::classify(
                             &wall.surface(),
                             &ball.surface(),
-                            reach,
+                            &reach,
                             None,
                             Some(geom_brep::SsiLane::marched()),
                             band,
@@ -3370,16 +3398,16 @@ fn every_torus_touch_holds_against_a_sampling_oracle() {
                     }
                 }
             }
-            let reach = Reach {
-                centre: t.c,
-                radius: 2.0 * (t.big_r + t.r),
-            };
+            let reach = geom_brep::Reach::Ball(geom_brep::ExtentBall::of_sphere(
+                t.c,
+                2.0 * (t.big_r + t.r),
+            ));
             for partner in partners {
                 for section in [
                     super::classify(
                         &t.surface(),
                         &partner.surface(),
-                        reach,
+                        &reach,
                         None,
                         Some(geom_brep::SsiLane::marched()),
                         band,
@@ -3387,7 +3415,7 @@ fn every_torus_touch_holds_against_a_sampling_oracle() {
                     super::classify(
                         &partner.surface(),
                         &t.surface(),
-                        reach,
+                        &reach,
                         None,
                         Some(geom_brep::SsiLane::marched()),
                         band,

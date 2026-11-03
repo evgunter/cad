@@ -208,6 +208,10 @@ pub enum ReachBound {
     Geometry,
     /// The caller's domain: no operand box bounds the states nearer.
     Domain,
+    /// A curved partner's frame: its residual is read at the wall's
+    /// points written about the partner's centre or axis, and they stand
+    /// this far from it, whatever the domain.
+    Partner,
 }
 
 impl Readout {
@@ -228,6 +232,29 @@ impl Readout {
             gap,
             bound,
             noise: ulps * gap,
+        }
+    }
+
+    /// The residual read at coordinates written about a curved partner's
+    /// centre or axis, `framed` the wall's box in that frame, with `ulps`
+    /// of their spacing as noise.
+    pub(crate) fn about_partner(framed: Box3, ulps: f64) -> Self {
+        let (reach, gap) = exhaust::coordinate_gap(framed);
+        Self {
+            lane: ExhaustLane::R3,
+            reach,
+            gap,
+            bound: ReachBound::Partner,
+            noise: ulps * gap,
+        }
+    }
+
+    /// The louder of two readouts: the one whose noise is larger.
+    pub(crate) fn louder(self, other: Self) -> Self {
+        if other.noise > self.noise {
+            other
+        } else {
+            self
         }
     }
 
@@ -662,7 +689,8 @@ pub(crate) trait Exit<const M: usize, const N: usize, S: LocalSystem<M, N>> {
 /// A chart lane's exit: the knot rectangles of the state's chart
 /// coordinates from `first` on, left by a structure test (module docs).
 /// The plane × NURBS lane bounds the wall's two ([`RectExit::WALL`]),
-/// the NURBS × NURBS lane all four ([`RectExit::PAIR`]).
+/// the NURBS × NURBS lane all four ([`RectExit::PAIR`]), the 1×2 lane
+/// the wall's two that are its whole state ([`RectExit::CHART`]).
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct RectExit {
     /// The first bounded coordinate.
@@ -690,6 +718,9 @@ impl RectExit {
     pub(crate) const WALL: Self = Self { first: 2 };
     /// The NURBS × NURBS lane's: both rectangles.
     pub(crate) const PAIR: Self = Self { first: 0 };
+    /// The 1×2 residual × chart lane's: the wall's rectangle, the
+    /// state's only two coordinates.
+    pub(crate) const CHART: Self = Self { first: 0 };
 
     /// Whether a state's bounded coordinates lie in their rectangles
     /// (a structure test on the raw coordinates, C6's lane). An exit
@@ -1041,10 +1072,13 @@ pub(crate) fn decide_transversality<const N: usize>(
 ) -> Result<(), SsiError> {
     let (n1, n2) = sys.normals(x);
     let sin_theta = n1.cross(n2).norm() / (n1.norm() * n2.norm());
-    let (arm, reach) = super::point_arm(sys.max_curvature(x), extent);
+    // Unsourced lever: `SsiDomain::extent`, a feature extent the caller names as a plain number, not read from geometry.
+    let (lever, reach) =
+        super::point_arm(sys.max_curvature(x), geom_core::Lever::unsourced(extent));
+    let arm = lever.length();
     decide_positive("ssi_transversality_arm", Margin::of(arm), band)
         .map_err(|cause| TraceDecision::TransversalityArm.escalated(cause))?;
-    let transversality = Margin::levered(sin_theta, arm);
+    let transversality = Margin::levered(sin_theta, lever);
     // Zero is the sliver band: a tangential (or in-band tangential)
     // contact along the candidate locus, C7's regime. `sin θ · arm` is a
     // magnitude, so a definite negative cannot arise.
@@ -1358,7 +1392,13 @@ where
                     let t0 = seed_tangent.unwrap_or(d1);
                     let cos_phi = dot(&d1, &t0).clamp(-1.0, 1.0);
                     let arc = arc_length(sys, &states);
-                    match decide("ssi_closure_tangent", Margin::levered(cos_phi, arc), band) {
+                    // Unsourced lever: the marched polyline's length, a measure of the march's
+                    // own output rather than a reach of consumed geometry from a pivot.
+                    match decide(
+                        "ssi_closure_tangent",
+                        Margin::levered(cos_phi, geom_core::Lever::unsourced(arc)),
+                        band,
+                    ) {
                         Ok(Sign::Positive) => {
                             // Close exactly onto the seed. If the last
                             // marched state is already essentially the

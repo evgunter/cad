@@ -312,10 +312,7 @@ fn a_refused_creation_applies_no_label() {
             distance: common::len(0.01),
         },
         SessionOp::AddProfile {
-            loops: vec![common::shape(&viewer::session::ProfileShape::Circle {
-                centre: [0.0, 0.0],
-                radius: 0.0,
-            })],
+            loops: vec![common::circle_at([0.0, 0.0], 0.0)],
         },
     ];
     for op in refused {
@@ -416,7 +413,7 @@ fn a_labelled_creation_nets_the_maintenance_its_own_run_reports() {
 /// sampled here is red.
 #[test]
 fn every_creation_labelled_is_one_undo_whatever_door_commits_it() {
-    use common::{ang, asm, len, len3, scl3};
+    use common::{ang, asm, len};
     use viewer::session::{FaceSelection, PartSelectSpec, PatternRuleSpec};
 
     let tol = Tol::witness();
@@ -481,12 +478,12 @@ fn every_creation_labelled_is_one_undo_whatever_door_commits_it() {
         },
         "overlap",
     );
+    let plane = common::cut_across(&session, block, 0.01);
     run(
         &mut session,
         SessionOp::AddSplit {
             target: block.into(),
-            origin: len3([0.0, 0.0, 0.01]),
-            normal: scl3([0.0, 0.0, 1.0]),
+            plane,
         },
         "halves",
     );
@@ -573,7 +570,7 @@ fn every_creation_labelled_is_one_undo_whatever_door_commits_it() {
         "traced",
     );
     let row = || PatternRuleSpec::Linear {
-        direction: scl3([1.0, 0.0, 0.0]),
+        direction: viewer::PatternDirection::Axis(pncad::document::TargetAxis::X),
         spacing: len(0.05),
     };
     let pattern = run(
@@ -1100,9 +1097,14 @@ fn an_unused_variables_row_selects_the_variable() {
         &pncad::document::EvalOptions::default(),
         tol,
     );
-    let report =
-        pncad::document::run_checks(&doc, &ev, &pncad::document::ChecksConfig::default(), tol)
-            .expect("the checks run");
+    let report = pncad::document::run_checks(
+        &doc,
+        &ev,
+        &pncad::document::ChecksConfig::default(),
+        &pncad::document::Stop::default(),
+        tol,
+    )
+    .expect("the checks run");
     let rows = viewer::frame::check_rows(&report, &doc);
     let selects: Vec<_> = rows.iter().map(|row| row.select.clone()).collect();
     assert_eq!(
@@ -1180,7 +1182,7 @@ fn a_degenerate_creation_still_mints_the_node_it_labels() {
             input: block.into(),
             count: 1,
             rule: PatternRuleSpec::Linear {
-                direction: common::scl3([1.0, 0.0, 0.0]),
+                direction: viewer::PatternDirection::Axis(pncad::document::TargetAxis::X),
                 spacing: common::len(0.05),
             },
         },

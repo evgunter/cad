@@ -294,8 +294,12 @@ fn validated_halves(
     volumes: [f64; 2],
 ) {
     let plane = topo::test_support::split_plane(q, n, tol());
-    let got = topo::splitting::split(body, &plane, tol())
-        .unwrap_or_else(|e| panic!("{what}: the split refused: {e}"));
+    let got = topo::splitting::split(body, &plane, tol()).unwrap_or_else(|e| {
+        panic!(
+            "{what}: the split refused: {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        )
+    });
     for (side, part, want) in [
         ("above", &got.above, volumes[0]),
         ("below", &got.below, volumes[1]),
@@ -428,9 +432,9 @@ fn a_near_square_plane_cuts_a_cylinder_in_its_exact_ellipse() {
         for r in SECTION_SCALES {
             let cyl = moved(&map, &wall(r));
             let q = map.transform_point(Point3::new(0.0, 0.0, 0.5 * r));
-            let reach = Reach::Measured {
-                at: q,
-                lever: 5.0_f64.sqrt() * r,
+            let reach = {
+                let lever = 5.0_f64.sqrt() * r;
+                Reach::fixture(q, lever)
             };
             let section = |s: f64| {
                 let plane = moved(
@@ -499,8 +503,12 @@ fn a_near_square_rod_minus_a_box_builds() {
         for s in gap_sines(r, r / 2.0) {
             let what = format!("r {r:e}, sin θ {s:e}");
             let rod = rotated(&rod(r), Vec3::unit_y(), s.asin());
-            let got = topo::subtract(&rod, &cutter, tol())
-                .unwrap_or_else(|e| panic!("{what}: the subtract refused: {e}"));
+            let got = topo::subtract(&rod, &cutter, tol()).unwrap_or_else(|e| {
+                panic!(
+                    "{what}: the subtract refused: {e_at}",
+                    e_at = e.render(geom_brep::recourse::Reading::Build)
+                )
+            });
             let cos = (1.0 - s * s).sqrt();
             assert_volume(
                 &what,
@@ -631,10 +639,7 @@ fn a_near_square_plane_cuts_a_frustum_in_its_exact_ellipse() {
             let q = map.transform_point(q0);
             let rim = 0.5 * (f.r0 + f.r1);
             let lever = (2.0 * f.r0).max((scale * scale + (f.r0 + f.r1).powi(2)).sqrt());
-            let reach = Reach::Measured {
-                at: map.transform_point(Point3::new(0.0, f.apex, 0.0)),
-                lever,
-            };
+            let reach = Reach::fixture(map.transform_point(Point3::new(0.0, f.apex, 0.0)), lever);
             let section = |s: f64| {
                 let plane = moved(
                     &map,
@@ -719,8 +724,12 @@ fn a_near_square_frustum_minus_a_box_builds() {
                 Vec3::unit_z(),
                 s.asin(),
             );
-            let got = topo::subtract(&turned, &cutter, tol())
-                .unwrap_or_else(|e| panic!("{what}: the subtract refused: {e}"));
+            let got = topo::subtract(&turned, &cutter, tol()).unwrap_or_else(|e| {
+                panic!(
+                    "{what}: the subtract refused: {e_at}",
+                    e_at = e.render(geom_brep::recourse::Reading::Build)
+                )
+            });
             let delta = f.apex * (1.0 - s * s).sqrt() - y0;
             let want = PI * f.r0 * f.r0 * f.apex / 3.0 - apex_cone_volume(delta, s);
             assert_volume(&what, &got.body().expect("a body").body, want);
@@ -758,10 +767,7 @@ fn sliver_walls(map: &Affine3<f64>, r: f64, phi: f64) -> (Surface<f64>, Surface<
 }
 
 fn bisector_rows(frame: &str, map: &Affine3<f64>, r: f64) {
-    let reach = Reach::Measured {
-        at: map.transform_point(Point3::origin()),
-        lever: r,
-    };
+    let reach = Reach::of_frame(map.transform_point(Point3::origin()), (r, r));
     let walls = |phi: f64| sliver_walls(map, r, phi);
     // a − b = r·(sec(φ/2) − 1) ≈ r·sin²φ/8.
     for s in gap_sines(r, r / 8.0) {
@@ -816,10 +822,7 @@ fn a_sliver_crossing_serves_its_long_semi_axis_to_a_few_u() {
         {
             let what = format!("{frame}, r {r:e}, φ {phi:e}");
             let (a, b) = sliver_walls(&map, r, phi);
-            let reach = Reach::Measured {
-                at: map.transform_point(Point3::origin()),
-                lever: r,
-            };
+            let reach = Reach::of_frame(map.transform_point(Point3::origin()), (r, r));
             let got = cylinder_cylinder_section(&a, &b, &reach.ball(), band());
             let (Surface::Cylinder { axis: aa, .. }, Surface::Cylinder { axis: ab, .. }) = (&a, &b)
             else {
@@ -892,8 +895,12 @@ fn a_turned_near_square_rod_minus_a_box_builds() {
             let what = format!("turned, r {r:e}, sin θ {s:e}");
             let tilt = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_y(), s.asin());
             let rod = moved_body(&rod(r), &(map * tilt));
-            let got = topo::subtract(&rod, &cutter, tol())
-                .unwrap_or_else(|e| panic!("{what}: the subtract refused: {e}"));
+            let got = topo::subtract(&rod, &cutter, tol()).unwrap_or_else(|e| {
+                panic!(
+                    "{what}: the subtract refused: {e_at}",
+                    e_at = e.render(geom_brep::recourse::Reading::Build)
+                )
+            });
             let cos = (1.0 - s * s).sqrt();
             assert_volume(
                 &what,

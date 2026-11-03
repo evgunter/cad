@@ -424,7 +424,10 @@ fn a_revolve_latitude_join_with_an_in_band_margin_refuses_typed() {
             );
             assert_in_band_payload(source);
         }
-        Err(other) => panic!("the in-band latitude join must refuse as a sliver JOIN, not {other}"),
+        Err(other) => panic!(
+            "the in-band latitude join must refuse as a sliver JOIN, not {other_at}",
+            other_at = other.render(geom_brep::recourse::Reading::Build)
+        ),
         Ok(_) => panic!("an in-band second-order margin was built silently"),
     }
 }
@@ -535,6 +538,7 @@ fn both_orders(
     t1: f64,
     extent: f64,
 ) -> (MustCarryVerdict, MustCarryVerdict) {
+    let extent = geom_core::test_support::fixture_lever(extent);
     (
         must_carry_over_edge(s1, s2, carrier, 0.0, t1, extent, band()),
         must_carry_over_edge(s2, s1, carrier, 0.0, t1, extent, band()),
@@ -825,7 +829,7 @@ fn the_rule_meters_the_schedules_interior_stations_in_lane_or_out() {
         &ruling,
         pr(0.0),
         pr(MERIDIAN_R),
-        pr(MERIDIAN_R),
+        geom_core::test_support::fixture_lever(pr(MERIDIAN_R)),
         band(),
     );
     let spent = count(k_stats::take_samples());
@@ -849,7 +853,7 @@ fn the_rule_meters_the_schedules_interior_stations_in_lane_or_out() {
         &ruling,
         pr(0.0),
         pr(short),
-        pr(short),
+        geom_core::test_support::fixture_lever(pr(short)),
         band(),
     );
     let spent_under = count(k_stats::take_samples());
@@ -898,7 +902,7 @@ fn the_rule_meters_the_schedules_interior_stations_in_lane_or_out() {
             &carrier,
             Probe(0.0),
             Probe(1.0),
-            Probe(1.0),
+            geom_core::test_support::fixture_lever(Probe(1.0)),
             band(),
         );
         let after = k_stats::take_samples();

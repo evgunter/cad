@@ -761,8 +761,13 @@ pub enum ReplaceFaceError<T: Real> {
     },
 }
 
-impl<T: Real> core::fmt::Display for ReplaceFaceError<T> {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl<T: Real> ReplaceFaceError<T> {
+    fn write(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        at: Option<geom_brep::recourse::ReadAt>,
+    ) -> core::fmt::Result {
+        use geom_brep::recourse::read_at;
         match self {
             // The carrier's own repairs (set a positive ε; raise ε or
             // K) are addressed to a caller choosing a band's
@@ -780,7 +785,11 @@ impl<T: Real> core::fmt::Display for ReplaceFaceError<T> {
             ),
             // Each door's refusal names what it is about itself.
             Self::Offset { error, .. } => write!(f, "{error}"),
-            Self::Fit { error, .. } => write!(f, "{error}"),
+            // The fit door's meter ends at a build at every door that
+            // reads the replacement's refusal.
+            Self::Fit { error, .. } => {
+                write!(f, "{}", read_at(error, geom_brep::recourse::at_build(at)))
+            }
             Self::IsoRow { error, .. } => write!(f, "{error}"),
             Self::ApproxLaneUnsupported { scalar, .. } => write!(
                 f,
@@ -888,9 +897,10 @@ impl<T: Real> core::fmt::Display for ReplaceFaceError<T> {
             } => write!(
                 f,
                 "the offset {} face meets a {} neighbour along a curve the kernel cannot \
-                 state: {verdict}. {NOT_YET_ENDING}",
+                 state: {}. {NOT_YET_ENDING}",
                 kind.adjective(),
-                other_kind.adjective()
+                other_kind.adjective(),
+                read_at(verdict, at)
             ),
             Self::CornerSection { verdict, .. } => write!(
                 f,
@@ -958,7 +968,7 @@ impl<T: Real> core::fmt::Display for ReplaceFaceError<T> {
                  certifies that arc there. {NOT_YET_ENDING}",
                 conic.named()
             ),
-            Self::DegenerateTorus { refusal, .. } => refusal.fmt(f),
+            Self::DegenerateTorus { refusal, .. } => write!(f, "{}", read_at(refusal, at)),
             Self::Escalated { source } => write!(
                 f,
                 "{}",
@@ -973,18 +983,21 @@ impl<T: Real> core::fmt::Display for ReplaceFaceError<T> {
             } => {
                 write!(
                     f,
-                    "an edge beside the moved face could not be rebuilt: {error}"
+                    "an edge beside the moved face could not be rebuilt: {}",
+                    read_at(error, at)
                 )
             }
             Self::Op { edge: None, error } => write!(
                 f,
-                "the moved faces could not be put onto their offset surface: {error}"
+                "the moved faces could not be put onto their offset surface: {}",
+                read_at(error, at)
             ),
             Self::Pcurve { source } => write!(
                 f,
-                "the offset body's edges could not be parametrized on their faces: {source}"
+                "the offset body's edges could not be parametrized on their faces: {}",
+                read_at(source, at)
             ),
-            Self::Join { refusal } => write!(f, "offsetting the face: {refusal}"),
+            Self::Join { refusal } => write!(f, "offsetting the face: {}", read_at(refusal, at)),
             Self::TogetherChartMixed { .. } => write!(
                 f,
                 "a move names faces that do not lie on one surface, and a move moves one \
@@ -1027,6 +1040,8 @@ impl<T: Real> core::fmt::Display for ReplaceFaceError<T> {
         }
     }
 }
+
+geom_brep::ended_by_write!([T: Real] ReplaceFaceError<T>);
 
 impl<T: Real> std::error::Error for ReplaceFaceError<T> {}
 
@@ -1680,7 +1695,7 @@ pub fn offset_corner_arms_for_tests<T: Decide + crate::props::AtRestPolicy>(
             .unwrap_or_else(|e| panic!("the corner's edges read: {e}"));
         for inc in incident.into_iter().filter(|i| i.derived) {
             if !out.iter().any(|(e, ..)| *e == inc.edge) {
-                out.push((inc.edge, inc.carrier, inc.extent));
+                out.push((inc.edge, inc.carrier, inc.extent.length()));
             }
         }
     }
@@ -2639,7 +2654,7 @@ fn plan_edge<'s, T: Decide>(
             &old_carrier,
             t0,
             t1,
-            old_carrier.eval(t0).distance(old_carrier.eval(t1)),
+            (old_carrier.eval(t0), old_carrier.eval(t1)),
         );
         if !crate::offset_derive::holds_the_move(old_surface, held, None, d, band) {
             return derive_edge(
@@ -2993,7 +3008,7 @@ fn edge_side_keys<T: Real>(
 fn plan_between_moved<'w, 's, T: Decide>(
     (edge, start, end, sides): (EdgeKey, VertexKey, VertexKey, [SurfaceKey; 2]),
     curve: &geom_brep::EdgeCurve<T>,
-    reach: T,
+    reach: geom_core::Lever<T>,
     (a, b): (&'s MovedChart<'_, T>, &'s MovedChart<'_, T>),
     band: Band,
     tol: Tol,
@@ -3066,7 +3081,7 @@ fn plan_between_moved<'w, 's, T: Decide>(
             apex_pair: None,
         });
     }
-    let extent = geom_brep::edge_extent_inf(old, t0, t1, old.eval(t0).distance(old.eval(t1)));
+    let extent = geom_brep::edge_extent_inf(old, t0, t1, (old.eval(t0), old.eval(t1)));
     derive_edge(
         (edge, start, end, sides),
         (curve, &description, (t0, t1)),
@@ -3161,8 +3176,8 @@ fn derive_edge<'w, 's, T: Decide>(
         &'s Surface<T>,
         &'s Surface<T>,
     ),
-    extent: T,
-    reach: T,
+    extent: geom_core::Lever<T>,
+    reach: geom_core::Lever<T>,
     band: Band,
     (section_lane, (new_slot, neighbour_slot)): (
         Option<crate::offset_derive::SectionLane<T>>,
@@ -3994,15 +4009,15 @@ struct Incident<T: Real> {
     derived: bool,
     /// The lever a root along it decides its transversality at
     /// ([`corner_arm`]).
-    extent: T,
+    extent: geom_core::Lever<T>,
 }
 
 /// **The lever a root along `carrier` over `[t0, t1]` is decided at**:
 /// the span's extent. On a derived spline section the span is the
 /// section's own domain ([`derive_edge`]), the whole curve its root is
 /// isolated over.
-fn corner_arm<T: Decide>(carrier: &Curve3<T>, t0: T, t1: T) -> T {
-    geom_brep::edge_extent_inf(carrier, t0, t1, carrier.eval(t0).distance(carrier.eval(t1)))
+fn corner_arm<T: Decide>(carrier: &Curve3<T>, t0: T, t1: T) -> geom_core::Lever<T> {
+    geom_brep::edge_extent_inf(carrier, t0, t1, (carrier.eval(t0), carrier.eval(t1)))
 }
 
 /// **Whether the distance `gap`, in metres, is within ε**
@@ -4068,7 +4083,7 @@ fn spline_corner_root<T: Decide>(
     lane: crate::offset_derive::SectionLane<T>,
     surface: &Surface<T>,
     spline: &NurbsCurve3<T>,
-    (seed, extent): (T, T),
+    (seed, extent): (T, geom_core::Lever<T>),
     (vertex, edge, derived): (VertexKey, EdgeKey, bool),
     d: T,
     band: Band,
@@ -4864,7 +4879,8 @@ mod pose_reach_rows {
                 t0: 0.0,
                 t1: 0.5,
             }
-            .lever_from(anchor);
+            .lever_from(anchor)
+            .length();
             for k in 0..=720 {
                 let t = core::f64::consts::TAU * f64::from(k) / 720.0;
                 let far = (e.eval(t) - anchor).norm();
@@ -4902,7 +4918,7 @@ mod pose_reach_rows {
             t0: 0.0,
             t1: 4.0,
         };
-        assert!((span.lever_from(Point3::origin()) - tight).abs() < 1e-12);
+        assert!((span.lever_from(Point3::origin()).length() - tight).abs() < 1e-12);
         // `k = 1.2` is in the band too, and reads Zero if the lever is
         // cut below the endpoints' distance.
         for k in [1.2, 6.0, 8.0, 9.0, 9.9] {
@@ -4979,8 +4995,14 @@ mod pose_reach_rows {
             ("cyl, torus", &general, &torus),
             ("torus, cyl", &torus, &general),
         ] {
-            let derived =
-                crate::offset_derive::section_closed(a, b, &edge, (0.0, 0.1), 0.1, band());
+            let derived = crate::offset_derive::section_closed(
+                a,
+                b,
+                &edge,
+                (0.0, 0.1),
+                super::corner_arm(&edge, 0.0, 0.1),
+                band(),
+            );
             assert!(
                 matches!(
                     derived,
@@ -5016,7 +5038,7 @@ mod pose_reach_rows {
         let refusal = |cyl: &Surface<f64>| match geom_brep::cone_cylinder_section(
             &cone,
             cyl,
-            (Point3::new(1.0, 0.0, 1.1) - Point3::origin()).norm(),
+            geom_brep::ExtentBall::point(Point3::origin()).lever_from(Point3::new(1.0, 0.0, 1.1)),
             band(),
         ) {
             Err(geom_brep::SectionError::RoutesToGeneralRung {
@@ -5437,9 +5459,9 @@ mod pair_over_its_span_rows {
             u_ref: Vec3::unit_y(),
         };
         let start = 0.4 * eps * 64.0;
-        let old = geom_brep::Reach::Measured {
-            at: Point3::new(0.0, 0.0, 0.5),
-            lever: 0.5 - 2.0 * start,
+        let old = {
+            let lever = 0.5 - 2.0 * start;
+            geom_brep::Reach::fixture(Point3::new(0.0, 0.0, 0.5), lever)
         };
         let Ok(geom_brep::PlaneConeSection::ApexLinePair { l1, .. }) =
             geom_brep::plane_cone_section(&plane, &cone, &old, band)
@@ -5521,10 +5543,7 @@ mod pair_over_its_span_rows {
                 normal: n,
                 u_ref: Vec3::unit_y(),
             };
-            let old = geom_brep::Reach::Measured {
-                at: Point3::new(0.0, 0.0, 0.75),
-                lever: 0.25,
-            };
+            let old = geom_brep::Reach::fixture(Point3::new(0.0, 0.0, 0.75), 0.25);
             let Ok(geom_brep::PlaneConeSection::ApexLinePair { l1, .. }) =
                 geom_brep::plane_cone_section(&plane, &cone, &old, band)
             else {
@@ -5614,7 +5633,7 @@ mod spline_corner {
             SectionLane::f64(),
             surface,
             &segment(),
-            (1.0, 1.0),
+            (1.0, geom_core::test_support::fixture_lever(1.0)),
             (VertexKey::default(), EdgeKey::default(), derived),
             0.1,
             Band::linear(tol).unwrap(),

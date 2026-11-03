@@ -343,6 +343,7 @@ use crate::entity::{
 use crate::geometry::PointKey;
 use crate::live::{BoundaryMember, proven};
 use crate::null::CurveGeom;
+use crate::sweep_trace::SweepPairs;
 
 use crate::link::{FaceSector, Germ, Hold, Link, Planar, TouchUnread, TouchVerdict, rest};
 #[cfg(test)]
@@ -510,8 +511,8 @@ struct Geo<T: Real> {
 /// definition of the candidate set, alive for the differential suite's
 /// pins alone. Outside `sweep-testing` this enum has ONE variant, and
 /// the trace plumbing ([`CensusTrace`]) rides every production sweep
-/// as `None` — the [`crate::boolean::SweepTrace`] precedent, kept
-/// rather than a test-only twin of the sweeps.
+/// as `None`, as the boolean sweep's ([`SweepPairs`]) does, rather than
+/// a test-only twin of the sweeps.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CensusStrategy {
     /// BVH-pruned candidates (the production path).
@@ -527,83 +528,41 @@ pub enum CensusStrategy {
     Idealized,
 }
 
-/// The pairs one sweep examined, and the ones it decided AGAINST —
-/// pushed at least one finding for — each in the sweep's own order.
-/// The differential suite's currency: realized `examined` must hold
-/// every idealized `accepted` pair (the conservative-superset pin).
-#[derive(Clone, Debug, Default)]
-pub struct SweepPairs {
-    /// Every pair the sweep examined, in decision order.
-    pub examined: Vec<(EntityId, EntityId)>,
-    /// The examined pairs whose examination pushed a finding.
-    pub accepted: Vec<(EntityId, EntityId)>,
-}
-
-impl SweepPairs {
-    fn note(&mut self, pair: (EntityId, EntityId), accepted: bool) {
-        self.examined.push(pair);
-        if accepted {
-            self.accepted.push(pair);
-        }
-    }
-
-    /// Whether this sweep's examined sequence is `exact`'s with pairs
-    /// removed and nothing reordered — the order pin of the
-    /// differential suites (`sweep-testing`; both suites read it here).
-    #[cfg(feature = "sweep-testing")]
-    pub fn is_restriction_of(&self, exact: &Self) -> bool {
-        let mut it = exact.examined.iter();
-        self.examined.iter().all(|p| it.any(|q| q == p))
-    }
-
-    /// `exact`'s accepted pairs this sweep never examined — any entry
-    /// is a finding the filter lost (the superset pin).
-    #[cfg(feature = "sweep-testing")]
-    pub fn lost_accepted(&self, exact: &Self) -> Vec<(EntityId, EntityId)> {
-        exact
-            .accepted
-            .iter()
-            .filter(|p| !self.examined.contains(p))
-            .copied()
-            .collect()
-    }
-}
-
 /// One census run's examined/accepted pairs, per sweep.
 #[derive(Clone, Debug, Default)]
 pub struct CensusTrace {
     /// Vertex×vertex (pass 1).
-    pub vv: SweepPairs,
+    pub vv: SweepPairs<(EntityId, EntityId)>,
     /// Vertex×edge (pass 2).
-    pub ve: SweepPairs,
+    pub ve: SweepPairs<(EntityId, EntityId)>,
     /// Vertex×curved edge (pass 2′).
-    pub vce: SweepPairs,
+    pub vce: SweepPairs<(EntityId, EntityId)>,
     /// Vertex×face (pass 3).
-    pub vf: SweepPairs,
+    pub vf: SweepPairs<(EntityId, EntityId)>,
     /// Edge×face (pass 4).
-    pub ef: SweepPairs,
+    pub ef: SweepPairs<(EntityId, EntityId)>,
     /// Edge×edge (pass 5).
-    pub ee: SweepPairs,
+    pub ee: SweepPairs<(EntityId, EntityId)>,
     /// Curved edge×edge (pass 5′).
-    pub cee: SweepPairs,
+    pub cee: SweepPairs<(EntityId, EntityId)>,
     /// The cross-solid backstop's pairs: the face pairs that reached
     /// its reach test (after its structural and deferral skips) and
     /// the instance pairs that reached its extent-containment test.
-    pub backstop: SweepPairs,
+    pub backstop: SweepPairs<(EntityId, EntityId)>,
     /// The curved aligned arm's pairs (`curved_same_side_pairs`): those
     /// that reached the faces' reading, accepted where their interiors
     /// meet. A pair it certifies apart is examined and not accepted, and
     /// a cylinder pair apart by its axial spans alone is neither.
     /// Not among `CensusTrace::sweeps`, which the differential suites
     /// walk: it counts what the arm costs, not a candidate set they pin.
-    pub aligned: SweepPairs,
+    pub aligned: SweepPairs<(EntityId, EntityId)>,
 }
 
 #[cfg(feature = "sweep-testing")]
 impl CensusTrace {
     /// The eight sweeps by name, in census order — what a differential
     /// suite walks.
-    pub fn sweeps(&self) -> [(&'static str, &SweepPairs); 8] {
+    pub fn sweeps(&self) -> [(&'static str, &SweepPairs<(EntityId, EntityId)>); 8] {
         [
             ("vv", &self.vv),
             ("ve", &self.ve),
@@ -833,23 +792,7 @@ impl Candidates {
             .keys()
             .filter(|&k| !edge_is_line(body, k))
             .collect();
-        // A curved edge's box: a spline's control hull
-        // (`nurbs_curve_aabb`, which holds the curve for its positive
-        // weights), where `edge_box` has no sound box for the kind and
-        // answers the poison box every vertex would meet; every other
-        // kind's from `edge_box`.
-        let curved_box = |k: EdgeKey| {
-            let spline = body
-                .edges
-                .get(k)
-                .and_then(|d| body.curves.get(d.curve))
-                .and_then(crate::null::CurveGeom::certified)
-                .and_then(|c| match c.carrier() {
-                    geom::Curve3::Nurbs(n) => Some(geom::curves::boxes::nurbs_curve_aabb(n)),
-                    _ => None,
-                });
-            spline.map_or_else(|| edge_box(body, k, pad), |hull| hull.padded(pad))
-        };
+        let curved_box = |k: EdgeKey| edge_box(body, k, pad);
         let curved_boxes = curved.iter().map(|&k| curved_box(k)).collect();
         Self {
             strategy,
@@ -4485,7 +4428,9 @@ fn edge_in_curved_face<T: Decide>(
     for sheet in [w.own, w.next] {
         match decide(
             "pm_census_ef_curved_wall_side",
-            Margin::levered(sheet.dot(floor), w.arm),
+            // Unsourced lever: the wedge's arm, `sector_shape`'s shorter scaled sheet (each about
+            // the line edge's chord); the chord's own extent read rounds differently.
+            Margin::levered(sheet.dot(floor), geom_core::Lever::unsourced(w.arm)),
             band,
         ) {
             Ok(Sign::Positive | Sign::Negative) => {}
@@ -5164,7 +5109,12 @@ fn parallel_reading<T: Decide>(
     let (a, b) = (a.span(), b.span());
     gap_is_zero(
         "pm_census_ee_parallel",
-        Margin::levered(a.dir.cross(b.dir).norm(), a.len().min(b.len())),
+        Margin::levered(
+            a.dir.cross(b.dir).norm(),
+            // Unsourced lever: the shorter straight span's parameter interval on its unit-direction
+            // line; no extent read takes a line's interval, and its chord read rounds differently.
+            geom_core::Lever::unsourced(a.len().min(b.len())),
+        ),
         band,
         errors,
     )
@@ -5287,7 +5237,8 @@ fn ee_cross_backed<T: Decide>(
             body.face_surface_linked(fa, da),
             body.face_surface_linked(fb, db),
         );
-        let arm_extent = ea.len.min(eb.len);
+        let chord = |e: &EdgeGeo<T>| geom_brep::ExtentBall::point(e.p0).lever_from(e.p1);
+        let arm_extent = chord(ea).min(chord(eb));
         // The last carrier screen, and the Smooth-site precondition the
         // pairing below states. The edge screen reads points against
         // each plane; this reads the planes against each other, at the
@@ -6808,6 +6759,7 @@ fn sweep_conformal_patches<T: Decide>(
                     Some(Err(
                         cause @ (ChartRegionError::ChartDivergence { .. }
                         | ChartRegionError::NonPlanarTrim { .. }
+                        | ChartRegionError::TrimOffFace { .. }
                         | ChartRegionError::MissingCache { .. }
                         | ChartRegionError::ArmUnbounded { .. }
                         | ChartRegionError::SeamBranch
@@ -7031,7 +6983,7 @@ fn same_solid_tangent_pair<T: Decide>(
     }
 }
 
-/// **`boolean::boxes`'s `FaceBoxRule`/`EdgeBoxRule`, instantiated at
+/// **`boolean::boxes`'s `FaceBoxRule` and the edges' covers, instantiated at
 /// this lane's scalar.** Both the rules — which kinds have a cheap
 /// sound superset, and by what construction — AND the extent
 /// arithmetic that realizes them come from there: the per-kind
@@ -7293,42 +7245,14 @@ pub(crate) fn torus_chart_window<T: Decide>(
     )
 }
 
-/// One boundary edge's carrier as an axial span about `(origin, axis)`
-/// reads it ([`crate::boolean::boxes::axial_carrier`]): the conic arm
-/// is `geom`'s directional door at this lane's own scalar.
-fn axial_carrier<T: Decide>(
-    body: &Body<T>,
-    ek: EdgeKey,
-    e: &crate::entity::Edge,
-    origin: Point3<T>,
-    axis: Vec3<T>,
-) -> crate::boolean::boxes::AxialCarrier<T> {
-    use crate::boolean::boxes::{ConicArc, Span, edge_box_rule};
-    crate::boolean::boxes::axial_carrier(
-        edge_box_rule(body.edge_curve_linked(ek, e).certified()),
-        |arc: &ConicArc<'_, T>| {
-            let (t0, t1) = arc.params;
-            let (lo, hi) =
-                geom::curves::boxes::conic_arc_extent_along(arc.carrier, t0, t1, origin, axis)
-                    .unwrap_or_else(|| {
-                        unreachable!(
-                            "census axial span: the conic rule carries a Circle or Ellipse carrier"
-                        )
-                    });
-            Span { lo, hi }
-        },
-        crate::boolean::boxes::SpanBox::point,
-    )
-}
-
 /// The face boundary's AXIAL range about `(origin, axis)` — the
-/// boundary's own locus projected on the axis, edge by edge, rather
-/// than the corners of a box around it
-/// ([`crate::boolean::boxes::edge_axial_span`], which carries why the
-/// difference is not cosmetic at a tilted axis). `None` for a face
-/// with no boundary, or with a boundary edge whose axial span has no
-/// claim ([`axial_carrier`]). `face` is `f`'s record, resolved by
-/// [`face_reach_in`]; every hop past it is a link and panics as there.
+/// boundary's own locus projected on the axis, edge by edge (each edge's
+/// cover's support either way, [`crate::boolean::boxes::cover_axial`]),
+/// rather than the corners of a box around it, which at a tilted axis
+/// leaks the box's spread into the window. `None` for a face with no
+/// boundary, or with a boundary edge that has no cover. `face` is `f`'s
+/// record, resolved by [`face_reach_in`]; every hop past it is a link
+/// and panics as there.
 fn boundary_axial<T: Decide>(
     body: &Body<T>,
     f: crate::entity::FaceKey,
@@ -7336,25 +7260,19 @@ fn boundary_axial<T: Decide>(
     origin: Point3<T>,
     axis: Vec3<T>,
 ) -> Option<crate::boolean::boxes::Span<T>> {
-    use crate::boolean::boxes::{AxialCarrier, SpanBox, edge_axial_span, edge_end_point};
-    let (o, ax) = (SpanBox::point(origin), SpanBox::vector(axis));
-    let mut acc: Option<crate::boolean::boxes::Span<T>> = None;
+    use crate::boolean::boxes::{Span, cover_axial, edge_cover_linked};
+    let mut acc: Option<Span<T>> = None;
     for member in body.face_boundary_linked(f, face) {
-        let sp = match member {
+        let (lo, hi) = match member {
             BoundaryMember::Isolated { point: p, .. } => {
-                let p = SpanBox::point(p);
-                edge_axial_span(&o, &ax, &AxialCarrier::Chord, (&p, &p))
+                let h = (p - origin).dot(axis);
+                (h, h)
             }
             BoundaryMember::Edge { ek, edge: e, .. } => {
-                let end = |h, field| SpanBox::point(edge_end_point(body, ek, h, field));
-                let axial = axial_carrier(body, ek, e, origin, axis);
-                if let AxialCarrier::Unclaimable = axial {
-                    return None;
-                }
-                let (a, b) = (end(e.he_plus, "he_plus"), end(e.he_minus, "he_minus"));
-                edge_axial_span(&o, &ax, &axial, (&a, &b))
+                cover_axial(&edge_cover_linked(body, ek, e).ok()?, origin, axis)
             }
         };
+        let sp = Span { lo, hi };
         acc = Some(acc.map_or(sp, |a| a.hull(sp)));
     }
     acc
@@ -7393,10 +7311,10 @@ fn boundary_reach<T: Decide>(
     acc
 }
 
-/// One edge's reach — [`crate::boolean::boxes::EdgeBoxRule`] at this
-/// lane's scalar, read in `frame` as [`face_reach_in`] reads a face.
-/// `None` where the edge's carrier has no sound box, null scaffolding
-/// included.
+/// One edge's reach: its cover's box in `frame`
+/// ([`crate::boolean::boxes::edge_cover`]) at this lane's scalar, read
+/// as [`face_reach_in`] reads a face. `None` where the edge has no
+/// cover, null scaffolding included.
 ///
 /// # Panics
 ///
@@ -7412,52 +7330,16 @@ pub(crate) fn edge_reach_in<T: Decide>(
 }
 
 /// [`edge_reach_in`] past its edge's lookup: `e` is `ek`'s record.
-///
-/// The spiric arm is exercised by the box module's hand-built sector
-/// rows.
 fn edge_reach_of<T: Decide>(
     body: &Body<T>,
     ek: crate::entity::EdgeKey,
     e: &crate::entity::Edge,
     frame: &crate::boolean::boxes::BoxFrame<T>,
 ) -> Option<(Point3<T>, Point3<T>)> {
-    use crate::boolean::boxes::{ConicArc, Span, SpanBox, edge_end_point};
-    let end = |he, field| SpanBox::point(frame.point(edge_end_point(body, ek, he, field)));
-    // The ARC's own extent along each of the frame's rows, from `geom`'s
-    // directional door at this lane's scalar: the closed form
-    // `edge_box` reads, comparison-free, so no ordering is asked of `T`.
-    let conic = |arc: &ConicArc<'_, T>| {
-        let (t0, t1) = arc.params;
-        let along = |n: Vec3<T>| {
-            let (lo, hi) = geom::curves::boxes::conic_arc_extent_along(
-                arc.carrier,
-                t0,
-                t1,
-                Point3::origin(),
-                n,
-            )
-            .unwrap_or_else(|| {
-                unreachable!(
-                    "census edge reach: the conic rule carries a Circle or Ellipse carrier"
-                )
-            });
-            Span { lo, hi }
-        };
-        let [x, y, z] = frame.rows();
-        SpanBox {
-            x: along(x),
-            y: along(y),
-            z: along(z),
-        }
-    };
-    crate::boolean::boxes::edge_rule_box(
-        crate::boolean::boxes::edge_box_rule(body.edge_curve_linked(ek, e).certified()),
-        (end(e.he_plus, "he_plus"), end(e.he_minus, "he_minus")),
-        frame,
-        SpanBox::point,
-        conic,
-    )
-    .map(span_pts)
+    use crate::boolean::boxes::{cover_frame, edge_cover_linked};
+    edge_cover_linked(body, ek, e)
+        .ok()
+        .map(|c| c.box_in(&cover_frame(frame)))
 }
 
 /// A [`crate::boolean::boxes::SpanBox`] as this lane's `(lo, hi)`
@@ -8926,7 +8808,9 @@ fn tangent_sectors<T: Decide>(
         }
     }
     let reach = || {
-        crate::splitting::rules::face_reach_from(body, f, p).map_err(|_| TouchUnread::Unreadable)
+        crate::splitting::rules::face_reach_from(body, f, p)
+            .map(geom_core::Lever::length)
+            .map_err(|_| TouchUnread::Unreadable)
     };
     let held_edge = |e: EdgeKey| holds.contains(&Held::Edge(e));
     for cycle in face_cycles(body, face) {
@@ -9498,7 +9382,7 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
     // see (a pair is theirs only when BOTH faces are wholly
     // line-bounded, which is what puts a whole boundary in the
     // snapshot — the module docs carry the argument).
-    struct Reach<T: Real> {
+    struct ProximityFace<T: Real> {
         face: crate::entity::FaceKey,
         solid: crate::entity::SolidKey,
         /// The sound reach box (`reach_box` docs), or `None` for a
@@ -9511,7 +9395,7 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
         /// sweeps hold this face's whole boundary.
         line_bounded: bool,
     }
-    let mut reaches: Vec<Reach<T>> = Vec::new();
+    let mut reaches: Vec<ProximityFace<T>> = Vec::new();
     let planar_keys: Vec<FaceKey> = geo.faces.iter().map(|f| f.key).collect();
     for (&f, planar) in geo
         .curved_faces
@@ -9571,7 +9455,7 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
         // faces × vertices, the arena-scan shape of PERF-PLAN §2.1).
         let verts = face_vertices(body, f);
         let boxed = reach_box(f);
-        reaches.push(Reach {
+        reaches.push(ProximityFace {
             face: f,
             solid,
             boxed,
@@ -9599,7 +9483,7 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
     //
     // The narrowing is a narrowing on every body that can reach here,
     // and that rests on a tier-1 fact rather than on the shape of the
-    // test: `Reach::verts` is `{ v : vertex_faces[v] ∋ f }`, and the
+    // test: `ProximityFace::verts` is `{ v : vertex_faces[v] ∋ f }`, and the
     // old test read the solid of `vertex_faces[v]`'s smallest member,
     // so the new test could be true where the old was false ONLY for a
     // vertex incident to faces of two different solids — a vertex
@@ -12210,6 +12094,7 @@ fn confirm_patch<T: Decide>(
         Some(Err(
             cause @ (ChartRegionError::ChartDivergence { .. }
             | ChartRegionError::NonPlanarTrim { .. }
+            | ChartRegionError::TrimOffFace { .. }
             | ChartRegionError::MissingCache { .. }
             | ChartRegionError::ArmUnbounded { .. }
             | ChartRegionError::SeamBranch
@@ -12431,7 +12316,7 @@ mod tests {
         assert_eq!(unread, 1, "{errors:?}");
         let accepted: usize = [&trace.vv, &trace.ve, &trace.vf, &trace.ef, &trace.ee]
             .iter()
-            .map(|t| t.accepted.len())
+            .map(|t| t.accepted().len())
             .sum();
         assert!(
             accepted > errors.len(),
@@ -13166,7 +13051,10 @@ mod tests {
                 subject: CensusSubject::FacePair(pair.0, pair.1),
             }
         );
-        assert_eq!(lane[0].to_string(), LANE_UNSUPPORTED_SENTENCE);
+        assert_eq!(
+            lane[0].render(geom_brep::recourse::Reading::AtRest),
+            LANE_UNSUPPORTED_SENTENCE
+        );
     }
 
     /// **The `None` path at the conformal face-pair arm, observed.** The
@@ -13741,7 +13629,7 @@ mod tests {
             panic!("the census's own finding: {errors:?}");
         };
         assert!(*face == cap && gaps.off_corner(), "{errors:?}");
-        let text = errors[0].to_string();
+        let text = errors[0].render(geom_brep::recourse::Reading::AtRest);
         assert!(
             text.ends_with(geom_core::KERNEL_OR_FILE_DEFECT_ENDING)
                 && !text.contains("could not be checked"),
@@ -14783,8 +14671,8 @@ mod tests {
                 lost.is_empty(),
                 "{name}: the filter pruned accepted pairs {lost:?}"
             );
-            assert_eq!(r.accepted, i.accepted, "{name}: accepted");
-            pruned += i.examined.len() - r.examined.len();
+            assert_eq!(r.accepted(), i.accepted(), "{name}: accepted");
+            pruned += i.examined().len() - r.examined().len();
         }
         pruned
     }
@@ -14810,7 +14698,7 @@ mod tests {
         );
         let &(_, EntityId::Face(face)) = ideal
             .vf
-            .accepted
+            .accepted()
             .first()
             .expect("a corner in a face's interior is a vertex-on-face event")
         else {
@@ -15181,8 +15069,8 @@ mod tests {
                 .expect("a point")
                 .x
         };
-        for (v, f) in &real.vf.examined {
-            let (EntityId::Vertex(v), EntityId::Face(f)) = (v, f) else {
+        for &(v, f) in real.vf.examined() {
+            let (EntityId::Vertex(v), EntityId::Face(f)) = (&v, &f) else {
                 panic!("a vf pair");
             };
             let LoopBoundary::Cycle { first } = far
@@ -15286,7 +15174,7 @@ mod tests {
             for f in [f_plus, f_minus] {
                 assert!(
                     real.vf
-                        .examined
+                        .examined()
                         .contains(&(EntityId::Vertex(v), EntityId::Face(f))),
                     "a poisoned face is examined against every vertex"
                 );
@@ -15294,7 +15182,7 @@ mod tests {
             assert!(
                 !real
                     .vf
-                    .examined
+                    .examined()
                     .contains(&(EntityId::Vertex(v), EntityId::Face(other_near_face))),
                 "a sound far face is pruned"
             );
@@ -15342,7 +15230,7 @@ mod tests {
         for ((name, r), (_, i)) in real.sweeps().iter().zip(ideal.sweeps().iter()) {
             assert!(r.is_restriction_of(i), "{name}: order");
             assert!(
-                i.accepted.iter().all(|p| !r.examined.contains(p)),
+                i.accepted().iter().all(|p| !r.examined().contains(p)),
                 "{name}: every accepted pair is a pruned one"
             );
         }
@@ -15386,7 +15274,7 @@ mod tests {
             !predicates.iter().any(|p| p.starts_with("pm_census_ee_")),
             "an edge pair escalated: {predicates:?}"
         );
-        assert!(ideal.ee.accepted.is_empty(), "{:?}", ideal.ee.accepted);
+        assert!(ideal.ee.accepted().is_empty(), "{:?}", ideal.ee.accepted());
         restricted_and_silent(&real, &ideal);
     }
 

@@ -35,7 +35,7 @@ fn fresh_box(tol: Tol) -> (DocSession, RecipeNodeId) {
 /// A pattern of `input`, two members `2·BOX[0]` apart along `x`.
 fn pattern_op(input: RecipeNodeId, fused: bool) -> SessionOp {
     let rule = PatternRuleSpec::Linear {
-        direction: common::scl3([1.0, 0.0, 0.0]),
+        direction: viewer::PatternDirection::Axis(pncad::document::TargetAxis::X),
         spacing: common::len(2.0 * BOX[0]),
     };
     if fused {
@@ -69,12 +69,12 @@ fn pattern_op(input: RecipeNodeId, fused: bool) -> SessionOp {
 fn a_split_and_a_pattern_of_a_fresh_box_leave_every_drawn_body_pickable() {
     let tol = Tol::witness();
     let (mut session, body) = fresh_box(tol);
+    let plane = common::cut_across(&session, body, BOX[2] / 2.0);
     let split = common::session_insert(
         &mut session,
         SessionOp::AddSplit {
             target: body.into(),
-            origin: common::len3([0.0, 0.0, BOX[2] / 2.0]),
-            normal: common::scl3([0.0, 0.0, 1.0]),
+            plane,
         },
     );
     session.pump();

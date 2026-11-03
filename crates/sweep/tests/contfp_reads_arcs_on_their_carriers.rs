@@ -73,7 +73,12 @@ fn outer_vertex_xs(body: &Body<f64>, face: FaceKey) -> Vec<f64> {
 }
 
 fn ask(body: &Body<f64>, (face, normal): (FaceKey, Vec3<f64>), q: Point3<f64>) -> FaceContainment {
-    contfp(body, face, normal, q, band()).unwrap_or_else(|e| panic!("contfp refused at {q:?}: {e}"))
+    contfp(body, face, normal, q, band()).unwrap_or_else(|e| {
+        panic!(
+            "contfp refused at {q:?}: {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        )
+    })
 }
 
 /// The bored D-rod with both of its creases filleted: its transverse

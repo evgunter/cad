@@ -12,7 +12,8 @@
 //! - `m = (1, 1.3, −0.7)`: the edges read In and the bisector alone
 //!   Out, the bare-bisector run (`classify_vertex_on_face`'s `_` arm).
 //! - `−m`: the edges read Out and the bisector alone In, the run holds
-//!   the whole orbit (`RunSite::WholeOrbit`).
+//!   the whole orbit (`topo::star`'s strut whose tip stands for the
+//!   rest).
 //!
 //! The two facings are opposite (the start germ is the one the walk
 //! meets first in the bare run and last in the whole-orbit one), and

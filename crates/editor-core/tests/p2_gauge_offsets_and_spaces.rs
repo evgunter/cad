@@ -318,10 +318,11 @@ fn pin_lifted(
     let (c, s) = (angle.cos(), angle.sin());
     let [x, y, z] = then.translation;
     let origin = [c * x - s * y, s * x + c * y, z];
-    let mut spins: Vec<(Coord, Formula)> = editor_core::test_support::moves_at(then)
-        .into_iter()
-        .filter(|(coord, _)| matches!(coord, Coord::Spin(_)))
-        .collect();
+    let mut spins: Vec<(Coord<editor_core::Operand>, Formula)> =
+        editor_core::test_support::moves_at(then)
+            .into_iter()
+            .filter(|(coord, _)| matches!(coord, Coord::Spin(_)))
+            .collect();
     if angle != 0.0 {
         match spins.last_mut() {
             Some((Coord::Spin(Some(TargetAxis::Z)), by)) => {
@@ -341,7 +342,7 @@ fn pin_lifted(
         } else {
             at
         };
-        (Coord::Slide(axis), by)
+        (Coord::slide(axis), by)
     });
     let placed = editor_core::Placed::unmated(spins.into_iter().chain(slides).collect());
     fixture::written(doc, placement, placed)
@@ -596,6 +597,7 @@ fn a_cut_of_a_pinned_instance_and_plain_geometry_moves_nothing() {
         DocumentId::derive("r1-split-plain-part"),
         Tol::witness(),
         o.resolver.as_ref(),
+        &editor_core::Stop::default(),
     )
     .expect("the cut splits");
     let mut store = p.store.clone();
@@ -697,6 +699,7 @@ fn a_parametric_pin_read_on_both_sides_of_a_cut_refuses() {
         DocumentId::derive("r1-promote-param-part"),
         Tol::witness(),
         o.resolver.as_ref(),
+        &editor_core::Stop::default(),
     )
     .expect_err("the cut base's pin reads a kept node's parameter");
     assert!(
@@ -962,6 +965,7 @@ fn a_touch_between_copies_in_a_new_space_reaches_the_coincidence_check() {
         &doc,
         &ev,
         &editor_core::ChecksConfig::default(),
+        &editor_core::Stop::default(),
         Tol::witness(),
     )
     .expect("checks run");

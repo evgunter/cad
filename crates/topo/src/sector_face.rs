@@ -496,9 +496,9 @@ fn spline_normal<T: Decide>(
     let t = if he == edge.he_plus { t0 } else { t1 };
     let uv = body.pcurve(into).ok_or(unplaced)?.pcurve().eval(t);
     let uv = (uv.x, uv.y);
-    let reach = geom_brep::control_net_reach(chart.control(), at);
+    let reach = geom_brep::ExtentBall::of_control_net_from(chart.control(), at).lever();
     let crease = |_| SectorFaceError::Crease { face, kind };
-    let jet = geom_brep::regular_jet(chart, uv, reach, band).map_err(crease)?;
+    let jet = geom_brep::regular_jet(chart, uv, reach.length(), band).map_err(crease)?;
     geom_brep::chart_normal_at(chart, sense, &jet, uv, reach, band)
         .map(|(normal, _)| normal)
         .map_err(crease)
@@ -582,7 +582,8 @@ pub(crate) mod tests {
         }));
         assert!(
             report.contains(&format!(
-                "{}, which this call resolved or read out of a record, does not resolve",
+                "{}, which this call minted and kept, resolved, or read out of a record, does not \
+                 resolve",
                 EntityId::Vertex(bogus)
             )),
             "{report}"
@@ -1095,8 +1096,10 @@ mod review_5802 {
             |_, _| 1.0,
         );
         for uv in [(0.5, 0.0), (0.5, 0.5)] {
-            let read = geom_brep::regular_jet(&kinked, uv, 1.0, band())
-                .and_then(|jet| geom_brep::chart_normal_at(&kinked, true, &jet, uv, 1.0, band()));
+            let read = geom_brep::regular_jet(&kinked, uv, 1.0, band()).and_then(|jet| {
+                let reach = geom_core::test_support::fixture_lever(1.0);
+                geom_brep::chart_normal_at(&kinked, true, &jet, uv, reach, band())
+            });
             assert!(read.is_err(), "{uv:?}: {:?}", read.map(|(n, _)| n.vec()));
         }
     }

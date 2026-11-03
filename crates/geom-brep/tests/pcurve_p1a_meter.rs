@@ -67,7 +67,7 @@ fn a_cone_edge_inside_the_band_certifies_at_its_perpendicular_drift() {
         p0,
         p1,
         &lookup,
-        1.0,
+        geom_core::test_support::fixture_lever(1.0),
         band(),
         geom_brep::NurbsLane::certified(),
     )
@@ -147,7 +147,7 @@ fn the_collapsed_meter_never_understates_the_distance_to_the_surface() {
             p0,
             p1,
             &lookup,
-            1.0,
+            geom_core::test_support::fixture_lever(1.0),
             band(),
             geom_brep::NurbsLane::certified(),
         )
@@ -169,7 +169,8 @@ fn the_collapsed_meter_never_understates_the_distance_to_the_surface() {
 /// feature instead of a wrong locus).
 #[test]
 fn a_carrier_with_no_chart_image_names_the_pair_it_could_not_state() {
-    // A sphere chart images circles only; no ellipse lies on a sphere.
+    // An ellipse in the pole's tangent plane is off the sphere: the
+    // mint's incidence read refuses it, naming the pair.
     let sphere = Surface::Sphere {
         center: Point3::origin(),
         radius: 1.0,
@@ -193,20 +194,24 @@ fn a_carrier_with_no_chart_image_names_the_pair_it_could_not_state() {
         p0,
         p1,
         &lookup,
-        1.0,
+        geom_core::test_support::fixture_lever(1.0),
         band(),
         geom_brep::NurbsLane::certified(),
     )
     .expect_err("an ellipse is not a locus of any sphere chart image");
-    assert_eq!(
-        err,
-        CertifyError::CarrierOffChart {
-            chart: geom::SurfaceKind::Sphere,
-            carrier: geom::CurveKind::Ellipse,
-            why: "a sphere holds no line, and its plane sections are circles",
-            margin: None,
-        },
-        "the refusal must name the (chart, carrier) pair it could not state"
+    // The read quotes the miss it decided: the ellipse's far vertex is
+    // `√2 − 1` off the unit sphere.
+    assert!(
+        matches!(
+            &err,
+            CertifyError::CarrierOffChart {
+                chart: geom::SurfaceKind::Sphere,
+                carrier: geom::CurveKind::Ellipse,
+                why: "the carrier's points are not at the sphere's radius from its centre",
+                margin: Some(geom_brep::OffMargin::Past(m)),
+            } if (m.diagnostic_f64_for_error_text().value().unwrap_or(f64::NAN) - (2f64.sqrt() - 1.0)).abs() < 1e-12
+        ),
+        "the refusal must name the (chart, carrier) pair it could not state, and its miss: {err:?}"
     );
 }
 
@@ -220,6 +225,7 @@ mod at_intervals {
     use crate::shared::surf::table;
     use geom::{Curve3, Surface};
     use geom_brep::{EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec};
+    use geom_core::test_support::fixture_lever;
     use geom_core::{Band, Bounds, Point3, Vec3};
 
     /// The rows' own band, fixed rather than the run's — a row about the
@@ -257,7 +263,7 @@ mod at_intervals {
             p0,
             p1,
             &lookup,
-            geom_core::Real::from_f64(1.0),
+            fixture_lever(geom_core::Real::from_f64(1.0)),
             band(),
             geom_brep::NurbsLane::certified(),
         )
@@ -311,7 +317,7 @@ mod at_intervals {
             p0,
             p1,
             &lookup,
-            geom_core::Real::from_f64(1.0),
+            fixture_lever(geom_core::Real::from_f64(1.0)),
             band(),
             geom_brep::NurbsLane::certified(),
         )

@@ -53,7 +53,8 @@ test_utils::f6_variants! {
         EmptyCut, UnknownCutNode, CutsTheWorld, PartIdCollides, RemainderReadUncarried,
         SeveredEdge, NoMaterial, UncutVarReference, SpaceStraddlesCut, DefinitionStraddlesCut,
         UnresolvedVarCrossesCut, PartNameReachesRemainder, NameStraddlesCut, NameOnDroppedStep,
-        NameOnDroppedSection, BodyNameCrossesCut, NameOutsidePartWorld, Pin, PartEdit, RemainderEdit,
+        NameOnDroppedSection, BodyNameCrossesCut, NameOutsidePartWorld, Pin, PartEdit,
+        RemainderEdit, Stopped,
     ];
 }
 
@@ -188,6 +189,10 @@ fn split_refusals() -> Vec<SplitError> {
                 id: SpokenNode::absent(n(9)),
             }),
         },
+        SplitError::Stopped(editor_core::Stopped::Canceled),
+        SplitError::Stopped(editor_core::Stopped::Exhausted {
+            budget: editor_core::DEFAULT_MEMBER_BUDGET,
+        }),
     ]);
     out
 }

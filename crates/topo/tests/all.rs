@@ -67,6 +67,8 @@ mod probe_support;
 mod a_block_resting_in_the_zero_band_unions;
 #[path = "a_callers_interval_is_refused_at_its_door.rs"]
 mod a_callers_interval_is_refused_at_its_door;
+#[path = "a_corrupted_row_is_never_read_as_its_carrier_off_the_face.rs"]
+mod a_corrupted_row_is_never_read_as_its_carrier_off_the_face;
 #[path = "a_decided_overlap_decides_its_pair.rs"]
 mod a_decided_overlap_decides_its_pair;
 #[path = "a_doubled_line_does_not_revert.rs"]

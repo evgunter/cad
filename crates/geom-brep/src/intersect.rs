@@ -119,7 +119,7 @@ use crate::dihedral::{
     decide, decide_magnitude, decide_magnitude_reported, decide_nonzero, decide_reported,
 };
 use crate::extent::{LeverBounds, Reach};
-use crate::recourse::{Reading, RefusedArm, RefusedSide, SizedDecision, SizedPass};
+use crate::recourse::{RefusedArm, RefusedSide, SizedDecision, SizedPass};
 use crate::torus_convention::TorusRefusal;
 use geom_core::Decide;
 
@@ -522,28 +522,34 @@ pub fn route_pose<T: Decide>(
     band: Band,
 ) -> Result<PairRoute, SectionError> {
     use SurfaceKind::{Approx, Cone, Cylinder, Nurbs, Plane, Sphere, Torus};
-    let extent = [a, b].into_iter().fold(T::zero(), |lever, s| match *s {
-        Surface::Cone { apex: anchor, .. }
-        | Surface::Sphere { center: anchor, .. }
-        | Surface::Torus { center: anchor, .. } => lever.max(reach.lever_from(anchor)),
-        Surface::Plane { .. }
-        | Surface::Cylinder { .. }
-        | Surface::Nurbs(_)
-        | Surface::Approx(_) => lever,
-    });
+    let extent = || {
+        [a, b]
+            .into_iter()
+            .filter_map(|s| match *s {
+                Surface::Cone { apex: anchor, .. }
+                | Surface::Sphere { center: anchor, .. }
+                | Surface::Torus { center: anchor, .. } => Some(reach.lever_from(anchor)),
+                Surface::Plane { .. }
+                | Surface::Cylinder { .. }
+                | Surface::Nurbs(_)
+                | Surface::Approx(_) => None,
+            })
+            .reduce(geom_core::Lever::max)
+            .unwrap_or_else(|| unreachable!("a pair with a cone or a torus has an anchor"))
+    };
     let (ka, kb) = (a.kind(), b.kind());
     let arm = route(ka, kb);
     let verdict = match (ka, kb) {
         (Plane, Cone) => plane_cone_section(a, b, reach, band).map(drop),
         (Cone, Plane) => plane_cone_section(b, a, reach, band).map(drop),
-        (Plane, Torus) => plane_torus_section(a, b, extent, band).map(drop),
-        (Torus, Plane) => plane_torus_section(b, a, extent, band).map(drop),
-        (Cone, Cylinder) => cone_cylinder_section(a, b, extent, band).map(drop),
+        (Plane, Torus) => plane_torus_section(a, b, extent(), band).map(drop),
+        (Torus, Plane) => plane_torus_section(b, a, extent(), band).map(drop),
+        (Cone, Cylinder) => cone_cylinder_section(a, b, extent(), band).map(drop),
         (Sphere, Torus) | (Torus, Sphere) => torus_pose(crate::SphereTorusPose::decide(a, b, band)),
         (Cylinder, Torus) | (Torus, Cylinder) | (Torus, Torus) => {
             crate::pair_section(a, b, None, None, band).map(drop)
         }
-        (Cylinder, Cone) => cone_cylinder_section(b, a, extent, band).map(drop),
+        (Cylinder, Cone) => cone_cylinder_section(b, a, extent(), band).map(drop),
         (Cylinder, Sphere) | (Sphere, Cylinder) => {
             match crate::CylinderSpherePose::decide(a, b, band) {
                 Some(pose) => pose.map(drop).map_err(SectionError::from),
@@ -736,8 +742,15 @@ impl From<EllipseInvalid> for SectionError {
     }
 }
 
-impl core::fmt::Display for SectionError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+/// `at` ends a sized escalation at the door that reads it; `None` writes
+/// its payload alone, as `Display` does. Every other arm carries its
+/// own recourse.
+impl SectionError {
+    fn write(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        at: Option<crate::recourse::ReadAt>,
+    ) -> core::fmt::Result {
         match self {
             Self::WrongLane { expected } => write!(
                 f,
@@ -750,14 +763,15 @@ impl core::fmt::Display for SectionError {
                 f,
                 "the two surfaces' configuration is ill-conditioned at this tolerance: {diag}"
             ),
-            Self::RadiusEscalated { radius, diag } => diag
-                .undecided(
+            Self::RadiusEscalated { radius, diag } => write!(
+                f,
+                "{}",
+                crate::recourse::undecided_at(
+                    diag,
                     radius.subject(),
-                    radius
-                        .sized()
-                        .recourse(RefusedArm::Undecided(diag), Reading::Build),
+                    at.map(|at| radius.sized().recourse(RefusedArm::Undecided(diag), at)),
                 )
-                .fmt(f),
+            ),
             Self::RoutesToGeneralRung { pair, why } => write!(f, "the {pair} section: {why}"),
             Self::NoRegion { pair } => write!(
                 f,
@@ -785,7 +799,9 @@ impl core::fmt::Display for SectionError {
                  they share a surface rather than meet along a curve. Recourse: {}",
                 geom_core::COINCIDENCE_RECOURSE
             ),
-            Self::DegenerateTorus(refusal) => refusal.fmt(f),
+            Self::DegenerateTorus(refusal) => {
+                write!(f, "{}", crate::recourse::read_at(refusal, at))
+            }
             Self::Carrier(e) => write!(f, "the section's curve refused: {e}"),
             Self::Spiric(e) => write!(f, "the section's spiric refused: {e}"),
             Self::Pinched { predicate } => write!(
@@ -812,6 +828,8 @@ impl core::fmt::Display for SectionError {
         }
     }
 }
+
+crate::ended_by_write!(SectionError);
 
 impl std::error::Error for SectionError {}
 
@@ -975,8 +993,12 @@ pub fn plane_cylinder_section_read<T: Decide>(
     let sin_norm = sin_vec.norm();
     let t_star = (q - o).dot(n) / c;
     let center = o + a * t_star;
-    let section = match decide("pc_rim_alignment", Margin::levered(sin_norm, r), band)
-        .map_err(SectionError::Escalated)?
+    let section = match decide(
+        "pc_rim_alignment",
+        Margin::levered(sin_norm, geom_core::Lever::curvature_radius(r)),
+        band,
+    )
+    .map_err(SectionError::Escalated)?
     {
         Sign::Zero => PlaneCylinderSection::Rim(Curve3::circle(center, a, r, cyl_u)),
         // The margin is a norm: Negative is unreachable; both
@@ -1103,7 +1125,7 @@ pub(crate) struct RuledFrame<T: Real> {
     pub(crate) o: Point3<T>,
     pub(crate) c: T,
     pub(crate) gap_signed: T,
-    pub(crate) lever: T,
+    pub(crate) lever: geom_core::Lever<T>,
 }
 
 /// [`RuledFrame`] of the pair at `reach`.
@@ -1117,7 +1139,7 @@ pub(crate) fn ruled_frame<T: Decide>(pc: &PlaneCylinder<T>, reach: &Reach<T>) ->
     // there (`geom_brep::extent`'s module docs).
     let hinge = o - n * gap_signed;
     let cos = (T::one() - c.powi(2)).max(T::zero()).sqrt();
-    let lever = reach.hinge_lever(o, -(gap_signed * c)) + reach.turn_lever(hinge, (n, a), c, cos);
+    let lever = reach.ruled_lever((o, -(gap_signed * c)), hinge, (n, a), (c, cos));
     RuledFrame {
         o,
         c,
@@ -1300,7 +1322,10 @@ pub fn plane_sphere_section<T: Decide>(
     let seam_cand = n.cross(sph_u);
     let u_ref = match decide(
         "ps_frame_seam",
-        Margin::levered(seam_cand.norm() - T::from_f64(0.5), r),
+        Margin::levered(
+            seam_cand.norm() - T::from_f64(0.5),
+            geom_core::Lever::curvature_radius(r),
+        ),
         band,
     ) {
         Ok(Sign::Positive) => seam_cand / seam_cand.norm(),
@@ -1476,7 +1501,13 @@ pub fn sphere_sphere_section<T: Decide>(
                                 at.foot(),
                                 n,
                                 pair.half_chord(),
-                                ss_frame_seam(n, axis1, u1, r1, band),
+                                ss_frame_seam(
+                                    n,
+                                    axis1,
+                                    u1,
+                                    geom_core::Lever::curvature_radius(r1),
+                                    band,
+                                ),
                             )))
                         }
                     }
@@ -1504,13 +1535,13 @@ fn ss_frame_seam<T: Decide>(
     n: Vec3<T>,
     axis: Vec3<T>,
     u_ref: Vec3<T>,
-    r: T,
+    lever: geom_core::Lever<T>,
     band: Band,
 ) -> Vec3<T> {
     let seam_cand = n.cross(u_ref);
     match decide(
         "ss_frame_seam",
-        Margin::levered(seam_cand.norm() - T::from_f64(0.5), r),
+        Margin::levered(seam_cand.norm() - T::from_f64(0.5), lever),
         band,
     ) {
         Ok(Sign::Positive) => seam_cand / seam_cand.norm(),
@@ -1691,7 +1722,7 @@ pub fn cylinder_axes_parallel_reported<T: Decide>(
 /// either foot it bounds the same separation across the reach (the
 /// argument [`Reach::lever_between`] makes), so the lesser holds and
 /// the answer does not depend on operand order.
-pub(crate) fn parallel_swing<T: Real>(
+pub(crate) fn parallel_swing<T: geom_core::spline::SpanLocate>(
     reach: &Reach<T>,
     line1: (Point3<T>, Vec3<T>),
     line2: (Point3<T>, Vec3<T>),
@@ -1699,7 +1730,7 @@ pub(crate) fn parallel_swing<T: Real>(
 ) -> T {
     let from = |this: (Point3<T>, Vec3<T>), other: (Point3<T>, Vec3<T>)| {
         let (foot, lever) = reach.foot_lever(this);
-        let (dmin, dmax) = separation_range((foot, this.1), other, lever);
+        let (dmin, dmax) = separation_range((foot, this.1), other, lever.length());
         (dmax - d).abs().max((d - dmin).abs())
     };
     from(line1, line2).min(from(line2, line1))
@@ -1772,7 +1803,7 @@ pub fn cylinder_axes_coplanar_reported<T: Decide>(
 /// The feet of `reach`'s point on two axes `oᵢ + s·aᵢ` ([`Reach::foot_on`]):
 /// the first foot, and the offset from it to the second's. The one
 /// place the cylinder pair's rows read where its axes stand.
-fn axes_feet<T: Real>(
+fn axes_feet<T: geom_core::spline::SpanLocate>(
     reach: &Reach<T>,
     (o1, a1): (Point3<T>, Vec3<T>),
     (o2, a2): (Point3<T>, Vec3<T>),
@@ -1807,7 +1838,7 @@ pub struct ParallelAxes<T: Real> {
 /// Shared with the tangent-locus lane and topo's radical plane of a
 /// parallel cylinder pair.
 #[must_use]
-pub fn parallel_axes_at<T: Real>(
+pub fn parallel_axes_at<T: geom_core::spline::SpanLocate>(
     reach: &Reach<T>,
     line1: (Point3<T>, Vec3<T>),
     line2: (Point3<T>, Vec3<T>),
@@ -2032,6 +2063,93 @@ pub fn plane_cone_apex_extrema<T: Real>(
     Some([fan.ruling(phi), fan.ruling(phi + T::pi())])
 }
 
+/// **The directions in a plane through a cone's apex that read its
+/// extremes against the cone**: `[p, −p]`, `p` the cone's axis's part in
+/// the plane, unit. A direction `d` of the plane reads `d·axis` greatest
+/// along `p` and least along `−p`, so its side of the cone (`d·axis`
+/// against `cos α`) is monotone between them: a reader that subdivides a
+/// sector of the plane at these and reads the side between them reads
+/// one crossing at most per piece. The dual of
+/// [`plane_cone_apex_extrema`], which reads a plane's side along the
+/// cone's rulings. A normal along the axis has no `p`: every direction of
+/// the plane reads the axis alike, and the caller decides that before
+/// asking.
+///
+/// `None` for a surface that is not a cone.
+#[must_use]
+pub fn cone_plane_apex_extrema<T: Real>(
+    cone: &Surface<T>,
+    normal: Vec3<T>,
+) -> Option<[Vec3<T>; 2]> {
+    let &Surface::Cone { axis, .. } = cone else {
+        return None;
+    };
+    let n = normal.normalize();
+    let p = (axis - n * axis.dot(n)).normalize();
+    Some([p, -p])
+}
+
+/// **Where two cones' fans of rulings meet at a shared apex**, each fan
+/// its unit axis turned toward the nappe it holds and the cosine of its
+/// half-angle: a ruling of both is a unit `d` with `d·a₁ = c₁` and
+/// `d·a₂ = c₂`, two planes meeting the unit sphere at most twice. The
+/// line of the two planes is `base + t·across`, read in the axes'
+/// bisector frame: `m̂ = (a₁ + a₂)/‖a₁ + a₂‖` and
+/// `n̂ = (a₁ − a₂)/‖a₁ − a₂‖`, orthonormal, with `d·m̂ = (c₁ + c₂)/‖a₁ + a₂‖`
+/// and `d·n̂ = (c₁ − c₂)/‖a₁ − a₂‖`, so `base = (d·m̂)m̂ + (d·n̂)n̂`,
+/// `across = (a₁×a₂)/‖a₁×a₂‖`, and it meets the sphere at `t = ±√disc`,
+/// `disc = 1 − ‖base‖²`. Both differences are taken directly, so nothing
+/// cancels as the axes close: the textbook `x = (c₁ − k·c₂)/(1 − k²)`,
+/// `k = a₁·a₂`, loses `1 − k²` to rounding at a tilt of `√u` and returns
+/// rulings off both cones.
+///
+/// The caller decides, each in its own band: that the axes are not
+/// parallel (`s` positive; parallel axes are one fan or none at the
+/// apex), and `disc`'s sign — negative, the fans meet only at the apex;
+/// zero, they touch along one ruling; positive, they cross along the two
+/// [`ApexFansMeeting::rulings`].
+#[must_use]
+pub fn cone_cone_apex_meeting<T: Real>(
+    (a1, c1): (Vec3<T>, T),
+    (a2, c2): (Vec3<T>, T),
+) -> ApexFansMeeting<T> {
+    let (sum, diff) = (a1 + a2, a1 - a2);
+    let (sum_n, diff_n) = (sum.norm(), diff.norm());
+    let along_m = (c1 + c2) / sum_n;
+    let along_n = (c1 - c2) / diff_n;
+    let base = sum * (along_m / sum_n) + diff * (along_n / diff_n);
+    let cross = a1.cross(a2);
+    ApexFansMeeting {
+        base,
+        across: cross / cross.norm(),
+        disc: T::one() - along_m.powi(2) - along_n.powi(2),
+    }
+}
+
+/// [`cone_cone_apex_meeting`]'s answer: the line the two fans' planes
+/// meet in, and where it meets the unit sphere.
+#[derive(Clone, Copy, Debug)]
+pub struct ApexFansMeeting<T: Real> {
+    /// The line's point nearest the apex, at unit scale.
+    pub base: Vec3<T>,
+    /// Its unit direction, along `a₁ × a₂`.
+    pub across: Vec3<T>,
+    /// `1 − ‖base‖²`: the square of how far along `across` the line meets
+    /// the unit sphere; dimensionless.
+    pub disc: T,
+}
+
+impl<T: Real> ApexFansMeeting<T> {
+    /// The two rulings the fans share, `base ∓ across·√disc`, unit; one
+    /// ruling twice where `disc` is zero. Read only once the caller has
+    /// decided `disc` is not negative: a negative one is clamped to zero.
+    #[must_use]
+    pub fn rulings(&self) -> [Vec3<T>; 2] {
+        let t = self.disc.max(T::zero()).sqrt();
+        [self.base - self.across * t, self.base + self.across * t]
+    }
+}
+
 /// Classifies and constructs the plane×cone section (spec §3.3): the
 /// apex-through degenerates, the axis-normal circle, the tilted ellipse,
 /// and the parabola or hyperbola in closed form.
@@ -2232,13 +2350,16 @@ pub fn plane_cone_section<T: Decide>(
                     ),
                 ),
             ),
+            // Unsourced lever: the plane's stand-off from the apex plus its rounding, a datum
+            // length rather than an extent; its honest door `levered_inv(size, steep)` rounds apart.
             Sign::Zero => (
                 "pn_apex_tangent_reach",
-                Margin::levered(T::one() / steep, size),
+                Margin::levered(T::one() / steep, geom_core::Lever::unsourced(size)),
             ),
+            // Unsourced lever: as `pn_apex_tangent_reach`'s, over the discriminant.
             Sign::Negative => (
                 "pn_apex_point_reach",
-                Margin::levered(T::one() / discr.abs(), size),
+                Margin::levered(T::one() / discr.abs(), geom_core::Lever::unsourced(size)),
             ),
         };
         if decide_magnitude(name, bound, band).map_err(SectionError::Escalated)? == Magnitude::Zero
@@ -2298,7 +2419,9 @@ pub fn plane_cone_section<T: Decide>(
     // `t = −δ/c` from the apex (`c` is ±1 within the band here).
     let t = (T::zero() - apex_gap) / c;
     let rim_r = t.abs() * (sin_a / cos_a);
-    let arm = rim_r.max(extent);
+    let arm = ExtentBall::of_circle(apex + a * t, rim_r)
+        .lever()
+        .max(extent);
     match decide("pn_axis_normal", Margin::levered(s, arm), band)
         .map_err(SectionError::Escalated)?
     {
@@ -2432,7 +2555,7 @@ pub fn plane_cone_section<T: Decide>(
 /// floored at the least positive `f64`, which leaves `H` at its `ρ = 0`
 /// value `2|δ|/σ`.
 #[allow(clippy::many_single_char_names)] // the derivation's own symbols
-fn pair_bound<T: Real>(
+fn pair_bound<T: geom_core::spline::SpanLocate>(
     reach: &Reach<T>,
     (apex, a, cos_a, sin_a, seam_width): (Point3<T>, Vec3<T>, T, T, T),
     (d, m, s): (T, T, T),
@@ -2441,8 +2564,11 @@ fn pair_bound<T: Real>(
 ) -> Margin<T> {
     let zero = T::zero();
     let size = gap.abs() + gap_err;
-    let far = Margin::levered(T::one() / d, size).value();
-    let near = Margin::levered(T::one() / m, size).value();
+    // Unsourced lever: the plane's stand-off from the apex plus its rounding, a datum length
+    // rather than an extent; its honest door `levered_inv(size, d)` rounds apart.
+    let far = Margin::levered(T::one() / d, geom_core::Lever::unsourced(size)).value();
+    // Unsourced lever: as `far`'s, over `m`.
+    let near = Margin::levered(T::one() / m, geom_core::Lever::unsourced(size)).value();
     let (lo, hi) = reach.range_along(apex, a);
     let rho = lo.max(zero - hi).max(zero) / cos_a;
     // `δ·c < 0` puts the near start on `+a`; read only where both signs
@@ -2465,9 +2591,10 @@ fn pair_bound<T: Real>(
     let sigma_sq = d * m / sin_a.powi(2);
     let floor = T::from_f64(f64::MIN_POSITIVE);
     let lean = T::from_f64(2.0) * s * size / (sin_a * rho.max(floor));
+    // Unsourced lever: as `far`'s, over the pair's own divisor.
     let offset = Margin::levered(
         T::from_f64(2.0) / (sigma_sq.sqrt() + (sigma_sq - lean).max(zero).sqrt()),
-        size,
+        geom_core::Lever::unsourced(size),
     )
     .value();
     // The seam's tilt `τ/u` (step 5): `6` where `width ≥ 16u`, else whole.
@@ -2480,7 +2607,7 @@ fn pair_bound<T: Real>(
         + T::from_f64(4.0);
     let azimuth = Margin::levered(
         T::from_f64(0.5 * f64::EPSILON) * turn,
-        lo.abs().max(hi.abs()) / cos_a,
+        reach.generator_lever(apex, a, cos_a),
     )
     .value();
     Margin::of(far.min(start + offset) + azimuth)
@@ -2612,7 +2739,7 @@ pub enum PlaneTorusSection<T: Real> {
 pub fn plane_torus_section<T: Decide>(
     plane: &impl SectionPlane<T>,
     torus: &Surface<T>,
-    extent: T,
+    extent: geom_core::Lever<T>,
     band: Band,
 ) -> Result<PlaneTorusSection<T>, SectionError> {
     let wrong = || SectionError::WrongLane {
@@ -2710,7 +2837,8 @@ pub fn plane_torus_section<T: Decide>(
             }
         }
         Sign::Positive | Sign::Negative => {
-            let tilt = Margin::levered(a.cross(n).norm(), big_r + r);
+            let tilt =
+                Margin::levered(a.cross(n).norm(), ExtentBall::of_torus(c, big_r, r).lever());
             match decide("pt_axis_normal", tilt, band).map_err(SectionError::Escalated)? {
                 Sign::Zero => {
                     // The plane is perpendicular to the axis: the
@@ -2991,7 +3119,7 @@ pub fn cone_cylinder_section<T: Decide>(
     // cross-section, `R·(1 − cos θ) ≤ R·sin²θ`. The swing is that range's
     // reach from `d`, plus the turn.
     let d = (apex - o).reject_from(b).norm();
-    let (near, far) = separation_range((apex, a), (o, b), above);
+    let (near, far) = separation_range((apex, a), (o, b), above.length());
     let swing = (far - d).abs().max((d - near).abs()) + big_r * a.cross(b).norm().powi(2);
     match decide_across(["coc_coaxial", "coc_coaxial_floor"], d, swing, band)
         .map_err(SectionError::Escalated)?
@@ -3013,8 +3141,12 @@ pub fn cone_cylinder_section<T: Decide>(
             // instead: inside it the position error is O(ε·extent),
             // which is what makes the zero-residual claim above a claim
             // about the arm and not about the fixture.
-            match decide("coc_station_reach", Margin::of(below - station.abs()), band)
-                .map_err(SectionError::Escalated)?
+            match decide(
+                "coc_station_reach",
+                Margin::of(below.length() - station.abs()),
+                band,
+            )
+            .map_err(SectionError::Escalated)?
             {
                 Sign::Positive => {}
                 Sign::Zero | Sign::Negative => {
@@ -3038,5 +3170,113 @@ pub fn cone_cylinder_section<T: Decide>(
                   cone's composite has no meters conversion (arms retire one at a time, \
                   each with its proof)",
         }),
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod apex_fan_rows {
+    use super::*;
+    use geom_core::Point3;
+
+    fn cone(axis: Vec3<f64>, half: f64) -> Surface<f64> {
+        let u = if axis.x.abs() < 0.9 {
+            Vec3::new(1.0, 0.0, 0.0)
+        } else {
+            Vec3::new(0.0, 1.0, 0.0)
+        };
+        Surface::Cone {
+            apex: Point3::new(0.0, 0.0, 0.0),
+            axis,
+            half_angle: half,
+            u_ref: (u - axis * u.dot(axis)).normalize(),
+        }
+    }
+
+    /// **A plane's directions read the cone's axis greatest along its part
+    /// in the plane**: sampled round the plane's circle, no direction
+    /// reads `d·axis` beyond the two extremes, which lie in the plane.
+    #[test]
+    fn a_planes_extremes_against_a_cone_bound_every_direction_of_it() {
+        let axis = Vec3::new(0.3, -1.0, 0.2).normalize();
+        let n = Vec3::new(1.0, 0.4, -0.5).normalize();
+        let [hi, lo] = cone_plane_apex_extrema(&cone(axis, 0.5), n).unwrap();
+        assert!(hi.dot(n).abs() < 1e-15 && lo.dot(n).abs() < 1e-15);
+        let e1 = hi;
+        let e2 = n.cross(e1);
+        for k in 0..360 {
+            let t = f64::from(k).to_radians();
+            let d = e1 * t.cos() + e2 * t.sin();
+            assert!(d.dot(axis) <= hi.dot(axis) + 1e-15, "{k}°");
+            assert!(d.dot(axis) >= lo.dot(axis) - 1e-15, "{k}°");
+        }
+    }
+
+    /// **Near-coaxial fans stay on both cones**: axes `δ` apart, `δ` from
+    /// `1e-4` down to `1e-10`. Fans of one aperture cross along two
+    /// rulings square to the tilt plane, each on both cones to the
+    /// inputs' own floor `~u/δ` (where the textbook
+    /// `(c₁ − k·c₂)/(1 − k²)` lost `1 − k²` and missed by `1.7e-4` at
+    /// `1e-6`). Fans of apertures `0.01` rad apart meet only
+    /// at the apex, `disc` negative well past the tilt.
+    #[test]
+    fn near_coaxial_fans_stay_on_both_cones() {
+        let a1 = Vec3::new(0.2, 1.0, -0.4).normalize();
+        let off = Vec3::new(1.0, 0.0, 0.0);
+        let off = (off - a1 * off.dot(a1)).normalize();
+        for k in 4..=10 {
+            let tilt = 10f64.powi(-k);
+            let a2 = (a1 * tilt.cos() + off * tilt.sin()).normalize();
+            let c = 0.6f64.cos();
+            let m = cone_cone_apex_meeting((a1, c), (a2, c));
+            assert!(m.disc > 0.0, "tilt {tilt}: {m:?}");
+            // The inputs fix the tilt's direction only to `u/δ`, and the
+            // rulings' azimuth with it: that is the floor, which the
+            // callers' conditioning rung reads (`bool_fans_meet`'s).
+            let floor = 8.0 * f64::EPSILON / tilt;
+            for d in m.rulings() {
+                assert!((d.norm() - 1.0).abs() <= floor, "tilt {tilt}: {d:?}");
+                assert!(
+                    (d.dot(a1) - c).abs() <= floor,
+                    "tilt {tilt}: {d:?} off the first"
+                );
+                assert!(
+                    (d.dot(a2) - c).abs() <= floor,
+                    "tilt {tilt}: {d:?} off the second"
+                );
+                assert!(
+                    d.dot(off).abs() <= tilt,
+                    "tilt {tilt}: {d:?} not square to the tilt"
+                );
+            }
+            let wider = cone_cone_apex_meeting((a1, c), (a2, 0.61f64.cos()));
+            assert!(wider.disc < -1.0, "tilt {tilt}: {wider:?}");
+        }
+    }
+
+    /// **Two fans at one apex share the rulings the closed form names**:
+    /// each lies on both cones; fans tilted apart past their half-angles'
+    /// sum read a negative `disc`, and fans touching read it zero.
+    #[test]
+    fn two_fans_at_one_apex_meet_where_the_closed_form_says() {
+        let a1 = Vec3::new(0.0, -1.0, 0.0);
+        let tilt = |t: f64| Vec3::new(t.sin(), -t.cos(), 0.0);
+        let (h1, h2) = (0.5f64, 0.3f64);
+        // Crossing: axes 0.6 apart, under h1 + h2 = 0.8.
+        let m = cone_cone_apex_meeting((a1, h1.cos()), (tilt(0.6), h2.cos()));
+        assert!(m.disc > 0.0, "{m:?}");
+        for d in m.rulings() {
+            assert!((d.norm() - 1.0).abs() < 1e-14, "{d:?}");
+            assert!((d.dot(a1) - h1.cos()).abs() < 1e-14, "{d:?} off the first");
+            assert!(
+                (d.dot(tilt(0.6)) - h2.cos()).abs() < 1e-14,
+                "{d:?} off the second"
+            );
+        }
+        // Apart: axes 1.0 apart, past 0.8.
+        assert!(cone_cone_apex_meeting((a1, h1.cos()), (tilt(1.0), h2.cos())).disc < 0.0);
+        // Touching: axes exactly 0.8 apart.
+        let touch = cone_cone_apex_meeting((a1, h1.cos()), (tilt(0.8), h2.cos()));
+        assert!(touch.disc.abs() < 1e-14, "{touch:?}");
     }
 }

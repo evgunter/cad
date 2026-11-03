@@ -128,7 +128,7 @@ pub(super) fn plane_ladder<T: Decide>(
     // Offsets read at the extent's centre (`d = n̂·(origin − c)`) for
     // the geometric rungs, which lever the angular data at its radius.
     let centre = extent.reach.center();
-    let arm = extent.reach.radius();
+    let arm = extent.reach.lever();
     let d1 = p1.normal.dot(p1.origin - centre);
     let d2 = p2.normal.dot(p2.origin - centre);
 
@@ -205,7 +205,7 @@ pub(super) fn plane_ladder<T: Decide>(
 pub(crate) fn senses<T: Decide>(
     n1: Vec3<T>,
     n2: Vec3<T>,
-    arm: T,
+    arm: geom_core::Lever<T>,
     band: Band,
 ) -> Option<PlaneRelation> {
     match decide("bool_plane_orient", Margin::levered(n1.dot(n2), arm), band) {
@@ -387,7 +387,8 @@ mod tests {
         let down = plane([0.0, 0.0, 0.0], [0.0, 0.0, -1.0]);
         for frac in [0.1, 0.5, 1.0] {
             let arm = frac * band.zero();
-            let extent = ConsumedExtent::new(geom_brep::ExtentBall::new(Point3::origin(), arm));
+            let extent =
+                ConsumedExtent::new(geom_brep::ExtentBall::of_sphere(Point3::origin(), arm));
             for (other, cos) in [(up, 1.0), (down, -1.0)] {
                 let bracket = Bracket::open();
                 let got = oriented_plane_eq(&up, &other, &extent, band);
@@ -418,8 +419,8 @@ mod tests {
                 ] {
                     let text = |d| BooleanError::plane_identity(PlaneRung::Orientation, door, d);
                     assert_eq!(
-                        text(diag).to_string(),
-                        text(untagged).to_string(),
+                        text(diag).render(geom_brep::recourse::Reading::Build),
+                        text(untagged).render(geom_brep::recourse::Reading::Build),
                         "{what}, {door:?}: the ending reads the margin, not the gate's tag"
                     );
                 }

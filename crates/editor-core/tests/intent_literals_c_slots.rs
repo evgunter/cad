@@ -1095,9 +1095,17 @@ fn stackup_and_monte_carlo_list_only_toleranced_variables() {
         analyzed.params().keys().copied().collect::<Vec<_>>(),
         vec![w]
     );
-    let entries =
-        editor_core::stackup::sensitivities(&doc, measure, None, None, false, None, Tol::witness())
-            .expect("the driver runs");
+    let entries = editor_core::stackup::sensitivities(
+        &doc,
+        measure,
+        None,
+        None,
+        false,
+        None,
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .expect("the driver runs");
     assert_eq!(
         entries.iter().map(|e| e.param).collect::<Vec<_>>(),
         vec![w],

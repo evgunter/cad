@@ -32,7 +32,7 @@ use crate::sketch::{self, PreviewLoop, TIP_MARK_PX, heading};
 /// and where a test can ask it with no pane in existence. What is
 /// particular here is that this lane is the one with an authored
 /// producer: a path whose corner is `7e307` — a number the
-/// add-profile form takes, because it is a number — replays,
+/// profile editor takes, because it is a number — replays,
 /// flattens, and arrives on its plane with coordinates whose
 /// narrowing is an infinity. A path with one such corner and the rest
 /// ordinary is drawn as its ordinary legs and a gap, which is
@@ -108,9 +108,6 @@ pub(crate) struct CameraFrame<'a> {
     pub(crate) previews: &'a Previews,
     /// What the doors' fused fillet steps construct.
     pub(crate) constructions: &'a Constructions,
-    /// The open split tool's plane under the copy it was picked
-    /// through, if any ([`crate::splitplane::push_split_plane`]).
-    pub(crate) split_plane: Option<&'a crate::splitplane::PlanePreview>,
     /// Whether a fit is owed this frame.
     pub(crate) fit: bool,
     /// The bindings the events fold through.
@@ -151,7 +148,6 @@ pub(crate) fn frame_camera(frame: CameraFrame<'_>) -> FramedCamera {
         profiles,
         previews,
         constructions,
-        split_plane,
         fit,
         input: map,
         viewport,
@@ -175,9 +171,6 @@ pub(crate) fn frame_camera(frame: CameraFrame<'_>) -> FramedCamera {
     let view = view_of(&events.camera, viewport).ok();
     let mut steps = marks::LegLane::default();
     push_previews_marks(&mut steps, previews, view);
-    if let Some(plane) = split_plane {
-        crate::splitplane::push_split_plane(&mut steps, plane);
-    }
     // Outside the fit, for the step marks' reason and one of its own:
     // a carrier is a whole circle, and one large enough to fillet
     // against would frame everything else as a speck.
@@ -576,13 +569,17 @@ mod composed {
             };
         };
         // One tool is open at a time, so the placement editor's active
-        // row's two held faces, the mirror tool's plane and the
-        // clearance tool's face seats share these two slots.
+        // row's two held faces, the mirror's or the split's plane and
+        // the clearance tool's face seats share these two slots.
         // The mate tool's edge and vertex picks are drawn as geometry.
         let mate = tools.mate().map(crate::matetool::MateTool::active_picks);
-        let [a, b] = match (mate, tools.mirror(), tools.clearance()) {
+        let plane = tools
+            .mirror()
+            .and_then(crate::combine::MirrorTool::plane)
+            .or_else(|| tools.split().and_then(crate::combine::SplitTool::face));
+        let [a, b] = match (mate, plane, tools.clearance()) {
             (Some(picks), _, _) => picks.map(|pick| pick.and_then(|held| held.pick().face())),
-            (None, Some(tool), _) => [tool.plane(), None],
+            (None, Some(plane), _) => [Some(plane), None],
             (None, None, Some(tool)) => [tool.face(0), tool.face(1)],
             (None, None, None) => [None, None],
         };
@@ -1095,14 +1092,12 @@ impl ViewerBehavior<'_> {
         // fit is taken here and nowhere else: this is the only place
         // with a real aspect to fit against.
         let profiles = self.committed_lane();
-        let split_plane = self.split_plane_preview();
         let framed = frame_camera(CameraFrame {
             camera: self.camera,
             scene: self.scene.positions(),
             profiles,
             previews: self.profile_previews,
             constructions: self.profile_constructions,
-            split_plane: split_plane.as_ref(),
             fit: std::mem::take(self.pending_fit),
             input: &self.input,
             viewport,
@@ -1412,27 +1407,6 @@ impl ViewerBehavior<'_> {
         }
         profiles
     }
-
-    /// **The open split tool's plane** ([`crate::splitplane::preview`]),
-    /// drawn under the copy its target was picked through, from the
-    /// landed evaluation and the panel's fields as they stand. `None`
-    /// with no split tool open, no target held, a target picked in the
-    /// tree or through a copy the picture does not draw, or a normal
-    /// with no direction: the panel says which
-    /// ([`crate::pane::create`]'s split panel).
-    pub(crate) fn split_plane_preview(&self) -> Option<crate::splitplane::PlanePreview> {
-        let tool = self.tools.split()?;
-        crate::splitplane::drawn(
-            &crate::splitplane::Drawing {
-                seats: tool.seats(),
-                landed: self.session.landed_pair()?,
-                display: &self.session.display_view(),
-                index: self.index?,
-            },
-            self.drafts.split_origin,
-            self.drafts.split_normal,
-        )
-    }
 }
 
 /// **Where a real fold meets a real landing.**
@@ -1467,7 +1441,7 @@ mod tests {
     use crate::props::SlotValue;
     use crate::scene::{self, DisplayTolerance};
     use crate::session::{DocSession, FaceSelection, SessionOp};
-    use crate::sketch::{self, PreviewLoop, ProfilePreview, ProfileShape, TIP_MARK_PX};
+    use crate::sketch::{self, PreviewLoop, ProfilePreview, TIP_MARK_PX};
     use pncad::document::{Doc, ProfileProgram, SlotId};
     use pncad::geom_core::Tol;
     use pncad::select::HitTestError;
@@ -2970,7 +2944,7 @@ mod tests {
     /// **An authored outline with one far corner draws as a gap**, not
     /// as nothing and not as a smear.
     ///
-    /// The loop a person could compose in the add-profile form:
+    /// The loop a person could compose in the profile editor:
     /// ordinary corners and one at `7e307`, a number the form takes
     /// because it is a number. Four legs are authored, two of them
     /// reach the far corner, and what the lane holds afterwards is the
@@ -3094,7 +3068,6 @@ mod tests {
             profiles: marks::LegLane::default(),
             previews: &previews,
             constructions: &super::Constructions::default(),
-            split_plane: None,
             fit: true,
             input: &map,
             viewport,
@@ -3247,7 +3220,7 @@ mod tests {
     fn path(steps: Vec<pncad::profile::Step<f64>>) -> ProfilePreview {
         sketch::preview(
             pncad::profile::SketchPlane::xy(),
-            &[ProfileShape::Path { steps }],
+            &[steps],
             Tol::witness(),
             1.0e-4,
         )
@@ -3322,12 +3295,15 @@ mod tests {
     /// **The vesica of the radius-2 circles about (±1, 0)**, its top
     /// corner rounded at `radius` by one `arc_fillet_arc` from the entry
     /// and closed straight along the diameter.
-    fn vesica(radius: f64) -> Vec<ProfileShape> {
+    fn vesica(radius: f64) -> Vec<Vec<pncad::profile::Step<f64>>> {
         vesica_wound(radius, pncad::profile::ArcSweep::Ccw)
     }
 
     /// [`vesica`] with its incoming arc travelled `incoming`.
-    fn vesica_wound(radius: f64, incoming: pncad::profile::ArcSweep) -> Vec<ProfileShape> {
+    fn vesica_wound(
+        radius: f64,
+        incoming: pncad::profile::ArcSweep,
+    ) -> Vec<Vec<pncad::profile::Step<f64>>> {
         use pncad::geom_core::Point2;
         use pncad::profile::{ArcData, ArcSweep, Step, Target};
         let about = |x: f64, to: f64, winding| ArcData::Center {
@@ -3335,35 +3311,33 @@ mod tests {
             winding,
             target: Target::Point(Point2::new(to, 0.0)),
         };
-        vec![ProfileShape::Path {
-            steps: vec![
-                Step::ArcFilletArc {
-                    spec: about(-1.0, 1.0, incoming),
-                    radius,
-                    spec2: about(1.0, -1.0, ArcSweep::Ccw),
-                },
-                Step::LineTo(Target::Start),
-            ],
-        }]
+        vec![vec![
+            Step::ArcFilletArc {
+                spec: about(-1.0, 1.0, incoming),
+                radius,
+                spec2: about(1.0, -1.0, ArcSweep::Ccw),
+            },
+            Step::LineTo(Target::Start),
+        ]]
     }
 
-    /// The create door's preview of `shapes` and its construction, as
-    /// the frame takes them.
-    fn door(shapes: &[ProfileShape]) -> (super::Previews, super::Constructions) {
+    /// The editor's preview of `loops` and its construction, as the
+    /// frame takes them.
+    fn door(loops: &[Vec<pncad::profile::Step<f64>>]) -> (super::Previews, super::Constructions) {
         let (preview, built) = sketch::drawn(
             pncad::profile::SketchPlane::xy(),
-            shapes,
+            loops,
             Tol::witness(),
             1.0e-4,
         );
         (
             crate::drafts::ProfileDoors {
-                create: Some(preview),
-                edit: None,
+                create: None,
+                edit: Some(preview),
             },
             crate::drafts::ProfileDoors {
-                create: Some(built),
-                edit: None,
+                create: None,
+                edit: Some(built),
             },
         )
     }
@@ -3405,7 +3379,7 @@ mod tests {
     fn a_resolved_fused_fillet_draws_its_carriers_and_its_fillet_circle() {
         let (previews, constructions) = door(&vesica(0.5));
         assert!(
-            matches!(&previews.create, Some(Ok(_))),
+            matches!(&previews.edit, Some(Ok(_))),
             "a fixture whose fillet resolves: {previews:?}"
         );
         let drawn = construction_legs(&constructions);
@@ -3440,7 +3414,7 @@ mod tests {
     fn a_refused_fused_fillet_still_draws_its_carriers() {
         let (previews, constructions) = door(&vesica(5.0));
         assert!(
-            matches!(&previews.create, Some(Err(_))),
+            matches!(&previews.edit, Some(Err(_))),
             "a fixture whose fillet refuses with nothing before it: {previews:?}"
         );
         let drawn = construction_legs(&constructions);
@@ -3479,7 +3453,7 @@ mod tests {
             },
         });
         steps.push(Step::LineTo(Target::Start));
-        let (_, constructions) = door(&[ProfileShape::Path { steps }]);
+        let (_, constructions) = door(&[steps]);
         let drawn = construction_legs(&constructions);
         let turn = super::CONSTRUCTION_LEGS_PER_TURN as usize;
         assert_eq!(
@@ -3517,7 +3491,6 @@ mod tests {
                 profiles: marks::LegLane::default(),
                 previews: &previews,
                 constructions,
-                split_plane: None,
                 fit: false,
                 input: &map,
                 viewport: ViewportSize {
@@ -3568,7 +3541,6 @@ mod tests {
                 profiles: marks::LegLane::default(),
                 previews: &previews,
                 constructions,
-                split_plane: None,
                 fit: true,
                 input: &map,
                 viewport: ViewportSize {
@@ -3636,7 +3608,7 @@ mod tests {
                 .collect();
             assert_eq!(mark.len(), 3, "one heading mark at the anchor: {mark:?}");
             let lift: f64 = mark.iter().flatten().map(|p| f64::from(p[1])).sum();
-            (previews.create.is_some_and(|p| p.is_ok()), lift)
+            (previews.edit.is_some_and(|p| p.is_ok()), lift)
         };
         let (resolves, up) = heading(ArcSweep::Ccw);
         let (refused, down) = heading(ArcSweep::Cw);
@@ -3888,7 +3860,7 @@ mod tests {
             .profile_edit(&doc, profile)
             .expect("the square is held");
         assert!(
-            drafts.door_loops(&doc, tol).edit.is_some(),
+            drafts.door_loops(&doc, tol).is_some(),
             "the edit door holds the square"
         );
         let placement = sketch::profile_plane();
@@ -3909,7 +3881,7 @@ mod tests {
                 edit.edit_row(0, RowEdit::Insert { at, step }, notation)
                     .expect("finite");
             }
-            let held = drafts.door_loops(&doc, tol).edit.expect("held");
+            let held = drafts.door_loops(&doc, tol).expect("held");
             let preview = sketch::preview(placement, &held.loops, tol, chord);
             let previews = ProfileDoors {
                 create: None,

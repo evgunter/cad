@@ -17,8 +17,8 @@ use crate::shared::tol::band;
 use geom::Curve3;
 use geom::Surface;
 use geom_brep::{
-    CertCheck, CertifyError, EdgeAuthority, EdgeCurve, EdgeCurveSpec, EdgeDescription,
-    EdgeDescriptionSpec, MappedCurve, MappedSource,
+    CertifyError, EdgeAuthority, EdgeCurve, EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec,
+    MappedCurve, MappedSource,
 };
 use geom_core::{Band, Point3, Tol, Vec3};
 
@@ -40,9 +40,8 @@ fn secant_chord(half_angle: f64) -> (Point3<f64>, Point3<f64>) {
 // ---------------------------------------------------------------
 
 /// **R2-G1.** A straight chord between two points of a CURVED chart is
-/// refused when it is described as an image of that chart — and the
-/// refusal is measured, not read off its text: the row records WHICH
-/// door refuses (the mint's, or the meter's).
+/// refused when it is described as an image of that chart, by the
+/// mint's incidence read (D3), not by the residual's meter.
 ///
 /// The unit's #1116 argument is "no chart image of the surface its two
 /// faces share describes it". This row is that sentence's consumer
@@ -62,31 +61,23 @@ fn r2_a_secant_of_a_cylinder_is_refused_as_a_chart_image_of_it() {
         q0,
         q1,
         &lookup,
-        1.0,
+        geom_core::test_support::fixture_lever(1.0),
         band(),
         geom_brep::NurbsLane::certified(),
     )
     .expect_err("a 60-degree secant is half a radius off the wall");
-    // The door that refuses is recorded rather than asserted blind:
-    // `refusal-text-is-not-cause` cuts both ways, so the row prints
-    // the variant it actually got and pins only that it is one of the
-    // two loud ones.
-    println!("[R2-G1] the secant refused through: {err:?}");
+    // The mint reads the chord off the wall before it images it, so
+    // the refusal is that read, never the residual's meter.
     assert!(
         matches!(
             err,
-            CertifyError::ChartImageUnavailable { .. }
-                | CertifyError::ResidualExceeded {
-                    check: CertCheck::ChartResidual,
-                    ..
-                }
-                | CertifyError::Escalated {
-                    check: CertCheck::ChartImage | CertCheck::ChartResidual,
-                    ..
-                }
+            CertifyError::CarrierOffChart {
+                chart: geom::SurfaceKind::Cylinder,
+                carrier: geom::CurveKind::Line,
+                ..
+            }
         ),
-        "a secant must refuse through the chart-image mint or the one meter, not elsewhere: \
-         {err:?}"
+        "a secant must refuse as the mint's incidence read: {err:?}"
     );
 }
 
@@ -113,7 +104,7 @@ fn r2_the_same_chord_certifies_in_a_plane_that_contains_it() {
         q0,
         q1,
         &lookup,
-        1.0,
+        geom_core::test_support::fixture_lever(1.0),
         band(),
         geom_brep::NurbsLane::certified(),
     )
@@ -151,7 +142,7 @@ fn r2_the_secant_refusal_is_metric_not_categorical() {
         q0,
         q1,
         &lookup,
-        1.0,
+        geom_core::test_support::fixture_lever(1.0),
         band(),
         geom_brep::NurbsLane::certified(),
     );
@@ -224,7 +215,7 @@ fn r2_the_rest_conversion_moves_only_the_description() {
         q0,
         q1,
         &lookup,
-        1.0,
+        geom_core::test_support::fixture_lever(1.0),
         band(),
         geom_brep::NurbsLane::certified(),
     )
@@ -307,7 +298,7 @@ fn r2_restating_a_certified_edge_preserves_is_declared() {
         q0,
         q1,
         &lookup,
-        1.0,
+        geom_core::test_support::fixture_lever(1.0),
         band(),
         geom_brep::NurbsLane::certified(),
     )
@@ -318,7 +309,7 @@ fn r2_restating_a_certified_edge_preserves_is_declared() {
         q0,
         q1,
         &lookup,
-        1.0,
+        geom_core::test_support::fixture_lever(1.0),
         band(),
         geom_brep::NurbsLane::certified(),
     )
@@ -338,7 +329,7 @@ fn r2_restating_a_certified_edge_preserves_is_declared() {
         q0,
         q1,
         &lookup,
-        1.0,
+        geom_core::test_support::fixture_lever(1.0),
         band(),
         geom_brep::NurbsLane::certified(),
     )
@@ -350,7 +341,7 @@ fn r2_restating_a_certified_edge_preserves_is_declared() {
             q0,
             q1,
             &lookup,
-            1.0,
+            geom_core::test_support::fixture_lever(1.0),
             band(),
             geom_brep::NurbsLane::certified()
         )
@@ -376,7 +367,7 @@ fn r2_splitting_a_declared_chart_image_keeps_both_children_declared() {
         q0,
         q1,
         &lookup,
-        1.0,
+        geom_core::test_support::fixture_lever(1.0),
         band(),
         geom_brep::NurbsLane::certified(),
     )
@@ -389,7 +380,7 @@ fn r2_splitting_a_declared_chart_image_keeps_both_children_declared() {
             s,
             e,
             &lookup,
-            1.0,
+            geom_core::test_support::fixture_lever(1.0),
             band(),
             geom_brep::NurbsLane::certified(),
         )
@@ -427,7 +418,7 @@ fn r2_a_param_span_refusal_says_it_is_not_a_sampled_check() {
         q,
         p(1.0, 0.0, 0.0),
         &lookup,
-        1.0,
+        geom_core::test_support::fixture_lever(1.0),
         band(),
         geom_brep::NurbsLane::certified(),
     )
@@ -457,7 +448,7 @@ fn r2_the_scaffolding_door_certifies_with_no_surface_at_all() {
         q0,
         q1,
         &lookup,
-        1.0,
+        geom_core::test_support::fixture_lever(1.0),
         band(),
         geom_brep::NurbsLane::certified(),
     )
@@ -512,7 +503,7 @@ fn r2_a_die_scale_strut_chord_on_a_planar_support_certifies_exactly() {
         q0,
         q1,
         &lookup,
-        1.0,
+        geom_core::test_support::fixture_lever(1.0),
         // The ε the PR names for the escalation.
         // Deliberately not `shared::tol::band()`: the zero threshold is
         // the fixed 1e-6 the PR names for this escalation, not the run's

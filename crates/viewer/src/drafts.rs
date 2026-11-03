@@ -15,9 +15,9 @@ use std::collections::BTreeMap;
 use std::sync::{Arc, Weak};
 
 use pncad::document::{
-    Dimension, DimensionError, Doc, Evaluation, Formula, Label, LabelFault, LoopProgram,
-    Maintenance, Node, ProfileProgram, RecipeNodeId, RecordedProgramError, SlotId, Speaker,
-    StepArg, StepId, VarId, VarName, slot_admits,
+    Dimension, DimensionError, Doc, Evaluation, Formula, Label, LabelFault, LoopProgram, Node,
+    ProfileProgram, RecipeNodeId, RecordedProgramError, SlotId, Speaker, StepArg, StepId, VarId,
+    VarName, slot_admits,
 };
 use pncad::geom_core::{Point2, Tol};
 use pncad::profile::{Step, Target};
@@ -30,7 +30,7 @@ use crate::forms::{PatternLayoutChoice, ShapeKind};
 use crate::history::HistoryId;
 use crate::props::{self, Notation, SlotRow};
 use crate::seats::SeatError;
-use crate::session::{FaceSelection, ProfileShape, Refusal, SessionOp, SketchTraceFault};
+use crate::session::{FaceSelection, Refusal, SessionOp, SketchTraceFault};
 use crate::sketch::{self, HeldRefusal, HeldStep, HeldStepFault};
 use crate::tree::HeldPick;
 
@@ -89,7 +89,7 @@ pub(crate) struct Drafts {
     pub(crate) mate_verdict: Option<MateVerdict>,
     /// The placement editor's value fields being typed in, by freedom:
     /// the text, until the field loses focus and the draft takes it.
-    pub(crate) mate_value_edits: Vec<(pncad::document::Coord, String)>,
+    pub(crate) mate_value_edits: Vec<(pncad::document::Coord<pncad::document::Operand>, String)>,
     /// The door the value edits were typed under: a different door, or
     /// the same one over another bundle (a reload), drops them.
     pub(crate) mate_value_door: Option<crate::matetool::PlaceDoor>,
@@ -97,25 +97,20 @@ pub(crate) struct Drafts {
     /// open, `None` while it is not. The op is not emitted until
     /// its commit — a name in flight is a draft, not a document.
     pub(crate) new_doc_name: Option<String>,
-    /// **Whether the add-profile form is open** — its `Add profile…`
-    /// door clicked. Whether it is on screen is a different read, the
-    /// frame's (`ProfileDoors::create`): a section folded over an open
-    /// form hides it too, and what the viewport shows of the form
-    /// follows that read ([`Self::marked_face`], [`Self::trace_wanted`]).
-    pub(crate) profile_open: bool,
-    /// **Whether the add-profile form draws on the selected face** —
-    /// "sketch on this face" ([`SessionOp::SketchOnFace`]) — rather than
-    /// on the profile's own plane alone.
-    pub(crate) sketch_on_face: bool,
-    /// **The face a sketch on a face is drawn on** — `None` until one
-    /// is picked in the viewport.
+    /// **Whether the traced-profile form is open** — its
+    /// `New traced profile…` door clicked. Whether it is on screen is a
+    /// different read, the frame's (`ProfileDoors::create`): a section
+    /// folded over an open form hides it too, and what the viewport
+    /// shows of the form follows that read ([`Self::marked_face`],
+    /// [`Self::trace_wanted`]).
+    pub(crate) traced_open: bool,
+    /// The face whose body's plane the traced sketch is drawn on.
     ///
     /// A LATCH of the viewport's face pick rather than a read of the
     /// live selection: a face is not a node a combo can list, so the
     /// selection IS this form's picker, and an author who picks a face
     /// and then clicks the feature tree to check something must not
-    /// lose it. `crate::pane::create`'s on-face rows write it whenever
-    /// the live selection is a face, so a second pick moves the seat.
+    /// lose it.
     ///
     /// **Across documents it would be a hazard**: a `RecipeNodeId` is a
     /// small integer and a `StableName` carries no document identity,
@@ -125,117 +120,38 @@ pub(crate) struct Drafts {
     ///
     /// Held as every face pick is ([`HeldPick`]), its nodes spoken again
     /// from each later document ([`Self::respeak`]).
-    pub(crate) sketch_face: Option<HeldPick>,
-    /// **Whether the path continues tangent to a face's trace** — a
-    /// profile drawn on a body's plane ([`SessionOp::AddDrawnProfile`])
-    /// whose chain writes [`Self::trace_gesture`] — rather than a
-    /// profile on its own plane.
-    pub(crate) trace_on: bool,
-    /// The face whose body's plane the traced sketch is drawn on: a
-    /// latch of the viewport's face pick, held as [`Self::sketch_face`] is.
     pub(crate) trace_plane: Option<HeldPick>,
     /// The face the sketch traces, latched the same way.
     pub(crate) trace_face: Option<HeldPick>,
-    /// Where the trace steps go in the chain, and their branches.
+    /// The trace's branches: which crossing, and which sense.
     pub(crate) trace_gesture: sketch::TraceGesture,
     /// The trace the two latches show, as last read against the landed
     /// evaluation ([`Self::sync_trace_shown`]).
     pub(crate) trace_shown: Option<TraceShown>,
-    /// The sketch on a face's depth, metres: how far it is extruded
-    /// away from the face.
-    pub(crate) sketch_depth: f64,
-    /// The sketch on a face's spin, radians — its `+x`'s turn about the
-    /// face's outward normal. Opens at zero.
-    pub(crate) sketch_spin: f64,
-    /// The split form's plane: a point on it, metres, in the target's
-    /// own coordinates.
-    pub(crate) split_origin: [f64; 3],
-    /// The split form's plane normal (unitless).
-    pub(crate) split_normal: [f64; 3],
-    /// The split target the plane's point was last seeded for: a new
-    /// target seeds it at that body's centre
-    /// ([`crate::splitplane::centre`]), and the person's edits stand
-    /// until the target changes.
-    pub(crate) split_seeded: Option<pncad::document::Operand>,
-    /// The add-profile form's shape choice — `None` until the user
-    /// makes one.
-    ///
-    /// **Optional because the form is LIVE.** Every other draft here
-    /// is a number sitting in a field, but this one decides what the
-    /// viewport draws: the add-profile preview is taken from these
-    /// drafts each frame, so a pre-selected shape meant that merely
-    /// opening "Add feature" — to reach another of its tools, say — put
-    /// a circle in the picture that nobody had asked for. `None` is the
-    /// form at rest: no shape fields, no preview, and the commit
-    /// disabled until a shape is chosen.
-    pub(crate) profile_shape: Option<ShapeKind>,
-    /// The path form's verbs, in authoring order.
-    ///
-    /// Starts as the SQUARE a `line_to` chain spells — an empty list
-    /// is a form with nothing to look at and no example of what a
-    /// chain is supposed to look like, and this one is four verbs a
-    /// reader can take apart. It is a draft like every other field
-    /// here: nothing reaches a document until Add profile.
-    pub(crate) profile_path: Vec<Step<f64>>,
-    /// The circle and rectangle forms' centre, metres.
-    pub(crate) profile_centre: [f64; 2],
-    /// The circle form's radius, metres.
-    pub(crate) profile_radius: f64,
-    /// The rectangle form's width and height, metres.
-    pub(crate) profile_extent: [f64; 2],
-    /// **The loops the add-profile form authors after its first**, in
-    /// description order, each its own shape ([`fresh_loop`]). The
-    /// profile layer's containment decides which are holes, so a loop
-    /// here is not a hole by being added: it is one when an earlier
-    /// loop contains it.
-    pub(crate) profile_more: Vec<ProfileShape>,
     /// The pattern tool's rule choice.
     pub(crate) pattern_kind: PatternLayoutChoice,
     /// Its output choice — which of the two doors the commit button
     /// calls, and so whether the placements come out as separate
     /// instances or as one fused body.
     pub(crate) pattern_output: PatternOutputChoice,
-    /// Its instance count — an INTEGER all the way from the field,
-    /// because the slot it lands in is Count-typed and a number that
-    /// was rounded on the way could differ from the one on screen.
-    pub(crate) pattern_count: i64,
-    /// The linear rule's step direction (unitless).
-    pub(crate) pattern_direction: [f64; 3],
-    /// The linear rule's spacing, metres.
-    pub(crate) pattern_spacing: f64,
-    /// The circular rule's angular step, radians.
-    pub(crate) pattern_step: f64,
-    /// The circular rule's axis: a point on it, metres, in the
-    /// patterned body's own coordinates.
-    pub(crate) pattern_through: [f64; 3],
-    /// The circular rule's axis direction (unitless).
-    pub(crate) pattern_axis: [f64; 3],
     /// Which instance of a pattern it projects — an INTEGER all the
-    /// way from the field, for [`Drafts::pattern_count`]'s reason: the
-    /// slot it lands in is Count-typed and a number rounded on the way
-    /// could differ from the one on screen.
+    /// way from the field: the slot it lands in is Count-typed and a
+    /// number rounded on the way could differ from the one on screen.
     pub(crate) part_instance: i64,
     /// The blend form's kind choice — which of the two doors the
     /// commit button calls.
     pub(crate) blend_kind: BlendKindChoice,
-    /// Its one Length field, metres. ONE field for both kinds by the
-    /// unit's spec: what the number means is the kind's to say
-    /// ([`BlendKindChoice::size_label`]), and a second field would be
-    /// a second place for the same quantity to be typed into.
-    pub(crate) blend_size: f64,
     /// The clearance form's choice of which side it bounds.
     pub(crate) clearance_bound: ClearanceBoundChoice,
-    /// Its first length, metres: the one bound, or a band's lower end
-    /// ([`ClearanceBoundChoice::bounds`]).
-    pub(crate) clearance_lo: f64,
-    /// A band's upper end, metres.
-    pub(crate) clearance_hi: f64,
     /// **The path editor opened on a committed profile** — its
     /// program as written, held for the edit door
     /// ([`Drafts::profile_edit`] loads it). `None` while no profile is
     /// selected, and dropped the moment the selection leaves the node
     /// it was loaded from ([`Drafts::abandon_profile_edit_off`]).
     pub(crate) profile_edit: Option<ProfileEdit>,
+    /// The pending drafts let go of since the frame last said them
+    /// ([`Self::take_dropped`]).
+    dropped: Vec<Dropped>,
     /// **The rename field's text, as typed**, and the node it renames:
     /// `Some` once a keystroke has landed, taken when the field
     /// commits. `None` shows the label the node has.
@@ -261,36 +177,20 @@ pub(crate) fn label_typed(text: &str) -> Result<Option<Label>, LabelFault> {
     Label::new(text).map(Some)
 }
 
-/// **One value per door of the profile editor** — the add-profile
-/// form (`create`) and the same editor opened on a committed profile
-/// (`edit`). What the frame loop takes per door — the loops, the
-/// preview, whether the door drew — is one of these, so the two doors
-/// run one pipeline rather than a pipeline and its twin.
+/// **One value per profile panel that draws in the viewport** — the
+/// traced-profile form (`create`), which shows the trace its latches
+/// read, and the profile editor (`edit`), which shows its draft. What
+/// the frame loop takes per panel — the preview, whether the panel
+/// drew — is one of these.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(crate) struct ProfileDoors<T> {
-    /// The add-profile form's.
+    /// The traced-profile form's.
     pub(crate) create: T,
-    /// The edit door's.
+    /// The profile editor's.
     pub(crate) edit: T,
 }
 
 impl<T> ProfileDoors<T> {
-    /// Each door's value through `f`.
-    pub(crate) fn map<U>(self, mut f: impl FnMut(T) -> U) -> ProfileDoors<U> {
-        ProfileDoors {
-            create: f(self.create),
-            edit: f(self.edit),
-        }
-    }
-
-    /// Each door's value beside `other`'s for the same door.
-    pub(crate) fn zip<U>(self, other: ProfileDoors<U>) -> ProfileDoors<(T, U)> {
-        ProfileDoors {
-            create: (self.create, other.create),
-            edit: (self.edit, other.edit),
-        }
-    }
-
     /// Borrowed.
     pub(crate) fn as_ref(&self) -> ProfileDoors<&T> {
         ProfileDoors {
@@ -305,12 +205,12 @@ impl<T> ProfileDoors<T> {
     }
 }
 
-/// What one door's editor would preview: its loops, drawn on the
-/// profile's own plane ([`sketch::profile_plane`]).
+/// What the profile editor would preview: its loops at plain numbers,
+/// drawn on the profile's own plane ([`sketch::profile_plane`]).
 #[derive(Clone, Debug)]
 pub(crate) struct DoorLoops {
     /// The loops, in description order.
-    pub(crate) loops: Vec<ProfileShape>,
+    pub(crate) loops: Vec<Vec<Step<f64>>>,
 }
 
 impl DoorLoops {
@@ -324,7 +224,7 @@ impl DoorLoops {
 /// **A committed profile's program, held as it is written** — one
 /// [`HeldStep`] per authored step, per loop: each argument the formula
 /// it was written as, a literal or the expression that drives it. The
-/// add-profile form's step list edits it through the kernel's [`Step`]
+/// profile editor's step list edits it through the kernel's [`Step`]
 /// at plain numbers, a view of each held step ([`Self::steps`]) whose
 /// edits are written back over the step ([`Self::write_step`]); a
 /// step with no such view (one that lowers against the pen) is held,
@@ -348,9 +248,143 @@ pub(crate) struct ProfileEdit {
     /// as, carried through every row edit ([`Self::edit_row`]); `None`
     /// for a row the editor made. The same shape as `loops`, always.
     loaded_as: Vec<Vec<Option<StepId>>>,
-    /// The edit door's report for the last held state it was asked
-    /// about ([`Self::report`]).
-    report: Option<HeldReport>,
+    /// **Where the draft stands with the document** ([`Offer`]).
+    offer: Offer,
+    /// The node as the document it was loaded from spoke it, for what
+    /// is said when a pending draft is dropped.
+    said: String,
+}
+
+/// **Why the document did not take a draft the profile editor
+/// offered it** — the draft is then *pending*: shown over the
+/// document, not in it, until a later change makes it pass or it is
+/// discarded.
+#[derive(Debug)]
+pub(crate) enum Pending {
+    /// The document's edit door refused the program.
+    Door(Refusal),
+    /// The held steps are not a program's shape (a complete-loop step
+    /// among others).
+    Shape(RecordedProgramError),
+}
+
+impl Pending {
+    fn write(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        at: Option<pncad::geom_brep::recourse::ReadAt>,
+    ) -> core::fmt::Result {
+        match self {
+            Self::Door(refusal) => {
+                write!(f, "{}", pncad::geom_brep::recourse::read_at(refusal, at))
+            }
+            Self::Shape(error) => write!(f, "{error}"),
+        }
+    }
+}
+
+pncad::geom_brep::ended_by_write!(Pending);
+
+/// **One change to the shape of the profile editor's draft** — what a
+/// click asks for, applied after the fields of its frame
+/// ([`ProfileEdit::apply`]).
+#[derive(Clone, Debug)]
+pub(crate) enum Change {
+    /// A row edit of one loop's step list.
+    Row(usize, RowEdit),
+    /// A loop removed.
+    RemoveLoop(usize),
+    /// A loop added, starting as these steps.
+    AddLoop(Vec<Step<f64>>),
+}
+
+/// **Where the profile editor's draft stands with the document**: one
+/// state, so no two flags can disagree about it.
+#[derive(Debug)]
+enum Offer {
+    /// Nothing to offer: the draft is as loaded, or its last offer
+    /// formed nothing (held back, or nothing moved).
+    Quiet,
+    /// Changed since it was last offered ([`ProfileEdit::changed`]);
+    /// the refusal of the offer before, if there was one, still said.
+    Unsettled(Option<Pending>),
+    /// Offered and refused: the draft is *pending*.
+    Pending(Pending),
+    /// Offered and taken: `op` formed and is still to land, and the
+    /// changes made in its frame wait on it ([`ProfileEdit::defer`]).
+    Landing {
+        op: SessionOp,
+        deferred: Vec<Change>,
+    },
+    /// `op` landed, writing `program`: the reload over that program
+    /// makes the waiting changes ([`Drafts::profile_edit`]), and over
+    /// any other program drops them, said.
+    Landed {
+        program: ProfileProgram<Formula>,
+        deferred: Vec<Change>,
+    },
+    /// Changes made in an earlier frame over the program this draft
+    /// was loaded from, still to be made ([`ProfileEdit::take_deferred`]).
+    Deferred(Vec<Change>),
+}
+
+/// **A pending draft the profile editor let go of**, and why — said
+/// on the status line, so no path drops one silently
+/// ([`Drafts::take_dropped`]).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct Dropped {
+    /// The profile, as the document the draft was made over spoke it.
+    pub(crate) said: String,
+    /// Why it went.
+    pub(crate) why: DropWhy,
+}
+
+/// Why a pending draft was let go of.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum DropWhy {
+    /// Undo took it back before stepping the history.
+    Undo,
+    /// The selection left the profile.
+    SelectionLeft,
+    /// The profile's program moved under it — an undo or redo, an
+    /// edit made elsewhere — or another document replaced this one.
+    DocumentMoved,
+    /// The profile it was a draft of is no longer in the document.
+    NodeGone,
+    /// It was made over a change that did not land, or over a program
+    /// that moved before it could be made.
+    NotLanded,
+}
+
+impl Dropped {
+    /// **As the line carries it**: the changes it held are gone from
+    /// the editor, and the person is told which and why.
+    /// [`crate::frame::Retold::Never`]: the draft is gone, and nothing
+    /// will drop it again.
+    pub(crate) fn notice(&self) -> crate::frame::Message {
+        crate::frame::Message::new(
+            crate::frame::Subject::Document,
+            self.to_string(),
+            crate::frame::Retold::Never,
+        )
+    }
+}
+
+impl std::fmt::Display for Dropped {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let why = match self.why {
+            DropWhy::Undo => "undo took them back first; undo again to step the history",
+            DropWhy::SelectionLeft => "the selection left the profile",
+            DropWhy::DocumentMoved => "the document changed under them",
+            DropWhy::NodeGone => "the profile is no longer in the document",
+            DropWhy::NotLanded => "the change they were made over did not land",
+        };
+        write!(
+            f,
+            "{}: the changes pending in the profile editor were discarded — {why}",
+            self.said
+        )
+    }
 }
 
 /// **The placement editor's verdict on one Apply**: the history state
@@ -365,26 +399,17 @@ pub(crate) struct MateVerdict {
     pub(crate) blocks: bool,
 }
 
-/// What the edit door would report for one held state, and the state:
-/// the history state it was asked over, the held program and its ids.
-#[derive(Debug)]
-struct HeldReport {
-    at: HistoryId,
-    loops: Vec<LoopProgram<Formula>>,
-    ids: Vec<Vec<Option<StepId>>>,
-    rows: Vec<Maintenance>,
-}
-
 impl ProfileEdit {
     /// The draft of `program`, every step held as written
     /// ([`sketch::held_rows`]) and loaded as itself.
-    fn load(node: RecipeNodeId, program: ProfileProgram<Formula>) -> Self {
+    fn load(node: RecipeNodeId, program: ProfileProgram<Formula>, said: String) -> Self {
         Self {
             node,
             loops: sketch::held_rows(&program),
             loaded_as: program.kept_in_place(),
             base: program,
-            report: None,
+            offer: Offer::Quiet,
+            said,
         }
     }
 
@@ -446,14 +471,6 @@ impl ProfileEdit {
             }
         }
         self.base = now;
-        self.report = None;
-    }
-
-    /// The committed program the loops were loaded from — what
-    /// `SessionOp::EditProfile` carries so the door can refuse numbers
-    /// loaded from a program the document no longer holds.
-    pub(crate) fn base(&self) -> &ProfileProgram<Formula> {
-        &self.base
     }
 
     /// The held loops, in description order.
@@ -703,37 +720,7 @@ impl ProfileEdit {
             .collect()
     }
 
-    /// **What committing the held program would report**, asked of
-    /// `door` — the edit door's own rows for the `SetProgram` it would
-    /// be — once per held state: the answer is kept until the program,
-    /// its ids or the history state `at` moves. A held state that does
-    /// not lower reports nothing; its refusal is the preview's.
-    pub(crate) fn report(
-        &mut self,
-        at: HistoryId,
-        door: impl FnOnce(Vec<LoopProgram<Formula>>, Vec<Vec<Option<StepId>>>) -> Vec<Maintenance>,
-    ) -> &[Maintenance] {
-        let Ok(loops) = self.programs() else {
-            return &[];
-        };
-        let ids = self.ids();
-        let fresh = self
-            .report
-            .as_ref()
-            .is_some_and(|held| held.at == at && held.loops == loops && held.ids == ids);
-        if !fresh {
-            let rows = door(loops.clone(), ids.clone());
-            self.report = Some(HeldReport {
-                at,
-                loops,
-                ids,
-                rows,
-            });
-        }
-        self.report.as_ref().map_or(&[], |held| &held.rows)
-    }
-
-    /// **The held loops as the shapes the preview takes**, at plain
+    /// **The held loops as the preview takes them**, at plain
     /// numbers as `landed` reads them ([`Self::steps`]) — `None` where
     /// a row has no such view: a step that lowers against the pen,
     /// which only an evaluation draws, or an expression that reads no
@@ -742,13 +729,10 @@ impl ProfileEdit {
         &self,
         landed: &Doc<ProfileProgram>,
         tol: Tol,
-    ) -> Option<Vec<ProfileShape>> {
+    ) -> Option<Vec<Vec<Step<f64>>>> {
         self.steps(landed, tol)
             .into_iter()
-            .map(|steps| {
-                let steps = steps.into_iter().collect::<Result<Vec<_>, _>>().ok()?;
-                Some(ProfileShape::Path { steps })
-            })
+            .map(|steps| steps.into_iter().collect::<Result<Vec<_>, _>>().ok())
             .collect()
     }
 
@@ -761,7 +745,7 @@ impl ProfileEdit {
 
     /// **The first step a held loop puts out of the order a step that
     /// lowers against the pen needs** ([`sketch::pen_order`]), over
-    /// the loops at plain numbers as `landed` reads them: Apply waits
+    /// the loops at plain numbers as `landed` reads them: the draft waits
     /// on it, since the evaluation would refuse the profile there.
     pub(crate) fn pen_order(
         &self,
@@ -869,7 +853,151 @@ impl ProfileEdit {
 
     /// Put the loops back to the program they were loaded from.
     pub(crate) fn revert(&mut self) {
-        *self = Self::load(self.node, self.base.clone());
+        *self = Self::load(self.node, self.base.clone(), self.said.clone());
+    }
+
+    /// **Whether the draft holds anything the document does not** —
+    /// changes pending, not yet offered, offered and still to land, or
+    /// waiting on another change — which is what letting go of it would
+    /// lose. A draft whose op has landed loses nothing but the changes
+    /// that waited on it.
+    fn holds_changes(&self) -> bool {
+        match &self.offer {
+            Offer::Landing { .. } => true,
+            Offer::Landed { deferred, .. } => !deferred.is_empty(),
+            Offer::Deferred(deferred) => !deferred.is_empty() || self.differs_from_base(),
+            Offer::Quiet | Offer::Unsettled(_) | Offer::Pending(_) => self.differs_from_base(),
+        }
+    }
+
+    /// **A change was made to the draft**: it waits to be offered.
+    pub(crate) fn changed(&mut self) {
+        let was = core::mem::replace(&mut self.offer, Offer::Quiet);
+        self.offer = Offer::Unsettled(match was {
+            Offer::Pending(refused) | Offer::Unsettled(Some(refused)) => Some(refused),
+            _ => None,
+        });
+    }
+
+    /// `change`, made to the draft in the editor's `notation`.
+    ///
+    /// # Errors
+    ///
+    /// A row or loop that does not lower.
+    pub(crate) fn apply(
+        &mut self,
+        change: Change,
+        notation: Notation,
+    ) -> Result<(), RecordedProgramError> {
+        match change {
+            Change::Row(loop_, row) => self.edit_row(loop_, row, notation),
+            Change::RemoveLoop(loop_) => {
+                self.remove_loop(loop_);
+                Ok(())
+            }
+            Change::AddLoop(steps) => self.add_loop(steps, notation),
+        }
+    }
+
+    /// **`change` waits on the op this frame's offer formed**, to be
+    /// made over the program it lands ([`Self::take_deferred`]).
+    ///
+    /// Answers `change` back when no op is landing for it to wait on:
+    /// it is the caller's to make now.
+    #[must_use = "a change no op waits for is the caller's to make"]
+    pub(crate) fn defer(&mut self, change: Change) -> Option<Change> {
+        match &mut self.offer {
+            Offer::Landing { deferred, .. } => {
+                deferred.push(change);
+                None
+            }
+            _ => Some(change),
+        }
+    }
+
+    /// The changes that waited on an op which has landed, to be made
+    /// now over the program it wrote; taken.
+    pub(crate) fn take_deferred(&mut self) -> Vec<Change> {
+        match core::mem::replace(&mut self.offer, Offer::Quiet) {
+            Offer::Deferred(deferred) => deferred,
+            other => {
+                self.offer = other;
+                Vec::new()
+            }
+        }
+    }
+
+    /// **Whether a change offered now would be settled** — moved since
+    /// the last offer, and with no drag still moving a number
+    /// (`dragging`): a drag lands once, at its release.
+    #[must_use]
+    pub(crate) fn settles(&self, dragging: bool) -> bool {
+        matches!(self.offer, Offer::Unsettled(_)) && !dragging
+    }
+
+    /// **Offer the draft to the document**, once it [`Self::settles`]
+    /// and nothing holds it back (`held_back`: a step order or a
+    /// driven argument the editor names itself). `door` is the
+    /// document's edit door's verdict on the program
+    /// (`DocSession::edit_profile_report`). Answers the one op that
+    /// lands the whole draft when the door takes it, which the draft
+    /// then waits on ([`Drafts::landed`]); when the door refuses, the
+    /// draft is pending with its refusal ([`Self::pending`]).
+    pub(crate) fn offer(
+        &mut self,
+        dragging: bool,
+        held_back: bool,
+        door: impl FnOnce(
+            &ProfileProgram<Formula>,
+            Vec<LoopProgram<Formula>>,
+            Vec<Vec<Option<StepId>>>,
+        ) -> Result<(), Refusal>,
+    ) -> Option<SessionOp> {
+        if !self.settles(dragging) {
+            return None;
+        }
+        self.offer = Offer::Quiet;
+        if held_back || !self.differs_from_base() {
+            return None;
+        }
+        let loops = match self.programs() {
+            Ok(loops) => loops,
+            Err(error) => {
+                self.offer = Offer::Pending(Pending::Shape(error));
+                return None;
+            }
+        };
+        let ids = self.ids();
+        match door(&self.base, loops.clone(), ids.clone()) {
+            Ok(()) => {
+                let op = SessionOp::EditProfile {
+                    node: self.node,
+                    base: self.base.clone(),
+                    loops,
+                    ids,
+                };
+                self.offer = Offer::Landing {
+                    op: op.clone(),
+                    deferred: Vec::new(),
+                };
+                Some(op)
+            }
+            Err(refusal) => {
+                self.offer = Offer::Pending(Pending::Door(refusal));
+                None
+            }
+        }
+    }
+
+    /// **Why the draft is pending**: the refusal of its last offer,
+    /// while it still holds what was refused.
+    pub(crate) fn pending(&self) -> Option<&Pending> {
+        match &self.offer {
+            Offer::Pending(refused) | Offer::Unsettled(Some(refused)) => {
+                self.differs_from_base().then_some(refused)
+            }
+            _ => None,
+        }
     }
 }
 
@@ -877,6 +1005,12 @@ impl ProfileEdit {
 #[cfg(test)]
 #[allow(clippy::panic)]
 impl ProfileEdit {
+    /// The committed program the loops were loaded from — what
+    /// `SessionOp::EditProfile` carries so the door can refuse numbers
+    /// loaded from a program the document no longer holds.
+    pub(crate) fn base(&self) -> &ProfileProgram<Formula> {
+        &self.base
+    }
     /// Held row `at` at plain numbers, as `landed` reads it: what the
     /// row's fields show.
     pub(crate) fn step_at(
@@ -946,11 +1080,6 @@ pub(crate) enum RowEdit {
 }
 
 impl RowEdit {
-    /// The edit, made to `steps`.
-    pub(crate) fn apply(&self, steps: &mut Vec<Step<f64>>) {
-        self.shape(steps, |step| *step);
-    }
-
     /// The edit made to a list of one entry per row, where a replaced
     /// or inserted row holds `fresh` of its step.
     fn shape<T>(&self, rows: &mut Vec<T>, fresh: impl FnOnce(&Step<f64>) -> T) {
@@ -1014,51 +1143,22 @@ impl Default for Drafts {
             mate_value_edits: Vec::new(),
             mate_value_door: None,
             new_doc_name: None,
-            profile_open: false,
-            sketch_on_face: false,
-            sketch_face: None,
-            trace_on: false,
+            traced_open: false,
             trace_plane: None,
             trace_face: None,
             trace_gesture: sketch::TraceGesture::default(),
             trace_shown: None,
-            sketch_depth: 0.01,
-            sketch_spin: 0.0,
-            split_origin: [0.0; 3],
-            split_normal: [0.0, 0.0, 1.0],
-            split_seeded: None,
-            profile_shape: None,
-            profile_path: vec![
-                Step::At(Point2::origin()),
-                Step::LineTo(Target::Point(Point2::new(0.01, 0.0))),
-                Step::LineTo(Target::Point(Point2::new(0.01, 0.01))),
-                Step::LineTo(Target::Point(Point2::new(0.0, 0.01))),
-                Step::LineTo(Target::Start),
-            ],
-            profile_centre: [0.0; 2],
-            profile_radius: 0.01,
-            profile_extent: [0.01, 0.01],
-            profile_more: Vec::new(),
             pattern_kind: PatternLayoutChoice::Linear,
             pattern_output: PatternOutputChoice::Instances,
-            pattern_count: 3,
-            // The one home both stepping gestures open on.
-            pattern_direction: crate::combine::STEP_DIRECTION,
-            pattern_spacing: 0.02,
-            pattern_step: core::f64::consts::FRAC_PI_2,
-            pattern_through: [0.0; 3],
-            pattern_axis: [0.0, 0.0, 1.0],
             // The FIRST instance, which is the copy rather than the
             // original: a projection of instance 0 is the master where
             // it already stands, so the index a person opening this
             // form wants is the one that selects something new.
             part_instance: 1,
             blend_kind: BlendKindChoice::Fillet,
-            blend_size: 0.001,
             clearance_bound: ClearanceBoundChoice::AtLeast,
-            clearance_lo: 0.002,
-            clearance_hi: 0.004,
             profile_edit: None,
+            dropped: Vec::new(),
             label_text: None,
             creation_labels: BTreeMap::new(),
         }
@@ -1066,42 +1166,6 @@ impl Default for Drafts {
 }
 
 impl Drafts {
-    /// **The loops the add-profile form would author right now.**
-    ///
-    /// One home, read twice: by the form's commit button and by the
-    /// preview drawn under and around it. Two readings that built the
-    /// loops separately could draw one shape and author another,
-    /// which is the one way a live preview can lie.
-    ///
-    /// The first loop is the chosen shape's, and the loops added after
-    /// it ([`Drafts::profile_more`]) follow in order.
-    ///
-    /// No shape chosen yet is the empty list, not a refusal: the form
-    /// authors nothing and the preview draws nothing, which is what
-    /// [`Drafts::profile_shape`] being `None` means — added loops
-    /// included, since there is no first loop for them to follow.
-    pub(crate) fn profile_loops(&self) -> Vec<ProfileShape> {
-        let Some(shape) = self.profile_shape else {
-            return Vec::new();
-        };
-        let mut loops = match shape {
-            ShapeKind::Circle => vec![ProfileShape::Circle {
-                centre: self.profile_centre,
-                radius: self.profile_radius,
-            }],
-            ShapeKind::Rectangle => vec![ProfileShape::Rectangle {
-                centre: self.profile_centre,
-                width: self.profile_extent[0],
-                height: self.profile_extent[1],
-            }],
-            ShapeKind::Path => vec![ProfileShape::Path {
-                steps: self.profile_path.clone(),
-            }],
-        };
-        loops.extend(self.profile_more.iter().cloned());
-        loops
-    }
-
     /// **The add-variable form closes**, at its Cancel or once its
     /// declaration is accepted ([`Self::accepted`]), and its fields go
     /// with it: the next `New variable…` starts empty.
@@ -1116,16 +1180,10 @@ impl Drafts {
     /// **A form whose op the document ACCEPTED comes to rest** — called
     /// once per op a batch performed without a refusal.
     ///
-    /// The add-profile form settles its preview: its drafts ARE
-    /// the viewport's preview (`sketch::preview` is replayed from them
-    /// every frame), so a form left holding the shape it just committed
-    /// would keep drawing that shape in the probe tint over the
-    /// committed drawing of the node it became. Resting the shape
-    /// (`None`) is what the form means by "nothing being composed", and
-    /// the form closes with its one committed edit, as a tool does; the
-    /// field values stay, so a second profile starts from where the
-    /// first one left off. A sketch on a face settles the same way, and
-    /// the add-variable form closes on its own declaration.
+    /// The traced-profile form closes with its one committed edit, as
+    /// a tool does; its latches stay, so a second traced profile starts
+    /// from the faces the first one read. The add-variable form closes
+    /// on its own declaration.
     ///
     /// A REFUSED add leaves the drafts alone, so correcting what was
     /// refused does not cost what was typed.
@@ -1142,19 +1200,12 @@ impl Drafts {
             SessionOp::CreateLabelled { creation, .. } => creation.op(),
             op => op,
         };
-        if matches!(
-            op,
-            SessionOp::AddProfile { .. }
-                | SessionOp::SketchOnFace { .. }
-                | SessionOp::AddDrawnProfile { .. }
-        ) {
-            self.profile_shape = None;
-            self.profile_open = false;
-            self.profile_more.clear();
+        if matches!(op, SessionOp::AddDrawnProfile { .. }) {
+            self.traced_open = false;
         }
         // A reshaped program renumbers its slots, so text held for a
         // profile slot would show on whichever argument takes that
-        // number: an edit-door Apply on its node, or an undo or redo,
+        // number: an editor change landing on its node, or an undo or redo,
         // which may step across one, releases it.
         let reshaped = |target: &(RecipeNodeId, SlotId)| match op {
             SessionOp::EditProfile { node, .. } => *node == target.0,
@@ -1224,7 +1275,8 @@ impl Drafts {
     /// # Errors
     ///
     /// [`HeldRefusal`] when the node is not a profile the editor can
-    /// hold — and the held draft is dropped with it, so nothing stale
+    /// hold — and the open draft is dropped with it (said, when it
+    /// held changes: [`Self::take_dropped`]), so nothing stale
     /// survives the refusal.
     pub(crate) fn profile_edit(
         &mut self,
@@ -1237,17 +1289,43 @@ impl Drafts {
         };
         let held = self.profile_edit.as_mut().filter(|held| held.node == node);
         match (held, current) {
-            (Some(held), Some(current)) if current == held.base => {
+            // A draft whose op landed is reloaded over what it wrote,
+            // even where the document has since gone back to its base.
+            (Some(held), Some(current))
+                if current == held.base && !matches!(held.offer, Offer::Landed { .. }) =>
+            {
                 // The same values: a re-written unit is carried, not
                 // reloaded over what the draft holds.
                 if !sketch::programs_written_as(&current, &held.base) {
                     held.rewritten(current);
                 }
             }
-            _ => {
-                self.profile_edit = None;
+            (held, current) => {
+                // The changes that waited on an op which landed are made
+                // over the program it wrote, and only over that one.
+                let deferred = match held.map(|held| &mut held.offer) {
+                    Some(Offer::Landed { program, deferred })
+                        if current.as_ref() == Some(program) =>
+                    {
+                        core::mem::take(deferred)
+                    }
+                    _ => Vec::new(),
+                };
+                let why = match (&self.profile_edit, &current) {
+                    (Some(was), _) if was.node != node => DropWhy::SelectionLeft,
+                    (_, None) => DropWhy::NodeGone,
+                    (Some(was), Some(_)) if matches!(was.offer, Offer::Landed { .. }) => {
+                        DropWhy::NotLanded
+                    }
+                    _ => DropWhy::DocumentMoved,
+                };
+                self.let_go(why);
                 let base = sketch::held_written(doc, node)?;
-                self.profile_edit = Some(ProfileEdit::load(node, base));
+                let mut loaded = ProfileEdit::load(node, base, doc.spoken(node).to_string());
+                if !deferred.is_empty() {
+                    loaded.offer = Offer::Deferred(deferred);
+                }
+                self.profile_edit = Some(loaded);
             }
         }
         let Some(held) = self.profile_edit.as_mut() else {
@@ -1268,6 +1346,13 @@ impl Drafts {
         doc: &Doc<ProfileProgram>,
         selected: Option<RecipeNodeId>,
     ) {
+        if self
+            .profile_edit
+            .as_ref()
+            .is_some_and(|held| !matches!(doc.node(held.node), Some(Node::Profile(_))))
+        {
+            self.let_go(DropWhy::NodeGone);
+        }
         self.abandon_profile_edit_off(selected);
         if let Some(node) = self.profile_edit.as_ref().map(|held| held.node) {
             // A refusal drops the draft (`profile_edit`'s contract) and
@@ -1276,26 +1361,15 @@ impl Drafts {
         }
     }
 
-    /// **What each door of the profile editor holds for its preview**:
-    /// the add-profile form's loops, and the loops of a committed
-    /// profile opened for editing at plain numbers as `landed` reads
-    /// them (`None` while none is open, or while one of its steps has
-    /// no such view: [`ProfileEdit::shapes`]).
-    pub(crate) fn door_loops(
-        &self,
-        landed: &Doc<ProfileProgram>,
-        tol: Tol,
-    ) -> ProfileDoors<Option<DoorLoops>> {
-        ProfileDoors {
-            create: Some(DoorLoops {
-                loops: self.profile_loops(),
-            }),
-            edit: self
-                .profile_edit
-                .as_ref()
-                .and_then(|edit| edit.shapes(landed, tol))
-                .map(|loops| DoorLoops { loops }),
-        }
+    /// **What the profile editor holds for its preview**: the loops
+    /// of the profile it is open on, at plain numbers as `landed`
+    /// reads them (`None` while none is open, or while one of its steps
+    /// has no such view: [`ProfileEdit::shapes`]).
+    pub(crate) fn door_loops(&self, landed: &Doc<ProfileProgram>, tol: Tol) -> Option<DoorLoops> {
+        self.profile_edit
+            .as_ref()
+            .and_then(|edit| edit.shapes(landed, tol))
+            .map(|loops| DoorLoops { loops })
     }
 
     /// **The committed profile the edit door is drawing in place of
@@ -1329,7 +1403,7 @@ impl Drafts {
         else {
             return;
         };
-        self.profile_edit = None;
+        self.let_go(DropWhy::SelectionLeft);
         // Text a held field refused names a row of the draft it goes with.
         if self
             .expr_target
@@ -1338,6 +1412,98 @@ impl Drafts {
             self.expr_target = None;
             self.expr_text.clear();
         }
+    }
+
+    /// **Let go of the edit draft**, recording it as [`Dropped`] for
+    /// `why` when it held changes the document does not: the one place
+    /// a draft is dropped, so none is dropped unsaid.
+    fn let_go(&mut self, why: DropWhy) {
+        if let Some(was) = self.profile_edit.take()
+            && was.holds_changes()
+        {
+            self.say_dropped(was.said, why);
+        }
+    }
+
+    /// Changes of the draft of `said` let go of, for `why`: the one
+    /// record of a drop, read by [`Self::take_dropped`].
+    fn say_dropped(&mut self, said: String, why: DropWhy) {
+        self.dropped.push(Dropped { said, why });
+    }
+
+    /// **Undo takes back a pending draft first**: when the editor holds
+    /// changes the document does not, they are let go of
+    /// ([`Self::let_go`], said) and the undo is spent on them — the
+    /// history does not step; the editor reopens on the document's
+    /// program. Answers whether it did.
+    pub(crate) fn undo_pending(&mut self) -> bool {
+        if !self
+            .profile_edit
+            .as_ref()
+            .is_some_and(ProfileEdit::holds_changes)
+        {
+            return false;
+        }
+        self.let_go(DropWhy::Undo);
+        true
+    }
+
+    /// **The op the editor's draft is waiting on to land**, if one
+    /// formed this frame and has not been performed: an undo in the
+    /// same batch takes it back before it lands
+    /// (`ViewerApp::perform_batch`).
+    pub(crate) fn landing(&self) -> Option<&SessionOp> {
+        match &self.profile_edit.as_ref()?.offer {
+            Offer::Landing { op, .. } => Some(op),
+            _ => None,
+        }
+    }
+
+    /// **`op` was performed**: when it is the op the editor's draft
+    /// waits on, the draft now waits on the program it wrote
+    /// (`landed`, the document after it) — or, refused, it is offered
+    /// again on its next frame, and the changes that waited on it are
+    /// let go of, said, since they were made over a program that never
+    /// came to be.
+    pub(crate) fn landed(&mut self, op: &SessionOp, landed: Option<&Doc<ProfileProgram>>) {
+        let Some(edit) = self.profile_edit.as_mut() else {
+            return;
+        };
+        let Offer::Landing { op: waited, .. } = &edit.offer else {
+            return;
+        };
+        if waited != op {
+            return;
+        }
+        let Offer::Landing { deferred, .. } = core::mem::replace(&mut edit.offer, Offer::Quiet)
+        else {
+            unreachable!("matched as landing just above")
+        };
+        let written = landed.and_then(|doc| match doc.node(edit.node) {
+            Some(Node::Profile(program)) => Some(sketch::written_program(doc, program)),
+            _ => None,
+        });
+        match written {
+            Some(program) => edit.offer = Offer::Landed { program, deferred },
+            None => {
+                edit.offer = Offer::Unsettled(None);
+                if !deferred.is_empty() {
+                    let said = edit.said.clone();
+                    self.say_dropped(said, DropWhy::NotLanded);
+                }
+            }
+        }
+    }
+
+    /// Whether a let-go draft is waiting to be said.
+    pub(crate) fn has_dropped(&self) -> bool {
+        !self.dropped.is_empty()
+    }
+
+    /// **The pending drafts let go of since last asked**, for the
+    /// status line.
+    pub(crate) fn take_dropped(&mut self) -> Vec<Dropped> {
+        core::mem::take(&mut self.dropped)
     }
 
     /// **Offer to declare `name`**, the variable a refused expression
@@ -1351,38 +1517,21 @@ impl Drafts {
         self.new_variable_open = true;
     }
 
-    /// The loop PROGRAMS the add-profile form would author right now:
-    /// [`Drafts::profile_loops`] lowered in the working `notation`, which
-    /// is what the op carries.
-    ///
-    /// # Errors
-    ///
-    /// A non-finite field, or a path that is not a program's shape
-    /// ([`sketch::loop_program`]'s refusals).
-    pub(crate) fn profile_programs(
-        &self,
-        notation: Notation,
-    ) -> Result<Vec<LoopProgram<Formula>>, RecordedProgramError> {
-        sketch::loop_programs(&self.profile_loops(), notation)
-    }
-
     /// **Another document replaced the one the held face was picked
-    /// in** (an open, a new document): the latch names nothing in it.
+    /// in** (an open, a new document): the latch names nothing in it,
+    /// and the profile editor's draft edits nothing in it.
     pub(crate) fn document_replaced(&mut self) {
         for latch in self.latches() {
             *latch = None;
         }
+        self.let_go(DropWhy::DocumentMoved);
     }
 
     /// **The faces the forms latch**, the one list of them: what a
     /// replaced document drops, an operation speaks again and a takeover
     /// moves.
-    fn latches(&mut self) -> [&mut Option<HeldPick>; 3] {
-        [
-            &mut self.sketch_face,
-            &mut self.trace_plane,
-            &mut self.trace_face,
-        ]
+    fn latches(&mut self) -> [&mut Option<HeldPick>; 2] {
+        [&mut self.trace_plane, &mut self.trace_face]
     }
 
     /// **The picks the forms hold** ([`crate::session::Holds`]): the
@@ -1412,7 +1561,7 @@ impl Drafts {
     pub(crate) fn sync_mate_edits(
         &mut self,
         door: Option<&crate::matetool::PlaceDoor>,
-        coords: &[pncad::document::Coord],
+        coords: &[pncad::document::Coord<pncad::document::Operand>],
     ) {
         if self.mate_value_door.as_ref() != door {
             self.mate_value_edits.clear();
@@ -1422,23 +1571,17 @@ impl Drafts {
             .retain(|(coord, _)| coords.contains(coord));
     }
 
-    /// **The face this form holds**: [`Self::sketch_face`] while the
-    /// add-profile form draws on a face, `None` otherwise.
-    ///
-    /// Off the face the latch is kept, not held — nothing the form
-    /// commits reads it — so switching off releases the pick, and
-    /// switching back holds it again.
-    pub(crate) fn held_face(&self) -> Option<&HeldPick> {
-        self.sketch_face.as_ref().filter(|_| self.sketch_on_face)
-    }
-
     /// **The face the viewport marks as held** (`crate::marks::Held`):
-    /// [`Self::held_face`] while the form was `drawn` on the last frame
-    /// (`ProfileDoors::create`), the one read of whether the form is
-    /// on screen — a form behind its door, in a folded section or in a
+    /// the face whose plane the traced profile is drawn on, while the
+    /// traced-profile form was `drawn` on the last frame
+    /// (`ProfileDoors::create`), the one read of whether the form is on
+    /// screen — a form behind its door, in a folded section or in a
     /// pane not drawn holds nothing a reader can see.
     pub(crate) fn marked_face(&self, drawn: bool) -> Option<&FaceSelection> {
-        self.held_face().filter(|_| drawn).map(HeldPick::face)
+        self.trace_plane
+            .as_ref()
+            .filter(|_| drawn && self.traced_open)
+            .map(HeldPick::face)
     }
 
     /// **The latches a trace is to be read for** — when the form was
@@ -1484,87 +1627,103 @@ impl Drafts {
         });
     }
 
-    /// **Whether the add-profile form writes a traced path**: a path,
-    /// continuing tangent to a face's trace ([`Self::trace_on`]), and
-    /// not on a picked face.
+    /// **Whether the traced-profile form is open**, and so reads a
+    /// trace.
     pub(crate) fn traces(&self) -> bool {
-        self.trace_on && !self.sketch_on_face && self.profile_shape == Some(ShapeKind::Path)
+        self.traced_open
     }
 
-    /// **The add-profile form's op**: the profile on its own plane, or
-    /// — drawing on a face — the sketch on the held face, `Ok(None)`
-    /// while no face is held.
+    /// **The traced-profile form's op**: a profile drawn on the frame
+    /// the two latches read, its one chain the traced template
+    /// ([`traced_template`]) with the trace's steps between its halves;
+    /// `Ok(None)` while a latch is empty.
     ///
     /// # Errors
     ///
-    /// A non-finite field, or a path that is not a program's shape.
-    pub(crate) fn profile_op(&self, notation: Notation) -> Result<Option<SessionOp>, CommitFault> {
-        if self.traces() {
-            let (Some(plane), Some(face)) = (&self.trace_plane, &self.trace_face) else {
-                return Ok(None);
-            };
-            let chain = sketch::traced_loop(&self.profile_path, &self.trace_gesture, 0, notation)
-                .map_err(CommitFault::Traced)?;
-            return Ok(Some(SessionOp::AddDrawnProfile {
-                plane: plane.face().clone(),
-                traced: vec![face.face().clone()],
-                chains: vec![chain],
-            }));
-        }
-        let loops = self.profile_programs(notation)?;
-        if !self.sketch_on_face {
-            return Ok(Some(SessionOp::AddProfile { loops }));
-        }
-        let Some(face) = self.held_face() else {
+    /// The template's chain refused at the lift.
+    pub(crate) fn traced_op(&self, notation: Notation) -> Result<Option<SessionOp>, CommitFault> {
+        let (Some(plane), Some(face)) = (&self.trace_plane, &self.trace_face) else {
             return Ok(None);
         };
-        Ok(Some(SessionOp::SketchOnFace {
-            face: face.face().clone(),
-            loops,
-            distance: notation.length_literal(self.sketch_depth)?,
-            spin: notation.angle_literal(self.sketch_spin)?,
+        let (steps, after) = traced_template();
+        let chain = sketch::traced_loop(&steps, after, &self.trace_gesture, 0, notation)
+            .map_err(CommitFault::Traced)?;
+        Ok(Some(SessionOp::AddDrawnProfile {
+            plane: plane.face().clone(),
+            traced: vec![face.face().clone()],
+            chains: vec![chain],
         }))
     }
 }
 
-/// **A loop added to a profile starts as this**: a circle or a
-/// rectangle at a quarter of the form's own default size, on its
-/// default centre — small enough to sit inside a first circle or
-/// rectangle left at those defaults, so it is a hole as it lands — and
-/// a path as the form's own default chain, to edit.
-pub(crate) fn fresh_loop(kind: ShapeKind) -> ProfileShape {
-    const QUARTER: f64 = 0.25;
-    let form = Drafts::default();
+/// **The steps a loop added in the profile editor starts as**, inside
+/// `within` — the existing loops' bounding box, `[min, max]` — or on
+/// the origin when the profile has none.
+///
+/// Inside a box, a template is centred in it and sized to the box's
+/// shorter side `m`: a circle of radius `m / 4`, a rectangle half the
+/// box's width and height, a chain around a square of side `m / 2`. So
+/// a loop added to a profile anywhere starts inside it, clear of its
+/// outline, rather than across it. On no box, a circle of radius
+/// 2.5 mm or a 2.5 mm square on the origin, or a 10 mm square chain
+/// from it. The centre of the box is not always inside every loop (a
+/// central hole, a concave outline); the editor's door says so then.
+pub(crate) fn template_steps(kind: ShapeKind, within: Option<[[f64; 2]; 2]>) -> Vec<Step<f64>> {
+    let (centre, side) = match within {
+        Some([lo, hi]) => (
+            Point2::new(0.5 * (lo[0] + hi[0]), 0.5 * (lo[1] + hi[1])),
+            Some([hi[0] - lo[0], hi[1] - lo[1]]),
+        ),
+        None => (Point2::origin(), None),
+    };
+    let short = side.map(|[w, h]| w.min(h));
     match kind {
-        ShapeKind::Circle => ProfileShape::Circle {
-            centre: form.profile_centre,
-            radius: QUARTER * form.profile_radius,
-        },
-        ShapeKind::Rectangle => ProfileShape::Rectangle {
-            centre: form.profile_centre,
-            width: QUARTER * form.profile_extent[0],
-            height: QUARTER * form.profile_extent[1],
-        },
-        ShapeKind::Path => ProfileShape::Path {
-            steps: form.profile_path,
-        },
+        ShapeKind::Circle => vec![Step::Circle {
+            centre,
+            radius: short.map_or(0.0025, |m| 0.25 * m),
+        }],
+        ShapeKind::Rectangle => {
+            let [width, height] = side.map_or([0.0025; 2], |[w, h]| [0.5 * w, 0.5 * h]);
+            vec![Step::Rectangle {
+                centre,
+                width,
+                height,
+            }]
+        }
+        ShapeKind::Path => {
+            let (lo, edge) = match short {
+                Some(m) => (
+                    Point2::new(centre.x - 0.25 * m, centre.y - 0.25 * m),
+                    0.5 * m,
+                ),
+                None => (Point2::origin(), 0.01),
+            };
+            vec![
+                Step::At(lo),
+                Step::LineTo(Target::Point(Point2::new(lo.x + edge, lo.y))),
+                Step::LineTo(Target::Point(Point2::new(lo.x + edge, lo.y + edge))),
+                Step::LineTo(Target::Point(Point2::new(lo.x, lo.y + edge))),
+                Step::LineTo(Target::Start),
+            ]
+        }
     }
 }
 
-/// Three dimensionless literals — a normal, a direction, a rotation
-/// axis. Not a [`Drafts`] method, because there is no notation to
-/// carry from the form: a dimensionless number has one spelling, and
-/// `Formula::literal` stores that row itself.
-///
-/// # Errors
-///
-/// A non-finite component.
-pub(crate) fn scalars(v: [f64; 3]) -> Result<[Formula; 3], DimensionError> {
-    Ok([
-        Formula::literal(v[0], Dimension::Scalar)?,
-        Formula::literal(v[1], Dimension::Scalar)?,
-        Formula::literal(v[2], Dimension::Scalar)?,
-    ])
+/// **The chain a traced profile starts as**, and the row the trace's
+/// steps follow: from the frame's origin heading `+y` onto the trace,
+/// on along it 10 mm, and home — a triangle whichever way the trace
+/// heads. Every number is the editor's to change once the profile is
+/// in.
+pub(crate) fn traced_template() -> (Vec<Step<f64>>, usize) {
+    (
+        vec![
+            Step::At(Point2::origin()),
+            Step::Toward { dx: 0.0, dy: 1.0 },
+            Step::Line(0.01),
+            Step::LineTo(Target::Start),
+        ],
+        1,
+    )
 }
 
 /// **A face's trace as the traced path's form shows it**: the latches
@@ -1596,6 +1755,11 @@ pub(crate) enum CommitFault {
     Program(RecordedProgramError),
     /// A traced path does not lower.
     Traced(sketch::TracedLoopError),
+    /// The session refused what a default is read off: a pattern's
+    /// spacing, measured off its body.
+    Refused(Box<Refusal>),
+    /// A pattern row's default spacing could not be written.
+    Spacing(crate::combine::RowSpacingFault),
 }
 
 impl From<SeatError> for CommitFault {
@@ -1607,6 +1771,18 @@ impl From<SeatError> for CommitFault {
 impl From<RecordedProgramError> for CommitFault {
     fn from(error: RecordedProgramError) -> Self {
         Self::Program(error)
+    }
+}
+
+impl From<crate::combine::RowSpacingFault> for CommitFault {
+    fn from(fault: crate::combine::RowSpacingFault) -> Self {
+        Self::Spacing(fault)
+    }
+}
+
+impl From<Refusal> for CommitFault {
+    fn from(refusal: Refusal) -> Self {
+        Self::Refused(Box::new(refusal))
     }
 }
 
@@ -1623,6 +1799,8 @@ impl std::fmt::Display for CommitFault {
             Self::Dimension(error) => error.fmt(f),
             Self::Program(error) => error.fmt(f),
             Self::Traced(error) => error.fmt(f),
+            Self::Refused(refusal) => refusal.fmt(f),
+            Self::Spacing(fault) => fault.fmt(f),
         }
     }
 }
@@ -1655,8 +1833,7 @@ mod tests {
     #![allow(clippy::panic)]
 
     use pncad::document::{
-        CancelToken, Doc, DocEdit, EvalOptions, Formula, Node, ProfileProgram, RecipeNodeId,
-        evaluate,
+        CancelToken, Doc, DocEdit, EvalOptions, Node, ProfileProgram, RecipeNodeId, evaluate,
     };
     use pncad::geom_core::{Point2, Tol};
     use pncad::profile::{ArcData, Step, Target};
@@ -1666,8 +1843,8 @@ mod tests {
     use super::{Drafts, ProfileEdit, RowEdit};
     use crate::forms::ShapeKind;
     use crate::props::Notation;
+    use crate::session::FaceSelection;
     use crate::session::SessionOp;
-    use crate::session::{FaceSelection, ProfileShape};
     use crate::sketch;
     use crate::test_support::{inserted, try_edited, try_inserted};
 
@@ -1696,33 +1873,43 @@ mod tests {
         let tol = Tol::witness();
         let doc: Doc<ProfileProgram> = Doc::empty_derived("drafts-creation-landed", tol);
         let mut drafts = Drafts {
-            profile_shape: Some(ShapeKind::Circle),
+            traced_open: true,
             ..Drafts::default()
         };
         drafts
             .creation_labels
             .insert("Profile", "sketch".to_owned());
         drafts.creation_labels.insert("Extrude", "plate".to_owned());
-        let loops = drafts
-            .profile_programs(Notation::DEFAULT)
-            .expect("the default circle lowers");
         let (doc, profile) = inserted(
             &doc,
             Node::Profile(ProfileProgram {
-                loops: loops.clone(),
+                loops: Vec::new(),
                 ids: Vec::new(),
                 on: None,
             }),
             tol,
         );
-        let creation = crate::session::Creation::of(SessionOp::AddProfile { loops })
-            .expect("adding a profile creates a node");
+        let face = FaceSelection {
+            name: StableName {
+                kind: EntityKind::Face,
+                node: profile,
+                path: vec![RoleSeg::Cap(CapEnd::Start)],
+            },
+            node: profile,
+            body: 0,
+        };
+        let creation = crate::session::Creation::of(SessionOp::AddDrawnProfile {
+            plane: face.clone(),
+            traced: vec![face],
+            chains: Vec::new(),
+        })
+        .expect("a traced profile creates a node");
         drafts.accepted(&SessionOp::CreateLabelled {
             creation,
             label: pncad::document::Label::new("sketch").expect("a label"),
         });
-        assert_eq!(
-            drafts.profile_shape, None,
+        assert!(
+            !drafts.traced_open,
             "the labelled add settles the form as the bare one does"
         );
         drafts.creation_landed(&doc, Some(profile));
@@ -1753,93 +1940,29 @@ mod tests {
         ));
     }
 
-    /// **A profile the add form just committed is drawn once**, as the
-    /// document's, and not a second time as the form's preview.
-    ///
-    /// The form's drafts are what the preview replays every frame, so
-    /// a form still holding the shape it committed drew that shape in
-    /// the probe tint over the committed drawing of its own node. This
-    /// commits the form's own programs as the node `AddProfile` inserts,
-    /// hands the op to `Drafts::accepted` as the app's batch does on an
-    /// accepted op, and then asks both drawings the viewport makes: the
-    /// committed pass holds the circle, and the preview replayed from
-    /// the settled drafts holds nothing. The control is an op that adds
-    /// no profile, which must leave the draft being composed.
+    /// **Loops added as templates preview every one, holes included.**
+    /// A 20 × 10 mm rectangle with two circle templates moved apart:
+    /// the preview draws three whole loops in description order, each
+    /// hole's polyline on its own circle, and validation passes —
+    /// containment makes the two circles holes.
     #[test]
-    fn a_committed_profile_is_not_drawn_again_as_its_preview() {
+    fn template_loops_preview_each_and_their_holes() {
         let tol = Tol::witness();
         let chord = 1.0e-4;
-        let doc = Doc::empty_derived("drafts-accepted", tol);
-        let mut drafts = Drafts {
-            profile_shape: Some(ShapeKind::Circle),
-            ..Drafts::default()
-        };
-
-        // The control: an accepted op that adds no profile leaves the
-        // form composing.
-        drafts.accepted(&SessionOp::Hover(None));
-        assert!(!drafts.profile_loops().is_empty(), "the draft was dropped");
-
-        let loops = drafts
-            .profile_programs(Notation::DEFAULT)
-            .expect("the default circle lowers");
-        let (doc, _) = inserted(
-            &doc,
-            Node::Profile(ProfileProgram {
-                loops: loops.clone(),
-                ids: Vec::new(),
-                on: None,
-            }),
-            tol,
-        );
-        drafts.accepted(&SessionOp::AddProfile { loops });
-        let evaluation = evaluate(
-            &doc,
-            None,
-            &CancelToken::default(),
-            &EvalOptions::default(),
-            tol,
-        );
-        let placement = sketch::profile_plane();
-        let committed = sketch::committed(&doc, &evaluation, chord, None);
-        assert_eq!(
-            committed.drawn.len(),
-            1,
-            "the circle is drawn as the document's"
-        );
-        let preview = sketch::preview(placement, &drafts.profile_loops(), tol, chord)
-            .expect("an empty form previews");
-        assert!(
-            preview.loops.is_empty(),
-            "the committed circle is drawn again as the form's preview"
-        );
-    }
-
-    /// **A draft of several loops previews every one, holes included,
-    /// and lowers as one profile of them.** A 20 × 10 mm rectangle with
-    /// two circles added and moved apart: the preview draws three
-    /// whole loops in description order, each hole's polyline on its
-    /// own circle, and validation passes — containment makes the two
-    /// circles holes. Settling the form drops the added loops with
-    /// the shape.
-    #[test]
-    fn a_draft_of_several_loops_previews_each_and_its_holes() {
-        let tol = Tol::witness();
-        let chord = 1.0e-4;
-        let mut drafts = Drafts {
-            profile_shape: Some(ShapeKind::Rectangle),
-            profile_extent: [0.02, 0.01],
-            ..Drafts::default()
-        };
         let holes = [[-0.005, 0.0], [0.005, 0.0]];
+        let mut loops = vec![vec![Step::Rectangle {
+            centre: Point2::origin(),
+            width: 0.02,
+            height: 0.01,
+        }]];
         for centre in holes {
-            let mut hole = super::fresh_loop(ShapeKind::Circle);
-            if let ProfileShape::Circle { centre: at, .. } = &mut hole {
-                *at = centre;
+            let mut hole = super::template_steps(ShapeKind::Circle, None);
+            if let [Step::Circle { centre: at, .. }] = hole.as_mut_slice() {
+                *at = Point2::from_array(centre);
             }
-            drafts.profile_more.push(hole);
+            loops.push(hole);
         }
-        let preview = sketch::preview(sketch::profile_plane(), &drafts.profile_loops(), tol, chord)
+        let preview = sketch::preview(sketch::profile_plane(), &loops, tol, chord)
             .expect("the plate with two holes previews");
         assert_eq!(preview.loops.len(), 3, "the outer and both holes are drawn");
         assert!(
@@ -1858,119 +1981,33 @@ mod tests {
                 drawn.points
             );
         }
-        let loops = drafts
-            .profile_programs(Notation::DEFAULT)
-            .expect("the draft lowers");
-        assert_eq!(loops.len(), 3, "one program entry per loop");
-        drafts.accepted(&SessionOp::AddProfile { loops });
-        assert!(
-            drafts.profile_more.is_empty() && drafts.profile_loops().is_empty(),
-            "the settled form holds no added loop"
-        );
     }
 
-    /// **A sketch on a face lowers the held pick, the depth and the
-    /// spin in the form's notation**, and waits for a face while none is
-    /// held.
-    ///
-    /// The face pick's node-valued answers are DIFFERENT ids here,
-    /// deliberately: the ray met node 2 and the name was minted by node
-    /// 1, so a lowering that carried the feature instead of the face as
-    /// picked is red. The spin is not zero: a lowering that dropped it,
-    /// or wrote it in canonical radians while the form said degrees, is
-    /// red too.
-    #[test]
-    fn a_sketch_on_a_face_lowers_its_pick_its_depth_and_its_spin() {
-        let face = FaceSelection {
-            name: StableName {
-                kind: EntityKind::Face,
-                node: RecipeNodeId::new(0, 1),
-                path: vec![RoleSeg::Cap(CapEnd::End)],
-            },
-            node: RecipeNodeId::new(0, 2),
-            body: 0,
-        };
-        let notation = Notation {
-            angle: pncad::quantity::DEG,
-            ..Notation::DEFAULT
-        };
-        let waiting = Drafts {
-            profile_shape: Some(ShapeKind::Circle),
-            sketch_on_face: true,
-            ..Drafts::default()
-        };
-        assert!(
-            matches!(waiting.profile_op(notation), Ok(None)),
-            "no face held: the form waits"
-        );
-        let doc = Doc::<ProfileProgram>::empty_derived("sketch-face", Tol::witness());
-        let drafts = Drafts {
-            sketch_face: Some(crate::tree::HeldPick::new(&doc, face.clone())),
-            sketch_spin: core::f64::consts::FRAC_PI_2,
-            ..waiting
-        };
-        let Ok(Some(SessionOp::SketchOnFace {
-            face: held,
-            distance,
-            spin,
-            ..
-        })) = drafts.profile_op(notation)
-        else {
-            panic!("a held face lowers");
-        };
-        assert_eq!(held, face, "the face as picked");
-        assert_eq!(distance.literal_value(), Some(drafts.sketch_depth));
-        let want = Formula::written_angle(pncad::quantity::WrittenAngle::canonical_in(
-            core::f64::consts::FRAC_PI_2,
-            pncad::quantity::DEG,
-        ))
-        .expect("a finite angle");
-        assert!(
-            spin.bit_eq(&want),
-            "the spin is written in degrees: {spin:?}"
-        );
-        let off = Drafts {
-            sketch_on_face: false,
-            ..drafts
-        };
-        assert!(
-            matches!(
-                off.profile_op(notation),
-                Ok(Some(SessionOp::AddProfile { .. }))
-            ),
-            "off the face, the profile on its own plane"
-        );
-    }
-
-    /// A document holding the profile the add-profile form's DEFAULT
-    /// path authors, lowered by the form's own
-    /// `profile_programs` and inserted through the edit door the
-    /// create button's op reaches. Answers the document, the drafts
-    /// that authored it, and the profile node.
-    fn authored_by_the_form() -> (Doc<ProfileProgram>, Drafts, RecipeNodeId) {
-        use crate::forms::ShapeKind;
-
+    /// A document holding one loop of the editor's path template
+    /// ([`super::template_steps`]), lowered in the default notation.
+    /// Answers the document, fresh drafts, and the profile node.
+    fn authored_by_the_template() -> (Doc<ProfileProgram>, Drafts, RecipeNodeId) {
         let tol = Tol::witness();
         let doc = Doc::empty_derived("drafts-edit", tol);
-        let drafts = Drafts {
-            profile_shape: Some(ShapeKind::Path),
-            ..Drafts::default()
-        };
-        let loops = drafts
-            .profile_programs(Notation::DEFAULT)
-            .expect("the default path lowers");
+        let loops = vec![
+            sketch::path_program(
+                &super::template_steps(ShapeKind::Path, None),
+                Notation::DEFAULT,
+                &|_, _| None,
+            )
+            .expect("the path template lowers"),
+        ];
         let node = Node::Profile(ProfileProgram {
             loops,
             ids: Vec::new(),
             on: None,
         });
-        let (doc, profile) =
-            try_inserted(&doc, node, tol).expect("the form's default path is a profile");
-        (doc, drafts, profile)
+        let (doc, profile) = try_inserted(&doc, node, tol).expect("the path template is a profile");
+        (doc, Drafts::default(), profile)
     }
 
     /// **Refused text held for a profile slot is released when the
-    /// program may have been reshaped under it** — an edit-door Apply
+    /// program may have been reshaped under it** — an editor change landing
     /// on its node, an undo or a redo — since the slot's number then
     /// names whichever argument took it. An op that reshapes nothing,
     /// or a history move with the text held on a slot that is not a
@@ -1979,7 +2016,7 @@ mod tests {
     fn a_held_refused_expression_is_released_when_its_program_may_reshape() {
         use pncad::document::{SlotId, StepArg};
 
-        let (doc, mut drafts, profile) = authored_by_the_form();
+        let (doc, mut drafts, profile) = authored_by_the_template();
         let base = drafts
             .profile_edit(&doc, profile)
             .expect("held")
@@ -2028,16 +2065,16 @@ mod tests {
             .0
     }
 
-    /// **The create form's profile opens in the edit door untouched**:
-    /// the draft holds the form's own steps, says nothing moved, and
-    /// what its Apply would send writes no argument.
+    /// **A template's profile opens in the editor untouched**: the
+    /// draft holds the template's own steps, says nothing moved, and
+    /// what it would commit writes no argument.
     #[test]
-    fn the_forms_profile_opens_untouched_and_would_write_nothing() {
-        let (doc, mut drafts, profile) = authored_by_the_form();
-        let authored = drafts.profile_loops();
+    fn a_templates_profile_opens_untouched_and_would_write_nothing() {
+        let (doc, mut drafts, profile) = authored_by_the_template();
+        let authored = vec![super::template_steps(ShapeKind::Path, None)];
         let edit = drafts
             .profile_edit(&doc, profile)
-            .expect("the editor holds the form's profile");
+            .expect("the editor holds the template's profile");
         assert!(
             !edit.differs_from_base(),
             "a fresh load has nothing to apply"
@@ -2070,8 +2107,8 @@ mod tests {
     fn the_placement_editors_value_edits_live_with_its_draft() {
         use crate::matetool::PlaceDoor;
         use pncad::document::{Coord, Operand, RecipeNodeId, TargetAxis};
-        let x = Coord::Slide(TargetAxis::X);
-        let y = Coord::Slide(TargetAxis::Y);
+        let x = || <Coord<Operand>>::slide(TargetAxis::X);
+        let y = || <Coord<Operand>>::slide(TargetAxis::Y);
         let door = PlaceDoor::Edit {
             placement: RecipeNodeId::new(0, 7),
             base: Vec::new(),
@@ -2081,37 +2118,37 @@ mod tests {
             base: pncad::document::stand().bundle(),
         };
         let mut drafts = Drafts::default();
-        drafts.sync_mate_edits(Some(&door), &[x, y]);
-        drafts.mate_value_edits = vec![(x, "5 mm".to_owned()), (y, "6 mm".to_owned())];
-        drafts.sync_mate_edits(Some(&door), &[x, y]);
+        drafts.sync_mate_edits(Some(&door), &[x(), y()]);
+        drafts.mate_value_edits = vec![(x(), "5 mm".to_owned()), (y(), "6 mm".to_owned())];
+        drafts.sync_mate_edits(Some(&door), &[x(), y()]);
         assert_eq!(
             drafts.mate_value_edits.len(),
             2,
             "kept across frames of one draft"
         );
-        drafts.sync_mate_edits(Some(&door), &[x]);
+        drafts.sync_mate_edits(Some(&door), &[x()]);
         assert_eq!(
             drafts.mate_value_edits,
-            [(x, "5 mm".to_owned())],
+            [(x(), "5 mm".to_owned())],
             "y's row left"
         );
-        drafts.sync_mate_edits(Some(&reloaded), &[x]);
+        drafts.sync_mate_edits(Some(&reloaded), &[x()]);
         assert!(
             drafts.mate_value_edits.is_empty(),
             "a reload drops the edits"
         );
-        drafts.mate_value_edits = vec![(x, "5 mm".to_owned())];
+        drafts.mate_value_edits = vec![(x(), "5 mm".to_owned())];
         drafts.sync_mate_edits(
             Some(&PlaceDoor::Create {
                 body: Operand::Node(RecipeNodeId::new(0, 9)),
             }),
-            &[x],
+            &[x()],
         );
         assert!(
             drafts.mate_value_edits.is_empty(),
             "another door drops the edits"
         );
-        drafts.mate_value_edits = vec![(x, "5 mm".to_owned())];
+        drafts.mate_value_edits = vec![(x(), "5 mm".to_owned())];
         drafts.sync_mate_edits(None, &[]);
         assert!(
             drafts.mate_value_edits.is_empty(),
@@ -2121,12 +2158,12 @@ mod tests {
 
     #[test]
     fn the_edit_draft_reloads_on_undo_and_is_abandoned_off_selection() {
-        let (before, mut drafts, profile) = authored_by_the_form();
+        let (before, mut drafts, profile) = authored_by_the_template();
         let moved_to = Step::LineTo(Target::Point(Point2::new(0.02, 0.0)));
         let same_step = |a: Step<f64>, b: Step<f64>| {
             sketch::authors_same_loops(
-                &sketch::path_shapes(&[vec![Step::At(Point2::origin()), a]]),
-                &sketch::path_shapes(&[vec![Step::At(Point2::origin()), b]]),
+                &[vec![Step::At(Point2::origin()), a]],
+                &[vec![Step::At(Point2::origin()), b]],
             )
         };
         let edit = drafts.profile_edit(&before, profile).expect("held");
@@ -2152,7 +2189,7 @@ mod tests {
             !same_step(edit.step_at(&before, (0, 1)), moved_to),
             "the undone number is gone from the draft"
         );
-        // Revert puts typed numbers back.
+        // Discarding puts typed numbers back.
         let moved = Step::LineTo(Target::Point(Point2::new(0.03, 0.03)));
         edit.set_step(&before, (0, 2), moved);
         assert!(edit.differs_from_base());
@@ -2176,13 +2213,8 @@ mod tests {
     fn held_path(steps: Vec<Step<f64>>) -> (Doc<ProfileProgram>, Drafts, RecipeNodeId) {
         let tol = Tol::witness();
         let doc = Doc::empty_derived("drafts-ids", tol);
-        let loops = vec![
-            sketch::loop_program(
-                &crate::session::ProfileShape::Path { steps },
-                Notation::CANONICAL,
-            )
-            .expect("finite"),
-        ];
+        let loops =
+            vec![sketch::path_program(&steps, Notation::CANONICAL, &|_, _| None).expect("finite")];
         let node = Node::Profile(ProfileProgram {
             loops,
             ids: Vec::new(),
@@ -2199,10 +2231,10 @@ mod tests {
     /// combo is a fresh step, and so is a verb changed any other way.
     #[test]
     fn a_held_step_keeps_its_id_through_row_edits_and_loses_it_with_its_verb() {
-        let (doc, mut drafts, profile) = authored_by_the_form();
+        let (doc, mut drafts, profile) = authored_by_the_template();
         let edit = drafts.profile_edit(&doc, profile).expect("held");
         let &[a, b, c, d, e] = edit.base().ids[0].as_slice() else {
-            panic!("the form's default chain is five steps")
+            panic!("the path template is five steps")
         };
         let point = |x, y| Step::LineTo(Target::Point(Point2::new(x, y)));
         let notation = Notation::DEFAULT;
@@ -2277,7 +2309,7 @@ mod tests {
         .expect("finite");
         assert!(
             edit.differs_from_base(),
-            "a step re-made with the numbers it had is still a new step, which Apply writes"
+            "a step re-made with the numbers it had is still a new step, which the editor writes"
         );
     }
 
@@ -2331,7 +2363,7 @@ mod tests {
     fn the_edited_profile_is_drawn_only_as_its_preview() {
         let tol = Tol::witness();
         let chord = 1.0e-4;
-        let (doc, mut drafts, profile) = authored_by_the_form();
+        let (doc, mut drafts, profile) = authored_by_the_template();
         let evaluation = evaluate(
             &doc,
             None,
@@ -2354,8 +2386,7 @@ mod tests {
         drafts.profile_edit(&doc, profile).expect("held");
         let held = drafts
             .door_loops(&doc, tol)
-            .edit
-            .expect("the edit door holds loops");
+            .expect("the editor holds loops");
         let placement = sketch::profile_plane();
         let preview = sketch::preview(placement, &held.loops, tol, chord);
         assert!(

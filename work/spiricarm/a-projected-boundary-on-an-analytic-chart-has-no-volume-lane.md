@@ -4,7 +4,7 @@ kind: issue
 title: A cylinder or sphere face bounded by a spline chord (its pcurve a Projected image on the analytic chart) has no volume lane, so every cylinder x sphere boolean that builds refuses at the result gate
 status: open
 opened: 2026-10-28
-priority: P1
+priority: P0
 cost: M
 ---
 
@@ -95,3 +95,7 @@ the `"projected volume"` cells of
 That table's other cells are owned by the two torus-wall rows. All of
 these are pinned there, citing this row. Reproduce:
 `cargo nextest run -p sweep --profile ci --ignore-default-filter -E 'test(/^cylinder_sphere_frame::a_ball_across/)'`.
+
+## Re-banded P0 (2026-11-03)
+
+Two reasons, either sufficient. Teapot wall 2 (handle ∪ vessel, sphere × torus) now builds and stops here: `demos/tour/src/teapot.rs` `wall_probes` pins `ResultInvalid { VolumeUncomputable { QuadratureUnsupported { what: "conic trim on a cone/sphere/torus chart …" } } }`, the sphere's arm of this row. And by this row's own measurement every cylinder × sphere boolean that builds refuses at the result gate: a normal verb on normal geometry (`work/README.md`, Priority, P0). Behind it on the teapot is the handle's torus face, `a-torus-wall-trimmed-by-a-spline-rim-has-no-volume-lane`, re-banded with it. Tracked in `work/issues/curved-demo-joins-build.md`.

@@ -38,7 +38,7 @@ fn the_four_margin_shapes_render_pairwise_distinguishably() {
                 terminal_sliver: false,
             },
         }
-        .to_string()
+        .render(geom_brep::recourse::Reading::Build)
     };
     let value = escalated(MarginDiag::value(1.5e-12));
     let enclosure = escalated(MarginDiag::enclosure(1.5e-12, 2.5e-12));
@@ -48,7 +48,7 @@ fn the_four_margin_shapes_render_pairwise_distinguishably() {
         what: "probe",
         magnitude: None,
     }
-    .to_string();
+    .render(geom_brep::recourse::Reading::Build);
 
     // The enclosure renders BOTH endpoints (a reader needs the width).
     assert!(

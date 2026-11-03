@@ -119,7 +119,7 @@ use geom_core::spline::compose::{self, CurveCertData, ImplicitSurface, tensor};
 use geom_core::spline::{KnotVector, RingRefinement};
 use geom_core::{
     Band, Bounds, CertifiedBounds, CertifiedEnclosure, Decide, Decided, Indeterminate, Interval,
-    Margin, Point3, Real, Sign, Vec3,
+    Margin, Real, Sign, Vec3,
 };
 
 use crate::certify::CertCheck;
@@ -128,8 +128,9 @@ use crate::descent::{Descent, Work};
 use crate::dihedral::{decide_positive, decide_reported};
 
 use super::enclose::{
-    Box3, NurbsBoxes, UvWindow, chart_transverse_margin, graph_margin, in_meters, mag_in_meters,
-    torus_a_shift, torus_meters_floor, torus_meters_sup, tube_margin, zero_free_lower_bound,
+    Box3, ChartPhi, NurbsBoxes, UvWindow, chart_transverse_margin, graph_margin, in_meters,
+    mag_in_meters, torus_a_shift, torus_meters_floor, torus_meters_sup, tube_margin,
+    zero_free_lower_bound,
 };
 use super::exhaust::UvRect;
 use super::one_arc::{Shortfall, dominant_axis, one_arc, one_arc_r3};
@@ -426,13 +427,13 @@ fn refined_net(
 /// midpoint, never a guess. Retiring the gate means giving the
 /// composite enclosure-valued coefficients, which is a `geom_core`
 /// change with its own unit.
-fn exact<T: Bounds>(v: T) -> Option<f64> {
+pub(crate) fn exact<T: Bounds>(v: T) -> Option<f64> {
     let (lo, hi) = (v.lo(), v.hi());
     (lo == hi && !lo.is_nan()).then_some(lo)
 }
 
 /// Three coordinates of an exact point, or `None` if any is widened.
-fn exact3<T: Bounds>(p: [T; 3]) -> Option<[f64; 3]> {
+pub(crate) fn exact3<T: Bounds>(p: [T; 3]) -> Option<[f64; 3]> {
     Some([exact(p[0])?, exact(p[1])?, exact(p[2])?])
 }
 
@@ -1570,25 +1571,20 @@ pub(crate) fn chart_tube_windows<T: geom_core::CertifiedBounds>(
 /// [`SsiError::TubeDegenerate`] when a window's transverse stretch is
 /// zero, or the pcurve's tangent at a span midpoint is zero or not
 /// finite: neither depends on the pad, so no smaller rung cures it.
-fn probe_tube_chart<T: Decide + Bounds + CertifiedEnclosure>(
+fn probe_tube_chart<'p, T: Decide + Bounds + CertifiedEnclosure>(
     pcurve: &NurbsCurve2<T>,
     boxes: &NurbsBoxes<'_, T>,
-    (origin, normal): (Point3<T>, Vec3<T>),
+    phi: impl Into<ChartPhi<'p>>,
     (rung, pad): (f64, (f64, f64)),
     (ends, band): ([Box3; 2], Band),
 ) -> Result<Option<Rung>, SsiError> {
     #[cfg(test)]
     tests::CHART_PROBES.with(|n| n.set(n.get() + 1));
+    let phi = phi.into();
     let surface = boxes.surface();
     let Some(windows) = chart_tube_windows(pcurve, pad) else {
         return Ok(None);
     };
-    // The plane equation is what the whole limb certifies, so the
-    // plane crosses through the CERTIFIED door: a component whose
-    // computation left its domain is refused, and so is every window's
-    // margin, rather than a zero-free enclosure of an equation nobody
-    // evaluated.
-    let n = [normal.x, normal.y, normal.z].map(Interval::from_certified);
     let mut worst = f64::INFINITY;
     let mut probed = Vec::with_capacity(windows.len());
     for w in windows {
@@ -1614,7 +1610,7 @@ fn probe_tube_chart<T: Decide + Bounds + CertifiedEnclosure>(
         let Some(rect) = UvWindow::new(u0, u1, v0, v1) else {
             return Ok(None);
         };
-        let Some(margin) = chart_transverse_margin(boxes, n, rect, (tx, ty, tn))? else {
+        let Some(margin) = chart_transverse_margin(boxes, phi, rect, (tx, ty, tn))? else {
             return Ok(None);
         };
         if margin.is_nan() {
@@ -1633,14 +1629,13 @@ fn probe_tube_chart<T: Decide + Bounds + CertifiedEnclosure>(
         return Ok(None);
     }
     let one = (worst > 0.0).then(|| {
-        let p0 = [origin.x, origin.y, origin.z].map(Interval::from_certified);
         let domain = UvRect {
             u: surface.knots_u_f64_interim().domain(),
             v: surface.knots_v_f64_interim().domain(),
         };
         // An `Undecided` here stays unnamed: past the side arm it may come
         // from that arm's own in-band readings, which are indeterminate.
-        one_arc(boxes, (n, p0), (domain, band), pcurve, &probed, ends)
+        one_arc(boxes, phi, (domain, band), pcurve, &probed, ends)
     });
     #[allow(clippy::cast_possible_truncation)]
     Ok(Some(Rung {
@@ -1814,9 +1809,18 @@ pub(crate) const BOX_CHAIN_NEEDS_SPLINE: &str = "the ℝ³ uniqueness tube of tw
      does not have";
 
 /// [`certify_branch`]'s routing boundary for a NURBS operand whose
-/// analytic partner is not a plane.
-pub(crate) const CHART_TUBE_NEEDS_PLANE: &str = "the chart uniqueness tube is written for a PLANE \
-     against a NURBS surface; another analytic kind needs its own chart form";
+/// analytic partner has no form the chart tube reads: not a plane, a
+/// cylinder, a sphere or a ring torus.
+pub(crate) const CHART_TUBE_NEEDS_FORM: &str = "the chart uniqueness tube reads a plane, a \
+     cylinder, a sphere or a ring torus against a NURBS surface; this partner has no form it \
+     reads";
+
+/// [`certify_branch`]'s refusal of a curved partner whose parameters are
+/// not exact at the certificate's scalar: its canonical form is `f64`
+/// structure, and a widened partner is a family of surfaces.
+pub(crate) const CHART_TUBE_PARTNER_INEXACT: &str = "the chart uniqueness tube reads a curved \
+     partner through its canonical form at f64, and this partner's parameters are not exact at \
+     the certificate's scalar — refused rather than represented by a midpoint";
 
 /// The uniqueness tube of a certified carrier, as boxes — what the
 /// exhaustiveness accounting pass consumes to prove cells "accounted"
@@ -2144,11 +2148,12 @@ pub(crate) enum Lane<'a, T: geom_core::CertifiedBounds> {
         /// The second operand's pcurve, where it is a NURBS wall.
         pcurve_b: Option<&'a NurbsCurve2<T>>,
     },
-    /// A plane × NURBS search's branch, its chain cut to the wall's knot
+    /// A chart search's branch against a residual side, a plane × NURBS
+    /// or a residual × NURBS search's, its chain cut to the wall's knot
     /// rectangle, which the search banks.
     Chart {
-        /// The plane.
-        plane: &'a Surface<T>,
+        /// The partner: a plane, cylinder, sphere or torus.
+        partner: &'a Surface<T>,
         /// The wall, its chart speeds minted.
         wall: super::ChartedNurbs<'a, T>,
         /// The wall's pcurve.
@@ -2336,11 +2341,11 @@ pub(crate) fn certify_branch<T: Decide + Bounds + CertifiedEnclosure>(
             pcurve_b,
         } => (a, b, pcurve_a, pcurve_b),
         Lane::Chart {
-            plane,
+            partner,
             wall,
             pcurve,
         } => {
-            (first, second) = (SsiOperand::Analytic(plane), SsiOperand::Nurbs(wall));
+            (first, second) = (SsiOperand::Analytic(partner), SsiOperand::Nurbs(wall));
             (&first, &second, None, Some(pcurve))
         }
         Lane::Pair {
@@ -2407,17 +2412,45 @@ pub(crate) fn certify_branch<T: Decide + Bounds + CertifiedEnclosure>(
                 ))
             })?
         }
-        (SsiOperand::Analytic(plane), SsiOperand::Nurbs(n))
-        | (SsiOperand::Nurbs(n), SsiOperand::Analytic(plane)) => {
-            let Surface::Plane { origin, normal, .. } = **plane else {
-                return Err(SsiError::UnsupportedCertificate {
-                    what: CHART_TUBE_NEEDS_PLANE,
-                });
-            };
+        (SsiOperand::Analytic(partner), SsiOperand::Nurbs(n))
+        | (SsiOperand::Nurbs(n), SsiOperand::Analytic(partner)) => {
             let Some(p) = pcurve_b else {
                 return Err(SsiError::UnsupportedCertificate {
                     what: "the chart uniqueness tube needs the traced pcurve",
                 });
+            };
+            // A curved partner is read through its canonical form at
+            // `f64`, so only where every scalar of it is an exact `f64`.
+            let curved = match **partner {
+                Surface::Plane { .. } => None,
+                _ => {
+                    let inexact = core::cell::Cell::new(false);
+                    let at_f64 = partner.map_scalar(|x| {
+                        exact(x).unwrap_or_else(|| {
+                            inexact.set(true);
+                            f64::NAN
+                        })
+                    });
+                    if inexact.get() {
+                        return Err(SsiError::UnsupportedCertificate {
+                            what: CHART_TUBE_PARTNER_INEXACT,
+                        });
+                    }
+                    Some(super::residual::Curved::of(&at_f64).map_err(|_| {
+                        SsiError::UnsupportedCertificate {
+                            what: CHART_TUBE_NEEDS_FORM,
+                        }
+                    })?)
+                }
+            };
+            let phi = match (*partner, &curved) {
+                (Surface::Plane { origin, normal, .. }, _) => ChartPhi::from((*origin, *normal)),
+                (_, Some(c)) => ChartPhi::Curved(c),
+                (_, None) => {
+                    return Err(SsiError::UnsupportedCertificate {
+                        what: CHART_TUBE_NEEDS_FORM,
+                    });
+                }
             };
             limb_three((widest, extent), band, |radius| {
                 // The pad per axis: the rung ÷ the operand's minted chart
@@ -2427,7 +2460,7 @@ pub(crate) fn certify_branch<T: Decide + Bounds + CertifiedEnclosure>(
                 // region (a window's corner can sit farther than the rung
                 // from the carrier).
                 let pad = n.speeds().pad(radius);
-                probe_tube_chart(p, n.boxes(), (origin, normal), (radius, pad), (ends, band))
+                probe_tube_chart(p, n.boxes(), phi, (radius, pad), (ends, band))
             })?
         }
         (SsiOperand::Nurbs(na), SsiOperand::Nurbs(nb)) => {
@@ -2462,7 +2495,11 @@ fn tube_transversality<T: Decide>(
     boxes: u32,
     band: Band,
 ) -> Result<T, SsiError> {
-    let transversality = Margin::levered(T::from_computed(clearance), arm);
+    // Unsourced lever: `SsiDomain::extent`, a feature extent the caller names as a plain number, not read from geometry.
+    let transversality = Margin::levered(
+        T::from_computed(clearance),
+        geom_core::Lever::unsourced(arm),
+    );
     match band_verdict("ssi_tube_transversality", transversality, band) {
         None => Ok(transversality.value()),
         Some(BandVerdict::Refused(verdict)) => Err(SsiError::TubeStraddles { verdict, boxes }),
@@ -3501,7 +3538,9 @@ mod tests {
                 "branch {i}: the recorded pad's chain is not one arc"
             );
             let (margin, boxes) = (probe.margin, probe.boxes);
-            let levered = Margin::levered(margin, domain.extent).value();
+            // Unsourced lever: the production row's own arm, `SsiDomain::extent`, a feature extent the caller names as a plain number, not read from geometry.
+            let levered =
+                Margin::levered(margin, geom_core::Lever::unsourced(domain.extent)).value();
             assert_eq!(
                 (levered.to_bits(), boxes),
                 (
@@ -3727,7 +3766,7 @@ mod tests {
 
         let (wall, carrier, pcurve, plane) = fold_across_its_gap();
         let lane = Lane::Chart {
-            plane: &plane,
+            partner: &plane,
             wall: ChartedNurbs::mint(&wall).unwrap(),
             pcurve: &pcurve,
         };
@@ -3741,6 +3780,77 @@ mod tests {
             refused.error
         );
         assert!(refused.at.is_none(), "limb 3 was located: {:?}", refused.at);
+    }
+
+    /// **Limb 3's side arm holds a branch along a side lying on a curved
+    /// partner.** The exact quarter cylinder of radius 1 about the `z`
+    /// axis, its `u = 0` ruling from `(1, 0, 0)` to `(1, 0, 1)`, against a
+    /// cylinder about a `z`-parallel line whose surface passes through
+    /// that ruling and crosses the wall there at 60°: the carrier is the
+    /// ruling, its pcurve the wall's side. No zero on the side is simple,
+    /// so the windows on it hold the side's stretch, read against the
+    /// partner's form, or nothing. The partner is read at radius 2 on the
+    /// ruling itself; grown by half the band's zero, where its crossing
+    /// moves just inside the quarter and the windows' walk reads it; and at
+    /// radius 10⁴ through the same ruling at the same angle, whose form
+    /// along the side reads past ε raw from its own rounding (`|q|²` near
+    /// 10⁸) and within it in metres. Red against the curved side readers
+    /// dropped, and against the stretch's `|φ|` read raw against ε.
+    #[test]
+    #[allow(clippy::unwrap_used)]
+    fn the_side_arm_holds_a_branch_along_a_side_on_a_curved_partner() {
+        use geom::{NurbsCurve2, NurbsCurve3, NurbsSurface, Surface};
+        use geom_core::spline::KnotVector;
+        use geom_core::{Band, Point2, Point3, Vec3};
+
+        use super::{Lane, certify_located};
+        use crate::ssi::ChartedNurbs;
+
+        let lin = || KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let arc = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        let w = core::f64::consts::FRAC_1_SQRT_2;
+        let control = vec![
+            Point3::new(1.0, 0.0, 0.0),
+            Point3::new(1.0, 0.0, 1.0),
+            Point3::new(1.0, 1.0, 0.0),
+            Point3::new(1.0, 1.0, 1.0),
+            Point3::new(0.0, 1.0, 0.0),
+            Point3::new(0.0, 1.0, 1.0),
+        ];
+        let wall = NurbsSurface::new(arc, lin(), control, vec![1.0, 1.0, w, w, 1.0, 1.0]).unwrap();
+        let carrier = NurbsCurve3::new(
+            lin(),
+            vec![Point3::new(1.0, 0.0, 0.0), Point3::new(1.0, 0.0, 1.0)],
+            vec![1.0; 2],
+        )
+        .unwrap();
+        let pcurve = NurbsCurve2::new(
+            lin(),
+            vec![Point2::new(0.0, 0.0), Point2::new(0.0, 1.0)],
+            vec![1.0; 2],
+        )
+        .unwrap();
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let (c, s) = (0.5, 0.75_f64.sqrt());
+        for (radius, grow) in [(2.0, 0.0), (2.0, 0.5 * band.zero()), (1.0e4, 0.0)] {
+            let partner = Surface::Cylinder {
+                origin: Point3::new(1.0 - radius * c, -radius * s, 0.0),
+                axis: Vec3::new(0.0, 0.0, 1.0),
+                u_ref: Vec3::new(1.0, 0.0, 0.0),
+                radius: radius + grow,
+            };
+            let lane = Lane::Chart {
+                partner: &partner,
+                wall: ChartedNurbs::mint(&wall).unwrap(),
+                pcurve: &pcurve,
+            };
+            let got = certify_located(&carrier, lane, 1.0, band, super::Limbs::All);
+            assert!(
+                got.is_ok(),
+                "the ruling on the partner of radius {radius} grown by {grow:e}: {:?}",
+                got.err().map(|e| e.error)
+            );
+        }
     }
 
     /// **An operand's cells are built once for its life, not once per
@@ -3761,7 +3871,7 @@ mod tests {
         CHART_PROBES.with(|n| n.set(0));
         let wall_op = ChartedNurbs::mint(&wall).unwrap();
         let lane = Lane::Chart {
-            plane: &plane,
+            partner: &plane,
             wall: wall_op,
             pcurve: &pcurve,
         };

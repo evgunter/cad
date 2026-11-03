@@ -2,10 +2,11 @@
 id: main-red-certified-endpoint-census-drifted-in-geom-brep-after-6171
 kind: issue
 title: main red (slow set): geom-core's certified_endpoint_census drifted in four geom-brep files after PR 6171 (spline_face, krawczyk, pair_section, ssi/enclose)
-status: open
+status: dispatched
 opened: 2026-11-01
 priority: P1
 cost: E
+branch: splice/kind-reads
 ---
 
 

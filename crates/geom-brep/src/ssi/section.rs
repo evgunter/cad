@@ -452,6 +452,26 @@ impl SectionReader {
         Pieces::enclosed(knots, control, weights, (origin, normal)).map(|pieces| Self { pieces })
     }
 
+    /// The reader of `curve` against a curved partner: `φ = f∘C`, its
+    /// canonical form along the curve ([`Pieces::implicit`], the
+    /// arithmetic the boundary pass reads a side against it by); `None`
+    /// where the composite does not certify.
+    pub(crate) fn implicit(curve: &NurbsCurve3<f64>, curved: &Curved) -> Option<Self> {
+        Pieces::implicit(curve, curved).map(|pieces| Self { pieces })
+    }
+
+    /// An upper bound in metres on the curve's distance from the
+    /// partner where `|φ| ≤ sup` along it: `sup` itself on a plane.
+    pub(crate) fn metres(&self, sup: f64) -> f64 {
+        self.pieces.metres(sup)
+    }
+
+    /// Whether `φ` is the plane's distance, whose slope per metre is a
+    /// sine, never above 1.
+    pub(crate) fn is_distance(&self) -> bool {
+        self.pieces.scale.is_none()
+    }
+
     /// The stretch `[a, b]` of the curve: its pieces cut to it.
     pub(crate) fn stretch(&self, (a, b): (f64, f64)) -> Stretch {
         Stretch {
@@ -795,7 +815,8 @@ pub(crate) fn decide_crossing(root: SectionRoot, arm: f64, band: Band) -> Result
             what: "a boundary curve's slope at a root has no certified bound",
         });
     }
-    let margin = Margin::levered(root.slope, arm);
+    // Unsourced lever: `SsiDomain::extent`, a feature extent the caller names as a plain number, not read from geometry.
+    let margin = Margin::levered(root.slope, geom_core::Lever::unsourced(arm));
     let Some(verdict) = band_verdict("ssi_boundary_crossing", margin, band) else {
         return Ok(());
     };

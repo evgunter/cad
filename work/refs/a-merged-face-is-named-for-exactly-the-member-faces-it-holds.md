@@ -2,15 +2,16 @@
 id: a-merged-face-is-named-for-exactly-the-member-faces-it-holds
 kind: unit
 title: A boolean result face's parent is exactly the member faces whose area it holds (per-face exact), for union, intersect and subtract
-status: parked
+status: closed
 opened: 2026-11-02
 priority: P1
 cost: H
-blocked_on: [a-union-whose-fold-glues-a-run-no-judgement-opened]
-design: true
+pr: 6381
+branch: reads/per-face-parent
+closed: 2026-11-03
 ---
 
-Filed by the REFS orchestrator (2026-11-02), from the fork `merged-parent-class-or-per-face` that Ev raised on PR 6342 (fork-log row 243). Both designers converged on **per-face exact**: a result face's name cites exactly the member faces whose area it holds, for the union, the intersect and the subtract. It replaces N2's class reading (PRs 3222 and 3734) and N3's union piece sentence. `design: true` stays until Ev rules on PR 6342.
+Filed by the REFS orchestrator (2026-11-02), from the fork `merged-parent-class-or-per-face` that Ev raised on PR 6342 (fork-log row 248). Both designers converged on **per-face exact**: a result face's name cites exactly the member faces whose area it holds, for the union, the intersect and the subtract. It replaces N2's class reading (PRs 3222 and 3734) and N3's union piece sentence. `design: true` stays until Ev rules on PR 6342.
 
 **What the rule must state** (both designers):
 - `Borders` is taken when a member face the result face holds is also held by another result face (the subtract's `in_merged` rule), never by a sibling count.
@@ -29,3 +30,7 @@ Filed by the REFS orchestrator (2026-11-02), from the fork `merged-parent-class-
   - moving g across x = 1 renames only the faces beside g.
 
 Expect re-baselines of union fixtures in the merged-then-cut shape (PR 3222's `r1two`, `fam0**`, `r2endsg`).
+
+## Closed (2026-11-03, PR 6381)
+
+Per-face naming is built. A boolean's finished face is named for exactly the member faces whose area it holds, read off `topo::Holdings`, with one derivation for union, intersect and subtract. The kernel's substitution defect that would have published non-coplanar citations was fixed at the root in `fate::cut`, and `Holdings` refuses typed rather than cite a face not under the face. One known exception to "every member order names alike" is on BORDERS at P1: `a-union-over-a-stepped-plate-refuses-in-the-orders-that-fold-the-plate-early`.

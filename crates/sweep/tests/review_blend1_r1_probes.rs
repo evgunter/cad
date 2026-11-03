@@ -350,10 +350,11 @@ fn r1_in_band_convexity_sign_renders_the_tangential_sentence() {
         u_ref: Vec3::new(0.0, 0.0, 1.0).cross(normal).normalize(),
     };
     let out = |s: &geom::Surface<f64>| geom_brep::implicit_outward_normal(s, true, o);
+    let metre = || geom_core::test_support::fixture_lever(1.0);
     let x = plane(Vec3::new(1.0, 0.0, 0.0));
     let tilted = plane(Vec3::new(1.0, in_band(), 0.0).normalize());
-    let escalated = wedge_at(out(&x), out(&tilted), tau, 1.0, e, band()).unwrap_err();
-    let text = format!("{escalated}");
+    let escalated = wedge_at(out(&x), out(&tilted), tau, metre(), e, band()).unwrap_err();
+    let text = escalated.render(geom_brep::recourse::Reading::Build);
     assert!(
         matches!(&escalated, BlendError::Escalated { source, .. }
             if source.predicate == Some("fillet3_convexity_sign")),
@@ -371,10 +372,11 @@ fn r1_in_band_convexity_sign_renders_the_tangential_sentence() {
     // decided Zero with the material facing itself. Both arms, one
     // sentence.
     let back = plane(Vec3::new(-1.0, 0.0, 0.0));
-    let flat = wedge_at(out(&x), out(&back), tau, 1.0, e, band()).unwrap_err();
+    let flat = wedge_at(out(&x), out(&back), tau, metre(), e, band()).unwrap_err();
     assert!(matches!(flat, BlendError::KnifeEdge { .. }), "{flat:?}");
     assert!(
-        format!("{flat}").contains(sweep::blend::FILLET3_WEDGE_RECOURSE),
+        flat.render(geom_brep::recourse::Reading::Build)
+            .contains(sweep::blend::FILLET3_WEDGE_RECOURSE),
         "{flat}"
     );
 }
@@ -422,7 +424,10 @@ fn r1_a_near_collinear_profile_vertex_and_the_convexity_arm() {
         ) {
             Ok(b) => b,
             Err(e) => {
-                eprintln!("(d={d:e}, L={l}, h={h}) the extrude door refuses: {e}");
+                eprintln!(
+                    "(d={d:e}, L={l}, h={h}) the extrude door refuses: {e_at}",
+                    e_at = e.render(geom_brep::recourse::Reading::Build)
+                );
                 continue;
             }
         };
@@ -469,7 +474,10 @@ fn r1_a_near_collinear_profile_vertex_and_the_convexity_arm() {
         let r = verdict(&body, edge);
         eprintln!("(d={d:e}, L={l}, h={h}) battery on the wedge: {r:?}");
         if let Err(e @ BlendError::Escalated { .. }) = &r {
-            eprintln!("  renders: {e}");
+            eprintln!(
+                "  renders: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            );
         }
     }
 }
@@ -522,7 +530,10 @@ fn r1_two_arc_tilted_rim_builds_at_zero_escalates_in_band_and_refuses_definitely
         matches!(definite, BlendError::SpineUnsupported { .. }),
         "{definite:?}"
     );
-    let (d, e) = (format!("{definite}"), format!("{escalated}"));
+    let (d, e) = (
+        definite.render(geom_brep::recourse::Reading::Build),
+        escalated.render(geom_brep::recourse::Reading::Build),
+    );
     assert!(d.contains(sweep::blend::FILLET3_SPINE_KIND_RECOURSE), "{d}");
     assert!(e.contains(sweep::blend::FILLET3_SPINE_KIND_RECOURSE), "{e}");
 }
@@ -603,7 +614,10 @@ fn r1_a_boss_on_an_in_band_tilted_sketch_plane_through_the_union() {
                 assert!(seen > 0, "the union has a circular rim");
             }
             Err(e) => {
-                eprintln!("departure {departure:e}: the boolean answers first: {e}");
+                eprintln!(
+                    "departure {departure:e}: the boolean answers first: {e_at}",
+                    e_at = e.render(geom_brep::recourse::Reading::Build)
+                );
             }
         }
     }

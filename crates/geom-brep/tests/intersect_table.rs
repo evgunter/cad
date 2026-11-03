@@ -18,6 +18,7 @@ use geom_brep::intersect::{
 use geom_brep::recourse::Refused;
 use geom_brep::{ClassCarrier, PairSection, SectionRead};
 use geom_brep::{TorusConvention, TorusRefusal, TorusVerdict};
+use geom_core::test_support::fixture_lever;
 use geom_core::{Point3, Real, Vec3};
 
 /// A metre's lever about a cylinder's stored origin (the world origin
@@ -28,9 +29,9 @@ fn metre_on<T: Real>(s: &Surface<T>) -> Reach<T> {
         Surface::Cylinder { origin, .. } => origin,
         _ => Point3::new(T::zero(), T::zero(), T::zero()),
     };
-    Reach::Measured {
-        at,
-        lever: T::one(),
+    {
+        let lever = T::one();
+        Reach::of_frame(at, (lever, lever))
     }
 }
 
@@ -270,7 +271,7 @@ fn plane_cylinder_parallel_trio() {
     let SectionError::Escalated(_) = err else {
         panic!("expected escalation, got {err:?}");
     };
-    let msg = err.to_string();
+    let msg = err.render(geom_brep::recourse::Reading::Build);
     assert_eq!(msg.matches(geom_core::COINCIDENCE_RECOURSE).count(), 1);
     assert!(msg.contains("ill-conditioned at this tolerance"), "{msg}");
 }
@@ -499,7 +500,7 @@ fn parallel_equal_cylinders_trio() {
     // the shared recourse exactly once.
     let err = cylinder_cylinder_section(&c1, &mk(0.0), &metre_on(&c1).ball(), band()).unwrap_err();
     assert!(matches!(err, SectionError::CoincidentSurfaces), "{err:?}");
-    let msg = err.to_string();
+    let msg = err.render(geom_brep::recourse::Reading::Build);
     assert_eq!(
         msg.matches(geom_core::COINCIDENCE_RECOURSE).count(),
         1,
@@ -1231,10 +1232,7 @@ fn the_cylinder_sphere_route_note_names_the_coaxial_arm() {
 /// the pair's pose, so a radius not definitely positive is not served.
 #[test]
 fn route_pose_reads_the_cylinder_sphere_pose() {
-    let reach = Reach::Measured {
-        at: Point3::origin(),
-        lever: 1.0,
-    };
+    let reach = Reach::of_frame(Point3::origin(), (1.0, 1.0));
     let (cyl, bad) = coaxial_pair(-1.0, 1.5, 0.0);
     let got = geom_brep::route_pose(&cyl, &bad, &reach, band()).unwrap();
     assert!(
@@ -1556,11 +1554,12 @@ mod interval {
             normal: iv(Vec3::unit_y()),
             u_ref: iv(Vec3::unit_x()),
         };
-        let m = plane_torus_section(&meridian, &tor, Interval::one(), band()).unwrap();
+        let m =
+            plane_torus_section(&meridian, &tor, fixture_lever(Interval::one()), band()).unwrap();
         let PlaneTorusSection::MeridianCircles { c1, c2 } = m else {
             panic!("expected the meridian circles, got {m:?}");
         };
-        let s = plane_torus_section(&cap, &tor, Interval::one(), band()).unwrap();
+        let s = plane_torus_section(&cap, &tor, fixture_lever(Interval::one()), band()).unwrap();
         let PlaneTorusSection::ConcentricCircles { c1: k1, c2: k2 } = s else {
             panic!("expected the concentric circles, got {s:?}");
         };
@@ -1610,7 +1609,7 @@ mod interval {
             u_ref: iv(axis3.cross(u3)),
         };
         let ConeCylinderSection::CoaxialCircles { c1, c2 } =
-            cone_cylinder_section(&cone, &cyl, Interval::one(), band())
+            cone_cylinder_section(&cone, &cyl, fixture_lever(Interval::one()), band())
                 .expect("the coaxial pose classifies at the interval scalar");
         for (which, c) in [("c1", &c1), ("c2", &c2)] {
             for t in [0.0, 0.9, 2.2, -2.8, 5.1] {
@@ -2064,7 +2063,7 @@ fn plane_torus_meridian_cut_is_two_exact_circles_zero_residual() {
         normal: n,
         u_ref: m,
     };
-    let s = plane_torus_section(&plane, &tor, 1.0, band()).unwrap();
+    let s = plane_torus_section(&plane, &tor, fixture_lever(1.0), band()).unwrap();
     let PlaneTorusSection::MeridianCircles { c1, c2 } = s else {
         panic!("expected the meridian circles, got {s:?}");
     };
@@ -2122,7 +2121,7 @@ fn plane_torus_axis_normal_cut_is_two_concentric_circles_zero_residual() {
         normal: Vec3::unit_y(),
         u_ref: Vec3::unit_x(),
     };
-    let s = plane_torus_section(&plane, &tor, 1.0, band()).unwrap();
+    let s = plane_torus_section(&plane, &tor, fixture_lever(1.0), band()).unwrap();
     let PlaneTorusSection::ConcentricCircles { c1, c2 } = s else {
         panic!("expected the concentric circles, got {s:?}");
     };
@@ -2185,11 +2184,11 @@ fn plane_torus_cap_gap_trilean_trio() {
     };
     // Definite cut.
     assert!(matches!(
-        plane_torus_section(&plane_at(0.2), &tor, 1.0, band()).unwrap(),
+        plane_torus_section(&plane_at(0.2), &tor, fixture_lever(1.0), band()).unwrap(),
         PlaneTorusSection::ConcentricCircles { .. }
     ));
     // Exact tangency: the tube's top circle, radius exactly R.
-    let s = plane_torus_section(&plane_at(r), &tor, 1.0, band()).unwrap();
+    let s = plane_torus_section(&plane_at(r), &tor, fixture_lever(1.0), band()).unwrap();
     let PlaneTorusSection::TangentCircle(c) = s else {
         panic!("expected the tangency circle, got {s:?}");
     };
@@ -2211,13 +2210,13 @@ fn plane_torus_cap_gap_trilean_trio() {
     // Definite empty (both sides).
     for h in [r + 0.1, -(r + 0.1)] {
         assert!(matches!(
-            plane_torus_section(&plane_at(h), &tor, 1.0, band()).unwrap(),
+            plane_torus_section(&plane_at(h), &tor, fixture_lever(1.0), band()).unwrap(),
             PlaneTorusSection::Empty
         ));
     }
     // In-band: |h| = r + 3ε — neither tangent nor clear; escalated,
     // naming the predicate (the :919 precedent).
-    let err = plane_torus_section(&plane_at(r + 3.0 * eps()), &tor, 1.0, band())
+    let err = plane_torus_section(&plane_at(r + 3.0 * eps()), &tor, fixture_lever(1.0), band())
         .expect_err("in-band cap gap must escalate");
     let SectionError::Escalated(diag) = err else {
         panic!("expected escalation, got {err:?}");
@@ -2239,7 +2238,7 @@ fn plane_torus_axis_parallel_off_axis_is_two_spiric_ovals() {
         normal: Vec3::unit_x(),
         u_ref: Vec3::unit_y(),
     };
-    let s = plane_torus_section(&off, &tor, 1.0, band()).expect("the spiric arm");
+    let s = plane_torus_section(&off, &tor, fixture_lever(1.0), band()).expect("the spiric arm");
     let PlaneTorusSection::SpiricOvals { s1, s2 } = s else {
         panic!("expected the two spiric ovals, got {s:?}");
     };
@@ -2277,7 +2276,7 @@ fn plane_torus_tilted_and_offset_route_to_rung_3() {
         normal: Vec3::unit_x(),
         u_ref: Vec3::unit_y(),
     };
-    let err = plane_torus_section(&off, &tor, 1.0, band()).expect_err("node plane");
+    let err = plane_torus_section(&off, &tor, fixture_lever(1.0), band()).expect_err("node plane");
     let SectionError::RoutesToGeneralRung { pair, why } = err else {
         panic!("expected the routing refusal, got {err:?}");
     };
@@ -2293,7 +2292,8 @@ fn plane_torus_tilted_and_offset_route_to_rung_3() {
         normal: n,
         u_ref: Vec3::new(0.8, -0.6, 0.0),
     };
-    let err = plane_torus_section(&tilted, &tor, 1.0, band()).expect_err("tilted plane");
+    let err =
+        plane_torus_section(&tilted, &tor, fixture_lever(1.0), band()).expect_err("tilted plane");
     let SectionError::RoutesToGeneralRung { why, .. } = err else {
         panic!("expected the routing refusal, got {err:?}");
     };
@@ -2309,7 +2309,7 @@ fn plane_torus_tilted_and_offset_route_to_rung_3() {
         normal: Vec3::new((1.0 - s * s).sqrt(), s, 0.0),
         u_ref: Vec3::unit_z(),
     };
-    let err = plane_torus_section(&almost_in_plane, &tor, 1.0, band())
+    let err = plane_torus_section(&almost_in_plane, &tor, fixture_lever(1.0), band())
         .expect_err("in-band axis angle must escalate");
     let SectionError::Escalated(diag) = err else {
         panic!("expected escalation, got {err:?}");
@@ -2322,7 +2322,7 @@ fn plane_torus_tilted_and_offset_route_to_rung_3() {
         normal: Vec3::unit_x(),
         u_ref: Vec3::unit_y(),
     };
-    let err = plane_torus_section(&near_containing, &tor, 1.0, band())
+    let err = plane_torus_section(&near_containing, &tor, fixture_lever(1.0), band())
         .expect_err("in-band containment gap must escalate");
     let SectionError::Escalated(diag) = err else {
         panic!("expected escalation, got {err:?}");
@@ -2336,7 +2336,7 @@ fn plane_torus_tilted_and_offset_route_to_rung_3() {
         normal: Vec3::new(t, (1.0 - t * t).sqrt(), 0.0),
         u_ref: Vec3::unit_z(),
     };
-    let err = plane_torus_section(&almost_normal, &tor, 1.0, band())
+    let err = plane_torus_section(&almost_normal, &tor, fixture_lever(1.0), band())
         .expect_err("in-band axis-normal sine must escalate");
     let SectionError::Escalated(diag) = err else {
         panic!("expected escalation, got {err:?}");
@@ -2380,7 +2380,7 @@ fn plane_torus_ring_guard_and_wrong_lane() {
         ("horn", torus_y(0.3, 0.3), Some(false)),
         ("near horn", torus_y(0.3 + 3.0 * eps(), 0.3), None),
     ] {
-        let err = plane_torus_section(&plane, &tor, 1.0, band()).expect_err(what);
+        let err = plane_torus_section(&plane, &tor, fixture_lever(1.0), band()).expect_err(what);
         assert_eq!(
             torus_refusal(&err),
             (TorusConvention::Ring, decided),
@@ -2388,7 +2388,8 @@ fn plane_torus_ring_guard_and_wrong_lane() {
         );
     }
     let near_horn = torus_y(0.3 + 3.0 * eps(), 0.3);
-    let err = plane_torus_section(&plane, &near_horn, 1.0, band()).expect_err("near horn");
+    let err =
+        plane_torus_section(&plane, &near_horn, fixture_lever(1.0), band()).expect_err("near horn");
     let SectionError::DegenerateTorus(TorusRefusal {
         verdict: TorusVerdict::Undecided(diag),
         ..
@@ -2400,7 +2401,7 @@ fn plane_torus_ring_guard_and_wrong_lane() {
     // Wrong-lane kinds refuse typed, both sides.
     let tor = torus_y(0.75, 0.3);
     for (a, b) in [(&tor, &tor), (&plane, &plane)] {
-        let err = plane_torus_section(a, b, 1.0, band()).expect_err("wrong lane");
+        let err = plane_torus_section(a, b, fixture_lever(1.0), band()).expect_err("wrong lane");
         assert!(matches!(err, SectionError::WrongLane { .. }));
     }
 }
@@ -2435,7 +2436,7 @@ fn plane_torus_tube_guard_refuses_nonpositive_minor_radius() {
         ("r = 0, cap pose", torus_y(0.75, 0.0), &cap, false),
         ("R < 0 and r < 0", torus_y(-0.75, -0.9), &meridian, true),
     ] {
-        let err = plane_torus_section(plane, &tor, 1.0, band()).expect_err(what);
+        let err = plane_torus_section(plane, &tor, fixture_lever(1.0), band()).expect_err(what);
         assert_eq!(
             torus_refusal(&err),
             (TorusConvention::Tube, Some(negative)),
@@ -2443,8 +2444,13 @@ fn plane_torus_tube_guard_refuses_nonpositive_minor_radius() {
         );
     }
     // In-band twin: `r` at 3ε — neither a tube nor definitely not one.
-    let err = plane_torus_section(&cap, &torus_y(0.75, 3.0 * eps()), 1.0, band())
-        .expect_err("in-band tube radius must escalate");
+    let err = plane_torus_section(
+        &cap,
+        &torus_y(0.75, 3.0 * eps()),
+        fixture_lever(1.0),
+        band(),
+    )
+    .expect_err("in-band tube radius must escalate");
     let SectionError::DegenerateTorus(TorusRefusal {
         convention: TorusConvention::Tube,
         verdict: TorusVerdict::Undecided(diag),
@@ -2476,10 +2482,7 @@ fn the_ring_guard_ends_each_half_in_its_lever() {
         normal: Vec3::unit_y(),
         u_ref: Vec3::unit_x(),
     };
-    let reach = Reach::Measured {
-        at: Point3::new(1.0, 2.0, 3.0),
-        lever: 1.0,
-    };
+    let reach = Reach::of_frame(Point3::new(1.0, 2.0, 3.0), (1.0, 1.0));
     for (what, tor, half, lever) in [
         (
             "tube in band",
@@ -2508,9 +2511,9 @@ fn the_ring_guard_ends_each_half_in_its_lever() {
         ("horn", torus_y(0.3, 0.3), TorusConvention::Ring, RING),
         ("spindle", torus_y(0.3, 0.75), TorusConvention::Ring, RING),
     ] {
-        let err = plane_torus_section(&plane, &tor, 1.0, b).expect_err(what);
+        let err = plane_torus_section(&plane, &tor, fixture_lever(1.0), b).expect_err(what);
         assert_eq!(torus_refusal(&err).0, half, "{what}: {err:?}");
-        let text = err.to_string();
+        let text = err.render(geom_brep::recourse::Reading::Build);
         assert!(
             text.contains(lever)
                 && !text.contains("corrupt")
@@ -2539,7 +2542,7 @@ fn plane_torus_negative_station_pins_the_centre_sign() {
         normal: Vec3::unit_y(),
         u_ref: Vec3::unit_x(),
     };
-    let s = plane_torus_section(&plane_at(h), &tor, 1.0, band()).unwrap();
+    let s = plane_torus_section(&plane_at(h), &tor, fixture_lever(1.0), band()).unwrap();
     let PlaneTorusSection::ConcentricCircles { c1, c2 } = s else {
         panic!("expected the concentric circles, got {s:?}");
     };
@@ -2571,7 +2574,7 @@ fn plane_torus_negative_station_pins_the_centre_sign() {
         }
     }
     // The tangency at `h = −r`: the tube's BOTTOM circle.
-    let s = plane_torus_section(&plane_at(-r), &tor, 1.0, band()).unwrap();
+    let s = plane_torus_section(&plane_at(-r), &tor, fixture_lever(1.0), band()).unwrap();
     let PlaneTorusSection::TangentCircle(c) = s else {
         panic!("expected the tangency circle, got {s:?}");
     };
@@ -2611,7 +2614,7 @@ fn plane_torus_levers_are_live_at_non_unit_arms() {
         normal: Vec3::new((1.0 - s * s).sqrt(), s, 0.0),
         u_ref: Vec3::unit_z(),
     };
-    let m = plane_torus_section(&almost_in_plane, &tor, 0.01, band()).unwrap();
+    let m = plane_torus_section(&almost_in_plane, &tor, fixture_lever(0.01), band()).unwrap();
     assert!(
         matches!(m, PlaneTorusSection::MeridianCircles { .. }),
         "extent 0.01 puts a 3ε sine inside Zero: got {m:?}"
@@ -2626,7 +2629,7 @@ fn plane_torus_levers_are_live_at_non_unit_arms() {
         normal: Vec3::new(s, (1.0 - s * s).sqrt(), 0.0),
         u_ref: Vec3::unit_z(),
     };
-    let c = plane_torus_section(&almost_normal, &small, 1.0, band()).unwrap();
+    let c = plane_torus_section(&almost_normal, &small, fixture_lever(1.0), band()).unwrap();
     assert!(
         matches!(c, PlaneTorusSection::ConcentricCircles { .. }),
         "R + r = 0.25 puts a 3ε sine inside Zero: got {c:?}"
@@ -2696,7 +2699,7 @@ fn a_cones_tilted_seam_serves_its_circles_in_their_planes() {
     ] {
         let cone = cone_43(apex, stored_axis, seam);
         let ConeCylinderSection::CoaxialCircles { c1, c2 } =
-            cone_cylinder_section(&cone, &cyl, 1.0, band()).unwrap();
+            cone_cylinder_section(&cone, &cyl, fixture_lever(1.0), band()).unwrap();
         let s = plane_cone_section(&plane, &cone, &at_apex(&cone, 1.0), band()).unwrap();
         let PlaneConeSection::AxisNormalCircle(c3) = s else {
             panic!("{which}: the axis-normal circle, got {s:?}");
@@ -2736,7 +2739,7 @@ fn a_cones_tilted_seam_serves_its_circles_in_their_planes() {
     ] {
         let cone = cone_43(apex, axis, seam);
         let refused = |r: Result<(), SectionError>| matches!(r, Err(SectionError::DegenerateOperand { what }) if what.contains("seam"));
-        let coc = cone_cylinder_section(&cone, &cyl, 1.0, band()).map(|_| ());
+        let coc = cone_cylinder_section(&cone, &cyl, fixture_lever(1.0), band()).map(|_| ());
         let pn = plane_cone_section(&plane, &cone, &at_apex(&cone, 1.0), band()).map(|_| ());
         assert!(refused(coc.clone()), "{which}: cone×cylinder {coc:?}");
         assert!(refused(pn.clone()), "{which}: plane×cone {pn:?}");
@@ -2764,7 +2767,7 @@ fn cone_cylinder_coaxial_cut_is_two_exact_circles_zero_residual() {
         radius: big_r,
         u_ref: axis.cross(u_ref),
     };
-    let s = cone_cylinder_section(&cone, &cyl, 1.0, band()).unwrap();
+    let s = cone_cylinder_section(&cone, &cyl, fixture_lever(1.0), band()).unwrap();
     // `CoaxialCircles` is the arm's only live variant, so this pattern
     // is irrefutable — the classification's other outcomes are typed
     // ERRORS, not variants, and the refusal rows below are where they
@@ -2841,7 +2844,8 @@ fn cone_cylinder_tilted_and_offset_route_to_rung_3() {
         apex,
         (axis * 0.3_f64.cos() + u_ref * 0.3_f64.sin()).normalize(),
     );
-    let err = cone_cylinder_section(&cone, &tilted, 1.0, band()).expect_err("tilted cylinder");
+    let err = cone_cylinder_section(&cone, &tilted, fixture_lever(1.0), band())
+        .expect_err("tilted cylinder");
     let SectionError::RoutesToGeneralRung { pair, why } = err else {
         panic!("expected the routing refusal, got {err:?}");
     };
@@ -2853,7 +2857,8 @@ fn cone_cylinder_tilted_and_offset_route_to_rung_3() {
     refusal_is_grounded(why, "cone×cylinder tilted");
     // Parallel but 0.1 m off the axis.
     let off = cyl_at(apex + u_ref * 0.1, axis);
-    let err = cone_cylinder_section(&cone, &off, 1.0, band()).expect_err("offset cylinder");
+    let err = cone_cylinder_section(&cone, &off, fixture_lever(1.0), band())
+        .expect_err("offset cylinder");
     let SectionError::RoutesToGeneralRung { why, .. } = err else {
         panic!("expected the routing refusal, got {err:?}");
     };
@@ -2865,7 +2870,7 @@ fn cone_cylinder_tilted_and_offset_route_to_rung_3() {
     // Antiparallel and coaxial: the same configuration, and it cuts.
     let anti = cyl_at(apex - axis * 2.0, axis * -1.0);
     let ConeCylinderSection::CoaxialCircles { c1, .. } =
-        cone_cylinder_section(&cone, &anti, 1.0, band())
+        cone_cylinder_section(&cone, &anti, fixture_lever(1.0), band())
             .expect("an antiparallel coaxial cylinder still cuts");
     let Curve3::Circle(geom::Circle {
         frame: geom::Frame {
@@ -2893,7 +2898,7 @@ fn cone_cylinder_tilted_and_offset_route_to_rung_3() {
     // levered at extent 1.
     let t = 3.0 * eps();
     let almost = cyl_at(apex, (axis * (1.0 - t * t).sqrt() + u_ref * t).normalize());
-    let err = cone_cylinder_section(&cone, &almost, 1.0, band())
+    let err = cone_cylinder_section(&cone, &almost, fixture_lever(1.0), band())
         .expect_err("in-band axis angle must escalate");
     let SectionError::Escalated(diag) = err else {
         panic!("expected escalation, got {err:?}");
@@ -2901,7 +2906,7 @@ fn cone_cylinder_tilted_and_offset_route_to_rung_3() {
     assert_eq!(diag.predicate, Some("coc_axes_parallel"));
     // In-band on `coc_coaxial`: parallel, 3ε off the axis.
     let near = cyl_at(apex + u_ref * (3.0 * eps()), axis);
-    let err = cone_cylinder_section(&cone, &near, 1.0, band())
+    let err = cone_cylinder_section(&cone, &near, fixture_lever(1.0), band())
         .expect_err("in-band axis distance must escalate");
     let SectionError::Escalated(diag) = err else {
         panic!("expected escalation, got {err:?}");
@@ -2942,7 +2947,7 @@ fn cone_cylinder_convention_guards_and_wrong_lane() {
             cyl_r(0.5),
         ),
     ] {
-        let err = cone_cylinder_section(cone, &cyl, 1.0, band()).expect_err(what);
+        let err = cone_cylinder_section(cone, &cyl, fixture_lever(1.0), band()).expect_err(what);
         assert!(
             matches!(err, SectionError::DegenerateOperand { .. }),
             "{what}: got {err:?}"
@@ -2965,7 +2970,7 @@ fn cone_cylinder_convention_guards_and_wrong_lane() {
             "coc_aperture_cos",
         ),
     ] {
-        let err = cone_cylinder_section(cone, &cyl, 1.0, band())
+        let err = cone_cylinder_section(cone, &cyl, fixture_lever(1.0), band())
             .expect_err("an in-band guard must escalate");
         // The radius guard names whose radius it read; the aperture
         // guards escalate untyped
@@ -2993,7 +2998,7 @@ fn cone_cylinder_convention_guards_and_wrong_lane() {
         (&cone, &cone, "cylinder second"),
         (&cone, &plane_xy(), "cylinder second"),
     ] {
-        let err = cone_cylinder_section(a, b, 1.0, band()).expect_err("wrong lane");
+        let err = cone_cylinder_section(a, b, fixture_lever(1.0), band()).expect_err("wrong lane");
         let SectionError::WrongLane { expected } = err else {
             panic!("expected the wrong-lane refusal, got {err:?}");
         };
@@ -3031,7 +3036,8 @@ fn cone_cylinder_parallel_lever_is_live_at_a_non_unit_arm() {
         radius: 0.5,
         u_ref: axis.cross(u_ref),
     };
-    let err = cone_cylinder_section(&cone, &cyl, 100.0, band()).expect_err("tilted at extent 100");
+    let err = cone_cylinder_section(&cone, &cyl, fixture_lever(100.0), band())
+        .expect_err("tilted at extent 100");
     assert!(
         matches!(err, SectionError::RoutesToGeneralRung { .. }),
         "the large arm reads the same sine as definite: got {err:?}"
@@ -3050,7 +3056,7 @@ fn cone_cylinder_parallel_lever_is_live_at_a_non_unit_arm() {
         u_ref: axis.cross(u_ref),
     };
     let ConeCylinderSection::CoaxialCircles { c1, c2 } =
-        cone_cylinder_section(&cone, &small, 0.01, band())
+        cone_cylinder_section(&cone, &small, fixture_lever(0.01), band())
             .expect("the small arm reads the same sine as Zero");
     for c in [&c1, &c2] {
         let Curve3::Circle(geom::Circle { radius, .. }) = *c else {
@@ -3078,12 +3084,14 @@ fn cone_cylinder_parallel_lever_is_linear_in_the_extent() {
         radius: 0.002,
         u_ref: axis.cross(u_ref),
     };
-    let err = cone_cylinder_section(&cone, &cyl, 1.0, band()).expect_err("definite at extent 1");
+    let err = cone_cylinder_section(&cone, &cyl, fixture_lever(1.0), band())
+        .expect_err("definite at extent 1");
     assert!(
         matches!(err, SectionError::RoutesToGeneralRung { .. }),
         "30ε at extent 1 is definitely tilted: got {err:?}"
     );
-    let err = cone_cylinder_section(&cone, &cyl, 0.1, band()).expect_err("in-band at extent 0.1");
+    let err = cone_cylinder_section(&cone, &cyl, fixture_lever(0.1), band())
+        .expect_err("in-band at extent 0.1");
     let SectionError::Escalated(diag) = err else {
         panic!("30ε at extent 0.1 levers to 3ε and must escalate, got {err:?}");
     };
@@ -3112,7 +3120,7 @@ fn cone_cylinder_aperture_guard_is_levered() {
         radius: 0.002,
         u_ref: axis.cross(u_ref),
     };
-    let err = cone_cylinder_section(&cone, &cyl, 0.1, band())
+    let err = cone_cylinder_section(&cone, &cyl, fixture_lever(0.1), band())
         .expect_err("the in-band aperture must escalate");
     let SectionError::Escalated(diag) = err else {
         panic!("expected the aperture escalation, got {err:?}");
@@ -3150,9 +3158,13 @@ fn cone_cylinder_station_reach_is_the_admission_criterion() {
         u_ref,
     };
     // Row 1: the well-posed pose. Station 0.375 inside extent 1.
-    let ConeCylinderSection::CoaxialCircles { c1, .. } =
-        cone_cylinder_section(&cone_43(apex, axis, u_ref), &cyl_r(0.5), 1.0, band())
-            .expect("a station well inside the reach mints");
+    let ConeCylinderSection::CoaxialCircles { c1, .. } = cone_cylinder_section(
+        &cone_43(apex, axis, u_ref),
+        &cyl_r(0.5),
+        fixture_lever(1.0),
+        band(),
+    )
+    .expect("a station well inside the reach mints");
     let Curve3::Circle(geom::Circle {
         frame: geom::Frame { center, .. },
         ..
@@ -3167,8 +3179,13 @@ fn cone_cylinder_station_reach_is_the_admission_criterion() {
     // Row 2: R1's falsifier, robustly spelled — a half-angle whose
     // levered aperture margin is definitely positive at this extent
     // (30ε) and whose station is 1.7e9 m.
-    let err = cone_cylinder_section(&cone_at((0.3 * eps()).asin()), &cyl_r(0.5), 100.0, band())
-        .expect_err("a station beyond the reach must refuse");
+    let err = cone_cylinder_section(
+        &cone_at((0.3 * eps()).asin()),
+        &cyl_r(0.5),
+        fixture_lever(100.0),
+        band(),
+    )
+    .expect_err("a station beyond the reach must refuse");
     let SectionError::BeyondOperandExtent { what } = err else {
         panic!("expected the extent refusal, got {err:?}");
     };
@@ -3180,7 +3197,7 @@ fn cone_cylinder_station_reach_is_the_admission_criterion() {
     // margin sits exactly on the escalation boundary, so WHICH door
     // refuses is a boundary detail; that it refuses is not.
     assert!(
-        cone_cylinder_section(&cone_at(1e-10), &cyl_r(0.5), 100.0, band()).is_err(),
+        cone_cylinder_section(&cone_at(1e-10), &cyl_r(0.5), fixture_lever(100.0), band()).is_err(),
         "α = 1e-10 at extent 100 must not mint"
     );
     // Row 3: the in-band twin — a station 3ε short of the reach.
@@ -3189,7 +3206,7 @@ fn cone_cylinder_station_reach_is_the_admission_criterion() {
     let r_at = |want_station: f64| want_station * (alpha.sin() / alpha.cos());
     let r = r_at(1.0 - 3.0 * eps());
     assert!((station(r) - (1.0 - 3.0 * eps())).abs() < 1e-14);
-    let err = cone_cylinder_section(&cone_at(alpha), &cyl_r(r), 1.0, band())
+    let err = cone_cylinder_section(&cone_at(alpha), &cyl_r(r), fixture_lever(1.0), band())
         .expect_err("a station 3ε inside the reach is in-band");
     let SectionError::Escalated(diag) = err else {
         panic!("expected the station escalation, got {err:?}");

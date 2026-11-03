@@ -444,14 +444,14 @@ fn corner(filleted: bool) -> LoopProgram<Formula> {
     LoopProgram::Chain(steps)
 }
 
-/// **A fillet inserted before a framed leg is counted before Apply and
-/// reported after it.** The path editor keeps every step and inserts
+/// **A fillet inserted before a framed leg is counted before it lands
+/// and reported after.** The path editor keeps every step and inserts
 /// a fillet at the corner below the right wall: the fillet's run out
 /// takes that wall's segment, so the kept leg the frame names is no
-/// longer drawn. The door's own pre-click report — what the Apply
-/// button counts — names the frame's strand, and the landed edit
-/// reports the same row to the line, the kept leg said at its row in
-/// the program the edit made.
+/// longer drawn. The door's own report before the commit — the verdict
+/// the editor asks for before a change lands — names the frame's
+/// strand, and the landed edit reports the same row to the line, the
+/// kept leg said at its row in the program the edit made.
 #[test]
 fn a_fillet_inserted_before_a_framed_leg_is_counted_and_reported() {
     let doc: Doc<ProfileProgram> = Doc::empty_derived("maint-profile-shadow", Tol::witness());
@@ -485,7 +485,7 @@ fn a_fillet_inserted_before_a_framed_leg_is_counted_and_reported() {
             .steps_respoken(session.committed_doc()),
         took: pncad::document::Took::Piece,
     }];
-    assert_eq!(counted, expected, "the count Apply shows before the click");
+    assert_eq!(counted, expected, "the report before the change lands");
     assert_eq!(
         crate::fixture::without_anonymous(&outcome.maintenance),
         expected
@@ -652,12 +652,16 @@ fn a_mates_fixed_freedoms_leave_the_draft_before_apply() {
     tool.pick(session.doc(), b);
     let proposal =
         common::proposed(&session, &tool, asm::seat_choice()).expect("the seat proposes");
-    let coords: Vec<Coord> = proposal.values.iter().map(|row| row.coord).collect();
+    let coords: Vec<Coord<pncad::document::Operand>> = proposal
+        .values
+        .iter()
+        .map(|row| row.coord.clone())
+        .collect();
     assert_eq!(
         coords,
         [
-            Coord::Slide(TargetAxis::X),
-            Coord::Slide(TargetAxis::Y),
+            Coord::slide(TargetAxis::X),
+            Coord::slide(TargetAxis::Y),
             Coord::SPIN
         ],
         "a rest along z leaves two slides and its spin"

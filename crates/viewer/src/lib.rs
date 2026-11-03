@@ -50,6 +50,15 @@
 //! in this crate (G4's ratified micro-decision in GUI-DESIGN, and
 //! `mesh`'s own δ-is-not-ε contract).
 
+/// **A refusal as the viewer shows it**: ended at rest
+/// (`pncad::geom_brep::recourse::Ended`). The viewer draws and measures
+/// a body it holds, so the one reading a nested ending takes here is
+/// the at-rest one; this is that door's one spelling.
+#[must_use]
+pub fn shown(refusal: &impl pncad::geom_brep::recourse::Ended) -> String {
+    refusal.ended(pncad::geom_brep::recourse::Reading::AtRest.into())
+}
+
 pub mod blend;
 pub mod bounds;
 pub mod camera;
@@ -79,7 +88,6 @@ pub mod screen;
 pub mod seats;
 pub mod session;
 pub mod sketch;
-pub mod splitplane;
 pub mod theme;
 pub mod tools;
 pub mod tree;
@@ -145,8 +153,7 @@ pub use camera::{Camera, CameraError, CameraOp, CameraOpError, cursor_projection
 pub use docio::DocIoError;
 pub use evalseam::{
     DoorDone, DoorRequest, DoorService, EvalDone, EvalRequest, EvalService, IndexDone,
-    IndexRequest, IndexService, InlineEvaluator, InlineIndexer, InlineProver, InlineStager,
-    StagedDone, StagedKey, StagedRequest, StagedService,
+    IndexRequest, IndexService, InlineEvaluator, InlineIndexer, InlineProver,
 };
 // The two seam lanes are meant to be interchangeable, so they are named
 // the same way. `ThreadEvaluator` carries the `cfg` its module does.
@@ -155,9 +162,7 @@ pub use display::{
     free_move_check, space_check,
 };
 #[cfg(not(target_family = "wasm"))]
-pub use evalseam::{
-    SpawnError, ThreadEvaluator, ThreadIndexer, ThreadProver, ThreadStager, Worker,
-};
+pub use evalseam::{SpawnError, ThreadEvaluator, ThreadIndexer, ThreadProver, Worker};
 pub use generation::Generation;
 pub use history::{History, HistoryId};
 pub use input::{InputMap, PickAction, PointerButton, ViewportEvent, ViewportSize};
@@ -180,7 +185,7 @@ pub use scene::{DisplayTolerance, SceneDocError, SceneError, SceneMesh, ScenePar
 pub use seats::{Seat, SeatError, SeatEvent, Seats, seat_line};
 pub use session::{
     BoundsReading, DocSession, EdgeSelection, FaceSelection, GestureFrameFault, Hovered, Landing,
-    NodeKindWanted, OpOutcome, PatternRuleSpec, ProfileShape, Refusal, Selection, SessionOp,
+    NodeKindWanted, OpOutcome, PatternDirection, PatternRuleSpec, Refusal, Selection, SessionOp,
     Standing, VertexSelection,
 };
 pub use theme::{Mark, MixFraction, Polarity, Safety, Theme};

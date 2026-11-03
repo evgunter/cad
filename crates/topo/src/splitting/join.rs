@@ -456,6 +456,16 @@ struct Crossing<T: Decide> {
     germ: Option<geom_core::Vec3<T>>,
 }
 
+/// The farthest a face's crossings stand from `from`: a read of the
+/// points they consume.
+fn crossing_reach<T: Decide>(crossings: &[Crossing<T>], from: Point3<T>) -> geom_core::Lever<T> {
+    crossings
+        .iter()
+        .fold(geom_brep::ExtentBall::point(from).lever(), |far, c| {
+            far.max(geom_brep::ExtentBall::point(c.point).lever_from(from))
+        })
+}
+
 /// A planar face's crossings paired along its section line: keyed by
 /// their along-line coordinate `(p − origin)·d̂`, `d = n_face × n_plane`,
 /// ordered by [`super::order::sort_along_line`], each taking the first
@@ -479,10 +489,7 @@ fn line_pairs<T: Decide>(
     crossings: &[Crossing<T>],
     band: Band,
 ) -> Result<Vec<(HalfEdgeKey, HalfEdgeKey)>, SplitJoinError> {
-    let mut spread = T::zero();
-    for c in crossings {
-        spread = spread.max((c.point - crossings[0].point).norm());
-    }
+    let spread = crossing_reach(crossings, crossings[0].point);
     let d = normal.cross(red.plane.normal.get());
     match decide(
         "split_join_face_line",
@@ -591,10 +598,7 @@ fn ruling_pairs<T: Decide>(
                 "split_join_ruling_germ",
                 Margin::levered(
                     germ.cross(lines[1].1).norm() - germ.cross(lines[0].1).norm(),
-                    crossings
-                        .iter()
-                        .map(|o| (o.point - c.point).norm())
-                        .fold(T::zero(), T::max),
+                    crossing_reach(crossings, c.point),
                 ),
                 band,
             ),

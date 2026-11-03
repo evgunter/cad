@@ -89,7 +89,7 @@ mod certified {
             "the margin itself is carried as the enclosure it is: {:?}",
             margin.reading
         );
-        let text = err.to_string();
+        let text = err.render(geom_brep::recourse::Reading::Build);
         assert!(
             !text.contains("0.1 m apart"),
             "the gap was [0.1, 0.2] m; the refusal states its lower end as the distance: {text}"
@@ -106,7 +106,8 @@ mod certified {
         let tau_in = Vec3::new(one, z, z);
         let tau_out = Vec3::new(z, one, z);
         let arm = Interval::from_bounds(0.5, 1.0);
-        let err = chain_g1(tau_in, tau_out, arm, VertexKey::default(), band())
+        let lever = geom_core::test_support::fixture_lever(arm);
+        let err = chain_g1(tau_in, tau_out, lever, VertexKey::default(), band())
             .expect_err("a 90° kink refuses G1 definitely");
         let BlendError::ChainNotG1 { margin, .. } = &err else {
             panic!("expected ChainNotG1, got {err:?}");
@@ -120,7 +121,7 @@ mod certified {
             "sin θ · arm over a wide arm is an enclosure: {:?}",
             margin.reading
         );
-        let text = err.to_string();
+        let text = err.render(geom_brep::recourse::Reading::Build);
         assert!(
             !text.contains("lever arm 0.5 m"),
             "the arm was [0.5, 1] m; the refusal states its lower end as the lever: {text}"

@@ -56,7 +56,7 @@ fn frame_at(p: &geom::Surface<f64>, lever: f64) -> Loops {
             a,
             b,
             Point3::new(BIG_R, 0.0, 0.0),
-            FrameExtent::Reach(lever),
+            FrameExtent::Reach(geom_core::test_support::fixture_lever(lever)),
             band(),
         )
     };
@@ -81,7 +81,10 @@ fn shape(got: &Loops) -> String {
         Ok(None) => "straight".into(),
         Err(FrameError::Escalated { diag: d, .. }) => format!("escalated {:?}", d.predicate),
         Err(FrameError::Desync(what)) => format!("desync {what}"),
-        Err(FrameError::Spiric { loops, section }) => format!("spiric {loops:?} {section}"),
+        Err(FrameError::Spiric { loops, section }) => format!(
+            "spiric {loops:?} {section_at}",
+            section_at = section.render(geom_brep::recourse::Reading::Build)
+        ),
         Err(FrameError::NoArm) => "no arm".into(),
         Err(FrameError::OpenConic { .. }) => "an open conic".into(),
         Err(FrameError::DegenerateTorus { convention, .. }) => {
@@ -430,7 +433,7 @@ fn a_torus_off_its_ring_is_refused_as_the_pierce_refuses_it() {
             &torus,
             &p,
             Point3::new(big_r, 0.0, 0.0),
-            FrameExtent::Reach(REACH),
+            FrameExtent::Reach(geom_core::test_support::fixture_lever(REACH)),
             b,
         );
         let Err(e) = got else {
@@ -455,7 +458,7 @@ fn a_torus_off_its_ring_is_refused_as_the_pierce_refuses_it() {
             ) => assert_eq!(*got, half, "{what}"),
             _ => panic!("{what}: the pierce's refusal of the half, got {err:?}"),
         }
-        let text = err.to_string();
+        let text = err.render(geom_brep::recourse::Reading::Build);
         assert!(
             text.contains(lever) && !text.contains("desync") && !text.contains("corrupt"),
             "{what}: the half's lever: {text}"

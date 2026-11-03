@@ -50,3 +50,12 @@ which is contact semantics, and the D10 hold
 radii 1 and 0.7. It asserts only that they build sound or refuse typed.
 A tube that ends on a half ball from inside, its wall leaving through
 the flat face, crosses something and builds (the same family).
+
+## The D10 hold has lifted (2026-11-03)
+
+INTENT closed on 2026-10-30 with D10's umbrella row (#6103,
+`docs/doc-ledger/intent-leaves-the-tracker.md`), so the hold that
+"may gate it" above no longer stands. What the row waits on is its own
+design question (what the boolean does with a touch whose difference
+pinches along a curve), weighed by a designer pair before a lane
+builds it.

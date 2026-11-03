@@ -89,14 +89,13 @@ fn contacts(body: &Body<f64>) -> Vec<Contact> {
         );
         let carrier = c.carrier();
         let (t0, t1) = c.params();
-        let chord = carrier.eval(t0).distance(carrier.eval(t1));
-        let extent = edge_extent_inf(carrier, t0, t1, chord);
+        let extent = edge_extent_inf(carrier, t0, t1, (carrier.eval(t0), carrier.eval(t1)));
         let min_margin = (1..CERT_SAMPLES - 1)
             .map(|i| {
                 let t = sample_param(t0, t1, i);
                 let reading =
                     tangent_second_order(s1, s2, carrier.eval(t), carrier.deriv(t), extent, band);
-                Margin::sagitta(reading.jet.kappa_rel.abs(), reading.arm).value()
+                Margin::sagitta(reading.jet.kappa_rel.abs(), reading.arm.length()).value()
             })
             .fold(f64::INFINITY, f64::min);
         out.push(Contact {
@@ -130,7 +129,10 @@ fn in_band(result: Result<Filleted<f64>, BlendRefusal>, what: &str) -> (f64, Str
                 source,
             } = &error
             else {
-                panic!("{what}: not the rule's in-band escalation: {error}");
+                panic!(
+                    "{what}: not the rule's in-band escalation: {error_at}",
+                    error_at = error.render(geom_brep::recourse::Reading::Build)
+                );
             };
             assert_eq!(source.predicate, Some("tangent_second_order"), "{what}");
             let ErrorTextReading::Value(m) = source.margin.diagnostic_f64_for_error_text() else {
@@ -141,7 +143,7 @@ fn in_band(result: Result<Filleted<f64>, BlendRefusal>, what: &str) -> (f64, Str
                 m > b.zero() && m < b.escalate(),
                 "{what}: the margin {m:e} is strictly inside the band"
             );
-            let shown = error.to_string();
+            let shown = error.render(geom_brep::recourse::Reading::Build);
             assert!(
                 shown.contains(FILLET3_CONTACT_RECOURSE),
                 "{what}: the contact recourse is rendered.\n  got: {shown}"
@@ -407,7 +409,12 @@ fn r2_the_recourse_names_the_peak_and_the_smaller_radius_past_it() {
         2.0 * r0,
         tol(),
     )
-    .unwrap_or_else(|e| panic!("blending a larger feature is followable: {e}"));
+    .unwrap_or_else(|e| {
+        panic!(
+            "blending a larger feature is followable: {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        )
+    });
     let rows = contacts(&out.body);
     assert!(
         !rows.is_empty()
@@ -464,7 +471,8 @@ fn r2_a_sphere_support_toward_osculation_never_reaches_the_rule() {
                         ..
                     } if source.predicate == Some("tangent_second_order")
                 ),
-                "r = {r} reached the rule in band at ordinary scale: {error}"
+                "r = {r} reached the rule in band at ordinary scale: {error_at}",
+                error_at = error.render(geom_brep::recourse::Reading::Build)
             ),
         }
     }
@@ -494,8 +502,13 @@ fn r2_the_rules_stations_scale_with_the_contact_edge_count() {
     let mut seen = Vec::new();
     for request in [&creases[..1], &creases[..]] {
         k_stats::start_recording();
-        let out = fillet_edges(&body, request, Probe(ROD_FILLET), tol())
-            .unwrap_or_else(|e| panic!("{} crease(s) carve: {e}", request.len()));
+        let out = fillet_edges(&body, request, Probe(ROD_FILLET), tol()).unwrap_or_else(|e| {
+            panic!(
+                "{} crease(s) carve: {e_at}",
+                request.len(),
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        });
         let spent = k_stats::take_samples()
             .iter()
             .filter(|s| s.predicate == "tangent_second_order")

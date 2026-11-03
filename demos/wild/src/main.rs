@@ -341,7 +341,7 @@ fn main() {
     for (fixture, class) in WILD_REFUSALS {
         match import_step(&fixture_text(fixture), &ImportOptions::default(), tol) {
             Err(e) => {
-                let msg = e.to_string();
+                let msg = e.render();
                 assert!(
                     msg.contains(class),
                     "{fixture}: refusal drifted off its pinned class {class:?}: {msg}"

@@ -611,7 +611,7 @@ fn cylinder_near_aperture(rng: &mut Rng, k: &Frame) -> Option<Pose> {
     let d = leaning(rng, k, k.alpha + lean);
     let o = k.apex + unit_vec(rng) * (sc * rng.range(0.0, 1.5));
     let r = sc * rng.range(0.1, 1.5);
-    let lever = 4.0 * reach_of(k).radius;
+    let lever = 4.0 * reach_of(k).ball().radius();
     Some(Pose {
         what: format!("cylinder near the aperture (lean {lean}) o {o:?} d {d:?} r {r}"),
         partner: cylinder(o, d, r, sc),
@@ -724,7 +724,7 @@ fn cone_near_asymptote(rng: &mut Rng, k: &Frame) -> Option<Pose> {
     }
     let a2 = leaning(rng, k, beta);
     let apex = k.apex + unit_vec(rng) * (sc * rng.range(0.2, 2.0));
-    let lever = 4.0 * reach_of(k).radius;
+    let lever = 4.0 * reach_of(k).ball().radius();
     Some(Pose {
         what: format!("cone near the asymptote (lean {lean}) apex {apex:?} a {a2:?} α {alpha}"),
         partner: cone(frame(apex, a2, alpha, sc)),
@@ -770,10 +770,7 @@ fn traceable(k: &Frame, partner: &Surface<f64>) -> bool {
 
 /// The reach every search pose is classified with.
 fn reach_of(k: &Frame) -> Reach<f64> {
-    Reach {
-        centre: k.apex,
-        radius: 5.0 * k.scale,
-    }
+    geom_brep::Reach::Ball(geom_brep::ExtentBall::of_sphere(k.apex, 5.0 * k.scale))
 }
 
 fn class_on(c: &Component<f64>, essential: bool) -> Class {
@@ -820,7 +817,7 @@ fn must_answer(scale: f64) -> f64 {
 /// and a tangency at infinity ([`off_asymptotic_planes`]). Angles are
 /// levered by four reach radii. Read from the carriers, not the arm.
 fn clear_of(k: &Frame, partner: &Surface<f64>) -> f64 {
-    let lever = 4.0 * reach_of(k).radius;
+    let lever = 4.0 * reach_of(k).ball().radius();
     let off_cone = |apex: Point3<f64>, a: Vec3<f64>, alpha: f64, q: Point3<f64>| {
         let w = q - apex;
         let h = w.dot(a);
@@ -1048,7 +1045,7 @@ fn check(k: &Frame, pose: &Pose) -> (Outcome, Vec<String>) {
     let sec = classify(
         &cone,
         partner,
-        reach,
+        &reach,
         None,
         Some(geom_brep::SsiLane::marched()),
         b,
@@ -1056,7 +1053,7 @@ fn check(k: &Frame, pose: &Pose) -> (Outcome, Vec<String>) {
     let back = classify(
         partner,
         &cone,
-        reach,
+        &reach,
         None,
         Some(geom_brep::SsiLane::marched()),
         b,
@@ -1285,7 +1282,7 @@ fn dump_for_the_mpmath_oracle() {
             let sec = classify(
                 &k.surface(),
                 &pose.partner.surface,
-                reach_of(&k),
+                &reach_of(&k),
                 None,
                 Some(geom_brep::SsiLane::marched()),
                 band(),

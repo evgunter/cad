@@ -21,10 +21,12 @@
 //!   the row's control point: `f` there is decided clear of the band, of
 //!   one sign, or the pose refuses, naming the side.
 //! - **The pass and the sweep**: the wall's boundary pass against the
-//!   form ([`ImplicitWall::pass`]) and the regularity sweep
-//!   ([`super::sweep`]), as on the plane. A declined sweep is the
-//!   general rung's: the whole reading over the rectangle that a plane's
-//!   pose falls to is not built for a curved partner.
+//!   form ([`ImplicitSection::pass`]) and the regularity sweep
+//!   ([`super::sweep`]), as on the plane. Where the sweep declines, the
+//!   pose is read whole on the same pass, as a plane's is: C3's 1×2
+//!   reading over the wall's rectangle ([`ImplicitSection::all`]), every
+//!   component listed (`super::listed`), its witness bracketed against
+//!   the form.
 
 use geom::NurbsSurface;
 use geom_core::interval::certification::Certification;
@@ -35,21 +37,28 @@ use geom_core::{Band, Bounds, Interval, Margin, Vec3};
 
 use super::super::{ChartReach, Components, PairSection};
 use super::sweep::{self, Phi, Sweep};
-use super::{Hull, SplineImplicitPose, contact_reach, door_on, hull_verdict};
+use super::{Bracketed, Hull, SplineImplicitPose, contact_reach, door_on, hull_verdict, listed};
 use crate::intersect::SectionError;
-use crate::ssi::residual::{Curved, Form, ImplicitWall};
+use crate::ssi::ImplicitSection;
+use crate::ssi::residual::{Curved, Form};
 
-/// **The one refusal of a curved partner's pose the classification
-/// does not decide**: the whole reading over the wall's knot rectangle,
-/// which a plane's pose falls to, is not built for a curved partner. A
-/// declined sweep and a reading asked whole both end here.
-pub(super) fn unbuilt() -> SectionError {
-    SectionError::RoutesToGeneralRung {
-        pair: "a NURBS wall and a cylinder, sphere or torus",
-        why: "the regularity sweep does not decide the section loop-free, and the whole \
-              reading over the wall's knot rectangle that would list its components is not \
-              built for a curved partner",
-    }
+/// **The section read whole** (module docs): C3's 1×2 reading over the
+/// wall's rectangle, every component listed.
+///
+/// # Errors
+///
+/// The reading's refusal, mapped ([`super::super::whole_reading_refused`]),
+/// and [`super::listed`]'s.
+pub(super) fn whole(
+    pose: &SplineImplicitPose<f64>,
+    band: Band,
+) -> Result<PairSection<f64>, SectionError> {
+    let partner = pose.partner().clone();
+    let reading = ImplicitSection::of(&partner, pose.net(), pose.domain(), band)
+        .map_err(super::super::whole_reading_refused)?;
+    let curved = reading.curved().clone();
+    let out = reading.all().map_err(super::super::whole_reading_refused)?;
+    listed(pose.clone(), Bracketed::Curved(&partner, &curved), out)
 }
 
 /// **The pair's classification, the march door's arm for a curved
@@ -62,8 +71,8 @@ pub(super) fn unbuilt() -> SectionError {
 /// hull's [`SectionError::CoincidentSurfaces`] and
 /// [`SectionError::Escalated`]; the door's
 /// [`SectionError::Unaccounted`]; the pass's refusals, mapped
-/// ([`super::super::whole_reading_refused`]); and
-/// [`SectionError::RoutesToGeneralRung`] where the sweep declines.
+/// ([`super::super::whole_reading_refused`]); and, where the sweep
+/// declines, the whole reading's ([`whole`]).
 pub(super) fn section(
     pose: SplineImplicitPose<f64>,
     band: Band,
@@ -75,28 +84,33 @@ pub(super) fn section(
     }
     door(&curved, pose.net(), band)?;
     let domain = pose.domain();
-    let wall =
-        ImplicitWall::of(pose.net(), domain, band).map_err(super::super::whole_reading_refused)?;
-    let pass = wall
-        .pass(&curved)
+    let partner = pose.partner().clone();
+    let reading = ImplicitSection::of(&partner, pose.net(), domain, band)
         .map_err(super::super::whole_reading_refused)?;
-    let reach = pass
-        .crossings
-        .iter()
-        .map(|c| ChartReach::side(c.at.side))
-        .chain(pass.contacts.iter().map(contact_reach))
-        .fold(ChartReach::default(), ChartReach::or);
+    let reach = {
+        let pass = reading
+            .pass()
+            .map_err(super::super::whole_reading_refused)?;
+        pass.crossings
+            .iter()
+            .map(|c| ChartReach::side(c.at.side))
+            .chain(pass.contacts.iter().map(contact_reach))
+            .fold(ChartReach::default(), ChartReach::or)
+    };
     match sweep::sweep(
-        wall.boxes(),
+        reading.boxes(),
         Phi::Curved(&curved),
-        wall.account_floor(),
+        reading.account_floor(),
         band,
-        domain.extent,
+        pose.ball().certified_diameter(),
     ) {
-        Sweep::Declined(_) => Err(unbuilt()),
+        Sweep::Declined(_) => {
+            let out = reading.all().map_err(super::super::whole_reading_refused)?;
+            listed(pose, Bracketed::Curved(&partner, &curved), out)
+        }
         Sweep::LoopFree(decided) => {
-            let witnesses = super::witnesses(wall.boxes(), &decided);
-            drop(wall);
+            let witnesses = super::witnesses(reading.boxes(), &decided);
+            drop(reading);
             super::loop_free(pose, reach, &decided, &witnesses)
         }
     }

@@ -144,7 +144,7 @@ fn r1_read_back_at_the_chains_pole_turns_as_the_rotation_does() {
         Vec3::new(-c, -s, 0.0),
     );
     let at = Affine3::from_parts(r, Vec3::zero());
-    let coords = [
+    let coords: [Coord; 3] = [
         Coord::Spin(Some(TargetAxis::X)),
         Coord::Spin(Some(TargetAxis::Y)),
         Coord::Spin(Some(TargetAxis::Z)),
@@ -240,7 +240,7 @@ fn r1_a_number_typed_on_a_freedom_a_later_kind_takes_does_not_wedge_the_draft() 
     tool.pick(session.doc(), post_top);
     tool.pick(session.doc(), shelf_bottom);
     let mut tool = tool.chosen(choice(VarKind::Plane, true)).expect("a rest");
-    tool.type_value(Coord::Slide(TargetAxis::X), common::len(0.01));
+    tool.type_value(Coord::slide(TargetAxis::X), common::len(0.01));
     assert!(
         common::proposed(&session, &tool, choice(VarKind::Plane, true)).is_ok(),
         "the premise: the rest leaves x"

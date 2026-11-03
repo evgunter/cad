@@ -295,6 +295,7 @@ dependencies = [
 name = "geom-brep"
 version = "0.0.0"
 dependencies = [
+ "bvh",
  "geom",
  "geom-core",
  "slotmap",
@@ -667,6 +668,7 @@ name = "step-export"
 version = "0.0.0"
 dependencies = [
  "geom",
+ "geom-brep",
  "geom-core",
  "topo",
 ]
@@ -780,6 +782,7 @@ checksum = "e6e4313cd5fcd3dad5cafa179702e2b244f760991f45397d14d4ebf38247da75"
 name = "verbs"
 version = "0.0.0"
 dependencies = [
+ "geom-brep",
  "geom-core",
  "profile",
  "sweep",

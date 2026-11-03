@@ -610,10 +610,10 @@ impl crate::spoken::Say for NodeStanding {
                 "{} has no result in this evaluation: the run stopped before it reached \
                  the node, canceled or out of its member budget. {}",
                 by.node(node),
-                Recourse(
-                    "re-evaluate the document to completion, under a member budget that \
-                     admits its families"
-                )
+                Recourse(format_args!(
+                    "re-evaluate the document to completion; where it ran out, {}",
+                    crate::sentence::RAISE_THE_MEMBER_BUDGET
+                ))
             ),
             Self::NotInDocument { node } => write!(
                 f,
@@ -1981,12 +1981,13 @@ pub enum NodeErrorKind {
     /// The measured expression has no closed form for the carrier pair
     /// it was asked about (E3's honest v1 scope).
     MeasureUnsupported(measure::MeasureUnsupported),
-    /// A node's PAYLOAD expression failed to evaluate — an assertion's
-    /// value or its bound.
+    /// A node's PAYLOAD expression failed to evaluate — a value
+    /// claim's value or its bound. A clearance's bound is a slot, and
+    /// fails as [`Self::Expr`] at it.
     ///
     /// The address is the expression's position in `payload_exprs`
-    /// order, because an assertion has no slot vocabulary to name. The
-    /// rendering says WHICH one it is.
+    /// order, because a value claim's two expressions have no slot
+    /// address. The rendering says WHICH one it is.
     PayloadExpr {
         /// Which node kind's payload this is, for the message.
         what: &'static str,
@@ -2103,13 +2104,30 @@ impl crate::spoken::Say for NodeErrorKind {
                     "update the reference to a version of the part that names it"
                 ),
             ),
-            Self::Extrude(e) => write!(f, "the extrude op refused: {e}"),
-            Self::Revolve(e) => write!(f, "the revolve op refused: {e}"),
+            // Every node is read at the build that ran it.
+            Self::Extrude(e) => write!(
+                f,
+                "the extrude op refused: {}",
+                e.render(geom_brep::recourse::Reading::Build)
+            ),
+            Self::Revolve(e) => write!(
+                f,
+                "the revolve op refused: {}",
+                e.render(geom_brep::recourse::Reading::Build)
+            ),
             // The kernel error says which tube it is (solid or
             // hollow), so this line names neither: a wrapper that did
             // would read a hollow refusal as a solid one half the time.
-            Self::Tube(e) => write!(f, "the tube op refused: {e}"),
-            Self::Split(e) => write!(f, "the split op refused: {e}"),
+            Self::Tube(e) => write!(
+                f,
+                "the tube op refused: {}",
+                e.render(geom_brep::recourse::Reading::Build)
+            ),
+            Self::Split(e) => write!(
+                f,
+                "the split op refused: {}",
+                e.render(geom_brep::recourse::Reading::Build)
+            ),
             Self::ContactCarry { refusal } => {
                 use topo::CarryRefusal as R;
                 let what = match refusal {
@@ -2132,20 +2150,44 @@ impl crate::spoken::Say for NodeErrorKind {
                 verb,
                 error,
                 edge: Some(edge),
-            } => write!(f, "the {verb} op refused at {edge}: {error}"),
+            } => write!(
+                f,
+                "the {verb} op refused at {edge}: {}",
+                error.render(geom_brep::recourse::Reading::Build)
+            ),
             Self::Blend {
                 verb,
                 error,
                 edge: None,
-            } => write!(f, "the {verb} op refused: {error}"),
+            } => write!(
+                f,
+                "the {verb} op refused: {}",
+                error.render(geom_brep::recourse::Reading::Build)
+            ),
             // No cause is guessed here: the kernel's refusal names its
             // own, and a coincidence refusal carries its own recourse.
-            Self::Boolean(e) => write!(f, "the Boolean op refused: {e}"),
-            Self::Transform(e) => write!(f, "the transform op refused: {e}"),
-            Self::Mirror(e) => write!(f, "the mirror refused: {e}"),
+            Self::Boolean(e) => write!(
+                f,
+                "the Boolean op refused: {}",
+                e.render(geom_brep::recourse::Reading::Build)
+            ),
+            Self::Transform(e) => write!(
+                f,
+                "the transform op refused: {}",
+                e.render(geom_brep::recourse::Reading::Build)
+            ),
+            Self::Mirror(e) => write!(
+                f,
+                "the mirror refused: {}",
+                e.render(geom_brep::recourse::Reading::Build)
+            ),
             Self::Motion(e) => write!(f, "the placement's motion refused: {e}"),
             Self::Skin(e) => write!(f, "the skin construction refused: {e}"),
-            Self::Loft(e) => write!(f, "the loft assembly refused: {e}"),
+            Self::Loft(e) => write!(
+                f,
+                "the loft assembly refused: {}",
+                e.render(geom_brep::recourse::Reading::Build)
+            ),
             Self::CurvedSolidFrontier { what } => write!(f, "not yet buildable: {what}"),
             Self::MissingInput { input } => {
                 write!(f, "{} names no live node", by.node_as(*input, "input"))
@@ -2201,9 +2243,11 @@ impl crate::spoken::Say for NodeErrorKind {
                 f,
                 "{} shipped a body that does not finish: {}",
                 by.node_as(*input, "input"),
-                errors
-                    .first()
-                    .map_or_else(|| "no finding".to_string(), ToString::to_string)
+                // The operand's findings are the at-rest gate's.
+                errors.first().map_or_else(
+                    || "no finding".to_string(),
+                    |e| e.render(geom_brep::recourse::Reading::AtRest)
+                )
             ),
             Self::EmptyHalf { input, half } => write!(
                 f,
@@ -2378,7 +2422,11 @@ impl crate::spoken::Say for NodeErrorKind {
                 by.read(*read),
                 Said(refusal.as_ref(), by)
             ),
-            Self::Shell(e) => write!(f, "the shell op refused: {e}"),
+            Self::Shell(e) => write!(
+                f,
+                "the shell op refused: {}",
+                e.render(geom_brep::recourse::Reading::Build)
+            ),
             Self::ShellLaneUnsupported { scalar } => write!(
                 f,
                 "the shell door has no lane at the {scalar} scalar: hollowing validates what it \
@@ -2619,7 +2667,7 @@ impl NodeError {
     /// node as `this <noun>` where the prose names one of its seats.
     /// What a consumer that names the node itself quotes as the cause,
     /// in place of the kind's documentless `Display`, which writes a
-    /// reader `#<16 hex>`.
+    /// reader `#<ordinal>:<hex>`.
     #[must_use]
     pub fn kind_spoken<P: crate::ProfilePayload>(&self, doc: &Doc<P>) -> String {
         crate::spoken::Said(&self.kind, crate::spoken::Speaker::of(doc).about(self.node))
@@ -2790,16 +2838,13 @@ pub(crate) mod leaf {
             doc: &crate::doc::Doc<crate::program::ProfileProgram>,
             opts: &EvalOptions,
             lane: LeafLane,
+            cancel: &CancelToken,
             tol: geom_core::Tol,
         ) -> Self {
             match lane {
-                LeafLane::Numeric => Self::Numeric(Box::new(evaluate(
-                    doc,
-                    None,
-                    &CancelToken::new(),
-                    opts,
-                    tol,
-                ))),
+                LeafLane::Numeric => {
+                    Self::Numeric(Box::new(evaluate(doc, None, cancel, opts, tol)))
+                }
                 LeafLane::Symbolic(..) => Self::None,
             }
         }
@@ -2840,6 +2885,9 @@ pub(crate) mod leaf {
         pub measure_bracket: Option<(f64, f64)>,
         /// The assertion node's verdict, projected onto the numeric channel.
         pub assertion: Option<crate::measure::AssertionVerdict<geom_core::Interval>>,
+        /// How the replay stopped short, where it did: what it read is
+        /// then of a prefix, and a consumer refuses rather than read it.
+        pub stopped: Option<super::Stopped>,
     }
 
     /// **Replays one leaf on `lane` and reads back what `want` asks for** —
@@ -2858,6 +2906,7 @@ pub(crate) mod leaf {
         opts: &EvalOptions,
         lane: LeafLane,
         prior: &LeafPrior,
+        cancel: &CancelToken,
         want: LeafRequest,
         tol: geom_core::Tol,
     ) -> LeafReadback {
@@ -2867,14 +2916,13 @@ pub(crate) mod leaf {
                     LeafPrior::Numeric(p) => Some(&**p),
                     LeafPrior::None => None,
                 };
-                let ev: Evaluation<geom_core::Interval> =
-                    evaluate(doc, prior, &CancelToken::new(), opts, tol);
+                let ev: Evaluation<geom_core::Interval> = evaluate(doc, prior, cancel, opts, tol);
                 read_leaf(doc, &ev, want, |v| v)
             }
             LeafLane::Symbolic(budget, rules, retry) => {
                 let (out, _) = geom_core::sym::with_session_retry(budget, rules, retry, || {
                     let ev: Evaluation<geom_core::Sym<geom_core::Interval>> =
-                        evaluate(doc, None, &CancelToken::new(), opts, tol);
+                        evaluate(doc, None, cancel, opts, tol);
                     read_leaf(doc, &ev, want, |v: geom_core::Sym<geom_core::Interval>| {
                         v.value
                     })
@@ -2904,24 +2952,34 @@ pub(crate) mod leaf {
     /// **Replays one leaf on `lane` and hands the replay to `read`**:
     /// [`replay_leaf`]'s two arms, with no prior, for a read that has to
     /// run inside the symbolic session the replay ran in.
+    ///
+    /// # Errors
+    ///
+    /// How the replay stopped short, where it did: `read` is not asked.
     pub(crate) fn read_leaf_with<A: AtLeaf>(
         doc: &crate::doc::Doc<crate::program::ProfileProgram>,
         opts: &EvalOptions,
         lane: LeafLane,
+        cancel: &CancelToken,
         tol: geom_core::Tol,
         read: A,
-    ) -> A::Out {
+    ) -> Result<A::Out, super::Stopped> {
         match lane {
             LeafLane::Numeric => {
-                let ev: Evaluation<geom_core::Interval> =
-                    evaluate(doc, None, &CancelToken::new(), opts, tol);
-                read.at(&ev, topo::ClearanceLane::certified())
+                let ev: Evaluation<geom_core::Interval> = evaluate(doc, None, cancel, opts, tol);
+                match super::Stopped::of(ev.outcome) {
+                    Some(stopped) => Err(stopped),
+                    None => Ok(read.at(&ev, topo::ClearanceLane::certified())),
+                }
             }
             LeafLane::Symbolic(budget, rules, retry) => {
                 let (out, _) = geom_core::sym::with_session_retry(budget, rules, retry, || {
                     let ev: Evaluation<geom_core::Sym<geom_core::Interval>> =
-                        evaluate(doc, None, &CancelToken::new(), opts, tol);
-                    read.at(&ev, topo::ClearanceLane::certified())
+                        evaluate(doc, None, cancel, opts, tol);
+                    match super::Stopped::of(ev.outcome) {
+                        Some(stopped) => Err(stopped),
+                        None => Ok(read.at(&ev, topo::ClearanceLane::certified())),
+                    }
                 });
                 out
             }
@@ -2937,7 +2995,10 @@ pub(crate) mod leaf {
         want: LeafRequest,
         project: impl Fn(T) -> geom_core::Interval,
     ) -> LeafReadback {
-        let mut out = LeafReadback::default();
+        let mut out = LeafReadback {
+            stopped: super::Stopped::of(ev.outcome),
+            ..LeafReadback::default()
+        };
         if want.keys {
             out.keys = ev
                 .order
@@ -3072,6 +3133,108 @@ pub struct EvalOptions {
 /// well within a desktop's memory, and short enough that a run nobody
 /// can cancel answers in about a minute.
 pub const DEFAULT_MEMBER_BUDGET: u64 = 65_536;
+
+/// **What stops a run the kernel starts on its caller's behalf**: the
+/// caller's cancel token and member budget together
+/// ([`EvalOptions::member_budget`]). A door that builds the options of
+/// the evaluations it runs (a drive's leaves, a stackup's passes, a
+/// clearance replay) takes one from its caller, so a cancel or a budget
+/// the caller set reaches every evaluation inside it. A door handed
+/// whole [`EvalOptions`] takes the token alone: its options carry the
+/// budget.
+#[derive(Debug, Clone)]
+pub struct Stop {
+    /// The caller's token: canceling it cancels every evaluation the
+    /// door runs.
+    pub cancel: CancelToken,
+    /// The member budget each evaluation the door runs is held to.
+    pub member_budget: u64,
+}
+
+impl Default for Stop {
+    /// A token nobody else holds, and [`DEFAULT_MEMBER_BUDGET`]: a run
+    /// whose caller states neither.
+    fn default() -> Self {
+        Self {
+            cancel: CancelToken::new(),
+            member_budget: DEFAULT_MEMBER_BUDGET,
+        }
+    }
+}
+
+impl Stop {
+    /// `cancel`, at the one default budget ([`DEFAULT_MEMBER_BUDGET`]).
+    #[must_use]
+    pub fn canceled_by(cancel: &CancelToken) -> Self {
+        Self {
+            cancel: cancel.clone(),
+            member_budget: DEFAULT_MEMBER_BUDGET,
+        }
+    }
+
+    /// The stop of a caller that evaluates under `opts` with `cancel`.
+    #[must_use]
+    pub fn of(cancel: &CancelToken, opts: &EvalOptions) -> Self {
+        Self {
+            cancel: cancel.clone(),
+            member_budget: opts.member_budget,
+        }
+    }
+
+    /// `opts`, held to this stop's budget.
+    #[must_use]
+    pub fn options(&self, opts: EvalOptions) -> EvalOptions {
+        EvalOptions {
+            member_budget: self.member_budget,
+            ..opts
+        }
+    }
+}
+
+/// **An evaluation a door ran stopped short of its schedule**: canceled
+/// by its caller, or out of its member budget. The door refuses with it
+/// rather than read a prefix as an answer.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Stopped {
+    /// The caller's token was canceled.
+    Canceled,
+    /// An evaluation ran out of its member budget.
+    Exhausted {
+        /// The budget it ran out of.
+        budget: u64,
+    },
+}
+
+impl Stopped {
+    /// How a run with `outcome` stopped, `None` where it completed.
+    #[must_use]
+    pub fn of(outcome: EvalOutcome) -> Option<Self> {
+        match outcome {
+            EvalOutcome::Completed => None,
+            EvalOutcome::Canceled => Some(Self::Canceled),
+            EvalOutcome::Exhausted { budget, .. } => Some(Self::Exhausted { budget }),
+        }
+    }
+}
+
+impl core::fmt::Display for Stopped {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Canceled => write!(
+                f,
+                "it was canceled before it finished. {}",
+                crate::sentence::Recourse("ask again, and let it finish")
+            ),
+            Self::Exhausted { budget } => write!(
+                f,
+                "an evaluation inside it ran out of its member budget of {budget} listing steps. {}",
+                crate::sentence::Recourse(crate::sentence::RAISE_THE_MEMBER_BUDGET)
+            ),
+        }
+    }
+}
+
+impl core::error::Error for Stopped {}
 
 /// **A rigid motion stated in `f64`**, lifted to an evaluation's scalar
 /// ([`EvalOptions::computing_twist`]): a turn of `angle` radians about
@@ -3498,17 +3661,18 @@ pub fn traced_faces<T: EvalScalar + crate::mate::SolveScalar>(
 /// **[`crate::mate::solve_document`] at a run's own scalar** — a box
 /// run's poses enclosing each copy's over the box, a seed run's
 /// carrying their tangents — under `opts`, whose box or seed the run
-/// reads. Here, at the evaluation seam, because it reads an evaluation
-/// at a run's scalar.
+/// reads, and `cancel` cancels. Here, at the evaluation seam, because
+/// it reads an evaluation at a run's scalar.
 pub fn solve_document_at<T>(
     doc: &Doc<ProfileProgram>,
     opts: &EvalOptions,
+    cancel: &CancelToken,
     tol: Tol,
 ) -> crate::mate::SolvedPoses<T>
 where
     T: crate::mate::SolveScalar + EvalScalar,
 {
-    let evaluation = evaluate::<T>(doc, None, &crate::CancelToken::new(), opts, tol);
+    let evaluation = evaluate::<T>(doc, None, cancel, opts, tol);
     crate::mate::SolvedPoses::of(doc, &evaluation)
 }
 
@@ -4643,8 +4807,9 @@ where
                 frame: drawn.map(|d| d.frame),
             }
         }
-        // PAYLOAD EXPRESSIONS (E10): an assertion's value and bound, and
-        // a clearance's bounds, are not slots. They are evaluated exactly once here, under the
+        // AN ASSERTION'S EXPRESSIONS (E10): a value claim's value and
+        // bound, which are payload, and a clearance's bound slots, which
+        // `slots::eval_slots` leaves to this arm. They are evaluated exactly once here, under the
         // discipline `slots` states and for the same reason: these
         // values feed BOTH the content key and the op, so a parameter
         // edit under a bound moves the key rather than serving a stale
@@ -4658,20 +4823,23 @@ where
             for (index, &(var, dim)) in reads.iter().enumerate() {
                 let read = measure::observe(doc, env, results, var, dim).map_err(|refusal| {
                     match refusal {
-                        measure::ObservedRefusal::Expr(source) => NodeErrorKind::PayloadExpr {
-                            what: match (claim, index) {
-                                (crate::measure::Claim::Value { .. }, 0) => {
+                        // A clearance's bound is a slot, and is named so.
+                        measure::ObservedRefusal::Expr(source) => match claim {
+                            crate::measure::Claim::Clearance { bounds, .. } => {
+                                let Some(&(slot, _)) = bounds.rows().get(index) else {
+                                    unreachable!("one read per bound row, in row order")
+                                };
+                                NodeErrorKind::Expr { slot, source }
+                            }
+                            crate::measure::Claim::Value { .. } => NodeErrorKind::PayloadExpr {
+                                what: if index == 0 {
                                     "the assertion's value,"
-                                }
-                                (crate::measure::Claim::Value { .. }, _) => {
+                                } else {
                                     "the assertion's bound,"
-                                }
-                                (crate::measure::Claim::Clearance { .. }, _) => {
-                                    "the clearance's bound,"
-                                }
+                                },
+                                index,
+                                source,
                             },
-                            index,
-                            source,
                         },
                         // Every measure under the value is upstream of
                         // this node, and a failed one poisoned it above.
@@ -4900,7 +5068,12 @@ mod tag {
         /// Keys are process-internal and never persisted, so a bump
         /// costs one whole-memo invalidation and no migration.
         format {
-            /// v22: a mate writes its orientation, by where the copy's
+            /// v23: a slide beside a mate whose direction is oblique in
+            /// the source's own coordinates runs along its carried axis's
+            /// part in what the mate leaves, and a value may slide along
+            /// the mated direction or a read direction, or spin about a
+            /// read axis (`value_coord`'s `SLIDE`, `SLIDE_ALONG` and
+            /// `SPIN_ABOUT`). v22: a mate writes its orientation, by where the copy's
             /// `x` and `z` lie, and a spin beside a mate fixing a
             /// direction is its own word (`value_coord::SPIN`), the turn
             /// about the target's own direction. v21: a placement copies
@@ -4937,7 +5110,7 @@ mod tag {
             /// operation. v9: an extrude writes its side. v8: a mate
             /// frame writes its arm word before its payload, and a mate
             /// writes the parts its face frames resolve against.)
-            VERSION = 22,
+            VERSION = 23,
         }
         /// The first word of every naming key: the naming-key domain,
         /// which keeps a naming key's stream apart from a content key's.
@@ -5042,6 +5215,9 @@ mod tag {
             SPIN_Y = 6,
             SPIN_Z = 7,
             SPIN = 8,
+            SLIDE = 9,
+            SLIDE_ALONG = 10,
+            SPIN_ABOUT = 11,
         }
         /// Where an orientation puts one of the copy's axes
         /// ([`crate::mate::SignedAxis`]), written for its `x` and its
@@ -5096,7 +5272,10 @@ mod tag {
         ///   this same environment, so the nominal is already in its
         ///   key.
         /// * The measurement vocabulary's PAYLOAD expressions
-        ///   (`Measure`, `Assertion`) write no nominal word. They are
+        ///   (`Measure`, `Assertion`), and a clearance's bound slots,
+        ///   which the assertion's arm evaluates beside them
+        ///   ([`super::slots::eval_slots`] exempts the node), write no
+        ///   nominal word. They are
         ///   read only by their own node's op at the evaluation
         ///   scalar, so no f64-pinned reader has an input for the key
         ///   to owe. The day a pre-pass reads a measured bound at
@@ -6440,9 +6619,12 @@ fn feed_bundle(
                 use crate::mate::{Coord, TargetAxis};
                 h.write_tag(tag::constraint_kind::VALUE);
                 h.write_tag(match value.coord {
-                    Coord::Slide(TargetAxis::X) => tag::value_coord::SLIDE_X,
-                    Coord::Slide(TargetAxis::Y) => tag::value_coord::SLIDE_Y,
-                    Coord::Slide(TargetAxis::Z) => tag::value_coord::SLIDE_Z,
+                    Coord::Slide(None) => tag::value_coord::SLIDE,
+                    Coord::Slide(Some(TargetAxis::X)) => tag::value_coord::SLIDE_X,
+                    Coord::Slide(Some(TargetAxis::Y)) => tag::value_coord::SLIDE_Y,
+                    Coord::Slide(Some(TargetAxis::Z)) => tag::value_coord::SLIDE_Z,
+                    Coord::SlideAlong(_) => tag::value_coord::SLIDE_ALONG,
+                    Coord::SpinAbout(_) => tag::value_coord::SPIN_ABOUT,
                     Coord::Spin(None) => tag::value_coord::SPIN,
                     Coord::Spin(Some(TargetAxis::X)) => tag::value_coord::SPIN_X,
                     Coord::Spin(Some(TargetAxis::Y)) => tag::value_coord::SPIN_Y,
@@ -7455,8 +7637,8 @@ mod bundle_key {
             key(&[mate(TO)]),
             with(value(Coord::SPIN)),
             with(value(Coord::Spin(Some(TargetAxis::X)))),
-            with(value(Coord::Slide(TargetAxis::X))),
-            with(value(Coord::Slide(TargetAxis::Y))),
+            with(value(Coord::slide(TargetAxis::X))),
+            with(value(Coord::slide(TargetAxis::Y))),
         ];
         for (i, a) in keys.iter().enumerate() {
             for b in &keys[i + 1..] {

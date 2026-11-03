@@ -94,7 +94,7 @@ pub(crate) fn pinned_lifted(
         _ => TargetAxis::Z,
     };
     let mut values = vec![(
-        Coord::Slide(axis),
+        Coord::slide(axis),
         Formula::named(crate::p2_gauges::lift(), editor_core::Dimension::Length),
     )];
     if angle != 0.0 {
@@ -139,6 +139,7 @@ fn split(
         DocumentId::derive(&format!("{label}-part")),
         Tol::witness(),
         o.resolver.as_ref(),
+        &editor_core::Stop::default(),
     )
 }
 

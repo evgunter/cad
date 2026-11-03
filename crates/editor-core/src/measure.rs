@@ -12,7 +12,7 @@
 //! over the measures' outputs: there is one arithmetic language, the
 //! formula's.
 
-use geom_brep::recourse::{Reading, RefusedArm, RefusedSide, SizedDecision};
+use geom_brep::recourse::{RefusedArm, RefusedSide, SizedDecision};
 use geom_core::{Decide, SizedPass};
 
 use crate::expr::Dimension;
@@ -554,21 +554,60 @@ pub enum ClearanceBounds<S> {
     },
 }
 
-impl<S> ClearanceBounds<S> {
-    /// The bound expressions, low to high (`= c` reads one).
-    pub fn exprs(&self) -> Vec<&S> {
+/// **Which end of a clearance's band a bound is**: the address of its
+/// slot ([`crate::SlotId::ClearanceBound`]). `≥ c` and `= c` hold a low
+/// end, `≤ c` a high one, and a band both.
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
+)]
+pub enum BoundEnd {
+    /// The lower end.
+    Low,
+    /// The upper end.
+    High,
+}
+
+impl BoundEnd {
+    /// The end as a prose word.
+    pub fn label(self) -> &'static str {
         match self {
-            Self::AtLeast(c) | Self::AtMost(c) | Self::Equal(c) => vec![c],
-            Self::Within { lo, hi } => vec![lo, hi],
+            Self::Low => "low",
+            Self::High => "high",
         }
+    }
+}
+
+impl<S> ClearanceBounds<S> {
+    /// **The bounds as slot rows**, low to high, in [`Self::exprs`]
+    /// order: each at the end of the band it holds ([`BoundEnd`]).
+    pub(crate) fn rows(&self) -> Vec<(crate::SlotId, &S)> {
+        use crate::SlotId::ClearanceBound as At;
+        match self {
+            Self::AtLeast(c) | Self::Equal(c) => vec![(At(BoundEnd::Low), c)],
+            Self::AtMost(c) => vec![(At(BoundEnd::High), c)],
+            Self::Within { lo, hi } => vec![(At(BoundEnd::Low), lo), (At(BoundEnd::High), hi)],
+        }
+    }
+
+    /// [`Self::rows`], exclusive.
+    pub(crate) fn rows_mut(&mut self) -> Vec<(crate::SlotId, &mut S)> {
+        use crate::SlotId::ClearanceBound as At;
+        match self {
+            Self::AtLeast(c) | Self::Equal(c) => vec![(At(BoundEnd::Low), c)],
+            Self::AtMost(c) => vec![(At(BoundEnd::High), c)],
+            Self::Within { lo, hi } => vec![(At(BoundEnd::Low), lo), (At(BoundEnd::High), hi)],
+        }
+    }
+
+    /// The bound expressions, low to high (`= c` reads one): the
+    /// [`Self::rows`]' expressions, in their order.
+    pub fn exprs(&self) -> Vec<&S> {
+        self.rows().into_iter().map(|(_, e)| e).collect()
     }
 
     /// [`Self::exprs`], exclusive.
     pub fn exprs_mut(&mut self) -> Vec<&mut S> {
-        match self {
-            Self::AtLeast(c) | Self::AtMost(c) | Self::Equal(c) => vec![c],
-            Self::Within { lo, hi } => vec![lo, hi],
-        }
+        self.rows_mut().into_iter().map(|(_, e)| e).collect()
     }
 
     /// The same bounds over other expressions.
@@ -728,18 +767,28 @@ pub enum UnevaluatedReason {
     },
 }
 
-impl core::fmt::Display for UnevaluatedReason {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl UnevaluatedReason {
+    fn write(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        at: Option<geom_brep::recourse::ReadAt>,
+    ) -> core::fmt::Result {
         match self {
             Self::Indeterminate { cause } => write!(
                 f,
                 "the measured value and the bound are not separated at this tolerance, so the \
-                 assertion has no verdict. {}",
-                ASSERT_BOUND_DECISION.recourse(RefusedArm::Undecided(cause), Reading::AtRest)
+                 assertion has no verdict{}",
+                at.map(|at| format!(
+                    ". {}",
+                    ASSERT_BOUND_DECISION.recourse(RefusedArm::Undecided(cause), at)
+                ))
+                .unwrap_or_default()
             ),
         }
     }
 }
+
+geom_brep::ended_by_write!(UnevaluatedReason);
 
 impl<T> AssertionVerdict<T> {
     /// Does the assertion hold? `None` when there is no verdict — the

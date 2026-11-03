@@ -255,8 +255,8 @@ pub(crate) fn slid_by(
     *along = signed(along, probe[2], &by[2]);
     for (coord, value) in &mut placed.values {
         match coord {
-            Coord::Slide(TargetAxis::X) => *value = signed(value, probe[0], &by[0]),
-            Coord::Slide(TargetAxis::Y) => *value = signed(value, probe[1], &by[1]),
+            Coord::Slide(Some(TargetAxis::X)) => *value = signed(value, probe[0], &by[0]),
+            Coord::Slide(Some(TargetAxis::Y)) => *value = signed(value, probe[1], &by[1]),
             _ => {}
         }
     }
@@ -478,6 +478,7 @@ fn witness_distance(report: &ClearanceReport) -> f64 {
 /// A query at a bound and a config, with no accelerator.
 fn query(c: f64, config: ClearanceConfig) -> ClearanceQuery<'static> {
     ClearanceQuery {
+        stop: crate::fixture::no_stop(),
         bound: ClearanceBound::at_least(c),
         tol: Tol::witness(),
         config,
@@ -727,7 +728,13 @@ fn a_sound_prism_certifies_its_boundary_injective() {
         },
     ] {
         let sel = Selection::body_of(at);
-        let report = self_intersection(&doc, &box_of(&doc, "place"), &sel, Tol::witness());
+        let report = self_intersection(
+            &doc,
+            &box_of(&doc, "place"),
+            &sel,
+            &editor_core::Stop::default(),
+            Tol::witness(),
+        );
         assert_eq!(
             report.verdict(),
             &ClearanceVerdict::Holds,
@@ -920,6 +927,7 @@ fn gap_run(
     oracle: &dyn MonotoneOracle,
 ) -> ClearanceReport {
     let q = ClearanceQuery {
+        stop: crate::fixture::no_stop(),
         bound: ClearanceBound::at_least(c),
         tol: Tol::witness(),
         config: ClearanceConfig {
@@ -972,6 +980,7 @@ fn pruning_restricts_the_box_to_the_facet_it_names() {
     );
     let facet = ParamBox::from_axes(facet_axes);
     let q = |pruning, oracle: &'static dyn MonotoneOracle| ClearanceQuery {
+        stop: crate::fixture::no_stop(),
         bound: ClearanceBound::at_least(0.5),
         tol: Tol::witness(),
         config: ClearanceConfig {
@@ -1027,8 +1036,14 @@ fn a_degraded_tangent_forfeits_the_pruning_and_nothing_else() {
 fn a_driver_certified_leaf_carries_the_certificate() {
     let (doc, minted, _at) = dumbbell();
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    let verdict = drive(&doc, &analyzed, &DriveConfig::default(), Tol::witness())
-        .expect("the dumbbell builds at its nominal");
+    let verdict = drive(
+        &doc,
+        &analyzed,
+        &DriveConfig::default(),
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .expect("the dumbbell builds at its nominal");
     assert!(
         !verdict.certified().is_empty(),
         "the driver certifies this box: {}",
@@ -1041,7 +1056,11 @@ fn a_driver_certified_leaf_carries_the_certificate() {
         &verdict,
         &wa,
         &wb,
-        &ClearanceQuery::at_dials(ClearanceBound::at_least(0.2), Tol::witness()),
+        &ClearanceQuery::at_dials(
+            ClearanceBound::at_least(0.2),
+            crate::fixture::no_stop(),
+            Tol::witness(),
+        ),
     );
     assert_eq!(fold.verdict, ClearanceVerdict::Holds);
     assert!(fold.receipt.holds(), "{:?}", fold.receipt);
@@ -1092,6 +1111,7 @@ fn the_fold_replays_a_leaf_on_the_drives_own_lane() {
             max_leaves: 1,
             ..DriveConfig::default()
         },
+        &editor_core::Stop::default(),
         tol,
     )
     .expect("the plate builds at its nominal");
@@ -1102,7 +1122,11 @@ fn the_fold_replays_a_leaf_on_the_drives_own_lane() {
         );
     };
     let [a, b] = plate.holes.map(Selection::body_of);
-    let query = ClearanceQuery::at_dials(ClearanceBound::at_least(0.3e-3), tol);
+    let query = ClearanceQuery::at_dials(
+        ClearanceBound::at_least(0.3e-3),
+        crate::fixture::no_stop(),
+        tol,
+    );
     let fold = clearance_over_at_dials(&plate.doc, &analyzed, &verdict, &a, &b, &query);
     assert_eq!(
         fold.verdict,
@@ -1114,8 +1138,12 @@ fn the_fold_replays_a_leaf_on_the_drives_own_lane() {
         &leaf.box_,
         &a,
         &b,
-        &ClearanceQuery::at_dials(ClearanceBound::at_least(0.3e-3), tol)
-            .certified_at(editor_core::drive::SymbolicDials::off()),
+        &ClearanceQuery::at_dials(
+            ClearanceBound::at_least(0.3e-3),
+            crate::fixture::no_stop(),
+            tol,
+        )
+        .certified_at(editor_core::drive::SymbolicDials::off()),
     );
     assert_eq!(
         *clearance_at_dials(
@@ -1134,6 +1162,25 @@ fn the_fold_replays_a_leaf_on_the_drives_own_lane() {
         ClearanceVerdict::Holds,
         "the numeric replay of a symbolic-tier leaf is not the build it certified"
     );
+    // The same fold under a canceled stop refuses as canceled, and
+    // prices no leaf: the cancel stopped it before its one leaf's answer.
+    let cancel = editor_core::CancelToken::new();
+    cancel.cancel();
+    let canceled = editor_core::Stop::canceled_by(&cancel);
+    let stopped = clearance_over_at_dials(
+        &plate.doc,
+        &analyzed,
+        &verdict,
+        &a,
+        &b,
+        &ClearanceQuery::at_dials(ClearanceBound::at_least(0.3e-3), &canceled, tol),
+    );
+    assert_eq!(
+        stopped.verdict,
+        ClearanceVerdict::Refused(ClearanceRefusal::Stopped(editor_core::Stopped::Canceled)),
+        "a canceled fold refuses as canceled"
+    );
+    assert!(stopped.leaves.is_empty(), "and answers no leaf");
 }
 
 // --------------------------------------------------- the honest limit
@@ -1386,7 +1433,7 @@ fn a_lofts_walls_have_windows_and_its_boundary_is_injective() {
         &box_of(&doc, "place"),
         &sel,
         &sel,
-        &ClearanceQuery::strictly_positive(Tol::witness())
+        &ClearanceQuery::strictly_positive(crate::fixture::no_stop(), Tol::witness())
             .certified_at(editor_core::drive::SymbolicDials::off()),
     );
     assert_eq!(
@@ -1418,7 +1465,7 @@ fn a_band_costs_its_costlier_bound_and_its_children_drop_a_decided_one() {
             &leaf,
             &outer,
             &inner,
-            &ClearanceQuery::at_dials(bound, Tol::witness()),
+            &ClearanceQuery::at_dials(bound, crate::fixture::no_stop(), Tol::witness()),
         );
         let decisions = bracket
             .finish()

@@ -9,6 +9,20 @@
 //! own; it carries the accumulation's records and the joining member's.
 //! Two members are one pair: their one step is the judgement.
 //!
+//! Each step publishes its [`Holdings`] in member faces: exactly the
+//! member faces whose area each face of the accumulation holds, and each
+//! discarded face lost (`lift`). The lineage only routes the verdicts,
+//! where a superset is harmless; what a face holds is read from the
+//! records and, where a piece's source face holds several member faces,
+//! from the piece's own region ([`super::overlap`]).
+//!
+//! **What depends on member order** (`[operations.operators]`): the
+//! holdings do not, since each reading is the geometric truth of a
+//! piece lying inside its source face. Which pieces a fold makes does,
+//! and so where an in-band reading of a piece refuses: one member order
+//! can refuse a face's holdings where another reads them. So does which
+//! member's carrier description a glued face keeps.
+//!
 //! Where the operation stops, at a refusal or an intersect's empty
 //! result, the door returns what it built up to there
 //! ([`NaryRun::end`]), so a caller that reads each judgement and step in
@@ -19,9 +33,11 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use geom_core::{Bounds, Decide, Real, Tol};
+use geom_core::{Band, Bounds, Decide, Real, Tol};
 
+use super::holdings::{Held, HeldRefusal, Holdings};
 use super::ops::boolean_op_given;
+use super::overlap::overlap;
 use super::{
     BooleanBody, BooleanError, BooleanInputs, BooleanNaming, BooleanOp, BooleanResult, GlueVerdict,
     GluedPair, Operand, OperandRecords, SweepStrategy,
@@ -120,26 +136,24 @@ pub type MemberFace = (usize, FaceKey);
 /// read off each step's naming, never off a name: a piece of a face
 /// descends from what the face does, a merged face from what each face
 /// it absorbed does, and a face of the joining member from that face.
+///
+/// It routes the judgements' verdicts to the steps, where a superset is
+/// harmless; it lists member faces a piece holds no area of, and grows
+/// along the fold. What a face holds is its [`Holdings`].
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct MemberLineage {
+pub(crate) struct MemberLineage {
     faces: BTreeMap<FaceKey, BTreeSet<MemberFace>>,
 }
 
 impl MemberLineage {
     /// The lineage of member `member`'s own body: each face its own.
-    pub fn of_member<T: Real>(member: usize, body: &Body<T>) -> Self {
+    pub(crate) fn of_member<T: Real>(member: usize, body: &Body<T>) -> Self {
         Self {
             faces: body
                 .faces()
                 .map(|(f, _)| (f, BTreeSet::from([(member, f)])))
                 .collect(),
         }
-    }
-
-    /// The member faces face `f` descends from; `None` for a face the
-    /// accumulation does not hold.
-    pub fn member_faces(&self, f: FaceKey) -> Option<&BTreeSet<MemberFace>> {
-        self.faces.get(&f)
     }
 
     /// The member faces `f` descends from.
@@ -167,7 +181,7 @@ impl MemberLineage {
     ///
     /// Where an operand-A face has no lineage here.
     #[track_caller]
-    pub fn operand_faces(
+    pub(crate) fn operand_faces(
         &self,
         member: usize,
         operand: Operand,
@@ -295,8 +309,10 @@ pub struct NaryStep<T: Real> {
     /// the judgements whose verdicts it stands for, in judgement order:
     /// by the row's place, ascending.
     pub restated: Vec<(usize, Vec<JudgedRow>)>,
-    /// The member faces each face of [`Self::body`] descends from.
-    pub lineage: MemberLineage,
+    /// Per face of [`Self::body`], and per discard row of its naming,
+    /// exactly the member faces whose area it holds, or why that could
+    /// not be read (module docs).
+    pub holdings: Holdings,
 }
 
 impl<T: Real> NaryStep<T> {
@@ -415,20 +431,31 @@ impl NaryRefusal {
     }
 }
 
-impl core::fmt::Display for NaryRefusal {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl NaryRefusal {
+    fn write(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        at: Option<geom_brep::recourse::ReadAt>,
+    ) -> core::fmt::Result {
+        use geom_brep::recourse::read_at;
         match self {
             Self::Arity { members } => write!(
                 f,
                 "an n-ary boolean takes two or more members, and was given {members}"
             ),
-            Self::Hull { member, error } => write!(f, "member {member}'s box: {error}"),
-            Self::Judgement { a, b, error } => {
-                write!(f, "the judgement of members {a} and {b}: {error}")
+            Self::Hull { member, error } => {
+                write!(f, "member {member}'s box: {}", read_at(error.as_ref(), at))
             }
-            Self::Step { member, error } => {
-                write!(f, "the fold step joining member {member}: {error}")
-            }
+            Self::Judgement { a, b, error } => write!(
+                f,
+                "the judgement of members {a} and {b}: {}",
+                read_at(error.as_ref(), at)
+            ),
+            Self::Step { member, error } => write!(
+                f,
+                "the fold step joining member {member}: {}",
+                read_at(error.as_ref(), at)
+            ),
             Self::VerdictsDisagree {
                 member,
                 face,
@@ -441,6 +468,8 @@ impl core::fmt::Display for NaryRefusal {
         }
     }
 }
+
+geom_brep::ended_by_write!(NaryRefusal);
 
 impl core::error::Error for NaryRefusal {}
 
@@ -590,7 +619,7 @@ fn run_members<T: Decide + Bounds + AtRestPolicy>(
                 members[a].body,
                 members[b].body,
                 &BooleanInputs::default(),
-                None,
+                (None, None),
                 sweep,
                 tol,
             )
@@ -618,6 +647,7 @@ fn run_members<T: Decide + Bounds + AtRestPolicy>(
         }
     }
     let mut lineage = MemberLineage::of_member(0, members[0].body);
+    let mut holdings = Holdings::of_member(0, members[0].body);
     let mut records_a = members[0].inputs.records.clone();
     for member in 1..members.len() {
         let acc = steps.last().map_or(members[0].body, |s| &s.body.body);
@@ -630,12 +660,13 @@ fn run_members<T: Decide + Bounds + AtRestPolicy>(
             records_a,
             records_b: members[member].inputs.records.clone(),
         };
+        let clones = super::CloneSlot::default();
         let stepped = boolean_op_given(
             op.op(),
             acc,
             members[member].body,
             &inputs,
-            given.as_deref(),
+            (given.as_deref(), Some(clones.clone())),
             sweep,
             tol,
         )
@@ -655,15 +686,215 @@ fn run_members<T: Decide + Bounds + AtRestPolicy>(
             None => Vec::new(),
         };
         lineage = lineage.step(member, &body.naming, &body.body);
+        let clone_a = clones
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)[0]
+            .take();
+        let band = Band::linear(tol).unwrap_or_else(|e| {
+            unreachable!(
+                "the fold step joining member {member} built at a band it cannot read: {e}"
+            )
+        });
+        holdings = lift(&holdings, member, &body, clone_a.as_ref(), members, band);
         records_a = body.contacts.carried();
         steps.push(NaryStep {
             member,
             body,
             restated,
-            lineage: lineage.clone(),
+            holdings: holdings.clone(),
         });
     }
     Ok(())
+}
+
+/// **The holdings of the step joining member `member`**, in member faces:
+/// `step`'s own, in its operand faces ([`BooleanBody::holdings`]), read
+/// through `prev`, the accumulation's. A face of the joining member holds
+/// that face; an accumulation face holds what `prev` says it does where
+/// that is one member face, and otherwise those of them the region in
+/// question meets in area ([`overlap`]): the finished face's own, or a
+/// discarded face's in `clone_a`, the step's A clone before its discards.
+/// A refusal in `prev`, or in the step's own holdings, carries to every
+/// face read through it.
+///
+/// # Panics
+///
+/// Where an accumulation face the step's holdings name has no holdings
+/// (the pair door checks each is a face of the accumulation where its
+/// result leaves the door), a discard of A's names a face `clone_a` does
+/// not hold, or a
+/// finished face holds no member face: the step's holdings are read from
+/// its final records, the pair door keeps its A clone wherever it
+/// discards A's faces, and every finished face is a piece of a member's.
+fn lift<T: Decide>(
+    prev: &Holdings,
+    member: usize,
+    step: &BooleanBody<T>,
+    clone_a: Option<&Body<T>>,
+    members: &[NaryMember<'_, T>],
+    band: Band,
+) -> Holdings {
+    // The step's operand faces, as member faces: each exact, or a
+    // candidate the region must be read against; or why not.
+    let candidates = |operand_faces: &BTreeSet<MemberFace>| {
+        let mut exact = BTreeSet::new();
+        let mut maybe = BTreeSet::new();
+        for &(place, f) in operand_faces {
+            if place == 1 {
+                exact.insert((member, f));
+                continue;
+            }
+            match prev.of(f) {
+                Some(Held::Faces(h)) if h.len() == 1 => exact.extend(h.iter().copied()),
+                Some(Held::Faces(h)) => maybe.extend(h.iter().copied()),
+                Some(refused @ Held::Refused(_)) => return Err(refused.clone()),
+                None => unreachable!(
+                    "the fold step joining member {member} names accumulation face {f:?}, which \
+                     has no holdings, though its holdings are read from its final rows and the \
+                     door reads them for every face of every accumulation it builds"
+                ),
+            }
+        }
+        Ok((exact, maybe))
+    };
+    // What `region` holds of `maybe`, besides `exact`.
+    let read = |(mut exact, maybe): (BTreeSet<MemberFace>, BTreeSet<MemberFace>),
+                region: (&Body<T>, FaceKey)| {
+        for m in maybe {
+            if exact.contains(&m) {
+                continue;
+            }
+            match overlap(region, (members[m.0].body, m.1), band) {
+                Ok(true) => {
+                    exact.insert(m);
+                }
+                Ok(false) => {}
+                Err(refusal) => {
+                    return Held::Refused(HeldRefusal::Overlap {
+                        member_face: m,
+                        refusal,
+                    });
+                }
+            }
+        }
+        Held::Faces(exact)
+    };
+    // A refusal of the step's own, against operand face `(place, f)`.
+    let restate = |r: &HeldRefusal| match r {
+        HeldRefusal::Overlap {
+            member_face: (1, f),
+            refusal,
+        } => HeldRefusal::Overlap {
+            member_face: (member, *f),
+            refusal: refusal.clone(),
+        },
+        HeldRefusal::Overlap {
+            member_face: (_, f),
+            refusal,
+        } => HeldRefusal::Accumulation {
+            face: *f,
+            refusal: refusal.clone(),
+        },
+        HeldRefusal::Recharted { face: (1, f) } => HeldRefusal::Recharted { face: (member, *f) },
+        HeldRefusal::Recharted { face: (_, f) } => HeldRefusal::Accumulation {
+            face: *f,
+            refusal: super::overlap::OverlapRefusal::Unread {
+                what: "a lost region of a face a sphere's re-chart turned",
+            },
+        },
+        HeldRefusal::NotUnder {
+            member_face: (1, f),
+        } => HeldRefusal::NotUnder {
+            member_face: (member, *f),
+        },
+        HeldRefusal::CarrierUnread {
+            member_face: (1, f),
+        } => HeldRefusal::CarrierUnread {
+            member_face: (member, *f),
+        },
+        HeldRefusal::NotUnder {
+            member_face: (_, f),
+        } => HeldRefusal::Accumulation {
+            face: *f,
+            refusal: super::overlap::OverlapRefusal::Unread {
+                what: "a row says the face holds an accumulation face lying elsewhere",
+            },
+        },
+        HeldRefusal::CarrierUnread {
+            member_face: (_, f),
+        } => HeldRefusal::Accumulation {
+            face: *f,
+            refusal: super::overlap::OverlapRefusal::Unread {
+                what: "an accumulation face a row says the face holds, on a carrier not read",
+            },
+        },
+        HeldRefusal::Accumulation { .. } | HeldRefusal::UncutRemainder { .. } => r.clone(),
+    };
+    let result: &Body<T> = &step.body;
+    let faces = step
+        .holdings
+        .faces()
+        .map(|(f, held)| {
+            let held = match held {
+                Held::Refused(r) => Held::Refused(restate(r)),
+                Held::Faces(s) => match candidates(s) {
+                    Ok(c) => read(c, (result, f)),
+                    Err(refused) => refused,
+                },
+            };
+            if held.faces().is_some_and(BTreeSet::is_empty) {
+                unreachable!(
+                    "finished face {f:?} of the fold step joining member {member} holds no \
+                     member face, though every finished face is a piece of a member's"
+                );
+            }
+            (f, held)
+        })
+        .collect();
+    let lost = step
+        .naming
+        .discards
+        .iter()
+        .zip(step.holdings.lost_rows())
+        .map(|(row, held)| {
+            let Held::Faces(s) = held else {
+                return held.clone();
+            };
+            match candidates(s) {
+                Err(refused) => refused,
+                Ok((exact, maybe)) if maybe.is_empty() => Held::Faces(exact),
+                Ok(c) => {
+                    let region = clone_a.filter(|a| a.get_face(row.face).is_some());
+                    let Some(region) = region else {
+                        unreachable!(
+                            "the fold step joining member {member} discards A's face {:?}, which \
+                             the A clone it kept does not hold, though the pair door keeps its A \
+                             clone wherever it discards A's faces",
+                            row.face
+                        );
+                    };
+                    read(c, (region, row.face))
+                }
+            }
+        })
+        .collect();
+    let uncut = step
+        .naming
+        .uncut
+        .iter()
+        .zip(step.holdings.uncut_rows())
+        .map(|(row, held)| {
+            let Held::Faces(s) = held else {
+                return held.clone();
+            };
+            match candidates(s) {
+                Err(refused) => refused,
+                Ok((exact, maybe)) if maybe.is_empty() => Held::Faces(exact),
+                Ok(_) => Held::Refused(HeldRefusal::UncutRemainder { face: row.face }),
+            }
+        })
+        .collect();
+    Holdings::from_parts(faces, lost, uncut)
 }
 
 /// **The member pairs judged, as (operand A, operand B), in the order

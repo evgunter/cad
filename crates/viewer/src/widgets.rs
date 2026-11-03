@@ -1177,8 +1177,7 @@ fn seed_edit(ui: &mut egui::Ui, id: egui::Id, text: &str) {
 /// rather than one box's number.
 ///
 /// It does not draw the label: the probe names its row above it, in a
-/// sentence that carries the unit ([`vec3_row`] is the creation forms'
-/// labelled version, which emits no operations at all).
+/// sentence that carries the unit.
 pub(crate) fn vec3_row_ops(
     ui: &mut egui::Ui,
     speed: f64,
@@ -1192,24 +1191,6 @@ pub(crate) fn vec3_row_ops(
         | ui.add(number_field(y, speed))
         | ui.add(number_field(z, speed));
     drag_ops(&row, *components, gesture, typed, ops);
-}
-
-/// One labeled row of three draggable components — every creation
-/// form's vector fields (a split's origin and normal, a placement's
-/// translation and rotation axis, a pattern's direction).
-///
-/// **The speed is the caller's** because the unit is: a metre field
-/// and a dimensionless direction component want drag rates two orders
-/// of magnitude apart, and one shared rate makes one of them
-/// undraggable. [`FIELD_DRAG_SPEED`] and [`UNIT_DRAG_SPEED`] are the
-/// two values in use.
-pub(crate) fn vec3_row(ui: &mut egui::Ui, label: &str, speed: f64, value: &mut [f64; 3]) {
-    ui.horizontal(|ui| {
-        ui.label(label);
-        for component in value {
-            ui.add(number_field(component, speed));
-        }
-    });
 }
 
 /// **One dimensioned field of a creation form.**
@@ -1314,30 +1295,13 @@ pub(crate) fn named_scalar(ui: &mut egui::Ui, name: &str, speed: f64, value: &mu
     ui.add(number_field(value, speed).prefix(format!("{name} ")));
 }
 
-/// The vector twin of [`unit_field`] — one label, three components,
-/// one unit.
-pub(crate) fn unit_vec3_row(
-    ui: &mut egui::Ui,
-    label: &str,
-    unit: UnitDef,
-    speed: f64,
-    value: &mut [f64; 3],
-) {
-    ui.horizontal(|ui| {
-        ui.label(label);
-        for component in value {
-            unit_field(ui, unit, speed, component);
-        }
-    });
-}
-
 /// **What a step row's fields draw for each argument** — the seam
 /// between the step list, which knows WHICH argument each number is
 /// (its row and its [`StepArg`], the role the document's slot walk
-/// gives it), and the door the list is drawn for, which knows what
-/// that argument is: a number in the form's notation at the create
-/// door ([`WrittenIn`]), and at the edit door the field over the
-/// committed slot it is (`pane::profile`'s `HeldArgs`).
+/// gives it), and the editor the list is drawn for, which knows what
+/// that argument is: the field over the argument as the draft holds it
+/// (`pane::profile`'s `HeldArgs`), or, for a row made this frame, a
+/// number in the editor's notation ([`WrittenIn`]).
 pub(crate) trait ArgDoors {
     /// Argument `arg` of row `row`, named `name` in its field, its
     /// number `value` held canonical.
@@ -1351,10 +1315,10 @@ pub(crate) trait ArgDoors {
     fn under(&mut self, ui: &mut egui::Ui, row: usize);
 }
 
-/// **Plain numbers in one notation**: the create door's arguments, and
-/// the edit door's where a field is no committed slot. Each field is
-/// written in the unit its role's dimension is noted in, and the form's
-/// own pickers say the units ([`length_picker`]).
+/// **Plain numbers in one notation**: the profile editor's arguments
+/// where a field is no committed slot yet. Each field is written in the
+/// unit its role's dimension is noted in, and the editor's notation row
+/// says the units ([`length_picker`]).
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct WrittenIn {
     /// Every length field's unit.
@@ -1884,7 +1848,9 @@ pub(crate) fn delete_button(ui: &mut egui::Ui, session: &DocSession, node: Recip
     let refusal = session.delete_refusal(node);
     let button = ui.add_enabled(refusal.is_none(), egui::Button::new(affordance.label));
     match (refusal, affordance.hover) {
-        (Some(refusal), _) => button.on_disabled_hover_text(refusal.to_string()).clicked(),
+        (Some(refusal), _) => button
+            .on_disabled_hover_text(crate::shown(&refusal))
+            .clicked(),
         (None, Some(text)) => button.on_hover_text(text).clicked(),
         (None, None) => button.clicked(),
     }
@@ -3869,7 +3835,11 @@ mod value_field_tests {
                 &index,
                 pncad::document::BodyRead::plain(pncad::document::Operand::from(extrude)),
                 pncad::document::Operand::Var(target),
-                &[(pncad::document::TargetAxis::Y, len(0.08))],
+                &[(
+                    pncad::pattern::RowDirection::Axis(pncad::document::TargetAxis::Y),
+                    len(0.08),
+                )],
+                None,
             )
             .expect("a length pitch");
             let (doc, row) = inserted(&declared, row, tol);

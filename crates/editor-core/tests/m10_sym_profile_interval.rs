@@ -187,7 +187,7 @@ fn sym_profile_slab_drive() {
     };
     start_profile();
     let t0 = Instant::now();
-    let v = drive(&doc, &analyzed, &config, tol).unwrap();
+    let v = drive(&doc, &analyzed, &config, &editor_core::Stop::default(), tol).unwrap();
     let wall = t0.elapsed();
     let profile = take_profile();
     println!(
@@ -954,11 +954,13 @@ fn the_plains_ledger_lines_are_the_same_under_every_dial_set() {
         // #5542's merge moved every set's count (to 8 and 20) and PR 5952
         // brought the shipped sets back to none
         // (`work/cpair/main-red-slow-set-receipts-moved-at-5542.md`).
+        // PCERT E1c (every mint reads incidence first, PR 5889): the two sets render
+        // 66 where they rendered 12, the read's blocked residuals.
         ("shipped", SymRules::shipped(), None),
         (
             "without_canonical_root",
             SymRules::without_canonical_root(),
-            Some(12),
+            Some(66),
         ),
         ("without_the_reads", SymRules::without_the_reads(), None),
         (
@@ -967,7 +969,7 @@ fn the_plains_ledger_lines_are_the_same_under_every_dial_set() {
                 decision_read: false,
                 ..SymRules::without_canonical_root()
             },
-            Some(12),
+            Some(66),
         ),
     ];
     let mut seen: Option<(&str, Vec<String>)> = None;
