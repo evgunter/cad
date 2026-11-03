@@ -3097,10 +3097,6 @@ const DEFECT: &str = geom_core::KERNEL_OR_FILE_DEFECT_ENDING;
 /// ([`geom_brep::recourse::BAND_TOLERANCE_RECOURSE`]).
 pub(crate) const TOLERANCE: &str = geom_brep::recourse::BAND_TOLERANCE_RECOURSE;
 
-/// The recourse for a curve whose parameter range its image on a
-/// spline face cannot be expressed on — the lane's own.
-const REPARAMETERIZE: &str = geom_brep::CARRIER_DOMAIN_RECOURSE;
-
 /// The ending of a margin the band could not decide, where a coincidence
 /// between two things has an object to declare: the shared menu
 /// ([`geom_core::COINCIDENCE_RECOURSE`], which
@@ -3424,6 +3420,9 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
             "its curve's parameter range cannot carry the curve's image on its spline face"
         }
         CertifyError::PlaneNurbs(P::ChartSpeed(r)) => chart_speed_reason(*r),
+        CertifyError::PlaneNurbs(P::PlaceholderWall) => {
+            "its face has no real surface yet, only the placeholder a construction starts from"
+        }
         CertifyError::PlaneNurbs(P::CarrierEnclosure(_))
         | CertifyError::AnalyticRung3(A::CarrierEnclosure(_)) => CARRIER_ENCLOSURE,
         CertifyError::Unimplemented
@@ -3470,22 +3469,12 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
             CertifyError::UnresolvedSurface { .. }
             | CertifyError::IntersectionSameSurface { .. }
             | CertifyError::WrapOnNonPeriodic => DEFECT,
-            CertifyError::PlaneNurbs(P::CarrierDomain(_)) => REPARAMETERIZE,
             CertifyError::Unimplemented
             | CertifyError::Row {
                 refusal: geom_brep::RowRefusal::OffSide,
                 ..
             }
-            | CertifyError::TangentCertificateUnsupported
-            | CertifyError::PlaneNurbs(
-                P::FootPointInconclusive { .. } | P::Unsupported { .. } | P::CarrierEnclosure(_),
-            )
-            | CertifyError::AnalyticRung3(
-                A::NoOffsetBound { .. }
-                | A::NoTubeEnclosure { .. }
-                | A::Unsupported { .. }
-                | A::CarrierEnclosure(_),
-            ) => NOT_YET_ENDING,
+            | CertifyError::TangentCertificateUnsupported => NOT_YET_ENDING,
             CertifyError::Band(_) => TOLERANCE,
             CertifyError::ChartImageUnavailable { .. }
             | CertifyError::NoGeneralLane { .. }
@@ -3507,26 +3496,10 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
                     | geom_brep::RowRefusal::ChartSpeed(_),
                 ..
             }
-            | CertifyError::PlaneNurbs(
-                P::NotTransverse { .. }
-                | P::TransversalityEscalated { .. }
-                | P::Limb { .. }
-                | P::TubeStraddles { .. }
-                | P::TubeNotOneArc { .. }
-                | P::Escalated { .. }
-                | P::ArcRim(_)
-                | P::ReportedTransversalityPoisoned(_)
-                | P::ChartSpeed(_)
-                | P::PcurveFit,
-            )
-            | CertifyError::AnalyticRung3(
-                A::Limb { .. }
-                | A::KernelLimit { .. }
-                | A::Escalated { .. }
-                | A::Stalled { .. }
-                | A::TubeStraddles { .. }
-                | A::TubeNotOneArc { .. },
-            ) => unreachable!("a refusal whose ending its own type gives always has one"),
+            | CertifyError::PlaneNurbs(_)
+            | CertifyError::AnalyticRung3(_) => {
+                unreachable!("a refusal whose ending its own type gives always has one")
+            }
         }),
     };
     (why, recourse)

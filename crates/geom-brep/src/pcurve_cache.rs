@@ -193,7 +193,8 @@ use crate::ladder::{IdentityLadder, read_identity};
 #[cfg(test)]
 use crate::recourse::Reading;
 use crate::recourse::{
-    ReadAt, RefusedArm, RefusedSide::StoredContradiction, SizedDecision, SpanDecision, Unsized,
+    LeverOnly, ReadAt, RefusedArm, RefusedSide::StoredContradiction, SizedDecision, SpanDecision,
+    Unsized,
 };
 use crate::ssi::{SsiDecision, SsiLimb};
 
@@ -2202,7 +2203,7 @@ impl PcurveCertifyError {
                 f,
                 "pcurve certification: the {} carrier is on the {} chart but is none of its own \
                  curves, and its general (projected) image does not yet cover this pose: piece \
-                 {piece}: {}. Recourse: {POSE_LEVER}",
+                 {piece}: {}",
                 carrier.name(),
                 chart.name(),
                 channel.describe()
@@ -2648,11 +2649,13 @@ pub const PLACEHOLDER_RECOURSE: &str = "Recourse: describe the surface first, th
 enum Routing {
     Sized(SizedDecision),
     Unsized(Unsized),
-    /// Lever-only "not yet", never a defect or a tolerance: a lane choice
-    /// with no general lane written ([`PcurveCheck::ChartClass`]), and a
-    /// written general lane that cannot image this pose yet
-    /// ([`PcurveCheck::GeneralLane`]).
+    /// "Not yet", never a defect or a tolerance and with no lever: a
+    /// lane choice with no general lane written for the pair
+    /// ([`PcurveCheck::ChartClass`]).
     NotYet,
+    /// A geometry lever alone, no size the user chose: a written general
+    /// lane that cannot image this pose ([`PcurveCheck::GeneralLane`]).
+    LeverOnly(LeverOnly),
     /// A carrier's incidence on its chart ([`PcurveCheck::ChartIncidence`]):
     /// ended by its read ([`IncidenceRead::ending`]). A refusal that
     /// carries its read ends by it ([`PcurveCertifyError::ending`]); the
@@ -2693,10 +2696,12 @@ impl PcurveCheck {
             Self::AzimuthPeriod | Self::TubePeriod => {
                 Routing::Sized(SpanDecision::Winding.on(StoredContradiction))
             }
-            // A lane choice whose general lane is not written yet (D3), and
-            // a written general lane's capability gap on this pose:
-            // lever-only "not yet", never a defect, never a tolerance.
-            Self::ChartClass | Self::GeneralLane => Routing::NotYet,
+            // A lane choice whose general lane is not written yet (D3):
+            // "not yet", never a defect, never a tolerance. A written
+            // lane that cannot image THIS pose states the closed form's
+            // pose as its lever instead (D3 `[verdicts.consumers]`).
+            Self::ChartClass => Routing::NotYet,
+            Self::GeneralLane => Routing::LeverOnly(POSE_GAP),
             // The placement integer and the stored copies the kernel
             // writes exactly.
             Self::ChartWinding | Self::ImageIdentity | Self::Sector => {
@@ -2729,6 +2734,7 @@ impl PcurveCheck {
             Routing::Sized(decision) => decision.recourse(arm, at),
             Routing::Unsized(decision) => decision.recourse(arm, at),
             Routing::NotYet => crate::recourse::not_yet(arm, at),
+            Routing::LeverOnly(lever) => lever.recourse(arm, at),
             Routing::Incidence => IncidenceRead::arm_ending(arm, at),
         }
     }
@@ -3181,9 +3187,9 @@ pub(crate) fn general_image_lane<T: Decide + geom_core::Bounds + geom_core::Cert
         },
         P::PcurveFit => certificate(crate::edge_nurbs::PCURVE_FIT_REFUSAL, FittedEnding::Defect),
         P::CarrierDomain(refusal) => PcurveCertifyError::CarrierDomain(refusal),
-        // The producer's one unsupported class is the placeholder wall,
-        // as the foot producer refuses it (`chart_foot_lane`).
-        P::Unsupported { .. } => PcurveCertifyError::PlaceholderChart,
+        // The wall this door was handed, as the foot producer refuses it
+        // (`chart_foot_lane`): one lever at both doors.
+        P::PlaceholderWall => PcurveCertifyError::PlaceholderChart,
         other @ (P::NotTransverse { .. }
         | P::TransversalityEscalated { .. }
         | P::Limb { .. }
@@ -3193,7 +3199,8 @@ pub(crate) fn general_image_lane<T: Decide + geom_core::Bounds + geom_core::Cert
         | P::ArcRim(_)
         | P::ReportedTransversalityPoisoned(_)
         | P::ChartSpeed(_)
-        | P::CarrierEnclosure(_)) => unreachable!(
+        | P::CarrierEnclosure(_)
+        | P::Unsupported { .. }) => unreachable!(
             "chart_image returns these only from its per-sample hook or the certificate, and \
              the mint passes a no-op hook and runs no certificate: {other:?}"
         ),
@@ -3217,7 +3224,13 @@ pub(crate) fn chart_foot_lane<T: Decide + geom_core::Bounds + geom_core::Certifi
             magnitude: Some(FittedMagnitude::EndpointFootDistance { last_distance }),
             ending: FittedEnding::FootUnsettled,
         }),
-        Err(_) => Err(PcurveCertifyError::PlaceholderChart),
+        Err(crate::edge_nurbs::PlaneNurbsRefusal::PlaceholderWall) => {
+            Err(PcurveCertifyError::PlaceholderChart)
+        }
+        Err(other) => unreachable!(
+            "the chart foot producer refuses an unsettled foot or the placeholder wall \
+             alone: {other:?}"
+        ),
     }
 }
 
@@ -9185,12 +9198,16 @@ fn chart_image<T: Decide>(
     }
 }
 
-/// The lever of a [`LaneGap::Pose`]: the one sentence both
-/// [`PcurveCertifyError::NoGeneralLane`]'s and
-/// [`crate::CertifyError::NoGeneralLane`]'s Display give it.
-pub(crate) const POSE_LEVER: &str = "a carrier through a pole, the cone's apex or the torus's \
-     core has no one-branch image there; split the edge at it, or re-aim the chart's axis away \
-     from it";
+/// **The lever of a [`LaneGap::Pose`]**: a carrier through the chart's
+/// singular set has no one-branch image AT that pose, and nowhere else,
+/// so moving off the pose is a way through at every door — the closed
+/// form's pose as the lane choice's lever (D3 `[verdicts.consumers]`).
+/// Both doors that refuse the gap end by it
+/// ([`PcurveCheck::GeneralLane`], [`crate::certify::CertCheck::GeneralLane`]).
+pub(crate) const POSE_GAP: LeverOnly = LeverOnly {
+    lever: "a carrier through a pole, the cone's apex or the torus's core has no one-branch \
+            image there; split the edge at it, or re-aim the chart's axis away from it",
+};
 
 /// **Why D3's lane choice found no general image** for a carrier the
 /// chart's incidence test does not show off it
@@ -11876,7 +11893,10 @@ mod tests {
                     );
                     Some(decision.side)
                 }
-                Routing::Unsized(_) | Routing::NotYet | Routing::Incidence => None,
+                Routing::Unsized(_)
+                | Routing::NotYet
+                | Routing::LeverOnly(_)
+                | Routing::Incidence => None,
             };
             assert_eq!(side, want(check), "{check:?}");
         }

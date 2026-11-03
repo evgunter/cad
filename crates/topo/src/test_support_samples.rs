@@ -458,6 +458,7 @@ fn plane_nurbs_refusals() -> Vec<PlaneNurbsRefusal> {
         PlaneNurbsRefusal::Unsupported {
             what: "a rational NURBS surface",
         },
+        PlaneNurbsRefusal::PlaceholderWall,
     ]
 }
 
