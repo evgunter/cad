@@ -610,7 +610,6 @@ fn covers_one_full_turn(
         (w.dot(u_ref), w.dot(v_ref))
     };
     let pi = core::f64::consts::PI;
-    let tau = core::f64::consts::TAU;
     let mut total = 0.0f64;
     let mut previous: Option<f64> = None;
     for j in degree..count {
@@ -655,22 +654,17 @@ fn covers_one_full_turn(
             }
         }
         // Steps 2-4: the span's TRUE increment, by exact recovery.
-        let at = |t: f64| -> f64 {
+        let at = |t: f64| {
             let (x, y) = plane(curve.eval(t));
-            y.atan2(x)
+            geom::Azimuth::of(y, x)
         };
         let start = match previous {
             Some(a) => a,
-            None => at(flat[j]),
+            None => at(flat[j]).near(0.0),
         };
-        let end = at(flat[j + 1]);
-        let mut step = end - start;
-        while step > pi {
-            step -= tau;
-        }
-        while step <= -pi {
-            step += tau;
-        }
+        // Within half a turn of `start`, so the step is in `(−π, π]`.
+        let end = at(flat[j + 1]).near(start);
+        let step = end - start;
         if !step.is_finite() {
             return false;
         }

@@ -221,8 +221,7 @@ fn chart_direction(
     // samples reads as the step it is. It covers 5% of a full period,
     // i.e. ~0.31 rad; anything materially smaller than that is not a
     // reading.
-    let (sin, cos) = (hi - lo).sin_cos();
-    let step = sin.atan2(cos);
+    let step = geom_core::period::Period::new(core::f64::consts::TAU).near(hi - lo, 0.0);
     (step.abs() > 0.1).then_some(step > 0.0)
 }
 

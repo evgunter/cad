@@ -1147,7 +1147,7 @@ fn step_bound<T: Decide>(
                 return None;
             }
             let turn = if along && edges[s.edge].line {
-                principal(b.x - a.x).abs()
+                geom::separation(b.x, a.x)
             } else {
                 span / rho_min
             };
@@ -1184,12 +1184,6 @@ fn step_bound<T: Decide>(
         ShapeKind::Other => T::zero(),
     };
     Some(T::from_f64(1.5) * slope * dv * turn)
-}
-
-/// The principal value of an angle step, in `(−π, π]`.
-fn principal<T: Real>(d: T) -> T {
-    let (s, c) = d.sin_cos();
-    s.atan2(c)
 }
 
 /// A walk's sums: its winding, its area, its bound, and each step's
@@ -1238,7 +1232,7 @@ fn sum_walk<T: Decide>(
     for (j, &(i, uv)) in charted.iter().enumerate() {
         (v_lo, v_hi) = (v_lo.min(uv.y), v_hi.max(uv.y));
         let (k, next) = charted[(j + 1) % m];
-        let step = principal(next.x - uv.x);
+        let step = geom_core::period::Period::new(T::tau()).near(next.x - uv.x, T::zero());
         total = total + step;
         let term = -(shape.g(uv.y) + shape.g(next.y)) * T::from_f64(0.5) * step;
         area = area + term;

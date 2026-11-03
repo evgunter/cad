@@ -198,9 +198,9 @@ impl Channel {
         }
     }
 
-    fn angle(self, p: Point3<f64>) -> f64 {
+    fn azimuth(self, p: Point3<f64>) -> geom::Azimuth<f64> {
         let (x, y) = self.coords(p);
-        y.atan2(x)
+        geom::Azimuth::of(y, x)
     }
 
     /// Whether the box `b` clears the centre in the channel's plane.
@@ -295,9 +295,8 @@ pub(crate) fn winding(
         let mut total = 0.0;
         for &(enclosure, _, (a, b)) in pieces {
             let delta = {
-                let d = chan.angle(net.eval(b)) - chan.angle(net.eval(a));
-                (d + core::f64::consts::PI).rem_euclid(core::f64::consts::TAU)
-                    - core::f64::consts::PI
+                let from = chan.azimuth(net.eval(a)).near(0.0);
+                chan.azimuth(net.eval(b)).near(from) - from
             };
             if !chan.clear(enclosure) || delta.abs() > TRUSTED_TURN {
                 return Err(WindsRefusal::Unseparated);

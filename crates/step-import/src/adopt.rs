@@ -1131,16 +1131,11 @@ fn arc_rim_on_wall_boundary(
             let axial = w.dot(a_hat);
             let radial = w - a_hat * axial;
             let ring = (radial.norm() - radius).hypot(axial);
-            let mut theta = w.dot(v_hat).atan2(w.dot(u_hat));
+            // Within half a turn of the window's middle, `t0 − slack + π`.
+            let theta = geom::Azimuth::of(w.dot(v_hat), w.dot(u_hat)).near(t0 - slack + tau / 2.0);
             if !(ring.is_finite() && theta.is_finite()) {
                 worst = f64::INFINITY;
                 break;
-            }
-            while theta < t0 - slack {
-                theta += tau;
-            }
-            while theta >= t0 - slack + tau {
-                theta -= tau;
             }
             let arc_excess = (theta - t1 - slack).max(0.0) * radius;
             worst = worst.max(ring).max(arc_excess);

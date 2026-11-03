@@ -1113,9 +1113,9 @@ pub(crate) fn loop_polygon(
         // the polygon's own winding (which does flip with the sense) is
         // consumed separately by `curved`'s `flip`.
         let chart_area = if sense { area } else { -area };
-        let mid_az = chart_area
-            .dot(chart.v_ref())
-            .atan2(chart_area.dot(chart.u_ref()));
+        let mid_az =
+            geom::Azimuth::of(chart_area.dot(chart.v_ref()), chart_area.dot(chart.u_ref()))
+                .near(0.0);
         Some(
             travs
                 .iter()
