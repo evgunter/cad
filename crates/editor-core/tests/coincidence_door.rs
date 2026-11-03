@@ -3118,6 +3118,23 @@ fn the_shaft_and_ball_union_is_green_at_f64_on_its_coaxial_rows() {
         "the union builds at f64: {:?}",
         failure(&ev, union)
     );
+    // The housing, the shaft and the ball, `0.75π + 0.875π + 0.5625π`,
+    // less what the ball shares with them: its slices inside the
+    // shaft's radius, the volume its coaxial circles bound.
+    let want = 5.836_839_596_566_8;
+    let got = match ev.nodes.get(&union) {
+        Some(editor_core::NodeResult::Ok(v)) => {
+            let b = v.payload.output_body(0).expect("one body").body();
+            let measured =
+                topo::test_support::finished("the union", b.clone(), Tol::witness());
+            topo::test_support::pinned_volume("the union", &measured, Tol::witness()).volume
+        }
+        other => panic!("the union builds: {other:?}"),
+    };
+    assert!(
+        (got - want).abs() <= 1e-9 * want,
+        "the union's volume: {got} against {want}"
+    );
     let (_, lines) = door_lines(&cd);
     let coaxial: Vec<&String> = lines
         .iter()

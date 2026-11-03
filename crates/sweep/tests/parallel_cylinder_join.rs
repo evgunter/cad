@@ -265,6 +265,31 @@ fn the_walls_join_along_their_carried_rulings() {
     }
 }
 
+/// **A rod's seam lying on the other rod's wall joins along the pair's
+/// carried ruling**: the unit rod about the origin, its seams at
+/// `(±1, 0)`, against a radius-0.3 rod about `(1, 0.3)` over
+/// `z ∈ [−0.5, 0.5]`, whose wall holds the unit rod's seam at `(1, 0)`.
+/// The germ there runs along that seam, an edge of one solid inside the
+/// other's wall, which is one of the pair's two rulings; it rides the
+/// carried lane on that ruling as the germs inside both walls do, and
+/// every op and order builds SOUND at its closed-form volume. (The
+/// rulings lane served this germ until it retired; a reviewer's probe.)
+#[test]
+fn a_seam_lying_on_the_other_wall_joins_along_the_carried_ruling() {
+    let (c, r) = ((1.0, 0.3), 0.3);
+    let (area, _) = lens((0.0, 0.0), 1.0, c, r);
+    let pose = Pose {
+        label: format!("unit rod × rod r {r} at {c:?} on its seam"),
+        a: rod(1.0, (0.0, 0.0), (-1.0, 1.0)),
+        b: rod(r, c, (-0.5, 0.5)),
+        va: PI * 2.0,
+        vb: PI * r * r,
+        shared: area,
+    };
+    let bad = unsound(&[pose]);
+    assert!(bad.is_empty(), "{}", bad.join("\n"));
+}
+
 /// **The row's rods build in every op and order.** Their walls join
 /// along the rulings like the poses above. Each build passes tiers 2 and
 /// 3′, the certificate and its closed-form volume, and is a legal

@@ -1629,7 +1629,8 @@ impl<T: Decide> PairSection<T> {
     /// knots are rounded. The seated carrier runs from `at`'s point
     /// round to it. A closed form (a circle or an ellipse, whose
     /// parameter is an angle) is seated by its span alone, `at` to `at`
-    /// plus a turn, its carrier as it is. A component that is open, or a
+    /// plus a turn, its carrier as it is and its witness the new span's
+    /// middle. A component that is open, or a
     /// spline holding no certificate, is returned as it is.
     ///
     /// # Errors
@@ -1649,8 +1650,10 @@ impl<T: Decide> PairSection<T> {
         }
         if matches!(component.carrier, Curve3::Circle(_) | Curve3::Ellipse(_)) {
             let (lo, hi) = component.span;
+            let span = (at, at + (hi - lo));
             return Ok(CarriedComponent {
-                span: (at, at + (hi - lo)),
+                span,
+                witness: component.carrier.mid_point(span.0, span.1),
                 ..component.clone()
             });
         }

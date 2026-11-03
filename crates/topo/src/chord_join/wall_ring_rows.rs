@@ -758,12 +758,18 @@ fn a_carried_ruling_chord_runs_back_where_it_leaves_back() {
     let open = geom_brep::ComponentShape::Open {
         ends: geom_brep::ComponentEnds::cut(),
     };
+    // A parallel wall of radius 0.8 holding the ruling: its axis 0.8
+    // along `x` from the ruling.
     let partner = geom::Surface::Cylinder {
-        origin: Point3::new(1.2, 0.0, 0.0),
+        origin: at(0.8, 0.0) + Vec3::new(0.8, 0.0, 0.0),
         axis: Vec3::unit_z(),
         radius: 0.8,
         u_ref: Vec3::unit_x(),
     };
+    assert!(
+        geom_brep::implicit_residual(&partner, at(0.8, 0.5)).abs() < 1e-12,
+        "the partner wall holds the ruling"
+    );
     let (lo, hi) = (at(0.8, 0.3), at(0.8, 0.7));
     for (what, ends, dir, back) in [
         ("up", (lo, hi), Vec3::unit_z(), false),

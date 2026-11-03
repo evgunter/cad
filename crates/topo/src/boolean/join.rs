@@ -231,9 +231,7 @@ enum GermLane<T: geom_core::Real> {
     /// A segment along a conic edge of the solid `on` only, lying inside
     /// the other's curved face: `on`'s chord copies its edge, and the
     /// other's is its face cut by the edge's plane, which meets that
-    /// face's carrier in the edge's conic; or along a straight edge
-    /// lying in the other's cylinder wall, a ruling of it, whose plane
-    /// holds the wall's axis. `root` is the edge's split
+    /// face's carrier in the edge's conic. `root` is the edge's split
     /// root, which every piece of it shares.
     EdgePlane {
         on: Operand,
@@ -359,20 +357,15 @@ impl<T: Decide> SegmentPair<T> {
             owned(face_surface(&red.a, germ.a_face)?),
             owned(face_surface(&red.b, germ.b_face)?),
         );
-        // A component rides the carried lane where its chord can be cut
-        // from it with its evidence of lying on both surfaces
-        // ([`chord_spec_carries`]): a fitted one by its certificate, a
-        // closed form (the parallel pair's rulings, the coaxial cylinder
-        // × sphere pair's circles) by being exact, on a pair with no
-        // torus.
+        // A pair the join carries ([`rides_carried`]) rides the carried
+        // lane on the component the germ's branch names, a fitted one by
+        // its certificate, a closed form (the parallel pair's rulings, a
+        // coaxial pair's circles) by being exact
+        // (`chord_join::carried_chord_spec`).
         let carried = match seg.lane {
             SegmentLane::AlongEdge => None,
             SegmentLane::Section => match germ_section(red, germ)? {
-                Some(section) => {
-                    let k = branch_component(germ.branch, section)?;
-                    chord_spec_carries(&section.components()[k], (a.1.kind(), b.1.kind()))
-                        .then_some(k)
-                }
+                Some(section) => Some(branch_component(germ.branch, section)?),
                 None => None,
             },
         };
@@ -397,26 +390,6 @@ impl<T: Decide> SegmentPair<T> {
             carried,
             site_loop,
         })
-    }
-}
-
-/// **Whether the carried lane cuts a chord from `component`** of a
-/// section of surfaces of the kinds `kinds`
-/// (`chord_join::carried_chord_spec`): a fitted spline holding its
-/// certificate, or a closed form whose arcs the ring lane reads as they
-/// are, a line, a circle or an ellipse, on a pair with no torus. A
-/// torus pair's closed forms take no lane yet
-/// (`a-torus-pairs-closed-form-circles-take-no-join-lane`), and a spiric
-/// is no closed form the lane cuts.
-fn chord_spec_carries<T: geom_core::Real>(
-    component: &geom_brep::CarriedComponent<T>,
-    kinds: (geom::SurfaceKind, geom::SurfaceKind),
-) -> bool {
-    let torus = kinds.0 == geom::SurfaceKind::Torus || kinds.1 == geom::SurfaceKind::Torus;
-    match component.carrier {
-        geom::Curve3::Nurbs(_) => component.certificate.is_some(),
-        geom::Curve3::Line(_) | geom::Curve3::Circle(_) | geom::Curve3::Ellipse(_) => !torus,
-        geom::Curve3::Spiric { .. } => false,
     }
 }
 
@@ -945,8 +918,7 @@ fn one_site<T: Decide>(
     if used0 || used1 || g0.a_locus != g1.a_locus || g0.b_locus != g1.b_locus {
         return Ok(None);
     }
-    if g0.a_locus.edge().is_none()
-        && g0.b_locus.edge().is_none()
+    if !(g0.a_locus.edge().is_some() && g0.b_locus.edge().is_some())
         && rides_carried(&red.sections, (&red.a, g0.a_face), (&red.b, g0.b_face))?
     {
         return Ok(Some((g0, None)));
@@ -1458,11 +1430,7 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
         // curved face, has a section whatever the pair's kinds: the
         // edge's plane. It is the lane of a pair no other arm takes. A
         // planar face holding the edge lies in that plane, which cuts
-        // it in no curve. A straight edge inside a cylinder wall is one
-        // of the wall's rulings, and its plane is the one through it
-        // holding the wall's axis, which cuts the wall in that ruling
-        // and the one opposite it: the seam of a cylinder lying on a
-        // parallel wall, whose pair names no kind arm.
+        // it in no curve.
         // A one-sided germ only: a germ along an edge of both solids
         // takes no kind lane (`SegmentLane::AlongEdge`, below). A pair
         // with a kind arm keeps it ([`kind_arm`]).
@@ -1479,33 +1447,20 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
                 Operand::A => &gb,
                 Operand::B => &ga,
             };
-            let (center, axis) = match (&along.carrier, holder) {
-                (_, Sf::Plane { .. }) => return Err(no_arm()),
-                (
-                    geom::Curve3::Circle(geom::Circle {
-                        frame: geom::Frame { center, axis, .. },
-                        ..
-                    })
-                    | geom::Curve3::Ellipse(geom::Ellipse {
-                        frame: geom::Frame { center, axis, .. },
-                        ..
-                    }),
-                    _,
-                ) => (*center, *axis),
-                (
-                    geom::Curve3::Line(geom::Line { origin, dir }),
-                    Sf::Cylinder {
-                        origin: o, axis: w, ..
-                    },
-                ) => {
-                    // The edge's point less its foot on the wall's axis:
-                    // the radial, `±r` long, square to the ruling.
-                    let off = *origin - *o;
-                    let radial = off - *w * (off.dot(*w) / w.dot(*w));
-                    (*origin, dir.cross(radial))
-                }
-                _ => return Err(no_arm()),
+            let (geom::Curve3::Circle(geom::Circle {
+                frame: geom::Frame { center, axis, .. },
+                ..
+            })
+            | geom::Curve3::Ellipse(geom::Ellipse {
+                frame: geom::Frame { center, axis, .. },
+                ..
+            })) = along.carrier
+            else {
+                return Err(no_arm());
             };
+            if matches!(holder, Sf::Plane { .. }) {
+                return Err(no_arm());
+            }
             Ok(GermLane::EdgePlane {
                 on: along.on,
                 root: along.root,
@@ -3338,8 +3293,19 @@ pub(super) fn germ_branch<T: Decide>(
     band: Band,
 ) -> Result<super::Branch, BooleanError> {
     use geom::SurfaceKind::{Cone, Plane, Torus};
-    if locus_a.edge().is_some() || locus_b.edge().is_some() {
-        return Ok(super::Branch::Only);
+    match (locus_a.edge(), locus_b.edge()) {
+        (Some(_), Some(_)) => return Ok(super::Branch::Only),
+        // A germ along an edge of one solid inside the other's face lies
+        // on both faces' surfaces, so on their section: on a pair the
+        // join carries, it rides the component its site's foot lies on
+        // (a parallel pair's seam lying on the other wall is one of the
+        // pair's rulings); on any other, its edge's own curve.
+        (Some(_), None) | (None, Some(_)) => {
+            if !rides_carried(sections, (body_a, face_a), (body_b, face_b))? {
+                return Ok(super::Branch::Only);
+            }
+        }
+        (None, None) => {}
     }
     match cylinder_read(sections, (body_a, face_a), (body_b, face_b))? {
         Some(CylinderRead::Bisector(loops)) => {
@@ -3530,9 +3496,11 @@ pub(super) fn line_of<T: Decide>(
 }
 
 /// **The section a germ rides, carried**, where the germ lies inside a
-/// face of each operand on a pair the operation's section table holds
-/// ([`super::section_table`]); `None` otherwise, the pair read by its
-/// frame. A germ along an edge rides the edge's own curve.
+/// face of at least one operand on a pair the join carries
+/// ([`rides_carried`]); `None` otherwise, the pair read by its frame. A
+/// germ along an edge of both solids rides the edges' own curve, and one
+/// along an edge of one solid the component its site's foot names
+/// ([`germ_branch`]).
 ///
 /// # Errors
 ///
@@ -3542,7 +3510,7 @@ fn germ_section<'r, T: Decide>(
     red: &'r BooleanReduction<T>,
     germ: &HalfGerm<T>,
 ) -> Result<Option<&'r geom_brep::CarriedSection<T>>, BooleanError> {
-    if germ.a_locus.edge().is_some() || germ.b_locus.edge().is_some() {
+    if germ.a_locus.edge().is_some() && germ.b_locus.edge().is_some() {
         return Ok(None);
     }
     let faces = ((&red.a, germ.a_face), (&red.b, germ.b_face));
@@ -3785,18 +3753,41 @@ pub(super) fn bisector_loops<T: geom_core::Real>(
     }
 }
 
-/// Whether the join reads the pair from its carried components: every
-/// pair the table holds, but a cylinder pair it reads in a plane
-/// ([`cylinder_read`]).
+/// **Whether the join reads the pair from its carried components**, the
+/// one home of the fact: a pair the table holds rides the carried lane
+/// by its pose, every pose but the cylinder pair's bisector pose, which
+/// the join reads in its two planes ([`cylinder_read`]). The match names
+/// every pose, so a pose added to the value decides here before any of
+/// its components rides. A held refusal rides too: the join reads it
+/// where it carries the pair ([`faces_section_unbuilt`]).
 fn rides_carried<T: Decide>(
     sections: &super::section_table::SectionTable<T>,
     a: (&Body<T>, FaceKey),
     b: (&Body<T>, FaceKey),
 ) -> Result<bool, BooleanError> {
-    Ok(match cylinder_read(sections, a, b)? {
-        Some(CylinderRead::Bisector(_)) => false,
-        Some(CylinderRead::Carried) => true,
-        None => sections.held(a, b).is_some(),
+    use geom_brep::PairPose as P;
+    if let Some(read) = cylinder_read(sections, a, b)? {
+        return Ok(match read {
+            CylinderRead::Bisector(_) => false,
+            CylinderRead::Carried => true,
+        });
+    }
+    Ok(match sections.held(a, b) {
+        None => false,
+        Some(Err(_)) => true,
+        Some(Ok(section)) => match section.pose() {
+            P::CylinderSphere(_)
+            | P::SphereTorus(_)
+            | P::CylinderTorus(_)
+            | P::TorusTorus(_)
+            | P::SplineImplicit(_)
+            | P::SplinePair(_) => true,
+            P::CylinderCylinder(_) => {
+                return Err(BooleanError::JoinDesync {
+                    what: "a cylinder pair's pose read past its cylinder reading",
+                });
+            }
+        },
     })
 }
 

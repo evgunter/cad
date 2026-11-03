@@ -2945,7 +2945,11 @@ fn carried_chord_spec<T: Decide>(
     };
     let (lo, hi) = component.span;
     // A closed form's parameter is an angle: a foot on a closed one is
-    // read in the turn its seat starts, `[lo, hi)`.
+    // read in the turn its seat starts, `[lo, hi)`. That no chord on a
+    // closed loop crosses the seat rests on the seat being one of the
+    // loop's sites, the least foot of any (`boolean::join`'s
+    // `carried_seats`), not on anything read here: the forward reading
+    // below refuses a chord that would cross it.
     let turn = (spline.is_none() && component.closed()).then_some(hi - lo);
     let seat = carrier.eval(lo);
     let at_seat = |p: Point3<T>| -> Result<bool, SplitJoinError> {
@@ -2960,10 +2964,28 @@ fn carried_chord_spec<T: Decide>(
     let foot = |p: Point3<T>| -> Result<T, SplitJoinError> {
         let foot = carrier.foot(p, lo);
         match foot.on_carrier(band) {
-            Ok(geom::OnCarrier::On { .. }) => Ok(match turn {
-                Some(turn) => lo + (foot.t() - lo).reduce_periodic(turn),
-                None => foot.t(),
-            }),
+            Ok(geom::OnCarrier::On { .. }) => {
+                let t = match turn {
+                    Some(turn) => lo + (foot.t() - lo).reduce_periodic(turn),
+                    None => foot.t(),
+                };
+                // A site of an open closed form (a ruling the region
+                // cuts, an arc between nodes) lies within its span: the
+                // section was listed over the region every site lies in.
+                debug_assert!(
+                    spline.is_some()
+                        || component.closed()
+                        || match (t.point_value(), lo.point_value(), hi.point_value()) {
+                            (Some(t), Some(lo), Some(hi)) => {
+                                let slack = band.escalate() * (1.0 + t.abs());
+                                lo - slack <= t && t <= hi + slack
+                            }
+                            _ => true,
+                        },
+                    "a carried chord's end lies past its open component's span"
+                );
+                Ok(t)
+            }
             Ok(geom::OnCarrier::Off) => {
                 Err(invariant("a carried chord's end lies off its component"))
             }

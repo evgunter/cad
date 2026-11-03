@@ -76,6 +76,9 @@ three ε.
   `coincidence_door::the_shaft_and_ball_union_is_green_at_f64_on_its_coaxial_rows`.
 - At `Interval` the union escalates, so the scene stays beside the
   registry.
-- The cylinder × coaxial torus and tangent cone scenes refuse as before.
-  The torus pair's closed forms are filed as
-  `sectarms/a-torus-pairs-closed-form-circles-take-no-join-lane`.
+- The tangent cone scene refuses as before. The cylinder × coaxial
+  torus scene (`rounded_mouth`) still refuses `CurvedBooleanUnsupported`
+  on the torus, but no longer for want of a lane for the pair's closed
+  forms: the carried lane takes a torus pair's coaxial parallels (the
+  coaxial torus × torus pair of `sweep/tests/germ_circle_torus.rs` now
+  builds). What refuses it there is not measured here.

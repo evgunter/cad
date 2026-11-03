@@ -57,9 +57,14 @@ pin them, retire into the carried lane.
   back. It has no spline arc, since an exact carrier is its own
   evidence, and the ring lane reads its arc as the curve it is.
 - `PairSection::seat` seats a closed circle or ellipse by its span.
-- The join admits a closed form to the carried lane on any pair with no
-  torus (`join::chord_spec_carries`). A torus pair's closed forms are
-  filed apart: `a-torus-pairs-closed-form-circles-take-no-join-lane`.
+- Which pairs ride the carried lane has one home, `join::rides_carried`:
+  every held pose but the cylinder pair's bisector pose, named pose by
+  pose. A torus pair's coaxial parallels ride it too: the coaxial
+  torus × torus pair of `germ_circle_torus` builds both unions and both
+  differences, and its intersection escalates at the merge, typed.
+- A germ along an edge of one solid inside the other's face, on a pair
+  the join carries, rides the component its site's foot names (a rod's
+  seam lying on a parallel wall is one of the pair's rulings).
 - The parallel pose's rulings lane retires: `GermLane::Rulings`,
   `KindArm::Cylinders`, `rulings_are_straight`, `rulings_normal` and
   `CylinderCylinderPose::rulings_plane`.
