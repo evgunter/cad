@@ -2,11 +2,12 @@
 id: a-spline-face-has-no-subtract-or-intersect-lane
 kind: issue
 title: Subtract and intersect refuse any spline (loft or sweep) face whose box may meet the other operand, at the revert roster: NURBS is on the union's roster only
-status: open
+status: dispatched
 opened: 2026-11-03
 priority: P0
 cost: H
 refs: [torus-onto-the-subtract-and-intersect-roster, a-saddle-cut-by-its-tangent-plane-builds-at-its-closed-form, the-spline-rider-arm-is-pinned-by-no-fixture]
+branch: splice/nurbs-revert-roster
 ---
 
 
