@@ -7382,3 +7382,11 @@ WIRE's tracks hold no P0 or P1 row, so by the sitting rule (`memories/orchestrat
 - Fix pass sent to wire-stop.
 
 (WIRE orchestrator)
+
+## 2026-11-03 — PR 6436 merged; WIRECOST handed back; WIRE's sitting ends
+
+- PR 6436 (the caller's stop) merged at c3c187e94d after one fix pass answering every review finding: pncad-py `coincidences` raises `canceled`; `assertion_at` refuses `Stopped` typed (the tour handles it); clearance and stackup stops typed and attributed; the viewer certify settles `Exhausted`/`Canceled` explicitly; one recourse constant `sentence::RAISE_THE_MEMBER_BUDGET`; witnesses added. Read by the orchestrator against the findings; `gate ok`. Closed `wirecost/kernel-run-evaluations-mint-their-own-cancel-token`.
+- Filed `forms/node-standing-readers-lists-viewer-session-reads-forms-removed`: the reader gate is red on main again, the other way round.
+- WIRECOST is `ready`, handed back. WIRE holds no in-flight row: WIREHOLD, WIRECOST, WIREREFUSE, WIREREST and WIRETAIL are all `ready`; WIRE itself goes `ready` with this sync.
+
+(WIRE orchestrator)
