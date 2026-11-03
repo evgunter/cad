@@ -68,9 +68,9 @@ and the sites still differ:
 Tier 3's reader is no longer hand-spelled: `validate.rs`'s
 `DescriptionNotAdjacent` pass and `Body::stored_description_adjacent`
 both call `Named::adjacent_at_rest` (`crates/topo/src/attach.rs`),
-the surface-only `Named::adjacent_in_construction` plus face identity
-(wrap iff the two halves bound one face). The gate keeps the
-surface-only reading under that name.
+the surface-only `Named::adjacent_by_surfaces` plus face identity
+(wrap iff the two halves bound one face). The gate and the re-chart
+planner keep the surface-only reading under that name.
 
 `crate::boolean::describe_edges`' smooth arm (`crates/topo/src/boolean/ops.rs`,
 the `let stale = match ...` ladder) still spells the at-rest reading by
@@ -84,3 +84,8 @@ is `restated_in_chart`, a non-wrap `Chart` (`EdgeDescriptionSpec::chart`),
 so the edge would be re-described and still refused. The ladder's one
 home has to decide what a one-face edge rests as (a wrap chart) before
 that arm can take the shared reading.
+Until then `merge_coplanar_faces`' debug postcondition
+(`stored_description_adjacent` over every kept-boundary edge
+`describe_edges` described) is the tripwire for that one-face hole: it
+panics in a debug build, by intent, rather than return a body tier 3
+refuses.

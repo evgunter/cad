@@ -5704,12 +5704,9 @@ pub(crate) fn closed_by_tier<T: Real>(
 ///    fixed schedule, transversality for `Intersection` — with the same
 ///    deterministic sampling as at attachment
 ///    ([`ValidationError::EdgeCertification`]); then the
-///    **description-adjacency coherence** check: a two-surface
-///    description's surfaces (`Intersection`, `TangentIntersection`,
-///    `OnPair`) must be exactly the edge's two faces' surfaces, a chart
-///    image must name one of them, and an edge's two
-///    halves bound one face exactly when it is a wrap edge
-///    ([`ValidationError::DescriptionNotAdjacent`]).
+///    **description-adjacency coherence** check, the at-rest reading
+///    (`Named::adjacent_at_rest` in `crate::attach`, which states the
+///    rule) ([`ValidationError::DescriptionNotAdjacent`]).
 /// 3. **Planar-face corners** (faces, arena order; per face the outer
 ///    loop then rings in list order, vertices in cycle order): every
 ///    vertex of a face whose surface is a plane is read on that plane by
@@ -7742,7 +7739,7 @@ pub(crate) fn tier3_local_checks_marked<
         if curve.description().is_scaffold() {
             errors.push(ValidationError::ScaffoldAtRest { edge: edge_key });
         }
-        if !crate::attach::Named::of_description(curve.description()).adjacent_at_rest(sides) {
+        if !Named::of_description(curve.description()).adjacent_at_rest(sides) {
             errors.push(ValidationError::DescriptionNotAdjacent { edge: edge_key });
         }
     }
