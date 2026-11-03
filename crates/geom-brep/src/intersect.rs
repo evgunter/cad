@@ -2050,16 +2050,10 @@ pub fn plane_cone_apex_extrema<T: Real>(
     cone: &Surface<T>,
     normal: Vec3<T>,
 ) -> Option<[Vec3<T>; 2]> {
-    let &Surface::Cone {
-        apex,
-        axis,
-        half_angle,
-        u_ref,
-    } = cone
-    else {
+    let &Surface::Cone { half_angle, .. } = cone else {
         return None;
     };
-    let fan = ApexFan::of(&Frame::new(apex, axis, u_ref), half_angle);
+    let fan = ApexFan::of(&cone.frame()?, half_angle);
     let phi = fan.azimuth(normal);
     Some([fan.ruling(phi), fan.ruling(phi + T::pi())])
 }
@@ -2241,12 +2235,12 @@ pub fn plane_cone_section<T: Decide>(
             expected: "plane×cone",
         });
     };
-    let &Surface::Cone {
-        apex,
-        axis,
-        half_angle,
-        u_ref,
-    } = cone
+    let (
+        &Surface::Cone {
+            apex, half_angle, ..
+        },
+        Some(frame),
+    ) = (cone, cone.frame())
     else {
         return Err(SectionError::WrongLane {
             expected: "plane×cone",
@@ -2260,7 +2254,7 @@ pub fn plane_cone_section<T: Decide>(
         axis: a,
         u_ref: cone_u,
         width: seam_width,
-    } = Frame::new(apex, axis, u_ref).square();
+    } = frame.square();
 
     let extent = reach.lever_from(apex);
     let (sin_a, cos_a) = half_angle.sin_cos();
@@ -3013,12 +3007,12 @@ pub fn cone_cylinder_section<T: Decide>(
     let wrong = || SectionError::WrongLane {
         expected: "cone×cylinder (cone first)",
     };
-    let &Surface::Cone {
-        apex,
-        axis,
-        half_angle,
-        u_ref,
-    } = cone
+    let (
+        &Surface::Cone {
+            apex, half_angle, ..
+        },
+        Some(frame),
+    ) = (cone, cone.frame())
     else {
         return Err(wrong());
     };
@@ -3027,7 +3021,7 @@ pub fn cone_cylinder_section<T: Decide>(
         axis: a,
         u_ref: cone_u,
         width: seam_width,
-    } = Frame::new(apex, axis, u_ref).square();
+    } = frame.square();
     let &Surface::Cylinder {
         origin: o,
         axis: b,

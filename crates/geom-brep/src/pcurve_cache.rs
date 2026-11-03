@@ -5781,81 +5781,48 @@ fn periodic_envelope_shown<T: Decide>(
 /// [`EnvelopeStatement::MapResidualClosedForm`] assumes; a literal
 /// unit frame is its own twin, and its twin's forms reduce to its own.
 pub(crate) fn orthonormal_chart<T: Real>(surface: &Surface<T>) -> Surface<T> {
-    let frame = |at: Point3<T>, axis: Vec3<T>, u_ref: Vec3<T>| {
-        let f = geom::Frame::new(at, axis, u_ref).square();
-        (f.axis, f.u_ref)
+    let Some(square) = surface.frame().map(|f| f.square()) else {
+        unreachable!("orthonormal_chart: a spline chart has no frame to make orthonormal")
     };
+    let (axis, u_ref) = (square.axis, square.u_ref);
     match *surface {
-        Surface::Cylinder {
+        Surface::Cylinder { origin, radius, .. } => Surface::Cylinder {
             origin,
             axis,
             radius,
             u_ref,
-        } => {
-            let (axis, u_ref) = frame(origin, axis, u_ref);
-            Surface::Cylinder {
-                origin,
-                axis,
-                radius,
-                u_ref,
-            }
-        }
+        },
         Surface::Cone {
+            apex, half_angle, ..
+        } => Surface::Cone {
             apex,
             axis,
             half_angle,
             u_ref,
-        } => {
-            let (axis, u_ref) = frame(apex, axis, u_ref);
-            Surface::Cone {
-                apex,
-                axis,
-                half_angle,
-                u_ref,
-            }
-        }
-        Surface::Sphere {
+        },
+        Surface::Sphere { center, radius, .. } => Surface::Sphere {
             center,
             radius,
             axis,
             u_ref,
-        } => {
-            let (axis, u_ref) = frame(center, axis, u_ref);
-            Surface::Sphere {
-                center,
-                radius,
-                axis,
-                u_ref,
-            }
-        }
+        },
         Surface::Torus {
+            center,
+            major_radius,
+            minor_radius,
+            ..
+        } => Surface::Torus {
             center,
             axis,
             major_radius,
             minor_radius,
             u_ref,
-        } => {
-            let (axis, u_ref) = frame(center, axis, u_ref);
-            Surface::Torus {
-                center,
-                axis,
-                major_radius,
-                minor_radius,
-                u_ref,
-            }
-        }
-        Surface::Plane {
+        },
+        Surface::Plane { origin, .. } => Surface::Plane {
             origin,
-            normal,
+            normal: axis,
             u_ref,
-        } => {
-            let (normal, u_ref) = frame(origin, normal, u_ref);
-            Surface::Plane {
-                origin,
-                normal,
-                u_ref,
-            }
-        }
+        },
         Surface::Nurbs(_) | Surface::Approx(_) => {
             unreachable!("orthonormal_chart: a spline chart has no frame to make orthonormal")
         }

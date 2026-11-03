@@ -1218,7 +1218,7 @@ pub(crate) fn coverage(
             origin: o,
             axis: a,
             radius: rho,
-            u_ref,
+            u_ref: _,
         },
         &geom::Surface::Cylinder {
             origin: q,
@@ -1234,7 +1234,9 @@ pub(crate) fn coverage(
     let p3 = |p: Point3<f64>| Point3::new(lift(p.x), lift(p.y), lift(p.z));
     let v3 = |v: Vec3<f64>| Vec3::new(lift(v.x), lift(v.y), lift(v.z));
     // The ruled wall's own frame, squared from its seam reference.
-    let frame = geom::Frame::new(o, a, u_ref).square();
+    let Some(frame) = ruled.frame().map(|f| f.square()) else {
+        return Err([0.0, core::f64::consts::TAU]);
+    };
     let (u, v) = (frame.u_ref, frame.axis.cross(frame.u_ref));
     let (o, q, a, b, u, v) = (p3(o), p3(q), v3(a), v3(b), v3(u), v3(v));
     let (rho, r) = (lift(rho), lift(r));

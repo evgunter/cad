@@ -629,13 +629,9 @@ fn sheet_fn<T: Decide + Bounds>(
     let lever = |p: Point3<T>| corner_max(lo, hi, |x| (x - p).norm());
     let centre = lo + (hi - lo) / T::from_f64(2.0);
     Some(match s {
-        Surface::Plane {
-            origin,
-            normal,
-            u_ref,
-        } => {
+        Surface::Plane { normal, .. } => {
             let n = normal.normalize();
-            let foot = geom::Frame::new(*origin, *normal, *u_ref).foot(centre);
+            let foot = s.frame()?.foot(centre);
             // Either sign encloses, the slack being the chord to it, so a
             // plane parallel to the axis takes one by decision.
             let sg = if n.dot(a).hi() < 0.0 { -one } else { one };
@@ -649,15 +645,8 @@ fn sheet_fn<T: Decide + Bounds>(
                 (n - a * sg).norm() * lever(foot),
             )
         }
-        Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            u_ref,
-        } => {
-            let foot = geom::Frame::new(*origin, *axis, *u_ref)
-                .axis_line()
-                .foot(centre);
+        Surface::Cylinder { axis, radius, .. } => {
+            let foot = s.frame()?.axis_line().foot(centre);
             (
                 SheetFn::Line {
                     alpha: one,
@@ -971,15 +960,11 @@ fn station<T: Decide>(body: &Body<T>, link: &Link<T>) -> Result<Station<T>, Blen
     let fa = foot_on(&link.blend.trim_a.0, p).ok_or_else(off_trim)?;
     let fb = foot_on(&link.blend.trim_b.0, p).ok_or_else(off_trim)?;
     let c = match link.blend.surface {
-        Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            u_ref,
-        } => Some((
-            geom::Frame::new(origin, axis, u_ref).axis_line().foot(p),
-            radius,
-        )),
+        Surface::Cylinder { radius, .. } => link
+            .blend
+            .surface
+            .frame()
+            .map(|f| (f.axis_line().foot(p), radius)),
         Surface::Torus {
             center,
             axis,

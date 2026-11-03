@@ -1854,15 +1854,9 @@ fn bend_across<T: Decide>(
 ) -> Option<geom_core::Vec3<T>> {
     let toward = match *surface {
         geom::Surface::Plane { .. } => return Some(geom_core::Vec3::zero()),
-        geom::Surface::Cylinder {
-            origin,
-            axis,
-            u_ref,
-            ..
-        } => geom::Frame::new(origin, axis, u_ref).axis_line().foot(p) - p,
-        geom::Surface::Cone {
-            apex, axis, u_ref, ..
-        } => geom::Frame::new(apex, axis, u_ref).axis_line().foot(p) - p,
+        geom::Surface::Cylinder { .. } | geom::Surface::Cone { .. } => {
+            surface.frame()?.axis_line().foot(p) - p
+        }
         _ => return None,
     };
     let off = toward - t * toward.dot(t);
