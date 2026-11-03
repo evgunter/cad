@@ -501,11 +501,15 @@ fn line_pairs<T: Decide>(
         Err(diag) => return Err(SplitJoinError::Escalated { face, diag }),
     }
     let along: Vec<&Crossing<T>> = crossings.iter().collect();
-    Ok(pair_along_line(face, &along, red.plane.origin, d.normalize(), band)?.0)
+    let line = geom::Line {
+        origin: red.plane.origin,
+        dir: d.normalize(),
+    };
+    Ok(pair_along_line(face, &along, line, band)?.0)
 }
 
-/// Crossings on one line through `origin` along unit `d`, paired along
-/// it: keyed by `(p − origin)·d`, ordered by
+/// Crossings on one line (its `dir` unit), paired along it: keyed by
+/// their parameters on it, ordered by
 /// [`super::order::sort_along_line`], each taking the first unpaired
 /// one before it of opposite sense. Returns the pairs and the number
 /// of crossings left unpaired.
@@ -517,14 +521,10 @@ fn line_pairs<T: Decide>(
 fn pair_along_line<T: Decide>(
     face: FaceKey,
     crossings: &[&Crossing<T>],
-    origin: Point3<T>,
-    d: geom_core::Vec3<T>,
+    line: geom::Line<T>,
     band: Band,
 ) -> Result<(Vec<(HalfEdgeKey, HalfEdgeKey)>, usize), SplitJoinError> {
-    let keys: Vec<T> = crossings
-        .iter()
-        .map(|c| (c.point - origin).dot(d))
-        .collect();
+    let keys: Vec<T> = crossings.iter().map(|c| line.param(c.point)).collect();
     let order = super::order::sort_along_line(&keys, band)
         .map_err(|diag| SplitJoinError::Escalated { face, diag })?;
     let mut pairs = Vec::new();
@@ -585,9 +585,12 @@ fn ruling_pairs<T: Decide>(
                 what: "a ruling section carried a non-line",
             });
         };
-        lines.push((origin, dir.normalize()));
+        lines.push(geom::Line {
+            origin,
+            dir: dir.normalize(),
+        });
     }
-    let off = |p: Point3<T>, (o, d): (Point3<T>, geom_core::Vec3<T>)| (p - o).cross(d).norm();
+    let off = |p: Point3<T>, line: geom::Line<T>| (p - line.origin).cross(line.dir).norm();
     let mut on: [Vec<&Crossing<T>>; 2] = [Vec::new(), Vec::new()];
     for c in crossings {
         let reading = match c.germ {
@@ -597,7 +600,7 @@ fn ruling_pairs<T: Decide>(
             Some(germ) => decide_nonzero(
                 "split_join_ruling_germ",
                 Margin::levered(
-                    germ.cross(lines[1].1).norm() - germ.cross(lines[0].1).norm(),
+                    germ.cross(lines[1].dir).norm() - germ.cross(lines[0].dir).norm(),
                     crossing_reach(crossings, c.point),
                 ),
                 band,
@@ -614,8 +617,8 @@ fn ruling_pairs<T: Decide>(
         }
     }
     let mut pairs = Vec::new();
-    for (side, &(origin, d)) in on.iter().zip(&lines) {
-        let (along, loose) = pair_along_line(face, side, origin, d, band)?;
+    for (side, &line) in on.iter().zip(&lines) {
+        let (along, loose) = pair_along_line(face, side, line, band)?;
         if loose > 0 {
             return Err(SplitJoinError::SectionCrossings {
                 face,
@@ -1063,6 +1066,9 @@ impl<T: Decide> Sweep<T> {
     /// perimeter contribution is raised from the chord to the
     /// conservative arc-length bound `s_a·|Δt|` (a larger perimeter
     /// only shrinks the mean-width margin — refuses more, never less).
+    /// A spiric or spline section edge has no such term here, and its
+    /// chord is not its area: it refuses
+    /// ([`SplitJoinError::RunEdgeCarrierUnsupported`]).
     ///
     /// The join's body is mid-operation, and an edge's curve is a link
     /// there ([`crate::live::OPERATORS_KEEP_LINKS`]): a torn one panics,
@@ -1116,8 +1122,19 @@ impl<T: Decide> Sweep<T> {
                 placeholders += 1;
                 continue;
             }
-            let Some(conic) = curve.carrier().conic() else {
-                continue;
+            let conic: &dyn geom::Conic<T> = match curve.carrier() {
+                // A chord: the shoelace is exact.
+                geom::Curve3::Line(_) => continue,
+                geom::Curve3::Circle(c) => c,
+                geom::Curve3::Ellipse(e) => e,
+                geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => {
+                    return Err(SplitJoinError::RunEdgeCarrierUnsupported {
+                        face,
+                        edge: body
+                            .split_root(he_data.edge, |_| false)
+                            .map_err(|_| corrupt_edge(he_data.edge))?,
+                    });
+                }
             };
             let (c_e, axis_e) = (conic.frame().center, conic.frame().axis);
             let ((sa, sb), reach) = (conic.semi_axes(), conic.speed_hi());
@@ -1486,11 +1503,15 @@ mod torn_hop_rows {
     use crate::review_d18::{ROW_FOUR, assert_torn_op_panics};
     use geom_core::Vec3;
 
-    fn band() -> Band {
+    pub(super) fn band() -> Band {
         Band::linear(Tol::witness()).unwrap()
     }
 
-    fn reduced(body: &Body<f64>, origin: Point3<f64>, normal: Vec3<f64>) -> SplitReduction<f64> {
+    pub(super) fn reduced(
+        body: &Body<f64>,
+        origin: Point3<f64>,
+        normal: Vec3<f64>,
+    ) -> SplitReduction<f64> {
         let tol = Tol::witness();
         let plane = crate::test_support_fixtures::split_plane(origin, normal, tol);
         let mut described = body.clone();
@@ -1499,7 +1520,7 @@ mod torn_hop_rows {
         crate::splitting::split_reduce(&operand, &plane, tol).unwrap()
     }
 
-    fn above_set(red: &SplitReduction<f64>) -> SecondaryMap<VertexKey, ()> {
+    pub(super) fn above_set(red: &SplitReduction<f64>) -> SecondaryMap<VertexKey, ()> {
         red.null_edges
             .iter()
             .map(|r| (r.attr.above_end, ()))
@@ -1691,5 +1712,119 @@ mod placeholder_rows {
                 );
             }
         }
+    }
+}
+
+/// **A spline section edge is not measured as its chord.** A cube cut
+/// through its middle, one edge of its section's loop then put on a
+/// straight NURBS through the same two points: its chord is its whole
+/// area, so a certificate that read the shoelace alone would pass it, but
+/// no term reads a spline's area past its chord, and the certificate
+/// refuses it typed, naming the section face and the edge.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod curved_section_rows {
+    use super::torn_hop_rows::{above_set, band, reduced};
+    use super::*;
+    use geom_core::Vec3;
+
+    /// A certified straight NURBS from `p0` to `p1`, both at one height:
+    /// the bottom rim edge between them of a prism standing on them,
+    /// re-carried by a degree-one spline through its two ends.
+    fn straight_spline(p0: Point3<f64>, p1: Point3<f64>, tol: Tol) -> geom_brep::EdgeCurve<f64> {
+        let d = p1 - p0;
+        let apex = p0 + d * 0.5 + Vec3::new(-d.y, d.x, 0.0);
+        let mut prism = crate::test_support_fixtures::prism_z::<f64>(
+            &[(p0.x, p0.y), (p1.x, p1.y), (apex.x, apex.y)],
+            p0.z,
+            p0.z + 1.0,
+            tol,
+        );
+        let rim = prism
+            .body
+            .edges()
+            .find(|&(e, _)| {
+                let (a, b) = crate::query::edge_ends(&prism.body, e);
+                [a, b] == [prism.bottom[0], prism.bottom[1]]
+                    || [a, b] == [prism.bottom[1], prism.bottom[0]]
+            })
+            .map(|(e, _)| e)
+            .unwrap();
+        let read = |body: &Body<f64>| {
+            body.get_curve_geom(body.get_edge(rim).unwrap().curve)
+                .and_then(CurveGeom::certified)
+                .unwrap()
+                .clone()
+        };
+        let line = read(&prism.body);
+        let (t0, t1) = line.params();
+        let mut spec = line.restated_spec();
+        spec.carrier = geom::Curve3::Nurbs(std::sync::Arc::new(
+            geom::NurbsCurve3::new(
+                geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
+                vec![line.carrier().eval(t0), line.carrier().eval(t1)],
+                vec![1.0; 2],
+            )
+            .unwrap(),
+        ));
+        (spec.param_start, spec.param_end) = (0.0, 1.0);
+        prism
+            .body
+            .set_edge_curve(rim, spec, tol)
+            .expect("the straight NURBS certifies on the rim's two planes");
+        read(&prism.body)
+    }
+
+    #[test]
+    fn a_spline_section_edge_refuses_rather_than_read_as_its_chord() {
+        let tol = Tol::witness();
+        let cube = crate::test_support_fixtures::geometric_cube::<f64>(tol).body;
+        let mut red = reduced(&cube, Point3::new(0.0, 0.0, 0.5), Vec3::unit_z());
+        let (completed, _) = split_connect(&mut red, band(), tol).unwrap();
+        let [section] = &completed[..] else {
+            panic!("a cube cut through its middle has one section");
+        };
+        let sweep = Sweep {
+            ends: Vec::new(),
+            partner: SecondaryMap::new(),
+            joiner: ChordJoiner::new(band()),
+            completed: Vec::new(),
+            above_set: above_set(&red),
+            plane: red.plane,
+            band: band(),
+            section: SectionCtx {
+                origin: red.plane.origin,
+                normal: red.plane.normal,
+                plane_key: None,
+                branch: None,
+            },
+        };
+        let certify =
+            |b: &Body<f64>| sweep.certify_section_area(b, section.face, section.below_loop);
+        assert!(certify(&red.body).is_ok(), "the sound section certifies");
+        let LoopBoundary::Cycle { first } = red.body.get_loop(section.below_loop).unwrap().boundary
+        else {
+            panic!("the below loop is a cycle");
+        };
+        let edge = red.body.get_half_edge(first).unwrap().edge;
+        let curve = red
+            .body
+            .get_curve_geom(red.body.get_edge(edge).unwrap().curve)
+            .and_then(CurveGeom::certified)
+            .expect("a section edge of the cut cube is certified")
+            .clone();
+        let (t0, t1) = curve.params();
+        let (p0, p1) = (curve.carrier().eval(t0), curve.carrier().eval(t1));
+        red.body
+            .replace_edge_curve(edge, straight_spline(p0, p1, tol));
+        let got = certify(&red.body);
+        assert!(
+            matches!(
+                got,
+                Err(SplitJoinError::RunEdgeCarrierUnsupported { face, edge: e })
+                    if face == section.face && e == edge
+            ),
+            "a spline section edge refuses, naming the section and the edge: {got:?}"
+        );
     }
 }

@@ -244,9 +244,9 @@ pub const DEV_SAMPLES: usize = 6;
 /// whose lane nobody has yet decided, and the compiler is the
 /// right party to ask.
 pub fn sized_lane(chart: SurfaceKind) -> bool {
-    use SurfaceKind::{Approx, Cone, Cylinder, Nurbs, Plane, Sphere, Torus};
+    use SurfaceKind::{Approx, Cone, Cylinder, Nurbs, Plane, Sphere, Spindle, Torus};
     match chart {
-        Plane | Cylinder | Cone | Sphere | Torus => false,
+        Plane | Cylinder | Cone | Sphere | Torus | Spindle => false,
         Nurbs | Approx => true,
     }
 }

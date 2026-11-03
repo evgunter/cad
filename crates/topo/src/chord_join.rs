@@ -527,11 +527,14 @@ pub enum SplitJoinError {
         /// Its surface kind.
         kind: geom::SurfaceKind,
     },
-    /// A run edge between two chords on a plane face is a spiric or a
-    /// spline, and the join has no row reading whether such an edge lies
-    /// in the cut's plane: its midpoint's side says nothing of the rest.
+    /// An edge on a section's loop is a spiric or a spline, which the
+    /// join has no row for: a run edge between two chords on a plane
+    /// face, whether it lies in the cut's plane (its midpoint's side says
+    /// nothing of the rest); a section edge, the area it bounds past its
+    /// chord.
     RunEdgeCarrierUnsupported {
-        /// The face whose loop the run is on.
+        /// The face whose loop holds the edge: the plane face the run is
+        /// on, or the section face whose area is certified.
         face: FaceKey,
         /// The edge: its split pieces' root.
         edge: EdgeKey,
@@ -892,9 +895,9 @@ impl SplitJoinError {
             ),
             Self::RunEdgeCarrierUnsupported { .. } => write!(
                 f,
-                "a cut joins two points of a face's boundary across a spiric or spline \
-                 (NURBS) edge, and the join cannot yet tell whether such an edge lies in the \
-                 cut. Recourse: {}",
+                "a cut meets a spiric or spline (NURBS) edge on a face's boundary, and the \
+                 join cannot yet read such an edge there: whether it lies in the cut, or the \
+                 area it bounds in the section. Recourse: {}",
                 crate::boolean::CONIC_EDGES_RECOURSE
             ),
             Self::TangentChordEscalated { diag, .. } => write!(
@@ -2412,9 +2415,7 @@ fn chord_spec<T: Decide>(
         // gate by the mef/mekr caller. No arc-side rule applies: a line
         // has no complementary candidate.
         SectionCase::Tangent(line) => {
-            let (geom::Curve3::Line(geom::Line { origin, dir }), Some(back)) =
-                (line.clone(), line.reversed())
-            else {
+            let (Some(ruling), Some(back)) = (line.as_line(), line.reversed()) else {
                 return Err(SplitJoinError::SectionInvariant {
                     face,
                     what: "tangent classification carried a non-line",
@@ -2422,9 +2423,10 @@ fn chord_spec<T: Decide>(
             };
             let p1 = vertex_point(body, u1);
             let p2 = vertex_point(body, u2);
-            let len = dir.norm();
-            let t1 = (p1 - origin).dot(dir) / len.powi(2);
-            let t2 = (p2 - origin).dot(dir) / len.powi(2);
+            let (t1, t2) = (ruling.param(p1), ruling.param(p2));
+            // The ruling's speed: it meters a parameter span in metres
+            // and makes the plane's `u_ref` unit.
+            let len = ruling.dir.norm();
             // The spec must run u1 → u2 (the mef `he_plus` direction):
             // whether that is the classified direction or its reverse
             // is a named trilean (metered in metres), never a raw
@@ -2453,7 +2455,7 @@ fn chord_spec<T: Decide>(
                         normal: ctx.normal.get(),
                         // Honest u_ref: the ruling direction lies in
                         // the plane by the tangency classification.
-                        u_ref: dir / len,
+                        u_ref: ruling.dir / len,
                     });
                     ctx.plane_key = Some(k);
                     k

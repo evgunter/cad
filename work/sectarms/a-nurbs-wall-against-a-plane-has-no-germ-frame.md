@@ -34,3 +34,28 @@ wall. No frame names a plane × NURBS germ pair's section.
 A section frame for a plane × NURBS germ pair, or a typed recourse
 naming the rung that would hold it. The row above is the tripwire:
 it reds when the frame lands, and is re-pinned to the next stop then.
+
+## A second witness: the wavy loft across its corners (SPLICE, 2026-11-03)
+
+Added by SPLICE's `splice/held-pierce` lane. This row is now the stop of a P0
+row's reproducer. `editor-core` `emit_topo`'s
+`wavy_loft::a_union_across_a_nurbs_edge_refuses_at_the_spline_walls_germ_frame`
+unions, through the recipe, a loft through four 2 × 2 squares at
+z = 0, 1, 2, 3, their x offsets alternating −0.3, 0.3, with a box over
+x ∈ [1, 3] whose face x = 1 crosses each of the loft's two corner edges
+three times. With the spline walls' trims lifted past the sweep's null
+edges, the vertex-on-face pass reads the walls, and the union refuses
+in the join:
+
+`GermFrameUnsupported { a_face, a_kind: Nurbs, b_face, b_kind: Plane }`
+
+`a_face` is the loft's wall at x ≈ dx + 1, and `b_face` is the box's face
+x = 1. The row pins both faces by identity.
+
+**The obligation travels with this stop.** SPLICE's
+`a-spline-wall-cannot-say-whether-it-holds-a-pierce-point` owes an
+end-to-end row: the union builds, and each corner's crossings are
+named through the boolean, the first and third, which have one sense,
+tied. That row cannot be written until this frame lands. When it does,
+the tripwire above goes red. Its lane should then write that
+end-to-end row, or re-pin the next stop and file it.

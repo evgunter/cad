@@ -2947,6 +2947,10 @@ fn surface_residual<T: Real>(surface: &Surface<T>, p: Point3<T>, frame: &Frame<T
             let h = frame.station(p) - frame.station(*center);
             Vec3::new(rho - *major_radius, h, T::zero()).norm() - *minor_radius
         }
+        // No edge is moved with a spindle sheet (the offset door mints
+        // none), and the meter answers poison rather than a zero that
+        // would certify an edge it never measured.
+        Surface::Spindle { .. } => geom_core::poison(),
         _ => T::zero(),
     }
 }

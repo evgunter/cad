@@ -1317,3 +1317,10 @@ general regularity sweep. SECTARMS's cylinder × cylinder unit adopts
   - The conflict with main's face-loop-home refactor kept main's loop walks. The one `null::is_placeholder` now reads vertex points through main's `resolve_vertex_point_key` door, so region.rs's re-grown inline copy is gone.
   - Main's new `a_faces_loops_are_walked_in_one_place` audit caught the adopted seam row walking loops by hand, and it is fixed.
   - Teapot wall 3's default and 1e-12 stop is SECTARMS' NURBS × sphere arm.
+- 2026-11-03 — **PR 6435 merges** (`held-pierce`), closing `a-spline-wall-cannot-say-whether-it-holds-a-pierce-point` (P0).
+  - The spline trim lifts past the sweep's placeholders through a crate-private door, with one `is_placeholder` predicate; the public `Body::loop_lift` is strict.
+  - The orchestrator read the fix pass. Slow sets on `985e2f4c`: topo 3909 plus the two known main reds, sweep 3536/3536, the tour green at three ε.
+  - The demo-joins row (`curved-demo-joins-build`, now SPLICE's own since main retired `work/issues/`) swaps this row for SECTARMS' NURBS × sphere arm as teapot wall 3's default and 1e-12 blocker.
+- 2026-11-03 — **PR 6437 merges** (`kind-reads`). Closed: `a-spline-rider-reads-as-lying-in-no-plane-face`, `section-area-skips-a-spiric-or-nurbs-section-edge`, `the-curved-arm-reads-a-spline-faces-side-through-the-dihedral-side-door` (overtaken) and `main-red-certified-endpoint-census-drifted-in-geom-brep-after-6171`. `split-section-boundary-curved-arm-untested-past-the-edge-gate` is re-banded P3 and parked on PARTING's split-gate row.
+  - **Three review rounds:** two MAJORs in the first (a sampled refutation; a record bypassed), one in the re-review (the kept midpoint check: the notch case). All are closed.
+  - **Four builds now refuse instead of shipping on a sampled read.** Their way back is the P0 `an-unread-rider-related-only-by-its-own-vertices-refuses`: the same-operand lineage exemption, together with the missing operand at-rest check.

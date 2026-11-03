@@ -3096,7 +3096,11 @@ impl<T: Decide> Link<T> {
                     let u = (r - s.apex).normalize();
                     let (wp, ep) = (w - u * u.dot(w), e - u * u.dot(e));
                     let f = [ep.norm_squared(), two * wp.dot(ep), wp.norm_squared()];
-                    let foot = |x: Point3<T>| s.apex + u * u.dot(x - s.apex);
+                    let ruling = geom::Line {
+                        origin: s.apex,
+                        dir: u,
+                    };
+                    let foot = |x: Point3<T>| ruling.foot(x);
                     rays.push((f, lies_in, meets(-f[1] / (two * f[0]), &foot)));
                 }
             }
