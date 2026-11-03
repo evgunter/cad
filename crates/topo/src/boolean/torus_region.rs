@@ -774,19 +774,14 @@ impl<T: Decide> Legs<T> for TorusFaceRegion<T> {
 
 /// **Where a point lies on an edge's arc**, from its offset `(x, y)` off
 /// the arc's centre in the arc's own frame (`x` along its angle's zero):
-/// its angle on the branch of the span's middle and, within the span,
-/// whether it is at an end ([`span`]); `None` past the span. A point at
-/// the angle opposite the span's middle lies at that branch's cut, where
-/// an enclosing scalar holds its angle as a whole turn and the span
-/// reading is in band; it is read past the span all the same where the
-/// cosine of its angle from the middle is definitely below the
-/// half-span's, `lever·(cos Δ − cos(w/2))` (no branch). Otherwise the
-/// span reading's refusal stands.
+/// its angle within half a turn of the span's middle and, within the
+/// span, whether it is at an end ([`span`]); `None` past the span. A
+/// point at the angle opposite the span's middle reads as narrow as its
+/// offset ([`geom::Azimuth::near`]), so the span reading places it.
 ///
 /// # Errors
 ///
-/// The span reading's in-band refusal, where the cosine does not read
-/// the point past the span.
+/// The span reading's in-band refusal.
 fn arc_place<T: Decide>(
     (t0, t1): (T, T),
     (x, y): (T, T),
@@ -794,17 +789,7 @@ fn arc_place<T: Decide>(
     band: Band,
 ) -> Result<Option<(T, bool)>, Fault> {
     let (theta, read) = arc_span((t0, t1), (x, y), lever, band);
-    let fault = match read {
-        Ok(at) => return Ok(at.map(|sideless| (theta, sideless))),
-        Err(fault) => fault,
-    };
-    let two = T::from_f64(2.0);
-    let (mid, half) = ((t0 + t1) / two, (t1 - t0) / two);
-    let from_mid = (x * mid.cos() + y * mid.sin()) / (x.powi(2) + y.powi(2)).sqrt();
-    match decide(SPAN, Margin::of(lever * (from_mid - half.cos())), band) {
-        Ok(Sign::Negative) => Ok(None),
-        _ => Err(fault),
-    }
+    read.map(|at| at.map(|sideless| (theta, sideless)))
 }
 
 const SPAN: &str = "bool_torus_region_span";
@@ -1366,11 +1351,11 @@ mod tests {
     }
 
     /// **A point opposite an arc's middle is past its span**, at every
-    /// scalar: its angle lies at the cut of the span's branch, which an
-    /// enclosing scalar holds as a whole turn, so the span reading is in
-    /// band and the cosine reading places it. A point inside the arc and
-    /// one past an end read as the span reading does, and one in band of
-    /// an end keeps the span reading's refusal.
+    /// scalar: its angle is read within half a turn of the middle, as
+    /// narrow at the middle's antipode as anywhere, so the span reading
+    /// places it. A point inside the arc and one past an end read as the
+    /// span reading does, and one in band of an end keeps the span
+    /// reading's refusal.
     #[test]
     fn a_point_opposite_an_arcs_middle_is_past_its_span() {
         use geom_core::{Interval, Real};
@@ -1385,8 +1370,8 @@ mod tests {
         let opposite = (iv(0.5 + PI).cos(), iv(0.5 + PI).sin());
         let ispan = (iv(0.0), iv(1.0));
         assert!(
-            arc_span(ispan, opposite, iv(1.0), b).1.is_err(),
-            "interval: the span reading alone is in band opposite the middle"
+            matches!(arc_span(ispan, opposite, iv(1.0), b).1, Ok(None)),
+            "interval: the span reading alone places the point opposite the middle"
         );
         assert!(
             matches!(arc_place(ispan, opposite, iv(1.0), b), Ok(None)),

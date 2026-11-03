@@ -2071,12 +2071,7 @@ fn loop_u_wrap(
             let t = spec.t0 + (spec.t1 - spec.t0) * f;
             let u = chart::uv_of(surface, spec.carrier.eval(t), band)?.x;
             if let Some(p) = prev {
-                let mut d = u - p;
-                if d > PI {
-                    d -= TAU;
-                } else if d < -PI {
-                    d += TAU;
-                }
+                let d = geom_core::period::Period::new(TAU).near(u - p, 0.0);
                 if d.abs() > PI / 2.0 {
                     return None;
                 }

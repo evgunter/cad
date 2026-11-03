@@ -94,8 +94,8 @@ fn a_conic_self_loop_with_a_nonfinite_angle_refuses_typed() {
         "#26 = CARTESIAN_POINT('',(0.,0.,1.));",
         "#26 = CARTESIAN_POINT('',(0.,0.,1.E400));",
     );
-    // (b) A semi-axis of zero: the in-plane component divided by it is
-    // `0.0 / 0.0` for a vertex on the other axis.
+    // (b) A semi-axis of zero, which the angle no longer divides by
+    // (below).
     let zero_semi_axis = base
         .replace("#24 = CIRCLE('',#25,0.5);", "#24 = ELLIPSE('',#25,0.5,0.);")
         .replace(
@@ -107,10 +107,21 @@ fn a_conic_self_loop_with_a_nonfinite_angle_refuses_typed() {
     // here: putting a vertex at 1e308 inverts the cylinder wall's own
     // winding, so the face's orientation gate refuses the file before
     // any edge parameter is asked for.
-    for (route, text) in [
-        ("overflowing centre", &overflowing_centre),
-        ("zero semi-axis", &zero_semi_axis),
-    ] {
+    // The zero semi-axis no longer reads a NaN angle: `Conic::azimuth`
+    // reads `(y·a, x·b)` with no division. The file is refused at
+    // adoption, typed, until the `ELLIPSE` mint goes through its deciding
+    // door (`work/importgate/step-import-mints-an-ellipse-past-its-deciding-door.md`).
+    assert_ne!(
+        zero_semi_axis, base,
+        "zero semi-axis: the substitution must apply"
+    );
+    match import_step(&zero_semi_axis, &ImportOptions::default(), Tol::witness()) {
+        Err(StepImportError::Adoption { id, .. }) => {
+            assert_eq!(id, 21, "zero semi-axis: the rim edge is the offender");
+        }
+        other => panic!("zero semi-axis must refuse at adoption, got {other:?}"),
+    }
+    for (route, text) in [("overflowing centre", &overflowing_centre)] {
         assert_ne!(text, &base, "{route}: the substitution must apply");
         match import_step(text, &ImportOptions::default(), Tol::witness()) {
             Err(StepImportError::Topology { id, what }) => {

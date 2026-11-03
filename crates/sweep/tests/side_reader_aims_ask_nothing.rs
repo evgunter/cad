@@ -9,7 +9,7 @@
 //! (a lens of two balls) certifies nothing onto its sphere either.
 //!
 //! A curved aim's on-carrier foot is not among what the rows see: its
-//! branch flip is decided outside the log (`curve_foot_branch`, audit row
+//! seed's copy is decided outside the log (`Azimuth::near`, audit row
 //! F31), and `work/onecopy/the-side-readers-curved-aim-foot-is-unguarded`
 //! holds guarding it another way.
 

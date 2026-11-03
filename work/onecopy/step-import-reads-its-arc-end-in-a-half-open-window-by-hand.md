@@ -29,6 +29,10 @@ window too, which `near(π)`'s upper-closed one would move by a turn on
 every seam start (common in STEP), and the writer round-trip is a fixed
 point of this convention.
 
+A third site of the same shape: `step-import/src/normalize/singularity.rs`'s
+`walked` (`rem_euclid(τ)`, then `+ τ` at or below `lead`: the window
+`(lead, lead + τ]`).
+
 ## Fix
 
 Decide whether `Period` owes a second rename, "the copy in

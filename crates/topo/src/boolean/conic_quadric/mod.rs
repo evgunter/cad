@@ -131,7 +131,7 @@
 //! `ε₁ = F′(θ_a)`. Each reading is its own row:
 //!
 //! - **the apex on the carrier** (`bool_conic_cone_apex`), read at the
-//!   anomaly of the apex's own in-plane coordinates (`Conic::angle_of`):
+//!   anomaly of the apex's own in-plane coordinates (`Conic::azimuth`):
 //!   on a circle the carrier's nearest point to the apex's projection,
 //!   on an ellipse in general not, so the distance read is at least the
 //!   carrier's. Conservative both ways: a carrier read clear of the apex

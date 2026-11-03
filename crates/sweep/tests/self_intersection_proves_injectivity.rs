@@ -1531,17 +1531,18 @@ fn a_cylinder_cylinder_tee_refuses_typed_at_a_vertex_its_junction_shares_alone()
         let b = moved(&rod((0.2, 3.0)), &onto_x);
         topo::union(&a, &b, tol())
     }
-    // The known divergence `a-rod-union-refuses-at-interval-on-a-poison-ruled-region-span`
-    // (CLEAVE): at `Interval` the union does not build, so there is no
-    // body to ask. Which decision refuses first moves with ε; that the
-    // union refuses, naming its cause rather than a kernel defect, does
-    // not.
+    // At `Interval` the union builds too at the default ε and 1e-6: the
+    // ruled region's span reads the rim's parameter within half a turn
+    // of its middle (`Period::near`), no longer through a floor a turn
+    // wide at the middle's antipode. At 1e-12 it refuses, typed, naming
+    // its cause rather than a kernel defect.
     match tee_at::<Interval>() {
-        Err(e) if !topo::test_support::offer_key(&e).1 => {
+        Ok(topo::BooleanResult::Body(_)) if tol().eps() != 1e-12 => {}
+        Err(e) if tol().eps() == 1e-12 && !topo::test_support::offer_key(&e).1 => {
             println!("[corner] tee at Interval refuses {e:?}");
         }
         other => panic!(
-            "the tee's known divergence at Interval is a typed refusal of the union: {:?}",
+            "the tee's union builds at Interval off ε 1e-12, and refuses typed there: {:?}",
             other.map(|_| ())
         ),
     }

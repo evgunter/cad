@@ -868,8 +868,8 @@ impl<T: Decide> Curve3<T> {
     ///
     /// Off the carrier it answers about `p`'s radial projection (the
     /// line's axial one), and at a closed carrier's centre, a direction
-    /// of no length, the copy of `0` near `near`: the caller owes the
-    /// point on the carrier. The answer depends on `near` only through
+    /// of no length, `near` itself: the caller owes the point on the
+    /// carrier. A point with a component that is not finite reads NaN. The answer depends on `near` only through
     /// the whole number of turns, so two anchors within half a turn of
     /// the point's parameter read it bit for bit alike.
     #[must_use]

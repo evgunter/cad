@@ -2683,31 +2683,30 @@ fn door_lines(cd: &crate::corpus::CorpusDoc) -> (Vec<NamedCoincidence>, Vec<Stri
     (all, lines)
 }
 
-/// **`cd`'s union escalates at `Interval`**, at the default ε on the
-/// ruled region's span (`bool_ruled_region_span`; at `1e-12` a carrier
-/// gap reads first, at the meeting of an edge with the curved face's
-/// boundary, located), so the scene stands beside the registry
-/// (`work/intent/the-ruled-region-span-holds-two-stage6-scenes-off-the-registry.md`).
-fn escalates_at_interval(cd: &crate::corpus::CorpusDoc) {
+/// **`cd`'s union certifies at `Interval`** at the default ε: the ruled
+/// region's span (`bool_ruled_region_span`) read the arc's parameter
+/// about its middle through a floor a whole turn wide at the middle's
+/// antipode, and reads it through `Period::near` now
+/// (`work/charttail/the-ruled-region-span-holds-two-stage6-scenes-off-the-registry.md`,
+/// whose remaining step is moving the scene into the registry). Off the
+/// default ε an escalation may still read first (at `1e-12` a crossing's
+/// chart residual).
+fn certifies_at_interval(cd: &crate::corpus::CorpusDoc) {
     let ev = crate::corpus::eval::<geom_core::Interval>(&cd.doc);
     let union = cd.result.expect("the scene's head is its union");
     match ev.nodes.get(&union) {
-        Some(editor_core::NodeResult::Failed(e)) => assert!(
-            matches!(
-                &e.kind,
-                editor_core::NodeErrorKind::Boolean(
-                    topo::BooleanError::Escalated { diag, .. }
-                        | topo::BooleanError::CurvedPierceEscalated { diag, .. }
-                )
-                    if Tol::witness().eps() != geom_core::tolerance::DEFAULT_EPS
-                        || diag.predicate == Some("bool_ruled_region_span")
-            ),
-            "{}'s union escalates at Interval, on the ruled region's span at the default ε: \
-             {:?}",
-            cd.name,
-            e.kind
-        ),
-        other => panic!("{}'s union escalates at Interval: {other:?}", cd.name),
+        Some(editor_core::NodeResult::Ok(_)) => {}
+        Some(editor_core::NodeResult::Failed(e))
+            if Tol::witness().eps() != geom_core::tolerance::DEFAULT_EPS =>
+        {
+            assert!(
+                matches!(&e.kind, editor_core::NodeErrorKind::Boolean(b) if format!("{b:?}").contains("Escalated")),
+                "{}'s union certifies at Interval, or escalates off the default ε: {:?}",
+                cd.name,
+                e.kind
+            );
+        }
+        other => panic!("{}'s union certifies at Interval: {other:?}", cd.name),
     }
 }
 
@@ -2872,12 +2871,11 @@ fn pin_in_bore_cannot_be_looked_at(cd: &crate::corpus::CorpusDoc) {
 /// carrier verdict, the axes as the mates state them; the seams on the
 /// walls then prove too.
 ///
-/// At `Interval` the union escalates, so both scenes stand beside the
-/// registry.
+/// At `Interval` the union certifies ([`certifies_at_interval`]).
 ///
 /// Red if a scene's rows change in kind, site or proof, if the walls'
-/// axes stop reading as one, or once its union passes at `Interval`
-/// (then it joins the registry).
+/// axes stop reading as one, or if its union stops certifying at
+/// `Interval`.
 #[test]
 fn two_copies_on_one_axis_glue_their_walls_on_one_axis() {
     use coincide::{Axes, Component};
@@ -2944,7 +2942,7 @@ fn two_copies_on_one_axis_glue_their_walls_on_one_axis() {
             ))),
         "each wall finding names its one axis and its two radii: {words:?}"
     );
-    escalates_at_interval(&cd);
+    certifies_at_interval(&cd);
 
     let cd = crate::corpus::shaft_and_bearing::one_radius();
     let (_, lines) = door_lines(&cd);
@@ -2960,7 +2958,7 @@ fn two_copies_on_one_axis_glue_their_walls_on_one_axis() {
         ],
         "with one radius the walls are one axis and one radius"
     );
-    escalates_at_interval(&cd);
+    certifies_at_interval(&cd);
 }
 
 /// **Two copies of one bushing, stacked, glue their walls** (INTENT
@@ -3022,12 +3020,12 @@ fn a_bushing_stacked_on_its_own_axis_glues_its_walls() {
 /// the boss's wall typed onto it, unproven: the witness lane's margin is
 /// sampled, and the two walls are two constructions. The flush bases and
 /// the corners on them prove as one construction; the corners on the
-/// wall do not. At `Interval` the union escalates, so the scene stands
-/// beside the registry.
+/// wall do not. At `Interval` the union certifies
+/// ([`certifies_at_interval`]).
 ///
-/// Red if the scene's rows change in kind, site or proof, or once its
-/// union passes at `Interval` (then it joins the registry); INTENT stage
-/// 6 PR D proves a tangency the sketch constructs, not this one.
+/// Red if the scene's rows change in kind, site or proof, or if its
+/// union stops certifying at `Interval`; INTENT stage 6 PR D proves a
+/// tangency the sketch constructs, not this one.
 #[test]
 fn a_boss_typed_tangent_to_a_cylinder_glues_one_unproven_tangency() {
     let cd = crate::corpus::boss_tangent_by_value::document();
@@ -3057,7 +3055,7 @@ fn a_boss_typed_tangent_to_a_cylinder_glues_one_unproven_tangency() {
         "the cylinder's wall and the boss's: {:?}",
         rows[1]
     );
-    escalates_at_interval(&cd);
+    certifies_at_interval(&cd);
 }
 
 /// **Where a stage-6 scene's union refuses today** (INTENT stage 6):
@@ -3135,12 +3133,13 @@ fn rounded_mouth_volume() -> f64 {
 /// circles as the closed forms they are (SECTARMS stage 3b-i). Each
 /// union builds at its exact volume: the ball's
 /// `0.75π + 0.875π + 0.5625π`, less the lens, and the rounded mouth's
-/// ([`rounded_mouth_volume`]). At `Interval` each escalates, so both stay
-/// beside the registry, which requires every lane green.
+/// ([`rounded_mouth_volume`]). At `Interval` each certifies at the
+/// default ε and at 1e-6, and escalates at 1e-12, so both stay beside the
+/// registry, which requires every lane green.
 ///
 /// Red if a union stops building at `f64`, if its volume moves, if its
-/// coaxial rows change in number or kind, or once it passes at
-/// `Interval` (then it joins the registry).
+/// coaxial rows change in number or kind, or if its `Interval` outcome
+/// moves at any row.
 #[test]
 fn the_coaxial_stage6_unions_are_green_at_f64_on_their_coaxial_rows() {
     for (cd, row, count, want) in [
@@ -3183,20 +3182,18 @@ fn the_coaxial_stage6_unions_are_green_at_f64_on_their_coaxial_rows() {
             "{name}: the door's coaxial rows: {lines:?}"
         );
         let ev = crate::corpus::eval::<geom_core::Interval>(&cd.doc);
-        assert!(
-            matches!(
-                ev.nodes.get(&union),
-                Some(editor_core::NodeResult::Failed(editor_core::NodeError {
-                    kind: editor_core::NodeErrorKind::Boolean(e),
-                    ..
-                // An escalation, at whichever door reads it first: the
-                // ball's at the containment or a curved pierce, the
-                // rounded mouth's in the join.
-                })) if format!("{e:?}").contains("Escalated")
-            ),
-            "{name}: the union escalates at Interval: {:?}",
-            ev.nodes.get(&union)
-        );
+        // Certified at the default ε and at 1e-6; at 1e-12 an escalation
+        // at whichever door reads it first (the ball's crossing
+        // insertion, the rounded mouth's curved pierce).
+        let at_1e12 = Tol::witness().eps() == 1e-12;
+        match ev.nodes.get(&union) {
+            Some(editor_core::NodeResult::Ok(_)) if !at_1e12 => {}
+            Some(editor_core::NodeResult::Failed(editor_core::NodeError {
+                kind: editor_core::NodeErrorKind::Boolean(e),
+                ..
+            })) if at_1e12 && format!("{e:?}").contains("Escalated") => {}
+            other => panic!("{name}: the union certifies at Interval off ε 1e-12: {other:?}"),
+        }
     }
 }
 

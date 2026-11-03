@@ -225,14 +225,17 @@ fn both_witnesses_build_under_every_boolean() {
     );
 }
 
-/// The plain witness at the `Interval` scalar refuses every op by name.
+/// **The plain witness builds every op at the `Interval` scalar.**
 /// Re-charted along the centre line, each ball's seam meridians lie in
 /// planes holding the other ball's centre, where the circle × sphere
-/// roots' phase is the first-harmonic door's degenerate case: `f64`
-/// decides it, and an enclosure of it is as wide as the circle.
+/// roots' phase is the first-harmonic door's degenerate case. The phase
+/// is read within half a turn of the span's middle
+/// (`geom::Azimuth::near`), so an enclosure of it stays as narrow as its
+/// inputs and each op builds, its volume bracketing the oracle's.
 #[test]
-fn the_plain_witness_escalates_its_seam_crossing_at_the_interval_scalar() {
+fn the_plain_witness_builds_its_seam_crossing_at_the_interval_scalar() {
     use crate::common::interval::iv;
+    use geom_core::Bounds;
     let tol = Tol::witness();
     let ball_iv = |r: f64, z: f64| {
         finished(
@@ -242,22 +245,27 @@ fn the_plain_witness_escalates_its_seam_crossing_at_the_interval_scalar() {
         )
     };
     let (a, b) = (ball_iv(1.0, 0.0), ball_iv(0.3, 0.95));
-    for (op, out) in [
-        ("a ∪ b", topo::union(&a, &b, tol)),
-        ("a ∖ b", topo::subtract(&a, &b, tol)),
-        ("b ∖ a", topo::subtract(&b, &a, tol)),
-        ("a ∩ b", topo::intersect(&a, &b, tol)),
+    let (va, vb, l) = (ball_volume(1.0), ball_volume(0.3), lens(1.0, 0.3, 0.95));
+    for (op, out, want) in [
+        ("a ∪ b", topo::union(&a, &b, tol), va + vb - l),
+        ("a ∖ b", topo::subtract(&a, &b, tol), va - l),
+        ("b ∖ a", topo::subtract(&b, &a, tol), vb - l),
+        ("a ∩ b", topo::intersect(&a, &b, tol), l),
     ] {
+        let Ok(BooleanResult::Body(out)) = &out else {
+            panic!(
+                "Interval {op}: wanted a body, got {:?}",
+                out.map(|_| "a result")
+            );
+        };
+        let m = topo::mass_properties(&out.body, tol, topo::test_support::pinned_resolution(tol))
+            .expect("interval props");
         assert!(
-            matches!(
-                &out,
-                Err(BooleanError::Escalated {
-                    decision: topo::BooleanDecision::Crossing(_),
-                    diag,
-                }) if diag.predicate == Some("bool_wall_root_in_span")
-            ),
-            "Interval {op}: wanted the seam crossing's escalation, got {:?}",
-            out.map(|_| "a body")
+            m.enclosure.volume.lo() - m.enclosure.volume_pad <= want
+                && want <= m.enclosure.volume.hi() + m.enclosure.volume_pad,
+            "Interval {op}: volume {:?} ± {} brackets {want}",
+            m.enclosure.volume,
+            m.enclosure.volume_pad
         );
     }
 }

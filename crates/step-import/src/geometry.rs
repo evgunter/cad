@@ -83,11 +83,11 @@ pub(crate) fn endpoint_params(
             // self-loop arm's early return cannot outrun the check:
             // that arm has a start vertex and no end vertex, so a
             // refusal sited after both angles is unreachable from it.
-            // `atan2` is total over finite arguments — the centre
-            // answers 0, not NaN — so a non-finite angle means
-            // non-finite vertex or placement data, or a semi-axis of
-            // zero, reached it. Both returned parameters are therefore
-            // finite, and the wrap loop below terminates.
+            // The read is total over a finite direction (the centre
+            // answers the reference, 0) and NaN over a non-finite one,
+            // so a non-finite angle means non-finite vertex or
+            // placement data reached it. Both returned parameters are
+            // therefore finite, and the wrap loop below terminates.
             let angle = |p: Point3<f64>| -> Result<f64, StepImportError> {
                 let t = conic.azimuth(p).near(0.0);
                 if t.is_finite() {
@@ -97,8 +97,7 @@ pub(crate) fn endpoint_params(
                         id,
                         what: "a conic edge with a vertex whose angle about the \
                                centre is not finite (a coordinate, or its difference \
-                               from the centre, that overflows; or a semi-axis of \
-                               zero under a zero offset)",
+                               from the centre, that overflows)",
                     })
                 }
             };

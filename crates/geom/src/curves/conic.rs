@@ -56,10 +56,10 @@
 //! - **The seam.** A caller seams an ellipse at the principal vertex
 //!   nearest the part of it in use ([`Ellipse::seamed_near`]), so the
 //!   parameter there is near zero and resolves to the scale of that part.
-//! - **One branch rule.** A point's parameter is its principal angle
-//!   ([`Conic::angle_of`]) moved by whole turns: to within half a turn of
-//!   a parameter (`Conic::param_near`), or onto the branch of a span's
-//!   middle ([`on_span_branch`], [`Conic::param_in`]).
+//! - **One branch rule.** A point's parameter is its direction
+//!   ([`Conic::azimuth`]) read within half a turn of a reference
+//!   ([`Azimuth::near`]): a parameter the caller holds, or a span's middle
+//!   ([`Conic::param_in`]).
 //!
 //! [`speed_floor`]: crate::carrier_speed::speed_floor
 

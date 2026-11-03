@@ -32,3 +32,17 @@ added `boolean/ruled_region.rs`); not measured here.
 **Done when** both unions evaluate at `Interval`, the two pins flip, and
 the two scenes move into `corpus::documents()`.
 
+
+## Evidence (ONECOPY `onecopy/angle-reads`, 2026-11-03)
+
+Measured, not argued: on that branch `shaft_and_bearing`,
+`shaft_and_bearing::one_radius` and `boss_tangent_by_value` (and
+`shaft_and_bearing::with_a_ball`) evaluate at `Interval` at the default ε.
+The cause was the arc parameter `ruled_region` reads
+(`Conic::param_in`), placed on the span's branch by
+`floor((mid − t)/τ + ½)`, a whole turn wide where `t`'s enclosure sits at
+the middle's antipode; it now reads through `Period::near`, which decides
+the half-period mark and stays as narrow as `t`. The pins in
+`coincidence_door` were flipped to `certifies_at_interval` there. What is
+left of this row is moving the scenes into `corpus::documents()`, which
+needs every lane green.

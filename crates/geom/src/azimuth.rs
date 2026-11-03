@@ -250,10 +250,20 @@ impl<T: Decide> Azimuth<T> {
     ///
     /// Neither decision is a reading, since each picks between names of
     /// one angle, so both are taken at [`Band::least`] outside the log
-    /// (`docs/predicate-dimension-audit.md` row F31). A direction of no
-    /// length reads `0` before the rename, as [`Azimuth::principal`]
-    /// does.
+    /// (`docs/predicate-dimension-audit.md` row F31).
+    ///
+    /// A direction of no length (or, at `Interval`, one whose enclosure
+    /// reaches zero length) names every angle alike, and reads
+    /// `reference` itself: the angle the caller asked about. A direction
+    /// with a component that is not finite names none, and reads NaN.
     pub fn near(self, reference: T) -> T {
+        if !(geom_core::real::is_finite_length(self.y) && geom_core::real::is_finite_length(self.x))
+        {
+            return T::from_f64(f64::NAN);
+        }
+        if !(T::one() / self.length()).is_bounded() {
+            return reference;
+        }
         let read = unlogged("F31", || {
             self.read_in(Window::Angle, "azimuth_near_cut_side", Band::least())
         });
@@ -448,6 +458,19 @@ mod tests {
             Azimuth::of(0.0, -1.0).near(0.0_f64),
             core::f64::consts::PI,
             "half a turn from 0 reads π, not −π"
+        );
+        assert_eq!(
+            Azimuth::of(0.0, 0.0).near(-7.0_f64),
+            -7.0,
+            "no length reads the reference"
+        );
+        assert!(
+            Azimuth::of(f64::NAN, 1.0).near(0.0).is_nan(),
+            "a NaN direction names no angle"
+        );
+        assert!(
+            Azimuth::of(1.0, f64::INFINITY).near(0.0).is_nan(),
+            "nor an infinite one"
         );
 
         let width = |x: Interval| x.hi() - x.lo();
