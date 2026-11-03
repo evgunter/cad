@@ -17,11 +17,16 @@ cannot read its subject. The gate decides from them.
 
 BY NAME IS SOUND ONLY IF EVERY ITEM IS SPELLED BY ITS OWN NAME, so a
 second name is REFUSED (`refused_bindings`, kind `refused-binding`):
-`use crate as C`, `use crate::{self as C}`, `use super::{self as C}`
-reaching the root, `extern crate self as …`, a leading `::topo::` path,
-an `as` rename of an engine item or module in a `use` (lib.rs's
-top-level re-exports included), a module-level `type` alias naming an
-engine item, and a `macro_rules!` body outside the engine spelling one.
+`use crate as C`, `use topo as C`, `use crate::{self as C}`, `use
+super::{self as C}` reaching the root, `extern crate self as …`, a
+leading `::topo::` path, an `as` rename of an engine item or module in a
+`use` (lib.rs's top-level re-exports included), a lib.rs re-export of an
+engine MODULE (`crate::boxes::X` would hide an ambiguous X), `#[macro_use]`
+on an engine's `mod` or on any `mod` inside one (it exports macros past
+the visibility check), and — at any depth, fn bodies included — a `type`
+alias or a `macro_rules!` body outside the engine spelling an engine
+item. An associated `type` in an `impl` or `trait` is not an alias; its
+right side counts as a site.
 A macro is refused rather than counted because its expansion sites are
 invisible: one count could not stand for its uses.
 
@@ -32,7 +37,9 @@ visible outside it: `pub`, a qualifier reaching the crate, or
 outside the engines, or in both, is AMBIGUOUS: counted only where a path
 or an import through the engine spells it, where it resolves (per inline
 module, through `use super::*`) to such an import, or as `crate::NAME`
-for a NAME lib.rs re-exports from the engine. The baseline lists every
+for a NAME lib.rs re-exports from the engine — `crate::Name::…` too, at
+any length, for a type. `$crate`, `topo` (this crate's own name) and a
+`super` chain that climbs to the root read as `crate`. The baseline lists every
 such name, so the exclusion is read rather than silent.
 
 WHAT AN OCCURRENCE IS. A token of the name, not after `.` (a method or
@@ -44,6 +51,15 @@ outside the engines or imported from elsewhere, or an engine name
 as a macro (`f!`), path-qualified, or imported, and never as `f::…`
 (a module of that name).
 
+ENGINES is fixed at the two operation directories `[topo.homes]` names;
+a third is a change to this file.
+
+COUNTS ARE PER FILE TOTALS, so they move for reasons that are not a
+move: a spelling deleted as redundant, `Self` or inference in place of
+a name lowers a count, and the slack that leaves lets a new reference
+ride in until the line is lowered. A FELL forces the lowering in the
+same change, which is what keeps the slack from standing.
+
 WHAT IT CANNOT SEE. A method an engine declares on a type outside it
 (`impl Body` under `boolean/`) is not a name it declares. A lowercase
 name passed point-free and unqualified (`map(f)`). An ambiguous name
@@ -51,7 +67,9 @@ through a non-engine hub or glob (`use crate::hub::X`, `use crate::*`).
 An associated `type` in an `impl` (only its own right side is a site).
 OVER-COUNTS, the safe direction: a bare name imported by a glob from an
 external crate, an unknown capitalised head, a local closure called like
-an engine function. Not expanded: macros. Not read: callers outside
+an engine function, a root fn or method sharing a lowercase engine name
+called bare, and a root enum's variants under `use K::*` sharing an
+engine type's name. Not expanded: macros. Not read: callers outside
 `topo`, which are consumers of the doors.
 """
 import os
@@ -122,16 +140,20 @@ class File:
         # scope[i]: the open braces of the inline `mod`s enclosing token
         # i, outermost first — the module a name at i is resolved in.
         self.mods, self.module, self.scope = [0] * n, [True] * n, [()] * n
+        self.in_impl, self.block_kind = [False] * n, []
         stack = []
         for i, (t, _) in enumerate(toks):
             self.mods[i] = sum(1 for s in stack if s != 'other')
             self.module[i] = all(s != 'other' for s in stack)
             self.scope[i] = tuple(s for s in stack if s != 'other')
+            self.in_impl[i] = bool(stack) and stack[-1] == 'other' and self.block_kind[-1:] == ['impl']
             if t == '{':
                 is_mod = i >= 2 and toks[i - 2][0] == 'mod' and is_ident(toks[i - 1][0])
                 stack.append(i if is_mod else 'other')
+                self.block_kind.append('impl' if self.opens_impl(i) else 'x')
             elif t == '}' and stack:
                 stack.pop()
+                self.block_kind.pop()
         self.uses = []          # (start, end, visibility tokens)
         self.in_use = [False] * n
         i = 0
@@ -146,6 +168,36 @@ class File:
                     self.in_use[k] = True
                 i = j
             i += 1
+
+    def opens_impl(self, brace):
+        """Whether the `{` at `brace` opens an `impl` or `trait` body."""
+        j = brace - 1
+        while j >= 0 and self.toks[j][0] not in (';', '{', '}'):
+            j -= 1
+        head = [t for t, _ in self.toks[j + 1:brace]]
+        while head[:1] == ['#']:                      # attributes before the item
+            k = head.index(']') if ']' in head else len(head)
+            head = head[k + 1:]
+        while head and head[0] in ('pub', 'unsafe', 'default', 'auto', '(', ')', 'crate', 'in', 'super', 'self', '::'):
+            head = head[1:]
+        return head[:1] in (['impl'], ['trait'])
+
+    def depth_at(self, at):
+        """The module depth below the crate root at token `at`."""
+        return module_depth(self.rel) + self.mods[at]
+
+    def rooted(self, segs, at):
+        """`segs` with a leading alias of the crate root spelled `crate`:
+        `$crate`, `topo` (this crate's own name), and a `super` chain
+        that climbs to the root."""
+        if segs and segs[0] in ('$crate', 'topo'):
+            return ['crate', *segs[1:]]
+        ups = 0
+        while ups < len(segs) and segs[ups] == 'super':
+            ups += 1
+        if ups and ups >= self.depth_at(at):
+            return ['crate', *segs[ups:]]
+        return segs
 
     def visibility(self, kw):
         """The visibility tokens before the item keyword at `kw`
@@ -311,6 +363,14 @@ class Engines:
         self.declared = {e: set(declared[e]) for e in ENGINES}
         self.names = {e: self.declared[e] - set(self.ambiguous) for e in ENGINES}
         self.outside = set(outside)
+        # The modules each engine declares, by name: a lib.rs re-export of
+        # one would let `crate::MODULE::X` hide an ambiguous X.
+        self.modules = {e: {e} for e in ENGINES}
+        for f in files.values():
+            if f.home:
+                for i, (t, _) in enumerate(f.toks):
+                    if t == 'mod' and i + 1 < len(f.toks) and is_ident(f.toks[i + 1][0]):
+                        self.modules[f.home].add(f.toks[i + 1][0])
         # The root's re-export table: a name lib.rs's top-level `pub use`
         # binds, and the engine it binds it through.
         self.root = {}
@@ -320,16 +380,22 @@ class Engines:
             if exempt and hit and bound not in ('*', '_'):
                 self.root[bound] = hit
 
-    def engine_of(self, segs, through):
+    def engine_of(self, segs, through, f=None, at=0):
         """The engine a `use` leaf's or a path's segments reach, if any:
         through its module, through a name already bound through it, or
-        as `crate::NAME` where the root re-exports NAME from it."""
+        as `crate::NAME…` (any root alias, any length) where the root
+        re-exports NAME from it."""
         if segs and (segs[0] == '::' or segs[0] in self.ext):
             return None
+        if f is not None:
+            segs = f.rooted(segs, at)
         for e in ENGINES:
             if e in segs or (segs and segs[0] in through[e]):
                 return e
-        if len(segs) == 2 and segs[0] == 'crate' and segs[1] in self.root:
+        # `crate::NAME` for any NAME, `crate::Name::…` only for a type: a
+        # lowercase NAME with more segments after it is a module.
+        if len(segs) >= 2 and segs[0] == 'crate' and segs[1] in self.root \
+                and (len(segs) == 2 or segs[1][0].isupper()):
             return self.root[segs[1]]
         if segs and segs[-1] in self.names['boolean']:
             return 'boolean'
@@ -376,44 +442,53 @@ def refused_bindings(f, eng):
     through = defaultdict(set)
     for segs, bound, k, _exempt in f.use_leaves():
         ln = toks[k][1]
-        if segs and segs[0] in ('crate', '$crate') and all(s in ('crate', '$crate', 'self') for s in segs) \
-                and bound not in ('*', '_'):
-            out.append(ln)                                     # use crate as C
+        rooted = f.rooted(segs, k)
+        orig = segs[-2] if segs[-1:] == ['self'] and len(segs) > 1 else (segs[-1] if segs else '')
+        if rooted and all(s in ('crate', 'self') for s in rooted) and bound not in ('*', '_', orig):
+            out.append(ln)                                     # use crate as C, use topo as T, …
             continue
-        if segs and segs[0] == 'super' and all(s in ('super', 'self') for s in segs) and bound not in ('*', '_') \
-                and segs.count('super') >= module_depth(f.rel) + f.mods[k]:
-            out.append(ln)                                     # use super::{self as C} at the root
-            continue
-        e = eng.engine_of(segs, through)
+        e = eng.engine_of(segs, through, f, k)
         if e in other:
             through[e].add(bound)
             if bound not in ('*', '_', segs[-1]):
                 out.append(ln)                                 # use …engine… as Q
+            elif f.rel == 'lib.rs' and segs[-1] in eng.modules[e] and segs[-1] not in eng.declared[e]:
+                out.append(ln)                                 # lib.rs re-exports an engine module
     for i, (t, ln) in enumerate(toks):
         if t == 'extern' and [x for x, _ in toks[i + 1:i + 3]] == ['crate', 'self']:
             out.append(ln)
         if t == '::' and i + 1 < len(toks) and toks[i + 1][0] == 'topo' \
                 and not (i >= 1 and (is_ident(toks[i - 1][0]) or toks[i - 1][0] == '>')):
             out.append(ln)
-    for _name, _vis, at in f.items():
-        kw = toks[at][0]
-        if kw not in ('type', 'macro_rules'):
+        if t == 'macro_use' and i >= 2 and toks[i - 1][0] == '[' and toks[i - 2][0] == '#':
+            j = i
+            while j < len(toks) and toks[j][0] not in ('mod', ';', '{'):
+                j += 1
+            name = toks[j + 1][0] if j + 1 < len(toks) and toks[j][0] == 'mod' else ''
+            if f.home or name in ENGINES:
+                out.append(ln)                                 # #[macro_use] past the visibility check
+        alias = t == 'type' and not f.in_impl[i] and i + 1 < len(toks) and is_ident(toks[i + 1][0])
+        rule = t == 'macro_rules' and i + 1 < len(toks) and toks[i + 1][0] == '!'
+        if not (alias or rule):
             continue
-        j, depth = at + 1, 0
+        j, depth = i + 1, 0
         while j < len(toks):
             x = toks[j][0]
             if x in '{([':
                 depth += 1
             elif x in '})]':
                 depth -= 1
-                if depth == 0 and kw == 'macro_rules':
+                if depth == 0 and rule:
                     break
-            elif x == ';' and depth == 0 and kw == 'type':
+            elif x == ';' and depth == 0 and alias:
                 break
             j += 1
-        body = [x for x, _ in toks[at + 3:j]]
-        if any(x in other or any(x in eng.names[e] for e in other) for x in body):
-            out.append(toks[at][1])                            # type Q = …engine…; macro body
+        body = toks[i + 2:j]
+        rooted_root = any(x in eng.root and eng.root[x] in other and m >= 2
+                          and body[m - 1][0] == '::' and body[m - 2][0] in ('crate', '$crate', 'topo')
+                          for m, (x, _) in enumerate(body))
+        if rooted_root or any(x in other or any(x in eng.names[e] for e in other) for x, _ in body):
+            out.append(ln)                                     # type Q = …engine…; a macro body
     return out
 
 
@@ -436,7 +511,7 @@ def names_engine(f, e, eng):
         sc = f.scope[k]
         if segs and (segs[0] == '::' or segs[0] in ext):
             kind = 'ext'
-        elif eng.engine_of(segs, through) == e:
+        elif eng.engine_of(segs, through, f, k) == e:
             kind = 'e'
         else:
             kind = 'other'
@@ -485,6 +560,7 @@ def names_engine(f, e, eng):
         if e in pre:
             continue
         head = resolve(pre[0], i - 2 * len(pre)) if pre else resolve(t, i)
+        root_pre = f.rooted(pre, i)
         if pre and pre[0][0].isupper():
             # An associated item of a type: the engine's only when the
             # type is not a parameter, `Self`, a std type, one declared
@@ -494,7 +570,7 @@ def names_engine(f, e, eng):
             if h in params or h in STD_HEADS or h in eng.outside or head in ('ext', 'other') \
                     or any(h in eng.declared[x] for x in ENGINES):
                 continue
-        if t in shared and head != 'e' and not (pre == ['crate'] and eng.root.get(t) == e):
+        if t in shared and head != 'e' and not (root_pre == ['crate'] and eng.root.get(t) == e):
             continue
         if not pre and head == 'ext':
             continue
@@ -529,7 +605,13 @@ def baseline(path):
 
 
 def main():
-    base_path, cargo = sys.argv[1], sys.argv[2]
+    args = sys.argv[1:]
+    lines_for = None
+    if '--lines' in args:
+        k = args.index('--lines')
+        lines_for = args[k + 1]
+        del args[k:k + 2]
+    base_path, cargo = args[0], args[1]
     ext = externs(cargo)
     recs = defaultdict(list)
     for rec in sys.stdin:
@@ -546,14 +628,17 @@ def main():
     for key in sorted(set(sites) | set(allowed)):
         now, was = len(sites.get(key, [])), allowed.get(key, 0)
         if now > was:
-            at = ' '.join(map(str, sorted(set(sites[key]))))
-            print(f'ROSE {key[0]} {key[1]}: {was} -> {now} (the file\'s counted sites: L{at})')
+            print(f'ROSE {key[0]} {key[1]}: {was} -> {now} (run engine-leaves.sh --lines {key[1]} '
+                  'to list its counted sites)')
         elif now < was:
             print(f'FELL {key[0]} {key[1]}: {was} -> {now}')
     for name in sorted(set(ambiguous) - listed):
         print(f'AMBIGUOUS-NEW {name}: declared under an engine and in {", ".join(ambiguous[name])}')
     for name in sorted(listed - set(ambiguous)):
         print(f'AMBIGUOUS-GONE {name}')
+    for (kind, rel), lines in sorted(sites.items()):
+        if rel == lines_for:
+            print(f'LINES {kind} {rel}: L{" ".join(map(str, sorted(set(lines))))}')
     if os.environ.get('ENGINE_LEAVES_TABLE'):
         for (kind, rel), lines in sorted(sites.items()):
             print(f'TABLE {kind:<24} {len(lines):>4}  {rel}')

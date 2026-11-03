@@ -43,10 +43,15 @@ gate() {
     gate_error "$(gate_name): no .rs file under crates/topo/src in $PWD — the gate scanned nothing, which is not a pass"
     exit 1
   fi
-  if ! report=$(gate_rust_code "${files[@]}" | python3 "$CENSUS" "$BASELINE" "$MANIFEST"); then
+  if ! report=$(gate_rust_code "${files[@]}" | python3 "$CENSUS" "$BASELINE" "$MANIFEST" ${LINES_FOR:+--lines "$LINES_FOR"}); then
     gate_error "$(gate_name): the counter failed under $PWD (its own message is above, if it had one) — the gate could not read its subject, which is not a pass"
     exit 1
   fi
+  if ! grep -q '^TOTAL [0-9]' <<<"$report"; then
+    gate_error "$(gate_name): the counter exited without its TOTAL line — it did not finish its census, which is not a pass"
+    exit 1
+  fi
+  grep '^LINES ' <<<"$report" || true
   local failed=0
   if grep -q '^MALFORMED ' <<<"$report"; then
     grep '^MALFORMED ' <<<"$report"
@@ -60,7 +65,7 @@ gate() {
   fi
   if grep -q '^ROSE refused-binding' <<<"$report"; then
     grep '^ROSE refused-binding' <<<"$report"
-    gate_error "a second name is bound to an engine item or module, or to this crate (above: \`use … as Q\`, \`use crate as C\`, \`extern crate self\`, \`::topo::\`, \`type Q = …\`, or a macro spelling the engine). This gate counts an engine item by its own name, so a binding that renames it is refused outright: spell the item by its name"
+    gate_error "a second name is bound to an engine item or module, or to this crate (above: \`use … as Q\`, \`use crate as C\` or \`use topo as C\`, \`extern crate self\`, \`::topo::\`, \`type Q = …\` or a macro spelling the engine at any depth, \`#[macro_use]\` on or inside an engine, or a lib.rs re-export of an engine module). This gate counts an engine item by its own name, so a binding that renames it is refused outright: spell the item by its name"
     failed=1
   fi
   if grep -q '^ROSE crate-visible' <<<"$report"; then
@@ -125,6 +130,14 @@ plant_root_reexport_ambiguous() { append "$1" 'fn a(_: crate::Shared) {}' other.
 plant_fn_triggers() { append "$1" 'fn a() { union::<u8>(); mk!(); crate::union; }' other.rs; pin "$1" 'names-boolean 3 other.rs'; }
 plant_capital_head() { append "$1" 'fn a() { Unknown::union(); }' other.rs; pin "$1" 'names-boolean 1 other.rs'; }
 
+plant_root_path_long()   { append "$1" 'use crate::Shared::{A, B}; fn a() { let _ = crate::Shared::A; }' other.rs; pin "$1" 'names-boolean 3 other.rs'; }
+plant_super_to_root()    {
+  append "$1" 'use super::Shared::X; fn a(_: super::Shared) {} mod m { fn b(_: super::super::Shared) {} }' other.rs
+  pin "$1" 'names-boolean 3 other.rs'
+}
+plant_topo_path()        { append "$1" 'fn a(_: topo::Shared, _: topo::Op) {}' other.rs; pin "$1" 'names-boolean 2 other.rs'; }
+plant_local_const()      { append "$1" 'fn a() { const X: crate::Op = crate::Op::A; }' other.rs; pin "$1" 'names-boolean 2 other.rs'; }
+plant_assoc_type()       { append "$1" 'impl Tr for S { type Out = crate::Op; }' other.rs; pin "$1" 'names-boolean 1 other.rs'; }
 plant_alias_of_crate()   { append "$1" 'fn a() { crate::boolean::union(); }' reader.rs; }
 plant_nested_hub()       { append "$1" 'mod hub { pub use crate::boolean::Op; }' lib.rs; }
 plant_super_import()     { append "$1" 'use super::Op;' reader.rs; }
@@ -145,6 +158,12 @@ plant_mod_boolean()      { append "$1" 'mod boolean {}' reader.rs; }
 plant_use_crate_as()     { append "$1" 'use crate as c;' other.rs; }
 plant_use_crate_self_as() { append "$1" 'use crate::{self as r};' other.rs; }
 plant_super_self_as()    { append "$1" 'use super::{self as s};' other.rs; }
+plant_use_topo_as()      { append "$1" 'use topo as t;' other.rs; }
+plant_macro_use_engine() { sed -i 's/^pub mod boolean;/#[macro_use]\npub mod boolean;/' "$1/crates/topo/src/lib.rs"; }
+plant_macro_use_inside() { append "$1" '#[macro_use] mod inner {}' boolean/zip.rs; }
+plant_local_type_alias() { append "$1" 'fn a() { type Q = crate::Op; }' other.rs; pin "$1" 'names-boolean 1 other.rs'; }
+plant_local_macro()      { append "$1" 'fn a() { macro_rules! m { () => { crate::Op::A } } }' other.rs; pin "$1" 'names-boolean 1 other.rs'; }
+plant_lib_module_reexport() { append "$1" 'pub(crate) use boolean::gear;' lib.rs; }
 plant_extern_self()      { append "$1" 'extern crate self as topo;' other.rs; }
 plant_leading_colons()   { append "$1" 'fn a() { ::topo::boolean::union(); }' other.rs; pin "$1" 'names-boolean 1 other.rs'; }
 plant_rename_item()      { append "$1" 'use crate::boolean::Op as Q;' other.rs; pin "$1" 'names-boolean 1 other.rs'; }
@@ -157,9 +176,11 @@ plant_macro_path()       { append "$1" 'macro_rules! op { () => { $crate::boolea
 gate_selftest() {
   gate_selftest_clean
   gate_selftest_without_tool python3 "the counter failed"
+  gate_selftest_with_broken_tool python3 "without its TOTAL line" '"$GATE_REAL_TOOL" "$@" | sed "/^TOTAL/d"'
   local p
   for p in plant_glob_through_engine plant_super_glob plant_module_through plant_root_reexport_ambiguous \
-      plant_fn_triggers plant_capital_head; do
+      plant_fn_triggers plant_capital_head plant_root_path_long plant_super_to_root plant_topo_path \
+      plant_local_const plant_assoc_type; do
     gate_selftest_passes "$p at its pin" "$p"
   done
   for p in plant_alias_of_crate plant_nested_hub plant_super_import plant_root_glob plant_root_reexport; do
@@ -178,11 +199,19 @@ gate_selftest() {
   gate_selftest_case "declares a module named boolean" plant_mod_boolean
   for p in plant_use_crate_as plant_use_crate_self_as plant_super_self_as plant_extern_self plant_leading_colons \
       plant_rename_item plant_rename_module plant_rename_root plant_rename_in_lib plant_type_alias \
-      plant_macro_path; do
+      plant_macro_path plant_use_topo_as plant_macro_use_engine plant_macro_use_inside plant_local_type_alias \
+      plant_local_macro plant_lib_module_reexport; do
     gate_selftest_case --also "ROSE refused-binding" "refused outright" "$p"
   done
-  printf '%s selftest OK: passes a pinned fixture with near misses (a field, a local, a method, a type parameter, Self, another crate'"'"'s item bare and renamed, a private macro) and each counting mechanism at its pin (a glob through the engine, use super::*, a module bound through the engine, a root re-export of an ambiguous name, f::<, mk! and a path-qualified fn, an unknown capitalised head); fires on an engine named through a full path, a hub nested in lib.rs, use super::X, a root glob and a root re-export, across engines by path and by name, on crate-wide visibility (pub(super) in an engine mod.rs included), on a pinned site gone, on a zero, unknown or duplicate baseline line, on an ambiguous name new or gone, on a module named boolean, and on every refused binding (use crate as, use crate::{self as}, use super::{self as} at the root, extern crate self, ::topo::, an item, module or root re-export renamed, a lib.rs re-export renamed, a type alias, a macro spelling the engine), and diagnoses a counter that cannot run\n' "$(gate_name)"
+  printf '%s selftest OK: passes a pinned fixture with near misses (a field, a local, a method, a type parameter, Self, another crate'"'"'s item bare and renamed, a private macro) and each counting mechanism at its pin (a glob through the engine, use super::*, a module bound through the engine, a root re-export of an ambiguous name, a crate::Name::… path of any length, super:: and super::super:: climbing to the root, topo:: as crate::, a fn-local const, an associated type in an impl, f::<, mk! and a path-qualified fn, an unknown capitalised head); fires on an engine named through a full path, a hub nested in lib.rs, use super::X, a root glob and a root re-export, across engines by path and by name, on crate-wide visibility (pub(super) in an engine mod.rs included), on a pinned site gone, on a zero, unknown or duplicate baseline line, on an ambiguous name new or gone, on a module named boolean, and on every refused binding (use crate as, use topo as, #[macro_use] on an engine or inside one, a lib.rs re-export of an engine module, a type alias or macro inside a fn body, use crate::{self as}, use super::{self as} at the root, extern crate self, ::topo::, an item, module or root re-export renamed, a lib.rs re-export renamed, a type alias, a macro spelling the engine), and diagnoses a counter that cannot run or that ends without its TOTAL\n' "$(gate_name)"
 }
 
-gate_parse_args "$@"
+# `--lines FILE` (relative to crates/topo/src) lists that file's counted
+# sites by kind; the gate's own arguments are the rest.
+LINES_FOR=
+GATE_ARGV=()
+while [ $# -gt 0 ]; do
+  if [ "$1" = --lines ] && [ $# -ge 2 ]; then LINES_FOR=$2; shift 2; else GATE_ARGV+=("$1"); shift; fi
+done
+gate_parse_args ${GATE_ARGV[@]+"${GATE_ARGV[@]}"}
 gate_main

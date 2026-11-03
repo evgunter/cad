@@ -21,6 +21,7 @@
 # counter's over-counts (a name it reads as the engine's where a namesake
 # was meant; engine_leaves.py states them), which err the safe way.
 
+
 boolean-names-splitting     2  boolean/carrier_cross.rs
 boolean-names-splitting     2  boolean/carrier_touch.rs
 boolean-names-splitting     1  boolean/carrier_touch_rows.rs
@@ -99,7 +100,7 @@ names-boolean               7  attach.rs
 names-boolean              14  body.rs
 names-boolean               4  bound_side.rs
 names-boolean              11  cell_region.rs
-names-boolean             500  census.rs
+names-boolean             506  census.rs
 names-boolean               2  census/curved.rs
 names-boolean              33  census/depth_gap.rs
 names-boolean              26  census/in_plane.rs
@@ -189,8 +190,9 @@ names-splitting            31  vertex_section.rs
 
 refused-binding             2  boolean/contain.rs
 refused-binding             1  boolean/reduce.rs
-refused-binding             5  census.rs
+refused-binding             6  census.rs
 refused-binding             1  census/self_touch.rs
+refused-binding             1  instance.rs
 refused-binding             2  props.rs
 refused-binding             1  props/quad_lane.rs
 refused-binding             2  review_d18.rs
