@@ -722,8 +722,7 @@ fn torus_parse<T: Decide>(
         });
     }
     let anchor = meridians.swap_remove(0);
-    let orient =
-        torus_meridian_orient((anchor.n_c, anchor.c_c), center, axis, major, minor, band)?;
+    let orient = torus_meridian_orient((anchor.n_c, anchor.c_c), center, axis, major, minor, band)?;
     Ok(TorusParse {
         rims,
         anchor,
@@ -5206,8 +5205,14 @@ fn torus_chart<T: Decide>(
                     (step, sign)
                 }
                 TorusEdge::Arc(arc) => {
-                    let orient =
-                        torus_meridian_orient((arc.n_c, arc.c_c), center, axis, major, minor, band)?;
+                    let orient = torus_meridian_orient(
+                        (arc.n_c, arc.c_c),
+                        center,
+                        axis,
+                        major,
+                        minor,
+                        band,
+                    )?;
                     let sign = t_sign::<T>(orient.flip())
                         * if arc.edge.forward {
                             T::one()
