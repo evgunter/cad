@@ -5568,6 +5568,7 @@ impl BooleanError {
                 f,
                 format_args!("the Boolean's result"),
                 errors,
+                at,
             ),
             Self::UnrepresentableResult => write!(
                 f,

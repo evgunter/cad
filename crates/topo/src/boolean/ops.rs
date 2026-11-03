@@ -8069,7 +8069,7 @@ fn fallback_fates<T: Decide + AtRestPolicy>(
                     face,
                     by: fe.kept,
                     kind: e.kind(),
-                    what: e.to_string(),
+                    what: e.render(geom_brep::recourse::Reading::Build),
                 }));
             }
             (Err(e), _) => {

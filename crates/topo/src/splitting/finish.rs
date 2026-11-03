@@ -1198,6 +1198,7 @@ impl SplitFinishError {
                 f,
                 format_args!("the piece on the {} side of the plane", side.word()),
                 errors,
+                at,
             ),
             Self::ResultEscalated {
                 side,
@@ -1213,9 +1214,10 @@ impl SplitFinishError {
                 [first, ..] => write!(
                     f,
                     "the piece on the {} side of the plane is not a closed solid ({} \
-                     finding(s)); the first: {first}",
+                     finding(s)); the first: {}",
                     side.word(),
                     errors.len(),
+                    read_at(first, geom_brep::recourse::at_rest(at)),
                 ),
                 [] => write!(
                     f,

@@ -44,7 +44,7 @@ use geom_brep::props::quad::{LaneEnd, LaneRun, LaneStop, RoundWindow};
 use geom_brep::props::{
     CarrierId, FaceContribution, LoopEdge, PropsError, curved_face_holding, planar_face,
 };
-use geom_brep::recourse::{Classified, Reading, RefusedArm, RefusedSide, SizedDecision, SizedPass};
+use geom_brep::recourse::{Classified, RefusedArm, RefusedSide, SizedDecision, SizedPass};
 use geom_core::interval::{self, Interval};
 use geom_core::k_stats::Detached;
 use geom_core::{
@@ -5873,18 +5873,14 @@ impl ShellClassifyError {
             | Self::SignUnresolved { .. } => geom_brep::recourse::Unsized::Defect.recourse(arm, at),
         })
     }
-
-    /// [`ShellClassifyError::recourse`] read at a build, where the shell
-    /// door's own `Display` reads it. A reader over stored geometry reads
-    /// it at rest itself, where a poisoned margin's note names the file.
-    #[must_use]
-    pub fn ending(&self) -> Option<String> {
-        self.recourse(Reading::Build)
-    }
 }
 
-impl fmt::Display for ShellClassifyError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl ShellClassifyError {
+    fn write(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        at: Option<geom_brep::recourse::ReadAt>,
+    ) -> core::fmt::Result {
         match self {
             Self::Band { .. } => write!(f, "the shells cannot be classified: {}", self.payload()),
             Self::Escalated { .. }
@@ -5893,16 +5889,22 @@ impl fmt::Display for ShellClassifyError {
             | Self::Straddles { .. }
             | Self::SignUnresolved { .. }
             | Self::RayInBand { .. }
-            | Self::Corner { .. }
-            | Self::Ray { .. } => write!(f, "{}", self.payload()),
+            | Self::Corner { .. } => write!(f, "{}", self.payload()),
+            // The ray's own refusal ends where it is read.
+            Self::Ray { source, .. } => {
+                return write!(f, "{}", geom_brep::recourse::read_at(source, at));
+            }
         }?;
-        match self.ending() {
+        match at.and_then(|at| self.recourse(at)) {
             Some(ending) => write!(f, ". {ending}"),
             None => Ok(()),
         }
     }
 }
 
+geom_brep::ended_by_write!(ShellClassifyError);
+
+#[cfg(not(e1e_probe))]
 impl std::error::Error for ShellClassifyError {}
 
 /// Per-shell signed volume and outer/void role for every shell of

@@ -710,7 +710,8 @@ impl<T: Real> ShellError<T> {
             Self::Roles { error } => write!(
                 f,
                 "the body's shells could not be sorted into one outer boundary and its \
-                 voids: {error}"
+                 voids: {}",
+                read_at(error, at)
             ),
             Self::Partition { shell, error } => write!(
                 f,

@@ -889,12 +889,16 @@ pub enum CensusUnsupportedCause {
 // the certifiable set, so the declare-or-separate menu is a false
 // lead and `what` is the only honest steering. The arm that used to
 // append that menu to every decline appended it there too.
-impl core::fmt::Display for CensusUnsupportedCause {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl CensusUnsupportedCause {
+    fn write(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        at: Option<geom_brep::recourse::ReadAt>,
+    ) -> core::fmt::Result {
         match self {
-            Self::ChartRegion(e) => write!(f, "{e}"),
+            Self::ChartRegion(e) => write!(f, "{}", geom_brep::recourse::read_at(e, at)),
             Self::ContactLane(refusal) => write!(f, "{refusal}"),
-            Self::Containment(e) => write!(f, "{e}"),
+            Self::Containment(e) => write!(f, "{}", geom_brep::recourse::read_at(e, at)),
             Self::FaceUnboundable => write!(
                 f,
                 "the face has no boundary vertex (an empty outer loop, or a boundary \
@@ -904,6 +908,8 @@ impl core::fmt::Display for CensusUnsupportedCause {
         }
     }
 }
+
+geom_brep::ended_by_write!(CensusUnsupportedCause);
 
 /// **What check 7's readings found where none decided a solid's
 /// orientation** ([`ValidationError::OrientationUndecided`]).
@@ -6746,13 +6752,16 @@ pub(crate) fn write_result_not_at_rest(
     f: &mut fmt::Formatter<'_>,
     subject: fmt::Arguments<'_>,
     errors: &[ValidationError],
+    at: Option<geom_brep::recourse::ReadAt>,
 ) -> fmt::Result {
     match errors {
+        // The finding is the at-rest gate's, ended there.
         [first, ..] => write!(
             f,
             "{subject} did not pass the at-rest gate, so no body is returned ({} finding(s)); \
-             the first: {first}",
+             the first: {}",
             errors.len(),
+            geom_brep::recourse::read_at(first, geom_brep::recourse::at_rest(at)),
         ),
         [] => write!(
             f,

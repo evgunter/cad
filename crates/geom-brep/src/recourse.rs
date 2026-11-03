@@ -150,6 +150,14 @@ pub fn at_build(at: Option<ReadAt>) -> Option<ReadAt> {
     at.map(|_| ReadAt::Run(Reading::Build))
 }
 
+/// **A door for a nested refusal its holder ends at rest whatever door
+/// reads the holder**: [`at_build`]'s sibling, for a finding of the
+/// at-rest gate reported inside an operation's refusal.
+#[must_use]
+pub fn at_rest(at: Option<ReadAt>) -> Option<ReadAt> {
+    at.map(|_| ReadAt::Run(Reading::AtRest))
+}
+
 /// **The three items of a refusal written once for both readings**: a
 /// type with `fn write(&self, f, at: Option<ReadAt>)` gets its payload
 /// `Display` (`at` = `None`), its inherent `render(at)` and its

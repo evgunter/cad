@@ -90,8 +90,13 @@ pub enum OverlapRefusal {
     },
 }
 
-impl core::fmt::Display for OverlapRefusal {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl OverlapRefusal {
+    fn write(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        at: Option<geom_brep::recourse::ReadAt>,
+    ) -> core::fmt::Result {
+        use geom_brep::recourse::read_at;
         match self {
             Self::SplineCarrier { face } => write!(
                 f,
@@ -102,7 +107,7 @@ impl core::fmt::Display for OverlapRefusal {
                 write!(f, "the two faces face opposite ways on their one carrier")
             }
             Self::Senses(d) => write!(f, "the two faces' senses read in band: {d}"),
-            Self::Placement(e) => write!(f, "placing a point in a face: {e}"),
+            Self::Placement(e) => write!(f, "placing a point in a face: {}", read_at(e, at)),
             Self::OnPlane(d) => write!(f, "a point read in band of a face's plane: {d}"),
             Self::Meeting(r) => match r {
                 BoundaryRefusal::Escalated(d) => {
@@ -124,8 +129,12 @@ impl core::fmt::Display for OverlapRefusal {
                     write!(f, "the meeting table misread a carrier (a kernel fault)")
                 }
             },
-            Self::Boundary(e) => write!(f, "reading a face's boundary: {e}"),
-            Self::Corner(e) => write!(f, "reading two corners against each other: {e}"),
+            Self::Boundary(e) => write!(f, "reading a face's boundary: {}", read_at(e.as_ref(), at)),
+            Self::Corner(e) => write!(
+                f,
+                "reading two corners against each other: {}",
+                read_at(e.as_ref(), at)
+            ),
             Self::Normal(e) => match e {
                 NormalAtError::Escalated { diag, .. } => {
                     write!(f, "a face's normal at a point read in band: {diag}")
@@ -145,6 +154,8 @@ impl core::fmt::Display for OverlapRefusal {
         }
     }
 }
+
+geom_brep::ended_by_write!(OverlapRefusal);
 
 impl core::error::Error for OverlapRefusal {}
 

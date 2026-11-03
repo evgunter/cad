@@ -2172,6 +2172,7 @@ fn conic_crossings<T: Decide>(
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
+    use geom_brep::recourse::Reading;
 
     /// [`ConicArc::of`] over a fixture span, its extent decided forward
     /// as certification decides it.
