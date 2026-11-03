@@ -156,3 +156,51 @@ fn an_in_band_rim_certificate_takes_the_general_image_at_f64() {
 fn an_in_band_rim_certificate_takes_the_general_image_at_interval() {
     rim_image_on_the_ring::<geom_core::Interval>();
 }
+
+/// REVIEW PROBE (6484 r1): is the fallen-through `General` image
+/// certified, and what does the whole-body mint say?
+fn review_probe<T: AtRestPolicy + geom_core::Bounds>() {
+    for push in [0.0, in_band() * (1.0 + (TURN / 4.0).cos())] {
+        let (body, bottom) = sheet::<T>(push);
+        let surface = body
+            .face_surface(body.face_of_half_edge(bottom).unwrap())
+            .unwrap()
+            .clone();
+        let edge = body.get_half_edge(bottom).unwrap().edge;
+        let curve = body
+            .get_curve_geom(body.get_edge(edge).unwrap().curve)
+            .and_then(topo::CurveGeom::certified)
+            .unwrap()
+            .clone();
+        let (t0, t1) = curve.params();
+        let got = topo::pcurve_of(&body, bottom, band());
+        let kind = match &got {
+            Ok(Pcurve::General(_)) => "General".to_string(),
+            Ok(Pcurve::IsoArc { .. }) => "IsoArc".to_string(),
+            other => format!("{other:?}"),
+        };
+        let cert = got.map(|p| {
+            geom_brep::PcurveCache::certify(p, t0, t1, curve.carrier(), &surface, band())
+                .map(|_| ())
+        });
+        let mut b2 = body.clone();
+        let mint = topo::mint_pcurves(&mut b2, tol());
+        eprintln!(
+            "PROBE {} push={push:e}: pcurve_of={kind}; certify={cert:?}; mint_pcurves={mint:?}",
+            T::NAME
+        );
+        if let Err(e) = &mint {
+            eprintln!("PROBE {} ending: {e}", T::NAME);
+        }
+    }
+}
+
+#[test]
+fn review_probe_f64() {
+    review_probe::<f64>();
+}
+
+#[test]
+fn review_probe_interval() {
+    review_probe::<geom_core::Interval>();
+}
