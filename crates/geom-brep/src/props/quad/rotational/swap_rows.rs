@@ -589,3 +589,6 @@ fn a_projected_line_holds_the_closed_form() {
     encloses(got.flux, flux, "a projected line: flux");
     encloses(got.area, area, "a projected line: area");
 }
+
+#[cfg(test)]
+mod probes_r2;
