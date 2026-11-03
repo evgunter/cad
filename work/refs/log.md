@@ -78,3 +78,18 @@
   - **Not fixed:** the near-half diamond, where 8 of 24 orders publish where main refused. The lane's refusal attempt over-refused, so it was reverted; evidence went onto BORDERS' P2 row.
   - **Delta re-check:** asked of R2, with its 5,415-boolean sweep.
   - **Main reds routed (not ours):** topo `boxes::tests::every_door_that_reads_a_box_is_inventoried` (a `ruled_region.rs` box read missing from the pinned list) and `m10_sym_profile_interval`.
+- 2026-11-03 — **PR 6381 merged (per-face naming), dual concurrent, tally 0** (row `PR-6381.md`). R2's delta re-check found 0 non-coplanar holdings over 10,125 booleans (138 before the fix), with no body moved. The near-half exception went to BORDERS at P1. The per-face unit is closed.
+- 2026-11-03 — **Sitting handed back (`ready`). No P0 or P1 rows remain on REFS.** Landed this sitting:
+  - 6316/6409, state;
+  - 6317, the Python keyword row, moot since #5506;
+  - 6341, loft section ids;
+  - 6342, the interim union rule;
+  - 6344, the P0: a smooth edge is a silent no-op of the blend, and a knife edge is unbuilt;
+  - 6387, kernel `Holdings` and `overlap`;
+  - 6381, per-face naming, with a kernel `fate::cut` fix.
+
+  Ev ruled on 6342 (interim), 6344 (no-op, P0 walls, knife unbuilt) and 6381's text (per-face). Banded the holdings lane's two new rows: the in-band refusal order P2, the cone apex P3. The board's top for REFS is now P2. The unbanded legacy rows (indexed reads, slot forms, the viewer boolean tool, `SetExpression`) are untouched. Main reds seen and not ours: topo `boxes` inventory and `m10_sym_profile_interval` (several lanes), `seat7` `corner_table`. Process notes for the next orchestrator:
+  - a `refs/` branch prefix cannot be pushed (now `reads/`);
+  - keep a lane's worktree until its PR merges;
+  - cloud-session reviewers fit this container's disk better than local ones;
+  - `git log --all` shows analysis-branch subjects, so the negative refspec `^refs/heads/analysis/*` is set in this checkout.
