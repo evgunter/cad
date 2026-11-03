@@ -740,17 +740,40 @@ pub fn rest_locus<T: Decide>(
     (t0, t1): (T, T),
     band: Band,
 ) -> geom_brep::RestLocus {
-    let [(ka, fa), (kb, fb)] = sides;
+    let [(ka, _), (kb, _)] = sides;
     if ka == kb {
         return geom_brep::RestLocus::Chart(ka);
     }
     let pair = geom_brep::SurfacePair::new(ka, kb);
+    match one_carrier_at_rest(body, sides, carrier, (t0, t1), band) {
+        Some(_) => geom_brep::RestLocus::Chart(pair.keys()[0]),
+        None => geom_brep::RestLocus::Pair(pair),
+    }
+}
+
+/// **The coincidence [`rest_locus`] reads between two records**: the
+/// relation of their charts and the margin that decided them one
+/// carrier ([`super::carrier_eq::CarrierReading`]), where the carrier-equality ladder decides them one over
+/// the region [`rest_locus`] reads; `None` wherever it reads the pair.
+/// Each side's surface is `body`'s at its key, a link of the edge.
+///
+/// # Panics
+///
+/// As [`rest_locus`].
+pub(crate) fn one_carrier_at_rest<T: Decide>(
+    body: &Body<T>,
+    sides: [(crate::SurfaceKey, Option<FaceKey>); 2],
+    carrier: &geom::Curve3<T>,
+    (t0, t1): (T, T),
+    band: Band,
+) -> Option<super::carrier_eq::CarrierReading> {
+    let [(ka, fa), (kb, fb)] = sides;
     let surface = |k: crate::SurfaceKey| {
         body.get_surface(k)
             .unwrap_or_else(|| unreachable!("{k:?} is a surface the described edge lies on"))
     };
     let (Some(ca), Some(cb)) = (chart_carrier(surface(ka)), chart_carrier(surface(kb))) else {
-        return geom_brep::RestLocus::Pair(pair);
+        return None;
     };
     let on = |f: Option<FaceKey>| {
         f.map_or_else(Vec::new, |f| {
@@ -766,14 +789,13 @@ pub fn rest_locus<T: Decide>(
     let parts: Vec<_> = core::iter::once(edge)
         .chain(on_a.iter().chain(&on_b).map(|&p| ExtentBall::point(p)))
         .collect();
-    let Some(reach) = ExtentBall::enclosing(&parts).and_then(ExtentBall::readable) else {
-        return geom_brep::RestLocus::Pair(pair);
-    };
-    match super::carrier_eq::carrier_eq(&ca, &cb, &super::ConsumedExtent::new(reach), band) {
-        Ok(CarrierRelation::SameOriented | CarrierRelation::SameOpposite) => {
-            geom_brep::RestLocus::Chart(pair.keys()[0])
+    let reach = ExtentBall::enclosing(&parts).and_then(ExtentBall::readable)?;
+    match super::carrier_eq::carrier_eq_reading(&ca, &cb, &super::ConsumedExtent::new(reach), band)
+    {
+        Ok(reading @ (CarrierRelation::SameOriented | CarrierRelation::SameOpposite, _)) => {
+            Some(reading)
         }
-        Ok(CarrierRelation::Distinct) | Err(_) => geom_brep::RestLocus::Pair(pair),
+        Ok((CarrierRelation::Distinct, _)) | Err(_) => None,
     }
 }
 

@@ -1325,6 +1325,8 @@ pub fn split<T: geom_core::Decide + crate::props::AtRestPolicy>(
         finish::RawPart::Body(mut body) => {
             crate::pieces::sort_into_pieces(&mut body, band, tol, T::quad_lane(), None)
                 .map_err(SplitError::Pieces)?;
+            #[cfg(debug_assertions)]
+            crate::validate::assert_one_record_per_carrier(&body, tol);
             T::gate_at_rest_kept(body, tol)
                 .map(finish::SplitPart::Body)
                 .map_err(|errors| SplitError::from(SplitFinishError::not_at_rest(side, errors)))

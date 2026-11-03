@@ -3,8 +3,10 @@
 //! point key (`boolean::ops::record_classes`). Offsetting every face of
 //! both cubes, the two corners' six planes no longer concur, so the
 //! doors solve each solid's corner alone (`replace_face::split_by_solid`)
-//! and the corners part: the body builds at the closed-form volume,
-//! whichever door and sign.
+//! and the corners part: the body builds at the closed-form volume at
+//! either sign through the planar door. The union leaves the cubes'
+//! coplanar faces on one record, which the general door refuses to move
+//! apart.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -46,6 +48,13 @@ fn kiss(r: [[f64; 3]; 3]) -> Body<f64> {
     (*u.body).clone()
 }
 
+/// A move of `d` along `face`'s outward normal, stated against its
+/// chart's: the cubes' coplanar faces the union glued share one record,
+/// whose chart faces out of one of them.
+fn outward(face: &topo::Face, d: f64) -> f64 {
+    if face.sense { d } else { -d }
+}
+
 /// The axis frame, and one turned off every axis.
 fn frames() -> [(&'static str, [[f64; 3]; 3]); 2] {
     let (s, c) = (0.3f64.sin(), 0.3f64.cos());
@@ -73,9 +82,9 @@ fn both_doors_offset_a_corner_kiss_at_either_sign() {
                 let mut body = kiss(r);
                 let moves: Vec<ChartMove<f64>> = body
                     .faces()
-                    .map(|(f, _)| ChartMove {
+                    .map(|(f, face)| ChartMove {
                         faces: vec![f],
-                        distance: d,
+                        distance: outward(face, d),
                     })
                     .collect();
                 let what = format!("{name} d={d} {door}");
@@ -85,6 +94,14 @@ fn both_doors_offset_a_corner_kiss_at_either_sign() {
                     }
                     _ => topo::offset_surfaces_together(&mut body, &moves, band, tol()).map(|_| ()),
                 };
+                if door == "surfaces" {
+                    assert!(
+                        matches!(out, Err(topo::ReplaceFaceError::SharedSurfaceKey { .. })),
+                        "{what}: the general door keys a chart by its record, which the two \
+                         cubes' glued faces share (work/shell/the-general-offset-door-moves-a-record-two-solids-share-as-one.md): {out:?}"
+                    );
+                    continue;
+                }
                 assert!(out.is_ok(), "{what}: {out:?}");
                 let v = mass_properties(
                     &topo::test_support::finished("the measured body", body.clone(), tol()),
@@ -112,13 +129,16 @@ fn split_offset(door: &str, g: f64) -> (Result<(), String>, Body<f64>) {
     let first = body.solids().next().unwrap().0;
     let moves: Vec<ChartMove<f64>> = body
         .faces()
-        .map(|(f, _)| ChartMove {
+        .map(|(f, face)| ChartMove {
             faces: vec![f],
-            distance: if body.solid_of_face(f) == Some(first) {
-                0.1
-            } else {
-                -0.1 + g
-            },
+            distance: outward(
+                face,
+                if body.solid_of_face(f) == Some(first) {
+                    0.1
+                } else {
+                    -0.1 + g
+                },
+            ),
         })
         .collect();
     let out = match door {
@@ -149,19 +169,24 @@ fn an_undecided_joint_corner_escalates_rather_than_parts() {
         keys.dedup();
         keys.len()
     };
-    for door in ["planes", "surfaces"] {
-        let (out, body) = split_offset(door, 0.0);
-        assert_eq!(out, Ok(()), "{door}: the planes concur");
-        assert_eq!(key_of(&body), 1, "{door}: one corner, one key");
-        for k in [2.0, 4.0, 10.0] {
-            let (out, _) = split_offset(door, k * eps / 3f64.sqrt());
-            assert!(
-                matches!(&out, Err(e) if e.starts_with("Escalated")),
-                "{door} g={k}·eps/√3: {out:?}"
-            );
-        }
-        let (out, body) = split_offset(door, 1e3 * eps / 3f64.sqrt());
-        assert_eq!(out, Ok(()), "{door}: far apart, the corners part");
-        assert_eq!(key_of(&body), 2, "{door}: two corners, two keys");
+    let (out, _) = split_offset("surfaces", 0.0);
+    assert!(
+        out.as_ref().is_err_and(|e| e.starts_with("SharedSurfaceKey")),
+        "surfaces: the general door keys a chart by its record, which the two cubes' glued \
+         faces share (work/shell/the-general-offset-door-moves-a-record-two-solids-share-as-one.md): {out:?}"
+    );
+    let door = "planes";
+    let (out, body) = split_offset(door, 0.0);
+    assert_eq!(out, Ok(()), "{door}: the planes concur");
+    assert_eq!(key_of(&body), 1, "{door}: one corner, one key");
+    for k in [2.0, 4.0, 10.0] {
+        let (out, _) = split_offset(door, k * eps / 3f64.sqrt());
+        assert!(
+            matches!(&out, Err(e) if e.starts_with("Escalated")),
+            "{door} g={k}·eps/√3: {out:?}"
+        );
     }
+    let (out, body) = split_offset(door, 1e3 * eps / 3f64.sqrt());
+    assert_eq!(out, Ok(()), "{door}: far apart, the corners part");
+    assert_eq!(key_of(&body), 2, "{door}: two corners, two keys");
 }

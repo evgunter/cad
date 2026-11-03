@@ -362,6 +362,11 @@ pub enum RevolvedKind {
         start_meridians: Vec<Vec<EdgeKey>>,
         /// End-chain meridian edges, per loop, per canonical segment.
         end_meridians: Vec<Vec<EdgeKey>>,
+        /// The row of the caps' coincidence where an axis edge's two caps
+        /// are decided one carrier from values (a half turn): the caps
+        /// then wear one surface record, the start cap's
+        /// (`topo::Body::unify_across`). `None` where they are two.
+        coplanar_caps: Option<topo::Coincidence>,
     },
     /// θ = 2π: no caps. The **lamina** case (no axis contact) sweeps
     /// one full-period band: `walls`/`rims` carry the complete

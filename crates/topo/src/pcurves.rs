@@ -5846,6 +5846,13 @@ pub(crate) mod staleness_posture {
              (`work/topo/set-face-surfaces-describing-keeps-a-moved-edges-rows-on-a-kept-chart`)",
             ),
             (
+                "unify_across",
+                Transfers,
+                "`set_face_surfaces_describing`'s move of every face on one record onto the \
+             other (`unify_surfaces`), on its terms: the moved faces' rows are dropped where \
+             the two charts differ, for the caller's re-mint",
+            ),
+            (
                 "set_edge_curve",
                 Completes,
                 "a carrier swap is NOT the surface setter's case: neither the row's key nor \

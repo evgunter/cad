@@ -10696,8 +10696,6 @@ impl<T: Real> AtRestBody<T> {
         T: geom_core::Decide + geom_core::CertifiedBounds + crate::props::AtRestPolicy,
     {
         validate_geometric_certificate(&body, tol)?;
-        #[cfg(debug_assertions)]
-        assert_one_record_per_carrier(&body, tol);
         Ok(Self {
             body,
             outcome: AtRestOutcome::Validated,
@@ -18822,19 +18820,20 @@ mod door_roster {
     }
 }
 
-/// **No edge at rest lies between two records of one carrier**
-/// (DESIGN `[coincidence.door]`): the act that decided two surface
-/// records one leaves their faces on one record, so an edge whose two
-/// faces wear distinct records that its rest reads one chart
-/// ([`crate::rest_locus`]) is a producer that decided a coincidence
-/// and kept both records. Read only where the edge is stored in a
-/// chart across two records, the shape such an edge rests in.
+/// **No edge of an operation's result lies between two records of one
+/// carrier** (DESIGN `[coincidence.door]`): the act that decided two
+/// surface records one leaves their faces on one record, so an edge
+/// whose two faces wear distinct records that its rest reads one chart
+/// ([`crate::rest_locus`]) is a producer that decided a coincidence and
+/// kept both records. Read only where the edge is stored in a chart
+/// across two records, the shape such an edge rests in. A body built by
+/// hand may hold one (a non-maximal operand), so this is asked of the
+/// deciding operations' results, not at the at-rest gate.
 ///
 /// # Panics
 ///
 /// On such an edge: a kernel defect.
-#[cfg(debug_assertions)]
-fn assert_one_record_per_carrier<T: geom_core::Decide>(body: &Body<T>, tol: Tol) {
+pub(crate) fn assert_one_record_per_carrier<T: geom_core::Decide>(body: &Body<T>, tol: Tol) {
     let Ok(band) = geom_core::Band::linear(tol) else {
         return;
     };

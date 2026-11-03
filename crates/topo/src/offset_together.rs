@@ -147,6 +147,16 @@ struct MovedPlane<T: Real> {
     delta: Vec3<T>,
     /// The signed offset along the stored normal — the caller's number.
     distance: T,
+    /// The move it is, in the caller's list.
+    of_move: usize,
+}
+
+impl<T: Real> MovedPlane<T> {
+    /// Whether `other` is this plane moved by the same move: faces of
+    /// two solids may wear one chart and move apart.
+    fn same_move(&self, other: &Self) -> bool {
+        self.old_key == other.old_key && self.of_move == other.of_move
+    }
 }
 
 /// **Offset every chart of `body` at once** (module docs).
@@ -198,7 +208,7 @@ pub(crate) fn offset_planes_together_staged<T: Decide + crate::props::AtRestPoli
     // ---- Decide: the scope gate (`covers_its_solids`). ----
     let scope = scope_of_moves(body, moves)?;
     let mut planes: Vec<(FaceKey, MovedPlane<T>)> = Vec::new();
-    for m in moves {
+    for (of_move, m) in moves.iter().enumerate() {
         for &face in &m.faces {
             let data = body
                 .get_face(face)
@@ -219,6 +229,7 @@ pub(crate) fn offset_planes_together_staged<T: Decide + crate::props::AtRestPoli
                     c: normal.dot(radius(*origin + delta)),
                     delta,
                     distance: m.distance,
+                    of_move,
                 },
             ));
         }
@@ -251,7 +262,7 @@ pub(crate) fn offset_planes_together_staged<T: Decide + crate::props::AtRestPoli
         let mut at: Vec<&MovedPlane<T>> = Vec::new();
         for face in body.faces_of_vertex_linked(vertex) {
             let p = plane_of(face).unwrap_or_else(|| unmoved_in_scope(face));
-            if !at.iter().any(|q| q.old_key == p.old_key) {
+            if !at.iter().any(|q| q.same_move(p)) {
                 at.push(p);
             }
         }
@@ -284,7 +295,7 @@ pub(crate) fn offset_planes_together_staged<T: Decide + crate::props::AtRestPoli
         rows.dedup();
         for (vertex, here, planes) in rows.into_iter().map(|i| &at_vertex[i]) {
             for p in planes {
-                if !at.iter().any(|q| q.old_key == p.old_key) {
+                if !at.iter().any(|q| q.same_move(p)) {
                     at.push(p);
                 }
             }

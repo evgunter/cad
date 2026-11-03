@@ -238,6 +238,7 @@ pub use carrier_pair::{
     PairFace, PairUnread, carrier_pair_decided, carrier_pair_relation, face_carrier,
     flush_pair_relation, rest_locus,
 };
+pub(crate) use carrier_pair::one_carrier_at_rest;
 pub use contact_verify::{rest_pair_verdict, tangent_pair_relation};
 pub use solid_contain::{
     PointInSolidError, SolidContainment, SolidFaces, point_in_solid, point_in_solid_faces,

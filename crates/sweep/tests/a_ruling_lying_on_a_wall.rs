@@ -522,7 +522,7 @@ fn a_continuation_on_a_wall_bounded_by_an_ellipse_builds_every_op() {
 /// `0.5π + 2/15`, and the union `2π + 2/15`. Whichever member's wall a
 /// union keeps, the piece of the other's rim lying across it (the
 /// ellipse's arc over `x > 0` in `t ∪ r`, the circle's over `x < 0` in
-/// `r ∪ t`) rests in the first wall record's chart, derived
+/// `r ∪ t`) rests in the one wall record's chart, derived
 /// ([`across_a_wall`]).
 #[test]
 fn a_rim_across_a_walls_ellipse_builds_every_op_in_both_orders() {
@@ -586,7 +586,7 @@ fn a_rim_across_a_walls_ellipse_builds_every_op_in_both_orders() {
             let kinds = across_a_wall(&bb.body, &label(op));
             if let Some(kind) = across {
                 assert!(
-                    kinds.contains(&kind),
+                    holds(&kinds, kind),
                     "{}: a {kind:?} piece lies across the kept wall: {kinds:?}",
                     label(op)
                 );
@@ -599,25 +599,24 @@ fn a_rim_across_a_walls_ellipse_builds_every_op_in_both_orders() {
 /// `(0, ±1)` (`π/2`, `3π/2`), near them, and away from them.
 const TURNS: [f64; 9] = [0.0, 0.4, 1.3, 1.5, PI / 2.0, 2.0, 2.9, PI, 1.5 * PI];
 
-/// The carrier kind of each edge of `body` lying across a wall: both
-/// its faces on a cylinder, the two faces on different members' walls
-/// (a member's own seam ruling bounds two faces of one surface). Each
-/// edge of both kinds is first checked to rest where it lies — a seam
-/// ruling in its one surface's chart, an edge across a wall in the
-/// chart of the first of its faces' two records (they are one carrier,
-/// and incidence on both is incidence on one: `topo::rest_locus`) — and
-/// each lying across a wall to be derived: nothing in these
-/// scenes declared a rim or a ruling, so a describer that stamps a
-/// declaration on one, or leaves it citing a surface it no longer
-/// bounds, reds here.
-fn across_a_wall(body: &topo::Body<f64>, label: &str) -> Vec<CurveKind> {
+/// The carrier kind and middle point of each edge of `body` lying
+/// across a wall: both its faces on one cylinder record, two faces of
+/// it (a union leaves two members' walls one carrier on one record,
+/// DESIGN `[coincidence.door]`), so a member's own seam ruling between
+/// two of its wall's faces is among them. Each such edge, and every
+/// edge between two cylinder records, is first checked to rest where it
+/// lies — in its one record's chart, and no edge lies between two
+/// records of one carrier — and to be derived: nothing in these scenes
+/// declared a rim or a ruling, so a describer that stamps a declaration
+/// on one, or leaves it citing a surface it no longer bounds, reds here.
+fn across_a_wall(body: &topo::Body<f64>, label: &str) -> Vec<(CurveKind, Point3<f64>)> {
+    topo::test_support::assert_one_record_per_carrier(body, Tol::witness());
     let mut kinds = Vec::new();
     for (key, edge) in body.edges() {
-        let surface = |he| {
-            let face = body.face_of_half_edge(he).unwrap();
-            body.get_face(face).unwrap().surface
-        };
-        let (sp, sm) = (surface(edge.he_plus), surface(edge.he_minus));
+        let face = |he| body.face_of_half_edge(he).unwrap();
+        let (fp, fm) = (face(edge.he_plus), face(edge.he_minus));
+        let surface = |f| body.get_face(f).unwrap().surface;
+        let (sp, sm) = (surface(fp), surface(fm));
         let cylinder = |k| matches!(body.get_surface(k), Some(Surface::Cylinder { .. }));
         let c = body
             .get_curve_geom(edge.curve)
@@ -631,24 +630,25 @@ fn across_a_wall(body: &topo::Body<f64>, label: &str) -> Vec<CurveKind> {
                 ch.surface, sp,
                 "{label}: {key:?} rests in its one surface's chart"
             ),
-            EdgeDescription::Chart(ch) => assert_eq!(
-                ch.surface,
-                geom_brep::SurfacePair::new(sp, sm).keys()[0],
-                "{label}: {key:?} across a wall rests in its first record's chart"
-            ),
             other => panic!("{label}: {key:?} rests where it lies, got {other:?}"),
         }
-        if sp != sm {
+        if fp != fm {
             assert!(
                 !c.authority().is_declared(),
                 "{label}: {key:?} ({:?}) is derived, not declared: {:?}",
                 c.carrier().kind(),
                 c.authority()
             );
-            kinds.push(c.carrier().kind());
+            let (t0, t1) = c.params();
+            kinds.push((c.carrier().kind(), c.carrier().mid_point(t0, t1)));
         }
     }
     kinds
+}
+
+/// Whether `kinds` holds an edge of carrier kind `kind`.
+fn holds(kinds: &[(CurveKind, Point3<f64>)], kind: CurveKind) -> bool {
+    kinds.iter().any(|&(k, _)| k == kind)
 }
 
 /// **A half rod's rim across a rod's wall moves with the half rod's
@@ -656,7 +656,7 @@ fn across_a_wall(body: &topo::Body<f64>, label: &str) -> Vec<CurveKind> {
 /// of the same radius on `z ∈ [1, 3]`, turned `1.3` rad so its seam
 /// rulings miss the flat face's corners, their walls one carrier. Its
 /// volume is `2.5π` in both orders, and what lies across the kept wall
-/// rests in the first wall record's chart ([`across_a_wall`]):
+/// rests in the one wall record's chart ([`across_a_wall`]):
 ///
 /// - **Rod first** keeps the rod's wall whole: the rod's lower rim lies
 ///   across it over `y > 0`. The flat face `y = 0` under the rod, moved
@@ -712,11 +712,16 @@ fn a_half_rods_rim_across_a_rods_wall_moves_with_its_flat_face() {
         );
         let kinds = across_a_wall(&bb.body, op);
         assert!(
-            kinds.contains(&CurveKind::Circle),
+            holds(&kinds, CurveKind::Circle),
             "{op}: a rim lies across the kept wall: {kinds:?}"
         );
+        // The flat face's rulings lie in `y = 0`; the rod's own seam
+        // rulings, turned off it, do not.
         assert_eq!(
-            kinds.iter().filter(|&&k| k == CurveKind::Line).count(),
+            kinds
+                .iter()
+                .filter(|&&(k, mid)| k == CurveKind::Line && mid.y.abs() <= 1e-9)
+                .count(),
             rulings,
             "{op}: the flat face's rulings lying across the kept wall: {kinds:?}"
         );
@@ -757,7 +762,7 @@ fn a_half_rods_rim_across_a_rods_wall_moves_with_its_flat_face() {
             // length, so it keeps its image.
             let label = format!("{op}, d = {d}");
             assert!(
-                across_a_wall(&moved, &label).contains(&CurveKind::Circle),
+                holds(&across_a_wall(&moved, &label), CurveKind::Circle),
                 "{label}: the rim still lies across the kept wall as an image"
             );
             let want = 2.5 * PI + d * (1.0 - d * d).sqrt() + d.asin();

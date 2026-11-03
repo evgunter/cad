@@ -405,6 +405,17 @@ pub mod test_support {
         1024.0 * tol.eps()
     }
 
+    /// Panics where an edge of `body` lies between two surface records
+    /// its rest reads one carrier: the act that decided them one left
+    /// both (DESIGN `[coincidence.door]`). For a suite's results of an
+    /// operation outside this crate.
+    pub fn assert_one_record_per_carrier<T: geom_core::Decide>(
+        body: &crate::Body<T>,
+        tol: geom_core::Tol,
+    ) {
+        crate::validate::assert_one_record_per_carrier(body, tol);
+    }
+
     // `UNIT_SQUARE` is deliberately NOT here: `tests/cube_doors_agree.rs`
     // is the only suite that wants the literal, and it restates it on
     // purpose — a guard that reached for the constant the builder uses

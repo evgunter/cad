@@ -5495,9 +5495,6 @@ pub(crate) struct OneCarrierPairs {
     pairs: Vec<GluedSurfacePair>,
 }
 
-/// A surface and the sense its faces carry.
-pub(crate) type SensedSurface = (SurfaceKey, bool);
-
 /// **Two surfaces a Boolean glued one carrier**, the kept side's first
 /// ([`super::glue::kept_first`]: the record the faces are left on), and whether their charts face the same way in the result. A
 /// face's material side is its sense applied to its surface's chart,
@@ -5511,18 +5508,6 @@ pub(crate) struct GluedSurfacePair {
     pub(crate) other: SurfaceKey,
     /// Whether the two charts face the same way.
     pub(crate) charts_agree: bool,
-}
-
-impl GluedSurfacePair {
-    /// The pair of `kept` and `other` whose faces of senses `(sk, so)`
-    /// have material sides that agree or not (`materials_agree`).
-    fn of((kept, sk): SensedSurface, (other, so): SensedSurface, materials_agree: bool) -> Self {
-        Self {
-            kept,
-            other,
-            charts_agree: materials_agree == (sk == so),
-        }
-    }
 }
 
 impl OneCarrierPairs {
@@ -5542,9 +5527,10 @@ impl OneCarrierPairs {
     /// pair's carriers are distinct, and never merge.
     ///
     /// The record's relation says whether the two operand faces'
-    /// material sides agree; `op` turns B's inside out where it
-    /// subtracts (`A ∖ B ≡ A ∩ revert(B)`), and the result's faces on
-    /// the two surfaces carry the senses the charts are read under.
+    /// material sides agree, and each face's sense turns its material
+    /// side to its chart's normal, so the two glued faces' own senses
+    /// say how the two operands' charts face; `op` turns B's chart where
+    /// it subtracts and B's surface carries its own reversal.
     pub(super) fn of_result<T: Real>(
         op: BooleanOp,
         result: &Body<T>,
@@ -5553,30 +5539,35 @@ impl OneCarrierPairs {
         decls: &Glue<T>,
         graft: &GraftMap,
     ) -> Self {
-        let sense_on = |k: SurfaceKey| {
-            result
-                .faces()
-                .find(|(_, face)| face.surface == k)
-                .map(|(_, face)| face.sense)
-        };
         Self {
             pairs: decls
                 .pairs
                 .iter()
                 .filter_map(|pair| {
                     let relation = pair.class.carrier_relation()?;
+                    let (fa, fb) = (a.get_face(pair.a)?, b.get_face(pair.b)?);
                     // A-clone surface keys ARE result keys (carve/clone
                     // preserve them); B bridges through the graft.
-                    let ka = a.get_face(pair.a)?.surface;
-                    let kb = graft.surfaces.get(b.get_face(pair.b)?.surface).copied()?;
-                    let materials_agree = (relation == super::CarrierRelation::SameOriented)
-                        != (op == BooleanOp::Subtract);
-                    (ka != kb).then_some(())?;
-                    let (kept, other) = super::glue::kept_first(
-                        (Operand::A, (ka, sense_on(ka)?)),
-                        (kb, sense_on(kb)?),
-                    );
-                    Some(GluedSurfacePair::of(kept, other, materials_agree))
+                    let ka = fa.surface;
+                    let kb = graft.surfaces.get(fb.surface).copied()?;
+                    (ka != kb && result.get_surface(ka).is_some() && result.get_surface(kb).is_some())
+                        .then_some(())?;
+                    let (kept, other) = super::glue::kept_first((Operand::A, ka), kb);
+                    // ∖ reads B reverted, and a reverted plane turns its
+                    // chart where every other kind turns its faces' senses.
+                    let turned = op == BooleanOp::Subtract
+                        && b.get_surface(fb.surface).is_some_and(|s| {
+                            crate::transform::OrientationClass::of(s)
+                                == crate::transform::OrientationClass::Plane
+                        });
+                    let charts_agree = ((relation == super::CarrierRelation::SameOriented)
+                        == (fa.sense == fb.sense))
+                        != turned;
+                    Some(GluedSurfacePair {
+                        kept,
+                        other,
+                        charts_agree,
+                    })
                 })
                 .collect(),
         }
@@ -5678,6 +5669,8 @@ pub(super) fn gate<T: Decide + Bounds + AtRestPolicy>(
     crate::pieces::sort_into_pieces(&mut body, band, tol, T::quad_lane(), Some(&face_box))
         .map_err(BooleanError::Pieces)?;
     pinched_at_cone_apex(&body, band)?;
+    #[cfg(debug_assertions)]
+    crate::validate::assert_one_record_per_carrier(&body, tol);
     #[cfg(feature = "door-tier3-meter")]
     let from = std::time::Instant::now();
     let kept = T::gate_at_rest_kept(body, tol);

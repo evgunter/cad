@@ -1833,32 +1833,37 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
     /// [`Body::merge_coplanar_faces`] after each of `glued` is left on
     /// one record, the first's ([`Body::unify_surfaces`]), its two
     /// surfaces' faces facing the same way: the merge rows' stand-in for
-    /// a Boolean's glue. A body that is not tier-2 valid goes to the
-    /// door as it is, whose entry gate refuses it.
+    /// a Boolean's glue, staged so a refusal leaves the body as found. A
+    /// body that is not tier-2 valid goes to the door as it is, whose
+    /// entry gate refuses it.
     #[cfg(test)]
     pub(crate) fn merge_coplanar_faces_glued(
         &mut self,
         glued: &[(SurfaceKey, SurfaceKey)],
         tol: Tol,
     ) -> Result<MergeCoplanarOutcome, MergeCoplanarError> {
-        if validate_closed(self).is_ok() {
-            let sense = |body: &Self, k: SurfaceKey| {
-                body.faces()
-                    .find(|(_, face)| face.surface == k)
-                    .is_some_and(|(_, face)| face.sense)
-            };
-            for &(kept, other) in glued {
-                let agree = sense(self, kept) == sense(self, other);
-                self.unify_surfaces(
-                    crate::policy_lane::KernelSite::OneRecord,
-                    (kept, other),
-                    agree,
-                    tol,
-                )
-                .map_err(|error| MergeCoplanarError::Op { error })?;
-            }
+        if validate_closed(self).is_err() {
+            return self.merge_coplanar_faces(tol);
         }
-        self.merge_coplanar_faces(tol)
+        let mut work = self.clone();
+        let sense = |body: &Self, k: SurfaceKey| {
+            body.faces()
+                .find(|(_, face)| face.surface == k)
+                .is_some_and(|(_, face)| face.sense)
+        };
+        for &(kept, other) in glued {
+            let agree = sense(&work, kept) == sense(&work, other);
+            work.unify_surfaces(
+                crate::policy_lane::KernelSite::OneRecord,
+                (kept, other),
+                agree,
+                tol,
+            )
+            .map_err(|error| MergeCoplanarError::Op { error })?;
+        }
+        let outcome = work.merge_coplanar_faces(tol)?;
+        *self = work;
+        Ok(outcome)
     }
 
     /// [`Body::merge_coplanar_faces`]'s body, ending with
