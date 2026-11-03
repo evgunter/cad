@@ -1054,8 +1054,9 @@ Flagged, NOT fixed here (dispositions):
   this comparand's artifact; at 1e-4 the attachment/span gates refuse
   at the corpus's true feature scale — table re-measured in
   step-import/tests/freecad.rs, composing #197's F-row retirement).
-  In-band amplitudes take the meridian arm as a D9 tie-break, the
-  discarded drift carried by check 4's envelope in metres.
+  An amplitude decided Zero takes the meridian arm, its drift carried
+  by check 4's envelope in metres; one in band takes the general lane
+  (D3).
 - **F6** pcurve chart arms — **RETIRED**. M6-3 closed most of it
   (`chart_stretch_sup` answers (r, r) for spheres and (R+r, r) for tori, and
   `pcurves.rs::joint_arm` reads the LOCAL lever — the vertex's distance

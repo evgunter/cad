@@ -1,13 +1,15 @@
 //! **The projected image** ([`Pcurve::Projected`], C4): on an analytic
 //! chart, the image of a carrier with no closed-form image (a spline
 //! carrier; a circle on a sphere that is neither a parallel nor a
-//! meridian) is the chart's own inverse applied to the carrier,
-//! `P(t) = ψ(C(t))`. It is exact, not a fit.
+//! meridian; a line on a cylinder not shown a ruling) is the chart's own
+//! inverse applied to the carrier, `P(t) = ψ(C(t))`. It is exact, not a
+//! fit.
 //!
 //! # What the row stores
 //!
 //! The carrier written in the chart's frame (`FramedCarrier`: its
-//! control net, or a circle's centre and two radius vectors), the
+//! control net, a circle's centre and two radius vectors, or a line's
+//! point and direction), the
 //! chart's own scalars the inverse reads, a partition of the parameter
 //! into pieces that each stay in one `atan2` sector (a per-piece branch
 //! centre `θ_k = m_k·π/2`, a whole number of quarter turns, and on a
@@ -67,7 +69,8 @@
 //! distance from the chart's, both fidelity. **Incidence** is the
 //! carrier's distance from the chart: the chart's implicit form `f`
 //! composed along `ξ̂` (`geom_core::spline::compose::canonical_composite`
-//! for a net, `sphere_circle::off_sphere_sup` for a circle), converted to
+//! for a net, `sphere_circle::off_sphere_sup` for a circle,
+//! [`line_off_cylinder_sup`] for a line over the edge's interval), converted to
 //! metres per part of the twin net's knot spans, each cut into
 //! `INCIDENCE_CUTS` parts in the composite's own ring
 //! (`CurveCertData::with_breaks`; the net itself is never refined
@@ -111,7 +114,8 @@
 //! as a measured miss.
 //!
 //! **The sector condition**, decided per piece: the piece's radial hull
-//! (its Bézier controls rotated by `−θ_k`, or a circle's harmonic box)
+//! (its Bézier controls rotated by `−θ_k`, or a circle's or a line's
+//! harmonic box)
 //! lies in the open half-plane `x′ > 0`, and on a torus the same for
 //! `(ρ − R, z)` rotated by `−φ_k`; consecutive branch centres are at most
 //! a quarter turn apart, so the image is one continuous branch. The
@@ -127,9 +131,9 @@
 //! halvings), so a whole turn certifies and a sweep past one refuses.
 //!
 //! A net's hull terms are certification arithmetic (C9), so they run
-//! through the fitted door ([`crate::FittedLane`]); a circle's are
-//! closed forms of its coefficients and certify at every `Decide`
-//! scalar.
+//! through the fitted door ([`crate::FittedLane`]); a circle's and a
+//! line's are closed forms of their coefficients and certify at every
+//! `Decide` scalar.
 
 use std::sync::Arc;
 
@@ -223,6 +227,18 @@ pub enum FramedCarrier<T: Real> {
         /// The parameter length at `s = 1`.
         span: T,
     },
+    /// A line `point + dir·t`. Its pieces are read on
+    /// `s = (t − origin)/span`, as a circle's.
+    Line {
+        /// The point at `t = 0`.
+        point: Vec3<T>,
+        /// The direction, per unit of the carrier's parameter.
+        dir: Vec3<T>,
+        /// The carrier parameter at `s = 0`.
+        origin: T,
+        /// The parameter length at `s = 1`.
+        span: T,
+    },
 }
 
 impl<T: SpanLocate> FramedCarrier<T> {
@@ -235,6 +251,7 @@ impl<T: SpanLocate> FramedCarrier<T> {
                 let (s, c) = t.sin_cos();
                 *centre + *a * c + *b * s
             }
+            Self::Line { point, dir, .. } => *point + *dir * t,
         }
     }
 }
@@ -247,7 +264,7 @@ impl<T: SpanLocate> FramedCarrier<T> {
     fn piece_span(&self, a: f64, b: f64) -> (T, T) {
         match self {
             Self::Net(net) => (net_param(net, a), net_param(net, b)),
-            Self::Circle { origin, span, .. } => (
+            Self::Circle { origin, span, .. } | Self::Line { origin, span, .. } => (
                 *origin + *span * T::from_f64(a),
                 *origin + *span * T::from_f64(b),
             ),
@@ -258,7 +275,9 @@ impl<T: SpanLocate> FramedCarrier<T> {
     fn piece_param(&self, t: T) -> T {
         match self {
             Self::Net(_) => t,
-            Self::Circle { origin, span, .. } => (t - *origin) / *span,
+            Self::Circle { origin, span, .. } | Self::Line { origin, span, .. } => {
+                (t - *origin) / *span
+            }
         }
     }
 }
@@ -557,7 +576,7 @@ impl<T: SpanLocate> ProjectedImage<T> {
     }
 
     /// Piece `k`'s chart-frame box, its end pieces stretched to `t0`
-    /// and `t1` (a circle's), so the box covers what `[t0, t1]` reads of
+    /// and `t1` (a circle's or a line's), so the box covers what `[t0, t1]` reads of
     /// the piece.
     pub(crate) fn frame_box(&self, k: usize, t0: T, t1: T) -> FrameBox<T> {
         let knots = self.breaks.knots();
@@ -576,8 +595,8 @@ impl<T: SpanLocate> ProjectedImage<T> {
     }
 
     /// The chart-frame box of `[s0, s1]`, a sub-interval of piece `k`
-    /// on the piece parameter, read on that piece's branch. A circle's
-    /// sub-interval at the partition's first or last break is stretched
+    /// on the piece parameter, read on that piece's branch. A circle's or
+    /// a line's sub-interval at the partition's first or last break is stretched
     /// to `t0` or `t1`, as [`Self::frame_box`] stretches an end piece.
     fn frame_box_on(&self, k: usize, part: ParamRange, t0: T, t1: T) -> FrameBox<T> {
         let (s0, s1) = (part.start(), part.end());
@@ -617,13 +636,24 @@ impl<T: SpanLocate> ProjectedImage<T> {
                 };
                 FrameBox { x, y, z }
             }
-            FramedCarrier::Circle {
-                centre,
-                a,
-                b,
-                origin,
-                span,
-            } => {
+            FramedCarrier::Circle { .. } | FramedCarrier::Line { .. } => {
+                let zero = Vec3::zero();
+                let (centre, a, b, l, origin, span) = match &self.carrier {
+                    FramedCarrier::Circle {
+                        centre,
+                        a,
+                        b,
+                        origin,
+                        span,
+                    } => (centre, a, b, &zero, origin, span),
+                    FramedCarrier::Line {
+                        point,
+                        dir,
+                        origin,
+                        span,
+                    } => (point, &zero, &zero, dir, origin, span),
+                    FramedCarrier::Net(_) => unreachable!("matched above"),
+                };
                 let mut ta = *origin + *span * T::from_f64(s0);
                 let mut tb = *origin + *span * T::from_f64(s1);
                 if s0 <= knots[0] {
@@ -636,12 +666,11 @@ impl<T: SpanLocate> ProjectedImage<T> {
                     let (x, y) = quarter(theta, v.x * sigma, v.y * sigma);
                     Vec2::new(x, y)
                 };
-                let zero = Vec2::new(T::zero(), T::zero());
                 let radial = harmonic_span_box(
                     Point2::origin() + rot(*centre),
                     rot(*a),
                     rot(*b),
-                    zero,
+                    rot(*l),
                     ta,
                     tb,
                 );
@@ -649,7 +678,7 @@ impl<T: SpanLocate> ProjectedImage<T> {
                     Point2::new(centre.z, T::zero()),
                     Vec2::new(a.z, T::zero()),
                     Vec2::new(b.z, T::zero()),
-                    zero,
+                    Vec2::new(l.z, T::zero()),
                     ta,
                     tb,
                 );
@@ -1034,7 +1063,8 @@ fn chart_of<T: Decide>(
                 let (d0, d1) = net.knot_values().domain();
                 net.eval(T::from_f64(0.5) * (d0 + d1)).z
             }
-            FramedCarrier::Circle { origin, span, .. } => {
+            FramedCarrier::Circle { origin, span, .. }
+            | FramedCarrier::Line { origin, span, .. } => {
                 framed.eval(*origin + *span * T::from_f64(0.5)).z
             }
         },
@@ -1084,15 +1114,18 @@ pub(crate) fn chart_at<T: Decide>(
 /// **Whether `carrier` has a projected image on `surface`**: the one
 /// home of the (carrier, chart) pairs the general lane is written for, read
 /// by the mint's lane choice (`chart_image`) and by check 4's two gates
-/// here. A spline net on any analytic chart, and a circle on a sphere,
-/// whose incidence term is the sphere's exact off-sphere sup. A circle on
-/// a cone, torus or cylinder has none yet (unit E4,
+/// here. A spline net on any analytic chart; a circle on a sphere, whose
+/// incidence term is the sphere's exact off-sphere sup; and a line on a
+/// cylinder, whose incidence term is the cylinder's form along the line,
+/// a quadratic, bounded by its Bernstein coefficients over the edge. A
+/// circle on a cone, torus or cylinder has none yet (unit E4,
 /// `work/pcert/a-circles-general-lane-is-written-only-on-the-sphere.md`).
 pub(crate) fn has_lane<T: Real>(carrier: &Curve3<T>, surface: &Surface<T>) -> bool {
     match carrier {
         Curve3::Nurbs(_) => crate::edge_nurbs::is_analytic(surface),
         Curve3::Circle(..) => matches!(surface, Surface::Sphere { .. }),
-        Curve3::Line(_) | Curve3::Ellipse(..) | Curve3::Spiric { .. } => false,
+        Curve3::Line(_) => matches!(surface, Surface::Cylinder { .. }),
+        Curve3::Ellipse(..) | Curve3::Spiric { .. } => false,
     }
 }
 
@@ -1123,8 +1156,8 @@ fn period_gate(
 }
 
 /// The projected image of `carrier` on `surface` (module docs), over the
-/// carrier's knot domain for a net and over `span` (or one turn from
-/// `0`) for a circle.
+/// carrier's knot domain for a net and over `span` (or the carrier's own
+/// interval, `own_interval`) for a circle or a line.
 ///
 /// # Errors
 ///
@@ -1161,7 +1194,7 @@ pub(crate) fn project<T: Decide>(
             let Some(form) = super::carrier_harmonic(carrier) else {
                 unreachable!("a circle has a harmonic form")
             };
-            let (t0, t1) = span.unwrap_or((T::zero(), T::tau()));
+            let (t0, t1) = span.unwrap_or_else(|| super::own_interval(carrier));
             FramedCarrier::Circle {
                 centre: to_frame(form.c - origin, &e),
                 a: to_frame(form.a, &e),
@@ -1170,8 +1203,17 @@ pub(crate) fn project<T: Decide>(
                 span: t1 - t0,
             }
         }
-        Curve3::Line(_) | Curve3::Ellipse(..) | Curve3::Spiric { .. } => {
-            unreachable!("project: `has_lane` admits no line, ellipse or spiric")
+        &Curve3::Line(geom::Line { origin: point, dir }) => {
+            let (t0, t1) = span.unwrap_or_else(|| super::own_interval(carrier));
+            FramedCarrier::Line {
+                point: to_frame(point - origin, &e),
+                dir: to_frame(dir, &e),
+                origin: t0,
+                span: t1 - t0,
+            }
+        }
+        Curve3::Ellipse(..) | Curve3::Spiric { .. } => {
+            unreachable!("project: `has_lane` admits no ellipse or spiric")
         }
     };
     let escalated = |cause| PcurveCertifyError::Escalated {
@@ -1191,14 +1233,14 @@ pub(crate) fn project<T: Decide>(
         v_sign: T::one(),
     };
     // The top-level pieces: a net's knot spans (a piece's hull is one
-    // span's Bézier restriction), a circle's one interval.
+    // span's Bézier restriction), a circle's or a line's one interval.
     let tops: Vec<f64> = match &image.carrier {
         FramedCarrier::Net(net) => net
             .knots_f64_interim()
             .knot_runs()
             .map(|(k, _)| k)
             .collect(),
-        FramedCarrier::Circle { .. } => vec![0.0, 1.0],
+        FramedCarrier::Circle { .. } | FramedCarrier::Line { .. } => vec![0.0, 1.0],
     };
     if matches!(image.chart, ProjectedChart::Plane) {
         image.breaks = breaks_vector(&[tops[0], tops[tops.len() - 1]]);
@@ -1209,7 +1251,7 @@ pub(crate) fn project<T: Decide>(
     // the pieces the edge overlaps).
     let edge = match image.carrier {
         FramedCarrier::Net(_) => span,
-        FramedCarrier::Circle { .. } => None,
+        FramedCarrier::Circle { .. } | FramedCarrier::Line { .. } => None,
     };
     let mut breaks = vec![tops[0]];
     let mut azimuth = Vec::new();
@@ -2048,6 +2090,38 @@ fn read_round<T: Decide>(
     })
 }
 
+/// **The sup of the distance from a cylinder of radius `r` (in its own
+/// canonical frame, axis `z`) of the segment from `q0` to `q1`**: the
+/// line's incidence term. The cylinder's form `f = ρ² − r²` along the
+/// segment is a quadratic whose Bernstein coefficients are
+/// `f(q0) = (ρ₀ − r)(ρ₀ + r)`, `f(q1)` likewise, and the middle one
+/// `q0·q1 − r² = (f(q0) + f(q1) − |q1 − q0|²)/2` (`x`, `y` only), so `|f|`
+/// is at most their largest magnitude `F` over the segment. Then
+/// `|ρ − r| = |f|/(ρ + r)` with `ρ ≥ r − F/r`, the cylinder's metre
+/// conversion ([`Meters::over`]) with no floor on `ρ`. Every operation
+/// is outward-rounded at `Interval`, so the bound holds for every
+/// segment whose ends lie in the enclosures `q0`, `q1`.
+pub(crate) fn line_off_cylinder_sup<T: Real>(q0: Vec3<T>, q1: Vec3<T>, r: T) -> T {
+    let radial = |q: Vec3<T>| (q.x.powi(2) + q.y.powi(2)).sqrt();
+    let form = |q: Vec3<T>| {
+        let rho = radial(q);
+        (rho - r) * (rho + r)
+    };
+    let (f0, f1) = (form(q0), form(q1));
+    let chord = (q1.x - q0.x).powi(2) + (q1.y - q0.y).powi(2);
+    let middle = (f0 + f1 - chord) * T::from_f64(0.5);
+    let big = f0.abs().max(f1.abs()).max(middle.abs());
+    #[cfg(test)]
+    let big = super::mutants::line_off_cylinder(f0, f1, middle).unwrap_or(big);
+    let Ok(sup) = Meters::Cylinder { radius: r }.over(
+        big,
+        T::zero(),
+        (0.0, 0.0),
+        Ok::<T, core::convert::Infallible>,
+    );
+    sup
+}
+
 /// Check 4 of a projected row (module docs): the envelope's terms, with
 /// the sector condition decided first, each over the pieces `[t0, t1]`
 /// overlaps. `boxed` is the row's chart box over `[t0, t1]`.
@@ -2164,6 +2238,32 @@ pub(super) fn projected_envelope<T: Decide>(
                 radius,
             );
             (incidence, d, T::zero())
+        }
+        (
+            &FramedCarrier::Line { point, dir, .. },
+            &Curve3::Line(geom::Line {
+                origin: at0,
+                dir: along,
+            }),
+        ) => {
+            let (true, &Surface::Cylinder { radius, .. }) = (has_lane(carrier, surface), surface)
+            else {
+                return Err(refuse("a line's projected image is written for a cylinder"));
+            };
+            for &k in &met {
+                let b = image.frame_box(k, t0, t1);
+                holds(b.x.0, band, k, SectorChannel::Azimuth)?;
+            }
+            let (p, l) = (to_frame(at0 - o, &e), to_frame(along, &e));
+            // The stored line's gap from the re-derived one is affine in
+            // `t`, so its sup over the edge is at an end.
+            let gap = |t: T| (point - p + (dir - l) * t).norm();
+            let d = gap(t0).max(gap(t1));
+            (
+                line_off_cylinder_sup(p + l * t0, p + l * t1, radius),
+                d,
+                T::zero(),
+            )
         }
         _ => return Err(refuse("the stored carrier is not the edge's carrier kind")),
     };
@@ -2369,11 +2469,13 @@ pub(super) fn run_projected_checks<T: Decide>(
                 }
             }
         }
-        (FramedCarrier::Circle { .. }, Curve3::Circle(..)) if has_lane(carrier, surface) => {}
+        (FramedCarrier::Circle { .. }, Curve3::Circle(..))
+        | (FramedCarrier::Line { .. }, Curve3::Line(_))
+            if has_lane(carrier, surface) => {}
         _ => {
             return Err(refuse(
-                "the stored carrier is not the edge's carrier kind (a spline's net, or a \
-                 circle on a sphere)",
+                "the stored carrier is not the edge's carrier kind (a spline's net, a circle on \
+                 a sphere, or a line on a cylinder)",
             ));
         }
     }

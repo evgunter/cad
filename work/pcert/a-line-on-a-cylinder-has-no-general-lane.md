@@ -2,11 +2,13 @@
 id: a-line-on-a-cylinder-has-no-general-lane
 kind: issue
 title: A line on a cylinder has no general (projected) lane, so an in-band ruling reading has no lane that does not rest on the answer
-status: open
+status: closed
 opened: 2026-10-15
 priority: P1
 cost: M
 refs: [band-scale-torus-geometry-ends-as-a-kernel-defect]
+pr: 6470
+closed: 2026-11-03
 ---
 
 
@@ -37,3 +39,10 @@ lane joins unit E of the 5142/5113 implementation plan.
 ## The answer
 
 Ev on `[ev]` PR 5186 (2026-10-15, "sounds good!"): in band always takes the general lane, and every class a lane choice reads has one. A line on a cylinder gets a projected image; the meridian form is used only where the ruling is shown. Built in unit E of the 5142/5113 implementation plan.
+
+## Closed
+
+Unit E2 (PR 6470): a line on a cylinder has the projected image
+(`projected::FramedCarrier::Line`, `has_lane`); the cylinder arm's ruling
+reading takes the meridian form only where it is shown, and in band the
+general lane.
