@@ -6893,50 +6893,50 @@ fn line_unread(
     a: FaceKey,
     b: FaceKey,
 ) -> impl Fn(usize, crate::boolean::FaceUnread, &mut Vec<ValidationError>) {
-    move |i, why, held| match why {
-        crate::boolean::FaceUnread::Trim => held.push(pair_lane_refused(
-            a,
-            b,
-            crate::contact::ContactRefusal::NotCertifiable {
-                what: "a face of a two-carrier face pair whose trim the containment door does \
-                       not read",
-            },
-        )),
-        crate::boolean::FaceUnread::Placement(crate::boolean::PlacementError::OnPlane(cause)) => {
-            held.push(ValidationError::CensusEscalated { cause });
-        }
-        crate::boolean::FaceUnread::Placement(crate::boolean::PlacementError::Door(e)) => {
-            read_containment([a, b][i], Err::<(), _>(e), held);
-        }
-        crate::boolean::FaceUnread::Boundary(refusal) => {
-            use geom_brep::curve_face::BoundaryRefusal;
-            held.push(match refusal {
+    move |i, why, held| why.census([a, b], i, held)
+}
+
+impl crate::boolean::FaceUnread {
+    /// **Face `i` of the census's pair `faces`, unread, as the census
+    /// reports it**: an escalation as itself, a door's refusal as the
+    /// containment door's, and every reading that is not built, a fault
+    /// of the meeting reading included, as the pair's lane refused.
+    fn census(self, faces: [FaceKey; 2], i: usize, held: &mut Vec<ValidationError>) {
+        use geom_brep::curve_face::BoundaryRefusal;
+        let [a, b] = faces;
+        let refused = |what| {
+            pair_lane_refused(
+                a,
+                b,
+                crate::contact::ContactRefusal::NotCertifiable { what },
+            )
+        };
+        let escalated = |cause| ValidationError::CensusEscalated { cause };
+        match self {
+            Self::Trim => held.push(refused(
+                "a face of a two-carrier face pair whose trim the containment door does not read",
+            )),
+            Self::Placement(crate::boolean::PlacementError::OnPlane(cause)) => {
+                held.push(escalated(cause))
+            }
+            Self::Placement(crate::boolean::PlacementError::Door(e)) => {
+                read_containment(faces[i], Err::<(), _>(e), held);
+            }
+            Self::Boundary(
                 BoundaryRefusal::Escalated(cause)
                 | BoundaryRefusal::Meeting(cause)
-                | BoundaryRefusal::Touch(cause) => ValidationError::CensusEscalated { cause },
-                BoundaryRefusal::Unread(_) => pair_lane_refused(
-                    a,
-                    b,
-                    crate::contact::ContactRefusal::NotCertifiable {
-                        what: "a face of a two-carrier face pair whose boundary the meeting \
-                               reading cannot read against the tangent line",
-                    },
-                ),
-                BoundaryRefusal::Fault { what } => pair_lane_refused(
-                    a,
-                    b,
-                    crate::contact::ContactRefusal::NotCertifiable { what },
-                ),
-            });
+                | BoundaryRefusal::Touch(cause),
+            ) => held.push(escalated(cause)),
+            Self::Boundary(BoundaryRefusal::Unread(_)) => held.push(refused(
+                "a face of a two-carrier face pair whose boundary the meeting reading cannot \
+                 read against the tangent line",
+            )),
+            Self::Boundary(BoundaryRefusal::Fault { what }) => held.push(refused(what)),
+            Self::Uncertified => held.push(refused(
+                "a face of a two-carrier face pair whose boundary holds an edge with no certified \
+                 curve",
+            )),
         }
-        crate::boolean::FaceUnread::Uncertified => held.push(pair_lane_refused(
-            a,
-            b,
-            crate::contact::ContactRefusal::NotCertifiable {
-                what: "a face of a two-carrier face pair whose boundary holds an edge with no \
-                       certified curve",
-            },
-        )),
     }
 }
 
