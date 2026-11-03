@@ -1,5 +1,6 @@
-//! **What the chart lanes' section handles share.** The plane × NURBS
-//! handle ([`super::plane::PlaneSection`]) and the NURBS × NURBS one
+//! **What the chart lanes' section handles share.** The residual ×
+//! NURBS handle ([`super::implicit_chart::ImplicitSection`], a plane's
+//! or a curved partner's) and the NURBS × NURBS one
 //! ([`super::pair::Section`]) read one section two ways under one
 //! contract, and differ in the system, the charts, the boundary pass and
 //! the cells a tube is proved over. The rules that are the same on every

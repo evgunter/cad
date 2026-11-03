@@ -163,7 +163,7 @@ pub enum SplineRoot {
 
 /// The plane × spline-wall section and the plane's root along a spline
 /// carrier — the offset door's spline lane, at the one scalar its
-/// march is written in (`geom_brep::PlaneSection` traces in
+/// march is written in (`geom_brep::ImplicitSection` traces in
 /// `f64`). Where a scalar holds none
 /// ([`crate::AtRestPolicy::section_lane`]), a slanted spline edge
 /// refuses by name rather than transporting.
@@ -905,7 +905,7 @@ const NEWTON_STEPS: usize = 24;
 /// **The plane × spline-wall section** through `old`'s middle: the
 /// wall's exact row where the plane cuts the wall along one (every
 /// control row level in the plane's normal, the case of a loft between
-/// parallel sections), otherwise what [`geom_brep::PlaneSection`] reads
+/// parallel sections), otherwise what [`geom_brep::ImplicitSection`] reads
 /// at that point: the branch whose certified chart tube holds where the
 /// middle settles, or the wall's boundary row where a `Side` region
 /// holds it (the plane holds that row within the band). A `Corner`
@@ -942,7 +942,7 @@ fn plane_wall_section<'w, 's>(
                 extent: extent.length(),
                 floor_scale: 1.0,
             };
-            let mut section = match geom_brep::PlaneSection::of_charted(
+            let mut section = match geom_brep::ImplicitSection::of_charted(
                 plane,
                 (wall, chart_of(chart)),
                 domain,
@@ -950,7 +950,7 @@ fn plane_wall_section<'w, 's>(
             ) {
                 Ok(s) => s,
                 Err(e @ SsiError::WrongLane { .. }) => {
-                    mispaired("PlaneSection::of_charted", "the plane's wall", &e)
+                    mispaired("ImplicitSection::of_charted", "the plane's wall", &e)
                 }
                 Err(e) => return Ok(Err(SectionVerdict::Ssi(e))),
             };

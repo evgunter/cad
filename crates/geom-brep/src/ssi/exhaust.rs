@@ -70,7 +70,7 @@
 //! permits brute force here and nothing in the contract changes when
 //! the pruning does.
 
-use geom::{NurbsSurface, Surface};
+use geom::Surface;
 use geom_core::Bounds;
 use geom_core::interval::certification::Certification;
 use geom_core::interval::max_bound;
@@ -1197,66 +1197,6 @@ pub(crate) fn isolate_section(
     Ok(cells)
 }
 
-/// **Seed generation**, chart lane: the centers of the parameter cells
-/// that survived exclusion against the plane.
-///
-/// Takes its floor as [`account_chart_plane`] does, minted over the
-/// same root by the same door ([`SweepFloor::chart`]): the chart lane
-/// is entered through one shape whichever duty is being asked for.
-/// What it does not do is hand back a lane — seeding hands back no
-/// receipt to state one on.
-///
-/// # Errors
-///
-/// As [`account_chart_plane`], minus the floor refusal.
-pub(crate) fn seed_chart_plane(
-    surface: &NurbsSurface<f64>,
-    plane_origin: Point3<f64>,
-    plane_normal: Vec3<f64>,
-    floor: SweepFloor<UvRect>,
-) -> Result<Vec<(f64, f64)>, SsiError> {
-    let (_, seeds) =
-        sweep_chart_plane(surface, plane_origin, plane_normal, floor, SweepDuty::Seed)?;
-    Ok(seeds)
-}
-
-/// **The accounting proof**, chart lane: every leaf of the floor's
-/// parameter rectangle is excluded — by its own enclosure, or inside
-/// one of the boundary pass's `clear` cells — or lies inside one of
-/// `tubes` or of the boundary contacts' `regions`; a cell that is none
-/// of these, at the floor, is the typed refusal — every set empty
-/// included.
-///
-/// The floor carries the certified chart speed of `surface` that
-/// crossed the caller's metres into chart units, and hands it on to
-/// the receipt so no caller has to hold the rate to read the answer.
-///
-/// # Errors
-///
-/// As [`account_r3`].
-pub(crate) fn account_chart_plane(
-    surface: &NurbsSurface<f64>,
-    plane_origin: Point3<f64>,
-    plane_normal: Vec3<f64>,
-    tubes: &[UvRect],
-    regions: &[UvRect],
-    clear: &[UvRect],
-    floor: SweepFloor<UvRect>,
-) -> Result<Exhaustiveness, SsiError> {
-    let (tally, _) = sweep_chart_plane(
-        surface,
-        plane_origin,
-        plane_normal,
-        floor,
-        SweepDuty::Account {
-            tubes,
-            regions,
-            clear,
-        },
-    )?;
-    Ok(tally.receipt(floor.lane, floor.width()))
-}
-
 /// **Seed generation**, chart lane, against any partner: the centres of
 /// the cells of the floor's rectangle that `excluded` does not clear, at
 /// the floor. [`seed_chart_plane`] with the partner's exclusion handed
@@ -1355,23 +1295,6 @@ pub(crate) fn chart_plane_height(
         });
     }
     Ok(phi)
-}
-
-/// The chart lane's exclusion rule, over the one shared [`sweep`]:
-/// against a **plane** the locus is `φ(u,v) = n·(S(u,v) − p₀) = 0`, so
-/// a cell is solution-free when a zero-free enclosure of `φ` — computed
-/// from the surface's certified first-order box — says so.
-fn sweep_chart_plane(
-    surface: &NurbsSurface<f64>,
-    plane_origin: Point3<f64>,
-    plane_normal: Vec3<f64>,
-    floor: SweepFloor<UvRect>,
-    duty: SweepDuty<'_, UvRect>,
-) -> Result<(SweepTally, Vec<(f64, f64)>), SsiError> {
-    let boxes = NurbsBoxes::new(surface);
-    sweep(floor, duty, |cell| {
-        chart_plane_height(&boxes, plane_origin, plane_normal, cell).map(excludes_zero)
-    })
 }
 
 /// A box in the NURBS × NURBS lane's ℝ⁴ state space — the pair lane's

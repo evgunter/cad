@@ -308,75 +308,19 @@ impl TransversalityData<2> for ImplicitChartR2<'_> {
 // ---------------------------------------------------------------------
 
 /// A parametric chart with third-order derivative data — the ℝ⁴
-/// trace's operand.
-///
-/// Only the two charts the PR's implemented arms need exist here: an
-/// analytic plane (whose second and third partials vanish identically,
-/// so the cubic term costs nothing) and a NURBS surface. Adding a
-/// chart is adding an arm, per C12.1's per-arm retirement rule; there
-/// is deliberately no `Surface`-wide constructor that would silently
-/// admit a chart whose third-order data nobody has written.
+/// trace's operand: a NURBS surface on its own knot domain. Adding a
+/// chart is adding an arm, per C12.1's per-arm retirement rule; there is
+/// deliberately no `Surface`-wide constructor that would silently admit
+/// a chart whose third-order data nobody has written.
 pub(crate) enum Chart<'a> {
-    /// `S(u, v) = origin + u·du + v·dv`, on the caller's window.
-    Plane {
-        /// `S(0, 0)`.
-        origin: Point3<f64>,
-        /// The (unit) `u` axis.
-        du: Vec3<f64>,
-        /// The (unit) `v` axis.
-        dv: Vec3<f64>,
-        /// The `u` window `[lo, hi]` — a plane is unbounded, so the
-        /// domain is the caller's named extent, never a guess.
-        u_range: (f64, f64),
-        /// The `v` window `[lo, hi]`.
-        v_range: (f64, f64),
-    },
     /// A NURBS surface on its own knot domain.
     Nurbs(&'a NurbsSurface<f64>),
 }
 
 impl Chart<'_> {
-    /// The plane chart of a [`Surface::Plane`] on a named window.
-    /// Returns `None` for any other kind — the caller (an arm) knows
-    /// its kinds at compile time and this is the assertion of that.
-    pub(crate) fn plane_of(
-        s: &Surface<f64>,
-        u_range: (f64, f64),
-        v_range: (f64, f64),
-    ) -> Option<Self> {
-        match *s {
-            Surface::Plane {
-                origin,
-                normal,
-                u_ref,
-            } => Some(Self::Plane {
-                origin,
-                du: u_ref,
-                dv: normal.cross(u_ref),
-                u_range,
-                v_range,
-            }),
-            _ => None,
-        }
-    }
-
-    /// The parameter domain rectangle `((u0, u1), (v0, v1))`.
-    pub(crate) fn domain(&self) -> ((f64, f64), (f64, f64)) {
-        match self {
-            Self::Plane {
-                u_range, v_range, ..
-            } => (*u_range, *v_range),
-            Self::Nurbs(n) => (
-                n.knots_u_f64_interim().domain(),
-                n.knots_v_f64_interim().domain(),
-            ),
-        }
-    }
-
     /// `S(u, v)`.
     pub(crate) fn eval(&self, u: f64, v: f64) -> Point3<f64> {
         match self {
-            Self::Plane { origin, du, dv, .. } => *origin + *du * u + *dv * v,
             Self::Nurbs(n) => n.eval(u, v),
         }
     }
@@ -384,20 +328,6 @@ impl Chart<'_> {
     /// The third-order jet at `(u, v)` — all partials with `k + l ≤ 3`.
     pub(crate) fn jet3(&self, u: f64, v: f64) -> SurfaceJet3<f64> {
         match self {
-            Self::Plane { origin, du, dv, .. } => SurfaceJet3 {
-                jet: geom::SurfaceJet {
-                    point: *origin + *du * u + *dv * v,
-                    du: *du,
-                    dv: *dv,
-                    duu: Vec3::zero(),
-                    duv: Vec3::zero(),
-                    dvv: Vec3::zero(),
-                },
-                duuu: Vec3::zero(),
-                duuv: Vec3::zero(),
-                duvv: Vec3::zero(),
-                dvvv: Vec3::zero(),
-            },
             Self::Nurbs(n) => n.ders3(u, v),
         }
     }
@@ -853,17 +783,17 @@ mod tests {
         ] {
             let sin = band.zero() / (2.0 * arm);
             let cos = (1.0 - sin * sin).sqrt();
-            let sys = ParametricPairR4 {
-                a: Chart::Plane {
-                    origin: p(0.0, 0.0, 0.0),
-                    du: Vec3::new(-sin, cos, 0.0),
-                    dv: Vec3::new(0.0, 0.0, 1.0),
-                    u_range: (-1.0, 1.0),
-                    v_range: (-1.0, 1.0),
-                },
-                b: Chart::Nurbs(wall),
+            let du = Vec3::new(-sin, cos, 0.0);
+            let plane = Surface::Plane {
+                origin: p(0.0, 0.0, 0.0),
+                normal: du.cross(Vec3::new(0.0, 0.0, 1.0)),
+                u_ref: du,
             };
-            match decide_transversality(&sys, &[0.0, 0.5, 0.0, 0.5], 0.0, 1.0, band) {
+            let sys = ImplicitChartR2 {
+                partner: &plane,
+                wall,
+            };
+            match decide_transversality(&sys, &[0.0, 0.5], 0.0, 1.0, band) {
                 Err(SsiError::TransversalityBand {
                     lever: got, arm: a, ..
                 }) => {
@@ -914,36 +844,26 @@ mod tests {
 
     #[test]
     fn r4_jacobian_columns_are_the_two_charts_partials() {
-        let n = bilinear();
-        let plane = Surface::Plane {
-            origin: Point3::new(0.0, 0.0, 0.05),
-            normal: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-        };
+        let (n, m) = (bilinear(), bilinear_weighted(1.7));
         let sys = ParametricPairR4 {
-            a: Chart::plane_of(&plane, (-1.0, 1.0), (-1.0, 1.0)).unwrap(),
-            b: Chart::Nurbs(&n),
+            a: Chart::Nurbs(&n),
+            b: Chart::Nurbs(&m),
         };
         let x = [0.3, 0.4, 0.5, 0.5];
         let j = sys.jacobian(&x);
-        // Plane's u axis is +x, v axis is normal×u_ref = +y.
-        assert!((j[0][0] - 1.0).abs() < 1e-15);
-        assert!((j[1][1] - 1.0).abs() < 1e-15);
-        let nb = n.ders(0.5, 0.5);
+        let na = n.ders(0.3, 0.4);
+        assert!((j[0][0] - na.du.x).abs() < 1e-15);
+        assert!((j[2][1] - na.dv.z).abs() < 1e-15);
+        let nb = m.ders(0.5, 0.5);
         assert!((j[0][2] + nb.du.x).abs() < 1e-15);
         assert!((j[2][3] + nb.dv.z).abs() < 1e-15);
     }
 
     #[test]
     fn r4_taylor_rhs_reproduces_the_composite_derivatives() {
-        let n = bilinear();
-        let plane = Surface::Plane {
-            origin: Point3::new(0.0, 0.0, 0.05),
-            normal: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-        };
+        let (n, m) = (bilinear(), bilinear_weighted(1.7));
         let sys = ParametricPairR4 {
-            a: Chart::plane_of(&plane, (-1.0, 1.0), (-1.0, 1.0)).unwrap(),
+            a: Chart::Nurbs(&m),
             b: Chart::Nurbs(&n),
         };
         let x = [0.3, 0.4, 0.45, 0.55];
@@ -1071,10 +991,5 @@ mod tests {
                 "FIXTURE: the wall's chain term is live: {chain:e}"
             );
         }
-    }
-
-    #[test]
-    fn a_non_plane_surface_has_no_plane_chart() {
-        assert!(Chart::plane_of(&sphere(), (0.0, 1.0), (0.0, 1.0)).is_none());
     }
 }

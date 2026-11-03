@@ -38,9 +38,8 @@
 //! |---|---|---|
 //! | [`cylinder_sphere_ssi`] | **ℝ³** implicit pair, 2×3 SVD | shape (iv)'s planted small loop and the σ₂-sliver row — **retired**, all three limbs (M5 PR 7) |
 //! | [`sphere_torus_ssi`], [`cylinder_torus_ssi`], [`torus_torus_ssi`] | **ℝ³** implicit pair, 2×3 SVD | the torus pairs, each past its pose's critical gap, the torus read through its quartic and converted to metres per span (`certify`'s torus arm) |
-//! | [`PlaneSection`] | **ℝ⁴** parametric×parametric, 3×4 SVD | shape (iii)'s substrate — **retired 2026-07-31**, all three limbs (M5 PR 7b); one complete operation read at a seed or whole (`plane`), [`plane_nurbs_ssi`] its whole reading |
 //! | [`Section`] | **ℝ⁴** on two NURBS charts, 3×4 SVD | the shelled loft's wall–wall seams — all three limbs, the third the two-chart tube; one complete operation read at a seed or whole (`pair`) |
-//! | [`ImplicitSection`] | **ℝ²** residual × chart, 1×2 SVD | a cylinder, sphere or ring torus against a NURBS wall where the classification's sweep declines — all three limbs, the third the chart tube read against the partner's form; one complete operation read at a seed or whole (`implicit_chart`) |
+//! | [`ImplicitSection`] | **ℝ²** residual × chart, 1×2 SVD | a plane, cylinder, sphere or ring torus against a NURBS wall: shape (iii)'s substrate (M5 PR 7b, folded onto this trace), and the classification's whole reading where its sweep declines — all three limbs, the third the chart tube read against the partner's form; one complete operation read at a seed or whole (`implicit_chart`) |
 //!
 //! # The plane×NURBS arm's retirement (M5 PR 7b)
 //!
@@ -128,7 +127,6 @@ pub mod jet;
 pub mod march;
 mod one_arc;
 pub(crate) mod pair;
-mod plane;
 mod refine;
 pub(crate) mod residual;
 pub mod section;
@@ -159,21 +157,20 @@ pub use exhaust::{
     SSI_FLOOR, SSI_MAX_CELLS, SSI_SEED_FLOOR,
 };
 pub(crate) use four::{RowCrossing, RowUnreadable, row_crossing, row_piece};
-pub use implicit_chart::ImplicitSection;
+pub use implicit_chart::{ImplicitSection, SectionReading};
 pub use march::{
     BranchEnd, ReachBound, SSI_IDEALIZED_STEP, SSI_NEWTON_ITERS, SSI_NEWTON_TOL,
     SSI_QUADRIC_NOISE_ULPS, SSI_SETTLE_MAX, SSI_SPLINE_NOISE_ULPS, SSI_STEP_DEVIATION,
     STEP_BOUND_MINORITY, SettlingRefusal, StepBound, StepCap, StepFault, StepperMode,
 };
 pub use pair::{PairCorner, PairReading, PairRegion, PairRow, PairRowRefusal, Section};
-pub use plane::{PlaneSection, SectionReading};
 pub use refine::{RefineStop, RefusedRound, ResidualTrend, RoundMargin};
 pub use section::{BandVerdict, BoundarySection, SectionRoot, boundary_section};
 
 use enclose::{Box3, NurbsBoxes};
 use exhaust::{RateClause, SweepFloor, UvRect};
 use march::{MarchContext, MarchTol, Readout, SlabEnd, Trace, march_both, trace_points};
-use system::{Chart, ImplicitPairR3, ParametricPairR4};
+use system::ImplicitPairR3;
 
 /// The chart-parameter sample sequences of a trace, one per operand
 /// with a chart — the feet that become the pcurves, on the carrier's own
@@ -712,15 +709,6 @@ pub enum SsiError {
         /// Gaps whose midpoint settled outside the wall, or onto an end.
         off_domain: usize,
     },
-    /// The plane's chart window does not hold the wall's image, so it
-    /// would bound the march where the wall does not.
-    WindowShortOfWall {
-        /// The domain's half-extent, in metres.
-        half_extent: f64,
-        /// How far from the plane chart's origin the wall's control
-        /// hull reaches, in metres.
-        reach: f64,
-    },
     /// The certificate refused a fitted carrier where it could say
     /// where, and refinement by certification could not answer it: no
     /// refused gap could be halved, or the next round would overrun the
@@ -1221,12 +1209,6 @@ impl core::fmt::Display for SsiError {
                     }
                 )
             }
-            Self::WindowShortOfWall { half_extent, reach } => write!(
-                f,
-                "ssi: the plane's window reaches {half_extent:e} m from the plane's origin, and \
-                 the wall reaches {reach:e} m across it, so the window would bound the march \
-                 where the wall does not"
-            ),
             Self::Fit(_) => write!(
                 f,
                 "ssi: the fitting stack could not interpolate a traced branch, which a branch the \
@@ -1632,10 +1614,6 @@ impl SsiError {
             Self::MarchShortOfFit { .. } => {
                 Unsized::Fit.recourse(RefusedArm::SignCertain(None), reading)
             }
-            Self::WindowShortOfWall { reach, .. } => format!(
-                "Recourse: name a domain half-extent of at least {reach:e} m, so the plane's \
-                 window holds the wall"
-            ),
             Self::ExhaustivenessInconclusive(_) => EXHAUSTIVENESS_RECOURSE.to_owned(),
             Self::CellBudget { .. } => CELL_BUDGET_RECOURSE.to_owned(),
             // The idealized step is the extent's. The diagonal ends an
@@ -3556,23 +3534,16 @@ fn spline_readout(
     )
 }
 
-/// The ℝ³ box a plane chart's `±half` window spans: every state the ℝ⁴
-/// trace settles lies on the plane inside it.
-fn window_reach(chart: &Chart<'_>, half: f64) -> Box3 {
-    let corner = |u, v| chart.eval(u, v);
-    Box3::between(corner(-half, -half), corner(half, half))
-        .hull(Box3::between(corner(-half, half), corner(half, -half)))
-}
-
-/// **plane × NURBS wall**, read whole: [`PlaneSection::all`] on
-/// [`PlaneSection::of`], every branch of the section over the wall's
+/// **plane × NURBS wall**, read whole: [`ImplicitSection::all`] on
+/// [`ImplicitSection::of`], every branch of the section over the wall's
 /// knot rectangle and the accounting that they are all of them. Its
 /// limb 2 reads the tensor-product Bernstein composite of
 /// `S(P(t)) − C(t)` (`geom_core::spline::compose::tensor`; module docs).
 ///
 /// # Errors
 ///
-/// [`PlaneSection::of`]'s and [`PlaneSection::all`]'s.
+/// [`SsiError::WrongLane`] where `plane` is not a plane, and
+/// [`ImplicitSection::of`]'s and [`ImplicitSection::all`]'s.
 pub fn plane_nurbs_ssi(
     plane: &Surface<f64>,
     wall: &NurbsSurface<f64>,
@@ -3590,53 +3561,47 @@ fn plane_nurbs_ssi_within(
     band: Band,
     max_steps: usize,
 ) -> Result<SsiOutcome, SsiError> {
-    PlaneSection::within(plane, (wall, ChartedNurbs::mint), domain, band, max_steps)?.all()
+    if !matches!(plane, Surface::Plane { .. }) {
+        return Err(SsiError::WrongLane {
+            expected: PLANE_AND_WALL,
+        });
+    }
+    ImplicitSection::within(plane, (wall, ChartedNurbs::mint), domain, band, max_steps)?.all()
 }
 
-/// The boundary pass over `wall`'s knot rectangle against `plane`, at
-/// the domain's floor and extent (C3), as both plane × NURBS doors run
-/// it.
+/// What the plane × NURBS doors take.
+const PLANE_AND_WALL: &str = "a plane and a NURBS surface traced on the wall's chart";
+
+/// **The plane's pcurve of a carrier**: its image on the plane's chart,
+/// `((C − o)·u, (C − o)·v)`, `u` the plane's reference direction and
+/// `v = n × u`. The chart is affine, and an affine map commutes with the
+/// rational weighting, so the image of each control point under the
+/// same weights and knots is the pcurve exactly, on the carrier's own
+/// parameter.
 ///
 /// # Errors
 ///
-/// As [`boundary::Pass::run`].
-fn boundary_pass(
-    wall: &NurbsSurface<f64>,
-    charted: &ChartedNurbs<'_, f64>,
-    plane: &Surface<f64>,
-    sys: &ParametricPairR4<'_>,
-    tol: MarchTol,
-    domain: &SsiDomain,
-    band: Band,
-) -> Result<boundary::BoundaryPass, SsiError> {
-    let Surface::Plane {
-        origin,
-        normal,
-        u_ref,
-    } = *plane
-    else {
-        return Err(SsiError::WrongLane {
-            expected: "a plane and a NURBS surface traced in ℝ⁴ on their charts",
-        });
-    };
-    boundary::Pass {
-        wall,
-        boxes: charted.own_boxes(),
-        speeds: charted.speeds(),
-        partner: boundary::PlanePartner {
-            plane: boundary::PassPlane {
-                origin,
-                normal,
-                u_ref,
-            },
-            sys,
-        },
-        tol,
-        floor: domain.floor(band),
-        extent: domain.extent,
-        band,
-    }
-    .run()
+/// [`SsiError::Fit`] where the image does not form a curve (a weight or
+/// knot the carrier already had refused).
+fn plane_pcurve(
+    carrier: &NurbsCurve3<f64>,
+    (origin, normal, u_ref): (Point3<f64>, geom_core::Vec3<f64>, geom_core::Vec3<f64>),
+) -> Result<NurbsCurve2<f64>, SsiError> {
+    let v_ref = normal.cross(u_ref);
+    let control = carrier
+        .control()
+        .iter()
+        .map(|&p| {
+            let q = p - origin;
+            geom_core::Point2::new(q.dot(u_ref), q.dot(v_ref))
+        })
+        .collect();
+    NurbsCurve2::new(
+        carrier.knots_f64_interim().clone(),
+        control,
+        carrier.weights().to_vec(),
+    )
+    .map_err(|e| SsiError::Fit(geom::FitError::Structure(e)))
 }
 
 /// The ℝ⁴ trace's fitted product **without a certificate** — the OQ4
@@ -3710,38 +3675,28 @@ fn trace_plane_nurbs_within(
     max_steps: usize,
 ) -> Result<TracedTriple, SsiError> {
     let Surface::Plane {
-        origin: p0,
+        origin,
         normal,
         u_ref,
     } = *plane
     else {
         return Err(SsiError::WrongLane {
-            expected: "a plane and a NURBS surface traced in ℝ⁴ on their charts",
+            expected: PLANE_AND_WALL,
         });
     };
     finite_operand("plane", plane)?;
-    finite_net("NURBS wall", wall)?;
-    domain.check()?;
-    let half = domain.half_extent;
-    let Some(chart_a) = Chart::plane_of(plane, (-half, half), (-half, half)) else {
-        return Err(SsiError::WrongLane {
-            expected: "a plane and a NURBS surface traced in ℝ⁴ on their charts",
-        });
+    let form = residual::ImplicitForm::of(plane).map_err(|_| SsiError::WrongLane {
+        expected: PLANE_AND_WALL,
+    })?;
+    let read = residual::ImplicitWall::of(wall, domain, band)?;
+    let (ud, vd) = (wall.knot_values_u().domain(), wall.knot_values_v().domain());
+    let tol = MarchTol::decoupled(march_tol, read.march_readout(&form)?)?;
+    let sys = system::ImplicitChartR2 {
+        partner: plane,
+        wall,
     };
-    let window = window_reach(&chart_a, half);
-    let chart_b = Chart::Nurbs(wall);
-    let ((pu, pv), (ud, vd)) = (chart_a.domain(), chart_b.domain());
-    let charted = ChartedNurbs::mint(wall)?;
-    let speed = charted.speeds().max();
-    let root = UvRect { u: ud, v: vd };
-    let tol = MarchTol::decoupled(march_tol, spline_readout(window, wall, root, speed))?;
-    boundary::window_holds_wall((p0, u_ref, normal.cross(u_ref)), wall, half)?;
-    let sys = ParametricPairR4 {
-        a: chart_a,
-        b: chart_b,
-    };
-    let ctx = MarchContext::<4> {
-        domain: [[pu.0, pu.1], [pv.0, pv.1], [ud.0, ud.1], [vd.0, vd.1]],
+    let ctx = MarchContext::<2> {
+        domain: [[ud.0, ud.1], [vd.0, vd.1]],
         extent: domain.extent,
         tol,
         max_steps,
@@ -3749,13 +3704,10 @@ fn trace_plane_nurbs_within(
     };
     // A branch through the seed ends at the crossings the boundary pass
     // certifies, as every plane × NURBS branch does.
-    let pass = boundary_pass(wall, &charted, plane, &sys, tol, &domain, band)?;
-    let wall_op = SsiOperand::Nurbs(charted);
-    let ends = ends::Ends::of(&sys, ctx, plane, &wall_op, band);
-    let v_ref = normal.cross(u_ref);
-    let q = wall.eval(seed_uv.0, seed_uv.1) - p0;
-    let state = [q.dot(u_ref), q.dot(v_ref), seed_uv.0, seed_uv.1];
-    let (states, _) = ends.through_seed(state, &pass.crossings)?;
+    let pass = read.pass(&form)?;
+    let wall_op = SsiOperand::Nurbs(read.charted().clone());
+    let ends = ends::Ends::implicit(&sys, ctx, &wall_op, band);
+    let (states, _) = ends.through_seed([seed_uv.0, seed_uv.1], &pass.crossings)?;
     // The last triple the certificate refused; the verdict is the
     // certifying door's to report, not this one's.
     let mut refused = None;
@@ -3786,17 +3738,18 @@ fn trace_plane_nurbs_within(
             }
         }
     });
-    let (carrier, pa, pb) = match densified {
+    let (carrier, _, pb) = match densified {
         Ok(fitted) => fitted,
         // A refusal before any triple was fitted is the fit's own.
         Err(e) => refused.ok_or(e)?,
     };
-    match (pa, pb) {
-        (Some(a), Some(b)) => Ok((carrier, a, b)),
-        _ => Err(SsiError::UnsupportedCertificate {
-            what: "the ℝ⁴ trace must produce both pcurves",
-        }),
-    }
+    let Some(pb) = pb else {
+        return Err(SsiError::UnsupportedCertificate {
+            what: "the 1×2 trace must produce the wall's pcurve",
+        });
+    };
+    let pa = plane_pcurve(&carrier, (origin, normal, u_ref))?;
+    Ok((carrier, pa, pb))
 }
 
 /// Certify an already-fitted rung-3 carrier against an operand pair —
@@ -4688,7 +4641,7 @@ mod ending_tests {
     }
 
     /// How many arms [`SsiError`] has: [`arm`]'s numbering.
-    const ARMS: usize = 50;
+    const ARMS: usize = 49;
 
     /// Each arm's number. No wildcard: a new arm does not compile until
     /// it is numbered, and [`each_ssi_ending_is_its_decisions`] then
@@ -4730,7 +4683,7 @@ mod ending_tests {
             SsiError::EndNotOnLocus { .. } => 32,
             SsiError::CrossingUnmatched { .. } => 33,
             SsiError::ShortBranchUncertified { .. } => 34,
-            SsiError::WindowShortOfWall { .. } => 35,
+            SsiError::SeedOutsideChartTube { .. } => 35,
             SsiError::TubeNotOneArc { .. } => 36,
             SsiError::RefinementExhausted { .. } => 37,
             SsiError::MarchStepInBand { .. } => 38,
@@ -4744,7 +4697,6 @@ mod ending_tests {
             SsiError::DegenerateTorus(_) => 46,
             SsiError::CoincidentTori => 47,
             SsiError::PairRowTangent => 48,
-            SsiError::SeedOutsideChartTube { .. } => 49,
         }
     }
 
@@ -5205,13 +5157,6 @@ mod ending_tests {
                         limb: SsiLimb::OnLocus,
                         margin: MarginDiag::value(3e-9),
                     }),
-                },
-            ),
-            (
-                "window",
-                SsiError::WindowShortOfWall {
-                    half_extent: 0.25,
-                    reach: 1.06,
                 },
             ),
             (

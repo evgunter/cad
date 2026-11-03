@@ -682,30 +682,6 @@ fn read_section(
     roots(curve, pieces, speed, floor_meters, arm, band)
 }
 
-/// **The roots of the plane distance along a curve**, isolated to the
-/// floor and decided as [`boundary_section`] decides them, whatever the
-/// curve's sup distance: for a curve shorter than the band, whose
-/// distance from the plane is in band along its whole length though the
-/// plane crosses it.
-///
-/// # Errors
-///
-/// As [`boundary_section`].
-pub(crate) fn boundary_roots(
-    curve: &NurbsCurve3<f64>,
-    origin: Point3<f64>,
-    normal: Vec3<f64>,
-    speed: SupSpeed<f64>,
-    floor_meters: f64,
-    arm: f64,
-    band: Band,
-) -> Result<BoundarySection, SsiError> {
-    let pieces = Pieces::of(curve, origin, normal).ok_or(SsiError::UnsupportedCertificate {
-        what: "a boundary curve's Bernstein form was refused by the knot algebra",
-    })?;
-    roots(curve, &pieces, speed, floor_meters, arm, band)
-}
-
 /// The roots, to the floor ([`boundary_roots`]).
 fn roots(
     curve: &NurbsCurve3<f64>,
@@ -825,27 +801,6 @@ pub(crate) fn decide_crossing(root: SectionRoot, arm: f64, band: Band) -> Result
         bracket: root.bracket,
         verdict,
     })
-}
-
-/// Settles a root of `φ` inside `bracket` to `|φ| ≤ tol` by safeguarded
-/// Newton along the curve: Newton where its step stays inside the
-/// bracket, bisection otherwise, a fixed count (D9). `None` when no
-/// iterate settles; the caller refuses the end it was settling.
-/// `Some(NAN)` when the curve does not evaluate to a finite point at
-/// the bracket's ends.
-pub(crate) fn settle_root(
-    curve: &NurbsCurve3<f64>,
-    origin: Point3<f64>,
-    normal: Vec3<f64>,
-    bracket: (f64, f64),
-    tol: f64,
-) -> Option<f64> {
-    settle_by(
-        |t| normal.dot(curve.eval(t) - origin),
-        |t| normal.dot(curve.deriv(t)),
-        bracket,
-        tol,
-    )
 }
 
 /// [`settle_root`] for a curved partner: the partner's residual in

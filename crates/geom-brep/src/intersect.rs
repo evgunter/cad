@@ -382,11 +382,11 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
         (Plane, Nurbs) | (Nurbs, Plane) => PairRoute {
             rung: Rung::General,
             implemented: true,
-            note: "traced in ℝ⁴ on the PARAMETRIC PAIR (3×4 SVD, Hoffmann §6.3.2) by \
-                   geom_brep::ssi::PlaneSection, read at a seed or whole, which \
+            note: "traced on the wall's chart as f∘S = 0 (C3's 1×2 residual × chart trace) by \
+                   geom_brep::ssi::ImplicitSection, read at a seed or whole, which \
                    certifies the whole chain: \
-                   the trace, the shared-parameter fit of the carrier and BOTH \
-                   pcurves, the certified foot points, the chart uniqueness tube, \
+                   the trace, the shared-parameter fit of the carrier and the \
+                   wall's pcurve, the certified foot points, the chart uniqueness tube, \
                    the UV-domain exhaustiveness, and the between-samples SUP bound \
                    against the NURBS operand. That last bound is the \
                    tensor-product Bernstein composition of the surface with the \

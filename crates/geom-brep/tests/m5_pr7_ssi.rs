@@ -4472,30 +4472,19 @@ fn a_plane_tangent_to_a_walls_edge_refuses_as_a_graze_naming_the_side() {
     );
 }
 
-/// **A wall reaching past the plane's window refuses, naming the
-/// half-extent that holds it.** The plane × NURBS march ends only at
-/// the wall's knot rectangle, so the plane's chart window must hold the
-/// wall's image: a window that would bound the march where the wall
-/// does not, here a corner of the 1 m wall a metre outside a 0.25 m
-/// window, refuses rather than letting the window clip a branch.
+/// **A wall reaching past the domain's half-extent is read whole.** The
+/// plane × NURBS march runs on the wall's chart alone (C3's 1×2 trace),
+/// bounded by the wall's knot rectangle, so no plane window bounds it:
+/// a corner of the 1 m wall a metre outside a 0.25 m half-extent is
+/// traced to the wall's sides, where the plane lane's ℝ⁴ trace refused
+/// it (`WindowShortOfWall`) rather than let its window clip a branch.
 #[test]
-fn a_wall_corner_outside_the_planes_window_refuses() {
+fn a_wall_corner_outside_the_planes_window_is_read_whole() {
     let mut dom = wall_box(1.0, 1.0);
     dom.half_extent = 0.25;
     let r = ssi::plane_nurbs_ssi(&corner_clip(0.3), &flat_wall(1.0, 1.0), dom, band());
-    let Err(ref err @ SsiError::WindowShortOfWall { half_extent, reach }) = r else {
-        panic!("expected the window's refusal, got {r:?}");
-    };
-    assert_eq!(half_extent, 0.25);
-    assert!(
-        reach > 0.9,
-        "the wall reaches {reach:e} m across the window"
-    );
-    let shown = err.render(geom_brep::recourse::Reading::Build);
-    assert!(
-        shown.contains("name a domain half-extent of at least"),
-        "{shown}"
-    );
+    let out = r.unwrap_or_else(|e| panic!("the corner's section: {e:?}"));
+    assert_eq!(out.branches.len(), 1, "one branch across the corner");
 }
 
 /// **The ℝ³ lane drops a seed Newton settles outside the slab, and

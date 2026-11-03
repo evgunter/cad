@@ -162,7 +162,7 @@ pub(super) fn sweep(
     let (ud, vd) = (net.knot_values_u().domain(), net.knot_values_v().domain());
     let root = UvRect { u: ud, v: vd };
     // Both callers mint the floor over the wall's own knot rectangle
-    // (`PlaneSection::of`, `ImplicitWall::of`).
+    // (`ImplicitWall::of`, through `ImplicitSection::of`).
     debug_assert_eq!(
         floor.root(),
         root,
@@ -574,7 +574,7 @@ fn swept(p: &geom::Surface<f64>, w: &geom::Surface<f64>, band: Band) -> Sweep {
     let pose = super::SplineImplicitPose::of(p, w).expect("a plane and a spline");
     let pivot = pose.pivot();
     let band = pivot.band(band).expect("the shift pads the band");
-    let reading = crate::PlaneSection::of(&pivot.plane, pose.net(), pose.domain(), band)
+    let reading = crate::ImplicitSection::of(&pivot.plane, pose.net(), pose.domain(), band)
         .expect("the pair is read");
     sweep(
         reading.boxes(),

@@ -51,18 +51,16 @@ use geom::NurbsSurface;
 use geom_core::interval::certification::Certification;
 use geom_core::interval::{div_down, div_up, max_bound};
 use geom_core::k_stats::decide;
-use geom_core::{Band, Bounds, CertifiedBounds, Interval, Margin, Point3, Sign, Vec3};
+use geom_core::{Band, Bounds, CertifiedBounds, Interval, Margin, Point3, Sign};
 
 use super::enclose::{ChartSpeeds, NurbsBoxes, UvWindow};
 use super::exhaust::UvRect;
 use super::march::MarchTol;
 use super::residual::ImplicitForm;
 use super::section::{
-    BoundarySection, SIDE_SIGN_HALVINGS, SectionRoot, band_verdict, boundary_roots,
-    boundary_section, implicit_roots, implicit_section, magnitude, one_signed,
-    settle_implicit_root, settle_root, sign,
+    BoundarySection, SIDE_SIGN_HALVINGS, SectionRoot, band_verdict, implicit_roots,
+    implicit_section, magnitude, one_signed, settle_implicit_root, sign,
 };
-use super::system::{LocalSystem, ParametricPairR4};
 use super::{ChartAxis, SsiError, TraceDecision};
 
 /// How finely a side's strip is cut along the side to bound its reach:
@@ -217,24 +215,6 @@ pub(crate) struct BoundaryPass<S = [f64; 4]> {
     pub crossings: Vec<Crossing<S>>,
 }
 
-/// The plane, as the pass reads it.
-#[derive(Clone, Copy)]
-pub(crate) struct PassPlane {
-    /// A point on it.
-    pub origin: Point3<f64>,
-    /// Its unit normal.
-    pub normal: Vec3<f64>,
-    /// Its chart's `u` axis.
-    pub u_ref: Vec3<f64>,
-}
-
-impl PassPlane {
-    /// Its normal, as point intervals.
-    fn normal_interval(&self) -> [Interval; 3] {
-        [self.normal.x, self.normal.y, self.normal.z].map(Interval::point)
-    }
-}
-
 /// **The partner as the pass reads it**: `φ` along a side, its partial
 /// over a window, its value at a corner, and a crossing settled.
 pub(crate) trait Partner {
@@ -305,92 +285,6 @@ pub(crate) fn plane_partial<T: CertifiedBounds>(
 ) -> Interval {
     let b = boxes.deriv_box(w, along_u);
     n[0] * b.x + n[1] * b.y + n[2] * b.z
-}
-
-/// **The plane, as the plane × NURBS lane's pass reads it**: its
-/// distance, and the ℝ⁴ system its crossings are settled on.
-pub(crate) struct PlanePartner<'a> {
-    /// The plane.
-    pub plane: PassPlane,
-    /// The ℝ⁴ system the crossings are settled on.
-    pub sys: &'a ParametricPairR4<'a>,
-}
-
-impl Partner for PlanePartner<'_> {
-    type State = [f64; 4];
-
-    fn side(
-        &self,
-        curve: &geom::NurbsCurve3<f64>,
-        speed: geom_core::SupSpeed<f64>,
-        floor: f64,
-        arm: f64,
-        band: Band,
-        roots: bool,
-    ) -> Result<BoundarySection, SsiError> {
-        let door = if roots {
-            boundary_roots
-        } else {
-            boundary_section
-        };
-        door(
-            curve,
-            self.plane.origin,
-            self.plane.normal,
-            speed,
-            floor,
-            arm,
-            band,
-        )
-    }
-
-    fn partial(&self, boxes: &NurbsBoxes<'_, f64>, w: UvWindow, along_u: bool) -> Interval {
-        plane_partial(self.plane.normal_interval(), boxes, w, along_u)
-    }
-
-    fn at_point(&self, p: Point3<f64>) -> (Interval, f64) {
-        let n = self.plane.normal;
-        let o = self.plane.origin;
-        let phi = Interval::point(n.x) * (Interval::point(p.x) - Interval::point(o.x))
-            + Interval::point(n.y) * (Interval::point(p.y) - Interval::point(o.y))
-            + Interval::point(n.z) * (Interval::point(p.z) - Interval::point(o.z));
-        (phi, magnitude(phi))
-    }
-
-    fn sine(&self, _: &NurbsBoxes<'_, f64>, _: UvRect, inf: f64, speed: f64) -> f64 {
-        div_down(inf, speed)
-    }
-
-    fn settle(
-        &self,
-        (wall, curve): (&NurbsSurface<f64>, &geom::NurbsCurve3<f64>),
-        bracket: (f64, f64),
-        uv: impl Fn(f64) -> (f64, f64),
-        tol: f64,
-    ) -> Result<Option<(f64, [f64; 4])>, SsiError> {
-        let Some(t) = settle_root(curve, self.plane.origin, self.plane.normal, bracket, tol) else {
-            return Ok(None);
-        };
-        if t.is_nan() {
-            return Err(SsiError::UnsupportedCertificate {
-                what: super::exhaust::SIDE_ENCLOSURE_REFUSED,
-            });
-        }
-        let (u, v) = uv(t);
-        let q = wall.eval(u, v) - self.plane.origin;
-        let v_ref = self.plane.normal.cross(self.plane.u_ref);
-        let state = [q.dot(self.plane.u_ref), q.dot(v_ref), u, v];
-        Ok(self
-            .sys
-            .residual(&state)
-            .iter()
-            .all(|r| r.abs() <= tol)
-            .then_some((t, state)))
-    }
-
-    fn uv(state: &[f64; 4]) -> (f64, f64) {
-        (state[2], state[3])
-    }
 }
 
 /// How many pieces a side of a window is cut into where a curved
@@ -1581,44 +1475,5 @@ fn graze(side: ChartSide, bracket: (f64, f64), arm: f64, band: Band) -> SsiError
             "a zero slope decided positive at {side}: the crossing decision passes only a \
              margin clear of the band"
         ),
-    }
-}
-
-/// The plane chart's window holds the wall: every state the ℝ⁴ trace
-/// settles lies on the wall, inside its control hull (positive weights),
-/// and on the plane, so its plane coordinates lie in the hull's
-/// projection. A window that holds that projection never bounds a
-/// march, which ends only at the wall's own boundary.
-///
-/// # Errors
-///
-/// [`SsiError::WindowShortOfWall`] when it does not.
-pub(crate) fn window_holds_wall(
-    plane: (Point3<f64>, Vec3<f64>, Vec3<f64>),
-    wall: &NurbsSurface<f64>,
-    half: f64,
-) -> Result<(), SsiError> {
-    let (p0, u_ref, v_ref) = plane;
-    let lift = |v: Vec3<f64>| [v.x, v.y, v.z].map(Interval::point);
-    let (u, v) = (lift(u_ref), lift(v_ref));
-    let reach = wall
-        .control()
-        .iter()
-        .flat_map(|p| {
-            let q = [(p.x, p0.x), (p.y, p0.y), (p.z, p0.z)]
-                .map(|(a, b)| Interval::point(a) - Interval::point(b));
-            [u, v].map(|axis| {
-                let c = axis[0] * q[0] + axis[1] * q[1] + axis[2] * q[2];
-                magnitude(c)
-            })
-        })
-        .fold(0.0, max_bound);
-    if reach <= half {
-        Ok(())
-    } else {
-        Err(SsiError::WindowShortOfWall {
-            half_extent: half,
-            reach,
-        })
     }
 }

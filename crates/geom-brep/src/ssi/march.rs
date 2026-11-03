@@ -688,9 +688,8 @@ pub(crate) trait Exit<const M: usize, const N: usize, S: LocalSystem<M, N>> {
 
 /// A chart lane's exit: the knot rectangles of the state's chart
 /// coordinates from `first` on, left by a structure test (module docs).
-/// The plane × NURBS lane bounds the wall's two ([`RectExit::WALL`]),
-/// the NURBS × NURBS lane all four ([`RectExit::PAIR`]), the 1×2 lane
-/// the wall's two that are its whole state ([`RectExit::CHART`]).
+/// The NURBS × NURBS lane bounds all four ([`RectExit::PAIR`]), the 1×2
+/// lane the wall's two that are its whole state ([`RectExit::CHART`]).
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct RectExit {
     /// The first bounded coordinate.
@@ -713,9 +712,6 @@ pub(crate) enum RectEnd<const N: usize> {
 }
 
 impl RectExit {
-    /// The plane × NURBS lane's: the wall's rectangle, coordinates 2
-    /// and 3.
-    pub(crate) const WALL: Self = Self { first: 2 };
     /// The NURBS × NURBS lane's: both rectangles.
     pub(crate) const PAIR: Self = Self { first: 0 };
     /// The 1×2 residual × chart lane's: the wall's rectangle, the
@@ -2577,7 +2573,7 @@ pub(crate) mod tests {
     #[test]
     fn the_fit_rung_reads_the_carriers_curvature_on_a_curved_wall() {
         use super::{RectEnd, RectExit, SSI_STEP_DEVIATION};
-        use crate::ssi::system::{Chart, ParametricPairR4};
+        use crate::ssi::system::ImplicitChartR2;
         use geom::{NurbsSurface, Surface};
         use geom_core::spline::KnotVector;
 
@@ -2595,14 +2591,14 @@ pub(crate) mod tests {
             normal: Vec3::new(0.0, 1.0, 0.0),
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
-        let sys = ParametricPairR4 {
-            a: Chart::plane_of(&level, (-2.0, 2.0), (-2.0, 2.0)).unwrap(),
-            b: Chart::Nurbs(&wall),
+        let sys = ImplicitChartR2 {
+            partner: &level,
+            wall: &wall,
         };
         let eps = 1.0e-9;
         let band = Band::new(eps, 10.0 * eps).unwrap();
-        let ctx = MarchContext::<4> {
-            domain: [[-2.0, 2.0], [-2.0, 2.0], [0.0, 1.0], [0.0, 1.0]],
+        let ctx = MarchContext::<2> {
+            domain: [[0.0, 1.0], [0.0, 1.0]],
             extent: 1.0,
             tol: MarchTol::from_band(band, reaching(2.0)).unwrap(),
             max_steps: 4096,
@@ -2610,10 +2606,10 @@ pub(crate) mod tests {
         };
         // On the loop at t = ½: s(1 − s) = ⅛.
         let s = 0.5 * (1.0 - std::f64::consts::FRAC_1_SQRT_2);
-        let seed = [s - 0.5, 0.0, s, 0.5];
+        let seed = [s, 0.5];
         let trace = march(
             &sys,
-            &RectExit::WALL,
+            &RectExit::CHART,
             seed,
             ctx,
             StepperMode::Realized,

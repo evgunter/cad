@@ -70,18 +70,10 @@ pub(crate) struct Ends<'a, S, const M: usize, const N: usize> {
 /// The operand pair a branch between known ends is certified against.
 #[derive(Clone)]
 pub(crate) enum Operands<'a> {
-    /// A plane and a NURBS wall: the wall's pcurve carries the chart
-    /// tube.
-    Plane {
-        /// The plane operand.
-        plane: &'a Surface<f64>,
-        /// The wall operand.
-        wall: &'a SsiOperand<'a, f64>,
-    },
     /// A residual side and a NURBS wall (the 1×2 lane): the wall's
     /// pcurve carries the chart tube, read against the partner's form.
     Implicit {
-        /// The partner: a cylinder, sphere or torus.
+        /// The partner: a plane, cylinder, sphere or torus.
         partner: &'a Surface<f64>,
         /// The wall operand.
         wall: &'a SsiOperand<'a, f64>,
@@ -109,11 +101,7 @@ impl<'a> Operands<'a> {
             what: certify::NURBS_LIMBS_NEED_PCURVE,
         };
         match self {
-            Self::Plane {
-                plane: partner,
-                wall,
-            }
-            | Self::Implicit { partner, wall } => {
+            Self::Implicit { partner, wall } => {
                 let (SsiOperand::Nurbs(wall), Some(pcurve)) = (wall, pb) else {
                     return Err(need());
                 };
@@ -298,23 +286,6 @@ fn tangent<const M: usize, const N: usize, S: LocalSystem<M, N>>(
 }
 
 impl<'a> Ends<'a, ParametricPairR4<'a>, 3, 4> {
-    /// The ends' reader for one plane × NURBS call.
-    pub(crate) fn of(
-        sys: &'a ParametricPairR4<'a>,
-        ctx: MarchContext<4>,
-        plane: &'a Surface<f64>,
-        wall: &'a SsiOperand<'a, f64>,
-        band: Band,
-    ) -> Self {
-        Self {
-            sys,
-            ctx,
-            exit: RectExit::WALL,
-            operands: Operands::Plane { plane, wall },
-            band,
-        }
-    }
-
     /// The ends' reader for one NURBS × NURBS call.
     pub(crate) fn pair(
         sys: &'a ParametricPairR4<'a>,

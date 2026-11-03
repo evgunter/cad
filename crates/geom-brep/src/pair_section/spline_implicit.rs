@@ -19,9 +19,8 @@
 //!    the tensor composite `f∘S`, formed in certification arithmetic
 //!    through the march door ([`curved`]);
 //! 2. **the boundary pass**, through the march door, each side of the
-//!    rectangle against the partner (the plane's [`crate::PlaneSection`]
-//!    pass, or a curved partner's [`crate::ssi::boundary`] pass on its
-//!    form, run once): a graze or a side held tangent refuses by name,
+//!    rectangle against the partner's form ([`crate::ssi::boundary`]'s
+//!    pass, run once): a graze or a side held tangent refuses by name,
 //!    and its crossings and `Side` and `Corner` regions are where the
 //!    section ends;
 //! 3. **the regularity sweep** ([`sweep`]): where `∇φ` is bounded off
@@ -33,21 +32,20 @@
 //!    all the section has, and a pinch ([`SectionError::Pinched`]) where a
 //!    node, or a touch beside components with ends, meets arcs the march
 //!    would list; the interior-loop guard's loop-free stage is it. Where
-//!    the sweep declines, the pose is read whole on the same pass: a
-//!    plane's by [`crate::PlaneSection`], the pass carried on the pose,
-//!    and a curved partner's on the 1×2 trace ([`crate::ImplicitSection`]).
+//!    the sweep declines, the pose is read whole on the same pass, on the
+//!    1×2 trace ([`crate::ImplicitSection`]), a plane's pass carried on
+//!    the pose.
 //!
 //! The order is the proof's: the sweep's loop-free verdict says nothing
 //! of a wall within the band of the partner everywhere, which the hull
 //! decides, nor of a component touching a side without crossing it,
 //! which the pass refuses as a graze.
 //!
-//! Read whole, the section of a plane and a NURBS wall (an approximating
-//! surface read as its fit) is [`crate::PlaneSection::all`] over the
-//! wall's whole knot rectangle: every branch with its three-limb certificate, every
-//! boundary region, and the accounting that they are all of them; against
-//! a cylinder, sphere or ring torus it is [`crate::ImplicitSection::all`],
-//! listed the same way. The
+//! Read whole, the section of a plane, cylinder, sphere or ring torus and
+//! a NURBS wall (an approximating surface read as its fit) is
+//! [`crate::ImplicitSection::all`] over the wall's whole knot rectangle:
+//! every branch with its three-limb certificate, every boundary region,
+//! and the accounting that they are all of them. The
 //! plane is read at its pivot, its origin moved to its foot nearest the
 //! wall (`SplineImplicitPose::anchored`), so where its origin is stored
 //! changes nothing. The foot is found in `f64`, so the plane read may
@@ -122,7 +120,7 @@ pub struct SplineImplicitPose<T: Real> {
     partner_first: bool,
     /// The boundary pass the classification ran (stage 2), carried to
     /// the whole reading so it runs once.
-    pass: Option<std::sync::Arc<BoundaryPass>>,
+    pass: Option<std::sync::Arc<BoundaryPass<[f64; 2]>>>,
 }
 
 impl<T: Real> SplineImplicitPose<T> {
@@ -724,7 +722,7 @@ pub(super) fn classified<T: Decide>(
 
 /// **The pair's classification, the march door's arm**: for a curved
 /// partner, stages 1 to 3 ([`curved`]); for a plane past its door, stage
-/// 2, the boundary pass ([`crate::PlaneSection`]'s, run once), whose
+/// 2, the boundary pass ([`crate::ImplicitSection`]'s, run once), whose
 /// grazes and side tangencies refuse by name, then stage 3, the
 /// regularity sweep ([`sweep`]). Its loop-free verdict is the section:
 /// no component where the pass found no end, else
@@ -746,7 +744,7 @@ pub(super) fn section(
     }
     let pivot = pose.pivot();
     let read_band = pivot.band(band)?;
-    let reading = crate::PlaneSection::of(&pivot.plane, pose.net(), pose.domain(), read_band)
+    let reading = crate::ImplicitSection::of(&pivot.plane, pose.net(), pose.domain(), read_band)
         .map_err(super::whole_reading_refused)?;
     let (reach, pass) = {
         let pass = reading.pass().map_err(super::whole_reading_refused)?;
@@ -874,7 +872,7 @@ pub(super) fn whole(
     }
     let pivot = pose.pivot();
     let read_band = pivot.band(band)?;
-    let reading = crate::PlaneSection::of(&pivot.plane, pose.net(), pose.domain(), read_band)
+    let reading = crate::ImplicitSection::of(&pivot.plane, pose.net(), pose.domain(), read_band)
         .map_err(super::whole_reading_refused)?;
     let reading = match &pose.pass {
         Some(pass) => reading.with_pass(BoundaryPass::clone(pass)),

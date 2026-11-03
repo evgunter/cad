@@ -15,7 +15,7 @@
 //! and the march's tolerance ([`ImplicitWall`]); the boundary pass
 //! (`super::boundary`, against the partner's form) runs once, at the
 //! first reading that needs its crossings or regions. Its two readings
-//! are the plane lane's contract ([`super::PlaneSection`]):
+//! are one contract, as on the NURBS × NURBS lane ([`super::Section`]):
 //!
 //! - [`ImplicitSection::branch_at`] answers what holds a seed: a tube
 //!   already certified, a `Side` or `Corner` region the pass reported, or
@@ -46,9 +46,21 @@ use super::march::MarchContext;
 use super::residual::{ImplicitForm, ImplicitWall};
 use super::system::ImplicitChartR2;
 use super::{
-    SSI_MAX_STEPS, SectionReading, SsiDomain, SsiError, SsiOperand, SsiOutcome, branch_chart_tubes,
-    finite_operand,
+    ChartedNurbs, SSI_MAX_STEPS, SsiBoundaryContact, SsiBranch, SsiDomain, SsiError, SsiOperand,
+    SsiOutcome, branch_chart_tubes, finite_operand,
 };
+
+/// **What holds a seed** ([`ImplicitSection::branch_at`]): the branch
+/// through it, or the boundary region it settled in.
+#[derive(Clone, Copy, Debug)]
+pub enum SectionReading<'s> {
+    /// The certified branch whose tube holds the settled seed.
+    Branch(&'s SsiBranch),
+    /// The `Side` or `Corner` region the boundary pass reported that
+    /// holds the settled seed: the section there runs along a side of
+    /// the wall's rectangle, or leaves it at a corner, within the band.
+    Region(&'s SsiBoundaryContact),
+}
 
 /// What the section is read over, fixed by [`ImplicitSection::of`].
 struct Lane<'a> {
@@ -131,34 +143,81 @@ impl<'a> ImplicitSection<'a> {
     ///
     /// # Errors
     ///
-    /// [`SsiError::WrongLane`] for a partner that is not a cylinder, a
-    /// sphere or a ring torus, [`SsiError::OperandNotFinite`] for an
-    /// operand that is not finite, and [`ImplicitWall::of`]'s and the
-    /// seeding floor's refusals.
+    /// [`SsiError::WrongLane`] for a partner that is not a plane, a
+    /// cylinder, a sphere or a ring torus, [`SsiError::OperandNotFinite`]
+    /// for an operand that is not finite, and [`ImplicitWall::of`]'s and
+    /// the seeding floor's refusals.
     pub fn of(
         partner: &'a Surface<f64>,
         wall: &'a NurbsSurface<f64>,
         domain: SsiDomain,
         band: Band,
     ) -> Result<Self, SsiError> {
-        Self::within(partner, wall, domain, band, SSI_MAX_STEPS)
+        Self::within(
+            partner,
+            (wall, ChartedNurbs::mint),
+            domain,
+            band,
+            SSI_MAX_STEPS,
+        )
     }
 
-    /// [`ImplicitSection::of`] under a step budget of `max_steps` a
-    /// branch.
+    /// [`ImplicitSection::of`] with the wall's chart had from `chart`,
+    /// called where [`ImplicitSection::of`] mints it: [`ChartedNurbs::mint`]
+    /// itself, or a chart a caller minted once for the operation and hands
+    /// to every section of that wall. **The chart must be of `wall`**, as
+    /// a mint of it is: the door checks that it is the very surface, in
+    /// every build, and refuses otherwise.
+    ///
+    /// # Errors
+    ///
+    /// As [`ImplicitSection::of`], with the chart's own refusals where it
+    /// mints, and [`SsiError::WrongLane`] where the chart is of another
+    /// surface.
+    pub fn of_charted(
+        partner: &'a Surface<f64>,
+        (wall, chart): (
+            &'a NurbsSurface<f64>,
+            impl FnOnce(&'a NurbsSurface<f64>) -> Result<ChartedNurbs<'a, f64>, SsiError>,
+        ),
+        domain: SsiDomain,
+        band: Band,
+    ) -> Result<Self, SsiError> {
+        Self::within(partner, (wall, chart), domain, band, SSI_MAX_STEPS)
+    }
+
+    /// [`ImplicitSection::of_charted`] under a step budget of `max_steps`
+    /// a branch.
     pub(super) fn within(
         partner: &'a Surface<f64>,
-        wall: &'a NurbsSurface<f64>,
+        (wall, chart): (
+            &'a NurbsSurface<f64>,
+            impl FnOnce(&'a NurbsSurface<f64>) -> Result<ChartedNurbs<'a, f64>, SsiError>,
+        ),
         domain: SsiDomain,
         band: Band,
         max_steps: usize,
     ) -> Result<Self, SsiError> {
+        // A partner that is not finite is refused by name before its form
+        // is read, whose frame would refuse it as no partner at all.
+        let operand = match partner {
+            Surface::Plane { .. } => "plane",
+            _ => "curved partner",
+        };
+        if matches!(
+            partner,
+            Surface::Plane { .. }
+                | Surface::Cylinder { .. }
+                | Surface::Sphere { .. }
+                | Surface::Torus { .. }
+        ) {
+            finite_operand(operand, partner)?;
+        }
         let curved = ImplicitForm::of(partner).map_err(|_| SsiError::WrongLane {
             expected: "a plane, cylinder, sphere or ring torus and a NURBS surface traced on the \
                        wall's chart",
         })?;
-        finite_operand("curved partner", partner)?;
-        let read = ImplicitWall::of(wall, domain, band)?;
+        let read = ImplicitWall::of_charted((wall, chart), domain, band)?;
         let (ud, vd) = (wall.knot_values_u().domain(), wall.knot_values_v().domain());
         let root = UvRect { u: ud, v: vd };
         let speed = read.charted().speeds().max();
@@ -194,6 +253,17 @@ impl<'a> ImplicitSection<'a> {
     /// The pass's refusal.
     pub(crate) fn pass(&self) -> Result<&BoundaryPass<[f64; 2]>, SsiError> {
         passed(&self.pass, || self.lane.wall.pass(&self.lane.curved))
+    }
+
+    /// The section with its boundary pass already run, over the same
+    /// partner, wall, domain and band ([`ImplicitSection::pass`]'s answer
+    /// carried from an earlier reading of this pair), so no reading runs
+    /// it again.
+    pub(crate) fn with_pass(self, pass: BoundaryPass<[f64; 2]>) -> Self {
+        Self {
+            pass: OnceCell::from(pass),
+            ..self
+        }
     }
 
     /// The wall's chart enclosures, minted once for the section.

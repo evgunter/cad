@@ -820,7 +820,7 @@ fn nurbs_verdicts(a: &Body<f64>, b: &Body<f64>) -> Vec<String> {
 /// event marks it; the bar's crossings through the block's walls are the
 /// only events. The section certificate examines the bump × plate pair:
 /// the plane cuts the bump's control net, so the guard reads the
-/// section whole (C3's `PlaneSection::all`), which lists the oval as one
+/// section whole (C3's `ImplicitSection::all`), which lists the oval as one
 /// closed loop with its witness. The pair has no event, so the witness
 /// decides it, and the bump face's region does not place it (its
 /// pcurves are the stranded top's, below): the pair refuses undecided,

@@ -350,7 +350,7 @@ impl ImplicitForm {
 /// **A wall read against a curved partner before any march**: its
 /// chart speeds, its accounting floor over its knot rectangle and the
 /// settling tolerance of its boundary pass and march, minted once, as
-/// the plane × NURBS lane mints them ([`super::PlaneSection`]), with no
+/// the NURBS × NURBS lane mints its own ([`super::Section`]), with no
 /// plane chart and no ℝ⁴ system: a crossing is settled on the wall
 /// alone. The residual a state settles to is read at the wall's point
 /// written about the partner's centre or axis, so the tolerance reads
@@ -378,9 +378,39 @@ impl<'a> ImplicitWall<'a> {
         domain: super::SsiDomain,
         band: geom_core::Band,
     ) -> Result<Self, super::SsiError> {
+        Self::of_charted((wall, super::ChartedNurbs::mint), domain, band)
+    }
+
+    /// [`ImplicitWall::of`] with the wall's chart had from `chart`, called
+    /// where [`ImplicitWall::of`] mints it (after the wall and the domain
+    /// are checked, so the refusals come in the same order): the mint
+    /// itself, or a chart a caller minted once for the operation. **The
+    /// chart must be of `wall`**: the door checks that it is the very
+    /// surface, in every build, and refuses otherwise.
+    ///
+    /// # Errors
+    ///
+    /// As [`ImplicitWall::of`], with the chart's own refusals, and
+    /// [`super::SsiError::WrongLane`] where the chart is of another
+    /// surface.
+    pub(crate) fn of_charted(
+        (wall, chart): (
+            &'a geom::NurbsSurface<f64>,
+            impl FnOnce(
+                &'a geom::NurbsSurface<f64>,
+            ) -> Result<super::ChartedNurbs<'a, f64>, super::SsiError>,
+        ),
+        domain: super::SsiDomain,
+        band: geom_core::Band,
+    ) -> Result<Self, super::SsiError> {
         super::finite_net("NURBS wall", wall)?;
         domain.check()?;
-        let charted = super::ChartedNurbs::mint(wall)?;
+        let charted = chart(wall)?;
+        if !core::ptr::eq(charted.surface(), wall) {
+            return Err(super::SsiError::WrongLane {
+                expected: "the wall paired with a chart minted from it",
+            });
+        }
         let (ud, vd) = (wall.knot_values_u().domain(), wall.knot_values_v().domain());
         let root = super::exhaust::UvRect { u: ud, v: vd };
         let speed = charted.speeds().max();
@@ -434,6 +464,16 @@ impl<'a> ImplicitWall<'a> {
         &self,
         curved: &ImplicitForm,
     ) -> Result<super::march::MarchTol, super::SsiError> {
+        super::march::MarchTol::from_band(self.band, self.march_readout(curved)?)
+    }
+
+    /// The readout a march against `curved` settles by: the louder of
+    /// the wall's own and the wall written about the partner's centre or
+    /// axis.
+    pub(crate) fn march_readout(
+        &self,
+        curved: &ImplicitForm,
+    ) -> Result<super::march::Readout, super::SsiError> {
         let wall = self.charted.surface();
         let root = self.floor.root();
         let framed = curved.framed(Self::hull(wall)?);
@@ -445,8 +485,7 @@ impl<'a> ImplicitWall<'a> {
             },
             super::SSI_QUADRIC_NOISE_ULPS,
         );
-        let readout = Self::readout(wall, root, self.charted.speeds().max())?.louder(about);
-        super::march::MarchTol::from_band(self.band, readout)
+        Ok(Self::readout(wall, root, self.charted.speeds().max())?.louder(about))
     }
 
     /// The wall's chart enclosures over its own cells.

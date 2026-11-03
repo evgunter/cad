@@ -1,28 +1,30 @@
-//! **The plane folded into the 1×2 arm, read beside its ℝ⁴ reading**:
-//! every fixture here is read whole by `PlaneSection` (the plane's own
-//! ℝ⁴ lane) and by `ImplicitSection` with the plane as its partner (the
-//! residual × chart trace, C3's 1×2), on the same plane, wall, domain and
-//! band. The two traces sample differently, so their carriers differ in
-//! bits; what must agree is the section: whether it is decided, how many
-//! branches it has, which sides each open branch ends on, and how many
-//! boundary regions it reports. No fixture decided by the ℝ⁴ reading may
-//! be refused by the 1×2 one.
+//! **The plane × NURBS lane's sections, read on the 1×2 trace**: each
+//! fixture's section read whole by `ImplicitSection` with the plane as
+//! its partner (C3's residual × chart trace), asserted as the plane's
+//! retired ℝ⁴ reading read it. Before that lane was retired, a
+//! differential row read every fixture here through both lanes at
+//! ε 1e-9, 1e-6 and 1e-12 and found them the same section, but for one:
+//! the bent-path flat wall at 1e-12, which the ℝ⁴ lane decided (one
+//! branch, `v = 0` side to `v = 1` side) and the 1×2 lane refuses
+//! `TubeNotOneArc { cause: Short }`
+//! (`work/ssiarith/ssi-limb-three-refuses-a-bent-chart-path-line-at-eps-1e-12.md`).
+//! These rows keep that evidence: the readings the two lanes agreed on.
 //!
 //! The fixtures are the plane × NURBS lane's own: the certifiable and
 //! the inflected wall under the tilted cutting plane, a dome's level
-//! loops, and the far wall the ε-rounding rows place from 20 m to 520 m
-//! off the origin, each at the run's ε (the suite runs 1e-9, 1e-6 and
-//! 1e-12).
+//! loops, the far wall the ε-rounding rows place from 20 m to 520 m off
+//! the origin, and the bent-path flat wall, each at the run's ε (the
+//! suite runs 1e-9, 1e-6 and 1e-12).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::{NurbsSurface, Surface};
 use geom_brep::ssi::BranchEnd;
-use geom_brep::{ImplicitSection, PlaneSection, SsiDomain, SsiError, SsiOutcome};
+use geom_brep::{ImplicitSection, SsiDomain, SsiError, SsiOutcome};
 use geom_core::spline::KnotVector;
 use geom_core::{Point3, Vec3};
 
-use crate::shared::tol::band;
+use crate::shared::tol::{band, eps};
 
 /// The wall of `m5_pr7_ssi`: a cubic in `u` through four columns, linear
 /// in `v`, extruded `0.8` in `z`.
@@ -150,74 +152,100 @@ fn read(r: Result<SsiOutcome, SsiError>) -> Read {
     }
 }
 
-/// **No plane fixture the ℝ⁴ reading decides is refused by the 1×2
-/// one, and where both decide they read one section.** Red against a
-/// plane partner whose form, exclusion, side reading or march differs
-/// from the plane's in what it decides.
+/// One rim branch from the wall's `side_a` to its `side_b`, as `read` writes it.
+fn rim(fixed: &str) -> Read {
+    Read::Decided {
+        ends: vec![format!(
+            "rim ChartSide {{ fixed: {fixed}, end: High }} ChartSide {{ fixed: {fixed}, end: Low }}"
+        )],
+        regions: 0,
+    }
+}
+
+fn one_loop() -> Read {
+    Read::Decided {
+        ends: vec!["loop".to_owned()],
+        regions: 0,
+    }
+}
+
+/// **Each fixture reads the section the plane's ℝ⁴ lane read**, the
+/// one move excepted (module docs). The far wall at 520 m refuses by its
+/// scale where ε is too fine for its coordinates (1e-12), as it did; the
+/// bent-path flat wall refuses its side as possibly tangent at 1e-9 and
+/// 1e-6, as it did, and at 1e-12 refuses limb 3's one-arc proof short of
+/// the carrier's end. Red against a plane partner whose form, exclusion,
+/// side reading or march decides another section.
 #[test]
-fn the_plane_reads_one_section_on_both_traces() {
+fn the_plane_reads_the_section_its_lane_read() {
     let b = band();
-    let mut fixtures: Vec<(String, Surface<f64>, NurbsSurface<f64>, SsiDomain)> = vec![
+    let fine = eps() < 1e-10;
+    let bent_plane = Surface::Plane {
+        origin: Point3::new(0.0, 0.0, 0.0),
+        normal: Vec3::new(0.0, 0.0, 1.0),
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    };
+    let bent_domain = SsiDomain {
+        center: Point3::new(0.0, 0.0, 0.0),
+        half_extent: 1.0,
+        extent: 1.0,
+        floor_scale: 1.0,
+    };
+    let mut fixtures: Vec<(String, Surface<f64>, NurbsSurface<f64>, SsiDomain, Read)> = vec![
         (
             "certifiable wall".into(),
             cutting_plane(0.0),
             wall_from_cols(CERTIFIABLE),
             wall_domain(),
+            rim("U"),
         ),
         (
             "inflected wall".into(),
             cutting_plane(0.0),
             wall_from_cols(INFLECTED),
             wall_domain(),
+            rim("U"),
         ),
     ];
     for y in [-0.125, -0.05, -0.2] {
-        fixtures.push((format!("dome level {y}"), level(y), dome(), dome_domain()));
+        fixtures.push((
+            format!("dome level {y}"),
+            level(y),
+            dome(),
+            dome_domain(),
+            one_loop(),
+        ));
     }
     for x in [20.0, 60.0, 500.0, 520.0] {
+        let want = if x > 510.0 && fine {
+            Read::Refused("SettlingUnresolvable".into())
+        } else {
+            rim("U")
+        };
         fixtures.push((
             format!("far wall at {x} m"),
             cutting_plane(x),
             wall_from_cols(CERTIFIABLE.map(|(u, v)| (u + x, v))),
             wall_domain(),
+            want,
         ));
     }
     fixtures.push((
         "flat wall whose chart path bends".into(),
-        Surface::Plane {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            normal: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-        },
+        bent_plane,
         bent_path_flat_wall(1e-6, 0.01, 0.8, 0.2),
-        SsiDomain {
-            center: Point3::new(0.0, 0.0, 0.0),
-            half_extent: 1.0,
-            extent: 1.0,
-            floor_scale: 1.0,
-        },
+        bent_domain,
+        Read::Refused(
+            if fine {
+                "TubeNotOneArc"
+            } else {
+                "BoundaryTangent"
+            }
+            .into(),
+        ),
     ));
-    let mut table = String::new();
-    let mut moved = Vec::new();
-    for (what, plane, wall, domain) in &fixtures {
-        let r4 = read(PlaneSection::of(plane, wall, *domain, b).and_then(PlaneSection::all));
-        let full = ImplicitSection::of(plane, wall, *domain, b).and_then(ImplicitSection::all);
-        let detail = full.as_ref().err().map(|e| format!("{e:?}"));
-        let r2 = read(full);
-        table.push_str(&format!("{what}: ℝ⁴ {r4:?} | 1×2 {r2:?}\n"));
-        if let (Read::Decided { .. }, Some(d)) = (&r4, &detail) {
-            table.push_str(&format!("    the 1×2 refusal: {d}\n"));
-        }
-        match (&r4, &r2) {
-            (Read::Decided { .. }, Read::Refused(_)) => moved.push(what.clone()),
-            (Read::Decided { .. }, Read::Decided { .. }) if r4 != r2 => moved.push(what.clone()),
-            _ => {}
-        }
+    for (what, plane, wall, domain, want) in &fixtures {
+        let got = read(ImplicitSection::of(plane, wall, *domain, b).and_then(ImplicitSection::all));
+        assert_eq!(&got, want, "{what} at ε {:e}", b.zero());
     }
-    eprintln!("ε {:e}\n{table}", b.zero());
-    assert!(
-        moved.is_empty(),
-        "decided by the ℝ⁴ reading and read otherwise by the 1×2 one at ε {:e}: {moved:?}\n{table}",
-        b.zero()
-    );
 }
