@@ -1228,3 +1228,7 @@ general regularity sweep. SECTARMS's cylinder × cylinder unit adopts
   - No frame moves, so no `[render]` is owed.
   - **Fix pass:** the orchestrator reads it.
   - **Class (logged at adjudication):** a "no existing input reaches the new branch" measurement must run where the inputs live. Here they were in another crate's tests, which the module doc cited without naming the crate.
+- 2026-11-03 11:53Z — **PR 6435 review** (`session_013QoYWXGdT2dSKo5kikmzqX`, frozen at `37e8fec5`): APPROVE-WITH-FIXES, two MINORs (evidence `splice/review-6435` @ `1adb6f28`). The change is correct under every attack, including a placeholder at each joint across a closed chart's seam. The two halves of `is_placeholder` ("the edge is null", "its ends are one point") each survived a mutant, so rows are owed for both.
+  - **Ruled (API):** the public `Body::loop_lift` stays strict, because finished bodies hold no null edges and no public caller would ever vary the policy. The `Skipped` lift gets a crate-private door.
+  - The skip's exactness rests on the mint's identity joint elements (`euler.rs`), so the docs cite that.
+  - **Fix pass:** the orchestrator reads it.
