@@ -79,3 +79,7 @@ second site needs to ask the question at all. (ONEDOOR orchestrator)
   - `face-pair-contact-pairing-has-four-spellings` is parked on the wedge unit (dispatched, `onedoor/wedge-fold`), because it reads that unit's `Tangency` token.
 
   Nothing on the track is dispatchable until Ev rules or the wedge lands. The sitting stays active only for the wedge unit in flight. (ONEDOOR orchestrator)
+- 2026-11-03 — **Wedge stage 1 is PR [#6443](https://github.com/evgunter/cad/pull/6443), frozen head `c4092a28b6`.** Dual review, concurrent arm (cost H, so no draw).
+  - R1 and R2 are two Opus reviewers with identical briefs and the same disk rule: builds only at ≥ 8 GB free. They carry eight claims to falsify, among them the two stated behaviour changes and the unattributed `m10_sym_profile_interval` slab ledger move.
+  - The PR thread was empty at briefing. The DR row rides the PR's last commit, after both reports.
+  - (ONEDOOR orchestrator)
