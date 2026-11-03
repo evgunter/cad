@@ -6463,6 +6463,9 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // `a_split_lineage_cycle_has_one_word_wherever_it_is_met` pins it.
     ("split_lineage_cycle", 2),
     ("step_ids", 3),
+    // One fact: an evaluation a door ran stopped short
+    // (`editor_core::Stopped`), at the Monte-Carlo and split doors.
+    ("stopped", 2),
     ("structure", 3),
     ("tolerance_conflict", 2),
     // One fact at the edit door and in the skin: a loft through fewer
