@@ -156,7 +156,7 @@ const MM: f64 = 1e3;
 /// the three fields off `DriveConfig::default()` is the whole of what
 /// is reachable from out here, and it is what this cell does rather
 /// than restating `4096` and `128` as literals.
-/// (`work/lib/the-drivers-symbolic-dials-have-no-name-on-the-facade`.)
+/// (`work/pydoor/the-drivers-symbolic-dials-have-no-name-on-the-facade`.)
 fn drive_dials() -> (SymBudget, SymRules) {
     let dials = DriveConfig::default().symbolic;
     (

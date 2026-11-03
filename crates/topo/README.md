@@ -37,9 +37,9 @@ re-exported by `lib.rs`, and it declares nothing `pub(crate)`. Nothing
 outside it imports from it, test code included, and neither operation
 imports the other. A shared reading refuses in its own error type,
 never in an operation's. A K name's prefix is the module that decides
-the margin, never a caller's lane. The source walk's engine-door row
-holds this, and a red there means that what you need belongs at the
-root or below.
+the margin, never a caller's lane. The gate
+`scripts/gates/engine-leaves.sh` holds this, and a red there means
+that what you need belongs at the root or below.
 
 ## Where in the code
 
@@ -923,8 +923,12 @@ reparents only within one shell (`EulerOpError::CrossShell`).
   blend's Boolean semantics (`S ∪ F`) and executed by its surgery (the
   mouth's cycle on the face the fill covers).
   Recipe-layer sugar may wrap any of these; the door stays the one
-  birthplace. `UnsupportedToroid` is permanent: a [surfaces] ring-torus
-  boundary — spindle tori have no representation.
+  birthplace. A revolve reads an arc by its interior: an arc whose
+  interior crosses the axis refuses, and otherwise the signed distance
+  of its circle's centre from the axis picks the [surfaces] kind — zero,
+  a sphere; more than the minor radius, a ring torus; otherwise one
+  sheet of a spindle or horn torus, whose points on the axis are apex
+  vertices in the pole form.
 - **∅, disjoint, and voids are typed results.** ∅ is a typed success
   value (`BooleanResult::Empty`), not an error. **A solid is one piece
   of material**: the `Outer` shell around it and the `Void` shells of
@@ -1157,8 +1161,9 @@ backs. `SameSide` refuses, naming the verdict in the refusal's typed
 reads as an interference between two copies at rest, so no bool may
 stand there. `Undecided` escalates
 `CensusEscalated`. The side is read by handing both faces' `Face::sense`
-bits to `geom_brep::classify_material_pairing` after `classify_dihedral`
-establishes the smooth precondition. The census reads sides in three
+bits to the tangency token `classify_dihedral` returns
+(`geom_brep::Tangency::pairing`), so the pairing is asked only where the
+dihedral read smooth. The census reads sides in three
 other places, all through the touch analysis's `rest` module: pass 4,
 of an edge lying in a face of its own solid (`edge_in_own_face`, by
 `rest::judge`); arm 2's touches between two solids

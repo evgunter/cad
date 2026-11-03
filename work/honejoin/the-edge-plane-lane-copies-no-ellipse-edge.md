@@ -6,7 +6,6 @@ status: open
 opened: 2026-10-12
 priority: P1
 cost: M
-refs: [crossing-equal-cylinders-take-the-parallel-radical-plane-and-desync]
 ---
 
 

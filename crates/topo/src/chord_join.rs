@@ -55,27 +55,11 @@
 //! boolean lane resolves them from its own germ records. Neither
 //! posture is visible here.
 //!
-//! # Why the code is here and not in either lane
+//! The [`JoinLane::BoolPlanar`] arm exists because the planar side of a
+//! curved germ pair sections the OTHER operand's wall, which must arrive
+//! by value.
 //!
-//! It was born inside one half **by instruction**, not by drift: the
-//! M3 plan (RATIFIED #42) item 5 said *"Ch. 14 join reused
-//! with A↔B correspondence disambiguation"*, and ch. 14's join is the
-//! split lane's. So the boolean joining imported [`ChordJoiner`],
-//! [`CutOutcome`], [`SectionCtx`] and [`SplitJoinError`] out of
-//! `splitting/join.rs`, while `splitting/`
-//! reciprocated by hosting the [`JoinLane::BoolPlanar`] arm and
-//! [`bool_planar_chord_spec`], which only the boolean reaches. The
-//! three-way [`JoinLane`] threaded through [`chord_spec`] was the
-//! visible cost of a shared core with no home of its own.
-//!
-//! This module is that home — a **top-level sibling** of `boolean/` and
-//! `splitting/`, like [`crate::sector_shape`] and
-//! [`crate::sector_face`], so neither half hosts the other's core.
-//! `JoinLane::BoolPlanar` is NOT deleted by the move and was never the
-//! defect: the planar side of a curved germ pair sections the OTHER
-//! operand's wall, which must arrive by value. What changes is that
-//! both arms of a shared enum now live in shared scope, instead of one
-//! lane hosting the other's.
+//! Its home follows `[topo.homes]` (`crates/topo/README.md`).
 //!
 //! # The section-chord geometry
 //!
@@ -284,7 +268,7 @@ pub enum SplitJoinError {
     ///
     /// A section loop that closes on one vertex bounds nothing however
     /// large the section it should be
-    /// (`work/cleave/a-revolved-tube-split-across-its-axis-refuses-a-degenerate-section.md`).
+    /// (`a-revolved-tube-split-across-its-axis-refuses-a-degenerate-section` (closed with CLEAVE: `docs/doc-ledger/cleave-leaves-the-tracker.md`)).
     /// A pinch at a vertex does not reach it: the split's reduction keeps
     /// one vertex per piece round a vertex on each side, so pieces
     /// meeting there do not share one. A pinch along an edge in the
@@ -301,7 +285,7 @@ pub enum SplitJoinError {
     /// A slit trace whose tree holds an edge that is not a line: its
     /// slit would be two coincident curved edges, which no contact record
     /// backs and tier 3′ refuses
-    /// (`work/cleave/a-curved-slit-fails-tier-3-prime-on-its-two-coincident-arcs.md`).
+    /// (`work/heldrecords/a-curved-slit-fails-tier-3-prime-on-its-two-coincident-arcs.md`).
     CurvedSlitTrace {
         /// The completed null face.
         face: FaceKey,
@@ -692,7 +676,7 @@ impl SplitJoinError {
                 f,
                 "an arc lying in the cut, wrapped round at both ends by the material \
                  across it, would leave two coincident arcs that no contact record backs \
-                 (`work/cleave/a-curved-slit-fails-tier-3-prime-on-its-two-coincident-arcs.md`). \
+                 (`work/heldrecords/a-curved-slit-fails-tier-3-prime-on-its-two-coincident-arcs.md`). \
                  {}",
                 geom_core::NOT_YET_ENDING
             ),
@@ -3062,12 +3046,10 @@ fn carried_chord_spec<T: Decide>(
             Ok(geom::OnCarrier::Off) => {
                 Err(invariant("a carried chord's end lies off its component"))
             }
-            Err(geom::CarrierRefusal::Escalated(diag) | geom::CarrierRefusal::Straddle(diag)) => {
-                Err(escalated(diag))
-            }
-            Err(geom::CarrierRefusal::Exhausted | geom::CarrierRefusal::Unbounded) => Err(
+            Err(refusal) => Err(refusal.escalation().map_or(
                 invariant("a carried chord end's distance from its component could not be read"),
-            ),
+                escalated,
+            )),
         }
     };
     let (p1, p2) = (vertex_point(body, u1), vertex_point(body, u2));

@@ -138,7 +138,7 @@ mod verbs_gate_r1_probes {
         println!("klein wall 3: {joined:?}");
         assert!(
             wall3_pinned(&joined, &bulb_body, &top),
-            "wall 3 must refuse an edge of the bulb on a crease of the loop's NURBS wall: \
+            "wall 3 must refuse the loop's start-cap rim arc on the bulb's neck cylinder: \
              {joined:?}"
         );
 

@@ -38,7 +38,7 @@ it holds AREA of, exactly. Two candidate sources:
   constituents' area it holds.
 - **A curved face-holds-point door**: read each member face's area at a
   point of the finished face (cf.
-  `work/issues/a-face-holds-a-point-has-no-public-door.md`).
+  `work/onecopy/a-face-holds-a-point-has-no-public-door.md`).
 
 Then the edge and vertex passes need an audit once faces linked by clause
 3 reach them: they assume every finished edge is a member edge's piece or
@@ -96,7 +96,7 @@ With Ev's per-face rule approved (PR 6381), this row is that rule's prerequisite
   - merged faces union their constituents.
 
   Apply the same rule to each step's **discarded** fragments, so each member face's lost region is keyed exactly. `Borders`' obstacles (`editor-core`'s `borders.rs`, `Fold::obstacles`) then read that, not lineage.
-- **`overlap`**, a new topo door, the public face-holds door that `work/issues/a-face-holds-a-point-has-no-public-door.md` asks for, generalised from a point to a face. It takes two faces that the verdicts already put on one carrier; it never re-decides coplanarity. It answers `Decided<bool>`: do they meet in positive area? It looks for a witness of three kinds:
+- **`overlap`**, a new topo door, the public face-holds door that `work/onecopy/a-face-holds-a-point-has-no-public-door.md` asks for, generalised from a point to a face. It takes two faces that the verdicts already put on one carrier; it never re-decides coplanarity. It answers `Decided<bool>`: do they meet in positive area? It looks for a witness of three kinds:
   - a vertex of one face strictly inside the other (the existing containment doors: planar `contfp`, curved `curved_face_containment`);
   - a proper crossing of a boundary edge of each (in the carrier's chart where lines and arcs are straight; on a torus or sphere, through the carrier-cross doors);
   - a boundary point of one face lying on the other's boundary, read by sector as `boolean/sectors.rs` reads them (an inscribed triangle in a hexagon has no strictly inside vertex and no crossing).

@@ -125,6 +125,18 @@ fn read(a: &Surface<f64>, b: &Surface<f64>) -> Result<Components<f64>, SectionEr
     }
 }
 
+/// Whether a reading refused at the whole reading's accounting cell
+/// budget, the cause the value carries being that refusal's own text: a
+/// gap to the partner the exclusion's zero test cannot resolve within
+/// the budget, and no tube holds.
+fn unaccounted_at_the_budget(got: &Result<Components<f64>, SectionError>) -> bool {
+    let budget = crate::ssi::SsiError::CellBudget {
+        budget: crate::ssi::exhaust::SSI_MAX_CELLS,
+    }
+    .to_string();
+    matches!(got, Err(SectionError::Unaccounted { cause }) if *cause == budget)
+}
+
 /// **An exact sphere patch on its sphere lies on it.** The hull's
 /// ceiling reads the composite `|S|² − r²` within the zero band over
 /// every cell: [`SectionError::CoincidentSurfaces`] (D10), in either
@@ -196,25 +208,41 @@ fn a_touched_side_refuses_at_the_pass_before_the_sweep() {
     );
 }
 
-/// **A loop round an excluded top declines.** The dome
+/// **A loop round an excluded top is read whole and listed.** The dome
 /// `z = −(x − ½)² − (y − ½)²` against the unit sphere centred `0.95`
 /// above its top: the top lies inside the sphere, which cuts the dome
 /// in a closed loop about it. The top's cells are excluded inside the
 /// sphere but joined to no side through cells excluded inside, so the
-/// sweep declines, and a curved partner's declined pose is the general
-/// rung's. Red against the same-side join dropped (the sweep then reads
-/// it loop-free, with no end: no component).
+/// sweep declines, and the pose is read whole on the 1×2 trace: one
+/// loop, its witness on the dome within its pad of the sphere. Red
+/// against the same-side join dropped (the sweep then reads it
+/// loop-free, with no end: no component), and against a declined curved
+/// pose left to the general rung.
 #[test]
-fn a_loop_round_an_excluded_top_declines() {
+fn a_loop_round_an_excluded_top_is_listed() {
     let g = [-0.25, 0.25, -0.25];
     #[allow(clippy::cast_precision_loss)]
     let dome = patch(2, 2, &|i, j| {
         (pt(0.5 * i as f64, 0.5 * j as f64, g[i] + g[j]), 1.0)
     });
-    let got = read(&dome, &sphere(pt(0.5, 0.5, 0.95), 1.0));
+    let ball = sphere(pt(0.5, 0.5, 0.95), 1.0);
+    let got = read(&dome, &ball);
+    let Ok(Components::Counted(listed)) = &got else {
+        panic!("a sphere swallowing the dome's top reads {got:?}");
+    };
+    let [loop_] = listed.as_slice() else {
+        panic!("one component: {listed:?}");
+    };
     assert!(
-        matches!(got, Err(SectionError::RoutesToGeneralRung { .. })),
-        "a sphere swallowing the dome's top reads {got:?}"
+        matches!(loop_.shape, crate::pair_section::ComponentShape::Loop),
+        "a loop: {loop_:?}"
+    );
+    let q = loop_.witness.expect("the loop's witness");
+    let off = crate::implicit_residual(&ball, q).abs();
+    assert!(
+        off <= loop_.pad + band().zero(),
+        "the witness {off:e} m off the sphere, its pad {:e}",
+        loop_.pad
     );
 }
 
@@ -567,8 +595,13 @@ fn a_wall_leaving_a_large_cylinder_in_the_band_is_held_tangent() {
 /// excluded top would be ringed by cells read regular, which the join
 /// does not walk (SPLICE's
 /// `the-plane-spline-sweep-declines-a-loop-free-dome-beside-a-saddle`), so
-/// the pose would decline either way. Red against the sweep's exclusion
-/// read on the raw form rather than in metres.
+/// the pose would decline either way. Read whole, the section is empty,
+/// but the top stands only `4ε` off the sphere: the accounting's zero
+/// test, on boxes of the wall that close on the top only as fast as
+/// their cells shrink, cannot clear the cells about it before its cell
+/// budget runs out, and no tube holds them, so it refuses there,
+/// unaccounted. Red against the sweep's exclusion read on the raw form
+/// rather than in metres.
 #[test]
 fn a_touch_with_a_large_sphere_at_a_side_is_no_exclusion() {
     let (gx, gy) = ([-0.25, 0.25, -0.25], [0.0, 0.0, -1.0]);
@@ -579,7 +612,7 @@ fn a_touch_with_a_large_sphere_at_a_side_is_no_exclusion() {
     let above = 100.0 + 4.0 * band().zero();
     let got = read(&half_dome, &sphere(pt(0.5, 0.0, above), 100.0));
     assert!(
-        matches!(got, Err(SectionError::RoutesToGeneralRung { .. })),
+        unaccounted_at_the_budget(&got),
         "a half dome touching a large sphere within the band reads {got:?}"
     );
 }
@@ -660,16 +693,20 @@ fn a_dome_touching_a_sphere_is_one_touch() {
 /// **A top only in band of a sphere is not decided.** The same dome
 /// under the unit sphere raised half way between the band's zero and its
 /// escalation: the top is a critical point whose value is in band, so it
-/// is no touch, and the sweep declines there. Red against the value read
-/// past the band's zero rather than decided zero (it would read a
-/// touch).
+/// is no touch, and the sweep declines there. Read whole, the section is
+/// empty, but the top stands within the band of the sphere: the
+/// accounting's zero test cannot clear the cells about it before its
+/// cell budget runs out, and no tube holds them, so it refuses there,
+/// unaccounted. Red against the
+/// value read past the band's zero rather than decided zero (it would
+/// read a touch).
 #[test]
 fn a_top_in_band_of_a_sphere_is_not_decided() {
     let b = band();
     let lift = 0.5 * (b.zero() + b.escalate());
     let got = read(&dome(), &sphere(pt(0.5, 0.5, 1.0 + lift), 1.0));
     assert!(
-        matches!(got, Err(SectionError::RoutesToGeneralRung { .. })),
+        unaccounted_at_the_budget(&got),
         "a top {lift:e} under the sphere reads {got:?}"
     );
 }
@@ -744,15 +781,18 @@ fn klein_half_tube_through_a_sphere_is_loop_free() {
     );
 }
 
-/// **A loop round a ridge's top declines.** A tent creased along `x = ½`,
-/// its ridge rising to `z = 0.3` at the middle of its run, under the unit
-/// sphere sunk 0.02 below the ridge's top: the sphere cuts the tent in a
-/// loop about the ridge's top. On each flank `φ`'s gradient is off zero,
-/// so every cell there reads regular or excluded; the top is an extremum
-/// of `φ` along the crease line, which the crease pass reads excluded
-/// inside the sphere, not regular along the line, and joined to no side,
-/// so the sweep declines. Red against the crease pass skipped (the loop
-/// is proved away: no component).
+/// **A loop round a ridge's top declines, and its march refuses at the
+/// crease.** A tent creased along `x = ½`, its ridge rising to `z = 0.3`
+/// at the middle of its run, under the unit sphere sunk 0.02 below the
+/// ridge's top: the sphere cuts the tent in a loop about the ridge's
+/// top. On each flank `φ`'s gradient is off zero, so every cell there
+/// reads regular or excluded; the top is an extremum of `φ` along the
+/// crease line, which the crease pass reads excluded inside the sphere,
+/// not regular along the line, and joined to no side, so the sweep
+/// declines. Read whole, the loop's march meets the crease, where the
+/// wall's chart turns a corner, and its step falls in the band there:
+/// the march's escalation on its step. Red against the crease pass
+/// skipped (the loop is proved away: no component).
 #[test]
 fn a_loop_round_a_ridges_top_declines() {
     let ku = KnotVector::clamped(vec![0.0, 0.0, 0.5, 1.0, 1.0], 1).unwrap();
@@ -768,8 +808,40 @@ fn a_loop_round_a_ridges_top_declines() {
     let tent = wall(NurbsSurface::new(ku, span(2), control, weights).unwrap());
     let got = read(&tent, &sphere(pt(0.5, 0.5, 0.3 + 1.0 - 0.02), 1.0));
     assert!(
-        matches!(got, Err(SectionError::RoutesToGeneralRung { .. })),
+        matches!(
+            &got,
+            Err(SectionError::Escalated(cause))
+                if cause.predicate == Some("ssi_step_progress")
+        ),
         "the sphere cutting the ridge's top reads {got:?}"
+    );
+}
+
+/// **A pose the sweep decides needs no march tolerance.** The flat unit
+/// plate against the sphere of radius 10⁶ centred at `(0.3 − 10⁶, ½, 0)`:
+/// the sphere's equator crosses the plate as a near-straight arc from
+/// its `v = 0` side to its `v = 1` side, and the sweep reads it
+/// loop-free, so the section is `Reaching` those two sides, with no
+/// march. The march's tolerance, read about the sphere's centre a
+/// million metres off, settles no finer than `2·10⁻¹⁰` m, too coarse for
+/// ε = 1e-12, and is minted only where a march runs. Red against the
+/// tolerance minted with the section, before the classification's pass
+/// (it refuses `SettlingUnresolvable` at ε = 1e-12, unaccounted).
+#[test]
+fn a_pose_the_sweep_decides_needs_no_march_tolerance() {
+    let r = 1.0e6;
+    let plate = flat([
+        [pt(0.0, 0.0, 0.0), pt(0.0, 1.0, 0.0)],
+        [pt(1.0, 0.0, 0.0), pt(1.0, 1.0, 0.0)],
+    ]);
+    let got = read(&plate, &sphere(pt(0.3 - r, 0.5, 0.0), r));
+    let Ok(Components::Reaching(reached)) = &got else {
+        panic!("a plate the sphere's equator crosses reads {got:?}");
+    };
+    assert_eq!(
+        reached.rims()[0],
+        side(ChartAxis::V, ChartEnd::Low).or(side(ChartAxis::V, ChartEnd::High)),
+        "the arc's ends, on the plate (the first operand)"
     );
 }
 

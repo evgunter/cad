@@ -2,10 +2,12 @@
 id: pcurve-certify-error-arms-with-no-ending
 kind: issue
 title: geom-brep: fourteen PcurveCertifyError arms end in no recourse (PcurveCertifyError::ending gives None)
-status: open
+status: closed
 priority: P1
 cost: M
 opened: 2026-10-02
+closed: 2026-11-03
+pr: 6448
 ---
 
 (SSI implementer, from the §5 sweep of PR "SSI: every SsiError arm ends

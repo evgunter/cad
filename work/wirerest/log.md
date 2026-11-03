@@ -19,3 +19,5 @@ Main's re-weighting of the cost tiers (2f96694d12) put this track over budget. I
 ## Moved in from WIRE (2026-11-01)
 
 `a-unions-member-edge-group-size-reads-the-fold-steps-spelling` (P3, M), a union fold-step residue. WIRE took two P1 rows from INTENT's tail and stood at 32/30. Moved by `git mv`; nothing cited its path. Load is 29/30. (WIRE orchestrator)
+
+- 2026-11-03 — **WIRE closed, and its remainder moved here** (Ev, in chat: close the old parents whose work above P3 had run out). Eleven P3 rows moved by `git mv`, ids and bodies unchanged, each with a dated note, and WIRE's `paths` with them; the plan's last section lists them. References from other rows to WIRE's closed rows were dropped from headers, and citations in shipped code now name the row and `docs/doc-ledger/wire-leaves-the-tracker.md`. No orchestrator: WIREREST stays `ready`.

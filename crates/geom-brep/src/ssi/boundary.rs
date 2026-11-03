@@ -294,9 +294,10 @@ pub(crate) trait Partner {
 
 /// The plane distance's partial along `u` (`along_u`) or `v` over the
 /// window `w`, on the wall's derivative box there: `n·S_d`, `n` the
-/// plane's unit normal. The plane partner's and the side arm's one
-/// reading of it.
-fn plane_partial<T: CertifiedBounds>(
+/// plane's unit normal or a curved partner's gradient over the window.
+/// The pass's, the side arm's and the chart tube's one reading of it
+/// ([`super::enclose::ChartPhi::partial`]).
+pub(crate) fn plane_partial<T: CertifiedBounds>(
     n: [Interval; 3],
     boxes: &NurbsBoxes<'_, T>,
     w: UvWindow,
@@ -1241,7 +1242,7 @@ fn nth_piece(along: (f64, f64), count: u32, k: u32) -> (f64, f64) {
     (t(k), t(k + 1))
 }
 
-/// A stretch of a side as the boundary pass reads it ([`read_stretch`]).
+/// A stretch of a side as the boundary pass reads it ([`read_stretch_by`]).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) enum Reading {
     /// A piece of it [`clears`]: no zero lies along it or beside it.
@@ -1256,17 +1257,8 @@ pub(crate) enum Reading {
     Within(f64),
 }
 
-/// **A stretch of a side, read as the boundary pass reads a side.** `r`
-/// is a window with an edge on `side`, and `reader` reads `φ` along that
-/// side ([`super::section::SectionReader`], the boundary section's own
-/// arithmetic). The stretch is cut into `2^`[`STRIP_PIECES_LOG2`]
-/// pieces, each read for `φ` along it; where `|φ|` over them is within
-/// `eps`, each piece where `φ` is one-signed (on the refined hull the
-/// boundary section reads a whole side's sign by) is read for the slope
-/// across `r` beside it too, and a piece that [`clears`] (the side's own
-/// test) makes the stretch [`Reading::Clear`]. The pieces' signs share
-/// one side's halvings ([`SIDE_SIGN_HALVINGS`]), as the boundary
-/// section's whole side does.
+/// [`read_stretch_by`] against the plane of unit normal `normal`.
+#[cfg(test)]
 pub(crate) fn read_stretch<T: CertifiedBounds>(
     boxes: &NurbsBoxes<'_, T>,
     normal: [Interval; 3],
@@ -1277,10 +1269,68 @@ pub(crate) fn read_stretch<T: CertifiedBounds>(
     stretch_within(boxes, normal, reader, (side, r), (eps, SIDE_SIGN_HALVINGS))
 }
 
-/// [`read_stretch`], its pieces' signs read within `halvings`.
+/// A partner's partial of `φ` along `u` (`true`) or `v` over a window of
+/// the wall, refused where the window names no region: the plane's
+/// [`plane_partial`], or a curved partner's `∇f·S_d`
+/// ([`super::enclose::ChartPhi::partial`]).
+pub(crate) type Across<'f> = &'f dyn Fn(Option<UvWindow>, bool) -> Interval;
+
+/// The plane's partial with normal `n`, as an [`Across`].
+#[cfg(test)]
+fn plane_across<'b, T: CertifiedBounds>(
+    boxes: &'b NurbsBoxes<'_, T>,
+    n: [Interval; 3],
+) -> impl Fn(Option<UvWindow>, bool) -> Interval + 'b {
+    move |w, along_u| w.map_or_else(Interval::refused, |w| plane_partial(n, boxes, w, along_u))
+}
+
+/// **A stretch of a side, read as the boundary pass reads a side.** `r`
+/// is a window with an edge on `side`, and `reader` reads `φ` along that
+/// side ([`super::section::SectionReader`], the boundary section's own
+/// arithmetic). The stretch is cut into `2^`[`STRIP_PIECES_LOG2`]
+/// pieces, each read for `φ` along it; where `|φ|` over them is within
+/// `eps`, each piece where `φ` is one-signed (on the refined hull the
+/// boundary section reads a whole side's sign by) is read for the slope
+/// across `r` beside it too, and a piece that [`clears`] (the side's own
+/// test) makes the stretch [`Reading::Clear`]. The pieces' signs share
+/// one side's halvings ([`SIDE_SIGN_HALVINGS`]), as the boundary
+/// section's whole side does. `across` reads the partner's slope across
+/// the side ([`Across`]).
+pub(crate) fn read_stretch_by(
+    across: Across<'_>,
+    reader: &super::section::SectionReader,
+    (side, r): (ChartSide, UvRect),
+    eps: f64,
+) -> Reading {
+    stretch_by(across, reader, (side, r), (eps, SIDE_SIGN_HALVINGS))
+}
+
+/// [`read_stretch`], its pieces' signs read within `halvings`, against
+/// the plane of unit normal `normal`.
+#[cfg(test)]
 pub(super) fn stretch_within<T: CertifiedBounds>(
     boxes: &NurbsBoxes<'_, T>,
     normal: [Interval; 3],
+    reader: &super::section::SectionReader,
+    (side, r): (ChartSide, UvRect),
+    (eps, halvings): (f64, usize),
+) -> Reading {
+    stretch_by(
+        &plane_across(boxes, normal),
+        reader,
+        (side, r),
+        (eps, halvings),
+    )
+}
+
+/// A stretch read against any partner, its partial `across`, its pieces' signs
+/// read within `halvings`. `|φ|`
+/// along the stretch is read against `eps` in metres
+/// ([`super::section::SectionReader::metres`]); the bound it answers
+/// ([`Reading::Within`]) is in `φ`'s own units, the units `across` reads
+/// its slope in.
+fn stretch_by(
+    across: Across<'_>,
     reader: &super::section::SectionReader,
     (side, r): (ChartSide, UvRect),
     (eps, mut halvings): (f64, usize),
@@ -1300,7 +1350,7 @@ pub(super) fn stretch_within<T: CertifiedBounds>(
         sup = max_bound(sup, m);
         pieces.push((piece, stretch));
     }
-    if sup > eps {
+    if reader.metres(sup) > eps {
         return Reading::Beyond;
     }
     for (piece, stretch) in pieces {
@@ -1309,10 +1359,7 @@ pub(super) fn stretch_within<T: CertifiedBounds>(
         };
         if side_of_plane.is_some() {
             let q = cut_along(side, r, piece);
-            let d = q.window().map_or_else(super::enclose::refused_box, |w| {
-                boxes.deriv_box(w, across_u)
-            });
-            let across = normal[0] * d.x + normal[1] * d.y + normal[2] * d.z;
+            let across = across(q.window(), across_u);
             if clears(side, side_of_plane, across) {
                 return Reading::Clear;
             }
@@ -1324,14 +1371,14 @@ pub(super) fn stretch_within<T: CertifiedBounds>(
 /// Whether the side's cover over `r` cannot come within `eps`, read
 /// cheaply ahead of the stretch and the cover ([`side_stretch`]): a zero
 /// reached across from a point of the side where `|φ| ≥ m` lies at least
-/// `m / s` from it, `s` the steepest the wall rises off the plane per
-/// metre across `r` (`|n·S⊥| / ‖S⊥‖`, never above 1). So where that
-/// bound exceeds `eps` at the stretch's two ends or its middle, no cover
-/// over `r` is within `eps`. It only skips work: a stretch it passes is
-/// read in full.
+/// `m / s` from it, `s` the steepest `φ` changes per metre across `r`
+/// (`|∇f·S⊥| / ‖S⊥‖`, never above 1 where `φ` is a plane distance). So
+/// where that bound exceeds `eps` at the stretch's two ends or its
+/// middle, no cover over `r` is within `eps`. It only skips work: a
+/// stretch it passes is read in full.
 fn beyond_reach<T: CertifiedBounds>(
     boxes: &NurbsBoxes<'_, T>,
-    n: [Interval; 3],
+    across: Across<'_>,
     reader: &super::section::SectionReader,
     (side, r): (ChartSide, UvRect),
     eps: f64,
@@ -1343,7 +1390,7 @@ fn beyond_reach<T: CertifiedBounds>(
     if ![d.x, d.y, d.z].iter().all(|i| i.is_certified()) {
         return false;
     }
-    let rise = magnitude(n[0] * d.x + n[1] * d.y + n[2] * d.z);
+    let rise = magnitude(across(Some(w), side.fixed == ChartAxis::U));
     let mig = |i: Interval| {
         Certification::powi(Interval::point(super::enclose::zero_free_lower_bound(i)), 2)
     };
@@ -1352,7 +1399,11 @@ fn beyond_reach<T: CertifiedBounds>(
     if !(rise.is_finite() && run > 0.0) {
         return false;
     }
-    let steepest = (rise / run).next_up().min(1.0);
+    let steepest = if reader.is_distance() {
+        (rise / run).next_up().min(1.0)
+    } else {
+        (rise / run).next_up()
+    };
     let (a, b) = along(side, r);
     [a, 0.5 * (a + b), b].into_iter().any(|t| {
         let least = super::enclose::zero_free_lower_bound(reader.over((t, t)));
@@ -1367,20 +1418,20 @@ fn beyond_reach<T: CertifiedBounds>(
 /// in it within ε of the side ([`side_cover`]).
 pub(crate) fn side_stretch<T: CertifiedBounds>(
     boxes: &NurbsBoxes<'_, T>,
-    normal: [Interval; 3],
+    across: Across<'_>,
     reader: &super::section::SectionReader,
     (side, domain): (ChartSide, UvRect),
     r: UvRect,
     band: Band,
 ) -> bool {
-    if beyond_reach(boxes, normal, reader, (side, r), band.zero()) {
+    if beyond_reach(boxes, across, reader, (side, r), band.zero()) {
         return false;
     }
-    match read_stretch(boxes, normal, reader, (side, r), band.zero()) {
+    match read_stretch_by(across, reader, (side, r), band.zero()) {
         Reading::Within(sup) => matches!(
             side_cover(
                 boxes,
-                &|w, along_u| plane_partial(normal, boxes, w, along_u),
+                &|w, along_u| across(Some(w), along_u),
                 (side, domain),
                 r,
                 sup,
@@ -1412,7 +1463,9 @@ pub(crate) enum SideCover {
 }
 
 /// **The side cover.** `strip` has one edge on `side` of `domain`, and
-/// `|φ| ≤ sup` along that edge, in metres. A zero of the strip lies at
+/// `|φ| ≤ sup` along that edge, in `φ`'s own units (metres on a plane,
+/// the form's on a curved partner), the units `across` reads its slope
+/// in. A zero of the strip lies at
 /// most `depth` in from the side and `distance` from it
 /// ([`strip_reach`]). The cover lies inside the strip where `depth` is
 /// short of the strip's far face, or that face is the domain's opposite

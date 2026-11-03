@@ -148,6 +148,8 @@ mod a_short_shallow_strut_between_wide_walls_is_a_corner;
 mod a_slit_tip_on_a_curved_face_reads_its_full_turn;
 #[path = "a_spiric_cut_far_off_and_turned_reads_as_at_home.rs"]
 mod a_spiric_cut_far_off_and_turned_reads_as_at_home;
+#[path = "a_split_edge_joins_back_on_its_carrier.rs"]
+mod a_split_edge_joins_back_on_its_carrier;
 #[path = "a_split_through_a_wrap_edges_vertex.rs"]
 mod a_split_through_a_wrap_edges_vertex;
 #[path = "a_swaying_loft_corner_meters.rs"]
@@ -1369,6 +1371,8 @@ mod a_box_along_a_fillets_line_arc_junction;
 mod a_cone_apex_meets_a_vertex;
 #[path = "a_cone_apex_on_a_plane_through_it.rs"]
 mod a_cone_apex_on_a_plane_through_it;
+#[path = "a_cone_apex_on_an_edge.rs"]
+mod a_cone_apex_on_an_edge;
 #[path = "a_cylinder_resting_on_a_box_top_grazes_along_a_line.rs"]
 mod a_cylinder_resting_on_a_box_top_grazes_along_a_line;
 #[path = "a_plane_near_a_needle_cones_apex.rs"]

@@ -1117,7 +1117,7 @@ fn a_wrong_radius_circle_on_each_class_arm_ends_as_its_incidence_read() {
                 "{what}: the definite miss: {err:?}"
             );
             for (door, at, culprit) in doors(&what) {
-                assert_eq!(err.ending(at).as_deref(), Some(culprit), "{door}");
+                assert_eq!(err.ending(at), culprit, "{door}");
             }
         }
     }
@@ -1136,7 +1136,7 @@ fn a_wrong_radius_circle_on_each_class_arm_ends_as_its_incidence_read() {
                 "{what}: not shown on the face: {err:?}"
             );
             for (door, at, _) in doors(&what) {
-                let ending = err.ending(at).expect("an incidence read ends");
+                let ending = err.ending(at);
                 assert!(
                     ending.contains(INCIDENCE_UNSHOWN.lever) && !ending.contains("defect"),
                     "{door}: {ending}"
@@ -1205,7 +1205,7 @@ fn a_tiny_ellipse_within_eps_of_the_sphere_or_torus_is_not_yet() {
                 "{face} ({lane}): a class reading: {err:?}"
             );
             for reading in [Reading::Build, Reading::AtRest] {
-                let ending = err.ending(reading).expect("a class reading ends");
+                let ending = err.ending(reading);
                 assert!(
                     ending.starts_with(geom_core::NOT_YET_ENDING) && !ending.contains("defect"),
                     "{face} ({lane}) {reading:?}: {ending}"

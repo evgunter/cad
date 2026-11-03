@@ -102,8 +102,8 @@ use crate::validate::decide;
 /// the surface (its residual a zero constant; a constant definite
 /// residual is a miss), or a certified count (even, at most twice the
 /// residual's degree) of carrier parameters `θ`, each within `π` of the
-/// arc's midpoint, so it compares with the arc `[t₀, t₁]` the caller
-/// passed without wrapping. A door that certifies none of these refuses
+/// arc's midpoint ([`geom_brep::half_angle::near_midpoint`]), so it
+/// compares with the arc `[t₀, t₁]` the caller passed without wrapping. A door that certifies none of these refuses
 /// with an [`Unsettled`] beside its [`BooleanError`].
 pub(super) type CircleRoots<T> = Roots<T, { 2 * MAX_DEGREE }, OnCarrier>;
 
@@ -263,7 +263,8 @@ pub(super) struct FirstHarmonicRows {
 
 /// **The certified roots of a first-harmonic residual along a carrier
 /// whose speed `|C′(θ)|` is at most `speed`** (a circle's radius, an
-/// ellipse's larger semi-axis), reported within `π` of the midpoint of `[t0, t1]`: the
+/// ellipse's larger semi-axis), reported within `π` of the midpoint of
+/// `[t0, t1]` ([`geom_brep::half_angle::near_midpoint`]): the
 /// decisions of the module docs ("The first-harmonic door"), under the
 /// caller's `rows`.
 ///

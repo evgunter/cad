@@ -1041,7 +1041,9 @@ fn sweep_r3(
     })
 }
 
-fn excludes_zero(i: Interval) -> bool {
+/// Whether an enclosure is certified and clear of zero: the exclusion a
+/// sweep reads of its partner over a cell.
+pub(crate) fn excludes_zero(i: Interval) -> bool {
     i.is_certified() && (i.lo() > 0.0 || i.hi() < 0.0)
 }
 
@@ -1252,6 +1254,43 @@ pub(crate) fn account_chart_plane(
             clear,
         },
     )?;
+    Ok(tally.receipt(floor.lane, floor.width()))
+}
+
+/// **Seed generation**, chart lane, against any partner: the centres of
+/// the cells of the floor's rectangle that `excluded` does not clear, at
+/// the floor. [`seed_chart_plane`] with the partner's exclusion handed
+/// in, so a partner whose `φ` is not the plane's height is swept by the
+/// same recursion.
+///
+/// # Errors
+///
+/// As [`account_chart_partner`], minus the floor refusal.
+pub(crate) fn seed_chart_partner(
+    floor: SweepFloor<UvRect>,
+    excluded: impl Fn(UvRect) -> Result<bool, SsiError>,
+) -> Result<Vec<(f64, f64)>, SsiError> {
+    let (_, seeds) = sweep(floor, SweepDuty::Seed, excluded)?;
+    Ok(seeds)
+}
+
+/// **The accounting proof**, chart lane, against any partner:
+/// [`account_chart_plane`] with the partner's exclusion handed in.
+///
+/// # Errors
+///
+/// As [`account_r3`], and whatever `excluded` refuses.
+pub(crate) fn account_chart_partner(
+    (tubes, regions, clear): (&[UvRect], &[UvRect], &[UvRect]),
+    floor: SweepFloor<UvRect>,
+    excluded: impl Fn(UvRect) -> Result<bool, SsiError>,
+) -> Result<Exhaustiveness, SsiError> {
+    let duty = SweepDuty::Account {
+        tubes,
+        regions,
+        clear,
+    };
+    let (tally, _) = sweep(floor, duty, excluded)?;
     Ok(tally.receipt(floor.lane, floor.width()))
 }
 

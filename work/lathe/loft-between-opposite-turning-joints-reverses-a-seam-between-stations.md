@@ -91,7 +91,7 @@ Its door design turns on the declared-cusp exemption ("unless every section decl
 ## Re-parked (CARVE, 2026-10-06): on the embedding certificate, not on D10
 
 CARVE's designers settled the loft's contract the same day
-(`work/carve/self-overlapping-spines-build-and-validate.md`, "Weighed").
+(`work/lathe/self-overlapping-spines-build-and-validate.md`, "Weighed").
 A loft promises an embedded boundary, and a certificate at its door
 checks that. This row's fold is a crossing between ADJACENT walls away
 from their shared seam. The clearance engine cannot see that until its
