@@ -145,7 +145,6 @@ end (705 lines), not the largest touched file (`pcurve_cache.rs`, ~15k lines).
 ## Disclosures
 - No other `spiricarm-rev6486-*` branch, PR comment or review read; body via `get` only; no glimpses.
 - I did not run the workspace suite, admesh or `export_acceptance`; I rely on the PR's CI run
-  41733776655 for those. I ran:
-  the sweep rows named above, geom-brep's whole lib suite under the panic mutant (1052 passed;
+  41733776655 for those. I ran the sweep rows named above, geom-brep's whole lib suite under the panic mutant (1052 passed;
   the sheet arm is not reached in geom-brep), and topo's `door_roster` sheet rows.
 - Mutants were env-gated and reverted. The report branch is the frozen head plus this file.
