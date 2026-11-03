@@ -341,12 +341,12 @@ pub(super) fn recl_sectors<T: Decide>(
             let [a_start, a_end] = sa.reached_bounds();
             let [b_start, b_end] = sb.reached_bounds();
             let ca = (
-                side(&s_a, &s_b, sb.tangent(), a_start)?,
-                side(&s_a, &s_b, sb.tangent(), a_end)?,
+                side(&s_a, &s_b, sb.plane(super::Operand::B)?, a_start)?,
+                side(&s_a, &s_b, sb.plane(super::Operand::B)?, a_end)?,
             );
             let cb = (
-                side(&s_b, &s_a, sa.tangent(), b_start)?,
-                side(&s_b, &s_a, sa.tangent(), b_end)?,
+                side(&s_b, &s_a, sa.plane(super::Operand::A)?, b_start)?,
+                side(&s_b, &s_a, sa.plane(super::Operand::A)?, b_end)?,
             );
             // Per-bound propagation, the Rest loop's shape with the
             // SHARED bound's own code (definite codes only — an `On`
@@ -1133,6 +1133,20 @@ pub(super) fn recl_edges<T: Decide>(
                 || r.sb.0 == SideCode::On
                 || r.sb.1 == SideCode::On)
         {
+            // A fan of a cone's rulings with a bound on the partner's
+            // face is a reading the edge rules above have no arm for:
+            // they settle a planar sector's On bound by its plane. It
+            // refuses by name, as the readers with no fan arm do
+            // (`BoolSector::plane`), rather than read as the kernel's
+            // own fault.
+            for (operand, s) in [(Operand::A, &a_sectors[r.a]), (Operand::B, &b_sectors[r.b])] {
+                if s.apex().is_some() {
+                    return Err(BooleanError::VertexPairAtConeApex {
+                        operand,
+                        face: s.face,
+                    });
+                }
+            }
             return Err(BooleanError::ClassificationInvariant {
                 what: "surviving record with an On code after srecledges",
             });
@@ -1676,6 +1690,12 @@ pub(super) fn resolve_edge_edge<T: Decide>(
         for face in faces[slot] {
             sheets.extend(sheets_of(face.wedge));
         }
+        // A fan of a cone's rulings is no half-plane: the line cone has
+        // no arm for it, and refuses by name (`BoolSector::plane`).
+        for &sheet in &sheets {
+            let (LineSheet::Start(i) | LineSheet::End(i) | LineSheet::Across(i)) = sheet;
+            secs_of(slot)[i].plane(operand_of(slot))?;
+        }
         let at = points[slot];
         let line = axis_reach.point(at, axis);
         let (mut from, fans): (Vec<Sheet<T>>, Vec<_>) =
@@ -1725,8 +1745,8 @@ pub(super) fn resolve_edge_edge<T: Decide>(
                 &s_own,
                 &s_other,
                 reach,
-                other_sec.tangent(),
-                own_sec.tangent(),
+                other_sec.plane(other_op)?,
+                own_sec.plane(own_op)?,
                 p,
                 op,
                 own_op,
@@ -2028,6 +2048,9 @@ fn resolve_edge_sector<T: Decide>(
                 what: "edge-sector site lost its point",
             })
     };
+    // A fan of a cone's rulings has no plane to key the flankers by:
+    // refused by name (`BoolSector::plane`).
+    ref_sector.plane(ref_op)?;
     let keys = flank_keys(own_secs, (f_s, f_e), ref_sector, band)?.map(|k| k.code);
     let comparison = if a_side { Operand::A } else { Operand::B };
     // A flanker on the face lies in the reference's material as it lumps:
@@ -2044,8 +2067,8 @@ fn resolve_edge_sector<T: Decide>(
                 own_body.proven_face_surface(own_sec.face),
                 ref_body.proven_face_surface(ref_sector.face),
                 declared.reach_of(own_op, own_sec.face, ref_op, ref_sector.face)?,
-                ref_sector.tangent(),
-                own_sec.tangent(),
+                ref_sector.plane(ref_op)?,
+                own_sec.plane(own_op)?,
                 p,
                 op,
                 comparison,
@@ -2151,6 +2174,12 @@ fn resolve_bisector_graze<T: Decide>(
     } else {
         &a_sectors[ref_idx]
     };
+    let ref_op = if a_side {
+        super::Operand::B
+    } else {
+        super::Operand::A
+    };
+    ref_sector.plane(ref_op)?;
     let [k1, k2] = flank_keys(own_secs, (f_s, f_e), ref_sector, band)?;
     // Both outer keys definitely on one side: the grazing bisector
     // cannot read Zero when K > 2 (the argument at `vtxfac`'s on-edge
@@ -3113,7 +3142,8 @@ mod tests {
             radius: 1.0,
             u_ref: y,
         };
-        let bend_b = crate::bound_side::FaceBend::at(&bore, o);
+        // A bore: the material outside the cylinder.
+        let bend_b = crate::bound_side::FaceBend::at(&bore, false, o);
         let (cb, fb) = face_on(bore);
         // The bore's circle through the point, leaving along `x`.
         let circle = geom::Curve3::circle(Point3::new(0.0, -1.0, 0.0), -z, 1.0, y);
@@ -3126,6 +3156,7 @@ mod tests {
             BoundSupport::Conic {
                 extent,
                 bend: ConicBend::of(&circle, tangent, circle.deriv2(0.0), span),
+                arc: crate::bound_side::ConicArc::on(&circle, 0.0, span),
             },
         );
         let chord = |d: Vec3<f64>| {

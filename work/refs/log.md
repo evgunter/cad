@@ -66,3 +66,30 @@
 - 2026-11-02 — **PR 6387 delta re-check (R2, on the fix pass at `12863c519`): NOT-MERGEABLE-AS-IS on a MAJOR the fix pass introduced.** `overlap`'s new same-sense check makes every subtract's pair-door geometric reads refuse `OppositeSenses`: in a subtract the B faces face the other way. A T-cutter parting and a re-charted sphere were probed. Every other earlier finding was confirmed fixed. Blind coding of the first pair (byte 123, A = R2): tally **1**, R2's cut-in MAJOR. Second fix pass dispatched. **Class:** a check true of a door's general callers is false of one operation's operands (orientation). The fix reads B through the result's sense.
 - 2026-11-02 — **PR 6387 merged (kernel holdings), dual concurrent, tally 1** (row `PR-6387.md`). There were two fix passes, the second after R2's delta re-check caught a subtract regression the first had introduced. The exact-descent row is closed, and the per-face unit is unparked to open: the next REFS dispatch, built into PR 6381.
 - 2026-11-02 — **Per-face naming dispatched into PR 6381** (the approved text's code). It consumes `Holdings` for faces and `Borders`; the subtract and the union share one derivation; the edge classification is made total from holdings; the fold's spelling readings and `UnsupportedUnjudgedGlue` retire; the lineage doors go crate-private. Tier **dual** (naming architecture with broad re-baselines), class H, so a concurrent pair.
+- 2026-11-03 — **PR 6381 (per-face naming) green; dual concurrent review dispatched** as two cloud sessions on frozen head `24d2f89107`. The lane added one clause to Ev's approved N2 text: "each takes one `Borders`" is false for two holders meeting only along an edge inside the held region. Ev was told on the PR; no answer is needed unless Ev objects. The `crossing_slots` digest is pinned with a known-wrong constituent from a kernel `SubstitutedFace` defect (filed P1), and the reviewers are asked to judge that. `m10_sym_profile_interval` is red locally on a boolean-free slab; seen red on main by several lanes, not ours.
+- 2026-11-03 — **PR 6381 dual review: R1 APPROVE-WITH-FIXES, R2 NOT-MERGEABLE-AS-IS.**
+  - **Both:** two slow-set name rows left red.
+  - **R2's MAJOR** (unilateral as a class; R1 raised the one instance as a MINOR): a sweep of 5,415 brick booleans found 31 second-subtract configurations where `Holdings` (merged in 6387) cites a member face not coplanar with the finished face. Per-face naming would publish those wrong names; they were right on main.
+  - **Fix pass:** root-cause the kernel `SubstitutedFace` record, and independently make `Holdings` refuse typed rather than cite a face not under the face.
+  - **Process slip:** I removed the per-face lane's worktree at its report, so the lane could not be resumed; a fresh lane took the fix pass. Keep a lane's worktree until its PR merges.
+- 2026-11-03 — **PR 6381 fix pass green (`6f64c6be`).**
+  - **MAJOR B, root-caused in topo `fate::cut`:** a fate edge `Along` at both ends with opposed copies took the end-0 half's mate. That mate lay in a null scaffolding face, which inherited a perpendicular wall's lineage. Fixed, and `Holdings::of_records` now refuses typed (`NotUnder`/`CarrierUnread`) rather than cite a face not under the face. A 720-boolean row shows 15 `NotUnder` refusals with only the guard and none with the fix.
+  - **MAJOR A:** the slow rows return to main's values with no re-pin.
+  - **Not fixed:** the near-half diamond, where 8 of 24 orders publish where main refused. The lane's refusal attempt over-refused, so it was reverted; evidence went onto BORDERS' P2 row.
+  - **Delta re-check:** asked of R2, with its 5,415-boolean sweep.
+  - **Main reds routed (not ours):** topo `boxes::tests::every_door_that_reads_a_box_is_inventoried` (a `ruled_region.rs` box read missing from the pinned list) and `m10_sym_profile_interval`.
+- 2026-11-03 — **PR 6381 merged (per-face naming), dual concurrent, tally 0** (row `PR-6381.md`). R2's delta re-check found 0 non-coplanar holdings over 10,125 booleans (138 before the fix), with no body moved. The near-half exception went to BORDERS at P1. The per-face unit is closed.
+- 2026-11-03 — **Sitting handed back (`ready`). No P0 or P1 rows remain on REFS.** Landed this sitting:
+  - 6316/6409, state;
+  - 6317, the Python keyword row, moot since #5506;
+  - 6341, loft section ids;
+  - 6342, the interim union rule;
+  - 6344, the P0: a smooth edge is a silent no-op of the blend, and a knife edge is unbuilt;
+  - 6387, kernel `Holdings` and `overlap`;
+  - 6381, per-face naming, with a kernel `fate::cut` fix.
+
+  Ev ruled on 6342 (interim), 6344 (no-op, P0 walls, knife unbuilt) and 6381's text (per-face). Banded the holdings lane's two new rows: the in-band refusal order P2, the cone apex P3. The board's top for REFS is now P2. The unbanded legacy rows (indexed reads, slot forms, the viewer boolean tool, `SetExpression`) are untouched. Main reds seen and not ours: topo `boxes` inventory and `m10_sym_profile_interval` (several lanes), `seat7` `corner_table`. Process notes for the next orchestrator:
+  - a `refs/` branch prefix cannot be pushed (now `reads/`);
+  - keep a lane's worktree until its PR merges;
+  - cloud-session reviewers fit this container's disk better than local ones;
+  - `git log --all` shows analysis-branch subjects, so the negative refspec `^refs/heads/analysis/*` is set in this checkout.

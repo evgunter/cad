@@ -141,25 +141,19 @@ pub type MemberFace = (usize, FaceKey);
 /// harmless; it lists member faces a piece holds no area of, and grows
 /// along the fold. What a face holds is its [`Holdings`].
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct MemberLineage {
+pub(crate) struct MemberLineage {
     faces: BTreeMap<FaceKey, BTreeSet<MemberFace>>,
 }
 
 impl MemberLineage {
     /// The lineage of member `member`'s own body: each face its own.
-    pub fn of_member<T: Real>(member: usize, body: &Body<T>) -> Self {
+    pub(crate) fn of_member<T: Real>(member: usize, body: &Body<T>) -> Self {
         Self {
             faces: body
                 .faces()
                 .map(|(f, _)| (f, BTreeSet::from([(member, f)])))
                 .collect(),
         }
-    }
-
-    /// The member faces face `f` descends from; `None` for a face the
-    /// accumulation does not hold.
-    pub fn member_faces(&self, f: FaceKey) -> Option<&BTreeSet<MemberFace>> {
-        self.faces.get(&f)
     }
 
     /// The member faces `f` descends from.
@@ -187,7 +181,7 @@ impl MemberLineage {
     ///
     /// Where an operand-A face has no lineage here.
     #[track_caller]
-    pub fn operand_faces(
+    pub(crate) fn operand_faces(
         &self,
         member: usize,
         operand: Operand,
@@ -315,11 +309,6 @@ pub struct NaryStep<T: Real> {
     /// the judgements whose verdicts it stands for, in judgement order:
     /// by the row's place, ascending.
     pub restated: Vec<(usize, Vec<JudgedRow>)>,
-    /// The member faces each face of [`Self::body`] descends from: the
-    /// verdicts' router, read by the naming layer until it reads
-    /// [`Self::holdings`].
-    #[doc(hidden)]
-    pub lineage: MemberLineage,
     /// Per face of [`Self::body`], and per discard row of its naming,
     /// exactly the member faces whose area it holds, or why that could
     /// not be read (module docs).
@@ -712,7 +701,6 @@ fn run_members<T: Decide + Bounds + AtRestPolicy>(
             member,
             body,
             restated,
-            lineage: lineage.clone(),
             holdings: holdings.clone(),
         });
     }
@@ -812,6 +800,32 @@ fn lift<T: Decide>(
             face: *f,
             refusal: super::overlap::OverlapRefusal::Unread {
                 what: "a lost region of a face a sphere's re-chart turned",
+            },
+        },
+        HeldRefusal::NotUnder {
+            member_face: (1, f),
+        } => HeldRefusal::NotUnder {
+            member_face: (member, *f),
+        },
+        HeldRefusal::CarrierUnread {
+            member_face: (1, f),
+        } => HeldRefusal::CarrierUnread {
+            member_face: (member, *f),
+        },
+        HeldRefusal::NotUnder {
+            member_face: (_, f),
+        } => HeldRefusal::Accumulation {
+            face: *f,
+            refusal: super::overlap::OverlapRefusal::Unread {
+                what: "a row says the face holds an accumulation face lying elsewhere",
+            },
+        },
+        HeldRefusal::CarrierUnread {
+            member_face: (_, f),
+        } => HeldRefusal::Accumulation {
+            face: *f,
+            refusal: super::overlap::OverlapRefusal::Unread {
+                what: "an accumulation face a row says the face holds, on a carrier not read",
             },
         },
         HeldRefusal::Accumulation { .. } | HeldRefusal::UncutRemainder { .. } => r.clone(),

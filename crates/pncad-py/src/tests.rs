@@ -5112,6 +5112,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "emission",
             "entity_named",
             "escalated",
+            "holdings_unread",
             "joined_piece_off_root",
             "kind_mismatch",
             "member_edge_tied",
@@ -5124,7 +5125,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "unnamed",
             "unsettled_vertex",
             "unsupported_turned_cell",
-            "unsupported_unjudged_glue",
         ],
         delegates: &[
             "band_error_tag",
