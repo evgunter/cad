@@ -1770,6 +1770,7 @@ pub(crate) fn refuse_turned_cells<T: geom_core::Real>(
 }
 
 /// Names a boolean result (spec D2's boolean vocabulary; N2/N3).
+#[allow(clippy::too_many_arguments)] // the pair emitter's signature (`PairEmitter`)
 pub(crate) fn name_boolean<T: Decide>(
     node: RecipeNodeId,
     op: topo::BooleanOp,

@@ -342,4 +342,3 @@ fn a_subtracts_face_holds_the_tool_face_lying_over_it() {
         "held by one face, unqualified: {bottom}"
     );
 }
-
