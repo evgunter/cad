@@ -223,12 +223,24 @@ pub struct BlendRefusal {
     pub error: BlendError,
 }
 
-impl fmt::Display for BlendRefusal {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}: {}", self.verb, self.error)
+impl BlendRefusal {
+    fn write(
+        &self,
+        f: &mut fmt::Formatter<'_>,
+        at: Option<geom_brep::recourse::ReadAt>,
+    ) -> fmt::Result {
+        write!(
+            f,
+            "{}: {}",
+            self.verb,
+            geom_brep::recourse::read_at(&self.error, at)
+        )
     }
 }
 
+geom_brep::ended_by_write!(BlendRefusal);
+
+#[cfg(not(e1e_probe))]
 impl core::error::Error for BlendRefusal {}
 
 /// **The question a blend gate asks**, closed (D4 ¶1 (i)): one variant
