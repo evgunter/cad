@@ -20,12 +20,7 @@ use geom_core::{Band, Interval, Point3, Real, Vec3};
 fn a_phase_on_the_window_cut_records_no_escalation() {
     let band = Band::new(1e-9, 1e-8).unwrap();
     let z = Vec3::new(0.0, 0.0, 1.0);
-    let circle = Curve3::circle(
-        Point3::new(0.0, 0.0, 0.0),
-        z,
-        1.0,
-        Vec3::new(1.0, 0.0, 0.0),
-    );
+    let circle = Curve3::circle(Point3::new(0.0, 0.0, 0.0), z, 1.0, Vec3::new(1.0, 0.0, 0.0));
     let lift = |c: &Curve3<f64>| c.map_scalar(Interval::from_f64);
     let x = Interval::from_f64;
     for delta in [-5e-9, 5e-9] {
