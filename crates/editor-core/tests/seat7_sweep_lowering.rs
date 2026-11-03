@@ -508,14 +508,19 @@ fn both_sweeps_evaluate_in_one_document() {
 /// edge curve's `Debug` the digest feeds. With that `Debug` written in
 /// main's shape every row here reproduces main's tree at all three ε
 /// rows, so nothing else moved.
+/// RE-BLESSED when `geom::Frame` came to name its point `origin`
+/// (`Frame { origin, .. }` where it spelled `Frame { center, .. }`), which
+/// changes the edge curve's `Debug` the digest feeds. With that `Debug`
+/// written in main's shape every row here reproduces main's value at all
+/// three ε rows, so nothing else moved.
 #[test]
 fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [
         ("die", 0x29ab_9b8c_2c18_a18c),
         ("corner_table", 0x8078_f0ef_e3f1_1dd2),
-        ("cut_cylinder", 0x6102_93d4_6278_840a),
-        ("boss_union", 0xb2d0_2f71_80ea_a36b),
-        ("kitchen_sink", 0x510a_2f5d_167b_a85a),
+        ("cut_cylinder", 0x2e84_77bc_7b57_1d78),
+        ("boss_union", 0x6545_3fae_8b1d_55d3),
+        ("kitchen_sink", 0x9343_0074_7900_50e2),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in rows {
