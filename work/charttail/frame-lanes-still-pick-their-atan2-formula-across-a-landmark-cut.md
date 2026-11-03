@@ -49,3 +49,7 @@ Classified on Ev's ask, via the CLEAVE note on INTENT's log, against main `e92fb
 
 - Re-banded P3 → P1: four copies of the azimuth frame lane B1 retired in geom-brep: two implementations of one underlying logic, P1 by `work/README.md` Priority.
 - Moved to CHARTTAIL (`work/charttail/`) by `git mv`, id and body unchanged: which holds CHART's rows since CHART folded in today: chart readings and the region doors. CLEAVE measured 270.5 budget points against 30 and split on its priority seam (Ev, in chat, 2026-10-26).
+
+## The pose site is retired (ONECOPY, 2026-11-03)
+
+`onecopy/foot-and-angle` (ONECOPY row `interval-safe-point-angle-read-two-ways`) deleted `geom_brep::curve_pair::pose`'s `angle` and its callers (the two first-harmonic phases, the coplanar circles' `toward`, and `pose::window`'s foot seed) read `geom::Azimuth::of(y, x).principal(band)`: the cut moves from the landmark `−π/2` to the angle window's start, and the decision from `curve_pair_pose_branch` at the least band to `pcurve_chart_cut_side` at the pose's band. `pose.rs`'s `separation` (a reference-relative cousin, still on `curve_pair_pose_branch`), `split_conic_phase_frame`, `props_torus_lift_branch` and editor-core's `solve_atan2` are unchanged and remain this row's.
