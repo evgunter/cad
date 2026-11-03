@@ -4541,11 +4541,9 @@ mod ending_tests {
                 KERNEL_OR_FILE_DEFECT_ENDING,
             ),
             ("tube probe, refused", NOT_YET_ENDING, NOT_YET_ENDING),
-            (
-                "foot point",
-                KERNEL_LIMIT_RECOURSE,
-                KERNEL_OR_FILE_DEFECT_ENDING,
-            ),
+            // A foot that would not settle was never read: undecided, so
+            // never a miss and never a defect, at either reading.
+            ("foot point", NOT_YET_ENDING, NOT_YET_ENDING),
             (
                 "fit, short",
                 KERNEL_DEFECT_ENDING,

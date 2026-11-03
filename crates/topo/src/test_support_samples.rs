@@ -2490,7 +2490,7 @@ mod tests {
             }
             let at_rest = crate::ValidationError::EdgeCertification {
                 edge: crate::EdgeKey::default(),
-                error: nested.clone(),
+                error: *nested,
             }
             .render(Reading::AtRest);
             if !at_rest.ends_with(&ending(Reading::AtRest.into())) {
