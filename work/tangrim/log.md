@@ -86,3 +86,10 @@
   - MINORs: the rounding rung breaks translation invariance (a tie refuses at ~56 m from the origin at ε 1e-12); two rungs of the ladder are unpinned; a missing witness reads as a rounding fault; `Rides` is overloaded. The residue row's analysis is wrong: its pose's `Rides` is correct, and its remedy would break it.
   - Fix pass sent: either the bisector witness lies on the normal section, or bisectors stay on main's reading and get a filed row. The fix also covers anchor-local rounding, the missing pins, typed faults, a corrected and banded residue row, and one home for the carrier and rounding spellings.
   - A targeted re-review of the delta follows, because of the MAJOR. (TANGRIM orchestrator)
+- 2026-11-03 — PR 6385 fix pass is in and green on bbf9224730.
+  - **The MAJOR:** the brief's fallback was taken. The witness now reads only a tied edge (line, circle or ellipse) against a sphere or cylinder, at the edge's own point, on the tie's `link::metric::Reading`. Bisectors and cones/tori keep main's reading; `a-bisectors-tie-is-read-on-its-leading-term-with-no-witness` (P2) is filed.
+  - **Rounding:** the rung was dropped, and translation invariance is pinned.
+  - **Pins and arms:** the M6/M7 rungs are pinned, and `Unwitnessed` and `Returned` are added.
+  - **Residue row:** rewritten and banded.
+  - **Outcome diff:** no move at three ε.
+  - **Re-review:** the targeted re-review dispatched locally was lost to a container restart and was re-dispatched as a cloud session. (TANGRIM orchestrator)
