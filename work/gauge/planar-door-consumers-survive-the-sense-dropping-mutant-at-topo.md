@@ -56,3 +56,5 @@ the result. A point-in-solid query against a brick with one face so
 reversed is the likely row for both `solid_contain` sites and
 `reduce`'s `face_plane`; `star_face` and `planar_faces` need their
 callers traced first.
+
+**Re-cited (onedoor/carrier-and-window, 2026-11-03).** `reduce.rs`'s and `solid_contain.rs`'s `face_plane` are now one door, `crate::face_normal::face_plane`, which `reduce` reads through `reduce::plane_desc`: the two mutant sites above are one site. Whether that door gets a red row stays this row's question.

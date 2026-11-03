@@ -1811,9 +1811,7 @@ fn null_records_maintained(
     for (face, record) in before.null_faces() {
         let held = record.loops().iter().all(|&l| {
             after.get_loop(l).is_some_and(|data| data.face == face)
-                && after
-                    .get_face(face)
-                    .is_some_and(|data| data.outer == l || data.rings.contains(&l))
+                && after.get_face(face).is_some_and(|data| data.holds_loop(l))
         });
         match (held, after.null_face_pair(face)) {
             (true, Some(kept)) if kept == record => counts[0] += 1,
@@ -3760,7 +3758,7 @@ fn read_every_key(body: &Body<f64>, capture: &PanicCapture) -> Exposure {
         // it that does not resolve had to panic.
         judge_read(capture, &mut census, "face_azimuth_window_traces", || {
             use crate::chord_join::SplitJoinError;
-            match crate::chord_join::face_azimuth_window_traces(body, face, band) {
+            match crate::chart_window::face_azimuth_window_traces(body, face, band) {
                 Err(e @ SplitJoinError::Corrupt { .. }) => Err(e.to_string()),
                 answer => Ok(answer.is_ok()),
             }

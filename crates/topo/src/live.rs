@@ -56,17 +56,23 @@
 //! # Walks from a face
 //!
 //! A face's record links its surface and its loops, and the walks from
-//! it live here once: [`Body::face_surface_linked`] and
-//! [`Body::face_loops_linked`] from a record in hand,
-//! [`Body::face_boundary_linked`] and [`Body::proven_face_edges`] over
-//! its loops. A face key the kernel enumerated or read out of its own
-//! records is [`proven`] ([`Body::proven_face_surface`],
-//! [`Body::proven_face_edges`]); one a caller passed reads
-//! [`Body::face_surface`] and answers its miss as the caller's own.
+//! it live here once. The order of its loops, with each one's role, is
+//! the record's own ([`crate::entity::Face::loop_roles`],
+//! [`crate::entity::Face::loop_keys`]), read raw only by a walk that
+//! reports a miss itself. From a record in hand:
+//! [`Body::face_surface_linked`], [`Body::face_loops_linked`], and over
+//! its loops [`Body::face_boundary_by_loop`], [`Body::face_boundary_linked`]
+//! and [`Body::face_cycles_by_loop`], with [`Body::member_point`] for a
+//! member's point. A face key the kernel enumerated or read out of its
+//! own records is [`proven`] ([`Body::proven_face_surface`],
+//! [`Body::proven_face_boundary`], [`Body::proven_face_cycles`],
+//! [`Body::proven_face_half_edges`], [`Body::proven_face_edges`]); one a
+//! caller passed reads [`Body::face_surface`] or its record, and answers
+//! its miss as the caller's own.
 use crate::body::Body;
 use crate::entity::{
     Edge, EdgeKey, EntityId, Face, FaceKey, GeomRef, HalfEdge, HalfEdgeKey, Loop, LoopBoundary,
-    LoopKey, VertexKey,
+    LoopKey, LoopRole, VertexKey,
 };
 use crate::euler::{BadArgument, EulerOpError};
 use crate::geometry::PointKey;
@@ -110,7 +116,8 @@ pub(crate) const NAMES_ONLY_LIVE: &str = "every public door keeps the body tier-
 
 /// The premise a link that does not resolve breaks on a body
 /// mid-operation, where tier 1 is not yet asked: every link-miss panic,
-/// [`proven`]-miss panic and broken-walk panic ([`crate::body::Walk::closed`])
+/// [`proven`]-miss panic and broken-walk panic ([`crate::body::Walk::closed`],
+/// [`crate::body::Walk::closed_in`])
 /// names it beside the at-rest premise, and the reads that panic on a
 /// link mid-operation cite it rather than restate it. Every removal of
 /// a surface or a curve is orphan-only
@@ -353,8 +360,8 @@ fn claimed(he: HalfEdgeKey, ek: EdgeKey, data: &Edge) -> crate::entity::Claim {
 
 /// **An edge of a face's loops** ([`Body::proven_face_edges`]), as one of its
 /// half-edges walks it: the half-edge, the edge, its two ends in the
-/// half-edge's direction, and the face across it (the face itself across
-/// a seam inside it).
+/// half-edge's direction, the half-edge's mate, and the face across it
+/// (the face itself across a seam inside it).
 #[derive(Clone, Copy)]
 pub(crate) struct FaceEdge {
     // Read by the probes' frames, which orient the edge by it.
@@ -362,6 +369,7 @@ pub(crate) struct FaceEdge {
     pub(crate) half: HalfEdgeKey,
     pub(crate) edge: EdgeKey,
     pub(crate) ends: [VertexKey; 2],
+    pub(crate) mate: HalfEdgeKey,
     pub(crate) across: FaceKey,
 }
 
@@ -377,6 +385,30 @@ pub(crate) enum BoundaryMember<'a, T: Real> {
         ek: EdgeKey,
         edge: &'a Edge,
     },
+}
+
+impl<T: Real> BoundaryMember<'_, T> {
+    /// The member's half-edge; none for a lone vertex. **The one
+    /// disposition of a lone-vertex loop for a reader of half-edges**: it
+    /// holds no half-edge and no edge, so it bounds no area and has
+    /// nothing to walk, and every such reader (here and
+    /// [`Body::face_cycles_by_loop`], [`Body::proven_face_edges`])
+    /// inherits this skip rather than writing its own.
+    pub(crate) fn half_edge(&self) -> Option<HalfEdgeKey> {
+        let BoundaryMember::Edge { he, .. } = *self else {
+            return None;
+        };
+        Some(he)
+    }
+
+    /// The member's vertex: the lone vertex, or where the half-edge
+    /// starts.
+    pub(crate) fn vertex(&self) -> VertexKey {
+        match *self {
+            Self::Isolated { vertex, .. } => vertex,
+            Self::Edge { half, .. } => half.start,
+        }
+    }
 }
 
 impl<T: Real> Body<T> {
@@ -420,33 +452,119 @@ impl<T: Real> Body<T> {
         })
     }
 
-    /// `face`'s loops, each a link its record holds: the outer loop, then
-    /// its rings. The one order every walk of a face's boundary takes,
-    /// and the one spelling of the fields a miss names.
+    /// `face`'s loops, each a link its record holds, in
+    /// [`Face::loop_roles`]' order, each with its role: the outer loop,
+    /// then its rings. A miss names the role's field.
     pub(crate) fn face_loops_linked<'a>(
         &'a self,
         face: FaceKey,
         data: &'a Face,
-    ) -> impl Iterator<Item = (LoopKey, &'a Loop)> + 'a {
-        core::iter::once((data.outer, "outer"))
-            .chain(data.rings.iter().map(|&ring| (ring, "rings")))
-            .map(move |(lk, field)| {
-                let l = linked(&self.loops, lk, EntityId::Loop, EntityId::Face(face), field);
-                (lk, l)
-            })
+    ) -> impl Iterator<Item = (LoopKey, &'a Loop, LoopRole)> + 'a {
+        data.loop_roles().map(move |(role, lk)| {
+            let holder = EntityId::Face(face);
+            let l = linked(&self.loops, lk, EntityId::Loop, holder, role.field());
+            (lk, l, role)
+        })
     }
 
     /// `face`'s boundary, member by member, in [`Body::face_loops_linked`]'s
     /// order: each isolated-vertex loop's vertex and point, and each
     /// closed loop cycle member with its edge. Every hop is a link, and a
-    /// loop walk that does not close panics ([`crate::body::Walk::closed`]).
+    /// loop walk that does not close on the half-edges claiming the loop
+    /// panics ([`Body::loop_walk_of`], [`crate::body::Walk::closed_in`]).
     pub(crate) fn face_boundary_linked<'a>(
         &'a self,
         face: FaceKey,
         data: &'a Face,
     ) -> impl Iterator<Item = BoundaryMember<'a, T>> + 'a {
         self.face_boundary_by_loop(face, data)
-            .flat_map(|(_, members)| members)
+            .flat_map(|(_, members, _)| members)
+    }
+
+    /// [`Body::face_boundary_linked`] for a face key the kernel enumerated
+    /// or read out of its own records ([`proven`]).
+    ///
+    /// # Panics
+    ///
+    /// As [`Body::proven_face_edges`].
+    #[track_caller]
+    pub(crate) fn proven_face_boundary(
+        &self,
+        face: FaceKey,
+    ) -> impl Iterator<Item = BoundaryMember<'_, T>> + '_ {
+        self.face_boundary_linked(face, proven(&self.faces, face, EntityId::Face))
+    }
+
+    /// **Each loop of `face` with its cycle**, in
+    /// [`Body::face_loops_linked`]'s order: [`Body::face_boundary_by_loop`]'s
+    /// walk, read for its half-edges. A lone-vertex loop is yielded with an
+    /// empty cycle, [`BoundaryMember::half_edge`]'s disposition: it has
+    /// no half-edge to walk.
+    pub(crate) fn face_cycles_by_loop<'a>(
+        &'a self,
+        face: FaceKey,
+        data: &'a Face,
+    ) -> impl Iterator<Item = (LoopKey, Vec<HalfEdgeKey>)> + 'a {
+        self.face_boundary_by_loop(face, data)
+            .map(|(lk, members, _)| {
+                let cycle = members
+                    .iter()
+                    .filter_map(BoundaryMember::half_edge)
+                    .collect();
+                (lk, cycle)
+            })
+    }
+
+    /// The half-edges of `face`'s outer loop in cycle order; `None` for an
+    /// outer loop that is not a cycle. The loop is a link of the face, and
+    /// its walk closes (tier 1 at rest, [`OPERATORS_KEEP_LINKS`]
+    /// mid-operation): a miss panics, so every member is proven.
+    #[track_caller]
+    pub(crate) fn outer_cycle_linked(
+        &self,
+        face: FaceKey,
+        data: &Face,
+    ) -> Option<Vec<HalfEdgeKey>> {
+        let LoopBoundary::Cycle { first } = linked(
+            &self.loops,
+            data.outer,
+            EntityId::Loop,
+            EntityId::Face(face),
+            "outer",
+        )
+        .boundary
+        else {
+            return None;
+        };
+        Some(self.loop_walk(first).closed("loop", first))
+    }
+
+    /// [`Body::face_cycles_by_loop`] for a face key the kernel enumerated
+    /// or read out of its own records ([`proven`]).
+    ///
+    /// # Panics
+    ///
+    /// As [`Body::proven_face_edges`].
+    #[track_caller]
+    pub(crate) fn proven_face_cycles(&self, face: FaceKey) -> Vec<(LoopKey, Vec<HalfEdgeKey>)> {
+        self.face_cycles_by_loop(face, proven(&self.faces, face, EntityId::Face))
+            .collect()
+    }
+
+    /// [`Body::proven_face_cycles`]' half-edges in one list: the members
+    /// of every cycle bounding `face`, outer loop then rings, each in
+    /// `next` order. [`Body::face_cycles`] is this with the whole-loop
+    /// proof.
+    ///
+    /// # Panics
+    ///
+    /// As [`Body::proven_face_edges`].
+    #[track_caller]
+    pub(crate) fn proven_face_half_edges(&self, face: FaceKey) -> Vec<HalfEdgeKey> {
+        self.proven_face_cycles(face)
+            .into_iter()
+            .flat_map(|(_, cycle)| cycle)
+            .collect()
     }
 
     /// **The surface `face` is a region of**, for a face key the kernel
@@ -467,19 +585,33 @@ impl<T: Real> Body<T> {
     /// # Panics
     ///
     /// Where `face`, or a record on the walk from it, does not resolve, a
-    /// loop walk does not close, or an edge does not claim a half-edge
-    /// that names it (D2 row 4).
+    /// loop walk does not close on the half-edges that claim the loop, or
+    /// an edge does not claim a half-edge that names it (D2 row 4).
     pub(crate) fn proven_face_edges(&self, face: FaceKey) -> Vec<FaceEdge> {
-        let data = proven(&self.faces, face, EntityId::Face);
+        self.face_edges_linked(face, proven(&self.faces, face, EntityId::Face))
+    }
+
+    /// [`Body::proven_face_edges`] from a record in hand, `face`'s record
+    /// `data`: every hop past it is a link.
+    ///
+    /// # Panics
+    ///
+    /// As [`Body::proven_face_edges`], past the face.
+    #[track_caller]
+    pub(crate) fn face_edges_linked(&self, face: FaceKey, data: &Face) -> Vec<FaceEdge> {
         self.face_boundary_linked(face, data)
-            .filter_map(|member| match member {
-                BoundaryMember::Isolated { .. } => None,
-                BoundaryMember::Edge { he, half, ek, edge } => Some(FaceEdge {
+            .filter_map(|member| {
+                let BoundaryMember::Edge { he, half, ek, edge } = member else {
+                    return None;
+                };
+                let (mate, across) = self.face_across_linked(he, ek, edge);
+                Some(FaceEdge {
                     half: he,
                     edge: ek,
                     ends: [half.start, self.proven_half_edge_end(he)],
-                    across: self.face_across_linked(he, ek, edge),
-                }),
+                    mate,
+                    across,
+                })
             })
             .collect()
     }
@@ -496,10 +628,15 @@ impl<T: Real> Body<T> {
             .collect()
     }
 
-    /// The face across `he`, a half of edge `ek` (its record `data`):
-    /// the face of its mate's loop, every hop a link.
+    /// The mate of `he`, a half of edge `ek` (its record `data`), and the
+    /// face across it, the face of the mate's loop: every hop a link.
     #[track_caller]
-    fn face_across_linked(&self, he: HalfEdgeKey, ek: EdgeKey, data: &Edge) -> FaceKey {
+    fn face_across_linked(
+        &self,
+        he: HalfEdgeKey,
+        ek: EdgeKey,
+        data: &Edge,
+    ) -> (HalfEdgeKey, FaceKey) {
         let claim = claimed(he, ek, data);
         let mate = linked(
             &self.half_edges,
@@ -508,25 +645,27 @@ impl<T: Real> Body<T> {
             EntityId::Edge(ek),
             claim.mate_field(),
         );
-        linked(
+        let across = linked(
             &self.loops,
             mate.parent_loop,
             EntityId::Loop,
             EntityId::HalfEdge(claim.mate),
             "parent_loop",
         )
-        .face
+        .face;
+        (claim.mate, across)
     }
 
-    /// [`Body::face_boundary_linked`] a loop at a time: each loop's key
-    /// and its members, so a reader that needs a cycle whole has it.
+    /// [`Body::face_boundary_linked`] a loop at a time: each loop's key,
+    /// its members and its role, so a reader that needs a cycle whole has
+    /// it.
     pub(crate) fn face_boundary_by_loop<'a>(
         &'a self,
         face: FaceKey,
         data: &'a Face,
-    ) -> impl Iterator<Item = (LoopKey, Vec<BoundaryMember<'a, T>>)> + 'a {
+    ) -> impl Iterator<Item = (LoopKey, Vec<BoundaryMember<'a, T>>, LoopRole)> + 'a {
         self.face_loops_linked(face, data)
-            .map(move |(lk, l)| (lk, self.loop_members_linked(lk, l)))
+            .map(move |(lk, l, role)| (lk, self.loop_members_linked(lk, l), role))
     }
 
     /// Loop `lk`'s members (its record is `l`), as
@@ -538,8 +677,8 @@ impl<T: Real> Body<T> {
                 vec![BoundaryMember::Isolated { vertex, point }]
             }
             LoopBoundary::Cycle { first } => self
-                .loop_walk(first)
-                .closed("loop", first)
+                .loop_walk_of(first, lk)
+                .closed_in(lk, first)
                 .into_iter()
                 .map(|he| {
                     let half = proven(&self.half_edges, he, EntityId::HalfEdge);
@@ -554,6 +693,19 @@ impl<T: Real> Body<T> {
                     BoundaryMember::Edge { he, half, ek, edge }
                 })
                 .collect(),
+        }
+    }
+
+    /// The point of `member`'s vertex ([`BoundaryMember::vertex`]): the
+    /// lone vertex's, or the point of the vertex its half-edge starts at,
+    /// a link.
+    #[track_caller]
+    pub(crate) fn member_point(&self, member: &BoundaryMember<'_, T>) -> Point3<T> {
+        match *member {
+            BoundaryMember::Isolated { point, .. } => point,
+            BoundaryMember::Edge { he, half, .. } => {
+                self.linked_vertex_point(half.start, EntityId::HalfEdge(he), "start")
+            }
         }
     }
 
@@ -675,7 +827,8 @@ mod tests {
     use super::{Arg, BoundaryMember, Live};
     use crate::body::Body;
     use crate::entity::{
-        EdgeKey, EntityId, FaceKey, HalfEdge, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey,
+        EdgeKey, EntityId, FaceKey, HalfEdge, HalfEdgeKey, LoopBoundary, LoopKey, LoopRole,
+        VertexKey,
     };
     use crate::euler::{BadArgument, EulerOpError};
     use crate::fixtures::pillow;
@@ -1190,9 +1343,20 @@ fn wrong_key(&self, he: K, other: K, from: F) -> Result<Live, E> {
         let (body, face, order, tip) = three_ring_face();
         let data = body.get_face(face).unwrap();
         let by_loop: Vec<_> = body.face_boundary_by_loop(face, data).collect();
-        let keys: Vec<LoopKey> = by_loop.iter().map(|(lk, _)| *lk).collect();
+        let keys: Vec<LoopKey> = by_loop.iter().map(|(lk, ..)| *lk).collect();
         assert_eq!(keys, order, "outer, then the rings in `face.rings` order");
-        for (lk, members) in &by_loop {
+        let roles: Vec<LoopRole> = by_loop.iter().map(|&(.., role)| role).collect();
+        assert_eq!(
+            roles,
+            [
+                LoopRole::Outer,
+                LoopRole::Ring(0),
+                LoopRole::Ring(1),
+                LoopRole::Ring(2)
+            ],
+            "each loop's role is its place on the face"
+        );
+        for (lk, members, _) in &by_loop {
             match body.get_loop(*lk).unwrap().boundary {
                 LoopBoundary::Empty { vertex } => match members[..] {
                     [BoundaryMember::Isolated { vertex: v, point }] => {
@@ -1232,7 +1396,7 @@ fn wrong_key(&self, he: K, other: K, from: F) -> Result<Live, E> {
             .collect();
         let per_loop: Vec<Option<VertexKey>> = by_loop
             .iter()
-            .flat_map(|(_, ms)| ms.iter())
+            .flat_map(|(_, ms, _)| ms.iter())
             .map(|m| match m {
                 BoundaryMember::Isolated { vertex, .. } => Some(*vertex),
                 BoundaryMember::Edge { .. } => None,
@@ -1298,6 +1462,107 @@ fn wrong_key(&self, he: K, other: K, from: F) -> Result<Live, E> {
         );
     }
 
+    /// **A face's loops are spelled in one order, in one place**
+    /// ([`crate::entity::Face::loop_keys`]): no statement in this crate
+    /// chains a record's `outer` loop onto its `rings` but a type's own
+    /// method over its own fields (`self.outer`). That chain is the shape
+    /// every inline walk of a face's loops took; a walk of a body's face
+    /// reads [`Body::face_loops_linked`] or a walk over it, and a reader
+    /// that reports a miss itself reads `Face::loop_keys`.
+    ///
+    /// Blind to a walk that reads `outer` and `rings` in separate
+    /// statements, which no shape of text tells from a read of the outer
+    /// loop alone and then of the rings alone.
+    #[test]
+    fn a_faces_loops_are_walked_in_one_place() {
+        let mut copies = Vec::new();
+        for file in crate_sources() {
+            let code = CodeOnly::of(&std::fs::read_to_string(&file).expect("a readable source"));
+            for statement in code.as_str().split([';', '{', '}']) {
+                let flat: String = statement.split_whitespace().collect();
+                let holders = |field: &str| -> Vec<String> {
+                    flat.match_indices(field)
+                        .map(|(at, _)| at)
+                        .filter(|&at| {
+                            flat[at + field.len()..]
+                                .chars()
+                                .next()
+                                .is_none_or(|c| !(c.is_alphanumeric() || c == '_'))
+                        })
+                        .map(|at| {
+                            let head = &flat[..at];
+                            let start = head
+                                .rfind(|c: char| !(c.is_alphanumeric() || c == '_' || c == '.'))
+                                .map_or(0, |i| i + 1);
+                            head[start..].to_owned()
+                        })
+                        .collect()
+                };
+                let (outer, rings) = (holders(".outer"), holders(".rings"));
+                let chained = flat.contains("chain(")
+                    && outer.iter().any(|h| h != "self" && rings.contains(h));
+                if chained {
+                    copies.push(format!("{}: {}", file.display(), statement.trim()));
+                }
+            }
+        }
+        assert!(
+            copies.is_empty(),
+            "a face's loops walked beside `Face::loop_keys` / `Body::face_loops_linked`: \
+             {copies:#?}"
+        );
+    }
+
+    /// **A face's raw loop keys are read only where a miss is reported**:
+    /// [`crate::entity::Face::loop_keys`] and `loop_roles` hand back keys
+    /// unresolved, so a walk that resolves each one itself (`get_loop(lk)?`)
+    /// would answer a torn link however it pleased. Outside the home they
+    /// are read only by the files below, each of which reports or hands
+    /// on a miss itself.
+    #[test]
+    fn loop_keys_is_read_only_where_a_miss_is_reported() {
+        const READERS: &[(&str, &str)] = &[
+            ("entity.rs", "the order's home"),
+            ("live.rs", "the walks' home"),
+            ("validate.rs", "the validator reports every miss"),
+            ("coherence.rs", "the chart coherence check reports a miss"),
+            (
+                "census.rs",
+                "the tier-3 census hands an unwalkable loop back",
+            ),
+            (
+                "props.rs",
+                "each loop goes to a loop door that refuses Corrupt",
+            ),
+            (
+                "euler.rs",
+                "find_half_edge is total by its contract; site_face reads keys only",
+            ),
+            ("fixtures.rs", "the torn-body fixtures report a dead loop"),
+            (
+                "review_m0_pr7.rs",
+                "a census of a body the validator has not certified",
+            ),
+        ];
+        let strays: Vec<_> = crate_sources()
+            .into_iter()
+            .filter(|f| {
+                let p = f.to_string_lossy().replace('\\', "/");
+                let p = p.rsplit("/src/").next().unwrap_or(&p).to_owned();
+                !READERS.iter().any(|(r, _)| p == *r)
+                    && ["loop_keys()", "loop_roles()"].iter().any(|read| {
+                        CodeOnly::of(&std::fs::read_to_string(f).expect("a readable source"))
+                            .as_str()
+                            .contains(&format!(".{read}"))
+                    })
+            })
+            .collect();
+        assert!(
+            strays.is_empty(),
+            "a face's loops resolved outside the home: {strays:#?}"
+        );
+    }
+
     /// A declined cube and its first face, to tear.
     fn torn_cube() -> (Body<f64>, FaceKey) {
         let body = crate::test_support_fixtures::declined_cube::<f64>(Tol::witness()).body;
@@ -1337,12 +1602,64 @@ fn wrong_key(&self, he: K, other: K, from: F) -> Result<Live, E> {
     }
 
     #[test]
-    #[should_panic(expected = "which does not resolve")]
     fn proven_face_edges_panics_on_a_torn_mate() {
         let (mut body, face) = torn_cube();
         let edge = body.proven_face_edges(face)[0];
-        let mate = body.mate(edge.half).unwrap();
-        body.half_edges.remove(mate);
-        let _ = body.proven_face_edges(face);
+        let claim = body.get_edge(edge.edge).unwrap().claim(edge.half).unwrap();
+        assert_eq!(
+            claim.mate, edge.mate,
+            "fixture: the walk's mate is the edge's"
+        );
+        body.half_edges.remove(edge.mate);
+        let named = format!(
+            "{}'s {} names {}, which does not resolve",
+            EntityId::Edge(edge.edge),
+            claim.mate_field(),
+            EntityId::HalfEdge(edge.mate)
+        );
+        crate::review_d18::assert_torn_op_panics(
+            "proven_face_edges, a dead mate",
+            &mut body,
+            &[&named, super::NAMES_ONLY_LIVE, super::OPERATORS_KEEP_LINKS],
+            |b| b.proven_face_edges(face).len(),
+        );
+    }
+
+    /// **A stale face key reaching [`super::proven`] panics naming the
+    /// key and the premise it breaks**, through each face door that
+    /// proves its key: the conversion behind every enumerated face key.
+    #[test]
+    fn a_stale_face_key_panics_through_each_proven_face_door() {
+        let (body, face) = torn_cube();
+        let named = format!(
+            "{}, which this call minted and kept, resolved, or read out of a record, does not \
+             resolve",
+            EntityId::Face(face)
+        );
+        type Read = fn(&Body<f64>, FaceKey);
+        let doors: [(&str, Read); 4] = [
+            ("proven_face_surface", |b, f| {
+                let _ = b.proven_face_surface(f);
+            }),
+            ("proven_face_edges", |b, f| {
+                let _ = b.proven_face_edges(f);
+            }),
+            ("proven_face_boundary", |b, f| {
+                let _ = b.proven_face_boundary(f).count();
+            }),
+            ("proven_face_cycles", |b, f| {
+                let _ = b.proven_face_cycles(f);
+            }),
+        ];
+        for (door, read) in doors {
+            let mut torn = body.clone();
+            torn.faces.remove(face);
+            crate::review_d18::assert_torn_op_panics(
+                door,
+                &mut torn,
+                &[&named, super::NAMES_ONLY_LIVE, super::OPERATORS_KEEP_LINKS],
+                |b| read(b, face),
+            );
+        }
     }
 }

@@ -61,10 +61,12 @@ use slotmap::SecondaryMap;
 use crate::body::Body;
 use crate::boolean::PointInSolidError;
 use crate::boolean::SolidContainment;
-use crate::boolean::solid_contain::{SolidFaces, face_plane, point_in_face, point_in_solid_faces};
-use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, ShellKey, VertexKey};
+use crate::boolean::solid_contain::{SolidFaces, point_in_face, point_in_solid_faces};
+use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, ShellKey, VertexKey};
+use crate::face_normal::face_plane;
+use crate::live::{Proven, proven};
 use crate::props::{QuadLane, ShellRole};
-use geom_brep::ladder::Ranked;
+use geom_brep::ladder::{Answering, Ranked, Rung, climb_evidence};
 
 /// What one witness read against the probed surfaces.
 #[derive(Debug)]
@@ -155,7 +157,14 @@ impl From<LadderRefusal> for PointInSolidError {
 
 /// **The witness ladder** over the cell complex `faces` of `body`
 /// (module docs): each witness is handed to `probe`, and the first
-/// decisive one is the reading.
+/// decisive one is the reading. It is the ladder
+/// ([`climb_evidence`]) whose answer is a side, and which a refusal that
+/// propagates aborts ([`Rung::Aborts`]). One decisive witness names
+/// every side (module docs), so a witness set aside ahead of it is
+/// superseded in the record ([`Answering::Any`]); ahead of an abort it
+/// stays live. A witness is found
+/// inside its rung, so the readings that find it (a face's interior
+/// point) are recorded in rung order with the probe's.
 ///
 /// # Errors
 ///
@@ -168,82 +177,77 @@ pub(crate) fn ladder<T: Decide, S, E: From<LadderRefusal>>(
     band: Band,
     mut probe: impl FnMut(Point3<T>) -> Result<Witness<S>, E>,
 ) -> Result<Reading<S>, E> {
-    let mut tally = Tally::default();
-    let mut side = |q: Point3<T>| -> Result<Option<S>, E> {
-        Ok(match probe(q)? {
-            Witness::Side(s) => Some(s),
-            Witness::On => {
-                tally.on_boundary += 1;
-                None
-            }
-            Witness::Blocked(e) => {
-                tally.kept.blocked(e);
-                None
-            }
-            Witness::InBand(e) => {
-                tally.in_band += 1;
-                tally.kept.in_band(e);
-                None
-            }
-        })
-    };
-    let mut halves: Vec<(FaceKey, HalfEdgeKey)> = Vec::new();
-    for &face in faces {
-        halves.extend(
-            face_loops(body, face)?
-                .into_iter()
-                .flatten()
-                .map(|he| (face, he)),
-        );
+    /// One rung: a cell whose witness is read.
+    enum Cell {
+        Vertex(HalfEdgeKey),
+        Edge(HalfEdgeKey),
+        Face(FaceKey),
     }
-    let half = |(face, he): (FaceKey, HalfEdgeKey)| {
-        body.get_half_edge(he).ok_or(LadderRefusal::Desync {
-            face,
-            what: "witnessed half-edge no longer resolves",
-        })
-    };
-
+    let mut halves: Vec<HalfEdgeKey> = Vec::new();
+    for &face in faces {
+        halves.extend(face_loops(body, face)?.into_iter().flatten());
+    }
+    // Every half-edge is one the face walk read, so each hop from it is
+    // a link.
+    let half = |he: HalfEdgeKey| proven(&body.half_edges, he, EntityId::HalfEdge);
     let mut seen_vertex: SecondaryMap<VertexKey, ()> = SecondaryMap::new();
-    for &fh in &halves {
-        let v = half(fh)?.start;
-        if seen_vertex.insert(v, ()).is_some() {
-            continue;
-        }
-        let p = body
-            .get_vertex(v)
-            .and_then(|vd| body.get_point(vd.point).copied())
-            .ok_or(LadderRefusal::Desync {
-                face: fh.0,
-                what: "witnessed vertex has no point",
-            })?;
-        if let Some(s) = side(p)? {
-            return Ok(Reading::Side(s));
-        }
-    }
-
     let mut seen_edge: SecondaryMap<EdgeKey, ()> = SecondaryMap::new();
-    for &fh in &halves {
-        let e = half(fh)?.edge;
-        if seen_edge.insert(e, ()).is_some() {
-            continue;
-        }
-        let Some(curve) = witnessed_curve(body, fh.0, e)? else {
-            continue;
+    // The witness a cell offers: `None` for one already read, or one
+    // that offers none.
+    let mut witness = |cell: Cell| -> Result<Option<Point3<T>>, LadderRefusal> {
+        Ok(match cell {
+            Cell::Vertex(he) => {
+                let v = half(he).start;
+                if seen_vertex.insert(v, ()).is_some() {
+                    return Ok(None);
+                }
+                Some(body.resolve_vertex_point(v, Proven))
+            }
+            Cell::Edge(he) => {
+                let e = half(he).edge;
+                if seen_edge.insert(e, ()).is_some() {
+                    return Ok(None);
+                }
+                witnessed_curve(body, e).map(|curve| curve.mid_point())
+            }
+            Cell::Face(face) => planar_interior_point(body, face, band)?,
+        })
+    };
+    let cells = (halves.iter().map(|&he| Cell::Vertex(he)))
+        .chain(halves.iter().map(|&he| Cell::Edge(he)))
+        .chain(faces.iter().map(|&f| Cell::Face(f)));
+    // A refusal about the complex (it does not walk) or the probed
+    // surface aborts: it rests on every witness set aside ahead of it,
+    // which a tighter tolerance might have decided first.
+    let (mut on_boundary, mut in_band) = (0, 0);
+    let climbed = climb_evidence(Answering::Any, cells, |cell| {
+        let q = match witness(cell) {
+            Ok(Some(q)) => q,
+            Ok(None) => return Rung::Passes,
+            Err(refusal) => return Rung::Aborts(Err(E::from(refusal))),
         };
-        if let Some(s) = side(curve.mid_point())? {
-            return Ok(Reading::Side(s));
+        match probe(q) {
+            Ok(Witness::Side(s)) => Rung::Answers(Ok(s)),
+            Ok(Witness::On) => {
+                on_boundary += 1;
+                Rung::Passes
+            }
+            Ok(Witness::Blocked(e)) => Rung::Blocked(e),
+            Ok(Witness::InBand(e)) => {
+                in_band += 1;
+                Rung::InBand(e)
+            }
+            Err(e) => Rung::Aborts(Err(e)),
         }
+    });
+    match climbed {
+        Ok((_, answer)) => answer.map(Reading::Side),
+        Err(kept) => Ok(Reading::Undecided(Tally {
+            on_boundary,
+            in_band,
+            kept,
+        })),
     }
-
-    for &face in faces {
-        if let Some(q) = planar_interior_point(body, face, band)?
-            && let Some(s) = side(q)?
-        {
-            return Ok(Reading::Side(s));
-        }
-    }
-
-    Ok(Reading::Undecided(tally))
 }
 
 /// **A point certified strictly inside `face`, where `face` is planar**
@@ -253,17 +257,15 @@ pub(crate) fn ladder<T: Decide, S, E: From<LadderRefusal>>(
 ///
 /// # Errors
 ///
-/// [`LadderRefusal`] where the face does not walk or its plane or
-/// in-face walk refuses other than in band.
+/// [`LadderRefusal`] where the face does not walk or its in-face walk
+/// refuses other than in band.
 pub(crate) fn planar_interior_point<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     band: Band,
 ) -> Result<Option<Point3<T>>, LadderRefusal> {
-    let normal = match face_plane(body, face) {
-        Ok((_, normal)) => normal,
-        Err(PointInSolidError::KindUnsupported { .. }) => return Ok(None),
-        Err(e) => return Err(LadderRefusal::Containment(e)),
+    let Some((_, normal)) = face_plane(body, face) else {
+        return Ok(None);
     };
     face_interior_point(body, face, normal, band)
 }
@@ -304,19 +306,10 @@ fn face_interior_point<T: Decide>(
 
 /// The certified curve of edge `e`, met on `face`'s walk; `None` for
 /// null scaffolding, which has no carrier to read.
-fn witnessed_curve<T: Decide>(
-    body: &Body<T>,
-    face: FaceKey,
-    e: EdgeKey,
-) -> Result<Option<&geom_brep::EdgeCurve<T>>, LadderRefusal> {
-    Ok(body
-        .get_edge(e)
-        .and_then(|ed| body.get_curve_geom(ed.curve))
-        .ok_or(LadderRefusal::Desync {
-            face,
-            what: "witnessed edge has no curve",
-        })?
-        .certified())
+#[track_caller]
+fn witnessed_curve<T: Decide>(body: &Body<T>, e: EdgeKey) -> Option<&geom_brep::EdgeCurve<T>> {
+    body.edge_curve_linked(e, proven(&body.edges, e, EntityId::Edge))
+        .certified()
 }
 
 /// The direction into a face from a half-edge of it running along `t`,
@@ -347,22 +340,14 @@ fn across_edges<T: Decide>(
     normal: Vec3<T>,
     band: Band,
 ) -> Result<Vec<Point3<T>>, LadderRefusal> {
-    let desync = |what| LadderRefusal::Desync { face, what };
     let mut carriers: Vec<&geom::Curve3<T>> = Vec::new();
     let mut feet: Vec<(Point3<T>, Vec3<T>)> = Vec::new();
     for he in face_loops(body, face)?.into_iter().flatten() {
-        let e = body
-            .get_half_edge(he)
-            .ok_or(desync("witnessed half-edge no longer resolves"))?
-            .edge;
-        let Some(curve) = witnessed_curve(body, face, e)? else {
+        let e = proven(&body.half_edges, he, EntityId::HalfEdge).edge;
+        let Some(curve) = witnessed_curve(body, e) else {
             continue;
         };
-        let plus = body
-            .get_edge(e)
-            .ok_or(desync("witnessed edge no longer resolves"))?
-            .he_plus
-            == he;
+        let plus = proven(&body.edges, e, EntityId::Edge).he_plus == he;
         carriers.push(curve.carrier());
         let (t0, t1) = curve.params();
         let t = curve.carrier().deriv(geom::mid_param(t0, t1));
@@ -441,31 +426,22 @@ fn line_meetings<T: Decide>(
 }
 
 /// Each walkable loop of `face` — its outer loop, then every ring — as
-/// its half-edge cycle. A loop with no cycle (a lone vertex) has no
-/// edge and bounds no area, so it is left out.
+/// its half-edge cycle ([`Body::face_cycles_by_loop`], every hop past
+/// the face a link). A loop with no cycle (a lone vertex) has no edge
+/// and bounds no area, so it is left out.
 fn face_loops<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
 ) -> Result<Vec<Vec<HalfEdgeKey>>, LadderRefusal> {
-    let desync = |what| LadderRefusal::Desync { face, what };
-    let f = body
-        .get_face(face)
-        .ok_or(desync("face no longer resolves"))?;
-    let mut out = Vec::new();
-    for l in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
-        let LoopBoundary::Cycle { first } = body
-            .get_loop(l)
-            .ok_or(desync("face loop no longer resolves"))?
-            .boundary
-        else {
-            continue;
-        };
-        out.push(
-            body.loop_cycle(first)
-                .ok_or(desync("face loop not walkable"))?,
-        );
-    }
-    Ok(out)
+    let f = body.get_face(face).ok_or(LadderRefusal::Desync {
+        face,
+        what: "face no longer resolves",
+    })?;
+    Ok(body
+        .face_cycles_by_loop(face, f)
+        .map(|(_, cycle)| cycle)
+        .filter(|cycle| !cycle.is_empty())
+        .collect())
 }
 
 /// [`face_loops`] as each half-edge's start point.
@@ -473,20 +449,18 @@ fn face_loop_points<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
 ) -> Result<Vec<Vec<Point3<T>>>, LadderRefusal> {
-    face_loops(body, face)?
+    Ok(face_loops(body, face)?
         .into_iter()
         .map(|cycle| {
             cycle
                 .into_iter()
                 .map(|he| {
-                    body.half_edge_start_point(he).ok_or(LadderRefusal::Desync {
-                        face,
-                        what: "face vertex has no point",
-                    })
+                    let start = proven(&body.half_edges, he, EntityId::HalfEdge).start;
+                    body.resolve_vertex_point(start, Proven)
                 })
                 .collect()
         })
-        .collect()
+        .collect())
 }
 
 /// The centroid of three consecutive loop vertices: a face-interior
@@ -630,7 +604,8 @@ mod rung_three_rows {
         let prism = prism_z::<f64>(&square, 0.0, 1.0, tol);
         let mut body = prism.body;
         let outer = body.get_face(prism.top_face).unwrap().outer;
-        let LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary else {
+        let crate::entity::LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary
+        else {
             panic!("the top face's outer loop is a cycle");
         };
         let center = Point3::new(1.0, 1.0, 1.0);

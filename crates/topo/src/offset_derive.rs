@@ -764,6 +764,11 @@ pub(crate) fn section_closed<T: Decide>(
                 what: "a spline wall's section is the spline lane's, not a closed form",
             }));
         }
+        Surface::Spindle { .. } => {
+            return Ok(Err(SectionVerdict::Unsupported {
+                what: "a spindle sheet wall's section has no lane yet",
+            }));
+        }
     };
     let chosen = match nearest(candidates, old, span, band)? {
         Ok(c) => c,

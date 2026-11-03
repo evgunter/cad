@@ -3949,6 +3949,8 @@ MEMBERS_BOUND_AS = {
     "ValidationError::ApproxLaneUnsupported": "ValidationFinding.variant",
     "ValidationError::DegenerateTorus": "ValidationFinding.variant",
     "ValidationError::DegenerateTorusEscalated": "ValidationFinding.variant",
+    "ValidationError::DegenerateSpindle": "ValidationFinding.variant",
+    "ValidationError::SheetApexReached": "ValidationFinding.variant",
     "ValidationError::PoisonedSurfaceDatum": "ValidationFinding.variant",
     "ValidationError::UnrepresentableSurfaceDatum": "ValidationFinding.variant",
     "ValidationError::PoisonedCurveDatum": "ValidationFinding.variant",

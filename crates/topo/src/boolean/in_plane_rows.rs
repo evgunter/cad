@@ -34,7 +34,7 @@ fn face_along(body: &Body<f64>, n: [f64; 3]) -> FaceKey {
         .faces()
         .map(|(k, _)| k)
         .filter(|&f| {
-            super::face_plane(body, f)
+            super::plane_desc(body, f)
                 .is_some_and(|p| p.normal.x * n[0] + p.normal.y * n[1] + p.normal.z * n[2] > 0.99)
         })
         .collect();
@@ -192,7 +192,7 @@ fn each_edge_face_record_cites_its_own_pieces_ends() {
                 "{what}: the piece runs {ends:?}: {pu:?} {pv:?}"
             );
             let piece_end = |cell| cell == Cell::Vertex(u) || cell == Cell::Vertex(v);
-            let bounding = super::face_vertices(y, face).unwrap();
+            let bounding = super::face_vertices(y, face);
             let on_face = |cell| match cell {
                 Cell::Face(f) => f == face,
                 Cell::Vertex(w) => bounding.contains(&w),

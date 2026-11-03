@@ -136,7 +136,10 @@ impl ImplicitForm {
             Surface::Cylinder { .. } | Surface::Sphere { .. } | Surface::Torus { .. } => {
                 return Err("the partner's radius is not certified positive and finite");
             }
-            Surface::Cone { .. } | Surface::Nurbs(_) | Surface::Approx(_) => {
+            Surface::Cone { .. }
+            | Surface::Spindle { .. }
+            | Surface::Nurbs(_)
+            | Surface::Approx(_) => {
                 return Err(
                     "only a plane, a cylinder, a sphere or a torus is an implicit partner here",
                 );
