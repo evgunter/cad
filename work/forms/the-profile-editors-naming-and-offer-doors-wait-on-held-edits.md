@@ -4,6 +4,8 @@ kind: issue
 title: The profile editor's naming and offer doors are withheld while the draft holds edits
 status: open
 opened: 2026-11-02
+priority: P3
+cost: E
 ---
 
 
