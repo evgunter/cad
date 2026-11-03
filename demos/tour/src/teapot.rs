@@ -159,7 +159,7 @@
 //!    the pierce point of the belly's sphere, and a spline wall cannot
 //!    yet say: `HeldPierceUnbuilt { operand: B, kind: Nurbs,
 //!    pierced_kind: Sphere, placed: false }` (at ε = 1e-6 the meridian's
-//!    interior walk against the neighbouring spout wall floors first:
+//!    interior walk against one of the spout's bore walls floors first:
 //!    `SplineCrossingUnsettled { why: Floor }`). That is the pierce the join
 //!    actually needs, the spout's walls entering the belly, and it is the
 //!    NURBS face against a curved face that the section object's rung 3
@@ -1598,7 +1598,7 @@ pub fn wall_probes(ev: &Evaluation<f64>, r: &Recipe) {
     // spline wall's trim cannot say
     // (`work/splice/a-spline-wall-cannot-say-whether-it-holds-a-pierce-point`).
     // At ε = 1e-6 the meridian stops one wall earlier, where its interior
-    // walk against the neighbouring spout wall floors.
+    // walk against one of the spout's bore walls floors.
     //
     // The predicate resolves the two faces the refusal names and pins
     // them by geometry ([`wall3_pinned`]), not by the keys' values: an
@@ -1619,18 +1619,33 @@ pub fn wall_probes(ev: &Evaluation<f64>, r: &Recipe) {
     );
 }
 
+/// The far corner of the spout's outer wall that wall 3 asks about, at
+/// its chart's `(1, 1)`, on the symmetry plane `z = 0`: measured off the
+/// loft, which interpolates its stations.
+const SPOUT_OUTER_TIP: [f64; 3] = [-0.081_711_418_8, 0.153_348_328_1, 0.0];
+/// The far corner of the bore wall beside it, measured the same way.
+const SPOUT_BORE_TIP: [f64; 3] = [-0.084_611_661_5, 0.152_934_007_7, 0.0];
+
 /// **Wall 3's pinned refusal.** At ε = 1e-6 the belly's quarter
-/// meridian from `(−3/64, 1/8, 0)` to `(−1/16, 1/64, 0)` is read against
-/// the spout's NURBS wall whose chart runs from `(−1/32, 3/64, −9/512)`
-/// to the symmetry plane `z = 0`, and the interior walk floors there
+/// meridian, from the mouth's junction `(−R_NECK, Y_MOUTH)` to the
+/// foot's `(−R_FOOT, Y_FOOT)`, is read against the spout's bore wall
+/// whose chart runs from the root section, `SPOUT_BORE · SPOUT_R0` below
+/// [`SPOUT_ROOT`], to [`SPOUT_BORE_TIP`], and the interior walk floors
+/// there
 /// (`work/splice/teapot-wall-3-at-1e-6-floors-the-meridian-against-a-spout-wall`).
-/// At the other rows the join asks the neighbouring wall, whose chart
-/// runs from `(−1/32, 3/64, 3/128)` to `z = 0`, whether it holds a pierce
-/// point of the belly's sphere (centre `(0, 1/16, 0)`, radius `5/64`),
+/// At the other rows the join asks the outer wall, from `SPOUT_R0` above
+/// the root to [`SPOUT_OUTER_TIP`], whether it holds a pierce point of
+/// the belly's sphere (centre `Y_BELLY_C` on the axis, radius `R_BELLY`),
 /// unplaced. Every face and edge is resolved in the operand's own body
 /// and matched by its geometry.
+///
+/// The match is absolute, at a nanometre: the corners are the authored
+/// stations and the loft's own evaluation of them, not readings of the
+/// run's band, so they do not move with ε, and the faces they tell
+/// apart stand millimetres apart.
 pub fn wall3_pinned(e: &BooleanError, spout: &Body<f64>, pot: &Body<f64>, tol: Tol) -> bool {
-    let near = |p: Point3<f64>, q: [f64; 3]| (p - Point3::new(q[0], q[1], q[2])).norm() < 1e-6;
+    let near = |p: Point3<f64>, q: [f64; 3]| (p - Point3::new(q[0], q[1], q[2])).norm() < 1e-9;
+    let root = |dz: f64| [SPOUT_ROOT.x, SPOUT_ROOT.y, dz];
     let wall = |face: FaceKey, root: [f64; 3], far: [f64; 3]| {
         spout
             .get_face(face)
@@ -1664,14 +1679,9 @@ pub fn wall3_pinned(e: &BooleanError, spout: &Body<f64>, pot: &Body<f64>, tol: T
             );
             circle
                 && matches!(ends, [Some(p), Some(q)]
-                    if near(p, [-0.046875, 0.125, 0.0]) && near(q, [-0.0625, 0.015625, 0.0]))
+                    if near(p, [-R_NECK, Y_MOUTH, 0.0]) && near(q, [-R_FOOT, Y_FOOT, 0.0]))
         });
-        return the_meridian
-            && wall(
-                *face,
-                [-0.03125, 0.046875, -0.017578125],
-                [-0.084_611_661_5, 0.152_934_007_7, 0.0],
-            );
+        return the_meridian && wall(*face, root(-SPOUT_BORE * SPOUT_R0), SPOUT_BORE_TIP);
     }
     let BooleanError::HeldPierceUnbuilt {
         operand: Operand::B,
@@ -1689,14 +1699,9 @@ pub fn wall3_pinned(e: &BooleanError, spout: &Body<f64>, pot: &Body<f64>, tol: T
         .and_then(|f| pot.get_surface(f.surface))
         .is_some_and(|s| {
             matches!(s, Surface::Sphere { center, radius, .. }
-                if near(*center, [0.0, 0.0625, 0.0]) && (radius - 0.078125).abs() < 1e-12)
+                if near(*center, [0.0, Y_BELLY_C, 0.0]) && (radius - R_BELLY).abs() < 1e-12)
         });
-    the_belly
-        && wall(
-            *face,
-            [-0.03125, 0.046875, 0.0234375],
-            [-0.081_711_418_8, 0.153_348_328_1, 0.0],
-        )
+    the_belly && wall(*face, root(SPOUT_R0), SPOUT_OUTER_TIP)
 }
 
 /// The scene's recipe, built and evaluated. Both the render walk and

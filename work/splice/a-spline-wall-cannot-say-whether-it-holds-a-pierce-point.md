@@ -121,10 +121,9 @@ Moved from SPLICEFACE to SPLICE on 2026-11-02, by `git mv`, when SPLICEFACE merg
 Measured by the split-parameter lane (`splice/split-parameter`). With
 a boundary meeting's parameter carried to the seam split
 (`a-meeting-on-a-spline-boundary-edge-has-no-split-parameter`), teapot
-wall 3 (`demos/tour/src/teapot.rs`, `wall_probes`) stops here at all
-three ε rows: `HeldPierceUnbuilt { operand: B, kind: Nurbs,
-pierced_kind: Sphere, placed: false }`. The face is the spout's NURBS
-wall whose chart runs from `(−1/32, 3/64, 3/128)` to the symmetry plane
-`z = 0`, and the pierced face is the belly's sphere (centre
-`(0, 1/16, 0)`, radius `5/64`). `teapot::wall3_pinned` pins both by
-geometry.
+wall 3 (`demos/tour/src/teapot.rs`, `wall_probes`) stops here at the
+default and 1e-12 rows: `HeldPierceUnbuilt { operand: B, kind: Nurbs,
+pierced_kind: Sphere, placed: false }`. The face is the spout's outer
+wall and the pierced face the belly's sphere, both pinned by geometry in
+`teapot::wall3_pinned`. At 1e-6 the join stops one wall earlier
+(`teapot-wall-3-at-1e-6-floors-the-meridian-against-a-spout-wall`).

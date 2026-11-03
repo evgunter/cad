@@ -301,7 +301,7 @@ pub fn boundary<T: Decide>(
                 point: m.point,
                 edge,
                 on_edge: match on_edge {
-                    Hit::On { t, .. } => Some(t),
+                    Hit::On { t: s, .. } => Some(s),
                     Hit::End(_) => None,
                 },
             }),
