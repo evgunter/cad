@@ -231,7 +231,7 @@ pub(crate) const ADMISSIONS: &[Admission<'static>] = &[
 /// through", and none of the shared unlabelled repairs — by exact row
 /// id, grouped under the row that files them with their owner.
 pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
-    // work/wire/wire-refusals-short-of-the-shape-guard.md
+    // wire-refusals-short-of-the-shape-guard (closed with WIRE: docs/doc-ledger/wire-leaves-the-tracker.md)
     "AssertionDimension",
     "CurvedSolidFrontier",
     "DegenerateDirection",
@@ -248,7 +248,7 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "MissingInput",
     "ParamBox/AxisUnrepresentable",
     "ParamBox/UnknownParam",
-    // work/wire/wire-refusals-short-of-the-shape-guard.md
+    // wire-refusals-short-of-the-shape-guard (closed with WIRE: docs/doc-ledger/wire-leaves-the-tracker.md)
     "ShellLaneUnsupported",
     "ToleranceConflict",
     "UnschedulableCycle",

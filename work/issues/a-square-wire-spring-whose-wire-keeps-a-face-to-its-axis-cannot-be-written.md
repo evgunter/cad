@@ -7,7 +7,6 @@ opened: 2026-11-03
 priority: P2
 cost: M
 design: true
-refs: [sweep-frame-is-a-minimal-rotation-from-the-start-tangent]
 ---
 
 ## Finding
