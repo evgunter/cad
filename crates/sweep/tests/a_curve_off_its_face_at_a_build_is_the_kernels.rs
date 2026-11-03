@@ -60,7 +60,10 @@ fn seam<T: Decide + Bounds>(body: &Body<T>) -> EdgeKey {
             body.get_curve_geom(e.curve)
                 .and_then(CurveGeom::certified)
                 .is_some_and(|c| match c.carrier() {
-                    Curve3::Circle { axis, .. } => axis.y.hi().abs() < 0.5,
+                    Curve3::Circle(geom::Circle {
+                        frame: geom::Frame { axis, .. },
+                        ..
+                    }) => axis.y.hi().abs() < 0.5,
                     _ => false,
                 })
         })
@@ -106,10 +109,7 @@ fn refused<T: Decide + AtRestPolicy + Bounds>(declared: bool) -> CertifyError {
         } else {
             description
         },
-        carrier: Curve3::Line {
-            origin: start,
-            dir: (end - start) / len,
-        },
+        carrier: Curve3::line(start, (end - start) / len),
         param_start: T::zero(),
         param_end: len,
     };

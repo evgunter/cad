@@ -3,7 +3,7 @@
 //! `work/sym/coefficient-ring-width-is-not-monotone-in-reach`'s unit,
 //! taken at the nominal on five of the six measured documents (R2's
 //! rounded pad does not return a nominal replay on a four-core box:
-//! `work/rules/the-pads-nominal-replay-is-not-takeable-on-a-four-core-box`;
+//! `work/sym/the-pads-nominal-replay-is-not-takeable-on-a-four-core-box`;
 //! the leaf instrument in `m10_10_evidence_interval` takes it).
 //!
 //! The instrument is the RETRY LADDER itself (`geom_core::sym::SymRetry`)
@@ -184,7 +184,7 @@ fn document(name: &str, scale: f64, tol: Tol) -> ProfileDoc {
 /// report the unit's dispatch recorded as exhausting a four-core box's
 /// memory (this lane's own two pad runs did not return a first replay
 /// with the report on or off:
-/// `work/rules/the-pads-nominal-replay-is-not-takeable-on-a-four-core-box`).
+/// `work/sym/the-pads-nominal-replay-is-not-takeable-on-a-four-core-box`).
 /// The counts are the same either way: the report is a recorder, the
 /// receipt is the session's own.
 fn replay(
@@ -666,7 +666,7 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
     // 979 -> 991 there); the rest is unbisected, and the same documents'
     // counts moved with PR 5728 and PR 5811
     // (`work/cpair/main-red-slow-set-receipts-moved-at-5542.md`,
-    // `work/offset/main-red-three-m10-interval-pins-moved-at-5728`).
+    // `work/shell/main-red-three-m10-interval-pins-moved-at-5728`).
     // With the ladder and without it still read alike. Then PR 5952
     // (the profile's simplicity pass reads no gap on a line pair that
     // shares a vertex) took 8 numeric decisions off the plate and 10 off
@@ -677,12 +677,27 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
     // four per attempt and the ladder recovers them and two more, the
     // DECIDE-3 trade PR 5954 rules as that predicate's exemption from
     // never-loses (`work/intent/g-moves-four-main-reds-messages.md`).
+    // A cylinder rim's axial `cos t` and `sin t` terms are decided at
+    // `pcurve_cylinder_chart_axial` (`geom_brep::pcurve_cache`'s
+    // `cylinder_rim_axial`, PR 6105), which the tier proves `Zero` on
+    // these documents' nominal rims (not on a leaf whose radius varies,
+    // `work/pcert/the-cylinder-rim-axial-decision-refuses-every-leaf-of-the-two-parameter-drive`):
+    // the annulus decides it on 12 rims. The 14 the bracket decides in
+    // `sym11`'s replay leave this row's bracket unmoved, and why is not
+    // read here. Every rim of the plate and the link has exactly-zero
+    // axial terms and returns before the decision; the boss is not
+    // measured.
+    // So the annulus [654, 555] -> [666, 555] both ways.
+    // Then PCERT E1c (every mint reads incidence first, PR 5889), identical at all
+    // three ε rows: the plate +54, the annulus +54, the boss +36 symbolic
+    // and +8 numeric, the bracket +62 and the link +36 symbolic and +16
+    // numeric, the decisions of the read every mint makes first.
     let expected: [(&str, [u64; 2], [u64; 2], u64); 5] = [
-        ("two_hole_plate", [1149, 824], [1149, 824], 0),
-        ("r1_annulus", [654, 555], [654, 555], 0),
-        ("r1_segment_boss", [651, 531], [651, 531], 0),
-        ("r2_filleted_bracket", [1537, 1155], [1543, 1149], 6),
-        ("r2_link", [962, 805], [962, 805], 0),
+        ("two_hole_plate", [1203, 824], [1203, 824], 0),
+        ("r1_annulus", [720, 555], [720, 555], 0),
+        ("r1_segment_boss", [687, 539], [687, 539], 0),
+        ("r2_filleted_bracket", [1599, 1155], [1605, 1149], 6),
+        ("r2_link", [998, 821], [998, 821], 0),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want_off, want_on, want_retried) in expected {
@@ -841,9 +856,11 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
     // `carrier_on_surface_1` and a `carrier_on_surface_2` residual freezes
     // on the coefficient bound. Pinned at that loss, a defect
     // (`work/sym/rule-h-loses-two-pad-decisions-to-a-coefficient-freeze.md`).
+    // Then PCERT E1c (every mint reads incidence first, PR 5889): 1461 -> 1529
+    // symbolic, the read's decisions.
     assert_eq!(
         [d.symbolic, d.numeric, d.retried],
-        [1461, 1382, 34],
+        [1529, 1382, 34],
         "the shipped ladder's leaf receipt"
     );
     assert!(
@@ -857,8 +874,10 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
     let b = bare.decisions();
     // Pinned with the shipped receipt above: [1387, 1420, 0] ->
     // [1429, 1414, 0] -> [1427, 1416, 0], the last move rule H's
-    // (`SymRules::without_angle_sum` reads [1429, 1414, 0]).
-    assert_eq!([b.symbolic, b.numeric, b.retried], [1427, 1416, 0]);
+    // (`SymRules::without_angle_sum` reads [1429, 1414, 0]). Then PCERT
+    // E1c (PR 5889): [1427, 1416, 0] -> [1495, 1416, 0], the read's
+    // decisions, as the shipped receipt's.
+    assert_eq!([b.symbolic, b.numeric, b.retried], [1495, 1416, 0]);
     assert!(
         !bare.serialize().contains("retried="),
         "no ladder, no column"

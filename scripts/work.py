@@ -122,6 +122,16 @@ UNPRICED_WEIGHT = COST_WEIGHT["M"]   # an unscored row is priced mid-range
 # attention, which is what the budget measures.
 DISPATCHABLE = ("open", "spec")
 
+# ...and only while its band is one a sitting dispatches. While the sitting
+# rule stands (memories/orchestration-model.md: a sitting ends when its
+# track's P0 and P1 rows are done), rows at P2 and below are in general not
+# dispatched, so they are not a claim on a sitting either and the budget does
+# not count them (Ev, in chat, 2026-11-02). If that rule changes, change this.
+# An UNBANDED row still counts, as an unpriced one is charged M: a track cannot
+# come in under budget by declining to band its rows.
+SITTING_BANDS = ("P0", "P1")
+TAIL_BANDS = tuple(b for b in PRIORITIES if b not in SITTING_BANDS)
+
 # key -> (type, kinds that may carry it). Types: str, int, date, ref,
 # reflist (ids or ints), strlist, enum:<name>.
 SCHEMA: dict[str, tuple[str, tuple[str, ...]]] = {
@@ -421,12 +431,14 @@ def _listed(item: Item, key: str) -> list[object]:
 
 
 def _load(rows: list[Item]) -> int:
-    """The weighted DISPATCHABLE load a slate is carrying, in budget points.
-    An unpriced row is charged the middle weight rather than nothing, so a
-    track cannot come in under budget by declining to price itself."""
+    """The weighted load a slate is carrying, in budget points: its
+    DISPATCHABLE rows outside the TAIL_BANDS, the rows a sitting will
+    actually dispatch. An unpriced row is charged the middle weight rather
+    than nothing, and an unbanded one is counted, so a track cannot come in
+    under budget by declining to price or band itself."""
     total = 0
     for r in rows:
-        if r.status not in DISPATCHABLE:
+        if r.status not in DISPATCHABLE or str(r.get("priority")) in TAIL_BANDS:
             continue
         c, pts = r.get("cost"), r.get("points")
         if c == "X" and isinstance(pts, int) and not isinstance(pts, bool):
@@ -800,8 +812,8 @@ def render(root: str, only_program: str | None = None, today: dt.date | None = N
                "dispatchable. `status` is the TRACK's own state: `ready` "
                "(no orchestrator, and a row to pick up), `active` (an "
                "orchestrator holds it), `blocked` (no orchestrator, and "
-               "nothing dispatchable). `load` is the DISPATCHABLE weight against the "
-               "track's budget (Track size); bold is over. `top` is the "
+               "nothing dispatchable). `load` is the weight of the DISPATCHABLE P0, "
+               "P1 and unbanded rows against the track's budget (Track size); bold is over. `top` is the "
                "highest band among the DISPATCHABLE rows, and the table is "
                "ordered by those rows' band counts, P0 first (Priority).")
     out.append("")
@@ -1511,6 +1523,15 @@ def selftest() -> int:
         subprocess.run(["git", "-C", root, "merge", "-q", "--no-edit", base], check=True)
         if incoming(root, base, "mesh", None)[1] != 0:
             failures.append("incoming (a note already merged in is still listed)")
+
+    # the budget counts only the rows a sitting will dispatch: open or spec,
+    # at P0 or P1, or unbanded
+    def _row(status: str, prio: str | None, cost: str) -> Item:
+        return Item("x.md", "p", {"status": status, "priority": prio, "cost": cost}, "")
+    got = _load([_row("open", "P0", "H"), _row("spec", "P1", "E"), _row("open", None, "M"),
+                 _row("open", "P2", "H"), _row("open", "P4", "M"), _row("dispatched", "P0", "H")])
+    if got != 12:
+        failures.append(f"load (only dispatchable P0/P1/unbanded rows count): {got}, expected 12")
 
     if failures:
         for f in failures:

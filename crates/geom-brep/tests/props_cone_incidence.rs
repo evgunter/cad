@@ -124,19 +124,16 @@ impl Cone {
 
     fn rim_circle(&self, v: f64) -> Curve3<f64> {
         let (s, c) = self.alpha.sin_cos();
-        Curve3::Circle {
-            center: pt(add(self.apex, self.a, v * c)),
-            axis: vt(self.a),
-            radius: v * s,
-            u_ref: vt(self.e1),
-        }
+        Curve3::circle(
+            pt(add(self.apex, self.a, v * c)),
+            vt(self.a),
+            v * s,
+            vt(self.e1),
+        )
     }
 
     fn generator(&self, dir: V) -> Curve3<f64> {
-        Curve3::Line {
-            origin: pt(self.apex),
-            dir: vt(dir),
-        }
+        Curve3::line(pt(self.apex), vt(dir))
     }
 
     /// The azimuth of `p` in the chart frame.
@@ -172,34 +169,30 @@ fn lift<T: Real>(e: &Curve3<f64>) -> Curve3<T> {
     let p = |q: geom_core::Point3<f64>| pt::<T>([q.x, q.y, q.z]);
     let v = |q: geom_core::Vec3<f64>| vt::<T>([q.x, q.y, q.z]);
     match *e {
-        Curve3::Line { origin, dir } => Curve3::Line {
-            origin: p(origin),
-            dir: v(dir),
-        },
-        Curve3::Circle {
-            center,
-            axis,
+        Curve3::Line(geom::Line { origin, dir }) => Curve3::line(p(origin), v(dir)),
+        Curve3::Circle(geom::Circle {
+            frame:
+                geom::Frame {
+                    center,
+                    axis,
+                    u_ref,
+                },
             radius,
-            u_ref,
-        } => Curve3::Circle {
-            center: p(center),
-            axis: v(axis),
-            radius: T::from_f64(radius),
-            u_ref: v(u_ref),
-        },
-        Curve3::Ellipse {
-            center,
-            axis,
+        }) => Curve3::circle(p(center), v(axis), T::from_f64(radius), v(u_ref)),
+        Curve3::Ellipse(geom::Ellipse {
+            frame:
+                geom::Frame {
+                    center,
+                    axis,
+                    u_ref,
+                },
             semi_u,
             semi_v,
-            u_ref,
-        } => Curve3::Ellipse {
-            center: p(center),
-            axis: v(axis),
-            semi_u: T::from_f64(semi_u),
-            semi_v: T::from_f64(semi_v),
-            u_ref: v(u_ref),
-        },
+        }) => Curve3::Ellipse(geom::Ellipse::new(
+            geom::Frame::new(p(center), v(axis), v(u_ref)),
+            T::from_f64(semi_u),
+            T::from_f64(semi_v),
+        )),
         _ => unreachable!(),
     }
 }
@@ -253,12 +246,12 @@ fn rim_too_wide(c: &Cone, d: f64) -> Spec {
     let l = slant(c);
     cap(
         c,
-        Curve3::Circle {
-            center: pt(add(c.apex, c.a, l * co)),
-            axis: vt(c.a),
-            radius: l * s + d / co,
-            u_ref: vt(c.e1),
-        },
+        Curve3::circle(
+            pt(add(c.apex, c.a, l * co)),
+            vt(c.a),
+            l * s + d / co,
+            vt(c.e1),
+        ),
     )
 }
 
@@ -285,12 +278,7 @@ fn rim_tilted(c: &Cone, d: f64) -> Spec {
     let u = add(add([0.0; 3], c.e1, th.cos()), c.a, -th.sin());
     cap(
         c,
-        Curve3::Circle {
-            center: pt(add(c.apex, c.a, l * co)),
-            axis: vt(n),
-            radius: r,
-            u_ref: vt(u),
-        },
+        Curve3::circle(pt(add(c.apex, c.a, l * co)), vt(n), r, vt(u)),
     )
 }
 
@@ -300,12 +288,12 @@ fn rim_off_axis(c: &Cone, d: f64) -> Spec {
     let l = slant(c);
     cap(
         c,
-        Curve3::Circle {
-            center: pt(add(add(c.apex, c.a, l * co), c.e1, d / co)),
-            axis: vt(c.a),
-            radius: l * s,
-            u_ref: vt(c.e1),
-        },
+        Curve3::circle(
+            pt(add(add(c.apex, c.a, l * co), c.e1, d / co)),
+            vt(c.a),
+            l * s,
+            vt(c.e1),
+        ),
     )
 }
 
@@ -350,10 +338,7 @@ fn generator_off_apex(c: &Cone, d: f64) -> Spec {
     let radial = unit(add(g, c.a, -co));
     let normal = add(add([0.0; 3], radial, co), c.a, -s);
     let mut spec = generator_turned(c, 0.0);
-    spec[0].0 = Curve3::Line {
-        origin: pt(add(c.apex, normal, d)),
-        dir: vt(g),
-    };
+    spec[0].0 = Curve3::line(pt(add(c.apex, normal, d)), vt(g));
     spec
 }
 
@@ -383,34 +368,34 @@ fn section_at(c: &Cone, tilt: f64, l: f64) -> Curve3<f64> {
     let off = dot(w, c.e2);
     let half = add(p, q, -1.0);
     let major = 0.5 * dot(half, half).sqrt();
-    Curve3::Ellipse {
-        center: pt(center),
-        axis: vt(normal),
-        semi_u: major,
-        semi_v: ((radius - off) * (radius + off)).sqrt(),
-        u_ref: vt(unit(half)),
-    }
+    Curve3::Ellipse(geom::Ellipse::new(
+        geom::Frame::new(pt(center), vt(normal), vt(unit(half))),
+        major,
+        ((radius - off) * (radius + off)).sqrt(),
+    ))
 }
 
 /// The section's major semi-axis stretched until its farthest point is
 /// `d` off the cone, as one closed edge.
 fn ellipse_stretched(c: &Cone, d: f64) -> Spec {
-    let Curve3::Ellipse {
-        center,
-        axis,
+    let Curve3::Ellipse(geom::Ellipse {
+        frame: geom::Frame {
+            center,
+            axis,
+            u_ref,
+        },
         semi_u,
         semi_v,
-        u_ref,
-    } = section(c)
+    }) = section(c)
     else {
         unreachable!()
     };
-    let stretched = |k: f64| Curve3::Ellipse {
-        center,
-        axis,
-        semi_u: semi_u * (1.0 + k),
-        semi_v,
-        u_ref,
+    let stretched = |k: f64| {
+        Curve3::Ellipse(geom::Ellipse::new(
+            geom::Frame::new(center, axis, u_ref),
+            semi_u * (1.0 + k),
+            semi_v,
+        ))
     };
     // The distance is linear in a small stretch: read its slope at one.
     let k0 = 1e-6;
@@ -584,7 +569,7 @@ fn an_ellipse_span_is_metered_at_its_smaller_semi_axis() {
         let tilt = ((1.0 - 1.0 / (squash * squash)).sqrt() * c.alpha.cos()).asin();
         let (s, co) = c.alpha.sin_cos();
         let e = section_at(&c, tilt, (1e3 * b.escalate() / s.min(co)).max(0.05));
-        let Curve3::Ellipse { semi_u, semi_v, .. } = e else {
+        let Curve3::Ellipse(geom::Ellipse { semi_u, semi_v, .. }) = e else {
             unreachable!()
         };
         assert!(
@@ -661,13 +646,15 @@ mod between_samples {
         }
 
         fn curve<T: Real>(&self) -> Curve3<T> {
-            Curve3::Ellipse {
-                center: p3(self.c[0], self.c[1], self.c[2]),
-                axis: v3(self.n[0], self.n[1], self.n[2]),
-                semi_u: T::from_f64(self.a),
-                semi_v: T::from_f64(self.b),
-                u_ref: v3(self.u[0], self.u[1], self.u[2]),
-            }
+            Curve3::Ellipse(geom::Ellipse::new(
+                geom::Frame::new(
+                    p3(self.c[0], self.c[1], self.c[2]),
+                    v3(self.n[0], self.n[1], self.n[2]),
+                    v3(self.u[0], self.u[1], self.u[2]),
+                ),
+                T::from_f64(self.a),
+                T::from_f64(self.b),
+            ))
         }
     }
 

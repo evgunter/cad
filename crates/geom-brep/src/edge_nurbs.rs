@@ -715,7 +715,7 @@ impl core::fmt::Display for PlaneNurbsRefusal {
 ///     params: (Dual64, Dual64),
 ///     plane: &Surface<Dual64>,
 ///     wall: &NurbsSurface<Dual64>,
-///     extent: Dual64,
+///     extent: geom_core::Lever<Dual64>,
 ///     band: Band,
 /// ) {
 ///     let _ = geom_brep::plane_nurbs_limbs(carrier, params, plane, wall, extent, band);
@@ -734,7 +734,7 @@ impl core::fmt::Display for PlaneNurbsRefusal {
 ///     params: (f64, f64),
 ///     plane: &Surface<f64>,
 ///     wall: &NurbsSurface<f64>,
-///     extent: f64,
+///     extent: geom_core::Lever<f64>,
 ///     band: Band,
 /// ) {
 ///     let _ = geom_brep::plane_nurbs_limbs(carrier, params, plane, wall, extent, band);
@@ -753,7 +753,7 @@ impl core::fmt::Display for PlaneNurbsRefusal {
 ///     params: (Sym<f64>, Sym<f64>),
 ///     plane: &Surface<Sym<f64>>,
 ///     wall: &NurbsSurface<Sym<f64>>,
-///     extent: Sym<f64>,
+///     extent: geom_core::Lever<Sym<f64>>,
 ///     band: Band,
 /// ) {
 ///     let _ = geom_brep::plane_nurbs_limbs(carrier, params, plane, wall, extent, band);
@@ -764,7 +764,7 @@ pub fn plane_nurbs_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
     params: (T, T),
     plane: &Surface<T>,
     wall: &NurbsSurface<T>,
-    extent: T,
+    extent: geom_core::Lever<T>,
     band: Band,
 ) -> Result<PlaneNurbsLimbs<T>, PlaneNurbsRefusal> {
     let normal = plane_lane_door(plane, wall)?;
@@ -846,7 +846,7 @@ pub fn plane_nurbs_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
             pcurve_a: None,
             pcurve_b: Some(&pcurve),
         },
-        extent,
+        extent.length(),
         band,
         crate::ssi::certify::Limbs::All,
         &mut crate::ssi::certify::Refused::default(),
@@ -949,12 +949,14 @@ pub fn arc_rim_measured<T: Decide>(
     (t0, span): (T, T),
     band: Band,
 ) -> Vec<Pcurve<T>> {
-    let Curve3::Circle {
-        center,
-        axis,
-        u_ref,
+    let Curve3::Circle(geom::Circle {
+        frame: geom::Frame {
+            center,
+            axis,
+            u_ref,
+        },
         ..
-    } = *carrier
+    }) = *carrier
     else {
         return Vec::new();
     };
@@ -1151,33 +1153,35 @@ pub fn probe_pick<T: Decide>(
     })
 }
 
-/// **The first candidate whose margin decides Zero**, in order. A
-/// candidate whose margin is in band does not stop the search: its
-/// escalation is deferred, and the first deferred one is answered only
-/// where no candidate decides Zero. `Ok(None)` where every margin is
-/// decided off.
+/// **The first candidate whose margin decides Zero**, in order: the
+/// ladder ([`crate::ladder::climb`], [`Answering::First`]: which
+/// candidate answers is the answer) whose answer is a margin decided
+/// within. A candidate whose margin is in band does not stop the search,
+/// and refuses only where no candidate decides Zero; where a later one
+/// does, the in-band one's escalation stays live, since it may truly be
+/// within and the answer. `Ok(None)` where every margin is decided off.
+///
+/// [`Answering::First`]: crate::ladder::Answering::First
 ///
 /// # Errors
 ///
-/// The first in-band candidate's [`Indeterminate`], where none decides
-/// Zero.
+/// The ladder's ranked [`Indeterminate`] (an unreadable margin, else the
+/// first in band), where none decides Zero.
 pub fn first_within<C, T: Decide>(
     name: &'static str,
     candidates: impl IntoIterator<Item = C>,
     band: Band,
     margin: impl Fn(&C) -> geom_core::Margin<T>,
 ) -> Result<Option<C>, Indeterminate> {
-    let mut deferred = None;
-    for cand in candidates {
-        match geom_core::k_stats::decide(name, margin(&cand), band) {
-            Ok(Sign::Zero) => return Ok(Some(cand)),
-            Ok(Sign::Positive | Sign::Negative) => {}
-            Err(cause) => {
-                deferred.get_or_insert(cause);
-            }
-        }
+    use crate::ladder::{Answering, Climb, Rung, climb};
+    match climb(Answering::First, candidates, |cand| {
+        let m = margin(&cand);
+        Rung::decide(name, m, band, |d| (d.sign == Sign::Zero).then_some(cand))
+    }) {
+        Climb::Answered { answer, .. } => Ok(Some(answer)),
+        Climb::Passed => Ok(None),
+        Climb::Undecided(cause) => Err(cause),
     }
-    deferred.map_or(Ok(None), Err)
 }
 
 /// **Incidence alone on a plane × NURBS pair**: [`plane_nurbs_limbs`]'
@@ -1238,7 +1242,7 @@ pub fn plane_nurbs_incidence<T: Decide + Bounds + geom_core::CertifiedEnclosure>
     };
     plane_lane_door(plane, chart)?;
     let exact = match carrier {
-        Curve3::Circle { .. } => Some(
+        Curve3::Circle(..) => Some(
             exact_arc_rim(carrier, params, wall, stated, band)
                 .map_err(PlaneNurbsRefusal::ArcRim)?,
         ),
@@ -1377,7 +1381,7 @@ pub fn nurbs_pair_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
     params: (T, T),
     a: &NurbsSurface<T>,
     b: &NurbsSurface<T>,
-    extent: T,
+    extent: geom_core::Lever<T>,
     band: Band,
 ) -> Result<PlaneNurbsLimbs<T>, PlaneNurbsRefusal> {
     if a.is_placeholder() || b.is_placeholder() {
@@ -1483,7 +1487,7 @@ pub fn nurbs_pair_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
             pcurve_a: Some(tube_image(&exact_a, &pcurve_a)),
             pcurve_b: Some(tube_image(&exact_b, &pcurve_b)),
         },
-        extent,
+        extent.length(),
         band,
         crate::ssi::certify::Limbs::Tube,
         &mut crate::ssi::certify::Refused::default(),
@@ -1545,7 +1549,7 @@ impl<T: Bounds> FeetRefusal<T> {
 fn feet_transversality<T: Decide>(
     (a, (ua, va)): (&NurbsSurface<T>, (T, T)),
     (b, (ub, vb)): (&NurbsSurface<T>, (T, T)),
-    extent: T,
+    extent: geom_core::Lever<T>,
     i: u32,
     band: Band,
 ) -> Result<T, FeetRefusal<T>> {
@@ -1578,7 +1582,7 @@ pub(crate) fn row_transversality<T: Decide>(
     params: (T, T),
     (a, image_a): (&NurbsSurface<T>, &Pcurve<T>),
     (b, image_b): (&NurbsSurface<T>, &Pcurve<T>),
-    extent: T,
+    extent: geom_core::Lever<T>,
     band: Band,
 ) -> Result<T, FeetRefusal<T>> {
     let (t0, t1) = params;
@@ -1639,7 +1643,7 @@ fn exact_chart_image<T: Decide>(
     >,
     PlaneNurbsRefusal,
 > {
-    if !matches!(carrier, Curve3::Circle { .. }) {
+    if !matches!(carrier, Curve3::Circle(..)) {
         return Ok(None);
     }
     let wall = Surface::Nurbs(std::sync::Arc::new(chart.clone()));
@@ -1771,7 +1775,7 @@ pub fn analytic_rung3<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
         // The tube's extent, from the object being certified, as limb 3
         // reads it everywhere: from below, since its transversality is
         // the definite verdict it acts on.
-        crate::edge_extent_inf(&carrier, p0, p1, piece.eval(p0).distance(piece.eval(p1))),
+        crate::edge_extent_inf(&carrier, p0, p1, (piece.eval(p0), piece.eval(p1))).length(),
         band,
         crate::ssi::certify::Limbs::Tube,
         &mut crate::ssi::certify::Refused::default(),
@@ -2062,7 +2066,7 @@ fn line_plane_ends<T: geom_core::CertifiedBounds>(
     let lift = geom_core::Interval::from_certified;
     let vec = |v: geom_core::Vec3<T>| geom_core::Vec3::new(lift(v.x), lift(v.y), lift(v.z));
     match (carrier, operand) {
-        (Curve3::Line { origin: q, dir }, Surface::Plane { origin, normal, .. }) => {
+        (Curve3::Line(geom::Line { origin: q, dir }), Surface::Plane { origin, normal, .. }) => {
             let (q, d) = (vec(*q - geom_core::Point3::origin()), vec(*dir));
             let (o, n) = (vec(*origin - geom_core::Point3::origin()), vec(*normal));
             let lever = n.norm();
@@ -3529,11 +3533,8 @@ mod tests {
         }
         .map_scalar(lift);
         let edge = |d: f64| {
-            let line = Curve3::Line {
-                origin: Point3::new(0.0, 0.0, 0.0),
-                dir: Vec3::new(1.0, d, 0.0),
-            }
-            .map_scalar(lift);
+            let line =
+                Curve3::line(Point3::new(0.0, 0.0, 0.0), Vec3::new(1.0, d, 0.0)).map_scalar(lift);
             analytic_edge_limbs(&line, (lift(0.0), lift(1.0)), &floor, &wall, band)
         };
         assert_eq!(edge(0.0), Ok(()));
@@ -3588,10 +3589,10 @@ mod tests {
             normal: Vec3::new(0.0, 0.0, 1.0),
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
-        let line = Curve3::Line {
-            origin: Point3::new(-402.5061327433079, -173.4329004425178, 0.0),
-            dir: Vec3::new(-8.0, 6.0, 0.0),
-        };
+        let line = Curve3::line(
+            Point3::new(-402.5061327433079, -173.4329004425178, 0.0),
+            Vec3::new(-8.0, 6.0, 0.0),
+        );
         // The f64 reading the old rule took sits inside the band.
         for t in [0.0, 1.0] {
             let p = line.eval(t);
@@ -3647,10 +3648,7 @@ mod tests {
             normal: Vec3::new(0.0, 0.0, 1.0),
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
-        let line = Curve3::Line {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            dir: Vec3::new(1.0, y0, 0.0),
-        };
+        let line = Curve3::line(Point3::new(0.0, 0.0, 0.0), Vec3::new(1.0, y0, 0.0));
         let escalates = |got: &Result<(), AnalyticRung3Refusal>| {
             matches!(
                 got,
@@ -3701,10 +3699,10 @@ mod tests {
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         }
         .map_scalar(lift);
-        let line = Curve3::Line {
-            origin: Point3::new(lift(0.0), Interval::from_bounds(-2e-9, 2e-9), lift(0.0)),
-            dir: Vec3::new(lift(1.0), lift(0.0), lift(0.0)),
-        };
+        let line = Curve3::line(
+            Point3::new(lift(0.0), Interval::from_bounds(-2e-9, 2e-9), lift(0.0)),
+            Vec3::new(lift(1.0), lift(0.0), lift(0.0)),
+        );
         let got = analytic_edge_limbs(&line, (lift(0.0), lift(1.0)), &wall, &floor, band);
         assert!(
             matches!(
@@ -3797,10 +3795,7 @@ mod tests {
                 normal: direction(0.0, 0.0, 1.0),
                 u_ref: direction(1.0, 0.0, 0.0),
             };
-            let line = geom::Curve3::Line {
-                origin: point(0.0, 0.0, a),
-                dir: direction(1.0, 0.0, 0.0),
-            };
+            let line = geom::Curve3::line(point(0.0, 0.0, a), direction(1.0, 0.0, 0.0));
             analytic_edge_limbs(&line, (lit(0.0), lit(1.0)), &floor, &wall(), band)
         });
         assert_eq!(result, Ok(()));
@@ -3836,12 +3831,12 @@ mod tests {
                 normal: direction(0.0, 0.0, 1.0),
                 u_ref: direction(1.0, 0.0, 0.0),
             };
-            let rim = geom::Curve3::Circle {
-                center: point(0.0, 0.0, lit(0.0)),
-                axis: direction(0.0, 0.0, 1.0),
-                radius: a,
-                u_ref: direction(1.0, 0.0, 0.0),
-            };
+            let rim = geom::Curve3::circle(
+                point(0.0, 0.0, lit(0.0)),
+                direction(0.0, 0.0, 1.0),
+                a,
+                direction(1.0, 0.0, 0.0),
+            );
             analytic_edge_limbs(&rim, (lit(0.0), lit(1.0)), &wall, &floor, band)
         });
         assert_eq!(result, Ok(()));
@@ -3871,10 +3866,7 @@ mod tests {
                 normal: direction(0.0, 0.0, 1.0),
                 u_ref: direction(1.0, 0.0, 0.0),
             };
-            let line = geom::Curve3::Line {
-                origin: point(0.0, 0.0, a),
-                dir: direction(1.0, 0.0, 0.0),
-            };
+            let line = geom::Curve3::line(point(0.0, 0.0, a), direction(1.0, 0.0, 0.0));
             analytic_edge_limbs(&line, (lit(0.0), lit(1.0)), &floor, &wall(), band)
         });
         let Err(AnalyticRung3Refusal::Stalled {
@@ -3907,12 +3899,12 @@ mod tests {
                 normal: direction(0.0, 0.0, 1.0),
                 u_ref: direction(1.0, 0.0, 0.0),
             };
-            let rim = geom::Curve3::Circle {
-                center: point(0.0, 0.0, a),
-                axis: direction(0.0, 0.0, 1.0),
-                radius: lit(1.0),
-                u_ref: direction(1.0, 0.0, 0.0),
-            };
+            let rim = geom::Curve3::circle(
+                point(0.0, 0.0, a),
+                direction(0.0, 0.0, 1.0),
+                lit(1.0),
+                direction(1.0, 0.0, 0.0),
+            );
             analytic_edge_limbs(&rim, (lit(0.0), lit(1.0)), &floor, &wall(), band)
         });
         let Err(AnalyticRung3Refusal::Stalled {

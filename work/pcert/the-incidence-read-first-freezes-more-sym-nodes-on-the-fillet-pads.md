@@ -35,3 +35,85 @@ Owed: find which incidence read's forms freeze (the cylinder and torus
 arms of `incidence_over_span` are the candidates: the fillets' rims and
 rulings) and whether a form the read builds can be kept or shared, so
 the plain walks need not freeze them.
+
+## 2026-11-02: corrected, after the delta review's N2
+
+The numbers above were measured against the old base `c6874ee34e`, and
+the "rows already red on main" premise does not hold on current main.
+The delta review found three of these rows green on main `19032ea883`
+and red at E1c's head: the pad, `sym_9`'s drive and `boss_union`'s
+parting.
+
+Half of the cost was not the read itself:
+- **Check 4's re-derivation** on the chart's orthonormalised twin read
+  the carrier's incidence a second time, on a different chart, so the
+  memo shared nothing.
+- **The unmoved second read** at an enclosure scalar took
+  min(moved, unmoved).
+
+N2 removed both:
+- certify and recertify carry the stored chart's read to check 4
+  (`Placement::shown`);
+- a line is anchored at its span's midpoint, which makes the one read
+  as tight as the two.
+
+What is left per edge: the stated or minted read, the pcurve
+certification's read and the planar tier's read. These three are the
+same read of the same carrier on the same chart, so the symbolic tier's
+memo builds their forms once. They add decision calls (about 54 on the
+plate), not forms.
+
+| measure | main `19032ea883` | E1c head (N2) | ratio |
+|---|---|---|---|
+| plate `Plain/Decision` forms | 20618 | 60682 (141447 before N2) | 2.9× |
+| `m10_9` pad, wall | 2.32–2.46 s | 3.30–3.77 s | 1.45× |
+| `sym11`, wall | 4.79–5.18 s | 7.18–7.75 s | 1.50× |
+| `sym_9` drive, wall | 74.6–75.7 s | 75.2–75.4 s | 1.00× |
+
+Wall time is at CI's opt-level 1, `--test-threads 1`, two alternating
+rounds; before N2 the delta review measured the `sym_9` drive at 3.2×.
+The orchestrator accepted these at the 1.5× line.
+
+What remains is the one read's own forms: about 40 000 on the plate,
+65 sampled distances per carrier carried through the symbolic tier.
+Owed, as before: whether the sampled distance can enter the symbolic
+tier as fewer atoms.
+
+## 2026-11-02: against main `1fcdbde7de`, after the merge
+
+Re-measured at E1c's head after it merged main `1fcdbde7de`, on the same
+footing (CI's opt-level 1, `--test-threads 1`, two alternating rounds):
+
+| row | main `1fcdbde7de` | E1c head | ratio |
+|---|---|---|---|
+| `m10_9` pad | 2.12 / 2.20 s | 3.66 / 3.29 s | 1.61× |
+| `sym11` | 4.41 / 4.77 s | 7.13 / 7.31 s | 1.57× |
+| `sym_9` drive | 72.4 / 71.7 s | 76.7 / 74.0 s | 1.05× |
+
+The head's own times did not move across the merge (pad 3.30–3.77 s,
+`sym11` 7.18–7.75 s). Main got about 10% faster on these rows, which
+moved the ratios past the 1.5× line. The merge's port had put one
+`divisor()` decision in the anchor's slide. A probe built without it
+(unsound, for measurement only) times the same: pad 3.61 / 3.90 s,
+`sym11` 7.45 / 7.88 s. So that decision is not the cost, and the slide
+now decides nothing anyway. The orchestrator accepted these ratios.
+
+The cost is the one read per carrier: about 40 000 forms on the plate,
+from 65 sampled distances (`INCIDENCE_SAMPLES` + 1) per carrier carried
+through the symbolic tier.
+
+The sweep digest's two `Sym` `validate_geometric` rows
+(`crates/sweep/tests/thread-count-digest/`) are the same forms. Their
+decisions hold, and the nodes their plain walks freeze rise: at 1e-9,
+`sym_arc_loft` 4 → 462 and `sym_thin_strip` 60 → 348. The same rows
+built with the plane's foot in place of its slide freeze 398 and 1104,
+so the count follows the read's forms, not how the anchor is written.
+
+Levers:
+- **(i) Fewer samples.** Ruled out by the orchestrator.
+- **(ii) Owed:** enter a sampled distance into the symbolic tier as
+  fewer atoms. This is work in the sym tier, outside E1c. It is also
+  what would take the digest rows' frozen nodes back down.
+- **(iii) Considered, not taken:** skip the read where the walk has
+  already derived the image, carrying the witness from topo's walk to
+  certify. The calls are already memoized, so it would save little.

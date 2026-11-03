@@ -28,8 +28,9 @@
 //! move's place in the station; and `value_slide` and `value_spin` a
 //! value's number, completed by the constraint; `side` names one side of a constraint,
 //! completed by the constraint and the side; a loft's `section`, a
-//! union's or a `⊔`'s `member` and a measure's `measured` name one
-//! entry of a list, completed by its position; `index` names
+//! union's or a `⊔`'s `member`, a measure's `measured` and a clearance
+//! assertion's `cleared` name one entry of a list, completed by its
+//! position; `index` names
 //! one index of an indexed read, completed by the seat it reads at and
 //! the index's position. There is nothing to answer with, so each
 //! answers nothing —

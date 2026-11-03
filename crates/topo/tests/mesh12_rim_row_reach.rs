@@ -69,11 +69,13 @@ fn two_level_rim_cap(dv: f64) -> Result<Body<f64>, EulerOpError> {
     let vm = V1 + 0.5 * dv;
     let a = Point3::new(RS * vm.cos(), 0.0, RS * vm.sin());
     let b = Point3::new(-RS * vm.cos(), 0.0, RS * vm.sin());
-    let rim = |v: f64| Curve3::Circle {
-        center: Point3::new(0.0, 0.0, RS * v.sin()),
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        radius: RS * v.cos(),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    let rim = |v: f64| {
+        Curve3::circle(
+            Point3::new(0.0, 0.0, RS * v.sin()),
+            Vec3::new(0.0, 0.0, 1.0),
+            RS * v.cos(),
+            Vec3::new(1.0, 0.0, 0.0),
+        )
     };
     let mut body = Body::<f64>::new();
     let seed = body.mvfs(a, true).unwrap();

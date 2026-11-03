@@ -2,11 +2,11 @@
 id: run-loops-of-split-and-pierce-are-twins
 kind: issue
 title: splitting/insert.rs's run loop and boolean/vtxfac.rs's are near-verbatim twins: one home?
-status: open
+status: dispatched
 opened: 2026-10-06
 priority: P1
 cost: M
-design: true
+branch: onehome/star-sites
 ---
 
 
@@ -58,3 +58,13 @@ Classified on Ev's ask, via the CLEAVE note on INTENT's log, against main `e92fb
 
 - Re-banded P3 → P1: one run scan implemented twice: two implementations of one underlying logic, P1 by `work/README.md` Priority.
 - Moved to ONEHOME (`work/onehome/`) by `git mv`, id and body unchanged: the P1 track opened for CLEAVE's duplication rows; INTENT is sorting each into design signal or a mechanical deletion (`work/intent/log.md`, 2026-10-26), and the sort goes on the row. CLEAVE measured 270.5 budget points against 30 and split on its priority seam (Ev, in chat, 2026-10-26).
+
+## Decided (Ev, PR 6359, 2026-11-02)
+
+DESIGN `[one-way.places]`: a vertex's neighbourhood cut by a surface (its sector walk, the cuts and their germs, the germs' order, the null-edge plan and the mint at a vertex) has one home, `topo::star`. A verb supplies its sides and which circle carries its chords. The designers agreed and Ev approved, with this staging:
+
+1. **Stage 1, the gated mint and one site resolution** (this row's unit). One site type: `Fan { he1, he2 }`, a strut whose tip stands for the arc, a strut whose tip stands for the rest (today's `WholeOrbit`), and the lone first strut of a bare ring vertex. `RunSite` becomes private to it, the whole-orbit side flip happens inside the mint, and `mev_null_run` takes only a site the module built. `Body::run_site`, `Body::strut_before_next_real` and `null::ring_tree` move under `topo::star`. The three arc→site scaffolds (split `insert_null_edges`; vtxfac `classify_vertex_on_face`; `boolean/insert.rs` `mint_run`/`run_fan`/`run_degenerates`) and the three tree→sites loops read it, and `mint_run`'s `WholeOrbit` refusal and `run_degenerates` go. Run enumeration (`above_runs`, `out_runs`) moves here over a small view each entry type implements. The vertex–vertex planner's own chord nesting (`b_runs`, `arc_holders`, `held_by`) reads `ring_tree` if it is the same in substance; test the equivalence over the meeting fixtures first, and file it if not.
+2. **Stage 2:** one walk and entry type (`Star`), absorbing the split's and the Boolean's walks and their private `sector_face`s, with `sector_face`, `sector_shape` and `bound_side` as its parts.
+3. **Stage 3:** the cut (sides → cuts), one germ rule signed by the transition's codes (rides `two-germ-readers-sign-one-line-two-ways`), one germ order (folds `honeone/germ-orders-about-a-normal-have-two-homes`), and `vertex_section::entered_faces` reading the cuts (items 3–4 of `vertex-section-quotient-…`). The offset → side reading stays outside.
+
+The chord choice (corners or runs) is a per-verb parameter. The pierce's runs are sound on the probe's fixture (PR 6360).

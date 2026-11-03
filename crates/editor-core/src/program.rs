@@ -389,14 +389,14 @@ pub enum ProgramArcData<S = crate::VarId> {
 }
 
 /// One loop's program: a CHAIN step list, or one of the complete-loop
-/// carrier forms (`circle` / `circle_split` — one-step programs whose
-/// form is structural). The chain-vs-carrier distinction is the enum,
-/// so "a circle program is exactly one step" is unrepresentable to
-/// violate.
+/// forms (`circle` / `circle_split` / `rectangle` — one-step programs
+/// whose form is structural). The chain-vs-complete-loop distinction is
+/// the enum, so "a circle program is exactly one step" is
+/// unrepresentable to violate.
 ///
 /// **It is a document vocabulary, and [`Self::resolve`] is its construct
 /// hop**, the fourth one: it matches THIS enum and builds
-/// `Step::Circle` / `Step::CircleSplit`, so a carrier form added here
+/// `Step::Circle` / `Step::CircleSplit` / `Step::Rectangle`, so a form added here
 /// alone can be resolved into an existing kernel step and never be
 /// seen. That is [`ProgramStep`]'s hazard one level out, and
 /// [`Self::ALL_NAMES`] is its anchor for the same reason.
@@ -424,6 +424,16 @@ pub enum LoopProgram<S = crate::VarId> {
         n: u32,
         /// The first vertex's angle from +x.
         phase: S,
+    },
+    /// `rectangle(centre, width, height)` — the axis-aligned rectangle
+    /// as written (PATHS-DESIGN §1a).
+    Rectangle {
+        /// The rectangle's centre.
+        centre: [S; 2],
+        /// Its extent along x.
+        width: S,
+        /// Its extent along y.
+        height: S,
     },
 }
 }
@@ -541,8 +551,9 @@ impl<R> DrawnOn<R> {
     fn rows(&self) -> Vec<(crate::OperandSlot, &R)> {
         let mut out = vec![(crate::OperandSlot::Frame, &self.frame)];
         out.extend(
-            (0u32..)
-                .zip(&self.faces)
+            self.faces
+                .iter()
+                .enumerate()
                 .map(|(i, face)| (crate::OperandSlot::Traced(i), face)),
         );
         out
@@ -552,8 +563,9 @@ impl<R> DrawnOn<R> {
     fn rows_mut(&mut self) -> Vec<(crate::OperandSlot, &mut R)> {
         let mut out = vec![(crate::OperandSlot::Frame, &mut self.frame)];
         out.extend(
-            (0u32..)
-                .zip(&mut self.faces)
+            self.faces
+                .iter_mut()
+                .enumerate()
                 .map(|(i, face)| (crate::OperandSlot::Traced(i), face)),
         );
         out
@@ -571,8 +583,10 @@ impl<R> DrawnOn<R> {
     ) -> Result<DrawnOn<R2>, E> {
         Ok(DrawnOn {
             frame: read(crate::OperandSlot::Frame, &self.frame)?,
-            faces: (0u32..)
-                .zip(&self.faces)
+            faces: self
+                .faces
+                .iter()
+                .enumerate()
                 .map(|(i, face)| read(crate::OperandSlot::Traced(i), face))
                 .collect::<Result<_, E>>()?,
         })
@@ -1390,6 +1404,17 @@ macro_rules! loop_roles {
                 phase,
                 ..
             } => Some((centre, radius, Some(phase))),
+            LoopProgram::Rectangle {
+                centre: [x, y],
+                width,
+                height,
+            } => {
+                $out.push(((0, A::CenterX), x));
+                $out.push(((0, A::CenterY), y));
+                $out.push(((0, A::Width), width));
+                $out.push(((0, A::Height), height));
+                None
+            }
         };
         if let Some(([x, y], radius, phase)) = carrier {
             $out.push(((0, A::CenterX), x));
@@ -1504,7 +1529,9 @@ impl<S> LoopProgram<S> {
     pub fn authored_steps(&self) -> usize {
         match self {
             LoopProgram::Chain(steps) => steps.len(),
-            LoopProgram::Circle { .. } | LoopProgram::CircleSplit { .. } => 1,
+            LoopProgram::Circle { .. }
+            | LoopProgram::CircleSplit { .. }
+            | LoopProgram::Rectangle { .. } => 1,
         }
     }
 
@@ -1530,14 +1557,16 @@ impl<S> LoopProgram<S> {
     /// The address is the loop's `Radius` slot
     /// (`SlotId::Profile { loop_, step: 0, arg: StepArg::Radius }`);
     /// this hands back the expression that slot holds, which is what a
-    /// lowering needs to lower.
+    /// lowering needs to lower. Whether it answers is also the one test
+    /// of whether a loop's pieces are arcs of one carrier, which the
+    /// coincidence door reads to name a swept wall's pieces as one.
     #[must_use]
     pub fn carrier_radius(&self) -> Option<&S> {
         match self {
             LoopProgram::Circle { radius, .. } | LoopProgram::CircleSplit { radius, .. } => {
                 Some(radius)
             }
-            LoopProgram::Chain(_) => None,
+            LoopProgram::Chain(_) | LoopProgram::Rectangle { .. } => None,
         }
     }
 
@@ -1851,7 +1880,9 @@ impl LoopProgram {
     fn any_step(&self, is: fn(&ProgramStep) -> bool) -> bool {
         match self {
             LoopProgram::Chain(steps) => steps.iter().any(is),
-            LoopProgram::Circle { .. } | LoopProgram::CircleSplit { .. } => false,
+            LoopProgram::Circle { .. }
+            | LoopProgram::CircleSplit { .. }
+            | LoopProgram::Rectangle { .. } => false,
         }
     }
 
@@ -1901,6 +1932,18 @@ impl LoopProgram {
                     radius: res(radius)?,
                     n: *n as usize,
                     phase: res(phase)?,
+                }])
+            }
+            LoopProgram::Rectangle {
+                centre,
+                width,
+                height,
+            } => {
+                let res = leaf(self.rows(), env, loop_);
+                Ok(vec![Step::Rectangle {
+                    centre: res_point(centre, &res)?,
+                    width: res(width)?,
+                    height: res(height)?,
                 }])
             }
         }
@@ -2317,7 +2360,8 @@ impl ProfileProgram {
     /// # Errors
     ///
     /// [`ProfileProgram::check`]'s; [`ProgramRefusal::Unminted`] for a
-    /// program no document minted step ids for; and
+    /// program whose steps carry no ids
+    /// ([`ProfileProgram::carries_step_ids`]); and
     /// [`ProgramRefusal::StepIds`] for ids not shaped one list per
     /// loop and one id per authored step.
     pub fn pieces(
@@ -2336,15 +2380,22 @@ impl ProfileProgram {
         ))
     }
 
-    /// **Whether this program carries step ids at all.** A program no
-    /// door has minted ids for carries NO lists: the one spelling of
-    /// "unminted" is an empty [`ProfileProgram::ids`]. Any list at all
-    /// — even an empty one, or a malformed set — is ids someone
-    /// supplied, which the insert door refuses
-    /// ([`StepIdFault::Preminted`]) and every other reader checks for
-    /// shape.
+    /// **Whether this program's steps carry ids.** A program of loops
+    /// no door has minted ids for carries NO lists: an empty
+    /// [`ProfileProgram::ids`] over loops is the one spelling of
+    /// "unminted". A program of no loops has no step to carry one, so
+    /// minted or not it carries every id it has. Any list at all — even
+    /// an empty one, or a malformed set — is ids someone supplied
+    /// ([`ProfileProgram::holds_id_lists`]), which every reader checks
+    /// for shape.
     #[must_use]
     pub fn carries_step_ids(&self) -> bool {
+        self.holds_id_lists() || self.loops.is_empty()
+    }
+
+    /// **Whether this program holds any id list**: what the insert door
+    /// refuses as ids the caller supplied ([`StepIdFault::Preminted`]).
+    fn holds_id_lists(&self) -> bool {
         !self.ids.is_empty()
     }
 
@@ -2489,6 +2540,18 @@ fn loop_bit_eq<L: crate::expr::LeafSet>(
                 phase: pb,
             },
         ) => pair_bit_eq(ca, cb) && ra.bit_eq(rb) && na == nb && pa.bit_eq(pb),
+        (
+            LoopProgram::Rectangle {
+                centre: ca,
+                width: wa,
+                height: ha,
+            },
+            LoopProgram::Rectangle {
+                centre: cb,
+                width: wb,
+                height: hb,
+            },
+        ) => pair_bit_eq(ca, cb) && wa.bit_eq(wb) && ha.bit_eq(hb),
         // Different variants are unequal — spelled over the whole
         // vocabulary by first element rather than swept up by a
         // catch-all. That is what makes the answer for a variant added
@@ -2498,7 +2561,10 @@ fn loop_bit_eq<L: crate::expr::LeafSet>(
         // that never changed would report as changed. The same holds
         // for the three functions below.
         (
-            LoopProgram::Chain(_) | LoopProgram::Circle { .. } | LoopProgram::CircleSplit { .. },
+            LoopProgram::Chain(_)
+            | LoopProgram::Circle { .. }
+            | LoopProgram::CircleSplit { .. }
+            | LoopProgram::Rectangle { .. },
             _,
         ) => false,
     }
@@ -2761,7 +2827,7 @@ impl ProfilePayload for ProfileProgram {
         })
     }
     fn mint_step_ids(&mut self, mint: &mut crate::Mint) -> Result<(), StepIdFault> {
-        if self.carries_step_ids() {
+        if self.holds_id_lists() {
             return Err(StepIdFault::Preminted);
         }
         let every_new: Vec<Vec<Option<StepId>>> = self
@@ -2930,6 +2996,15 @@ impl<S> LoopProgram<S> {
                 radius: f(radius)?,
                 n: *n,
                 phase: f(phase)?,
+            },
+            LoopProgram::Rectangle {
+                centre,
+                width,
+                height,
+            } => LoopProgram::Rectangle {
+                centre: map_array(centre, f)?,
+                width: f(width)?,
+                height: f(height)?,
             },
         })
     }
@@ -3533,6 +3608,20 @@ impl LoopProgram<Formula> {
                 phase: ang_lit(*phase)?,
             });
         }
+        if let [
+            Step::Rectangle {
+                centre,
+                width,
+                height,
+            },
+        ] = steps
+        {
+            return Ok(Self::Rectangle {
+                centre: pt_lit(centre)?,
+                width: len_lit(*width)?,
+                height: len_lit(*height)?,
+            });
+        }
 
         let mut out = Vec::with_capacity(steps.len());
         for step in steps {
@@ -3572,7 +3661,7 @@ impl LoopProgram<Formula> {
                 },
                 Step::FarEndTo(p) => ProgramStep::FarEndTo(pt_lit(p)?),
                 Step::CloseTo => ProgramStep::CloseTo,
-                Step::Circle { .. } | Step::CircleSplit { .. } => {
+                Step::Circle { .. } | Step::CircleSplit { .. } | Step::Rectangle { .. } => {
                     return Err(RecordedProgramError::CarrierInChain);
                 }
             });
@@ -3705,6 +3794,24 @@ impl LoopProgram<Formula> {
             radius: len_lit(r)?,
             n,
             phase: Formula::literal(phase, Dimension::Angle)?,
+        })
+    }
+
+    /// A literal rectangle loop: the axis-aligned rectangle of `width`
+    /// by `height` centred on `(cx, cy)`, stored as written.
+    ///
+    /// Parametric authors write the `Rectangle` variant out; see
+    /// [`LoopProgram::circle`] for why there is no expression door
+    /// here and where an expression's dimension is checked instead.
+    ///
+    /// # Errors
+    ///
+    /// A non-finite argument.
+    pub fn rectangle(cx: f64, cy: f64, width: f64, height: f64) -> Result<Self, DimensionError> {
+        Ok(LoopProgram::Rectangle {
+            centre: [len_lit(cx)?, len_lit(cy)?],
+            width: len_lit(width)?,
+            height: len_lit(height)?,
         })
     }
 }

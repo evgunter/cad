@@ -520,13 +520,14 @@ pub(super) fn plan_null_pairs<T: Decide>(
     let branches = survivors
         .iter()
         .zip(&loci)
-        .map(|(r, &l)| {
+        .zip(&dirs)
+        .map(|((r, &l), dir)| {
             super::join::germ_branch(
                 &declared.sections,
                 (a_body, a_sectors[r.a].face),
                 (b_body, b_sectors[r.b].face),
                 l,
-                site,
+                (site, dir.dir),
                 band,
             )
         })
@@ -2323,7 +2324,7 @@ fn walk_faces_first<T: Decide>(
         },
     )?;
     strut_order(
-        (Leaned::upright(arrival.normalize()), reach.length()),
+        (Leaned::upright(arrival.normalize()), reach.lever()),
         s.tangent().vec(),
         (first.line, second.line),
         s.arm,
@@ -2366,10 +2367,10 @@ fn walk_faces_first<T: Decide>(
 /// one entry are its only comparands, where it agrees with
 /// [`walks_before`] ([`walk_faces_first`]).
 pub(super) fn strut_order<T: Decide>(
-    (e, reach): (Leaned<T>, T),
+    (e, reach): (Leaned<T>, geom_core::Lever<T>),
     normal: Vec3<T>,
     germs: (Leaned<T>, Leaned<T>),
-    arm: T,
+    arm: geom_core::Lever<T>,
     tie: impl FnOnce() -> Result<Option<Sign>, BooleanError>,
     band: Band,
 ) -> Result<bool, BooleanError> {
@@ -2425,8 +2426,8 @@ fn record_germ_dir<T: Decide>(
     if read != DeclarationRead::Spent(GlueClass::Tangent) {
         return germ_dir(sa, sb, read, band);
     }
-    let s_a = super::sectors::tangent_carrier(a_body, sa.face)?;
-    let s_b = super::sectors::tangent_carrier(b_body, sb.face)?;
+    let s_a = a_body.proven_face_surface(sa.face).clone();
+    let s_b = b_body.proven_face_surface(sb.face).clone();
     let reach = declared.reach_of(super::Operand::A, sa.face, super::Operand::B, sb.face)?;
     let d = match geom_brep::tangent_locus(&s_a, &s_b, reach, band) {
         Ok(geom_brep::TangentLocus::Line { dir, .. }) => dir.normalize(),
@@ -2878,17 +2879,24 @@ mod tests {
                     he,
                     start,
                     end,
-                    start_reach: crate::boolean::sectors::Reach::Extent(1.0),
-                    end_reach: crate::boolean::sectors::Reach::Extent(1.0),
-                    face: FaceKey::default(),
+                    start_reach: crate::boolean::sectors::BoundSupport::Extent(
+                        geom_core::test_support::fixture_lever(1.0),
+                    ),
+                    end_reach: crate::boolean::sectors::BoundSupport::Extent(
+                        geom_core::test_support::fixture_lever(1.0),
+                    ),
+                    face: body.face_of_half_edge(he).unwrap(),
                     at_vertex: crate::boolean::sectors::BoolFace::Tangent(normal),
-                    arm: 1.0,
+                    arm: geom_core::test_support::fixture_lever(1.0),
+                    bend: crate::bound_side::FaceBend::Plane,
                 })
                 .collect();
             if twin {
                 let last = secs[secs.len() - 1].clone();
                 secs.push(BoolSector {
-                    end_reach: crate::boolean::sectors::Reach::Bisector(1.0),
+                    end_reach: crate::boolean::sectors::BoundSupport::straight_bisector(
+                        geom_core::test_support::fixture_lever(1.0),
+                    ),
                     ..last
                 });
             }
@@ -2987,7 +2995,7 @@ mod tests {
     /// sector there, and refuses.
     #[test]
     fn walks_before_reads_one_order_from_the_orbits_first_entry() {
-        use super::super::sectors::Reach;
+        use super::super::sectors::BoundSupport;
         use geom_core::Vec3;
         let band = geom_core::Band::linear(Tol::witness()).unwrap();
         let (x, y) = (Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0));
@@ -2995,19 +3003,28 @@ mod tests {
             he: HalfEdgeKey::default(),
             start: x,
             end: y,
-            start_reach: Reach::Extent(1.0),
+            start_reach: BoundSupport::Extent(geom_core::test_support::fixture_lever(1.0)),
             end_reach,
             face: FaceKey::default(),
             at_vertex: crate::boolean::sectors::BoolFace::Tangent(
                 geom_brep::OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true),
             ),
-            arm: 1.0,
+            arm: geom_core::test_support::fixture_lever(1.0),
+            bend: crate::bound_side::FaceBend::Plane,
         };
         let secs = vec![
-            sector(Reach::Extent(1.0)),
-            sector(Reach::Bisector(1.0)),
-            sector(Reach::Extent(1.0)),
-            sector(Reach::Extent(1.0)),
+            sector(BoundSupport::Extent(
+                geom_core::test_support::fixture_lever(1.0),
+            )),
+            sector(BoundSupport::straight_bisector(
+                geom_core::test_support::fixture_lever(1.0),
+            )),
+            sector(BoundSupport::Extent(
+                geom_core::test_support::fixture_lever(1.0),
+            )),
+            sector(BoundSupport::Extent(
+                geom_core::test_support::fixture_lever(1.0),
+            )),
         ];
         let at = |k, d| Cut::apart(k, up(d));
         let before = |p, q| walks_before(&secs, p, q, band);
@@ -3349,11 +3366,16 @@ mod tests {
                     he,
                     start,
                     end,
-                    start_reach: crate::boolean::sectors::Reach::Extent(1.0),
-                    end_reach: crate::boolean::sectors::Reach::Extent(1.0),
-                    face: crate::entity::FaceKey::default(),
+                    start_reach: crate::boolean::sectors::BoundSupport::Extent(
+                        geom_core::test_support::fixture_lever(1.0),
+                    ),
+                    end_reach: crate::boolean::sectors::BoundSupport::Extent(
+                        geom_core::test_support::fixture_lever(1.0),
+                    ),
+                    face: body.face_of_half_edge(he).unwrap(),
                     at_vertex: crate::boolean::sectors::BoolFace::Tangent(normal),
-                    arm: 1.0,
+                    arm: geom_core::test_support::fixture_lever(1.0),
+                    bend: crate::bound_side::FaceBend::Plane,
                 })
                 .collect();
             (vk, secs)
@@ -3422,7 +3444,7 @@ mod tests {
     /// never as a coincidence with a tolerance.
     #[test]
     fn an_in_band_germ_line_is_the_kernels_own_check() {
-        use super::super::sectors::Reach;
+        use super::super::sectors::BoundSupport;
         use geom_brep::OutwardNormal;
         use geom_core::{KERNEL_DEFECT_ENDING, Point3};
         let band = Band::linear(Tol::witness()).unwrap();
@@ -3433,11 +3455,11 @@ mod tests {
             he: HalfEdgeKey::default(),
             start: x,
             end: y,
-            start_reach: Reach::Chord {
+            start_reach: BoundSupport::Chord {
                 base: o,
                 far: o + x,
             },
-            end_reach: Reach::Chord {
+            end_reach: BoundSupport::Chord {
                 base: o,
                 far: o + y,
             },
@@ -3445,7 +3467,8 @@ mod tests {
             at_vertex: crate::boolean::sectors::BoolFace::Tangent(OutwardNormal::from_chart(
                 normal, true,
             )),
-            arm: 1.0,
+            arm: geom_core::test_support::fixture_lever(1.0),
+            bend: crate::bound_side::FaceBend::Plane,
         };
         let (sa, sb) = (
             sector(Vec3::new(0.0, 0.0, 1.0)),
@@ -3495,10 +3518,10 @@ mod tests {
         ] {
             assert_eq!(
                 strut_order(
-                    (up(e), 1.0),
+                    (up(e), geom_core::test_support::fixture_lever(1.0)),
                     n,
                     (up(at(g0)), up(at(g1))),
-                    1.0,
+                    geom_core::test_support::fixture_lever(1.0),
                     || Ok(None),
                     band
                 )
@@ -3537,10 +3560,10 @@ mod tests {
         ] {
             let truth = g0 < g1;
             match strut_order(
-                (up(e), 1.0),
+                (up(e), geom_core::test_support::fixture_lever(1.0)),
                 n,
                 (up(at(g0)), up(at(g1))),
-                1.0,
+                geom_core::test_support::fixture_lever(1.0),
                 || Ok(None),
                 band,
             ) {
@@ -3585,10 +3608,10 @@ mod tests {
         let down = up(Vec3::new(0.0, 0.0, -1.0));
         let order = |g| {
             strut_order(
-                (down, 1.23),
+                (down, geom_core::test_support::fixture_lever(1.23)),
                 at(30.0),
                 (g, up(at(120.0))),
-                0.11,
+                geom_core::test_support::fixture_lever(0.11),
                 || Ok(None),
                 band,
             )
@@ -3640,7 +3663,15 @@ mod tests {
                     let far =
                         up((Vec3::new(theta.sin(), -theta.cos(), 0.0) + e.dir * 0.3).normalize());
                     let side = |g, n_b| {
-                        strut_order((e, lever), n_b, (g, far), lever, || Ok(None), band).ok()
+                        strut_order(
+                            (e, geom_core::test_support::fixture_lever(lever)),
+                            n_b,
+                            (g, far),
+                            geom_core::test_support::fixture_lever(lever),
+                            || Ok(None),
+                            band,
+                        )
+                        .ok()
                     };
                     let upright = side(germ(a0, flat), flat);
                     definite += usize::from(theta != 0.0 && upright.is_some());
@@ -3666,13 +3697,18 @@ mod tests {
                         he: HalfEdgeKey::default(),
                         start: Vec3::new(1.0, -1.0, 0.0),
                         end: Vec3::new(1.0, 1.0, 0.0),
-                        start_reach: crate::boolean::sectors::Reach::Extent(lever),
-                        end_reach: crate::boolean::sectors::Reach::Extent(lever),
+                        start_reach: crate::boolean::sectors::BoundSupport::Extent(
+                            geom_core::test_support::fixture_lever(lever),
+                        ),
+                        end_reach: crate::boolean::sectors::BoundSupport::Extent(
+                            geom_core::test_support::fixture_lever(lever),
+                        ),
                         face: FaceKey::default(),
                         at_vertex: crate::boolean::sectors::BoolFace::Tangent(
                             geom_brep::OutwardNormal::from_chart(flat, true),
                         ),
-                        arm: lever,
+                        arm: geom_core::test_support::fixture_lever(lever),
+                        bend: crate::bound_side::FaceBend::Plane,
                     };
                     for psi in [0.0, s30.asin()].into_iter().filter(|_| s30 < 0.5) {
                         let (sy, cy) = psi.sin_cos();
@@ -3724,7 +3760,7 @@ mod tests {
     /// [`walks_after`] (round the entry) puts first.
     #[test]
     fn the_strut_order_agrees_with_the_walk_within_an_entry() {
-        use super::super::sectors::Reach;
+        use super::super::sectors::BoundSupport;
         let band = Band::linear(Tol::witness()).unwrap();
         let (e, n) = (Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
         let at = |deg: f64| {
@@ -3735,13 +3771,14 @@ mod tests {
             he: HalfEdgeKey::default(),
             start: at(1.0),
             end: e,
-            start_reach: Reach::Extent(1.0),
-            end_reach: Reach::Extent(1.0),
+            start_reach: BoundSupport::Extent(geom_core::test_support::fixture_lever(1.0)),
+            end_reach: BoundSupport::Extent(geom_core::test_support::fixture_lever(1.0)),
             face: FaceKey::default(),
             at_vertex: crate::boolean::sectors::BoolFace::Tangent(
                 geom_brep::OutwardNormal::from_chart(n, true),
             ),
-            arm: 1.0,
+            arm: geom_core::test_support::fixture_lever(1.0),
+            bend: crate::bound_side::FaceBend::Plane,
         };
         let mut pairs = 0;
         for alpha in [60.0, 179.0, 181.0, 270.0, 350.0] {
@@ -3761,10 +3798,10 @@ mod tests {
                         let walk = walks_after(&entry, up(at(d0)), up(at(d1)), band).unwrap();
                         assert_ne!(walk, Sign::Zero, "{alpha}°: {d0}° then {d1}°");
                         let strut = strut_order(
-                            (up(e), 1.0),
+                            (up(e), geom_core::test_support::fixture_lever(1.0)),
                             n,
                             (up(at(d0)), up(at(d1))),
-                            1.0,
+                            geom_core::test_support::fixture_lever(1.0),
                             || Ok(None),
                             band,
                         )
@@ -3789,7 +3826,7 @@ mod tests {
     /// lies inside the corner, reads it past a full half-turn.
     #[test]
     fn a_germ_along_the_arrival_tangent_is_met_first() {
-        use super::super::sectors::Reach;
+        use super::super::sectors::BoundSupport;
         let band = Band::linear(Tol::witness()).unwrap();
         let (e, n) = (Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
         let at = |deg: f64| {
@@ -3806,11 +3843,22 @@ mod tests {
             at_vertex: crate::boolean::sectors::BoolFace::Tangent(
                 geom_brep::OutwardNormal::from_chart(n, true),
             ),
-            arm: 1.0,
+            arm: geom_core::test_support::fixture_lever(1.0),
+            bend: crate::bound_side::FaceBend::Plane,
         };
         let sectors = [
-            sector(0.0, Reach::Extent(1.0), 90.0, Reach::Bisector(1.0)),
-            sector(90.0, Reach::Bisector(1.0), 180.0, Reach::Extent(1.0)),
+            sector(
+                0.0,
+                BoundSupport::Extent(geom_core::test_support::fixture_lever(1.0)),
+                90.0,
+                BoundSupport::straight_bisector(geom_core::test_support::fixture_lever(1.0)),
+            ),
+            sector(
+                90.0,
+                BoundSupport::straight_bisector(geom_core::test_support::fixture_lever(1.0)),
+                180.0,
+                BoundSupport::Extent(geom_core::test_support::fixture_lever(1.0)),
+            ),
         ];
         for inside in [10.0, 45.0, 80.0] {
             let along = Cut::apart(0, up(e));
@@ -3836,7 +3884,14 @@ mod tests {
         let band = Band::linear(Tol::witness()).unwrap();
         let n = Vec3::new(0.0, 0.0, 1.0);
         let germs = (up(Vec3::new(1.0, 0.0, 0.0)), up(Vec3::new(0.0, -1.0, 0.0)));
-        let got = strut_order((up(n), 1.0), n, germs, 1.0, || Ok(None), band);
+        let got = strut_order(
+            (up(n), geom_core::test_support::fixture_lever(1.0)),
+            n,
+            germs,
+            geom_core::test_support::fixture_lever(1.0),
+            || Ok(None),
+            band,
+        );
         assert!(
             got.is_err(),
             "decided with no comparand away from zero: {got:?}"
@@ -3858,10 +3913,10 @@ mod tests {
         let tie = |sign: Option<Sign>| move || Ok(sign);
         assert_eq!(
             strut_order(
-                (up(e), 1.0),
+                (up(e), geom_core::test_support::fixture_lever(1.0)),
                 n,
                 (up(y), up(y)),
-                1.0,
+                geom_core::test_support::fixture_lever(1.0),
                 tie(Some(Sign::Negative)),
                 band
             )
@@ -3871,10 +3926,10 @@ mod tests {
         );
         assert_eq!(
             strut_order(
-                (up(e), 1.0),
+                (up(e), geom_core::test_support::fixture_lever(1.0)),
                 n,
                 (up(y), up(y)),
-                1.0,
+                geom_core::test_support::fixture_lever(1.0),
                 tie(Some(Sign::Positive)),
                 band
             )
@@ -3885,7 +3940,14 @@ mod tests {
         for (what, sign) in [("reads nothing", None), ("curves alike", Some(Sign::Zero))] {
             assert!(
                 matches!(
-                    strut_order((up(e), 1.0), n, (up(y), up(y)), 1.0, tie(sign), band),
+                    strut_order(
+                        (up(e), geom_core::test_support::fixture_lever(1.0)),
+                        n,
+                        (up(y), up(y)),
+                        geom_core::test_support::fixture_lever(1.0),
+                        tie(sign),
+                        band
+                    ),
                     Err(BooleanError::Escalated {
                         decision: super::super::BooleanDecision::Coincidence(Coincide::Sectors, _),
                         ..
@@ -3897,13 +3959,29 @@ mod tests {
         let unread = || -> Result<Option<Sign>, BooleanError> { panic!("the tie was read") };
         let apart = Vec3::new(0.1, 1.0, 0.0).normalize();
         assert_eq!(
-            strut_order((up(e), 1.0), n, (up(y), up(apart)), 1.0, unread, band).ok(),
+            strut_order(
+                (up(e), geom_core::test_support::fixture_lever(1.0)),
+                n,
+                (up(y), up(apart)),
+                geom_core::test_support::fixture_lever(1.0),
+                unread,
+                band
+            )
+            .ok(),
             Some(true),
             "germs apart are ordered at first order"
         );
         let near = Vec3::new(-2.0 * band.zero(), 1.0, 0.0).normalize();
         assert!(
-            strut_order((up(e), 1.0), n, (up(y), up(near)), 1.0, unread, band).is_err(),
+            strut_order(
+                (up(e), geom_core::test_support::fixture_lever(1.0)),
+                n,
+                (up(y), up(near)),
+                geom_core::test_support::fixture_lever(1.0),
+                unread,
+                band
+            )
+            .is_err(),
             "germs in band of each other refuse without the tie"
         );
     }
@@ -3927,12 +4005,28 @@ mod tests {
         for (side, first_nearer) in [(-1.0, true), (1.0, false)] {
             let g = Vec3::new(theta.cos(), side * theta.sin(), 0.0);
             assert_eq!(
-                strut_order((up(e), 1.0), n, (up(g), up(square)), arm, unread, band).ok(),
+                strut_order(
+                    (up(e), geom_core::test_support::fixture_lever(1.0)),
+                    n,
+                    (up(g), up(square)),
+                    geom_core::test_support::fixture_lever(arm),
+                    unread,
+                    band
+                )
+                .ok(),
                 Some(first_nearer),
                 "at the edge's reach, side {side}"
             );
             assert_eq!(
-                strut_order((up(e), arm), n, (up(g), up(square)), arm, unread, band).ok(),
+                strut_order(
+                    (up(e), geom_core::test_support::fixture_lever(arm)),
+                    n,
+                    (up(g), up(square)),
+                    geom_core::test_support::fixture_lever(arm),
+                    unread,
+                    band
+                )
+                .ok(),
                 Some(true),
                 "at the arm, side {side}"
             );
@@ -3953,7 +4047,7 @@ mod tests {
     /// which refuses.
     #[test]
     fn a_germ_tangent_to_a_bound_reads_in_the_sector_across_it() {
-        use super::super::sectors::{Reach, pair_codes};
+        use super::super::sectors::{BoundSupport, pair_codes};
         use crate::boolean::Locus;
         use geom_brep::OutwardNormal;
         use geom_core::Point3;
@@ -3971,11 +4065,11 @@ mod tests {
             he: HalfEdgeKey::default(),
             start,
             end,
-            start_reach: Reach::Chord {
+            start_reach: BoundSupport::Chord {
                 base: o,
                 far: o + start,
             },
-            end_reach: Reach::Chord {
+            end_reach: BoundSupport::Chord {
                 base: o,
                 far: o + end,
             },
@@ -3983,7 +4077,8 @@ mod tests {
             at_vertex: crate::boolean::sectors::BoolFace::Tangent(OutwardNormal::from_chart(
                 normal, true,
             )),
-            arm: 1.0,
+            arm: geom_core::test_support::fixture_lever(1.0),
+            bend: crate::bound_side::FaceBend::Plane,
         };
         let a = [
             sector(x, y, -z, faces[0]),

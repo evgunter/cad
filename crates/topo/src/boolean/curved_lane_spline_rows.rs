@@ -92,10 +92,7 @@ fn spline_sheet(
         },
         EdgeCurveSpec {
             description: EdgeDescriptionSpec::chart(plane),
-            carrier: Curve3::Line {
-                origin: p1,
-                dir: -u_ref,
-            },
+            carrier: Curve3::line(p1, -u_ref),
             param_start: 0.0,
             param_end: (p1 - p0).norm(),
         },
@@ -295,10 +292,7 @@ fn upper_cone() -> (Body<f64>, FaceKey) {
 /// seed's placeholder, on `face`'s carrier under sense `true`, and
 /// returns it.
 fn twin_on_the_carrier(b: &mut Body<f64>, face: FaceKey) -> FaceKey {
-    let carrier = b
-        .get_surface(b.get_face(face).unwrap().surface)
-        .unwrap()
-        .clone();
+    let carrier = b.face_surface(face).unwrap().clone();
     let twin = b.faces().map(|(k, _)| k).find(|&k| k != face).unwrap();
     b.lifting_rechart_refusals_for_tests(|b| {
         b.set_face_surfaces_describing(

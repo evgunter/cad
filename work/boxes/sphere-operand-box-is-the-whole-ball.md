@@ -2,11 +2,12 @@
 id: sphere-operand-box-is-the-whole-ball
 kind: issue
 title: A sphere face's operand box is the whole ball - the same per-kind box class the cone, cylinder and torus arms have left
-status: open
+status: parked
 opened: 2026-09-06
 refs: [1907]
 priority: P1
 cost: H
+blocked_on: [cover-topo-faces]
 ---
 
 
@@ -74,3 +75,7 @@ outside any box):
   levels and the poles its vertices reach. A one-rim cap whose strut
   ends short of the pole keeps the ball, though its side is known (the
   strut's tip). No valid body carries one (`ScaffoldingStrutVertex`).
+
+## Since PR 6336 (BOXES, 2026-11-02)
+
+`classify::gate_face_reach` is gone: the split gate reads `census::face_reach_in` for every face. (BOXES orchestrator)

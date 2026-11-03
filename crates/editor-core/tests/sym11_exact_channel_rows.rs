@@ -52,7 +52,7 @@ use crate::m10_9_pins_interval::measured_studies;
 /// that no longer run their maps) and PR 5728 (limb 2 for every
 /// carrier), and every document moved, `frozen` most of all (the plate
 /// 1557 -> 229). No dispute fired. Which change moved which column is
-/// `work/offset/main-red-three-m10-interval-pins-moved-at-5728`'s to
+/// `work/shell/main-red-three-m10-interval-pins-moved-at-5728`'s to
 /// read.
 ///
 /// Then two numeric columns fell, both from the profile's simplicity
@@ -60,12 +60,29 @@ use crate::m10_9_pins_interval::measured_studies;
 /// (`profile::seg`'s `line_line`, PR 5952). The plate 832 -> 824 (its
 /// rectangle's four corners, on each one's axis) and the bracket's by
 /// ten.
+///
+/// A cylinder rim's axial `cos t` and `sin t` terms are decided at
+/// `pcurve_cylinder_chart_axial` (`geom_brep::pcurve_cache`'s
+/// `cylinder_rim_axial`, PR 6105), which the tier proves `Zero` on
+/// these documents' nominal rims (not on a leaf whose radius varies,
+/// `work/pcert/the-cylinder-rim-axial-decision-refuses-every-leaf-of-the-two-parameter-drive`):
+/// the annulus decides it on 12 rims and the bracket on 14; every rim of
+/// the plate, the link and the pad has exactly-zero axial terms and
+/// returns before the decision, so they do not move.
+/// So the annulus 654 -> 666 and the bracket 1542 -> 1556 symbolic, the
+/// other columns unmoved.
+///
+/// PCERT E1c (every mint reads incidence first, PR 5889), identical at all three ε rows:
+/// symbolic plate 1149 -> 1203, annulus 666 -> 720, link 962 -> 998,
+/// bracket 1556 -> 1618, pad 1616 -> 1684; the link's numeric 805 -> 821
+/// and the frozen of the link 2241 -> 5161, the bracket 914 -> 1313 and
+/// the pad 2476 -> 3268, the forms the read builds.
 const PAST_THE_CEILING: [(&str, [u64; 3]); 5] = [
-    ("two_hole_plate", [1149, 824, 229]),
-    ("r1_annulus", [654, 555, 212]),
-    ("r2_link", [962, 805, 2241]),
-    ("r2_filleted_bracket", [1542, 1159, 914]),
-    ("r2_rounded_pad", [1616, 1262, 2476]),
+    ("two_hole_plate", [1203, 824, 229]),
+    ("r1_annulus", [720, 555, 212]),
+    ("r2_link", [998, 821, 5161]),
+    ("r2_filleted_bracket", [1618, 1159, 1313]),
+    ("r2_rounded_pad", [1684, 1262, 3268]),
 ];
 
 /// The scale, in multiples of ε, a document with no measured refusal

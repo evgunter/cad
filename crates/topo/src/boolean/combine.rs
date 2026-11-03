@@ -216,7 +216,7 @@ fn graft_door<T: crate::props::AtRestPolicy>(
     start: Point3<T>,
     end: Point3<T>,
     surfaces: &dyn Fn(SurfaceKey) -> Option<geom::Surface<T>>,
-    reach: T,
+    reach: geom_core::Lever<T>,
     band: geom_core::Band,
 ) -> Result<geom_brep::EdgeCurve<T>, geom_brep::CertifyError> {
     let origin = crate::policy_lane::Origin::Kernels(crate::policy_lane::KernelSite::Graft);
@@ -229,7 +229,7 @@ pub(crate) type GraftDoor<T> = fn(
     Point3<T>,
     Point3<T>,
     &dyn Fn(SurfaceKey) -> Option<geom::Surface<T>>,
-    T,
+    geom_core::Lever<T>,
     geom_core::Band,
 ) -> Result<geom_brep::EdgeCurve<T>, geom_brep::CertifyError>;
 
@@ -868,10 +868,7 @@ fn graft_solids_impl<T: geom_core::Decide>(
             geom_brep::EdgeDescription::OnPair { pair } => geom_brep::EdgeDescriptionSpec::OnPair {
                 pair: pair
                     .map(|s| image(&surfaces, s, GeomRef::Surface, GeomRef::Curve(k), "pair")),
-                declared: match curve.authority() {
-                    geom_brep::EdgeAuthority::Declared(mc) => Some(mc),
-                    geom_brep::EdgeAuthority::Derived => None,
-                },
+                declared: curve.authority().declared(),
             },
             // The image travels verbatim (chart COORDINATES); only
             // the handle moves. The authority record travels beside
@@ -886,10 +883,7 @@ fn graft_solids_impl<T: geom_core::Decide>(
                 ),
                 image: Some(c.pcurve.clone()),
                 wrap: c.wrap,
-                declared: match curve.authority() {
-                    geom_brep::EdgeAuthority::Declared(mc) => Some(mc),
-                    geom_brep::EdgeAuthority::Derived => None,
-                },
+                declared: curve.authority().declared(),
             },
             geom_brep::EdgeDescription::Scaffold(_) => continue, // no surface keys
         };
@@ -1050,7 +1044,7 @@ mod recertify_door_tests {
                     start,
                     end,
                     surfaces,
-                    1.0,
+                    geom_core::test_support::fixture_lever(1.0),
                     band,
                     geom_brep::NurbsLane::certified(),
                 )

@@ -888,3 +888,86 @@ fn an_extruded_box_and_an_euler_box_describe_every_edge_alike() {
     }
     assert_eq!(intrinsic, 12, "every edge of the box was compared");
 }
+
+/// **A profile with no loops validates, and every sweep refuses it at
+/// its own door**: the empty region sweeps nothing. The extrude, the
+/// revolve and a path sweep refuse `EmptyProfile` in its words; a loft
+/// names the first empty section in the same words.
+#[test]
+fn a_profile_with_no_loops_refuses_at_every_sweep() {
+    use sweep::{LoftError, Revolution, RevolveAxis, RevolveError, SkinError};
+    const WORDS: &str =
+        "profile has no loops — nothing to sweep. Recourse: add a loop to the profile";
+    let tol = Tol::witness();
+    let at = |z: f64| SketchPlane::xy_at(Point3::new(0.0, 0.0, z));
+    let empty = Profile::<f64>::new(at(0.0), vec![])
+        .validate(tol)
+        .expect("no loops validates");
+    let extruded = extrude(
+        &empty,
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        tol,
+    )
+    .map(|_| ());
+    assert_eq!(extruded, Err(ExtrudeError::EmptyProfile), "extrude");
+    assert_eq!(ExtrudeError::EmptyProfile.to_string(), WORDS, "extrude");
+    let axis = RevolveAxis {
+        origin: Point2::new(0.0, 0.0),
+        dir: geom_core::Vec2::new(0.0, 1.0),
+    };
+    let revolved = sweep::revolve(&empty, axis, Revolution::Full, tol).map(|_| ());
+    assert_eq!(revolved, Err(RevolveError::EmptyProfile), "revolve");
+    assert_eq!(RevolveError::EmptyProfile.to_string(), WORDS, "revolve");
+
+    let in_section_1 = SkinError::EmptyProfile { section: Some(1) };
+    assert_eq!(
+        in_section_1.to_string(),
+        format!("section 1's {WORDS}"),
+        "a loft's section"
+    );
+    let square = Profile::new(at(1.0), vec![l_loop()])
+        .validate(tol)
+        .expect("the L validates");
+    let lofted = sweep::loft_profiles(&[square, empty.clone().on_plane(at(2.0))], 1, tol);
+    assert!(
+        matches!(&lofted, Err(LoftError::Skin(e)) if *e == in_section_1),
+        "loft_profiles names the empty section: {:?}",
+        lofted.map(|_| ())
+    );
+    let sections: Vec<sweep::Section> = vec![vec![l_loop()], vec![]];
+    let lofted = sweep::loft_body(&sections, &[at(0.0), at(1.0)], 1, tol);
+    assert!(
+        matches!(&lofted, Err(LoftError::Skin(e)) if *e == in_section_1),
+        "loft_body names the empty section: {:?}",
+        lofted.map(|_| ())
+    );
+
+    // A path sweep's caller passed one profile: its words, no section.
+    let one_profile = SkinError::EmptyProfile { section: None };
+    assert_eq!(one_profile.to_string(), WORDS, "a path sweep");
+    let path = sweep::segment_curve(
+        0,
+        geom_brep::SketchSegment::Line {
+            a: Point2::new(0.0, 0.0),
+            b: Point2::new(1.0, 0.0),
+        },
+        geom_core::Affine3::identity(),
+    )
+    .expect("a straight path");
+    let no_loops: Vec<ProfileLoop<f64>> = Vec::new();
+    let swept = sweep::sweep_geometry(&no_loops, at(0.0), &path, 3, 1, tol);
+    assert!(
+        matches!(&swept, Err(e) if *e == one_profile),
+        "sweep_geometry: {:?}",
+        swept.map(|_| ())
+    );
+    let swept = sweep::sweep_body(&no_loops, at(0.0), &path, 3, 1, tol);
+    assert!(
+        matches!(&swept, Err(LoftError::Skin(e)) if *e == one_profile),
+        "sweep_body: {:?}",
+        swept.map(|_| ())
+    );
+}

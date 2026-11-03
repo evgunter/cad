@@ -41,3 +41,31 @@ record.
 ## Moved (2026-10-28, SPLITDOOR)
 
 - Moved to HELDRECORDS (`work/heldrecords/`) by `git mv`, id and body unchanged: SPLITDOOR's seam cut put the records chain Ev ratified on PR 5967 on a track of its own (`work/README.md` Track size).
+
+## A rim shared along an arc, then a crescent (2026-11-02, TANGRIM PR 6375)
+
+The same unrecorded overlap, in a pose that builds with PR 6375. The
+boss is `r = 0.3`, `z ∈ [0, 1]`, one segment. The plate's through hole
+shares the boss's rim along the arc from azimuth `−θ` to `θ` (centre
+the origin, radius 0.3). At `θ` it leaves tangent on a tighter arc
+(radius `ρ`, centre `(0.3 − ρ)` along azimuth `θ`, a quarter-turn),
+and closes with a line. Past `p(θ)` the boss's floor and the plate's
+top overlap in a crescent. Measured with `(θ, ρ)` at `(0.5, 0.1)`,
+`(0.3, 0.2)` and `(0.8, 0.15)`, the boss's vertex at azimuth 0, `θ`
+and `π`.
+
+The 18 unions (9 poses, both orders) refused `TangentCrescentUnsupported`
+on main. With the crescent read as an overlap they build in one shell,
+at the closed-form volume, tier 2 and the certificate passing, with the
+point set correct: `point_in_solid` reads the crescent at `z = 0` and
+`±1e-3`, the hole below the shared arc, and the boss above it, all as
+membership worked by hand. Tier 3′ alone fails, `UnrecordedContact {
+EdgeEdgeOverlap }` on the hole's shared arc against each of the two
+edges the boss's rim is cut into there (witnesses at azimuth `±θ/2`
+for `θ = 0.5`). The records hold one `VertexEdge` row and no
+edge–edge row. ∩ is empty and both differences are `SOUND`. The
+same at ε = 1e-6 and 1e-12.
+
+Pinned as that typed tier-3′ failure:
+`crates/sweep/tests/a_closed_conic_in_the_partners_face.rs`
+`a_hole_sharing_the_rim_along_an_arc_then_leaving_it_tangent`.

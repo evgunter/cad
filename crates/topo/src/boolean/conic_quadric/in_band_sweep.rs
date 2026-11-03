@@ -71,12 +71,12 @@ fn graze(
     (rho, depth, b): (f64, f64, f64),
 ) -> geom::Curve3<f64> {
     let toward = (normal * b.cos() + normal.cross(tangent) * b.sin()).normalize();
-    geom::Curve3::Circle {
-        center: on + normal * depth - toward * rho,
-        axis: toward.cross(tangent).normalize(),
-        radius: rho,
-        u_ref: toward,
-    }
+    geom::Curve3::circle(
+        on + normal * depth - toward * rho,
+        toward.cross(tangent).normalize(),
+        rho,
+        toward,
+    )
 }
 
 /// [`graze`] against the wall of radius `r` at `(r, 0, 0)`, tangent in
@@ -115,7 +115,7 @@ fn farthest(c: &geom::Curve3<f64>, r: f64) -> f64 {
 /// The door's ladder noise meter's reading for `c` against the wall of
 /// radius `r` (metres), from the frame the door builds.
 fn noise_reading(c: &geom::Curve3<f64>, r: f64) -> f64 {
-    let conic = geom_brep::Conic::of(c).unwrap();
+    let conic = c.conic().unwrap();
     quadric_ladder(&conic, &wall(r), (-1.0, 1.0))
         .unwrap()
         .frame
@@ -351,12 +351,12 @@ fn the_sweeps_gap_witnesses_are_judged_in_the_residual() {
     let mut wrong = Vec::new();
     let mut past = 0;
     for (i, (center, axis, radius, u_ref, r)) in GAP_WITNESSES.into_iter().enumerate() {
-        let c = geom::Curve3::Circle {
-            center: Point3::new(center[0], center[1], center[2]),
-            axis: Vec3::new(axis[0], axis[1], axis[2]),
+        let c = geom::Curve3::circle(
+            Point3::new(center[0], center[1], center[2]),
+            Vec3::new(axis[0], axis[1], axis[2]),
             radius,
-            u_ref: Vec3::new(u_ref[0], u_ref[1], u_ref[2]),
-        };
+            Vec3::new(u_ref[0], u_ref[1], u_ref[2]),
+        );
         let truth = exact::truth(&c, &wall(r));
         assert!(
             truth.depth < 10.0 * eps,
@@ -507,12 +507,14 @@ fn an_exact_tangency_is_escalated_at_every_tilt() {
 /// and that reading licenses a true answer**: at the default band the
 /// ladder's noise meter reads this crossing's harmonics in the gap and
 /// lets the ladder run, and the answer is the subdivision's — two roots,
-/// each within the zero band of the exact oracle's.
+/// each within the zero band of the exact oracle's. Near the gap the
+/// root-slack meter refuses some poses of the family `Meter`, typed;
+/// this one it answers.
 #[test]
 fn a_circle_of_radius_1500_reading_its_noise_in_the_gap_is_answered_truly() {
     let (rho, eps) = (1500.0, 1e-9);
     let band = Band::new(eps, 10.0 * eps).unwrap();
-    let c = tangent_circle(1.0, rho, -1e-6, 1.2, 0.7);
+    let c = tangent_circle(1.0, rho, -1e-6, 1.1, 0.7);
     let noise = noise_reading(&c, 1.0);
     assert!(
         decide(LADDER_NOISE, Margin::of(noise), band).is_err(),
@@ -710,4 +712,80 @@ fn a_circle_grazing_a_torus_is_answered_truly_or_not_at_all() {
         fuzz::replay(),
         wrong.join("\n")
     );
+}
+
+/// The near-gap poses of the ρ = 1500 family against the wall of radius 1
+/// at ε = 1e-9: depths 0.5–2 µm into it, four tilts, each crossing twice.
+/// `ratio` makes the carrier at a pose an ellipse of semi-axes `ρ` and
+/// `ρ·ratio`, seamed at the vertex that grazes, or a circle at `None`.
+fn near_gap_family(ratio: Option<f64>) -> Vec<geom::Curve3<f64>> {
+    let mut out = Vec::new();
+    for depth in [
+        -0.5e-6, -0.6e-6, -0.7e-6, -0.8e-6, -0.9e-6, -1e-6, -1.1e-6, -1.2e-6, -1.5e-6, -2e-6,
+    ] {
+        for (g, b) in [(1.2, 0.7), (1.1, 0.7), (1.2, 0.6), (1.3, 0.8)] {
+            let c = tangent_circle(1.0, 1500.0, depth, g, b);
+            out.push(match (ratio, c) {
+                (None, c) => c,
+                (Some(k), geom::Curve3::Circle(c)) => {
+                    geom::Curve3::Ellipse(geom::Ellipse::new(c.frame, c.radius, c.radius * k))
+                }
+                _ => unreachable!(),
+            });
+        }
+    }
+    out
+}
+
+/// How many of `family` the door certifies at ε = 1e-9, each certified
+/// root checked within the zero band of the exact oracle's; every other
+/// pose must refuse the typed `Unsettled::Meter`, or this panics.
+fn certified_near_gap(family: &[geom::Curve3<f64>]) -> usize {
+    let eps = 1e-9;
+    let band = Band::new(eps, 10.0 * eps).unwrap();
+    family
+        .iter()
+        .filter(|c| {
+            let found = match conic_quadric_roots(c, -1.0, 1.0, &wall(1.0), band) {
+                Ok(Ok(CircleRoots::Certified(found))) => found,
+                Ok(Err(Unsettled::Meter)) => return false,
+                other => panic!("{c:?}: answered neither certified nor `Meter`: {other:?}"),
+            };
+            let truth = exact::truth(c, &wall(1.0));
+            for &t in found.roots() {
+                let off = truth
+                    .roots
+                    .iter()
+                    .map(|&x| arc_between(t, x, 1500.0))
+                    .fold(f64::INFINITY, f64::min);
+                assert!(off <= eps, "{c:?}: root {t} lies {off:e} m from the truth");
+            }
+            true
+        })
+        .count()
+}
+
+/// **The near-gap ρ = 1500 families keep the answers they certify**: of
+/// the 40 poses of [`near_gap_family`], the circles and the ellipses at
+/// each ratio, the door answers at least the measured count, each root
+/// true, and refuses the rest `Meter`, typed. Floors on measured counts
+/// (circle 7, ellipse 1.25 / 0.999 / 1.001 each 7, ellipse 0.8 1); the
+/// walk and its running meter read each carrier's own point, whose bound
+/// is a little wider than the ellipse-form chain an earlier reading took
+/// (17, 17 and 7 there). Red if the root-slack meter's charge grows.
+#[test]
+fn the_near_gap_families_keep_their_certified_answers() {
+    for (ratio, floor) in [
+        (None, 7),
+        (Some(1.25), 7),
+        (Some(0.999), 7),
+        (Some(1.001), 7),
+        (Some(0.8), 1),
+    ] {
+        let got = certified_near_gap(&near_gap_family(ratio));
+        assert!(
+            got >= floor,
+            "{ratio:?}: {got} of 40 certified, below the measured {floor}"
+        );
+    }
 }

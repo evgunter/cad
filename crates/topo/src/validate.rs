@@ -511,7 +511,13 @@ pub(crate) fn resolved<T: Decide>(
     band: Band,
 ) -> Result<(), geom_core::MarginDiag> {
     let k = T::from_f64(band.escalate() / band.zero());
-    match decide_reported(name, Margin::levered(k, rounding), band) {
+    match decide_reported(
+        name,
+        // Unsourced lever: the reading's own rounding, a length that K scales, not an arm a
+        // dimensionless datum is levered across; no extent, curvature or session box is it.
+        Margin::levered(k, geom_core::Lever::unsourced(rounding)),
+        band,
+    ) {
         Ok(geom_core::Decided {
             sign: Sign::Zero, ..
         }) => Ok(()),
@@ -581,7 +587,7 @@ pub(crate) fn decide_levered<T: Decide>(
 pub(crate) fn decide_at_lever<T: Decide>(
     names: (&'static str, &'static str),
     lever: geom_brep::LeverBounds<T>,
-    margin: impl Fn(T) -> Margin<T>,
+    margin: impl Fn(geom_core::Lever<T>) -> Margin<T>,
     band: Band,
 ) -> Result<Sign, Indeterminate> {
     match lever {
@@ -1612,8 +1618,11 @@ pub enum ValidationError {
     /// it** — a sphere's pole or a cone's apex in the face's interior or
     /// inside one of its edges (`docs/DESIGN.md` `[topology.tiers]`:
     /// every chart singularity in a face's closure is a vertex of it).
-    /// Read by `geom_brep::chart_singularity::locate`, the one reading
-    /// STEP import makes such a point a vertex by; `lies` says where.
+    /// Placed on the boundary by
+    /// `geom_brep::chart_singularity::place_on_boundary`, the reading STEP
+    /// import makes such a point a vertex by, and in the interior by the
+    /// face's point-in-face door at the point (`crate::one_region`'s
+    /// reading); `lies` says where.
     ChartSingularityNotAVertex {
         /// The face.
         face: FaceKey,
@@ -1625,9 +1634,8 @@ pub enum ValidationError {
     /// Tier 3, check 6's chart-singularity arm, **undecided**: whether a
     /// chart singularity of the face's surface lies at a vertex of it,
     /// inside it or outside it cannot be read — its distance to the
-    /// face's boundary is in band, or the side of one of its loops it
-    /// lies on does not clear its reading's bound
-    /// (`geom_brep::chart_singularity::Undecided`, whose ending it
+    /// face's boundary is in band, or the face's door read its side in
+    /// band (`geom_brep::chart_singularity::Undecided`, whose ending it
     /// carries).
     ChartSingularityUndecided {
         /// The face.
@@ -4145,7 +4153,7 @@ pub(crate) fn classify_point_in_solid(
             "a solid the check read holds the side at infinity in its material, so it is \
              inside-out"
                 .into(),
-            "Recourse: build it with its faces pointing outward, or revert it".into(),
+            format!("Recourse: {}", S::INSIDE_OUT_RECOURSE).into(),
         ),
         S::KindUnsupported { kind, .. } => (
             format!(
@@ -4657,9 +4665,11 @@ impl fmt::Display for ValidationError {
                 f,
                 "a solid encloses negative volume, so it is inside-out. {DEFECT}"
             ),
-            Self::SliverInsideOut { .. } => f.write_str(
+            Self::SliverInsideOut { .. } => write!(
+                f,
                 "a solid is inside-out: a ray from outside it crosses into its material. \
-                 Recourse: build it with its faces pointing outward, or revert it",
+                 Recourse: {}",
+                crate::boolean::PointInSolidError::INSIDE_OUT_RECOURSE
             ),
             Self::VolumeUncomputable { source, .. } => {
                 let MassPropsReading { why, recourse, .. } = classify_mass_props(source);
@@ -5761,10 +5771,11 @@ pub(crate) fn closed_by_tier<T: Real>(
 ///    pole or a cone's apex in a face's interior or inside one of its
 ///    edges refuses ([`ValidationError::ChartSingularityNotAVertex`]),
 ///    and one whose distance to the boundary is in band, or whose side
-///    of a loop its reading cannot clear of its error bound, refuses as
-///    undecided ([`ValidationError::ChartSingularityUndecided`]). The
-///    reading is `geom_brep::chart_singularity::locate`, the one STEP
-///    import makes such a point a vertex by, read off the face's region:
+///    the face's door reads in band, refuses as undecided
+///    ([`ValidationError::ChartSingularityUndecided`]). The boundary is
+///    read by `geom_brep::chart_singularity::place_on_boundary`, the
+///    reading STEP import makes such a point a vertex by, and the side by
+///    the face's point-in-face door at the point (`crate::one_region`):
 ///    it never asks whether a loop has a meridian.
 /// 7. **The orientation invariant, PER SOLID** (solids, arena order):
 ///    each solid's own faces leave infinity outside its material, read
@@ -5886,7 +5897,7 @@ pub(crate) fn closed_by_tier<T: Real>(
 ///     past a turn, or an edge whose carrier's reading cannot cross it;
 ///     a face check 6 refused for its orientation is reported there and not
 ///     read again)
-///     (`work/restcurve/the-region-arm-is-silent-on-spline-faces-and-off-admits-edges.md`);
+///     (`work/restfront/the-region-arm-is-silent-on-spline-faces-and-off-admits-edges.md`);
 ///   - a ring inside another ring on a plane
 ///     (`work/restfront/check-9-does-not-check-a-ring-nested-inside-another-ring.md`);
 ///   - on a plane, the loops that walk cannot read at a point — a NURBS
@@ -5907,17 +5918,15 @@ pub(crate) fn closed_by_tier<T: Real>(
 ///     cylinder and the tilted-split washer).
 /// - **A chart singularity the reading cannot place** (check 6's
 ///   chart-singularity arm, exempt where
-///   `geom_brep::chart_singularity::locate` answers neither a place nor
-///   an undecided reading): an edge on a sampled carrier (not a line or
-///   a circle) whose refinement against its speed bound settles neither
-///   on nor off within its budget, or one with no speed bound that holds
-///   at every scalar (a rational spline among them)
-///   (`work/restcurve/a-sampled-edge-the-chart-singularity-reading-cannot-settle-is-exempt.md`),
-///   and a loop whose chart image states no certified winding about the
-///   surface axis: a sample with no chart point away from every singular
-///   point, a step not certified to turn by less than a sixteenth of a
-///   turn within the walk's budget, or a loop winding more than once
-///   (`work/restcurve/a-loop-the-chart-singularity-walk-cannot-certify-is-exempt.md`).
+///   `geom_brep::chart_singularity::place_on_boundary` answers neither a
+///   place nor an undecided reading, or the face's door no side): an edge
+///   on a sampled carrier (not a line or a circle) whose refinement
+///   against its speed bound settles neither on nor off within its
+///   budget, or one with no speed bound that holds at every scalar (a
+///   rational spline among them)
+///   (`work/restfront/a-sampled-edge-the-chart-singularity-reading-cannot-settle-is-exempt.md`),
+///   and a face its door does not read or reads with no path settled (the
+///   region arm's residue above).
 /// - **Shell winding where the witness cannot be read** (check 10's
 ///   silences, the false-refusal direction it must never fail in): a
 ///   shell whose own signed volume does not decide a role (in-band,
@@ -6987,7 +6996,7 @@ impl<T: Decide> geom_brep::StationHook<T> for MaterialStations<'_, T> {
         let signed = geom_brep::material_kappa_rel(station.jet.kappa_rel, self.sense_plus);
         let this = match decide_nonzero(
             "material_cusp_side",
-            Margin::sagitta(signed, station.arm),
+            Margin::sagitta(signed, station.arm.length()),
             self.band,
         ) {
             Ok(geom_core::k_stats::NonzeroSign::Positive) => MaterialWedge::Cusp,
@@ -7668,7 +7677,8 @@ pub(crate) fn tier3_local_checks_marked<
     // collected once, and each edge's reach is read once and shared by
     // its re-certification and its dihedral check (`crate::WedgeReach`).
     let wedges = crate::WedgeReach::new(body);
-    let mut reaches: slotmap::SecondaryMap<EdgeKey, T> = slotmap::SecondaryMap::new();
+    let mut reaches: slotmap::SecondaryMap<EdgeKey, geom_core::Lever<T>> =
+        slotmap::SecondaryMap::new();
 
     // ------------------------------------------------------------------
     // Tier 3, check 2: carrier re-certification + description adjacency
@@ -8112,13 +8122,15 @@ pub(crate) fn tier3_local_checks_marked<
             adjacent.push((f_minus, fs_minus));
         }
         // The edge's carrier read on the plane over the edge's span by the
-        // mint's own incidence decider ([`geom_brep::read_incidence`]), so
-        // the tier and the mint never read one edge two ways.
+        // mint's own incidence decider, as the edge's own read
+        // ([`geom_brep::read_edge_incidence`]): a conic over the edge, not
+        // its whole turn, so an arc on the face whose circle leaves it past
+        // the arc's ends is on the face.
         for (face_key, surface_key) in adjacent {
             let Some(plane @ Surface::Plane { .. }) = body.surfaces.get(surface_key) else {
                 continue;
             };
-            match geom_brep::read_incidence(curve.carrier(), t0, t1, plane, band) {
+            match geom_brep::read_edge_incidence(curve.carrier(), t0, t1, plane, band) {
                 Ok(()) => {}
                 Err(geom_brep::PcurveCertifyError::Escalated { cause, .. }) => {
                     errors.push(ValidationError::PlanarBoundaryEscalated {
@@ -8295,7 +8307,7 @@ pub(crate) fn tier3_local_checks_marked<
     let mut regions = crate::props::read_seam_regions(body, body.faces.keys(), band);
     // Each sphere and cone face's loops as this arm flattens them, kept
     // for the chart-singularity arm below.
-    let mut flattened: SecondaryMap<FaceKey, (FlatLoops<T>, FlatLoops<T>)> = SecondaryMap::new();
+    let mut flattened: SecondaryMap<FaceKey, FlatLoops<T>> = SecondaryMap::new();
     for region in &regions {
         if let (Some(&face), Some(cover)) = (region.members.first(), region.cover.clone()) {
             errors.extend(census_finding(face, cover));
@@ -8339,7 +8351,7 @@ pub(crate) fn tier3_local_checks_marked<
             .collect();
         let side = geom_brep::props::boundary_material_sign_holding(surface, &loops, &held, band);
         if matches!(surface, Surface::Sphere { .. } | Surface::Cone { .. }) {
-            flattened.insert(face_key, (full, images));
+            flattened.insert(face_key, full);
         }
         match side {
             Ok(geom_brep::props::MaterialSign::Encoded(side)) => {
@@ -8386,27 +8398,33 @@ pub(crate) fn tier3_local_checks_marked<
     // ------------------------------------------------------------------
     // Tier 3, check 6, CHART-SINGULARITY arm (`docs/DESIGN.md`
     // `[topology.tiers]`): every chart singularity in a face's closure is
-    // a vertex of it. Each sphere pole and cone apex is read against its
-    // face's region by `geom_brep::chart_singularity::locate`, the reading
-    // STEP import makes such a point a vertex by, so validity refuses
-    // exactly what import re-mints: one in the interior or inside an
-    // edge refuses, and one whose distance to the boundary or side of a
-    // loop is undecided refuses as undecided, carrying its ending. A
-    // face whose reading cannot place the point is exempt (the
-    // not-yet-checked list): an edge on a sampled carrier whose
-    // refinement settles neither on nor off, or a loop whose chart image
-    // states no certified winding. The loops are check 6's curved arm's,
-    // and "at a vertex" reads each vertex's stored point.
+    // a vertex of it. Each sphere pole and cone apex is placed on the
+    // face's boundary by `geom_brep::chart_singularity::place_on_boundary`,
+    // the reading STEP import makes such a point a vertex by: at a vertex
+    // passes, inside an edge refuses, and a distance in band refuses as
+    // undecided, carrying its ending. Off the boundary, its side is the
+    // one region arm's reading (`crate::one_region`): the face's
+    // point-in-face door at the point, every surface cycle kept, which
+    // places it in the face (refused) or outside it, and a reading in
+    // band refuses as undecided. Exempt (the not-yet-checked list): an
+    // edge on a sampled carrier whose refinement settles neither on nor
+    // off, and a face no door reads or no path of whose door settles.
+    // The loops are check 6's curved arm's, and "at a vertex" reads each
+    // vertex's stored point.
     // ------------------------------------------------------------------
-    for (face_key, (flat, images)) in flattened.iter() {
-        use geom_brep::chart_singularity::{FaceLoop, Lies, Undecided, locate};
-        let (Some(face), Some(surface)) = (
-            body.faces.get(face_key),
-            body.faces
-                .get(face_key)
-                .and_then(|face| body.surfaces.get(face.surface)),
-        ) else {
+    for (face_key, flat) in flattened.iter() {
+        use geom_brep::chart_singularity::{
+            FaceLoop, Lies, SideUnread, Undecided, place_on_boundary, singular_points,
+        };
+        let Some(surface) = body
+            .faces
+            .get(face_key)
+            .and_then(|face| body.surfaces.get(face.surface))
+        else {
             continue; // unreachable: the curved arm read both
+        };
+        let Ok(chart) = geom::ChartInverse::of(surface) else {
+            continue; // no chart, no singular point
         };
         let Some(corners) = flat
             .iter()
@@ -8427,18 +8445,14 @@ pub(crate) fn tier3_local_checks_marked<
             .zip(&corners)
             .map(|((edges, _), corners)| FaceLoop { edges, corners })
             .collect();
-        let images: Vec<&[geom_brep::props::LoopEdge<T>]> =
-            images.iter().map(|(edges, _)| edges.as_slice()).collect();
-        for located in locate(surface, &loops, &images, face.sense, band) {
-            let (point, face) = (located.singularity, face_key);
-            match located.lies {
-                Ok(Lies::AtVertex { .. } | Lies::Outside) => {}
-                Ok(Lies::Interior) => errors.push(ValidationError::ChartSingularityNotAVertex {
-                    face,
-                    point,
-                    lies: SingularityLies::Interior,
-                }),
-                Ok(Lies::InsideEdge { r#loop, edge, .. }) => {
+        let Ok(cycles) = crate::surface_boundary::surface_cycles(body, face_key) else {
+            continue; // tier 1 refuses a boundary that does not walk
+        };
+        let every: Vec<usize> = (0..cycles.len()).collect();
+        for (point, x) in singular_points(&chart) {
+            let face = face_key;
+            match place_on_boundary(&loops, x, band) {
+                Ok(Some(Lies::InsideEdge { r#loop, edge, .. })) => {
                     let Some(he) = body.half_edges.get(flat[r#loop].1[edge]) else {
                         continue; // unreachable: the flattening resolved it
                     };
@@ -8448,6 +8462,41 @@ pub(crate) fn tier3_local_checks_marked<
                         lies: SingularityLies::InsideEdge { edge: he.edge },
                     });
                 }
+                Ok(Some(_)) => {}
+                Ok(None) => match crate::one_region::door_side(body, face, &every, x, band) {
+                    Ok(Some(true)) => {
+                        errors.push(ValidationError::ChartSingularityNotAVertex {
+                            face,
+                            point,
+                            lies: SingularityLies::Interior,
+                        });
+                    }
+                    // Outside. Or unplaced: a face no door reads, no path
+                    // settled, or the door's own boundary reading placing
+                    // the point within the zero band of an arc. That last
+                    // is the distance `place_on_boundary` read off the
+                    // boundary first, past the band's far edge, so it is
+                    // reachable only through the two readings' rounding,
+                    // which the band's gap is far wider than.
+                    Ok(Some(false) | None) => {}
+                    // The door's boundary reading in band is the same
+                    // distance, so it carries the boundary's ending; any
+                    // other reading in band is the side's.
+                    Err(diag) => {
+                        let reading = if diag.predicate.is_some_and(|p| {
+                            p.starts_with("curve_carrier_") || p.starts_with("curve_pair_span_")
+                        }) {
+                            Undecided::Boundary(diag)
+                        } else {
+                            Undecided::Side(SideUnread::Banded(diag))
+                        };
+                        errors.push(ValidationError::ChartSingularityUndecided {
+                            face,
+                            point,
+                            reading,
+                        });
+                    }
+                },
                 Err(why) => {
                     if let Some(reading) = Undecided::of(&why) {
                         errors.push(ValidationError::ChartSingularityUndecided {
@@ -8996,9 +9045,9 @@ impl<T: Real> Departure<T> {
     /// The unit direction `dir` scaled to `lever`.
     pub(crate) fn along(dir: geom_core::Vec3<T>, lever: geom_brep::LeverBounds<T>) -> Self {
         match lever {
-            geom_brep::LeverBounds::Exact(arm) => Self::Exact(dir * arm),
+            geom_brep::LeverBounds::Exact(arm) => Self::Exact(dir * arm.length()),
             geom_brep::LeverBounds::Between { below, above } => {
-                Self::Between(dir * below, dir * above)
+                Self::Between(dir * below.length(), dir * above.length())
             }
         }
     }
@@ -9195,10 +9244,8 @@ pub(crate) fn side<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Option<CornerS
         vertex_point(body, body.half_edge_end(he)?)?,
     );
     let departure = match curve.carrier() {
-        geom::Curve3::Line { .. } => Some(Departure::Exact(p1 - p0)),
-        geom::Curve3::Circle { .. }
-        | geom::Curve3::Ellipse { .. }
-        | geom::Curve3::Spiric { .. } => {
+        geom::Curve3::Line(_) => Some(Departure::Exact(p1 - p0)),
+        geom::Curve3::Circle(..) | geom::Curve3::Ellipse(..) | geom::Curve3::Spiric { .. } => {
             let (t0, t1) = curve.params();
             let lever = geom_brep::edge_reach_bounds(curve.carrier(), t0, t1, p0);
             Some(Departure::along(
@@ -9791,16 +9838,19 @@ fn meet_segment<T: Real>(body: &Body<T>, he: HalfEdgeKey) -> Option<(EdgeKey, Me
     let edge = body.half_edges.get(he)?.edge;
     let geom = certified_carrier(body, edge)?;
     let segment = match *geom.carrier() {
-        geom::Curve3::Line { .. } => {
+        geom::Curve3::Line(_) => {
             let (a, b) = edge_endpoints(body, he)?;
             MeetSegment::Line { a, b }
         }
-        geom::Curve3::Circle {
-            center,
-            axis,
+        geom::Curve3::Circle(geom::Circle {
+            frame:
+                geom::Frame {
+                    center,
+                    axis,
+                    u_ref,
+                },
             radius,
-            u_ref,
-        } => {
+        }) => {
             let (t0, t1) = geom.params();
             MeetSegment::Arc {
                 center,
@@ -9856,7 +9906,7 @@ fn segments_meet<T: Decide>(
             let e = (b - a).normalize();
             // The foot of the centre on the line, and the half-chord
             // either side of it.
-            let foot = a + e * (center - a).dot(e);
+            let foot = geom::Line { origin: a, dir: e }.foot(center);
             let h = (center - foot).norm();
             let half_chord = ((radius - h) * (radius + h)).max(T::zero()).sqrt();
             let (existence, candidates) =
@@ -10135,19 +10185,21 @@ fn window<T: Decide>(segment: MeetSegment<T>, p: geom_core::Point3<T>, band: Ban
             t0,
             t1,
         } => {
-            let carrier = geom::Curve3::Circle {
-                center,
-                axis,
+            let carrier = geom::Curve3::Circle(geom::Circle {
+                frame: geom::Frame {
+                    center,
+                    axis,
+                    u_ref,
+                },
                 radius,
-                u_ref,
-            };
+            });
             let mid = geom::mid_param(t0, t1);
             match crate::splitting::containment::arc_trim(
                 p,
                 [carrier.eval(t0), carrier.eval(t1)],
                 carrier.eval(mid),
                 carrier.eval(mid + T::pi()),
-                T::one(),
+                geom_core::InfSpeed::new(T::one()),
                 &RING_OUTER_ARC_TRIM,
                 band,
             ) {
@@ -10352,18 +10404,16 @@ fn locus_gap<T: Real>(carrier: &geom::Curve3<T>, p: geom_core::Point3<T>) -> Opt
     match carrier {
         // `dir` is unit by convention, so the rejection is the residual
         // of the projection.
-        geom::Curve3::Line { origin, dir } => {
+        geom::Curve3::Line(geom::Line { origin, dir }) => {
             let d = p - *origin;
             Some((d - *dir * d.dot(*dir)).norm())
         }
         // The distance from a point to a full circle: the in-plane
         // radial defect and the out-of-plane offset, in quadrature.
-        geom::Curve3::Circle {
-            center,
-            axis,
+        geom::Curve3::Circle(geom::Circle {
+            frame: geom::Frame { center, axis, .. },
             radius,
-            ..
-        } => {
+        }) => {
             let d = p - *center;
             let along = d.dot(*axis);
             let radial = (d - *axis * along).norm() - *radius;
@@ -10376,10 +10426,7 @@ fn locus_gap<T: Real>(carrier: &geom::Curve3<T>, p: geom_core::Point3<T>) -> Opt
 /// A loop's half-edge cycle, or `None` for an empty loop (which bounds
 /// nothing and can meet nothing).
 fn loop_cycle_of<T: Real>(body: &Body<T>, r#loop: LoopKey) -> Option<Vec<HalfEdgeKey>> {
-    let LoopBoundary::Cycle { first } = body.get_loop(r#loop)?.boundary else {
-        return None;
-    };
-    body.loop_cycle(first)
+    body.loop_halves(r#loop).filter(|cycle| !cycle.is_empty())
 }
 
 /// The point a vertex stands at.
@@ -10742,9 +10789,11 @@ impl Unfinished {
     /// What every door refusing an inside-out operand says after naming
     /// the operand: true of a solid check 7 decides negative and of a
     /// shell check 10 finds bounding negative material.
-    pub const INSIDE_OUT_REFUSAL: &'static str = "is inside-out, as a whole or in one of \
-        its shells, so faces there point into its material and bound negative volume, and \
-        it is refused. Recourse: build it with its faces pointing outward, or revert it";
+    pub const INSIDE_OUT_REFUSAL: &'static str = concat!(
+        "is inside-out, as a whole or in one of its shells, so faces there point into its \
+         material and bound negative volume, and it is refused. Recourse: ",
+        crate::boolean::solid_contain::inside_out_recourse!()
+    );
     /// What every door refusing an operand that holds a joinable vertex
     /// says after naming the operand: a body every finisher would have
     /// joined, or one whose join reads in the sliver band (its finding
@@ -13544,6 +13593,7 @@ mod tests {
             ("a near-tangent wedge", &floor, &tilted, 1.0, Reads::Angle),
         ];
         for (row, s1, s2, extent, want) in rows {
+            let extent = geom_core::test_support::fixture_lever(extent);
             let escalation = geom_brep::classify_dihedral(s1, s2, Point3::origin(), extent, band)
                 .expect_err("each pose escalates");
             let finding = dihedral_finding(EdgeKey::default(), escalation);
@@ -13597,7 +13647,7 @@ mod tests {
     /// composing the const passes it; that copy goes unseen until the
     /// clause changes. The SSI march's question is
     /// worded apart, held below until
-    /// `work/ssimarch/ssi-march-reports-a-collapsed-arm-as-too-close-to-call.md`
+    /// `work/ssiarith/ssi-march-reports-a-collapsed-arm-as-too-close-to-call.md`
     /// lands it.
     #[test]
     fn the_dihedral_arm_is_told_in_one_shape() {
@@ -14699,12 +14749,7 @@ mod tests {
                     pair: geom_brep::SurfacePair::new(cyl, plane),
                     selector: geom_brep::CurveSelector::Witness(frame.at((u0 + u1) * 0.5, v0)),
                 },
-                carrier: geom::Curve3::Circle {
-                    center: centre,
-                    axis,
-                    radius: frame.radius,
-                    u_ref: seam,
-                },
+                carrier: geom::Curve3::circle(centre, axis, frame.radius, seam),
                 param_start: t0,
                 param_end: t1,
             }
@@ -14954,6 +14999,7 @@ mod tests {
         let geom_brep::LeverBounds::Between { below, above } = lever else {
             panic!("a spline's reach is known from both sides, got {lever:?}");
         };
+        let (below, above) = (below.length(), above.length());
         assert!(
             above > 50.0 * below,
             "the window's bound from above passes the samples' reach many times: {below}, {above}"
@@ -14979,7 +15025,7 @@ mod tests {
             s,
             t,
             |_| None,
-            1.0,
+            geom_core::test_support::fixture_lever(1.0),
             Band::linear(tol).unwrap(),
             geom_brep::NurbsLane::certified(),
         )
@@ -15001,12 +15047,14 @@ mod tests {
         assert!(s.distance(t) == 0.0, "a closed edge");
         let radius = (s - center).norm();
         let u_ref = (s - center) / radius;
-        let carrier = geom::Curve3::Circle {
-            center,
-            axis,
+        let carrier = geom::Curve3::Circle(geom::Circle {
+            frame: geom::Frame {
+                center,
+                axis,
+                u_ref,
+            },
             radius,
-            u_ref,
-        };
+        });
         let spec =
             geom_brep::EdgeCurveSpec::arc_of_circle(carrier, 0.0, std::f64::consts::TAU).unwrap();
         let curve = geom_brep::EdgeCurve::certify(
@@ -15014,7 +15062,7 @@ mod tests {
             s,
             t,
             |_| None,
-            1.0,
+            geom_core::test_support::fixture_lever(1.0),
             Band::linear(tol).unwrap(),
             geom_brep::NurbsLane::certified(),
         )
@@ -15741,13 +15789,11 @@ mod tests {
                 (t1 - t0 < std::f64::consts::PI).then_some((axis, t0, t1))
             })
             .expect("one sense of the ellipse is the short arc");
-        let carrier = geom::Curve3::Ellipse {
-            center: Point3::origin(),
-            axis,
-            semi_u: m,
-            semi_v: 1.0,
-            u_ref,
-        };
+        let carrier = geom::Curve3::Ellipse(geom::Ellipse::new(
+            geom::Frame::new(Point3::origin(), axis, u_ref),
+            m,
+            1.0,
+        ));
         let spec = geom_brep::EdgeCurveSpec {
             description: geom_brep::EdgeDescriptionSpec::Intersection {
                 pair: geom_brep::SurfacePair::new(plane, cylinder),
@@ -15763,7 +15809,7 @@ mod tests {
             start,
             end,
             surfaces,
-            1.0,
+            geom_core::test_support::fixture_lever(1.0),
             Band::linear(tol).unwrap(),
             geom_brep::NurbsLane::certified(),
         )
@@ -16218,19 +16264,21 @@ mod tests {
                 ((t1 - t0 < std::f64::consts::PI) != long).then_some((axis, t0, t1))
             })
             .expect("one sense of the circle is the arc asked for");
-        let carrier = geom::Curve3::Circle {
-            center,
-            axis,
+        let carrier = geom::Curve3::Circle(geom::Circle {
+            frame: geom::Frame {
+                center,
+                axis,
+                u_ref,
+            },
             radius,
-            u_ref,
-        };
+        });
         let spec = geom_brep::EdgeCurveSpec::arc_of_circle(carrier, t0, t1).unwrap();
         let curve = geom_brep::EdgeCurve::certify(
             spec,
             start,
             end,
             |_| None,
-            1.0,
+            geom_core::test_support::fixture_lever(1.0),
             Band::linear(tol).unwrap(),
             geom_brep::NurbsLane::certified(),
         )

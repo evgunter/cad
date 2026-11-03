@@ -80,7 +80,7 @@ fn the_coaxial_pose_is_two_circles_and_records_its_coincidence() {
             [true, false],
             "circle {k} winds about the cylinder"
         );
-        let ClassCarrier::Closed(curve @ Curve3::Circle { .. }) = &c.carrier else {
+        let ClassCarrier::Closed(curve @ Curve3::Circle(..)) = &c.carrier else {
             panic!("circle {k}: a closed-form circle, got {:?}", c.carrier);
         };
         for i in 0..6 {
@@ -231,10 +231,7 @@ fn a_pose_in_the_band_escalates() {
 /// C5 table's pose question.
 #[test]
 fn a_radius_not_definitely_positive_is_degenerate_on_every_reading() {
-    let reach = geom_brep::Reach::Measured {
-        at: Point3::new(0.0, 0.0, 0.0),
-        lever: 1.0,
-    };
+    let reach = geom_brep::Reach::fixture(Point3::new(0.0, 0.0, 0.0), 1.0);
     for (label, cyl, sph) in [
         (
             "negative cylinder, coaxial",

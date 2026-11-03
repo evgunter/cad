@@ -21,7 +21,7 @@ fn band() -> Band {
 /// A ball of radius `arm` about the origin: the extent a bare arm
 /// names.
 fn at(arm: f64) -> topo::ConsumedExtent<f64> {
-    topo::ConsumedExtent::new(geom_brep::ExtentBall::new(Point3::origin(), arm))
+    topo::ConsumedExtent::new(geom_brep::ExtentBall::of_sphere(Point3::origin(), arm))
 }
 
 fn plane(o: [f64; 3], n: [f64; 3]) -> Surface<f64> {
@@ -33,10 +33,7 @@ fn plane(o: [f64; 3], n: [f64; 3]) -> Surface<f64> {
 }
 
 fn line(o: [f64; 3], d: [f64; 3]) -> geom::Curve3<f64> {
-    geom::Curve3::Line {
-        origin: Point3::from_array(o),
-        dir: Vec3::from_array(d),
-    }
+    geom::Curve3::line(Point3::from_array(o), Vec3::from_array(d))
 }
 
 /// PROBE 1 (claim 2): a genuine CROSSING — a cylinder half-embedded in

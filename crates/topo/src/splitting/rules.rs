@@ -162,7 +162,7 @@
 
 use geom_brep::{EntersMaterial, NormalAlignment, ParallelSense, WallBend, enters_material};
 use geom_core::k_stats::{Magnitude, decide_magnitude_reported};
-use geom_core::{Band, Decide, Indeterminate, Margin, MarginDiag, Point3, Real, Sign, Vec3};
+use geom_core::{Band, Decide, Indeterminate, Lever, Margin, MarginDiag, Point3, Real, Sign, Vec3};
 
 use super::neighborhood::{chord, sector_face};
 use super::{
@@ -225,7 +225,7 @@ pub(super) fn apply_rule_a<T: Decide>(
         // `sector_shape` decided this sector's shorter chord past the band
         // before this rule runs, and the face's extent from the vertex is
         // at least that chord: a zero here is a kernel bug (D9 row 4).
-        match decide_magnitude_reported("split_sector_extent", Margin::of(extent), band) {
+        match decide_magnitude_reported("split_sector_extent", Margin::of(extent.length()), band) {
             Ok((Magnitude::Positive, _)) => {}
             Ok((Magnitude::Zero, margin)) => unreachable!(
                 "face {face:?}'s extent from vertex {vertex:?} decided zero (margin {margin:e}, \
@@ -295,18 +295,22 @@ pub(super) fn apply_rule_a<T: Decide>(
                     // refusal (the surfaces under-determine the
                     // contact — never guess); in-band escalates (F6:
                     // an osculating pair is a sliver at this ε).
-                    let surface = face_surface(body, face);
+                    let surface = body.proven_face_surface(face);
                     let p_base = body.resolve_vertex_point(vertex, Proven);
                     let kappa = geom_brep::implicit_max_normal_curvature(surface, p_base);
                     // Ledger row F11: the sagitta is metered at the
                     // WHOLE-FACE extent, which decides a bend more
                     // readily than the contact's own arm would —
                     // arm-policy question, own unit.
-                    let so_margin = Margin::sagitta(kappa, extent);
+                    let so_margin = Margin::sagitta(kappa, extent.length());
                     match decide("tangent_sector_osculation", so_margin, band) {
                         Ok(Sign::Positive) => {
                             let bend = geom_brep::bends_into_material(
-                                surface, p_base, n_face, extent, band,
+                                surface,
+                                p_base,
+                                n_face,
+                                extent.length(),
+                                band,
                             )
                             .map_err(|e| match e {
                                 geom_brep::WallBendError::Indefinite(kind) => unreachable!(
@@ -396,7 +400,7 @@ fn apex_reading<T: Decide>(
             "split_sector_coplanar",
             plane.normal.get(),
             apex.normal_along(ray),
-            ray.norm(),
+            crate::boolean::sectors::departure_arm_lever(ray),
             band,
         )
     });
@@ -455,10 +459,9 @@ impl<T: Decide> ParallelFace<T> {
 /// tangent to a cylinder or a cone makes, along a ruling.
 fn straight<T: Decide>(body: &Body<T>, edge: EdgeKey) -> bool {
     let curve = proven(&body.edges, edge, EntityId::Edge).curve;
-    matches!(
-        body.get_curve_geom(curve).and_then(crate::null::CurveGeom::certified),
-        Some(c) if matches!(c.carrier(), geom::Curve3::Line { .. })
-    )
+    body.get_curve_geom(curve)
+        .and_then(crate::null::CurveGeom::certified)
+        .is_some_and(|c| !c.carrier().is_curved())
 }
 
 /// Rule (b): reclassify every remaining ON entry by its cyclic
@@ -545,9 +548,10 @@ fn edge_wedge<T: Decide>(
         face: mate_face,
         reading: SectorReading::Escalated(diag),
     };
-    let (s_own, s_mate) = (face_surface(body, own_face), face_surface(body, mate_face));
+    let sector_surface = |f| body.proven_face_surface(f);
+    let (s_own, s_mate) = (sector_surface(own_face), sector_surface(mate_face));
     let (_, along, _) = chord(body, vertex, he)?;
-    let extent = along.norm();
+    let extent = crate::boolean::sectors::departure_arm_lever(along);
     // Both faces are read along the edge's ray: at the vertex where each
     // has a tangent plane, and out along the ray where either is a cone at
     // its apex, whose normal is constant along the ruling the ray lies on
@@ -694,7 +698,7 @@ pub(crate) fn face_extent<T: Decide>(
     body: &Body<T>,
     vertex: VertexKey,
     face: FaceKey,
-) -> Result<T, UnboundedFace> {
+) -> Result<Lever<T>, UnboundedFace> {
     face_reach_from(body, face, body.resolve_vertex_point(vertex, Proven))
 }
 
@@ -715,24 +719,19 @@ pub(crate) fn face_reach_from<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     at: Point3<T>,
-) -> Result<T, UnboundedFace> {
+) -> Result<Lever<T>, UnboundedFace> {
     let over_span = matches!(
-        face_surface(body, face),
+        body.proven_face_surface(face),
         geom::Surface::Plane { .. } | geom::Surface::Cylinder { .. }
     );
-    boundary_reach(
-        body,
-        face,
-        |p| (p - at).norm(),
-        |curve| {
-            let span = span_of(curve);
-            if over_span {
-                span.span_reach_from(at)
-            } else {
-                span.lever_from(at)
-            }
-        },
-    )
+    boundary_lever(body, face, at, |curve| {
+        let span = span_of(curve);
+        if over_span {
+            span.span_reach_from(at)
+        } else {
+            span.lever_from(at)
+        }
+    })
 }
 
 /// [`face_reach_from`] with every edge levered round its whole carrier
@@ -743,13 +742,8 @@ pub(crate) fn face_reach_round_from<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     at: Point3<T>,
-) -> Result<T, UnboundedFace> {
-    boundary_reach(
-        body,
-        face,
-        |p| (p - at).norm(),
-        |curve| span_of(curve).lever_from(at),
-    )
+) -> Result<Lever<T>, UnboundedFace> {
+    boundary_lever(body, face, at, |curve| span_of(curve).lever_from(at))
 }
 
 /// **How far a face reaches from `at` either way along `axis`** (unit):
@@ -816,20 +810,27 @@ pub(crate) fn cone_axial_window<T: Decide>(
     };
     // A floor under every boundary reading, so the folds below start
     // past nothing the boundary holds.
-    let floor = T::zero() - face_reach_from(body, face, apex)?;
+    let floor = T::zero() - face_reach_from(body, face, apex)?.length();
     let along = |p: Point3<T>| (p - apex).dot(axis);
-    let hi = boundary_fold(body, face, floor, along, |curve| {
-        span_of(curve).range_along(apex, axis).1
-    })?;
+    let hi = boundary_fold(
+        body,
+        face,
+        floor,
+        (along, |curve| span_of(curve).range_along(apex, axis).1),
+        Real::max,
+    )?;
     let lo = T::zero()
         - boundary_fold(
             body,
             face,
             floor,
-            |p| T::zero() - along(p),
-            |curve| T::zero() - span_of(curve).range_along(apex, axis).0,
+            (
+                |p| T::zero() - along(p),
+                |curve| T::zero() - span_of(curve).range_along(apex, axis).0,
+            ),
+            Real::max,
         )?;
-    let own @ geom::Surface::Cone { .. } = face_surface(body, face) else {
+    let own @ geom::Surface::Cone { .. } = body.proven_face_surface(face) else {
         return Ok((lo, hi));
     };
     let widened = (lo.min(T::zero()), hi.max(T::zero()));
@@ -874,12 +875,11 @@ pub(crate) fn cone_face_reach<T: Decide>(
     let (lo, hi) = cone_axial_window(body, face, cone, band)?;
     let (lo, hi) = within.map_or((lo, hi), |(from, to)| (lo.max(from), hi.min(to)));
     let at_axis = (at - apex).dot(axis);
-    Ok(geom_brep::Reach::Face {
+    Ok(geom_brep::Reach::of_face(
         at,
-        below: at_axis - lo,
-        above: hi - at_axis,
-        across: face_reach_from(body, face, at)?,
-    })
+        (at_axis - lo, hi - at_axis),
+        face_reach_from(body, face, at)?,
+    ))
 }
 
 /// A certified edge as the reach of the span it holds.
@@ -901,18 +901,36 @@ fn boundary_reach<T: Decide>(
     point: impl Fn(Point3<T>) -> T,
     edge: impl Fn(&geom_brep::EdgeCurve<T>) -> T,
 ) -> Result<T, UnboundedFace> {
-    boundary_fold(body, face, T::zero(), point, edge)
+    boundary_fold(body, face, T::zero(), (point, edge), Real::max)
 }
 
-/// [`boundary_reach`] from `floor` rather than zero: the greatest of
-/// `floor` and every boundary reading.
-fn boundary_fold<T: Decide>(
+/// The farthest `face`'s boundary reaches from `at`, as a lever: each
+/// boundary vertex's distance, and `edge` of each certified edge, folded
+/// as a read of their union ([`Lever::max`]). The refusal is
+/// [`boundary_reach`]'s.
+fn boundary_lever<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
-    floor: T,
-    point: impl Fn(Point3<T>) -> T,
-    edge: impl Fn(&geom_brep::EdgeCurve<T>) -> T,
-) -> Result<T, UnboundedFace> {
+    at: Point3<T>,
+    edge: impl Fn(&geom_brep::EdgeCurve<T>) -> Lever<T>,
+) -> Result<Lever<T>, UnboundedFace> {
+    let vertex = |p| geom_brep::ExtentBall::point(p).lever_from(at);
+    let floor = geom_brep::ExtentBall::point(at).lever();
+    boundary_fold(body, face, floor, (vertex, edge), Lever::max)
+}
+
+/// [`boundary_reach`] from `floor` rather than zero: the greatest, by
+/// `max`, of `floor` and every boundary reading.
+fn boundary_fold<T: Decide, R: Copy>(
+    body: &Body<T>,
+    face: FaceKey,
+    floor: R,
+    (point, edge): (
+        impl Fn(Point3<T>) -> R,
+        impl Fn(&geom_brep::EdgeCurve<T>) -> R,
+    ),
+    max: impl Fn(R, R) -> R,
+) -> Result<R, UnboundedFace> {
     let face_data = proven(&body.faces, face, EntityId::Face);
     let mut extent = floor;
     let outer = face_data.outer;
@@ -931,12 +949,12 @@ fn boundary_fold<T: Decide>(
                     edge: data,
                 } => {
                     if let Some(curve) = body.edge_curve_linked(ek, data).certified() {
-                        extent = extent.max(edge(curve));
+                        extent = max(extent, edge(curve));
                     }
                     body.linked_vertex_point(half.start, EntityId::HalfEdge(he), "start")
                 }
             };
-            extent = extent.max(point(p));
+            extent = max(extent, point(p));
         }
     }
     Ok(extent)
@@ -953,12 +971,6 @@ impl From<UnboundedFace> for SplitReduceError {
     fn from(UnboundedFace { face, vertex }: UnboundedFace) -> Self {
         Self::UnboundedFace { face, vertex }
     }
-}
-
-/// `face`'s surface, for a face the caller resolved: its `surface` is a
-/// link, and a miss panics.
-fn face_surface<T: Decide>(body: &Body<T>, face: FaceKey) -> &geom::Surface<T> {
-    body.face_surface_linked(face, proven(&body.faces, face, EntityId::Face))
 }
 
 #[cfg(test)]
@@ -1001,7 +1013,7 @@ mod tests {
             let at = body.resolve_vertex_point(vertex, Proven);
             let (below, above) =
                 face_axial_range(&body, face, at, geom_core::Vec3::unit_z()).unwrap();
-            let euclid = face_extent(&body, vertex, face).unwrap();
+            let euclid = face_extent(&body, vertex, face).unwrap().length();
             let bulge = 2.0 * phi.tan().abs();
             let (far, near) = if phi > 0.0 {
                 (below, above)
@@ -1030,12 +1042,7 @@ mod tests {
     #[test]
     fn a_faces_reach_reads_an_arc_over_its_span_only_on_a_ruled_face() {
         use geom_core::Vec3;
-        let carrier = geom::Curve3::Circle {
-            center: Point3::origin(),
-            axis: Vec3::unit_z(),
-            radius: 1.0,
-            u_ref: Vec3::unit_x(),
-        };
+        let carrier = geom::Curve3::circle(Point3::origin(), Vec3::unit_z(), 1.0, Vec3::unit_x());
         let t1 = 0.01 * core::f64::consts::TAU;
         let chord = (carrier.eval(t1) - carrier.eval(0.0)).norm();
         for (surface, want) in [
@@ -1091,7 +1098,7 @@ mod tests {
                 Tol::witness(),
             )
             .unwrap();
-            let got = face_extent(&body, seed.vertex, seed.face).unwrap();
+            let got = face_extent(&body, seed.vertex, seed.face).unwrap().length();
             let slack = (1.0 - (t1 / 8.0).cos()) + 1e-15;
             assert!(
                 got >= want - 1e-15 && got <= want + slack,
@@ -1322,7 +1329,7 @@ mod tests {
         // farthest vertex, which would make the row vacuous.
         let face = cube.mefs[0].face;
         let base = cube.seed.vertex;
-        let before = face_extent(&cube.body, base, face).unwrap();
+        let before = face_extent(&cube.body, base, face).unwrap().length();
         // The farthest vertex in the whole body from `base`.
         let p_base = *cube
             .body
@@ -1347,7 +1354,7 @@ mod tests {
             crate::provenance::Provenance::Primordial { op: "h14-row" },
         );
         cube.body.get_face_mut(face).unwrap().rings.push(ring);
-        let after = face_extent(&cube.body, base, face).unwrap();
+        let after = face_extent(&cube.body, base, face).unwrap().length();
         assert!(
             (after - far_d).abs() < 1e-12,
             "the ring's lone vertex sets the arm: {after} vs {far_d}"
@@ -1416,6 +1423,7 @@ mod tests {
         arm: f64,
         band: Band,
     ) -> WallReading<f64> {
+        let arm = geom_core::test_support::fixture_lever(arm);
         match geom_brep::normal_alignment("split_sector_coplanar", plane.normal.get(), n, arm, band)
             .unwrap()
         {

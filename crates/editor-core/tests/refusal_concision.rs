@@ -483,14 +483,6 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             },
         ),
         (
-            "NodeUnbuilt (nearly parallel)",
-            BooleanError::NodeUnbuilt {
-                a_face: face,
-                b_face: face,
-                why: topo::NodeWhy::NearlyParallel,
-            },
-        ),
-        (
             "NonFiniteSectorChord",
             BooleanError::NonFiniteSectorChord {
                 vertex: VertexKey::default(),
@@ -698,17 +690,34 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             },
         ),
         (
+            "LineMaterialUnread (along)",
+            BooleanError::LineMaterialUnread {
+                a_vertex: VertexKey::default(),
+                b_vertex: VertexKey::default(),
+                why: topo::LineUnread::Along,
+            },
+        ),
+        (
+            "LineMaterialUnread (unplaced)",
+            BooleanError::LineMaterialUnread {
+                a_vertex: VertexKey::default(),
+                b_vertex: VertexKey::default(),
+                why: topo::LineUnread::Unplaced,
+            },
+        ),
+        (
+            "LineMaterialUnread (contradicted)",
+            BooleanError::LineMaterialUnread {
+                a_vertex: VertexKey::default(),
+                b_vertex: VertexKey::default(),
+                why: topo::LineUnread::Contradicted,
+            },
+        ),
+        (
             "PinchRaysInAFace",
             BooleanError::PinchRaysInAFace {
                 operand: Operand::A,
                 face: FaceKey::default(),
-            },
-        ),
-        (
-            "TangentCrescentUnsupported",
-            BooleanError::TangentCrescentUnsupported {
-                a_face: FaceKey::default(),
-                b_face: FaceKey::default(),
             },
         ),
         (

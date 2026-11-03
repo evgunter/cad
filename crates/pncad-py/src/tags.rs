@@ -129,11 +129,10 @@ use pncad::document::{
     AtRestEvidence, AttrKind, Axis3, CheckEvidence, ChecksError, Coord, DimensionError,
     Distribution, DistributionFault, DistributionField, EditError, EvalError, FlattenError,
     InlineError, InterfaceCrossing, LeverRefusal, LoftFault, Maintenance, MateFault,
-    MeasureUnavailableAt, MetaVersionError, NoChartWhy, NodeErrorClass, NodeErrorKind,
-    NodeStanding, ParseError, PersistError, PinRefusal, ProductReadFault, ProgramFault,
-    ProgramRefusal, ReachRefusal, RecordedProgramError, ResolveFault, ShellClassifyError, SlotId,
-    SnapshotError, SplitError, StepHandleRefusal, StepIdFault, TargetAxis, Unlocalized,
-    UpdateError,
+    MetaVersionError, NoChartWhy, NodeErrorClass, NodeErrorKind, NodeStanding, ParseError,
+    PersistError, PinRefusal, ProductReadFault, ProgramFault, ProgramRefusal, ReachRefusal,
+    RecordedProgramError, ResolveFault, SectionIdFault, ShellClassifyError, SlotId, SnapshotError,
+    SplitError, StepHandleRefusal, StepIdFault, TargetAxis, Unlocalized, UpdateError,
 };
 use pncad::geom_core::{BandError, BandField, FrameError, FrameInput, FrameVector};
 use pncad::mesh::TessellateError;
@@ -198,6 +197,7 @@ pub fn path_error_tag(err: &PathError<f64>) -> &'static str {
         PathErrorKind::NonpositiveLeg => "nonpositive_leg",
         PathErrorKind::NonpositiveFilletRadius => "nonpositive_fillet_radius",
         PathErrorKind::NonpositiveCircleRadius => "nonpositive_circle_radius",
+        PathErrorKind::NonpositiveRectangleSide => "nonpositive_rectangle_side",
         PathErrorKind::CircleSplitCount => "circle_split_count",
         PathErrorKind::PolygonTooFewVertices => "polygon_too_few_vertices",
         PathErrorKind::ZeroDirection => "zero_direction",
@@ -557,6 +557,7 @@ pub fn operand_slot_tag(slot: &pncad::document::OperandSlot) -> &'static str {
         S::Side { .. } => "side",
         S::Source => "source",
         S::Measured(..) => "measured",
+        S::Cleared(_) => "cleared",
         S::Tool => "tool",
         S::From => "from",
         S::Cut => "cut",
@@ -603,6 +604,7 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         EditError::SetProgramOnNonProfile { .. } => "set_program_on_non_profile",
         EditError::LoftSectionCount { .. } => "loft_section_count",
         EditError::StepIdsRefused { .. } => "step_ids_refused",
+        EditError::SectionIdsRefused { .. } => "section_ids_refused",
         // The read doors: a read that resolves to no output, and a node
         // named alone that defines two or nothing. A read of a kind its
         // slot does not admit is `slot_var_kind`, at any slot.
@@ -661,6 +663,7 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         EditError::RebindNoReferences { .. } => "rebind_no_references",
         EditError::WitnessOnNonSketch { .. } => "witness_on_non_sketch",
         EditError::DuplicateWitnessEntry { .. } => "duplicate_witness_entry",
+        EditError::TakeOverRepeatsCopy { .. } => "take_over_repeats_copy",
         EditError::EmptyWitnessBulk => "empty_witness_bulk",
         EditError::NameUnresolvedInEvaluation { .. } => "name_unresolved_in_evaluation",
         EditError::EvaluationOfAnotherDocument { .. } => "evaluation_of_another_document",
@@ -779,20 +782,6 @@ pub fn mc_refusal_tag(refusal: &McRefusal) -> &'static str {
     }
 }
 
-/// The stable tag for a measure with no value at this build's scalar.
-///
-/// Deliberately NOT sharing a function with
-/// [`measure_unavailable_tag`] one screen up: that one is the
-/// ANALYSIS lane's band refusal and this one the MEASUREMENT lane's
-/// missing enclosure, two kernel types whose names differ by one word
-/// and whose questions do not overlap at all.
-pub fn measure_unavailable_at_tag(reason: &MeasureUnavailableAt) -> &'static str {
-    match reason {
-        MeasureUnavailableAt::NeedsEnclosure { .. } => "needs_enclosure",
-        MeasureUnavailableAt::NoUpperBound { .. } => "no_upper_bound",
-    }
-}
-
 /// The stable tag for a policy the analysis lane cannot honour.
 pub fn analysis_policy_error_tag(err: &AnalysisPolicyError) -> &'static str {
     match err {
@@ -901,10 +890,6 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         C::MeasureUnsupported => "measure_unsupported",
         C::MeasureNotParallel => "measure_not_parallel",
         C::MeasureNonFinite => "measure_non_finite",
-        // And its own again: the clearance engine refused, so the
-        // recourse is the engine's — a wider budget, an admitted
-        // carrier — and not the measurement vocabulary's.
-        C::MeasureClearanceRefused => "measure_clearance_refused",
         C::PayloadExpr => "payload_expr",
         C::AssertionDimension => "assertion_dimension",
         C::ToleranceConflict => "tolerance_conflict",
@@ -1119,10 +1104,6 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
         // match, so the pair stays in the prose it is already in.
         NodeErrorKind::MeasureUnsupported(_) => None,
         NodeErrorKind::PayloadExpr { source, .. } => Some(eval_error_tag(source)),
-        // The clearance engine's class name is a `&str` the engine
-        // mints, not a discriminant this crate can match; it is already
-        // the whole of the message.
-        NodeErrorKind::MeasureClearanceRefused(_) => None,
         NodeErrorKind::AssertionDimension { .. } => None,
     }
 }
@@ -1164,6 +1145,7 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
         EditError::LoftSectionCount { .. } => None,
         // What is wrong with the ids is the arm.
         EditError::StepIdsRefused { fault, .. } => Some(step_id_fault_tag(fault)),
+        EditError::SectionIdsRefused { fault, .. } => Some(section_id_fault_tag(fault)),
         EditError::OperandUnresolved { .. } => None,
         EditError::AmbiguousOutput { .. } => None,
         EditError::DefinesNothing { .. } => None,
@@ -1216,6 +1198,7 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
         EditError::RebindNoReferences { .. } => None,
         EditError::WitnessOnNonSketch { .. } => None,
         EditError::DuplicateWitnessEntry { .. } => None,
+        EditError::TakeOverRepeatsCopy { .. } => None,
         EditError::EmptyWitnessBulk => None,
         EditError::NameUnresolvedInEvaluation { .. } => None,
         EditError::EvaluationOfAnotherDocument { .. } => None,
@@ -1270,7 +1253,6 @@ pub fn meta_version_error_tag(err: &MetaVersionError) -> &'static str {
 pub fn profile_error_tag(err: &ProfileError) -> &'static str {
     match err {
         ProfileError::Band(_) => "band",
-        ProfileError::EmptyProfile => "empty_profile",
         ProfileError::PlaneNotFinite => "plane_not_finite",
         ProfileError::EmptyLoop { .. } => "empty_loop",
         ProfileError::DegenerateSegment(_) => "degenerate_segment",
@@ -1325,6 +1307,7 @@ pub fn structure_refusal_tag(kind: &StructureRefusalKind) -> &'static str {
 pub fn extrude_error_tag(err: &ExtrudeError) -> &'static str {
     match err {
         ExtrudeError::Band(_) => "band",
+        ExtrudeError::EmptyProfile => "empty_profile",
         ExtrudeError::DegenerateExtrusion => "degenerate_extrusion",
         ExtrudeError::NegativeDepth { .. } => "negative_depth",
         ExtrudeError::ObliqueExtrusion => "oblique_extrusion",
@@ -1346,6 +1329,7 @@ pub fn extrude_error_tag(err: &ExtrudeError) -> &'static str {
 pub fn revolve_error_tag(err: &RevolveError) -> &'static str {
     match err {
         RevolveError::Band(_) => "band",
+        RevolveError::EmptyProfile => "empty_profile",
         RevolveError::NonFiniteAxis => "non_finite_axis",
         RevolveError::UnderflowedAxis => "underflowed_axis",
         RevolveError::DegenerateAxis => "degenerate_axis",
@@ -1446,7 +1430,7 @@ pub fn blend_error_tag(err: &BlendError) -> &'static str {
         BlendError::RadiusHeadroom { .. } => "radius_headroom",
         BlendError::FaceClearanceUncertified { .. } => "face_clearance_uncertified",
         BlendError::FaceClearance { .. } => "face_clearance",
-        BlendError::TangentialEdge { .. } => "tangential_edge",
+        BlendError::KnifeEdge { .. } => "knife_edge",
         BlendError::SpineIrregular { .. } => "spine_irregular",
         BlendError::ChainNotG1 { .. } => "chain_not_g1",
         BlendError::ConvexitySignFlip { .. } => "convexity_sign_flip",
@@ -1524,8 +1508,8 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::PairingMismatch => "pairing_mismatch",
         BooleanErrorKind::SharedVertexCrossings => "shared_vertex_crossings",
         BooleanErrorKind::PinchRaysInAFace => "pinch_rays_in_a_face",
-        BooleanErrorKind::TangentCrescentUnsupported => "tangent_crescent_unsupported",
         BooleanErrorKind::CrossingsAlongAContactLine => "crossings_along_a_contact_line",
+        BooleanErrorKind::LineMaterialUnread => "line_material_unread",
         BooleanErrorKind::VertexReadTwice => "vertex_read_twice",
         BooleanErrorKind::PartnerAlongFace => "partner_along_face",
         BooleanErrorKind::NonManifoldResult => "non_manifold_result",
@@ -1607,6 +1591,7 @@ pub fn skin_error_tag(err: &SkinError) -> &'static str {
         SkinError::TooFewSections { .. } => "too_few_sections",
         SkinError::SectionShapeMismatch { .. } => "section_shape_mismatch",
         SkinError::SectionProfile { .. } => "section_profile",
+        SkinError::EmptyProfile { .. } => "empty_profile",
         SkinError::DomainNotUnit { .. } => "domain_not_unit",
         SkinError::DegenerateSection { .. } => "degenerate_section",
         SkinError::BadDegree { .. } => "bad_degree",
@@ -1656,6 +1641,12 @@ pub fn loft_error_tag(err: &LoftError) -> &'static str {
         LoftError::FarSectionNotForward { .. } => "far_section_not_forward",
         LoftError::FarStackingEscalated { .. } => "far_stacking_escalated",
         LoftError::StackingEscalated { .. } => "stacking_escalated",
+        LoftError::PinnedCorner { .. } => "pinned_corner",
+        LoftError::PinnedCornerUnsupported { .. } => "pinned_corner_unsupported",
+        LoftError::CornerEscalated { .. } => "corner_escalated",
+        LoftError::SectionsTouch { .. } => "sections_touch",
+        LoftError::ClearanceUndecided { .. } => "clearance_undecided",
+        LoftError::ClearanceFault { .. } => "clearance_fault",
     }
 }
 
@@ -1768,6 +1759,7 @@ pub fn naming_error_tag(err: &NamingError) -> &'static str {
         NamingError::ShortTie { .. } => "short_tie",
         NamingError::Unnamed { .. } => "unnamed",
         NamingError::MissingUpstream { .. } => "missing_upstream",
+        NamingError::PastWidth { .. } => "past_width",
         NamingError::Emission { .. } => "emission",
         NamingError::SplitLineage(_) => "split_lineage_cycle",
         NamingError::Settle(_) => "unsettled_vertex",
@@ -1787,6 +1779,7 @@ pub fn naming_error_tag(err: &NamingError) -> &'static str {
         NamingError::UnsupportedSeamSides { shape, .. } => seam_sides_shape_tag(shape),
         NamingError::UnsupportedJoin { shape, .. } => join_shape_tag(shape),
         NamingError::UnsupportedUnionName { shape, .. } => union_name_shape_tag(shape),
+        NamingError::UnsupportedUnjudgedGlue { .. } => "unsupported_unjudged_glue",
         NamingError::UnsupportedTurnedCell { .. } => "unsupported_turned_cell",
         // The PRECISION-LIMIT arms: a lever the model holds, neither a
         // kernel bug nor a missing rule.
@@ -1848,7 +1841,8 @@ pub fn program_refusal_tag(err: &ProgramRefusal) -> &'static str {
 /// The stable tag for why a profile step reading a face's trace
 /// refused — the inner arm of a `trace` node refusal. A carrier that
 /// could not be read along the piece says how
-/// (`topo::boolean::trace::TraceFault`): no closed form, a grazing or
+/// (`topo::boolean::trace::TraceFault`): no closed form, data that bounds
+/// no region, a grazing or
 /// on-carrier piece, a sign in the band, an uncertified root count.
 pub fn trace_step_fault_tag(fault: &pncad::document::TraceStepFault) -> &'static str {
     use pncad::document::TraceStepFault as F;
@@ -1866,6 +1860,7 @@ pub fn trace_step_fault_tag(fault: &pncad::document::TraceStepFault) -> &'static
         F::NoTangent => "no_tangent",
         F::Unreached => "unreached",
         F::Carrier(C::Unsupported { .. }) => "unsupported_carrier",
+        F::Carrier(C::Unbounded { .. }) => "unbounded_carrier",
         F::Carrier(C::Grazing) => "grazing",
         F::Carrier(C::Apex) => "apex",
         F::Carrier(C::OnCarrier) => "on_carrier",
@@ -2014,6 +2009,7 @@ pub fn snapshot_error_tag(err: &SnapshotError) -> &'static str {
     match err {
         SnapshotError::NodeNotMinted { .. } => "node_not_minted",
         SnapshotError::StepIds { .. } => "step_ids",
+        SnapshotError::SectionIds { .. } => "section_ids",
         SnapshotError::MintLogOrder { .. } => "mint_log_order",
         SnapshotError::NameReadNotMinted { .. } => "name_read_not_minted",
         SnapshotError::AppearanceReadNotABody { .. } => "appearance_read_not_a_body",
@@ -2048,6 +2044,7 @@ pub fn snapshot_error_tag(err: &SnapshotError) -> &'static str {
         SnapshotError::ConstraintNotMinted { .. } => "constraint_not_minted",
         SnapshotError::MateRefused { .. } => "mate_refused",
         SnapshotError::InputList { .. } => "input_list",
+        SnapshotError::LoftShape { .. } => "loft_shape",
         SnapshotError::ObservedRead { .. } => "observed_read",
         SnapshotError::AssertionBound { .. } => "assertion_bound",
         SnapshotError::MetadataUnversioned { .. } => "metadata_unversioned",
@@ -2534,6 +2531,7 @@ pub fn split_error_tag(err: &SplitError) -> &'static str {
         SplitError::PartNameReachesRemainder { .. } => "part_name_reaches_remainder",
         SplitError::NameStraddlesCut { .. } => "name_straddles_cut",
         SplitError::NameOnDroppedStep { .. } => "name_on_dropped_step",
+        SplitError::NameOnDroppedSection { .. } => "name_on_dropped_section",
         SplitError::BodyNameCrossesCut { .. } => "body_name_crosses_cut",
         SplitError::NameOutsidePartWorld { .. } => "name_outside_part_world",
         SplitError::Pin { .. } => "split_pin",
@@ -2564,6 +2562,7 @@ pub fn inline_error_tag(err: &InlineError) -> &'static str {
         InlineError::StrandedPartName { .. } => "stranded_part_name",
         InlineError::StrandedPartRead { .. } => "stranded_part_read",
         InlineError::NameOnDroppedStep { .. } => "name_on_dropped_step",
+        InlineError::NameOnDroppedSection { .. } => "name_on_dropped_section",
         InlineError::Edit { .. } => "inline_edit",
     }
 }
@@ -3376,6 +3375,17 @@ pub fn step_id_fault_tag(fault: &StepIdFault) -> &'static str {
         StepIdFault::NotThisProfiles { .. } => "not_this_profiles",
         StepIdFault::Repeated { .. } => "repeated",
         StepIdFault::NotMinted { .. } => "not_minted",
+    }
+}
+
+/// The stable tag for what is wrong with a loft's section ids — the
+/// fault `EditError::SectionIdsRefused` carries, published on
+/// `inner_variant` beside the edit's own word.
+pub fn section_id_fault_tag(fault: &SectionIdFault) -> &'static str {
+    match fault {
+        SectionIdFault::Preminted => "preminted",
+        SectionIdFault::NotThisLofts { .. } => "not_this_lofts",
+        SectionIdFault::Repeated { .. } => "repeated",
     }
 }
 

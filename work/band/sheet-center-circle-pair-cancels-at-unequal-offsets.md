@@ -46,7 +46,7 @@ circle orders of magnitude smaller than its partner (a fillet radius
 within a hair of a small round's radius on its concave side, say) is
 the owner's to say. The banding follows the sibling rows
 (`work/hone/circle-crossing-closed-forms-cancel-at-unequal-radii.md`,
-`work/roots/sphere-sphere-section-radius-cancels-at-unequal-radii.md`).
+`work/germ/sphere-sphere-section-radius-cancels-at-unequal-radii.md`).
 
 ## Where to look
 

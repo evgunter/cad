@@ -26,7 +26,7 @@ use geom_core::{
 };
 
 use super::line_tilt;
-use crate::identity::{IdentityWalk, identity_walk};
+use crate::ladder::{IdentityLadder, read_identity};
 use crate::torus_convention::TorusRefusal;
 
 /// A torus as its coincidence reads it: the centre, the unit axis and
@@ -91,7 +91,9 @@ impl<T: Real> TorusDisplacement<T> {
     /// The displacement between `a` and `b`.
     #[must_use]
     pub fn of(a: TorusData<T>, b: TorusData<T>) -> Self {
-        let arm = a.major_radius.max(b.major_radius);
+        let arm = crate::ExtentBall::of_circle(a.center, a.major_radius)
+            .lever()
+            .max(crate::ExtentBall::of_circle(b.center, b.major_radius).lever());
         let apart = a.center - b.center;
         let core = apart.norm()
             + (a.major_radius - b.major_radius).abs()
@@ -126,7 +128,7 @@ pub enum TorusCoincidence {
     One(MarginDiag),
     /// Two surfaces: a datum decided past the band.
     Apart,
-    /// Neither: the data's own refusal ([`identity_walk`]), else the
+    /// Neither: the data's own refusal ([`read_identity`]), else the
     /// upper bound in the band, else every datum decided `Zero` beside
     /// the bound decided past the band (`tt_coincident_straddle`, which
     /// only an escalation factor under four can reach).
@@ -159,8 +161,8 @@ pub fn tori_coincide<T: Decide>(a: TorusData<T>, b: TorusData<T>, band: Band) ->
         upper => upper,
     };
     let (walk, walk_log) =
-        detached(|| identity_walk(d.data.map(|(datum, m)| (datum.row(), m)), band));
-    if matches!(walk, IdentityWalk::Distinct) {
+        detached(|| read_identity(d.data.map(|(datum, m)| (datum.row(), m)), band));
+    if matches!(walk, IdentityLadder::Apart { .. }) {
         // The answer rests on the datum alone.
         splice_superseded(upper_log);
     } else {
@@ -168,12 +170,12 @@ pub fn tori_coincide<T: Decide>(a: TorusData<T>, b: TorusData<T>, band: Band) ->
     }
     splice(walk_log);
     match (walk, upper) {
-        (IdentityWalk::Distinct, _) => TorusCoincidence::Apart,
-        (IdentityWalk::Undecided(diag), _) | (IdentityWalk::One(_), Err(diag)) => {
+        (IdentityLadder::Apart { .. }, _) => TorusCoincidence::Apart,
+        (IdentityLadder::Undecided(diag), _) | (IdentityLadder::Zero(_), Err(diag)) => {
             TorusCoincidence::Undecided(diag)
         }
         // The bound is a sum of magnitudes, never decided below zero.
-        (IdentityWalk::One(lower), Ok(upper)) => TorusCoincidence::Undecided(straddle(
+        (IdentityLadder::Zero(lower), Ok(upper)) => TorusCoincidence::Undecided(straddle(
             "tt_coincident_straddle",
             Decided {
                 sign: Sign::Zero,

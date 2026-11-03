@@ -4,7 +4,10 @@ with its station.
 The Python side of `crates/editor-core/tests/intent_loft_set_sections.rs`:
 a section added with its station evaluates through it, a node that is
 not a loft refuses `set_loft_sections_on_non_loft`, and `set_members`
-handed a different count refuses `loft_section_count`.
+handed a different count refuses `loft_section_count`. The edit keeps
+sections by their minted `SectionId`s (`Doc.section_ids`), so a kept
+section's names survive it, and a `keep` that names an id twice refuses
+`section_ids_refused`.
 """
 
 import unittest
@@ -54,11 +57,17 @@ class TestSetLoftSections(unittest.TestCase):
         # Broken by a binding that drops `then` or its stations: the
         # volume is the frusta through the sections at the stations
         # written.
+        a, b = self.doc.section_ids(self.loft)
         self.doc.apply(
             DocEdit.set_loft_sections(
-                self.loft, self.a, [(self.b, up(1.0)), (self.c, up(2.5))]
+                self.loft,
+                (self.a, a),
+                [(self.b, up(1.0), b), (self.c, up(2.5), None)],
             )
         )
+        kept = self.doc.section_ids(self.loft)
+        self.assertEqual(kept[:2], [a, b], "the kept sections keep their ids")
+        self.assertNotIn(kept[2], [a, b], "the added section's id is minted")
         run = evaluate(self.doc)
         self.assertTrue(run.succeeded(self.loft))
         volume = pinned(run.value(self.loft).body()).volume
@@ -71,7 +80,9 @@ class TestSetLoftSections(unittest.TestCase):
         # onto any node.
         with self.assertRaises(EditError) as caught:
             self.doc.apply(
-                DocEdit.set_loft_sections(self.b, self.a, [(self.b, up(1.0))])
+                DocEdit.set_loft_sections(
+                    self.b, (self.a, None), [(self.b, up(1.0), None)]
+                )
             )
         self.assertEqual(caught.exception.variant, "set_loft_sections_on_non_loft")
         self.assertEqual(caught.exception.node, self.b)
@@ -100,7 +111,13 @@ class TestSetLoftSections(unittest.TestCase):
         ]:
             with self.subTest(fault=fault, door="set_loft_sections"):
                 with self.assertRaises(EditError) as rewritten:
-                    self.doc.apply(DocEdit.set_loft_sections(self.loft, self.a, then))
+                    self.doc.apply(
+                        DocEdit.set_loft_sections(
+                            self.loft,
+                            (self.a, None),
+                            [(profile, station, None) for profile, station in then],
+                        )
+                    )
                 self.assertEqual(rewritten.exception.variant, "loft_shape")
                 self.assertEqual(rewritten.exception.inner_variant, fault)
         cubic = self.doc.insert(
@@ -108,9 +125,23 @@ class TestSetLoftSections(unittest.TestCase):
         )
         with self.assertRaises(EditError) as dropped:
             self.doc.apply(
-                DocEdit.set_loft_sections(cubic, self.a, [(self.c, up(2.0))])
+                DocEdit.set_loft_sections(
+                    cubic, (self.a, None), [(self.c, up(2.0), None)]
+                )
             )
         self.assertEqual(dropped.exception.inner_variant, "degree_out_of_range")
+
+    def test_a_section_kept_twice_refuses(self):
+        # Broken by a binding that drops `keep`, or a door that lets two
+        # sections share one id (and so one name).
+        a, _ = self.doc.section_ids(self.loft)
+        with self.assertRaises(EditError) as caught:
+            self.doc.apply(
+                DocEdit.set_loft_sections(self.loft, (self.a, a), [(self.b, up(1.0), a)])
+            )
+        self.assertEqual(caught.exception.variant, "section_ids_refused")
+        self.assertEqual(caught.exception.inner_variant, "repeated")
+        self.assertEqual(caught.exception.node, self.loft)
 
     def test_set_members_keeps_the_count(self):
         # Broken by a count check that is dropped: a third section

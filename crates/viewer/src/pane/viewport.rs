@@ -56,28 +56,21 @@ fn push_segment(
 /// walked the chain under and nobody authored, so the wrap is dropped
 /// and what is drawn is the authored legs exactly. A loop of one
 /// vertex has no leg and is held as its point ([`marks::LegLane::point`]),
-/// so a fit still frames it.
+/// so a fit still frames it. The polyline is
+/// [`sketch::PreviewLoop::drawn_on`]'s, which the pick index measures
+/// against too.
 fn push_loop(
     lane: &mut marks::LegLane,
     plane: &pncad::profile::SketchPlane<f64>,
     polyline: &PreviewLoop,
 ) {
-    let points = &polyline.points;
-    let segments = if polyline.end.closes() {
-        points.len()
-    } else {
-        points.len().saturating_sub(1)
-    };
-    for index in 0..segments {
-        push_segment(
-            lane,
-            plane,
-            points[index],
-            points[(index + 1) % points.len()],
-        );
-    }
-    if let (0, Some(&[x, y])) = (segments, points.first()) {
-        lane.point(plane.to_world(pncad::geom_core::Point2::new(x, y)));
+    match polyline.drawn_on(plane).as_slice() {
+        [point] => lane.point(*point),
+        points => {
+            for leg in points.windows(2) {
+                lane.leg(leg[0], leg[1]);
+            }
+        }
     }
 }
 
@@ -113,9 +106,8 @@ pub(crate) struct CameraFrame<'a> {
     pub(crate) profiles: marks::LegLane,
     /// The doors' previews.
     pub(crate) previews: &'a Previews,
-    /// The open revolve tool's axis over its held profile, if any
-    /// ([`push_revolve_axis`]).
-    pub(crate) axis: Option<&'a RevolveAxisPreview>,
+    /// What the doors' fused fillet steps construct.
+    pub(crate) constructions: &'a Constructions,
     /// The open split tool's plane under the copy it was picked
     /// through, if any ([`crate::splitplane::push_split_plane`]).
     pub(crate) split_plane: Option<&'a crate::splitplane::PlanePreview>,
@@ -139,16 +131,18 @@ pub(crate) struct FramedCamera {
     pub(crate) events: camera::Folded,
     /// The committed profiles' segments.
     pub(crate) profiles: Vec<[f32; 3]>,
-    /// The previews' loops, then their step marks and the revolve
-    /// tool's axis.
+    /// The previews' loops, then their step marks and the split
+    /// tool's plane.
     pub(crate) preview: Vec<[f32; 3]>,
+    /// The doors' constructions ([`push_constructions`]).
+    pub(crate) construction: Vec<[f32; 3]>,
 }
 
 /// **The one order a frame's camera and its overlays are made in**:
 /// the geometry lanes, then the extent they and the scene draw, then
 /// the owed fit on that extent, then the events' fold, and only then
-/// the previews' step marks and the revolve tool's axis, sized against
-/// the camera all of that settled on. Pure, so the order is a row rather than a reading of
+/// the previews' step marks, sized against the camera all of that
+/// settled on. Pure, so the order is a row rather than a reading of
 /// `viewport_ui`.
 pub(crate) fn frame_camera(frame: CameraFrame<'_>) -> FramedCamera {
     let CameraFrame {
@@ -156,7 +150,7 @@ pub(crate) fn frame_camera(frame: CameraFrame<'_>) -> FramedCamera {
         scene,
         profiles,
         previews,
-        axis,
+        constructions,
         split_plane,
         fit,
         input: map,
@@ -181,173 +175,21 @@ pub(crate) fn frame_camera(frame: CameraFrame<'_>) -> FramedCamera {
     let view = view_of(&events.camera, viewport).ok();
     let mut steps = marks::LegLane::default();
     push_previews_marks(&mut steps, previews, view);
-    if let Some(axis) = axis {
-        push_revolve_axis(&mut steps, axis, view);
-    }
     if let Some(plane) = split_plane {
         crate::splitplane::push_split_plane(&mut steps, plane);
     }
+    // Outside the fit, for the step marks' reason and one of its own:
+    // a carrier is a whole circle, and one large enough to fillet
+    // against would frame everything else as a speck.
+    let mut construction = marks::LegLane::default();
+    push_constructions(&mut construction, constructions, view);
     FramedCamera {
         fit,
         events,
         profiles: profiles.into_segments(),
         preview: [preview.into_segments(), steps.into_segments()].concat(),
+        construction: construction.into_segments(),
     }
-}
-
-/// **What the revolve tool would commit, as the viewport draws it**:
-/// the held profile's drawing and the axis line and angle the panel's
-/// fields hold, canonical (metres, radians) and in the profile's own
-/// coordinates — the numbers `RevolveTool::op` is handed.
-#[derive(Clone, Debug)]
-pub(crate) struct RevolveAxisPreview {
-    /// The plane the held profile's landed value is on.
-    pub(crate) plane: pncad::profile::SketchPlane<f64>,
-    /// The held profile's loops, as the committed-profile pass draws
-    /// them.
-    pub(crate) loops: Vec<PreviewLoop>,
-    /// The point the axis runs through.
-    pub(crate) through: [f64; 2],
-    /// The axis's heading from the profile's x axis, about its normal.
-    pub(crate) heading: f64,
-    /// The signed sweep angle.
-    pub(crate) angle: f64,
-}
-
-/// How long the revolve axis's arrowheads are, in pixels — larger than
-/// a step mark's ([`TIP_MARK_PX`]) so the axis's arrow does not read as
-/// one more step of the profile.
-const AXIS_ARROW_PX: f64 = 1.5 * TIP_MARK_PX;
-
-/// The radius, relative to the profile's reach from the axis point,
-/// below which the sweep arc is not drawn — far above the rounding of
-/// a heading's sine and cosine, far below a radius anyone sketches.
-const SWEEP_ARC_FLOOR: f64 = 1.0e-9;
-
-/// How many legs a full turn of the sweep arc is drawn with.
-const SWEEP_ARC_LEGS_PER_TURN: f64 = 64.0;
-
-/// How far an arrowhead's wings spread to each side, as a fraction of
-/// its length.
-const ARROW_SPREAD: f64 = 0.45;
-
-/// How many ticks mark the side of the axis a profile must lie on.
-const SIDE_TICKS: u32 = 4;
-
-/// **The revolve tool's axis and sweep, appended to a lane**, so the
-/// direction the axis runs, the side of it the profile must lie on and
-/// the way it turns are seen before anything is committed.
-///
-/// What is drawn follows `sweep::revolve`'s conventions: with `d` the
-/// axis's unit heading, a profile must lie where
-/// `(p − through).perp_dot(d) ≥ 0`, and a positive angle turns it
-/// right-handed about `d`.
-///
-/// - The axis line, over the profile's axial extent and `through` with
-///   a margin, with an arrowhead at its `+d` end and a comb of ticks
-///   on the side the profile must lie on.
-/// - The arc the profile's point farthest from the axis travels, with
-///   an arrowhead where the sweep stops; none for a profile on its
-///   axis or an angle that is not a number.
-///
-/// The arrowheads and ticks are sized against `view` and need one. It
-/// all goes in the marks lane, outside what a fit frames, so a fit
-/// does not chase the axis's margin.
-fn push_revolve_axis(
-    lane: &mut marks::LegLane,
-    axis: &RevolveAxisPreview,
-    view: Option<screen::View>,
-) {
-    use pncad::geom_core::{Affine3, Point2, Point3, Vec2};
-    let placement = axis.plane.placement();
-    let through = Point2::from_array(axis.through);
-    let (sin, cos) = axis.heading.sin_cos();
-    let along = Vec2::new(cos, sin);
-    // `along` a quarter turn clockwise: the side a profile must lie on.
-    let side = Vec2::new(sin, -cos);
-    // The world point `z` along the axis and `r` toward its side.
-    let world = |z: f64, r: f64| {
-        let p = through + along * z + side * r;
-        placement.transform_point(Point3::new(p.x, p.y, 0.0))
-    };
-    let size_at = |at: Point3<f64>| view.and_then(|view| view.screen_metres_at(at, AXIS_ARROW_PX));
-
-    let (mut low, mut high, mut reach) = (0.0_f64, 0.0_f64, 0.0_f64);
-    let mut farthest: Option<(f64, f64)> = None;
-    for &p in axis.loops.iter().flat_map(|lp| &lp.points) {
-        let offset = Point2::from_array(p) - through;
-        let (z, r) = (offset.dot(along), offset.perp_dot(along));
-        low = low.min(z);
-        high = high.max(z);
-        reach = reach.max(z.abs()).max(r.abs());
-        if farthest.is_none_or(|(_, far)| r.abs() > far.abs()) {
-            farthest = Some((z, r));
-        }
-    }
-    let margin = 0.15 * (high - low);
-    let (from, to) = (low - margin, high + margin);
-    let tip = world(to, 0.0);
-    lane.leg(world(from, 0.0), tip);
-    if let Some(size) = size_at(tip) {
-        push_arrowhead(
-            lane,
-            tip,
-            world(to - size, 0.0) - tip,
-            world(to, size) - tip,
-        );
-    }
-    for tick in 0..SIDE_TICKS {
-        let z = from + (to - from) * f64::from(tick) / f64::from(SIDE_TICKS);
-        if let Some(size) = size_at(world(z, 0.0)) {
-            lane.leg(world(z, 0.0), world(z, 0.5 * size));
-        }
-    }
-
-    // A radius at the rounding of the heading's sine and cosine is a
-    // profile ON the axis, which sweeps nothing.
-    let Some((z, r)) = farthest.filter(|&(_, r)| r.abs() > SWEEP_ARC_FLOOR * reach) else {
-        return;
-    };
-    if !axis.angle.is_finite() || axis.angle == 0.0 {
-        return;
-    }
-    let sweep = axis
-        .angle
-        .clamp(-core::f64::consts::TAU, core::f64::consts::TAU);
-    let (centre, start) = (world(z, 0.0), world(z, r));
-    let direction = world(1.0, 0.0) - world(0.0, 0.0);
-    let turned =
-        |angle: f64, p: Point3<f64>| Affine3::rotate_point_about_axis(centre, direction, angle, p);
-    let legs = (sweep.abs() / core::f64::consts::TAU * SWEEP_ARC_LEGS_PER_TURN)
-        .ceil()
-        .max(2.0);
-    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-    let count = legs as u32;
-    let mut last = start;
-    for step in 1..=count {
-        let here = turned(sweep * f64::from(step) / legs, start);
-        lane.leg(last, here);
-        last = here;
-    }
-    if let Some(size) = size_at(last) {
-        // The arc a length `size` back from its end, and a step out
-        // from the axis at the end.
-        let back = turned(sweep - sweep.signum() * size / r.abs(), start) - last;
-        let out = turned(sweep, world(z, r + r.signum() * size)) - last;
-        push_arrowhead(lane, last, back, out);
-    }
-}
-
-/// An arrowhead at `tip`: two wings, `back` along the way it came and
-/// [`ARROW_SPREAD`] of `across` to either side.
-fn push_arrowhead(
-    lane: &mut marks::LegLane,
-    tip: pncad::geom_core::Point3<f64>,
-    back: pncad::geom_core::Vec3<f64>,
-    across: pncad::geom_core::Vec3<f64>,
-) {
-    lane.leg(tip, tip + back + across * ARROW_SPREAD);
-    lane.leg(tip, tip + back - across * ARROW_SPREAD);
 }
 
 /// **One drawn preview's loops, placed on its plane and appended to a
@@ -405,27 +247,46 @@ fn push_step_marks(
             let Some(tick) = view.and_then(|view| view.screen_metres_at(world, TIP_MARK_PX)) else {
                 continue;
             };
-            let (nx, ny) = (-dy, dx);
-            let at_offset = |along: f64, across: f64| {
-                [
-                    here[0] + dx * along * tick + nx * across * tick,
-                    here[1] + dy * along * tick + ny * across * tick,
-                ]
-            };
-            let mut segment = |a: [f64; 2], b: [f64; 2]| push_segment(lane, &plane, a, b);
             if refused_tip == Some(at) {
-                segment(at_offset(-0.5, -0.5), at_offset(0.5, 0.5));
-                segment(at_offset(-0.5, 0.5), at_offset(0.5, -0.5));
+                let at_offset = offsets(here, [dx, dy], tick);
+                push_segment(lane, &plane, at_offset(-0.5, -0.5), at_offset(0.5, 0.5));
+                push_segment(lane, &plane, at_offset(-0.5, 0.5), at_offset(0.5, -0.5));
                 continue;
             }
-            // Across the heading, never along it: a tick along the
-            // chain would lie on the leg already drawn there.
-            segment(at_offset(0.0, -0.5), at_offset(0.0, 0.5));
-            let tip = at_offset(1.0, 0.0);
-            segment(tip, at_offset(0.2, 0.45));
-            segment(tip, at_offset(0.2, -0.45));
+            push_heading_mark(lane, &plane, here, [dx, dy], tick);
         }
     }
+}
+
+/// The point `along` and `across` mark lengths of `tick` from `here`,
+/// in the frame of the unit heading `[dx, dy]`.
+fn offsets(here: [f64; 2], [dx, dy]: [f64; 2], tick: f64) -> impl Fn(f64, f64) -> [f64; 2] {
+    let (nx, ny) = (-dy, dx);
+    move |along, across| {
+        [
+            here[0] + dx * along * tick + nx * across * tick,
+            here[1] + dy * along * tick + ny * across * tick,
+        ]
+    }
+}
+
+/// **"Here, going that way"**: a tick through `here`, square to the
+/// unit heading, with an arrowhead just ahead of it, each a mark length
+/// `tick` across.
+fn push_heading_mark(
+    lane: &mut marks::LegLane,
+    plane: &pncad::profile::SketchPlane<f64>,
+    here: [f64; 2],
+    heading: [f64; 2],
+    tick: f64,
+) {
+    let at_offset = offsets(here, heading, tick);
+    // Across the heading, never along it: a tick along the chain would
+    // lie on the leg already drawn there.
+    push_segment(lane, plane, at_offset(0.0, -0.5), at_offset(0.0, 0.5));
+    let tip = at_offset(1.0, 0.0);
+    push_segment(lane, plane, tip, at_offset(0.2, 0.45));
+    push_segment(lane, plane, tip, at_offset(0.2, -0.45));
 }
 
 /// **The committed profiles, placed and appended to a lane**: every
@@ -451,6 +312,110 @@ pub(crate) fn push_committed(
 
 /// The doors' profile previews, as each door holds one.
 type Previews = ProfileDoors<Option<Result<sketch::ProfilePreview, sketch::PreviewError>>>;
+
+/// What each door's fused fillet steps construct, taken with its preview.
+type Constructions = ProfileDoors<Option<sketch::Construction>>;
+
+/// How many legs a full turn of a construction circle is drawn with.
+const CONSTRUCTION_LEGS_PER_TURN: u32 = 96;
+
+/// **Each door's construction, appended to a lane**: per fused fillet
+/// step ([`sketch::Construction`]), the two sides its fit was handed
+/// and its fillet circle where it resolved — the geometry the kept
+/// pieces were cut from, drawn whether or not the step's fit refused,
+/// since a refusal is when it is needed.
+///
+/// A circle is drawn as a full turn. A line side is drawn on the side
+/// of its anchor the fit reads it from — ahead of an incoming side's,
+/// behind an arrival's — as far as the step's circles reach from the
+/// anchor, or four fillet radii where the step has none. Each side
+/// carries a heading mark at its anchor, sized against `view` (none
+/// without one): the point the fit anchors it at and the way the path
+/// travels it, which is what a refusal about the wrong side names.
+fn push_constructions(
+    lane: &mut marks::LegLane,
+    constructions: &Constructions,
+    view: Option<screen::View>,
+) {
+    use pncad::profile::path::program::Carrier;
+    for built in constructions.as_ref().into_array().into_iter().flatten() {
+        let plane = &built.plane;
+        for step in &built.steps {
+            let carriers = [Some(step.incoming), Some(step.arrival), step.fillet];
+            let reach = |from: pncad::geom_core::Point2<f64>| {
+                carriers
+                    .iter()
+                    .flatten()
+                    .filter_map(|other| match *other {
+                        Carrier::Circle { centre, radius, .. } => {
+                            Some(from.distance(centre) + radius)
+                        }
+                        Carrier::Line { .. } => None,
+                    })
+                    .reduce(f64::max)
+                    .unwrap_or(4.0 * step.radius.abs())
+            };
+            for carrier in carriers.iter().flatten() {
+                if let Carrier::Circle { centre, radius, .. } = *carrier {
+                    push_circle(lane, plane, centre, radius);
+                }
+            }
+            for (carrier, ahead) in [(step.incoming, true), (step.arrival, false)] {
+                let (anchor, heading) = match carrier {
+                    Carrier::Circle {
+                        centre,
+                        anchor,
+                        winding,
+                        ..
+                    } => {
+                        let out = (anchor - centre).normalize();
+                        let ccw = [-out.y, out.x];
+                        let heading = match winding {
+                            pncad::profile::ArcSweep::Ccw => ccw,
+                            pncad::profile::ArcSweep::Cw => [-ccw[0], -ccw[1]],
+                        };
+                        (anchor, heading)
+                    }
+                    Carrier::Line { anchor, dir } => {
+                        let length = if ahead { reach(anchor) } else { -reach(anchor) };
+                        push_segment(
+                            lane,
+                            plane,
+                            [anchor.x, anchor.y],
+                            [anchor.x + dir.x * length, anchor.y + dir.y * length],
+                        );
+                        (anchor, [dir.x, dir.y])
+                    }
+                };
+                let world = plane.to_world(anchor);
+                if let Some(tick) = view.and_then(|view| view.screen_metres_at(world, TIP_MARK_PX))
+                {
+                    push_heading_mark(lane, plane, [anchor.x, anchor.y], heading, tick);
+                }
+            }
+        }
+    }
+}
+
+/// A full turn of the circle about `centre` of `radius`, in
+/// [`CONSTRUCTION_LEGS_PER_TURN`] legs.
+fn push_circle(
+    lane: &mut marks::LegLane,
+    plane: &pncad::profile::SketchPlane<f64>,
+    centre: pncad::geom_core::Point2<f64>,
+    radius: f64,
+) {
+    let at = |k: u32| {
+        let turn = std::f64::consts::TAU * f64::from(k) / f64::from(CONSTRUCTION_LEGS_PER_TURN);
+        [
+            centre.x + radius * turn.cos(),
+            centre.y + radius * turn.sin(),
+        ]
+    };
+    for k in 0..CONSTRUCTION_LEGS_PER_TURN {
+        push_segment(lane, plane, at(k), at(k + 1));
+    }
+}
 
 /// Each door's preview that drew. A door with no preview taken, or
 /// whose preview failed to replay, draws nothing; the form says why.
@@ -558,14 +523,17 @@ mod composed {
         }
 
         /// Add the lanes a pick implies nothing about — the committed
-        /// profiles and the preview — which the pane composes itself.
+        /// profiles, the preview and its construction — which the pane
+        /// composes itself.
         pub(crate) fn with_lanes(
             mut self,
             profiles: Vec<[f32; 3]>,
             preview: Vec<[f32; 3]>,
+            construction: Vec<[f32; 3]>,
         ) -> Self {
             self.edges.profiles = profiles;
             self.edges.preview = preview;
+            self.edges.construction = construction;
             self
         }
 
@@ -589,6 +557,9 @@ mod composed {
     ///
     /// The seated tools hold NODES, and no mark draws a held node
     /// (`work/held/a-seated-tools-held-node-is-drawn-nowhere`).
+    ///
+    /// A clearance row's witness pair is marked while the row is the
+    /// selection or `row_hovered` names it ([`marks::witness`]).
     pub(crate) fn frame_marks(
         on_screen: Option<&PickIndex>,
         display: &DisplayView,
@@ -596,6 +567,7 @@ mod composed {
         tools: &Tools,
         drafts: &Drafts,
         create_drawn: bool,
+        row_hovered: Option<pncad::document::RecipeNodeId>,
     ) -> Composed {
         let Some(index) = on_screen else {
             return Composed {
@@ -603,14 +575,16 @@ mod composed {
                 edges: EdgeOverlay::default(),
             };
         };
-        // One tool is open at a time, so the mate tool's two held faces
-        // and the mirror tool's plane share these two slots.
+        // One tool is open at a time, so the placement editor's active
+        // row's two held faces, the mirror tool's plane and the
+        // clearance tool's face seats share these two slots.
         // The mate tool's edge and vertex picks are drawn as geometry.
-        let mate = tools.mate().map(|tool| tool.state().picks());
-        let [a, b] = match (mate, tools.mirror()) {
-            (Some(picks), _) => picks.map(|pick| pick.and_then(|held| held.pick().face())),
-            (None, Some(tool)) => [tool.plane(), None],
-            (None, None) => [None, None],
+        let mate = tools.mate().map(crate::matetool::MateTool::active_picks);
+        let [a, b] = match (mate, tools.mirror(), tools.clearance()) {
+            (Some(picks), _, _) => picks.map(|pick| pick.and_then(|held| held.pick().face())),
+            (None, Some(tool), _) => [tool.plane(), None],
+            (None, None, Some(tool)) => [tool.face(0), tool.face(1)],
+            (None, None, None) => [None, None],
         };
         let entities = mate.map_or([None, None], |picks| {
             picks.map(|pick| match pick.map(crate::tree::HeldPick::pick) {
@@ -626,8 +600,30 @@ mod composed {
             edges: tools.blend().and_then(crate::blend::BlendTool::held_edges),
             entities,
         };
-        let (highlight, edges) =
+        let (mut highlight, mut edges) =
             marks::compose(index, display, session.selection(), session.hover(), &held);
+        let selected = match session.selection() {
+            crate::session::Selection::Node(node) => Some(*node),
+            _ => None,
+        };
+        let rows = [
+            (selected, marks::WitnessLit::Selected),
+            (
+                row_hovered.filter(|&row| Some(row) != selected),
+                marks::WitnessLit::Hovered,
+            ),
+        ];
+        for (row, lit) in rows {
+            if let Some(witnessed) = row.and_then(|row| session.witness(row)) {
+                marks::witness(
+                    index,
+                    display,
+                    &witnessed,
+                    lit,
+                    (&mut highlight, &mut edges),
+                );
+            }
+        }
         Composed { highlight, edges }
     }
 }
@@ -1099,14 +1095,13 @@ impl ViewerBehavior<'_> {
         // fit is taken here and nowhere else: this is the only place
         // with a real aspect to fit against.
         let profiles = self.committed_lane();
-        let axis = self.revolve_axis_preview();
         let split_plane = self.split_plane_preview();
         let framed = frame_camera(CameraFrame {
             camera: self.camera,
             scene: self.scene.positions(),
             profiles,
             previews: self.profile_previews,
-            axis: axis.as_ref(),
+            constructions: self.profile_constructions,
             split_plane: split_plane.as_ref(),
             fit: std::mem::take(self.pending_fit),
             input: &self.input,
@@ -1173,7 +1168,7 @@ impl ViewerBehavior<'_> {
         // vocabulary, and the narrowing travels through `hovered_for`,
         // the one door that answers what a cursor means, so a tool
         // cannot end up on a different rule.
-        let kinds = self.tools.pick_kinds_choosing(self.drafts.mate_kind());
+        let kinds = self.tools.pick_kinds();
         // **The index the PICTURE was drawn from**, which is the index
         // in hand on every frame but the ones `drawn_index` exists for.
         // Every read of an index below this line asks this one:
@@ -1243,14 +1238,19 @@ impl ViewerBehavior<'_> {
             self.tools,
             self.drafts,
             self.profile_was_drawn.create,
+            self.row_was_hovered,
         );
         let landed = self.session.landed_pair().map(|(doc, _)| doc);
+        // Held names are mapped onto the drawn picture; while they are
+        // judged by a newer run (`DocSession::name_run`), one that
+        // followed a takeover is not drawn yet, and is not refused.
         self.viewport_reads.held_edges_refused = composed
             .edges()
             .held_refused
             .clone()
+            .filter(|_| !self.session.names_ahead_of_the_picture())
             .map(|refused| frame::Spelled::in_landed(refused, landed));
-        let marks = composed.with_lanes(framed.profiles, framed.preview);
+        let marks = composed.with_lanes(framed.profiles, framed.preview, framed.construction);
 
         // **Held, not said.** A view matrix that cannot be formed is
         // true of this camera on every frame until it moves somewhere
@@ -1393,7 +1393,7 @@ impl ViewerBehavior<'_> {
     /// From the landed evaluation, every frame, because a profile node
     /// has no body until something extrudes it and so nothing else
     /// would draw it. Left out: the profile the edit door is
-    /// previewing, if any ([`ViewerBehavior::profile_edited`]) — drawn
+    /// previewing, if any ([`DisplayView::previewed_profile`]) — drawn
     /// by its live preview, or by nothing while that preview has
     /// nothing to draw, and never also as it was committed. The create
     /// door's profile is not a node while it is composed, and comes to
@@ -1407,18 +1407,12 @@ impl ViewerBehavior<'_> {
                 doc,
                 evaluation,
                 self.delta.get(),
-                self.profile_edited,
+                self.display.previewed_node(),
             );
         }
         profiles
     }
 
-    /// **The open revolve tool's axis over its held profile**
-    /// ([`push_revolve_axis`]), from the landed evaluation and the
-    /// panel's fields as they stand. `None` with no revolve tool open,
-    /// no profile held, or a held profile the landed evaluation draws
-    /// nothing of — the axis is in that profile's plane, so without its
-    /// value there is nowhere to draw one.
     /// **The open split tool's plane** ([`crate::splitplane::preview`]),
     /// drawn under the copy its target was picked through, from the
     /// landed evaluation and the panel's fields as they stand. `None`
@@ -1438,19 +1432,6 @@ impl ViewerBehavior<'_> {
             self.drafts.split_origin,
             self.drafts.split_normal,
         )
-    }
-
-    fn revolve_axis_preview(&self) -> Option<RevolveAxisPreview> {
-        let profile = self.tools.revolve()?.profile()?;
-        let (doc, evaluation) = self.session.landed_pair()?;
-        let drawn = sketch::committed_profile(doc, evaluation, self.delta.get(), profile)?;
-        Some(RevolveAxisPreview {
-            plane: drawn.plane,
-            loops: drawn.loops,
-            through: self.drafts.revolve_axis_through.to_array(),
-            heading: self.drafts.revolve_axis_heading,
-            angle: self.drafts.revolve_angle,
-        })
     }
 }
 
@@ -3112,7 +3093,7 @@ mod tests {
             scene: &[],
             profiles: marks::LegLane::default(),
             previews: &previews,
-            axis: None,
+            constructions: &super::Constructions::default(),
             split_plane: None,
             fit: true,
             input: &map,
@@ -3163,24 +3144,6 @@ mod tests {
         );
     }
 
-    /// A unit square at `x ∈ [1, 2]`, `y ∈ [0, 1]` on the xy plane,
-    /// revolved about the y axis by `angle` — the revolve tool's
-    /// default axis — with `heading` free so a row can turn it.
-    fn square_about_y(heading: f64, angle: f64) -> super::RevolveAxisPreview {
-        super::RevolveAxisPreview {
-            plane: pncad::profile::SketchPlane::xy(),
-            loops: vec![PreviewLoop {
-                points: vec![[1.0, 0.0], [2.0, 0.0], [2.0, 1.0], [1.0, 1.0]],
-                vertices: vec![0, 1, 2, 3],
-                end: sketch::LoopEnd::Closed,
-            }],
-            through: [0.0, 0.0],
-            heading,
-            angle,
-        }
-    }
-
-    /// The lane's legs as world pairs.
     fn legs(lane: &marks::LegLane) -> Vec<[[f32; 3]; 2]> {
         lane.segments()
             .chunks_exact(2)
@@ -3192,170 +3155,6 @@ mod tests {
         a.iter()
             .zip(b)
             .all(|(&a, b)| (f64::from(a) - b).abs() < 1.0e-5)
-    }
-
-    /// **The axis runs the way its heading says, across the profile**:
-    /// heading `turn/4` draws a line up the y axis from below the
-    /// square to above it, a margin past each end, and its arrowhead's
-    /// two legs both start at the top end — the `+d` end.
-    #[test]
-    fn the_revolve_axis_is_drawn_along_its_heading_with_its_arrow_at_plus_d() {
-        let axis = square_about_y(core::f64::consts::FRAC_PI_2, core::f64::consts::TAU);
-        let mut lane = marks::LegLane::default();
-        super::push_revolve_axis(&mut lane, &axis, Some(a_view()));
-        let drawn = legs(&lane);
-        let [from, to] = drawn[0];
-        assert!(
-            near3(from, [0.0, -0.15, 0.0]) && near3(to, [0.0, 1.15, 0.0]),
-            "the axis line spans the square's height and a margin: {from:?}..{to:?}"
-        );
-        assert!(
-            near3(drawn[1][0], [0.0, 1.15, 0.0]) && near3(drawn[2][0], [0.0, 1.15, 0.0]),
-            "both arrowhead legs leave the +d end: {:?}",
-            &drawn[1..3]
-        );
-        assert!(
-            drawn[1][1][1] < to[1] && drawn[2][1][1] < to[1],
-            "the arrowhead points up the heading: {:?}",
-            &drawn[1..3]
-        );
-        assert!(
-            drawn[3..7]
-                .iter()
-                .all(|[at, end]| at[0].abs() < 1.0e-6 && end[0] > 0.0),
-            "the side ticks point to +x, the right of an arrow up y: {:?}",
-            &drawn[3..7]
-        );
-        // Turned half a turn, the same axis points the other way.
-        let flipped = square_about_y(-core::f64::consts::FRAC_PI_2, core::f64::consts::TAU);
-        let mut lane = marks::LegLane::default();
-        super::push_revolve_axis(&mut lane, &flipped, Some(a_view()));
-        let flipped_legs = legs(&lane);
-        assert!(
-            near3(flipped_legs[1][0], [0.0, -0.15, 0.0]),
-            "a heading of -turn/4 puts the arrow at the bottom: {:?}",
-            flipped_legs[1]
-        );
-        assert!(
-            flipped_legs[3..7].iter().all(|[_, end]| end[0] < 0.0),
-            "and its side ticks to -x: {:?}",
-            &flipped_legs[3..7]
-        );
-    }
-
-    /// **The sweep arc turns right-handed about the arrow**: a quarter
-    /// turn about +y carries the square's farthest point, `(2, 0, 0)`,
-    /// to `(0, 0, −2)` — x toward −z, the revolve's own convention
-    /// (`sweep::revolve`, "Winding") — and a negative angle the other
-    /// way. Without a view the axis line and the arc are drawn and no
-    /// screen-sized mark is: one leg, then 64/4 arc legs.
-    #[test]
-    fn the_sweep_arc_turns_right_handed_about_the_axis_by_the_angle() {
-        let quarter = core::f64::consts::FRAC_PI_2;
-        for (angle, end) in [(quarter, [0.0, 0.0, -2.0]), (-quarter, [0.0, 0.0, 2.0])] {
-            let axis = square_about_y(quarter, angle);
-            let mut lane = marks::LegLane::default();
-            super::push_revolve_axis(&mut lane, &axis, None);
-            let drawn = legs(&lane);
-            assert_eq!(drawn.len(), 1 + 16, "the axis, then the arc: {drawn:?}");
-            assert!(
-                near3(drawn[1][0], [2.0, 0.0, 0.0]),
-                "the arc starts at the farthest point: {:?}",
-                drawn[1]
-            );
-            assert!(
-                near3(drawn[16][1], end),
-                "a turn of {angle} ends the arc at {end:?}, not {:?}",
-                drawn[16][1]
-            );
-        }
-    }
-
-    /// **The sweep's arrowhead points the way the profile turns**: its
-    /// two wings start at the arc's end and lie behind it along the
-    /// travel. A quarter turn either way about +y ends at `∓2 z`, still
-    /// moving toward −x, so both wings sit at `x > 0`.
-    #[test]
-    fn the_sweep_arcs_arrowhead_points_along_the_turn() {
-        let quarter = core::f64::consts::FRAC_PI_2;
-        for (angle, end) in [(quarter, [0.0, 0.0, -2.0]), (-quarter, [0.0, 0.0, 2.0])] {
-            let axis = square_about_y(quarter, angle);
-            let mut lane = marks::LegLane::default();
-            super::push_revolve_axis(&mut lane, &axis, Some(a_view()));
-            let drawn = legs(&lane);
-            assert_eq!(
-                drawn.len(),
-                1 + 2 + super::SIDE_TICKS as usize + 16 + 2,
-                "axis, arrowhead, ticks, arc, arrowhead: {drawn:?}"
-            );
-            let wings = &drawn[drawn.len() - 2..];
-            assert!(
-                wings
-                    .iter()
-                    .all(|[at, wing]| near3(*at, end) && wing[0] > 0.0),
-                "a turn of {angle} draws its arrowhead behind {end:?}: {wings:?}"
-            );
-        }
-    }
-
-    /// **The axis is no part of what a fit frames**: a fit owed with the
-    /// revolve tool's axis drawn frames the same box as one without it.
-    #[test]
-    fn a_fit_frames_the_same_box_with_the_revolve_axis_drawn() {
-        let previews: super::Previews = crate::drafts::ProfileDoors {
-            create: None,
-            edit: None,
-        };
-        let scene: Vec<[f32; 3]> = vec![[1.0, 0.0, 0.0], [2.0, 1.0, 0.0]];
-        let axis = square_about_y(core::f64::consts::FRAC_PI_2, core::f64::consts::TAU);
-        let camera = Camera::new(
-            pncad::geom_core::Point3::new(5.0, -4.0, 3.0),
-            40.0,
-            0.3,
-            0.4,
-            0.8,
-            10.0,
-        )
-        .expect("a camera");
-        let map = crate::input::InputMap::default();
-        let extent = |axis: Option<&super::RevolveAxisPreview>| {
-            let framed = frame_camera(super::CameraFrame {
-                camera: &camera,
-                scene: &scene,
-                profiles: marks::LegLane::default(),
-                previews: &previews,
-                axis,
-                split_plane: None,
-                fit: true,
-                input: &map,
-                viewport: ViewportSize {
-                    width_px: 800.0,
-                    height_px: 600.0,
-                },
-                events: &[],
-            });
-            let fit = framed.fit.expect("the owed fit was taken");
-            let framed_box = fit.applied.first().and_then(|op| match op {
-                CameraOp::Frame { extent, .. } => *extent,
-                _ => None,
-            });
-            format!("{:?}", framed_box.expect("the fit framed an extent"))
-        };
-        assert_eq!(extent(Some(&axis)), extent(None));
-    }
-
-    /// A profile lying ON its axis has no radius to sweep, and an angle
-    /// that is no number has no arc: the axis alone is drawn.
-    #[test]
-    fn no_sweep_arc_is_drawn_without_a_radius_or_an_angle() {
-        let mut on_axis = square_about_y(core::f64::consts::FRAC_PI_2, 1.0);
-        on_axis.loops[0].points = vec![[0.0, 0.0], [0.0, 1.0]];
-        let not_a_number = square_about_y(core::f64::consts::FRAC_PI_2, f64::NAN);
-        for axis in [on_axis, not_a_number] {
-            let mut lane = marks::LegLane::default();
-            super::push_revolve_axis(&mut lane, &axis, None);
-            assert_eq!(lane.segments().len(), 2, "the axis line alone");
-        }
     }
 
     /// A view of the xy plane from a tenth of a metre, looking at the
@@ -3518,6 +3317,335 @@ mod tests {
         assert_eq!(centred.len(), 1, "one tick through the tip: {centred:?}");
         assert!(centred[0] < 1.0e-3, "square to the path: {centred:?}");
         assert_eq!(arrow, 2, "an arrowhead ahead of it");
+    }
+
+    /// **The vesica of the radius-2 circles about (±1, 0)**, its top
+    /// corner rounded at `radius` by one `arc_fillet_arc` from the entry
+    /// and closed straight along the diameter.
+    fn vesica(radius: f64) -> Vec<ProfileShape> {
+        vesica_wound(radius, pncad::profile::ArcSweep::Ccw)
+    }
+
+    /// [`vesica`] with its incoming arc travelled `incoming`.
+    fn vesica_wound(radius: f64, incoming: pncad::profile::ArcSweep) -> Vec<ProfileShape> {
+        use pncad::geom_core::Point2;
+        use pncad::profile::{ArcData, ArcSweep, Step, Target};
+        let about = |x: f64, to: f64, winding| ArcData::Center {
+            c: Point2::new(x, 0.0),
+            winding,
+            target: Target::Point(Point2::new(to, 0.0)),
+        };
+        vec![ProfileShape::Path {
+            steps: vec![
+                Step::ArcFilletArc {
+                    spec: about(-1.0, 1.0, incoming),
+                    radius,
+                    spec2: about(1.0, -1.0, ArcSweep::Ccw),
+                },
+                Step::LineTo(Target::Start),
+            ],
+        }]
+    }
+
+    /// The create door's preview of `shapes` and its construction, as
+    /// the frame takes them.
+    fn door(shapes: &[ProfileShape]) -> (super::Previews, super::Constructions) {
+        let (preview, built) = sketch::drawn(
+            pncad::profile::SketchPlane::xy(),
+            shapes,
+            Tol::witness(),
+            1.0e-4,
+        );
+        (
+            crate::drafts::ProfileDoors {
+                create: Some(preview),
+                edit: None,
+            },
+            crate::drafts::ProfileDoors {
+                create: Some(built),
+                edit: None,
+            },
+        )
+    }
+
+    /// How many of `legs` have both ends on the circle about `centre`
+    /// of `radius` (on the xy plane).
+    fn legs_on(legs: &[[[f32; 3]; 2]], centre: [f64; 2], radius: f64) -> usize {
+        let on = |p: [f32; 3]| {
+            let (dx, dy) = (f64::from(p[0]) - centre[0], f64::from(p[1]) - centre[1]);
+            ((dx * dx + dy * dy).sqrt() - radius).abs() < 1.0e-5 && p[2].abs() < 1.0e-6
+        };
+        legs.iter().filter(|leg| on(leg[0]) && on(leg[1])).count()
+    }
+
+    /// The construction lane's legs as drawn without a view: the sides
+    /// and the fillet circle, and no heading marks.
+    fn construction_legs(constructions: &super::Constructions) -> Vec<[[f32; 3]; 2]> {
+        seen_construction_legs(constructions, None)
+    }
+
+    fn seen_construction_legs(
+        constructions: &super::Constructions,
+        view: Option<crate::screen::View>,
+    ) -> Vec<[[f32; 3]; 2]> {
+        let mut lane = marks::LegLane::default();
+        super::push_constructions(&mut lane, constructions, view);
+        legs(&lane)
+    }
+
+    /// **A fused step that resolves draws both carriers whole and its
+    /// fillet circle** in the construction lane: the two radius-2
+    /// circles it fillets between, and the radius-½ circle tangent to
+    /// both inside them, centred at (0, √1.25).
+    ///
+    /// Red if the replay's construction is not carried to the frame, or
+    /// any of the three circles is missing or drawn on the wrong
+    /// carrier.
+    #[test]
+    fn a_resolved_fused_fillet_draws_its_carriers_and_its_fillet_circle() {
+        let (previews, constructions) = door(&vesica(0.5));
+        assert!(
+            matches!(&previews.create, Some(Ok(_))),
+            "a fixture whose fillet resolves: {previews:?}"
+        );
+        let drawn = construction_legs(&constructions);
+        let turn = super::CONSTRUCTION_LEGS_PER_TURN as usize;
+        assert_eq!(
+            legs_on(&drawn, [-1.0, 0.0], 2.0),
+            turn,
+            "the incoming carrier, whole"
+        );
+        assert_eq!(
+            legs_on(&drawn, [1.0, 0.0], 2.0),
+            turn,
+            "the arrival carrier, whole"
+        );
+        assert_eq!(
+            legs_on(&drawn, [0.0, 1.25f64.sqrt()], 0.5),
+            turn,
+            "the fillet circle"
+        );
+        assert_eq!(drawn.len(), 3 * turn, "nothing else: {drawn:?}");
+    }
+
+    /// **A fused step whose fit refuses still draws its two carriers**:
+    /// at radius 5 no circle fits inside both, so the chain draws no
+    /// piece at all — the preview is refused whole — and the carriers
+    /// are the only thing on screen to say what the refusal is about.
+    ///
+    /// Red if the construction is taken from the preview (which has
+    /// nothing to give here) rather than beside it, or if a fillet
+    /// circle is drawn that the fit never found.
+    #[test]
+    fn a_refused_fused_fillet_still_draws_its_carriers() {
+        let (previews, constructions) = door(&vesica(5.0));
+        assert!(
+            matches!(&previews.create, Some(Err(_))),
+            "a fixture whose fillet refuses with nothing before it: {previews:?}"
+        );
+        let drawn = construction_legs(&constructions);
+        let turn = super::CONSTRUCTION_LEGS_PER_TURN as usize;
+        assert_eq!(
+            legs_on(&drawn, [-1.0, 0.0], 2.0),
+            turn,
+            "the incoming carrier, whole"
+        );
+        assert_eq!(
+            legs_on(&drawn, [1.0, 0.0], 2.0),
+            turn,
+            "the arrival carrier, whole"
+        );
+        assert_eq!(drawn.len(), 2 * turn, "and no fillet circle: {drawn:?}");
+    }
+
+    /// **A `fillet_arc` draws its line side as the ray it fillets
+    /// along**: from the leg end the fillet consumes, heading on, as far
+    /// as the arrival circle reaches — here with a radius no corner of
+    /// the two carriers takes, so the fit refuses and the ray and the
+    /// circle are all there is.
+    ///
+    /// Red if a line side is dropped, or drawn from anywhere but the tip.
+    #[test]
+    fn a_refused_fillet_arc_draws_its_ray_and_its_arrival_circle() {
+        use pncad::geom_core::Point2;
+        use pncad::profile::{ArcData, ArcSweep, Step, Target};
+        let mut steps = crate::test_support::two_legs(0.0, 0.0);
+        steps.push(Step::FilletArc {
+            radius: 1.0,
+            spec: ArcData::Center {
+                c: Point2::new(0.03, 0.03),
+                winding: ArcSweep::Ccw,
+                target: Target::Point(Point2::new(0.03, 0.02)),
+            },
+        });
+        steps.push(Step::LineTo(Target::Start));
+        let (_, constructions) = door(&[ProfileShape::Path { steps }]);
+        let drawn = construction_legs(&constructions);
+        let turn = super::CONSTRUCTION_LEGS_PER_TURN as usize;
+        assert_eq!(
+            legs_on(&drawn, [0.03, 0.03], 0.01),
+            turn,
+            "the arrival circle: {drawn:?}"
+        );
+        let reach = 0.02f64.hypot(0.02) + 0.01;
+        let ray = drawn
+            .iter()
+            .filter(|leg| {
+                near3(leg[0], [0.01, 0.01, 0.0]) && near3(leg[1], [0.01, 0.01 + reach, 0.0])
+            })
+            .count();
+        assert_eq!(ray, 1, "the ray, from the tip heading on: {drawn:?}");
+        assert_eq!(drawn.len(), turn + 1, "and no fillet circle: {drawn:?}");
+    }
+
+    /// **The kept pieces are drawn as before, and the construction is
+    /// not among them**: the frame's preview lane is the same with the
+    /// construction as without it, and the construction arrives in its
+    /// own lane.
+    ///
+    /// Red if the construction is pushed into the preview lane, where it
+    /// would wear the preview's mark and be framed by a fit.
+    #[test]
+    fn the_construction_leaves_the_kept_pieces_alone() {
+        let (previews, constructions) = door(&vesica(0.5));
+        let map = crate::input::InputMap::default();
+        let camera = framed();
+        let frame = |constructions: &super::Constructions| {
+            frame_camera(super::CameraFrame {
+                camera: &camera,
+                scene: &[],
+                profiles: marks::LegLane::default(),
+                previews: &previews,
+                constructions,
+                split_plane: None,
+                fit: false,
+                input: &map,
+                viewport: ViewportSize {
+                    width_px: 800.0,
+                    height_px: 600.0,
+                },
+                events: &[],
+            })
+        };
+        let with = frame(&constructions);
+        let without = frame(&super::Constructions::default());
+        assert!(!with.preview.is_empty(), "the kept pieces are drawn");
+        assert_eq!(
+            with.preview, without.preview,
+            "the kept pieces are unchanged"
+        );
+        assert!(!with.construction.is_empty(), "the construction is drawn");
+        assert!(without.construction.is_empty());
+        let view = crate::screen::view_of(
+            &camera,
+            ViewportSize {
+                width_px: 800.0,
+                height_px: 600.0,
+            },
+        )
+        .ok();
+        assert_eq!(
+            with.construction,
+            seen_construction_legs(&constructions, view).concat(),
+            "the construction is in its own lane"
+        );
+    }
+
+    /// **Zoom to fit frames the same camera with the construction as
+    /// without it**, on the vesica, whose carriers reach past its kept
+    /// pieces.
+    ///
+    /// Red if the construction lane feeds `drawn_extent`.
+    #[test]
+    fn the_fit_is_blind_to_the_construction() {
+        let (previews, constructions) = door(&vesica(0.5));
+        let map = crate::input::InputMap::default();
+        let camera = framed();
+        let frame = |constructions: &super::Constructions| {
+            frame_camera(super::CameraFrame {
+                camera: &camera,
+                scene: &[],
+                profiles: marks::LegLane::default(),
+                previews: &previews,
+                constructions,
+                split_plane: None,
+                fit: true,
+                input: &map,
+                viewport: ViewportSize {
+                    width_px: 800.0,
+                    height_px: 600.0,
+                },
+                events: &[],
+            })
+        };
+        let with = frame(&constructions);
+        let without = frame(&super::Constructions::default());
+        assert!(with.fit.is_some());
+        assert_eq!(
+            format!("{:?}", with.fit.as_ref().map(|f| f.camera)),
+            format!("{:?}", without.fit.as_ref().map(|f| f.camera)),
+        );
+        // And the construction does reach past what was framed: the
+        // row is not vacuous.
+        let mut lane = marks::LegLane::default();
+        super::push_constructions(&mut lane, &constructions, None);
+        let built = lane.extent().expect("constructed");
+        let mut kept = marks::LegLane::default();
+        super::push_previews(&mut kept, &previews);
+        let kept = kept.extent().expect("kept");
+        assert!(
+            built.max_x > kept.max_x + 0.5 && built.min_y < kept.min_y - 0.5,
+            "{built:?} vs {kept:?}"
+        );
+    }
+
+    /// **A wrong-side refusal draws the side it names**: the vesica
+    /// with its incoming arc wound the other way refuses ("this corner
+    /// lies behind the incoming ray's start"), and the heading mark at
+    /// the incoming side's anchor, (1, 0), points the way that arc
+    /// travels — down for the refused winding, up for the one that
+    /// resolves — so the two are told apart by more than the missing
+    /// fillet circle.
+    ///
+    /// Red if a side's anchor or direction of travel is not drawn.
+    #[test]
+    fn a_wrong_side_refusal_draws_the_side_it_names() {
+        use pncad::profile::ArcSweep;
+        let viewport = ViewportSize {
+            width_px: 800.0,
+            height_px: 600.0,
+        };
+        let view = crate::screen::view_of(&framed(), viewport).ok();
+        let anchor = pncad::geom_core::Point3::new(1.0, 0.0, 0.0);
+        let tick = view
+            .and_then(|view| view.screen_metres_at(anchor, crate::sketch::TIP_MARK_PX))
+            .expect("the anchor is in view");
+        // The heading of the mark at the anchor: the mean height of the
+        // legs drawn within a mark's length of it, which only the
+        // arrowhead lifts off the anchor's own height.
+        let heading = |incoming| {
+            let (previews, constructions) = door(&vesica_wound(0.5, incoming));
+            let near = |p: [f32; 3]| {
+                (f64::from(p[0]) - 1.0).hypot(f64::from(p[1])) < 1.5 * tick
+                    && legs_on(&[[p, p]], [-1.0, 0.0], 2.0) == 0
+                    && legs_on(&[[p, p]], [1.0, 0.0], 2.0) == 0
+            };
+            let mark: Vec<_> = seen_construction_legs(&constructions, view)
+                .into_iter()
+                .filter(|leg| near(leg[0]) && near(leg[1]))
+                .collect();
+            assert_eq!(mark.len(), 3, "one heading mark at the anchor: {mark:?}");
+            let lift: f64 = mark.iter().flatten().map(|p| f64::from(p[1])).sum();
+            (previews.create.is_some_and(|p| p.is_ok()), lift)
+        };
+        let (resolves, up) = heading(ArcSweep::Ccw);
+        let (refused, down) = heading(ArcSweep::Cw);
+        assert!(
+            resolves && !refused,
+            "the fixtures: one resolves, one refuses"
+        );
+        assert!(up > 0.0, "the counter-clockwise arc travels up there: {up}");
+        assert!(down < 0.0, "the clockwise one travels down: {down}");
     }
 
     /// **A chain with an unclosable tip is painted as the legs before
@@ -3760,7 +3888,7 @@ mod tests {
             .profile_edit(&doc, profile)
             .expect("the square is held");
         assert!(
-            drafts.door_loops().edit.is_some(),
+            drafts.door_loops(&doc, tol).edit.is_some(),
             "the edit door holds the square"
         );
         let placement = sketch::profile_plane();
@@ -3774,11 +3902,14 @@ mod tests {
         // the committed lane, the preview lane.
         let mut frame_with = |loops: Vec<Step<f64>>| {
             let edit = drafts.profile_edit.as_mut().expect("held");
-            edit.edit_row(0, RowEdit::Clear);
+            let notation = crate::props::Notation::CANONICAL;
+            edit.edit_row(0, RowEdit::Clear, notation)
+                .expect("a clear makes no row");
             for (at, step) in loops.into_iter().enumerate() {
-                edit.edit_row(0, RowEdit::Insert { at, step });
+                edit.edit_row(0, RowEdit::Insert { at, step }, notation)
+                    .expect("finite");
             }
-            let held = drafts.door_loops().edit.expect("held");
+            let held = drafts.door_loops(&doc, tol).edit.expect("held");
             let preview = sketch::preview(placement, &held.loops, tol, chord);
             let previews = ProfileDoors {
                 create: None,
@@ -3839,6 +3970,126 @@ mod tests {
         assert!(
             joins(&drawn, [0.0, 0.0], [0.01, 0.0]) && joins(&drawn, [0.01, 0.0], [0.01, 0.01]),
             "refused at step 3: the legs before it are painted: {drawn:?}"
+        );
+    }
+
+    /// **Two blocks placed side by side, 10 mm apart, and a requirement
+    /// that they clear each other by 20 mm**, landed and certified:
+    /// answering the session, the violated requirement, and the index
+    /// the picture is drawn from.
+    fn violated_clearance(tol: Tol) -> (DocSession, pncad::document::RecipeNodeId, PickIndex) {
+        use crate::session::ClearedSeat;
+        use crate::test_support::len;
+        use pncad::document::ClearanceBounds;
+        let (doc, blocks, _) = crate::test_support::two_blocks_apart(tol);
+        let mut session = DocSession::inline(doc, tol);
+        let added = session.perform(SessionOp::AddClearance {
+            a: ClearedSeat::Body(blocks[0].into()),
+            b: ClearedSeat::Body(blocks[1].into()),
+            bounds: ClearanceBounds::AtLeast(len(0.02)),
+        });
+        assert!(added.refusal.is_none(), "{:?}", added.refusal);
+        let violated = added.made.expect("the requirement is a node");
+        session.pump();
+        let (doc, eval) = session.landed_pair().expect("landed");
+        let index = PickIndex::build(
+            doc,
+            eval,
+            PictureKey::of(
+                session.generation(),
+                crate::test_support::plate_delta(),
+                crate::world::Shown::none(),
+            ),
+            tol,
+        )
+        .expect("the blocks index");
+        (session, violated, index)
+    }
+
+    /// The marks a frame draws over `session` with `row` hovered in the
+    /// tree.
+    fn marks_with(
+        session: &DocSession,
+        index: &PickIndex,
+        row: Option<pncad::document::RecipeNodeId>,
+    ) -> super::Composed {
+        super::frame_marks(
+            Some(index),
+            &session.display_view(),
+            session,
+            &crate::tools::Tools::new(),
+            &crate::drafts::Drafts::default(),
+            false,
+            row,
+        )
+    }
+
+    /// **A clearance row's witness is marked only while the row is
+    /// selected or hovered, and only from the picture's own run**: its
+    /// two faces lit in the selection's lanes and its leg in the selected
+    /// edge lane while the row is the selection; in the hover's while
+    /// the pointer is over it; and nothing at all once the shown document
+    /// moves past the landing the pair was certified for.
+    ///
+    /// Red if `frame_marks` marks a witness for a row that is neither, or
+    /// `DocSession::witness` answers off a landing that no longer answers
+    /// the shown document.
+    #[test]
+    fn a_clearance_witness_is_marked_only_while_its_row_is_selected_or_hovered_over_its_landing() {
+        let tol = Tol::witness();
+        let (mut session, violated, index) = violated_clearance(tol);
+        let quiet = marks_with(&session, &index, None);
+        let lit = |marks: &super::Composed| {
+            let h = marks.highlight();
+            (
+                [h.selected, h.selected_second],
+                [h.hovered, h.hovered_second],
+                marks.edges().selected.len(),
+                marks.edges().hovered.len(),
+            )
+        };
+        let none = [IdMap::NOTHING; 2];
+        assert_eq!(
+            lit(&quiet),
+            (none, none, 0, 0),
+            "an unselected row marks nothing"
+        );
+
+        let hovered = marks_with(&session, &index, Some(violated));
+        let (selected, faces, sel_leg, hov_leg) = lit(&hovered);
+        assert_eq!((selected, sel_leg), (none, 0), "a hover is not a selection");
+        assert!(
+            faces.iter().all(|&id| id != IdMap::NOTHING) && faces[0] != faces[1],
+            "both witness faces are lit as hovered: {faces:?}"
+        );
+        assert_eq!(hov_leg, 2, "one leg, two ends, in the hover's lane");
+        let leg = &hovered.edges().hovered;
+        assert!(
+            (leg[0][0] - 0.02).abs() < 1e-6 && (leg[1][0] - 0.03).abs() < 1e-6,
+            "the leg spans the gap between the facing walls: {leg:?}"
+        );
+
+        session.perform(SessionOp::Select(crate::session::Selection::Node(violated)));
+        let selected = marks_with(&session, &index, None);
+        let (faces, hovered_faces, sel_leg, hov_leg) = lit(&selected);
+        assert!(
+            faces.iter().all(|&id| id != IdMap::NOTHING),
+            "both witness faces are lit as selected: {faces:?}"
+        );
+        assert_eq!((hovered_faces, sel_leg, hov_leg), (none, 2, 0));
+
+        // The next edit's request: the shown document moves past the
+        // landing whose pair this is.
+        let label = pncad::document::Label::new("gap").expect("a label");
+        let edit = session.perform(SessionOp::SetLabel {
+            node: violated,
+            label: Some(label),
+        });
+        assert!(edit.refusal.is_none(), "{:?}", edit.refusal);
+        assert_eq!(
+            lit(&marks_with(&session, &index, Some(violated))),
+            (none, none, 0, 0),
+            "no witness of an older document is drawn over a newer one"
         );
     }
 }

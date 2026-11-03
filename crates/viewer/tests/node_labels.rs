@@ -296,8 +296,8 @@ fn labelled_as_one_undo(
 
 /// **A refused creation applies no label**, whether the door refuses
 /// before its run (an extrude of a node that is no profile) or the run
-/// refuses inside it (a profile of no loops, which the edit door
-/// refuses): nothing is committed, the label included, no history state
+/// refuses inside it (a profile of a zero-radius circle, which the edit
+/// door refuses): nothing is committed, the label included, no history state
 /// is recorded and no evaluation is requested.
 #[test]
 fn a_refused_creation_applies_no_label() {
@@ -311,7 +311,12 @@ fn a_refused_creation_applies_no_label() {
             profile: extrude,
             distance: common::len(0.01),
         },
-        SessionOp::AddProfile { loops: Vec::new() },
+        SessionOp::AddProfile {
+            loops: vec![common::shape(&viewer::session::ProfileShape::Circle {
+                centre: [0.0, 0.0],
+                radius: 0.0,
+            })],
+        },
     ];
     for op in refused {
         let what = format!("{op:?}");
@@ -449,15 +454,25 @@ fn every_creation_labelled_is_one_undo_whatever_door_commits_it() {
         },
         "turned",
     );
-    let moved = run(
+    // The Transform tool's Apply on a body nothing places: the Create
+    // door, its slides typed.
+    let op = common::transformed(&mut session, block, &common::slides([0.005, 0.007, 0.003]));
+    let moved = run(&mut session, op, "moved");
+    // The Create door places a body not yet placed.
+    let loose = common::xy_box_in(&mut session, [0.01, 0.01, 0.01]);
+    session.pump();
+    let home = session
+        .committed_doc()
+        .operand_space(&loose.into())
+        .expect("the box is in a space");
+    run(
         &mut session,
-        SessionOp::AddTransform {
-            input: block.into(),
-            translation: len3([0.005, 0.007, 0.003]),
-            rotation_axis: scl3([0.0, 0.0, 1.0]),
-            rotation_angle: Formula::zero(Dimension::Angle),
+        SessionOp::Place {
+            body: loose.into(),
+            target: home,
+            constraints: pncad::document::stand().bundle(),
         },
-        "moved",
+        "placed",
     );
     run(
         &mut session,
@@ -610,6 +625,15 @@ fn every_creation_labelled_is_one_undo_whatever_door_commits_it() {
             },
         },
         "image",
+    );
+    run(
+        &mut session,
+        SessionOp::AddClearance {
+            a: viewer::session::ClearedSeat::Body(block.into()),
+            b: viewer::session::ClearedSeat::Body(block.into()),
+            bounds: pncad::document::ClearanceBounds::AtLeast(len(0.001)),
+        },
+        "gap",
     );
     let edges = pncad::select::all_edges(session.evaluation().expect("landed"), block);
     run(
@@ -999,11 +1023,9 @@ fn the_checks_window_speaks_from_the_landed_document() {
     let mut session = DocSession::inline(Doc::empty_derived("checks-window-speaks", tol), tol);
     let big = common::xy_box_in(&mut session, [0.04, 0.02, 0.01]);
     let small = common::xy_box_in(&mut session, [0.02, 0.01, 0.006]);
-    // Both placed into the world by hand: a new body lands unplaced.
+    // Both added to the product: a new body lands unplaced.
     let (session, _) = common::world_copy_in(&session, big, tol);
     let (mut session, _) = common::world_copy_in(&session, small, tol);
-    let copies = [big, small].map(|body| common::copy_of(session.committed_doc(), body));
-    common::product_is(&mut session, &copies);
     let named = session.perform(SessionOp::SetLabel {
         node: big,
         label: Some(label("big block")),

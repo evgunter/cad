@@ -264,7 +264,7 @@ pub(super) fn certified_line<'a, T: Real>(
 ) -> Option<&'a geom_brep::EdgeCurve<T>> {
     body.edge_curve_linked(e, d)
         .certified()
-        .filter(|c| matches!(c.carrier(), geom::Curve3::Line { .. }))
+        .filter(|c| !c.carrier().is_curved())
 }
 
 /// Whether `v` is a **conventional vertex**: its only edge is one
@@ -584,7 +584,7 @@ fn joinable<T: Decide>(
     let reach = [e1, e2]
         .into_iter()
         .filter_map(|e| crate::edge_wedge_reach(body, e))
-        .reduce(T::max);
+        .reduce(geom_core::Lever::max);
     let Some(reach) = reach else {
         return Ok(None);
     };
@@ -1001,9 +1001,7 @@ fn joined_spec<T: Decide>(
     let tx = if join.closed {
         let period = T::from_f64(core::f64::consts::TAU);
         match carrier {
-            geom::Curve3::Circle { .. }
-            | geom::Curve3::Ellipse { .. }
-            | geom::Curve3::Spiric { .. } => {
+            geom::Curve3::Circle(..) | geom::Curve3::Ellipse(..) | geom::Curve3::Spiric { .. } => {
                 if backward {
                     t1 - period
                 } else {
@@ -1032,13 +1030,10 @@ fn joined_spec<T: Decide>(
     // A declaration's parameter is affine in the carrier's, so the kept
     // edge's runs on over the joined span exactly as a split restricts
     // it; certification re-meters it.
-    let declared = match kept.authority() {
-        geom_brep::EdgeAuthority::Declared(mc) => {
-            let span = t1 - t0;
-            Some(mc.restrict((a - t0) / span, (b - t0) / span))
-        }
-        geom_brep::EdgeAuthority::Derived => None,
-    };
+    let declared = kept.authority().declared().map(|mc| {
+        let span = t1 - t0;
+        mc.restrict((a - t0) / span, (b - t0) / span)
+    });
     // The join's refusal of a pair or an image the rule refuses over
     // the joined span.
     let refused = |refusal| match refusal {

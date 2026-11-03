@@ -91,6 +91,10 @@ this order:
   It also takes `topo::chart_region`'s `TrimOffFace`, whose `Display` ends at rest even
   when a build's region query renders it (E1c review, S5; left to E1e by the
   orchestrator).
+  It also takes the in-band incidence lever's wording for a planar corner:
+  `INCIDENCE_UNSHOWN`'s lever reads "the edge's curve is not shown on the face
+  it bounds", which a corner's read in band ends in since E1c routed the flat
+  corner through the incidence read (E1c delta review, M3 and N4).
 - **E2**: a cylinder line gets a projected lane, together with the
   cylinder `pcurve_chart_radial_moving` tie-break and
   `chart_iso_family`'s re-read. D3's "own envelope carries the miss"
@@ -114,3 +118,57 @@ Per unit, at dispatch, by the review tiers of
 `memories/orchestration-model.md` (protocol v7's A/B triage is moot:
 the A/B experiment is suspended). The log names each tier and its
 reason.
+
+## PCTAIL's slate, merged in 2026-11-02
+
+PCTAIL merged into PCERT on 2026-11-02 (`docs/doc-ledger/pctail-leaves-the-tracker.md`). Its plan follows as it stood, headings one level down; its rows are now in `work/pcert/`.
+
+The P3 tail of pcurve certification: refusal vocabulary, guards and
+coverage claims.
+
+Cut from PCERT on 2026-10-01 along its priority seam
+(`work/README.md`, Track size). Nothing dispatched.
+
+### The slate
+
+**23.5 budget points** of dispatchable work against a ceiling of 30
+(2026-10-26).
+
+| pri | item | cost | title |
+|---|---|---|---|
+| P2 | `pcurve-envelope-escalates-at-interval-on-a-wide-arc` | (none) | a wide shallow arc's wall escalates at `Envelope` at `Interval` |
+| P3 | `recourse-chain-stops-at-pcurve-certify-error` | H | `PcurveCertifyError`'s stopping arms are per-SITE: the recourse chain's last second-hop carrier |
+| P3 | `pcurve-certify-escalation-renders-the-coincidence-menu-unlabelled` | E | the escalation arms still render `{check:?}` and the stage prefix |
+| P3 | `pcurve-image-mismatch-at-the-body-mint-asks-to-re-mint` | E | `ImageMismatch` asks the mint's user to re-mint what the mint built |
+| P3 | `pcurve-winding-incidence-and-sector-refusals-end-as-a-kernel-defect` | E | three checks end as a kernel defect, class undecided |
+| P3 | `pcurve-posture-guard-is-blind-to-body-producing-doors` | M +design | the posture guard walks only `&mut Body` doors |
+| P3 | `line-seam-limbs-partial-and-rational-column-corners-have-no-measured-caller` | M | the LINE seam limb's partial and rational corners have no caller |
+| P3 | `D305` | E | the sole-`T: Bounds` doors of the D1 census in `geom-brep` |
+| P3 | `S83` | E | `seam_tol` / `MarchTolMismatch` is unreachable by construction |
+| P1 | `pcurve-certify-error-arms-with-no-ending` | M | `PcurveCertifyError::decided` ends a group of arms in one `return None` |
+| P3 | `a-seamless-band-mints-and-passes-tier-3-though-loopwraps-says-no-constructor-makes-one` | M | `ring_path`'s parity rests on a premise the mint does not refuse |
+| P4 | `pcert-refusal-prose-outgrows-the-viewer` | E | `FittedCertificate` runs past 50 words |
+
+### Order
+
+The refusal-vocabulary rows are one job seen several ways (`pcurve-certify-error-arms-with-no-ending` and `pcurve-image-mismatch-at-the-body-mint-asks-to-re-mint` are part of it too) and
+belong to one lane: `pcurve-certify-escalation-renders-the-coincidence-menu-unlabelled`
+first (its one home, `PcurveCertifyError::ending`, exists), then the
+per-site pass of `recourse-chain-stops-at-pcurve-certify-error`, whose
+`FittedCertificate` rewrite is where `pcert-refusal-prose-outgrows-the-viewer`
+closes. The guard rows (`pcurve-posture-guard-is-blind-to-body-producing-doors`,
+`S83`, `D305`) are independent of it and of each other.
+
+### Review posture
+
+Per unit, at dispatch, by the review tiers of
+`memories/orchestration-model.md`; the log names each tier and its
+reason.
+
+### Where it runs in PCERT's order
+
+After PCERT's own E1e → E2 → E3 → E4 (E5 beside). The exception is
+`pcurve-certify-error-arms-with-no-ending`, the slate's one P1, which
+runs before the rest of the refusal-vocabulary lane: E1c gives
+`IncidenceRead::ending` its door rule, and the arms it fixes are the
+same `PcurveCertifyError::ending` the rest of the lane renders.

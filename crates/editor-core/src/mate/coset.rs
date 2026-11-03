@@ -265,6 +265,15 @@ impl SubgroupFamily {
         super::solve::leaves(self, coord)
     }
 
+    /// **Whether a mate of this family fixes one direction** — a plane,
+    /// an axis or a direction: the families whose mate a bundle's value
+    /// chart is read on ([`super::read_back`]). A point fixes none, a
+    /// frame every one.
+    #[must_use]
+    pub fn fixes_one_direction(self) -> bool {
+        matches!(self, Self::Planar | Self::Cylindrical | Self::Parallel)
+    }
+
     /// The family's name, for messages and table rows.
     #[must_use]
     pub fn name(self) -> &'static str {
@@ -602,7 +611,9 @@ fn perpendicular<T: SolveScalar>(
     Ok(
         match decide(
             "mate_axis_normal_perpendicular",
-            Margin::levered(cosine, lever),
+            // Unsourced lever: the mate bundle's [`Arm`], the copy's reach plus the poses'
+            // distances from their origins, an `f64` sum no extent read spells.
+            Margin::levered(cosine, geom_core::Lever::unsourced(lever)),
             band,
         )? {
             Sign::Zero => None,

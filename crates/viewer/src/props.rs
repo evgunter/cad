@@ -133,9 +133,9 @@
 use pncad::document::Formula;
 use pncad::document::{
     Dimension, DimensionError, Doc, DocEdit, EvalError, Expr, ExprTree, FreeValue, FreeVar,
-    LeafSet, MemberCountFault, Node, NodeErrorKind, ProfileProgram, Reached, RecipeNodeId, SlotId,
-    SpokenNode, SpokenVar, UnitSym, VarEnv, VarId, VarName, VectorSlot, eval, eval_count,
-    spoken_by,
+    LeafSet, LowerFault, MemberCountFault, Node, NodeErrorKind, ProfileProgram, Reached,
+    RecipeNodeId, SlotId, SpokenNode, SpokenVar, UnitSym, VarEnv, VarId, VarName, VectorSlot, eval,
+    eval_count, spoken_by,
 };
 use pncad::prelude::{M, PI, RAD};
 use pncad::quantity::{
@@ -557,6 +557,9 @@ pub enum SlotFault {
         /// The kernel's refusal, as the document speaks it.
         said: String,
     },
+    /// The expression reads a name the document does not resolve — one
+    /// typed into a draft, read before it commits.
+    Unresolved(LowerFault),
 }
 
 /// **Why the members of the indices an expression reaches cannot be
@@ -599,6 +602,7 @@ impl core::fmt::Display for SlotFault {
                 "the node lists this slot but carries no expression for it"
             ),
             Self::Members { said, .. } => write!(f, "{said}"),
+            Self::Unresolved(fault) => write!(f, "{fault}"),
         }
     }
 }
@@ -815,6 +819,8 @@ impl core::error::Error for SlotFault {}
 pub struct SlotRow {
     /// The named slot (never an index).
     pub slot: SlotId,
+    /// What the row is called ([`Node::slot_label`]).
+    pub label: String,
     /// The dimension the slot's expression must have.
     pub dimension: Dimension,
     /// Whether the slot is structural — the `SetStructuralParam`
@@ -881,6 +887,7 @@ fn slot_row(
     let Some(expr) = node.expr(slot).and(doc.slot_expansion(id, slot)) else {
         return SlotRow {
             slot,
+            label: node.slot_label(slot),
             dimension: slot.expr_dimension(),
             structural: slot.is_structural(),
             // No expression to classify. Reported as driven, which is
@@ -895,14 +902,27 @@ fn slot_row(
             source: None,
         };
     };
+    formula_row(doc, slot, node.slot_label(slot), &expr)
+}
+
+/// **The row of `slot` were it written as `expr`**, read under `doc`'s
+/// variables: what a slot's row is of the expression it holds, and
+/// what a profile editor's field is of an argument its draft holds.
+pub(crate) fn formula_row(
+    doc: &Doc<ProfileProgram>,
+    slot: SlotId,
+    label: String,
+    expr: &Formula,
+) -> SlotRow {
     SlotRow {
         slot,
+        label,
         dimension: slot.expr_dimension(),
         structural: slot.is_structural(),
-        driver: SlotDriver::of(doc, &expr),
-        value: reading(doc, &expr, slot.expr_dimension()),
+        driver: SlotDriver::of(doc, expr),
+        value: reading(doc, expr, slot.expr_dimension()),
         unit: expr.display_unit(),
-        source: Some(doc.unparse(&expr)),
+        source: Some(doc.unparse(expr)),
     }
 }
 
@@ -1515,7 +1535,11 @@ pub fn variable_label(doc: &Doc<ProfileProgram>, var: VarId) -> String {
                 .slots()
                 .into_iter()
                 .find(|&slot| doc.slot(node, slot) == Some(var))?;
-            Some(format!("the {} of {}", slot.label(), doc.spoken(node)))
+            Some(format!(
+                "the {} of {}",
+                doc.node(node)?.slot_label(slot),
+                doc.spoken(node)
+            ))
         })
         .unwrap_or_else(|| doc.spoken_var(var).to_string())
 }
@@ -2083,6 +2107,7 @@ mod written_tests {
     fn a_literal_with_no_millimetre_value_does_not_show_one() {
         let row = |canonical: f64| super::SlotRow {
             slot: SlotId::ShellThickness,
+            label: SlotId::ShellThickness.label(),
             dimension: Dimension::Length,
             structural: false,
             driver: super::SlotDriver::Literal,

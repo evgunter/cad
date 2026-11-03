@@ -88,14 +88,16 @@
 //! order): the sort is stable, and the topological neighbor criterion
 //! disambiguates join partners at coincident positions.
 
-use geom_core::k_stats::{Magnitude, decide_magnitude_reported, gate_rejection};
+use geom_core::k_stats::gate_rejection;
 use geom_core::{
-    Band, BandError, Decide, Decided, Indeterminate, Margin, MarginDiag, Point3, Sign, SizedPass,
-    Vec3,
+    Band, BandError, Decide, Decided, Indeterminate, Lever, Margin, MarginDiag, Point3, Sign,
+    SizedPass, Vec3,
 };
 
 use super::SplitPlane;
 use crate::validate::decide;
+use geom_brep::ExtentBall;
+use geom_brep::ladder::{Answering, Climb, Rung, climb};
 use geom_brep::order::insertion_sort_by;
 
 /// The exact-order band (module docs; identical to profile's).
@@ -121,14 +123,17 @@ pub(crate) fn exact_band() -> Result<Band, BandError> {
 ///
 /// A frame search, not a ray walk: no member is cast from a point, so
 /// nothing grazes and nothing is crossed, and it is not
-/// [`crate::ray_walk::walk`]'s to drive. A member within the band of
-/// the normal is passed over; one in band of it is kept as the
-/// refusal should no member project definitely.
+/// [`crate::ray_walk::walk`]'s to drive. It is a ladder
+/// ([`geom_brep::ladder::climb`]) whose answer is the first member that
+/// projects ([`Answering::First`]): a member within the band of the
+/// normal is passed over; one in band of it is kept as the refusal
+/// should no member project definitely, and stays live where a later
+/// one does, since it may truly project and be the frame.
 ///
 /// # Errors
 ///
 /// [`axis_plane`]'s. When no eligible member projects definitely, the
-/// first in-band arm; else, every member's arm decided Zero, the gate's
+/// ladder's undecided arm; else, every member's arm decided Zero, the gate's
 /// one rejection of the member nearest to passing. Two axes lie in an
 /// axis plane, and no two oblique members lie near one line, so a
 /// normal is near at most one: every arm reads Zero only where `arm`
@@ -136,7 +141,7 @@ pub(crate) fn exact_band() -> Result<Band, BandError> {
 /// origin.
 pub(super) fn in_plane_frame<T: Decide>(
     plane: &SplitPlane<T>,
-    arm: T,
+    arm: Lever<T>,
     band: Band,
     exact: Band,
 ) -> Result<(Vec3<T>, Vec3<T>), Indeterminate> {
@@ -147,29 +152,28 @@ pub(super) fn in_plane_frame<T: Decide>(
     } else {
         oblique
     };
-    let mut first_in_band = None;
     let mut nearest: Option<MarginDiag> = None;
-    for r in members {
+    match climb(Answering::First, members, |r| {
         let r = r.map(T::from_f64);
         let d = r - n * n.dot(r);
-        match decide_magnitude_reported(FRAME_ARM, Margin::levered(d.norm() / r.norm(), arm), band)
-        {
-            Ok((Magnitude::Positive, _)) => {
+        let fraction = Margin::levered(d.norm() / r.norm(), arm);
+        Rung::decide(FRAME_ARM, fraction, band, |decided| match decided.sign {
+            Sign::Positive => {
                 let u = d.normalize();
-                return Ok((u, n.cross(u)));
+                Some((u, n.cross(u)))
             }
-            Ok((Magnitude::Zero, margin)) => {
-                if nearest.is_none_or(|m| m.binds_before(margin)) {
-                    nearest = Some(margin);
+            Sign::Zero => {
+                if nearest.is_none_or(|m| m.binds_before(decided.margin)) {
+                    nearest = Some(decided.margin);
                 }
+                None
             }
-            Err(diag) => {
-                first_in_band.get_or_insert(diag);
-            }
-        }
-    }
-    if let Some(diag) = first_in_band {
-        return Err(diag);
+            Sign::Negative => unreachable!("`{FRAME_ARM}` decided a norm's fraction Negative"),
+        })
+    }) {
+        Climb::Answered { answer, .. } => return Ok(answer),
+        Climb::Undecided(diag) => return Err(diag),
+        Climb::Passed => {}
     }
     let Some(margin) = nearest else {
         unreachable!("the schedule's axis and oblique members are fixed and none is empty")
@@ -206,7 +210,7 @@ pub(crate) const FRAME_AXIS: &str = "split_join_frame_axis";
 ///
 /// The first undecided component, where the decided ones leave the
 /// verdict open (interval lane only: an enclosure straddling zero).
-fn axis_plane<T: Decide>(n: Vec3<T>, arm: T, exact: Band) -> Result<bool, Indeterminate> {
+fn axis_plane<T: Decide>(n: Vec3<T>, arm: Lever<T>, exact: Band) -> Result<bool, Indeterminate> {
     let (mut zero, mut nonzero) = (0, 0);
     let mut undecided = None;
     for c in [n.x, n.y, n.z] {
@@ -284,10 +288,11 @@ pub(super) fn sort_indices_by_point<T: Decide>(
     }
     // The lever arm for the frame gate: the points' own spread from
     // the plane origin (evaluation-lane fold, meters).
-    let mut arm = T::zero();
-    for p in points {
-        arm = arm.max((*p - plane.origin).norm());
-    }
+    let arm = points
+        .iter()
+        .fold(ExtentBall::point(plane.origin).lever(), |arm, &p| {
+            arm.max(ExtentBall::point(p).lever_from(plane.origin))
+        });
     let frame = in_plane_frame(plane, arm, band, exact)?;
     let mut order: Vec<usize> = (0..points.len()).collect();
     insertion_sort_by(&mut order, |&a, &b| {
@@ -405,6 +410,8 @@ pub(super) fn coincident_runs<T: Decide>(
 mod tests {
     use super::*;
     use geom_core::Tol;
+
+    use geom_core::test_support::fixture_lever;
 
     /// **The frame's one refusal quotes the member nearest to passing**:
     /// the largest arm of the schedule's oblique members, not the first.
@@ -539,7 +546,7 @@ mod tests {
         let band = Band::linear(Tol::witness()).unwrap();
         let exact = exact_band().unwrap();
         let plane = plane_y1();
-        let frame = in_plane_frame(&plane, 1.0, band, exact).unwrap();
+        let frame = in_plane_frame(&plane, fixture_lever(1.0), band, exact).unwrap();
         let a = Point3::new(1.0, 1.0, 0.0);
         let b = Point3::new(f64::from_bits(1.0f64.to_bits() + 1), 1.0, 0.0);
         let cmp = |p, q| lex_cmp(&p, &q, &plane.origin, frame, exact).unwrap();
@@ -593,7 +600,7 @@ mod tests {
             Vec3::new(iv(1.0), Interval::from_bounds(-1e-300, 1e-300), iv(0.0)),
             tol,
         );
-        let err = in_plane_frame(&plane, iv(1.0), band, exact).unwrap_err();
+        let err = in_plane_frame(&plane, fixture_lever(iv(1.0)), band, exact).unwrap_err();
         assert_eq!(err.predicate, Some(FRAME_AXIS));
         let said = crate::chord_join::SplitJoinError::OrderEscalated { diag: err }.to_string();
         assert_eq!(
@@ -622,7 +629,7 @@ mod tests {
             Vec3::new(Interval::from_bounds(-1e-12, 1e-12), iv(0.3), iv(1.0)),
             tol,
         );
-        in_plane_frame(&plane, iv(1.0), band, exact)
+        in_plane_frame(&plane, fixture_lever(iv(1.0)), band, exact)
             .unwrap_or_else(|e| panic!("the frame refused: {e:?}"));
     }
 

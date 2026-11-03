@@ -428,12 +428,7 @@ pub(super) fn part_riders<T: Decide + crate::props::AtRestPolicy>(
         // A slit or a zero-area ring in a curved face is neither meshed
         // nor measured, so the parting refuses on any face it would part
         // that is no plane.
-        let plane = |f: FaceKey| {
-            matches!(
-                body.get_face(f).and_then(|d| body.get_surface(d.surface)),
-                Some(geom::Surface::Plane { .. })
-            )
-        };
+        let plane = |f: FaceKey| matches!(body.proven_face_surface(f), geom::Surface::Plane { .. });
         if let Some(&(curved, ..)) = parting.iter().find(|&&(f, ..)| !plane(f)) {
             return Err(BooleanError::EdgeInFace {
                 edge,
@@ -614,19 +609,23 @@ impl Sliver {
 /// **The two halves of `face`'s outline where `face` is a sliver**: no
 /// rings, and an outline of two distinct straight edges, one segment run
 /// twice. `None` for any other face.
+///
+/// # Panics
+///
+/// Where `face`, a face of `body` both callers enumerate, or a record on
+/// the walk of its outline does not resolve ([`Body::proven_face_edges`]).
 pub(super) fn sliver_halves<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<[HalfEdgeKey; 2]> {
-    if !body.get_face(face)?.rings.is_empty() {
+    if !proven(&body.faces, face, EntityId::Face).rings.is_empty() {
         return None;
     }
-    let [h, k] = face_halves(body, face)?[..] else {
+    let [h, k] = body.proven_face_edges(face)[..] else {
         return None;
     };
-    let edges = [h, k].map(|x| body.get_half_edge(x).map(|d| d.edge));
-    (edges[0] != edges[1]
-        && edges
+    (h.edge != k.edge
+        && [h, k]
             .iter()
-            .all(|e| e.is_some_and(|e| crate::census::edge_is_line(body, e))))
-    .then_some([h, k])
+            .all(|e| crate::census::edge_is_line(body, e.edge)))
+    .then_some([h.half, k.half])
 }
 
 /// **Merges the two edges of each sliver alone on its line into one**
@@ -1050,10 +1049,7 @@ fn holding<T: Decide>(
         // A spline face, read by its ends and midpoint; any other pair
         // read here lies on nothing.
         Ok(None) => {
-            let spline = body
-                .get_face(f)
-                .and_then(|d| body.get_surface(d.surface))
-                .is_some_and(|s| s.spline_chart().is_some());
+            let spline = body.proven_face_surface(f).spline_chart().is_some();
             if !spline || !names.ends {
                 return Ok(None);
             }
@@ -1139,7 +1135,7 @@ fn cuts<T: Decide>(
     along: &Span<'_, T>,
     band: Band,
 ) -> Result<Vec<T>, BooleanError> {
-    let loops = [(f, face_edges(body, f))];
+    let loops = [(f, body.proven_face_edge_set(f))];
     let mut at: Vec<T> = Vec::new();
     for record in named {
         let crossings = match crossing_named(body, record, e, &loops, along, band) {
@@ -1241,9 +1237,7 @@ pub(super) fn carrier_on_surface<T: Decide>(
     f: FaceKey,
     band: Band,
 ) -> Result<Option<bool>, BooleanError> {
-    let Some(surface) = body.get_face(f).and_then(|d| body.get_surface(d.surface)) else {
-        return Ok(Some(false));
-    };
+    let surface = body.proven_face_surface(f);
     conic_or_line_on(carrier, (t0, t1), surface, band)
 }
 
@@ -1255,11 +1249,11 @@ fn conic_or_line_on<T: Decide>(
     band: Band,
 ) -> Result<Option<bool>, BooleanError> {
     let (samples, site, coincide) = match (carrier, surface) {
-        (geom::Curve3::Line { .. }, geom::Surface::Plane { .. }) => {
+        (geom::Curve3::Line(_), geom::Surface::Plane { .. }) => {
             (Samples::Ends, RIDER_ON_PLANE, Coincide::EdgeOnPlane)
         }
         (
-            geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. },
+            geom::Curve3::Circle(..) | geom::Curve3::Ellipse(..),
             &geom::Surface::Plane { origin, normal, .. },
         ) => {
             return match crate::splitting::plane_crossing_lane(
@@ -1285,10 +1279,7 @@ fn conic_or_line_on<T: Decide>(
         }
         // A line on a cylinder or a cone: the one reading of it
         // ([`crate::census::line_on_quadric_carrier`]).
-        (
-            geom::Curve3::Line { .. },
-            geom::Surface::Cylinder { .. } | geom::Surface::Cone { .. },
-        ) => {
+        (geom::Curve3::Line(_), geom::Surface::Cylinder { .. } | geom::Surface::Cone { .. }) => {
             return match crate::census::line_on_quadric_carrier(
                 surface,
                 carrier.eval(t0),
@@ -1306,7 +1297,7 @@ fn conic_or_line_on<T: Decide>(
             };
         }
         (
-            geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. },
+            geom::Curve3::Circle(..) | geom::Curve3::Ellipse(..),
             geom::Surface::Sphere { .. }
             | geom::Surface::Cylinder { .. }
             | geom::Surface::Cone { .. }
@@ -1398,12 +1389,14 @@ mod torus_rows {
         radius: f64,
         u_ref: Vec3<f64>,
     ) -> geom::Curve3<f64> {
-        geom::Curve3::Circle {
-            center,
-            axis,
+        geom::Curve3::Circle(geom::Circle {
+            frame: geom::Frame {
+                center,
+                axis,
+                u_ref,
+            },
             radius,
-            u_ref,
-        }
+        })
     }
 
     #[test]
@@ -1471,13 +1464,11 @@ mod torus_rows {
             ("a meridian shifted 1e-3", meridian(3.001), false),
             (
                 "an ellipse of semi-axes 3 and 3.001 in the top plane, through (3, 0, 1)",
-                geom::Curve3::Ellipse {
-                    center: Point3::new(0.0, 0.0, 1.0),
-                    axis: Vec3::unit_z(),
-                    semi_u: 3.0,
-                    semi_v: 3.001,
-                    u_ref: Vec3::unit_x(),
-                },
+                geom::Curve3::Ellipse(geom::Ellipse::new(
+                    geom::Frame::new(Point3::new(0.0, 0.0, 1.0), Vec3::unit_z(), Vec3::unit_x()),
+                    3.0,
+                    3.001,
+                )),
                 false,
             ),
             (
@@ -1530,12 +1521,12 @@ mod torus_rows {
         radius: f64,
     ) -> geom::Curve3<f64> {
         let v = |a: [f64; 3]| Vec3::new(a[0], a[1], a[2]);
-        geom::Curve3::Circle {
-            center: Point3::new(center[0], center[1], center[2]),
-            axis: v(axis).normalize(),
+        geom::Curve3::circle(
+            Point3::new(center[0], center[1], center[2]),
+            v(axis).normalize(),
             radius,
-            u_ref: v(u_ref).normalize(),
-        }
+            v(u_ref).normalize(),
+        )
     }
 
     /// The band at the default ε, whatever row the run is on.
@@ -1702,11 +1693,7 @@ fn walls_inside<T: Decide>(
         // Bent alike, the wall's sheet and the floor's are one to the
         // order read ([`coplanar_wall_inside`]).
         let coplanar = || coplanar_wall_inside(normal, floor, arm, band, refused);
-        let surface = |face: FaceKey| {
-            body.get_face(face)
-                .and_then(|d| body.get_surface(d.surface))
-                .ok_or_else(desync)
-        };
+        let surface = |face: FaceKey| body.proven_face_surface(face);
         inside[k] = match crate::validate::decide(
             "bool_rider_wall_side",
             Margin::levered(into.dot(floor), arm),
@@ -1737,14 +1724,14 @@ fn walls_inside<T: Decide>(
                 } else {
                     EdgeInFaceGap::CurvedFace
                 };
-                let (Some(wall_bend), Some(floor_bend), geom::Curve3::Line { .. }) = (
-                    bend_across(surface(wall)?, mid, tangent),
-                    bend_across(surface(f)?, mid, tangent),
+                let (Some(wall_bend), Some(floor_bend), geom::Curve3::Line(_)) = (
+                    bend_across(surface(wall), mid, tangent),
+                    bend_across(surface(f), mid, tangent),
                     curve.carrier(),
                 ) else {
                     return Err(refused(unread));
                 };
-                let apart = geom_brep::parting(floor_bend - wall_bend, floor, arm);
+                let apart = geom_brep::parting(floor_bend - wall_bend, floor, arm.length());
                 let side = crate::validate::decide(RIDER_WALL_BEND_ACROSS, apart, band)
                     .map_err(sectors)?;
                 match side {
@@ -1787,8 +1774,8 @@ fn spline_floor<T: Decide>(
     band: Band,
 ) -> Result<Option<geom_core::Vec3<T>>, BooleanError> {
     use crate::face_normal::{NormalAtError, SplineNormalError};
-    let chart = body.get_face(f).and_then(|d| body.get_surface(d.surface));
-    if !chart.is_some_and(|s| s.spline_chart().is_some()) {
+    let chart = body.proven_face_surface(f);
+    if chart.spline_chart().is_none() {
         return Ok(None);
     }
     let uv = match super::spline_region::spline_face_placement(body, f, p, band) {
@@ -1837,7 +1824,7 @@ pub(super) const RIDER_WALL_BEND_ACROSS: &str = "bool_rider_wall_bend_across";
 fn coplanar_wall_inside<T: Decide>(
     normal: geom_core::Vec3<T>,
     floor: geom_core::Vec3<T>,
-    arm: T,
+    arm: geom_core::Lever<T>,
     band: Band,
     refused: impl Fn(EdgeInFaceGap) -> BooleanError,
 ) -> Result<bool, BooleanError> {
@@ -1851,16 +1838,6 @@ fn coplanar_wall_inside<T: Decide>(
         geom_core::k_stats::NonzeroSign::Negative => Ok(false),
         geom_core::k_stats::NonzeroSign::Positive => Err(refused(EdgeInFaceGap::Tangent)),
     }
-}
-
-/// The way from `p` to its foot on the axis through `origin` along the
-/// unit `axis`, square to the axis.
-fn toward_axis<T: Decide>(
-    origin: Point3<T>,
-    axis: geom_core::Vec3<T>,
-    p: Point3<T>,
-) -> geom_core::Vec3<T> {
-    origin + axis * (p - origin).dot(axis) - p
 }
 
 /// The bend across a straight line on `surface` at `p`, `t` the line's
@@ -1877,8 +1854,17 @@ fn bend_across<T: Decide>(
 ) -> Option<geom_core::Vec3<T>> {
     let toward = match *surface {
         geom::Surface::Plane { .. } => return Some(geom_core::Vec3::zero()),
-        geom::Surface::Cylinder { origin, axis, .. } => toward_axis(origin, axis, p),
-        geom::Surface::Cone { apex, axis, .. } => toward_axis(apex, axis, p),
+        geom::Surface::Cylinder { origin, axis, .. } => {
+            geom::Line { origin, dir: axis }.foot(p) - p
+        }
+        geom::Surface::Cone { apex, axis, .. } => {
+            geom::Line {
+                origin: apex,
+                dir: axis,
+            }
+            .foot(p)
+                - p
+        }
         _ => return None,
     };
     let off = toward - t * toward.dot(t);
@@ -2088,8 +2074,10 @@ fn divide<T: Decide + crate::props::AtRestPolicy>(
     let desync = run_past_desync;
     let face = *faces.first().ok_or_else(desync)?;
     let refused = |gap| BooleanError::EdgeInFace { edge, face, gap };
-    let loops: Vec<(FaceKey, BTreeSet<EdgeKey>)> =
-        faces.iter().map(|&f| (f, face_edges(body, f))).collect();
+    let loops: Vec<(FaceKey, BTreeSet<EdgeKey>)> = faces
+        .iter()
+        .map(|&f| (f, body.proven_face_edge_set(f)))
+        .collect();
     // The face whose loops hold `cell`, which a refusal about it names.
     // The face whose loops hold `cell`, which a refusal about it names:
     // the edge itself lies in all of them, and is named against the
@@ -2539,7 +2527,7 @@ fn touches_boundary_between<T: Decide>(
     if on_face_loops(body, face, v) {
         return false;
     }
-    let boundary = face_edges(body, face);
+    let boundary = body.proven_face_edge_set(face);
     contacts
         .vertex_edge()
         .any(|(x, g)| x == v && boundary.contains(&g))
@@ -2580,37 +2568,16 @@ fn on_face_loops<T: Decide>(body: &Body<T>, face: FaceKey, v: VertexKey) -> bool
 /// The half-edges of `face`'s loops leaving `v`: one per pass of a loop
 /// through it.
 fn loop_leaving<T: Decide>(body: &Body<T>, face: FaceKey, v: VertexKey) -> Vec<HalfEdgeKey> {
-    face_halves(body, face)
-        .unwrap_or_default()
+    body.proven_face_edges(face)
         .into_iter()
-        .filter(|&he| body.get_half_edge(he).is_some_and(|h| h.start == v))
-        .collect()
-}
-
-/// The edges of `face`'s loops.
-fn face_edges<T: Decide>(body: &Body<T>, face: FaceKey) -> BTreeSet<EdgeKey> {
-    face_halves(body, face)
-        .unwrap_or_default()
-        .into_iter()
-        .filter_map(|he| body.get_half_edge(he).map(|h| h.edge))
+        .filter(|e| e.ends[0] == v)
+        .map(|e| e.half)
         .collect()
 }
 
 /// Whether a record puts `v` inside an edge.
 fn touches_an_edge(contacts: &ContactRecords, v: VertexKey) -> bool {
     contacts.vertex_edge().any(|(x, _)| x == v)
-}
-
-/// Every half-edge of `face`'s loops.
-fn face_halves<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<Vec<HalfEdgeKey>> {
-    let data = body.get_face(face)?;
-    let mut out = Vec::new();
-    for l in core::iter::once(data.outer).chain(data.rings.iter().copied()) {
-        if let crate::entity::LoopBoundary::Cycle { first } = body.get_loop(l)?.boundary {
-            out.extend(body.loop_cycle(first)?);
-        }
-    }
-    Some(out)
 }
 
 /// **[`holding`] on a piece the containment door does not place**: a

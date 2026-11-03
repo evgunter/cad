@@ -14,7 +14,7 @@
 //! to about `u·A`, however close to the origin the arc lies. Read so,
 //! the resolution is the same wherever the part sits.
 
-use geom::{Curve3, CurveKind};
+use geom::Curve3;
 use geom_core::SpanLocate;
 use geom_core::running::UNIT_ROUNDOFF;
 
@@ -51,10 +51,10 @@ pub fn resolution<T: SpanLocate>(carrier: &Curve3<T>, t0: T, t1: T) -> Option<T>
     let speed = speed_hi(carrier)?;
     let tau = t0.abs().max(t1.abs());
     // `speed_hi` answers a line and the conics alone.
-    let reach = if carrier.kind() == CurveKind::Line {
-        tau
-    } else {
+    let reach = if carrier.is_curved() {
         T::from_f64(2.0)
+    } else {
+        tau
     };
     Some(T::from_f64(UNIT_ROUNDOFF) * speed * (T::from_f64(RESOLUTION_ROUNDINGS) * reach + tau))
 }
@@ -258,7 +258,7 @@ mod tests {
             radius: 1.0,
             u_ref: Vec3::unit_x(),
         };
-        let reach = |at| Reach::Measured { at, lever: 1.0 };
+        let reach = |at| Reach::of_frame(at, (1.0, 1.0));
         let mut w = 0.0_f64;
         for t in [1.0, 0.3, 1e-2, 1e-4, 1e-6] {
             for (off, phi) in [(0.0, 0.4), (0.37, 1.9), (0.9, 5.1)] {
@@ -361,7 +361,8 @@ mod tests {
             plane(Point3::new(0.1, 0.2, -0.3), Vec3::unit_y()),
             plane(Point3::new(0.1, 0.5, -0.3), Vec3::unit_y()),
         ] {
-            match plane_torus_section(&cut, &torus, 3.0, band()).unwrap() {
+            let arm = geom_core::test_support::fixture_lever(3.0);
+            match plane_torus_section(&cut, &torus, arm, band()).unwrap() {
                 PlaneTorusSection::MeridianCircles { c1, c2 }
                 | PlaneTorusSection::ConcentricCircles { c1, c2 } => {
                     w = w.max(sweep(&c1, [&cut, &torus]).max(sweep(&c2, [&cut, &torus])));
@@ -382,11 +383,13 @@ mod tests {
     /// charged its distance from the arc.
     #[test]
     fn the_resolution_reads_the_window_not_the_origin() {
-        let circle = |x0: f64| Curve3::Circle {
-            center: Point3::new(x0, 0.0, 0.0),
-            axis: Vec3::unit_z(),
-            radius: 1.0,
-            u_ref: Vec3::unit_x(),
+        let circle = |x0: f64| {
+            Curve3::circle(
+                Point3::new(x0, 0.0, 0.0),
+                Vec3::unit_z(),
+                1.0,
+                Vec3::unit_x(),
+            )
         };
         let at_origin = resolution(&circle(0.0), 0.0, 0.1).unwrap();
         for x0 in [30.0, 1e3, 3e4] {
@@ -396,13 +399,11 @@ mod tests {
                 "x0 {x0}"
             );
         }
-        let far = Curve3::Ellipse {
-            center: Point3::new(-1e5, 0.0, 0.0),
-            axis: Vec3::unit_z(),
-            semi_u: 1e5,
-            semi_v: 1.0,
-            u_ref: Vec3::unit_x(),
-        };
+        let far = Curve3::Ellipse(geom::Ellipse::new(
+            geom::Frame::new(Point3::new(-1e5, 0.0, 0.0), Vec3::unit_z(), Vec3::unit_x()),
+            1e5,
+            1.0,
+        ));
         let rho = resolution(&far, -1e-3, 1e-3).unwrap();
         assert!(rho > 2e-10 && rho < 1e-9, "{rho:e}");
         let spiric = Curve3::Spiric {

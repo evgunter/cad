@@ -30,7 +30,7 @@ HollowTube { major_radius: #0, window: Arc { t0: #2, t1: #3 }, minor_radius: #1,
   #2 TubeWindowStart
   #3 TubeWindowEnd
   #4 TubeWall
-Loft { first: @0, then: [LoftSection { profile: @1, station: [Slide { along: Z, by: #0 }] }], v_degree: #1 }
+Loft { first: @0, first_id: None, then: [LoftSection { profile: @1, station: [Slide { along: Z, by: #0 }], id: None }], v_degree: #1 }
   #0 StationSlide { section: 1, step: 0 }
   #1 VDegree
   @0 Operand(Section(0))
@@ -94,4 +94,4 @@ Place { source: @0, target: @1, constraints: [Constraint { id: ConstraintId(Mint
 Measure { primitive: Distance { a: @0, b: @1 } }
   @0 Operand(Measured(Distance, 0))
   @1 Operand(Measured(Distance, 1))
-Assertion { value: VarId(MintId { ordinal: 1, digest: 11183020936580787592 }), bound: VarId(MintId { ordinal: 2, digest: 2287397637766653602 }), relation: AtLeast }
+Assertion(Value { value: VarId(MintId { ordinal: 1, digest: 11183020936580787592 }), bound: VarId(MintId { ordinal: 2, digest: 2287397637766653602 }), relation: AtLeast })

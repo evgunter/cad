@@ -1023,10 +1023,12 @@ test_utils::f6_variants! {
         ConstraintNotMinted,
         MateRefused,
         InputList,
+        LoftShape,
         AssertionBound,
         ObservedRead,
         MetadataUnversioned,
         StepIds,
+        SectionIds,
         MintLogOrder,
         NameReadNotMinted,
         AppearanceReadNotABody,
@@ -1452,6 +1454,15 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
             vec!["Union 000000000005: the family argument carries an index"],
         ),
         (
+            SnapshotError::LoftShape {
+                node: held(5, "Loft"),
+                fault: editor_core::LoftFault::TooFewSections { have: 1 },
+            },
+            vec![
+                "Loft 000000000005 is a loft through 1 section, and a loft passes through two or more",
+            ],
+        ),
+        (
             SnapshotError::AssertionBound {
                 node: held(5, "Assertion"),
                 measured: Dimension::Length,
@@ -1495,6 +1506,18 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
             vec![
                 "Profile 000000000005's step ids",
                 "step id 000000000003 stands for two steps",
+            ],
+        ),
+        (
+            SnapshotError::SectionIds {
+                node: held(5, "Loft"),
+                fault: editor_core::SectionIdBreak::Repeated {
+                    section: editor_core::SectionId::new(0, tagged(3)),
+                },
+            },
+            vec![
+                "Loft 000000000005's section id 000000000003",
+                "stands for a second section in the document",
             ],
         ),
         (
@@ -2252,12 +2275,14 @@ test_utils::f6_variants! {
         UnsupportedSeamSides,
         UnsupportedJoin,
         UnsupportedUnionName,
+        UnsupportedUnjudgedGlue,
         UnsupportedTurnedCell,
         WayInZeroBand,
         JoinedPieceOffRoot,
         BandVerdictsDisagree,
         Band,
         Escalated,
+        PastWidth,
     ];
 }
 
@@ -2564,6 +2589,11 @@ fn naming_error_display_names_its_content_not_its_struct() {
                     operand: topo::Operand::A,
                     vertex: topo::VertexKey::default(),
                     partner: topo::VertexKey::default(),
+                    in_band: topo::EdgeInBand {
+                        edge: topo::HalfEdgeKey::default(),
+                        face: None,
+                        predicate: None,
+                    },
                 },
             },
             vec![
@@ -2610,6 +2640,35 @@ fn naming_error_display_names_its_content_not_its_struct() {
             ],
         ),
         (
+            NamingError::UnsupportedUnjudgedGlue {
+                face,
+                faces: vec![
+                    (
+                        editor_core::VarId::new(0, tagged(41)),
+                        StableName {
+                            kind: EntityKind::Face,
+                            node: RecipeNodeId::new(0, tagged(41)),
+                            path: vec![RoleSeg::Cap(CapEnd::Start)],
+                        },
+                    ),
+                    (
+                        editor_core::VarId::new(0, tagged(43)),
+                        StableName {
+                            kind: EntityKind::Face,
+                            node: RecipeNodeId::new(0, tagged(43)),
+                            path: vec![RoleSeg::Cap(CapEnd::End)],
+                        },
+                    ),
+                ],
+            },
+            vec![
+                "member read 000000000029's face (the start cap",
+                "member read 00000000002b's face (the end cap",
+                "that no two members glued together",
+                "not read exactly yet",
+            ],
+        ),
+        (
             NamingError::Band(BandError::Empty {
                 zero: 5e-324,
                 escalate: 5e-324,
@@ -2627,6 +2686,13 @@ fn naming_error_display_names_its_content_not_its_struct() {
                 },
             },
             vec!["a point's place along an edge, which a name rests on, is undecided"],
+        ),
+        (
+            NamingError::PastWidth {
+                what: editor_core::names::Numbered::InputPosition,
+                index: 7,
+            },
+            vec!["input 7 does not fit the u32", "Recourse: join the inputs"],
         ),
     ];
     assert_f6_every_variant(&cases, &NAMING_ERROR, &[]);
@@ -3461,4 +3527,74 @@ fn a_clearance_selection_payload_prints_the_full_id_and_its_words_the_tag() {
         standing.payload(),
         "node_did_not_build poisoned node=0:3fa9c1d2a0b10042 through=0:0000000000000007"
     );
+}
+
+/// **A refusal whose recourse the recourse sweep labelled says one
+/// recourse, marked**: the four rows the sweep rewrote, and a doubled
+/// flip at both pose doors, whose fault once said its own recourse
+/// inside each door's. No rendered-row gate held these before: an
+/// unlabelled or a second recourse reds here by name.
+#[test]
+fn the_swept_rows_say_one_recourse_marked() {
+    let rows: Vec<(&str, String)> = vec![
+        (
+            "SelectRefusal::NotAPlane",
+            SelectRefusal::NotAPlane {
+                face: Box::new(face_name()),
+            }
+            .to_string(),
+        ),
+        (
+            "ParseError::RatioPartNotInteger",
+            editor_core::ParseError::RatioPartNotInteger {
+                pos: 3,
+                text: "1.5/2".to_owned(),
+            }
+            .to_string(),
+        ),
+        (
+            "RangeRefusal::SlotIsDefined",
+            editor_core::RangeRefusal::SlotIsDefined {
+                node: held(5, "Extrude"),
+                slot: editor_core::SlotId::Distance,
+            }
+            .to_string(),
+        ),
+        (
+            "NodePickError::NotABody",
+            NodePickError::NotABody {
+                node: RecipeNodeId::new(0, tagged(4)),
+            }
+            .to_string(),
+        ),
+        (
+            "EditError::PoseShape(DoubleFlip)",
+            EditError::PoseShape {
+                node: held(5, "Place"),
+                slot: editor_core::SlotId::Distance,
+                fault: editor_core::pose::PoseFault::DoubleFlip,
+            }
+            .to_string(),
+        ),
+        (
+            "SnapshotError::PoseShape(DoubleFlip)",
+            SnapshotError::PoseShape {
+                var: editor_core::SpokenVar::new(editor_core::VarId::new(0, 7), None),
+                fault: editor_core::pose::PoseFault::DoubleFlip,
+            }
+            .to_string(),
+        ),
+    ];
+    for (row, text) in rows {
+        assert_eq!(
+            test_utils::refusal::recourse_markers(&text),
+            1,
+            "{row} says one recourse, marked: {text}"
+        );
+        let problem = text.split("Recourse:").next().unwrap_or_default();
+        assert!(
+            !problem.contains("instead") && !problem.contains(" — "),
+            "{row} says no recourse before its label: {text}"
+        );
+    }
 }

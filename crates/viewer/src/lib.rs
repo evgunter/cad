@@ -63,6 +63,7 @@ pub mod generation;
 pub mod history;
 pub mod idpass;
 pub mod input;
+pub mod layout;
 pub mod marks;
 pub mod matetool;
 pub mod narrowing;
@@ -73,7 +74,6 @@ pub mod platform;
 pub mod prefs;
 pub mod props;
 pub mod readout;
-pub mod revolvetool;
 pub mod scene;
 pub mod screen;
 pub mod seats;
@@ -163,8 +163,8 @@ pub use history::{History, HistoryId};
 pub use input::{InputMap, PickAction, PointerButton, ViewportEvent, ViewportSize};
 pub use marks::{EdgeOverlay, Highlight, edge_id_segments, edge_overlay, edge_segments, highlight};
 pub use matetool::{
-    MATE_KINDS, MateChoice, MateFreedom, MateProposal, MateTool, MateToolError, MateToolEvent,
-    MateToolState,
+    MATE_KINDS, MateChoice, MatePick, MateProposal, MateRow, MateSeat, MateTool, MateToolError,
+    MateToolEvent, PlaceDoor, ProposedMate, ValueFrom, ValueRow,
 };
 pub use narrowing::Narrow;
 pub use parts::{PartChooser, PartEntry};
@@ -176,7 +176,6 @@ pub use pickindex::{
 };
 pub use prefs::{Notice, Prefs, PrefsError, PrefsStore, StoreError, Unusable};
 pub use props::{MemberFault, MemberValues, Reading, SlotDriver, SlotFault, SlotRow, SlotValue};
-pub use revolvetool::RevolveTool;
 pub use scene::{DisplayTolerance, SceneDocError, SceneError, SceneMesh, ScenePart, SceneStats};
 pub use seats::{Seat, SeatError, SeatEvent, Seats, seat_line};
 pub use session::{

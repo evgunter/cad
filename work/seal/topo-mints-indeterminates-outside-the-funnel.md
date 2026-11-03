@@ -59,6 +59,9 @@ ground:
 - `crates/topo/src/boolean/contain.rs` — `Ok(Sign::Negative) =>
   Err(invalid(band, "bool_contact_arc"))`, plus the
   `ContainError::Escalated(invalid(band, "bool_contact_edge"))` site.
+  (The `bool_contact_arc` site is gone: its last home,
+  `contain::point_on_circle`, was deleted by ONEHOME's PR 6327, and the
+  split point it served reads `geom::Foot::on_carrier`.)
 - `crates/topo/src/boolean/sectors.rs` — `invalid_escalation(band,
   "bool_dir_same")` after `Ok(Sign::Zero)`, and `"bool_faces_parallel"`.
 - `crates/topo/src/splitting/rules.rs` — two: a hand-built

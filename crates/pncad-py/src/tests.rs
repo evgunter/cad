@@ -199,7 +199,8 @@ fn var_kind_tags_are_stable() {
 }
 
 /// What an operand slot admits is a kind's own word, or the one word
-/// of its own: the placers' `placeable`, a measure's `measured`.
+/// of its own: the placers' `placeable`, a measure's `measured`, a
+/// clearance seat's `cleared`.
 #[test]
 fn slot_kind_tags_are_stable() {
     use pncad::document::{SlotKind, VarKind};
@@ -215,6 +216,7 @@ fn slot_kind_tags_are_stable() {
         crate::errors::slot_kind_tag(SlotKind::Measured(pncad::document::MeasureVerb::Distance)),
         "measured"
     );
+    assert_eq!(crate::errors::slot_kind_tag(SlotKind::Cleared), "cleared");
 }
 
 /// What a pose definition's read admits, as Python spells it: the
@@ -343,7 +345,6 @@ fn error_classes_name_the_python_hierarchy() {
             ErrorClass::Enforce => "CheckRefusal",
             ErrorClass::Distribution => "DistributionFault",
             ErrorClass::Measure => "MeasureUnavailable",
-            ErrorClass::MeasureUnavailableAt => "MeasureUnavailableAt",
             ErrorClass::AnalysisPolicy => "AnalysisPolicyError",
             ErrorClass::Mc => "McRefusal",
             ErrorClass::StepHandle => "StepHandleError",
@@ -384,7 +385,6 @@ fn error_classes_name_the_python_hierarchy() {
         ErrorClass::Enforce,
         ErrorClass::Distribution,
         ErrorClass::Measure,
-        ErrorClass::MeasureUnavailableAt,
         ErrorClass::AnalysisPolicy,
         ErrorClass::Mc,
         ErrorClass::StepHandle,
@@ -500,30 +500,24 @@ fn analysis_refusal_tags_are_stable() {
 /// LIB-B-MEASURES: the measurement AUTHORING vocabulary, minted from
 /// real kernel values on the default no-interpreter build path.
 ///
-/// The four verbs, their fixed dimensions and their ARGUMENT-ordered
+/// The three verbs, their fixed dimensions and their ARGUMENT-ordered
 /// reference pairs, taken from the kernel's own `verb`, `dim` and
-/// `refs` rather than restated — so a fifth primitive breaks the
-/// exhaustive matches behind those three and this row goes red on the
-/// vocabulary rather than on a list.
+/// `refs` rather than restated.
 #[test]
 fn the_measure_verb_vocabulary_is_stable() {
     use pncad::document::{Dimension, MeasurePrimitive};
 
     let distance = MeasurePrimitive::Distance { a: 0, b: 1 };
     let angle = MeasurePrimitive::Angle { a: 2, b: 3 };
-    let clearance = MeasurePrimitive::MinClearance { a: 4, b: 5 };
     let gap = MeasurePrimitive::Gap { outer: 6, inner: 7 };
 
     assert_eq!(distance.verb(), "distance");
     assert_eq!(angle.verb(), "angle");
-    assert_eq!(clearance.verb(), "min_clearance");
     assert_eq!(gap.verb(), "gap");
 
-    // Three of the four are lengths and exactly one is an angle: the
-    // kind rides the verb, which is what makes an assertion's bound
-    // type-checkable against the measure it constrains.
+    // The kind rides the verb, which is what makes an assertion's
+    // bound type-checkable against the measure it constrains.
     assert_eq!(distance.dim(), Dimension::Length);
-    assert_eq!(clearance.dim(), Dimension::Length);
     assert_eq!(gap.dim(), Dimension::Length);
     assert_eq!(angle.dim(), Dimension::Angle);
 
@@ -533,73 +527,26 @@ fn the_measure_verb_vocabulary_is_stable() {
     assert_eq!(distance.refs(), [&0, &1]);
 }
 
-/// LIB-B-MEASURES: the two refusals the FOURTH verb adds, and the
-/// asymmetry between them.
+/// LIB-B-MEASURES: a clearance assertion's seat words, and the third
+/// state the `f64` scalar answers it with.
 ///
-/// `MeasureUnavailableAt` is what the `f64` lane answers a
-/// `min_clearance` with, and the binding evaluates at `f64` — so it is
-/// reachable from Python and `tests/test_measures.py` reaches it
-/// through a real document. `MinSeparationRefusal` is the clearance engine's
-/// own, and its ONLY producer on the measure path is the
-/// `topo::ClearanceLane` door, which `f64` does not hold; no Python
-/// evaluation reaches it, because the binding evaluates at `f64`. So
-/// this row is where the second one's tag and prose are pinned at all.
+/// `tests/test_measures.py` reaches the refusal through a real
+/// document; this row pins its class name and prose on the kernel
+/// value, and the word the seat's slot is published as.
 #[test]
-fn the_fourth_verbs_two_refusals_are_stable() {
-    use crate::tags::{measure_unavailable_at_tag, node_error_tag};
-    use pncad::document::{MeasureUnavailableAt, MinSeparationRefusal, NodeErrorKind, Which};
+fn a_clearance_seat_and_its_third_state_are_stable() {
+    use crate::tags::operand_slot_tag;
+    use pncad::analysis::ClearanceRefusal;
+    use pncad::document::OperandSlot;
 
-    let absent = MeasureUnavailableAt::NeedsEnclosure {
-        verb: "min_clearance",
-        scalar: "f64",
-        door: "topo::ClearanceLane",
-    };
-    assert_eq!(measure_unavailable_at_tag(&absent), "needs_enclosure");
-    assert_eq!(absent.verb(), "min_clearance");
-    assert!(crate::errors::reads_as_prose(&absent.to_string()));
-    // The recourse is IN the refusal: it names the door that answers
-    // rather than handing back a worse number.
-    assert!(absent.to_string().contains("topo::ClearanceLane"));
-    let unbracketed = MeasureUnavailableAt::NoUpperBound {
-        verb: "min_clearance",
-        scalar: "Interval",
-        door: "topo::clearance::min_separation",
-    };
-    assert_eq!(measure_unavailable_at_tag(&unbracketed), "no_upper_bound");
-    assert!(crate::errors::reads_as_prose(&unbracketed.to_string()));
-    assert!(
-        unbracketed
-            .to_string()
-            .contains("topo::clearance::min_separation")
-    );
+    assert_eq!(operand_slot_tag(&OperandSlot::Cleared(1)), "cleared");
 
-    // The three arms `topo::clearance::min_separation` refuses with
-    // all cross as one tag.
-    let refused = |r| NodeErrorKind::MeasureClearanceRefused(r);
-    let empty = refused(MinSeparationRefusal::EmptyScope { side: Which::First });
-    let unsupported = refused(MinSeparationRefusal::Unsupported {
-        carrier: "an approximated face",
-        face: FaceKey::default(),
-        side: Which::First,
-    });
-    let poison = refused(MinSeparationRefusal::PoisonEnclosure {
-        a: FaceKey::default(),
-        b: FaceKey::default(),
-    });
-    for e in [&empty, &unsupported, &poison] {
-        assert_eq!(
-            node_error_tag(e.class()),
-            "measure_clearance_refused",
-            "{e}"
-        );
-    }
-    // The prose is pinned on the arm whose rendering is a sentence.
-    // `Unsupported` and `PoisonEnclosure` print their faces as `FaceKey`
-    // `Debug` — the defect
-    // work/props/props-refusal-prose-outgrows-the-viewer.md owns — and
-    // `reads_as_prose` does not look for an arena key, so a pin there
-    // would pass and prove nothing.
-    assert!(crate::errors::reads_as_prose(&empty.to_string()), "{empty}");
+    let refusal = ClearanceRefusal::NeedsCertifyingLane { scalar: "f64" };
+    assert_eq!(refusal.name(), "needs_certifying_lane");
+    let said = refusal.to_string();
+    assert!(crate::errors::reads_as_prose(&said), "{said}");
+    // The recourse is IN the refusal: it names the lane that answers.
+    assert!(said.contains("interval lane"), "{said}");
 }
 
 /// LIB-B-MEASURES: an assertion's three relations, and the symbols a
@@ -2137,7 +2084,6 @@ fn node_error_tags_are_the_published_words() {
         MeasureNotParallel => "measure_not_parallel",
         MeasureUnsupported => "measure_unsupported",
         PayloadExpr => "payload_expr",
-        MeasureClearanceRefused => "measure_clearance_refused",
         AssertionDimension => "assertion_dimension",
     }
     for &(class, word) in PUBLISHED {
@@ -2200,8 +2146,8 @@ fn inner_arm_tags_are_stable() {
         ("shell", Some("thickness"))
     );
     assert_eq!(
-        pair(&NodeErrorKind::Profile(ProfileError::EmptyProfile)),
-        ("profile", Some("empty_profile"))
+        pair(&NodeErrorKind::Profile(ProfileError::PlaneNotFinite)),
+        ("profile", Some("plane_not_finite"))
     );
     // The blend's carrier word is the VERB, so the two words here are
     // "which blend" and "what it refused about" — the clearest case
@@ -2210,6 +2156,7 @@ fn inner_arm_tags_are_stable() {
         pair(&NodeErrorKind::Blend {
             verb: BlendKind::Chamfer,
             error: BlendError::NonpositiveSize { size: -1.0 },
+            edge: None,
         }),
         ("chamfer", Some("nonpositive_size"))
     );
@@ -2388,6 +2335,7 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     );
     carries(&E::WitnessOnNonSketch { node: sp(1) }, &["node"]);
     carries(&E::DuplicateWitnessEntry { node: sp(1) }, &["node"]);
+    carries(&E::TakeOverRepeatsCopy { node: sp(1) }, &["node"]);
     carries(&E::WorldIsUndeletable { node: sp(1) }, &["node"]);
     carries(&E::ConstraintOnNonPlacement { node: sp(1) }, &["node"]);
     // A constraint's address: the placement and the constraint's id.
@@ -2694,10 +2642,7 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     carries(
         &E::SelectionShape {
             node: sp(1),
-            slot: pncad::document::SlotId::Operand(pncad::document::OperandSlot::Measured(
-                pncad::document::MeasureVerb::MinClearance,
-                0,
-            )),
+            slot: pncad::document::SlotId::Operand(pncad::document::OperandSlot::Cleared(0)),
             fault: pncad::document::SelectionFault::Seat {
                 entity: pncad::select::EntityKind::Edge,
             },
@@ -2838,7 +2783,7 @@ fn every_edit_arm_projects_the_payload_it_carries() {
         &E::ProfileProgramRefused {
             node: sp(1),
             refusal: Box::new(pncad::document::ProgramRefusal::Validate(
-                pncad::profile::ProfileError::EmptyProfile,
+                pncad::profile::ProfileError::PlaneNotFinite,
             )),
         },
         &["node"],
@@ -3157,6 +3102,7 @@ fn a_blend_escalation_reads_as_prose_for_every_decision() {
         BlendDecision::ChainG1,
         BlendDecision::ChainArm,
         BlendDecision::ConvexitySign,
+        BlendDecision::MaterialSide,
         BlendDecision::RingClearance,
         BlendDecision::SupportCoaxiality,
         BlendDecision::ContactArm,
@@ -4076,6 +4022,7 @@ fn every_slot_word_reads_back_to_the_slot_it_names() {
                         | "member"
                         | "index"
                         | "measured"
+                        | "cleared"
                         | "side"
                         | "traced"
                 ),
@@ -4411,6 +4358,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "face_clearance",
             "face_clearance_uncertified",
             "inside_out_operand",
+            "knife_edge",
             "nonpositive_size",
             "op",
             "radius_headroom",
@@ -4420,7 +4368,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "spine_irregular",
             "spine_unsupported",
             "surgery_invariant",
-            "tangential_edge",
             "unjoined_operand",
             "unsupported_chain",
             "unsupported_corner",
@@ -4471,6 +4418,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "join_carrier_unsupported",
             "join_desync",
             "join_undecided",
+            "line_material_unread",
             "line_wedges",
             "lineage_row",
             "merge",
@@ -4507,7 +4455,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "spline_crossing_unsettled",
             "split_lineage_cycle",
             "tangency_unsupported",
-            "tangent_crescent_unsupported",
             "torn_component",
             "underflowed_sector_chord",
             "unjoined_operand",
@@ -4758,6 +4705,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "rebind_no_references",
             "rebind_target_missing_node",
             "rebind_unknown_name",
+            "section_ids_refused",
             "selection_name_kind",
             "selection_shape",
             "set_loft_sections_on_non_loft",
@@ -4771,6 +4719,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "space_mismatch",
             "step_ids_refused",
             "structural_slot_needs_structural_edit",
+            "take_over_repeats_copy",
             "unknown_constraint",
             "unknown_node",
             "unknown_slot",
@@ -4807,6 +4756,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "pose_fault_tag",
             "product_read_fault_tag",
             "program_refusal_tag",
+            "section_id_fault_tag",
             "selection_fault_tag",
             "step_id_fault_tag",
         ],
@@ -4886,6 +4836,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "cap_plane",
             "cosurface_escalated",
             "degenerate_extrusion",
+            "empty_profile",
             "extrusion_escalated",
             "negative_depth",
             "oblique_extrusion",
@@ -4958,6 +4909,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "epsilon_seam",
             "inline_edit",
             "instance_body_name_referenced",
+            "name_on_dropped_section",
             "name_on_dropped_step",
             "not_an_instance",
             "part_carries_metadata",
@@ -5032,17 +4984,23 @@ const TAG_INVENTORY: &[TagEntry] = &[
         values: &[
             "band",
             "cap_plane",
+            "clearance_fault",
+            "clearance_undecided",
+            "corner_escalated",
             "degenerate_stacking",
             "euler",
             "far_section_not_forward",
             "far_stacking_escalated",
             "pcurve",
+            "pinned_corner",
+            "pinned_corner_unsupported",
             "placement_not_finite",
             "reversed_stacking",
             "seam_structure",
             "section_not_finite",
             "section_rim",
             "section_structure",
+            "sections_touch",
             "skin",
             "stacking_escalated",
         ],
@@ -5103,11 +5061,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &["measure_unavailable_tag"],
     },
     TagEntry {
-        function: "measure_unavailable_at_tag",
-        values: &["needs_enclosure", "no_upper_bound"],
-        delegates: &[],
-    },
-    TagEntry {
         function: "measure_unavailable_tag",
         values: &["band_has_no_measure"],
         delegates: &[],
@@ -5148,12 +5101,14 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "member_edge_tied",
             "missing_upstream",
             "partner_unread",
+            "past_width",
             "seam_vertex_partners",
             "short_tie",
             "split_lineage_cycle",
             "unnamed",
             "unsettled_vertex",
             "unsupported_turned_cell",
+            "unsupported_unjudged_glue",
         ],
         delegates: &[
             "band_error_tag",
@@ -5204,7 +5159,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "mate_unleverable",
             "mate_unoriented",
             "mate_unpinned",
-            "measure_clearance_refused",
             "measure_non_finite",
             "measure_not_parallel",
             "measure_ref_unreadable",
@@ -5321,6 +5275,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
         values: &[
             "axis",
             "body",
+            "cleared",
             "cut",
             "face",
             "frame",
@@ -5401,6 +5356,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "nonpositive_circle_radius",
             "nonpositive_fillet_radius",
             "nonpositive_leg",
+            "nonpositive_rectangle_side",
             "overdetermined_junction",
             "polygon_too_few_vertices",
             "seam_arrival_lever_too_short",
@@ -5493,7 +5449,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "band",
             "degenerate_segment",
             "empty_loop",
-            "empty_profile",
             "escalated",
             "inconsistent_arc",
             "multiple_outer_loops",
@@ -5607,6 +5562,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "cosurface_escalated",
             "degenerate_angle",
             "degenerate_axis",
+            "empty_profile",
             "full_range_angle",
             "hole_touches_axis",
             "non_finite_axis",
@@ -5678,6 +5634,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "unsupported_seam_vertex_no_edge_pair",
             "unsupported_seam_vertex_one_operand_seam",
         ],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "section_id_fault_tag",
+        values: &["not_this_lofts", "preminted", "repeated"],
         delegates: &[],
     },
     TagEntry {
@@ -5775,6 +5736,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "band",
             "degenerate_section",
             "domain_not_unit",
+            "empty_profile",
             "fit",
             "knot_algebra",
             "no_parameter_step",
@@ -5833,6 +5795,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "epsilon_invalid",
             "input_list",
             "label_on_missing_node",
+            "loft_shape",
             "mate_refused",
             "metadata_unversioned",
             "mint_log_order",
@@ -5849,6 +5812,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "product_read",
             "read_cycle",
             "reader_of_unminted_var",
+            "section_ids",
             "selection_body",
             "selection_shape",
             "shared_var_needs_name",
@@ -5874,6 +5838,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "cuts_the_world",
             "definition_straddles_cut",
             "empty_cut",
+            "name_on_dropped_section",
             "name_on_dropped_step",
             "name_outside_part_world",
             "name_straddles_cut",
@@ -6032,6 +5997,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "not_a_run",
             "off_trace",
             "on_carrier",
+            "unbounded_carrier",
             "undrawn",
             "unevaluated",
             "unreached",
@@ -6337,6 +6303,10 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // refused at validation, and a body face's empty (scaffolding) loop,
     // refused by the tessellator.
     ("empty_loop", 2),
+    // One fact: the extrude, the revolve and the loft or path sweep each
+    // refuse a profile with no loops at their own door;
+    // `an_empty_profile_is_one_word_at_every_sweep` pins them.
+    ("empty_profile", 3),
     ("escalated", 11),
     ("euler", 2),
     ("evaluation_of_another_document", 5),
@@ -6373,12 +6343,19 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // (`pose_fault_tag`) and a product read of a variable that is no
     // body (`product_read_fault_tag`).
     ("kind", 2),
+    // One fact at the edit and load doors: a loft written as no loft
+    // can be. The edit door publishes its fault on `inner_variant`;
+    // the load door says it in the message alone.
+    ("loft_shape", 2),
     // One fact at the edit and load doors: a constraint the per-mate
     // admission refuses, its fault carried whole.
     ("mate_refused", 2),
     // Two vocabularies: a pose constructed where two others meet, and a
     // coincidence row whose cells share one point.
     ("meet", 2),
+    // A split's and an inline's refusal of a name on a dropped section:
+    // one fact (`editor_core::refactor::Unmapped::Section`), one word.
+    ("name_on_dropped_section", 2),
     // A split's and an inline's refusal of a name on a dropped step: one
     // fact (`editor_core::refactor::Unmapped::Step`), one word.
     ("name_on_dropped_step", 2),
@@ -6416,6 +6393,9 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // One fact at the edit and load doors: a pose definition of a shape
     // no door admits (`PoseFault`), refused at the seat and in a file.
     ("pose_shape", 2),
+    // One fact: ids handed to the insert door, which mints them, a
+    // profile's step ids and a loft's section ids alike.
+    ("preminted", 2),
     // One fact: the edit that moved the product's body out of the
     // world (`maintenance_tag`) and the gather that refuses it after
     // (`product_error_tag`).
@@ -6429,8 +6409,9 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // alphabet forwards.
     ("profile", 2),
     // One fact: a list that names one entry twice, a selection's face
-    // set (`selection_fault_tag`) as a profile's kept step ids.
-    ("repeated", 2),
+    // set (`selection_fault_tag`) as a profile's kept step ids and a
+    // loft's kept section ids.
+    ("repeated", 3),
     ("revolve", 2),
     ("ring_on_curved_face", 2),
     // One fact, as `inside_out_operand`: `topo::Unfinished::Scaffolding`.
@@ -6544,6 +6525,20 @@ fn a_space_mismatch_has_one_word_at_the_door_and_at_evaluation() {
     assert_eq!(
         edit_error_tag(&refused),
         node_error_tag(NodeErrorClass::SpaceMismatch)
+    );
+}
+
+/// `empty_profile` is one fact at every sweep: a profile with no loops,
+/// refused at the extrude's door, the revolve's and the skin's.
+#[test]
+fn an_empty_profile_is_one_word_at_every_sweep() {
+    use crate::tags::{extrude_error_tag, revolve_error_tag, skin_error_tag};
+    use pncad::sweep::{ExtrudeError, RevolveError, SkinError};
+    let word = extrude_error_tag(&ExtrudeError::EmptyProfile);
+    assert_eq!(word, revolve_error_tag(&RevolveError::EmptyProfile));
+    assert_eq!(
+        word,
+        skin_error_tag(&SkinError::EmptyProfile { section: Some(0) })
     );
 }
 
@@ -8024,10 +8019,10 @@ const ERRORS_MINTING_ITEMS: &[MintingItem] = &[
     },
     MintingItem {
         owner: "ErrorClass::class_name",
-        literals: 35,
+        literals: 34,
         held_by: &[Holder::Test {
             name: "error_classes_name_the_python_hierarchy",
-            holds: "the 36 class names, against a SECOND exhaustive match, so a new \
+            holds: "the 35 class names, against a SECOND exhaustive match, so a new \
                     class stops the build",
         }],
     },
@@ -8157,10 +8152,10 @@ const ERRORS_MINTING_ITEMS: &[MintingItem] = &[
     },
     MintingItem {
         owner: "slot_kind_tag",
-        literals: 2,
+        literals: 3,
         held_by: &[Holder::Test {
             name: "slot_kind_tags_are_stable",
-            holds: "its own two words, and a kind's word as `var_kind_tag`'s",
+            holds: "its own three words, and a kind's word as `var_kind_tag`'s",
         }],
     },
     MintingItem {

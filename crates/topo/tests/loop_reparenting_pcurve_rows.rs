@@ -109,12 +109,7 @@ fn rim_back(v: f64, cyl: topo::SurfaceKey) -> EdgeCurveSpec<f64> {
     let start = u_ref() * U1.cos() + w * U1.sin();
     EdgeCurveSpec {
         description: EdgeDescriptionSpec::chart(cyl),
-        carrier: Curve3::Circle {
-            center: Point3::origin() + axis() * v,
-            axis: -axis(),
-            radius: 1.0,
-            u_ref: start,
-        },
+        carrier: Curve3::circle(Point3::origin() + axis() * v, -axis(), 1.0, start),
         param_start: 0.0,
         param_end: U1 - U0,
     }
@@ -124,12 +119,7 @@ fn rim_back(v: f64, cyl: topo::SurfaceKey) -> EdgeCurveSpec<f64> {
 fn rim_fwd(v: f64, cyl: topo::SurfaceKey) -> EdgeCurveSpec<f64> {
     EdgeCurveSpec {
         description: EdgeDescriptionSpec::chart(cyl),
-        carrier: Curve3::Circle {
-            center: Point3::origin() + axis() * v,
-            axis: axis(),
-            radius: 1.0,
-            u_ref: u_ref(),
-        },
+        carrier: Curve3::circle(Point3::origin() + axis() * v, axis(), 1.0, u_ref()),
         param_start: U0,
         param_end: U1,
     }

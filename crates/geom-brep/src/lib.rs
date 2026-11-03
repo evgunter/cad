@@ -75,7 +75,6 @@ pub mod fitted_lane;
 mod grid_offsets;
 pub mod half_angle;
 pub(crate) mod harmonic;
-pub mod identity;
 pub mod implicit;
 pub mod intersect;
 pub mod keys;
@@ -119,12 +118,13 @@ pub use description::{
 };
 pub use dihedral::{
     DIHEDRAL_ARM, DIHEDRAL_ARM_CLAUSE, DIHEDRAL_ARM_NOUN, DihedralClass, DihedralReading,
-    MATERIAL_PAIRING, MATERIAL_PAIRING_CLAUSE, MaterialPairing, MaterialWedge, MixedStations,
-    MustCarryDescription, MustCarryEscalation, MustCarryRefusal, MustCarryVerdict, PairRefusal,
-    RestLocus, SeamEscalation, SeamFace, SecondOrder, SecondOrderWalk, SmoothJoin, Station,
-    StationHook, classify_dihedral, classify_material_pairing, classify_material_pairing_as,
-    classify_seam, folded_lever_arm, interior_stations, material_kappa_rel, must_carry_description,
-    must_carry_over_edge, reask_chart, reask_pair, second_order_walk, tangent_second_order,
+    EdgeWedge, EdgeWedgeEscalation, MATERIAL_PAIRING, MATERIAL_PAIRING_CLAUSE, MaterialPairing,
+    MaterialWedge, MixedStations, MustCarryDescription, MustCarryEscalation, MustCarryRefusal,
+    MustCarryVerdict, PairRefusal, PositiveArm, RestLocus, SeamEscalation, SeamFace, SecondOrder,
+    SecondOrderWalk, SmoothJoin, Station, StationHook, classify_dihedral, classify_edge_wedge,
+    classify_material_pairing, classify_material_pairing_as, classify_seam, folded_lever_arm,
+    interior_stations, material_kappa_rel, must_carry_description, must_carry_over_edge,
+    reask_chart, reask_pair, second_order_walk, tangent_second_order,
 };
 pub use dihedral_side::{
     ChartPointRefusal, CreaseReading, EdgeHalf, EdgeWalk, FaceSide, SideEscalation, SideFace,
@@ -141,29 +141,29 @@ pub use edge_nurbs::{
 pub use enters::{
     EntersMaterial, LeverEscalation, LeverRung, NormalAlignment, OutwardNormal, ParallelNormal,
     ParallelSense, ReferenceNormal, TiedGermsError, WallBend, WallBendError, bends_into_material,
-    departure_side_reported, enters_material, enters_material_order2, enters_material_reported,
-    normal_alignment, parting, parting_side, tied_germ_turn,
+    departure_arm, departure_side_reported, enters_material, enters_material_order2,
+    enters_material_reported, normal_alignment, parting, parting_arm, parting_side, rise,
+    tied_germ_turn,
 };
 pub use extent::{
-    ExtentBall, LeverBounds, Reach, control_net_reach, edge_extent_inf, edge_extent_sup,
-    edge_reach_bounds, edge_reach_from,
+    ExtentBall, LeverBounds, Reach, edge_extent_inf, edge_extent_sup, edge_reach_bounds,
+    edge_reach_from, points_diameter, points_lever_from, polygon_half_perimeter,
 };
 pub use fitted_lane::{FITTED_DOOR_HOLDERS, FittedLane};
 /// The ring-torus convention's one home is `geom` (below this crate, so
 /// the spiric carrier's constructor reads it too); re-exported so the
 /// doors above read it by the name they already use.
 pub use geom::ring_torus;
-pub use identity::{IdentityWalk, identity_walk};
 pub use implicit::{
-    ARC_RESIDUAL_SAMPLES, CircleSphereHarmonic, Conic, ConicHarmonics, ConicTorusHarmonics,
-    SurfaceSide, circle_arc_residual_range, circle_residual_curvature_bound,
-    circle_residual_extremes, circle_sphere_harmonic, cone_elevation, conic_arc_residual_range,
-    conic_cone_harmonics, conic_cone_residual, conic_cylinder_harmonics, conic_quadric_residual,
-    conic_residual_extremes, conic_sphere_harmonics, conic_torus_harmonics, conic_torus_implicit,
-    conic_torus_jet, conic_torus_residual, curvature_lever_arm, implicit_gradient,
-    implicit_graph_acceleration, implicit_hessian_form, implicit_max_normal_curvature,
-    implicit_outward_normal, implicit_residual, implicit_section_acceleration,
-    min_radius_of_curvature, min_radius_of_curvature_toward,
+    ARC_RESIDUAL_SAMPLES, CircleSphereHarmonic, ConicHarmonics, ConicTorusHarmonics, SurfaceSide,
+    circle_arc_residual_range, circle_residual_curvature_bound, circle_residual_extremes,
+    circle_sphere_harmonic, cone_elevation, conic_arc_residual_range, conic_cone_harmonics,
+    conic_cone_residual, conic_cylinder_harmonics, conic_quadric_residual, conic_residual_extremes,
+    conic_sphere_harmonics, conic_torus_harmonics, conic_torus_implicit, conic_torus_jet,
+    conic_torus_residual, curvature_lever_arm, graph_acceleration, implicit_gradient,
+    implicit_graph_acceleration, implicit_hessian, implicit_hessian_form,
+    implicit_max_normal_curvature, implicit_outward_normal, implicit_residual,
+    implicit_section_acceleration, min_radius_of_curvature, min_radius_of_curvature_toward,
 };
 pub use intersect::{
     ConeCylinderSection, ConicArcError, ConicBranch, EqualCylinderSection, OpenConic,
@@ -197,13 +197,13 @@ pub use pair_section::{
     AxisPose, CarriedComponent, CarriedSection, CarryError, CcDecision, CcNode, CcStance,
     ChartReach, ClassCarrier, Coincident, ComponentEnds, ComponentShape, Components, CsDecision,
     CsStance, CtStance, CylinderCylinderPose, CylinderSpherePose, CylinderTorusPose, FittedCarrier,
-    Gap, KnownPair, KnownRow, PairPose, PairSection, PlaneSplinePose, PoseRefusal, Reached,
+    Gap, KnownPair, KnownRow, NodeSet, PairPose, PairSection, PoseRefusal, Reached,
     RegionPlacement, Ring, Seated, SectionComponent, SectionDecision, SectionRead, SiteFoot,
-    SiteRefusal, SphereTorusPose, SplinePairPose, SquareWall, SsiLane, StStance, TT_COINCIDENT,
-    TT_COINCIDENT_FLOOR, TorusCoincidence, TorusData, TorusDatum, TorusDisplacement, TorusGap,
-    TorusPoseRefusal, TorusQuestion, TorusTorusPose, TtStance, Turn, Winding, WindsRefusal,
-    ZeroKind, ZeroVerdict, axis_pose, line_tilt, pair_section, spline_pair_section, square_part,
-    tori_coincide,
+    SiteRefusal, SphereTorusPose, SplineImplicitPose, SplinePairPose, SquareWall, SsiLane,
+    StStance, TT_COINCIDENT, TT_COINCIDENT_FLOOR, TorusCoincidence, TorusData, TorusDatum,
+    TorusDisplacement, TorusGap, TorusPoseRefusal, TorusQuestion, TorusTorusPose, TtStance, Turn,
+    Winding, WindsRefusal, ZeroKind, ZeroVerdict, axis_pose, line_tilt, pair_section,
+    spline_pair_section, square_part, tori_coincide,
 };
 pub use pcurve::{
     PCURVE_FIT_SAMPLES, PcurveError, ellipse_pcurve_on_cylinder, ellipse_pcurve_on_plane,
@@ -215,8 +215,8 @@ pub use pcurve_cache::{
     Pcurve, PcurveCache, PcurveCertificate, PcurveCertifyError, PcurveCheck, PcurveKind, Period,
     ProjectedChart, ProjectedImage, SectorChannel, SpiricImage, WalkStop, WallTorus, angle_rate,
     chart_iso_family, chart_pcurve, chart_pcurve_over, chart_stretch_inf, chart_stretch_sup,
-    chart_stretch_sup_v, chart_sup_arms_at, harmonic_form_of, iso_arc_spans, read_incidence,
-    read_point_incidence,
+    chart_stretch_sup_v, chart_sup_arms_at, harmonic_form_of, iso_arc_spans, read_edge_incidence,
+    read_incidence, read_point_incidence,
 };
 pub use props::{
     FaceContribution, LoopEdge, PropsError, curved_face, planar_face, require_iso_rectangle,

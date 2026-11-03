@@ -410,7 +410,7 @@ pub use family::{
 /// [`program`]; this module is their public home.
 pub use onto::{ArcOnto, ArcOntoStart, OntoTarget};
 #[doc(inline)]
-pub use program::{circle, circle_split};
+pub use program::{circle, circle_split, rectangle};
 pub use verbs::{ArcLen, ArcSide, Bulge, Center, Radius, Sweep, Via};
 #[doc(hidden)]
 pub use verbs::{DirectedPoint, TangentArcLeg};
@@ -1217,6 +1217,16 @@ pub enum PathError<T: Real> {
         /// The refused swept angle, radians.
         angle: T,
     },
+    /// A [`rectangle`] width or height that is not definitely positive:
+    /// a zero side is a segment and a negative one names no rectangle.
+    /// Classified through the funnel (`path_rectangle_side`), consistent
+    /// with the other sign gates.
+    NonpositiveRectangleSide {
+        /// Which side was refused: `"width"` or `"height"`.
+        side: &'static str,
+        /// The refused extent, meters (scalar-typed payload).
+        length: T,
+    },
     /// A [`circle_split`] subdivision count outside `2..=u32::MAX`.
     /// One vertex cannot carry a full turn (bulge = tan(θ/4) diverges
     /// at θ = 2π), so the smallest declared subdivision of a closed
@@ -1524,6 +1534,8 @@ pub enum PathErrorKind {
     NonpositiveFilletRadius,
     /// [`PathError::NonpositiveCircleRadius`].
     NonpositiveCircleRadius,
+    /// [`PathError::NonpositiveRectangleSide`].
+    NonpositiveRectangleSide,
     /// [`PathError::DegenerateArcSpec`].
     DegenerateArcSpec,
     /// [`PathError::ArcSweepNotShortOfFullTurn`].
@@ -1589,6 +1601,7 @@ impl<T: Real> PathError<T> {
             Self::NonpositiveLeg { .. } => PathErrorKind::NonpositiveLeg,
             Self::NonpositiveFilletRadius { .. } => PathErrorKind::NonpositiveFilletRadius,
             Self::NonpositiveCircleRadius { .. } => PathErrorKind::NonpositiveCircleRadius,
+            Self::NonpositiveRectangleSide { .. } => PathErrorKind::NonpositiveRectangleSide,
             Self::DegenerateArcSpec { .. } => PathErrorKind::DegenerateArcSpec,
             Self::ArcSweepNotShortOfFullTurn { .. } => PathErrorKind::ArcSweepNotShortOfFullTurn,
             Self::CircleSplitCount { .. } => PathErrorKind::CircleSplitCount,
@@ -1926,6 +1939,13 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                 "a circle needs a definitely positive radius (got {radius} m): r = 0 is a \
                  point and r < 0 names no circle",
                 radius = num(radius)
+            ),
+            Self::NonpositiveRectangleSide { side, length } => write!(
+                f,
+                "a rectangle needs a definitely positive {side} (got {length} m): a zero side \
+                 is a segment and a negative one names no rectangle. Recourse: author a \
+                 positive {side}",
+                length = num(length)
             ),
             Self::CircleSplitCount { n } => write!(
                 f,
@@ -2809,10 +2829,28 @@ impl<T: Real> Core<T> {
         core::mem::replace(&mut self.guide, crate::structure::Guide::recording())
     }
 
-    /// The guide, for the resolution machinery that reads and writes
-    /// it.
-    pub(crate) fn guide_mut(&mut self) -> &mut crate::structure::Guide<T> {
-        &mut self.guide
+    /// **Hands an arc fillet's fit its two sides**, the fused verb at
+    /// `step` having authored them: every arc-carrier resolution goes
+    /// through here. A pass that draws its construction is handed the
+    /// sides before the fit runs, so a refused fit still has them, and
+    /// the fillet circle once it resolves.
+    pub(crate) fn fit_arc_fillet(
+        &mut self,
+        resolver: verbs::ArcResolver<T>,
+        step: usize,
+        sides: [arc_fillet::FilletSide<T>; 2],
+        radius: T,
+        tol: Tol,
+    ) -> Result<arc_fillet::ArcFilletTrims<T>, PathError<T>> {
+        let [incoming, arrival] = sides;
+        if let Some(drawing) = self.guide.drawn() {
+            drawing.sides(step, radius, incoming, arrival);
+        }
+        let trims = resolver(&mut self.guide, incoming, arrival, radius, tol)?;
+        if let Some(drawing) = self.guide.drawn() {
+            drawing.fillet(&trims);
+        }
+        Ok(trims)
     }
 
     /// Records one authoring verb (record-as-you-lower), with the
@@ -3649,7 +3687,13 @@ fn seam_arrival_check<T: Decide>(
         Ok((turn, margin)) if turn.sign == Sign::Zero => {
             let side = decide(
                 "path_seam_arrival_side",
-                Margin::levered(arriving.unit.dot(start_ang.unit), arm),
+                // Unsourced lever: the shorter leg's arm (a line's length, an arc's lesser of
+                // radius and chord), a length of the consumed legs with no extent home in
+                // `profile`.
+                Margin::levered(
+                    arriving.unit.dot(start_ang.unit),
+                    geom_core::Lever::unsourced(arm),
+                ),
                 band,
             );
             match side {
@@ -4144,7 +4188,13 @@ impl<T: Decide> Core<T> {
             anchor: arr_pos,
             carrier: arc_fillet::SideCarrier::Ray(arr_ang.unit),
         };
-        let trims = (arc.resolver)(self.guide_mut(), incoming, arrival, arc.radius, tol)?;
+        let trims = self.fit_arc_fillet(
+            arc.resolver,
+            meta.bound_at,
+            [incoming, arrival],
+            arc.radius,
+            tol,
+        )?;
         let run = verbs::Pending::Arc(arc).run();
         self.emit_fillet_in(&trims, meta.extends_carrier, &meta, run)?;
         let ray = ArrivalCarrier::Ray {
@@ -4221,8 +4271,14 @@ impl<T: Decide> Core<T> {
         // (1) parallel/tangent carriers admit no corner: the turn
         // margin sin φ levered by the anchor separation.
         let cross = u1.perp_dot(u2);
-        let turn = decide("path_corner_turn", Margin::levered(cross, wn), band)
-            .map_err(|source| PathError::Escalated { source })?;
+        let turn = decide(
+            "path_corner_turn",
+            // Unsourced lever: the two anchors' separation, a length of the consumed path
+            // with no extent home in `profile`.
+            Margin::levered(cross, geom_core::Lever::unsourced(wn)),
+            band,
+        )
+        .map_err(|source| PathError::Escalated { source })?;
         let Some((sgn, sense)) =
             crate::sugar::turn_side::<T>(turn).zip(crate::sugar::turn_sense(turn))
         else {
@@ -4785,6 +4841,39 @@ fn circle_split_kernel<T: Decide>(
         band,
         program::Verb::CircleSplit,
     )
+}
+
+/// The kernel behind the table's rectangle row: the lowered loop (the
+/// row supplies the one-step program). Each side is gated definitely
+/// positive, then the four corners are the centre less and plus the
+/// half extents, counterclockwise from the lower-left one.
+fn rectangle_kernel<T: Decide>(
+    centre: Point2<T>,
+    width: T,
+    height: T,
+    tol: Tol,
+) -> Result<ProfileLoop<T>, PathError<T>> {
+    let band = linear_band(tol)?;
+    for (side, length) in [("width", width), ("height", height)] {
+        match decide("path_rectangle_side", Margin::of(length), band) {
+            Ok(Sign::Positive) => {}
+            Ok(_) => return Err(PathError::NonpositiveRectangleSide { side, length }),
+            Err(source) => return Err(PathError::Escalated { source }),
+        }
+    }
+    let half = T::from_f64(0.5);
+    let (hw, hh) = (width * half, height * half);
+    let (x0, x1) = (centre.x - hw, centre.x + hw);
+    let (y0, y1) = (centre.y - hh, centre.y + hh);
+    let corners: [Point2<T>; crate::structure::RECTANGLE_PIECES as usize] = [
+        Point2::new(x0, y0),
+        Point2::new(x1, y0),
+        Point2::new(x1, y1),
+        Point2::new(x0, y1),
+    ];
+    Ok(ProfileLoop::from_chain(
+        corners.into_iter().map(|p| (p, Segment::Line)),
+    ))
 }
 
 /// **The circle forms' one conversion**: the vertices on the authored

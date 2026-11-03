@@ -114,7 +114,7 @@ for that wall, with its mechanism named.
 
 The recipe as written no longer builds. `sweep_body` on this spine
 refuses `Skin(PathTangentReversal { station: 8 })`: the half-turn spine
-of `work/carvetail/a-half-turn-spine-sweeps-only-off-its-exact-tangents`,
+of `work/lathe/a-half-turn-spine-sweeps-only-off-its-exact-tangents`,
 the tour's wall 9. I measured its twin, the way `demos/tour/src/klein.rs`
 builds the loop today (`lofted_loop`). That twin has the same spine
 (degree-3 interpolant through the 49 arc points), the same annulus

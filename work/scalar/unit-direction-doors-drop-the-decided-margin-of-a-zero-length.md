@@ -36,7 +36,7 @@ and returns a bare `Vec3` rather than a `UnitVec3`:
 Two filed rows prescribe `UnitVec3::levered` and will meet the same
 gap once their decided zero must refuse with a margin:
 `work/cleave/sector-face-cylinder-normal-normalizes-an-undecided-radial.md`
-and `work/shelf/replace-face-cylinder-radial-normalizes-an-undecided-rejection.md`.
+and `work/shell/replace-face-cylinder-radial-normalizes-an-undecided-rejection.md`.
 
 ## Shape
 
@@ -49,3 +49,9 @@ Found by the `cleave/recl-flanker` review (PR #4177).
 ## Re-homed from FLUX to SCALAR (2026-10-10)
 
 (FLUX orchestrator) FLUX measured 125.5 budget points against 30 and was cut on its priority seam: FLUX kept the curved closed-form arms. SCALAR collects the scalar doors and the readers over them: the certified-door family, the margin and recourse readers, the unit-direction doors, and the box driver's readings. The id and the body above are unchanged; the move may have set `priority`, `cost` or `status` in the header.
+
+## Note (2026-11-01, ONEREAD `oneread/recl-line-cone`)
+
+The `recl.rs` `flank_rep` site (`bool_flank_offset`) is deleted: an
+edge-edge site reads each flank bound's point against the other solid's
+line cone, normalizing nothing.

@@ -206,7 +206,7 @@
 //!   A spline section's witness is the wall's point at the middle of
 //!   the branch's pcurve, with a point of the section bracketed within a
 //!   certified metre bound of it inside the branch's own tube window
-//!   (`geom_brep::pair_section::plane_spline`), so the bracketed point
+//!   (`geom_brep::pair_section::spline_implicit`), so the bracketed point
 //!   is `γ`'s; that bound is its pad ([`Component::pad`]).
 //! - **Lone-vertex loops.** The sweep is edge-driven, so a vertex of a
 //!   `LoopBoundary::Empty` loop is never examined. That does not break
@@ -398,7 +398,7 @@ use geom_core::{Band, Decide, Margin, Point3, Real, Sign, Vec3};
 use super::contain::FaceContainment;
 use crate::validate::decide;
 use geom_brep::pair_section::{Pinch, signs, signs_across};
-use geom_brep::{AxisPose, ExtentBall, Turn, axis_pose};
+use geom_brep::{AxisPose, ExtentBall, Reach, Turn, axis_pose};
 
 /// Which face of the pair a statement is about.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -407,27 +407,6 @@ pub(crate) enum Side {
     F,
     /// The pair's second face.
     G,
-}
-
-/// The region where a pair's section can matter: the ball about the
-/// centre of the overlap of the two faces' certified boxes, radius its
-/// half-diagonal (module docs, the lever and its pivot).
-#[derive(Clone, Copy, Debug)]
-pub(crate) struct Reach<T: Real> {
-    /// The overlap box's centre.
-    pub centre: Point3<T>,
-    /// Its half-diagonal.
-    pub radius: T,
-}
-
-impl<T: Real> Reach<T> {
-    /// The reach as a consumed extent: its foot on an axis is the pivot
-    /// a datum on that axis is read at, and its farthest distance from a
-    /// point the travel of a turn about it (module docs, the lever and
-    /// its pivot).
-    fn ball(self) -> ExtentBall<T> {
-        ExtentBall::new(self.centre, self.radius)
-    }
 }
 
 /// One connected component of a pair's section.
@@ -738,7 +717,7 @@ fn swapped<T: Real>(s: Section<T>) -> Section<T> {
 pub(crate) fn classify<T: Decide>(
     f: &geom::Surface<T>,
     g: &geom::Surface<T>,
-    reach: Reach<T>,
+    reach: &Reach<T>,
     region: Option<ExtentBall<T>>,
     lane: Option<geom_brep::SsiLane<T>>,
     band: Band,
@@ -759,7 +738,7 @@ pub(crate) fn classify<T: Decide>(
 pub(crate) fn classify_known<T: Decide>(
     f: &geom::Surface<T>,
     g: &geom::Surface<T>,
-    reach: Reach<T>,
+    reach: &Reach<T>,
     region: Option<ExtentBall<T>>,
     lane: Option<geom_brep::SsiLane<T>>,
     band: Band,
@@ -811,8 +790,14 @@ pub(crate) fn classify_known<T: Decide>(
                 ..
             },
         ) => sphere_sphere(c1, r1, c2, r2, band),
-        (S::Nurbs(_) | S::Approx(_), S::Plane { .. })
-        | (S::Plane { .. }, S::Nurbs(_) | S::Approx(_)) => spline_plane(f, g, lane, band),
+        (
+            S::Nurbs(_) | S::Approx(_),
+            S::Plane { .. } | S::Cylinder { .. } | S::Sphere { .. } | S::Torus { .. },
+        )
+        | (
+            S::Plane { .. } | S::Cylinder { .. } | S::Sphere { .. } | S::Torus { .. },
+            S::Nurbs(_) | S::Approx(_),
+        ) => spline_implicit(f, g, lane, band),
         (S::Nurbs(_) | S::Approx(_), S::Nurbs(_) | S::Approx(_)) => {
             spline_pair(f, g, known, lane, band)
         }
@@ -838,15 +823,17 @@ fn spline_pair<T: Decide>(
     of_pair_section(&read, band, |_| Section::Unmarched)
 }
 
-/// **A spline face against a plane, read off the pair's
-/// classification** ([`geom_brep::pair_section()`] through `lane`, module
-/// docs): the hull's apart is W0 and its coincidence R-tan; the
-/// door's and the boundary pass's refusals map by name; the regularity
-/// sweep's loop-free verdict ([`geom_brep::Components::Reaching`])
-/// clears by W1′ where every side it names bounds the wall, and is
-/// otherwise read whole; any other pose is C3's whole reading. With no
-/// lane a pose the hull does not decide is R-lane.
-fn spline_plane<T: Decide>(
+/// **A spline face against an implicit one (a plane, cylinder, sphere
+/// or torus), read off the pair's classification**
+/// ([`geom_brep::pair_section()`] through `lane`, module docs): the
+/// hull's apart is W0 and its coincidence R-tan; the door's and the
+/// boundary pass's refusals map by name; the regularity sweep's
+/// loop-free verdict ([`geom_brep::Components::Reaching`]) clears by W1′
+/// where every side it names bounds the wall, and is otherwise read
+/// whole; any other pose is C3's whole reading, which a curved partner
+/// does not have (intractable). With no lane a plane's pose the hull
+/// does not decide, and every curved partner's, is R-lane.
+fn spline_implicit<T: Decide>(
     f: &geom::Surface<T>,
     g: &geom::Surface<T>,
     lane: Option<geom_brep::SsiLane<T>>,
@@ -867,7 +854,7 @@ fn spline_plane<T: Decide>(
 fn torus_pair<T: Decide>(
     t: &geom::Surface<T>,
     p: &geom::Surface<T>,
-    reach: Reach<T>,
+    reach: &Reach<T>,
     band: Band,
 ) -> Section<T> {
     let &geom::Surface::Torus {
@@ -1072,7 +1059,7 @@ pub(super) fn torus_plane_loops<T: Decide>(
 fn cone_pair<T: Decide>(
     k: &geom::Surface<T>,
     p: &geom::Surface<T>,
-    reach: Reach<T>,
+    reach: &Reach<T>,
     band: Band,
 ) -> Section<T> {
     let &geom::Surface::Cone {
@@ -1192,18 +1179,13 @@ impl<T: Real> Cone<T> {
         geom_brep::cone_elevation(self.apex, self.a, self.alpha, None, p)
     }
 
-    /// The farthest the pair's reach stands from the apex.
-    fn reach_lever(&self, reach: Reach<T>) -> T {
-        (reach.centre - self.apex).norm() + reach.radius
-    }
-
     /// The generator lines as a ruling chart: the azimuth `θ` from
     /// `u_ref`, `t` along the generator. Its reach speed is the turn's at
     /// the reach's farthest distance from the apex.
-    fn chart(&self, reach: Reach<T>) -> ruling::Chart<T> {
+    fn chart(&self, reach: &Reach<T>) -> ruling::Chart<T> {
         let (s, c) = self.sc;
         let zero = Vec3::new(T::zero(), T::zero(), T::zero());
-        let lever = self.reach_lever(reach);
+        let lever = reach.lever_from(self.apex).length();
         ruling::Chart {
             base: self.apex,
             offset: ruling::Swing::fixed(zero),
@@ -1262,19 +1244,22 @@ fn cone_cylinder<T: Decide>(
     o: Point3<T>,
     d: Vec3<T>,
     rc: T,
-    reach: Reach<T>,
+    reach: &Reach<T>,
     band: Band,
 ) -> Section<T> {
     let (_, c) = cone.sc;
     let (off, dist) = perp_to(cone.apex - o, d);
     let foot = cone.apex - off;
-    let lever = cone.reach_lever(reach);
+    let lever = reach.lever_from(cone.apex).length();
     if let Err(tan) = signs([("section_cone_cylinder_apex", dist - rc)], band) {
         return tan.into();
     }
     match sign(
         "section_cone_cylinder_aperture",
-        Margin::levered(d.dot(cone.a).abs() - c, lever + lever),
+        Margin::levered(
+            d.dot(cone.a).abs() - c,
+            reach.ball().twice_lever_from(cone.apex),
+        ),
         band,
     ) {
         Some(Sign::Positive | Sign::Negative) => {}
@@ -1331,7 +1316,7 @@ fn cone_cone<T: Decide>(
     one: &Cone<T>,
     two: &Cone<T>,
     parallel: bool,
-    reach: Reach<T>,
+    reach: &Reach<T>,
     band: Band,
 ) -> Section<T> {
     const APEX: &str = "section_cone_pair_apex";
@@ -1346,9 +1331,12 @@ fn cone_cone<T: Decide>(
         return tan.into();
     }
     if parallel {
-        let lever = one.reach_lever(reach).max(two.reach_lever(reach));
+        let ball = reach.ball();
+        let lever = ball
+            .twice_lever_from(one.apex)
+            .max(ball.twice_lever_from(two.apex));
         let gap = one.sc.1.powi(2) - two.sc.1.powi(2);
-        match sign(APERTURE, Margin::levered(gap, lever + lever), band) {
+        match sign(APERTURE, Margin::levered(gap, lever), band) {
             Some(Sign::Zero) => return cone_plane_pair(one, two, reach, band),
             Some(Sign::Positive | Sign::Negative) => {}
             None => return Section::Tangent(APERTURE),
@@ -1377,7 +1365,7 @@ fn cone_cone<T: Decide>(
 fn cone_plane_pair<T: Decide>(
     one: &Cone<T>,
     two: &Cone<T>,
-    reach: Reach<T>,
+    reach: &Reach<T>,
     band: Band,
 ) -> Section<T> {
     let delta = one.apex - two.apex;
@@ -1428,14 +1416,11 @@ fn cone_plane<T: Decide>(
     cone: &Cone<T>,
     p0: Point3<T>,
     n: Vec3<T>,
-    reach: Reach<T>,
+    reach: &Reach<T>,
     band: Band,
 ) -> Section<T> {
     let (s, _) = cone.sc;
-    let lever = (reach.centre - cone.apex).norm()
-        + (reach.centre - p0).dot(n).abs()
-        + reach.radius
-        + reach.radius;
+    let lever = reach.ball().lever_from_point_and_plane(cone.apex, (p0, n));
     let na = n.dot(cone.a);
     match sign(
         "section_cone_plane_aperture",
@@ -1744,9 +1729,10 @@ pub(super) fn of_pair_section<T: Decide>(
         Err(SectionError::Unordered { predicate }) => return Section::Unordered(predicate),
         // Two surfaces decided one share a carrier: no component count
         // is certified, as at a tangency. Two tori (`tt_coincident`), two
-        // cylinders and a spline wall on a plane
-        // (`section_nurbs_plane_coincident`) are decided one; the refusal
-        // carries no pose, so it is named by the value.
+        // cylinders, and a spline wall on a plane
+        // (`section_nurbs_plane_coincident`) or on a cylinder, sphere or
+        // torus (`section_nurbs_implicit_coincident`) are decided one; the
+        // refusal carries no pose, so it is named by the value.
         Err(SectionError::CoincidentSurfaces) => {
             return Section::Tangent("pair_section_coincident");
         }
@@ -1821,30 +1807,20 @@ pub(super) fn of_pair_section<T: Decide>(
             _ => Section::Tangent(zero.decision.name()),
         };
     }
-    // Each component's set: the least node any arc of its node-joined set
-    // ends at, found by joining arcs that share a node.
-    let mut root: Vec<usize> = (0..section.nodes().len()).collect();
-    fn find(root: &[usize], k: usize) -> usize {
-        let mut k = k;
-        while root[k] != k {
-            k = root[k];
-        }
-        k
-    }
-    for c in components {
-        if let [Some(a), Some(b)] = ends(c).nodes {
-            let (ra, rb) = (find(&root, a), find(&root, b));
-            root[ra.max(rb)] = ra.min(rb);
-        }
-    }
+    // Each component's node-joined set, the value's own ([`geom_brep::NodeSet`]),
+    // which claims the set's winding: an arc of it claims none.
+    let sets = section.node_sets();
+    let set_of = |i: usize| sets.iter().position(|set| set.arcs.contains(&i));
     let mut parts: Vec<(Option<usize>, Component<T>)> = Vec::new();
-    for c in components {
+    for (i, c) in components.iter().enumerate() {
         let ends = ends(c);
         let [on_f, on_g] = ends.rims;
+        let set = set_of(i);
+        let winds = set.map_or(c.winds, |k| sets[k].winds);
         let part = Component {
             unbounded: ends.cut,
-            essential_f: c.winds[0],
-            essential_g: c.winds[1],
+            essential_f: winds[0],
+            essential_g: winds[1],
             witness: c.witness,
             // Only rim ends reach a chart side; a cut end or a node end
             // clears nothing here.
@@ -1857,7 +1833,6 @@ pub(super) fn of_pair_section<T: Decide>(
             },
             pad: c.pad,
         };
-        let set = ends.nodes.iter().flatten().next().map(|&k| find(&root, k));
         match parts.iter_mut().find(|(s, _)| set.is_some() && *s == set) {
             Some((_, joined)) => {
                 joined.unbounded |= part.unbounded;

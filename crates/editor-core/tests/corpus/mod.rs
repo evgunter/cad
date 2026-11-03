@@ -334,7 +334,7 @@ pub fn documents() -> Vec<CorpusDoc> {
         // BESIDE this registry for a milestone, with its refusal
         // pinned: `Node::Fillet` was every-edge, and every pipped body
         // carries cap MERIDIAN edges (two half-caps on one sphere, no
-        // wedge) the battery honestly refuses `TangentialEdge`. M6-5
+        // wedge) the battery then refused. M6-5
         // gave the node a SELECTION and the surgery a naming emitter,
         // so the fourteen edges that do have wedges can be named and
         // the two that do not can be left out. The flipped pin and the
@@ -694,7 +694,7 @@ pub fn sub_kinds<P, S: editor_core::Slot>(node: &Node<P, S>) -> Vec<&'static str
         | Node::Loft { .. }
         | Node::Sweep { .. }
         | Node::Measure { .. }
-        | Node::Assertion { .. }
+        | Node::Assertion(_)
         | Node::InstantiatePart { .. } => Vec::new(),
     }
 }
@@ -725,7 +725,7 @@ pub fn node_kind<P, S: editor_core::Slot>(node: &Node<P, S>) -> &'static str {
         Node::Loft { .. } => "Loft",
         Node::Sweep { .. } => "Sweep",
         Node::Measure { .. } => "Measure",
-        Node::Assertion { .. } => "Assertion",
+        Node::Assertion(_) => "Assertion",
         Node::InstantiatePart { .. } => "InstantiatePart",
     }
 }

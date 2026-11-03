@@ -21,10 +21,7 @@ pub(super) fn band() -> Band {
 }
 
 pub(super) fn line(o: [f64; 3], d: [f64; 3]) -> Curve3<f64> {
-    Curve3::Line {
-        origin: Point3::from_array(o),
-        dir: Vec3::from_array(d).normalize(),
-    }
+    Curve3::line(Point3::from_array(o), Vec3::from_array(d).normalize())
 }
 
 /// A frame `u_ref` square to `axis`.
@@ -39,24 +36,21 @@ pub(super) fn u_for(axis: Vec3<f64>) -> Vec3<f64> {
 
 pub(super) fn circle(c: [f64; 3], axis: [f64; 3], r: f64) -> Curve3<f64> {
     let axis = Vec3::from_array(axis).normalize();
-    Curve3::Circle {
-        center: Point3::from_array(c),
-        axis,
-        radius: r,
-        u_ref: u_for(axis),
-    }
+    Curve3::circle(Point3::from_array(c), axis, r, u_for(axis))
 }
 
 pub(super) fn ellipse(c: [f64; 3], axis: [f64; 3], u: [f64; 3], a: f64, b: f64) -> Curve3<f64> {
     let axis = Vec3::from_array(axis).normalize();
     let u = Vec3::from_array(u);
-    Curve3::Ellipse {
-        center: Point3::from_array(c),
-        axis,
-        semi_u: a,
-        semi_v: b,
-        u_ref: (u - axis * u.dot(axis)).normalize(),
-    }
+    Curve3::Ellipse(geom::Ellipse::new(
+        geom::Frame::new(
+            Point3::from_array(c),
+            axis,
+            (u - axis * u.dot(axis)).normalize(),
+        ),
+        a,
+        b,
+    ))
 }
 
 /// Whether an answer has a meeting on both spans' interiors.
@@ -70,23 +64,21 @@ pub(super) fn interiors_meet(m: &Meetings<f64>) -> bool {
 /// the reader.
 pub(super) fn distance(c: &Curve3<f64>, q: Point3<f64>) -> f64 {
     match *c {
-        Curve3::Line { origin, dir } => {
+        Curve3::Line(geom::Line { origin, dir }) => {
             let w = q - origin;
             let u = dir.normalize();
             (w - u * w.dot(u)).norm()
         }
-        Curve3::Circle {
-            center,
-            axis,
+        Curve3::Circle(geom::Circle {
+            frame: geom::Frame { center, axis, .. },
             radius,
-            ..
-        } => {
+        }) => {
             let w = q - center;
             let h = w.dot(axis);
             let rho = (w - axis * h).norm();
             ((rho - radius.abs()).powi(2) + h.powi(2)).sqrt()
         }
-        Curve3::Ellipse { .. } | Curve3::Spiric { .. } | Curve3::Nurbs(_) => {
+        Curve3::Ellipse(..) | Curve3::Spiric { .. } | Curve3::Nurbs(_) => {
             panic!("no independent distance to a {:?}", c.kind())
         }
     }
@@ -312,23 +304,11 @@ fn a_near_tangent_coplanar_pair_is_placed_on_both_circles() {
 /// in one plane `0.3` of a zero short of tangency, outside each other
 /// (the near extreme in the zero band) and one inside the other (the far
 /// extreme): each is `Pose::Tangent` at the point of tangency, which lies
-/// on both circles and meets inside both spans; so does the first stored
-/// with a negative radius, its points half a turn on.
+/// on both circles and meets inside both spans.
 #[test]
 fn a_decided_coplanar_touch_lies_on_both_circles() {
     let a = circle([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 1.0);
-    let mut flipped = a.clone();
-    if let Curve3::Circle { radius, .. } = &mut flipped {
-        *radius = -1.0;
-    }
     for (label, a, b, at, ta) in [
-        (
-            "outside, the first stored with a negative radius",
-            flipped,
-            circle([1.5 + 0.3 * ZERO, 0.0, 0.0], [0.0, 0.0, 1.0], 0.5),
-            Point3::new(1.0, 0.0, 0.0),
-            PI,
-        ),
         (
             "outside",
             a.clone(),
@@ -978,11 +958,8 @@ fn a_thin_ellipse_in_the_circles_plane_crosses_it_there() {
 fn a_touch_past_a_span_meets_at_its_end() {
     let axis = [0.6740110957474658, -0.7358278013826933, 0.06531837047578558];
     let u = Vec3::new(0.7387212213069966, 0.6713711321490372, -0.05959664510372472);
-    let mk = |c: [f64; 3], radius: f64| Curve3::Circle {
-        center: Point3::from_array(c),
-        axis: Vec3::from_array(axis),
-        radius,
-        u_ref: u,
+    let mk = |c: [f64; 3], radius: f64| {
+        Curve3::circle(Point3::from_array(c), Vec3::from_array(axis), radius, u)
     };
     let a = mk(
         [0.8401501109250811, 0.9273190696785121, 1.472118831061076],
@@ -1099,12 +1076,12 @@ fn a_touch_at_a_spans_end_is_the_one_meeting_of_its_stretch() {
 #[test]
 fn a_tangent_whose_crossing_is_rounding_meets_at_the_end() {
     let r = 0.25_f64 + 6e-17;
-    let arc = Curve3::Circle {
-        center: Point3::new(2.0, 0.25, 1.0),
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        radius: r,
-        u_ref: Vec3::new(0.0, -1.0, 0.0),
-    };
+    let arc = Curve3::circle(
+        Point3::new(2.0, 0.25, 1.0),
+        Vec3::new(0.0, 0.0, 1.0),
+        r,
+        Vec3::new(0.0, -1.0, 0.0),
+    );
     let edge = line([2.25, 0.25, 1.0], [0.0, 1.0, 0.0]);
     let m = meets((&edge, (0.0, 1.75)), (&arc, (0.0, PI / 2.0))).unwrap();
     assert!(!interiors_meet(&m), "{m:?}");
@@ -1344,14 +1321,14 @@ fn a_near_parallel_pair_is_read_over_its_overlap() {
 #[test]
 fn two_segments_on_one_line_two_metres_apart_meet_nowhere() {
     let band = Band::new(1e-6, 1e-5).unwrap();
-    let edge = Curve3::Line {
-        origin: Point3::new(-1.999_356_330_248_317_7, 0.535_723_727_818_681_7, 1.0),
-        dir: Vec3::new(0.965_926_090_343_448_7, -0.258_818_059_636_146_96, 0.0),
-    };
-    let boundary = Curve3::Line {
-        origin: Point3::new(1.999_999_999_999_999_8, -0.535_898_384_862_245_2, 1.0),
-        dir: Vec3::new(-0.965_925_826_289_068_3, 0.258_819_045_102_520_7, 0.0),
-    };
+    let edge = Curve3::line(
+        Point3::new(-1.999_356_330_248_317_7, 0.535_723_727_818_681_7, 1.0),
+        Vec3::new(0.965_926_090_343_448_7, -0.258_818_059_636_146_96, 0.0),
+    );
+    let boundary = Curve3::line(
+        Point3::new(1.999_999_999_999_999_8, -0.535_898_384_862_245_2, 1.0),
+        Vec3::new(-0.965_925_826_289_068_3, 0.258_819_045_102_520_7, 0.0),
+    );
     let a = Span::new(&edge, (0.0, 2.069_885_419_015_256_5));
     let b = Span::new(&boundary, (0.0, 0.000_666_381_398_214_661_7));
     for (label, x, y) in [("edge first", &a, &b), ("boundary first", &b, &a)] {
@@ -1599,36 +1576,36 @@ fn a_found_meetings_root_is_divided_out_of_the_closed_form() {
     let i = Interval::from_bounds;
     let p = |x, y, z| Point3::new(x, y, z);
     let v = |x, y, z| Vec3::new(x, y, z);
-    let rim = Curve3::Circle {
-        center: p(
+    let rim = Curve3::circle(
+        p(
             i(0.199_999_999_999_999_76, 0.200_000_000_000_000_2),
             i(-0.346_410_161_513_776_7, -0.346_410_161_513_774_13),
             i(-1.615_374_500_829_602_8e-14, 1.604_272_270_583_351_2e-14),
         ),
-        axis: v(
+        v(
             i(0.0, 0.0),
             i(0.0, 0.0),
             i(-1.000_000_000_000_032, -0.999_999_999_999_968_1),
         ),
-        radius: i(0.1, 0.1),
-        u_ref: v(
+        i(0.1, 0.1),
+        v(
             i(0.499_999_999_999_959_2, 0.500_000_000_000_041),
             i(-0.866_025_403_784_513_9, -0.866_025_403_784_363_2),
             i(-3.236_300_116_782_472_7e-13, 3.236_300_116_782_472_7e-13),
         ),
-    };
+    );
     let rim_span = (
         i(-1.047_197_551_196_718_9, -1.047_197_551_196_476),
         i(-6.525_890_938_746_67e-13, 6.539_213_615_042_172e-13),
     );
-    let edge = Curve3::Line {
-        origin: p(i(0.3, 0.3), i(-0.4, -0.4), i(0.0, 0.0)),
-        dir: v(
+    let edge = Curve3::line(
+        p(i(0.3, 0.3), i(-0.4, -0.4), i(0.0, 0.0)),
+        v(
             i(0.0, 0.0),
             i(0.999_999_999_999_999_7, 1.000_000_000_000_000_4),
             i(0.0, 0.0),
         ),
-    };
+    );
     let edge_span = (
         i(0.053_589_838_486_223_26, 0.053_589_838_486_225_98),
         i(0.746_410_161_513_773_7, 0.746_410_161_513_777_4),
@@ -1662,19 +1639,21 @@ fn a_found_meetings_root_is_divided_out_of_the_closed_form() {
 fn a_crossing_of_the_others_plane_at_a_found_meeting_is_read_by_its_window() {
     let h = core::f64::consts::FRAC_1_SQRT_2;
     let x = -0.758_578_643_762_690_5;
-    let rim = Curve3::Ellipse {
-        center: Point3::new(x, -0.1, 0.9),
-        axis: Vec3::new(h, h, 0.0),
-        semi_u: 0.141_421_356_237_309_53,
-        semi_v: 0.1,
-        u_ref: Vec3::new(-h, h, 0.0),
-    };
-    let fillet = Curve3::Circle {
-        center: Point3::new(x, 0.0, 0.9),
-        axis: Vec3::new(0.0, 1.0, 0.0),
-        radius: 0.1,
-        u_ref: Vec3::new(0.0, 0.0, 1.0),
-    };
+    let rim = Curve3::Ellipse(geom::Ellipse::new(
+        geom::Frame::new(
+            Point3::new(x, -0.1, 0.9),
+            Vec3::new(h, h, 0.0),
+            Vec3::new(-h, h, 0.0),
+        ),
+        0.141_421_356_237_309_53,
+        0.1,
+    ));
+    let fillet = Curve3::circle(
+        Point3::new(x, 0.0, 0.9),
+        Vec3::new(0.0, 1.0, 0.0),
+        0.1,
+        Vec3::new(0.0, 0.0, 1.0),
+    );
     let (sr, sf) = ((0.0, PI / 2.0), (-3.0 * PI / 4.0, -PI / 2.0));
     for (order, got) in [
         ("rim first", meets((&rim, sr), (&fillet, sf))),
@@ -1867,14 +1846,8 @@ fn two_segments_touching_on_far_carriers_are_never_read_apart() {
         0.499_755_838_673_424_7,
         -0.322_242_914_387_750_1,
     );
-    let a = Curve3::Line {
-        origin: Point3::origin() - d * far,
-        dir: d,
-    };
-    let b = Curve3::Line {
-        origin: Point3::origin() + d * far,
-        dir: d,
-    };
+    let a = Curve3::line(Point3::origin() - d * far, d);
+    let b = Curve3::line(Point3::origin() + d * far, d);
     let t1 = 1_049_576.874_015_081_7;
     let s0 = t1 - 2.0 * far;
     assert_eq!(s0, -1_047_575.125_984_918_3, "the touch is exact in f64");
@@ -1906,20 +1879,24 @@ fn two_segments_touching_on_far_carriers_are_never_read_apart() {
 fn a_fillet_joint_between_two_ellipses_is_read_by_its_window() {
     let h = core::f64::consts::FRAC_1_SQRT_2;
     let (c, s) = (0.894_427_190_999_916, 0.447_213_595_499_958);
-    let rim = Curve3::Ellipse {
-        center: Point3::new(0.561_803_398_874_989_5, -0.1, 0.9),
-        axis: Vec3::new(h, h, 0.0),
-        semi_u: 0.141_421_356_237_309_53,
-        semi_v: 0.1,
-        u_ref: Vec3::new(-h, h, 0.0),
-    };
-    let fillet = Curve3::Ellipse {
-        center: Point3::new(0.45, -0.1, 0.9),
-        axis: Vec3::new(c, 0.0, -s),
-        semi_u: 0.111_803_398_874_989_48,
-        semi_v: 0.1,
-        u_ref: Vec3::new(s, 0.0, c),
-    };
+    let rim = Curve3::Ellipse(geom::Ellipse::new(
+        geom::Frame::new(
+            Point3::new(0.561_803_398_874_989_5, -0.1, 0.9),
+            Vec3::new(h, h, 0.0),
+            Vec3::new(-h, h, 0.0),
+        ),
+        0.141_421_356_237_309_53,
+        0.1,
+    ));
+    let fillet = Curve3::Ellipse(geom::Ellipse::new(
+        geom::Frame::new(
+            Point3::new(0.45, -0.1, 0.9),
+            Vec3::new(c, 0.0, -s),
+            Vec3::new(s, 0.0, c),
+        ),
+        0.111_803_398_874_989_48,
+        0.1,
+    ));
     let (sr, sf) = (
         (0.463_647_609_000_806_1, FRAC_PI_2),
         (-FRAC_PI_2, -1.107_148_717_794_090_2),
@@ -1953,20 +1930,22 @@ fn a_rim_touching_its_fillet_circles_plane_meets_it_at_the_joint_alone_at_a_fine
     let big = 6.406_f64;
     let (c, s) = (0.1 / big, (1.0 - (0.1 / big) * (0.1 / big)).sqrt());
     let u = Vec3::new(c, 0.0, s);
-    let rim = Curve3::Ellipse {
-        center: Point3::new(0.1, 0.0, 0.0) - u * big,
-        axis: u.cross(Vec3::new(0.0, 1.0, 0.0)),
-        semi_u: big,
-        semi_v: 0.1,
-        u_ref: u,
-    };
+    let rim = Curve3::Ellipse(geom::Ellipse::new(
+        geom::Frame::new(
+            Point3::new(0.1, 0.0, 0.0) - u * big,
+            u.cross(Vec3::new(0.0, 1.0, 0.0)),
+            u,
+        ),
+        big,
+        0.1,
+    ));
     for radius in [0.1, 0.2] {
-        let circle = Curve3::Circle {
-            center: Point3::new(0.1 - radius, 0.0, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
+        let circle = Curve3::circle(
+            Point3::new(0.1 - radius, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
             radius,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-        };
+            Vec3::new(1.0, 0.0, 0.0),
+        );
         let (sr, sc) = ((0.0, FRAC_PI_2), (-FRAC_PI_2, 0.0));
         for (order, got) in [
             (
@@ -2006,34 +1985,34 @@ fn a_height_harmonic_on_the_negative_axis_is_read_clear_of_the_cut() {
     let i = Interval::from_bounds;
     let p = |x, y, z| Point3::new(x, y, z);
     let v = |x, y, z| Vec3::new(x, y, z);
-    let rim = Curve3::Circle {
-        center: p(i(0.5, 0.5), i(0.5, 0.5), i(1.0, 1.0)),
-        axis: v(i(-0.0, -0.0), i(-0.0, -0.0), i(-1.0, -1.0)),
-        radius: i(0.080_622_577_482_985_46, 0.080_622_577_482_985_49),
-        u_ref: v(
+    let rim = Curve3::circle(
+        p(i(0.5, 0.5), i(0.5, 0.5), i(1.0, 1.0)),
+        v(i(-0.0, -0.0), i(-0.0, -0.0), i(-1.0, -1.0)),
+        i(0.080_622_577_482_985_46, 0.080_622_577_482_985_49),
+        v(
             i(-4e-323, 4e-323),
             i(0.999_999_999_999_997_2, 1.000_000_000_000_002_7),
             i(0.0, 0.0),
         ),
-    };
+    );
     let rim_span = (
         i(-1.570_796_326_794_898_3, -1.570_796_326_794_894_3),
         i(1.570_796_326_794_890_3, 1.570_796_326_794_902_3),
     );
-    let arc = Curve3::Circle {
-        center: p(i(0.5, 0.5), i(0.5, 0.5), i(1.04, 1.04)),
-        axis: v(
+    let arc = Curve3::circle(
+        p(i(0.5, 0.5), i(0.5, 0.5), i(1.04, 1.04)),
+        v(
             i(-1.224_646_799_147_357_4e-16, 3.216_245_299_353_283e-16),
             i(-1.000_000_000_000_000_2, -0.999_999_999_999_998_9),
             i(-1.969_382_255_562_861_5e-32, 5.172_116_912_806_034e-32),
         ),
-        radius: i(0.09, 0.09),
-        u_ref: v(
+        i(0.09, 0.09),
+        v(
             i(0.0, 0.0),
             i(0.0, 0.0),
             i(0.999_999_999_999_999, 1.000_000_000_000_001),
         ),
-    };
+    );
     let arc_span = (
         i(2.031_350_318_476_216_3, 2.031_350_318_476_222_5),
         i(core::f64::consts::PI, core::f64::consts::PI),
@@ -2070,42 +2049,42 @@ fn a_touch_at_a_harmonics_lowest_point_is_read_clear_of_the_cut() {
     let i = Interval::from_bounds;
     let p = |x, y, z| Point3::new(x, y, z);
     let v = |x, y, z| Vec3::new(x, y, z);
-    let pip = Curve3::Circle {
-        center: p(
+    let pip = Curve3::circle(
+        p(
             i(0.812_195_444_572_928_1, 0.812_195_444_572_929_5),
             i(0.019_999_999_999_999_98, 0.020_000_000_000_000_028),
             i(0.279_999_999_999_999_25, 0.280_000_000_000_000_75),
         ),
-        axis: v(
+        v(
             i(-9.663_752_709_139_367e-14, 9.332_596_074_246_75e-14),
             i(-7.216_449_660_066_244e-14, 7.216_449_660_066_244e-14),
             i(-1.000_000_000_000_377_3, -0.999_999_999_999_622_7),
         ),
-        radius: i(0.02, 0.02),
-        u_ref: v(
+        i(0.02, 0.02),
+        v(
             i(-5.551_115_123_125_793e-14, 5.551_115_123_125_793e-14),
             i(-1.000_000_000_000_003_6, -0.999_999_999_999_996_4),
             i(-7.216_449_660_063_531e-14, 7.216_449_660_063_531e-14),
         ),
-    };
+    );
     let pip_span = (
         i(0.0, 0.0),
         i(0.993_864_981_558_250_5, 0.993_864_981_558_627_5),
     );
-    let arc = Curve3::Circle {
-        center: p(
+    let arc = Curve3::circle(
+        p(
             i(0.72, 0.72),
             i(-3.469_446_951_953_614e-18, 1.040_834_085_586_084_3e-17),
             i(0.28, 0.28),
         ),
-        axis: v(i(-0.0, -0.0), i(1.0, 1.0), i(-0.0, -0.0)),
-        radius: i(0.092_195_444_572_928_8, 0.092_195_444_572_928_9),
-        u_ref: v(
+        v(i(-0.0, -0.0), i(1.0, 1.0), i(-0.0, -0.0)),
+        i(0.092_195_444_572_928_8, 0.092_195_444_572_928_9),
+        v(
             i(-9.846_911_277_814_305e-33, 3.749_399_456_654_659e-33),
             i(0.0, 0.0),
             i(0.999_999_999_999_997, 1.000_000_000_000_002_9),
         ),
-    };
+    );
     let arc_span = (
         i(-4.712_388_980_384_697, -4.712_388_980_384_683),
         i(1.570_796_326_794_889_5, 1.570_796_326_794_903_7),
@@ -2149,14 +2128,14 @@ fn a_line_crossing_an_ellipse_past_its_minor_semi_axis_meets_it() {
 fn two_segments_on_one_line_far_apart_read_apart_at_interval() {
     use geom_core::Interval;
     let i = |x: f64| Interval::from_bounds(x - 1e-15, x + 1e-15);
-    let a = Curve3::Line {
-        origin: Point3::new(i(0.0), i(0.0), i(0.0)),
-        dir: Vec3::new(i(1.0), i(0.0), i(0.0)),
-    };
-    let b = Curve3::Line {
-        origin: Point3::new(i(0.0), i(2.0 * ZERO), i(0.0)),
-        dir: Vec3::new(i(1.0), i(ZERO), i(0.0)),
-    };
+    let a = Curve3::line(
+        Point3::new(i(0.0), i(0.0), i(0.0)),
+        Vec3::new(i(1.0), i(0.0), i(0.0)),
+    );
+    let b = Curve3::line(
+        Point3::new(i(0.0), i(2.0 * ZERO), i(0.0)),
+        Vec3::new(i(1.0), i(ZERO), i(0.0)),
+    );
     let got = pose(
         &Span::new(&a, (i(0.0), i(1.0))),
         &Span::new(&b, (i(3.0), i(4.0))),

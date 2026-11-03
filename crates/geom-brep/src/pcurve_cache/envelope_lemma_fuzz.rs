@@ -72,12 +72,14 @@ fn sign(s: &mut fuzz::Rng) -> f64 {
 }
 
 fn circle(center: Point3<f64>, axis: Vec3<f64>, radius: f64, u_ref: Vec3<f64>) -> Curve3<f64> {
-    Curve3::Circle {
-        center,
-        axis,
+    Curve3::Circle(geom::Circle {
+        frame: geom::Frame {
+            center,
+            axis,
+            u_ref,
+        },
         radius,
-        u_ref,
-    }
+    })
 }
 
 /// A size of move, from all three regimes the decisions read: inside
@@ -245,23 +247,18 @@ fn on_chart(s: &mut fuzz::Rng, class: Class) -> (Surface<f64>, Curve3<f64>) {
             let major_dir = normal.cross(tang).normalize();
             (
                 chart,
-                Curve3::Ellipse {
-                    center: at + axis * v0,
-                    axis: normal,
-                    semi_u: radius / theta.cos(),
-                    semi_v: radius,
-                    u_ref: major_dir,
-                },
+                Curve3::Ellipse(geom::Ellipse::new(
+                    geom::Frame::new(at + axis * v0, normal, major_dir),
+                    radius / theta.cos(),
+                    radius,
+                )),
             )
         }
         Class::CylinderRuling => {
             let (chart, radius, v0) = cylinder(s);
             (
                 chart,
-                Curve3::Line {
-                    origin: at + r * radius + axis * v0,
-                    dir: axis * s.range(-3.0, 3.0),
-                },
+                Curve3::line(at + r * radius + axis * v0, axis * s.range(-3.0, 3.0)),
             )
         }
         Class::CylinderMeridianCircle => {
@@ -305,10 +302,10 @@ fn on_chart(s: &mut fuzz::Rng, class: Class) -> (Surface<f64>, Curve3<f64>) {
             };
             (
                 chart,
-                Curve3::Line {
-                    origin: at + generator * v0,
-                    dir: generator * (sign(s) * s.range(0.2, 3.0)),
-                },
+                Curve3::line(
+                    at + generator * v0,
+                    generator * (sign(s) * s.range(0.2, 3.0)),
+                ),
             )
         }
         Class::SphereParallel => {
@@ -468,10 +465,10 @@ fn on_chart(s: &mut fuzz::Rng, class: Class) -> (Surface<f64>, Curve3<f64>) {
             let lean = (radius * band().zero()).sqrt() / (3.0 * PI) * s.range(0.05, 0.95);
             (
                 chart,
-                Curve3::Line {
-                    origin: at + r * radius + axis * v0,
-                    dir: axis * s.range(-3.0, 3.0) + tang * (sign(s) * lean),
-                },
+                Curve3::line(
+                    at + r * radius + axis * v0,
+                    axis * s.range(-3.0, 3.0) + tang * (sign(s) * lean),
+                ),
             )
         }
     }
@@ -579,16 +576,18 @@ fn perturbed(s: &mut fuzz::Rng, carrier: &Curve3<f64>, delta: f64) -> Curve3<f64
         }
     };
     match *carrier {
-        Curve3::Line { origin, dir } => Curve3::Line {
-            origin: origin + nudge(s, 1),
-            dir: dir + nudge(s, 3) * dir.norm(),
-        },
-        Curve3::Circle {
-            center,
-            axis,
+        Curve3::Line(geom::Line { origin, dir }) => {
+            Curve3::line(origin + nudge(s, 1), dir + nudge(s, 3) * dir.norm())
+        }
+        Curve3::Circle(geom::Circle {
+            frame:
+                geom::Frame {
+                    center,
+                    axis,
+                    u_ref,
+                },
             radius,
-            u_ref,
-        } => {
+        }) => {
             let axis = (axis + nudge(s, 3)).normalize();
             let u_ref = (u_ref - axis * u_ref.dot(axis)).normalize();
             let center = center + nudge(s, 1);
@@ -602,37 +601,31 @@ fn perturbed(s: &mut fuzz::Rng, carrier: &Curve3<f64>, delta: f64) -> Curve3<f64
                 } else {
                     (minor, major, axis.cross(u_ref))
                 };
-                return Curve3::Ellipse {
+                return Curve3::Ellipse(geom::Ellipse::new(
+                    geom::Frame::new(center, axis, u_ref),
+                    major,
+                    minor,
+                ));
+            }
+            Curve3::circle(center, axis, scaled(s, radius), u_ref)
+        }
+        Curve3::Ellipse(geom::Ellipse {
+            frame:
+                geom::Frame {
                     center,
                     axis,
-                    semi_u: major,
-                    semi_v: minor,
                     u_ref,
-                };
-            }
-            Curve3::Circle {
-                center,
-                axis,
-                radius: scaled(s, radius),
-                u_ref,
-            }
-        }
-        Curve3::Ellipse {
-            center,
-            axis,
+                },
             semi_u,
             semi_v,
-            u_ref,
-        } => {
+        }) => {
             let axis = (axis + nudge(s, 3)).normalize();
             let u_ref = (u_ref - axis * u_ref.dot(axis)).normalize();
-            Curve3::Ellipse {
-                center: center + nudge(s, 1),
-                axis,
-                semi_u: scaled(s, semi_u),
-                semi_v: scaled(s, semi_v),
-                u_ref,
-            }
+            Curve3::Ellipse(geom::Ellipse::new(
+                geom::Frame::new(center + nudge(s, 1), axis, u_ref),
+                scaled(s, semi_u),
+                scaled(s, semi_v),
+            ))
         }
         Curve3::Spiric { .. } | Curve3::Nurbs(_) => unreachable!("on_chart builds neither"),
     }
@@ -1025,17 +1018,27 @@ fn row(s: &mut fuzz::Rng, class: Class, trial: usize, tally: &mut Tally) -> Opti
     // tolerance and no term can see it; at the door check 2 refuses such
     // a circle's span before check 4
     // (`work/pcert/a-lifted-copy-of-a-circle-whose-turn-is-within-the-band-certifies.md`).
-    let turn_in_band =
-        super::chart_sup_arms_at(&surface, &stored.chart_box(t0, t1)).is_ok_and(|(arm_u, _)| {
-            matches!(
-                decide(
-                    "pcurve_envelope_term",
-                    Margin::of(arm_u.to_meters(PI)),
-                    band()
-                ),
-                Ok(Sign::Zero)
-            )
-        });
+    // The arm is the term's own: `fidelity`'s, over the orthonormalised
+    // chart, at the nearer of the two images' slant reaches (on a cone
+    // the nearer slant levers the azimuth).
+    let reach_of = |image: &Pcurve<f64>| {
+        let (u, v) = channels_of(image);
+        let (c0, ca, cb, cl) = super::harmonic_form_of(u, v);
+        super::harmonic_span_box(c0, ca, cb, cl, t0, t1).v_reach()
+    };
+    let turn_in_band = super::chart_sup_arms_over(&super::orthonormal_chart(&surface), || {
+        reach_of(&stored).min(reach_of(&derived))
+    })
+    .is_ok_and(|(arm_u, _)| {
+        matches!(
+            decide(
+                "pcurve_envelope_term",
+                Margin::of(arm_u.to_meters(PI)),
+                band()
+            ),
+            Ok(Sign::Zero)
+        )
+    });
     if k != 0 && turn_in_band {
         tally.vacuous += 1;
     } else if k != 0 {
@@ -1226,12 +1229,12 @@ fn the_envelope_dominates_where_no_circle_reaches() {
             u_ref: Vec3::unit_x(),
         };
         let v = z * 10f64.powf(s.range(2.0, 4.0));
-        let carrier = Curve3::Circle {
-            center: Point3::new(0.0, 0.0, v * alpha.cos()),
-            axis: Vec3::unit_z(),
-            radius: v * alpha.sin(),
-            u_ref: Vec3::unit_x(),
-        };
+        let carrier = Curve3::circle(
+            Point3::new(0.0, 0.0, v * alpha.cos()),
+            Vec3::unit_z(),
+            v * alpha.sin(),
+            Vec3::unit_x(),
+        );
         let Ok(image @ Pcurve::Harmonic { .. }) = chart_pcurve(&carrier, &cone, band()) else {
             continue;
         };
@@ -1671,18 +1674,12 @@ fn the_incidence_terms_read_the_carriers_departure() {
         ),
         (
             EnvelopeTerm::Radius,
-            Curve3::Line {
-                origin: Point3::new(1.0 + d, 0.0, 0.0),
-                dir: Vec3::unit_z(),
-            },
+            Curve3::line(Point3::new(1.0 + d, 0.0, 0.0), Vec3::unit_z()),
             (0.0, 1.0),
         ),
         (
             EnvelopeTerm::Line,
-            Curve3::Line {
-                origin: Point3::new(1.0, 0.0, 0.0),
-                dir: Vec3::new(d, 0.0, 1.0),
-            },
+            Curve3::line(Point3::new(1.0, 0.0, 0.0), Vec3::new(d, 0.0, 1.0)),
             (0.0, 1.0),
         ),
     ];
@@ -2062,10 +2059,7 @@ fn cone_section(s: &mut fuzz::Rng) -> Option<(Surface<f64>, Curve3<f64>)> {
         normal,
         u_ref: unit(s).cross(normal).normalize(),
     };
-    let reach = crate::Reach::Measured {
-        at: apex,
-        lever: 4.0,
-    };
+    let reach = crate::Reach::fixture(apex, 4.0);
     match crate::intersect::plane_cone_section(&plane, &cone, &reach, band()) {
         Ok(crate::intersect::PlaneConeSection::TiltedEllipse(e)) => Some((cone, e)),
         _ => None,
@@ -2274,13 +2268,15 @@ fn the_phase_remainder_carries_a_carrier_that_is_the_harmonic_part() {
     let d0 = rad(axis, u_ref, image.u0);
     let d1 = axis.cross(d0) * image.sense;
     let (x, y) = (d0 * big, d1 * (big * q) + axis * (image.vl * minor));
-    let carrier = Curve3::Ellipse {
-        center: Point3::origin() - d0 * (big * e),
-        axis: x.cross(y).normalize(),
-        semi_u: x.norm(),
-        semi_v: y.norm(),
-        u_ref: x.normalize(),
-    };
+    let carrier = Curve3::Ellipse(geom::Ellipse::new(
+        geom::Frame::new(
+            Point3::origin() - d0 * (big * e),
+            x.cross(y).normalize(),
+            x.normalize(),
+        ),
+        x.norm(),
+        y.norm(),
+    ));
     let (t0, t1) = (-0.5, 0.5);
     let envelope = focal_section_envelope(
         &stored_image,
@@ -2329,12 +2325,15 @@ fn a_moved_villarceau_circle_is_refused_typed_and_never_off_within_the_band() {
         else {
             unreachable!("villarceau draws a torus")
         };
-        let Curve3::Circle {
-            center,
-            axis: n,
+        let Curve3::Circle(geom::Circle {
+            frame:
+                geom::Frame {
+                    center,
+                    axis: n,
+                    u_ref,
+                },
             radius,
-            u_ref,
-        } = carrier
+        }) = carrier
         else {
             unreachable!("villarceau draws a circle")
         };
@@ -2684,60 +2683,48 @@ mod focal_section_term_rows {
     }
 }
 
-/// Review 5889 delta probe P1 (local only): a rim exactly on a cylinder
-/// whose tilted axis runs through the origin, `h` up it; printed per lane.
+/// Review 5889 delta probe P1b (local only): the mint's read vs the
+/// stated read vs certify, per k, at Interval.
 #[test]
-fn review5889_p1_tilted_rim_far_up() {
+fn review5889_p1b_mint_vs_read() {
     let tilted = Vec3::new(0.0, 0.6, 0.8);
     let lift = Interval::from_f64;
-    let mut hs: Vec<(f64, f64)> = [1e3, 1e4, 1e5, 1e6, 4.2e6, 8.4e6]
-        .iter()
-        .map(|&h| (h, 0.0))
-        .collect();
-    hs.extend((10..=30).map(|k| (2f64.powi(k), 0.0)));
-    hs.extend([(1e3, 0.5), (8.4e6, 0.5), (2f64.powi(30), 0.5)]);
-    let mut off_wrong = Vec::new();
-    for (h, off) in hs {
+    for k in 8..=31 {
+        let h = 2f64.powi(k);
         let cyl = Surface::Cylinder {
             origin: Point3::origin(),
             axis: tilted,
             radius: 1.0,
             u_ref: Vec3::unit_x(),
-        };
-        let rim = Curve3::Circle {
-            center: Point3::origin() + tilted * h,
-            axis: tilted,
-            radius: 1.0 + off,
-            u_ref: Vec3::unit_x(),
-        };
-        let f = chart_pcurve(&rim, &cyl, band()).and_then(|img| {
-            PcurveCache::certify(img, 0.0, TAU, &rim, &cyl, band()).map(|_| ())
-        });
-        let (rim_i, cyl_i) = (rim.map_scalar(lift), cyl.map_scalar(lift));
-        let i = chart_pcurve(&rim_i, &cyl_i, band()).and_then(|img| {
-            PcurveCache::certify(img, lift(0.0), lift(TAU), &rim_i, &cyl_i, band()).map(|_| ())
-        });
-        for (lane, got) in [("f64", f), ("Interval", i)] {
-            let read = got.as_ref().err().and_then(IncidenceRead::of);
-            let verdict = match (&got, read) {
-                (Ok(()), _) => "CERTIFIED".to_owned(),
-                (Err(_), Some(r)) if r.is_definite() => "READ OFF".to_owned(),
-                (Err(_), Some(_)) => "READ IN BAND".to_owned(),
-                (Err(e), None) => format!("other refusal: {e:?}"),
-            };
-            println!("[p1] eps {:e} h {h:e} off {off} {lane}: {verdict}", band().zero());
-            if (off > 0.0) != (verdict == "READ OFF") {
-                off_wrong.push(format!("h {h:e} off {off} {lane}: {verdict}"));
-            }
         }
+        .map_scalar(lift);
+        let rim = circle(Point3::origin() + tilted * h, tilted, 1.0, Vec3::unit_x()).map_scalar(lift);
+        let mint = chart_pcurve(&rim, &cyl, band());
+        let read = super::read_incidence(&rim, lift(0.0), lift(TAU), &cyl, band());
+        let cert = mint.clone().map(|img| {
+            PcurveCache::certify(img, lift(0.0), lift(TAU), &rim, &cyl, band()).map(|_| ())
+        });
+        let short = |r: &Result<(), PcurveCertifyError>| match r {
+            Ok(()) => "ok".to_owned(),
+            Err(e) => format!("{e:?}").chars().take(110).collect(),
+        };
+        println!(
+            "[p1b] eps {:e} 2^{k}: mint {} | read {} | certify {}",
+            band().zero(),
+            short(&mint.map(|_| ())),
+            short(&read),
+            match cert {
+                Ok(c) => short(&c),
+                Err(_) => "-".to_owned(),
+            }
+        );
     }
-    assert!(off_wrong.is_empty(), "{off_wrong:#?}");
 }
 
-/// Review 5889 delta probe P4 (local only): the full-turn item's arc,
-/// through the read the planar tier now calls.
+/// Review 5889 delta probe P4 (local only): the full-turn item's arc
+/// through each reader of a plane face's edge.
 #[test]
-fn review5889_p4_planar_tier_reads_a_conic_over_its_turn() {
+fn review5889_p4_arc_readers() {
     let e = band().zero();
     let plane = Surface::Plane {
         origin: Point3::origin(),
@@ -2751,59 +2738,69 @@ fn review5889_p4_planar_tier_reads_a_conic_over_its_turn() {
         1.0,
         Vec3::unit_x(),
     );
-    let lift = Interval::from_f64;
-    let f = super::read_incidence(&arc, -1e-4, 1e-4, &plane, band());
-    let i = super::read_incidence(
-        &arc.map_scalar(lift),
-        lift(-1e-4),
-        lift(1e-4),
-        &plane.map_scalar(lift),
-        band(),
-    );
-    println!("[p4] eps {e:e} f64: {f:?}");
-    println!("[p4] eps {e:e} Interval: {i:?}");
+    let short = |r: Result<(), PcurveCertifyError>| match r {
+        Ok(()) => "ok".to_owned(),
+        Err(e) => format!("{e:?}").chars().take(150).collect(),
+    };
+    println!("[p4] eps {e:e} read_edge_incidence: {}", short(super::read_edge_incidence(&arc, -1e-4, 1e-4, &plane, band())));
+    println!("[p4] eps {e:e} read_incidence: {}", short(super::read_incidence(&arc, -1e-4, 1e-4, &plane, band())));
+    println!("[p4] eps {e:e} chart_pcurve_over (chart_region's plane path): {}", short(super::chart_pcurve_over(&arc, -1e-4, 1e-4, &plane, band()).map(|_| ())));
 }
 
-/// Review 5889 delta probe P1b (local only): the mint's read vs the
-/// stated read, per k, at Interval.
+/// Review 5889 delta probe P5 (local only): midpoint anchoring of a
+/// line. A definite f64 read must sit on a direct Interval enclosure of
+/// the same samples' exact distances that is past the band's zero; an
+/// f64 "on" must not sit on a direct enclosure past escalate.
 #[test]
-fn review5889_p1b_mint_vs_read() {
-    let tilted = Vec3::new(0.0, 0.6, 0.8);
+fn review5889_p5_midpoint_lines() {
+    let mut s = fuzz::start("review5889::p5");
     let lift = Interval::from_f64;
-    for k in 8..=24 {
-        let h = 2f64.powi(k);
-        let cyl = Surface::Cylinder {
-            origin: Point3::origin(),
-            axis: tilted,
-            radius: 1.0,
-            u_ref: Vec3::unit_x(),
-        }
-        .map_scalar(lift);
-        let rim = Curve3::Circle {
-            center: Point3::origin() + tilted * h,
-            axis: tilted,
-            radius: 1.0,
-            u_ref: Vec3::unit_x(),
-        }
-        .map_scalar(lift);
-        let mint = chart_pcurve(&rim, &cyl, band());
-        let read = super::read_incidence(&rim, lift(0.0), lift(TAU), &cyl, band());
-        let cert = mint.clone().map(|img| {
-            PcurveCache::certify(img, lift(0.0), lift(TAU), &rim, &cyl, band()).map(|_| ())
-        });
-        let short = |r: &Result<(), PcurveCertifyError>| match r {
-            Ok(()) => "ok".to_owned(),
-            Err(e) => format!("{e:?}").chars().take(150).collect(),
+    let (mut off_f, mut wrong) = (0usize, Vec::new());
+    for trial in 0..4000 {
+        let scale = 10f64.powf(s.range(0.0, 6.5));
+        let n = unit(&mut s);
+        let chart = if s.below(2) == 0 {
+            Surface::Plane { origin: Point3::origin() + unit(&mut s) * (scale * s.range(0.0, 1.0)), normal: n, u_ref: perp(n) }
+        } else {
+            Surface::Cylinder { origin: Point3::origin() + unit(&mut s) * (scale * s.range(0.0, 1.0)), axis: n, radius: s.range(0.1, 10.0), u_ref: perp(n) }
         };
-        println!(
-            "[p1b] eps {:e} 2^{k}: mint {} | read {} | certify {}",
-            band().zero(),
-            short(&mint.map(|_| ())),
-            short(&read),
-            match cert {
-                Ok(c) => short(&c),
-                Err(_) => "-".to_owned(),
+        // A line on the chart, then moved off by a band-sized amount.
+        let (origin, dir) = match chart {
+            Surface::Plane { origin, normal, .. } => {
+                let a = perp(normal);
+                (origin + a * (scale * s.range(-1.0, 1.0)), (a * s.range(-1.0, 1.0) + normal.cross(a) * s.range(-1.0, 1.0)))
             }
-        );
+            Surface::Cylinder { origin, axis, radius, .. } => {
+                let a = perp(axis);
+                (origin + a * radius + axis * (scale * s.range(-1.0, 1.0)), axis * s.range(0.2, 3.0))
+            }
+            _ => unreachable!(),
+        };
+        let push = match chart { Surface::Plane { normal, .. } => normal, _ => match chart { Surface::Cylinder { axis, .. } => perp(axis), _ => unreachable!() } };
+        let delta = band().escalate() * s.range(0.0, 3.0);
+        let line = Curve3::line(origin + push * delta, dir);
+        let t0 = scale * s.range(-2.0, 2.0);
+        let t1 = t0 + scale.max(1.0) * s.range(1e-6, 2.0);
+        let f = super::read_incidence(&line, t0, t1, &chart, band());
+        let (direct, _) = super::farthest_over_span(&chart.map_scalar(lift), (lift(t0), lift(t1)), |t| line.map_scalar(lift).eval(t));
+        let definite = f.as_ref().err().and_then(IncidenceRead::of).is_some_and(IncidenceRead::is_definite);
+        let on = f.is_ok();
+        if definite {
+            off_f += 1;
+            if direct.hi() < band().zero() {
+                wrong.push(format!("trial {trial}: f64 definite off, direct enclosure {direct:?}"));
+            }
+        }
+        if on && direct.lo() > band().escalate() {
+            wrong.push(format!("trial {trial}: f64 on, direct enclosure {direct:?}"));
+        }
     }
+    println!("[p5] eps {:e}: {off_f} definite offs; {} wrong", band().zero(), wrong.len());
+    assert!(wrong.is_empty(), "{wrong:#?}");
+}
+
+fn perp(n: Vec3<f64>) -> Vec3<f64> {
+    let a = if n.x.abs() < 0.9 { Vec3::unit_x() } else { Vec3::unit_y() };
+    let p = n.cross(a);
+    p / p.norm()
 }

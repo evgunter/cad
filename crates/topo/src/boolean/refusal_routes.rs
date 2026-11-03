@@ -190,8 +190,8 @@ pub enum BooleanDecision {
     WallRoots(WallRung),
     /// Whether the axes of a cylinder face of each solid are parallel,
     /// so the walls meet in rulings: the sine between the axes levered
-    /// at the walls' span (`cc_axes_parallel`, read where the join takes
-    /// the pair's section).
+    /// across the operation's region (`cc_axes_parallel`, the pair's
+    /// pose on its section value).
     CylinderAxes,
     /// How many times a straight edge crosses a torus: the certified
     /// count of the line × torus quartic's real roots.
@@ -527,6 +527,12 @@ pub enum Coincide {
     /// band, so no margin it carries binds the operation
     /// (the lever alone).
     VertexOnFace,
+    /// Whether a vertex of one solid on the plane of a face of the other
+    /// lies on the section that plane cuts in a curved face at the vertex
+    /// (`vertex_section`), where every side passes. Refused at the first
+    /// vertex read in band, as [`Coincide::VertexOnFace`] is (the lever
+    /// alone).
+    VertexOnSection,
     /// Whether an end of a straight edge of one solid lies on a curved
     /// face of the other: every side passes, a vertex definitely inside
     /// the face going on to the exact wall roots.
@@ -556,14 +562,15 @@ pub enum Coincide {
     TangentSide,
     /// How two corners of the two solids overlap where they meet: a
     /// direction within a sector, two sectors' faces parallel, their
-    /// bounds in line, the order of a strut's germs, whether a dihedral
-    /// wedge about a shared edge is reflex. Every verdict passes.
+    /// bounds in line, the order of a strut's germs, where a flank about
+    /// a shared edge lies against the other solid's faces there. Every
+    /// verdict passes.
     ///
     /// One question over sites a declaration settles and sites it does
     /// not: only `vtxfac`'s coplanar lump reads the pair ahead of it, with
     /// the classes its door admits for the pierced face; every other site
     /// (`within`, the strut order, `pair_search`, the directions' overlap,
-    /// the pierce germ line, the edge-edge wedge's extent) passes `Moot`
+    /// the pierce germ line, the edge-edge line cone's parity arc) passes `Moot`
     /// or a read minted with no class admitted, which the lookup never
     /// mints `Settles` from. The read, not the variant, carries the
     /// difference.
@@ -573,10 +580,12 @@ pub enum Coincide {
     /// clear angle.
     EdgeOnEdge,
     /// Whether plane faces of the two solids along an edge they share
-    /// overlap or only touch (`bool_dir_same`, the membership tie): the
-    /// cosine of two unit directions levered at the corner's arm, so
-    /// either definite sign passes and a decided zero refuses as the
-    /// in-band arm does ([`CORNER_SENSE`]). No declaration settles it:
+    /// overlap or only touch (`link_wedge`, the membership tie): where
+    /// one solid's flank lies in the plane of the other's, its distance
+    /// from the common line in that plane, drawn in to the other flank's
+    /// reach, so what it measures is the corner's shorter edge; either
+    /// definite sign passes and a decided zero refuses as the in-band arm
+    /// does ([`CORNER_SENSE`]). No declaration settles it:
     /// the door refuses `Tangent` on two planes, and `Rest` changes
     /// nothing here.
     FlankSense,
@@ -620,6 +629,10 @@ impl Coincide {
             Self::Planes | Self::OnPlanes => "whether a face of each solid lies on one plane",
             Self::VertexOnFace | Self::VertexOnCurvedFace | Self::VertexOnCoveredFace => {
                 "whether a vertex of one solid lies on a face of the other"
+            }
+            Self::VertexOnSection => {
+                "whether a vertex of one solid on the plane of a face of the other lies on the \
+                 section that plane cuts in a face at the vertex"
             }
             Self::EdgeOnPlane => {
                 "whether a curved edge of one solid lies in, grazes or misses the plane of a face \
@@ -672,6 +685,7 @@ impl Coincide {
             | (
                 Self::Planes
                 | Self::VertexOnFace
+                | Self::VertexOnSection
                 | Self::VertexOnCurvedFace
                 | Self::VertexOnCoveredFace
                 | Self::EdgeOnPlane
@@ -700,7 +714,7 @@ impl Coincide {
             Self::Planes => Ending::Frontier(PLANES_FRONTIER),
             Self::Rim => Ending::Lever(RIM_LEVER),
             Self::OnPlanes | Self::Carriers => Ending::Lever(geom_core::coincidence_move_arm!()),
-            Self::VertexOnFace => Ending::Lever(proximity_lever!()),
+            Self::VertexOnFace | Self::VertexOnSection => Ending::Lever(proximity_lever!()),
             Self::EdgeOnPlane | Self::SectorSide | Self::Sectors | Self::Join => {
                 Ending::Sized(proximity(SizedPass::AnySign))
             }
@@ -731,6 +745,7 @@ impl Coincide {
             // settles them either: their own ending.
             Self::Planes
             | Self::VertexOnFace
+            | Self::VertexOnSection
             | Self::VertexOnCurvedFace
             | Self::VertexOnCoveredFace
             | Self::EdgeOnPlane
@@ -1592,7 +1607,7 @@ impl BooleanDecision {
             // on to other escalations and then to the skew and
             // meeting-axes frontiers, so the lever names the parallel
             // side alone and no smaller tolerance decides it passing.
-            // The margin is the axes' drift over the walls' span, which a
+            // The margin is the axes' drift across the operation's region, which a
             // turn moves.
             Self::CylinderAxes => {
                 Ending::Lever("turn one part so the two cylinders' axes are clearly parallel")
@@ -2091,6 +2106,10 @@ pub(in crate::boolean) mod tests {
             | Coincide::VertexOnCoveredFace => {
                 "whether a vertex of one solid lies on a face of the other"
             }
+            Coincide::VertexOnSection => {
+                "whether a vertex of one solid on the plane of a face of the other lies on the \
+                 section that plane cuts in a face at the vertex"
+            }
             Coincide::EdgeOnPlane => {
                 "whether a curved edge of one solid lies in, grazes or misses the plane of a face \
                  of the other"
@@ -2136,7 +2155,7 @@ pub(in crate::boolean) mod tests {
             ),
             Coincide::OnPlanes | Coincide::Carriers => Ending::Lever("Recourse: move the geometry"),
             // Refused at the first vertex read in band, the rest unread.
-            Coincide::VertexOnFace => Ending::Lever(MEET),
+            Coincide::VertexOnFace | Coincide::VertexOnSection => Ending::Lever(MEET),
             // Clear of the face passes only beside an end the face
             // records, and contradicts the declaration elsewhere.
             Coincide::VertexOnCoveredFace => {
@@ -2199,6 +2218,7 @@ pub(in crate::boolean) mod tests {
             )),
             Coincide::Planes
             | Coincide::VertexOnFace
+            | Coincide::VertexOnSection
             | Coincide::VertexOnCurvedFace
             | Coincide::VertexOnCoveredFace
             | Coincide::EdgeOnPlane
@@ -2804,6 +2824,7 @@ pub(in crate::boolean) mod tests {
                 }
                 Coincide::Planes
                 | Coincide::VertexOnFace
+                | Coincide::VertexOnSection
                 | Coincide::VertexOnCurvedFace
                 | Coincide::VertexOnCoveredFace
                 | Coincide::EdgeOnPlane

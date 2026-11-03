@@ -217,12 +217,7 @@ fn circle_arc<T: Scalar>(
     u_ref: Vec3<f64>,
     (t0, t1): (f64, f64),
 ) -> EdgeCurveSpec<T> {
-    let carrier = Curve3::Circle {
-        center: pt(center),
-        axis: vc(axis),
-        radius: T::from_f64(radius),
-        u_ref: vc(u_ref),
-    };
+    let carrier = Curve3::circle(pt(center), vc(axis), T::from_f64(radius), vc(u_ref));
     EdgeCurveSpec::arc_of_circle(carrier, T::from_f64(t0), T::from_f64(t1)).expect("an arc")
 }
 
@@ -275,7 +270,7 @@ fn wall(body: &Body<f64>, kind: fn(&Surface<f64>) -> bool) -> (FaceKey, Frame) {
                 }
                 _ => at - frame.origin,
             };
-            matches!(curve.carrier(), Curve3::Circle { .. })
+            matches!(curve.carrier(), Curve3::Circle(..))
                 .then(|| (at, normal.cross(tangent) * sense))
         })
         .expect("a circle edge");
@@ -663,10 +658,10 @@ fn a_cycle_read_in_band_escalates_with_its_margin() {
 }
 
 /// **A sliver beside a pole passes** (PR 6054's near-pole false refusal,
-/// on a body): a window face 10 µm tall, 1 cm from the ball's south pole,
-/// holds neither pole and lies in its lune, its plug and the lune both
-/// read by the region arm and the chart-singularity arm, and the body
-/// validates.
+/// read now through the doors): a window face 10 µm tall, 1 cm from the
+/// ball's south pole, holds neither pole and lies in its lune, and the
+/// body validates. The pole's side of the sliver is the sphere door's
+/// reading at the pole, which no chart polygon approximates.
 #[test]
 fn a_sliver_beside_a_pole_passes() {
     let (height, eps) = (1e-5, tol().eps());
@@ -1191,4 +1186,116 @@ fn points_a_band_off_a_lunes_pole_vertex_read_at_the_ends_precision() {
             );
         }
     }
+}
+
+/// The dome — the quarter disc right of `y` and above `x` revolved about
+/// `y` — through `angle` (a full turn where `None`), at `T`.
+fn dome_by<T: Scalar>(angle: Option<f64>) -> Body<T> {
+    let q = (core::f64::consts::PI / 8.0).tan();
+    let pts = [(0.0, 0.0, 0.0), (1.0, 0.0, q), (0.0, 1.0, 0.0)];
+    let meridian = bulge_loop(
+        pts.iter()
+            .map(|&(x, y, b)| (Point2::new(T::from_f64(x), T::from_f64(y)), T::from_f64(b)))
+            .collect(),
+    );
+    let profile = Profile::new(SketchPlane::xy(), vec![meridian])
+        .validate(tol())
+        .expect("the dome's profile");
+    let revolution = angle.map_or(Revolution::Full, |a| Revolution::Partial(T::from_f64(a)));
+    revolve(
+        &profile,
+        RevolveAxis {
+            origin: Point2::new(T::zero(), T::zero()),
+            dir: Vec2::new(T::zero(), T::one()),
+        },
+        revolution,
+        tol(),
+    )
+    .expect("the dome revolves")
+    .body
+}
+
+/// **Points near the pole a dome's face leaves out read out, at `f64` and
+/// at the certified scalar.** On the dome (the upper half ball) revolved
+/// a full turn, a half turn and a degree, points `1e-4`, `1e-6` and
+/// `1e-9` rad off the south pole at eight azimuths, off the seam's plane,
+/// are out of every sphere face, at each offset clear of twice the band
+/// (`1e-9` is read only at ε 1e-12). A point exactly ε off the pole in the
+/// seam's plane is not one: every leg from it meets that plane's arc's
+/// circle at the point itself, ε past the arc's end, which no enclosure
+/// decides at that width. Every great circle through such a point passes near the north
+/// pole, the faces' vertex at its antipode, which a place read by `atan2`
+/// on its branch cut enclosed over a whole turn at `Interval`.
+fn points_beside_a_domes_far_pole<T: Scalar>(scalar: &str) {
+    let band = geom_core::Band::linear(tol()).unwrap();
+    for angle in [None, Some(core::f64::consts::PI), Some(1f64.to_radians())] {
+        let at_f64 = dome_by::<f64>(angle);
+        let body = dome_by::<T>(angle);
+        for (k, f) in at_f64.faces() {
+            if !matches!(at_f64.get_surface(f.surface), Some(Surface::Sphere { .. })) {
+                continue;
+            }
+            let face = same_face(&at_f64, k, &body);
+            let clear = 2.0 * tol().k() * tol().eps();
+            for (i, d) in (0..8).flat_map(|i| [1e-4_f64, 1e-6, 1e-9].map(move |d| (i, d))) {
+                if d <= clear {
+                    continue;
+                }
+                let az = f64::from(i) * core::f64::consts::FRAC_PI_4 + 0.3;
+                let q = Point3::new(d.sin() * az.cos(), -d.cos(), d.sin() * az.sin());
+                assert_eq!(
+                    topo::curved_face_containment(&body, face, pt::<T>(q), band),
+                    Ok(Some(topo::FaceContainment::Out)),
+                    "{q:?} beside the south pole, dome revolved {angle:?}, at {scalar}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn points_beside_a_domes_far_pole_read_out() {
+    points_beside_a_domes_far_pole::<f64>("f64");
+    points_beside_a_domes_far_pole::<geom_core::Interval>("Interval");
+}
+
+/// **A frustum's apex reads out of its cone face, and the body validates,
+/// at `f64` and at the certified scalar.** Tier 3 reads a cone apex off
+/// the face's boundary through the cone door (generators aimed at the
+/// boundary from the apex), as it reads a sphere's pole; the frustum's
+/// apex lies beyond its top rim.
+fn a_frustums_apex<T: Scalar>(scalar: &str) {
+    let profile = [
+        (0.0, 0.0, 0.0),
+        (1.0, 0.0, 0.0),
+        (0.4, 1.5, 0.0),
+        (0.0, 1.5, 0.0),
+    ];
+    let body = revolved::<T>(&profile);
+    let at_f64 = revolved::<f64>(&profile);
+    let (k, apex) = at_f64
+        .faces()
+        .find_map(|(k, f)| match at_f64.get_surface(f.surface) {
+            Some(Surface::Cone { apex, .. }) => Some((k, *apex)),
+            _ => None,
+        })
+        .expect("the frustum's cone face");
+    let face = same_face(&at_f64, k, &body);
+    let band = geom_core::Band::linear(tol()).unwrap();
+    assert_eq!(
+        topo::curved_face_containment(&body, face, pt::<T>(apex), band),
+        Ok(Some(topo::FaceContainment::Out)),
+        "the apex at {scalar}"
+    );
+    assert_eq!(
+        topo::validate_geometric_structural(&body, tol()),
+        Ok(()),
+        "the frustum at {scalar}"
+    );
+}
+
+#[test]
+fn a_frustums_apex_reads_out_and_it_validates() {
+    a_frustums_apex::<f64>("f64");
+    a_frustums_apex::<geom_core::Interval>("Interval");
 }

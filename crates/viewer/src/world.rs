@@ -211,6 +211,7 @@ fn reads_as_body(seat: OperandSlot) -> bool {
         | OperandSlot::Traced(_)
         | OperandSlot::Side { .. }
         | OperandSlot::Measured(..)
+        | OperandSlot::Cleared(_)
         | OperandSlot::Tool
         | OperandSlot::Input
         | OperandSlot::Of
@@ -501,7 +502,7 @@ fn copy_spaces(doc: &Doc<ProfileProgram>) -> BTreeSet<VarId> {
     let placements = doc.placements();
     let read: BTreeSet<VarId> = placements
         .iter()
-        .filter_map(|&placement| copied_var(doc, placement))
+        .filter_map(|&placement| doc.copied_read(placement))
         .filter_map(|var| doc.space_of(var))
         .collect();
     placements
@@ -516,16 +517,6 @@ fn copy_spaces(doc: &Doc<ProfileProgram>) -> BTreeSet<VarId> {
                         .is_some_and(|(node, _)| matches!(doc.node(node), Some(Node::Space))))
         })
         .collect()
-}
-
-/// **The body a copy copies**: a `Place`'s source's read; `None` for
-/// any other node, an instance included — it copies its part's product,
-/// no body of this document.
-pub fn copied_var(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> Option<VarId> {
-    match doc.node(node)? {
-        Node::Place { source, .. } => Some(source.read),
-        _ => None,
-    }
 }
 
 /// **What a copy's body copies**: the variable the placement reads, the
@@ -596,6 +587,33 @@ pub fn placements_of_var(doc: &Doc<ProfileProgram>, var: VarId) -> Vec<RecipeNod
     copies_where(doc, |copied| copied == var)
 }
 
+/// **Every placement reading `var` whole**, in document order, whatever
+/// space it stands in: the copies the placement editor's doors answer
+/// to. It is wider than [`placements_of_var`], the gesture vocabulary's
+/// copies, which leaves out a copy into a space whose bodies a placement
+/// copies out (a body moved in its own space, a pattern's family): for
+/// the editor that copy is still what places the body, so the body moves
+/// by its Edit door and is never placed a second time by a Create.
+pub fn placements_reading(doc: &Doc<ProfileProgram>, var: VarId) -> Vec<RecipeNodeId> {
+    doc.placements()
+        .into_iter()
+        .filter(|&placement| {
+            matches!(doc.node(placement), Some(Node::Place { source, .. }) if source.read == var)
+        })
+        .collect()
+}
+
+/// **Whether `placement` repeats its source**: it reaches an index its
+/// source does not, so it is a pattern's family and its values are the
+/// pattern's rule.
+pub fn repeats(doc: &Doc<ProfileProgram>, placement: RecipeNodeId) -> bool {
+    let Some(Node::Place { source, .. }) = doc.node(placement) else {
+        return false;
+    };
+    let own = doc.node_reach(placement);
+    !own.is_none() && own != doc.var_reach(source.read)
+}
+
 /// **The copies of any output of `node`**, in document order.
 pub fn placements_of(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> Vec<RecipeNodeId> {
     let outputs = doc.outputs(node);
@@ -612,7 +630,7 @@ fn copies_where(doc: &Doc<ProfileProgram>, copies: impl Fn(VarId) -> bool) -> Ve
             doc.node_space(placement)
                 .is_some_and(|s| spaces.contains(&s))
         })
-        .filter(|&placement| copied_var(doc, placement).is_some_and(&copies))
+        .filter(|&placement| doc.copied_read(placement).is_some_and(&copies))
         .collect()
 }
 
@@ -659,12 +677,16 @@ pub fn seat_read(
         Some(source) => (source.operation, Some(source.port)),
         None => (node, body.and_then(|b| u8::try_from(b).ok())),
     };
-    // A port is named only where the node holds several outputs: the
-    // document's own rule for a read naming a node alone
-    // (`Doc::read_of_node`), under which a construction's space is no
-    // second output.
-    let several = doc.read_of_node(node).is_none() && !doc.outputs(node).is_empty();
-    (node, port.filter(|_| several))
+    (node, port.filter(|_| names_a_port(doc, node)))
+}
+
+/// **Whether a read of `node` names its port**: only where the node
+/// holds several outputs — the document's own rule for a read naming a
+/// node alone (`Doc::read_of_node`), under which a construction's space
+/// is no second output. The one naming rule [`seat_read`] and
+/// [`body_read`] share.
+fn names_a_port(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> bool {
+    doc.read_of_node(node).is_none() && !doc.outputs(node).is_empty()
 }
 
 /// **What a feature gesture's result takes over**: the read `target`
@@ -743,6 +765,63 @@ pub fn product_reads(doc: &Doc<ProfileProgram>) -> Vec<VarId> {
 /// ([`Picture::product`]).
 pub fn product_pieces(doc: &Doc<ProfileProgram>) -> Vec<Drawn> {
     Picture::of(doc).product
+}
+
+/// **The read of the body `node` draws**: its one output holding a
+/// body or a family — named alone where the document reads it so
+/// ([`Doc::read_of_node`]), else by its port — or, for a node holding
+/// several (a split's halves), the port `body` names. `None` for a node
+/// that holds no body, and for one holding several where `body` names
+/// none of them.
+pub fn body_read(
+    doc: &Doc<ProfileProgram>,
+    node: RecipeNodeId,
+    body: Option<u32>,
+) -> Option<Operand> {
+    let ports: Vec<u8> = doc
+        .signature(node)?
+        .into_iter()
+        .enumerate()
+        .filter(|(_, (_, kind))| matches!(kind, VarKind::Body | VarKind::Bodies))
+        .filter_map(|(port, _)| u8::try_from(port).ok())
+        .collect();
+    let port = match (ports.as_slice(), body) {
+        ([one], _) => *one,
+        (several, Some(body)) => *several.iter().find(|&&port| u32::from(port) == body)?,
+        (_, None) => return None,
+    };
+    doc.output(node, port)?;
+    Some(if names_a_port(doc, node) {
+        Operand::Output { node, port }
+    } else {
+        Operand::Node(node)
+    })
+}
+
+/// **The copy the product door moves into the world rather than copy**:
+/// `node`'s copy where `node` is a placement (a `Place` or an instance)
+/// into a space other than the world whose copy nothing reads — no
+/// operand, no mate pose, no pick ([`Doc::reader_counts`]). `None` for
+/// any other node.
+pub fn movable_into_world(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> Option<VarId> {
+    if !matches!(
+        doc.node(node),
+        Some(Node::Place { .. } | Node::InstantiatePart { .. })
+    ) || doc.node_space(node) == Some(VarId::WORLD)
+    {
+        return None;
+    }
+    doc.output(node, 0)
+        .filter(|copy| !doc.reader_counts().contains_key(copy))
+}
+
+/// **The world copies of the body `read` names**, in document order:
+/// the copy each world placement reading it defines ([`world_copy`]).
+pub fn world_copies_of_read(doc: &Doc<ProfileProgram>, read: &Operand) -> Vec<VarId> {
+    placements_of_read(doc, read)
+        .into_iter()
+        .filter_map(|placement| world_copy(doc, placement))
+        .collect()
 }
 
 /// **The copy a world placement defines**, the body a product can read:

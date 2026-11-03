@@ -131,9 +131,13 @@
 //! ellipse's two decided bounds on its span's overlap straddling the
 //! whole band ([`geom_core::k_stats::straddle`]).
 
+use geom::Conic;
+use geom_brep::ExtentBall;
 use geom_brep::recourse::{LeverOnly, Reading, RefusedArm, RefusedSide, SizedDecision, SizedPass};
 use geom_core::period::{Exact, Extent, Period, Turn, TurnRow, TurnRows, TurnUndecided, Within};
-use geom_core::{Band, Decide, Indeterminate, Margin, MarginDiag, Point3, Sign, Vec3};
+use geom_core::{
+    Band, Decide, Indeterminate, InfSpeed, Lever, Margin, MarginDiag, Point3, Sign, Vec3,
+};
 
 use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, LoopBoundary, LoopKey};
@@ -664,10 +668,11 @@ fn polygon_walk<T: Decide>(
     // arm for the probe-direction gate below. A degenerate loop
     // collapsed onto q gives a zero arm, every schedule member skips,
     // and the walk ends in the typed `RayExhausted` — fail-loud.
-    let mut extent = T::zero();
-    for p in points {
-        extent = extent.max((*p - q).norm());
-    }
+    let extent = points
+        .iter()
+        .fold(ExtentBall::point(q).lever(), |extent, &p| {
+            extent.max(ExtentBall::point(p).lever_from(q))
+        });
     let inside = walk_schedule(
         r#loop,
         normal,
@@ -698,7 +703,7 @@ fn polygon_walk<T: Decide>(
 fn walk_schedule<T: Decide>(
     r#loop: LoopKey,
     normal: Vec3<T>,
-    extent: T,
+    extent: Lever<T>,
     arm_row: &'static str,
     band: Band,
     mut ray: impl FnMut(Vec3<T>, Vec3<T>) -> Result<bool, RayFault<PointInLoopError>>,
@@ -790,40 +795,25 @@ const WALK_ROWS: BoundaryRows = BoundaryRows {
     },
 };
 
-/// Which conic a [`ConicArc`] is. A circle's unit coordinates are an
-/// isometry scaled by its radius, so one lever turns every
-/// unit-coordinate reading into metres EXACTLY; an ellipse's are not,
-/// and its boundary rows bound the metric on both sides instead.
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum ConicKind {
-    Circle,
-    Ellipse,
-}
-
 /// A conic arc of a planar loop — a circle or an ellipse — in its own
 /// affine frame: the locus `center + u·a·cos θ + v·b·sin θ` over
 /// `θ ∈ [t0, t1]` (for an ellipse `θ` is the eccentric anomaly, the
 /// carrier's own parameter). In UNIT coordinates `((x−c)·u/a,
 /// (x−c)·v/b)` the conic is the unit circle and the arc a window of
 /// it.
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub(crate) struct ConicArc<T: geom_core::Real> {
-    kind: ConicKind,
-    center: Point3<T>,
-    /// The conic's plane normal.
-    axis: Vec3<T>,
-    u: Vec3<T>,
-    v: Vec3<T>,
-    a: T,
-    b: T,
+    /// The carrier, a circle or an ellipse.
+    carrier: geom::Curve3<T>,
     /// The smaller semi-axis, the fewest metres one unit-coordinate step
-    /// buys. It levers the CROSSING rows, where a `Zero` grazes a ray
-    /// and an understated margin costs rays, never an answer. A verdict
+    /// buys: the rate unit coordinates cross to metres at. It meters the
+    /// CROSSING rows, where a `Zero` grazes a ray and an understated
+    /// margin costs rays, never an answer. A verdict
     /// on an ellipse reads it only where a LOWER bound is the sound side
     /// — the span rule's wound-past-period ([`Self::of`]); the boundary
     /// reading bounds its distances on both sides ([`Self::hit`]), and
     /// an arc's span needs the larger semi-axis too.
-    lever: T,
+    rate: InfSpeed<T>,
     /// The arc's two end points, evaluated as certification evaluates
     /// them (`Curve3::eval`), so every reading of an end reads the point
     /// whose pin to its vertex was certified.
@@ -902,7 +892,7 @@ impl<T: Decide> ConicArc<T> {
     ) -> Result<Option<Self>, ConicArcError> {
         if !matches!(
             carrier,
-            geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. }
+            geom::Curve3::Circle(..) | geom::Curve3::Ellipse(..)
         ) {
             return Ok(None);
         }
@@ -920,23 +910,10 @@ impl<T: Decide> ConicArc<T> {
         rows: ConicRows,
         band: Band,
     ) -> Result<Option<Self>, ConicArcError> {
-        let (kind, center, axis, u, a, b) = match *carrier {
-            geom::Curve3::Circle {
-                center,
-                axis,
-                radius,
-                u_ref,
-            } => (ConicKind::Circle, center, axis, u_ref, radius, radius),
-            geom::Curve3::Ellipse {
-                center,
-                axis,
-                semi_u,
-                semi_v,
-                u_ref,
-            } => (ConicKind::Ellipse, center, axis, u_ref, semi_u, semi_v),
-            _ => return Ok(None),
+        let Some(conic) = carrier.conic() else {
+            return Ok(None);
         };
-        let lever = a.min(b);
+        let rate = InfSpeed::new(conic.speed_lo());
         let one_turn = Period::new(T::tau());
         let Some(floor) = geom::carrier_speed::speed_floor(carrier) else {
             unreachable!("`speed_floor` answers a circle and an ellipse")
@@ -948,14 +925,14 @@ impl<T: Decide> ConicArc<T> {
         // speed anywhere on it and tight as it shrinks, so a certified
         // window (its ends pinned within the band of its vertex) is never
         // read as over-wound.
-        let (turn, recording) = geom_core::k_stats::detached(|| match kind {
-            ConicKind::Circle => one_turn.turn(
+        let (turn, recording) = geom_core::k_stats::detached(|| match carrier {
+            geom::Curve3::Circle(_) => one_turn.turn(
                 TurnRows::exact(rows.turn),
                 extent,
                 Exact::new(floor.get()),
                 band,
             ),
-            ConicKind::Ellipse => {
+            _ => {
                 let rate = geom::carrier_speed::turn_defect_rate(carrier, t0, extent);
                 one_turn.turn(rows, extent, rate, band)
             }
@@ -989,14 +966,8 @@ impl<T: Decide> ConicArc<T> {
         let (s1, c1) = t1.sin_cos();
         let (sm, cm) = geom::mid_param(t0, t1).sin_cos();
         Ok(Some(Self {
-            kind,
-            center,
-            axis,
-            u,
-            v: axis.cross(u),
-            a,
-            b,
-            lever,
+            carrier: carrier.clone(),
+            rate,
             ends: [carrier.eval(t0), carrier.eval(t1)],
             trim: [(c0, s0), (c1, s1), (cm, sm)],
             span_turn,
@@ -1005,35 +976,18 @@ impl<T: Decide> ConicArc<T> {
     }
 
     /// The carrier, rebuilt from the arc's frame as [`Self::of`] read it.
-    fn carrier(&self) -> geom::Curve3<T> {
-        match self.kind {
-            ConicKind::Circle => geom::Curve3::Circle {
-                center: self.center,
-                axis: self.axis,
-                radius: self.a,
-                u_ref: self.u,
-            },
-            ConicKind::Ellipse => geom::Curve3::Ellipse {
-                center: self.center,
-                axis: self.axis,
-                semi_u: self.a,
-                semi_v: self.b,
-                u_ref: self.u,
-            },
-        }
+    /// The carrier read as a conic.
+    fn conic(&self) -> &dyn Conic<T> {
+        self.carrier
+            .conic()
+            .unwrap_or_else(|| unreachable!("a conic arc's carrier is a circle or an ellipse"))
     }
 
-    fn unit(&self, x: Point3<T>) -> (T, T) {
-        let w = x - self.center;
-        (w.dot(self.u) / self.a, w.dot(self.v) / self.b)
-    }
-
-    /// The carrier's point at parameter `t`, by the conic's own frame:
-    /// the probes' placement (the ends are [`Self::ends`]).
+    /// The carrier's point at parameter `t`: the probes' placement (the
+    /// ends are [`Self::ends`]).
     #[cfg(test)]
     fn point(&self, t: T) -> Point3<T> {
-        let (s, c) = t.sin_cos();
-        self.center + self.u * (self.a * c) + self.v * (self.b * s)
+        self.conic().point_at(t)
     }
 
     /// A unit-circle point as a [`Point3`] for [`arc_trim`], which reads
@@ -1065,8 +1019,7 @@ impl<T: Decide> ConicArc<T> {
     /// certify its `Past` is [`ConicHit::Unsettled`].
     pub(crate) fn hit(&self, q: Point3<T>, band: Band) -> Result<ConicHit, ReadEscalation> {
         use geom_brep::curve_pair::{Reading, Span};
-        let carrier = self.carrier();
-        let span = Span::new(&carrier, self.span);
+        let span = Span::new(&self.carrier, self.span);
         let near = geom::mid_param(self.span.0, self.span.1);
         Ok(match span.read(q, near, band) {
             Ok(Reading::Off) => ConicHit::Off,
@@ -1103,7 +1056,7 @@ impl<T: Decide> ConicArc<T> {
             ends,
             apex,
             anti,
-            self.lever,
+            self.rate,
             &ARC_LOOP_TRIM,
             band,
         )
@@ -1125,29 +1078,12 @@ const ARC_LOOP_TRIM: ArcTrimRows = ArcTrimRows {
     trim: "point_in_arc_loop_conic_window",
 };
 
-/// The distance from `p` to the circle (`center`, unit `axis`,
-/// `radius`): `√(h² + (ρ − r)²)`, `h` its height over the circle's plane
-/// and `ρ` its distance from the axis. The one spelling of a point's
-/// miss from a circle, for the loop walk here and the boolean's contact
-/// and on-carrier rows.
-pub(crate) fn circle_miss<T: Decide>(
-    p: Point3<T>,
-    center: Point3<T>,
-    axis: Vec3<T>,
-    radius: T,
-) -> T {
-    let off = p - center;
-    let h = off.dot(axis);
-    let rho = (off - axis * h).norm();
-    (h.powi(2) + (rho - radius).powi(2)).sqrt()
-}
-
 /// **Whether `p`, a point on a circle, lies inside the arc of it whose
 /// ends are `ends` and whose apex is `apex`** (`anti` the apex's
 /// antipode) — decided as DISTANCES, never as an angle, and the one
 /// home of that rule: tier 3's check 9 trims an edge with it and the
 /// arc-bearing walk here trims a crossing with it. Every length is
-/// multiplied by `lever` on its way to a margin: `1` for points given
+/// multiplied by `rate` on its way to a margin: `1` for points given
 /// in metres, the smaller semi-axis for points given in a conic's unit
 /// coordinates (exact for a circle, conservative for an ellipse).
 ///
@@ -1189,14 +1125,14 @@ pub(crate) fn arc_trim<T: Decide>(
     ends: [Point3<T>; 2],
     apex: Point3<T>,
     anti: Point3<T>,
-    lever: T,
+    rate: InfSpeed<T>,
     rows: &ArcTrimRows,
     band: Band,
 ) -> Result<Sign, Indeterminate> {
     let [a, b] = ends;
     let at = [
-        decide(rows.end, Margin::levered((p - a).norm(), lever), band),
-        decide(rows.end, Margin::levered((p - b).norm(), lever), band),
+        decide(rows.end, Margin::metered((p - a).norm(), rate), band),
+        decide(rows.end, Margin::metered((p - b).norm(), rate), band),
     ];
     if at.iter().any(|e| matches!(e, Ok(Sign::Zero))) {
         return Ok(Sign::Zero);
@@ -1206,7 +1142,7 @@ pub(crate) fn arc_trim<T: Decide>(
     }
     decide(
         rows.trim,
-        Margin::levered(arc_trim_margin(p, a, apex, anti), lever),
+        Margin::metered(arc_trim_margin(p, a, apex, anti), rate),
         band,
     )
 }
@@ -1485,7 +1421,7 @@ fn step_ball<T: Decide>(
             ball,
             conic_arc_ball(curve.carrier(), curve.params()).unwrap_or(ball),
         ])),
-        None if matches!(curve.carrier(), geom::Curve3::Line { .. }) => Ok(None),
+        None if !curve.carrier().is_curved() => Ok(None),
         None => Err(PointInLoopError::CorruptLoop { r#loop }),
     }
 }
@@ -1547,11 +1483,11 @@ pub(crate) fn carrier_loop<T: Decide>(
             },
             Ok(Some(k)) => edges.push(LoopEdge::Conic(k)),
             Ok(None) => edges.push(match *curve.carrier() {
-                geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. } => {
+                geom::Curve3::Circle(..) | geom::Curve3::Ellipse(..) => {
                     unreachable!("a circle or an ellipse is a conic arc above")
                 }
                 // A line: its segment is its two end vertices'.
-                geom::Curve3::Line { .. } => LoopEdge::Chord,
+                geom::Curve3::Line(_) => LoopEdge::Chord,
                 geom::Curve3::Spiric {
                     center,
                     axis,
@@ -1601,14 +1537,10 @@ pub(crate) fn carrier_ball<T: Decide>(
     (t0, t1): (T, T),
 ) -> Option<(Point3<T>, T)> {
     match *carrier {
-        geom::Curve3::Line { .. } => None,
-        geom::Curve3::Circle { center, radius, .. } => Some((center, radius)),
-        geom::Curve3::Ellipse {
-            center,
-            semi_u,
-            semi_v,
-            ..
-        } => Some((center, geom::Curve3::semi_axes_by_size(semi_u, semi_v).0)),
+        geom::Curve3::Line(_) => None,
+        geom::Curve3::Circle(_) | geom::Curve3::Ellipse(_) => {
+            carrier.conic().map(|k| (k.frame().center, k.speed_hi()))
+        }
         // The arc from its midpoint: no point of it lies further from
         // `P(mid)` than the oval's speed bound times half the parameter
         // width.
@@ -1640,7 +1572,7 @@ pub(crate) fn carrier_ball<T: Decide>(
 
 /// **A ball holding the arc `span` of a conic `carrier`, of the arc's
 /// own size**: about the arc's middle point, to half the span's width
-/// times a bound on the speed over it ([`geom::carrier_speed::SemiAxes::speed_over`]),
+/// times a bound on the speed over it ([`geom::Conic::speed_over`]),
 /// widened by the rounding of that middle point at the coordinates the
 /// carrier is placed at. `None` for any carrier but a circle or an
 /// ellipse.
@@ -1648,18 +1580,8 @@ pub(crate) fn conic_arc_ball<T: Decide>(
     carrier: &geom::Curve3<T>,
     (t0, t1): (T, T),
 ) -> Option<(Point3<T>, T)> {
-    let (center, axes) = match *carrier {
-        geom::Curve3::Circle { center, radius, .. } => {
-            (center, geom::carrier_speed::SemiAxes::new(radius, radius))
-        }
-        geom::Curve3::Ellipse {
-            center,
-            semi_u,
-            semi_v,
-            ..
-        } => (center, geom::carrier_speed::SemiAxes::new(semi_u, semi_v)),
-        _ => return None,
-    };
+    let axes = carrier.conic()?;
+    let center = axes.frame().center;
     let speed = geom_core::SupSpeed::new(axes.speed_over((t0, t1)));
     let placed = geom_core::rounding_charge((center - Point3::origin()).norm() + axes.speed_hi());
     Some((
@@ -1684,11 +1606,13 @@ pub(crate) fn arc_distance_floor<T: Decide>(
     q: Point3<T>,
 ) -> Option<ArcFloor<'_, T>> {
     Some(match *carrier {
-        geom::Curve3::Line { .. } => ArcFloor::Segment(
-            crate::sector_shape::point_segment_distance(carrier.eval(t0), carrier.eval(t1), q),
-        ),
-        geom::Curve3::Circle { center, axis, .. } | geom::Curve3::Ellipse { center, axis, .. } => {
-            let Some(crate::ring_path::LoopArc::Conic(conic)) =
+        geom::Curve3::Line(_) => ArcFloor::Segment(crate::sector_shape::point_segment_distance(
+            carrier.eval(t0),
+            carrier.eval(t1),
+            q,
+        )),
+        geom::Curve3::Circle(_) | geom::Curve3::Ellipse(_) => {
+            let Some(crate::ring_path::LoopArc::Conic(arc)) =
                 crate::ring_path::LoopArc::of(carrier, (t0, t1))
             else {
                 unreachable!("a circle or an ellipse is a conic arc")
@@ -1696,13 +1620,11 @@ pub(crate) fn arc_distance_floor<T: Decide>(
             // The whole conic lies in the annulus of its plane between
             // its semi-axes. That floor is exact where the arc's is not:
             // near the centre, where `q`'s direction is undecided.
-            let (major, minor) = match *carrier {
-                geom::Curve3::Ellipse { semi_u, semi_v, .. } => {
-                    geom::Curve3::semi_axes_by_size(semi_u, semi_v)
-                }
-                geom::Curve3::Circle { radius, .. } => (radius, radius),
-                _ => unreachable!("a circle or an ellipse"),
+            let Some(conic) = carrier.conic() else {
+                unreachable!("a circle or an ellipse")
             };
+            let (major, minor) = (conic.speed_hi(), conic.speed_lo());
+            let geom::Frame { center, axis, .. } = *conic.frame();
             let n = axis / axis.norm();
             let w = q - center;
             let height = w.dot(n);
@@ -1710,7 +1632,7 @@ pub(crate) fn arc_distance_floor<T: Decide>(
             let off = (minor - across).max(across - major).max(T::zero());
             ArcFloor::Conic {
                 annulus: (height.powi(2) + off.powi(2)).sqrt(),
-                arc: conic.distance_floor(q),
+                arc: arc.distance_floor(q),
             }
         }
         geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => {
@@ -1812,7 +1734,7 @@ pub(crate) fn loop_extent_from<T: Decide>(
     body: &Body<T>,
     r#loop: LoopKey,
     q: Point3<T>,
-) -> Result<T, PointInLoopError> {
+) -> Result<Lever<T>, PointInLoopError> {
     let (verts, balls) = loop_hull(body, r#loop)?;
     extent_from(r#loop, q, &verts, &balls)
 }
@@ -1855,17 +1777,20 @@ fn extent_from<T: Decide>(
     from: Point3<T>,
     verts: &[Point3<T>],
     balls: &[ArcBalls<T>],
-) -> Result<T, PointInLoopError> {
-    let poisoned = |term: T| match term.is_poison() {
+) -> Result<Lever<T>, PointInLoopError> {
+    let poisoned = |term: Lever<T>| match term.length().is_poison() {
         true => Err(PointInLoopError::CorruptLoop { r#loop }),
         false => Ok(term),
     };
-    let mut extent = T::zero();
+    let mut extent = ExtentBall::point(from).lever();
     for v in verts {
-        extent = extent.max(poisoned((*v - from).norm())?);
+        extent = extent.max(poisoned(ExtentBall::point(*v).lever_from(from))?);
     }
     for pair in balls {
-        let [near, far] = pair.map(|(center, radius)| (center - from).norm() + radius);
+        // Unsourced lever: an edge's ball is `topo`'s own (center, radius) read of its carrier
+        // ([`step_ball`]), not a ball the extent's home mints.
+        let [near, far] =
+            pair.map(|(center, radius)| ExtentBall::unsourced(center, radius).lever_from(from));
         extent = extent.max(poisoned(near)?.min(poisoned(far)?));
     }
     Ok(extent)
@@ -2050,27 +1975,17 @@ fn certify_plane<T: Decide>(
         return Err(off_plane(OffPlaneCause::NormalNotUnit));
     }
     let off = |p: Point3<T>| Margin::of((p - origin).dot(normal));
-    let tilt = |axis: Vec3<T>, arm: T| Margin::levered(axis.cross(normal).norm(), arm);
+    let tilt = |axis: Vec3<T>, arm: Lever<T>| Margin::levered(axis.cross(normal).norm(), arm);
+    // A conic's whole carrier, read from its centre.
     for step in &steps {
         let mut margins = vec![off(step.point)];
         match step.curve.map(|c| c.carrier()) {
-            None | Some(geom::Curve3::Line { .. }) => {}
-            Some(&geom::Curve3::Circle {
-                center,
-                axis,
-                radius,
-                ..
-            }) => margins.extend([off(center), tilt(axis, radius)]),
-            Some(&geom::Curve3::Ellipse {
-                center,
-                axis,
-                semi_u,
-                semi_v,
-                ..
-            }) => margins.extend([
-                off(center),
-                tilt(axis, geom::Curve3::semi_axes_by_size(semi_u, semi_v).0),
-            ]),
+            None | Some(geom::Curve3::Line(_)) => {}
+            Some(conic @ (geom::Curve3::Circle(_) | geom::Curve3::Ellipse(_))) => {
+                if let (Some(k), Some(ball)) = (conic.conic(), ExtentBall::of_conic(conic)) {
+                    margins.extend([off(k.frame().center), tilt(k.frame().axis, ball.lever())]);
+                }
+            }
             Some(&geom::Curve3::Spiric {
                 center,
                 u_ref,
@@ -2080,9 +1995,15 @@ fn certify_plane<T: Decide>(
                 ..
             }) => margins.extend([
                 off(center + u_ref * offset),
-                tilt(u_ref, major_radius + minor_radius + offset.abs()),
+                tilt(
+                    u_ref,
+                    ExtentBall::of_torus(center, major_radius, minor_radius)
+                        .lever_from_within(center, offset.abs()),
+                ),
             ]),
-            Some(geom::Curve3::Nurbs(n)) => margins.extend(n.control().iter().map(|&p| off(p))),
+            Some(geom::Curve3::Nurbs(n)) => {
+                margins.extend(n.control().iter().map(|&p| off(p)));
+            }
         }
         for m in margins {
             if decide("point_in_loop_plane", m, band).map_err(escalate)? != Sign::Zero {
@@ -2196,7 +2117,7 @@ fn carrier_walk<T: Decide>(
             for (i, edge) in edges.iter().enumerate() {
                 crossings += match edge {
                     LoopEdge::Conic(k) => {
-                        RayFault::of(conic_crossings(*k, on_carrier[i], q, d, band), escalate)?
+                        RayFault::of(conic_crossings(k, on_carrier[i], q, d, band), escalate)?
                     }
                     // A piece still unsettled at the depth is a graze, or a
                     // crossing at a piece's end ([`PiecedArc::crossings`]).
@@ -2228,7 +2149,7 @@ fn carrier_walk<T: Decide>(
 pub(crate) fn loop_reach<T: Decide>(
     body: &Body<T>,
     r#loop: LoopKey,
-) -> Result<(Point3<T>, T), PointInLoopError> {
+) -> Result<(Point3<T>, Lever<T>), PointInLoopError> {
     let (verts, balls) = loop_hull(body, r#loop)?;
     let anchor = *verts
         .first()
@@ -2245,14 +2166,15 @@ pub(crate) fn loop_reach<T: Decide>(
 /// The raw [`Indeterminate`] of an in-band margin on any of its rows,
 /// which sets the ray aside ([`ray_walk`]).
 fn conic_crossings<T: Decide>(
-    k: ConicArc<T>,
+    k: &ConicArc<T>,
     on_carrier: bool,
     q: Point3<T>,
     d: Vec3<T>,
     band: Band,
 ) -> Result<Option<usize>, Indeterminate> {
-    let (px, py) = k.unit(q);
-    let (dx, dy) = (d.dot(k.u) / k.a, d.dot(k.v) / k.b);
+    let (px, py) = k.conic().unit_in_plane(q);
+    let (f, (a, b)) = (k.conic().frame(), k.conic().semi_axes());
+    let (dx, dy) = (d.dot(f.u_ref) / a, d.dot(f.v_ref()) / b);
     // On `point_in_loop`, `certify_plane` has put the conic in the plane
     // `d` lies in, so `(dx, dy)` is nonzero. On the projected read a
     // conic tilted off that plane shrinks it, and a zero poisons every
@@ -2266,7 +2188,7 @@ fn conic_crossings<T: Decide>(
     // conic's smaller semi-axis it is a length (exact for a circle).
     match decide(
         "point_in_arc_loop_conic_disc",
-        Margin::levered(disc * T::from_f64(0.5), k.lever),
+        Margin::metered(disc * T::from_f64(0.5), k.rate),
         band,
     )? {
         Sign::Positive => {}
@@ -2338,12 +2260,12 @@ mod tests {
         let band = Band::linear(Tol::witness()).unwrap();
         let eps = band.zero();
         let r = 10.0;
-        let carrier = geom::Curve3::Circle {
-            center: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            radius: r,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-        };
+        let carrier = geom::Curve3::circle(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            r,
+            Vec3::new(1.0, 0.0, 0.0),
+        );
         let at = |theta: f64| Point3::new(r * theta.cos(), r * theta.sin(), 0.0);
         for (t0, t1) in [(0.0, 0.02), (0.0, core::f64::consts::TAU - 0.02)] {
             let Ok(Some(k)) = conic_of(&carrier, (t0, t1), WALK_ROWS.conic, band) else {
@@ -2396,13 +2318,15 @@ mod tests {
         let band = Band::linear(Tol::witness()).unwrap();
         let eps = band.zero();
         let (a, b) = (20.0, 1.0);
-        let carrier = geom::Curve3::Ellipse {
-            center: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            semi_u: a,
-            semi_v: b,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-        };
+        let carrier = geom::Curve3::Ellipse(geom::Ellipse::new(
+            geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
+            a,
+            b,
+        ));
         // The arc from the minor vertex (π/2) round through the major
         // vertex at π to 3π/2.
         let (t0, t1) = (core::f64::consts::FRAC_PI_2, 1.5 * core::f64::consts::PI);
@@ -2433,13 +2357,15 @@ mod tests {
 
     /// The steep ellipse of [`a_steep_ellipse_reads_the_band_in_metres`].
     fn steep(band: Band, (t0, t1): (f64, f64)) -> Result<Option<ConicArc<f64>>, ConicArcError> {
-        let carrier = geom::Curve3::Ellipse {
-            center: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            semi_u: 20.0,
-            semi_v: 1.0,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-        };
+        let carrier = geom::Curve3::Ellipse(geom::Ellipse::new(
+            geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
+            20.0,
+            1.0,
+        ));
         conic_of(&carrier, (t0, t1), WALK_ROWS.conic, band)
     }
 
@@ -2500,12 +2426,16 @@ mod tests {
     fn an_over_wound_ellipse_window_is_not_an_arc() {
         let band = Band::linear(Tol::witness()).unwrap();
         let eps = band.zero();
-        let ellipse = |a: f64| geom::Curve3::Ellipse {
-            center: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            semi_u: a,
-            semi_v: 1.0,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        let ellipse = |a: f64| {
+            geom::Curve3::Ellipse(geom::Ellipse::new(
+                geom::Frame::new(
+                    Point3::new(0.0, 0.0, 0.0),
+                    Vec3::new(0.0, 0.0, 1.0),
+                    Vec3::new(1.0, 0.0, 0.0),
+                ),
+                a,
+                1.0,
+            ))
         };
         // The repro, as the review spelled it at ε = 1e-9.
         if eps == 1e-9 {
@@ -2563,12 +2493,14 @@ mod tests {
             );
         }
         // A circle: an overlap in its band escalates, one past it is wound.
-        let circle = geom::Curve3::Circle {
-            center: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
+        let circle = geom::Curve3::Circle(geom::Circle {
+            frame: geom::Frame {
+                center: Point3::new(0.0, 0.0, 0.0),
+                axis: Vec3::new(0.0, 0.0, 1.0),
+                u_ref: Vec3::new(1.0, 0.0, 0.0),
+            },
             radius: 1.0,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-        };
+        });
         let tau = core::f64::consts::TAU;
         assert!(matches!(
             conic_of(&circle, (0.0, tau + 5.0 * eps), WALK_ROWS.conic, band),
@@ -2596,12 +2528,16 @@ mod tests {
     fn the_span_rule_tags_an_over_wound_margin_and_a_straddle() {
         let band = Band::linear(Tol::witness()).unwrap();
         let eps = band.zero();
-        let ellipse = |a: f64, b: f64| geom::Curve3::Ellipse {
-            center: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            semi_u: a,
-            semi_v: b,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        let ellipse = |a: f64, b: f64| {
+            geom::Curve3::Ellipse(geom::Ellipse::new(
+                geom::Frame::new(
+                    Point3::new(0.0, 0.0, 0.0),
+                    Vec3::new(0.0, 0.0, 1.0),
+                    Vec3::new(1.0, 0.0, 0.0),
+                ),
+                a,
+                b,
+            ))
         };
         let over = |at: f64, dt: f64| (at - 0.5 * dt, at - 0.5 * dt + core::f64::consts::TAU + dt);
         // Centred at the minor vertex, where the edge's speed is `a`, by an
@@ -2726,13 +2662,15 @@ mod tests {
         use geom_core::k_stats::{self, Probe, SampleOutcome};
         let band = Band::linear(Tol::witness()).unwrap();
         let p = |x: f64| <Probe as geom_core::Real>::from_f64(x);
-        let carrier = geom::Curve3::Ellipse {
-            center: Point3::new(p(0.0), p(0.0), p(0.0)),
-            axis: Vec3::new(p(0.0), p(0.0), p(1.0)),
-            semi_u: p(20.0),
-            semi_v: p(1.0),
-            u_ref: Vec3::new(p(1.0), p(0.0), p(0.0)),
-        };
+        let carrier = geom::Curve3::Ellipse(geom::Ellipse::new(
+            geom::Frame::new(
+                Point3::new(p(0.0), p(0.0), p(0.0)),
+                Vec3::new(p(0.0), p(0.0), p(1.0)),
+                Vec3::new(p(1.0), p(0.0), p(0.0)),
+            ),
+            p(20.0),
+            p(1.0),
+        ));
         let Ok(Some(k)) = conic_of(
             &carrier,
             (p(0.0), p(core::f64::consts::PI)),
@@ -2776,13 +2714,15 @@ mod tests {
         let eps = band.zero();
         for a in [1.0, 4.0] {
             let b = (a * eps / 100.0).sqrt();
-            let carrier = geom::Curve3::Ellipse {
-                center: Point3::new(0.0, 0.0, 0.0),
-                axis: Vec3::new(0.0, 0.0, 1.0),
-                semi_u: a,
-                semi_v: b,
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
-            };
+            let carrier = geom::Curve3::Ellipse(geom::Ellipse::new(
+                geom::Frame::new(
+                    Point3::new(0.0, 0.0, 0.0),
+                    Vec3::new(0.0, 0.0, 1.0),
+                    Vec3::new(1.0, 0.0, 0.0),
+                ),
+                a,
+                b,
+            ));
             let Ok(Some(k)) = conic_of(
                 &carrier,
                 (0.0, core::f64::consts::TAU),
@@ -2815,13 +2755,15 @@ mod tests {
     /// semi-axes positive, not ordered. Its parameter runs a quarter
     /// turn behind the `a`-in-`major` storage's.
     fn stored_minor_first(a: f64, b: f64) -> geom::Curve3<f64> {
-        geom::Curve3::Ellipse {
-            center: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            semi_u: b,
-            semi_v: a,
-            u_ref: Vec3::new(0.0, 1.0, 0.0),
-        }
+        geom::Curve3::Ellipse(geom::Ellipse::new(
+            geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(0.0, 1.0, 0.0),
+            ),
+            b,
+            a,
+        ))
     }
 
     /// **[`an_ellipse_tighter_than_the_band_straddles_it`], stored minor
@@ -2972,13 +2914,13 @@ mod tests {
         use geom_core::k_stats::decide_reported;
         let rows = WALK_ROWS.conic;
         let (ellipse, a, b) = match *carrier {
-            geom::Curve3::Circle { radius, .. } => (false, radius, radius),
-            geom::Curve3::Ellipse { semi_u, semi_v, .. } => (true, semi_u, semi_v),
+            geom::Curve3::Circle(geom::Circle { radius, .. }) => (false, radius, radius),
+            geom::Curve3::Ellipse(geom::Ellipse { semi_u, semi_v, .. }) => (true, semi_u, semi_v),
             _ => unreachable!("a conic fixture"),
         };
         let lever = a.min(b);
         let gap = T::tau() - (t1 - t0);
-        let low = decide_reported(rows.turn, Margin::levered(gap, lever), band);
+        let low = decide_reported(rows.turn, Margin::metered(gap, InfSpeed::new(lever)), band);
         if let Ok(Decided {
             sign: Sign::Negative,
             ..
@@ -2987,13 +2929,17 @@ mod tests {
             return SpanRead::Wound;
         }
         let (sm, cm) = (t0 - gap * T::from_f64(0.5)).sin_cos();
-        let speed = ((a * sm).powi(2) + (b * cm).powi(2)).sqrt()
-            + a.abs().max(b.abs()) * gap.abs() * T::from_f64(0.5);
+        let speed =
+            ((a * sm).powi(2) + (b * cm).powi(2)).sqrt() + a.max(b) * gap.abs() * T::from_f64(0.5);
         if ellipse
             && let Ok(Decided {
                 sign: Sign::Negative,
                 ..
-            }) = decide_reported(rows.turn, Margin::levered(gap, speed), band)
+            }) = decide_reported(
+                rows.turn,
+                Margin::metered_sup(gap, geom_core::SupSpeed::new(speed)),
+                band,
+            )
         {
             return SpanRead::Escalated(match low {
                 Err(_) => Escalation::Margin,
@@ -3050,19 +2996,23 @@ mod tests {
         let eps = band.zero();
         let tau = core::f64::consts::TAU;
         let half_pi = core::f64::consts::FRAC_PI_2;
-        let circle = |radius: f64| geom::Curve3::Circle {
-            center: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            radius,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        let circle = |radius: f64| {
+            geom::Curve3::circle(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                radius,
+                Vec3::new(1.0, 0.0, 0.0),
+            )
         };
-        let ellipse = geom::Curve3::Ellipse {
-            center: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            semi_u: 16.0,
-            semi_v: 1.0,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-        };
+        let ellipse = geom::Curve3::Ellipse(geom::Ellipse::new(
+            geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
+            16.0,
+            1.0,
+        ));
         // (name, carrier, defect centre, inf rate, sup rate at the centre)
         let fixtures = [
             ("circle r=1", circle(1.0), 0.0, 1.0, 1.0),
@@ -3189,20 +3139,22 @@ mod tests {
                 (1000.0, 1.0, true),
             ] {
                 let carrier = if ellipse {
-                    geom::Curve3::Ellipse {
-                        center: Point3::new(0.0, 0.0, 0.0),
-                        axis: Vec3::new(0.0, 0.0, 1.0),
-                        semi_u: a,
-                        semi_v: b,
-                        u_ref: Vec3::new(1.0, 0.0, 0.0),
-                    }
+                    geom::Curve3::Ellipse(geom::Ellipse::new(
+                        geom::Frame::new(
+                            Point3::new(0.0, 0.0, 0.0),
+                            Vec3::new(0.0, 0.0, 1.0),
+                            Vec3::new(1.0, 0.0, 0.0),
+                        ),
+                        a,
+                        b,
+                    ))
                 } else {
-                    geom::Curve3::Circle {
-                        center: Point3::new(0.0, 0.0, 0.0),
-                        axis: Vec3::new(0.0, 0.0, 1.0),
-                        radius: a,
-                        u_ref: Vec3::new(1.0, 0.0, 0.0),
-                    }
+                    geom::Curve3::circle(
+                        Point3::new(0.0, 0.0, 0.0),
+                        Vec3::new(0.0, 0.0, 1.0),
+                        a,
+                        Vec3::new(1.0, 0.0, 0.0),
+                    )
                 };
                 for centre in [0.0f64, 0.3, core::f64::consts::FRAC_PI_2, 2.5, -1.2] {
                     let at = ((a * centre.sin()).powi(2) + (b * centre.cos()).powi(2)).sqrt();
@@ -3407,13 +3359,11 @@ mod arc_ball_rows {
     fn a_short_arc_of_a_long_ellipse_has_a_ball_of_its_own_size() {
         let (a, b) = (1e7, 1.0);
         let center = Point3::new(1.0, 0.0, 0.0) + Vec3::new(0.0, 0.0, a);
-        let carrier = geom::Curve3::Ellipse {
-            center,
-            axis: Vec3::new(1.0, 0.0, 0.0),
-            semi_u: a,
-            semi_v: b,
-            u_ref: Vec3::new(0.0, 0.0, -1.0),
-        };
+        let carrier = geom::Curve3::Ellipse(geom::Ellipse::new(
+            geom::Frame::new(center, Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 0.0, -1.0)),
+            a,
+            b,
+        ));
         let span = (-4.5e-4, 4.5e-4);
         let Some((mid, radius)) = conic_arc_ball(&carrier, span) else {
             panic!("an ellipse's arc has a ball")

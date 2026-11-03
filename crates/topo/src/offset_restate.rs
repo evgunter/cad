@@ -71,10 +71,7 @@ pub(crate) fn restate<T: geom_core::SpanLocate>(
     ) -> Result<EdgeDescriptionSpec<T>, ReplaceFaceError<T>>,
     re_ask_chart: impl FnOnce() -> Result<Option<EdgeDescriptionSpec<T>>, ReplaceFaceError<T>>,
 ) -> Result<EdgeDescriptionSpec<T>, ReplaceFaceError<T>> {
-    let declared = || match authority {
-        EdgeAuthority::Derived => Ok(None),
-        EdgeAuthority::Declared(mc) => Ok(Some(carried(mc)?)),
-    };
+    let declared = || authority.declared().map(&carried).transpose();
     Ok(match description {
         EdgeDescription::Intersection { pair, selector } => EdgeDescriptionSpec::Intersection {
             pair,
@@ -130,7 +127,7 @@ pub(crate) fn re_ask_on_pair<T: Decide>(
     surfaces: [(SurfaceKey, &geom::Surface<T>); 2],
     carrier: &geom::Curve3<T>,
     (t0, t1): (T, T),
-    reach: T,
+    reach: geom_core::Lever<T>,
     declared: impl FnOnce() -> Result<Option<MappedCurve<T>>, ReplaceFaceError<T>>,
     band: Band,
 ) -> Result<EdgeDescriptionSpec<T>, ReplaceFaceError<T>> {
@@ -159,7 +156,7 @@ pub(crate) fn re_ask_chart<T: Decide>(
     surfaces: [(SurfaceKey, &geom::Surface<T>); 2],
     carrier: &geom::Curve3<T>,
     (t0, t1): (T, T),
-    reach: T,
+    reach: geom_core::Lever<T>,
     band: Band,
 ) -> Result<Option<EdgeDescriptionSpec<T>>, ReplaceFaceError<T>> {
     geom_brep::reask_chart(surfaces, carrier, (t0, t1), reach, band)

@@ -43,7 +43,7 @@ use pncad::document::Frame;
 use pncad::geom_core::{Tol, Vec3};
 use pncad::select::face_frame;
 use viewer::display::AdmissionFault;
-use viewer::matetool::{MateTool, MateToolState};
+use viewer::matetool::{MateSeat, MateTool};
 use viewer::scene::SceneMesh;
 use viewer::session::SessionOp;
 use viewer::tree::RowStatus;
@@ -160,7 +160,13 @@ fn the_exit_demo_walk() {
     let shelf_bottom = common::displayed_face_at(&session, &index, &asm::under_shelf());
     assert_eq!(shelf_bottom.node, bench.shelf_i);
     tool.pick(session.doc(), shelf_bottom.clone());
-    assert!(matches!(tool.state(), MateToolState::Two { .. }));
+    assert!(
+        tool.rows()[0]
+            .side(pncad::document::MateSide::To)
+            .pick(MateSeat::One)
+            .is_some(),
+        "both seats are held"
+    );
 
     // ── 7. ONE COMMITTED MATE ACTION. The proposal reads each picked
     // face as a plane — post_b's top cap `on`, the shelf's underside
@@ -174,16 +180,14 @@ fn the_exit_demo_walk() {
         .node_space(bench.post_b)
         .expect("post_b is placed");
     assert!(session.display().free_move_of(own).is_some());
-    let (doc, _) = session.landed_pair().expect("landed");
-    let proposal = tool
-        .proposal(doc, asm::seat_choice())
-        .expect("the seat proposes");
+    let proposal =
+        common::proposed(&session, &tool, asm::seat_choice()).expect("the seat proposes");
     let outcome = session.perform(proposal.op_into_target_space());
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert_eq!(
         outcome.committed.len(),
-        3,
-        "the re-target, the mate and its values: {:?}",
+        2,
+        "the re-target, and the bundle written whole with the mate and its values: {:?}",
         outcome.committed
     );
     let [superseded] = &outcome.withdrawn.superseded[..] else {
@@ -272,15 +276,13 @@ fn the_exit_demo_walk() {
 
     // ── 9. SAVE and REOPEN. The document round-trips WITH the mate.
     //
-    // "Layer-3 state is gone" is scoped honestly here: the persistence
-    // schema has NO field that could carry display state, so the
-    // guarantee is structural unrepresentability — stronger than any
-    // row, and NOT one, because a freshly opened session's display
-    // state is empty by construction and the two asserts below cannot
-    // go red. They stay as executable documentation of the claim; what
-    // this stage actually GATES is the document half: the mate
-    // round-trips, every row re-resolves, and the solved placement is
-    // reproduced.
+    // The document file has NO field that could carry display state,
+    // so a hide cannot survive the reopen. A committed free-move frame
+    // is kept beside the file (`viewer::layout`, IDENTITY DI5), so the
+    // probe's absence below IS a gate: the mate superseded the probe
+    // before the save, and a reopen must not bring it back. The stage
+    // also gates the document half: the mate round-trips, every row
+    // re-resolves, and the solved placement is reproduced.
     assert!(
         !session.display().toggled().is_empty(),
         "the walk still holds layer-3 state at save time"
@@ -290,11 +292,11 @@ fn the_exit_demo_walk() {
     let reopened = asm::open_bench(&bench, tol);
     assert!(
         reopened.display().toggled().is_empty(),
-        "hide died with the session (documentation, not a gate — see above)"
+        "hide died with the session (the document file cannot carry it)"
     );
     assert!(
         crate::common::asm::frame_of(&reopened, bench.post_b).is_none(),
-        "so did the probe (documentation, not a gate — see above)"
+        "the probe the mate superseded is not saved, so it does not reopen"
     );
     let rows = reopened.tree_rows();
     assert_eq!(

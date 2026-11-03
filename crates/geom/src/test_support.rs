@@ -107,28 +107,20 @@ pub fn analytic_curves() -> Vec<AnalyticKind<Curve3<f64>>> {
         .filter_map(|kind| -> Option<AnalyticKind<Curve3<f64>>> {
             Some(match kind {
                 CurveKind::Line => AnalyticKind {
-                    build: |x| Curve3::Line {
-                        origin: pt(&x[0..3]),
-                        dir: dir(&x[3..6]),
-                    },
+                    build: |x| Curve3::line(pt(&x[0..3]), dir(&x[3..6])),
                     scalars: 6,
                 },
                 CurveKind::Circle => AnalyticKind {
-                    build: |x| Curve3::Circle {
-                        center: pt(&x[0..3]),
-                        axis: dir(&x[3..6]),
-                        radius: x[6],
-                        u_ref: dir(&x[7..10]),
-                    },
+                    build: |x| Curve3::circle(pt(&x[0..3]), dir(&x[3..6]), x[6], dir(&x[7..10])),
                     scalars: 10,
                 },
                 CurveKind::Ellipse => AnalyticKind {
-                    build: |x| Curve3::Ellipse {
-                        center: pt(&x[0..3]),
-                        axis: dir(&x[3..6]),
-                        semi_u: x[6],
-                        semi_v: x[7],
-                        u_ref: dir(&x[8..11]),
+                    build: |x| {
+                        Curve3::Ellipse(crate::Ellipse::new(
+                            crate::Frame::new(pt(&x[0..3]), dir(&x[3..6]), dir(&x[8..11])),
+                            x[6],
+                            x[7],
+                        ))
                     },
                     scalars: 11,
                 },

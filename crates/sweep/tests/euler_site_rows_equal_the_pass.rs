@@ -110,14 +110,20 @@ fn rims(body: &Body<f64>, face: FaceKey) -> Vec<EdgeKey> {
         if out.contains(&e) {
             continue;
         }
-        if let Curve3::Circle { axis, .. } = curve_of(body, e).carrier()
+        if let Curve3::Circle(geom::Circle {
+            frame: geom::Frame { axis, .. },
+            ..
+        }) = curve_of(body, e).carrier()
             && axis.y.abs() > 0.999
         {
             out.push(e);
         }
     }
     let height = |e: &EdgeKey| match curve_of(body, *e).carrier() {
-        Curve3::Circle { center, .. } => center.y,
+        Curve3::Circle(geom::Circle {
+            frame: geom::Frame { center, .. },
+            ..
+        }) => center.y,
         _ => unreachable!("a rim is a circle"),
     };
     out.sort_by(|a, b| height(a).total_cmp(&height(b)));
@@ -142,12 +148,14 @@ fn split_at(body: &mut Body<f64>, e: EdgeKey, angle: Option<f64>) -> VertexKey {
 
 /// The angle of `p` on a circle carrier.
 fn angle_on(c: &Curve3<f64>, p: Point3<f64>) -> f64 {
-    let Curve3::Circle {
-        center,
-        axis,
-        u_ref,
+    let Curve3::Circle(geom::Circle {
+        frame: geom::Frame {
+            center,
+            axis,
+            u_ref,
+        },
         ..
-    } = c
+    }) = c
     else {
         panic!("not a circle")
     };
@@ -202,7 +210,7 @@ fn ringed_tube() -> (Body<f64>, FaceKey, topo::LoopKey) {
     let seam: Vec<EdgeKey> = halves_of(&body, wall)
         .into_iter()
         .map(|he| body.get_half_edge(he).unwrap().edge)
-        .filter(|&e| matches!(curve_of(&body, e).carrier(), Curve3::Line { .. }))
+        .filter(|&e| matches!(curve_of(&body, e).carrier(), Curve3::Line(_)))
         .collect();
     assert_eq!(seam.len(), 2, "the seam's two halves bound the wall");
     let e = body.get_edge(seam[0]).unwrap();
@@ -316,12 +324,7 @@ fn meridian(
             n.normalize()
         };
         let theta = (a.dot(b) / (r * b.norm())).clamp(-1.0, 1.0).acos() * frac;
-        let circle = Curve3::Circle {
-            center: c,
-            axis,
-            radius: r,
-            u_ref: a / r,
-        };
+        let circle = Curve3::circle(c, axis, r, a / r);
         let end = circle.eval(theta);
         (
             EdgeCurveSpec::arc_of_circle(circle, 0.0, theta).unwrap(),

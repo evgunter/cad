@@ -152,15 +152,19 @@ fn every_reachable_crossing_pose_refuses_typed_or_answers_correctly() {
                 continue;
             }
             match out {
-                // The germ frame's and the fallback extent's frontier
-                // refusals are honest outcomes; an invariant is not.
+                // The frontier refusals are honest outcomes; an invariant
+                // is not. A marched pair the join carries reaches the
+                // result gate, whose volume lane has no arm yet for a
+                // spline-chorded wall
+                // (`work/spiricarm/a-projected-boundary-on-an-analytic-chart-has-no-volume-lane.md`).
                 Err(e) => assert!(
                     matches!(
                         e.kind(),
                         BooleanErrorKind::NodeUnbuilt
                             | BooleanErrorKind::GermFrameUnsupported
                             | BooleanErrorKind::FallbackExtentUnsupported
-                    ),
+                    ) || matches!(&e, BooleanError::ResultInvalid { errors }
+                        if errors.iter().all(|v| matches!(v, topo::ValidationError::VolumeUncomputable { .. }))),
                     "{name}/{op_name}: refused {:?}, not a frontier refusal: {e}",
                     e.kind()
                 ),
@@ -512,7 +516,7 @@ fn the_r6_bracket_pocket_edge_no_longer_reaches_the_corner_wall() {
             matches!(
                 pocket.get_curve_geom(e.curve).and_then(topo::CurveGeom::certified),
                 Some(c) if matches!(c.carrier(),
-                    geom::Curve3::Line { origin, dir }
+                    geom::Curve3::Line(geom::Line { origin, dir })
                         if (origin.y - 10.0).abs() < 1e-9 && dir.y.abs() < 1e-9)
             )
         })

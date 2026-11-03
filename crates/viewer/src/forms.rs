@@ -89,13 +89,13 @@ vocabulary! {
     /// authored verb by verb.
     ///
     /// An enum for the reason [`PatternLayoutChoice`] is one — and the templates
-    /// stay in it rather than being folded into the path arm because they
-    /// are not chains: a circle is a seamless closed carrier no chain of
-    /// legs can spell, and a rectangle is four `line_to`s nobody should
-    /// have to type.
+    /// stay in it rather than being folded into the path arm because each
+    /// is one complete-loop step authored by its own fields: a circle by
+    /// its centre and radius, a rectangle by its centre, width and
+    /// height.
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub(crate) enum ShapeKind {
-        /// A circle, optionally with a concentric bore.
+        /// A circle.
         Circle = "circle",
         /// A centred rectangle.
         Rectangle = "rectangle",
@@ -225,7 +225,7 @@ pub(crate) fn drag_tick(dimension: Dimension) -> f64 {
 /// this module, which holds the four constants and [`drag_tick`]
 /// beside this type; what is still open is those hand-picked call
 /// sites, which sit in `widgets`, [`crate::pane::create`] and
-/// [`crate::pane::properties`] (`work/forms/drag-tick-has-three-homes.md`).
+/// [`crate::pane::properties`] (`work/formwords/drag-tick-has-three-homes.md`).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct FieldWriting {
     /// The unit the field shows and authors in — [`props::rendering_unit`]'s

@@ -426,7 +426,7 @@ const SLAB_LEDGER: [&str; 3] = [
 /// COEFFICIENT bound (`2^186`-scale coefficients). Folding `tan` the way
 /// rule D folds `sin`/`cos` takes both lines back to 0, measured on a
 /// probe and reverted
-/// (`work/rules/rule-d-leaves-tan-of-atan-opaque-and-the-cap-apex-mints-it`).
+/// (`work/sym/rule-d-leaves-tan-of-atan-opaque-and-the-cap-apex-mints-it`).
 /// The plate's receipt is `[811, 0, 140, 462]` either way, and the
 /// `*/Report` rows stay absent.
 ///
@@ -770,7 +770,7 @@ const PLATE_MAX_TERMS: usize = 28;
 ///
 /// **Pinned at what main measures** (2026-10-29), not explained: every
 /// line moved. The plate is the two-hole plate that PR 5728 and PR 5811
-/// moved (`work/offset/main-red-three-m10-interval-pins-moved-at-5728`);
+/// moved (`work/shell/main-red-three-m10-interval-pins-moved-at-5728`);
 /// #5542's `segment_gap` moved it first, and PR 5952 took the
 /// `*/Report` lines #5542 brought away again
 /// (`work/cpair/main-red-slow-set-receipts-moved-at-5542.md`).
@@ -954,11 +954,13 @@ fn the_plains_ledger_lines_are_the_same_under_every_dial_set() {
         // #5542's merge moved every set's count (to 8 and 20) and PR 5952
         // brought the shipped sets back to none
         // (`work/cpair/main-red-slow-set-receipts-moved-at-5542.md`).
+        // PCERT E1c (every mint reads incidence first, PR 5889): the two sets render
+        // 66 where they rendered 12, the read's blocked residuals.
         ("shipped", SymRules::shipped(), None),
         (
             "without_canonical_root",
             SymRules::without_canonical_root(),
-            Some(12),
+            Some(66),
         ),
         ("without_the_reads", SymRules::without_the_reads(), None),
         (
@@ -967,7 +969,7 @@ fn the_plains_ledger_lines_are_the_same_under_every_dial_set() {
                 decision_read: false,
                 ..SymRules::without_canonical_root()
             },
-            Some(12),
+            Some(66),
         ),
     ];
     let mut seen: Option<(&str, Vec<String>)> = None;

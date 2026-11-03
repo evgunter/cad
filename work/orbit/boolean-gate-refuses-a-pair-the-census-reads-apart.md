@@ -83,3 +83,7 @@ census's reach. For the split gate, cut the ball-less-a-slab patch of
 `cross_solid_apart::a_trimmed_sphere_face_holding_its_pole_clears_only_past_it`
 by the plane `y = 0.5`: past the patch's rim at `y = 0.1`, inside the
 whole sphere's reach, on the side whose pole the patch does not hold.
+
+## Since PR 6336 (BOXES, 2026-11-02)
+
+`classify::gate_face_reach` / `torus_window_reach` are gone; the split gate reads `census::face_reach_in` for every face. (BOXES orchestrator)

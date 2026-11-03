@@ -3063,7 +3063,7 @@ mod tests {
                 point(e.he_plus),
                 point(e.he_minus),
                 |k| body.get_surface(k).cloned(),
-                1.0,
+                geom_core::test_support::fixture_lever(1.0),
                 geom_core::Band::linear(tol).unwrap(),
                 geom_brep::NurbsLane::certified(),
             )
@@ -4373,7 +4373,7 @@ mod tests {
                 body.get_curve_geom(e.curve)
                     .and_then(crate::CurveGeom::certified)
                     .is_some_and(|c| {
-                        matches!(c.carrier(), geom::Curve3::Line { origin, .. }
+                        matches!(c.carrier(), geom::Curve3::Line(geom::Line { origin, .. })
                             if (origin.x - 1.4f64.cos()).abs() < 1e-12)
                     })
             })

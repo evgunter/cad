@@ -60,12 +60,12 @@ fn sphere<T: Real>() -> Surface<T> {
 /// The meridian great circle at azimuth `u`; its parameter is the
 /// latitude on the `u` side, so `t = π/2` is the north pole.
 fn great<T: Real>(u: f64, t0: f64, t1: f64, a: u32, b: u32) -> LoopEdge<T> {
-    let carrier = Curve3::Circle {
-        center: Point3::new(f(0.0), f(0.0), f(0.0)),
-        axis: Vec3::new(f(u.sin()), f(-u.cos()), f(0.0)),
-        radius: f(RS),
-        u_ref: Vec3::new(f(u.cos()), f(u.sin()), f(0.0)),
-    };
+    let carrier = Curve3::circle(
+        Point3::new(f(0.0), f(0.0), f(0.0)),
+        Vec3::new(f(u.sin()), f(-u.cos()), f(0.0)),
+        f(RS),
+        Vec3::new(f(u.cos()), f(u.sin()), f(0.0)),
+    );
     let (lo, hi, forward) = if t0 < t1 {
         (t0, t1, true)
     } else {
@@ -76,12 +76,12 @@ fn great<T: Real>(u: f64, t0: f64, t1: f64, a: u32, b: u32) -> LoopEdge<T> {
 /// The meridian great circle at azimuth 0 with `t0` and `t1` stored
 /// VERBATIM — no sorting — so a reversed span is stated as such.
 fn great_raw(t0: f64, t1: f64, a: u32, b: u32) -> LoopEdge<f64> {
-    let carrier = Curve3::Circle {
-        center: Point3::new(0.0, 0.0, 0.0),
-        axis: Vec3::new(0.0, -1.0, 0.0),
-        radius: RS,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
-    };
+    let carrier = Curve3::circle(
+        Point3::new(0.0, 0.0, 0.0),
+        Vec3::new(0.0, -1.0, 0.0),
+        RS,
+        Vec3::new(1.0, 0.0, 0.0),
+    );
     LoopEdge::hand_built(carrier, t0, t1, true, a, b)
 }
 /// A rimless pair on one great circle: the arc `[t0, t0 + dt]` and
@@ -301,12 +301,12 @@ fn a_full_period_rim_passes_the_span_bound() {
     let bd = band();
     let rim = |v: f64, t0: f64, t1: f64, forward: bool| {
         LoopEdge::hand_built(
-            Curve3::Circle {
-                center: Point3::new(0.0, 0.0, RS * v.sin()),
-                axis: Vec3::new(0.0, 0.0, 1.0),
-                radius: RS * v.cos(),
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
-            },
+            Curve3::circle(
+                Point3::new(0.0, 0.0, RS * v.sin()),
+                Vec3::new(0.0, 0.0, 1.0),
+                RS * v.cos(),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             t0,
             t1,
             forward,
@@ -356,7 +356,7 @@ fn disp<V: core::fmt::Debug>(r: &Result<V, PropsError>) -> Disp {
 /// `certify.rs`'s check 2 on a circle carrier, its arithmetic
 /// verbatim: headroom `(τ − Δt)·r`, `Zero | Positive` admit.
 fn certification_disp<T: Decide>(t0: T, t1: T, radius: T, bd: Band) -> Disp {
-    let headroom = Margin::levered(T::tau() - (t1 - t0), radius);
+    let headroom = Margin::metered(T::tau() - (t1 - t0), geom_core::InfSpeed::new(radius));
     match decide("interval_span_winding", headroom, bd) {
         Ok(Sign::Positive | Sign::Zero) => Disp::Admit,
         Ok(Sign::Negative) => Disp::Refuse,

@@ -57,7 +57,7 @@ fn cut_of(cone: &Surface<f64>, plane: &Surface<f64>) -> ConeCut {
 /// A served pair's stored lines.
 fn lines(l1: &Curve3<f64>, l2: &Curve3<f64>) -> [(P3, P3); 2] {
     [l1, l2].map(|l| {
-        let Curve3::Line { origin, dir } = *l else {
+        let Curve3::Line(geom::Line { origin, dir }) = *l else {
             panic!("a line outcome carries a line, got {l:?}");
         };
         (p3(origin), w3(dir))
@@ -112,12 +112,11 @@ fn window(lo: f64, hi: f64, lever: f64) -> Reach<f64> {
 }
 
 fn window_at(apex: Point3<f64>, lo: f64, hi: f64, lever: f64) -> Reach<f64> {
-    Reach::Face {
-        at: apex,
-        below: -lo,
-        above: hi,
-        across: lever,
-    }
+    Reach::of_face(
+        apex,
+        (-lo, hi),
+        geom_core::test_support::fixture_lever(lever),
+    )
 }
 
 /// The lean that puts the discriminant `D = −cos(α + θ)` at `d`.
@@ -640,10 +639,7 @@ fn through_the_apex_reads_its_gaps_rounding(label: &str, pose: Pose) -> Option<S
         "{label}: the fixture reads its gap {kernel:e}, against the oracle's {:e}",
         cut.gap()
     );
-    let reach = Reach::Measured {
-        at: apex + axis * 2.0,
-        lever: 2.0,
-    };
+    let reach = Reach::of_frame(apex + axis * 2.0, (2.0, 2.0));
     if let Ok(PlaneConeSection::ApexLinePair { l1, l2 }) = plane_cone_section(&p, &c, &reach, band)
     {
         let worst = cut.miss(&lines(&l1, &l2), (0.0, 4.0 / alpha.cos()));

@@ -71,15 +71,9 @@ fn from_rim(
 ) -> Result<Vec<ChartMeeting<f64>>, SplineFaceRefusal> {
     let at = cylinder().eval(u, 0.0);
     if toward {
-        read(
-            &Curve3::Line {
-                origin: at - dir * 0.5,
-                dir,
-            },
-            (0.0, 0.5),
-        )
+        read(&Curve3::line(at - dir * 0.5, dir), (0.0, 0.5))
     } else {
-        read(&Curve3::Line { origin: at, dir }, (0.0, 0.5))
+        read(&Curve3::Line(geom::Line { origin: at, dir }), (0.0, 0.5))
     }
 }
 
@@ -153,10 +147,10 @@ fn hook() -> NurbsSurface<f64> {
 #[test]
 fn a_crossing_within_the_sectors_reach_is_found() {
     let chart = hook();
-    let out = Curve3::Line {
-        origin: Point3::new(0.0, 5.0, 0.0),
-        dir: Vec3::new(1.0, 0.0, -0.5).normalize(),
-    };
+    let out = Curve3::line(
+        Point3::new(0.0, 5.0, 0.0),
+        Vec3::new(1.0, 0.0, -0.5).normalize(),
+    );
     let got = crate::NurbsLane::<f64>::certified().chart_meetings(&out, (0.0, 2.0), &chart, band());
     let found = got.unwrap_or_else(|e| panic!("the crossing reads: {e:?}"));
     assert_eq!(found.len(), 1, "one crossing past the end: {found:?}");

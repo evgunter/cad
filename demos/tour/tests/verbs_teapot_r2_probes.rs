@@ -383,11 +383,14 @@ fn r2_ring_anatomy_on_a_drum() {
                     .get_curve_geom(ed.curve)
                     .and_then(|g| g.certified())
                     .map(|c| match c.carrier() {
-                        Curve3::Line { .. } => "line".to_string(),
-                        Curve3::Circle { center, radius, .. } => {
+                        Curve3::Line(_) => "line".to_string(),
+                        Curve3::Circle(pncad::geom::Circle {
+                            frame: pncad::geom::Frame { center, .. },
+                            radius,
+                        }) => {
                             format!("circle(c.y={:.4}, r={:.4})", center.y, radius)
                         }
-                        Curve3::Ellipse { .. } => "ellipse".to_string(),
+                        Curve3::Ellipse(..) => "ellipse".to_string(),
                         Curve3::Spiric { .. } => "spiric".to_string(),
                         Curve3::Nurbs(_) => "nurbs".to_string(),
                     })

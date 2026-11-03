@@ -133,5 +133,5 @@ root (branch `sect/near-node-at-1e-6`).
   `a-cylinder-sphere-march-near-its-node-costs-seconds-and-refuses-by-budget`).
 
 Filed: `work/issues/a-closed-splines-projection-stops-at-its-start-short-of-the-seam.md`,
-`work/ssimarch/the-chart-and-pair-tubes-are-held-by-their-coarsest-box.md`,
+`work/ssiarith/the-chart-and-pair-tubes-are-held-by-their-coarsest-box.md`,
 `work/ciw/the-slow-tests-a-diff-adds-run-at-the-default-eps-only.md`.

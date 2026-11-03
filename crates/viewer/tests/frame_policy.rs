@@ -3633,9 +3633,9 @@ fn a_survival_drop_rides_beside_a_refusal_and_a_declined_pick_does_not() {
     );
     let dropped = frame::tool_notice(
         &ToolNotice::Seated {
-            tool: ToolKind::Revolve,
+            tool: ToolKind::Split,
             event: SeatEvent::PickLost {
-                seat: Seat::RevolveProfile,
+                seat: Seat::SplitTarget,
                 node: viewer::test_support::spoken(RecipeNodeId::new(0, tagged(4)), None),
             },
         },
@@ -3653,7 +3653,7 @@ fn a_survival_drop_rides_beside_a_refusal_and_a_declined_pick_does_not() {
     assert_eq!(
         all.text(),
         "blend tool: the held edges are on node 000000000003, so the edge of node 000000000005 \
-         was not taken; cancel to start on another body \u{2022} revolve tool: the profile \
+         was not taken; cancel to start on another body \u{2022} split tool: the split target \
          pick (node 000000000004) is no longer in the document; the tool dropped it \u{2022} mate tool: \
          no landed evaluation to derive frames from"
     );
@@ -3667,8 +3667,8 @@ fn a_survival_drop_rides_beside_a_refusal_and_a_declined_pick_does_not() {
     };
     assert_eq!(
         line.text(),
-        "nothing to undo \u{2022} revolve tool: the profile pick (node 000000000004) is no longer in the \
-         document; the tool dropped it"
+        "nothing to undo \u{2022} split tool: the split target pick (node 000000000004) is no longer \
+         in the document; the tool dropped it"
     );
 }
 
@@ -3841,7 +3841,9 @@ fn every_tool_event_says_whether_anything_will_say_it_again() {
         (
             "mate: a held pick lost",
             ToolNotice::Mate(MateToolEvent::PickLost {
+                row: 0,
                 side: MateSide::To,
+                seat: viewer::matetool::MateSeat::One,
                 pick: viewer::tree::HeldPick::new(
                     &pncad::document::Doc::empty_derived("cases", Tol::witness()),
                     viewer::matetool::MatePick::Face(FaceSelection {
@@ -3958,13 +3960,10 @@ fn a_panel_refusal_opens_with_its_panels_name_and_is_said_again() {
             "add profile: the distance is not a number",
         ),
         (FormKind::Extrude, "extrude: the distance is not a number"),
+        (FormKind::Revolve, "revolve: the distance is not a number"),
         (
             FormKind::EditProfile,
             "edit profile: the distance is not a number",
-        ),
-        (
-            FormKind::RevertProfile,
-            "revert profile: the distance is not a number",
         ),
         (FormKind::Label, "label: the distance is not a number"),
     ];
@@ -3974,8 +3973,8 @@ fn a_panel_refusal_opens_with_its_panels_name_and_is_said_again() {
         .map(|(form, text)| (format!("{form:?}"), form.refuses(&why), text))
         .chain([(
             "a seated tool".to_owned(),
-            ToolKind::Revolve.refuses(&why),
-            "revolve tool: the distance is not a number",
+            ToolKind::Split.refuses(&why),
+            "split tool: the distance is not a number",
         )]);
     for (what, refusal, text) in cases {
         let message = frame::tool_news(&refusal);

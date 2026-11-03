@@ -429,12 +429,12 @@ mod tests {
     /// solid in one arena.
     fn arcs(spans: [(f64, f64); 2]) -> (Body<f64>, [EdgeKey; 2]) {
         let tol = Tol::witness();
-        let c = geom::Curve3::Circle {
-            center: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::unit_z(),
-            radius: 1.0,
-            u_ref: Vec3::unit_x(),
-        };
+        let c = geom::Curve3::circle(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::unit_z(),
+            1.0,
+            Vec3::unit_x(),
+        );
         let mut body = Body::<f64>::new();
         let edges = spans.map(|(t0, t1)| {
             let (t0, t1) = (t0.to_radians(), t1.to_radians());
@@ -486,26 +486,19 @@ mod tests {
     }
 
     fn ellipse(major: f64, minor: f64, u_ref: Vec3<f64>) -> Curve3<f64> {
-        Curve3::Ellipse {
-            center: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::unit_z(),
-            semi_u: major,
-            semi_v: minor,
-            u_ref,
-        }
+        Curve3::Ellipse(geom::Ellipse::new(
+            geom::Frame::new(Point3::new(0.0, 0.0, 0.0), Vec3::unit_z(), u_ref),
+            major,
+            minor,
+        ))
     }
 
     fn circle(center: Point3<f64>, radius: f64) -> Curve3<f64> {
-        Curve3::Circle {
-            center,
-            axis: Vec3::unit_z(),
-            radius,
-            u_ref: Vec3::unit_x(),
-        }
+        Curve3::circle(center, Vec3::unit_z(), radius, Vec3::unit_x())
     }
 
     fn line(origin: Point3<f64>, dir: Vec3<f64>) -> Curve3<f64> {
-        Curve3::Line { origin, dir }
+        Curve3::Line(geom::Line { origin, dir })
     }
 
     /// The rational quadratic arc from `(0, 0)` to `(2, 0)` through
@@ -829,12 +822,7 @@ mod tests {
         ] {
             let mut body = Body::<f64>::new();
             let mut arc = |center: Point3<f64>, radius: f64, (t0, t1): (f64, f64)| {
-                let c = geom::Curve3::Circle {
-                    center,
-                    axis: Vec3::unit_z(),
-                    radius,
-                    u_ref: Vec3::unit_x(),
-                };
+                let c = geom::Curve3::circle(center, Vec3::unit_z(), radius, Vec3::unit_x());
                 let (t0, t1) = (t0.to_radians(), t1.to_radians());
                 let born = body.mvfs(c.eval(t0), true).unwrap();
                 body.mev(

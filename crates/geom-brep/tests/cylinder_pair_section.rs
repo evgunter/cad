@@ -49,7 +49,7 @@ fn placed(about: Vec3<f64>, angle: f64, to: (f64, f64, f64)) -> Surface<f64> {
 /// The operation's region for two unit-long drums about the origin: the
 /// ball about their boxes' overlap, padded.
 fn region() -> ExtentBall<f64> {
-    ExtentBall::new(Point3::origin(), 2.0)
+    ExtentBall::of_sphere(Point3::origin(), 2.0)
 }
 
 fn built(a: &Surface<f64>, b: &Surface<f64>, region: ExtentBall<f64>) -> PairSection<f64> {
@@ -144,9 +144,8 @@ fn parallel_drums_cut_in_two_rulings_cut_by_the_region() {
 
 /// **Crossing axes in the survey's skew and one-loop poses** (p1 at
 /// exactly a right angle, p2, p3, p5): no tangency, and the components
-/// carried through the march, every carried point on both walls. Where
-/// the region holds the pair's ball the count is the closed form's;
-/// where it cuts the ball the components are the march's, closed or cut.
+/// the ruling sweep counts carried through the march, every carried
+/// point on both walls, each a loop or an arc the region cuts.
 #[test]
 fn the_surveys_crossing_poses_are_on_the_value_and_carry() {
     let poses = [
@@ -181,8 +180,7 @@ fn the_surveys_crossing_poses_are_on_the_value_and_carry() {
             assert!(c.certificate.is_some(), "{label}: a fitted component");
             near_both(c.witness, c.pad + band().zero(), &a, b, label);
             match (&section.components(), c.shape) {
-                (Components::Counted(_), ComponentShape::Loop) => {}
-                (Components::Marched, ComponentShape::Loop | ComponentShape::Open { .. }) => {}
+                (Components::Counted(_), ComponentShape::Loop | ComponentShape::Open { .. }) => {}
                 (listed, shape) => panic!("{label}: {shape:?} under {listed:?}"),
             }
         }
@@ -224,18 +222,46 @@ fn crossing_walls_count_one_or_two_loops_by_the_nest() {
     }
 }
 
-/// **A region that cuts the section lists the march's components**:
-/// the survey's p2 over a region of radius 0.6 about the origin, which
-/// cuts the pair's one loop, carries components that end on the region.
+/// **A region that cuts the section counts its cut arcs**: the survey's
+/// p2 over a region of radius 0.6 about the origin, which cuts the pair's
+/// one loop. The ruling sweep lists arcs that end on the region, each
+/// with its two cut ends on the region's sphere, and the march carries
+/// branches that end there, at the sphere and not the cube about it.
 #[test]
 fn a_region_that_cuts_the_loop_carries_cut_components() {
     let (a, b) = (drum(), placed(Vec3::unit_x(), 0.7, (0.1, 0.35, 0.2)));
-    let section = built(&a, &b, ExtentBall::new(Point3::origin(), 0.6));
-    assert!(
-        matches!(section.components(), Components::Marched),
-        "cut: marched"
-    );
+    let region = ExtentBall::of_sphere(Point3::origin(), 0.6);
+    let section = built(&a, &b, region);
+    let arcs = listed(&section);
+    assert!(!arcs.is_empty(), "the region cuts the loop");
+    for c in arcs {
+        let ends = c
+            .cut_ends
+            .expect("an arc the region cuts names its cut ends");
+        for p in ends {
+            on_both(p, &a, &b, "a cut end");
+            let off = (p - region.center()).norm() - region.radius();
+            // Placed to where its side of the sphere stops deciding.
+            assert!(
+                off.abs() <= 10.0 * band().zero(),
+                "a cut end on the region's sphere: {off:e}"
+            );
+        }
+    }
     let carried = section.carry(Some(SsiLane::marched()), band()).unwrap();
+    assert_eq!(carried.components().len(), arcs.len(), "one branch per arc");
+    // Each branch ends where its arc leaves the region, not past it on
+    // the march domain's cube.
+    for c in carried.components() {
+        for t in [c.span.0, c.span.1] {
+            let off = (c.carrier.eval(t) - region.center()).norm() - region.radius();
+            assert!(
+                off.abs() <= c.pad + 10.0 * band().zero(),
+                "a branch end on the region's sphere: {off:e} (pad {:e})",
+                c.pad
+            );
+        }
+    }
     assert!(
         carried.components().iter().any(|c| c.shape
             == ComponentShape::Open {
@@ -352,21 +378,22 @@ fn walls_touching_outside_are_one_point() {
 /// across the rods' own size (3e-7 rad at ε 1e-9). Over a region that
 /// size they read parallel; over a 1 m region the tilt moves the section
 /// by `300 ε` and they read crossing, the pair's own ball (`2r/θ`, far
-/// past the region) cut by the region, so marched.
+/// past the region) cut by the region.
 ///
-/// The march then refuses typed, at every tolerance row: limb 3 cannot
-/// prove one arc in the tube of either nearly parallel arc
-/// (`ssi_tube_one_arc` undecided). This row pins that refusal; it moves
-/// when the accounting
-/// design (`work/sectarms/a-near-parallel-pairs-accounting-grows-with-the-operation-region.md`)
-/// lands.
+/// The ruling sweep counts that section in two arcs across the region,
+/// each with its two cut ends on the region's sphere, with no 3-D sweep
+/// (at ε 1e-12 the tilt's inverse levers the meetings' rounding past the
+/// band, and the sweep escalates on `ruling_cut` instead).
+/// The march then refuses typed: limb 3 cannot prove one arc in the tube
+/// of either 2 m, nearly parallel arc (`ssi_tube_one_arc` undecided;
+/// `work/ssiarith/limb-three-reads-no-margin-on-a-long-near-parallel-cylinder-arc.md`).
 #[test]
 fn thin_rods_read_crossing_at_the_region_and_refuse_typed() {
     let r = 1e-3;
     let tilt = 0.3 * band().zero() / r;
     let a = wall(Point3::origin(), Vec3::unit_z(), r);
     let b = wall(Point3::new(5e-4, 0.0, 0.0), turned(Vec3::unit_x(), tilt), r);
-    let near = built(&a, &b, ExtentBall::new(Point3::origin(), r));
+    let near = built(&a, &b, ExtentBall::of_sphere(Point3::origin(), r));
     assert!(
         matches!(
             near.pose(),
@@ -375,7 +402,21 @@ fn thin_rods_read_crossing_at_the_region_and_refuse_typed() {
         ),
         "levered at the rods' size the tilt reads parallel"
     );
-    let far = built(&a, &b, ExtentBall::new(Point3::origin(), 1.0));
+    let far_region = ExtentBall::of_sphere(Point3::origin(), 1.0);
+    // At ε 1e-12 the tilt is 3e-10 rad, and the meetings' rounding,
+    // levered by its inverse, outgrows the band about the region's sphere:
+    // the sweep cannot place a cut end and escalates on the cut's row.
+    if band().zero() < 1e-10 {
+        match geom_brep::pair_section(&a, &b, Some(far_region), None, band()) {
+            Err(SectionError::Escalated(diag)) => assert!(
+                diag.predicate.is_some_and(|p| p.starts_with("ruling_cut")),
+                "on the cut: {diag:?}"
+            ),
+            other => panic!("at ε {:e} the sweep escalates: {other:?}", band().zero()),
+        }
+        return;
+    }
+    let far = built(&a, &b, far_region);
     let geom_brep::PairPose::CylinderCylinder(pose) = far.pose() else {
         panic!("a cylinder pair's pose");
     };
@@ -383,10 +424,21 @@ fn thin_rods_read_crossing_at_the_region_and_refuse_typed() {
         matches!(pose.stance(), geom_brep::CcStance::Crossing { .. }),
         "levered at the region the tilt reads crossing"
     );
-    assert!(
-        matches!(far.components(), Components::Marched),
-        "cut: marched"
-    );
+    let arcs = listed(&far);
+    assert_eq!(arcs.len(), 2, "two arcs across the region");
+    for c in arcs {
+        let ends = c
+            .cut_ends
+            .expect("an arc the region cuts names its cut ends");
+        for p in ends {
+            let off = (p - Point3::origin()).norm() - 1.0;
+            assert!(
+                off.abs() <= 10.0 * band().zero(),
+                "on the region's sphere: {off:e}"
+            );
+            near_both(p, 10.0 * band().zero(), &a, &b, "a cut end");
+        }
+    }
     let got = far.carry(Some(SsiLane::marched()), band());
     assert!(
         matches!(
@@ -556,7 +608,7 @@ fn meeting_axes_of_two_radii_cut_in_two_loops_about_the_thinner_wall() {
 /// 0.1 at `(0, 0, 30)`.
 #[test]
 fn a_region_clear_of_the_pair_lists_nothing() {
-    let far = ExtentBall::new(Point3::new(0.0, 0.0, 30.0), 0.1);
+    let far = ExtentBall::of_sphere(Point3::new(0.0, 0.0, 30.0), 0.1);
     let a = drum();
     let poses = [
         ("rulings", placed(Vec3::unit_x(), 0.0, (0.45, 0.1, 0.05))),
@@ -601,7 +653,7 @@ fn a_region_that_cuts_the_bisector_flags_the_long_arcs_cut() {
     let (a, b) = (drum(), placed(Vec3::unit_y(), 0.4, (0.6, 0.0, 0.0)));
     let whole = built(&a, &b, region());
     let meet = whole.nodes()[0] + (whole.nodes()[1] - whole.nodes()[0]) * 0.5;
-    let section = built(&a, &b, ExtentBall::new(meet, 0.6));
+    let section = built(&a, &b, ExtentBall::of_sphere(meet, 0.6));
     let got = listed(&section);
     assert_eq!(got.len(), 4, "four arcs");
     let cut: Vec<bool> = got
@@ -631,7 +683,7 @@ fn a_ruling_the_region_misses_is_not_listed() {
     let (a, b) = (drum(), placed(Vec3::unit_x(), 0.0, (0.45, 0.1, 0.05)));
     let whole = built(&a, &b, region());
     let p = listed(&whole)[0].witness.expect("a witness");
-    let section = built(&a, &b, ExtentBall::new(p, 0.05));
+    let section = built(&a, &b, ExtentBall::of_sphere(p, 0.05));
     let got = listed(&section);
     assert_eq!(got.len(), 1, "one ruling reaches the region");
     let w = got[0].witness.expect("a witness");
@@ -641,18 +693,30 @@ fn a_ruling_the_region_misses_is_not_listed() {
     );
 }
 
-/// **A region off the pair that cuts its loop does not count it**: p2's
-/// one loop against a ball of radius 3.2 about `(0, 0, 3)`, which holds
-/// the pair's ball's size but not its place.
+/// **A region off the pair counts the arc it cuts**: p2's one loop
+/// against a ball of radius 3.2 about `(0, 0, 3)`, which holds the
+/// pair's ball's size but not its place and cuts the loop once across:
+/// one arc, its two cut ends named, carried by one branch.
 #[test]
-fn a_region_off_the_pair_that_cuts_the_loop_marches_it() {
+fn a_region_off_the_pair_counts_the_arc_it_cuts() {
     let (a, b) = (drum(), placed(Vec3::unit_x(), 0.7, (0.1, 0.35, 0.2)));
-    let section = built(&a, &b, ExtentBall::new(Point3::new(0.0, 0.0, 3.0), 3.2));
-    assert!(
-        matches!(section.components(), Components::Marched),
-        "cut by the region: {:?}",
-        section.components()
+    let section = built(
+        &a,
+        &b,
+        ExtentBall::of_sphere(Point3::new(0.0, 0.0, 3.0), 3.2),
     );
+    let got = listed(&section);
+    assert_eq!(got.len(), 1, "one arc: {got:?}");
+    assert_eq!(
+        got[0].shape,
+        ComponentShape::Open {
+            ends: ComponentEnds::cut()
+        },
+        "cut by the region"
+    );
+    assert!(got[0].cut_ends.is_some(), "its cut ends");
+    let carried = section.carry(Some(SsiLane::marched()), band()).unwrap();
+    assert_eq!(carried.components().len(), 1, "one branch");
 }
 
 /// **Every carried point lies within the domain's ball**: the
@@ -671,7 +735,7 @@ fn the_carried_loop_lies_within_the_pairs_ball() {
         geom_brep::RegionPlacement::Inside,
         "the region holds it"
     );
-    let ball = pose.ball();
+    let ball = pose.region();
     let carried = section.carry(Some(SsiLane::marched()), band()).unwrap();
     for c in carried.components() {
         for i in 0..=64 {
@@ -679,5 +743,73 @@ fn the_carried_loop_lies_within_the_pairs_ball() {
             let out = (c.carrier.eval(t) - ball.center()).norm() - ball.radius();
             assert!(out <= c.pad, "{out:e} past the pair's ball");
         }
+    }
+}
+
+/// **A region through a branch point escalates**: perpendicular walls
+/// `r₁ = 0.5` about `z` and `r₂ = 0.2` about `x`, `e = 0.4` apart, cross
+/// in one loop whose two branch points (where a ruling of the thinner
+/// wall touches the fatter one) stand at `(0, 0.5, ±0.1·√3)`. A region
+/// about the origin whose sphere runs through both cannot say on which
+/// side of it the loop leaves there, and escalates on the branch cell's
+/// reading; a region a millimetre smaller or larger counts the arcs.
+#[test]
+fn a_region_through_a_branch_point_escalates() {
+    let a = drum();
+    let b = wall(Point3::new(0.0, 0.4, 0.0), Vec3::unit_x(), 0.2);
+    let through = (0.25f64 + 0.03).sqrt();
+    match geom_brep::pair_section(
+        &a,
+        &b,
+        Some(ExtentBall::of_sphere(Point3::origin(), through)),
+        None,
+        band(),
+    ) {
+        Err(SectionError::Escalated(diag)) => assert!(
+            diag.predicate
+                .is_some_and(|p| p.starts_with("ruling_branch_cut")),
+            "on the branch cell: {diag:?}"
+        ),
+        other => panic!("a sphere through the branch points escalates: {other:?}"),
+    }
+    // Either side of it the sphere cuts the saddle-shaped loop in arcs
+    // the march carries one to one.
+    for (what, radius) in [("smaller", through - 1e-3), ("larger", through + 1e-3)] {
+        let section = built(&a, &b, ExtentBall::of_sphere(Point3::origin(), radius));
+        let got = listed(&section);
+        assert!(
+            !got.is_empty() && got.iter().all(|c| c.cut_ends.is_some()),
+            "{what}: arcs the region cuts, {got:?}"
+        );
+        let carried = section
+            .carry(Some(SsiLane::marched()), band())
+            .unwrap_or_else(|e| panic!("{what}: carries: {e:?}"));
+        assert_eq!(
+            carried.components().len(),
+            got.len(),
+            "{what}: one branch per arc"
+        );
+    }
+}
+
+/// **A branch point on one of the sweep's first cuts is counted**:
+/// perpendicular walls `r = 0.5` about `z` and `ρ = 0.2` about `x`, the
+/// gap `e = 0.5 − 0.2·cos(π/4)` placing a branch point of the thinner
+/// wall's sweep at `φ = π/4` or `3π/4` (as the frame falls), both cuts of
+/// the turn's first 32. There `Δ` reads zero, so a cell ending there
+/// could not decide its end; the sweep cuts off the zero and counts the
+/// one loop the region holds, in both orders.
+#[test]
+fn a_branch_point_on_a_first_cut_is_counted() {
+    let a = drum();
+    let e = 0.5 - 0.2 * core::f64::consts::FRAC_PI_4.cos();
+    let b = wall(Point3::new(0.0, e, 0.0), Vec3::unit_x(), 0.2);
+    for (label, x, y) in [("a, b", &a, &b), ("b, a", &b, &a)] {
+        let section = built(x, y, region());
+        let got = listed(&section);
+        assert!(
+            got.len() == 1 && got[0].shape == ComponentShape::Loop,
+            "{label}: one loop, {got:?}"
+        );
     }
 }

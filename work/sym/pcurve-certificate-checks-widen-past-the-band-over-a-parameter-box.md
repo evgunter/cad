@@ -164,7 +164,7 @@ bounded has come back:
   and `(24, 22, 14, 0)` at 1e-12. The metered frame costs the
   `l = 50, b = 1e-4` walls about `6e-10` m, since their `u_ref` is a rim
   normalised at `Interval`
-  (`work/pctail/pcurve-envelope-escalates-at-interval-on-a-wide-arc.md`,
+  (`work/pcert/pcurve-envelope-escalates-at-interval-on-a-wide-arc.md`,
   reopened).
 - **The tour**: the tolerance study certifies 99.46%. `chaintol` is
   bounded by the placed rows' `pcurve_loop_continuity` and
@@ -174,4 +174,4 @@ bounded has come back:
 
 ## Closed
 
-Closed by PCERT's PR 3812 (on main via 3759, 82b52c36c): the nine certified-lane reds this row named are green or re-pinned with their residue rowed. What stays is rowed on its own: the bracket and pad at M10-9 scale (`work/pcert/fillet-meridian-radius-term-is-registered-only`), the chain's wall (`work/pcert/pcurve-loop-decisions-state-a-3d-identity-plus-a-branch-margin`) and the shallow-arc Interval grid (`work/pctail/pcurve-envelope-escalates-at-interval-on-a-wide-arc`).
+Closed by PCERT's PR 3812 (on main via 3759, 82b52c36c): the nine certified-lane reds this row named are green or re-pinned with their residue rowed. What stays is rowed on its own: the bracket and pad at M10-9 scale (`work/pcert/fillet-meridian-radius-term-is-registered-only`), the chain's wall (`work/pcert/pcurve-loop-decisions-state-a-3d-identity-plus-a-branch-margin`) and the shallow-arc Interval grid (`work/pcert/pcurve-envelope-escalates-at-interval-on-a-wide-arc`).
