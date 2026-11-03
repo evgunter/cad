@@ -2,11 +2,11 @@
 id: split-section-boundary-curved-arm-untested-past-the-edge-gate
 kind: issue
 title: The section-boundary describer's Spiric/Nurbs arm has no test, because the split operand gate refuses those edge kinds first
-status: dispatched
+status: parked
 opened: 2026-10-01
-priority: P1
+priority: P3
 cost: E
-branch: splice/kind-reads
+blocked_on: [the-plane-split-reads-no-crossing-of-a-spline-edge]
 ---
 
 Filed by CLEAVE's edge-midpoint lane (PR 3645).
@@ -43,7 +43,7 @@ From GAUGE. Moved by `git mv` in the chat-approved refold that opened SPLICE (`w
 spline face, so a section edge on a loft wall would refuse at the arm
 (`"dihedral_arm"`, invalid) before it is described. The boolean's seam
 describer reads the same question through `geom_brep::classify_seam`,
-each spline face at the edge's pcurve on it (`topo::boolean::ops::seam_face`);
+each spline face at the edge's pcurve on it (`topo::pcurves::seam_face`);
 the split's describer is the same shape and wants the same reading when
 its gate admits a NURBS edge. The split's sector rule
 (`splitting::rules`, its `classify_dihedral` at a vertex) is the same
@@ -56,3 +56,29 @@ case at a vertex.
 Moved from SPLICE to SPLICESEAM on 2026-10-28, by `git mv` in SPLICE's split along its seams (Track size; Ev, in chat, 2026-10-28).
 
 Moved from SPLICESEAM to SPLICE on 2026-11-02, by `git mv`, when SPLICESEAM merged back into SPLICE: the track budget now counts only the P0, P1 and unbanded rows a sitting dispatches (Ev, in chat, 2026-11-02), so the four tracks of SPLICE's 2026-10-28 split came in under one budget.
+
+## 2026-11-03: one home landed; the test is still owed (SPLICE `splice/kind-reads`, PR 6437)
+
+`describe_section_boundary` now reads the dihedral through the boolean
+seam describer's own reading: `topo::pcurves::seam_face` (each face as a
+`pcurves::SeamSide`, a spline face at the edge's image on its own chart)
+and `topo::pcurves::seam_reading` (`geom_brep::classify_seam`), moved
+there from `boolean::ops`, which calls them as before. On two analytic
+faces that is `classify_dihedral` bit for bit, so nothing reaching the arm
+today reads otherwise. A spline face with no image of the edge, or no one
+normal at the witness, refuses `SplitFinishError::Undescribed` with the
+boolean's own `EdgeDescribeFailure::Unplaced` / `Crease`. The arm's
+`Smooth` branch (`classify_material_pairing`, `folded_lever_arm`,
+`must_carry_description`) still reads implicit forms, which escalate on a
+spline face: the next door once one reaches here.
+
+The test this row asks for is owed when an input reaches the arm, and none
+does: `splitting::classify::carrier_gate` still refuses a Spiric or Nurbs
+edge the plane may meet (`CurvedEdgeUnsupported`), whose retirement is
+`work/parting/the-plane-split-reads-no-crossing-of-a-spline-edge`, and a
+NURBS or Approx face it may meet (`CurvedBooleanUnsupported`), which no
+open row retires.
+
+## Parked (SPLICE, PR 6437, 2026-11-03)
+
+The describer's fix landed: the split reads the seam through the boolean's own reading (`pcurves::seam_reading`), and the test is owed when an input reaches the arm. Re-banded P3, since a guard does not inherit the band of what it guards. It is parked on `parting/the-plane-split-reads-no-crossing-of-a-spline-edge`, the row that retires the split gate's refusal of a spline edge. No open row retires its refusal of a NURBS face.

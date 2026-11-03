@@ -3061,18 +3061,20 @@ pub(crate) fn describe_edges<T: Decide + crate::props::AtRestPolicy>(
         let reach =
             crate::wedge_reach(body, [sides.plus.face, sides.minus.face], carrier, interval);
         let witness = draft.witness;
-        let face = |side, surface| seam_face(body, edge, side, surface, existing.as_ref(), band);
+        let face = |side: crate::readback::EdgeSide, surface| {
+            crate::pcurves::seam_face(body, side.half_edge, surface, existing.as_ref(), band)
+                .ok_or_else(|| DescribeRefusal::failed(edge, EdgeDescribeFailure::Unplaced))
+        };
         let faces = [face(sides.plus, surf1)?, face(sides.minus, surf2)?];
-        match seam_reading(faces, witness, reach, band).map_err(|refusal| match refusal {
-            geom_brep::SeamEscalation::Lever(e) => {
-                let (reading, diag) = DihedralReading::of_lever(e);
-                DescribeRefusal::undecided(edge, reading, diag)
-            }
-            geom_brep::SeamEscalation::Crease(_) => {
-                DescribeRefusal::failed(edge, EdgeDescribeFailure::Crease)
-            }
-            geom_brep::SeamEscalation::SplineReadAsAnalytic => {
-                unreachable!("seam_face reads every spline face by its chart")
+        match crate::pcurves::seam_reading(faces, witness, reach, band).map_err(|refusal| {
+            match refusal {
+                crate::pcurves::SeamUnread::Lever(e) => {
+                    let (reading, diag) = DihedralReading::of_lever(e);
+                    DescribeRefusal::undecided(edge, reading, diag)
+                }
+                crate::pcurves::SeamUnread::Crease(_) => {
+                    DescribeRefusal::failed(edge, EdgeDescribeFailure::Crease)
+                }
             }
         })? {
             geom_brep::DihedralClass::Transverse => {
@@ -3214,77 +3216,19 @@ pub(super) fn seam_class<T: Decide + crate::props::AtRestPolicy>(
     reach: T,
     band: Band,
 ) -> Result<geom_brep::DihedralClass, BooleanError> {
-    let faces = [surf1, surf2].map(geom_brep::SeamFace::Analytic);
+    let faces = [surf1, surf2].map(|s| {
+        crate::pcurves::SeamSide::analytic(s)
+            .unwrap_or_else(|| unreachable!("seam_class reads analytic pairs: {s:?}"))
+    });
     let reach = geom_core::test_support::fixture_lever(reach);
-    seam_reading(faces, witness, reach, band).map_err(|refusal| match refusal {
-        geom_brep::SeamEscalation::Lever(e) => {
+    crate::pcurves::seam_reading(faces, witness, reach, band).map_err(|refusal| match refusal {
+        crate::pcurves::SeamUnread::Lever(e) => {
             let (reading, diag) = DihedralReading::of_lever(e);
             seam_refusal(reading, diag)
         }
-        geom_brep::SeamEscalation::Crease(_) | geom_brep::SeamEscalation::SplineReadAsAnalytic => {
+        crate::pcurves::SeamUnread::Crease(_) => {
             unreachable!("seam_class reads analytic pairs: {surf1:?} {surf2:?}")
         }
-    })
-}
-
-/// `seam_class`'s reading, unworded: the dihedral of the seam's two
-/// faces, each read by its kind ([`geom_brep::classify_seam`]).
-fn seam_reading<T: Decide + crate::props::AtRestPolicy>(
-    faces: [geom_brep::SeamFace<'_, T>; 2],
-    witness: Point3<T>,
-    reach: geom_core::Lever<T>,
-    band: Band,
-) -> Result<geom_brep::DihedralClass, geom_brep::SeamEscalation> {
-    geom_brep::classify_seam(
-        faces,
-        witness,
-        reach,
-        |chart, p, reach| T::spline_chart_arm(chart, p, reach).ok(),
-        band,
-    )
-}
-
-/// **A face of a seam edge, as its dihedral reads it** at the edge's
-/// witness ([`geom_brep::SeamFace`]): an analytic face at the witness;
-/// a spline face at the witness's parameters on its own chart, read off
-/// an image of the edge in that chart ([`crate::pcurves::pcurve_of`]) at
-/// the edge's own parameter of the witness, the middle of its interval.
-/// The image is the stored one where the half-edge has it, and otherwise
-/// the one the chart's description derives, an iso row or arc rim of the
-/// chart. Either is the edge on the face's own sheet, where a projection
-/// foot of the witness could land on another sheet of the chart; a
-/// stored `Pcurve::Fitted` image was itself fitted through the chart's
-/// feet of a trace, placed on the face's sheet when it was minted.
-///
-/// A null edge has no carrier and no image to read a spline face at, and
-/// is refused unplaced. Its witness could be placed off its neighbour in
-/// the face's loop, but no class would follow: its zero-length chord gives
-/// the wedge no reach, so its dihedral escalates at the arm whatever the
-/// faces read.
-///
-/// # Errors
-///
-/// [`DescribeRefusal::Failed`] with [`EdgeDescribeFailure::Unplaced`]:
-/// a spline face with no image of the edge in its chart to read the
-/// witness's parameters off, or a null edge.
-fn seam_face<'s, T: Decide + crate::props::AtRestPolicy>(
-    body: &Body<T>,
-    edge: crate::entity::EdgeKey,
-    side: crate::readback::EdgeSide,
-    surface: &'s geom::Surface<T>,
-    curve: Option<&geom_brep::EdgeCurve<T>>,
-    band: Band,
-) -> Result<geom_brep::SeamFace<'s, T>, DescribeRefusal> {
-    let Some(chart) = surface.spline_chart() else {
-        return Ok(geom_brep::SeamFace::Analytic(surface));
-    };
-    let unplaced = || DescribeRefusal::failed(edge, EdgeDescribeFailure::Unplaced);
-    let (t0, t1) = curve.ok_or_else(unplaced)?.params();
-    let image = crate::pcurves::pcurve_of(body, side.half_edge, band).map_err(|_| unplaced())?;
-    let uv = image.eval(geom::mid_param(t0, t1));
-    Ok(geom_brep::SeamFace::Spline {
-        chart,
-        uv: (uv.x, uv.y),
     })
 }
 
@@ -11038,7 +10982,7 @@ mod spline_seam_rows {
     use geom_core::spline::KnotVector;
     use geom_core::{Band, Point3, Tol};
 
-    use super::{DescribeRefusal, seam_face, seam_reading};
+    use super::DescribeRefusal;
     use crate::{Body, EdgeKey, FaceKey};
 
     fn band() -> Band {
@@ -11141,12 +11085,15 @@ mod spline_seam_rows {
     fn reading(
         body: &Body<f64>,
         edge: EdgeKey,
-    ) -> Result<geom_brep::DihedralClass, geom_brep::SeamEscalation> {
+    ) -> Result<geom_brep::DihedralClass, crate::pcurves::SeamUnread> {
         let sides = crate::readback::edge_sides_of(body, edge, body.get_edge(edge).unwrap());
         let surface = |side: crate::readback::EdgeSide| body.get_surface(side.surface).unwrap();
         let curve = body.stored_curve(edge).unwrap();
-        let face = |side| seam_face(body, edge, side, surface(side), Some(curve), band()).unwrap();
-        seam_reading(
+        let face = |side: crate::readback::EdgeSide| {
+            crate::pcurves::seam_face(body, side.half_edge, surface(side), Some(curve), band())
+                .unwrap()
+        };
+        crate::pcurves::seam_reading(
             [face(sides.plus), face(sides.minus)],
             curve.mid_point(),
             geom_core::test_support::fixture_lever(1.0),

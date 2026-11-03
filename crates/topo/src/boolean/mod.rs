@@ -6326,7 +6326,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
             let curved: Vec<FaceKey> = piercing_body
                 .faces()
                 .map(|(k, _)| k)
-                .filter(|&k| reduce::face_plane(piercing_body, k).is_none())
+                .filter(|&k| crate::face_normal::face_plane(piercing_body, k).is_none())
                 .collect();
             for face in curved {
                 curved_boxes.insert(face, boxes::face_box(piercing_body, face, pad, band)?);

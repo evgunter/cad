@@ -2121,8 +2121,8 @@ impl ClosedReach {
 /// # Errors
 ///
 /// [`BooleanError::GermEdgeCarrierUnsupported`] where no face reads it
-/// inside and some face's surface is one the reading does not take
-/// against the edge's carrier (a spline on either side); the reading's
+/// inside and the reading leaves the edge's carrier unread against some
+/// face's surface ([`super::slit::Placed::Unread`]); the reading's
 /// own escalations, and a trim the walk cannot read.
 fn closed_reach<T: Decide>(
     side: GermSide<'_, T>,
@@ -2138,9 +2138,9 @@ fn closed_reach<T: Decide>(
     let (mut reach, mut unread) = (ClosedReach::Off, false);
     for &face in faces {
         match super::slit::carrier_on_surface(body, curve.carrier(), curve.params(), face, band)? {
-            None => unread = true,
-            Some(false) => {}
-            Some(true) => match in_trim(body, face, p, band)? {
+            super::slit::Placed::Unread(_) => unread = true,
+            super::slit::Placed::Off => {}
+            super::slit::Placed::On => match in_trim(body, face, p, band)? {
                 Some(PlaneRead::Inside) => {
                     return Ok(Some(ClosedReach::On(Touch::Face, Some(face))));
                 }
@@ -2192,11 +2192,8 @@ fn on_planar_face<T: Decide>(
     p: Point3<T>,
     band: Band,
 ) -> Result<PlaneRead, BooleanError> {
-    use super::solid_contain::{PointInSolidError, face_plane};
-    let (origin, normal) = match face_plane(body, face) {
-        Ok(plane) => plane,
-        Err(PointInSolidError::KindUnsupported { .. }) => return Ok(PlaneRead::NotPlane),
-        Err(e) => return Err(BooleanError::Containment(e)),
+    let Some((origin, normal)) = crate::face_normal::face_plane(body, face) else {
+        return Ok(PlaneRead::NotPlane);
     };
     let height = Margin::of((p - origin).dot(normal));
     match decide("bool_germ_tie_plane", height, band).map_err(|diag| {
@@ -2217,11 +2214,9 @@ fn in_trim<T: Decide>(
     p: Point3<T>,
     band: Band,
 ) -> Result<Option<PlaneRead>, BooleanError> {
-    use super::solid_contain::{PointInSolidError, face_plane};
-    match face_plane(body, face) {
-        Ok((_, normal)) => trim_read(body, face, normal, p, band).map(Some),
-        Err(PointInSolidError::KindUnsupported { .. }) => Ok(None),
-        Err(e) => Err(BooleanError::Containment(e)),
+    match crate::face_normal::face_plane(body, face) {
+        Some((_, normal)) => trim_read(body, face, normal, p, band).map(Some),
+        None => Ok(None),
     }
 }
 
