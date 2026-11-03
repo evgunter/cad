@@ -863,7 +863,7 @@ fn the_parallel_rulings_run_through_the_circles_meeting_points() {
         let meets = [o1 + toward * x + across * h, o1 + toward * x - across * h];
         for (label, own, partner) in [("ab", &c1, &c2), ("ba", &c2, &c1)] {
             let tag = format!("r {r1}/{r2} d {d} {label}");
-            let lines = ruling_lines(&built(own, partner, ExtentBall::new(o1, 2.0)));
+            let lines = ruling_lines(&built(own, partner, ExtentBall::of_sphere(o1, 2.0)));
             assert_eq!(lines.len(), 2, "{tag}: two rulings");
             for q in meets {
                 let on: Vec<_> = lines.iter().filter(|&&l| off_line(q, l) < 1e-12).collect();
@@ -892,7 +892,7 @@ fn the_parallel_rulings_are_read_at_the_region_wherever_an_origin_is_stored() {
     let x = (d * d + r1 * r1 - r2 * r2) / (2.0 * d);
     let h = (r1 * r1 - x * x).sqrt();
     let meets = [Point3::new(x, h, 0.0), Point3::new(x, -h, 0.0)];
-    let at = ExtentBall::new(Point3::origin(), 2.0);
+    let at = ExtentBall::of_sphere(Point3::origin(), 2.0);
     for along in [0.0, 10.0, -10.0, 1000.0, -1000.0] {
         let own = wall(Point3::origin(), z, r1);
         let partner = wall(Point3::new(d, 0.0, 0.0) + tilted * along, tilted, r2);

@@ -682,7 +682,7 @@ fn closed_form_chord(
         component,
         partner,
         partner_key: None,
-        lever: 1.0,
+        lever: geom_core::Lever::unsourced(1.0),
     };
     let leave = Departure {
         dir,

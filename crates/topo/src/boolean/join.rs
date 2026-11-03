@@ -921,11 +921,7 @@ fn one_site<T: Decide>(
     if used0 || used1 || g0.a_locus != g1.a_locus || g0.b_locus != g1.b_locus {
         return Ok(None);
     }
-    if germ_rides_carried(
-        &red.sections,
-        ((&red.a, g0.a_face), (&red.b, g0.b_face)),
-        &g0,
-    )? {
+    if germ_rides_carried(&red.sections, (&red.a, g0.a_face), (&red.b, g0.b_face), &g0)? {
         return Ok(Some((g0, None)));
     }
     let Some(loops) = germ_loops(red, &g0, band)? else {
@@ -3537,7 +3533,7 @@ fn germ_section<'r, T: Decide>(
     germ: &HalfGerm<T>,
 ) -> Result<Option<&'r geom_brep::CarriedSection<T>>, BooleanError> {
     let faces = ((&red.a, germ.a_face), (&red.b, germ.b_face));
-    if !germ_rides_carried(&red.sections, faces, germ)? {
+    if !germ_rides_carried(&red.sections, faces.0, faces.1, germ)? {
         return Ok(None);
     }
     match red.sections.carried(faces.0, faces.1) {
@@ -3783,7 +3779,8 @@ pub(super) fn bisector_loops<T: geom_core::Real>(
 /// an edge of both solids never.
 fn germ_rides_carried<T: Decide>(
     sections: &super::section_table::SectionTable<T>,
-    (a, b): ((&Body<T>, FaceKey), (&Body<T>, FaceKey)),
+    a: (&Body<T>, FaceKey),
+    b: (&Body<T>, FaceKey),
     germ: &HalfGerm<T>,
 ) -> Result<bool, BooleanError> {
     match (germ.a_locus.edge(), germ.b_locus.edge()) {
