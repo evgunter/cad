@@ -5019,6 +5019,35 @@ pub(super) fn line_wall_roots_of<T: Decide>(
     })))
 }
 
+/// **How far along a line its roots against a cone lie from its point
+/// `e` off the apex** (`bool_line_cone_apex_spread`, a length): the
+/// cone's quadric form along `e + τ·dir`, read about `e` itself,
+/// `Q(e,e) + 2τ·Q(e,dir) + τ²·Q(dir,dir)` with
+/// `Q(x,y) = cos²α(x·y − (x·â)(y·â)) − sin²α(x·â)(y·â)`. Every term is
+/// built from the small `e`, so nothing cancels: its roots `τ±` give the
+/// spread `max |τ±|·|dir|`, and where it has none the line's closest
+/// approach `|Q(e,dir)/Q(dir,dir)|·|dir|` stands for them. Along the axis
+/// it is the line's offset itself. A degenerate `Q(dir,dir)` (a ruling)
+/// is the lead rung's, read before.
+fn apex_root_spread<T: Decide>(
+    e: geom_core::Vec3<T>,
+    dir: geom_core::Vec3<T>,
+    (axis, half_angle): (geom_core::Vec3<T>, T),
+) -> T {
+    let (sin, cos) = half_angle.sin_cos();
+    let (cc, ss) = (cos.powi(2), sin.powi(2));
+    let q = |x: geom_core::Vec3<T>, y: geom_core::Vec3<T>| {
+        let (xa, ya) = (x.dot(axis), y.dot(axis));
+        cc * (x.dot(y) - xa * ya) - ss * xa * ya
+    };
+    let (a, b, c) = (q(dir, dir), q(e, dir), q(e, e));
+    // No real roots: the closest approach, `disc` read as zero.
+    let root = (b.powi(2) - a * c).max(T::zero()).sqrt();
+    let speed = dir.norm();
+    let (t1, t2) = ((T::zero() - b + root) / a, (T::zero() - b - root) / a);
+    t1.abs().max(t2.abs()) * speed
+}
+
 /// **The certified roots of the LINE `origin + dir·t` against a CONE**:
 /// the cone's quadric form along it, the quadratic
 /// [`super::solid_contain::line_cone_quadratic`] `G = A t² + 2B t + C`
@@ -5035,11 +5064,12 @@ pub(super) fn line_wall_roots_of<T: Decide>(
 ///   the caller places on the face's apex vertex: the edge's incidence
 ///   with it, the vertex pair's to read (`boolean::fan`).
 /// - **`bool_line_cone_apex_spread`** — within the band of the apex is
-///   not at it: the roots of a line `δ` from the apex lie within
-///   `δ(1 + √(1 + |lead|))/|lead|` of that point along it, `lead` the
-///   lead rung's `A/|dir|²`. Not definitely in the band (a needle cone
-///   and a line near its axis): the lane refuses [`Unsettled::AtApex`]
-///   rather than place the roots at the apex.
+///   not at it: how far along the edge the line's roots lie from the
+///   point the double root is placed at, the end or the foot
+///   ([`apex_root_spread`], read about that point, so exact to
+///   rounding). Not definitely in the band (a needle cone and a line
+///   near its axis), or in the band's gap: the lane refuses
+///   [`Unsettled::AtApex`] rather than place the roots there.
 /// - **`bool_line_cone_lead`** — `A/|dir|²` levered by the segment's
 ///   length: how far the line turns off a generator over the edge. Zero:
 ///   the quadratic degenerates (a ruling, or a line parallel to one) and
@@ -5112,19 +5142,18 @@ fn line_cone_roots<T: Decide>(
             {
                 return Ok(Err(Unsettled::Degenerate));
             }
-            // In the band, not AT the apex: about `p = at(t_apex)`, `δ`
-            // from the apex, the form along the unit direction `u` is
-            // `lead·τ² + 2(Me·u)τ + eᵀMe` (`e = p − apex`, `‖M‖ ≤ 1`), so
-            // every root lies within `δ(1 + √(1 + |lead|))/|lead|` of `p`
-            // along the edge. Only where that spread is in the band is
-            // the double root there the edge's meeting with the apex.
-            let delta = at(at_apex).norm();
-            let spread = delta * (T::one() + (T::one() + lead.abs()).sqrt()) / lead.abs();
-            return match decide("bool_line_cone_apex_spread", Margin::of(spread), band)
-                .map_err(escalate)?
-            {
-                Sign::Zero => Ok(Ok(Roots::<T, 2>::all([at_apex, at_apex]).widen())),
-                Sign::Positive | Sign::Negative => Ok(Err(Unsettled::AtApex)),
+            // In the band, not AT the apex: the double root at `at_apex`
+            // is the edge's meeting with the apex only where the line's
+            // roots lie within the band of it along the edge
+            // ([`apex_root_spread`]). An in-band spread is the apex's,
+            // refused typed, never escalated.
+            return match decide(
+                "bool_line_cone_apex_spread",
+                Margin::of(apex_root_spread(at(at_apex), dir, (axis, half_angle))),
+                band,
+            ) {
+                Ok(Sign::Zero) => Ok(Ok(Roots::<T, 2>::all([at_apex, at_apex]).widen())),
+                Ok(Sign::Positive | Sign::Negative) | Err(_) => Ok(Err(Unsettled::AtApex)),
             };
         }
     }
@@ -8264,8 +8293,8 @@ mod line_cone_rows {
         let b = band();
         for (label, origin) in [
             ("through the apex", [-1.0, 0.0, 0.3]),
-            // Its roots' spread, `δ(1 + √(1 + |lead|))/|lead|` with
-            // `lead ≈ −0.42`, is about `5δ`: in the band.
+            // Its roots' spread about the foot ([`apex_root_spread`])
+            // is a small multiple of `δ`: in the band.
             ("in band of the apex", [-1.0, 0.05 * b.zero(), 0.3]),
         ] {
             let got = roots(origin, [1.0, 0.0, -0.3], (0.0, 2.0));
@@ -8326,6 +8355,20 @@ mod line_cone_rows {
             matches!(steep, Err(Unsettled::AtApex)),
             "a line beside a generator ending in band of the apex, got {steep:?}"
         );
+        // Its spread in the band's gap (about `2.3e-9` at the witness
+        // band): the apex's, refused typed, never escalated.
+        let gap = roots([-1.0, 0.5 * b.zero(), -1.05], [1.0, 0.0, 1.05], (0.0, 1.0));
+        assert!(
+            matches!(gap, Err(Unsettled::AtApex)),
+            "a spread in the escalation band, got {gap:?}"
+        );
+        // Along the axis the spread is the line's offset itself: half a
+        // zero band off, the end is the apex's.
+        let axial = roots([0.5 * b.zero(), 0.0, -1.0], [0.0, 0.0, 1.0], (0.0, 1.0));
+        let Ok(CircleRoots::Certified(found)) = axial else {
+            panic!("an axial line ending half a band off the apex, got {axial:?}");
+        };
+        assert!(found.roots().iter().all(|&t| t == 1.0), "{found:?}");
     }
 
     /// **Each root is placed along the edge** (the root-slack rung's row),

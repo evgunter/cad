@@ -1253,6 +1253,7 @@ fn a_touch_clears_only_out_of_a_face_on_a_silent_pair() {
     let s = Section::Touch(Touch {
         name: "section_sphere_plane_reach",
         at: p(0.0, 0.0, 1.0),
+        apex: false,
     });
     let tan = Err(Refusal::Tangent("section_sphere_plane_reach"));
     let rule = |evented: bool, place: [Option<FaceContainment>; 2]| {
@@ -1266,15 +1267,20 @@ fn a_touch_clears_only_out_of_a_face_on_a_silent_pair() {
         crate::entity::VertexKey::default(),
     ));
     // A touch at a vertex both faces hold is not cleared as a vertex
-    // pair's unless it is two cones' at their common apex.
+    // pair's unless it is two cones' at their common apex, which the
+    // touch says by its type, not its name.
     assert_eq!(rule(false, [vertex, vertex]), tan);
     assert_eq!(rule(true, [vertex, vertex]), tan);
     assert_eq!(rule(false, [vertex, IN]), tan);
     assert_eq!(rule(true, [vertex, OUT]), tan);
-    for name in APEX_TOUCHES {
+    for name in [
+        "section_cone_coaxial_apexes",
+        super::super::fan::CONES_SHARE_APEX,
+    ] {
         let apex = Section::Touch(Touch {
             name,
             at: p(0.0, 0.0, 1.0),
+            apex: true,
         });
         let rule = |evented: bool, place: [Option<FaceContainment>; 2]| {
             certify(&apex, evented, band(), |_| Sheet::Not, |_, _| place)

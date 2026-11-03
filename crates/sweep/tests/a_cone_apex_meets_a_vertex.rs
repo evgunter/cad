@@ -163,6 +163,33 @@ fn four_ops(
     }
 }
 
+/// [`four_ops`], but an op that keeps either cone's remainder (`∪`,
+/// `a ∖ b`, `b ∖ a`) may refuse `ResultPinchedAtConeApex` by name: a cone
+/// face cut along two rulings on both sides of its wrap seam is two lobes
+/// meeting only at the apex, which props cannot yet measure
+/// (`work/conearm/props-measures-a-cone-loop-pinched-at-its-apex.md`).
+/// `∩` builds at every pose.
+fn four_ops_or_pinch(
+    what: &str,
+    a: Operand,
+    b: Operand,
+    share: f64,
+    lattice: (Point3<f64>, Point3<f64>),
+) {
+    let (x, y) = (a.0, b.0);
+    for (op, result) in [
+        ("a ∪ b", union(x, y, tol())),
+        ("a ∖ b", subtract(x, y, tol())),
+        ("b ∖ a", subtract(y, x, tol())),
+    ] {
+        if let Err(topo::BooleanError::ResultPinchedAtConeApex { .. }) = result {
+            eprintln!("{what}, {op}: pinched at the apex, refused by name");
+            return;
+        }
+    }
+    four_ops(what, a, b, share, lattice);
+}
+
 /// The lattice about a cone of base radius `r` and its partner, out to
 /// `top` along `y`.
 fn about(r: f64, top: f64) -> (Point3<f64>, Point3<f64>) {
@@ -379,22 +406,37 @@ fn a_box_whose_side_holds_the_80_degree_wrap_seam_refuses_typed() {
         * Affine3::rotation_about_axis(Point3::origin(), Vec3::new(1.0, 0.0, 0.0), PI / 2.0);
     let b = moved(&block, m);
     let c = finished("c", one_wrap_edge(cone(80.0), true).0, tol());
-    for (order, x, y) in [("cone first", &c, &b), ("box first", &b, &c)] {
-        for (op, r) in [
-            ("∪", union(x, y, tol())),
-            ("∩", intersect(x, y, tol())),
-            ("∖", subtract(x, y, tol())),
-            ("∖ back", subtract(y, x, tol())),
-        ] {
-            assert!(
-                matches!(
-                    r,
-                    Err(topo::BooleanError::VertexPairAtConeApex { .. }
-                        | topo::BooleanError::GermSectionOpenConic { .. })
-                ),
-                "{order} {op}: {r:?}"
-            );
-        }
+    // Each op names its refusal: where the box's part is kept against the
+    // cone's face (`box ∖ cone`, and every op read box first but
+    // `box ∖ cone`), the fan bound on the box's side; the others reach
+    // the 80° cone's hyperbolic section at the box's far faces first.
+    let pair = |r: &Result<BooleanResult<f64>, topo::BooleanError>| match r {
+        Err(topo::BooleanError::VertexPairAtConeApex { .. }) => "vertex pair",
+        Err(topo::BooleanError::GermSectionOpenConic { .. }) => "open conic",
+        _ => "other",
+    };
+    for (order, x, y, want) in [
+        (
+            "cone first",
+            &c,
+            &b,
+            ["open conic", "open conic", "open conic", "vertex pair"],
+        ),
+        (
+            "box first",
+            &b,
+            &c,
+            ["vertex pair", "vertex pair", "vertex pair", "open conic"],
+        ),
+    ] {
+        let got = [
+            union(x, y, tol()),
+            intersect(x, y, tol()),
+            subtract(x, y, tol()),
+            subtract(y, x, tol()),
+        ];
+        let got = got.each_ref().map(pair);
+        assert_eq!(got, want, "{order}: ∪, ∩, ∖, ∖ back");
     }
 }
 
@@ -499,5 +541,100 @@ fn an_edge_through_the_apex_builds_box_first() {
             volume(30.0) * 0.45f64.powi(3) / 2.0,
             about(2.3, 1.0),
         );
+    }
+}
+
+/// The volume both cones hold, of half-angles `alpha1`, `alpha2`
+/// (degrees), each of height 1 from their common apex along its unit
+/// axis `a1`, `a2` (toward its nappe): [`shared_volume`]'s integral over
+/// the first cone's cap, the second read at its own aperture.
+fn shared_volume_of(alpha1: f64, a1: Vec3<f64>, alpha2: f64, a2: Vec3<f64>) -> f64 {
+    let (h1, c2) = (alpha1.to_radians(), alpha2.to_radians().cos());
+    let n = 1500;
+    let (dt, dp) = (h1 / f64::from(n), 2.0 * PI / f64::from(n));
+    let u = Vec3::new(1.0, 0.0, 0.0);
+    let u = (u - a1 * u.dot(a1)).normalize();
+    let v = a1.cross(u);
+    let mut sum = 0.0;
+    for i in 0..n {
+        let t = (f64::from(i) + 0.5) * dt;
+        for j in 0..n {
+            let p = (f64::from(j) + 0.5) * dp;
+            let d = a1 * t.cos() + (u * p.cos() + v * p.sin()) * t.sin();
+            if d.dot(a2) <= c2 {
+                continue;
+            }
+            let reach = (1.0 / d.dot(a1)).min(1.0 / d.dot(a2));
+            sum += reach.powi(3) / 3.0 * t.sin() * dt * dp;
+        }
+    }
+    sum
+}
+
+/// **Two cones through one apex, across the families of pose the R2
+/// probe swept**: apertures `10/10`, `20/50`, `30/30` and `45/30`, the
+/// second cone turned about the apex
+///
+/// - about `z` by half the sum of the half-angles (crossing mid-fan);
+/// - about `z` by `0.02` (near-coaxial);
+/// - about `z` by the difference of the half-angles plus a tenth of their
+///   sum (just past the inner touch);
+/// - about the skew axis `(1, 0.3, 1)` by half the sum (crossing off the
+///   plane of the axes).
+///
+/// Both cones tipped, then both revolved: each op at the closed form its
+/// intersection's direction integral sets ([`shared_volume_of`]), with
+/// the regions at the lattice. The rim germs of the two common rulings
+/// must each pair with the apex germ on their own ruling, not with each
+/// other across the apex (`boolean::join`'s `two_rulings`).
+#[test]
+fn two_cones_through_one_apex_build_across_the_pose_families() {
+    let down = Vec3::new(0.0, -1.0, 0.0);
+    for (alpha1, alpha2) in [(10.0f64, 10.0f64), (20.0, 50.0), (30.0, 30.0), (45.0, 30.0)] {
+        let sum = (alpha1 + alpha2).to_radians();
+        let diff = (alpha1 - alpha2).abs().to_radians();
+        let z = Vec3::new(0.0, 0.0, 1.0);
+        for (pose, axis, turn) in [
+            ("cross-mid", z, 0.5 * sum),
+            ("near-coaxial", z, 0.02),
+            ("near the inner touch", z, diff + 0.1 * sum),
+            (
+                "skew-cross",
+                Vec3::new(1.0, 0.3, 1.0).normalize(),
+                0.5 * sum,
+            ),
+        ] {
+            let m = Affine3::rotation_about_axis(NORTH, axis, turn);
+            let want = shared_volume_of(alpha1, down, alpha2, m.transform_vec(down));
+            let (r1, r2) = (alpha1.to_radians().tan(), alpha2.to_radians().tan());
+            for ((form, one), (_, two)) in forms(alpha1).into_iter().zip(forms(alpha2)) {
+                let what = format!("{alpha1}/{alpha2}, {pose}, {form}");
+                let a = finished("a", one, tol());
+                let b = moved(&two, m);
+                let share = match intersect(&a, &b, tol()) {
+                    Ok(BooleanResult::Body(x)) => {
+                        topo::test_support::pinned_volume("∩", &x.body, tol()).volume
+                    }
+                    Ok(BooleanResult::Empty) => 0.0,
+                    Err(e) => panic!("{what}: the intersection {e:?}"),
+                };
+                assert!(
+                    (share - want).abs() < 2e-4 * want.max(1.0),
+                    "{what}: ∩ {share} against the integral {want}"
+                );
+                let (ra, rb) = (move || the_cone(r1), move || moved_region(the_cone(r2), m));
+                let reach = r1.max(r2) + 1.0;
+                four_ops_or_pinch(
+                    &what,
+                    (&a, &ra, volume(alpha1)),
+                    (&b, &rb, volume(alpha2)),
+                    share,
+                    (
+                        Point3::new(-reach, -0.5, -reach),
+                        Point3::new(reach, 1.25 + reach, reach),
+                    ),
+                );
+            }
+        }
     }
 }

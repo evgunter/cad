@@ -1739,14 +1739,16 @@ fn walks_after<T: Decide>(
     y: Leaned<T>,
     band: Band,
 ) -> Result<Sign, BooleanError> {
-    let lever = leaned_lever(s.arm, (x.lean, y.lean));
     // At a cone's apex the sector is a fan, whose sweep runs from its
     // start bound to its end bound as a planar sector's turn about its
     // normal does: `y` after `x` is the face's turn from `x`'s ruling to
     // `y`'s ([`crate::sector_face::ConeApex::turn`]).
     let m = match s.apex() {
         Some(apex) => fan_turn(s, apex, x, y),
-        None => Margin::levered(x.dir.cross(y.dir).dot(s.tangent().vec()), lever),
+        None => Margin::levered(
+            x.dir.cross(y.dir).dot(s.tangent().vec()),
+            leaned_lever(s.arm, (x.lean, y.lean)),
+        ),
     };
     crate::validate::decide("bool_shared_cut_order", m, band)
         .map_err(|diag| BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag))

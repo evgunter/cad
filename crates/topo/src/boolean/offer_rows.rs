@@ -2579,6 +2579,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::CylinderAxes",
         1,
     ),
+    ("join.rs", "cone_apex_plane", "Coincide::Section", 1),
     ("join.rs", "section_unbuilt", "BooleanDecision::Radius", 1),
     (
         "join.rs",
