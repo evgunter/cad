@@ -1243,9 +1243,12 @@ rule fires only on `ContactMark::Tangent`, refusing a conventional
 description there (`OnPair`, or a `Chart` that is not a wrap, declared
 or derived) `TangentNotIntrinsic`. Tier 3 reads a body at the ε it was
 built at, the run's. An edge whose stations read definitely
-transverse at one and definitely smooth at its neighbour brackets an
+transverse at one and definitely smooth at its neighbour, or a convex
+corner at one and a concave one at its neighbour, brackets an
 unsampled in-band point and is refused (`MixedDihedral`, naming the two
-stations); `must_carry_over_edge` answers it `MustCarryVerdict::Mixed`,
+stations; along a tangency, stations whose material pairings or ends
+differ are refused the same way, ending as a defect);
+`must_carry_over_edge` answers a class bracket `MustCarryVerdict::Mixed`,
 and every constructor refuses it typed but one: the blend's contact
 edge, routed smooth by its carrier's construction, ends a mixed reading
 as `SurgeryInvariant`, the surgery contradicting its own routing, since

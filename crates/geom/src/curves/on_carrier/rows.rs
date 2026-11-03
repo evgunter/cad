@@ -3,7 +3,7 @@
 
 use geom_core::{Band, Point3, Vec3};
 
-use super::{CarrierRefusal, OnCarrier};
+use super::{CarrierEscalation, CarrierRefusal, OnCarrier, PieceWalkRefusal};
 use crate::Curve3;
 
 const ZERO: f64 = 1e-9;
@@ -72,9 +72,9 @@ fn name(r: Result<OnCarrier, CarrierRefusal>) -> &'static str {
     match r {
         Ok(OnCarrier::On { .. }) => "on",
         Ok(OnCarrier::Off) => "off",
-        Err(CarrierRefusal::Escalated(_) | CarrierRefusal::Straddle(_)) => "escalated",
-        Err(CarrierRefusal::Exhausted) => "exhausted",
-        Err(CarrierRefusal::Unbounded) => "unbounded",
+        Err(CarrierRefusal::Escalated(_)) => "escalated",
+        Err(CarrierRefusal::Unwalked(PieceWalkRefusal::Exhausted)) => "exhausted",
+        Err(CarrierRefusal::Unwalked(PieceWalkRefusal::Unbounded)) => "unbounded",
     }
 }
 
@@ -117,7 +117,7 @@ fn a_gap_past_the_band_with_the_bound_inside_it_straddles() {
     let q = c.eval(0.0) + Vec3::unit_x() * (20.0 * ZERO);
     assert!(matches!(
         c.on_carrier(q, 0.0, band()),
-        Err(CarrierRefusal::Straddle(_))
+        Err(CarrierRefusal::Escalated(CarrierEscalation::Straddle(_)))
     ));
 }
 

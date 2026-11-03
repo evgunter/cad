@@ -523,7 +523,7 @@ impl BlendDecision {
     /// short to read a side over), or, where the tolerance the pairing
     /// would offer leaves the smooth verdict's wedge in band, the wedge
     /// `sin θ · arm` it re-quotes under `material_pairing_wedge`
-    /// (`geom_brep::classify_material_pairing`). A smaller tolerance
+    /// (`geom_brep::Tangency::pairing`). A smaller tolerance
     /// decides that one positive, and reads the edge as a crease.
     fn sized_on(self, arm: &RefusedArm<'_>) -> Option<(&'static str, SizedPass)> {
         match (self, arm) {
