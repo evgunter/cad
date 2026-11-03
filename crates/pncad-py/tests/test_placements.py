@@ -246,16 +246,13 @@ class TestTheFrameValue(unittest.TestCase):
             {Frame.translation((0 * m, 0 * m, 0 * m))}
 
     def test_the_frame_trio_builds_and_refuses(self):
-        """`point_at` and `path_start_frame` — the frame constructors,
-        with their typed refusals."""
+        """`point_at` — the frame constructor, with its typed
+        refusals."""
         aimed = Frame.point_at(
             (0 * m, 0 * m, 0 * m), (0 * m, 0 * m, 1 * m), (0.0, 1.0, 0.0)
         )
         self.assertAlmostEqual(aimed.determinant, 1.0, places=12)
         self.assertEqual(aimed.origin, (0 * m, 0 * m, 0 * m))
-
-        start = Frame.path_start_frame((0 * m, 0 * m, 0 * m), (1.0, 0.0, 0.0))
-        self.assertAlmostEqual(start.determinant, 1.0, places=12)
 
         # A roll reference ALONG the aim fixes no roll, and refuses
         # rather than picking a fallback.
@@ -271,10 +268,6 @@ class TestTheFrameValue(unittest.TestCase):
             )
         self.assertEqual(caught.exception.variant, "degenerate_aim")
 
-        with self.assertRaises(FrameError) as caught:
-            Frame.path_start_frame((0 * m, 0 * m, 0 * m), (0.0, 0.0, 0.0))
-        self.assertEqual(caught.exception.variant, "degenerate_tangent")
-
     def test_a_direction_with_no_finite_length_is_refused_at_this_door(self):
         """The public door with no pre-validation in front of it.
 
@@ -284,9 +277,11 @@ class TestTheFrameValue(unittest.TestCase):
         `degenerate_*` refusal, because the direction is not zero and
         no tolerance lever reaches it."""
         with self.assertRaises(FrameError) as caught:
-            Frame.path_start_frame((0 * m, 0 * m, 0 * m), (1e200, 0.0, 0.0))
+            Frame.point_at(
+                (0 * m, 0 * m, 0 * m), (1e200 * m, 0 * m, 0 * m), (0.0, 0.0, 1.0)
+            )
         refusal = caught.exception
-        self.assertEqual(refusal.variant, "non_finite_tangent")
+        self.assertEqual(refusal.variant, "non_finite_aim")
         self.assertIn("no finite length", str(refusal))
         self.assertIn("scale the geometry into the session's range", str(refusal))
         # Nothing was classified, so there is no classifier payload.
@@ -301,9 +296,11 @@ class TestTheFrameValue(unittest.TestCase):
         landed in the band, so there is nothing for the classifier to
         report. Every attribute is present and `None`."""
         with self.assertRaises(FrameError) as caught:
-            Frame.path_start_frame((0 * m, 0 * m, 0 * m), (0.0, 0.0, 0.0))
+            Frame.point_at(
+                (0 * m, 0 * m, 0 * m), (0 * m, 0 * m, 0 * m), (0.0, 0.0, 1.0)
+            )
         refusal = caught.exception
-        self.assertEqual(refusal.variant, "degenerate_tangent")
+        self.assertEqual(refusal.variant, "degenerate_aim")
         for absent in (
             "inner_variant", "margin", "margin_low", "margin_high",
             "zero", "escalate", "predicate", "field", "value",
@@ -324,9 +321,11 @@ class TestTheFrameValue(unittest.TestCase):
         # lower edge moves with the run's tolerance.
         in_band = 1.5 * Doc().epsilon
         with self.assertRaises(FrameError) as caught:
-            Frame.path_start_frame((0 * m, 0 * m, 0 * m), (in_band, 0.0, 0.0))
+            Frame.point_at(
+                (0 * m, 0 * m, 0 * m), (in_band * m, 0 * m, 0 * m), (0.0, 0.0, 1.0)
+            )
         refusal = caught.exception
-        self.assertEqual(refusal.variant, "degenerate_tangent")
+        self.assertEqual(refusal.variant, "degenerate_aim")
         self.assertIsNotNone(refusal.margin)
         self.assertIsNotNone(refusal.zero)
         self.assertIsNotNone(refusal.escalate)

@@ -230,7 +230,6 @@ use core::f64::consts::PI;
 
 use pncad::authoring::{p2, v2, validated};
 use pncad::geom::NurbsCurve3;
-use pncad::geom_core::linalg::frame::path_start_frame;
 use pncad::geom_core::{KnotVector, Point3, RigidMotion, Tol, Turns, UnitVec3};
 use pncad::prelude::{ConstructedLoop, Open, Start, SurfaceKindSet, circle, query};
 use pncad::prelude::{Convexity, SurfaceKind};
@@ -241,7 +240,7 @@ use pncad::topo::readback::euler_counts;
 use pncad::topo::{AtRestBody, Body, BooleanError, BooleanOp, EdgeKey, Operand};
 
 use crate::booleans::finished;
-use crate::scalar::Scalar;
+use crate::scalar::{Scalar, frame_across};
 use crate::{SceneBody, TourStop, View};
 
 // ---------------------------------------------------------------
@@ -546,8 +545,9 @@ fn annulus<S: Scalar>(m: &Meridian, cx: f64, tol: Tol) -> Vec<ConstructedLoop<S>
 }
 
 /// `section` swept along `spine` by `sweep_body` at `stations`
-/// stations and v-degree `v_degree`, from the start frame the kernel
-/// hands out (`path_start_frame`). The section is built in `f64`, so it
+/// stations and v-degree `v_degree`, from the world frame at the
+/// spine's start turned onto its start tangent ([`frame_across`]). The
+/// section is built in `f64`, so it
 /// enters `S` as the computed values it is; the body comes out at `S`.
 pub fn swept_loop<S: Scalar>(
     spine: &NurbsCurve3<f64>,
@@ -558,12 +558,11 @@ pub fn swept_loop<S: Scalar>(
 ) -> Result<Body<S>, LoftError> {
     let (t0, _) = spine.domain();
     let (start, tangent) = spine.ders1(t0);
-    let place = path_start_frame(
+    let place = frame_across(
         start.map(S::from_computed),
         tangent.map(S::from_computed),
         tol,
-    )
-    .expect("the spine's start tangent fixes a frame");
+    );
     let section: Vec<ConstructedLoop<S>> = section.iter().map(|lp| lp.lift_computed()).collect();
     sweep_body::<S>(
         &section,
@@ -960,7 +959,7 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
         story,
         ops: "revolve(Full) of a filleted meridian band + sweep_body of an annulus \
               (two circles) along a U-turn spine of four rational quarter arcs, \
-              from path_start_frame; \
+              from the world frame turned onto its start tangent; \
               NO boolean, NO shell — see klein::wall_probes",
         delta: DELTA,
         note: Some(format!(

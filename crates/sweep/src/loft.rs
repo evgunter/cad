@@ -1664,10 +1664,10 @@ fn assemble<T: Decide + topo::AtRestPolicy>(
 /// starting vertex, or rolled about its own normal by one of its own
 /// symmetries, builds the same body.
 ///
-/// `places[i]` is the caller's. For the plane normal to a curve at a
-/// point, `geom_core::linalg::frame::path_start_frame(point, tangent,
-/// tol)` is the door that hands one out, and a different roll is a
-/// rotation composed about the tangent onto it.
+/// `places[i]` is the caller's. For the planes normal to a path at
+/// uniform shares of its parameter, [`crate::sweep_places`] carries a
+/// start frame along it, and a different roll is a rotation composed
+/// about the tangent onto each.
 ///
 /// # Errors
 ///
@@ -1787,13 +1787,13 @@ fn arc_all<T: Real>(arc: &geom_core::Arc2<T>, holds: impl Fn(T) -> bool + Copy) 
 /// # The starting frame
 ///
 /// `place` — the frame every station is carried from — is the
-/// caller's, and `geom_core::linalg::frame::path_start_frame(path
-/// start, start tangent, tol)` is where a caller gets it: the plane
-/// through the start point whose local +Z is the start tangent, its
-/// roll off a reference ladder decided under the tolerance band, with
-/// a typed refusal when no rung decides. A caller wanting a different
-/// roll composes a rotation about the tangent onto that frame; there
-/// is no second door.
+/// caller's. With no roll in mind, a caller writes the world frame at
+/// the path's start and turns it onto the start tangent,
+/// `RigidMotion::axes_xy(start).turned_onto(tangent, …)`: its local +Z
+/// is the start tangent and its roll the written frame's, carried by
+/// the least turn, refused typed only at that frame's −z. A caller
+/// wanting a different roll composes a rotation about the tangent onto
+/// that frame; there is no second door.
 ///
 /// # Errors
 ///

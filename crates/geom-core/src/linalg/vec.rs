@@ -648,9 +648,14 @@ impl<T: Real> Vec3<T> {
     /// sit on it. The ratio `1` would put the seam on the 45° class,
     /// which is exactly the chamfer family; an order over all three
     /// components — smallest magnitude wins — would put it through
-    /// EVERY axis direction (two components tied at zero). A consumer
-    /// wanting a frame *stable* across parameter changes stores it
-    /// (`u_ref`) as data, per D2; this constructor makes that data.
+    /// EVERY axis direction (two components tied at zero). So the pair
+    /// is for scratch and input coordinates only, never a frame that is
+    /// kept: a minted reference direction is a function of the inputs,
+    /// not of the axes (D10 `[placement.frame]`), and a frame across a
+    /// direction with no
+    /// stated reference is a written frame turned onto it
+    /// ([`RigidMotion::turned_onto`](super::RigidMotion::turned_onto);
+    /// the doors are listed in [`frame`](super::frame)'s module docs).
     ///
     /// **The comparison is a value-level door**, [`Real::select_le_zero`],
     /// applied componentwise to the two candidates — three scalar calls

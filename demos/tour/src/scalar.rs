@@ -94,6 +94,30 @@ pub fn axis_frame<S: Scalar>(
     .expect("the scene's spine axis has a direction and its reference radial is off it")
 }
 
+/// **The world xy frame at `origin` turned onto `dir` by the least
+/// turn**: a sweep's start placement, whose local +Z is the start
+/// tangent and whose roll is the world frame's, carried
+/// (`RigidMotion::turned_onto`). The direction's length is decided at
+/// the run's band.
+///
+/// # Panics
+///
+/// If the band cannot be formed, if `dir` has no length, or if it is
+/// the world −z, where no least turn is THE one and a scene writes a
+/// different frame.
+pub fn frame_across<S: Scalar>(
+    origin: pncad::geom_core::Point3<S>,
+    dir: pncad::geom_core::Vec3<S>,
+    tol: pncad::geom_core::Tol,
+) -> pncad::geom_core::RigidMotion<S> {
+    let band = pncad::geom_core::Band::linear(tol).expect("the run's tolerance forms a band");
+    let dir = pncad::geom_core::UnitVec3::new(dir, TOUR_FRAME_AXIS, band)
+        .expect("the scene's direction has a length");
+    pncad::geom_core::RigidMotion::axes_xy(origin)
+        .turned_onto(dir, TOUR_FRAME_AXIS, band)
+        .expect("the scene's direction is off the world -z")
+}
+
 /// **A split plane through `origin` across the authored direction
 /// `dir`**, the direction's length decided at the run's band.
 ///

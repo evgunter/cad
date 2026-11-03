@@ -2320,10 +2320,7 @@ mod turned_onto_rows {
         UnitVec3::new(v, SITE, band()).unwrap()
     }
 
-    fn onto(
-        frame: RigidMotion<f64>,
-        d: UnitVec3<f64>,
-    ) -> Result<RigidMotion<f64>, TurnError> {
+    fn onto(frame: RigidMotion<f64>, d: UnitVec3<f64>) -> Result<RigidMotion<f64>, TurnError> {
         frame.turned_onto(d, SITE, band())
     }
 
@@ -2339,7 +2336,11 @@ mod turned_onto_rows {
             bits12(&world.to_affine()),
             "the world frame turned onto +z is itself"
         );
-        let written = RigidMotion::turned(p, unit(Vec3::new(0.3, -0.7, 0.2)), Turns::new(1, 7).unwrap());
+        let written = RigidMotion::turned(
+            p,
+            unit(Vec3::new(0.3, -0.7, 0.2)),
+            Turns::new(1, 7).unwrap(),
+        );
         let same = onto(written, written.w()).unwrap();
         for (axis, got, want) in [
             ("u", same.u(), written.u()),
@@ -2359,7 +2360,11 @@ mod turned_onto_rows {
     #[test]
     fn the_least_turn_carries_w_onto_the_direction_about_w_cross_d() {
         let p = Point3::new(-3.0, 0.125, 7.0);
-        let written = RigidMotion::turned(p, unit(Vec3::new(1.0, 2.0, -0.5)), Turns::new(2, 9).unwrap());
+        let written = RigidMotion::turned(
+            p,
+            unit(Vec3::new(1.0, 2.0, -0.5)),
+            Turns::new(2, 9).unwrap(),
+        );
         for (k, d) in [
             Vec3::new(1.0, 0.0, 0.0),
             Vec3::new(0.2, -0.9, 0.4),
@@ -2374,10 +2379,8 @@ mod turned_onto_rows {
             let miss = got.w().get() - d.get();
             assert!(miss.norm() < 1e-14, "direction {k}: w lands {miss:?} off d");
             let n = written.w().get().cross(d.get());
-            for (axis, before, after) in [
-                ("u", written.u(), got.u()),
-                ("v", written.v(), got.v()),
-            ] {
+            for (axis, before, after) in [("u", written.u(), got.u()), ("v", written.v(), got.v())]
+            {
                 let drift = (before.get().dot(n) - after.get().dot(n)).abs();
                 assert!(
                     drift < 1e-14,
