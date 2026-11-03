@@ -46,3 +46,12 @@ should end by. Where it is, nest the refusal whole (or carry its
 `PcurveCertifyError::ending` through `render(at)`); where the wrapper's
 decision is the right one, say so at the arm and make the match
 exhaustive by variant.
+
+## Also: the boolean loop walk's routing
+
+`boolean::ops::walk_certify_refusal` (`crates/topo/src/boolean/ops.rs`)
+routes `SectorRefused` as `WalkRefusal::Unread`. Since this branch, that
+arm is check 4's sector condition on a stored piece, ending in the
+door's defect, which the walk reads as `Torn` for the other
+stored-contradiction arms (`ImageMismatch`, `WindingMismatch`). Decide
+which one it is.
