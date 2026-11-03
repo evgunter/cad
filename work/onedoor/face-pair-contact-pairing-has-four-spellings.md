@@ -2,11 +2,12 @@
 id: face-pair-contact-pairing-has-four-spellings
 kind: issue
 title: Whether two faces at a point are coplanar with their material facing is asked four ways: census ee_cross_backed, at_rest::opposed, link::pairing, contact_verify::contact_tangent_opposed
-status: open
+status: parked
 opened: 2026-11-03
 priority: P1
 cost: M
 design: true
+blocked_on: [the-tier3-wedge-pass-and-the-census-compose-the-edge-wedge-door-again]
 ---
 
 

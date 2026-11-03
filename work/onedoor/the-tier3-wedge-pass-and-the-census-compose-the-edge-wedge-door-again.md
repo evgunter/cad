@@ -2,10 +2,11 @@
 id: the-tier3-wedge-pass-and-the-census-compose-the-edge-wedge-door-again
 kind: issue
 title: Tier 3's wedge pass and the census each compose the dihedral class with the material pairing, the question geom_brep::classify_edge_wedge now answers in one door
-status: open
+status: dispatched
 opened: 2026-11-02
 priority: P1
 cost: H
+branch: onedoor/wedge-fold
 ---
 
 Filed by the REFS lane (`work/refs/select-all-edges-picks-edges-a-fillet-refuses.md`), from its sweep for readers of an edge's dihedral.

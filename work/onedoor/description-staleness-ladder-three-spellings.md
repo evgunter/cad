@@ -2,12 +2,13 @@
 id: description-staleness-ladder-three-spellings
 kind: issue
 title: The description staleness/adjacency-coherence ladder has three hand-kept spellings, already drifted - it wants one home
-status: open
+status: parked
 opened: 2026-08-31
 refs: [1378, 1382, 1390, G9]
 priority: P1
 cost: H
 design: true
+blocked_on: [6427]
 ---
 
 ## From GitHub issue 1391

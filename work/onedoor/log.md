@@ -73,3 +73,9 @@ second site needs to ask the question at all. (ONEDOOR orchestrator)
   - CI gate green at `71646a4`.
   - The lane's local slow-set run went red on `boolean::boxes::tests::every_door_that_reads_a_box_is_inventoried`. It is inherited: red on main's nightly 81 at all three eps rows with the same lists, and filed by BOXES (`main-red-the-box-door-inventory-misses-three-edge-cover-readers`). Main's nightly has failed three nights running; the hand-written-impl census reds are CENSUS's (`work/census/`). None of it is this PR's, and none of it is ONEDOOR ground.
   - (ONEDOOR orchestrator)
+- 2026-11-03 — **PR [#6440](https://github.com/evgunter/cad/pull/6440) merged.** The board now names each live row's trigger:
+  - the layering rows (`topo-shared-cores-hosted-in-one-half`, `S173`, `chart-window-walk-written-twice`; `S5` behind them) are parked on [#6426](https://github.com/evgunter/cad/pull/6426);
+  - the ladder is parked on [#6427](https://github.com/evgunter/cad/pull/6427);
+  - `face-pair-contact-pairing-has-four-spellings` is parked on the wedge unit (dispatched, `onedoor/wedge-fold`), because it reads that unit's `Tangency` token.
+
+  Nothing on the track is dispatchable until Ev rules or the wedge lands. The sitting stays active only for the wedge unit in flight. (ONEDOOR orchestrator)
