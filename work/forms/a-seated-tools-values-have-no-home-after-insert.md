@@ -2,12 +2,13 @@
 id: a-seated-tools-values-have-no-home-after-insert
 kind: issue
 title: The values a seated tool sets at create have no faithful home after insert: a split plane and a circular pattern axis are frozen frames, a linear pattern's spacing is minted per axis, a clearance bound is payload
-status: open
+status: parked
 opened: 2026-11-02
 priority: P1
 cost: H
 design: true
 parent: creating-a-thing-and-editing-it-are-two-implementations
+blocked_on: [6406]
 ---
 
 
