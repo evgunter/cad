@@ -177,7 +177,8 @@ fn a_void_wholly_inside_a_convex_bands_material_refuses_wholly_inside_under_both
             on_the_void(&body, at, 0.03, 0.08),
             "{what}: the face named is the void's, {at:?}"
         );
-        let text = BlendError::WhollyInside { at, chain, margin }.to_string();
+        let text = BlendError::WhollyInside { at, chain, margin }
+            .render(geom_brep::recourse::Reading::Build);
         assert!(
             text.contains("lies wholly inside the material its band removes")
                 && text.contains("consuming it is not built yet"),
@@ -332,7 +333,8 @@ fn an_island_wholly_inside_a_concave_bands_fill_refuses_wholly_inside_under_both
             [1.9, 2.1, 1.01, 1.04].iter().any(|w| (d - w).abs() < 1e-9),
             "{what}: the face named is the island's (offset {d})"
         );
-        let text = BlendError::WhollyInside { at, chain, margin }.to_string();
+        let text = BlendError::WhollyInside { at, chain, margin }
+            .render(geom_brep::recourse::Reading::Build);
         assert!(
             text.contains("the material its band adds"),
             "{what}: {text}"

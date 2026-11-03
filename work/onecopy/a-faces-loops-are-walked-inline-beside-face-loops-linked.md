@@ -2,10 +2,11 @@
 id: a-faces-loops-are-walked-inline-beside-face-loops-linked
 kind: issue
 title: A face's loops are walked inline at about fifty sites beside Body::face_loops_linked
-status: open
+status: dispatched
 opened: 2026-11-02
 priority: P1
 cost: M
+branch: onecopy/face-loops
 ---
 
 Found by the sweep of `slit-reads-a-faces-edges-through-its-own-walk`,
@@ -43,3 +44,7 @@ mid-operation walk may be too. The rest read through
 `face_loops_linked` / `face_boundary_linked` / `face_edges`, each
 deciding at its call what a stale face key is; where a site's shape is
 not expressible there, extend the home rather than write beside it.
+
+## Slate triage (2026-11-03, ONEHOME cut)
+
+- Moved to ONECOPY (`work/onecopy/`) by `git mv`, id and body unchanged. ONEHOME measured 70 budget points against 35 when its orchestrator ran out of usage; the rows it had not started (no lane, no design fork, no in-flight PR riding them) were cut onto ONECOPY, and what is in flight or staged stayed on ONEHOME.

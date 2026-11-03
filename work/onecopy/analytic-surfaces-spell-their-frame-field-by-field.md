@@ -6,6 +6,7 @@ status: open
 opened: 2026-11-02
 priority: P1
 cost: H
+design: true
 ---
 
 Found by the ONEHOME orchestrator while adjudicating PR 6328's style review (2026-11-02).
@@ -17,3 +18,7 @@ Parked until the conic unit lands and fixes `Frame`'s shape. Then sweep every su
 ## A further holder (PR 6349 review, 2026-11-02)
 
 `geom::chart_point::ChartInverse { anchor, axis, u_ref, v_ref, arm }` holds the same placement triple in the same crate, plus a stored `v_ref` that `Frame::v_ref` derives. It belongs in this row's sweep: it holds a `geom::Frame`, or its readers read the surface's.
+
+## Slate triage (2026-11-03, ONEHOME cut)
+
+- Moved to ONECOPY (`work/onecopy/`) by `git mv`, id and body unchanged. ONEHOME measured 70 budget points against 35 when its orchestrator ran out of usage; the rows it had not started (no lane, no design fork, no in-flight PR riding them) were cut onto ONECOPY, and what is in flight or staged stayed on ONEHOME.

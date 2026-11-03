@@ -188,7 +188,7 @@ fn chamfers(body: &Body<f64>, edges: &[EdgeKey], r: f64, what: &str) {
 
 /// The refusal carries exactly the recourse under test.
 fn carries(err: &BlendError, recourse: &str, what: &str) {
-    let shown = err.to_string();
+    let shown = err.render(geom_brep::recourse::Reading::Build);
     assert!(
         shown.contains(recourse),
         "{what}: the refusal must carry its own recourse.\n  got: {shown}"
@@ -721,7 +721,7 @@ fn the_corner_independence_recourse_is_followed_by_each_of_its_levers() {
         ),
         "a nearly flat trihedron escalates the independence decision, got {err:?}"
     );
-    let text = err.to_string();
+    let text = err.render(geom_brep::recourse::Reading::Build);
     assert!(
         text.contains(FILLET3_CORNER_INDEPENDENCE_RECOURSE) && !text.contains("declare"),
         "{text}"
@@ -997,7 +997,7 @@ fn the_chamfer_arm_recourse_names_a_plane_plane_pair_that_chamfers() {
 /// the copy this suite used to keep is exactly the failure the home's
 /// own doc records.
 fn carries_no_named_recourse(err: &BlendError, what: &str) {
-    let shown = err.to_string();
+    let shown = err.render(geom_brep::recourse::Reading::Build);
     for (name, sentence) in ALL_RECOURSES {
         assert!(
             !shown.contains(sentence),
@@ -1035,9 +1035,10 @@ fn a_nonpositive_size_gives_advice_the_recourse_table_says_it_has_none_of() {
         );
         carries_no_named_recourse(&err, "a nonpositive setback");
         assert!(
-            err.to_string()
+            err.render(geom_brep::recourse::Reading::Build)
                 .contains("supply a positive radius or setback"),
-            "and it advises anyway: {err}"
+            "and it advises anyway: {err_at}",
+            err_at = err.render(geom_brep::recourse::Reading::Build)
         );
     }
     chamfers(&body, &edges, 0.1, "the positive setback it names");
@@ -1061,8 +1062,10 @@ fn a_repeated_edge_gives_advice_the_recourse_table_says_it_has_none_of() {
     );
     carries_no_named_recourse(&err, "a repeated edge");
     assert!(
-        err.to_string().contains("request each edge once"),
-        "and it advises anyway: {err}"
+        err.render(geom_brep::recourse::Reading::Build)
+            .contains("request each edge once"),
+        "and it advises anyway: {err_at}",
+        err_at = err.render(geom_brep::recourse::Reading::Build)
     );
     builds(&body, &edges, 0.1, "each edge requested once");
 }
@@ -1110,7 +1113,10 @@ fn the_spine_recourse_has_no_witness_in_this_suite_the_clearance_screen_answers_
             Err(BlendError::FaceClearanceUncertified { .. } | BlendError::Escalated { .. }) => {
                 clearance += 1;
             }
-            Err(other) => panic!("r = {r}: unexpected outcome {other}"),
+            Err(other) => panic!(
+                "r = {r}: unexpected outcome {other_at}",
+                other_at = other.render(geom_brep::recourse::Reading::Build)
+            ),
         }
     }
     assert!(
@@ -1170,7 +1176,8 @@ fn the_convexity_recourse_has_no_witness_in_this_suite() {
         "mixed convexity is met at the CORNER, not along a chain, got {err:?}"
     );
     assert!(
-        !err.to_string().contains(FILLET3_CONVEXITY_RECOURSE),
+        !err.render(geom_brep::recourse::Reading::Build)
+            .contains(FILLET3_CONVEXITY_RECOURSE),
         "and the caller is handed the corner recourse, not the convexity one"
     );
 }
@@ -1211,7 +1218,7 @@ fn the_geometry_recourse_names_a_ring_and_an_order_that_builds() {
         matches!(err, BlendError::UnsupportedGeometry { .. }),
         "the ring's ellipse carriers are what refuse, got {err:?}"
     );
-    let shown = err.to_string();
+    let shown = err.render(geom_brep::recourse::Reading::Build);
     assert!(
         shown.contains(FILLET3_GEOMETRY_RECOURSE),
         "the caller is handed the geometry recourse: {shown}"
@@ -1280,7 +1287,8 @@ fn the_ring_recourse_is_screened_first_on_a_lattice_aligned_dimple() {
          meters the ring gap first, got {err:?}"
     );
     assert!(
-        !err.to_string().contains(FILLET3_RING_RECOURSE),
+        !err.render(geom_brep::recourse::Reading::Build)
+            .contains(FILLET3_RING_RECOURSE),
         "and the caller reads the clearance recourse here, not the ring one"
     );
 }
@@ -1340,8 +1348,13 @@ fn the_reorder_leg_builds_where_the_boolean_serves_the_band() {
         } else {
             fillet_edges(&rest, &edge, d, tol())
         };
-        out.unwrap_or_else(|e| panic!("chamfer {chamfer}: the brick's edge blends: {e}"))
-            .body
+        out.unwrap_or_else(|e| {
+            panic!(
+                "chamfer {chamfer}: the brick's edge blends: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        })
+        .body
     };
     let cut = |b: &Body<f64>| {
         topo::subtract(
@@ -1351,7 +1364,12 @@ fn the_reorder_leg_builds_where_the_boolean_serves_the_band() {
         )
     };
     let chamfered = cut(&blended(true))
-        .unwrap_or_else(|e| panic!("the bore after the chamfer builds: {e}"))
+        .unwrap_or_else(|e| {
+            panic!(
+                "the bore after the chamfer builds: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        })
         .body()
         .expect("the bore leaves material")
         .body

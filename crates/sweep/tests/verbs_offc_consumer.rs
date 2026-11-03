@@ -236,7 +236,8 @@ fn the_boolean_gate_refuses_an_approx_operand_by_kind() {
             } if f == face
         ),
         "expected the pair-scoped gate's germ-pair refusal naming SurfaceKind::Approx on \
-         {face:?}, got {e}"
+         {face:?}, got {e_at}",
+        e_at = e.render(geom_brep::recourse::Reading::Build)
     );
 }
 
@@ -360,7 +361,12 @@ fn an_approx_faced_body_moves_under_a_rigid_map() {
             &geom_core::test_support::rigid(&map, Tol::witness()),
             Tol::witness(),
         )
-        .unwrap_or_else(|e| panic!("d = {d}: an Approx-faced body must move: {e}"));
+        .unwrap_or_else(|e| {
+            panic!(
+                "d = {d}: an Approx-faced body must move: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        });
 
         let before = approx_face_surface(&body, face);
         let after = approx_face_surface(&moved, face);
@@ -488,7 +494,12 @@ fn the_mapped_face_is_a_certified_fit_of_the_mapped_description() {
         let after = approx_face_surface(&moved, face);
         let geom::SurfaceDescription::Offset { base, .. } = after.description();
         let fresh = geom_brep::approx_offset_surface_at(Arc::clone(base), d, MINT_TARGET, band())
-            .unwrap_or_else(|e| panic!("d = {d}: the mapped description must still fit: {e}"));
+            .unwrap_or_else(|e| {
+                panic!(
+                    "d = {d}: the mapped description must still fit: {e_at}",
+                    e_at = e.render(geom_brep::recourse::Reading::Build)
+                )
+            });
         let Surface::Approx(fresh) = &fresh else {
             panic!("the door mints the variant")
         };
@@ -563,7 +574,8 @@ fn a_degraded_fit_does_not_survive_the_map() {
                 source: geom_brep::OffsetFitError::Limb { .. }
             }
         ),
-        "expected the fit door's limb refusal under ApproxRecertify, got {e}"
+        "expected the fit door's limb refusal under ApproxRecertify, got {e_at}",
+        e_at = e.render(geom_brep::recourse::Reading::Build)
     );
 }
 
@@ -592,8 +604,10 @@ fn the_pcurve_pass_reaches_the_same_charts_either_side_of_the_map() {
         Tol::witness(),
     )
     .expect("the body moves");
-    let here = topo::mint_pcurves(&mut body, Tol::witness()).map_err(|e| format!("{e}"));
-    let there = topo::mint_pcurves(&mut moved, Tol::witness()).map_err(|e| format!("{e}"));
+    let here = topo::mint_pcurves(&mut body, Tol::witness())
+        .map_err(|e| e.render(geom_brep::recourse::Reading::Build));
+    let there = topo::mint_pcurves(&mut moved, Tol::witness())
+        .map_err(|e| e.render(geom_brep::recourse::Reading::Build));
     // The TEXT, not the boolean: both sides refuse today, so comparing
     // `is_ok()` would compare `false` with `false` and pass on any two
     // refusals whatever.
@@ -672,11 +686,12 @@ fn a_narrowed_window_refuses_at_the_validator_and_at_the_map() {
                 source: geom_brep::OffsetFitError::WindowUnsupported { .. }
             }
         ),
-        "expected ApproxRecertify(WindowUnsupported), got {e}"
+        "expected ApproxRecertify(WindowUnsupported), got {e_at}",
+        e_at = e.render(geom_brep::recourse::Reading::Build)
     );
     // Door-neutral text: the refusal names the window, not whichever
     // door happened to raise it.
-    let text = format!("{e}");
+    let text = e.render(geom_brep::recourse::Reading::Build);
     assert!(
         !text.contains("approx_offset_surface"),
         "the window refusal must not name the storage door from the map: {text}"
@@ -739,7 +754,8 @@ fn a_micro_edit_of_an_interior_control_point_does_not_survive_the_map() {
                 source: geom_brep::OffsetFitError::Limb { .. }
             }
         ),
-        "expected a limb refusal, got {e}"
+        "expected a limb refusal, got {e_at}",
+        e_at = e.render(geom_brep::recourse::Reading::Build)
     );
 }
 
@@ -897,7 +913,8 @@ fn an_approx_face_refuses_typed_at_a_scalar_with_no_fit_lane() {
             e,
             topo::TransformError::ApproxLaneUnsupported { scalar: "interval" }
         ),
-        "expected ApproxLaneUnsupported naming the interval scalar, got {e}"
+        "expected ApproxLaneUnsupported naming the interval scalar, got {e_at}",
+        e_at = e.render(geom_brep::recourse::Reading::Build)
     );
 }
 
@@ -972,7 +989,8 @@ fn the_walls_a_placed_approx_capped_part_still_meets() {
             step,
             step_export::StepExportError::UnsupportedSurface { kind: "approx", .. }
         ),
-        "expected the kind refusal, got {step}"
+        "expected the kind refusal, got {step_at}",
+        step_at = step.render(geom_brep::recourse::Reading::Build)
     );
 }
 

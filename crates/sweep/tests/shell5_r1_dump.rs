@@ -52,7 +52,10 @@ fn planes_where(body: &Body<f64>, n: (f64, f64, f64), c: f64) -> Vec<FaceKey> {
 
 fn dump(label: &str, out: &Result<topo::Shelled<f64>, topo::ShellError<f64>>) {
     match out {
-        Err(e) => println!("[dump] {label}: Err {e}"),
+        Err(e) => println!(
+            "[dump] {label}: Err {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        ),
         Ok(s) => {
             let b = &s.body;
             println!(

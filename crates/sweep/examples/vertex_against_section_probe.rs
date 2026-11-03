@@ -150,7 +150,10 @@ fn main() {
                             vol(r.above.body()),
                             vol(r.below.body())
                         ),
-                        Err(err) => format!("REFUSED {err:?} | {err}"),
+                        Err(err) => format!(
+                            "REFUSED {err:?} | {err_at}",
+                            err_at = err.render(geom_brep::recourse::Reading::Build)
+                        ),
                     };
                     println!("SPLIT {tag}: {line}");
                 }
@@ -189,7 +192,10 @@ fn main() {
                     );
                     let line = match topo::subtract(&cyl, &slab, tol()) {
                         Ok(r) => format!("ok vol={:.9}", vol(r.body().map(|b| &b.body))),
-                        Err(err) => format!("REFUSED {err:?} | {err}"),
+                        Err(err) => format!(
+                            "REFUSED {err:?} | {err_at}",
+                            err_at = err.render(geom_brep::recourse::Reading::Build)
+                        ),
                     };
                     println!("BOOL {tag}: {line}");
                 }
@@ -225,7 +231,10 @@ fn main() {
                     );
                     let line = match topo::subtract(&cyl, &corner, tol()) {
                         Ok(r) => format!("ok vol={:.9}", vol(r.body().map(|b| &b.body))),
-                        Err(err) => format!("REFUSED {err:?} | {err}"),
+                        Err(err) => format!(
+                            "REFUSED {err:?} | {err_at}",
+                            err_at = err.render(geom_brep::recourse::Reading::Build)
+                        ),
                     };
                     println!("MIRROR {tag}: {line}");
                 }

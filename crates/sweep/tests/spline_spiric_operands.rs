@@ -6,9 +6,14 @@
 //! placements, in both operand orders, and holds each outcome to an
 //! oracle:
 //!
-//! - an `Ok` carries the volume the oracle gives: the closed form where
-//!   the placement has one, and otherwise inclusion–exclusion, every
-//!   op that builds implying one shared `V(O ∩ B)`;
+//! - an `Ok` carries the volume the oracle gives: the closed form in
+//!   `V(O)` and `V(B)` where the placement has one, and otherwise
+//!   inclusion–exclusion, every op that builds implying one shared
+//!   `V(O ∩ B)`. `V(O)` is the operand's closed form where it has one
+//!   (its measure holds it), and otherwise its measure. Every body is
+//!   measured at [`RESOLUTION`], its bracket held within the band, and
+//!   each reading is held to its oracle within the band beyond the
+//!   brackets on both sides;
 //! - a placement marked to build builds every op;
 //! - an `Err` is a typed refusal, never a kernel invariant, and a
 //!   refusal naming a face names one of the operand its site says owns
@@ -34,8 +39,8 @@
 //!   quarter of the revolved vessel about `ŷ`: a neck cylinder under a
 //!   mouth plane, a torus band whose two rims on the quarter's cut
 //!   planes are spirics, a lower cylinder and a base. Its volume is an
-//!   elliptic integral, so its own measure is the closed form's stand-in
-//!   and inclusion–exclusion holds every cut: a poke through the neck
+//!   elliptic integral, so it has no closed form to hold its measure to;
+//!   inclusion–exclusion holds every cut: a poke through the neck
 //!   wall, a peg through the mouth, a brick inside, each away from the
 //!   spirics, all build; a poke into the torus band refuses typed
 //!   (`a_poke_into_the_cavitys_torus_band_refuses_typed`).
@@ -55,8 +60,9 @@ type Box3 = ((f64, f64), (f64, f64), (f64, f64));
 /// What an `Ok` is held to.
 #[derive(Clone, Copy)]
 enum Oracle {
-    /// `V(O ∪ B)`, `V(O ∩ B)`, `V(O ∖ B)`, `V(B ∖ O)`.
-    Known([f64; 4]),
+    /// `V(O ∪ B)`, `V(O ∩ B)`, `V(O ∖ B)`, `V(B ∖ O)` from `V(O)` and
+    /// `V(B)`.
+    Known(fn(f64, f64) -> [f64; 4]),
     /// Inclusion–exclusion: each op that builds implies `V(O ∩ B)`, and
     /// they agree, inside `[0, min(V(O), V(B))]`.
     Cut,
@@ -74,34 +80,37 @@ fn volume_of_box(((x0, x1), (y0, y1), (z0, z1)): Box3) -> f64 {
     (x1 - x0) * (y1 - y0) * (z1 - z0)
 }
 
-fn known(
-    name: &'static str,
-    brick: Box3,
-    v: f64,
-    builds: bool,
-    of: impl Fn(f64, f64) -> [f64; 4],
-) -> Placement {
+/// `brick` disjoint from the operand.
+fn far(brick: Box3, builds: bool) -> Placement {
+    let of: fn(f64, f64) -> [f64; 4] = |v, b| [v + b, 0.0, v, b];
     Placement {
-        name,
+        name: "far",
         brick,
-        oracle: Oracle::Known(of(v, volume_of_box(brick))),
+        oracle: Oracle::Known(of),
         builds,
     }
 }
 
-/// `brick` disjoint from an operand of volume `v`.
-fn far(brick: Box3, v: f64, builds: bool) -> Placement {
-    known("far", brick, v, builds, |v, b| [v + b, 0.0, v, b])
-}
-
 /// `brick` enclosing it.
-fn around(brick: Box3, v: f64, builds: bool) -> Placement {
-    known("around", brick, v, builds, |v, b| [b, v, 0.0, b - v])
+fn around(brick: Box3, builds: bool) -> Placement {
+    let of: fn(f64, f64) -> [f64; 4] = |v, b| [b, v, 0.0, b - v];
+    Placement {
+        name: "around",
+        brick,
+        oracle: Oracle::Known(of),
+        builds,
+    }
 }
 
 /// `brick` within it.
-fn inside(brick: Box3, v: f64, builds: bool) -> Placement {
-    known("inside", brick, v, builds, |v, b| [v, b, v - b, 0.0])
+fn inside(brick: Box3, builds: bool) -> Placement {
+    let of: fn(f64, f64) -> [f64; 4] = |v, b| [v, b, v - b, 0.0];
+    Placement {
+        name: "inside",
+        brick,
+        oracle: Oracle::Known(of),
+        builds,
+    }
 }
 
 fn cut(name: &'static str, brick: Box3, builds: bool) -> Placement {
@@ -206,11 +215,57 @@ type Run<'a> = (
     fn(f64, f64, f64) -> f64,
 );
 
+/// The resolution (mean boundary displacement, m) every body here is
+/// measured at: the width at which a reading's bracket lies within
+/// [`band`] of the volumes here, at every ε row. It is no finer than the
+/// coarsest row's ε, 1e-6.
+const RESOLUTION: f64 = 1e-6;
+
+/// How far a volume `v` may read from its oracle beyond the brackets.
+fn band(v: f64) -> f64 {
+    1e-6 * v.abs().max(1.0)
+}
+
+/// `body`'s volume at [`RESOLUTION`] and its bracket's half-width, which
+/// lies within [`band`].
+fn measure(what: &str, body: &AtRestBody<f64>) -> (f64, f64) {
+    let m = topo::test_support::volume_at(what, body, Tol::witness(), RESOLUTION);
+    assert!(
+        m.volume_pad <= band(m.volume),
+        "{what}: V = {} ± {:e}, a bracket wider than its band {:e}",
+        m.volume,
+        m.volume_pad,
+        band(m.volume)
+    );
+    (m.volume, m.volume_pad)
+}
+
 /// Runs the four ops in both orders against each placement and holds
-/// each outcome to its oracle; returns the census lines.
-fn census(name: &str, operand: &AtRestBody<f64>, placements: &[Placement]) -> Vec<String> {
+/// each outcome to its oracle; returns the census lines. `V(O)` is the
+/// operand's closed form where it has one, which its measure holds, and
+/// otherwise its measure.
+fn census(
+    name: &str,
+    operand: &AtRestBody<f64>,
+    closed_form: Option<f64>,
+    placements: &[Placement],
+) -> Vec<String> {
     let tol = Tol::witness();
-    let v = topo::test_support::pinned_volume("the operand measures", operand, tol).volume;
+    let (measured, measured_pad) = measure(&format!("{name}: the operand"), operand);
+    // `V(O)` and its bracket's half-width.
+    let (v, v_pad) = match closed_form {
+        Some(want) => {
+            topo::test_support::assert_volume_near(
+                &format!("{name}: the operand against its closed form"),
+                measured,
+                measured_pad,
+                want,
+                band(want),
+            );
+            (want, 0.0)
+        }
+        None => (measured, measured_pad),
+    };
     let mut lines = Vec::new();
     for p in placements {
         let (x, y, z) = p.brick;
@@ -282,36 +337,42 @@ fn census(name: &str, operand: &AtRestBody<f64>, placements: &[Placement]) -> Ve
                     lines.push(format!("{line}refuses {e:?}"));
                 }
                 Ok(result) => {
-                    let got = match &result {
-                        BooleanResult::Empty => 0.0,
-                        BooleanResult::Body(b) => {
-                            topo::test_support::pinned_volume("the measured body", &b.body, tol)
-                                .volume
-                        }
+                    let (got, got_pad) = match &result {
+                        BooleanResult::Empty => (0.0, 0.0),
+                        BooleanResult::Body(b) => measure(&format!("{line}the result"), &b.body),
                     };
                     match p.oracle {
-                        Oracle::Known(want) => assert!(
-                            (got - want[slot]).abs() <= 1e-6 * want[slot].max(1.0),
-                            "{line}builds V = {got}, the closed form gives {}",
-                            want[slot]
-                        ),
-                        Oracle::Cut => implied.push((op, meet(v, vb, got))),
+                        Oracle::Known(of) => {
+                            let want = of(v, vb)[slot];
+                            topo::test_support::assert_volume_near(
+                                &format!("{line}against the closed form"),
+                                got,
+                                got_pad + v_pad,
+                                want,
+                                band(want),
+                            );
+                        }
+                        // `V(O)` enters every op's implied `V(O ∩ B)` alike,
+                        // so their agreement reads only the results' brackets.
+                        Oracle::Cut => implied.push((op, meet(v, vb, got), got_pad)),
                     }
                     lines.push(format!("{line}builds V = {got}"));
                 }
             }
         }
-        if let Some(&(_, first)) = implied.first() {
+        if let Some(&(_, first, first_pad)) = implied.first() {
             let scale = v.max(vb);
+            let slack = 1e-9 * scale + first_pad + v_pad;
             assert!(
-                (-1e-9 * scale..=v.min(vb) + 1e-9 * scale).contains(&first),
-                "{name} / {}: V(O ∩ B) = {first} lies outside [0, min(V(O), V(B))]",
-                p.name
+                (-slack..=v.min(vb) + slack).contains(&first),
+                "{name} / {}: V(O ∩ B) = {first} ± {:e} lies outside [0, min(V(O), V(B))]",
+                p.name,
+                first_pad + v_pad
             );
-            for &(op, meet) in &implied {
+            for &(op, meet, pad) in &implied {
                 assert!(
-                    (meet - first).abs() <= 1e-9 * scale,
-                    "{name} / {}: {op} implies V(O ∩ B) = {meet}, the others {first}",
+                    (meet - first).abs() <= 1e-9 * scale + pad + first_pad,
+                    "{name} / {}: {op} implies V(O ∩ B) = {meet} ± {pad:e}, the others {first} ± {first_pad:e}",
                     p.name
                 );
             }
@@ -328,10 +389,11 @@ fn loft_prism_census() -> Vec<String> {
     census(
         "loft prism",
         &prism,
+        Some(9.0),
         &[
-            far(((5.0, 6.0), (5.0, 6.0), (5.0, 6.0)), 9.0, true),
-            around(((-3.0, 3.0), (-3.0, 3.0), (-1.0, 3.0)), 9.0, true),
-            inside(((-0.5, 0.5), (-0.5, 0.5), (0.5, 1.5)), 9.0, false),
+            far(((5.0, 6.0), (5.0, 6.0), (5.0, 6.0)), true),
+            around(((-3.0, 3.0), (-3.0, 3.0), (-1.0, 3.0)), true),
+            inside(((-0.5, 0.5), (-0.5, 0.5), (0.5, 1.5)), false),
             cut(
                 "slab through the walls",
                 ((-3.0, 3.0), (-0.25, 0.25), (0.75, 1.25)),
@@ -354,10 +416,11 @@ fn lofted_cylinder_census() -> Vec<String> {
     census(
         "lofted cylinder",
         &cylinder,
+        Some(v),
         &[
-            far(((5.0, 6.0), (5.0, 6.0), (5.0, 6.0)), v, true),
-            around(((-2.0, 2.0), (-2.0, 2.0), (-1.0, 3.0)), v, true),
-            inside(((-0.5, 0.5), (-0.5, 0.5), (0.5, 1.5)), v, false),
+            far(((5.0, 6.0), (5.0, 6.0), (5.0, 6.0)), true),
+            around(((-2.0, 2.0), (-2.0, 2.0), (-1.0, 3.0)), true),
+            inside(((-0.5, 0.5), (-0.5, 0.5), (0.5, 1.5)), false),
             cut(
                 "slab through the wall",
                 ((-2.0, 2.0), (-0.25, 0.25), (0.75, 1.25)),
@@ -367,13 +430,10 @@ fn lofted_cylinder_census() -> Vec<String> {
     )
 }
 
-/// The cavity, at rest, and its volume, its own measure.
-fn cavity() -> (AtRestBody<f64>, f64) {
-    let tol = Tol::witness();
+/// The cavity, at rest.
+fn cavity() -> AtRestBody<f64> {
     let (_, cavity) = vessel_cavity(1.0 / 128.0);
-    let cavity = AtRestBody::validate(cavity, tol).expect("the cavity passes the at-rest gate");
-    let v = topo::test_support::pinned_volume("the cavity measures", &cavity, tol).volume;
-    (cavity, v)
+    AtRestBody::validate(cavity, Tol::witness()).expect("the cavity passes the at-rest gate")
 }
 
 /// The cavity's placements, in its own frame: the quarter `x ≥ 1/128`,
@@ -383,14 +443,15 @@ fn cavity() -> (AtRestBody<f64>, f64) {
 /// and 0.0703) over `y ∈ [0.0703, 0.1797]`, whose rims on the cut planes
 /// are the two spirics. Every cut stands clear of the band.
 fn cavity_census() -> Vec<String> {
-    let (cavity, v) = cavity();
+    let cavity = cavity();
     census(
         "vessel cavity",
         &cavity,
+        None,
         &[
-            far(((5.0, 6.0), (5.0, 6.0), (5.0, 6.0)), v, true),
-            around(((-1.0, 1.0), (-1.0, 1.0), (-1.0, 1.0)), v, true),
-            inside(((0.03, 0.05), (0.25, 0.30), (-0.05, -0.03)), v, true),
+            far(((5.0, 6.0), (5.0, 6.0), (5.0, 6.0)), true),
+            around(((-1.0, 1.0), (-1.0, 1.0), (-1.0, 1.0)), true),
+            inside(((0.03, 0.05), (0.25, 0.30), (-0.05, -0.03)), true),
             cut(
                 "poke through the neck wall",
                 ((0.08, 0.2), (0.25, 0.30), (-0.05, -0.03)),
@@ -407,30 +468,6 @@ fn cavity_census() -> Vec<String> {
 
 #[test]
 fn no_spline_or_spiric_operand_builds_wrong() {
-    // Pinned red, two ways. At ε = 1e-6 the lofted cylinder's far union
-    // builds a volume 3.2e-5 off its closed form
-    // (`work/splice/main-red-the-lofted-cylinders-far-union-builds-the-wrong-volume-at-1e-6`); at
-    // 1e-12 the bare operand's measurement stops at its wall
-    // (`work/splice/the-lofted-cylinder-operand-runs-out-of-quadrature-budget-at-1e-12`).
-    let eps = geom_core::Tol::witness().eps();
-    let says: &[&str] = if test_utils::kernel_limit::at_row(eps, &[1e-6]) {
-        &[
-            "lofted cylinder / far / O ∪ B: builds V = 7.283217721708709, the closed form gives 7.283185307179586",
-        ]
-    } else {
-        &["the operand measures: the measurement did not meet its resolution: it stopped at `wall`"]
-    };
-    test_utils::pinned_red::row(
-        eps,
-        &[1e-6, 1e-12],
-        "the spline and spiric operands",
-        says,
-        no_spline_or_spiric_operand_builds_wrong_row,
-    );
-}
-
-/// The row [`no_spline_or_spiric_operand_builds_wrong`] runs, under its pins.
-fn no_spline_or_spiric_operand_builds_wrong_row() {
     let mut lines = loft_prism_census();
     lines.extend(lofted_cylinder_census());
     lines.extend(cavity_census());
@@ -446,7 +483,7 @@ fn no_spline_or_spiric_operand_builds_wrong_row() {
 #[test]
 fn a_poke_into_the_cavitys_torus_band_refuses_typed() {
     let tol = Tol::witness();
-    let (cavity, _) = cavity();
+    let cavity = cavity();
     let brick = finished(
         "the brick",
         brick_with_fresh_keys::<f64>((0.12, 0.25), (0.11, 0.14), (-0.06, -0.04), tol),

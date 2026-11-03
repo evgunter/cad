@@ -77,6 +77,7 @@ use crate::null::CurveGeom;
 use crate::offset_nappe::NappeRefusal;
 use crate::sector_shape::SlitTips;
 use crate::splitting::{ConicPlaneMeet, PlaneCrossingLane, PlaneSide as SplitSide};
+use crate::sweep_trace::SweepPairs;
 use crate::validate::decide;
 use crate::vertex_section::{Offset, SectionPlane, VertexRefusal};
 use geom_brep::roots::{Roots, Unsettled};
@@ -105,20 +106,6 @@ pub enum SweepStrategy {
     /// is not built (see `sweep_direction`).
     #[cfg(feature = "sweep-testing")]
     Idealized,
-}
-
-/// One direction's sweep observations, for the differential suite's
-/// superset pin: `examined` = pairs whose exact classification ran
-/// (the candidate set), `accepted` = pairs where the exact predicates
-/// accepted at least one event (a crossing inside the face, or an
-/// endpoint contact). Pairs are `(edge of x, face of y)` in
-/// examination order.
-#[derive(Debug, Default, Clone)]
-pub struct SweepTrace {
-    /// Every candidate pair the exact path examined.
-    pub examined: Vec<(EdgeKey, FaceKey)>,
-    /// The subset of pairs that produced an accepted event.
-    pub accepted: Vec<(EdgeKey, FaceKey)>,
 }
 
 /// The suite's failure-injection seam (pin iii — "the suite must be
@@ -1014,7 +1001,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
     band: Band,
     strategy: SweepStrategy,
     knobs: &SweepKnobs,
-    mut trace: Option<&mut SweepTrace>,
+    mut trace: Option<&mut SweepPairs<(EdgeKey, FaceKey)>>,
     deferred: &mut Vec<DeferredTouch>,
     axes: &super::separating::OperandAxes<T>,
     tol: Tol,
@@ -1076,7 +1063,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 break;
             };
             if let Some(tr) = trace.as_deref_mut() {
-                tr.examined.push((edge_key, face));
+                tr.examine((edge_key, face));
             }
             let edge =
                 x.get_edge(edge_key)
@@ -1126,7 +1113,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                         | CurvedEvent::Along { recorded: false }
                 ) && let Some(tr) = trace.as_deref_mut()
                 {
-                    tr.accepted.push((edge_key, face));
+                    tr.accept_last();
                 }
                 // A wall crossing is split and recorded HERE, with the
                 // same triple the conic × plane root above uses: the
@@ -1392,7 +1379,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                             )?;
                         }
                         if hit && let Some(tr) = trace.as_deref_mut() {
-                            tr.accepted.push((edge_key, face));
+                            tr.accept_last();
                         }
                         continue;
                     }
@@ -1407,7 +1394,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                         if vertex_on_face(x_is, y, w, pw, face, &plane, on, contacts, band, tol)?
                             && let Some(tr) = trace.as_deref_mut()
                         {
-                            tr.accepted.push((edge_key, face));
+                            tr.accept_last();
                         }
                         continue;
                     }
@@ -1435,7 +1422,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                             if !matches!(containment, FaceContainment::Out)
                                 && let Some(tr) = trace.as_deref_mut()
                             {
-                                tr.accepted.push((edge_key, face));
+                                tr.accept_last();
                             }
                             match containment {
                                 FaceContainment::Out => {}
@@ -1544,7 +1531,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                             )?;
                         }
                         if hit && let Some(tr) = trace.as_deref_mut() {
-                            tr.accepted.push((edge_key, face));
+                            tr.accept_last();
                         }
                         continue;
                     }
@@ -1578,7 +1565,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                     if !matches!(containment, FaceContainment::Out)
                         && let Some(tr) = trace.as_deref_mut()
                     {
-                        tr.accepted.push((edge_key, face));
+                        tr.accept_last();
                     }
                     match containment {
                         FaceContainment::Out => {}
@@ -1705,7 +1692,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                         )?;
                     }
                     if hit && let Some(tr) = trace.as_deref_mut() {
-                        tr.accepted.push((edge_key, face));
+                        tr.accept_last();
                     }
                 }
             }
@@ -1753,7 +1740,7 @@ pub(super) fn sweep_and_settle<T: Decide + Bounds + crate::props::AtRestPolicy>(
     band: Band,
     strategy: SweepStrategy,
     [ab_knobs, ba_knobs]: [&SweepKnobs; 2],
-    [mut ab_trace, mut ba_trace]: [Option<&mut SweepTrace>; 2],
+    [mut ab_trace, mut ba_trace]: [Option<&mut SweepPairs<(EdgeKey, FaceKey)>>; 2],
     tol: Tol,
 ) -> Result<(), BooleanError> {
     let mut deferred = Vec::new();
@@ -1959,8 +1946,8 @@ pub(super) struct DeferredTouch {
 ///
 /// Each fragment, walked from the deferred key along `he_plus` to the
 /// edge's far end, is read again by [`curved_face_arm`] against the
-/// deferred face; a pair it accepts is written to its direction's
-/// trace, as the sweep writes one. A fragment that clears or records is
+/// deferred face, and is written to its direction's trace as the sweep
+/// writes one: examined, and accepted where the arm accepts. A fragment that clears or records is
 /// done; one whose touch is still inside it, or that the arm reads as a
 /// crossing, answers the pair's typed frontier. So does a pair nothing
 /// split, read again exactly as it was deferred.
@@ -1972,7 +1959,7 @@ pub(super) fn settle_deferred<T: Decide + Bounds + crate::props::AtRestPolicy>(
     declared: &super::GluedPairs<T>,
     contacts: &mut ContactAcc,
     band: Band,
-    mut traces: [Option<&mut SweepTrace>; 2],
+    mut traces: [Option<&mut SweepPairs<(EdgeKey, FaceKey)>>; 2],
     tol: Tol,
 ) -> Result<(), BooleanError> {
     for d in deferred {
@@ -1993,6 +1980,9 @@ pub(super) fn settle_deferred<T: Decide + Bounds + crate::props::AtRestPolicy>(
                         what: "a deferred edge's fragment vanished",
                     })?;
             let ((u, pu), (v, pv)) = edge_ends(x, &edge)?;
+            if let Some(tr) = trace.as_deref_mut() {
+                tr.examine((fragment, d.face));
+            }
             match curved_face_arm(
                 x, y, d.x_is, fragment, &edge, u, v, d.face, pu, pv, declared, contacts, band, tol,
             )? {
@@ -2005,7 +1995,7 @@ pub(super) fn settle_deferred<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 | CurvedEvent::Lies { recorded: true, .. }
                 | CurvedEvent::Along { recorded: true } => {
                     if let Some(tr) = trace.as_deref_mut() {
-                        tr.accepted.push((fragment, d.face));
+                        tr.accept_last();
                     }
                 }
                 CurvedEvent::Deferred | CurvedEvent::Pierce { .. } => return Err(d.refusal),
@@ -6495,7 +6485,7 @@ mod declaration_order_rows {
                 ),
                 "{class:?}"
             );
-            let text = err.to_string();
+            let text = err.render(geom_brep::recourse::Reading::Build);
             assert!(
                 text.starts_with(&format!("{subject} is undecided: ")) && !text.contains("declare"),
                 "{class:?}: no declaration settles the question, so none is offered: {text}"
@@ -6506,7 +6496,7 @@ mod declaration_order_rows {
                     .1
                     .as_ref()
                     .expect_err("the undeclared run refuses")
-                    .to_string(),
+                    .render(geom_brep::recourse::Reading::Build),
                 "{class:?}: a declaration changes nothing here"
             );
         }
@@ -6689,7 +6679,10 @@ mod declaration_order_rows {
                     ),
                     "{label}"
                 );
-                let text = got.as_ref().expect_err("it refuses").to_string();
+                let text = got
+                    .as_ref()
+                    .expect_err("it refuses")
+                    .render(geom_brep::recourse::Reading::Build);
                 assert!(!text.contains("declare"), "{label}: {text}");
             }
         }
@@ -6874,7 +6867,7 @@ mod declaration_order_rows {
             "the lane's own decision"
         );
         assert_eq!(diag.predicate, Some("bool_circle_torus_plane_height"));
-        let text = got.to_string();
+        let text = got.render(geom_brep::recourse::Reading::Build);
         assert!(
             text.starts_with(
                 "at an edge of the first operand against a curved face of the other, how \
@@ -6955,7 +6948,9 @@ mod declaration_order_rows {
                 .value()
                 .expect("a point margin");
             let offers = band.offer_deciding(m).is_some();
-            let text = got.expect_err("it refuses").to_string();
+            let text = got
+                .expect_err("it refuses")
+                .render(geom_brep::recourse::Reading::Build);
             assert!(
                 text.starts_with("how two corners of the two solids overlap where they meet is ")
                     && text.contains(
@@ -7011,7 +7006,8 @@ mod wall_root_tests {
         };
         assert_eq!(decision, BooleanDecision::WallRoots(WallRung::Discriminant));
         assert_eq!(diag.predicate, Some("bool_ray_cylinder_disc"));
-        let text = BooleanError::Escalated { decision, diag }.to_string();
+        let text =
+            BooleanError::Escalated { decision, diag }.render(geom_brep::recourse::Reading::Build);
         assert_eq!(test_utils::refusal::recourse_markers(&text), 1, "{text}");
         assert_eq!(
             text,

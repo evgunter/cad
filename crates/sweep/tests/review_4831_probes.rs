@@ -94,7 +94,10 @@ fn check(
         Err(e) => format!(
             "REFUSED {:?}: {}",
             e.kind(),
-            e.to_string().chars().take(700).collect::<String>()
+            e.render(geom_brep::recourse::Reading::Build)
+                .chars()
+                .take(700)
+                .collect::<String>()
         ),
     }
 }
@@ -352,7 +355,10 @@ fn p3_a_nested_touch_just_off_tangent() {
             Some(topo::test_support::pinned_volume("the measured body", &r.body, tol()).volume)
         }
         Err(e) if fine && e.kind() == topo::BooleanErrorKind::CurvedPierceUnsupported => {
-            eprintln!("p3 outward {name}: refused {e}");
+            eprintln!(
+                "p3 outward {name}: refused {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            );
             None
         }
         other => panic!("p3 outward {name}: {other:?}"),
@@ -595,11 +601,15 @@ fn p10_the_sliver_family() {
                 Ok(topo::BooleanResult::Empty) => panic!("WRONG BODY {row}: empty"),
                 Err(e) => {
                     let kind = e.kind();
-                    eprintln!("{row}: refused {kind:?}: {e}");
+                    eprintln!(
+                        "{row}: refused {kind:?}: {e_at}",
+                        e_at = e.render(geom_brep::recourse::Reading::Build)
+                    );
                     assert_ne!(
                         kind,
                         topo::BooleanErrorKind::ClassificationInvariant,
-                        "{row}: {e}"
+                        "{row}: {e_at}",
+                        e_at = e.render(geom_brep::recourse::Reading::Build)
                     );
                     assert!(
                         matches!(pinned, Some(Sliver::Refuses(k)) if k == kind),

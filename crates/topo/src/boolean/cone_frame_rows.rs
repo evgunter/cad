@@ -261,7 +261,7 @@ fn a_parabola_or_a_hyperbola_refuses_at_the_frame_naming_the_conic() {
             ),
             "{label}: the Boolean's refusal names the conic, got {refused:?}"
         );
-        let text = refused.to_string();
+        let text = refused.render(geom_brep::recourse::Reading::Build);
         assert!(
             text.contains(named) && !text.contains(other),
             "{label}: the refusal's text names {named} and not {other}: {text}"

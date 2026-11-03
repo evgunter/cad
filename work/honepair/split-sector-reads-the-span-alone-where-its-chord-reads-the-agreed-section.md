@@ -28,3 +28,12 @@ This goes away when the agreed reading does: `germ-takes-the-span-bounded-face-r
 
 - Re-banded P4 → P2: the sector and its chord read one wall at two reaches: margins decided one at a time, or one verdict read off two decisions: interval and error propagation, P2 by `work/README.md` Priority.
 - Moved to HONEPAIR (`work/honepair/`) by `git mv`, id and body unchanged: the P2 track opened for one verdict decided on one margin at its own reach: rows that decide two margins one at a time, compose two readings, or lever a reading at the wrong extent. CLEAVE measured 270.5 budget points against 30 and split on its priority seam (Ev, in chat, 2026-10-26).
+
+## The D10 hold has lifted (2026-11-03)
+
+INTENT closed on 2026-10-30 with D10's umbrella row (#6103,
+`docs/doc-ledger/intent-leaves-the-tracker.md`). The row the fix above
+names, `germ-takes-the-span-bounded-face-reach-alone` (now LEVER's), is
+not parked on D10: stage 4 PR B released it on 2026-10-08, and it is
+open. This row is dispatchable, either with that row or by one of the
+two interim shapes above.

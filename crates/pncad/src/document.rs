@@ -334,7 +334,7 @@ pub use editor_core::{
     BooleanValue, CancelToken, CarriedChain, CarriedIn, CarriedLevel, ComputingTwist,
     DEFAULT_MEMBER_BUDGET, DirectionRefusal, EvalCounters, EvalOptions, EvalOutcome, Evaluation,
     Framed, Mispaired, NodeError, NodeErrorClass, NodeErrorKind, NodeRefusal, NodeResult,
-    NodeStanding, NodeValue, PoseValue, SplitSide, ValuePayload, evaluate,
+    NodeStanding, NodeValue, PoseValue, SplitSide, Stop, Stopped, ValuePayload, evaluate,
 };
 // What a body value carries from its source (`NodeValue::carry`), and
 // the pieces it holds: what a `⊔` grafted, each by its read, which a
@@ -357,7 +357,9 @@ pub use editor_core::{
 // the sentence a carrier that names the stage renders
 // ([`Staged::sentence`]); the recourse label, and what an API door
 // given no part resolver says to do.
-pub use editor_core::{Labelled, Labels, PASS_A_RESOLVER, Recourse, Staged};
+pub use editor_core::{
+    Labelled, Labels, PASS_A_RESOLVER, RAISE_THE_MEMBER_BUDGET, Recourse, Staged,
+};
 
 // Document identity and content pins.
 // `DocumentId` answers "which part" (authored at construction —

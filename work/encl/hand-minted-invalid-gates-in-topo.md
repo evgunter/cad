@@ -268,3 +268,11 @@ None of the open PRs edits a mint line itself; these are conflict risks only.
 | `boolean/*` | cleave + hone (`solid_contain`: + inside; `carrier_eq`, `chord_join`: + tang; `contain`: + inside, reachtail; `sphere_region`: + orbit) |
 | `splitting/*` | cleave, gauge, hone |
 | `flush`, `invalid_margin`, `dihedral` | not listed by territory |
+
+## The D10 hold has lifted (2026-11-03)
+
+INTENT closed on 2026-10-30 with D10's umbrella row (#6103,
+`docs/doc-ledger/intent-leaves-the-tracker.md`), so the sites listed
+above as blocked by the D10 hold (#3–#7, #15–#19, #21, #22) no longer
+wait on it. Stage 4 has retired declared pairs, so a unit re-reads
+those sites against main before it fixes them; some may be gone.

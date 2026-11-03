@@ -148,7 +148,13 @@ impl ContainDecision {
     /// The one ending an escalation of this decision carries, read at
     /// `reading` (D4 ¶1 (i)), from the shared table.
     #[must_use]
-    pub fn ending(self, escalation: Escalation, diag: &Indeterminate, reading: Reading) -> String {
+    pub fn ending(
+        self,
+        escalation: Escalation,
+        diag: &Indeterminate,
+        reading: impl Into<geom_brep::recourse::ReadAt>,
+    ) -> String {
+        let reading: geom_brep::recourse::ReadAt = reading.into();
         let arm = escalation.arm(diag);
         let lever = placement_lever(Some(self));
         match self {
@@ -179,8 +185,9 @@ pub fn placement_ending(
     decision: Option<ContainDecision>,
     escalation: Escalation,
     diag: &Indeterminate,
-    reading: Reading,
+    reading: impl Into<geom_brep::recourse::ReadAt>,
 ) -> String {
+    let reading: geom_brep::recourse::ReadAt = reading.into();
     match decision {
         Some(decision) => decision.ending(escalation, diag, reading),
         None => unnamed_placement_ending(escalation.arm(diag), reading),
@@ -192,7 +199,11 @@ pub fn placement_ending(
 /// `None` arm of [`placement_ending`], for a refusal that holds its
 /// readings in a shape of its own rather than as one escalation.
 #[must_use]
-pub fn unnamed_placement_ending(arm: RefusedArm<'_>, reading: Reading) -> String {
+pub fn unnamed_placement_ending(
+    arm: RefusedArm<'_>,
+    reading: impl Into<geom_brep::recourse::ReadAt>,
+) -> String {
+    let reading: geom_brep::recourse::ReadAt = reading.into();
     LeverOnly {
         lever: placement_lever(None),
     }
@@ -348,8 +359,12 @@ impl From<PointInLoopError> for ContainError {
 // `Escalated` renders its margin's payload and its decision's one ending
 // at a build ([`placement_ending`]); `Curved` delegates to the carried
 // refusal's own `Display`.
-impl core::fmt::Display for ContainError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl ContainError {
+    fn write(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        at: Option<geom_brep::recourse::ReadAt>,
+    ) -> core::fmt::Result {
         match self {
             Self::Escalated {
                 decision,
@@ -358,9 +373,10 @@ impl core::fmt::Display for ContainError {
             } => write!(
                 f,
                 "contfp: {}",
-                diag.undecided(
+                geom_brep::recourse::undecided_at(
+                    diag,
                     placement_subject(*decision),
-                    placement_ending(*decision, *escalation, diag, Reading::Build),
+                    at.map(|at| placement_ending(*decision, *escalation, diag, at)),
                 )
             ),
             Self::RayExhausted => write!(f, "contfp: {}", crate::ray_walk::NoRaySettled),
@@ -376,7 +392,7 @@ impl core::fmt::Display for ContainError {
                 f,
                 "contfp: the in-plane walk could not read loop {lp:?} of the face"
             ),
-            Self::Curved(e) => write!(f, "contfp: {e}"),
+            Self::Curved(e) => write!(f, "contfp: {}", geom_brep::recourse::read_at(e, at)),
             Self::Uncrossable(u) => write!(
                 f,
                 "contfp: {u}. Recourse: model the outline with lines, circles or ellipses"
@@ -389,6 +405,8 @@ impl core::fmt::Display for ContainError {
         }
     }
 }
+
+geom_brep::ended_by_write!(ContainError);
 
 impl std::error::Error for ContainError {}
 
@@ -1349,7 +1367,7 @@ mod tests {
                 diag: cause,
             };
             assert_eq!(
-                refusal.to_string(),
+                refusal.render(geom_brep::recourse::Reading::Build),
                 format!(
                     "contfp: {} is undecided: {}. {ending}",
                     placement_subject(decision),
@@ -1364,7 +1382,7 @@ mod tests {
                     escalation,
                     diag: cause,
                 }
-                .to_string();
+                .render(geom_brep::recourse::Reading::Build);
                 assert!(walk.ends_with(&format!(". {ending}")), "{row}: {walk}");
             }
             let at_rest = crate::ValidationError::RingNestingUndecided {
@@ -1372,7 +1390,7 @@ mod tests {
                 ring: LoopKey::default(),
                 source: refusal,
             }
-            .to_string();
+            .render(geom_brep::recourse::Reading::AtRest);
             assert!(
                 at_rest.ends_with(&format!(
                     "{} is undecided at this tolerance. {stored}",
@@ -1560,14 +1578,17 @@ mod tests {
                 4,
                 "{what}: each end decided once against each corner"
             );
-            let built = got.as_ref().unwrap_err().to_string();
+            let built = got
+                .as_ref()
+                .unwrap_err()
+                .render(geom_brep::recourse::Reading::Build);
             assert!(built.ends_with(lever), "{what}: {built}");
             let boolean = BooleanError::PointInFaceRefused {
                 operand: Operand::A,
                 face,
                 refusal: got.as_ref().unwrap_err().clone(),
             }
-            .to_string();
+            .render(geom_brep::recourse::Reading::Build);
             assert!(boolean.ends_with(lever), "{what}: {boolean}");
             **gaps
         };

@@ -111,8 +111,13 @@ fn near_eps_face(d: f64) -> geom::ApproxSurface<f64> {
     let mut tried = Vec::new();
     for margin in MARGINS {
         let s = eps * (1.0 - margin) / unscaled.hull_sup;
-        let face = geom_brep::approx_offset_surface(Arc::new(bowed(s)), d * s, tol)
-            .unwrap_or_else(|e| panic!("d = {d}: the scaled patch mints at the run's ε: {e}"));
+        let face =
+            geom_brep::approx_offset_surface(Arc::new(bowed(s)), d * s, tol).unwrap_or_else(|e| {
+                panic!(
+                    "d = {d}: the scaled patch mints at the run's ε: {e_at}",
+                    e_at = e.render(geom_brep::recourse::Reading::Build)
+                )
+            });
         let c = face.certificate();
         // The subject is what the file says it is: a round-`ROUND`
         // face whose bound sits just under ε. A scaled fit that stopped
@@ -151,7 +156,10 @@ fn answers(face: &geom::ApproxSurface<f64>, d: f64) -> (usize, usize) {
                     limb: OffsetLimb::HullSup,
                     ..
                 }) => (refused + 1, certified),
-                Err(e) => panic!("d = {d}, {name}: only the hull limb moves here: {e}"),
+                Err(e) => panic!(
+                    "d = {d}, {name}: only the hull limb moves here: {e_at}",
+                    e_at = e.render(geom_brep::recourse::Reading::Build)
+                ),
             }
         })
 }
@@ -239,8 +247,12 @@ fn the_image_of_a_face_minted_near_eps_refuses_re_derivation() {
     let lane = OffsetFitLane::fit();
     for d in [0.05_f64, -0.05] {
         let face = near_eps_face(d);
-        lane.recertify(&face, tol)
-            .unwrap_or_else(|e| panic!("d = {d}: the minted face certifies where it stands: {e}"));
+        lane.recertify(&face, tol).unwrap_or_else(|e| {
+            panic!(
+                "d = {d}: the minted face certifies where it stands: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        });
         let refused: Vec<String> = rotations()
             .into_iter()
             .filter_map(|(name, map)| {
@@ -251,7 +263,10 @@ fn the_image_of_a_face_minted_near_eps_refuses_re_derivation() {
                         limb: OffsetLimb::HullSup,
                         ..
                     }) => Some(name),
-                    Err(e) => panic!("d = {d}, {name}: only the hull limb moves here: {e}"),
+                    Err(e) => panic!(
+                        "d = {d}, {name}: only the hull limb moves here: {e_at}",
+                        e_at = e.render(geom_brep::recourse::Reading::Build)
+                    ),
                 }
             })
             .collect();
@@ -280,7 +295,12 @@ fn a_rigid_map_moves_a_face_minted_near_eps() {
         for (name, map) in rotations() {
             let moved =
                 topo::transform_rigid(&body, &geom_core::test_support::rigid(&map, tol), tol)
-                    .unwrap_or_else(|e| panic!("d = {d}, {name}: a sound face must move: {e}"));
+                    .unwrap_or_else(|e| {
+                        panic!(
+                            "d = {d}, {name}: a sound face must move: {e_at}",
+                            e_at = e.render(geom_brep::recourse::Reading::Build)
+                        )
+                    });
             let after = approx_on(&moved, key);
             let (description, fit) = image(&face, &map);
             let geom::SurfaceDescription::Offset {
@@ -296,7 +316,10 @@ fn a_rigid_map_moves_a_face_minted_near_eps() {
                 "d = {d}, {name}: the description maps exactly either way"
             );
             lane.recertify(&after, tol).unwrap_or_else(|e| {
-                panic!("d = {d}, {name}: tier 3's door must accept the moved face: {e}")
+                panic!(
+                    "d = {d}, {name}: tier 3's door must accept the moved face: {e_at}",
+                    e_at = e.render(geom_brep::recourse::Reading::Build)
+                )
             });
             if lane.remap(&description, &fit, face.window(), tol).is_ok() {
                 imaged += 1;

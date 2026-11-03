@@ -143,6 +143,7 @@ fn recomputed_distance(report: &ClearanceReport) -> f64 {
 
 fn query(bound: ClearanceBound, config: ClearanceConfig) -> ClearanceQuery<'static> {
     ClearanceQuery {
+        stop: crate::fixture::no_stop(),
         bound,
         tol: Tol::witness(),
         config,
@@ -459,6 +460,7 @@ fn a_block_with_a_rounded_bump_certifies_strictly_positive() {
     let (doc, solid, _placed) = bumped_block();
     let sel = Selection::body_of(solid);
     let q = ClearanceQuery {
+        stop: crate::fixture::no_stop(),
         bound: ClearanceBound::StrictlyPositive,
         tol: Tol::witness(),
         config: ClearanceConfig {
@@ -905,7 +907,14 @@ fn the_fold_is_the_same_under_both_driver_schedules() {
             parallel,
             ..DriveConfig::default()
         };
-        let verdict = drive(&doc, &analyzed, &config, Tol::witness()).expect("builds");
+        let verdict = drive(
+            &doc,
+            &analyzed,
+            &config,
+            &editor_core::Stop::default(),
+            Tol::witness(),
+        )
+        .expect("builds");
         assert!(!verdict.certified().is_empty(), "{}", verdict.serialize());
         folds.push(clearance_over_at_dials(
             &doc, &analyzed, &verdict, &sa, &sb, &q,
@@ -1092,7 +1101,14 @@ fn e2e_a_real_tolerance_gets_a_holds_over_zero_leaves() {
         max_leaves: 64,
         ..DriveConfig::default()
     };
-    let verdict = drive(&doc, &analyzed, &config, Tol::witness()).expect("builds at nominal");
+    let verdict = drive(
+        &doc,
+        &analyzed,
+        &config,
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .expect("builds at nominal");
     println!(
         "[r1 e2e] drive over ±0.05: certified = {}, refused = {}, accounting = {:?}",
         verdict.certified().len(),
@@ -1105,7 +1121,11 @@ fn e2e_a_real_tolerance_gets_a_holds_over_zero_leaves() {
         &verdict,
         &sc,
         &ss,
-        &ClearanceQuery::at_dials(ClearanceBound::at_least(0.3), Tol::witness()),
+        &ClearanceQuery::at_dials(
+            ClearanceBound::at_least(0.3),
+            crate::fixture::no_stop(),
+            Tol::witness(),
+        ),
     );
     println!(
         "[r1 e2e] fold: leaves = {}, verdict = {:?}",
@@ -1153,7 +1173,14 @@ fn a_refused_leaf_is_priced_under_its_own_refusal_by_the_fold() {
     let (doc, a, b) = blocks(0.4);
     let (sa, sb) = (Selection::body_of(a), Selection::body_of(b));
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    let verdict = drive(&doc, &analyzed, &DriveConfig::default(), Tol::witness()).expect("builds");
+    let verdict = drive(
+        &doc,
+        &analyzed,
+        &DriveConfig::default(),
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .expect("builds");
     let certified_mass = verdict.accounting().certified.clone();
     let fold = clearance_over_at_dials(
         &doc,
@@ -1255,6 +1282,7 @@ fn what_the_sound_prism_rows_hand_to_the_funnel() {
         &r.doc,
         &box_of(&r.doc, "place"),
         &Selection::body_of(dumbbell),
+        &editor_core::Stop::default(),
         Tol::witness(),
     );
     println!(

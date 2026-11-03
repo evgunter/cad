@@ -4,7 +4,7 @@ kind: issue
 title: A torus wall trimmed by a spline rim has no volume lane: the re-imported spiric cavity refuses check 7 there
 status: open
 opened: 2026-10-27
-priority: P2
+priority: P0
 cost: M
 ---
 
@@ -54,3 +54,7 @@ conic-trim refusal on a torus face the chords trim. The other is
 (`MassPropsError::RingOnCurvedFace`, `topo::props`) refusing a trimmed torus
 wall with no spiric that holds a ring. A lane for a spline-trimmed torus
 wall has to read that wall's rings too.
+
+## Re-banded P0 (2026-11-03)
+
+Teapot wall 2's next stop. The handle's torus face is trimmed by the sphere × torus section's fitted chord, and `a-projected-boundary-on-an-analytic-chart-has-no-volume-lane` (P0, the sphere's arm, teapot wall 2's current stop) hands a conic trim on a torus face to this row. The donut ∩ rod above reaches it too. A blocker inherits the band of what waits on it (`work/README.md`, Priority); tracked in `work/issues/curved-demo-joins-build.md`.

@@ -132,7 +132,7 @@ fn assert_honest_reattach_refusal(r: &ReattachRefusal, d: f64) {
          {expected:e} — the pull-back error widened; re-measure and re-state the \
          constant (refusal was: {})",
         Tol::witness().eps(),
-        r.error
+        r.error.render(geom_brep::recourse::Reading::Build)
     );
     let topo::EulerOpError::Certification { error } = &r.error else {
         panic!(
@@ -426,7 +426,8 @@ fn a_boolean_against_the_twisted_approx_body_refuses_typed() {
                 ..
             }
         ),
-        "expected the face rule's typed refusal on the Approx wall, got {e}"
+        "expected the face rule's typed refusal on the Approx wall, got {e_at}",
+        e_at = e.render(geom_brep::recourse::Reading::Build)
     );
 }
 
