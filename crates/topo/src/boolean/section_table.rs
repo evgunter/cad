@@ -97,7 +97,7 @@ pub(crate) struct GermFoot<T: Real> {
 pub(crate) struct ApexLines<T: Real> {
     pub(crate) apex: geom_core::Point3<T>,
     pub(crate) dirs: [geom_core::Vec3<T>; 2],
-    pub(crate) lever: T,
+    pub(crate) lever: geom_core::Lever<T>,
 }
 
 /// Why a germ has no place on its section.

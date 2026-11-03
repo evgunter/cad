@@ -11,7 +11,7 @@
 
 use crate::enters::{EntersMaterial, ReferenceNormal};
 use geom_core::k_stats::NonzeroSign;
-use geom_core::{Band, Decide, Indeterminate, Margin, Real, Sign, Vec3};
+use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Sign, Vec3};
 
 /// **How a conic edge bends off its departure tangent** at the vertex
 /// it leaves: what [`conic_bend_side`] reads one order down where the
@@ -63,24 +63,24 @@ pub struct ConicDeparture<T: Real> {
     pub dir: Vec3<T>,
     /// The edge's extent from below ([`crate::edge_extent_inf`]): no
     /// longer than its arc, which [`conic_bend_side`]'s witness needs.
-    pub extent: T,
+    pub extent: geom_core::Lever<T>,
     /// How the edge bends off [`Self::dir`].
     pub bend: ConicBend<T>,
 }
 
 impl<T: Decide> ConicDeparture<T> {
     /// The departure of `curve`'s walk out of its vertex (`he_plus`
-    /// walks `t₀ → t₁`, [`crate::EdgeCurve::walk_tangents`]), `chord`
-    /// the distance between the edge's end vertices.
+    /// walks `t₀ → t₁`, [`crate::EdgeCurve::walk_tangents`]), `ends`
+    /// the edge's end vertices.
     ///
     /// # Panics
     ///
     /// On a line carrier ([`ConicBend::of`]).
     #[must_use]
-    pub fn of(curve: &crate::EdgeCurve<T>, he_plus: bool, chord: T) -> Self {
+    pub fn of(curve: &crate::EdgeCurve<T>, he_plus: bool, ends: (Point3<T>, Point3<T>)) -> Self {
         let (t0, t1) = curve.params();
         let (tangent, _) = curve.walk_tangents(he_plus);
-        let extent = crate::edge_extent_inf(curve.carrier(), t0, t1, chord);
+        let extent = crate::edge_extent_inf(curve.carrier(), t0, t1, ends);
         let bend = ConicBend::of(
             curve.carrier(),
             tangent,
@@ -88,7 +88,7 @@ impl<T: Decide> ConicDeparture<T> {
             t1 - t0,
         );
         Self {
-            dir: tangent.normalize() * extent,
+            dir: tangent.normalize() * extent.length(),
             extent,
             bend,
         }
@@ -201,7 +201,10 @@ pub fn conic_bend_side<T: Decide>(
     band: Band,
 ) -> Result<EntersMaterial, Indeterminate> {
     let n = reference_normal.vec();
-    let residue = |arm: T| crate::enters::rise(dir, n, arm).value();
+    // The first-order residue at arc length `x`: the departure's unit
+    // component along `n̂`, times `x`.
+    let slope = dir.normalize().dot(n);
+    let residue = |x: T| slope * x;
     let normal_part = bend.curvature.dot(n) / bend.curvature.norm();
     // The bend's lower bound, signed as `N̂·n̂` is. A spiric section has
     // no bend this reading certifies: it lifts nothing, and the margin

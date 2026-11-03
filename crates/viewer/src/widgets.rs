@@ -1334,10 +1334,10 @@ pub(crate) fn unit_vec3_row(
 /// **What a step row's fields draw for each argument** — the seam
 /// between the step list, which knows WHICH argument each number is
 /// (its row and its [`StepArg`], the role the document's slot walk
-/// gives it), and the door the list is drawn for, which knows what
-/// that argument is: a number in the form's notation at the create
-/// door ([`WrittenIn`]), and at the edit door the field over the
-/// committed slot it is (`pane::profile`'s `HeldArgs`).
+/// gives it), and the editor the list is drawn for, which knows what
+/// that argument is: the field over the argument as the draft holds it
+/// (`pane::profile`'s `HeldArgs`), or, for a row made this frame, a
+/// number in the editor's notation ([`WrittenIn`]).
 pub(crate) trait ArgDoors {
     /// Argument `arg` of row `row`, named `name` in its field, its
     /// number `value` held canonical.
@@ -1351,10 +1351,10 @@ pub(crate) trait ArgDoors {
     fn under(&mut self, ui: &mut egui::Ui, row: usize);
 }
 
-/// **Plain numbers in one notation**: the create door's arguments, and
-/// the edit door's where a field is no committed slot. Each field is
-/// written in the unit its role's dimension is noted in, and the form's
-/// own pickers say the units ([`length_picker`]).
+/// **Plain numbers in one notation**: the profile editor's arguments
+/// where a field is no committed slot yet. Each field is written in the
+/// unit its role's dimension is noted in, and the editor's notation row
+/// says the units ([`length_picker`]).
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct WrittenIn {
     /// Every length field's unit.

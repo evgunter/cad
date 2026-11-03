@@ -67,7 +67,7 @@ fn a_cone_edge_inside_the_band_certifies_at_its_perpendicular_drift() {
         p0,
         p1,
         &lookup,
-        1.0,
+        geom_core::test_support::fixture_lever(1.0),
         band(),
         geom_brep::NurbsLane::certified(),
     )
@@ -147,7 +147,7 @@ fn the_collapsed_meter_never_understates_the_distance_to_the_surface() {
             p0,
             p1,
             &lookup,
-            1.0,
+            geom_core::test_support::fixture_lever(1.0),
             band(),
             geom_brep::NurbsLane::certified(),
         )
@@ -193,7 +193,7 @@ fn a_carrier_with_no_chart_image_names_the_pair_it_could_not_state() {
         p0,
         p1,
         &lookup,
-        1.0,
+        geom_core::test_support::fixture_lever(1.0),
         band(),
         geom_brep::NurbsLane::certified(),
     )
@@ -220,6 +220,7 @@ mod at_intervals {
     use crate::shared::surf::table;
     use geom::{Curve3, Surface};
     use geom_brep::{EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec};
+    use geom_core::test_support::fixture_lever;
     use geom_core::{Band, Bounds, Point3, Vec3};
 
     /// The rows' own band, fixed rather than the run's — a row about the
@@ -257,7 +258,7 @@ mod at_intervals {
             p0,
             p1,
             &lookup,
-            geom_core::Real::from_f64(1.0),
+            fixture_lever(geom_core::Real::from_f64(1.0)),
             band(),
             geom_brep::NurbsLane::certified(),
         )
@@ -311,7 +312,7 @@ mod at_intervals {
             p0,
             p1,
             &lookup,
-            geom_core::Real::from_f64(1.0),
+            fixture_lever(geom_core::Real::from_f64(1.0)),
             band(),
             geom_brep::NurbsLane::certified(),
         )

@@ -222,3 +222,32 @@ Newest entries at the bottom; the tail is the program's live status.
   - **Viewport picks:** a feature picked in the viewport refers only to the placed copy, with an easy way to the original body.
   - **The agreed parts stand.** DM6 is narrowed, and the README is restated to the answer.
   - The two takeover rows and Duplicate are unparked and dispatchable. The build is sequenced after `placing/values-direction`, because both rewrite the pattern gesture's takeover. (PLACING orchestrator)
+- 2026-11-02 — **The `[placement.values]` build is in review:** PR 6394, green at `a18ea48ed0`.
+  - **What it builds:**
+    - `Coord` gains `Slide(None)`, `SlideAlong(read)` and `SpinAbout(read)`, with the sum reading;
+    - the pncad writers take `RowDirection`/`RingAxis`;
+    - the viewer's pattern gesture takes a pick, never typed components, and `read_off` and `row_steps` are gone;
+    - the impeller ring becomes a writer call.
+  - **The designers' open point, decided by the lane and written into A11:** a carried target-axis slide beside an oblique mate projects into what the mates leave. Existing oblique-face placements therefore stand elsewhere: their zero is the plane's point nearest the target origin. The review weighs this.
+  - **Review: dual, CONCURRENT** (letter H; a change to the kernel's value chart, broad and hard to reverse). R1 = `placing-dual-6394-r1`, R2 = `placing-dual-6394-r2`, frozen head `a18ea48ed0`, identical brief. (PLACING orchestrator)
+- 2026-11-02 — **Incoming from FORMS:** Ev ruled on `[ev]` 6388 that a create gesture commits the node. That files `the-placement-editor-commits-on-apply-not-live` (P1 M) here:
+  - **Place, not Create:** placing an unplaced body inserts its placement where it stands (no mates, all values 0) and opens the editor on it;
+  - **Live commits, no Apply:** each change is one `SetBundle` and one undo step, and a refused change is held as a draft over the document.
+  - FORMS built the same model for the profile editor (#6403); read that first.
+  - **Sequencing, for when 6394 lands.** The next two units are:
+    1. the editor's Place-then-live-edit, which also carries Duplicate's retirement (a second placement is Place on a body shown again) and the undoing of 6356's `BodyPlaced` and once-placed routing;
+    2. the 6353 build: a feature on a copy reads the copy, a body feature offers the re-point, and delete splices by continuation.
+
+    Both touch `matetool.rs` and `session.rs`. They run one after the other, editor first, because the 6353 build's re-point offer is an editor action. (PLACING orchestrator)
+- 2026-11-02 — **PR 6394's dual pair is in** (concurrent, frozen head `a18ea48ed0`). Both verdicts are APPROVE-WITH-FIXES.
+  - **Correspondence pre-note:**
+    - **Bilateral MAJOR, both demonstrated:** the item-6 rule moves existing oblique-face placements. R1 measured four fixtures, up to 5.87 units; R2 measured the two drafted-wall rows by sin 1°. That contradicts PR 6369's summary ("perpendicular axes unchanged"), so it goes to Ev. It is a contract change, demonstrated, but bilateral, so it does not count toward the tally.
+    - **Unilateral MINOR:**
+      - R1: `read_back` beside an off-origin `SpinAbout` (red row); `Slide(None)` off the frame-lane closed form; the mate tool dropping new forms on re-edit.
+      - R2: no editor-core row for a mated read slide or for drift (rows written, green); weak positional checks.
+    - **Bilateral MINOR:** the `story_authoring` step deleted rather than replaced. Style findings are bilateral as well: five matches for one "pose reads", the fake read in `leaves`, the two admission routes.
+    - **Both:** impeller bit-identical (sure, executed); two digest rows already red on main.
+  - **Action:**
+    - `[ev]` added to 6394's title, with the question at the top of its body. The options are accept the rule (recommended), keep the old projection, or refuse carried axes there.
+    - The fix pass on the union runs meanwhile, with the item-6 rule untouched.
+  - **Class:** "unchanged" claims in an `[ev]` summary must be measured, not argued. 6369's "perpendicular axes unchanged" was true by argument for the designers' cases and false for one they marked unsure. (PLACING orchestrator)

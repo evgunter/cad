@@ -74,7 +74,7 @@ impl Steep {
             e.eval(t0),
             e.eval(t1),
             |k| self.surfaces.get(k).cloned(),
-            1.0,
+            geom_core::test_support::fixture_lever(1.0),
             band,
             geom_brep::NurbsLane::certified(),
         )
@@ -209,7 +209,7 @@ fn certification_agrees_with_the_old_winding_check() {
             start,
             end,
             |_| None,
-            1.0,
+            geom_core::test_support::fixture_lever(1.0),
             band,
             geom_brep::NurbsLane::certified(),
         )
@@ -304,7 +304,7 @@ fn the_stored_turn_is_the_edges_own_interval() {
             circle.eval(0.3),
             circle.eval(0.3 + TAU),
             |_| None,
-            1.0,
+            geom_core::test_support::fixture_lever(1.0),
             band,
             geom_brep::NurbsLane::certified(),
         )
@@ -385,12 +385,13 @@ fn the_certified_readers_agree_with_the_reads_they_retired() {
             start,
             end,
             |_| None,
-            1.0,
+            geom_core::test_support::fixture_lever(1.0),
             band,
             geom_brep::NurbsLane::certified(),
         )
     };
-    let headroom = |(t0, t1): (f64, f64)| Margin::levered(TAU - (t1 - t0), radius);
+    let headroom =
+        |(t0, t1): (f64, f64)| Margin::metered(TAU - (t1 - t0), geom_core::InfSpeed::new(radius));
     let old_split = |span| match decide("bool_split_span_period", headroom(span), band) {
         Ok(Sign::Positive | Sign::Zero) => Read::Proceeds,
         Ok(Sign::Negative) => Read::Refuses,

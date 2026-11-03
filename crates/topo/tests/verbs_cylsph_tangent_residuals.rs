@@ -146,7 +146,7 @@ fn the_admitted_internal_cylinder_tangency_has_the_same_orientation_shape() {
     let got = geom_brep::tangent_locus(
         &big,
         &small,
-        geom_brep::ExtentBall::new(Point3::origin(), 2.0),
+        geom_brep::ExtentBall::of_sphere(Point3::origin(), 2.0),
         Band::linear(Tol::witness()).unwrap(),
     );
     assert!(
