@@ -382,9 +382,7 @@ impl SplineImplicitPose<f64> {
         else {
             unreachable!("the pose holds a plane")
         };
-        let n = normal / normal.norm();
-        let c = self.ball().center();
-        let foot = c - n * (c - origin).dot(n);
+        let foot = geom::Frame::new(origin, normal, u_ref).foot(self.ball().center());
         let (a, o, m) = (
             foot.map(Interval::from_certified),
             origin.map(Interval::from_certified),

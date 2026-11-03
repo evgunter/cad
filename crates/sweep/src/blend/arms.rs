@@ -918,7 +918,11 @@ impl<T: Real> Ruling<T> {
                     .foot(self.rim);
                 Some((
                     SupportTrace::Round {
-                        center: on_axis - self.tau * (on_axis - self.rim).dot(self.tau),
+                        center: geom::Line {
+                            origin: self.rim,
+                            dir: self.tau,
+                        }
+                        .square_foot(on_axis),
                         radius,
                         side,
                     },

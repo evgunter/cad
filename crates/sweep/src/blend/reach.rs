@@ -629,9 +629,13 @@ fn sheet_fn<T: Decide + Bounds>(
     let lever = |p: Point3<T>| corner_max(lo, hi, |x| (x - p).norm());
     let centre = lo + (hi - lo) / T::from_f64(2.0);
     Some(match s {
-        Surface::Plane { origin, normal, .. } => {
+        Surface::Plane {
+            origin,
+            normal,
+            u_ref,
+        } => {
             let n = normal.normalize();
-            let foot = centre - n * (centre - *origin).dot(n);
+            let foot = geom::Frame::new(*origin, *normal, *u_ref).foot(centre);
             // Either sign encloses, the slack being the chord to it, so a
             // plane parallel to the axis takes one by decision.
             let sg = if n.dot(a).hi() < 0.0 { -one } else { one };
