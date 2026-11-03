@@ -41,9 +41,6 @@ Draw 340 of seed `0xe2bf3f192c072cb8`: a point on a zero-minor ring
 PR 5956 (cone apex) does not touch `census/`. Reproduce with
 `CAD_FUZZ_SEED=0xe2bf3f192c072cb8 CAD_FUZZ_EFFORT=1 CAD_TOLERANCE_EPS=1e-6`.
 
-## Another seed (2026-11-03, PR 6430 CI, eps 1e-12)
+## Another seed (2026-11-03)
 
-Draw 350 of seed `0xf23e6cc2b421332e`: a point on a zero-minor ring
-(major 0.8239) read 7.31e-14 deeper than its core bound 1.4301. It reproduces
-locally (`CAD_TOLERANCE_EPS=1e-12 CAD_FUZZ_SEED=0xf23e6cc2b421332e
-CAD_FUZZ_EFFORT=1`). The PR does not touch `crates/topo/src/census`.
+Seed `0xf23e6cc2b421332e` (PR 6430 CI) is written up in `work/issues/a-sampled-depth-on-a-zero-minor-ring-lies-past-its-core-bound.md`.
