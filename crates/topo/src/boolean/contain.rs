@@ -359,8 +359,12 @@ impl From<PointInLoopError> for ContainError {
 // `Escalated` renders its margin's payload and its decision's one ending
 // at a build ([`placement_ending`]); `Curved` delegates to the carried
 // refusal's own `Display`.
-impl core::fmt::Display for ContainError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl ContainError {
+    fn write(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        at: Option<geom_brep::recourse::ReadAt>,
+    ) -> core::fmt::Result {
         match self {
             Self::Escalated {
                 decision,
@@ -369,9 +373,10 @@ impl core::fmt::Display for ContainError {
             } => write!(
                 f,
                 "contfp: {}",
-                diag.undecided(
+                geom_brep::recourse::undecided_at(
+                    diag,
                     placement_subject(*decision),
-                    placement_ending(*decision, *escalation, diag, Reading::Build),
+                    at.map(|at| placement_ending(*decision, *escalation, diag, at)),
                 )
             ),
             Self::RayExhausted => write!(f, "contfp: {}", crate::ray_walk::NoRaySettled),
@@ -387,7 +392,7 @@ impl core::fmt::Display for ContainError {
                 f,
                 "contfp: the in-plane walk could not read loop {lp:?} of the face"
             ),
-            Self::Curved(e) => write!(f, "contfp: {e}"),
+            Self::Curved(e) => write!(f, "contfp: {}", geom_brep::recourse::read_at(e, at)),
             Self::Uncrossable(u) => write!(
                 f,
                 "contfp: {u}. Recourse: model the outline with lines, circles or ellipses"
@@ -401,6 +406,9 @@ impl core::fmt::Display for ContainError {
     }
 }
 
+geom_brep::ended_by_write!(ContainError);
+
+#[cfg(not(e1e_probe))]
 impl std::error::Error for ContainError {}
 
 impl ContainError {

@@ -1702,6 +1702,22 @@ impl BooleanDecision {
             .to_string()
     }
 
+    /// [`Self::render`] where its holder is read at a door, and its
+    /// payload alone where it is read at none (the holder's `Display`).
+    /// The ending is the Boolean's whichever door reads the holder: only
+    /// a build reports this decision.
+    pub(crate) fn written(
+        self,
+        diag: &Indeterminate,
+        at: Option<geom_brep::recourse::ReadAt>,
+    ) -> impl core::fmt::Display + '_ {
+        let ending = at.map(|_| self.recourse(diag));
+        let subject = self.subject();
+        core::fmt::from_fn(move |f| {
+            write!(f, "{}", geom_brep::recourse::undecided_at(diag, subject, ending.clone()))
+        })
+    }
+
     /// [`Self::render`] at the split door ([`crate::SplitFinishError::ResultEscalated`]):
     /// a reading of the result's side ([`Self::ShellRole`]) ends in the
     /// split's own spelling of its
