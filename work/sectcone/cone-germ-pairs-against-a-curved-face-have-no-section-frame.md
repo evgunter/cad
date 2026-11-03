@@ -71,3 +71,18 @@ or retired, by this row's build.
 `section_cert::Reach` no longer exists: the section certificate reads a
 `geom_brep::Reach::Ball` over the face boxes' overlap
 (`ExtentBall::of_overlap`, PR on `onehome/one-extent`).
+
+## A cone's apex on the partner is a node (SPLITDOOR, 2026-11-03)
+
+Ev approved this on `[ev]` PR 6432, which is design-fork row 251. The C5 node clause now covers a cone's apex lying on the other surface. There ∇f = 0, and the node's datum is the cone's quadratic form on the partner's tangent plane `T`. Its null lines are the two rulings in `T`, which become the node's lines.
+
+What that settles for this row:
+- The pose's apex margin reads a Zero as a node (form indefinite on `T`), a touch (definite), or a refusal (degenerate). It does not read a Zero as a tangency.
+- The ruling sweep divides out the apex root, and arcs through the apex form one `NodeSet`.
+- The certificate's cone × sphere arm today refuses an apex on the sphere as R-tan. It becomes a node or a touch.
+
+Two notes from the designers:
+- No row owns cone × sphere or cone × torus on the value. This row names only cylinder and cone partners.
+- The touch case is classification only, so it can build before the metres enclosure.
+
+Witnesses are on SPLITDOOR's B3 row (`a-cone-by-curved-carrier-section-through-the-apex-has-no-germ-frame-or-certified-count`). That row waits on this one for its follow-on: the pierce germ and the gate. (SPLITDOOR orchestrator)
