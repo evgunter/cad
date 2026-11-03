@@ -695,43 +695,6 @@ geom_brep::ended_by_write!(PointInSolidError);
 
 impl std::error::Error for PointInSolidError {}
 
-/// The face's plane, F5-gated: origin and **outward** normal (the
-/// chart normal with the face's sense folded in through
-/// [`plane_outward_normal`] — the callers of this door are handed a
-/// material direction, not a chart datum).
-///
-/// Every consumer reads the normal's sign-blind content: each feeds it,
-/// directly or through a probe, to [`point_in_face`], whose answer is
-/// ray-crossing parity, and the join's tie (`sectors::runs_in`) also
-/// asks only whether a point's height over the plane is zero. Threading
-/// the sense here keeps the door's CONTRACT honest for a consumer that
-/// reads the sign.
-///
-/// # Errors
-///
-/// [`PointInSolidError::KindUnsupported`] for a face off a plane.
-///
-/// # Panics
-///
-/// Where `face`, a face the kernel enumerated, does not resolve.
-pub(crate) fn face_plane<T: Decide>(
-    body: &Body<T>,
-    face: FaceKey,
-) -> Result<(Point3<T>, Vec3<T>), PointInSolidError> {
-    let f = proven(&body.faces, face, EntityId::Face);
-    match body.face_surface_linked(face, f) {
-        Surface::Plane { origin, normal, .. } => {
-            Ok((*origin, plane_outward_normal(f, *normal).vec()))
-        }
-        // A non-plane is a CAPABILITY answer; only a face key that does
-        // not resolve is corruption.
-        s => Err(PointInSolidError::KindUnsupported {
-            face,
-            kind: s.kind(),
-        }),
-    }
-}
-
 /// A face's resolved query geometry: the planar datum, or a curved
 /// face's carrier with what reads a point on it — a closed group's
 /// representative, or the face's own region read from its boundary.
@@ -1501,7 +1464,7 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
     // image for every boundary edge and a branch it can pin across each
     // junction, and a face that denies it either is out of the class.
     // Only the in-band arm is an escalation.
-    let raw = match crate::chord_join::face_azimuth_window(body, &surf, face, band) {
+    let raw = match crate::chart_window::face_azimuth_window(body, &surf, face, band) {
         Ok(Some(w)) => w,
         Ok(None) => return Ok(None),
         Err(crate::chord_join::SplitJoinError::Escalated { diag, .. })
