@@ -500,15 +500,16 @@ fn a_generator_meets_no_conic_on_the_mirror_nappe() {
     let mirror = rim(1, -ALPHA.cos(), ALPHA.sin(), (0.0, TAU), true);
     let own = cone_rim(2, 2.0, (0.0, TAU), true);
     let region = cone(vec![mirror.clone(), own.clone()], 2.0);
-    let leg = region.ruling(on_cone(0.0, 1.0), true, true);
+    let leg = region.ruling(on_cone(0.0, 1.0), true);
     assert!(
-        region
-            .landings(&mirror, &leg, b())
+        crate::boolean::region::landings(&mirror, &leg, RuledFaceRegion::<f64>::AT, b())
             .ok()
             .is_some_and(|l| l.is_empty())
     );
     assert_eq!(
-        region.landings(&own, &leg, b()).ok().map(|l| l.len()),
+        crate::boolean::region::landings(&own, &leg, RuledFaceRegion::<f64>::AT, b())
+            .ok()
+            .map(|l| l.len()),
         Some(1)
     );
 }

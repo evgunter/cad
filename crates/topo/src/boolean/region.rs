@@ -3,10 +3,11 @@
 //! [`super::ruled_region`] read a trimmed curved face with. The skeleton
 //! gathers the boundary, reads the point against it first, walks the
 //! paths and reads each leg to its closest crossing; a door supplies only
-//! its surface's legs ([`Legs`], and [`Paths`] for a roster of them), its
-//! landings, and its own rows and crossing arithmetic.
+//! its surface's legs ([`Legs`], and [`Paths`] for a roster of them) and
+//! its own rows. Where a leg meets an edge is the curve-pair meeting
+//! question, read once for every door ([`landings`]).
 
-use geom_brep::roots::{OnCarrier, RootRefusal, Roots};
+use geom_brep::curve_pair::{self, Hit as Met, MeetFault, Span};
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
 
 use super::solid_contain::PointInSolidError;
@@ -107,54 +108,6 @@ pub(crate) fn in_band(diag: Indeterminate) -> Fault {
     RayFault::InBand(RegionRefusal::Escalated(diag))
 }
 
-/// **A root `t` against its edge's span `(t0, t1)`**, under `row` at
-/// `lever` (the edge's speed, or a lower bound on it): `None` definitely
-/// past an end; `Some(sideless)` within, `sideless` where it lies within
-/// the band of an end, where no side is read.
-///
-/// # Errors
-///
-/// An in-band end sets the path aside.
-pub(crate) fn span<T: Decide>(
-    row: &'static str,
-    t: T,
-    (t0, t1): (T, T),
-    lever: T,
-    band: Band,
-) -> Result<Option<bool>, Fault> {
-    let start = decide(row, Margin::of(lever * (t - t0)), band).map_err(in_band)?;
-    let end = decide(row, Margin::of(lever * (t1 - t)), band).map_err(in_band)?;
-    Ok((start != Sign::Negative && end != Sign::Negative)
-        .then_some(start == Sign::Zero || end == Sign::Zero))
-}
-
-/// **A root against its edge's span, read at the nearer end**: `to_end`
-/// is the root's signed angle to the end of the span nearer it, positive
-/// inside, and `lever` the edge's speed — [`span`]'s reading, whose
-/// nearer end's margin is this number, without the angle of the root
-/// itself. The farther end's margin is at least `lever` times the
-/// span's half-width, so it is not read. `None` definitely past the end;
-/// `Some(sideless)` within, `sideless` where it lies within the band of
-/// the end, where no side is read.
-///
-/// # Errors
-///
-/// As [`span`]'s.
-pub(crate) fn span_at_nearer_end<T: Decide>(
-    row: &'static str,
-    to_end: T,
-    lever: T,
-    band: Band,
-) -> Result<Option<bool>, Fault> {
-    Ok(
-        match decide(row, Margin::of(lever * to_end), band).map_err(in_band)? {
-            Sign::Negative => None,
-            Sign::Zero => Some(true),
-            Sign::Positive => Some(false),
-        },
-    )
-}
-
 /// **The unsigned angle between the unit vectors `a` and `b`**, in
 /// `[0, π]`: `2·atan2(|a − b|, |a + b|)`, both arguments norms, so no
 /// cut lies anywhere on it and an enclosure of it is as tight at `π` as
@@ -202,28 +155,61 @@ pub(crate) fn side_at_closest<T: Decide>(
     }
 }
 
-/// A first-harmonic root door's answer on one leg: its roots, none for a miss; an edge
-/// in the leg's plane or a tangency grazes.
-pub(crate) fn found<R: Copy>(
-    roots: Result<Roots<R, 2, OnCarrier>, RootRefusal>,
-) -> Result<Vec<R>, Fault> {
-    match roots {
-        Ok(Roots::Miss) => Ok(Vec::new()),
-        Ok(Roots::Certified(found)) => Ok(found.roots().to_vec()),
-        // A touch of the leg is the probe's, as a limit is; a fault grazes
-        // too (`work/splitdoor/ray-lanes-graze-on-a-root-finders-fault.md`).
-        Ok(Roots::On(_))
-        | Err(RootRefusal::Touch(_) | RootRefusal::Unsettled(_) | RootRefusal::Fault(_)) => {
-            Err(RayFault::Graze)
-        }
-        Err(RootRefusal::Escalated(diag)) => Err(in_band(diag)),
-    }
-}
-
 /// Where a leg crosses an edge: the crossing's point, the edge's
 /// parameter there, and whether it lies within the band of an end of the
 /// edge, where no side is read.
 pub(crate) type Landing<T> = (Point3<T>, T, bool);
+
+/// **Where `leg` meets `edge`** ([`curve_pair::meet`], the one reading of
+/// two carrier spans' meeting): each meeting's point, the edge's
+/// parameter there, and whether it lies within the band of an end of the
+/// edge ([`Landing`]). The leg is read over the part of its course it
+/// runs ([`Course::span`]); where along it each landing lies is the
+/// skeleton's to read ([`Leg::place`]). An edge on the leg's own carrier
+/// (a shared run) is no crossing: the leg runs along it where it reaches
+/// it ([`Leg::along`]).
+///
+/// # Errors
+///
+/// A refusal of the meeting sets the path aside: an escalation as in
+/// band, any other as a graze. No landing is read off a refusal.
+pub(crate) fn landings<T: Decide, C: Course<T>>(
+    edge: &RegionEdge<T>,
+    leg: &Leg<T, C>,
+    at: &'static str,
+    band: Band,
+) -> Result<Vec<Landing<T>>, Fault> {
+    let course = leg.course.carrier();
+    let span = leg.course.span(leg.end.map(|end| end.place), edge);
+    let on_edge = Span::new(&edge.carrier, (edge.t0, edge.t1));
+    let met = curve_pair::meet(&Span::new(&course, span), &on_edge, band)
+        .map_err(|refusal| set_aside(refusal.fault))?;
+    if met.shared.is_some() {
+        leg.along(edge, at, band)?;
+        return Ok(Vec::new());
+    }
+    Ok(met
+        .points
+        .into_iter()
+        .map(|m| (m.point, on_edge.at(m.on_b), matches!(m.on_b, Met::End(_))))
+        .collect())
+}
+
+/// A meeting's refusal as the path's: an escalation is in band; a touch
+/// in band, a limit, a pose with no closed form or a contradiction
+/// grazes, and another path is tried.
+fn set_aside(fault: MeetFault) -> Fault {
+    match fault {
+        MeetFault::Escalated(diag) => in_band(diag),
+        MeetFault::Touch(_)
+        | MeetFault::Unsettled(_)
+        | MeetFault::Unsupported { .. }
+        | MeetFault::Contradiction { .. } => RayFault::Graze,
+        MeetFault::Desync => {
+            unreachable!("the meeting of a leg and an edge misread a carrier's kind")
+        }
+    }
+}
 
 /// One boundary edge of a region over its certified span `[t0, t1]`,
 /// on its certified carrier, of a kind its door admits ([`boundary`]).
@@ -448,6 +434,14 @@ pub(crate) trait Course<T: Decide> {
 
     /// The unit direction of travel at `y`.
     fn heading(&self, y: Point3<T>) -> Vec3<T>;
+
+    /// The course as a carrier.
+    fn carrier(&self) -> geom::Curve3<T>;
+
+    /// The span of [`Course::carrier`] a leg runs from its start: to the
+    /// place `end` where it is bounded, and otherwise its whole turn, or
+    /// along a line past every point of `edge`.
+    fn span(&self, end: Option<T>, edge: &RegionEdge<T>) -> (T, T);
 }
 
 /// Where a bounded leg stops: its place along the leg, and the row a
@@ -555,19 +549,6 @@ pub(crate) trait Legs<T: Decide>: Region<T> {
 
     /// The lever of the closest crossing's sine.
     fn lever(&self) -> T;
-
-    /// Where `leg` meets `edge`'s carrier. Where along the leg each
-    /// landing lies is the skeleton's to read ([`Leg::place`]).
-    ///
-    /// # Errors
-    ///
-    /// A graze or an in-band reading sets the path aside.
-    fn landings(
-        &self,
-        edge: &RegionEdge<T>,
-        leg: &Leg<T, Self::Course>,
-        band: Band,
-    ) -> Result<Vec<Landing<T>>, Fault>;
 
     /// The face's unit outward normal at `y`.
     fn outward(&self, y: Point3<T>) -> Vec3<T>;
@@ -720,7 +701,7 @@ fn side<T: Decide, D: Legs<T>>(
 
 /// **The crossing offer**: every crossing of `leg` with the boundary,
 /// edge by edge, at its place along the leg ([`Leg::place`]). Each edge's landings are all read
-/// ([`Legs::landings`]) before any of them is placed. Whether one was
+/// ([`landings`]) before any of them is placed. Whether one was
 /// offered.
 fn offer<T: Decide, D: Legs<T>>(
     door: &D,
@@ -730,7 +711,7 @@ fn offer<T: Decide, D: Legs<T>>(
 ) -> Result<bool, Fault> {
     let mut offered = false;
     for edge in door.edges() {
-        for (y, t, sideless) in door.landings(edge, leg, band)? {
+        for (y, t, sideless) in landings(edge, leg, D::AT, band)? {
             let Some(s) = leg.place(y, D::AT, band)? else {
                 continue;
             };
@@ -761,11 +742,6 @@ pub(crate) struct Round<T: geom_core::Real> {
 }
 
 impl<T: Decide> Round<T> {
-    pub(crate) fn at(&self, s: T) -> Point3<T> {
-        let (sn, cs) = s.sin_cos();
-        self.center + (self.e1 * cs + self.e2 * sn) * self.radius
-    }
-
     /// The angle round the circle between the start and `y`, a point of
     /// the circle, the shorter way, in `[0, π]` ([`between`]).
     fn swept(&self, y: Point3<T>) -> T {
@@ -807,6 +783,20 @@ impl<T: Decide> Course<T> for Round<T> {
         let h = self.normal.cross(y - self.center);
         h / h.norm()
     }
+
+    /// The circle from the start at angle `0`, `e2` its angle's quarter
+    /// turn.
+    fn carrier(&self) -> geom::Curve3<T> {
+        geom::Curve3::circle(self.center, self.normal, self.radius, self.e1)
+    }
+
+    /// An arc length's angle.
+    fn span(&self, end: Option<T>, _: &RegionEdge<T>) -> (T, T) {
+        (
+            T::zero(),
+            end.map_or_else(T::tau, |place| place / self.radius),
+        )
+    }
 }
 
 /// A leg along the line from `start` in unit direction `dir`.
@@ -829,6 +819,22 @@ impl<T: Decide> Course<T> for Line<T> {
 
     fn heading(&self, _: Point3<T>) -> Vec3<T> {
         self.dir
+    }
+
+    fn carrier(&self) -> geom::Curve3<T> {
+        geom::Curve3::line(self.start, self.dir)
+    }
+
+    /// Unbounded, out to twice the edge's farthest reach from the start
+    /// ([`geom_brep::ExtentBall::of_edge_from`]), so every meeting with
+    /// the edge lies inside the span, clear of its far end.
+    fn span(&self, end: Option<T>, edge: &RegionEdge<T>) -> (T, T) {
+        let far = || {
+            let ball =
+                geom_brep::ExtentBall::of_edge_from(&edge.carrier, (edge.t0, edge.t1), self.start);
+            ball.radius() * T::from_f64(2.0)
+        };
+        (T::zero(), end.unwrap_or_else(far))
     }
 }
 

@@ -18,26 +18,16 @@
 //! 1. Cast a geodesic RAY from `p` along a tangent direction `t`: the
 //!    great circle `cos s·p̂ + sin s·t`, `s ∈ (0, 2π)`, in the plane
 //!    through the centre with normal `ĝ = p̂ × t`.
-//! 2. Every arc of every loop meets that plane at the roots of a first
-//!    harmonic, `ĝ·(C − c) + ρ(ĝ·û) cos θ + ρ(ĝ·v̂) sin θ` (`c` the
-//!    leg's own centre: the sphere's for a ray, a two-leg path's
-//!    parallel's for its second leg), certified by
-//!    the shared first-harmonic door, each root as a direction from the
-//!    arc's centre ([`super::circle_roots::first_harmonic_root_directions`]);
-//!    a root counts where it lies inside its arc's span, at the ray
-//!    parameter `s` it sits at. Neither reading is an angle with a cut. A
-//!    root is read against the end of its span nearer it (the side of
-//!    the middle's diameter it lies on): within a quarter turn of that
-//!    end, as its raw angle less the end's parameter, which keeps the
-//!    end's relative precision; past that, as the half-width less its
-//!    angle from the middle. A crossing along the ray is placed by the
-//!    angle swept from `p`. The angles from the middle, from an end and
-//!    from `p` are each the unsigned `2·atan2` of two norms
-//!    ([`region::between`]), so a root a half turn from its arc's middle
-//!    and a crossing at `p`'s antipode — every meridian ray from a pole
-//!    meets the other pole there — read as tightly as any. The ray is a leg of the region skeleton
-//!    ([`region::read_leg`]), so each arc's roots are all read against
-//!    its span before any is placed along the ray.
+//! 2. Every arc of every loop meets the ray where the curve-pair reading
+//!    says they meet ([`region::landings`], [`geom_brep::curve_pair::meet`]),
+//!    the ray read over its whole turn and the arc over its span; a
+//!    meeting within the band of an arc's end reads no side there. A
+//!    crossing along the ray is placed by the angle swept from `p`, the
+//!    unsigned `2·atan2` of two norms ([`region::between`]), so a
+//!    crossing at `p`'s antipode — every meridian ray from a pole meets
+//!    the other pole there — reads as tightly as any. The ray is a leg of
+//!    the region skeleton ([`region::read_leg`]), so each arc's meetings
+//!    are all read before any is placed along the ray.
 //! 3. At the closest crossing, the ray's heading against `N × τ` says
 //!    whether it leaves the face there (so `p` is in it) or enters it.
 //!
@@ -73,11 +63,9 @@
 //! the sides of a slim lune whose end is `p`'s antipode, which every ray
 //! runs within the band of or meets only at that vertex — is crossed
 //! head-on by the second leg. The first leg leaves `p` square to the
-//! target's direction and ends at its corner, short of the antipode. It
-//! may still meet the arcs' great circles there, past its end: a root
-//! past a bounded leg's end is no crossing of it, so its span reading in
-//! band does not set the leg aside, and only the roots short of the
-//! corner are read.
+//! target's direction and ends at its corner, short of the antipode, and
+//! it is read over its run to the corner alone, so a vertex at the
+//! antipode is no meeting of it.
 //!
 //! The reading is the region skeleton's ([`region::read_path`]), and it
 //! is sound for every face as a ray's is: the path is a curve on the
@@ -103,8 +91,9 @@
 //!
 //! Past that, every reading is about one ray ([`crate::ray_walk`]): a
 //! closest crossing at a vertex, a tie with the closest crossing, a
-//! tangency of the ray with an arc (the root door's refusal), or an
-//! arc lying in the ray's plane grazes; a direction with no tangent
+//! tangency of the ray with an arc, a meeting the curve-pair reading
+//! refuses short of the band, or an arc on the ray's own great circle
+//! that the ray reaches grazes; a direction with no tangent
 //! share, or a great circle that meets no arc (it lies wholly on one
 //! side), gives nothing to read; and the next is tried. Root counts that
 //! disagree refuse the query: a broken invariant, not a ray's
@@ -119,8 +108,6 @@
 //! - `bool_sphere_region_arm`: a ray direction's share of the tangent
 //!   plane at `p`, at the sphere's radius — a schedule member near the
 //!   normal, or a target at `p` or its antipode, casts no ray.
-//! - `bool_sphere_region_span`: a root against the end of its arc's span
-//!   nearer it, the signed angle to that end at the arc's radius.
 //! - `bool_sphere_region_at`: a crossing's place along a leg, from its
 //!   start: arc length round the leg's circle (a ray's, at the sphere's
 //!   radius; a parallel's, at its own).
@@ -131,7 +118,8 @@
 //!   leg against its corner.
 //! - `bool_sphere_region_cross`: the sine between the ray and the arc's
 //!   face side at the closest crossing, at the sphere's radius.
-//! - `bool_sphere_region_roots_*`: the first-harmonic door's own meters.
+//! - `curve_pair_*`: where a leg meets an arc, the curve-pair reading's
+//!   own rows.
 //! - `bool_sphere_region_arc_span`: an arc's gap to a period. Where `p`
 //!   sits against the arc is [`ConicArc::hit`](crate::splitting::containment::ConicArc::hit), the on-carrier and span
 //!   readings' rows (`curve_carrier_*`, `curve_pair_span_*`). `bool_sphere_region_arc_straddle`
@@ -139,11 +127,9 @@
 
 use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
 
-use super::BooleanDecision;
-use super::circle_roots::{FirstHarmonic, FirstHarmonicRows, first_harmonic_root_directions};
 use super::region::{
-    self, End, Fault, Landing, Leg, Legs, Path, Paths, Region, RegionEdge, RegionRefusal, Round,
-    Scaffolding, between, circle_edge_hit, found, span_at_nearer_end, targets,
+    self, End, Fault, Leg, Legs, Path, Paths, Region, RegionEdge, RegionRefusal, Round,
+    Scaffolding, circle_edge_hit, targets,
 };
 use super::solid_contain::PointInSolidError;
 use crate::body::Body;
@@ -151,14 +137,6 @@ use crate::entity::{FaceKey, LoopKey};
 use crate::ray_walk::{self, RayFault};
 use crate::splitting::containment::{ConicRows, SCHEDULE};
 use crate::validate::decide;
-
-const ROOT_ROWS: FirstHarmonicRows = FirstHarmonicRows {
-    noise: "bool_sphere_region_roots_noise",
-    coaxial: "bool_sphere_region_roots_coaxial",
-    extreme: "bool_sphere_region_roots_extreme",
-    root_slack: "bool_sphere_region_roots_slack",
-    decision: BooleanDecision::CONTAINMENT_UNNAMED,
-};
 
 /// The boundary reading's rows (module docs).
 const BOUNDARY: ConicRows = ConicRows::bounded(
@@ -489,91 +467,6 @@ impl<T: Decide> Legs<T> for SphereFaceRegion<T> {
 
     fn lever(&self) -> T {
         self.radius
-    }
-
-    /// Where `arc` meets the leg's plane through the leg's centre (module docs,
-    /// step 2), read in the arc's own parameter, inside its span.
-    fn landings(
-        &self,
-        arc: &Arc<T>,
-        ray: &Leg<T, Round<T>>,
-        band: Band,
-    ) -> Result<Vec<Landing<T>>, Fault> {
-        let geom::Curve3::Circle(geom::Circle {
-            frame:
-                geom::Frame {
-                    center,
-                    axis,
-                    u_ref,
-                },
-            radius,
-        }) = arc.carrier
-        else {
-            unreachable!("sphere_face_region admits circles only")
-        };
-        let roots = first_harmonic_root_directions(
-            &FirstHarmonic::circle_off_plane(
-                (center, axis, radius, u_ref),
-                (ray.course.center, ray.course.normal),
-            ),
-            radius,
-            &ROOT_ROWS,
-            band,
-        );
-        let v_ref = axis.cross(u_ref);
-        let two = T::from_f64(2.0);
-        let (mid, half) = ((arc.t0 + arc.t1) / two, (arc.t1 - arc.t0) / two);
-        let on_circle = |t: T| {
-            let (sin, cos) = t.sin_cos();
-            u_ref * cos + v_ref * sin
-        };
-        let (start, middle, end) = (on_circle(arc.t0), on_circle(mid), on_circle(arc.t1));
-        let quarter = T::pi() / two;
-        let mut out = Vec::new();
-        for root in found(roots)? {
-            let (cos, sin) = root.direction;
-            let toward = u_ref * cos + v_ref * sin;
-            let off = between(toward, middle);
-            // The signed angle to each end, positive inside: within a
-            // quarter turn of the end, the raw root less the end's
-            // parameter, a difference of two near numbers that keeps its
-            // relative precision; past that, the half-width less the
-            // angle from the middle.
-            let to_end = |end: Vec3<T>, local: T| {
-                (between(toward, end) - quarter).select_le_zero(local, half - off)
-            };
-            // Which half of the span: the side of `middle`'s diameter
-            // `toward` lies.
-            let ahead = middle.cross(toward).dot(axis);
-            let to_end = (T::zero() - ahead).select_le_zero(
-                to_end(end, T::zero() - root.from(arc.t1)),
-                to_end(start, root.from(arc.t0)),
-            );
-            let y = center + toward * radius;
-            // A root past a bounded leg's end is no crossing of the leg,
-            // so a span reading of it in band does not set the leg aside:
-            // a first leg ends at its corner short of `p`'s antipode,
-            // where a vertex there puts every arc's root in band.
-            let lands = match span_at_nearer_end("bool_sphere_region_span", to_end, radius, band) {
-                Err(fault) if ray.end.is_some() => match ray.place(y, Self::AT, band) {
-                    Ok(None) => continue,
-                    _ => return Err(fault),
-                },
-                lands => lands?,
-            };
-            let Some(sideless) = lands else {
-                continue;
-            };
-            // `ahead` is undecided only for a root at the middle, where
-            // both choices agree, or a half turn from it. There the
-            // parameter is a whole turn's hull, and a root inside the
-            // span lies at a whole turn's ends, which the span reading
-            // places sideless wherever the enclosure is narrower than
-            // the band's zero.
-            let theta = (T::zero() - ahead).select_le_zero(mid + off, mid - off);
-            out.push((y, theta, sideless));
-        }
-        Ok(out)
     }
 
     fn outward(&self, y: Point3<T>) -> Vec3<T> {
@@ -1194,7 +1087,7 @@ mod tests {
             for (az, end) in [(1.25 * pi, false), (pi, true)] {
                 let toward = Vec3::new(lift(az.cos()), lift(az.sin()), lift(0.0));
                 let leg = region.ray(pole, toward);
-                let got = region.landings(&region.edges[1], &leg, band);
+                let got = region::landings(&region.edges[1], &leg, SphereFaceRegion::<T>::AT, band);
                 let Ok(landings) = got else {
                     panic!("azimuth {az}: the leg lands at {scalar}, got {got:?}")
                 };
