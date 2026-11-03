@@ -6634,8 +6634,8 @@ fn report_found_pairs(found: &[FoundPair], declared: &Declared, errors: &mut Vec
 }
 
 /// **Whether two faces of one surface record share interior**: the
-/// region door in the shared chart, and where its walk refuses at a
-/// shared boundary or a seam branch, the faces' own reading
+/// region door in the shared chart, and where it refuses for want of a
+/// lane (not in band, not a torn arena), the faces' own reading
 /// ([`face_interiors_meet`]), on a carrier that is one by key: its
 /// `false` is a certificate on either path. Its `true` is not (it reads
 /// the cones of two crossings it parts as shared interior, and two
@@ -6650,12 +6650,11 @@ fn one_record_overlap<T: Decide>(
 ) -> Result<crate::chart_region::ChartOverlap, ChartRegionError> {
     use crate::chart_region::ChartOverlap;
     match lane.chart_overlap(body, fa, body, fb, band) {
-        Err(refusal @ (ChartRegionError::TouchingBoundary | ChartRegionError::SeamBranch)) => {
-            match face_interiors_meet(body, geo, fa, fb, band) {
-                Ok(false) => Ok(ChartOverlap::Empty),
-                Ok(true) | Err(_) => Err(refusal),
-            }
-        }
+        Err(refusal @ (ChartRegionError::Escalated(_) | ChartRegionError::Corrupt)) => Err(refusal),
+        Err(refusal) => match face_interiors_meet(body, geo, fa, fb, band) {
+            Ok(false) => Ok(ChartOverlap::Empty),
+            Ok(true) | Err(_) => Err(refusal),
+        },
         read => read,
     }
 }
