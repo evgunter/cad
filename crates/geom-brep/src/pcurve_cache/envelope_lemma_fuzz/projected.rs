@@ -682,7 +682,7 @@ fn a_spindle_toruss_bound_asks_its_lever_positive() {
         minor: 2.0,
     };
     assert_eq!(
-        spindle.over(1e-3, 0.5, (0.0, 0.0), ask),
+        spindle.over(1e-3, (0.5, 0.5), (0.0, 0.0), ask),
         Err(-1.75),
         "the lever (ρ + R)² − r² = −1.75 at ρ = ½ is refused"
     );
@@ -690,7 +690,7 @@ fn a_spindle_toruss_bound_asks_its_lever_positive() {
         major: 2.0,
         minor: 1.0,
     };
-    let bound = ring.over(1e-3, 0.5, (0.0, 0.0), ask);
+    let bound = ring.over(1e-3, (0.5, 0.5), (0.0, 0.0), ask);
     assert!(
         bound.is_ok_and(|m| m > 0.0),
         "a ring torus's lever is positive and its bound is: {bound:?}"
@@ -1557,7 +1557,7 @@ fn each_charts_conversion_is_tight_on_a_parallel_carrier() {
 #[test]
 fn each_conversion_reads_its_stated_floors() {
     use super::super::projected::{
-        PieceHull, ProjectedChart, ProjectedHull, SpanHull, net_incidence,
+        PieceHull, ProjectedHull, SpanHull, net_incidence,
     };
     let b = band();
     let (f, d) = (1e-3, 0.25);
@@ -1570,6 +1570,7 @@ fn each_conversion_reads_its_stated_floors() {
             range: (0.0, 1.0),
             f_sup: f,
             rho_lo,
+            rho_hi: rho_lo + 0.5,
             z,
             meters: f64::NAN,
             floors: (0.0, 0.0),
@@ -1583,17 +1584,10 @@ fn each_conversion_reads_its_stated_floors() {
         half_angle: alpha,
         u_ref: Vec3::unit_x(),
     };
-    // The stored scalars are deliberately wrong: the lever reads the
-    // twin's angle, not the row's.
-    let stored = |nappe| ProjectedChart::Cone {
-        sin: 0.0,
-        cos: 0.0,
-        nappe,
-    };
     let (inc, floor) = net_incidence(
         &hull(1.0, (0.5, 2.0)),
         (0.0, 1.0),
-        &stored(crate::Nappe::Opening),
+        Some(crate::Nappe::Opening),
         &cone,
         d,
         b,
@@ -1608,7 +1602,7 @@ fn each_conversion_reads_its_stated_floors() {
     let mirror = net_incidence(
         &hull(0.1, (0.5, 2.0)),
         (0.0, 1.0),
-        &stored(crate::Nappe::Mirror),
+        Some(crate::Nappe::Mirror),
         &cone,
         d,
         b,
@@ -1659,17 +1653,10 @@ fn each_conversion_reads_its_stated_floors() {
             },
         ),
     ] {
-        let chart = match surf {
-            Surface::Torus { major_radius, .. } => ProjectedChart::Torus {
-                major: major_radius,
-            },
-            Surface::Sphere { .. } => ProjectedChart::Sphere,
-            _ => ProjectedChart::Cylinder,
-        };
         let (inc, floor) = net_incidence(
             &hull(rho, (0.0, 0.0)),
             (0.0, 1.0),
-            &chart,
+            None,
             &surf,
             d,
             b,
@@ -1684,7 +1671,7 @@ fn each_conversion_reads_its_stated_floors() {
     let got = net_incidence(
         &uncertified,
         (0.0, 1.0),
-        &stored(crate::Nappe::Opening),
+        Some(crate::Nappe::Opening),
         &cone,
         d,
         b,
@@ -2060,7 +2047,7 @@ fn an_uncertified_part_refuses_only_inside_the_edges_interval() {
     let hull = lane.projected_hull(&image, net, &twin, &[]).unwrap();
     let edge = (0.0, 0.5);
     let read = |hull: &super::super::projected::ProjectedHull| {
-        super::super::projected::net_incidence(hull, edge, &image.chart, &twin, 0.0, b, false)
+        super::super::projected::net_incidence(hull, edge, image.chart.nappe(), &twin, 0.0, b, false)
     };
     let (clean, _) = read(&hull).expect("the clean hull");
     assert!(clean <= b.zero(), "{clean:e}");

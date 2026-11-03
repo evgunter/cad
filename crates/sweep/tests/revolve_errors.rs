@@ -1,15 +1,15 @@
 //! Acceptance (e): revolve's typed refusals — half-plane crossings,
 //! sliver radii (micro-radius revolve), degenerate/sliver/full-range/
 //! poisoned angles, degenerate/poisoned axes, non-manifold axis
-//! contact, horn/spindle toroids, and arc-interior half-plane
-//! violations. Every case is a
+//! contact, an arc ending at a spindle sheet's apex, and arc-interior
+//! half-plane violations. Every case is a
 //! typed [`RevolveError`], never a panic or silent approximation.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::revolve_common;
 
-use core::f64::consts::{FRAC_PI_8, PI};
+use core::f64::consts::{PI};
 use profile::RawLoop;
 
 use geom_core::Vec2;
@@ -198,18 +198,27 @@ fn isolated_axis_vertex_in_full_revolve_is_non_manifold() {
 // suites.
 
 #[test]
-fn axis_crossing_tube_is_an_unsupported_toroid() {
-    // Quarter arc on a carrier centered at (0.5, 0) with radius 0.6:
-    // every arc point stays at r > 0, but the carrier reaches across
-    // the axis — a spindle torus, refused per D3's ring convention.
+fn a_lemon_arc_ending_on_the_axis_is_a_sheet_apex() {
+    // The arc on the circle centred at (−0.5, 0) with radius 1 between
+    // its two axis points (0, ∓√0.75), bulging through (0.5, 0), closed
+    // along the axis: the whole lemon, both of its apexes vertices.
+    let h = 0.75_f64.sqrt();
     let lp = bulge_loop(vec![
-        (Point2::new(1.1, 0.0), FRAC_PI_8.tan()),
-        (Point2::new(0.5, 0.6), 0.0),
-        (Point2::new(0.5, 0.0), 0.0),
+        (Point2::new(0.0, -h), (PI / 6.0).tan()),
+        (Point2::new(0.0, h), 0.0),
     ]);
     let vp = validated(vec![lp]);
     let e = revolve(&vp, axis_y(), Revolution::Partial(1.0), Tol::witness()).unwrap_err();
-    assert!(matches!(e, RevolveError::UnsupportedToroid { .. }), "{e:?}");
+    assert!(
+        matches!(
+            e,
+            RevolveError::SheetApex {
+                loop_index: 0,
+                segment_index: 0
+            }
+        ),
+        "{e:?}"
+    );
 }
 
 #[test]

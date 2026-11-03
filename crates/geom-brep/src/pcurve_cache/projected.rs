@@ -203,6 +203,14 @@ impl<T: Real> ProjectedChart<T> {
             _ => T::one(),
         }
     }
+
+    /// The stored nappe, on a cone.
+    pub(crate) fn nappe(&self) -> Option<Nappe> {
+        match self {
+            Self::Cone { nappe, .. } => Some(*nappe),
+            _ => None,
+        }
+    }
 }
 
 /// The carrier written in the chart's frame (module docs): chart-frame
@@ -1094,19 +1102,7 @@ pub(crate) fn chart_at<T: Decide>(
         },
         Surface::Cone { half_angle, .. } => {
             let (sin, cos) = half_angle.sin_cos();
-            let mid = mid();
-            let nappe =
-                match decide("pcurve_projected_nappe", Margin::of(mid), band).map_err(|cause| {
-                    PcurveCertifyError::Escalated {
-                        check: PcurveCheck::Sector,
-                        sample: 0,
-                        cause,
-                    }
-                })? {
-                    Sign::Positive => Nappe::Opening,
-                    Sign::Negative => Nappe::Mirror,
-                    Sign::Zero => return Err(sector_refused(0, SectorChannel::Lever)),
-                };
+            let nappe = nappe_of(mid(), band)?;
             ProjectedChart::Cone { sin, cos, nappe }
         }
         Surface::Spindle { .. } | Surface::Nurbs(_) | Surface::Approx(_) => {
@@ -1114,6 +1110,44 @@ pub(crate) fn chart_at<T: Decide>(
                 chart: surface.kind(),
             });
         }
+    })
+}
+
+/// The nappe of a cone a carrier whose middle sits at height `mid` in
+/// the cone's chart frame lies on.
+fn nappe_of<T: Decide>(mid: T, band: Band) -> Result<Nappe, PcurveCertifyError> {
+    match decide("pcurve_projected_nappe", Margin::of(mid), band).map_err(|cause| {
+        PcurveCertifyError::Escalated {
+            check: PcurveCheck::Sector,
+            sample: 0,
+            cause,
+        }
+    })? {
+        Sign::Positive => Ok(Nappe::Opening),
+        Sign::Negative => Ok(Nappe::Mirror),
+        Sign::Zero => Err(sector_refused(0, SectorChannel::Lever)),
+    }
+}
+
+/// The metre conversion of `surface`'s canonical form for a carrier
+/// whose middle sits at height `mid` in its chart frame: on a cone, of
+/// the nappe the middle lies on ([`chart_at`]'s).
+///
+/// # Errors
+///
+/// [`chart_at`]'s on a cone; [`PcurveCertifyError::UnsupportedChart`]
+/// off an analytic chart.
+pub(crate) fn meters_at<T: Decide>(
+    surface: &Surface<T>,
+    mid: impl FnOnce() -> T,
+    band: Band,
+) -> Result<Meters<T>, PcurveCertifyError> {
+    let nappe = match surface {
+        Surface::Cone { .. } => Some(nappe_of(mid(), band)?),
+        _ => None,
+    };
+    Meters::of(surface, nappe, |x| x).ok_or(PcurveCertifyError::UnsupportedChart {
+        chart: surface.kind(),
     })
 }
 
@@ -1423,6 +1457,8 @@ pub(crate) struct SpanHull {
     pub(crate) f_sup: f64,
     /// The lower bound of `ρ` over the part's points.
     pub(crate) rho_lo: f64,
+    /// The upper bound of `ρ` over the part's points.
+    pub(crate) rho_hi: f64,
     /// The range of `z` over the part's points.
     pub(crate) z: (f64, f64),
     /// A certified upper bound in metres on the part's distance from
@@ -1439,8 +1475,9 @@ pub(crate) struct SpanHull {
 /// two lower bounds of `ρ` — the box's nearest point to the axis (at
 /// least zero), and the controls' support along their chord, `ρ ≥ p·n̂`,
 /// whose divisor `|first + last|` the caller must see certified before
-/// it reads the support — and the range of `z`.
-pub(crate) fn part_floors<T: SpanLocate>(q: &[(Vec3<T>, T)]) -> (T, T, (T, T)) {
+/// it reads the support — the range of `z`, and the box's farthest
+/// point from the axis.
+pub(crate) fn part_floors<T: SpanLocate>(q: &[(Vec3<T>, T)]) -> (T, T, (T, T), T) {
     let first = q[0].0;
     let mut b = FrameBox {
         x: (first.x, first.x),
@@ -1460,8 +1497,8 @@ pub(crate) fn part_floors<T: SpanLocate>(q: &[(Vec3<T>, T)]) -> (T, T, (T, T)) {
         .map(|(c, _)| (c.x * mx + c.y * my) / norm)
         .reduce(|m, x| m.min(x))
         .unwrap_or_else(T::zero);
-    let boxed = ProjectedImage::<T>::rho_range(&b).0;
-    (boxed.max(T::zero()), support, b.z)
+    let (boxed, far) = ProjectedImage::<T>::rho_range(&b);
+    (boxed.max(T::zero()), support, b.z, far)
 }
 
 /// The one decision every condition of this module reads: whether
@@ -1567,14 +1604,16 @@ pub(crate) enum Meters<S> {
     Sphere { radius: S },
     Cone { sin: S, cos: S, nappe: Nappe },
     Torus { major: S, minor: S },
+    Spindle { major: S, minor: S },
 }
 
 impl<S: Real> Meters<S> {
     /// The conversion for `twin`, its scalars crossed into `S` by
-    /// `cross`, the nappe `chart`'s; `None` off an analytic chart.
+    /// `cross`, on a cone of the stored `nappe`; `None` off an analytic
+    /// chart.
     pub(crate) fn of<U: Real>(
         twin: &Surface<U>,
-        chart: &ProjectedChart<U>,
+        nappe: Option<Nappe>,
         cross: impl Fn(U) -> S,
     ) -> Option<Self> {
         Some(match *twin {
@@ -1586,8 +1625,8 @@ impl<S: Real> Meters<S> {
                 radius: cross(radius),
             },
             Surface::Cone { half_angle, .. } => {
-                let ProjectedChart::Cone { nappe, .. } = *chart else {
-                    unreachable!("the chart kinds match")
+                let Some(nappe) = nappe else {
+                    unreachable!("a cone's conversion is read on a nappe")
                 };
                 let (sin, cos) = half_angle.sin_cos();
                 Self::Cone {
@@ -1604,8 +1643,24 @@ impl<S: Real> Meters<S> {
                 major: cross(major_radius),
                 minor: cross(minor_radius),
             },
-            Surface::Spindle { .. } | Surface::Nurbs(_) | Surface::Approx(_) => return None,
+            Surface::Spindle {
+                major_radius,
+                minor_radius,
+                ..
+            } => Self::Spindle {
+                major: cross(major_radius),
+                minor: cross(minor_radius),
+            },
+            Surface::Nurbs(_) | Surface::Approx(_) => return None,
         })
+    }
+
+    /// The nappe the conversion reads, on a cone.
+    pub(crate) fn nappe(self) -> Option<Nappe> {
+        match self {
+            Self::Cone { nappe, .. } => Some(nappe),
+            _ => None,
+        }
     }
 
     /// **The apex root**: on a cone, `√|f|` bounds a part's distance from
@@ -1620,18 +1675,34 @@ impl<S: Real> Meters<S> {
     }
 
     /// An upper bound in metres on the distance of a part whose `|f|` is
-    /// at most `f`, whose `ρ` is at least `rho` and whose `z` ranges over
-    /// `z`. The lever it divides by is `positive`'s answer on it first,
+    /// at most `f`, whose `ρ` ranges over `rho` and whose `z` over `z`.
+    /// Each lever it divides by is `positive`'s answer on it first,
     /// since the division needs it positive: on a cone
-    /// `ρ cos α + (σz) sin α`, on a torus `(ρ + R)² − r²`, which a
-    /// spindle torus (`R < r`) drives negative near its axis.
+    /// `ρ cos α + (σz) sin α`, on a torus `(ρ + R)² − r²`.
+    ///
+    /// On a spindle sheet `f = (m² − r²)(M² − r²)` reads both of the
+    /// torus's sheets: `m` is the distance from the sheet's tube circle
+    /// (centre `R`) and `M` from the other's (centre `−R`), with
+    /// `M² − m² = 4Rρ`. On the sheet `sgn R·(M² − r²) = 4|R|ρ`, and on
+    /// the other it is zero, so the lever is that factor decided
+    /// positive, read off the part's box: `(ρ_min + R)² + z_min² − r²`
+    /// on an apple (`R > 0`), `r² − (ρ + R)²_max − z²_max` on a lemon.
+    /// Then `|m − r|` is the distance from the whole circle, which is
+    /// the sheet's own wherever the circle's nearest point is on the
+    /// sheet's side of the axis: `|m − r|·|R| ≤ r·ρ`, decided positive
+    /// too.
     pub(crate) fn over<E>(
         self,
         f: S,
-        rho: S,
+        rho: (S, S),
         z: (f64, f64),
-        positive: impl FnOnce(S) -> Result<S, E>,
+        positive: impl Fn(S) -> Result<S, E>,
     ) -> Result<S, E> {
+        let (rho, rho_hi) = rho;
+        let torus = |outer: S, minor: S| {
+            let first = f / (minor * outer);
+            f / ((minor + (minor - first).max(S::zero())) * outer)
+        };
         Ok(match self {
             Self::Plane => f,
             Self::Cylinder { radius } | Self::Sphere { radius } => {
@@ -1642,9 +1713,27 @@ impl<S: Real> Meters<S> {
                 f / positive(rho * cos + z * sin)?
             }
             Self::Torus { major, minor } => {
-                let outer = positive((rho + major).powi(2) - minor.powi(2))?;
-                let first = f / (minor * outer);
-                f / ((minor + (minor - first).max(S::zero())) * outer)
+                torus(positive((rho + major).powi(2) - minor.powi(2))?, minor)
+            }
+            Self::Spindle { major, minor } => {
+                // `M² − r²` over the box: its least value where `ρ + R`
+                // keeps one sign (every apple), its greatest everywhere,
+                // weighted by the sheet's sign `σ = sgn R` (±1, exact).
+                let z2 = |at: f64| S::from_f64(at).powi(2);
+                let z_min = if z.0 <= 0.0 && 0.0 <= z.1 {
+                    S::zero()
+                } else {
+                    z2(z.0).min(z2(z.1))
+                };
+                let (lo, hi) = ((rho + major).powi(2), (rho_hi + major).powi(2));
+                let least = lo.min(hi) + z_min - minor.powi(2);
+                let most = lo.max(hi) + z2(z.0).max(z2(z.1)) - minor.powi(2);
+                let sigma = S::one().copysign(major);
+                let half = S::from_f64(0.5);
+                let outer = ((S::one() + sigma) * least - (S::one() - sigma) * most) * half;
+                let d = torus(positive(outer)?, minor);
+                positive(minor * rho - d * major.abs())?;
+                d
             }
         })
     }
@@ -1675,7 +1764,7 @@ impl<S: Real> Meters<S> {
             Self::Cylinder { radius } => rho + radius,
             Self::Sphere { radius } => (p.x.powi(2) + p.y.powi(2) + p.z.powi(2)).sqrt() + radius,
             Self::Cone { sin, cos, .. } => rho * cos + p.z.abs() * sin,
-            Self::Torus { major, minor } => {
+            Self::Torus { major, minor } | Self::Spindle { major, minor, .. } => {
                 let (near, far) = (
                     (rho - major).powi(2) + p.z.powi(2),
                     (rho + major).powi(2) + p.z.powi(2),
@@ -1806,7 +1895,7 @@ pub(crate) fn window_of<T: Decide>(
 pub(super) fn net_incidence<T: Decide>(
     hull: &ProjectedHull,
     (t0, t1): (T, T),
-    chart: &ProjectedChart<T>,
+    nappe: Option<Nappe>,
     twin: &Surface<T>,
     d: T,
     band: Band,
@@ -1819,7 +1908,7 @@ pub(super) fn net_incidence<T: Decide>(
     let mut incidence = T::zero();
     let mut rho_floor: Option<T> = None;
     let window = window_of(hull, (t0, t1))?.parts;
-    let Some(meters) = Meters::of(twin, chart, |x| x) else {
+    let Some(meters) = Meters::of(twin, nappe, |x| x) else {
         unreachable!("a projected chart is analytic")
     };
     for (j, span) in hull.spans.iter().enumerate() {
@@ -1831,7 +1920,11 @@ pub(super) fn net_incidence<T: Decide>(
                 "a knot span's canonical composite bound is not certified",
             ));
         }
-        if !(span.rho_lo.is_finite() && span.z.0.is_finite() && span.z.1.is_finite()) {
+        if !(span.rho_lo.is_finite()
+            && span.rho_hi.is_finite()
+            && span.z.0.is_finite()
+            && span.z.1.is_finite())
+        {
             return Err(refuse(
                 "a knot span's radial or axial floor is not certified",
             ));
@@ -1841,7 +1934,7 @@ pub(super) fn net_incidence<T: Decide>(
         rho_floor = Some(rho_floor.map_or(floor, |m| m.min(floor)));
         let f = T::from_computed(span.f_sup);
         let disp = meters
-            .over(f, rho, span.z, |lever| {
+            .over(f, (rho, T::from_computed(span.rho_hi)), span.z, |lever| {
                 require_positive(
                     "pcurve_projected_lever",
                     lever,
@@ -1983,7 +2076,7 @@ pub(crate) fn round_floored(sup: f64, before: Option<f64>, rounding: f64, band: 
 pub(crate) fn offset_rounds<T: Decide>(
     hull: impl Fn(&[f64]) -> Result<(ProjectedHull, NetSize), PcurveCertifyError>,
     window: (T, T),
-    chart: &ProjectedChart<T>,
+    nappe: Option<Nappe>,
     twin: &Surface<T>,
     band: Band,
 ) -> Result<OffsetRead<T>, PcurveCertifyError> {
@@ -1995,7 +2088,7 @@ pub(crate) fn offset_rounds<T: Decide>(
     // The stored carrier is the net itself, so the radial floor's
     // fidelity term is zero; limb 2 reads the incidence alone.
     let bound = |hull: &ProjectedHull| {
-        net_incidence(hull, window, chart, twin, T::zero(), band, true)
+        net_incidence(hull, window, nappe, twin, T::zero(), band, true)
             .map(|(incidence, _)| incidence)
     };
     // The last round's bound, replaced on every call before the stop
@@ -2040,7 +2133,7 @@ pub(crate) fn offset_cleared<T: Decide>(
     hull: ProjectedHull,
     size: NetSize,
     window: (T, T),
-    chart: &ProjectedChart<T>,
+    nappe: Option<Nappe>,
     twin: &Surface<T>,
     band: Band,
 ) -> Result<Option<OffsetRead<T>>, PcurveCertifyError> {
@@ -2049,7 +2142,7 @@ pub(crate) fn offset_cleared<T: Decide>(
         return Ok(None);
     }
     let (hull, size) = round.data;
-    let (incidence, _) = net_incidence(&hull, window, chart, twin, T::zero(), band, true)?;
+    let (incidence, _) = net_incidence(&hull, window, nappe, twin, T::zero(), band, true)?;
     Ok(Some(OffsetRead {
         offset: Offset::Bound(incidence),
         size,
@@ -2121,7 +2214,7 @@ pub(crate) fn line_off_cylinder_sup<T: Real>(q0: Vec3<T>, q1: Vec3<T>, r: T) -> 
     let big = super::mutants::line_off_cylinder(f0, f1, middle).unwrap_or(big);
     let Ok(sup) = Meters::Cylinder { radius: r }.over(
         big,
-        T::zero(),
+        (T::zero(), T::zero()),
         (0.0, 0.0),
         Ok::<T, core::convert::Infallible>,
     );
@@ -2219,7 +2312,7 @@ pub(super) fn projected_envelope<T: Decide>(
                 hull_sector::<T>(&hull.pieces[k], k, &image.chart, band)?;
             }
             let (incidence, rho_floor) =
-                net_incidence(&hull, (t0, t1), &image.chart, &twin, d, band, false)?;
+                net_incidence(&hull, (t0, t1), image.chart.nappe(), &twin, d, band, false)?;
             (incidence, d, rho_floor)
         }
         (FramedCarrier::Circle { centre, a, b, .. }, Curve3::Circle(..)) => {
@@ -2634,6 +2727,7 @@ mod tests {
                 range: (0.0, 1.0),
                 f_sup: 1e-3,
                 rho_lo: 1.0,
+                rho_hi: 2.0,
                 z: (0.5, 2.0),
                 meters: f64::NAN,
                 floors: (0.0, 0.0),
@@ -2661,7 +2755,7 @@ mod tests {
             let (incidence, floor) = net_incidence(
                 &hull,
                 (S::zero(), S::one()),
-                &ProjectedChart::Plane,
+                None,
                 &plane,
                 S::from_f64(0.25),
                 band,

@@ -574,10 +574,10 @@ pub enum RevolveError {
         /// The predicate-layer escalation.
         source: Indeterminate,
     },
-    /// An off-axis-centered arc whose carrier reaches (or crosses) the
-    /// axis: the swept torus would be horn/spindle, outside D3's ring
-    /// torus convention (`R > r > 0`).
-    UnsupportedToroid {
+    /// An arc whose circle reaches the axis and that ends on it: the
+    /// end is an apex of the spindle sheet the arc sweeps, which no
+    /// door builds a face to yet.
+    SheetApex {
         /// Canonical index of the loop.
         loop_index: usize,
         /// Canonical index of the segment.
@@ -733,27 +733,26 @@ pub enum ClearanceDecision {
     LineRadial,
     /// A line's axial run: zero makes its wall a plane annulus.
     LineAxial,
-    /// An arc centre's distance from the axis: zero makes a sphere, a
-    /// positive distance a torus.
+    /// An arc centre's distance from the axis: zero makes a sphere.
     ArcCenter,
-    /// A sphere-class arc's span short of a half turn, at its radius.
-    ArcSpan,
-    /// A sphere-class arc's apex distance from the axis.
-    ArcApex,
-    /// A torus-class arc's clearance of the axis: its centre's distance
-    /// less its radius.
-    ArcClearance,
+    /// Whether an arc whose circle reaches the axis stops short of the
+    /// circle's point of least radius: the turn from its start to that
+    /// point less its span, at its radius.
+    ArcInterior,
+    /// An off-axis arc's circle's reach of the axis: its centre's
+    /// distance less its radius, positive a ring torus and otherwise a
+    /// spindle sheet.
+    ArcReach,
 }
 
 impl ClearanceDecision {
     /// Every clearance decision.
-    pub const ALL: [Self; 6] = [
+    pub const ALL: [Self; 5] = [
         Self::LineRadial,
         Self::LineAxial,
         Self::ArcCenter,
-        Self::ArcSpan,
-        Self::ArcApex,
-        Self::ArcClearance,
+        Self::ArcInterior,
+        Self::ArcReach,
     ];
 
     /// The `k_stats` name the decision is metered under.
@@ -763,21 +762,20 @@ impl ClearanceDecision {
             Self::LineRadial => "axis_line_radial",
             Self::LineAxial => "axis_line_axial",
             Self::ArcCenter => "axis_arc_center",
-            Self::ArcSpan => "axis_arc_span",
-            Self::ArcApex => "axis_arc_apex",
-            Self::ArcClearance => "axis_arc_clearance",
+            Self::ArcInterior => "axis_arc_interior",
+            Self::ArcReach => "axis_arc_reach",
         }
     }
 
-    /// Whether the margin is a size the user chose. The span is an
-    /// angle. The line runs select the wall's form (zero a cylinder or a
-    /// plane annulus, either sign a cone), passing on any definite sign;
-    /// the centre's distance selects sphere (zero) or torus (positive),
-    /// and a negative one is refused. The apex and the clearance are
-    /// distances the profile must keep from the axis.
+    /// Whether the margin is a size the user chose. The interior's is
+    /// a turn. The line runs select the wall's form (zero a cylinder or
+    /// a plane annulus, either sign a cone), and the centre's distance
+    /// selects a sphere (zero) or not, each passing on any definite
+    /// sign. The reach is the distance the circle keeps from the axis,
+    /// whose sign picks ring or sheet.
     #[must_use]
     pub const fn sized(self) -> bool {
-        matches!(self, Self::ArcApex | Self::ArcClearance)
+        matches!(self, Self::ArcReach)
     }
 
     /// What the decision asks of the segment, as the noun it is about
@@ -787,9 +785,8 @@ impl ClearanceDecision {
             Self::LineRadial => ("the line", "runs parallel to the revolve axis"),
             Self::LineAxial => ("the line", "runs square to the revolve axis"),
             Self::ArcCenter => ("the centre of the arc", "lies on the revolve axis"),
-            Self::ArcSpan => ("the arc", "spans no more than a half turn"),
-            Self::ArcApex => ("the arc", "stays off the revolve axis at its apex"),
-            Self::ArcClearance => ("the arc", "clears the revolve axis"),
+            Self::ArcInterior => ("the arc", "keeps its interior off the revolve axis"),
+            Self::ArcReach => ("the circle of the arc", "stays clear of the revolve axis"),
         }
     }
 
@@ -909,14 +906,15 @@ impl RevolveError {
                     )
                 )
             }
-            Self::UnsupportedToroid {
+            Self::SheetApex {
                 loop_index,
                 segment_index,
             } => write!(
                 f,
-                "the arc at loop {loop_index} segment {segment_index} would sweep a horn or \
-                 spindle torus (its circle reaches the axis), which is not supported. \
-                 Recourse: keep the arc's circle clear of the axis"
+                "the arc at profile loop {loop_index} segment {segment_index} ends on the \
+                 revolve axis at an apex of the spindle sheet it sweeps, and no face reaching \
+                 a sheet's apex is built yet. Recourse: end the arc off the axis and close \
+                 the profile to the axis with a line"
             ),
             Self::NonManifoldAxisContact {
                 loop_index,
@@ -1171,18 +1169,13 @@ mod tests {
                 LEVER,
             ),
             (
-                ClearanceDecision::ArcSpan,
-                "whether the arc at loop 0 segment 2 spans no more than a half turn",
+                ClearanceDecision::ArcInterior,
+                "whether the arc at loop 0 segment 2 keeps its interior off the revolve axis",
                 LEVER,
             ),
             (
-                ClearanceDecision::ArcApex,
-                "whether the arc at loop 0 segment 2 stays off the revolve axis at its apex",
-                SIZED,
-            ),
-            (
-                ClearanceDecision::ArcClearance,
-                "whether the arc at loop 0 segment 2 clears the revolve axis",
+                ClearanceDecision::ArcReach,
+                "whether the circle of the arc at loop 0 segment 2 stays clear of the revolve axis",
                 SIZED,
             ),
         ];

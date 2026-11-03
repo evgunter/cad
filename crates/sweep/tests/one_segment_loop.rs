@@ -898,11 +898,11 @@ fn a_one_segment_circle_on_or_against_the_axis_refuses() {
             "{what}: {got:?}"
         );
     };
-    let toroid = |what: &str, got: &E| {
+    let apex = |what: &str, got: &E| {
         assert!(
             matches!(
                 got,
-                E::UnsupportedToroid {
+                E::SheetApex {
                     loop_index: 0,
                     segment_index: 0
                 }
@@ -927,17 +927,19 @@ fn a_one_segment_circle_on_or_against_the_axis_refuses() {
         // The sphere class: a full turn about an on-axis centre spans
         // past π, so it dips below the axis.
         ("centred on the axis", circle(0.0, 0.0, 1.0, TAU), arc),
-        // The toroid classes: the carrier reaches the axis off-centre.
-        ("crossing the axis", circle(0.5, 0.0, 1.0, TAU), toroid),
+        // The sheet classes: the carrier reaches the axis off-centre,
+        // and a full turn holds the point where it reaches furthest.
+        ("crossing the axis", circle(0.5, 0.0, 1.0, TAU), arc),
+        // A horn's cusp at the vertex is the sheet's apex.
         (
             "tangent to the axis at its vertex",
             circle_at(1.0, 0.0, 1.0, PI, TAU),
-            toroid,
+            apex,
         ),
         (
             "tangent to the axis away from its vertex",
             circle(1.0, 0.0, 1.0, -TAU),
-            toroid,
+            arc,
         ),
         // The vertex itself lies across the axis.
         (

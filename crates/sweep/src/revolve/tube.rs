@@ -18,9 +18,10 @@
 //! constructed swept traversal (two half-circle arcs whose stored
 //! centre/radius are the exact intent values) instead of a validated
 //! profile. Classification, sense derivation, seam placement, the
-//! ring-torus convention (`R > r > 0`, the `axis_arc_clearance`
-//! decide) and the final whole-body pcurve mint are all the revolve's
-//! own code, not copies.
+//! reading of each arc against the axis (a tube whose circle reaches
+//! the axis has an arc across it, or ends one at its cusp) and the
+//! final whole-body pcurve mint are all the revolve's own code, not
+//! copies.
 //!
 //! **No cross-door bit-identity contract**: a tube-door body and a
 //! revolve-door body of the same torus may differ by ulps (the
@@ -346,10 +347,9 @@ pub(super) fn arc_window<T: Decide>(t0: T, t1: T, arm: T, band: Band) -> Result<
 /// # Errors
 ///
 /// [`TubeError`] — every door named on the enum except the three wall
-/// arms, which only [`tube_along_arc_hollow`] can raise; the
-/// ring-torus convention (`R > r > 0`) refuses through the shared
-/// `axis_arc_clearance`/`axis_vertex_radius` decides as
-/// [`TubeError::Revolve`]. Nothing here refuses the FRAME: an
+/// arms, which only [`tube_along_arc_hollow`] can raise; a tube whose
+/// circle reaches the axis (`R ≤ r`) refuses through the revolve's own
+/// reading of its arcs and vertices as [`TubeError::Revolve`]. Nothing here refuses the FRAME: an
 /// [`RigidMotion`] is orthonormal by its type, decided at whichever
 /// mint built it, so the axis and the reference radial arrive as facts
 /// rather than as claims this door has to re-examine.

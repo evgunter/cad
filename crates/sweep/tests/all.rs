@@ -82,6 +82,8 @@ mod a_face_off_the_tangent_ruling;
 mod a_face_reads_its_chart_image;
 #[path = "a_flank_touch_at_a_shared_corner.rs"]
 mod a_flank_touch_at_a_shared_corner;
+#[path = "a_conical_ended_football_revolves.rs"]
+mod a_conical_ended_football_revolves;
 #[path = "a_flat_frustum_revolves.rs"]
 mod a_flat_frustum_revolves;
 #[path = "a_flipped_shallow_dimple.rs"]
