@@ -1,6 +1,6 @@
 //! **Does a rigid turn keep a section-ellipse sliver valid at rest?** A
 //! measurement probe for
-//! `work/cleave/a-rigid-turn-reads-a-valid-ellipse-sliver-inside-out.md`.
+//! `a-rigid-turn-reads-a-valid-ellipse-sliver-inside-out` (closed with CLEAVE: `docs/doc-ledger/cleave-leaves-the-tracker.md`).
 //!
 //! The unit cylinder split by a plane `ψ` off the wall's tangent plane at
 //! azimuth `φ` (an ellipse of semi-major axis `1/sin ψ`); each side that

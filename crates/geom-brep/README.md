@@ -967,14 +967,30 @@ the ball about the overlap of the two operands' boxes, padded, which
 holds every section point the operation can use. No face's or site's
 extent enters it, so two faces on one carrier read one value. A
 component is closed, or open with both ends on the domain's boundary,
-or ends at a node (Edge descriptions): a node is
-decided on the pose as a Zero tangency whose section still has
-carriers, placed in closed form or enclosed alone in a certified box,
-and a site at it reads as the node. The value lists each node with the
-surfaces' common normal, its two tangent lines and the side of each
-other the surfaces lie on in the sectors between them, all read off
-their relative second fundamental form there, indefinite and
-nondegenerate. Each arc end at a node names its line and the sense it
+or ends at a node (Edge descriptions). A node is a point where one
+surface's residual `f`, restricted to the other surface `S` where `S`
+is smooth, has a critical point at value zero whose Hessian is
+indefinite and nondegenerate (by the Morse lemma, two branches crossing
+transversally). That Hessian is the node's one datum: `f`'s
+second-order form on `S`'s tangent plane `T`, corrected by `S`'s
+curvature times `∇f`'s normal component. At a tangency of two smooth
+surfaces `∇f ≠ 0`, and it is their relative second fundamental form.
+At a singular point of `f`'s surface lying on `S`, `∇f = 0`, and it is
+`f`'s own quadratic form on `T`: a cone's apex (null lines the two
+rulings in `T`) or a spindle torus's tips. A horn torus's centre has a
+degenerate form and refuses as contact of higher order; a spline's
+singular tip (a collapsed side where its tangents span no plane,
+`chart_singularity::spline_collapsed_row`) refuses by name until its
+tangent cone is read. Where neither surface is smooth (two cones
+through one apex) the criterion does not apply: their section is their
+shared rulings. A node is decided on the pose (a Zero tangency whose
+section still has carriers, or a singular point's closed-form margin),
+placed in closed form or enclosed alone in a certified box, and a site
+at it reads as the node. The value lists each node with `S`'s normal,
+the Hessian's two null lines and the side of each other the surfaces
+lie on in the sectors between them. A definite Hessian is a touch, an
+isolated point of the section; a degenerate one refuses, except a
+plane holding a cone's ruling, whose section is that line. Each arc end at a node names its line and the sense it
 leaves along. A germ leaving a node is minted from its arc end, and no
 reading of a site names an arc there.
 Arcs that share nodes are one node-joined set (`NodeSet`), the
@@ -986,7 +1002,8 @@ common perpendicular against `r₁ + r₂` and `|r₁ − r₂|`, or the axis
 distance where parallel. A pair with a ruled side reads its pose on the
 sweep of the discriminant along that side's rulings: its double root
 the tangency, decided on the pose, the arcs where it is positive the
-components, a cone's apex a closed-form margin, and for two cylinders
+components, a cone's apex on the other surface a closed-form margin
+(its residual there), whose Zero is a node or a touch, and for two cylinders
 the margins above its extremes. Each torus pair's pose
 (`SphereTorusPose`, `CylinderTorusPose`, `TorusTorusPose`) guards its
 operands, reads the partner's symmetry on the section certificate's
@@ -1222,9 +1239,12 @@ rule fires only on `ContactMark::Tangent`, refusing a conventional
 description there (`OnPair`, or a `Chart` that is not a wrap, declared
 or derived) `TangentNotIntrinsic`. Tier 3 reads a body at the ε it was
 built at, the run's. An edge whose stations read definitely
-transverse at one and definitely smooth at its neighbour brackets an
+transverse at one and definitely smooth at its neighbour, or a convex
+corner at one and a concave one at its neighbour, brackets an
 unsampled in-band point and is refused (`MixedDihedral`, naming the two
-stations); `must_carry_over_edge` answers it `MustCarryVerdict::Mixed`,
+stations; along a tangency, stations whose material pairings or ends
+differ are refused the same way, ending as a defect);
+`must_carry_over_edge` answers a class bracket `MustCarryVerdict::Mixed`,
 and every constructor refuses it typed but one: the blend's contact
 edge, routed smooth by its carrier's construction, ends a mixed reading
 as `SurgeryInvariant`, the surgery contradicting its own routing, since
@@ -1766,7 +1786,7 @@ locus, so the implicit function theorem makes S₁∩S₂ locally a
 1-manifold; the margin (angle between normals) governs the conditioning
 of every derived cache. A branch may end at a *node*, a point where
 it crosses another branch of the same pair and the two surfaces are
-tangent (two equal cylinders with intersecting axes: their section is
+tangent, or one is a cone singular there, at its apex (two equal cylinders with intersecting axes: their section is
 two ellipses crossing at p ± r·unit(â₁×â₂)); there the section is one
 connected set, so the witness selects the branch, and transversality
 holds on the open edge, which is where certification samples it. A tangency's validity sits one

@@ -734,7 +734,7 @@ fn a_rim_in_band_of_the_partners_wall_escalates() {
 /// - `k = ±0.9`: the dome's meridian meets the tube's wall `√2·|k|·zero`
 ///   along its arc from the rim, and the crossing layer escalates on that
 ///   arc length, both orders
-///   (`work/cleave/boolean-in-span-readings-of-grazing-roots-are-levered-by-arc-length.md`).
+///   (`work/honeroot/boolean-in-span-readings-of-grazing-roots-are-levered-by-arc-length.md`).
 /// - `k = ±1.1, ±2`: in band, both orders escalate. Which question
 ///   escalates first follows the operand walked first.
 #[test]

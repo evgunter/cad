@@ -36,3 +36,13 @@ profile in the plane normal to the path's start tangent by itself, or a
 A caller can sweep a profile normal to its path without deriving the
 start frame by hand, and the tour's sweeps use that door. The explicit
 `place` argument stays for a profile that is not normal to its path.
+
+## Three hand-written copies after `path_start_frame` retired (FRAME, PR 6465, 2026-11-03)
+
+PR 6465 retired `path_start_frame`. The start-frame derivation is now one recipe written out by hand three times: the world frame at the path's start, turned onto the start tangent by the least turn.
+
+- `crates/sweep/tests/common/mod.rs`, `start_frame` (read by `normal_start_place`);
+- `demos/tour/src/scalar.rs`, `frame_across` (the tour's sweeps: skinned, projectbox's spring, klein's loop);
+- `crates/pncad/examples/sweep_start_frame_and_roll.rs`, inline.
+
+The door this row asks for should call `RigidMotion::turned_onto` (`crates/geom-core/src/linalg/rigid_motion.rs`) on `RigidMotion::axes_xy(start)`, which refuses across the band around the written frame's `−z`. Interior stations are `sweep::sweep_places`. FRAME's designers left the door itself to STRUT, so PR 6465 adds none.

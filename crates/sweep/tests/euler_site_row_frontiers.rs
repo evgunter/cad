@@ -266,6 +266,27 @@ fn a_null_edge_described_on_a_spline_wall_leaves_its_rows_as_found() {
         "the wall's re-derivation refuses the described circle, no iso of the chart: \
          {findings:?}"
     );
+    // The iso lane's inventory is a lane gap, never the body's defect:
+    // "not yet" at rest, and at a build where the mint meets it.
+    let iso = findings
+        .iter()
+        .find(|f| matches!(f, topo::PcurveMintError::Certify { .. }))
+        .unwrap()
+        .clone();
+    let at_rest =
+        topo::ValidationError::Pcurve { finding: iso }.render(geom_brep::recourse::Reading::AtRest);
+    assert!(
+        at_rest.ends_with(geom_core::NOT_YET_ENDING) && !at_rest.contains("defect"),
+        "{at_rest}"
+    );
+    let wall = body.face_of_half_edge(why[0]).unwrap();
+    let built = topo::mint_pcurves_of(&mut body, &[wall], tol())
+        .unwrap_err()
+        .render(geom_brep::recourse::Reading::Build);
+    assert!(
+        built.ends_with(geom_core::NOT_YET_ENDING) && !built.contains("defect"),
+        "{built}"
+    );
 }
 
 /// **An operator on a spline wall a null edge holds open leaves it as
