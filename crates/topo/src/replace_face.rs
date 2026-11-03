@@ -761,8 +761,13 @@ pub enum ReplaceFaceError<T: Real> {
     },
 }
 
-impl<T: Real> core::fmt::Display for ReplaceFaceError<T> {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl<T: Real> ReplaceFaceError<T> {
+    fn write(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        at: Option<geom_brep::recourse::ReadAt>,
+    ) -> core::fmt::Result {
+        use geom_brep::recourse::read_at;
         match self {
             // The carrier's own repairs (set a positive ε; raise ε or
             // K) are addressed to a caller choosing a band's
@@ -780,7 +785,12 @@ impl<T: Real> core::fmt::Display for ReplaceFaceError<T> {
             ),
             // Each door's refusal names what it is about itself.
             Self::Offset { error, .. } => write!(f, "{error}"),
-            Self::Fit { error, .. } => write!(f, "{error}"),
+            // The fit door's meter ends at a build at every door that
+            // reads the replacement's refusal.
+            Self::Fit { error, .. } => match at {
+                Some(_) => f.write_str(&error.render(geom_brep::recourse::Reading::Build)),
+                None => write!(f, "{error}"),
+            },
             Self::IsoRow { error, .. } => write!(f, "{error}"),
             Self::ApproxLaneUnsupported { scalar, .. } => write!(
                 f,
@@ -958,7 +968,7 @@ impl<T: Real> core::fmt::Display for ReplaceFaceError<T> {
                  certifies that arc there. {NOT_YET_ENDING}",
                 conic.named()
             ),
-            Self::DegenerateTorus { refusal, .. } => refusal.fmt(f),
+            Self::DegenerateTorus { refusal, .. } => write!(f, "{}", read_at(refusal, at)),
             Self::Escalated { source } => write!(
                 f,
                 "{}",
@@ -973,18 +983,21 @@ impl<T: Real> core::fmt::Display for ReplaceFaceError<T> {
             } => {
                 write!(
                     f,
-                    "an edge beside the moved face could not be rebuilt: {error}"
+                    "an edge beside the moved face could not be rebuilt: {}",
+                    read_at(error, at)
                 )
             }
             Self::Op { edge: None, error } => write!(
                 f,
-                "the moved faces could not be put onto their offset surface: {error}"
+                "the moved faces could not be put onto their offset surface: {}",
+                read_at(error, at)
             ),
             Self::Pcurve { source } => write!(
                 f,
-                "the offset body's edges could not be parametrized on their faces: {source}"
+                "the offset body's edges could not be parametrized on their faces: {}",
+                read_at(source, at)
             ),
-            Self::Join { refusal } => write!(f, "offsetting the face: {refusal}"),
+            Self::Join { refusal } => write!(f, "offsetting the face: {}", read_at(refusal, at)),
             Self::TogetherChartMixed { .. } => write!(
                 f,
                 "a move names faces that do not lie on one surface, and a move moves one \
@@ -1028,6 +1041,9 @@ impl<T: Real> core::fmt::Display for ReplaceFaceError<T> {
     }
 }
 
+geom_brep::ended_by_write!([T: Real] ReplaceFaceError<T>);
+
+#[cfg(not(e1e_probe))]
 impl<T: Real> std::error::Error for ReplaceFaceError<T> {}
 
 /// "1 error", "3 errors": a validator report's size, as a refusal says it.

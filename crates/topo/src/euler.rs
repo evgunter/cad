@@ -1753,6 +1753,7 @@ impl EulerOpError {
 
 /// The payload alone: the ending is read at the door that reports the
 /// refusal ([`EulerOpError::render`]).
+#[cfg(not(e1e_probe))]
 impl fmt::Display for EulerOpError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(&self.text(None))
@@ -1765,6 +1766,7 @@ impl geom_brep::recourse::Ended for EulerOpError {
     }
 }
 
+#[cfg(not(e1e_probe))]
 impl std::error::Error for EulerOpError {}
 
 /// One sample of every [`EulerOpError`] variant, in declaration

@@ -1032,18 +1032,18 @@ impl MergeDecision {
         }
     }
 
-    /// The one ending an escalation of this decision carries, at the
-    /// merge that built the geometry.
-    fn ending(self, diag: &Indeterminate) -> String {
+    /// The one ending an escalation of this decision carries, read at
+    /// `at`.
+    fn ending(self, diag: &Indeterminate, at: geom_brep::recourse::ReadAt) -> String {
         let arm = RefusedArm::Undecided(diag);
         match self {
             // An extent that does not read carries no margin.
-            Self::PairReach => Unsized::Defect.recourse(arm, Reading::Build),
+            Self::PairReach => Unsized::Defect.recourse(arm, at),
             Self::Neighbours(rung) => {
                 crate::boolean::BooleanDecision::Neighbours(rung).recourse(diag)
             }
             Self::NeighbourCoincidence => crate::boolean::refusal_routes::neighbour_ending(diag),
-            Self::LoopWinding => LOOP_WINDING.recourse(arm, Reading::Build),
+            Self::LoopWinding => LOOP_WINDING.recourse(arm, at),
         }
     }
 }
@@ -1075,8 +1075,13 @@ const LOOP_WINDING: SizedDecision = SizedDecision {
     no_size: None,
 };
 
-impl core::fmt::Display for MergeCoplanarError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl MergeCoplanarError {
+    fn write(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        at: Option<geom_brep::recourse::ReadAt>,
+    ) -> core::fmt::Result {
+        use geom_brep::recourse::read_at;
         match self {
             Self::InputNotClosed { errors } => {
                 write!(
@@ -1138,11 +1143,15 @@ impl core::fmt::Display for MergeCoplanarError {
                  inventory: sub-period re-merges commit, full closures stay in their \
                  cut-carrying canonical form and are recorded as a loud skip"
             ),
-            Self::Op { error } => write!(f, "merge_coplanar_faces: {error}"),
+            Self::Op { error } => write!(f, "merge_coplanar_faces: {}", read_at(error, at)),
             Self::GluedOppositeOrientation { .. } => write!(
                 f,
-                "the two glued faces face opposite ways across the edge they share. {}",
-                GLUED_ORIENTATION.recourse(RefusedArm::SignCertain(None), Reading::Build)
+                "the two glued faces face opposite ways across the edge they share{}",
+                at.map(|at| format!(
+                    ". {}",
+                    GLUED_ORIENTATION.recourse(RefusedArm::SignCertain(None), at)
+                ))
+                .unwrap_or_default()
             ),
             Self::GlueRecordBroken { surfaces: (a, b) } => write!(
                 f,
@@ -1176,16 +1185,25 @@ impl core::fmt::Display for MergeCoplanarError {
                      winds counterclockwise about its outward normal, as tier 3 requires at rest"
                 ),
             },
-            Self::Escalated { decision, diag } => diag
-                .undecided(decision.subject(), decision.ending(diag))
-                .fmt(f),
+            Self::Escalated { decision, diag } => write!(
+                f,
+                "{}",
+                geom_brep::recourse::undecided_at(
+                    diag,
+                    decision.subject(),
+                    at.map(|at| decision.ending(diag, at))
+                )
+            ),
             Self::Band { error } => write!(f, "merge_coplanar_faces: {error}"),
             Self::Pcurve { source } => write!(
                 f,
                 "merge_coplanar_faces: the staged result's pcurve re-mint refused \
-                 ({source}) — the body is untouched"
+                 ({}) — the body is untouched",
+                read_at(source, at)
             ),
-            Self::Join { refusal } => write!(f, "merging coplanar faces: {refusal}"),
+            Self::Join { refusal } => {
+                write!(f, "merging coplanar faces: {}", read_at(refusal, at))
+            }
             Self::KeptBoundaryUndescribed {
                 face,
                 edge,
@@ -1202,11 +1220,11 @@ impl core::fmt::Display for MergeCoplanarError {
                 if let Some(cause) = cause {
                     write!(f, " ({})", refusal_payload(cause))?;
                 }
-                write!(
-                    f,
-                    ". The body is untouched. {}",
-                    undescribed_ending(cause.as_deref(), *fitted)
-                )
+                f.write_str(". The body is untouched")?;
+                match at {
+                    Some(_) => write!(f, ". {}", undescribed_ending(cause.as_deref(), *fitted)),
+                    None => Ok(()),
+                }
             }
             Self::KeptBoundaryOffFace { face, edge, diag } => write!(
                 f,
@@ -1226,23 +1244,24 @@ impl core::fmt::Display for MergeCoplanarError {
                 let (question, ending) = match reading {
                     DihedralReading::Lever(geom_brep::LeverRung::Arm) => (
                         concat!("whether the edge is ", geom_brep::dihedral_arm_clause!()),
-                        geom_brep::DIHEDRAL_ARM
-                            .recourse(RefusedArm::Undecided(diag), Reading::Build),
+                        at.map(|at| {
+                            geom_brep::DIHEDRAL_ARM.recourse(RefusedArm::Undecided(diag), at)
+                        }),
                     ),
                     DihedralReading::Lever(geom_brep::LeverRung::Reading) => (
                         "whether the faces at it cross or meet smoothly",
-                        CROSS_OR_SMOOTH.to_owned(),
+                        Some(CROSS_OR_SMOOTH.to_owned()),
                     ),
                     DihedralReading::Bend => (
                         "whether the faces at it bend apart",
-                        CROSS_OR_SMOOTH.to_owned(),
+                        Some(CROSS_OR_SMOOTH.to_owned()),
                     ),
                 };
                 write!(
                     f,
                     "merge_coplanar_faces: re-describing kept face {face:?}'s boundary edge \
                      {edge:?}, {}",
-                    diag.undecided(question, ending)
+                    geom_brep::recourse::undecided_at(diag, question, ending)
                 )
             }
             Self::KeptBoundaryMixed {
@@ -1268,6 +1287,9 @@ impl core::fmt::Display for MergeCoplanarError {
     }
 }
 
+geom_brep::ended_by_write!(MergeCoplanarError);
+
+#[cfg(not(e1e_probe))]
 impl std::error::Error for MergeCoplanarError {}
 
 impl From<EulerOpError> for MergeCoplanarError {

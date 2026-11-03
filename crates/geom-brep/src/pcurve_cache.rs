@@ -2342,6 +2342,7 @@ impl PcurveCertifyError {
 
 /// The payload alone: the ending is read at the door that reports the
 /// refusal ([`PcurveCertifyError::render`]).
+#[cfg(not(e1e_probe))]
 impl core::fmt::Display for PcurveCertifyError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         self.write_payload(f)
@@ -2354,6 +2355,7 @@ impl crate::recourse::Ended for PcurveCertifyError {
     }
 }
 
+#[cfg(not(e1e_probe))]
 impl std::error::Error for PcurveCertifyError {}
 
 impl PcurveCertifyError {
@@ -2453,7 +2455,7 @@ impl PcurveCertifyError {
             Self::Escalated { check, cause, .. } => {
                 self.with_ending(&check.recourse(RefusedArm::Undecided(cause), at))
             }
-            _ => self.to_string(),
+            _ => self.payload().to_string(),
         }
     }
 
@@ -2485,7 +2487,12 @@ impl PcurveCertifyError {
     /// The refusal's text followed by `ending`: the one spelling of an
     /// escalation's text and of a payload with its ending.
     fn with_ending(&self, ending: &str) -> String {
-        format!("{self}. {ending}")
+        format!("{}. {ending}", self.payload())
+    }
+
+    /// The payload alone, as `Display` writes it.
+    fn payload(&self) -> impl core::fmt::Display + '_ {
+        core::fmt::from_fn(|f| self.write_payload(f))
     }
 
     /// Whether this is a definite refusal on a certified upper bound on
@@ -9304,10 +9311,12 @@ pub enum IsoFamilyRefusal {
 /// edge, after "whether": the one spelling of that question.
 pub const ISO_FAMILY_CLAUSE: &str = "runs along a cylinder's ruling or around it";
 
-impl core::fmt::Display for IsoFamilyRefusal {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+/// `at` ends the image's own refusal at the door that reads it; `None`
+/// writes the payload alone, as `Display` does.
+impl IsoFamilyRefusal {
+    fn write(&self, f: &mut core::fmt::Formatter<'_>, at: Option<ReadAt>) -> core::fmt::Result {
         match self {
-            Self::Image(e) => write!(f, "{e}"),
+            Self::Image(e) => write!(f, "{}", crate::recourse::read_at(e, at)),
             Self::Undecided(diag) => write!(
                 f,
                 concat!("whether the edge {}", geom_core::undecided!(), ": {}"),
@@ -9317,6 +9326,8 @@ impl core::fmt::Display for IsoFamilyRefusal {
         }
     }
 }
+
+crate::ended_by_write!(IsoFamilyRefusal);
 
 /// The iso family `carrier`'s image on `surface`'s chart lies on, read
 /// off the class arm [`chart_pcurve`]'s derivation selects for it, so

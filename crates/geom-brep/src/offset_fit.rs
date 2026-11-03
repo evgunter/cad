@@ -238,7 +238,7 @@ use geom_core::{
 use crate::descent::{self, Descent, Work};
 use crate::offset_meters::{MeterError, MeterResult, meter_patch, mig};
 use crate::patch_bound::{PatchBoundError, check_direction, unit_scaled_weights};
-use crate::recourse::{NARROW_SPAN, NARROW_SPAN_RECOURSE, Reading};
+use crate::recourse::{NARROW_SPAN, NARROW_SPAN_RECOURSE};
 use geom_core::spline::{Derived, TensorCoeffs};
 
 /// The fitted surface's degree in both directions. A CONSTANT (D9:
@@ -755,30 +755,52 @@ impl OffsetFitError {
     /// its meter's ending there ([`MeterError::render`]); every other
     /// arm is its `Display`, which carries its own recourse.
     #[must_use]
-    pub fn render(&self, reading: Reading) -> String {
+    pub fn render(&self, reading: impl Into<crate::recourse::ReadAt>) -> String {
         match self {
             Self::Meter(e) => format!("{METER_UNFITTED}: {}", e.render(reading)),
-            other => other.to_string(),
+            other => other.payload().to_string(),
         }
+    }
+
+    /// The payload alone, as `Display` writes it.
+    pub(crate) fn payload(&self) -> impl core::fmt::Display + '_ {
+        core::fmt::from_fn(|f| self.write_payload(f))
     }
 
     /// [`Self::render`], except that a meter's refusal ends in
     /// [`MeterError::render_with_lever`]'s words: for a door whose user
     /// sets the offset under another name.
     #[must_use]
-    pub fn render_with_lever(&self, lever: &'static str, reading: Reading) -> String {
+    pub fn render_with_lever(
+        &self,
+        lever: &'static str,
+        reading: impl Into<crate::recourse::ReadAt>,
+    ) -> String {
         match self {
             Self::Meter(e) => format!(
                 "{METER_UNFITTED}: {}",
                 e.render_with_lever(lever, reading)
             ),
-            other => other.to_string(),
+            other => other.payload().to_string(),
         }
     }
 }
 
+impl crate::recourse::Ended for OffsetFitError {
+    fn ended(&self, at: crate::recourse::ReadAt) -> String {
+        self.render(at)
+    }
+}
+
+#[cfg(not(e1e_probe))]
 impl core::fmt::Display for OffsetFitError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        self.write_payload(f)
+    }
+}
+
+impl OffsetFitError {
+    fn write_payload(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::Meter(e) => write!(f, "{METER_UNFITTED}: {e}"),
             Self::PatchBound(e) => write!(f, "{e}"),
@@ -931,6 +953,7 @@ impl core::fmt::Display for OffsetFitError {
     }
 }
 
+#[cfg(not(e1e_probe))]
 impl std::error::Error for OffsetFitError {}
 
 // The certificate RECORD lives in `geom` (`geom::OffsetCertificate`):

@@ -95,8 +95,13 @@ impl Reading {
 /// [`Ended::ended`] at the door that reads it, so no `Display` answers
 /// one door's question for another. Each implementor's inherent
 /// `render(at)` is the same text.
+#[cfg(not(e1e_probe))]
 pub trait Ended: core::fmt::Display {
     /// This refusal's text ended at `at`.
+    fn ended(&self, at: ReadAt) -> String;
+}
+#[cfg(e1e_probe)]
+pub trait Ended {
     fn ended(&self, at: ReadAt) -> String;
 }
 
@@ -108,8 +113,41 @@ pub fn read_at<E: Ended + ?Sized>(
 ) -> impl core::fmt::Display + '_ {
     core::fmt::from_fn(move |f| match at {
         Some(at) => f.write_str(&refusal.ended(at)),
+        #[cfg(not(e1e_probe))]
         None => core::fmt::Display::fmt(refusal, f),
+        #[cfg(e1e_probe)]
+        None => panic!(),
     })
+}
+
+/// **An undecided reading's sentence ended at a door, or its payload
+/// alone**: [`Indeterminate::undecided`]'s sentence where `ending` is
+/// `Some`, and `"{subject} is undecided: {payload}"` where the holder
+/// is read at no door (its `Display`).
+pub fn undecided_at<'a, S: core::fmt::Display + 'a>(
+    diag: &'a Indeterminate,
+    subject: S,
+    ending: Option<String>,
+) -> impl core::fmt::Display + 'a {
+    core::fmt::from_fn(move |f| match &ending {
+        Some(ending) => core::fmt::Display::fmt(&diag.undecided(&subject, ending), f),
+        None => write!(
+            f,
+            concat!("{}", geom_core::undecided!("", payload)),
+            subject,
+            diag.payload()
+        ),
+    })
+}
+
+/// **A door for a nested refusal its holder ends at a build whatever
+/// door reads the holder**: `at` itself where the holder is its payload
+/// alone (`None`), and a build otherwise. Each call is a site that ends
+/// a refusal at a door other than the reader's, counted per file by
+/// `scripts/gates/display-payload-only.sh`.
+#[must_use]
+pub fn at_build(at: Option<ReadAt>) -> Option<ReadAt> {
+    at.map(|_| ReadAt::Run(Reading::Build))
 }
 
 /// **The three items of a refusal written once for both readings**: a
@@ -118,10 +156,10 @@ pub fn read_at<E: Ended + ?Sized>(
 /// [`Ended`] impl from this.
 #[macro_export]
 macro_rules! ended_by_write {
-    ($ty:ty) => {
-        impl $ty {
+    ([$($gen:tt)*] $ty:ty) => {
+        impl<$($gen)*> $ty {
             /// This refusal's text ended at the door `at` reads it
-            /// ([`$crate::recourse::Ended`]); its `Display` is the
+            /// (`recourse::Ended`); its `Display` is the
             /// payload alone.
             #[must_use]
             pub fn render(&self, at: impl Into<$crate::recourse::ReadAt>) -> String {
@@ -130,17 +168,21 @@ macro_rules! ended_by_write {
             }
         }
 
-        impl core::fmt::Display for $ty {
+        #[cfg(not(e1e_probe))]
+        impl<$($gen)*> core::fmt::Display for $ty {
             fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
                 self.write(f, None)
             }
         }
 
-        impl $crate::recourse::Ended for $ty {
+        impl<$($gen)*> $crate::recourse::Ended for $ty {
             fn ended(&self, at: $crate::recourse::ReadAt) -> String {
                 self.render(at)
             }
         }
+    };
+    ($ty:ty) => {
+        $crate::ended_by_write!([] $ty);
     };
 }
 
