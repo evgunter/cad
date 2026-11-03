@@ -425,3 +425,13 @@ and bodies unchanged. No orchestrator yet.
   - `a_flat_wall_whose_chart_path_bends…` at 1e-12 (μ 0.2), now `TubeNotOneArc{Short}`.
   - **Ruled accepted.** It is the same limb-3 shortfall the ℝ⁴ lane already refuses on its μ 0.1 sibling (SSIARITH P3, `ssi-limb-three-refuses-a-bent-chart-path-line-at-eps-1e-12`). It is pinned with a dated note on that row.
   - 4a and 4b go as one PR with dual review.
+
+- 2026-11-03 16:35 — **Cylinder 3b-ii is up as PR 6466.** Nodes are listed on the value, germs are minted from arc ends, `bool_node_run_turn` is retired, and the bisector lane retires. CI is green.
+  - **The near-node transversality regression, measured:**
+    - an operand seam builds from δ ≈ 2·√escalate (about 2e-4 at unit scale);
+    - inside that it refuses or escalates typed (filed P2, option (b) named);
+    - flagged to Ev.
+  - **Unexpected improvement:** `crossing_equal_rods` now builds SOUND where it used to refuse. The lane did not trace why, so the reviewers are asked to.
+  - **Mutants:** m9 and m10 survive, because no row reaches those arms (filed P3).
+  - **D5 deviation:** an in-span Zero now escalates rather than desyncing.
+  - **Review:** the dual review is dispatched to two cloud sessions.
