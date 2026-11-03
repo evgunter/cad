@@ -383,9 +383,8 @@ fn the_general_rung_carries_through_its_door() {
     );
     for k in 1..64 {
         let p = seated.carrier.eval(s0 + (s1 - s0) * f64::from(k) / 64.0);
-        let foot = c.carrier.foot(p, at);
         assert!(
-            (c.carrier.eval(foot.t()) - p).norm() < band().zero(),
+            c.carrier.foot(p, at).gap() < band().zero(),
             "the seated loop's point {k} lies on the loop"
         );
     }

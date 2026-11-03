@@ -2225,9 +2225,8 @@ impl<T: Decide> CarriedComponent<T> {
         let padded = band
             .padded(self.pad)
             .map_err(|_| SiteRefusal::Desync("a component's tube pads no band"))?;
-        let foot = self.carrier.foot(p, self.span.0);
-        match foot.on_carrier(padded) {
-            Ok(OnCarrier::On { .. }) => Ok(Some(foot.t())),
+        match self.carrier.on_carrier(p, self.span.0, padded) {
+            Ok(OnCarrier::On { t, .. }) => Ok(Some(t)),
             Ok(OnCarrier::Off) => Ok(None),
             Err(refusal) => Err(refusal.escalation().map_or(
                 SiteRefusal::Desync("a point's distance from a fitted component could not be read"),

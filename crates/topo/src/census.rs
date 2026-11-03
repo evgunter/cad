@@ -8842,7 +8842,7 @@ fn tangent_sectors<T: Decide>(
             if !held_edge(half.edge) || corner(half.start) || corner(end) {
                 continue;
             }
-            let (along, line) = direction_at(body, he, p)?;
+            let (along, line) = half_edge_tangent(body, he, p, band)?;
             let fan = TangentFan::Edge {
                 along,
                 reach: reach()?,
@@ -8942,25 +8942,47 @@ fn departure<T: Decide>(
     Ok((dir, bend.is_none()))
 }
 
-/// Half-edge `he`'s unit direction at `p`, a point inside its edge, and
-/// whether the edge is a line: a line's chord, a curve's tangent at
-/// `p`'s foot on its carrier.
-fn direction_at<T: Decide>(
+/// **Half-edge `he`'s unit direction at `p`**, a point inside its edge,
+/// and whether the edge is a line. A line's is its carrier's direction,
+/// the same at every point. A curve's is its tangent at the parameter
+/// the edge's span certifies `p` on ([`curved::unit_tangent_on_interior`]):
+/// a point the span does not certify on its interior refuses, an
+/// escalation as [`TouchUnread::InBand`] and anything else as
+/// [`TouchUnread::Unreadable`].
+fn half_edge_tangent<T: Decide>(
     body: &Body<T>,
     he: HalfEdgeKey,
     p: Point3<T>,
+    band: Band,
 ) -> Result<(Vec3<T>, bool), TouchUnread> {
     let half = body.get_half_edge(he).ok_or(TouchUnread::Corrupt)?;
     let edge = body.get_edge(half.edge).ok_or(TouchUnread::Corrupt)?;
-    let curve = body
+    let carrier = body
         .curves
         .get(edge.curve)
         .and_then(crate::null::CurveGeom::certified)
-        .ok_or(TouchUnread::Unreadable)?;
-    let (t0, t1) = curve.params();
-    let line = matches!(curve.carrier(), geom::Curve3::Line(_));
-    let t = curve.carrier().foot(p, geom::mid_param(t0, t1)).t();
-    let d = curve.carrier().deriv(t).normalize();
+        .ok_or(TouchUnread::Unreadable)?
+        .carrier();
+    let (d, line) = match carrier.as_line() {
+        Some(line) => (line.dir.normalize(), true),
+        None => {
+            let mut refused = Vec::new();
+            match curved::unit_tangent_on_interior(body, half.edge, p, band, &mut refused) {
+                Some(Some(d)) => (d, false),
+                Some(None) => return Err(TouchUnread::Unreadable),
+                None => {
+                    let escalated = refused
+                        .iter()
+                        .any(|r| matches!(r, ValidationError::CensusEscalated { .. }));
+                    return Err(if escalated {
+                        TouchUnread::InBand
+                    } else {
+                        TouchUnread::Unreadable
+                    });
+                }
+            }
+        }
+    };
     Ok((if he == edge.he_plus { d } else { -d }, line))
 }
 
@@ -9021,7 +9043,7 @@ impl<T: Decide> Link<T> {
         let (mut planar, mut into, mut chords) = (Vec::new(), Vec::new(), Vec::new());
         for he in [halves.he_plus, halves.he_minus] {
             let f = body.face_of_half_edge(he).ok_or(TouchUnread::Corrupt)?;
-            let (along, _) = direction_at(body, he, p)?;
+            let (along, _) = half_edge_tangent(body, he, p, band)?;
             if planar_face(geo, f).is_some() {
                 into.push(outward(f)?.cross(along).normalize());
                 if !planar.contains(&f) {

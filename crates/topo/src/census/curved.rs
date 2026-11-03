@@ -205,10 +205,33 @@ pub(super) fn tangent_on_interior<T: Decide>(
     let r = read(body, e, band, errors)?;
     let e = crate::live::proven(&body.edges, r.edge, EntityId::Edge);
     let lever = crate::boolean::boxes::edge_reach_bounds(body, r.edge, e, q)?;
-    Some(
-        on_interior_at(body, &r, q, band, errors)?
-            .map(|(t, _)| Departure::along(r.curve.deriv(t).normalize(), lever)),
-    )
+    Some(unit_tangent_at(body, &r, q, band, errors)?.map(|dir| Departure::along(dir, lever)))
+}
+
+/// **`e`'s unit tangent where `q` lies on its interior**, along its plus
+/// half, at the parameter the edge's span certifies `q` on
+/// ([`Hit::On`]). `Some(None)` where `q` is not on the interior; `None`
+/// where a decision escalated or the edge is not read (pushed).
+pub(super) fn unit_tangent_on_interior<T: Decide>(
+    body: &Body<T>,
+    e: EdgeKey,
+    q: Point3<T>,
+    band: Band,
+    errors: &mut Vec<ValidationError>,
+) -> Option<Option<geom_core::Vec3<T>>> {
+    let r = read(body, e, band, errors)?;
+    unit_tangent_at(body, &r, q, band, errors)
+}
+
+/// [`unit_tangent_on_interior`] on an edge already read.
+fn unit_tangent_at<T: Decide>(
+    body: &Body<T>,
+    r: &Read<T>,
+    q: Point3<T>,
+    band: Band,
+    errors: &mut Vec<ValidationError>,
+) -> Option<Option<geom_core::Vec3<T>>> {
+    Some(on_interior_at(body, r, q, band, errors)?.map(|(t, _)| r.curve.deriv(t).normalize()))
 }
 
 /// [`on_interior_reading`], keeping the parameter `q`'s foot is at.

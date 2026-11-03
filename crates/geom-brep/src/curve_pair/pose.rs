@@ -474,11 +474,9 @@ fn reach<T: Decide>(s: &Span<'_, T>) -> T {
     Margin::metered_sup((t1 - t0).abs(), s.speeds().1).value()
 }
 
-/// The line's foot of `q` ([`Curve3::foot`], the one foot reading).
+/// The parameter of `q`'s foot on the line ([`geom::Line::param`]).
 fn line_foot<T: Decide>((origin, dir): (Point3<T>, Vec3<T>), q: Point3<T>) -> T {
-    Curve3::Line(geom::Line { origin, dir })
-        .foot(q, T::zero())
-        .t()
+    geom::Line { origin, dir }.param(q)
 }
 
 /// A lower bound on `q`'s distance from the carrier
@@ -488,11 +486,12 @@ fn clearance<T: Decide>(c: &Curve3<T>, q: Point3<T>) -> T {
     c.clearance(q).unwrap_or_else(T::zero)
 }
 
-/// `q`'s foot on `s`'s carrier ([`Curve3::foot`]), seeded at the span's
-/// middle.
+/// `q`'s foot on `s`'s carrier ([`Curve3::foot`]) seeded at the span's
+/// middle, as a seed ([`geom::Foot::seed`]): a candidate the pose reads
+/// on, not a certified parameter.
 fn foot<T: Decide>(s: &Span<'_, T>, q: Point3<T>) -> T {
     let (t0, t1) = s.params();
-    s.carrier().foot(q, geom::mid_param(t0, t1)).t()
+    s.carrier().foot(q, geom::mid_param(t0, t1)).seed()
 }
 
 /// **Each span's ends, read against the other** (module docs, "The

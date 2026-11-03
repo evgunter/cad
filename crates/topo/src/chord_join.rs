@@ -3019,12 +3019,11 @@ fn carried_chord_spec<T: Decide>(
         )
     };
     let foot = |p: Point3<T>| -> Result<T, SplitJoinError> {
-        let foot = carrier.foot(p, lo);
-        match foot.on_carrier(band) {
-            Ok(geom::OnCarrier::On { .. }) => {
+        match carrier.on_carrier(p, lo, band) {
+            Ok(geom::OnCarrier::On { t, .. }) => {
                 let t = match turn {
-                    Some(turn) => lo + (foot.t() - lo).reduce_periodic(turn),
-                    None => foot.t(),
+                    Some(turn) => lo + (t - lo).reduce_periodic(turn),
+                    None => t,
                 };
                 // A site of an open closed form (a ruling the region
                 // cuts, an arc between nodes) lies within its span: the

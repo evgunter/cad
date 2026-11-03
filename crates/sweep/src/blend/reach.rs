@@ -830,12 +830,10 @@ fn faces_at<T: Decide>(body: &Body<T>, v: VertexKey) -> Result<Vec<FaceKey>, Ble
         .ok_or_else(|| unwalked(EntityId::Vertex(v), "a chain vertex's face fan"))
 }
 
-/// The point of `curve` nearest `p` ([`Curve3::nearest_foot`]: a band's
+/// The point of `curve` nearest `p` ([`Curve3::nearest`]: a band's
 /// trimline or spine); `None` for a carrier with no nearest foot.
 fn foot_on<T: Decide>(curve: &Curve3<T>, p: Point3<T>) -> Option<Point3<T>> {
-    curve
-        .nearest_foot(p, T::zero())
-        .map(|foot| curve.eval(foot.t()))
+    curve.nearest(p, T::zero()).map(|t| curve.eval(t))
 }
 
 /// The mean of some points.

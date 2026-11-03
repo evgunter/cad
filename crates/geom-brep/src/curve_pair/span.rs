@@ -30,7 +30,7 @@
 //! **Past needs a nearest foot.** That the foot lies past the span says
 //! the point lies off it only where the foot is the point's nearest point
 //! of the carrier, which it is on a line and a circle
-//! ([`geom::Foot::is_nearest`]). On an ellipse, a spiric oval or a spline
+//! ([`geom::Foot::nearest`]). On an ellipse, a spiric oval or a spline
 //! the foot is a polished stationary point, perhaps a far branch's, so a
 //! `Past` there stands only on a certificate that the point is clear of
 //! the span itself: the piece walk over the span's own parameters
@@ -55,7 +55,8 @@
 //! seed turned by the signs of two zeros ([`geom::Curve3::foot`]), so a
 //! place read there would decide sides of a half turn the point does not
 //! have. Otherwise, at an end is [`Reading::End`]; inside, the carrier's
-//! reading decides, on ([`Reading::On`]) or undecided (its refusal);
+//! reading decides, on ([`Reading::On`], at the parameter that reading
+//! certifies) or undecided (its refusal);
 //! past, the point is off the span, on the carrier
 //! ([`Reading::Carrier`]) or not ([`Reading::Off`], an undecided carrier
 //! included, since no answer to it puts the point on the span). A place
@@ -89,12 +90,9 @@ pub enum SpanEnd {
 
 /// Where [`Span::place`] puts a point's foot against the span's ends.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub enum Place<T> {
-    /// Inside the span at `t`, clear of both its ends.
-    Inside {
-        /// The parameter, on the branch about the span's middle.
-        t: T,
-    },
+pub enum Place {
+    /// Inside the span, clear of both its ends.
+    Inside,
     /// The point within the band of this end's point.
     End(SpanEnd),
     /// Past the span, clear of both its ends.
@@ -264,15 +262,15 @@ impl<'a, T: Decide> Span<'a, T> {
     /// The band's escalation when a decision the answer rests on falls in
     /// its gap (the chord to an end, the side of an end, or a `Past` the
     /// span walk does not certify), or the walk's own refusal.
-    pub fn place(&self, q: Point3<T>, near: T, band: Band) -> Result<Place<T>, CarrierRefusal> {
+    pub fn place(&self, q: Point3<T>, near: T, band: Band) -> Result<Place, CarrierRefusal> {
         self.place_at(&self.carrier.foot(q, near), band)
     }
 
     /// [`Self::place`] at a foot already found on this span's carrier.
-    fn place_at(&self, foot: &Foot<'_, T>, band: Band) -> Result<Place<T>, CarrierRefusal> {
-        let (q, t) = (foot.point(), self.branch(foot.t()));
+    fn place_at(&self, foot: &Foot<'_, T>, band: Band) -> Result<Place, CarrierRefusal> {
+        let (q, t) = (foot.point(), self.branch(foot.seed()));
         if !self.ended {
-            return Ok(Place::Inside { t });
+            return Ok(Place::Inside);
         }
         let ends = [
             (SpanEnd::Start, t - self.t0, self.t0),
@@ -302,9 +300,9 @@ impl<'a, T: Decide> Span<'a, T> {
             }
         }
         let Some(chord) = past else {
-            return Ok(Place::Inside { t });
+            return Ok(Place::Inside);
         };
-        if foot.is_nearest() {
+        if foot.nearest().is_some() {
             return Ok(Place::Past);
         }
         match self.carrier.clear_of(q, (self.t0, self.t1), band)? {
@@ -359,7 +357,7 @@ impl<'a, T: Decide> Span<'a, T> {
                 k_stats::splice(carrier);
                 return Ok(Reading::Off);
             }
-            Ok(OnCarrier::On { margin }) => Ok(margin),
+            Ok(OnCarrier::On { t, margin }) => Ok((t, margin)),
             Err(refused) => Err(refused),
         };
         let place = self.place_at(&foot, band);
@@ -373,7 +371,13 @@ impl<'a, T: Decide> Span<'a, T> {
         }
         Ok(match place {
             Ok(Place::End(which)) => Reading::End(which),
-            Ok(Place::Inside { t }) => Reading::On { t, margin: on? },
+            Ok(Place::Inside) => {
+                let (t, margin) = on?;
+                Reading::On {
+                    t: self.branch(t),
+                    margin,
+                }
+            }
             Ok(Place::Past) => match on {
                 Ok(_) => Reading::Carrier,
                 Err(_) => Reading::Off,

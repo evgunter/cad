@@ -5769,9 +5769,8 @@ fn split_other_at_point<T: Decide + crate::props::AtRestPolicy>(
     let curve = certified(y.get_edge(edge).and_then(|e| y.get_curve_geom(e.curve)))?.clone();
     let t = if let circle @ geom::Curve3::Circle(_) = curve.carrier() {
         let (t0, t1) = curve.params();
-        let foot = circle.foot(p, geom::mid_param(t0, t1));
-        match foot.on_carrier(band) {
-            Ok(geom::OnCarrier::On { .. }) => {}
+        match circle.on_carrier(p, geom::mid_param(t0, t1), band) {
+            Ok(geom::OnCarrier::On { t, .. }) => t,
             // The caller placed the event ON this edge; a point
             // definitely off its carrier means two readings disagree,
             // which is a broken invariant, not a frontier.
@@ -5787,7 +5786,6 @@ fn split_other_at_point<T: Decide + crate::props::AtRestPolicy>(
                 }));
             }
         }
-        foot.t()
     } else {
         point_param(y, y_is, edge, &curve, p)?
     };

@@ -68,7 +68,7 @@ fn normal(c: &Curve3<f64>, t: f64) -> Vec3<f64> {
     }
 }
 
-fn name(r: Result<OnCarrier, CarrierRefusal>) -> &'static str {
+fn name<T>(r: Result<OnCarrier<T>, CarrierRefusal>) -> &'static str {
     match r {
         Ok(OnCarrier::On { .. }) => "on",
         Ok(OnCarrier::Off) => "off",
@@ -144,10 +144,10 @@ fn a_thin_ellipses_foot_reads_the_distance_not_its_unit_image() {
     let q = c.eval(t) + normal(&c, t) * ZERO;
     let foot = c.foot(q, 0.0);
     assert!(foot.gap() < 1.5 * ZERO, "{}", foot.gap());
-    assert!((foot.t() - t).abs() < 1e-6, "{}", foot.t());
+    assert!((foot.seed() - t).abs() < 1e-6, "{}", foot.seed());
     assert!((foot.point() - q).norm() == 0.0);
     assert!(
-        !foot.is_nearest(),
+        foot.nearest().is_none(),
         "an ellipse's foot is a stationary point"
     );
 }
@@ -184,7 +184,7 @@ fn a_closed_splines_foot_crosses_its_seam() {
         assert!(
             foot.gap() < ZERO,
             "t {t} from {seed}: foot at {} gap {:e}",
-            foot.t(),
+            foot.seed(),
             foot.gap()
         );
         assert_eq!(
@@ -287,9 +287,9 @@ fn a_tie_across_a_hairpins_branches_reaches_the_log() {
         )
     });
     assert!(
-        foot.t().lo() > 0.5,
+        foot.seed().lo() > 0.5,
         "the tie keeps the seed's branch: {:?}",
-        foot.t()
+        foot.seed()
     );
     assert!(
         rec.recorded()

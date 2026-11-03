@@ -308,7 +308,7 @@ fn passes<T: Decide>(
     let ray = geom::Line { origin: q, dir: d };
     let mut r = seed;
     for _ in 0..FEET {
-        near = carrier.foot(r, near).t();
+        near = carrier.foot(r, near).seed();
         r = ray.foot(carrier.eval(near));
     }
     let s = ray.param(r);
@@ -321,7 +321,7 @@ fn passes<T: Decide>(
         },
     };
     match span.span().place(r, near, band) {
-        Ok(geom_brep::curve_pair::Place::Inside { .. }) => Passes::Met(s, gap),
+        Ok(geom_brep::curve_pair::Place::Inside) => Passes::Met(s, gap),
         Ok(geom_brep::curve_pair::Place::Past) => Passes::Clear,
         // In band of an end, or undecided against one, a walk that could
         // not run included: the ray passes within reach of its vertex, a
