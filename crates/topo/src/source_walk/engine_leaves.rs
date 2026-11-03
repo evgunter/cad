@@ -34,9 +34,13 @@
 //! is. Macros are not expanded, so a path a macro builds from pieces is
 //! not seen. `topo/tests/`, doctests and other crates reach the engines
 //! only through `topo::boolean` / `topo::splitting`, which are outside
-//! this walk. A `#[path]` module's depth is read from its file's path,
-//! so a `pub(super)` in one can read as climbing out of the engine when
-//! it does not: over-reporting, never under.
+//! this walk. **An engine type spelled through its root re-export**
+//! (`crate::BooleanOp`, or `use crate::{BooleanOp}`) is not counted,
+//! so respelling a site that way clears its line without moving it:
+//! the signature test still sends that code to the engine. A `#[path]`
+//! module's depth is read from its file's path, so a `pub(super)` in
+//! one can read as climbing out of the engine when it does not:
+//! over-reporting, never under.
 
 use super::{CodeOnly, crate_sources, src_root, tokens};
 use std::collections::BTreeMap;

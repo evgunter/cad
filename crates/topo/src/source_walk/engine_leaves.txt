@@ -4,6 +4,9 @@
 # engine_leaves.rs beside this file) counts them; a count here may only
 # go DOWN. A file past its count reds, and so does a line the code no
 # longer reaches: a move that clears a site lowers or drops its line.
+# The row is in the slow set (the nightly runs it); after editing, run
+#   cargo nextest run -p topo --lib --ignore-default-filter \
+#     -E 'test(=source_walk::engine_leaves::engine_directories_are_leaves)'
 #
 # Columns: kind, count, file (relative to crates/topo/src/).
 #   names-boolean / names-splitting   paths outside the engine naming it
