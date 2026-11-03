@@ -2214,14 +2214,15 @@ pub(crate) fn line_off_cone_form<T: Real>(q0: Vec3<T>, q1: Vec3<T>, sin: T, cos:
 
 /// The stored carrier's radial floor and axial range over the pieces
 /// `met` of `[t0, t1]`, read off each piece's box, each piece's sector
-/// (its azimuth, and on a torus its tube channel) decided first.
+/// (its azimuth, and on a torus its tube channel) decided first; with
+/// the piece the floor is read at.
 fn met_floors<T: Decide>(
     image: &ProjectedImage<T>,
     met: &[usize],
     (t0, t1): (T, T),
     band: Band,
-) -> Result<(T, (T, T)), PcurveCertifyError> {
-    let mut floors: Option<(T, (T, T))> = None;
+) -> Result<(T, (T, T), usize), PcurveCertifyError> {
+    let mut floors: Option<(T, (T, T), usize)> = None;
     for &k in met {
         let b = image.frame_box(k, t0, t1);
         holds(b.x.0, band, k, SectorChannel::Azimuth)?;
@@ -2234,9 +2235,21 @@ fn met_floors<T: Decide>(
             )?;
         }
         let rho = ProjectedImage::rho_range(&b).0;
-        floors = Some(floors.map_or((rho, b.z), |(r, (lo, hi))| {
-            (r.min(rho), (lo.min(b.z.0), hi.max(b.z.1)))
-        }));
+        floors = Some(match floors {
+            None => (rho, b.z, k),
+            Some((r, (lo, hi), at)) => {
+                let lower = geom_core::k_stats::detached(|| {
+                    positive("pcurve_projected_floor_pick", r - rho, band)
+                })
+                .0
+                .unwrap_or(false);
+                (
+                    r.min(rho),
+                    (lo.min(b.z.0), hi.max(b.z.1)),
+                    if lower { k } else { at },
+                )
+            }
+        });
     }
     let Some(floors) = floors else {
         unreachable!("`overlapped` names at least one piece")
@@ -2477,7 +2490,7 @@ pub(super) fn projected_envelope<T: Decide>(
             // `d`, or the whole circle's (a quarter piece's box may hold
             // the axis). Every point of the segment between the stored
             // circle and its twin is within `d` of either.
-            let (rho_box, z) = met_floors(image, &met, (t0, t1), band)?;
+            let (rho_box, z, floor_at) = met_floors(image, &met, (t0, t1), band)?;
             let rho_twin =
                 (rho_box - d).max(crate::implicit::conic_axis_distance_floor(conic, o, e[2]));
             let rho_floor = (rho_twin - d).max(T::zero());
@@ -2493,8 +2506,13 @@ pub(super) fn projected_envelope<T: Decide>(
                 Meters::Sphere { .. } => T::zero(),
                 _ => rho_twin,
             };
-            let incidence =
-                closed_form_meters(meters, f, (rho, axial_less(&image.chart, z, d)), 0, band)?;
+            let incidence = closed_form_meters(
+                meters,
+                f,
+                (rho, axial_less(&image.chart, z, d)),
+                floor_at,
+                band,
+            )?;
             #[cfg(test)]
             let incidence = super::mutants::circle_chart_incidence(surface).unwrap_or(incidence);
             (incidence, d, rho_floor)
@@ -2511,7 +2529,7 @@ pub(super) fn projected_envelope<T: Decide>(
                     "a line's projected image is written for a cylinder or a cone",
                 ));
             };
-            let (rho_lo, _) = met_floors(image, &met, (t0, t1), band)?;
+            let (rho_lo, _, _) = met_floors(image, &met, (t0, t1), band)?;
             let (p, l) = (to_frame(at0 - o, &e), to_frame(along, &e));
             // The stored line's gap from the re-derived one is affine in
             // `t`, so its sup over the edge is at an end.
@@ -2683,7 +2701,9 @@ pub(super) fn projected_envelope<T: Decide>(
 /// lane's other gaps do: in band as [`PcurveCheck::GeneralLane`]'s
 /// escalation, definite as [`LaneGap::Envelope`](super::LaneGap), and
 /// a metre conversion's lever refused as the pose's
-/// ([`LaneGap::Pose`](super::LaneGap)). A spline's net, whose only image
+/// ([`LaneGap::Pose`](super::LaneGap)). The placement's terms
+/// (`FidelityU`, `FidelityV`) read the stored row's deck against the
+/// chart's, where a lifted copy refuses, and keep their own ending. A spline's net, whose only image
 /// this is, keeps the envelope's own ending.
 fn lane_choice_envelope<T: Real>(
     refused: PcurveCertifyError,
@@ -2697,12 +2717,19 @@ fn lane_choice_envelope<T: Real>(
     if super::mutants::lane_envelope_bound() {
         return refused;
     }
+    let lane_term = |check: PcurveCheck| {
+        check.bounds_a_miss()
+            && !matches!(
+                check,
+                PcurveCheck::EnvelopeTerm(EnvelopeTerm::FidelityU | EnvelopeTerm::FidelityV)
+            )
+    };
     match refused {
         PcurveCertifyError::Escalated {
             check: check @ (PcurveCheck::Envelope | PcurveCheck::EnvelopeTerm(_)),
             sample,
             cause,
-        } if check.bounds_a_miss() => PcurveCertifyError::Escalated {
+        } if lane_term(check) => PcurveCertifyError::Escalated {
             check: PcurveCheck::GeneralLane,
             sample,
             cause,
@@ -2710,7 +2737,7 @@ fn lane_choice_envelope<T: Real>(
         PcurveCertifyError::ResidualExceeded {
             check: check @ (PcurveCheck::Envelope | PcurveCheck::EnvelopeTerm(_)),
             ..
-        } if check.bounds_a_miss() => PcurveCertifyError::NoGeneralLane {
+        } if lane_term(check) => PcurveCertifyError::NoGeneralLane {
             chart: surface.kind(),
             carrier: carrier.kind(),
             gap: super::LaneGap::Envelope,

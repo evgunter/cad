@@ -943,7 +943,7 @@ pub(crate) fn seam_intersection<T: AtRestPolicy>(
 /// The chart image of a carrier on an ANALYTIC chart, on the chart's
 /// principal branch: the closed form ([`chart_pcurve_over`]) wherever
 /// one exists, and the projected image for a carrier with none (a spline
-/// carrier, a circle or a cylinder's line no class images), partitioned
+/// carrier, a circle or a cylinder's or cone's line no class images), partitioned
 /// over the edge's own
 /// interval.
 ///

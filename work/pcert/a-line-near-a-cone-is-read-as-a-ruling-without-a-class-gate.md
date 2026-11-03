@@ -4,7 +4,7 @@ kind: issue
 title: A line within the band of a cone that is no ruling takes the ruling's closed form and refuses at check 4, rather than taking the general lane
 status: open
 opened: 2026-11-03
-priority: P2
+priority: P1
 cost: M
 ---
 
@@ -46,3 +46,22 @@ shown, the ruling's closed form; in band or definite, the general lane,
 which E4 wrote. Row: the probe above, minting its projected image and
 certifying; and the line read at a pose where the apex is in its
 interval ending "not yet" through the lane's own sector refusal.
+
+## Band
+
+P1, as Ev ruled the D3 lane units on `[ev]` PR 5186: a class a lane
+choice reads has a general lane, and until it does the class is handled
+by a special case. This one is worse than "not yet": its ending,
+`ResidualExceeded { MapResidual }`, says the pcurve does not represent
+the carrier.
+
+## Also widen `chart_iso_family`
+
+`pcurve_cache::chart_iso_family`'s in-band arm reads only the
+cylinder's ruling predicate (`RADIAL_MOVING`): an in-band reading of any
+other class keeps its image refusal. Its definite arm ("no family") was
+guarded by `matches!(surface, Surface::Cylinder { .. })`; E4 widened that
+guard to `projected::has_lane`, so a cone line shown off its rulings,
+once the cone arm reads them as a lane choice, already answers no
+family. The fix widens the in-band arm to the cone's ruling predicate.
+

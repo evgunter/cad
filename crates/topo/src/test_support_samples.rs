@@ -498,9 +498,14 @@ fn certify_errors() -> Vec<CertifyError> {
             carrier: geom::CurveKind::Ellipse,
         },
         CertifyError::NoGeneralLane {
-            chart: geom::SurfaceKind::Torus,
-            carrier: geom::CurveKind::Circle,
+            chart: geom::SurfaceKind::Sphere,
+            carrier: geom::CurveKind::Ellipse,
             gap: geom_brep::LaneGap::Unwritten,
+        },
+        CertifyError::NoGeneralLane {
+            chart: geom::SurfaceKind::Cone,
+            carrier: geom::CurveKind::Circle,
+            gap: geom_brep::LaneGap::Envelope,
         },
         CertifyError::NoGeneralLane {
             chart: geom::SurfaceKind::Sphere,
@@ -753,9 +758,14 @@ fn pcurve_certify_errors() -> Vec<PcurveCertifyError> {
             chart: geom::SurfaceKind::Torus,
         },
         PcurveCertifyError::NoGeneralLane {
-            chart: geom::SurfaceKind::Torus,
-            carrier: geom::CurveKind::Circle,
+            chart: geom::SurfaceKind::Sphere,
+            carrier: geom::CurveKind::Ellipse,
             gap: geom_brep::LaneGap::Unwritten,
+        },
+        PcurveCertifyError::NoGeneralLane {
+            chart: geom::SurfaceKind::Cone,
+            carrier: geom::CurveKind::Circle,
+            gap: geom_brep::LaneGap::Envelope,
         },
         PcurveCertifyError::NoGeneralLane {
             chart: geom::SurfaceKind::Sphere,
@@ -2283,12 +2293,13 @@ mod tests {
             }
             // The payload states what was refused; its recourse is the
             // ending, stated once at every door. A pose the general lane
-            // does not cover names its lever beside "not yet"
+            // does not cover, or whose envelope it does not bound, names
+            // its lever beside "not yet"
             // (`plane-nurbs-refusal-ending-groups-the-producers-refusals-into-none`).
             let pose = matches!(
                 e,
                 C::NoGeneralLane {
-                    gap: geom_brep::LaneGap::Pose { .. },
+                    gap: geom_brep::LaneGap::Pose { .. } | geom_brep::LaneGap::Envelope,
                     ..
                 }
             );
@@ -2734,14 +2745,15 @@ mod tests {
             );
         }
         // The lane choice's gap at the edge door, against the pcurve
-        // door's own: "not yet" by identity for both gaps, the pose's
-        // lever riding in its payload beside it.
+        // door's own: "not yet" by identity for every gap, the pose's and
+        // the envelope's lever riding in its payload beside it.
         for gap in [
             geom_brep::LaneGap::Unwritten,
             geom_brep::LaneGap::Pose {
                 piece: 1,
                 channel: geom_brep::SectorChannel::Azimuth,
             },
+            geom_brep::LaneGap::Envelope,
         ] {
             let (chart, carrier) = (geom::SurfaceKind::Sphere, geom::CurveKind::Circle);
             let edge = CertifyError::NoGeneralLane {
@@ -2754,7 +2766,7 @@ mod tests {
                 carrier,
                 gap,
             };
-            let pose = matches!(gap, geom_brep::LaneGap::Pose { .. });
+            let levered = !matches!(gap, geom_brep::LaneGap::Unwritten);
             hold(
                 format!("{edge:?}"),
                 None,
@@ -2769,7 +2781,7 @@ mod tests {
                         format!("{other} (pcurve door), not {not_yet}")
                     }
                 },
-                1 + usize::from(pose),
+                1 + usize::from(levered),
             );
         }
         assert!(wrong.is_empty(), "{}", wrong.join("\n"));

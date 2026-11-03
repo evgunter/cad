@@ -302,13 +302,15 @@ fn tilted_parallel_through(p: Point3<f64>, tilt: f64) -> Curve3<f64> {
     )
 }
 
-fn certificate_refused(e: &PcurveMintError) -> bool {
+/// Whether the mint refused as an escalation of `want`: the incidence
+/// read in band, or a closed-form envelope term.
+fn certificate_refused(e: &PcurveMintError, want: fn(geom_brep::PcurveCheck) -> bool) -> bool {
     matches!(
         e,
         PcurveMintError::Certify {
-            error: PcurveCertifyError::Escalated { .. },
+            error: PcurveCertifyError::Escalated { check, .. },
             ..
-        }
+        } if want(*check)
     )
 }
 
@@ -316,7 +318,7 @@ fn certificate_refused(e: &PcurveMintError) -> bool {
 /// a parallel tilted off the torus's axis. At the corner on the tube's
 /// crest, tilted 2ε its incidence read lands in band (`ChartIncidence`),
 /// and tilted ε its closed-form image derives and only its certificate
-/// refuses (`Envelope`). Tier 3 names it, the mint refuses with it, and
+/// refuses (an `EnvelopeTerm`). Tier 3 names it, the mint refuses with it, and
 /// the reversed body reads the same. At the other corner, where the
 /// tilt moves the circle along the tube, it stays on the torus while its
 /// class reading lands in band: it takes the general lane, tier 3 reads
@@ -326,7 +328,11 @@ fn a_tilted_parallel_strut_refuses_its_certificate() {
     let (f, _, _) = verdicts(None, None);
     assert!(f.is_empty(), "the bare wall is clean: {f:?}");
     let eps = tol().eps();
-    for (c, k) in [(0, 2.0), (1, 2.0), (1, 1.0)] {
+    let incidence: fn(geom_brep::PcurveCheck) -> bool =
+        |c| c == geom_brep::PcurveCheck::ChartIncidence;
+    let envelope: fn(geom_brep::PcurveCheck) -> bool =
+        |c| matches!(c, geom_brep::PcurveCheck::EnvelopeTerm(_));
+    for (c, k, want) in [(0, 2.0, envelope), (1, 2.0, incidence), (1, 1.0, envelope)] {
         let tilt = k * eps;
         let mut body = torus_quarter();
         let (wall, cycle) = torus_wall(&body);
@@ -349,16 +355,16 @@ fn a_tilted_parallel_strut_refuses_its_certificate() {
             continue;
         }
         assert!(
-            matches!(f.as_slice(), [e] if certificate_refused(e)),
+            matches!(f.as_slice(), [e] if certificate_refused(e, want)),
             "parallel tilted {tilt} at {c}: tier 3 names the certificate: {f:?}"
         );
         assert!(
-            matches!(&m, Err(e) if certificate_refused(e)),
+            matches!(&m, Err(e) if certificate_refused(e, want)),
             "parallel tilted {tilt} at {c}: the mint refuses with it: {m:?}"
         );
         let fr = validate_pcurves(&body.revert().unwrap(), band());
         assert!(
-            matches!(fr.as_slice(), [e] if certificate_refused(e)),
+            matches!(fr.as_slice(), [e] if certificate_refused(e, want)),
             "parallel tilted {tilt} at {c}: reversed, the same verdict: {fr:?}"
         );
     }

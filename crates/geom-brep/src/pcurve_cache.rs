@@ -66,7 +66,7 @@
 //!   `envelope_lemma_fuzz`, and not at a certifying scalar (`Interval`,
 //!   `Sym<Interval>`), over a box or at a point alike.
 //! - **On an analytic chart, a carrier with no closed-form image** (a
-//!   spline carrier, a circle or a cylinder's line no class images)
+//!   spline carrier, a circle or a cylinder's or cone's line no class images)
 //!   stores its projected
 //!   image, the chart's own inverse applied to the carrier, and its
 //!   envelope is again the whole certified statement
@@ -9605,11 +9605,13 @@ pub fn chart_iso_family<T: Decide>(
         }) if cause.predicate == Some(RADIAL_MOVING) => {
             return Err(IsoFamilyRefusal::Undecided(cause));
         }
-        // A line shown off the ruling: its image is the general one, on
-        // no family.
+        // A carrier shown none of the chart's classes where the pair has
+        // a general lane (a line off a cylinder's rulings, a circle off a
+        // cone's rims or a torus's circles): its image is the general
+        // one, on no family.
         Err(Underived::General {
             undecided: None, ..
-        }) if matches!(surface, Surface::Cylinder { .. }) => return Ok(None),
+        }) if projected::has_lane(carrier, surface) => return Ok(None),
         Err(underived) => return Err(IsoFamilyRefusal::Image(harmonic_refusal(underived))),
     };
     Ok(match derivation {

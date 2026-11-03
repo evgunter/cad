@@ -294,8 +294,8 @@ fn a_cone_circle_that_is_no_rim_certifies_through_the_projected_lane() {
 /// A torus crest circle (the crest plane's circle of radius `R` centred
 /// off the axis, so none of the torus's circles) standing up to
 /// `0.4·zero` off the tube certifies through the projected lane on a
-/// ring torus, its tube channel's sector held; red under
-/// `circle-chart-incidence`.
+/// ring torus, its tube channel's sector held, and names no iso family;
+/// red under `circle-chart-incidence`.
 #[test]
 fn a_torus_crest_circle_certifies_through_the_projected_lane() {
     for (major, minor) in [(2.0, 0.5), (1.0, 0.9)] {
@@ -308,6 +308,11 @@ fn a_torus_crest_circle_certifies_through_the_projected_lane() {
         for phi in [0.4, 3.0] {
             let carrier = crest_circle(&surface, delta, phi);
             let what = format!("R {major}, r {minor}, φ {phi}");
+            assert_eq!(
+                chart_iso_family(&carrier, &surface, band()),
+                Ok(None),
+                "{what}: a crest circle's image is the general one, on no family"
+            );
             for span in [(1.0, 3.9), (0.0, TAU)] {
                 let (_, _, sup) = certifies_projected(
                     &format!("{what}, over {span:?}"),

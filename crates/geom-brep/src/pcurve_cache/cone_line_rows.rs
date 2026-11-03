@@ -228,3 +228,59 @@ fn the_cone_form_sup_covers_the_segments_form() {
         );
     }
 }
+
+/// **Why the cone line's incidence is converted part by part**: a ruling
+/// standing `0.6·zero` off the cone (its distance from the cone the same
+/// all along), read over `[0.5, 2]` and over `[1e-3, 2]` from the apex.
+/// Converted once over the whole segment, on the segment's own lever
+/// floor, its miss reads `L_max/L_min` over (4× and 2000× here: the
+/// lever grows along a ruling from the apex). Halved where the lever's
+/// spread passes `LEVER_SPREAD`, check 4's incidence term reads it within
+/// that factor, at both spans.
+#[test]
+fn the_cone_lines_incidence_over_reads_by_at_most_the_lever_spread() {
+    let alpha = 0.5_f64;
+    let surface = cone(alpha);
+    let off = 0.6 * zero();
+    let carrier = ruling(&surface, 0.7, 1.0, in_band(), off);
+    let Some((o, e)) = projected::chart_frame(&surface) else {
+        unreachable!("a cone has a frame")
+    };
+    let Curve3::Line(geom::Line { origin, dir }) = carrier else {
+        unreachable!("a ruling is a line")
+    };
+    let frame = |v: Vec3<f64>| Vec3::new(v.dot(e[0]), v.dot(e[1]), v.dot(e[2]));
+    let (p, l) = (frame(origin - o), frame(dir));
+    let (sa, ca) = alpha.sin_cos();
+    for (t0, t1, once_over) in [(0.5, 2.0, 3.5), (1e-3, 2.0, 1e3)] {
+        let (q0, q1) = (p + l * t0, p + l * t1);
+        let lever = |q: Vec3<f64>| q.x.hypot(q.y) * ca + q.z * sa;
+        let once = projected::line_off_cone_form(q0, q1, sa, ca) / lever(q0).min(lever(q1));
+        assert!(
+            once > once_over * off,
+            "[{t0}, {t1}]: one conversion over-reads, {once:e} past {once_over}·{off:e}"
+        );
+        let image = chart_pcurve_over(&carrier, t0, t1, &surface, band())
+            .unwrap_or_else(|e| panic!("[{t0}, {t1}]: mints: {e:?}"));
+        let Some(projected) = image.projected() else {
+            panic!("[{t0}, {t1}]: the projected image")
+        };
+        let (terms, _) = projected::projected_envelope(
+            projected,
+            t0,
+            t1,
+            &projected.chart_box(t0, t1),
+            &carrier,
+            &surface,
+            band(),
+            None,
+        )
+        .unwrap_or_else(|e| panic!("[{t0}, {t1}]: check 4's terms: {e:?}"));
+        let incidence = terms.0[EnvelopeTerm::Incidence.slot()];
+        assert!(
+            incidence >= off * (1.0 - 1e-6) && incidence <= 1.125 * off * (1.0 + 1e-6),
+            "[{t0}, {t1}]: the incidence term {incidence:e} reads the miss {off:e} within the \
+             lever's spread"
+        );
+    }
+}

@@ -699,11 +699,11 @@ fn the_tube_rate_gate_refuses_typed_and_a_swept_tube_is_no_image() {
 /// `pcurve_torus_villarceau_plane`. Moved `3e-8`, with the pinch on a
 /// sample, it is read on the torus with the plane gate past the band.
 /// Either way the Villarceau class is not shown, a lane choice (D3): the
-/// circle takes the general lane, its projected image or the lane's own
-/// "not yet" where the image's sectors do not hold so near the horn's
-/// pinch (`GeneralLane` in band, `NoGeneralLane` at a pose). Never the
-/// focal section: a ladder that read an in-band gate as Zero would image
-/// it as the Villarceau circle it is not shown to be.
+/// circle takes the general lane, its projected image, at every pose, and
+/// that image certifies over an arc with its envelope over the sampled
+/// residual or ends as the lane's own "not yet". Never the focal section:
+/// a ladder that read an in-band gate as Zero would image it as the
+/// Villarceau circle it is not shown to be.
 #[test]
 fn a_plane_gate_in_band_near_the_horn_takes_the_general_lane_never_the_focal_section() {
     let band = geom_core::Band::new(1e-9, 1e-8).unwrap();
@@ -731,20 +731,6 @@ fn a_plane_gate_in_band_near_the_horn_takes_the_general_lane_never_the_focal_sec
             pinch * psi.cos() - side * psi.sin(),
         )
     };
-    let general = |got: &Result<Pcurve<f64>, PcurveCertifyError>| {
-        matches!(
-            got,
-            Ok(Pcurve::Projected(_))
-                | Err(PcurveCertifyError::Escalated {
-                    check: geom_brep::PcurveCheck::GeneralLane,
-                    ..
-                })
-                | Err(PcurveCertifyError::NoGeneralLane {
-                    gap: geom_brep::LaneGap::Pose { .. },
-                    ..
-                })
-        )
-    };
     let mut wrong = Vec::new();
     for (by, half) in [
         (3e-9, 0.0),
@@ -753,9 +739,41 @@ fn a_plane_gate_in_band_near_the_horn_takes_the_general_lane_never_the_focal_sec
         (6e-9, 0.5),
         (3e-8, 0.0),
     ] {
-        let got = chart_pcurve(&moved(by, half), &surface, band);
-        if !general(&got) {
-            wrong.push(format!("moved {by:e}, phase {half}: {got:?}"));
+        let carrier = moved(by, half);
+        let image = match chart_pcurve(&carrier, &surface, band) {
+            Ok(image @ Pcurve::Projected(_)) => image,
+            other => {
+                wrong.push(format!(
+                    "moved {by:e}, phase {half}: not the projected image: {other:?}"
+                ));
+                continue;
+            }
+        };
+        // Its certificate covers the residual, or ends as the lane's own
+        // "not yet", never a tolerance offer.
+        let (t0, t1) = (0.2, 3.0);
+        match PcurveCache::certify(image.clone(), t0, t1, &carrier, &surface, band) {
+            Ok(cache) => {
+                let sup = (0..=4096)
+                    .map(|i| {
+                        let t = t0 + (t1 - t0) * f64::from(i) / 4096.0;
+                        let uv = image.eval(t);
+                        surface.eval(uv.x, uv.y).distance(carrier.eval(t))
+                    })
+                    .fold(0.0, f64::max);
+                let envelope = cache.certificate().envelope;
+                if envelope + 16.0 * f64::EPSILON * (big + r + 1.0) < sup {
+                    wrong.push(format!(
+                        "moved {by:e}, phase {half}: envelope {envelope:e} under {sup:e}"
+                    ));
+                }
+            }
+            Err(e) => {
+                let ending = e.ending(geom_brep::recourse::Reading::Build);
+                if !ending.starts_with(geom_core::NOT_YET_ENDING) {
+                    wrong.push(format!("moved {by:e}, phase {half}: ends {ending}: {e:?}"));
+                }
+            }
         }
     }
     assert!(wrong.is_empty(), "{wrong:#?}");
