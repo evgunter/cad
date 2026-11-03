@@ -2,8 +2,9 @@
 id: ssi-window-check-reads-the-walls-control-hull
 kind: issue
 title: ssi: plane x NURBS refuses WindowShortOfWall from the wall's control hull, which can reach four times past the wall, and says the wall reaches that far
-status: open
+status: closed
 opened: 2026-10-04
+closed: 2026-11-03
 priority: P3
 cost: M
 ---
@@ -51,3 +52,15 @@ The refusal's prose also states the wrong thing: `SsiError`'s Display
   certified to reach past the window. Weigh against simply keeping the
   conservative check and saying so; the recourse (widen the window)
   works either way.
+
+## Closed (2026-11-03)
+
+The check is gone with what it guarded. Plane × NURBS now traces on the
+wall's chart alone (SECTARMS stage 4, the plane folded onto the 1×2
+residual × chart trace, `sectarms/nurbs-implicit-arm-stage4a`): no plane
+chart window bounds the march, `boundary::window_holds_wall` and
+`SsiError::WindowShortOfWall` are retired, and a wall whose control hull
+reaches past the domain's half-extent is traced to its own sides
+(`crates/geom-brep/tests/m5_pr7_ssi.rs`,
+`a_wall_corner_outside_the_planes_window_is_read_whole`).
+

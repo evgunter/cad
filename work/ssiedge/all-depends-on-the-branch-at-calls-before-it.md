@@ -32,3 +32,11 @@ orientation and witness, or re-derive banked branches from their
 crossings), or state the dependence as part of the contract
 (`crates/geom-brep/README.md` C3) and confirm that no caller depends on
 it.
+
+## The handle moved (2026-11-03)
+
+`PlaneSection` is retired: plane × NURBS is read by
+`geom_brep::ssi::ImplicitSection` (`crates/geom-brep/src/ssi/implicit_chart.rs`),
+the plane folded onto the 1×2 residual × chart trace (SECTARMS stage 4).
+Its `of`, `branch_at` and `all` keep the contract this row reads, and
+`plane_nurbs_ssi` is `ImplicitSection::of(..)?.all()`.
