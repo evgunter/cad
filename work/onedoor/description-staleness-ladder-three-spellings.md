@@ -62,3 +62,19 @@ and the sites still differ:
   `TangentIntersection`, while the split keeps it.
 - On an under-determined edge, the boolean keeps a coherent
   `TangentIntersection`, while the split restates it.
+
+## Weighed (ONEDOOR, 2026-11-03)
+
+Two designers converged after two reconciliation rounds; the recommendation is `[ev]` PR 6427. Ratified `[edges]` (PR 5216) leaves no stored kind choice at a two-surface edge, so this ladder needs no home. The question it answers goes away instead:
+- the form is read off the sides by key;
+- one restatement over the target form;
+- one door re-describes an existing edge through the gate;
+- the act that decides a coincidence leaves one surface record.
+
+Once ratified, the row re-homes to SELECT, after SELECT's selector and in-band units. The one-record-per-coincidence part is its own unit, ahead of SELECT.
+
+**Evidence for SELECT's in-band unit, found by the designers:**
+- `describe_edges` (`boolean/ops.rs`, the `stale` match) keeps a witness `Intersection` on an edge it now reads smooth and under-determined, and tier 3 refuses it `NotTransverse`. Example: two trimmed planes at an angle below ε/reach.
+- The split's `describe_section_boundary` reads a spline neighbour with `classify_dihedral` (always in band), where the boolean reads `classify_seam`.
+
+**Correction to this row's table:** the "unconditional writes" in `crates/sweep` (revolve upgrade, extrude strut and cap rim, blend contact) are scaffold conversions. They are further spellings of the same ladder.

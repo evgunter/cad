@@ -34,3 +34,18 @@ second site needs to ask the question at all. (ONEDOOR orchestrator)
     3. **Wedge.** The edge-wedge door's composers.
   - Briefs are in the lane-private `cad-work/onedoor-briefs/`. They state the problem and Ev's pickup note, and no candidate solutions.
   - (ONEDOOR orchestrator)
+- 2026-11-03 — **The three forks, reconciled.** Each fork's first reports are recorded on `analysis/design-fork/onedoor-2026-11-03`'s draws and in the fork log. Briefs and rounds are in the lane-private `cad-work/onedoor-forks/`.
+  - **Layering** converged after one round. It goes to Ev because it rewords the `topo` and `geom-brep` Layering rows and adds a README design clause.
+    - The `[ev]` PR is [#6426](https://github.com/evgunter/cad/pull/6426), fork-log row 249.
+    - The clause is `[topo.homes]`, a three-way signature test: no `Body` goes to `geom-brep`; a reading or construction over a `Body` goes to the crate root; anything naming an operation's type goes to that operation's directory.
+    - Operation directories are leaves exporting only their door, with no `pub(crate)`. One guard with a shrink-only allowlist holds this.
+    - Nothing moves before it merges.
+  - **Ladder** converged after two rounds. It goes to Ev as [#6427](https://github.com/evgunter/cad/pull/6427), fork-log row 250.
+    - The final state: the form is read off the sides by key; one restatement; one door re-describes an existing edge; the act deciding a coincidence leaves one surface record.
+    - It adds two `[one-way.places]` rows and a `[coincidence.door]` sentence, and removes the geom-brep README's value-read of coincidence.
+    - Round 3 exists because a read-only fact check, run before writing the PR, showed the designers' shared premise was false today. The premise was that a decided coincidence leaves one surface key. In fact the glue of a skipped curved group, the split's flush section, the chord join's tangent plane and a half revolve's caps all leave two equal records, and `rest_locus` re-reads their values.
+  - **Wedge** converged after three rounds, with positions crossing in round 2. It is **not** put to Ev: nothing ratified changes. The one question the designers left open, per-question or per-caller K names, I decided per question, following Ev's #652 ruling that one computation of one quantity is one population. The design is on the row. It re-prices H and dispatches with a dual review.
+  - **Filed:**
+    - `face-pair-contact-pairing-has-four-spellings` (P1, M, design), from the wedge designers;
+    - `stored-description-adjacent-is-the-gates-reading-not-tier-3s` (P1, E), from the ladder designers.
+  - **Friction:** the shallow clone hides the provenance of every ratified clause these forks touched; `git log -S` reaches only the 2026-10-31 graft. (ONEDOOR orchestrator)

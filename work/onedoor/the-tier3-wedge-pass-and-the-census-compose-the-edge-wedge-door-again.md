@@ -5,7 +5,7 @@ title: Tier 3's wedge pass and the census each compose the dihedral class with t
 status: open
 opened: 2026-11-02
 priority: P1
-cost: M
+cost: H
 design: true
 ---
 
