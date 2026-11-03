@@ -2046,10 +2046,8 @@ A create gesture asks for two things and nothing else:
 It inserts the node with default values and selects the node its noun
 names (the pattern, not the pattern's placement). A default is worked
 out from the reads where it can be: a revolve's axis lies off its
-profile's extent. A pattern's row slides
-along its target space's x by the body's extent, and its ring spins
-about the target space's z; a ring's count is 4 and its step a
-quarter turn.
+profile's extent. A pattern inserts with default values, which its
+placement and count rows edit.
 
 Every value is edited afterwards on the node's one edit surface: its
 Properties slot rows, the profile editor, or the placement editor.
