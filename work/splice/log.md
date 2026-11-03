@@ -1243,3 +1243,17 @@ general regularity sweep. SECTARMS's cylinder × cylinder unit adopts
   - **What moved:** a split pair's joined interval is now the parent's exactly. On a spiric that is 1 ulp from `param_near`.
   - **Filed:** `a-spline-join-beside-another-carrier-has-no-far-parameter` (P2, no producer).
   - **Claims the pair carries:** orientation and overlap of the carried interval; the parked tier-3 crease check (`measuredoor/tier-3-…`), which means a creased carrier can still exist at rest today.
+- 2026-11-03 13:15Z — **PR 6434 dual review** (frozen at `fd976ed6`; R1 `session_013QoYWUqVJ5KZ3vgavTAENm`, evidence `splice/review-6434-r1` @ `e0e3a9b5`; R2 `session_013QoYWWUaG2SNpMwyoPGr64`, evidence `splice/review-6434-r2` @ `f75cf19e`). Both APPROVE-WITH-FIXES, no MAJOR, so the tally is 0. Neither found a wrong carry, a wrong arc or a weakened certificate. The blinding byte for the coding is 62.
+  - **Correspondence pre-note.** Bilateral:
+    - the content check is only partly pinned (R1's mutant drops a circle's frame, R2's a net's knots; both survive every row), MINOR for both;
+    - `same_carrier` is a hand census hosted in topo, and belongs beside `Curve3` (style);
+    - `carried_far`'s doc argues at length (style);
+    - non-f64 scalars never carry (NOTE).
+  - **Unilateral R1:**
+    - the rung's Circle and Ellipse wiring is unpinned, and the "what moved" note was incomplete: on main a split pair joined back off the parent's interval on circles (15/63 fractions) and ellipses (3/63). MINOR, demonstrated by a grid row;
+    - the PR's closed fixture carries interior C⁰ knots, against PR 5913 (NOTE, demonstrated);
+    - the `join.rs` lead was unscheduled (NOTE).
+  - **Unilateral R2:** the rung order is written in three proses; degree is compared on its own track; a closed spline's seam vertex is unreached (style and NOTE).
+  - **Tally candidates:** none.
+  - **Fix pass:** the union. Carrier content equality moves to `geom`, destructuring every field, with one twin per field. Both reviewers' rows are adopted. A C¹ closed fixture replaces the creased one. The `join.rs` lead gets a row. The orchestrator reads the fix pass.
+  - **Class (logged at adjudication):** a content comparison written as a hand list of fields silently ignores a new field, and twins that vary one field per kind cannot catch the omission. The fix is a comparison that destructures every field, homed beside the type.
