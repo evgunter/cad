@@ -595,6 +595,12 @@ impl<T: Real> Cover<T> {
         self.0.support(dir)
     }
 
+    /// **The range along `dir`**: the least and greatest `x·dir` any
+    /// point of the region can have, the support along `−dir` and `dir`.
+    pub fn range_along(&self, dir: Vec3<T>) -> (T, T) {
+        (T::zero() - self.support(-dir), self.support(dir))
+    }
+
     /// **The box in `frame`**: per row, the least and greatest coordinate
     /// any point of the region can have along it, as the low and high
     /// corners.

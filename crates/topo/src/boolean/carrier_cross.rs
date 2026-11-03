@@ -288,6 +288,12 @@ impl<T: Decide> FaceBoundary<'_, T> {
     ) -> Result<curve_face::BoundaryReading<T>, BoundaryRefusal> {
         curve_face::read(swept, &self.spans(), &self.lone_points(), band)
     }
+
+    /// **Every meeting of `swept` with the boundary, read past each
+    /// member's refusal** ([`curve_face::located`]).
+    pub(super) fn located(&self, swept: &Span<'_, T>, band: Band) -> curve_face::Located<T> {
+        curve_face::located(swept, &self.spans(), &self.lone_points(), band)
+    }
 }
 
 /// `face`'s boundary in its walk order; `None` where an edge has no

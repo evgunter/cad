@@ -212,6 +212,53 @@ fn a_corner_in_the_gap_escalates() {
     }
 }
 
+/// **The located pass locates what [`read`] refuses**: the line grazing
+/// the corner `(0, 1)` leaves each member it cannot read undecided over
+/// a window of the span that holds the corner's foot, the vertex's
+/// within the escalation of it; and [`super::read`] refuses with the
+/// first of them. Red where a window misses the foot (a meeting outside
+/// it would be lost) or the vertex's spans the whole line.
+#[test]
+fn a_corner_in_the_gap_is_undecided_over_a_window_holding_it() {
+    let off = 3.0 * ZERO * FRAC_1_SQRT_2;
+    let grazing = line([-off, 1.0 + off, 0.0], [1.0, 1.0, 0.0]);
+    let rim = rim();
+    let edges: Vec<_> = rim
+        .iter()
+        .zip([(0.0, 1.0), (0.0, FRAC_PI_2), (0.0, 1.0)])
+        .map(|(c, (t0, t1))| (c.eval(t0), Span::new(c, (t0, t1))))
+        .collect();
+    let span = Span::new(&grazing, (-1.0, 1.0));
+    let located = super::located(&span, &edges, &[], band());
+    let foot = grazing.foot(Point3::new(0.0, 1.0, 0.0), 0.0).t();
+    assert!(!located.undecided.is_empty(), "the corner is refused");
+    for u in &located.undecided {
+        let (lo, hi) = u.window;
+        assert!(
+            -1.0 <= lo && lo <= foot && foot <= hi && hi <= 1.0,
+            "{u:?} holds the corner's foot {foot}"
+        );
+    }
+    let corner = located
+        .undecided
+        .iter()
+        .map(|u| u.window.1 - u.window.0)
+        .fold(f64::INFINITY, f64::min);
+    assert!(
+        corner <= 2.0 * band().escalate() + 1e-15,
+        "the narrowest window is the vertex's: {corner}"
+    );
+    match super::read(&span, &edges, &[], band()) {
+        Err(BoundaryRefusal::Meeting(diag)) => {
+            assert!(matches!(
+                located.undecided[0].why,
+                BoundaryRefusal::Meeting(first) if first.predicate == diag.predicate
+            ));
+        }
+        other => panic!("read refuses with the first: {other:?}"),
+    }
+}
+
 /// **A boundary vertex within the band of a thin ellipse meets it.** An
 /// ellipse of semi-axes `a/b` from 100 to 1000, and a boundary edge
 /// starting half the band's zero off it along its in-plane normal, at

@@ -2218,10 +2218,8 @@ pub(crate) fn cover_frame<T: Real>(frame: &BoxFrame<T>) -> geom::cover::Frame<T>
 /// adapter for the face lanes' slab arms.
 pub(crate) fn cover_axial<T: Real>(cover: &Cover<T>, origin: Point3<T>, axis: Vec3<T>) -> (T, T) {
     let base = (origin - Point3::origin()).dot(axis);
-    (
-        T::zero() - cover.support(-axis) - base,
-        cover.support(axis) - base,
-    )
+    let (lo, hi) = cover.range_along(axis);
+    (lo - base, hi - base)
 }
 
 /// The box of the ball about `c` of radius `r`, from their enclosures,

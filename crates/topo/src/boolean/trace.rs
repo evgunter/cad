@@ -525,8 +525,8 @@ pub fn plane_misses<T: Decide>(
                 }
             })?;
             let level = (point - Point3::origin()).dot(normal);
-            let above = level - cover.support(normal);
-            let below = (T::zero() - cover.support(-normal)) - level;
+            let (lo, hi) = cover.range_along(normal);
+            let (above, below) = (level - hi, lo - level);
             beyond(above.max(below))
         }
         // A tilted cylinder runs across the plane; one parallel to it

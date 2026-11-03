@@ -19750,6 +19750,80 @@ mod two_carrier_records {
                 }
             }
 
+            /// A plate whose only run under the line is a 0.01 spike at
+            /// x = 3, beside a ledge over x in (0.2, 1.8) standing `a` to
+            /// `a + 0.3·esc` below the line, where the boundary pass
+            /// refuses the ledge's edge and its vertices; `spike` false
+            /// leaves the spike out.
+            fn ledge_beside_a_spike(a: f64, spike: bool) -> Vec<(f64, f64)> {
+                let mut outline = vec![(0.0, -1.0), (4.0, -1.0), (4.0, -0.5)];
+                if spike {
+                    outline.extend([(3.02, -0.5), (3.0, 0.01), (2.98, -0.5)]);
+                }
+                outline.extend([
+                    (1.8, -0.5),
+                    (1.8, -a - 0.3 * esc()),
+                    (0.2, -a),
+                    (0.2, -0.5),
+                    (0.0, -0.5),
+                ]);
+                outline
+            }
+
+            /// **A member the boundary pass refuses leaves the line
+            /// unread only over its window**: the ledge's refusal locates
+            /// it over x in (0.2, 1.8), so the spike, which both the plate
+            /// and a wide face hold, is cut out and read, and the line
+            /// answers `true` in either face order. Without the spike the
+            /// plate's out over the ledge's window settles nothing, and
+            /// the line refuses naming the plate. Red where a refused
+            /// member unreads the whole face (the spike's run is never
+            /// cut out, so `Err`), or where its window is ignored (the
+            /// line answers `false` over the ledge). The plate's refusal
+            /// there is the ledge's, or a station held in its band.
+            #[test]
+            fn a_refused_ledge_leaves_the_spike_beside_it_read() {
+                let b = Band::linear(Tol::witness()).unwrap();
+                let (wide, wide_top) =
+                    top_of(&[(-1.0, -1.0), (5.0, -1.0), (5.0, 1.0), (-1.0, 1.0)]);
+                let line = geom::Curve3::Line(geom::Line {
+                    origin: geom_core::Point3::new(0.0, 0.0, 1.0),
+                    dir: geom_core::Vec3::unit_x(),
+                });
+                let read = |plate: &Body<f64>, top, plate_first: bool| {
+                    let faces = if plate_first {
+                        [(plate, top), (&wide, wide_top)]
+                    } else {
+                        [(&wide, wide_top), (plate, top)]
+                    };
+                    crate::boolean::line_through_both_faces(
+                        faces,
+                        &line,
+                        (0.0, 4.0),
+                        b,
+                        |i, _, out: &mut Vec<usize>| out.push(i),
+                    )
+                };
+                for k in [0.2, 0.5, 1.0] {
+                    let a = k * esc();
+                    let (plate, top) = top_of(&ledge_beside_a_spike(a, true));
+                    let (ledge, ledge_top) = top_of(&ledge_beside_a_spike(a, false));
+                    for plate_first in [true, false] {
+                        let plate_at = usize::from(!plate_first);
+                        let got = read(&plate, top, plate_first);
+                        assert!(
+                            matches!(got, Ok(true)),
+                            "ledge {k}esc, plate first {plate_first}: {got:?}"
+                        );
+                        let got = read(&ledge, ledge_top, plate_first);
+                        assert!(
+                            matches!(got, Err(ref why) if why.contains(&plate_at)),
+                            "ledge {k}esc without the spike, plate first {plate_first}: {got:?}"
+                        );
+                    }
+                }
+            }
+
             /// **A record through that spike is not stale**, whichever
             /// face the record names first.
             #[test]

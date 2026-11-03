@@ -2935,7 +2935,10 @@ fn ray_passes_beside<T: Decide>(
         let h = (v - q).dot(m);
         (h, T::zero() - h)
     };
-    let edge = |c: &geom::cover::Cover<T>| (T::zero() - c.support(-m) - base, base - c.support(m));
+    let edge = |c: &geom::cover::Cover<T>| {
+        let (lo, hi) = c.range_along(m);
+        (lo - base, base - hi)
+    };
     for (a, b) in verts.into_iter().map(vertex).chain(covers.iter().map(edge)) {
         above = Some(above.map_or(a, |x| x.min(a)));
         below = Some(below.map_or(b, |x| x.min(b)));

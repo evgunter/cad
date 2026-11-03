@@ -3492,10 +3492,8 @@ fn boxed_reach<T: geom_core::spline::SpanLocate>(
         None => cover.distance_range(&Site::Point(c)),
         Some(u) => {
             let base = (c - Point3::origin()).dot(u);
-            (
-                T::zero() - cover.support(-u) - base,
-                cover.support(u) - base,
-            )
+            let (lo, hi) = cover.range_along(u);
+            (lo - base, hi - base)
         }
     })
 }
