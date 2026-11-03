@@ -911,9 +911,11 @@ impl<T: Real> Ruling<T> {
                 origin,
                 axis,
                 radius,
-                ..
+                u_ref,
             } => {
-                let on_axis = geom::Line { origin, dir: axis }.foot(self.rim);
+                let on_axis = geom::Frame::new(origin, axis, u_ref)
+                    .axis_line()
+                    .foot(self.rim);
                 Some((
                     SupportTrace::Round {
                         center: on_axis - self.tau * (on_axis - self.rim).dot(self.tau),

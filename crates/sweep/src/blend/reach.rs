@@ -649,13 +649,11 @@ fn sheet_fn<T: Decide + Bounds>(
             origin,
             axis,
             radius,
-            ..
+            u_ref,
         } => {
-            let foot = geom::Line {
-                origin: *origin,
-                dir: *axis,
-            }
-            .foot(centre);
+            let foot = geom::Frame::new(*origin, *axis, *u_ref)
+                .axis_line()
+                .foot(centre);
             (
                 SheetFn::Line {
                     alpha: one,
@@ -987,8 +985,12 @@ fn station<T: Decide>(body: &Body<T>, link: &Link<T>) -> Result<Station<T>, Blen
             origin,
             axis,
             radius,
-            ..
-        } => foot_on(&Curve3::Line(geom::Line { origin, dir: axis }), p).map(|c| (c, radius)),
+            u_ref,
+        } => foot_on(
+            &Curve3::Line(geom::Frame::new(origin, axis, u_ref).axis_line()),
+            p,
+        )
+        .map(|c| (c, radius)),
         Surface::Torus {
             center,
             axis,
