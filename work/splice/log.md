@@ -1221,3 +1221,10 @@ general regularity sweep. SECTARMS's cylinder × cylinder unit adopts
   - **Two stops move.** The wavy loft ∪ box and the saddle cut by its tangent plane both now stop at `GermFrameUnsupported { Nurbs, Plane }` (SECTARMS).
   - **Teapot wall 3**, on a scratch merge with PR 6441, moves to `GermFrameUnsupported { Sphere, Nurbs }`, SECTARMS' P0 `a-nurbs-face-against-a-cone-or-sphere-has-no-section-arm`. Whichever of 6435 and 6441 lands second re-pins `teapot::wall3_pinned`.
   - Filed: `a-spline-wall-holding-a-pierce-point-has-no-operand-that-reaches-it` (P2).
+- 2026-11-03 11:26Z — **PR 6429 merged** (`2e1d9ce7`). **PR 6441 review** (`session_013QoYWXwyZpYo6QXxGy5BgS`, frozen at `309625f4`): APPROVE-WITH-FIXES, four MINORs and no MAJOR (evidence `splice/review-6441` @ `1c17acdf`).
+  - **The claim that no analytic edge reaches the held branch was false.** The lane's probe covered topo, and the analytic rows live in sweep. The reviewer logged 222 hits there, all inside certification, 18 of them moving a child interval by 1 ulp. The vertex never moved.
+  - `held_on`'s same-edge guard survived a mutant, so the fix pass makes it structural: a held parameter carries the key of the edge it was read on.
+  - The kernel row could not tell the two parameters apart, so it gets distinct ones.
+  - No frame moves, so no `[render]` is owed.
+  - **Fix pass:** the orchestrator reads it.
+  - **Class (logged at adjudication):** a "no existing input reaches the new branch" measurement must run where the inputs live. Here they were in another crate's tests, which the module doc cited without naming the crate.
