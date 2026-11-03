@@ -248,6 +248,7 @@ pub(crate) mod star;
 pub(crate) mod strut;
 pub mod surface_boundary;
 pub mod surgery;
+pub(crate) mod sweep_trace;
 // Existence and visibility are two questions, gated separately; the
 // module's own docs are the statement of both. EXISTENCE: the items
 // must be compiled wherever any of their three consumers is — the
@@ -353,13 +354,48 @@ pub mod test_support {
         body: &crate::AtRestBody<f64>,
         tol: geom_core::Tol,
     ) -> crate::MassProperties<f64> {
-        match crate::mass_properties(body, tol, pinned_resolution(tol)) {
+        volume_at(what, body, tol, pinned_len(tol))
+    }
+
+    /// **`body`'s volume and area as numbers met at `resolution`** (mean
+    /// boundary displacement, m): [`pinned_volume`] at the width a row
+    /// states, for a row whose band [`pinned_resolution`] does not meet.
+    ///
+    /// # Panics
+    ///
+    /// Where the door refuses, or the resolution went unmet.
+    #[must_use]
+    #[allow(clippy::panic)]
+    pub fn volume_at(
+        what: &str,
+        body: &crate::AtRestBody<f64>,
+        tol: geom_core::Tol,
+        resolution: f64,
+    ) -> crate::MassProperties<f64> {
+        let settle = crate::Settle::Resolution(quantity::Length::from_meters(resolution));
+        match crate::mass_properties(body, tol, settle) {
             Ok(measured) => match measured.met() {
                 Ok(enclosure) => enclosure,
                 Err(unmet) => panic!("{what}: {unmet}"),
             },
             Err(refusal) => panic!("{what}: mass properties refused: {refusal}"),
         }
+    }
+
+    /// **A certified volume `volume ± pad` holds `want` within `band`
+    /// beyond its own bracket**: `|volume − want| ≤ band + pad`. The
+    /// assertion is only as sharp as `pad`: a row that needs it sharp
+    /// bounds the pad as well.
+    ///
+    /// # Panics
+    ///
+    /// Where it does not; `what` names the reading.
+    #[allow(clippy::panic)]
+    pub fn assert_volume_near(what: &str, volume: f64, pad: f64, want: f64, band: f64) {
+        assert!(
+            (volume - want).abs() <= band + pad,
+            "{what}: V = {volume} ± {pad:e}, want {want} within {band:e}"
+        );
     }
 
     /// [`pinned_resolution`]'s length (m), for a row that hands a face's
@@ -963,7 +999,9 @@ pub mod test_support {
             }
             other => format!("{:?}", other.kind()),
         };
-        let defect = err.to_string().contains(geom_core::KERNEL_DEFECT_ENDING)
+        let defect = err
+            .render(geom_brep::recourse::Reading::Build)
+            .contains(geom_core::KERNEL_DEFECT_ENDING)
             || matches!(
                 err.kind(),
                 BooleanErrorKind::ClassificationInvariant | BooleanErrorKind::JoinDesync
@@ -1272,8 +1310,6 @@ pub use wedge_reach::{WedgeReach, edge_faces, edge_wedge_reach, wedge_reach};
 pub(crate) mod vertex_section;
 
 pub use body::Body;
-#[doc(hidden)]
-pub use boolean::MemberLineage;
 pub use boolean::{
     AimedPair, AlongFace, Apart, ArcEndGaps, BoolNullEdgeRecord, BooleanBody, BooleanDecision,
     BooleanError, BooleanErrorKind, BooleanInputs, BooleanJoin, BooleanMerge, BooleanNaming,
@@ -1290,14 +1326,13 @@ pub use boolean::{
     PierceRingRecord, PlaneDesc, PlaneEqError, PlaneRelation, PlaneRung, PointInSolidError,
     ReductionContacts, RefusedRow, SectionUnbuilt, SectorRead, SectorRung, SelfCheck, SettleError,
     Settler, Settling, ShellOrientation, SideCode, SlitFaceGap, SlitLineGap, SolidContainment,
-    SolidFaces, SphereQuestion, SpiricLoops, SubstitutedFace, SweepStrategy, SweepTrace,
-    TorusConvention, UncutFace, UnreadPartner, VeContact, VfContact, VoidContainment, VoidEvidence,
-    VoidInsertError, VoidInserted, VvContact, WallRung, boolean_op_with, boolean_reduce,
-    carrier_eq, contfp, curved_face_containment, decision_words, face_carrier, flush_pair_relation,
-    insert_void, insert_voids, intersect, is_conventional_vertex, join_covers, joinable_vertices,
-    joined_cell, joined_edge, nary_boolean, nary_boolean_apart, oriented_plane_eq, overlap,
-    point_in_solid, point_in_solid_faces, point_in_solid_of, rest_locus, subtract,
-    tangent_pair_relation, union,
+    SolidFaces, SphereQuestion, SpiricLoops, SubstitutedFace, SweepStrategy, TorusConvention,
+    UncutFace, UnreadPartner, VeContact, VfContact, VoidContainment, VoidEvidence, VoidInsertError,
+    VoidInserted, VvContact, WallRung, boolean_op_with, boolean_reduce, carrier_eq, contfp,
+    curved_face_containment, decision_words, face_carrier, flush_pair_relation, insert_void,
+    insert_voids, intersect, is_conventional_vertex, join_covers, joinable_vertices, joined_cell,
+    joined_edge, nary_boolean, nary_boolean_apart, oriented_plane_eq, overlap, point_in_solid,
+    point_in_solid_faces, point_in_solid_of, rest_locus, subtract, tangent_pair_relation, union,
 };
 pub use joint::{Deck, JointElement};
 pub use lineage::{
@@ -1318,7 +1353,7 @@ pub use chord_join::face_azimuth_window_traces;
 // The census's idealized/realized pair (its `Candidates`): the
 // vocabulary always, the door on the boolean sweep's terms.
 pub use census::{
-    CensusStrategy, CensusTrace, FlushAtRest, RecordedAtRest, SweepPairs, census_cell_solid,
+    CensusStrategy, CensusTrace, FlushAtRest, RecordedAtRest, census_cell_solid,
     census_contact_row, census_entity_solid, census_interference_solids, census_rest_decision,
     census_uncleared_solids, line_segments_meet, line_segments_overlap, record_at_rest,
 };
@@ -1334,6 +1369,7 @@ pub use entity::{
 };
 pub use euler::{BadArgument, EulerOpError, RechartDoor};
 pub use link::{Link, LinkRefusal, Material, Round, TouchUnread};
+pub use sweep_trace::SweepPairs;
 // The types that appear in this crate's own operator signatures, so a
 // consumer of the ops needs no direct geom-* imports for the common
 // path (the full geometry vocabulary still lives in those crates).

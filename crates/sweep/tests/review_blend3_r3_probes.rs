@@ -84,7 +84,7 @@ fn the_spine_kind_sentence_refuses_the_coaxial_torus_rim_on_kind() {
             arm_roster(),
             "refused on KIND — the pair roster, not the coaxiality hypothesis"
         );
-        let text = err.to_string();
+        let text = err.render(geom_brep::recourse::Reading::Build);
         assert!(text.contains(FILLET3_SPINE_KIND_RECOURSE));
         // The sentence a caller reads here must not name TORUS among
         // the support kinds it admits, or it would endorse the pair
@@ -143,7 +143,12 @@ fn the_ruled_crease_carves_and_all_three_sentences_name_it() {
         ROD_FILLET,
         tol(),
     )
-    .unwrap_or_else(|e| panic!("the ruled crease carves, got {e}"));
+    .unwrap_or_else(|e| {
+        panic!(
+            "the ruled crease carves, got {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        )
+    });
     validate_geometric(&out.body, tol()).expect("tier 3");
     // The assembly sentence's OPEN clause — its first `;`-delimited
     // segment — must name this termination, not only the plane–plane

@@ -29,7 +29,7 @@ use test_utils::refusal::tagged;
 use viewer::session::BooleanSpec;
 
 use common::drawn::spacing_of;
-use common::{ang, body_volume, circle_at, len, len3, near, scl3, session_insert};
+use common::{ang, body_volume, circle_at, len, near, session_insert};
 use pncad::document::BooleanValue;
 use pncad::document::Speaker;
 use pncad::document::SplitSide;
@@ -553,10 +553,10 @@ fn the_boolean_door_refuses_a_non_body_operand_and_glues_a_repeated_body() {
     );
 }
 
-/// A split's target seat wants a body, its plane is numbers in the
-/// target's own coordinates, and what it authors cuts.
+/// A split's target seat wants a body, its plane is read in the
+/// target's own space, and what it authors cuts.
 #[test]
-fn the_split_door_takes_a_body_and_a_plane_in_its_coordinates() {
+fn the_split_door_takes_a_body_and_a_plane_in_its_space() {
     let tol = Tol::witness();
     let mut session = session(tol);
     let body = common::xy_box_in(&mut session, A);
@@ -569,8 +569,7 @@ fn the_split_door_takes_a_body_and_a_plane_in_its_coordinates() {
     );
     let refused = session.perform(SessionOp::AddSplit {
         target: profile.into(),
-        origin: len3([0.0, 0.0, cut]),
-        normal: scl3([0.0, 0.0, 1.0]),
+        plane: common::cut_across(&session, profile, cut),
     });
     assert!(
         matches!(
@@ -580,35 +579,230 @@ fn the_split_door_takes_a_body_and_a_plane_in_its_coordinates() {
         "{:?}",
         refused.refusal
     );
-    // A normal that names no direction refuses typed, before any edit.
+    // A plane read in another body's space refuses typed, before any
+    // edit.
+    let other = common::xy_box_in(&mut session, A);
     let states = session.history().len();
     let refused = session.perform(SessionOp::AddSplit {
         target: body.into(),
-        origin: len3([0.0, 0.0, cut]),
-        normal: scl3([0.0; 3]),
+        plane: common::cut_across(&session, other, cut),
     });
     assert!(
         matches!(
             refused.refusal.as_ref(),
-            Some(Refusal::Frame(fault)) if matches!(**fault, GestureFrameFault::Direction { .. })
+            Some(Refusal::Edit(error)) if matches!(**error, EditError::SpaceMismatch { .. })
         ),
         "{:?}",
         refused.refusal
     );
     assert_eq!(session.history().len(), states, "a refusal records nothing");
 
+    let plane = common::cut_across(&session, body, cut);
     let split = session_insert(
         &mut session,
         SessionOp::AddSplit {
             target: body.into(),
-            origin: len3([0.0, 0.0, cut]),
-            normal: scl3([0.0, 0.0, 1.0]),
+            plane,
         },
     );
     let (up, down) = split_volumes(&mut session, split, tol);
     let face = A[0] * A[1];
     assert!(near(up, face * (A[2] - cut)), "above the cut: {up}");
     assert!(near(down, face * cut), "below the cut: {down}");
+}
+
+/// The L block's footprint, metres: a 40 × 10 mm leg along x and a
+/// 10 × 10 mm leg standing on its left end, so its two inner walls are
+/// the planes `y = 10 mm` and `x = 10 mm`, each cutting the other leg.
+const L_FOOTPRINT: [(f64, f64); 6] = [
+    (0.0, 0.0),
+    (0.04, 0.0),
+    (0.04, 0.01),
+    (0.01, 0.01),
+    (0.01, 0.02),
+    (0.0, 0.02),
+];
+/// Its height.
+const L_HEIGHT: f64 = 0.01;
+
+/// **The split tool cuts along a picked face's plane, and its plane
+/// re-picks** (`crates/viewer/README.md`, "The seated tools whose values
+/// have a home"). An L block's inner wall at `y = 10 mm`, picked in the
+/// viewport, seats the block and the plane at once, and the committed
+/// split cuts the block there: 10 × 10 mm on one side, 40 × 10 mm on
+/// the other. Re-picking the plane moves the cut to the inner wall at
+/// `x = 10 mm` (20 × 10 and 30 × 10 mm): before commit, by the tool's
+/// next face pick; after it, by the split's tool slot written through
+/// the operand slot door (`DocEdit::SetParam`).
+///
+/// *Breaks if* a face pick stops seating the plane, the split stops
+/// cutting along the face's plane, or the slot door stops re-pointing
+/// it.
+#[test]
+fn the_split_tool_cuts_along_a_picked_face_and_its_plane_re_picks() {
+    let tol = Tol::witness();
+    let mut session = session(tol);
+    let profile = session_insert(
+        &mut session,
+        SessionOp::AddProfile {
+            loops: vec![LoopProgram::polygon(L_FOOTPRINT).expect("finite corners")],
+        },
+    );
+    let block = session_insert(
+        &mut session,
+        SessionOp::AddExtrude {
+            profile,
+            distance: len(L_HEIGHT),
+        },
+    );
+    session.pump();
+    let index = common::plate_index(&session);
+    let mid = 0.5 * L_HEIGHT;
+    let y_wall = common::displayed_face_at(&session, &index, &common::along_y(-1.0, 0.025, mid));
+    let x_wall = common::displayed_face_at(&session, &index, &common::along_x(-1.0, 0.015, mid));
+    let leg = 0.01 * 0.01 * L_HEIGHT;
+    let feed = |tools: &mut Tools, session: &DocSession, face: &viewer::session::FaceSelection| {
+        let declined = tools.feed(
+            session.committed_doc(),
+            Err(viewer::pickcache::NotIndexed::Absent),
+            &[SessionOp::Select(Selection::Face(face.clone()))],
+        );
+        assert!(declined.is_empty(), "the pick is taken: {declined:?}");
+    };
+
+    let mut tools = Tools::new();
+    tools.open(ToolKind::Split);
+    feed(&mut tools, &session, &y_wall);
+    let tool = tools.split().expect("the split tool is open");
+    assert_eq!(tool.target(), Some(block), "the face pick seats its body");
+    assert_eq!(tool.face(), Some(&y_wall), "and is the plane");
+    let op = tool.op().expect("a target and a plane are held");
+    assert!(tools.commits_open_tool(&op), "the split is the tool's edit");
+    let split = session_insert(&mut session, op);
+    // The face's plane faces out of the face: `above` (its port,
+    // `SplitHalf::Above`) is the side the wall faces, the standing leg.
+    let (above, below) = split_volumes(&mut session, split, tol);
+    assert!(
+        near(above, leg) && near(below, 4.0 * leg),
+        "the cut is the inner wall at y = 10 mm, above it the standing leg: {above} / {below}"
+    );
+
+    // Re-picked before commit: the next face pick is the plane, and the
+    // target stays.
+    feed(&mut tools, &session, &x_wall);
+    let tool = tools.split().expect("the split tool is open");
+    assert_eq!(tool.target(), Some(block), "a re-pick keeps the target");
+    assert_eq!(tool.face(), Some(&x_wall), "and moves the plane");
+
+    // Re-picked after commit, through the operand slot door.
+    let doc = session.committed_doc().clone();
+    let plane = pncad::document::Operand::Pose(Box::new(pncad::document::pose::PoseDef::Plane {
+        face: Operand::select(block, vec![x_wall.name.clone()]),
+    }));
+    let (doc, _) = common::edited(
+        &doc,
+        DocEdit::SetParam {
+            node: split,
+            slot: SlotId::Operand(OperandSlot::Tool),
+            value: pncad::document::SlotValue::Read(plane),
+            fresh: Vec::new(),
+        },
+        tol,
+    );
+    let mut session = DocSession::inline(doc, tol);
+    let (above, below) = split_volumes(&mut session, split, tol);
+    assert!(
+        near(above, 3.0 * leg) && near(below, 2.0 * leg),
+        "the re-picked cut is the inner wall at x = 10 mm, above it the long leg's end: \
+         {above} / {below}"
+    );
+}
+
+/// **A row's default spacing is the clearing step rounded up to a round
+/// figure in the working unit** (`combine::row_spacing`): at least the
+/// step, so the copies still clear, and one significant figure in the
+/// unit the person works in, as a blend's default size is.
+///
+/// Red if the spacing is written as the raw measure, rounded down, or
+/// rounded in another unit than the working one.
+#[test]
+fn a_rows_default_spacing_is_its_clearing_step_rounded_up() {
+    use pncad::quantity::{CM, IN, M, MM};
+    let doc = Doc::<ProfileProgram>::empty_derived("row-spacing", Tol::witness());
+    let at = |clears: f64, unit| {
+        doc.unparse(&viewer::combine::row_spacing(clears, unit).expect("a finite step"))
+    };
+    let clears = 0.051_790_071_130_842_12;
+    assert_eq!(
+        [
+            at(clears, MM),
+            at(clears, CM),
+            at(clears, M),
+            at(clears, IN)
+        ],
+        ["60 mm", "6 cm", "0.06 m", "3 in"],
+        "rounded up, at one significant figure in the working unit"
+    );
+    assert_eq!(at(0.05, MM), "50 mm", "a round step stays as it is");
+    // A step just past a round figure goes to the next one: the round
+    // figure would read back below it.
+    for (clears, unit, want) in [
+        (3.000_000_000_000_000_3e-4, MM, "0.4 mm"),
+        (0.0762, IN, "4 in"),
+    ] {
+        let spacing = viewer::combine::row_spacing(clears, unit).expect("a positive step");
+        assert_eq!(doc.unparse(&spacing), want, "{clears} m in {unit:?}");
+        assert!(
+            spacing.literal_value().expect("a written length") >= clears,
+            "{clears} m: never below the step"
+        );
+    }
+    for clears in [0.0, -0.01, f64::NAN] {
+        assert!(
+            matches!(
+                viewer::combine::row_spacing(clears, MM),
+                Err(viewer::combine::RowSpacingFault::NotPositive { .. })
+            ),
+            "{clears} m is no step to space a row by"
+        );
+    }
+}
+
+/// **A split half splits** (`work/doors/a-split-half-cannot-be-split.md`):
+/// the block split at half its height, its lower half split again at a
+/// quarter, each side of the second split a quarter of the block. The
+/// plane is the block's start cap slid up, which the half, in the
+/// block's space, is cut along.
+///
+/// Red if a split refuses a half for a target, or reads the whole
+/// split's value where the seat names one half.
+#[test]
+fn a_split_half_splits() {
+    let tol = Tol::witness();
+    let mut session = session(tol);
+    let body = common::xy_box_in(&mut session, A);
+    let plane = common::cut_across(&session, body, A[2] / 2.0);
+    let split = session_insert(
+        &mut session,
+        SessionOp::AddSplit {
+            target: body.into(),
+            plane,
+        },
+    );
+    let plane = common::cut_across(&session, body, A[2] / 4.0);
+    let again = session_insert(
+        &mut session,
+        SessionOp::AddSplit {
+            target: Operand::output(split, SplitHalf::Below.port()),
+            plane,
+        },
+    );
+    let quarter = A.iter().product::<f64>() / 4.0;
+    let (above, below) = split_volumes(&mut session, again, tol);
+    assert!(
+        near(above, quarter) && near(below, quarter),
+        "the lower half cut in two quarters: {above} / {below}"
+    );
 }
 
 /// A split's OUTPUT is two bodies, so it is not a body seat's pick —
@@ -621,12 +815,12 @@ fn several_bodies_are_not_one_body_at_a_seat() {
     let tol = Tol::witness();
     let mut session = session(tol);
     let body = common::xy_box_in(&mut session, A);
+    let plane = common::cut_across(&session, body, 0.004);
     let split = session_insert(
         &mut session,
         SessionOp::AddSplit {
             target: body.into(),
-            origin: len3([0.0, 0.0, 0.004]),
-            normal: scl3([0.0, 0.0, 1.0]),
+            plane,
         },
     );
     {
@@ -642,8 +836,7 @@ fn several_bodies_are_not_one_body_at_a_seat() {
             },
             SessionOp::AddSplit {
                 target: wrong.into(),
-                origin: len3([0.0, 0.0, 0.004]),
-                normal: scl3([0.0, 0.0, 1.0]),
+                plane: common::cut_across(&session, wrong, 0.004),
             },
         ] {
             let refused = session.perform(op);
@@ -700,7 +893,12 @@ fn the_transform_door_places_a_body_with_values() {
         common::band(),
     )
     .expect("a rotation axis with a direction");
-    let poses = pncad::document::solve_document(doc, &pncad::document::EvalOptions::default(), tol);
+    let poses = pncad::document::solve_document(
+        doc,
+        &pncad::document::EvalOptions::default(),
+        &pncad::document::CancelToken::new(),
+        tol,
+    );
     let at = poses
         .relative(placed)
         .expect("the copy stands in its body's space");
@@ -845,12 +1043,12 @@ fn the_transform_tool_refuses_what_is_no_body_and_asks_a_split_for_its_half() {
     let tol = Tol::witness();
     let mut session = session(tol);
     let (profile, body) = common::box_in(&mut session, A);
+    let plane = common::cut_across(&session, body, A[2] / 2.0);
     let split = session_insert(
         &mut session,
         SessionOp::AddSplit {
             target: body.into(),
-            origin: len3([0.0, 0.0, A[2] / 2.0]),
-            normal: scl3([0.0, 0.0, 1.0]),
+            plane,
         },
     );
     let patterned = common::xy_box_in(&mut session, B);
@@ -1951,8 +2149,7 @@ fn a_refusal_at_any_body_seated_door_leaves_no_history_state() {
         },
         SessionOp::AddSplit {
             target: body.into(),
-            origin: len3([0.0; 3]),
-            normal: scl3([0.0, 0.0, 1.0]),
+            plane: common::cut_across(&session, body, 0.0),
         },
         SessionOp::Place {
             body: body.into(),
@@ -1997,7 +2194,7 @@ fn a_refusal_at_any_body_seated_door_leaves_no_history_state() {
 
     // The SEAT refusals record nothing either — a wrong-kind pick at
     // any of the doors, a union member and a subtraction's tool among
-    // them — nor does a plane or an axis that names no direction.
+    // them — nor does an axis that names no direction.
     for op in [
         SessionOp::AddBoolean {
             spec: BooleanSpec::Union(vec![plane.into(), body.into()]),
@@ -2010,13 +2207,7 @@ fn a_refusal_at_any_body_seated_door_leaves_no_history_state() {
         },
         SessionOp::AddSplit {
             target: plane.into(),
-            origin: len3([0.0; 3]),
-            normal: scl3([0.0, 0.0, 1.0]),
-        },
-        SessionOp::AddSplit {
-            target: body.into(),
-            origin: len3([0.0; 3]),
-            normal: scl3([0.0; 3]),
+            plane: common::cut_across(&session, plane, 0.0),
         },
         SessionOp::Place {
             body: plane.into(),
@@ -2213,18 +2404,28 @@ fn each_combining_tool_holds_its_picks_and_survives_a_vanished_one() {
     boolean.pick(session.committed_doc(), a);
     assert_eq!(boolean.picks(), [a, a]);
 
-    // The split tool's one seat is its target; the plane is fields.
+    // The split tool's one seat is its target, and its plane a pick.
     let mut split = SplitTool::new();
     assert!(matches!(
-        split.op(len3([0.0; 3]), scl3([0.0, 0.0, 1.0])),
+        split.op(),
         Err(SeatError::Empty {
             seat: Seat::SplitTarget
         })
     ));
     split.pick(session.committed_doc(), a);
     assert!(matches!(
-        split.op(len3([0.0; 3]), scl3([0.0, 0.0, 1.0])),
-        Ok(SessionOp::AddSplit { .. })
+        split.op(),
+        Err(SeatError::NoFace {
+            role: viewer::seats::FaceRole::SplitPlane
+        })
+    ));
+    split.pick_plane(session.committed_doc(), end_cap(a));
+    assert!(matches!(
+        split.op(),
+        Ok(SessionOp::AddSplit {
+            plane: viewer::session::SplitPlane::Face(_),
+            ..
+        })
     ));
 
     // The pattern tool's one seat is its body, whichever rule; its
@@ -2367,12 +2568,12 @@ fn every_seats_wanted_kind_is_the_one_its_door_refuses_by() {
     // The two multi-body values the part selectors read. Each is a
     // legal node of SOME kind, so what the part seats refuse is the
     // kind and never the absence — and each is the OTHER's near miss.
+    let plane = common::cut_across(&session, body, 0.005);
     let split = session_insert(
         &mut session,
         SessionOp::AddSplit {
             target: body.into(),
-            origin: len3([0.0, 0.0, 0.005]),
-            normal: scl3([0.0, 0.0, 1.0]),
+            plane,
         },
     );
     let pattern = session_insert(
@@ -2423,8 +2624,7 @@ fn every_seats_wanted_kind_is_the_one_its_door_refuses_by() {
             },
             Seat::SplitTarget => SessionOp::AddSplit {
                 target: filled(Seat::SplitTarget).into(),
-                origin: len3([0.0, 0.0, 0.005]),
-                normal: scl3([0.0, 0.0, 1.0]),
+                plane: common::cut_across(&session, filled(Seat::SplitTarget), 0.005),
             },
             Seat::PartInstance => SessionOp::AddPart {
                 of: filled(Seat::PartInstance),
@@ -2519,16 +2719,14 @@ fn a_pick_both_seats_admit_and_a_pick_neither_does_follow_the_plain_rule() {
     let profile = common::rectangle_in(&mut session, 0.01, 0.01);
     let doc = session.committed_doc();
     let mut split = SplitTool::new();
-    split.pick(doc, a);
+    split.pick_plane(doc, end_cap(a));
     split.pick(doc, profile);
     assert_eq!(
         split.target(),
         Some(profile),
         "an unroutable pick lands where the plain rule puts it",
     );
-    let op = split
-        .op(len3([0.0, 0.0, 0.005]), scl3([0.0, 0.0, 1.0]))
-        .expect("the seat is filled");
+    let op = split.op().expect("the seat and the plane are filled");
     let refused = session.perform(op);
     assert!(
         matches!(
@@ -2736,8 +2934,7 @@ fn a_tool_closes_on_its_own_committed_edit() {
             ToolKind::Split,
             SessionOp::AddSplit {
                 target: (RecipeNodeId::new(0, tagged(1))).into(),
-                origin: len3([0.0; 3]),
-                normal: scl3([0.0, 0.0, 1.0]),
+                plane: viewer::session::SplitPlane::Face(end_cap(RecipeNodeId::new(0, tagged(1)))),
             },
         ),
         (
@@ -3064,13 +3261,14 @@ fn each_tool_narrows_the_cursor_to_what_it_can_use() {
     for kind in ToolKind::ALL {
         tools.open(kind);
         let want = match kind {
-            // The mirror tool's plane is a face, and its body is
-            // picked by one too; the clearance tool seats faces, and
-            // bodies from the tree.
-            ToolKind::Mate | ToolKind::Mirror | ToolKind::Clearance => PickKinds::FacesOnly,
+            // The mirror's and the split's plane is a face, and their
+            // body is picked by one too; the clearance tool seats
+            // faces, and bodies from the tree.
+            ToolKind::Mate | ToolKind::Mirror | ToolKind::Split | ToolKind::Clearance => {
+                PickKinds::FacesOnly
+            }
             ToolKind::Blend => PickKinds::EdgesOnly,
             ToolKind::Boolean
-            | ToolKind::Split
             | ToolKind::Transform
             | ToolKind::Pattern
             | ToolKind::Part
@@ -3143,12 +3341,12 @@ fn a_split_half_is_read_by_its_port_at_a_body_seat() {
     let tol = Tol::witness();
     let mut session = session(tol);
     let body = common::xy_box_in(&mut session, A);
+    let plane = common::cut_across(&session, body, A[2] / 4.0);
     let split = session_insert(
         &mut session,
         SessionOp::AddSplit {
             target: body.into(),
-            origin: len3([0.0, 0.0, A[2] / 4.0]),
-            normal: scl3([0.0, 0.0, 1.0]),
+            plane,
         },
     );
     let (above, below) = split_volumes(&mut session, split, tol);
@@ -3226,12 +3424,12 @@ fn a_part_indexes_a_patterns_instances_by_an_exact_count() {
 fn the_part_door_refuses_a_split() {
     let tol = Tol::witness();
     let (mut session, body, _) = box_and_pattern(tol);
+    let plane = common::cut_across(&session, body, A[2] / 4.0);
     let split = session_insert(
         &mut session,
         SessionOp::AddSplit {
             target: body.into(),
-            origin: len3([0.0, 0.0, A[2] / 4.0]),
-            normal: scl3([0.0, 0.0, 1.0]),
+            plane,
         },
     );
     let before = session.committed_doc().clone();
@@ -3521,7 +3719,6 @@ fn a_duplicates_copy_moves_on_its_own() {
     let mut session = session(tol);
     let body = common::xy_box_in(&mut session, A);
     session.pump();
-    let one = A[0] * A[1] * A[2];
     let outcome = session.perform(SessionOp::Duplicate {
         input: body.into(),
         beside: None,
@@ -3554,38 +3751,6 @@ fn a_duplicates_copy_moves_on_its_own() {
         [stand_in, placed],
         "the stepped copy moved in place; the stand-in is untouched",
     );
-    session.pump();
-    // And the two are apart in SPACE, not merely in the tree: a
-    // plane between them cuts each entirely to one side. `split` is
-    // the probe because it is a door this suite already drives, and
-    // an empty side is a typed value rather than a number to compare.
-    let cut_copy = session_insert(
-        &mut session,
-        SessionOp::AddSplit {
-            target: placed.into(),
-            origin: len3([0.0, A[1] * 2.0, 0.0]),
-            normal: scl3([0.0, 1.0, 0.0]),
-        },
-    );
-    let (copy_above, copy_below) = split_volumes(&mut session, cut_copy, tol);
-    assert!(
-        near(copy_above, one),
-        "the moved copy is wholly above the plane"
-    );
-    assert_eq!(copy_below, 0.0, "and nothing of it is below");
-
-    let cut_original = session_insert(
-        &mut session,
-        SessionOp::AddSplit {
-            target: body.into(),
-            origin: len3([0.0, A[1] * 2.0, 0.0]),
-            normal: scl3([0.0, 1.0, 0.0]),
-        },
-    );
-    let (original_above, original_below) = split_volumes(&mut session, cut_original, tol);
-    assert_eq!(original_above, 0.0, "the original did not move");
-    assert!(near(original_below, one), "it is wholly below the plane");
-
     // The step along `x` survives the move: the copy stands where the
     // duplicate stepped it along `x`, and lifted along `y`.
     let doc = session.committed_doc();
@@ -3596,6 +3761,19 @@ fn a_duplicates_copy_moves_on_its_own() {
         near(at.translation[0], step) && near(at.translation[1], A[1] * 3.0),
         "the copy stands at {:?}: stepped {step} along x, lifted along y",
         at.translation
+    );
+    // And its evaluated geometry moved with it, the stand-in's did not:
+    // the moved copy is drawn over the stand-in's box, carried by the
+    // step along `x` and the lift along `y`.
+    let (lo, hi) = common::drawn::extent(&mut session, stand_in);
+    let carried = |p: [f64; 3]| [p[0] + step, p[1] + A[1] * 3.0, p[2]];
+    common::drawn::assert_drawn(
+        &mut session,
+        placed,
+        carried(lo),
+        carried(hi),
+        A.iter().product(),
+        "the moved copy",
     );
 }
 
@@ -3615,12 +3793,12 @@ fn the_part_seats_track_the_part_door() {
     let tol = Tol::witness();
     let mut session = session(tol);
     let body = common::xy_box_in(&mut session, A);
+    let plane = common::cut_across(&session, body, A[2] / 4.0);
     let split = session_insert(
         &mut session,
         SessionOp::AddSplit {
             target: body.into(),
-            origin: len3([0.0, 0.0, A[2] / 4.0]),
-            normal: scl3([0.0, 0.0, 1.0]),
+            plane,
         },
     );
     let pattern = session_insert(
@@ -3703,12 +3881,12 @@ fn a_body_seat_reads_a_split_half_by_its_port() {
     let tol = Tol::witness();
     let mut session = session(tol);
     let body = common::xy_box_in(&mut session, B);
+    let plane = common::cut_across(&session, body, B[2] / 4.0);
     let split = session_insert(
         &mut session,
         SessionOp::AddSplit {
             target: body.into(),
-            origin: len3([0.0, 0.0, B[2] / 4.0]),
-            normal: scl3([0.0, 0.0, 1.0]),
+            plane,
         },
     );
     let below = pncad::document::Operand::output(split, SplitHalf::Below.port());
@@ -4173,12 +4351,12 @@ fn a_body_seat_takes_a_split_half_clicked_in_the_viewport() {
     let tol = Tol::witness();
     let mut session = session(tol);
     let body = common::xy_box_in(&mut session, A);
+    let plane = common::cut_across(&session, body, A[2] / 2.0);
     let split = session_insert(
         &mut session,
         SessionOp::AddSplit {
             target: body.into(),
-            origin: len3([0.0, 0.0, A[2] / 2.0]),
-            normal: scl3([0.0, 0.0, 1.0]),
+            plane,
         },
     );
     // The world places the two halves: the split took the box over.
@@ -4330,12 +4508,12 @@ fn the_boolean_tools_picks_carry_their_ports_across_the_operation() {
     let tol = Tol::witness();
     let mut session = session(tol);
     let body = common::xy_box_in(&mut session, B);
+    let plane = common::cut_across(&session, body, B[2] / 4.0);
     let split = session_insert(
         &mut session,
         SessionOp::AddSplit {
             target: body.into(),
-            origin: len3([0.0, 0.0, B[2] / 4.0]),
-            normal: scl3([0.0, 0.0, 1.0]),
+            plane,
         },
     );
     let doc = session.committed_doc().clone();
@@ -4521,268 +4699,4 @@ fn a_combine_that_would_strand_a_pick_refuses_typed() {
         out.refusal
     );
     assert_eq!(session.history().len(), steps, "nothing recorded");
-}
-
-/// **The split plane's verdict is the door's, asked before commit**: the
-/// split the panel would commit, staged and evaluated beside the
-/// picture, read as its tree row would read it, with nothing recorded.
-/// A plane through the origin with normal z lies on the block's bottom
-/// face and leaves the below half empty; a plane above the block misses
-/// it; a plane through the block's centre cuts it in two. That the
-/// panel seeds that centre is `drive.rs`'s
-/// `the_split_tool_seeds_its_plane_through_the_picked_plate_and_draws_it_there`.
-///
-/// *Breaks if* staging records an edit, or the verdict stops being the
-/// split's own.
-#[test]
-fn a_staged_split_says_whether_its_plane_cuts_the_body() {
-    use viewer::session::{Creation, Staged};
-    use viewer::tree::{Emptiness, split_reading};
-
-    let tol = Tol::witness();
-    let mut session = session(tol);
-    let body = common::xy_box_in(&mut session, A);
-    session.pump();
-    let states = session.history().len();
-    let verdict = |session: &mut DocSession, origin: [f64; 3]| {
-        let creation = Creation::of(SessionOp::AddSplit {
-            target: body.into(),
-            origin: len3(origin),
-            normal: scl3([0.0, 0.0, 1.0]),
-        })
-        .expect("a split creates a node");
-        assert!(
-            session.staged_for(&creation).is_none(),
-            "{origin:?}: nothing is staged for a plane not yet asked about"
-        );
-        let staged = session.perform(SessionOp::Stage {
-            creation: creation.clone(),
-        });
-        assert!(
-            staged.refusal.is_none() && staged.committed.is_empty(),
-            "{origin:?}: a stage refuses nothing and commits nothing: {staged:?}"
-        );
-        session.pump();
-        match session.staged_for(&creation) {
-            Some(Staged::Evaluated {
-                node, evaluation, ..
-            }) => split_reading(evaluation, node).expect("the staged split evaluates"),
-            other => panic!("{origin:?}: the staged run landed inline: {other:?}"),
-        }
-    };
-    assert_eq!(
-        verdict(&mut session, [0.0; 3]),
-        Some(Emptiness::Half(SplitHalf::Below)),
-        "the old default lies on the bottom face"
-    );
-    assert_eq!(
-        verdict(&mut session, [0.0, 0.0, 1.0]),
-        Some(Emptiness::Half(SplitHalf::Above)),
-        "a plane above the block misses it"
-    );
-    let centre = {
-        let (doc, evaluation) = session.landed_pair().expect("landed");
-        let source = viewer::splitplane::source(doc, evaluation, &body.into()).expect("a body");
-        viewer::splitplane::centre(source).expect("the block has corners")
-    };
-    assert!(
-        near(centre[2], 0.5 * A[2]),
-        "the seed is the block's centre: {centre:?}"
-    );
-    assert_eq!(
-        verdict(&mut session, centre),
-        None,
-        "the seeded plane cuts the block in two"
-    );
-    assert_eq!(session.history().len(), states, "staging recorded nothing");
-}
-
-/// **The split plane is drawn under the part its target was picked
-/// on**, through the path the viewport takes (`splitplane::drawn`, over
-/// the tools, the session and a built pick index). A viewport pick on
-/// the block's world copy keeps that copy, and the plane is drawn where
-/// it stands. A tree pick hit no part, so nothing is drawn. A target
-/// whose frame is a map (a second block lifted in its own space by the
-/// Transform tool, then given a world copy by hand, so the lifted
-/// copy's `in_space` is `Some`) is drawn where its own copy stands, the
-/// lift applied once.
-///
-/// *Breaks if* the seat forgets the part, the preview stops reading the
-/// index's drawn map, or a target's own frame is applied twice or not
-/// at all.
-#[test]
-fn the_split_plane_is_drawn_under_the_picked_copy() {
-    use pncad::prelude::StableName;
-    use viewer::session::FaceSelection;
-
-    let tol = Tol::witness();
-    let z = [0.0, 0.0, 1.0];
-    let pick_on = |copy: RecipeNodeId| {
-        SessionOp::Select(Selection::Face(FaceSelection {
-            name: StableName {
-                kind: pncad::prelude::EntityKind::Face,
-                node: copy,
-                path: Vec::new(),
-            },
-            node: copy,
-            body: 0,
-        }))
-    };
-    let drawn = |session: &DocSession, picked: SessionOp| {
-        let index = common::plate_index(session);
-        let mut tools = Tools::new();
-        tools.open(ToolKind::Split);
-        let declined = tools.feed(session.committed_doc(), Ok(&index), &[picked]);
-        assert!(declined.is_empty(), "{declined:?}");
-        let tool = tools.split().expect("the split tool is open");
-        let (doc, evaluation) = session.landed_pair().expect("landed");
-        let target = tool.seats().read(0).expect("a target");
-        let source = viewer::splitplane::source(doc, evaluation, &target).expect("a body");
-        let centre = viewer::splitplane::centre(source).expect("corners");
-        let plane = viewer::splitplane::drawn(
-            &viewer::splitplane::Drawing {
-                seats: tool.seats(),
-                landed: (doc, evaluation),
-                display: &session.display_view(),
-                index: &index,
-            },
-            centre,
-            z,
-        );
-        (tool, source.clone(), centre, plane)
-    };
-
-    let mut session = session(tol);
-    let body = common::xy_box_in(&mut session, A);
-    // Placed into the world by hand: a new body lands unplaced.
-    let (mut session, copy) = common::world_copy_in(&session, body, tol);
-    let (tool, _, centre, plane) = drawn(&session, pick_on(copy));
-    assert_eq!(
-        tool.target(),
-        Some(body),
-        "a pick on the copy seats the body"
-    );
-    assert_eq!(
-        tool.seats().through(0),
-        Some(copy),
-        "the seat keeps the part it hit"
-    );
-    let plane = plane.expect("the plane is drawn on the picked copy");
-    assert!(
-        (plane.centre.z - 0.5 * A[2]).abs() < 1e-12 && near(centre[2], 0.5 * A[2]),
-        "the plane is drawn at the block's mid-height: {:?}",
-        plane.centre
-    );
-    let (tool, _, _, plane) = drawn(&session, SessionOp::Select(Selection::Node(body)));
-    assert_eq!(tool.seats().through(0), None, "a tree pick hits no part");
-    assert!(plane.is_none(), "a tree pick draws no plane");
-
-    let lift = 4.0 * A[2];
-    let raw = common::xy_box_in(&mut session, A);
-    let moved = common::moved_to(&mut session, raw, [0.0, 0.0, lift]);
-    let (session, copy) = common::world_copy_by_hand_in(&session, moved, tol);
-    let (tool, source, centre, plane) = drawn(&session, pick_on(copy));
-    assert_eq!(
-        tool.target(),
-        Some(moved),
-        "the pick seats the lifted copy the world copies"
-    );
-    assert!(
-        pncad::document::in_space(&source).is_some(),
-        "the lifted copy's body is framed by a map"
-    );
-    assert!(
-        near(centre[2], 0.5 * A[2] + lift),
-        "the seed is in the space the copy is built in: {centre:?}"
-    );
-    let plane = plane.expect("the plane is drawn on the lifted copy");
-    assert!(
-        (plane.centre.z - (0.5 * A[2] + lift)).abs() < 1e-12,
-        "the lift is applied once: {:?}",
-        plane.centre
-    );
-}
-
-/// **A staged verdict is not carried across a document replacement**
-/// (review of PR 6240): the stage is keyed on the creation and the
-/// history state, and a history id is an arena position — every
-/// freshly opened document's root is the same id. A split staged on a
-/// file must not answer for that file re-opened after it was edited
-/// and saved elsewhere: same node ids, same root id, a flatter block.
-///
-/// *Breaks if* `Open`/`NewDocument` leave the old stage standing.
-#[test]
-fn a_staged_verdict_does_not_survive_reopening_an_edited_file() {
-    use viewer::session::{Creation, Staged};
-    use viewer::tree::{Emptiness, split_reading};
-
-    let tol = Tol::witness();
-    let path = common::tempdir("staged-across-open").join("block.pncad");
-    let mut writer = session(tol);
-    let body = common::xy_box_in(&mut writer, A);
-    writer.pump();
-    let saved = writer.perform(SessionOp::Save(path.clone()));
-    assert!(saved.refusal.is_none(), "the tall block saves: {saved:?}");
-
-    let creation = Creation::of(SessionOp::AddSplit {
-        target: body.into(),
-        origin: len3([0.0, 0.0, 0.5 * A[2]]),
-        normal: scl3([0.0, 0.0, 1.0]),
-    })
-    .expect("a split creates a node");
-    let verdict = |session: &DocSession| match session.staged_for(&creation) {
-        Some(Staged::Evaluated {
-            node, evaluation, ..
-        }) => Some(split_reading(evaluation, node).expect("the staged split evaluates")),
-        None => None,
-        other => panic!("the staged run landed inline: {other:?}"),
-    };
-
-    let mut reader = session(tol);
-    assert!(
-        reader
-            .perform(SessionOp::Open(path.clone()))
-            .refusal
-            .is_none()
-    );
-    reader.pump();
-    reader.perform(SessionOp::Stage {
-        creation: creation.clone(),
-    });
-    reader.pump();
-    assert_eq!(
-        verdict(&reader),
-        Some(None),
-        "mid-height cuts the tall block"
-    );
-
-    // The writer flattens the block and saves over the file.
-    let flattened = writer.perform(SessionOp::SetSlot {
-        node: body,
-        slot: SlotId::Distance,
-        value: viewer::props::SlotValue::of(Dimension::Length, 0.2 * A[2])
-            .expect("a finite length is a value"),
-    });
-    assert!(flattened.refusal.is_none(), "{flattened:?}");
-    writer.pump();
-    let saved = writer.perform(SessionOp::Save(path.clone()));
-    assert!(saved.refusal.is_none(), "the flat block saves: {saved:?}");
-
-    assert!(reader.perform(SessionOp::Open(path)).refusal.is_none());
-    reader.pump();
-    assert_eq!(
-        verdict(&reader),
-        None,
-        "nothing is staged on the re-opened (flat) block yet; the tall block's \
-         verdict would say the plane cuts it"
-    );
-    reader.perform(SessionOp::Stage {
-        creation: creation.clone(),
-    });
-    reader.pump();
-    assert_eq!(
-        verdict(&reader),
-        Some(Some(Emptiness::Half(SplitHalf::Above))),
-        "staged afresh, the plane passes over the flat block"
-    );
 }

@@ -548,6 +548,7 @@ fn a_split_that_takes_an_instance_naming_a_kept_node_is_refused() {
         DocumentId::derive("crossnames-split-cut"),
         Tol::witness(),
         None,
+        &editor_core::Stop::default(),
     )
     .expect_err("the instance's `outer` is a payload name reaching the remainder");
     let SplitError::PartNameReachesRemainder {

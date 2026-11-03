@@ -1032,18 +1032,18 @@ impl MergeDecision {
         }
     }
 
-    /// The one ending an escalation of this decision carries, at the
-    /// merge that built the geometry.
-    fn ending(self, diag: &Indeterminate) -> String {
+    /// The one ending an escalation of this decision carries, read at
+    /// `at`.
+    fn ending(self, diag: &Indeterminate, at: geom_brep::recourse::ReadAt) -> String {
         let arm = RefusedArm::Undecided(diag);
         match self {
             // An extent that does not read carries no margin.
-            Self::PairReach => Unsized::Defect.recourse(arm, Reading::Build),
+            Self::PairReach => Unsized::Defect.recourse(arm, at),
             Self::Neighbours(rung) => {
                 crate::boolean::BooleanDecision::Neighbours(rung).recourse(diag)
             }
             Self::NeighbourCoincidence => crate::boolean::refusal_routes::neighbour_ending(diag),
-            Self::LoopWinding => LOOP_WINDING.recourse(arm, Reading::Build),
+            Self::LoopWinding => LOOP_WINDING.recourse(arm, at),
         }
     }
 }
@@ -1075,8 +1075,13 @@ const LOOP_WINDING: SizedDecision = SizedDecision {
     no_size: None,
 };
 
-impl core::fmt::Display for MergeCoplanarError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl MergeCoplanarError {
+    fn write(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        at: Option<geom_brep::recourse::ReadAt>,
+    ) -> core::fmt::Result {
+        use geom_brep::recourse::read_at;
         match self {
             Self::InputNotClosed { errors } => {
                 write!(
@@ -1138,11 +1143,15 @@ impl core::fmt::Display for MergeCoplanarError {
                  inventory: sub-period re-merges commit, full closures stay in their \
                  cut-carrying canonical form and are recorded as a loud skip"
             ),
-            Self::Op { error } => write!(f, "merge_coplanar_faces: {error}"),
+            Self::Op { error } => write!(f, "merge_coplanar_faces: {}", read_at(error, at)),
             Self::GluedOppositeOrientation { .. } => write!(
                 f,
-                "the two glued faces face opposite ways across the edge they share. {}",
-                GLUED_ORIENTATION.recourse(RefusedArm::SignCertain(None), Reading::Build)
+                "the two glued faces face opposite ways across the edge they share{}",
+                at.map(|at| format!(
+                    ". {}",
+                    GLUED_ORIENTATION.recourse(RefusedArm::SignCertain(None), at)
+                ))
+                .unwrap_or_default()
             ),
             Self::GlueRecordBroken { surfaces: (a, b) } => write!(
                 f,
@@ -1176,16 +1185,25 @@ impl core::fmt::Display for MergeCoplanarError {
                      winds counterclockwise about its outward normal, as tier 3 requires at rest"
                 ),
             },
-            Self::Escalated { decision, diag } => diag
-                .undecided(decision.subject(), decision.ending(diag))
-                .fmt(f),
+            Self::Escalated { decision, diag } => write!(
+                f,
+                "{}",
+                geom_brep::recourse::undecided_at(
+                    diag,
+                    decision.subject(),
+                    at.map(|at| decision.ending(diag, at))
+                )
+            ),
             Self::Band { error } => write!(f, "merge_coplanar_faces: {error}"),
             Self::Pcurve { source } => write!(
                 f,
                 "merge_coplanar_faces: the staged result's pcurve re-mint refused \
-                 ({source}) — the body is untouched"
+                 ({}) — the body is untouched",
+                read_at(source, at)
             ),
-            Self::Join { refusal } => write!(f, "merging coplanar faces: {refusal}"),
+            Self::Join { refusal } => {
+                write!(f, "merging coplanar faces: {}", read_at(refusal, at))
+            }
             Self::KeptBoundaryUndescribed {
                 face,
                 edge,
@@ -1202,11 +1220,11 @@ impl core::fmt::Display for MergeCoplanarError {
                 if let Some(cause) = cause {
                     write!(f, " ({})", refusal_payload(cause))?;
                 }
-                write!(
-                    f,
-                    ". The body is untouched. {}",
-                    undescribed_ending(cause.as_deref(), *fitted)
-                )
+                f.write_str(". The body is untouched")?;
+                match at {
+                    Some(_) => write!(f, ". {}", undescribed_ending(cause.as_deref(), *fitted)),
+                    None => Ok(()),
+                }
             }
             Self::KeptBoundaryOffFace { face, edge, diag } => write!(
                 f,
@@ -1226,23 +1244,24 @@ impl core::fmt::Display for MergeCoplanarError {
                 let (question, ending) = match reading {
                     DihedralReading::Lever(geom_brep::LeverRung::Arm) => (
                         concat!("whether the edge is ", geom_brep::dihedral_arm_clause!()),
-                        geom_brep::DIHEDRAL_ARM
-                            .recourse(RefusedArm::Undecided(diag), Reading::Build),
+                        at.map(|at| {
+                            geom_brep::DIHEDRAL_ARM.recourse(RefusedArm::Undecided(diag), at)
+                        }),
                     ),
                     DihedralReading::Lever(geom_brep::LeverRung::Reading) => (
                         "whether the faces at it cross or meet smoothly",
-                        CROSS_OR_SMOOTH.to_owned(),
+                        Some(CROSS_OR_SMOOTH.to_owned()),
                     ),
                     DihedralReading::Bend => (
                         "whether the faces at it bend apart",
-                        CROSS_OR_SMOOTH.to_owned(),
+                        Some(CROSS_OR_SMOOTH.to_owned()),
                     ),
                 };
                 write!(
                     f,
                     "merge_coplanar_faces: re-describing kept face {face:?}'s boundary edge \
                      {edge:?}, {}",
-                    diag.undecided(question, ending)
+                    geom_brep::recourse::undecided_at(diag, question, ending)
                 )
             }
             Self::KeptBoundaryMixed {
@@ -1267,6 +1286,8 @@ impl core::fmt::Display for MergeCoplanarError {
         }
     }
 }
+
+geom_brep::ended_by_write!(MergeCoplanarError);
 
 impl std::error::Error for MergeCoplanarError {}
 
@@ -3823,7 +3844,8 @@ mod tests {
             assert_eq!(
                 OpPlacement::of(&error),
                 OpPlacement::Contradicts(want),
-                "{point:?} produced {error}"
+                "{point:?} produced {error_at}",
+                error_at = error.render(geom_brep::recourse::Reading::Build)
             );
             assert!(MergeCoplanarError::Op { error }.is_arena_fault());
         }
@@ -3845,7 +3867,8 @@ mod tests {
             assert_eq!(
                 OpPlacement::of(&error),
                 OpPlacement::Contradicts(want),
-                "{point:?} produced {error}"
+                "{point:?} produced {error_at}",
+                error_at = error.render(geom_brep::recourse::Reading::Build)
             );
         }
     }
@@ -4095,7 +4118,12 @@ mod tests {
                 let message = crate::surgery::tests::caught(std::panic::AssertUnwindSafe(|| {
                     let _ = OpPlacement::of(&error);
                 }))
-                .unwrap_or_else(|| panic!("{error}: an argument refusal is placed nowhere"));
+                .unwrap_or_else(|| {
+                    panic!(
+                        "{error_at}: an argument refusal is placed nowhere",
+                        error_at = error.render(geom_brep::recourse::Reading::Build)
+                    )
+                });
                 assert!(
                     message.contains("merge_group handed an operator a stale argument"),
                     "{message}"
@@ -4109,9 +4137,17 @@ mod tests {
             match OpPlacement::of(&error) {
                 OpPlacement::Contradicts(fact) => {
                     assert!(!fact.what().is_empty());
-                    assert!(escapes, "{error}");
+                    assert!(
+                        escapes,
+                        "{error_at}",
+                        error_at = error.render(geom_brep::recourse::Reading::Build)
+                    );
                 }
-                OpPlacement::Inventory => assert!(!escapes, "{error}"),
+                OpPlacement::Inventory => assert!(
+                    !escapes,
+                    "{error_at}",
+                    error_at = error.render(geom_brep::recourse::Reading::Build)
+                ),
             }
         }
     }
@@ -4191,7 +4227,8 @@ mod tests {
                     error: error.clone()
                 }
                 .is_arena_fault(),
-                "{error} contradicts a fact merge_group established, so it escapes"
+                "{error_at} contradicts a fact merge_group established, so it escapes",
+                error_at = error.render(geom_brep::recourse::Reading::Build)
             );
             assert!(matches!(
                 OpPlacement::of(&error),
@@ -4698,7 +4735,7 @@ mod tests {
     /// is asserted rather than left to a reader.
     #[test]
     fn the_refusals_render_their_recourse() {
-        let rendered = |e: &MergeCoplanarError| e.to_string();
+        let rendered = |e: &MergeCoplanarError| e.render(geom_brep::recourse::Reading::Build);
         assert!(
             rendered(&MergeCoplanarError::ResultNotClosed { errors: Vec::new() })
                 .contains("refused"),
@@ -5069,7 +5106,7 @@ mod winding_arm_tests {
                     diag,
                 },
             ) => {
-                let text = err.to_string();
+                let text = err.render(geom_brep::recourse::Reading::Build);
                 assert_eq!(test_utils::refusal::recourse_markers(&text), 1, "{text}");
                 assert!(
                     test_utils::refusal::subjectless_escalations(&text).is_empty()
@@ -5362,7 +5399,7 @@ mod winding_arm_tests {
             .body
             .merged_outline_ring(face, &survivor, tol)
             .expect_err("an outline whose winding is not built is not assigned");
-        assert_one_story(&err.to_string());
+        assert_one_story(&err.render(geom_brep::recourse::Reading::Build));
         assert_eq!(
             err,
             MergeCoplanarError::MergedFaceRoleAmbiguous {
@@ -5434,7 +5471,7 @@ mod winding_arm_tests {
                 vec![*diag],
                 "h {h:e}: the rejection is the one escalation on the log"
             );
-            let text = err.to_string();
+            let text = err.render(geom_brep::recourse::Reading::Build);
             assert_one_story(&text);
             assert!(
                 text.starts_with(
@@ -5498,7 +5535,7 @@ mod winding_arm_tests {
         let text = body
             .merged_outline_ring(face, &survivor, tol)
             .expect_err("two outlines are not one face's")
-            .to_string();
+            .render(geom_brep::recourse::Reading::Build);
         assert_one_story(&text);
         assert!(
             text.contains(&format!("{first:?}"))
@@ -5533,7 +5570,7 @@ mod winding_arm_tests {
             .body
             .merged_outline_ring(face, &survivor, tol)
             .expect_err("a face of holes has no outline");
-        let text = err.to_string();
+        let text = err.render(geom_brep::recourse::Reading::Build);
         assert_one_story(&text);
         assert!(!text.contains("tighten"), "{text}");
         assert_eq!(
@@ -5570,7 +5607,9 @@ mod winding_arm_tests {
                 decision: MergeDecision::LoopWinding,
                 diag,
             } if diag.margin.kind() == geom_core::MarginKind::Value
-        ) && err.to_string().contains("lies within the zero band")
+        ) && err
+            .render(geom_brep::recourse::Reading::Build)
+            .contains("lies within the zero band")
     }
 
     /// **With no loop positive, a zero winding is named before a loop
@@ -5599,8 +5638,12 @@ mod winding_arm_tests {
             .body
             .merged_outline_ring(face, &survivor, tol)
             .expect_err("no loop is positive");
-        assert_one_story(&err.to_string());
-        assert!(is_the_zero_story(&err), "{err:?}: {err}");
+        assert_one_story(&err.render(geom_brep::recourse::Reading::Build));
+        assert!(
+            is_the_zero_story(&err),
+            "{err:?}: {err_at}",
+            err_at = err.render(geom_brep::recourse::Reading::Build)
+        );
     }
 
     /// **An empty loop bounds no area, so it is not positive and names
@@ -5621,7 +5664,11 @@ mod winding_arm_tests {
         let err = body
             .merged_outline_ring(face, &survivor, tol)
             .expect_err("a zero outline is no outline");
-        assert!(is_the_zero_story(&err), "zero beside empty: {err:?}: {err}");
+        assert!(
+            is_the_zero_story(&err),
+            "zero beside empty: {err:?}: {err_at}",
+            err_at = err.render(geom_brep::recourse::Reading::Build)
+        );
         // A clockwise outline beside an empty ring.
         let t = tri(
             Point3::new(0.0, 0.0, 0.0),
@@ -5640,7 +5687,7 @@ mod winding_arm_tests {
         let err = body
             .merged_outline_ring(face, &survivor, tol)
             .expect_err("a face of holes has no outline");
-        assert_one_story(&err.to_string());
+        assert_one_story(&err.render(geom_brep::recourse::Reading::Build));
         assert_eq!(
             err,
             MergeCoplanarError::MergedFaceRoleAmbiguous {

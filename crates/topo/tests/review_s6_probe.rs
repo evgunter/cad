@@ -58,7 +58,7 @@ fn probe_boolean_coincidence_pair_e2e() {
     );
     let err = boolean_reduce(BooleanOp::Union, &a, &b, Tol::witness())
         .expect_err("in-band gap must escalate");
-    let msg = err.to_string();
+    let msg = err.render(geom_brep::recourse::Reading::Build);
     eprintln!("[probe] boolean in-band:\n  {msg}\n");
     // The sweep asks a corner's side of the other brick's face before
     // any declaration is read, so its refusal names the geometry and
@@ -104,7 +104,7 @@ fn probe_census_pair_e2e() {
     let eps = geom_core::Tol::witness().get().eps;
     for delta in [0.0, 3.0 * eps] {
         for e in scenario(delta) {
-            let msg = e.to_string();
+            let msg = e.render(geom_brep::recourse::Reading::AtRest);
             match e {
                 ValidationError::UnrecordedContact { .. } => {
                     saw_contact = true;

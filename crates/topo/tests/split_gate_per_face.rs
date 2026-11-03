@@ -103,8 +103,13 @@ fn an_unarmed_face_refuses_only_where_the_plane_may_meet_it() {
     for surface in unarmed_tops() {
         let kind = surface.kind();
         let (body, top) = cube_topped(surface);
-        let reduced = split_reduce_unfinished(&body, &level(0.5), Tol::witness())
-            .unwrap_or_else(|e| panic!("{kind:?}: a plane clear of the face reduces: {e}"));
+        let reduced =
+            split_reduce_unfinished(&body, &level(0.5), Tol::witness()).unwrap_or_else(|e| {
+                panic!(
+                    "{kind:?}: a plane clear of the face reduces: {e_at}",
+                    e_at = e.render(geom_brep::recourse::Reading::Build)
+                )
+            });
         assert_eq!(
             reduced.on_vertices.len(),
             4,
@@ -117,7 +122,7 @@ fn an_unarmed_face_refuses_only_where_the_plane_may_meet_it() {
                     (top, kind),
                     "{kind:?}: the refusal names the face"
                 );
-                let msg = e.to_string();
+                let msg = e.render(geom_brep::recourse::Reading::Build);
                 assert!(
                     msg.contains("may meet")
                         && msg.contains(

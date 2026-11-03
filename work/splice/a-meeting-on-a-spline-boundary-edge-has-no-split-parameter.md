@@ -2,11 +2,12 @@
 id: a-meeting-on-a-spline-boundary-edge-has-no-split-parameter
 kind: issue
 title: A meeting the boundary pass finds on a spline boundary edge refuses PointSplitCarrierUnsupported: the split asks param_near for a parameter the meeting already holds
-status: open
+status: dispatched
 opened: 2026-10-26
 priority: P0
 cost: M
 refs: [a-span-is-read-against-a-faces-boundary-edges-first, an-analytic-edge-against-a-nurbs-face-has-no-crossing-lane]
+branch: splice/split-parameter
 ---
 
 

@@ -247,7 +247,7 @@ mod tests {
         let found = || "complex(CONVERSION_BASED_UNIT LENGTH_UNIT NAMED_UNIT)".to_owned();
         let mismatch = conversion_kind(7, "LENGTH_UNIT", 1.0, UnitKind::Angle(1.0), found)
             .unwrap_err()
-            .to_string();
+            .render();
         assert!(mismatch.contains("declared as LENGTH_UNIT"), "{mismatch}");
         assert!(mismatch.contains("a plane angle"), "{mismatch}");
         for bad in [0.0, -25.4, f64::NAN, f64::INFINITY] {

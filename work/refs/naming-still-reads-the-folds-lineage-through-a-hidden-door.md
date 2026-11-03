@@ -2,8 +2,10 @@
 id: naming-still-reads-the-folds-lineage-through-a-hidden-door
 kind: issue
 title: The union's naming still reads the fold's lineage (doc-hidden topo::MemberLineage, NaryStep::lineage); once it reads Holdings the lineage goes crate-private
-status: open
+status: closed
 opened: 2026-11-02
+closed: 2026-11-03
+pr: 6381
 ---
 
 
@@ -35,3 +37,11 @@ first two with `NaryStep::holdings` (faces) and `Holdings::lost`
 (obstacles, by discard row). Then `MemberLineage` and
 `NaryStep::lineage` become `pub(crate)`, and the sweep row moves inside
 topo or reads the given pairs' rows instead.
+
+## Closed (2026-11-03, PR 6381)
+
+The naming reads `Holdings`: a union's faces from the last step's
+`NaryStep::holdings`, and every step's obstacles from
+`Holdings::lost` by discard row (`emit_union`'s `Fold`). `MemberLineage`
+is `pub(crate)` in topo and `NaryStep` carries no lineage; the sweep row
+reads the step's holdings instead.

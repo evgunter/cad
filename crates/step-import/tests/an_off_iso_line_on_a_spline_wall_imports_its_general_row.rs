@@ -178,7 +178,7 @@ fn tetra_step() -> String {
 fn the_tetrahedron_imports_and_its_diagonal_takes_a_general_row() {
     let StepImport::Solid { body, .. } =
         import_step(&tetra_step(), &ImportOptions::default(), Tol::witness())
-            .unwrap_or_else(|e| panic!("the tetrahedron imports: {e}"))
+            .unwrap_or_else(|e| panic!("the tetrahedron imports: {e_at}", e_at = e.render()))
     else {
         panic!("the tetrahedron is a solid")
     };

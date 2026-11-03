@@ -1262,7 +1262,7 @@ fn describe_join(ev: &Evaluation<f64>, node: RecipeNodeId) -> String {
             kind.name(),
             other_kind.name()
         ),
-        Err(other) => format!("{other}"),
+        Err(other) => other.render(pncad::geom_brep::recourse::Reading::Build),
     }
 }
 

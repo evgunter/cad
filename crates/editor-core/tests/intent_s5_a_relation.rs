@@ -43,7 +43,7 @@ fn slab(seed: &str) -> (ProfileDoc, editor_core::VarId) {
     (doc, measured.outputs[0])
 }
 
-fn assert_on(
+pub(crate) fn assert_on(
     doc: ProfileDoc,
     value: Formula,
     relation: AssertionRelation,
@@ -144,7 +144,7 @@ fn the_relation_is_the_wire_field_and_dir_refuses() {
 
 /// A document declaring toleranced lengths at `values`, each normal
 /// with a small sigma, so the analysis box varies them.
-fn toleranced(seed: &str, values: &[(&'static str, f64)]) -> ProfileDoc {
+pub(crate) fn toleranced(seed: &str, values: &[(&'static str, f64)]) -> ProfileDoc {
     values.iter().fold(
         ProfileDoc::empty_derived(seed, Tol::witness()),
         |doc, &(name, value)| {
@@ -185,8 +185,10 @@ fn over_the_box(
         assertion,
         &ParamBox::of(&analyzed),
         symbolic,
+        &editor_core::Stop::default(),
         Tol::witness(),
     )
+    .expect("the replay is not stopped")
     .expect("an assertion has a verdict over the box")
 }
 
@@ -246,6 +248,7 @@ fn equal_over_a_box_holds_only_on_a_structural_zero() {
                 max_leaves: 16,
                 ..DriveConfig::default()
             },
+            &editor_core::Stop::default(),
             Tol::witness(),
         )
         .expect("the witness builds")
