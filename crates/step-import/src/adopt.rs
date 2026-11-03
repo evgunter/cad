@@ -573,6 +573,7 @@ fn adopt_edges(
                         | Surface::Cone { .. }
                         | Surface::Sphere { .. }
                         | Surface::Torus { .. }
+                        | Surface::Spindle { .. }
                 )
             });
             // A wrap edge is a fact about one face: both its uses bound
