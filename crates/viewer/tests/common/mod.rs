@@ -533,27 +533,16 @@ pub fn xy_box_in(session: &mut DocSession, size: [f64; 3]) -> RecipeNodeId {
 }
 
 /// **The plane a split row cuts `body` along**: the plane `by` metres
-/// up `axis` from the start cap of the extrude `body` is built from,
-/// which is the plane square to `axis` at `by` in that extrude's
-/// coordinates. A plane read as a caller writes one
+/// up from the start cap of the extrude `body` is built from, which is
+/// the plane square to `z` at `by` in that extrude's coordinates. A plane read as a caller writes one
 /// ([`viewer::session::SplitPlane::Read`]): the cap's plane slid into
 /// the body along its normal ([`plane_inside`]).
-///
-/// # Panics
-///
-/// Unless `axis` is `z`, the one an extrude's start cap is square to.
 pub fn cut_across(
     session: &DocSession,
     body: impl Into<pncad::document::Operand>,
-    axis: pncad::document::TargetAxis,
     by: f64,
 ) -> viewer::session::SplitPlane {
     use pncad::document::{Node, Operand};
-    assert_eq!(
-        axis,
-        pncad::document::TargetAxis::Z,
-        "an extrude's start cap is square to its z"
-    );
     let mut on = body.into();
     let doc = session.committed_doc();
     // The extrude the body's start cap was made by: the body's own, or

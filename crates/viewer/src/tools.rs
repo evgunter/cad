@@ -40,8 +40,8 @@ use pncad::select::SplitHalf;
 
 use crate::blend::{BlendEvent, BlendTool};
 use crate::combine::{
-    BooleanTool, ClearanceEvent, ClearanceTool, DuplicateTool, MirrorEvent, MirrorTool, PartTool,
-    PatternTool, SplitEvent, SplitTool, TransformTool,
+    BooleanTool, ClearanceEvent, ClearanceTool, DuplicateTool, MirrorTool, PartTool, PatternTool,
+    PlaneEvent, SplitTool, TransformTool,
 };
 use crate::matetool::{MateTool, MateToolEvent};
 use crate::pickcache::NotIndexed;
@@ -315,9 +315,9 @@ pub enum ToolNotice {
     Blend(BlendEvent),
     /// The mirror tool lost its plane — a face, which survives by
     /// resolving rather than by seat.
-    Mirror(MirrorEvent),
+    Mirror(PlaneEvent),
     /// The split tool lost its plane, a face or a variable.
-    Split(SplitEvent),
+    Split(PlaneEvent),
     /// The clearance tool lost a face seat.
     Clearance(ClearanceEvent),
     /// A seated tool lost a pick.

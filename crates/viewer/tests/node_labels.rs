@@ -478,7 +478,7 @@ fn every_creation_labelled_is_one_undo_whatever_door_commits_it() {
         },
         "overlap",
     );
-    let plane = common::cut_across(&session, block, pncad::document::TargetAxis::Z, 0.01);
+    let plane = common::cut_across(&session, block, 0.01);
     run(
         &mut session,
         SessionOp::AddSplit {

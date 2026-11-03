@@ -21,8 +21,8 @@ The placement editor's value rows edit a value as text: the field
 shows `matetool::value_text` (`Doc::unparse`) and a typed edit is
 `matetool::typed_value` (`parse_formula` over `Doc::var_scope`). A
 row's value reads the index, `scalar(k) * 20 mm`.
-`editor_core::expr::unparse` writes a reader of an unnamed variable as
-`#<16 hex>`, "which the parser refuses", and `Doc::written` expands only
+`editor_core::expr::unparse` writes a reader of an unnamed variable by
+its full id, `#<ordinal>:<hex>`, which the parser refuses, and `Doc::written` expands only
 free and defined anonymous variables, never an index. So with the index
 anonymous the slide row of a row pattern reads
 `scalar(#…) * 20 mm`, re-entering that text is refused, and no text

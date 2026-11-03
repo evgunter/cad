@@ -2202,10 +2202,13 @@ pub fn tool_notice(
             | MateToolEvent::HalfUnchosen { .. }
             | MateToolEvent::PatternFamily { .. },
         ) => Retold::Never,
-        ToolNotice::Mirror(crate::combine::MirrorEvent::PlaneLost { .. })
+        ToolNotice::Mirror(
+            crate::combine::PlaneEvent::PlaneLost { .. }
+            | crate::combine::PlaneEvent::DefinedLost { .. },
+        )
         | ToolNotice::Split(
-            crate::combine::SplitEvent::PlaneLost { .. }
-            | crate::combine::SplitEvent::DefinedLost { .. },
+            crate::combine::PlaneEvent::PlaneLost { .. }
+            | crate::combine::PlaneEvent::DefinedLost { .. },
         ) => Retold::Never,
         ToolNotice::Clearance(crate::combine::ClearanceEvent::FaceLost { .. }) => Retold::Never,
         // A declined pick: the same pick says it again.

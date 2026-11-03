@@ -1286,8 +1286,8 @@ impl ViewerBehavior<'_> {
     /// The pattern tool's panel: a body pick, the rule and output
     /// choices, and the one committed edit, which writes the defaults
     /// the code owns ([`crate::combine::PatternTool`]): a row along the
-    /// target's `x` spaced so the copies clear the body
-    /// ([`crate::session::DocSession::clearing_step`]), or a ring about
+    /// target's `x` spaced, rounded up, so the copies clear the body
+    /// ([`crate::combine::row_spacing`]), or a ring about
     /// its `z`. Each value is then a row of the pattern.
     ///
     /// The output row is what fuses a pattern into the part: `fused`
@@ -1323,12 +1323,12 @@ impl ViewerBehavior<'_> {
             .pattern_kind
         {
             PatternLayoutChoice::Linear => {
-                let spacing = session.clearing_step(&tool.read()?)?;
+                let clears = session.clearing_step(&tool.read()?)?;
                 Ok(tool.linear_op(
                     drafts.pattern_output,
                     crate::combine::PATTERN_COUNT,
-                    crate::session::PatternDirection::Axis(crate::combine::ROW_ALONG),
-                    notation.length_literal(spacing)?,
+                    crate::session::PatternDirection::Axis(crate::combine::STEP_ALONG),
+                    crate::combine::row_spacing(clears, notation.length)?,
                 )?)
             }
             PatternLayoutChoice::Circular => Ok(tool.circular_op(

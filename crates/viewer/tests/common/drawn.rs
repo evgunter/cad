@@ -158,12 +158,7 @@ pub fn split_box(size: [f64; 3], tol: Tol) -> (DocSession, RecipeNodeId, RecipeN
     let mut session = super::inline_without_door(Doc::empty_derived("split-halves", tol), tol);
     let body = super::xy_box_in(&mut session, size);
     session.pump();
-    let plane = super::cut_across(
-        &session,
-        body,
-        pncad::document::TargetAxis::Z,
-        size[2] / 2.0,
-    );
+    let plane = super::cut_across(&session, body, size[2] / 2.0);
     let split = super::session_insert(
         &mut session,
         viewer::session::SessionOp::AddSplit {

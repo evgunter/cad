@@ -69,7 +69,7 @@ fn pattern_op(input: RecipeNodeId, fused: bool) -> SessionOp {
 fn a_split_and_a_pattern_of_a_fresh_box_leave_every_drawn_body_pickable() {
     let tol = Tol::witness();
     let (mut session, body) = fresh_box(tol);
-    let plane = common::cut_across(&session, body, pncad::document::TargetAxis::Z, BOX[2] / 2.0);
+    let plane = common::cut_across(&session, body, BOX[2] / 2.0);
     let split = common::session_insert(
         &mut session,
         SessionOp::AddSplit {

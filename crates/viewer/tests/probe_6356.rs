@@ -46,7 +46,7 @@ fn p2_transform_on_a_whole_split() {
     let tol = Tol::witness();
     let mut session = session(tol);
     let body = common::xy_box_in(&mut session, A);
-    let plane = common::cut_across(&session, body, pncad::document::TargetAxis::Z, A[2] / 2.0);
+    let plane = common::cut_across(&session, body, A[2] / 2.0);
     let split = session_insert(
         &mut session,
         SessionOp::AddSplit {

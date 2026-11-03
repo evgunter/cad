@@ -12303,15 +12303,8 @@ mod properties_pane_tests {
                     .expect("an index")
                     .formula
             };
-            assert_eq!(
-                count(&driven),
-                crate::combine::PATTERN_COUNT.to_string(),
-                "the default count"
-            );
-            assert_eq!(
-                members(&driven, row),
-                usize::try_from(crate::combine::PATTERN_COUNT).expect("a small count")
-            );
+            assert_eq!(count(&driven), "4", "the default count");
+            assert_eq!(members(&driven, row), 4);
             let Recognised::Linear { steps, .. } = recognised(&driven, row) else {
                 panic!("a row")
             };
@@ -12319,9 +12312,11 @@ mod properties_pane_tests {
                 panic!("one step along the target's x: {steps:?}")
             };
             let spacing = step.literal_value().expect("a written spacing");
+            let rounded = crate::combine::row_spacing(clears, driven.app.session.notation().length)
+                .expect("a finite step");
             assert!(
-                (spacing - clears).abs() <= 1e-12 * clears,
-                "spaced so the copies clear: {spacing} against {clears}"
+                spacing >= clears && rounded.literal_value() == Some(spacing),
+                "spaced so the copies clear, at a round figure: {spacing} against {clears}"
             );
 
             driven.select(Selection::Node(row));
@@ -12382,9 +12377,10 @@ mod properties_pane_tests {
                 panic!("a ring")
             };
             assert!(
-                (step.literal_value().expect("a written step") - crate::combine::RING_STEP).abs()
+                (step.literal_value().expect("a written step") - core::f64::consts::FRAC_PI_2)
+                    .abs()
                     < 1e-12,
-                "the default step: {step:?}"
+                "the default step is a quarter turn: {step:?}"
             );
             let placement_spins_z = |driven: &Driven| {
                 let doc = driven.app.session.committed_doc();

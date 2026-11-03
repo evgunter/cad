@@ -569,7 +569,7 @@ fn the_split_door_takes_a_body_and_a_plane_in_its_space() {
     );
     let refused = session.perform(SessionOp::AddSplit {
         target: profile.into(),
-        plane: common::cut_across(&session, profile, pncad::document::TargetAxis::Z, cut),
+        plane: common::cut_across(&session, profile, cut),
     });
     assert!(
         matches!(
@@ -585,7 +585,7 @@ fn the_split_door_takes_a_body_and_a_plane_in_its_space() {
     let states = session.history().len();
     let refused = session.perform(SessionOp::AddSplit {
         target: body.into(),
-        plane: common::cut_across(&session, other, pncad::document::TargetAxis::Z, cut),
+        plane: common::cut_across(&session, other, cut),
     });
     assert!(
         matches!(
@@ -597,7 +597,7 @@ fn the_split_door_takes_a_body_and_a_plane_in_its_space() {
     );
     assert_eq!(session.history().len(), states, "a refusal records nothing");
 
-    let plane = common::cut_across(&session, body, pncad::document::TargetAxis::Z, cut);
+    let plane = common::cut_across(&session, body, cut);
     let split = session_insert(
         &mut session,
         SessionOp::AddSplit {
@@ -624,12 +624,6 @@ const L_FOOTPRINT: [(f64, f64); 6] = [
 ];
 /// Its height.
 const L_HEIGHT: f64 = 0.01;
-
-/// A split's two sides' volumes, the smaller first.
-fn split_sides(session: &mut DocSession, split: RecipeNodeId, tol: Tol) -> [f64; 2] {
-    let (up, down) = split_volumes(session, split, tol);
-    [up.min(down), up.max(down)]
-}
 
 /// **The split tool cuts along a picked face's plane, and its plane
 /// re-picks** (`crates/viewer/README.md`, "The seated tools whose values
@@ -685,10 +679,12 @@ fn the_split_tool_cuts_along_a_picked_face_and_its_plane_re_picks() {
     let op = tool.op().expect("a target and a plane are held");
     assert!(tools.commits_open_tool(&op), "the split is the tool's edit");
     let split = session_insert(&mut session, op);
-    let sides = split_sides(&mut session, split, tol);
+    // The face's plane faces out of the face: `above` (its port,
+    // `SplitHalf::Above`) is the side the wall faces, the standing leg.
+    let (above, below) = split_volumes(&mut session, split, tol);
     assert!(
-        near(sides[0], leg) && near(sides[1], 4.0 * leg),
-        "the cut is the inner wall at y = 10 mm: {sides:?}"
+        near(above, leg) && near(below, 4.0 * leg),
+        "the cut is the inner wall at y = 10 mm, above it the standing leg: {above} / {below}"
     );
 
     // Re-picked before commit: the next face pick is the plane, and the
@@ -714,10 +710,76 @@ fn the_split_tool_cuts_along_a_picked_face_and_its_plane_re_picks() {
         tol,
     );
     let mut session = DocSession::inline(doc, tol);
-    let sides = split_sides(&mut session, split, tol);
+    let (above, below) = split_volumes(&mut session, split, tol);
     assert!(
-        near(sides[0], 2.0 * leg) && near(sides[1], 3.0 * leg),
-        "the re-picked cut is the inner wall at x = 10 mm: {sides:?}"
+        near(above, 3.0 * leg) && near(below, 2.0 * leg),
+        "the re-picked cut is the inner wall at x = 10 mm, above it the long leg's end: \
+         {above} / {below}"
+    );
+}
+
+/// **A row's default spacing is the clearing step rounded up to a round
+/// figure in the working unit** (`combine::row_spacing`): at least the
+/// step, so the copies still clear, and one significant figure in the
+/// unit the person works in, as a blend's default size is.
+///
+/// Red if the spacing is written as the raw measure, rounded down, or
+/// rounded in another unit than the working one.
+#[test]
+fn a_rows_default_spacing_is_its_clearing_step_rounded_up() {
+    use pncad::quantity::{CM, IN, M, MM};
+    let doc = Doc::<ProfileProgram>::empty_derived("row-spacing", Tol::witness());
+    let at = |clears: f64, unit| {
+        doc.unparse(&viewer::combine::row_spacing(clears, unit).expect("a finite step"))
+    };
+    let clears = 0.051_790_071_130_842_12;
+    assert_eq!(
+        [
+            at(clears, MM),
+            at(clears, CM),
+            at(clears, M),
+            at(clears, IN)
+        ],
+        ["60 mm", "6 cm", "0.06 m", "3 in"],
+        "rounded up, at one significant figure in the working unit"
+    );
+    assert_eq!(at(0.05, MM), "50 mm", "a round step stays as it is");
+}
+
+/// **A split half splits** (`work/doors/a-split-half-cannot-be-split.md`):
+/// the block split at half its height, its lower half split again at a
+/// quarter, each side of the second split a quarter of the block. The
+/// plane is the block's start cap slid up, which the half, in the
+/// block's space, is cut along.
+///
+/// Red if a split refuses a half for a target, or reads the whole
+/// split's value where the seat names one half.
+#[test]
+fn a_split_half_splits() {
+    let tol = Tol::witness();
+    let mut session = session(tol);
+    let body = common::xy_box_in(&mut session, A);
+    let plane = common::cut_across(&session, body, A[2] / 2.0);
+    let split = session_insert(
+        &mut session,
+        SessionOp::AddSplit {
+            target: body.into(),
+            plane,
+        },
+    );
+    let plane = common::cut_across(&session, body, A[2] / 4.0);
+    let again = session_insert(
+        &mut session,
+        SessionOp::AddSplit {
+            target: Operand::output(split, SplitHalf::Below.port()),
+            plane,
+        },
+    );
+    let quarter = A.iter().product::<f64>() / 4.0;
+    let (above, below) = split_volumes(&mut session, again, tol);
+    assert!(
+        near(above, quarter) && near(below, quarter),
+        "the lower half cut in two quarters: {above} / {below}"
     );
 }
 
@@ -731,7 +793,7 @@ fn several_bodies_are_not_one_body_at_a_seat() {
     let tol = Tol::witness();
     let mut session = session(tol);
     let body = common::xy_box_in(&mut session, A);
-    let plane = common::cut_across(&session, body, pncad::document::TargetAxis::Z, 0.004);
+    let plane = common::cut_across(&session, body, 0.004);
     let split = session_insert(
         &mut session,
         SessionOp::AddSplit {
@@ -752,7 +814,7 @@ fn several_bodies_are_not_one_body_at_a_seat() {
             },
             SessionOp::AddSplit {
                 target: wrong.into(),
-                plane: common::cut_across(&session, wrong, pncad::document::TargetAxis::Z, 0.004),
+                plane: common::cut_across(&session, wrong, 0.004),
             },
         ] {
             let refused = session.perform(op);
@@ -954,7 +1016,7 @@ fn the_transform_tool_refuses_what_is_no_body_and_asks_a_split_for_its_half() {
     let tol = Tol::witness();
     let mut session = session(tol);
     let (profile, body) = common::box_in(&mut session, A);
-    let plane = common::cut_across(&session, body, pncad::document::TargetAxis::Z, A[2] / 2.0);
+    let plane = common::cut_across(&session, body, A[2] / 2.0);
     let split = session_insert(
         &mut session,
         SessionOp::AddSplit {
@@ -2060,7 +2122,7 @@ fn a_refusal_at_any_body_seated_door_leaves_no_history_state() {
         },
         SessionOp::AddSplit {
             target: body.into(),
-            plane: common::cut_across(&session, body, pncad::document::TargetAxis::Z, 0.0),
+            plane: common::cut_across(&session, body, 0.0),
         },
         SessionOp::Place {
             body: body.into(),
@@ -2118,7 +2180,7 @@ fn a_refusal_at_any_body_seated_door_leaves_no_history_state() {
         },
         SessionOp::AddSplit {
             target: plane.into(),
-            plane: common::cut_across(&session, plane, pncad::document::TargetAxis::Z, 0.0),
+            plane: common::cut_across(&session, plane, 0.0),
         },
         SessionOp::Place {
             body: plane.into(),
@@ -2479,7 +2541,7 @@ fn every_seats_wanted_kind_is_the_one_its_door_refuses_by() {
     // The two multi-body values the part selectors read. Each is a
     // legal node of SOME kind, so what the part seats refuse is the
     // kind and never the absence — and each is the OTHER's near miss.
-    let plane = common::cut_across(&session, body, pncad::document::TargetAxis::Z, 0.005);
+    let plane = common::cut_across(&session, body, 0.005);
     let split = session_insert(
         &mut session,
         SessionOp::AddSplit {
@@ -2535,12 +2597,7 @@ fn every_seats_wanted_kind_is_the_one_its_door_refuses_by() {
             },
             Seat::SplitTarget => SessionOp::AddSplit {
                 target: filled(Seat::SplitTarget).into(),
-                plane: common::cut_across(
-                    &session,
-                    filled(Seat::SplitTarget),
-                    pncad::document::TargetAxis::Z,
-                    0.005,
-                ),
+                plane: common::cut_across(&session, filled(Seat::SplitTarget), 0.005),
             },
             Seat::PartInstance => SessionOp::AddPart {
                 of: filled(Seat::PartInstance),
@@ -3257,7 +3314,7 @@ fn a_split_half_is_read_by_its_port_at_a_body_seat() {
     let tol = Tol::witness();
     let mut session = session(tol);
     let body = common::xy_box_in(&mut session, A);
-    let plane = common::cut_across(&session, body, pncad::document::TargetAxis::Z, A[2] / 4.0);
+    let plane = common::cut_across(&session, body, A[2] / 4.0);
     let split = session_insert(
         &mut session,
         SessionOp::AddSplit {
@@ -3340,7 +3397,7 @@ fn a_part_indexes_a_patterns_instances_by_an_exact_count() {
 fn the_part_door_refuses_a_split() {
     let tol = Tol::witness();
     let (mut session, body, _) = box_and_pattern(tol);
-    let plane = common::cut_across(&session, body, pncad::document::TargetAxis::Z, A[2] / 4.0);
+    let plane = common::cut_across(&session, body, A[2] / 4.0);
     let split = session_insert(
         &mut session,
         SessionOp::AddSplit {
@@ -3678,6 +3735,19 @@ fn a_duplicates_copy_moves_on_its_own() {
         "the copy stands at {:?}: stepped {step} along x, lifted along y",
         at.translation
     );
+    // And its evaluated geometry moved with it, the stand-in's did not:
+    // the moved copy is drawn over the stand-in's box, carried by the
+    // step along `x` and the lift along `y`.
+    let (lo, hi) = common::drawn::extent(&mut session, stand_in);
+    let carried = |p: [f64; 3]| [p[0] + step, p[1] + A[1] * 3.0, p[2]];
+    common::drawn::assert_drawn(
+        &mut session,
+        placed,
+        carried(lo),
+        carried(hi),
+        A.iter().product(),
+        "the moved copy",
+    );
 }
 
 /// **The part seats track the part door**, in both directions, over
@@ -3696,7 +3766,7 @@ fn the_part_seats_track_the_part_door() {
     let tol = Tol::witness();
     let mut session = session(tol);
     let body = common::xy_box_in(&mut session, A);
-    let plane = common::cut_across(&session, body, pncad::document::TargetAxis::Z, A[2] / 4.0);
+    let plane = common::cut_across(&session, body, A[2] / 4.0);
     let split = session_insert(
         &mut session,
         SessionOp::AddSplit {
@@ -3784,7 +3854,7 @@ fn a_body_seat_reads_a_split_half_by_its_port() {
     let tol = Tol::witness();
     let mut session = session(tol);
     let body = common::xy_box_in(&mut session, B);
-    let plane = common::cut_across(&session, body, pncad::document::TargetAxis::Z, B[2] / 4.0);
+    let plane = common::cut_across(&session, body, B[2] / 4.0);
     let split = session_insert(
         &mut session,
         SessionOp::AddSplit {
@@ -4254,7 +4324,7 @@ fn a_body_seat_takes_a_split_half_clicked_in_the_viewport() {
     let tol = Tol::witness();
     let mut session = session(tol);
     let body = common::xy_box_in(&mut session, A);
-    let plane = common::cut_across(&session, body, pncad::document::TargetAxis::Z, A[2] / 2.0);
+    let plane = common::cut_across(&session, body, A[2] / 2.0);
     let split = session_insert(
         &mut session,
         SessionOp::AddSplit {
@@ -4411,7 +4481,7 @@ fn the_boolean_tools_picks_carry_their_ports_across_the_operation() {
     let tol = Tol::witness();
     let mut session = session(tol);
     let body = common::xy_box_in(&mut session, B);
-    let plane = common::cut_across(&session, body, pncad::document::TargetAxis::Z, B[2] / 4.0);
+    let plane = common::cut_across(&session, body, B[2] / 4.0);
     let split = session_insert(
         &mut session,
         SessionOp::AddSplit {

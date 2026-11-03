@@ -743,7 +743,7 @@ answered at the field, which is the only place a two-valued marker
 could not have said it. **The sweep behind that list**, and it is a
 reading of four `fmt` bodies rather than a grep: in each of the four
 walks — `Derived`, `LandedRun` and `DocSession` in `session`,
-`PickCache` in `pickcache` — read every `.field(…)` call, **29 of
+`PickCache` in `pickcache` — read every `.field(…)` call, **30 of
 them**, and take the ones whose value argument is not the destructured
 binding itself. **Ten calls, eight fields**: `checks` and `index`
 each spend two arms, and the absent arm renders `None`, which is the
@@ -2118,8 +2118,9 @@ of the node they insert, or a pick.
 - **Split.** The form asks for the target and the plane it is cut
   along (`combine::SplitTool`), and the button is withheld, naming the
   missing pick, until both are held. The plane is a face pick, read as
-  its plane on the body it was picked on (`matetool::plane_of`), as the
-  mirror reads its own; the first face pick seats the target too, a
+  its plane on the body it was picked on (`matetool::plane_of`), and
+  held as the mirror holds its own (`combine::PlaneSeats`, one value
+  for both tools); the first face pick seats the target too, a
   later one re-picks the plane, and a tree pick re-picks the target. A
   `Plane` variable, or a `Frame` read through its `xy`, is picked as the
   plane by selecting its row. `SessionOp::AddSplit` takes the plane as
@@ -2132,10 +2133,12 @@ of the node they insert, or a pick.
 - **Pattern.** The form asks for the body, the rule (linear or
   circular) and the output (instances or fused). The insert writes the
   defaults the code owns (`combine::PATTERN_COUNT` and the rest beside
-  it): `4` copies; a row along the target's `x` (`combine::ROW_ALONG`)
-  spaced by the duplicate's clearing step
-  (`DocSession::clearing_step`, `combine::duplicate_step`), so the
-  copies clear the body; a ring about the target's `z`
+  it): `4` copies; a row along the target's `x` (`combine::STEP_ALONG`,
+  the axis a duplicate steps along) spaced by the duplicate's clearing
+  step (`DocSession::clearing_step`, `combine::duplicate_step`) rounded
+  up to one significant figure in the working unit
+  (`combine::row_spacing`), so the copies clear the body; a ring about
+  the target's `z`
   (`combine::RING_ABOUT`) stepped a quarter turn (`combine::RING_STEP`).
   The count is the index's count row. The spacing and the step are the
   placement editor's slide and spin value rows on the pattern's

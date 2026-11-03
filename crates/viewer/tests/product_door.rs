@@ -478,7 +478,7 @@ fn a_copy_something_reads_is_placed_rather_than_moved() {
 fn a_split_needs_the_half_a_pick_names() {
     let tol = Tol::witness();
     let (mut session, body) = fresh_box(tol);
-    let plane = common::cut_across(&session, body, pncad::document::TargetAxis::Z, BOX[2] / 2.0);
+    let plane = common::cut_across(&session, body, BOX[2] / 2.0);
     let split = common::session_insert(
         &mut session,
         SessionOp::AddSplit {
