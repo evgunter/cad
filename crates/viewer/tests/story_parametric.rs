@@ -34,7 +34,7 @@ use viewer::session::BooleanSpec;
 
 use core::f64::consts::PI;
 
-use common::{body_volume, len, near, session_insert, shape};
+use common::{body_volume, circle_at, len, near, session_insert};
 use pncad::document::{
     Dimension, Doc, DocEdit, EditError, FreeVar, ProfileProgram, RecipeNodeId, SlotId, StepArg,
     VarName,
@@ -43,7 +43,7 @@ use pncad::geom_core::Tol;
 use pncad::prelude::MM;
 use viewer::bounds::BoundsProbe;
 use viewer::props::{self, SlotDriver, SlotValue, in_written, rendering_unit};
-use viewer::session::{BoundsTarget, DocSession, ProfileShape, Refusal, SessionOp};
+use viewer::session::{BoundsTarget, DocSession, Refusal, SessionOp};
 use viewer::tree::RowStatus;
 
 /// The lighthouse's proportions, as the variables are first declared:
@@ -158,8 +158,7 @@ fn spoken(doc: &Doc<ProfileProgram>, name: &VarName) -> pncad::document::SpokenV
 /// extruded up by a literal the caller may re-drive afterwards.
 ///
 /// Stacked extruded drums rather than one revolved silhouette: this
-/// scene predates `ProfileShape`'s `Path` arm, which can now spell
-/// one.
+/// scene predates the path verbs, which can now spell one.
 fn drum(
     session: &mut DocSession,
     radius_expr: &str,
@@ -168,12 +167,9 @@ fn drum(
     let profile = session_insert(
         session,
         SessionOp::AddProfile {
-            loops: vec![shape(&ProfileShape::Circle {
-                // A positive placeholder; the expression takes over
-                // before anything downstream consumes it.
-                centre: [0.0, 0.0],
-                radius: 0.01,
-            })],
+            // A positive placeholder radius; the expression takes
+            // over before anything downstream consumes it.
+            loops: vec![circle_at([0.0, 0.0], 0.01)],
         },
     );
     let radius = radius_slot(session.committed_doc(), profile);

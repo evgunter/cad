@@ -10,8 +10,8 @@
 //! crown is square: the scene predates the join arm that lets a slab
 //! cut through a cylinder WALL, whose round-crown cut is `editor-core`'s
 //! `reach_slab_cut_sector_side` row. Stacked discs stand in for the revolved
-//! silhouette a rook naturally is: this scene predates
-//! `ProfileShape`'s `Path` arm, which can now spell one.) On the way
+//! silhouette a rook naturally is: this scene predates the path
+//! verbs, which can now spell one.) On the way
 //! the user tries to crown the rook with a circular pattern and learns
 //! instances are not a body,
 //! fuses the same rule into ONE body and unions THAT onto the crown,
@@ -40,12 +40,12 @@ use viewer::session::BooleanSpec;
 
 use core::f64::consts::{FRAC_PI_2, PI};
 
-use common::{ang, body_volume, len, near, session_insert, shape};
+use common::{ang, body_volume, circle_at, len, near, session_insert};
 use pncad::document::{Doc, DocEdit, RecipeNodeId, SlotId};
 use pncad::geom_core::Tol;
 use pncad::prelude::ValuePayload;
 use viewer::props::SlotValue;
-use viewer::session::{DocSession, PatternRuleSpec, ProfileShape, Refusal, SessionOp};
+use viewer::session::{DocSession, PatternRuleSpec, Refusal, SessionOp};
 use viewer::tree::RowStatus;
 
 // --- the rook's dimensions (metres) --------------------------------
@@ -147,10 +147,7 @@ fn circle(session: &mut DocSession, radius: f64) -> RecipeNodeId {
     session_insert(
         session,
         SessionOp::AddProfile {
-            loops: vec![shape(&ProfileShape::Circle {
-                centre: [0.0, 0.0],
-                radius,
-            })],
+            loops: vec![circle_at([0.0, 0.0], radius)],
         },
     )
 }
@@ -347,11 +344,11 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
     let block_profile = session_insert(
         &mut session,
         SessionOp::AddProfile {
-            loops: vec![shape(&ProfileShape::Rectangle {
-                centre: [MERLON_OFF, MERLON_OFF],
-                width: MERLON_S,
-                height: MERLON_S,
-            })],
+            loops: vec![common::rectangle_at(
+                [MERLON_OFF, MERLON_OFF],
+                MERLON_S,
+                MERLON_S,
+            )],
         },
     );
     let block = session_insert(

@@ -25,7 +25,7 @@ use viewer::display::DisplayView;
 use viewer::input::ViewportSize;
 use viewer::matetool::{MateChoice, MateToolError};
 use viewer::pickindex::{PickIndex, PickKinds, PickedKind};
-use viewer::session::{DocSession, Hovered, ProfileShape, SessionOp};
+use viewer::session::{DocSession, Hovered, SessionOp};
 use viewer::tools::{ToolKind, Tools};
 
 /// The pane every row picks in.
@@ -372,7 +372,7 @@ fn a_circular_edge_is_coaxial_with_a_cylinder_face() {
         let profile = common::session_insert(
             session,
             SessionOp::AddProfile {
-                loops: vec![common::shape(&ProfileShape::Circle { centre, radius })],
+                loops: vec![common::circle_at(centre, radius)],
             },
         );
         common::session_insert(
@@ -444,12 +444,7 @@ fn a_cylinder_face_mated_as_a_direction_runs_parallel() {
         tol,
     );
     let extruded = |session: &mut DocSession, shape, height| {
-        let profile = common::session_insert(
-            session,
-            SessionOp::AddProfile {
-                loops: vec![common::shape(&shape)],
-            },
-        );
+        let profile = common::session_insert(session, SessionOp::AddProfile { loops: vec![shape] });
         common::session_insert(
             session,
             SessionOp::AddExtrude {
@@ -458,21 +453,10 @@ fn a_cylinder_face_mated_as_a_direction_runs_parallel() {
             },
         )
     };
-    let peg = extruded(
-        &mut session,
-        ProfileShape::Circle {
-            centre: [0.0, 0.0],
-            radius: RADIUS,
-        },
-        0.02,
-    );
+    let peg = extruded(&mut session, common::circle_at([0.0, 0.0], RADIUS), 0.02);
     let block = extruded(
         &mut session,
-        ProfileShape::Rectangle {
-            centre: BLOCK_AT,
-            width: BLOCK[0],
-            height: BLOCK[1],
-        },
+        common::rectangle_at(BLOCK_AT, BLOCK[0], BLOCK[1]),
         0.01,
     );
     let doc = session.committed_doc().clone();

@@ -18,21 +18,16 @@ use crate::combine::{
 };
 use crate::drafts::{CommitFault, Drafts, scalars};
 use crate::forms::{
-    ANGLE_DRAG_SPEED, COUNT_DRAG_SPEED, FIELD_DRAG_SPEED, PatternLayoutChoice, ShapeKind,
-    UNIT_DRAG_SPEED, boolean_op_label, split_half_label,
+    ANGLE_DRAG_SPEED, COUNT_DRAG_SPEED, FIELD_DRAG_SPEED, PatternLayoutChoice, UNIT_DRAG_SPEED,
+    boolean_op_label, split_half_label,
 };
 use crate::frame::{self, Tone};
 use crate::matetool::{MATE_KINDS, MateTool, PlaceDoor};
-use crate::pane::profile::{
-    REMOVE_LOOP, add_loop_row, notation_row, path_steps_ui, preview_verdict,
-};
 use crate::parts::{PartChooser, PartEntry};
 use crate::props::{Notation, render_number};
 use crate::seats::{Seat, Seats, seat_line};
 use crate::session::BundleVerdict;
-use crate::session::{
-    Creation, NodeKindWanted, ProfileShape, Selection, SessionOp, Staged, admits,
-};
+use crate::session::{Creation, NodeKindWanted, Selection, SessionOp, Staged, admits};
 use crate::theme::Theme;
 use crate::tools::{FormKind, ToolKind, ToolNotice};
 use crate::tree;
@@ -328,25 +323,20 @@ pub(crate) const ADD_PART: &str = "Add part…";
 /// What the extrude button says, before the selected profile's name.
 pub(crate) const EXTRUDE: &str = "Extrude";
 
+/// The button that inserts an empty profile.
+pub(crate) const NEW_PROFILE: &str = "New profile";
+
 /// What the revolve button says, before the selected profile's name.
 pub(crate) const REVOLVE: &str = "Revolve";
 
 /// The depth an extrude is inserted at, metres.
 const DEFAULT_EXTRUDE_DISTANCE: f64 = 0.01;
 
-/// What the add-profile form's commit button says.
-pub(crate) const ADD_PROFILE: &str = "Add profile";
+/// The traced-profile form's commit.
+pub(crate) const NEW_TRACED_PROFILE: &str = "New traced profile";
 
-/// Why the add-profile form's commit waits while its preview refuses
-/// the loops: the refusal itself is said above it.
-const PREVIEW_REFUSES: &str = "the preview above refuses these loops";
-
-/// What the door that opens the add-profile form says.
-pub(crate) const ADD_PROFILE_DOOR: &str = "Add profile…";
-
-/// What the add-profile form asks for while it draws on a face and
-/// holds none.
-pub(crate) const PICK_A_FACE: &str = "pick a face in the viewport to draw on";
+/// What the door that opens the traced-profile form says.
+pub(crate) const NEW_TRACED_PROFILE_DOOR: &str = "New traced profile…";
 
 /// The traced path's latch for the plane face the sketch is drawn in:
 /// square to the traced face's axis.
@@ -355,7 +345,7 @@ pub(crate) const TRACE_PLANE: &str = "sketch plane on";
 /// The traced path's latch for the face it traces.
 pub(crate) const TRACE_FACE: &str = "trace";
 
-/// What the add-profile form says while no frame reads off the traced
+/// What the traced-profile form says while no frame reads off the traced
 /// path's picks.
 pub(crate) const NO_TRACED_FRAME: &str =
     "pick a traced face with an axis and a plane face square to it";
@@ -484,12 +474,12 @@ fn part_listing(ui: &mut egui::Ui, theme: &Theme, chooser: &PartChooser) -> Opti
     chosen
 }
 
-/// **Why the add-profile button is withheld**, when it is — and how loud
+/// **Why the traced-profile button is withheld**, when it is — and how loud
 /// that is, which depends on which of two things it is.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Withheld {
-    /// The form is waiting for its next input: a face, a shape, a
-    /// first step. The form asking, [`Tone::Advisory`].
+    /// The form is waiting for its next input: a face to latch. The
+    /// form asking, [`Tone::Advisory`].
     Waiting(&'static str),
     /// An input the reader gave is refused, and the button stays shut
     /// until they change it: [`Tone::Actionable`].
@@ -511,14 +501,13 @@ impl Withheld {
     }
 }
 
-/// **The one reason the add-profile button is withheld for**, out of every
+/// **The one reason the traced-profile button is withheld for**, out of every
 /// reason the form found, handed over in the form's own top-to-bottom
 /// order.
 ///
-/// A refused input outranks the form waiting for one: a missing face,
-/// shape or first step shows in the form itself (no face held, no
-/// shape chosen, an empty chain), while a refused value looks like any
-/// other number in its field and has no other voice. Between two of
+/// A refused input outranks the form waiting for one: a missing face
+/// shows in the form itself (its latch says nothing is held), while a
+/// refused pair of faces has no other voice. Between two of
 /// one kind the earlier in the form is said, so the first thing a
 /// person is asked for is the first thing the form lacks.
 fn withheld_for(holds: impl IntoIterator<Item = Withheld>) -> Option<Withheld> {
@@ -526,129 +515,6 @@ fn withheld_for(holds: impl IntoIterator<Item = Withheld>) -> Option<Withheld> {
         (Withheld::Waiting(_), Withheld::Refused(_)) => next,
         _ => said,
     })
-}
-
-/// One loop's fields as the per-loop editor takes them: the numbers a
-/// template is authored by, or a path's steps.
-enum LoopFields<'a> {
-    Circle {
-        centre: &'a mut [f64; 2],
-        radius: &'a mut f64,
-    },
-    Rectangle {
-        centre: &'a mut [f64; 2],
-        width: &'a mut f64,
-        height: &'a mut f64,
-    },
-    Path {
-        steps: &'a mut Vec<pncad::profile::Step<f64>>,
-    },
-}
-
-impl<'a> LoopFields<'a> {
-    /// The fields of an added loop's shape.
-    fn of(shape: &'a mut ProfileShape) -> Self {
-        match shape {
-            ProfileShape::Circle { centre, radius } => Self::Circle { centre, radius },
-            ProfileShape::Rectangle {
-                centre,
-                width,
-                height,
-            } => Self::Rectangle {
-                centre,
-                width,
-                height,
-            },
-            ProfileShape::Path { steps } => Self::Path { steps },
-        }
-    }
-}
-
-/// **One loop's header in the add-profile form**: its label, its shape
-/// choice, and — on a loop that can go — [`REMOVE_LOOP`]. Answers the
-/// shape picked, when it is not `kind`, and whether Remove was clicked.
-fn loop_header(
-    ui: &mut egui::Ui,
-    label: &str,
-    kind: Option<ShapeKind>,
-    removable: bool,
-) -> (Option<ShapeKind>, bool) {
-    ui.horizontal(|ui| {
-        ui.label(label);
-        let mut picked = None;
-        for (option, word) in ShapeKind::ALL {
-            if ui.radio(kind == Some(option), word).clicked() && kind != Some(option) {
-                picked = Some(option);
-            }
-        }
-        let removed = removable && ui.button(REMOVE_LOOP).clicked();
-        (picked, removed)
-    })
-    .inner
-}
-
-/// **One loop's fields** — the first loop's and every added loop's,
-/// drawn by this one editor; `pickers` draws the form's unit pickers
-/// beside them, which the first loop carries for the whole form.
-/// Answers the wait of a chain with no step: a form waiting for its
-/// first one, not a chain that fails to close, whose lattice refusal
-/// would be about a program nobody had started writing.
-fn loop_fields_ui(
-    ui: &mut egui::Ui,
-    salt: &str,
-    tol: pncad::geom_core::Tol,
-    notation: &mut Notation,
-    pickers: bool,
-    fields: LoopFields<'_>,
-) -> Option<Withheld> {
-    let unit = notation.length.def();
-    match fields {
-        LoopFields::Circle { centre, radius } => {
-            ui.horizontal(|ui| {
-                ui.label("centre");
-                unit_field(ui, unit, FIELD_DRAG_SPEED, &mut centre[0]);
-                unit_field(ui, unit, FIELD_DRAG_SPEED, &mut centre[1]);
-                ui.label("radius");
-                unit_field(ui, unit, FIELD_DRAG_SPEED, radius);
-                if pickers {
-                    length_picker(ui, &format!("{salt}_circle"), &mut notation.length);
-                }
-            });
-            None
-        }
-        LoopFields::Rectangle {
-            centre,
-            width,
-            height,
-        } => {
-            ui.horizontal(|ui| {
-                ui.label("centre");
-                unit_field(ui, unit, FIELD_DRAG_SPEED, &mut centre[0]);
-                unit_field(ui, unit, FIELD_DRAG_SPEED, &mut centre[1]);
-                ui.label("width");
-                unit_field(ui, unit, FIELD_DRAG_SPEED, width);
-                ui.label("height");
-                unit_field(ui, unit, FIELD_DRAG_SPEED, height);
-                if pickers {
-                    length_picker(ui, &format!("{salt}_rectangle"), &mut notation.length);
-                }
-            });
-            None
-        }
-        LoopFields::Path { steps } => {
-            let salt = format!("{salt}_path");
-            if pickers {
-                notation_row(ui, &salt, &mut notation.length, &mut notation.angle);
-            }
-            let mut written = crate::widgets::WrittenIn::of(*notation);
-            if let Some(row) = path_steps_ui(ui, &salt, tol, &mut written, steps) {
-                row.apply(steps);
-            }
-            steps
-                .is_empty()
-                .then_some(Withheld::Waiting("add a step to the chain"))
-        }
-    }
 }
 
 /// The withheld button's reason, drawn in its own voice. A free function
@@ -762,7 +628,8 @@ impl ViewerBehavior<'_> {
     /// opened on the node ([`Self::edit_profile_ui`]).
     pub(crate) fn create_ui(&mut self, ui: &mut egui::Ui) {
         ui.collapsing(ADD_FEATURE, |ui| {
-            self.add_profile_ui(ui);
+            self.new_profile_ui(ui);
+            self.traced_profile_ui(ui);
         });
         // The combining tools sit in their own section:
         // everything above makes a body out of nothing, everything
@@ -1125,215 +992,64 @@ impl ViewerBehavior<'_> {
         ui.separator();
     }
 
-    /// The add-profile form: a template shape with Length fields, one
-    /// [`SessionOp::AddProfile`] on commit — the profile on its own
-    /// plane — or, drawing on a face, one [`SessionOp::SketchOnFace`]:
-    /// the profile extruded away from the face picked in the viewport
-    /// and fused with its body, in one submit and one undo. Behind its
-    /// `Add profile…` door, as every tool is behind its button: at rest
-    /// the form is one control, and it closes with its commit
+    /// **New profile**: one button, which inserts a profile with no
+    /// loops on the profile's own plane ([`SessionOp::AddProfile`]).
+    /// The creation selects it ([`SessionOp::selects_what_it_makes`]),
+    /// so the profile editor opens on it ([`Self::edit_profile_ui`])
+    /// and every loop is added there.
+    pub(crate) fn new_profile_ui(&mut self, ui: &mut egui::Ui) {
+        if ui.button(NEW_PROFILE).clicked() {
+            self.push_labelled(PROFILE_NOUN, SessionOp::AddProfile { loops: Vec::new() });
+        }
+    }
+
+    /// **The traced-profile form** ([`SessionOp::AddDrawnProfile`]):
+    /// the picks a profile continuing tangent to a face's trace reads —
+    /// the face whose plane it is drawn on and the face it traces — and
+    /// which branch of the trace it takes. Its commit inserts the
+    /// profile with the traced template's chain
+    /// ([`crate::drafts::traced_template`]), selected, and its numbers
+    /// are the profile editor's from there. Behind its door, as every
+    /// tool is behind its button: it closes with its commit
     /// ([`crate::drafts::Drafts::accepted`]) or its Cancel.
-    ///
-    /// The first loop is the chosen shape; loops added under it
-    /// ([`Self::added_loops_ui`]) are each their own shape, and
-    /// containment decides which are holes.
-    pub(crate) fn add_profile_ui(&mut self, ui: &mut egui::Ui) {
-        if !form_door(ui, ADD_PROFILE_DOOR, &mut self.drafts.profile_open) {
+    pub(crate) fn traced_profile_ui(&mut self, ui: &mut egui::Ui) {
+        if !form_door(ui, NEW_TRACED_PROFILE_DOOR, &mut self.drafts.traced_open) {
             return;
         }
         self.profile_drawn.create = true;
-        if let (Some(picked), _) = loop_header(ui, "profile", self.drafts.profile_shape, false) {
-            self.drafts.profile_shape = Some(picked);
-        }
-        ui.checkbox(&mut self.drafts.sketch_on_face, "on the picked face");
-        if self.drafts.sketch_on_face {
-            self.sketch_face_rows(ui);
-        }
-        let shape = self.drafts.profile_shape;
-        // Every reason the button is withheld, in the form's order; which
-        // one is said is `withheld_for`'s to decide, not any one arm's.
-        let mut withholds: Vec<Withheld> = Vec::new();
-        if self.drafts.sketch_on_face && self.drafts.held_face().is_none() {
-            withholds.push(Withheld::Waiting(PICK_A_FACE));
-        }
-        let tol = self.session.tol();
-        let mut waits_on_a_step = false;
-        match shape {
-            // No shape chosen: the form is at rest. It says what it is
-            // waiting for and draws nothing — no fields to fill in for
-            // a shape nobody picked, and no preview in the viewport.
-            None => withholds.push(Withheld::Waiting("choose a shape to add")),
-            Some(kind) => {
-                let drafts = &mut *self.drafts;
-                let fields = match kind {
-                    ShapeKind::Circle => LoopFields::Circle {
-                        centre: &mut drafts.profile_centre,
-                        radius: &mut drafts.profile_radius,
-                    },
-                    ShapeKind::Rectangle => {
-                        let [width, height] = &mut drafts.profile_extent;
-                        LoopFields::Rectangle {
-                            centre: &mut drafts.profile_centre,
-                            width,
-                            height,
-                        }
-                    }
-                    ShapeKind::Path => LoopFields::Path {
-                        steps: &mut drafts.profile_path,
-                    },
-                };
-                if let Some(wait) = loop_fields_ui(ui, "profile", tol, self.notation, true, fields)
-                {
-                    waits_on_a_step = true;
-                    withholds.push(wait);
-                }
-            }
-        }
-        match shape {
-            Some(ShapeKind::Path) => {
-                if !self.drafts.sketch_on_face {
-                    ui.checkbox(
-                        &mut self.drafts.trace_on,
-                        "continue tangent to a face's trace",
-                    );
-                }
-                if self.drafts.traces() {
-                    withholds.extend(self.trace_rows(ui));
-                }
-            }
-            Some(ShapeKind::Circle | ShapeKind::Rectangle) | None => {}
-        }
-        if shape.is_some() {
-            let (added, waits) = self.added_loops_ui(ui);
-            waits_on_a_step |= waits;
-            withholds.extend(added);
-        }
-        let blocked = withheld_for(withholds);
+        let blocked = withheld_for(self.trace_rows(ui));
         if let Some(withheld) = blocked {
             withheld_line(ui, &self.theme, withheld);
         }
-        // **What the loops would draw, said before they are
-        // authored.** The preview ran the commit door's own ladder,
-        // so a refusal here is the refusal the button would get —
-        // which is why the button waits on it rather than letting a
-        // reader find out by clicking.
-        // **A form at rest reports no preview.** With no shape chosen,
-        // or a path chain with no steps, there are no loops to have an
-        // opinion about — and a refusal about nothing would be a line
-        // of text arguing with the "choose a shape" the form has just
-        // said. `blocked` already carries that sentence, and it is
-        // what disables the commit; this only keeps a second one from
-        // contradicting it.
-        // A traced chain is drawn by the evaluation, which the preview
-        // does not run: the trace rows say what it shows instead.
-        let at_rest =
-            shape.is_none() || waits_on_a_step && blocked.is_some() || self.drafts.traces();
-        let refused = preview_verdict(
-            ui,
-            self.theme,
-            self.profile_previews.create.as_ref().filter(|_| !at_rest),
-        );
-        self.creation_label_row(ui, PROFILE_NOUN);
-        let withheld = match blocked {
-            Some(withheld) => Some(withheld.words()),
-            None => refused.then_some(PREVIEW_REFUSES),
-        };
-        let closing = commit_row(ui, ADD_PROFILE, withheld, |_| {});
+        let closing = commit_row(ui, NEW_TRACED_PROFILE, blocked.map(Withheld::words), |_| {});
         if closing.cancel {
-            self.drafts.profile_open = false;
+            self.drafts.traced_open = false;
         }
         if closing.commit {
-            // Lowered HERE rather than in the session: the notation is
-            // the form's, and a literal that forgot it between the two
-            // is exactly the gap this carries across.
-            match self.drafts.profile_op(*self.notation) {
+            match self.drafts.traced_op(*self.notation) {
                 Ok(Some(op)) => self.push_labelled(PROFILE_NOUN, op),
                 // Unreachable while the button is gated on `blocked`,
                 // and typed rather than unwrapped: a form's enabling
-                // condition and its commit are two pieces of code, and
-                // this one does not assume the other got it right.
+                // condition and its commit are two pieces of code.
                 Ok(None) => {
                     self.notices.push(frame::tool_news(
-                        &FormKind::AddProfile.refuses(&PICK_A_FACE),
+                        &FormKind::TracedProfile.refuses(&NO_TRACED_FRAME),
                     ));
                 }
                 Err(error) => {
                     self.notices
-                        .push(frame::tool_news(&FormKind::AddProfile.refuses(&error)));
+                        .push(frame::tool_news(&FormKind::TracedProfile.refuses(&error)));
                 }
             }
         }
-    }
-
-    /// **The loops the form authors after its first**
-    /// ([`crate::drafts::Drafts::profile_more`]), each drawn by the
-    /// first loop's own editor ([`loop_header`], [`loop_fields_ui`])
-    /// with a [`REMOVE_LOOP`] on its header; and under them the
-    /// editor's add-loop row. A shape chosen on an added loop starts it
-    /// again as that shape's template ([`crate::drafts::fresh_loop`]).
-    ///
-    /// **The form does not say which loop is the outer.** Containment
-    /// decides it, and the preview draws what it decided: an added loop
-    /// larger than the first becomes the outer and the first a hole,
-    /// which is a profile the person can see and keep: "add loop"
-    /// promises nothing about the role.
-    ///
-    /// Answers what the commit waits for — a traced chain is the
-    /// profile's one loop — and whether an added path has no step yet.
-    fn added_loops_ui(&mut self, ui: &mut egui::Ui) -> (Vec<Withheld>, bool) {
-        let tol = self.session.tol();
-        let mut removed = None;
-        let mut reshaped = None;
-        let mut waits = Vec::new();
-        for (index, shape) in self.drafts.profile_more.iter_mut().enumerate() {
-            // The first loop is loop 0, as the edit door counts.
-            let number = index + 1;
-            let kind = match shape {
-                ProfileShape::Circle { .. } => ShapeKind::Circle,
-                ProfileShape::Rectangle { .. } => ShapeKind::Rectangle,
-                ProfileShape::Path { .. } => ShapeKind::Path,
-            };
-            let (picked, remove) = loop_header(ui, &format!("loop {number}"), Some(kind), true);
-            if let Some(picked) = picked {
-                reshaped = Some((index, picked));
-            }
-            if remove {
-                removed = Some(index);
-            }
-            let salt = format!("profile_loop_{number}");
-            let fields = LoopFields::of(shape);
-            waits.extend(loop_fields_ui(ui, &salt, tol, self.notation, false, fields));
-        }
-        if let Some(index) = removed {
-            self.drafts.profile_more.remove(index);
-        }
-        if let Some((index, kind)) = reshaped {
-            self.drafts.profile_more[index] = crate::drafts::fresh_loop(kind);
-        }
-        let waiting = !waits.is_empty();
-        if self.drafts.traces() {
-            if !self.drafts.profile_more.is_empty() {
-                waits.push(Withheld::Refused(
-                    "a chain traced along a face is the profile's one loop — remove the added \
-                     loops, or untick the trace",
-                ));
-            }
-            return (waits, waiting);
-        }
-        if let Some(kind) = add_loop_row(ui) {
-            self.drafts
-                .profile_more
-                .push(crate::drafts::fresh_loop(kind));
-        }
-        (waits, waiting)
     }
 
     /// **The traced path's rows** ([`SessionOp::AddDrawnProfile`]): the
     /// two latches — the face whose body's plane the sketch is drawn on,
     /// and the face it traces — each taking the viewport's face pick on
     /// its button; the trace the two show, or the trace's own refusal;
-    /// and the gesture's row and branches. Answers what the commit still
-    /// waits for.
+    /// and the trace's branches. Answers what the commit still waits
+    /// for.
     fn trace_rows(&mut self, ui: &mut egui::Ui) -> Vec<Withheld> {
         let picked = match self.session.selection() {
             Selection::Face(face) => Some(face.clone()),
@@ -1395,14 +1111,7 @@ impl ViewerBehavior<'_> {
             }
             None => {}
         }
-        let rows = self.drafts.profile_path.len().max(1);
         let gesture = &mut self.drafts.trace_gesture;
-        ui.horizontal(|ui| {
-            ui.label("after row");
-            let mut row = gesture.after + 1;
-            ui.add(number_field(&mut row, COUNT_DRAG_SPEED).range(1..=rows));
-            gesture.after = row.saturating_sub(1);
-        });
         ui.horizontal(|ui| {
             ui.label("to crossing");
             ui.add(
@@ -1421,61 +1130,11 @@ impl ViewerBehavior<'_> {
         });
         crate::widgets::message(
             ui,
-            "the piece after that row runs to the crossing, counted along it from the pen, and \
-             the chain heads along the trace there: both are read off the traced face at every \
+            "the chain's heading runs to the crossing, counted along it from the pen, and the \
+             chain heads along the trace there: both are read off the traced face at every \
              evaluation, and a crossing the piece does not make refuses on the profile",
         );
         withholds
-    }
-
-    /// **The on-face rows**: the held face pick, the depth the sketch is
-    /// extruded away from it, and its spin.
-    ///
-    /// The seat LATCHES the viewport's face pick — a face is not a
-    /// node a combo can list, so the selection is this form's picker
-    /// and there is no widget to draw for it. Writing it here rather
-    /// than reading the live selection at the commit is what lets an
-    /// author pick a face, type a depth and click the feature tree
-    /// without losing the pick; a second face pick moves the seat.
-    fn sketch_face_rows(&mut self, ui: &mut egui::Ui) {
-        if let Selection::Face(face) = self.session.selection() {
-            crate::drafts::latch(&mut self.drafts.sketch_face, self.session.doc(), face);
-        }
-        ui.horizontal(|ui| {
-            ui.label("face");
-            // Said from the landed pair the pick was read off, a node
-            // that document no longer holds as the form kept it.
-            ui.weak(crate::drafts::latch_said(
-                self.drafts.held_face(),
-                frame::landed_speaker(self.session.landed_pair()),
-            ));
-        });
-        ui.horizontal(|ui| {
-            ui.label("depth");
-            unit_field(
-                ui,
-                self.notation.length.def(),
-                FIELD_DRAG_SPEED,
-                &mut self.drafts.sketch_depth,
-            );
-            length_picker(ui, "sketch_depth", &mut self.notation.length);
-        });
-        ui.horizontal(|ui| {
-            ui.label("spin");
-            unit_field(
-                ui,
-                self.notation.angle.def(),
-                ANGLE_DRAG_SPEED,
-                &mut self.drafts.sketch_spin,
-            );
-            angle_picker(ui, "sketch_spin", &mut self.notation.angle);
-        });
-        // What the numbers MEAN, said where they are typed.
-        crate::widgets::message(
-            ui,
-            "extruded away from the face and fused with its body; its +x turned about the face's \
-             outward normal",
-        );
     }
 
     /// **The sweeps of the selected profile**: an extrude button and a
@@ -2903,10 +2562,10 @@ mod tone_tests {
     /// one kind, the earlier.
     #[test]
     fn a_refused_input_outranks_a_missing_one_and_the_form_order_breaks_ties() {
-        let frame = Withheld::Waiting("pick a face to draw on");
-        let chain = Withheld::Waiting("add a step to the chain");
-        let refused = Withheld::Refused("the traced chain is the profile's one loop");
-        let later = Withheld::Refused("the traced frame does not read");
+        let frame = Withheld::Waiting("pick the face whose plane the sketch is on");
+        let chain = Withheld::Waiting("pick the face to trace");
+        let refused = Withheld::Refused("the traced frame does not read");
+        let later = Withheld::Refused("a later refusal");
         assert_eq!(withheld_for([frame, chain]), Some(frame));
         assert_eq!(withheld_for([frame, refused]), Some(refused));
         assert_eq!(withheld_for([refused, frame]), Some(refused));
@@ -2915,7 +2574,7 @@ mod tone_tests {
         assert_eq!(withheld_for([]), None);
     }
 
-    /// **The add-profile form's withholding reason**: a refused input is loud,
+    /// **The traced-profile form's withholding reason**: a refused input is loud,
     /// the form waiting for one is quiet.
     #[test]
     fn a_withheld_profile_button_says_why_in_the_reasons_own_voice() {
@@ -2925,14 +2584,14 @@ mod tone_tests {
                 theme,
                 Withheld::Refused("the traced frame does not read"),
             );
-            withheld_line(ui, theme, Withheld::Waiting("choose a shape to add"));
+            withheld_line(ui, theme, Withheld::Waiting("pick the face to trace"));
         });
         assert_eq!(
             find(&painted, "the traced frame does not read").ink,
             Some(voices.actionable)
         );
         assert_eq!(
-            find(&painted, "choose a shape to add").ink,
+            find(&painted, "pick the face to trace").ink,
             Some(voices.weak)
         );
     }
@@ -3075,9 +2734,9 @@ mod creation_nouns {
     }
 }
 
-/// **The add-profile form's held face across a selection that moved
-/// on** ([`ViewerBehavior::sketch_face_rows`]'s pick, and
-/// `Drafts::respeak` after each op).
+/// **The traced-profile form's held faces across a selection that
+/// moved on** (its two latches, `Drafts::trace_plane` and
+/// `Drafts::trace_face`, and `Drafts::respeak` after each op).
 #[cfg(test)]
 mod sketch_face_said {
     // Panicking is a test's failure mechanism (workspace lint note).
@@ -3089,9 +2748,9 @@ mod sketch_face_said {
     use crate::drafts::Drafts;
     use crate::session::{DocSession, FaceSelection, Selection, SessionOp};
 
-    /// **The add-profile form keeps its latches' nodes past the
-    /// selection**: once the selection moves on, the on-face row and
-    /// both trace latches still say their face's minting node by the
+    /// **The traced-profile form keeps its latches' nodes past the
+    /// selection**: once the selection moves on, both trace latches
+    /// still say their face's minting node by the
     /// last label it had, after a rename and a delete, where the
     /// selection's snapshot no longer names it. Each row is read as the
     /// form draws it (`latch_said`, by the landed speaker).
@@ -3130,7 +2789,6 @@ mod sketch_face_said {
             &mut drafts,
             SessionOp::Select(Selection::Face(face.clone())),
         );
-        crate::drafts::latch(&mut drafts.sketch_face, session.doc(), &face);
         crate::drafts::latch(&mut drafts.trace_plane, session.doc(), &face);
         crate::drafts::latch(&mut drafts.trace_face, session.doc(), &face);
         perform(
@@ -3156,9 +2814,9 @@ mod sketch_face_said {
         let by = crate::frame::landed_speaker(session.landed_pair());
         let last = format!("the end cap of Extrude \"plinth\" ({t})");
         assert_eq!(
-            [&drafts.sketch_face, &drafts.trace_plane, &drafts.trace_face]
+            [&drafts.trace_plane, &drafts.trace_face]
                 .map(|held| crate::drafts::latch_said(held.as_ref(), by)),
-            [last.clone(), last.clone(), last],
+            [last.clone(), last],
             "each latch says its face's node by its last label"
         );
         assert_eq!(
