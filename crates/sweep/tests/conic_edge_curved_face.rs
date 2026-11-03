@@ -146,7 +146,7 @@ fn rim_pairs(label: &str, a: &Body<f64>, b: &Body<f64>) -> (usize, usize) {
             .filter(|(e, f)| rim.contains(e) && walls.contains(f))
             .count()
     };
-    (count(&ab.examined), count(&ab.accepted))
+    (count(ab.examined()), count(ab.accepted()))
 }
 
 fn run(

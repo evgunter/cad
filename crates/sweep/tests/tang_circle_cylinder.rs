@@ -115,24 +115,25 @@ fn run(op: BooleanOp, a: &Body<f64>, b: &Body<f64>) -> Result<Body<f64>, Boolean
 fn circle_wall_events(a: &Body<f64>, b: &Body<f64>) -> (usize, usize) {
     let (ab, ba) = topo::sweep_traces(a, b, SweepStrategy::Realized, None, Tol::witness())
         .unwrap_or_else(|e| panic!("the sweep refused: {e:?}"));
-    let count = |x: &Body<f64>, y: &Body<f64>, trace: &topo::SweepTrace| {
-        trace
-            .accepted
-            .iter()
-            .filter(|(e, f)| {
-                let circle = x
-                    .get_edge(*e)
-                    .and_then(|e| x.get_curve_geom(e.curve))
-                    .and_then(topo::CurveGeom::certified)
-                    .is_some_and(|c| matches!(c.carrier(), topo::Curve3::Circle(..)));
-                let wall = matches!(
-                    y.get_face(*f).and_then(|f| y.get_surface(f.surface)),
-                    Some(topo::Surface::Cylinder { .. })
-                );
-                circle && wall
-            })
-            .count()
-    };
+    let count =
+        |x: &Body<f64>, y: &Body<f64>, trace: &topo::SweepPairs<(topo::EdgeKey, topo::FaceKey)>| {
+            trace
+                .accepted()
+                .iter()
+                .filter(|(e, f)| {
+                    let circle = x
+                        .get_edge(*e)
+                        .and_then(|e| x.get_curve_geom(e.curve))
+                        .and_then(topo::CurveGeom::certified)
+                        .is_some_and(|c| matches!(c.carrier(), topo::Curve3::Circle(..)));
+                    let wall = matches!(
+                        y.get_face(*f).and_then(|f| y.get_surface(f.surface)),
+                        Some(topo::Surface::Cylinder { .. })
+                    );
+                    circle && wall
+                })
+                .count()
+        };
     (count(a, b, &ab), count(b, a, &ba))
 }
 

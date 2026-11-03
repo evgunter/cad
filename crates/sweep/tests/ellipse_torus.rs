@@ -148,7 +148,7 @@ fn rim_pairs(label: &str, a: &Body<f64>, b: &Body<f64>) -> (usize, usize) {
             .filter(|(e, f)| rim.contains(e) && tori.contains(f))
             .count()
     };
-    (count(&ab.examined), count(&ab.accepted))
+    (count(ab.examined()), count(ab.accepted()))
 }
 
 /// Every op's refusal, `A ∖ B` and `B ∖ A` both; a body fails with the op

@@ -582,7 +582,8 @@ pub(crate) mod tests {
         }));
         assert!(
             report.contains(&format!(
-                "{}, which this call resolved or read out of a record, does not resolve",
+                "{}, which this call minted and kept, resolved, or read out of a record, does not \
+                 resolve",
                 EntityId::Vertex(bogus)
             )),
             "{report}"
