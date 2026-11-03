@@ -116,6 +116,10 @@
 //!   quaternion `(1 + a·b, a × b)` with no normalized axis and no
 //!   angle. One decision, `1 + a·b > 0`: the opposed pair, where no
 //!   rotation is THE minimal one.
+//! - [`RigidMotion::turned_onto`] — a written frame turned about its
+//!   own origin by that minimal rotation, carrying its `w` onto a
+//!   direction: the frame across a direction with no stated reference.
+//!   The same one decision.
 //!
 //! Which product `w` is depends on the mint: the Gram–Schmidt mint and
 //! the exact world frames build `w = u × v` (at `f64` the rounded
@@ -1102,6 +1106,45 @@ impl<T: Decide> RigidMotion<T> {
         let q = finite(about, MotionPart::Anchor).map_err(anchor)? - Point3::origin();
         let origin = finite(at(q - r * q), MotionPart::Anchor).map_err(anchor)?;
         Ok(Self::from_linear(r, origin))
+    }
+
+    /// **This frame turned onto `direction` by the least turn**: the
+    /// minimal rotation carrying [`Self::w`] onto `direction`
+    /// ([`Self::turned_between`]), about this frame's own origin, then
+    /// this frame. It is how a frame across a direction with no stated
+    /// reference is spelled: the author writes the frame they mean
+    /// (`RigidMotion::axes_xy(p)` for a sweep's start), and its roll
+    /// across `direction` is the written one carried by the least turn,
+    /// as a placement's spin is measured (D10 `[placement.values]`).
+    /// The result's `w` lands on `direction` to a few ulps; where `w`
+    /// is bitwise `direction` the turn is the identity and every axis
+    /// keeps its value.
+    ///
+    /// The origin is stored verbatim, since the turn fixes it.
+    ///
+    /// Its one decision is [`Self::turned_between`]'s, under `site`:
+    /// `direction` must be decidedly off `−w`. The door never chooses a
+    /// half turn of its own; the recourse at that pole is to write a
+    /// different frame (`RigidMotion::turned(p, x̂, Turns::quarters(2))`
+    /// has `w = −ẑ`).
+    ///
+    /// # Errors
+    ///
+    /// [`TurnError::Opposed`] when `direction` decides opposed to `w`,
+    /// and [`TurnError::Undecided`] when that cannot be decided.
+    pub fn turned_onto(
+        self,
+        direction: UnitVec3<T>,
+        site: &'static str,
+        band: Band,
+    ) -> Result<Self, TurnError> {
+        let turn = Self::turned_between(self.w, direction, Point3::origin(), site, band)?;
+        Ok(Self {
+            origin: self.origin,
+            u: turn.turn(self.u),
+            v: turn.turn(self.v),
+            w: turn.turn(self.w),
+        })
     }
 }
 
@@ -2262,6 +2305,163 @@ mod crossing_and_turn_rows {
         assert!(
             wide.point_value().is_none(),
             "a box has no single f64 point"
+        );
+    }
+}
+
+/// A written frame turned onto a direction by the least turn.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod turned_onto_rows {
+    use super::tests::{SITE, band, bits12};
+    use super::*;
+
+    fn unit(v: Vec3<f64>) -> UnitVec3<f64> {
+        UnitVec3::new(v, SITE, band()).unwrap()
+    }
+
+    fn onto(
+        frame: RigidMotion<f64>,
+        d: UnitVec3<f64>,
+    ) -> Result<RigidMotion<f64>, TurnError> {
+        frame.turned_onto(d, SITE, band())
+    }
+
+    /// **A frame already along the direction is unchanged**, the world
+    /// frame bit for bit and a generic written frame by value, and its
+    /// origin is never moved.
+    #[test]
+    fn a_frame_whose_w_is_the_direction_is_unchanged() {
+        let p = Point3::new(1.5, -0.25, 1e3);
+        let world = RigidMotion::axes_xy(p);
+        assert_eq!(
+            bits12(&onto(world, UnitVec3::exact_z()).unwrap().to_affine()),
+            bits12(&world.to_affine()),
+            "the world frame turned onto +z is itself"
+        );
+        let written = RigidMotion::turned(p, unit(Vec3::new(0.3, -0.7, 0.2)), Turns::new(1, 7).unwrap());
+        let same = onto(written, written.w()).unwrap();
+        for (axis, got, want) in [
+            ("u", same.u(), written.u()),
+            ("v", same.v(), written.v()),
+            ("w", same.w(), written.w()),
+        ] {
+            let (g, w) = (got.get(), want.get());
+            assert_eq!([g.x, g.y, g.z], [w.x, w.y, w.z], "{axis} keeps its value");
+        }
+        let (a, b) = (same.origin(), written.origin());
+        assert_eq!([a.x, a.y, a.z], [b.x, b.y, b.z], "the origin is kept");
+    }
+
+    /// **The turn is the least one**: `w` lands on the direction, the
+    /// axis `w × d` the turn is about stays where it was in every
+    /// column's reading, and the origin is stored verbatim.
+    #[test]
+    fn the_least_turn_carries_w_onto_the_direction_about_w_cross_d() {
+        let p = Point3::new(-3.0, 0.125, 7.0);
+        let written = RigidMotion::turned(p, unit(Vec3::new(1.0, 2.0, -0.5)), Turns::new(2, 9).unwrap());
+        for (k, d) in [
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(0.2, -0.9, 0.4),
+            Vec3::new(-0.6, 0.1, 0.3),
+            Vec3::new(0.0, 0.0, 1.0),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let d = unit(d);
+            let got = onto(written, d).unwrap_or_else(|e| panic!("direction {k}: {e}"));
+            let miss = got.w().get() - d.get();
+            assert!(miss.norm() < 1e-14, "direction {k}: w lands {miss:?} off d");
+            let n = written.w().get().cross(d.get());
+            for (axis, before, after) in [
+                ("u", written.u(), got.u()),
+                ("v", written.v(), got.v()),
+            ] {
+                let drift = (before.get().dot(n) - after.get().dot(n)).abs();
+                assert!(
+                    drift < 1e-14,
+                    "direction {k}: {axis}'s reading along w × d moved {drift:e}"
+                );
+            }
+            assert!(
+                RigidMotion::check_rigid(&got.to_affine(), band()).is_ok(),
+                "direction {k}: the turned frame is rigid"
+            );
+            assert_eq!(
+                (got.origin() - p).norm(),
+                0.0,
+                "direction {k}: the origin is stored verbatim"
+            );
+        }
+    }
+
+    /// **The roll is continuous through the tangent `(k·ε, 0, 1)`**,
+    /// where a reference picked off the world axes flips by a half
+    /// turn: every `u` stays within `|k|·ε` of `x̂` and every `v` on
+    /// `ŷ`, so neighbouring tangents give neighbouring frames.
+    #[test]
+    fn the_roll_is_continuous_through_a_tangent_near_the_world_z() {
+        let eps = band().zero();
+        let world = RigidMotion::axes_xy(Point3::origin());
+        let mut last: Option<Vec3<f64>> = None;
+        for k in -30_i32..=30 {
+            let t = f64::from(k) * eps;
+            let got = onto(world, unit(Vec3::new(t, 0.0, 1.0)))
+                .unwrap_or_else(|e| panic!("k = {k}: {e}"));
+            let u = got.u().get();
+            let off = (u - Vec3::unit_x()).norm();
+            assert!(
+                off <= 1.01 * t.abs() + 1e-15,
+                "k = {k}: u = {u:?} is {off:e} off x̂"
+            );
+            let v_off = (got.v().get() - Vec3::unit_y()).norm();
+            assert!(v_off < 1e-15, "k = {k}: v is {v_off:e} off ŷ");
+            if let Some(prev) = last {
+                let step = (u - prev).norm();
+                assert!(step <= 1.01 * eps + 1e-15, "k = {k}: u stepped {step:e}");
+            }
+            last = Some(u);
+        }
+    }
+
+    /// **At `−w` and across the band around it the door refuses**:
+    /// opposed when decided, undecided between the band's thresholds,
+    /// and it builds past them. It never picks a half turn itself.
+    #[test]
+    fn the_door_refuses_at_minus_w_and_in_the_band_around_it() {
+        let b = band();
+        let world = RigidMotion::axes_xy(Point3::new(2.0, 0.0, -1.0));
+        // 1 + w·d = 1 − cos δ ≈ δ²/2 for d at π − δ from w = ẑ.
+        let at = |margin: f64| {
+            let delta = (2.0 * margin).sqrt();
+            unit(Vec3::new(delta.sin(), 0.0, -delta.cos()))
+        };
+        assert_eq!(
+            onto(world, -UnitVec3::exact_z()).err(),
+            Some(TurnError::Opposed),
+            "the exact pole refuses"
+        );
+        assert_eq!(
+            onto(world, at(0.25 * b.zero())).err(),
+            Some(TurnError::Opposed),
+            "inside the coincidence threshold the direction is the pole"
+        );
+        assert!(
+            matches!(
+                onto(world, at(0.5 * (b.zero() + b.escalate()))),
+                Err(TurnError::Undecided(_))
+            ),
+            "between the thresholds the turn cannot be decided"
+        );
+        assert!(
+            onto(world, at(4.0 * b.escalate())).is_ok(),
+            "past the escalation threshold the frame builds"
+        );
+        let flipped = RigidMotion::turned(world.origin(), UnitVec3::exact_x(), Turns::quarters(2));
+        assert!(
+            onto(flipped, -UnitVec3::exact_z()).is_ok(),
+            "the recourse, a written frame whose w is −ẑ, builds at the pole"
         );
     }
 }
