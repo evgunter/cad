@@ -231,6 +231,7 @@ fn reaches_certification(lines: &[String]) -> bool {
 const HOLDERS: &[&str] = &[
     "crates/geom-brep/src/offset_fit.rs",
     "crates/geom-brep/src/offset_meters.rs",
+    "crates/geom-brep/src/pair_section/spline_implicit.rs",
     "crates/geom-brep/src/patch_bound.rs",
     "crates/geom-brep/src/props/mod.rs",
     "crates/geom-brep/src/props/quad/",
@@ -300,29 +301,28 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ("crates/geom-brep/src/curve_face/composite.rs", 9, 9, ""),
     (
         "crates/geom-brep/src/curve_face/spline_face.rs",
-        9,
-        8,
-        "`certified_window`, the NURBS carrier's window over a parameter enclosure, \
-         refuses one that does not certify by name: the sheet's boxes carry no \
-         decoration of the parameter's. The remainder is `end_state`'s midpoint of \
-         the carrier's point at a span end, which only seeds the chart foot search: \
-         the state it finds is re-enclosed at its exact coordinates, so the seed \
-         costs a proof and never makes one",
+        23,
+        23,
+        "every read sits in a function that refuses by name: `certified_window`, the \
+         NURBS carrier's window over a parameter enclosure, the sector reading \
+         (`sector`, 15), the cut and speed bounds (`cuts`, `speeds`), the Krawczyk \
+         step (`krawczyk_with`) and `isolate`",
     ),
     (
         "crates/geom-brep/src/intersect/section_bounds.rs",
-        13,
-        13,
+        12,
+        12,
         "",
     ),
     (
         "crates/geom-brep/src/krawczyk.rs",
-        5,
         4,
-        "the remainder is `midpoints`, the real matrix whose inverse `Y` \
-         preconditions the operator: any `Y` keeps the test sound, so a midpoint \
-         read off an enclosure that does not certify can cost a proof and never \
-         make one, and `image` itself refuses an image that does not certify",
+        3,
+        "the remainder is `midpoint`, which `midpoints` reads row by row: the real \
+         matrix whose inverse `Y` preconditions the operator, and any `Y` keeps the \
+         test sound, so a midpoint read off an enclosure that does not certify can \
+         cost a proof and never make one, and `image` itself refuses an image that \
+         does not certify",
     ),
     (
         "crates/geom-brep/src/offset_fit.rs",
@@ -341,6 +341,39 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          whose partial does not certify is read at distance `0`, the vacuous lower \
          bound",
     ),
+    ("crates/geom-brep/src/pair_section.rs", 1, 1, ""),
+    ("crates/geom-brep/src/pair_section/ruling.rs", 2, 2, ""),
+    (
+        "crates/geom-brep/src/pair_section/spline_implicit.rs",
+        2,
+        0,
+        "held by name since SECTARMS #6412 removed its one `is_certified()` (the \
+         bracket's), which was all the population key saw. Both reads are the \
+         pivot's: `pivot`'s shift, the upper end of the foot's lift over the stored \
+         normal's length (the normal is certified, and a quotient by a length not \
+         proven away from zero has an end that is not finite, which `band.padded` \
+         refuses, `SectionError::Unaccounted`); and `Phi::at`'s `lift`, a sum of \
+         products of certified points, no quotient, which certifies, its upper end \
+         a sound bound on the pivot's stand-off added to a height",
+    ),
+    (
+        "crates/geom-brep/src/pair_section/spline_implicit/curved.rs",
+        2,
+        2,
+        "",
+    ),
+    (
+        "crates/geom-brep/src/pair_section/spline_implicit/sweep/critical.rs",
+        13,
+        9,
+        "the 9 that ask are `krawczyk`'s (3) and the critical-value door's (6). Of \
+         the other 4, `read`'s 2 are the value's ceiling in metres, which that door \
+         decides only after it asks `at.value.is_certified()`; `mid` is the Krawczyk \
+         box's centre, a seed; and `along_line`'s norm is minted a fresh point, but \
+         the slope's numerator carries the gradient's and the direction's decoration, \
+         which its caller asks (`slope.is_certified()`)",
+    ),
+    ("crates/geom-brep/src/pair_section/winds.rs", 4, 4, ""),
     (
         "crates/geom-brep/src/patch_bound.rs",
         3,
@@ -430,6 +463,14 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          slab reads NaN at both ends",
     ),
     (
+        "crates/geom-brep/src/ssi/boundary.rs",
+        1,
+        0,
+        "the one is `sine`'s upper end of the speed times the gradient's supremum, \
+         two finite positive points (both refused to `0.0` otherwise), so the product \
+         certifies, and the quotient rounds down: a lower bound on the sine",
+    ),
+    (
         "crates/geom-brep/src/ssi/certify.rs",
         12,
         2,
@@ -450,11 +491,14 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     (
         "crates/geom-brep/src/ssi/enclose.rs",
-        19,
-        19,
-        "`Box3`'s disjointness, containment, centre, split, reach meet and intersection all refuse \
-         by name, and \
-         so does the mignitude (`zero_free_lower_bound`, 4)",
+        22,
+        21,
+        "`Box3`'s disjointness, containment, centre, split, reach meet and \
+         intersection all refuse by name, and so do the mignitude \
+         (`zero_free_lower_bound`, 4) and `a_positive`. The remainder is \
+         `chart_transverse_margin`'s upper end of the stretch times the gradient's \
+         supremum, two finite positive points (each refused otherwise above it), so \
+         the product certifies, and the margin over it rounds down: a lower bound",
     ),
     ("crates/geom-brep/src/ssi/exhaust.rs", 1, 1, ""),
     (
@@ -486,6 +530,7 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          `Box3::intersection`, which refuses an uncertified side by name, and of the pieces \
          cut from those finite ends",
     ),
+    ("crates/geom-brep/src/ssi/residual.rs", 6, 6, ""),
     ("crates/geom-brep/src/ssi/section.rs", 2, 2, ""),
     (
         "crates/geom-core/src/interval.rs",
@@ -536,29 +581,46 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     ("crates/geom/src/curves/second_derivative.rs", 1, 1, ""),
     (
+        "crates/geom/src/net.rs",
+        1,
+        0,
+        "the one is `cell_origin`, a cell image's middle to `f64`: the point a \
+         rational net's derivative over the cell is read about, which certifies \
+         nothing and needs not (`rational_slope` refuses unless the weight hull is \
+         certainly positive)",
+    ),
+    (
         "crates/geom/src/surfaces/nurbs.rs",
-        8,
-        2,
-        "the remainder is `rect_enclosure`'s and `rect_jet`'s 3 knot reads each: the \
-         domain check and the span clip select cells and clip ends, which are minted \
-         as fresh point brackets and re-admitted to the span's own knots by the \
-         blossom door (`admit`). What either claims is gated by name: \
-         `restricted_hull` and `restricted_jet` refuse a restricted weight unless it \
-         is certified positive, and a control point that does not certify carries \
-         its decoration through the restriction into the answer",
+        7,
+        0,
+        "none asks by name here: the restriction's weight guard is \
+         `spline::algebra::certainly_positive`, the one spelling of it, which asks \
+         `is_certified()` there. Six are `read_rect_net`'s and `read_rect_jet`'s 3 \
+         knot reads each: the domain check and the span clip select cells and clip \
+         ends, which are minted as fresh point brackets and re-admitted to the span's \
+         own knots by the blossom door (`admit`). The seventh is `restricted_jet`'s \
+         cell middle, the point its derivative is read about (`net::cell_origin`), \
+         which certifies nothing and needs not: what the jet claims is gated by \
+         `rational_slope`'s positive-weight guard, and a control point that does not \
+         certify carries its decoration through the restriction into the answer",
     ),
     ("crates/mesh/src/chords.rs", 2, 2, ""),
     (
         "crates/topo/src/clearance.rs",
-        25,
+        30,
         7,
-        "the 7 that ask are `poisoned`, `iso_bounded_domain`'s knots and joins (5) and \
-         `extent_of`. Of the other 18, `split_axis`'s 3 and the `coincidence` and \
-         `meeting_stations` seeds (3) are selections; `min_separation`'s admission (2), \
-         `pair`'s (2), `witness`'s (2) and `overflow`'s (1) read a separation `poisoned` \
-         has passed; and `window_of`'s windows (3), `boundary_of`'s span (1) and \
-         `row_of`'s parameters (1) read values `certified_lift` crossed, which refuses \
-         the face unless every crossing certifies",
+        "the 7 that ask are `poisoned`, `iso_bounded_domain`'s knots and joins (5) \
+         and `extent_of`. Of the other 23, `split_axis`'s 3 and the `coincidence` and \
+         `meeting_stations` seeds (3) are selections; `min_separation`'s admission \
+         (2), `pair`'s (2), `witness`'s (2) and `overflow`'s (1) read a separation \
+         `poisoned` has passed; `window_of`'s windows (3), `boundary_of`'s span (1) \
+         and `row_of`'s parameters (1) read values `certified_lift` crossed, which \
+         refuses the face unless every crossing certifies; `support_separation`'s 4 \
+         are the choice of direction (each cell's normal and the line between the \
+         boxes' centres, read at their middles) and of orientation, and the supports' \
+         gap it reads after `poisoned` has passed both, a lower bound along any \
+         direction; and `box_dependent`'s 1 stores a straddling separation's ends as \
+         the refusal's payload, which certifies nothing",
     ),
     (
         "crates/topo/src/injective.rs",
@@ -591,6 +653,7 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          (`outward_volume`, the bracket `Undecided` reports) and certify nothing",
     ),
     ("crates/topo/src/props/quad_lane.rs", 9, 9, ""),
+    ("crates/topo/src/test_support_fixtures.rs", 1, 1, ""),
 ];
 
 /// The repo root: this crate's directory, two levels up.

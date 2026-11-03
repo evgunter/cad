@@ -3495,3 +3495,28 @@ compared with (`link::Cone::reads_given`), so no reading moved from it.
 is taken, the cone places the probe on that sector's plane
 (`Sector::place`) to read it off a face's interior, or to certify it off
 the sector, a place it did not read there before.
+
+## Census note (2026-11-03): the chart-window walk takes its module's prefix
+
+Not a sweep and not a threshold change — a **rename**, recorded here
+because the census is the thing it changes. `[topo.homes]` arm 2 moved
+a face's azimuth-window walk out of `chord_join.rs`, whose chords no
+longer read it, into `topo::chart_window`, and a K name's prefix is the
+module that decides the margin. Each name below is one site and one
+population, so each is renamed and nothing pools: margins, bands,
+outcomes and order are untouched, only the `predicate` column moves,
+and the census count is the same on both sides.
+
+| old | new |
+|---|---|
+| `split_sphere_window_pole` | `chart_window_sphere_pole` |
+| `split_sphere_window_pole_side` | `chart_window_sphere_pole_side` |
+| `split_window_branch` | `chart_window_branch` |
+| `split_sphere_pole_branch` | `chart_window_pole_branch` |
+| `bool_cone_apex_visit` | `chart_window_cone_apex` |
+
+Two of the old spellings are in committed snapshots, as the sweeps
+wrote them: `split_sphere_window_pole` (14 rows in each
+`m5-eps-*.csv.gz`, 28 in each `m7-eps-*.csv.gz`) and
+`split_sphere_window_pole_side` (4 and 8). The other three appear in
+no committed CSV, and no addendum above names any of the five.

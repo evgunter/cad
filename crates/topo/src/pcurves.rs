@@ -814,6 +814,100 @@ pub fn pcurve_of<T: AtRestPolicy>(
     analytic_derive(&carrier, t0, t1, &surface, band, half_edge)
 }
 
+/// **A face of a seam, as [`seam_reading`] takes it**: a
+/// [`geom_brep::SeamFace`] whose spline face is always read at its chart,
+/// since only [`seam_face`] mints one (and, in tests, `SeamSide::analytic`,
+/// which refuses a spline chart).
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct SeamSide<'s, T: Real>(geom_brep::SeamFace<'s, T>);
+
+impl<'s, T: Real> SeamSide<'s, T> {
+    /// `surface` read by its implicit form; `None` on a spline chart,
+    /// which [`seam_face`] reads.
+    #[cfg(test)]
+    pub(crate) fn analytic(surface: &'s Surface<T>) -> Option<Self> {
+        surface
+            .spline_chart()
+            .is_none()
+            .then_some(Self(geom_brep::SeamFace::Analytic(surface)))
+    }
+}
+
+/// Why [`seam_reading`] read no class: [`geom_brep::SeamEscalation`] less
+/// the caller's error a [`SeamSide`] cannot make.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) enum SeamUnread {
+    /// The arm gate or the wedge's own reading escalated.
+    Lever(geom_brep::LeverEscalation),
+    /// A spline face's chart has no one normal at the point.
+    Crease(geom_brep::CreaseReading),
+}
+
+/// **The dihedral of a seam's two faces**, each read by its kind
+/// ([`geom_brep::classify_seam`]), a spline face's arm bracketed by its
+/// chart's certified lower bound at this scalar. The boolean's seam
+/// describer and the split's section-boundary describer both read it.
+pub(crate) fn seam_reading<T: Decide + AtRestPolicy>(
+    faces: [SeamSide<'_, T>; 2],
+    witness: geom_core::Point3<T>,
+    reach: geom_core::Lever<T>,
+    band: Band,
+) -> Result<geom_brep::DihedralClass, SeamUnread> {
+    geom_brep::classify_seam(
+        faces.map(|f| f.0),
+        witness,
+        reach,
+        |chart, p, reach| T::spline_chart_arm(chart, p, reach).ok(),
+        band,
+    )
+    .map_err(|refusal| match refusal {
+        geom_brep::SeamEscalation::Lever(e) => SeamUnread::Lever(e),
+        geom_brep::SeamEscalation::Crease(c) => SeamUnread::Crease(c),
+        geom_brep::SeamEscalation::SplineReadAsAnalytic => unreachable!(
+            "a SeamSide reads every spline face at its chart: seam_face and \
+             SeamSide::analytic mint no other"
+        ),
+    })
+}
+
+/// **A face of a seam edge, as its dihedral reads it** at the edge's
+/// witness ([`SeamSide`]), the face `surface` bounded by
+/// `half_edge`, whose edge's curve is `curve`: an analytic face at the
+/// witness; a spline face at the witness's parameters on its own chart,
+/// read off an image of the edge in that chart ([`pcurve_of`]) at the
+/// edge's own parameter of the witness, the middle of its interval.
+/// The image is the stored one where the half-edge has it, and otherwise
+/// the one the chart's description derives, an iso row or arc rim of the
+/// chart. Either is the edge on the face's own sheet, where a projection
+/// foot of the witness could land on another sheet of the chart; a
+/// stored `Pcurve::Fitted` image was itself fitted through the chart's
+/// feet of a trace, placed on the face's sheet when it was minted.
+///
+/// `None`, unplaced, on a spline face with no image of the edge in its
+/// chart to read the witness's parameters off, or on a null edge (no
+/// `curve`). A null edge's witness could be placed off its neighbour in
+/// the face's loop, but no class would follow: its zero-length chord gives
+/// the wedge no reach, so its dihedral escalates at the arm whatever the
+/// faces read.
+pub(crate) fn seam_face<'s, T: Decide + AtRestPolicy>(
+    body: &Body<T>,
+    half_edge: HalfEdgeKey,
+    surface: &'s Surface<T>,
+    curve: Option<&geom_brep::EdgeCurve<T>>,
+    band: Band,
+) -> Option<SeamSide<'s, T>> {
+    let Some(chart) = surface.spline_chart() else {
+        return Some(SeamSide(geom_brep::SeamFace::Analytic(surface)));
+    };
+    let (t0, t1) = curve?.params();
+    let image = pcurve_of(body, half_edge, band).ok()?;
+    let uv = image.eval(geom::mid_param(t0, t1));
+    Some(SeamSide(geom_brep::SeamFace::Spline {
+        chart,
+        uv: (uv.x, uv.y),
+    }))
+}
+
 /// **A transverse seam's `Intersection`, its selector chosen by D2's
 /// question: is the curve known in advance?** Where both faces are spline
 /// walls and the edge's image on each ([`pcurve_of`]) is a row on its
