@@ -2217,9 +2217,18 @@ mod tests {
                 }
             }
             // The payload states what was refused; its recourse is the
-            // ending, stated once at every door.
+            // ending, stated once at every door. A pose the general lane
+            // does not cover names its lever beside "not yet"
+            // (`plane-nurbs-refusal-ending-groups-the-producers-refusals-into-none`).
+            let pose = matches!(
+                e,
+                C::NoGeneralLane {
+                    gap: geom_brep::LaneGap::Pose { .. },
+                    ..
+                }
+            );
             let payload = e.to_string();
-            if test_utils::refusal::recourse_markers(&payload) != 0 {
+            if test_utils::refusal::recourse_markers(&payload) != usize::from(pose) {
                 wrong.push(format!("{e:?}: the payload spells a recourse: {payload}"));
             }
             for at in [Reading::Build, Reading::AtRest] {
@@ -2331,7 +2340,7 @@ mod tests {
                 };
                 let ending = e.ending(at);
                 let text = finding.render(at);
-                if test_utils::refusal::recourse_markers(&text) != 1 {
+                if test_utils::refusal::recourse_markers(&text) != 1 + usize::from(pose) {
                     wrong.push(format!(
                         "{e:?} at {at:?} states other than one recourse: {text}"
                     ));

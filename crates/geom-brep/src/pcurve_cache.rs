@@ -2202,7 +2202,7 @@ impl PcurveCertifyError {
                 f,
                 "pcurve certification: the {} carrier is on the {} chart but is none of its own \
                  curves, and its general (projected) image does not yet cover this pose: piece \
-                 {piece}: {}, and {POSE_FACT}",
+                 {piece}: {}. Recourse: {POSE_LEVER}",
                 carrier.name(),
                 chart.name(),
                 channel.describe()
@@ -9191,12 +9191,6 @@ fn chart_image<T: Decide>(
 pub(crate) const POSE_LEVER: &str = "a carrier through a pole, the cone's apex or the torus's \
      core has no one-branch image there; split the edge at it, or re-aim the chart's axis away \
      from it";
-
-/// What a [`LaneGap::Pose`] says of the pose, without a lever: the
-/// payload of [`PcurveCertifyError::NoGeneralLane`], whose ending is the
-/// lane's "not yet" ([`PcurveCheck::GeneralLane`]).
-const POSE_FACT: &str =
-    "a carrier through a pole, the cone's apex or the torus's core has no one-branch image there";
 
 /// **Why D3's lane choice found no general image** for a carrier the
 /// chart's incidence test does not show off it

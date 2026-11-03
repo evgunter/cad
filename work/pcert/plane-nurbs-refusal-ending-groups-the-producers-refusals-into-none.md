@@ -31,11 +31,17 @@ which that PR closed for `PcurveCertifyError`.)
 - `CertifyError::NoGeneralLane { gap: Pose, .. }` (`crates/geom-brep/src/certify.rs`)
   states the pose lever in its payload ("Recourse: {POSE_LEVER}") and ends
   by `CertCheck::GeneralLane` ("not yet"): two recourses that disagree.
-  The pcurve door's twin now states the pose as a fact beside its
-  "not yet" (`POSE_FACT`).
+  `PcurveCertifyError::NoGeneralLane { gap: Pose, .. }` does the same
+  (`PcurveCheck::GeneralLane`'s routing is "not yet"). At a real door the
+  lever is the true one: `topo` `m6_3_chart_completion::the_pole_fence_refuses_the_arc_over_the_pole_and_mints_the_arc_clear_of_it`
+  pins that an arc over a sphere's pole carries a recourse, and splitting
+  it at the pole is a way through, so "There is no way through yet" is
+  false there. PR 6448 left both doors' pairs as they were (its every-arm
+  row allows this one arm two recourses).
 
 ## Repair shape
 
 Name each arm's decision in an exhaustive match, ending by the pcurve
-door's table where the refusal is the same producer's, and state one
-recourse for the pose gap.
+door's table where the refusal is the same producer's. For the pose gap,
+decide whether the decided pose ends in its lever (`LeverOnly`) rather
+than `GeneralLane`'s "not yet", at both doors, and state one recourse.
