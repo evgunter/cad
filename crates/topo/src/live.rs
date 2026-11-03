@@ -63,7 +63,7 @@
 //! records is [`proven`] ([`Body::proven_face_surface`],
 //! [`Body::proven_face_edges`]); one a caller passed reads
 //! [`Body::face_surface`] and answers its miss as the caller's own.
-use crate::body::{Body, CYCLES_ARE_CLAIMANTS};
+use crate::body::Body;
 use crate::entity::{
     Edge, EdgeKey, EntityId, Face, FaceKey, GeomRef, HalfEdge, HalfEdgeKey, Loop, LoopBoundary,
     LoopKey, VertexKey,
@@ -460,7 +460,7 @@ impl<T: Real> Body<T> {
     /// order: each isolated-vertex loop's vertex and point, and each
     /// closed loop cycle member with its edge. Every hop is a link, and a
     /// loop walk that does not close on the half-edges claiming the loop
-    /// panics ([`Body::site_cycle_from`]).
+    /// panics ([`Body::loop_walk_of`], [`crate::body::Walk::closed`]).
     pub(crate) fn face_boundary_linked<'a>(
         &'a self,
         face: FaceKey,
@@ -613,7 +613,8 @@ impl<T: Real> Body<T> {
                 vec![BoundaryMember::Isolated { vertex, point }]
             }
             LoopBoundary::Cycle { first } => self
-                .site_cycle_from(first, lk)
+                .loop_walk_of(first, lk)
+                .closed("loop", first)
                 .into_iter()
                 .map(|he| {
                     let half = proven(&self.half_edges, he, EntityId::HalfEdge);
@@ -629,25 +630,6 @@ impl<T: Real> Body<T> {
                 })
                 .collect(),
         }
-    }
-
-    /// The half-edges of `r#loop` in `next` order from its member `he`,
-    /// every one claiming the loop ([`Body::loop_cycle_of`]).
-    ///
-    /// # Panics
-    ///
-    /// Where the walk does not close or strays out of the loop: on a
-    /// tier-1-valid body a loop's `next` cycle is the half-edges that
-    /// claim it.
-    #[track_caller]
-    pub(crate) fn site_cycle_from(&self, he: HalfEdgeKey, r#loop: LoopKey) -> Vec<HalfEdgeKey> {
-        self.loop_cycle_of(he, r#loop).unwrap_or_else(|| {
-            unreachable!(
-                "the cycle walk of loop {loop:?} from {he:?} does not close on the half-edges \
-                 that claim it: {CYCLES_ARE_CLAIMANTS}",
-                loop = r#loop
-            )
-        })
     }
 
     /// The point of `member`'s vertex ([`BoundaryMember::vertex`]): the

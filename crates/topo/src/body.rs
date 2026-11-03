@@ -1206,14 +1206,20 @@ impl<T: Real> Body<T> {
         he: HalfEdgeKey,
         r#loop: LoopKey,
     ) -> Option<Vec<HalfEdgeKey>> {
-        let walk = self.bounded_walk(he, |body, member| {
-            let next = body.half_edges.get(member)?.next;
-            body.claims(next, r#loop).then_some(next)
-        });
-        match walk {
+        match self.loop_walk_of(he, r#loop) {
             Walk::Closed(members) => Some(members),
             Walk::Broken { .. } | Walk::Overrun => None,
         }
+    }
+
+    /// [`Body::loop_cycle_of`]'s walk with the three-way outcome
+    /// ([`Walk`]): `Broken` at the member whose `next` does not resolve
+    /// or does not claim `r#loop`.
+    pub(crate) fn loop_walk_of(&self, he: HalfEdgeKey, r#loop: LoopKey) -> Walk {
+        self.bounded_walk(he, |body, member| {
+            let next = body.half_edges.get(member)?.next;
+            body.claims(next, r#loop).then_some(next)
+        })
     }
 
     /// **A loop's half-edges in cycle order, by the loop's key**:

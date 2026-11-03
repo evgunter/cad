@@ -4270,6 +4270,25 @@ impl<T: Decide> Body<T> {
         }
     }
 
+    /// The half-edges of `r#loop` in `next` order from its member `he`,
+    /// every one claiming the loop ([`Body::loop_cycle_of`]).
+    ///
+    /// # Panics
+    ///
+    /// Where the walk does not close or strays out of the loop: on a
+    /// tier-1-valid body a loop's `next` cycle is the half-edges that
+    /// claim it.
+    #[track_caller]
+    pub(crate) fn site_cycle_from(&self, he: HalfEdgeKey, r#loop: LoopKey) -> Vec<HalfEdgeKey> {
+        self.loop_cycle_of(he, r#loop).unwrap_or_else(|| {
+            unreachable!(
+                "the cycle walk of loop {loop:?} from {he:?} does not close on the half-edges \
+                 that claim it: {CYCLES_ARE_CLAIMANTS}",
+                loop = r#loop
+            )
+        })
+    }
+
     /// A face a door makes out of `from` as the surgery leaves it —
     /// `mef`'s new face, `mfkrh`'s promoted one: one loop, `halves`, on
     /// the chart `surface` names, whose rows `from`'s decide. `moved`
@@ -7288,10 +7307,7 @@ mod removal_census {
         ),
         (
             "DanglingTopology: Face -> Loop",
-            Read(
-                "require_loop_unlisted",
-                &["data.outer ==", "data.rings.contains"],
-            ),
+            Read("require_loop_unlisted", &["data.holds_loop("]),
         ),
         (
             "DanglingTopology: Face -> Shell",
