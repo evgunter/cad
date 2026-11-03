@@ -144,6 +144,11 @@ fn chart_region_errors() -> Vec<ChartRegionError> {
         ChartRegionError::MissingCache {
             half_edge: HalfEdgeKey::default(),
         },
+        ChartRegionError::TrimOffFace {
+            face,
+            half_edge: HalfEdgeKey::default(),
+            read: geom_brep::IncidenceRead::Off(Some(geom_core::MarginDiag::value(0.5))),
+        },
         ChartRegionError::ArmUnbounded { chart: "sphere" },
         ChartRegionError::SeamBranch,
         ChartRegionError::PeriodFold,
@@ -711,7 +716,7 @@ fn pcurve_certify_errors() -> Vec<PcurveCertifyError> {
         PcurveCertifyError::CarrierOffChart {
             chart: geom::SurfaceKind::Sphere,
             carrier: geom::CurveKind::Line,
-            why: "a sphere holds no line",
+            why: "the line's points are not on the chart (its distance from the chart at a sample of its span is past the band)",
             margin: None,
         },
         PcurveCertifyError::CarrierOffChart {

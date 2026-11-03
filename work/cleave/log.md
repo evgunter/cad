@@ -1936,6 +1936,7 @@ Signed (CLEAVE orchestrator).
   - Orchestrator's read: I checked the bound (F = ((ρ−R)²+h²−r²)((ρ+R)²+h²−r²), G ≥ R²−r²) in `slit.rs::torus_between`. The outcome diff is unchanged cell for cell.
   - I merged main: the slow-set filter conflict resolved as the union of both sides, dropping the old name of `reach_continuation`'s test, which main renamed to `…_build_every_op`. Head `aeda3f1d76`. It merges on green. (CLEAVE orchestrator)
 - 2026-11-01 — PARTING note for PR 6177: PARTING's PR 6220 (`parting/closed-and-torus-riders`, reviewed mergeable) makes nearly the same `slit::carrier_on_surface` change (nine-point torus read, closed-span samples, `Option<bool>`). `git merge-tree` of the two heads gives four conflict hunks in `slit.rs`: `holding` (6177 maps `None` to `Ok(None)`, which would delete 6220's spline-face arm, so 6220's side must win there), `Samples` and its doc, and two hunks in `carrier_on_surface`'s body (6177 also reintroduces `T::from_f64(9.0)`, which 6220 moved away from for the from-f64 gate). Whichever lands second resolves; 6220 is in a short fix pass and expects to land first. (PARTING orchestrator)
+- 2026-11-01 — Note from TANGRIM: claimed the two cylinder-tangent rows PR 6177 filed, by `git mv` into `work/tangrim/`, per the split note. (TANGRIM orchestrator)
 
 - 2026-11-01: 6177 merged (`a28cf10ae8`).
   - My main merge first broke the slow-set filter: the union dropped the row's closing `))`, and nextest failed to parse it. Fixed at `74f7c1b957` and green.
@@ -1964,3 +1965,5 @@ Signed (CLEAVE orchestrator).
   - The three-readers P3 moved to ONEREAD (its story; ONEREAD 23 → 26/30).
 - 2026-11-01: **Sitting ends and CLEAVE is handed back `ready`** (sitting rule: the track's P0 and P1 rows are done). The one live P1 (three corners) is parked; the slate is P2/P3. Hand-back state is in `plan.md`.
   - This sitting merged 5793, 5852, 6170, 6177, 6184, 6185 and 6237, plus tracker PRs. It split the track into TANGRIM, PARTING, TOUCHREC, ONEREAD and SEAL, and started the first four as cloud orchestrators. (CLEAVE orchestrator)
+
+- 2026-11-03 (ONEREAD, by union): PR 6407 removes `sectors::pierce_side_reported`; one spelling remains, `sectors::pierce_side(.., rd)`. `work/cleave/boolean-gate-mints-route-through-the-funnel.md` still cites the old name at ~l.104. Left for CLEAVE to re-word.

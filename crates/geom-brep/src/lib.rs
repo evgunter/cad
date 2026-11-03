@@ -146,8 +146,8 @@ pub use enters::{
     tied_germ_turn,
 };
 pub use extent::{
-    ExtentBall, LeverBounds, Reach, control_net_reach, edge_extent_inf, edge_extent_sup,
-    edge_reach_bounds, edge_reach_from,
+    ExtentBall, LeverBounds, Reach, edge_extent_inf, edge_extent_sup, edge_reach_bounds,
+    points_diameter, points_lever_from, polygon_half_perimeter,
 };
 pub use fitted_lane::{FITTED_DOOR_HOLDERS, FittedLane};
 /// The ring-torus convention's one home is `geom` (below this crate, so
@@ -215,7 +215,8 @@ pub use pcurve_cache::{
     Pcurve, PcurveCache, PcurveCertificate, PcurveCertifyError, PcurveCheck, PcurveKind, Period,
     ProjectedChart, ProjectedImage, SectorChannel, SpiricImage, WalkStop, WallTorus, angle_rate,
     chart_iso_family, chart_pcurve, chart_pcurve_over, chart_stretch_inf, chart_stretch_sup,
-    chart_stretch_sup_v, chart_sup_arms_at, harmonic_form_of, iso_arc_spans,
+    chart_stretch_sup_v, chart_sup_arms_at, harmonic_form_of, iso_arc_spans, read_edge_incidence,
+    read_incidence, read_point_incidence,
 };
 pub use props::{
     FaceContribution, LoopEdge, PropsError, curved_face, planar_face, require_iso_rectangle,

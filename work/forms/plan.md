@@ -45,6 +45,25 @@ history, and undo reaches it. The full statement is in
 4. **The seated tools**, cut per tool from the census once the profile
    unit has set the pattern.
 
+**Where it stands (2026-11-03, hand-back).** Steps 1-3 are done (#6388,
+#6393, #6401, #6403). Step 4's agreed half landed as #6414: blend size,
+mirror label, clearance bounds as slots, and the count row. The rest of
+step 4 is parked on `[ev]` PR 6406 (fork row 247):
+- When Ev answers, the next orchestrator does three things:
+  - fills row 247's Ev, match, token and mapping columns (bytes 24 and
+    227: C = Fable, A and B = Opus; tokens A 154081/177453,
+    B 126435/147961, C 205783/230679);
+  - makes 6406's README text match the answers;
+  - takes `[ev]` off the title and merges it.
+- The next units are then:
+  - the split unit: face pick, offset row, `SlotId::PoseScalar`,
+    discovery;
+  - the pattern-fields unit, after PLACING's build of #6369, with
+    `the-pattern-gesture-names-its-index` riding along.
+- **Never merge an `[ev]` branch into forms/orchestrator.** Units are
+  cut from that branch, so they would carry the unratified text (#6414
+  did, and its review caught it).
+
 **Not this track's to build.** The placement editor's Create door
 (PLACING, `crates/viewer/src/matetool.rs`) and the transform and
 duplicate tools, which PLACING is retiring into it. The add-variable

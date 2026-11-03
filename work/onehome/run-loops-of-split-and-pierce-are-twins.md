@@ -2,11 +2,10 @@
 id: run-loops-of-split-and-pierce-are-twins
 kind: issue
 title: splitting/insert.rs's run loop and boolean/vtxfac.rs's are near-verbatim twins: one home?
-status: dispatched
+status: open
 opened: 2026-10-06
 priority: P1
 cost: M
-branch: onehome/star-sites
 ---
 
 
@@ -68,3 +67,19 @@ DESIGN `[one-way.places]`: a vertex's neighbourhood cut by a surface (its sector
 3. **Stage 3:** the cut (sides → cuts), one germ rule signed by the transition's codes (rides `two-germ-readers-sign-one-line-two-ways`), one germ order (folds `honeone/germ-orders-about-a-normal-have-two-homes`), and `vertex_section::entered_faces` reading the cuts (items 3–4 of `vertex-section-quotient-…`). The offset → side reading stays outside.
 
 The chord choice (corners or runs) is a per-verb parameter. The pierce's runs are sound on the probe's fixture (PR 6360).
+
+**Stage 1 landed (PR 6392, 2026-11-03).** `topo::star` holds:
+- `Site`, with its private `RunSite`;
+- `TipSide`;
+- the gated `mev_null_run`;
+- `run_site`, `strut_before_next_real` and `ring_tree`;
+- `runs` over the `Member` view;
+- `arc_site`, `hang` and `hang_ring`.
+
+`euler::RunSite`, `run_degenerates` and `mint_run`'s `WholeOrbit` refusal are gone. The planner spells every whole-orbit run as its strut at any count of survivors. `run_end`/`run_half` are the one reading of where a run went.
+
+The FULL review found one MAJOR (a whole-orbit run past two survivors handed held runs the tip), which is fixed and pinned (`a_whole_orbit_run_of_four_survivors_is_spelled_as_its_strut`). Filed by the lane:
+- `the-vertex-pair-planner-nests-struts-across-pairs-beside-ring-tree` (stage 2);
+- `the-pierce-reads-a-struts-facing-the-stars-site-already-names`.
+
+Stages 2 and 3 remain on this row.

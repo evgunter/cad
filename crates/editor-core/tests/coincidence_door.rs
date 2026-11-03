@@ -3491,7 +3491,7 @@ fn an_instanced_shaft_mated_onto_a_revolves_axis_is_coaxial_by_construction() {
         ),
         vec![
             (
-                Coord::Slide(TargetAxis::Y),
+                Coord::slide(TargetAxis::Y),
                 Formula::zero(Dimension::Length),
             ),
             (Coord::SPIN, Formula::turn_over(4).expect("a quarter turn")),
@@ -3691,9 +3691,9 @@ fn the_axis_edit_rows() {
     let by_values = |y: f64, spin: Formula| editor_core::Placed {
         mates: Vec::new(),
         values: vec![
-            (Coord::Slide(TargetAxis::X), len(0.0)),
-            (Coord::Slide(TargetAxis::Y), len(y)),
-            (Coord::Slide(TargetAxis::Z), len(0.0)),
+            (Coord::slide(TargetAxis::X), len(0.0)),
+            (Coord::slide(TargetAxis::Y), len(y)),
+            (Coord::slide(TargetAxis::Z), len(0.0)),
             (Coord::Spin(Some(TargetAxis::X)), none()),
             (Coord::Spin(Some(TargetAxis::Y)), spin),
             (Coord::Spin(Some(TargetAxis::Z)), none()),
@@ -3710,7 +3710,7 @@ fn the_axis_edit_rows() {
                 mates: vec![crate::fixture::mate(shaft.axis(), housing.axis())],
                 values: vec![
                     (
-                        Coord::Slide(TargetAxis::Y),
+                        Coord::slide(TargetAxis::Y),
                         Formula::zero(Dimension::Length),
                     ),
                     (Coord::SPIN, quarter()),
@@ -3727,7 +3727,7 @@ fn the_axis_edit_rows() {
             editor_core::Placed {
                 mates: vec![crate::fixture::mate(collar.axis(), housing.axis())],
                 values: vec![
-                    (Coord::Slide(TargetAxis::Y), len(-1.0)),
+                    (Coord::slide(TargetAxis::Y), len(-1.0)),
                     (Coord::SPIN, none()),
                 ],
             }
@@ -3890,9 +3890,9 @@ fn a_refused_bundle_states_nothing() {
         editor_core::Placed {
             mates: Vec::new(),
             values: vec![
-                (Coord::Slide(TargetAxis::X), len(0.0)),
-                (Coord::Slide(TargetAxis::Y), len(0.0)),
-                (Coord::Slide(TargetAxis::Z), len(0.0)),
+                (Coord::slide(TargetAxis::X), len(0.0)),
+                (Coord::slide(TargetAxis::Y), len(0.0)),
+                (Coord::slide(TargetAxis::Z), len(0.0)),
                 (Coord::Spin(Some(TargetAxis::X)), none()),
                 (
                     Coord::Spin(Some(TargetAxis::Y)),
@@ -3922,7 +3922,7 @@ fn a_refused_bundle_states_nothing() {
                 )],
                 values: vec![
                     (
-                        Coord::Slide(TargetAxis::Y),
+                        Coord::slide(TargetAxis::Y),
                         Formula::zero(Dimension::Length),
                     ),
                     (Coord::SPIN, Formula::zero(Dimension::Angle)),
@@ -4210,9 +4210,9 @@ fn a_stated_axis_proves_a_wall_pair_the_fold_does_not() {
         editor_core::Placed {
             mates: Vec::new(),
             values: vec![
-                (Coord::Slide(TargetAxis::X), len(3.0)),
-                (Coord::Slide(TargetAxis::Y), len(0.5)),
-                (Coord::Slide(TargetAxis::Z), len(0.25)),
+                (Coord::slide(TargetAxis::X), len(3.0)),
+                (Coord::slide(TargetAxis::Y), len(0.5)),
+                (Coord::slide(TargetAxis::Z), len(0.25)),
                 (
                     Coord::Spin(Some(TargetAxis::X)),
                     Formula::zero(Dimension::Angle),
@@ -4239,7 +4239,7 @@ fn a_stated_axis_proves_a_wall_pair_the_fold_does_not() {
                 )),
             )],
             values: vec![
-                (Coord::Slide(TargetAxis::Y), len(0.0)),
+                (Coord::slide(TargetAxis::Y), len(0.0)),
                 (Coord::SPIN, crate::fixture::ang(0.7)),
             ],
         },

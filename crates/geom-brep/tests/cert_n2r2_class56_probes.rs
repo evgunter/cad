@@ -9,6 +9,7 @@ use geom::{Curve3, NurbsSurface, Surface};
 use geom_brep::keys::SurfaceKey;
 use geom_brep::{EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, SurfacePair, plane_nurbs_limbs};
 use geom_core::spline::KnotVector;
+use geom_core::test_support::fixture_lever;
 use geom_core::{Point3, Vec3};
 use slotmap::SlotMap;
 
@@ -70,7 +71,7 @@ fn n2r2_class5_plane_nurbs_limbs_on_masquerade() {
             carrier.knot_values().domain(),
             &plane(),
             &w,
-            1.0,
+            fixture_lever(1.0),
             band(),
         );
         eprintln!("[class 5 {name}] plane_nurbs_limbs -> {r:?}");
@@ -111,7 +112,7 @@ fn n2r2_class6_certify_lanes_on_masquerade() {
             ends.0,
             ends.1,
             |k| arena.get(k).cloned(),
-            1.0,
+            fixture_lever(1.0),
             band(),
             geom_brep::NurbsLane::certified(),
         );
@@ -134,7 +135,7 @@ fn n2r2_class6_certify_lanes_on_masquerade() {
             ends.0,
             ends.1,
             |k| arena.get(k).cloned(),
-            1.0,
+            fixture_lever(1.0),
             band(),
             geom_brep::NurbsLane::certified(),
         );
@@ -156,7 +157,7 @@ fn n2r2_class6_certify_lanes_on_masquerade() {
             ends.0,
             ends.1,
             |k| arena.get(k).cloned(),
-            1.0,
+            fixture_lever(1.0),
             band(),
             geom_brep::NurbsLane::certified(),
         );

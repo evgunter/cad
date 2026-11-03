@@ -111,7 +111,7 @@ fn on_the_axis(
 ) -> RecipeNodeId {
     let placed = editor_core::Placed {
         mates: vec![crate::fixture::mate(body.axis(), housing.axis())],
-        values: vec![(Coord::Slide(TargetAxis::Y), by), (Coord::SPIN, spin)],
+        values: vec![(Coord::slide(TargetAxis::Y), by), (Coord::SPIN, spin)],
     };
     placed_in(r, &housing.body(), body.body(), placed)
 }
@@ -285,9 +285,9 @@ fn scene(
             let by_values = editor_core::Placed {
                 mates: Vec::new(),
                 values: vec![
-                    (Coord::Slide(TargetAxis::X), len(0.0)),
-                    (Coord::Slide(TargetAxis::Y), len(BELOW)),
-                    (Coord::Slide(TargetAxis::Z), len(0.0)),
+                    (Coord::slide(TargetAxis::X), len(0.0)),
+                    (Coord::slide(TargetAxis::Y), len(BELOW)),
+                    (Coord::slide(TargetAxis::Z), len(0.0)),
                     (Coord::Spin(Some(TargetAxis::X)), none()),
                     (Coord::Spin(Some(TargetAxis::Y)), none()),
                     (Coord::Spin(Some(TargetAxis::Z)), none()),
@@ -318,9 +318,9 @@ fn scene(
             let across = editor_core::Placed {
                 mates: Vec::new(),
                 values: vec![
-                    (Coord::Slide(TargetAxis::X), zero()),
-                    (Coord::Slide(TargetAxis::Y), len(BELOW)),
-                    (Coord::Slide(TargetAxis::Z), zero()),
+                    (Coord::slide(TargetAxis::X), zero()),
+                    (Coord::slide(TargetAxis::Y), len(BELOW)),
+                    (Coord::slide(TargetAxis::Z), zero()),
                     (Coord::Spin(Some(TargetAxis::X)), back()),
                     (Coord::Spin(Some(TargetAxis::Y)), back()),
                     (

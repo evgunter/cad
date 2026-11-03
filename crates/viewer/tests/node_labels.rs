@@ -312,10 +312,7 @@ fn a_refused_creation_applies_no_label() {
             distance: common::len(0.01),
         },
         SessionOp::AddProfile {
-            loops: vec![common::shape(&viewer::session::ProfileShape::Circle {
-                centre: [0.0, 0.0],
-                radius: 0.0,
-            })],
+            loops: vec![common::circle_at([0.0, 0.0], 0.0)],
         },
     ];
     for op in refused {
@@ -573,7 +570,7 @@ fn every_creation_labelled_is_one_undo_whatever_door_commits_it() {
         "traced",
     );
     let row = || PatternRuleSpec::Linear {
-        direction: scl3([1.0, 0.0, 0.0]),
+        direction: viewer::PatternDirection::Axis(pncad::document::TargetAxis::X),
         spacing: len(0.05),
     };
     let pattern = run(
@@ -1180,7 +1177,7 @@ fn a_degenerate_creation_still_mints_the_node_it_labels() {
             input: block.into(),
             count: 1,
             rule: PatternRuleSpec::Linear {
-                direction: common::scl3([1.0, 0.0, 0.0]),
+                direction: viewer::PatternDirection::Axis(pncad::document::TargetAxis::X),
                 spacing: common::len(0.05),
             },
         },

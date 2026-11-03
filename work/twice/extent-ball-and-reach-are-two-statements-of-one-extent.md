@@ -46,3 +46,18 @@ Classified on Ev's ask, via the CLEAVE note on INTENT's log, against main `e92fb
 - **not duplication.**
 
 **Design signal.** **Cluster C, the scale a margin is charged at.** Ev (2026-10-26): every point of the representation must be within ε of the real shape, so a decision's charge should be derived from that one contract, not chosen per site. There are three extent types: `ExtentBall`; `geom_brep::Reach` (Span/Measured/Ball); and topo's `Reach`. Which extent a door levers from changes verdicts. No canonical-places row names "the extent a carrier verdict is levered at".
+
+## One type, the doors' levers unmoved (ONEHOME, `onehome/one-extent`, 2026-11-02)
+
+`geom_brep::Reach` is now the one consumed-extent type and `ExtentBall`
+its ball payload, built only through its geometric constructors
+(`ExtentBall::new` is crate-private); every lever is a `geom_core::Lever`
+read from it, a curvature arm or the session box. That unit left this
+row's question open on purpose: the carrier doors
+(`topo::boolean::carrier_eq`, `rest::pair_extent`) and the
+tangent-locus witness still lever from a ball's far side
+(`ExtentBall::lever_from`, `Reach::Ball`), and whether each moves to a
+measured span or face is a verdict-moving change that wants its own
+per-door differential. The type no longer stands in the way: a door
+that moves hands a `Reach::Span` or `Reach::Face` where it now hands a
+ball.

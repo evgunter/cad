@@ -292,7 +292,7 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
             input: node.into(),
             count: 2,
             rule: PatternRuleSpec::Linear {
-                direction: scl3([1.0, 0.0, 0.0]),
+                direction: viewer::PatternDirection::Axis(pncad::document::TargetAxis::X),
                 spacing: len(0.05),
             },
         },
@@ -300,7 +300,7 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
             input: node.into(),
             count: 2,
             rule: PatternRuleSpec::Linear {
-                direction: scl3([1.0, 0.0, 0.0]),
+                direction: viewer::PatternDirection::Axis(pncad::document::TargetAxis::X),
                 spacing: len(0.05),
             },
         },

@@ -180,7 +180,7 @@ pub use scene::{DisplayTolerance, SceneDocError, SceneError, SceneMesh, ScenePar
 pub use seats::{Seat, SeatError, SeatEvent, Seats, seat_line};
 pub use session::{
     BoundsReading, DocSession, EdgeSelection, FaceSelection, GestureFrameFault, Hovered, Landing,
-    NodeKindWanted, OpOutcome, PatternRuleSpec, ProfileShape, Refusal, Selection, SessionOp,
+    NodeKindWanted, OpOutcome, PatternDirection, PatternRuleSpec, Refusal, Selection, SessionOp,
     Standing, VertexSelection,
 };
 pub use theme::{Mark, MixFraction, Polarity, Safety, Theme};
