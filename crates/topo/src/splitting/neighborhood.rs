@@ -17,41 +17,14 @@
 //! `n`) to `dir(he_i)`** — the corner between the loop's incoming
 //! direction reversed and its outgoing direction.
 //!
-//! # Why convex subdivision (the wide/reflex fork, decided)
+//! # Convex subdivision
 //!
-//! A face with a tangent plane at the vertex is planar there to first
-//! order, so a sector's interior is exactly
-//! the positive cone of its two bounding directions **iff the sector's
-//! angle is < 180°** — then the bounding-edge verdicts determine every
-//! interior direction's side (a positive combination of two same-side
-//! vectors stays on that side), and one entry suffices. At ≥ 180° the
-//! cone argument fails (the interior can cross the plane while both
-//! bounds sit on one side), so the sector is split at an interior
-//! direction into two sub-sectors, each < 180° — restoring the
-//! argument. The book's store-twice-with-bisector is exactly this
-//! convex subdivision; the paper's alternative (complement-and-negate
-//! at 180°, interior-vector sign for > 180°) answers point-membership,
-//! not side-classification, and offers no cone argument — so the book's
-//! device wins **by derivation**. Bonus (also derived, §14.6): the
-//! duplicate entry is what makes dangling null edges fall out of the
-//! generic run scan.
-//!
-//! The arm / wideness / subdivision-direction rungs this section
-//! derives are implemented ONCE, in [`crate::sector_shape`], and
-//! called from here and from the boolean lane's sector walk under one
-//! pooled set of K names. The derivation stays here; the code lives
-//! there.
-//!
-//! The subdivision direction need not be the exact bisector — ANY
-//! interior direction with both sub-angles < 180° is valid. We use:
-//! definite reflex ⇒ `−normalize(a + b)` (the true bisector of the
-//! reflex span); straight-band (near 180°, where `a + b` collapses) ⇒
-//! `n × b` (90° into the interior; sub-angles ≈ 90° — valid throughout
-//! the band). The wideness trilean therefore has **no escalation
-//! cliff**: duplication is sound for every angle (subdividing a convex
-//! sector would merely be redundant), so Zero and in-band verdicts
-//! both take the duplicate path — the deliberate, documented posture
-//! for this one predicate (the decisive side verdicts stay strict).
+//! A wide or reflex sector is stored twice, its duplicate classified by
+//! an interior direction that cuts it into two convex sectors: the
+//! corner reading, its derivation and why its wideness verdict has no
+//! escalation cliff are [`geom_brep::sector_shape`]'s. What it buys the
+//! split (derived, §14.6): the duplicate entry is what makes dangling
+//! null edges fall out of the generic run scan.
 //!
 //! # At a cone's apex
 //!
@@ -59,7 +32,7 @@
 //! ([`crate::sector_face::VertexFace::Apex`]). Its sector's interior
 //! directions are the rulings between its bounds, round the axis, not
 //! positive combinations of them, so a plane through the apex can cross
-//! such a sector twice at any width and the convex argument above does
+//! such a sector twice at any width and the convex argument does
 //! not hold. The plane's side along the rulings is monotone between its
 //! two extremal rulings, so the sector is subdivided at each extremal
 //! ruling strictly inside it instead ([`crate::sector_shape::apex_corner_shape`]):
