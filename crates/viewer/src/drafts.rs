@@ -166,18 +166,8 @@ pub(crate) struct Drafts {
     /// The blend form's kind choice — which of the two doors the
     /// commit button calls.
     pub(crate) blend_kind: BlendKindChoice,
-    /// Its one Length field, metres. ONE field for both kinds by the
-    /// unit's spec: what the number means is the kind's to say
-    /// ([`BlendKindChoice::size_label`]), and a second field would be
-    /// a second place for the same quantity to be typed into.
-    pub(crate) blend_size: f64,
     /// The clearance form's choice of which side it bounds.
     pub(crate) clearance_bound: ClearanceBoundChoice,
-    /// Its first length, metres: the one bound, or a band's lower end
-    /// ([`ClearanceBoundChoice::bounds`]).
-    pub(crate) clearance_lo: f64,
-    /// A band's upper end, metres.
-    pub(crate) clearance_hi: f64,
     /// **The path editor opened on a committed profile** — its
     /// program as written, held for the edit door
     /// ([`Drafts::profile_edit`] loads it). `None` while no profile is
@@ -1192,10 +1182,7 @@ impl Default for Drafts {
             // form wants is the one that selects something new.
             part_instance: 1,
             blend_kind: BlendKindChoice::Fillet,
-            blend_size: 0.001,
             clearance_bound: ClearanceBoundChoice::AtLeast,
-            clearance_lo: 0.002,
-            clearance_hi: 0.004,
             profile_edit: None,
             dropped: Vec::new(),
             label_text: None,

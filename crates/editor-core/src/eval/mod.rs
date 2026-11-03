@@ -1981,12 +1981,13 @@ pub enum NodeErrorKind {
     /// The measured expression has no closed form for the carrier pair
     /// it was asked about (E3's honest v1 scope).
     MeasureUnsupported(measure::MeasureUnsupported),
-    /// A node's PAYLOAD expression failed to evaluate — an assertion's
-    /// value or its bound.
+    /// A node's PAYLOAD expression failed to evaluate — a value
+    /// claim's value or its bound. A clearance's bound is a slot, and
+    /// fails as [`Self::Expr`] at it.
     ///
     /// The address is the expression's position in `payload_exprs`
-    /// order, because an assertion has no slot vocabulary to name. The
-    /// rendering says WHICH one it is.
+    /// order, because a value claim's two expressions have no slot
+    /// address. The rendering says WHICH one it is.
     PayloadExpr {
         /// Which node kind's payload this is, for the message.
         what: &'static str,
@@ -4643,8 +4644,9 @@ where
                 frame: drawn.map(|d| d.frame),
             }
         }
-        // PAYLOAD EXPRESSIONS (E10): an assertion's value and bound, and
-        // a clearance's bounds, are not slots. They are evaluated exactly once here, under the
+        // AN ASSERTION'S EXPRESSIONS (E10): a value claim's value and
+        // bound, which are payload, and a clearance's bound slots, which
+        // `slots::eval_slots` leaves to this arm. They are evaluated exactly once here, under the
         // discipline `slots` states and for the same reason: these
         // values feed BOTH the content key and the op, so a parameter
         // edit under a bound moves the key rather than serving a stale
@@ -4658,20 +4660,23 @@ where
             for (index, &(var, dim)) in reads.iter().enumerate() {
                 let read = measure::observe(doc, env, results, var, dim).map_err(|refusal| {
                     match refusal {
-                        measure::ObservedRefusal::Expr(source) => NodeErrorKind::PayloadExpr {
-                            what: match (claim, index) {
-                                (crate::measure::Claim::Value { .. }, 0) => {
+                        // A clearance's bound is a slot, and is named so.
+                        measure::ObservedRefusal::Expr(source) => match claim {
+                            crate::measure::Claim::Clearance { bounds, .. } => {
+                                let Some(&(slot, _)) = bounds.rows().get(index) else {
+                                    unreachable!("one read per bound row, in row order")
+                                };
+                                NodeErrorKind::Expr { slot, source }
+                            }
+                            crate::measure::Claim::Value { .. } => NodeErrorKind::PayloadExpr {
+                                what: if index == 0 {
                                     "the assertion's value,"
-                                }
-                                (crate::measure::Claim::Value { .. }, _) => {
+                                } else {
                                     "the assertion's bound,"
-                                }
-                                (crate::measure::Claim::Clearance { .. }, _) => {
-                                    "the clearance's bound,"
-                                }
+                                },
+                                index,
+                                source,
                             },
-                            index,
-                            source,
                         },
                         // Every measure under the value is upstream of
                         // this node, and a failed one poisoned it above.
@@ -5104,7 +5109,10 @@ mod tag {
         ///   this same environment, so the nominal is already in its
         ///   key.
         /// * The measurement vocabulary's PAYLOAD expressions
-        ///   (`Measure`, `Assertion`) write no nominal word. They are
+        ///   (`Measure`, `Assertion`), and a clearance's bound slots,
+        ///   which the assertion's arm evaluates beside them
+        ///   ([`super::slots::eval_slots`] exempts the node), write no
+        ///   nominal word. They are
         ///   read only by their own node's op at the evaluation
         ///   scalar, so no f64-pinned reader has an input for the key
         ///   to owe. The day a pre-pass reads a measured bound at

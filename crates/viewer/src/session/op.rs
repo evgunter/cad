@@ -1812,6 +1812,7 @@ impl SessionOp {
                     | Self::AddDrawnProfile { .. }
                     | Self::AddExtrude { .. }
                     | Self::AddRevolve { .. }
+                    | Self::AddMirror { .. }
             ),
         }
     }
