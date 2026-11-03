@@ -468,10 +468,25 @@ pub(crate) enum TurnOrder {
     FromOwn,
 }
 
+impl TurnOrder {
+    /// **The quarter cuts of a whole turn, as fractions of it from the
+    /// next bound**, listed in this order: a quarter, a half and three
+    /// quarters from [`TurnOrder::FromNext`], the reverse from
+    /// [`TurnOrder::FromOwn`]. The one home of the cut both whole turns
+    /// take: a slit tip's ([`FullTurn::quarters`]) and a cone apex
+    /// corner's in the vertex–vertex lane (`boolean::sectors`).
+    pub(crate) const fn quarter_fractions(self) -> [f64; 3] {
+        match self {
+            Self::FromNext => [0.25, 0.5, 0.75],
+            Self::FromOwn => [0.75, 0.5, 0.25],
+        }
+    }
+}
+
 impl<T: Real> FullTurn<T> {
     /// The three directions that cut the turn into convex quarters:
-    /// `unit_next` turned a quarter, a half and three quarters, listed
-    /// in `order`.
+    /// `unit_next` turned [`TurnOrder::quarter_fractions`] of the turn,
+    /// listed in `order`.
     pub(crate) fn quarters(&self, order: TurnOrder) -> [Vec3<T>; 3] {
         let (q, back) = (self.quarter, -self.unit_next);
         match order {
@@ -652,6 +667,17 @@ const SECTOR_APEX_WINDOW: &str = "sector_apex_window";
 pub(crate) struct ApexShape<T: Real> {
     /// The metering arm, as [`SectorShape::arm`].
     pub arm: T,
+    /// The azimuth the face's sweep turns through from the next bound to
+    /// its own ([`crate::sector_face::ConeApex::azimuth_from`]), as the
+    /// window was decided: the whole turn `2π` where the corner is one
+    /// (a strut's one edge, a wrap edge's tip), whatever the two bounds'
+    /// rounding reads. Its one reader is the Boolean's apex corner
+    /// (`boolean::sectors::push_apex_corner`), which cuts the window by
+    /// it.
+    pub window: T,
+    /// Whether the window is the whole turn, decided by the corner's
+    /// bounds ([`Self::window`]).
+    pub whole_turn: bool,
     /// The unit rulings the sector is subdivided at, in orbit order (from
     /// its own bound toward the next): none, one or two.
     pub rulings: Vec<Vec3<T>>,
@@ -730,6 +756,8 @@ fn apex_shape<T: Decide>(
     {
         return Ok(ApexShape {
             arm,
+            window,
+            whole_turn: full_circle,
             rulings: Vec::new(),
         });
     }
@@ -759,7 +787,12 @@ fn apex_shape<T: Decide>(
             rulings.push(g);
         }
     }
-    Ok(ApexShape { arm, rulings })
+    Ok(ApexShape {
+        arm,
+        window,
+        whole_turn: full_circle,
+        rulings,
+    })
 }
 
 /// [`apex_shape`], with a window that reads no width read by `bounds`

@@ -597,6 +597,17 @@ reported, or the branch whose certified chart tube holds it.
 branch already ends at and every closed loop from the chart lane's
 seeds, and accounts every cell of the wall's knot rectangle, excluded,
 in a tube, or in a region.
+The residual × NURBS lane, a cylinder, sphere or ring torus against a
+wall, is read through a handle of the same shape and contract on the
+1×2 trace (`ssi::ImplicitSection::of`, `branch_at`, `all`): its state is
+the wall's `(u, v)` and its one equation the partner's residual in
+metres along the wall. Its branches carry the wall's pcurve and none on
+the partner, which has no chart, as an ℝ³ branch carries none. Its
+boundary pass is the curved partner's (`ImplicitWall::pass`, the
+classification's own), its limb 3 the plane lane's chart tube read
+against the partner's form, `∇f·S⊥` over an upper bound on `‖∇f‖`
+(`ChartPhi`), and its seeding and accounting exclude a cell where the
+form's floor in metres over the wall's box there is clear of zero.
 Hoffmann §6.5's tracing through singular points is deliberately not
 adopted. Subdivision is recursive bisection with a linear scan over
 tubes; the C10 tree is not wired in.
@@ -773,13 +784,12 @@ numerically (certified by its transversality or order-k jet margin);
 `EdgeDescription::Chart { surface, pcurve,
 wrap }` is a locus one chart defines (wraps, iso lines, splits whose two
 faces share one surface), with `EdgeAuthority` recording who determined
-the locus. Which form an edge between two faces takes is decided in one
-home, `topo::rest_locus` (`RestLocus`): one surface
-record is one surface; two records the carrier-equality ladder reads
-as one carrier over the faces' region are one surface too, since
-incidence on both is incidence on one, and the edge rests in the first
-record's chart; two distinct carriers, or a kind outside the ladder,
-are the pair, carrying a structural selector where the pair's curve has
+the locus. Which form an edge between two faces takes is read off its
+sides by key alone: both halves on one face is a wrap, two faces on one
+surface record are that record's chart, and two records are the pair.
+Two records are never one surface at rest, because the act that decided
+a coincidence leaves the faces on one record (DESIGN `[coincidence.door]`).
+The pair carries a structural selector where the pair's curve has
 a closed form and a witness otherwise; a coincidence in band
 is refused at the structural act that made the two faces adjacent, and
 a rung that cannot decide or a region that does not read refuses typed,
@@ -887,7 +897,8 @@ sphere×torus, cylinder×torus, torus×torus, plane×NURBS and plane×`Approx`,
 NURBS×NURBS and every pairing of `Approx` with NURBS or `Approx` (rung 3);
 NURBS (and `Approx` as its fit) against a cylinder, sphere or torus is
 classified, its tangency and coincidence decided and its loop-free
-verdict read, and its whole reading over the knot rectangle is unbuilt. The offset door reads
+verdict read, and where the sweep declines it is read whole over the knot
+rectangle on the 1×2 trace (`ImplicitSection::all`, rung 3). The offset door reads
 plane×NURBS through `PlaneSection::branch_at` and NURBS×NURBS through
 `Section::branch_at`, each at the old edge's middle. The boolean reads
 plane × NURBS and NURBS × NURBS (and `Approx` as its fit) through the
@@ -921,8 +932,10 @@ apart on a floor in metres and its coincidence on a ceiling, each
 through the form's divisor, the torus read only as a ring torus
 (`R > r`), where the divisor's lower bound is positive; the pass reads
 `f∘C` along each side as the curve × face table's ring composite and
-`∇f(S)·S_d` across it; and where the sweep declines, the pose refuses as
-the general rung's, its whole reading unbuilt. The sweep decides a cell
+`∇f(S)·S_d` across it; and where the sweep declines, the value is the
+1×2 reading's `all()` (`ssi::ImplicitSection`) on the same pass, each
+component listed as against a plane, a branch's witness bracketed in the
+wall's chart along `∇φ` until the form's certified sign changes. The sweep decides a cell
 it cannot read at the floor as a critical point: each cluster of such
 cells is isolated as `∇φ`'s one zero by the Krawczyk operator on the
 wall's jet, its Hessian's determinant read for a touch or a node, and
@@ -956,14 +969,30 @@ the ball about the overlap of the two operands' boxes, padded, which
 holds every section point the operation can use. No face's or site's
 extent enters it, so two faces on one carrier read one value. A
 component is closed, or open with both ends on the domain's boundary,
-or ends at a node (Edge descriptions): a node is
-decided on the pose as a Zero tangency whose section still has
-carriers, placed in closed form or enclosed alone in a certified box,
-and a site at it reads as the node. The value lists each node with the
-surfaces' common normal, its two tangent lines and the side of each
-other the surfaces lie on in the sectors between them, all read off
-their relative second fundamental form there, indefinite and
-nondegenerate. Each arc end at a node names its line and the sense it
+or ends at a node (Edge descriptions). A node is a point where one
+surface's residual `f`, restricted to the other surface `S` where `S`
+is smooth, has a critical point at value zero whose Hessian is
+indefinite and nondegenerate (by the Morse lemma, two branches crossing
+transversally). That Hessian is the node's one datum: `f`'s
+second-order form on `S`'s tangent plane `T`, corrected by `S`'s
+curvature times `∇f`'s normal component. At a tangency of two smooth
+surfaces `∇f ≠ 0`, and it is their relative second fundamental form.
+At a singular point of `f`'s surface lying on `S`, `∇f = 0`, and it is
+`f`'s own quadratic form on `T`: a cone's apex (null lines the two
+rulings in `T`) or a spindle torus's tips. A horn torus's centre has a
+degenerate form and refuses as contact of higher order; a spline's
+singular tip (a collapsed side where its tangents span no plane,
+`chart_singularity::spline_collapsed_row`) refuses by name until its
+tangent cone is read. Where neither surface is smooth (two cones
+through one apex) the criterion does not apply: their section is their
+shared rulings. A node is decided on the pose (a Zero tangency whose
+section still has carriers, or a singular point's closed-form margin),
+placed in closed form or enclosed alone in a certified box, and a site
+at it reads as the node. The value lists each node with `S`'s normal,
+the Hessian's two null lines and the side of each other the surfaces
+lie on in the sectors between them. A definite Hessian is a touch, an
+isolated point of the section; a degenerate one refuses, except a
+plane holding a cone's ruling, whose section is that line. Each arc end at a node names its line and the sense it
 leaves along. A germ leaving a node is minted from its arc end, and no
 reading of a site names an arc there.
 Arcs that share nodes are one node-joined set (`NodeSet`), the
@@ -975,7 +1004,8 @@ common perpendicular against `r₁ + r₂` and `|r₁ − r₂|`, or the axis
 distance where parallel. A pair with a ruled side reads its pose on the
 sweep of the discriminant along that side's rulings: its double root
 the tangency, decided on the pose, the arcs where it is positive the
-components, a cone's apex a closed-form margin, and for two cylinders
+components, a cone's apex on the other surface a closed-form margin
+(its residual there), whose Zero is a node or a touch, and for two cylinders
 the margins above its extremes. Each torus pair's pose
 (`SphereTorusPose`, `CylinderTorusPose`, `TorusTorusPose`) guards its
 operands, reads the partner's symmetry on the section certificate's
@@ -1731,8 +1761,7 @@ reading of their kind. A curve no lane can yet select refuses typed,
 naming the lane, native or imported alike; a coincidence of two surfaces
 in band is refused at the structural act that made them adjacent. A locus one chart defines
 (parameterization seams — infinite-order contact, the seam's position
-pure convention; iso-lines; splits whose two faces share one surface;
-two records that read as one carrier) is `Chart`: one (surface,
+pure convention; iso-lines; splits whose two faces share one surface) is `Chart`: one (surface,
 `Pcurve`) form covers all of them (PCURVE-UNIFY-DESIGN); the exact
 classes stay as certification lanes, not variants. A `MappedCurve`
 survives as the `Scaffold` payload, as a structural selector and as the
@@ -1756,7 +1785,7 @@ locus, so the implicit function theorem makes S₁∩S₂ locally a
 1-manifold; the margin (angle between normals) governs the conditioning
 of every derived cache. A branch may end at a *node*, a point where
 it crosses another branch of the same pair and the two surfaces are
-tangent (two equal cylinders with intersecting axes: their section is
+tangent, or one is a cone singular there, at its apex (two equal cylinders with intersecting axes: their section is
 two ellipses crossing at p ± r·unit(â₁×â₂)); there the section is one
 connected set, so the witness selects the branch, and transversality
 holds on the open edge, which is where certification samples it. A tangency's validity sits one

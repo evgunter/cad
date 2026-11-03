@@ -89,7 +89,7 @@ fn the_wall_arms_margins_scale_linearly_with_the_model() {
     // Pinned red: `curve_foot_branch`'s decisive margins read a million to
     // one between the twins, where every other predicate's read a
     // thousand. Six pairs were off before PR 5664 and 62 since
-    // (`work/issues/ray-wall-twins-curve-foot-branch-margin-scales-with-the-model-squared.md`
+    // (`work/cpair/ray-wall-twins-curve-foot-branch-margin-scales-with-the-model-squared.md`
     // owns the six, `work/charttail/main-red-ringed-curved-doors-reds-four-sweep-rows.md`
     // the widening). `k-lint (dev-probe)` runs this row once, at ε 1e-9,
     // and the nightly's `--all-features` suite at the default ε, the same

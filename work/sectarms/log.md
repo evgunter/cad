@@ -228,5 +228,195 @@ and bodies unchanged. No orchestrator yet.
   - **Filed:** `a-curved-partners-coincidence-ceiling-is-read-per-net` (P3 E) and `the-canonical-implicit-forms-are-spelled-three-times` (P3 M).
   - A wall tangent along a whole side refuses by the cell budget on the plane path too, so it is not new and not filed.
   - **Class to watch:** fixtures at unit scale cannot see a units error. A conversion's rows need a scale far from 1.
+
+- 2026-11-02 14:55 — **Cylinder stage 3 is up as PR 6373** (the join reads the value).
+  - **What retires:** the `join_reads` gate, the frame cylinder lane, `crossing_cylinder_reading` and `parallel_radical_plane`.
+  - **F1:** needed no `SiteFoot::Node`. A germ's branch is its bisector plane, read on the value's planes.
+  - **F2:** `NodeSet`, with `held_per_set`.
+  - **F3:** the carried lane chords only spline carriers, so the parallel and bisector lanes stay as plane lanes, with their planes from the value. Stage 3b is filed P1.
+  - **Moved rows:**
+    - Skew and unequal-radius poses now carry to `VolumeUncomputable`, after marches of minutes (P2 filed). One row ran over 30 minutes at 1e-12.
+    - The seams row moves at the lever change (fork 224).
+  - **Also:** a ruling-sweep cut fix.
+  - **Review:** dual review dispatched to two cloud sessions (R1 `session_01VyvYnLxpmpgJaDabW3UtZe`, R2 `session_01VyvYnKGe2QchhxrQ33ztCU`), with cost asked as claim 7.
+
+- 2026-11-02 16:45 — **PR 6373 dual review in**: R1 and R2 both APPROVE-WITH-FIXES, no MAJOR. Fix pass sent to the cylinder lane.
+  - **A second axes reading survives in the node path** (R2): `bool_node_tangent_toward_axis` and `node.rs`'s hand-rebuilt bisector normals and midpoint. Fix from the value, not file.
+  - **Stale lever prose and the dead frame span:** user-facing `CylinderAxes` text, the `join.rs` header, `frame_reading`, and `FrameExtent::Span`. Delete now.
+  - **A geom-brep row for the ruling cut fix:** only a sweep row kills its mutant.
+  - **§5 misses:** open `work/` rows that cite retired sites, and `carrier_eq`'s coaxiality ladder.
+  - **Fail loud:** `face_surface(..).is_ok_and` in `cylinder_read`, and the node pass's silent skip of a missing table entry.
+  - **Cost (both lanes):** about 6–7 s per op in release, just to refuse. The P2 is raised to P1, named "decide before marching that no volume lane can take it". It is built here only as a gate on an existing capability predicate. Not blocking.
+  - **Fix-or-file:** one ladder for cut shifts, a `bisector_loops` invariant assert, operand order at `mint_nodes`, the `rulings_normal` codomain check, docs, and the `cone_frame_rows` lever.
+  
+  Both sessions archived. Blind coding is running on the stripped reports (byte 51, A = R2).
 - 2026-11-02 — **Cylinder stage 3 (branch `sectarms/cylinder-join-reads-value`).** The join reads every cylinder pose on the section value, and the frame lane's cylinder readings and the `join_reads` gate retire. The rulings (F3) and bisector lanes stay as plane lanes with their planes from the value, because the carried lane chords only spline components; filed stage 3b (`the-carried-lane-chords-only-spline-components`, P1 H). F1 needed no `SiteFoot::Node`: the bisector germ's branch is its plane, read on the value's planes, and a node germ's branch is set at mint as before. F2: `NodeSet` on `PairSection`, read by `section_cert` and checked per set at the carry. Filed: `the-glue-witness-lane-reads-a-cylinder-pairs-tangency-beside-the-value` (P2 M).
+
+- 2026-11-02 20:00 — **PR 6373 merged** (cylinder × cylinder stage 3: the join reads the value; dual review, tally 0, row PR-6373.md).
+  - The fix pass closed every must-fix item. Filed: `carrier_eq` coaxiality (P2), the pre-march refusal (P1), 3b (P1).
+  - A merge with main (ONEREAD 6378's plane × cone in `join.rs`) was resolved by the lane with no logical clash, and was green before merging.
+  - Next on the cylinder line:
+    - 3b: the carried lane chords line and ellipse spans, which retires the parallel and bisector plane lanes;
+    - the pre-march volume refusal;
+    - cylinder × sphere on the ruling sweep.
+  - **NURBS stage 3 dispatched** (`sectarms/nurbs-implicit-arm-stage3`; H, dual review). Its node arcs ride `PairSection::node_sets`; there is no `SiteFoot::Node`.
+
+- 2026-11-02 20:20 — **NURBS stage 3: the trace-shape question is settled by ratified text; the stage is restaged with a fresh implementer.** The lane found that the ℝ⁴ machinery (`ends`, `handle`, fit, `RectExit`, `one_arc`, the chart tube) is typed to the plane's system. It asked whether to build a real 1×2 system or embed the equation as 3×4 with identity rows. C3 settles it: "the point eliminated wherever a chart side exists … one equation `f∘S = 0` on the chart's knot rectangle (1×2)". So the build is a real `LocalSystem<1,2>`; the embedding would contradict ratified text. Restaged:
+  - **3a-0**: a behaviour-preserving refactor making that machinery generic over the system (M, single full review), dispatched to a fresh implementer, briefed with `~/.local/share/cad-work/sectarms-orch/nurbs-stage3-handoff.md`;
+  - **3a**: the 1×2 lane and the whole reading (H, dual review);
+  - **3b**: node ends and touch arcs (H, single full review).
+- 2026-11-02 20:20 — **Cylinder 3b split.**
+  - **3b-i** is building: the closed-form carried chord arm, parallel rulings and cylinder × sphere coaxial circles; the parallel plane lane retires.
+  - **3b-ii** waits on the bisector lane's retirement and on **design fork F1, "a germ leaves a node"**: which component a site at a node and a germ leaving it ride, and by what decision; one rule for every pair with nodes (cylinders now, spline and cone nodes later).
+  - The fork draw puts three designers on F1 (bytes on `analysis/design-fork/a-germ-leaves-a-node`). They are dispatched concurrently with one problem statement and no candidates.
+
+- 2026-11-02 21:10 — **Fork F1 "a germ leaves a node" goes to Ev as `[ev]` PR 6398** (row 248, renumbered from 246, three designers, two rounds; all agree).
+  - **Mint, don't locate:** germs at a node are minted from arc ends the value lists.
+  - **The node on the value:** each node is listed with its normal, two tangent lines and sector side, read off the relative second fundamental form.
+  - **Site readings:** a site reads `AtNode | OnArc`, and escalates in band.
+  - **Retires:** the bisector lane, `Positive/Negative` on the cylinder path, and `bool_node_run_turn` (a second read of the face sense).
+  - **C5 amended:** the certified-box clause and the node listing.
+  - **Residual:** spelling only (`Q` itself vs lines + one side bit).
+  - **Held until Ev answers:** cylinder 3b-ii.
+
+  The designers' orchestrator notes, acted on:
+  - NURBS stage 3's node arcs must end at the node along its ray, matched once at carry, or refuse typed. This goes into 3b's brief, not 3a's.
+  - `cylinder_cylinder` lists nodes whose arcs the region dropped. Fix it in 3b-ii.
+  - The −π/2/3π/2 parameter wrap means a node seat is the span end. Use this in 3b-i/ii.
+
+- 2026-11-02 21:30 — **NURBS stage 3a-0 is up as PR 6400.** The SSI ends, handle, fit and exit code are now generic over a new `SectionSystem<M,N>`. A probe dump on base and head (2.1 MB, sha256 equal) shows the outputs bit-identical, and CI is green.
+  - **Left for 3a:**
+    - the 1×2 pcurve shape: `feet` returns two, and the implicit side has no chart;
+    - the public `SeedOutsideTube` state array;
+    - an `Operands`/`Lane` variant;
+    - the `hermite` docs;
+    - `RectExit` offsets;
+    - limb 3.
+  - A single full review is running in a cloud session.
+
+- 2026-11-02 22:00 — **PR 6400 review: APPROVE** (single full review in the cloud, no correctness defect).
+  - **Verification:** the reviewer's own base/head dump (17.7 MB) came out byte-identical and covered the pair-lane closed loops and all four `RectExit` sides. Its two mutants (swapped `feet`, `first` off by one) both turned rows red.
+  - **Small pass sent before merge:** `RectExit` silently accepts `first >= N` (narrow the bound and check it); a stale plane-only doc line; document the order of `feet`.
+  - **Class, logged:** `nurbs_nurbs_section` rows built as graphs over (x, y) cannot catch a swapped `feet`. 3a's rows use non-graph charts.
+  - **Unchanged:** MINOR-1 (`feet`'s two-point shape) stays on 3a's list. Ev's PR 6398 has no comments yet.
+
+- 2026-11-02 22:20 — **PR 6400 merged** (NURBS 3a-0; single full review APPROVE; a small pass added a `first < N` debug check, narrowed the `RectExit` bound to `SectionSystem`, and fixed docs). **Stage 3a dispatched** to the same implementer (`sectarms/nurbs-implicit-arm-stage3a`; H, dual review). The pcurve on the implicit side follows an existing lane's precedent, or stops for a ruling.
+
+- 2026-11-02 — **The container restarted mid-work.** Both lanes' clones and targets survived, so both were resumed from their transcripts:
+  - cylinder 3b-i was at 069db8d, pushed;
+  - NURBS 3a had uncommitted edits and was told to commit and push its work in progress first.
+  
+  The lost "wait for CI" task needed no recreation. Ev's PR 6398 is still unanswered.
+
+- 2026-11-02 22:55 — **Cylinder 3b-i is up as PR 6405.** The carried lane now chords closed-form components: lines, circles and ellipses, on pairs with no torus face.
+  - **What it retires:** the parallel rulings lane.
+  - **Probe:** a cylinder island closed by a ruling winds through the existing `IslandReading`, so no F2 arises.
+  - **Added beyond the brief:** `GermLane::EdgePlane` now also takes a straight edge lying in a cylinder wall. It used to be served by the rulings lane, and only the seams row at 1e-6 holds it. The dual review is asked to examine it hardest, as possibly a second reading.
+  - **Moved outcomes:** coaxial cylinder × sphere builds every op at exact volumes, and INTENT's shaft-and-ball union is green at f64.
+  - **Filed:** torus closed forms are held off the carried lane (P2).
+  - **Review:** the dual review is dispatched to two cloud sessions.
+
+- 2026-11-03 01:15 — **NURBS stage 3a is up as PR 6412.** It adds the 1×2 lane `ImplicitChartR2`, the `ImplicitSection` handle, partner-excluding seeding and accounting, limb 3 under one home via `ChartPhi`, and the curved whole reading; `curved::unbuilt` retires.
+  - **Pcurves:** the implicit side has none. This follows the ℝ³ precedent: `feet` returns `[Option; 2]`, and the 1×2 lane uses `AtRest { pcurve_a: None }`.
+  - **Behaviour preserved:** plane and pair outcomes are bit-identical.
+  - **Surviving mutants, with reasons:** raw-form exclusion, farthest pairing, bracket direction, `rhs3`.
+  - **Unexercised:** no row drives the side arm on a curved partner.
+  - **Review:** dual review in two cloud sessions, R1 `session_01VyvYnKsU2n2aiHaMZV4QrF` and R2 `session_01VyvYnLgYEj8KXLh8v6yu18`.
+
+- 2026-11-03 01:35 — **PR 6405 dual review is in.** R1 returned APPROVE-WITH-FIXES and R2 NOT-MERGEABLE-AS-IS. Fix pass sent; both sessions archived; blind coding running.
+  - **R2's MAJOR (executed):** a slow-set sweep row is red at head. The tilted coaxial cylinder × sphere pins expected refusal and now build correctly (4e-16). The PR's "no other outcome moved" was measured on the ci profile, which by construction skips the slow set.
+    - **Class finding:** PR evidence that moves outcomes must include the touched crates' slow sets. The lane is told so for this pass. Whether to make this standing discipline is a `docs/prompts` question for Ev, so it is not acted on here.
+  - **Both reviewers, on the `EdgePlane` Line arm:**
+    - the tangent-plane mutant survives;
+    - the tangent-chord refusal is lost;
+    - no margin on "edge in wall";
+    - it builds a second time a ruling the value lists.
+    - Preferred fix: the seam germ rides the carried lane on the value's ruling.
+  - **R1: the torus gate's premise doesn't reproduce.** Lifting it, every op builds sound except ∩, which refuses typed. So: re-measure, and remove the gate if honest.
+  - **Also in the pass:** a volume assertion on the shaft row, stale docs, an inconsistent fixture, one home for the two carried-lane gates (an allowlist by pair), and the radial copy.
+
+- 2026-11-03 05:50 — **Ev asked two questions on `[ev]` PR 6398.** Q1: "made from the arcs" vs "looked up". Q2: is the two-line case enough, and what about a third shape? Answered on the PR from a designer's code-checked draft:
+  - Q1: an arc end names its node by construction, so arc end → node has one answer, while a point → arc lookup has four.
+  - Q2: the section is per pair, and n-ary booleans fold two at a time. Within a pair, a nondegenerate Q gives exactly two lines. Degenerate contact and a third face of an input through a node both refuse typed.
+  - One unknown was filed: `a-third-input-through-a-tangent-node-vertex-is-untested` (P3).
+  - Ev said 3–5 look good, pending 1 and 2.
+
+- 2026-11-03 06:05 — **Ev approved fork F1 on PR 6398** ("i still don't see what you mean, but seems fine"; points 3–5 "look good").
+  - **Follow-up Q1, answered:** an arc's identity is its row in the component list (index, curve and span, end nodes), and the boolean walks the rows. Ev was not fully persuaded on Q1 but approved.
+  - **PR housekeeping:** the fork row was renumbered 246 → 248 (246 was taken on main), the mapping and decision commit landed, and the `[ev]` is off the title. The PR merges on green.
+  - **Unblocked:** cylinder 3b-ii (bisector retirement on the node listing) and NURBS 3b (node ends).
+
+- 2026-11-03 — **PR 6398 merged.** The node rule (F1) is now in C5.
+- 2026-11-03 — **PR 6405's fix pass is accepted.** The dual-review row is committed as the last commit (`25c4f76`, tally 1: R2's red slow-set row), and the PR merges on green. What the fix pass did:
+  - Took the preferred fix: a straight edge inside the other solid's face rides the value's carried ruling, and the `EdgePlane` Line arm is deleted.
+  - Removed the torus gate after re-measuring, which also lets `shaft_and_bearing_rounded` build.
+  - Ran the slow sets of all touched crates, 12,906 rows.
+  - In the main merge, kept main's new cone-apex use of the rulings lane, narrowed to the cone pair.
+
+- 2026-11-03 10:10 — **PR 6412 dual review is in:** R1 and R2 both APPROVE-WITH-FIXES, no MAJOR. Fix pass sent, both sessions archived, blind coding running.
+  - **Confirmed:** both lanes checked the 1×2 jets by finite differences and found exhaustiveness sound; R1 confirmed the plane path is bit-identical.
+  - **Must fix:**
+    - The louder tolerance, minted before classification, turns a decided R = 10⁶ pose at 1e-12 into a refusal (R1, undisclosed). The preferred fix is to mint it only where a march needs it.
+    - The margin rows can't catch an unsound margin (both lanes).
+    - `rhs3` has no row (R2).
+    - The curved side arm is undriven (both lanes).
+    - The partner-reach refusal is mislabelled as the domain (R2).
+  - **To file:**
+    - a translated pose refuses through `PROJECT_EPS_POINT`'s absolute 1e-13;
+    - a crease march escalates;
+    - 7 s cell-budget refusals.
 - 2026-11-03 — (SPLICE orchestrator) **`a-nurbs-wall-against-a-plane-has-no-germ-frame` now has an everyday witness.** The wavy loft united with a box across its corners (editor-core `wavy_loft`) passes its held-pierce site on `splice/held-pierce` and stops at `GermFrameUnsupported { a_face: 4v1, a_kind: Nurbs, b_face: 6v1, b_kind: Plane }`, from `join::pair_section_frame_at`'s `NoArm` fallback. That is a normal verb on normal geometry, so the row may merit P0 by the band definitions; the band is yours to set. The lane adds the reproducer to the row, with SPLICE's owed end-to-end row (the union builds, its corner crossings named and tied), which now waits on it.
+
+- 2026-11-03 10:25 — **PR 6405 merged.** Cylinder 3b-i is done: dual review, tally 1, row PR-6405.md. The old cylinder lane's target is freed.
+  - **Cylinder 3b-ii dispatched to a fresh implementer,** plan first (H, dual review). Its brief is `~/.local/share/cad-work/sectarms-orch/cyl-3b-ii-handoff.md`, which carries:
+    - F1's ratified C5 text and the agreed final state;
+    - the code facts;
+    - the designer-found defects: nodes listed when their arcs are dropped, and the 3b row's "branch names the arc" line;
+    - the scope boundary with NURBS 3b.
+  - **Blind coding for PR 6412 done:** tally 0 (byte 221, A = R2). The row is drafted and goes in after the fix pass.
+
+- 2026-11-03 — **Cylinder 3b-ii plan accepted.** Each node stores two lines plus one side bit. The cylinder's lines are closed form, so storing Q would read them a second time. Rulings on the named items:
+  - **D1 (pinch node):** stays unlisted while its lobes are unminted; P2 filed.
+  - **D2 (arc with both ends at one node):** desyncs for now; spline 3b names the end.
+  - **D3 (bisector planes):** kept only as construction for the sweep's factoring. If they decide which ellipse a pierce lies on, that read goes through `site()`; otherwise P2.
+  - **D4 (escalation diagnostic):** reported on the node-distance margin.
+  - **D5 (span membership):** a new metered predicate, with an audit row.
+  - **D6 (held nodes):** Straddles counts as held; `n̂` is the outward radial.
+
+- 2026-11-03 — **3b-ii: near-node chords lose transversality.** Retiring the bisector lane removes its auxiliary plane, so a chord near a node is described as wall ∩ partner wall. Three near-node rows built before and now refuse typed (`NotTransverse` / `Escalated{Transversality}`), at δ = 1e-6, 3e-7, and 1e-4 at 35°.
+  - Ruled (a): re-pin them as typed refusals, measure the δ threshold per family, and disclose the regression.
+  - File a P2 that names option (b) as an open design question: describing a planar-conic chord against its own plane.
+  - No unsoundness, but it is a capability regression to raise with Ev at hand-back if the threshold turns out wide.
+
+- 2026-11-03 — **PR 6412 fix pass accepted.** All five must-fix items are fixed, each with a mutant that goes red:
+  - march tolerance minted only where a march runs;
+  - margin rows pinned;
+  - an `rhs3` row;
+  - a curved side-arm row;
+  - `ReachBound::Partner`.
+  
+  Three issues filed (P3), and one item declined with a reason. The row is the last commit (`7b8f4e3`, tally 0), and the PR merges on green.
+  
+  Process note: the lane's local clippy never ran, because another lane's nextest held the build slot for over an hour. CI lint stands in.
+
+- 2026-11-03 — **Re-cut on Ev's request** (chat: "sectarms has grown quite a bit, so that it's over budget … would it make sense to recut it … or if any of those neighbors have no orchestrator, recutting them as well to pull out another coherent track"; "sectarms will ideally land well under 30, to reflect that this sitting isn't just starting"). SECTARMS was 38/30 and SECT 46/30, with no orchestrator. Rows moved by `git mv`, ids and bodies unchanged:
+  - **SECTCONE (new, 24/30):** the cone on the section value. From SECT: `the-cone-has-no-implicit-enclosure-or-metres-conversion` (P0 H), `cone-torus-rung-three-arm-waits-on-the-cone` (parked) and `a-cone-against-a-parallel-axis-torus-has-no-section-arm`. From SECTARMS: `cone-germ-pairs-…` (P1 H) and `conic-germ-pairs-rank-…` (P1 H).
+  - **SECTTORUS (new, 16/30):** SECT's torus thread. `c5-plane-torus-cone-cylinder-arms` (P0 X16, now plane × torus only, lily wall 8), plus the tilted plane × torus, torus doors, torus gaps, hour-long torus rows, sphere × tube circle and tilted torus pairs.
+  - **SPIRICARM:** `a-carried-cylinder-pair-marches-for-minutes-before-the-volume-lane-refuses` (P1 M). Its refusal is the volume lane's.
+  - **SECTARMS (now 11/30):** `a-nurbs-face-against-a-torus-has-no-section-arm` is parked on `c5-plane-torus-cone-cylinder-arms`, lily wall 8's next stop. SECTARMS keeps the NURBS × implicit arm and the cylinder pairs.
+  - **SECT (now 22/30):** keeps the one-site and on-carrier join arms, the ball × cylinder cost row and its remainder.
+  - **Citations:** paths citing the moved rows in crates, demos, docs and other programs' rows were re-pointed. The fork log is left as the historical record.
+
+- 2026-11-03 13:45 — **PR 6412 merged** (NURBS 3a, the 1×2 lane and the whole reading; dual review, tally 0, row PR-6412.md). **NURBS stage 4 asked for a plan**: the plane folds into the arm and its ℝ⁴ whole reading retires. It goes ahead of 3b, which waits on cylinder 3b-ii's node listing.
+
+- 2026-11-03 — **NURBS stage 4 plan accepted** (the plane folds into the 1×2 arm and `PlaneSection` retires).
+  - **Staging:**
+    - **4a:** the plane as a form of the one partner type, plus a differential row comparing every plane fixture through `PlaneSection` and `ImplicitSection` at three ε (single full review);
+    - **4b:** the cutover (dual review), only if no fixture moves from decided to refused, which otherwise stops the lane for a report.
+  - **Rulings:**
+    - one partner type (rename if `Curved` misnames it);
+    - `PlaneSection` removed, with no alias and outside callers moved;
+    - `WindowShortOfWall` retires;
+    - `SeedOutsideTube` stays for the pair lane;
+    - `TracedTriple`'s plane pcurve stays as the exact affine image;
+    - the anchored pivot with its padded band is kept, since a stored-origin readout would be a second reading.

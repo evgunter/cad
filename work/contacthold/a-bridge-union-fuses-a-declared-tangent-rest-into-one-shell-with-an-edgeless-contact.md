@@ -6,7 +6,7 @@ status: closed
 opened: 2026-10-03
 priority: P1
 cost: M
-refs: [tier-3-passes-a-curved-wall-touching-a-plane-face-interior-along-a-line, 3987]
+refs: [3987]
 branch: contacthold/face-face-touch-row
 pr: 4921
 design: true

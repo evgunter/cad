@@ -73,7 +73,7 @@ wall 3 and lily wall 8 each need both tracks; at the 2026-11-01
 hand-back lily wall 8 stops at SECT's
 `c5-plane-torus-cone-cylinder-arms` and klein wall 3 at CARVETAIL's
 `the-skin-cuts-an-arc-wall-at-each-sub-arc-joint`. Each join's current stop is kept in
-`work/issues/curved-demo-joins-build.md` (2026-11-03).
+`work/splice/curved-demo-joins-build.md` (2026-11-03).
 
 Spiric operand edges are not on this slate: they stay deferred
 (`reachhold/spiric-operand-edges-reopen-with-their-first-producer`,

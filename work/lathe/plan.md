@@ -91,3 +91,26 @@ recourse, the tube's word budget) can run together.
 
 OPEN, for this program's first dispatch, under
 `docs/DUAL-REVIEW-PROTOCOL.md` as CARVE's is.
+
+## CARVE's two parked rows, moved in 2026-11-03
+
+CARVE closed with nothing dispatchable
+(`docs/doc-ledger/carve-leaves-the-tracker.md`). Its two parked rows
+moved here by `git mv`, ids and bodies unchanged:
+
+| pri | item | cost | waits on |
+|---|---|---|---|
+| P0 | `self-overlapping-spines-build-and-validate` | H | CLEAR's `the-at-rest-gate-certifies-embedding` |
+| P3 | `the-sweep-doors-return-bodies-tier-3-refuses` | M | ONEHOME's `the-at-rest-result-gate-and-its-typing-live-in-five-homes` |
+
+**When they release.** The certificate's door shape is in the spine
+row's "Measured" section: one helper after `assemble`,
+`SelfIntersecting` for a verified violation and `EmbeddingUncertified`
+for an engine refusal, the fold's Zero arm kept before the skin, and
+inside derived from slab 0's sign. It also inherits what PR 6141's
+clearance leaves to it: arc pairs the curve-pair reader cannot settle,
+and caps that cross while the rims stay apart (the row's evidence
+sections). The pinned-corner door (`crates/sweep/src/loft/stacking.rs`,
+added to this track's `paths`) is where the fold's retiring arms go.
+The tier-3 row builds the sweep doors' instance of whatever gate home
+ONEHOME rules.
