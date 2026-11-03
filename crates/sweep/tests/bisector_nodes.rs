@@ -278,13 +278,18 @@ fn rod_at(z0: f64, z1: f64, phi: f64) -> Body<f64> {
 ///   wall, where they read it in the band's gap;
 /// - `δ` a few bands: their distance in band escalates `VertexOnVertex`
 ///   (or, at a fragment's end, `VertexOnCurvedFace`);
-/// - `δ` beyond the band and short of `√band`: each pierce reads the
-///   partner wall through the plane the sweep found it on, and the arcs
-///   from each pierce to the node read their wedge at their faces'
-///   reach, so every pose builds at its closed form (at ε 1e-12 a cap's
-///   short ruling refuses at its pcurve,
-///   `work/pcert/a-short-ruling-on-a-cylinder-chart-mints-its-pcurve-at-the-seams-u.md`);
-/// - `δ` past `√band`: every operation builds at its closed form.
+/// - `δ` beyond the band and short of `√band` (`30·escalate`): each
+///   pierce reads the partner wall through the plane the sweep found it
+///   on. A cap builds at its closed form (at ε 1e-12 its short ruling
+///   refuses at its pcurve,
+///   `work/pcert/a-short-ruling-on-a-cylinder-chart-mints-its-pcurve-at-the-seams-u.md`).
+///   A seam's arcs from each pierce to the node, `2δ` long at a dihedral
+///   of `δ`, are described by the two walls, whose crossing angle there
+///   reads `Zero` (margin `2.5e-14` for A's seam, `1.8e-13` for B's, at
+///   ε 1e-9): its certification refuses `NotTransverse`
+///   (`work/sectarms/an-edge-within-root-band-of-a-tangency-node-has-its-transversality-escalate.md`);
+/// - `δ` past `√band` (`5·√escalate`): every operation builds at its
+///   closed form.
 ///
 /// Every operation, both operand orders, both poses, at every ε.
 #[test]
@@ -387,6 +392,11 @@ fn an_edge_near_a_node_crosses_through_the_bisector_planes() {
                             // partner wall through its branch, and the short arcs
                             // from each pierce to the node read their wedge at
                             // their faces' reach.
+                            Want::PastThePierce if !capped => assert!(
+                                transversality_refused(&r),
+                                "{cut}: the arcs to the node, too nearly tangent to certify, got \
+                                 {r:?}"
+                            ),
                             Want::PastThePierce => {
                                 let Ok(BooleanResult::Body(out)) = r else {
                                     panic!("{cut}: builds, got {r:?}");
@@ -440,6 +450,30 @@ fn an_edge_near_a_node_crosses_through_the_bisector_planes() {
     }
 }
 
+/// Whether `r` is an edge's certification refusing the two walls'
+/// transversality along it: a chord from a pierce to a node, `2δ` long
+/// at a dihedral of about `δ`, described by the two walls, whose crossing
+/// angle there reads `Zero` or in the band
+/// (`work/sectarms/an-edge-within-root-band-of-a-tangency-node-has-its-transversality-escalate.md`).
+fn transversality_refused(r: &Result<BooleanResult<f64>, topo::BooleanError>) -> bool {
+    use geom_brep::{CertCheck, CertifyError};
+    use topo::EulerOpError;
+    use topo::splitting::SplitJoinError;
+    let Err(topo::BooleanError::Join(join)) = r else {
+        return false;
+    };
+    matches!(
+        join.error(),
+        SplitJoinError::Euler(EulerOpError::Certification {
+            error: CertifyError::NotTransverse { .. }
+                | CertifyError::Escalated {
+                    check: CertCheck::Transversality,
+                    ..
+                },
+        })
+    )
+}
+
 /// Whether `r` is a pcurve's chart map refusing its residual, at the
 /// merge or at rest.
 fn map_residual(r: &Result<BooleanResult<f64>, topo::BooleanError>) -> bool {
@@ -452,10 +486,16 @@ fn map_residual(r: &Result<BooleanResult<f64>, topo::BooleanError>) -> bool {
 /// 1e-4}` off a node, and both operands capped, every operation, both
 /// operand orders and both poses.
 ///
-/// - Each seam and each cap at 1e-6 and 1e-4, and both caps, build at
-///   their closed forms (both caps: `2X − 2X³/3 − 2δ·acos δ`,
-///   `X = √(1 − δ²)`): the arcs from each pierce to the node, `2δ` long at
-///   a dihedral of `δ`, read their wedge at their faces' reach.
+/// - Each cap at 1e-6 and 1e-4, and both caps, build at their closed
+///   forms (both caps: `2X − 2X³/3 − 2δ·acos δ`, `X = √(1 − δ²)`).
+/// - Each seam at 1e-6 and 1e-4 refuses its certification: the arcs from
+///   each pierce to the node, `2δ` long at a dihedral of `δ`, are
+///   described by the two walls, and their crossing angle reads `Zero` at
+///   1e-6 (`NotTransverse`, margin `2.8e-13` for A's seam, `2.0e-12` for
+///   B's) and in band at 1e-4 (`Transversality` escalated, `2.8e-9` and
+///   `8.4e-9`): about `0.28·δ²` and `0.84·δ²`, so a seam builds from
+///   about `2e-4`
+///   (`work/sectarms/an-edge-within-root-band-of-a-tangency-node-has-its-transversality-escalate.md`).
 /// - 1e-8 is the witness band's escalation edge (K·ε). The node stands
 ///   1e-8 off the seam, so its placement escalates (margin 9.99e-9); both
 ///   caps' sectors stand about a band apart (margins 1e-9 to 4e-9) and
@@ -599,6 +639,17 @@ fn the_near_node_poses_at_the_witness_band() {
                                 continue;
                             }
                             single_cap_builds += 1;
+                        }
+                        if seam {
+                            // The arcs from each pierce to the node, `2δ`
+                            // long at a dihedral of `δ`, described by the
+                            // two walls: too nearly tangent to certify.
+                            assert!(
+                                transversality_refused(&r),
+                                "{cut}: the arcs to the node refuse their transversality, got \
+                                 {r:?}"
+                            );
+                            continue;
                         }
                         let Ok(BooleanResult::Body(out)) = r else {
                             panic!("{cut}: builds, got {r:?}");
@@ -827,12 +878,16 @@ fn a_rim_vertex_on_a_node_refuses_as_a_node_on_the_boundary() {
     }
 }
 
-/// **At oblique angles a seam near a node builds**: A's seam turned `δ`
-/// off a node, at 35° with `r = 1` and at 60° with `r = 0.5`, crosses the
-/// partner wall at two pierces that read it through their bisector
-/// plane, and the arcs from each pierce to the node read their wedge at
-/// their faces' reach. At `δ = √band`, `3·√band` and `5·√band` every
-/// operation builds. Every operation, both operand orders.
+/// **At oblique angles a seam near a node builds past `√band`**: A's
+/// seam turned `δ` off a node, at 35° with `r = 1` and at 60° with
+/// `r = 0.5`, crosses the partner wall at two pierces that read it
+/// through their bisector plane. At `3·√band` and `5·√band` every
+/// operation builds. At `δ = √band` the arcs from each pierce to the
+/// node, described by the two walls, cross at an angle in the band
+/// (`Transversality` escalated, margin `4.7e-9` at 35° and `1.65e-9` at
+/// 60°, ε 1e-9), and every operation refuses its certification
+/// (`work/sectarms/an-edge-within-root-band-of-a-tangency-node-has-its-transversality-escalate.md`).
+/// Every operation, both operand orders.
 #[test]
 fn an_oblique_seam_near_a_node_builds() {
     let tol = Tol::witness();
@@ -854,7 +909,14 @@ fn an_oblique_seam_near_a_node_builds() {
                     ("∖", topo::subtract(x, y, tol)),
                 ] {
                     let what = format!("{deg}°, r = {r}, δ = {delta:e} ({order}), {op}");
-                    assert!(got.is_ok(), "{what}: builds, got {got:?}");
+                    if k == 1.0 {
+                        assert!(
+                            transversality_refused(&got),
+                            "{what}: the arcs to the node refuse their transversality, got {got:?}"
+                        );
+                    } else {
+                        assert!(got.is_ok(), "{what}: builds, got {got:?}");
+                    }
                 }
             }
         }

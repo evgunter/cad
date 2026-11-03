@@ -485,7 +485,7 @@ mod tests {
     /// derivative as the oracle). For each pair of face senses the two
     /// runs are opposite sectors whose middle, stepped `h` along B's wall,
     /// lies inside A's material (inside A's cylinder for a rod, outside it
-    /// for a bore), each turning from its start to its end counterclockwise
+    /// for a bore), each starting at the bound counterclockwise of its end
     /// about B's outward normal.
     #[test]
     fn a_node_mints_a_germ_at_each_arc_end_and_runs_through_bs_sectors_inside_a() {
@@ -559,9 +559,9 @@ mod tests {
                                  {off_a:e} off A's wall"
                             );
                             assert!(
-                                rays[s0].cross(rays[e0]).dot(n_b) > 0.1,
-                                "{label}: node {n}, run ({s0}, {e0}): counterclockwise about \
-                                 B's outward normal"
+                                rays[e0].cross(rays[s0]).dot(n_b) > 0.1,
+                                "{label}: node {n}, run ({s0}, {e0}): it starts \
+                                 counterclockwise of its end about B's outward normal"
                             );
                         }
                     }

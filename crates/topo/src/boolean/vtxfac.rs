@@ -1487,9 +1487,9 @@ fn ring_struts<T: Decide>(
 /// outward normal is `n̂`. The node is a pierce of B's face by A's ring
 /// vertex with those runs: B's ring, minted as the pierce's ring
 /// ([`mint_ring`]), spans them In, and A's struts span the same sectors
-/// on A's wall. A run starts at the germ its sector is entered by,
-/// turning counterclockwise about B's outward normal: the listed turn
-/// where that normal is `n̂`, the turn reversed where it is `−n̂`. Both
+/// on A's wall. A run starts at its sector's bound counterclockwise of
+/// the other about B's outward normal ([`node_runs`]): in the listed
+/// turn where that normal is `n̂`, the turn reversed where it is `−n̂`. Both
 /// rings hang their struts by one tree ([`ring_struts`]), ordered about
 /// B's normal, A's facing each germ with the other half of its strut
 /// from B's, as a held pierce's strut does ([`faces_holding_pierce`]);
@@ -1635,8 +1635,9 @@ pub(super) fn mint_node<T: Decide + crate::props::AtRestPolicy>(
 /// rays' turn about the node's normal ([`geom_brep::SectionNode::ray_index`]):
 /// the two opposite sectors of B's wall inside A's material, where B
 /// stands on the side of A that A's outward normal points away from
-/// (`a_along`: A's outward normal is the node's normal), each entered
-/// turning counterclockwise about B's outward normal (`b_along`, likewise).
+/// (`a_along`: A's outward normal is the node's normal), each starting
+/// at its sector's bound counterclockwise of the other about B's outward
+/// normal (`b_along`, likewise) and ending at the other.
 pub(super) fn node_runs<T: geom_core::Real>(
     node: &geom_brep::SectionNode<T>,
     a_along: bool,
@@ -1644,9 +1645,11 @@ pub(super) fn node_runs<T: geom_core::Real>(
 ) -> [(usize, usize); 2] {
     let inside = |i: usize| (node.above_in(i) == geom_brep::PairSide::First) == a_along;
     let first = if inside(0) { 0 } else { 1 };
+    // Sector `i` runs counterclockwise about the node's normal from ray
+    // `i` to ray `i + 1`.
     let run = |i: usize| {
         let (x, y) = (i, (i + 1) % 4);
-        if b_along { (x, y) } else { (y, x) }
+        if b_along { (y, x) } else { (x, y) }
     };
     [run(first), run(first + 2)]
 }
