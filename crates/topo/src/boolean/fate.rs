@@ -1370,12 +1370,6 @@ fn rehome<T: Decide>(
             match at {
                 Ok(Some(super::FaceContainment::In)) => Rung::Answers(Ok(true)),
                 Ok(Some(super::FaceContainment::Out)) => Rung::Answers(Ok(false)),
-                // On the new face's boundary, or a curved region with no
-                // verdict: the vertex says nothing.
-                Ok(
-                    None
-                    | Some(super::FaceContainment::OnEdge(_) | super::FaceContainment::OnVertex(_)),
-                ) => Rung::Passes,
                 Err(e @ super::ContainError::Escalated { diag, .. }) => {
                     Rung::kept(diag).map_kept(|_| contained(e, ""))
                 }
@@ -1384,16 +1378,12 @@ fn rehome<T: Decide>(
                 Err(super::ContainError::StaleFace(face)) => {
                     super::contain::driver_face_stale(face)
                 }
-                // A limit of the reading no tolerance moves, ranked ahead
-                // of a vertex in band.
-                Err(
-                    e @ (super::ContainError::RayExhausted
-                    | super::ContainError::EmptyLoop(_)
-                    | super::ContainError::LoopUnreadable(_)
-                    | super::ContainError::Uncrossable(_)
-                    | super::ContainError::Curved(_)
-                    | super::ContainError::ArcEndClearOfCorners(_)),
-                ) => Rung::Blocked(contained(e, "")),
+                // Every other refusal of the door is a limit no tolerance
+                // moves, kept and ranked ahead of a vertex in band.
+                Err(e) => Rung::Blocked(contained(e, "")),
+                // On the new face's boundary, or a curved region with no
+                // verdict: the vertex says nothing.
+                Ok(_) => Rung::Passes,
             }
         });
         match placed {
