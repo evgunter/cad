@@ -1372,8 +1372,25 @@ pub fn cyl_wall_sheet_keyed<T: geom_core::Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     frame: CylFrame,
     key: CylKey,
+    us: (f64, f64),
+    vs: (f64, f64),
+    tol: Tol,
+) -> (FaceKey, crate::geometry::SurfaceKey) {
+    cyl_wall_sheet_tilted(body, frame, key, us, vs, 0.0, tol)
+}
+
+/// [`cyl_wall_sheet_keyed`] with its bottom rim cut by the plane through
+/// the rim's two ends tilted by `tilt` (rise per unit run across their
+/// chord, towards the arc's middle): an ELLIPSE carrier, described as
+/// the cylinder cut by that plane, over the azimuth less the window's
+/// middle, plus `π`. At `tilt = 0` the sheet is [`cyl_wall_sheet_keyed`]'s.
+pub fn cyl_wall_sheet_tilted<T: geom_core::Decide + crate::props::AtRestPolicy>(
+    body: &mut Body<T>,
+    frame: CylFrame,
+    key: CylKey,
     (u0, u1): (f64, f64),
     (v0, v1): (f64, f64),
+    tilt: f64,
     tol: Tol,
 ) -> (FaceKey, crate::geometry::SurfaceKey) {
     let (p00, p10, p11, p01) = (
@@ -1429,7 +1446,36 @@ pub fn cyl_wall_sheet_keyed<T: geom_core::Decide + crate::props::AtRestPolicy>(
             param_end: T::from_f64(t1),
         }
     };
-    let bottom = rim(body, v0, true);
+    let bottom = if tilt == 0.0 {
+        rim(body, v0, true)
+    } else {
+        let (half, mid) = (0.5 * (u1 - u0), 0.5 * (u0 + u1));
+        let (m, c) = (frame.radial(mid), half.cos());
+        let reach = tilt.hypot(1.0);
+        let normal = (frame.axis - m * tilt) / reach;
+        let u_ref = -(m + frame.axis * tilt) / reach;
+        let origin = frame.centre(v0) - frame.axis * (tilt * frame.radius * c);
+        let plane = body.add_surface(Surface::Plane {
+            origin: origin.map(T::from_f64),
+            normal: normal.map(T::from_f64),
+            u_ref: u_ref.map(T::from_f64),
+        });
+        let ellipse = Curve3::Ellipse(geom::Ellipse::new(
+            geom::Frame::new(origin, normal, u_ref),
+            frame.radius * reach,
+            frame.radius,
+        ));
+        let pi = core::f64::consts::PI;
+        EdgeCurveSpec {
+            description: EdgeDescriptionSpec::Intersection {
+                pair: SurfacePair::new(cyl, plane),
+                selector: geom_brep::CurveSelector::Witness(ellipse.eval(pi).map(T::from_f64)),
+            },
+            carrier: ellipse.map_scalar(T::from_f64),
+            param_start: T::from_f64(pi - half),
+            param_end: T::from_f64(pi + half),
+        }
+    };
     let e_b = body
         .mev(
             MevSite::Lone {

@@ -2855,6 +2855,282 @@ where
     Ok(Point2::new(proj.u, proj.v))
 }
 
+/// **A curved carrier's chart image**: [`chart_image`]'s feet, at the
+/// structure a bending foot path asks for.
+///
+/// A circle's or an ellipse's foot path bends, so a degree-1 image
+/// misses it between feet by `O(h²·κ)`. This image climbs
+/// [`CURVED_IMAGE_FEET`] at degree [`CURVED_IMAGE_DEGREE`], and is broken
+/// (a knot of full multiplicity, so `C⁰`) at each foot where the path
+/// crosses one of the wall's interior knot lines: there the path is only
+/// as smooth as the wall, and an interpolant across the line misses it by
+/// `O(h²)` at any degree. It stops at the first rung whose miss, sampled
+/// midway between each pair of feet, is within [`CURVED_IMAGE_MISS`] of
+/// `band.zero()`, and otherwise keeps its finest. Each rung's schedule
+/// holds [`chart_image`]'s feet, the certificate's own samples among them,
+/// and a break adds a foot without moving one.
+///
+/// The rung is a **structure** choice, read in `f64`: the image is
+/// evidence, and its certificate decides.
+///
+/// # Errors
+///
+/// [`chart_image`]'s, at the first rung. A finer rung whose foot will not
+/// converge keeps the coarser rung's image.
+pub(crate) fn curved_chart_image<T>(
+    schedule: Schedule<'_, T>,
+    wall: &NurbsSurface<T>,
+    band: Band,
+) -> Result<NurbsCurve2<T>, PlaneNurbsRefusal>
+where
+    T: Decide + Bounds + geom_core::CertifiedEnclosure,
+{
+    let Schedule {
+        eval,
+        domain: (t0, t1),
+        ends,
+    } = schedule;
+    if wall.is_placeholder() {
+        return Err(PlaneNurbsRefusal::PlaceholderWall);
+    }
+    let domain_refusal = |e| PlaneNurbsRefusal::CarrierDomain(CarrierDomainRefusal::of(t0, t1, &e));
+    KnotVector::unit_segment(NonZeroUsize::MIN)
+        .on_domain(t0, t1)
+        .map_err(domain_refusal)?;
+    let mut kept = None;
+    for (rung, &feet) in CURVED_IMAGE_FEET.iter().enumerate() {
+        let (image, miss) = match curved_rung(eval, ((t0, t1), ends), feet, wall) {
+            Ok(image) => image,
+            Err(refused) if rung == 0 => return Err(refused),
+            Err(_) => break,
+        };
+        kept = Some(image);
+        if miss <= CURVED_IMAGE_MISS * band.zero() {
+            break;
+        }
+    }
+    let Some(image) = kept else {
+        unreachable!("the first rung either refuses or keeps its image")
+    };
+    on_carrier_domain(&image, t0, t1).map_err(domain_refusal)
+}
+
+/// The rungs [`curved_chart_image`] climbs: each doubles the schedule's
+/// steps, and every one holds [`PXN_FIT_SAMPLES`]' feet.
+pub const CURVED_IMAGE_FEET: [u32; 4] = [33, 65, 129, 257];
+
+/// [`curved_chart_image`]'s degree. The miss of a degree-`p` interpolant
+/// falls as `h^(p+1)`, and at 5 the hull's own floor (about `1e-13` m on
+/// a unit wall) is reached by the third rung.
+pub const CURVED_IMAGE_DEGREE: usize = 5;
+
+/// The share of `band.zero()` a rung's sampled miss must fall within for
+/// [`curved_chart_image`] to stop there: the certificate's hull reads the
+/// miss between samples, and over-reads it.
+const CURVED_IMAGE_MISS: f64 = 1.0 / 16.0;
+
+/// How many halvings place a break where the foot path crosses a knot
+/// line ([`curved_rung`]): to `f64`'s resolution of the schedule's unit.
+const CROSSING_HALVINGS: u32 = 60;
+
+/// One rung of [`curved_chart_image`] on the `f64` fraction domain
+/// `[0, 1]`, with its miss sampled midway between each pair of feet.
+fn curved_rung<T>(
+    eval: &dyn Fn(T) -> Point3<T>,
+    (domain, ends): ((f64, f64), (T, T)),
+    feet: u32,
+    wall: &NurbsSurface<T>,
+) -> Result<(NurbsCurve2<f64>, f64), PlaneNurbsRefusal>
+where
+    T: Decide + Bounds + geom_core::CertifiedEnclosure,
+{
+    let (t0, t1) = domain;
+    let station = |f: f64| T::from_f64(t0 + (t1 - t0) * f);
+    let project = |t: T| wall.project(eval(t)).map(|p| Point2::new(p.u, p.v));
+    let mut path = Vec::with_capacity(feet as usize);
+    for i in 0..feet {
+        let foot = project(crate::certify::held_station(domain, ends, i, feet)).map_err(|e| {
+            PlaneNurbsRefusal::FootPointInconclusive {
+                sample: i,
+                last_distance: e.last_distance,
+            }
+        })?;
+        path.push(PathFoot {
+            at: schedule_fraction(i, feet),
+            foot,
+            cut: false,
+        });
+    }
+    let lines = knot_lines(wall);
+    let mut cut_path = Vec::with_capacity(path.len());
+    for pair in path.windows(2) {
+        let [a, b] = [pair[0], pair[1]];
+        cut_path.push(a);
+        let mut cuts: Vec<PathFoot> = lines
+            .iter()
+            .filter_map(|&line| crossing(&project, &station, (a, b), line))
+            .collect();
+        cuts.sort_by(|x, y| x.at.total_cmp(&y.at));
+        cuts.dedup_by(|x, y| x.at == y.at);
+        cut_path.extend(cuts);
+    }
+    cut_path.extend(path.last().copied());
+    let image = broken_interpolant(&cut_path, CURVED_IMAGE_DEGREE)?;
+    let miss = cut_path
+        .windows(2)
+        .map(|pair| {
+            let at = 0.5 * (pair[0].at + pair[1].at);
+            let p = image.eval(at);
+            let gap = wall.eval(T::from_f64(p.x), T::from_f64(p.y)) - eval(station(at));
+            gap.norm().hi()
+        })
+        .fold(
+            0.0_f64,
+            |m, d| if d.is_nan() { f64::INFINITY } else { m.max(d) },
+        );
+    Ok((image, miss))
+}
+
+/// A foot of [`curved_rung`]'s path: its schedule fraction, its chart
+/// point, and whether the image breaks there.
+#[derive(Clone, Copy, Debug)]
+struct PathFoot {
+    at: f64,
+    foot: Point2<f64>,
+    cut: bool,
+}
+
+/// A wall's interior knot line: the chart axis it is constant on (`0`
+/// for `u`) and its value.
+type KnotLine = (usize, f64);
+
+/// The wall's distinct interior knot values on each axis.
+fn knot_lines<T: geom_core::Real>(wall: &NurbsSurface<T>) -> Vec<KnotLine> {
+    [wall.knots_u_f64_interim(), wall.knots_v_f64_interim()]
+        .into_iter()
+        .enumerate()
+        .flat_map(|(axis, kv)| {
+            let (lo, hi) = kv.domain();
+            let mut values: Vec<f64> = kv
+                .knots()
+                .iter()
+                .copied()
+                .filter(|&k| lo < k && k < hi)
+                .collect();
+            values.dedup();
+            values.into_iter().map(move |k| (axis, k))
+        })
+        .collect()
+}
+
+/// Where the foot path crosses `line` between the feet `a` and `b`, by
+/// halving the fraction between them: the foot on the far side of the
+/// line nearest it. `None` where both feet lie on one side, or a foot the
+/// halving asks for will not converge (the image then runs on unbroken).
+/// A crossing within a millionth of the step of a foot breaks the image
+/// at that foot rather than beside it.
+fn crossing<T: geom_core::Real>(
+    project: &dyn Fn(T) -> Result<Point2<f64>, geom::SurfaceProjectionInconclusive>,
+    station: &dyn Fn(f64) -> T,
+    (a, b): (PathFoot, PathFoot),
+    (axis, k): KnotLine,
+) -> Option<PathFoot> {
+    let side = |p: Point2<f64>| if axis == 0 { p.x > k } else { p.y > k };
+    let start = side(a.foot);
+    if start == side(b.foot) {
+        return None;
+    }
+    let (mut lo, mut far) = (a.at, b);
+    for _ in 0..CROSSING_HALVINGS {
+        let mid = 0.5 * (lo + far.at);
+        if mid <= lo || mid >= far.at {
+            break;
+        }
+        let foot = project(station(mid)).ok()?;
+        if side(foot) == start {
+            lo = mid;
+        } else {
+            far = PathFoot {
+                at: mid,
+                foot,
+                cut: true,
+            };
+        }
+    }
+    let near = 1e-6 * (b.at - a.at);
+    Some(if far.at - a.at <= near {
+        PathFoot { cut: true, ..a }
+    } else if b.at - far.at <= near {
+        PathFoot { cut: true, ..b }
+    } else {
+        PathFoot { cut: true, ..far }
+    })
+}
+
+/// The degree-`degree` interpolant through `path` on its fractions,
+/// broken at each cut foot whose pieces on both sides hold at least
+/// `degree + 1` feet (a cut closer to another is passed over), its pieces
+/// joined at full multiplicity.
+fn broken_interpolant(
+    path: &[PathFoot],
+    degree: usize,
+) -> Result<NurbsCurve2<f64>, PlaneNurbsRefusal> {
+    // A cut that coincides with a foot of the schedule marks that foot.
+    let mut feet: Vec<PathFoot> = Vec::with_capacity(path.len());
+    for &f in path {
+        match feet.last_mut() {
+            Some(last) if last.at == f.at => last.cut |= f.cut,
+            _ => feet.push(f),
+        }
+    }
+    let n = feet.len();
+    let mut ends = vec![0];
+    for (i, f) in feet.iter().enumerate().take(n - 1).skip(1) {
+        let last = *ends.last().unwrap_or(&0);
+        if f.cut && i - last >= degree && n - 1 - i >= degree {
+            ends.push(i);
+        }
+    }
+    ends.push(n - 1);
+    let fit = |e| {
+        let _: geom::FitError = e;
+        PlaneNurbsRefusal::PcurveFit
+    };
+    let (mut knots, mut control) = (Vec::new(), Vec::new());
+    for (j, piece) in ends.windows(2).enumerate() {
+        let run = &feet[piece[0]..=piece[1]];
+        let (a, b) = (run[0].at, run[run.len() - 1].at);
+        let params: Vec<f64> = run
+            .iter()
+            .enumerate()
+            .map(|(i, f)| match i {
+                0 => 0.0,
+                _ if i == run.len() - 1 => 1.0,
+                _ => (f.at - a) / (b - a),
+            })
+            .collect();
+        let points: Vec<Point2<f64>> = run.iter().map(|f| f.foot).collect();
+        let curve = NurbsCurve2::<f64>::interpolate_with_params(&points, degree, &params)
+            .map_err(fit)?
+            .on_domain(a, b)
+            .map_err(|_| PlaneNurbsRefusal::PcurveFit)?;
+        let ks = curve.knots_f64_interim().knots();
+        let cs = curve.control();
+        if j == 0 {
+            knots.extend_from_slice(&ks[..ks.len() - 1]);
+            control.extend_from_slice(cs);
+        } else {
+            knots.extend_from_slice(&ks[degree + 1..ks.len() - 1]);
+            control.extend_from_slice(&cs[1..]);
+        }
+    }
+    knots.push(1.0);
+    let weights = vec![1.0; control.len()];
+    KnotVector::clamped(knots, degree)
+        .and_then(|kv| NurbsCurve2::new(kv, control, weights))
+        .map_err(|_| PlaneNurbsRefusal::PcurveFit)
+}
+
 /// How many knot spans per direction the tube reads the wall's cells
 /// at ([`wall_grid`]). A **structure** choice (never a decision), the
 /// surface-side twin of `ssi::certify`'s `SSI_CERT_SPANS` for the

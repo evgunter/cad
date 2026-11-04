@@ -3067,11 +3067,14 @@ impl<T: Real> PcurveCertificate<T> {
 ///
 /// The `edge_nurbs` schedule with no per-sample hook: the transversality
 /// sweep the adopt path runs there is a statement about the PLANE
-/// operand, which is the edge certificate's and not the row's.
+/// operand, which is the edge certificate's and not the row's. A carrier
+/// whose foot path [`bends`] climbs `edge_nurbs::curved_chart_image`'s
+/// rungs; any other takes the degree-1 image its edge certificate reads.
 pub(crate) fn general_image_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEnclosure>(
     carrier: &Curve3<T>,
     params: (T, T),
     wall: &NurbsSurface<T>,
+    band: Band,
 ) -> Result<NurbsCurve2<T>, PcurveCertifyError> {
     use crate::edge_nurbs::PlaneNurbsRefusal as P;
     // The image spans the carrier's certificate span, the edge
@@ -3086,7 +3089,12 @@ pub(crate) fn general_image_lane<T: Decide + geom_core::Bounds + geom_core::Cert
         magnitude: None,
         ending,
     };
-    crate::edge_nurbs::chart_image(schedule, wall, |_, _| Ok(())).map_err(|e| match e {
+    let image = if bends(carrier) {
+        crate::edge_nurbs::curved_chart_image(schedule, wall, band)
+    } else {
+        crate::edge_nurbs::chart_image(schedule, wall, |_, _| Ok(()))
+    };
+    image.map_err(|e| match e {
         P::FootPointInconclusive {
             sample,
             last_distance,
@@ -3130,6 +3138,15 @@ pub(crate) fn general_image_lane<T: Decide + geom_core::Bounds + geom_core::Cert
              the mint passes a no-op hook and runs no certificate: {other:?}"
         ),
     })
+}
+
+/// Whether `carrier`'s foot path on a spline chart bends, so that the
+/// mint images it at `edge_nurbs::curved_chart_image`'s rungs: a curved
+/// carrier with no net. A line's path is straight wherever the chart is
+/// flat, and a spline's image is the degree-1 one its edge certificate
+/// reads (`edge_nurbs::chart_image`).
+pub(crate) fn bends<T: Real>(carrier: &Curve3<T>) -> bool {
+    carrier.is_curved() && !matches!(carrier, Curve3::Nurbs(_))
 }
 
 /// The foot producer's body, shared by every certifying scalar
@@ -9138,7 +9155,7 @@ fn chart_image<T: Decide>(
         }
         return projected::project(carrier, span, surface, band)
             .map(|image| Pcurve::Projected(Box::new(image)))
-            .map_err(|refused| general_lane_refusal(refused, carrier, surface));
+            .map_err(|refused| general_lane_refusal(refused, LaneImage::Projected, carrier, surface));
     }
     match derive_class(carrier, surface, place, band) {
         Ok((image, _)) => Ok(image),
@@ -9152,7 +9169,7 @@ fn chart_image<T: Decide>(
             _ if projected::has_lane(carrier, surface) => {
                 projected::project(carrier, span, surface, band)
                     .map(|image| Pcurve::Projected(Box::new(image)))
-                    .map_err(|refused| general_lane_refusal(refused, carrier, surface))
+                    .map_err(|refused| general_lane_refusal(refused, LaneImage::Projected, carrier, surface))
             }
             Some(cause) => Err(incidence::class_escalated(shown, cause)),
             None => Err(PcurveCertifyError::NoGeneralLane {
@@ -9165,12 +9182,16 @@ fn chart_image<T: Decide>(
 }
 
 /// **The mint's own image refused by its certificate, as the lane's
-/// gap** (D3): a circle or a line takes the projected image because no
-/// class was shown, so where the certificate of that image, just derived
-/// by [`chart_pcurve_over`] for the edge, refuses on its sector, its
-/// metre conversion's lever or its envelope, the lane does not yet
-/// certify the pose, and the refusal ends "not yet" as the lane's other
-/// gaps do ([`general_lane_refusal`], the one place they are relabelled).
+/// gap** (D3): the image a lane choice takes because no class was shown,
+/// just derived for the edge, refused by its certificate where the lane
+/// does not yet certify the pose. It ends "not yet" as the lane's other
+/// gaps do ([`general_lane_refusal`], the one place they are relabelled):
+///
+/// - a circle's or a line's projected image ([`chart_pcurve_over`]), on
+///   its sector, its metre conversion's lever or its envelope;
+/// - a bending carrier's `General` image on a spline chart (`topo`'s
+///   mint, at `edge_nurbs::curved_chart_image`'s finest rung), on any
+///   bound of its miss ([`LaneImage::General`]).
 ///
 /// Read by the doors that certify an image they just derived (the
 /// mint's walk, `topo::pcurves`), never by one that re-certifies a
@@ -9185,16 +9206,34 @@ pub fn minted_refusal<T: Real>(
     carrier: &Curve3<T>,
     surface: &Surface<T>,
 ) -> PcurveCertifyError {
-    if !(matches!(image, Pcurve::Projected(_))
-        && matches!(carrier, Curve3::Circle(..) | Curve3::Line(_)))
-    {
-        return refused;
-    }
+    let lane = match image {
+        Pcurve::Projected(_) if matches!(carrier, Curve3::Circle(..) | Curve3::Line(_)) => {
+            LaneImage::Projected
+        }
+        Pcurve::General(_) if bends(carrier) => LaneImage::General,
+        _ => return refused,
+    };
     #[cfg(test)]
     if mutants::lane_envelope_bound() {
         return refused;
     }
-    general_lane_refusal(refused, carrier, surface)
+    general_lane_refusal(refused, lane, carrier, surface)
+}
+
+/// Which general image a refusal [`general_lane_refusal`] relabels was
+/// certifying: what its sampled residual reads.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum LaneImage {
+    /// The projected image: its point at a sample is the chart's own
+    /// reading of the carrier's point, so the sampled residual is the
+    /// carrier's distance and stays the carrier's.
+    Projected,
+    /// A `General` image on a spline chart: its point at a sample is a
+    /// foot its producer measured, so the sampled residual, like the
+    /// hull's, bounds the carrier's distance from above, and only the
+    /// chart's incidence read, taken before the image, shows a carrier
+    /// off.
+    General,
 }
 
 /// The lever of a [`LaneGap::Pose`]: the one sentence both
@@ -9253,12 +9292,18 @@ pub(crate) const ENVELOPE_LEVER: &str = "the general image's certificate bounds 
 ///   [`PcurveCheck::bounds_a_miss`]), which only the certificate reads: in
 ///   band as the same escalation, decided as [`LaneGap::Envelope`].
 ///
+/// A `General` image's certificate ([`LaneImage::General`]) adds its
+/// sampled residual and the hull's two limbs, at its value and its sup:
+/// each bounds the image's miss, in band as the same escalation and
+/// decided as [`LaneGap::Envelope`].
+///
 /// Every other refusal stays as it is: the deck's placement
 /// (`Placement::turns`) refuses only a poisoned midpoint or one past every
 /// turn an `i32` counts, and the kind and chart refusals are fenced off by
 /// [`projected::has_lane`] before the call.
 fn general_lane_refusal<T: Real>(
     refused: PcurveCertifyError,
+    lane: LaneImage,
     carrier: &Curve3<T>,
     surface: &Surface<T>,
 ) -> PcurveCertifyError {
@@ -9267,7 +9312,33 @@ fn general_lane_refusal<T: Real>(
         carrier: carrier.kind(),
         gap,
     };
+    let general = lane == LaneImage::General;
+    let hull = |limb| matches!(limb, SsiLimb::HullValueChart | SsiLimb::HullSupChart);
     match refused {
+        PcurveCertifyError::Escalated {
+            check: PcurveCheck::MapResidual,
+            sample,
+            cause,
+        } if general => PcurveCertifyError::Escalated {
+            check: PcurveCheck::GeneralLane,
+            sample,
+            cause,
+        },
+        PcurveCertifyError::FittedEscalated {
+            decision: SsiDecision::Limb(limb),
+            cause,
+        } if general && hull(limb) => PcurveCertifyError::Escalated {
+            check: PcurveCheck::GeneralLane,
+            sample: 0,
+            cause,
+        },
+        PcurveCertifyError::ResidualExceeded {
+            check: PcurveCheck::MapResidual,
+            ..
+        } if general => gap(LaneGap::Envelope),
+        PcurveCertifyError::FittedLimb { limb, .. } if general && hull(limb) => {
+            gap(LaneGap::Envelope)
+        }
         PcurveCertifyError::Escalated {
             check: PcurveCheck::Sector,
             sample,

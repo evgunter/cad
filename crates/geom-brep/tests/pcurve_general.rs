@@ -595,7 +595,7 @@ fn the_derived_route_certifies_a_line_and_refuses_a_circle_at_the_hull() {
     let (t0, t1) = (0.0, 0.9);
     let wall = flat_wall();
     let image = lane
-        .general_image(&diagonal, (t0, t1), &wall)
+        .general_image(&diagonal, (t0, t1), &wall, band())
         .expect("the diagonal's image derives");
     let got = PcurveCache::certify_general(
         Arc::new(image),
@@ -615,7 +615,7 @@ fn the_derived_route_certifies_a_line_and_refuses_a_circle_at_the_hull() {
 
     let (t0, t1) = (0.1, 1.4);
     let image = lane
-        .general_image(&circle(0.5), (t0, t1), &fixture::quarter_cylinder_wall())
+        .general_image(&circle(0.5), (t0, t1), &fixture::quarter_cylinder_wall(), band())
         .expect("the circle's image derives");
     let got = PcurveCache::certify_general(
         Arc::new(image),
@@ -636,4 +636,118 @@ fn the_derived_route_certifies_a_line_and_refuses_a_circle_at_the_hull() {
         ),
         "a curved foot path's degree-1 image refuses at the hull: {got:?}"
     );
+}
+
+// ZZPROBE (temporary)
+fn zz_ring(turn: f64, low: f64, scale: f64) -> NurbsSurface<f64> {
+    let m = 2;
+    let h = turn / 2.0;
+    let mut ku = vec![0.0; 3];
+    ku.extend([0.5; 2]);
+    ku.extend([1.0; 3]);
+    let (mut control, mut weights) = (Vec::new(), Vec::new());
+    for j in 0..=2 * m {
+        let theta = j as f64 * h / 2.0;
+        let (reach, w) = if j % 2 == 1 {
+            (1.0 / (h / 2.0).cos(), (h / 2.0).cos())
+        } else {
+            (1.0, 1.0)
+        };
+        for z in [low, low + 1.0] {
+            control.push(Point3::new(
+                scale * reach * theta.cos(),
+                scale * reach * theta.sin(),
+                scale * z,
+            ));
+            weights.push(w);
+        }
+    }
+    NurbsSurface::new(
+        KnotVector::clamped(ku, 2).unwrap(),
+        KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
+        control,
+        weights,
+    )
+    .unwrap()
+}
+
+fn zz_one<T: geom_core::Decide + geom_core::CertifiedBounds>(
+    name: &str,
+    carrier: &Curve3<f64>,
+    span: (f64, f64),
+    wall: &NurbsSurface<f64>,
+) {
+    let c = carrier.map_scalar(T::from_f64);
+    let w = wall.map_scalar(T::from_f64);
+    let s = Surface::Nurbs(Arc::new(w.clone()));
+    let (t0, t1) = (T::from_f64(span.0), T::from_f64(span.1));
+    let lane = FittedLane::<T>::certified();
+    let st = std::time::Instant::now();
+    let img = lane.general_image(&c, (t0, t1), &w, band());
+    let t_img = st.elapsed();
+    let st = std::time::Instant::now();
+    let got =
+        img.map(|i| PcurveCache::certify_general(Arc::new(i), t0, t1, &c, &s, band(), Some(lane)));
+    let t_c = st.elapsed();
+    let out = match got {
+        Ok(Ok(c)) => format!("OK env={:?}", c.certificate().envelope),
+        Ok(Err(e)) => format!("REFUSE {e:?}").chars().take(160).collect(),
+        Err(e) => format!("IMGERR {e:?}"),
+    };
+    eprintln!(
+        "ZZ {} {name} rung={:?} img={t_img:?} cert={t_c:?}: {out}",
+        std::any::type_name::<T>(),
+        std::env::var("CAD_PROBE_RUNG").ok()
+    );
+}
+
+#[test]
+fn zz_probe() {
+    let qc = quarter_cylinder_wall();
+    let Surface::Nurbs(qc) = qc else {
+        unreachable!()
+    };
+    let ring = zz_ring(1.2, -0.5, 1.0);
+    let ring100 = zz_ring(1.2, -0.5, std::env::var("ZZS").map_or(100.0, |v| v.parse().unwrap()));
+    let ring_full = zz_ring(6.0, -0.5, 1.0);
+    let c0 = Curve3::circle(
+        Point3::new(0.0, 0.0, 0.0),
+        Vec3::new(0.0, 0.0, 1.0),
+        1.0,
+        Vec3::new(1.0, 0.0, 0.0),
+    );
+    let c100 = Curve3::circle(
+        Point3::new(0.0, 0.0, 0.0),
+        Vec3::new(0.0, 0.0, 1.0),
+        std::env::var("ZZS").map_or(100.0, |v| v.parse().unwrap()),
+        Vec3::new(1.0, 0.0, 0.0),
+    );
+    for (name, carrier, span, wall) in [
+        ("ellipse-qc", ellipse(), (0.1, 1.4), &*qc),
+        ("circle-qc", circle(0.5), (0.1, 1.4), &*qc),
+        ("circle-ring", c0.clone(), (0.0, 1.2), &ring),
+        ("circle-ring100", c100, (0.0, 1.2), &ring100),
+        ("circle-ringfull", c0, (0.0, 6.0), &ring_full),
+    ] {
+        zz_one::<f64>(name, &carrier, span, wall);
+        zz_one::<geom_core::Interval>(name, &carrier, span, wall);
+    }
+}
+
+#[test]
+fn zz_width() {
+    use geom_core::Interval as I;
+    use geom_core::Real;
+    let Surface::Nurbs(qc) = quarter_cylinder_wall() else { unreachable!() };
+    let c = circle(0.5).map_scalar(I::from_f64);
+    let w = qc.map_scalar(I::from_f64);
+    let (t0, t1) = (I::from_f64(0.1), I::from_f64(1.4));
+    let img = FittedLane::<I>::certified().general_image(&c, (t0, t1), &w, band()).unwrap();
+    for i in 0..9u32 {
+        let t = geom_brep::schedule_param(t0, t1, i, 9);
+        let p = img.eval(t);
+        let s = w.eval(p.x, p.y);
+        let q = c.eval(t);
+        eprintln!("ZW {i} t={t:?}\n  p={p:?}\n  s-q={:?}", s - q);
+    }
 }
