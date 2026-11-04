@@ -2,7 +2,7 @@
 //! the divergence-theorem contributions of a face on a chart of
 //! revolution whose trim loops are curved, and the loop windings and
 //! ring readings the face rests on. The chart table
-//! ([`RotationalChartQ`]) holds the cylinder.
+//! ([`RotationalChartQ`]) holds the cylinder and the sphere.
 //!
 //! # Formulation
 //!
@@ -24,6 +24,35 @@
 //! summed over the loops). On the cylinder
 //! `S(u, v) = o + û·r·cos u + v̂·r·sin u + â·v` the normal is radial and
 //! `dA = r du dv`, so `F(v) = r²·(v − v_a)` and `G(v) = r·(v − v_a)`.
+//!
+//! The form is read along the closed **image chain**: each loop's
+//! images, and at each junction the connector between the edge before's
+//! end and the edge after's start, which the closure accepts up to its
+//! slack apart ([`connector_terms`]).
+//!
+//! # The sphere
+//!
+//! On the sphere `S(u, v) = o + r·(cos v·(û·cos u + v̂·sin u) + â·sin v)`,
+//! `v` the latitude, `dA = r²·cos v du dv` and the normal is radial, so
+//! `F(v) = r³·sin v` and `G(v) = r²·sin v`, with no anchor: `sin v` is
+//! `z/r` at the point, which every name of it shares (the twin
+//! `(u + π, π − v)` included). The form `−G du` is singular at the poles,
+//! where `du` is, so the chain's form misses the region by whole poles'
+//! terms: `|Ω| = s_f·A₀ + 2πr²·q`, `A₀ = −Σ∮G du` over the chain, `s_f`
+//! the face's sense (`+1` where its normal is the outward one), and `q`
+//! the poles the region holds as the chain reads them, with
+//! `q ≡ W (mod 2)`, `W` the face's total azimuth winding. A loop on a
+//! sphere bounds a region on each side, its face on its left under the
+//! face's normal, so the sense is what says which: the loops alone
+//! cannot. Where a pole is a vertex of the face, as every pole in a
+//! face's closure is (DESIGN `[topology.tiers]`), the junction there is
+//! the chart's pole edge and its connector carries the pole's share,
+//! whatever whole turns the closure took off it; `q` absorbs the rest.
+//! `|Ω|` lies in `(0, 4πr²]`, a window two of `q`'s steps wide, so it
+//! fixes `q`: per loop, the area outside it is read in `[0, 4πr²)`
+//! ([`sphere_outside`]), the face's is the sphere less those, and the
+//! reading is decided ([`require_sphere_sides`]). The flux about the
+//! centre is then `r·s_f·|Ω|`.
 //!
 //! `v du` because it is a global 1-form on the chart (the azimuth is
 //! periodic, its differential is not), so the form reads a loop that
@@ -47,6 +76,8 @@
 //!   `u, v(t) = c₀ + c_a·cos t + c_b·sin t + c_l·t`, by the composite
 //!   midpoint rule below. A rim (`v` constant, `u` linear) gives
 //!   `−F(V)·Δu` and a ruling (`u` constant) nothing, both read exactly.
+//!   The sphere's harmonic images are rims and meridians, read so; any
+//!   other refuses.
 //! - **Projected** ([`ProjectedEdgeQ`]): the chart's inverse applied to
 //!   the carrier written in the chart's frame (`Pcurve::Projected`), a
 //!   rational net ([`FramedQ::Net`]), a circle ([`FramedQ::Circle`]) or a
@@ -103,8 +134,10 @@
 //!
 //! - **Map residual**: the chart-area defect between the images' region
 //!   and the true one is at most `Σ (metric edge length)·e`, and the flux
-//!   density about the chart origin is `r` per unit area on the cylinder,
-//!   so `r` times that in flux.
+//!   density about the chart origin is `r` per unit area on both charts,
+//!   so `r` times that in flux. Beside each junction's connector lies the
+//!   region between it and the true vertex, `2·g·(e_i + e_j + g)`
+//!   ([`connector_terms`]).
 //! - **Endpoint parameter brackets**: a non-thin `t₀/t₁` bracket of a
 //!   harmonic edge contributes `mag(f)·width` at each end. A projected
 //!   edge's carrier interval is exact.

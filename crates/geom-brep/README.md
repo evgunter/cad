@@ -1445,7 +1445,11 @@ closed form keeps its typed refusal for a door with no quadrature lane. A sphere
 by circle arcs — rims, meridians and sections tilted against its chart
 alike, holes included — has no conic or spline trim and is on the
 closed-form lane, measured by Gauss–Bonnet over all its loops
-(`props/curved.rs`, `sphere_face`). A chart
+(`props/curved.rs`, `sphere_face`). A cylinder or sphere face bounded by
+a spline chord, its pcurve the chord's projected image, takes the
+rotational-chart Green lane (`props/quad/rotational.rs`), every loop
+read: on the sphere the poles' terms come off the face's winding and
+its sense bit, which says which side of its loops the face is. A chart
 singularity in a face's closure is a vertex of it. STEP import reads
 where it lies off the face's region (`chart_singularity.rs`, `locate`);
 tier 3 places it on the boundary by the same reading
