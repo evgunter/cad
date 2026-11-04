@@ -16,6 +16,17 @@ fn band() -> Band {
     Band::linear(Tol::witness()).unwrap()
 }
 
+/// What a row reads: the carrier, its surface, the carrier's own
+/// interval, an edge's part of it, and the family both name.
+type Row<'a> = (
+    &'static str,
+    Curve3<f64>,
+    &'a Surface<f64>,
+    (f64, f64),
+    (f64, f64),
+    IsoFamily,
+);
+
 #[test]
 fn a_partial_edge_reads_the_family_its_whole_carrier_does() {
     let (o, z, x) = (
@@ -50,14 +61,7 @@ fn a_partial_edge_reads_the_family_its_whole_carrier_does() {
     };
     let rim = |h: f64, rho: f64| Curve3::circle(Point3::new(0.0, 0.0, h), z, rho, x);
     let (s30, c30) = (PI / 6.0).sin_cos();
-    let rows: [(
-        &str,
-        Curve3<f64>,
-        &Surface<f64>,
-        (f64, f64),
-        (f64, f64),
-        IsoFamily,
-    ); 7] = [
+    let rows: [Row<'_>; 7] = [
         (
             "a cylinder ruling",
             Curve3::line(Point3::new(1.0, 0.0, 0.0), z),
