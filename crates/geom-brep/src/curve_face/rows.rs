@@ -223,7 +223,9 @@ fn a_corner_in_the_gap_is_undecided_over_a_window_holding_it() {
         .collect();
     let span = Span::new(&grazing, (-1.0, 1.0));
     let located = super::located(&span, &edges, &[], band());
-    let foot = grazing.foot(Point3::new(0.0, 1.0, 0.0), 0.0).t();
+    let foot = grazing
+        .nearest(Point3::new(0.0, 1.0, 0.0), 0.0)
+        .expect("a line's foot is nearest");
     assert!(!located.undecided.is_empty(), "the corner is refused");
     for u in &located.undecided {
         let (lo, hi) = u.window;
