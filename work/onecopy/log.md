@@ -75,3 +75,10 @@
 - 2026-11-04 — Polish-meters fork: all three first reports are in (`~/.local/share/cad-work/oc-fork5/`).
   - Agreed: the step meter retires, the basin stays, Krawczyk is rejected, and no ratified text changes. The meters guard only completeness, the claim that an Off at the pair speaks for the region. A location along the carriers is conditioned by 1/sin φ, and that conditioning is the whole Interval refusal count.
   - Splits: an f64 lift (B, C) against recentring at T (A, which keeps the Dual tangent); a tangent-plane slack/residual meter (A, B) against Off decided on a clearance lower bound (C, which charges A/B with "two predicates for one fact"); what travel becomes; and band-or-exact for each meter. The round-1 brief is sent.
+- 2026-11-04 — Polish-meters fork decided after round 1, without Ev; no ratified text changes. The decision is on the meet-interval row.
+  - The search becomes f64 structure. A moved to the lift; no consumer reads a Dual meeting's tangent.
+  - Off is one lower bound on the window's gap, the normal gap less the bend; the slack is a term in it, never a row of its own. A and B conceded C's K-premise charge.
+  - Travel folds into the basin (A and C; B had taken C's ball, which C dropped).
+  - Generator inequalities are read exact and logged, through one band-free `geom_core` door.
+  - Each candidate carries `excess: T`, so a meter against the band cannot be typed.
+  The lesson for the class: a meter read against the model's band is a unit error that the type system can rule out. Implementation waits for the meet-interval PR, then goes to the same lane.
