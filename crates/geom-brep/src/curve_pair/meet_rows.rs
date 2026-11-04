@@ -257,7 +257,7 @@ fn circles_on_one_sphere_meet_on_both_at_any_tilt() {
         let m = meets((&a, (0.05, TAU - 0.05)), (&b, (0.05, TAU - 0.05)));
         if !decided {
             assert!(
-                matches!(m, Err(ref r) if matches!(r.fault, MeetFault::Unsettled(Unsettled::Meter))),
+                matches!(m, Err(ref r) if matches!(r.fault, MeetFault::Unsettled(Unsettled::Meter { .. }))),
                 "{label}: below the basin floor, {m:?}"
             );
             continue;
@@ -849,7 +849,7 @@ fn an_in_band_miss_across_nearly_parallel_planes_meets() {
     let [(a, sa), (b, sb)] = shallow_circles(2e-8, 0.5 * ZERO);
     let got = meets((&a, sa), (&b, sb));
     assert!(
-        matches!(got, Err(ref r) if matches!(r.fault, MeetFault::Unsettled(Unsettled::Meter))),
+        matches!(got, Err(ref r) if matches!(r.fault, MeetFault::Unsettled(Unsettled::Meter { .. }))),
         "tilt 2e-8: {got:?}"
     );
     for tilt in [1e-7, 1e-5, 1e-3] {
@@ -1465,11 +1465,13 @@ fn a_candidate_in_a_found_meetings_ring_is_not_read_again() {
         point: Point3::origin(),
         ta: 0.0,
         tb: 0.0,
+        bound: None,
     };
     let ring = super::Candidate {
         point: Point3::new(5e-9, 0.0, 0.0),
         ta: 5e-9,
         tb: 0.0,
+        bound: None,
     };
     let mut alone = super::Found::default();
     alone.read(&a, &b, ring, band());
@@ -1710,7 +1712,17 @@ fn two_meetings_across_an_endless_spans_seam_escalate() {
     }
     let mut found = super::Found::default();
     for (point, ta, tb) in [(hi, 1e-3, (hi - lo).norm()), (lo, TAU - 1e-3, 0.0)] {
-        found.read(&whole, &seg, super::Candidate { point, ta, tb }, band());
+        found.read(
+            &whole,
+            &seg,
+            super::Candidate {
+                point,
+                ta,
+                tb,
+                bound: None,
+            },
+            band(),
+        );
     }
     assert_eq!(found.points.len(), 2, "both chord ends meet the circle");
     let got = found.finish(&whole, &seg, None, band());
@@ -1827,7 +1839,17 @@ fn meetings_are_neighbours_along_the_span_whatever_order_they_are_found_in() {
     for ta in [theta, PI - theta, -theta, PI + theta] {
         let point = c.eval(ta);
         let tb = e.param_near(point, 0.0).unwrap();
-        found.read(&sc, &se, super::Candidate { point, ta, tb }, band());
+        found.read(
+            &sc,
+            &se,
+            super::Candidate {
+                point,
+                ta,
+                tb,
+                bound: None,
+            },
+            band(),
+        );
     }
     assert_eq!(found.points.len(), 4, "four meetings: {:?}", found.points);
     let got = found.finish(&sc, &se, None, band());

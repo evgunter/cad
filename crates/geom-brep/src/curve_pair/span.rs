@@ -390,8 +390,11 @@ impl<'a, T: Decide> Span<'a, T> {
         }
         for (_, end) in self.ends() {
             let chord = q - end;
-            let lower =
-                decide_reported("curve_pair_span_past_reach", Margin::of(chord.norm() - reach), band);
+            let lower = decide_reported(
+                "curve_pair_span_past_reach",
+                Margin::of(chord.norm() - reach),
+                band,
+            );
             match lower {
                 Ok(Decided {
                     sign: Sign::Positive,

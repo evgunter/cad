@@ -1723,11 +1723,17 @@ fn harmonic_roots<T: Decide>(
 mod polish_rows {
     use super::*;
 
-    /// **A polish that has not converged refuses.** Two unit circles
-    /// crossing square at the origin, the polish started there and with
-    /// the first `0.3` rad round: the first is the crossing; the second,
-    /// inside its basin and its region, is still moving after its steps
-    /// and refuses (`Unsettled::Meter`).
+    /// **A polish its basin does not hold refuses, and one it holds
+    /// states its window.** Two unit circles crossing square at the
+    /// origin, the polish started there and with the first `0.3` rad
+    /// round. Started at the crossing, the candidate is the crossing,
+    /// with a window whose floor is the gap less its bend. Started `0.3`
+    /// rad off, the window's span (its region and the polish's travel)
+    /// turns the tangents past the basin's premise, and it refuses on the
+    /// basin (`Unsettled::Meter`): under the premise Gauss–Newton
+    /// contracts to rounding within its steps, so no premise-holding pose
+    /// is left unconverged; the window's escalation is pinned by
+    /// `curve_pair::meet_rows::a_window_read_off_short_of_its_reach_escalates`.
     #[test]
     fn an_unconverged_polish_refuses() {
         let band = Band::new(1e-9, 1e-8).unwrap();
@@ -1747,9 +1753,17 @@ mod polish_rows {
             got.point.to_array().iter().all(|c| c.abs() < 1e-15),
             "{got:?}"
         );
+        let window = got.bound.expect("a polished candidate states its window");
+        assert!(
+            window.floor.abs() < 1e-15 && window.reach > 0.0 && window.reach < 2e-8,
+            "{window:?}"
+        );
         let got = polish(0.3).closest(band);
         assert!(
-            matches!(got, Err(MeetFault::Unsettled(Unsettled::Meter))),
+            matches!(
+                got,
+                Err(MeetFault::Unsettled(Unsettled::Meter { row: row::BASIN }))
+            ),
             "{got:?}"
         );
     }
