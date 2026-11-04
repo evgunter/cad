@@ -595,3 +595,22 @@ fn review_probe_cone_sweep() {
     for b in bad.iter().take(40) { eprintln!("BAD {b}"); }
     eprintln!("bad total {}", bad.len());
 }
+
+/// REVIEW PROBE (6504): true generators anchored just past the apex's
+/// height band, read over a span away from the apex.
+#[test]
+fn review_probe_true_ruling_anchored_near_the_apex() {
+    let surface = cone();
+    let Surface::Cone { half_angle, .. } = surface else { unreachable!() };
+    for sigma in [1.0, -1.0] {
+        for h in [2.0 * zero(), 10.0 * zero(), 1e-7] {
+            let (anchor, g, _) = cone_at(1.0, sigma, h);
+            let carrier = Curve3::line(anchor, g);
+            let span = (0.5, 2.0);
+            let [d, d_i] = derivations(&carrier, span, &surface);
+            let c = chart_pcurve_over(&carrier, span.0, span.1, &surface, band())
+                .and_then(|im| PcurveCache::certify(im, span.0, span.1, &carrier, &surface, band()).map(|_| ()));
+            eprintln!("NEARAPEX σ{sigma} h{h:e} (α {half_angle}): {d:?} / {d_i:?} -> {c:?}");
+        }
+    }
+}
