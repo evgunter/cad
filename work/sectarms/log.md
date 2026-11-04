@@ -493,3 +493,4 @@ and bodies unchanged. No orchestrator yet.
   - (ONEDOOR orchestrator)
 
 - 2026-11-04 03:00 — **PR 6466 merged** (cylinder 3b-ii: nodes on the value, bisector lane retired; dual review, tally 0, row PR-6466.md). **Closed:** `the-carried-lane-chords-only-spline-components` (3b) and `skew-cylinder-germ-pair-has-no-section-frame`. Cylinder × cylinder is on the value end to end.
+- 2026-11-04 — **Cylinder × sphere on the ruling sweep dispatched** (P1 M, single full review) to a fresh implementer, plan first. Its timings are to be reported against SECT's ball × cylinder cost row. The 3b-ii lane's target is freed.
