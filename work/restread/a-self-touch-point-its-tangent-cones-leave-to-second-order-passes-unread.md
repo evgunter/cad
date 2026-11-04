@@ -175,3 +175,30 @@ the reading above, so this row is open again for the 55 triples still
 skipped. The two biggest classes are the slits (30) and
 `bisector_nodes`' equal cylinders (14). Whether the remainder refuses
 in the meantime is still Ev's call.
+
+## Coincident sheets (branch `restread/self-touch-coincident-sheets`)
+
+**Measured at merge base `8a117ad3ee`** (same instrument, topo + the ten
+sweep families): 57 triples skipped, not 55: main's `bisector_nodes`
+rows now reach 16 equal-cylinder triples, not 14. Of the 57:
+
+| class | triples | now |
+|---|---|---|
+| slit (`review_6020_seam_poses`) | 30 | refused `Degenerate` (`rest::slit`), as the planar link refuses two planar faces on each other |
+| `Degenerate`, `bisector_nodes`' equal cylinders | 16 | read `Rest`: two lenses each (`second_order::lenses`, `rest::lensed`) |
+| lune (`two_wedge_ends_on_one_line`) | 4 | skipped: a horn beside a lens sharing one edge |
+| curved sheet holding a tied ray | 3 | skipped: its line now reads (`second_order::parts`), and the two `a_rim_flush_…` points then stop at two cylinders tangent inside on each other, no lens; `a_hole_sharing_…` at a bound on a bound |
+| cone apex | 2 | skipped |
+| foot normal | 1 | skipped |
+| `resolve` refusal | 1 | skipped |
+
+11 triples are still skipped. The slits are the counterbore split's
+cut faces lying on each other, measured on
+`work/heldrecords/a-plane-touching-a-counterbores-floor-rim-ships-sides-tier-three-prime-refuses.md`;
+`review_6020_seam_poses` asserts nothing at tier 3′, so no row goes
+red. The arguments are in `crates/topo/README.md` beside the others.
+
+**Refusing what is left** (local variant, never committed) turns 5
+sweep rows red: `a_rim_flush_…`, `a_hole_sharing_…`, the cone apex, and
+`two_wedge_ends_on_one_line` ×2. Both `bisector_nodes` rows now read
+whole. Whether the remainder refuses is still Ev's call.

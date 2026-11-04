@@ -557,9 +557,12 @@ fn corner_on(other: geom::Surface<f64>, sense: bool) -> TouchVerdict {
 /// **A line edge in a huge sphere's or cylinder's tangent plane lies in
 /// the face only along a cylinder's ruling**: radius 1e9, so the edge's
 /// far end stands within the band of the carrier whichever way it runs.
-/// On a sphere, which has no ruling, and across a cylinder's ruling, it
-/// refuses; along the ruling it reads. Red where the band alone keeps a
-/// line on a carrier.
+/// Along the ruling it reads. On a sphere, which has no ruling, and
+/// across a cylinder's ruling, it is read one order down, where the
+/// carrier falls `l²/2R` under the edge at its unit arm: refused where
+/// the band leaves that fall in band, and a rest where the band reads
+/// it, never kept at first order. Red where the band alone keeps a line
+/// on a carrier.
 #[test]
 fn a_line_in_a_huge_carriers_plane_is_kept_only_along_a_ruling() {
     let big = 1e9;
@@ -576,12 +579,22 @@ fn a_line_in_a_huge_carriers_plane_is_kept_only_along_a_ruling() {
         u_ref: v(0.0, 0.0, 1.0),
     };
     let refused = TouchVerdict::Unread(TouchUnread::Unreadable);
-    assert_eq!(corner_on(sphere, true), refused, "a sphere");
-    assert_eq!(
-        corner_on(tube(v(0.0, 1.0, 0.0)), true),
-        refused,
-        "across a ruling"
-    );
+    let fall = 0.5 / big;
+    for (what, got) in [
+        ("a sphere", corner_on(sphere, true)),
+        ("across a ruling", corner_on(tube(v(0.0, 1.0, 0.0)), true)),
+    ] {
+        if fall < band().zero() {
+            assert_eq!(got, refused, "{what}");
+        } else if fall > 2.0 * band().escalate() {
+            assert!(matches!(got, TouchVerdict::Rest(_)), "{what}: {got:?}");
+        } else {
+            assert!(
+                got == refused || matches!(got, TouchVerdict::Rest(_)),
+                "{what}: {got:?}"
+            );
+        }
+    }
     assert!(
         matches!(
             corner_on(tube(v(1.0, 0.0, 0.0)), true),
