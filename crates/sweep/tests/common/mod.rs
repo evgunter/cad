@@ -216,6 +216,8 @@ pub mod membership;
 /// evaluate no surface, so it routes here.
 pub mod latitude_seam;
 
+pub mod semicircle_wall;
+
 /// The `Interval` literals — a scalar, and points and vectors from
 /// exact `f64` coordinates. What an interval-lane
 /// suite authors its profile and placements with, so it routes here.

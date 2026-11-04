@@ -981,7 +981,10 @@ impl<T: SpanLocate> Reach<T> {
                 let base = (pivot - Point3::origin()).dot(dir);
                 carrier.cover_over(ParamWindow::new(*t0, *t1)).map_or_else(
                     |_| (poison(), poison()),
-                    |c| (T::zero() - c.support(-dir) - base, c.support(dir) - base),
+                    |c| {
+                        let (lo, hi) = c.range_along(dir);
+                        (lo - base, hi - base)
+                    },
                 )
             }
         }

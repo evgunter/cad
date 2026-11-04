@@ -62,6 +62,7 @@
 //! the band cannot read is a refusal: the carrier's where it refused
 //! too, else the place's.
 
+use geom::cover::Cover;
 use geom::{CarrierEscalation, CarrierRefusal, Clearance, Curve3, Foot, OnCarrier};
 use geom_core::k_stats::{self, decide_reported, straddle};
 use geom_core::{Band, Decide, Indeterminate, InfSpeed, Margin, MarginDiag, Point3, Real, Sign};
@@ -215,6 +216,29 @@ impl<'a, T: Decide> Span<'a, T> {
     /// The carrier's least and greatest speed.
     pub fn speeds(&self) -> (InfSpeed<T>, SupSpeed<T>) {
         (self.lo, self.hi)
+    }
+
+    /// **Where on the span a meeting with a member can lie**: an
+    /// interval of the span's parameters outside which no point of the
+    /// span stands within the band's escalation of `member`, the
+    /// member's cover. On a line, the cover's range along it
+    /// ([`Cover::range_along`]) widened by the escalation either way,
+    /// within the span; on any other carrier, or for a member with no
+    /// cover (`None`), the whole span.
+    pub fn window_near(&self, member: Option<&Cover<T>>, band: Band) -> (T, T) {
+        let (lo, hi) = (self.t0.min(self.t1), self.t0.max(self.t1));
+        let (Curve3::Line(geom::Line { origin, dir }), Some(cover)) = (self.carrier, member) else {
+            return (lo, hi);
+        };
+        let (near, far) = cover.range_along(*dir);
+        let base = (*origin - Point3::origin()).dot(*dir);
+        let reach = T::from_f64(band.escalate()) * dir.norm();
+        let per = dir.norm_squared();
+        let within = |t: T| t.max(lo).min(hi);
+        (
+            within((near - base - reach) / per),
+            within((far - base + reach) / per),
+        )
     }
 
     /// `t` on the branch within half a turn of the span's middle, on a

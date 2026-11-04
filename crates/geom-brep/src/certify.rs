@@ -3612,13 +3612,6 @@ fn from_plane_nurbs(e: crate::edge_nurbs::PlaneNurbsRefusal) -> CertifyError {
             sample: NOT_A_SAMPLE,
             cause,
         },
-        P::ArcRim(crate::edge_nurbs::ArcRimRefusal::Escalated { check, cause }) => {
-            CertifyError::Escalated {
-                check: arc_rim_check(check),
-                sample: NOT_A_SAMPLE,
-                cause,
-            }
-        }
         P::ReportedTransversalityPoisoned(cause) => CertifyError::Escalated {
             check: CertCheck::PlaneNurbsReportedTransversality,
             sample: NOT_A_SAMPLE,
@@ -5466,7 +5459,7 @@ mod tests {
                 "length",
                 vec![
                     CertifyError::PlaneNurbs(crate::edge_nurbs::PlaneNurbsRefusal::ArcRim(
-                        crate::edge_nurbs::ArcRimRefusal::Refused {
+                        crate::edge_nurbs::ArcRimRefusal {
                             iso: Some(crate::pcurve_cache::PcurveCheck::ParamSpan),
                             limb: crate::ssi::SsiLimb::HullSupChart,
                             bound: MarginDiag::value(5e-6),
