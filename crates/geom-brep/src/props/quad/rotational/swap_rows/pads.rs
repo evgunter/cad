@@ -213,21 +213,33 @@ fn a_carrier_on_the_wall_holds_far_out() {
     far_face_holds(0.0, Point3::new(1e3, -1e3, 5e2), "on the wall, far out");
 }
 
-/// **A rim carrier `5e-10` m off the wall holds near the chart's own
-/// origin**, where the lever is short.
-#[test]
-fn a_carrier_off_the_wall_holds_near_the_origin() {
-    far_face_holds(6.25e-10, Point3::new(0.4, -0.2, 0.3), "off the wall, near");
+/// How far off the wall the off-wall rows set their rim's carrier, as a
+/// share of the chart's radius `0.8`: half of ε in metres (`5e-10` at ε
+/// `1e-9`), inside the band the image mints in at every ε row.
+fn off_the_wall() -> f64 {
+    0.5 * Tol::witness().eps() / 0.8
 }
 
-/// **A rim carrier `5e-10` m off the wall (inside ε, its envelope says
-/// so) holds a thousand metres out**: the chart term reads the carrier's
+/// **A rim carrier half of ε off the wall ([`off_the_wall`]) holds near
+/// the chart's own origin**, where the lever is short.
+#[test]
+fn a_carrier_off_the_wall_holds_near_the_origin() {
+    far_face_holds(
+        off_the_wall(),
+        Point3::new(0.4, -0.2, 0.3),
+        "off the wall, near",
+    );
+}
+
+/// **A rim carrier half of ε off the wall ([`off_the_wall`], `5e-10` m at
+/// ε `1e-9`, its envelope says so) holds a thousand metres out**: the
+/// chart term reads the carrier's
 /// `A⃗` at the lever `|o − c| ≈ 1.5e3`, and the pad holds the miss
 /// (`~lever·length·env`, `7.7e-8` before it).
 #[test]
 fn a_carrier_off_the_wall_holds_far_out() {
     far_face_holds(
-        6.25e-10,
+        off_the_wall(),
         Point3::new(1e3, -1e3, 5e2),
         "off the wall, far out",
     );
