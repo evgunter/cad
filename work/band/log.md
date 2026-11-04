@@ -1222,3 +1222,10 @@ filed here is closed as a duplicate of CPAIR's bisected item.
 ## 2026-11-04 — picked up (`active`)
 
 A new sitting holds the track for its P0 and P1 rows: the bracket's mixed-convexity corner and the rounded outline's closed mixed chain (P0), the knife-edge blend and blend's convexity read off `topo::link` (P1). `blend-reads-its-chain-convexity-off-the-link` drops its `blocked_on`: ATREST's link build closed (PR 5773), so the row is dispatchable. The unbanded `a-chain-end-beside-a-smooth-seam-folds-to-an-indeterminate-corner` is banded P3 E, with the other wrong-recourse endings: once the closed mixed chain is built, the slot's whole outline is the request a user makes, and one arc alone is a tangent chain end.
+
+## 2026-11-04 — dispatches
+
+- **`a-boss-on-a-plate-meets-it-at-a-mixed-convexity-corner-no-run-out-rounds` (P0)**: a design fork (what a blend builds at a corner whose requested edges mix convexity, and the corner and band-end vocabulary after it), so designers first. The draw gave the three-designer arm, recorded on `analysis/design-fork/band-mixed-convexity-corner`.
+- **`a-rounded-outline-is-a-closed-chain-of-mixed-links-the-blend-refuses` (P0)**: `band/closed-mixed-chain`, phase 1 is measure and plan, back to the orchestrator before any build. Review tier: **dual** (H; junction carry-through is chain architecture every multi-link band will build on).
+- **`blend-reads-its-chain-convexity-off-the-link` (P1)**: `band/blend-convexity-off-the-link`. Review tier: **single, FULL** (M; swapping the predicate can flip a convexity verdict at a tangent or near-tangent edge, so correctness is at risk, not only style).
+- **`a-knife-edge-blend-is-unbuilt-though-its-rolling-ball-is-defined` (P1)**: held until a build slot frees. Its row says to measure first.
