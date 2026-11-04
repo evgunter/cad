@@ -53,3 +53,8 @@ is the validation of record. `topo::validate_geometric` does not compile at
 `Dual` (its `CertifiedBounds` bound), and the sensitivity report refuses a
 dual pass with no validated base evaluation. The off carrier is therefore
 read where the base scalar reads it, which is this row's subject.
+
+DL3's "absent by type" holds for `validate_geometric`, not for
+`validate_pcurves`: that door compiles at `Dual` and answers clean there on
+an off carrier. The row rests on DL3's other half, that a dual's answer is
+not the validation of record.

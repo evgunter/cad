@@ -52,8 +52,11 @@
 //! on each channel's rounding, set where the point is made and carried
 //! through every blend `x + (y − x)·t` of the insertions and the
 //! halvings ([`blend`]): the inputs' bounds blend as the values do,
-//! and each blend adds `u·|y − x|·t + u·|result|`, plus `|y − x|·δt` for
-//! an insertion's ratio of knots (`δt` three units of roundoff of `t`).
+//! and each blend adds `u·|y − x|·t` for the difference, `u·|result|`
+//! for the sum, and, at an insertion's ratio of knots, `u·|y − x|·t`
+//! more for the product by the ratio and `|y − x|·δt` for the ratio's
+//! own rounding (`δt` three units of roundoff of `t`). A halving's
+//! product by the exact half is exact.
 //! Out of homogeneous form a point is off by at most
 //! `(e_xyz + |P|·e_w)/(w − e_w) + u·|P|` per coordinate, and the floor is
 //! charged the root sum of the worst per channel ([`cut_rounding`]). Every
@@ -245,27 +248,37 @@ impl<T> Ord for Queued<T> {
 
 /// **One blend `x + (y − x)·t`** of two homogeneous control points, each
 /// channel by [`SpanLocate::homogeneous_step`], with its rounding bound
-/// at `f64`: the inputs' bounds blended as the values are, plus the
-/// difference's rounding (`u·|y − x|·t`), the sum's (`u·|result|`), and
-/// `t`'s own (`|y − x|·dt`). `dt` is zero for a halving's exact half,
-/// and three units of roundoff of `t` for an insertion's ratio of knots
-/// (two differences and a quotient).
+/// at `f64`. The step rounds three times, with no fused multiply-add:
+/// the difference, its product by `t`, and the sum. To first order the
+/// bound is the inputs' bounds blended as the values are, plus
+/// `u·|y − x|·t` for the difference, `u·|y − x|·t` for the product,
+/// `u·|result|` for the sum, and `|y − x|·dt` for `t`'s own rounding.
+/// A halving's `t` is the exact half, so its product is exact and
+/// `dt` is zero, and the product term is dropped. An insertion's ratio
+/// of knots is rounded by three units of `t` (`dt`: two differences and
+/// a quotient), and its product rounds as well.
 fn blend<T: Decide>(x: Control<T>, y: Control<T>, t: T, ratio: bool, track: bool) -> Control<T> {
     let h: [T; 4] = core::array::from_fn(|c| T::homogeneous_step(x.0[c], y.0[c], t));
     if !track {
         return (h, [0.0; 4]);
     }
     let tf = middle(t);
-    let dt = if ratio {
-        3.0 * UNIT_ROUNDOFF * tf.abs()
+    let (dt, roundings) = if ratio {
+        (3.0 * UNIT_ROUNDOFF * tf.abs(), 2.0)
     } else {
-        0.0
+        (0.0, 1.0)
+    };
+    #[cfg(test)]
+    let roundings = if super::mutants::spline_product_uncharged() {
+        1.0
+    } else {
+        roundings
     };
     let e = core::array::from_fn(|c| {
         let span = (middle(y.0[c]) - middle(x.0[c])).abs();
         (1.0 - tf) * x.1[c]
             + tf * y.1[c]
-            + UNIT_ROUNDOFF * (span * tf + middle(h[c]).abs())
+            + UNIT_ROUNDOFF * (roundings * span * tf.abs() + middle(h[c]).abs())
             + span * dt
     });
     (h, e)

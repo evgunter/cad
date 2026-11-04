@@ -572,6 +572,10 @@ impl Dd {
         Self::two_sum(q, r.0 / o.0)
     }
 
+    fn value(self) -> f64 {
+        self.0 + self.1
+    }
+
     fn abs_hi(self) -> f64 {
         (self.0 + self.1).abs()
     }
@@ -607,6 +611,275 @@ fn dd_descend(net: &[[Dd; 4]], pu: usize, pv: usize, left: bool, right: bool) ->
         out
     };
     halve(&halve(net, true, left), false, !right)
+}
+
+/// **The cut's `f64` rounding bound holds a knotted cut's drift**: over
+/// knotted rational patches of degree one to four, any interior knots
+/// of any multiplicity, weights up to eight decades apart, placed up to
+/// `1e5` of their size away, each point of each Bézier cell the
+/// insertions cut, and of a cell then halved along a random descent up
+/// to twelve levels, lies within its tracked bound
+/// ([`super::point_rounding`]) of the same cut by Boehm's insertion in
+/// double-double ([`dd_refine`]). So the insertion branch of
+/// [`super::blend`], its ratio's rounding and its product's, meets a
+/// reference. Built with `PCERT_RADIAL_PAIR_MUTANT=spline-product-uncharged`
+/// (the product by the ratio uncharged) the row stays green: that drops
+/// one unit of the five a ratio's blend charges on `|y − x|·t`, and a
+/// drift reaches past the rest only where all five roundings meet at
+/// their worst. Under it the worst drift found is `0.81` of the bound,
+/// at twenty times this row's effort.
+#[test]
+fn the_cut_rounding_bound_holds_a_knotted_cuts_drift() {
+    let worst = knotted_drift(&mut test_utils::fuzz::start("spline-knotted-drift"));
+    eprintln!("[spline-knotted-drift] worst drift over bound {worst}");
+}
+
+/// A knotted patch for [`knotted_drift`] and
+/// [`a_floor_is_below_the_exact_cells_hull`]: the chart, its net, and
+/// the net's exact Bézier cells about the same centre.
+fn knotted(rng: &mut test_utils::fuzz::Rng) -> (NurbsSurface<f64>, Vec<Vec<[Dd; 4]>>) {
+    let (pu, pv) = (1 + rng.below(4), 1 + rng.below(4));
+    let (ku, kv) = (knots(rng, pu), knots(rng, pv));
+    let (nu, nv) = (ku.control_count(), kv.control_count());
+    let scale = 10f64.powf(rng.range(-2.0, 3.0));
+    let o = Vec3::new(
+        rng.range(-1.0, 1.0),
+        rng.range(-1.0, 1.0),
+        rng.range(-1.0, 1.0),
+    ) * scale
+        * [0.0, 10.0, 1e3, 1e5][rng.below(4)];
+    let control: Vec<Point3<f64>> = (0..nu * nv)
+        .map(|_| {
+            Point3::origin()
+                + Vec3::new(
+                    rng.range(-1.0, 1.0),
+                    rng.range(-1.0, 1.0),
+                    rng.range(-1.0, 1.0),
+                ) * scale
+                + o
+        })
+        .collect();
+    let decades = [0.0, 2.0, 4.0, 8.0][rng.below(4)];
+    let weights: Vec<f64> = (0..nu * nv)
+        .map(|_| 10f64.powf(rng.range(-decades / 2.0, decades / 2.0)))
+        .collect();
+    let chart = NurbsSurface::new(ku, kv, control.clone(), weights.clone()).unwrap();
+    let net = Net::of(&chart, tight_band()).unwrap();
+    let c = [net.centre.x, net.centre.y, net.centre.z];
+    let at = |k: usize| {
+        let w = Dd::of(weights[k]);
+        let moved = |x: f64, c: f64| Dd::of(x).sub(Dd::of(c)).mul(w);
+        let p = control[k];
+        [moved(p.x, c[0]), moved(p.y, c[1]), moved(p.z, c[2]), w]
+    };
+    let (u, v) = (
+        chart.knot_values_u().values(),
+        chart.knot_values_v().values(),
+    );
+    let rows: Vec<Vec<[Dd; 4]>> = (0..nu)
+        .map(|i| dd_refine(v, pv, (0..nv).map(|j| at(i * nv + j)).collect()))
+        .collect();
+    let columns: Vec<Vec<[Dd; 4]>> = (0..rows[0].len())
+        .map(|j| dd_refine(u, pu, rows.iter().map(|r| r[j]).collect()))
+        .collect();
+    let (cu, cv) = ((columns[0].len() - 1) / pu, (columns.len() - 1) / pv);
+    assert_eq!(
+        net.cells.len(),
+        cu * cv,
+        "the cut's cells are the reference's"
+    );
+    let mut cells = Vec::with_capacity(cu * cv);
+    for i in 0..cu {
+        for j in 0..cv {
+            let mut cell = Vec::with_capacity((pu + 1) * (pv + 1));
+            for a in 0..=pu {
+                for b in 0..=pv {
+                    cell.push(columns[j * pv + b][i * pu + a]);
+                }
+            }
+            cells.push(cell);
+        }
+    }
+    (chart, cells)
+}
+
+/// The knotted drift search ([`the_cut_rounding_bound_holds_a_knotted_cuts_drift`]):
+/// the worst ratio of a drift to its bound, every drift within it.
+fn knotted_drift(rng: &mut test_utils::fuzz::Rng) -> f64 {
+    let mut worst = 0.0f64;
+    for case in 0..test_utils::fuzz::scaled(400) {
+        let (chart, exact) = knotted(rng);
+        let net = Net::of(&chart, tight_band()).unwrap();
+        let (pu, pv) = (net.pu, net.pv);
+        for (cell, reference) in net.cells.iter().zip(exact) {
+            let (mut cell, mut reference) = (cell.clone(), reference);
+            for _ in 0..rng.below(13) {
+                let (left, right) = (rng.below(2) == 0, rng.below(2) == 0);
+                cell = descend(&cell, pu, pv, left, right);
+                reference = dd_descend(&reference, pu, pv, left, right);
+            }
+            for (got, exact) in cell.net.iter().zip(&reference) {
+                let bound = super::point_rounding(got);
+                let at = super::point(got.0);
+                for (k, x) in [at.x, at.y, at.z].into_iter().enumerate() {
+                    let drift = Dd::of(x).sub(exact[k].div(exact[3])).abs_hi();
+                    worst = worst.max(drift / bound[k]);
+                    assert!(
+                        drift <= bound[k],
+                        "case {case}: a knotted cut's point drifts {drift:e} past its bound {:e}: {}",
+                        bound[k],
+                        test_utils::fuzz::replay()
+                    );
+                }
+            }
+        }
+    }
+    worst
+}
+
+/// **A cell's `f64` floor is below its exact hull's**: on
+/// [`knotted`]'s cells, a sample placed past the computed box along an
+/// axis by less than the cell's cut charge ([`super::cut_rounding`]) has
+/// a floor ([`super::Net::floor`]) no larger than the larger of its
+/// distances to the exact control points' box and to their slab along
+/// the computed slab's direction, either of which bounds its distance
+/// from the exact cell. So the floor's subtraction of the cut term is
+/// pinned: built with `PCERT_RADIAL_PAIR_MUTANT=spline-cut-uncharged`
+/// the row is red.
+#[test]
+fn a_floor_is_below_the_exact_cells_hull() {
+    let rng = &mut test_utils::fuzz::start("spline-floor-hull");
+    let mut placed = 0usize;
+    for case in 0..test_utils::fuzz::scaled(400) {
+        let (chart, exact) = knotted(rng);
+        let net = Net::of(&chart, tight_band()).unwrap();
+        for (cell, reference) in net.cells.iter().zip(&exact) {
+            let cut = super::cut_rounding(cell);
+            if !cut.is_finite() || cut == 0.0 {
+                continue;
+            }
+            let points: Vec<Point3<f64>> = cell.net.iter().map(|&(h, _)| super::point(h)).collect();
+            let axis = rng.below(3);
+            let high = rng.below(2) == 0;
+            let coordinate = |p: &Point3<f64>| [p.x, p.y, p.z][axis];
+            let edge = points.iter().map(coordinate).fold(
+                if high {
+                    f64::NEG_INFINITY
+                } else {
+                    f64::INFINITY
+                },
+                |a, b| {
+                    if high { a.max(b) } else { a.min(b) }
+                },
+            );
+            let mid = |k: usize| {
+                let (lo, hi) =
+                    points
+                        .iter()
+                        .fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), p| {
+                            let x = [p.x, p.y, p.z][k];
+                            (lo.min(x), hi.max(x))
+                        });
+                0.5 * (lo + hi)
+            };
+            let past = cut * rng.range(0.05, 0.95);
+            let mut q = [mid(0), mid(1), mid(2)];
+            q[axis] = if high { edge + past } else { edge - past };
+            let q = Point3::new(q[0], q[1], q[2]);
+            let floor = net.floor(cell, q);
+            let exact_points: Vec<[Dd; 3]> = reference
+                .iter()
+                .map(|h| [h[0].div(h[3]), h[1].div(h[3]), h[2].div(h[3])])
+                .collect();
+            let gap = |lo: Dd, hi: Dd, x: Dd| lo.sub(x).value().max(x.sub(hi).value()).max(0.0);
+            let least = |a: Dd, b: Dd| if b.sub(a).value() < 0.0 { b } else { a };
+            let most = |a: Dd, b: Dd| if b.sub(a).value() > 0.0 { b } else { a };
+            let bounds = |k: usize| {
+                exact_points
+                    .iter()
+                    .fold((exact_points[0][k], exact_points[0][k]), |(lo, hi), p| {
+                        (least(lo, p[k]), most(hi, p[k]))
+                    })
+            };
+            let qs = [Dd::of(q.x), Dd::of(q.y), Dd::of(q.z)];
+            let box_gap = (0..3)
+                .map(|k| {
+                    let (lo, hi) = bounds(k);
+                    gap(lo, hi, qs[k]).powi(2)
+                })
+                .sum::<f64>()
+                .sqrt();
+            let corner = |a: usize, b: usize| points[a * (net.pv + 1) + b];
+            let n = (corner(net.pu, net.pv) - corner(0, 0))
+                .cross(corner(0, net.pv) - corner(net.pu, 0));
+            let slab_gap = if n.norm() > 0.0 && n.norm().is_finite() {
+                let height = |p: [Dd; 3]| {
+                    p[0].mul(Dd::of(n.x))
+                        .add(p[1].mul(Dd::of(n.y)))
+                        .add(p[2].mul(Dd::of(n.z)))
+                };
+                let heights: Vec<Dd> = exact_points.iter().map(|&p| height(p)).collect();
+                let lo = heights.iter().copied().fold(heights[0], least);
+                let hi = heights.iter().copied().fold(heights[0], most);
+                // `|n|` rounds by a unit or two; the gap is read on the
+                // longer side of it.
+                gap(lo, hi, height(qs)) / (n.norm() * (1.0 - 4.0 * f64::EPSILON))
+            } else {
+                0.0
+            };
+            let exact_gap = box_gap.max(slab_gap);
+            placed += 1;
+            assert!(
+                floor <= exact_gap,
+                "case {case}: a floor {floor:e} past the exact hull's {exact_gap:e} \
+                 (cut charge {cut:e}, placed {past:e} past the box): {}",
+                test_utils::fuzz::replay()
+            );
+        }
+    }
+    assert!(
+        placed > 0,
+        "no cell had a cut charge to place a sample within"
+    );
+}
+
+/// Boehm's insertion in double-double: `row`'s homogeneous points on the
+/// knots `knots` of degree `p`, each interior knot raised to
+/// multiplicity `p`, so the row is its Bézier segments' nets end to end.
+/// Each ratio is formed from the exact knots, so the row is exact to
+/// about `1e-30` of its coordinates.
+fn dd_refine(knots: &[f64], p: usize, row: Vec<[Dd; 4]>) -> Vec<[Dd; 4]> {
+    let (mut knots, mut row) = (knots.to_vec(), row);
+    let (first, last) = (knots[0], knots[knots.len() - 1]);
+    let mut interior: Vec<f64> = knots
+        .iter()
+        .copied()
+        .filter(|&x| x != first && x != last)
+        .collect();
+    interior.dedup();
+    for x in interior {
+        while knots.iter().filter(|&&k| k == x).count() < p {
+            let s = knots.iter().filter(|&&k| k == x).count();
+            let k = knots.iter().rposition(|&u| u <= x).unwrap();
+            let mut out = Vec::with_capacity(row.len() + 1);
+            for i in 0..=row.len() {
+                if i + p <= k {
+                    out.push(row[i]);
+                } else if i + s > k {
+                    out.push(row[i - 1]);
+                } else {
+                    let a = Dd::of(x)
+                        .sub(Dd::of(knots[i]))
+                        .div(Dd::of(knots[i + p]).sub(Dd::of(knots[i])));
+                    let (lo, hi) = (row[i - 1], row[i]);
+                    out.push(core::array::from_fn(|c| lo[c].add(hi[c].sub(lo[c]).mul(a))));
+                }
+            }
+            knots.insert(k + 1, x);
+            row = out;
+        }
+    }
+    row
 }
 
 /// The quarter of `cell` its two halvings pick, `u` then `v`.
