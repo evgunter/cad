@@ -5,9 +5,18 @@ Main at `7072c784`. Probe (uncommitted): an `eprintln!` at
 `slit::holding`'s `Placed::Unread` arm, run on
 `germ_tilted_rod::other_spins_and_steeper_tilts_refuse_at_their_germs`.
 
-## 1. Measurement, by identity (1e-9 and 1e-6 the same; 1e-12 below)
+## 1. Measurement, by identity (1e-9 = default, and 1e-6: identical; 1e-12 pending, not completed)
 
-The test passes on main at each ε row (the β 0.7 union pinned at `"unread rider"`).
+The test passes on main at 1e-9 (2096.6 s) and 1e-6 (486.0 s), with the
+β 0.7 union pinned at `"unread rider"`. The probe lines are identical
+at both rows: the same keys, carriers, ends and payload.
+
+The 1e-12 run was killed unfinished after more than 2h18m,
+single-threaded at 100% CPU. It had not reached the β 0.6 poses. Last
+night's nightly 1e-12 full suite did run the test and did not fail it,
+and that job finished in 3982 s for the whole suite run in parallel.
+So I cannot tell whether the test spins at 1e-12 or this box is slow.
+Filed as `work/tcost/the-tilted-rods-other-spins-row-runs-past-two-hours-at-1e-12-locally.md` (P2).
 Every unread rider asked in the run is a spiric against the rod's
 cylinder wall, `gap CarrierUnread`, `Names { ends: true, record: false }`:
 
