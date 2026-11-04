@@ -157,8 +157,8 @@ impl Axial {
         let mut ts = vec![star, -self.h0 / self.w];
         for sigma in [1.0, -1.0] {
             let k = sigma * self.w * half_angle.tan();
-            if v2 > k * k {
-                ts.push(star + k * d / (v2.sqrt() * (v2 - k * k).sqrt()));
+            if v2 > k.powi(2) {
+                ts.push(star + k * d / (v2.sqrt() * (v2 - k.powi(2)).sqrt()));
             }
         }
         ts
@@ -183,7 +183,7 @@ impl Axial {
         let p = [q_off.dot(q_off), 2.0 * q_off.dot(uo), uo.dot(uo)];
         let dp = [q_off.dot(uo), uo.dot(uo)];
         let dq = [q.dot(u), u.dot(u)];
-        let quartic = sub(&mul(&mul(&dq, &dq), &p), &mul(&[big * big], &mul(&dp, &dp)));
+        let quartic = sub(&mul(&mul(&dq, &dq), &p), &mul(&[big.powi(2)], &mul(&dp, &dp)));
         let (lo, hi) = ((s0 - centre) / scale, (s1 - centre) / scale);
         let roots = roots_in(&quartic, lo, hi);
         // `s(y) = Q'·ρ − R·P'`, whose roots are the stationary points,
