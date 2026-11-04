@@ -124,3 +124,11 @@
   - The review row is `docs/dual-review-log/rows/PR-6497.md` (a fair pair).
   - **Stage 2 is closed.** The parent row (`horn-and-spindle-tori-have-no-representation`) closes with it. The part-way revolve (P1) is the next spindle row.
 - 2026-11-04 — **PR 6497 merged; the horn row is closed.** **Dispatched** `a-football-revolved-part-way-refuses-at-its-cap-meridians-certificate` (P1, M; single FULL review, an edge certificate near an apex) on `spiricarm/spindle-partway`.
+- 2026-11-04 — **The sphere chart is up as PR 6509** (head `fe92371df8`, CI green).
+  - **Premise (g) holds with a correction:** the pole rule needs the face's sense bit (`s_f·(1_N − 1_S) = W`), and it was checked on 131 face readings against Gauss–Bonnet. A pole on a loop moves its connector into the region term.
+  - The P2 junction gap is closed on both charts by `connector_terms`.
+  - **`cylinder_sphere_frame`:** 52 of 54 build at the oracle's volume. None is yet a legal operand: a later union refuses `Containment(PartialSphereFace)`. That is filed on INSIDE as `point-in-solid-refuses-a-sphere-face-bounded-by-a-spline-chord` (P1).
+  - Teapot wall 2 now stops at the handle's torus face.
+  - **The lane closed the P0 and the P2 rows inside the PR.** The reviewers are asked whether each closure meets its row's "done when", and whether a cylinder × sphere result that cannot be a later operand leaves a P0 standing on INSIDE.
+  - Also filed: `the-spiric-wall-lane-omits-its-junctions-connectors-from-its-region-term` (P2).
+  - **Dual review dispatched** as two cloud sessions, with identical briefs (`spiricarm/review-6509-brief`, sha256 `7910ac19…`).
