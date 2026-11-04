@@ -33,6 +33,19 @@
 //! least floor (decided zero) and the points' least distance (decided
 //! past the band), [`geom_core::k_stats::straddle`].
 //!
+//! **The foot first.** Before the walk, each sample's foot on the chart
+//! is found by Gauss–Newton on `|S(u, v) − q|²`, from the last sample's
+//! foot or the nearest cell's centre, in `f64` on the brackets' middles
+//! and held inside the patch's parameter rectangle. It decides nothing:
+//! the chart's point there, evaluated in the scalar, is one more upper
+//! bound, decided as a kept cell's centre is. Within the zero band the
+//! sample is on the chart, so a sample on it costs a few evaluations
+//! rather than a dive; in band, the walk prunes from its first visit as
+//! it does after a centre read in band. A carrier on its chart reads on,
+//! sample after sample, from the foot before it. A foot short of the
+//! true one (an iteration stopped on a large patch, another local
+//! minimum) only leaves the walk to find the point.
+//!
 //! **A weight not shown positive** leaves the cell's hull unproven, so
 //! its floor is the poison: its decision escalates with an unreadable
 //! margin, and the cell is kept as a leaf: halving does not cure the
@@ -160,8 +173,9 @@ fn read_samples<T: Decide>(
         return Err(incidence_escalated(unreadable(band)));
     };
     let mut pending: Option<Indeterminate> = None;
+    let mut hint = None;
     for sample in samples {
-        match net.read(sample, band) {
+        match net.read_from(sample, band, Some(&mut hint)) {
             Read::On => {}
             Read::Off(floor) => match decide_reported(name, Margin::of(floor), band) {
                 Ok(Decided {
@@ -219,6 +233,9 @@ struct Net<'a, T: Real> {
     pv: usize,
     /// The halvings a walk may make ([`depth_cap`]).
     depth: usize,
+    /// The parameter rectangle the cells cover, `[u0, u1, v0, v1]`, shrunk
+    /// so a computed parameter's rounding stays inside it ([`Net::foot`]).
+    domain: [f64; 4],
 }
 
 /// A homogeneous control point, `[w·x, w·y, w·z, w]` about the centre,
@@ -387,6 +404,7 @@ impl<'a, T: Decide> Net<'a, T> {
             pu,
             pv,
             depth: depth_cap(lo, hi, band),
+            domain: inside(bu[0], bu[cu], bv[0], bv[cv]),
         })
     }
 
@@ -402,7 +420,20 @@ impl<'a, T: Decide> Net<'a, T> {
     /// dropped unread. A sample in band of the chart is so left with no
     /// cell once its cells are small enough that their floors pass the
     /// zero band.
-    fn read(&self, q: Point3<T>, band: Band) -> Read<T> {
+    ///
+    /// Before the walk, the chart's point at the sample's foot
+    /// ([`Net::foot`], from `hint`, the last sample's, or the nearest
+    /// cell's centre) is read as a kept cell's centre is: within the zero
+    /// band the sample is on the chart, and in band it is not off it, so
+    /// the walk drops every cell whose floor passes the zero band from its
+    /// first visit.
+    /// `hint` is `None` for the walk alone (its rows read it so).
+    fn read_from(
+        &self,
+        q: Point3<T>,
+        band: Band,
+        mut hint: Option<&mut Option<(f64, f64)>>,
+    ) -> Read<T> {
         let moved = q - self.centre;
         let key_q = [moved.x, moved.y, moved.z].map(middle);
         let mut seq = 0usize;
@@ -415,11 +446,37 @@ impl<'a, T: Decide> Net<'a, T> {
         for cell in &self.cells {
             push(&mut queue, cell.clone());
         }
+        let start = hint.as_deref().map(|hint| {
+            hint.or_else(|| {
+                queue.peek().map(|top| {
+                    let [u0, u1, v0, v1] = top.cell.rect;
+                    (u0 + (u1 - u0) * 0.5, v0 + (v1 - v0) * 0.5)
+                })
+            })
+        });
+        let mut foot_cause = None;
+        if let Some(at) = start.flatten().and_then(|start| self.foot(q, start)) {
+            let distance = (self
+                .chart
+                .eval(T::from_computed(at.0), T::from_computed(at.1))
+                - q)
+                .norm();
+            match decide(FOOT, Margin::of(distance), band) {
+                Ok(Sign::Zero) => {
+                    if let Some(hint) = hint.as_deref_mut() {
+                        *hint = Some(at);
+                    }
+                    return Read::On;
+                }
+                Ok(_) => {}
+                Err(cause) => foot_cause = Some(cause),
+            }
+        }
         // The least floor over the cells that cleared and over the kept
         // ones, and the least distance of a point past the zero band.
         let (mut floor, mut kept, mut foot) = (None, None, None);
-        let mut pending: Option<Indeterminate> = None;
-        let mut near = false;
+        let mut pending: Option<Indeterminate> = foot_cause;
+        let mut near = pending.is_some();
         let mut unsettled = false;
         let mut visits = 0usize;
         #[cfg(test)]
@@ -463,7 +520,12 @@ impl<'a, T: Decide> Net<'a, T> {
             let distance = (centre - q).norm();
 
             match decide(FOOT, Margin::of(distance), band) {
-                Ok(Sign::Zero) => return Read::On,
+                Ok(Sign::Zero) => {
+                    if let Some(hint) = hint.as_deref_mut() {
+                        *hint = Some((u0 + (u1 - u0) * 0.5, v0 + (v1 - v0) * 0.5));
+                    }
+                    return Read::On;
+                }
                 Ok(_) => foot = least(foot, distance),
                 Err(cause) => {
                     keep(&mut pending, cause);
@@ -496,6 +558,53 @@ impl<'a, T: Decide> Net<'a, T> {
             },
             _ => unreadable(band),
         }))
+    }
+
+    /// [`Net::read_from`] by the walk alone, with no foot.
+    #[cfg(test)]
+    fn read(&self, q: Point3<T>, band: Band) -> Read<T> {
+        self.read_from(q, band, None)
+    }
+
+    /// **The sample's foot on the chart**: Gauss–Newton on `|S(u, v) − q|²`
+    /// from `start`, on the brackets' middles, held in [`Net::domain`]. It
+    /// decides nothing: any parameter of the domain gives a point of the
+    /// chart, whose distance from the sample bounds the sample's from
+    /// above. `None` where the iteration leaves the reals.
+    fn foot(&self, q: Point3<T>, start: (f64, f64)) -> Option<(f64, f64)> {
+        const STEPS: usize = 12;
+        let [u0, u1, v0, v1] = self.domain;
+        let (qx, qy, qz) = (middle(q.x), middle(q.y), middle(q.z));
+        let tiny = 1e-12 * (u1 - u0).max(v1 - v0);
+        let (mut u, mut v) = (start.0.clamp(u0, u1), start.1.clamp(v0, v1));
+        for _ in 0..STEPS {
+            let jet = self.chart.ders(T::from_computed(u), T::from_computed(v));
+            let m = |w: Vec3<T>| [middle(w.x), middle(w.y), middle(w.z)];
+            let (su, sv) = (m(jet.du), m(jet.dv));
+            let r = [
+                middle(jet.point.x) - qx,
+                middle(jet.point.y) - qy,
+                middle(jet.point.z) - qz,
+            ];
+            let dot = |a: [f64; 3], b: [f64; 3]| a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+            let (a, b, c) = (dot(su, su), dot(su, sv), dot(sv, sv));
+            let (g, h) = (dot(r, su), dot(r, sv));
+            let det = a * c - b * b;
+            if !(det.is_finite() && det > 0.0) {
+                return Some((u, v));
+            }
+            let (du, dv) = ((c * g - b * h) / det, (a * h - b * g) / det);
+            let (nu, nv) = ((u - du).clamp(u0, u1), (v - dv).clamp(v0, v1));
+            if !(nu.is_finite() && nv.is_finite()) {
+                return None;
+            }
+            let step = (nu - u).abs().max((nv - v).abs());
+            (u, v) = (nu, nv);
+            if step <= tiny {
+                break;
+            }
+        }
+        Some((u, v))
     }
 
     /// **The cell's floor against the moved sample `q`** (module docs,
@@ -695,6 +804,18 @@ fn breaks<T: Decide>(knots: &Knots<T>) -> Option<Vec<f64>> {
 
 /// The middle of a value's bracket: the walk's order, and the value an
 /// `f64` rounding bound is read at. NaN for the poison.
+/// The rectangle `[u0, u1] × [v0, v1]` shrunk by a few roundings of its
+/// coordinates at each side, so a parameter held in it and computed into
+/// the scalar ([`Real::from_computed`]) stays on the patch.
+fn inside(u0: f64, u1: f64, v0: f64, v1: f64) -> [f64; 4] {
+    let shrink = |lo: f64, hi: f64| {
+        let d = 8.0 * UNIT_ROUNDOFF * lo.abs().max(hi.abs()).max(hi - lo);
+        (lo + d, hi - d)
+    };
+    let ((a, b), (c, d)) = (shrink(u0, u1), shrink(v0, v1));
+    [a, b, c, d]
+}
+
 fn middle<T: SpanLocate>(x: T) -> f64 {
     x.structure_bracket()
         .map_or(f64::NAN, |(lo, hi)| lo + (hi - lo) * 0.5)

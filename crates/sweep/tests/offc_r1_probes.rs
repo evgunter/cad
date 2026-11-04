@@ -87,7 +87,7 @@ const TWISTED_REATTACH_RESIDUAL_NEG: f64 = 2.847541864867139e-11;
 /// its walk finds within the zero band, so the door certifies a little
 /// above [`TWISTED_REATTACH_RESIDUAL`], never below it; between the two
 /// it ends in the read's lever. Pinned bit-exactly as the residual is.
-const TWISTED_REATTACH_DOOR: f64 = 2.8487866616551874e-11;
+const TWISTED_REATTACH_DOOR: f64 = 2.8477011252101914e-11;
 
 /// The same for `d = −D`, where the walk finds its point at the
 /// residual's own threshold.
