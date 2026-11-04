@@ -660,3 +660,6 @@ fn the_spheres_arm_refuses_what_it_cannot_read() {
         "a ring wound with its face: {got:?}"
     );
 }
+
+#[cfg(test)]
+mod r1_probes;
