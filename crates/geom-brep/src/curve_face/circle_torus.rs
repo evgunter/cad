@@ -1,6 +1,5 @@
 //! **The circle × torus root door**: the certified crossings of a
-//! CIRCLE carrier with a torus, beside the line × torus quartic
-//! ([`super::solid_contain::line_torus_roots`]).
+//! CIRCLE carrier with a torus, beside `topo`'s line × torus quartic.
 //!
 //! # The polynomial is a quartic, not an octic
 //!
@@ -12,26 +11,26 @@
 //! v̂ sin θ`, the cross term `2ρ(C₀ − c)·e(θ)` is the only
 //! `θ`-dependence of `S`, since `|e(θ)| = 1`), so `F` is a
 //! trigonometric polynomial of degree TWO, and the shared half-angle
-//! ladder ([`geom_brep::half_angle::half_angle_roots`]) solves it — Bézout's
+//! ladder ([`crate::half_angle::half_angle_roots`]) solves it — Bézout's
 //! eight for a conic against a quartic surface loses four to the
 //! circular points at infinity, through which both the circle and the
 //! (bicircular) torus pass. At most four crossings per turn. The
 //! harmonics are read from the torus's one home along a conic
-//! ([`geom_brep::ConicTorusHarmonics`], of degree four on an ellipse);
+//! ([`crate::ConicTorusHarmonics`], of degree four on an ellipse);
 //! on a circle its third and fourth harmonics are rounding, charged to
 //! the noise.
 //!
-//! The door's rows are the special poses' (`bool_circle_torus_coaxial_*`,
-//! the parallel arm's `bool_circle_torus_contour_residual`,
+//! The door's rows are the special poses' (`circle_torus_coaxial_*`,
+//! the parallel arm's `circle_torus_contour_residual`,
 //! `_contour_side`, `_plane_height` and `_root_slack`, and
-//! `bool_circle_torus_meridian`, below), then the ladder's:
-//! `bool_circle_torus_pole`, `_pole_conditioning`, `_noise` and the
-//! quartic's `bool_circle_torus_*`. An in-band classifying sign
-//! escalates as [`BooleanDecision::ArcTorusRoots`]; an in-band coaxial
+//! `circle_torus_meridian`, below), then the ladder's:
+//! `circle_torus_pole`, `_pole_conditioning`, `_noise` and the
+//! quartic's `circle_torus_*`. An in-band classifying sign
+//! is [`DoorRefusal::Escalated`]; an in-band coaxial
 //! tilt or offset only routes the pose ([`circle_torus_roots`],
 //! "Errors"). The ladder's answer is the certified subdivision's
-//! (`bool_circle_torus_sub_*`), each root metered for its slack
-//! (`bool_circle_torus_sub_root_slack`, "The root slack" below).
+//! (`circle_torus_sub_*`), each root metered for its slack
+//! (`circle_torus_sub_root_slack`, "The root slack" below).
 //!
 //! # The harmonics' noise, and the jet
 //!
@@ -44,7 +43,7 @@
 //! `ρ ≈ 50` at the default band against a torus `R = 1, r = 0.25`.
 //!
 //! So the subdivision does not read its Taylor terms from the harmonics.
-//! The jet ([`geom_brep::conic_torus_jet`]) reads `F`, `F′`, `F″` and
+//! The jet ([`crate::conic_torus_jet`]) reads `F`, `F′`, `F″` and
 //! `F‴` at the carrier point, by the chain rule through `|q|²` and
 //! `q·â`: every term is at the point's own scale (`|q| ≤ R + 2r` near the
 //! tube, one power of the carrier's speed per derivative). Its point is
@@ -90,10 +89,10 @@
 //! carrier is small, so the residual's rounding moves its sign change
 //! along the arc by that rounding over the slope, far past the band while
 //! the point still reads on the surface. Each certified root therefore
-//! carries its slack (`bool_circle_torus_sub_root_slack`,
-//! [`geom_brep::half_angle::RootSlack`]): `F` at the root, read in its
+//! carries its slack (`circle_torus_sub_root_slack`,
+//! [`crate::half_angle::RootSlack`]): `F` at the root, read in its
 //! factored form `((ρ − R)² + h² − r²)·((ρ + R)² + h² − r²)` with a
-//! running bound on its rounding ([`geom_brep::conic_torus_implicit`]),
+//! running bound on its rounding ([`crate::conic_torus_implicit`]),
 //! bounds the true `|F|` there, so the true root lies within that over
 //! `F`'s least slope near it; at the top speed `ρ` that is an arc length,
 //! and a root whose arc the band does not read as zero is refused. The
@@ -106,9 +105,9 @@
 //!   the torus axis): `S` and `h` are constant, so `F` is constant and
 //!   the quartic is `F·(1 + t²)²` — a repeated complex pair the ladder
 //!   cannot answer. It is decided FIRST, geometrically
-//!   (`bool_circle_torus_coaxial_tilt`, `_offset`, both metres), and the
+//!   (`circle_torus_coaxial_tilt`, `_offset`, both metres), and the
 //!   constant residual then decides it, its spread from the in-band
-//!   offset and tilt charged (`bool_circle_torus_coaxial_residual`,
+//!   offset and tilt charged (`circle_torus_coaxial_residual`,
 //!   [`super::circle_roots`], "A constant residual"): zero is
 //!   [`Roots::On`] (a rim circle of the torus), and
 //!   definite a [`CircleRoots::Miss`].
@@ -128,7 +127,7 @@
 //!   0`, so the pole is on the torus at every anchor and the ladder
 //!   cannot answer. It is decided before the ladder, on one margin
 //!   bounding every carrier point's distance from the torus
-//!   (`bool_circle_torus_meridian`, [`meridian_deviation`]): Zero is
+//!   (`circle_torus_meridian`, [`meridian_deviation`]): Zero is
 //!   [`Roots::On`], in band an escalation, and a definite
 //!   deviation takes the ladder. The reduction records an
 //!   `On` arc only under `reduce::lying_on`'s certificates.
@@ -146,51 +145,39 @@
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
 
 use super::circle_roots::{
-    CircleRoots, constant_residual_roots, door_half_angle_roots, door_refusal,
+    CircleRoots, DoorRefusal, constant_residual_roots, door_half_angle_roots, door_refusal,
 };
-use super::{BooleanDecision, BooleanError};
-use crate::validate::decide;
-use geom_brep::half_angle::{
+use crate::half_angle::{
     DegreeTwo, HalfAngleFrame, HalfAngleRows, RootSlack, SubdivisionFrame, SubdivisionRows,
 };
-use geom_brep::quartic::QuarticRows;
-use geom_brep::roots::{OnCarrier, RootRefusal, Roots, Unsettled};
+use crate::quartic::QuarticRows;
+use crate::roots::{OnCarrier, RootRefusal, Roots, Unsettled};
+use geom_core::k_stats::decide;
 use geom_core::rounding_charge;
 
 /// The circle × torus lane's ladder rows.
 const CIRCLE_TORUS_ROWS: HalfAngleRows = HalfAngleRows {
-    pole: "bool_circle_torus_pole",
-    conditioning: "bool_circle_torus_pole_conditioning",
-    noise: "bool_circle_torus_noise",
+    pole: "circle_torus_pole",
+    conditioning: "circle_torus_pole_conditioning",
+    noise: "circle_torus_noise",
     quartic: QuarticRows {
-        disc: "bool_circle_torus_disc",
-        shape: "bool_circle_torus_shape",
-        depth: "bool_circle_torus_depth",
-        odd: "bool_circle_torus_odd",
-        split: "bool_circle_torus_split",
-        split_lead: "bool_circle_torus_split_lead",
+        disc: "circle_torus_disc",
+        shape: "circle_torus_shape",
+        depth: "circle_torus_depth",
+        odd: "circle_torus_odd",
+        split: "circle_torus_split",
+        split_lead: "circle_torus_split_lead",
     },
     verify: SubdivisionRows {
-        clear: "bool_circle_torus_sub_clear",
-        monotone: "bool_circle_torus_sub_monotone",
-        side: "bool_circle_torus_sub_side",
-        width: "bool_circle_torus_sub_width",
+        clear: "circle_torus_sub_clear",
+        monotone: "circle_torus_sub_monotone",
+        side: "circle_torus_sub_side",
+        width: "circle_torus_sub_width",
     },
 };
 
-/// The decision this door's root finders escalate as.
-const DECISION: BooleanDecision = BooleanDecision::ArcTorusRoots;
-
 /// The general arm's root-slack row (module docs, "The root slack").
-const ROOT_SLACK: &str = "bool_circle_torus_sub_root_slack";
-
-/// An in-band sign of this door's own rows, escalated as its decision.
-fn escalated(diag: Indeterminate) -> BooleanError {
-    BooleanError::Escalated {
-        decision: BooleanDecision::ArcTorusRoots,
-        diag,
-    }
-}
+const ROOT_SLACK: &str = "circle_torus_sub_root_slack";
 
 /// The certified crossings of the `carrier` circle with the `torus`,
 /// anchored so that the arc `[t0, t1]` avoids the substitution's pole
@@ -198,32 +185,34 @@ fn escalated(diag: Indeterminate) -> BooleanError {
 ///
 /// # Errors
 ///
-/// [`BooleanError::ClassificationInvariant`] when `carrier` is not a
+/// [`DoorRefusal::Invariant`] when `carrier` is not a
 /// circle or `torus` not a torus — the caller dispatched on those kinds.
-/// An escalation as [`BooleanDecision::ArcTorusRoots`] for an in-band
+/// [`DoorRefusal::Escalated`] for an in-band
 /// classifying sign: a coaxial carrier's constant residual, a rung of the
 /// parallel arm, a meridian deviation, or one of the ladder's. An
 /// in-band sign at the coaxial tilt is not an error: the pose takes the
 /// ladder. A meridian deviation read negative is a
-/// [`BooleanError::ClassificationInvariant`]. A count the door cannot
+/// [`DoorRefusal::Invariant`]. A count the door cannot
 /// certify is the inner [`Unsettled`].
-pub(super) fn circle_torus_roots<T: Decide>(
+pub fn circle_torus_roots<T: Decide>(
     carrier: &geom::Curve3<T>,
     t0: T,
     t1: T,
     torus: &geom::Surface<T>,
     band: Band,
-) -> Result<Result<CircleRoots<T>, Unsettled>, BooleanError> {
+) -> Result<Result<CircleRoots<T>, Unsettled>, DoorRefusal> {
     let (
-        &geom::Curve3::Circle(geom::Circle {
-            frame:
-                geom::Frame {
-                    center,
-                    axis,
-                    u_ref,
-                },
-            radius,
-        }),
+        &geom::Curve3::Circle(
+            circle @ geom::Circle {
+                frame:
+                    geom::Frame {
+                        origin: center,
+                        axis,
+                        u_ref,
+                    },
+                radius,
+            },
+        ),
         &geom::Surface::Torus {
             center: t_center,
             axis: t_axis,
@@ -233,10 +222,10 @@ pub(super) fn circle_torus_roots<T: Decide>(
         },
     ) = (carrier, torus)
     else {
-        return Err(BooleanError::ClassificationInvariant {
-            what: "the circle × torus root door was handed a carrier that is not a circle \
+        return Err(DoorRefusal::Invariant(
+            "the circle × torus root door was handed a carrier that is not a circle \
                    or a surface that is not a torus",
-        });
+        ));
     };
     let two = T::from_f64(2.0);
     let v_ref = axis.cross(u_ref);
@@ -256,11 +245,11 @@ pub(super) fn circle_torus_roots<T: Decide>(
     let w_perp = w0 - t_axis * h0;
     let offset = w_perp.norm();
     let parallel = matches!(
-        decide("bool_circle_torus_coaxial_tilt", Margin::of(tilt), band),
+        decide("circle_torus_coaxial_tilt", Margin::of(tilt), band),
         Ok(Sign::Zero)
     );
     if parallel {
-        return match decide("bool_circle_torus_coaxial_offset", Margin::of(offset), band) {
+        return match decide("circle_torus_coaxial_offset", Margin::of(offset), band) {
             // Coaxial: the residual is one value along the carrier, to
             // within its spread about the reading at `θ = 0`. Every
             // carrier point lies within `δ = offset + √2·tilt` of the
@@ -275,50 +264,38 @@ pub(super) fn circle_torus_roots<T: Decide>(
             // coaxial value and so is every carrier point: the spread is
             // twice that.
             Ok(Sign::Zero) => {
-                let constant = geom_brep::implicit_residual(torus, point_at(T::zero()));
+                let constant = crate::implicit_residual(torus, point_at(T::zero()));
                 let delta = offset + T::from_f64(core::f64::consts::SQRT_2) * tilt;
                 let g0 = (minor_radius.powi(2) + two * minor_radius * constant)
                     .max(T::zero())
                     .sqrt();
                 let spread = two * delta * (g0 + two * delta) / minor_radius;
-                Ok(door_refusal(
-                    constant_residual_roots(
-                        constant,
-                        spread,
-                        "bool_circle_torus_coaxial_residual",
-                        band,
-                    ),
-                    DECISION,
-                )?
+                Ok(door_refusal(constant_residual_roots(
+                    constant,
+                    spread,
+                    "circle_torus_coaxial_residual",
+                    band,
+                ))?
                 .map(Roots::widen))
             }
-            Ok(Sign::Positive) => door_refusal(
-                parallel_axes_roots(
-                    &ParallelPose {
-                        center,
-                        radius,
-                        u_ref,
-                        v_ref,
-                        w_perp,
-                        offset,
-                        h0,
-                        tilt,
-                        t0,
-                        t1,
-                    },
-                    torus,
-                    major_radius,
-                    minor_radius,
-                    band,
-                ),
-                DECISION,
-            ),
+            Ok(Sign::Positive) => door_refusal(parallel_axes_roots(
+                &ParallelPose {
+                    circle,
+                    w_perp,
+                    offset,
+                    h0,
+                    tilt,
+                    t0,
+                    t1,
+                },
+                torus,
+                major_radius,
+                minor_radius,
+                band,
+            )),
             // An in-band offset is a near-coaxial pose neither arm can
             // stand behind.
-            Err(diag) => Err(BooleanError::Escalated {
-                decision: DECISION,
-                diag,
-            }),
+            Err(diag) => Err(DoorRefusal::Escalated(diag)),
             Ok(Sign::Negative) => unreachable!("a norm reads no negative offset"),
         };
     }
@@ -346,20 +323,20 @@ pub(super) fn circle_torus_roots<T: Decide>(
             major_radius,
             minor_radius,
         ) + rounding;
-        match decide("bool_circle_torus_meridian", Margin::of(deviation), band) {
+        match decide("circle_torus_meridian", Margin::of(deviation), band) {
             Ok(Sign::Zero) => return Ok(Ok(Roots::On(OnCarrier))),
             Ok(Sign::Positive) => {}
             Ok(Sign::Negative) => {
-                return Err(BooleanError::ClassificationInvariant {
-                    what: "a meridian deviation, a sum of lengths, read negative",
-                });
+                return Err(DoorRefusal::Invariant(
+                    "a meridian deviation, a sum of lengths, read negative",
+                ));
             }
-            Err(diag) => return Err(escalated(diag)),
+            Err(diag) => return Err(DoorRefusal::Escalated(diag)),
         }
     }
 
     // `F` along the carrier from the torus's one home along a conic
-    // ([`geom_brep::ConicTorusHarmonics`]): of degree two on a circle, its
+    // ([`crate::ConicTorusHarmonics`]): of degree two on a circle, its
     // third and fourth harmonics no more than the frame's rounding. The
     // walk's bound on `|F⁗|` charges `2⁴·noise` (Bernstein at degree two),
     // and theirs as computed is up to `4⁴·dropped`, so they are charged
@@ -367,8 +344,7 @@ pub(super) fn circle_torus_roots<T: Decide>(
     // `F` the jet reads: the exact third and fourth harmonics against the
     // computed ones, and the jet's exact `v̂ = n̂ × û` against the rounded
     // `v_ref` the harmonics are built from.
-    let conic = geom::Circle::new(geom::Frame::new(center, axis, u_ref), radius);
-    let h = geom_brep::conic_torus_harmonics(&conic, t_center, t_axis, major_radius, minor_radius);
+    let h = crate::conic_torus_harmonics(&circle, t_center, t_axis, major_radius, minor_radius);
     let hypot = |x: T, y: T| (x.powi(2) + y.powi(2)).sqrt();
     let dropped = hypot(h.cos[3], h.sin[3]) + hypot(h.cos[4], h.sin[4]);
     let harmonics = DegreeTwo::new(h.cos[0], h.cos[1], h.sin[1], h.cos[2], h.sin[2]);
@@ -377,11 +353,11 @@ pub(super) fn circle_torus_roots<T: Decide>(
     // The walk's Taylor terms, read at the point (module docs, "The
     // harmonics' noise, and the jet").
     let jet = |theta| {
-        geom_brep::conic_torus_jet(&conic, t_center, t_axis, major_radius, minor_radius, theta)
+        crate::conic_torus_jet(&circle, t_center, t_axis, major_radius, minor_radius, theta)
     };
     door_half_angle_roots(
         &harmonics,
-        |theta| geom_brep::implicit_residual(torus, point_at(theta)),
+        |theta| crate::implicit_residual(torus, point_at(theta)),
         HalfAngleFrame {
             walk: SubdivisionFrame {
                 t0,
@@ -402,8 +378,8 @@ pub(super) fn circle_torus_roots<T: Decide>(
         &RootSlack {
             row: ROOT_SLACK,
             residual: &|theta| {
-                geom_brep::conic_torus_implicit(
-                    &conic,
+                crate::conic_torus_implicit(
+                    &circle,
                     t_center,
                     t_axis,
                     major_radius,
@@ -413,7 +389,6 @@ pub(super) fn circle_torus_roots<T: Decide>(
             },
             f_per_metre_hi: T::one(),
         },
-        DECISION,
         band,
     )
 }
@@ -480,10 +455,8 @@ fn meridian_deviation<T: geom_core::Real>(
 
 /// The parallel-axes pose's data ([`parallel_axes_roots`]).
 struct ParallelPose<T: geom_core::Real> {
-    center: Point3<T>,
-    radius: T,
-    u_ref: Vec3<T>,
-    v_ref: Vec3<T>,
+    /// The carrier.
+    circle: geom::Circle<T>,
     /// The carrier centre's offset from the torus axis, perpendicular
     /// to it, and its length.
     w_perp: Vec3<T>,
@@ -527,7 +500,7 @@ enum Band3 {
 /// an in-plane reach of `x` past a contour is a normal distance of only
 /// `x·√(r² − h₀²)/r`: deciding on the reach certified crossings whose
 /// bump the band cannot see. Each extreme is therefore placed by its own
-/// residual (`bool_circle_torus_contour_residual`), and a bump in band
+/// residual (`circle_torus_contour_residual`), and a bump in band
 /// is refused `Unsettled`.
 ///
 /// **The tilt the pose was admitted with is carried, not dropped.** The
@@ -540,9 +513,9 @@ enum Band3 {
 ///
 /// The remaining decisions are the plane's depth into the tube,
 /// `(r² − h₀²)/2r` — the residual of the tube's centre circle at that
-/// height, negated (`bool_circle_torus_plane_height`) — and which side
+/// height, negated (`circle_torus_plane_height`) — and which side
 /// of the tube's centre circle an extreme outside the tube lies
-/// (`bool_circle_torus_contour_side`, `ρ − R`, which is at least
+/// (`circle_torus_contour_side`, `ρ − R`, which is at least
 /// `√(r² − h₀²)` from zero there).
 fn parallel_axes_roots<T: Decide>(
     pose: &ParallelPose<T>,
@@ -552,10 +525,16 @@ fn parallel_axes_roots<T: Decide>(
     band: Band,
 ) -> Result<CircleRoots<T>, RootRefusal> {
     let &ParallelPose {
-        center,
-        radius,
-        u_ref,
-        v_ref,
+        circle:
+            geom::Circle {
+                frame:
+                    geom::Frame {
+                        origin: center,
+                        u_ref,
+                        ..
+                    },
+                radius,
+            },
         w_perp,
         offset,
         h0,
@@ -563,10 +542,11 @@ fn parallel_axes_roots<T: Decide>(
         t0,
         t1,
     } = pose;
+    let v_ref = pose.circle.frame.v_ref();
     let two = T::from_f64(2.0);
     let charge_h = tilt * (two * h0.abs() + tilt) / (two * minor_radius);
     let depth = (minor_radius.powi(2) - h0.powi(2)) / (two * minor_radius);
-    match geom_brep::roots::spread_signs("bool_circle_torus_plane_height", depth, charge_h, band)? {
+    match crate::roots::spread_signs("circle_torus_plane_height", depth, charge_h, band)? {
         (Sign::Positive, _) => {}
         // Definitely past the top or bottom of the tube, even charged.
         (_, Sign::Negative) => return Ok(CircleRoots::Miss),
@@ -586,23 +566,16 @@ fn parallel_axes_roots<T: Decide>(
     let theta0 = geom::Azimuth::of(w_perp.dot(v_ref), w_perp.dot(u_ref)).near(middle);
     let place = |theta: T, rho: T| -> Result<Option<Band3>, Indeterminate> {
         let (s, c) = theta.sin_cos();
-        let res = geom_brep::implicit_residual(
-            torus,
-            center + u_ref * (radius * c) + v_ref * (radius * s),
-        );
-        match geom_brep::roots::spread_signs(
-            "bool_circle_torus_contour_residual",
-            res,
-            charge,
-            band,
-        )? {
+        let res =
+            crate::implicit_residual(torus, center + u_ref * (radius * c) + v_ref * (radius * s));
+        match crate::roots::spread_signs("circle_torus_contour_residual", res, charge, band)? {
             (_, Sign::Negative) => return Ok(Some(Band3::Tube)),
             (Sign::Positive, _) => {}
             _ => return Ok(None),
         }
         Ok(
             match decide(
-                "bool_circle_torus_contour_side",
+                "circle_torus_contour_side",
                 Margin::of(rho - major_radius),
                 band,
             )? {
@@ -630,7 +603,7 @@ fn parallel_axes_roots<T: Decide>(
             far == Band3::Beyond && near != Band3::Beyond,
         ),
     ];
-    let mut thetas = [T::zero(); 2 * geom_brep::half_angle::MAX_DEGREE];
+    let mut thetas = [T::zero(); 2 * crate::half_angle::MAX_DEGREE];
     let mut count = 0usize;
     for (contour, hit) in crossed {
         if !hit {
@@ -656,7 +629,7 @@ fn parallel_axes_roots<T: Decide>(
         let rounding = rounding_charge(contour.powi(2) + offset.powi(2) + radius.powi(2))
             / (two * radius * offset);
         let slack = radius * (charge / slope + rounding / sin_spread);
-        match decide("bool_circle_torus_root_slack", Margin::of(slack), band) {
+        match decide("circle_torus_root_slack", Margin::of(slack), band) {
             Ok(Sign::Positive) => return Err(Unsettled::Meter.into()),
             // A NaN slack (a zero slope, which the placements above have
             // already refused as a graze) is `Err` and refuses too.
@@ -664,10 +637,13 @@ fn parallel_axes_roots<T: Decide>(
             Err(_) => return Err(Unsettled::Meter.into()),
         }
         // Each root within half a turn of the span's middle, by
-        // `Period::near`'s span argument. The one reader, `boolean::reduce`'s wall crossing, decides a
-        // root at either end of a closed edge's whole-turn span alike
-        // (`at_end`), and reads it only against the span's ends, never as
-        // an identity.
+        // `Period::near`'s span argument. What a caller may assume: the
+        // root is a crossing's angle within half a turn of the middle, as
+        // an enclosure. On a whole-turn span a root at one end is the same
+        // crossing as a root at the other, and it lands on the upper end
+        // (`Period::near`'s tie), so a caller reads a root against the
+        // span's ends (or as the point it names), never as an identity
+        // between two calls.
         for theta in [theta0 + spread, theta0 - spread] {
             thetas[count] = geom_core::period::Period::new(T::tau()).near(theta, middle);
             count += 1;
@@ -695,7 +671,7 @@ mod tests {
     //! red on the pose that reaches it.
 
     use super::*;
-    use crate::boolean::circle_roots::door_answer;
+    use crate::curve_face::circle_roots::door_answer;
     use geom_core::{Bounds, Interval, Real, Tol};
 
     /// The door on a circle given by its parts.
@@ -709,10 +685,10 @@ mod tests {
         t1: T,
         torus: &geom::Surface<T>,
         band: Band,
-    ) -> Result<Result<CircleRoots<T>, Unsettled>, BooleanError> {
+    ) -> Result<Result<CircleRoots<T>, Unsettled>, DoorRefusal> {
         let carrier = geom::Curve3::Circle(geom::Circle {
             frame: geom::Frame {
-                center,
+                origin: center,
                 axis,
                 u_ref,
             },
@@ -942,7 +918,7 @@ mod tests {
         let surface = torus::<f64>();
         let at = |u: Vec3<f64>, t: f64| {
             let v = n.cross(u);
-            geom_brep::implicit_residual(&surface, c + (u * t.cos() + v * t.sin()) * rho)
+            crate::implicit_residual(&surface, c + (u * t.cos() + v * t.sin()) * rho)
         };
         let samples: Vec<f64> = (0..3600)
             .map(|i| f64::from(i) * core::f64::consts::PI / 1800.0)
@@ -1218,13 +1194,10 @@ mod tests {
                 matches!(
                     &got,
                     Ok(Err(_))
-                        | Err(BooleanError::Escalated {
-                            decision: BooleanDecision::ArcTorusRoots,
-                            diag: Indeterminate {
-                                predicate: Some("bool_circle_torus_contour_residual"),
-                                ..
-                            },
-                        })
+                        | Err(DoorRefusal::Escalated(Indeterminate {
+                            predicate: Some("circle_torus_contour_residual"),
+                            ..
+                        },))
                 ),
                 "tilt {tilt}: the in-band bump is not two crossings, got {got:?}"
             );
@@ -1365,13 +1338,10 @@ mod tests {
             matches!(
                 &got,
                 Ok(Err(_))
-                    | Err(BooleanError::Escalated {
-                        decision: BooleanDecision::ArcTorusRoots,
-                        diag: Indeterminate {
-                            predicate: Some("bool_circle_torus_contour_residual"),
-                            ..
-                        },
-                    })
+                    | Err(DoorRefusal::Escalated(Indeterminate {
+                        predicate: Some("circle_torus_contour_residual"),
+                        ..
+                    },))
             ),
             "the charged bump is inside the band: {got:?}"
         );
@@ -1574,7 +1544,7 @@ mod tests {
                 );
                 match got {
                     // An escalation is a refusal too; it names no `Unsettled`.
-                    Err(BooleanError::Escalated { .. }) => refused.push((depth, None)),
+                    Err(DoorRefusal::Escalated(_)) => refused.push((depth, None)),
                     Err(e) => panic!("{label}: {e:?}"),
                     Ok(Err(why)) => refused.push((depth, Some(why))),
                     Ok(Ok(CircleRoots::On(_))) => panic!("{label}: not on the torus"),
@@ -1779,7 +1749,7 @@ mod tests {
                     }
                 }
                 Ok(Ok(CircleRoots::On(_))) => panic!("{label}: not on the torus"),
-                Ok(Err(_)) | Err(BooleanError::Escalated { .. }) => {
+                Ok(Err(_)) | Err(DoorRefusal::Escalated(_)) => {
                     assert!(!truth.is_empty(), "{label}: the miss refused");
                 }
                 Err(e) => panic!("{label}: {e:?}"),
@@ -1928,7 +1898,7 @@ mod tests {
     }
 
     /// **A shallow crossing's root is placed within the band, or the door
-    /// refuses** (`bool_circle_torus_sub_root_slack`). At these poses the
+    /// refuses** (`circle_torus_sub_root_slack`). At these poses the
     /// residual's slope along the carrier at a root is `1e-8`–`1e-6`, so
     /// the `f64` residual's rounding moves its sign change by up to
     /// 1.66e-9 m of arc, 166 bands at `ε = 1e-12`, while the root still

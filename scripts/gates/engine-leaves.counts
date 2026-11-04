@@ -22,26 +22,22 @@
 # was meant; engine_leaves.py states them), which err the safe way.
 
 
-boolean-names-splitting     2  boolean/carrier_cross.rs
 boolean-names-splitting     2  boolean/carrier_touch.rs
 boolean-names-splitting     1  boolean/carrier_touch_rows.rs
 boolean-names-splitting    72  boolean/contain.rs
-boolean-names-splitting    13  boolean/factored_crossing.rs
 boolean-names-splitting    17  boolean/fate.rs
 boolean-names-splitting     7  boolean/finish.rs
 boolean-names-splitting    21  boolean/insert.rs
 boolean-names-splitting    16  boolean/join.rs
 boolean-names-splitting     1  boolean/join_walk_order_rows.rs
-boolean-names-splitting    11  boolean/mod.rs
-boolean-names-splitting     8  boolean/offer_rows.rs
+boolean-names-splitting     6  boolean/mod.rs
 boolean-names-splitting    17  boolean/ops.rs
-boolean-names-splitting    23  boolean/reduce.rs
-boolean-names-splitting    20  boolean/refusal_routes.rs
+boolean-names-splitting     5  boolean/reduce.rs
+boolean-names-splitting     9  boolean/refusal_routes.rs
 boolean-names-splitting    17  boolean/region.rs
 boolean-names-splitting     1  boolean/rim_wedge.rs
 boolean-names-splitting     3  boolean/ruled_region.rs
 boolean-names-splitting    18  boolean/sectors.rs
-boolean-names-splitting     4  boolean/slit.rs
 boolean-names-splitting    36  boolean/solid_contain.rs
 boolean-names-splitting     6  boolean/sphere_region.rs
 boolean-names-splitting     3  boolean/spline_region.rs
@@ -52,13 +48,13 @@ crate-visible              10  boolean/carrier_eq.rs
 crate-visible               5  boolean/carrier_pair.rs
 crate-visible               9  boolean/combine.rs
 crate-visible               2  boolean/contact_verify.rs
-crate-visible              16  boolean/contain.rs
+crate-visible              13  boolean/contain.rs
 crate-visible               5  boolean/edge_join.rs
 crate-visible              10  boolean/fate.rs
 crate-visible               5  boolean/glue.rs
 crate-visible               5  boolean/holdings.rs
 crate-visible               2  boolean/insert.rs
-crate-visible             178  boolean/mod.rs
+crate-visible             177  boolean/mod.rs
 crate-visible               3  boolean/nary.rs
 crate-visible              31  boolean/ops.rs
 crate-visible               1  boolean/overlap.rs
@@ -67,12 +63,12 @@ crate-visible               2  boolean/plane_eq.rs
 crate-visible              20  boolean/records.rs
 crate-visible               8  boolean/reduce.rs
 crate-visible              24  boolean/refusal_routes.rs
-crate-visible              60  boolean/region.rs
+crate-visible              57  boolean/region.rs
 crate-visible               8  boolean/rim_wedge.rs
 crate-visible               6  boolean/ruled_region.rs
 crate-visible              12  boolean/section_cert.rs
 crate-visible              20  boolean/section_table.rs
-crate-visible              13  boolean/sectors.rs
+crate-visible              12  boolean/sectors.rs
 crate-visible              22  boolean/separating.rs
 crate-visible              52  boolean/solid_contain.rs
 crate-visible               4  boolean/sphere_region.rs
@@ -83,11 +79,10 @@ crate-visible               4  boolean/torus_region.rs
 crate-visible               2  boolean/voids.rs
 crate-visible               4  boolean/vtxfac.rs
 crate-visible               5  boolean/zip.rs
-crate-visible               6  splitting/classify.rs
 crate-visible              51  splitting/containment.rs
 crate-visible              12  splitting/finish.rs
 crate-visible               8  splitting/join.rs
-crate-visible              20  splitting/mod.rs
+crate-visible              19  splitting/mod.rs
 crate-visible               5  splitting/neighborhood.rs
 crate-visible               3  splitting/order.rs
 crate-visible              17  splitting/pieced_arc.rs
@@ -100,7 +95,7 @@ names-boolean               7  attach.rs
 names-boolean              14  body.rs
 names-boolean               4  bound_side.rs
 names-boolean              11  cell_region.rs
-names-boolean             509  census.rs
+names-boolean             506  census.rs
 names-boolean               2  census/curved.rs
 names-boolean              33  census/depth_gap.rs
 names-boolean              26  census/in_plane.rs
@@ -150,7 +145,7 @@ names-boolean              32  review_d18.rs
 names-boolean               1  ring_path.rs
 names-boolean               1  ring_path/cone_islands.rs
 names-boolean               1  ring_path/graze_rows.rs
-names-boolean               6  sector_shape.rs
+names-boolean               2  sector_shape.rs
 names-boolean              13  separation.rs
 names-boolean               2  seqgen.rs
 names-boolean              46  shell.rs
@@ -201,12 +196,11 @@ refused-binding             1  test_support_holdings.rs
 refused-binding             2  test_support_samples.rs
 refused-binding             6  validate.rs
 
-splitting-names-boolean    14  splitting/classify.rs
+splitting-names-boolean    12  splitting/classify.rs
 splitting-names-boolean    16  splitting/containment.rs
 splitting-names-boolean    51  splitting/finish.rs
-splitting-names-boolean     5  splitting/insert.rs
 splitting-names-boolean     3  splitting/mod.rs
-splitting-names-boolean     4  splitting/neighborhood.rs
+splitting-names-boolean     3  splitting/neighborhood.rs
 splitting-names-boolean     2  splitting/rules.rs
 splitting-names-boolean     2  splitting/section.rs
 splitting-names-boolean     2  splitting/section_loops.rs

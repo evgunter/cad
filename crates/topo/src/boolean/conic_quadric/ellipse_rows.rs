@@ -11,7 +11,7 @@
 use core::f64::consts::{PI, TAU};
 
 use super::*;
-use crate::boolean::conic_oracle::{self, distance, ellipse, oracle};
+use geom_brep::curve_face::conic_oracle::{self, distance, ellipse, oracle};
 use geom_core::{Point3, Tol, Vec3};
 
 fn band() -> Band {
@@ -408,7 +408,7 @@ mod fuzz_rows {
     use core::f64::consts::TAU;
 
     use super::*;
-    use crate::boolean::conic_oracle::{distance, exact, unit};
+    use geom_brep::curve_face::conic_oracle::{distance, exact, unit};
     use geom_core::{Point3, Vec3};
     use test_utils::fuzz;
 
@@ -450,8 +450,8 @@ mod fuzz_rows {
             let band = Band::new(eps, 10.0 * eps).unwrap();
             let (mut certified, mut misses, mut uncertain, mut escalated) = (0, 0, 0, 0);
             for i in 0..fuzz::scaled(600) {
-                let n = unit(rng);
-                let u = unit(rng);
+                let n = unit(|lo, hi| rng.range(lo, hi));
+                let u = unit(|lo, hi| rng.range(lo, hi));
                 let big = rng.range(5e-4, 5e-3);
                 let small = big / rng.range(1.0, 25.0);
                 let (major, minor) = if rng.below(2) == 0 {
@@ -472,18 +472,18 @@ mod fuzz_rows {
                 // pose crosses or grazes it more often than not.
                 let through = e.eval(rng.range(0.0, TAU));
                 let r = rng.range(2e-4, 3e-3);
-                let w = unit(rng);
+                let w = unit(|lo, hi| rng.range(lo, hi));
                 let x = Vec3::new(1.0, 0.0, 0.0);
                 let s = if i % 2 == 0 {
                     geom::Surface::Cylinder {
-                        origin: through + unit(rng).cross(w).normalize() * r,
+                        origin: through + unit(|lo, hi| rng.range(lo, hi)).cross(w).normalize() * r,
                         axis: w,
                         radius: r,
                         u_ref: (x - w * x.dot(w)).normalize(),
                     }
                 } else {
                     geom::Surface::Sphere {
-                        center: through + unit(rng) * r,
+                        center: through + unit(|lo, hi| rng.range(lo, hi)) * r,
                         radius: r,
                         axis: w,
                         u_ref: (x - w * x.dot(w)).normalize(),
@@ -547,7 +547,7 @@ mod graze_rows {
     use core::f64::consts::FRAC_PI_2;
 
     use super::*;
-    use crate::boolean::conic_oracle::{distance, unit};
+    use geom_brep::curve_face::conic_oracle::{distance, unit};
     use geom_core::{Point3, Vec3};
     use test_utils::fuzz;
 
@@ -558,8 +558,8 @@ mod graze_rows {
             let band = Band::new(eps, 10.0 * eps).unwrap();
             let (mut certified, mut misses, mut declined) = (0, 0, 0);
             for i in 0..fuzz::scaled(800) {
-                let n = unit(&mut rng);
-                let u = unit(&mut rng);
+                let n = unit(|lo, hi| rng.range(lo, hi));
+                let u = unit(|lo, hi| rng.range(lo, hi));
                 let u_ref = (u - n * u.dot(n)).normalize();
                 let big = rng.range(0.5, 5.0);
                 let circle = i % 4 == 0;

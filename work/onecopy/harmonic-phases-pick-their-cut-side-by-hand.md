@@ -16,10 +16,10 @@ The phase of a harmonic `a cos θ + b sin θ` is read clear of `atan2`'s
 cut by choosing, by hand, between `atan2(b, a)` and
 `atan2(−b, −a) + π`, which is `geom::azimuth`'s `stable_azimuth` spelled
 again:
-- `topo/src/splitting/classify.rs` (`conic_plane_candidates`, the phase
-  `phi`), decided LOGGED under `split_conic_phase_frame` at the caller's
-  band, though either outcome names one angle;
-- `topo/src/boolean/circle_roots.rs` `first_harmonic_root_directions`
+- `geom-brep/src/curve_face/plane_crossing.rs` (`conic_plane_candidates`,
+  the phase `phi`), decided LOGGED under `plane_crossing_phase_frame` at
+  the caller's band, though either outcome names one angle;
+- `geom-brep/src/curve_face/circle_roots.rs` `first_harmonic_root_directions`
   (`base`, `opposite`) with `HarmonicRoot::from`, which then picks
   between the two by `select_le_zero` and renames each by
   `reduce_periodic_centred`;
@@ -27,11 +27,11 @@ again:
   "any branch serves").
 
 Each is `geom::Azimuth::of(b, a).near(reference)` for a reference the
-site holds (the span's middle in `classify`, `t` in `HarmonicRoot::from`).
+site holds (the span's middle in `plane_crossing`, `t` in `HarmonicRoot::from`).
 
 ## Fix
 
 Repoint the three at `Azimuth::near`, which decides its cut side outside
-the log at `Band::least()` (F31). `classify`'s logged row
-`split_conic_phase_frame` goes, which moves K-stat populations: measure
+the log at `Band::least()` (F31). `plane_crossing`'s logged row
+`plane_crossing_phase_frame` goes, which moves K-stat populations: measure
 and re-baseline. Lower the gate's table as each goes.

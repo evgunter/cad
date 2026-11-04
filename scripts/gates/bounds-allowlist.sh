@@ -777,7 +777,7 @@ BOUNDS_ALLOWLIST=(
   # it is a representation pick (DL5(b), as `seam_split_param`'s branch
   # shift); its other bracket read refuses a non-finite read, and
   # whether the window runs forward stays each caller's.
-  # 18 -> 22: `CircleFrame::past` reads a circle point's angle past `t`
+  # 18 -> 22: `ArcReads::arc_past` reads a circle point's angle past `t`
   # through `geom::Azimuth::near`, a `Decide` door (the window's cut
   # side and the rename's half-period mark, both at the least band
   # outside the log, audit row F31), where it rotated by hand through
@@ -789,8 +789,8 @@ BOUNDS_ALLOWLIST=(
   # Those four doors left `geom-core/tests/bounds_census.rs`' roster of
   # sole-`Bounds` doors when they gained `Decide`; their DL5(b)
   # dispositions move here, unchanged:
-  # - `impl CircleFrame`: an arc's closed-form extremes (`distance`,
-  #   `along`). `misses` reads the stored window's and the angle's
+  # - `impl ArcReads for geom::Circle`: an arc's closed-form extremes
+  #   (`arc_distance`, `arc_along`). `arc_misses` reads the stored window's and the angle's
   #   brackets, asking `geom::periodic_window_may_hold`, to SELECT, per
   #   extreme, between the arc's two ends and the whole circle's value;
   #   the result is a margin `ring_clearance` decides, and the branch is
@@ -806,7 +806,7 @@ BOUNDS_ALLOWLIST=(
   # - `piece_along`, `piece_distance`: an edge's extent along a
   #   direction, and its near and far distance from a point, over its own
   #   window. A segment reads no bracket (its clamped foot is `max`/`min`
-  #   arithmetic); a circle's reads are `CircleFrame`'s, whose
+  #   arithmetic); a circle's reads are `ArcReads`', whose
   #   disposition these inherit.
   # - `strip_reading`: a support ring's three-way reading against a
   #   plane–plane band's strip, as `CapSliver::read_cycle` reads an
@@ -846,12 +846,12 @@ BOUNDS_ALLOWLIST=(
   # rim, deciding only through `classify` over a span metered as the
   # split meters it; the two sliver constructors became one.
   # 7 -> 9: `CapSliver`'s impl block and `apart` reach
-  # `CircleFrame::past` through `piece_along`, so they name `Decide`
+  # `ArcReads::arc_past` through `piece_along`, so they name `Decide`
   # beside `Bounds` for the same decided rename (surgery.rs' 18 -> 22);
   # they read no bracket of their own. Their dispositions, moved here
   # from `bounds_census`' sole-`Bounds` roster when they gained `Decide`:
   # - `impl CapSliver`: the end-face sliver meter `clearance` reads no
-  #   bracket itself (its reads are `CircleFrame::misses`' and the
+  #   bracket itself (its reads are `ArcReads::arc_misses`' and the
   #   on-axis guards', through `piece_distance` and `piece_along`), and
   #   its result is the margin `ring_clearance` decides, so it inherits
   #   that door's DL5(b) disposition and no other.

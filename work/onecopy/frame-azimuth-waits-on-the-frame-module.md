@@ -17,25 +17,24 @@ into `geom::frame` and was open when the angle-reads unit landed.
 
 ## Fix
 
-Once PR 6463 is on main: add `Frame::azimuth(p) -> geom::Azimuth<T>`,
-`Azimuth::of(in_plane(p).1, in_plane(p).0)`, and make
-`Conic::azimuth` for the circle read through it (scaled by the radius,
-as it reads now). The sites still spelling a point's or a vector's
+PR 6463 landed while the angle-reads unit was open, and that unit added
+`Frame::azimuth(p) -> geom::Azimuth<T>` (`in_plane(p)` read as an
+angle) and repointed `ArcReads::arc_past` (surgery) and
+`ConicArc::distance_floor` (ring_path) at it; `ring_path`'s
+`CircleArc::param` is the circle's `param_in` since 6463. What remains is
+the hand-written reads below that hold a frame's `u_ref`/`v_ref` but no
+`geom::Frame` (a vector's direction, a chart frame, a local orthonormal
+pair), each to be read through a `Frame` or a vector door if one is
+wanted. The sites still spelling a point's or a vector's
 direction in a frame by hand, `Azimuth::of(w·v_ref, w·u_ref)`, which
 `scripts/gates/atan2-sites.sh` cannot see (its header names this blind
 spot), then read it.
 
 Written by the angle-reads unit:
-- `topo/src/ring_path.rs` `CircleArc::param` (6463 makes it the circle's
-  `param_in`), `ConicArc::distance_floor` (`in_plane` then
-  `Azimuth::of(wv, wu)`, a plain-frame read on purpose), and
-  `plane_roots`' roots (the phase direction `(ca, cb)` turned by
+- `topo/src/ring_path.rs` `plane_roots`' roots (the phase direction `(ca, cb)` turned by
   `±offset`, a harmonic's roots, kept as a rotation);
 - `topo/src/boolean/torus_region.rs` `arc_span` (`(x, y)` from its caller);
-- `topo/src/boolean/circle_torus.rs`'s `θ₀` (a vector's direction);
-- `sweep/src/blend/surgery.rs` `CircleFrame::past` (6463 deletes
-  `CircleFrame` for `ArcReads` on `geom::Circle`; `past` becomes
-  `circle.azimuth(q).near(t + π) − t`);
+- `geom-brep/src/curve_face/circle_torus.rs`'s `θ₀` (a vector's direction);
 - `mesh/src/walk.rs`'s `mid_az` (a chart frame's `u_ref`/`v_ref`);
 - `step-import/src/adopt.rs`'s ring check;
 - `geom-brep/src/pair_section/winds.rs` `Channel::azimuth`'s axis arm;

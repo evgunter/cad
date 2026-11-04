@@ -489,7 +489,7 @@ const ROSTER: &[Site] = &[
         why: Payload(
             "a test-side ORACLE inside `misses_is_the_relative_bracket_read`, generic so \
              the f64 and interval lanes are compared against one spelling: the former \
-             `CircleFrame::misses` predicate, whose bracket reads become the bool one \
+             `ArcReads::arc_misses` predicate, whose bracket reads become the bool one \
              `assert_eq!` compares and stop",
         ),
     },

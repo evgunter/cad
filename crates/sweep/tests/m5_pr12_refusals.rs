@@ -702,7 +702,7 @@ fn tilted_rim(departure: f64) -> (Body<f64>, Vec<EdgeKey>) {
             let c = body.get_curve_geom(e.curve)?.certified()?;
             match c.carrier() {
                 geom::Curve3::Circle(geom::Circle {
-                    frame: geom::Frame { center, .. },
+                    frame: geom::Frame { origin: center, .. },
                     radius,
                 }) if center.z > 0.5 => Some((k, *radius)),
                 _ => None,

@@ -379,7 +379,7 @@ fn line_clears_conic<T: Decide>(
     let reach = (p_m.powi(2) + q_m.powi(2)).sqrt();
     positive(
         "split_nest_line_conic",
-        m.dot(c.frame().center - p).abs() - reach,
+        m.dot(c.frame().origin - p).abs() - reach,
         band,
     )
 }
@@ -404,7 +404,7 @@ fn conics_clear<T: Decide>(e: &dyn Conic<T>, h: &dyn Conic<T>, band: geom_core::
         return false;
     }
     let (ha, hb) = h.semi_axis_vectors();
-    let (cx, cy) = e.unit_in_plane(h.frame().center);
+    let (cx, cy) = e.unit_in_plane(h.frame().origin);
     let (ax, ay) = e.unit_of(ha);
     let (bx, by) = e.unit_of(hb);
     let centre = (cx.powi(2) + cy.powi(2)).sqrt();

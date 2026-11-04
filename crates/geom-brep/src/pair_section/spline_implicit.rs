@@ -385,6 +385,10 @@ impl SplineImplicitPose<f64> {
         else {
             unreachable!("the pose holds a plane")
         };
+        // The foot on the unit normal, kept inline until the corner-touch
+        // verdict stops moving with the pivot's last bit
+        // (`a-corner-touch-verdict-moves-with-the-planes-stored-origin`);
+        // then it is `Frame::foot`.
         let n = normal / normal.norm();
         let c = self.ball().center();
         let foot = c - n * (c - origin).dot(n);

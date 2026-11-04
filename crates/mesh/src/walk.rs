@@ -1116,9 +1116,11 @@ pub(crate) fn loop_polygon(
         // the polygon's own winding (which does flip with the sense) is
         // consumed separately by `curved`'s `flip`.
         let chart_area = if sense { area } else { -area };
-        let mid_az =
-            geom::Azimuth::of(chart_area.dot(chart.v_ref()), chart_area.dot(chart.u_ref()))
-                .near(0.0);
+        let mid_az = geom::Azimuth::of(
+            chart_area.dot(chart.frame().v_ref()),
+            chart_area.dot(chart.frame().u_ref),
+        )
+        .near(0.0);
         Some(
             travs
                 .iter()
@@ -1819,7 +1821,8 @@ mod tests {
     /// conditioned the fold that produced `area` was.
     fn band_mid_az(chart: &Chart, pts: &[Point3<f64>]) -> f64 {
         let area = loop_area(pts);
-        area.dot(chart.v_ref()).atan2(area.dot(chart.u_ref()))
+        area.dot(chart.frame().v_ref())
+            .atan2(area.dot(chart.frame().u_ref))
     }
 
     /// A 1.3 mm band's own geometry, placed at seven distances from

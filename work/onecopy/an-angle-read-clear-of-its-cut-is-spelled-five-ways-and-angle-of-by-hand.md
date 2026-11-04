@@ -30,7 +30,7 @@ The hand-written `w.dot(axis.cross(u_ref)).atan2(w.dot(u_ref))` reads of a point
 - `topo/src/boolean/rim_wedge.rs` `locus_param` (waits on PR 6443 and stage 3 of the placement decision);
 - `topo/src/ring_path.rs` (two; `CircleArc` is being repointed by `the-frame-carries-every-placement-reading`, so take what remains after it lands);
 - `sweep/src/blend/surgery.rs`;
-- `topo/src/boolean/circle_torus.rs`;
+- `geom-brep/src/curve_face/circle_torus.rs`;
 - `mesh/src/walk.rs` (two).
 
 The sweep that found them is `atan2(` alongside `u_ref|v_ref|cross(`, outside geom. It cannot see an angle spelled through local names.

@@ -419,13 +419,18 @@ fn a_split_document_read_by_port_round_trips_byte_identical() {
 /// edge curve's `Debug` the digest feeds. With that `Debug` written in
 /// main's shape every row here reproduces main's value at all three ε
 /// rows, so nothing else moved.
+/// RE-BLESSED when `geom::Frame` came to name its point `origin`
+/// (`Frame { origin, .. }` where it spelled `Frame { center, .. }`), which
+/// changes the edge curve's `Debug` the digest feeds. With that `Debug`
+/// written in main's shape every row here reproduces main's value at all
+/// three ε rows, so nothing else moved.
 #[test]
 fn the_split_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("cut_cylinder", 0x6102_93d4_6278_840a_u64),
+        ("cut_cylinder", 0x2e84_77bc_7b57_1d78_u64),
         ("part_select", 0x8429_e064_94cc_634d),
-        ("kitchen_sink", 0x510a_2f5d_167b_a85a),
+        ("kitchen_sink", 0x9343_0074_7900_50e2),
     ] {
         assert!(SPLIT_DOCUMENTS.contains(&name));
         let doc = corpus::documents()

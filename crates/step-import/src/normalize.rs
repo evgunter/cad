@@ -420,7 +420,9 @@ fn mint_band(
                 Curve3::Circle(geom::Circle {
                     frame:
                         geom::Frame {
-                            center, axis: n, ..
+                            origin: center,
+                            axis: n,
+                            ..
                         },
                     radius,
                 }) => {
@@ -653,7 +655,7 @@ fn seam_vertex_on_loop(
             // circle; anything else lands in the typed refusal below.
             continue;
         };
-        let q = crate::signed_zero::plus_zero_point(circle.frame.center + s_u_ref * circle.radius);
+        let q = crate::signed_zero::plus_zero_point(circle.frame.origin + s_u_ref * circle.radius);
         let mut t = geom::Conic::azimuth(circle, q).near(0.0);
         while t <= spec.t0 {
             t += TAU;

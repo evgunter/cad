@@ -11,7 +11,7 @@ refs: [torus-windows-a-hair-apart-in-tube-angle-are-undecided-at-the-certified-s
 
 ## What
 
-`near_span` (`crates/topo/src/boolean/circle_roots.rs`) moves an angle by
+`near_span` (`crates/geom-brep/src/curve_face/circle_roots.rs`) moves an angle by
 whole turns to within `π` of its span's middle (`reduce_periodic_centred`
 about the middle). An angle exactly opposite the middle lies at that
 branch's cut. There the two representatives tie, and `Interval` holds the
