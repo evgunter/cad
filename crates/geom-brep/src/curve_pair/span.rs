@@ -325,10 +325,7 @@ impl<'a, T: Decide> Span<'a, T> {
         if !self.ended {
             return Ok(Place::Inside { t });
         }
-        let ends = [
-            (SpanEnd::Start, t - self.t0),
-            (SpanEnd::Stop, self.t1 - t),
-        ];
+        let ends = [(SpanEnd::Start, t - self.t0), (SpanEnd::Stop, self.t1 - t)];
         // An end at the point first, on its raw chord: no side matters
         // beside it.
         let mut chords = Vec::with_capacity(2);
