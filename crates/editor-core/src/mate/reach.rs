@@ -214,6 +214,12 @@ fn face_reach<T: Decide>(
             minor_radius,
             ..
         } => Some(from(*center) + *major_radius + *minor_radius),
+        Surface::Spindle {
+            center,
+            major_radius,
+            minor_radius,
+            ..
+        } => Some(from(*center) + major_radius.abs() + *minor_radius),
         // The placeholder net is all-poison by construction — a
         // surface representable but not described — and describes no
         // locus to bound.

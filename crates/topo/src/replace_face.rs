@@ -1105,7 +1105,7 @@ fn transport_curve<T: Decide>(
             Curve3::Circle(geom::Circle {
                 frame:
                     geom::Frame {
-                        center,
+                        origin: center,
                         axis: ca,
                         u_ref,
                     },
@@ -1144,7 +1144,7 @@ fn transport_curve<T: Decide>(
                 Curve3::Circle(geom::Circle {
                     frame:
                         geom::Frame {
-                            center,
+                            origin: center,
                             axis: ca,
                             u_ref,
                         },
@@ -1185,7 +1185,7 @@ fn transport_curve<T: Decide>(
             Curve3::Circle(geom::Circle {
                 frame:
                     geom::Frame {
-                        center: c,
+                        origin: c,
                         axis: ca,
                         u_ref,
                     },
@@ -1244,7 +1244,9 @@ fn transport_curve<T: Decide>(
                 ))
             }
         },
-        Surface::Approx(_) => None,
+        // The offset door mints no spindle sheet, so no edge is moved
+        // with one.
+        Surface::Spindle { .. } | Surface::Approx(_) => None,
     })
 }
 
@@ -1268,29 +1270,14 @@ pub(crate) fn translate_curve<T: Real>(
 ) -> Result<Curve3<T>, geom_core::spline::SplineError> {
     Ok(match curve {
         Curve3::Line(geom::Line { origin, dir }) => Curve3::line(*origin + delta, *dir),
-        Curve3::Circle(geom::Circle {
-            frame:
-                geom::Frame {
-                    center,
-                    axis,
-                    u_ref,
-                },
-            radius,
-        }) => Curve3::circle(*center + delta, *axis, *radius, *u_ref),
-        Curve3::Ellipse(geom::Ellipse {
-            frame:
-                geom::Frame {
-                    center,
-                    axis,
-                    u_ref,
-                },
-            semi_u,
-            semi_v,
-        }) => Curve3::Ellipse(geom::Ellipse::new(
-            geom::Frame::new(*center + delta, *axis, *u_ref),
-            *semi_u,
-            *semi_v,
-        )),
+        Curve3::Circle(c) => Curve3::Circle(geom::Circle {
+            frame: c.frame.translated(delta),
+            ..*c
+        }),
+        Curve3::Ellipse(e) => Curve3::Ellipse(geom::Ellipse {
+            frame: e.frame.translated(delta),
+            ..*e
+        }),
         Curve3::Spiric {
             center,
             axis,
@@ -1324,7 +1311,7 @@ fn homothety<T: Real>(
         Curve3::Circle(geom::Circle {
             frame:
                 geom::Frame {
-                    center,
+                    origin: center,
                     axis,
                     u_ref,
                 },
@@ -2348,7 +2335,7 @@ fn cone_v_range<T: Decide>(
         Curve3::Circle(geom::Circle {
             frame:
                 geom::Frame {
-                    center,
+                    origin: center,
                     axis: ca,
                     u_ref,
                 },
@@ -2364,7 +2351,7 @@ fn cone_v_range<T: Decide>(
         Curve3::Ellipse(geom::Ellipse {
             frame:
                 geom::Frame {
-                    center,
+                    origin: center,
                     axis: ca,
                     u_ref,
                 },
@@ -2404,12 +2391,12 @@ fn cone_v_range<T: Decide>(
 /// each once — including the seams INTERNAL to the group, which move
 /// with the chart exactly as its outer edges do. Every member resolved
 /// at the door, and the walk from it reads links, so a miss panics
-/// naming the record ([`Body::face_cycles_linked`]).
+/// naming the record ([`Body::proven_face_half_edges`]).
 #[track_caller]
 fn group_boundary<T: geom_core::Decide>(body: &Body<T>, group: &[FaceKey]) -> Vec<EdgeKey> {
     let mut out: Vec<EdgeKey> = Vec::new();
     for &face in group {
-        for he in body.face_cycles_linked(face) {
+        for he in body.proven_face_half_edges(face) {
             let edge = proven(&body.half_edges, he, EntityId::HalfEdge).edge;
             if !out.contains(&edge) {
                 out.push(edge);
@@ -3120,7 +3107,7 @@ fn carried_alike<T: Decide>(
     tol: Tol,
 ) -> Result<Transported<T>, ReplaceFaceError<T>> {
     let exact = |c: &MovedChart<'_, T>| match c.old_surface {
-        Surface::Nurbs(_) | Surface::Approx(_) => false,
+        Surface::Nurbs(_) | Surface::Approx(_) | Surface::Spindle { .. } => false,
         Surface::Cylinder { .. } | Surface::Cone { .. } => !matches!(old, Curve3::Nurbs(_)),
         Surface::Plane { .. } | Surface::Sphere { .. } | Surface::Torus { .. } => true,
     };

@@ -232,11 +232,12 @@ pub fn tangent_span_bounds<T: Real>(
     }
     let step = (t1 - t0) / T::from_f64(f64::from(crate::certify::CERT_SAMPLES - 1));
     if let Curve3::Circle(geom::Circle {
-        frame: geom::Frame {
-            center,
-            axis,
-            u_ref,
-        },
+        frame:
+            geom::Frame {
+                origin: center,
+                axis,
+                u_ref,
+            },
         radius,
     }) = *carrier
     {
@@ -277,6 +278,7 @@ pub fn tangent_span_bounds<T: Real>(
             // with the rest, and the caller keeps its own door.
             Surface::Cone { .. }
             | Surface::Torus { .. }
+            | Surface::Spindle { .. }
             | Surface::Nurbs(_)
             | Surface::Approx(_) => None,
         }
@@ -520,7 +522,7 @@ fn circle_span_bounds<T: Real>(
             }
             // As the first-order bound above: no closed form for the
             // spline stand-in or the description behind it.
-            Surface::Nurbs(_) | Surface::Approx(_) => None,
+            Surface::Spindle { .. } | Surface::Nurbs(_) | Surface::Approx(_) => None,
         }
     };
     let (f2a, da) = bounds_of(s1)?;

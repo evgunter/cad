@@ -220,7 +220,16 @@ pub fn boundary_material_sign_holding<T: Decide>(
             axis,
             ..
         } => sphere_loop_side(center, radius, axis, loops, held, band),
+        // A spindle sheet is the torus's parametrisation with a signed
+        // major radius, so it reads the torus's closed forms.
         Surface::Torus {
+            center,
+            axis,
+            major_radius,
+            minor_radius,
+            ..
+        }
+        | Surface::Spindle {
             center,
             axis,
             major_radius,
@@ -398,6 +407,13 @@ pub fn require_iso_rectangle<T: Decide>(
             major_radius,
             minor_radius,
             ..
+        }
+        | Surface::Spindle {
+            center,
+            axis,
+            major_radius,
+            minor_radius,
+            ..
         } => {
             let p = torus_parse(center, axis, major_radius, minor_radius, outer, band)?;
             torus_rims_at_extremes(&p, center, axis, major_radius, minor_radius, band)
@@ -486,17 +502,14 @@ pub fn require_iso_rectangle<T: Decide>(
 ///   would refuse an equatorial full circle for nothing. The
 ///   rim/meridian split is `props_circle_axis_class`, the parse's own
 ///   name and the parse's own margin.
-/// * **torus — immune on a ring torus, dormant otherwise.** Rims are
-///   major circles at constant `v`; meridians are minor circles in an
-///   axial plane, and on a ring torus (`major > minor`) such a circle
-///   never meets the axis, so its `u` is constant over the whole
-///   circle and no span can leave the branch. `major ≤ minor` — the
-///   horn and spindle tori, whose minor circle DOES cross the axis —
-///   is dormant rather than checked here, the same dormancy
-///   `mesh`'s walk records for `Chart::poles` being empty on a torus:
-///   `revolve` refuses both at construction and `topo::validate`'s
-///   tier-3 `DegenerateTorus` covers the import door. This arm's
-///   blind spot, stated so it reads as a decision.
+/// * **torus — immune.** Rims are major circles at constant `v`;
+///   meridians are minor circles in an axial plane, and on a ring torus
+///   (`major > minor`, the kind's convention, which tier 3's
+///   `DegenerateTorus` holds at rest) such a circle never meets the
+///   axis, so its `u` is constant over the whole circle and no span
+///   can leave the branch. A spindle sheet, whose meridian circle does
+///   cross the axis, is its own kind and refuses
+///   [`PropsError::Unimplemented`].
 /// * **plane — not its question**, refused typed exactly as
 ///   [`require_iso_rectangle`] refuses it.
 ///
@@ -598,7 +611,7 @@ pub fn require_one_chart_branch<T: Decide>(
                 let Curve3::Circle(geom::Circle {
                     frame:
                         geom::Frame {
-                            center: c_c,
+                            origin: c_c,
                             axis: n_c,
                             ..
                         },
@@ -645,7 +658,9 @@ pub fn require_one_chart_branch<T: Decide>(
             }
             Ok(())
         }
-        Surface::Torus { .. } => Ok(()),
+        // A sheet's singular points end its `v` window, so no edge on
+        // the sheet holds one inside its span.
+        Surface::Torus { .. } | Surface::Spindle { .. } => Ok(()),
         Surface::Nurbs(_) | Surface::Approx(_) => Err(PropsError::Unimplemented),
     }
 }
@@ -707,7 +722,7 @@ fn torus_parse<T: Decide>(
         });
     }
     let anchor = meridians.swap_remove(0);
-    let orient = torus_meridian_orient((anchor.n_c, anchor.c_c), center, axis, minor, band)?;
+    let orient = torus_meridian_orient((anchor.n_c, anchor.c_c), center, axis, major, minor, band)?;
     Ok(TorusParse {
         rims,
         anchor,
@@ -1460,7 +1475,7 @@ fn cylinder_windings<T: Decide>(
                     let arms = turn_arms(axis, a - origin, b - origin);
                     let sweep = match e.carrier {
                         Curve3::Circle(geom::Circle {
-                            frame: geom::Frame { center, .. },
+                            frame: geom::Frame { origin: center, .. },
                             ..
                         }) => {
                             let du = rim_turns.next().ok_or(PropsError::NotIsoRectangle {
@@ -1705,6 +1720,13 @@ pub fn curved_face_holding<T: Decide>(
             major_radius,
             minor_radius,
             ..
+        }
+        | Surface::Spindle {
+            center,
+            axis,
+            major_radius,
+            minor_radius,
+            ..
         } => torus_face(center, axis, major_radius, minor_radius, loops, band),
         // The volume/area inventory is closed-form per analytic kind;
         // a spline has no entry and neither does an offset description
@@ -1794,7 +1816,9 @@ pub fn closed_surface<T: Real>(
             minor: minor_radius,
         }),
         Surface::Plane { .. } | Surface::Cylinder { .. } | Surface::Cone { .. } => None,
-        Surface::Nurbs(_) | Surface::Approx(_) => return Err(PropsError::Unimplemented),
+        Surface::Spindle { .. } | Surface::Nurbs(_) | Surface::Approx(_) => {
+            return Err(PropsError::Unimplemented);
+        }
     })
 }
 
@@ -1842,9 +1866,12 @@ fn cylinder_boundary<T: Decide>(
                 levels.push((e.p1() - origin).dot(axis));
             }
             Curve3::Circle(geom::Circle {
-                frame: geom::Frame {
-                    center, axis: n_c, ..
-                },
+                frame:
+                    geom::Frame {
+                        origin: center,
+                        axis: n_c,
+                        ..
+                    },
                 radius: r_c,
             }) => {
                 let s = classify(
@@ -2264,9 +2291,12 @@ fn require_on_cone<T: Decide>(
             require_cone_generator(apex, axis, sin_a, cos_a, dir, e, band)
         }
         Curve3::Circle(geom::Circle {
-            frame: geom::Frame {
-                center, axis: n_c, ..
-            },
+            frame:
+                geom::Frame {
+                    origin: center,
+                    axis: n_c,
+                    ..
+                },
             radius: r_c,
         }) => require_cone_circle(apex, axis, sin_a, cos_a, center, n_c, r_c, band).map(|_| ()),
         Curve3::Ellipse(..) => require_cone_ellipse(apex, axis, sin_a, cos_a, e, band),
@@ -2382,11 +2412,12 @@ fn require_cone_ellipse<T: Decide>(
     band: Band,
 ) -> Result<(), PropsError> {
     let Curve3::Ellipse(geom::Ellipse {
-        frame: geom::Frame {
-            center,
-            axis: n,
-            u_ref,
-        },
+        frame:
+            geom::Frame {
+                origin: center,
+                axis: n,
+                u_ref,
+            },
         semi_u,
         semi_v,
     }) = e.carrier
@@ -2935,9 +2966,12 @@ fn cone_loop_winding<T: Decide>(
             // The stored turn about the rim's own centre, carried to the
             // axis at each end.
             Curve3::Circle(geom::Circle {
-                frame: geom::Frame {
-                    axis: n, center, ..
-                },
+                frame:
+                    geom::Frame {
+                        axis: n,
+                        origin: center,
+                        ..
+                    },
                 ..
             }) => {
                 own_turn = sense(n, rho)? * (e.t1 - e.t0);
@@ -2984,7 +3018,7 @@ fn cone_loop_winding<T: Decide>(
         // what its own turn misses them about its centre.
         pieces.push([match e.carrier {
             Curve3::Circle(geom::Circle {
-                frame: geom::Frame { center, .. },
+                frame: geom::Frame { origin: center, .. },
                 ..
             }) => {
                 let (ca, cb) = e.traversal_ends();
@@ -3064,9 +3098,12 @@ fn cone_boundary<T: Decide>(
                 levels.push((e.p1() - apex).dot(axis) / cos_a);
             }
             Curve3::Circle(geom::Circle {
-                frame: geom::Frame {
-                    center, axis: n_c, ..
-                },
+                frame:
+                    geom::Frame {
+                        origin: center,
+                        axis: n_c,
+                        ..
+                    },
                 radius: r_c,
             }) => {
                 let s = require_cone_circle(apex, axis, sin_a, cos_a, center, n_c, r_c, band)?;
@@ -3646,7 +3683,7 @@ fn sphere_loop<T: Decide>(
         let Curve3::Circle(geom::Circle {
             frame:
                 geom::Frame {
-                    center: c_c,
+                    origin: c_c,
                     axis: n_c,
                     ..
                 },
@@ -4821,7 +4858,7 @@ fn sphere_boundary<T: Decide>(
         let Curve3::Circle(geom::Circle {
             frame:
                 geom::Frame {
-                    center: c_c,
+                    origin: c_c,
                     axis: n_c,
                     ..
                 },
@@ -5181,8 +5218,14 @@ fn torus_chart<T: Decide>(
                     (step, sign)
                 }
                 TorusEdge::Arc(arc) => {
-                    let orient =
-                        torus_meridian_orient((arc.n_c, arc.c_c), center, axis, minor, band)?;
+                    let orient = torus_meridian_orient(
+                        (arc.n_c, arc.c_c),
+                        center,
+                        axis,
+                        major,
+                        minor,
+                        band,
+                    )?;
                     let sign = t_sign::<T>(orient.flip())
                         * if arc.edge.forward {
                             T::one()
@@ -5355,7 +5398,9 @@ fn torus_chart_loop<T: Decide>(
     // to `u·|w|/ρ`, which the core circle would carry `major` times over.
     let about_core = |m: Vec3<T>, d: Vec3<T>, w: Vec3<T>| {
         let radial = m - axis * m.dot(axis);
-        let out = radial * (T::one() / radial.norm());
+        // Toward the meridian's half-plane: across the axis from its
+        // centre on a lemon (`geom::meridian_side`, decided at rest).
+        let out = radial * (geom::meridian_side(major) / radial.norm());
         let (xd, yd) = (d.dot(out), d.dot(axis));
         let (xw, yw) = tube(w);
         (xd * yw - yd * xw).atan2(xd * xw + yd * yw)
@@ -5367,7 +5412,7 @@ fn torus_chart_loop<T: Decide>(
     let turns = pieces.iter().map(|p| {
         let (a, b) = p.edge.traversal_ends();
         let Curve3::Circle(geom::Circle {
-            frame: geom::Frame { center: centre, .. },
+            frame: geom::Frame { origin: centre, .. },
             radius: r_c,
         }) = p.edge.carrier
         else {
@@ -5528,7 +5573,7 @@ fn torus_classify<'a, T: Decide>(
         let Curve3::Circle(geom::Circle {
             frame:
                 geom::Frame {
-                    center: c_c,
+                    origin: c_c,
                     axis: n_c,
                     ..
                 },
@@ -5601,7 +5646,12 @@ fn torus_classify<'a, T: Decide>(
                 let rho = (w - axis * h).norm();
                 require_zero(
                     "props_meridian_fit",
-                    Margin::of((rho - major).abs().max(h.abs()).max((r_c - minor).abs())),
+                    Margin::of(
+                        (rho - major.abs())
+                            .abs()
+                            .max(h.abs())
+                            .max((r_c - minor).abs()),
+                    ),
                     band,
                     Premise::Inventory,
                 )?;
@@ -5802,11 +5852,14 @@ fn fold_chain<T: Decide>(
 /// reference, so both lengths are decided before the orientation is:
 /// the axis under `props_torus_axis`, the radial under
 /// `props_meridian_radial`. A meridian centred on the axis has no
-/// radial, and refuses as that.
+/// radial, and refuses as that. On a lemon (`R < 0`) the meridian's
+/// centre lies across the axis from its half-plane, so the reading is
+/// taken against `sgn R·ρ̂`.
 fn torus_meridian_orient<T: Decide>(
     (n_c, c_c): (Vec3<T>, Point3<T>),
     center: Point3<T>,
     axis: Vec3<T>,
+    major: T,
     minor: T,
     band: Band,
 ) -> Result<Sign, PropsError> {
@@ -5843,7 +5896,9 @@ fn torus_meridian_orient<T: Decide>(
     let orient = classify(
         "props_meridian_orient",
         Margin::levered(
-            n_c.dot(tau),
+            // Read against `sgn R·ρ̂` (`geom::meridian_side`, decided at
+            // rest), the meridian's own out-direction on either kind.
+            n_c.dot(tau) * geom::meridian_side(major),
             crate::ExtentBall::of_circle(c_c, minor).lever(),
         ),
         band,

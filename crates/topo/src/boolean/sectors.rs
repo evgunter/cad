@@ -89,11 +89,12 @@ use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
 use crate::live::{Proven, linked, proven};
 use crate::sector_face::{ConeApex, SectorCarrier, SectorFaceError, VertexFace};
 
-use crate::sector_shape::{
-    ApexShape, CornerShape, FullTurn, SectorFault, SectorShape, SlitTips, TurnOrder,
-    apex_corner_shape, corner_shape,
-};
+use crate::sector_shape::{ApexShape, SlitTips, apex_corner_shape};
 use crate::validate::decide;
+use geom_brep::sector_shape::{
+    CornerBounds, CornerShape, FullTurn, SectorFault, SectorShape, TurnOrder, corner_shape,
+    metering_arm,
+};
 
 use crate::bound_side::Descent;
 use crate::bound_side::{BoundSideFault, FaceDatum, FirstOrder, ReadFault, Side};
@@ -595,16 +596,6 @@ fn extreme_directions<T: Decide>(
     }
 }
 
-/// **A corner's metering arm** ([`crate::sector_shape`]'s, the shorter of
-/// its bounds' departure vectors' norms) as the lever its sectors read at.
-pub(crate) fn metering_arm<T: geom_core::Real>(arm: T) -> Lever<T> {
-    // Unsourced lever: the norm of a departure vector, a curved bound's
-    // read back from its extent times a unit tangent (or a line's chord),
-    // which differs from that extent by rounding: the edges' `Lever::min`
-    // would round differently.
-    Lever::unsourced(arm)
-}
-
 /// **A departure vector's norm as a lever**: the one bound's arm
 /// [`metering_arm`] reads, for a reading levered at a single departure.
 pub(crate) fn departure_arm_lever<T: geom_core::Real>(v: Vec3<T>) -> Lever<T> {
@@ -634,7 +625,7 @@ fn push_apex_corner<T: Decide>(
     sectors: &mut Vec<BoolSector<T>>,
     corner: OrbitCorner<T>,
     apex: &ConeApex<T>,
-    bounds: crate::sector_shape::CornerBounds,
+    bounds: CornerBounds,
     partners: &Partners<T>,
     band: Band,
 ) -> Result<(), SectorFault> {
@@ -672,7 +663,7 @@ fn push_apex_corner<T: Decide>(
     // spans a whole turn, and its two bounds' azimuth
     // ([`BoolSector::middle`]) reads its window.
     if !matches!(partners, Partners::Pierced(_)) {
-        rulings = crate::sector_shape::TurnOrder::FromOwn
+        rulings = TurnOrder::FromOwn
             .quarter_fractions()
             .into_iter()
             .map(|k| apex.ruling_from(unit_start, window * T::from_f64(k)))
@@ -2131,8 +2122,8 @@ impl ClosedReach {
 /// # Errors
 ///
 /// [`BooleanError::GermEdgeCarrierUnsupported`] where no face reads it
-/// inside and some face's surface is one the reading does not take
-/// against the edge's carrier (a spline on either side); the reading's
+/// inside and the reading leaves the edge's carrier unread against some
+/// face's surface ([`super::slit::Placed::Unread`]); the reading's
 /// own escalations, and a trim the walk cannot read.
 fn closed_reach<T: Decide>(
     side: GermSide<'_, T>,
@@ -2148,9 +2139,9 @@ fn closed_reach<T: Decide>(
     let (mut reach, mut unread) = (ClosedReach::Off, false);
     for &face in faces {
         match super::slit::carrier_on_surface(body, curve.carrier(), curve.params(), face, band)? {
-            None => unread = true,
-            Some(false) => {}
-            Some(true) => match in_trim(body, face, p, band)? {
+            super::slit::Placed::Unread(_) => unread = true,
+            super::slit::Placed::Off => {}
+            super::slit::Placed::On => match in_trim(body, face, p, band)? {
                 Some(PlaneRead::Inside) => {
                     return Ok(Some(ClosedReach::On(Touch::Face, Some(face))));
                 }
@@ -2202,11 +2193,8 @@ fn on_planar_face<T: Decide>(
     p: Point3<T>,
     band: Band,
 ) -> Result<PlaneRead, BooleanError> {
-    use super::solid_contain::{PointInSolidError, face_plane};
-    let (origin, normal) = match face_plane(body, face) {
-        Ok(plane) => plane,
-        Err(PointInSolidError::KindUnsupported { .. }) => return Ok(PlaneRead::NotPlane),
-        Err(e) => return Err(BooleanError::Containment(e)),
+    let Some((origin, normal)) = crate::face_normal::face_plane(body, face) else {
+        return Ok(PlaneRead::NotPlane);
     };
     let height = Margin::of((p - origin).dot(normal));
     match decide("bool_germ_tie_plane", height, band).map_err(|diag| {
@@ -2227,11 +2215,9 @@ fn in_trim<T: Decide>(
     p: Point3<T>,
     band: Band,
 ) -> Result<Option<PlaneRead>, BooleanError> {
-    use super::solid_contain::{PointInSolidError, face_plane};
-    match face_plane(body, face) {
-        Ok((_, normal)) => trim_read(body, face, normal, p, band).map(Some),
-        Err(PointInSolidError::KindUnsupported { .. }) => Ok(None),
-        Err(e) => Err(BooleanError::Containment(e)),
+    match crate::face_normal::face_plane(body, face) {
+        Some((_, normal)) => trim_read(body, face, normal, p, band).map(Some),
+        None => Ok(None),
     }
 }
 

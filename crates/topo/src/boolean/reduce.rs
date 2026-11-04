@@ -64,7 +64,6 @@
 use geom_core::{Band, Bounds, Decide, Margin, MarginDiag, Point3, Sign, Vec3};
 
 use super::boxes;
-use super::circle_roots::{CircleRoots, door_refusal};
 use super::contain::{ContainError, CurvedPlacement, FaceContainment, contfp_decided};
 use super::plane_eq::PlaneDesc;
 use super::separating::Item;
@@ -76,10 +75,12 @@ use crate::entity::{EdgeKey, EntityId, FaceKey, VertexKey};
 use crate::null::CurveGeom;
 use crate::offset_nappe::NappeRefusal;
 use crate::sector_shape::SlitTips;
-use crate::splitting::{ConicPlaneMeet, PlaneCrossingLane, PlaneSide as SplitSide};
+use crate::splitting::PlaneSide as SplitSide;
 use crate::sweep_trace::SweepPairs;
 use crate::validate::decide;
 use crate::vertex_section::{Offset, SectionPlane, VertexRefusal};
+use geom_brep::curve_face::circle_roots::{CircleRoots, door_refusal};
+use geom_brep::curve_face::plane_crossing::{ConicPlaneMeet, PlaneCrossingLane};
 use geom_brep::roots::{Roots, Unsettled};
 use geom_core::Tol;
 
@@ -153,8 +154,9 @@ pub(super) struct ContactAcc {
     in_plane: Vec<InPlane>,
     /// The bisector plane each vertex the sweep placed on an equal
     /// cylinder pair's partner wall lies on ([`factored_crossing`]), by
-    /// its operand: the pierce reads that wall through it.
-    pub(super) branches: std::collections::BTreeMap<(Operand, VertexKey), super::Branch>,
+    /// its operand and its index in `node::bisectors`' order: the pierce
+    /// reads that wall through it.
+    pub(super) planes: std::collections::BTreeMap<(Operand, VertexKey), usize>,
     /// The chart point each vertex the sweep placed inside a spline face
     /// was placed at, on the face's own sheet, by the vertex's operand and
     /// the face: the pierce reads the face's normal there
@@ -307,11 +309,11 @@ impl ContactAcc {
         core::mem::take(&mut self.charts)
     }
 
-    /// The branches the sweep recorded ([`Self::branches`]), taken out.
-    pub(super) fn take_branches(
+    /// The bisector planes the sweep recorded ([`Self::planes`]), taken out.
+    pub(super) fn take_planes(
         &mut self,
-    ) -> std::collections::BTreeMap<(Operand, VertexKey), super::Branch> {
-        core::mem::take(&mut self.branches)
+    ) -> std::collections::BTreeMap<(Operand, VertexKey), usize> {
+        core::mem::take(&mut self.planes)
     }
 
     /// The records, each citing rows of the decisions alongside them.
@@ -386,6 +388,25 @@ pub(crate) fn index(k: usize) -> u32 {
 /// section table), citing the C5 routing: a cone against a conic the
 /// inventory excludes, or a partner with no frame, refuses there.
 ///
+/// **ONE roster for every op.** A kind is on it when every door its
+/// faces can reach under every op is certified or typed; the doors are
+/// op-dependent, but the kind's arms are not. ∖ and ∩ classify the
+/// operands as given: the op enters through the op tables (an
+/// on-sector's Eq. 15.3 lump, [`super::tables::eq15_3_lump`]; the kept
+/// copy of a coincident pair, [`super::tables::kept_copy`]) and the
+/// join's reading of the subtrahend's normals reversed (`stands_on`).
+/// ∖ reverts the kept subtrahend pieces only after classification
+/// (`finish`'s Eq. 15.1 `(B in A)⁻¹`, the operand-B fallback, the void
+/// door's cavity), so a reverted face reaches only what runs after
+/// classification: the graft, the result's seam readings (sign-free)
+/// and the at-rest gate. What reads a reverted spline face's signed
+/// normal (the pierce and sector normals, the slit pass's floor) does
+/// so through its `sense` bit, the next time the result is an operand.
+/// So a placement can stop
+/// at another door under ∖ or ∩ than under ∪, and every op ends in a
+/// typed refusal or a certified body; a second list for ∖ and ∩ would
+/// gate nothing a door does not.
+///
 /// **`Approx` is absent by DECISION, not by gap.** Its fit is a
 /// `Nurbs`, which is on the roster, so admitting it on the fitted
 /// kind's authority would run the boolean against the APPROXIMATION
@@ -403,27 +424,6 @@ pub(super) fn boolean_arm_exists<T: Decide>(surface: &geom::Surface<T>) -> bool 
             | geom::Surface::Torus { .. }
             | geom::Surface::Cone { .. }
             | geom::Surface::Nurbs(_)
-    )
-}
-
-/// **The face kinds ∖ and ∩ have a seam lane for** — the same roster
-/// minus `Nurbs`, which has no crossing layer at all
-/// (`BooleanError::CurvedPairUnsupported`'s docs carry the per-class
-/// argument). ONE home, beside its sibling above, so the two rosters
-/// cannot drift apart in two files: the front door in `ops` reads
-/// this rather than spelling a second `matches!`.
-///
-/// `Approx` is off this roster for the reason it is off the one
-/// above, which is strictly stronger here: `Nurbs` has no crossing
-/// layer at all, and an approximating surface's chart is a `Nurbs`'s.
-pub(super) fn revert_arm_exists<T: Decide>(surface: &geom::Surface<T>) -> bool {
-    matches!(
-        surface,
-        geom::Surface::Plane { .. }
-            | geom::Surface::Cylinder { .. }
-            | geom::Surface::Sphere { .. }
-            | geom::Surface::Torus { .. }
-            | geom::Surface::Cone { .. }
     )
 }
 
@@ -583,9 +583,8 @@ pub(super) fn first_unsupported_pair<T: Decide + Bounds>(
 /// by the validator's own verdict, with supported edge carriers. Then
 /// two rules, with different scopes on purpose:
 ///
-/// - **Faces**: a kind off the face-kind `roster` — [`boolean_arm_exists`],
-///   or [`revert_arm_exists`] at the ∖/∩ front door — disqualifies the
-///   operation only through a PAIR it could enter
+/// - **Faces**: a kind off the face-kind `roster` ([`boolean_arm_exists`])
+///   disqualifies the operation only through a PAIR it could enter
 ///   ([`first_unsupported_pair`]) and that the caller's declarations
 ///   do not cover. A torus wall whose box clears the other operand
 ///   does not gate anything, and neither does one whose contact with
@@ -689,51 +688,11 @@ pub(super) fn certified<T: geom_core::Real>(
         })
 }
 
-/// The face's plane description (post-gate: always a `Plane`), with
-/// the **face's outward normal** — not the chart's.
-///
-/// [`PlaneDesc::normal`] is contractually the unit OUTWARD normal —
-/// the surface's chart normal with [`crate::entity::Face::sense`]
-/// folded in: the chart is the only place orientation is encoded, so
-/// on a `sense: false` face the stored normal points INTO the
-/// material, and every consumer reading a material direction off it
-/// would answer backwards. The flip itself lives in
-/// [`crate::face_normal`], which this function is defined in terms of
-/// — one door for the planar consumers (`plane_of`, this sweep, the
-/// pierce lane, and the SHARED [`crate::sector_face`]
-/// walk, which is why the door sits at the crate root rather than
-/// here), one flip, so those consumers stay orientation-blind.
-///
-/// Outside this crate the same fold is spelled through
-/// [`geom_brep::OutwardNormal::from_chart`], the type's only
-/// constructor, which takes the bit; there is no scalar sign on a face
-/// for a reader anywhere to multiply by.
-///
-/// Consumers that only compare the plane RESIDUAL `(p − o)·n̂` against
-/// Zero, or that hand the normal to a ray-parity test, are unaffected
-/// either way (a residual's sign flip decides Zero the same, and
-/// crossing parity is blind to frame handedness). The consumers that
-/// read a MATERIAL side off the sign — `side_code`, the containment
-/// ray's `d·n̂` — are exactly the ones this fixes.
-///
-/// `None` for a face that is not a plane, and for a `face` that does
-/// not resolve: the key is the caller's ([`super::carrier_pair::flush_pair_relation`]
-/// passes a public door's).
-///
-/// # Panics
-///
-/// Where `face` resolves and its surface does not (D2 row 4): a torn
-/// surface is not a non-planar one. On the reduction's working copies
-/// the link holds by [`crate::live::OPERATORS_KEEP_LINKS`].
-pub(super) fn face_plane<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<PlaneDesc<T>> {
-    let f = body.get_face(face)?;
-    match body.face_surface_linked(face, f) {
-        geom::Surface::Plane { origin, normal, .. } => Some(PlaneDesc {
-            origin: *origin,
-            normal: crate::face_normal::plane_outward_normal(f, *normal).vec(),
-        }),
-        _ => None,
-    }
+/// [`crate::face_normal::face_plane`] as the plane ladder's
+/// description: the same point and OUTWARD normal, `None` where that
+/// door answers `None`.
+pub(super) fn plane_desc<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<PlaneDesc<T>> {
+    crate::face_normal::face_plane(body, face).map(|(origin, normal)| PlaneDesc { origin, normal })
 }
 
 /// A vertex of the swept solid `x`, whose slit tips at rest are `tips`,
@@ -775,7 +734,7 @@ fn vertex_face_side<T: Decide>(
         let q = x.resolve_vertex_point(far, crate::live::Proven);
         let decided = geom_core::k_stats::decide_reported(
             "bool_vertex_face_side",
-            Margin::of(crate::sector_shape::plane_offset(
+            Margin::of(geom_brep::sector_shape::plane_offset(
                 plane.origin,
                 plane.normal,
                 q,
@@ -790,7 +749,7 @@ fn vertex_face_side<T: Decide>(
         })
     };
     let offset = Offset {
-        value: crate::sector_shape::plane_offset_rounded(origin, normal, at),
+        value: geom_brep::sector_shape::plane_offset_rounded(origin, normal, at),
         normal,
     };
     crate::vertex_section::decide_vertex_on_plane(
@@ -867,7 +826,7 @@ pub(super) fn gate_maximal_faces<T: Decide>(
             }
             continue;
         }
-        let (Some(p1), Some(p2)) = (face_plane(body, f1), face_plane(body, f2)) else {
+        let (Some(p1), Some(p2)) = (plane_desc(body, f1), plane_desc(body, f2)) else {
             continue;
         };
         let at = body.resolve_vertex_point(
@@ -1076,7 +1035,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
             // the M3 lane below (bit-identically for line edges, plus
             // the conic ROOT lane); curved faces get the clearance /
             // typed-frontier arm.
-            let Some(plane) = face_plane(y, face) else {
+            let Some(plane) = plane_desc(y, face) else {
                 // The tree's overlap is a world-axis one: a curved face
                 // the edge, or either face the edge lies on, is apart
                 // from along a direction that turns with the operands
@@ -1121,16 +1080,16 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 // against the piercing side, and the remainder fragment
                 // is re-queued so the second root of the same span is
                 // found on the next pass.
-                let (t, p, at, on, branch, chart, on_edge) = match event {
+                let (t, p, at, on, plane, chart, on_edge) = match event {
                     CurvedEvent::Pierce {
                         t,
                         p,
                         at,
                         on,
-                        branch,
+                        plane,
                         chart,
                         on_edge,
-                    } => (t, p, at, on, branch, chart, on_edge),
+                    } => (t, p, at, on, plane, chart, on_edge),
                     CurvedEvent::Deferred => {
                         deferred.push(DeferredTouch {
                             x_is,
@@ -1166,8 +1125,8 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                         let w =
                             split_at(x, x_is, edge_key, t, super::Cell::Face(face), tol, contacts)?;
                         push_vf(contacts, x_is, w, face, on);
-                        if let Some(branch) = branch {
-                            contacts.branches.insert((x_is, w), branch);
+                        if let Some(plane) = plane {
+                            contacts.planes.insert((x_is, w), plane);
                         }
                         if let Some(uv) = chart {
                             contacts.chart_point(x_is, w, face, uv);
@@ -1263,7 +1222,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
             {
                 let curve = certified(x.get_curve_geom(edge.curve))?.clone();
                 let (t0, t1) = curve.params();
-                let lane = crate::splitting::plane_crossing_lane(
+                let lane = geom_brep::curve_face::plane_crossing::plane_crossing_lane(
                     curve.carrier(),
                     t0,
                     t1,
@@ -1789,34 +1748,15 @@ pub(super) fn sweep_and_settle<T: Decide + Bounds + crate::props::AtRestPolicy>(
     settle_in_plane([a, b], contacts, band)
 }
 
-/// The vertices bounding `face` of `body`, outer loop and rings.
+/// The vertices bounding `face` of `body`, outer loop and rings, for a
+/// face the contact record names ([`Body::proven_face_boundary`]).
 fn face_vertices<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
-) -> Result<std::collections::BTreeSet<VertexKey>, BooleanError> {
-    let lost = |what| BooleanError::ClassificationInvariant { what };
-    let f = body
-        .get_face(face)
-        .ok_or(lost("a face an edge lies in vanished"))?;
-    let mut out = std::collections::BTreeSet::new();
-    for lk in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
-        match body
-            .get_loop(lk)
-            .ok_or(lost("a loop of a face an edge lies in vanished"))?
-            .boundary
-        {
-            crate::LoopBoundary::Empty { vertex } => {
-                out.insert(vertex);
-            }
-            crate::LoopBoundary::Cycle { first } => out.extend(
-                body.loop_cycle(first)
-                    .ok_or(lost("a loop of a face an edge lies in does not walk"))?
-                    .into_iter()
-                    .filter_map(|he| body.get_half_edge(he).map(|h| h.start)),
-            ),
-        }
-    }
-    Ok(out)
+) -> std::collections::BTreeSet<VertexKey> {
+    body.proven_face_boundary(face)
+        .map(|member| member.vertex())
+        .collect()
 }
 
 /// A fragment of a line edge the line lane read lying in a planar face's
@@ -1863,10 +1803,13 @@ fn settle_in_plane<T: Decide>(
             Operand::A => (a, b),
             Operand::B => (b, a),
         };
-        let plane = face_plane(y, lie.face).ok_or(BooleanError::ClassificationInvariant {
+        // The contact record names the face, so its walk proves it first
+        // and panics on a stale one; the plane's `None` is then a face
+        // that is not planar.
+        let bounding = face_vertices(y, lie.face);
+        let plane = plane_desc(y, lie.face).ok_or(BooleanError::ClassificationInvariant {
             what: "a face an edge lies in lost its plane",
         })?;
-        let bounding = face_vertices(y, lie.face)?;
         let pieces = contacts
             .splits
             .pieces_since(lie.x_is, lie.fragment, lie.mark)
@@ -2184,10 +2127,10 @@ fn edge_covers<T: Decide>(
 /// whole, its apex root answered as the double root there, and a root
 /// beside the apex the band cannot place refused.
 /// Against a torus a circle's residual is of
-/// degree two ([`super::circle_torus`]) and an ellipse's of degree four
-/// ([`super::ellipse_torus`]). Every such door's
+/// degree two ([`geom_brep::curve_face::circle_torus`]) and an ellipse's of degree four
+/// ([`geom_brep::curve_face::ellipse_torus`]). Every such door's
 /// answer is the certified subdivision's, decided on the residual itself
-/// ([`super::circle_roots`]). A conic reaches those arms only from the
+/// ([`geom_brep::curve_face::circle_roots`]). A conic reaches those arms only from the
 /// conic rung, after the enclosures failed to clear the arc, and never
 /// through a one-sided cover arm — those rest on a line's separation
 /// story.
@@ -2570,7 +2513,7 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 // root lanes.** An arc the enclosures could not clear
                 // against one of those kinds takes the same endpoint-sign arms as
                 // a line below, and the certified roots of
-                // [`super::conic_quadric`] / [`super::circle_torus`]
+                // [`super::conic_quadric`] / [`geom_brep::curve_face::circle_torus`]
                 // decide every one of them through [`wall_crossing`].
                 // Those arms never read convexity for a circle (the
                 // same-side pairs go to the roots, as a torus's do), so
@@ -2781,7 +2724,7 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
                     p,
                     at,
                     on,
-                    branch: None,
+                    plane: None,
                     chart: None,
                     on_edge: None,
                 }),
@@ -2917,7 +2860,7 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
                     p,
                     at,
                     on,
-                    branch: None,
+                    plane: None,
                     chart: None,
                     on_edge: None,
                 }),
@@ -2965,7 +2908,7 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
                     p,
                     at,
                     on,
-                    branch: None,
+                    plane: None,
                     chart: None,
                     on_edge: None,
                 }),
@@ -3086,7 +3029,7 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
                             p,
                             at,
                             on,
-                            branch: None,
+                            plane: None,
                             chart: None,
                             on_edge: None,
                         }),
@@ -3280,7 +3223,7 @@ fn spline_face<T: Decide + crate::props::AtRestPolicy>(
                     p,
                     at,
                     on: Some(margin),
-                    branch: None,
+                    plane: None,
                     chart: None,
                     on_edge: super::carrier_cross::held_on(at, held),
                 }),
@@ -3420,7 +3363,7 @@ fn spline_interior<T: Decide + crate::props::AtRestPolicy>(
                 p: m.point,
                 at,
                 on: Some(margin),
-                branch: None,
+                plane: None,
                 chart: None,
                 on_edge: None,
             });
@@ -3432,7 +3375,7 @@ fn spline_interior<T: Decide + crate::props::AtRestPolicy>(
                     p: m.point,
                     at: FaceContainment::In,
                     on: None,
-                    branch: None,
+                    plane: None,
                     chart: Some(m.uv),
                     on_edge: None,
                 });
@@ -3683,7 +3626,7 @@ fn interior<T: Decide>(
             p,
             at,
             on: Some(margin),
-            branch: None,
+            plane: None,
             chart: None,
             on_edge,
         })
@@ -4034,7 +3977,7 @@ fn lying_on<T: Decide + crate::props::AtRestPolicy>(
                 p,
                 at,
                 on: Some(margin),
-                branch: None,
+                plane: None,
                 chart: None,
                 on_edge,
             }),
@@ -4099,22 +4042,18 @@ fn arc_chain_reaches<T: Decide>(
 }
 
 /// A circle's on-carrier refusal ([`geom::Curve3::on_carrier`]): its
-/// escalation, by `escalated`. Only a spline's walk runs past its budget
-/// or lacks a speed bound, so on a circle those are a misread carrier.
+/// escalation, by `escalated`. Only a spline walks, so on a circle an
+/// [`geom::PieceWalkRefusal`] is a misread carrier.
 fn circle_refusal(
     refusal: geom::CarrierRefusal,
     escalated: impl FnOnce(geom_core::Indeterminate) -> BooleanError,
 ) -> BooleanError {
-    match refusal {
-        geom::CarrierRefusal::Escalated(diag) | geom::CarrierRefusal::Straddle(diag) => {
-            escalated(diag)
-        }
-        geom::CarrierRefusal::Exhausted | geom::CarrierRefusal::Unbounded => {
-            BooleanError::ClassificationInvariant {
-                what: "a circle's on-carrier reading refused as a spline's walk",
-            }
-        }
-    }
+    refusal.escalation().map_or(
+        BooleanError::ClassificationInvariant {
+            what: "a circle's on-carrier reading refused as a spline's walk",
+        },
+        escalated,
+    )
 }
 
 /// Whether `face`'s boundary meets `circle`, the whole carrier, nowhere
@@ -4132,7 +4071,7 @@ fn circle_refusal(
 ///
 /// [`BooleanError::ClassificationInvariant`] where `face`, a key the
 /// caller carries, does not resolve, or where the pass reports a kernel
-/// fault ([`super::carrier_cross::boundary_fault`]).
+/// fault ([`geom_brep::curve_face::BoundaryRefusal::Fault`]).
 ///
 /// # Panics
 ///
@@ -4155,8 +4094,8 @@ fn boundary_meets_circle_only_at<T: Decide>(
     let whole = Span::new(circle, (T::zero(), T::tau())).endless();
     let reading = match boundary.read(&whole, band) {
         Ok(reading) => reading,
-        Err(BoundaryRefusal::Fault(fault)) => {
-            return Err(super::carrier_cross::boundary_fault(fault));
+        Err(BoundaryRefusal::Fault { what }) => {
+            return Err(BooleanError::ClassificationInvariant { what });
         }
         Err(
             BoundaryRefusal::Escalated(_)
@@ -4511,7 +4450,7 @@ fn spline_wall_event<T: Decide + Bounds + crate::props::AtRestPolicy>(
                         p,
                         at,
                         on,
-                        branch: None,
+                        plane: None,
                         chart: None,
                         on_edge: None,
                     });
@@ -4708,7 +4647,7 @@ fn wall_crossing<T: Decide + Bounds>(
                 Err(refusal) => return door_escalated(refusal),
             }
         }
-        // The conic root doors ([`super::circle_roots`]), one answer
+        // The conic root doors ([`geom_brep::curve_face::circle_roots`]), one answer
         // shape: one door for a circle or an ellipse against a sphere, a
         // wall or a cone, whose quadric form is of degree two along it
         // ([`super::conic_quadric`]), and one per conic against a torus.
@@ -4724,10 +4663,20 @@ fn wall_crossing<T: Decide + Bounds>(
                     carrier, t0, t1, surface, band,
                 )),
                 (geom::Curve3::Circle(..), geom::Surface::Torus { .. }) => Some(
-                    super::circle_torus::circle_torus_roots(carrier, t0, t1, surface, band),
+                    geom_brep::curve_face::circle_torus::circle_torus_roots(
+                        carrier, t0, t1, surface, band,
+                    )
+                    .map_err(BooleanError::of_door_refusal(
+                        BooleanDecision::ArcTorusRoots,
+                    )),
                 ),
                 (_, geom::Surface::Torus { .. }) => Some(
-                    super::ellipse_torus::ellipse_torus_roots(carrier, t0, t1, surface, band),
+                    geom_brep::curve_face::ellipse_torus::ellipse_torus_roots(
+                        carrier, t0, t1, surface, band,
+                    )
+                    .map_err(BooleanError::of_door_refusal(
+                        BooleanDecision::ArcTorusRoots,
+                    )),
                 ),
                 _ => None,
             };
@@ -5006,18 +4955,16 @@ pub(super) fn line_wall_roots_of<T: Decide>(
             major_radius,
             minor_radius,
             ..
-        } => door_refusal(
-            super::solid_contain::line_torus_roots(
-                origin,
-                dir,
-                center,
-                axis,
-                major_radius,
-                minor_radius,
-                band,
-            ),
-            BooleanDecision::TorusRoots,
-        )?
+        } => door_refusal(super::solid_contain::line_torus_roots(
+            origin,
+            dir,
+            center,
+            axis,
+            major_radius,
+            minor_radius,
+            band,
+        ))
+        .map_err(BooleanError::of_door_refusal(BooleanDecision::TorusRoots))?
         .map(Roots::widen),
         // The quadratic, the ray lane's own. No line lies on a sphere,
         // so it has no constant case either.
@@ -5047,7 +4994,10 @@ pub(super) fn line_wall_roots_of<T: Decide>(
         } => line_cone_roots(origin, dir, (apex, axis, half_angle), (t0, t1), band)?,
         // No root lane: the caller reads the span against the face as it
         // reads a door's refusal.
-        geom::Surface::Plane { .. } | geom::Surface::Nurbs(_) | geom::Surface::Approx(_) => {
+        geom::Surface::Plane { .. }
+        | geom::Surface::Spindle { .. }
+        | geom::Surface::Nurbs(_)
+        | geom::Surface::Approx(_) => {
             return Ok(None);
         }
     })))
@@ -5135,7 +5085,8 @@ fn line_cone_roots<T: Decide>(
     let w0 = origin - apex;
     let dd = dir.norm_squared();
     let at = |t: T| w0 + dir * t;
-    let foot = ((T::zero() - w0.dot(dir)) / dd)
+    let foot = geom::Line { origin, dir }
+        .param(apex)
         .max(t0.min(t1))
         .min(t0.max(t1));
     let [a2, b2, c2] = super::solid_contain::line_cone_quadratic(
@@ -5280,11 +5231,12 @@ pub(super) enum CurvedEvent<T: geom_core::Real> {
         /// The margin that decided `p` on the boundary entity `at`
         /// names (`None` for `In`, a transverse pierce).
         on: Option<MarginDiag>,
-        /// The bisector plane the crossing lies on, where the sweep read
-        /// an equal cylinder pair's wall through its planes
-        /// ([`factored_crossing`]); the pierce reads the partner wall
-        /// through it.
-        branch: Option<super::Branch>,
+        /// The bisector plane the crossing lies on, by its index in
+        /// `node::bisectors`' order, where the sweep read an equal
+        /// cylinder pair's wall through its planes ([`factored_crossing`]):
+        /// the root of that plane's factor. The pierce reads the partner
+        /// wall through it.
+        plane: Option<usize>,
         /// The chart point a spline face's interior meeting was found and
         /// placed in the trim at: the pierce reads the face's normal there
         /// ([`ContactAcc::charts`]).
@@ -5746,9 +5698,11 @@ fn split_logged<T: Decide + crate::props::AtRestPolicy>(
 /// On a circle, `p` must lie ON the carrier for the azimuth to name the
 /// event. One foot ([`geom::Curve3::foot`]) answers both: the carrier's
 /// own reading at it decides that `p` is on the circle
-/// ([`geom::Foot::on_carrier`]), and its azimuth, on the branch about the
-/// span's middle ([`geom_brep::curve_pair::Span::branch`]), is the
-/// parameter. The angular half of "on the ARC" is not repeated here: `split_edge`'s
+/// ([`geom::Foot::on_carrier`]), and its azimuth is the parameter, as
+/// every other carrier's is [`point_param`]. Either is then read on the
+/// branch within half a turn of the span's middle
+/// ([`geom_brep::curve_pair::Span::branch`]), the one placement of a
+/// parameter in the span for every kind. The angular half of "on the ARC" is not repeated here: `split_edge`'s
 /// interiority gate is exactly that question, metered in metres at the
 /// radius.
 ///
@@ -5801,13 +5755,14 @@ fn split_other_at_point<T: Decide + crate::props::AtRestPolicy>(
                 }));
             }
         }
-        // The edge's certificate holds its turn, which is never over one
-        // ([`geom_brep::CertifiedTurn`]), so the branch about the span's
-        // middle is the one inside it.
-        geom_brep::curve_pair::Span::new(circle, (t0, t1)).branch(foot.t())
+        foot.t()
     } else {
         point_param(y, y_is, edge, &curve, p)?
     };
+    // The edge's certificate holds its turn, which is never over one
+    // ([`geom_brep::CertifiedTurn`]), so the branch about the span's
+    // middle is the one inside it.
+    let t = geom_brep::curve_pair::Span::new(curve.carrier(), curve.params()).branch(t);
     split_logged(y, y_is, edge, t, Some(p), by, tol, contacts)
 }
 
@@ -5833,9 +5788,9 @@ fn held_param<T: Copy>(
 }
 
 /// **The parameter of `p` on `edge`'s curve**: its carrier's
-/// [`geom::Curve3::param_near`] anchored at the span's midpoint, the
-/// branch inside the stored span ([`split_other_at_point`] carries the
-/// derivation). `p` must lie on the carrier.
+/// [`geom::Curve3::param_near`] anchored at the span's midpoint, which
+/// [`split_other_at_point`] reads on the branch inside the stored span.
+/// `p` must lie on the carrier.
 ///
 /// # Errors
 ///
@@ -6085,7 +6040,7 @@ fn read_lying_in<T: Decide + crate::props::AtRestPolicy>(
     for &lies in lying_in {
         match lies {
             LyingIn::Plane(face) => {
-                let plane = face_plane(y, face).ok_or(BooleanError::ClassificationInvariant {
+                let plane = plane_desc(y, face).ok_or(BooleanError::ClassificationInvariant {
                     what: "a face an edge lies in lost its plane",
                 })?;
                 let read = |which| edge_face_read(x, x_is, edge, face, declared, which);
@@ -6920,7 +6875,7 @@ mod declaration_order_rows {
                     Some(super::CurveGeom::Certified(g))
                         if matches!(
                             g.carrier(),
-                            geom::Curve3::Circle(geom::Circle { frame: geom::Frame { axis: a, center, .. }, .. })
+                            geom::Curve3::Circle(geom::Circle { frame: geom::Frame { axis: a, origin: center, .. }, .. })
                                 if a.z.abs() > 0.9 && center.z > 0.1
                         )
                 )
@@ -6969,7 +6924,7 @@ mod declaration_order_rows {
             BooleanDecision::ArcTorusRoots,
             "the lane's own decision"
         );
-        assert_eq!(diag.predicate, Some("bool_circle_torus_plane_height"));
+        assert_eq!(diag.predicate, Some("circle_torus_plane_height"));
         let text = got.render(geom_brep::recourse::Reading::Build);
         assert!(
             text.starts_with(
@@ -7687,7 +7642,7 @@ mod clearance_rows {
     use core::f64::consts::FRAC_PI_2;
 
     use super::conic_clearance;
-    use crate::boolean::conic_oracle::{distance_from_anchor, unit};
+    use geom_brep::curve_face::conic_oracle::{distance_from_anchor, unit};
     use geom_core::{Band, Point3, Sign, Vec3};
     use test_utils::fuzz;
 
@@ -7835,8 +7790,8 @@ mod clearance_rows {
             let band = Band::new(eps, 10.0 * eps).unwrap();
             let (mut clear, mut refused, mut torus_clear) = (0, 0, 0);
             for i in 0..fuzz::scaled(3000) {
-                let n = unit(&mut rng);
-                let u = unit(&mut rng);
+                let n = unit(|lo, hi| rng.range(lo, hi));
+                let u = unit(|lo, hi| rng.range(lo, hi));
                 let u_ref = (u - n * u.dot(n)).normalize();
                 let scale = if rng.below(2) == 0 { 1.0 } else { 1000.0 };
                 let big = scale * rng.range(0.5, 5.0);
@@ -7884,7 +7839,7 @@ mod clearance_rows {
                         u_ref: (x - n * x.dot(n)).normalize(),
                     },
                     1 => {
-                        let v = unit(&mut rng);
+                        let v = unit(|lo, hi| rng.range(lo, hi));
                         let w = (v - outward * v.dot(outward)).normalize();
                         geom::Surface::Cylinder {
                             origin: hub,
@@ -7894,7 +7849,7 @@ mod clearance_rows {
                         }
                     }
                     _ => {
-                        let v = unit(&mut rng);
+                        let v = unit(|lo, hi| rng.range(lo, hi));
                         let w = (v - outward * v.dot(outward)).normalize();
                         let ring = r * rng.range(1.5, 10.0);
                         let axis = outward.cross(w).normalize();
@@ -8331,7 +8286,7 @@ mod line_cone_rows {
     //! quadric form evaluated at the line's points.
 
     use super::*;
-    use crate::boolean::circle_roots::CircleRoots;
+    use geom_brep::curve_face::circle_roots::CircleRoots;
     use geom_core::{Tol, Vec3};
 
     fn band() -> Band {
@@ -8584,7 +8539,7 @@ mod line_cone_rows {
     /// two micrometres off at ε 1e-9.
     #[test]
     fn roots_beside_the_apex_are_placed_along_the_edge() {
-        use crate::boolean::conic_oracle::crossings;
+        use geom_brep::curve_face::conic_oracle::crossings;
         let axis = Vec3::new(0.0, 0.6, 0.8);
         let (u, _) = axis.orthonormal_basis();
         let (mut certified, mut judged) = (0, 0);
@@ -8822,7 +8777,7 @@ mod spline_face_rows {
                 let Some(CurveGeom::Certified(c)) = body.get_curve_geom(e.curve) else {
                     return false;
                 };
-                matches!(c.carrier(), Curve3::Circle(geom::Circle { frame: geom::Frame { center, .. }, .. }) if (center.z - z).abs() < 1e-12)
+                matches!(c.carrier(), Curve3::Circle(geom::Circle { frame: geom::Frame { origin: center, .. }, .. }) if (center.z - z).abs() < 1e-12)
             })
             .map(|(k, _)| k)
             .expect("the rim")

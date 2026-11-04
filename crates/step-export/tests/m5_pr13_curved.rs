@@ -605,6 +605,7 @@ fn the_export_corpus_obeys_the_exactness_frame_sense_and_nurbs_laws() {
                 Surface::Approx(_) => {
                     panic!("FRAME: {name}: an approximating surface reached the writer")
                 }
+                Surface::Spindle { .. } => panic!("FRAME: {name}: export refuses a spindle face"),
             }
 
             // ---- CHART-AXIS (pin B): `same_sense` IS `Face::sense`,
@@ -641,6 +642,10 @@ fn the_export_corpus_obeys_the_exactness_frame_sense_and_nurbs_laws() {
                 // either.
                 Surface::Approx(_) => {
                     panic!("CHART-AXIS: an approximating face reached pin B — extend it")
+                }
+                // Export refuses the kind outright.
+                Surface::Spindle { .. } => {
+                    panic!("CHART-AXIS: a spindle face reached pin B — extend it")
                 }
             };
             let (_, z, _) = place(&recs);
@@ -759,7 +764,7 @@ fn emitted_conic_carriers_equal_the_kernel_carriers_bitwise() {
                 Curve3::Circle(geom::Circle {
                     frame:
                         geom::Frame {
-                            center,
+                            origin: center,
                             axis,
                             u_ref,
                         },
@@ -775,7 +780,7 @@ fn emitted_conic_carriers_equal_the_kernel_carriers_bitwise() {
                 Curve3::Ellipse(geom::Ellipse {
                     frame:
                         geom::Frame {
-                            center,
+                            origin: center,
                             axis,
                             u_ref,
                         },

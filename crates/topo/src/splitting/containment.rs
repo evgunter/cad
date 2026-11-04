@@ -1042,10 +1042,12 @@ impl<T: Decide> ConicArc<T> {
             Ok(Reading::Carrier) => ConicHit::Carrier,
             Ok(Reading::On { margin, .. }) => ConicHit::On(margin),
             Ok(Reading::End(_)) => ConicHit::End,
-            Err(geom::CarrierRefusal::Escalated(diag)) => return Err(diag.into()),
+            Err(geom::CarrierRefusal::Escalated(geom::CarrierEscalation::InBand(diag))) => {
+                return Err(diag.into());
+            }
             // The ellipse's two bounds on its distance, which no margin
             // says: a straddle, typed.
-            Err(geom::CarrierRefusal::Straddle(diag)) => {
+            Err(geom::CarrierRefusal::Escalated(geom::CarrierEscalation::Straddle(diag))) => {
                 return Err(ReadEscalation {
                     escalation: Escalation::Straddle,
                     diag,
@@ -1053,9 +1055,7 @@ impl<T: Decide> ConicArc<T> {
             }
             // An ellipse's `Past` stands on the span walk, which can run
             // past its budget: not placed, typed.
-            Err(geom::CarrierRefusal::Exhausted | geom::CarrierRefusal::Unbounded) => {
-                ConicHit::Unsettled
-            }
+            Err(geom::CarrierRefusal::Unwalked(_)) => ConicHit::Unsettled,
         })
     }
 
@@ -1548,11 +1548,9 @@ pub(crate) fn arc_distance_floor<T: Decide>(
     q: Point3<T>,
 ) -> Option<ArcFloor<'_, T>> {
     Some(match *carrier {
-        geom::Curve3::Line(_) => ArcFloor::Segment(crate::sector_shape::point_segment_distance(
-            carrier.eval(t0),
-            carrier.eval(t1),
-            q,
-        )),
+        geom::Curve3::Line(_) => ArcFloor::Segment(
+            geom_brep::sector_shape::point_segment_distance(carrier.eval(t0), carrier.eval(t1), q),
+        ),
         geom::Curve3::Circle(_) | geom::Curve3::Ellipse(_) => {
             let Some(crate::ring_path::LoopArc::Conic(arc)) =
                 crate::ring_path::LoopArc::of(carrier, (t0, t1))
@@ -1566,7 +1564,11 @@ pub(crate) fn arc_distance_floor<T: Decide>(
                 unreachable!("a circle or an ellipse")
             };
             let (major, minor) = (conic.speed_hi(), conic.speed_lo());
-            let geom::Frame { center, axis, .. } = *conic.frame();
+            let geom::Frame {
+                origin: center,
+                axis,
+                ..
+            } = *conic.frame();
             let n = axis / axis.norm();
             let w = q - center;
             let height = w.dot(n);
@@ -1927,7 +1929,7 @@ fn certify_plane<T: Decide>(
             None | Some(geom::Curve3::Line(_)) => {}
             Some(conic @ (geom::Curve3::Circle(_) | geom::Curve3::Ellipse(_))) => {
                 if let (Some(k), Some(ball)) = (conic.conic(), ExtentBall::of_conic(conic)) {
-                    margins.extend([off(k.frame().center), tilt(k.frame().axis, ball.lever())]);
+                    margins.extend([off(k.frame().origin), tilt(k.frame().axis, ball.lever())]);
                 }
             }
             Some(&geom::Curve3::Spiric {
@@ -2440,7 +2442,7 @@ mod tests {
         // A circle: an overlap in its band escalates, one past it is wound.
         let circle = geom::Curve3::Circle(geom::Circle {
             frame: geom::Frame {
-                center: Point3::new(0.0, 0.0, 0.0),
+                origin: Point3::new(0.0, 0.0, 0.0),
                 axis: Vec3::new(0.0, 0.0, 1.0),
                 u_ref: Vec3::new(1.0, 0.0, 0.0),
             },

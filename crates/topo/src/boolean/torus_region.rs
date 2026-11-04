@@ -24,7 +24,7 @@
 //!    once, at its point on the leg's half-plane, read off the leg's
 //!    frame. Every other edge meets a leg at the roots of a first
 //!    harmonic, certified by the shared first-harmonic door
-//!    ([`super::circle_roots::first_harmonic_roots_in_band`]): the leg's
+//!    ([`geom_brep::curve_face::circle_roots::first_harmonic_roots_in_band`]): the leg's
 //!    parameter against the edge's plane, except where that plane is
 //!    tangent to the torus at the crossing (below), where a circle edge
 //!    on a meridian leg is read in its own parameter against the leg's
@@ -136,24 +136,24 @@
 
 use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
 
-use super::BooleanDecision;
-use super::circle_roots::{
-    FirstHarmonic, FirstHarmonicRoots, FirstHarmonicRows, first_harmonic_leg_roots,
-    first_harmonic_roots_in_band,
-};
 use super::region::{
-    self, End, Fault, Landing, Legs, Paths, Region, RegionEdge, RegionRefusal, Round, Scaffolding,
+    self, End, Fault, Landing, Legs, Paths, Region, RegionEdge, RegionRefusal, Round,
     circle_edge_hit, found, in_band, span,
 };
 use super::solid_contain::PointInSolidError;
 use crate::body::Body;
 use crate::entity::{FaceKey, LoopKey};
+use crate::null::Scaffolding;
 use crate::ray_walk::RayFault;
 use crate::splitting::containment::ConicRows;
 use crate::splitting::pieced_arc::{ArcHit, ArcRefusal, ArcRows, PiecedArc};
 use crate::splitting::spiric_arc::{Oval, SpiricArc};
 use crate::splitting::{Uncrossable, UncrossableCarrier};
 use crate::validate::decide;
+use geom_brep::curve_face::circle_roots::{
+    FirstHarmonic, FirstHarmonicRoots, FirstHarmonicRows, first_harmonic_leg_roots,
+    first_harmonic_roots_in_band,
+};
 use geom_brep::roots::{RootRefusal, Roots};
 
 const ROOT_ROWS: FirstHarmonicRows = FirstHarmonicRows {
@@ -161,7 +161,6 @@ const ROOT_ROWS: FirstHarmonicRows = FirstHarmonicRows {
     coaxial: "bool_torus_region_roots_coaxial",
     extreme: "bool_torus_region_roots_extreme",
     root_slack: "bool_torus_region_roots_slack",
-    decision: BooleanDecision::CONTAINMENT_UNNAMED,
 };
 
 /// The row a place is read against a first leg's corner on.
@@ -358,13 +357,7 @@ impl<T: Decide> TorusFaceRegion<T> {
         let normal = if forward { normal } else { -normal };
         Leg::whole(TorusCircle {
             kind: LegKind::Meridian { radial },
-            round: Round {
-                center,
-                normal,
-                radius: self.minor,
-                e1,
-                e2: normal.cross(e1),
-            },
+            round: Round::new(center, normal, self.minor, e1),
         })
     }
 
@@ -415,22 +408,16 @@ impl<T: Decide> TorusFaceRegion<T> {
         leg: &Leg<T>,
         band: Band,
     ) -> Result<FirstHarmonicRoots<T>, RootRefusal> {
-        let geom::Curve3::Circle(geom::Circle {
-            frame:
-                geom::Frame {
-                    center,
-                    axis,
-                    u_ref,
-                },
-            radius,
-        }) = edge.carrier
-        else {
+        let geom::Curve3::Circle(circle @ geom::Circle { radius, .. }) = edge.carrier else {
             return Ok(Roots::Miss);
         };
         first_harmonic_roots_in_band(
-            &FirstHarmonic::circle_off_plane(
-                (center, axis, radius, u_ref),
-                (leg.course.round.center, leg.course.round.normal),
+            &FirstHarmonic::conic_off_plane(
+                &circle,
+                (
+                    leg.course.round.circle.frame.origin,
+                    leg.course.round.circle.frame.axis,
+                ),
             ),
             radius,
             edge.t0,
@@ -453,16 +440,8 @@ impl<T: Decide> TorusFaceRegion<T> {
         band: Band,
     ) -> Result<FirstHarmonicRoots<T>, RootRefusal> {
         first_harmonic_leg_roots(
-            &FirstHarmonic::circle_off_plane(
-                (
-                    leg.course.round.center,
-                    leg.course.round.normal,
-                    leg.course.round.radius,
-                    leg.course.round.e1,
-                ),
-                (on, n),
-            ),
-            leg.course.round.radius,
+            &FirstHarmonic::conic_off_plane(&leg.course.round.circle, (on, n)),
+            leg.course.round.circle.radius,
             &ROOT_ROWS,
             band,
         )
@@ -607,7 +586,7 @@ impl<T: Decide> Legs<T> for TorusFaceRegion<T> {
                 &geom::Curve3::Circle(geom::Circle {
                     frame:
                         geom::Frame {
-                            center,
+                            origin: center,
                             axis,
                             u_ref,
                         },
@@ -638,7 +617,7 @@ impl<T: Decide> Legs<T> for TorusFaceRegion<T> {
             }
             (
                 &geom::Curve3::Circle(geom::Circle {
-                    frame: geom::Frame { center, .. },
+                    frame: geom::Frame { origin: center, .. },
                     radius,
                 }),
                 LegKind::Meridian { radial },
@@ -678,7 +657,7 @@ impl<T: Decide> Legs<T> for TorusFaceRegion<T> {
                 &geom::Curve3::Circle(geom::Circle {
                     frame:
                         geom::Frame {
-                            center,
+                            origin: center,
                             axis,
                             u_ref,
                         },
@@ -694,7 +673,7 @@ impl<T: Decide> Legs<T> for TorusFaceRegion<T> {
                     Ok(Roots::On(_)) => {
                         if row(
                             "bool_torus_region_component",
-                            radius - leg.course.round.radius,
+                            radius - leg.course.round.circle.radius,
                         )? == Sign::Zero
                         {
                             leg.along(edge, Self::AT, band)?;
@@ -1163,7 +1142,7 @@ mod tests {
             cycle: 0,
             carrier: geom::Curve3::Circle(geom::Circle {
                 frame: geom::Frame {
-                    center,
+                    origin: center,
                     axis,
                     u_ref,
                 },
@@ -1333,7 +1312,7 @@ mod tests {
     /// **Null scaffolding is stepped over**: a wall with a null edge
     /// fanned into its outer loop has the same region as the wall
     /// without it, where an uncertified edge between two points has
-    /// none.
+    /// none: the same null edge with its far end parted.
     #[test]
     fn a_walls_null_edge_bounds_nothing() {
         let wall = || {
@@ -1363,6 +1342,21 @@ mod tests {
             );
             assert_eq!(got, plain.contains(at(u, v), b), "at ({u}, {v})");
         }
+        let null = nulled
+            .edges()
+            .find(|&(e, d)| nulled.edge_curve_linked(e, d).null_scaffold().is_some())
+            .map(|(e, _)| e)
+            .unwrap();
+        let far = nulled
+            .get_half_edge(nulled.get_edge(null).unwrap().he_minus)
+            .unwrap()
+            .start;
+        let moved = nulled.add_point(at(1.0, 0.0));
+        nulled.get_vertex_mut(far).unwrap().point = moved;
+        assert!(
+            matches!(torus_face_region(&nulled, nulled_face), Ok(None)),
+            "a parted null edge is a gap in the boundary"
+        );
     }
 
     /// **A point opposite an arc's middle is past its span**, at every

@@ -170,7 +170,7 @@ impl<T: Real> Placing<T> {
 /// There is a **third path**, and the grep does not see it: a
 /// `geom-brep` predicate this crate calls records under its own name,
 /// from its own crate. `geom_brep::classify_dihedral`,
-/// `classify_material_pairing` and — since FILLET-H6 hoisted the
+/// `geom_brep::Tangency::pairing` and — since FILLET-H6 hoisted the
 /// must-carry rule out of two hand-rolled spellings here —
 /// `geom_brep::tangent_second_order` each reach the recorder that way,
 /// so `dihedral_arm`, `dihedral_wedge`, `material_wedge_side` and
@@ -655,18 +655,10 @@ fn register_placed_carrier_end<T: Real>(
     start: Point2<T>,
     tol: Tol,
 ) {
-    let Curve3::Circle(geom::Circle {
-        frame: geom::Frame {
-            center,
-            axis,
-            u_ref,
-        },
-        radius,
-    }) = *carrier
-    else {
+    let Some(circle) = carrier.as_circle() else {
         return;
     };
-    let end = Curve3::circle_at(center, axis, radius, u_ref, param_end);
+    let end = Curve3::circle_at(&circle.frame, circle.radius, param_end);
     let sketch = arc.carrier_end(start);
     let placed = place.point(sketch);
     for (built, held) in [(end.x, placed.x), (end.y, placed.y), (end.z, placed.z)] {
@@ -1709,21 +1701,18 @@ mod tests {
             let to3 = |p: Point2<S>| place.transform_point(Point3::new(p.x, p.y, lit(0.0)));
             let (q_from, q_to) = (to3(seg.a), to3(seg.b));
             let spec = placed_segment_spec(&seg, place, place.linear.c2, q_from, q_to, tol);
-            let Curve3::Circle(geom::Circle {
-                frame:
-                    geom::Frame {
-                        center,
-                        axis,
-                        u_ref,
-                    },
-                radius,
-            }) = spec.carrier
+            let Curve3::Circle(
+                circle @ geom::Circle {
+                    frame: geom::Frame { origin: center, .. },
+                    radius,
+                },
+            ) = spec.carrier
             else {
                 panic!("an arc places onto a circle carrier");
             };
             let sign = |m: S| m.sign_within(band).map(|d| d.sign).ok();
             let rim = (q_from - center).norm();
-            let end = Curve3::circle_at(center, axis, radius, u_ref, spec.param_end);
+            let end = Curve3::circle_at(&circle.frame, radius, spec.param_end);
             [
                 sign(rim - radius),
                 sign((rim + b) * b - (radius + b) * b),

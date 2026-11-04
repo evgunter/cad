@@ -67,15 +67,15 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use pncad::authoring::polygon;
-use pncad::geom_core::linalg::frame::path_start_frame;
 use pncad::geom_core::{Affine3, Point2, Point3, RigidMotion, UnitVec3, Vec3};
 use pncad::prelude::{Bulge, Open, Start, Via};
 use pncad::profile::SketchPlane;
 use pncad::profile::{ConstructedLoop, Segment};
 use pncad::sweep::skin::{Section, loft_geometry, loft_parameters, sweep_geometry};
-use pncad::sweep::{SketchSegment, segment_curve};
+use pncad::sweep::{SketchSegment, segment_curve, sweep_places};
 use pncad::topo::readback::euler_counts;
 
+use crate::scalar::frame_across;
 use crate::{SceneBody, TourStop, View};
 use pncad::geom_core::Tol;
 
@@ -189,15 +189,12 @@ pub fn narration(tol: Tol) {
     };
     let path = segment_curve(0, SketchSegment::Arc { a, b, arc }, Affine3::identity())
         .expect("the path converts");
-    // The starting placement comes from the kernel: `path_start_frame`
-    // is the door, and it wants the path's start point and start
-    // tangent. `sweep_geometry` carries that frame along the path from
-    // there.
+    // The starting placement is the world frame at the path's start,
+    // turned onto its start tangent by the least turn.
+    // `sweep_geometry` carries that frame along the path from there.
     let (t0, _) = path.domain();
     let (p, tau) = path.ders1(t0);
-    let place = SketchPlane::from_frame(
-        path_start_frame(p, tau, tol).expect("the arc path's start tangent fixes a frame"),
-    );
+    let place = SketchPlane::from_frame(frame_across(p, tau, tol));
     let swept =
         sweep_geometry(&chain(1.0, tol), place, &path, 5, 3, tol).expect("the arc sweep skins");
     println!(
@@ -206,11 +203,12 @@ pub fn narration(tol: Tol) {
     );
     println!(
         "   the START placement is the kernel's, not this caller's: \
-         geom_core::linalg::frame::path_start_frame(start point, start tangent, tol) \
-         returns the plane whose local +Z is that tangent, rolled off a reference \
-         ladder of world axes and REFUSING typed when no rung of it decides. A \
-         different roll is a rotation composed about the tangent, not a second door \
-         (the twisted_tube scene below is that caller)"
+         RigidMotion::axes_xy(start point).turned_onto(start tangent) is the world \
+         frame turned by the least turn so its local +Z is that tangent, REFUSING \
+         typed across the band around the world -z, where the least turn is not \
+         decided (at -z itself there is no one least turn). A different \
+         roll is a rotation composed about the tangent, not a second door (the \
+         twisted_tube scene below is that caller)"
     );
     println!(
         "   {} walls; the frame is path-FOLLOWING (the start frame carried station to \
@@ -351,40 +349,40 @@ fn square(h: f64, tol: Tol) -> pncad::profile::ConstructedLoop<f64> {
     polygon(&[(-h, -h), (h, -h), (h, h), (-h, h)], tol).expect("the square loop")
 }
 
-/// Station `i`'s placement on `path`: the plane normal to the spine's
-/// tangent there, rolled `roll · u` about it.
+/// The twisted tube's station placements on `path`: the world frame at
+/// its start turned onto its start tangent ([`frame_across`]), carried
+/// to each of [`TUBE_STATIONS`] uniform shares of its parameter by the
+/// sweep's own carry (`sweep_places`), then rolled `roll · u` about
+/// the tangent at station `u`.
 ///
-/// **This is the roll answer, said in code.** The unrolled plane is
-/// the sweep cell's door, `path_start_frame`, and a caller wanting a
-/// different roll does not want a second door: it composes a rotation
-/// about the tangent onto the one frame the kernel hands out. A loft
-/// places every section itself, which is why the door is asked at each
-/// station rather than only the first.
-///
-/// GAP (library finding, `memories/demo-purpose.md`): the door is
-/// spelled for the path's START, and nothing in its signature is —
-/// it takes a point and a tangent. Asking it at an interior station is
-/// the only spelling a caller has for "the normal plane here", and the
-/// name reads wrong at every one of them.
-pub fn tube_place(
+/// Roll is a composition, not a second door: it turns the AXES about
+/// each frame's own +Z and leaves the origin on the spine, where a
+/// world rotation about the tangent line would rebuild the station
+/// point as `R·q + (I − R)·q` and move it off by a few ulps.
+pub fn tube_places(
     path: &pncad::geom::NurbsCurve3<f64>,
-    i: usize,
     roll: f64,
     tol: Tol,
-) -> SketchPlane<f64> {
-    let (lo, hi) = path.domain();
-    #[allow(clippy::cast_precision_loss)]
-    let u = i as f64 / (TUBE_STATIONS - 1) as f64;
-    let t = (hi - lo).mul_add(u, lo);
-    let (station, tangent) = path.ders1(t);
-    let frame = path_start_frame(station, tangent, tol)
-        .expect("the spine's tangent fixes a frame at every station");
-    // The roll turns the AXES about the frame's own +Z, the tangent,
-    // and leaves the origin where the door put it: a world rotation
-    // about the tangent line would rebuild the station point as
-    // `R·q + (I − R)·q` and move it off the spine by a few ulps.
-    let roll = RigidMotion::rotation(UnitVec3::exact_z(), roll * u).expect("a finite roll");
-    SketchPlane::from_frame(frame.compose(roll).expect("a finite station"))
+) -> Vec<SketchPlane<f64>> {
+    let (lo, _) = path.domain();
+    let (start, tangent) = path.ders1(lo);
+    let carried = sweep_places(
+        SketchPlane::from_frame(frame_across(start, tangent, tol)),
+        path,
+        TUBE_STATIONS,
+        tol,
+    )
+    .expect("the spine carries its start frame to every station");
+    carried
+        .into_iter()
+        .enumerate()
+        .map(|(i, plane)| {
+            #[allow(clippy::cast_precision_loss)]
+            let u = i as f64 / (TUBE_STATIONS - 1) as f64;
+            let roll = RigidMotion::rotation(UnitVec3::exact_z(), roll * u).expect("a finite roll");
+            SketchPlane::from_frame(plane.frame().compose(roll).expect("a finite station"))
+        })
+        .collect()
 }
 
 /// The widths of a body's two END CAPS — the largest distance between
@@ -792,15 +790,13 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
         .collect();
     let path =
         pncad::geom::NurbsCurve3::interpolate(&s_points, 3).expect("the S path interpolates");
-    // The profile plane is normal to the path's start tangent, and the
-    // kernel hands that plane out: the interpolant's start tangent is
-    // near +z but not on it, so an identity placement would draw the
-    // square in a plane 1.3e-3 rad off the one the sweep carries.
+    // The profile plane is normal to the path's start tangent: the
+    // interpolant's start tangent is near +z but not on it, so an
+    // identity placement would draw the square in a plane 1.3e-3 rad
+    // off the one the sweep carries.
     let (s_t0, _) = path.domain();
     let (s_p, s_tau) = path.ders1(s_t0);
-    let s_place = SketchPlane::from_frame(
-        path_start_frame(s_p, s_tau, tol).expect("the S path's start tangent fixes a frame"),
-    );
+    let s_place = SketchPlane::from_frame(frame_across(s_p, s_tau, tol));
     let s_duct = pncad::sweep::sweep_body::<f64>(
         &quad(
             [
@@ -989,10 +985,7 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
     // narration opens with.
     let (tc_t0, _) = cubic_path.domain();
     let (tc_p, tc_tau) = cubic_path.ders1(tc_t0);
-    let place = SketchPlane::from_frame(
-        path_start_frame(tc_p, tc_tau, tol)
-            .expect("the twisted cubic's start tangent fixes a frame"),
-    );
+    let place = SketchPlane::from_frame(frame_across(tc_p, tc_tau, tol));
     let twisted = pncad::sweep::sweep_body::<f64>(
         &quad(
             [
@@ -1071,12 +1064,8 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
     // of which any extrude or revolve reaches either. A prism has one
     // section; a solid of revolution has one axis, and a section whose
     // size varies along the spine has none.
-    let tube_places: Vec<SketchPlane<f64>> = (0..TUBE_STATIONS)
-        .map(|i| tube_place(&cubic_path, i, TUBE_ROLL, tol))
-        .collect();
-    let unrolled_places: Vec<SketchPlane<f64>> = (0..TUBE_STATIONS)
-        .map(|i| tube_place(&cubic_path, i, 0.0, tol))
-        .collect();
+    let unrolled_places = tube_places(&cubic_path, 0.0, tol);
+    let tube_places = tube_places(&cubic_path, TUBE_ROLL, tol);
     let tube_sections: Vec<Section<ConstructedLoop<f64>>> = (0..TUBE_STATIONS)
         .map(|i| {
             let k = tube_taper(i);

@@ -2,12 +2,14 @@
 id: two-doors-answer-an-axis-off-a-tangent-with-no-rule-for-which
 kind: issue
 title: path_start_frame and Vec3::orthonormal_basis both answer 'an axis off a tangent' and nothing says which a caller uses
-status: dispatched
+status: closed
 opened: 2026-09-15
 priority: P1
 cost: M
 parent: a-frame-across-a-direction-is-a-written-frame-turned-onto-it
 branch: frame/turned-onto
+closed: 2026-11-03
+pr: 6465
 ---
 
 ## Finding
@@ -69,3 +71,7 @@ This row was parked on the stage-3 placement pivot (`a-placement-pins-by-written
 ## Decided (FRAME, 2026-11-03)
 
 Re-checked against main by a designer pair, which converged. Interior stations read `sweep_places`. The ladder door retires for `RigidMotion::turned_onto`, a written frame carried onto the direction by D10's least turn. `orthonormal_basis` is named scratch-only in one "which door" paragraph. Carried by `a-frame-across-a-direction-is-a-written-frame-turned-onto-it`.
+
+## Closed
+
+Landed by PR 6465 (2026-11-03): `RigidMotion::turned_onto`, the retirement of `path_start_frame` and its ladder, interior stations on `sweep_places`, and the "which door" paragraph in `linalg::frame`.

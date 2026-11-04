@@ -4,6 +4,8 @@ kind: issue
 title: A nested refusal ends at a door fixed by its holder (at_build / at_rest), not at the door that reads the holder
 status: open
 opened: 2026-11-03
+priority: P3
+cost: M
 ---
 
 

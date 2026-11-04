@@ -5,3 +5,87 @@
   - **Horn and spindle tori are a design fork** (it would change the topo design page's D3 sentence "spindle tori have no representation", ratified text): dispatched to designers per `docs/DESIGN-FORK-PROTOCOL.md`, fork id `a-torus-reaches-its-axis`. Draw bytes `255 85`: two designers, labels recorded on `analysis/design-fork/a-torus-reaches-its-axis`. The row is unpriced until the designers' answer sets its scope.
   - **The two P0 volume rows (and the P2 spiric-beside-chord row) look like one missing mechanism**: a face on an analytic chart whose boundary carries a pcurve with no harmonic form. Dispatched a phase-0 decide (`spiricarm/chord-volume-decide`) to verify that framing, say whether the spline-chart fitted lanes generalise to it, measure the stops, and propose a staged spec. The plan's rule that a spec requires a decide is why this precedes any implementer.
   - **Sequencing (unilateral)**: the P1 carried-cylinder row waits on the projected lane's shape: its own constraint names a capability predicate of that lane, which does not exist yet. Taken after the decide reports, not before.
+- 2026-11-03 — **Fork `a-torus-reaches-its-axis`, first reports** (labels only).
+  - A recommends one widened `Surface::Torus` with signed R, admitting ring, horn and spindle tori, where a face sits on one piece by its vertices (the cone-nappe precedent). Retire the D3 sentence. Likely.
+  - B recommends a new kind for one sheet (lemon, apple or horn) with signed R, with `Torus` staying the ring. The chart's shape is fixed by kind, so the compiler enumerates every arm that assumes a ring. Retire the D3 sentence and grow DESIGN [surfaces]' list. Likely; the horn is an unsure sub-fork.
+  - Agreed by both: signed R; the revolve classifies by the arc, not the circle; `UnsupportedToroid` retires; the D3 sentence is an agent-written parenthetical from the M2 exit sweep (b846df1f10), not Ev's words.
+  - Split: one kind or two. Round 1 is dispatched, each designer shown the other's report.
+- 2026-11-03 — **Torus fork reconciled and put to Ev**: `[ev]` PR 6464 (`spiricarm/torus-axis-ev`). Four rounds; the positions crossed three times before converging on a separate kind for one sheet of a spindle or horn torus. Decisive was code evidence I verified myself: `topo::boolean::carrier_touch::reach` reads `min(r, R − r)` with no ring decision on its path, and `pcurves.rs`'s `has_singular_points` is a kind bit. The questions left for Ev are the horn (H1 or H2), the kind's name, and a locus sentence in [surfaces]. Fork log row 252; the reports are kept in the orchestrator's lane-private files and in the PR body.
+  - **Class (logged at adjudication):** a non-exhaustive kind test (`matches!(… Sphere | Cone …)`, `if let Surface::Torus`) silently miscategorises any new surface kind, and the compiler cannot list such tests. The implementing unit owes an audit of every one of them.
+- 2026-11-03 — **Chord-volume decide reported** (branch `spiricarm/chord-volume-decide`, scratch only).
+  - **Corrections to the rows.** The spline-chart lanes take only `Pcurve::General`, so the reusable machinery is the curved-rim Taylor rule. "Conic trim" is any trimmed sphere or torus face. The cylinder has two gates.
+  - **Every probed result holds chorded faces of both charts**, so no single chart's arm takes a cylinder × sphere row to SOUND. The pins also record which face the validator reads first.
+  - **Recommended:** one rotational-chart Green lane, with a per-chart `F`/`G` table and an edge-term enum, built in three stages: cylinder, sphere, torus. It is not an Ev fork unless the torus's `∮v du` needs a transcendental.
+  - **Dispatched stage 1** as `a-rotational-chart-green-lane-reads-projected-chords` (H; review tier **dual**, because the lane's shape binds two further stages and a wrong edge term reads as an improvement).
+  - **Filed** `measuredoor/the-result-gate-re-reads-one-refused-face-up-to-four-times` (P4). The decide's other off-question findings (the misnamed refusal, a stale message, a possibly stale comment, pins that record face order) ride stage 1's spec.
+- 2026-11-03 — **Ev ruled on PR 6464** ("1. H1 works 2. sure 3. sounds good!"): `Surface::Spindle`, one sheet of a spindle or horn torus, with the horn as the sheet's closed end and the [surfaces] locus sentence. Merged with fork row 252 completed. The horn row is priced X/20 and staged: (1) the sheet away from its apexes, which lands the football with conical ends; (2) the apex as a pole, which lands the football.
+  - **Dispatched stage 1** as `the-spindle-sheet-away-from-its-apexes` (H; review tier **dual**, a new surface kind). It opens with a phase 0: a census of the exhaustive and the non-exhaustive kind tests, and a unit cut.
+  - **Sequencing (unilateral)**: it runs concurrently with the rotational lane's stage 1. Their files barely overlap (`quad_lane.rs` will gain a `Spindle` refusal arm, a textual merge only). The build mutex serialises their local builds; hosted CI is unaffected.
+- 2026-11-03 — **Spindle stage 1, piece 1 is up as PR 6473** (head `dd0018c0ee`). It adds the `Surface::Spindle` variant with every arm answered across the workspace: 80 files, a census of the non-exhaustive kind tests, and seven sweep defects fixed. Nothing builds a sheet yet, because the revolve still refuses one.
+  - **The unit cut:** piece 2 is the revolve's arc classification plus the readers that make the conical-ended football build. It may split into 2a (revolve, pcurves, tier 3) and 2b (props, mesh, oracles, demo).
+  - **CI:** the one red job is python's teapot north-star row. It has been red on main since PR 6441 and is filed as `splice/the-teapot-north-star-row-still-expects-the-point-split-refusal` (P1). So it is inherited, and does not block the merge.
+  - **Filed by the lane:**
+    - `shell/an-outward-ring-offset-past-the-spine-could-mint-a-spindle-sheet`;
+    - `band/a-blend-whose-spine-is-inside-its-ball-could-mint-a-spindle-sheet`;
+    - `exch/degenerate-toroidal-surface-imports-as-a-spindle-sheet`;
+    - `export/a-spindle-sheet-exports-as-degenerate-toroidal-surface`;
+    - `spiricarm/a-wide-apples-tube-angle-passes-the-latitude-windows-cut`.
+  - **Dual review dispatched**, a concurrent pair (letter H) on the frozen head `dd0018c0ee`, lanes `spiricarm-rev6473-r1` and `-r2`, with identical briefs and nine claims to falsify.
+- 2026-11-03 — **PR 6473 dual delivered.** Both reviewers returned APPROVE-WITH-FIXES on `dd0018c0ee`.
+  - **Bilateral MAJOR:** tier 3's check 6 fills `flattened` only for sphere and cone faces, so `SheetApexReached` is dead code. A claimed guard is not wired.
+  - **Bilateral MINORs:** `pcurves.rs`'s `has_singular_points` leaves the sheet out, and every apple fixture sits inside the wide-apple gap.
+  - **Unilateral, R2:** a horn a hair past r gives NaN apexes (v* is spelled three ways with no home); check 6's `Err` branch exempts an undecided apex.
+  - **Unilateral, R1:** `tessellate::lane_of`'s refusal text, and the `minor_radius` doc.
+  - **Neither review could execute.** The box's disk filled under five lanes' targets, and both reviewers deleted their own targets and wrote their probes unrun. Both therefore ran under the same constraint: not a relaxation by rule 4, but a truncation by rule 6(e). The row records the pair as excluded from the tally.
+  - **Reclaimed:** the decide's and both reviewers' clones and the decide's target, about 8 GB, leaving 15 GB free.
+  - **Fix pass:** the union, sent to the implementer (resumed for its context and its warm target).
+  - **Class (logged at adjudication):** a census of kind tests keyed on the variant being extended (`Torus`) is blind to the family the new kind joins (`Sphere | Cone`, "has a singular set"). Both reviewers found its misses by sweeping the family instead. A future kind's census sweeps every family it joins.
+  - **Class:** an error variant whose only test is a `Display` sample can be dead code with every test green. Each new finding variant needs an executing row.
+  - **Friction:** five lanes' targets (3.5 to 9.4 GB each) filled the disk within two hours. Dispatch briefs should name a target budget, and review targets are reclaimed the moment a report lands.
+- 2026-11-03 — **PR 6473 fix pass taken** (head `f93ee4c03b`, read by the orchestrator). The union landed with five executing apex rows, which go red when the wiring is removed. v* now has one home, `geom::sheet_apex`. The census of error prose at head adds no mismatch: all are stale main pins, already filed. The row is `docs/dual-review-log/rows/PR-6473.md`, excluded under 6(e) (disk). Piece 1 merges; the unit stays dispatched for piece 2 (the revolve's arc classification and the readers the conical-ended football needs).
+- 2026-11-03 — **PR 6473 merged** (piece 1). The red python job is inherited from main and annotated on the PR. **Dispatched piece 2** on `spiricarm/spindle-football`: the revolve reads the arc, plus the readers, oracles and demo that make the conical-ended football build. It may split into 2a and 2b. It reuses piece 1's clone and target, with a stated 10 GB budget.
+- 2026-11-03 — **Rotational lane stage 1 is up as PR 6478** (head `e12e3c8d00`, CI fully green).
+  - Phase 0: (h) holds (the cylinder × cylinder results hold only cylinder and plane faces), and (f) holds at the default ε (chord deviations 1e-12 to 7.8e-11 m).
+  - **Now SOUND against an exact sliced oracle:** drum × rod (four ops), the fenced unions, the review probe's poses, and the blend's fillet leg.
+  - The tilted-rod ∪ builds at the right volume but refuses at the census. Filed as `inside/the-census-reads-no-ruling-inside-a-chorded-cylinder-face`.
+  - The cylinder × sphere and donut rows are re-pinned to their next stop. The P1 cost row is rewritten as a pure cost row.
+  - **Dual review dispatched as two cloud sessions** (concurrent pair, letter H, frozen head `e12e3c8d00`). The briefs are identical, pushed at `spiricarm/review-6478-brief` (sha256 `615b46c9…`). Cloud sessions were used because this box's disk (9.5 GB free) cannot hold two more review targets beside piece 2's lane, and the protocol says to reduce simultaneous duals rather than narrow a method.
+  - A container restart stopped piece 2's lane. Its clone survived with its commits pushed, and it was resumed with the post-restart cautions.
+- 2026-11-03 — **Spindle piece 2 is up as PR 6486** (head `49d88cc0f1`, CI green). The football with conical ends now revolves.
+  - **It stayed one PR**, not 2a and 2b. Tier 3's volume needs props, props opens the mesh's shape door, and half of it would not leave main sound.
+  - **The revolve reads the arc**: `ArcInterior`, then `ArcReach` picks the kind. A new `RevolveError::SheetApex` covers stage 2's case.
+  - **Edge certification:** a sheet distance (`Meters::Spindle`), plus six sign fixes for formulas that assumed R > 0.
+  - **Tier 3** reads a sheet face's side with a walk of its loops.
+  - **The oracle** has four bands, each checked against exact `∮πρ²dz` and `∮2πρ ds` with a wrong-sheet row; the lemon also passes admesh.
+  - **Residue:** the tour stop was withdrawn and filed (`the-conical-ended-football-has-no-tour-stop`, P3). The lane closed LATHE's `revolve-axis-clearance-is-the-torus-convention-under-another-name` as retired by the change (the reviewers are asked to check that closure). The wide apple now builds and measures, but its tessellation refuses (evidence added to its row).
+  - **Dual dispatched** as two cloud sessions on `49d88cc0f1`, with identical briefs (`spiricarm/review-6486-brief`, sha256 `d69e6f32…`).
+- 2026-11-03 — **PR 6478's dual is delivered.** Both reviewers returned APPROVE-WITH-FIXES on `e12e3c8d00` and both executed their findings, so the pair is fair.
+  - **Bilateral MAJOR, executed by both:** the chart term `o·A⃗` reads the carriers' vector area while `−∮F du` reads the images' region, and the ribbon between them (|lever|·length·env) is uncontained. R1 measured a 1e-3 miss at ε 1e-6 with L = 1e3; R2 measured a 7.7e-8 miss 1000 m out. The PR had disclosed it as "Unproven" but filed nothing.
+  - **Bilateral MINORs:**
+    - the swap rows' chart term is circular (the expected value is built with the function under test, so mutant M12 survives);
+    - `branch_turns` is never nonzero;
+    - the residual pad is unwitnessed;
+    - the merged pins assert a chart kind only in prose;
+    - the cut-loop accumulator has about five copies, a fresh duplication inside a unit that closes one.
+  - **Unilateral, R1:** the `v_off` and `Line u′` mutants survive; rows behind `resolution_pad` pin far less than they measure.
+  - **Unilateral, R2:** a `taylor` ↔ `quad` dependency cycle; sector breaks unwitnessed; the `exact` closure written four times; the old "conic trim" vocabulary left in pins.
+  - **Tally candidates:** none (the only MAJOR is bilateral).
+  - **Fix pass:** the union, sent to the implementer, resumed.
+  - **Class (logged at adjudication):** a fixture whose expected value is computed with the function under test cancels that function's errors, so every row agrees with itself. Expected values come from an independent formula or computation.
+  - **Class:** a "disclosed, unproven" gap left only in a PR body has no durable home. Implementer briefs already say a PR body is not a slate; this lane did it anyway, on a gap a reviewer then showed to be a soundness hole.
+- 2026-11-04 — **PR 6486's dual is delivered.** Both reviewers returned APPROVE-WITH-FIXES on `49d88cc0f1`, with no MAJOR. Both executed their checks: each fuzzed `Meters::Spindle` at 400k draws and checked props independently. So the pair is fair.
+  - **Bilateral:**
+    - `SheetApex` is decided before the arc's interior, against the ratified arc rule (R1 MINOR, executed; R2 NOTE);
+    - the sheet-selecting lever in `Meters::Spindle` is load-bearing and unguarded (dropping it gives 1271 under-reads, and every PR row stays green);
+    - stale prose names the retired decisions;
+    - the arc-holds-its-least-radius predicate is spelled two ways in `axis.rs`.
+  - **Unilateral, R1:** the football's wrong-sheet row cannot go red alone; five new `copysign(major)` sites fall in LATHE's open copysign class; `matches!(Spindle)` is re-minted inside shared arms; a near-horn band mints R up to r + band.
+  - **Unilateral, R2:** `assert_outward` ignores sheet faces; the sheet walk's slope is loose on a lemon; the LATHE row closed in this PR still has a live half (the in-band reading, settled by the arc rule); `meters_at` builds a whole `Meters` to read one bit.
+  - **Tally candidates:** none (no MAJOR).
+  - **Fix pass:** the union, sent to the piece 2 lane (resumed).
+  - **Class (logged at adjudication):** a soundness argument written in a doc with no executing row is two reviews in a row's finding on this track (6473's dead apex arm, 6486's unguarded lever). Briefs for stage 2 will require that every new certificate ships with a fuzz or a mutant row that goes red without its load-bearing check.
+- 2026-11-04 — **PR 6486's fix pass is taken** (head `de3d64a0da`, CI green). The orchestrator read it.
+  - Interior before apex; the sheet lever is guarded by a seeded fuzz that goes red at three seeds without it; one home each for the arc predicate and `ê_r`; `geom::meridian_side` replaces five copysigns.
+  - The reviewers' rows are adopted. Filed `lathe/a-sphere-class-arc-centre-just-across-the-axis-refuses-at-the-pcurve-mint` (P3).
+  - The row is `docs/dual-review-log/rows/PR-6486.md` (fair pair, no MAJOR).
+  - **Stage 1 is closed**: the football with conical ends builds. Stage 2 (the apex as a pole, which lands the football itself) is next on the parent row.

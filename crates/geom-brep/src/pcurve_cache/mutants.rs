@@ -24,7 +24,7 @@ const NAME: Option<&str> = option_env!("PCERT_RADIAL_PAIR_MUTANT");
 
 /// Every site this crate's hooks name. topo's `chord_join` declares its
 /// own two (`topo-gate`, `topo-v-var`) under the same variable.
-pub(super) const SITES: [&str; 16] = [
+pub(super) const SITES: [&str; 18] = [
     "class-circle",
     "zero-winding",
     "torus-parallel",
@@ -41,6 +41,8 @@ pub(super) const SITES: [&str; 16] = [
     "frame",
     "envelope-fit",
     "skip-incidence",
+    "radial-fold",
+    "line-cylinder-ends",
 ];
 
 fn on(site: &str) -> bool {
@@ -182,4 +184,18 @@ fn the_named_mutant_is_a_site() {
 /// (its rows are `off_chart_class_rows`).
 pub(super) fn skip_incidence() -> bool {
     on("skip-incidence")
+}
+
+/// The cylinder arm's ruling reading folded again: an in-band reading
+/// takes the meridian form rather than the general lane (its rows are
+/// `cylinder_line_rows`).
+pub(super) fn radial_fold() -> bool {
+    on("radial-fold")
+}
+
+/// A line's distance from a cylinder read at the segment's two ends
+/// only, dropping the middle Bernstein coefficient: the sup misses a
+/// chord that dips toward the axis (its rows are `cylinder_line_rows`).
+pub(super) fn line_off_cylinder<T: Real>(f0: T, f1: T, _middle: T) -> Option<T> {
+    on("line-cylinder-ends").then(|| f0.abs().max(f1.abs()))
 }

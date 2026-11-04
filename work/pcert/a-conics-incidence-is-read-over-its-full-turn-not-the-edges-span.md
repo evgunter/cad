@@ -4,6 +4,8 @@ kind: issue
 title: A conic's incidence is read over its full turn, not the edge's span, so an arc on its face reads as a definite miss
 status: open
 opened: 2026-10-28
+priority: P2
+cost: M
 ---
 
 

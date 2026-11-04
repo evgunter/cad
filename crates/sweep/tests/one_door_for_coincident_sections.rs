@@ -11,7 +11,6 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::NurbsCurve3;
-use geom_core::linalg::frame::path_start_frame;
 use geom_core::spline::KnotVector;
 use geom_core::{Affine3, Interval, Point2, Point3, RANGE_RECOURSE, Tol, Vec3};
 use profile::RawLoop;
@@ -179,8 +178,7 @@ fn a_sweep_whose_two_stations_coincide_refuses_at_its_carry() {
         vec![1.0; 6],
     )
     .unwrap();
-    let place =
-        SketchPlane::from_frame(path_start_frame(path.eval(0.0), path.deriv(0.0), tol).unwrap());
+    let place = crate::common::normal_start_place(&path);
     let profile = vec![ProfileLoop::polygon(
         [(-0.1, -0.1), (0.1, -0.1), (0.1, 0.1), (-0.1, 0.1)]
             .iter()

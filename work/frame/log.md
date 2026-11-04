@@ -136,3 +136,42 @@ Nothing reaches clause 1. Closed. The ignored parity row is deleted (orchestrato
 Filed: `newell-plane-normalizes-without-minting-the-unit-witness` (P4 E). The lane filed `msolve/a-mate-on-a-placed-copys-cap-over-a-widened-tilt-cannot-mint-its-chart` (P3 M).
 
 Review tier: **orchestrator's read**. The diff is test comments, one ignored test deleted, and tracker state. No code moves.
+
+## 2026-11-03 — turned_onto lands (PR 6465)
+
+Single FULL review. Verdict: mergeable with fixes, no MAJOR. Its probes confirmed the claims by execution:
+- `turned_onto` equals `turned_between(w, d) ∘ self` bit for bit over 20k draws;
+- identity is exact;
+- there is no flip anywhere along `(s, 0, 1)`;
+- the frame refuses as one closed band at the pole;
+- klein's wall 3 re-pin is the measured refusal.
+
+The fix pass took everything:
+- stale prose (`linalg.rs`, `unit_vec.rs`);
+- the band narration;
+- the hit list's two blind spots, with step-import's stored `orthonormal_basis` `u_ref` added as evidence to exch's row;
+- the bit-for-bit probe joining the suite;
+- the tube's start frame pinned against the closed form.
+
+**A class finding, recorded on STRUT's row:** retiring the start door left three hand-written copies of the start-frame recipe, in the sweep test helper, the tour's `frame_across` and the façade example. The fix minted the shape it closed, and STRUT's `sweep-body-makes-every-caller-derive-its-start-frame` now names them and the door its helper should call.
+
+Four open rows on PYDOOR and PLACING that cited `path_start_frame` as live got evidence lines.
+
+**Ratified text.** `docs/LIBRARY-DESIGN.md` U4 (#229) ratified "a kernel door for the path-start frame (the Gram–Schmidt recipe written once, with the degenerate-axis policy stated)". It is re-worded to name `turned_onto`. Read as the orchestrator's: what U4 decided (one kernel door in geom-core, with its policy stated) still holds; the recipe it named was the one scenes hand-rolled then; and Ev ruled the least turn for this question on PR 6298. LQ3(c) (#362) is a record of the proposal as ratified and is left as written. Raised to Ev in chat; Ev's reading governs if it differs.
+
+**Inherited red at merge:** python `TestTeapot.test_both_joins_refuse_through_the_document`, which is SPLICE's (`work/splice/the-teapot-north-star-row-still-expects-the-point-split-refusal.md`, PR 6469). It is annotated on the PR.
+
+## 2026-11-03 — turned_onto lands (PR 6465); FRAME handed back
+
+PR 6465 merged with one inherited red, python `TestTeapot.test_both_joins_refuse_through_the_document`, which is SPLICE's and is annotated on the PR. Banded the row that arrived from `work/issues/`, `the-frame-seam-census-rows-guard-a-constructor-no-minted-frame-reads`: P3 E, a guard that cannot go red.
+
+**Handed back, status `ready`.** The sitting's P0 and P1 rows are done:
+- the newell P0 closed on re-measure;
+- the two tangent-door P1 rows closed by `turned_onto`.
+
+What remains is P2 to P4. The P2 rows are `direction-doors-refuse-finite-directions-normalize-now-answers` (design; paired in the plan with the P3 unit-less-norm row) and `project-and-reject-collapse-past-the-squares-range` (E).
+
+Seams left open on other slates:
+- MSOLVE: the least turn's three spellings (P1).
+- DOCTAIL: the bottom-cap pole versus its face frame's spin-only slot (log note).
+- STRUT: the start-frame recipe's three hand copies (evidence on `sweep-body-makes-every-caller-derive-its-start-frame`).

@@ -489,12 +489,14 @@ impl<T: Real> Bound<T> {
 /// **A surface's own signed distance**, 1-Lipschitz and zero on the
 /// surface: exact for a plane, a cylinder, a sphere and a ring torus;
 /// for a cone, `ρ·cos α − |z|·sin α`, zero on both nappes. `None` for a
-/// surface with no closed form here (NURBS, an approximating surface).
+/// surface with no closed form here (a spindle sheet, NURBS, an
+/// approximating surface).
 ///
 /// Every torus read here is a ring torus (`R > r`): a stored face's by
 /// tier 3, which refuses a horn or spindle at rest (`DegenerateTorus`),
 /// and a band's by predicate 3 (the spine's radius exceeds the ball's).
-/// On a spindle `|(ρ − R, z)| − r` would be no distance off the lemon.
+/// On a spindle sheet `|(ρ − R, z)| − r` would be no distance off the
+/// lemon near its apexes.
 fn surface_distance<T: Real>(s: &Surface<T>, x: Point3<T>) -> Option<T> {
     match s {
         Surface::Plane { origin, normal, .. } => Some((x - *origin).dot(normal.normalize())),
@@ -524,7 +526,7 @@ fn surface_distance<T: Real>(s: &Surface<T>, x: Point3<T>) -> Option<T> {
             let (rho, z) = sheet_of(*center, axis.normalize(), x);
             Some(((rho - *major_radius).powi(2) + z.powi(2)).sqrt() - *minor_radius)
         }
-        Surface::Nurbs(_) | Surface::Approx(_) => None,
+        Surface::Spindle { .. } | Surface::Nurbs(_) | Surface::Approx(_) => None,
     }
 }
 
@@ -629,9 +631,9 @@ fn sheet_fn<T: Decide + Bounds>(
     let lever = |p: Point3<T>| corner_max(lo, hi, |x| (x - p).norm());
     let centre = lo + (hi - lo) / T::from_f64(2.0);
     Some(match s {
-        Surface::Plane { origin, normal, .. } => {
+        Surface::Plane { normal, .. } => {
             let n = normal.normalize();
-            let foot = centre - n * (centre - *origin).dot(n);
+            let foot = s.frame()?.foot(centre);
             // Either sign encloses, the slack being the chord to it, so a
             // plane parallel to the axis takes one by decision.
             let sg = if n.dot(a).hi() < 0.0 { -one } else { one };
@@ -645,17 +647,8 @@ fn sheet_fn<T: Decide + Bounds>(
                 (n - a * sg).norm() * lever(foot),
             )
         }
-        Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            ..
-        } => {
-            let foot = geom::Line {
-                origin: *origin,
-                dir: *axis,
-            }
-            .foot(centre);
+        Surface::Cylinder { axis, radius, .. } => {
+            let foot = s.frame()?.axis_line().foot(centre);
             (
                 SheetFn::Line {
                     alpha: one,
@@ -712,7 +705,7 @@ fn sheet_fn<T: Decide + Bounds>(
                 rho + tilt(*axis) * *major_radius,
             )
         }
-        Surface::Nurbs(_) | Surface::Approx(_) => return None,
+        Surface::Spindle { .. } | Surface::Nurbs(_) | Surface::Approx(_) => return None,
     })
 }
 
@@ -969,12 +962,11 @@ fn station<T: Decide>(body: &Body<T>, link: &Link<T>) -> Result<Station<T>, Blen
     let fa = foot_on(&link.blend.trim_a.0, p).ok_or_else(off_trim)?;
     let fb = foot_on(&link.blend.trim_b.0, p).ok_or_else(off_trim)?;
     let c = match link.blend.surface {
-        Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            ..
-        } => Some((geom::Line { origin, dir: axis }.foot(p), radius)),
+        Surface::Cylinder { radius, .. } => link
+            .blend
+            .surface
+            .frame()
+            .map(|f| (f.axis_line().foot(p), radius)),
         Surface::Torus {
             center,
             axis,
@@ -1019,8 +1011,11 @@ fn straight_reach<T: Decide + Bounds>(
             // The sector: the plane through the spine and each foot, on
             // P's side.
             for f in [st.fa, st.fb] {
-                let u = f - c;
-                let w = (st.p - c) - u * ((st.p - c).dot(u) / u.dot(u));
+                let w = geom::Line {
+                    origin: c,
+                    dir: f - c,
+                }
+                .offset(st.p);
                 cross.push((Role::Other, half_space(c, w, st.p)));
             }
             let reach = (st.p - c).norm();
@@ -1795,7 +1790,12 @@ fn sheet_clip<T: Decide + Bounds>(
                 .max((z1 - zc).abs());
             let (d_theta, e_theta, e_j, z_e) = match *carrier {
                 Curve3::Circle(geom::Circle {
-                    frame: geom::Frame { center, axis, .. },
+                    frame:
+                        geom::Frame {
+                            origin: center,
+                            axis,
+                            ..
+                        },
                     radius,
                 }) => {
                     let ax = axis.normalize();

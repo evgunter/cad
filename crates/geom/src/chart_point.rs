@@ -8,7 +8,8 @@
 //!
 //! Every angle is read off the geometry as an [`Azimuth`] in its
 //! [`Window`] (C4): the azimuth and a torus's tube angle in the angle
-//! window, a sphere's latitude in its own. So a point's coordinates are
+//! window, a sphere's latitude and a spindle sheet's tube angle in the
+//! latitude's. So a point's coordinates are
 //! named in the same windows as every placed pcurve image, and the band
 //! the reading takes is the band its cut-side decisions are read at.
 //!
@@ -24,7 +25,7 @@
 //! | cylinder | azimuth of `(x, y)` | `h` |
 //! | cone | azimuth of `σ·(x, y)` | `h·cos α + σ·ρ·sin α` |
 //! | sphere | azimuth of `(x, y)` | latitude of `(ρ, h)` |
-//! | torus | azimuth of `(x, y)` | tube angle of `(ρ − R, h)` |
+//! | torus, spindle | azimuth of `(x, y)` | tube angle of `(ρ − R, h)` |
 //!
 //! A cone's `v` is the point's foot on the nearer generator of its
 //! half-plane pair, `σ` the sign of `h`: on the mirror nappe (`σ = −1`)
@@ -42,8 +43,9 @@
 
 use geom_core::k_stats::decide;
 use geom_core::predicate::Band;
-use geom_core::{Decide, Margin, Point2, Point3, Real, Sign, Vec3};
+use geom_core::{Decide, Margin, Point2, Point3, Real, Sign};
 
+use crate::Frame;
 use crate::azimuth::{Azimuth, Window};
 use crate::surfaces::{Surface, SurfaceKind};
 
@@ -86,10 +88,7 @@ pub struct ChartPoint<T: Real> {
 /// [`Surface::chart_point`] (module docs).
 #[derive(Clone, Copy, Debug)]
 pub struct ChartInverse<T: Real> {
-    anchor: Point3<T>,
-    axis: Vec3<T>,
-    u_ref: Vec3<T>,
-    v_ref: Vec3<T>,
+    frame: Frame<T>,
     arm: ChartArm<T>,
 }
 
@@ -122,6 +121,15 @@ pub enum ChartArm<T> {
         /// The minor radius r.
         minor: T,
     },
+    /// A spindle sheet; `v` the tube angle, closed on `[−v*, v*]` and read
+    /// in the latitude window, which holds that interval whole only for
+    /// `v* < π − 1` (`work/spiricarm/a-wide-apples-tube-angle-passes-the-latitude-windows-cut.md`).
+    Spindle {
+        /// The signed major radius R.
+        major: T,
+        /// The minor radius r.
+        minor: T,
+    },
 }
 
 impl<T: Real> ChartInverse<T> {
@@ -131,58 +139,33 @@ impl<T: Real> ChartInverse<T> {
     ///
     /// [`NoClosedInverse`] for a spline net or a fitted stand-in.
     pub fn of(surface: &Surface<T>) -> Result<Self, NoClosedInverse> {
-        let (anchor, axis, u_ref, arm) = match *surface {
-            Surface::Plane {
-                origin,
-                normal,
-                u_ref,
-            } => (origin, normal, u_ref, ChartArm::Plane),
-            Surface::Cylinder {
-                origin,
-                axis,
-                radius,
-                u_ref,
-            } => (origin, axis, u_ref, ChartArm::Cylinder { radius }),
-            Surface::Cone {
-                apex,
-                axis,
-                half_angle,
-                u_ref,
-            } => (apex, axis, u_ref, ChartArm::Cone { half_angle }),
-            Surface::Sphere {
-                center,
-                radius,
-                axis,
-                u_ref,
-            } => (center, axis, u_ref, ChartArm::Sphere { radius }),
+        let frame = surface.frame().ok_or(NoClosedInverse {
+            kind: surface.kind(),
+        })?;
+        let arm = match *surface {
+            Surface::Plane { .. } => ChartArm::Plane,
+            Surface::Cylinder { radius, .. } => ChartArm::Cylinder { radius },
+            Surface::Cone { half_angle, .. } => ChartArm::Cone { half_angle },
+            Surface::Sphere { radius, .. } => ChartArm::Sphere { radius },
             Surface::Torus {
-                center,
-                axis,
                 major_radius,
                 minor_radius,
-                u_ref,
-            } => (
-                center,
-                axis,
-                u_ref,
-                ChartArm::Torus {
-                    major: major_radius,
-                    minor: minor_radius,
-                },
-            ),
-            Surface::Nurbs(_) | Surface::Approx(_) => {
-                return Err(NoClosedInverse {
-                    kind: surface.kind(),
-                });
-            }
+                ..
+            } => ChartArm::Torus {
+                major: major_radius,
+                minor: minor_radius,
+            },
+            Surface::Spindle {
+                major_radius,
+                minor_radius,
+                ..
+            } => ChartArm::Spindle {
+                major: major_radius,
+                minor: minor_radius,
+            },
+            Surface::Nurbs(_) | Surface::Approx(_) => unreachable!("a net has no frame"),
         };
-        Ok(Self {
-            anchor,
-            axis,
-            u_ref,
-            v_ref: axis.cross(u_ref),
-            arm,
-        })
+        Ok(Self { frame, arm })
     }
 
     /// The arm, with its kind's data.
@@ -190,24 +173,9 @@ impl<T: Real> ChartInverse<T> {
         self.arm
     }
 
-    /// The point the frame is anchored at (origin, apex or center).
-    pub fn anchor(&self) -> Point3<T> {
-        self.anchor
-    }
-
-    /// The axis (the plane's normal).
-    pub fn axis(&self) -> Vec3<T> {
-        self.axis
-    }
-
-    /// The seam direction, `u = 0`.
-    pub fn u_ref(&self) -> Vec3<T> {
-        self.u_ref
-    }
-
-    /// `axis × u_ref`, the frame convention.
-    pub fn v_ref(&self) -> Vec3<T> {
-        self.v_ref
+    /// The surface's placement ([`Surface::frame`]).
+    pub fn frame(&self) -> &Frame<T> {
+        &self.frame
     }
 }
 
@@ -215,8 +183,7 @@ impl<T: Decide> ChartInverse<T> {
     /// The chart coordinates of `p`, its angles read at `band` (module
     /// docs).
     pub fn point(&self, p: Point3<T>, band: Band) -> ChartPoint<T> {
-        let w = p - self.anchor;
-        let (x, y, h) = (w.dot(self.u_ref), w.dot(self.v_ref), w.dot(self.axis));
+        let (x, y, h) = self.frame.local(p);
         let rho = Azimuth::of(y, x).length();
         let off =
             |name, length: T| !matches!(decide(name, Margin::of(length), band), Ok(Sign::Positive));
@@ -259,6 +226,18 @@ impl<T: Decide> ChartInverse<T> {
                         || off("chart_point_on_tube_circle", tube.length()),
                 )
             }
+            // A sheet's `v` is closed on `[−v*, v*]` about zero, read in the
+            // latitude's window, which holds it whole only for `v* < π − 1`:
+            // a wider apple's far side reads a turn off (filed).
+            ChartArm::Spindle { major, .. } => {
+                let tube = Azimuth::of(h, rho - major);
+                (
+                    Azimuth::of(y, x).principal(band),
+                    tube.principal_in(Window::Latitude, band),
+                    off("chart_point_on_axis", rho)
+                        || off("chart_point_on_tube_circle", tube.length()),
+                )
+            }
         };
         ChartPoint {
             uv: Point2::new(u, v),
@@ -283,10 +262,14 @@ impl<T: Decide> Surface<T> {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
+    use geom_core::Vec3;
 
     fn band() -> Band {
         Band::new(1e-9, 1e-8).unwrap()
     }
+
+    /// A lemon and an apple with `R < r·cos 1`, as `(R, r)`.
+    const SHEETS: [(f64, f64); 2] = [(-0.1, 0.9), (0.4, 1.0)];
 
     fn surfaces() -> Vec<Surface<f64>> {
         let axis = Vec3::new(0.0, 0.6, 0.8);
@@ -357,10 +340,32 @@ mod tests {
                 u_ref: Vec3::new(1.0, 0.0, 0.0),
             });
         }
+        // A lemon (`v* ≈ 1.459`) and an apple narrow enough for the
+        // latitude window (`R < r·cos 1`, `v* ≈ 1.982`): the sheet's
+        // foot is read by the signed major radius. On a sheet the walk's
+        // `|v| ≤ 1.42` is stretched onto `0.97·v*`, so the apple's
+        // samples run past `π/2` to near its apexes.
+        for (major_radius, minor_radius) in SHEETS {
+            all.push(Surface::Spindle {
+                center: Point3::new(0.2, -0.1, 0.3),
+                axis: Vec3::new(0.0, 0.6, 0.8),
+                major_radius,
+                minor_radius,
+                u_ref: Vec3::new(1.0, 0.0, 0.0),
+            });
+        }
         for surface in &all {
+            let stretch = match *surface {
+                Surface::Spindle {
+                    major_radius,
+                    minor_radius,
+                    ..
+                } => 0.97 * crate::sheet_apex(major_radius, minor_radius).v / 1.4,
+                _ => 1.0,
+            };
             for i in 0..48 {
                 let u = -3.1 + 0.13 * f64::from(i);
-                let v = -1.4 + 0.06 * f64::from(i);
+                let v = (-1.4 + 0.06 * f64::from(i)) * stretch;
                 let on = surface.eval(u, v);
                 let n = surface.normal(u, v);
                 for d in [0.0, 1e-6, -1e-6, 1e-3] {
@@ -409,6 +414,30 @@ mod tests {
         }
         let near = sphere.eval(0.3, core::f64::consts::FRAC_PI_2 - 1e-6);
         assert!(!sphere.chart_point(near, band()).unwrap().singular);
+        // A spindle sheet's two apexes, at the ends `±v*` of its window
+        // (`cos v* = −R/r`), lie on its axis.
+        for (major_radius, minor_radius) in SHEETS {
+            let sheet = Surface::Spindle {
+                center: Point3::new(0.2, -0.1, 0.3),
+                axis: Vec3::new(0.0, 0.6, 0.8),
+                major_radius,
+                minor_radius,
+                u_ref: Vec3::new(1.0, 0.0, 0.0),
+            };
+            let v_star = crate::sheet_apex(major_radius, minor_radius).v;
+            for v in [v_star, -v_star] {
+                let apex = sheet.eval(0.3, v);
+                assert!(
+                    sheet.chart_point(apex, band()).unwrap().singular,
+                    "R = {major_radius}: the apex at v = {v} reads singular"
+                );
+            }
+            let near = sheet.eval(0.3, v_star - 1e-3);
+            assert!(
+                !sheet.chart_point(near, band()).unwrap().singular,
+                "R = {major_radius}: a point inside the window reads its foot"
+            );
+        }
         for alpha in [1.2, 1.4] {
             let wide = Surface::Cone {
                 apex: Point3::new(0.2, -0.1, 0.3),

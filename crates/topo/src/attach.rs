@@ -299,7 +299,7 @@ impl<T: Decide> Body<T> {
             written: &written,
         };
         for m in faces.iter().filter(|m| !m.on_parent_chart) {
-            let edges = self.run_edges(&self.face_cycles_linked(m.face));
+            let edges = self.run_edges(&self.proven_face_half_edges(m.face));
             let unvouched = self.unvouched(edges, moved, |f| f == m.face, &reading)?;
             if !unvouched.is_empty() && !refusals_lifted() {
                 return Err(EulerOpError::RechartUnvouched {
@@ -432,7 +432,7 @@ impl<T: Decide> Body<T> {
     fn moved_edges(&self, faces: &[MovedFace]) -> Vec<EdgeKey> {
         let mut edges: SecondaryMap<EdgeKey, ()> = SecondaryMap::new();
         for m in faces {
-            for he in self.face_cycles_linked(m.face) {
+            for he in self.proven_face_half_edges(m.face) {
                 edges.insert(proven(&self.half_edges, he, EntityId::HalfEdge).edge, ());
             }
         }
@@ -4635,7 +4635,7 @@ mod tests {
         let side = body
             .faces()
             .map(|(f, _)| f)
-            .find(|&f| body.face_cycles_linked(f).len() == 4)
+            .find(|&f| body.proven_face_half_edges(f).len() == 4)
             .expect("a prism has quadrilateral sides");
         let Some(&Surface::Plane { normal, .. }) = body.get_surface(surf(&body, side)) else {
             panic!("a prism's side is a plane")

@@ -2,11 +2,13 @@
 id: witness-and-door-searches-hand-roll-the-ladder
 kind: issue
 title: Witness and door searches hand-roll the ladder's rule beside geom_brep::ladder::climb, each with its own recording and ranking
-status: dispatched
+status: closed
 opened: 2026-11-02
 priority: P1
 cost: M
 branch: onecopy/ladder-climb
+closed: 2026-11-03
+pr: 6454
 ---
 
 

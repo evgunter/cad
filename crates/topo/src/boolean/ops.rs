@@ -873,54 +873,6 @@ fn boolean_door<T: Decide + Bounds + crate::props::AtRestPolicy>(
     strategy: SweepStrategy,
     tol: Tol,
 ) -> Result<BooleanResult<T>, BooleanError> {
-    // The curved ∖/∩ front door, per class (C12.1 — retire per class,
-    // never wholesale). Both ops route regions through `revert`
-    // (A∖B ≡ A∩revert(B), the §15.9 posture), which is kind-generic:
-    // `Face::sense` carries the flip on every carrier. The roster
-    // (`reduce::revert_arm_exists`) is ∪'s (`boolean_arm_exists`) minus
-    // `Nurbs`. A kind on it has a crossing layer whose every door is
-    // certified or typed, and a no-crossings path that certifies its
-    // reach or refuses — the sphere's extent by `sphere_extent_scan`
-    // and its re-cut, then every pair with a curved face by
-    // `section_extent_pass` — with `interior_loop_verdict` guarding the crossings path, so no
-    // face pair of the kind is answered by a vertex probe that could
-    // not see into it. `Nurbs` is on ∪'s roster for its plane×NURBS
-    // germ arm, but has no edge×NURBS-face crossing layer (deviation 5),
-    // so ∖ and ∩ have no seam lane for it.
-    //
-    // Up front and PAIR-SCOPED: the kinds are read exactly, and the
-    // question of whether a kind can matter to this operation is
-    // decided by boxes (`reduce::first_unsupported_pair` — non-overlap
-    // is a certificate, overlap is a may). Operands untouched, no
-    // reduction work before it.
-    //
-    // **No covered-pair rung here, and the asymmetry is the point.**
-    // The operand gate admits a declared pair because a declaration
-    // supplies the VERDICT a germ arm would have supplied. This roster
-    // is not about verdicts: it names the kinds that have a seam lane
-    // to revert through, and no declaration can supply one. A declared
-    // pair of a kind off this roster is exactly as refused as an
-    // undeclared one, and says so at the same site.
-    if !matches!(op, BooleanOp::Union) {
-        let band = Band::linear(tol)?;
-        if let Some(p) = super::reduce::first_unsupported_pair(
-            a,
-            b,
-            band,
-            super::reduce::revert_arm_exists,
-            |_, _, _| false,
-        )? {
-            return Err(BooleanError::CurvedPairUnsupported {
-                op: Some(op),
-                site: super::PairRefusalSite::RevertRoster,
-                operand: p.operand,
-                face: p.face,
-                kind: p.kind,
-                other_face: p.other_face,
-                other_kind: p.other_kind,
-            });
-        }
-    }
     let band = Band::linear(tol)?;
     for (operand, body) in [(Operand::A, a), (Operand::B, b)] {
         super::reduce::gate_unverdicted_operand(body, operand, band, tol)?;
@@ -1634,10 +1586,11 @@ fn one_sheet<T: crate::props::AtRestPolicy>(
     use geom::Surface as S;
     match surface {
         S::Cylinder { .. } | S::Cone { .. } | S::Torus { .. } => {}
-        S::Plane { .. } | S::Sphere { .. } | S::Nurbs(_) | S::Approx(_) => {
+        S::Plane { .. } | S::Sphere { .. } | S::Spindle { .. } | S::Nurbs(_) | S::Approx(_) => {
             return Err(BooleanError::ClassificationInvariant {
-                what: "the section certificate's W2 was asked of a face on a plane, a sphere or \
-                       a spline, on which no section arm marks a component essential",
+                what: "the section certificate's W2 was asked of a face on a plane, a sphere, \
+                       a spindle sheet or a spline, on which no section arm marks a component \
+                       essential",
             });
         }
     }
@@ -1745,6 +1698,7 @@ fn walk_certify_refusal(error: &geom_brep::PcurveCertifyError) -> WalkRefusal {
         | C::NoGeneralLane { .. }
         | C::SectorRefused { .. }
         | C::FittedLaneUnsupported { .. }
+        | C::FittedGradeAtClosedFormDoor { .. }
         | C::CarrierDomain(_)
         | C::PlacementTurnsExceeded
         | C::CarrierEnclosure(_)
@@ -1803,7 +1757,9 @@ fn section_pass_takes<T: Real>(s: &geom::Surface<T>) -> bool {
     use geom::Surface as S;
     match s {
         S::Cylinder { .. } | S::Torus { .. } | S::Cone { .. } => true,
-        S::Plane { .. } | S::Sphere { .. } | S::Nurbs(_) | S::Approx(_) => false,
+        S::Plane { .. } | S::Sphere { .. } | S::Spindle { .. } | S::Nurbs(_) | S::Approx(_) => {
+            false
+        }
     }
 }
 
@@ -1862,7 +1818,7 @@ impl PairVerdict {
 fn has_lone_vertex<T: Real>(body: &Body<T>, face: FaceKey) -> bool {
     let fd = proven(&body.faces, face, EntityId::Face);
     body.face_loops_linked(face, fd)
-        .any(|(_, l)| matches!(l.boundary, LoopBoundary::Empty { .. }))
+        .any(|(_, l, _)| matches!(l.boundary, LoopBoundary::Empty { .. }))
 }
 
 /// Places a witness point in one face ([`super::contain::face_placement`]).
@@ -2893,7 +2849,7 @@ pub(super) fn describe_minted_edges<T: Decide + crate::props::AtRestPolicy>(
     band: Band,
     tol: Tol,
 ) -> Result<(), BooleanError> {
-    let worklist = describe_worklist(body, seam_edges, merged)?;
+    let worklist = describe_worklist(body, seam_edges, merged);
     describe_edges(body, worklist, &merged.skipped, band, tol).map_err(of_describe)
 }
 
@@ -2903,7 +2859,7 @@ fn describe_worklist<T: Real>(
     body: &Body<T>,
     seam_edges: &[crate::entity::EdgeKey],
     merged: &crate::merge_faces::MergeCoplanarOutcome,
-) -> Result<Vec<crate::entity::EdgeKey>, BooleanError> {
+) -> Vec<crate::entity::EdgeKey> {
     let mut worklist: Vec<crate::entity::EdgeKey> = Vec::new();
     for &e in seam_edges {
         if body.get_edge(e).is_some() {
@@ -2921,41 +2877,34 @@ fn describe_worklist<T: Real>(
     let skipped = boundary_edges(
         body,
         merged.skipped.iter().flat_map(|s| s.faces.iter().copied()),
-    )
-    .ok_or(BooleanError::JoinDesync {
-        what: "description worklist edge not walkable",
-    })?;
+    );
     worklist.extend(skipped.into_iter().map(|(_, edge)| edge));
-    Ok(worklist)
+    worklist
 }
 
 /// Every boundary edge of each live face in `faces`, once, with the
 /// first listed face that holds it: outer loop then rings, each in
-/// cycle order. A face that no longer resolves contributes nothing;
-/// `None` when a loop of a live face does not walk.
+/// cycle order ([`Body::face_boundary_linked`]). A face that no longer
+/// resolves contributes nothing.
 pub(crate) fn boundary_edges<T: Real>(
     body: &Body<T>,
     faces: impl IntoIterator<Item = FaceKey>,
-) -> Option<Vec<(FaceKey, crate::entity::EdgeKey)>> {
+) -> Vec<(FaceKey, crate::entity::EdgeKey)> {
     let mut seen: BTreeSet<crate::entity::EdgeKey> = BTreeSet::new();
     let mut edges = Vec::new();
     for f in faces {
         let Some(face) = body.get_face(f) else {
             continue;
         };
-        for &lk in core::iter::once(&face.outer).chain(&face.rings) {
-            let LoopBoundary::Cycle { first } = body.get_loop(lk)?.boundary else {
-                continue;
-            };
-            for he in body.loop_cycle(first)? {
-                let edge = body.get_half_edge(he)?.edge;
-                if seen.insert(edge) {
-                    edges.push((f, edge));
-                }
+        for member in body.face_boundary_linked(f, face) {
+            if let BoundaryMember::Edge { ek, .. } = member
+                && seen.insert(ek)
+            {
+                edges.push((f, ek));
             }
         }
     }
-    Some(edges)
+    edges
 }
 
 /// The boolean's refusal for an edge its describer could not describe.
@@ -3064,18 +3013,20 @@ pub(crate) fn describe_edges<T: Decide + crate::props::AtRestPolicy>(
         let reach =
             crate::wedge_reach(body, [sides.plus.face, sides.minus.face], carrier, interval);
         let witness = draft.witness;
-        let face = |side, surface| seam_face(body, edge, side, surface, existing.as_ref(), band);
+        let face = |side: crate::readback::EdgeSide, surface| {
+            crate::pcurves::seam_face(body, side.half_edge, surface, existing.as_ref(), band)
+                .ok_or_else(|| DescribeRefusal::failed(edge, EdgeDescribeFailure::Unplaced))
+        };
         let faces = [face(sides.plus, surf1)?, face(sides.minus, surf2)?];
-        match seam_reading(faces, witness, reach, band).map_err(|refusal| match refusal {
-            geom_brep::SeamEscalation::Lever(e) => {
-                let (reading, diag) = DihedralReading::of_lever(e);
-                DescribeRefusal::undecided(edge, reading, diag)
-            }
-            geom_brep::SeamEscalation::Crease(_) => {
-                DescribeRefusal::failed(edge, EdgeDescribeFailure::Crease)
-            }
-            geom_brep::SeamEscalation::SplineReadAsAnalytic => {
-                unreachable!("seam_face reads every spline face by its chart")
+        match crate::pcurves::seam_reading(faces, witness, reach, band).map_err(|refusal| {
+            match refusal {
+                crate::pcurves::SeamUnread::Lever(e) => {
+                    let (reading, diag) = DihedralReading::of_lever(e);
+                    DescribeRefusal::undecided(edge, reading, diag)
+                }
+                crate::pcurves::SeamUnread::Crease(_) => {
+                    DescribeRefusal::failed(edge, EdgeDescribeFailure::Crease)
+                }
             }
         })? {
             geom_brep::DihedralClass::Transverse => {
@@ -3217,77 +3168,19 @@ pub(super) fn seam_class<T: Decide + crate::props::AtRestPolicy>(
     reach: T,
     band: Band,
 ) -> Result<geom_brep::DihedralClass, BooleanError> {
-    let faces = [surf1, surf2].map(geom_brep::SeamFace::Analytic);
+    let faces = [surf1, surf2].map(|s| {
+        crate::pcurves::SeamSide::analytic(s)
+            .unwrap_or_else(|| unreachable!("seam_class reads analytic pairs: {s:?}"))
+    });
     let reach = geom_core::test_support::fixture_lever(reach);
-    seam_reading(faces, witness, reach, band).map_err(|refusal| match refusal {
-        geom_brep::SeamEscalation::Lever(e) => {
+    crate::pcurves::seam_reading(faces, witness, reach, band).map_err(|refusal| match refusal {
+        crate::pcurves::SeamUnread::Lever(e) => {
             let (reading, diag) = DihedralReading::of_lever(e);
             seam_refusal(reading, diag)
         }
-        geom_brep::SeamEscalation::Crease(_) | geom_brep::SeamEscalation::SplineReadAsAnalytic => {
+        crate::pcurves::SeamUnread::Crease(_) => {
             unreachable!("seam_class reads analytic pairs: {surf1:?} {surf2:?}")
         }
-    })
-}
-
-/// `seam_class`'s reading, unworded: the dihedral of the seam's two
-/// faces, each read by its kind ([`geom_brep::classify_seam`]).
-fn seam_reading<T: Decide + crate::props::AtRestPolicy>(
-    faces: [geom_brep::SeamFace<'_, T>; 2],
-    witness: Point3<T>,
-    reach: geom_core::Lever<T>,
-    band: Band,
-) -> Result<geom_brep::DihedralClass, geom_brep::SeamEscalation> {
-    geom_brep::classify_seam(
-        faces,
-        witness,
-        reach,
-        |chart, p, reach| T::spline_chart_arm(chart, p, reach).ok(),
-        band,
-    )
-}
-
-/// **A face of a seam edge, as its dihedral reads it** at the edge's
-/// witness ([`geom_brep::SeamFace`]): an analytic face at the witness;
-/// a spline face at the witness's parameters on its own chart, read off
-/// an image of the edge in that chart ([`crate::pcurves::pcurve_of`]) at
-/// the edge's own parameter of the witness, the middle of its interval.
-/// The image is the stored one where the half-edge has it, and otherwise
-/// the one the chart's description derives, an iso row or arc rim of the
-/// chart. Either is the edge on the face's own sheet, where a projection
-/// foot of the witness could land on another sheet of the chart; a
-/// stored `Pcurve::Fitted` image was itself fitted through the chart's
-/// feet of a trace, placed on the face's sheet when it was minted.
-///
-/// A null edge has no carrier and no image to read a spline face at, and
-/// is refused unplaced. Its witness could be placed off its neighbour in
-/// the face's loop, but no class would follow: its zero-length chord gives
-/// the wedge no reach, so its dihedral escalates at the arm whatever the
-/// faces read.
-///
-/// # Errors
-///
-/// [`DescribeRefusal::Failed`] with [`EdgeDescribeFailure::Unplaced`]:
-/// a spline face with no image of the edge in its chart to read the
-/// witness's parameters off, or a null edge.
-fn seam_face<'s, T: Decide + crate::props::AtRestPolicy>(
-    body: &Body<T>,
-    edge: crate::entity::EdgeKey,
-    side: crate::readback::EdgeSide,
-    surface: &'s geom::Surface<T>,
-    curve: Option<&geom_brep::EdgeCurve<T>>,
-    band: Band,
-) -> Result<geom_brep::SeamFace<'s, T>, DescribeRefusal> {
-    let Some(chart) = surface.spline_chart() else {
-        return Ok(geom_brep::SeamFace::Analytic(surface));
-    };
-    let unplaced = || DescribeRefusal::failed(edge, EdgeDescribeFailure::Unplaced);
-    let (t0, t1) = curve.ok_or_else(unplaced)?.params();
-    let image = crate::pcurves::pcurve_of(body, side.half_edge, band).map_err(|_| unplaced())?;
-    let uv = image.eval(geom::mid_param(t0, t1));
-    Ok(geom_brep::SeamFace::Spline {
-        chart,
-        uv: (uv.x, uv.y),
     })
 }
 
@@ -5680,7 +5573,7 @@ fn pinched_at_cone_apex<T: Decide>(body: &Body<T>, band: Band) -> Result<(), Boo
         let geom::Surface::Cone { apex, axis, .. } = *body.face_surface_linked(face, data) else {
             continue;
         };
-        for (_, members) in body.face_boundary_by_loop(face, data) {
+        for (_, members, _) in body.face_boundary_by_loop(face, data) {
             let mut starts = BTreeSet::new();
             for member in members {
                 let BoundaryMember::Edge { half, .. } = member else {
@@ -5871,9 +5764,15 @@ fn finding_arm(finding: &ValidationError) -> Option<InBand> {
         | V::EdgeCertification { .. }
         | V::VolumeUncomputable { .. }
         | V::Pcurve { .. } => None,
+        // A lane not written yet, in both of its readings: a face at a
+        // sheet's apex (a vertex there is what a built sheet will have),
+        // and one no reader shows clear of it. A sheet apex inside an
+        // edge or the interior is `ChartSingularityNotAVertex`, above.
+        V::SheetApexReached { .. } => None,
         // Definite findings: a kernel defect.
         V::DanglingDescription { .. }
         | V::DegenerateTorus { .. }
+        | V::DegenerateSpindle { .. }
         | V::DescriptionNotAdjacent { .. }
         | V::PlanarFaceResidual { .. }
         | V::PlanarBoundaryResidual { .. }
@@ -6619,7 +6518,7 @@ fn sphere_pair_cut<T: Decide>(
         Ok(geom_brep::SphereSphereSection::Circle(geom::Curve3::Circle(geom::Circle {
             frame:
                 geom::Frame {
-                    center: foot,
+                    origin: foot,
                     axis: normal,
                     u_ref,
                 },
@@ -7041,13 +6940,13 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
     band: Band,
     tol: Tol,
 ) -> Result<CutsPerOperand, BooleanError> {
-    const ROWS: super::circle_roots::FirstHarmonicRows = super::circle_roots::FirstHarmonicRows {
-        noise: "bool_sphere_cut_roots_noise",
-        coaxial: "bool_sphere_cut_roots_coaxial",
-        extreme: "bool_sphere_cut_roots_extreme",
-        root_slack: "bool_sphere_cut_roots_slack",
-        decision: BooleanDecision::Sphere(SphereQuestion::CutIn),
-    };
+    const ROWS: geom_brep::curve_face::circle_roots::FirstHarmonicRows =
+        geom_brep::curve_face::circle_roots::FirstHarmonicRows {
+            noise: "bool_sphere_cut_roots_noise",
+            coaxial: "bool_sphere_cut_roots_coaxial",
+            extreme: "bool_sphere_cut_roots_extreme",
+            root_slack: "bool_sphere_cut_roots_slack",
+        };
     let corrupt = |what| BooleanError::ClassificationInvariant { what };
     // The faces each scanned face has been cut into so far, beside its
     // own key: `(operand, scanned face, piece)`.
@@ -7208,40 +7107,29 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
             split: Option<(EdgeKey, T, bool, T)>,
         }
         let mut hits: Vec<Hit<T>> = Vec::new();
-        for lk in core::iter::once(fd.outer).chain(fd.rings.iter().copied()) {
-            let l = linked(
-                &body.loops,
-                lk,
-                EntityId::Loop,
-                EntityId::Face(face),
-                "loop",
-            );
-            let LoopBoundary::Cycle { first } = l.boundary else {
-                return Err(refuse("the sphere face carries a lone-vertex loop"));
-            };
-            for he in body.loop_walk(first).closed("loop", first) {
-                let hd = proven(&body.half_edges, he, EntityId::HalfEdge);
-                let edge = hd.edge;
-                let ed = proven(&body.edges, edge, EntityId::Edge);
+        for (_, members, _) in body.face_boundary_by_loop(face, fd) {
+            for member in members {
+                let BoundaryMember::Edge {
+                    half: hd,
+                    ek: edge,
+                    edge: ed,
+                    ..
+                } = member
+                else {
+                    return Err(refuse("the sphere face carries a lone-vertex loop"));
+                };
                 let Some(curve) = body.edge_curve_linked(edge, ed).certified() else {
                     return Err(corrupt("cut-in: a boundary edge has no carrier"));
                 };
                 let (t0, t1) = curve.params();
-                let geom::Curve3::Circle(geom::Circle {
-                    frame:
-                        geom::Frame {
-                            center: cc,
-                            axis: ca,
-                            u_ref: cu,
-                        },
-                    radius: cr,
-                }) = *curve.carrier()
+                let geom::Curve3::Circle(edge_circle @ geom::Circle { radius: cr, .. }) =
+                    *curve.carrier()
                 else {
                     return Err(refuse("a boundary edge of the sphere face is not a circle"));
                 };
-                let roots = super::circle_roots::first_harmonic_roots(
-                    &super::circle_roots::FirstHarmonic::circle_off_plane(
-                        (cc, ca, cr, cu),
+                let roots = geom_brep::curve_face::circle_roots::first_harmonic_roots(
+                    &geom_brep::curve_face::circle_roots::FirstHarmonic::conic_off_plane(
+                        &edge_circle,
                         (cut.center, k),
                     ),
                     cr,
@@ -7249,7 +7137,10 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
                     t1,
                     &ROWS,
                     band,
-                )?;
+                )
+                .map_err(BooleanError::of_door_refusal(
+                    BooleanDecision::Sphere(SphereQuestion::CutIn),
+                ))?;
                 let thetas = match roots {
                     Ok(geom_brep::roots::Roots::Miss) => continue,
                     Ok(geom_brep::roots::Roots::Certified(found)) => found.roots().to_vec(),
@@ -7390,19 +7281,12 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
         // The two ends' half-edges in the face's one loop.
         let fd = proven(&body.faces, face, EntityId::Face);
         let mut ends = [None, None];
-        for lk in core::iter::once(fd.outer).chain(fd.rings.iter().copied()) {
-            let l = linked(
-                &body.loops,
-                lk,
-                EntityId::Loop,
-                EntityId::Face(face),
-                "loop",
-            );
-            let LoopBoundary::Cycle { first } = l.boundary else {
-                continue;
-            };
-            for he in body.loop_walk(first).closed("loop", first) {
-                let start = proven(&body.half_edges, he, EntityId::HalfEdge).start;
+        for (lk, members, _) in body.face_boundary_by_loop(face, fd) {
+            for member in members {
+                let BoundaryMember::Edge { he, half, .. } = member else {
+                    continue;
+                };
+                let start = half.start;
                 for (slot, v) in ends.iter_mut().zip([v_lo, v_hi]) {
                     if start == v {
                         if slot.is_some() {
@@ -8111,13 +7995,13 @@ fn fallback_fates<T: Decide + AtRestPolicy>(
             Operand::A => &red.a,
             Operand::B => &red.b,
         };
-        for (face, _) in body.faces() {
+        for (face, data) in body.faces() {
             let root = div.root(face);
             let whole = uncut.iter().any(|u| (u.operand, u.face) == (operand, root));
             if gone(operand, root) && !whole && !cuts.is_substituted(operand, face) {
                 discards.push(super::discard::discard_row(
                     body,
-                    face,
+                    (face, data),
                     operand,
                     &|_| false,
                     &refuse,
@@ -10056,7 +9940,7 @@ mod tests {
                     geom_core::test_support::fixture_lever(1.0),
                     band()
                 ),
-                geom_brep::MustCarryVerdict::Mixed(geom_brep::MixedStations {
+                geom_brep::MustCarryVerdict::Mixed(geom_brep::MixedStations::Class {
                     transverse: 3,
                     smooth: 4
                 }),
@@ -10070,10 +9954,12 @@ mod tests {
             assert!(
                 matches!(
                     got,
-                    Err(super::SeamRefusal::Mixed(Some(geom_brep::MixedStations {
-                        transverse: 3,
-                        smooth: 4
-                    })))
+                    Err(super::SeamRefusal::Mixed(Some(
+                        geom_brep::MixedStations::Class {
+                            transverse: 3,
+                            smooth: 4
+                        }
+                    )))
                 ),
                 "order {order}: a seam that is a corner somewhere refuses as mixed, got {got:?}"
             );
@@ -10110,8 +9996,8 @@ mod tests {
             .map(|i| {
                 let p = arc.eval(geom_brep::sample_param(span.0, span.1, i));
                 match geom_brep::classify_dihedral(&torus, &bitangent, p, extent, band()) {
-                    Ok(geom_brep::DihedralClass::Transverse) => 'T',
-                    Ok(geom_brep::DihedralClass::Smooth) => 'S',
+                    Ok(geom_brep::Dihedral::Corner(_)) => 'T',
+                    Ok(geom_brep::Dihedral::Tangent(_)) => 'S',
                     Err(_) => 'E',
                 }
             })
@@ -10207,12 +10093,12 @@ mod tests {
             killed_vertices: Vec::new(),
         });
         assert_eq!(
-            super::boundary_edges(&prism.body, [kept]).map(|edges| edges.len()),
-            Some(4),
+            super::boundary_edges(&prism.body, [kept]).len(),
+            4,
             "the kept wall has four boundary edges for the worklist to leave out"
         );
         assert!(
-            matches!(super::describe_worklist(&prism.body, &[], &merged), Ok(w) if w.is_empty()),
+            super::describe_worklist(&prism.body, &[], &merged).is_empty(),
             "the boolean's worklist holds none of the kept face's boundary"
         );
     }
@@ -10228,7 +10114,7 @@ mod tests {
             Tol::witness(),
         );
         let faces = [prism.side_faces[0], prism.side_faces[1]];
-        let edges = super::boundary_edges(&prism.body, faces).expect("the walls' loops walk");
+        let edges = super::boundary_edges(&prism.body, faces);
         assert_eq!(
             edges.len(),
             7,
@@ -11041,7 +10927,7 @@ mod spline_seam_rows {
     use geom_core::spline::KnotVector;
     use geom_core::{Band, Point3, Tol};
 
-    use super::{DescribeRefusal, seam_face, seam_reading};
+    use super::DescribeRefusal;
     use crate::{Body, EdgeKey, FaceKey};
 
     fn band() -> Band {
@@ -11144,12 +11030,15 @@ mod spline_seam_rows {
     fn reading(
         body: &Body<f64>,
         edge: EdgeKey,
-    ) -> Result<geom_brep::DihedralClass, geom_brep::SeamEscalation> {
+    ) -> Result<geom_brep::DihedralClass, crate::pcurves::SeamUnread> {
         let sides = crate::readback::edge_sides_of(body, edge, body.get_edge(edge).unwrap());
         let surface = |side: crate::readback::EdgeSide| body.get_surface(side.surface).unwrap();
         let curve = body.stored_curve(edge).unwrap();
-        let face = |side| seam_face(body, edge, side, surface(side), Some(curve), band()).unwrap();
-        seam_reading(
+        let face = |side: crate::readback::EdgeSide| {
+            crate::pcurves::seam_face(body, side.half_edge, surface(side), Some(curve), band())
+                .unwrap()
+        };
+        crate::pcurves::seam_reading(
             [face(sides.plus), face(sides.minus)],
             curve.mid_point(),
             geom_core::test_support::fixture_lever(1.0),
@@ -11210,6 +11099,30 @@ mod spline_seam_rows {
             normal(0.0),
             normal(1.0)
         );
+    }
+
+    /// **A seam between two spline faces reads the same class on the
+    /// reverted body.** `Body::revert` flips both faces' `sense` and
+    /// reverses the edge's half-edges; the dihedral's class is read from
+    /// `|n₁ × n₂|` alone (`geom_brep::SeamFace` carries no sense), so the
+    /// reverted seam reads the original's class: transverse on the flat
+    /// top, smooth at the turning top's witness. The reading reverses
+    /// with the body's material, not with its class.
+    #[test]
+    fn a_seam_between_two_spline_faces_reads_its_class_reverted() {
+        for (top, want) in [
+            (flat_top(), geom_brep::DihedralClass::Transverse),
+            (turning_top(), geom_brep::DihedralClass::Smooth),
+        ] {
+            let (body, faces, edge) = two_spline_faces(top);
+            let reverted = body.revert().unwrap();
+            assert!(
+                faces.iter().all(|&f| !reverted.get_face(f).unwrap().sense),
+                "both reverted faces are sense-false"
+            );
+            assert_eq!(reading(&body, edge), Ok(want), "as built");
+            assert_eq!(reading(&reverted, edge), Ok(want), "reverted");
+        }
     }
 
     /// **A null edge is refused unplaced**: a null edge minted at the

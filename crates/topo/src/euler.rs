@@ -1559,7 +1559,7 @@ impl EulerOpError {
             ),
             Self::SplitParamEscalated { diag, .. } => geom_brep::recourse::undecided_at(
                 diag,
-                crate::split::CROSSING_INTERIOR,
+                geom_brep::edge_crossing::CROSSING_INTERIOR,
                 at.map(|at| {
                     crate::split::split_param_ending(
                         geom_brep::recourse::RefusedArm::Undecided(diag),
@@ -1914,7 +1914,7 @@ pub(crate) fn every_euler_op_error_once()
         },
         EulerOpError::SplitSmoothRefuted {
             edge: ek,
-            mixed: Some(geom_brep::MixedStations {
+            mixed: Some(geom_brep::MixedStations::Class {
                 transverse: 3,
                 smooth: 4,
             }),
@@ -1930,7 +1930,7 @@ pub(crate) fn every_euler_op_error_once()
         },
         EulerOpError::RestJoinMixed {
             edge: ek,
-            stations: geom_brep::MixedStations {
+            stations: geom_brep::MixedStations::Class {
                 transverse: 3,
                 smooth: 4,
             },
@@ -2390,7 +2390,7 @@ impl<T: Decide> Body<T> {
         to: VertexKey,
     ) -> Option<HalfEdgeKey> {
         let face_data = self.get_face(face)?;
-        for loop_key in core::iter::once(face_data.outer).chain(face_data.rings.iter().copied()) {
+        for loop_key in face_data.loop_keys() {
             let Some(loop_data) = self.get_loop(loop_key) else {
                 continue;
             };
@@ -3580,9 +3580,10 @@ impl<T: Decide> Body<T> {
     /// [`Body::require_run_of`]'s `Whole` proof is.
     #[track_caller]
     pub(crate) fn require_loop_unlisted(&self, l: LoopKey, clearing: Clearing<'_>) {
-        let stray = self.faces.iter().find(|&(face, data)| {
-            (data.outer == l || data.rings.contains(&l)) && !clearing.clears_face(face)
-        });
+        let stray = self
+            .faces
+            .iter()
+            .find(|&(face, data)| data.holds_loop(l) && !clearing.clears_face(face));
         if let Some((face, _)) = stray {
             kill_leaves_dangling(EntityId::Face(face), EntityId::Loop(l));
         }
@@ -4253,8 +4254,8 @@ impl<T: Decide> Body<T> {
     ) -> SiteFace<T> {
         let face_data = proven(&self.faces, face, EntityId::Face);
         let surface = self.face_surface_linked(face, face_data).clone();
-        let loops = core::iter::once(face_data.outer)
-            .chain(face_data.rings.iter().copied())
+        let loops = face_data
+            .loop_keys()
             .filter(|&lk| Some(lk) != killed)
             .map(|lk| match rewired.iter().find(|(k, _)| *k == lk) {
                 Some((_, halves)) => SiteLoop::Rewired(halves.clone()),
@@ -5793,10 +5794,10 @@ mod tests {
                 crate::ValidationError::Pcurve {
                     finding: crate::PcurveMintError::Certify {
                         half_edge: spline_half,
-                        error: geom_brep::PcurveCertifyError::IsoUnsupported {
-                            what: "no boundary row of this chart, in either u direction, \
-                                   holds the circle at the probe — not an arc rim of this \
-                                   chart",
+                        error: geom_brep::PcurveCertifyError::NoGeneralLane {
+                            chart: geom::SurfaceKind::Nurbs,
+                            carrier: geom::CurveKind::Circle,
+                            gap: geom_brep::LaneGap::Unwritten,
                         },
                     },
                 },
@@ -7306,10 +7307,7 @@ mod removal_census {
         ),
         (
             "DanglingTopology: Face -> Loop",
-            Read(
-                "require_loop_unlisted",
-                &["data.outer ==", "data.rings.contains"],
-            ),
+            Read("require_loop_unlisted", &["data.holds_loop("]),
         ),
         (
             "DanglingTopology: Face -> Shell",

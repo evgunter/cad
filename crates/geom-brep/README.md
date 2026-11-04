@@ -26,7 +26,7 @@ escalated typed refusal, never a raw comparison.
 | C1 locus ladder | `crates/geom/src/curves.rs` (`Curve3`: Line, Circle, Ellipse, Spiric, Nurbs); `crates/geom-brep/src/intersect.rs` (`Rung`); `crates/geom-brep/src/intersect/conic_arc.rs` (the plane×cone parabola and hyperbola arcs) |
 | C2, C3 SSI and its certificate | `crates/geom-brep/src/ssi.rs` + `ssi/{march,certify,exhaust,enclose,jet,system,boundary,section,ends,pair,four}.rs`; `crates/geom-brep/src/intersect/section_bounds.rs` (the bounds a classified pair's section states, which retire the tube) |
 | C4 pcurves | `crates/geom-brep/src/pcurve_cache.rs` (value, certificate), `pcurve.rs` (conic constructors), `crates/topo/src/pcurves.rs` (storage, minting, branch walk); description form in `description.rs` |
-| C5 dispatch table | `crates/geom-brep/src/intersect.rs` (`route`, the section functions); for curve pairs `crates/geom-brep/src/curve_pair.rs` (`method`, `meet`) and `curve_pair/{span,pose,polish,walk}.rs` |
+| C5 dispatch table | `crates/geom-brep/src/intersect.rs` (`route`, the section functions); for curve pairs `crates/geom-brep/src/curve_pair.rs` (`method`, `meet`) and `curve_pair/{span,pose,polish,walk}.rs`; for a curve against a face `crates/geom-brep/src/curve_face.rs` (`route`, `boundary`) and its doors `curve_face/{plane_crossing,circle_torus,ellipse_torus,circle_roots,composite,spline_face}.rs` |
 | C6 structure certified for every member, values in the scalar, generic certification | `crates/geom-core/src/spline/`, `crates/geom/src/curves/fit.rs` |
 | C7 tangency | `crates/geom-brep/src/tangent.rs`, `enters.rs`, `conic_bend.rs` (a conic edge's side of a plane one order down), `locus.rs` (the closed-form tangent locus, the `Tangent` witness lane); marks in `crates/topo/src/validate.rs` (`ContactMark`) |
 | C8 fillets | `crates/sweep/src/blend/` (see `crates/sweep/README.md`) |
@@ -747,8 +747,10 @@ validity is judged on what the producer returns. Every class of carrier
 a chart can hold has a route into a certified row, and a face no route
 covers refuses at the producer rather than reaching rest uncached.
 A closed-form class gate is a lane choice (D3): in band or definite,
-the carrier takes a lane whose certificate does not rest on the class,
-its projected image where the chart has one. Whether the carrier lies
+the carrier takes the general lane, its projected image, whose
+certificate does not rest on the class; the closed form is taken only
+where the class is shown, and a pair whose general lane is not yet
+written refuses "not yet". Whether the carrier lies
 on the chart at all is a residual, not a class gate: a definite miss
 is a contradiction between what the edge states and its geometry,
 ended by the door that reads it (D4 ¶1 (iv)), and a read in band, at a
@@ -1128,8 +1130,13 @@ enclosed by the chart's partials over a window inside the edge, every
 solution in that box of the state lies within the band of the end, a
 tangent touch and an end on a crease included, and the walk does not
 read past that end. A spiric
-span against a spline face is unbuilt. The analytic
-arms are the sweep's existing root doors. A meeting inside a spline
+span against a spline face is unbuilt. Of the analytic arms, the
+plane-crossing door (`curve_face::plane_crossing`: a line's endpoints,
+a conic's roots against the plane) and the conic × torus doors
+(`curve_face::circle_torus`, `curve_face::ellipse_torus`, over the
+shared half-angle root cores `curve_face::circle_roots`) are built
+here; the line × quadric and conic × quadric arms are the boolean's
+root doors in `topo`. A meeting inside a spline
 face's chart is placed by the trim at the chart point it was found at,
 on its own sheet (`topo::boolean::spline_region::spline_chart_placement`);
 a point in space has its placement built
@@ -1241,9 +1248,12 @@ rule fires only on `ContactMark::Tangent`, refusing a conventional
 description there (`OnPair`, or a `Chart` that is not a wrap, declared
 or derived) `TangentNotIntrinsic`. Tier 3 reads a body at the ε it was
 built at, the run's. An edge whose stations read definitely
-transverse at one and definitely smooth at its neighbour brackets an
+transverse at one and definitely smooth at its neighbour, or a convex
+corner at one and a concave one at its neighbour, brackets an
 unsampled in-band point and is refused (`MixedDihedral`, naming the two
-stations); `must_carry_over_edge` answers it `MustCarryVerdict::Mixed`,
+stations; along a tangency, stations whose material pairings or ends
+differ are refused the same way, ending as a defect);
+`must_carry_over_edge` answers a class bracket `MustCarryVerdict::Mixed`,
 and every constructor refuses it typed but one: the blend's contact
 edge, routed smooth by its carrier's construction, ends a mixed reading
 as `SurgeryInvariant`, the surgery contradicting its own routing, since

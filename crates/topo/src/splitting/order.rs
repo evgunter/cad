@@ -88,7 +88,7 @@
 //! order): the sort is stable, and the topological neighbor criterion
 //! disambiguates join partners at coincident positions.
 
-use geom_core::k_stats::gate_rejection;
+use geom_core::k_stats::{Magnitude, gate_rejection};
 use geom_core::{
     Band, BandError, Decide, Decided, Indeterminate, Lever, Margin, MarginDiag, Point3, Sign,
     SizedPass, Vec3,
@@ -157,18 +157,17 @@ pub(super) fn in_plane_frame<T: Decide>(
         let r = r.map(T::from_f64);
         let d = r - n * n.dot(r);
         let fraction = Margin::levered(d.norm() / r.norm(), arm);
-        Rung::decide(FRAME_ARM, fraction, band, |decided| match decided.sign {
-            Sign::Positive => {
+        Rung::decide_magnitude(FRAME_ARM, fraction, band, |magnitude, at| match magnitude {
+            Magnitude::Positive => {
                 let u = d.normalize();
                 Some((u, n.cross(u)))
             }
-            Sign::Zero => {
-                if nearest.is_none_or(|m| m.binds_before(decided.margin)) {
-                    nearest = Some(decided.margin);
+            Magnitude::Zero => {
+                if nearest.is_none_or(|m| m.binds_before(at)) {
+                    nearest = Some(at);
                 }
                 None
             }
-            Sign::Negative => unreachable!("`{FRAME_ARM}` decided a norm's fraction Negative"),
         })
     }) {
         Climb::Answered { answer, .. } => return Ok(answer),

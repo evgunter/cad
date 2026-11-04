@@ -1040,6 +1040,7 @@ impl KeyWriter {
             Surface::Torus { .. } => 4,
             Surface::Nurbs(_) => 5,
             Surface::Approx(_) => 6,
+            Surface::Spindle { .. } => 7,
         });
     }
 
@@ -1234,6 +1235,21 @@ impl KeyWriter {
                     } => {
                         self.u8(1);
                         for v in [centre, a, b] {
+                            self.f64(v.x);
+                            self.f64(v.y);
+                            self.f64(v.z);
+                        }
+                        self.f64(*origin);
+                        self.f64(*span);
+                    }
+                    FramedCarrier::Line {
+                        point,
+                        dir,
+                        origin,
+                        span,
+                    } => {
+                        self.u8(2);
+                        for v in [point, dir] {
                             self.f64(v.x);
                             self.f64(v.y);
                             self.f64(v.z);

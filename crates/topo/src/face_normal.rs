@@ -7,8 +7,9 @@
 //! and the shared [`crate::sector_face`] walk names the constructor
 //! itself for its curved arms.
 //!
-//! Seven doors, one flip. By key: [`face_outward_normal`] answers for
-//! a PLANE, where the normal does not depend on where you stand,
+//! Eight doors, one flip. By key: [`face_outward_normal`] answers for
+//! a PLANE, where the normal does not depend on where you stand
+//! ([`face_plane`] answers it with the plane's origin beside it),
 //! [`face_outward_normal_at`] answers at a POINT, which is what a
 //! curved carrier requires and what the plane arm returns unchanged,
 //! [`face_outward_normal_at_foot`] answers at the FOOT of a point on
@@ -63,18 +64,7 @@
 //! negates a value under the bit by hand, the sanctioned scalar
 //! negations named).
 //!
-//! The door sits at the crate root because its consumers are in two
-//! lanes: the boolean's planar consumers reach it through
-//! `boolean::reduce::face_plane` and the pierce lane directly, while the shared [`crate::sector_face`] walk serves
-//! the splitting lane too — a module under `boolean/` could not be the
-//! one door for both without a wrong-way edge.
-//!
-//! **A better home exists and is not reachable from this lane.**
-//! The function is a `Body` query, exactly like `Body::mate` or
-//! `Body::loop_cycle`, and belongs as an inherent method on
-//! [`Body`]. That is `body.rs`, outside the scope
-//! this module was created under; it is recorded on issue #695 with
-//! the rest of the placement questions.
+//! Its home follows `[topo.homes]` (`crates/topo/README.md`).
 
 use geom_brep::recourse::Refused;
 use geom_brep::{OutwardNormal, TorusConvention};
@@ -147,6 +137,30 @@ pub fn face_outward_normal<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<O
     let f = body.get_face(face)?;
     match body.face_surface_linked(face, f) {
         geom::Surface::Plane { normal, .. } => Some(plane_outward_normal(f, *normal)),
+        _ => None,
+    }
+}
+
+/// A planar face's plane: a point on it and its unit OUTWARD normal,
+/// [`face_outward_normal`]'s fold with the plane's origin beside it.
+/// Consumers that compare a residual `(p − o)·n̂` with Zero, or hand
+/// the normal to a ray-parity test, read it sign-blind; those that read
+/// a material side off the sign (`side_code`, a containment ray's
+/// `d·n̂`) are why the fold is here.
+///
+/// `None` for a face that is not a plane, and for a `face` key that
+/// does not resolve: a public door hands this its own caller's key.
+///
+/// # Panics
+///
+/// Where `face` resolves and its surface does not (D2 row 4): a torn
+/// surface is not a non-planar one.
+pub(crate) fn face_plane<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<(Point3<T>, Vec3<T>)> {
+    let f = body.get_face(face)?;
+    match body.face_surface_linked(face, f) {
+        geom::Surface::Plane { origin, normal, .. } => {
+            Some((*origin, plane_outward_normal(f, *normal).vec()))
+        }
         _ => None,
     }
 }
@@ -391,8 +405,10 @@ pub(crate) fn face_outward_normal_at<T: Decide>(
         // form to differentiate, and a foot of `p` can land on another
         // sheet: a caller holding the chart point it placed `p` at takes
         // [`spline_outward_normal_at`], and one without names the kind in
-        // its own refusal.
-        geom::Surface::Nurbs(_) | geom::Surface::Approx(_) => Ok(None),
+        // its own refusal. A spindle sheet's arm is not written yet.
+        geom::Surface::Spindle { .. } | geom::Surface::Nurbs(_) | geom::Surface::Approx(_) => {
+            Ok(None)
+        }
     }
 }
 
@@ -438,8 +454,7 @@ pub(crate) fn face_outward_normal_at_foot<T: Decide>(
     match *surface {
         geom::Surface::Plane { normal, .. } => return Ok(Some(plane_outward_normal(f, normal))),
         geom::Surface::Cylinder { origin, axis, .. } => {
-            let q = p - origin;
-            clear(Margin::norm3(q - axis * q.dot(axis)))?;
+            clear(Margin::norm3(geom::Line { origin, dir: axis }.offset(p)))?;
         }
         geom::Surface::Sphere { center, .. } => clear(Margin::norm3(p - center))?,
         geom::Surface::Cone { apex, axis, .. } => {
@@ -453,13 +468,16 @@ pub(crate) fn face_outward_normal_at_foot<T: Decide>(
             major_radius,
             ..
         } => {
-            let q = p - center;
-            let radial = q - axis * q.dot(axis);
+            let radial = geom::Line {
+                origin: center,
+                dir: axis,
+            }
+            .offset(p);
             clear(Margin::norm3(radial))?;
             let core = center + radial * (major_radius / radial.norm());
             clear(Margin::norm3(p - core))?;
         }
-        geom::Surface::Nurbs(_) | geom::Surface::Approx(_) => {
+        geom::Surface::Spindle { .. } | geom::Surface::Nurbs(_) | geom::Surface::Approx(_) => {
             return Err(FootNormalError::Unread);
         }
     }
@@ -614,17 +632,22 @@ pub(crate) fn cone_point<T: Decide>(
     p: Point3<T>,
     band: Band,
 ) -> Result<ConePoint, geom_core::Indeterminate> {
-    let q = p - apex;
-    let radial = q - axis * q.dot(axis);
+    let radial = geom::Line {
+        origin: apex,
+        dir: axis,
+    }
+    .offset(p);
     // An off-axis reading in the band reads on: the apex test below
     // decides whether the point is the apex or only near the axis.
     if let Ok(Sign::Positive) = decide("cone_off_axis", Margin::norm3(radial), band) {
         return Ok(ConePoint::OffAxis);
     }
-    Ok(match decide("cone_at_apex", Margin::norm3(q), band)? {
-        Sign::Positive | Sign::Negative => ConePoint::NearAxis,
-        Sign::Zero => ConePoint::Apex,
-    })
+    Ok(
+        match decide("cone_at_apex", Margin::norm3(p - apex), band)? {
+            Sign::Positive | Sign::Negative => ConePoint::NearAxis,
+            Sign::Zero => ConePoint::Apex,
+        },
+    )
 }
 
 /// [`cone_point`] as the pierce door reads it: a point with no
@@ -989,7 +1012,7 @@ mod tests {
     ///    [`OutwardNormal`] is a wrapper, not a capability: `.vec()` is
     ///    public and a consumer can multiply what comes back.
     /// 4. **A file that reads the plane normal through a helper** —
-    ///    `face_plane(..).normal` — and flips that. No plane-surface
+    ///    `face_plane`'s normal — and flips that. No plane-surface
     ///    pattern appears, so the textual pair never matches.
     /// 5. **A mint inside a `macro_rules!` body or assembled from a
     ///    string literal.** The code view blanks literals and does not
@@ -1406,6 +1429,30 @@ mod tests {
             matches!(face_outward_normal_at(&body, face, p, band()), Ok(None)),
             "the point door has no spline arm: it reads a chart point"
         );
+    }
+
+    /// **A reverted body's spline face reads its outward normal
+    /// negated.** `Body::revert` leaves a spline face's chart as it is
+    /// and flips the face's `sense`, so the reading at the same chart
+    /// point is the original's negation: a door that read the chart's
+    /// normal without the face's bit would read the two alike.
+    #[test]
+    fn a_reverted_spline_face_reads_its_outward_normal_negated() {
+        let (body, face) = face_on(smooth_bump());
+        let reverted = body.revert().unwrap();
+        assert!(
+            !reverted.get_face(face).unwrap().sense,
+            "the reverted face is the sense-false one"
+        );
+        let uv = (0.25, 0.5);
+        let p = Point3::new(0.25, 0.5, 1.0 + 0.4 * 0.25 * 0.75);
+        let lean = Vec3::new(-0.2, 0.0, 1.0).normalize();
+        for (b, want, what) in [(&body, lean, "as built"), (&reverted, -lean, "reverted")] {
+            let n = super::spline_outward_normal_at(b, face, uv, p, band())
+                .unwrap_or_else(|e| panic!("{what}: {e:?}"))
+                .vec();
+            assert!((n - want).norm() < 1e-12, "{what}: {n:?}, want {want:?}");
+        }
     }
 
     /// **A chart point on a crease refuses by name, and one beside it

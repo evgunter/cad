@@ -2,11 +2,13 @@
 id: joining-a-spline-carrier-is-unbuilt
 kind: issue
 title: A curved join on a spline carrier refuses JoinCarrierUnsupported: the kept edge cannot be run on along a carrier with no period or parameter inverse
-status: dispatched
+status: closed
 opened: 2026-10-07
 priority: P0
 cost: H
 branch: splice/spline-join
+closed: 2026-11-03
+pr: 6434
 ---
 
 ## The finding
@@ -72,3 +74,7 @@ A producer that reaches this door now needs a spline kept edge beside an
 edge that does not crease at the vertex.
 
 Moved from SPLICECARRIER to SPLICE on 2026-11-02, by `git mv`, when SPLICECARRIER merged back into SPLICE: the track budget now counts only the P0, P1 and unbanded rows a sitting dispatches (Ev, in chat, 2026-11-02), so the four tracks of SPLICE's 2026-10-28 split came in under one budget.
+
+## Closed (SPLICE, PR 6434, 2026-11-03)
+
+The curved join's far parameter has a first rung for every carrier kind: where the killed edge's carrier is the kept edge's by content (`geom::Curve3::same_content`, exact, every field of every kind destructured) and both stand at one parameter at the vertex, the killed edge's own far end is the joined edge's far parameter, with no inverse and no period. The period and `param_near` remain for distinct carriers of one locus, and a spline beside a different carrier refuses `JoinCarrierUnsupported` (`a-spline-join-beside-another-carrier-has-no-far-parameter`, P2, no producer). A split pair joined back is now the parent's interval exactly on every kind; on main a circle (15 of 63 split fractions), an ellipse (3 of 63) and the spiric joined back off it by a few ulps. No public boolean reaches the door today; `Body::split_edge` then `Body::join_edges` does (`join_door_is_whole`, `a_split_edge_joins_back_on_its_carrier`). Filed: `a-germ-site-is-footed-on-its-section-again` (the `join.rs` lead).

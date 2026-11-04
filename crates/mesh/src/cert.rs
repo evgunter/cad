@@ -593,4 +593,31 @@ mod tests {
         assert!(cert_torus(1.0, 0.2, [[0.0, 0.0], [f64::NAN, 0.0], [0.0, 0.1]]).is_nan());
         assert!(cert_torus(1.0, 0.2, [[0.0, 0.0], [0.1, 0.0], [0.0, 0.1]]).is_finite());
     }
+
+    /// **[`cert_torus`] is sound on spindle sheets**, the datum a sheet
+    /// face meshes through: signed `R ∈ (−r, r)`, lemons and apples,
+    /// random triangles inside the sheet's window `|v| ≤ v*` (up to 0.6
+    /// rad a side), against the parametric deviation.
+    #[test]
+    fn cert_torus_bounds_the_deviation_on_lemon_and_apple_sheets() {
+        let mut rng = test_utils::fuzz::start("cert_torus_sheet");
+        for _ in 0..test_utils::fuzz::scaled(20_000) {
+            let minor = rng.range(0.05, 2.0);
+            let major = minor * rng.range(-0.98, 0.98);
+            let vs = (-major / minor).acos();
+            let (du, dv) = (rng.range(0.0, 0.6), rng.range(0.0, 0.6_f64.min(2.0 * vs)));
+            let (u0, v0) = (rng.range(-PI, PI), rng.range(-vs, vs - dv));
+            let mut uv = [[0.0; 2]; 3];
+            for corner in &mut uv {
+                *corner = [u0 + rng.unit() * du, v0 + rng.unit() * dv];
+            }
+            let cert = cert_torus(major, minor, uv);
+            let dev = parametric_deviation(major, minor, uv);
+            assert!(
+                dev <= cert * (1.0 + 1e-9) + 1e-12,
+                "R {major} r {minor} uv {uv:?}: deviation {dev} exceeds {cert} ({})",
+                test_utils::fuzz::replay()
+            );
+        }
+    }
 }

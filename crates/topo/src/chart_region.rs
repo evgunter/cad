@@ -152,6 +152,7 @@ use geom_core::{
 
 use crate::body::Body;
 use crate::entity::{FaceKey, HalfEdgeKey, LoopBoundary, LoopKey};
+use crate::live::BoundaryMember;
 use crate::null::CurveGeom;
 use crate::ray_walk::{self, ParityRows, RayFault};
 use crate::validate::decide;
@@ -1174,28 +1175,20 @@ fn plane_frame<T: Decide>(
 }
 
 /// Every boundary vertex of a face, outer loop then rings, cycle order
-/// (fixed schedule, D9).
+/// (fixed schedule, D9): [`Body::face_boundary_linked`], every hop past
+/// the face a link. A lone-vertex loop is refused, as a face that does
+/// not resolve is.
 fn face_boundary_points<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
 ) -> Result<Vec<geom_core::Point3<T>>, ChartRegionError> {
     let face_data = body.get_face(face).ok_or(ChartRegionError::Corrupt)?;
-    let mut out = Vec::new();
-    for lk in core::iter::once(face_data.outer).chain(face_data.rings.iter().copied()) {
-        let loop_data = body.get_loop(lk).ok_or(ChartRegionError::Corrupt)?;
-        let LoopBoundary::Cycle { first } = loop_data.boundary else {
-            return Err(ChartRegionError::Corrupt);
-        };
-        for he in body.loop_cycle(first).ok_or(ChartRegionError::Corrupt)? {
-            let v = body
-                .get_half_edge(he)
-                .ok_or(ChartRegionError::Corrupt)?
-                .start;
-            let pk = body.get_vertex(v).ok_or(ChartRegionError::Corrupt)?.point;
-            out.push(*body.get_point(pk).ok_or(ChartRegionError::Corrupt)?);
-        }
-    }
-    Ok(out)
+    body.face_boundary_linked(face, face_data)
+        .map(|member| match member {
+            BoundaryMember::Isolated { .. } => Err(ChartRegionError::Corrupt),
+            BoundaryMember::Edge { .. } => Ok(body.member_point(&member)),
+        })
+        .collect()
 }
 
 /// **`chart_region_carrier_tilt`** — the metered gate that turns
@@ -1278,27 +1271,14 @@ fn carrier_agreement<T: Decide + Bounds>(
     }
 }
 
-/// One cylinder description's frame, destructured.
-struct CylFrame<T: Decide> {
-    origin: geom_core::Point3<T>,
-    axis: geom_core::Vec3<T>,
-    radius: T,
-    u_ref: geom_core::Vec3<T>,
-}
-
-fn cyl_frame<T: Decide>(body: &Body<T>, face: FaceKey) -> Result<CylFrame<T>, ChartRegionError> {
-    match face_surface(body, face)? {
-        Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            u_ref,
-        } => Ok(CylFrame {
-            origin: *origin,
-            axis: *axis,
-            radius: *radius,
-            u_ref: *u_ref,
-        }),
+/// One cylinder description's frame and radius.
+fn cyl_frame<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+) -> Result<(geom::Frame<T>, T), ChartRegionError> {
+    let surface = face_surface(body, face)?;
+    match (surface.frame(), surface) {
+        (Some(frame), Surface::Cylinder { radius, .. }) => Ok((frame, *radius)),
         _ => Err(ChartRegionError::Corrupt),
     }
 }
@@ -1527,8 +1507,8 @@ fn cylinder_pair_overlap<T: Decide + Bounds>(
     premise: CarrierPremise,
     band: Band,
 ) -> Result<ChartOverlap, ChartRegionError> {
-    let a = cyl_frame(body_a, face_a)?;
-    let b = cyl_frame(body_b, face_b)?;
+    let (a, a_radius) = cyl_frame(body_a, face_a)?;
+    let (b, b_radius) = cyl_frame(body_b, face_b)?;
 
     // --- Door 1's premise, CONSUMED (doc above).
     let gate_band = premise.band(band);
@@ -1544,12 +1524,10 @@ fn cylinder_pair_overlap<T: Decide + Bounds>(
     let mut reach = T::zero();
     for (body, face) in [(body_a, face_a), (body_b, face_b)] {
         for p in face_boundary_points(body, face)? {
-            reach = reach
-                .max((p - a.origin).dot(a.axis).abs())
-                .max((p - b.origin).dot(b.axis).abs());
+            reach = reach.max(a.height(p).abs()).max(b.height(p).abs());
         }
     }
-    let r_max = a.radius.max(b.radius);
+    let r_max = a_radius.max(b_radius);
     let hyp = (reach.powi(2) + r_max.powi(2)).sqrt();
     // A gate over a SIGNED margin (the radius difference): either
     // definite sign is a genuine "definitely apart".
@@ -1569,7 +1547,7 @@ fn cylinder_pair_overlap<T: Decide + Bounds>(
             Err(diag) => Err(ChartRegionError::Escalated(diag)),
         }
     };
-    signed_gate("chart_region_cyl_radius", Margin::of(a.radius - b.radius))?;
+    signed_gate("chart_region_cyl_radius", Margin::of(a_radius - b_radius))?;
     norm_gate(
         "chart_region_cyl_tilt",
         Margin::levered(
@@ -1579,10 +1557,8 @@ fn cylinder_pair_overlap<T: Decide + Bounds>(
             geom_core::Lever::unsourced(hyp),
         ),
     )?;
-    let d_ab = b.origin - a.origin;
-    let d_ba = a.origin - b.origin;
-    let perp_a = (d_ab - a.axis * d_ab.dot(a.axis)).norm();
-    let perp_b = (d_ba - b.axis * d_ba.dot(b.axis)).norm();
+    let perp_a = a.axis_line().offset(b.origin).norm();
+    let perp_b = b.axis_line().offset(a.origin).norm();
     norm_gate("chart_region_cyl_offset", Margin::of(perp_a.max(perp_b)))?;
 
     // --- The transfer parameters (doc above). The sense margin is the
@@ -1613,9 +1589,9 @@ fn cylinder_pair_overlap<T: Decide + Bounds>(
         }
         Err(diag) => return Err(ChartRegionError::Escalated(diag)),
     };
-    let w_a = a.axis.cross(a.u_ref);
+    let w_a = a.v_ref();
     let delta = b.u_ref.dot(w_a).atan2(b.u_ref.dot(a.u_ref));
-    let c = (b.origin - a.origin).dot(a.axis);
+    let c = a.height(b.origin);
 
     // --- Extraction (each face read in its OWN minted chart). ---
     let surface_a = face_surface(body_a, face_a)?.clone();
@@ -1638,10 +1614,7 @@ fn cylinder_pair_overlap<T: Decide + Bounds>(
     //     trims actually are, through A's own chart map. Face A's term
     //     is its identity transfer (its minted images against its own
     //     world points); face B's carries the full affine transfer.
-    let phi_a = |q: &Point2<T>| -> geom_core::Point3<T> {
-        let (s, cu) = q.x.sin_cos();
-        a.origin + (a.u_ref * cu + w_a * s) * a.radius + a.axis * q.y
-    };
+    let phi_a = |q: &Point2<T>| -> geom_core::Point3<T> { surface_a.eval(q.x, q.y) };
     let mut residual = T::zero();
     for (body, face, uv) in [(body_a, face_a, &uv_a), (body_b, face_b, &uv_b)] {
         residual = residual.max(transfer_residual(body, face, uv, &phi_a)?);
@@ -1651,10 +1624,10 @@ fn cylinder_pair_overlap<T: Decide + Bounds>(
     // --- The full-wrap band fast path (doc above; asked BEFORE the
     //     fold, which cannot serve two misaligned full-period walls).
     if let (Some(band_a), Some(band_b)) = (
-        wrap_band(&uv_a.outer, a.radius, band)?,
-        wrap_band(&uv_b.outer, a.radius, band)?,
+        wrap_band(&uv_a.outer, a_radius, band)?,
+        wrap_band(&uv_b.outer, a_radius, band)?,
     ) {
-        return band_overlap(&uv_a, &uv_b, band_a, band_b, a.radius, band);
+        return band_overlap(&uv_a, &uv_b, band_a, band_b, a_radius, band);
     }
 
     // --- The fold: one whole period, pinned per pair as structure
@@ -1676,7 +1649,7 @@ fn cylinder_pair_overlap<T: Decide + Bounds>(
             body_a, face_a, body_b, face_b, &surface_a, &uv_a, &folded, band,
         )
     };
-    match period_fold(window_mid(&uv_a) - window_mid(&uv_b), a.radius, band)? {
+    match period_fold(window_mid(&uv_a) - window_mid(&uv_b), a_radius, band)? {
         Fold::One(shift) => overlap_at(shift),
         Fold::Astride([lo, hi], decline) => {
             let (below, above) = (overlap_at(lo), overlap_at(hi));
@@ -2361,7 +2334,7 @@ fn boundary_segments<T: Decide + Bounds>(
 ) -> Option<Vec<NominalSeg>> {
     let mut out = Vec::new();
     for uv in [uv_a, uv_b] {
-        for poly in core::iter::once(&uv.outer).chain(uv.rings.iter()) {
+        for poly in uv.polygons() {
             if poly.len() < 3 {
                 continue;
             }
@@ -2488,6 +2461,13 @@ pub(crate) fn surface_bits_equal<T: Decide + Bounds>(a: &Surface<T>, b: &Surface
 struct FaceUv<T: Decide> {
     outer: Vec<Point2<T>>,
     rings: Vec<Vec<Point2<T>>>,
+}
+
+impl<T: Decide> FaceUv<T> {
+    /// The polygons, the outer first, in the face's loop order.
+    fn polygons(&self) -> impl Iterator<Item = &Vec<Point2<T>>> {
+        core::iter::once(&self.outer).chain(&self.rings)
+    }
 }
 
 /// Exact-`f64`-structure read of a `T` scalar being EXACTLY zero: a
@@ -2766,6 +2746,24 @@ fn certified_arms<T: Decide + Bounds>(
             gate(major_radius - minor_radius, "torus")?,
             gate(minor_radius, "torus")?,
         ),
+        // `R + r·cos v` at the window's largest `|v|`, as the sphere's
+        // latitude arm, on the range `[0, π]` where `cos` is monotone;
+        // a window reaching an apex reads zero there and the gate
+        // refuses it.
+        Surface::Spindle {
+            major_radius,
+            minor_radius,
+            ..
+        } => {
+            let v_abs = v_lo.abs().max(v_hi.abs());
+            if v_abs.hi() > core::f64::consts::PI || v_abs.hi().is_nan() {
+                return Err(ChartRegionError::ArmUnbounded { chart: "spindle" });
+            }
+            (
+                gate(major_radius + minor_radius * v_abs.cos(), "spindle")?,
+                gate(minor_radius, "spindle")?,
+            )
+        }
         Surface::Cone { half_angle, .. } => {
             // Branch-free `min |v|` over the window, zero exactly when
             // the window straddles the apex.
@@ -2914,7 +2912,7 @@ fn arm_values<T: geom_core::Real, E>(
 fn v_window<T: Decide + Bounds>(a: &FaceUv<T>, b: &FaceUv<T>) -> Option<(T, T)> {
     let mut reach: Option<(T, T)> = None;
     for face in [a, b] {
-        for poly in core::iter::once(&face.outer).chain(&face.rings) {
+        for poly in face.polygons() {
             for p in poly {
                 reach = Some(match reach {
                     None => (p.y, p.y),
@@ -2940,9 +2938,7 @@ fn seam_gate<T: Decide + Bounds>(
     let Surface::Cylinder { radius, .. } = *surface else {
         return Ok(()); // plane charts do not wrap; other kinds refused at the arm gate
     };
-    let loops = [a, b]
-        .into_iter()
-        .flat_map(|uv| core::iter::once(&uv.outer).chain(&uv.rings));
+    let loops = [a, b].into_iter().flat_map(FaceUv::polygons);
     let Some(span) = Extent::hull(loops.flatten().map(|p| p.x)) else {
         return Err(ChartRegionError::Corrupt);
     };

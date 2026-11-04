@@ -129,6 +129,7 @@ impl Curved {
             }
             Surface::Plane { .. }
             | Surface::Cone { .. }
+            | Surface::Spindle { .. }
             | Surface::Nurbs(_)
             | Surface::Approx(_) => {
                 return Err("only a cylinder, a sphere or a torus is a curved implicit partner");
@@ -301,7 +302,10 @@ impl Curved {
         if !(reach.is_certified() && mag.is_finite() && mag >= 0.0) {
             return f64::INFINITY;
         }
-        let rho = Interval::point(reach.lo().max(0.0));
+        let rho = (
+            Interval::point(reach.lo().max(0.0)),
+            Interval::point(reach.hi()),
+        );
         let over = self
             .form
             .meters()

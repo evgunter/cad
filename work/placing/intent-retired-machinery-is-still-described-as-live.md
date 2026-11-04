@@ -21,3 +21,8 @@ Found by the PLACING sweep Ev asked for on PR 6281 (2026-11-02): "can you see if
 - `crates/viewer/tests/msolve5_unplaced_read_badge.rs::read_below_pattern` builds an identity `Place` of `lift[1]` into the family's own space, then a family of that. That is the `Node::Part`-as-identity-`Place` shape (SPACES' `the-projection-tool-writes-a-member-read-a-pick-already-seats`) inside a fixture. Re-spell it as a read when that row lands. (Unsure that it needs anything.)
 
 Moved from `work/issues/` to `work/placing/` on 2026-11-03, when the `work/issues/` bucket was retired (Ev's direction, in chat); id and body unchanged.
+
+
+## `path_start_frame` retired (FRAME, PR 6465, 2026-11-03)
+
+`geom_core::linalg::frame::path_start_frame` and its Python spelling `Frame.path_start_frame` retired in PR 6465, with the `FrameInput::{Tangent, ReferenceLadder}` words. A frame across a direction with no stated reference is now a written frame turned onto it: `RigidMotion::turned_onto(self, direction, site, band)` (`crates/geom-core/src/linalg/rigid_motion.rs`), e.g. `RigidMotion::axes_xy(p).turned_onto(t̂, …)` for a sweep's start. Of the constructors this row names, `path_start_frame` is gone from `pncad.pyi` and `Step::Literal`'s vocabulary. This row's status and title are the owning program's call.

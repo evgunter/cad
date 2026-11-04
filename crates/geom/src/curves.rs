@@ -60,15 +60,17 @@ pub mod second_derivative;
 use std::sync::Arc;
 
 pub use compose::{ComposeError, SeamSide, compose_chain};
-pub use conic::{Circle, Conic, Ellipse, Frame, MajorFrame, on_span_branch};
+pub use conic::{Circle, Conic, Ellipse, MajorFrame, on_span_branch};
 pub use fit::{Collocation, FIT_REMOVAL_BUDGET, FitError, FitOutcome, RefitSkip};
 use geom_core::spline::SpanLocate;
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Sign, Vec3};
 
 use crate::azimuth;
+use crate::frame::Frame;
 pub use nurbs::{CurveWindow2, CurveWindow3, NurbsCurve2, NurbsCurve3};
 pub use on_carrier::{
-    CarrierRefusal, Clearance, Foot, OnCarrier, PieceRead, PieceStep, ellipse_level_clearance,
+    CarrierEscalation, CarrierRefusal, Clearance, Foot, OnCarrier, PieceRead, PieceStep,
+    PieceWalkRefusal, ellipse_level_clearance,
 };
 pub use projection::{Projection2, Projection3, ProjectionInconclusive};
 
@@ -206,6 +208,94 @@ pub enum CurveKind {
     Spiric,
     /// A [`Curve3::Nurbs`], described or the placeholder.
     Nurbs,
+}
+
+impl<T: SpanLocate> Curve3<T> {
+    /// **Whether `other` is this carrier by content**: one kind, and
+    /// every value that states it one plain constant
+    /// ([`SpanLocate::plain_constant`]) equal to its counterpart. Exact,
+    /// not margined: it answers whether two carriers are one stated
+    /// value, as a restatement verbatim makes them (a split's two
+    /// children), never whether two statements describe one locus. A
+    /// value carrying anything beyond its constant (an interval wider
+    /// than a point, a derivative, a symbol) answers no.
+    #[must_use]
+    pub fn same_content(&self, other: &Self) -> bool {
+        let same = |a: T, b: T| matches!((a.plain_constant(), b.plain_constant()), (Some(x), Some(y)) if x == y);
+        let point = |p: Point3<T>, q: Point3<T>| same(p.x, q.x) && same(p.y, q.y) && same(p.z, q.z);
+        let vec = |v: Vec3<T>, w: Vec3<T>| same(v.x, w.x) && same(v.y, w.y) && same(v.z, w.z);
+        let frame = |f: &Frame<T>, g: &Frame<T>| {
+            let Frame {
+                origin: center,
+                axis,
+                u_ref,
+            } = *f;
+            let Frame {
+                origin: c,
+                axis: a,
+                u_ref: u,
+            } = *g;
+            point(center, c) && vec(axis, a) && vec(u_ref, u)
+        };
+        match (self, other) {
+            (Self::Line(Line { origin, dir }), Self::Line(Line { origin: o, dir: d })) => {
+                point(*origin, *o) && vec(*dir, *d)
+            }
+            (
+                Self::Circle(Circle { frame: f, radius }),
+                Self::Circle(Circle {
+                    frame: g,
+                    radius: r,
+                }),
+            ) => frame(f, g) && same(*radius, *r),
+            (
+                Self::Ellipse(Ellipse {
+                    frame: f,
+                    semi_u,
+                    semi_v,
+                }),
+                Self::Ellipse(Ellipse {
+                    frame: g,
+                    semi_u: su,
+                    semi_v: sv,
+                }),
+            ) => frame(f, g) && same(*semi_u, *su) && same(*semi_v, *sv),
+            (
+                Self::Spiric {
+                    center,
+                    axis,
+                    u_ref,
+                    major_radius,
+                    minor_radius,
+                    offset,
+                },
+                Self::Spiric {
+                    center: c,
+                    axis: a,
+                    u_ref: u,
+                    major_radius: big,
+                    minor_radius: small,
+                    offset: off,
+                },
+            ) => {
+                point(*center, *c)
+                    && vec(*axis, *a)
+                    && vec(*u_ref, *u)
+                    && same(*major_radius, *big)
+                    && same(*minor_radius, *small)
+                    && same(*offset, *off)
+            }
+            (Self::Nurbs(n), Self::Nurbs(m)) => n.same_content(m, same),
+            (
+                Self::Line(_)
+                | Self::Circle(_)
+                | Self::Ellipse(_)
+                | Self::Spiric { .. }
+                | Self::Nurbs(_),
+                _,
+            ) => false,
+        }
+    }
 }
 
 impl<T: Real> Curve3<T> {
@@ -532,6 +622,23 @@ impl<T: Real> Line<T> {
     pub fn foot(&self, p: Point3<T>) -> Point3<T> {
         self.origin + self.dir * self.param(p)
     }
+
+    /// **`p`'s offset from its foot**, square to the line:
+    /// `(p − origin) − dir·((p − origin)·dir / (dir·dir))`, whose norm is
+    /// `p`'s distance from the line.
+    #[must_use]
+    pub fn offset(&self, p: Point3<T>) -> Vec3<T> {
+        let w = p - self.origin;
+        w - self.dir * (w.dot(self.dir) / self.dir.dot(self.dir))
+    }
+
+    /// **`p`'s foot on the plane through `origin` square to the line**:
+    /// `p − dir·((p − origin)·dir / (dir·dir))`, the line read as that
+    /// plane's normal.
+    #[must_use]
+    pub fn square_foot(&self, p: Point3<T>) -> Point3<T> {
+        p - self.dir * ((p - self.origin).dot(self.dir) / self.dir.dot(self.dir))
+    }
 }
 
 impl<T: Real> Curve3<T> {
@@ -569,6 +676,37 @@ impl<T: Real> Curve3<T> {
         }
     }
 
+    /// **The carrier read as a circle**: its own [`Circle`] (the sibling of
+    /// [`Self::as_line`]), `None` for
+    /// every other kind.
+    #[must_use]
+    pub fn as_circle(&self) -> Option<&Circle<T>> {
+        match self {
+            Self::Circle(c) => Some(c),
+            Self::Line(_) | Self::Ellipse(_) | Self::Spiric { .. } | Self::Nurbs(_) => None,
+        }
+    }
+
+    /// **The carrier's placement**: a conic's own [`Frame`], and a
+    /// spiric's torus's (centre, axis and seam). `None` for a line and a
+    /// spline.
+    #[must_use]
+    pub fn frame(&self) -> Option<Frame<T>> {
+        match *self {
+            Self::Circle(c) => Some(c.frame),
+            Self::Ellipse(e) => Some(e.frame),
+            Self::Spiric {
+                center,
+                axis,
+                u_ref,
+                major_radius: _,
+                minor_radius: _,
+                offset: _,
+            } => Some(Frame::new(center, axis, u_ref)),
+            Self::Line(_) | Self::Nurbs(_) => None,
+        }
+    }
+
     /// Whether the carrier bends: it does not read as a line
     /// ([`Self::as_line`]). A curved span's chord midpoint is off it, and
     /// its chord is not its extent.
@@ -601,7 +739,7 @@ impl<T: Real> Curve3<T> {
             Curve3::Circle(Circle {
                 frame:
                     Frame {
-                        center,
+                        origin: center,
                         axis,
                         u_ref,
                     },
@@ -615,7 +753,7 @@ impl<T: Real> Curve3<T> {
             Curve3::Ellipse(Ellipse {
                 frame:
                     Frame {
-                        center,
+                        origin: center,
                         axis,
                         u_ref,
                     },
@@ -934,7 +1072,8 @@ impl<T: Real> Curve3<T> {
 }
 
 impl<T: Real> Curve3<T> {
-    /// **A circle carrier's point at parameter `t`**, from its fields:
+    /// **A circle carrier's point at parameter `t`**, from its frame and
+    /// radius:
     /// [`Conic::point_at`] on the circle they make, the very expression
     /// [`Curve3::eval`] and [`Curve3::ders1`] reach, so a caller that
     /// builds a point here builds the node either would. That is what
@@ -947,14 +1086,8 @@ impl<T: Real> Curve3<T> {
     /// its `Nurbs` arm's sealed span selection, and evaluation-code
     /// discipline forbids a generic caller from carrying a second bound
     /// beside `Real` to reach it.
-    pub fn circle_at(
-        center: Point3<T>,
-        axis: Vec3<T>,
-        radius: T,
-        u_ref: Vec3<T>,
-        t: T,
-    ) -> Point3<T> {
-        Circle::new(Frame::new(center, axis, u_ref), radius).point_at(t)
+    pub fn circle_at(frame: &Frame<T>, radius: T, t: T) -> Point3<T> {
+        Circle::new(*frame, radius).point_at(t)
     }
 }
 
@@ -1164,7 +1297,7 @@ impl<T: SpanLocate> Curve3<T> {
                 minor_radius,
                 offset,
             } => {
-                let ((s, c), m) = azimuth::basis(*axis, *u_ref, t);
+                let ((s, c), m) = azimuth::basis(&Frame::new(*center, *axis, *u_ref), t);
                 let (_, f) = spiric_radial(*major_radius, *minor_radius, *offset, c);
                 *center + *u_ref * *offset + m * f + *axis * (*minor_radius * s)
             }
@@ -1205,14 +1338,14 @@ impl<T: SpanLocate> Curve3<T> {
             Curve3::Circle(c) => c.derivative_at(t),
             Curve3::Ellipse(e) => e.derivative_at(t),
             Curve3::Spiric {
+                center,
                 axis,
                 u_ref,
                 major_radius,
                 minor_radius,
                 offset,
-                ..
             } => {
-                let ((s, c), m) = azimuth::basis(*axis, *u_ref, t);
+                let ((s, c), m) = azimuth::basis(&Frame::new(*center, *axis, *u_ref), t);
                 let (rho, f) = spiric_radial(*major_radius, *minor_radius, *offset, c);
                 let f1 = -(*minor_radius * rho * s) / f;
                 m * f1 + *axis * (*minor_radius * c)
@@ -1263,7 +1396,7 @@ impl<T: SpanLocate> Curve3<T> {
                 minor_radius,
                 offset,
             } => {
-                let ((s, c), m) = azimuth::basis(*axis, *u_ref, t);
+                let ((s, c), m) = azimuth::basis(&Frame::new(*center, *axis, *u_ref), t);
                 let (rho, f) = spiric_radial(*major_radius, *minor_radius, *offset, c);
                 let f1 = -(*minor_radius * rho * s) / f;
                 (
@@ -1294,14 +1427,14 @@ impl<T: SpanLocate> Curve3<T> {
             Curve3::Circle(c) => c.second_derivative_at(t),
             Curve3::Ellipse(e) => e.second_derivative_at(t),
             Curve3::Spiric {
+                center,
                 axis,
                 u_ref,
                 major_radius,
                 minor_radius,
                 offset,
-                ..
             } => {
-                let ((s, c), m) = azimuth::basis(*axis, *u_ref, t);
+                let ((s, c), m) = azimuth::basis(&Frame::new(*center, *axis, *u_ref), t);
                 let r = *minor_radius;
                 let (rho, f) = spiric_radial(*major_radius, r, *offset, c);
                 let f2 = -(r
@@ -1490,6 +1623,24 @@ mod tests {
 
     use super::*;
 
+    #[test]
+    fn a_lines_offset_and_square_foot_read_a_non_unit_dir() {
+        let l = Line {
+            origin: Point3::new(1.0, 2.0, 3.0),
+            dir: Vec3::new(0.0, 0.0, 4.0),
+        };
+        let p = Point3::new(4.0, 6.0, 11.0);
+        let xyz = |v: Vec3<f64>| (v.x, v.y, v.z);
+        let pt = |q: Point3<f64>| (q.x, q.y, q.z);
+        assert_eq!(xyz(l.offset(p)), (3.0, 4.0, 0.0), "the offset");
+        assert_eq!(pt(l.square_foot(p)), (4.0, 6.0, 3.0), "the square foot");
+        assert_eq!(
+            pt(l.foot(p) + l.offset(p)),
+            pt(p),
+            "foot plus offset is the point"
+        );
+    }
+
     /// **A line's foot is square to it, whatever `dir`'s length**: the
     /// way from the foot to the point is perpendicular to `dir`. A
     /// reading that took `dir` as unit would land `|dir|²` times too far
@@ -1645,7 +1796,7 @@ mod tests {
         fn circle_point_lies_on_locus(theta in -50.0..50.0f64) {
             let c = tilted_circle();
             let (center, axis, r) = match c {
-                Curve3::Circle(crate::Circle { frame: crate::Frame { center, axis, .. }, radius }) => (center, axis, radius),
+                Curve3::Circle(crate::Circle { frame: crate::Frame { origin: center, axis, .. }, radius }) => (center, axis, radius),
                 _ => panic!("fixture is a circle"),
             };
             let p = c.eval(theta);
@@ -1661,7 +1812,7 @@ mod tests {
         fn circle_derivative_geometry(theta in -50.0..50.0f64) {
             let c = tilted_circle();
             let (center, axis, r) = match c {
-                Curve3::Circle(crate::Circle { frame: crate::Frame { center, axis, .. }, radius }) => (center, axis, radius),
+                Curve3::Circle(crate::Circle { frame: crate::Frame { origin: center, axis, .. }, radius }) => (center, axis, radius),
                 _ => panic!("fixture is a circle"),
             };
             let p = c.eval(theta);
@@ -2005,7 +2156,7 @@ mod tests {
         #[test]
         fn ellipse_point_lies_on_locus(theta in -50.0..50.0f64) {
             let e = tilted_ellipse();
-            let Curve3::Ellipse(crate::Ellipse { frame: crate::Frame { center, axis, u_ref }, semi_u, semi_v }) = e else {
+            let Curve3::Ellipse(crate::Ellipse { frame: crate::Frame { origin: center, axis, u_ref }, semi_u, semi_v }) = e else {
                 panic!("fixture is an ellipse");
             };
             let v_ref = axis.cross(u_ref);
@@ -2023,7 +2174,7 @@ mod tests {
         #[test]
         fn ellipse_derivative_geometry(theta in -50.0..50.0f64) {
             let e = tilted_ellipse();
-            let Curve3::Ellipse(crate::Ellipse { frame: crate::Frame { center, axis, .. }, semi_u, semi_v }) = e else {
+            let Curve3::Ellipse(crate::Ellipse { frame: crate::Frame { origin: center, axis, .. }, semi_u, semi_v }) = e else {
                 panic!("fixture is an ellipse");
             };
             let p = e.eval(theta);
@@ -2492,7 +2643,7 @@ mod tests {
             let Curve3::Ellipse(crate::Ellipse {
                 frame:
                     crate::Frame {
-                        center,
+                        origin: center,
                         axis,
                         u_ref,
                     },
@@ -2866,7 +3017,12 @@ mod tests {
             let ci = c.map_scalar(Interval::from_f64);
             let (center, axis, r) = match ci {
                 Curve3::Circle(crate::Circle {
-                    frame: crate::Frame { center, axis, .. },
+                    frame:
+                        crate::Frame {
+                            origin: center,
+                            axis,
+                            ..
+                        },
                     radius,
                 }) => (center, axis, radius),
                 _ => panic!("fixture is a circle"),

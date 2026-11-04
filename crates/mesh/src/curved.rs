@@ -413,18 +413,20 @@ pub(crate) fn tessellate_curved(
         let pole = [m[0].3, m[1].3, m[2].3];
         let (bound, scale) = match chart.kind {
             ChartKind::Cylinder { r } => (
-                cert::cert_cylinder(chart.anchor(), chart.axis(), r, tri),
-                cert::position_scale(chart.anchor(), tri),
+                cert::cert_cylinder(chart.frame().origin, chart.frame().axis, r, tri),
+                cert::position_scale(chart.frame().origin, tri),
             ),
             ChartKind::Sphere { r } => (
-                cert::cert_sphere(chart.anchor(), r, tri),
-                cert::position_scale(chart.anchor(), tri),
+                cert::cert_sphere(chart.frame().origin, r, tri),
+                cert::position_scale(chart.frame().origin, tri),
             ),
             ChartKind::Cone { half_angle } => (
                 cert::cert_cone(half_angle, uv, pole),
                 cert::cone_scale(half_angle, uv),
             ),
-            ChartKind::Torus { major, minor } => {
+            // A spindle sheet is the torus's chart with a signed major
+            // radius; the certificate's sups read either sign.
+            ChartKind::Torus { major, minor } | ChartKind::Spindle { major, minor } => {
                 let bound = cert::cert_torus(major, minor, uv);
                 (bound, cert::uv_scale(bound, uv))
             }
@@ -1129,6 +1131,20 @@ fn grid_counts(
         }
         ChartKind::Torus { major, minor } => {
             debug_assert!(!has_pole, "Chart::poles() is empty for a torus");
+            let (hu, hv) = torus_grid_steps(delta, major, minor);
+            Ok((
+                ceil_count(uspan, cap_angular(hu))?,
+                ceil_count(vspan, cap_angular(hv))?,
+            ))
+        }
+        // No pole column is read, and nothing here guarantees there is
+        // none: tier 3 refuses a sheet face reaching an apex at rest
+        // (`SheetApexReached`; such faces are stage 2's), but this door
+        // takes an unvalidated body and does not re-check, so a face
+        // forged onto an apex arrives with `has_pole` set and is sized
+        // as the torus's grid, `cert_torus` its only backstop. No row
+        // meshes one.
+        ChartKind::Spindle { major, minor } => {
             let (hu, hv) = torus_grid_steps(delta, major, minor);
             Ok((
                 ceil_count(uspan, cap_angular(hu))?,

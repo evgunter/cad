@@ -25,6 +25,7 @@ use topo::construction::Construct;
 use std::sync::Arc;
 
 use geom::Curve3;
+use geom_brep::recourse::Reading;
 use geom_brep::{IncidenceRead, Pcurve, PcurveCache};
 use geom_core::{Band, Tol};
 use topo::pcurves::{PcurveMintError, validate_pcurves};
@@ -58,6 +59,26 @@ fn a_corrupted_row_is_never_read_as_its_carrier_off_the_face() {
     assert!(
         !findings.is_empty() && incidence_findings(&findings).is_empty(),
         "a foreign arc's row is named by its own checks, never as off the face: {findings:?}"
+    );
+    // A stored image that is not its carrier's is the stored culprit at
+    // rest.
+    let mismatch = findings
+        .iter()
+        .find(|f| {
+            matches!(
+                f,
+                PcurveMintError::Certify {
+                    error: geom_brep::PcurveCertifyError::ImageMismatch { .. },
+                    ..
+                }
+            )
+        })
+        .expect("check 1's identity names the foreign row")
+        .clone();
+    let at_rest = topo::ValidationError::Pcurve { finding: mismatch }.render(Reading::AtRest);
+    assert!(
+        at_rest.ends_with(geom_core::KERNEL_OR_FILE_DEFECT_ENDING),
+        "{at_rest}"
     );
 
     let mut cut = fixture::build::<f64>();

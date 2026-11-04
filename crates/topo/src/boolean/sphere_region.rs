@@ -23,7 +23,7 @@
 //!    leg's own centre: the sphere's for a ray, a two-leg path's
 //!    parallel's for its second leg), certified by
 //!    the shared first-harmonic door, each root as a direction from the
-//!    arc's centre ([`super::circle_roots::first_harmonic_root_directions`]);
+//!    arc's centre ([`geom_brep::curve_face::circle_roots::first_harmonic_root_directions`]);
 //!    a root counts where it lies inside its arc's span, at the ray
 //!    parameter `s` it sits at. Neither reading is an angle with a cut. A
 //!    root is read against the end of its span nearer it (the side of
@@ -139,25 +139,26 @@
 
 use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
 
-use super::BooleanDecision;
-use super::circle_roots::{FirstHarmonic, FirstHarmonicRows, first_harmonic_root_directions};
 use super::region::{
     self, End, Fault, Landing, Leg, Legs, Path, Paths, Region, RegionEdge, RegionRefusal, Round,
-    Scaffolding, between, circle_edge_hit, found, span_at_nearer_end, targets,
+    between, circle_edge_hit, found, span_at_nearer_end, targets,
 };
 use super::solid_contain::PointInSolidError;
 use crate::body::Body;
 use crate::entity::{FaceKey, LoopKey};
+use crate::null::Scaffolding;
 use crate::ray_walk::{self, RayFault};
 use crate::splitting::containment::{ConicRows, SCHEDULE};
 use crate::validate::decide;
+use geom_brep::curve_face::circle_roots::{
+    FirstHarmonic, FirstHarmonicRows, first_harmonic_root_directions,
+};
 
 const ROOT_ROWS: FirstHarmonicRows = FirstHarmonicRows {
     noise: "bool_sphere_region_roots_noise",
     coaxial: "bool_sphere_region_roots_coaxial",
     extreme: "bool_sphere_region_roots_extreme",
     root_slack: "bool_sphere_region_roots_slack",
-    decision: BooleanDecision::CONTAINMENT_UNNAMED,
 };
 
 /// The boundary reading's rows (module docs).
@@ -372,13 +373,7 @@ impl<T: Decide> SphereFaceRegion<T> {
     /// The ray from `a` along the unit tangent `t` (module docs, step 1):
     /// the great circle round the centre from `a` toward `t`.
     fn ray(&self, a: Vec3<T>, t: Vec3<T>) -> Leg<T, Round<T>> {
-        Leg::whole(Round {
-            center: self.center,
-            normal: a.cross(t),
-            radius: self.radius,
-            e1: a,
-            e2: t,
-        })
+        Leg::whole(Round::new(self.center, a.cross(t), self.radius, a))
     }
 }
 
@@ -499,22 +494,24 @@ impl<T: Decide> Legs<T> for SphereFaceRegion<T> {
         ray: &Leg<T, Round<T>>,
         band: Band,
     ) -> Result<Vec<Landing<T>>, Fault> {
-        let geom::Curve3::Circle(geom::Circle {
-            frame:
-                geom::Frame {
-                    center,
-                    axis,
-                    u_ref,
-                },
-            radius,
-        }) = arc.carrier
+        let geom::Curve3::Circle(
+            arc_circle @ geom::Circle {
+                frame:
+                    geom::Frame {
+                        origin: center,
+                        axis,
+                        u_ref,
+                    },
+                radius,
+            },
+        ) = arc.carrier
         else {
             unreachable!("sphere_face_region admits circles only")
         };
         let roots = first_harmonic_root_directions(
-            &FirstHarmonic::circle_off_plane(
-                (center, axis, radius, u_ref),
-                (ray.course.center, ray.course.normal),
+            &FirstHarmonic::conic_off_plane(
+                &arc_circle,
+                (ray.course.circle.frame.origin, ray.course.circle.frame.axis),
             ),
             radius,
             &ROOT_ROWS,

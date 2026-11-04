@@ -108,19 +108,13 @@
 //!    the partial revolve the open rim's ends meet the cut faces, and
 //!    that corner does not classify (`UnsupportedCorner {
 //!    Indeterminate }`, wall 2).
-//! 4. **Neither join can start** (walls 3, 4). `union` refuses at the
-//!    contact itself: the sweep reads the seam line of the bulb's outer
-//!    neck cylinder, which ends on the rim at z = 3 that the loop's top
-//!    cap meets, against one of the loop's four NURBS walls rising from
-//!    that rim, and the Boolean has no crossing layer for a spline face
-//!    (`CurvedBooleanUnsupported { operand: B, kind: Nurbs }`). The rims
-//!    themselves are circles; no seam far from the contact is read
-//!    first. `subtract` answers
-//!    first at the revert roster with `{ op: Some(Subtract), kind:
-//!    Nurbs, other_kind: Plane }` — a NURBS wall of the loop against a
-//!    planar face of the bulb, a pair whose boxes MAY meet (box overlap
-//!    over-approximates; the kernel cannot rule the meeting out, a
-//!    weaker claim than that they do). So the bottle cannot be one
+//! 4. **Neither join can start** (walls 3, 4). `union` and `subtract`
+//!    stop at one place (`wall3_pinned`): half of the loop's start-cap
+//!    rim lies on the bulb's neck cylinder, and the curved pierce door
+//!    takes no conic lying on the face it is read against
+//!    (`CurvedPierceUnsupported`). Every op reads the pair through the
+//!    same doors, so the subtract stops where the union does. So the
+//!    bottle cannot be one
 //!    body, and the self-intersection — the neck piercing the bulb,
 //!    the one place a Klein bottle MUST cross itself in 3-space —
 //!    cannot be trimmed.
@@ -230,7 +224,6 @@ use core::f64::consts::PI;
 
 use pncad::authoring::{p2, v2, validated};
 use pncad::geom::NurbsCurve3;
-use pncad::geom_core::linalg::frame::path_start_frame;
 use pncad::geom_core::{KnotVector, Point3, RigidMotion, Tol, Turns, UnitVec3};
 use pncad::prelude::{ConstructedLoop, Open, Start, SurfaceKindSet, circle, query};
 use pncad::prelude::{Convexity, SurfaceKind};
@@ -238,10 +231,10 @@ use pncad::profile::SketchPlane;
 use pncad::sweep::blend::{BlendError, CornerConfig, fillet_edges};
 use pncad::sweep::{LoftError, Revolution, RevolveAxis, revolve, sweep_body};
 use pncad::topo::readback::euler_counts;
-use pncad::topo::{AtRestBody, Body, BooleanError, BooleanOp, EdgeKey, Operand};
+use pncad::topo::{AtRestBody, Body, BooleanError, EdgeKey, Operand};
 
 use crate::booleans::finished;
-use crate::scalar::Scalar;
+use crate::scalar::{Scalar, frame_across};
 use crate::{SceneBody, TourStop, View};
 
 // ---------------------------------------------------------------
@@ -546,8 +539,9 @@ fn annulus<S: Scalar>(m: &Meridian, cx: f64, tol: Tol) -> Vec<ConstructedLoop<S>
 }
 
 /// `section` swept along `spine` by `sweep_body` at `stations`
-/// stations and v-degree `v_degree`, from the start frame the kernel
-/// hands out (`path_start_frame`). The section is built in `f64`, so it
+/// stations and v-degree `v_degree`, from the world frame at the
+/// spine's start turned onto its start tangent ([`frame_across`]). The
+/// section is built in `f64`, so it
 /// enters `S` as the computed values it is; the body comes out at `S`.
 pub fn swept_loop<S: Scalar>(
     spine: &NurbsCurve3<f64>,
@@ -558,12 +552,11 @@ pub fn swept_loop<S: Scalar>(
 ) -> Result<Body<S>, LoftError> {
     let (t0, _) = spine.domain();
     let (start, tangent) = spine.ders1(t0);
-    let place = path_start_frame(
+    let place = frame_across(
         start.map(S::from_computed),
         tangent.map(S::from_computed),
         tol,
-    )
-    .expect("the spine's start tangent fixes a frame");
+    );
     let section: Vec<ConstructedLoop<S>> = section.iter().map(|lp| lp.lift_computed()).collect();
     sweep_body::<S>(
         &section,
@@ -606,27 +599,25 @@ pub fn bottle<S: Scalar>(tol: Tol) -> Bottle<S> {
     }
 }
 
-/// Wall 3's pinned refusal: the bulb's cone seam, the line in the plane
-/// `y = 0` from `(0.312, 0, 2.443)` to `(1.764, 0, −0.073)`, crosses the
-/// loop's half-tube wall whose arc joint runs in that plane from the
-/// rim point `(0.275, 0, 3)` down to `(−0.275, 0, 0.6)`, on that joint.
-/// The joint is a knot run of multiplicity the degree, a crease by its
-/// knots: the wall is tangent continuous across it, but its parametric
-/// derivative jumps there, and the spline-face arm refuses a meeting on
-/// a crease. The neck's seam, which ends on that rim, is cleared there
-/// by its departure. The refusal names the edge and the face, not the
-/// site. Shared with `verbs_gate_r1_probes`, so the two cannot drift.
+/// Wall 3's pinned refusal: half of the loop's start-cap rim, the
+/// circle arc at `z = 3` from `(0.275, 0, 3)` to `(−0.275, 0, 3)`, against
+/// the bulb's neck cylinder (radius 0.275 about the `z` axis), which the
+/// arc lies on. The loop's sections start their circles on the start
+/// frame's `+x`, so the rim's vertices sit in the plane `y = 0`, one of
+/// them on the neck cylinder's seam point, and the curved pierce door
+/// takes no conic lying on the face it is read against. The refusal
+/// names the loop's edge and the bulb's face, not the site. Shared with
+/// `verbs_gate_r1_probes`, so the two cannot drift.
 pub fn wall3_pinned<S: Scalar>(
     e: &BooleanError,
     bulb: &AtRestBody<S>,
     top: &AtRestBody<S>,
 ) -> bool {
-    let BooleanError::SplineCrossingUnsettled {
-        operand: Operand::A,
-        edge,
+    let BooleanError::CurvedPierceUnsupported {
+        operand: Operand::B,
         face,
-        face_of: Operand::B,
-        why: pncad::geom_brep::roots::Unsettled::Crease,
+        edge,
+        ..
     } = e
     else {
         return false;
@@ -642,51 +633,43 @@ pub fn wall3_pinned<S: Scalar>(
                 (lo - k).abs() < 1e-3 && (hi - k).abs() < 1e-3
             })
     };
-    let the_cone_seam = bulb.get_edge(*edge).is_some_and(|e| {
-        let ends = [e.he_plus, e.he_minus].map(|he| bulb.half_edge_start_point(he));
-        let straight = matches!(
-            bulb.get_curve_geom(e.curve),
+    let the_rim_arc = top.get_edge(*edge).is_some_and(|e| {
+        let ends = [e.he_plus, e.he_minus].map(|he| top.half_edge_start_point(he));
+        let circle = matches!(
+            top.get_curve_geom(e.curve),
             Some(pncad::topo::CurveGeom::Certified(c))
-                if !c.carrier().is_curved()
+                if matches!(c.carrier(), pncad::geom::Curve3::Circle(_))
         );
-        straight
+        circle
             && matches!(ends, [Some(p), Some(q)]
-                if near(p, [0.312, 0.0, 2.443]) && near(q, [1.764, 0.0, -0.073]))
+                if near(p, [0.275, 0.0, 3.0]) && near(q, [-0.275, 0.0, 3.0]))
     });
-    let the_half_tube = top
+    let the_neck = bulb
         .get_face(*face)
-        .and_then(|f| top.get_surface(f.surface))
+        .and_then(|f| bulb.get_surface(f.surface))
         .is_some_and(|s| match s {
-            pncad::geom::Surface::Nurbs(n) => {
-                let joint = n.knot_values_u().crease_values();
-                let at = |v: f64| n.eval(S::from_f64(0.5), S::from_f64(v));
-                joint.len() == 1
-                    && (pncad::geom_core::Bounds::lo(joint[0]) - 0.5).abs() < 1e-12
-                    && near(at(0.0), [0.275, 0.0, 3.0])
-                    && near(at(1.0), [-0.275, 0.0, 0.6])
+            pncad::geom::Surface::Cylinder { axis, radius, .. } => {
+                let r = pncad::geom_core::Bounds::lo(*radius);
+                (r - 0.275).abs() < 1e-3
+                    && near(Point3::new(axis.x, axis.y, axis.z), [0.0, 0.0, 1.0])
             }
             _ => false,
         });
-    the_cone_seam && the_half_tube
+    the_rim_arc && the_neck
 }
 
-/// Wall 4's pinned refusal: one of the loop's rational NURBS walls
-/// against a planar face of the bulb, at the ∖/∩ revert roster. Both
-/// kinds and the op are pinned, so a pair that changed kind reds. A
-/// NURBS face has no seam lane under ∖ and ∩, and the roster has no
-/// covered rung whatever the pair; it answers before the sweep that
-/// stops wall 3.
-pub fn wall4_pinned(e: &BooleanError) -> bool {
-    matches!(
-        e,
-        BooleanError::CurvedPairUnsupported {
-            op: Some(BooleanOp::Subtract),
-            operand: Operand::B,
-            kind: SurfaceKind::Nurbs,
-            other_kind: SurfaceKind::Plane,
-            ..
-        }
-    )
+/// Wall 4's pinned refusal: wall 3's (`wall3_pinned`), and the same
+/// error as wall 3's `union` returns, payload and all, `union` being
+/// `wall3`. The subtract stops at the union's edge and face in the same
+/// operand order (`bulb ∖ top`, as `bulb ∪ top`); a wall 4 that moved
+/// to another stop, or a wall 3 that moved without it, reds.
+pub fn wall4_pinned<S: Scalar>(
+    e: &BooleanError,
+    wall3: &BooleanError,
+    bulb: &AtRestBody<S>,
+    top: &AtRestBody<S>,
+) -> bool {
+    wall3_pinned(e, bulb, top) && format!("{e:?}") == format!("{wall3:?}")
 }
 
 /// Every edge of `body` whose two faces are a cone and a cylinder
@@ -949,10 +932,10 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
                  full revolve of ONE meridian band; the loop over the top is ONE sweep \
                  of the annulus along its whole U-turn spine. The two MEET on annular \
                  faces, each cap flat on the bulb's rim, \
-                 and they cannot be joined: union refuses a NURBS wall of the loop where \
-                 it meets the bulb's neck at the mate, and subtract refuses the loop's NURBS walls against a \
-                 planar face at the revert roster. The neck passes through the flare \
-                 uncut for that second reason";
+                 and they cannot be joined: union and subtract both stop where half of the \
+                 loop's start-cap rim lies on the bulb's neck cylinder, a circle the curved \
+                 pierce door does not take. The neck passes through the flare uncut for that \
+                 reason";
     vec![TourStop {
         name: "klein",
         caption: "Klein bottle — two bodies the kernel cannot join".to_string(),
@@ -960,7 +943,7 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
         story,
         ops: "revolve(Full) of a filleted meridian band + sweep_body of an annulus \
               (two circles) along a U-turn spine of four rational quarter arcs, \
-              from path_start_frame; \
+              from the world frame turned onto its start tangent; \
               NO boolean, NO shell — see klein::wall_probes",
         delta: DELTA,
         note: Some(format!(
@@ -1128,10 +1111,9 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
 
     // Wall 3: the bottle is ONE surface. Its two bodies meet on
     // annular faces — the REST mate — and the union refuses past them:
-    // the bulb's cone seam meets a NURBS wall of the loop on the joint of
-    // the wall's two rational arcs. The wall is tangent continuous there,
-    // but the joint is a crease of its knots, where its parametric
-    // derivative jumps and the spline-face arm reads no Jacobian.
+    // half of the loop's start-cap rim lies on the bulb's neck
+    // cylinder, and the curved pierce door takes no conic lying on the
+    // face it is read against.
     crate::walls::wall(
         "bottle",
         3,
@@ -1149,7 +1131,11 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
         4,
         "cut the flare where the descending neck passes through it",
         pncad::topo::subtract(&bulb_body, &top, tol),
-        wall4_pinned,
+        |e| {
+            pncad::topo::union(&bulb_body, &top, tol)
+                .err()
+                .is_some_and(|w3| wall4_pinned(e, &w3, &bulb_body, &top))
+        },
         "trim the self-intersection instead of letting the walls interpenetrate",
     );
 

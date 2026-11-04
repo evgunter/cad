@@ -149,7 +149,7 @@ impl<'a, T: Decide> WedgeReach<'a, T> {
         let body = self.body;
         let data = proven(&body.faces, face, EntityId::Face);
         let mut points = Vec::new();
-        for (_, members) in body.face_boundary_by_loop(face, data) {
+        for (_, members, _) in body.face_boundary_by_loop(face, data) {
             for member in members {
                 match member {
                     BoundaryMember::Isolated { point, .. } => points.push(point),

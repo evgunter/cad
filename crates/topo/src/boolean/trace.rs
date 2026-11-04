@@ -22,8 +22,8 @@ use geom_brep::roots::{Roots, Unsettled};
 use geom_core::{Band, Decide, Indeterminate, InfSpeed, Margin, Point3, Real, Sign, Vec3};
 
 use super::BooleanError;
-use super::circle_roots::CircleRoots;
 use crate::validate::decide;
+use geom_brep::curve_face::circle_roots::CircleRoots;
 
 /// The funnel row a crossing's sense is decided on: the cosine between
 /// the piece's direction and the outward normal, levered by the piece's
@@ -161,6 +161,16 @@ fn door(error: BooleanError) -> TraceFault {
     }
 }
 
+/// A curve × face door's refusal, as the trace's: its escalation is the
+/// trace's own, carrying no decision of the Boolean's.
+fn door_refusal(refusal: geom_brep::curve_face::circle_roots::DoorRefusal) -> TraceFault {
+    use geom_brep::curve_face::circle_roots::DoorRefusal;
+    match refusal {
+        DoorRefusal::Escalated(diag) => TraceFault::Escalated(diag),
+        DoorRefusal::Invariant(what) => unreachable!("a root door's invariant: {what}"),
+    }
+}
+
 fn unsettled(why: Unsettled) -> TraceFault {
     match why {
         Unsettled::Tangency => TraceFault::Grazing,
@@ -294,7 +304,7 @@ pub fn circle_crossings<T: Decide>(
                 })
                 .collect()
         }
-        Surface::Nurbs(_) | Surface::Approx(_) => {
+        Surface::Spindle { .. } | Surface::Nurbs(_) | Surface::Approx(_) => {
             return Err(TraceFault::Unsupported {
                 carrier: surface.kind(),
             });
@@ -302,25 +312,30 @@ pub fn circle_crossings<T: Decide>(
         _ => {
             let circle = Curve3::Circle(geom::Circle {
                 frame: geom::Frame {
-                    center,
+                    origin: center,
                     axis,
                     u_ref,
                 },
                 radius,
             });
             let found = match surface {
-                Surface::Torus { .. } => {
-                    super::circle_torus::circle_torus_roots(&circle, T::zero(), tau, surface, band)
-                }
+                Surface::Torus { .. } => geom_brep::curve_face::circle_torus::circle_torus_roots(
+                    &circle,
+                    T::zero(),
+                    tau,
+                    surface,
+                    band,
+                )
+                .map_err(door_refusal)?,
                 _ => super::conic_quadric::conic_quadric_roots(
                     &circle,
                     T::zero(),
                     tau,
                     surface,
                     band,
-                ),
-            }
-            .map_err(door)?;
+                )
+                .map_err(door)?,
+            };
             roots_of(found)?
                 .into_iter()
                 .map(|theta| {
@@ -465,7 +480,9 @@ pub fn carrier_extent<T: Real>(surface: &Surface<T>) -> Option<(Point3<T>, T)> {
         Surface::Plane { origin, .. } => Some((origin, T::zero())),
         Surface::Cylinder { origin, radius, .. } => Some((origin, radius)),
         Surface::Cone { apex, .. } => Some((apex, T::zero())),
-        Surface::Sphere { .. } | Surface::Torus { .. } => surface.cover().ok().map(|c| c.ball()),
+        Surface::Sphere { .. } | Surface::Torus { .. } | Surface::Spindle { .. } => {
+            surface.cover().ok().map(|c| c.ball())
+        }
         Surface::Nurbs(_) | Surface::Approx(_) => None,
     }
 }
@@ -525,8 +542,8 @@ pub fn plane_misses<T: Decide>(
                 }
             })?;
             let level = (point - Point3::origin()).dot(normal);
-            let above = level - cover.support(normal);
-            let below = (T::zero() - cover.support(-normal)) - level;
+            let (lo, hi) = cover.range_along(normal);
+            let (above, below) = (level - hi, lo - level);
             beyond(above.max(below))
         }
         // A tilted cylinder runs across the plane; one parallel to it
@@ -545,6 +562,6 @@ pub fn plane_misses<T: Decide>(
             Sign::Positive | Sign::Negative => Ok(false),
         },
         Surface::Cone { .. } => Ok(false),
-        Surface::Nurbs(_) | Surface::Approx(_) => Err(unsupported()),
+        Surface::Spindle { .. } | Surface::Nurbs(_) | Surface::Approx(_) => Err(unsupported()),
     }
 }

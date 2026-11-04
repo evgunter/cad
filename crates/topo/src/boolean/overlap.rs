@@ -9,15 +9,17 @@
 //! the same.
 //!
 //! Each boundary edge of either face is cut where it meets the other
-//! face's boundary (the curve × face boundary pass,
-//! [`geom_brep::curve_face::read`], which reads curve against curve on
-//! any carrier), and each piece's middle is placed in the other face
+//! face's boundary, and at each end of the window of a boundary member
+//! the pass could not read (the curve × face boundary pass, located,
+//! [`geom_brep::curve_face::located`], which reads curve against curve
+//! on any carrier). Each piece's middle is placed in the other face
 //! through the kernel's one point dispatch (`face_placement`). A piece
 //! strictly inside the other face is a witness: the face's area beside
-//! it lies in the other's. A piece lying along the other face's boundary
-//! is a witness where the two faces lie on one side of it, read as the
-//! boolean's fate cuts read a direction against a corner
-//! (`fate::corner_holds`).
+//! it lies in the other's. Outside every window, a piece lying along the
+//! other face's boundary is a witness where the two faces lie on one
+//! side of it, read as the boolean's fate cuts read a direction against
+//! a corner (`fate::corner_holds`). A piece a window reaches may hold a
+//! cut no reading placed, so only strictly inside is a witness there.
 //!
 //! With no witness the regions share no area. Where two regions meet in
 //! area, their meeting is bounded by boundary of one or the other; a
@@ -38,7 +40,7 @@ use std::sync::Arc;
 
 use geom_brep::LeverBounds;
 use geom_brep::curve_face::BoundaryRefusal;
-use geom_brep::curve_pair::{Hit, Span};
+use geom_brep::curve_pair::Span;
 use geom_core::{Band, Decide, Indeterminate, Lever, Margin, Point3, Sign, Vec3};
 
 use super::BooleanError;
@@ -74,7 +76,8 @@ pub enum OverlapRefusal {
     /// A point of one face read in band of the other's plane.
     OnPlane(Indeterminate),
     /// The boundary pass over an edge refused: a meeting in band, or a
-    /// reading that could not run.
+    /// reading that could not run. Its member's window reached a piece
+    /// read not strictly inside, or its reading faulted.
     Meeting(BoundaryRefusal),
     /// A face's boundary could not be read as the boundary pass reads it.
     Boundary(Arc<BooleanError>),
@@ -125,8 +128,8 @@ impl OverlapRefusal {
                 BoundaryRefusal::Unread(_) => {
                     write!(f, "an edge's meeting with the boundary could not be read")
                 }
-                BoundaryRefusal::Fault(_) => {
-                    write!(f, "the meeting table misread a carrier (a kernel fault)")
+                BoundaryRefusal::Fault { what } => {
+                    write!(f, "the meeting table's kernel fault: {what}")
                 }
             },
             Self::Boundary(e) => {
@@ -303,7 +306,7 @@ fn loops<T: Decide>(
         .get_face(face)
         .ok_or(OverlapRefusal::StaleFace { face })?;
     let mut out = Vec::new();
-    for (_, members) in body.face_boundary_by_loop(face, f) {
+    for (_, members, _) in body.face_boundary_by_loop(face, f) {
         let mut cycle = Vec::with_capacity(members.len());
         for member in members {
             match member {
@@ -559,30 +562,32 @@ fn edge_witness<T: Decide>(
         for he in cycle {
             let (carrier, (t0, t1)) = edge_span(x.0, he)?;
             let span = Span::new(carrier, (t0, t1));
-            let reading = match boundary.read(&span, band) {
-                Ok(reading) => reading,
-                Err(r) => {
-                    keep(OverlapRefusal::Meeting(r));
-                    continue;
-                }
-            };
-            let mut cuts: Vec<T> = reading
-                .meetings
-                .iter()
-                .filter_map(|m| match m.on_span {
-                    Hit::On { t, .. } => Some(t),
-                    Hit::End(_) => None,
-                })
-                .collect();
+            let located = boundary.located(&span, band);
+            if let Some(fault) = located.fault() {
+                keep(OverlapRefusal::Meeting(fault));
+                continue;
+            }
+            // The ends sorted with the cuts, so a window's end at one is
+            // one cut there.
+            let mut cuts = [t0, t1].into_iter().chain(located.cuts()).collect();
             let speed = carrier.deriv(geom::mid_param(t0, t1)).norm();
             if let Err(r) = sort_params(&mut cuts, speed, band) {
                 keep(r);
                 continue;
             }
-            cuts.insert(0, t0);
-            cuts.push(t1);
             for w in cuts.windows(2) {
                 let q = carrier.eval(geom::mid_param(w[0], w[1]));
+                // A piece a member's window reaches is a witness only
+                // strictly inside `y`: its corner reading needs no cut of
+                // `y`'s boundary reaching it.
+                if let Some(u) = located.undecided_over((w[0], w[1]), speed, band) {
+                    match place(y, q, band) {
+                        Ok(FaceContainment::In) => return Ok(true),
+                        Ok(_) => keep(OverlapRefusal::Meeting(u.why)),
+                        Err(r) => keep(r),
+                    }
+                    continue;
+                }
                 match piece_witness((x, x_rev), he, (y, y_rev), q, band) {
                     Ok(true) => return Ok(true),
                     Ok(false) => {}

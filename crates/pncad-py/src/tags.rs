@@ -134,7 +134,7 @@ use pncad::document::{
     RecordedProgramError, ResolveFault, SectionIdFault, ShellClassifyError, SlotId, SnapshotError,
     SplitError, StepHandleRefusal, StepIdFault, TargetAxis, Unlocalized, UpdateError,
 };
-use pncad::geom_core::{BandError, BandField, FrameError, FrameInput, FrameVector};
+use pncad::geom_core::{BandError, BandField, FrameError, FrameInput};
 use pncad::mesh::TessellateError;
 use pncad::profile::{
     CornerReason, CornerWindow, NoCornerReason, PathError, PathErrorKind, ProfileError,
@@ -800,7 +800,7 @@ pub fn analysis_policy_error_tag(err: &AnalysisPolicyError) -> &'static str {
 /// `FrameError` implements `Display`, so the human message is the
 /// kernel's own prose and the tag is the branchable discriminant. The
 /// degenerate arm tags per INPUT: which direction was unusable is what
-/// a caller branches on, and the wrapper arm alone would collapse four
+/// a caller branches on, and the wrapper arm alone would collapse three
 /// distinct refusals into one. The two FORMAT arms tag per input for
 /// the same reason, and both stay separate from the degenerate one
 /// because the three carry different recourses — a degenerate
@@ -810,25 +810,21 @@ pub fn frame_error_tag(err: &FrameError) -> &'static str {
     match err {
         FrameError::Degenerate { input, .. } => match input {
             FrameInput::Aim => "degenerate_aim",
-            FrameInput::Tangent => "degenerate_tangent",
             FrameInput::RollReference => "degenerate_roll_reference",
-            FrameInput::ReferenceLadder => "degenerate_reference_ladder",
             // The mirror normal is the kernel's reflection door's
             // (`topo::Reflection::across`), which no binding reaches: a
             // mirror is `Node.mirror`, its plane a pose.
             FrameInput::MirrorNormal => "degenerate_mirror_normal",
         },
         FrameError::NonFiniteLength { input } => match input {
-            FrameVector::Aim => "non_finite_aim",
-            FrameVector::Tangent => "non_finite_tangent",
-            FrameVector::RollReference => "non_finite_roll_reference",
-            FrameVector::MirrorNormal => "non_finite_mirror_normal",
+            FrameInput::Aim => "non_finite_aim",
+            FrameInput::RollReference => "non_finite_roll_reference",
+            FrameInput::MirrorNormal => "non_finite_mirror_normal",
         },
         FrameError::UnderflowedLength { input } => match input {
-            FrameVector::Aim => "underflowed_aim",
-            FrameVector::Tangent => "underflowed_tangent",
-            FrameVector::RollReference => "underflowed_roll_reference",
-            FrameVector::MirrorNormal => "underflowed_mirror_normal",
+            FrameInput::Aim => "underflowed_aim",
+            FrameInput::RollReference => "underflowed_roll_reference",
+            FrameInput::MirrorNormal => "underflowed_mirror_normal",
         },
         FrameError::Band(_) => "band",
     }
@@ -1347,7 +1343,7 @@ pub fn revolve_error_tag(err: &RevolveError) -> &'static str {
         RevolveError::SliverRadius { .. } => "sliver_radius",
         RevolveError::ArcCrossesAxis { .. } => "arc_crosses_axis",
         RevolveError::SliverAxisClearance { .. } => "sliver_axis_clearance",
-        RevolveError::UnsupportedToroid { .. } => "unsupported_toroid",
+        RevolveError::SheetApex { .. } => "sheet_apex",
         RevolveError::NonManifoldAxisContact { .. } => "non_manifold_axis_contact",
         RevolveError::AxisGapEscalated { .. } => "axis_gap_escalated",
         RevolveError::HoleTouchesAxis { .. } => "hole_touches_axis",
@@ -3100,6 +3096,8 @@ pub fn validation_error_tag(err: &ValidationError) -> &'static str {
         ValidationError::ApproxLaneUnsupported { .. } => "approx_lane_unsupported",
         ValidationError::DegenerateTorus { .. } => "degenerate_torus",
         ValidationError::DegenerateTorusEscalated { .. } => "degenerate_torus_escalated",
+        ValidationError::DegenerateSpindle { .. } => "degenerate_spindle",
+        ValidationError::SheetApexReached { .. } => "sheet_apex_reached",
         ValidationError::PoisonedSurfaceDatum { .. } => "poisoned_surface_datum",
         ValidationError::UnrepresentableSurfaceDatum { .. } => "unrepresentable_surface_datum",
         ValidationError::PoisonedCurveDatum { .. } => "poisoned_curve_datum",

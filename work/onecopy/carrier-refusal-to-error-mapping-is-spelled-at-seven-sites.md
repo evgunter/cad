@@ -2,12 +2,14 @@
 id: carrier-refusal-to-error-mapping-is-spelled-at-seven-sites
 kind: issue
 title: The CarrierRefusal-to-error mapping (escalation vs a spline's walk) is hand-kept at about seven topo sites beside curve_pair::carrier_fault
-status: dispatched
+status: closed
 opened: 2026-11-02
 priority: P1
 cost: E
 refs: [6327]
 branch: onecopy/curve-pair-reads
+closed: 2026-11-03
+pr: 6451
 ---
 
 Found in the review of ONEHOME's PR 6327, which added one more copy (`reduce::circle_refusal`).

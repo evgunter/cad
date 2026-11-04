@@ -16,7 +16,8 @@
 //! it.
 //!
 //! **The singular points** are [`singular_points`]: a sphere's two poles
-//! ([`sphere_poles`]) and a cone's apex, from the chart's own frame.
+//! ([`sphere_poles`]), a cone's apex and a spindle sheet's two apexes
+//! ([`sheet_apexes`]), from the chart's own frame.
 //!
 //! **On the boundary.** A point is at a vertex of the face where its
 //! distance to the vertex's stored point decides zero
@@ -117,6 +118,31 @@ pub enum Singularity {
     South,
     /// A cone's apex.
     Apex,
+    /// A spindle sheet's apex at the end of its `v` window along its
+    /// axis (`v = v*`); a horn's one cusp.
+    SheetApexUp,
+    /// A spindle sheet's apex at the end of its `v` window against its
+    /// axis (`v = −v*`); on a horn, the same cusp as
+    /// [`Self::SheetApexUp`].
+    SheetApexDown,
+}
+
+/// **A spindle sheet's two apexes**, the one along its axis first: its
+/// centre plus and minus its unit `axis` times `√(r² − R²)`, the height
+/// at which the meridian circle crosses the axis ([`geom::sheet_apex`],
+/// its one home). On a horn (`R = r`, or a hair past it in band) the two
+/// are its one cusp, the centre.
+pub fn sheet_apexes<T: Real>(
+    center: Point3<T>,
+    axis: Vec3<T>,
+    major: T,
+    minor: T,
+) -> [(Singularity, Point3<T>); 2] {
+    let height = geom::sheet_apex(major, minor).height;
+    [
+        (Singularity::SheetApexUp, center + axis * height),
+        (Singularity::SheetApexDown, center - axis * height),
+    ]
 }
 
 /// **A sphere's two poles**, north first: its centre plus and minus its
@@ -134,13 +160,15 @@ pub fn sphere_poles<T: Real>(
 }
 
 /// **A chart's singular points**: a sphere's two poles, north first
-/// ([`sphere_poles`]), and a cone's apex, from the chart's own frame;
-/// none for any other kind.
+/// ([`sphere_poles`]), a cone's apex, and a spindle sheet's two apexes
+/// ([`sheet_apexes`]), from the chart's own frame; none for any other
+/// kind.
 pub fn singular_points<T: Real>(chart: &ChartInverse<T>) -> Vec<(Singularity, Point3<T>)> {
-    let (anchor, axis) = (chart.anchor(), chart.axis());
+    let (anchor, axis) = (chart.frame().origin, chart.frame().axis);
     match chart.arm() {
         ChartArm::Sphere { radius } => sphere_poles(anchor, axis, radius).to_vec(),
         ChartArm::Cone { .. } => vec![(Singularity::Apex, anchor)],
+        ChartArm::Spindle { major, minor } => sheet_apexes(anchor, axis, major, minor).to_vec(),
         ChartArm::Plane | ChartArm::Cylinder { .. } | ChartArm::Torus { .. } => Vec::new(),
     }
 }
@@ -810,12 +838,17 @@ struct WalkSample<T: Real> {
 /// - it stays off the surface axis where `ρ_min = ρ(m) − r` is positive,
 ///   and then turns about it through at most `2r/ρ_min` — a line's
 ///   exactly its principal step;
-/// - its chart `v` moves by at most `2r/R` on a sphere and `2r` along a
-///   cone's slant, and a circle's by its height range about the axis
-///   over `ρ_min`;
+/// - its chart `v` moves by at most `2r/a` on a sphere of radius `a`
+///   and on a spindle sheet of minor radius `a`, `2r` along a cone's
+///   slant, and a circle's by its height range about the axis over
+///   `ρ_min`;
 /// - so its share of the metric area `−∮ g(v) du` is within
 ///   `1.5·sup|g′|·Δv·Δu` of the trapezoid the walk sums (`∂g/∂v` is the
-///   chart's area element: `R² cos v`, and `sin α · |v|` on a cone).
+///   chart's area element: `a² cos v` on the sphere, `sin α · |v|` on a
+///   cone, and `a(R + a cos v)` on a spindle sheet of signed major
+///   radius `R`. On the sheet `|v| ≤ v*`, where `R + a cos v` runs from
+///   `0` at the apexes to `R + a` at `v = 0` for either sign of `R`, so
+///   its sup is `a(R + a)`: the sheet's widest radius times `a`).
 ///
 /// A step is bisected until it is certified to turn by less than a
 /// sixteenth of a turn, so its principal step is its turn and the steps
@@ -845,7 +878,7 @@ pub fn walk_loop<T: Decide>(
 ) -> Option<LoopWalk<T>> {
     let shapes: Vec<EdgeShape<T>> = edges
         .iter()
-        .map(|e| EdgeShape::of(&e.carrier, chart.axis()))
+        .map(|e| EdgeShape::of(&e.carrier, chart.frame().axis))
         .collect::<Option<_>>()?;
     let read = |e: usize, t: T, depth: u32, last: bool| -> Option<WalkSample<T>> {
         let p = edges[e].carrier.eval(t);
@@ -900,7 +933,7 @@ pub fn walk_loop<T: Decide>(
             })
         })
         .collect();
-    let shape = Shape::of(chart, on_loop, T::from_f64(band.escalate()));
+    let shape = Shape::of(chart, on_loop, T::from_f64(band.escalate()))?;
     // Certify every step's turn, bisecting where it is not.
     loop {
         let mut wide = Vec::new();
@@ -994,30 +1027,33 @@ struct Shape<T: Real> {
 
 #[derive(Clone, Copy)]
 enum ShapeKind<T> {
-    /// A sphere of radius `R`.
+    /// A sphere of its radius.
     Sphere(T),
     /// A cone of half-angle `α`: `sin α`, `cos α`.
     Cone(T, T),
+    /// A spindle sheet of signed major radius `R` and minor radius `r`.
+    Sheet(T, T),
     /// No singular point: no walk is read.
     Other,
 }
 
 impl<T: Decide> Shape<T> {
-    fn of(chart: &ChartInverse<T>, on_loop: Vec<Point3<T>>, escalate: T) -> Self {
+    fn of(chart: &ChartInverse<T>, on_loop: Vec<Point3<T>>, escalate: T) -> Option<Self> {
         let kind = match chart.arm() {
             ChartArm::Sphere { radius } => ShapeKind::Sphere(radius),
             ChartArm::Cone { half_angle } => ShapeKind::Cone(half_angle.sin(), half_angle.cos()),
+            ChartArm::Spindle { major, minor } => ShapeKind::Sheet(major, minor),
             ChartArm::Plane | ChartArm::Cylinder { .. } | ChartArm::Torus { .. } => {
                 ShapeKind::Other
             }
         };
-        Self {
-            anchor: chart.anchor(),
-            axis: chart.axis(),
+        Some(Self {
+            anchor: chart.frame().origin,
+            axis: chart.frame().axis,
             kind,
             on_loop,
             escalate,
-        }
+        })
     }
 
     /// `g(v)`, whose `v`-derivative is the chart's area element over
@@ -1026,6 +1062,7 @@ impl<T: Decide> Shape<T> {
         match self.kind {
             ShapeKind::Sphere(r) => r.powi(2) * v.sin(),
             ShapeKind::Cone(sin, _) => sin * v.abs() * v * T::from_f64(0.5),
+            ShapeKind::Sheet(major, minor) => minor * (major * v + minor * v.sin()),
             ShapeKind::Other => T::zero(),
         }
     }
@@ -1155,7 +1192,7 @@ fn step_bound<T: Decide>(
                 return None;
             }
             let dv = match shape.kind {
-                ShapeKind::Sphere(r) => span / r,
+                ShapeKind::Sphere(r) | ShapeKind::Sheet(_, r) => span / r,
                 ShapeKind::Cone(..) | ShapeKind::Other => span,
             };
             let dv = match (along, edges[s.edge].height, shape.kind) {
@@ -1170,13 +1207,16 @@ fn step_bound<T: Decide>(
         _ => (
             T::pi(),
             match shape.kind {
-                ShapeKind::Sphere(r) => span / r,
+                ShapeKind::Sphere(r) | ShapeKind::Sheet(_, r) => span / r,
                 ShapeKind::Cone(..) | ShapeKind::Other => span,
             },
         ),
     };
     let slope = match shape.kind {
         ShapeKind::Sphere(r) => r.powi(2),
+        // `R + r cos v ∈ [0, R + r]` on the sheet's window, for either
+        // sign of `R` (the doc above).
+        ShapeKind::Sheet(major, minor) => minor * (major + minor),
         ShapeKind::Cone(sin, _) => {
             let v = |w: WalkSample<T>| w.uv.map_or(T::zero(), |uv| uv.y.abs());
             sin * (v(s).max(v(q)) + span)
@@ -1326,8 +1366,8 @@ pub fn loop_holds_on_left<T: Decide>(
             ))
         }
         w => match singularity {
-            Singularity::North => Ok(w == 1),
-            Singularity::South => Ok(w == -1),
+            Singularity::North | Singularity::SheetApexUp => Ok(w == 1),
+            Singularity::South | Singularity::SheetApexDown => Ok(w == -1),
             Singularity::Apex => Ok((w == 1) == (nappe(walk)? == NonzeroSign::Negative)),
         },
     }

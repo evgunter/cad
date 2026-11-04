@@ -2,12 +2,14 @@
 id: the-curve-pair-units-follow-ups-from-its-review
 kind: issue
 title: PR 6327 follow-ups: an edge's end vertices spelled beside query::edge_ends, the split point branch-selected twice, read_boundary's lone-vertex filter wider than its reason
-status: dispatched
+status: closed
 opened: 2026-11-02
 priority: P1
 cost: E
 refs: [6327]
 branch: onecopy/curve-pair-reads
+closed: 2026-11-03
+pr: 6451
 ---
 
 From the delta review of PR 6327 (`boundary-meets-circle-only-at-reads-curve-meetings-itself`, `point-on-circle-is-a-second-point-on-carrier-reading`), recorded at merge.

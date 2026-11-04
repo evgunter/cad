@@ -4,6 +4,8 @@ kind: issue
 title: The projected image inverts chart points by a second spelling, and reads a cone point's v off its ruling foot
 status: open
 opened: 2026-10-24
+priority: P1
+cost: M
 ---
 
 

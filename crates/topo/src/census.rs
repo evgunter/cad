@@ -155,8 +155,8 @@
 //! opposite sides of the shared carrier is a legal overhang, one side
 //! is interpenetration — and it hands each face's `Face::sense` bit to
 //! the one sense algebra the kernel already carries
-//! (`geom_brep::classify_material_pairing`, the tier-3 wedge pass's
-//! family), never a hand-rolled sign. The second is pass 4's reading of
+//! (`geom_brep::Tangency::pairing`, the tier-3 wedge pass's family),
+//! never a hand-rolled sign. The second is pass 4's reading of
 //! an edge lying in a face of its own solid ([`edge_in_own_face`]): a
 //! backed overlap still refuses where the face passes through the
 //! edge's material wedge, read by the touch analysis's one test
@@ -2204,11 +2204,6 @@ pub(crate) fn edge_is_line<T: Real>(body: &Body<T>, ek: crate::entity::EdgeKey) 
         .is_some_and(|c| !c.is_curved())
 }
 
-/// Every loop of `face` — the outer, then the rings.
-fn face_loops(face: &Face) -> impl Iterator<Item = LoopKey> + '_ {
-    core::iter::once(face.outer).chain(face.rings.iter().copied())
-}
-
 /// Every loop of `face` with its walk: `Ok(cycle)` for a cycle loop
 /// `body` can walk, `Err(loop)` for one it cannot — a lost loop, an
 /// empty (lone-vertex) loop, an unwalkable cycle. What an unwalkable
@@ -2220,7 +2215,7 @@ pub(crate) fn face_cycles<'a, T: Real>(
     body: &'a Body<T>,
     face: &'a Face,
 ) -> impl Iterator<Item = Result<Vec<HalfEdgeKey>, LoopKey>> + 'a {
-    face_loops(face).map(move |lk| {
+    face.loop_keys().map(move |lk| {
         let Some(loop_) = body.loops.get(lk) else {
             return Err(lk);
         };
@@ -2470,7 +2465,7 @@ struct Wedge<T: Real> {
 /// A wedge is the material between an edge's two face sheets, CCW
 /// about the edge's own direction from its minus half's sheet to its
 /// plus half's: an interior direction comes from the sector rungs
-/// ([`crate::sector_shape::sector_shape`]), which refuse a spike, and
+/// ([`geom_brep::sector_shape::sector_shape`]), which refuse a spike, and
 /// whether a direction lies strictly inside it is tier 3's pinch-corner
 /// reading ([`crate::validate::wedge_holds_named`], under names of its
 /// own, [`LINE_WEDGE`]), the same question that
@@ -2544,21 +2539,22 @@ fn wedge<T: Decide>(
     let own = n_plus.vec().cross(e.dir);
     let next = n_minus.vec().cross(-e.dir);
     let arm = e.len;
-    let shape = crate::sector_shape::edge_wedge_shape(own * arm, next * arm, e.dir, band).map_err(
-        |fault| match fault {
-            crate::sector_shape::SectorFault::Rung {
-                rung: crate::sector_shape::SectorRung::Straight { .. },
+    let shape = geom_brep::sector_shape::edge_wedge_shape(own * arm, next * arm, e.dir, band)
+        .map_err(|fault| match fault {
+            geom_brep::sector_shape::SectorFault::Rung {
+                rung: geom_brep::sector_shape::SectorRung::Straight { .. },
                 diag,
             } if diag.margin.rejected_sign().is_some() => {
                 WedgeRefusal::Unread(e.key, TouchUnread::Degenerate)
             }
-            crate::sector_shape::SectorFault::Rung { diag, .. } => WedgeRefusal::Undecided(diag),
-            crate::sector_shape::SectorFault::NonFiniteChord
-            | crate::sector_shape::SectorFault::UnderflowedChord => {
+            geom_brep::sector_shape::SectorFault::Rung { diag, .. } => {
+                WedgeRefusal::Undecided(diag)
+            }
+            geom_brep::sector_shape::SectorFault::NonFiniteChord
+            | geom_brep::sector_shape::SectorFault::UnderflowedChord => {
                 WedgeRefusal::Unread(e.key, TouchUnread::ChordScale)
             }
-        },
-    )?;
+        })?;
     Ok(Wedge {
         axis: e.dir,
         own: shape.unit_own,
@@ -3115,13 +3111,13 @@ fn on_edge_interior_reading<T: Decide>(
     match CarrierSpan::new(&line, e.at).contact(q, T::zero(), band) {
         Ok(Some(Hit::On { t, margin })) => Some(Some((t, margin))),
         Ok(Some(Hit::End(_)) | None) => Some(None),
-        Err(geom::CarrierRefusal::Escalated(cause) | geom::CarrierRefusal::Straddle(cause)) => {
-            errors.push(ValidationError::CensusEscalated { cause });
-            None
-        }
-        Err(geom::CarrierRefusal::Exhausted | geom::CarrierRefusal::Unbounded) => {
-            unreachable!("a line's carrier reading walks no pieces")
-        }
+        Err(refusal) => match refusal.escalation() {
+            Ok(cause) => {
+                errors.push(ValidationError::CensusEscalated { cause });
+                None
+            }
+            Err(_) => unreachable!("a line's carrier reading walks no pieces"),
+        },
     }
 }
 
@@ -4609,7 +4605,7 @@ fn boundary_crossings<T: Decide>(
         return None;
     };
     let mut cuts = Vec::new();
-    for lk in face_loops(face) {
+    for lk in face.loop_keys() {
         let lp = match carrier_loop(body, lk, EF_CROSS_CONIC, band) {
             Ok(lp) => lp,
             Err(err) => {
@@ -5152,9 +5148,9 @@ enum CrossingBacking {
 ///    gate the tier-3 wedge pass and the rim-wedge screen run);
 /// 2. the side question is validly posed and answers
 ///    [`CrossingSideVerdict::OppositeSides`] — the Smooth-site
-///    precondition [`geom_brep::classify_material_pairing`]'s
-///    contract states is ESTABLISHED first (the dihedral of 1
-///    decided Smooth), then the material pairing decided by that one sense
+///    precondition is ESTABLISHED by type: the pairing is asked of
+///    the tangency token the dihedral of 1 returns
+///    ([`geom_brep::Tangency::pairing`]), decided by that one sense
 ///    algebra (which mints both outward normals itself from the
 ///    faces' `Face::sense` bits, levered by
 ///    [`geom_brep::folded_lever_arm`] over the shorter edge — the
@@ -5246,24 +5242,22 @@ fn ee_cross_backed<T: Decide>(
         // transverse planes where both hug the planes' common line, so a
         // definitely transverse pair passes the edge screen and still
         // does not hold the crossing: it answers for nothing.
-        match geom_brep::classify_dihedral(sa, sb, q, arm_extent, band) {
-            Ok(geom_brep::DihedralClass::Smooth) => {}
-            Ok(geom_brep::DihedralClass::Transverse) => continue,
+        let tangency = match geom_brep::classify_dihedral(sa, sb, q, arm_extent, band) {
+            Ok(geom_brep::Dihedral::Tangent(tangency)) => tangency,
+            Ok(geom_brep::Dihedral::Corner(_)) => continue,
             Err(escalation) => {
                 undecided.push(escalation.diag());
                 continue;
             }
-        }
-        let arm = geom_brep::folded_lever_arm(sa, sb, q, arm_extent);
-        let side =
-            match geom_brep::classify_material_pairing(sa, da.sense, sb, db.sense, q, arm, band) {
-                Ok(geom_brep::MaterialPairing::Opposed) => CrossingSideVerdict::OppositeSides,
-                Ok(geom_brep::MaterialPairing::Aligned) => CrossingSideVerdict::SameSide,
-                Err(cause) => {
-                    undecided.push(cause);
-                    continue;
-                }
-            };
+        };
+        let side = match tangency.pairing([da.sense, db.sense], band) {
+            Ok(geom_brep::MaterialPairing::Opposed) => CrossingSideVerdict::OppositeSides,
+            Ok(geom_brep::MaterialPairing::Aligned) => CrossingSideVerdict::SameSide,
+            Err(escalation) => {
+                undecided.push(escalation.diag());
+                continue;
+            }
+        };
         if side == CrossingSideVerdict::OppositeSides {
             // An opposite-sides pair that is not confirmed answers for
             // nothing; its own state is the confirm pass's report.
@@ -6908,6 +6902,35 @@ fn line_unread(
         crate::boolean::FaceUnread::Placement(crate::boolean::PlacementError::Door(e)) => {
             read_containment([a, b][i], Err::<(), _>(e), held);
         }
+        crate::boolean::FaceUnread::Boundary(refusal) => {
+            use geom_brep::curve_face::BoundaryRefusal;
+            held.push(match refusal {
+                BoundaryRefusal::Escalated(cause)
+                | BoundaryRefusal::Meeting(cause)
+                | BoundaryRefusal::Touch(cause) => ValidationError::CensusEscalated { cause },
+                BoundaryRefusal::Unread(_) => pair_lane_refused(
+                    a,
+                    b,
+                    crate::contact::ContactRefusal::NotCertifiable {
+                        what: "a face of a two-carrier face pair whose boundary the meeting \
+                               reading cannot read against the tangent line",
+                    },
+                ),
+                BoundaryRefusal::Fault { what } => pair_lane_refused(
+                    a,
+                    b,
+                    crate::contact::ContactRefusal::NotCertifiable { what },
+                ),
+            });
+        }
+        crate::boolean::FaceUnread::Uncertified => held.push(pair_lane_refused(
+            a,
+            b,
+            crate::contact::ContactRefusal::NotCertifiable {
+                what: "a face of a two-carrier face pair whose boundary holds an edge with no \
+                       certified curve",
+            },
+        )),
     }
 }
 
@@ -8285,9 +8308,11 @@ fn read_touch<T: Decide>(
 /// [`rest::judge`]: a rest is that, and a crossing is a face sheet inside
 /// the wedge, or the wedge inside the face's material, which leaves the
 /// edge's two faces no consecutive pair about a material sector of
-/// their own. Every other verdict leaves the side unread and refuses as
-/// that verdict names. `None` for a rest, or for an edge of another
-/// solid, whose touch arm 2 reads.
+/// their own. A face of the edge that is a cylinder or cone the edge is
+/// a ruling of stands in as its chord across the edge
+/// ([`Link::chord_on_edge`]). Every other verdict leaves the side unread
+/// and refuses as that verdict names. `None` for a rest, or for an edge
+/// of another solid, whose touch arm 2 reads.
 fn edge_in_own_face<T: Decide>(
     body: &Body<T>,
     geo: &Geo<T>,
@@ -8305,6 +8330,12 @@ fn edge_in_own_face<T: Decide>(
         Link::touch_in_face(body, geo, face, p, band),
     ) {
         (Ok(a), Ok(b)) => rest::judge(&a, &b, band),
+        (Err(TouchUnread::Unreadable), Ok(b)) => {
+            match Link::chord_on_edge(body, geo, edge, face, p, band) {
+                Ok(a) => rest::judge(&a, &b, band),
+                Err(v) => v.into(),
+            }
+        }
         (Err(v), _) | (_, Err(v)) => v.into(),
     };
     match verdict {
@@ -8854,7 +8885,8 @@ pub(crate) fn carrier_frame<T: Real>(surface: &geom::Surface<T>) -> Option<[Vec3
         geom::Surface::Cylinder { u_ref, axis, .. }
         | geom::Surface::Cone { u_ref, axis, .. }
         | geom::Surface::Sphere { u_ref, axis, .. }
-        | geom::Surface::Torus { u_ref, axis, .. } => (u_ref, axis),
+        | geom::Surface::Torus { u_ref, axis, .. }
+        | geom::Surface::Spindle { u_ref, axis, .. } => (u_ref, axis),
         geom::Surface::Nurbs(_) | geom::Surface::Approx(_) => return None,
     };
     Some([u, a.cross(u), a])
@@ -8949,6 +8981,82 @@ impl<T: Decide> Link<T> {
         }
         let mut sectors = Vec::new();
         for &f in &keys {
+            sectors.extend(FaceSector::of(
+                body,
+                geo,
+                f,
+                p,
+                &[Hold::Edge(edge.v0, edge.v1)],
+                band,
+            )?);
+        }
+        Self::of(p, sectors)
+    }
+
+    /// **The link at a point `p` inside a line edge with a face that is a
+    /// cylinder or cone the edge is a ruling of**, against the planar
+    /// face `floor` the edge lies in: each such face as its chord
+    /// ([`FaceSector::chord`]), a planar face as [`Link::touch_on_edge`]
+    /// reads it, and no face of the edge inside a chord's lens
+    /// ([`crate::link::chords_clear`]).
+    fn chord_on_edge(
+        body: &Body<T>,
+        geo: &Geo<T>,
+        e: EdgeKey,
+        floor: FaceKey,
+        p: Point3<T>,
+        band: Band,
+    ) -> Result<Self, TouchUnread> {
+        use crate::link::Ruled;
+        let edge = geo.line_edge(e).ok_or(TouchUnread::Unreadable)?;
+        let outward = |f: FaceKey| {
+            crate::face_normal::face_outward_normal(body, f)
+                .map(|n| n.vec())
+                .ok_or(TouchUnread::Corrupt)
+        };
+        let plane = outward(floor)?;
+        let halves = body.get_edge(e).ok_or(TouchUnread::Corrupt)?;
+        // Read per pass, not per face as `touch_on_edge` gathers them: a
+        // face along the edge twice is two sheets, two directions into it
+        // and, ruled, two chords.
+        let (mut planar, mut into, mut chords) = (Vec::new(), Vec::new(), Vec::new());
+        for he in [halves.he_plus, halves.he_minus] {
+            let f = body.face_of_half_edge(he).ok_or(TouchUnread::Corrupt)?;
+            let (along, _) = direction_at(body, he, p)?;
+            if planar_face(geo, f).is_some() {
+                into.push(outward(f)?.cross(along).normalize());
+                if !planar.contains(&f) {
+                    planar.push(f);
+                }
+                continue;
+            }
+            let face = body.get_face(f).ok_or(TouchUnread::Corrupt)?;
+            // The face's other edges, which end on the edge's ends too, but
+            // for a cone's seam through its apex (a loop `[e, circle, e⁻¹]`):
+            // there the lever stays under `ρ/2`, short of the apex.
+            let mut clear: Option<T> = None;
+            for cycle in face_cycles(body, face) {
+                for other in cycle.map_err(|_| TouchUnread::Corrupt)? {
+                    let half = body.get_half_edge(other).ok_or(TouchUnread::Corrupt)?;
+                    if half.edge != e {
+                        let c = crate::link::clearance(body, other, p)?;
+                        clear = Some(clear.map_or(c, |r| r.min(c)));
+                    }
+                }
+            }
+            let clear = clear.ok_or(TouchUnread::Corrupt)?;
+            let ruled = Ruled {
+                surface: body.face_surface_linked(f, face).clone(),
+                sense: face.sense,
+                outward: foot_normal(body, f, p, band)?,
+                along,
+                ends: [edge.p0, edge.p1],
+                clear,
+            };
+            chords.push(FaceSector::chord(&ruled, p, plane, band)?);
+        }
+        let mut sectors = crate::link::chords_clear(p, chords, &into, band)?;
+        for f in planar {
             sectors.extend(FaceSector::of(
                 body,
                 geo,
@@ -11299,6 +11407,21 @@ enum InteriorsUnread {
     Unbuilt,
 }
 
+impl InteriorsUnread {
+    /// A meeting reading's refusal: an escalation or a touch undecided,
+    /// every other refusal unbuilt. A fault folds in with the limits
+    /// (`work/splitdoor/census-interiors-fold-a-meetings-fault-into-unbuilt.md`).
+    fn of(fault: MeetFault) -> Self {
+        match fault {
+            MeetFault::Escalated(_) | MeetFault::Touch(_) => Self::Undecided,
+            MeetFault::Unsettled(_)
+            | MeetFault::Unsupported { .. }
+            | MeetFault::Desync
+            | MeetFault::Contradiction { .. } => Self::Unbuilt,
+        }
+    }
+}
+
 /// **Whether two planar faces on one plane, facing the same way, share
 /// interior**: some vertex of one lies strictly inside the other, two of
 /// their edges cross properly (two half-planes whose lines cross share a
@@ -11571,24 +11694,15 @@ fn arc_interiors_meet<T: Decide>(
                                 match on.contact(end, near, band) {
                                     Ok(Some(hit)) => cuts.push(on.at(hit)),
                                     Ok(None) => {}
-                                    Err(_) => note(InteriorsUnread::Undecided, &mut unread),
+                                    Err(refusal) => {
+                                        note(InteriorsUnread::of(refusal.into()), &mut unread)
+                                    }
                                 }
                             }
                         }
                     }
                 }
-                Err(refusal) => note(
-                    match refusal.fault {
-                        MeetFault::Escalated(_) | MeetFault::Touch(_) => InteriorsUnread::Undecided,
-                        // A fault folds in with the limits
-                        // (`work/splitdoor/census-interiors-fold-a-meetings-fault-into-unbuilt.md`).
-                        MeetFault::Unsettled(_)
-                        | MeetFault::Unsupported { .. }
-                        | MeetFault::Desync
-                        | MeetFault::Contradiction { .. } => InteriorsUnread::Unbuilt,
-                    },
-                    &mut unread,
-                ),
+                Err(refusal) => note(InteriorsUnread::of(refusal.fault), &mut unread),
             }
         }
     }
@@ -11603,7 +11717,7 @@ fn arc_interiors_meet<T: Decide>(
                 match span.contact(q, s.middle(), band) {
                     Ok(Some(hit)) => cut.push(span.at(hit)),
                     Ok(None) => {}
-                    Err(_) => note(InteriorsUnread::Undecided, &mut unread),
+                    Err(refusal) => note(InteriorsUnread::of(refusal.into()), &mut unread),
                 }
             }
         }
@@ -17629,7 +17743,7 @@ mod tests {
             let geom::Curve3::Ellipse(geom::Ellipse {
                 frame:
                     geom::Frame {
-                        center,
+                        origin: center,
                         axis,
                         u_ref,
                     },
@@ -19390,16 +19504,17 @@ mod two_carrier_records {
             }
         }
 
-        /// Two spikes (slope 5) whose apexes stand 75ε above the line,
+        /// Two spikes (slope 5) whose apexes stand 35ε above the line,
         /// near its ends (x = 0.6 and x = 3.4), and a wide tab (2, 2.4):
-        /// each spike holds the line over two runs 15ε long, cut at its
-        /// apex, whose middles lie about 7ε from its sides, so the plate
-        /// reads them in band and they are held; the wide tab's run
-        /// answers, whichever way the line runs. Red when the first held
-        /// station's refusal is returned before a later station is read.
+        /// each spike holds the line over one run 14ε long, between its
+        /// sides' meetings with the line, whose middle lies about 7ε from
+        /// them, so the plate reads it in band and it is held; the wide
+        /// tab's run answers, whichever way the line runs. Red when the
+        /// first held station's refusal is returned before a later
+        /// station is read.
         #[test]
         fn a_held_station_does_not_stop_a_later_one_answering() {
-            let h = 75.0 * Tol::witness().eps();
+            let h = 35.0 * Tol::witness().eps();
             let outline = [
                 (0.0, -1.0),
                 (4.0, -1.0),
@@ -19492,35 +19607,54 @@ mod two_carrier_records {
                 z: f64,
                 overlap: (f64, f64),
             ) -> (Result<bool, usize>, bool) {
-                let b = Band::linear(Tol::witness()).unwrap();
                 let origin = geom_core::Point3::new(0.0, y, z);
                 let dir = geom_core::Vec3::unit_x();
-                let carrier = geom::Curve3::Line(geom::Line { origin, dir });
-                let read = crate::boolean::line_through_both_faces(
-                    [(body, face), (body, face)],
-                    &carrier,
-                    overlap,
-                    b,
-                    |_, _, out: &mut Vec<()>| out.push(()),
-                )
-                .map_err(|h| h.len());
+                let read =
+                    read_pair([(body, face), (body, face)], y, z, overlap).map_err(|h| h.len());
                 let n = 20000;
                 let oracle = (0..=n).any(|i| {
                     let t = overlap.0 + (overlap.1 - overlap.0) * f64::from(i) / f64::from(n);
-                    matches!(
-                        crate::boolean::face_placement(
-                            body,
-                            face,
-                            origin + dir * t,
-                            b,
-                            "probe_oracle"
-                        ),
-                        Ok(crate::boolean::CurvedPlacement::Trim(Some(
-                            FaceContainment::In
-                        )))
-                    )
+                    placed_in(body, face, origin + dir * t)
                 });
                 (read, oracle)
+            }
+
+            /// The oracle's reading of a point: whether it is decided
+            /// strictly inside `face`; `None` where the placement refuses.
+            fn placed(body: &Body<f64>, face: FaceKey, p: geom_core::Point3<f64>) -> Option<bool> {
+                let b = Band::linear(Tol::witness()).unwrap();
+                let at = crate::boolean::face_placement(body, face, p, b, "probe_oracle").ok()?;
+                Some(matches!(
+                    at,
+                    crate::boolean::CurvedPlacement::Trim(Some(FaceContainment::In))
+                ))
+            }
+
+            /// [`placed`], a refusal read as not inside.
+            fn placed_in(body: &Body<f64>, face: FaceKey, p: geom_core::Point3<f64>) -> bool {
+                placed(body, face, p) == Some(true)
+            }
+
+            /// The shared reading over `overlap` of the line through
+            /// `(0, y, z)` along +x: the faces it names refused at, in
+            /// order, where it refuses.
+            fn read_pair(
+                faces: [(&Body<f64>, FaceKey); 2],
+                y: f64,
+                z: f64,
+                overlap: (f64, f64),
+            ) -> Result<bool, Vec<usize>> {
+                let carrier = geom::Curve3::Line(geom::Line {
+                    origin: geom_core::Point3::new(0.0, y, z),
+                    dir: geom_core::Vec3::unit_x(),
+                });
+                crate::boolean::line_through_both_faces(
+                    faces,
+                    &carrier,
+                    overlap,
+                    Band::linear(Tol::witness()).unwrap(),
+                    |i, _, out: &mut Vec<usize>| out.push(i),
+                )
             }
 
             fn top_of(outline: &[(f64, f64)]) -> (Body<f64>, FaceKey) {
@@ -19555,21 +19689,10 @@ mod two_carrier_records {
                     // narrow, so the tab's middle is read as well: In
                     // there is a run of the line inside the face, and a
                     // middle in band is a run the reading may hold.
-                    let middle = crate::boolean::face_placement(
-                        &body,
-                        top,
-                        geom_core::Point3::new(1.1 + w / 2.0, 0.0, 1.0),
-                        Band::linear(Tol::witness()).unwrap(),
-                        "probe_oracle",
-                    );
-                    let oracle = scanned
-                        || matches!(
-                            middle,
-                            Ok(crate::boolean::CurvedPlacement::Trim(Some(
-                                FaceContainment::In
-                            )))
-                        );
-                    let in_band = middle.is_err();
+                    let middle =
+                        placed(&body, top, geom_core::Point3::new(1.1 + w / 2.0, 0.0, 1.0));
+                    let oracle = scanned || middle == Some(true);
+                    let in_band = middle.is_none();
                     let tag = format!("d1 tab {k}esc");
                     if in_band && read.is_err() {
                         rows.push(format!("{tag}: middle in band, read held"));
@@ -19681,6 +19804,205 @@ mod two_carrier_records {
                 );
                 eprintln!("{s}");
                 assert!(!stale(&errors), "{s}");
+            }
+
+            /// A plate whose only run under the line is a 0.01 spike at
+            /// x = 2, beside an apex at x = 1.1 standing `d` off the line.
+            fn apex_beside_a_spike(d: f64) -> Vec<(f64, f64)> {
+                vec![
+                    (0.0, -1.0),
+                    (4.0, -1.0),
+                    (4.0, -0.5),
+                    (2.02, -0.5),
+                    (2.0, 0.01),
+                    (1.98, -0.5),
+                    (1.2, -0.5),
+                    (1.1, d),
+                    (1.0, -0.5),
+                    (0.0, -0.5),
+                ]
+            }
+
+            /// **An apex in band of the line does not hide a spike
+            /// elsewhere on it**: the apex's reading may refuse, never
+            /// answer the line clear of the spike's run. Red where a
+            /// refusal at the apex drops the face's cuts and a coarser
+            /// reading misses the spike.
+            #[test]
+            fn an_apex_in_band_of_the_line_does_not_hide_a_spike_elsewhere() {
+                let eps = Tol::witness().eps();
+                for d in [3.0 * eps, 6.0 * eps, -10.0 * eps] {
+                    let (body, top) = top_of(&apex_beside_a_spike(d));
+                    let (read, oracle) = read_line(&body, top, 0.0, 1.0, (0.0, 4.0));
+                    assert!(oracle, "{d:e}: the spike holds the line");
+                    assert!(!matches!(read, Ok(false)), "{d:e}: {read:?}");
+                }
+            }
+
+            /// A plate whose only run under the line is a 0.01 spike at
+            /// x = 3, beside a ledge over x in (0.2, 1.8) standing `a` to
+            /// `a + 0.3·esc` below the line, where the boundary pass
+            /// refuses the ledge's edge and its vertices; `spike` false
+            /// leaves the spike out.
+            fn ledge_beside_a_spike(a: f64, spike: bool) -> Vec<(f64, f64)> {
+                let mut outline = vec![(0.0, -1.0), (4.0, -1.0), (4.0, -0.5)];
+                if spike {
+                    outline.extend([(3.02, -0.5), (3.0, 0.01), (2.98, -0.5)]);
+                }
+                outline.extend([
+                    (1.8, -0.5),
+                    (1.8, -a - 0.3 * esc()),
+                    (0.2, -a),
+                    (0.2, -0.5),
+                    (0.0, -0.5),
+                ]);
+                outline
+            }
+
+            /// **A member the boundary pass refuses leaves the line
+            /// unread only over its window**: the ledge's refusal locates
+            /// it over x in (0.2, 1.8), so the spike, which both the plate
+            /// and a wide face hold, is cut out and read, and the line
+            /// answers `true` in either face order. Without the spike the
+            /// plate's out over the ledge's window settles nothing, and
+            /// the line refuses naming the plate. Red where a refused
+            /// member unreads the whole face (the spike's run is never
+            /// cut out, so `Err`), or where its window is ignored (the
+            /// line answers `false` over the ledge). The plate's refusal
+            /// there is the ledge's, or a station held in its band.
+            #[test]
+            fn a_refused_ledge_leaves_the_spike_beside_it_read() {
+                let (wide, wide_top) =
+                    top_of(&[(-1.0, -1.0), (5.0, -1.0), (5.0, 1.0), (-1.0, 1.0)]);
+                let read = |plate: &Body<f64>, top, plate_first: bool| {
+                    let faces = if plate_first {
+                        [(plate, top), (&wide, wide_top)]
+                    } else {
+                        [(&wide, wide_top), (plate, top)]
+                    };
+                    read_pair(faces, 0.0, 1.0, (0.0, 4.0))
+                };
+                for k in [0.2, 0.5, 1.0] {
+                    let a = k * esc();
+                    let (plate, top) = top_of(&ledge_beside_a_spike(a, true));
+                    let (ledge, ledge_top) = top_of(&ledge_beside_a_spike(a, false));
+                    for plate_first in [true, false] {
+                        let plate_at = usize::from(!plate_first);
+                        let got = read(&plate, top, plate_first);
+                        assert!(
+                            matches!(got, Ok(true)),
+                            "ledge {k}esc, plate first {plate_first}: {got:?}"
+                        );
+                        let got = read(&ledge, ledge_top, plate_first);
+                        assert!(
+                            matches!(got, Err(ref why) if why.contains(&plate_at)),
+                            "ledge {k}esc without the spike, plate first {plate_first}: {got:?}"
+                        );
+                    }
+                }
+            }
+
+            /// **Two different faces read the line as the oracle does**:
+            /// every ordered pair of six plates (a plain one, the ledge
+            /// beside a spike and without it, the apex beside a spike, a
+            /// notch whose floor stands in band, and a ledge running up
+            /// to the line) against the oracle that scans 40001 stations
+            /// and each plate's own spike, both faces In at one. An answer
+            /// must be the oracle's; a refusal is allowed only where the
+            /// oracle is false. Red where a window is ignored (an `Ok`
+            /// the oracle contradicts) or a refused member unreads its
+            /// whole face where the oracle holds the line (`Err` over a
+            /// true contact). It cannot see a refusal the oracle calls
+            /// false, nor a contact narrower than the scan with no
+            /// station listed for it.
+            #[test]
+            fn two_different_faces_read_the_line_as_the_oracle_does() {
+                let e = esc();
+                let n = 40000;
+                // A plate's outline, and the stations its own spike holds.
+                type Plate = (Vec<(f64, f64)>, Vec<f64>);
+                let plates: Vec<Plate> = vec![
+                    (
+                        vec![(0.0, -1.0), (4.0, -1.0), (4.0, 0.5), (0.0, 0.5)],
+                        vec![],
+                    ),
+                    (ledge_beside_a_spike(0.5 * e, true), vec![3.0]),
+                    (ledge_beside_a_spike(0.5 * e, false), vec![]),
+                    (apex_beside_a_spike(3.0 * Tol::witness().eps()), vec![2.0]),
+                    (
+                        vec![
+                            (0.0, -1.0),
+                            (4.0, -1.0),
+                            (4.0, 0.5),
+                            (2.6, 0.5),
+                            (2.6, -0.5 * e),
+                            (2.2, -0.8 * e),
+                            (2.2, 0.5),
+                            (0.0, 0.5),
+                        ],
+                        vec![2.4],
+                    ),
+                    (
+                        vec![
+                            (0.0, -1.0),
+                            (4.0, -1.0),
+                            (4.0, 0.5),
+                            (1.8, 0.5),
+                            (1.8, -0.5 * e),
+                            (0.2, -0.8 * e),
+                            (0.2, -0.5),
+                            (0.0, -0.5),
+                        ],
+                        vec![1.9],
+                    ),
+                ];
+                let inn = |f: &(Body<f64>, FaceKey), x: f64| {
+                    placed_in(&f.0, f.1, geom_core::Point3::new(x, 0.0, 1.0))
+                };
+                let faces: Vec<_> = plates.iter().map(|(o, x)| (top_of(o), x.clone())).collect();
+                for (fi, (f, fx)) in faces.iter().enumerate() {
+                    for (gi, (g, gx)) in faces.iter().enumerate() {
+                        let xs = (0..=n)
+                            .map(|i| 4.0 * f64::from(i) / f64::from(n))
+                            .chain(fx.iter().chain(gx).copied());
+                        let oracle = xs.into_iter().any(|x| inn(f, x) && inn(g, x));
+                        let read = read_pair([(&f.0, f.1), (&g.0, g.1)], 0.0, 1.0, (0.0, 4.0));
+                        assert!(
+                            match read {
+                                Ok(r) => r == oracle,
+                                Err(_) => !oracle,
+                            },
+                            "plates {fi} × {gi}: {read:?} oracle {oracle}"
+                        );
+                    }
+                }
+            }
+
+            /// **A record through that spike is not stale**, whichever
+            /// face the record names first.
+            #[test]
+            fn a_record_through_a_spike_beside_an_apex_in_band_is_not_stale() {
+                let r = rig(
+                    &apex_beside_a_spike(3.0 * Tol::witness().eps()),
+                    (-1.0, 5.0),
+                    (-0.5, 0.5),
+                );
+                let b = Band::linear(Tol::witness()).unwrap();
+                for swap in [false, true] {
+                    let (x, y) = if swap {
+                        (r.top, r.wall)
+                    } else {
+                        (r.wall, r.top)
+                    };
+                    let errors = census_and_certify(
+                        &r.body,
+                        &one(&r.body, Cell::Face(x), Cell::Face(y)),
+                        b,
+                        Tol::witness(),
+                        None,
+                    );
+                    assert!(!stale(&errors), "swap {swap}: {errors:?}");
+                }
             }
 
             /// The unit half-disc cap (arc through +y, chord y = 0) and
@@ -20153,7 +20475,7 @@ mod curved_edge_edge {
                         .and_then(|d| body.get_curve_geom(d.curve))
                         .and_then(|g| g.certified())
                         .is_some_and(|c| {
-                            matches!(c.carrier(), Curve3::Circle(geom::Circle { frame: geom::Frame { center, .. }, .. }) if center.z == 0.0)
+                            matches!(c.carrier(), Curve3::Circle(geom::Circle { frame: geom::Frame { origin: center, .. }, .. }) if center.z == 0.0)
                         })
             })
             .expect("the sheet's bottom rim");

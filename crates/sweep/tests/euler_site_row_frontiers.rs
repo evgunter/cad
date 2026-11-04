@@ -218,9 +218,9 @@ fn a_chord_that_fails_certification_on_a_spline_wall_names_the_certification() {
 /// through the fitted lane, which `set_edge_curve` does not carry. The
 /// door describes the edge and leaves the rows as found: the two
 /// `MissingCache` findings stand, beside the refusal the wall's
-/// re-derivation meets — the circle is no iso of the chart, so the
-/// minting pass could not state those rows either — and no other row
-/// moves.
+/// re-derivation meets — the circle is no arc rim of the chart, and a
+/// circle on a spline chart has no general lane yet, so the minting pass
+/// could not state those rows either — and no other row moves.
 #[test]
 fn a_null_edge_described_on_a_spline_wall_leaves_its_rows_as_found() {
     let mut body = lofted_prism();
@@ -251,7 +251,12 @@ fn a_null_edge_described_on_a_spline_wall_leaves_its_rows_as_found() {
             topo::PcurveMintError::MissingCache { half_edge } => missing.push(half_edge),
             topo::PcurveMintError::Certify {
                 half_edge,
-                error: geom_brep::PcurveCertifyError::IsoUnsupported { .. },
+                error:
+                    geom_brep::PcurveCertifyError::NoGeneralLane {
+                        carrier: geom::CurveKind::Circle,
+                        gap: geom_brep::LaneGap::Unwritten,
+                        ..
+                    },
                 ..
             } => why.push(half_edge),
             ref other => panic!("only the gaps and why they are gaps, got {other:?}"),
@@ -263,8 +268,29 @@ fn a_null_edge_described_on_a_spline_wall_leaves_its_rows_as_found() {
     assert_eq!(missing, want);
     assert!(
         matches!(why.as_slice(), [he] if want.contains(he)),
-        "the wall's re-derivation refuses the described circle, no iso of the chart: \
+        "the wall's re-derivation refuses the described circle, no arc rim of the chart: \
          {findings:?}"
+    );
+    // The missing general lane is a lane gap, never the body's defect:
+    // "not yet" at rest, and at a build where the mint meets it.
+    let iso = findings
+        .iter()
+        .find(|f| matches!(f, topo::PcurveMintError::Certify { .. }))
+        .unwrap()
+        .clone();
+    let at_rest =
+        topo::ValidationError::Pcurve { finding: iso }.render(geom_brep::recourse::Reading::AtRest);
+    assert!(
+        at_rest.ends_with(geom_core::NOT_YET_ENDING) && !at_rest.contains("defect"),
+        "{at_rest}"
+    );
+    let wall = body.face_of_half_edge(why[0]).unwrap();
+    let built = topo::mint_pcurves_of(&mut body, &[wall], tol())
+        .unwrap_err()
+        .render(geom_brep::recourse::Reading::Build);
+    assert!(
+        built.ends_with(geom_core::NOT_YET_ENDING) && !built.contains("defect"),
+        "{built}"
     );
 }
 

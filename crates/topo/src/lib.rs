@@ -125,6 +125,9 @@
 //! # run().unwrap();
 //! ```
 
+// A comment on a `mod` declaration below is `//`, never `///`: an outer
+// doc comment merges into the module's own `//!` docs and makes rustdoc
+// resolve their intra-doc links in this file's scope instead of theirs.
 pub mod attach;
 pub mod body;
 pub mod boolean;
@@ -135,35 +138,24 @@ pub mod chart;
 pub(crate) mod chart_groups;
 pub mod chart_iso;
 pub mod chart_region;
-pub mod clearance;
-pub mod construction;
-pub(crate) mod injective;
-// The shared chord-join core — ch. 14's `join`/`cut` mechanics and the
-// section-chord geometry, a top-level sibling of `boolean/` and
-// `splitting/` for the reason its own docs give. Non-doc comment for
-// the same rustdoc reason as the sector modules below.
+pub(crate) mod chart_window;
 pub(crate) mod chord_join;
+pub mod clearance;
 pub mod coherence;
 pub mod coincidence;
+pub mod construction;
 pub mod contact;
 pub mod entity;
 pub mod euler;
 pub mod euler_kill;
 pub mod euler_ring;
-pub(crate) mod fuse;
-// The one door for a planar face's outward normal — at the crate root
-// because its consumers now span both halves and the shared sector
-// walk; its own docs carry the argument. Non-doc comment for the same
-// rustdoc reason as the sector modules below.
 pub mod face_boxes;
 pub mod face_normal;
 #[cfg(test)]
 pub(crate) mod fixtures;
-// This crate's own sources, read as source. A sibling of `fixtures`
-// rather than a section of it: that module's subject is canonical
-// bodies, this one's is a Rust reader. Non-doc comment for the
-// same rustdoc reason as the sector modules below.
+pub(crate) mod fuse;
 pub mod geometry;
+pub(crate) mod injective;
 #[cfg(test)]
 pub(crate) mod source_walk;
 
@@ -177,9 +169,6 @@ pub mod joint;
 pub(crate) mod lineage;
 pub mod link;
 pub(crate) mod live;
-// The one statement of a stored planar loop's signed winding, shared by
-// the merge's role assigner and tier 3's check 6. Non-doc comment for
-// the same rustdoc reason as the sector modules below.
 pub(crate) mod loop_winding;
 pub mod merge_faces;
 pub mod mirror;
@@ -193,6 +182,7 @@ pub mod offset_general;
 pub mod offset_nappe;
 pub(crate) mod offset_restate;
 pub mod offset_together;
+pub(crate) mod one_region;
 pub mod pcurves;
 pub mod pieces;
 pub(crate) mod policy_lane;
@@ -226,14 +216,6 @@ pub(crate) mod review_m1_pr5_internal;
 pub(crate) mod ring_path;
 #[cfg(test)]
 mod row_walk_proofs;
-// The shared vertex-neighborhood sector modules — top-level siblings
-// of `boolean/` and `splitting/` on purpose: both lanes ask these
-// questions, so neither hosts them. Each module's own docs carry
-// the placement argument. Non-doc comments deliberately: an outer
-// `///` here would merge into the module's own `//!` docs and make
-// rustdoc resolve their intra-doc links in THIS module's scope instead
-// of that one's.
-pub(crate) mod one_region;
 pub(crate) mod sector_face;
 pub(crate) mod sector_shape;
 pub mod separation;
@@ -740,11 +722,11 @@ pub mod test_support {
         origin: geom_core::Point3<f64>,
         dir: geom_core::Vec3<f64>,
     ) -> (Vec<(f64, f64)>, Vec<f64>) {
+        let line = geom::Line { origin, dir };
         let at = |v: crate::entity::VertexKey| {
             let p = crate::readback::vertex_point(body, v).expect("a vertex's point");
-            let t = (p - origin).dot(dir);
-            let off = (p - origin - dir * t).norm();
-            (off < 1e-9).then_some((t * 1e6).round() / 1e6)
+            let off = (p - line.foot(p)).norm();
+            (off < 1e-9).then_some((line.param(p) * 1e6).round() / 1e6)
         };
         let mut spans: Vec<(f64, f64)> = body
             .edges()
@@ -1293,7 +1275,13 @@ pub mod test_support {
         p: geom_core::Point3<T>,
         band: geom_core::Band,
     ) -> Result<Option<bool>, crate::PointInSolidError> {
-        let (_, normal) = crate::boolean::solid_contain::face_plane(body, face)?;
+        let Some((_, normal)) = crate::face_normal::face_plane(body, face) else {
+            let f = crate::live::proven(&body.faces, face, crate::entity::EntityId::Face);
+            return Err(crate::PointInSolidError::KindUnsupported {
+                face,
+                kind: body.face_surface_linked(face, f).kind(),
+            });
+        };
         crate::boolean::solid_contain::point_in_face(body, face, normal, p, band)
     }
 }
@@ -1349,7 +1337,7 @@ pub use boolean::{
     take_output_stage_points, take_shared_points,
 };
 #[cfg(feature = "sweep-testing")]
-pub use chord_join::face_azimuth_window_traces;
+pub use chart_window::face_azimuth_window_traces;
 // The census's idealized/realized pair (its `Candidates`): the
 // vocabulary always, the door on the boolean sweep's terms.
 pub use census::{
@@ -1424,6 +1412,8 @@ pub use provenance::{Provenance, SplitLineageCycle};
 // the query DOORS (materializers, predicates) keep their module
 // identity, like `readback`'s.
 pub use face_boxes::{FaceBox, FaceBoxes};
+pub use geom_brep::curve_face::plane_crossing::ConicRootFault;
+pub use geom_brep::edge_crossing::CrossingDecision;
 pub use mirror::{Reflection, mirror_body};
 pub use pieces::PieceSortError;
 pub use query::{
@@ -1445,14 +1435,14 @@ pub use shell::{
     HoleRim, RimNaming, RimShell, ShellError, ShellNaming, ShellRetired, Shelled, shell, shell_open,
 };
 pub use splitting::{
-    ApexSectionReading, ConicCrossingsCase, ConicRootFault, CrossingDecision, Escalation,
-    KnifeEdge, KnifeEdgeSite, LoopContainment, LoopDecision, NullEdgeRecord, OffPlane,
-    OffPlaneCause, PlaneSide, PointInLoopError, Section, SectionEdge, SectionEndReading,
-    SectionError, SectionGermFault, SectionGermReading, SectionPinMiss, SectionPolygon,
-    SectionRegion, SectorEntry, SectorEntryKind, SectorReading, SplitContacts, SplitError,
-    SplitFinishError, SplitJoinError, SplitPart, SplitPlane, SplitReduceError, SplitReduction,
-    SplitResult, TangencyReadings, Uncrossable, UncrossableCarrier, classify_neighborhood,
-    plane_section, point_in_loop, split, split_reduce, vertex_sides,
+    ApexSectionReading, ConicCrossingsCase, Escalation, KnifeEdge, KnifeEdgeSite, LoopContainment,
+    LoopDecision, NullEdgeRecord, OffPlane, OffPlaneCause, PlaneSide, PointInLoopError, Section,
+    SectionEdge, SectionEndReading, SectionError, SectionGermFault, SectionGermReading,
+    SectionPinMiss, SectionPolygon, SectionRegion, SectorEntry, SectorEntryKind, SectorReading,
+    SplitContacts, SplitError, SplitFinishError, SplitJoinError, SplitPart, SplitPlane,
+    SplitReduceError, SplitReduction, SplitResult, TangencyReadings, Uncrossable,
+    UncrossableCarrier, classify_neighborhood, plane_section, point_in_loop, split, split_reduce,
+    vertex_sides,
 };
 pub use transform::{TransformError, transform_rigid};
 pub use validate::{

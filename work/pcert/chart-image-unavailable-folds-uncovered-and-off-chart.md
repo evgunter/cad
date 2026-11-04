@@ -4,6 +4,8 @@ kind: issue
 title: EdgeCurve certification folds every chart_pcurve refusal into one ChartImageUnavailable worded 'wrong locus' and drops its why
 status: open
 opened: 2026-10-01
+priority: P3
+cost: M
 ---
 
 

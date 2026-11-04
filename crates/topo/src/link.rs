@@ -68,7 +68,10 @@
 //! the face's reach so that its readings are taken where the face's
 //! would be ([`FaceSector::cleared`]). A curved face, or such a face held at
 //! its corner, refuses ([`TouchUnread::Unreadable`]); a sphere or
-//! cylinder face is read by its carrier instead, as above. Where a solid
+//! cylinder face is read by its carrier instead, as above, and a cylinder
+//! or cone face along a line edge of it that lies in a planar face of its
+//! own solid, as the half-plane through its chord across the edge, which
+//! stands in for it against that face ([`FaceSector::chord`]). Where a solid
 //! touches itself, a link with a curved face or edge in it is read once
 //! more as its faces' tangent cones ([`FaceSector::tangent`]), which
 //! [`rest::one_material`] reads only where its first order decides; no
@@ -558,12 +561,17 @@ pub(crate) struct LinkFace<T: Real> {
     /// takes.
     sense: bool,
     /// Where the wedges run past the face (a cleared disc): the radius
-    /// about `p` inside which they are the face's own. `None` where every
-    /// wedge is real points of the face.
+    /// about `p` inside which they are the face's own. For a ruled face's
+    /// chord ([`FaceSector::chord`]), whose wedges are no points of the
+    /// face but stand in for its material, the radius inside which they
+    /// do. `None` where every wedge is real points of the face.
     clear: Option<T>,
     /// Where the sector is the face's tangent cone at `p` rather than
     /// real points of it ([`FaceSector::tangent`]): what
     /// [`rest::one_material`] holds such a link to before it reads it.
+    /// A chord is `None`: it is a planar sector whose cone reads as the
+    /// face's at every scale out to `clear`, so every planar reader may
+    /// take it as one.
     tangent: Option<Tangent>,
 }
 
@@ -2501,6 +2509,216 @@ fn corner_fan<T: Decide>(
     Ok(rays.windows(2).map(|w| (w[0], w[1])).collect())
 }
 
+/// **A cylinder or cone face along a line edge of it, at `p` inside
+/// the edge**: what [`FaceSector::chord`] reads it by.
+pub(crate) struct Ruled<T: Real> {
+    /// The face's carrier.
+    pub(crate) surface: geom::Surface<T>,
+    /// `Face::sense`.
+    pub(crate) sense: bool,
+    /// The face's outward unit normal at `p`.
+    pub(crate) outward: Vec3<T>,
+    /// The unit direction of the face's half-edge along the edge.
+    pub(crate) along: Vec3<T>,
+    /// The edge's two ends.
+    pub(crate) ends: [Point3<T>; 2],
+    /// A radius about `p` that the face's other edges stand outside
+    /// (so the edge's ends too, which those edges end on).
+    pub(crate) clear: T,
+}
+
+/// **A ruled face's chord** ([`FaceSector::chord`]): the sector that
+/// stands in for the face, and the lens between the face and the chord,
+/// as the unit directions square to the edge that bound it (the face's
+/// tangent and the chord) and the unit normals of its two planes toward
+/// it, read at `lever` from `p`.
+pub(crate) struct RuledChord<T: Real> {
+    /// The stand-in, handed out only by [`chords_clear`].
+    sector: FaceSector<T>,
+    bounds: [Vec3<T>; 2],
+    inward: [Vec3<T>; 2],
+    lever: T,
+}
+
+impl<T: Decide> FaceSector<T> {
+    /// **A cylinder or cone face whose ruling is a line edge, read across
+    /// the edge by its chord**, at `p`, the middle of the cell read
+    /// inside the edge, against the plane through `p` of unit normal
+    /// `plane` (the face the edge lies in).
+    ///
+    /// The face's parallel circle through `p` leaves it along the face's
+    /// tangent `h`, square to the edge, and reaches the face's real point
+    /// `q` at the lever `ℓ`, half the lesser of the face's clearance and
+    /// the circle's radius. `q` and the tangent point `p + h·ℓ` are read
+    /// against the plane: both decided alike, or the tangent Zero and `q`
+    /// decided, put the arc on `q`'s side (to within `z/(2K)` of the
+    /// plane, `z` the band's zero), and the face is read as the
+    /// half-plane from the edge through `q`, oriented as the face. Its
+    /// ball is the distance from `p` to the carrier's ruling through `q`,
+    /// inside which the face lies between its two rulings: the radius the
+    /// stand-in answers for. The fan's own chords stand `1.01·ℓ` off, so
+    /// the cap moves where a crossing is confirmed by a hundredth of the
+    /// lever on a cylinder and by the cone's shortfall on a cone; it is
+    /// kept as the honest radius, not for a verdict it changes.
+    /// The argument is `crates/topo/README.md`'s (tier 3′, the chord
+    /// reading); it needs every other sheet of the edge outside the lens
+    /// between the arc and the chord, which [`chords_clear`] reads before
+    /// it hands the stand-in out, and a cone's apex outside the edge.
+    ///
+    /// A face on another carrier, an edge off the carrier's ruling
+    /// through `p`, or a cone's apex decidedly inside the edge, is
+    /// [`TouchUnread::Unreadable`]; a reading in band, or an arc decided
+    /// to cross the plane short of `q`, [`TouchUnread::InBand`]; the arc
+    /// lying in the plane to `q`, [`TouchUnread::Degenerate`]; a lever
+    /// that is not a positive number, [`TouchUnread::ChordScale`].
+    pub(crate) fn chord(
+        face: &Ruled<T>,
+        p: Point3<T>,
+        plane: Vec3<T>,
+        band: Band,
+    ) -> Result<RuledChord<T>, TouchUnread> {
+        use Sign::{Negative, Positive, Zero};
+        let (centre, axis, apex) = match face.surface {
+            geom::Surface::Cylinder { origin, axis, .. } => {
+                (origin + axis * axis.dot(p - origin), axis, None)
+            }
+            geom::Surface::Cone { apex, axis, .. } => {
+                (apex + axis * axis.dot(p - apex), axis, Some(apex))
+            }
+            _ => return Err(TouchUnread::Unreadable),
+        };
+        let (along, m0) = (face.along, face.outward);
+        let radial = p - centre;
+        let rho = radial.norm();
+        let lever = face.clear.min(rho) * T::from_f64(0.5);
+        if !geom_core::is_finite_length(lever) || geom_core::is_zero_length(lever, lever) {
+            return Err(TouchUnread::ChordScale);
+        }
+        let unit = |v: Vec3<T>| v.normalize();
+        let off = |v: Vec3<T>, w: Vec3<T>| v - w * w.dot(v);
+        // Into the face, square to the edge: the half-plane left of
+        // `along` about the outward normal ([`fan`]).
+        let h = unit(off(m0.cross(along), along));
+        // The parallel circle's tangent at `p`, turned as `h`: square to
+        // the axis and the radius, so to the carrier's ruling through `p`.
+        let around = unit(off(off(h, axis), unit(radial)));
+        for end in face.ends {
+            let on_plane = metric::sign(LINK_PLANE, Distance::of(end, p, m0), band);
+            let on_ruling = metric::sign(LINK_WEDGE, Distance::of(end, p, around), band);
+            match (on_plane, on_ruling) {
+                (Some(Zero), Some(Zero)) => {}
+                (None, _) | (_, None) => return Err(TouchUnread::InBand),
+                _ => return Err(TouchUnread::Unreadable),
+            }
+        }
+        // A cone's sections along the edge are one another scaled about
+        // its apex, which holds only while the apex lies off the edge: on
+        // or past one of its ends.
+        if let Some(apex) = apex {
+            let [a, b] = face.ends;
+            let d = unit(b - a);
+            let past = |from: Point3<T>, dir: Vec3<T>| {
+                metric::sign(LINK_AHEAD, Distance::of(apex, from, dir), band)
+            };
+            match (past(b, d), past(a, -d)) {
+                (Some(Positive | Zero), _) | (_, Some(Positive | Zero)) => {}
+                (None, _) | (_, None) => return Err(TouchUnread::InBand),
+                _ => return Err(TouchUnread::Unreadable),
+            }
+        }
+        // The parallel circle's point at chord `lever` from `p`: it rises
+        // `lever²/2ρ` toward the axis, read off `p` rather than the axis.
+        let half = lever / (rho * T::from_f64(2.0));
+        let bend = centre - p;
+        let q = p
+            + bend * (half.powi(2) * T::from_f64(2.0))
+            + around * (lever * (T::one() - half.powi(2)).sqrt());
+        let side = |x: Point3<T>| metric::sign(LINK_PLANE, Distance::of(x, p, plane), band);
+        match (side(p + h * lever), side(q)) {
+            (Some(a @ (Positive | Negative)), Some(b)) if a == b => {}
+            (Some(Zero), Some(Positive | Negative)) => {}
+            (Some(Zero), Some(Zero)) => return Err(TouchUnread::Degenerate),
+            _ => return Err(TouchUnread::InBand),
+        }
+        let u = unit(off(q - p, along));
+        let outward = unit(off(off(m0, u), along));
+        let inward = [unit(off(off(bend, along), h)), unit(off(h, u))];
+        let next = match apex {
+            Some(apex) => unit(q - apex),
+            None => axis,
+        };
+        let ball = off(q - p, next).norm();
+        Ok(RuledChord {
+            sector: Self {
+                sector: Sector {
+                    outward,
+                    apex: p,
+                    wedges: fan(p, outward, along, lever, true),
+                    closed: false,
+                },
+                face: LinkFace {
+                    surface: face.surface.clone(),
+                    sense: face.sense,
+                    clear: Some(ball),
+                    tangent: None,
+                },
+            },
+            bounds: [h, u],
+            inward,
+            lever,
+        })
+    }
+}
+
+impl<T: Decide> RuledChord<T> {
+    /// Whether the unit direction `d`, square to the edge, lies
+    /// decidedly outside the lens: behind one of its two planes.
+    fn leaves(&self, p: Point3<T>, d: Vec3<T>, band: Band) -> Result<(), TouchUnread> {
+        let x = p + d * self.lever;
+        let mut in_band = false;
+        for n in self.inward {
+            match metric::sign(LINK_PLANE, Distance::of(x, p, n), band) {
+                Some(Sign::Negative) => return Ok(()),
+                Some(_) => {}
+                None => in_band = true,
+            }
+        }
+        Err(if in_band {
+            TouchUnread::InBand
+        } else {
+            TouchUnread::Unreadable
+        })
+    }
+}
+
+/// **The chords' stand-ins, once no other sheet of the edge enters a
+/// chord's lens** ([`FaceSector::chord`]): every unit direction in
+/// `others` (a planar face's, square to the edge, into it, one per pass)
+/// and every other chord's two bounds read decidedly outside each
+/// chord's lens, so the lenses meet no other face of the edge, nor one
+/// another. The one way a chord's sector leaves this module. A direction
+/// inside a lens or on its bound (a sheet that the chord would cross, or
+/// one tangent to the face) is [`TouchUnread::Unreadable`]; a reading in
+/// band, [`TouchUnread::InBand`].
+pub(crate) fn chords_clear<T: Decide>(
+    p: Point3<T>,
+    chords: Vec<RuledChord<T>>,
+    others: &[Vec3<T>],
+    band: Band,
+) -> Result<Vec<FaceSector<T>>, TouchUnread> {
+    for (i, c) in chords.iter().enumerate() {
+        let theirs = chords
+            .iter()
+            .enumerate()
+            .filter(|&(j, _)| j != i)
+            .flat_map(|(_, o)| o.bounds);
+        for d in others.iter().copied().chain(theirs) {
+            c.leaves(p, d, band)?;
+        }
+    }
+    Ok(chords.into_iter().map(|c| c.sector).collect())
+}
+
 /// The fan about `p` normal to `outward` whose every chord stands past
 /// `reach`: eight wedges of an eighth of a turn counterclockwise about it
 /// from the in-plane unit `a`, or, for a `half`, the four left of `a`.
@@ -2878,7 +3096,11 @@ impl<T: Decide> Link<T> {
                     let u = (r - s.apex).normalize();
                     let (wp, ep) = (w - u * u.dot(w), e - u * u.dot(e));
                     let f = [ep.norm_squared(), two * wp.dot(ep), wp.norm_squared()];
-                    let foot = |x: Point3<T>| s.apex + u * u.dot(x - s.apex);
+                    let ruling = geom::Line {
+                        origin: s.apex,
+                        dir: u,
+                    };
+                    let foot = |x: Point3<T>| ruling.foot(x);
                     rays.push((f, lies_in, meets(-f[1] / (two * f[0]), &foot)));
                 }
             }
@@ -4084,6 +4306,8 @@ mod oracle_rows;
 mod round_rows;
 
 #[cfg(test)]
+mod chord_rows;
+#[cfg(test)]
 mod cleared_rows;
 #[cfg(test)]
 mod tangent_rows;
@@ -5175,7 +5399,9 @@ mod tests {
     /// `boolean::vtxfac::cone_classes`), and holds:
     /// - every `Margin` door and every `decide` call lies inside `mod
     ///   metric` (one `Margin::of`);
-    /// - the classifier of unit normals is called only from `pairing`;
+    /// - the classifier of unit normals is called only from `pairing`
+    ///   (`geom_brep::classify_material_pairing_as`), and no tangency
+    ///   token's pairing (`.pairing(`) is asked anywhere it reads;
     /// - nothing reads a bare sign: no `sign_within`, no
     ///   `definitely_positive(` (`validate`'s unnamed door), no
     ///   `enclosure_probe(` (an instrument nothing may branch on), no
@@ -5307,13 +5533,19 @@ mod tests {
                 .collect::<Vec<String>>()
         };
         let mut stray = Vec::new();
-        for needle in ["Margin::", "decide(", "classify_material_pairing"] {
+        for needle in [
+            "Margin::",
+            "decide(",
+            "classify_material_pairing",
+            ".pairing(",
+        ] {
             stray.extend(outside(touch, needle, &[]));
         }
         for needle in ["Margin::", "decide("] {
             stray.extend(outside(module, needle, &[&metric]));
         }
         stray.extend(outside(module, "classify_material_pairing", &[&pairing]));
+        stray.extend(outside(module, ".pairing(", &[]));
         for needle in [
             "sign_within",
             "definitely_positive(",

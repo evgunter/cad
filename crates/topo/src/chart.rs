@@ -15,7 +15,8 @@
 //! [`Chart::u_of`], [`Chart::v_of`] and [`Chart::rim_v`] read it and
 //! spell no inversion of their own. So a point's angles are named in the
 //! windows every placed pcurve image is named in (C4): the azimuth and a
-//! torus's tube angle in `(−1, τ − 1]`, a sphere's latitude in its own.
+//! torus's tube angle in `(−1, τ − 1]`, a sphere's latitude and a
+//! spindle sheet's tube angle in the latitude's.
 //! They read it at [`Band::least`]: every decision the reading takes
 //! for them is a choice between names of one point — the side of a
 //! window's cut, which formula names the angle, and the nappe a point
@@ -34,7 +35,7 @@
 
 use geom::{ChartArm, ChartInverse, Surface};
 use geom_core::predicate::Band;
-use geom_core::{Decide, Point2, Point3, Real, Vec3};
+use geom_core::{Decide, Point2, Point3, Real};
 
 /// A curved surface's chart (everything but the plane, which takes the
 /// planar path): geom's inversion, and the kind data its levers and
@@ -69,6 +70,14 @@ pub enum ChartKind<T: Real = f64> {
         /// The minor radius r.
         minor: T,
     },
+    /// Spindle sheet; v = minor angle, closed on `[−v*, v*]` between
+    /// its apexes.
+    Spindle {
+        /// The signed major radius R.
+        major: T,
+        /// The minor radius r.
+        minor: T,
+    },
 }
 
 impl<T: Real> Chart<T> {
@@ -84,28 +93,15 @@ impl<T: Real> Chart<T> {
             ChartArm::Cone { half_angle } => ChartKind::Cone { half_angle },
             ChartArm::Sphere { radius } => ChartKind::Sphere { r: radius },
             ChartArm::Torus { major, minor } => ChartKind::Torus { major, minor },
+            ChartArm::Spindle { major, minor } => ChartKind::Spindle { major, minor },
         };
         Some(Self { kind, inverse })
     }
 
-    /// The revolution/extrusion axis.
-    pub fn axis(&self) -> Vec3<T> {
-        self.inverse.axis()
-    }
-
-    /// The seam direction (u = 0).
-    pub fn u_ref(&self) -> Vec3<T> {
-        self.inverse.u_ref()
-    }
-
-    /// `axis × u_ref` (the frame convention).
-    pub fn v_ref(&self) -> Vec3<T> {
-        self.inverse.v_ref()
-    }
-
-    /// A point on the axis (apex/center/origin).
-    pub fn anchor(&self) -> Point3<T> {
-        self.inverse.anchor()
+    /// The surface's placement: its axis point (apex, centre or
+    /// origin), axis and seam ([`geom::Surface::frame`]).
+    pub fn frame(&self) -> &geom::Frame<T> {
+        self.inverse.frame()
     }
 
     /// Distance of a point from the chart axis — the lever arm that
@@ -118,8 +114,8 @@ impl<T: Real> Chart<T> {
     /// `v·sin α` rather than sitting in `ChartKind` — needs no special
     /// case, and a point on the axis correctly reports 0.
     pub fn radial(&self, p: Point3<T>) -> T {
-        let w = p - self.anchor();
-        (w.dot(self.u_ref()).powi(2) + w.dot(self.v_ref()).powi(2)).sqrt()
+        let (x, y) = self.frame().in_plane(p);
+        (x.powi(2) + y.powi(2)).sqrt()
     }
 
     /// The v counterpart of [`Self::radial`]: `|∂S/∂v|`, the length
@@ -128,7 +124,7 @@ impl<T: Real> Chart<T> {
     /// Constant per kind because v is either already a length
     /// (cylinder — axial metres; cone — slant metres, both
     /// `|∂S/∂v| = 1`) or an angle turning on a fixed radius (sphere —
-    /// latitude on `r`; torus — minor angle on `r`). u needs the point
+    /// latitude on `r`; torus, spindle — minor angle on `r`). u needs the point
     /// because its lever arm is the *distance from the axis*, which
     /// varies over a cone and a sphere; v's does not, so this takes
     /// none.
@@ -139,13 +135,20 @@ impl<T: Real> Chart<T> {
         match self.kind {
             ChartKind::Cylinder { .. } | ChartKind::Cone { .. } => T::one(),
             ChartKind::Sphere { r } => r,
-            ChartKind::Torus { minor, .. } => minor,
+            ChartKind::Torus { minor, .. } | ChartKind::Spindle { minor, .. } => minor,
         }
     }
 
-    /// Whether v is a periodic coordinate (torus minor angle).
+    /// Whether v is a periodic coordinate (torus minor angle; a spindle
+    /// sheet's is closed between its apexes).
     pub fn v_periodic(&self) -> bool {
-        matches!(self.kind, ChartKind::Torus { .. })
+        match self.kind {
+            ChartKind::Torus { .. } => true,
+            ChartKind::Cylinder { .. }
+            | ChartKind::Cone { .. }
+            | ChartKind::Sphere { .. }
+            | ChartKind::Spindle { .. } => false,
+        }
     }
 }
 
@@ -178,17 +181,28 @@ impl<T: Decide> Chart<T> {
     /// [`crate::coherence`] measures the value that discards, and
     /// `mesh`'s walk is what discards it.
     pub fn rim_v(&self, center: Point3<T>, radius: T) -> T {
-        let h = (center - self.anchor()).dot(self.axis());
-        self.v_of(self.anchor() + self.axis() * h + self.u_ref() * radius)
+        let f = self.frame();
+        let h = f.height(center);
+        self.v_of(f.origin + f.axis * h + f.u_ref * radius)
     }
 }
 
 impl Chart<f64> {
     /// The chart's singular points with their v values: the list
     /// [`geom_brep::chart_singularity::singular_points`] states (sphere
-    /// poles, cone apex; empty otherwise).
+    /// poles, cone apex, a spindle sheet's apexes at `v = ±v*`; empty
+    /// otherwise).
     pub fn poles(&self) -> Vec<(Point3<f64>, f64)> {
         use geom_brep::chart_singularity::Singularity;
+        let v_star = || match self.kind {
+            ChartKind::Spindle { major, minor } => geom::sheet_apex(major, minor).v,
+            ChartKind::Cylinder { .. }
+            | ChartKind::Cone { .. }
+            | ChartKind::Sphere { .. }
+            | ChartKind::Torus { .. } => {
+                unreachable!("Chart::poles: only a spindle sheet has sheet apexes")
+            }
+        };
         geom_brep::chart_singularity::singular_points(&self.inverse)
             .into_iter()
             .map(|(which, p)| {
@@ -196,6 +210,8 @@ impl Chart<f64> {
                     Singularity::North => core::f64::consts::FRAC_PI_2,
                     Singularity::South => -core::f64::consts::FRAC_PI_2,
                     Singularity::Apex => 0.0,
+                    Singularity::SheetApexUp => v_star(),
+                    Singularity::SheetApexDown => -v_star(),
                 };
                 (p, v)
             })
@@ -207,6 +223,7 @@ impl Chart<f64> {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
+    use geom_core::Vec3;
 
     /// A chart about +z, anchored at the origin.
     fn z_chart(surface: impl FnOnce(Point3<f64>, Vec3<f64>, Vec3<f64>) -> Surface<f64>) -> Chart {

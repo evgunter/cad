@@ -541,6 +541,11 @@ pub(crate) fn by_kind(
             face,
             side: Which::First,
         }),
+        Surface::Spindle { .. } => Err(EngineRefusal::Unsupported {
+            carrier: "a spindle sheet's face, which has no injectivity lane yet",
+            face,
+            side: Which::First,
+        }),
     }
 }
 
@@ -717,12 +722,15 @@ fn overlap(a: Point3<Interval>, b: Point3<Interval>) -> bool {
 // windows ([`crate::clearance`]'s `window_of`, whose periodic axes are
 // these) and the presentations read the same table and the same turn.
 
-/// **Whether a chart axis is periodic**: the azimuth of a cylinder, cone
-/// or sphere, and a torus's both angles; no axis of a plane or a
-/// free-form chart.
+/// **Whether a chart axis is periodic**: the azimuth of a cylinder, cone,
+/// sphere or spindle sheet, and a torus's both angles; no axis of a
+/// plane or a free-form chart.
 pub(crate) fn periodic<T: Real>(surface: &Surface<T>, axis: Axis) -> bool {
     match surface {
-        Surface::Cylinder { .. } | Surface::Cone { .. } | Surface::Sphere { .. } => axis == Axis::U,
+        Surface::Cylinder { .. }
+        | Surface::Cone { .. }
+        | Surface::Sphere { .. }
+        | Surface::Spindle { .. } => axis == Axis::U,
         Surface::Torus { .. } => true,
         _ => false,
     }
@@ -1133,7 +1141,7 @@ fn present<'a>(
         | Surface::Cone { .. }
         | Surface::Sphere { .. }
         | Surface::Torus { .. } => present_chart(piece, near_edges, near_vertices, band),
-        Surface::Approx(_) => Err(Unpresented::Structural),
+        Surface::Spindle { .. } | Surface::Approx(_) => Err(Unpresented::Structural),
     }
 }
 
@@ -2366,7 +2374,7 @@ fn conic(c: &Curve3<Interval>) -> Option<Trig> {
         Curve3::Circle(geom::Circle {
             frame:
                 geom::Frame {
-                    center,
+                    origin: center,
                     axis,
                     u_ref,
                 },
@@ -2375,7 +2383,7 @@ fn conic(c: &Curve3<Interval>) -> Option<Trig> {
         Curve3::Ellipse(geom::Ellipse {
             frame:
                 geom::Frame {
-                    center,
+                    origin: center,
                     axis,
                     u_ref,
                 },
@@ -4565,11 +4573,21 @@ fn plane_through(
     if let [(i, _)] = near.edges.as_slice()
         && let Some((
             Curve3::Circle(geom::Circle {
-                frame: geom::Frame { center, axis, .. },
+                frame:
+                    geom::Frame {
+                        origin: center,
+                        axis,
+                        ..
+                    },
                 ..
             })
             | Curve3::Ellipse(geom::Ellipse {
-                frame: geom::Frame { center, axis, .. },
+                frame:
+                    geom::Frame {
+                        origin: center,
+                        axis,
+                        ..
+                    },
                 ..
             }),
             _,

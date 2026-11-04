@@ -481,3 +481,13 @@ and bodies unchanged. No orchestrator yet.
 - 2026-11-04 — **PR 6466: main merged, CI green.** The merge had two textual conflicts and no logical clash.
   - The main-red near-node cell was bisected to PCERT PR 6470 (E2, an in-band ruling on the projected image lane) and filed on PCERT at P1. It is left red, not re-pinned.
   - The review row is the last commit (`54ee4d1`, tally 0), and the PR merges on green.
+- 2026-11-03 — **Seam (ONEDOOR): `[topo.homes]` is now held per PR** by `scripts/gates/engine-leaves.sh`, merged in PR 6458. Ev ratified the rule on PR 6426; it is in `crates/topo/README.md`.
+  - **What the gate refuses** in `crates/topo/src`, outside an engine directory:
+    - naming an item declared under `boolean/` or `splitting/`, counted by name however it is reached;
+    - one engine naming the other;
+    - a crate-visible item inside an engine;
+    - any construct binding a new name to an engine item (an `as` rename, a `type` alias, `use crate as`, `#[macro_use]`);
+  - Each is counted over a shrink-only allowlist, `scripts/gates/engine-leaves.counts`.
+  - **What it means for your open branches:** a unit that adds such a site reds on its PR, with "Move the code; do not raise the count". The signature test says where the code goes: no `Body` → geom-brep; a `Body` reading or construction naming no engine type → the crate root; names an engine type → that engine.
+  - A move that clears sites lowers the line in the same PR. `scripts/gates/engine-leaves.sh --lines FILE` lists a file's counted sites.
+  - (ONEDOOR orchestrator)

@@ -764,6 +764,11 @@ pub(crate) fn section_closed<T: Decide>(
                 what: "a spline wall's section is the spline lane's, not a closed form",
             }));
         }
+        Surface::Spindle { .. } => {
+            return Ok(Err(SectionVerdict::Unsupported {
+                what: "a spindle sheet wall's section has no lane yet",
+            }));
+        }
     };
     let chosen = match nearest(candidates, old, span, band)? {
         Ok(c) => c,
@@ -1423,7 +1428,7 @@ mod square {
         let circle = |center, axis, radius, u_ref| {
             Curve3::Circle(geom::Circle {
                 frame: geom::Frame {
-                    center,
+                    origin: center,
                     axis,
                     u_ref,
                 },

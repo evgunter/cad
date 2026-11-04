@@ -22,13 +22,12 @@ use pncad::sweep::ExtrudeSide;
 
 use pncad::geom::NurbsCurve3;
 use pncad::geom_core::Point3;
-use pncad::geom_core::linalg::frame::path_start_frame;
 use pncad::prelude::{ConstructedLoop, circle_split};
 use pncad::topo::{AtRestBody, BooleanBody};
 
 use crate::bool_bodies::slab;
 use crate::booleans::{check, expect_seamed, finished, try_subtract, try_union};
-use crate::scalar::Scalar;
+use crate::scalar::{Scalar, frame_across};
 use crate::{SceneBody, TourStop, View};
 use pncad::authoring::{p2, p3, polygon, validated};
 use pncad::geom_core::{RigidMotion, Tol};
@@ -109,7 +108,8 @@ pub fn square_wire(tol: Tol) -> ConstructedLoop<f64> {
 }
 
 /// `wire` swept along the coil at `per_turn` stations a turn, from the
-/// plane normal to the spine's start tangent (`path_start_frame`).
+/// world frame at the spine's start turned onto its start tangent
+/// ([`frame_across`]).
 ///
 /// The coil starts at the height that puts the square section's lowest
 /// corner on the boss top. The frame's axes do not depend on that
@@ -132,7 +132,7 @@ pub fn spring<S: Scalar>(
     let start_frame = |path: &NurbsCurve3<f64>| {
         let (t0, _) = path.domain();
         let (p, d) = path.ders1(t0);
-        path_start_frame(p, d, tol).expect("the coil's start tangent fixes a frame")
+        frame_across(p, d, tol)
     };
     let at_zero = start_frame(&coil(0.0));
     let depth = [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)]
@@ -151,10 +151,11 @@ pub fn spring<S: Scalar>(
     let wire: Vec<_> = wire.iter().map(|lp| lp.lift_computed()).collect();
     let (t0, _) = path.domain();
     let (p, d) = path.ders1(t0);
-    let place = SketchPlane::from_frame(
-        path_start_frame(p.map(S::from_computed), d.map(S::from_computed), tol)
-            .expect("the coil's start tangent fixes a frame"),
-    );
+    let place = SketchPlane::from_frame(frame_across(
+        p.map(S::from_computed),
+        d.map(S::from_computed),
+        tol,
+    ));
     sweep_body::<S>(&wire, place, &path, stations, 3, tol).map(|l| l.body)
 }
 
@@ -400,7 +401,7 @@ pub fn stop(tol: Tol) -> TourStop {
          on its decided zero. \
          SPRING: a {TURNS}-turn square-wire coil (mean radius {COIL_R}, wire {wire}, pitch \
          {PITCH}) as ONE sweep_body along a degree-3 interpolant of the helix, from \
-         path_start_frame; its volume within {spring_gap:.2e} (relative) of A x L, the \
+         the world frame turned onto its start tangent; its volume within {spring_gap:.2e} (relative) of A x L, the \
          Pappus-Guldin volume of the continuum coil (gap cap {COIL_GAP:.0e}: the body is \
          station-to-station skinned slabs); its lowest point a start-cap corner exactly on \
          the boss top, between the bore and the rim. \
@@ -421,7 +422,7 @@ pub fn stop(tol: Tol) -> TourStop {
                 a six-turn compression spring standing on a far boss, around its bore",
         ops: "extrude the shell, 7 slab cutters, 4 boss rods, 4 bore rods -> 15 sequential \
               subtract/union nodes; sweep::sweep_body(square wire, 6-turn helix \
-              interpolant, path_start_frame) -> the spring; topo::split(tilted plane) of \
+              interpolant, world frame turned onto the start tangent) -> the spring; topo::split(tilted plane) of \
               the box -> 2 bodies, of the spring -> below only; 3 transform nodes; \
               topo::plane_section(same plane) -> regions with holes",
         delta: 1e-2,

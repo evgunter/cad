@@ -149,9 +149,8 @@ fn tangency<T: Decide>(
     let kind = |body: &Body<T>, f| body.proven_face_surface(f).kind();
     let read = DeclarationRead::Moot;
     if !ruled((kind(a, fa), kind(b, fb)))
-        && super::rim_wedge::shared_rim(a, fa, b, fb, band)
+        && !super::rim_wedge::rim_exists(a, fa, b, fb, band)
             .map_err(|diag| BooleanError::coincidence(super::Coincide::Rim, read, diag))?
-            .is_none()
     {
         return Ok(false);
     }
@@ -245,8 +244,8 @@ fn pairs_among(
 /// the coincidence's own site. A sphere's centre on a cylinder's or a
 /// torus's axis, and a cylinder or a torus coaxial with a torus, are one
 /// row each; two cylinders at their bisector pose are two, the radii
-/// decided equal and the axes decided meeting, the classification the
-/// join's bisector lane reads. The rows in A's face order and B's within
+/// decided equal and the axes decided meeting, the classification its
+/// listed nodes stand on. The rows in A's face order and B's within
 /// each, none where the operation's verdicts are given; the table is
 /// built either way, carrying through `lane`.
 ///

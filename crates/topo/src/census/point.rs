@@ -285,7 +285,12 @@ pub(super) fn edge_face<T: Decide>(
     let touch = match (curve, surface(body, face)) {
         (
             geom::Curve3::Circle(geom::Circle {
-                frame: geom::Frame { center, axis, .. },
+                frame:
+                    geom::Frame {
+                        origin: center,
+                        axis,
+                        ..
+                    },
                 radius,
             }),
             Some(Surface::Plane { origin, normal }),
@@ -301,12 +306,8 @@ pub(super) fn edge_face<T: Decide>(
                 return Read::Pushed;
             }
         },
-        (
-            geom::Curve3::Line(geom::Line { origin, dir }),
-            Some(Surface::Sphere { center, radius }),
-        ) => {
-            let foot = origin + dir * dir.dot(center - origin);
-            on_sphere((center, radius), foot, band, errors)
+        (geom::Curve3::Line(line), Some(Surface::Sphere { center, radius })) => {
+            on_sphere((center, radius), line.foot(center), band, errors)
         }
         _ => {
             errors.push(refused(

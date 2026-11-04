@@ -2929,8 +2929,8 @@ NOT_BOUND = {
     "NameTable": INTERIOR,
     "Operand": INTERIOR,
     # `BooleanError::CurvedPairUnsupported`'s SITE: which door refused
-    # the pair (the operand gate, the ∖/∩ revert roster, or the
-    # crossings path's interior-loop guard). Carried in Rust so a
+    # the pair (the operand gate, or the crossings path's
+    # interior-loop guard). Carried in Rust so a
     # consumer matching that variant can name the field's type;
     # interior here because Python never holds one. The refusal crosses
     # as its tag word plus prose, and the guard's prose is its own
@@ -3949,6 +3949,8 @@ MEMBERS_BOUND_AS = {
     "ValidationError::ApproxLaneUnsupported": "ValidationFinding.variant",
     "ValidationError::DegenerateTorus": "ValidationFinding.variant",
     "ValidationError::DegenerateTorusEscalated": "ValidationFinding.variant",
+    "ValidationError::DegenerateSpindle": "ValidationFinding.variant",
+    "ValidationError::SheetApexReached": "ValidationFinding.variant",
     "ValidationError::PoisonedSurfaceDatum": "ValidationFinding.variant",
     "ValidationError::UnrepresentableSurfaceDatum": "ValidationFinding.variant",
     "ValidationError::PoisonedCurveDatum": "ValidationFinding.variant",

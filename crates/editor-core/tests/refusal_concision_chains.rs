@@ -827,7 +827,7 @@ mod kernel {
         pub(super) const REVOLVE_ERROR: RevolveError = [
             Band, EmptyProfile, NonFiniteAxis, UnderflowedAxis, DegenerateAxis, AxisEscalated, Turn,
             DegenerateAngle, FullRangeAngle, AngleEscalated, VertexCrossesAxis,
-            SliverRadius, ArcCrossesAxis, SliverAxisClearance, UnsupportedToroid,
+            SliverRadius, ArcCrossesAxis, SliverAxisClearance, SheetApex,
             NonManifoldAxisContact, AxisGapEscalated, HoleTouchesAxis, VoidInsertion,
             CosurfaceEscalated, SliverJoin, SliverRim, SmoothJoinRefuted,
             PinnedRunStation, CapPlane, Op, Pcurve,
@@ -973,7 +973,8 @@ mod kernel {
         /// `SplitFinishError`'s arms, for the `Split/Finish/` rows.
         pub(super) const SPLIT_FINISH_ERROR: SplitFinishError = [
             DegenerateSide, TornComponent, UnclassifiableComponent, Corrupt, Euler,
-            Band, ConeCornerEscalated, ConeCornerUnread, ConeFusionDesync, DescribeEscalated, DescribeSideEscalated, DescribeBendEscalated,
+            Band, ConeCornerEscalated, ConeCornerUnread, ConeFusionDesync, DescribeEscalated, Undescribed, DescribeSideEscalated, DescribeBendEscalated,
+            WholeBodySideEscalated,
             EdgeOnFacesEscalated, SmoothJoinRefuted, SectionWindingUndecided, KnifeEdge,
             NestingContradiction, SlitUnplaced, SlitHoming, ResultInvalid,
             ResultNotAtRest, ResultEscalated, EdgeJoin, Merge,
@@ -2017,7 +2018,7 @@ fn extrude() -> Vec<(String, NodeErrorKind)> {
             "SmoothJoinRefuted",
             E::SmoothJoinRefuted {
                 edge: topo::EdgeKey::default(),
-                mixed: Some(geom_brep::MixedStations {
+                mixed: Some(geom_brep::MixedStations::Class {
                     transverse: 3,
                     smooth: 4,
                 }),
@@ -2071,13 +2072,13 @@ fn revolve_arms() -> Vec<(&'static str, sweep::RevolveError)> {
             E::SliverAxisClearance {
                 loop_index: 0,
                 segment_index: 3,
-                decision: sweep::ClearanceDecision::ArcApex,
+                decision: sweep::ClearanceDecision::ArcReach,
                 source: diag(),
             },
         ),
         (
-            "UnsupportedToroid",
-            E::UnsupportedToroid {
+            "SheetApex",
+            E::SheetApex {
                 loop_index: 0,
                 segment_index: 3,
             },
@@ -2179,7 +2180,7 @@ fn revolve_arms() -> Vec<(&'static str, sweep::RevolveError)> {
             "SmoothJoinRefuted",
             E::SmoothJoinRefuted {
                 edge: topo::EdgeKey::default(),
-                mixed: Some(geom_brep::MixedStations {
+                mixed: Some(geom_brep::MixedStations::Class {
                     transverse: 3,
                     smooth: 4,
                 }),
@@ -2627,7 +2628,7 @@ fn split() -> Vec<(String, NodeErrorKind)> {
                 "TangentChordRefuted",
                 J::TangentChordRefuted {
                     face,
-                    mixed: Some(geom_brep::MixedStations {
+                    mixed: Some(geom_brep::MixedStations::Class {
                         transverse: 3,
                         smooth: 4,
                     }),
@@ -2676,6 +2677,13 @@ fn split() -> Vec<(String, NodeErrorKind)> {
             F::DescribeEscalated { edge, diag: diag() },
         ),
         (
+            "Undescribed",
+            F::Undescribed {
+                edge,
+                failure: topo::EdgeDescribeFailure::Crease,
+            },
+        ),
+        (
             "ConeCornerEscalated",
             F::ConeCornerEscalated {
                 vertex,
@@ -2698,6 +2706,10 @@ fn split() -> Vec<(String, NodeErrorKind)> {
             F::DescribeBendEscalated { edge, diag: diag() },
         ),
         (
+            "WholeBodySideEscalated",
+            F::WholeBodySideEscalated { edge, diag: diag() },
+        ),
+        (
             "EdgeOnFacesEscalated",
             F::EdgeOnFacesEscalated { edge, diag: diag() },
         ),
@@ -2705,7 +2717,7 @@ fn split() -> Vec<(String, NodeErrorKind)> {
             "SmoothJoinRefuted",
             F::SmoothJoinRefuted {
                 edge,
-                mixed: Some(geom_brep::MixedStations {
+                mixed: Some(geom_brep::MixedStations::Class {
                     transverse: 3,
                     smooth: 4,
                 }),
@@ -5601,7 +5613,7 @@ fn shell() -> Vec<(String, NodeErrorKind)> {
                 "RimSeamMixed",
                 S::RimSeamMixed {
                     edge: topo::EdgeKey::default(),
-                    stations: geom_brep::MixedStations {
+                    stations: geom_brep::MixedStations::Class {
                         transverse: 3,
                         smooth: 4,
                     },
@@ -5798,7 +5810,7 @@ fn replace_face() -> Vec<(String, topo::ReplaceFaceError<f64>)> {
                 "MixedEdge",
                 R::MixedEdge {
                     edge,
-                    stations: geom_brep::MixedStations {
+                    stations: geom_brep::MixedStations::Class {
                         transverse: 3,
                         smooth: 4,
                     },

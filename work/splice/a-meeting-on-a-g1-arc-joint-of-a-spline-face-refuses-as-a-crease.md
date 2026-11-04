@@ -47,3 +47,7 @@ Moved from SPLICEFACE to SPLICE on 2026-11-02, by `git mv`, when SPLICEFACE merg
 ## Parked on the crease arms' retirement (SPLICE, 2026-11-03)
 
 `tesssize/the-crease-arms-retire-once-no-carrier-carries-a-c0-knot` names this row as one that becomes unreachable under DESIGN [topology] (Ev, `[ev]` PR 5913: every carrier C¹ strictly inside its cell; no reader carries a crease arm), and closes it. Parked on it rather than built, as `a-creased-spline-gets-no-second-order-clearing` was.
+
+## Klein wall 3 no longer reaches the crease (FRAME, 2026-11-03)
+
+From `frame/turned-onto`. The klein loop's start frame rolled a quarter turn (it is now the world frame, the least turn onto the `+z` start tangent), so its circle sections start in the plane `y = 0` and the line this row measured is now the loop's NURBS seam edge, not the arc joint inside wall 3v3. Wall 3 now stops on `a-rim-arc-lying-on-a-cylinder-refuses-as-a-curved-pierce` instead, and this row has no live witness in the tour.

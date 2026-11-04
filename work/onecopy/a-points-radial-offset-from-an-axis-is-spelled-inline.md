@@ -2,12 +2,10 @@
 id: a-points-radial-offset-from-an-axis-is-spelled-inline
 kind: issue
 title: A point's offset from its foot on an axis, (p − o) − a((p − o)·a), is spelled inline at about twenty sites
-status: dispatched
+status: open
 opened: 2026-11-02
 priority: P2
 cost: M
-branch: onecopy/frame-readings
-rides_with: the-frame-carries-every-placement-reading
 ---
 
 
@@ -37,3 +35,7 @@ Fix: a reading on `geom::Line` for the offset (or the radial distance), with the
 ## Slate triage (2026-11-03, ONEHOME cut)
 
 - Moved to ONECOPY (`work/onecopy/`) by `git mv`, id and body unchanged. ONEHOME measured 70 budget points against 35 when its orchestrator ran out of usage; the rows it had not started (no lane, no design fork, no in-flight PR riding them) were cut onto ONECOPY, and what is in flight or staged stayed on ONEHOME.
+
+## A site the frame-readings sweep did not list (2026-11-03, `onecopy/small-reads`)
+
+- `crates/topo/src/offset_axial.rs`, where the axis is re-anchored at its point nearest the world origin: `seed_origin − dir·(seed_origin·dir)`. That is the world origin's foot on the axis line (`Line::foot`) written by hand. It is still on main at `4aa2488fb`.

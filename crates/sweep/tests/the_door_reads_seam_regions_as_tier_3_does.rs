@@ -518,6 +518,11 @@ fn a_corrupt_body_does_not_finish_and_the_raw_door_panics_only_where_it_did() {
     }
     ids.extend(b.edges().map(|(k, _)| EntityId::Edge(k)));
     ids.extend(b.half_edges().map(|(k, _)| EntityId::HalfEdge(k)));
+    let loops: Vec<String> = ids
+        .iter()
+        .filter(|id| matches!(id, EntityId::Loop(_)))
+        .map(|id| format!("{id:?}"))
+        .collect();
     let mut panicked = Vec::new();
     for id in ids {
         let c = b.with_entity_removed_for_tests(id).unwrap();
@@ -554,6 +559,14 @@ fn a_corrupt_body_does_not_finish_and_the_raw_door_panics_only_where_it_did() {
         new.is_empty(),
         "the door panics past its face resolution on: {new:?}"
     );
+    for l in &loops {
+        if !before_any_seam.contains(&l.as_str()) {
+            assert!(
+                !panicked.contains(l),
+                "a removed loop refuses Corrupt, never panics: {l}"
+            );
+        }
+    }
 }
 
 /// **A whole sphere shell flipped in a body of two shells**: the unit

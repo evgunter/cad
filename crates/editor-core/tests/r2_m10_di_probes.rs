@@ -93,7 +93,7 @@ impl Fnv {
             Curve3::Circle(geom::Circle {
                 frame:
                     geom::Frame {
-                        center,
+                        origin: center,
                         axis,
                         u_ref,
                     },
@@ -108,7 +108,7 @@ impl Fnv {
             Curve3::Ellipse(geom::Ellipse {
                 frame:
                     geom::Frame {
-                        center,
+                        origin: center,
                         axis,
                         u_ref,
                     },
@@ -210,6 +210,20 @@ impl Fnv {
                 u_ref,
             } => {
                 self.u64(64);
+                self.p3(center);
+                self.v3(axis);
+                self.s(*major_radius);
+                self.s(*minor_radius);
+                self.v3(u_ref);
+            }
+            Surface::Spindle {
+                center,
+                axis,
+                major_radius,
+                minor_radius,
+                u_ref,
+            } => {
+                self.u64(67);
                 self.p3(center);
                 self.v3(axis);
                 self.s(*major_radius);

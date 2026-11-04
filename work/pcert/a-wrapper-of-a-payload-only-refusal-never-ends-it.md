@@ -4,6 +4,8 @@ kind: issue
 title: A wrapper of a refusal that was payload-only before E1e (CertifyError, SsiError) writes it as payload and never ends it at a door
 status: open
 opened: 2026-11-03
+priority: P3
+cost: M
 ---
 
 

@@ -566,8 +566,8 @@ fn edge_wedge<T: Decide>(
     };
     let (n_own, n_mate) = (own_at.normal_along(along), mate_at.normal_along(along));
     match geom_brep::classify_dihedral(s_own, s_mate, p, extent, band) {
-        Ok(geom_brep::DihedralClass::Smooth) => return Ok(None),
-        Ok(geom_brep::DihedralClass::Transverse) => {}
+        Ok(geom_brep::Dihedral::Tangent(_)) => return Ok(None),
+        Ok(geom_brep::Dihedral::Corner(_)) => {}
         Err(escalation) => return Err(sliver(escalation.diag())),
     }
     // The mate runs the edge backwards, so its face's interior lies at
@@ -837,7 +837,7 @@ pub(crate) fn cone_axial_window<T: Decide>(
     let quarters = T::from_f64(1.5 * core::f64::consts::PI);
     // Every loop, not the outer alone: a file's designated outer bound
     // can be a hole, and the loop enclosing the apex then a ring.
-    let wide = match crate::chord_join::face_loop_azimuth_windows(body, own, face, band) {
+    let wide = match crate::chart_window::face_loop_azimuth_windows(body, own, face, band) {
         Ok(windows) => windows
             .into_iter()
             .try_fold(T::zero() - quarters, |wide, w| {
@@ -934,7 +934,7 @@ fn boundary_fold<T: Decide, R: Copy>(
     let face_data = proven(&body.faces, face, EntityId::Face);
     let mut extent = floor;
     let outer = face_data.outer;
-    for (loop_key, members) in body.face_boundary_by_loop(face, face_data) {
+    for (loop_key, members, _) in body.face_boundary_by_loop(face, face_data) {
         for member in members {
             let p = match member {
                 // An unbounded face has no finite lever arm.

@@ -270,23 +270,32 @@ fn tube_window_and_refusal_doors() {
         ),
         Err(TubeError::FullRangeWindow)
     ));
-    // The ring-torus convention (R > r > 0) refuses through the
-    // SHARED revolve decide — the no-fork claim, executed.
-    assert!(matches!(
-        tube_along_arc::<f64>(
-            tube_frame(
-                Point3::new(0.0, 0.0, 0.0),
-                Vec3::unit_y(),
-                Vec3::unit_x(),
-                Tol::witness()
-            ),
-            0.4,
-            TubeWindow::Full,
-            MINOR,
+    // A tube circle reaching the axis (R = 0.4 < r) refuses through
+    // the SHARED revolve decide — the no-fork claim, executed: the
+    // circle's inner vertex, at `R − r = −0.1`, lies across the axis.
+    let reaching = tube_along_arc::<f64>(
+        tube_frame(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::unit_y(),
+            Vec3::unit_x(),
             Tol::witness(),
         ),
-        Err(TubeError::Revolve(_))
-    ));
+        0.4,
+        TubeWindow::Full,
+        MINOR,
+        Tol::witness(),
+    );
+    assert!(
+        matches!(
+            reaching,
+            Err(TubeError::Revolve(sweep::RevolveError::VertexCrossesAxis {
+                vertex_index: 1,
+                ..
+            }))
+        ),
+        "{:?}",
+        reaching.map(|_| "built")
+    );
 }
 
 /// **§9.3 interval row:** the tube door at the interval scalar —
