@@ -5,8 +5,9 @@
 //! [`decide`] funnel: per-vertex radial classes (on-axis /
 //! off-axis / crossing / sliver), per-segment surface classes
 //! (parallel / perpendicular / oblique lines; on-axis-centered /
-//! off-axis-centered arcs), and the arc-interior half-plane checks
-//! (span and apex margins — a vertex check alone cannot see an arc
+//! off-axis-centered arcs, the circle's reach of the axis), and the
+//! arc-interior half-plane check (whether the arc reaches its circle's
+//! point of least radius — a vertex check alone cannot see an arc
 //! bulging across the axis).
 
 use geom_core::{
@@ -133,7 +134,7 @@ impl<T: Decide> AxisFrame<T> {
         turn_axis: UnitVec3<T>,
     ) -> Self {
         let dir_sk = Vec2::new(dir.get().x, dir.get().y);
-        let e_r = Vec2::new(dir_sk.y, T::zero() - dir_sk.x);
+        let e_r = radial_of(dir_sk);
         Self {
             origin_sk: axis.origin,
             dir_sk,
@@ -147,7 +148,46 @@ impl<T: Decide> AxisFrame<T> {
     }
 }
 
+/// The unit radial direction in sketch coordinates for a unit axis
+/// direction `d̂`: `d̂` turned −90°, so `(ê_r, d̂)` is right-handed and
+/// [`AxisFrame::r`] is the coordinate along it. The frame's one
+/// spelling of `ê_r`.
+fn radial_of<T: Real>(dir_sk: Vec2<T>) -> Vec2<T> {
+    Vec2::new(dir_sk.y, T::zero() - dir_sk.x)
+}
+
+/// **Whether an arc holds a point of its circle**, as a turn: the turn
+/// from the arc's start to the carrier point `centre + radius·toward`
+/// (`toward` a unit vector), taken in the arc's own sense, less the
+/// arc's span. Positive: the arc stops short of the point. Negative:
+/// its interior passes the point. Zero: the point is its end (or its
+/// start, on a full turn).
+///
+/// The turn is `δ = π + atan2(−y, −x)` in `(0, 2π]`, comparison-free:
+/// `−y` is `0 − y`, never `−0`, so `atan2` stays in `(−π, π]` and a
+/// start AT the point reads a whole turn. A full turn's span is `2π`,
+/// so it holds every point of its circle. The revolve's one reading of
+/// arc membership: the interior check ([`classify_segment`]) and the
+/// radial extent's interior extrema ([`radial_extent`]) both read it.
+pub(super) fn turn_past<T: Real>(start: Point2<T>, arc: Arc2<T>, turn: Sign, toward: Vec2<T>) -> T {
+    let from = start - arc.centre;
+    let along = if crate::swept::turn_negates(turn) {
+        T::zero() - T::one()
+    } else {
+        T::one()
+    };
+    let y = along * (from.x * toward.y - from.y * toward.x);
+    let x = from.dot(toward);
+    let to_point = T::pi() + (T::zero() - y).atan2(T::zero() - x);
+    to_point - arc_span(turn, arc)
+}
+
 impl<T: Real> AxisFrame<T> {
+    /// The unit radial direction `ê_r` in sketch coordinates.
+    pub(super) fn e_r(&self) -> Vec2<T> {
+        radial_of(self.dir_sk)
+    }
+
     /// The signed radial coordinate of a sketch point (module docs).
     pub(super) fn r(&self, p: Point2<T>) -> T {
         (p - self.origin_sk).perp_dot(self.dir_sk)
@@ -175,66 +215,36 @@ impl<T: Real> AxisFrame<T> {
 }
 
 /// The profile's maximum radial extent (meters): the fold of `|r|`
-/// over every loop vertex, every arc apex, and every **arc-interior
-/// radial extremum** — the named lever arm the angle predicates meter
-/// through (D4 ¶1).
+/// over every loop vertex and every **arc-interior radial extremum** —
+/// the named lever arm the angle predicates meter through (D4 ¶1).
 ///
-/// An arc's `|r|` maximum can sit strictly inside the arc away from
-/// the apex: on the carrier, `r` is extremal at `c ± R·ê_r` (carrier
-/// angles 0 and π of the radial direction), and whichever of those
-/// two points lies on the arc is folded in. Membership is the chord
-/// half-plane test the arc classes use (the chord splits the carrier
-/// into exactly two arcs; ours is on the side the sweep's sign names),
-/// folded **comparison-free** via `copysign`: the candidate enters
-/// the `max` lattice with the membership margin's sign, so an
-/// off-arc candidate is negated and never wins (`r_max ≥ 0`). A zero
-/// margin means the extremum is an endpoint, already folded.
-///
-/// A one-segment loop's arc is a full turn, so both extrema are folded
-/// in without a membership margin.
+/// An arc's `|r|` maximum can sit strictly inside the arc: on the
+/// carrier, `r` is extremal at `c ± R·ê_r` (carrier angles 0 and π of
+/// the radial direction), and `|r| = max(r, −r)` peaks at an end of the
+/// arc or at whichever of those two points lies on it, which is folded
+/// in (no other point of the arc can exceed both, its apex included). Membership is
+/// [`turn_past`], the revolve's one reading of whether an arc holds a
+/// point of its circle (a full turn holds both), folded
+/// **comparison-free** via `copysign`: the candidate enters the `max`
+/// lattice with the membership margin's sign, so an off-arc candidate
+/// is negated and never wins (`r_max ≥ 0`). A zero margin means the
+/// extremum is an endpoint, already folded.
 ///
 /// Never topology-determining — this only meters angle-sliver margins
 /// (`revolve_angle`, `revolve_angle_headroom`), so it stays outside
 /// the `decide` funnel; deterministic per D9 (a pure `max`/`copysign`
 /// fold, no branching on values).
 pub(super) fn radial_extent<T: Real>(profile: &ValidatedProfile<T>, frame: &AxisFrame<T>) -> T {
-    // Unit radial direction in sketch coordinates (the gradient of
-    // `frame.r`; same construction as `AxisFrame::build`'s `e_r`).
-    let e_r = Vec2::new(frame.dir_sk.y, T::zero() - frame.dir_sk.x);
+    let e_r = frame.e_r();
     let mut r_max = T::zero();
     for lp in profile.loops() {
-        // A one-segment loop is a full turn (D1): its arc is the whole
-        // carrier, so both radial extrema lie on it, and its chord —
-        // the apex's and the membership margin's — is zero.
-        let full_turn = lp.is_full_turn();
         for s in lp.segments() {
             r_max = r_max.max(frame.r(s.start).abs());
-            if let SegmentKind::Arc { arc, .. } = s.kind {
-                let Arc2 {
-                    centre,
-                    radius,
-                    sweep,
-                } = arc;
-                if full_turn {
-                    for dir in [T::one(), T::zero() - T::one()] {
-                        r_max = r_max.max(frame.r(centre + e_r * (radius * dir)).abs());
-                    }
-                    continue;
-                }
-                let apex = arc.apex(s.start, s.end);
-                r_max = r_max.max(frame.r(apex).abs());
-                // Arc-interior radial extrema: the carrier points
-                // c ± R·ê_r, each folded in iff on the arc. A
-                // counterclockwise arc (positive sweep) runs on the
-                // RIGHT of its chord, a clockwise one on the left, so
-                // with the chord's left normal n = (−chord.y, chord.x)
-                // the membership margin is −sweep·((p − a)·n) ≥ 0 —
-                // only its sign is read.
-                let chord = s.end - s.start;
-                let n = Vec2::new(T::zero() - chord.y, chord.x);
+            if let SegmentKind::Arc { arc, turn } = s.kind {
                 for dir in [T::one(), T::zero() - T::one()] {
-                    let p = centre + e_r * (radius * dir);
-                    let margin = T::zero() - sweep * (p - s.start).dot(n);
+                    let toward = e_r * dir;
+                    let p = arc.centre + toward * arc.radius;
+                    let margin = T::zero() - turn_past(s.start, arc, turn, toward);
                     r_max = r_max.max(frame.r(p).abs().copysign(margin));
                 }
             }
@@ -289,7 +299,9 @@ impl<T: Real> WallClass<T> {
 /// The classified surface-of-revolution catalog (ratified in M2-PLAN
 /// PR 5): line ∥ axis ⇒ cylinder, line ⊥ axis ⇒ plane annulus,
 /// oblique line ⇒ cone, arc centered on axis ⇒ sphere, arc centered
-/// off axis ⇒ ring torus.
+/// off axis ⇒ ring torus where its circle clears the axis and one
+/// spindle sheet where it reaches it (`crates/topo/README.md`'s
+/// structural conventions).
 #[derive(Clone, Copy, Debug)]
 pub(super) enum WallKind<T: Real> {
     /// Line ⊥ axis: a plane annulus/disc.
@@ -318,13 +330,24 @@ pub(super) enum WallKind<T: Real> {
         /// The carrier radius.
         radius: T,
     },
-    /// Arc centered off the axis: a ring torus.
+    /// Arc centered off the axis on a circle clear of it: a ring torus.
     Torus {
         /// The carrier center, sketch coordinates.
         center_sk: Point2<T>,
         /// Major radius `R` = the center's radial coordinate.
         major: T,
         /// Minor radius `r` = the carrier radius (`R > r` classified).
+        minor: T,
+    },
+    /// Arc centered off the axis on a circle that reaches it: one sheet
+    /// of a spindle or horn torus.
+    Spindle {
+        /// The carrier center, sketch coordinates.
+        center_sk: Point2<T>,
+        /// Signed major radius `R` = the center's radial coordinate
+        /// (`−r < R ≤ r`, `R ≠ 0` classified).
+        major: T,
+        /// Minor radius `r` = the carrier radius.
         minor: T,
     },
 }
@@ -493,71 +516,82 @@ pub(super) fn classify_segment<T: Decide>(
             // the same body extrude's cylinder walls read.
             let sense = crate::swept::centre_on_material_side(canonical(turn));
             let rc = frame.r(centre);
-            match classify(ClearanceDecision::ArcCenter, Margin::of(rc))? {
-                Sign::Zero => {
-                    // Sphere class. Arc-interior half-plane checks: the
-                    // r ≥ 0 half of an on-axis-centered carrier is
-                    // exactly half its period, so a span definitely
-                    // beyond π must dip below — a full turn's 2π always
-                    // does, before its zero chord is read; the apex pins
-                    // which half-circle branch the arc occupies.
-                    let span_margin =
-                        Margin::metered(T::pi() - arc_span(turn, arc), InfSpeed::new(radius));
-                    match classify(ClearanceDecision::ArcSpan, span_margin)? {
-                        Sign::Positive | Sign::Zero => {}
-                        Sign::Negative => {
-                            return Err(RevolveError::ArcCrossesAxis {
-                                loop_index,
-                                segment_index: s.canonical_segment,
-                            });
-                        }
-                    }
-                    let r_apex = frame.r(arc.apex(s.a, s.b));
-                    match classify(ClearanceDecision::ArcApex, Margin::of(r_apex))? {
-                        Sign::Positive => {}
-                        // On or below the axis: tangential/crossing
-                        // interior contact.
-                        Sign::Zero | Sign::Negative => {
-                            return Err(RevolveError::ArcCrossesAxis {
-                                loop_index,
-                                segment_index: s.canonical_segment,
-                            });
-                        }
-                    }
-                    Ok(WallClass::Wall {
-                        kind: WallKind::Sphere {
-                            center_sk: centre,
-                            radius,
-                        },
-                        sense,
-                    })
+            // The arc's interior against the axis: whether it reaches
+            // `m = c − r·ê_r`, its circle's point of least radius
+            // ([`turn_past`] toward `−ê_r`, metered at the radius). Its
+            // endpoints are at r ≥ 0, so an arc that dips across the
+            // axis holds `m`, and one that stops short of `m` stays at
+            // r ≥ 0. Zero is `m` at an end of the arc.
+            let interior = || {
+                let margin = Margin::metered(
+                    turn_past(s.a, arc, turn, Vec2::zero() - frame.e_r()),
+                    InfSpeed::new(radius),
+                );
+                classify(ClearanceDecision::ArcInterior, margin)
+            };
+            let crosses = || RevolveError::ArcCrossesAxis {
+                loop_index,
+                segment_index: s.canonical_segment,
+            };
+            if matches!(
+                classify(ClearanceDecision::ArcCenter, Margin::of(rc))?,
+                Sign::Zero
+            ) {
+                // A sphere's `m` is at r = −radius, never an end.
+                if !matches!(interior()?, Sign::Positive) {
+                    return Err(crosses());
                 }
-                Sign::Positive => {
-                    // Ring-torus clearance: the tube must stay
-                    // definitely clear of the axis (D3 convention).
-                    match classify(ClearanceDecision::ArcClearance, Margin::of(rc - radius))? {
-                        Sign::Positive => Ok(WallClass::Wall {
-                            kind: WallKind::Torus {
-                                center_sk: centre,
-                                major: rc,
-                                minor: radius,
-                            },
-                            sense,
-                        }),
-                        Sign::Zero | Sign::Negative => Err(RevolveError::UnsupportedToroid {
-                            loop_index,
-                            segment_index: s.canonical_segment,
-                        }),
-                    }
-                }
-                // Center definitely on the negative side: the carrier
-                // reaches across the axis (spindle) whatever the arc
-                // does.
-                Sign::Negative => Err(RevolveError::UnsupportedToroid {
+                return Ok(WallClass::Wall {
+                    kind: WallKind::Sphere {
+                        center_sk: centre,
+                        radius,
+                    },
+                    sense,
+                });
+            }
+            // Off the axis, the circle's reach picks the kind: a
+            // circle clear of the axis sweeps a ring torus, one that
+            // reaches it (a horn at zero) one sheet of a spindle torus,
+            // the side of the axis the arc lies on, with `R = rc`.
+            if matches!(
+                classify(ClearanceDecision::ArcReach, Margin::of(rc - radius))?,
+                Sign::Positive
+            ) {
+                return Ok(WallClass::Wall {
+                    kind: WallKind::Torus {
+                        center_sk: centre,
+                        major: rc,
+                        minor: radius,
+                    },
+                    sense,
+                });
+            }
+            // The interior first (the arc rule): an arc that passes `m`
+            // crosses the axis whatever its ends. Then the ends: every
+            // point the circle shares with the axis is an apex of the
+            // sheet, `m` among them on a horn, so `m` at an end is an
+            // end on the axis.
+            let interior = interior()?;
+            if matches!(interior, Sign::Negative) {
+                return Err(crosses());
+            }
+            if va.pinned || vb.pinned {
+                return Err(RevolveError::SheetApex {
                     loop_index,
                     segment_index: s.canonical_segment,
-                }),
+                });
             }
+            if matches!(interior, Sign::Zero) {
+                return Err(crosses());
+            }
+            Ok(WallClass::Wall {
+                kind: WallKind::Spindle {
+                    center_sk: centre,
+                    major: rc,
+                    minor: radius,
+                },
+                sense,
+            })
         }
     }
 }
