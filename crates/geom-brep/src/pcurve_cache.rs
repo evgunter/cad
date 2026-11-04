@@ -3481,21 +3481,10 @@ fn spans_of(
                 && z.1.is_finite()
             {
                 meters
-                    .over(point(f_sup), (point(rho_lo), point(rho_hi)), z, |lever| {
-                        if lower(lever, true) > 0.0 {
-                            Ok(lever)
-                        } else {
-                            Err(())
-                        }
+                    .certified(point(f_sup), (point(rho_lo), point(rho_hi)), z, |lever| {
+                        lower(lever, true) > 0.0
                     })
-                    .map_or_else(
-                        |()| {
-                            meters
-                                .apex_root(point(f_sup))
-                                .map_or(f64::INFINITY, |m| upper(m, true))
-                        },
-                        |m| upper(m, true),
-                    )
+                    .map_or(f64::INFINITY, |m| upper(m, true))
             } else {
                 f64::NAN
             };
@@ -3656,7 +3645,7 @@ mod span_memo {
 /// distance from the operand's origin and never at its distance from the
 /// world's. The twin's canonical composite along the net is converted to
 /// metres per part (the cone's and the torus's lever per part, the cone's
-/// apex root where its lever is not positive) and halved under limb 2's
+/// and the sheet's apex reading where its lever is not positive) and halved under limb 2's
 /// budget ([`projected::offset_rounds`]): a spline's rounds insert their
 /// breaks into its own net exactly, and a closed form's re-enclose the
 /// spans they cut, over [`closed_form_grid`]'s first breaks. No round

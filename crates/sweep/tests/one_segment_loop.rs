@@ -898,17 +898,15 @@ fn a_one_segment_circle_on_or_against_the_axis_refuses() {
             "{what}: {got:?}"
         );
     };
-    // A horn's circle through its cusp, revolved part way, refuses at
-    // the attachment gate on a stated interval decided zero
-    // (`work/spiricarm/a-football-revolved-part-way-refuses-at-its-cap-meridians-certificate.md`).
-    let pinched_part_way = |what: &str, got: &E| {
+    // A horn's circle through its cusp: its one face reaches the cusp
+    // from both sides, the pinch the full revolve names too.
+    let pinched = |what: &str, got: &E| {
         assert!(
             matches!(
                 got,
-                E::Op {
-                    source: topo::EulerOpError::Certification {
-                        error: geom_brep::CertifyError::StatedInterval { .. }
-                    }
+                E::NonManifoldAxisContact {
+                    loop_index: 0,
+                    vertex_index: 0
                 }
             ),
             "{what}: {got:?}"
@@ -939,7 +937,7 @@ fn a_one_segment_circle_on_or_against_the_axis_refuses() {
         (
             "tangent to the axis at its vertex",
             circle_at(1.0, 0.0, 1.0, PI, TAU),
-            pinched_part_way,
+            pinched,
         ),
         (
             "tangent to the axis away from its vertex",
