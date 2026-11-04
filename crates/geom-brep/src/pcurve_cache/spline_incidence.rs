@@ -21,7 +21,8 @@
 //!   where its box is as thick as the cell is wide.
 //!
 //! A cell whose floor is decided past the band holds no point near the
-//! sample. Any other cell is quartered by de Casteljau, and the floor of
+//! sample. Any other cell is halved by de Casteljau across its longer way
+//! (its control net's longer polyline), and the floor of
 //! the chart is the least floor over the cells that cleared. The chart's
 //! point at a kept cell's parameter centre bounds the sample's distance
 //! from above: decided within the zero band, the sample is on the
@@ -34,7 +35,7 @@
 //!
 //! **A weight not shown positive** leaves the cell's hull unproven, so
 //! its floor is the poison: its decision escalates with an unreadable
-//! margin, and the cell is kept as a leaf: quartering does not cure the
+//! margin, and the cell is kept as a leaf: halving does not cure the
 //! poison, nor a poisoned net or sample. A chart built through
 //! [`geom::NurbsSurface::new`] holds positive weights on their value
 //! channel; only an enclosure reaching zero meets this.
@@ -50,7 +51,7 @@
 //! At `f64` each homogeneous control point carries a first-order bound
 //! on each channel's rounding, set where the point is made and carried
 //! through every blend `x + (y − x)·t` of the insertions and the
-//! quarterings ([`blend`]): the inputs' bounds blend as the values do,
+//! halvings ([`blend`]): the inputs' bounds blend as the values do,
 //! and each blend adds `u·|y − x|·t + u·|result|`, plus `|y − x|·δt` for
 //! an insertion's ratio of knots (`δt` three units of roundoff of `t`).
 //! Out of homogeneous form a point is off by at most
@@ -92,8 +93,8 @@ pub(super) const FOOT: &str = "pcurve_spline_chart_foot";
 /// points decided past the band.
 pub(super) const STRADDLE: &str = "pcurve_spline_chart_straddle";
 
-/// How many times a kept cell is quartered at most.
-const CELL_DEPTH: usize = 48;
+/// How many times a kept cell is halved at most.
+const CELL_DEPTH: usize = 96;
 /// The levels past the one where the chart's own diagonal, halved at
 /// each, is below half the band's zero: a cell's geometric size halves
 /// only on average with its parameters'.
@@ -182,7 +183,7 @@ struct Net<'a, T: Real> {
     cells: Vec<Cell<T>>,
     pu: usize,
     pv: usize,
-    /// The quarterings a walk may make ([`depth_cap`]).
+    /// The halvings a walk may make ([`depth_cap`]).
     depth: usize,
 }
 
@@ -193,7 +194,7 @@ struct Net<'a, T: Real> {
 type Control<T> = ([T; 4], [f64; 4]);
 
 /// One Bézier cell: its parameter rectangle `[u0, u1] × [v0, v1]`, its
-/// control net row-major in `u`, and how many times it was quartered.
+/// control net row-major in `u`, and how many times it was halved.
 #[derive(Clone)]
 struct Cell<T> {
     rect: [f64; 4],
@@ -203,9 +204,11 @@ struct Cell<T> {
 
 /// A cell in the walk's queue, the nearest box (read on the brackets'
 /// middles, which order the walk and decide nothing) first, then the
-/// deepest, then the order it was queued in (D9).
+/// nearest corner (among boxes that all hold the sample, a point of the
+/// chart near it), then the deepest, then the order it was queued in
+/// (D9).
 struct Queued<T> {
-    key: f64,
+    key: (f64, f64),
     seq: usize,
     cell: Cell<T>,
 }
@@ -229,7 +232,9 @@ impl<T> Ord for Queued<T> {
     fn cmp(&self, other: &Self) -> core::cmp::Ordering {
         other
             .key
-            .total_cmp(&self.key)
+            .0
+            .total_cmp(&self.key.0)
+            .then_with(|| other.key.1.total_cmp(&self.key.1))
             .then_with(|| self.cell.depth.cmp(&other.cell.depth))
             .then_with(|| other.seq.cmp(&self.seq))
     }
@@ -239,7 +244,7 @@ impl<T> Ord for Queued<T> {
 /// channel by [`SpanLocate::homogeneous_step`], with its rounding bound
 /// at `f64`: the inputs' bounds blended as the values are, plus the
 /// difference's rounding (`u·|y − x|·t`), the sum's (`u·|result|`), and
-/// `t`'s own (`|y − x|·dt`). `dt` is zero for a quartering's exact half,
+/// `t`'s own (`|y − x|·dt`). `dt` is zero for a halving's exact half,
 /// and three units of roundoff of `t` for an insertion's ratio of knots
 /// (two differences and a quotient).
 fn blend<T: Decide>(x: Control<T>, y: Control<T>, t: T, ratio: bool, track: bool) -> Control<T> {
@@ -253,19 +258,12 @@ fn blend<T: Decide>(x: Control<T>, y: Control<T>, t: T, ratio: bool, track: bool
     } else {
         0.0
     };
-    #[cfg(test)]
-    let scale = if super::mutants::spline_blend_undercut() {
-        0.25
-    } else {
-        1.0
-    };
-    #[cfg(not(test))]
-    let scale = 1.0;
     let e = core::array::from_fn(|c| {
         let span = (middle(y.0[c]) - middle(x.0[c])).abs();
         (1.0 - tf) * x.1[c]
             + tf * y.1[c]
-            + scale * (UNIT_ROUNDOFF * (span * tf + middle(h[c]).abs()) + span * dt)
+            + UNIT_ROUNDOFF * (span * tf + middle(h[c]).abs())
+            + span * dt
     });
     (h, e)
 }
@@ -367,7 +365,7 @@ impl<'a, T: Decide> Net<'a, T> {
         let mut queue = std::collections::BinaryHeap::new();
         let mut push = |queue: &mut std::collections::BinaryHeap<Queued<T>>, cell: Cell<T>| {
             seq += 1;
-            let key = box_key(&cell, key_q);
+            let key = box_key(&cell, key_q, self.pu, self.pv);
             queue.push(Queued { key, seq, cell });
         };
         for cell in &self.cells {
@@ -380,6 +378,8 @@ impl<'a, T: Decide> Net<'a, T> {
         let mut near = false;
         let mut unsettled = false;
         let mut visits = 0usize;
+        #[cfg(test)]
+        let mut cut_short = 0usize;
         let least = |acc: Option<T>, x: T| Some(acc.map_or(x, |a| a.min(x)));
         while let Some(Queued { cell, .. }) = queue.pop() {
             let gap = self.floor(&cell, moved);
@@ -399,6 +399,14 @@ impl<'a, T: Decide> Net<'a, T> {
                 }
             }
             visits += 1;
+            #[cfg(test)]
+            if near && super::mutants::spline_on_cut_short() {
+                cut_short += 1;
+                if cut_short > 4 {
+                    unsettled = true;
+                    break;
+                }
+            }
             if visits > CELL_VISITS {
                 unsettled = true;
                 break;
@@ -409,6 +417,7 @@ impl<'a, T: Decide> Net<'a, T> {
                 T::from_computed(v0 + (v1 - v0) * 0.5),
             );
             let distance = (centre - q).norm();
+
             match decide(FOOT, Margin::of(distance), band) {
                 Ok(Sign::Zero) => return Read::On,
                 Ok(_) => foot = least(foot, distance),
@@ -417,18 +426,15 @@ impl<'a, T: Decide> Net<'a, T> {
                     near = true;
                 }
             }
-            // A poisoned floor or point is not cured by quartering, since
+            // A poisoned floor or point is not cured by halving, since
             // the poison is in the net or the sample: the cell is a leaf.
             if cell.depth >= self.depth || gap.is_poison() || distance.is_poison() {
                 unsettled = true;
                 continue;
             }
-            let (a, b) = cell.split(self.pu, self.pv, true);
-            for half in [a, b] {
-                let (c, d) = half.split(self.pu, self.pv, false);
-                push(&mut queue, c);
-                push(&mut queue, d);
-            }
+            let (a, b) = cell.split(self.pu, self.pv, cell.longer_along_u(self.pu, self.pv));
+            push(&mut queue, a);
+            push(&mut queue, b);
         }
         if !unsettled {
             return match floor {
@@ -535,13 +541,46 @@ fn point_rounding<T: SpanLocate>((h, e): &Control<T>) -> [f64; 3] {
     if !(lead > 0.0) {
         return [f64::INFINITY; 3];
     }
+    #[cfg(test)]
+    let scale = if super::mutants::spline_bound_undercut() {
+        0.25
+    } else {
+        1.0
+    };
+    #[cfg(not(test))]
+    let scale = 1.0;
     core::array::from_fn(|c| {
         let p = (middle(h[c]) / w).abs();
-        (e[c] + p * e[3]) / lead + UNIT_ROUNDOFF * p
+        scale * ((e[c] + p * e[3]) / lead + UNIT_ROUNDOFF * p)
     })
 }
 
 impl<T: Decide> Cell<T> {
+    /// Whether the cell is longer along `u` than along `v`: each way, the
+    /// longest polyline of control points or chord between corners (points
+    /// of the chart, which a rational row of equal points but other
+    /// weights moves), on the brackets' middles. A cell is halved across
+    /// its longer way, so a way along which it does not move (a degree-one
+    /// span between equal rows of equal weights) is never cut.
+    fn longer_along_u(&self, pu: usize, pv: usize) -> bool {
+        let at = |i: usize, j: usize| {
+            let h = self.net[i * (pv + 1) + j].0;
+            let w = middle(h[3]);
+            [0, 1, 2].map(|k| middle(h[k]) / w)
+        };
+        let gap =
+            |a: [f64; 3], b: [f64; 3]| (0..3).map(|k| (a[k] - b[k]).powi(2)).sum::<f64>().sqrt();
+        let along_u = (0..=pv)
+            .map(|j| (0..pu).map(|i| gap(at(i, j), at(i + 1, j))).sum::<f64>())
+            .fold(0.0, f64::max)
+            .max(gap(at(0, 0), at(pu, 0)).max(gap(at(0, pv), at(pu, pv))));
+        let along_v = (0..=pu)
+            .map(|i| (0..pv).map(|j| gap(at(i, j), at(i, j + 1))).sum::<f64>())
+            .fold(0.0, f64::max)
+            .max(gap(at(0, 0), at(0, pv)).max(gap(at(pu, 0), at(pu, pv))));
+        !(along_v > along_u)
+    }
+
     /// The cell split at the middle of its `u` range (`along_u`) or its
     /// `v` range, by de Casteljau on each row.
     fn split(&self, pu: usize, pv: usize, along_u: bool) -> (Self, Self) {
@@ -575,7 +614,7 @@ impl<T: Decide> Cell<T> {
             let mid = v0 + (v1 - v0) * 0.5;
             ([u0, u1, v0, mid], [u0, u1, mid, v1])
         };
-        let depth = self.depth + usize::from(!along_u);
+        let depth = self.depth + 1;
         (
             Self {
                 rect: rect_left,
@@ -617,22 +656,34 @@ fn middle<T: SpanLocate>(x: T) -> f64 {
         .map_or(f64::NAN, |(lo, hi)| lo + (hi - lo) * 0.5)
 }
 
-/// The squared gap from the sample to the cell's box, on the brackets'
-/// middles: the walk's order. NaN orders last.
-fn box_key<T: SpanLocate>(cell: &Cell<T>, q: [f64; 3]) -> f64 {
-    let (mut lo, mut hi) = ([f64::INFINITY; 3], [f64::NEG_INFINITY; 3]);
-    for (h, _) in &cell.net {
+/// The squared gap from the sample to the cell's box and its squared
+/// distance from the nearest of the cell's four corners, points of the
+/// chart, on the brackets' middles: the walk's order. NaN orders last.
+fn box_key<T: SpanLocate>(cell: &Cell<T>, q: [f64; 3], pu: usize, pv: usize) -> (f64, f64) {
+    let at = |(h, _): &Control<T>| {
         let w = middle(h[3]);
+        [0, 1, 2].map(|k| middle(h[k]) / w)
+    };
+    let (mut lo, mut hi) = ([f64::INFINITY; 3], [f64::NEG_INFINITY; 3]);
+    for control in &cell.net {
+        let p = at(control);
         for k in 0..3 {
-            let x = middle(h[k]) / w;
-            lo[k] = lo[k].min(x);
-            hi[k] = hi[k].max(x);
+            lo[k] = lo[k].min(p[k]);
+            hi[k] = hi[k].max(p[k]);
         }
     }
-    let d = (0..3)
+    let gap = (0..3)
         .map(|k| (lo[k] - q[k]).max(q[k] - hi[k]).max(0.0).powi(2))
         .sum::<f64>();
-    if d.is_nan() { f64::INFINITY } else { d }
+    let corner = [(0, 0), (0, pv), (pu, 0), (pu, pv)]
+        .map(|(a, b)| {
+            let p = at(&cell.net[a * (pv + 1) + b]);
+            (0..3).map(|k| (p[k] - q[k]).powi(2)).sum::<f64>()
+        })
+        .into_iter()
+        .fold(f64::INFINITY, f64::min);
+    let last = |d: f64| if d.is_nan() { f64::INFINITY } else { d };
+    (last(gap), last(corner))
 }
 
 /// **A homogeneous row refined to a Bézier cut along `knots`**: every
@@ -725,15 +776,15 @@ fn slab_gap<T: Real>(points: &[Point3<T>], pu: usize, pv: usize, q: Point3<T>) -
     gap.is_bounded().then_some(gap)
 }
 
-/// The quarterings a walk may make: [`CELL_DEPTH`], or fewer where the
-/// net's diagonal, halved at each level, falls below half the band's
-/// zero [`DEPTH_HEADROOM`] levels sooner. Read off the shadow's box, a
+/// The halvings a walk may make: [`CELL_DEPTH`], or fewer where the
+/// net's diagonal, halved at every second halving, falls below half the
+/// band's zero [`DEPTH_HEADROOM`] levels sooner. Read off the shadow's box, a
 /// bound on the work alone: a poisoned point caps nothing.
 fn depth_cap(lo: [f64; 3], hi: [f64; 3], band: Band) -> usize {
     let diagonal = (0..3).map(|k| (hi[k] - lo[k]).powi(2)).sum::<f64>().sqrt();
     let levels = (2.0 * diagonal / band.zero()).log2() + DEPTH_HEADROOM;
     if levels.is_finite() && levels >= 0.0 {
-        (levels.ceil() as usize).min(CELL_DEPTH)
+        (2 * levels.ceil() as usize).min(CELL_DEPTH)
     } else {
         CELL_DEPTH
     }

@@ -230,9 +230,17 @@ fn a_sample_on_the_chart_reads_on_it() {
 
 /// [`patch`] at a scale of a tenth to ten, placed within ten of the
 /// origin, its weights within a decade of one another: a chart whose own
-/// evaluation rounds far inside the zero band.
+/// evaluation rounds far inside the zero band. Not the coincident mode:
+/// two equal rows of unequal weights make a sheet a band thin over a
+/// width, which the walk's visit cap stops on unsettled
+/// (`work/pcert/the-spline-incidence-read-dives-where-its-floors-already-decide.md`).
 fn near_patch(rng: &mut test_utils::fuzz::Rng) -> (NurbsSurface<f64>, &'static str) {
-    let (chart, mode) = patch(rng);
+    let (chart, mode) = loop {
+        let (chart, mode) = patch(rng);
+        if mode != "coincident" {
+            break (chart, mode);
+        }
+    };
     let (lo, hi) = super::shadow_box(chart.control());
     let size = (0..3)
         .map(|k| (hi[k] - lo[k]).powi(2))
@@ -434,8 +442,8 @@ fn the_cut_rounding_bound_holds_the_cut_drift() {
 /// on [`the_cut_rounding_bound_holds_the_cut_drift`]'s samples at one
 /// seed: some point drifts past a quarter of its bound, so a bound cut
 /// to a quarter is passed, and built with
-/// `PCERT_RADIAL_PAIR_MUTANT=spline-blend-undercut` (a blend charged a
-/// quarter of its rounding) both rows are red. The seed is a fixture
+/// `PCERT_RADIAL_PAIR_MUTANT=spline-bound-undercut` (every point's bound
+/// cut to a quarter) both rows are red. The seed is a fixture
 /// identifier (discipline §8, shape 3): over its four hundred patches the
 /// worst ratio is about `0.55`, as it is at every seed sampled.
 #[test]

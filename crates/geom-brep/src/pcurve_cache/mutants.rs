@@ -24,7 +24,7 @@ const NAME: Option<&str> = option_env!("PCERT_RADIAL_PAIR_MUTANT");
 
 /// Every site this crate's hooks name. topo's `chord_join` declares its
 /// own two (`topo-gate`, `topo-v-var`) under the same variable.
-pub(super) const SITES: [&str; 26] = [
+pub(super) const SITES: [&str; 27] = [
     "class-circle",
     "zero-winding",
     "torus-parallel",
@@ -50,7 +50,8 @@ pub(super) const SITES: [&str; 26] = [
     "spline-floor-net",
     "spline-charge-dropped",
     "spline-cut-uncharged",
-    "spline-blend-undercut",
+    "spline-bound-undercut",
+    "spline-on-cut-short",
 ];
 
 fn on(site: &str) -> bool {
@@ -214,10 +215,17 @@ pub(super) fn spline_cut_uncharged() -> bool {
     on("spline-cut-uncharged")
 }
 
-/// A spline chart cut's blend charged a quarter of its rounding (its row
-/// is `spline_incidence_rows`'s cut-drift row).
-pub(super) fn spline_blend_undercut() -> bool {
-    on("spline-blend-undercut")
+/// A spline chart cut's point rounding bound cut to a quarter (its rows
+/// are `spline_incidence_rows`'s cut-drift rows).
+pub(super) fn spline_bound_undercut() -> bool {
+    on("spline-bound-undercut")
+}
+
+/// A spline chart's walk stopped four cells past its first point read in
+/// band, before it reaches a point within the zero band (its row is
+/// `spline_incidence_rows`'s on-chart row).
+pub(super) fn spline_on_cut_short() -> bool {
+    on("spline-on-cut-short")
 }
 
 /// The cylinder arm's ruling reading folded again: an in-band reading
