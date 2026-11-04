@@ -1126,6 +1126,7 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         slivers,
         edge_joins,
         killed_lineage,
+        class_zeros,
     } = finish_output(
         &mut body,
         &mut desc,
@@ -1143,7 +1144,7 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     // untouched bit-identically.
     crate::pcurves::mint_pcurves(&mut body, tol)
         .map_err(|source| BooleanError::Pcurves { source })?;
-    let (contacts, coincidences) = carry(
+    let (contacts, mut coincidences) = carry(
         &body,
         &ledger,
         views,
@@ -1151,6 +1152,7 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         [&discarded[0], &discarded[1]],
         band,
     )?;
+    coincidences.extend(join_rows(&class_zeros, &ledger, views, [a, b]));
     share_recorded_points(&mut body, (&contacts, &coincidences), views, band)?;
     let (parted, contacts) = super::slit::part_riders(&mut body, &contacts, band, tol)?;
     if !parted.is_empty() {
@@ -2682,6 +2684,8 @@ pub(super) struct OutputStage {
     /// The parents of the edges the closing, the merge, the slivers'
     /// merge and the join killed ([`BooleanNaming::killed_lineage`]).
     pub(super) killed_lineage: BTreeMap<EdgeKey, EdgeKey>,
+    /// The class Zeros the joins acted on ([`join_rows`]).
+    pub(super) class_zeros: Vec<super::edge_join::ClassZero>,
 }
 
 /// **The boolean's output stage**, the one every result path takes
@@ -2777,7 +2781,7 @@ pub(super) fn finish_output<T: Decide + crate::props::AtRestPolicy>(
         desc.substitute(row)?;
     }
     seam_edges.retain(|e| !slivers.iter().any(|s| s.killed == *e));
-    let edge_joins = join_stage(
+    let (edge_joins, class_zeros) = join_stage(
         body,
         desc,
         recorded,
@@ -2792,6 +2796,7 @@ pub(super) fn finish_output<T: Decide + crate::props::AtRestPolicy>(
         slivers,
         edge_joins,
         killed_lineage,
+        class_zeros,
     })
 }
 
@@ -4656,6 +4661,66 @@ fn cite_rows(
             what: "a contact record surviving into the result cites no decision",
         })?;
     Ok((records, coincidences))
+}
+
+/// **The rows of the class Zeros the joins acted on**
+/// (`[coincidence.door]`): one [`crate::DecisionSite::IsoJoin`] row per
+/// join made on an iso-family reading, naming the two edges as the
+/// input edges they lie on ([`join_input_edge`]), `gone` first, decided
+/// one carrier continuing through the joined vertex
+/// ([`crate::Relation::SameOriented`]). Two pieces of one input edge
+/// are one construction read twice, and an edge the op minted (a chord
+/// or a section edge) lies on no input edge, so neither is a row: the
+/// first is structure, the second is
+/// `work/pcert/a-join-onto-an-op-minted-edge-records-no-row.md`.
+fn join_rows<T: Real>(
+    zeros: &[super::edge_join::ClassZero],
+    ledger: &Ledger,
+    views: [&KeyView<'_>; 2],
+    inputs: [&Body<T>; 2],
+) -> Vec<crate::Coincidence> {
+    zeros
+        .iter()
+        .filter_map(|z| {
+            let gone = join_input_edge(z.gone, ledger, views, inputs)?;
+            let kept = join_input_edge(z.kept, ledger, views, inputs)?;
+            (gone != kept).then_some(crate::Coincidence {
+                cells: [gone, kept],
+                more: [None; 3],
+                relation: crate::Relation::SameOriented,
+                site: crate::DecisionSite::IsoJoin,
+                margin: z.margin,
+                discharge: crate::Discharge::of(z.margin),
+            })
+        })
+        .collect()
+}
+
+/// The input edge the output stage's edge `e` lies on: `e` read through
+/// each operand's view ([`KeyView`]) into its clone and back to its
+/// input by the one reader a row's cells take ([`input_end`]), kept only
+/// where that input, as it entered, holds the edge read. `None` for an
+/// edge the op minted (a chord, a section edge), which the reader leaves
+/// as itself.
+fn join_input_edge<T: Real>(
+    e: EdgeKey,
+    ledger: &Ledger,
+    views: [&KeyView<'_>; 2],
+    inputs: [&Body<T>; 2],
+) -> Option<crate::RowCell> {
+    [Operand::A, Operand::B].into_iter().find_map(|input| {
+        let key = match views[side(input)] {
+            KeyView::Direct => Some(e),
+            KeyView::Graft(g) => g
+                .edges
+                .iter()
+                .find_map(|(from, &to)| (to == e).then_some(from)),
+            KeyView::Absent => None,
+        }?;
+        let (input, cell) = input_end((input, Cell::Edge(key)), &ledger.mints);
+        super::records::holds(inputs[side(input)], cell)
+            .then_some(crate::RowCell::Input { input, cell })
+    })
 }
 
 /// What [`carry`] hands the result: its records and its rows.
@@ -7708,6 +7773,7 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 op,
                 (body, &a_keep),
                 red,
+                [a_pristine, b_pristine],
                 decls,
                 BooleanResultKind::OperandA,
                 band,
@@ -7720,6 +7786,7 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 op,
                 (body, &b_keep),
                 red,
+                [a_pristine, b_pristine],
                 decls,
                 BooleanResultKind::OperandB,
                 band,
@@ -7803,6 +7870,7 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 slivers,
                 edge_joins,
                 killed_lineage,
+                class_zeros,
             } = finish_output(
                 &mut body,
                 &mut desc,
@@ -7815,7 +7883,7 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
             let output = output_substitutions(&closed, &merged, &slivers, &edge_joins)?;
             crate::pcurves::mint_pcurves(&mut body, tol)
                 .map_err(|source| BooleanError::Pcurves { source })?;
-            let (contacts, coincidences) = carry(
+            let (contacts, mut coincidences) = carry(
                 &body,
                 &ledger,
                 views,
@@ -7823,6 +7891,12 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 [&discarded[0], &discarded[1]],
                 band,
             )?;
+            coincidences.extend(join_rows(
+                &class_zeros,
+                &ledger,
+                views,
+                [a_pristine, b_pristine],
+            ));
             share_recorded_points(&mut body, (&contacts, &coincidences), views, band)?;
             let (parted, contacts) = super::slit::part_riders(&mut body, &contacts, band, tol)?;
             if !parted.is_empty() {
@@ -8103,10 +8177,12 @@ fn fallback_fates<T: Decide + AtRestPolicy>(
 /// Finishes a single-operand fallback result (the merge output stage
 /// is a documented no-op on a maximal-faced operand but runs anyway —
 /// the contract is uniform), applying ∖'s B-side revert when needed.
+#[allow(clippy::too_many_arguments)]
 fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
     op: BooleanOp,
     (body, keep): (Body<T>, &[ShellKey]),
     red: &mut BooleanReduction<T>,
+    inputs: [&Body<T>; 2],
     decls: &Glue<T>,
     kind: BooleanResultKind,
     band: Band,
@@ -8151,6 +8227,7 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
         slivers,
         edge_joins,
         killed_lineage,
+        class_zeros,
     } = finish_output(
         &mut body,
         &mut desc,
@@ -8163,7 +8240,7 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
     let output = output_substitutions(&closed, &merged, &slivers, &edge_joins)?;
     crate::pcurves::mint_pcurves(&mut body, tol)
         .map_err(|source| BooleanError::Pcurves { source })?;
-    let (contacts, coincidences) = carry(
+    let (contacts, mut coincidences) = carry(
         &body,
         &ledger,
         [&a_view, &b_view],
@@ -8171,6 +8248,7 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
         [&discarded[0], &discarded[1]],
         band,
     )?;
+    coincidences.extend(join_rows(&class_zeros, &ledger, [&a_view, &b_view], inputs));
     share_recorded_points(
         &mut body,
         (&contacts, &coincidences),
@@ -11246,6 +11324,181 @@ mod spline_seam_rows {
                 crate::merge_faces::EdgeDescribeFailure::Unplaced
             )),
             "the null edge"
+        );
+    }
+}
+
+#[cfg(test)]
+mod join_row_rows {
+    //! **[`join_rows`]**: a class Zero the join acted on between two
+    //! input edges is one [`crate::DecisionSite::IsoJoin`] row naming
+    //! both, `gone` first, at its margin; one between two pieces of one
+    //! input edge, or onto an edge the op minted, is none. The ledger is
+    //! one brick's clone as operand A's, B absent from the result.
+    #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+    use std::collections::BTreeSet;
+
+    use geom_core::{MarginDiag, Tol};
+
+    use super::{Incidence, KeyView, Ledger, join_rows};
+    use crate::boolean::edge_join::ClassZero;
+    use crate::boolean::{Cell, EdgeSplit, Mints, Operand};
+    use crate::lineage::{LineageRows, Minted};
+
+    fn ledger(a: &crate::Body<f64>, mints: Mints) -> Ledger {
+        Ledger {
+            discovered: Default::default(),
+            carried: [Vec::new(), Vec::new()],
+            pending: Vec::new(),
+            pierced: Vec::new(),
+            mints,
+            recorded: Vec::new(),
+            glued: Vec::new(),
+            incidence: [Incidence::of(a, &BTreeSet::new()), Incidence::default()],
+            copies: [Operand::A, Operand::B].map(|o| Minted::new(LineageRows::NullEdgeCopies(o))),
+        }
+    }
+
+    #[test]
+    fn a_join_of_two_input_edges_is_one_row_and_of_one_edges_pieces_none() {
+        let tol = Tol::witness();
+        let a = crate::test_support::brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
+        let edges: Vec<_> = a.edges().map(|(e, _)| e).collect();
+        let (e1, e2) = (edges[0], edges[1]);
+        let views = [&KeyView::Direct, &KeyView::Absent];
+        let margin = MarginDiag::value(2e-10);
+        let zero = |gone, kept| ClassZero { gone, kept, margin };
+
+        let rows = join_rows(
+            &[zero(e1, e2)],
+            &ledger(&a, Mints::default()),
+            views,
+            [&a, &a],
+        );
+        let [row] = rows.as_slice() else {
+            panic!("one row for one join of two input edges, got {rows:?}");
+        };
+        assert_eq!(
+            row.cells,
+            [e1, e2].map(|e| crate::RowCell::edge(Operand::A, e)),
+            "the row names both input edges, gone first"
+        );
+        assert_eq!(
+            (row.relation, row.site, row.margin),
+            (
+                crate::Relation::SameOriented,
+                crate::DecisionSite::IsoJoin,
+                margin
+            ),
+            "one carrier continuing, at the join's site and the readings' margin"
+        );
+
+        // `e2` as a piece the reduction split off `e1`: one input edge.
+        let mut mints = Mints::default();
+        mints
+            .push(EdgeSplit {
+                operand: Operand::A,
+                parent: e1,
+                vertex: a.vertices().next().unwrap().0,
+                child: e2,
+                by: Cell::Face(a.faces().next().unwrap().0),
+            })
+            .unwrap();
+        assert!(
+            join_rows(&[zero(e1, e2)], &ledger(&a, mints), views, [&a, &a]).is_empty(),
+            "two pieces of one input edge are one construction: no row"
+        );
+
+        // An edge no operand's clone holds: one the op minted after it.
+        let mut later = a.clone();
+        let (t0, t1) = later
+            .get_curve_geom(later.get_edge(e2).unwrap().curve)
+            .unwrap()
+            .certified()
+            .unwrap()
+            .params();
+        let minted =
+            crate::construction::Construct::split_edge(&mut later, e2, 0.5 * (t0 + t1), tol)
+                .unwrap()
+                .new_edge;
+        assert!(
+            !edges.contains(&minted),
+            "the split mints a key A's clone does not hold"
+        );
+        assert!(
+            join_rows(
+                &[zero(e1, minted)],
+                &ledger(&a, Mints::default()),
+                views,
+                [&a, &a]
+            )
+            .is_empty(),
+            "an edge the op minted names no input cell: no row"
+        );
+    }
+
+    /// **A chord the boolean minted reads as no input edge**: the
+    /// pierce union's reduction, through the join, holds the chords its
+    /// insertion minted in each clone, and its ledger is taken there
+    /// (`boolean_op_recut`). Every clone edge reads back to an edge its
+    /// input holds or to none, and the chords to none.
+    #[test]
+    fn a_chord_the_boolean_minted_reads_as_no_input_edge() {
+        use super::{Joined, SweepStrategy, through_the_join};
+        let tol = Tol::witness();
+        let brick = |x, y, z| crate::test_support::brick::<f64>(x, y, z, tol);
+        let a = brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0));
+        let b = brick((0.5, 1.5), (0.2, 0.8), (0.2, 0.8));
+        let Joined::Connected {
+            red,
+            connected,
+            decls,
+            ..
+        } = through_the_join(
+            crate::boolean::BooleanOp::Union,
+            &a,
+            &b,
+            &super::super::Glue::none(),
+            SweepStrategy::Realized,
+            true,
+            tol,
+        )
+        .unwrap()
+        else {
+            panic!("the pierce union joins");
+        };
+        let scaffold: [BTreeSet<_>; 2] = [
+            connected.completed.iter().map(|p| p.a_face).collect(),
+            connected.completed.iter().map(|p| p.b_face).collect(),
+        ];
+        let ledger = super::ledger(&red, &decls, [&scaffold[0], &scaffold[1]]).unwrap();
+        let views = [&KeyView::Direct, &KeyView::Absent];
+        let (mut chords, mut read) = (0, 0);
+        for (e, _) in red.a.edges() {
+            assert!(
+                ledger.incidence[0].edge.contains_key(&e),
+                "the ledger's incidence holds every clone edge, chords too"
+            );
+            match super::join_input_edge(e, &ledger, views, [&a, &b]) {
+                Some(crate::RowCell::Input {
+                    input: Operand::A,
+                    cell: Cell::Edge(root),
+                }) => {
+                    assert!(a.get_edge(root).is_some(), "{e:?} reads an edge A holds");
+                    read += 1;
+                }
+                None => {
+                    assert!(a.get_edge(e).is_none(), "{e:?}, an edge of A, reads none");
+                    chords += 1;
+                }
+                other => panic!("{e:?} reads {other:?}"),
+            }
+        }
+        assert!(chords > 0, "the pierce mints chords in A's clone");
+        assert!(
+            read >= a.edges().count(),
+            "every edge of A, or a piece of it, reads A's"
         );
     }
 }
