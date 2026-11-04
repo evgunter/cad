@@ -75,3 +75,5 @@ Moved from GERMCERT to GERM on 2026-11-02, by `git mv`, when GERMCERT merged int
 > sup over the defect: 0.13233093034424084 (f64) / 0.13233093034424084 (Interval) < 0.132330930344241 at 23/64: a 0.03369404504116446 b 0.13233093034424084 t0 18.85412848563191 gap 1.2723748588382879e-2
 
 Reproduce: `CAD_FUZZ_SEED=0x6aefff4768992785 CAD_FUZZ_EFFORT=1`. Here the ceiling is `|b|`, not `|a|`, so the clamp at the ceiling bites from either coefficient.
+
+Another seed that reproduces it, at the default ε and at 1e-12 alike, on main `62dcb1a97e`: `CAD_FUZZ_SEED=0x4c4e025223660e02` (sup 45.74884339543839 < 45.748843395438406 at 35/64, `t0` 822842.79; met by PR 6500).
