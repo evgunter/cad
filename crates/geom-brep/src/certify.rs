@@ -557,15 +557,16 @@ pub enum CertifyError {
         /// The metered length's verdict, with its reporting margin.
         verdict: Refused,
     },
-    /// **A conic carrier stores a semi-axis that is not positive**: a
-    /// circle's radius, or either of an ellipse's semi-axes, at or below
-    /// zero. Every door builds positive semi-axes, a STEP ellipse's are
+    /// **A conic carrier stores a negative semi-axis**: a circle's
+    /// radius, or either of an ellipse's semi-axes, below zero. Every door builds positive semi-axes, a STEP ellipse's are
     /// positive lengths, and a signed one reverses the traversal, so the
     /// record breaks the representation's invariant rather than spelling
     /// the same edge: the kernel's defect at a build, the stored culprit
     /// at rest, a damaged file at the import door. Decided once, at the
     /// head of the span check, before any reader of the carrier's speed.
-    SemiAxisNotPositive {
+    /// A zero semi-axis is a collapsed length, read by the span check
+    /// itself ([`CertifyError::StatedInterval`]).
+    SemiAxisNegative {
         /// The carrier's kind.
         carrier: geom::CurveKind,
     },
@@ -940,10 +941,10 @@ impl core::fmt::Display for CertifyError {
             Self::IntervalNotForward { verdict } => {
                 StatedSpan::Forward(ForwardReading::Decided(*verdict)).tell(STORED_INTERVAL, f)
             }
-            Self::SemiAxisNotPositive { carrier } => write!(
+            Self::SemiAxisNegative { carrier } => write!(
                 f,
-                "the {} carrier stores a semi-axis that is not positive, and a conic's semi-axes \
-                 are positive lengths",
+                "the {} carrier stores a negative semi-axis, and a conic's semi-axes are \
+                 positive lengths",
                 carrier.name()
             ),
             Self::SpanMeterCollapsed { verdict } => write!(
@@ -1166,7 +1167,7 @@ impl CertifyError {
             | Self::WrapOnNonPeriodic
             | Self::TangentCertificateUnsupported
             | Self::StatedInterval { .. }
-            | Self::SemiAxisNotPositive { .. }
+            | Self::SemiAxisNegative { .. }
             | Self::Band(_) => return None,
         };
         Some(Decision::Check(check, arm))
@@ -1196,7 +1197,7 @@ impl CertifyError {
     pub(crate) fn own_ending(&self, at: ReadAt) -> Option<String> {
         match self {
             Self::StatedInterval { refused } => Some(refused.ending(at)),
-            Self::SemiAxisNotPositive { .. } => Some(crate::recourse::defect_ending(at).to_owned()),
+            Self::SemiAxisNegative { .. } => Some(crate::recourse::defect_ending(at).to_owned()),
             _ => self.incidence_read().map(|read| read.ending(at)),
         }
     }
@@ -3937,27 +3938,24 @@ fn decide_turn<T: Decide>(
     // radius (`|dP/dv| ≥ r`). The winding bound is the
     // 8kτ sample-alias argument about the parameter period, which all
     // three share.
-    // A conic's semi-axes are positive (`CertifyError::SemiAxisNotPositive`),
+    // A conic's semi-axes are positive (`CertifyError::SemiAxisNegative`),
     // the invariant every reader of its speed (`geom::Conic::speed_lo`)
-    // states, so it is decided here, before the first of them.
+    // states, so a negative one is refused here, before the first of
+    // them. It is an exact read of stored data, not a banded decision
+    // ([`Real::select_le_zero`]: `−x ≤ 0` holds for every point unless
+    // `x` is negative). A zero semi-axis is a collapsed length, which
+    // the span meter below reads as the interval it leaves no length to.
     if let Some(conic) = spec.carrier.conic() {
         let (a, b) = conic.semi_axes();
-        let positive = |x: T| {
-            #[cfg(test)]
-            if crate::pcurve_cache::mutants::semi_axis_unchecked() {
-                return true;
-            }
-            matches!(
-                geom_core::k_stats::decide(
-                    "edge_conic_semi_axis_positive",
-                    Margin::sign_of(x),
-                    Band::enclosure_sign()
-                ),
-                Ok(Sign::Positive)
-            )
+        let negative = |x: T| {
+            (T::zero() - x)
+                .select_le_zero(T::zero(), T::from_f64(f64::NAN))
+                .is_poison()
         };
-        if !(positive(a) && positive(b)) {
-            return Err(CertifyError::SemiAxisNotPositive {
+        #[cfg(test)]
+        let negative = |x: T| !crate::pcurve_cache::mutants::semi_axis_unchecked() && negative(x);
+        if negative(a) || negative(b) {
+            return Err(CertifyError::SemiAxisNegative {
                 carrier: spec.carrier.kind(),
             });
         }

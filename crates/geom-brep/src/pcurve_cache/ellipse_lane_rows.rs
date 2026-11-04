@@ -1017,17 +1017,18 @@ fn the_extremes_are_covered_at_their_50_digit_distance() {
     }
 }
 
-/// **A conic stored with a semi-axis that is not positive is a defect,
-/// typed, at the edge certificate** (`CertifyError::SemiAxisNotPositive`),
-/// never a span that does not run forward: the parallel of the unit
-/// sphere at height `0.6` stored as an ellipse with its first, its second
-/// or both semi-axes negative, and as a circle of negative or zero
-/// radius, each described on the sphere's chart, at `f64` and at
-/// `Interval`. The positive spelling certifies. Each refusal renders the
+/// **A conic stored with a negative semi-axis is a defect, typed, at the
+/// edge certificate** (`CertifyError::SemiAxisNegative`), never a span
+/// that does not run forward: the parallel of the unit sphere at height
+/// `0.6` stored as an ellipse with its first, its second or both
+/// semi-axes negative, and as a circle of negative radius, each described
+/// on the sphere's chart, at `f64` and at `Interval`. The positive
+/// spelling certifies, and a circle of zero radius, a collapsed length,
+/// is the span check's (`StatedInterval`). Each refusal renders the
 /// kernel's defect at a build, the stored culprit at rest and a damaged
 /// file at the import door. Red under `semi-axis-unchecked`.
 #[test]
-fn a_conic_stored_with_a_semi_axis_not_positive_is_a_defect() {
+fn a_conic_stored_with_a_negative_semi_axis_is_a_defect() {
     use crate::recourse::{ReadAt, Reading};
     use crate::{CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, SurfaceKey};
     let sphere = Surface::Sphere {
@@ -1078,6 +1079,12 @@ fn a_conic_stored_with_a_semi_axis_not_positive_is_a_defect() {
         .map(|_| ());
         [("f64", at_f64), ("Interval", at_interval)]
     };
+    for (lane, got) in certify(&circle(0.0)) {
+        assert!(
+            matches!(got, Err(CertifyError::StatedInterval { .. })),
+            "a circle of zero radius is the span check's ({lane}): {got:?}"
+        );
+    }
     for (lane, got) in certify(&ellipse(rho, squash)) {
         assert!(
             got.is_ok(),
@@ -1100,11 +1107,10 @@ fn a_conic_stored_with_a_semi_axis_not_positive_is_a_defect() {
         ("the second negative", ellipse(rho, -squash)),
         ("both negative", ellipse(-rho, -squash)),
         ("a circle of negative radius", circle(-rho)),
-        ("a circle of zero radius", circle(0.0)),
     ] {
         for (lane, got) in certify(&carrier) {
-            let Err(err @ CertifyError::SemiAxisNotPositive { .. }) = &got else {
-                panic!("{what} ({lane}): refused as a semi-axis not positive: {got:?}")
+            let Err(err @ CertifyError::SemiAxisNegative { .. }) = &got else {
+                panic!("{what} ({lane}): refused as a negative semi-axis: {got:?}")
             };
             for (at, culprit) in doors {
                 assert_eq!(

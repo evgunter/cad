@@ -3331,8 +3331,8 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
             ..
         }
         | CertifyError::PlaneNurbs(P::PcurveFit) => MISMATCH,
-        CertifyError::SemiAxisNotPositive { .. } => {
-            "its conic carrier stores a semi-axis that is not positive, which no edge can have"
+        CertifyError::SemiAxisNegative { .. } => {
+            "its conic carrier stores a negative semi-axis, which no edge can have"
         }
         // A row image's escalation reads as its decision's check, routed
         // as an arc rim's is (`RowRefusal::decision`).
@@ -3521,7 +3521,7 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
             | CertifyError::IntervalNotForward { .. }
             | CertifyError::WindingExceeded
             | CertifyError::StatedInterval { .. }
-            | CertifyError::SemiAxisNotPositive { .. }
+            | CertifyError::SemiAxisNegative { .. }
             | CertifyError::NotTransverse { .. }
             | CertifyError::ArmCollapsed { .. }
             | CertifyError::SpanMeterCollapsed { .. }

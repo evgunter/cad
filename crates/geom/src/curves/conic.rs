@@ -120,9 +120,10 @@ pub trait Conic<T: Real>: core::fmt::Debug {
 
     /// `(semi_u, semi_v)` in stored order: a circle's are its radius
     /// twice. Both are positive: every door builds them so, and the edge
-    /// certificate refuses a record that stores one at or below zero
-    /// (`geom_brep::CertifyError::SemiAxisNotPositive`), so the speed
-    /// readers below read them as lengths, unsigned.
+    /// certificate refuses a record that stores a negative one
+    /// (`geom_brep::CertifyError::SemiAxisNegative`) and a zero one as
+    /// the span it leaves no length to, so the speed readers below read
+    /// them as lengths, unsigned.
     fn semi_axes(&self) -> (T, T);
 
     /// The point at `theta`.

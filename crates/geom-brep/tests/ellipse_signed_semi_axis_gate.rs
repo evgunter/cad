@@ -18,7 +18,7 @@ use slotmap::SlotMap;
 /// `(a, b)` or swapped as `(b, a)` with `u_ref` along the minor axis, its
 /// quarter arc certifies; stored with `minor = −1` or with `major = −a`
 /// and `u_ref` flipped (each the same locus, one traversed the other way)
-/// it is refused as `SemiAxisNotPositive`, the kernel's defect at a
+/// it is refused as `SemiAxisNegative`, the kernel's defect at a
 /// build, not as a span that does not run forward: both semi-axes are
 /// positive at every door.
 #[test]
@@ -72,7 +72,7 @@ fn the_gate_meters_either_order_and_refuses_a_negative_semi_axis() {
         ("a negative minor", certify(a, -b, x)),
         ("a negative major, u_ref flipped", certify(-a, b, -x)),
     ] {
-        let Err(err @ CertifyError::SemiAxisNotPositive { .. }) = &got else {
+        let Err(err @ CertifyError::SemiAxisNegative { .. }) = &got else {
             panic!("{what}: {:?}", got.map(|_| "certified"))
         };
         assert_eq!(

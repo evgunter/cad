@@ -57,7 +57,7 @@ the same edge: every door builds positive ones, STEP's are positive
 lengths, and a signed one reverses the traversal. So the edge
 certificate decides it once, typed, at the head of its span check,
 before any reader of the carrier's speed:
-`CertifyError::SemiAxisNotPositive`, the kernel's defect at a build,
+`CertifyError::SemiAxisNegative`, the kernel's defect at a build,
 the stored culprit at rest, a damaged file at import. Main ended such a
 record as a span that does not run forward, a lever for a defect.
 `Conic::semi_axes`, `speed_lo` and `speed_hi` state the positive
@@ -65,10 +65,11 @@ invariant at their definition and read it as is. `implicit::semi_reach`
 and its mutant are gone, and the charge reads `speed_hi` again.
 
 Rows:
-- `pcurve_cache::ellipse_lane_rows::a_conic_stored_with_a_semi_axis_not_positive_is_a_defect`:
+- `pcurve_cache::ellipse_lane_rows::a_conic_stored_with_a_negative_semi_axis_is_a_defect`:
   an ellipse with either or both semi-axes negative, and a circle of
-  negative or zero radius, at f64 and Interval, with the three door
-  endings. Red under `semi-axis-unchecked`.
+  negative radius, at f64 and Interval, with the three door endings.
+  Red under `semi-axis-unchecked`. A zero semi-axis is a collapsed
+  length, so it stays the span check's.
 - `tests/ellipse_signed_semi_axis_gate.rs`, re-pointed from
   `StatedInterval` to the typed refusal.
 
