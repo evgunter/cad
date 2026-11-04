@@ -583,7 +583,7 @@ fn a_rim_across_a_walls_ellipse_builds_every_op_in_both_orders() {
                 m.enclosure.volume,
                 m.enclosure.volume_pad
             );
-            let kinds = across_a_wall(&bb.body, &label(op));
+            let kinds = across_a_wall(&bb.body, &label(op), &[0.0, turn]);
             if let Some(kind) = across {
                 assert!(
                     holds(&kinds, kind),
@@ -605,10 +605,16 @@ const TURNS: [f64; 9] = [0.0, 0.4, 1.3, 1.5, PI / 2.0, 2.0, 2.9, PI, 1.5 * PI];
 /// `[coincidence.door]`). Each edge between cylinder faces is first
 /// checked to rest where it lies, in its one record's chart, with no
 /// edge between two records of one carrier; a declared one must be a
-/// member's own seam ruling, its extrusion's line: nothing in these
-/// scenes declared a rim, so a describer that stamps a declaration on
-/// one, or leaves it citing a surface it no longer bounds, reds here.
-fn across_a_wall(body: &topo::Body<f64>, label: &str) -> Vec<(CurveKind, Point3<f64>)> {
+/// member's own seam ruling, its extrusion's line along `z` at one of
+/// `seams` (each member's turn, its rulings at that azimuth and the
+/// opposite one): nothing in these scenes declared a rim, so a
+/// describer that stamps a declaration on one, or leaves it citing a
+/// surface it no longer bounds, reds here.
+fn across_a_wall(
+    body: &topo::Body<f64>,
+    label: &str,
+    seams: &[f64],
+) -> Vec<(CurveKind, Point3<f64>)> {
     topo::assert_one_record_per_carrier(body, Tol::witness());
     let mut kinds = Vec::new();
     for (key, edge) in body.edges() {
@@ -634,19 +640,26 @@ fn across_a_wall(body: &topo::Body<f64>, label: &str) -> Vec<(CurveKind, Point3<
         if fp == fm {
             continue;
         }
-        // A member's seam ruling is its extrusion's declared line;
-        // anything else declared was stamped on an edge lying across.
+        let (t0, t1) = c.params();
+        let mid = c.carrier().mid_point(t0, t1);
         if c.authority().is_declared() {
-            assert_eq!(
+            let ruling = match c.carrier() {
+                geom::Curve3::Line(line) => line.dir.dot(Vec3::unit_z()).abs() >= 1.0 - 1e-9,
+                _ => false,
+            };
+            let on_seam = seams
+                .iter()
+                .any(|t| (mid.x * t.sin() - mid.y * t.cos()).abs() <= 1e-9);
+            assert!(
+                ruling && on_seam,
+                "{label}: {key:?} ({:?} through {mid:?}) is derived, not declared, unless \
+                 a member's seam ruling: {:?}",
                 c.carrier().kind(),
-                CurveKind::Line,
-                "{label}: {key:?} is derived, not declared: {:?}",
                 c.authority()
             );
             continue;
         }
-        let (t0, t1) = c.params();
-        kinds.push((c.carrier().kind(), c.carrier().mid_point(t0, t1)));
+        kinds.push((c.carrier().kind(), mid));
     }
     kinds
 }
@@ -715,7 +728,7 @@ fn a_half_rods_rim_across_a_rods_wall_moves_with_its_flat_face() {
             m.enclosure.volume,
             m.enclosure.volume_pad
         );
-        let kinds = across_a_wall(&bb.body, op);
+        let kinds = across_a_wall(&bb.body, op, &[0.0, 1.3]);
         assert!(
             holds(&kinds, CurveKind::Circle),
             "{op}: a rim lies across the kept wall: {kinds:?}"
@@ -767,7 +780,10 @@ fn a_half_rods_rim_across_a_rods_wall_moves_with_its_flat_face() {
             // length, so it keeps its image.
             let label = format!("{op}, d = {d}");
             assert!(
-                holds(&across_a_wall(&moved, &label), CurveKind::Circle),
+                holds(
+                    &across_a_wall(&moved, &label, &[0.0, 1.3]),
+                    CurveKind::Circle
+                ),
                 "{label}: the rim still lies across the kept wall as an image"
             );
             let want = 2.5 * PI + d * (1.0 - d * d).sqrt() + d.asin();

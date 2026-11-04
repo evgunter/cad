@@ -1834,16 +1834,16 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
     /// one record, the first's ([`Body::unify_surfaces`]), its two
     /// surfaces' faces facing the same way: the merge rows' stand-in for
     /// a Boolean's glue, staged so a refusal leaves the body as found. A
-    /// body that is not tier-2 valid goes to the door as it is, whose
-    /// entry gate refuses it.
+    /// body that is not tier-2 valid is refused as the door's entry gate
+    /// refuses it ([`MergeCoplanarError::InputNotClosed`]), nothing glued.
     #[cfg(test)]
     pub(crate) fn merge_coplanar_faces_glued(
         &mut self,
         glued: &[(SurfaceKey, SurfaceKey)],
         tol: Tol,
     ) -> Result<MergeCoplanarOutcome, MergeCoplanarError> {
-        if validate_closed(self).is_err() {
-            return self.merge_coplanar_faces(tol);
+        if let Err(errors) = validate_closed(self) {
+            return Err(MergeCoplanarError::InputNotClosed { errors });
         }
         let mut work = self.clone();
         let sense = |body: &Self, k: SurfaceKey| {

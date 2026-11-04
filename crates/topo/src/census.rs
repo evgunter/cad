@@ -11629,7 +11629,15 @@ fn shared_interior_witness<T: Decide>(
             Some((curve.mid_point(), FaceContainment::OnEdge(e)))
         });
         for (q, at) in corners.chain(middles) {
-            if found(meets_at(body, geo, (x, at), y, q, facing, band, &mut read)) {
+            if found(meets_at(
+                body,
+                geo,
+                (x, at),
+                (y, facing),
+                q,
+                band,
+                &mut read,
+            )) {
                 return Ok(SharedInterior);
             }
         }
@@ -11816,7 +11824,7 @@ fn arc_interiors_meet<T: Decide>(
                     }
                 }
                 let at = FaceContainment::OnEdge(*e);
-                match meets_at(body, geo, (x, at), y, q, facing, band, &mut read) {
+                match meets_at(body, geo, (x, at), (y, facing), q, band, &mut read) {
                     Ok(true) => return Ok(true),
                     Ok(false) => {}
                     Err(why) => note(why, &mut unread),
@@ -11918,7 +11926,8 @@ fn face_vertices<T: Real>(body: &Body<T>, f: FaceKey) -> BTreeSet<VertexKey> {
 }
 
 /// Whether `x`'s interior and `y`'s meet near `q`, a point of `x`'s
-/// boundary placed `at` on it ([`shared_interior_witness`]): `y` holds
+/// boundary placed `at` on it ([`shared_interior_witness`]), facing `x`
+/// as `facing` says: `y` holds
 /// `q` inside, or on its boundary with the two cones sharing material
 /// ([`cones_meet`]). `Ok(false)` where `y` holds `q` out or the cones
 /// share none.
@@ -11926,9 +11935,8 @@ fn meets_at<T: Decide>(
     body: &Body<T>,
     geo: &Geo<T>,
     (x, at): (FaceKey, FaceContainment),
-    y: FaceKey,
+    (y, facing): (FaceKey, Facing),
     q: Point3<T>,
-    facing: Facing,
     band: Band,
     read: &mut Vec<ValidationError>,
 ) -> Result<bool, InteriorsUnread> {
