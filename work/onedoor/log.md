@@ -220,3 +220,11 @@ second site needs to ask the question at all. (ONEDOOR orchestrator)
   - **B** (likely): a verdict is about faces, never records. The token carries the group, which is the adjacency closure forced by `[edges]` (the merge's maximal run, so one home), and `Vouch` goes. One re-anchoring function serves the verdict and props. B also proposes a separable kept-side rule.
   - Both name the widening of the ratified sentence, from "the other face" to "every face on the other record", as defect 1's cause, and the f64 plane flux about the record origin as defect 2's, which is on main today.
   - Round 2 asks about the differences: closure vs. decided faces only, on a concrete case; Vouch; the kept side; the measure fix's one form; the exact wording. (ONEDOOR orchestrator)
+- 2026-11-04 — **The extent fork converged after four rounds and is now `[ev]` PR [#6511](https://github.com/evgunter/cad/pull/6511).**
+  - **R2:** A adopted B's same-record closure, after checking that the case is ordinary. B adopted A's interval-lane measure formula.
+  - **R3:** A moved to B's kept-side rule, persuaded by the peg-in-bore order dependence, and tightened the closure to start from the faces that move.
+  - **R4:** B signed, adding "that alone is"; A signed that edit.
+  - **The text:** a value-decided verdict reads and moves exactly the decided faces wearing the other record, with their fragments and same-record closure. The kept record is the one alone also worn by undecided faces, otherwise the first-written operand's. That replaces Ev's PR 5838 wording, so it is Ev's call. A face's measure is read at the face.
+  - The fork-log row 251's recommendation half is on the PR, and the draws are on the analysis branch.
+  - **#6505's fix pass waits for Ev on the structure.** The census's inverted opposed-face reading is a code defect independent of the fork, so it is dispatched now on the PR branch, together with the main merge.
+  - (ONEDOOR orchestrator)
