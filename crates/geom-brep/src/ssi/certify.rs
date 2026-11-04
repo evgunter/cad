@@ -1825,6 +1825,14 @@ pub(crate) const CHART_TUBE_PARTNER_INEXACT: &str = "the chart uniqueness tube r
      certified values at the certificate's scalar — refused rather than represented by a \
      midpoint";
 
+/// A scalar as one exact `f64`: its value where its enclosure certifies
+/// a single point, `None` where it is widened or left its domain
+/// ([`chart_partner_form`]).
+pub(crate) fn exact_certified<T: CertifiedEnclosure>(x: T) -> Option<f64> {
+    x.certified_bracket()
+        .and_then(|(lo, hi)| (lo == hi && !lo.is_nan()).then_some(lo))
+}
+
 /// **The form limb 3 reads a chart's partner by**: the partner, a plane
 /// among them, at `f64` ([`super::residual::ImplicitForm`]), so only
 /// where every scalar of it is an exact `f64` whose enclosure certifies.
@@ -1837,17 +1845,19 @@ pub(crate) const CHART_TUBE_PARTNER_INEXACT: &str = "the chart uniqueness tube r
 /// [`SsiError::UnsupportedCertificate`]: [`CHART_TUBE_PARTNER_INEXACT`]
 /// for a widened or domain-violated scalar, [`CHART_TUBE_NEEDS_FORM`] for
 /// a partner with no form.
-pub(crate) fn chart_partner_form<T: Bounds + CertifiedEnclosure>(
+///
+/// `exact` reads one scalar ([`exact_certified`] at the certificate's
+/// scalar).
+pub(crate) fn chart_partner_form<T: Real>(
     partner: &Surface<T>,
+    exact: impl Fn(T) -> Option<f64>,
 ) -> Result<super::residual::ImplicitForm, SsiError> {
     let inexact = core::cell::Cell::new(false);
     let at_f64 = partner.map_scalar(|x| {
-        exact(x)
-            .filter(|_| x.certified_bracket().is_some())
-            .unwrap_or_else(|| {
-                inexact.set(true);
-                f64::NAN
-            })
+        exact(x).unwrap_or_else(|| {
+            inexact.set(true);
+            f64::NAN
+        })
     });
     if inexact.get() {
         return Err(SsiError::UnsupportedCertificate {
@@ -2456,7 +2466,7 @@ pub(crate) fn certify_branch<T: Decide + Bounds + CertifiedEnclosure>(
                     what: "the chart uniqueness tube needs the traced pcurve",
                 });
             };
-            let form = chart_partner_form(partner)?;
+            let form = chart_partner_form(partner, exact_certified)?;
             let phi = ChartPhi(&form);
             limb_three((widest, extent), band, |radius| {
                 // The pad per axis: the rung ÷ the operand's minted chart
@@ -2815,11 +2825,14 @@ mod tests {
             } else {
                 Vec3::new(iv(0.0), iv(1.0), iv(0.0))
             };
-            crate::ssi::certify::chart_partner_form(&geom::Surface::Plane {
-                origin,
-                normal,
-                u_ref,
-            })
+            crate::ssi::certify::chart_partner_form(
+                &geom::Surface::Plane {
+                    origin,
+                    normal,
+                    u_ref,
+                },
+                crate::ssi::certify::exact_certified,
+            )
             .expect("an exact plane has a form")
         }
 
@@ -2925,7 +2938,10 @@ mod tests {
                     normal: Vec3::new(iv(0.0), n, iv(0.0)),
                     u_ref: Vec3::new(iv(1.0), iv(0.0), iv(0.0)),
                 };
-                let got = crate::ssi::certify::chart_partner_form(&plane);
+                let got = crate::ssi::certify::chart_partner_form(
+                    &plane,
+                    crate::ssi::certify::exact_certified,
+                );
                 assert!(
                     matches!(
                         got,
@@ -2939,6 +2955,61 @@ mod tests {
                     geom_core::Bounds::hi(n)
                 );
             }
+        }
+
+        /// **Limb 3 refuses a domain-violated plane before any rung.** The
+        /// same plane, its normal's `y` a domain violation whose endpoints
+        /// are one exact value, handed to the certificate as the unit
+        /// patch's partner with the `u`-aligned pcurve, limb 3 alone
+        /// asked: the certificate refuses it as a partner not exact at its
+        /// scalar, the door [`crate::ssi::certify::chart_partner_form`]
+        /// guards. Red against limb 3 reading the partner's scalars by
+        /// their endpoints alone.
+        #[test]
+        fn limb_three_refuses_a_domain_violated_plane() {
+            use crate::ssi::certify::{Lane, Limbs, Refused, certify_branch};
+            use crate::ssi::{ChartedNurbs, SsiOperand};
+            let point = Interval::from_bounds(-1.0, 0.0).sqrt() + iv(2.0);
+            let plane = geom::Surface::Plane {
+                origin: on_line(),
+                normal: Vec3::new(iv(0.0), point, iv(0.0)),
+                u_ref: Vec3::new(iv(1.0), iv(0.0), iv(0.0)),
+            };
+            let patch = unit_patch();
+            let wall = ChartedNurbs::mint(&patch).expect("the unit patch mints");
+            let carrier = geom::NurbsCurve3::new(
+                geom_core::spline::Knots::from(linear_kv()).lift(geom_core::Real::from_f64),
+                vec![
+                    Point3::new(iv(0.1), iv(0.5), iv(0.0)),
+                    Point3::new(iv(0.9), iv(0.5), iv(0.0)),
+                ],
+                vec![geom_core::Real::one(); 2],
+            )
+            .expect("valid carrier");
+            let pcurve = u_line();
+            let got = certify_branch(
+                &geom::Curve3::Nurbs(std::sync::Arc::new(carrier)),
+                (iv(0.0), iv(1.0)),
+                Lane::AtRest {
+                    a: &SsiOperand::Analytic(&plane),
+                    b: &SsiOperand::Nurbs(wall),
+                    pcurve_a: None,
+                    pcurve_b: Some(&pcurve),
+                },
+                iv(1.0),
+                geom_core::Band::new(1e-9, 1e-8).expect("a valid band"),
+                Limbs::Tube,
+                &mut Refused::default(),
+            );
+            assert!(
+                matches!(
+                    got,
+                    Err(SsiError::UnsupportedCertificate { what })
+                        if what == crate::ssi::certify::CHART_TUBE_PARTNER_INEXACT
+                ),
+                "a domain-violated plane normal reached limb 3's rungs: {:?}",
+                got.err()
+            );
         }
 
         /// The same principle on the PCURVE: a control coordinate that left
