@@ -3043,8 +3043,13 @@ pub(crate) fn march_cylinder_sphere(
     // ([`march_cylinder_cylinder`]). No meeting lies outside the sphere's
     // ball, so every cell's meetings must lie in a found branch's tube.
     //
-    // **Calibration** (2026-11-04): see
-    // `pair_section::wiring::the_cylinder_sphere_coverage_keeps_its_headroom`.
+    // **Calibration** (2026-11-04): over the ten carries of
+    // `pair_section::wiring::the_cylinder_sphere_coverage_keeps_its_headroom`
+    // (one loop, two, a centre on the wall, a turned wall; both orders),
+    // every coverage closed by its 3rd halving of the first cut's 64 cells
+    // and within 98 cells, at ε 1e-6, 1e-9 and 1e-12, against
+    // `COVERAGE_DEPTH`'s 30 halvings and `COVERAGE_CELLS`'s 2¹⁸; that row
+    // guards the headroom.
     #[cfg(debug_assertions)]
     {
         let covered = crate::pair_section::ruling::coverage(

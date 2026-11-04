@@ -175,8 +175,9 @@ fn a_tangency_is_classification_data_and_does_not_carry() {
 
 /// **Off the axis the reach counts the loops**: none short of the wall,
 /// one past its nearest ruling, two past its farthest, each loop on the
-/// general rung and two winding about the cylinder; the lone loop's
-/// witness lies on both surfaces.
+/// general rung and two winding about the cylinder; each loop's witness,
+/// the ruling sweep's, lies on both surfaces, the two loops' on opposite
+/// sides of the centre's height.
 #[test]
 fn off_the_axis_the_reach_counts_the_loops() {
     let none = built(&cylinder(0.5), &sphere(2.0, 0.5));
@@ -198,10 +199,19 @@ fn off_the_axis_the_reach_counts_the_loops() {
         2,
         "two loops"
     );
+    let (cyl, sph) = (cylinder(0.5), sphere(0.1, 0.7));
+    let mut heights = Vec::new();
     for c in two.counted().expect("a counted section") {
         assert_eq!(c.winds, [true, false], "each winds about the cylinder");
         assert!(matches!(c.carrier, ClassCarrier::General));
+        let w = c.witness.expect("each loop witnessed");
+        on_both(w, &cyl, &sph, "a ring's witness");
+        heights.push(w.z - 0.2);
     }
+    assert!(
+        heights[0] * heights[1] < 0.0,
+        "one witness on each ring: {heights:?} about the centre's height"
+    );
 }
 
 /// **An axis offset in the band escalates** (`cs_coaxial`), and a reach
