@@ -39,7 +39,13 @@
 //! **A foot has no bare parameter.** The point's parameter is read only
 //! where something certifies it: [`OnCarrier::On`] (a gap in the band's
 //! zero) or [`Foot::nearest`] (the kind). [`Foot::seed`] is the parameter
-//! as found, for a further search, and certifies nothing. So no reader
+//! as found, for a further search, and certifies nothing. `On` certifies
+//! the point up to the band's zero: the carrier passes within the zero of
+//! it at `t`. It certifies the branch too only where the carrier's
+//! branches are decided apart. A carrier that comes within the zero of
+//! itself near the point (a hairpin narrower than the zero) reads `On` on
+//! either branch, so a reader of the branch's own geometry (a tangent)
+//! rests on the carrier's branches being apart, not on `On`. No reader
 //! rests on which of two tied polish candidates was kept, and the
 //! polish's comparisons are a heuristic's, decided outside the log.
 //!

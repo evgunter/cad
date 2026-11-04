@@ -1570,7 +1570,7 @@ Flagged, NOT fixed here (dispositions):
   clear of both formulas' cuts (or at the centre, where `across` is
   undecided too and both formulas read an enclosure equally wide), and
   a foot's parameter is not reduced to any branch
-  (`Foot::t`). Logged, an undecided flip at `Interval` would hand the
+  (`Foot::seed`, `OnCarrier::On`'s `t`). Logged, an undecided flip at `Interval` would hand the
   driver an escalation no box answers, on every closed-form circle foot
   a quarter turn from its seed.
 
@@ -1592,19 +1592,31 @@ Flagged, NOT fixed here (dispositions):
     `OnCarrier::On`'s, certified by a gap in the band's zero
     (`curve_carrier_gap`, logged), or `Foot::nearest`'s, certified by
     the kind (a line, a circle, which have no polish). `Foot::seed` is
-    the parameter as found, for a further search, and its contract
-    certifies nothing.
+    the parameter as found, for a further search or a bound, and its
+    contract certifies nothing.
+  - What `On` certifies is the point up to the band's zero, with the
+    branch only where the carrier's branches are decided apart. Where
+    they are, a pick on the wrong branch has a gap past the band and
+    costs `on_carrier`'s own escalation or refusal, never a wrong
+    answer
+    (`geom::curves::on_carrier::rows::a_tie_across_a_hairpins_branches_is_the_certificates_to_read`
+    pins the box ladder). Where they are not, a carrier within the zero
+    of itself near the point, `On` holds on either branch: at
+    `Interval` a box of ±1e-10 about a hairpin 3e-10 wide reads `On` at
+    the seed's branch with nothing logged
+    (`…::a_hairpin_closer_than_the_band_certifies_on_at_the_seeds_branch_at_interval`).
+    That is not a fact about this pick: logging it would not tell the
+    two branches apart either, since both are `On`. It is the
+    carrier's, filed as `a-carriers-branches-within-the-band-of-each-other`.
   - Every verdict a foot gives is read and logged in `Foot::on_carrier`
     (`curve_carrier_gap`, `curve_carrier_clear`,
-    `curve_carrier_piece_clear`, `curve_carrier_straddle`). So a pick on
-    the wrong branch costs that reading's own escalation or refusal,
-    never a wrong answer, and the driver's cue lands on the reading a
-    narrower box answers
-    (`geom::curves::on_carrier::rows::a_tie_across_a_hairpins_branches_is_the_certificates_to_read`).
-  - Logged, the pick escalates at `Interval` on every spline foot (four
-    or more) and every ellipse or spiric foot (one or more), whatever
-    the box: a standing cue to bisect that `editor-core`'s
-    `drive::log_read` reads as the leaf's verdict and no box answers.
+    `curve_carrier_piece_clear`, `curve_carrier_straddle`).
+  - Logged, the pick escalated at `Interval` whatever the box: on a
+    census of 240 feet (PR 6483's review, not pinned by a test), 1 to 6
+    times per spline foot (at least 1), once per ellipse foot, never on
+    a circle (which has no polish). That is a standing cue to bisect
+    that `editor-core`'s `drive::log_read` reads as the leaf's verdict
+    and no box answers.
 
   **Carried as `k_stats::check_unlogged(.., "F32")`**. Its K samples
   still reach the sink under `curve_foot_polish`. Not a `decide_flagged`

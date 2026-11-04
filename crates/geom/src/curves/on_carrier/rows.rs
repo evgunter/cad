@@ -255,10 +255,9 @@ fn a_closed_splines_foot_is_found_from_any_seed() {
     );
 }
 
-/// The cubic hairpin both feet rows read: two branches `0.2` apart, the
-/// point on the near one at `t = 0.08`.
-fn hairpin() -> (Curve3<f64>, Point3<f64>) {
-    let h = 0.2;
+/// A cubic hairpin with branches `h` apart, and the point on its near
+/// branch at `t = 0.08`.
+fn hairpin(h: f64) -> (Curve3<f64>, Point3<f64>) {
     let c = Curve3::Nurbs(std::sync::Arc::new(
         crate::NurbsCurve3::new(
             geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0], 3)
@@ -277,22 +276,33 @@ fn hairpin() -> (Curve3<f64>, Point3<f64>) {
     (c, p)
 }
 
+/// The point `p` widened to an `Interval` box of half-width `r`.
+fn boxed(p: Point3<f64>, r: f64) -> Point3<geom_core::Interval> {
+    let w = |x: f64| geom_core::Interval::from_bounds(x - r, x + r);
+    Point3::new(w(p.x), w(p.y), w(p.z))
+}
+
 /// **A tie across a hairpin's branches is the certificate's to read**.
-/// On an `Interval` box of ±0.05 about a point on the near branch,
-/// seeded on the far one, every polish candidate ties and the polish
-/// keeps the seed's branch. That pick is a heuristic's and stays out of
-/// the log (ledger row F32); what a reader can hold is the certificate,
-/// and it gives no `On` at the far branch: it refuses or escalates,
-/// which a narrower box answers.
+/// The hairpin's branches lie 0.2 apart. On an `Interval` box about a
+/// point on the near branch, seeded on the far one, a wide box ties
+/// every polish candidate and the polish keeps the seed's branch. That
+/// pick is a heuristic's and stays out of the log (ledger row F32).
+/// What a reader can hold is the certificate, and across the box ladder
+/// it never says `On` at the far branch:
+///
+/// - ±0.05 and ±1e-3: the spline's piece walk runs past its budget
+///   (`Unwalked(Exhausted)`), a refusal no narrower box in that range
+///   answers (`a-splines-on-carrier-exhausts-its-piece-budget-at-interval`);
+/// - ±1e-6: an escalation in the band (`Escalated(InBand)`), the
+///   driver's cue to refine;
+/// - ±1e-11: `On` at the near branch, `t ≈ 0.08`.
 #[test]
 fn a_tie_across_a_hairpins_branches_is_the_certificates_to_read() {
     use geom_core::{Bounds, Interval, Real, k_stats::detached};
-    let (c, p) = hairpin();
+    let (c, p) = hairpin(0.2);
     let ci: Curve3<Interval> = c.map_scalar(Interval::from_f64);
-    let w = |x: f64| Interval::from_bounds(x - 0.05, x + 0.05);
-    let q = Point3::new(w(p.x), w(p.y), w(p.z));
     let seed = Interval::from_f64(0.92);
-    let (foot, rec) = detached(|| ci.foot(q, seed));
+    let (foot, rec) = detached(|| ci.foot(boxed(p, 0.05), seed));
     assert!(
         foot.seed().lo() > 0.5,
         "the tie keeps the seed's branch: {:?}",
@@ -305,14 +315,48 @@ fn a_tie_across_a_hairpins_branches_is_the_certificates_to_read() {
             .any(|e| e.predicate() == "curve_foot_polish"),
         "the polish's tie-break is a heuristic's and stays out of the log"
     );
-    let (on, rec) = detached(|| foot.on_carrier(band()));
+    for r in [0.05, 1e-3] {
+        assert_eq!(
+            name(ci.on_carrier(boxed(p, r), seed, band())),
+            "exhausted",
+            "±{r}: the piece walk runs past its budget"
+        );
+    }
     assert!(
-        on.is_err(),
-        "the certificate gives no answer at the far branch: {on:?}"
+        matches!(
+            ci.on_carrier(boxed(p, 1e-6), seed, band()),
+            Err(CarrierRefusal::Escalated(CarrierEscalation::InBand(_)))
+        ),
+        "±1e-6: the certificate escalates in the band"
+    );
+    let narrow = ci.on_carrier(boxed(p, 1e-11), seed, band());
+    assert!(
+        matches!(narrow, Ok(OnCarrier::On { t, .. }) if t.lo() > 0.08 - 1e-6 && t.hi() < 0.08 + 1e-6),
+        "±1e-11: on at the near branch, not the seed's: {narrow:?}"
+    );
+}
+
+/// **Below the band's zero, `On` certifies the point and not the
+/// branch**. A hairpin whose branches lie 3e-10 apart, inside the 1e-9
+/// zero, reads `On` at the seed's branch at `Interval` (`t = 0.92`, the
+/// reversed tangent) with nothing logged, and `On` at the near branch at
+/// `f64`. Both are true of the point: it lies within the band of the
+/// carrier at either parameter. A reader of the branch (a tangent)
+/// rests on the carrier's branches being decided apart, which this
+/// carrier's are not (`a-carriers-branches-within-the-band-of-each-other`).
+#[test]
+fn a_hairpin_closer_than_the_band_certifies_on_at_the_seeds_branch_at_interval() {
+    use geom_core::{Bounds, Interval, Real};
+    let (c, p) = hairpin(3e-10);
+    let ci: Curve3<Interval> = c.map_scalar(Interval::from_f64);
+    let on = ci.on_carrier(boxed(p, 1e-10), Interval::from_f64(0.92), band());
+    assert!(
+        matches!(on, Ok(OnCarrier::On { t, .. }) if t.lo() > 0.5),
+        "On's t is the seed's branch below the band: {on:?}"
     );
     assert!(
-        !rec.recorded().escalations.is_empty() || matches!(on, Err(CarrierRefusal::Unwalked(_))),
-        "the certificate's refusal is the driver's to read: {on:?}"
+        matches!(c.on_carrier(p, 0.92, band()), Ok(OnCarrier::On { t, .. }) if t < 0.5),
+        "at f64 the polish finds the near branch"
     );
 }
 

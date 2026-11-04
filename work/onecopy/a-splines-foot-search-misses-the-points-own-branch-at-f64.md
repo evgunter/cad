@@ -14,6 +14,6 @@ Found by `onecopy/foot-certificate` while building the f64 far-branch row (`geom
 
 On a cubic spline of five knot spans, take a point on the carrier at `t = 0.35`. `Curve3::foot` from any seed but `0.35` returns a stationary point near `t = 0.03`, 0.05 away. `on_carrier` then escalates (`curve_carrier_piece_clear` in band): it is sound, it gives no `On` at the far foot and no `Off`, but the answer is `On`.
 
-`foot` keeps the best of the seed and four samples per knot span (`SPLINE_SAMPLES`), then Gauss–Newton. Here every sample lies nearer the far branch's basin. A search of 300 random cubics of five spans, each with 99 points on the carrier and 21 seeds, gave 26,760 such feet in 726,100.
+`foot` keeps the best of the seed and four samples per knot span (`SPLINE_SAMPLES`), then Gauss–Newton. Here every sample lies nearer the far branch's basin. A one-off search (not kept, so no test pins its numbers) of 300 random cubics of five spans, each with 99 points on the carrier and 21 seeds, gave 26,760 such feet in 726,100 (a gap past 1e-6). The search began with four ellipses, which gave none. Only the fixture above is pinned.
 
 Fix: seed the polish from more than the single best sample (each local minimum of the sampled gaps), or descend from the best few and keep the least gap. Then re-measure the search above.
