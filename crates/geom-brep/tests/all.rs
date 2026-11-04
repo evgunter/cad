@@ -52,6 +52,8 @@
 // directory carrying a `mod.rs`.
 mod shared;
 
+#[path = "review_band_row_r2.rs"]
+mod review_band_row_r2;
 #[path = "a_blend_section_is_a_shared_row_of_its_bands.rs"]
 mod a_blend_section_is_a_shared_row_of_its_bands;
 #[path = "a_shared_row_is_certified_per_wall.rs"]
