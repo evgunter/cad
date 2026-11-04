@@ -3043,7 +3043,11 @@ fn restate<T: Decide>(
                 band,
                 lane,
             ),
-            None => Err(PcurveCertifyError::FittedLaneUnsupported { scalar: T::NAME }),
+            // No door, so the image refuses; the carrier's incidence read
+            // ends that refusal, as at every certificate door.
+            None => geom_brep::read_incidence(carrier, t0, t1, surface, band).and(Err(
+                PcurveCertifyError::FittedLaneUnsupported { scalar: T::NAME },
+            )),
         },
         Pcurve::General(image) => PcurveCache::certify_general(
             std::sync::Arc::clone(image),

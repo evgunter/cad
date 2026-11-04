@@ -1,9 +1,9 @@
-//! **A spline chart's certificate doors read the carrier's incidence
-//! first** (D3): a carrier off its wall ends `CarrierOffChart`, one read
-//! in band of it ends in the read's lever (`Escalated`,
-//! [`PcurveCheck::ChartIncidence`]), never as the image's own bound, and
-//! one on it certifies as it did. Each door is read at `f64` and at
-//! `Interval`:
+//! **A spline chart's certificate doors end a refusal by the carrier's
+//! incidence read** (D3): a carrier off its wall at a read sample ends
+//! `CarrierOffChart`, one read in band of it ends in the read's lever
+//! (`Escalated`, [`PcurveCheck::ChartIncidence`]), never as the image's
+//! own bound, and one on it certifies as it did. Each door is read at
+//! `f64` and at `Interval`:
 //!
 //! - [`PcurveCache::certify`] on a stated closed-form image (an iso
 //!   column);
@@ -16,10 +16,11 @@
 //!   [`crate::EdgeDescriptionSpec::chart_image`]);
 //! - [`crate::read_point_incidence`].
 //!
-//! On a spline chart a certificate door meters the image first and reads
-//! the carrier only where the image refuses (`ended_by_incidence`): a
-//! certificate that holds already bounds every carrier point within the
-//! band of the wall.
+//! On a spline chart a certificate door reads the carrier where the image
+//! refuses, or where the certificate's span is not shown to cover the
+//! span it is asked about (`incidence_ended`): a certificate that holds
+//! already bounds every carrier point of its own span within the band of
+//! the wall.
 //!
 //! The wall is the unit cylinder `z ∈ [0, 1]` over `[0, 1.2]` rad in two
 //! rational quadratic sub-arcs, whose knot `u = ½` is the ruling at
@@ -313,7 +314,7 @@ fn every_door_reads_the_wall_at_interval() {
 /// so `topo`'s `not_owed`, which excuses the first, never excuses an off
 /// carrier.
 #[test]
-fn at_a_dual_an_off_carrier_ends_off_the_chart_before_the_fitted_door() {
+fn at_a_dual_an_off_carrier_ends_off_the_chart_not_at_the_fitted_door() {
     type T = geom_core::Dual64;
     let (c, b) = (<T as geom_core::Real>::from_f64, band());
     let general = |place| {
@@ -343,5 +344,116 @@ fn at_a_dual_an_off_carrier_ends_off_the_chart_before_the_fitted_door() {
             })
         ),
         "off the wall the read ends it: {off:?}"
+    );
+}
+
+/// **A row re-certified for an edge longer than the row is read over the
+/// edge** (`recertify`): the row certified over `t ∈ [0, 1]` holds, but
+/// the edge runs to `t = 1.5`, off the bounded patch past `z = 1`, which
+/// the row's certificate says nothing about.
+fn a_row_shorter_than_its_edge_is_read_over_the_edge<T: Decide>(lane: FittedLane<T>) {
+    let (c, b) = (T::from_f64, band());
+    let (wall, carrier) = (ring::<T>(), ruling::<T>(Place::On));
+    let row = PcurveCache::certify(column(), c(0.0), c(1.0), &carrier, &wall, b)
+        .expect("the row certifies over its own span");
+    let over_row = row.recertify(&carrier, (c(0.0), c(1.0)), &wall, b, Some(lane));
+    assert!(
+        over_row.is_ok(),
+        "over the row's own span, at {}: {over_row:?}",
+        T::NAME
+    );
+    let over_edge = row.recertify(&carrier, (c(0.0), c(1.5)), &wall, b, Some(lane));
+    assert!(
+        matches!(
+            over_edge,
+            Err(PcurveCertifyError::CarrierOffChart {
+                chart: geom::SurfaceKind::Nurbs,
+                ..
+            })
+        ),
+        "over the edge, past the patch, at {}: {over_edge:?}",
+        T::NAME
+    );
+}
+
+#[test]
+fn a_row_shorter_than_its_edge_is_read_over_the_edge_at_f64() {
+    a_row_shorter_than_its_edge_is_read_over_the_edge::<f64>(FittedLane::certified());
+}
+
+#[test]
+fn a_row_shorter_than_its_edge_is_read_over_the_edge_at_interval() {
+    a_row_shorter_than_its_edge_is_read_over_the_edge::<Interval>(FittedLane::certified());
+}
+
+/// **A chart a few roundings wide reads without its foot**: the foot's
+/// rectangle, shrunk inside the patch, is empty there, so the read takes
+/// the walk alone, on the chart and off it, and never panics.
+#[test]
+fn a_chart_too_narrow_for_its_foot_is_walked() {
+    let (lo, hi) = (1.0f64, 1.0 + 4.0 * f64::EPSILON);
+    let net = NurbsSurface::new(
+        KnotVector::clamped(vec![lo, lo, hi, hi], 1).unwrap(),
+        KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
+        vec![
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(0.0, 1.0, 0.0),
+            Point3::new(1.0, 0.0, 0.0),
+            Point3::new(1.0, 1.0, 0.0),
+        ],
+        vec![1.0; 4],
+    )
+    .unwrap();
+    let wall = Surface::Nurbs(Arc::new(net));
+    let on = crate::read_point_incidence(Point3::new(0.5, 0.5, 0.0), &wall, band());
+    assert_eq!(on, Ok(()), "a point on the narrow chart");
+    let off = crate::read_point_incidence(Point3::new(0.5, 0.5, 1e-3), &wall, band());
+    assert!(
+        matches!(off, Err(PcurveCertifyError::CarrierOffChart { .. })),
+        "a point a millimetre off it: {off:?}"
+    );
+}
+
+/// **On an analytic chart the fitted doors read the carrier first**, as
+/// every closed-form door does: a curve in UV offered for a line off its
+/// cylinder ends `CarrierOffChart`, not the lane's refusal of an analytic
+/// chart (`ImageMismatch`), which a line on it still takes.
+#[test]
+fn an_analytic_chart_reads_the_carrier_before_the_fitted_lane() {
+    let b = band();
+    let cylinder = Surface::Cylinder {
+        origin: Point3::new(0.0, 0.0, 0.0),
+        axis: Vec3::new(0.0, 0.0, 1.0),
+        radius: 1.0,
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    };
+    let line = |r: f64| Curve3::line(Point3::new(r, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
+    let general = |r| {
+        PcurveCache::certify_general(
+            column_curve::<f64>(),
+            0.0,
+            1.0,
+            &line(r),
+            &cylinder,
+            b,
+            Some(FittedLane::certified()),
+        )
+        .map(|_| ())
+    };
+    let on = general(1.0);
+    assert!(
+        matches!(on, Err(PcurveCertifyError::ImageMismatch { .. })),
+        "a line on the cylinder takes the lane's refusal: {on:?}"
+    );
+    let off = general(1.0 + 1e-3);
+    assert!(
+        matches!(
+            off,
+            Err(PcurveCertifyError::CarrierOffChart {
+                chart: geom::SurfaceKind::Cylinder,
+                ..
+            })
+        ),
+        "a line off the cylinder ends off the chart: {off:?}"
     );
 }

@@ -234,8 +234,9 @@ struct Net<'a, T: Real> {
     /// The halvings a walk may make ([`depth_cap`]).
     depth: usize,
     /// The parameter rectangle the cells cover, `[u0, u1, v0, v1]`, shrunk
-    /// so a computed parameter's rounding stays inside it ([`Net::foot`]).
-    domain: [f64; 4],
+    /// so a computed parameter's rounding stays inside it ([`Net::foot`]);
+    /// `None` where it is too narrow to ([`inside`]).
+    domain: Option<[f64; 4]>,
     /// The chart on its brackets' middles, which the foot's iteration
     /// reads: it decides nothing, so it need not be the scalar's.
     shadow: NurbsSurface<f64>,
@@ -580,7 +581,7 @@ impl<'a, T: Decide> Net<'a, T> {
     /// above. `None` where the iteration leaves the reals.
     fn foot(&self, q: Point3<T>, start: (f64, f64)) -> Option<(f64, f64)> {
         const STEPS: usize = 12;
-        let [u0, u1, v0, v1] = self.domain;
+        let [u0, u1, v0, v1] = self.domain?;
         let q = [middle(q.x), middle(q.y), middle(q.z)];
         let tiny = 1e-12 * (u1 - u0).max(v1 - v0);
         let (mut u, mut v) = (start.0.clamp(u0, u1), start.1.clamp(v0, v1));
@@ -805,20 +806,21 @@ fn breaks<T: Decide>(knots: &Knots<T>) -> Option<Vec<f64>> {
     out.iter().all(|x| x.is_finite()).then_some(out)
 }
 
-/// The middle of a value's bracket: the walk's order, and the value an
-/// `f64` rounding bound is read at. NaN for the poison.
 /// The rectangle `[u0, u1] × [v0, v1]` shrunk by a few roundings of its
 /// coordinates at each side, so a parameter held in it and computed into
-/// the scalar ([`Real::from_computed`]) stays on the patch.
-fn inside(u0: f64, u1: f64, v0: f64, v1: f64) -> [f64; 4] {
+/// the scalar ([`Real::from_computed`]) stays on the patch. `None` where a
+/// side is too narrow to shrink: the foot is not read there.
+fn inside(u0: f64, u1: f64, v0: f64, v1: f64) -> Option<[f64; 4]> {
     let shrink = |lo: f64, hi: f64| {
         let d = 8.0 * UNIT_ROUNDOFF * lo.abs().max(hi.abs()).max(hi - lo);
-        (lo + d, hi - d)
+        (lo + d < hi - d).then_some((lo + d, hi - d))
     };
-    let ((a, b), (c, d)) = (shrink(u0, u1), shrink(v0, v1));
-    [a, b, c, d]
+    let ((a, b), (c, d)) = (shrink(u0, u1)?, shrink(v0, v1)?);
+    Some([a, b, c, d])
 }
 
+/// The middle of a value's bracket: the walk's order, and the value an
+/// `f64` rounding bound is read at. NaN for the poison.
 fn middle<T: SpanLocate>(x: T) -> f64 {
     x.structure_bracket()
         .map_or(f64::NAN, |(lo, hi)| lo + (hi - lo) * 0.5)

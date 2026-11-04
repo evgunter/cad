@@ -58,3 +58,17 @@ refusal into their own vocabulary rather than ending it as the read:
 
 The read is already taken at the pcurve door in both, so the fix there is to end
 a refusal whose `IncidenceRead::of` is `Some` as that read, not to read again.
+
+Two reroutes follow from that unit's `PcurveCheck::incidence_limb`
+mapping `ChartIncidence` to `SsiLimb::HullValueChart` (review fix GG5):
+
+- `certify.rs` `RowRefusal::decision` (a shared row refused on one of its
+  walls) and `arc_rim_check` (an exact image escalated) now read an
+  incidence refusal as `CertCheck::PlaneNurbsHullValue`, where before it
+  fell to `PlaneNurbsHull`;
+- topo `validate.rs` `classify_certify`'s `ArcRim` arm words it as that
+  limb.
+
+`ArcRimRefusal` now carries the exact image's refusal margin (`read`),
+which `decision` keeps (`SignCertain(read)`) rather than dropping it.
+

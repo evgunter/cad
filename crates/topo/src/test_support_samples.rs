@@ -422,6 +422,7 @@ fn plane_nurbs_refusals() -> Vec<PlaneNurbsRefusal> {
         },
         PlaneNurbsRefusal::ArcRim(geom_brep::ArcRimRefusal {
             iso: Some(geom_brep::PcurveCheck::MapResidual),
+            read: None,
             limb: geom_brep::SsiLimb::HullValueChart,
             bound: MarginDiag::value(4.6e-4),
         }),
@@ -527,6 +528,7 @@ fn certify_errors() -> Vec<CertifyError> {
         CertifyError::Unimplemented,
         CertifyError::PlaneNurbs(PlaneNurbsRefusal::ArcRim(geom_brep::ArcRimRefusal {
             iso: None,
+            read: None,
             limb: geom_brep::SsiLimb::HullValueChart,
             bound: MarginDiag::value(4.6e-4),
         })),

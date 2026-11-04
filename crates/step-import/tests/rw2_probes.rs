@@ -310,14 +310,19 @@ fn probe_foreign_segmentation_certifies_through_the_same_door() {
     let refusal = PcurveCache::certify(pcurve2, 0.0, theta, &carrier, &surface2, band)
         .expect_err("a wrong interior weight must refuse");
     let text = format!("{refusal:?}");
+    // The wrong weight moves the wall off the arc past the band at every
+    // ε the fixture is built at, and the certificate's refusal is ended
+    // by that read.
     assert!(
-        text.contains("cos(h/2)")
-            || text.contains("Envelope")
-            || text.contains("Residual")
-            || text.contains("CarrierOffChart")
-            || text.contains("ChartIncidence"),
-        "the refusal should be the incidence read (the wrong weight moves the wall off the \
-         arc, about 3e-7 m), the decided weight margin or a residual, got: {text}"
+        matches!(
+            refusal,
+            geom_brep::PcurveCertifyError::CarrierOffChart {
+                chart: geom::SurfaceKind::Nurbs,
+                carrier: geom::CurveKind::Circle,
+                ..
+            }
+        ),
+        "the wrong weight moves the wall off the arc, which ends the refusal, got: {text}"
     );
     println!("RW2 probe 3 negative control: wrong weight refused: {text}");
 }

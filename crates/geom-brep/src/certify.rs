@@ -4062,25 +4062,9 @@ fn canonical_of<T: Decide>(
                 // every stored cache of this class already carries,
                 // which is what makes description and cache the same
                 // object.
-                Some(p) => {
-                    // A stated image is metered against the chart below;
-                    // whether the carrier lies on the chart is read first
-                    // on an analytic chart, as the mint reads it (D3), and
-                    // on a spline chart where the meter refuses
-                    // (`stated_refusal`), so a carrier off its face ends
-                    // as that read, never as the residual's meter.
-                    if surface.spline_chart().is_none() {
-                        crate::pcurve_cache::read_incidence(
-                            &spec.carrier,
-                            spec.param_start,
-                            spec.param_end,
-                            surface,
-                            band,
-                        )
-                        .map_err(|e| mint_refusal(e, surface, &spec.carrier))?;
-                    }
-                    p.clone()
-                }
+                // Whether the carrier lies on the chart is read by the
+                // door that holds this (`stated_door`).
+                Some(p) => p.clone(),
                 // D4, the minted half: an analytic chart's image is
                 // derived from the carrier through the one door that
                 // derives chart images anywhere in this kernel.
@@ -4102,31 +4086,35 @@ fn canonical_of<T: Decide>(
     })
 }
 
-/// **A stated image's residual refusal on a spline chart, ended by the
-/// carrier's incidence read** (D3): the read is taken where the meter
-/// refuses, so a carrier off its wall ends as that read
-/// ([`mint_refusal`]), never as the residual, and an image that misses a
-/// carrier the read does not show off ends as the meter's refusal. On an
-/// analytic chart the read came first (`canonical_of`).
-fn stated_refusal<T: Decide>(
-    refusal: CertifyError,
+/// **A stated chart image's door, ended by the carrier's incidence
+/// read** (D3, `pcurve_cache::incidence_ended_unwitnessed`): `door` is the checks
+/// that meter a stated image against its chart, and a spec that states
+/// no chart image runs it as it stands. So a carrier off its face ends as
+/// the read ([`mint_refusal`]), never as the residual's meter.
+fn stated_door<T: Decide, R>(
     spec: &EdgeCurveSpec<T>,
-    surface: &Surface<T>,
+    resolved: &Resolved<T>,
     band: Band,
-) -> CertifyError {
-    if surface.spline_chart().is_none() {
-        return refusal;
-    }
-    match crate::pcurve_cache::read_incidence(
+    door: impl FnOnce() -> Result<R, CertifyError>,
+) -> Result<R, CertifyError> {
+    let Resolved::Chart {
+        surface,
+        image: Some(_),
+        ..
+    } = resolved
+    else {
+        return door();
+    };
+    let span = (spec.param_start, spec.param_end);
+    crate::pcurve_cache::incidence_ended_unwitnessed(
         &spec.carrier,
-        spec.param_start,
-        spec.param_end,
+        span,
+        span,
         surface,
         band,
-    ) {
-        Err(read) => mint_refusal(read, surface, &spec.carrier),
-        Ok(()) => refusal,
-    }
+        |e| mint_refusal(e, surface, &spec.carrier),
+        door,
+    )
 }
 
 /// **A chart image's refusal, as the edge certificate's**: an incidence
@@ -4251,7 +4239,9 @@ fn mint_checks<T: Decide>(
 ) -> Result<(EdgeDescription<T>, Option<CertifiedTurn<T>>), CertifyError> {
     let resolved = resolve_spec(spec, surfaces)?;
     let turn = decide_turn(spec, band)?;
-    let canonical = canonical_of(spec, &resolved, band)?;
+    let canonical = stated_door(spec, &resolved, band, || {
+        canonical_of(spec, &resolved, band)
+    })?;
     Ok((canonical, turn))
 }
 
@@ -4297,6 +4287,32 @@ fn run_checks<T: Decide + geom_core::CertifiedBounds>(
         &mut max_residual,
     )?;
 
+    stated_door(spec, &resolved, band, || {
+        sampled_checks(
+            spec,
+            (start, end),
+            reach,
+            lane,
+            stated,
+            band,
+            (&resolved, turn, max_residual),
+        )
+    })
+}
+
+/// [`run_checks`] from the canonical description on: the description's
+/// sampled checks and C2's limbs, on the state the endpoint pins left.
+#[allow(clippy::too_many_arguments)] // one parameter per named quantity
+fn sampled_checks<T: Decide + geom_core::CertifiedBounds>(
+    spec: &EdgeCurveSpec<T>,
+    (start, end): (Point3<T>, Point3<T>),
+    reach: geom_core::Lever<T>,
+    lane: NurbsLane<T>,
+    stated: Option<&StatedImage<T>>,
+    band: Band,
+    (resolved, turn, mut max_residual): (&Resolved<T>, Option<CertifiedTurn<T>>, T),
+) -> Result<Checked<T>, CertifyError> {
+    let (t0, t1) = (spec.param_start, spec.param_end);
     let canonical = canonical_of(spec, &resolved, band)?;
 
     // ---- Check 4: per-sample description residuals. ----
@@ -4559,8 +4575,7 @@ fn run_checks<T: Decide + geom_core::CertifiedBounds>(
                     Margin::of(p.distance(surface.eval(q.x, q.y))),
                     band,
                     &mut max_residual,
-                )
-                .map_err(|refusal| stated_refusal(refusal, spec, surface, band))?;
+                )?;
                 // **The declaration is metered too, or it is not a
                 // record of anything** (P-1b, reinstated in review).
                 // A declared locus says a sketch entity under a sweep
@@ -5535,6 +5550,7 @@ mod tests {
                     CertifyError::PlaneNurbs(crate::edge_nurbs::PlaneNurbsRefusal::ArcRim(
                         crate::edge_nurbs::ArcRimRefusal {
                             iso: Some(crate::pcurve_cache::PcurveCheck::ParamSpan),
+                            read: None,
                             limb: crate::ssi::SsiLimb::HullSupChart,
                             bound: MarginDiag::value(5e-6),
                         },

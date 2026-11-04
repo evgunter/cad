@@ -1,6 +1,7 @@
-//! **A stated chart image on a spline face is read against its carrier's
-//! incidence first** (D3): at a build, at rest and at the import door,
-//! a carrier off its wall ends `CarrierOffChart` by that door's term (the
+//! **A stated chart image on a spline face is ended by its carrier's
+//! incidence read where it refuses** (D3): at a build, at rest and at the
+//! import door, a carrier off its wall at a read sample ends
+//! `CarrierOffChart` by that door's term (the
 //! kernel's defect, the stored culprit, the damaged file), one in band
 //! of it ends in the read's lever, and one on it certifies as it did,
 //! never ending as the image's own bound.
@@ -21,10 +22,10 @@
 //!   on the moved one (`recertify`);
 //! - **at rest, unstored**: the face's derivation, whose own-chart arm
 //!   returns each stated image unread and the mint's doors certify it
-//!   (`certify`, `certify_general`), each reading the carrier first.
+//!   (`certify`, `certify_general`), each ending a refusal by the read.
 //!
 //! Read at `f64` and `Interval`, and the unstored pass at a dual, where
-//! the read refuses before any fitted door is asked for.
+//! the read ends the refusal of a door the scalar does not hold.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -64,13 +65,28 @@ impl Place {
 
 /// The bilinear identity chart lifted `lift` along `z`.
 fn chart<T: AtRestPolicy>(lift: f64) -> Surface<T> {
+    bent::<T>(lift, 0.0)
+}
+
+/// The identity chart lifted `lift`, its `(0, 1)` corner raised `bend`
+/// more: `z = lift + bend·(1 − u)·v`, which leaves the row `v = 0` and the
+/// column `u = 1` where they were and parts the diagonal from its wall by
+/// `bend / 4` at its middle.
+fn bent<T: AtRestPolicy>(lift: f64, bend: f64) -> Surface<T> {
     let unit = || KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
     let net = NurbsSurface::new(
         Knots::from(unit()).lift(Real::from_f64),
         Knots::from(unit()).lift(Real::from_f64),
         [(0.0, 0.0), (0.0, 1.0), (1.0, 0.0), (1.0, 1.0)]
             .into_iter()
-            .map(|(x, y)| Point3::new(T::from_f64(x), T::from_f64(y), T::from_f64(lift)))
+            .map(|(x, y)| {
+                let z = if (x, y) == (0.0, 1.0) {
+                    lift + bend
+                } else {
+                    lift
+                };
+                Point3::new(T::from_f64(x), T::from_f64(y), T::from_f64(z))
+            })
             .collect(),
         vec![Real::one(); 4],
     )
@@ -81,11 +97,13 @@ fn chart<T: AtRestPolicy>(lift: f64) -> Surface<T> {
 /// `half`'s edge restated as `face`'s own chart image on the identity
 /// chart: its carrier's `(x, y)`, an iso line where the carrier runs
 /// along `u` or `v` (the row and column), and a degree-one curve in UV
-/// otherwise (the diagonal).
+/// otherwise (the diagonal), stated `General` or, where `fitted`,
+/// `Fitted`.
 fn stated<T: AtRestPolicy + Bounds>(
     body: &Body<T>,
     face: FaceKey,
     half: HalfEdgeKey,
+    fitted: bool,
 ) -> (topo::EdgeKey, EdgeCurveSpec<T>) {
     let edge = body.get_half_edge(half).unwrap().edge;
     let curve = body
@@ -108,14 +126,19 @@ fn stated<T: AtRestPolicy + Bounds>(
     } else {
         let (a, b) = (carrier.eval(t0), carrier.eval(t1));
         let knots = KnotVector::clamped(vec![t0.lo(), t0.lo(), t1.hi(), t1.hi()], 1).unwrap();
-        Pcurve::General(Arc::new(
+        let curve = Arc::new(
             geom::NurbsCurve2::new(
                 Knots::from(knots).lift(Real::from_f64),
                 vec![Point2::new(a.x, a.y), Point2::new(b.x, b.y)],
                 vec![T::one(); 2],
             )
             .unwrap(),
-        ))
+        );
+        if fitted {
+            Pcurve::Fitted(curve)
+        } else {
+            Pcurve::General(curve)
+        }
     };
     let key = body.get_face(face).unwrap().surface;
     let spec = EdgeCurveSpec {
@@ -130,10 +153,16 @@ fn stated<T: AtRestPolicy + Bounds>(
 /// The lamina with every edge restated as its own face's chart image on
 /// the true chart, and the row's half-edge.
 fn restated<T: AtRestPolicy + Bounds>() -> (Body<T>, [FaceKey; 2], HalfEdgeKey) {
+    restated_as::<T>(false)
+}
+
+/// [`restated`], the diagonal's curve in UV stated `Fitted` where
+/// `fitted`.
+fn restated_as<T: AtRestPolicy + Bounds>(fitted: bool) -> (Body<T>, [FaceKey; 2], HalfEdgeKey) {
     let (mut body, faces, halves) = lamina::<T>(0.0);
     let face = body.face_of_half_edge(halves[0]).unwrap();
     for half in halves {
-        let (edge, spec) = stated(&body, face, half);
+        let (edge, spec) = stated(&body, face, half, fitted);
         if let Err(e) = body.set_edge_curve(edge, spec, Tol::witness()) {
             panic!(
                 "{half:?} restates as its own chart image on the true chart, at {}: {e:?}",
@@ -157,7 +186,7 @@ fn at_build<T: AtRestPolicy + Bounds>(place: Place) -> Result<(), CertifyError> 
     let (body, _, row) = restated::<T>();
     let mut body = moved(&body, row, place);
     let face = body.face_of_half_edge(row).unwrap();
-    let (edge, spec) = stated(&body, face, row);
+    let (edge, spec) = stated(&body, face, row, false);
     match body.set_edge_curve(edge, spec, Tol::witness()) {
         Ok(_) => Ok(()),
         Err(EulerOpError::Certification { error }) => Err(error),
@@ -325,21 +354,38 @@ fn every_door_reads_the_wall_at_interval() {
     every_door_reads_the_wall::<geom_core::Interval>();
 }
 
-/// **At a dual the read refuses first.** The unstored face's derivation
-/// certifies each stated image, the diagonal's curve in UV included,
-/// through a door whose incidence read needs no fitted door: off the
-/// wall it is a finding, never the excused `FittedLaneUnsupported`.
+/// **At a dual an off carrier is a finding.** The chart is bent off the
+/// diagonal alone ([`bent`]), so every finding is the diagonal's, whose
+/// stated curve in UV the unstored face's derivation certifies: stated
+/// `General`, at a door with no fitted lane; stated `Fitted`, with no door
+/// at a dual at all (`restate`). Either refuses, its refusal is ended by
+/// the incidence read, and so off the wall it is never the excused
+/// `FittedLaneUnsupported`.
 #[test]
 fn at_a_dual_an_off_carrier_is_a_finding() {
+    for fitted in [false, true] {
+        at_a_dual_an_off_carrier_is_a_finding_as(fitted);
+    }
+}
+
+fn at_a_dual_an_off_carrier_is_a_finding_as(fitted: bool) {
     type T = geom_core::Dual64;
-    let (body, _, row) = restated::<T>();
-    let body = moved(&body, row, Place::Off);
+    let (body, _, row) = restated_as::<T>(fitted);
+    let face = body.face_of_half_edge(row).unwrap();
+    let key = body.get_face(face).unwrap().surface;
+    let body = body
+        .with_surface_moved_for_tests(key, bent(0.0, 4e-3))
+        .unwrap();
     let findings = topo::pcurves::validate_pcurves(&body, band());
+    let certify: Vec<&PcurveCertifyError> = findings
+        .iter()
+        .filter_map(|f| match f {
+            PcurveMintError::Certify { error, .. } => Some(error),
+            _ => None,
+        })
+        .collect();
     assert!(
-        findings.iter().any(|f| matches!(
-            f,
-            PcurveMintError::Certify { error, .. } if is_off(error)
-        )),
-        "the dual's at-rest pass reads the row off the wall: {findings:?}"
+        !certify.is_empty() && certify.iter().all(|e| is_off(e)),
+        "the dual's at-rest pass reads the diagonal off the wall (fitted: {fitted}): {findings:?}"
     );
 }
