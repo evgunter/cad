@@ -219,12 +219,15 @@ pub enum Structural<T: Real> {
 }
 
 /// **A row of each surface's chart that is the edge on both** — a rim
-/// where two swept or skinned walls meet at a shared section. One closed
-/// form, symmetric in the pair: each surface states its own row image.
+/// where two swept or skinned walls meet at a shared section, or a
+/// blend's section where two bands meet. One closed form, symmetric in
+/// the pair: each surface states its own row image.
 ///
-/// The images are held in the pair's key order and are iso rows only
-/// ([`Pcurve::IsoLine`] or [`Pcurve::IsoArc`] along one chart
-/// coordinate); [`SharedRow::new`] refuses anything else.
+/// The images are held in the pair's key order and are rows only: on a
+/// spline chart an iso row ([`Pcurve::IsoLine`] or [`Pcurve::IsoArc`]
+/// along one chart coordinate), on an analytic chart a closed-form image
+/// with one coordinate fixed (`row_contact::harmonic_row`).
+/// [`SharedRow::new`] refuses anything else.
 #[derive(Clone, Debug)]
 pub struct SharedRow<T: Real> {
     images: [Pcurve<T>; 2],
@@ -282,9 +285,10 @@ pub(crate) fn row_of<T: Real>(image: &Pcurve<T>) -> Option<(bool, T)> {
     }
 }
 
-/// Whether `image` is a row image at all ([`row_of`]).
+/// Whether `image` is a row image at all: a spline chart's ([`row_of`])
+/// or an analytic chart's (`row_contact::harmonic_row`).
 fn is_row<T: Real>(image: &Pcurve<T>) -> bool {
-    row_of(image).is_some()
+    row_of(image).is_some() || crate::row_contact::harmonic_row(image)
 }
 
 /// **Whether `image` is a row along a domain side of `chart`**: a row

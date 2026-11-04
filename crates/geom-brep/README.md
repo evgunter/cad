@@ -24,7 +24,7 @@ escalated typed refusal, never a raw comparison.
 | Decisions | Lives in |
 |---|---|
 | C1 locus ladder | `crates/geom/src/curves.rs` (`Curve3`: Line, Circle, Ellipse, Spiric, Nurbs); `crates/geom-brep/src/intersect.rs` (`Rung`); `crates/geom-brep/src/intersect/conic_arc.rs` (the plane×cone parabola and hyperbola arcs) |
-| C2, C3 SSI and its certificate | `crates/geom-brep/src/ssi.rs` + `ssi/{march,certify,exhaust,enclose,jet,system,boundary,section,ends,pair,four}.rs`; `crates/geom-brep/src/intersect/section_bounds.rs` (the bounds a classified pair's section states, which retire the tube) |
+| C2, C3 SSI and its certificate | `crates/geom-brep/src/ssi.rs` + `ssi/{march,certify,exhaust,enclose,jet,system,boundary,section,ends,pair,four}.rs`; `crates/geom-brep/src/intersect/section_bounds.rs` (the bounds a classified pair's section states, which retire the tube); `crates/geom-brep/src/row_contact.rs` (a shared row's contact class on analytic charts) |
 | C4 pcurves | `crates/geom-brep/src/pcurve_cache.rs` (value, certificate), `pcurve.rs` (conic constructors), `crates/topo/src/pcurves.rs` (storage, minting, branch walk); description form in `description.rs` |
 | C5 dispatch table | `crates/geom-brep/src/intersect.rs` (`route`, the section functions); for curve pairs `crates/geom-brep/src/curve_pair.rs` (`method`, `meet`) and `curve_pair/{span,pose,polish,walk}.rs`; for a curve against a face `crates/geom-brep/src/curve_face.rs` (`route`, `boundary`) and its doors `curve_face/{plane_crossing,circle_torus,ellipse_torus,circle_roots,composite,spline_face}.rs` |
 | C6 structure certified for every member, values in the scalar, generic certification | `crates/geom-core/src/spline/`, `crates/geom/src/curves/fit.rs` |
@@ -71,9 +71,15 @@ an export/tessellation form. There is no polyline rung.
 
 **C2 — The certificate of a witness-selected `Intersection` carrier has three limbs.**
 A structural selector (D2: a curve known in advance, such as a row or
-column of a swept or skinned wall that is the edge on both surfaces)
-owes no limb 3: it is certified through each surface's chart-image
-certificate, its on-locus residual and sup-norm bound read per surface.
+column of a swept or skinned wall, or of two analytic charts, that is
+the edge on both surfaces) owes no limb 3: it is certified through each
+surface's chart-image certificate, its on-locus residual and sup-norm
+bound read per surface. A shared row also reads its contact class over
+the whole row, never at sampled feet alone, and the certificate records
+it (`row_contact`). Two spline walls must cross along all of it. Two
+analytic walls must cross along all of it or touch along all of it, as
+a blend's section between two bands does; a row that does neither
+refuses.
 Limbs 1 and 2 are owed by every carrier, of every kind, however it was
 minted. Limb 3 is owed unless the pair's section function, for this
 pose, states the two numbers the tube would prove: a lower bound on the
