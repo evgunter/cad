@@ -1385,3 +1385,7 @@ general regularity sweep. SECTARMS's cylinder × cylinder unit adopts
     - P1 parked `a-creased-spline-gets-no-second-order-clearing`.
   - **Not dispatched, on budget.** A lane's rate-limit event read weekly usage at 92% at 01:00Z, so no new unit was started after PR 6481.
   - **For Ev:** the same-operand exemption's option (b). Ship the exemption on the ratified DESIGN [topology.tiers] embedding contract (a finished body's boundary is embedded) before CLEAR's gate certifies it. That would restore the lofted cylinder's far `O ∪ B` / `B ∪ O` and its around `B ∖ O`, which refuse since PR 6437. Option (a), waiting on CLEAR, is what stands.
+- 2026-11-04 14:45Z — **PR 6519 (`teapot-1e6-floor`) landing.**
+  - Fix pass read and accepted: head `9714d441`, CI green. The adopted row `a_box_past_an_end_settles_only_past_the_band_of_that_ends_point` goes red under each of the three mutants at three ε; the two negatives are renamed as regression records; the docs are fixed; the circle × torus case is refiled as its own HONEROOT row (P3).
+  - Main merged, and `cargo check -p geom-brep -p topo --all-targets` is clean. Main had moved `edge_join.rs` and `ops.rs`, so I checked for a semantic conflict.
+  - State sync: closed `teapot-wall-3-at-1e-6-floors-the-meridian-against-a-spout-wall` and dropped it from `curved-demo-joins-build`'s blocked_on.

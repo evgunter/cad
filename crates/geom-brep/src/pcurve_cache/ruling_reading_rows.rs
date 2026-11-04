@@ -262,7 +262,7 @@ fn one_tilt_reads_by_its_reach_over_the_edge() {
             &surface,
         );
         assert_eq!(
-            chart_iso_family(&carrier, span, &surface, band()),
+            chart_iso_family(&carrier, span, &surface, band()).map(|r| r.map(|r| r.family)),
             Ok(Some(IsoFamily::U)),
             "φ {phi}, short: a ruling's family"
         );
@@ -284,7 +284,7 @@ fn one_tilt_reads_by_its_reach_over_the_edge() {
             "φ {phi}, long: the general lane certifies"
         );
         assert_eq!(
-            chart_iso_family(&carrier, span, &surface, band()),
+            chart_iso_family(&carrier, span, &surface, band()).map(|r| r.map(|r| r.family)),
             Ok(None),
             "φ {phi}, long: a line off its rulings is on no family"
         );
@@ -392,7 +392,7 @@ fn a_shifted_ruling_takes_the_general_lane() {
         );
         takes_the_general_lane(&what, &carrier, span, &surface);
         assert_eq!(
-            chart_iso_family(&carrier, span, &surface, band()),
+            chart_iso_family(&carrier, span, &surface, band()).map(|r| r.map(|r| r.family)),
             Ok(None),
             "{what}: a line off its generators is on no family"
         );
@@ -428,7 +428,7 @@ fn a_true_ruling_keeps_the_closed_form_on_both_nappes() {
                         .unwrap_or_else(|e| panic!("{what}: mints at Interval: {e:?}"));
                 certifies(&what, (&image, &image_i), &carrier, span, &surface);
                 assert_eq!(
-                    chart_iso_family(&carrier, span, &surface, band()),
+                    chart_iso_family(&carrier, span, &surface, band()).map(|r| r.map(|r| r.family)),
                     Ok(Some(IsoFamily::U)),
                     "{what}: a ruling's family"
                 );
@@ -494,11 +494,11 @@ fn an_in_band_tilt_takes_the_general_lane_on_each_chart() {
         takes_the_general_lane(&what, &carrier, span, &surface);
         assert!(
             matches!(
-                chart_iso_family(&carrier, span, &surface, band()),
+                chart_iso_family(&carrier, span, &surface, band()).map(|r| r.map(|r| r.family)),
                 Err(IsoFamilyRefusal::Undecided(_))
             ),
             "{what}: names its family undecided: {:?}",
-            chart_iso_family(&carrier, span, &surface, band())
+            chart_iso_family(&carrier, span, &surface, band()).map(|r| r.map(|r| r.family))
         );
     }
 }
@@ -545,7 +545,7 @@ fn the_reading_is_anchored_where_the_image_is() {
             "{what}: the general lane certifies"
         );
         assert_eq!(
-            chart_iso_family(&carrier, span, &surface, band()),
+            chart_iso_family(&carrier, span, &surface, band()).map(|r| r.map(|r| r.family)),
             Ok(None),
             "{what}: on no family"
         );
