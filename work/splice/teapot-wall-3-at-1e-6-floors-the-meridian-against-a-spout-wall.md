@@ -2,10 +2,12 @@
 id: teapot-wall-3-at-1e-6-floors-the-meridian-against-a-spout-wall
 kind: issue
 title: Teapot wall 3 at ε 1e-6 refuses SplineCrossingUnsettled { why: Floor }: the belly meridian's interior walk against a spout NURBS wall floors one wall before the held pierce
-status: open
+status: closed
 opened: 2026-11-03
 priority: P0
 cost: M
+closed: 2026-11-04
+pr: 6519
 ---
 
 
@@ -50,3 +52,7 @@ meridian and its distance from the fragment's ends.
 ## Re-banded P0 (SPLICE, 2026-11-03)
 
 This is teapot wall 3's stop at ε 1e-6 since PR 6441, and `issues/curved-demo-joins-build` (P0) waits on it; a blocker inherits the band of what waits on it (`work/README.md`, Priority).
+
+## Closed (SPLICE, PR 6519, 2026-11-04)
+
+The floor was not the meridian against the bore wall at all. The spline-face walk (`geom_brep::curve_face::spline_face::isolate`) reads a window past each end of the span it is asked about, END_REACH·escalate/pace (10.2 mm of arc at 1e-6). There it refused on a floor box 4.47 mm past the span's end, where the meridian crosses the bore wall's seam edge transversally, a meeting the next piece owns. The window scales with ε and the floor with √ε, so only the 1e-6 row's window held it. A floor box now settles (no meeting, no refusal) only when its curve range lies wholly past an end and the curve over it is decided farther than the band from that end's point (`Pair::past_an_end`, K name `spline_face_past_the_end`). Every other floor box refuses as before. The continuation piece reads the crossing in its boundary pass. Teapot wall 3 now stops at `GermFrameUnsupported { 6v1 Sphere, 3v3 Nurbs }` at every ε, under one pin. Single FULL review: APPROVE-WITH-FIXES. The fix pass adopted the reviewer's six-cell unit row, which kills the always-settle, raw-compare and wrong-end mutants at three ε. Residue filed: `a-meeting-on-the-charts-edge-nearer-a-spans-end-than-the-walks-floor-refuses` (P3), and HONEROOT's `a-circle-touching-a-torus-off-the-arc-escalates-the-arcs-side-decision` (P3).
