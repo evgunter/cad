@@ -444,3 +444,51 @@ fn a_fillet_foot_line_carries_the_bands_axis() {
         }
     }
 }
+
+/// **The foot lines certify with headroom**: over the sheared ladder's
+/// steepest shears, every foot line's pcurve on its band cylinder holds
+/// an envelope under `6e-13`, so the finest band (`ε = 1e-12`) is not
+/// one ulp-scale read from escalating. Its terms are the foot line's
+/// and the chart's own widths; a direction read back off two points a
+/// radius apart costs most of the band.
+#[test]
+fn a_sheared_fillets_foot_lines_certify_with_headroom() {
+    let tol = Tol::witness();
+    let mut worst = 0.0f64;
+    for s in [-0.8, -0.7, -0.6, 0.6, 0.7, 0.8] {
+        for convex in [true, false] {
+            let what = format!("shear {s}, convex {convex}");
+            let (ibody, iedge) = sheared::<Interval>(s, convex, tol);
+            let out = fillet_edges(&ibody, &[iedge], iv(D), tol)
+                .unwrap_or_else(|e| panic!("{what}: carves at Interval, got {e:?}"));
+            let body = &out.body;
+            let mut read = 0;
+            for (e, _, _) in foot_lines(body) {
+                let edge = body.get_edge(e).unwrap();
+                for he in [edge.he_plus, edge.he_minus] {
+                    let on_band = body
+                        .face_of_half_edge(he)
+                        .and_then(|f| body.face_surface(f))
+                        .is_some_and(|s| matches!(s, geom::Surface::Cylinder { .. }));
+                    if !on_band {
+                        continue;
+                    }
+                    let envelope = body
+                        .pcurve(he)
+                        .unwrap_or_else(|| panic!("{what}: {he:?} carries a pcurve"))
+                        .certificate()
+                        .envelope
+                        .hi();
+                    worst = worst.max(envelope);
+                    read += 1;
+                }
+            }
+            assert_eq!(read, 2, "{what}: both foot lines' band pcurves are read");
+        }
+    }
+    assert!(
+        worst < 6e-13,
+        "the worst foot-line envelope {worst:e} is under 6e-13"
+    );
+    println!("worst foot-line envelope: {worst:e}");
+}
