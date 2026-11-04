@@ -59,3 +59,13 @@ Moved from `work/issues/` to `work/lever/` on 2026-11-03, when the `work/issues/
 - An ellipse `semi_u = 1000`, `semi_v = 44.71`, over `[9.6126, 12.3840]`, under half a turn: `1000.0000000000001` passes the whole turn. `CAD_FUZZ_SEED=0x13cb24d6ae40c408`, reproduced here.
 - `CAD_FUZZ_SEED=0xb00ab0bb194042ff` (PR 6483's fix-pass `geom-brep` run): `1.0000000000000002` passes the whole turn.
 - `CAD_FUZZ_SEED=0x1d0f25bef65ecd3b` (the same run's rerun on `5a524e418`): `1000.0000000000001` passes the whole turn.
+
+**A second seed** (ONECOPY `onecopy/angle-reads`, 2026-11-03), found by a
+local full geom-brep run and reproducible with `CAD_FUZZ_SEED=0xd54786f7cb0d235c
+CAD_FUZZ_EFFORT=1` (`--features test-support`): a thin ellipse
+(`semi_u` 0.0014142132088478148, `semi_v` 1.0; centre the origin, axis
+`(-0.5572965940438884, 0.28438696616547604, 0.7800926609975752)`,
+`u_ref` `(0.6166163900257462, -0.48744344408386014, 0.6182096055313937)`)
+over `[6.778616771278262, 18.0108665539107]`, from the origin, fails the
+same third assertion. Neither side of the comparison reads anything that
+branch changed.
