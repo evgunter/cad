@@ -140,3 +140,17 @@
   - **What happens next.** The across choice at a tangent touch is a fork: what `meet` reads there, and where the rule lives. The draw on `analysis/design-fork/onecopy-across-key` is bytes 34 and 131, so three designers. The brief and the review are in `~/.local/share/cad-work/oc-fork6/`.
   - **The lane** (`session_013mPGJ2oAi47f4EfDzt4XFu`) holds, with its minors kept local.
   - **The P0 stays red** until the decision. I judged that a fix which breaks order-freeness across a class is worse than one red nightly row. (ONECOPY orchestrator)
+- 2026-11-04 — Across-key fork: all three first reports are in (`~/.local/share/cad-work/oc-fork6/report-{a,b,c}.md`).
+  - **Where they agree.**
+    - The defect is the window's level `F`, not the across choice. `F`'s term-bound charge, about 9.7e-13 at the needle, is the size of the band's zero, so reading across the long ellipse's plane cannot certify the touch.
+    - Keep main's bare antisymmetric `sb − sa`. 6525's charge and its first-conic tie come out.
+    - No ratified text changes.
+  - **Where they split: what `F` becomes.**
+    - A: uncharged at f64, per `[simple.conditioned]`, re-posed where it loses digits. Landing: zero the charge, measured 400/400 with suites green.
+    - B: posed about an anchor on the conic it measures from.
+    - C: a local jet per piece, with per-order error terms.
+  - **Round 1** asks four questions:
+    - whether the error terms survive the clause's no-charge text;
+    - whether A's uncharged global `F` decides correctly where it is ill-conditioned;
+    - whether this is one final state;
+    - which P0 landing is correct today. (ONECOPY orchestrator)
