@@ -70,10 +70,12 @@ fn rod_y(x: f64, rc: f64) -> AtRestBody<f64> {
 enum Stop {
     /// The result gate's volume on a torus face whose trim the chart
     /// table has no lane for
-    /// (`work/spiricarm/a-torus-wall-trimmed-by-a-spline-rim-has-no-volume-lane.md`).
-    /// A rod's chorded wall measures through the rotational lane, so the
-    /// torus face is the one the gate reports in any face order.
-    ConicTrim,
+    /// (`work/spiricarm/a-torus-wall-trimmed-by-a-spline-rim-has-no-volume-lane.md`),
+    /// the refused face's own surface read
+    /// (`topo::boolean::refused_face_kind`). A rod's chorded wall
+    /// measures through the rotational lane, so the torus face is the one
+    /// the gate reports in any face order.
+    TorusTrim,
     /// The edge join on a spline carrier beside another carrier, open or
     /// closed (`work/splice/a-spline-join-beside-another-carrier-has-no-far-parameter.md`),
     /// which no pose here reaches.
@@ -83,6 +85,11 @@ enum Stop {
 fn stop(got: Result<topo::BooleanResult<f64>, topo::BooleanError>) -> Stop {
     use geom_brep::PropsError;
     use topo::{BooleanError, MassPropsError, ValidationError};
+    let on_torus = got
+        .as_ref()
+        .err()
+        .and_then(topo::boolean::refused_face_kind)
+        == Some(geom::SurfaceKind::Torus);
     match got {
         Err(BooleanError::ResultInvalid { errors }) => match errors.as_slice() {
             [
@@ -94,8 +101,10 @@ fn stop(got: Result<topo::BooleanResult<f64>, topo::BooleanError>) -> Stop {
                         },
                     ..
                 },
-            ] if what.starts_with("a trimmed face with no volume lane on its chart") => {
-                Stop::ConicTrim
+            ] if on_torus
+                && what.starts_with("a trimmed face with no volume lane on its chart") =>
+            {
+                Stop::TorusTrim
             }
             other => panic!("an unpinned result gate: {other:?}"),
         },
@@ -117,26 +126,26 @@ fn stop(got: Result<topo::BooleanResult<f64>, topo::BooleanError>) -> Stop {
 #[test]
 fn a_rod_inside_the_tubes_shadow_stops_at_the_volume() {
     let got = topo::union(&donut(), &rod_z(2.0, 0.0, 0.2), Tol::witness());
-    assert_eq!(stop(got), Stop::ConicTrim);
+    assert_eq!(stop(got), Stop::TorusTrim);
 }
 
 /// **The same rod off the axis line**: ∩ stops at the result gate's
 /// volume on the torus face its chords trim.
-// Pinned red at every ε row, on the torus face's conic trim:
+// Pinned red at every ε row, on the torus face's trim:
 // work/spiricarm/a-torus-wall-trimmed-by-a-spline-rim-has-no-volume-lane.md.
 // When it lands, `stop` meets a body and the row is re-pinned there.
 #[test]
-fn a_rod_off_the_axis_line_stops_at_the_conic_trim() {
+fn a_rod_off_the_axis_line_stops_at_the_torus_trim() {
     let got = topo::intersect(&donut(), &rod_z(1.9, 0.5, 0.2), Tol::witness());
-    assert_eq!(stop(got), Stop::ConicTrim);
+    assert_eq!(stop(got), Stop::TorusTrim);
 }
 
 /// **A rod across both bounds**: its two meridional loops carry; ∩
-/// stops at the result gate's volume on the conic trim.
+/// stops at the result gate's volume on the torus face's trim.
 #[test]
-fn a_rod_across_the_tube_stops_at_the_conic_trim() {
+fn a_rod_across_the_tube_stops_at_the_torus_trim() {
     let got = topo::intersect(&donut(), &rod_z(2.0, 0.0, 0.7), Tol::witness());
-    assert_eq!(stop(got), Stop::ConicTrim);
+    assert_eq!(stop(got), Stop::TorusTrim);
 }
 
 /// **A rod across the inner bound**: its one null loop carries; ∩ stops
@@ -146,7 +155,7 @@ fn a_rod_across_the_tube_stops_at_the_conic_trim() {
 #[test]
 fn a_rod_across_the_inner_bound_stops_at_the_volume() {
     let got = topo::intersect(&donut(), &rod_z(1.5, 0.0, 0.2), Tol::witness());
-    assert_eq!(stop(got), Stop::ConicTrim);
+    assert_eq!(stop(got), Stop::TorusTrim);
 }
 
 /// **A square rod straddling the outer equator**: its one loop carries;
@@ -156,5 +165,5 @@ fn a_rod_across_the_inner_bound_stops_at_the_volume() {
 #[test]
 fn a_square_rod_on_the_outer_equator_stops_at_the_volume() {
     let got = topo::subtract(&donut(), &rod_y(2.45, 0.1), Tol::witness());
-    assert_eq!(stop(got), Stop::ConicTrim);
+    assert_eq!(stop(got), Stop::TorusTrim);
 }

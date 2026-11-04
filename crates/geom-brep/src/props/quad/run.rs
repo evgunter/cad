@@ -578,12 +578,12 @@ mod tests {
             ("spiric, 1 edge", &|r| spiric::round_cost(1, 0, r), 13),
             (
                 "rational rim, degree 2, 4 spans (the vase's cap)",
-                &|r| spiric::round_cost(0, spiric::w_rational(2) * 4, r),
+                &|r| spiric::round_cost(0, crate::props::taylor::w_rational(2) * 4, r),
                 9,
             ),
             (
                 "rational rim, degree 7, 1 span",
-                &|r| spiric::round_cost(0, spiric::w_rational(7), r),
+                &|r| spiric::round_cost(0, crate::props::taylor::w_rational(7), r),
                 9,
             ),
             (

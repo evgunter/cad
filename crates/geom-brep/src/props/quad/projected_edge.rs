@@ -3,13 +3,13 @@
 //! crossed into certification arithmetic, by the caller's lift, at any
 //! scalar the image holds.
 
+use geom_core::Real;
 use geom_core::interval::Interval;
-use geom_core::{Bounds, Real};
 
 use super::rotational::{FramedQ, ProjectedEdgeQ};
 use crate::pcurve_cache::{FramedCarrier, ProjectedChart, ProjectedImage};
 use crate::props::PropsError;
-use crate::props::bracket::{mid, pt};
+use crate::props::bracket::{exact_point as exact, mid, pt};
 use crate::props::rational_rim::rational_edge_q_split;
 
 impl ProjectedEdgeQ {
@@ -36,7 +36,6 @@ impl ProjectedEdgeQ {
         iv: impl Fn(T) -> Interval,
     ) -> Result<Self, PropsError> {
         let unsupported = |what| PropsError::QuadratureUnsupported { what };
-        let exact = |x: Interval| (x.is_certified() && x.lo() == x.hi()).then_some(x.lo());
         if !matches!(image.chart(), ProjectedChart::Cylinder) {
             return Err(unsupported(
                 "a projected image on the cylinder lane whose inverse is another chart's",
@@ -60,7 +59,9 @@ impl ProjectedEdgeQ {
         let vec = |v: geom_core::Vec3<T>| [iv(v.x), iv(v.y), iv(v.z)];
         // A circle's or a line's breaks are on `s = (t − origin)/span`,
         // read where the image placed them: any `f64` cut tiles the
-        // interval exactly.
+        // interval exactly. On the cylinder they guard no soundness (the
+        // rotational lane's module docs, the edge terms): the rule's
+        // integrand reads no branch.
         let cuts = |origin: T, span: T| {
             let (origin, span) = (iv(origin), iv(span));
             let mut cuts = vec![lo];

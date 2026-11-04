@@ -1,4 +1,5 @@
-//! **Transcendental-free trig enclosures** (module docs of [`super::rotational`]):
+//! **Transcendental-free trig enclosures** (the rotational lane's module
+//! docs, [`super::quad::rotational_cut_face_rounds`]):
 //! `(cos, sin)` brackets advanced by exact rotation, with polynomial
 //! alternating-series bounds on each step — the cylinder lane's and the
 //! spiric lane's harmonic channels read them.
@@ -79,7 +80,7 @@ pub(super) fn limit(t: Interval) -> f64 {
 }
 
 /// `(cos a, sin a)` at the limit `a` a trim edge's bracket `t` is
-/// integrated from or to ([`limit`], as [`TrimEdgeQ::limits`](super::rotational::TrimEdgeQ::limits) takes it),
+/// integrated from or to ([`limit`], as [`TrimEdgeQ::limits`](super::quad::TrimEdgeQ::limits) takes it),
 /// by `trig_at` from the exact `(1, 0)` at `a = 0`: transcendental-free,
 /// and its width grows with `|a|` by the double-angle steps, 1.7e-13 at
 /// `a = π` and 3.4e-13 at `2π`. Refused for a refused bracket.

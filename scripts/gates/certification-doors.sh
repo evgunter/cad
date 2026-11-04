@@ -226,7 +226,7 @@ CERT_IMPORTERS=(
   crates/geom-brep/src/props/quad/rational.rs
   crates/geom-brep/src/props/quad/rotational.rs
   crates/geom-brep/src/props/quad/run.rs
-  crates/geom-brep/src/props/quad/trig.rs
+  crates/geom-brep/src/props/trig.rs
   crates/geom-brep/src/props/quad/trimmed.rs
   crates/geom-brep/src/props/rational_rim.rs
   crates/geom-brep/src/props/spiric.rs

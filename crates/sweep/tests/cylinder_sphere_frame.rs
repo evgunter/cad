@@ -287,14 +287,16 @@ pub(crate) fn run(
 /// door is downstream of the chord lane, and none is this lane's.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Door {
-    /// The result gate's volume on a sphere face: a trim the chart table
-    /// has no lane for, its chord's projected image
+    /// The result gate's volume on a sphere face, the refused face's own
+    /// surface read (`topo::boolean::refused_face_kind`): a trim the
+    /// chart table has no lane for, its chord's projected image
     /// (`work/spiricarm/a-projected-boundary-on-an-analytic-chart-has-no-volume-lane.md`),
     /// or a ring, which the sphere reads only where circles bound it. The
     /// gate reports the first face it reads that refuses, and every face
     /// that refuses here is a sphere face — a chorded cylinder face
     /// measures through the rotational lane — so the one door reads
-    /// alike in every face order.
+    /// alike in every face order; a refusal on a face of another chart is
+    /// no door of these.
     Sphere,
     /// The edge join on a spline carrier beside another carrier
     /// (`work/splice/a-spline-join-beside-another-carrier-has-no-far-parameter.md`),
@@ -302,8 +304,10 @@ pub(crate) enum Door {
     Join,
 }
 
-/// The door `e` is, where it is one of [`Door`]'s.
+/// The door `e` is, where it is one of [`Door`]'s. Read right after the
+/// boolean that refused, while the refused face's record is its own.
 pub(crate) fn door(e: &BooleanError) -> Option<Door> {
+    let on_sphere = topo::boolean::refused_face_kind(e) == Some(geom::SurfaceKind::Sphere);
     use geom_brep::PropsError;
     use topo::{MassPropsError, ValidationError};
     match e {
@@ -312,10 +316,12 @@ pub(crate) fn door(e: &BooleanError) -> Option<Door> {
                 MassPropsError::Face {
                     source: PropsError::QuadratureUnsupported { what },
                     ..
-                } if what.starts_with("a trimmed face with no volume lane on its chart") => {
+                } if on_sphere
+                    && what.starts_with("a trimmed face with no volume lane on its chart") =>
+                {
                     Some(Door::Sphere)
                 }
-                MassPropsError::RingOnCurvedFace { .. } => Some(Door::Sphere),
+                MassPropsError::RingOnCurvedFace { .. } if on_sphere => Some(Door::Sphere),
                 _ => None,
             },
             _ => None,

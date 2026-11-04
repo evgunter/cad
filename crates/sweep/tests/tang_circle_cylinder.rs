@@ -33,6 +33,13 @@ use sweep::test_support::finished;
 use sweep::{Extrusion, extrude};
 use topo::{Body, BooleanError, BooleanOp, SweepStrategy};
 
+/// **A regression guard, not a soundness claim**: four times the widest
+/// volume half-width the tilted rod's ∖, ∩ and ∪ measured at ε `1e-9`
+/// (`1.89e-7`, PR 6478), which [`resolution_pad`]'s sound ceiling
+/// (`1.28e-5` here) would let loosen fifty-fold unseen. Read at that ε
+/// only; the other ε rows are held by the ceiling alone.
+const TILTED_ROD_PAD_GUARD: f64 = 7.6e-7;
+
 /// The cylinder of radius `r` about `(cx, cy)`, `z ∈ [z0, z1]`, through
 /// the public circle and extrude doors.
 fn cyl(cx: f64, cy: f64, r: f64, z0: f64, z1: f64) -> Body<f64> {
@@ -300,8 +307,13 @@ fn a_tilted_rod_through_a_rim_builds_at_its_sliced_volume() {
         ("∖", Op::Subtract, topo::subtract(&a, &rod, tol)),
         ("∩", Op::Intersect, topo::intersect(&a, &rod, tol)),
     ] {
-        let line = judged_within(r, Some(truth(op)), tol, budget).line;
-        assert!(line.starts_with("OK SOUND"), "{label}: {line}");
+        let read = judged_within(r, Some(truth(op)), tol, budget);
+        assert!(read.line.starts_with("OK SOUND"), "{label}: {}", read.line);
+        assert!(
+            tol.eps() != 1e-9 || read.pad.is_some_and(|pad| pad <= TILTED_ROD_PAD_GUARD),
+            "{label}: the half-width {:?} past the regression guard",
+            read.pad
+        );
     }
     let union = topo::union(&a, &rod, tol);
     let census = union.as_ref().ok().and_then(|r| r.body()).map(|bb| {
@@ -319,7 +331,9 @@ fn a_tilted_rod_through_a_rim_builds_at_its_sliced_volume() {
     });
     let read = judged_within(union, Some(truth(Op::Union)), tol, budget);
     let held = read.volume.zip(read.pad).is_some_and(|(v, pad)| {
-        (v - truth(Op::Union)).abs() <= VOLUME_CLAIM + pad && pad <= budget
+        (v - truth(Op::Union)).abs() <= VOLUME_CLAIM + pad
+            && pad <= budget
+            && (tol.eps() != 1e-9 || pad <= TILTED_ROD_PAD_GUARD)
     });
     assert!(
         census == Some(true)

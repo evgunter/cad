@@ -2,7 +2,7 @@ use geom_brep::props::quad::{
     self, Accept, FaceCutBounds, HarmChan, LaneRun, LaneStop, PatchNet, RoundWindow, TrimChord,
     TrimEdgeQ, TrimPiece,
 };
-use geom_brep::props::{FaceContribution, LoopEdge, PropsError, loop_vector_area};
+use geom_brep::props::{FaceContribution, LoopEdge, PropsError, exact_point, loop_vector_area};
 use geom_brep::props::{rational_rim, spiric};
 use geom_brep::{Pcurve, SpiricImage, WallTorus};
 use geom_core::Tol;
@@ -619,6 +619,10 @@ fn cut_face_lane<T: Decide + Bounds + CertifiedEnclosure>(
         }
     };
     let mut terms = Vec::with_capacity(loops.len());
+    // The carriers' half of the ribbon between them and their images, the
+    // chart term's pad (`quad::ChartTermQ::ribbon`): each edge's envelope
+    // times its carrier's length bound.
+    let mut ribbon = Interval::zero();
     for (loop_edges, hes) in loops {
         let mut edges = Vec::with_capacity(loop_edges.len());
         let lifted = crate::pcurves::lifted_images(body, hes);
@@ -631,6 +635,16 @@ fn cut_face_lane<T: Decide + Bounds + CertifiedEnclosure>(
             };
             let (t0, t1) = cache.params();
             let env = iv(cache.certificate().envelope);
+            let carrier_length = length_bound(&LoopEdge {
+                carrier: le.carrier.map_scalar(iv),
+                carrier_id: le.carrier_id,
+                t0: iv(le.t0),
+                t1: iv(le.t1),
+                forward: le.forward,
+                start: le.start,
+                end: le.end,
+            })?;
+            ribbon = ribbon + Interval::point(env.mag()) * Interval::point(carrier_length);
             // The lane reads a harmonic image channel by channel, and a
             // projected one through its carrier in the chart's frame. A
             // fitted or focal-section image has neither on an analytic
@@ -680,6 +694,11 @@ fn cut_face_lane<T: Decide + Bounds + CertifiedEnclosure>(
             closed,
             lever: rv(lever),
             rationals,
+            ribbon: if ribbon.is_certified() {
+                ribbon.hi()
+            } else {
+                f64::INFINITY
+            },
         },
         loops: terms,
     };
@@ -963,12 +982,6 @@ fn cap_about(
     })
 }
 
-/// A harmonic coefficient read as exact `f64` structure (C6): `Some`
-/// only for a point bracket.
-fn exact(x: Interval) -> Option<f64> {
-    (x.is_certified() && x.lo() == x.hi()).then_some(x.lo())
-}
-
 /// A spiric-bounded torus wall: each of its loops through the LIFTED
 /// chart images, the outer loop and every ring alike, its edges' terms
 /// summed over them all and its closure decided loop by loop
@@ -1044,7 +1057,7 @@ fn spiric_wall(
                          terms read the carrier's own torus",
                         ));
                     }
-                    let sense = match exact(*sense) {
+                    let sense = match exact_point(*sense) {
                         Some(s) if s == 1.0 || s == -1.0 => s,
                         _ => {
                             return Err(unsupported(
@@ -1069,7 +1082,7 @@ fn spiric_wall(
                     continue;
                 }
                 (WallImage::Harmonic([p0, pa, pb, pl]), _) => {
-                    let zero = |x: Interval| exact(x) == Some(0.0);
+                    let zero = |x: Interval| exact_point(x) == Some(0.0);
                     if !(zero(pa.0) && zero(pa.1) && zero(pb.0) && zero(pb.1)) {
                         return Err(unsupported(
                             "a torus wall edge beside a spiric whose harmonic image is not a \

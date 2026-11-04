@@ -52,19 +52,21 @@ fn g<E>(r: Result<topo::BooleanResult<f64>, E>) -> Option<AB> {
 
 /// The result gate's volume on a sphere face: a trim the chart table has
 /// no lane for, or a ring, which the sphere reads only where circles
-/// bound it. The gate reports the first face it reads that refuses, and
-/// every face that refuses here is a sphere face (a chorded cylinder face
-/// measures through the rotational lane), so the one stop reads alike in
-/// every face order.
+/// bound it. The refused face's own surface is read
+/// (`topo::boolean::refused_face_kind`), so the stop names the
+/// sphere only where the gate refused a sphere face: every face that
+/// refuses here is one (a chorded cylinder face measures through the
+/// rotational lane), so the one stop reads alike in every face order,
+/// and a refusal on another chart's face reads as that chart's.
 const SPHERE_FACE: &str = "VolumeUncomputable on a sphere face";
 
 /// Where a boolean stops: `body`, or its refusal by variant and the
 /// door that raised it.
-fn stop<E: core::fmt::Debug>(r: &Result<topo::BooleanResult<f64>, E>) -> String {
-    let e = match r {
+fn stop(r: &Result<topo::BooleanResult<f64>, topo::BooleanError>) -> String {
+    let (e, kind) = match r {
         Ok(r) if r.body().is_some() => return "body".into(),
         Ok(_) => return "no body".into(),
-        Err(e) => format!("{e:?}"),
+        Err(e) => (format!("{e:?}"), topo::boolean::refused_face_kind(e)),
     };
     let quadrature = e.contains("VolumeUncomputable") && e.contains("QuadratureUnsupported");
     if e.starts_with("CurvedBooleanUnsupported") {
@@ -72,7 +74,10 @@ fn stop<E: core::fmt::Debug>(r: &Result<topo::BooleanResult<f64>, E>) -> String 
     } else if (e.contains("VolumeUncomputable") && e.contains("RingOnCurvedFace"))
         || (quadrature && e.contains("a trimmed face with no volume lane on its chart"))
     {
-        SPHERE_FACE.into()
+        match kind {
+            Some(geom::SurfaceKind::Sphere) => SPHERE_FACE.into(),
+            other => format!("VolumeUncomputable on a {other:?} face"),
+        }
     } else {
         e.chars().take(160).collect()
     }
@@ -170,16 +175,16 @@ fn corpus(part: Part) -> (Vec<(String, AB)>, Stops) {
         }
     };
     let mut stops = Vec::new();
+    // Each stop is read right after its boolean, while the refused
+    // face's record is its own (`topo::boolean::refused_face_kind`).
     let bool3 = |a: &AB, b: &AB| -> Vec<(&'static str, String, Option<AB>)> {
-        [
-            ("u", topo::boolean::union(a, b, tol)),
-            ("i", topo::boolean::intersect(a, b, tol)),
-            ("a-b", topo::boolean::subtract(a, b, tol)),
-            ("b-a", topo::boolean::subtract(b, a, tol)),
+        let read = |op, r| (op, stop(&r), g(r));
+        vec![
+            read("u", topo::boolean::union(a, b, tol)),
+            read("i", topo::boolean::intersect(a, b, tol)),
+            read("a-b", topo::boolean::subtract(a, b, tol)),
+            read("b-a", topo::boolean::subtract(b, a, tol)),
         ]
-        .into_iter()
-        .map(|(op, r)| (op, stop(&r), g(r)))
-        .collect()
     };
     let rest = part == Part::Rest;
     if rest {

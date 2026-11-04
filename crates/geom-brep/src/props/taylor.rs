@@ -18,7 +18,7 @@ use geom_core::interval::Interval;
 use geom_core::interval::certification::Certification;
 
 use super::bracket::{mid, pt};
-use super::quad::{rotate, spread_cos, spread_sin, trig_at};
+use super::trig::{rotate, spread_cos, spread_sin, trig_at};
 
 /// The Taylor coefficients `g⁽ᵏ⁾/k!`, `k = 0..=4`, of a function of `t`,
 /// each an enclosure: at a node they are thin; over a piece (inputs
@@ -173,6 +173,51 @@ pub(super) fn composite_by<const N: usize, C>(
     (total, removable)
 }
 
+/// **The rule over consecutive intervals**: [`composite_by`] over each
+/// `(a, b, item)` of `intervals` (an edge's Bézier spans, or its carrier
+/// interval cut at breaks), `pieces` pieces each, summed with their
+/// removable widths; `prepare` reads the interval's item. The one home of
+/// the per-interval accumulator every curved-rim lane cuts an edge by.
+pub(super) fn composite_over<S, C, const N: usize>(
+    intervals: impl IntoIterator<Item = (f64, f64, S)>,
+    pieces: usize,
+    prepare: impl Fn(&S, f64, f64) -> C,
+    g: impl Fn(&C, Interval) -> [Jet; N],
+) -> ([Interval; N], [f64; N]) {
+    let mut total = [Interval::zero(); N];
+    let mut removable = [0.0_f64; N];
+    for (a, b, item) in intervals {
+        let (part, rem) = composite_by(pt(a), pt(b), pieces, |p, q| prepare(&item, p, q), &g);
+        for k in 0..N {
+            total[k] = total[k] + part[k];
+            removable[k] += rem[k];
+        }
+    }
+    (total, removable)
+}
+
+/// **`Σ h·bound` over the pieces of consecutive intervals**, as
+/// [`composite_over`] cuts them: `bound` reads the jets enclosing a piece
+/// and answers an upper bound of a nonnegative rate over it, so the sum
+/// bounds that rate's integral from above (a length, where the rate is a
+/// speed).
+pub(super) fn rate_bound_over<S, C>(
+    intervals: impl IntoIterator<Item = (f64, f64, S)>,
+    pieces: usize,
+    prepare: impl Fn(&S, f64, f64) -> C,
+    bound: impl Fn(&C, Interval) -> f64,
+) -> f64 {
+    let mut total = 0.0_f64;
+    for (a, b, item) in intervals {
+        for i in 0..pieces {
+            let (p, q) = (node(a, b, pieces, i), node(a, b, pieces, i + 1));
+            let rate = bound(&prepare(&item, p, q), Interval::from_bounds(p, q));
+            total += (pt(rate) * (pt(q) - pt(p))).hi();
+        }
+    }
+    total
+}
+
 /// The jets of `t`, `cos t` and `sin t` from enclosures of their values.
 pub(super) fn trig_jets(t: Interval, c: Interval, s: Interval) -> (Jet, Jet, Jet) {
     let z = Interval::zero();
@@ -230,6 +275,47 @@ pub(super) fn composite<const N: usize>(
             g(tj, cj, sj)
         },
     )
+}
+
+// ---------------------------------------------------------------------
+// The work of a piece
+// ---------------------------------------------------------------------
+
+/// Weight of one piece of one spiric edge (and of any integrand read
+/// through the trig jets and one reciprocal: a projected circle), in
+/// [`super::quad::FACE_WORK_WALL`]'s unit.
+pub(super) const W_SPIRIC: usize = 46;
+
+/// Weight of one piece of one Bézier span of a rational rim edge
+/// ([`super::rational_rim`]), in [`super::quad::FACE_WORK_WALL`]'s unit,
+/// by the carrier's degree: a piece shifts four power forms of the
+/// degree's length to the piece and reads them by Horner twice, so its
+/// cost grows with the degree. Measured in release on this box (a timing
+/// probe, reverted), 50 calls of 256 pieces on one span of each degree,
+/// against a spiric piece's 13.2 µs measured on the same box, which
+/// [`W_SPIRIC`] weighs at 46: the weight is the time in that ratio,
+/// rounded up. Past degree 7, each degree adds the last step's 60.
+///
+/// | degree | µs a piece | weight |
+/// |---|---|---|
+/// | 1 | 34.5 | 120 |
+/// | 2 | 44.5 | 155 |
+/// | 3 | 63.0 | 220 |
+/// | 4 | 77.4 | 270 |
+/// | 5 | 90.6 | 316 |
+/// | 6 | 116 | 404 |
+/// | 7 | 132 | 460 |
+pub(super) const fn w_rational(degree: usize) -> usize {
+    match degree {
+        0 | 1 => 120,
+        2 => 155,
+        3 => 220,
+        4 => 270,
+        5 => 316,
+        6 => 404,
+        7 => 460,
+        _ => 460 + 60 * (degree - 7),
+    }
 }
 
 #[cfg(test)]

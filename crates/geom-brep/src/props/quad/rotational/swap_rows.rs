@@ -100,7 +100,7 @@ fn harmonic(u: HarmChan, v: HarmChan, (t0, t1): (f64, f64), forward: bool) -> Tr
     }
 }
 
-use super::super::trig::trig_at_limit;
+use crate::props::trig::trig_at_limit;
 
 fn net(knots: Vec<f64>, degree: usize, control: Vec<Point3<f64>>, w: Vec<f64>) -> NurbsCurve3<f64> {
     NurbsCurve3::new(
@@ -187,10 +187,50 @@ fn rectangle(
         .collect()
 }
 
+/// `½∫(P − o)×P′` of the chart curve a harmonic edge's channels trace,
+/// `P = chart.at(u(t), v(t))`, traversal folded in: the vector area of a
+/// swapped edge's exact carrier about the chart origin, read off the
+/// channels by composite Simpson in `f64` (4096 pieces, far below the
+/// rows' widths) with `P′` in closed form, independently of the curved
+/// rims' rule the lane reads the swapped net with. The closed part of a
+/// row's chart term is the face's exact `A⃗` less these, so a bias in the
+/// lane's own reading of a carrier's `A⃗` does not cancel.
+fn channel_vector_area(chart: Chart, e: &TrimEdgeQ) -> Vec3<f64> {
+    let m = |x: Interval| mid(x);
+    let f = |c: &HarmChan, t: f64| m(c.c0) + m(c.ca) * t.cos() + m(c.cb) * t.sin() + m(c.cl) * t;
+    let df = |c: &HarmChan, t: f64| m(c.cl) + m(c.cb) * t.cos() - m(c.ca) * t.sin();
+    let tangent = |u: f64| chart.u_ref * (-u.sin()) + chart.v_ref() * u.cos();
+    let integrand = |t: f64| {
+        let (u, v) = (f(&e.u, t), f(&e.v, t));
+        let p = chart.radial(u) * chart.r + chart.axis * v;
+        let dp = tangent(u) * (chart.r * df(&e.u, t)) + chart.axis * df(&e.v, t);
+        p.cross(dp) * 0.5
+    };
+    let (a, b) = (m(e.t0), m(e.t1));
+    let n = 4096_u32;
+    let h = (b - a) / f64::from(n);
+    let mut sum = integrand(a) + integrand(b);
+    for i in 1..n {
+        let w = if i % 2 == 1 { 4.0 } else { 2.0 };
+        sum = sum + integrand(a + h * f64::from(i)) * w;
+    }
+    let va = sum * (h / 3.0);
+    if e.forward { va } else { -va }
+}
+
+/// The swapped carriers' half of a row's chart-term ribbon: each one's
+/// envelope times its certified length bound.
+fn ribbon_of(n: &NurbsCurve3<f64>, env: f64) -> f64 {
+    let speed = n
+        .map_scalar(Interval::from_certified)
+        .speed_upper_bound()
+        .to_meters(pt(1.0));
+    (pt(env) * speed).hi()
+}
+
 /// `½∫(P − o)×P′` of an edge's exact carrier, traversal folded in, by
-/// the curved rims' rule at a resolution far past the rows' widths — its
-/// own row (`rational_rim`) holds it to 40-digit truths. The closed part
-/// of a row's chart term is the face's exact `A⃗` less these.
+/// the curved rims' rule: the term the lane reads a swapped rational
+/// carrier's `A⃗` by.
 fn carrier_term(chart: Chart, n: &NurbsCurve3<f64>, forward: bool) -> RationalEdgeQ {
     let iv = Interval::from_certified;
     rational_edge_q(
@@ -241,6 +281,8 @@ fn face(
     let dot = |a: [Interval; 3], v: Vec3<f64>| a[0] * pt(v.x) + a[1] * pt(v.y) + a[2] * pt(v.z);
     let mut rationals = Vec::new();
     let mut swapped = Vec::new();
+    let mut swapped_va = Vec3::zero();
+    let mut ribbon = 0.0_f64;
     for edges in loops {
         let mut out = Vec::new();
         for e in edges {
@@ -283,17 +325,15 @@ fn face(
                 .unwrap(),
             ));
             rationals.push(carrier_term(chart, n, e.harmonic.forward));
+            swapped_va = swapped_va + channel_vector_area(chart, &e.harmonic);
+            ribbon += ribbon_of(n, env);
         }
         swapped.push(out);
     }
-    // The swapped carriers' exact terms, read at a resolution whose width
-    // is far below the rows', taken off the closed part.
-    let swapped_va = rationals.iter().fold([Interval::zero(); 3], |acc, e| {
-        let (va, _) = rational_vector_area_split(e, 4096);
-        [0, 1, 2].map(|k| acc[k] + va[k])
-    });
+    // The swapped carriers' exact terms, read independently of the lane
+    // ([`channel_vector_area`]), taken off the closed part.
     let whole = dot(lever, vector_area);
-    let closed = whole - (0..3).fold(Interval::zero(), |a, k| a + lever[k] * swapped_va[k]);
+    let closed = whole - dot(lever, swapped_va);
     let cylinder = RotationalChartQ::Cylinder {
         radius: pt(chart.r),
     };
@@ -303,6 +343,7 @@ fn face(
             closed: whole,
             lever: [Interval::zero(); 3],
             rationals: Vec::new(),
+            ribbon: 0.0,
         },
         loops: loops
             .iter()
@@ -320,6 +361,7 @@ fn face(
             closed,
             lever,
             rationals,
+            ribbon,
         },
         loops: swapped,
     };
@@ -495,6 +537,79 @@ fn a_far_face_holds_its_closed_form() {
     );
 }
 
+/// The rectangle `us × vs` on `chart` with its edge `index` (as
+/// [`rectangle`] numbers them) replaced by `edge`, the rest harmonic,
+/// about the chart's own origin, run to the reporting target.
+fn with_framed(
+    chart: Chart,
+    us: (f64, f64),
+    vs: (f64, f64),
+    index: usize,
+    edge: EdgeTermQ,
+) -> Result<LaneRun, PropsError> {
+    let mut loops: Vec<EdgeTermQ> = rectangle(chart, us, vs, &[])
+        .into_iter()
+        .map(|e| EdgeTermQ::Harmonic(e.harmonic))
+        .collect();
+    loops[index] = edge;
+    let face = RotationalFaceQ {
+        chart: RotationalChartQ::Cylinder {
+            radius: pt(chart.r),
+        },
+        chart_term: ChartTermQ {
+            closed: Interval::zero(),
+            lever: [Interval::zero(); 3],
+            rationals: Vec::new(),
+            ribbon: 0.0,
+        },
+        loops: vec![loops],
+    };
+    let band = Band::linear(Tol::witness()).unwrap();
+    rotational_cut_face_rounds::<f64>(&face, band, RoundWindow::SCHEDULE, &mut to_target(1e-9))
+}
+
+/// [`with_framed`]'s rectangle holds its closed forms.
+fn framed_holds(
+    chart: Chart,
+    us: (f64, f64),
+    vs: (f64, f64),
+    index: usize,
+    edge: EdgeTermQ,
+    label: &str,
+) {
+    let (flux, area, _) = rectangle_truth(chart, us, vs, chart.o, 1.0);
+    let got = met(with_framed(chart, us, vs, index, edge))
+        .unwrap_or_else(|e| panic!("{label}: refused: {e:?}"));
+    encloses(got.flux, flux, &format!("{label}: flux"));
+    encloses(got.area, area, &format!("{label}: area"));
+}
+
+/// The rim `v = z + v_off` of the chart's frame at height `z`, over
+/// `cuts`, as a projected circle with the given deck and ends.
+fn rim_circle(
+    chart: Chart,
+    z: f64,
+    (v_off, v_sign): (f64, f64),
+    cuts: Vec<f64>,
+    forward: bool,
+    ends: [(f64, f64); 2],
+) -> EdgeTermQ {
+    let r = pt(chart.r);
+    EdgeTermQ::Projected(ProjectedEdgeQ {
+        carrier: FramedQ::Circle {
+            centre: [Interval::zero(), Interval::zero(), pt(z)],
+            a: [r, Interval::zero(), Interval::zero()],
+            b: [Interval::zero(), r, Interval::zero()],
+            cuts,
+        },
+        v_off: pt(v_off),
+        v_sign,
+        forward,
+        ends: ends.map(|(u, v)| (pt(u), pt(v))),
+        env: Interval::zero(),
+    })
+}
+
 /// **A projected circle holds the closed form**: the rectangle's bottom
 /// rim read as a circle in the chart's frame (`FramedQ::Circle`, cut at
 /// a break inside it), the rest harmonic, about the chart's own origin.
@@ -502,45 +617,15 @@ fn a_far_face_holds_its_closed_form() {
 fn a_projected_circle_holds_the_closed_form() {
     let chart = Chart::tilted(Point3::new(0.4, -0.2, 0.3), 0.8);
     let (us, vs) = ((0.3, 2.4), (0.2, 1.1));
-    let (flux, area, _) = rectangle_truth(chart, us, vs, chart.o, 1.0);
-    let r = pt(chart.r);
-    let circle = EdgeTermQ::Projected(ProjectedEdgeQ {
-        carrier: FramedQ::Circle {
-            centre: [Interval::zero(), Interval::zero(), pt(vs.0)],
-            a: [r, Interval::zero(), Interval::zero()],
-            b: [Interval::zero(), r, Interval::zero()],
-            cuts: vec![us.0, 1.6, us.1],
-        },
-        v_off: Interval::zero(),
-        v_sign: 1.0,
-        forward: true,
-        ends: [(pt(us.0), pt(vs.0)), (pt(us.1), pt(vs.0))],
-        env: Interval::zero(),
-    });
-    let mut loops: Vec<EdgeTermQ> = rectangle(chart, us, vs, &[])
-        .into_iter()
-        .map(|e| EdgeTermQ::Harmonic(e.harmonic))
-        .collect();
-    loops[0] = circle;
-    let face = RotationalFaceQ {
-        chart: RotationalChartQ::Cylinder { radius: r },
-        chart_term: ChartTermQ {
-            closed: Interval::zero(),
-            lever: [Interval::zero(); 3],
-            rationals: Vec::new(),
-        },
-        loops: vec![loops],
-    };
-    let band = Band::linear(Tol::witness()).unwrap();
-    let got = met(rotational_cut_face_rounds::<f64>(
-        &face,
-        band,
-        RoundWindow::SCHEDULE,
-        &mut to_target(1e-9),
-    ))
-    .unwrap();
-    encloses(got.flux, flux, "a projected circle: flux");
-    encloses(got.area, area, "a projected circle: area");
+    let circle = rim_circle(
+        chart,
+        vs.0,
+        (0.0, 1.0),
+        vec![us.0, 1.6, us.1],
+        true,
+        [(us.0, vs.0), (us.1, vs.0)],
+    );
+    framed_holds(chart, us, vs, 0, circle, "a projected circle");
 }
 
 /// **A projected line holds the closed form**: the rectangle's right
@@ -549,8 +634,7 @@ fn a_projected_circle_holds_the_closed_form() {
 #[test]
 fn a_projected_line_holds_the_closed_form() {
     let chart = Chart::tilted(Point3::new(0.4, -0.2, 0.3), 0.8);
-    let (us, vs) = ((0.3, 1.4), (0.2, 1.1));
-    let (flux, area, _) = rectangle_truth(chart, us, vs, chart.o, 1.0);
+    let (us, vs): ((f64, f64), (f64, f64)) = ((0.3, 1.4), (0.2, 1.1));
     let r = chart.r;
     let line = EdgeTermQ::Projected(ProjectedEdgeQ {
         carrier: FramedQ::Line {
@@ -564,28 +648,8 @@ fn a_projected_line_holds_the_closed_form() {
         ends: [(pt(us.1), pt(vs.0)), (pt(us.1), pt(vs.1))],
         env: Interval::zero(),
     });
-    let mut loops: Vec<EdgeTermQ> = rectangle(chart, us, vs, &[])
-        .into_iter()
-        .map(|e| EdgeTermQ::Harmonic(e.harmonic))
-        .collect();
-    loops[1] = line;
-    let face = RotationalFaceQ {
-        chart: RotationalChartQ::Cylinder { radius: pt(r) },
-        chart_term: ChartTermQ {
-            closed: Interval::zero(),
-            lever: [Interval::zero(); 3],
-            rationals: Vec::new(),
-        },
-        loops: vec![loops],
-    };
-    let band = Band::linear(Tol::witness()).unwrap();
-    let got = met(rotational_cut_face_rounds::<f64>(
-        &face,
-        band,
-        RoundWindow::SCHEDULE,
-        &mut to_target(1e-9),
-    ))
-    .unwrap();
-    encloses(got.flux, flux, "a projected line: flux");
-    encloses(got.area, area, "a projected line: area");
+    framed_holds(chart, us, vs, 1, line, "a projected line");
 }
+
+mod framed;
+mod pads;

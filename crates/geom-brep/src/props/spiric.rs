@@ -88,7 +88,7 @@ use super::closure::{IntervalJunction, interval_loop_turns};
 use super::quad::{
     Accept, EDGE_INIT_PIECES, FaceCutBounds, LaneRun, RVec3, RoundWindow, Run, face_extent,
 };
-use super::taylor::{Jet, composite, node, trig_of, trig_range};
+use super::taylor::{Jet, W_SPIRIC, composite, node, trig_of, trig_range, w_rational};
 
 /// **The one home of a spiric edge's rate bounds over a window `[lo, hi]`
 /// of its parameter**, `sup|sin t|` and `inf f` read apart:
@@ -725,42 +725,6 @@ fn wall_windings<T: Decide>(chart: &WallChartQ, band: Band) -> Result<(), PropsE
         }
     }
     Ok(())
-}
-
-/// Weight of one piece of one spiric edge, in
-/// [`super::quad::FACE_WORK_WALL`]'s unit.
-pub(super) const W_SPIRIC: usize = 46;
-
-/// Weight of one piece of one Bézier span of a rational rim edge
-/// ([`super::rational_rim`]), in [`super::quad::FACE_WORK_WALL`]'s unit,
-/// by the carrier's degree: a piece shifts four power forms of the
-/// degree's length to the piece and reads them by Horner twice, so its
-/// cost grows with the degree. Measured in release on this box (a timing
-/// probe, reverted), 50 calls of 256 pieces on one span of each degree,
-/// against a spiric piece's 13.2 µs measured on the same box, which
-/// [`W_SPIRIC`] weighs at 46: the weight is the time in that ratio,
-/// rounded up. Past degree 7, each degree adds the last step's 60.
-///
-/// | degree | µs a piece | weight |
-/// |---|---|---|
-/// | 1 | 34.5 | 120 |
-/// | 2 | 44.5 | 155 |
-/// | 3 | 63.0 | 220 |
-/// | 4 | 77.4 | 270 |
-/// | 5 | 90.6 | 316 |
-/// | 6 | 116 | 404 |
-/// | 7 | 132 | 460 |
-pub(super) const fn w_rational(degree: usize) -> usize {
-    match degree {
-        0 | 1 => 120,
-        2 => 155,
-        3 => 220,
-        4 => 270,
-        5 => 316,
-        6 => 404,
-        7 => 460,
-        _ => 460 + 60 * (degree - 7),
-    }
 }
 
 /// The work of round `round` on a face of `spirics` spiric edges and

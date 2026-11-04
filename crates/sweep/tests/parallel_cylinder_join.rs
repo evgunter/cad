@@ -22,6 +22,13 @@ use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use sweep::test_support::finished;
 use topo::{AtRestBody, BooleanError, BooleanErrorKind, BooleanResult};
 
+/// **A regression guard, not a soundness claim**: four times the widest
+/// volume half-width the turned pose's six runs measured at ε `1e-9`
+/// (`2.26e-6`, PR 6478), under [`resolution_pad`]'s sound ceiling
+/// (`1.61e-5` here). Read at that ε only; the other ε rows are held by
+/// the ceiling alone.
+const TURNED_PAD_GUARD: f64 = 9.1e-6;
+
 /// A vertical rod of radius `r` about `(x, y)` over `z ∈ [z0, z1]`.
 fn rod(r: f64, (x, y): (f64, f64), (z0, z1): (f64, f64)) -> AtRestBody<f64> {
     let rod = sweep::test_support::prism_at(
@@ -665,10 +672,18 @@ fn seams_lying_on_the_walls_read_the_axes_across_the_region() {
                     // The two rods' area together, `6π + 4π`: their chorded
                     // walls accept a round that only just meets the
                     // resolution ([`resolution_pad`]).
+                    let budget = resolution_pad(tol, 10.0 * PI);
                     let line = if escalated {
                         String::from("escalated")
                     } else {
-                        judged_within(r, Some(want), tol, resolution_pad(tol, 10.0 * PI)).line
+                        let read = judged_within(r, Some(want), tol, budget);
+                        assert!(
+                            tol.eps() != 1e-9 || read.pad.is_none_or(|pad| pad <= TURNED_PAD_GUARD),
+                            "{} | {op}: the half-width {:?} past the regression guard",
+                            turned.label,
+                            read.pad
+                        );
+                        read.line
                     };
                     assert!(
                         escalated || line.starts_with("OK SOUND"),
