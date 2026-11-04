@@ -4,7 +4,7 @@
 
 ## Verdict: APPROVE-WITH-FIXES (0 MAJOR / 6 MINOR / 6 NOTE)
 
-The pole rule held on every face I built to break it: 102 enclosure readings, plus refusals. I found no wrong enclosure. The MINORs are guards no row tests (one shown by a probe to carry weight), a band that README's Priority puts higher, a loose pin, and docs that now state a guard this route does not have.
+The pole rule held on every face I built to break it: 80 enclosure readings (36 pole-angle, 24 hemisphere and near-full, 20 near-pole), plus refusals. I found no wrong enclosure. The MINORs are guards no row tests (one shown by a probe to carry weight), a band that README's Priority puts higher, a loose pin, and docs that now state a guard this route does not have.
 
 ## Findings
 
