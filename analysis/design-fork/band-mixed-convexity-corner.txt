@@ -1,0 +1,6 @@
+fork: band-mixed-convexity-corner (BAND, P0 a-boss-on-a-plate-meets-it-at-a-mixed-convexity-corner-no-run-out-rounds: what a blend builds at a corner whose requested edges mix convexity)
+drawn: 2026-11-04T05:56:10Z, od -An -tu1 -N1 /dev/urandom (twice)
+bytes: 40 138
+arm: 3 designers
+mapping: A = Fable designer, B = Opus designer 1, C = Opus designer 2
+protocol: f7004ca480
