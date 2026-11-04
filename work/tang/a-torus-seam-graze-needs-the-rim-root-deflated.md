@@ -35,7 +35,7 @@ neither order's refusal.
 
 ## What would build it
 
-The circle × torus root lane (`boolean::circle_torus`) could take the
+The circle × torus root lane (`geom_brep::curve_face::circle_torus`) could take the
 verified seam as the licence for the double root at the rim end. It
 would deflate that root and certify the remaining roots as it does
 any other's. That is an edge-local certificate, sound where the global

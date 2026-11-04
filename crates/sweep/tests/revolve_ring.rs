@@ -146,7 +146,7 @@ fn hollow_torus_runs_no_crossing_machinery() {
     );
     let crossing: Vec<_> = verdicts
         .iter()
-        .filter(|v| v.predicate.starts_with("bool_"))
+        .filter(|v| crate::common::crossing::decided_by_crossing(v.predicate))
         .collect();
     assert!(
         crossing.is_empty(),

@@ -4,12 +4,13 @@
 //! type so the fact survives a function boundary instead of being
 //! re-derived from twelve numbers at every door that moves geometry.
 //!
-//! A frame is the rigid motion that places the world frame, so the
-//! one type is both: [`RigidMotion::origin`] and the axes
-//! [`RigidMotion::u`], [`RigidMotion::v`], [`RigidMotion::w`] are the
-//! frame's reading, and the map sending the coordinate origin to
-//! `origin` and `x̂`, `ŷ`, `ẑ` to `u`, `v`, `w`
-//! ([`RigidMotion::to_affine`]) is the motion's.
+//! A motion places the world frame: [`RigidMotion::origin`] and the
+//! axes [`RigidMotion::u`], [`RigidMotion::v`], [`RigidMotion::w`] are
+//! where it sends the coordinate origin and `x̂`, `ŷ`, `ẑ`
+//! ([`RigidMotion::to_affine`]). It is not a carrier's placement: a
+//! carrier's frame (`geom::Frame`) is stated data certified at rest,
+//! and a motion is a proof certified at its mint. The two meet at one
+//! bridge, `geom::Frame::of_motion`.
 //!
 //! # What the witness means, at every scalar
 //!

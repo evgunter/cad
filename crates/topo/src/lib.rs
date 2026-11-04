@@ -138,6 +138,7 @@ pub mod chart;
 pub(crate) mod chart_groups;
 pub mod chart_iso;
 pub mod chart_region;
+pub(crate) mod chart_window;
 pub(crate) mod chord_join;
 pub mod clearance;
 pub mod coherence;
@@ -1274,7 +1275,13 @@ pub mod test_support {
         p: geom_core::Point3<T>,
         band: geom_core::Band,
     ) -> Result<Option<bool>, crate::PointInSolidError> {
-        let (_, normal) = crate::boolean::solid_contain::face_plane(body, face)?;
+        let Some((_, normal)) = crate::face_normal::face_plane(body, face) else {
+            let f = crate::live::proven(&body.faces, face, crate::entity::EntityId::Face);
+            return Err(crate::PointInSolidError::KindUnsupported {
+                face,
+                kind: body.face_surface_linked(face, f).kind(),
+            });
+        };
         crate::boolean::solid_contain::point_in_face(body, face, normal, p, band)
     }
 }
@@ -1330,7 +1337,7 @@ pub use boolean::{
     take_output_stage_points, take_shared_points,
 };
 #[cfg(feature = "sweep-testing")]
-pub use chord_join::face_azimuth_window_traces;
+pub use chart_window::face_azimuth_window_traces;
 // The census's idealized/realized pair (its `Candidates`): the
 // vocabulary always, the door on the boolean sweep's terms.
 pub use census::{
@@ -1405,6 +1412,8 @@ pub use provenance::{Provenance, SplitLineageCycle};
 // the query DOORS (materializers, predicates) keep their module
 // identity, like `readback`'s.
 pub use face_boxes::{FaceBox, FaceBoxes};
+pub use geom_brep::curve_face::plane_crossing::ConicRootFault;
+pub use geom_brep::edge_crossing::CrossingDecision;
 pub use mirror::{Reflection, mirror_body};
 pub use pieces::PieceSortError;
 pub use query::{
@@ -1426,14 +1435,14 @@ pub use shell::{
     HoleRim, RimNaming, RimShell, ShellError, ShellNaming, ShellRetired, Shelled, shell, shell_open,
 };
 pub use splitting::{
-    ApexSectionReading, ConicCrossingsCase, ConicRootFault, CrossingDecision, Escalation,
-    KnifeEdge, KnifeEdgeSite, LoopContainment, LoopDecision, NullEdgeRecord, OffPlane,
-    OffPlaneCause, PlaneSide, PointInLoopError, Section, SectionEdge, SectionEndReading,
-    SectionError, SectionGermFault, SectionGermReading, SectionPinMiss, SectionPolygon,
-    SectionRegion, SectorEntry, SectorEntryKind, SectorReading, SplitContacts, SplitError,
-    SplitFinishError, SplitJoinError, SplitPart, SplitPlane, SplitReduceError, SplitReduction,
-    SplitResult, TangencyReadings, Uncrossable, UncrossableCarrier, classify_neighborhood,
-    plane_section, point_in_loop, split, split_reduce, vertex_sides,
+    ApexSectionReading, ConicCrossingsCase, Escalation, KnifeEdge, KnifeEdgeSite, LoopContainment,
+    LoopDecision, NullEdgeRecord, OffPlane, OffPlaneCause, PlaneSide, PointInLoopError, Section,
+    SectionEdge, SectionEndReading, SectionError, SectionGermFault, SectionGermReading,
+    SectionPinMiss, SectionPolygon, SectionRegion, SectorEntry, SectorEntryKind, SectorReading,
+    SplitContacts, SplitError, SplitFinishError, SplitJoinError, SplitPart, SplitPlane,
+    SplitReduceError, SplitReduction, SplitResult, TangencyReadings, Uncrossable,
+    UncrossableCarrier, classify_neighborhood, plane_section, point_in_loop, split, split_reduce,
+    vertex_sides,
 };
 pub use transform::{TransformError, transform_rigid};
 pub use validate::{

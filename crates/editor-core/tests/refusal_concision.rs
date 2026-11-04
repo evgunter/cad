@@ -192,11 +192,11 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
         (
             "CurvedPairUnsupported",
             BooleanError::CurvedPairUnsupported {
-                op: Some(BooleanOp::Subtract),
-                site: topo::PairRefusalSite::RevertRoster,
+                op: None,
+                site: topo::PairRefusalSite::OperandGate,
                 operand: Operand::A,
                 face,
-                kind: SurfaceKind::Nurbs,
+                kind: SurfaceKind::Approx,
                 other_face: face,
                 other_kind: SurfaceKind::Cylinder,
             },

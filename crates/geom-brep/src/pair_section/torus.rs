@@ -305,14 +305,21 @@ impl<T: Real> Ring<T> {
     }
 
     fn core(self) -> Core<T> {
-        Core::of(self.center, self.axis, self.u_ref, self.big_r)
+        Core::of(
+            &geom::Frame::new(self.center, self.axis, self.u_ref),
+            self.big_r,
+        )
     }
 
     /// The ball holding the torus, and so every section of it: its
     /// tube's ([`Cover::tube`]). A ring's data is finite ([`Ring::of`]),
     /// so it has one.
     pub fn ball(self) -> ExtentBall<T> {
-        match Cover::tube(self.center, self.axis, self.u_ref, self.big_r, self.r) {
+        match Cover::tube(
+            &geom::Frame::new(self.center, self.axis, self.u_ref),
+            self.big_r,
+            self.r,
+        ) {
             Some(tube) => ExtentBall::of_cover(&tube),
             None => unreachable!("Ring::of mints a ring of finite data only"),
         }
@@ -331,7 +338,9 @@ impl<T: Real> Ring<T> {
             self.center + self.axis * z,
             self.axis,
             rho,
-            geom::square_frame(self.axis, self.u_ref).u_ref,
+            geom::Frame::new(self.center, self.axis, self.u_ref)
+                .square()
+                .u_ref,
         )
     }
 }
@@ -860,7 +869,7 @@ impl<T: Decide> CylinderTorusPose<T> {
             radius_guard("ct_cylinder_radius", SectionRadius::Cylinder, radius, band)?;
             let ring = ring?;
             let d = axis / axis.norm();
-            let line = Spine::Line { origin, axis: d };
+            let line = Spine::Line(geom::Line { origin, dir: d });
             let sweep = || swept(ring, line, [ring.r, radius], &CT_GAP, band);
             let (stance, gap) = match axis_pose(
                 (ring.center, ring.axis),

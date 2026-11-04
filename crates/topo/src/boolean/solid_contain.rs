@@ -695,43 +695,6 @@ geom_brep::ended_by_write!(PointInSolidError);
 
 impl std::error::Error for PointInSolidError {}
 
-/// The face's plane, F5-gated: origin and **outward** normal (the
-/// chart normal with the face's sense folded in through
-/// [`plane_outward_normal`] — the callers of this door are handed a
-/// material direction, not a chart datum).
-///
-/// Every consumer reads the normal's sign-blind content: each feeds it,
-/// directly or through a probe, to [`point_in_face`], whose answer is
-/// ray-crossing parity, and the join's tie (`sectors::runs_in`) also
-/// asks only whether a point's height over the plane is zero. Threading
-/// the sense here keeps the door's CONTRACT honest for a consumer that
-/// reads the sign.
-///
-/// # Errors
-///
-/// [`PointInSolidError::KindUnsupported`] for a face off a plane.
-///
-/// # Panics
-///
-/// Where `face`, a face the kernel enumerated, does not resolve.
-pub(crate) fn face_plane<T: Decide>(
-    body: &Body<T>,
-    face: FaceKey,
-) -> Result<(Point3<T>, Vec3<T>), PointInSolidError> {
-    let f = proven(&body.faces, face, EntityId::Face);
-    match body.face_surface_linked(face, f) {
-        Surface::Plane { origin, normal, .. } => {
-            Ok((*origin, plane_outward_normal(f, *normal).vec()))
-        }
-        // A non-plane is a CAPABILITY answer; only a face key that does
-        // not resolve is corruption.
-        s => Err(PointInSolidError::KindUnsupported {
-            face,
-            kind: s.kind(),
-        }),
-    }
-}
-
 /// A face's resolved query geometry: the planar datum, or a curved
 /// face's carrier with what reads a point on it — a closed group's
 /// representative, or the face's own region read from its boundary.
@@ -1213,8 +1176,7 @@ fn torus_closed_group<T: Decide>(
 /// `(ρ² − r²)/2r` in metres: the form the certification layer
 /// classifies.
 fn wall_elevation<T: Decide>(origin: Point3<T>, axis: Vec3<T>, radius: T, q: Point3<T>) -> T {
-    let w = q - origin;
-    let radial = w - axis * w.dot(axis);
+    let radial = geom::Line { origin, dir: axis }.offset(q);
     (radial.norm_squared() - radius.powi(2)) / (T::from_f64(2.0) * radius)
 }
 
@@ -1404,7 +1366,7 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
         let geom::Curve3::Circle(geom::Circle {
             frame:
                 geom::Frame {
-                    center: c_c,
+                    origin: c_c,
                     axis: n_c,
                     u_ref: u_c,
                 },
@@ -1501,7 +1463,7 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
     // image for every boundary edge and a branch it can pin across each
     // junction, and a face that denies it either is out of the class.
     // Only the in-band arm is an escalation.
-    let raw = match crate::chord_join::face_azimuth_window(body, &surf, face, band) {
+    let raw = match crate::chart_window::face_azimuth_window(body, &surf, face, band) {
         Ok(Some(w)) => w,
         Ok(None) => return Ok(None),
         Err(crate::chord_join::SplitJoinError::Escalated { diag, .. })
@@ -2485,7 +2447,7 @@ pub(super) fn line_wall_roots<T: Decide>(
     about: About,
 ) -> Result<WallRoots<T>, WallRootFault> {
     let w0 = q - origin;
-    let w0p = w0 - axis * w0.dot(axis);
+    let w0p = geom::Line { origin, dir: axis }.offset(q);
     let dp = d - axis * d.dot(axis);
     let a2 = dp.norm_squared();
     let two_r = T::from_f64(2.0) * radius;
@@ -2940,7 +2902,10 @@ fn ray_passes_beside<T: Decide>(
         let h = (v - q).dot(m);
         (h, T::zero() - h)
     };
-    let edge = |c: &geom::cover::Cover<T>| (T::zero() - c.support(-m) - base, base - c.support(m));
+    let edge = |c: &geom::cover::Cover<T>| {
+        let (lo, hi) = c.range_along(m);
+        (lo - base, base - hi)
+    };
     for (a, b) in verts.into_iter().map(vertex).chain(covers.iter().map(edge)) {
         above = Some(above.map_or(a, |x| x.min(a)));
         below = Some(below.map_or(b, |x| x.min(b)));
@@ -3437,7 +3402,7 @@ impl<T: Decide> EdgeMeets<T> {
             .ok_or(RayFault::Fatal(PointInSolidError::CorruptFace {
                 face: faces[0],
             }))?;
-        let gap = crate::sector_shape::point_segment_distance(q, far, at);
+        let gap = geom_brep::sector_shape::point_segment_distance(q, far, at);
         // The distance is a short chain (differences, a projection, a
         // norm), each rounding under half an ulp of the lengths it is
         // read from: the kernel's one charge for such a chain.
@@ -3589,15 +3554,14 @@ fn wall_crosses_by_turn<T: Decide>(
             geom::Curve3::Circle(geom::Circle {
                 frame:
                     geom::Frame {
-                        center,
+                        origin: center,
                         axis: normal,
                         ..
                     },
                 radius: r,
             }) => {
-                let w = center - origin;
                 r.abs() * (normal / normal.norm()).cross(axis).norm()
-                    + (w - axis * w.dot(axis)).norm()
+                    + geom::Line { origin, dir: axis }.offset(center).norm()
             }
             _ => return Ok(None),
         };
@@ -3767,7 +3731,7 @@ pub(crate) fn edge_clearance<T: Decide>(
         .and_then(|ed| body.get_curve_geom(ed.curve))
         .and_then(crate::null::CurveGeom::certified)?;
     match *curve.carrier() {
-        geom::Curve3::Line(_) => Some(crate::sector_shape::point_segment_distance(
+        geom::Curve3::Line(_) => Some(geom_brep::sector_shape::point_segment_distance(
             at(e.ends[0])?,
             at(e.ends[1])?,
             m,

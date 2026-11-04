@@ -137,3 +137,14 @@ second site needs to ask the question at all. (ONEDOOR orchestrator)
 - 2026-11-03 — **Dispatched `crossing-doors-leave-topo-for-geom-brep`** on `onedoor/crossing-doors`. It moves the Body-free curve×face doors next to `curve_face::route`, with the `split_conic_*` K renames, and lowers the engine-leaves lines it clears. Review tier: dual, concurrent (cost H; shared code that several programs read, plus a K-population rename). **Seam:** `onedoor/one-surface-record` reads `carrier_eq` from `one_carrier_at_rest`; the lane keeps `carrier_eq`'s signature so the two merge textually. (ONEDOOR orchestrator)
 - 2026-11-03 — **PR [#6443](https://github.com/evgunter/cad/pull/6443), wedge stage 1, merges.** Dual review, concurrent arm. Both reviews were APPROVE-WITH-FIXES; blinded coding found no tally candidate. The fix pass took the union plus CI's resolver red. The row is `docs/dual-review-log/rows/PR-6443.md`. Stages 2 and 3 are owed (on the row). (ONEDOOR orchestrator)
 - 2026-11-03 — **PR [#6443](https://github.com/evgunter/cad/pull/6443) merged (wedge stage 1, `20d0e39c`).** `face-pair-contact-pairing-has-four-spellings` is unparked, its question sharpened by what stage 1 did and did not move. Stages 2 and 3 are on the wedge row. (ONEDOOR orchestrator)
+- 2026-11-03 — **PR [#6480](https://github.com/evgunter/cad/pull/6480) closes `chart-window-walk-written-twice`, and lands `S173` in part.** Review tier: single style review, APPROVE-WITH-FIXES, with all seven fix items taken. (ONEDOOR orchestrator)
+- 2026-11-04 — **#6488 fix pass accepted, at `05bd7b27`.** Every item of the adjudicated union was taken.
+  - The crossing reader is now a roster beside the doors, held against geom-brep's sources by a closure row.
+  - The corner half of `sector_shape` moved to geom-brep.
+  - Each crate guards its own sources.
+  - `CROSSING_*` and `CrossingDecision` are homed in `geom_brep::edge_crossing`.
+  - `trace`'s dead decision is removed, and the mapping is pinned.
+  - Filed: `lane-prefixed-k-names-outside-their-lane`.
+  - **Class found by the fix pass:** a decision that is built and then dropped, while a site census still counts it. A count of sites is not evidence the site decides anything.
+  - Dual-review row `PR-6488` recorded. The unit closes on merge.
+  - (ONEDOOR orchestrator)

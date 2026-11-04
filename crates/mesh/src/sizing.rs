@@ -595,7 +595,7 @@ pub(crate) fn sphere_face_widest_cos(
             .and_then(|g| g.certified())
             .ok_or(TessellateError::MissingEntity { what: "edge curve" })?;
         let geom::Curve3::Circle(geom::Circle {
-            frame: geom::Frame { center: cc, .. },
+            frame: geom::Frame { origin: cc, .. },
             ..
         }) = *curve.carrier()
         else {

@@ -2903,7 +2903,7 @@ fn seamed_band<T: Decide + crate::props::AtRestPolicy>(
             "a seam of the designated chart has no corner of the cavity counterpart to end on",
         ));
     };
-    let point = |body: &Body<T>, v: VertexKey| crate::chord_join::vertex_point(body, v);
+    let point = |body: &Body<T>, v: VertexKey| body.resolve_vertex_point(v, crate::live::Proven);
     let (p_pole, p_ga, p_gb) = (point(body, pole), point(body, ga), point(body, gb));
     // Each corner the seams will end on lies on its seam strictly
     // between the boundary and the pole: the band between the boundary
@@ -3082,7 +3082,7 @@ fn band_between_boundaries<T: Decide + crate::props::AtRestPolicy>(
         ));
     };
     let at = |body: &Body<T>, he: HeKey| proven(&body.half_edges, he, EntityId::HalfEdge).start;
-    let point = |body: &Body<T>, v: VertexKey| crate::chord_join::vertex_point(body, v);
+    let point = |body: &Body<T>, v: VertexKey| body.resolve_vertex_point(v, crate::live::Proven);
     let host_surface = proven(&body.faces, host, EntityId::Face).surface;
     // The seam runs forward on its carrier from one boundary to the other.
     let seam_plus = proven(&body.edges, seam, EntityId::Edge).he_plus;
@@ -4536,7 +4536,7 @@ fn edge_box_in<T: Decide>(
 /// The `(u, v)` box of `frame` holding `cover`: its box in the frame's
 /// rows, about the frame's origin.
 fn cover_box_in<T: Decide>(cover: &geom::cover::Cover<T>, frame: &InPlane<T>) -> [(T, T); 2] {
-    let (lo, hi) = cover.box_in(&geom::cover::Frame::Rows([frame.u, frame.v, frame.n]));
+    let (lo, hi) = cover.box_in(&geom::cover::BoxAxes::Rows([frame.u, frame.v, frame.n]));
     let o = frame.origin - geom_core::Point3::origin();
     let (ou, ov) = (o.dot(frame.u), o.dot(frame.v));
     [(lo.x - ou, lo.y - ov), (hi.x - ou, hi.y - ov)]
@@ -5172,7 +5172,7 @@ fn moved_walls<T: Decide>(
                             geom::Curve3::Circle(geom::Circle {
                                 frame:
                                     geom::Frame {
-                                        center,
+                                        origin: center,
                                         ref axis,
                                         u_ref,
                                     },
@@ -5181,7 +5181,7 @@ fn moved_walls<T: Decide>(
                             geom::Curve3::Ellipse(geom::Ellipse {
                                 frame:
                                     geom::Frame {
-                                        center,
+                                        origin: center,
                                         ref axis,
                                         u_ref,
                                     },
@@ -5215,7 +5215,7 @@ fn moved_walls<T: Decide>(
                             let p = geom_core::Point3::new(poison, poison, poison);
                             (p, p)
                         },
-                        |c| c.box_in(&geom::cover::Frame::World),
+                        |c| c.box_in(&geom::cover::BoxAxes::World),
                     );
                     points.extend([lo, hi]);
                 }

@@ -10,10 +10,9 @@ use geom_core::{Band, Decide, Point3};
 
 use super::carrier_eq::{CarrierDesc, CarrierEqError, CarrierRelation};
 use super::plane_eq::{PlaneEqError, PlaneRelation};
-use super::reduce::face_plane;
 use crate::body::Body;
 use crate::entity::{EntityId, FaceKey};
-use crate::face_normal::plane_outward_normal;
+use crate::face_normal::{face_plane, plane_outward_normal};
 use crate::live::BoundaryMember;
 
 /// **The one flush-pair door**: the carrier ladder for a single

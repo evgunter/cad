@@ -34,7 +34,7 @@ fn face_along(body: &Body<f64>, n: [f64; 3]) -> FaceKey {
         .faces()
         .map(|(k, _)| k)
         .filter(|&f| {
-            super::face_plane(body, f)
+            super::plane_desc(body, f)
                 .is_some_and(|p| p.normal.x * n[0] + p.normal.y * n[1] + p.normal.z * n[2] > 0.99)
         })
         .collect();
