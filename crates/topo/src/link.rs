@@ -2223,8 +2223,8 @@ impl<T: Decide> FaceSector<T> {
         holds: &[Hold],
         band: Band,
     ) -> Result<Vec<Self>, TouchUnread> {
-        let face = body.get_face(f).ok_or(TouchUnread::Corrupt)?;
-        let surface = body.face_surface_linked(f, face).clone();
+        let face = body.passed_face(f).ok_or(TouchUnread::Corrupt)?;
+        let surface = face.surface().clone();
         if !matches!(surface, geom::Surface::Plane { .. }) {
             return Err(TouchUnread::Unreadable);
         }
@@ -2233,7 +2233,7 @@ impl<T: Decide> FaceSector<T> {
             .vec();
         let mut loops = Vec::new();
         let mut rings = Vec::new();
-        for cycle in crate::census::face_cycles(body, face) {
+        for cycle in body.unchecked_face_cycles(face.record()) {
             let cycle = cycle.map_err(|_| TouchUnread::Corrupt)?;
             let mut keys = Vec::with_capacity(cycle.len());
             let mut ring = Vec::with_capacity(cycle.len());
@@ -2250,7 +2250,7 @@ impl<T: Decide> FaceSector<T> {
         }
         let face = Planar {
             surface,
-            sense: face.sense,
+            sense: face.sense(),
             outward,
             loops: &loops,
             rings,
@@ -2293,8 +2293,8 @@ impl<T: Decide> FaceSector<T> {
         p: Point3<T>,
         holds: &[Hold],
     ) -> Result<Vec<Self>, TouchUnread> {
-        let face = body.get_face(f).ok_or(TouchUnread::Corrupt)?;
-        let surface = body.face_surface_linked(f, face).clone();
+        let face = body.passed_face(f).ok_or(TouchUnread::Corrupt)?;
+        let surface = face.surface().clone();
         let geom::Surface::Plane { u_ref, .. } = surface else {
             return Err(TouchUnread::Unreadable);
         };
@@ -2319,7 +2319,7 @@ impl<T: Decide> FaceSector<T> {
             None => None,
         };
         let mut passes = Vec::new();
-        for cycle in crate::census::face_cycles(body, face) {
+        for cycle in body.unchecked_face_cycles(face.record()) {
             for he in cycle.map_err(|_| TouchUnread::Corrupt)? {
                 let half = body.half_edges.get(he).ok_or(TouchUnread::Corrupt)?;
                 let end = body.half_edge_end(he).ok_or(TouchUnread::Corrupt)?;
@@ -2360,7 +2360,7 @@ impl<T: Decide> FaceSector<T> {
                 },
                 face: LinkFace {
                     surface: surface.clone(),
-                    sense: face.sense,
+                    sense: face.sense(),
                     clear: Some(radius),
                     tangent: None,
                 },

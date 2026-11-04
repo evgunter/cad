@@ -17,3 +17,5 @@ Ledger rows F31 (`curve_foot_branch`, `angle_near`'s half-turn flip) and F32 (`c
 Other sites take the same shape on the logged door, `decide(.., Band::least())`. One is `geom::curves::on_carrier`'s `curve_carrier_speed`, which reads whether a speed bound is positive. A sweep for `Band::least()` across the kernel finds the rest. Some are verdicts rather than choices, so each needs its disposition before any moves.
 
 Fix: give such choices their own door, for example `k_stats::choose(name, margin, ledger_row)`. It would be `check_unlogged` on the least band with the row required, and the least band would come off the logged `decide`'s callers. Then the next heuristic lands there by construction, and `flagged_census` checks its row.
+
+**A third instance landed while this row was open (2026-11-04):** ledger row F33 (`curve_pair_pose_across`, `geom-brep` `curve_pair::pose`'s `conic_conic`, which picks which of two conics to read across the other's plane) took the same route. It is a choice decided at `Band::least`, argued out of the log with its own row.

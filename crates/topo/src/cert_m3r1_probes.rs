@@ -75,7 +75,7 @@ pub(crate) fn m7_8_cube() -> (
     // reordering that kept `[MefCreated; 5]` full would move this probe
     // onto another face and still pass everything below.
     {
-        let plane = body.face_surface(front).unwrap();
+        let plane = body.proven_face(front).surface();
         let Surface::Plane { origin, normal, .. } = plane else {
             panic!("the cube's walls are planes");
         };

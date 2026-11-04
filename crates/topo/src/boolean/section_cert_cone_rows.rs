@@ -531,7 +531,7 @@ fn scan_with(
 }
 
 fn describes(body: &Body<f64>, face: FaceKey) -> Sheet {
-    let surface = body.face_surface(face).unwrap().clone();
+    let surface = body.proven_face(face).surface().clone();
     ops::ChartCache::default()
         .describes(crate::Operand::A, body, face, &surface, band())
         .unwrap()

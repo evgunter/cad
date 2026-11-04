@@ -43,6 +43,8 @@ not (
   (binary_id(topo) & test(=boolean::sphere_region::tests::every_two_leg_path_that_decides_agrees_with_the_face)) |
   (binary_id(topo) & test(=live::tests::a_faces_loops_are_walked_in_one_place)) |
   (binary_id(topo) & test(=live::tests::loop_keys_is_read_only_where_a_miss_is_reported)) |
+  (binary_id(topo) & test(=live::tests::the_unchecked_cycles_are_read_only_where_a_miss_is_reported)) |
+  (binary_id(topo) & test(=live::tests::the_public_surface_door_is_read_only_outside_the_crate)) |
   (binary_id(topo) & test(=link::cone_fuzz::a_curved_bound_tied_with_a_sheet_reads_its_bend_against_the_exact_oracle)) |
   (binary_id(topo) & test(=boolean::holdings_rows::a_unions_holdings_read_alike_in_every_member_order)) |
   (binary_id(topo) & test(=boolean::holdings_rows::every_brick_booleans_face_holds_only_member_faces_on_its_plane)) |
@@ -212,7 +214,8 @@ not (
   (binary_id(step-import::all) & (test(=wild::wild_bodies_are_a_fixed_point_of_our_own_dialect))) |
   (binary_id(topo) & (test(=census::two_carrier_records::line_through_faces::review_5006_delta::d3_conic_trims) | test(=census::two_carrier_records::line_through_faces::review_5006_delta::an_apex_in_band_of_the_line_does_not_hide_a_spike_elsewhere) | test(=census::two_carrier_records::line_through_faces::review_5006_delta::two_different_faces_read_the_line_as_the_oracle_does) | test(=boolean::boxes::sphere_rect_rows::a_zone_reach_charge_covers_random_poses_near_a_box_row))) |
   (binary_id(topo::all) & (test(=a_vertex_read_by_two_sector_passes::a_partner_tipped_off_the_face_still_ends_the_cut))) |
-  (binary_id(sweep::all) & test(=a_conical_ended_football_revolves::props_meets_an_independent_quadrature_on_every_band))
+  (binary_id(sweep::all) & test(=a_conical_ended_football_revolves::props_meets_an_independent_quadrature_on_every_band)) |
+  (binary_id(geom-brep) & test(=pcurve_cache::circle_lane_rows::a_circles_projected_envelope_covers_its_residual))
 )
 """
 
