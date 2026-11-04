@@ -16,6 +16,7 @@
 //! ([`crate::boolean::solid_contain`]'s crossing walk), logged under their
 //! own rows ([`AIMED_ROWS`]) so the two readers' verdicts stay apart.
 
+use geom_brep::ladder::{Answering, Climb, Rung, climb};
 use geom_core::{Band, Decide, Indeterminate, Point3, Vec3};
 
 use crate::body::Body;
@@ -642,29 +643,39 @@ fn cast_aims<T: Decide>(
             }
         }
     }
-    let (mut in_band, mut aimed, mut set_aside) = (None, 0, Vec::new());
-    for (face, geo) in &geos {
-        let face = *face;
-        let Some((aim, normal)) = aim_at(body, face, geo, band)? else {
-            continue;
+    // The ladder ([`climb`]) whose answer is the first aimed ray's side:
+    // every ray from outside reads the one side ([`Answering::Any`]). A
+    // pair in band is kept, and refuses where no ray decides. A set-aside
+    // ray passes, collected for the volume reader that answers after
+    // the rays: a limit a ray met is NOT ranked ahead of a pair, since
+    // the volume, not a refusal, is what follows it.
+    let (mut aimed, mut set_aside) = (0, Vec::new());
+    let read = climb(Answering::Any, &geos, |&(face, ref geo)| {
+        let (aim, normal) = match aim_at(body, face, geo, band) {
+            Ok(Some(aimed_at)) => aimed_at,
+            Ok(None) => return Rung::Passes,
+            Err(e) => return Rung::Aborts(Err(e)),
         };
         aimed += 1;
-        match aimed_ray(body, faces, &geos, face, aim, normal, band)? {
-            Aimed::Side(side) => return Ok(Rays::Side(side)),
-            Aimed::Pair(pair) => {
-                in_band.get_or_insert(pair);
+        match aimed_ray(body, faces, &geos, face, aim, normal, band) {
+            Ok(Aimed::Side(side)) => Rung::Answers(Ok(side)),
+            Ok(Aimed::Pair(pair)) => Rung::InBand(pair),
+            Ok(Aimed::SetAside(why)) => {
+                set_aside.push(SetAside {
+                    aimed: face,
+                    aim: Some(crate::census::witness(aim)),
+                    why,
+                });
+                Rung::Passes
             }
-            Aimed::SetAside(why) => set_aside.push(SetAside {
-                aimed: face,
-                aim: Some(crate::census::witness(aim)),
-                why,
-            }),
+            Err(e) => Rung::Aborts(Err(e)),
         }
+    });
+    match read {
+        Climb::Answered { answer, .. } => answer.map(Rays::Side),
+        Climb::Undecided(pair) => Ok(Rays::InBand(pair)),
+        Climb::Passed => Ok(Rays::Unread { aimed, set_aside }),
     }
-    if let Some(pair) = in_band {
-        return Ok(Rays::InBand(pair));
-    }
-    Ok(Rays::Unread { aimed, set_aside })
 }
 
 /// What one aimed ray reads ([`aimed_ray`]).
