@@ -725,3 +725,64 @@ fn holds_refuses_on_the_first_limit_its_loops_kept() {
         "the straddle first: {got:?}"
     );
 }
+
+/// The grazing ellipse of
+/// [`a_loop_winding_twice_and_an_unsettled_carrier_are_exempt`]: its slow
+/// end passes `3ε` from the north pole and its refinement does not settle
+/// at the default band.
+fn grazing_ellipse() -> Vec<LoopEdge<f64>> {
+    let delta = 3e-9;
+    let (major, minor) = (1e7, 1.0);
+    let grazing = Curve3::Ellipse(geom::Ellipse::new(
+        geom::Frame::new(
+            Point3::new(0.0, 0.0, 1.0 + delta - major),
+            Vec3::new(0.0, 1.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+        ),
+        major,
+        minor,
+    ));
+    vec![LoopEdge::hand_built(grazing, -0.5, 0.5, true, 0, 1)]
+}
+
+/// **A distance in band is reported ahead of an edge that does not
+/// settle, in either loop order**: the north pole lies `5ε` inside a
+/// circle's edge (the plane `x = 5ε`) and `3ε` from a grazing ellipse
+/// whose refinement does not settle. At the default band the distance is
+/// the refusal (`Boundary`), which tier 3 reports undecided; a coarser
+/// band places the pole inside the circle's edge, a definite defect, so
+/// reporting the unsettled ellipse instead would exempt a placement a
+/// coarser band calls a defect. At a finer band the distance is decided
+/// off and the ellipse is all that is left.
+#[test]
+fn a_distance_in_band_is_reported_ahead_of_an_unsettled_edge() {
+    let rim = closed(section(Vec3::new(1.0, 0.0, 0.0), 5e-9), true);
+    let graze = grazing_ellipse();
+    let north = |loops: &[Vec<LoopEdge<f64>>], band: Band| {
+        lies_at(&unit_sphere(), loops, true, band)
+            .into_iter()
+            .find(|l| l.singularity == Singularity::North)
+            .unwrap()
+            .lies
+    };
+    for (order, loops) in [
+        ("rim, graze", vec![rim.clone(), graze.clone()]),
+        ("graze, rim", vec![graze, rim]),
+    ] {
+        let got = north(&loops, band());
+        assert!(
+            matches!(got, Err(Unread::Boundary { .. })),
+            "{order}, default band: {got:?}"
+        );
+        let got = north(&loops, Band::new(1e-10, 1e-9).unwrap());
+        assert!(
+            matches!(got, Err(Unread::Carrier { .. })),
+            "{order}, finer band: {got:?}"
+        );
+        let got = north(&loops, Band::new(1e-8, 1e-7).unwrap());
+        assert!(
+            matches!(got, Ok(Lies::InsideEdge { .. })),
+            "{order}, coarser band: {got:?}"
+        );
+    }
+}

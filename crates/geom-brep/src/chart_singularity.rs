@@ -251,14 +251,16 @@ pub enum SideUnread {
 #[derive(Clone, Debug)]
 pub enum Unread<T> {
     /// Its distance to a vertex or an edge is in band
-    /// ([`on_boundary`]).
+    /// ([`on_boundary`]). Ranked by its margin ([`Standing::Margin`]).
     Boundary {
         /// The escalation, carrying the margin.
         cause: Indeterminate,
         /// The distance.
         distance: T,
     },
-    /// The side of `loops[r#loop]` it lies on is undecided.
+    /// The side of `loops[r#loop]` it lies on is undecided. Ranked by its
+    /// margin where a band decision escalated; a side that straddles its
+    /// own bound, which no tolerance decides, is a limit.
     Side {
         /// The loop.
         r#loop: usize,
@@ -269,7 +271,11 @@ pub enum Unread<T> {
     /// neither clear the point past the band nor bring it within reach of
     /// one of them inside the refinement's budget, or a carrier with no
     /// stated speed bound to refine against. No other edge places the
-    /// point on the boundary, and none is undecided.
+    /// point on the boundary, and none is undecided. UNSETTLED
+    /// ([`Standing::Unsettled`]): it moves with the band (a coarser one
+    /// can settle the edge on the point) and carries no margin to rank
+    /// by, so a margin in band, which says how far the point is, is
+    /// reported ahead of it.
     Carrier {
         /// The loop.
         r#loop: usize,
@@ -280,39 +286,63 @@ pub enum Unread<T> {
     /// surface axis: a sample reads no chart point away from every
     /// singular point, a step of its walk cannot be certified to turn
     /// less than an eighth of a turn about the axis within the
-    /// refinement's budget, or the loop winds more than once.
+    /// refinement's budget, or the loop winds more than once. A limit:
+    /// no band moves a winding count.
     Loop {
         /// The loop.
         r#loop: usize,
     },
 }
 
+/// **How a ladder ranks an [`Unread`]**, stated on each variant where it
+/// is defined ([`Unread::standing`]): whether a tolerance moves it.
+/// Whether a reading is EXEMPT is a consumer's question, never this
+/// one: tier 3 exempts a pole an unsettled edge or an unread walk meets
+/// ([`Undecided::of`]), and the import pass refuses both.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Standing {
+    /// Ranked by its margin ([`Kept::of`]): in band, or a limit where the
+    /// margin cannot be read.
+    Margin(Indeterminate),
+    /// A limit no tolerance moves, ranked ahead of a margin in band.
+    Limit,
+    /// Band-dependent, with no margin to rank by: ranked after every
+    /// reading a ladder kept.
+    Unsettled,
+}
+
 impl<T> Unread<T> {
-    /// **What a ladder keeps this reading as** ([`Kept`]): a limit no
-    /// tolerance moves — a sampled edge that does not settle, a walk
-    /// that does not read, a side that straddles its own bound, a
-    /// poisoned margin — ahead of a margin in band
-    /// ([`crate::ladder::Evidence`]). Whether a reading is EXEMPT is the
-    /// consumer's question, never the ladder's: tier 3 exempts a pole an
-    /// unsettled edge or an unread walk meets ([`Undecided::of`]), and
-    /// the import pass refuses both (a foreign carrier, an unreadable
-    /// face).
+    /// This reading's [`Standing`] (each variant's docs).
     #[must_use]
-    pub fn kept(self) -> Kept<Self> {
-        let cause = match &self {
+    pub const fn standing(&self) -> Standing {
+        match self {
             Self::Boundary { cause, .. }
             | Self::Side {
                 why: SideUnread::Banded(cause),
                 ..
-            } => *cause,
+            } => Standing::Margin(*cause),
             Self::Side {
                 why: SideUnread::Straddle,
                 ..
             }
-            | Self::Carrier { .. }
-            | Self::Loop { .. } => return Kept::Blocked(self),
-        };
-        Kept::of(cause).map(|_| self)
+            | Self::Loop { .. } => Standing::Limit,
+            Self::Carrier { .. } => Standing::Unsettled,
+        }
+    }
+
+    /// This reading as a rung of a ladder that did not place the point,
+    /// ranked by its [`Standing`]: an unsettled one passes, recorded in
+    /// `unsettled` (the first), the ladder's refusal only where nothing
+    /// was kept.
+    pub(crate) fn rung<A>(self, unsettled: &mut Option<Self>) -> Rung<A, Self> {
+        match self.standing() {
+            Standing::Margin(cause) => Kept::of(cause).map(|_| self).into(),
+            Standing::Limit => Rung::Blocked(self),
+            Standing::Unsettled => {
+                unsettled.get_or_insert(self);
+                Rung::Passes
+            }
+        }
     }
 }
 
@@ -427,9 +457,9 @@ pub fn vertex_at_singular_point<T: Decide>(
 /// edge (the loops and edges in order, the first that decides on), else
 /// inside the face or outside it. A distance in band, or a sampled edge
 /// that does not settle, is that point's answer only where no other
-/// vertex or edge places it on the boundary; an unsettled edge, a limit,
-/// is answered before a distance in band ([`Unread::kept`]). A reading
-/// that cannot place a
+/// vertex or edge places it on the boundary; a distance in band is
+/// answered before an unsettled edge ([`Standing`]). A reading that
+/// cannot place a
 /// point ([`Unread`]) is that point's answer; the others are read
 /// regardless.
 pub fn locate<T: Decide>(
@@ -485,8 +515,8 @@ fn locate_one<T: Decide>(
 ///
 /// # Errors
 ///
-/// A sampled edge that does not settle ([`Unread::Carrier`]), answered
-/// before a distance in band ([`Unread::Boundary`]) as [`Unread::kept`]
+/// A distance in band ([`Unread::Boundary`]), answered before a sampled
+/// edge that does not settle ([`Unread::Carrier`]) as [`Standing`]
 /// ranks them, and each only where no other vertex or edge places `x`
 /// on the boundary.
 pub fn place_on_boundary<T: Decide>(
@@ -518,14 +548,15 @@ pub fn place_on_boundary<T: Decide>(
     }
     // Inside an edge: the first that decides on, a ladder ([`climb`])
     // whose answering edge names where the point lies
-    // (`Answering::First`). What an edge that does not decide keeps is
-    // ranked as [`Unread::kept`] ranks it: a sampled edge that does not
-    // settle is a limit, ahead of a distance in band.
+    // (`Answering::First`). An edge that does not decide is ranked by its
+    // [`Standing`]: a distance in band ahead of a sampled edge that does
+    // not settle.
+    let mut unsettled = None;
     let edges = loops
         .iter()
         .enumerate()
         .flat_map(|(l, lp)| lp.edges.iter().enumerate().map(move |(k, e)| (l, k, e)));
-    climb(Answering::First, edges, |(l, k, e)| {
+    match climb(Answering::First, edges, |(l, k, e)| {
         match nearest_on_edge(e, x, band) {
             Near::Off => Rung::Passes,
             Near::On { t } => Rung::Answers(Lies::InsideEdge {
@@ -533,11 +564,16 @@ pub fn place_on_boundary<T: Decide>(
                 edge: k,
                 t,
             }),
-            Near::InBand { cause, distance } => Unread::Boundary { cause, distance }.kept().into(),
-            Near::Unsettled => Unread::Carrier { r#loop: l, edge: k }.kept().into(),
+            Near::InBand { cause, distance } => {
+                Unread::Boundary { cause, distance }.rung(&mut unsettled)
+            }
+            Near::Unsettled => Unread::Carrier { r#loop: l, edge: k }.rung(&mut unsettled),
         }
-    })
-    .into_reading()
+    }) {
+        Climb::Answered { answer, .. } => Ok(Some(answer)),
+        Climb::Undecided(why) => Err(why),
+        Climb::Passed => unsettled.map_or(Ok(None), Err),
+    }
 }
 
 /// Where a point lies against one edge's carrier.
@@ -786,19 +822,19 @@ impl<'a, T: Decide> Sides<'a, T> {
         let bounding: Vec<usize> = (0..self.loops.len())
             .filter(|&l| crate::chart_image::bounds_area(self.loops[l]))
             .collect();
-        // A loop whose side does not read is kept as [`Unread::kept`]
-        // ranks it.
+        // A loop whose side does not read is ranked by its [`Standing`].
+        let mut unsettled = None;
         let outside = climb(Answering::Any, bounding, |l| {
             match self.left_holds(l, singularity, x) {
                 Ok(left) if left != sense => Rung::Answers(()),
                 Ok(_) => Rung::Passes,
-                Err(why) => why.kept().into(),
+                Err(why) => why.rung(&mut unsettled),
             }
         });
         match outside {
             Climb::Answered { .. } => Ok(false),
             Climb::Undecided(why) => Err(why),
-            Climb::Passed => Ok(true),
+            Climb::Passed => unsettled.map_or(Ok(true), Err),
         }
     }
 }
@@ -1505,91 +1541,103 @@ pub fn spline_collapsed_row<T: Decide>(
     (!spans).then_some(row)
 }
 
-/// [`Unread::kept`], the one ranking of what [`place_on_boundary`] and
-/// [`Sides::holds`] keep: a limit ahead of a margin in band, and no
-/// reading exempt (exemption is the consumer's, [`Undecided::of`]).
+/// [`Unread::standing`], the one ranking of what [`place_on_boundary`]
+/// and [`Sides::holds`] keep, stated on the type.
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::panic)]
-mod unread_kept_rows {
+mod standing_rows {
     use geom_core::{Band, Indeterminate, MarginDiag};
 
-    use super::{SideUnread, Undecided, Unread};
-    use crate::ladder::{Answering, Climb, Kept, Rung, climb};
+    use super::{SideUnread, Standing, Unread};
+    use crate::ladder::{Answering, Climb, climb};
 
-    fn cause(margin: f64) -> Indeterminate {
+    fn cause(margin: MarginDiag) -> Indeterminate {
         Indeterminate {
-            margin: MarginDiag::value(margin),
+            margin,
             band: Band::new(1e-9, 1e-8).unwrap(),
             predicate: Some("t"),
             terminal_sliver: false,
         }
     }
 
-    /// **Every reading is kept, none passes**; the ones the consumers do
-    /// not report as undecided ([`Undecided::of`] is `None`) are limits,
-    /// as is a straddle, and a margin in band is in band.
+    /// **Each reading's standing**: a margin is ranked by itself, a
+    /// straddle and a walk that does not read are limits, and a sampled
+    /// edge that does not settle is unsettled (it moves with the band and
+    /// carries no margin).
     #[test]
-    fn kept_classifies_every_reading_and_exempts_none() {
-        let in_band = cause(5e-9);
-        for (why, limit) in [
-            (
-                Unread::Boundary {
-                    cause: in_band,
-                    distance: 0.0,
-                },
-                false,
-            ),
-            (
-                Unread::Side {
-                    r#loop: 0,
-                    why: SideUnread::Straddle,
-                },
-                true,
-            ),
-            (
-                Unread::Side {
-                    r#loop: 0,
-                    why: SideUnread::Banded(in_band),
-                },
-                false,
-            ),
-            (Unread::Carrier { r#loop: 0, edge: 0 }, true),
-            (Unread::Loop { r#loop: 0 }, true),
-        ] {
-            let reported = Undecided::of(&why).is_some();
-            let got = why.clone().kept();
-            assert_eq!(matches!(got, Kept::Blocked(_)), limit, "{why:?}");
-            assert!(
-                limit || reported,
-                "an in-band reading is one a consumer reports: {why:?}"
-            );
-        }
+    fn each_reading_stands_where_its_variant_says() {
+        let in_band = cause(MarginDiag::value(5e-9));
+        let s = |why: Unread<f64>| why.standing();
+        assert_eq!(
+            s(Unread::Boundary {
+                cause: in_band,
+                distance: 0.0
+            }),
+            Standing::Margin(in_band)
+        );
+        assert_eq!(
+            s(Unread::Side {
+                r#loop: 0,
+                why: SideUnread::Banded(in_band)
+            }),
+            Standing::Margin(in_band)
+        );
+        assert_eq!(
+            s(Unread::Side {
+                r#loop: 0,
+                why: SideUnread::Straddle
+            }),
+            Standing::Limit
+        );
+        assert_eq!(s(Unread::Loop { r#loop: 0 }), Standing::Limit);
+        assert_eq!(
+            s(Unread::Carrier { r#loop: 0, edge: 0 }),
+            Standing::Unsettled
+        );
     }
 
-    /// **A poisoned side ranks as a limit**, ahead of a side in band read
-    /// before it.
+    /// **A ladder ranks by standing**: a poisoned side, a limit, ahead
+    /// of a side in band read before it; a distance in band ahead of an
+    /// unsettled edge read before it; an unsettled edge alone is the
+    /// refusal only where nothing was kept.
     #[test]
-    fn a_poisoned_side_ranks_as_a_limit() {
-        let got = climb(
-            Answering::Any,
-            vec![
-                Unread::Side {
-                    r#loop: 0,
-                    why: SideUnread::Banded(cause(5e-9)),
-                },
-                Unread::Side {
-                    r#loop: 1,
-                    why: SideUnread::Banded(Indeterminate {
-                        margin: MarginDiag::INVALID,
-                        ..cause(5e-9)
-                    }),
-                },
-            ],
-            |w: Unread<f64>| -> Rung<(), _> { w.kept().into() },
-        );
+    fn a_ladder_ranks_limit_then_margin_then_unsettled() {
+        let rank = |readings: Vec<Unread<f64>>| {
+            let mut unsettled = None;
+            let got = climb(Answering::First, readings, |w: Unread<f64>| {
+                w.rung::<()>(&mut unsettled)
+            });
+            (got, unsettled)
+        };
+        let banded = |l, m| Unread::Side {
+            r#loop: l,
+            why: SideUnread::Banded(cause(m)),
+        };
+        let (got, _) = rank(vec![
+            banded(0, MarginDiag::value(5e-9)),
+            banded(1, MarginDiag::INVALID),
+        ]);
         assert!(
             matches!(got, Climb::Undecided(Unread::Side { r#loop: 1, .. })),
             "{got:?}"
+        );
+        let carrier = Unread::Carrier { r#loop: 0, edge: 0 };
+        let (got, _) = rank(vec![
+            carrier.clone(),
+            Unread::Boundary {
+                cause: cause(MarginDiag::value(5e-9)),
+                distance: 5e-9,
+            },
+        ]);
+        assert!(
+            matches!(got, Climb::Undecided(Unread::Boundary { .. })),
+            "{got:?}"
+        );
+        let (got, unsettled) = rank(vec![carrier]);
+        assert!(matches!(got, Climb::Passed), "{got:?}");
+        assert!(
+            matches!(unsettled, Some(Unread::Carrier { .. })),
+            "{unsettled:?}"
         );
     }
 }

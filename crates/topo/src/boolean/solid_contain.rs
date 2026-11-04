@@ -463,6 +463,31 @@ impl PointInSolidError {
     /// ([`Self::sideless`]) — another point's rays may meet the boundary. Every other refusal is about a body — a
     /// face kind with no arm, a corrupt face — and answers the same at
     /// any point.
+    /// What this refusal is to a ladder over several points
+    /// ([`geom_brep::ladder::Refusal`]), beside the variants it reads:
+    /// an escalation by its margin; a schedule no ray settled in band; a
+    /// face or a volume the door cannot read a limit; a broken or
+    /// inside-out body, or a solid that is not there, a refusal of the
+    /// whole query.
+    pub(in crate::boolean) fn refusal(&self) -> geom_brep::ladder::Refusal {
+        use geom_brep::ladder::Refusal;
+        match self {
+            Self::Escalated { diag, .. } => Refusal::Margin(*diag),
+            Self::RayExhausted => Refusal::InBand,
+            Self::Loop(e) => e.refusal(),
+            Self::ZeroVolumeBody
+            | Self::VolumeUncertified
+            | Self::KindUnsupported { .. }
+            | Self::PartialSphereFace { .. }
+            | Self::PartialConeFace { .. }
+            | Self::PartialTorusFace { .. }
+            | Self::EdgeCarrierUnsupported { .. }
+            | Self::WallOutlineUnsupported { .. }
+            | Self::RootCountDisagrees { .. } => Refusal::Limit,
+            Self::InsideOut | Self::CorruptFace { .. } | Self::NoSuchSolid { .. } => Refusal::Abort,
+        }
+    }
+
     pub(crate) fn inconclusive(&self) -> bool {
         self.in_band() || self.confined() || self.sideless()
     }

@@ -81,6 +81,35 @@ impl Kept<Indeterminate> {
     }
 }
 
+/// **What a refusal a ladder's reader met is to the ladder**, stated by
+/// the refusal's own type beside its variants (a `refusal()` method on
+/// it), so no reader spells a second table of which variant is a limit.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Refusal {
+    /// Ranked by its margin ([`Kept::of`]).
+    Margin(Indeterminate),
+    /// In band, with no margin carried: a tighter tolerance may decide it.
+    InBand,
+    /// A limit no tolerance moves.
+    Limit,
+    /// A refusal of the whole query (a corrupt input, two readings that
+    /// contradict): the ladder stops ([`Rung::Aborts`]).
+    Abort,
+}
+
+impl Refusal {
+    /// The rung a reading refused with `e` stands as: kept by its kind,
+    /// or an abort whose answer `abort` makes of `e`.
+    pub fn rung<A, E>(self, e: E, abort: impl FnOnce(E) -> A) -> Rung<A, E> {
+        match self {
+            Self::Margin(cause) => Kept::of(cause).map(|_| e).into(),
+            Self::InBand => Rung::InBand(e),
+            Self::Limit => Rung::Blocked(e),
+            Self::Abort => Rung::Aborts(abort(e)),
+        }
+    }
+}
+
 impl<E> Kept<E> {
     /// The same kept kind over `f`'s reading: a reader whose refusal
     /// carries more than the cause it was ranked by.

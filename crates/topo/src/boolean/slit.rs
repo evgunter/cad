@@ -122,7 +122,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use geom_brep::curve_pair::{Hit, MeetFault, Span, SpanEnd, meet};
-use geom_brep::ladder::{Answering, Climb, Kept, Rung, climb};
+use geom_brep::ladder::{Answering, Climb, Rung, climb};
 use geom_core::{Band, Decide, Margin, Point3, Sign, Tol, Vec3};
 
 use super::contain::ContainError;
@@ -1156,9 +1156,7 @@ fn piece_rung(
         Ok(PieceRead::Unread(why)) => Rung::Blocked(unread(why)),
         // An escalation is kept as its margin is; any other refusal is a
         // limit no tolerance moves.
-        Err(read @ BooleanError::Escalated { diag, .. }) => {
-            Rung::from(Kept::of(diag)).map_kept(|_| read)
-        }
+        Err(read @ BooleanError::Escalated { diag, .. }) => Rung::kept(diag).map_kept(|_| read),
         Err(read) => Rung::Blocked(read),
     }
 }

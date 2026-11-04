@@ -113,27 +113,43 @@ Tranche 2 adds five premises of the same kind:
 - `chart_singularity::Sides::holds`: any loop leaving the point outside answers alike.
 
 **And none of the `Any` record paths is reached.** The full review of
-PR 6495 instrumented the ported ladders over every suite, and no `Any`
-port ever kept a reading and then answered. So the superseded record
+PR 6495 instrumented the ported ladders over a filtered subset of 2,090
+rows (topo, geom-brep, sweep, step-import), and in it no `Any` port
+ever kept a reading and then answered. So the superseded record
 that `Any` buys is unexercised outside `ladder.rs`'s own rows and
 `ray_walk`'s. A row needing a kept reading ahead of a deciding one is
 owed for each port. The cheapest is `cast_aims` with a `Pair` ahead of
 a deciding ray; no fixture builds one today.
 
-## Exemption is the consumer's, not the ladder's
+## Exemption is the consumer's, not the ladder's; a reading's rank is its type's
 
-Tranche 2 first ranked `chart_singularity`'s "exempt" readings
-(`Unread::Loop`, `Unread::Carrier`) last, as though the ladder decided
-what a consumer exempts. It does not:
-- tier 3 exempts a pole such a reading meets (its own rule beside
-  `Undecided::of`, in `validate`'s check 6);
-- the import pass refuses both (an unreadable face, a foreign carrier).
+What a consumer EXEMPTS is the consumer's rule:
+- tier 3 exempts a pole an unsettled edge or an unread walk meets
+  (beside `Undecided::of`, in `validate`'s check 6);
+- the import pass refuses both.
 
-So both `chart_singularity` ladders now rank by `Unread::kept`, which
-puts limits first and exempts nothing. An "exempt" kept kind in
-`ladder` is therefore NOT wanted. `edge_nurbs::measured_ends`' `bare`
-(below) is a different question: a third rank of evidence, not an
-exemption.
+The ladder should not encode either. Whether a reading is a LIMIT is a
+different question, and it is a property of where the reading is
+minted: does any tolerance move it? PR 6495 first answered it in a
+consumer-side table and filed `Unread::Carrier` (a sampled edge that
+does not settle) as a limit. It is not: a coarser band can settle the
+edge on the point, and it carries no margin. The delta review's probe
+showed that table hiding an in-band placement that a coarser band
+reads as a defect.
+
+So the rank now lives on each type, beside its variants:
+- `chart_singularity::Standing` / `Unread::standing`: a margin, a limit
+  (a straddle, a walk that winds more than once), or UNSETTLED (ranked
+  after every kept reading);
+- `ladder::Refusal`, with a `refusal()` method on `PointInLoopError`,
+  `PointInSolidError` and `ContainError`: a margin, in band, a limit, or
+  an abort.
+
+Two rank sets remain, because "unsettled" (band-dependent, no margin,
+ranked LAST) is a third rank of evidence `ladder::Evidence` has no
+place for. `edge_nurbs::measured_ends`' `bare` is the same question.
+Folding both into `ladder` as a third kept rank is the open design
+call.
 
 ## Not a site
 

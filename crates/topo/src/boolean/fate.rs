@@ -1370,17 +1370,14 @@ fn rehome<T: Decide>(
             match at {
                 Ok(Some(super::FaceContainment::In)) => Rung::Answers(Ok(true)),
                 Ok(Some(super::FaceContainment::Out)) => Rung::Answers(Ok(false)),
-                Err(e @ super::ContainError::Escalated { diag, .. }) => {
-                    Rung::kept(diag).map_kept(|_| contained(e, ""))
-                }
                 // The face was just made by the driver: one that does not
                 // resolve is a desync.
                 Err(super::ContainError::StaleFace(face)) => {
                     super::contain::driver_face_stale(face)
                 }
-                // Every other refusal of the door is a limit no tolerance
-                // moves, kept and ranked ahead of a vertex in band.
-                Err(e) => Rung::Blocked(contained(e, "")),
+                // Every other refusal is kept, or aborts, as the door's
+                // refusal states it is ([`super::ContainError::refusal`]).
+                Err(e) => e.refusal().rung(contained(e, ""), Err),
                 // On the new face's boundary, or a curved region with no
                 // verdict: the vertex says nothing.
                 Ok(_) => Rung::Passes,
