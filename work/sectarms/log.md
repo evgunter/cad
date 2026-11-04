@@ -477,3 +477,7 @@ and bodies unchanged. No orchestrator yet.
   - **Slow sets:** 9,666 of 9,670 pass. All four reds fail on main too, including `the_near_node_poses_at_the_witness_band` at δ 1e-8 (`VolumeUncomputable`). The lane is asked to file that one with its source commit.
   - **Still owed:** a fresh main merge, since the branch conflicts again. The review row (tally 0, byte 114) goes in after it.
 - 2026-11-04 — **PR 6479 coded blind at tally 0** (byte 65, A = R2). Its row is drafted.
+
+- 2026-11-04 — **PR 6466: main merged, CI green.** The merge had two textual conflicts and no logical clash.
+  - The main-red near-node cell was bisected to PCERT PR 6470 (E2, an in-band ruling on the projected image lane) and filed on PCERT at P1. It is left red, not re-pinned.
+  - The review row is the last commit (`54ee4d1`, tally 0), and the PR merges on green.
