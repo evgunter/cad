@@ -88,8 +88,8 @@ fn images<T: Decide + AtRestPolicy>(
     face: FaceKey,
     band: Band,
 ) -> Vec<(HalfEdgeKey, geom_brep::Pcurve<T>)> {
-    let fd = body.proven_face(face);
-    fd.boundary()
+    let view = body.proven_face(face);
+    view.boundary()
         .filter_map(|member| match member {
             BoundaryMember::Edge { he, .. } => Some(he),
             BoundaryMember::Isolated { .. } => None,

@@ -380,7 +380,7 @@ pub(crate) fn ruled_face_region<T: Decide>(
     let scale = reach_bound(&surface, &covers);
     Ok(Some(RuledFaceRegion {
         surface,
-        sense: f.record().sense,
+        sense: f.sense(),
         outer: f.record().outer,
         scale,
         edges,

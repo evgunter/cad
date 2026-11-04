@@ -702,9 +702,9 @@ fn shell_components(body: &Body<f64>, shell: crate::entity::ShellKey) -> Vec<She
     // face -> vertices it touches
     let mut face_vertices: SecondaryMap<FaceKey, Vec<VertexKey>> = SecondaryMap::new();
     for &face in &faces {
-        let face_data = body.proven_face(face);
+        let view = body.proven_face(face);
         let mut vs = Vec::new();
-        for (_, l, _) in face_data.loops() {
+        for (_, l, _) in view.loops() {
             match l.boundary {
                 LoopBoundary::Empty { vertex } => vs.push(vertex),
                 LoopBoundary::Cycle { first } => {
@@ -752,9 +752,9 @@ fn shell_components(body: &Body<f64>, shell: crate::entity::ShellKey) -> Vec<She
         let mut comp_edges: SecondaryMap<crate::entity::EdgeKey, ()> = SecondaryMap::new();
         let mut rings = 0usize;
         for &face in &comp_faces {
-            let face_data = body.proven_face(face);
-            rings += face_data.record().rings.len();
-            for (_, l, _) in face_data.loops() {
+            let view = body.proven_face(face);
+            rings += view.record().rings.len();
+            for (_, l, _) in view.loops() {
                 if let LoopBoundary::Cycle { first } = l.boundary {
                     for he in body.loop_cycle(first).unwrap() {
                         comp_edges.insert(body.get_half_edge(he).unwrap().edge, ());

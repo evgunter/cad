@@ -1155,10 +1155,12 @@ fn world_carrier<T: Decide + Bounds>(
     }
 }
 
-/// **A face's surface, as this module refuses it**: [`Body::face_surface`],
+/// **A face's surface, as this module refuses it**: [`Body::passed_face`]'s [`crate::live::FaceView::surface`],
 /// a stale face key (the caller's argument) [`ChartRegionError::Corrupt`].
 fn face_surface<T: Decide>(body: &Body<T>, face: FaceKey) -> Result<&Surface<T>, ChartRegionError> {
-    body.face_surface(face).ok_or(ChartRegionError::Corrupt)
+    body.passed_face(face)
+        .map(|f| f.surface())
+        .ok_or(ChartRegionError::Corrupt)
 }
 
 /// A face's plane description as `(origin, unit normal)`; the CHART
@@ -1182,9 +1184,8 @@ fn face_boundary_points<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
 ) -> Result<Vec<geom_core::Point3<T>>, ChartRegionError> {
-    let face_data = body.passed_face(face).ok_or(ChartRegionError::Corrupt)?;
-    face_data
-        .boundary()
+    let view = body.passed_face(face).ok_or(ChartRegionError::Corrupt)?;
+    view.boundary()
         .map(|member| match member {
             BoundaryMember::Isolated { .. } => Err(ChartRegionError::Corrupt),
             BoundaryMember::Edge { .. } => Ok(body.member_point(&member)),

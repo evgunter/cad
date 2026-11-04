@@ -2448,7 +2448,8 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
     /// group was read off the staged body, tier-1-valid.
     fn rechart_survivor(&mut self, rep: FaceKey, description: (SurfaceKey, bool)) {
         let survivor = self.proven_face(rep);
-        let (old, halves) = (survivor.record().surface, survivor.whole_half_edges());
+        self.require_whole_faces([survivor]);
+        let (old, halves) = (survivor.record().surface, survivor.half_edges());
         self.drop_rows_on_chart_change(halves, old, description.0);
         self.rechart_in_place(rep, description);
     }
@@ -6097,7 +6098,7 @@ mod declared_reach_rows {
                     .expect("live")
             };
             let (pa, pc) = (at(&body, a), at(&body, c));
-            let flat = body.face_surface(top).expect("live").clone();
+            let flat = body.proven_face(top).surface().clone();
             let he1 = leaving(&body, top, a).expect("A is on the top");
             let he2 = leaving(&body, top, c).expect("C is on the top");
             // Lifts RechartStrandsDescriptions: the half on a key of its own is the declared pair; its rim's descriptions are not the row.

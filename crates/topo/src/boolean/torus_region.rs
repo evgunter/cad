@@ -300,7 +300,7 @@ pub(crate) fn torus_face_region<T: Decide>(
         major: major_radius,
         minor: minor_radius,
         u_ref,
-        sense: f.record().sense,
+        sense: f.sense(),
         outer: f.record().outer,
         edges,
     }))

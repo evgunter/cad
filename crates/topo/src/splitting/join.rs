@@ -318,8 +318,8 @@ fn fixed_partners<T: Decide>(
         if halves.len() <= 2 {
             continue;
         }
-        let face_data = body.passed_face(face).ok_or_else(|| corrupt_face(face))?;
-        let wall = face_data.surface();
+        let view = body.passed_face(face).ok_or_else(|| corrupt_face(face))?;
+        let wall = view.surface();
         let mut crossings = Vec::with_capacity(halves.len());
         for &h in &halves {
             let start = body.get_half_edge(h).ok_or_else(|| corrupt_he(h))?.start;
@@ -334,13 +334,7 @@ fn fixed_partners<T: Decide>(
                 // section leaves along the half's germ.
                 leave: match germ {
                     Some(germ) => germ,
-                    None => leave_on(
-                        body,
-                        red.plane.normal,
-                        above_set,
-                        h,
-                        (wall, face_data.record().sense),
-                    )?,
+                    None => leave_on(body, red.plane.normal, above_set, h, (wall, view.sense()))?,
                 },
                 germ,
             });
@@ -409,15 +403,9 @@ fn split_leave<T: Decide>(
     half: HalfEdgeKey,
 ) -> Result<geom_core::Vec3<T>, SplitJoinError> {
     let face = he_face(body, half)?;
-    let face_data = body.passed_face(face).ok_or_else(|| corrupt_face(face))?;
-    let wall = face_data.surface();
-    leave_on(
-        body,
-        plane_normal,
-        above_set,
-        half,
-        (wall, face_data.record().sense),
-    )
+    let view = body.passed_face(face).ok_or_else(|| corrupt_face(face))?;
+    let wall = view.surface();
+    leave_on(body, plane_normal, above_set, half, (wall, view.sense()))
 }
 
 /// [`split_leave`] past its face's lookup: `wall` and `sense` are the

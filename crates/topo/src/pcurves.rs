@@ -275,7 +275,7 @@
 //! other side: nothing moves, and the CHART moves under every row the
 //! face stores at once. It carries them across a swap onto the same
 //! chart and drops them on any other ([`crate::Body::drop_rows`], over
-//! the loops [`crate::live::FaceView::whole_half_edges`] proves), which is what makes its own
+//! the loops [`crate::Body::require_whole_faces`] proves), which is what makes its own
 //! declaration below true as written — a swap onto a plane or a
 //! placeholder used to leave a COMPLETE row set stated in the chart
 //! the face left, and this pass skips exactly that face.
@@ -2986,9 +2986,9 @@ fn carry_rows<T: AtRestPolicy>(
     face: FaceKey,
     band: Band,
 ) -> Result<Certified<T, HalfEdgeKey>, PcurveMintError> {
-    let face_data = body.proven_face(face);
-    let surface = face_data.surface();
-    let held: Vec<(HalfEdgeKey, &PcurveCache<T>)> = face_data
+    let view = body.proven_face(face);
+    let surface = view.surface();
+    let held: Vec<(HalfEdgeKey, &PcurveCache<T>)> = view
         .half_edges()
         .into_iter()
         .filter_map(|he| body.pcurve(he).map(|row| (he, row)))
@@ -3106,12 +3106,12 @@ fn derive_face<T: AtRestPolicy>(
     face: FaceKey,
     band: Band,
 ) -> Result<Certified<T, HalfEdgeKey>, PcurveMintError> {
-    let face_data = body.proven_face(face);
-    let surface = face_data.surface();
+    let view = body.proven_face(face);
+    let surface = view.surface();
     let Some(chart) = DescribedChart::minting(surface) else {
         return Ok(Vec::new());
     };
-    let loops: Vec<LoopKey> = face_data.loops().map(|(lk, _, _)| lk).collect();
+    let loops: Vec<LoopKey> = view.loops().map(|(lk, _, _)| lk).collect();
     let mut walked: Vec<Walked<T>> = Vec::new();
     let mut refused: Vec<PcurveMintError> = Vec::new();
     let mut broken: Vec<LoopKey> = Vec::new();
@@ -5151,14 +5151,14 @@ pub fn loop_windings<T: AtRestPolicy>(
     chart: &Surface<T>,
     band: Band,
 ) -> Result<Vec<LoopWinding>, PcurveMintError> {
-    let face_data = body.passed_face(face).ok_or(PcurveMintError::Stale {
+    let view = body.passed_face(face).ok_or(PcurveMintError::Stale {
         role: "face",
         key: EntityId::Face(face),
     })?;
     let described = DescribedChart::of(chart).ok_or(PcurveMintError::PlaceholderChart { face })?;
     let period = ChartPeriods::of(chart, band).u();
     let mut out = Vec::new();
-    for (lp, _, _) in face_data.loops() {
+    for (lp, _, _) in view.loops() {
         let Some(read) = read_loop(body, face, lp, (chart, described), period, band)? else {
             continue;
         };
@@ -5935,7 +5935,7 @@ pub(crate) mod staleness_posture {
                 "re-charts a face in place, which changes what every row the face stores is \
              ABOUT while changing no key: the rows are kept across a swap onto the same \
              chart (`Body::same_chart`) and dropped on any other (`Body::drop_rows`, over the loops \
-             `FaceView::whole_half_edges` proves). \
+             `Body::require_whole_faces` proves). \
              Content staleness alone would be \
              the tier-3 pass's, but only where the NEW surface mints — a swap onto a plane \
              or a placeholder left a COMPLETE row set stated in the chart the face left, \
@@ -8458,7 +8458,7 @@ pub(crate) mod pole_slit_tests {
         let faces: Vec<FaceKey> = twin.faces().map(|(f, _)| f).collect();
         assert_eq!(faces.len(), 2);
         let bound = |body: &Body<f64>, f: FaceKey| {
-            let s = body.face_surface(f).unwrap().clone();
+            let s = body.proven_face(f).surface().clone();
             super::loop_windings(body, f, &s, band)
         };
         for periods in [5.0, 6.0, 10.0] {

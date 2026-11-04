@@ -61,8 +61,8 @@ pub(crate) fn face_loop_azimuth_windows<T: Decide>(
     face: FaceKey,
     band: Band,
 ) -> Result<Vec<Option<(T, T)>>, SplitJoinError> {
-    let data = body.passed_face(face).ok_or_else(|| corrupt_face(face))?;
-    data.loops()
+    let view = body.passed_face(face).ok_or_else(|| corrupt_face(face))?;
+    view.loops()
         .filter_map(|(_, l, _)| match l.boundary {
             LoopBoundary::Cycle { first } => Some(first),
             _ => None,
@@ -95,8 +95,8 @@ pub fn face_azimuth_window_traces<T: Decide>(
     face: FaceKey,
     band: Band,
 ) -> Result<Option<(T, T)>, SplitJoinError> {
-    let data = body.passed_face(face).ok_or_else(|| corrupt_face(face))?;
-    face_azimuth_window(body, data.surface(), face, band)
+    let view = body.passed_face(face).ok_or_else(|| corrupt_face(face))?;
+    face_azimuth_window(body, view.surface(), face, band)
 }
 
 /// The azimuth hull of a walk's images: the window every caller folds.
@@ -179,8 +179,8 @@ pub(crate) fn face_azimuth_images<T: Decide>(
     face: FaceKey,
     band: Band,
 ) -> Result<Option<Vec<AzimuthImage<T>>>, SplitJoinError> {
-    let data = body.passed_face(face).ok_or_else(|| corrupt_face(face))?;
-    let Some(halves) = data.outer_cycle() else {
+    let view = body.passed_face(face).ok_or_else(|| corrupt_face(face))?;
+    let Some(halves) = view.outer_cycle() else {
         return Ok(None);
     };
     run_azimuth_images(body, surface, face, &halves, band).map(Some)
@@ -1108,7 +1108,7 @@ mod torn_hop_rows {
     #[test]
     fn the_azimuth_walk_panics_on_a_torn_loop_and_a_torn_curve() {
         let (body, face) = cyl_sheet();
-        let surface = body.face_surface(face).unwrap().clone();
+        let surface = body.proven_face(face).surface().clone();
         let images = |b: &Body<f64>| {
             super::face_azimuth_images(b, &surface, face, band()).map(|i| i.map(|i| i.len()))
         };

@@ -245,8 +245,8 @@ fn shell_darts(body: &Body<f64>, shell: ShellKey) -> Vec<HalfEdgeKey> {
     let shell_data = body.get_shell(shell).expect("shell resolves");
     let mut darts = Vec::new();
     for &face in &shell_data.faces {
-        let face_data = body.proven_face(face);
-        for (_, loop_data, _) in face_data.loops() {
+        let view = body.proven_face(face);
+        for (_, loop_data, _) in view.loops() {
             if let LoopBoundary::Cycle { first } = loop_data.boundary {
                 darts.extend(body.loop_cycle(first).expect("cycle closes"));
             }
@@ -409,8 +409,8 @@ fn dart_attachment(
     committed_loop_min: &SecondaryMap<LoopKey, usize>,
 ) -> String {
     let face = body.get_loop(parent).expect("loop resolves").face;
-    let face_data = body.proven_face(face);
-    let outer = face_data
+    let view = body.proven_face(face);
+    let outer = view
         .loops()
         .any(|(lk, _, role)| lk == parent && role.is_outer());
     let role = if outer { 'o' } else { 'r' };
@@ -419,17 +419,12 @@ fn dart_attachment(
             .get(loop_key)
             .map_or_else(|| "?".to_string(), ToString::to_string)
     };
-    let mut ring_refs: Vec<String> = face_data
-        .record()
-        .rings
-        .iter()
-        .map(|&r| reference(r))
-        .collect();
+    let mut ring_refs: Vec<String> = view.record().rings.iter().map(|&r| reference(r)).collect();
     ring_refs.sort();
     format!(
         "{role} {} @{{o={};r=[{}]}}",
         face_sig(body, face),
-        reference(face_data.record().outer),
+        reference(view.record().outer),
         ring_refs.join(",")
     )
 }

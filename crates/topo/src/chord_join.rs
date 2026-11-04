@@ -2342,11 +2342,11 @@ fn chord_spec<T: Decide>(
     body.get_vertex(u1).ok_or(SplitJoinError::Corrupt {
         entity: EntityId::Vertex(u1),
     })?;
-    let face_data = body.passed_face(face).ok_or_else(|| corrupt_face(face))?;
-    let wall_key = face_data.record().surface;
+    let view = body.passed_face(face).ok_or_else(|| corrupt_face(face))?;
+    let wall_key = view.record().surface;
     // The surface is a link of the face the join divides, mid-operation
     // ([`crate::live::OPERATORS_KEEP_LINKS`]): a torn one is not curved.
-    if let geom::Surface::Plane { .. } = face_data.surface() {
+    if let geom::Surface::Plane { .. } = view.surface() {
         // The boolean's planar-side chord of a curved germ pair
         // takes its own lane (M5 PR 9); every other lane keeps
         // the straight chord BIT-IDENTICALLY.
@@ -2618,7 +2618,8 @@ pub(crate) fn wall_section<T: Decide>(
     at: VertexKey,
 ) -> Result<Option<WallSection<T>>, SplitJoinError> {
     let wall = body
-        .face_surface(face)
+        .passed_face(face)
+        .map(|f| f.surface())
         .cloned()
         .ok_or_else(|| corrupt_face(face))?;
     match wall {
@@ -3581,9 +3582,9 @@ pub(crate) fn chart_island_winding<T: Decide>(
     closure: (Point3<T>, UnitVec3<T>),
     band: Band,
 ) -> Result<Result<Sign, Indeterminate>, SplitJoinError> {
-    let face_data = body.passed_face(face).ok_or_else(|| corrupt_face(face))?;
-    let sense = face_data.record().sense;
-    let surface = face_data.surface().clone();
+    let view = body.passed_face(face).ok_or_else(|| corrupt_face(face))?;
+    let sense = view.sense();
+    let surface = view.surface().clone();
     let WallChart {
         origin: centre,
         axis,
@@ -3862,8 +3863,8 @@ impl<T: Decide> IslandReading<T> {
         band: Band,
     ) -> Result<Result<Self, Indeterminate>, SplitJoinError> {
         let invariant = |what| SplitJoinError::SectionInvariant { face, what };
-        let face_data = body.passed_face(face).ok_or_else(|| corrupt_face(face))?;
-        let surface = face_data.surface();
+        let view = body.passed_face(face).ok_or_else(|| corrupt_face(face))?;
+        let surface = view.surface();
         let quadric = Quadric::of(surface).ok_or_else(|| ring_island_unread(face, surface))?;
         let cycle = body.loop_cycle(h1).ok_or_else(|| corrupt_he(h1))?;
         let end = cycle
@@ -3913,7 +3914,7 @@ impl<T: Decide> IslandReading<T> {
             Err(diag) => return Ok(Err(diag)),
         }
         arcs.push(chord);
-        let left = quadric.outward(q, face_data.record().sense).cross(travel);
+        let left = quadric.outward(q, view.sense()).cross(travel);
         Ok(Ok(Self {
             quadric,
             arcs,
@@ -5143,7 +5144,10 @@ impl ChordJoiner {
         let side = match kind {
             LoneRing::Closed => None,
             LoneRing::Pierce => {
-                let surface = body.face_surface(oldf).ok_or_else(|| corrupt_face(oldf))?;
+                let surface = body
+                    .passed_face(oldf)
+                    .map(|f| f.surface())
+                    .ok_or_else(|| corrupt_face(oldf))?;
                 Some(RimSide::of(surface).ok_or(invariant(
                     "a one-site loop's pierce ring on a face no whole conic is sided on",
                 ))?)
@@ -5237,7 +5241,8 @@ impl ChordJoiner {
         }
         let run = body.get_face(newf).ok_or_else(|| corrupt_face(newf))?.outer;
         let surface = body
-            .face_surface(oldf)
+            .passed_face(oldf)
+            .map(|f| f.surface())
             .cloned()
             .ok_or_else(|| corrupt_face(oldf))?;
         // How a ring's side is read: off the plane, or by a path on a
@@ -5354,7 +5359,11 @@ fn face_plane_normal<T: Decide>(
     face: FaceKey,
 ) -> Result<geom_core::Vec3<T>, SplitJoinError> {
     // Corruption and an unwired arm are different refusals.
-    match body.face_surface(face).ok_or_else(|| corrupt_face(face))? {
+    match body
+        .passed_face(face)
+        .map(|f| f.surface())
+        .ok_or_else(|| corrupt_face(face))?
+    {
         geom::Surface::Plane { normal, .. } => Ok(*normal),
         _ => Err(SplitJoinError::SectionInvariant {
             face,

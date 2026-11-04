@@ -931,14 +931,13 @@ fn boundary_fold<T: Decide, R: Copy>(
     ),
     max: impl Fn(R, R) -> R,
 ) -> Result<R, UnboundedFace> {
-    let face_data = body.proven_face(face);
+    let view = body.proven_face(face);
     let mut extent = floor;
-    let outer = face_data.record().outer;
-    for (loop_key, members, _) in face_data.boundary_by_loop() {
+    for (_, members, role) in view.boundary_by_loop() {
         for member in members {
             let p = match member {
                 // An unbounded face has no finite lever arm.
-                BoundaryMember::Isolated { vertex: lone, .. } if loop_key == outer => {
+                BoundaryMember::Isolated { vertex: lone, .. } if role.is_outer() => {
                     return Err(UnboundedFace { face, vertex: lone });
                 }
                 BoundaryMember::Isolated { point, .. } => point,

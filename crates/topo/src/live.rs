@@ -75,7 +75,7 @@ use crate::entity::{
     Edge, EdgeKey, EntityId, Face, FaceKey, GeomRef, HalfEdge, HalfEdgeKey, Loop, LoopBoundary,
     LoopKey, LoopRole, VertexKey,
 };
-use crate::euler::{BadArgument, EulerOpError, RunExtent};
+use crate::euler::{BadArgument, EulerOpError};
 use crate::geometry::PointKey;
 use crate::null::CurveGeom;
 use geom::Surface;
@@ -393,9 +393,10 @@ impl<T: Real> BoundaryMember<'_, T> {
     /// The member's half-edge; none for a lone vertex. **The one
     /// disposition of a lone-vertex loop for a reader of half-edges**: it
     /// holds no half-edge and no edge, so it bounds no area and has
-    /// nothing to walk, and every such reader (here and
-    /// [`FaceView::cycles`], [`FaceView::edges`])
-    /// inherits this skip rather than writing its own.
+    /// nothing to walk. [`FaceView::cycles`], [`FaceView::half_edges`] and
+    /// [`FaceView::edges`] inherit this skip; [`Body::require_whole_faces`]
+    /// reads the loop itself through [`FaceView::loops`], since no
+    /// half-edge may claim it.
     pub(crate) fn half_edge(&self) -> Option<HalfEdgeKey> {
         let BoundaryMember::Edge { he, .. } = *self else {
             return None;
@@ -448,6 +449,12 @@ impl<'a, T: Real> FaceView<'a, T> {
     /// The face's record.
     pub(crate) fn record(self) -> &'a Face {
         self.record
+    }
+
+    /// The face's orientation against its surface's chart
+    /// ([`Face::sense`]).
+    pub(crate) fn sense(self) -> bool {
+        self.record.sense
     }
 
     /// The surface the face is a region of, a link its record holds.
@@ -521,24 +528,20 @@ impl<'a, T: Real> FaceView<'a, T> {
         self.boundary_by_loop().flat_map(|(_, members, _)| members)
     }
 
-    /// Every loop with its cycle, a lone-vertex loop's empty one
-    /// included: the whole proofs below read every loop's claimants.
-    fn every_cycle(self) -> impl Iterator<Item = (LoopKey, Vec<HalfEdgeKey>)> + 'a {
-        self.boundary_by_loop().map(|(lk, members, _)| {
-            let cycle = members
-                .iter()
-                .filter_map(BoundaryMember::half_edge)
-                .collect();
-            (lk, cycle)
-        })
-    }
-
     /// **Each cycle loop of the face with its cycle**, in
     /// [`FaceView::loops`]' order, each in `next` order. A lone-vertex
     /// loop has no cycle and is not yielded
     /// ([`BoundaryMember::half_edge`]'s disposition).
     pub(crate) fn cycles(self) -> impl Iterator<Item = (LoopKey, Vec<HalfEdgeKey>)> + 'a {
-        self.every_cycle().filter(|(_, cycle)| !cycle.is_empty())
+        self.boundary_by_loop()
+            .map(|(lk, members, _)| {
+                let cycle: Vec<HalfEdgeKey> = members
+                    .iter()
+                    .filter_map(BoundaryMember::half_edge)
+                    .collect();
+                (lk, cycle)
+            })
+            .filter(|(_, cycle)| !cycle.is_empty())
     }
 
     /// [`FaceView::cycles`]' half-edges in one list: the members of every
@@ -585,76 +588,39 @@ impl<'a, T: Real> FaceView<'a, T> {
     }
 }
 
-impl<T: geom_core::Decide> FaceView<'_, T> {
-    /// **The rows a face re-charted in place drops**: every half-edge of
-    /// every loop of the face, outer then rings, each loop proven whole
-    /// ([`Body::require_run_of`]'s [`RunExtent::Whole`]: no half-edge but
-    /// the cycle's members claims it). [`Body::drop_rows_on_chart_change`]'s
-    /// answer for a whole face, taken in a setter's plan phase and handed
-    /// to [`Body::drop_rows`] in its mutation phase.
+impl<T: Real> Body<T> {
+    /// **The whole-face proof**: no half-edge claims a loop of any of
+    /// `faces` but the members their cycles walk, so each face's
+    /// [`FaceView::half_edges`] is every half-edge it holds. A door that
+    /// drops or moves every row a face holds asks it: a surface setter
+    /// re-charting a face in place drops the face's rows
+    /// ([`Body::drop_rows_on_chart_change`]), and the rows it removes are
+    /// then the rows [`crate::pcurves::validate_pcurves`] would have read,
+    /// one set by construction.
     ///
-    /// A surface setter re-charts a face in place: no loop moves, no key
-    /// changes, and every row the face stores is suddenly a curve stated
-    /// in the chart the face left. The chart decision is the caller's,
-    /// taken once ([`Body::same_chart`]), so this reads no surface. Each
-    /// loop's walk is [`FaceView::cycles`]', the walk
-    /// [`crate::pcurves::validate_pcurves`] reads the same face with, so
-    /// the rows the door removes and the rows the validator would have
-    /// read are one set by construction; the whole proof makes it every
-    /// row the face holds.
+    /// The members' half of the proof (each claims the loop it was walked
+    /// in) is the walk's own ([`crate::body::Walk::closed_in`]); this adds
+    /// the other half, one pass over the half-edge arena for every face
+    /// at once. A lone-vertex loop is read too: no half-edge may claim it.
     ///
     /// # Panics
     ///
     /// As [`FaceView::boundary`], and where a half-edge claims a loop of
-    /// the face its cycle walk does not reach.
+    /// one of `faces` its cycle walk does not reach.
     #[track_caller]
-    pub(crate) fn whole_half_edges(self) -> Vec<HalfEdgeKey> {
-        let mut halves = Vec::new();
-        for (r#loop, cycle) in self.every_cycle() {
-            self.body
-                .require_run_of(cycle.iter().copied(), r#loop, RunExtent::Whole, &[]);
-            halves.extend(cycle);
-        }
-        halves
-    }
-}
-
-impl<T: Real> Body<T> {
-    /// [`FaceView::whole_half_edges`] of each face of `faces`, in order,
-    /// under ONE whole-arena pass for all of them: the half-edge arena is
-    /// read once for every face's loops, where a face at a time reads it
-    /// once per loop. The same proofs, the same panics.
-    ///
-    /// # Panics
-    ///
-    /// As [`FaceView::whole_half_edges`], and where a face of `faces`
-    /// does not resolve ([`Body::proven_face`]).
-    #[track_caller]
-    pub(crate) fn faces_whole_half_edges(
-        &self,
-        faces: impl IntoIterator<Item = FaceKey>,
-    ) -> Vec<Vec<HalfEdgeKey>> {
+    pub(crate) fn require_whole_faces<'a>(
+        &'a self,
+        faces: impl IntoIterator<Item = FaceView<'a, T>>,
+    ) {
         let mut loops: SecondaryMap<LoopKey, ()> = SecondaryMap::new();
         let mut members: SecondaryMap<HalfEdgeKey, ()> = SecondaryMap::new();
-        let mut out = Vec::new();
         for face in faces {
-            let mut halves = Vec::new();
-            for (r#loop, cycle) in self.proven_face(face).every_cycle() {
-                // `require_run_of`'s member proof, without the set it
-                // builds per loop.
-                for &member in &cycle {
-                    assert!(
-                        self.claims(member, r#loop),
-                        "{member:?}, walked as a member of loop {:?}'s cycle, does not claim \
-                         it: {CYCLES_ARE_CLAIMANTS}",
-                        r#loop
-                    );
-                    members.insert(member, ());
-                }
-                loops.insert(r#loop, ());
-                halves.extend(cycle);
+            for (lk, _, _) in face.loops() {
+                loops.insert(lk, ());
             }
-            out.push(halves);
+            for he in face.half_edges() {
+                members.insert(he, ());
+            }
         }
         if let Some((stray, data)) = self
             .half_edges
@@ -667,7 +633,6 @@ impl<T: Real> Body<T> {
                 data.parent_loop
             );
         }
-        out
     }
 
     /// **`face`, a key the kernel enumerated, minted, resolved or read out
@@ -1544,6 +1509,39 @@ fn wrong_key(&self, he: K, other: K, from: F) -> Result<Live, E> {
         );
     }
 
+    /// **`cycles` skips a lone-vertex ring, and the whole proof reads
+    /// every loop**: the ring with no cycle yields none, and a half-edge
+    /// claiming it is a stray the proof names.
+    #[test]
+    fn cycles_skip_a_lone_vertex_ring_and_the_whole_proof_reads_every_loop() {
+        let (mut body, face, [outer, hole, tip, pocket], _) = three_ring_face();
+        let view = body.proven_face(face);
+        let keys: Vec<LoopKey> = view.cycles().map(|(lk, _)| lk).collect();
+        assert_eq!(
+            keys,
+            [outer, hole, pocket],
+            "the lone-vertex ring has no cycle"
+        );
+        let flat: Vec<HalfEdgeKey> = view.cycles().flat_map(|(_, c)| c).collect();
+        assert_eq!(
+            view.half_edges(),
+            flat,
+            "the half-edges are the cycles, in order"
+        );
+        body.require_whole_faces([body.proven_face(face)]);
+        let stray = body.half_edges.insert(HalfEdge {
+            parent_loop: tip,
+            ..scaffold()
+        });
+        let named = format!("{stray:?} claims loop {tip:?} and its cycle walk does not reach it");
+        crate::review_d18::assert_torn_op_panics(
+            "require_whole_faces, a half-edge claiming the lone-vertex ring",
+            &mut body,
+            &[&named, crate::body::CYCLES_ARE_CLAIMANTS],
+            |b| b.require_whole_faces([b.proven_face(face)]),
+        );
+    }
+
     /// A member half-edge whose edge record is gone panics naming the
     /// half-edge's `edge` link and its premises, rather than skipping
     /// the member.
@@ -1669,7 +1667,7 @@ fn wrong_key(&self, he: K, other: K, from: F) -> Result<Live, E> {
                 "a census of a body the validator has not certified",
             ),
         ];
-        let strays = read_outside(&["loop_keys()", "loop_roles()"], READERS);
+        let strays = read_outside(&["loop_keys(", "loop_roles("], READERS);
         assert!(
             strays.is_empty(),
             "a face's loops resolved outside the home: {strays:#?}"
@@ -1692,6 +1690,10 @@ fn wrong_key(&self, he: K, other: K, from: F) -> Result<Live, E> {
                 "link.rs",
                 "the census's touch readers refuse an unwalkable loop as Corrupt",
             ),
+            (
+                "euler.rs",
+                "find_half_edge is total by its contract, for hand construction",
+            ),
         ];
         let strays = read_outside(&["unchecked_face_cycles("], READERS);
         assert!(
@@ -1701,19 +1703,21 @@ fn wrong_key(&self, he: K, other: K, from: F) -> Result<Live, E> {
     }
 
     /// The crate sources outside `readers` whose code reads any of
-    /// `reads`, each as a method (`.read`).
+    /// `reads`, as a method (`.read`) or by path (`::read`).
     fn read_outside(reads: &[&str], readers: &[(&str, &str)]) -> Vec<std::path::PathBuf> {
         crate_sources()
             .into_iter()
             .filter(|f| {
                 let p = f.to_string_lossy().replace('\\', "/");
                 let p = p.rsplit("/src/").next().unwrap_or(&p).to_owned();
-                !readers.iter().any(|(r, _)| p == *r)
-                    && reads.iter().any(|read| {
-                        CodeOnly::of(&std::fs::read_to_string(f).expect("a readable source"))
-                            .as_str()
-                            .contains(&format!(".{read}"))
-                    })
+                if readers.iter().any(|(r, _)| p == *r) {
+                    return false;
+                }
+                let code = CodeOnly::of(&std::fs::read_to_string(f).expect("a readable source"));
+                reads.iter().any(|read| {
+                    code.as_str().contains(&format!(".{read}"))
+                        || code.as_str().contains(&format!("::{read}"))
+                })
             })
             .collect()
     }
@@ -1725,24 +1729,15 @@ fn wrong_key(&self, he: K, other: K, from: F) -> Result<Live, E> {
         (body, face)
     }
 
-    /// **A stale face key is `face_surface`'s one `None`**; a live face
-    /// whose surface link no longer resolves is a kernel bug, and panics
-    /// naming the link.
-    #[test]
-    fn face_surface_answers_a_stale_key_none() {
-        let (mut body, face) = torn_cube();
-        assert!(body.face_surface(face).is_some(), "a live face reads");
-        body.faces.remove(face);
-        assert!(body.face_surface(face).is_none(), "a stale key reads None");
-    }
-
+    /// **A live face whose surface link no longer resolves is a kernel
+    /// bug**, and [`FaceView::surface`] panics naming the link.
     #[test]
     #[should_panic(expected = "'s surface names")]
-    fn face_surface_panics_on_a_dangling_surface_link() {
+    fn a_views_surface_panics_on_a_dangling_link() {
         let (mut body, face) = torn_cube();
         let surface = body.get_face(face).unwrap().surface;
         body.surfaces.remove(surface);
-        let _ = body.face_surface(face);
+        let _ = body.proven_face(face).surface();
     }
 
     /// **`FaceView::edges` panics on a torn loop or a torn mate**, the

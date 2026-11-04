@@ -1564,9 +1564,9 @@ fn planned_charts<T: Decide + crate::props::AtRestPolicy>(
         .iter()
         .map(|&(faces, d)| {
             let face = faces[0];
-            let face_data = body.proven_face(face);
-            let old_key = face_data.record().surface;
-            let old_surface = face_data.surface().clone();
+            let view = body.proven_face(face);
+            let old_key = view.record().surface;
+            let old_surface = view.surface().clone();
             assert!(
                 !matches!(old_surface, Surface::Cone { .. }),
                 "a cone's nappe and apex window are the door's"
@@ -1640,9 +1640,9 @@ pub fn offset_corner_arms_for_tests<T: Decide + crate::props::AtRestPolicy>(
     tol: Tol,
 ) -> Vec<(EdgeKey, Curve3<T>, T)> {
     let band = Band::linear(tol).expect("the witness band");
-    let face_data = body.proven_face(face);
-    let old_key = face_data.record().surface;
-    let old_surface = face_data.surface().clone();
+    let view = body.proven_face(face);
+    let old_key = view.record().surface;
+    let old_surface = view.surface().clone();
     let new_surface = mint_offset(
         face,
         &old_surface,
@@ -1925,12 +1925,12 @@ pub(crate) fn offset_charts_staged<T: Decide + crate::props::AtRestPolicy>(
     let mut charts: Vec<MovedChart<'_, T>> = Vec::with_capacity(moves.len());
     for &(faces, d) in moves {
         let face = faces[0];
-        let face_data = body.proven_face(face);
-        let old_key = face_data.record().surface;
+        let view = body.proven_face(face);
+        let old_key = view.record().surface;
         if let Some(&other) = groups.of(old_key).iter().find(|k| !faces.contains(k)) {
             return Err(ReplaceFaceError::SharedSurfaceKey { face, other });
         }
-        let old_surface = face_data.surface().clone();
+        let old_surface = view.surface().clone();
         // **The cone's mirror nappe is a consumer obligation, and this is
         // where this door discharges it.** `geom_brep::ConeOffset`'s
         // action moves the surface along the OPENING nappe's normal

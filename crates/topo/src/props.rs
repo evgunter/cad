@@ -1742,7 +1742,7 @@ fn rederive_faces<T: Decide>(
                     surface,
                     &loops,
                     &held,
-                    face.record().sense,
+                    face.sense(),
                     band,
                     from,
                 )
@@ -5246,12 +5246,10 @@ fn face_flux_about<T: Decide>(
         // face whole, or refuses it on a surface that is not closed or
         // has no closed form (`geom_brep::props::whole_surface`).
         _ if loops.is_empty() => {
-            geom_brep::props::curved_face_loops(surface, &[], face.record().sense, band)
-                .map_err(wrap)?
+            geom_brep::props::curved_face_loops(surface, &[], face.sense(), band).map_err(wrap)?
         }
         Some(loops) if !takes_quadrature(surface, loops.iter().flatten().map(|e| &e.carrier)) => {
-            closed_form_about(surface, &loops, &held, face.record().sense, band, about)
-                .map_err(wrap)?
+            closed_form_about(surface, &loops, &held, face.sense(), band, about).map_err(wrap)?
         }
         _ => {
             let trimmed = loops
@@ -5332,7 +5330,7 @@ fn face_flux_about<T: Decide>(
                 None => {
                     let loops: Vec<Vec<LoopEdge<T>>> =
                         loops.into_iter().map(|(edges, _)| edges).collect();
-                    closed_form_about(surface, &loops, &held, face.record().sense, band, about)
+                    closed_form_about(surface, &loops, &held, face.sense(), band, about)
                         .map_err(wrap)?
                 }
             }
@@ -9070,7 +9068,7 @@ mod shell_reference_rows {
                 surface,
                 &loops,
                 &face_tips(&body, face.record()).unwrap(),
-                face.record().sense,
+                face.sense(),
                 band,
                 from,
             )

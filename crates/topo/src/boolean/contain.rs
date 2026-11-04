@@ -923,8 +923,8 @@ fn curved_interior_placement<T: Decide>(
     band: Band,
     cut: Option<&[usize]>,
 ) -> Result<(CurvedPlacement, Option<(f64, f64)>), ContainError> {
-    let face_data = body.proven_face(face);
-    let analytic = match *face_data.surface() {
+    let view = body.proven_face(face);
+    let analytic = match *view.surface() {
         geom::Surface::Cylinder {
             origin,
             axis,

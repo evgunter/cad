@@ -814,10 +814,10 @@ pub(super) fn orbit_corners<T: Decide>(
         let (end, end_reach) = departure(he); // CCW-last
         let (start, start_reach) = departure(orbit[(i + 1) % n]); // CCW-first
         let (face, at_vertex) = sector_face(body, operand, vertex, he, band)?;
-        let face_data = body.proven_face(face);
+        let view = body.proven_face(face);
         let bend = FaceBend::at(
-            face_data.surface(),
-            face_data.record().sense,
+            view.surface(),
+            view.sense(),
             body.resolve_vertex_point(vertex, Proven),
         );
         Ok(OrbitCorner {

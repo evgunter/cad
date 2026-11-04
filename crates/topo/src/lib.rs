@@ -1222,7 +1222,7 @@ pub mod test_support {
         face: crate::FaceKey,
         band: geom_core::Band,
     ) -> bool {
-        let Some(surface) = body.face_surface(face) else {
+        let Some(surface) = body.passed_face(face).map(|f| f.surface()) else {
             return false;
         };
         matches!(

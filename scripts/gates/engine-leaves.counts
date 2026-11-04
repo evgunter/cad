@@ -132,7 +132,7 @@ names-boolean              77  lib.rs
 names-boolean              99  lineage.rs
 names-boolean               3  link.rs
 names-boolean              88  link/cone_fuzz.rs
-names-boolean               9  live.rs
+names-boolean               8  live.rs
 names-boolean              43  merge_faces.rs
 names-boolean               1  merge_faces_kept_rows.rs
 names-boolean               3  offset_axial.rs

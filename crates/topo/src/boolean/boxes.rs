@@ -1587,7 +1587,7 @@ fn sphere_window<T: Decide>(
         Err(LoopEdgesError::NullScaffoldEdge { .. }) => return SphereWindow::Ball,
         Err(refusal @ LoopEdgesError::Corrupt { .. }) => torn_outer_loop(body, f, refusal),
     };
-    let side = if f.record().sense {
+    let side = if f.sense() {
         Sign::Positive
     } else {
         Sign::Negative
@@ -2860,7 +2860,7 @@ pub(crate) mod tests {
     #[test]
     fn a_nurbs_patchs_interior_bulge_is_inside_its_box() {
         let (body, face, _) = nurbs_bulge_face();
-        let surface = body.face_surface(face).unwrap().clone();
+        let surface = body.proven_face(face).surface().clone();
         // The lifted interior, on the surface itself — its boundary
         // curves all lie in `z = 0`, so no hull of the BOUNDARY can
         // contain this point.

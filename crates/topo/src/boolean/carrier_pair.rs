@@ -188,7 +188,7 @@ pub fn face_carrier<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<CarrierD
     // points away from the centre/axis. Read as a BIT, never as a
     // comparison on `T` — the scalar backends order intervals, not
     // signs (S10's exact-bit discipline).
-    let outward = f.record().sense;
+    let outward = f.sense();
     match f.surface() {
         geom::Surface::Plane { origin, normal, .. } => Some(CarrierDesc::Plane {
             origin: *origin,

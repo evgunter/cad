@@ -2173,7 +2173,7 @@ mod tests {
                     surface,
                     &loops,
                     &crate::props::face_tips(&body, face.record()).unwrap(),
-                    face.record().sense,
+                    face.sense(),
                     band,
                     centre,
                     None,

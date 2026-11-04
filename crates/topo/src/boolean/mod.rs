@@ -7474,7 +7474,7 @@ pub(crate) fn tangent_pair_at_rest<T: Decide>(
 #[track_caller]
 fn record_face<T: Real>(body: &Body<T>, f: FaceKey) -> (&geom::Surface<T>, bool) {
     let face = body.proven_face(f);
-    (face.surface(), face.record().sense)
+    (face.surface(), face.sense())
 }
 
 /// A record's tangent line known to run through both faces' interiors
@@ -7583,7 +7583,7 @@ fn glued_face<T: Real>(
     let face = body
         .passed_face(f)
         .ok_or_else(|| invalid("a glued face's key does not resolve"))?;
-    Ok((face.surface().clone(), face.record().sense))
+    Ok((face.surface().clone(), face.sense()))
 }
 
 /// **The glue door's tangency check** (C4's `Tangent`, claiming nothing
@@ -8256,7 +8256,8 @@ fn validate_declarations<T: Decide>(
     // typed; every later read of it is proven.
     let inventory_face = |body: &Body<T>, f: FaceKey, operand| -> Result<(), BooleanError> {
         let surface = body
-            .face_surface(f)
+            .passed_face(f)
+            .map(|f| f.surface())
             .ok_or_else(|| bad(operand, "declared face key does not resolve"))?;
         if carrier_eq::in_inventory(surface.kind()) {
             Ok(())

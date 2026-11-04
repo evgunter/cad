@@ -112,8 +112,8 @@ pub(super) fn spline_face_placement<T: Decide>(
     q: Point3<T>,
     band: Band,
 ) -> Result<(CurvedPlacement, Option<(f64, f64)>), ContainError> {
-    let face_data = body.proven_face(face);
-    let Some(chart) = face_data.surface().spline_chart() else {
+    let view = body.proven_face(face);
+    let Some(chart) = view.surface().spline_chart() else {
         unreachable!("the spline arm is reached on a spline chart")
     };
     Ok(match read(body, face, chart, q, band) {
@@ -154,8 +154,8 @@ pub(super) fn spline_chart_placement<T: Decide>(
     (u, v): (f64, f64),
     band: Band,
 ) -> Result<Option<FaceContainment>, ContainError> {
-    let face_data = body.proven_face(face);
-    let linked = face_data.surface();
+    let view = body.proven_face(face);
+    let linked = view.surface();
     let Some(chart) = linked.spline_chart() else {
         unreachable!("the spline arm is reached on a spline chart")
     };
@@ -240,8 +240,8 @@ pub(crate) fn read_capped<T: Decide>(
     band: Band,
     caps: Caps,
 ) -> Reading {
-    let face_data = body.proven_face(face);
-    if face_data.surface().is_placeholder_chart() {
+    let view = body.proven_face(face);
+    if view.surface().is_placeholder_chart() {
         return Reading::Unsettled(None);
     }
     let Some(cells) = bezier_cells(chart) else {
@@ -759,8 +759,8 @@ impl Trim {
         caps: Caps,
         band: Band,
     ) -> Option<Self> {
-        let face_data = body.proven_face(face);
-        let surface = face_data.surface();
+        let view = body.proven_face(face);
+        let surface = view.surface();
         // The lift moves a row by the periods the chart STATES
         // ([`crate::pcurves::loop_lift`]), and a copy of a query is read a
         // period apart only on a channel the chart is DECIDED closed in.
@@ -793,7 +793,7 @@ impl Trim {
             v: (v0.value_channel(), v1.value_channel()),
         };
         let mut chains = Vec::new();
-        for (lk, _, _) in face_data.loops() {
+        for (lk, _, _) in view.loops() {
             let lift = crate::pcurves::loop_lift_past_placeholders(body, lk).ok()?;
             if lift.is_empty() {
                 return None;

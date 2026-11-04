@@ -103,7 +103,9 @@ impl<T: Decide> Body<T> {
         let dropped = if resolved.on_parent_chart {
             Vec::new()
         } else {
-            self.proven_face(face).whole_half_edges()
+            let face = self.proven_face(face);
+            self.require_whole_faces([face]);
+            face.half_edges()
         };
 
         // ---- Mutation (infallible from here on). ----
@@ -310,8 +312,13 @@ impl<T: Decide> Body<T> {
                 });
             }
         }
-        let dropped = self
-            .faces_whole_half_edges(faces.iter().filter(|m| !m.on_parent_chart).map(|m| m.face));
+        let recharted: Vec<_> = faces
+            .iter()
+            .filter(|m| !m.on_parent_chart)
+            .map(|m| self.proven_face(m.face))
+            .collect();
+        self.require_whole_faces(recharted.iter().copied());
+        let dropped: Vec<HalfEdgeKey> = recharted.iter().flat_map(|f| f.half_edges()).collect();
 
         // ---- Mutation (infallible from here on). ----
         //
@@ -345,7 +352,7 @@ impl<T: Decide> Body<T> {
             f.surface = new;
             f.sense = m.sense;
         }
-        self.drop_rows(dropped.into_iter().flatten());
+        self.drop_rows(dropped);
         for (edge, sides, curve) in written.rows {
             let Some(rekeyed) = curve.with_remapped_surfaces(|k| key_of(sides.repoint(k))) else {
                 unreachable!("set_face_surfaces_describing: every moved chart was minted")
@@ -1512,8 +1519,8 @@ impl<T: Decide> Body<T> {
     /// closed-form lane does not reach. `face` is one the caller
     /// resolved.
     fn face_on_spline_chart(&self, face: FaceKey) -> bool {
-        let face_data = self.proven_face(face);
-        face_data.surface().spline_chart().is_some()
+        let view = self.proven_face(face);
+        view.surface().spline_chart().is_some()
     }
 
     /// The mutation half of every door that re-describes an existing

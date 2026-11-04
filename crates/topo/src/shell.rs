@@ -3699,8 +3699,8 @@ fn duplicate_in_loop<T: Real>(
     face: FaceKey,
     skip: &[EdgeKey],
 ) -> Option<(crate::entity::LoopKey, HeKey, HeKey)> {
-    let data = body.proven_face(face);
-    for (r#loop, members, _) in data.boundary_by_loop() {
+    let view = body.proven_face(face);
+    for (r#loop, members, _) in view.boundary_by_loop() {
         let mut cycle = Vec::new();
         for member in members {
             let BoundaryMember::Edge { he, ek, .. } = member else {
@@ -4082,8 +4082,8 @@ fn lift_to<T: Decide>(
     band: Band,
 ) -> Result<T, ReplaceFaceError<T>> {
     let surface = |face: FaceKey| {
-        let data = body.proven_face(face);
-        data.surface()
+        let view = body.proven_face(face);
+        view.surface()
     };
     let d = match geom_brep::offset_distance(surface(from[0]), surface(onto)) {
         Ok(d) => d,
@@ -4410,17 +4410,17 @@ fn planar_faces<T: Decide>(
     partition: &crate::offset_together::Scope,
 ) -> Vec<PlanarFace<T>> {
     let mut out = Vec::new();
-    for data in body.face_views() {
-        let face = data.key();
+    for view in body.face_views() {
+        let face = view.key();
         let geom::Surface::Plane {
             origin,
             normal,
             u_ref,
-        } = data.surface()
+        } = view.surface()
         else {
             continue;
         };
-        let normal = plane_outward_normal(data.record(), *normal).vec();
+        let normal = plane_outward_normal(view.record(), *normal).vec();
         let frame = InPlane {
             origin: *origin,
             u: *u_ref,
@@ -5110,16 +5110,16 @@ fn moved_walls<T: Decide>(
     partition: &crate::offset_together::Scope,
 ) -> Vec<MovedWall<T>> {
     let mut out = Vec::new();
-    for data in cavity.face_views() {
-        let face = data.key();
-        let geom::Surface::Plane { origin, normal, .. } = data.surface() else {
+    for view in cavity.face_views() {
+        let face = view.key();
+        let geom::Surface::Plane { origin, normal, .. } = view.surface() else {
             continue;
         };
         let (origin, normal) = (*origin, *normal);
         let mut edges = Vec::new();
         let mut vertices = Vec::new();
         let mut points = Vec::new();
-        for (_, cycle) in cavity.proven_face(face).cycles() {
+        for (_, cycle) in view.cycles() {
             let ends: Vec<(VertexKey, geom_core::Point3<T>)> = cycle
                 .iter()
                 .map(|&he| {

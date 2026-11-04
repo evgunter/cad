@@ -372,7 +372,7 @@ pub(crate) fn face_outward_normal_at<T: Decide>(
             let grad = geom_brep::implicit_gradient(surface, p);
             let margin = Margin::levered(grad.norm() - T::one(), arm);
             match decide("bool_pierce_normal_on_chart", margin, band) {
-                Ok(Sign::Zero) => Ok(Some(OutwardNormal::from_chart(grad, f.record().sense))),
+                Ok(Sign::Zero) => Ok(Some(OutwardNormal::from_chart(grad, f.sense()))),
                 Ok(Sign::Positive | Sign::Negative) => Err(NormalAtError::OffSurface),
                 Err(diag) => Err(NormalAtError::Escalated {
                     decision: NormalDecision::OnSurface,
@@ -394,7 +394,7 @@ pub(crate) fn face_outward_normal_at<T: Decide>(
             }
             cone_axis_clearance(*apex, *axis, p, band)?;
             match on {
-                Ok(_) => Ok(Some(surface_outward_normal(surface, p, f.record().sense))),
+                Ok(_) => Ok(Some(surface_outward_normal(surface, p, f.sense()))),
                 Err(diag) => Err(NormalAtError::Escalated {
                     decision: NormalDecision::OnSurface,
                     diag,
@@ -483,7 +483,7 @@ pub(crate) fn face_outward_normal_at_foot<T: Decide>(
     }
     Ok(Some(geom_brep::implicit_outward_normal(
         surface,
-        f.record().sense,
+        f.sense(),
         p,
     )))
 }
@@ -553,7 +553,7 @@ pub(crate) fn spline_outward_normal_at<T: Decide>(
     let reach = geom_brep::ExtentBall::of_control_net_from(chart.control(), p).lever();
     geom_brep::chart_point_normal(
         chart,
-        f.record().sense,
+        f.sense(),
         uv,
         p,
         reach,

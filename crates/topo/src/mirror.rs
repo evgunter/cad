@@ -158,7 +158,7 @@ mod tests {
             Reflection::across(Point3::new(0.1, -0.2, 0.3), Vec3::new(1.0, 2.0, 3.0), tol).unwrap();
         let image = mirror_body(&body, &reflection, tol).expect("an offset face mirrors");
         let m = reflection.to_affine();
-        let surface = |b: &Body<f64>| b.face_surface(face).unwrap().clone();
+        let surface = |b: &Body<f64>| b.proven_face(face).surface().clone();
         let (source, mapped) = (surface(&body), surface(&image));
         let (Surface::Approx(a), Surface::Approx(b)) = (&source, &mapped) else {
             panic!("the image's face is an offset surface: {mapped:?}");

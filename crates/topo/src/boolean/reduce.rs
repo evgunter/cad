@@ -7163,7 +7163,7 @@ mod edge_span_tests {
             Tol::witness(),
         );
         crate::test_support_fixtures::set_sheet_sense(&mut y, face, true, Tol::witness());
-        let wall = y.face_surface(face).expect("the sheet's wall").clone();
+        let wall = y.proven_face(face).surface().clone();
         let got = wall_crossing(
             &y,
             face,

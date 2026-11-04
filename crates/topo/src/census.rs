@@ -4308,7 +4308,7 @@ fn curved_overlap_cells<T: Decide>(
     band: Band,
     errors: &mut Vec<ValidationError>,
 ) -> Vec<Point3<T>> {
-    let Some(surface) = body.face_surface(f) else {
+    let Some(surface) = body.passed_face(f).map(|f| f.surface()) else {
         return Vec::new();
     };
     match line_on_quadric_carrier(surface, e.p0, e.p1, "pm_census_ef_curved_residual", band) {
@@ -5216,7 +5216,7 @@ fn ee_cross_backed<T: Decide>(
                 continue;
             }
         };
-        let side = match tangency.pairing([da.record().sense, db.record().sense], band) {
+        let side = match tangency.pairing([da.sense(), db.sense()], band) {
             Ok(geom_brep::MaterialPairing::Opposed) => CrossingSideVerdict::OppositeSides,
             Ok(geom_brep::MaterialPairing::Aligned) => CrossingSideVerdict::SameSide,
             Err(escalation) => {
@@ -8522,7 +8522,7 @@ impl<T: Decide> FaceSector<T> {
             .collect::<Result<Vec<_>, _>>()?;
         let face = Planar {
             surface,
-            sense: face.record().sense,
+            sense: face.sense(),
             outward,
             loops: &fg.loops,
             rings,
@@ -9011,7 +9011,7 @@ impl<T: Decide> Link<T> {
             let clear = clear.ok_or(TouchUnread::Corrupt)?;
             let ruled = Ruled {
                 surface: face.surface().clone(),
-                sense: face.record().sense,
+                sense: face.sense(),
                 outward: foot_normal(body, f, p, band)?,
                 along,
                 ends: [edge.p0, edge.p1],
@@ -9058,7 +9058,7 @@ fn round_face<T: Decide>(
 ) -> Result<Option<(crate::link::Round<T>, T)>, TouchUnread> {
     let face = body.passed_face(f).ok_or(TouchUnread::Corrupt)?;
     let surface = face.surface();
-    let Some(round) = crate::link::Round::of(surface, face.record().sense) else {
+    let Some(round) = crate::link::Round::of(surface, face.sense()) else {
         return Ok(None);
     };
     let mut reach = round.radius() * T::from_f64(2.0);
@@ -11219,7 +11219,7 @@ fn flush_pairs<T: Decide>(
     band: Band,
     region: Option<RegionLane<T>>,
 ) -> FlushAtRest {
-    let kind = |f: FaceKey| Some(body.face_surface(f)?.kind());
+    let kind = |f: FaceKey| Some(body.passed_face(f)?.surface().kind());
     let group_of = |f: FaceKey| body.solid_of_face(f).and_then(group);
     let edges: Vec<BTreeSet<EdgeKey>> = faces
         .iter()
@@ -11323,7 +11323,8 @@ fn flush_pairs<T: Decide>(
 /// Whether `f` lies on a cylinder or a sphere, the curved kinds Door 1
 /// decides exactly ([`crate::boolean::carrier_eq::exact_curved`]).
 fn exact_curved_face<T: Real>(body: &Body<T>, f: FaceKey) -> bool {
-    body.face_surface(f)
+    body.passed_face(f)
+        .map(|f| f.surface())
         .is_some_and(crate::boolean::carrier_eq::exact_curved)
 }
 

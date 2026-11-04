@@ -2241,7 +2241,7 @@ impl<T: Decide> FaceSector<T> {
         }
         let face = Planar {
             surface,
-            sense: face.record().sense,
+            sense: face.sense(),
             outward,
             loops: &loops,
             rings,
@@ -2351,7 +2351,7 @@ impl<T: Decide> FaceSector<T> {
                 },
                 face: LinkFace {
                     surface: surface.clone(),
-                    sense: face.record().sense,
+                    sense: face.sense(),
                     clear: Some(radius),
                     tangent: None,
                 },

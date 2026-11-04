@@ -2383,33 +2383,25 @@ impl<T: Decide> Body<T> {
     /// malformed body, loops whose keys or cycles do not resolve are
     /// skipped too (total, never panics), so `None` means "not found or
     /// not reachable".
+    ///
+    /// It reads the explicitly unchecked walk
+    /// ([`Body::unchecked_face_cycles`]) on purpose: no Euler operator
+    /// calls it, only tests and hand construction, whose bodies no door
+    /// has certified yet, so an unwalkable loop is an honest "not here"
+    /// rather than a kernel bug.
     pub fn find_half_edge(
         &self,
         face: FaceKey,
         from: VertexKey,
         to: VertexKey,
     ) -> Option<HalfEdgeKey> {
-        let face_data = self.get_face(face)?;
-        for loop_key in face_data.loop_keys() {
-            let Some(loop_data) = self.get_loop(loop_key) else {
-                continue;
-            };
-            let LoopBoundary::Cycle { first } = loop_data.boundary else {
-                continue;
-            };
-            let Some(cycle) = self.loop_cycle(first) else {
-                continue;
-            };
-            for he in cycle {
-                let Some(he_data) = self.get_half_edge(he) else {
-                    continue;
-                };
-                if he_data.start == from && self.half_edge_end(he) == Some(to) {
-                    return Some(he);
-                }
-            }
-        }
-        None
+        self.unchecked_face_cycles(self.get_face(face)?)
+            .filter_map(Result::ok)
+            .flatten()
+            .find(|&he| {
+                self.get_half_edge(he).is_some_and(|h| h.start == from)
+                    && self.half_edge_end(he) == Some(to)
+            })
     }
 
     // ------------------------------------------------------------------
@@ -4194,8 +4186,8 @@ impl<T: Decide> Body<T> {
                 continue;
             }
             seen.push(face);
-            let face_data = self.proven_face(face);
-            let surface = face_data.surface();
+            let view = self.proven_face(face);
+            let surface = view.surface();
             if let Some(from) = crate::pcurves::site_rows_from(self, face, surface) {
                 minted.push((face, from));
             }
@@ -4252,9 +4244,9 @@ impl<T: Decide> Body<T> {
         rewired: &[(LoopKey, Vec<SiteHalf>)],
         killed: Option<LoopKey>,
     ) -> SiteFace<T> {
-        let face_data = self.proven_face(face);
-        let surface = face_data.surface().clone();
-        let loops = face_data
+        let view = self.proven_face(face);
+        let surface = view.surface().clone();
+        let loops = view
             .record()
             .loop_keys()
             .filter(|&lk| Some(lk) != killed)
@@ -5769,7 +5761,12 @@ mod tests {
         let plane_face = [created.he_plus, created.he_minus]
             .into_iter()
             .map(|he| body.face_of_half_edge(he).unwrap())
-            .find(|&f| matches!(body.face_surface(f), Some(geom::Surface::Plane { .. })))
+            .find(|&f| {
+                matches!(
+                    body.passed_face(f).map(|f| f.surface()),
+                    Some(geom::Surface::Plane { .. })
+                )
+            })
             .unwrap();
         // Both checks run before the pcurve pass (check 8). The pillow
         // reads its rowless spline face as unminted, an image derivable

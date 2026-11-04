@@ -584,8 +584,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
             }
             Err(refusal) => return Err(refused(refusal)),
         };
-    let pierced_bend =
-        super::sectors::FaceBend::at(pierced_surface, pierced_face.record().sense, p);
+    let pierced_bend = super::sectors::FaceBend::at(pierced_surface, pierced_face.sense(), p);
     // A corner at a cone's apex is subdivided where the pierced face's
     // tangent plane turns its side along the cone's rulings.
     let sectors = build_sectors(

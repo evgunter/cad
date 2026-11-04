@@ -1751,10 +1751,10 @@ pub(crate) fn section_plane_restatements<T: Decide>(
     face: FaceKey,
     stranded: &[EdgeKey],
 ) -> Vec<(EdgeKey, geom_brep::EdgeDescriptionSpec<T>)> {
-    let face_data = body.proven_face(face);
-    let chart = face_data.record().surface;
+    let view = body.proven_face(face);
+    let chart = view.record().surface;
     let mut out: Vec<(EdgeKey, geom_brep::EdgeDescriptionSpec<T>)> = Vec::new();
-    for (_, members, _) in face_data.boundary_by_loop() {
+    for (_, members, _) in view.boundary_by_loop() {
         for member in members {
             let BoundaryMember::Edge {
                 ek: edge,
@@ -2189,8 +2189,8 @@ fn classify_shell<T: Decide>(
     // No section face: an uncut component — classify by its first
     // off-plane vertex (deterministic face-list/cycle order walk).
     for &face in &shell_data.faces {
-        let face_data = body.linked_face(face, EntityId::Shell(shell), "faces");
-        for member in face_data.boundary() {
+        let view = body.linked_face(face, EntityId::Shell(shell), "faces");
+        for member in view.boundary() {
             let BoundaryMember::Edge { half, .. } = member else {
                 continue;
             };
@@ -2236,8 +2236,8 @@ pub(crate) fn carve<T: Decide>(
         for &face in &shell_data.faces {
             faces.push(face);
             let holder = EntityId::Shell(shell);
-            let face_data = body.linked_face(face, holder, "faces");
-            for (l, members, _) in face_data.boundary_by_loop() {
+            let view = body.linked_face(face, holder, "faces");
+            for (l, members, _) in view.boundary_by_loop() {
                 loops.push(l);
                 for member in members {
                     vertices.insert(member.vertex(), ());

@@ -147,9 +147,9 @@ impl<'a, T: Decide> WedgeReach<'a, T> {
             return Rc::clone(points);
         }
         let body = self.body;
-        let data = body.proven_face(face);
+        let view = body.proven_face(face);
         let mut points = Vec::new();
-        for (_, members, _) in data.boundary_by_loop() {
+        for (_, members, _) in view.boundary_by_loop() {
             for member in members {
                 match member {
                     BoundaryMember::Isolated { point, .. } => points.push(point),

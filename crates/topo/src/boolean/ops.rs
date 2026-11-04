@@ -1864,8 +1864,8 @@ impl PairVerdict {
 /// lone-vertex loop?
 #[track_caller]
 fn has_lone_vertex<T: Real>(body: &Body<T>, face: FaceKey) -> bool {
-    let fd = body.proven_face(face);
-    fd.loops()
+    let view = body.proven_face(face);
+    view.loops()
         .any(|(_, l, _)| matches!(l.boundary, LoopBoundary::Empty { .. }))
 }
 
@@ -2034,8 +2034,8 @@ fn face_boundary_meets<T: Decide + Bounds>(
     pad: f64,
     band: Band,
 ) -> bool {
-    let fd = body.proven_face(face);
-    for member in fd.boundary() {
+    let view = body.proven_face(face);
+    for member in view.boundary() {
         let BoundaryMember::Edge { ek, .. } = member else {
             continue;
         };
@@ -2617,9 +2617,9 @@ pub(crate) fn contact_face_pairs<T: Real>(
 /// [`crate::live::OPERATORS_KEEP_LINKS`]).
 fn faces_by_vertex<T: Real>(body: &Body<T>) -> BTreeMap<VertexKey, Vec<FaceKey>> {
     let mut out: BTreeMap<VertexKey, Vec<FaceKey>> = BTreeMap::new();
-    for fd in body.face_views() {
-        let face = fd.key();
-        for member in fd.boundary() {
+    for view in body.face_views() {
+        let face = view.key();
+        for member in view.boundary() {
             // A lone-vertex loop's vertex bounds the face as much as a
             // cycle's do.
             let faces = out.entry(member.vertex()).or_default();
@@ -5614,12 +5614,12 @@ pub(super) fn gate<T: Decide + Bounds + AtRestPolicy>(
 ///
 /// [`BooleanError::ResultPinchedAtConeApex`].
 fn pinched_at_cone_apex<T: Decide>(body: &Body<T>, band: Band) -> Result<(), BooleanError> {
-    for data in body.face_views() {
-        let face = data.key();
-        let geom::Surface::Cone { apex, axis, .. } = *data.surface() else {
+    for view in body.face_views() {
+        let face = view.key();
+        let geom::Surface::Cone { apex, axis, .. } = *view.surface() else {
             continue;
         };
-        for (_, members, _) in data.boundary_by_loop() {
+        for (_, members, _) in view.boundary_by_loop() {
             let mut starts = BTreeSet::new();
             for member in members {
                 let BoundaryMember::Edge { half, .. } = member else {
@@ -6097,9 +6097,9 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
         // is the sphere itself, which every wearer shares.
         let charts = crate::chart_groups::ChartGroups::of_body(x);
         let mut seen: Vec<SurfaceKey> = Vec::new();
-        for fd in x.face_views() {
-            let face = fd.key();
-            let x_surface = fd.surface();
+        for view in x.face_views() {
+            let face = view.key();
+            let x_surface = view.surface();
             let &geom::Surface::Sphere {
                 center,
                 radius,
@@ -6109,10 +6109,10 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
             else {
                 continue;
             };
-            if seen.contains(&fd.record().surface) {
+            if seen.contains(&view.record().surface) {
                 continue;
             }
-            seen.push(fd.record().surface);
+            seen.push(view.record().surface);
             // **Closedness is asked where it is USED, not on arrival.**
             // The certificate this scan spends is `center ± r`, and for
             // a TRIMMED group that box over-claims — which is the sound
@@ -6148,7 +6148,7 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 let mut faces = || {
                     sphere_faces_apart(
                         (x_is, x, x_rows),
-                        fd.record().surface,
+                        view.record().surface,
                         (y, y_row),
                         evidence.events,
                         band,
@@ -6295,7 +6295,7 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                         };
                         if x_rows
                             .iter()
-                            .filter(|r| r.key == fd.record().surface)
+                            .filter(|r| r.key == view.record().surface)
                             .all(rest_pair)
                         {
                             continue;
@@ -7134,7 +7134,7 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
             }
         };
         let refuse = |what| refuse_at(face, what);
-        let fd = body.proven_face(face);
+        let view = body.proven_face(face);
         let mut circle = crossings.map(latitude);
         // `x` lies above `y` by `r·sin(φx − φy)`, a length linear in the
         // arc between them (both lie on the closed half-meridian, so the
@@ -7158,7 +7158,7 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
             split: Option<(EdgeKey, T, bool, T)>,
         }
         let mut hits: Vec<Hit<T>> = Vec::new();
-        for (_, members, _) in fd.boundary_by_loop() {
+        for (_, members, _) in view.boundary_by_loop() {
             for member in members {
                 let BoundaryMember::Edge {
                     half: hd,
@@ -7334,9 +7334,9 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
             (end(below_split, below_vertex)?, v_hi)
         };
         // The two ends' half-edges in the face's one loop.
-        let fd = body.proven_face(face);
+        let view = body.proven_face(face);
         let mut ends = [None, None];
-        for (lk, members, _) in fd.boundary_by_loop() {
+        for (lk, members, _) in view.boundary_by_loop() {
             for member in members {
                 let BoundaryMember::Edge { he, half, .. } = member else {
                     continue;

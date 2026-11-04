@@ -341,7 +341,7 @@ fn aim_at<T: Decide>(
     let chart = geom_brep::implicit_gradient(surface, aim);
     Ok(Some((
         aim,
-        geom_brep::OutwardNormal::from_chart(chart, f.record().sense).vec(),
+        geom_brep::OutwardNormal::from_chart(chart, f.sense()).vec(),
     )))
 }
 
@@ -854,7 +854,8 @@ pub struct EdgeFrame {
 #[cfg(any(test, feature = "test-support"))]
 pub(crate) fn edge_frames(body: &Body<f64>, fractions: &[f64], band: Band) -> Vec<EdgeFrame> {
     let kind = |f: FaceKey| {
-        body.face_surface(f)
+        body.passed_face(f)
+            .map(|f| f.surface())
             .map_or("?".to_owned(), |s| format!("{:?}", s.kind()))
     };
     let mut out = Vec::new();

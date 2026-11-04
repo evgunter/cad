@@ -133,11 +133,11 @@ pub(crate) fn face_nappe_reading<T: Decide>(
     face: FaceKey,
     band: Band,
 ) -> Result<Nappe, NappeRefusal<T>> {
-    let data = body.passed_face(face).ok_or(NappeRefusal::Stale)?;
-    let Surface::Cone { apex, axis, .. } = data.surface() else {
+    let view = body.passed_face(face).ok_or(NappeRefusal::Stale)?;
+    let Surface::Cone { apex, axis, .. } = view.surface() else {
         return Ok(Nappe::Opening);
     };
-    let (station_min, station_max) = corner_stations(body, data, *apex, *axis);
+    let (station_min, station_max) = corner_stations(body, view, *apex, *axis);
     let lo =
         decide("offset_nappe", Margin::of(station_min), band).map_err(NappeRefusal::Escalated)?;
     let hi =
@@ -186,11 +186,11 @@ pub fn group_nappe<T: Decide>(
                 // `face_nappe` resolved this face and answered `Mirror`
                 // or `Opening` against another member's other answer,
                 // and only a cone has two.
-                let data = body.proven_face(face);
-                let Surface::Cone { apex, axis, .. } = data.surface() else {
+                let view = body.proven_face(face);
+                let Surface::Cone { apex, axis, .. } = view.surface() else {
                     unreachable!("{face:?} disagreed on a nappe, which only a cone face has")
                 };
-                let (station_min, station_max) = corner_stations(body, data, *apex, *axis);
+                let (station_min, station_max) = corner_stations(body, view, *apex, *axis);
                 return Err(ReplaceFaceError::NappeStraddles {
                     face,
                     station_min,

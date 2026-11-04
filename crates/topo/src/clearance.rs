@@ -3268,7 +3268,7 @@ impl RegionMemo {
         }
         let region = match w.region {
             Region::Whole => CellRegion::Inside,
-            Region::Trimmed => match w.body.face_surface(w.face) {
+            Region::Trimmed => match w.body.passed_face(w.face).map(|f| f.surface()) {
                 None => CellRegion::Undecided,
                 Some(stored) => {
                     // The carrier is the window's own lift, which
@@ -3745,7 +3745,7 @@ fn boundary_of<T: Decide + CertifiedBounds>(
         let point = |p: &Point3<T>| p.map(|x| lift.of(x));
         let mut pts: Vec<Point3<Interval>> = Vec::new();
         let mut out = Boundary {
-            sense: f.record().sense,
+            sense: f.sense(),
             ..Boundary::default()
         };
         let mut halves: BTreeMap<EdgeKey, Vec<HalfEdgeKey>> = BTreeMap::new();

@@ -931,7 +931,7 @@ fn face_geo_arms<T: Decide>(
                 axis,
                 radius,
                 region,
-                sense: f.record().sense,
+                sense: f.sense(),
             }),
             None => {
                 let anchor = boundary_point(body, face)?;
@@ -955,7 +955,7 @@ fn face_geo_arms<T: Decide>(
                 axis,
                 half_angle,
                 region,
-                sense: f.record().sense,
+                sense: f.sense(),
             }),
             None => Ok(FaceGeo::PartialCone {
                 apex,
@@ -976,7 +976,7 @@ fn face_geo_arms<T: Decide>(
                     center,
                     radius,
                     region,
-                    sense: f.record().sense,
+                    sense: f.sense(),
                 }),
                 None => Err(PointInSolidError::PartialSphereFace { face }),
             },
@@ -1005,7 +1005,7 @@ fn face_geo_arms<T: Decide>(
                     major_radius,
                     minor_radius,
                     region,
-                    sense: f.record().sense,
+                    sense: f.sense(),
                 }),
                 None => Err(PointInSolidError::PartialTorusFace { face }),
             }
@@ -1295,8 +1295,9 @@ pub(crate) fn trim_window_short<T: Decide>(
 ///
 /// # Panics
 ///
-/// Where `face`, a boundary half-edge's edge or that edge's curve does
-/// not resolve (D2 row 4): a torn curve is not null scaffolding. The
+/// Where `face`, its outer loop (a link of the face), a boundary
+/// half-edge's edge or that edge's curve does not resolve (D2 row 4): a
+/// torn curve is not null scaffolding. The
 /// links hold at rest and, on the reduction's working copies, by
 /// [`crate::live::OPERATORS_KEEP_LINKS`].
 pub(crate) fn sphere_chart_trim<T: Decide>(
@@ -1313,11 +1314,7 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
         return Ok(None);
     }
     let surf = f.surface().clone();
-    let LoopBoundary::Cycle { first } = body
-        .get_loop(f.record().outer)
-        .ok_or(PointInSolidError::CorruptFace { face })?
-        .boundary
-    else {
+    let LoopBoundary::Cycle { first } = f.outer().1.boundary else {
         return Ok(None);
     };
     // A definite class miss is `None` (the honest remainder); an
