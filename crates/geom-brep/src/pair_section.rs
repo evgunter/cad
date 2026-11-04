@@ -3497,8 +3497,10 @@ mod wiring {
 
     /// **Close loops carry**: the wall of radius `1/2` against a sphere at
     /// `(0.1, 0, 0.2)` of radius `0.6 + δ`, its two rings `δ` from
-    /// meeting at the far ruling, carry as counted and as marched, two
-    /// loops each, from `δ = 3e-2` down to `3e-4`.
+    /// meeting at the far ruling, carry as counted, two loops, from
+    /// `δ = 3e-2` down to `3e-4`. (The pair is always counted, and its
+    /// march starts from the count's witnesses, so it has no marched
+    /// reading.)
     #[test]
     fn close_rings_carry_counted_and_marched() {
         // Pinned red at 1e-6: at δ 3e-4 no rung of the march's tube is a
@@ -3517,26 +3519,21 @@ mod wiring {
 
     /// The row [`close_rings_carry_counted_and_marched`] runs, under its pin.
     fn close_rings_carry_counted_and_marched_row() {
-        use super::{Components, SsiLane};
+        use super::SsiLane;
         for delta in [3e-2, 1e-2, 3e-3, 1e-3, 3e-4] {
             let (wall, ball) = wall_and_ball((0.1, 0.0, 0.2), 0.6 + delta);
-            let section = built(&wall, &ball);
-            let marched = super::PairSection {
-                components: Components::Marched,
-                ..section.clone()
-            };
-            for (read, s) in [("counted", &section), ("marched", &marched)] {
-                let got = s
-                    .carry(Some(SsiLane::marched()), band())
-                    .unwrap_or_else(|e| panic!("δ {delta:e}, {read}: {e:?}"));
-                assert_eq!(got.components().len(), 2, "δ {delta:e}, {read}");
-            }
+            let got = built(&wall, &ball)
+                .carry(Some(SsiLane::marched()), band())
+                .unwrap_or_else(|e| panic!("δ {delta:e}, counted: {e:?}"));
+            assert_eq!(got.components().len(), 2, "δ {delta:e}, counted");
         }
     }
 
     /// **A count the march disagrees with is a desync**: the two loops of
     /// a sphere reaching past a wall's far ruling, listed as three. As
-    /// counted, they carry; read as marched, the march's two.
+    /// counted, they carry; read as marched, the march of the counted
+    /// section is listed as its two (the pair's march starts from the
+    /// count's witnesses, so a section restated as marched states none).
     #[test]
     #[allow(clippy::unwrap_used)]
     fn a_count_the_march_disagrees_with_refuses() {
@@ -3561,7 +3558,9 @@ mod wiring {
             matches!(three.carry(lane, band()), Err(CarryError::Desync(_))),
             "three listed, two marched"
         );
-        let marched = restated(Components::Marched).carry(lane, band()).unwrap();
+        let marched = restated(Components::Marched)
+            .listed(|| march_over_the_ball(&section, band()), band())
+            .unwrap();
         assert_eq!(marched.components().len(), 2, "marched, the march's two");
     }
 
