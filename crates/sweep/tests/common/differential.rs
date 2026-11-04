@@ -250,6 +250,18 @@ pub fn judged_within(
     judge(r, want, tol, true, pad_budget)
 }
 
+/// **The widest volume half-width the pinned resolution admits** on a
+/// body of surface area at most `area` (m²): every face meets the
+/// resolution as a mean boundary displacement, `width(flux)/(3·area)`,
+/// so its flux width is at most `3·res·area_f`, and the volume, a third
+/// of the faces' flux, is at most `res·area/2` either side. The ceiling a
+/// row passes [`judged_within`] for a body whose faces accept a round
+/// that only just meets the resolution — a spline-chorded wall's rule
+/// at round 0 — naming `area` from its operands.
+pub fn resolution_pad(tol: Tol, area: f64) -> f64 {
+    topo::test_support::pinned_len(tol) * area / 2.0
+}
+
 /// [`judged`], with `extra` one more condition a `SOUND` line needs and
 /// `pad_budget` the widest enclosure it accepts.
 fn judge(

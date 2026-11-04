@@ -2,7 +2,7 @@ use geom_brep::props::quad::{
     self, Accept, FaceCutBounds, HarmChan, LaneRun, LaneStop, PatchNet, RoundWindow, TrimChord,
     TrimEdgeQ, TrimPiece,
 };
-use geom_brep::props::{FaceContribution, LoopEdge, PropsError, loop_vector_area};
+use geom_brep::props::{FaceContribution, LoopEdge, PropsError, exact_point, loop_vector_area};
 use geom_brep::props::{rational_rim, spiric};
 use geom_brep::{Pcurve, SpiricImage, WallTorus};
 use geom_core::Tol;
@@ -41,11 +41,11 @@ pub(super) fn mid_pad(x: Interval) -> (f64, f64) {
     ((x.lo() + x.hi()) * 0.5, (x.hi() - x.lo()) * 0.5)
 }
 
-/// **The trim carrier's kind, as the cylinder lane reads it**: a line, a
-/// circle or an ellipse, whose harmonic pcurve the lane integrates; each
-/// end's `(cos, sin)` is formed at the limit the lane integrates from
-/// ([`quad::trig_at_limit`]), so no vertex is read. The other kinds
-/// refuse by name.
+/// **The carrier of a harmonic image, as the cylinder lane reads it**: a
+/// line, a circle or an ellipse, whose harmonic pcurve the lane
+/// integrates; each end's `(cos, sin)` is formed at the limit the lane
+/// integrates from ([`quad::trig_at_limit`]), so no vertex is read. The
+/// other kinds refuse by name.
 fn harmonic_carrier<T: Decide>(carrier: &Curve3<T>) -> Result<(), PropsError> {
     match carrier {
         Curve3::Line(_) | Curve3::Circle(..) | Curve3::Ellipse(..) => Ok(()),
@@ -62,11 +62,9 @@ fn harmonic_carrier<T: Decide>(carrier: &Curve3<T>) -> Result<(), PropsError> {
                    spiric lane",
         }),
         Curve3::Nurbs(_) => Err(PropsError::QuadratureUnsupported {
-            what: "B-spline trim carrier on an ANALYTIC chart's quadrature lane — \
-                   the cut-loft class (a loft wall cut by a plane/cylinder), which \
-                   needs the edge×NURBS-face boolean layer that is not \
-                   written; described-NURBS faces with iso-line pcurves route to \
-                   the patch engine instead",
+            what: "B-spline trim carrier with a harmonic image on the cylinder chart — a \
+                   spline carrier's image there is projected, which the lane reads \
+                   through the carrier itself; a harmonic one is never minted for it",
         }),
     }
 }
@@ -576,39 +574,54 @@ fn cut_face_lane<T: Decide + Bounds + CertifiedEnclosure>(
     }
     let Surface::Cylinder { origin, radius, .. } = surface else {
         return Err(PropsError::QuadratureUnsupported {
-            what: "conic trim on a cone/sphere/torus chart — a cone face takes its \
-                   closed form before this lane (`cone_face_closed_form`); sphere and \
-                   torus charts mint stored pcurves, but this lane's chart-normal flux \
-                   algebra is the cylinder's",
+            what: "a trimmed face with no volume lane on its chart — a cone face takes \
+                   its closed form before this lane (`cone_face_closed_form`), and the \
+                   rotational lane's chart table holds the cylinder",
         });
     };
+    let iv = Interval::from_certified;
+    let lift = |p: Point3<T>| Point3::new(iv(p.x), iv(p.y), iv(p.z));
+    // The chart term `o·A⃗`: each closed-form edge's vector area about the
+    // chart's own origin at the caller's scalar, and each rational
+    // carrier's through the curved rims' rule, read per round.
     let mut va = geom_core::Vec3::new(T::zero(), T::zero(), T::zero());
+    let mut rationals = Vec::new();
     for (edges, _) in loops {
-        va = va + loop_vector_area(edges, *origin)?;
+        for e in edges {
+            match &e.carrier {
+                Curve3::Nurbs(c) if geom_brep::props::is_rational(c) => {
+                    rationals.push(rational_rim::rational_edge_q(
+                        &c.map_scalar(iv),
+                        iv(e.t0),
+                        iv(e.t1),
+                        e.forward,
+                        lift(*origin),
+                    )?);
+                }
+                _ => va = va + loop_vector_area(core::slice::from_ref(e), *origin)?,
+            }
+        }
     }
-    // The flux about the chart's own origin, `r²·A_s`, is where the
-    // face is; only this term carries its position. Taken about a centre
-    // it is `(origin − centre)·A⃗` in interval arithmetic, a lever the
-    // size of the body rather than of its distance from the world origin.
-    let o_dot_va = match centre {
-        None => Interval::from_certified((*origin - Point3::origin()).dot(va)),
+    // The flux about the chart's own origin, `−∮F du`, is where the
+    // face is; only the chart term carries its position. Taken about a
+    // centre it is `(origin − centre)·A⃗` in interval arithmetic, a lever
+    // the size of the body rather than of its distance from the world
+    // origin.
+    let (closed, lever) = match centre {
+        None => (
+            Interval::from_certified((*origin - Point3::origin()).dot(va)),
+            lift(*origin) - Point3::origin(),
+        ),
         Some(c) => {
-            let lift = |p: Point3<T>| {
-                Point3::new(
-                    Interval::from_certified(p.x),
-                    Interval::from_certified(p.y),
-                    Interval::from_certified(p.z),
-                )
-            };
-            let va = geom_core::Vec3::new(
-                Interval::from_certified(va.x),
-                Interval::from_certified(va.y),
-                Interval::from_certified(va.z),
-            );
-            (lift(*origin) - c).dot(va)
+            let va = geom_core::Vec3::new(iv(va.x), iv(va.y), iv(va.z));
+            ((lift(*origin) - c).dot(va), lift(*origin) - c)
         }
     };
-    let mut trims = Vec::with_capacity(loops.len());
+    let mut terms = Vec::with_capacity(loops.len());
+    // The carriers' half of the ribbon between them and their images, the
+    // chart term's pad (`quad::ChartTermQ::ribbon`): each edge's envelope
+    // times its carrier's length bound.
+    let mut ribbon = Interval::zero();
     for (loop_edges, hes) in loops {
         let mut edges = Vec::with_capacity(loop_edges.len());
         let lifted = crate::pcurves::lifted_images(body, hes);
@@ -619,48 +632,76 @@ fn cut_face_lane<T: Decide + Bounds + CertifiedEnclosure>(
                        caches mint in the split/boolean pipelines",
                 });
             };
-            // The certified quadrature lane reads a chart image
-            // CHANNEL BY CHANNEL out of its harmonic form; a fitted,
-            // projected or focal-section image has none on an ANALYTIC
-            // chart's Green reduction, and refuses typed. A sphere's general
-            // circle mints a projected one at rest (an oblique fillet
-            // corner's octant); the props door refuses that face's spherical
-            // triangle before this lane is asked.
-            let Some((p0, pa, pb, pl)) = image.harmonic_form() else {
+            let (t0, t1) = cache.params();
+            let env = iv(cache.certificate().envelope);
+            let carrier_length = length_bound(&LoopEdge {
+                carrier: le.carrier.map_scalar(iv),
+                carrier_id: le.carrier_id,
+                t0: iv(le.t0),
+                t1: iv(le.t1),
+                forward: le.forward,
+                start: le.start,
+                end: le.end,
+            })?;
+            ribbon = ribbon + Interval::point(env.mag()) * Interval::point(carrier_length);
+            // The lane reads a harmonic image channel by channel, and a
+            // projected one through its carrier in the chart's frame. A
+            // fitted or focal-section image has neither on an analytic
+            // chart's Green reduction, and refuses typed.
+            if let Some((p0, pa, pb, pl)) = image.harmonic_form() {
+                harmonic_carrier(&le.carrier)?;
+                let (t0, t1) = (iv(t0), iv(t1));
+                edges.push(quad::EdgeTermQ::Harmonic(TrimEdgeQ {
+                    u: chan(p0.x, pa.x, pb.x, pl.x)?,
+                    v: chan(p0.y, pa.y, pb.y, pl.y)?,
+                    t0,
+                    t1,
+                    forward: le.forward,
+                    trig0: quad::trig_at_limit(t0),
+                    trig1: Some(quad::trig_at_limit(t1)),
+                    env,
+                }));
+                continue;
+            }
+            let Some(projected) = image.projected() else {
                 return Err(PropsError::QuadratureUnsupported {
-                    what: "curved-cut face half-edge carries a pcurve with no harmonic form on \
-                       an analytic chart (a FITTED or PROJECTED image, or a cone section's or \
-                       Villarceau circle's focal section) — its Green-form boundary integral \
-                       is not wired",
+                    what: "curved-cut face half-edge carries a pcurve that is neither harmonic \
+                       nor projected on an analytic chart (a FITTED image, or a cone \
+                       section's or Villarceau circle's focal section) — its Green-form \
+                       boundary integral is not wired",
                 });
             };
-            let (t0, t1) = cache.params();
-            let (t0, t1) = (Interval::from_certified(t0), Interval::from_certified(t1));
-            harmonic_carrier(&le.carrier)?;
-            let trig0 = quad::trig_at_limit(t0);
-            let trig1 = Some(quad::trig_at_limit(t1));
-            edges.push(TrimEdgeQ {
-                u: chan(p0.x, pa.x, pb.x, pl.x)?,
-                v: chan(p0.y, pa.y, pb.y, pl.y)?,
-                t0,
-                t1,
-                forward: le.forward,
-                trig0,
-                trig1,
-                env: Interval::from_certified(cache.certificate().envelope),
-            });
+            let pair = |p: geom_core::Point2<T>| (iv(p.x), iv(p.y));
+            edges.push(quad::EdgeTermQ::Projected(quad::ProjectedEdgeQ::of_image(
+                projected,
+                (iv(t0), iv(t1)),
+                le.forward,
+                // The ends through the image's own evaluator, on the lane,
+                // crossed into certification arithmetic.
+                [pair(image.eval(t0)), pair(image.eval(t1))],
+                env,
+                iv,
+            )?));
         }
-        trims.push(edges);
+        terms.push(edges);
     }
-    let trims: Vec<&[TrimEdgeQ]> = trims.iter().map(Vec::as_slice).collect();
-    quad::cylinder_cut_face_rounds::<T>(
-        Interval::from_certified(*radius),
-        o_dot_va,
-        &trims,
-        band,
-        window,
-        accept,
-    )
+    let face = quad::RotationalFaceQ {
+        chart: quad::RotationalChartQ::Cylinder {
+            radius: iv(*radius),
+        },
+        chart_term: quad::ChartTermQ {
+            closed,
+            lever: rv(lever),
+            rationals,
+            ribbon: if ribbon.is_certified() {
+                ribbon.hi()
+            } else {
+                f64::INFINITY
+            },
+        },
+        loops: terms,
+    };
+    quad::rotational_cut_face_rounds::<T>(&face, band, window, accept)
 }
 
 /// An upper bound on an edge's length: a line's speed `|dir|`, an arc's radius (an
@@ -940,12 +981,6 @@ fn cap_about(
     })
 }
 
-/// A harmonic coefficient read as exact `f64` structure (C6): `Some`
-/// only for a point bracket.
-fn exact(x: Interval) -> Option<f64> {
-    (x.is_certified() && x.lo() == x.hi()).then_some(x.lo())
-}
-
 /// A spiric-bounded torus wall: each of its loops through the LIFTED
 /// chart images, the outer loop and every ring alike, its edges' terms
 /// summed over them all and its closure decided loop by loop
@@ -1021,7 +1056,7 @@ fn spiric_wall(
                          terms read the carrier's own torus",
                         ));
                     }
-                    let sense = match exact(*sense) {
+                    let sense = match exact_point(*sense) {
                         Some(s) if s == 1.0 || s == -1.0 => s,
                         _ => {
                             return Err(unsupported(
@@ -1046,7 +1081,7 @@ fn spiric_wall(
                     continue;
                 }
                 (WallImage::Harmonic([p0, pa, pb, pl]), _) => {
-                    let zero = |x: Interval| exact(x) == Some(0.0);
+                    let zero = |x: Interval| exact_point(x) == Some(0.0);
                     if !(zero(pa.0) && zero(pa.1) && zero(pb.0) && zero(pb.1)) {
                         return Err(unsupported(
                             "a torus wall edge beside a spiric whose harmonic image is not a \
@@ -1860,7 +1895,7 @@ mod tests {
         use crate::entity::{FaceKey, LoopBoundary};
         use crate::props::{
             FaceRun, QuadLane, References, corner_of, decide_faces_serially, face_flux, face_loops,
-            flat_loops, rederive, resolve_face, round_hook, shell_polygons, vertex_rings,
+            flat_loops, rederive, round_hook, shell_polygons, vertex_rings,
         };
 
         /// `m · 2^e`, exactly.
@@ -1993,8 +2028,9 @@ mod tests {
                 den: Dyadic::of(1.0),
             };
             for (key, _) in body.faces() {
-                let (face, surface) = resolve_face(body, key);
-                let loops = flat_loops(body, face).unwrap();
+                let face = body.proven_face(key);
+                let surface = face.surface();
+                let loops = flat_loops(body, face.record()).unwrap();
                 let rings = vertex_rings(body, surface, &loops, lane)
                     .unwrap()
                     .expect("a planar face bounded by lines");
@@ -2164,13 +2200,14 @@ mod tests {
             let mut polygon = Interval::zero();
             for run in &runs {
                 let centre = corner_of(lane, run);
-                let (face, surface) = resolve_face(&body, run.face);
-                let loops = face_loops(&body, face).unwrap();
+                let face = body.proven_face(run.face);
+                let surface = face.surface();
+                let loops = face_loops(&body, face.record()).unwrap();
                 let (c, _) = super::super::closed_form(
                     surface,
                     &loops,
-                    &crate::props::face_tips(&body, face).unwrap(),
-                    face.sense,
+                    &crate::props::face_tips(&body, face.record()).unwrap(),
+                    face.sense(),
                     band,
                     centre,
                     None,
@@ -2179,8 +2216,13 @@ mod tests {
                 flux = flux + c.flux;
                 area = area + c.area;
                 polygon = polygon
-                    + match vertex_rings(&body, surface, &flat_loops(&body, face).unwrap(), lane)
-                        .unwrap()
+                    + match vertex_rings(
+                        &body,
+                        surface,
+                        &flat_loops(&body, face.record()).unwrap(),
+                        lane,
+                    )
+                    .unwrap()
                     {
                         Some(rings) => {
                             let &geom::Surface::Plane { normal, .. } = surface else {

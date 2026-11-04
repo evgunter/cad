@@ -2,13 +2,15 @@
 id: props-face-start-reads-a-record-key-through-proven
 kind: issue
 title: props::face_start reads face.outer through proven although its key comes from a record, so a torn record panics where linked would name the hop
-status: dispatched
+status: closed
 opened: 2026-11-03
 priority: P2
 cost: E
 refs: [6460]
 branch: onecopy/face-view
 rides_with: a-face-is-read-through-a-resolved-handle
+closed: 2026-11-04
+pr: 6490
 ---
 
 
