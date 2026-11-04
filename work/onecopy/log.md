@@ -154,3 +154,16 @@
     - whether A's uncharged global `F` decides correctly where it is ill-conditioned;
     - whether this is one final state;
     - which P0 landing is correct today. (ONECOPY orchestrator)
+- 2026-11-04 — Across-key fork decided after round 1, without Ev; no ratified text changes. Round-1 answers are in `~/.local/share/cad-work/oc-fork6/round1-{a,b,c}.md`.
+  - **What moved.**
+    - A withdrew "zero the charge now": its own algebra gives δD ≈ 4.4e-11 > e at a far, thin pair.
+    - B withdrew its anchored form, whose term bound is a charge with coefficients still of order (R_a/s_b)².
+    - C dropped its per-order error terms, measured 3/800 global-uncharged certificates on noise, and called the remainder exact, not rounding.
+  - **The decision.**
+    - Main's bare across difference stays.
+    - The window's level is read locally at each piece, uncharged at f64. `level_on` yields a `Level` with only local readings.
+    - The level-to-distance conversion is local too, if it stays small.
+    - Order rows for both orders, the spun needle and random tangent pairs.
+  - **Rows to file:** `coplanar_ellipses`'s global level, the near-tangent tilt class, the `rounding_charge` gate gap, and F33 onto a `Tie` door.
+  - **Class finding.** A chooser that is asked which reading can certify is a symptom: one of the readings is crippled. Fix that reading, and keep the chooser conditioning-only.
+  - Sent to the 6525 lane. The review gets a delta pass. (ONECOPY orchestrator)
