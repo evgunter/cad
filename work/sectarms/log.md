@@ -511,3 +511,8 @@ and bodies unchanged. No orchestrator yet.
 
   The review row is the last commit (`8f4f30f`, tally 0; the push went through on the second try after a GitHub 500). The PR merges on green.
 - 2026-11-04 10:15 — **PR 6479 merged.** NURBS stage 4 is done: plane × NURBS is on the one 1×2 arm and `PlaneSection` is retired (dual review, tally 0, row PR-6479.md). **NURBS 3b (node ends) asked for a plan.** It rides 3b-ii's node listing, with lines and side from the decided Hessian, the end ray matched once at carry, and carriers ending at the node along their ray.
+- 2026-11-04 — **NURBS 3b plan accepted.**
+  - **F-A, list only:** spline × implicit sections are not carried yet, and the carry is the parked join unit. The end-ray match is done at listing, because C5's "each arc end … names its line" makes that the listing's job. Topo reads a spline node as `Tangent` until the join unit lands.
+  - **F-B, deferred:** the end-pinned fit, and what certifies the stretch from the box entry to the node, are recorded as open questions on `the-join-reads-a-spline-implicit-section`.
+  - **F-C:** a minimal node tip in the end types.
+  - **D2:** a same-node arc's end is named by its ray, with a lemniscate row.
