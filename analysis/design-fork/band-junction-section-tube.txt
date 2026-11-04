@@ -1,0 +1,6 @@
+fork: band-junction-section-tube (BAND, P0 blocker a-tangent-edge-along-a-torus-meridian-cannot-be-certified: a mixed chain's band–band section edge cannot be certified, since kappa_rel vanishes at its cap end)
+drawn: 2026-11-04T07:03:15Z, od -An -tu1 -N1 /dev/urandom (twice)
+bytes: 135 126
+arm: 2 designers
+mapping: A = Opus designer, B = Fable designer
+protocol: f7004ca480
