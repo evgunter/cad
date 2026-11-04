@@ -1385,3 +1385,77 @@ general regularity sweep. SECTARMS's cylinder × cylinder unit adopts
     - P1 parked `a-creased-spline-gets-no-second-order-clearing`.
   - **Not dispatched, on budget.** A lane's rate-limit event read weekly usage at 92% at 01:00Z, so no new unit was started after PR 6481.
   - **For Ev:** the same-operand exemption's option (b). Ship the exemption on the ratified DESIGN [topology.tiers] embedding contract (a finished body's boundary is embedded) before CLEAR's gate certifies it. That would restore the lofted cylinder's far `O ∪ B` / `B ∪ O` and its around `B ∖ O`, which refuse since PR 6437. Option (a), waiting on CLEAR, is what stands.
+- 2026-11-04 05:50Z — **Ev, in chat:** "(a) is fine", so the same-operand exemption stays parked on CLEAR's embedding gate. Ev also said to keep dispatching despite the weekly usage: "there's nothing else happening here, so you won't block anything". The program is back to `active`.
+- 2026-11-04 05:50Z — **Two lanes dispatched** from main `7072c784`, each with a required Phase 0 and a single FULL tier:
+  - `splice/teapot-1e6-floor`: `session_013QoYWUf2kjmewb4ATE3QYd`, brief `briefs-1103/floor.md`, for `teapot-wall-3-at-1e-6-floors-the-meridian-against-a-spout-wall` (P0). Phase 0 classifies the floor as depth exhaustion, a genuine near-graze, or a fixture offset that does not scale with ε.
+  - `splice/spiric-on-cap-plane`: `session_013QoYWVga4S7t6gZGFDzKrR`, brief `briefs-1103/spiric.md`, for `a-section-spiric-on-a-cap-plane-reads-unread-against-the-wall-it-ends-on` (P1). It is a planar reading of a spiric against the wall's conic in the cap's plane; Phase 0 says how it relates to the two identity-certificate homes, so as not to add a third.
+- 2026-11-04 07:40Z — **Teapot 1e-6 floor, Phase 0 ruled: a walk fix.** Measured on main `7072c784` (notes in `phase0/teapot-1e6-floor.md` on the lane's branch @ `7acb4f64`).
+  - The floored box is 4.47 mm past the meridian piece's end, inside the walk's past-end reach. The reach is END_REACH·escalate/pace, 10.2 mm of arc at 1e-6.
+  - There the meridian crosses the bore wall's seam edge transversally: zero clearance, a steep crossing, belonging to the next piece.
+  - The floor fits none of the three classes as written. It is a reach-scaling defect: the reach scales with ε and the floor with √ε (reach/floor ≈ 173 at 1e-6, 5.5 at 1e-9, 0.17 at 1e-12), so only 1e-6's window holds the crossing.
+  - **Ruled:** a floor box settles only when its curve range lies wholly past an end and is decided farther than the band from that end's point; every other floor still refuses. The lane must show the next piece reads the transverse crossing at every ε, so the fix does not just hide it. Rows: the witness, an in-band negative, and the continuation's positive. The sibling end windows (`composite::crossings`, circle × torus, the plane crossing) get swept.
+  - **Class (logged):** a search window whose reach scales with ε, while its floor scales with √ε, meets geometry at coarse ε that the question never asked about. A box that cannot hold an answer must settle, not refuse.
+- 2026-11-04 09:50Z — **Spiric on a cap plane, Phase 0 ruled: a degree certificate.** Measured on main `7072c784`, notes on the lane's branch @ `c6cac452`.
+  - The β 0.7 chord is an exact spiric in the cap plane. Its open arc runs up to 0.046 m inside the rim, touching the wall only at its two ends.
+  - The item's plan was wrong: `curve_pair::meet` never reports an overlap, so it could only refuse there.
+  - The lane's replacement: a spiric with a decided nonzero offset is an irreducible quartic, and a sphere, cylinder or cone cuts its plane in a curve of degree ≤ 2. By Bézout they share at most 8 points, so the spiric lies along none of them: `Placed::Off`. A torus cuts its plane in a quartic that can be the spiric itself, so `(Spiric, Torus)` stays Unread. It is a degree certificate, not a third identity-certificate home.
+  - **Ruled:** approved, gated on the decided nonzero offset, with irreducibility argued at the site, the nodal and tangent offsets included. Required: a near-tangent row showing that within-band closeness reaches a margined crossing or touch reading, not a silent build, and the offset-0 negative.
+  - 1e-12: the germ_tilted_rod test ran over 2h18m single-threaded locally (2096 s at 1e-9), though the nightly passes it in parallel. Filed: `tcost/the-tilted-rods-other-spins-row-runs-past-two-hours-at-1e-12-locally` (P2).
+- 2026-11-04 12:05Z — **PR 6519 (`teapot-1e6-floor`) single FULL review dispatched** on the frozen head `9aba71aee14c162601b21b717866b4e6eb2d44ca` (`gate ok` green). Reviewer `session_013QoYWYXJ2kcKNKAQdZAB8q`, evidence `splice/review-6519`, brief `briefs-1103/review-6519.md`.
+  - The lane's report: teapot wall 3 at 1e-6 reaches `GermFrameUnsupported { 6v1 Sphere, 3v3 Nurbs }`, one pin across ε; the continuation piece reads the crossing (`Pierce { t: 0.343435, OnEdge(20v1) }`).
+  - Filed: the straddling residue at P3; evidence on HONEROOT's root-slack row and on SCALAR's span-reach row.
+  - Inherited slow-set reds named: sweep ×3, topo ×2, geom-brep ×1. The reviewer is to reproduce the `Floor` one on main.
+- 2026-11-04 12:55Z — **PR 6523 (`spiric-on-cap-plane`) single FULL review dispatched** on the frozen head `6d9a323f89268c082faa2ad784f05c32d0ac8f00` (CI run 41830799104 green). Reviewer `session_013QoYWXdnBJHpASo4cCKDTW`, evidence `splice/review-6523`, brief `briefs-1103/review-6523.md`.
+  - The lane's report: one arm, `(Spiric, Sphere | Cylinder | Cone) → Off`, gated on the re-decided two-oval regime, with irreducibility argued at the site. A band guard needs an interior sample decided off.
+  - The residue it names: a near touch between the samples still reads Off; `Door::Spiric` is unbuilt (evidence on REACHHOLD's row). The reviewer is asked to build that pose and find its stop.
+  - The β 0.7 union moves to `"spiric wall volume"` (SPIRICARM), pinned by identity in `STEEP_UNION_STOP`.
+- 2026-11-04 13:58Z — **PR 6519 single FULL review** (frozen `9aba71ae`; reviewer `session_013QoYWYXJ2kcKNKAQdZAB8q`, evidence `splice/review-6519` @ `6862bfbe`): APPROVE-WITH-FIXES, no MAJOR.
+  - Settling is sound, and the next piece reads the crossing. Among the teapot, lily and klein demos at 1e-6, the only built result moved is teapot wall 3. The inherited `Floor` red is mass-properties' `settle::Unmet`, a different class.
+  - **MINORs:**
+    - three mutants survive all 157 `curve_face` rows at three ε (always settle, compare raw, flip the end);
+    - `end_state`'s doc now sits on `past_an_end`;
+    - a stale module-doc sentence;
+    - the circle × torus side decision was filed onto HONEROOT's root-slack row, which is a different predicate.
+  - **Fix pass sent:**
+    - adopt the reviewer's six-cell unit row; make the negatives exercise the decision or rename them as regression records;
+    - restore the docs and fix the module sentence;
+    - refile the circle × torus case as its own HONEROOT row (P3);
+    - move the "why it became needed" comment to the PR body.
+- 2026-11-04 13:58Z — **PR 6523 single FULL review** (frozen `6d9a323f`; reviewer `session_013QoYWXdnBJHpASo4cCKDTW`, evidence `splice/review-6523` @ `89a20300`): APPROVE-WITH-FIXES, no MAJOR.
+  - Irreducibility was re-derived by hand; it holds for every d ≠ 0, so the R − r bound is conservative. Degree ≤ 2 holds for every admitted variant.
+  - The near touch reads Off. That is semantically right for the rider question, and the existing conic arms share the residue.
+  - **MINORs:**
+    - three mutants survive (admit Torus, `Err → Off`, midpoint only);
+    - `STEEP_UNION_STOP`'s keys were never measured at 1e-12, which the nightly runs.
+  - **Fix pass sent:**
+    - adopt the reviewer's three rows;
+    - measure the β 0.7 union cell alone at 1e-12, or pin per ε;
+    - say the regime bound is conservative;
+    - an undecided reading escalates like the neighbouring arms, not as a carrier gap;
+    - correct the ONECOPY evidence;
+    - file the triplicated two-oval regime predicate on ONECOPY (P3);
+    - a named pose/op key.
+- 2026-11-04 14:45Z — **PR 6519 (`teapot-1e6-floor`) landing.**
+  - Fix pass read and accepted: head `9714d441`, CI green. The adopted row `a_box_past_an_end_settles_only_past_the_band_of_that_ends_point` goes red under each of the three mutants at three ε; the two negatives are renamed as regression records; the docs are fixed; the circle × torus case is refiled as its own HONEROOT row (P3).
+  - Main merged, and `cargo check -p geom-brep -p topo --all-targets` is clean. Main had moved `edge_join.rs` and `ops.rs`, so I checked for a semantic conflict.
+  - State sync: closed `teapot-wall-3-at-1e-6-floors-the-meridian-against-a-spout-wall` and dropped it from `curved-demo-joins-build`'s blocked_on.
+- 2026-11-04 15:20Z — **PR 6519 merged** (`c8b70909`, head `4b31eb8c`, CI green). Lane `session_013QoYWUf2kjmewb4ATE3QYd` archived; worktree removed.
+- 2026-11-04 15:20Z — **Filed** `onecopy/main-red-the-m7-8-plain-names-probe-fails-after-the-faceview-fix-pass` (P1). The spiric lane met `cert_m3r1_probes::m3_the_plain_names_report_the_corrupt_m7_8_wall_edge_by_edge_and_nothing_else` red on clean main `7d3f0b73`. The file was last changed by ONECOPY's FaceView fix pass `e383ccfb`.
+- 2026-11-04 15:20Z — **A third P1 lane dispatched.** PCERT filed `spline-region-decides-off-the-carrier-on-an-uncharged-f64-box-floor` (P1) on SPLICE this morning, from PR 6498's review. `read_capped` decides Off on an f64 control-box floor whose cut rounding nothing charges, and PCERT measured false Offs at 1e-12. Lane `splice/spline-region-charge`: `session_013QoYWViQCDK7cyUP3Ktm28`, brief `briefs-1103/charge.md`, from main `2c73aabf`. Phase 0 is required, single FULL tier.
+- 2026-11-04 15:20Z — **PR 6523 (`spiric-on-cap-plane`) landing.**
+  - Fix pass read and accepted: head `3908e864`, CI run 41852929506 green.
+  - All eight mutants are named red. `spiric_on_quadric` returns `Result` and escalates the undecided case, which I checked in the diff. `the_steeper_tilts_union_stops_by_identity` passes with the same keys at three ε (680 s at 1e-12). The two-oval regime row is filed on ONECOPY.
+  - New inherited red the lane met: `cert_m3r1_probes::m3_the_plain_names_report_the_corrupt_m7_8_wall_edge_by_edge_and_nothing_else` fails on clean main `7d3f0b73`; to be filed at the wrap.
+  - Main merged, and `cargo check -p topo -p sweep --all-targets` is clean.
+  - State sync: closed `a-section-spiric-on-a-cap-plane-reads-unread-against-the-wall-it-ends-on`.
+- 2026-11-04 15:48Z — **PR 6523 merged** (`a0cd09c8`, head `6dbc0302`, CI run 41856334073 green). Lane `session_013QoYWVga4S7t6gZGFDzKrR` archived; worktree removed. Both of the open P0/P1 rows Ev asked to finish this sitting are now closed (teapot 1e-6 by PR 6519, spiric on a cap plane by PR 6523). The spline-region charge lane, the third P1, is in its Phase 0.
+- 2026-11-04 16:10Z — **Spline-region charge, Phase 0 ruled.** Measured on main `2c73aabf` (draft PR 6530, head `535b3b70`).
+  - At band 1e-12, `read_capped`'s carrier walk reads points on the sheet Off. Up to 133 of about 2000 samples (two seeds, knotted rational rows); worst, a point at distance 0 with a floor of 4.4e-11.
+  - Every hit is rational at size or placement ≥ 3.4e3. No demo reaches it.
+  - **Ruled:**
+    - one home for the tracked cut and charged floor, moved out of PCERT's `spline_incidence.rs` into a public geom-brep module that both walks read. Review rises to DUAL;
+    - guarded: if a live `pcert/*` branch edits that file, copy into topo instead, stay at FULL, and cite the P3 two-walks row;
+    - `Trim::copy` folded in. It is uncharged even at Interval, since its pieces collapse to their value channel;
+    - other sweep hits filed (spline_arc ball/cross, edge_nurbs edge_piece, projected frame_box_on), with `window_arms` folded in only if the one home makes it a call;
+    - a carrier-walk witness allowed if `read_capped` calls exactly it, plus one attempt at a far rational arc loft through a boolean.
+  - **Class (logged):** a floor read off a control box at f64 after an untracked cut is not a lower bound. Every cut box that decides needs the cut's rounding charged, and `Interval` alone does not do it where the net is collapsed to its value channel.

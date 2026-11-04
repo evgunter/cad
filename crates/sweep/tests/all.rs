@@ -1386,6 +1386,8 @@ mod a_cone_apex_on_a_plane_through_it;
 mod a_cone_apex_on_an_edge;
 #[path = "a_cylinder_resting_on_a_box_top_grazes_along_a_line.rs"]
 mod a_cylinder_resting_on_a_box_top_grazes_along_a_line;
+#[path = "a_join_on_one_description_records_nothing.rs"]
+mod a_join_on_one_description_records_nothing;
 #[path = "a_plane_near_a_needle_cones_apex.rs"]
 mod a_plane_near_a_needle_cones_apex;
 #[path = "a_saddle_cut_by_its_tangent_plane.rs"]

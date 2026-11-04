@@ -317,7 +317,8 @@ fn a_torus_crest_circle_certifies_through_the_projected_lane() {
             let carrier = crest_circle(&surface, delta, phi);
             let what = format!("R {major}, r {minor}, φ {phi}");
             assert_eq!(
-                chart_iso_family(&carrier, (0.0, TAU), &surface, band()),
+                chart_iso_family(&carrier, (0.0, TAU), &surface, band())
+                    .map(|r| r.map(|r| r.family)),
                 Ok(None),
                 "{what}: a crest circle's image is the general one, on no family"
             );

@@ -12937,7 +12937,7 @@ mod tests {
         let off = C::CarrierOffChart {
             chart: geom::SurfaceKind::Sphere,
             carrier: geom::CurveKind::Line,
-            why: "the line's points are not on the chart (its distance from the chart at a sample of its span is past the band)",
+            why: "the line's points are not on the chart (its distance from the chart is past the band somewhere in its span)",
             margin: None,
         };
         let undecided = C::Escalated {

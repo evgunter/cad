@@ -289,18 +289,16 @@ fn stop_word(r: &Result<BooleanResult<f64>, BooleanError>, kind: Option<SurfaceK
 /// measured alike at the compiled ε, 1e-6 and 1e-12: each at the result
 /// gate's volume on a torus face (the refused face's own surface read,
 /// `topo::boolean::refused_face_kind`; a face of another chart reads
-/// "… on a … face"), by the refusal's cause, but the steeper tilt's
-/// union, at the slit pass's rider reading. The rod's chorded wall
-/// measures through the rotational lane, so no run stops on it.
+/// "… on a … face"), by the refusal's cause. The rod's chorded wall
+/// measures through the rotational lane, so no run stops on it. The
+/// steeper tilt's union is pinned by identity as well, at every ε row, in
+/// [`the_steeper_tilts_union_stops_by_identity`].
 // Pinned red at every ε row, each word on its owner's row:
 // "torus trim volume" and "ring volume" (a torus wall the chords trim,
 // or one left holding a ring) on
 // work/spiricarm/a-torus-wall-trimmed-by-a-spline-rim-has-no-volume-lane.md;
 // "spiric wall volume" (a torus wall holding a spiric beside a chord) on
 // work/spiricarm/a-torus-wall-holding-a-spiric-beside-a-spline-chord-has-no-volume-lane.md.
-// "unread rider" (the steeper tilt's union, an unread carrier refused at
-// the slit pass's rider reading) on
-// work/splice/an-unread-rider-related-only-by-its-own-vertices-refuses.md.
 // As each lands, its words move on to the run's next stop or to a body
 // held to its volume, and the table is re-pinned there.
 const OTHER_SPINS_STOPS: [[&str; 5]; 8] = [
@@ -347,20 +345,34 @@ const OTHER_SPINS_STOPS: [[&str; 5]; 8] = [
         "spiric wall volume",
     ],
     [
-        "unread rider",
+        "spiric wall volume",
         "spiric wall volume",
         "spiric wall volume",
         "spiric wall volume",
         "spiric wall volume",
     ],
     [
-        "unread rider",
+        "spiric wall volume",
         "spiric wall volume",
         "spiric wall volume",
         "spiric wall volume",
         "spiric wall volume",
     ],
 ];
+
+/// The steeper tilt, whose union `h ∪ c` [`STEEP_UNION_STOP`] pins.
+const STEEP_TILT: f64 = 0.7;
+
+/// **The steeper tilt's union stops by identity** at both spins: its cap
+/// chord, a spiric in the rod's cap plane, reads off the rod's wall by
+/// degree (`topo::boolean::slit`'s spiric × quadric arm), so the slit
+/// pass reads no rider there, and the union goes on to the result
+/// gate's volume on the half donut's torus wall, face `3v1` of the
+/// result.
+const STEEP_UNION_STOP: &str = "Some(ResultInvalid { errors: [VolumeUncomputable { \
+     solid: SolidKey(1v1), source: Face { face: FaceKey(3v1), source: \
+     QuadratureUnsupported { what: \"a torus wall edge beside a spiric whose lifted image is \
+     neither a spiric wall image nor a harmonic rim or meridian\" } } }] })";
 
 /// **The other spins, and the steeper tilts, refuse typed** before any
 /// body is built, on every op, each at its pinned door
@@ -381,8 +393,8 @@ fn other_spins_and_steeper_tilts_refuse_at_their_germs() {
         (0.5, 2.5),
         (0.6, 0.0),
         (0.6, FRAC_PI_2),
-        (0.7, 0.0),
-        (0.7, FRAC_PI_2),
+        (STEEP_TILT, 0.0),
+        (STEEP_TILT, FRAC_PI_2),
     ];
     let eps = Tol::witness().eps();
     let want = OTHER_SPINS_STOPS;
@@ -408,6 +420,28 @@ fn other_spins_and_steeper_tilts_refuse_at_their_germs() {
         .map(|((g, _), (beta, spin))| format!("β {beta}, spin {spin}: {g:?}"))
         .collect();
     assert!(off.is_empty(), "at ε {eps:e}:\n{}", off.join("\n"));
+}
+
+/// **The steeper tilt's union stops at its pin by identity**
+/// ([`STEEP_UNION_STOP`]) at both spins and at every ε row. Only that
+/// op is run at the two poses, so the identity is measured where the
+/// whole table is too costly ([`OTHER_SPINS_STOPS`] names it by word).
+#[test]
+fn the_steeper_tilts_union_stops_by_identity() {
+    let h = half_donut();
+    let eps = Tol::witness().eps();
+    for spin in [0.0, FRAC_PI_2] {
+        let stop = format!(
+            "{:?}",
+            topo::union(&h, &rod(STEEP_TILT, spin), Tol::witness())
+                .as_ref()
+                .err()
+        );
+        assert_eq!(
+            stop, STEEP_UNION_STOP,
+            "h ∪ c at β {STEEP_TILT}, spin {spin}, ε {eps:e}"
+        );
+    }
 }
 
 /// **The lens is real.** At the rod axis's closest approach to the

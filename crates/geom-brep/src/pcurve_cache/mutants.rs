@@ -24,7 +24,7 @@ const NAME: Option<&str> = option_env!("PCERT_RADIAL_PAIR_MUTANT");
 
 /// Every site this crate's hooks name. topo's `chord_join` declares its
 /// own two (`topo-gate`, `topo-v-var`) under the same variable.
-pub(super) const SITES: [&str; 35] = [
+pub(super) const SITES: [&str; 36] = [
     "class-circle",
     "zero-winding",
     "torus-parallel",
@@ -60,6 +60,7 @@ pub(super) const SITES: [&str; 35] = [
     "spline-bound-undercut",
     "spline-on-cut-short",
     "spline-product-uncharged",
+    "sampled-line-incidence",
 ];
 
 fn on(site: &str) -> bool {
@@ -268,6 +269,12 @@ pub(super) fn ruling_unplaced() -> bool {
 /// radial standoff unread (its row is `ruling_reading_rows`).
 pub(super) fn meridian_standoff_unread() -> bool {
     on("meridian-standoff-unread")
+}
+
+/// A line's incidence read at the sampled schedule again, its critical
+/// points unread (its rows are `ruling_reading_rows`).
+pub(super) fn sampled_line_incidence() -> bool {
+    on("sampled-line-incidence")
 }
 
 /// The cone arm images a line as the ruling at its anchor's azimuth

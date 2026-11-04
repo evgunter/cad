@@ -4621,6 +4621,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "coaxial_sphere",
             "coaxial_tori",
             "crossing_cylinders",
+            "iso_join",
             "plane_ladder",
             "profile_junction",
             "sphere_on_torus_axis",
