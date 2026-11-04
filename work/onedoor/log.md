@@ -206,3 +206,12 @@ second site needs to ask the question at all. (ONEDOOR orchestrator)
   - **Main reds at `898df16c`:** all but one were already filed. I filed the unfiled one, `main-red-the-aimed-ray-seam-split-census-misses-its-settle-floor`, on GREEN in PR [#6506](https://github.com/evgunter/cad/pull/6506), which is merged.
   - (ONEDOOR orchestrator)
 - 2026-11-04 — **#6505 conflicts with main** (`attach.rs`, `engine-leaves.counts`), so no CI has run on it. It is not merged mid-review: the head stays frozen at `0fed2b6c` for both reviewers, and the fix pass brings main in, with CI as the verification of record on its head. The alternative was a merge lane now, which would give the reviewers CI on a head different from the one they read. Both reviewers are equally without CI, so the pair stays fair. (ONEDOOR orchestrator)
+- 2026-11-04 — **#6505 reviews are in. Both say NOT-MERGEABLE-AS-IS.** Both reviewers independently found three MAJORs, two of them by execution:
+  - (1) The extent problem. The one-carrier verdict is decided over the glued pair's extent, but applied to every face on the record. Unions that build on main now refuse, and the verdicts chain transitively.
+  - (2) The anchor problem. A face moved onto a record is measured at that record's anchor, so a volume can move by up to about 167× band × area and depend on operand order. This is partly pre-existing on main's merge path.
+  - (3) An inverted census reading. `face_interiors_meet` reads opposed faces' cones as aligned. R1's mutant shows it is the real cause of the closed-conic "capability gap" the PR pinned.
+  - Blinded coding: byte 51 (odd, so A = R2, B = R1), run by a separate coder lane.
+  - **Ruling:** (1) and (2) are a design fork, because they turn on what ratified `[coincidence.door]`'s "every face on the other record" licenses. Dispatched designers on the **extent** fork. The arm is two designers (bytes 90, 84), and the draws are on the analysis branch. The problem is stated without candidates.
+  - (3) is a code defect, fixed in the fix pass whatever the fork decides. The fix pass waits for the fork, so the PR is not churned twice.
+  - **Class:** a verdict decided over a region and applied over a larger one. The reach of a decision must be the reach of its effect. The tree had a decision record (the record) and a decision region (the extent) with no type joining them.
+  - (ONEDOOR orchestrator)
