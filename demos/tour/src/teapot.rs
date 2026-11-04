@@ -1551,7 +1551,7 @@ pub fn wall_probes(ev: &Evaluation<f64>, r: &Recipe) {
     // so the request reaches the vessel's sphere face meeting the
     // handle's torus. The section value carries that pair's loops, the
     // segment lays them, and the union builds; its result's volume is not
-    // computed (a conic trim on the sphere's chart has no quadrature yet),
+    // computed (a trimmed sphere face has no volume lane on its chart yet),
     // so the result is invalid.
     crate::walls::wall(
         "teapot",
@@ -1570,7 +1570,7 @@ pub fn wall_probes(ev: &Evaluation<f64>, r: &Recipe) {
                             ..
                         },
                         ..
-                    }] if what.starts_with("conic trim on a cone/sphere/torus chart")
+                    }] if what.starts_with("a trimmed face with no volume lane on its chart")
                 )
             )
         },

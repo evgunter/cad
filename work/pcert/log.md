@@ -990,3 +990,15 @@ E1c waits on the answer.
     - `a-lane-choice-pick-splices-its-in-band-runs-live` (P2);
     - `in-band-test-distances-are-spelled-five-ways` (P3).
   - Next on `edge_nurbs.rs`: `two-decision-tables-for-one-ending`.
+- 2026-11-04 — **`two-decision-tables-for-one-ending` merged** (PR 6493).
+  - `recourse::Decision<C: DoorCheck>` and one `ending` replace `pcurve_cache::Decision` and `edge_nurbs::LaneDecision`.
+  - `CertifyError`'s table is folded in as the third.
+  - `Lever` and the kernel-limit texts now live in `recourse`.
+  - One `decided()`/`decision()` convention at every door.
+  - No ending moved: the review's dump of 510 entries is byte-identical at both heads.
+  - The guard `every_refusal_ends_through_the_one_decision_table` reads one `census` hook. It holds an explicit no-decision list that cites its row, so the reviewer's mutant M3 (a decided arm demoted to None) reds.
+  - Review tier: single STYLE. Verdict APPROVE-WITH-FIXES; fix list W was read by the orchestrator.
+  - Filed:
+    - `a-certify-errors-no-decision-arms-end-apart-from-the-one-table` (P2; `Band`'s lever-arm ending is unreachable today);
+    - `the-pcurve-mint-error-keeps-a-third-ending-table` (P2);
+    - `the-door-defect-is-two-kinds-of-the-one-decision-table` (P4).
