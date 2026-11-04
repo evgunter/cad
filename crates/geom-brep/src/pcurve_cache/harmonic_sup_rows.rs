@@ -664,10 +664,12 @@ fn projected_circle_an_off_sphere_pair_reads_once() {
 /// leave the sphere and the cone at first order, so there the incidence
 /// test, read before any lane, escalates on its own (`ChartIncidence`);
 /// the torus parallel stays within the band of its torus, so its class
-/// gate is reached and escalates lever-only "not yet" (`ChartClass`: a
-/// circle's general lane on a torus is not written yet). Pinned per pose,
-/// at `f64` and at `Interval`. An on-chart circle's general lane is
-/// `an_in_band_class_on_the_sphere_takes_the_projected_lane`'s.
+/// gate is reached, escalates (`ChartClass`, read here through the
+/// closed-form derivation), and the mint takes the general lane, the
+/// projected image. Pinned per pose, at `f64` and at `Interval`. An
+/// on-chart circle's general lane is
+/// `an_in_band_class_on_the_sphere_takes_the_projected_lane`'s and
+/// `circle_lane_rows`'.
 #[test]
 fn a_tilt_in_the_band_decides_no_class() {
     let (center, axis, u_ref) = z_frame();
@@ -711,19 +713,31 @@ fn a_tilt_in_the_band_decides_no_class() {
     ] {
         let carrier = tilted_circle(rim_center, radius, (off / radius).asin());
         let at = geom_core::Interval::from_f64;
-        for (lane, got) in [
-            ("f64", chart_pcurve(&carrier, surface, band()).map(|_| ())),
-            (
-                "Interval",
-                chart_pcurve(&carrier.map_scalar(at), &surface.map_scalar(at), band()).map(|_| ()),
-            ),
-        ] {
+        let derived = |c: &Curve3<f64>| {
+            derive_harmonic(c, surface, Placement::own(c, surface), band()).map(|_| ())
+        };
+        let derived_at = || {
+            let (c, s) = (carrier.map_scalar(at), surface.map_scalar(at));
+            derive_harmonic(&c, &s, Placement::own(&c, &s), band()).map(|_| ())
+        };
+        for (lane, got) in [("f64", derived(&carrier)), ("Interval", derived_at())] {
             assert!(
                 matches!(
                     got,
                     Err(PcurveCertifyError::Escalated { check, .. }) if check == want
                 ),
                 "{what} at {lane}: a tilt of 0.8·escalate decides no class, as {want:?}: {got:?}"
+            );
+        }
+        if want == PcurveCheck::ChartClass {
+            let (minted, minted_at) = (
+                chart_pcurve(&carrier, surface, band()),
+                chart_pcurve(&carrier.map_scalar(at), &surface.map_scalar(at), band()),
+            );
+            assert!(
+                matches!(minted, Ok(Pcurve::Projected(_)))
+                    && matches!(minted_at, Ok(Pcurve::Projected(_))),
+                "{what}: the in-band class takes the projected image: {minted:?} / {minted_at:?}"
             );
         }
     }
