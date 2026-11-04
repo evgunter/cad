@@ -1291,17 +1291,23 @@ no certified bend, a sector of more than one wedge, a middle in band,
 normals not decidedly opposed, or a sector in two pairs is left unread.
 
 A link with lenses is read as its remainder, its other sectors and its
-horns, with each lens cut out of the remainder's material or added to
-it (`rest::lensed`). No ray of another sector lies on a lens's closed
-wedge and no other sector on its middle, each decided; no other sector
-crosses the wedge (a crossing, confirmed in the ball); the remainder
-reads one material; and each lens's middle reads decidedly inside that
-material for a void and outside it for a sliver. A remainder of no
+horns (the horns read as thorns against the remainder's cone, which the
+lenses' doubled sheets would cloud), with each lens cut out of the
+remainder's material or added to it (`rest::lensed`). No other sector
+crosses a lens's wedge (a crossing, confirmed in the ball); no ray of
+another sector or horn lies on its closed wedge, decided, since such a
+sheet may enter the lens one order down, which is not read: that
+refuses in band, as a sheet meeting the wedge at a bound of it does;
+the remainder reads one material; and each lens's middle reads
+decidedly inside that material for a void and outside it for a sliver.
+A sheet holding the middle has a ray on the wedge or the wedge's rays
+on it, or the remainder reads the middle on it. A remainder of no
 sector and no horn has no material to read, and its lenses are then all
 of one kind. So no sheet but its own meets a lens off `p`, the lens lies
 in one region of the remainder, and cutting it out or adding it moves
 that region's winding one step toward the other value: the windings
-stay two consecutive values. Anything else is left unread.
+stay two consecutive values. A lens of the wrong kind for its region is
+left unread.
 
 Two planar sectors on one plane holding a common area, a slit or a
 sheet doubled, are the faces' own geometry and no tie: two planes are

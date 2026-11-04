@@ -255,9 +255,9 @@ fn a_corner_inside_its_own_curved_posts_arc_reads_its_two_half_planes() {
 /// crosses; an edge along the wall's ruling lies in the wall as the
 /// wall keeps it, so the corner reads as its other edges place it; an
 /// edge along the wall's circle leaves the wall only to second order,
-/// which no reading here parts, and refuses. Red where the wall's normal
-/// reads the other way, a crossing reads as a rest, or the tangency
-/// reads at all.
+/// where the wall bends away under the corner's faces: a rest. Red where
+/// the wall's normal reads the other way, a crossing reads as a rest, or
+/// the circle's tangency is kept at first order or read the other way.
 #[test]
 fn a_corner_inside_its_own_curved_posts_wall_reads_its_tangent_plane() {
     rows_hold(Seat::Wall);

@@ -425,29 +425,15 @@ pub(super) enum Lens {
     Sliver,
 }
 
-/// **The link's lenses, one order down**: two sectors of opposed
-/// outward normals bounded at the point by the same two edges, each
-/// sector's first edge the other's last, not both planes (two planes on
-/// each other are a slit, [`super::rest::one_material`]'s to refuse).
-/// To first order the two are one wedge; one order down each is its
-/// face's graph over it, `h(u)·s²/2` along the first's outward unit `m`
-/// at distance `s` along the unit `u`, `h` its normal section's
-/// acceleration ([`crate::bound_side::FaceBend::section`]). Both faces
-/// hold both edges, whose curvature vectors are each face's normal
-/// section along them (Meusnier), so the difference `q(u) = h₂(u) −
-/// h₁(u)`, a quadratic form on the plane, vanishes along both bounds:
-/// it is `c·(u × u₀)·(u × u₁)` along the normal, one sign across the
-/// open wedge. That sign, read at the wedge's middle at the arm with the
-/// second plane's parting from the first there charged
-/// ([`Reading::charged`]), is the lens's: positive, each sheet on the
-/// other's outward side, a void between them; negative, a sliver of
-/// material. A pair is one whose normals read decidedly opposed and
-/// whose first sector's rays all read on the second's plane; each bound
-/// must then read `q` Zero, and each sector be one wedge (under half a
-/// turn: a wider one holds a bound's opposite, where `q` vanishes
-/// again). A face with no certified bend, a middle the charge leaves in
-/// band, a sector in two pairs, or anything else is
-/// [`TouchUnread::Unreadable`].
+/// **The link's lenses, one order down**: pairs of sectors bounded at
+/// the point by the same two edges, each one's first edge the other's
+/// last, on each other to first order ([`on_each_other`]) and not both
+/// planes (two planes on each other are a slit,
+/// [`super::rest::one_material`]'s to refuse). Each pair's kind is the
+/// sign of its sheets' second-order gap at the wedge's middle
+/// ([`lens`]). A candidate pair that does not read, or a sector in two
+/// pairs, is [`TouchUnread::Unreadable`]. The argument:
+/// `crates/topo/README.md`, beside the first-order one.
 pub(super) fn lenses<T: Decide>(
     link: &Link<T>,
     rd: Reading<T>,
@@ -485,7 +471,9 @@ pub(super) fn lenses<T: Decide>(
 }
 
 /// Whether sectors `i` and `j` are one wedge to first order: their
-/// outward normals decidedly opposed, and every ray of `i` on `j`'s plane.
+/// outward normals decidedly opposed, and `i` in `j`'s plane
+/// ([`super::rest::in_plane_of`]; two bounds on one line leave the
+/// planes free to differ).
 fn on_each_other<T: Decide>(link: &Link<T>, [i, j]: [usize; 2], rd: Reading<T>) -> bool {
     let p = link.cone.p;
     let (s, t) = (&link.cone.sectors[i], &link.cone.sectors[j]);
@@ -493,14 +481,17 @@ fn on_each_other<T: Decide>(link: &Link<T>, [i, j]: [usize; 2], rd: Reading<T>) 
         return false;
     };
     toward(p, reach(p, a - p).length(), t.outward, s.outward, rd) == Some(Sign::Negative)
-        && s.wedges.iter().all(|&(a, b)| {
-            [a, b]
-                .into_iter()
-                .all(|q| link.cone.side(t, q, rd) == Some(Sign::Zero))
-        })
+        && super::rest::in_plane_of(link, i, j, rd)
 }
 
-/// One pair's lens ([`lenses`]), `None` where it does not read.
+/// **One pair's lens** ([`lenses`]): the second sheet's height past the
+/// first's along the first's outward normal, one order down
+/// ([`crate::bound_side::FaceBend::section`]), Zero at both bounds and
+/// decided at the wedge's middle at the arm with the second plane's
+/// parting there charged ([`Reading::charged`]): positive a void,
+/// negative a sliver. `None` where a sector is more than one wedge, a
+/// face has no certified bend, a bound does not read Zero, or the middle
+/// does not decide.
 fn lens<T: Decide>(link: &Link<T>, [i, j]: [usize; 2], rd: Reading<T>) -> Option<Lens> {
     let p = link.cone.p;
     let (s, t) = (&link.cone.sectors[i], &link.cone.sectors[j]);

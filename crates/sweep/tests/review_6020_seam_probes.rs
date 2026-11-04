@@ -303,7 +303,8 @@ fn review_6020_boolean_seam_poses() {
 /// Tier 3′ refuses `P` `Degenerate`, as it refuses two planar faces on
 /// each other wherever the link meets them, and reads no point there a
 /// crossing. A pose the split refuses typed (at a coarser band) has no
-/// half to read, and says so. Red where `P` passes unread.
+/// half to read, and stands down saying so; every pose refusing is red.
+/// Red where `P` passes unread.
 #[test]
 fn a_counterbore_half_with_two_faces_on_each_other_refuses_at_the_point() {
     let y = Vec3::new(0.0, 1.0, 0.0);
@@ -332,7 +333,12 @@ fn a_counterbore_half_with_two_faces_on_each_other_refuses_at_the_point() {
                 // Coarser bands refuse the pose typed (a bisector side in
                 // band at 1e-6): no half to read.
                 Err(e) => {
-                    println!("SKIPPED a{az} s{s}: the split refuses at this ε: {e:?}");
+                    test_utils::vacuity::stood_down(
+                        &format!("a{az} s{s}"),
+                        &format!(
+                            "the split refuses this pose at this ε ({e:?}): no half of it is read"
+                        ),
+                    );
                     continue;
                 }
             };
@@ -370,7 +376,5 @@ fn a_counterbore_half_with_two_faces_on_each_other_refuses_at_the_point() {
             }
         }
     }
-    if built == 0 {
-        println!("SKIPPED: every pose refuses at this ε, so no half is read");
-    }
+    assert!(built > 0, "every pose refuses at this ε: no half is read");
 }

@@ -285,7 +285,9 @@ fn a_lens_is_the_void_or_the_sliver_its_sheets_bend_to_interval() {
 /// meet along their bounds one order down (a bore of radius 2, which
 /// holds neither curve); a bore turned off the rod's axis by so little
 /// that the sheets part across the wedge by less than the band at its
-/// arm; a rod flush in a wider bore along their common ruling, two
+/// arm; a curve both faces hold along one bound only, and a bound 2°
+/// off the curve's tangent (each bound is read); a rod flush in a wider
+/// bore along their common ruling, two
 /// sheets on one half-plane that share no two edges; and a void
 /// just past the escalation whose second plane leans off the first by
 /// nine tenths of the band's zero at the arm, which rests unleaning. Red
@@ -362,6 +364,39 @@ fn a_lens_the_bends_do_not_decide_is_not_read<T: Decide>() {
             ),
         ];
         assert_eq!(read(p, flush), unread, "a rod flush in a bore at {p:?}");
+        // One bound's sheets meet one order down and the other's do not:
+        // a cylinder of radius `1 + sin 2ψ` turned `ψ = 60°` off the bore's
+        // axis toward `−y` holds the rod's curve along `u₀` alone; and the
+        // rod and the bore on a wedge whose second ray is turned 2° off
+        // their curve's tangent. Each refuses on that bound.
+        let psi = 60f64.to_radians();
+        let turned = geom::Surface::Cylinder {
+            origin: p - v::<T>(1.0 + (2.0 * psi).sin(), 0.0, 0.0),
+            axis: v(0.0, -psi.sin(), psi.cos()),
+            radius: T::from_f64(1.0 + (2.0 * psi).sin()),
+            u_ref: v(1.0, 0.0, 0.0),
+        };
+        let one: Vec<_> = lens(
+            p,
+            (rod_and_bore(p, 1.0).0, turned),
+            quarter([0.0, 0.0, 1.0]),
+            pair(0),
+        )
+        .into();
+        assert_eq!(
+            read(p, one),
+            unread,
+            "a curve held along one bound only at {p:?}"
+        );
+        let off = 137f64.to_radians();
+        let (d0, _) = quarter::<T>([0.0, 0.0, 1.0]);
+        let d1 = v::<T>(0.0, 2.0 * off.cos(), 2.0 * off.sin());
+        let skew: Vec<_> = lens(p, rod_and_bore(p, 1.0), (d0, d1), pair(0)).into();
+        assert_eq!(
+            read(p, skew),
+            unread,
+            "a bound 2° off its curve's tangent at {p:?}"
+        );
         // A void just past the escalation at the arm `√2` (`l²/2 = 1`,
         // each radius `1/q`), its second plane leaning off the first by
         // nine tenths of the zero there: the lean is charged.
@@ -405,4 +440,265 @@ fn a_lens_the_bends_do_not_decide_is_not_read_f64() {
 #[test]
 fn a_lens_the_bends_do_not_decide_is_not_read_interval() {
     a_lens_the_bends_do_not_decide_is_not_read::<Interval>();
+}
+
+/// A planar face cornered at `p`, of outward unit `m`, from `d0` round
+/// to `d1` along the line edges `ends`.
+fn flat<T: Decide>(
+    p: Point3<T>,
+    m: Vec3<T>,
+    (d0, d1): (Vec3<T>, Vec3<T>),
+    ends: [EdgeKey; 2],
+) -> TangentPiece<T> {
+    let surface = geom::Surface::Plane {
+        origin: p,
+        normal: m,
+        u_ref: m.cross(v::<T>(1.0, 0.3, 0.7)).normalize(),
+    };
+    let line = |edge| Bound {
+        edge,
+        line: true,
+        bend: Vec3::zero(),
+    };
+    let fan = TangentFan::Corner {
+        d0,
+        d1,
+        bounds: ends.map(line),
+        spur: false,
+    };
+    FaceSector::tangent(surface, true, m, p, fan, band()).expect("a planar corner")
+}
+
+/// A box corner at `p` whose edge `a` runs along `(0, 0.3, 1)`, on the
+/// lens plane `x = 0` strictly inside the quarter about `+z`, and whose
+/// other two edges leave that plane toward `+x`: three planar corners, the corner a
+/// hole (`hole`, each outward normal into it) or solid.
+fn box_corner<T: Decide>(p: Point3<T>, hole: bool, k: [EdgeKey; 3]) -> Vec<TangentPiece<T>> {
+    let unit = |[x, y, z]: [f64; 3]| {
+        let n = (x * x + y * y + z * z).sqrt();
+        [x / n, y / n, z / n]
+    };
+    let cross =
+        |[a, b, c]: [f64; 3], [x, y, z]: [f64; 3]| [b * z - c * y, c * x - a * z, a * y - b * x];
+    let dot = |[a, b, c]: [f64; 3], [x, y, z]: [f64; 3]| a * x + b * y + c * z;
+    let a = unit([0.0, 0.3, 1.0]);
+    let w = unit(cross(a, [1.0, 0.0, 0.0]));
+    let off = |t: f64| unit([1.0, t * w[1], t * w[2]]);
+    let (mut b, mut c) = (off(0.6), off(-0.6));
+    if dot(cross(a, b), c) < 0.0 {
+        std::mem::swap(&mut b, &mut c);
+    }
+    let vec = |[x, y, z]: [f64; 3]| v::<T>(2.0 * x, 2.0 * y, 2.0 * z);
+    // Each face's normal into the cone the three edges span: out of the
+    // material round a hole, into it round a solid corner.
+    let into = |e: [f64; 3], f: [f64; 3]| {
+        let [x, y, z] = unit(cross(e, f));
+        if hole {
+            v::<T>(x, y, z)
+        } else {
+            v::<T>(-x, -y, -z)
+        }
+    };
+    let [ka, kb, kc] = k;
+    [(a, b, ka, kb), (b, c, kb, kc), (c, a, kc, ka)]
+        .into_iter()
+        .map(|(e, f, ke, kf)| {
+            if hole {
+                flat(p, into(e, f), (vec(e), vec(f)), [ke, kf])
+            } else {
+                flat(p, into(e, f), (vec(f), vec(e)), [kf, ke])
+            }
+        })
+        .collect()
+}
+
+/// **A sheet reaching a lens along a ray of it refuses in band**: a void
+/// lens with a hole's corner, and a sliver lens with a solid corner,
+/// each corner's edge on the lens plane strictly inside the wedge. One
+/// order down that edge's faces may enter the lens, which nothing reads;
+/// the reading refuses typed, in band, as a sheet meeting the wedge at a
+/// bound of it refuses, not skipped. Red where such a sheet is passed or
+/// left unread.
+fn a_sheet_reaching_a_lens_along_a_ray_of_it_refuses_in_band<T: Decide>() {
+    let in_band = TouchVerdict::Unread(TouchUnread::InBand);
+    for p in apexes::<T>() {
+        let k = edges(5);
+        let (rod, bore) = rod_and_bore(p, 1.0);
+        let mut void: Vec<_> = lens(p, (rod, bore), quarter([0.0, 0.0, 1.0]), [k[0], k[1]]).into();
+        void.extend(box_corner(p, true, [k[2], k[3], k[4]]));
+        assert_eq!(
+            read(p, void),
+            in_band,
+            "a void lens with a hole's corner at {p:?}"
+        );
+        let (rod, bore) = rod_and_bore(p, 1.0);
+        let mut sliver: Vec<_> =
+            lens(p, (bore, rod), quarter([0.0, 0.0, 1.0]), [k[0], k[1]]).into();
+        sliver.extend(box_corner(p, false, [k[2], k[3], k[4]]));
+        assert_eq!(
+            read(p, sliver),
+            in_band,
+            "a sliver lens with a solid corner at {p:?}"
+        );
+    }
+}
+
+#[test]
+fn a_sheet_reaching_a_lens_along_a_ray_of_it_refuses_in_band_f64() {
+    a_sheet_reaching_a_lens_along_a_ray_of_it_refuses_in_band::<f64>();
+}
+
+#[test]
+fn a_sheet_reaching_a_lens_along_a_ray_of_it_refuses_in_band_interval() {
+    a_sheet_reaching_a_lens_along_a_ray_of_it_refuses_in_band::<Interval>();
+}
+
+/// **Two sheets bounded by the same two edges on one line are no lens**:
+/// a plane face and a cylinder face meeting along two line edges that
+/// leave `p` one each way along `x`, the cylinder's tangent plane turned
+/// off the plane about `x`, their normals opposed. Their bounds alone lie
+/// on both planes; the plane's middle does not, so they are an edge's
+/// two faces, which rest. Red where two sheets are taken to lie on each
+/// other by their bounds alone.
+fn a_dihedral_along_two_edges_on_one_line_is_no_lens<T: Decide>() {
+    for p in apexes::<T>() {
+        let k = edges(2);
+        let x = v::<T>(2.0, 0.0, 0.0);
+        let n = v::<T>(0.0, -0.8, -0.6);
+        let line = |edge| Bound {
+            edge,
+            line: true,
+            bend: Vec3::zero(),
+        };
+        let top = flat(p, v(0.0, 0.0, 1.0), (x, -x), [k[0], k[1]]);
+        let wall = geom::Surface::Cylinder {
+            origin: p - n,
+            axis: v(1.0, 0.0, 0.0),
+            radius: T::from_f64(1.0),
+            u_ref: v(0.0, 0.0, 1.0),
+        };
+        let fan = TangentFan::Corner {
+            d0: -x,
+            d1: x,
+            bounds: [line(k[1]), line(k[0])],
+            spur: false,
+        };
+        let side = FaceSector::tangent(wall, true, n, p, fan, band()).expect("the wall");
+        let got = read(p, vec![top, side]);
+        assert!(
+            matches!(got, TouchVerdict::Rest(_)),
+            "a dihedral at {p:?}: {got:?}"
+        );
+    }
+}
+
+#[test]
+fn a_dihedral_along_two_edges_on_one_line_is_no_lens_f64() {
+    a_dihedral_along_two_edges_on_one_line_is_no_lens::<f64>();
+}
+
+#[test]
+fn a_dihedral_along_two_edges_on_one_line_is_no_lens_interval() {
+    a_dihedral_along_two_edges_on_one_line_is_no_lens::<Interval>();
+}
+
+/// The three horns of a thorn of material along `+x` from `p` (off the
+/// lens plane `x = 0`): one order down the triangle of a line edge at
+/// `0`, an arc at `(0, 1, 0)` and an arc at `(0, 0, 1)`, as
+/// `second_order_rows` builds it. `along` places the thorn's own `x`,
+/// `y` and `z`.
+fn thorn<T: Decide>(
+    p: Point3<T>,
+    keys: [EdgeKey; 3],
+    along: fn(f64, f64, f64) -> Vec3<T>,
+) -> Vec<TangentPiece<T>> {
+    let v = along;
+    let d = v(2.0, 0.0, 0.0);
+    let bound = |edge, bend: Vec3<T>| Bound {
+        edge,
+        line: false,
+        bend,
+    };
+    let l = Bound {
+        edge: keys[0],
+        line: true,
+        bend: Vec3::zero(),
+    };
+    let (a, b) = (
+        bound(keys[1], v(0.0, 1.0, 0.0)),
+        bound(keys[2], v(0.0, 0.0, 1.0)),
+    );
+    let s = core::f64::consts::FRAC_1_SQRT_2;
+    [
+        (v(0.0, 0.0, -1.0), [a, l]),
+        (v(0.0, -1.0, 0.0), [l, b]),
+        (v(0.0, s, s), [b, a]),
+    ]
+    .into_iter()
+    .map(|(m, ends)| {
+        let surface = geom::Surface::Plane {
+            origin: p,
+            normal: m,
+            u_ref: m.cross(v(1.0, 0.3, 0.7)).normalize(),
+        };
+        let fan = TangentFan::Corner {
+            d0: d,
+            d1: d,
+            bounds: ends,
+            spur: false,
+        };
+        let piece = FaceSector::tangent(surface, true, m, p, fan, band()).expect("a horn");
+        assert!(
+            matches!(piece, TangentPiece::Horn(_)),
+            "a horn of the thorn"
+        );
+        piece
+    })
+    .collect()
+}
+
+/// **A lens beside a thorn is read against the thorn's region**: a
+/// thorn of material along `+x` touching a lens's point, its remainder
+/// the thorn's horns alone, whose region round them is no material. A
+/// sliver there rests; a void, which needs material round it, refuses;
+/// a thorn along the lens's middle, on its wedge, refuses in band. Red
+/// where the remainder leaves out its horns, reads their region as
+/// material, or a horn on the wedge is passed.
+fn a_lens_beside_a_thorn_is_read_against_its_region<T: Decide>() {
+    let unread = TouchVerdict::Unread(TouchUnread::Unreadable);
+    for p in apexes::<T>() {
+        let k = edges(5);
+        let with = |sheets| {
+            let mut out: Vec<_> = lens(p, sheets, quarter([0.0, 0.0, 1.0]), [k[0], k[1]]).into();
+            out.extend(thorn(p, [k[2], k[3], k[4]], v::<T>));
+            read(p, out)
+        };
+        let (rod, bore) = rod_and_bore(p, 1.0);
+        let got = with((bore, rod));
+        assert!(
+            matches!(got, TouchVerdict::Rest(_)),
+            "a sliver beside a thorn at {p:?}: {got:?}"
+        );
+        let (rod, bore) = rod_and_bore(p, 1.0);
+        assert_eq!(with((rod, bore)), unread, "a void beside a thorn at {p:?}");
+        // The thorn along the lens's middle, on its wedge: refused in band.
+        let (rod, bore) = rod_and_bore(p, 1.0);
+        let mut on: Vec<_> = lens(p, (bore, rod), quarter([0.0, 0.0, 1.0]), [k[0], k[1]]).into();
+        on.extend(thorn(p, [k[2], k[3], k[4]], |a, b, c| v::<T>(b, c, a)));
+        assert_eq!(
+            read(p, on),
+            TouchVerdict::Unread(TouchUnread::InBand),
+            "a thorn along a sliver's middle at {p:?}"
+        );
+    }
+}
+
+#[test]
+fn a_lens_beside_a_thorn_is_read_against_its_region_f64() {
+    a_lens_beside_a_thorn_is_read_against_its_region::<f64>();
+}
+
+#[test]
+fn a_lens_beside_a_thorn_is_read_against_its_region_interval() {
+    a_lens_beside_a_thorn_is_read_against_its_region::<Interval>();
 }
