@@ -94,3 +94,4 @@
   - **Filed by the lane:** the region term omits junction connectors, which is pre-existing in the harmonic lane too (P2); the projected edge cost weights are unmeasured (P3).
   - **The P1 cost row is re-measured in release:** 5.5–11.9 s per op. The march is the cost now.
   - **Stage 1 closed.** The orchestrator branch merge brought main's code in (PR 6486's `quad_lane` arm, auto-merged), so the head re-earns CI before merging.
+- 2026-11-04 — **PR 6478 merged** (stage 1 of the rotational lane). **Dispatched stage 2** as `the-rotational-lane-reads-the-sphere-chart` (H, dual). It closes the P0 projected-boundary row and teapot wall 2's current stop, and it takes the P2 junction-gap row, which the sphere's F enlarges.
