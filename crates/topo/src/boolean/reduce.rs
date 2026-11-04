@@ -4141,9 +4141,9 @@ fn parents_distinct_from<T: Decide>(
             match super::carrier_pair::carrier_pair_relation(x, pf, y, face, band) {
                 Ok(Ok(super::carrier_eq::CarrierRelation::Distinct)) => true,
                 Err(super::carrier_pair::PairUnread::OutsideInventory) => {
-                    match x.proven_face_surface(pf) {
+                    match x.proven_face(pf).surface() {
                         geom::Surface::Nurbs(sheet) => {
-                            spline_off_carrier(sheet, y.proven_face_surface(face), band)
+                            spline_off_carrier(sheet, y.proven_face(face).surface(), band)
                         }
                         _ => false,
                     }
