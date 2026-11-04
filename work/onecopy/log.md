@@ -113,3 +113,10 @@
   - the lune pin re-posed 2e-11 off the vertex, as I ruled.
 
   The lane's full suites (geom-brep, topo, sweep) show the same reds at head and base, at the default ε. A FULL review is dispatched to session_013mPGJ1mbS3kUq2KmhnB6J7. It also runs sweep and geom-brep at 1e-12 against base and reports on the two P0s, and it judges the PR as an interim step before the decided f64-lift design. The local lane af87d40c9022afb11 has finished, and its pose target dir is reclaimed. The polish-meters implementation goes out after 6516 lands.
+- 2026-11-04 — PR 6516's FULL review: APPROVE-WITH-FIXES with one MAJOR, all sustained, and a fix pass sent.
+  - **M1.** Sweep's `band_ruled_cap_ring` row is pinned red at 1e-12 on the CPAIR row this PR fixes, so merging would turn nightly red. One finding had two homes (our row and CPAIR's), and a pin that cites a row is not found when that row is fixed.
+  - **Minors.** Walk and census `run_ends` still read span ends by hand. The re-posed lune pin no longer guards its precision branch; mutation proved it.
+  - **Notes.**
+    - `place` is a third bracket-midpoint spelling, NaN on an unbounded enclosure, and it drops the tangent at `Dual<Interval>`, which has no bounds_census record.
+    - `Span` has four doors over two facts, and its pub `end_point` bypasses `ended`.
+  - **Class lesson.** A pin names its row; fixing the row must find the pin (a link check is owed). And "every site reads it" claims need a grep that matches every spelling.
