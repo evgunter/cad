@@ -58,7 +58,7 @@ Routed, not exempt. The chart's channel table is spelled once, in `geom::ChartCh
 - A mutation of the shared table reds geom's `chart_point::tests::each_arm_reads_a_point_as_its_foot` and `old_formula_rows`.
 - geom's `a_quarter_rotates_exactly_and_about_names_the_angle_on_its_branch` pins `Quarter` and `about` themselves.
 
-**`about` and `Azimuth::near` (PR 6482).** These are two questions, so both stay. `near` decides a copy near a `T` reference; `about` evaluates on a known quarter branch and decides nothing. The pcert orchestrator ruled this after the FULL review (Z1). `near`'s doc gains a pointer to `about`, filed for 6482's lane with the mechanical conflicts: `work/onecopy/azimuth-near-and-azimuth-about-should-name-each-other.md` (P3).
+**`about` and `Azimuth::near` (PR 6482).** These are two questions, so both stay. `near` decides a copy near a `T` reference; `about` evaluates on a known quarter branch and decides nothing. The pcert orchestrator ruled this after the FULL review (Z1). 6482 landed first, so this PR wrote the two docs' pointers to each other and resolved the conflicts: `Azimuth::tube` reads in `ChartChannels::read`, and the `atan2-sites.tsv` rows for `projected.rs raw` and `branch_azimuth` are gone.
 
 **Rows filed for the sweep's out-of-scope sites, and for the image's box forms:**
 

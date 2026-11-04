@@ -319,14 +319,14 @@ impl<T: Real> ChartChannels<T> {
                 let u = name(ChartAngle::Azimuth, radial);
                 (
                     u,
-                    name(ChartAngle::Tube, Azimuth::of(h, rho - major)),
+                    name(ChartAngle::Tube, Azimuth::tube(h, rho, major)),
                     Some(rho),
                 )
             }
             Self::Spindle { major } => {
                 let rho = rho();
                 let u = name(ChartAngle::Azimuth, radial);
-                let v = name(ChartAngle::SheetTube, Azimuth::of(h, rho - major));
+                let v = name(ChartAngle::SheetTube, Azimuth::tube(h, rho, major));
                 (u, v, Some(rho))
             }
         };

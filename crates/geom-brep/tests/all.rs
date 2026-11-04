@@ -54,6 +54,8 @@ mod shared;
 
 #[path = "a_shared_row_is_certified_per_wall.rs"]
 mod a_shared_row_is_certified_per_wall;
+#[path = "an_iso_family_reads_the_edges_span.rs"]
+mod an_iso_family_reads_the_edges_span;
 #[path = "analytic_rung3_certificate.rs"]
 mod analytic_rung3_certificate;
 #[path = "approx_surface.rs"]
