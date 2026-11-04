@@ -204,7 +204,12 @@ impl<T: Decide + Bounds> EndCut<T> {
                 // trimline (`arms`), so laid into the cap it points at
                 // `foot_a`.
                 let n = n.normalize();
-                let circle = Curve3::circle(center, n, radius, perp_unit(u_ref, n));
+                let u_ref = perp_unit(u_ref, n);
+                debug_assert!(
+                    (foot_a - center).dot(u_ref).lo() > 0.0,
+                    "the band's seam reference points at face_a's foot"
+                );
+                let circle = Curve3::circle(center, n, radius, u_ref);
                 round(Some(circle), center)?
             }
             (EndSection::Ellipse(ellipse), Some((spine, ..))) => {

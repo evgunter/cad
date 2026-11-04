@@ -1180,9 +1180,9 @@ pub fn corner_ball<T: Real>(
     let num = n2.cross(n3) * rhs[0] + n3.cross(n1) * rhs[1] + n1.cross(n2) * rhs[2];
     let c = anchor + num / det;
     // The feet lie along `n_i` from a convex rest and along `−n_i` from
-    // a concave one — the same fold as the centre's, `−signed/r`.
-    let side = -signed / radius;
-    let (u_ref, axis) = corner_chart([n1 * side, n2 * side, n3 * side]);
+    // a concave one — the same fold as the centre's.
+    let foot = |n: Vec3<T>| sided(convexity.ball_side(true), n);
+    let (u_ref, axis) = corner_chart([foot(n1), foot(n2), foot(n3)]);
     CornerBall {
         surface: Surface::Sphere {
             center: c,
