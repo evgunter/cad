@@ -756,10 +756,12 @@ written refuses "not yet". Those pairs are: an ellipse the chart's
 class readings do not show one of its own, on any chart (on the plane,
 and as a section of a cylinder or a cone, an ellipse images in closed
 form, and needs no general lane there); a
-line within the band of a sphere or a torus, which hold none; a line
-within the band of a cone that is no ruling, which the cone's arm reads
-as a ruling and so refuses at its certificate rather than "not yet";
-and every carrier on a spindle chart. Whether the carrier lies
+line within the band of a sphere or a torus, which hold none; and
+every carrier on a spindle chart. Whether a line is a ruling of a
+cylinder or a cone is one reading (`ruling_miss`), shared by the mint,
+props and the boolean: how far the line leaves the ruling over the
+edge's span, in metres. On a cone, that is the generator the line's
+anchor names, through the apex. Whether the carrier lies
 on the chart at all is a residual, not a class gate: a definite miss
 is a contradiction between what the edge states and its geometry,
 ended by the door that reads it (D4 ¶1 (iv)), and a read in band, at a
