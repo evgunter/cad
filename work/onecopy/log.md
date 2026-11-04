@@ -222,3 +222,5 @@
   - NOTE-1: the chamfer's support trimlines still re-read τ through `Chord` (`planar.rs:564`, `surgery.rs:5333-5336`), though the arm stores `Line{foot,tau}`. They are planes, so it probably costs nothing.
   - A slip: only shear −0.8 was red, not ±0.8.
   Main (PR 6530/6534, splice) merged into the branch cleanly as `c47276d9`; only the nextest slow-set lines were combined. The gate is running.
+
+- 2026-11-04 — PR 6533 merged as `fe78065195`, gated on `c47276d9`. That closes the sheared-fillet P0. Both delta-review notes went onto `work/band/a-blend-arcs-seam-reference-is-read-off-its-vertex-less-its-centre.md`: the chamfer `Chord` re-read of τ, and the shear −0.8 correction (also made on the closed P0 row).

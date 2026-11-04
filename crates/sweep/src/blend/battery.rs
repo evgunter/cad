@@ -233,14 +233,15 @@ impl Convexity {
     }
 }
 
-/// **The conditional negation every `R ∓ r` selector spells**: `x`
+/// **The conditional negation every `R ∓ r` selector and every foot
+/// direction `±n` spells**: `x`
 /// with the ball on the support's inner side, `−x` on its outer side —
 /// exact in every backend. The sheet arms spell it on the side
 /// [`Convexity::ball_side`] derives from the chain's verdict, and
 /// [`Convexity::signed`] is it on a support whose chart normal is the
 /// outward one, so the one home is beside the side's provenance rather
 /// than inside either consumer.
-pub(super) fn sided<T: Real>(side: SurfaceSide, x: T) -> T {
+pub(super) fn sided<X: core::ops::Neg<Output = X>>(side: SurfaceSide, x: X) -> X {
     match side {
         SurfaceSide::Inner => x,
         SurfaceSide::Outer => -x,
