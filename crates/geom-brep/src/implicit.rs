@@ -1326,7 +1326,7 @@ pub(crate) fn conic_axis_distance_floor<T: Real>(
         let along = axis.dot(x);
         x - axis * along
     };
-    let d = conic.frame().center - origin;
+    let d = conic.frame().origin - origin;
     let (e, up, vp) = (
         perp(d),
         perp(conic.frame().u_ref),

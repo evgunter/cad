@@ -845,7 +845,7 @@ fn a_circles_projected_envelope_covers_its_residual() {
             Curve3::Circle(geom::Circle {
                 frame:
                     geom::Frame {
-                        center,
+                        origin: center,
                         axis: n,
                         u_ref: x,
                     },
