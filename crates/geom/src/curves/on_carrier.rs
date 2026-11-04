@@ -71,7 +71,7 @@
 //! escalates.
 
 use geom_core::bisect::{Step, bisect};
-use geom_core::k_stats::{check_unlogged, decide, decide_reported, straddle};
+use geom_core::k_stats::{decide, decide_reported, straddle};
 use geom_core::{
     Band, Decide, Decided, Indeterminate, Margin, MarginDiag, Point3, Real, Sign, SupSpeed, Vec3,
 };
@@ -346,27 +346,14 @@ impl<T: Decide> Curve3<T> {
     pub fn foot(&self, q: Point3<T>, near: T) -> Foot<'_, T> {
         let seed = match self {
             Self::Line(line) => line.param(q),
-            Self::Circle(c) => {
-                let (x, y) = c.frame.in_plane(q);
-                return self.foot_at(q, angle_near(x, y, near));
-            }
-            Self::Ellipse(e) => {
-                let (x, y) = crate::Conic::unit_in_plane(e, q);
-                angle_near(x, y, near)
-            }
+            Self::Circle(c) => return self.foot_at(q, crate::Conic::azimuth(c, q).near(near)),
+            Self::Ellipse(e) => crate::Conic::azimuth(e, q).near(near),
             Self::Spiric {
                 center,
                 axis,
                 major_radius,
                 ..
-            } => {
-                // The torus's minor angle about the tube's centre circle,
-                // as [`Curve3::param_near`] reads it.
-                let w = q - *center;
-                let h = w.dot(*axis);
-                let rho = (w - *axis * h).norm();
-                angle_near(rho - *major_radius, h, near)
-            }
+            } => super::tube_section(*center, *axis, *major_radius, q).near(near),
             Self::Nurbs(n) => {
                 let knots = n.knot_values();
                 let (lo, hi) = knots.domain();
@@ -573,30 +560,8 @@ pub fn ellipse_level_clearance<T: Decide>((x, y): (T, T), (a, b): (T, T)) -> T {
     two * f / (g2.sqrt() + (g2 + T::from_f64(4.0) * f.abs() / small.powi(2)).sqrt())
 }
 
-/// **The angle of `(x, y)`, read about `near`**: relative to `near`'s
-/// direction, or to its opposite where the point lies definitely behind
-/// it, so the angle's own branch cut is never crossed and an enclosure of
-/// the point's direction stays an enclosure of one angle. The result lies
-/// within a turn and a half of `near` (half a turn of `near` or of
-/// `near + π`); a reader that needs a branch chooses it. The flip is
-/// decided outside the log (ledger row F31): where `along` is undecided
-/// the point lies a quarter turn from `near`, clear of both formulas'
-/// cuts, or at the centre, where `across` is undecided too and both
-/// formulas read an enclosure equally wide; no foot rests on the outcome.
-fn angle_near<T: Decide>(x: T, y: T, near: T) -> T {
-    let (sin, cos) = near.sin_cos();
-    let (along, across) = (x * cos + y * sin, y * cos - x * sin);
-    let behind =
-        check_unlogged("curve_foot_branch", along, Band::least(), "F31") == Ok(Sign::Negative);
-    if behind {
-        near + T::pi() + (T::zero() - across).atan2(T::zero() - along)
-    } else {
-        near + across.atan2(along)
-    }
-}
-
 /// `w`'s height along `axis` and its distance from the axis.
-fn height_and_radius<T: Decide>(w: Vec3<T>, axis: Vec3<T>) -> (T, T) {
+pub(super) fn height_and_radius<T: Decide>(w: Vec3<T>, axis: Vec3<T>) -> (T, T) {
     let h = w.dot(axis);
     (h, (w - axis * h).norm())
 }

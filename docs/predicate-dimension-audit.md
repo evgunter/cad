@@ -518,8 +518,8 @@ which is what actually moves the number.
 | props/curved.rs (`require_rims_at_extremes`, through `level_coincides`) | props_rim_level | per-kind: bare level difference (cylinder/cone `Length`) / rooted (sin,cos) chord × `RimArms::level` (sphere ×R, torus ×minor) | m | **FIXED — N7 RETIRED** (N1 RETIRED earlier. Generalised from the torus-only site to all four kinds by S58/#649, and unified with its former sibling `props_rim_level_group` by S81 — ONE rule (`level_coincides`), one metric (the chord), one arm (`RimArms::level`), one fail direction; the sibling went with `du_of_rims`, so `level_coincides` now records under this one name, the shape door's (`require_iso_rectangle`), and the metering is still carried by [`RimLevel`]. N7's near-polar sphere understatement — an axial-only `(sin v, 0)` pair whose chord collapsed by `cos v̄`, merging distinct near-polar rims in the ACCEPTING direction on both names, this refusing one included — is retired by the full `(sin v, cos v)` pair (issue 893 / S-CERT; this verdict column previously said `OK` while N7's own prose recorded the collapse). Pinned as scale twins by `geom-brep/tests/rim_dim_scale_twins.rs` and, in suites CI runs, by `geom-brep/tests/s81_one_rim_level_rule.rs` and the near-polar rows of `geom-brep/tests/cert1_sphere_polar.rs`.) |
 | props/quad/ (every quadrature lane's round, the spiric lane's too, each read through `quad::converged`) | props_quad_converged | ε·F − flux-width(m³)/(3·area(m²)) | m | **RETIRED** (QUAD measure door units B and C: a face's width is compared with the caller's stated resolution, `Settle::Resolution`, and not decided, so this mint is gone; the reporting target `QUAD_TARGET_LEN_FACTOR·ε` it read and `QuadratureBudget` are gone with it. The row is kept for the committed eras' samples, `k_lint::ERA_EPS_COUPLED_PREDICATES`.) |
 | props/quad/run.rs | props_quad_face_extent | area/perimeter (mean width) | m | OK |
-| props/quad/cylinder.rs (`loop_windings`, per junction of every loop of a cylinder quadrature face, through `closure::interval_loop_turns`) | props_chart_junction_closed | `excess(hi(G), S)` — `G = R·\|Δu − 2πm\| + \|Δv\|`, the chart gap between one edge's end and the next edge's start (each read through its own vertex's trig bracket), a whole number `m` of azimuth turns taken off, its UPPER bound in excess of the slack `S` (the two ends' `end_slack`: `3/2·env` plus the parameter bracket's half-width times the edge's speed bound; and `3ε` for the two carriers' ends about their vertex); `0` within it | m | OK (Zero, an excess under ε: every gap the enclosure admits is within `S + ε`, and the junction closes. In band escalates. Positive asks `props_chart_junction_open` below. The `3ε` vertex term is measured necessary: at ε = 1e-12 on the geom-brep, topo and sweep suites, 3428 real junctions read up to 1.99ε beyond their end slack alone, and none reads beyond `S + ε`. The loop's turns are then the integer `Σm`; `\|turns\| ≤ 1` and `Σ turns = 0` over the face are integer facts that decide nothing, refused `LoopsWindChart`) |
-| props/quad/cylinder.rs (`loop_windings`, a junction whose upper excess is definitely positive) | props_chart_junction_open | `excess(lo(G), S)` — the same gap's LOWER bound in excess of the same slack, through `decide_positive` | m | OK (only a definite Positive refuses `ChartLoopOpen`: no gap the enclosure admits is within `S + Kε`. Zero or in band escalates, so a junction the enclosure cannot decide is never measured) |
+| props/quad/rotational.rs (`loop_windings`, per junction of every loop of a rotational quadrature face, through `closure::interval_loop_turns`) | props_chart_junction_closed | `excess(hi(G), S)` — `G = R·\|Δu − 2πm\| + \|Δv\|`, the chart gap between one edge's end and the next edge's start (each read through its own vertex's trig bracket), a whole number `m` of azimuth turns taken off, its UPPER bound in excess of the slack `S` (the two ends' `end_slack`: `3/2·env` plus the parameter bracket's half-width times the edge's speed bound; and `3ε` for the two carriers' ends about their vertex); `0` within it | m | OK (Zero, an excess under ε: every gap the enclosure admits is within `S + ε`, and the junction closes. In band escalates. Positive asks `props_chart_junction_open` below. The `3ε` vertex term is measured necessary: at ε = 1e-12 on the geom-brep, topo and sweep suites, 3428 real junctions read up to 1.99ε beyond their end slack alone, and none reads beyond `S + ε`. The loop's turns are then the integer `Σm`; `\|turns\| ≤ 1` and `Σ turns = 0` over the face are integer facts that decide nothing, refused `LoopsWindChart`) |
+| props/quad/rotational.rs (`loop_windings`, a junction whose upper excess is definitely positive) | props_chart_junction_open | `excess(lo(G), S)` — the same gap's LOWER bound in excess of the same slack, through `decide_positive` | m | OK (only a definite Positive refuses `ChartLoopOpen`: no gap the enclosure admits is within `S + Kε`. Zero or in band escalates, so a junction the enclosure cannot decide is never measured) |
 | props/spiric.rs (`wall_windings`, per junction of a spiric torus wall's loop on its lifted images, through `closure::interval_loop_turns`) | props_chart_junction_closed / props_chart_junction_open | `excess(hi(G), S)` / `excess(lo(G), S)` — `G` the chart gap less whole turns in `u` and `v`, the azimuth's levered at the junction's own distance from the axis, `ρ = R + r·cos v` enclosed over the after edge's start, the tube angle's at `r`; `S` the two images' certificate envelopes and `3ε` | m | OK (the quadrature's rule on the torus chart. A wall carries one loop, so its turns `Σm` per direction must be `0`, refused `LoopsWindChart`) |
 | props/quad/trimmed.rs (`piece_monotone`, asked once per trim piece by `trim_cells`) | props_trim_piece_monotone | `Margin::metered(span, rate)` — `span` is the control polygon's LEAST advance along the unit chord direction, a chart-parameter length (a convexity fact on the Bézier differences, which are the derivative's own coefficients up to the positive `p/h`); `rate` is the chart's metric rate along that same direction, `|S_u·ĉ_u + S_v·ĉ_v|` bounded BELOW over the piece box | m | OK (added with the trimmed-region quadrature, TRIM-2 PR-1. Clause (iii)'s metric door: a parameter-space span crosses to model space through a per-kind rate, and the rate here is the chart's own directional derivative rather than a carrier speed. Both factors round toward REFUSING — the span is the `lo()` of the bracketed dot product, and a derivative hull that straddles zero in every component answers rate `0`, hence margin `0`, hence Zero. Only a definite `Positive` admits the piece; `Zero` and the ambiguity band alike bisect the piece and re-ask, to `TRIM_MONOTONE_DEPTH`, and then refuse `QuadratureUnsupported` naming this row — the lane never pads a piece it cannot certify is a graph over its chord. **The margin carries the ROUND's lever as well as the image's, and a reader of this row has to know it**: `span` is the REFINED block's least advance, so it halves with every uniform cut and every bisection AND scales with the face. Measured (the v6 dual, both arms independently): the same smooth parabolic arc certifies at every round on a 10 µm face, refuses at round 4 on a 1 µm face, and refuses at every round on a 0.1 µm face — that is the lane's resolution speaking, not the image's shape, which is why the refusal names an UNRESOLVED margin rather than a cusp. Nothing on today's corpus is near the band (the fixture's scale is 1e-3 and round 0 is decades clear). An in-band verdict ESCALATES, as it does from every other lane in this file: bisection halves the very span the margin meters, so it cannot resolve one. Pinned by `geom-brep`'s `q5_a_fold_over_its_chord_refuses_typed` (a fold that survives every bisection) and `q5b_a_piece_that_only_looks_folded_resolves_by_bisection` (the curvature artefact the ladder is FOR — a refusal is cheap to get right by refusing everything).) |
 | ssi/certify.rs (`analytic_limbs`, `nurbs_limbs`) | ssi_on_locus / hull_sup / foot / chart | residuals, /2R linearizations, foot distances | m | OK |
@@ -569,9 +569,7 @@ which is what actually moves the number.
 | boolean/join.rs (`line_of`) | bool_germ_apex_heading | `\|ĝ × d̂\|`, the sine of a germ at the apex off a line of the pair, levered by the reach of the pair's one reading from the apex (m): the line it runs along | m | OK (SPLITDOOR) |
 | boolean/join.rs (`rotational_sense`) | bool_join_arc_facing | axis·((p−c)×dir) — radius-metered sine | m | OK |
 | boolean/join.rs (`SectionLoops::branch_at`) | bool_join_section_loop | which loop of a plane×torus section's two a germ site lies on, decided where the germ is minted: `(p − o)·d̂` (the side of a plane between the loops, `d̂` unit) or `‖(p − o) × â‖ − R` (the distance from an axis against a radius, `â` unit) | m | OK |
-| boolean/join.rs (`SectionLoops::branch_at`) | bool_germ_bisector_branch | which bisector-plane ellipse of an equal cylinder pair with meeting axes a germ site lies on: `|(p − o)·ŝ| − |(p − o)·d̂|`, `ŝ = unit(â₁ + â₂)` and `d̂ = unit(â₁ − â₂)` the two planes' normals, so each term is the site's distance from a plane; Zero only near the nodes, where the ellipses cross | m | OK |
-| boolean/vtxfac.rs (`mint_node`) | bool_node_wall_sense | which side of its wall a face's material is at a node: the face's unit outward normal against the radial `node − p`, `±r` | m | OK |
-| boolean/vtxfac.rs (`mint_node`) | bool_node_run_turn | which arc a node's run is entered by, turning about B's outward normal: `(ĝ₁ × ĝ₂)·n̂`, levered at `r`; the arcs cross square, so `±r` | m (levered) | OK |
+| boolean/node.rs (`wall_sense`, read by `vtxfac::mint_node` and the pierce datum `bisector_datum`) | bool_node_wall_sense | which side of its wall a face's material is where the wall is tangent to its partner: the face's unit outward normal against a unit normal (a node's common normal, or a pierce's radial), levered at an arm (the section's scale, or the wall's radius); tangent there, so `±arm` | m (levered) | OK |
 | chord_join.rs (`section_loop`) | chord_section_loop | which loop of a plane×torus section's two a split-lane chord's sites lie on, by the split both lanes build for the section (`LoopSplit::plane_torus`): `(p − o)·d̂` or `‖(p − o) × â‖ − R`; a boolean chord takes its germ's branch and reads no margin | m | OK |
 | boolean/join.rs (`along_facing`) | bool_join_foot_heading | unit germ dir · the carrier's unit tangent at the site's foot, levered by the section's own scale (`CarriedSection::lever`, the cylinder's radius for cylinder × sphere), so a germ's heading is its own and read once per operation (`SectionTable::germ_foot`) | m (levered) | OK |
 | boolean/join.rs (`along_facing`) | bool_join_foot_ahead | the carrier parameter from one site's foot to the other's, the way the germ leaves, metered by the carrier's speed at the germ's foot | m | OK |
@@ -763,6 +761,8 @@ which is what actually moves the number.
 | chord_join.rs (`carried_chord_spec`) | chord_carried_leave | a boolean germ's unit direction against the component's tangent at the chord's start, `dir·Ĉ′(t₁)` (the cosine between them), levered at the section's scale (`CarriedSection::lever`, the cylinder's radius) | m | OK (SECT) |
 | chord_join.rs (`carried_chord_spec`) | chord_carried_forward | the parameter travel from the chord's start to its end the way it leaves, metered by the carrier's speed at the start; only its sign is consumed | m | OK (SECT) |
 | pair_section.rs (`seat_at`) | ssi_seat_at_the_start | where the knot edit opening a loop at `at` refuses: the seat's distance from the fitted loop's start (or end, one point), `‖C(at) − C(t₀)‖`; decided within the band the loop is kept, undecided the seat escalates | m | OK (SECT) |
+| pair_section.rs (`at_node`, read by `CarriedSection::site` and `CarriedComponent::place`) | section_site_at_node | whether a site stands at a node the section lists: its distance from the node, `‖p − node‖`; Zero is the node, an undecided one escalates, and a site decided off every node yet on two arcs that share one escalates on that distance | m | OK (SECT) |
+| pair_section.rs (`CarriedComponent::within_span`, read by `CarriedComponent::reads`) | section_site_in_span | whether a foot on an open arc of a circle or an ellipse lies within the arc's span: the span's last parameter less the foot's, read in the turn the span starts, metered by the carrier's speed at the foot; Zero is the arc's end, within the band of the node every reading tests first: a site decided off that node yet there lies in the band of two arcs crossing at it, and escalates | m (metered) | OK (SECT) |
 | pair_section.rs (`CarriedComponent::holds`, the counted section's cross-check) | curve_carrier_gap / curve_carrier_clear / curve_carrier_straddle | a listed component's closed-form witness against a marched branch's fitted carrier, `geom`'s on-carrier reading at the witness's foot, in a band widened by the branch's tube radius (the section lies within it of the carrier) | m | OK (SECT) |
 | ring_path.rs (`Quadric::paths`) | split_ring_path_off_core | a torus path end's distance from the core circle, shrunk toward zero by the coordinates' resolution (`charge`, `resolution`) | m | OK (GERM) |
 | ring_path.rs (`Quadric::torus_circle_arc`) | split_ring_torus_meridian | `n̂·â` (the cosine between a loop circle's axis and the torus's), levered at the circle's radius | m | OK (GERM) |
@@ -852,6 +852,7 @@ which is what actually moves the number.
 | link.rs (`Link::lowest_on`) | link_offset_ball | a read candidate against the ball a refused candidate's distance from the boundary clears: its side of the plane tangent to the ball at the point toward it (unit normal along the line between them) — inside, the two points share membership, nothing of the boundary lying between — through `link::metric::Distance`, `Margin::of`. Only a decided inside lends a membership; otherwise the segment refuses | m | OK (new) |
 | link.rs (`rest::by_round`; `rest::one_material`'s first-order hold) | link_round_offset | a point of a link's boundary, or the lowest point of a segment of it, against a sphere's or a cylinder's carrier: its signed distance from the carrier, positive away from the face's material (`Round::lowest_on`, a norm of metre coordinates less the radius) — through `link::metric::Distance::off`, `Margin::of`. A decided below confirms a crossing; in band refuses. A line edge's ray point lying in a tangent sector of a sphere or cylinder face, read Zero against its carrier, is a ruling the face keeps (`on_carrier`); any other reading leaves the coincidence first order, refused | m | OK (new) |
 | link.rs (`FaceSector::tangent`'s whole plane, `in_plane`) | link_tangent_frame | a carrier frame direction's point `apex + e`, moved `±0.6·m` along the sector's unit normal `m`, against the sector's plane through its apex: `m·e ∓ 0.6`, whether the unit `e` is within 0.6 of square to `m` — through `link::metric::Distance`, `Margin::of`. Picks which of the carrier's three orthonormal directions turns the plane's fan (its part in the plane then longer than 0.8); one of the three always lies within `1/√3`, so a reading in band only passes to the next, and none deciding refuses in band | m | OK (new) |
+| link.rs (`second_order`: a cusp corner, a thorn, sheets along a tied ray) | link_second_order | one order down along a ray where a tangent link's first order ties: the Taylor term `(κ_c − κ_a)·n·l²/2` of two edges' curvature vectors' difference against a unit direction `n` (a face's outward normal, the direction left of the ray in a face's plane, or a sheet's run along the cut) at the arm `l` — where an edge stands against a face's line or another edge's point in the cut square to the ray — through `link::metric::Distance::departure` (`Parted`), the first-order residue of the two edges' departures at the same arm, and a sheet's lean along a line it runs on, charged to the slack (`Reading::charged`) | m | OK (new) |
 | offset_axial.rs (VERBS-RIMCAP) | offset_axial_cap_pair | sine between the two moved meridian caps' cross-section normals × each of the corner's own edge arc lengths — the length a near-parallel pair's solve error would move the corner by (the `offset_axial_corner` idiom on the derived pair) | m | OK (new in VERBS-RIMCAP) |
 | offset_axial.rs (VERBS-RIMCAP) | offset_axial_cap_line | the moved caps' meeting line's own distance from the axis (`ρ_L`, a norm of metre coordinates) — `Zero` routes to the pole arm rather than refusing | m | OK (new in VERBS-RIMCAP) |
 | offset_axial.rs (VERBS-RIMCAP) | offset_axial_datum_arm | the old corner's distance from its own profile circle's centre (2-D norm in the meridian half-plane, metres) — the carried-datum direction's lever, dead exactly when no direction exists | m | OK (new in VERBS-RIMCAP) |
@@ -1558,25 +1559,50 @@ Flagged, NOT fixed here (dispositions):
   **Carried as `k_stats::unlogged("F30", ..)`**. Not a `decide_flagged`
   site; `LEDGER_FLAGGED_SITES` does not move.
 
-- **F31** (added by ONECOPY's foot-and-angle unit) `curve_foot_branch`
-  — `geom/src/curves/on_carrier.rs` `angle_near`, the angle of a point
-  about a closed carrier's centre read relative to the foot's seed:
-  `along`, the point's in-plane component along the seed's direction
-  (metres on a circle, unit coordinates on an ellipse, the tube's
-  section on a spiric). It picks between `near + atan2(across, along)`
-  and its half-turn twin, two formulas equal modulo a turn. What keeps
-  it off the logged doors is that no outcome of it is a reading: where
-  `along` is undecided the point lies a quarter turn from the seed,
-  clear of both formulas' cuts (or at the centre, where `across` is
-  undecided too and both formulas read an enclosure equally wide), and
-  a foot's parameter is not reduced to any branch
-  (`Foot::t`). Logged, an undecided flip at `Interval` would hand the
-  driver an escalation no box answers, on every closed-form circle foot
-  a quarter turn from its seed.
+- **F31** (added by ONECOPY's foot-and-angle unit, widened by its
+  angle-reads unit) — **a renaming between copies equal modulo a
+  period.** Two sites, each choosing between names of one value:
+  - `geom_core::Period::near` (`period_near_mark`): the half-period
+    marks about a reference that pick which copy `t + k·P` of a value
+    lies within half a period of it. A tie, a mark decided zero or
+    undecided, takes the upper copy.
+  - `geom::Azimuth::near` (`azimuth_near_cut_side`): which of the angle
+    window's two `atan2` formulas, equal modulo a turn, reads the
+    direction, before `Period::near` renames the read.
 
-  **Carried as `k_stats::check_unlogged(.., "F31")`**. Its K samples
-  still reach the sink under `curve_foot_branch`. Not a `decide_flagged`
-  site; `LEDGER_FLAGGED_SITES` does not move.
+  What keeps them off the logged doors is that no outcome is a reading:
+  both copies name the same point, and an undecided decision picks a
+  formula or copy that is continuous over the enclosure, so it reads as
+  narrow either way. That holds for a direction of definitely positive
+  length only. One whose enclosure reaches zero length decides no
+  angle at all, and `Azimuth::near` reads it as the whole window about
+  the reference, `[reference − π, reference + π]`, without asking
+  either decision (an exact zero point reads the reference, which every
+  angle names). Logged, an undecided mark at `Interval` would hand
+  the driver an escalation no box answers, on every angle read half a
+  turn from its reference.
+
+  **Carried as `k_stats::unlogged("F31", ..)`**, both at `Band::least()`.
+  Their K samples still reach the sink under the two names above. Not a
+  `decide_flagged` site; `LEDGER_FLAGGED_SITES` does not move.
+
+- **F33** (added by ONECOPY's meet-pose unit) `curve_pair_pose_across`
+  — `geom-brep/src/curve_pair/pose.rs` `conic_conic`: which of two
+  conics, each crossing the other's plane, is read across it. The
+  difference of the two `(A² − c₀²)/r²` is dimensionless, the squared
+  sine of each conic's crossing for a circle; it has no length door,
+  so it is read bare, at `Band::least`. It picks between two sound
+  readings of one meeting, each of which decides or escalates on its
+  own rows. What keeps it off the logged doors is that no outcome of it
+  is a reading: an undecided difference (two conics crossing alike, an
+  enclosure straddling the tie) reads the first, and either reading is
+  sound there, so a narrower reading of it changes no answer the
+  caller certifies. Logged, every undecided pick at `Interval` would
+  hand the driver an escalation for a choice that decides nothing.
+
+  **Carried as `k_stats::check_unlogged(.., "F33")`**. Its K samples
+  still reach the sink under `curve_pair_pose_across`. Not a
+  `decide_flagged` site; `LEDGER_FLAGGED_SITES` does not move.
 
 **Every `props/curved.rs` row above is cited BY TARGET NAME, not by
 line** (S176(a)). The line numbers they carried were written against a

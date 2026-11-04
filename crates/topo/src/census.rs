@@ -91,13 +91,16 @@
 //! - **Genuinely undetected until C9/C6**: the other SAME-solid
 //!   distinct-key curved pairs (the backstop is cross-solid); a point
 //!   where a solid touches itself with a curved face or edge in its link
-//!   whose tangent cones leave it unread ([`SelfTouch::SecondOrder`]) —
-//!   a cone's apex or a vertex in the band of its axis, a corner whose
-//!   two edges leave along one tangent (a cusp; a spur's tip, the loop back
-//!   along the half-edge it came by, reads as the whole turn), a spline face held off a
-//!   corner, a face whose foot normal, reach or corner face does not
-//!   read, a curved edge with no certified curve, sheets tangent to
-//!   first order there, or sectors read lying on each other (two
+//!   whose tangent cones leave it unread, at first order and one order
+//!   down ([`crate::link::FaceSector::tangent`], `link::second_order`;
+//!   [`SelfTouch::SecondOrder`]) — a cone's apex or a vertex in the band
+//!   of its axis, a cusp corner whose edges' bends do not part it, a horn
+//!   beside a sheet along its ray or a ring of horns that reads as no
+//!   thorn, a spline face held off a corner, a face whose foot normal,
+//!   reach or corner face does not read, a curved edge with no certified
+//!   curve, sheets along a tied ray that one order down meet or do not
+//!   part, a curved sheet holding a tied ray inside it, two whole tangent
+//!   planes on one plane, or sectors read lying on each other (two
 //!   tangent sectors that coincide, or a slit or doubled sheet of planar
 //!   faces in a link with a curved face) — which
 //!   [`sweep_self_touch_points`] leaves unread
@@ -337,11 +340,9 @@ use crate::boolean::{
     ContactKind, ContactRecords, ContainError, FaceContainment, SolidContainment, contfp,
 };
 use crate::chart_region::{ChartRegionError, RegionLane};
-use crate::entity::{
-    EdgeKey, EntityId, Face, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey,
-};
+use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, LoopKey, VertexKey};
 use crate::geometry::PointKey;
-use crate::live::{BoundaryMember, proven};
+use crate::live::{BoundaryMember, FaceView, proven};
 use crate::null::CurveGeom;
 use crate::sweep_trace::SweepPairs;
 
@@ -1884,7 +1885,7 @@ fn face_cone<T: Decide>(
         FaceContainment::OnVertex(v) => {
             let face = body.get_face(f).ok_or(Unread::Unbuilt)?;
             let mut corners = Vec::new();
-            for cycle in face_cycles(body, face) {
+            for cycle in body.unchecked_face_cycles(face) {
                 let cycle = cycle.map_err(|_| Unread::Unbuilt)?;
                 let n = cycle.len();
                 for (i, &he) in cycle.iter().enumerate() {
@@ -2156,10 +2157,7 @@ fn pair_contact<T: Decide>(
     // a sphere and a plane, or two spheres. A sphere against any other
     // carrier (a ball seated in a bore meets it along a circle) is the
     // line lane's, which derives no line for it.
-    let kind = |f: FaceKey| {
-        body.get_face(f)
-            .map(|d| body.face_surface_linked(f, d).kind())
-    };
+    let kind = |f: FaceKey| body.passed_face(f).map(|d| d.surface().kind());
     match (kind(fx), kind(fy)) {
         (
             Some(geom::SurfaceKind::Sphere),
@@ -2202,28 +2200,6 @@ pub(crate) fn edge_is_line<T: Real>(body: &Body<T>, ek: crate::entity::EdgeKey) 
         .and_then(CurveGeom::certified)
         .map(geom_brep::EdgeCurve::carrier)
         .is_some_and(|c| !c.is_curved())
-}
-
-/// Every loop of `face` with its walk: `Ok(cycle)` for a cycle loop
-/// `body` can walk, `Err(loop)` for one it cannot — a lost loop, an
-/// empty (lone-vertex) loop, an unwalkable cycle. What an unwalkable
-/// loop MEANS is the caller's to say, at the call site; this walk
-/// never decides it. The typed walk that `snapshot` and the backstop
-/// read; the boundary-box sites read
-/// [`Body::face_boundary_linked`], whose every hop is a link.
-pub(crate) fn face_cycles<'a, T: Real>(
-    body: &'a Body<T>,
-    face: &'a Face,
-) -> impl Iterator<Item = Result<Vec<HalfEdgeKey>, LoopKey>> + 'a {
-    face.loop_keys().map(move |lk| {
-        let Some(loop_) = body.loops.get(lk) else {
-            return Err(lk);
-        };
-        let LoopBoundary::Cycle { first } = loop_.boundary else {
-            return Err(lk);
-        };
-        body.loop_cycle(first).ok_or(lk)
-    })
 }
 
 /// Builds the geometry snapshot: exact planar entities for the
@@ -2644,7 +2620,7 @@ fn snapshot<T: Decide>(body: &Body<T>) -> Geo<T> {
         let mut walked = true;
         // A loop this cannot walk contributes no boundary vertex, and
         // the face is no polygon the touch analysis reads.
-        for cycle in face_cycles(body, face) {
+        for cycle in body.unchecked_face_cycles(face) {
             let Ok(cycle) = cycle else {
                 polygon = false;
                 walked = false;
@@ -4022,7 +3998,7 @@ fn span_clear<T: Decide>(
     let Some(face) = body.get_face(f.key) else {
         return Some(false);
     };
-    for cycle in face_cycles(body, face) {
+    for cycle in body.unchecked_face_cycles(face) {
         let Ok(cycle) = cycle else {
             return Some(false);
         };
@@ -4336,7 +4312,7 @@ fn curved_overlap_cells<T: Decide>(
     band: Band,
     errors: &mut Vec<ValidationError>,
 ) -> Vec<Point3<T>> {
-    let Some(surface) = body.face_surface(f) else {
+    let Some(surface) = body.passed_face(f).map(|f| f.surface()) else {
         return Vec::new();
     };
     match line_on_quadric_carrier(surface, e.p0, e.p1, "pm_census_ef_curved_residual", band) {
@@ -5225,14 +5201,8 @@ fn ee_cross_backed<T: Decide>(
             continue; // the pair's carrier does not hold the crossing
         }
         // Both faces are in the snapshot, read off the live arena.
-        let (da, db) = (
-            proven(&body.faces, fa, EntityId::Face),
-            proven(&body.faces, fb, EntityId::Face),
-        );
-        let (sa, sb) = (
-            body.face_surface_linked(fa, da),
-            body.face_surface_linked(fb, db),
-        );
+        let (da, db) = (body.proven_face(fa), body.proven_face(fb));
+        let (sa, sb) = (da.surface(), db.surface());
         let chord = |e: &EdgeGeo<T>| geom_brep::ExtentBall::point(e.p0).lever_from(e.p1);
         let arm_extent = chord(ea).min(chord(eb));
         // The last carrier screen, and the Smooth-site precondition the
@@ -5250,7 +5220,7 @@ fn ee_cross_backed<T: Decide>(
                 continue;
             }
         };
-        let side = match tangency.pairing([da.sense, db.sense], band) {
+        let side = match tangency.pairing([da.sense(), db.sense()], band) {
             Ok(geom_brep::MaterialPairing::Opposed) => CrossingSideVerdict::OppositeSides,
             Ok(geom_brep::MaterialPairing::Aligned) => CrossingSideVerdict::SameSide,
             Err(escalation) => {
@@ -6358,7 +6328,7 @@ fn curved_same_side_pairs<T: Decide>(
     // coordinate whose extremes lie on the boundary. Read against the
     // first face's axis; a second face on another axis is a pair Door 1
     // does not read as one carrier, so dropping it loses nothing.
-    let axial = |f, origin, axis| boundary_axial(body, f, body.get_face(f)?, origin, axis);
+    let axial = |f, origin, axis| boundary_axial(body, body.passed_face(f)?, origin, axis);
     let mut out = CurvedSameSide::default();
     for (i, &fa) in cands.every_face.iter().enumerate() {
         let Some(ka) = kind(fa) else { continue };
@@ -6828,13 +6798,14 @@ fn sweep_same_solid_tangent_lines<T: Decide>(
         edges: BTreeSet<EdgeKey>,
     }
     let read = |face: FaceKey| -> Option<Candidate> {
-        let f = body.get_face(face)?;
+        let f = body.passed_face(face)?;
         Some(Candidate {
             face,
             solid: body.solid_of_face(face)?,
-            surface: f.surface,
-            kind: body.face_surface_linked(face, f).kind(),
-            edges: face_cycles(body, f)
+            surface: f.record().surface,
+            kind: f.surface().kind(),
+            edges: body
+                .unchecked_face_cycles(f.record())
                 .filter_map(Result::ok)
                 .flatten()
                 .filter_map(|he| body.half_edges.get(he).map(|h| h.edge))
@@ -7071,12 +7042,12 @@ pub(crate) fn face_reach_in<T: Decide>(
     band: Band,
     frame: &crate::boolean::boxes::BoxFrame<T>,
 ) -> Option<(Point3<T>, Point3<T>)> {
-    let face = proven(&body.faces, f, EntityId::Face);
-    let surface = body.face_surface_linked(f, face);
+    let face = body.proven_face(f);
+    let surface = face.surface();
     // A cylinder whose axis is no direction is a broken carrier,
     // and a description with no claim in it answers `None`.
     match crate::boolean::boxes::face_box_rule(surface, band).ok()? {
-        crate::boolean::boxes::FaceBoxRule::BoundaryHull => boundary_reach(body, f, face, frame),
+        crate::boolean::boxes::FaceBoxRule::BoundaryHull => boundary_reach(body, face, frame),
         crate::boolean::boxes::FaceBoxRule::ControlNet(patch) => match patch.net_state() {
             // Poison in any channel bounds the locus on no axis, so
             // neither state has a claim to make. `None`, not an
@@ -7140,7 +7111,7 @@ pub(crate) fn face_reach_in<T: Decide>(
             // coordinate is linear along the surface, so the face's
             // axial extremes lie ON the boundary, but not
             // necessarily at a boundary VERTEX.
-            let h = boundary_axial(body, f, face, origin, axis.get())?;
+            let h = boundary_axial(body, face, origin, axis.get())?;
             let slab = span_pts(crate::boolean::boxes::slab_extent(
                 &crate::boolean::boxes::SpanBox::point(frame.point(origin)),
                 &frame.unit(axis),
@@ -7152,7 +7123,7 @@ pub(crate) fn face_reach_in<T: Decide>(
             // boundary's hull because the cylinder is ruled
             // (`FaceBoxRule`'s `BoundaryHull` arm), so clipping every
             // coordinate is sound.
-            Some(match boundary_reach(body, f, face, frame) {
+            Some(match boundary_reach(body, face, frame) {
                 Some((blo, bhi)) => (
                     Point3::new(
                         slab.0.x.max(blo.x),
@@ -7173,7 +7144,7 @@ pub(crate) fn face_reach_in<T: Decide>(
             axis,
             half_angle,
         } => {
-            let h = boundary_axial(body, f, face, apex, axis)?;
+            let h = boundary_axial(body, face, apex, axis)?;
             let apex = crate::boolean::boxes::SpanBox::point(frame.point(apex));
             let axis = crate::boolean::boxes::SpanBox::vector(frame.vector(axis));
             Some(span_pts(crate::boolean::boxes::cone_frustum_extent(
@@ -7220,11 +7191,11 @@ fn held_reach_in<T: Decide>(
     frame: &crate::boolean::boxes::BoxFrame<T>,
 ) -> Option<(Point3<T>, Point3<T>)> {
     let (lo, hi) = face_reach_in(body, f, band, frame)?;
-    let face = proven(&body.faces, f, EntityId::Face);
-    let geom::Surface::Sphere { center, radius, .. } = *body.face_surface_linked(f, face) else {
+    let face = body.proven_face(f);
+    let geom::Surface::Sphere { center, radius, .. } = *face.surface() else {
         return Some((lo, hi));
     };
-    let Some((blo, bhi)) = boundary_reach(body, f, face, frame) else {
+    let Some((blo, bhi)) = boundary_reach(body, face, frame) else {
         return Some((lo, hi));
     };
     let d = frame.rows()[0];
@@ -7273,19 +7244,17 @@ pub(crate) fn torus_chart_window<T: Decide>(
 /// cover's support either way, [`crate::boolean::boxes::cover_axial`]),
 /// rather than the corners of a box around it, which at a tilted axis
 /// leaks the box's spread into the window. `None` for a face with no
-/// boundary, or with a boundary edge that has no cover. `face` is `f`'s
-/// record, resolved by [`face_reach_in`]; every hop past it is a link
-/// and panics as there.
+/// boundary, or with a boundary edge that has no cover. Every hop past
+/// the face is a link and panics as [`FaceView::boundary`] does.
 fn boundary_axial<T: Decide>(
     body: &Body<T>,
-    f: crate::entity::FaceKey,
-    face: &Face,
+    face: FaceView<'_, T>,
     origin: Point3<T>,
     axis: Vec3<T>,
 ) -> Option<crate::boolean::boxes::Span<T>> {
     use crate::boolean::boxes::{Span, cover_axial, edge_cover_linked};
     let mut acc: Option<Span<T>> = None;
-    for member in body.face_boundary_linked(f, face) {
+    for member in face.boundary() {
         let (lo, hi) = match member {
             BoundaryMember::Isolated { point: p, .. } => {
                 let h = (p - origin).dot(axis);
@@ -7304,12 +7273,11 @@ fn boundary_axial<T: Decide>(
 /// Every boundary edge's reach, hulled with the isolated-vertex loops
 /// (which have no edge to speak for them). `None` as soon as one
 /// boundary curve has no sound box — [`face_reach`]'s boundary walk.
-/// `face` is `f`'s record, resolved by [`face_reach_in`]; every hop
-/// past it is a link and panics as there.
+/// Every hop past the face is a link and panics as
+/// [`FaceView::boundary`] does.
 fn boundary_reach<T: Decide>(
     body: &Body<T>,
-    f: crate::entity::FaceKey,
-    face: &Face,
+    face: FaceView<'_, T>,
     frame: &crate::boolean::boxes::BoxFrame<T>,
 ) -> Option<(Point3<T>, Point3<T>)> {
     let mut acc: Option<(Point3<T>, Point3<T>)> = None;
@@ -7322,7 +7290,7 @@ fn boundary_reach<T: Decide>(
             ),
         });
     };
-    for member in body.face_boundary_linked(f, face) {
+    for member in face.boundary() {
         match member {
             BoundaryMember::Isolated { point: p, .. } => {
                 let p = frame.point(p);
@@ -8372,9 +8340,10 @@ fn edge_in_own_face<T: Decide>(
 /// planar face with a spline edge, or a point tied inside a curved edge
 /// ([`Germ::of_holds`] answers `Unreadable` before any other
 /// refusal) is read as its faces' tangent cones ([`self_touch_verdict`]),
-/// wherever their first order decides. Where it does not, or the cones
-/// do not build, the point is left unread, named
-/// ([`SelfTouch::SecondOrder`]): no reading of second order parts it yet.
+/// wherever their first order decides, or one order down where it ties
+/// at a cusp corner or along a ray (`link::second_order`). Where neither
+/// decides, or the cones do not build, the point is left unread, named
+/// ([`SelfTouch::SecondOrder`]).
 fn sweep_self_touch_points<T: Decide>(
     body: &Body<T>,
     geo: &Geo<T>,
@@ -8451,19 +8420,25 @@ enum SelfTouch {
     /// The link's verdict.
     Read(TouchVerdict),
     /// A curved face or edge takes part and the faces' tangent cones do
-    /// not decide the point ([`Link::tangent_of`]): what a reading of
-    /// second order would part, which there is none of yet, and what the
-    /// tangent reading cannot build. [`TouchUnread::Unreadable`] for a
-    /// face with no tangent plane there (a cone's apex, or a vertex in
-    /// the band of its axis), a corner whose two edges leave it along one
-    /// tangent (a cusp) other than a spur's tip, a spline face held off a
-    /// corner, a face whose normal at the foot or whose reach does not
-    /// read, a corner face [`crate::sector_face::resolve`] refuses, a
-    /// curved edge with no certified curve, or a bound or plane lying on
-    /// another sheet's to first order only (a tangency, two kissing balls
-    /// at any pose included); [`TouchUnread::Degenerate`] for two sectors
-    /// read lying on each other, which takes in a slit or a doubled sheet
-    /// of planar faces as well as tangent sectors that coincide.
+    /// not decide the point ([`Link::tangent_of`]), at first order or one
+    /// order down (`link::second_order`), or the tangent reading cannot
+    /// build. [`TouchUnread::Unreadable`] for a face with no tangent plane
+    /// there (a cone's apex, or a vertex in the band of its axis), a cusp
+    /// corner its edges' bends do not part, a horn beside a sector along
+    /// its ray or a ring of horns that reads as no thorn, a spline face
+    /// held off a corner, a face whose normal at the foot or whose reach
+    /// does not read, a corner face [`crate::sector_face::resolve`]
+    /// refuses, a curved edge with no certified curve, sheets along a
+    /// tied ray that one order down meet or do not part, a curved sheet
+    /// holding such a ray inside it, or two whole tangent planes on one
+    /// plane (two kissing balls at any pose included). A sign one order
+    /// down that the band leaves undecided, in band or moved there by the
+    /// first order's charged residue, is [`TouchUnread::Unreadable`] too:
+    /// this `why` does not part an in-band reading one order down from a
+    /// structural refusal.
+    /// [`TouchUnread::Degenerate`] for two sectors read lying on each
+    /// other, which takes in a slit or a doubled sheet of planar faces as
+    /// well as tangent sectors that coincide.
     SecondOrder(TouchUnread),
 }
 
@@ -8534,8 +8509,8 @@ impl<T: Decide> FaceSector<T> {
         // A face that does not resolve, or a loop that does not walk, is
         // a defect (tier 1 admits none); a face that resolves off a plane
         // is curved.
-        let face = body.get_face(f).ok_or(TouchUnread::Corrupt)?;
-        let surface = body.face_surface_linked(f, face).clone();
+        let face = body.passed_face(f).ok_or(TouchUnread::Corrupt)?;
+        let surface = face.surface().clone();
         let fg = planar_face(geo, f).ok_or(TouchUnread::Unreadable)?;
         if !fg.walked {
             return Err(TouchUnread::Corrupt);
@@ -8558,7 +8533,7 @@ impl<T: Decide> FaceSector<T> {
             .collect::<Result<Vec<_>, _>>()?;
         let face = Planar {
             surface,
-            sense: face.sense,
+            sense: face.sense(),
             outward,
             loops: &fg.loops,
             rings,
@@ -8760,8 +8735,11 @@ impl<T: Decide> Link<T> {
     /// is named by its edge ([`rest::one_material`] holds the cone to the
     /// coincidences its faces keep).
     ///
-    /// A face with no tangent plane at the point (a cone's apex, or a
-    /// vertex in the band of its axis), a spline face held anywhere but a
+    /// A cusp corner reads as its edges bend: the whole turn, or a horn
+    /// the link keeps beside its sectors ([`Link::of_tangent`]). A face
+    /// with no tangent plane at the point (a cone's apex, or a vertex in
+    /// the band of its axis), a cusp corner its bends do not part, a
+    /// spline face held anywhere but a
     /// corner, a curved edge with no certified curve, or a face whose
     /// normal or reach does not read is [`TouchUnread::Unreadable`]; a
     /// reading of it in band, [`TouchUnread::InBand`].
@@ -8772,19 +8750,20 @@ impl<T: Decide> Link<T> {
         p: Point3<T>,
         band: Band,
     ) -> Result<Self, TouchUnread> {
-        let mut sectors = Vec::new();
+        let mut pieces = Vec::new();
         for (&f, all) in holds {
-            sectors.extend(tangent_sectors(body, geo, f, p, all, band)?);
+            pieces.extend(tangent_sectors(body, geo, f, p, all, band)?);
         }
-        Self::of(p, sectors)
+        Self::of_tangent(p, pieces)
     }
 }
 
 /// **Face `f`'s tangent sectors at `p`**, held as `holds` say
 /// ([`Link::tangent_of`]): one per pass of its loops through a corner it
-/// is held at, then one per pass along an edge it is held inside whose
-/// ends are no such corner, and where neither holds it, its whole
-/// tangent plane.
+/// is held at (a horn where a cusp corner is one,
+/// [`crate::link::FaceSector::tangent`]), then one per pass along
+/// an edge it is held inside whose ends are no such corner, and where
+/// neither holds it, its whole tangent plane.
 fn tangent_sectors<T: Decide>(
     body: &Body<T>,
     geo: &Geo<T>,
@@ -8792,8 +8771,8 @@ fn tangent_sectors<T: Decide>(
     p: Point3<T>,
     holds: &[Held],
     band: Band,
-) -> Result<Vec<FaceSector<T>>, TouchUnread> {
-    use crate::link::TangentFan;
+) -> Result<Vec<crate::link::TangentPiece<T>>, TouchUnread> {
+    use crate::link::{Bound, TangentFan};
     let face = body.get_face(f).ok_or(TouchUnread::Corrupt)?;
     let surface = body
         .get_surface(face.surface)
@@ -8801,7 +8780,7 @@ fn tangent_sectors<T: Decide>(
         .ok_or(TouchUnread::Corrupt)?;
     let corner = |v: VertexKey| holds.contains(&Held::Corner(v));
     let mut out = Vec::new();
-    for cycle in face_cycles(body, face) {
+    for cycle in body.unchecked_face_cycles(face) {
         for he in cycle.map_err(|_| TouchUnread::Corrupt)? {
             let half = body.get_half_edge(he).ok_or(TouchUnread::Corrupt)?;
             if !corner(half.start) {
@@ -8810,14 +8789,25 @@ fn tangent_sectors<T: Decide>(
             let into = half.prev;
             let back = body.mate(into).ok_or(TouchUnread::Corrupt)?;
             let normal = corner_normal(body, half.start, back, band)?;
-            let (d0, l0) = departure(body, half.start, he)?;
-            let (d1, l1) = departure(body, half.start, back)?;
+            let (d0, line0, bend0) = departure(body, half.start, he)?;
+            let (d1, line1, bend1) = departure(body, half.start, back)?;
             let e_in = body.get_half_edge(into).ok_or(TouchUnread::Corrupt)?.edge;
             let apex = *geo.vmap.get(&half.start).ok_or(TouchUnread::Corrupt)?;
             let fan = TangentFan::Corner {
                 d0,
                 d1,
-                bounds: [(half.edge, l0), (e_in, l1)],
+                bounds: [
+                    Bound {
+                        edge: half.edge,
+                        line: line0,
+                        bend: bend0,
+                    },
+                    Bound {
+                        edge: e_in,
+                        line: line1,
+                        bend: bend1,
+                    },
+                ],
                 spur: back == he,
             };
             out.push(FaceSector::tangent(
@@ -8836,18 +8826,22 @@ fn tangent_sectors<T: Decide>(
             .map_err(|_| TouchUnread::Unreadable)
     };
     let held_edge = |e: EdgeKey| holds.contains(&Held::Edge(e));
-    for cycle in face_cycles(body, face) {
+    for cycle in body.unchecked_face_cycles(face) {
         for he in cycle.map_err(|_| TouchUnread::Corrupt)? {
             let half = body.get_half_edge(he).ok_or(TouchUnread::Corrupt)?;
             let end = body.half_edge_end(he).ok_or(TouchUnread::Corrupt)?;
             if !held_edge(half.edge) || corner(half.start) || corner(end) {
                 continue;
             }
-            let (along, line) = direction_at(body, he, p)?;
+            let (along, line, bend) = direction_at(body, he, p)?;
             let fan = TangentFan::Edge {
                 along,
                 reach: reach()?,
-                edge: (half.edge, line),
+                edge: Bound {
+                    edge: half.edge,
+                    line,
+                    bend,
+                },
             };
             out.push(FaceSector::tangent(
                 surface.clone(),
@@ -8929,28 +8923,33 @@ fn foot_normal<T: Decide>(
     }
 }
 
-/// Where half-edge `he` leaves its start `v`, scaled to its reach, and
-/// whether it is a line: the splitting lane's reading
+/// Where half-edge `he` leaves its start `v`, scaled to its reach,
+/// whether it is a line, and its curvature vector there (nothing on a
+/// line): the splitting lane's reading
 /// ([`crate::splitting::neighborhood::chord`]), a line's chord or a
 /// curve's tangent scaled to its extent.
 fn departure<T: Decide>(
     body: &Body<T>,
     v: VertexKey,
     he: HalfEdgeKey,
-) -> Result<(Vec3<T>, bool), TouchUnread> {
+) -> Result<(Vec3<T>, bool, Vec3<T>), TouchUnread> {
     let (_, dir, bend) =
         crate::splitting::neighborhood::chord(body, v, he).map_err(|_| TouchUnread::Unreadable)?;
-    Ok((dir, bend.is_none()))
+    Ok((
+        dir,
+        bend.is_none(),
+        bend.map_or(Vec3::zero(), |b| b.curvature),
+    ))
 }
 
-/// Half-edge `he`'s unit direction at `p`, a point inside its edge, and
-/// whether the edge is a line: a line's chord, a curve's tangent at
-/// `p`'s foot on its carrier.
+/// Half-edge `he`'s unit direction at `p`, a point inside its edge,
+/// whether the edge is a line, and its curvature vector there: a line's
+/// chord, a curve's tangent and bend at `p`'s foot on its carrier.
 fn direction_at<T: Decide>(
     body: &Body<T>,
     he: HalfEdgeKey,
     p: Point3<T>,
-) -> Result<(Vec3<T>, bool), TouchUnread> {
+) -> Result<(Vec3<T>, bool, Vec3<T>), TouchUnread> {
     let half = body.get_half_edge(he).ok_or(TouchUnread::Corrupt)?;
     let edge = body.get_edge(half.edge).ok_or(TouchUnread::Corrupt)?;
     let curve = body
@@ -8961,8 +8960,14 @@ fn direction_at<T: Decide>(
     let (t0, t1) = curve.params();
     let line = matches!(curve.carrier(), geom::Curve3::Line(_));
     let t = curve.carrier().foot(p, geom::mid_param(t0, t1)).t();
-    let d = curve.carrier().deriv(t).normalize();
-    Ok((if he == edge.he_plus { d } else { -d }, line))
+    let deriv = curve.carrier().deriv(t);
+    let d = deriv.normalize();
+    let bend = if line {
+        Vec3::zero()
+    } else {
+        geom_brep::curvature_vector(deriv, curve.carrier().deriv2(t))
+    };
+    Ok((if he == edge.he_plus { d } else { -d }, line, bend))
 }
 
 impl<T: Decide> Link<T> {
@@ -9022,7 +9027,7 @@ impl<T: Decide> Link<T> {
         let (mut planar, mut into, mut chords) = (Vec::new(), Vec::new(), Vec::new());
         for he in [halves.he_plus, halves.he_minus] {
             let f = body.face_of_half_edge(he).ok_or(TouchUnread::Corrupt)?;
-            let (along, _) = direction_at(body, he, p)?;
+            let (along, _, _) = direction_at(body, he, p)?;
             if planar_face(geo, f).is_some() {
                 into.push(outward(f)?.cross(along).normalize());
                 if !planar.contains(&f) {
@@ -9030,12 +9035,12 @@ impl<T: Decide> Link<T> {
                 }
                 continue;
             }
-            let face = body.get_face(f).ok_or(TouchUnread::Corrupt)?;
+            let face = body.passed_face(f).ok_or(TouchUnread::Corrupt)?;
             // The face's other edges, which end on the edge's ends too, but
             // for a cone's seam through its apex (a loop `[e, circle, e⁻¹]`):
             // there the lever stays under `ρ/2`, short of the apex.
             let mut clear: Option<T> = None;
-            for cycle in face_cycles(body, face) {
+            for cycle in body.unchecked_face_cycles(face.record()) {
                 for other in cycle.map_err(|_| TouchUnread::Corrupt)? {
                     let half = body.get_half_edge(other).ok_or(TouchUnread::Corrupt)?;
                     if half.edge != e {
@@ -9046,8 +9051,8 @@ impl<T: Decide> Link<T> {
             }
             let clear = clear.ok_or(TouchUnread::Corrupt)?;
             let ruled = Ruled {
-                surface: body.face_surface_linked(f, face).clone(),
-                sense: face.sense,
+                surface: face.surface().clone(),
+                sense: face.sense(),
                 outward: foot_normal(body, f, p, band)?,
                 along,
                 ends: [edge.p0, edge.p1],
@@ -9092,13 +9097,13 @@ fn round_face<T: Decide>(
     f: FaceKey,
     p: Point3<T>,
 ) -> Result<Option<(crate::link::Round<T>, T)>, TouchUnread> {
-    let face = body.get_face(f).ok_or(TouchUnread::Corrupt)?;
-    let surface = body.face_surface_linked(f, face);
-    let Some(round) = crate::link::Round::of(surface, face.sense) else {
+    let face = body.passed_face(f).ok_or(TouchUnread::Corrupt)?;
+    let surface = face.surface();
+    let Some(round) = crate::link::Round::of(surface, face.sense()) else {
         return Ok(None);
     };
     let mut reach = round.radius() * T::from_f64(2.0);
-    for cycle in face_cycles(body, face) {
+    for cycle in body.unchecked_face_cycles(face.record()) {
         for he in cycle.map_err(|_| TouchUnread::Corrupt)? {
             reach = reach.min(crate::link::clearance(body, he, p)?);
         }
@@ -9365,7 +9370,7 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
         let Some(face) = body.get_face(f) else {
             return out;
         };
-        for cycle in face_cycles(body, face).filter_map(Result::ok) {
+        for cycle in body.unchecked_face_cycles(face).filter_map(Result::ok) {
             for he in cycle {
                 if let Some(hd) = body.half_edges.get(he)
                     && let Some(v) = body.vertices.get(hd.start)
@@ -9389,7 +9394,7 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
         let Some(face) = body.get_face(f) else {
             return false;
         };
-        for cycle in face_cycles(body, face) {
+        for cycle in body.unchecked_face_cycles(face) {
             let Ok(cycle) = cycle else {
                 return false;
             };
@@ -11255,11 +11260,11 @@ fn flush_pairs<T: Decide>(
     band: Band,
     region: Option<RegionLane<T>>,
 ) -> FlushAtRest {
-    let kind = |f: FaceKey| Some(body.face_surface(f)?.kind());
+    let kind = |f: FaceKey| Some(body.passed_face(f)?.surface().kind());
     let group_of = |f: FaceKey| body.solid_of_face(f).and_then(group);
     let edges: Vec<BTreeSet<EdgeKey>> = faces
         .iter()
-        .map(|&f| body.proven_face_edge_set(f))
+        .map(|&f| body.proven_face(f).edge_set())
         .collect();
     let mut out = FlushAtRest::default();
     for (i, &fa) in faces.iter().enumerate() {
@@ -11359,7 +11364,8 @@ fn flush_pairs<T: Decide>(
 /// Whether `f` lies on a cylinder or a sphere, the curved kinds Door 1
 /// decides exactly ([`crate::boolean::carrier_eq::exact_curved`]).
 fn exact_curved_face<T: Real>(body: &Body<T>, f: FaceKey) -> bool {
-    body.face_surface(f)
+    body.passed_face(f)
+        .map(|f| f.surface())
         .is_some_and(crate::boolean::carrier_eq::exact_curved)
 }
 
@@ -11554,7 +11560,7 @@ fn shared_interior_witness<T: Decide>(
             false
         }
     };
-    let edges = |f| body.proven_face_edge_set(f);
+    let edges = |f| body.proven_face(f).edge_set();
     let (edges_a, edges_b) = (edges(fa), edges(fb));
     for (x, y, edges) in [(fa, fb, &edges_a), (fb, fa, &edges_b)] {
         let corners = face_vertices(body, x)
@@ -11658,7 +11664,7 @@ fn arc_interiors_meet<T: Decide>(
         }
     };
     let spans = |f| -> Result<Vec<_>, InteriorsUnread> {
-        let edges = body.proven_face_edge_set(f);
+        let edges = body.proven_face(f).edge_set();
         if edges.is_empty() {
             return Err(InteriorsUnread::Unbuilt);
         }
@@ -11844,7 +11850,7 @@ fn face_vertices<T: Real>(body: &Body<T>, f: FaceKey) -> BTreeSet<VertexKey> {
     let Some(face) = body.get_face(f) else {
         return BTreeSet::new();
     };
-    face_cycles(body, face)
+    body.unchecked_face_cycles(face)
         .filter_map(Result::ok)
         .flatten()
         .filter_map(|he| body.half_edges.get(he).map(|h| h.start))
@@ -12165,7 +12171,7 @@ mod tests {
     //! why these rows call [`census_and_certify`] directly. The
     //! closed-body end-to-end rows live in the acceptance suites.
     use super::*;
-    use crate::entity::FaceKey;
+    use crate::entity::{FaceKey, LoopBoundary};
     use crate::euler::{FaceSurface, MefSite, MevSite};
     use crate::test_support_fixtures::{CylFrame, CylKey, cyl_wall_sheet_keyed, unit_cyl_sheet};
     use geom::Surface;
@@ -12926,7 +12932,7 @@ mod tests {
             .faces()
             .find(|&(f, _)| {
                 let face = body.get_face(f).unwrap();
-                face_cycles(&body, face)
+                body.unchecked_face_cycles(face)
                     .filter_map(Result::ok)
                     .flatten()
                     .all(|he| {

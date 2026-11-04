@@ -539,9 +539,11 @@ impl<T: Real> CircleArc<T> {
     fn tangent(&self, t: T) -> Vec3<T> {
         self.circle.derivative_at(t) / self.circle.radius
     }
+}
 
-    /// The parameter of `p` (a point of the circle) on the branch of the
-    /// span's middle.
+impl<T: Decide> CircleArc<T> {
+    /// The parameter of `p` (a point of the circle) within half a turn of
+    /// the span's middle.
     fn param(&self, p: Point3<T>) -> T {
         self.circle.param_in(p, self.span)
     }
@@ -877,24 +879,6 @@ pub(crate) enum LoopSplit<T: Real> {
         /// The radius between the loops.
         radius: T,
     },
-    /// `|(p − origin)·sum| − |(p − origin)·diff|`, `sum` and `diff`
-    /// unit: two equal cylinders with unit axes `â₁`, `â₂` meeting at
-    /// `origin` cut each other in two ellipses, one in each bisector
-    /// plane through `origin`, the first with normal `diff =
-    /// unit(â₁ − â₂)`, the second `sum = unit(â₁ + â₂)`. A point of the
-    /// first has `(p − origin)·diff = 0` and of the second `(p −
-    /// origin)·sum = 0`, so the margin is positive on the first and
-    /// negative on the second, its distance from the other bisector
-    /// plane, and zero only on the planes' common line, where the
-    /// ellipses cross (the nodes).
-    Bisector {
-        /// The axes' meeting point.
-        origin: Point3<T>,
-        /// `unit(â₁ + â₂)`.
-        sum: Vec3<T>,
-        /// `unit(â₁ − â₂)`.
-        diff: Vec3<T>,
-    },
 }
 
 impl<T: Real> LoopSplit<T> {
@@ -907,9 +891,6 @@ impl<T: Real> LoopSplit<T> {
                 axis,
                 radius,
             } => (p - origin).cross(axis).norm() - radius,
-            Self::Bisector { origin, sum, diff } => {
-                (p - origin).dot(sum).abs() - (p - origin).dot(diff).abs()
-            }
         }
     }
 
@@ -1636,8 +1617,7 @@ impl<T: Decide> ConicArc<T> {
     pub(crate) fn distance_floor(&self, x: Point3<T>) -> T {
         let k = self.conic();
         let (f, (a, b)) = (k.frame(), k.semi_axes());
-        let (wu, wv) = f.in_plane(x);
-        let s = geom::on_span_branch(wv.atan2(wu), self.span);
+        let s = f.azimuth(x).near(geom::mid_param(self.span.0, self.span.1));
         let s = s.max(self.span.0).min(self.span.1);
         let (sn, cs) = s.sin_cos();
         let nearest = f.origin + (f.u_ref * cs + f.v_ref() * sn) * b;
@@ -1854,12 +1834,16 @@ fn plane_roots<T: Decide>(
         Sign::Zero => return Ok(None),
         Sign::Positive => {}
     }
-    let phase = cb.atan2(ca);
+    // Each root's direction is the phase direction `(ca, cb)` turned by
+    // `±offset`, read once within half a turn of the span's middle.
+    let middle = geom::mid_param(p.span.0, p.span.1);
     let offset = (-d / (p.circle.radius * rho))
         .max(-T::one())
         .min(T::one())
         .acos();
-    let [r0, r1] = [phase + offset, phase - offset].map(|t| geom::on_span_branch(t, p.span));
+    let (s, c) = offset.sin_cos();
+    let root = |s: T| geom::Azimuth::of(cb * c + ca * s, ca * c - cb * s).near(middle);
+    let [r0, r1] = [root(s), root(T::zero() - s)];
     // On the arrival arc, the root nearer the end is the arrival; the
     // other is read. The pick is a raw comparison and needs no decision.
     // The arrival lies on the plane up to rounding δ, and a root

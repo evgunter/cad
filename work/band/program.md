@@ -2,7 +2,7 @@
 id: band
 kind: program
 title: BAND — the blend and rim bands: what a roll builds over a rim, what the band-feature rule takes that it still refuses, and what it may call the result
-status: ready
+status: active
 opened: 2026-09-20
 group: kernel/sweep/blend
 prefix: band/

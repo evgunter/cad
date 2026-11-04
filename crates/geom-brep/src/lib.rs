@@ -102,7 +102,6 @@ pub mod recourse;
 pub mod roots;
 pub mod sector_shape;
 pub(crate) mod shape_operator;
-mod sphere_circle;
 pub mod ssi;
 pub mod tangent;
 pub mod torus_convention;
@@ -114,7 +113,7 @@ pub use certify::{
     SplineFoot, StatedImage, StatedSpan, WindingReading, folded_parallelism, sample_param,
     schedule_param, side_row_certifies,
 };
-pub use conic_bend::{BendBounds, ConicBend, ConicDeparture, conic_bend_side};
+pub use conic_bend::{BendBounds, ConicBend, ConicDeparture, conic_bend_side, curvature_vector};
 pub use description::{
     ChartCurve, CurveSelector, EdgeAuthority, EdgeDescription, EdgeDescriptionSpec, SharedRow,
     Structural, authority_of,
@@ -200,16 +199,17 @@ pub use offset_fit::{
 pub use offset_fit_lane::{OFFSET_FIT_DOOR_HOLDERS, OffsetFitLane, ScalarList};
 pub use offset_meters::ChartArmRefusal;
 pub use pair_section::{
-    AxisPose, CarriedComponent, CarriedSection, CarryError, CcDecision, CcNode, CcStance,
+    ArcPlace, AxisPose, CarriedComponent, CarriedSection, CarryError, CcDecision, CcNode, CcStance,
     ChartReach, ClassCarrier, Coincident, ComponentEnds, ComponentShape, Components, CsDecision,
     CsStance, CtStance, CylinderCylinderPose, CylinderSpherePose, CylinderTorusPose, FittedCarrier,
-    Gap, KnownPair, KnownRow, NodeSet, PairPose, PairSection, PoseRefusal, Reached,
-    RegionPlacement, Ring, Seated, SectionComponent, SectionDecision, SectionRead, SiteFoot,
-    SiteRefusal, SphereTorusPose, SplineImplicitPose, SplinePairPose, SquareWall, SsiLane,
-    StStance, TT_COINCIDENT, TT_COINCIDENT_FLOOR, TorusCoincidence, TorusData, TorusDatum,
-    TorusDisplacement, TorusGap, TorusPoseRefusal, TorusQuestion, TorusTorusPose, TtStance, Turn,
-    Winding, WindsRefusal, ZeroKind, ZeroVerdict, axis_pose, line_tilt, pair_section,
-    spline_pair_section, square_part, tori_coincide,
+    Gap, KnownPair, KnownRow, NodeEnd, NodeEnds, NodeLine, NodeSet, PairPose, PairSection,
+    PairSide, PoseRefusal, RaySense, Reached, RegionPlacement, Ring, Seated, SectionComponent,
+    SectionDecision, SectionNode, SectionRead, SiteFoot, SiteReading, SiteRefusal, SpanEnd,
+    SphereTorusPose, SplineImplicitPose, SplinePairPose, SquareWall, SsiLane, StStance,
+    TT_COINCIDENT, TT_COINCIDENT_FLOOR, TorusCoincidence, TorusData, TorusDatum, TorusDisplacement,
+    TorusGap, TorusPoseRefusal, TorusQuestion, TorusTorusPose, TtStance, Turn, Winding,
+    WindsRefusal, ZeroKind, ZeroVerdict, axis_pose, line_tilt, pair_section, spline_pair_section,
+    square_part, tori_coincide,
 };
 pub use pcurve::{
     PCURVE_FIT_SAMPLES, PcurveError, ellipse_pcurve_on_cylinder, ellipse_pcurve_on_plane,
@@ -221,8 +221,8 @@ pub use pcurve_cache::{
     Pcurve, PcurveCache, PcurveCertificate, PcurveCertifyError, PcurveCheck, PcurveKind, Period,
     ProjectedChart, ProjectedImage, SectorChannel, SpiricImage, WalkStop, WallTorus, angle_rate,
     chart_iso_family, chart_pcurve, chart_pcurve_over, chart_stretch_inf, chart_stretch_sup,
-    chart_stretch_sup_v, chart_sup_arms_at, harmonic_form_of, iso_arc_spans, read_edge_incidence,
-    read_incidence, read_point_incidence,
+    chart_stretch_sup_v, chart_sup_arms_at, harmonic_form_of, iso_arc_spans, minted_refusal,
+    read_edge_incidence, read_incidence, read_point_incidence,
 };
 pub use props::{
     FaceContribution, LoopEdge, PropsError, curved_face, planar_face, require_iso_rectangle,

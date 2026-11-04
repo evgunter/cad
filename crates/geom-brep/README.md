@@ -676,7 +676,9 @@ whatever the carrier's kind: a spline carrier enters the composite as
 its own net, a line as its degree-1 net, and a circle, ellipse or
 spiric as a per-span enclosure in certification arithmetic (C9).
 On an analytic chart, a carrier with no closed-form image (a spline
-carrier, a sphere's general circle) stores the *projected image*, the
+carrier; a circle on a sphere, cylinder, cone or torus, or a line on a
+cylinder or a cone, that the chart's class readings do not show one of
+its own) stores the *projected image*, the
 chart's own inverse applied to the carrier, `P(t) = ψ(C(t))`: the
 carrier's net in the chart frame, plus a partition of the span into
 pieces that each stay in one `atan2` sector. On the plane it is the
@@ -748,7 +750,14 @@ A closed-form class gate is a lane choice (D3): in band or definite,
 the carrier takes the general lane, its projected image, whose
 certificate does not rest on the class; the closed form is taken only
 where the class is shown, and a pair whose general lane is not yet
-written refuses "not yet". Whether the carrier lies
+written refuses "not yet". Those pairs are: an ellipse the chart's
+class readings do not show one of its own, on any chart (on the plane,
+and as a section of a cylinder or a cone, an ellipse images in closed
+form, and needs no general lane there); a
+line within the band of a sphere or a torus, which hold none; a line
+within the band of a cone that is no ruling, which the cone's arm reads
+as a ruling and so refuses at its certificate rather than "not yet";
+and every carrier on a spindle chart. Whether the carrier lies
 on the chart at all is a residual, not a class gate: a definite miss
 is a contradiction between what the edge states and its geometry,
 ended by the door that reads it (D4 ¶1 (iv)), and a read in band, at a

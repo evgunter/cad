@@ -341,7 +341,7 @@ fn an_undecided_place_beside_an_off_carrier_is_off() {
 /// middle's cosine and sine are both negative, `atan2(+0, −0) = π` puts
 /// the foot exactly antipodal to the middle. Read there, a half turn's
 /// cut decides from an exact zero, and a move off the axis flips it
-/// (boss_union's `curve_pair_span_branch`, where a disc's three-arc rim
+/// (boss_union's span branch, where a disc's three-arc rim
 /// puts the centroid of three of its vertices on the axis, and the arc's
 /// own middle is the seed). The carrier reads the point off, and that is
 /// the answer at every seed, the middle included, with the carrier's

@@ -111,8 +111,8 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
         face: FaceKey,
         toward_free: HalfEdgeKey,
     ) -> Result<StrutPrune, StrutRefusal> {
-        let record = proven(&self.faces, face, EntityId::Face);
-        if self.face_surface_linked(face, record).kind() != geom::SurfaceKind::Plane {
+        let view = self.proven_face(face);
+        if view.surface().kind() != geom::SurfaceKind::Plane {
             return Err(StrutRefusal::Curved);
         }
         let toward = proven(&self.half_edges, toward_free, EntityId::HalfEdge);
@@ -121,7 +121,7 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
             unreachable!("strut half {toward_free:?} resolved above, and a live half has an end")
         });
         let lone = self.strut_tip(toward_free).then_some((other_end, ring));
-        if lone.is_some() && ring == record.outer {
+        if lone.is_some() && ring == view.record().outer {
             return Err(StrutRefusal::LoneOutline);
         }
         Ok(StrutPrune {
@@ -173,16 +173,8 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
         ring: LoopKey,
         tol: Tol,
     ) -> Result<(), EulerOpError> {
-        let outline = proven(&self.faces, face, EntityId::Face).outer;
-        let target = match crate::live::linked(
-            &self.loops,
-            outline,
-            EntityId::Loop,
-            EntityId::Face(face),
-            "outer",
-        )
-        .boundary
-        {
+        let (outline, outer) = self.proven_face(face).outer();
+        let target = match outer.boundary {
             LoopBoundary::Cycle { first } => first,
             LoopBoundary::Empty { .. } => unreachable!(
                 "face {face:?}'s outline {outline:?} is a lone vertex: every caller stops before \

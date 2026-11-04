@@ -2,12 +2,14 @@
 id: a-rotational-chart-green-lane-reads-projected-chords
 kind: unit
 title: One rotational-chart Green lane for faces trimmed by a projected chord, stage 1: the cylinder chart
-status: dispatched
+status: closed
 opened: 2026-11-03
 priority: P0
 cost: H
 branch: spiricarm/rotational-lane-cylinder
 refs: [a-projected-boundary-on-an-analytic-chart-has-no-volume-lane, a-torus-wall-trimmed-by-a-spline-rim-has-no-volume-lane, a-carried-cylinder-pair-marches-for-minutes-before-the-volume-lane-refuses]
+closed: 2026-11-04
+pr: 6478
 ---
 
 
@@ -75,3 +77,7 @@ The spiric wall's migration onto the lane is stage 3's; shape the edge-term enum
 - QUAD shares `quad/cylinder.rs`, `quad_lane.rs` and `props/spiric.rs`. Announce the seam in the PR body (`python3 scripts/work.py territory --base origin/main`).
 
 Review tier: **dual** (`docs/DUAL-REVIEW-PROTOCOL.md`). The lane's shape is an architectural decision that two further stages build on, and a wrong edge term is the error that reads as an improvement.
+
+## Closed (2026-11-04)
+
+PR 6478. The rotational-chart Green lane is in, with the cylinder as its one chart and projected chords read. The cylinder × cylinder results are SOUND against an exact sliced oracle. Its MAJOR from review, the chart term's uncontained ribbon, is padded and guarded. Stage 2 (the sphere chart, which closes `a-projected-boundary-on-an-analytic-chart-has-no-volume-lane`) and stage 3 (the torus) are their own units. The pre-existing junction gap in the region term is `the-rotational-lane-omits-the-image-chains-junction-gaps-from-its-region-term`.

@@ -342,7 +342,8 @@ impl SsiLimb {
     /// of where the limb judges a carrier against its surfaces, with
     /// its image a witness: the SSI door, and the edge certifier's
     /// lanes that run the limbs (their ending is
-    /// [`crate::certify::recourse`]'s). What a limb's value measures is
+    /// [`crate::CertCheck`]'s [`crate::recourse::DoorCheck::recourse`]).
+    /// What a limb's value measures is
     /// the door's to say: where the image under judgement is a STORED
     /// one, the value at a break is that image's own miss
     /// (`PcurveCheck::of_fitted_limb`). Limbs 1 and 2 are the fitted

@@ -2,10 +2,11 @@
 id: revolve-axis-clearance-is-the-torus-convention-under-another-name
 kind: issue
 title: carve: revolve's axis_arc_clearance decides the ring-torus convention R - r under its own name, ending 'not supported' when definite and the declare menu in band
-status: open
+status: closed
 opened: 2026-09-30
 priority: P1
 cost: M
+closed: 2026-11-03
 ---
 
 
@@ -55,3 +56,28 @@ revolve's own lever (the profile arc's distance from the axis) if the
 convention's words do not fit a profile; drop "which is not supported".
 
 - 2026-11-02 — moved from CARVETAIL to LATHE by `git mv` when CARVETAIL merged into LATHE, id and body unchanged (the track budget now counts only P0, P1 and unbanded rows, and CARVETAIL had fallen far under it).
+
+## Closed (2026-11-03): the decision retired with the spindle sheet
+
+SPIRICARM's `the-spindle-sheet-away-from-its-apexes` (piece 2) made the
+revolve read the arc: `axis_arc_clearance`, `ClearanceDecision::ArcClearance`
+and `RevolveError::UnsupportedToroid` are gone. The margin `rc − radius`
+is now `axis_arc_reach` (`ClearanceDecision::ArcReach`), which picks the
+kind rather than refusing one: positive a ring torus, zero or negative a
+`Surface::Spindle` sheet with `R = rc`. Only its band refuses, as the
+near-horn sliver (`SliverAxisClearance`, the sized ending), as the
+ratified arc rule (`crates/topo/README.md`'s structural conventions)
+states. No "not supported" text remains, and there is no definite
+refusal left to end in the ring convention's words.
+
+The row had two halves, and only the definite one retired. The
+in-band half persists: the margin is still `rc − radius`, now
+`axis_arc_reach`, and in band it still refuses
+`SliverAxisClearance`, with the sized ending (the tolerance a value
+gives). What settles it is no longer the repair shape above
+(`TorusConvention::Ring`'s words) but the ratified arc rule: the
+reach picks the kind, so its band is the near-horn sliver between a
+ring torus and a horn sheet, which the rule names a sliver as it does
+`ArcCenter`'s and `LineRadial`'s. Below the band's zero a horn-class
+sheet builds with `R` up to `r` plus the band, which piece 1's
+clamped apex radicand closes at one cusp.

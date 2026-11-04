@@ -990,3 +990,35 @@ E1c waits on the answer.
     - `a-lane-choice-pick-splices-its-in-band-runs-live` (P2);
     - `in-band-test-distances-are-spelled-five-ways` (P3).
   - Next on `edge_nurbs.rs`: `two-decision-tables-for-one-ending`.
+- 2026-11-04 — **`two-decision-tables-for-one-ending` merged** (PR 6493).
+  - `recourse::Decision<C: DoorCheck>` and one `ending` replace `pcurve_cache::Decision` and `edge_nurbs::LaneDecision`.
+  - `CertifyError`'s table is folded in as the third.
+  - `Lever` and the kernel-limit texts now live in `recourse`.
+  - One `decided()`/`decision()` convention at every door.
+  - No ending moved: the review's dump of 510 entries is byte-identical at both heads.
+  - The guard `every_refusal_ends_through_the_one_decision_table` reads one `census` hook. It holds an explicit no-decision list that cites its row, so the reviewer's mutant M3 (a decided arm demoted to None) reds.
+  - Review tier: single STYLE. Verdict APPROVE-WITH-FIXES; fix list W was read by the orchestrator.
+  - Filed:
+    - `a-certify-errors-no-decision-arms-end-apart-from-the-one-table` (P2; `Band`'s lever-arm ending is unreachable today);
+    - `the-pcurve-mint-error-keeps-a-third-ending-table` (P2);
+    - `the-door-defect-is-two-kinds-of-the-one-decision-table` (P4).
+- 2026-11-04 — **E4 merged** (PR 6485): a circle has a general (projected) lane on the cylinder, cone and torus, and a line has one on the cone.
+  - `has_lane` and a typed `lane_of` are the one home.
+  - Check 4's incidence term for a circle on every curved chart is the chart form's exact trig polynomial. It is bounded by `implicit::conic_form_sup` with `rounding_charge` (the sphere joined, so `circle_chart` and `sphere_circle` are gone), and converted through `Meters::over_at`.
+  - The cone line's incidence is converted per part, halved on the lever's spread (9/8, depth 24).
+  - `general_lane_refusal` is the one place a general-lane refusal is relabelled, and only on the mint's own fresh image (`minted_refusal`, reached only from topo's walk). A stored row keeps its term.
+  - Review tier: DUAL, letter H, concurrent pair (byte 57, odd, A = R2). The R1 torus f64 MAJOR is bilateral. R2's unilateral executed MAJOR (a near-apex cone ruling ending in a tolerance offer) is tallied 1.
+  - Fix passes, with one delta verifier throughout:
+    - U1–U7: the torus conditioning, through implicit's harmonics family; the lane-taken tolerance offer; the C4 list; the cone line re-banded P1; style.
+    - The eps 1e-12 reds were root-caused: the apex fixture was 1.3e-10 off; the cone charge over-read 6e4× on flat cones.
+    - V: the relabel moved out of the shared checker. The verifier had shown a stored foreign row ending "not yet" at rest.
+    - X: the cone `terms` charge the projections' rounding. Before, they were short by up to 434× on needle cones, with one f64 envelope under-read at 3e-6. Now there are 0 shortfalls over 3000 draws (worst 0.022×), exact-rational coefficient rows on every chart, a 50-digit sweep of 508 rows with 0 under at both scalars, and radius-48 tight at about 150× ε.
+  - Final verdict: APPROVE-WITH-FIXES, non-gating. The lever integers in `conic_cone_harmonics` (implicit.rs ~1238) have no derivation at the site; the exact-rational row guards them. `minted_refusal` is re-exported publicly.
+  - Cost 1.04× (first head).
+  - Filed:
+    - `an-ellipses-general-lane-is-written-on-no-chart` (P1);
+    - `a-line-near-a-cone-is-read-as-a-ruling-without-a-class-gate` (P1);
+    - `a-spindle-chart-has-no-pcurve-lane` (spiricarm, P2);
+    - `a-stored-foreign-rows-at-rest-ending-depends-on-the-scalar` (P2);
+    - `a-minted-refusals-provenance-is-guarded-only-by-its-doc` (P2; the widened relabel's residual risk is recorded on it);
+    - `the-cones-fidelity-lever-reads-the-boxs-spread-not-the-poses` (P2).
