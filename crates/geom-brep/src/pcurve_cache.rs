@@ -193,8 +193,8 @@ use crate::ladder::{IdentityLadder, read_identity};
 #[cfg(test)]
 use crate::recourse::Reading;
 use crate::recourse::{
-    Decision, ReadAt, RefusedArm, RefusedSide::StoredContradiction, SizedDecision, SpanDecision,
-    Unsized,
+    Decision, DoorCheck, Lever, ReadAt, RefusedArm, RefusedSide::StoredContradiction,
+    SizedDecision, SpanDecision, Unsized,
 };
 use crate::ssi::{SsiDecision, SsiLimb};
 
@@ -2402,17 +2402,17 @@ impl std::error::Error for PcurveCertifyError {}
 
 impl PcurveCertifyError {
     /// The check this refusal restates, or `None` for a refusal no check
-    /// of this door owns ([`Self::decided`]'s first half).
+    /// of this door owns ([`Self::decision`]'s first half).
     #[must_use]
     pub fn refused_check(&self) -> Option<PcurveCheck> {
-        self.decided().map(|(check, _)| check)
+        self.decision().map(|(check, _)| check)
     }
 
     /// The check this refusal restates and the arm it refused on: its
     /// decision where that is a check of this door
     /// ([`Decision::Check`]), `None` for every other decision.
-    fn decided(&self) -> Option<(PcurveCheck, RefusedArm<'_>)> {
-        match self.decision() {
+    fn decision(&self) -> Option<(PcurveCheck, RefusedArm<'_>)> {
+        match self.decided() {
             Decision::Check(check, arm) => Some((check, arm)),
             Decision::SsiUndecided(..)
             | Decision::Ssi(_)
@@ -2427,9 +2427,9 @@ impl PcurveCertifyError {
 
     /// **The decision this refusal is a refused arm of**, one per arm
     /// (D4 ¶1 (i)): the exhaustive match a new arm names its decision in
-    /// before it compiles, which [`Self::ending`] and [`Self::decided`]
+    /// before it compiles, which [`Self::ending`] and [`Self::decision`]
     /// both read.
-    fn decision(&self) -> Decision<'_, PcurveCheck> {
+    pub(crate) fn decided(&self) -> Decision<'_, PcurveCheck> {
         let definite = RefusedArm::SignCertain(None);
         match self {
             Self::Escalated { check, cause, .. } => {
@@ -2501,27 +2501,20 @@ impl PcurveCertifyError {
     }
 
     /// The ending this refusal's decision gives it, read at `at`
-    /// ([`Self::decision`], through the one decision table's
+    /// ([`Self::decided`], through the one decision table's
     /// [`crate::recourse::Decision::ending`]); an incidence refusal ends
     /// by its read instead ([`IncidenceRead::ending`], E1d's door rule).
     #[must_use]
     pub fn ending(&self, at: impl Into<ReadAt>) -> String {
         let at = at.into();
-        if let Some(read) = IncidenceRead::of(self) {
-            return read.ending(at);
-        }
-        self.decision().ending(at)
+        self.own_ending(at)
+            .unwrap_or_else(|| self.decided().ending(at))
     }
 
-    /// The kind of this refusal's decision and the one decision table's
-    /// ending of it at `at` ([`crate::recourse::Decision::ending`]): what
-    /// the row holding every door to that table reads
-    /// (`topo::test_support_samples`).
-    #[cfg(feature = "test-support")]
-    #[doc(hidden)]
-    #[must_use]
-    pub fn decided_ending(&self, at: impl Into<ReadAt>) -> (crate::recourse::EndingKind, String) {
-        self.decision().census(at.into())
+    /// The ending this door reads off the refusal itself rather than off
+    /// its decision, or `None`: an incidence refusal's read.
+    pub(crate) fn own_ending(&self, at: ReadAt) -> Option<String> {
+        IncidenceRead::of(self).map(|read| read.ending(at))
     }
 
     /// This refusal's text read at `at`: its payload ended by its
@@ -2555,82 +2548,28 @@ impl PcurveCertifyError {
     /// certificate cannot show the image represents the carrier.
     #[must_use]
     pub fn refuses_on_a_bound(&self) -> bool {
-        self.decided().is_some_and(|(check, arm)| {
+        self.decision().is_some_and(|(check, arm)| {
             matches!(arm, RefusedArm::SignCertain(_)) && check.bounds_a_miss()
         })
     }
 }
 
-impl crate::recourse::DoorCheck for PcurveCheck {
-    fn recourse(self, arm: RefusedArm<'_>, at: ReadAt) -> String {
-        PcurveCheck::recourse(self, arm, at)
-    }
-}
-
-/// A refusal whose recourse is a lever on the input no margin reads, the
-/// same at every door: the one table of these levers, which the lane
-/// refusals read too ([`crate::recourse::Decision::Lever`]).
-#[derive(Clone, Copy)]
-pub(crate) enum Lever {
-    /// The carrier's parameter range cannot carry the image.
-    CarrierDomain,
-    /// A fitted image needs the fitted door, which only a scalar with
-    /// certification rights holds.
-    FittedDoor,
-    /// A fitted-grade image certifies at its own doors, not the
-    /// closed-form one.
-    FittedGradeDoor,
-    /// The chart is the placeholder.
-    Placeholder,
-    /// The run's tolerance forms no band.
-    Tolerance,
-    /// A band its caller built is refused: its own recourse.
-    Band(&'static str),
-}
-
-impl Lever {
-    pub(crate) fn recourse(self, at: ReadAt) -> String {
-        match self {
-            Self::CarrierDomain => crate::CARRIER_DOMAIN_RECOURSE.to_owned(),
-            Self::FittedDoor => fitted_door_recourse(at),
-            Self::FittedGradeDoor => FITTED_GRADE_DOOR_RECOURSE.to_owned(),
-            Self::Placeholder => PLACEHOLDER_RECOURSE.to_owned(),
-            Self::Tolerance => crate::recourse::BAND_TOLERANCE_RECOURSE.to_owned(),
-            Self::Band(recourse) => recourse.to_owned(),
+impl DoorCheck for PcurveCheck {
+    /// The one ending a refusal of this check carries on `arm`, read at
+    /// `at` (D4 ¶1 (i)). An incidence refusal ends by its read instead
+    /// ([`PcurveCertifyError::ending`], [`IncidenceRead::ending`]).
+    fn recourse(self, arm: RefusedArm<'_>, at: impl Into<ReadAt>) -> String {
+        let at = at.into();
+        match self.routing() {
+            Routing::Sized(decision) => decision.recourse(arm, at),
+            Routing::Unsized(decision) => decision.recourse(arm, at),
+            Routing::NotYet => crate::recourse::not_yet(arm, at),
+            Routing::Incidence => IncidenceRead::arm_ending(arm, at),
         }
     }
 }
 
-/// **The recourse for a fitted image read with no fitted door in hand**
-/// ([`PcurveCertifyError::FittedLaneUnsupported`]): read the body at a
-/// scalar with certification rights. At a build the call that refused
-/// may also be at one already and have withheld its door.
-#[must_use]
-pub fn fitted_door_recourse(at: impl Into<ReadAt>) -> String {
-    let holders = crate::ScalarList(crate::FITTED_DOOR_HOLDERS);
-    let sym = <geom_core::Sym<f64> as geom_core::Real>::NAME;
-    if at.into().is_build() {
-        format!(
-            "Recourse: replay the body at a scalar with certification rights, which alone \
-             holds the fitted door ({holders}, the {sym} one over a certifying base), or, if \
-             the run is at one already, pass the call its door"
-        )
-    } else {
-        format!(
-            "Recourse: check the body at a scalar with certification rights ({holders}, the \
-             {sym} one over a certifying base)"
-        )
-    }
-}
-
-/// The recourse for a fitted-grade image handed to the closed-form door
-/// ([`PcurveCertifyError::FittedGradeAtClosedFormDoor`]).
-pub const FITTED_GRADE_DOOR_RECOURSE: &str =
-    "Recourse: hand a Fitted or General image to certify_fitted or certify_general";
-
-/// The recourse for a chart that is still the placeholder
-/// ([`Surface::is_placeholder_chart`]).
-pub const PLACEHOLDER_RECOURSE: &str = "Recourse: describe the surface first, then ask again";
+pub use crate::recourse::{FITTED_GRADE_DOOR_RECOURSE, PLACEHOLDER_RECOURSE, fitted_door_recourse};
 
 /// How a refusal of a [`PcurveCheck`] ends: as a span decision read on
 /// the image where the check restates one ([`SpanDecision`]), and
@@ -2707,20 +2646,6 @@ impl PcurveCheck {
                 }
                 Routing::Unsized(Unsized::Bound)
             }
-        }
-    }
-
-    /// The one ending a refusal of this check carries on `arm`, read at
-    /// `at` (D4 ¶1 (i)). An incidence refusal ends by its read instead
-    /// ([`PcurveCertifyError::ending`], [`IncidenceRead::ending`]).
-    #[must_use]
-    pub fn recourse(self, arm: RefusedArm<'_>, at: impl Into<ReadAt>) -> String {
-        let at = at.into();
-        match self.routing() {
-            Routing::Sized(decision) => decision.recourse(arm, at),
-            Routing::Unsized(decision) => decision.recourse(arm, at),
-            Routing::NotYet => crate::recourse::not_yet(arm, at),
-            Routing::Incidence => IncidenceRead::arm_ending(arm, at),
         }
     }
 
@@ -12166,7 +12091,8 @@ mod tests {
     #[test]
     fn the_azimuth_gate_ends_in_the_edge_winding_lever() {
         use crate::CertCheck;
-        use crate::certify::{CertifyError, recourse};
+        use crate::certify::CertifyError;
+        use crate::recourse::DoorCheck;
         let cause = Indeterminate {
             margin: geom_core::MarginDiag::value(5e-9),
             band: Band::new(1e-9, 1e-8).unwrap(),
@@ -12191,11 +12117,7 @@ mod tests {
             };
             assert_eq!(
                 escalated.ending(reading),
-                recourse(
-                    CertCheck::ParamWinding,
-                    RefusedArm::Undecided(&cause),
-                    reading
-                ),
+                CertCheck::ParamWinding.recourse(RefusedArm::Undecided(&cause), reading),
                 "in band, {reading:?}"
             );
         }
@@ -13491,7 +13413,7 @@ mod tests {
                 "{arm:?}"
             );
             assert_eq!(
-                crate::certify::recourse(crate::CertCheck::ChartIncidence, arm, Reading::Build),
+                crate::CertCheck::ChartIncidence.recourse(arm, Reading::Build),
                 want,
                 "{arm:?}"
             );

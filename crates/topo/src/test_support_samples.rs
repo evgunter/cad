@@ -2113,6 +2113,7 @@ pub(crate) fn nested_coverage_gaps() -> Vec<String> {
 
 #[cfg(test)]
 mod tests {
+    use geom_brep::recourse::DoorCheck as _;
     use geom_brep::recourse::Reading;
     use geom_core::FileCoincidence;
 
@@ -2763,93 +2764,111 @@ mod tests {
     /// import door. Over the edge door's, the pcurve door's and the two
     /// lanes' rosters, which `nested_coverage_gaps` holds to every
     /// variant, each refusal's `ending` is the table's ending of the
-    /// decision it names (`decided_ending`), save the door's own
-    /// readings: an incidence refusal by its read, a stated interval by
-    /// its span. And every kind of ending the table writes is reached by
-    /// some refusal at every reading, so a kind no door reads any more,
-    /// or one added with no refusal of any door, reds by name.
+    /// decision it names (`recourse::census`), save where the door reads
+    /// the refusal itself first (an incidence refusal by its read, a
+    /// stated interval by its span), through the reading `ending` takes.
+    /// Every refusal has an ending, save the edge door's arms that name
+    /// no decision, listed by name (`no_decision`); and every kind of
+    /// decision the table writes is reached by some refusal, so a kind no
+    /// door reads any more, or one added with no refusal of any door,
+    /// reds by name.
     #[test]
     fn every_refusal_ends_through_the_one_decision_table() {
-        use geom_brep::IncidenceRead;
         use geom_brep::certify::CertifyError;
-        use geom_brep::recourse::{EndingKind, ReadAt};
+        use geom_brep::recourse::{DecisionKind, Door, ReadAt, census};
         use std::collections::BTreeSet;
         use strum::IntoEnumIterator as _;
 
-        type ByDecision = Option<(EndingKind, String)>;
+        /// The edge door's arms that name no decision and so end in
+        /// none, as filed on
+        /// `a-certify-errors-no-decision-arms-end-apart-from-the-one-table`.
+        /// An arm demoted to no decision reds until it is added here.
+        fn no_decision(e: &CertifyError) -> bool {
+            matches!(
+                e,
+                CertifyError::UnresolvedSurface { .. }
+                    | CertifyError::Unimplemented
+                    | CertifyError::IntersectionSameSurface { .. }
+                    | CertifyError::WrapOnNonPeriodic
+                    | CertifyError::TangentCertificateUnsupported
+                    | CertifyError::Band(_)
+                    | CertifyError::Row {
+                        refusal: geom_brep::RowRefusal::OffSide,
+                        ..
+                    }
+            )
+        }
         let doors = [
             ReadAt::from(Reading::Build),
             Reading::AtRest.into(),
             FileCoincidence::new(1e-6).into(),
         ];
-        // Per refusal: what it is, its door's ending at a reading, the
-        // table's ending of its decision there, and the door's own
-        // reading where it ends by one instead.
-        type Read<'a> = (
-            String,
-            Box<dyn Fn(ReadAt) -> Option<String> + 'a>,
-            Box<dyn Fn(ReadAt) -> ByDecision + 'a>,
-            Box<dyn Fn(ReadAt) -> Option<String> + 'a>,
-        );
         let certify = super::certify_errors();
         let pcurve = super::pcurve_certify_errors();
         let plane = super::plane_nurbs_refusals();
         let rung3 = super::analytic_rung3_refusals();
-        let mut reads: Vec<Read<'_>> = Vec::new();
+        // Per refusal: what it is, the door, its door's ending at a
+        // reading, and whether it may end in none.
+        type Ending<'a> = Box<dyn Fn(ReadAt) -> Option<String> + 'a>;
+        let mut reads: Vec<(String, Door<'_>, Ending<'_>, bool)> = Vec::new();
         for e in &certify {
+            let none = no_decision(e);
             reads.push((
                 format!("{e:?}"),
+                e.into(),
                 Box::new(|at| e.ending(at)),
-                Box::new(|at| e.decided_ending(at)),
-                Box::new(|at| match e {
-                    CertifyError::StatedInterval { refused } => Some(refused.ending(at)),
-                    _ => e.incidence_read().map(|read| read.ending(at)),
-                }),
+                none,
             ));
         }
         for e in &pcurve {
             reads.push((
                 format!("{e:?}"),
+                e.into(),
                 Box::new(|at| Some(e.ending(at))),
-                Box::new(|at| Some(e.decided_ending(at))),
-                Box::new(|at| IncidenceRead::of(e).map(|read| read.ending(at))),
+                false,
             ));
         }
         for e in &plane {
             reads.push((
                 format!("{e:?}"),
+                e.into(),
                 Box::new(|at| Some(e.ending(at))),
-                Box::new(|at| Some(e.decided_ending(at))),
-                Box::new(|_| None),
+                false,
             ));
         }
         for e in &rung3 {
             reads.push((
                 format!("{e:?}"),
+                e.into(),
                 Box::new(|at| Some(e.ending(at))),
-                Box::new(|at| Some(e.decided_ending(at))),
-                Box::new(|_| None),
+                false,
             ));
         }
         let mut wrong = Vec::new();
-        for at in doors {
-            let mut reached = BTreeSet::new();
-            for (what, ending, decided, own) in &reads {
-                let by_decision = decided(at);
-                if let Some((kind, _)) = &by_decision {
-                    reached.insert(*kind);
-                }
-                let want = own(at).or(by_decision.map(|(_, text)| text));
+        for (what, door, ending, none) in &reads {
+            for at in doors {
+                let read = census(*door, at);
+                let want = read.own.or(read.table);
                 let got = ending(at);
                 if got != want {
                     wrong.push(format!(
                         "{what} at {at:?} ends outside the table: {got:?}, not {want:?}"
                     ));
                 }
+                if got.is_none() != *none {
+                    wrong.push(format!(
+                        "{what} at {at:?} ends in {got:?}, against the no-decision list"
+                    ));
+                }
             }
-            for kind in EndingKind::iter().filter(|kind| !reached.contains(kind)) {
-                wrong.push(format!("no refusal at {at:?} ends by the table's {kind:?}"));
-            }
+        }
+        // The kind a refusal's decision is does not depend on the reading.
+        let reached: BTreeSet<DecisionKind> = reads
+            .iter()
+            .filter_map(|(_, door, ..)| census(*door, Reading::Build).kind)
+            .collect();
+        for kind in DecisionKind::iter().filter(|kind| !reached.contains(kind)) {
+            wrong.push(format!("no refusal ends by the table's {kind:?}"));
         }
         assert!(wrong.is_empty(), "{}", wrong.join("\n"));
     }

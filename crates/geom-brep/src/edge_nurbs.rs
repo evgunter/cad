@@ -381,11 +381,9 @@ pub(crate) const PCURVE_FIT_REFUSAL: &str = "the chart image could not be interp
      schedule's fixed, strictly ascending parameters the interpolation refuses only a foot it \
      cannot take (a non-finite one) or a collocation system it cannot solve";
 
-/// The one recourse for a carrier whose parameter domain its chart
-/// image cannot be expressed on ([`CarrierDomainRefusal`]), read by the
-/// lane's refusal and by `topo`'s at-rest classifier alike.
-pub const CARRIER_DOMAIN_RECOURSE: &str = "Recourse: give the curve a parameter range of moderate \
-     width near zero, such as 0 to 1; an affine reparameterization moves no point of it";
+pub use crate::recourse::{
+    CARRIER_DOMAIN_RECOURSE, KERNEL_LIMIT_EXTENT_FACTOR, KERNEL_LIMIT_ROUNDING_FACTOR,
+};
 
 /// The chart image could not be re-expressed on the carrier's own
 /// parameter domain `[lo, hi]`: the domain door
@@ -576,17 +574,6 @@ impl PlaneNurbsRefusal {
         self.decided().ending(at.into())
     }
 
-    /// The kind of this refusal's decision and the one decision table's
-    /// ending of it at `at` ([`crate::recourse::Decision::ending`]): what
-    /// the row holding every door to that table reads
-    /// (`topo::test_support_samples`).
-    #[cfg(feature = "test-support")]
-    #[doc(hidden)]
-    #[must_use]
-    pub fn decided_ending(&self, at: impl Into<ReadAt>) -> (crate::recourse::EndingKind, String) {
-        self.decided().census(at.into())
-    }
-
     /// This refusal's text read at `at`: its payload ended by its
     /// decision's ending there ([`Self::ending`]).
     #[must_use]
@@ -599,7 +586,8 @@ impl PlaneNurbsRefusal {
     /// before it compiles, which [`Self::ending`] and [`Self::decision`]
     /// both read.
     pub(crate) fn decided(&self) -> Decision<'_, CertCheck> {
-        use crate::pcurve_cache::{FittedEnding, Lever};
+        use crate::pcurve_cache::FittedEnding;
+        use crate::recourse::Lever;
         let definite = RefusedArm::SignCertain(None);
         match self {
             Self::NotTransverse { verdict, .. } => {
@@ -2538,17 +2526,6 @@ impl AnalyticRung3Refusal {
         self.decided().ending(at.into())
     }
 
-    /// The kind of this refusal's decision and the one decision table's
-    /// ending of it at `at` ([`crate::recourse::Decision::ending`]): what
-    /// the row holding every door to that table reads
-    /// (`topo::test_support_samples`).
-    #[cfg(feature = "test-support")]
-    #[doc(hidden)]
-    #[must_use]
-    pub fn decided_ending(&self, at: impl Into<ReadAt>) -> (crate::recourse::EndingKind, String) {
-        self.decided().census(at.into())
-    }
-
     /// This refusal's text read at `at`: its payload ended by its
     /// decision's ending there ([`Self::ending`]).
     #[must_use]
@@ -2702,48 +2679,6 @@ impl core::fmt::Display for AnalyticRung3Refusal {
                 "the uniqueness tube refused for a reason outside this certificate's vocabulary",
             ),
         }
-    }
-}
-
-/// How far above the carrier's own enclosure width limb 2's bound may lie
-/// and still read as that width ([`AnalyticRung3Refusal::KernelLimit`]'s
-/// ending). An order of magnitude: the composite's arithmetic adds a few
-/// roundings at the net's scale to the net's own.
-pub const KERNEL_LIMIT_ROUNDING_FACTOR: f64 = 16.0;
-
-/// How far above `extent · 2⁻⁵²` the carrier's own enclosure width may
-/// lie and still be its extent's rounding
-/// ([`AnalyticRung3Refusal::KernelLimit`]'s ending): past it the width
-/// is set by something other than the edge's length — its distance from
-/// the operand's origin, or the width of its inputs' own enclosures —
-/// and the story does not say which.
-pub const KERNEL_LIMIT_EXTENT_FACTOR: f64 = 64.0;
-
-/// **The one story of limb 2's kernel limit** ([tolerance.recourse] (i),
-/// (iv)), its recourse read off the data: a bound within
-/// [`KERNEL_LIMIT_ROUNDING_FACTOR`] of the carrier's own rounding `width`
-/// is that width; where that width is the edge's own extent's rounding
-/// (within [`KERNEL_LIMIT_EXTENT_FACTOR`] of `extent · 2⁻⁵²`), the extent
-/// is the limit at this tolerance and shorter edges are the lever. A
-/// wider enclosure, or a bound far above it, has a cause the story
-/// cannot know from these numbers, so it claims none: it names
-/// loosening as the last resort and the kernel bug it may be.
-pub(crate) fn kernel_limit_ending(bound: f64, width: f64, extent: f64) -> String {
-    let rounding = bound <= KERNEL_LIMIT_ROUNDING_FACTOR * width;
-    if rounding && width <= KERNEL_LIMIT_EXTENT_FACTOR * extent * f64::EPSILON {
-        "The bound is the curve's own rounding at its length, too long to certify at this \
-         tolerance. Recourse: split the edge into shorter edges"
-            .to_owned()
-    } else if rounding {
-        format!(
-            "The bound is the curve's own enclosure width, wider than its length's rounding. {}",
-            geom_core::KERNEL_LIMIT_RECOURSE
-        )
-    } else {
-        format!(
-            "The bound lies far above the curve's own enclosure width. {}",
-            geom_core::KERNEL_LIMIT_RECOURSE
-        )
     }
 }
 
