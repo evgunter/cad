@@ -1819,14 +1819,14 @@ mod undecided_text {
                 "a chart-class value",
                 chart_class(MarginDiag::value(5e-9)),
                 "whether an edge meeting another at a vertex on one curve runs along a \
-                 cylinder's ruling or around it is undecided: margin 5e-9 lies inside the \
+                 ruling of its chart or around it is undecided: margin 5e-9 lies inside the \
                  ambiguity band (1e-9, 1e-8). Recourse: move the geometry",
             ),
             (
                 "a chart-class straddle",
                 chart_class(MarginDiag::enclosure(-2e-9, 5e-9)),
                 "whether an edge meeting another at a vertex on one curve runs along a \
-                 cylinder's ruling or around it is undecided: enclosure [-2e-9, 5e-9] cannot be \
+                 ruling of its chart or around it is undecided: enclosure [-2e-9, 5e-9] cannot be \
                  classified against the ambiguity band (1e-9, 1e-8). Recourse: move the \
                  geometry",
             ),
@@ -1834,7 +1834,7 @@ mod undecided_text {
                 "an unreadable chart-class margin",
                 chart_class(MarginDiag::INVALID),
                 "whether an edge meeting another at a vertex on one curve runs along a \
-                 cylinder's ruling or around it is undecided: margin is invalid (NaN or a \
+                 ruling of its chart or around it is undecided: margin is invalid (NaN or a \
                  refused enclosure) against the ambiguity band (1e-9, 1e-8). Recourse: move the \
                  geometry; an unreadable margin may indicate a kernel bug worth reporting",
             ),

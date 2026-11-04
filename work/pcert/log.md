@@ -1052,3 +1052,13 @@ E1c waits on the answer.
   - Filed:
     - `the-projected-box-forms-spell-the-point-reading-apart` (P2);
     - two P2s and two P3s on other chart-point spellings (props, replace_face, derive_class, winds, sphere and torus pairs).
+- 2026-11-04 — **`the-ruling-question-is-read-in-two-units` merged** (PR 6504): whether a line is a ruling of a cylinder or cone is one reading, `ruling_miss`, in metres over the edge's span, shared by the mint, props and the boolean.
+  - The ruling is anchored where the closed form places its image: on a cylinder, the ruling through the line's origin; on a cone, the generator the anchor names. The cone arm gets the class gate it lacked (`a-line-near-a-cone-is-read-as-a-ruling-without-a-class-gate`, closed).
+  - On a cylinder, the line's class gate reads the meridian form's own miss: the lean over the span plus the origin's radial standoff (fix AB1, mutant `meridian-standoff-unread`).
+  - Review tier: single FULL. NOT-MERGEABLE-AS-IS. M1 (executed) was the meter's anchor at the span start against the image at the origin; m1 (executed) was the props cone pair scaling with `|dir|`.
+    - Fix list AA went to one delta verifier, who returned APPROVE-WITH-FIXES: Zero did not bound the meridian's miss.
+    - Fix list AB followed, read by the orchestrator. Green at all three ε locally and hosted.
+  - Filed:
+    - `a-line-passing-a-cones-apex-off-the-cone-reads-on-to-the-sampled-incidence` (P1). The verifier measured 2.6ε–263ε off ending "not yet" at the mint. No false certificate, so P1, not P0.
+    - `a-generator-anchored-near-the-apex-names-its-closed-form-poorly` (P3).
+  - Friction: the first reviewer was dispatched on a short sha and never started (`ref_not_found`), costing about 1.5 h. Lanes now get full 40-char shas, confirmed connected.
