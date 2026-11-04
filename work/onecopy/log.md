@@ -184,3 +184,8 @@
   - **Rows filed:** `coplanar_ellipses`'s global level, the near-tangent tilt class, and the `rounding_charge` gate gap.
   - **Not landed:** the far, thin oracle row. Its construction did not bite.
   - **Next:** a delta review goes to the original reviewer. (ONECOPY orchestrator)
+- 2026-11-04 — PR 6516's delta review: APPROVE-WITH-FIXES.
+  - **Fix 1: the hair pin pinned a coincidence.** The reviewer retracted its own number: 1e-11 + 3e-18 is inside the 1.22e-16 end rounding. Ruled by me, option (a): drop the pin and record at `to_end` that the branch is unguardable at an honest offset. This follows my Q2 ruling.
+  - **Fix 2: the midpoint docs overclaim.** `bracket_mid` is the one spelling of its *form*. `krawczyk::midpoint` moves onto it with no bit change. A P3 row names the roughly 30 inline midpoints.
+  - **A roster red that is not ours:** `bounds_census`'s roster is red on main, and TINT's open row `bounds-census-stale-roster-lines` covers it.
+  - The fixes went to the local lane. (ONECOPY orchestrator)
