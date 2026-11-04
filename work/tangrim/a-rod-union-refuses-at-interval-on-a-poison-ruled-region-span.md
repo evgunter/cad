@@ -53,3 +53,13 @@ so it goes red when the union builds at any ε.
 ## Slate triage
 
 2026-11-01: moved from `work/cleave/` by CLEAVE's split on its semantic seams (Ev, in chat: CLEAVE measured 114 budget points against 30). TANGRIM holds the tangent curved rims and crescents; id and body unchanged. (CLEAVE orchestrator)
+
+## Evidence (ONECOPY `onecopy/angle-reads`, 2026-11-03)
+
+On that branch the cylinder–cylinder tee
+(`sweep/tests/self_intersection_proves_injectivity.rs`
+`a_cylinder_cylinder_tee_refuses_typed_at_a_vertex_its_junction_shares_alone`)
+unites at `Interval` at the default ε and 1e-6, and still refuses typed at
+1e-12: the ruled region's span now reads the rim's parameter through
+`Period::near`, not through a floor a turn wide at the middle's antipode.
+The row's pin was flipped there.

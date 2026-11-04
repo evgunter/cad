@@ -122,3 +122,56 @@ rulings itself (`sector_face::ConeApex`). Each must refuse where it
 does not decide. Whether the residue refuses
 (`BoundaryCrossesItselfUndecided`) in the meantime, and the 13 rows go
 red with it, is a decision for the orchestrator with Ev.
+
+## Read one order down (branch `restread/self-touch-second-order`)
+
+`link::second_order` reads two of the classes: a cusp corner, by
+which side of its ray each edge bends to (a horn, or the whole turn
+but a horn), with a ring of horns read as the thorn it bounds; and a
+bound tied on another sheet's plane or bound, by whether the sheets
+along that ray part one order down. The argument, with the band
+charged, is in `crates/topo/README.md` beside the first-order one.
+
+**Re-measured at merge base `dc4e9b279e`** (same instrument, topo +
+the ten sweep families that reach the skip, default ε). Main moved
+since the head above: the tangrim program's crescent rows now reach
+the skip too. 122 (test, point, verdict) triples were left to second
+order there; now 67 read `Rest`, none `Crossing`, and 55 are still
+skipped, named and counted:
+
+| class still skipped | triples |
+|---|---|
+| a slit (an inside plane and a coplanar face of the other sense, `review_6020_seam_poses`), stopped at an arc's tangent in that plane | 30 (27, and 3 of the cusps) |
+| sectors on each other (`Degenerate`), `bisector_nodes`' equal cylinders | 14 |
+| a lune: a horn beside two cylinder sectors coinciding at first order (`two_wedge_ends_on_one_line`) | 4 (cusps) |
+| a curved sheet holding the tied ray inside it, whose line `parts` does not read: an arc's tangent in a curved face's tangent plane (`a_rim_flush_…`, 2) and a bound on a bound (`a_hole_sharing_the_rim_…`, 1) | 3 |
+| a cone's apex | 2 |
+| a foot normal | 1 |
+| a `resolve` refusal | 1 |
+| a thorn the cone round it reaches (its ray not decidedly outside the cone's material, or inside it for a needle), which may be a real overlap | 0 |
+
+The last class reaches no sweep row; it is witnessed at body level,
+where a thorn grafted round a box corner's ray stays skipped
+(`census::self_touch_curved`). A sign one order down left in band is
+`Unreadable` with the structural refusals: the skip's `why` does not
+part them.
+
+Of the cusps, 36 read and 7 are still skipped; of the bounds on a
+bound, 35 read and 1 is still skipped (4 triples carried both tags).
+
+**Refusing what is left** (`BoundaryCrossesItselfUndecided`, a local
+variant never committed) turns 7 sweep rows red: 6 of the 13 above
+(`a_rim_flush_…`, the cone apex, `bisector_nodes` ×2,
+`two_wedge_ends_on_one_line` ×2) and
+`a_closed_conic_in_the_partners_face::a_hole_sharing_the_rim_along_an_arc_then_leaving_it_tangent`,
+added since. All five `a_split_through_a_wrap_edges_vertex` rows and
+both `split_across_a_revolve_seam` rows read whole and stay green.
+Whether the remainder refuses is still Ev's call.
+
+## After PR 6422
+
+PR 6422 (`restread/self-touch-second-order`) merged on 2026-11-03 with
+the reading above, so this row is open again for the 55 triples still
+skipped. The two biggest classes are the slits (30) and
+`bisector_nodes`' equal cylinders (14). Whether the remainder refuses
+in the meantime is still Ev's call.

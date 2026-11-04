@@ -73,16 +73,37 @@
 //!   conic's signed distance from the line, `(C(θ) − o)·m̂` with `m̂` the
 //!   line's normal in the plane, is a first harmonic in the conic's angle
 //!   (below).
-//! - **Two conics.** Each conic's swing above the other's plane, the
-//!   amplitude of its height there (`curve_pair_pose_swing`), the first
-//!   conic's first. One read zero lies in a plane parallel to the
-//!   other's: its height, constant to within that swing, decides
-//!   [`Pose::Parallel`] (`curve_pair_pose_offset`), or, read zero, the
-//!   conics in one plane to within the slant `|c₀|` plus the swing, below.
-//!   Both definite: the first conic's height above the second's plane,
-//!   `(C₁(θ) − c₂)·n̂₂`, is a first harmonic in its own angle whose roots
-//!   are where it crosses that plane, and each candidate is the closest
-//!   pair polished from one (below). In one plane, **one reading decides
+//! - **Two conics.** Each conic's height above the other's plane is a
+//!   first harmonic `c₀ + A·cos(θ − φ)` in its own angle, `A` its swing.
+//!   **The parallel argument runs first, whatever the swing reads**, as
+//!   the router's does: where the height read with its swing and its
+//!   rounding as its spread, `c₀ ∓ (A + noise)`, decides one-signed for
+//!   either conic (`curve_pair_pose_parallel`), that conic
+//!   lies wholly on one side of the other's plane, past the band, and the
+//!   pair is [`Pose::Apart`]. Only then are the two swings read
+//!   (`curve_pair_pose_swing`), both before either is acted on. One
+//!   read zero lies in a plane parallel to the other's, its height
+//!   constant to within that swing: its offset read zero
+//!   (`curve_pair_pose_offset`), the conics lie in one plane to within
+//!   the slant `|c₀|` plus the swing (the larger slant where both read
+//!   zero), below; its offset, the screen's same margins read on its own
+//!   row, escalates in the gap. Only where neither
+//!   swing reads zero does one in the gap escalate. Both definite: the
+//!   height of one conic above the other's plane, a first harmonic whose
+//!   roots are where it crosses that plane, places the candidates, each
+//!   the closest pair polished from one (below). **The conic read is the
+//!   one that crosses the other's plane the less obliquely**: the larger
+//!   `(A² − c₀²)/r²`, `r` its larger semi-axis, which is the squared
+//!   sine of its crossing for a circle. That is a choice between two
+//!   sound readings, not a reading: it is taken off the log
+//!   (`curve_pair_pose_across`, `k_stats::check_unlogged`, ledger row
+//!   F33, at [`Band::least`]), and a tie or an undecided difference
+//!   reads the first. **What is order-free**: the route (apart, level,
+//!   across, escalation) depends only on the pair, and across planes
+//!   the harmonic read is the same in either order wherever the choice
+//!   decides. In one plane the arms below parametrize the first conic
+//!   of their kinds' order (`closed`), so a coplanar pair of like kinds
+//!   is read from the first span. In one plane, **one reading decides
 //!   whether two conics are one curve**, whatever their kinds
 //!   (`curve_pair_pose_one_curve`, `one_curve_gap`): each conic is
 //!   `c + L·x` over the unit circle, `L = [a·û, b·v̂]`, and the centres'
@@ -249,7 +270,7 @@
 mod window;
 
 use geom::{Azimuth, Curve3, CurveKind};
-use geom_core::k_stats::{decide, straddle};
+use geom_core::k_stats::{check_unlogged, decide, straddle};
 use geom_core::one_line::{OnOneLine, on_one_line};
 use geom_core::{Band, Decide, Lever, Margin, Point3, Sign, Vec3};
 
@@ -271,15 +292,18 @@ pub enum Sense {
     Opposite,
 }
 
-/// A candidate meeting: a point, and its parameter on each carrier (the
-/// carrier's own on the one it was placed on, its foot on the other).
+/// A candidate meeting: a point, and a seed on each carrier for reading
+/// it there. On the carrier it was placed on the seed is the point's own
+/// parameter; on the other it is its foot's [`geom::Foot::seed`], which
+/// certifies nothing. A reader that needs the point's parameter on a
+/// carrier reads that carrier's certificate at it.
 #[derive(Clone, Copy, Debug)]
 pub struct Candidate<T: geom_core::Real> {
     /// The point.
     pub point: Point3<T>,
-    /// Its parameter on the first carrier.
+    /// Its seed on the first carrier.
     pub ta: T,
-    /// Its parameter on the second carrier.
+    /// Its seed on the second carrier.
     pub tb: T,
 }
 
@@ -298,11 +322,12 @@ pub enum Pose<T: geom_core::Real> {
     /// Two circles in one plane on one centre, their radii definitely
     /// apart: no point meets.
     Concentric,
-    /// Parallel lines, or a line or conic parallel to the other's plane,
-    /// definitely apart: no point meets.
+    /// Parallel lines, or a line parallel to a conic's plane, definitely
+    /// apart: no point meets.
     Parallel,
     /// Definitely apart otherwise: the spans' projections on a line
-    /// apart past the band, or the residual's extremes one-signed.
+    /// apart past the band, a conic wholly to one side of the other's
+    /// plane, or the residual's extremes one-signed.
     Apart,
     /// One touch: a double root the band cannot split, of the residual in
     /// one plane or of the height above the other's plane.
@@ -343,6 +368,7 @@ mod row {
     pub(super) const RADII: &str = "curve_pair_pose_radii";
     pub(super) const ONE_CURVE: &str = "curve_pair_pose_one_curve";
     pub(super) const BRANCH: &str = "curve_pair_pose_branch";
+    pub(super) const ACROSS: &str = "curve_pair_pose_across";
 }
 
 /// The coplanar circle × ellipse subdivision's rows.
@@ -386,9 +412,10 @@ pub(super) fn closed<T: Decide>(
     known: &[Candidate<T>],
     band: Band,
 ) -> Result<Pose<T>, MeetFault> {
-    // Where one side is a circle and the other an ellipse, the ellipse is
-    // parametrized, so the reading against the circle is at its exact
-    // foot.
+    // Where one side is a circle and the other an ellipse, the ellipse
+    // comes first, so in one plane the reading against the circle is at
+    // its exact foot. Across planes the two-conic arm picks the conic it
+    // reads by its crossing, whatever the kinds (`conic_conic`).
     let flipped: Vec<_> = known.iter().copied().map(flip).collect();
     match arm {
         Arm::LineLine => line_line(a, b, band),
@@ -451,22 +478,6 @@ fn unit<T: Decide>(v: Vec3<T>) -> Vec3<T> {
     v * (T::one() / v.norm())
 }
 
-/// **How far round the turn `theta` lies from `at`**, in `[0, π]`, read
-/// clear of the reduction's cut: from `at` where it reads within a
-/// quarter turn of it, and otherwise as half a turn less how far it
-/// lies from `at + π`. An enclosure about the antipode then stays as
-/// narrow as `theta`, where the reduction about `at` would read the
-/// whole half turn.
-fn separation<T: Decide>(theta: T, at: T) -> T {
-    let from = |anchor: T| (theta - anchor).reduce_periodic_centred(T::tau()).abs();
-    let near = from(at);
-    if super::compare(row::BRANCH, near, T::pi() / T::from_f64(2.0)) == Some(Sign::Negative) {
-        near
-    } else {
-        T::pi() - from(at + T::pi())
-    }
-}
-
 /// The metres a span runs at most: its parameter run at the carrier's
 /// greatest speed.
 fn reach<T: Decide>(s: &Span<'_, T>) -> T {
@@ -474,11 +485,9 @@ fn reach<T: Decide>(s: &Span<'_, T>) -> T {
     Margin::metered_sup((t1 - t0).abs(), s.speeds().1).value()
 }
 
-/// The line's foot of `q` ([`Curve3::foot`], the one foot reading).
+/// The parameter of `q`'s foot on the line ([`geom::Line::param`]).
 fn line_foot<T: Decide>((origin, dir): (Point3<T>, Vec3<T>), q: Point3<T>) -> T {
-    Curve3::Line(geom::Line { origin, dir })
-        .foot(q, T::zero())
-        .t()
+    geom::Line { origin, dir }.param(q)
 }
 
 /// A lower bound on `q`'s distance from the carrier
@@ -488,11 +497,12 @@ fn clearance<T: Decide>(c: &Curve3<T>, q: Point3<T>) -> T {
     c.clearance(q).unwrap_or_else(T::zero)
 }
 
-/// `q`'s foot on `s`'s carrier ([`Curve3::foot`]), seeded at the span's
-/// middle.
+/// `q`'s foot on `s`'s carrier ([`Curve3::foot`]) seeded at the span's
+/// middle, as a seed ([`geom::Foot::seed`]): a candidate the pose reads
+/// on, not a certified parameter.
 fn foot<T: Decide>(s: &Span<'_, T>, q: Point3<T>) -> T {
     let (t0, t1) = s.params();
-    s.carrier().foot(q, geom::mid_param(t0, t1)).t()
+    s.carrier().foot(q, geom::mid_param(t0, t1)).seed()
 }
 
 /// **Each span's ends, read against the other** (module docs, "The
@@ -1009,21 +1019,47 @@ fn conic_conic<T: Decide>(
     let hb = height(&kb, ka.frame().origin, ka.frame().axis);
     let swing = |(_, cp, sp): (T, T, T)| (cp.powi(2) + sp.powi(2)).sqrt();
     let (swing_a, swing_b) = (swing(ha), swing(hb));
-    // A conic whose height above the other's plane is constant within
-    // the band lies in a plane parallel to it: definitely off it, or in
-    // it to within the slant `|c₀|` plus its swing.
-    let mut slant = None;
+    // The one reading of a conic's height against the other's plane:
+    // clear of it all round is apart, whatever the swing reads.
     for (swing, (c0, _, _)) in [(swing_a, ha), (swing_b, hb)] {
-        if definite(row::SWING, Margin::of(swing), band)? {
+        if matches!(constant(row::PARALLEL, c0, swing + noise, band), Ok(true)) {
+            return Ok(Pose::Apart);
+        }
+    }
+    // Both swings are read before either is acted on, so the route does
+    // not depend on which conic comes first. A conic whose swing reads
+    // zero lies in a plane parallel to the other's, in it to within the
+    // slant `|c₀|` plus its swing (the larger of the two where both are
+    // level); its offset in the gap escalates. Only where neither reads
+    // zero does a swing in the gap escalate.
+    let sides = [(swing_a, ha), (swing_b, hb)];
+    let swings = sides.map(|(swing, _)| decide(row::SWING, Margin::of(swing), band));
+    let mut slant: Option<T> = None;
+    for (read, (swing, (c0, _, _))) in swings.iter().zip(sides) {
+        if *read != Ok(Sign::Zero) {
             continue;
         }
-        if constant(row::OFFSET, c0, swing + noise, band)? {
-            return Ok(Pose::Parallel);
-        }
-        slant = Some(c0.abs() + swing);
-        break;
+        // The same margins the screen read, on the offset's row: read
+        // clear they would have been apart there, so only their gap
+        // escalation is left to act on.
+        constant(row::OFFSET, c0, swing + noise, band)?;
+        let level = c0.abs() + swing;
+        slant = Some(slant.map_or(level, |other| other.max(level)));
     }
     let Some(slant) = slant else {
+        for read in swings {
+            read?;
+        }
+        let steep = |(c0, _, _): (T, T, T), swing: T, k: &dyn Conic<T>| {
+            let (p, q) = k.semi_axes();
+            (swing.powi(2) - c0.powi(2)) / p.abs().max(q.abs()).powi(2)
+        };
+        let by_b = steep(hb, swing_b, &kb) - steep(ha, swing_a, &ka);
+        if check_unlogged(row::ACROSS, by_b, Band::least(), "F33") == Ok(Sign::Positive) {
+            let flipped: Vec<_> = known.iter().copied().map(flip).collect();
+            let read = transverse((b, &kb, &ka, a), hb, swing_b, (noise, arm), &flipped, band);
+            return Ok(swapped(read?));
+        }
         return transverse((a, &ka, &kb, b), ha, swing_a, (noise, arm), known, band);
     };
     let oriented = |k: &dyn Conic<T>| k.frame().axis * (k.semi_axes().0 * k.semi_axes().1);
@@ -1121,7 +1157,8 @@ fn frame_gap<T: Decide>(e: &dyn Conic<T>, f: &dyn Conic<T>) -> T {
 
 /// `ka`'s height above `kb`'s plane, `(c0, cp, sp)` with the swing read
 /// definite (module docs): its crossings and touch, each polished to the
-/// closest pair.
+/// closest pair. `ka` is the conic that crosses the other's plane the
+/// less obliquely, chosen by the caller.
 fn transverse<T: Decide>(
     (a, ka, kb, b): (&Span<'_, T>, &dyn Conic<T>, &dyn Conic<T>, &Span<'_, T>),
     (c0, cp, sp): (T, T, T),
@@ -1462,7 +1499,7 @@ impl<T: Decide> Range<T> {
         let (c0, swing) = ((self.lo + self.hi) / two, (self.hi - self.lo) / two);
         let e = T::from_f64(band.escalate()) + self.noise;
         let unit_cos = |x: T| x.max(T::zero() - T::one()).min(T::one());
-        let phi = separation(theta, self.at_hi);
+        let phi = geom::separation(theta, self.at_hi);
         let inner = unit_cos((e - c0) / swing).acos();
         let outer = unit_cos((T::zero() - e - c0) / swing).acos();
         (phi - inner).abs().max((outer - phi).abs())

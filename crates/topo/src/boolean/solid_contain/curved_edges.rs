@@ -120,7 +120,7 @@ pub(super) fn read<T: Decide>(
     };
     let mut seen = std::collections::BTreeSet::new();
     for &(face, _) in geos {
-        for fe in body.proven_face_edges(face) {
+        for fe in body.proven_face(face).edges() {
             let (e, other) = (fe.edge, fe.across);
             if meets.lines.contains(&e) || !seen.insert(e) {
                 continue;
@@ -242,7 +242,7 @@ fn narrow<T: Decide>(
     let met = meets.met.clone();
     for m in &met {
         for &face in &m.faces {
-            for fe in body.proven_face_edges(face) {
+            for fe in body.proven_face(face).edges() {
                 let e = fe.edge;
                 // A line edge between two crossed planes is read exactly
                 // ([`super::edge_meets`]), and one met is marked where it
@@ -308,7 +308,7 @@ fn passes<T: Decide>(
     let ray = geom::Line { origin: q, dir: d };
     let mut r = seed;
     for _ in 0..FEET {
-        near = carrier.foot(r, near).t();
+        near = carrier.foot(r, near).seed();
         r = ray.foot(carrier.eval(near));
     }
     let s = ray.param(r);
@@ -321,7 +321,7 @@ fn passes<T: Decide>(
         },
     };
     match span.span().place(r, near, band) {
-        Ok(geom_brep::curve_pair::Place::Inside { .. }) => Passes::Met(s, gap),
+        Ok(geom_brep::curve_pair::Place::Inside) => Passes::Met(s, gap),
         Ok(geom_brep::curve_pair::Place::Past) => Passes::Clear,
         // In band of an end, or undecided against one, a walk that could
         // not run included: the ray passes within reach of its vertex, a

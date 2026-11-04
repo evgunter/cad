@@ -827,7 +827,7 @@ mod kernel {
         pub(super) const REVOLVE_ERROR: RevolveError = [
             Band, EmptyProfile, NonFiniteAxis, UnderflowedAxis, DegenerateAxis, AxisEscalated, Turn,
             DegenerateAngle, FullRangeAngle, AngleEscalated, VertexCrossesAxis,
-            SliverRadius, ArcCrossesAxis, SliverAxisClearance, SheetApex,
+            SliverRadius, ArcCrossesAxis, SliverAxisClearance, ApexEndOffSheet,
             NonManifoldAxisContact, AxisGapEscalated, HoleTouchesAxis, VoidInsertion,
             CosurfaceEscalated, SliverJoin, SliverRim, SmoothJoinRefuted,
             PinnedRunStation, CapPlane, Op, Pcurve,
@@ -2077,8 +2077,8 @@ fn revolve_arms() -> Vec<(&'static str, sweep::RevolveError)> {
             },
         ),
         (
-            "SheetApex",
-            E::SheetApex {
+            "ApexEndOffSheet",
+            E::ApexEndOffSheet {
                 loop_index: 0,
                 segment_index: 3,
             },

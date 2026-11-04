@@ -530,8 +530,9 @@ pub(super) fn first_unsupported_pair<T: Decide + Bounds>(
         // that carries no unsupported kind at all — the common case
         // pays nothing for this gate.
         let mut offenders: Vec<(FaceKey, geom::SurfaceKind)> = Vec::new();
-        for (key, f) in body.faces() {
-            let s = body.face_surface_linked(key, f);
+        for f in body.face_views() {
+            let key = f.key();
+            let s = f.surface();
             if !supported(s) {
                 offenders.push((key, s.kind()));
             }
@@ -543,9 +544,9 @@ pub(super) fn first_unsupported_pair<T: Decide + Bounds>(
         // offender exists: the scan is `offenders × other faces`, so
         // re-boxing per offender would re-walk a whole body per cone.
         let others: Vec<(FaceKey, geom::SurfaceKind, bvh::Aabb)> = other
-            .faces()
-            .map(|(key, f)| {
-                let kind = other.face_surface_linked(key, f).kind();
+            .face_views()
+            .map(|f| {
+                let (key, kind) = (f.key(), f.surface().kind());
                 Ok((key, kind, super::boxes::face_box(other, key, pad, band)?))
             })
             .collect::<Result<_, BooleanError>>()?;
@@ -817,7 +818,7 @@ pub(super) fn gate_maximal_faces<T: Decide>(
             // exactly what a maximal-faced curved operand looks like
             // (the cosurface merge itself KEEPS such a cut). Only the
             // PLANAR same-key pair is the F7 defect.
-            let planar = matches!(body.proven_face_surface(f1), geom::Surface::Plane { .. });
+            let planar = matches!(body.proven_face(f1).surface(), geom::Surface::Plane { .. });
             if planar {
                 return Err(BooleanError::NonMaximalFaces {
                     operand,
@@ -1262,7 +1263,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                         origin: chart_origin,
                         normal: chart_normal,
                         ..
-                    } = y.proven_face_surface(face)
+                    } = y.proven_face(face).surface()
                     else {
                         return Err(BooleanError::ClassificationInvariant {
                             what: "planar lane: the face's plane resolved above",
@@ -1749,12 +1750,13 @@ pub(super) fn sweep_and_settle<T: Decide + Bounds + crate::props::AtRestPolicy>(
 }
 
 /// The vertices bounding `face` of `body`, outer loop and rings, for a
-/// face the contact record names ([`Body::proven_face_boundary`]).
+/// face the contact record names ([`crate::live::FaceView::boundary`]).
 fn face_vertices<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
 ) -> std::collections::BTreeSet<VertexKey> {
-    body.proven_face_boundary(face)
+    body.proven_face(face)
+        .boundary()
         .map(|member| member.vertex())
         .collect()
 }
@@ -2006,7 +2008,8 @@ fn edge_covers<T: Decide>(
 /// LINE, a CIRCLE or an ELLIPSE carrier against a CYLINDER wall, a
 /// SPHERE, a TORUS or a CONE is routed through the certified roots and
 /// pierces; everything else — a tangency, a line parallel to a cone's
-/// generator, an undeclared on-carrier edge, a trim with no verdict —
+/// generator, an on-carrier edge beside a face not read distinct from
+/// `face`, a trim with no verdict —
 /// refuses typed at the named frontier door
 /// ([`BooleanError::CurvedPierceUnsupported`]), and a root within the band
 /// of a cone's apex that the root doors cannot place there (its spread
@@ -2180,7 +2183,7 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
     band: Band,
     tol: Tol,
 ) -> Result<CurvedEvent<T>, BooleanError> {
-    let surface = y.proven_face_surface(face).clone();
+    let surface = y.proven_face(face).surface().clone();
     let frontier = || BooleanError::CurvedPierceUnsupported {
         operand: x_is,
         face,
@@ -2803,8 +2806,8 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
         //   lying on a wall**, its residual decided Zero at both ends and
         //   its distance from the axis constant over the span. Either is an ON event (C4's
         //   one-sided cover, narrowed to touches) when every surface of a
-        //   face it bounds is decided distinct from `face`'s by the
-        //   carrier ladder: the edge is then a curve where two different
+        //   face it bounds is decided distinct from `face`'s
+        //   ([`parents_distinct_from`]): the edge is then a curve where two different
         //   carriers meet, not a cosurface question. It takes the
         //   coplanar conic's posture, endpoint processing only, once its
         //   interior is certified to meet this face's boundary nowhere it
@@ -2812,8 +2815,8 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
         //   ([`lying_on`]).
         //
         // Every other answer keeps the door: the undeclared cosurface
-        // question (CONTACT-DESIGN C2/C4), a parent the ladder does not
-        // decide distinct, a tangency, and a trim with no verdict.
+        // question (CONTACT-DESIGN C2/C4), a parent not decided distinct,
+        // a tangency, and a trim with no verdict.
         (Sign::Zero, Sign::Zero) => {
             let (t0, t1) = curve.params();
             match wall_crossing(y, face, &surface, curve.carrier(), t0, t1, band, &escalate)? {
@@ -3333,7 +3336,7 @@ fn spline_interior<T: Decide + crate::props::AtRestPolicy>(
     if !geom_brep::curve_face::route(curve.carrier().kind(), kind).implemented {
         return Err(unbuilt());
     }
-    let surface = y.proven_face_surface(face).clone();
+    let surface = y.proven_face(face).surface().clone();
     let chart = surface
         .spline_chart()
         .ok_or(BooleanError::ClassificationInvariant {
@@ -4116,10 +4119,11 @@ fn boundary_meets_circle_only_at<T: Decide>(
     Ok(reading.shared.is_empty() && only_at)
 }
 
-/// Whether the carrier ladder decides EVERY surface of a face the edge
-/// bounds definitely distinct from `face`'s carrier, read undeclared.
-/// One carrier, a refusal (an offset in band) or a kind outside the
-/// ladder's inventory answers false.
+/// Whether EVERY surface of a face the edge bounds is decided definitely
+/// distinct from `face`'s carrier, read undeclared: by the carrier ladder,
+/// or, for a spline parent the ladder has no description for, by
+/// [`spline_off_carrier`]. One carrier, a refusal (an offset in band), a
+/// spline not read off, or an `Approx` parent answers false.
 fn parents_distinct_from<T: Decide>(
     x: &Body<T>,
     edge: &crate::entity::Edge,
@@ -4134,12 +4138,362 @@ fn parents_distinct_from<T: Decide>(
     .into_iter()
     .all(|pf| {
         pf.is_some_and(|pf| {
+            match super::carrier_pair::carrier_pair_relation(x, pf, y, face, band) {
+                Ok(Ok(super::carrier_eq::CarrierRelation::Distinct)) => true,
+                Err(super::carrier_pair::PairUnread::OutsideInventory) => {
+                    match x.proven_face(pf).surface() {
+                        geom::Surface::Nurbs(sheet) => {
+                            spline_off_carrier(sheet, y.proven_face(face).surface(), band)
+                        }
+                        _ => false,
+                    }
+                }
+                _ => false,
+            }
+        })
+    })
+}
+
+/// The site [`spline_off_carrier`] decides a spline sheet's point off an
+/// analytic carrier under.
+const SHEET_OFF_CARRIER: &str = "bool_spline_sheet_off_carrier";
+
+/// The site [`spline_off_carrier`] decides a torus carrier a ring under.
+const SHEET_RING_TORUS: &str = "bool_spline_sheet_ring_torus";
+
+/// **Whether spline sheet `sheet` lies on analytic `carrier` along no
+/// piece**: true where every Bézier piece of the net (each cell between
+/// consecutive distinct breakpoints of both knot vectors, whatever their
+/// multiplicities) has a point decided definitely off `carrier` under
+/// [`SHEET_OFF_CARRIER`] ([`crate::census::points_on_surface`]); false
+/// otherwise, a piece with every point on or in band included. It never
+/// reads the two as one.
+///
+/// On one piece the sheet is a rational polynomial patch, so the
+/// carrier's polynomial equation along it, cleared of its weight, is a
+/// polynomial in the piece's two parameters. A patch lying on the carrier
+/// over any open set makes that polynomial zero there, so zero over the
+/// whole piece, and the patch lies on the carrier's whole real variety.
+/// One point of the piece off that VARIETY therefore certifies the piece
+/// lies on the carrier along no part of it. Across a breakpoint the
+/// polynomial changes, so every piece is read, and one piece read off
+/// says nothing of another.
+///
+/// The decided residual is read as "off the variety", so the argument
+/// holds only for a carrier whose residual vanishes on its whole real
+/// variety: a plane, a cylinder, a sphere, a ring torus (`R > r`,
+/// decided here under [`SHEET_RING_TORUS`]) and a cone, whose residual
+/// reads both nappes (`|h|`). Every other carrier is unread. A spindle's
+/// residual vanishes on one of its torus's two sheets, while the quartic
+/// vanishes on both: a patch lying on the read sheet over an open set and
+/// running on into the other reads off there, so the spindle is out, as
+/// is every kind not listed.
+fn spline_off_carrier<T: Decide>(
+    sheet: &geom::NurbsSurface<T>,
+    carrier: &geom::Surface<T>,
+    band: Band,
+) -> bool {
+    let whole_variety = match *carrier {
+        geom::Surface::Plane { .. }
+        | geom::Surface::Cylinder { .. }
+        | geom::Surface::Sphere { .. }
+        | geom::Surface::Cone { .. } => true,
+        geom::Surface::Torus {
+            major_radius,
+            minor_radius,
+            ..
+        } => matches!(
+            crate::validate::decide(
+                SHEET_RING_TORUS,
+                Margin::of(major_radius - minor_radius),
+                band
+            ),
+            Ok(Sign::Positive)
+        ),
+        _ => false,
+    };
+    if !whole_variety {
+        return false;
+    }
+    // Clamped, so the first and last runs are the domain's ends.
+    let breaks =
+        |knots: &geom_core::spline::Knots<T>| -> Vec<T> { knots.runs().map(|(v, _)| v).collect() };
+    let (bu, bv) = (breaks(sheet.knot_values_u()), breaks(sheet.knot_values_v()));
+    // The piece's centre, then four points about it, as fractions of
+    // its two sides.
+    let (quarter, half, three) = (T::from_f64(0.25), T::from_f64(0.5), T::from_f64(0.75));
+    let fractions = [
+        (half, half),
+        (quarter, quarter),
+        (three, three),
+        (quarter, three),
+        (three, quarter),
+    ];
+    let at = |a: T, b: T, f: T| a + (b - a) * f;
+    bu.windows(2).all(|u| {
+        bv.windows(2).all(|v| {
+            let points: Vec<Point3<T>> = fractions
+                .iter()
+                .map(|&(fu, fv)| sheet.eval(at(u[0], u[1], fu), at(v[0], v[1], fv)))
+                .collect();
             matches!(
-                super::carrier_pair::carrier_pair_relation(x, pf, y, face, band),
-                Ok(Ok(super::carrier_eq::CarrierRelation::Distinct))
+                crate::census::points_on_surface(carrier, &points, SHEET_OFF_CARRIER, band),
+                Ok(false)
             )
         })
     })
+}
+
+/// **A spline sheet reads off a carrier only where every Bézier piece
+/// does** ([`spline_off_carrier`]): a sheet that is a cylinder patch, or
+/// that lies on the cylinder along one piece only, stays unread.
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod spline_off_carrier_rows {
+    use super::spline_off_carrier;
+    use geom::{NurbsSurface, Surface};
+    use geom_core::spline::{KnotVector, Knots};
+    use geom_core::{Band, Point3, Tol, Vec3};
+
+    fn band() -> Band {
+        Band::linear(Tol::witness()).unwrap()
+    }
+
+    fn cylinder() -> Surface<f64> {
+        Surface::Cylinder {
+            origin: Point3::origin(),
+            axis: Vec3::unit_z(),
+            radius: 1.0,
+            u_ref: Vec3::unit_x(),
+        }
+    }
+
+    /// A quarter turn about `z` (exact, rational in `u`) through rows of
+    /// `(radius, height)`, on clamped `knots_v` of `degree_v`.
+    fn sheet(rows: &[(f64, f64)], knots_v: Vec<f64>, degree_v: usize) -> NurbsSurface<f64> {
+        let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        let kv = KnotVector::clamped(knots_v, degree_v).unwrap();
+        let w = core::f64::consts::FRAC_1_SQRT_2;
+        let mut control = Vec::new();
+        let mut weights = Vec::new();
+        for (dir, wu) in [((1.0, 0.0), 1.0), ((1.0, 1.0), w), ((0.0, 1.0), 1.0)] {
+            for &(r, z) in rows {
+                control.push(Point3::new(r * dir.0, r * dir.1, z));
+                weights.push(wu);
+            }
+        }
+        NurbsSurface::new(Knots::from(ku), Knots::from(kv), control, weights).unwrap()
+    }
+
+    #[test]
+    fn a_sheet_off_the_cylinder_on_every_piece_reads_off() {
+        let s = sheet(
+            &[(1.0, 0.0), (1.2, 0.1), (2.0, 1.0)],
+            vec![0.0, 0.0, 0.1, 1.0, 1.0],
+            1,
+        );
+        assert!(spline_off_carrier(&s, &cylinder(), band()));
+    }
+
+    #[test]
+    fn a_sheet_that_is_a_cylinder_patch_stays_unread() {
+        let s = sheet(
+            &[(1.0, 0.0), (1.0, 0.1), (1.0, 1.0)],
+            vec![0.0, 0.0, 0.1, 1.0, 1.0],
+            1,
+        );
+        assert!(!spline_off_carrier(&s, &cylinder(), band()));
+    }
+
+    /// The first piece, `v ∈ [0, 0.1]`, is the cylinder; the second
+    /// leaves it. A point off on the second piece says nothing of the
+    /// first, and a split of `[0, 1]` into equal cells misses the
+    /// breakpoint.
+    #[test]
+    fn a_sheet_on_the_cylinder_along_one_piece_stays_unread() {
+        let s = sheet(
+            &[(1.0, 0.0), (1.0, 0.1), (2.0, 1.0)],
+            vec![0.0, 0.0, 0.1, 1.0, 1.0],
+            1,
+        );
+        assert!(!spline_off_carrier(&s, &cylinder(), band()));
+    }
+
+    /// The same across a crease: a double knot at `0.3` of a quadratic,
+    /// the cylinder below it and a flare above.
+    #[test]
+    fn a_sheet_on_the_cylinder_up_to_a_crease_stays_unread() {
+        let knots = vec![0.0, 0.0, 0.0, 0.3, 0.3, 1.0, 1.0, 1.0];
+        let on = [(1.0, 0.0), (1.0, 0.15), (1.0, 0.3), (2.0, 0.6), (3.0, 1.0)];
+        assert!(!spline_off_carrier(
+            &sheet(&on, knots.clone(), 2),
+            &cylinder(),
+            band()
+        ));
+        let off = [(1.0, 0.0), (1.1, 0.15), (1.0, 0.3), (2.0, 0.6), (3.0, 1.0)];
+        assert!(spline_off_carrier(
+            &sheet(&off, knots, 2),
+            &cylinder(),
+            band()
+        ));
+    }
+}
+
+/// **A sheet reads off only where a point is decided off the carrier's
+/// whole variety** ([`spline_off_carrier`]): a spindle, whose residual
+/// sees one of its two sheets, a sheet in band on every piece, and the
+/// cone's mirror nappe all stay unread.
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod spline_off_carrier_review_rows {
+    use super::spline_off_carrier;
+    use geom::{NurbsSurface, Surface};
+    use geom_core::spline::{KnotVector, Knots};
+    use geom_core::{Band, Point3, Tol, Vec3};
+
+    fn band() -> Band {
+        Band::linear(Tol::witness()).unwrap()
+    }
+
+    /// A quarter turn about `z` of the rational profile `rows` of
+    /// `(radius, height, weight)` in one meridian half-plane, a single
+    /// Bézier piece of degree `rows.len() - 1` in `v`.
+    fn revolved(rows: &[(f64, f64, f64)]) -> NurbsSurface<f64> {
+        let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        let p = rows.len() - 1;
+        let mut kv = vec![0.0; p + 1];
+        kv.extend(vec![1.0; p + 1]);
+        let kv = KnotVector::clamped(kv, p).unwrap();
+        let w = core::f64::consts::FRAC_1_SQRT_2;
+        let mut control = Vec::new();
+        let mut weights = Vec::new();
+        for (dir, wu) in [((1.0, 0.0), 1.0), ((1.0, 1.0), w), ((0.0, 1.0), 1.0)] {
+            for &(r, z, wv) in rows {
+                control.push(Point3::new(r * dir.0, r * dir.1, z));
+                weights.push(wu * wv);
+            }
+        }
+        NurbsSurface::new(Knots::from(ku), Knots::from(kv), control, weights).unwrap()
+    }
+
+    /// An apple spindle (`R = 0.5`, `r = 1`) and the exact revolved
+    /// meridian arc from 90° to 150°, across the apex at 120°. Below the
+    /// apex (`v < 0.5`) the sheet IS the spindle's sheet over an open
+    /// set; past it the meridian circle runs on into the other sheet of
+    /// the same algebraic torus, which the spindle's residual reads off.
+    /// The sheet lies on the carrier over an open set, so it must not
+    /// read distinct from it.
+    #[test]
+    fn a_sheet_on_a_spindle_across_its_apex_stays_unread() {
+        let spindle = Surface::Spindle {
+            center: Point3::origin(),
+            axis: Vec3::unit_z(),
+            major_radius: 0.5,
+            minor_radius: 1.0,
+            u_ref: Vec3::unit_x(),
+        };
+        let (c, s) = (0.5_f64, 0.0_f64);
+        let at = |deg: f64| {
+            let t = deg.to_radians();
+            (c + t.cos(), s + t.sin())
+        };
+        let (p0, p2) = (at(90.0), at(150.0));
+        let half = 30.0_f64.to_radians();
+        let mid = 120.0_f64.to_radians();
+        let p1 = (c + mid.cos() / half.cos(), s + mid.sin() / half.cos());
+        let s = revolved(&[
+            (p0.0, p0.1, 1.0),
+            (p1.0, p1.1, half.cos()),
+            (p2.0, p2.1, 1.0),
+        ]);
+        // The premise: the sheet's lower part is on the spindle.
+        let on = s.eval(0.5, 0.25);
+        let r = geom_brep::implicit::implicit_residual(&spindle, on);
+        assert!(
+            r.abs() < 1e-12,
+            "the sheet's lower part lies on the spindle: {r}"
+        );
+        assert!(
+            !spline_off_carrier(&s, &spindle, band()),
+            "a sheet on the spindle over an open set reads distinct from it"
+        );
+    }
+
+    /// Each other carrier the gate admits reads a sheet off it as
+    /// distinct, and a sheet on it as unread: a plane, a sphere and a ring
+    /// torus, each with an exact rational sheet lying on it.
+    #[test]
+    fn a_plane_a_sphere_and_a_ring_torus_read_a_sheet_off_them_and_not_one_on_them() {
+        let w = core::f64::consts::FRAC_1_SQRT_2;
+        let plane = Surface::Plane {
+            origin: Point3::new(0.0, 0.0, 0.5),
+            normal: Vec3::unit_z(),
+            u_ref: Vec3::unit_x(),
+        };
+        let flat = revolved(&[(1.0, 0.5, 1.0), (2.0, 0.5, 1.0)]);
+        let raised = revolved(&[(1.0, 1.0, 1.0), (2.0, 1.0, 1.0)]);
+        assert!(!spline_off_carrier(&flat, &plane, band()));
+        assert!(spline_off_carrier(&raised, &plane, band()));
+
+        let sphere = Surface::Sphere {
+            center: Point3::origin(),
+            radius: 1.0,
+            u_ref: Vec3::unit_x(),
+            axis: Vec3::unit_z(),
+        };
+        let cap = revolved(&[(1.0, 0.0, 1.0), (1.0, 1.0, w), (0.0, 1.0, 1.0)]);
+        let wall = revolved(&[(1.0, 0.0, 1.0), (1.0, 1.0, 1.0)]);
+        assert!(!spline_off_carrier(&cap, &sphere, band()));
+        assert!(spline_off_carrier(&wall, &sphere, band()));
+
+        let torus = Surface::Torus {
+            center: Point3::origin(),
+            axis: Vec3::unit_z(),
+            major_radius: 2.0,
+            minor_radius: 0.5,
+            u_ref: Vec3::unit_x(),
+        };
+        let tube = revolved(&[(2.5, 0.0, 1.0), (2.5, 0.5, w), (2.0, 0.5, 1.0)]);
+        let above = revolved(&[(2.0, 1.0, 1.0), (2.0, 2.0, 1.0)]);
+        assert!(!spline_off_carrier(&tube, &torus, band()));
+        assert!(spline_off_carrier(&above, &torus, band()));
+    }
+
+    /// A cylinder patch pushed out by half the band's escalation: every
+    /// point is in band, none off, so the sheet stays unread.
+    #[test]
+    fn a_sheet_in_band_of_the_cylinder_stays_unread() {
+        let b = band();
+        let d = 0.5 * b.escalate();
+        assert!(b.zero() < d, "the band has room between its edges");
+        let cylinder = Surface::Cylinder {
+            origin: Point3::origin(),
+            axis: Vec3::unit_z(),
+            radius: 1.0,
+            u_ref: Vec3::unit_x(),
+        };
+        let s = revolved(&[(1.0 + d, 0.0, 1.0), (1.0 + d, 1.0, 1.0)]);
+        assert!(!spline_off_carrier(&s, &cylinder, b));
+    }
+
+    /// A sheet on the cone's MIRROR nappe, and one through the apex onto
+    /// it: both lie on the double cone, so both stay unread.
+    #[test]
+    fn a_sheet_on_the_cones_mirror_nappe_stays_unread() {
+        let cone = Surface::Cone {
+            apex: Point3::origin(),
+            axis: Vec3::unit_z(),
+            half_angle: core::f64::consts::FRAC_PI_4,
+            u_ref: Vec3::unit_x(),
+        };
+        let mirror = revolved(&[(1.0, -1.0, 1.0), (2.0, -2.0, 1.0)]);
+        assert!(!spline_off_carrier(&mirror, &cone, band()));
+        let through = revolved(&[(1.0, 1.0, 1.0), (-1.0, -1.0, 1.0)]);
+        assert!(!spline_off_carrier(&through, &cone, band()));
+        // And a sheet off it does read off: the rows can go red.
+        let off = revolved(&[(1.0, -2.0, 1.0), (2.0, -1.0, 1.0)]);
+        assert!(spline_off_carrier(&off, &cone, band()));
+    }
 }
 
 /// A row's `escalate` handler for [`wall_crossing`]: the door's
@@ -4237,7 +4591,7 @@ fn spline_plane_crossings<T: Bounds + crate::props::AtRestPolicy>(
     band: Band,
 ) -> Result<Vec<T>, BooleanError> {
     use geom_brep::curve_face::{Door, route};
-    let surface = y.proven_face_surface(face);
+    let surface = y.proven_face(face).surface();
     let arm = route(curve.carrier().kind(), surface.kind());
     let net = match curve.carrier() {
         geom::Curve3::Nurbs(net) if arm.door == Door::SplineComposite && arm.implemented => {
@@ -5737,9 +6091,8 @@ fn split_other_at_point<T: Decide + crate::props::AtRestPolicy>(
     let curve = certified(y.get_edge(edge).and_then(|e| y.get_curve_geom(e.curve)))?.clone();
     let t = if let circle @ geom::Curve3::Circle(_) = curve.carrier() {
         let (t0, t1) = curve.params();
-        let foot = circle.foot(p, geom::mid_param(t0, t1));
-        match foot.on_carrier(band) {
-            Ok(geom::OnCarrier::On { .. }) => {}
+        match circle.on_carrier(p, geom::mid_param(t0, t1), band) {
+            Ok(geom::OnCarrier::On { t, .. }) => t,
             // The caller placed the event ON this edge; a point
             // definitely off its carrier means two readings disagree,
             // which is a broken invariant, not a frontier.
@@ -5755,7 +6108,6 @@ fn split_other_at_point<T: Decide + crate::props::AtRestPolicy>(
                 }));
             }
         }
-        foot.t()
     } else {
         point_param(y, y_is, edge, &curve, p)?
     };
@@ -6064,7 +6416,7 @@ fn read_lying_in<T: Decide + crate::props::AtRestPolicy>(
                 along_boundary(x_is, y, (w, p), face, contacts, band, tol)?;
             }
             LyingIn::Curved(face, on_curved) => {
-                let surface = y.proven_face_surface(face);
+                let surface = y.proven_face(face).surface();
                 let frontier = BooleanError::CurvedPierceUnsupported {
                     operand: x_is,
                     face,
@@ -7169,7 +7521,7 @@ mod edge_span_tests {
             Tol::witness(),
         );
         crate::test_support_fixtures::set_sheet_sense(&mut y, face, true, Tol::witness());
-        let wall = y.face_surface(face).expect("the sheet's wall").clone();
+        let wall = y.proven_face(face).surface().clone();
         let got = wall_crossing(
             &y,
             face,
