@@ -5,6 +5,7 @@ title: The projected image inverts chart points by a second spelling, and reads 
 status: closed
 closed: 2026-11-04
 branch: pcert/projected-one-inverse
+pr: 6500
 opened: 2026-10-24
 priority: P1
 cost: M
