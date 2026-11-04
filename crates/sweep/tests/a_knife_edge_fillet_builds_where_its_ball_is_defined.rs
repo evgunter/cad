@@ -279,8 +279,7 @@ fn past_eight_ninths_the_lune_cusp_builds_and_the_slit_meets_the_ring_screen() {
     let edge = knife_at(slit_what, &slit, on_the_z_axis);
     let operand = finished(slit_what, slit, tol());
     let refusal = fillet_edges(&operand, &[edge], r, tol())
-        .err()
-        .expect("the ring screen cannot certify the wall");
+        .expect_err("the ring screen cannot certify the wall");
     assert!(
         matches!(
             refusal.error,
@@ -536,9 +535,8 @@ fn a_crescent_whose_line_is_shorter_than_its_foot_refuses() {
     let body = prism(vec![crescent(0.0, false)]);
     let edge = knife_at("the crescent prism", &body, on_the_kiss(0.0, false));
     let operand = finished("the crescent prism", body, tol());
-    let refusal = fillet_edges(&operand, &[edge], 0.3, tol())
-        .err()
-        .expect("the foot leaves the line");
+    let refusal =
+        fillet_edges(&operand, &[edge], 0.3, tol()).expect_err("the foot leaves the line");
     let BlendError::FaceClearanceUncertified { margin, .. } = refusal.error else {
         panic!("expected the clearance screen, got {:?}", refusal.error);
     };
@@ -588,12 +586,15 @@ fn a_sphere_cone_cusp_rim_loses_its_ring() {
 // The chamfer, and the touch between two solids.
 // ---------------------------------------------------------------------
 
+/// A predicate picking a knife's ends out of a body's points.
+type OnKnife = Box<dyn Fn(&Point3<f64>) -> bool>;
+
 /// **The chamfer refuses every knife**: its arms are plane–plane, and a
 /// knife's supports are curved, and the refusal says so.
 #[test]
 fn the_chamfer_refuses_every_knife_with_its_own_recourse() {
     let [(_, cusp, _), (_, slit, _)] = lune_rows();
-    let rows: [(&str, Body<f64>, Box<dyn Fn(&Point3<f64>) -> bool>); 4] = [
+    let rows: [(&str, Body<f64>, OnKnife); 4] = [
         ("the lune cusp", cusp, Box::new(on_the_z_axis)),
         ("the lune slit", slit, Box::new(on_the_z_axis)),
         ("the valley", prism(vec![valley()]), Box::new(on_the_z_axis)),
