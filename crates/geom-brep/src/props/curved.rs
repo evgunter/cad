@@ -5559,10 +5559,13 @@ fn torus_chart_loop<T: Decide>(
             let (a, b) = (pa - center, pb - center);
             let tube = (short(tube_arms(a, b)), minor);
             match piece.apex_after {
-                // The apex junction has no azimuth gap to read; the loop's
-                // turns about the axis are metered at the meridians'
-                // middle radius there. Its gap in space is the tube turn's:
-                // a point on the sheet at the apex's tube angle is the apex.
+                // The apex junction has no azimuth gap to read. The loop's
+                // turns about the axis need a positive meter there (one at
+                // zero reads every football's loop open); any positive
+                // one decides their whole number, and this is the radius
+                // the jump's turn was read at. Its gap in space is the
+                // tube turn's: a point on the sheet at the apex's tube
+                // angle is the apex.
                 Some(jump) => Joint {
                     turn: [(T::zero(), jump.lever), tube],
                     flat: T::zero(),
@@ -5634,7 +5637,11 @@ fn torus_material_sign<T: Decide>(
 ///   parts the closed sheet in two, as a lune parts a sphere): no side;
 /// - any other refusal of either reading, an escalation in the band
 ///   among them, is the face's: what the other reading says is no
-///   answer while this one is unread.
+///   answer while this one is unread. No row reaches it: it needs a
+///   face whose two readings both close and one of whose regions is in
+///   the band of nothing (a lune between two meridians a hair apart),
+///   and no door builds a lune of a sheet yet (the part-way revolve
+///   refuses, `work/spiricarm/a-football-revolved-part-way-refuses-at-its-cap-meridians-certificate.md`).
 fn sheet_material_sign<T: Decide>(
     center: Point3<T>,
     axis: Vec3<T>,

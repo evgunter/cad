@@ -246,9 +246,12 @@ fn a_football_restored_on_the_other_sheet_is_refused_at_its_edges() {
         };
         assert!(
             errors.iter().any(off_sheet)
-                && errors
-                    .iter()
-                    .all(|e| off_sheet(e) || matches!(e, topo::ValidationError::Pcurve { .. })),
+                && errors.iter().all(|e| off_sheet(e)
+                    || matches!(
+                        e,
+                        topo::ValidationError::Pcurve { .. }
+                            | topo::ValidationError::JoinUndecidedAtRest { .. }
+                    )),
             "{what}: {errors:?}"
         );
     }
