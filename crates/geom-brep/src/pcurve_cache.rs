@@ -14261,11 +14261,21 @@ mod iso_family {
             Vec3::unit_x(),
         );
         assert_eq!(
-            chart_iso_family(&line(0.0), own_interval(&line(0.0)), &cylinder, band),
+            chart_iso_family(
+                &line(0.0),
+                crate::pcurve_cache::own_interval(&line(0.0)),
+                &cylinder,
+                band
+            ),
             Ok(Some(IsoFamily::U))
         );
         assert_eq!(
-            chart_iso_family(&rim, own_interval(&rim), &cylinder, band),
+            chart_iso_family(
+                &rim,
+                crate::pcurve_cache::own_interval(&rim),
+                &cylinder,
+                band
+            ),
             Ok(Some(IsoFamily::V))
         );
         // An oblique section lies on the cylinder and is no iso line.
@@ -14280,19 +14290,34 @@ mod iso_family {
             1.0 / theta.cos(),
         ));
         assert_eq!(
-            chart_iso_family(&section, own_interval(&section), &cylinder, band),
+            chart_iso_family(
+                &section,
+                crate::pcurve_cache::own_interval(&section),
+                &cylinder,
+                band
+            ),
             Ok(None)
         );
         // A line tilted 1e-2 leaves the cylinder past the band over its
         // span: the incidence test reads it off before any family.
         assert!(matches!(
-            chart_iso_family(&line(1e-2), own_interval(&line(1e-2)), &cylinder, band),
+            chart_iso_family(
+                &line(1e-2),
+                crate::pcurve_cache::own_interval(&line(1e-2)),
+                &cylinder,
+                band
+            ),
             Err(IsoFamilyRefusal::Image(
                 super::PcurveCertifyError::CarrierOffChart { .. }
             ))
         ));
         assert!(matches!(
-            chart_iso_family(&line(1e-7), own_interval(&line(1e-7)), &cylinder, band),
+            chart_iso_family(
+                &line(1e-7),
+                crate::pcurve_cache::own_interval(&line(1e-7)),
+                &cylinder,
+                band
+            ),
             Err(IsoFamilyRefusal::Undecided(_))
         ));
     }
