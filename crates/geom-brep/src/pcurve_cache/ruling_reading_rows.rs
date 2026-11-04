@@ -641,8 +641,9 @@ fn a_line_across_the_apex_that_is_no_generator_ends_not_yet() {
 /// `s` wide that a sampled read steps over. Past the band (`1e-7` at ε
 /// up to `1e-9`, and `30`–`300·zero` at every ε) the mint refuses
 /// `CarrierOffChart` at both scalars, and so does the incidence door
-/// alone ([`read_incidence`]); in band (`3` and `10·zero`) it escalates
-/// the incidence read (the lever); inside the zero band it is not shown
+/// alone ([`read_incidence`]); in band (`3` and `10·zero`) both escalate
+/// the incidence read (the lever); inside the zero band (`0.5·zero`, and
+/// `1e-7` at ε 1e-6) the door passes it and the mint does not refuse it
 /// off. Red under `sampled-line-incidence`, whose samples read the line
 /// on the cone.
 #[test]
@@ -666,13 +667,12 @@ fn a_line_passing_the_apex_off_the_cone_ends_as_its_incidence_read() {
             })
         )
     };
-    let mut definite = 0;
+    let (mut definite, mut inside) = (0, 0);
     for phi in [-2.5, 3.1415] {
         for sigma in [1.0, -1.0] {
             let (anchor, g, tangent) = cone_at(phi, sigma, 0.3);
-            for s in
-                [1e-7, 3.0, 10.0, 30.0, 100.0, 300.0].map(|k| if k < 1.0 { k } else { k * zero })
-            {
+            let shifts = [0.5, 3.0, 10.0, 30.0, 100.0, 300.0].map(|k| k * zero);
+            for s in core::iter::once(1e-7).chain(shifts) {
                 let carrier = Curve3::line(anchor + tangent * s, g);
                 let (carrier_i, surface_i) = lift(&carrier, &surface);
                 let off = s * 0.5f64.cos();
@@ -710,6 +710,13 @@ fn a_line_passing_the_apex_off_the_cone_ends_as_its_incidence_read() {
                             mint.0,
                             mint.1
                         );
+                        assert!(
+                            lever(door.0.as_ref().err()) && lever(door.1.as_ref().err()),
+                            "{what}: in band, the incidence door escalates at both scalars: \
+                             {:?} / {:?}",
+                            door.0,
+                            door.1
+                        );
                     } else if off < zero / 1.2 {
                         assert!(
                             !off_chart(mint.0.as_ref().err()) && !off_chart(mint.1.as_ref().err()),
@@ -717,12 +724,24 @@ fn a_line_passing_the_apex_off_the_cone_ends_as_its_incidence_read() {
                             mint.0,
                             mint.1
                         );
+                        assert!(
+                            door.0.is_ok() && door.1.is_ok(),
+                            "{what}: inside the zero band, the incidence door passes it at both \
+                             scalars: {:?} / {:?}",
+                            door.0,
+                            door.1
+                        );
+                        inside += 1;
                     }
                 }
             }
         }
     }
     assert!(definite >= 24, "past the band at every ε: {definite} reads");
+    assert!(
+        inside >= 8,
+        "inside the zero band at every ε: {inside} reads"
+    );
 }
 
 /// **A line read Zero on its lean but standing off the wall**: the

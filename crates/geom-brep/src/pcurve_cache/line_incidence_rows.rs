@@ -115,7 +115,26 @@ fn charts() -> Vec<Chart> {
         ),
         ("apple", apple, apple_tips),
         ("lemon", lemon, lemon_tips),
+        ("apple on z", on_z(0.3).0, on_z(0.3).1),
+        ("lemon on z", on_z(-0.3).0, on_z(-0.3).1),
     ]
+}
+
+/// A spindle about the `z` axis through the origin, whose axis lines
+/// have no part off the axis to round, with its apexes and centre.
+fn on_z(big: f64) -> (Surface<f64>, Vec<Point3<f64>>) {
+    let tip = (0.25 - big * big).sqrt();
+    let (c, z) = (Point3::origin(), Vec3::unit_z());
+    (
+        Surface::Spindle {
+            center: c,
+            axis: z,
+            major_radius: big,
+            minor_radius: 0.5,
+            u_ref: Vec3::unit_x(),
+        },
+        vec![c + z * tip, c - z * tip, c],
+    )
 }
 
 /// The distance's exact value or less at `t`: the enclosure's lower end.
@@ -149,7 +168,7 @@ fn hunt(
         Vec3::new(f(line.dir.x), f(line.dir.y), f(line.dir.z)),
     );
     let at = |t: f64| distance(&surface_i, &line_i, t.clamp(t0, t1));
-    let n: u32 = 400;
+    let n: u32 = 2000;
     let grid: Vec<f64> = (0..=n)
         .map(|i| t0 + (t1 - t0) * f64::from(i) / f64::from(n))
         .collect();
@@ -226,10 +245,10 @@ fn unit(rng: &mut fuzz::Rng) -> Vec3<f64> {
     }
 }
 
-/// A line drawn about `surface`: through one of its singular points or
-/// a point of its wall, displaced by a log-uniform offset, along a
-/// direction of the wall there, a direction toward the singular point,
-/// or any direction.
+/// A line drawn about `surface`: through one of its singular points, a
+/// point of its wall or a point of its axis, displaced by a log-uniform
+/// offset or by none, along a direction of the wall there, a direction
+/// toward the singular point, the axis, or any direction, tilted or not.
 fn draw(rng: &mut fuzz::Rng, surface: &Surface<f64>, singular: &[Point3<f64>]) -> geom::Line<f64> {
     let (u, v) = (rng.range(-3.0, 3.0), rng.range(-1.2, 1.2));
     let wall = surface.eval(u, v);
@@ -242,9 +261,21 @@ fn draw(rng: &mut fuzz::Rng, surface: &Surface<f64>, singular: &[Point3<f64>]) -
                 .normalize()
         }
     };
-    let offset = unit(rng) * (zero() * rng.log_uniform(1e-3, 1e3));
-    let tilt = unit(rng) * (zero() * rng.log_uniform(1e-4, 1e2));
-    let (point, dir) = match rng.below(4) {
+    let mut scaled = |lo: f64, hi: f64| {
+        if rng.below(4) == 0 {
+            0.0
+        } else {
+            zero() * rng.log_uniform(lo, hi)
+        }
+    };
+    let (offset_by, tilt_by) = (scaled(1e-3, 1e3), scaled(1e-4, 1e2));
+    let offset = unit(rng) * offset_by;
+    let tilt = unit(rng) * tilt_by;
+    let (point, dir) = match rng.below(5) {
+        4 => match axis_of(surface) {
+            Some((o, a)) => (o + a * rng.range(-1.0, 1.0), a),
+            None => (wall, unit(rng)),
+        },
         0 | 1 => {
             let s = singular[rng.below(singular.len())];
             let toward = wall - s;
@@ -391,4 +422,123 @@ fn a_line_on_the_chart_or_inside_the_zero_band_is_not_read_off() {
         2 * 4 * 2 * 2 * 3 + 2 * 4 * 3,
         "the table's lines are all read"
     );
+}
+
+/// **A line whose candidate closed forms degenerate is still read off**:
+/// the poses where a formula of the read is `0/0` or a polynomial
+/// vanishes identically, each off its chart only between its ends:
+/// - a spindle's axis from apex to apex (apple and lemon, about `z` and
+///   about a tilted axis), off by `r − |R|`-ish at the centre;
+/// - a sphere's diameter, off by its radius at the centre;
+/// - a chord of a ring torus through its core circle, off by `r` there;
+/// - a chord of a cone's double nappe through the apex plane and near
+///   the apex, off at the apex's kink.
+///
+/// Each ends `CarrierOffChart` at the incidence door and at the mint, at
+/// both scalars. Red where the torus and spindle read no centre's foot
+/// or trust a quartic that vanishes on the axis, and under
+/// `sampled-line-incidence` for the narrow ones.
+#[test]
+fn a_line_whose_candidate_forms_degenerate_is_read_off() {
+    let f = Interval::from_f64;
+    let u_ref = Vec3::unit_x();
+    let mut cases: Vec<(String, Surface<f64>, geom::Line<f64>)> = Vec::new();
+    for big in [0.3, -0.3] {
+        for axis in [Vec3::unit_z(), Vec3::new(0.1, -0.2, 1.0).normalize()] {
+            let c = Point3::new(0.0, 0.0, 0.0);
+            let tip = (0.25f64 - big * big).sqrt();
+            cases.push((
+                format!("spindle R {big} along {axis:?}"),
+                Surface::Spindle {
+                    center: c,
+                    axis,
+                    major_radius: big,
+                    minor_radius: 0.5,
+                    u_ref: (u_ref - axis * u_ref.dot(axis)).normalize(),
+                },
+                geom::Line {
+                    origin: c - axis * tip,
+                    dir: axis * (2.0 * tip),
+                },
+            ));
+        }
+    }
+    cases.push((
+        "sphere diameter".into(),
+        Surface::Sphere {
+            center: Point3::origin(),
+            radius: 0.5,
+            axis: Vec3::unit_z(),
+            u_ref,
+        },
+        geom::Line {
+            origin: Point3::new(0.0, 0.0, -0.5),
+            dir: Vec3::unit_z(),
+        },
+    ));
+    // The torus's outer equator point to its inner one at azimuth 0,
+    // through the core circle at `x = R`.
+    cases.push((
+        "torus chord through the core".into(),
+        Surface::Torus {
+            center: Point3::origin(),
+            axis: Vec3::unit_z(),
+            major_radius: 1.2,
+            minor_radius: 0.4,
+            u_ref,
+        },
+        geom::Line {
+            origin: Point3::new(0.8, 0.0, 0.0),
+            dir: Vec3::new(0.8, 0.0, 0.0),
+        },
+    ));
+    // Two points of the cone at height ±0.3, either side of the axis,
+    // shifted off the apex by `30·zero`: the chord crosses the apex plane
+    // `30·zero` from the apex.
+    let cone = Surface::Cone {
+        apex: Point3::origin(),
+        axis: Vec3::unit_z(),
+        half_angle: 0.5,
+        u_ref,
+    };
+    let r = 0.3 * 0.5f64.tan();
+    let side = Vec3::new(0.0, 30.0 * zero(), 0.0);
+    cases.push((
+        "cone chord past the apex".into(),
+        cone,
+        geom::Line {
+            origin: Point3::new(r, 0.0, 0.3) + side,
+            dir: Point3::new(-r, 0.0, -0.3) - Point3::new(r, 0.0, 0.3),
+        },
+    ));
+    for (what, surface, line) in cases {
+        let carrier = Curve3::Line(line);
+        let (carrier_i, surface_i) = (carrier.map_scalar(f), surface.map_scalar(f));
+        // The second span puts the middle off the sampled schedule.
+        for span in [(0.0, 1.0), (0.013, 0.9)] {
+            let off = |r: Option<&PcurveCertifyError>| {
+                matches!(r, Some(PcurveCertifyError::CarrierOffChart { .. }))
+            };
+            let door = (
+                read_incidence(&carrier, span.0, span.1, &surface, band()),
+                read_incidence(&carrier_i, f(span.0), f(span.1), &surface_i, band()),
+            );
+            let mint = (
+                super::chart_pcurve_over(&carrier, span.0, span.1, &surface, band()),
+                super::chart_pcurve_over(&carrier_i, f(span.0), f(span.1), &surface_i, band()),
+            );
+            assert!(
+                off(door.0.as_ref().err()) && off(door.1.as_ref().err()),
+                "{what} over {span:?}: the door refuses CarrierOffChart at both scalars: {:?} / {:?}",
+                door.0,
+                door.1
+            );
+            assert!(
+                off(mint.0.as_ref().err()) && off(mint.1.as_ref().err()),
+                "{what} over {span:?}: the mint refuses CarrierOffChart at both scalars: {:?} / {:?}",
+                mint.0,
+                mint.1
+            );
+        }
+    }
 }

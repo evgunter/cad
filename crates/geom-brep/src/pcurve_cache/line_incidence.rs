@@ -6,46 +6,62 @@
 //! off the chart anywhere in the span is shown off, however narrow the
 //! stretch it leaves the chart over.
 //!
-//! Along `p(t) = o + t·u`, with the chart's anchor `c`, its unit axis
-//! `a`, `q = o − c`, the axial height `h(t) = q·a + t·u·a` and the
-//! radial distance `ρ(t) = |q⊥ + t·u⊥|` (`⊥` the part off the axis),
-//! `ρ` is the norm of an affine map, so convex, and kinked only where
-//! the line meets the axis. Per chart:
+//! Along `p(t) = o + t·u`, with the chart's anchor `c` and unit axis `a`
+//! ([`crate::implicit::axial_radial`]), the axial height `h(t)` is
+//! affine and the radial distance `ρ(t) = |w(t)|`, `w` the part of
+//! `p − c` off the axis, is the norm of an affine map: convex, smooth
+//! but at `t*`, the line's nearest approach to the axis, where it is
+//! kinked if the line meets the axis. With `v = |u⊥|` and `d = ρ(t*)`,
+//! `ρ'' = v²d²/ρ³`, largest at `t*` and falling off on either side.
 //!
-//! - **plane**: the distance is `|affine|`, largest at an end;
-//! - **sphere**: `|‖p − c‖ − R|`, with `‖p − c‖` convex: its largest
-//!   value is at an end, its least at the foot of the centre;
-//! - **cylinder**: `|ρ − R|`, the same with `ρ`'s least at the foot of
-//!   the axis, `t*`;
+//! The span is cut at **marks** (its ends and the kinks below), and on
+//! each piece between two marks the derivative of the function read is
+//! monotone, so it has at most one root there: found by bisection where
+//! it changes sign across the piece. Every extremum of the distance is a
+//! mark or such a root, so the read is the supremum. Per chart:
+//!
+//! - **plane**: `|affine|`, largest at an end; no interior parameter;
+//! - **sphere**: `|‖p − c‖ − R|`, `‖p − c‖` convex with its least value
+//!   at the foot of the centre, `−q·u/u·u` (`q = o − c`);
+//! - **cylinder**: `|ρ − R|`, `ρ`'s least value at `t*`;
 //! - **cone**: `|f|`, `f = ρ cos α − |h| sin α` (the double cone's exact
-//!   distance). On each side of the apex plane (`h` of one sign) `f` is
-//!   convex, so its largest value is at an end of the side — a span end
-//!   or `t_h`, where the line crosses the apex plane, the apex's own
-//!   kink — and its least at the side's stationary point,
-//!   `v²·τ = k·ρ` with `τ = t − t*`, `k = σ·(u·a)·tan α`,
-//!   `v = |u⊥|`, `d = ρ(t*)`: `τ = k·d / (v·√(v² − k²))`, where
-//!   `v² > k²` (otherwise `f` is monotone on the side);
-//! - **torus and spindle**: `|q − r|`, `q² = (ρ − R)² + h² =
-//!   |p − c|² + R² − 2Rρ`, smooth but at `t*`. Its stationary points
-//!   are the roots of `s = Q'ρ − R·P'` (`Q = |p − c|² + R²`,
-//!   `P = ρ²`), which are among the real roots of the quartic
-//!   `Q'²·P − R²·P'²`: found by isolation on the quartic, then each
-//!   refined on `s` itself where `s` changes sign about it.
+//!   distance). Marks at `t_h`, where the line crosses the apex plane
+//!   (the apex's own kink), and at `t*`. On each piece `h` keeps its
+//!   sign, so `f` is convex: its largest value is at a mark, and its
+//!   least at the root of `f'`;
+//! - **torus and spindle**: `|q − r|`, `q² = |p − c|² + R² − 2Rρ`, read
+//!   on `q²`. Marks at `t*` and, for `R > 0` with `d > 0`, at
+//!   `t* ± τc`, where `(q²)'' = 2(|u|² − R·ρ'')` changes sign
+//!   (`ρ(τc)³ = R·v²d²/|u|²`). `ρ''` is monotone on either side of
+//!   `t*`, so `(q²)''` changes sign at most once a side and `(q²)'` is
+//!   monotone between the marks; for `R ≤ 0`, `d = 0` or `v = 0`,
+//!   `(q²)'' ≥ 2|u|² > 0` away from `t*`. The foot of the centre is
+//!   read too: on a line along the axis it is the one stationary point.
 //!
-//! Every extremum of the distance is at one of these parameters, so the
-//! read is the supremum, not a sample of it.
+//! The argument holds exactly for the line the data's `f64` middles
+//! name, whatever its pose: a line along or near the axis, through the
+//! apex, in the apex plane or through the core circle only moves the
+//! marks, or drops the ones it has no use for (a closed form that is
+//! `0/0` there is not finite, and is not read).
 //!
-//! The parameters are computed in `f64` from the middles of the data's
-//! brackets and returned as fractions of the span in `(0, 1)`: a place
-//! to look, which the read evaluates in the scalar's own arithmetic and
-//! which is a point of the span at every scalar. Their own rounding moves
-//! a read stationary point by a few ulps of the span, which moves its
-//! value to second order; the cone's `t_h` is a kink, where it moves the
-//! value by the line's speed times those ulps, below the read's own
-//! rounding charge.
+//! The parameters are returned as fractions of the span in `(0, 1)`: a
+//! place to look, which the read evaluates in the scalar's own
+//! arithmetic and which is a point of the span at every scalar. A
+//! definite Off rests on the evaluation alone; the supremum, so a Zero
+//! read as within the band, rests on the placement. The placement is
+//! off by the bisection's last bit or the closed form's rounding, each
+//! a few ulps of the span where the line is well posed and worse where
+//! its data are ill conditioned (a root of `f'` where `f'` is flat). At
+//! a smooth stationary point that moves the value to second order. At a
+//! kink — `t_h`, `t*` on a line through the axis, the centre's foot on
+//! a line through a sphere's centre, a torus's core crossing (where
+//! `q`, not `q²`, is kinked) — it moves it to first order, by the
+//! line's speed times the misplacement.
 
 use geom::Surface;
 use geom_core::{Point3, SpanLocate, Vec3};
+
+use crate::implicit::axial_radial;
 
 /// The middle of a value's bracket; NaN for the poison.
 fn middle<T: SpanLocate>(x: T) -> f64 {
@@ -57,8 +73,8 @@ fn mid3<T: SpanLocate>(v: Vec3<T>) -> Vec3<f64> {
     Vec3::new(middle(v.x), middle(v.y), middle(v.z))
 }
 
-fn mid_point<T: SpanLocate>(p: Point3<T>) -> Vec3<f64> {
-    mid3(p - Point3::origin())
+fn mid_point<T: SpanLocate>(p: Point3<T>) -> Point3<f64> {
+    Point3::new(middle(p.x), middle(p.y), middle(p.z))
 }
 
 /// **The interior parameters of `[t0, t1]` where the distance of the
@@ -72,28 +88,26 @@ pub(super) fn critical_fractions<T: SpanLocate>(
     surface: &Surface<T>,
     (t0, t1): (T, T),
 ) -> Vec<f64> {
-    let (s0, s1) = (middle(t0), middle(t1));
+    let span = (middle(t0), middle(t1));
     let (o, u) = (mid_point(line.origin), mid3(line.dir));
-    let length = s1 - s0;
+    let length = span.1 - span.0;
     if !(length > 0.0 && length.is_finite()) {
         return Vec::new();
     }
+    let centre_foot = |c: Point3<f64>| -(o - c).dot(u) / u.dot(u);
     let ts = match *surface {
         Surface::Plane { .. } | Surface::Nurbs(_) | Surface::Approx(_) => Vec::new(),
-        Surface::Sphere { center, .. } => {
-            let q = o - mid_point(center);
-            vec![-q.dot(u) / u.dot(u)]
-        }
-        Surface::Cylinder { origin, axis, .. } => {
-            let axial = Axial::of(o - mid_point(origin), u, mid3(axis));
-            vec![axial.foot()]
-        }
+        Surface::Sphere { center, .. } => vec![centre_foot(mid_point(center))],
+        Surface::Cylinder { origin, axis, .. } => Axial::of(o, u, mid_point(origin), mid3(axis))
+            .star
+            .into_iter()
+            .collect(),
         Surface::Cone {
             apex,
             axis,
             half_angle,
             ..
-        } => Axial::of(o - mid_point(apex), u, mid3(axis)).cone(middle(half_angle)),
+        } => Axial::of(o, u, mid_point(apex), mid3(axis)).cone(middle(half_angle), span),
         Surface::Torus {
             center,
             axis,
@@ -105,11 +119,16 @@ pub(super) fn critical_fractions<T: SpanLocate>(
             axis,
             major_radius,
             ..
-        } => Axial::of(o - mid_point(center), u, mid3(axis)).torus(middle(major_radius), (s0, s1)),
+        } => {
+            let c = mid_point(center);
+            let mut ts = Axial::of(o, u, c, mid3(axis)).torus(middle(major_radius), span);
+            ts.push(centre_foot(c));
+            ts
+        }
     };
     let mut fractions: Vec<f64> = ts
         .into_iter()
-        .map(|t| (t - s0) / length)
+        .map(|t| (t - span.0) / length)
         .filter(|l| *l > 0.0 && *l < 1.0)
         .collect();
     fractions.sort_by(f64::total_cmp);
@@ -117,183 +136,129 @@ pub(super) fn critical_fractions<T: SpanLocate>(
     fractions
 }
 
-/// The line in the chart's axial frame: `q = o − c` and `u`, each split
-/// along the unit axis `a` and off it.
+/// The line in the chart's axial frame (module docs): `q = o − c` and
+/// `u`, `h(t) = h0 + t·w`, and `w(t) = base + u⊥·(t − tb)` off the axis,
+/// with `tb = t*` where the line is not along the axis (`star`) and `0`
+/// where it is.
 struct Axial {
     q: Vec3<f64>,
     u: Vec3<f64>,
     h0: f64,
     w: f64,
-    q_off: Vec3<f64>,
     u_off: Vec3<f64>,
+    star: Option<f64>,
+    tb: f64,
+    base: Vec3<f64>,
 }
 
 impl Axial {
-    fn of(q: Vec3<f64>, u: Vec3<f64>, axis: Vec3<f64>) -> Self {
+    fn of(o: Point3<f64>, u: Vec3<f64>, c: Point3<f64>, axis: Vec3<f64>) -> Self {
         let a = axis / axis.norm();
-        let (h0, w) = (q.dot(a), u.dot(a));
+        let (h0, q_off) = axial_radial(o, c, a);
+        let (w, u_off) = axial_radial(Point3::origin() + u, Point3::origin(), a);
+        let star = Some(-q_off.dot(u_off) / u_off.dot(u_off)).filter(|t| t.is_finite());
+        let tb = star.unwrap_or(0.0);
         Self {
-            q,
+            q: o - c,
             u,
             h0,
             w,
-            q_off: q - a * h0,
-            u_off: u - a * w,
+            u_off,
+            star,
+            tb,
+            base: q_off + u_off * tb,
         }
     }
 
-    /// `t*`, the line's nearest approach to the axis: `ρ`'s least value
-    /// (NaN for a line along the axis, whose `ρ` is constant).
-    fn foot(&self) -> f64 {
-        -self.q_off.dot(self.u_off) / self.u_off.dot(self.u_off)
+    /// `ρ(t)` and `ρ'(t)`; at a kink (`ρ = 0`) the one-sided slope on
+    /// the `side` (`±1`) the caller reads from.
+    fn rho(&self, t: f64, side: f64) -> (f64, f64) {
+        let w = self.base + self.u_off * (t - self.tb);
+        let rho = w.norm();
+        let slope = if rho > 0.0 {
+            w.dot(self.u_off) / rho
+        } else {
+            side * self.u_off.norm()
+        };
+        (rho, slope)
     }
 
-    /// The cone's interior candidates (module docs): `t*`, `t_h`, and
-    /// each side's stationary point.
-    fn cone(&self, half_angle: f64) -> Vec<f64> {
-        let star = self.foot();
-        let v2 = self.u_off.dot(self.u_off);
-        let d = (self.q_off + self.u_off * star).norm();
-        let mut ts = vec![star, -self.h0 / self.w];
-        for sigma in [1.0, -1.0] {
-            let k = sigma * self.w * half_angle.tan();
-            if v2 > k.powi(2) {
-                ts.push(star + k * d / (v2.sqrt() * (v2 - k.powi(2)).sqrt()));
+    /// The cone's interior parameters (module docs).
+    fn cone(&self, half_angle: f64, span: (f64, f64)) -> Vec<f64> {
+        let (sin, cos) = half_angle.sin_cos();
+        let t_h = Some(-self.h0 / self.w).filter(|t| t.is_finite());
+        let marks: Vec<f64> = t_h.into_iter().chain(self.star).collect();
+        let sigma = |t: f64| (self.h0 + self.w * t).signum();
+        // On a piece `h` keeps one sign, the one at its middle.
+        let roots = monotone_roots(&marks, span, |t, side, mid| {
+            self.rho(t, side).1 * cos - sigma(mid) * self.w * sin
+        });
+        marks.into_iter().chain(roots).collect()
+    }
+
+    /// The torus's and spindle's interior parameters (module docs), on
+    /// `(q²)'/2 = (q + u·t)·u − R·ρ'`.
+    fn torus(&self, big: f64, span: (f64, f64)) -> Vec<f64> {
+        let (uu, v) = (self.u.dot(self.u), self.u_off.norm());
+        let d = self.base.norm();
+        let mut marks: Vec<f64> = self.star.into_iter().collect();
+        if let Some(star) = self.star
+            && big > 0.0
+            && d > 0.0
+        {
+            let rho_c = (big * v.powi(2) * d.powi(2) / uu).cbrt();
+            if rho_c > d {
+                let tau = (rho_c.powi(2) - d.powi(2)).sqrt() / v;
+                marks.extend([star - tau, star + tau]);
             }
         }
-        ts
-    }
-
-    /// The torus's interior candidates (module docs): `t*` and the
-    /// stationary points of `q²`, in `(s0, s1)`.
-    fn torus(&self, big: f64, (s0, s1): (f64, f64)) -> Vec<f64> {
-        let star = self.foot();
-        // Polynomials in `y = (t − t*) / scale`, about the line's nearest
-        // approach to the axis, so `P`'s coefficients do not cancel there
-        // and the quartic's are of the span's size.
-        let centre = if star.is_finite() { star } else { 0.0 };
-        let scale = (s0 - centre).abs().max((s1 - centre).abs());
-        if !(scale > 0.0 && scale.is_finite() && big.is_finite()) {
-            return vec![star];
-        }
-        let (q, q_off) = (self.q + self.u * centre, self.q_off + self.u_off * centre);
-        let (u, uo) = (self.u * scale, self.u_off * scale);
-        // P = |q⊥ + y·u⊥|², P' and Q' in y (their common factor 2
-        // dropped: it cancels from `Q'²P − R²P'²`).
-        let p = [q_off.dot(q_off), 2.0 * q_off.dot(uo), uo.dot(uo)];
-        let dp = [q_off.dot(uo), uo.dot(uo)];
-        let dq = [q.dot(u), u.dot(u)];
-        let quartic = sub(
-            &mul(&mul(&dq, &dq), &p),
-            &mul(&[big.powi(2)], &mul(&dp, &dp)),
-        );
-        let (lo, hi) = ((s0 - centre) / scale, (s1 - centre) / scale);
-        let roots = roots_in(&quartic, lo, hi);
-        // `s(y) = Q'·ρ − R·P'`, whose roots are the stationary points,
-        // read on the vectors themselves.
-        let s = |y: f64| {
-            let w = q_off + uo * y;
-            (q + u * y).dot(u) * w.norm() - big * w.dot(uo)
-        };
-        let mut marks: Vec<f64> = [lo, hi, 0.0]
-            .into_iter()
-            .chain(roots.iter().copied())
-            .filter(|y| y.is_finite())
-            .collect();
-        marks.sort_by(f64::total_cmp);
-        marks.dedup();
-        // Every root of `s` is a root of the quartic, so each lies at a
-        // quartic root as isolated, or, where the quartic's own rounding
-        // moved it, between two marks across which `s` changes sign.
-        let refined = marks
-            .windows(2)
-            .filter(|m| s(m[0]) * s(m[1]) < 0.0)
-            .map(|m| bisect(&s, m[0], m[1]));
-        let mut ts = vec![star];
-        ts.extend(
-            roots
-                .iter()
-                .copied()
-                .chain(refined)
-                .map(|y| centre + y * scale),
-        );
-        ts
+        let roots = monotone_roots(&marks, span, |t, side, _| {
+            (self.q + self.u * t).dot(self.u) - big * self.rho(t, side).1
+        });
+        self.star.into_iter().chain(roots).collect()
     }
 }
 
-/// The product of two polynomials (coefficients lowest degree first).
-fn mul(a: &[f64], b: &[f64]) -> Vec<f64> {
-    let mut out = vec![0.0; a.len() + b.len() - 1];
-    for (i, x) in a.iter().enumerate() {
-        for (j, y) in b.iter().enumerate() {
-            out[i + j] += x * y;
-        }
-    }
-    out
-}
-
-fn sub(a: &[f64], b: &[f64]) -> Vec<f64> {
-    (0..a.len().max(b.len()))
-        .map(|k| a.get(k).copied().unwrap_or(0.0) - b.get(k).copied().unwrap_or(0.0))
+/// The roots of `f` over `span` cut at `marks`, on each piece of which
+/// `f` is monotone: one where `f` changes sign across the piece.
+/// `f(t, side, mid)` reads `t` from the `side` (`±1`) of a mark it sits
+/// on, on the piece whose middle is `mid`.
+fn monotone_roots(
+    marks: &[f64],
+    (s0, s1): (f64, f64),
+    f: impl Fn(f64, f64, f64) -> f64,
+) -> Vec<f64> {
+    let mut cuts: Vec<f64> = [s0, s1]
+        .into_iter()
+        .chain(marks.iter().copied().filter(|m| *m > s0 && *m < s1))
+        .collect();
+    cuts.sort_by(f64::total_cmp);
+    cuts.dedup();
+    cuts.windows(2)
+        .filter_map(|piece| {
+            let (a, b) = (piece[0], piece[1]);
+            let mid = a + (b - a) * 0.5;
+            let g = |t: f64| f(t, if t <= a { 1.0 } else { -1.0 }, mid);
+            let (ga, gb) = (g(a), g(b));
+            (ga * gb < 0.0).then(|| bisect(&g, a, b, ga < 0.0))
+        })
         .collect()
 }
 
-/// The real roots of the polynomial `c` in `[lo, hi]`, isolated between
-/// the roots of its derivative (each monotone stretch holds at most one)
-/// and bisected.
-fn roots_in(c: &[f64], lo: f64, hi: f64) -> Vec<f64> {
-    let degree = c.iter().rposition(|k| *k != 0.0).unwrap_or(0);
-    let c = &c[..=degree];
-    if degree == 0 {
-        return Vec::new();
-    }
-    let f = |y: f64| c.iter().rev().fold(0.0, |acc, k| acc * y + k);
-    if degree == 1 {
-        let y = -c[0] / c[1];
-        return if (lo..=hi).contains(&y) {
-            vec![y]
-        } else {
-            Vec::new()
-        };
-    }
-    let derivative: Vec<f64> = c
-        .iter()
-        .enumerate()
-        .skip(1)
-        .map(|(k, x)| x * k as f64)
-        .collect();
-    let mut marks = vec![lo];
-    marks.extend(roots_in(&derivative, lo, hi));
-    marks.push(hi);
-    let mut out = Vec::new();
-    for pair in marks.windows(2) {
-        let (a, b) = (pair[0], pair[1]);
-        let (fa, fb) = (f(a), f(b));
-        if fa == 0.0 {
-            out.push(a);
-        } else if fa * fb < 0.0 {
-            out.push(bisect(&f, a, b));
-        }
-    }
-    if f(hi) == 0.0 {
-        out.push(hi);
-    }
-    out
-}
-
-/// A root of `f` in `[a, b]`, across whose ends `f` changes sign, to the
-/// last bit `f64` can place.
-fn bisect(f: &impl Fn(f64) -> f64, mut a: f64, mut b: f64) -> f64 {
-    let negative_at_a = f(a) < 0.0;
-    loop {
+/// A root of `g` in `[a, b]`, across whose ends `g` changes sign
+/// (`negative_at_a` its sign at `a`), to the last bit `f64` can place,
+/// in at most 200 halvings.
+fn bisect(g: &impl Fn(f64) -> f64, mut a: f64, mut b: f64, negative_at_a: bool) -> f64 {
+    for _ in 0..200 {
         let m = a + (b - a) * 0.5;
         if m <= a || m >= b {
             return m;
         }
-        if (f(m) < 0.0) == negative_at_a {
+        if (g(m) < 0.0) == negative_at_a {
             a = m;
         } else {
             b = m;
         }
     }
+    a + (b - a) * 0.5
 }
