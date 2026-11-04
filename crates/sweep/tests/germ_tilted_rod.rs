@@ -358,6 +358,9 @@ const OTHER_SPINS_STOPS: [[&str; 5]; 8] = [
     ],
 ];
 
+/// The steeper tilt, whose union `h ∪ c` [`STEEP_UNION_STOP`] pins.
+const STEEP_TILT: f64 = 0.7;
+
 /// **The steeper tilt's union stops by identity** at both spins: its cap
 /// chord, a spiric in the rod's cap plane, reads off the rod's wall by
 /// degree (`topo::boolean::slit`'s spiric × quadric arm), so the slit
@@ -388,8 +391,8 @@ fn other_spins_and_steeper_tilts_refuse_at_their_germs() {
         (0.5, 2.5),
         (0.6, 0.0),
         (0.6, FRAC_PI_2),
-        (0.7, 0.0),
-        (0.7, FRAC_PI_2),
+        (STEEP_TILT, 0.0),
+        (STEEP_TILT, FRAC_PI_2),
     ];
     let eps = Tol::witness().eps();
     let want = OTHER_SPINS_STOPS;
@@ -398,13 +401,7 @@ fn other_spins_and_steeper_tilts_refuse_at_their_germs() {
         let c = rod(beta, spin);
         let before = geom_brep::implicit_pair_marches();
         let mut row = Vec::new();
-        for (op, (_, _, what, r, kind)) in every_op(&h, &c).into_iter().enumerate() {
-            if beta == 0.7 && op == 0 {
-                let stop = format!("{:?}", r.as_ref().err());
-                if stop != STEEP_UNION_STOP {
-                    row.push(format!("{what} at spin {spin} stops at {stop}"));
-                }
-            }
+        for (_, _, _, r, kind) in every_op(&h, &c) {
             row.push(stop_word(&r, kind));
         }
         let marches = geom_brep::implicit_pair_marches() - before;
@@ -421,6 +418,28 @@ fn other_spins_and_steeper_tilts_refuse_at_their_germs() {
         .map(|((g, _), (beta, spin))| format!("β {beta}, spin {spin}: {g:?}"))
         .collect();
     assert!(off.is_empty(), "at ε {eps:e}:\n{}", off.join("\n"));
+}
+
+/// **The steeper tilt's union stops at its pin by identity**
+/// ([`STEEP_UNION_STOP`]) at both spins and at every ε row. Only that
+/// op is run at the two poses, so the identity is measured where the
+/// whole table is too costly ([`OTHER_SPINS_STOPS`] names it by word).
+#[test]
+fn the_steeper_tilts_union_stops_by_identity() {
+    let h = half_donut();
+    let eps = Tol::witness().eps();
+    for spin in [0.0, FRAC_PI_2] {
+        let stop = format!(
+            "{:?}",
+            topo::union(&h, &rod(STEEP_TILT, spin), Tol::witness())
+                .as_ref()
+                .err()
+        );
+        assert_eq!(
+            stop, STEEP_UNION_STOP,
+            "h ∪ c at β {STEEP_TILT}, spin {spin}, ε {eps:e}"
+        );
+    }
 }
 
 /// **The lens is real.** At the rod axis's closest approach to the

@@ -1402,13 +1402,13 @@ fn conic_or_line_on<T: Decide>(
             | geom::Surface::Cylinder { .. }
             | geom::Surface::Cone { .. },
         ) => {
-            return Ok(spiric_on_quadric(
+            return spiric_on_quadric(
                 carrier,
                 (t0, t1),
                 (major_radius, minor_radius, offset),
                 surface,
                 band,
-            ));
+            );
         }
         // A spiric lies in its own plane, so against a plane it reads as a
         // conic does: in it where the two planes are one, and otherwise
@@ -1516,17 +1516,24 @@ const RIDER_SPIRIC_REGIME: &str = "bool_rider_spiric_regime";
 /// section is in the two-oval regime and a point of the span's interior
 /// reads definitely off; otherwise unread. Never on.
 ///
-/// **The degree certificate.** In the two-oval regime, `0 < |d| < R − r`
-/// for `d` the offset (decided here, [`RIDER_SPIRIC_REGIME`], as
-/// [`geom::Curve3::spiric`] decides it at the mint), the section is an
-/// irreducible quartic. In its plane, with `x` along `m`, `z` along the
-/// axis and `s = x² + z²`, it is `(s + A)² − 4R²x² − 4R²d² = 0`, with
-/// `A = d² + R² − r²`. Its quartic part `s²` has no real linear factor,
-/// so a real factorisation is into two quadrics `s + a·x + c·z + b`.
-/// Matching coefficients forces `c = 0`, `a = ±2R`, `b = A` and then
-/// `d = 0`: the two meridian circles. A factorisation over ℂ alone is a
-/// conjugate pair `G·Ḡ`, whose real points are those of `Re G = Im G = 0`,
-/// four at most, while the oval has infinitely many.
+/// **The degree certificate.** For `d` the offset, the section is an
+/// irreducible quartic wherever `d ≠ 0`. In its plane, with `x` along `m`,
+/// `z` along the axis and `s = x² + z²`, it is
+/// `(s + A)² − 4R²x² − 4R²d² = 0`, with `A = d² + R² − r²`. Its quartic
+/// part `s²` has no real linear factor, so a real factorisation is into
+/// two quadrics `s + a·x + c·z + b`. Matching coefficients forces `c = 0`,
+/// `a = ±2R`, `b = A` and then `d = 0`: the two meridian circles. A
+/// factorisation over ℂ alone is a conjugate pair `G·Ḡ`, whose real points
+/// are those of `Re G = Im G = 0`, four at most, while the oval has
+/// infinitely many.
+///
+/// The arm admits only the two-oval regime, `0 < |d| < R − r`, decided
+/// here ([`RIDER_SPIRIC_REGIME`]) as [`geom::Curve3::spiric`] decides it
+/// at the mint. The argument needs only `d ≠ 0`, so the `R − r` bound is
+/// conservative rather than required. It is kept because the carrier is
+/// defined only there: from `R − r` on its radicand goes negative, which
+/// is poison. Offset zero (two circles), the offsets from `R − r` on, and
+/// any offset decided in the zero band of either end read unread.
 ///
 /// None of the three surfaces holds a plane, so each meets the spiric's
 /// plane in a curve of degree two at most:
@@ -1540,41 +1547,51 @@ const RIDER_SPIRIC_REGIME: &str = "bool_rider_spiric_regime";
 /// By Bézout the spiric shares at most eight points with any of these,
 /// so it lies along no piece of the surface. This is the
 /// `(Line, Sphere | Torus)` arm's argument, a degree bound rather than a
-/// sampled identity. Offset zero (two circles), and the offsets from
-/// `R − r` on (a node at the inner equator, one oval, then the point at
-/// `R + r`), are out of the regime and read unread, as is any offset in
-/// band of either end.
+/// sampled identity.
 ///
 /// **The band.** The certificate is a statement about the carriers. A
 /// spiric can still run within the band of the surface over its whole
 /// span without lying on it: one at offset `d` hugs the cylinder about
 /// its meridian circle to `d² / 2(R − r)`. So the reading also needs a
 /// point of the span's interior, at a quarter, a half or three quarters,
-/// decided definitely off the surface ([`RIDER_ON_CURVED`]). A span in
-/// band at all three is unread. A shorter stretch in band between
-/// points read off is a touch, which no curve × face door reads for a
-/// spiric yet (`geom_brep::curve_face::route`'s `Door::Spiric`).
+/// decided definitely off the surface ([`RIDER_ON_CURVED`]). A span
+/// decided on the surface at all three is unread. A shorter stretch in
+/// band between points read off is a touch, which no curve × face door
+/// reads for a spiric yet (`geom_brep::curve_face::route`'s
+/// `Door::Spiric`).
+///
+/// # Errors
+///
+/// [`BooleanError::Escalated`] where the regime, or a sample with none
+/// off, is in the band's gap, as the conic arms beside it escalate.
 fn spiric_on_quadric<T: Decide>(
     carrier: &geom::Curve3<T>,
     (t0, t1): (T, T),
     (big, small, offset): (T, T, T),
     surface: &geom::Surface<T>,
     band: Band,
-) -> Placed {
+) -> Result<Placed, BooleanError> {
     let unread = Placed::Unread(EdgeInFaceGap::CarrierUnread);
-    let decided = |m: T| crate::validate::decide(RIDER_SPIRIC_REGIME, Margin::of(m), band);
-    let off_axis = matches!(decided(offset), Ok(Sign::Positive | Sign::Negative));
-    if !off_axis || decided(big - small - offset.abs()) != Ok(Sign::Positive) {
-        return unread;
+    let refused =
+        |diag| BooleanError::coincidence(Coincide::EdgeOnCurvedFace, DeclarationRead::Moot, diag);
+    let decided =
+        |m: T| crate::validate::decide(RIDER_SPIRIC_REGIME, Margin::of(m), band).map_err(refused);
+    if decided(offset)? == Sign::Zero || decided(big - small - offset.abs())? != Sign::Positive {
+        return Ok(unread);
     }
     let points: Vec<_> = [T::from_f64(0.25), T::from_f64(0.5), T::from_f64(0.75)]
         .into_iter()
         .map(|f| carrier.eval(t0 + (t1 - t0) * f))
         .collect();
-    match crate::census::points_on_surface(surface, &points, RIDER_ON_CURVED, band) {
-        Ok(false) => Placed::Off,
-        Ok(true) | Err(_) => unread,
-    }
+    Ok(
+        if crate::census::points_on_surface(surface, &points, RIDER_ON_CURVED, band)
+            .map_err(refused)?
+        {
+            unread
+        } else {
+            Placed::Off
+        },
+    )
 }
 
 /// `n` points of conic `carrier` equispaced over its whole turn from
@@ -3571,6 +3588,140 @@ mod spiric_quadric_rows {
             UNREAD,
             "a spiric in band of the wall over its span"
         );
+    }
+
+    /// The spiric about `z` with radii `(R, r)`, in the plane `x = d`.
+    fn spiric_of(major: f64, minor: f64, offset: f64) -> geom::Curve3<f64> {
+        geom::Curve3::Spiric {
+            center: Point3::origin(),
+            axis: Vec3::unit_z(),
+            u_ref: Vec3::unit_x(),
+            major_radius: major,
+            minor_radius: minor,
+            offset,
+        }
+    }
+
+    fn read(surface: &geom::Surface<f64>, q: Point3<f64>) -> Result<Sign, String> {
+        crate::validate::decide(
+            "test_spiric_sample",
+            Margin::of(geom_brep::implicit::implicit_residual(surface, q)),
+            band(),
+        )
+        .map_err(|d| format!("{d:?}"))
+    }
+
+    /// **A spiric tangent to a cylinder at its span's midpoint reads
+    /// off**: the touch is exact, so the carriers meet there, yet the
+    /// midpoint is the only sample on the wall, and the quarter samples
+    /// read off. This pins the residue the arm admits (a touch between
+    /// points read off). Red where only the midpoint is sampled.
+    #[test]
+    fn a_spiric_tangent_to_a_cylinder_at_its_midpoint_reads_off() {
+        let s = spiric(0.5);
+        let p = s.eval(0.0);
+        let h = 1e-6;
+        let tangent = s.eval(h) - s.eval(-h);
+        let tangent = tangent / tangent.norm();
+        let normal = Vec3::unit_x().cross(tangent);
+        let radius = 0.3;
+        let wall = geom::Surface::Cylinder {
+            origin: p + normal * radius,
+            axis: Vec3::unit_x(),
+            radius,
+            u_ref: Vec3::unit_y(),
+        };
+        assert_eq!(read(&wall, p), Ok(Sign::Zero), "the touch at the midpoint");
+        for f in [0.25_f64, 0.75] {
+            assert!(
+                matches!(
+                    read(&wall, s.eval(-0.5 + f)),
+                    Ok(Sign::Positive | Sign::Negative)
+                ),
+                "the sample at {f} is off the wall"
+            );
+        }
+        assert_eq!(
+            conic_or_line_on(&s, (-0.5, 0.5), &wall, band()).unwrap(),
+            Placed::Off,
+            "a touch between samples read off reads off"
+        );
+    }
+
+    /// **A spiric crossing a torus other than its own stays unread**: the
+    /// arm admits quadrics only. Red where the arm admits a torus.
+    #[test]
+    fn a_spiric_crossing_another_torus_stays_unread() {
+        let s = spiric(0.5);
+        let other = geom::Surface::Torus {
+            center: s.eval(0.0),
+            axis: Vec3::unit_x(),
+            major_radius: 0.3,
+            minor_radius: 0.1,
+            u_ref: Vec3::unit_y(),
+        };
+        assert!(
+            matches!(
+                read(&other, s.eval(0.25)),
+                Ok(Sign::Positive | Sign::Negative)
+            ),
+            "a sample is off the other torus"
+        );
+        assert_eq!(
+            conic_or_line_on(&s, (-0.5, 0.5), &other, band()).unwrap(),
+            UNREAD,
+            "a spiric against another torus"
+        );
+    }
+
+    /// **An undecided reading escalates**, as the conic arms beside the
+    /// spiric's escalate, and never reads off. There are two cases:
+    /// - an offset in the band's gap off zero, where the regime is
+    ///   undecided;
+    /// - a spiric hugging its meridian cylinder at an offset whose
+    ///   samples land in the band's gap, none decided off.
+    ///
+    /// Red where an undecided reading reads off or unread.
+    #[test]
+    fn an_undecided_spiric_reading_escalates() {
+        let escalated = |r: &Result<Placed, crate::boolean::BooleanError>| {
+            matches!(r, Err(crate::boolean::BooleanError::Escalated { .. }))
+        };
+        let b = band();
+        let wall = |offset: f64, big: f64, small: f64| geom::Surface::Cylinder {
+            origin: Point3::new(offset, big, 0.0),
+            axis: Vec3::unit_x(),
+            radius: small,
+            u_ref: Vec3::unit_y(),
+        };
+        let gap = (b.zero() + b.escalate()) / 2.0;
+        let r = conic_or_line_on(&spiric(gap), (-0.5, 0.5), &wall(gap, 2.5, 0.3), b);
+        assert!(escalated(&r), "an offset in the band's gap: {r:?}");
+        let (big, small) = (2.0, 0.5);
+        let span = (-1.0, 1.0);
+        let found = (0..400)
+            .map(|k| {
+                let target = b.zero() + (b.escalate() - b.zero()) * f64::from(k) / 400.0;
+                spiric_of(big, small, (2.0 * (big - small) * target).sqrt())
+            })
+            .find(|s| {
+                let reads: Vec<_> = [0.25, 0.5, 0.75]
+                    .iter()
+                    .map(|f| {
+                        read(
+                            &wall(0.0, big, small),
+                            s.eval(span.0 + (span.1 - span.0) * f),
+                        )
+                    })
+                    .collect();
+                reads
+                    .iter()
+                    .all(|r| !matches!(r, Ok(Sign::Positive | Sign::Negative)))
+                    && reads.iter().any(Result::is_err)
+            })
+            .expect("an offset whose samples read in the band's gap, none off");
+        let r = conic_or_line_on(&found, span, &wall(0.0, big, small), b);
+        assert!(escalated(&r), "samples in the band's gap: {r:?}");
     }
 }
 
