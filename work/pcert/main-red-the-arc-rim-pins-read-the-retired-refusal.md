@@ -5,7 +5,7 @@ title: Main red since PR 6484: dm1's arc-rim pins read the retired 'not an arc r
 status: open
 opened: 2026-11-04
 priority: P1
-cost: S
+cost: M
 ---
 
 
