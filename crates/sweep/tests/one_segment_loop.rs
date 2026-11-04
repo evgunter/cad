@@ -898,17 +898,10 @@ fn a_one_segment_circle_on_or_against_the_axis_refuses() {
             "{what}: {got:?}"
         );
     };
+    // A partial revolve reaching a sheet's apex refuses at its
+    // certificate (`work/spiricarm/a-football-revolved-part-way-refuses-at-its-cap-meridians-certificate.md`).
     let apex = |what: &str, got: &E| {
-        assert!(
-            matches!(
-                got,
-                E::SheetApex {
-                    loop_index: 0,
-                    segment_index: 0
-                }
-            ),
-            "{what}: {got:?}"
-        );
+        assert!(matches!(got, E::Op { .. }), "{what}: {got:?}");
     };
     let vertex = |what: &str, got: &E| {
         assert!(
@@ -930,7 +923,8 @@ fn a_one_segment_circle_on_or_against_the_axis_refuses() {
         // The sheet classes: the carrier reaches the axis off-centre,
         // and a full turn holds the point where it reaches furthest.
         ("crossing the axis", circle(0.5, 0.0, 1.0, TAU), arc),
-        // A horn's cusp at the vertex is the sheet's apex.
+        // A horn's cusp at the vertex: the sheet's apex, reached from
+        // both sides.
         (
             "tangent to the axis at its vertex",
             circle_at(1.0, 0.0, 1.0, PI, TAU),

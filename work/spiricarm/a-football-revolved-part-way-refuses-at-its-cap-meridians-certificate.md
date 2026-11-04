@@ -40,3 +40,9 @@ rather than a lane not written.
 A lune of the football (`Partial(θ)`) builds, passes tier 3 and
 measures its exact volume `θ/2π` of the football's, or refuses with a
 typed lane-gap reason that names the apex.
+
+The same refusal class: a horn's whole circle with its vertex at the
+cusp, revolved part way, refuses `RevolveError::Op` (a stated interval
+decided zero) rather than as the pinch the full revolve names
+(`NonManifoldAxisContact`); `crates/sweep/tests/one_segment_loop.rs`
+`a_one_segment_circle_on_or_against_the_axis_refuses` pins it.
