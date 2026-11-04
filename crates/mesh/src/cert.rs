@@ -37,6 +37,10 @@
 //!   `P_θφ = 0`) a cell-half's hypotenuse midpoint deviates by exactly
 //!   this to second order, measured below. Certificate
 //!   `(A·Δu² + 2B·Δu·Δv + C·Δv²)/8`.
+//! - **Spindle sheet**: the torus's, with an apex corner's `u` read as
+//!   another corner's ([`cert_spindle`]): the apex is one point for
+//!   every `u`, so the triangle is the same in space, and its
+//!   parametric patch spans only the other corners' `u`.
 //! - **Plane**: affine — deviation 0, no certificate needed.
 //!
 //! Two additive slacks sit outside all bounds, documented in the crate
@@ -181,6 +185,30 @@ pub fn cert_torus(major: f64, minor: f64, uv: [[f64; 2]; 3]) -> f64 {
         u1 - u0,
         v1 - v0,
     )
+}
+
+/// Spindle-sheet certificate: [`cert_torus`] over the triangle with
+/// each apex corner's `u` read as a non-apex corner's. Every `u` at an
+/// apex (`v = ±v*`) maps to the one point there, so that triangle has
+/// the same three corners in space and a parametric patch on the sheet
+/// whose `u` extent is the non-apex corners' alone, as the cone's
+/// certificate drops its apex from `Δu`. Its `v` extent still reaches
+/// the apex. A triangle with fewer than two corners off an apex is no
+/// fan triangle, and certifies nothing (+∞).
+pub fn cert_spindle(major: f64, minor: f64, uv: [[f64; 2]; 3], apex: [bool; 3]) -> f64 {
+    let Some(u) = (0..3).find(|&i| !apex[i]).map(|i| uv[i][0]) else {
+        return f64::INFINITY;
+    };
+    if apex.iter().filter(|&&a| a).count() > 1 {
+        return f64::INFINITY;
+    }
+    let mut read = uv;
+    for (corner, &at) in read.iter_mut().zip(&apex) {
+        if at {
+            corner[0] = u;
+        }
+    }
+    cert_torus(major, minor, read)
 }
 
 /// The doubly-curved chord bound `(A·Δu² + 2B·Δu·Δv + C·Δv²)/8` on
@@ -619,5 +647,98 @@ mod tests {
                 test_utils::fuzz::replay()
             );
         }
+    }
+
+    /// The exact distance from `p` to the sheet `(R, r)` about `z`: in
+    /// `p`'s meridian half-plane, to the sheet's arc `|v| ≤ v*` of the
+    /// circle of radius `r` about `(R, 0)`, or to the nearer apex where
+    /// the circle's nearest point is off the arc.
+    fn sheet_dist(major: f64, minor: f64, p: Point3<f64>) -> f64 {
+        let (rho, z) = (p.x.hypot(p.y), p.z);
+        let v_star = (-major / minor).clamp(-1.0, 1.0).acos();
+        let (x, y) = (rho - major, z);
+        if y.atan2(x).abs() <= v_star {
+            return (x.hypot(y) - minor).abs();
+        }
+        let h = minor * v_star.sin();
+        rho.hypot(z - h).min(rho.hypot(z + h))
+    }
+
+    /// **`cert_spindle` bounds a fan triangle's distance from its sheet**
+    /// (a seeded fuzz). Each triangle has one corner, in any slot, at an
+    /// apex with an arbitrary `u`, and two near it: every point of the
+    /// flat triangle is within the certificate of the sheet, measured
+    /// exactly ([`sheet_dist`], blind to the chart). The sheets reach the
+    /// tightest the bound gets: a fifth horns (`R = r`, the needle's
+    /// cusp), a tenth a hair inside one, a tenth needle-thin lemons, the
+    /// rest across `|R| ≤ 0.999r`, with fans to `Δu ≤ 1.5`. The apex's
+    /// `u` is dropped from the certificate's `Δu` and its `v` kept; with
+    /// the `v` dropped as well this goes red.
+    #[test]
+    fn cert_spindle_bounds_a_fan_triangle_on_every_sheet() {
+        let mut rng = test_utils::fuzz::start("cert_spindle_fan");
+        for _ in 0..test_utils::fuzz::scaled(20_000) {
+            let minor = rng.range(0.05, 2.0);
+            let pick = rng.unit();
+            let major = if pick < 0.2 {
+                minor
+            } else if pick < 0.3 {
+                minor * (1.0 - 1e-9)
+            } else if pick < 0.4 {
+                -minor * (1.0 - 1e-6)
+            } else {
+                minor * rng.range(-0.999, 0.999)
+            };
+            let vs = (-major / minor).clamp(-1.0, 1.0).acos();
+            let up = rng.unit() < 0.5;
+            let at = if up { vs } else { -vs };
+            let (du, dv) = (rng.range(0.0, 1.5), rng.range(0.0, vs.min(1.5)));
+            let u0 = rng.range(-PI, PI);
+            let mut uv = [[rng.range(-PI, PI), at]; 3];
+            for corner in &mut uv[1..] {
+                let off = rng.unit() * dv;
+                *corner = [u0 + rng.unit() * du, if up { at - off } else { at + off }];
+            }
+            #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+            let slot = ((rng.unit() * 3.0) as usize).min(2);
+            uv.swap(0, slot);
+            let mut apex = [false; 3];
+            apex[slot] = true;
+            let cert = cert_spindle(major, minor, uv, apex);
+            let c = uv.map(|[u, v]| torus_point(major, minor, u, v));
+            let n = 12u32;
+            let mut worst: f64 = 0.0;
+            for i in 0..=n {
+                for j in 0..=(n - i) {
+                    let (li, lj) = (f64::from(i) / f64::from(n), f64::from(j) / f64::from(n));
+                    let lk = 1.0 - li - lj;
+                    let q = Point3::new(
+                        c[0].x * li + c[1].x * lj + c[2].x * lk,
+                        c[0].y * li + c[1].y * lj + c[2].y * lk,
+                        c[0].z * li + c[1].z * lj + c[2].z * lk,
+                    );
+                    worst = worst.max(sheet_dist(major, minor, q));
+                }
+            }
+            assert!(
+                worst <= cert * (1.0 + 1e-9) + 1e-12,
+                "R {major} r {minor} uv {uv:?} apex {apex:?}: distance {worst} exceeds {cert} ({})",
+                test_utils::fuzz::replay()
+            );
+        }
+    }
+
+    /// **A triangle with fewer than two corners off an apex certifies
+    /// nothing**: both apexes and a third corner span the sheet's whole
+    /// `v` window, which no fan triangle does.
+    #[test]
+    fn cert_spindle_refuses_a_triangle_on_two_apexes() {
+        let vs = (0.5_f64).acos();
+        let uv = [[0.0, vs], [0.3, -vs], [0.1, 0.0]];
+        assert_eq!(
+            cert_spindle(-0.5, 1.0, uv, [true, true, false]),
+            f64::INFINITY
+        );
+        assert!(cert_spindle(-0.5, 1.0, uv, [true, false, false]).is_finite());
     }
 }

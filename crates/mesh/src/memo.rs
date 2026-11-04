@@ -1262,7 +1262,7 @@ impl KeyWriter {
                 for quarters in [image.azimuth(), image.tube()] {
                     self.len(quarters.len());
                     for &q in quarters {
-                        self.f64(f64::from(q));
+                        self.f64(f64::from(q.0));
                     }
                 }
                 let (u_off, v_off, v_sign) = image.deck();
