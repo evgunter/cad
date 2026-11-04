@@ -63,16 +63,32 @@ pub enum SectionReading<'s> {
 }
 
 /// **What a boundary pass was run over**: the partner (its `f64`
-/// scalars, by their round-trip rendering), the wall by its address, the
-/// domain and the band, bit for bit. A pass carries to a section only
+/// scalars, by their round-trip rendering), the wall by its content (its
+/// knots, control points and weights, digested), the domain and the
+/// band, bit for bit. The wall is read by content, not address: a pose
+/// re-served from a copy of its operands carries the same pass. A pass carries to a section only
 /// over the same key ([`ImplicitSection::with_pass`]), as a chart minted
 /// once carries only to its own wall ([`ImplicitSection::of_charted`]).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct PassKey {
     partner: String,
-    wall: usize,
+    wall: u64,
     domain: [u64; 6],
     band: [u64; 2],
+}
+
+/// A digest of a wall's knots, control points and weights, bit for bit.
+fn wall_digest(wall: &NurbsSurface<f64>) -> u64 {
+    use core::hash::{Hash as _, Hasher as _};
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    format!("{:?} {:?}", wall.knot_values_u(), wall.knot_values_v()).hash(&mut h);
+    for p in wall.control() {
+        [p.x, p.y, p.z].map(f64::to_bits).hash(&mut h);
+    }
+    for w in wall.weights() {
+        w.to_bits().hash(&mut h);
+    }
+    h.finish()
 }
 
 /// What the section is read over, fixed by [`ImplicitSection::of`].
@@ -265,7 +281,7 @@ impl<'a> ImplicitSection<'a> {
         let d = self.lane.wall.domain();
         PassKey {
             partner: format!("{:?}", self.lane.sys.partner),
-            wall: core::ptr::from_ref(self.lane.sys.wall) as usize,
+            wall: wall_digest(self.lane.sys.wall),
             domain: [
                 d.center.x,
                 d.center.y,
