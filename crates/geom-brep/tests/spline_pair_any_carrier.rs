@@ -79,7 +79,7 @@ fn twin(carrier: &Curve3<f64>, (t0, t1): (f64, f64)) -> Curve3<f64> {
         Curve3::Circle(geom::Circle {
             frame:
                 geom::Frame {
-                    center,
+                    origin: center,
                     axis,
                     u_ref,
                 },
@@ -88,7 +88,7 @@ fn twin(carrier: &Curve3<f64>, (t0, t1): (f64, f64)) -> Curve3<f64> {
         Curve3::Ellipse(geom::Ellipse {
             frame:
                 geom::Frame {
-                    center,
+                    origin: center,
                     axis,
                     u_ref,
                 },
@@ -213,7 +213,7 @@ fn verdict(name: &str, got: &Limbs) -> (Verdict, f64) {
         Err(PlaneNurbsRefusal::Limb { limb, margin }) => (Verdict::Refused(*limb), upper(*margin)),
         // A circle no boundary row holds reads its fitted image, and its
         // limb's refusal carries that no exact image held.
-        Err(PlaneNurbsRefusal::ArcRim(geom_brep::ArcRimRefusal::Refused {
+        Err(PlaneNurbsRefusal::ArcRim(geom_brep::ArcRimRefusal {
             iso: None,
             limb,
             bound,

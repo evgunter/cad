@@ -164,7 +164,7 @@ pub fn sphere_poles<T: Real>(
 /// ([`sheet_apexes`]), from the chart's own frame; none for any other
 /// kind.
 pub fn singular_points<T: Real>(chart: &ChartInverse<T>) -> Vec<(Singularity, Point3<T>)> {
-    let (anchor, axis) = (chart.anchor(), chart.axis());
+    let (anchor, axis) = (chart.frame().origin, chart.frame().axis);
     match chart.arm() {
         ChartArm::Sphere { radius } => sphere_poles(anchor, axis, radius).to_vec(),
         ChartArm::Cone { .. } => vec![(Singularity::Apex, anchor)],
@@ -873,7 +873,7 @@ pub fn walk_loop<T: Decide>(
 ) -> Option<LoopWalk<T>> {
     let shapes: Vec<EdgeShape<T>> = edges
         .iter()
-        .map(|e| EdgeShape::of(&e.carrier, chart.axis()))
+        .map(|e| EdgeShape::of(&e.carrier, chart.frame().axis))
         .collect::<Option<_>>()?;
     let read = |e: usize, t: T, depth: u32, last: bool| -> Option<WalkSample<T>> {
         let p = edges[e].carrier.eval(t);
@@ -1042,8 +1042,8 @@ impl<T: Decide> Shape<T> {
             ChartArm::Spindle { .. } => return None,
         };
         Some(Self {
-            anchor: chart.anchor(),
-            axis: chart.axis(),
+            anchor: chart.frame().origin,
+            axis: chart.frame().axis,
             kind,
             on_loop,
             escalate,

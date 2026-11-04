@@ -319,11 +319,16 @@ fn both_blends_evaluate_in_one_document() {
 /// edge curve's `Debug` the digest feeds. With that `Debug` written in
 /// main's shape every row here reproduces main's value at all three ε
 /// rows, so nothing else moved.
+/// RE-BLESSED when `geom::Frame` came to name its point `origin`
+/// (`Frame { origin, .. }` where it spelled `Frame { center, .. }`), which
+/// changes the edge curve's `Debug` the digest feeds. With that `Debug`
+/// written in main's shape every row here reproduces main's value at all
+/// three ε rows, so nothing else moved.
 #[test]
 fn the_blend_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("die_fillet", 0x1c53_65d2_f658_9b05_u64),
+        ("die_fillet", 0x9d27_e739_ef2f_43bd_u64),
         ("die_chamfer", 0x018f_a268_82df_d471),
     ] {
         let doc = corpus::documents()

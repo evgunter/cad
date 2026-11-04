@@ -386,6 +386,25 @@ pub(crate) fn index(k: usize) -> u32 {
 /// section table), citing the C5 routing: a cone against a conic the
 /// inventory excludes, or a partner with no frame, refuses there.
 ///
+/// **ONE roster for every op.** A kind is on it when every door its
+/// faces can reach under every op is certified or typed; the doors are
+/// op-dependent, but the kind's arms are not. ∖ and ∩ classify the
+/// operands as given: the op enters through the op tables (an
+/// on-sector's Eq. 15.3 lump, [`super::tables::eq15_3_lump`]; the kept
+/// copy of a coincident pair, [`super::tables::kept_copy`]) and the
+/// join's reading of the subtrahend's normals reversed (`stands_on`).
+/// ∖ reverts the kept subtrahend pieces only after classification
+/// (`finish`'s Eq. 15.1 `(B in A)⁻¹`, the operand-B fallback, the void
+/// door's cavity), so a reverted face reaches only what runs after
+/// classification: the graft, the result's seam readings (sign-free)
+/// and the at-rest gate. What reads a reverted spline face's signed
+/// normal (the pierce and sector normals, the slit pass's floor) does
+/// so through its `sense` bit, the next time the result is an operand.
+/// So a placement can stop
+/// at another door under ∖ or ∩ than under ∪, and every op ends in a
+/// typed refusal or a certified body; a second list for ∖ and ∩ would
+/// gate nothing a door does not.
+///
 /// **`Approx` is absent by DECISION, not by gap.** Its fit is a
 /// `Nurbs`, which is on the roster, so admitting it on the fitted
 /// kind's authority would run the boolean against the APPROXIMATION
@@ -403,27 +422,6 @@ pub(super) fn boolean_arm_exists<T: Decide>(surface: &geom::Surface<T>) -> bool 
             | geom::Surface::Torus { .. }
             | geom::Surface::Cone { .. }
             | geom::Surface::Nurbs(_)
-    )
-}
-
-/// **The face kinds ∖ and ∩ have a seam lane for** — the same roster
-/// minus `Nurbs`, which has no crossing layer at all
-/// (`BooleanError::CurvedPairUnsupported`'s docs carry the per-class
-/// argument). ONE home, beside its sibling above, so the two rosters
-/// cannot drift apart in two files: the front door in `ops` reads
-/// this rather than spelling a second `matches!`.
-///
-/// `Approx` is off this roster for the reason it is off the one
-/// above, which is strictly stronger here: `Nurbs` has no crossing
-/// layer at all, and an approximating surface's chart is a `Nurbs`'s.
-pub(super) fn revert_arm_exists<T: Decide>(surface: &geom::Surface<T>) -> bool {
-    matches!(
-        surface,
-        geom::Surface::Plane { .. }
-            | geom::Surface::Cylinder { .. }
-            | geom::Surface::Sphere { .. }
-            | geom::Surface::Torus { .. }
-            | geom::Surface::Cone { .. }
     )
 }
 
@@ -583,9 +581,8 @@ pub(super) fn first_unsupported_pair<T: Decide + Bounds>(
 /// by the validator's own verdict, with supported edge carriers. Then
 /// two rules, with different scopes on purpose:
 ///
-/// - **Faces**: a kind off the face-kind `roster` — [`boolean_arm_exists`],
-///   or [`revert_arm_exists`] at the ∖/∩ front door — disqualifies the
-///   operation only through a PAIR it could enter
+/// - **Faces**: a kind off the face-kind `roster` ([`boolean_arm_exists`])
+///   disqualifies the operation only through a PAIR it could enter
 ///   ([`first_unsupported_pair`]) and that the caller's declarations
 ///   do not cover. A torus wall whose box clears the other operand
 ///   does not gate anything, and neither does one whose contact with
@@ -6867,7 +6864,7 @@ mod declaration_order_rows {
                     Some(super::CurveGeom::Certified(g))
                         if matches!(
                             g.carrier(),
-                            geom::Curve3::Circle(geom::Circle { frame: geom::Frame { axis: a, center, .. }, .. })
+                            geom::Curve3::Circle(geom::Circle { frame: geom::Frame { axis: a, origin: center, .. }, .. })
                                 if a.z.abs() > 0.9 && center.z > 0.1
                         )
                 )
@@ -8769,7 +8766,7 @@ mod spline_face_rows {
                 let Some(CurveGeom::Certified(c)) = body.get_curve_geom(e.curve) else {
                     return false;
                 };
-                matches!(c.carrier(), Curve3::Circle(geom::Circle { frame: geom::Frame { center, .. }, .. }) if (center.z - z).abs() < 1e-12)
+                matches!(c.carrier(), Curve3::Circle(geom::Circle { frame: geom::Frame { origin: center, .. }, .. }) if (center.z - z).abs() < 1e-12)
             })
             .map(|(k, _)| k)
             .expect("the rim")

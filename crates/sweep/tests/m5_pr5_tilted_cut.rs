@@ -158,7 +158,7 @@ fn perpendicular_cut_stays_rung_1_circles() {
                 continue;
             };
             if let Curve3::Circle(geom::Circle {
-                frame: geom::Frame { center, .. },
+                frame: geom::Frame { origin: center, .. },
                 radius,
             }) = *c.carrier()
                 && (center.z - 0.5).abs() < 1e-12
