@@ -5912,12 +5912,10 @@ fn ruling_generator<T: Real>(axis: Vec3<T>, half_angle: T, q: Vec3<T>) -> Vec3<T
     axis * c_ha + q * (s_ha / q.norm())
 }
 
-/// **The ruling a line is read against** ([`ruling_miss`]): a cylinder's,
-/// any line along its unit axis, or a cone's generator through its apex
-/// along the unit `g`.
+/// **The ruling a line is read against** ([`ruling_miss`]).
 #[derive(Clone, Copy, Debug)]
 pub enum Ruling<T: Real> {
-    /// A cylinder's, along its unit axis.
+    /// A cylinder's ruling through the line's origin, along the unit axis.
     Axis(Vec3<T>),
     /// A cone's generator.
     Generator {
@@ -5929,34 +5927,51 @@ pub enum Ruling<T: Real> {
 }
 
 /// **Whether a line is a ruling of its chart**, the one reading the mint's
-/// class arms and props' boundary parse share: how far the line leaves
-/// `ruling` over the edge's span `[t0, t1]`, in metres. Its direction's
-/// part off the ruling, `‖dir × ĝ‖` metres per unit of the line's
-/// parameter, is metered over the span, so the reading is the line's and
-/// not its parametrisation's: a line with `dir` scaled and its span
-/// scaled back reads the same. On a cylinder every point has a ruling
-/// through it, so that part is the whole reading (the ruling through the
-/// span's start). A cone's generator runs through the apex, so its
-/// reading adds the span start's distance from it; the sum bounds the
-/// line's distance from the generator over the span, which is how far the
-/// generator's closed form misses the line.
+/// class arms, props' boundary parse and the boolean share: the line's
+/// greatest distance from `ruling` over the edge's span `[t0, t1]`, in
+/// metres. A distance from a line is convex along a line, so the greatest
+/// is at an end of the span and the reading is exact. It is the line's
+/// and not its parametrisation's speed: a line with `dir` scaled and its
+/// span scaled back reads the same.
+///
+/// The ruling is anchored where the closed form that a Zero reading
+/// selects places its image, so the reading is that image's miss: on a
+/// cylinder, the ruling through the line's `origin` (the meridian form's
+/// azimuth), whose distance at `t` is `|t|·‖dir × axis‖`, so the reading
+/// is `‖dir × axis‖` metered over the span's reach from the origin; on a
+/// cone, the generator the arm names. The metered rate is exact, so the
+/// product is the distance itself and is decided on either side. A
+/// caller that images nothing, and so asks only whether the edge lies
+/// along a ruling, passes the line anchored at the span's start (props).
 pub fn ruling_miss<T: Real>(
     &geom::Line { origin, dir }: &geom::Line<T>,
     (t0, t1): (T, T),
     ruling: Ruling<T>,
 ) -> Margin<T> {
-    let span = (t1 - t0).abs();
     #[cfg(test)]
-    let span = if mutants::ruling_per_parameter() {
-        T::one()
+    let (t0, t1) = if mutants::ruling_per_parameter() {
+        (T::zero(), T::one())
     } else {
-        span
+        (t0, t1)
     };
     match ruling {
-        Ruling::Axis(axis) => Margin::metered(span, InfSpeed::new(dir.cross(axis).norm())),
+        Ruling::Axis(axis) => {
+            let reach = t0.abs().max(t1.abs());
+            #[cfg(test)]
+            let reach = if mutants::ruling_unplaced() {
+                (t1 - t0).abs()
+            } else {
+                reach
+            };
+            Margin::metered(reach, InfSpeed::new(dir.cross(axis).norm()))
+        }
         Ruling::Generator { apex, g } => {
-            let start = (origin + dir * t0 - apex).cross(g).norm();
-            Margin::of(start + InfSpeed::new(dir.cross(g).norm()).to_meters(span))
+            let off = |t: T| (origin + dir * t - apex).cross(g).norm();
+            #[cfg(test)]
+            if mutants::ruling_unplaced() {
+                return Margin::of(off(T::zero()) + dir.cross(g).norm() * (t1 - t0).abs());
+            }
+            Margin::of(off(t0).max(off(t1)))
         }
     }
 }
@@ -9923,6 +9938,12 @@ fn derive_class<T: Decide>(
                             }
                         };
                     let r_dir = r_ref * h_sign.value();
+                    // An anchor on the axis off the apex names no
+                    // generator: the only ruling through an axis point is
+                    // the apex's, so the line is no ruling.
+                    if !(T::one() / r_dir.norm()).is_bounded() {
+                        return Err(incidence::general_lane(shown, None));
+                    }
                     let g = ruling_generator(axis, half_angle, r_dir);
                     // Whether the line is that generator (D3's lane
                     // choice): shown, the generator's closed form; in band

@@ -1,5 +1,5 @@
 //! **Whether a line is a ruling of its chart** ([`ruling_miss`], the one
-//! reading the mint's cylinder and cone arms and props' cylinder parse
+//! reading the mint's cylinder and cone arms, props and the boolean
 //! share): metered over the edge's span, so one tilt reads apart on a
 //! long edge and shown on a short one, and a line read with its `dir`
 //! scaled reads the same. On the cone it is D3's lane choice: a line
@@ -10,7 +10,9 @@
 //! Built with `PCERT_RADIAL_PAIR_MUTANT` naming `ruling-per-parameter`
 //! (the span unread), the short-and-long, scaled and in-band rows refuse;
 //! naming `cone-ruling-gate` (no ruling reading on the cone), the shifted
-//! ruling and the cone's in-band row refuse.
+//! ruling and the cone's in-band row refuse; naming `ruling-unplaced`
+//! (the span's length read, where it lies unread), the anchored row
+//! refuses.
 
 use geom_core::{Bounds, Interval};
 
@@ -213,14 +215,16 @@ fn takes_the_general_lane(
 }
 
 /// **One tilt, a short and a long edge**: a unit-speed line tilted `θ`
-/// along the wall leaves the ruling through its start by `θ·L` over a
-/// span `L`, and that is what both the mint and props read. Tilted
-/// `100·escalate` over `L` with `θ·L = zero/4`, it is shown a ruling: the
-/// meridian form, which certifies. Tilted `zero/4` over `L` with
-/// `θ·L = 4·escalate`, it is shown no ruling: the general lane, which
-/// certifies, where the meridian form would miss the line by `θ·L/2`.
-/// Red under `ruling-per-parameter`, which reads `θ` at both: the short
-/// edge then takes the general lane, and the long one the meridian form.
+/// along the wall, read over `[−L/2, L/2]` about its origin, leaves the
+/// ruling through its origin (where the meridian form places it) by
+/// `θ·L/2`, and that is what the mint reads; props reads the edge from its
+/// start, `θ·L`, the same reading anchored there. Tilted `100·escalate`
+/// with `θ·L = zero/4`, it is shown a ruling: the meridian form, which
+/// certifies. Tilted `zero/4` with `θ·L = 4·escalate`, it is shown no
+/// ruling: the general lane, which certifies, where the meridian form
+/// would miss the line by `θ·L/2`. Red under `ruling-per-parameter`, which
+/// reads `θ` at both: the short edge then takes the general lane, and the
+/// long one the meridian form.
 #[test]
 fn one_tilt_reads_by_its_reach_over_the_edge() {
     let surface = cylinder();
@@ -444,7 +448,7 @@ fn an_in_band_tilt_takes_the_general_lane_on_each_chart() {
     let mut rows = vec![(
         "cylinder".to_string(),
         tilted(0.3, (in_band / l).asin()),
-        (-l / 2.0, l / 2.0),
+        (0.0, l),
         cylinder(),
         Ruling::Axis(Vec3::unit_z()),
     )];
@@ -493,6 +497,89 @@ fn an_in_band_tilt_takes_the_general_lane_on_each_chart() {
             ),
             "{what}: names its family undecided: {:?}",
             chart_iso_family(&carrier, span, &surface, band())
+        );
+    }
+}
+
+/// **The reading is anchored where the image is**: the meridian form
+/// places its azimuth at the line's origin and the cone's closed form at
+/// the generator its anchor names, so a line tilted off a ruling at its
+/// origin and read over a short span far from it leaves that ruling by
+/// its tilt times the span's reach from the origin, not times the span's
+/// length. Read so, it takes the general lane and certifies, on the
+/// cylinder (the review's probes, and one with the span before the
+/// origin) and on the cone (turned in the tangent plane at its anchor,
+/// both nappes); a true ruling read there keeps its closed form. Red
+/// under `ruling-unplaced`, which reads the span's length: each tilted
+/// line then reads Zero, takes the closed form, and check 4 refuses it.
+#[test]
+fn the_reading_is_anchored_where_the_image_is() {
+    let surface = cylinder();
+    let rows = [
+        (1e3 * zero(), (1.0, 1.0 + 1e-4)),
+        (1e2 * zero(), (1.0, 1.0 + 1e-3)),
+        (
+            10.0 * band().escalate(),
+            (0.5, 0.5 + 1e-2 * zero() / band().escalate()),
+        ),
+        (1e2 * zero(), (-1.0 - 1e-3, -1.0)),
+    ];
+    for (theta, span) in rows {
+        let what = format!("cylinder, θ {theta:e} over {span:?}");
+        let carrier = tilted(0.3, theta);
+        let (at, (lo, _)) = reading(&carrier, span, Ruling::Axis(Vec3::unit_z()));
+        assert!(
+            lo > band().escalate(),
+            "{what}: the reading {at:e} (lo {lo:e}) is definite"
+        );
+        let [d, d_i] = derivations(&carrier, span, &surface);
+        assert!(
+            d.is_err() && d_i.is_err(),
+            "{what}: no meridian form at either scalar: {d:?} / {d_i:?}"
+        );
+        assert!(
+            takes_the_general_lane(&what, &carrier, span, &surface),
+            "{what}: the general lane certifies"
+        );
+        assert_eq!(
+            chart_iso_family(&carrier, span, &surface, band()),
+            Ok(None),
+            "{what}: on no family"
+        );
+    }
+    let ruling = tilted(-2.0, 0.0);
+    let [d, d_i] = derivations(&ruling, (1.0, 1.0 + 1e-3), &surface);
+    assert!(
+        matches!(d, Ok(Derivation::CylinderMeridian))
+            && matches!(d_i, Ok(Derivation::CylinderMeridian)),
+        "a ruling read far from its origin keeps the meridian form: {d:?} / {d_i:?}"
+    );
+
+    let surface = cone();
+    let (k, l) = (2.0, 1e-2);
+    let theta = (10.0 * band().escalate() / (k + l)).asin();
+    for sigma in [1.0, -1.0] {
+        let (anchor, g, tangent) = cone_at(1.0, sigma, 1.0);
+        let what = format!("cone, σ {sigma}, turned {theta:e}, over [{k}, {}]", k + l);
+        let carrier = Curve3::line(anchor, g * theta.cos() + tangent * theta.sin());
+        let span = (k, k + l);
+        let [d, d_i] = derivations(&carrier, span, &surface);
+        assert!(
+            !matches!(d, Ok(Derivation::ConeRuling { .. }))
+                && !matches!(d_i, Ok(Derivation::ConeRuling { .. })),
+            "{what}: not the generator's closed form: {d:?} / {d_i:?}"
+        );
+        assert!(
+            takes_the_general_lane(&what, &carrier, span, &surface),
+            "{what}: the general lane certifies"
+        );
+        let true_ruling = Curve3::line(anchor, g);
+        let [d, d_i] = derivations(&true_ruling, span, &surface);
+        assert!(
+            matches!(d, Ok(Derivation::ConeRuling { .. }))
+                && matches!(d_i, Ok(Derivation::ConeRuling { .. })),
+            "σ {sigma}: a generator read far from its anchor keeps the closed form: {d:?} / \
+             {d_i:?}"
         );
     }
 }

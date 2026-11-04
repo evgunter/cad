@@ -24,7 +24,7 @@ const NAME: Option<&str> = option_env!("PCERT_RADIAL_PAIR_MUTANT");
 
 /// Every site this crate's hooks name. topo's `chord_join` declares its
 /// own two (`topo-gate`, `topo-v-var`) under the same variable.
-pub(super) const SITES: [&str; 24] = [
+pub(super) const SITES: [&str; 25] = [
     "class-circle",
     "zero-winding",
     "torus-parallel",
@@ -49,6 +49,7 @@ pub(super) const SITES: [&str; 24] = [
     "cone-terms-unprojected",
     "ruling-per-parameter",
     "cone-ruling-gate",
+    "ruling-unplaced",
 ];
 
 fn on(site: &str) -> bool {
@@ -203,6 +204,14 @@ pub(super) fn radial_fold() -> bool {
 /// (its rows are `ruling_reading_rows`).
 pub(super) fn ruling_per_parameter() -> bool {
     on("ruling-per-parameter")
+}
+
+/// A line's ruling reading metered over the span's length from its
+/// origin, where the span lies unread: on a cylinder from the ruling
+/// through the span's start, on a cone the origin's distance plus the
+/// rate over the length (its rows are `ruling_reading_rows`).
+pub(super) fn ruling_unplaced() -> bool {
+    on("ruling-unplaced")
 }
 
 /// The cone arm images a line as the ruling at its anchor's azimuth

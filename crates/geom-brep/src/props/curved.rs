@@ -490,9 +490,8 @@ pub fn require_iso_rectangle<T: Decide>(
 ///   this arm decides nothing rather than deciding `Ok` at a band.
 /// * **cone — the apex.** A generator's stored span may contain the
 ///   apex; `props_cone_apex` is the signed distance from the apex's
-///   line parameter to the nearer span end, which IS metres (a line's
-///   `t` is arc length on a unit `dir`, the same dimensional argument
-///   `props_meridian_generator` makes). Rims are coaxial circles,
+///   line parameter to the nearer span end, metered at the line's
+///   speed. Rims are coaxial circles,
 ///   immune as the cylinder's are.
 /// * **sphere — the poles.** Decided on
 ///   [`sphere_meridian_pole_margins`]. Rims are not measured against
@@ -572,23 +571,25 @@ pub fn require_one_chart_branch<T: Decide>(
                 // door refuses.
                 if classify(
                     "props_meridian_apex",
-                    Margin::norm3((apex - e.p0()).cross(dir)),
+                    cone_generator_miss(apex, dir, e),
                     band,
                     PropsCheck::Exact,
                 )? != Sign::Zero
                 {
                     continue;
                 }
-                // The apex's own parameter on the generator's line
-                // (`dir` unit — `props_meridian_generator` certifies
-                // the direction and the parse mints it so — hence `t`
-                // is metres); the margin is its signed distance to the
-                // nearer span end, positive exactly when the apex is
-                // interior to the span.
-                let t_apex = (apex - origin).dot(dir);
+                // The apex's own parameter on the generator's line; the
+                // margin is its signed distance to the nearer span end,
+                // metered at the line's speed, positive exactly when the
+                // apex is interior to the span.
+                let t_apex = (apex - origin).dot(dir) / dir.norm_squared();
                 let m = (t_apex - e.t0).min(e.t1 - t_apex);
                 if matches!(
-                    decide("props_cone_apex", Margin::of(m), band),
+                    decide(
+                        "props_cone_apex",
+                        Margin::metered(m, InfSpeed::new(dir.norm())),
+                        band
+                    ),
                     Ok(Sign::Positive)
                 ) {
                     return Err(PropsError::NotOneChartBranch {
@@ -1878,12 +1879,16 @@ fn cylinder_boundary<T: Decide>(
                     Premise::OnSurface,
                 )?;
                 // Whether the on-surface line is a ruling, the mint's own
-                // reading: a line tipped in the tangent plane leaves the
-                // ruling through its start to first order while it leaves
-                // the cylinder to second.
+                // reading anchored at the span's start: a line tipped in
+                // the tangent plane leaves the ruling through its start to
+                // first order while it leaves the cylinder to second.
+                let start = geom::Line {
+                    origin: e.p0(),
+                    dir: line.dir,
+                };
                 require_zero(
                     "props_meridian_axial",
-                    ruling_miss(line, (e.t0, e.t1), Ruling::Axis(axis)),
+                    ruling_miss(&start, (T::zero(), e.t1 - e.t0), Ruling::Axis(axis)),
                     band,
                     Premise::Inventory,
                 )?;
@@ -2516,16 +2521,11 @@ fn require_cone_ellipse<T: Decide>(
 /// ([`radial_sag`]). The ends and the crossing are exact.
 ///
 /// Then whether the on-surface line is a generator, the inventory's
-/// question: at the generator angle to the axis
-/// (`props_meridian_generator`) and through the apex
-/// (`props_meridian_apex`, the apex's distance from the line, `dir`
-/// unit). A line through the apex at angle `β` to the axis is off the
-/// cone by `s·sin(β − α)` at distance `s` from the apex, and
-/// `sin(β − α)` is the cone's residual at the unit direction
-/// ([`cone_offset`] of `|dir × axis|` and `|dir·axis|`), so the angle is
-/// levered by the edge's reach from the apex, the farther of its ends.
-/// A line tipped in the tangent plane misses the apex to first order and
-/// leaves the cone to second.
+/// question (`props_meridian_generator`, [`cone_generator_miss`]): how far
+/// it leaves the line through the apex and its farther end. A line on the
+/// cone through the apex is a generator, and a line tipped in the tangent
+/// plane misses the apex to first order while it leaves the cone to
+/// second.
 fn require_cone_generator<T: Decide>(
     apex: Point3<T>,
     axis: Vec3<T>,
@@ -2563,24 +2563,40 @@ fn require_cone_generator<T: Decide>(
     )?;
     require_zero(
         "props_meridian_generator",
-        Margin::levered(
-            cone_offset(dir.cross(axis).norm(), dir.dot(axis).abs(), sin_a, cos_a),
-            crate::Reach::Span {
-                carrier: e.carrier.clone(),
-                t0: e.t0,
-                t1: e.t1,
-            }
-            .lever_from(apex),
-        ),
-        band,
-        Premise::Inventory,
-    )?;
-    require_zero(
-        "props_meridian_apex",
-        Margin::norm3((apex - e.p0()).cross(dir)),
+        cone_generator_miss(apex, dir, e),
         band,
         Premise::Inventory,
     )
+}
+
+/// **How far a cone edge leaves the generator through its farther end**,
+/// the one ruling reading ([`ruling_miss`]) against the line from the
+/// apex through whichever end of the span is farther from it (the
+/// well-conditioned one: a span end near the apex names its generator's
+/// direction poorly). Zero on a line through the apex; with the edge on
+/// the cone, Zero on a generator alone. The end is chosen by
+/// [`Real::select_le_zero`], decided nowhere: either choice is a sound
+/// reading, and an unread candidate's NaN (an end at the apex) is not
+/// read.
+fn cone_generator_miss<T: Decide>(apex: Point3<T>, dir: Vec3<T>, e: &LoopEdge<T>) -> Margin<T> {
+    let start = geom::Line {
+        origin: e.p0(),
+        dir,
+    };
+    let span = (T::zero(), e.t1 - e.t0);
+    let through = |q: Vec3<T>| {
+        ruling_miss(
+            &start,
+            span,
+            Ruling::Generator {
+                apex,
+                g: q * (T::one() / q.norm()),
+            },
+        )
+        .value()
+    };
+    let (q0, q1) = (e.p0() - apex, e.p1() - apex);
+    Margin::of((q1.norm() - q0.norm()).select_le_zero(through(q0), through(q1)))
 }
 
 /// **How far a segment sags inside the chord of its ends' radii**, with
