@@ -6,7 +6,7 @@ status: parked
 opened: 2026-11-03
 priority: P2
 cost: M
-blocked_on: [crossing-doors-leave-topo-for-geom-brep]
+blocked_on: [carrier-eq-and-plane-eq-take-no-body, section-cert-classification-takes-no-body, bound-side-reading-waits-on-link-metric, corner-and-apex-readings-take-no-body, the-conic-quadric-door-is-still-built-in-topo, the-line-roots-door-is-still-built-in-topo, splitting-arc-readers-take-no-body]
 ---
 
 
@@ -24,3 +24,5 @@ Filed by the ONEDOOR orchestrator on 2026-11-03, from PR 6458's three reviews. E
 It waits until the moves have emptied most of the allowlist. Until then the scanner, with its stated blind spots, is the migration device. Banded P2: it hardens a guard that already stops the plausible spellings.
 
 The blocker listed is the first move unit; the real trigger is "the allowlist is near empty", re-read when the successor program's library moves land.
+
+2026-11-04 (ONEDOOR orchestrator): re-parked. The crossing doors landed in PR 6488. The compiler-held form needs the remaining `[topo.homes]` move rows that unit filed, so the row is parked on those.

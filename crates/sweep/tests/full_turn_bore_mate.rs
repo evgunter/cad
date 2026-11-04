@@ -292,7 +292,7 @@ fn split_collar() -> Body<f64> {
             Some(geom::Curve3::Circle(geom::Circle {
                 frame:
                     geom::Frame {
-                        center,
+                        origin: center,
                         axis,
                         u_ref,
                     },

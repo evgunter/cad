@@ -12,10 +12,10 @@ cost: M
 Found by CONTACT-12's review (the census twin is fixed there, on branch
 `contact/12-ef-crossing-cuts`).
 
-`crates/topo/src/splitting/classify.rs` `span_roots` (the span half of
+`crates/geom-brep/src/curve_face/plane_crossing.rs` `span_roots` (the span half of
 `conic_plane_meet`, which `plane_crossing_lane` serves to the splitting
 lane and to `boolean/reduce.rs`) reads each conic root against the
-edge's span through `split_conic_crossing_root`. It meters the gap as
+edge's span through `plane_crossing_root_in_span`. It meters the gap as
 `Margin::metered(t − t₀, InfSpeed(min(|s_u|, |s_v|)))`. Its Zero arm
 treats the root as "at an endpoint vertex (already swept), nothing to
 insert". On an ellipse, though, a Zero bounds only `Δt·minor ≤ ε`, and

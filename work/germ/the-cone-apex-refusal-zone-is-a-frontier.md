@@ -32,7 +32,7 @@ Two levers set the conic zone (the last fix pass's measurements):
 - The cone's root-slack meter (`bool_conic_cone_root_slack`,
   `crates/topo/src/boolean/conic_quadric/mod.rs:371`) reads the
   root's slope as `F′` through the ceiling `1`
-  (`crates/topo/src/boolean/circle_roots.rs:757`), and near the apex
+  (`crates/geom-brep/src/curve_face/circle_roots.rs:757`), and near the apex
   `|F′| ≤ 2|q|·speed/R`, far below the residual's own slope on a
   transversal crossing. A circle of radius 1 crossing a right cone
   transversally 1 µm from its apex is charged 8.9e-10 m at ε 1e-12

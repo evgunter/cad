@@ -14,7 +14,7 @@ use geom_core::{Point3, Real};
 use geom_core::spline::SpanLocate;
 
 use super::{Cover, Covered, Entity, Lattice, ParamWindow, Uncovered, Unknown};
-use crate::{Curve3, Line, Surface};
+use crate::{Curve3, Frame, Line, Surface};
 
 impl<T: Real> Surface<T> {
     /// **The region the whole carrier occupies**: a sphere's, a torus's or
@@ -42,7 +42,7 @@ impl<T: Real> Surface<T> {
                 radius,
                 axis,
                 u_ref,
-            } => Cover::tube(*center, *axis, *u_ref, T::zero(), *radius)
+            } => Cover::tube(&Frame::new(*center, *axis, *u_ref), T::zero(), *radius)
                 .ok_or_else(|| refuse(Unknown::NonFinite)),
             Surface::Torus {
                 center,
@@ -50,8 +50,12 @@ impl<T: Real> Surface<T> {
                 major_radius,
                 minor_radius,
                 u_ref,
-            } => Cover::tube(*center, *axis, *u_ref, *major_radius, *minor_radius)
-                .ok_or_else(|| refuse(Unknown::NonFinite)),
+            } => Cover::tube(
+                &Frame::new(*center, *axis, *u_ref),
+                *major_radius,
+                *minor_radius,
+            )
+            .ok_or_else(|| refuse(Unknown::NonFinite)),
             // The sheet lies on its whole revolved circle, which is the
             // tube about the circle of radius `|R|`: the signed centre
             // and its mirror across the axis sweep the same set.
@@ -61,8 +65,12 @@ impl<T: Real> Surface<T> {
                 major_radius,
                 minor_radius,
                 u_ref,
-            } => Cover::tube(*center, *axis, *u_ref, major_radius.abs(), *minor_radius)
-                .ok_or_else(|| refuse(Unknown::NonFinite)),
+            } => Cover::tube(
+                &Frame::new(*center, *axis, *u_ref),
+                major_radius.abs(),
+                *minor_radius,
+            )
+            .ok_or_else(|| refuse(Unknown::NonFinite)),
             Surface::Nurbs(patch) => net(entity, patch.control()),
             Surface::Approx(approx) => net(entity, approx.fit().control()),
         }
@@ -114,20 +122,14 @@ impl<T: SpanLocate> Curve3<T> {
                 Cover::segment(*origin + *dir * window.lo, *origin + *dir * window.hi)
                     .ok_or_else(non_finite)
             }
-            Curve3::Circle(circle) => Cover::arc(
-                circle.frame.center,
-                (circle.frame.u_ref, circle.frame.v_ref()),
-                (circle.radius, circle.radius),
-                window,
-            )
-            .ok_or_else(non_finite),
-            Curve3::Ellipse(ellipse) => Cover::arc(
-                ellipse.frame.center,
-                (ellipse.frame.u_ref, ellipse.frame.v_ref()),
-                (ellipse.semi_u, ellipse.semi_v),
-                window,
-            )
-            .ok_or_else(non_finite),
+            Curve3::Circle(circle) => {
+                Cover::arc(&circle.frame, (circle.radius, circle.radius), window)
+                    .ok_or_else(non_finite)
+            }
+            Curve3::Ellipse(ellipse) => {
+                Cover::arc(&ellipse.frame, (ellipse.semi_u, ellipse.semi_v), window)
+                    .ok_or_else(non_finite)
+            }
             Curve3::Spiric {
                 center,
                 axis,
@@ -136,7 +138,11 @@ impl<T: SpanLocate> Curve3<T> {
                 minor_radius,
                 offset,
             } => {
-                let tube = Cover::tube(*center, *axis, *u_ref, *major_radius, *minor_radius);
+                let tube = Cover::tube(
+                    &Frame::new(*center, *axis, *u_ref),
+                    *major_radius,
+                    *minor_radius,
+                );
                 let rectangle = crate::curves::spiric_rectangle(
                     *center,
                     *axis,

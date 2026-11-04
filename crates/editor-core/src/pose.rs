@@ -74,14 +74,26 @@ pub struct AxisLine<T: Real> {
 }
 
 impl<T: Real> AxisLine<T> {
-    /// **The line through `point` along `dir`**: its foot is `point`
-    /// with its component along `dir` taken off.
+    /// **The line through `point` along `dir`**: its foot is the
+    /// origin's foot on that line ([`geom::Line::foot`]).
     #[must_use]
     pub fn through(point: Point3<T>, dir: UnitVec3<T>) -> Self {
-        let d = dir.get();
+        let line = geom::Line {
+            origin: point,
+            dir: dir.get(),
+        };
         Self {
-            foot: point - d * (point - Point3::origin()).dot(d),
+            foot: line.foot(Point3::origin()),
             dir,
+        }
+    }
+
+    /// The line itself, from its foot along its direction.
+    #[must_use]
+    pub fn line(&self) -> geom::Line<T> {
+        geom::Line {
+            origin: self.foot,
+            dir: self.dir.get(),
         }
     }
 
@@ -94,11 +106,7 @@ impl<T: Real> AxisLine<T> {
     /// The line's point nearest `p` ([`geom::Line::foot`]).
     #[must_use]
     pub fn foot_of(&self, p: Point3<T>) -> Point3<T> {
-        geom::Line {
-            origin: self.foot,
-            dir: self.dir.get(),
-        }
-        .foot(p)
+        self.line().foot(p)
     }
 
     /// The line's direction.
@@ -194,11 +202,7 @@ impl<T: Real> PoseSymmetry<T> for PoseValue<T> {
 pub fn pose_distance<T: Real>(pose: &PoseValue<T>, p: Point3<T>) -> Option<T> {
     Some(match pose {
         PoseValue::Plane { normal, offset } => (p - Point3::origin()).dot(normal.get()) - *offset,
-        PoseValue::Axis(line) => {
-            let d = line.dir.get();
-            let v = p - line.foot;
-            (v - d * v.dot(d)).norm()
-        }
+        PoseValue::Axis(line) => line.line().offset(p).norm(),
         PoseValue::Point { position } => (p - *position).norm(),
         PoseValue::Frame(f) => (p - f.origin()).dot(f.w().get()),
         PoseValue::Direction { .. } => return None,

@@ -64,7 +64,6 @@
 use geom_core::{Band, Bounds, Decide, Margin, MarginDiag, Point3, Sign, Vec3};
 
 use super::boxes;
-use super::circle_roots::{CircleRoots, door_refusal};
 use super::contain::{ContainError, CurvedPlacement, FaceContainment, contfp_decided};
 use super::plane_eq::PlaneDesc;
 use super::separating::Item;
@@ -76,10 +75,12 @@ use crate::entity::{EdgeKey, EntityId, FaceKey, VertexKey};
 use crate::null::CurveGeom;
 use crate::offset_nappe::NappeRefusal;
 use crate::sector_shape::SlitTips;
-use crate::splitting::{ConicPlaneMeet, PlaneCrossingLane, PlaneSide as SplitSide};
+use crate::splitting::PlaneSide as SplitSide;
 use crate::sweep_trace::SweepPairs;
 use crate::validate::decide;
 use crate::vertex_section::{Offset, SectionPlane, VertexRefusal};
+use geom_brep::curve_face::circle_roots::{CircleRoots, door_refusal};
+use geom_brep::curve_face::plane_crossing::{ConicPlaneMeet, PlaneCrossingLane};
 use geom_brep::roots::{Roots, Unsettled};
 use geom_core::Tol;
 
@@ -386,6 +387,25 @@ pub(crate) fn index(k: usize) -> u32 {
 /// section table), citing the C5 routing: a cone against a conic the
 /// inventory excludes, or a partner with no frame, refuses there.
 ///
+/// **ONE roster for every op.** A kind is on it when every door its
+/// faces can reach under every op is certified or typed; the doors are
+/// op-dependent, but the kind's arms are not. ∖ and ∩ classify the
+/// operands as given: the op enters through the op tables (an
+/// on-sector's Eq. 15.3 lump, [`super::tables::eq15_3_lump`]; the kept
+/// copy of a coincident pair, [`super::tables::kept_copy`]) and the
+/// join's reading of the subtrahend's normals reversed (`stands_on`).
+/// ∖ reverts the kept subtrahend pieces only after classification
+/// (`finish`'s Eq. 15.1 `(B in A)⁻¹`, the operand-B fallback, the void
+/// door's cavity), so a reverted face reaches only what runs after
+/// classification: the graft, the result's seam readings (sign-free)
+/// and the at-rest gate. What reads a reverted spline face's signed
+/// normal (the pierce and sector normals, the slit pass's floor) does
+/// so through its `sense` bit, the next time the result is an operand.
+/// So a placement can stop
+/// at another door under ∖ or ∩ than under ∪, and every op ends in a
+/// typed refusal or a certified body; a second list for ∖ and ∩ would
+/// gate nothing a door does not.
+///
 /// **`Approx` is absent by DECISION, not by gap.** Its fit is a
 /// `Nurbs`, which is on the roster, so admitting it on the fitted
 /// kind's authority would run the boolean against the APPROXIMATION
@@ -403,27 +423,6 @@ pub(super) fn boolean_arm_exists<T: Decide>(surface: &geom::Surface<T>) -> bool 
             | geom::Surface::Torus { .. }
             | geom::Surface::Cone { .. }
             | geom::Surface::Nurbs(_)
-    )
-}
-
-/// **The face kinds ∖ and ∩ have a seam lane for** — the same roster
-/// minus `Nurbs`, which has no crossing layer at all
-/// (`BooleanError::CurvedPairUnsupported`'s docs carry the per-class
-/// argument). ONE home, beside its sibling above, so the two rosters
-/// cannot drift apart in two files: the front door in `ops` reads
-/// this rather than spelling a second `matches!`.
-///
-/// `Approx` is off this roster for the reason it is off the one
-/// above, which is strictly stronger here: `Nurbs` has no crossing
-/// layer at all, and an approximating surface's chart is a `Nurbs`'s.
-pub(super) fn revert_arm_exists<T: Decide>(surface: &geom::Surface<T>) -> bool {
-    matches!(
-        surface,
-        geom::Surface::Plane { .. }
-            | geom::Surface::Cylinder { .. }
-            | geom::Surface::Sphere { .. }
-            | geom::Surface::Torus { .. }
-            | geom::Surface::Cone { .. }
     )
 }
 
@@ -583,9 +582,8 @@ pub(super) fn first_unsupported_pair<T: Decide + Bounds>(
 /// by the validator's own verdict, with supported edge carriers. Then
 /// two rules, with different scopes on purpose:
 ///
-/// - **Faces**: a kind off the face-kind `roster` — [`boolean_arm_exists`],
-///   or [`revert_arm_exists`] at the ∖/∩ front door — disqualifies the
-///   operation only through a PAIR it could enter
+/// - **Faces**: a kind off the face-kind `roster` ([`boolean_arm_exists`])
+///   disqualifies the operation only through a PAIR it could enter
 ///   ([`first_unsupported_pair`]) and that the caller's declarations
 ///   do not cover. A torus wall whose box clears the other operand
 ///   does not gate anything, and neither does one whose contact with
@@ -735,7 +733,7 @@ fn vertex_face_side<T: Decide>(
         let q = x.resolve_vertex_point(far, crate::live::Proven);
         let decided = geom_core::k_stats::decide_reported(
             "bool_vertex_face_side",
-            Margin::of(crate::sector_shape::plane_offset(
+            Margin::of(geom_brep::sector_shape::plane_offset(
                 plane.origin,
                 plane.normal,
                 q,
@@ -750,7 +748,7 @@ fn vertex_face_side<T: Decide>(
         })
     };
     let offset = Offset {
-        value: crate::sector_shape::plane_offset_rounded(origin, normal, at),
+        value: geom_brep::sector_shape::plane_offset_rounded(origin, normal, at),
         normal,
     };
     crate::vertex_section::decide_vertex_on_plane(
@@ -1223,7 +1221,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
             {
                 let curve = certified(x.get_curve_geom(edge.curve))?.clone();
                 let (t0, t1) = curve.params();
-                let lane = crate::splitting::plane_crossing_lane(
+                let lane = geom_brep::curve_face::plane_crossing::plane_crossing_lane(
                     curve.carrier(),
                     t0,
                     t1,
@@ -2128,10 +2126,10 @@ fn edge_covers<T: Decide>(
 /// whole, its apex root answered as the double root there, and a root
 /// beside the apex the band cannot place refused.
 /// Against a torus a circle's residual is of
-/// degree two ([`super::circle_torus`]) and an ellipse's of degree four
-/// ([`super::ellipse_torus`]). Every such door's
+/// degree two ([`geom_brep::curve_face::circle_torus`]) and an ellipse's of degree four
+/// ([`geom_brep::curve_face::ellipse_torus`]). Every such door's
 /// answer is the certified subdivision's, decided on the residual itself
-/// ([`super::circle_roots`]). A conic reaches those arms only from the
+/// ([`geom_brep::curve_face::circle_roots`]). A conic reaches those arms only from the
 /// conic rung, after the enclosures failed to clear the arc, and never
 /// through a one-sided cover arm — those rest on a line's separation
 /// story.
@@ -2514,7 +2512,7 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 // root lanes.** An arc the enclosures could not clear
                 // against one of those kinds takes the same endpoint-sign arms as
                 // a line below, and the certified roots of
-                // [`super::conic_quadric`] / [`super::circle_torus`]
+                // [`super::conic_quadric`] / [`geom_brep::curve_face::circle_torus`]
                 // decide every one of them through [`wall_crossing`].
                 // Those arms never read convexity for a circle (the
                 // same-side pairs go to the roots, as a torus's do), so
@@ -4648,7 +4646,7 @@ fn wall_crossing<T: Decide + Bounds>(
                 Err(refusal) => return door_escalated(refusal),
             }
         }
-        // The conic root doors ([`super::circle_roots`]), one answer
+        // The conic root doors ([`geom_brep::curve_face::circle_roots`]), one answer
         // shape: one door for a circle or an ellipse against a sphere, a
         // wall or a cone, whose quadric form is of degree two along it
         // ([`super::conic_quadric`]), and one per conic against a torus.
@@ -4664,10 +4662,20 @@ fn wall_crossing<T: Decide + Bounds>(
                     carrier, t0, t1, surface, band,
                 )),
                 (geom::Curve3::Circle(..), geom::Surface::Torus { .. }) => Some(
-                    super::circle_torus::circle_torus_roots(carrier, t0, t1, surface, band),
+                    geom_brep::curve_face::circle_torus::circle_torus_roots(
+                        carrier, t0, t1, surface, band,
+                    )
+                    .map_err(BooleanError::of_door_refusal(
+                        BooleanDecision::ArcTorusRoots,
+                    )),
                 ),
                 (_, geom::Surface::Torus { .. }) => Some(
-                    super::ellipse_torus::ellipse_torus_roots(carrier, t0, t1, surface, band),
+                    geom_brep::curve_face::ellipse_torus::ellipse_torus_roots(
+                        carrier, t0, t1, surface, band,
+                    )
+                    .map_err(BooleanError::of_door_refusal(
+                        BooleanDecision::ArcTorusRoots,
+                    )),
                 ),
                 _ => None,
             };
@@ -4946,18 +4954,16 @@ pub(super) fn line_wall_roots_of<T: Decide>(
             major_radius,
             minor_radius,
             ..
-        } => door_refusal(
-            super::solid_contain::line_torus_roots(
-                origin,
-                dir,
-                center,
-                axis,
-                major_radius,
-                minor_radius,
-                band,
-            ),
-            BooleanDecision::TorusRoots,
-        )?
+        } => door_refusal(super::solid_contain::line_torus_roots(
+            origin,
+            dir,
+            center,
+            axis,
+            major_radius,
+            minor_radius,
+            band,
+        ))
+        .map_err(BooleanError::of_door_refusal(BooleanDecision::TorusRoots))?
         .map(Roots::widen),
         // The quadratic, the ray lane's own. No line lies on a sphere,
         // so it has no constant case either.
@@ -6865,7 +6871,7 @@ mod declaration_order_rows {
                     Some(super::CurveGeom::Certified(g))
                         if matches!(
                             g.carrier(),
-                            geom::Curve3::Circle(geom::Circle { frame: geom::Frame { axis: a, center, .. }, .. })
+                            geom::Curve3::Circle(geom::Circle { frame: geom::Frame { axis: a, origin: center, .. }, .. })
                                 if a.z.abs() > 0.9 && center.z > 0.1
                         )
                 )
@@ -6914,7 +6920,7 @@ mod declaration_order_rows {
             BooleanDecision::ArcTorusRoots,
             "the lane's own decision"
         );
-        assert_eq!(diag.predicate, Some("bool_circle_torus_plane_height"));
+        assert_eq!(diag.predicate, Some("circle_torus_plane_height"));
         let text = got.render(geom_brep::recourse::Reading::Build);
         assert!(
             text.starts_with(
@@ -7632,7 +7638,7 @@ mod clearance_rows {
     use core::f64::consts::FRAC_PI_2;
 
     use super::conic_clearance;
-    use crate::boolean::conic_oracle::{distance_from_anchor, unit};
+    use geom_brep::curve_face::conic_oracle::{distance_from_anchor, unit};
     use geom_core::{Band, Point3, Sign, Vec3};
     use test_utils::fuzz;
 
@@ -7780,8 +7786,8 @@ mod clearance_rows {
             let band = Band::new(eps, 10.0 * eps).unwrap();
             let (mut clear, mut refused, mut torus_clear) = (0, 0, 0);
             for i in 0..fuzz::scaled(3000) {
-                let n = unit(&mut rng);
-                let u = unit(&mut rng);
+                let n = unit(|lo, hi| rng.range(lo, hi));
+                let u = unit(|lo, hi| rng.range(lo, hi));
                 let u_ref = (u - n * u.dot(n)).normalize();
                 let scale = if rng.below(2) == 0 { 1.0 } else { 1000.0 };
                 let big = scale * rng.range(0.5, 5.0);
@@ -7829,7 +7835,7 @@ mod clearance_rows {
                         u_ref: (x - n * x.dot(n)).normalize(),
                     },
                     1 => {
-                        let v = unit(&mut rng);
+                        let v = unit(|lo, hi| rng.range(lo, hi));
                         let w = (v - outward * v.dot(outward)).normalize();
                         geom::Surface::Cylinder {
                             origin: hub,
@@ -7839,7 +7845,7 @@ mod clearance_rows {
                         }
                     }
                     _ => {
-                        let v = unit(&mut rng);
+                        let v = unit(|lo, hi| rng.range(lo, hi));
                         let w = (v - outward * v.dot(outward)).normalize();
                         let ring = r * rng.range(1.5, 10.0);
                         let axis = outward.cross(w).normalize();
@@ -8276,7 +8282,7 @@ mod line_cone_rows {
     //! quadric form evaluated at the line's points.
 
     use super::*;
-    use crate::boolean::circle_roots::CircleRoots;
+    use geom_brep::curve_face::circle_roots::CircleRoots;
     use geom_core::{Tol, Vec3};
 
     fn band() -> Band {
@@ -8529,7 +8535,7 @@ mod line_cone_rows {
     /// two micrometres off at ε 1e-9.
     #[test]
     fn roots_beside_the_apex_are_placed_along_the_edge() {
-        use crate::boolean::conic_oracle::crossings;
+        use geom_brep::curve_face::conic_oracle::crossings;
         let axis = Vec3::new(0.0, 0.6, 0.8);
         let (u, _) = axis.orthonormal_basis();
         let (mut certified, mut judged) = (0, 0);
@@ -8767,7 +8773,7 @@ mod spline_face_rows {
                 let Some(CurveGeom::Certified(c)) = body.get_curve_geom(e.curve) else {
                     return false;
                 };
-                matches!(c.carrier(), Curve3::Circle(geom::Circle { frame: geom::Frame { center, .. }, .. }) if (center.z - z).abs() < 1e-12)
+                matches!(c.carrier(), Curve3::Circle(geom::Circle { frame: geom::Frame { origin: center, .. }, .. }) if (center.z - z).abs() < 1e-12)
             })
             .map(|(k, _)| k)
             .expect("the rim")

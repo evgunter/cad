@@ -873,54 +873,6 @@ fn boolean_door<T: Decide + Bounds + crate::props::AtRestPolicy>(
     strategy: SweepStrategy,
     tol: Tol,
 ) -> Result<BooleanResult<T>, BooleanError> {
-    // The curved ∖/∩ front door, per class (C12.1 — retire per class,
-    // never wholesale). Both ops route regions through `revert`
-    // (A∖B ≡ A∩revert(B), the §15.9 posture), which is kind-generic:
-    // `Face::sense` carries the flip on every carrier. The roster
-    // (`reduce::revert_arm_exists`) is ∪'s (`boolean_arm_exists`) minus
-    // `Nurbs`. A kind on it has a crossing layer whose every door is
-    // certified or typed, and a no-crossings path that certifies its
-    // reach or refuses — the sphere's extent by `sphere_extent_scan`
-    // and its re-cut, then every pair with a curved face by
-    // `section_extent_pass` — with `interior_loop_verdict` guarding the crossings path, so no
-    // face pair of the kind is answered by a vertex probe that could
-    // not see into it. `Nurbs` is on ∪'s roster for its plane×NURBS
-    // germ arm, but has no edge×NURBS-face crossing layer (deviation 5),
-    // so ∖ and ∩ have no seam lane for it.
-    //
-    // Up front and PAIR-SCOPED: the kinds are read exactly, and the
-    // question of whether a kind can matter to this operation is
-    // decided by boxes (`reduce::first_unsupported_pair` — non-overlap
-    // is a certificate, overlap is a may). Operands untouched, no
-    // reduction work before it.
-    //
-    // **No covered-pair rung here, and the asymmetry is the point.**
-    // The operand gate admits a declared pair because a declaration
-    // supplies the VERDICT a germ arm would have supplied. This roster
-    // is not about verdicts: it names the kinds that have a seam lane
-    // to revert through, and no declaration can supply one. A declared
-    // pair of a kind off this roster is exactly as refused as an
-    // undeclared one, and says so at the same site.
-    if !matches!(op, BooleanOp::Union) {
-        let band = Band::linear(tol)?;
-        if let Some(p) = super::reduce::first_unsupported_pair(
-            a,
-            b,
-            band,
-            super::reduce::revert_arm_exists,
-            |_, _, _| false,
-        )? {
-            return Err(BooleanError::CurvedPairUnsupported {
-                op: Some(op),
-                site: super::PairRefusalSite::RevertRoster,
-                operand: p.operand,
-                face: p.face,
-                kind: p.kind,
-                other_face: p.other_face,
-                other_kind: p.other_kind,
-            });
-        }
-    }
     let band = Band::linear(tol)?;
     for (operand, body) in [(Operand::A, a), (Operand::B, b)] {
         super::reduce::gate_unverdicted_operand(body, operand, band, tol)?;
@@ -6566,7 +6518,7 @@ fn sphere_pair_cut<T: Decide>(
         Ok(geom_brep::SphereSphereSection::Circle(geom::Curve3::Circle(geom::Circle {
             frame:
                 geom::Frame {
-                    center: foot,
+                    origin: foot,
                     axis: normal,
                     u_ref,
                 },
@@ -6988,13 +6940,13 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
     band: Band,
     tol: Tol,
 ) -> Result<CutsPerOperand, BooleanError> {
-    const ROWS: super::circle_roots::FirstHarmonicRows = super::circle_roots::FirstHarmonicRows {
-        noise: "bool_sphere_cut_roots_noise",
-        coaxial: "bool_sphere_cut_roots_coaxial",
-        extreme: "bool_sphere_cut_roots_extreme",
-        root_slack: "bool_sphere_cut_roots_slack",
-        decision: BooleanDecision::Sphere(SphereQuestion::CutIn),
-    };
+    const ROWS: geom_brep::curve_face::circle_roots::FirstHarmonicRows =
+        geom_brep::curve_face::circle_roots::FirstHarmonicRows {
+            noise: "bool_sphere_cut_roots_noise",
+            coaxial: "bool_sphere_cut_roots_coaxial",
+            extreme: "bool_sphere_cut_roots_extreme",
+            root_slack: "bool_sphere_cut_roots_slack",
+        };
     let corrupt = |what| BooleanError::ClassificationInvariant { what };
     // The faces each scanned face has been cut into so far, beside its
     // own key: `(operand, scanned face, piece)`.
@@ -7170,21 +7122,14 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
                     return Err(corrupt("cut-in: a boundary edge has no carrier"));
                 };
                 let (t0, t1) = curve.params();
-                let geom::Curve3::Circle(geom::Circle {
-                    frame:
-                        geom::Frame {
-                            center: cc,
-                            axis: ca,
-                            u_ref: cu,
-                        },
-                    radius: cr,
-                }) = *curve.carrier()
+                let geom::Curve3::Circle(edge_circle @ geom::Circle { radius: cr, .. }) =
+                    *curve.carrier()
                 else {
                     return Err(refuse("a boundary edge of the sphere face is not a circle"));
                 };
-                let roots = super::circle_roots::first_harmonic_roots(
-                    &super::circle_roots::FirstHarmonic::circle_off_plane(
-                        (cc, ca, cr, cu),
+                let roots = geom_brep::curve_face::circle_roots::first_harmonic_roots(
+                    &geom_brep::curve_face::circle_roots::FirstHarmonic::conic_off_plane(
+                        &edge_circle,
                         (cut.center, k),
                     ),
                     cr,
@@ -7192,7 +7137,10 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
                     t1,
                     &ROWS,
                     band,
-                )?;
+                )
+                .map_err(BooleanError::of_door_refusal(
+                    BooleanDecision::Sphere(SphereQuestion::CutIn),
+                ))?;
                 let thetas = match roots {
                     Ok(geom_brep::roots::Roots::Miss) => continue,
                     Ok(geom_brep::roots::Roots::Certified(found)) => found.roots().to_vec(),
@@ -11151,6 +11099,30 @@ mod spline_seam_rows {
             normal(0.0),
             normal(1.0)
         );
+    }
+
+    /// **A seam between two spline faces reads the same class on the
+    /// reverted body.** `Body::revert` flips both faces' `sense` and
+    /// reverses the edge's half-edges; the dihedral's class is read from
+    /// `|n₁ × n₂|` alone (`geom_brep::SeamFace` carries no sense), so the
+    /// reverted seam reads the original's class: transverse on the flat
+    /// top, smooth at the turning top's witness. The reading reverses
+    /// with the body's material, not with its class.
+    #[test]
+    fn a_seam_between_two_spline_faces_reads_its_class_reverted() {
+        for (top, want) in [
+            (flat_top(), geom_brep::DihedralClass::Transverse),
+            (turning_top(), geom_brep::DihedralClass::Smooth),
+        ] {
+            let (body, faces, edge) = two_spline_faces(top);
+            let reverted = body.revert().unwrap();
+            assert!(
+                faces.iter().all(|&f| !reverted.get_face(f).unwrap().sense),
+                "both reverted faces are sense-false"
+            );
+            assert_eq!(reading(&body, edge), Ok(want), "as built");
+            assert_eq!(reading(&reverted, edge), Ok(want), "reverted");
+        }
     }
 
     /// **A null edge is refused unplaced**: a null edge minted at the
