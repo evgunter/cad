@@ -4,7 +4,7 @@ kind: issue
 title: A football revolved part way refuses at the meridian a cap meets the sheet on: the edge ends at both apexes, where Meters::Spindle's lever is not positive
 status: open
 opened: 2026-11-04
-priority: P3
+priority: P1
 cost: M
 ---
 
