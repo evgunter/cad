@@ -31,7 +31,7 @@ and any cut-in on that face refuses. Not driven to a body here.
 ## Direction
 
 The cut needs each boundary arc's crossings with one plane. For a
-conic, that is the conic–plane meeting `splitting::plane_crossing_lane`
+conic, that is the conic–plane meeting `geom_brep::curve_face::plane_crossing::plane_crossing_lane`
 already reads (`ConicPlaneMeet`); for a spline or spiric, the crossing
 layer's own plane rung. Build the fixture first (a sphere face bounded
 by a cylinder section, taking a cut-in), then route the roots by kind.

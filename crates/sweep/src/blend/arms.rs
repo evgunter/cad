@@ -907,16 +907,15 @@ impl<T: Real> Ruling<T> {
             )),
             // A cylinder about the ruling: the cross-section circle,
             // centred where the cylinder's axis crosses this sheet.
-            Surface::Cylinder {
-                origin,
-                axis,
-                radius,
-                ..
-            } => {
-                let on_axis = geom::Line { origin, dir: axis }.foot(self.rim);
+            Surface::Cylinder { axis, radius, .. } => {
+                let on_axis = s.frame()?.axis_line().foot(self.rim);
                 Some((
                     SupportTrace::Round {
-                        center: on_axis - self.tau * (on_axis - self.rim).dot(self.tau),
+                        center: geom::Line {
+                            origin: self.rim,
+                            dir: self.tau,
+                        }
+                        .square_foot(on_axis),
                         radius,
                         side,
                     },

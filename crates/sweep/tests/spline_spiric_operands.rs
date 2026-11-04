@@ -52,8 +52,12 @@
 
 use geom::SurfaceKind;
 use geom_core::Tol;
-use topo::{AtRestBody, BooleanError, BooleanResult, Operand};
+use topo::{AtRestBody, BooleanError};
 
+use crate::common::op_census::{
+    Run, assert_one_meet, band, kernel_invariant, measure, names_its_own_face, result_volume,
+    six_runs,
+};
 use crate::common::torus_walls::vessel_cavity;
 use sweep::test_support::{finished, loft_prism, lofted_cylinder};
 use topo::test_support::brick_with_fresh_keys;
@@ -125,124 +129,6 @@ fn cut(name: &'static str, brick: Box3, builds: bool) -> Placement {
     }
 }
 
-/// The refusals that name a broken kernel rather than an input or a
-/// frontier.
-fn kernel_invariant(e: &BooleanError) -> bool {
-    matches!(
-        e,
-        BooleanError::ClassificationInvariant { .. } | BooleanError::JoinDesync { .. }
-    ) || matches!(e, BooleanError::Join(j) if matches!(j.error(), topo::SplitJoinError::SectionInvariant { .. }))
-}
-
-/// Where a refusal names a face, that it is a face of the operand its
-/// site says owns it — resolving there and not in the other — of the
-/// kind it states; and where it names an edge, a spiric or spline edge
-/// of its operand.
-fn names_its_own_face(e: &BooleanError, [a, b]: [&AtRestBody<f64>; 2]) -> Result<(), String> {
-    let body = |operand: Operand| match operand {
-        Operand::A => a,
-        Operand::B => b,
-    };
-    let owned = |operand: Operand, face| {
-        body(operand).get_face(face).is_some() && body(operand.other()).get_face(face).is_none()
-    };
-    let kind_of = |operand: Operand, face| {
-        body(operand)
-            .get_face(face)
-            .and_then(|f| body(operand).get_surface(f.surface))
-            .map(geom::Surface::kind)
-    };
-    let check = |ok: bool, why: String| ok.then_some(()).ok_or(why);
-    match *e {
-        BooleanError::CurvedBooleanUnsupported {
-            operand,
-            face,
-            kind,
-        } => check(
-            owned(operand, face) && kind_of(operand, face) == Some(kind),
-            format!("{face:?} is no {kind:?} face of {operand:?} alone"),
-        ),
-        BooleanError::CurvedPairUnsupported {
-            operand,
-            face,
-            kind,
-            other_face,
-            other_kind,
-            ..
-        } => check(
-            owned(operand, face)
-                && kind_of(operand, face) == Some(kind)
-                && owned(operand.other(), other_face)
-                && kind_of(operand.other(), other_face) == Some(other_kind),
-            format!(
-                "{face:?}/{other_face:?} are not {kind:?}/{other_kind:?} faces of {operand:?} and its partner"
-            ),
-        ),
-        BooleanError::EdgeCarrierUnsupported {
-            operand,
-            edge,
-            face,
-            face_of,
-            ..
-        } => check(
-            matches!(
-                topo::query::edge_carrier_kind(body(operand), edge),
-                Some(topo::query::CurveKind::Nurbs | topo::query::CurveKind::Spiric)
-            ) && owned(face_of, face),
-            format!("{edge:?} of {operand:?} against {face:?} of {face_of:?}"),
-        ),
-        BooleanError::SplineCrossingUnsettled {
-            operand,
-            edge,
-            face,
-            face_of,
-            ..
-        } => check(
-            topo::query::edge_carrier_kind(body(operand), edge)
-                == Some(topo::query::CurveKind::Nurbs)
-                && owned(face_of, face),
-            format!("{edge:?} of {operand:?} against {face:?} of {face_of:?}"),
-        ),
-        _ => Ok(()),
-    }
-}
-
-/// One op of a placement: its name, its two operands in order, its
-/// outcome, its slot in [`Oracle::Known`], and `V(O ∩ B)` from its
-/// volume, given `V(O)` and `V(B)`.
-type Run<'a> = (
-    &'static str,
-    [&'a AtRestBody<f64>; 2],
-    Result<BooleanResult<f64>, BooleanError>,
-    usize,
-    fn(f64, f64, f64) -> f64,
-);
-
-/// The resolution (mean boundary displacement, m) every body here is
-/// measured at: the width at which a reading's bracket lies within
-/// [`band`] of the volumes here, at every ε row. It is no finer than the
-/// coarsest row's ε, 1e-6.
-const RESOLUTION: f64 = 1e-6;
-
-/// How far a volume `v` may read from its oracle beyond the brackets.
-fn band(v: f64) -> f64 {
-    1e-6 * v.abs().max(1.0)
-}
-
-/// `body`'s volume at [`RESOLUTION`] and its bracket's half-width, which
-/// lies within [`band`].
-fn measure(what: &str, body: &AtRestBody<f64>) -> (f64, f64) {
-    let m = topo::test_support::volume_at(what, body, Tol::witness(), RESOLUTION);
-    assert!(
-        m.volume_pad <= band(m.volume),
-        "{what}: V = {} ± {:e}, a bracket wider than its band {:e}",
-        m.volume,
-        m.volume_pad,
-        band(m.volume)
-    );
-    (m.volume, m.volume_pad)
-}
-
 /// Runs the four ops in both orders against each placement and holds
 /// each outcome to its oracle; returns the census lines. `V(O)` is the
 /// operand's closed form where it has one, which its measure holds, and
@@ -279,53 +165,14 @@ fn census(
             p.name
         );
         let vb = volume_of_box(p.brick);
-        // Each op's volume as a function of `V(O ∩ B)`, inverted.
-        let runs: [Run<'_>; 6] = [
-            (
-                "O ∪ B",
-                [operand, &brick],
-                topo::union(operand, &brick, tol),
-                0,
-                |v, vb, got| v + vb - got,
-            ),
-            (
-                "B ∪ O",
-                [&brick, operand],
-                topo::union(&brick, operand, tol),
-                0,
-                |v, vb, got| v + vb - got,
-            ),
-            (
-                "O ∩ B",
-                [operand, &brick],
-                topo::intersect(operand, &brick, tol),
-                1,
-                |_, _, got| got,
-            ),
-            (
-                "B ∩ O",
-                [&brick, operand],
-                topo::intersect(&brick, operand, tol),
-                1,
-                |_, _, got| got,
-            ),
-            (
-                "O ∖ B",
-                [operand, &brick],
-                topo::subtract(operand, &brick, tol),
-                2,
-                |v, _, got| v - got,
-            ),
-            (
-                "B ∖ O",
-                [&brick, operand],
-                topo::subtract(&brick, operand, tol),
-                3,
-                |_, vb, got| vb - got,
-            ),
-        ];
         let mut implied = Vec::new();
-        for (op, pair, got, slot, meet) in runs {
+        for Run {
+            op,
+            pair,
+            keep,
+            got,
+        } in six_runs(operand, &brick)
+        {
             let line = format!("{name} / {} / {op}: ", p.name);
             match got {
                 Err(e) => {
@@ -340,13 +187,10 @@ fn census(
                     lines.push(format!("{line}refuses {e:?}"));
                 }
                 Ok(result) => {
-                    let (got, got_pad) = match &result {
-                        BooleanResult::Empty => (0.0, 0.0),
-                        BooleanResult::Body(b) => measure(&format!("{line}the result"), &b.body),
-                    };
+                    let (got, got_pad) = result_volume(&format!("{line}the result"), &result);
                     match p.oracle {
                         Oracle::Known(of) => {
-                            let want = of(v, vb)[slot];
+                            let want = of(v, vb)[keep.slot()];
                             topo::test_support::assert_volume_near(
                                 &format!("{line}against the closed form"),
                                 got,
@@ -357,29 +201,13 @@ fn census(
                         }
                         // `V(O)` enters every op's implied `V(O ∩ B)` alike,
                         // so their agreement reads only the results' brackets.
-                        Oracle::Cut => implied.push((op, meet(v, vb, got), got_pad)),
+                        Oracle::Cut => implied.push((op, keep.meet(v, vb, got), got_pad)),
                     }
                     lines.push(format!("{line}builds V = {got}"));
                 }
             }
         }
-        if let Some(&(_, first, first_pad)) = implied.first() {
-            let scale = v.max(vb);
-            let slack = 1e-9 * scale + first_pad + v_pad;
-            assert!(
-                (-slack..=v.min(vb) + slack).contains(&first),
-                "{name} / {}: V(O ∩ B) = {first} ± {:e} lies outside [0, min(V(O), V(B))]",
-                p.name,
-                first_pad + v_pad
-            );
-            for &(op, meet, pad) in &implied {
-                assert!(
-                    (meet - first).abs() <= 1e-9 * scale + pad + first_pad,
-                    "{name} / {}: {op} implies V(O ∩ B) = {meet} ± {pad:e}, the others {first} ± {first_pad:e}",
-                    p.name
-                );
-            }
-        }
+        assert_one_meet(&format!("{name} / {}", p.name), &implied, v, v_pad, vb);
     }
     lines
 }

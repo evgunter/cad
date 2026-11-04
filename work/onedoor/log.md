@@ -176,4 +176,13 @@ second site needs to ask the question at all. (ONEDOOR orchestrator)
   - Main's `Frame`, `ParallelPose` and `conic_off_plane` edits were ported to the doors' new homes at `a9559b4a`.
   - CI was green on the final head.
   - Remaining `[topo.homes]` move rows: seven, banded P2. `engine-leaves-by-visibility` is parked on them.
+- 2026-11-04 — **#6488 fix pass accepted, at `05bd7b27`.** Every item of the adjudicated union was taken.
+  - The crossing reader is now a roster beside the doors, held against geom-brep's sources by a closure row.
+  - The corner half of `sector_shape` moved to geom-brep.
+  - Each crate guards its own sources.
+  - `CROSSING_*` and `CrossingDecision` are homed in `geom_brep::edge_crossing`.
+  - `trace`'s dead decision is removed, and the mapping is pinned.
+  - Filed: `lane-prefixed-k-names-outside-their-lane`.
+  - **Class found by the fix pass:** a decision that is built and then dropped, while a site census still counts it. A count of sites is not evidence the site decides anything.
+  - Dual-review row `PR-6488` recorded. The unit closes on merge.
   - (ONEDOOR orchestrator)

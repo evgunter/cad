@@ -2,12 +2,12 @@
 id: crossing-doors-leave-topo-for-geom-brep
 kind: unit
 title: "[topo.homes] arm 1: the Body-free curve x face doors (plane_crossing_lane, circle_torus, ellipse_torus, circle_roots, section_cert, carrier_eq) move to geom-brep beside curve_face::route, and their K names take the deciding module's prefix"
-status: review
+status: closed
 opened: 2026-11-03
 priority: P1
 cost: H
 branch: onedoor/crossing-doors
-pr: 6488
+closed: 2026-11-04
 ---
 
 

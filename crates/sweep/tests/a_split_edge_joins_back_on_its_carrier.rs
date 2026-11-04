@@ -156,7 +156,7 @@ fn outer_top_rim(body: &Body<f64>) -> EdgeKey {
     body.edges()
         .map(|(e, _)| e)
         .find(|&e| match certified(body, e).carrier() {
-            geom::Curve3::Circle(c) => c.radius == 1.0 && c.frame.center.y == 1.0,
+            geom::Curve3::Circle(c) => c.radius == 1.0 && c.frame.origin.y == 1.0,
             _ => false,
         })
         .expect("the tube's outer top rim")
@@ -247,7 +247,7 @@ fn as_one_span_spline(body: &mut Body<f64>, rim: EdgeKey) {
         panic!("a rim is its faces' intersection");
     };
     let (t0, _) = c.params();
-    let centre = circle.frame.center;
+    let centre = circle.frame.origin;
     let u = c.carrier().ders1(t0).0 - centre;
     let v = c.carrier().ders1(t0).1;
     let v = v / v.norm() * circle.radius;
@@ -448,7 +448,7 @@ fn a_spline_with_a_c0_knot_joins_across_it_and_keeps_the_vertex_split_at_it() {
     let geom::Curve3::Circle(circle) = c.carrier() else {
         unreachable!()
     };
-    let centre = circle.frame.center;
+    let centre = circle.frame.origin;
     // The arc as two rational quadratic halves joined at a knot of
     // multiplicity two (C0 in its parameter), over [0, 2].
     let corner = |a: geom_core::Point3<f64>, b: geom_core::Point3<f64>| {
