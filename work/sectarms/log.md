@@ -516,3 +516,12 @@ and bodies unchanged. No orchestrator yet.
   - **F-B, deferred:** the end-pinned fit, and what certifies the stretch from the box entry to the node, are recorded as open questions on `the-join-reads-a-spline-implicit-section`.
   - **F-C:** a minimal node tip in the end types.
   - **D2:** a same-node arc's end is named by its ray, with a lemniscate row.
+- 2026-11-04 10:55 — **PR 6518 review: APPROVE-WITH-FIXES** (single full review in the cloud, no MAJOR).
+  - **Held under execution:** the closed form, the 2R argument, and the `Sweeper::run` change.
+  - **Main finding:** the moved rows' exemption fits the generator, not the mechanism. 158 of 16 149 hunted poses escalate outside the two named cases, though no answer is lost end to end.
+  - **Fix pass sent:**
+    - restate the predicate by mechanism, with k bands argued;
+    - extend the generator to sample that zone;
+    - guard the first-cut exception (m11 survives);
+    - add a fast check against vacuous coverage;
+    - plus the refusal-map copy, the slope charge, an unreachable arm and naming.
