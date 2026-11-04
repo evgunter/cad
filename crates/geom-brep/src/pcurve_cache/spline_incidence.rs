@@ -71,6 +71,8 @@ use super::{INCIDENCE_SAMPLES, Incidence, PcurveCertifyError, incidence_escalate
 
 #[cfg(test)]
 mod rows;
+#[cfg(test)]
+mod probes_r2;
 
 /// A cell's floor against the sample: whether the cell clears it.
 pub(super) const HULL: &str = "pcurve_spline_chart_hull";
@@ -422,6 +424,10 @@ impl<'a, T: Decide> Net<'a, T> {
             Some(slab) => gap.max(slab),
             None => gap,
         };
+        #[cfg(test)]
+        if std::env::var("R2_NO_CHARGE").is_ok() {
+            return gap;
+        }
         match self.rounding {
             None => gap,
             Some(Rounding { per_level, reach }) => {

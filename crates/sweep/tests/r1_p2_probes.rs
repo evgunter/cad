@@ -581,14 +581,16 @@ fn r1_dual_scalar_wall_seam_arm_names_the_missing_lane() {
             Some(Surface::Nurbs(n))
                 if !n.is_placeholder()
                     && n.control().iter().any(|p| p.y.lo() != -SCALE)
-                    && n.control().iter().all(|p| p.x.lo() <= 0.0)
-                    && n.control().iter().any(|p| p.x.lo() == -SCALE) =>
+                    && (if std::env::var("R2_OLD").is_ok() { n.control().iter().any(|p| p.x.lo().abs() == SCALE) } else { n.control().iter().all(|p| p.x.lo() <= 0.0)
+                    && n.control().iter().any(|p| p.x.lo() == -SCALE) }) =>
             {
                 Some(f.surface)
             }
             _ => None,
         })
         .expect("the dual loft has a bowed wall");
+    if let Some(Surface::Nurbs(n)) = body.get_surface(bowed) { let mut xs: Vec<f64> = n.control().iter().map(|p| p.x.lo()).collect(); xs.sort_by(f64::total_cmp); xs.dedup(); eprintln!("R2 dual wall x {xs:?}"); }
+    if let Surface::Nurbs(n) = &widened { let mut xs: Vec<f64> = n.control().iter().map(|p| p.x.lo()).collect(); xs.sort_by(f64::total_cmp); xs.dedup(); eprintln!("R2 widened x {xs:?}"); }
     let (fk, _) = body
         .faces()
         .find(|(_, f)| f.surface == bowed)
