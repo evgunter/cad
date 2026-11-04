@@ -274,7 +274,8 @@ fn a_lens_is_the_void_or_the_sliver_its_sheets_bend_to_interval() {
 /// meet along their bounds one order down (a bore of radius 2, which
 /// holds neither curve); a bore turned off the rod's axis by so little
 /// that the sheets part across the wedge by less than the band at its
-/// arm; two sheets on one wedge along edges of their own; and a void
+/// arm; a rod flush in a wider bore along their common ruling, two
+/// sheets on one half-plane that share no two edges; and a void
 /// just past the escalation whose second plane leans off the first by
 /// nine tenths of the band's zero at the arm, which rests unleaning. Red
 /// where a lens is read without its bounds, a parting in band is taken
@@ -316,34 +317,40 @@ fn a_lens_the_bends_do_not_decide_is_not_read<T: Decide>() {
             unread,
             "a bore off the rod's axis by {tilt} at {p:?}"
         );
-        // Sheets on one wedge along edges of their own are no lens: they
-        // meet only to first order, unread, not refused as faces on each
-        // other.
-        let own = edges(8);
-        let mut apart = Vec::new();
-        for (up, i) in [(1.0, 0), (-1.0, 4)] {
-            let (rod, bore) = rod_and_bore(p, 1.0);
-            let (d0, d1) = quarter::<T>([0.0, 0.0, up]);
-            apart.push(corner(
-                p,
-                (rod, true),
+        // A rod in a bore of radius 2 along their common ruling, `p`
+        // inside it: two sheets on one half-plane, tied along one line
+        // edge each, which the first order keeps. No lens: they meet only
+        // to first order, unread, not refused as faces on each other.
+        let own = edges(2);
+        let along = |surface, sense, m: Vec3<T>, dir: f64, edge| {
+            let fan = TangentFan::Edge {
+                along: v(0.0, dir, 0.0),
+                reach: T::from_f64(2.0),
+                edge: Bound {
+                    edge,
+                    line: true,
+                    bend: Vec3::zero(),
+                },
+            };
+            FaceSector::tangent(surface, sense, m, p, fan, band()).expect("an edge's face")
+        };
+        let flush = vec![
+            along(
+                cylinder(p, v(0.0, 1.0, 0.0), 1.0),
+                true,
                 v(1.0, 0.0, 0.0),
-                (d0, d1),
-                [own[i], own[i + 1]],
-            ));
-            apart.push(corner(
-                p,
-                (bore, false),
+                1.0,
+                own[0],
+            ),
+            along(
+                cylinder(p, v(0.0, 1.0, 0.0), 2.0),
+                false,
                 v(-1.0, 0.0, 0.0),
-                (d1, d0),
-                [own[i + 2], own[i + 3]],
-            ));
-        }
-        assert_eq!(
-            read(p, apart),
-            unread,
-            "two sheets along edges of their own at {p:?}"
-        );
+                -1.0,
+                own[1],
+            ),
+        ];
+        assert_eq!(read(p, flush), unread, "a rod flush in a bore at {p:?}");
         // A void just past the escalation at the arm `√2` (`l²/2 = 1`,
         // each radius `1/q`), its second plane leaning off the first by
         // nine tenths of the zero there: the lean is charged.
