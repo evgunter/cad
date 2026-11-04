@@ -1500,3 +1500,18 @@ general regularity sweep. SECTARMS's cylinder × cylinder unit adopts
   - The reruns are clean: topo 3972/3975 (inherited reds only); sweep `/spline/` 43/43 at 1e-6 and 1e-12; the census stdout identical to main's at 1e-6.
   - Main merged; `cargo check -p topo --all-targets` is clean, with no conflict markers.
   - State sync: closed `spline-region-decides-off-the-carrier-on-an-uncharged-f64-box-floor`.
+- 2026-11-04 22:40Z — **PR 6530 merged** (`b2eb7192`, head `cc41fa90`, CI run 41923211393 green). Lane `session_013QoYWViQCDK7cyUP3Ktm28` archived; worktrees removed.
+- 2026-11-04 22:40Z — **Sitting ends; program set `blocked`.** Every live P0/P1 row is now parked.
+  - **Merged since the reopening:** PR 6519 (teapot wall 3's 1e-6 floor, P0), PR 6523 (a section spiric on a cap plane, P1), PR 6530 (the spline-region f64 charge, P1), and tracker PR 6529.
+  - **Earlier in the sitting:** 6429, 6437, 6441, 6435, 6434, 6476, 6481, 6487, 6494, 6499.
+  - **Parked:**
+    - P0 `curved-demo-joins-build`. Klein walls 3/4 and teapot wall 3 wait on SECTARMS' NURBS × cone/sphere section; teapot wall 2 on SPIRICARM; lily wall 8 on the C5 plane × torus arm.
+    - P0 `an-unread-rider-related-only-by-its-own-vertices-refuses`, on CLEAR's embedding gate (Ev: "(a) is fine").
+    - P1 `a-creased-spline-gets-no-second-order-clearing`.
+  - **Filed this stretch:**
+    - SPLICE: `a-meeting-on-the-charts-edge-nearer-a-spans-end-than-the-walks-floor-refuses` (P3), `the-spline-face-floors-read-charge-is-wider-than-its-read` (P3).
+    - ONECOPY: `main-red-the-m7-8-plain-names-probe-fails-after-the-faceview-fix-pass` (P1), `the-spiric-two-oval-regime-is-decided-in-three-places` (P3).
+    - HONEROOT: `a-circle-touching-a-torus-off-the-arc-escalates-the-arcs-side-decision` (P3).
+    - TCOST: `the-tilted-rods-other-spins-row-runs-past-two-hours-at-1e-12-locally` (P2).
+    - P2 uncharged-cut rows on CHARTTAIL, HONE, ISOTAIL and PCERT.
+  - **Inherited reds on main the lanes reproduced:** topo `every_door_that_reads_a_box_is_inventoried` and the `a_needle_cavity…` row; sweep `a_lofted_arc_wall_is_a_function_of_the_sections_bulge`, `the_seam_split_census_reads_no_side_inside_out` and `the_walk_matches_the_serial_golden_at_four_threads`. Their owners' rows already exist, except the new ONECOPY m7_8 row.
