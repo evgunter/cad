@@ -114,13 +114,7 @@ impl<'a, T: Decide + Bounds> RuledPlan<'a, T> {
     ) -> Result<Self, BlendError> {
         let l = link.link();
         let edge = l.edge;
-        let Surface::Cylinder {
-            origin: spine_origin,
-            axis: tau,
-            radius,
-            ..
-        } = l.blend.surface
-        else {
+        let Surface::Cylinder { axis: tau, .. } = l.blend.surface else {
             return Err(unbuilt_geometry(
                 EntityId::Edge(edge),
                 "a ruled link's band is not a cylinder about its ruling",
@@ -189,7 +183,7 @@ impl<'a, T: Decide + Bounds> RuledPlan<'a, T> {
                 (q_a, q_b),
                 tau,
                 section.clone(),
-                Some((spine_origin, radius)),
+                &l.blend.surface,
             )?);
         }
         let Ok(ends) = <[EndCut<T>; 2]>::try_from(ends) else {

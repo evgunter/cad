@@ -46,6 +46,7 @@ use topo::construction::Construct;
 use topo::construction::{FaceSurface, MefSite};
 use topo::{Body, EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
 
+use crate::blend::arms::perp_unit;
 use crate::blend::battery::{EndSection, cap_incidence};
 use crate::blend::naming::BlendNaming;
 use crate::blend::reach::{EDGE_SAMPLES, sure};
@@ -100,9 +101,8 @@ impl<T: Decide + Bounds> EndCut<T> {
     /// **Plan one cut-off end** of the band over `crease` between
     /// `face_a` and `face_b`, whose trimlines on those faces pass
     /// through `q_a` and `q_b` along `along`; `section` is what the
-    /// battery read the band's section to be, and `spine` a cylinder
-    /// band's spine point (still to be carried to the end face) and
-    /// radius.
+    /// battery read the band's section to be, and `band` the band's
+    /// surface, whose spine a round section is placed about.
     ///
     /// Every point is a stored trimline or spine point carried along
     /// `along` to the stored end plane; nothing is sampled. `along` is
@@ -130,7 +130,7 @@ impl<T: Decide + Bounds> EndCut<T> {
         (q_a, q_b): (Point3<T>, Point3<T>),
         along: Vec3<T>,
         section: EndSection<T>,
-        spine: Option<(Point3<T>, T)>,
+        band: &Surface<T>,
     ) -> Result<Self, BlendError> {
         let (rim_a, rim_b, face) = end_rims(body, vertex, crease, face_a, face_b)?;
         // The end plane, from the STORED surface — the battery's
@@ -187,15 +187,27 @@ impl<T: Decide + Bounds> EndCut<T> {
                 placed
             }))
         };
+        let spine = match *band {
+            Surface::Cylinder {
+                origin,
+                radius,
+                u_ref,
+                ..
+            } => Some((origin, radius, u_ref)),
+            _ => None,
+        };
         let curve = match (section, spine) {
             (EndSection::Chord, _) => EndCurve::Chord,
-            (EndSection::Circle, Some((spine, radius))) => {
+            (EndSection::Circle, Some((spine, radius, u_ref))) => {
                 let center = carry(spine);
-                let circle =
-                    Curve3::circle(center, n.normalize(), radius, (foot_a - center).normalize());
+                // The band's own seam reference points at `face_a`'s
+                // trimline (`arms`), so laid into the cap it points at
+                // `foot_a`.
+                let n = n.normalize();
+                let circle = Curve3::circle(center, n, radius, perp_unit(u_ref, n));
                 round(Some(circle), center)?
             }
-            (EndSection::Ellipse(ellipse), Some((spine, _))) => {
+            (EndSection::Ellipse(ellipse), Some((spine, ..))) => {
                 let center = carry(spine);
                 let origin = Point3::new(T::zero(), T::zero(), T::zero());
                 round(ellipse.translated(center - origin), center)?

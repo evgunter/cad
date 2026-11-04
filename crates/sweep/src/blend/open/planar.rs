@@ -332,10 +332,6 @@ pub(in crate::blend) fn cut_off_plan<'a, T: Decide + Bounds>(
     let l = link.link();
     let (q_a, along) = open_trimline(l, l.face_a)?;
     let (q_b, _) = open_trimline(l, l.face_b)?;
-    let spine = match l.blend.surface {
-        Surface::Cylinder { origin, radius, .. } => Some((origin, radius)),
-        _ => None,
-    };
     let end = EndCut::plan(
         body,
         vertex,
@@ -344,7 +340,7 @@ pub(in crate::blend) fn cut_off_plan<'a, T: Decide + Bounds>(
         (q_a, q_b),
         along,
         section,
-        spine,
+        &l.blend.surface,
     )?;
     Ok(CutOffPlan { link, end })
 }

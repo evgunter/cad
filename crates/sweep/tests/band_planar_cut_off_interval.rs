@@ -15,7 +15,6 @@ use core::f64::consts::PI;
 use crate::common::interval::iv;
 use geom_core::k_stats::Bracket;
 use geom_core::{Bounds, Decide, Interval, Point3, Sign, Tol};
-use sweep::blend::BlendError;
 use sweep::blend::build::{chamfer_edges, fillet_edges};
 use sweep::test_support::{assert_naming_totality, block};
 use topo::{
@@ -329,9 +328,8 @@ fn tier_3_prime(body: &Body<Interval>, tol: Tol, what: &str) {
 /// no arc; they are the ladder's controls. Every row builds at both
 /// scalars, tiers 3 and 3′ and naming total at `Interval`, its `ΔV`
 /// enclosure bracketing the `f64` body's within the props pad and its
-/// midpoint within `midpoint_tol`. At `ε = 1e-12` a control's
-/// `Interval` build may escalate its pcurve envelope instead, a witness
-/// never, and tier 3′ may meet cpair's meter ([`tier_3_prime`]).
+/// midpoint within `midpoint_tol`. Below `ε = 1e-9` tier 3′ may meet
+/// cpair's meter ([`tier_3_prime`]).
 #[test]
 fn a_fillet_foot_on_atan2s_cut_at_an_oblique_end_carves_at_the_certified_scalar() {
     use crate::band_planar_cut_off::{midpoint_tol, pad_ceiling};
@@ -348,7 +346,6 @@ fn a_fillet_foot_on_atan2s_cut_at_an_oblique_end_carves_at_the_certified_scalar(
             let iv0 = mass_properties(&ibody, tol, topo::test_support::pinned_resolution(tol))
                 .expect("interval props");
             for round in [false, true] {
-                let witness = round && s > 0.0;
                 let what = format!("shear {s}, convex {convex}, round {round}");
                 let fout = if round {
                     fillet_edges(&fbody, &[fedge], D, tol)
@@ -370,36 +367,12 @@ fn a_fillet_foot_on_atan2s_cut_at_an_oblique_end_carves_at_the_certified_scalar(
                     .met()
                     .expect("props")
                     .volume;
-                let out = match if round {
+                let out = if round {
                     fillet_edges(&ibody, &[iedge], iv(D), tol)
                 } else {
                     chamfer_edges(&ibody, &[iedge], iv(D), tol)
-                } {
-                    Ok(out) => out,
-                    // At the finest ε a re-minted pcurve's envelope
-                    // enclosure is wider than the band, and escalates.
-                    Err(e)
-                        if !witness
-                            && tol.eps() <= 1e-12
-                            && matches!(
-                                &e.error,
-                                BlendError::Certify {
-                                    source: topo::PcurveMintError::Certify {
-                                        error: geom_brep::PcurveCertifyError::Escalated { .. },
-                                        ..
-                                    },
-                                    ..
-                                }
-                            ) =>
-                    {
-                        test_utils::vacuity::stood_down(
-                            &what,
-                            &format!("a control escalates at ε {}: {:?}", tol.eps(), e.error),
-                        );
-                        continue;
-                    }
-                    Err(e) => panic!("{what}: carves at Interval, got {e:?}"),
-                };
+                }
+                .unwrap_or_else(|e| panic!("{what}: carves at Interval, got {e:?}"));
                 validate_geometric(&out.body, tol)
                     .unwrap_or_else(|e| panic!("{what}: tier 3, got {e:?}"));
                 tier_3_prime(&out.body, tol, &what);
