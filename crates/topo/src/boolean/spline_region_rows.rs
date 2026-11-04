@@ -1668,3 +1668,46 @@ fn review_a_query_on_a_wide_interval_trim_image_is_given_no_side() {
         "{sided} of 200 queries on a member of the trim got a side"
     );
 }
+
+/// **A piece whose rounding bound is NaN has no box**: the bound's
+/// finiteness guard in [`super::Piece::bbox`] is read after the
+/// per-channel fold, so a NaN bound must not be dropped by it and leave
+/// the box unwidened.
+#[test]
+fn review_a_piece_with_a_nan_bound_has_no_box() {
+    use super::Piece;
+    let piece = Piece {
+        net: vec![
+            ([0.0, 0.0, 1.0], [0.0, f64::NAN, 0.0]),
+            ([1.0, 1.0, 1.0], [0.0; 3]),
+        ],
+    };
+    let b = piece.bbox();
+    assert!(b.is_none(), "a NaN bound gives the box {b:?}");
+}
+
+/// **A cell whose rounding bound is NaN has no floor past zero**: the
+/// cut term of [`super::Patch::floor`] folds each channel's worst with
+/// `f64::max`, so a NaN bound must not be dropped and leave the floor at
+/// the box gap.
+#[test]
+fn review_a_cell_with_a_nan_bound_has_no_floor() {
+    let net = vec![
+        ([0.0, 0.0, 0.0, 1.0], [f64::NAN, 0.0, 0.0, 0.0]),
+        ([1.0, 0.0, 0.0, 1.0], [0.0; 4]),
+        ([0.0, 1.0, 0.0, 1.0], [0.0; 4]),
+        ([1.0, 1.0, 0.0, 1.0], [0.0; 4]),
+    ];
+    let cell = super::Patch {
+        rect: super::Rect {
+            u: (0.0, 1.0),
+            v: (0.0, 1.0),
+        },
+        pu: 1,
+        pv: 1,
+        net,
+        centre: Vec3::new(0.0, 0.0, 0.0),
+    };
+    let floor = cell.floor(Point3::new(0.5, 0.5, 1.0));
+    assert!(!(floor > 0.5), "a NaN bound leaves the floor {floor}");
+}
