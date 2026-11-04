@@ -238,7 +238,7 @@ fn the_waist_meridian_reads_definitely_negative_on_the_sampled_enclosure() {
         let geom::Curve3::Circle(geom::Circle {
             frame:
                 geom::Frame {
-                    center,
+                    origin: center,
                     axis,
                     u_ref,
                 },
@@ -254,11 +254,18 @@ fn the_waist_meridian_reads_definitely_negative_on_the_sampled_enclosure() {
         let (t0, t1) = c.params();
         for fb in faces_where(&b, is_torus) {
             let s = surface(&b, fb);
-            let (lo, hi) =
-                geom_brep::circle_residual_extremes(s, center, axis, radius, u_ref).unwrap();
-            let (arc_lo, arc_hi) =
-                geom_brep::circle_arc_residual_range(s, center, axis, radius, u_ref, t0, t1)
-                    .unwrap();
+            let (lo, hi) = geom_brep::circle_residual_extremes(
+                s,
+                &geom::Circle::new(geom::Frame::new(center, axis, u_ref), radius),
+            )
+            .unwrap();
+            let (arc_lo, arc_hi) = geom_brep::circle_arc_residual_range(
+                s,
+                &geom::Circle::new(geom::Frame::new(center, axis, u_ref), radius),
+                t0,
+                t1,
+            )
+            .unwrap();
             let margin = (lo.max(-hi)).max(arc_lo.max(-arc_hi));
             assert!(
                 (margin + 1.733_498_408_828_498e-5).abs() < 1e-12,
@@ -1143,7 +1150,7 @@ fn a_cube_in_the_donuts_hole_answers_subtract_and_intersect() {
 }
 
 /// **∖ and ∩ reach the doors ∪ does, both orders.** With the torus on
-/// the revert roster, a subtract or an intersect over the fixtures above
+/// the roster every op reads, a subtract or an intersect over the fixtures above
 /// reaches the same doors as their unions:
 ///
 /// - the near-perpendicular bar's tilted faces cut general spiric

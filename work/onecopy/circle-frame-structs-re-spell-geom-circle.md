@@ -2,12 +2,11 @@
 id: circle-frame-structs-re-spell-geom-circle
 kind: issue
 title: Four topo and sweep structs re-spell geom::Circle's fields: rim_wedge::Rim, surgery::CircleFrame, ring_path::CircleArc, contain::LoopCircle
-status: dispatched
+status: parked
 opened: 2026-11-02
 priority: P1
 cost: M
-branch: onecopy/frame-readings
-rides_with: the-frame-carries-every-placement-reading
+blocked_on: [analytic-surfaces-spell-their-frame-field-by-field]
 ---
 
 

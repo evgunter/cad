@@ -48,3 +48,5 @@ Two readings are open:
 The first measurement is `got − lever` at this seed.
 
 Moved from `work/issues/` to `work/lever/` on 2026-11-03, when the `work/issues/` bucket was retired (Ev's direction, in chat); id and body unchanged.
+
+**Second counterexample (ONECOPY frame-readings lane, PR 6463).** Seed `CAD_FUZZ_SEED=0x8b7ff4d7a91c64d1 CAD_FUZZ_EFFORT=1`: an ellipse with equal semi-axes `1000` over `[8.5169, 17.5946]` (more than a turn), read from its own centre. `span_reach_from` gives `1000.0000000000002`, one ulp past `lever_from`'s `1000`. It reproduces on main with the same numbers, so the defect is not a thin ellipse's alone. Over a turn or more the two covers read the whole conic from different window starts, and their rounding differs by an ulp. Once fixed, pin this seed as a deterministic row.

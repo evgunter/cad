@@ -288,7 +288,7 @@ fn carved_clearance(body: &Body<f64>, rod: Rod, r: f64) -> f64 {
                 }
             }
             geom::Curve3::Circle(geom::Circle {
-                frame: geom::Frame { center, .. },
+                frame: geom::Frame { origin: center, .. },
                 radius,
             }) if center.x.hypot(center.y).hypot(center.z) < 1e-12 && radius < 2.0 => {
                 circles.push(radius);
