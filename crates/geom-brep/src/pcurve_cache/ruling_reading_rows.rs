@@ -749,3 +749,71 @@ fn review_probe_true_ruling_anchored_near_the_apex() {
         }
     }
 }
+
+/// REVIEW PROBE (6504 AA): a line standing `off` radially off the wall
+/// AND leaning along it, its reading (the lean alone) just under Zero.
+/// Every meridian it takes must certify.
+#[test]
+fn review_probe_offset_plus_lean() {
+    let surface = cylinder();
+    let Surface::Cylinder { origin, radius, .. } = surface else { unreachable!() };
+    let mut bad = 0;
+    for phi in [0.3, -2.0] {
+        let (s, c) = f64::sin_cos(phi);
+        let r = Vec3::new(c, s, 0.0);
+        let tang = Vec3::new(-s, c, 0.0);
+        for off in [0.0, 0.45, -0.45, 0.9, -0.9] {
+            for frac in [0.5, 0.9, 0.99] {
+                for (k, h) in [(0.0, 0.5), (0.3, 0.1), (1.5, 0.2), (-1.0, 0.5)] {
+                    let span = (k - h, k + h);
+                    let reach: f64 = span.0.abs().max(span.1.abs());
+                    let lean = frac * zero() / reach;
+                    let carrier = Curve3::line(
+                        origin + r * (radius + off * zero()),
+                        Vec3::unit_z() + tang * lean,
+                    );
+                    let [d, d_i] = derivations(&carrier, span, &surface);
+                    let f = Interval::from_f64;
+                    let (ci, si) = lift(&carrier, &surface);
+                    let cert = chart_pcurve_over(&carrier, span.0, span.1, &surface, band())
+                        .and_then(|im| PcurveCache::certify(im, span.0, span.1, &carrier, &surface, band()).map(|c| c.certificate().envelope));
+                    let cert_i = chart_pcurve_over(&ci, f(span.0), f(span.1), &si, band())
+                        .and_then(|im| PcurveCache::certify(im, f(span.0), f(span.1), &ci, &si, band()).map(|c| c.certificate().envelope.hi()));
+                    let meridian = matches!(d, Ok(Derivation::CylinderMeridian)) || matches!(d_i, Ok(Derivation::CylinderMeridian));
+                    if (meridian && (cert.is_err() || cert_i.is_err())) || matches!(cert, Err(PcurveCertifyError::ResidualExceeded{..})) {
+                        bad += 1;
+                        eprintln!("OFFLEAN φ{phi} off {off}ε frac {frac} span {span:?}: {d:?}/{d_i:?} -> {cert:?} / {cert_i:?}");
+                    }
+                }
+            }
+        }
+    }
+    eprintln!("OFFLEAN bad {bad}");
+}
+
+/// REVIEW PROBE (6504 AA2): generators shifted s across the apex, s
+/// from 1.5ε to 300ε: does any certify? And the line's exact distance
+/// from the cone at the apex crossing (s·cos α).
+#[test]
+fn review_probe_apex_shift_sweep() {
+    let surface = cone();
+    let Surface::Cone { half_angle, .. } = surface else { unreachable!() };
+    for sigma in [1.0, -1.0] {
+        for phi in [-2.5, 3.1415, 1.0] {
+            for m in [1.5, 2.0, 3.0, 5.0, 10.0, 30.0, 100.0, 300.0] {
+                let s = m * zero();
+                let (anchor, g, tangent) = cone_at(phi, sigma, 0.3);
+                let carrier = Curve3::line(anchor + tangent * s, g);
+                let span = (-0.5, 0.5);
+                let f = Interval::from_f64;
+                let (ci, si) = lift(&carrier, &surface);
+                let c = chart_pcurve_over(&carrier, span.0, span.1, &surface, band())
+                    .and_then(|im| PcurveCache::certify(im, span.0, span.1, &carrier, &surface, band()).map(|_| ()));
+                let ci_ = chart_pcurve_over(&ci, f(span.0), f(span.1), &si, band())
+                    .and_then(|im| PcurveCache::certify(im, f(span.0), f(span.1), &ci, &si, band()).map(|_| ()));
+                let tag = |r: &Result<(), PcurveCertifyError>| match r { Ok(()) => "CERTIFIED".to_string(), Err(e) => format!("{e:?}").split(['{', '(', ' ']).next().unwrap().to_string() };
+                eprintln!("APEXSHIFT σ{sigma} φ{phi} s {m}ε (off {:.3}ε at apex): {} / {}", m * half_angle.cos(), tag(&c), tag(&ci_));
+            }
+        }
+    }
+}
