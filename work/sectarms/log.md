@@ -510,3 +510,4 @@ and bodies unchanged. No orchestrator yet.
   - rustdoc links.
 
   The review row is the last commit (`8f4f30f`, tally 0; the push went through on the second try after a GitHub 500). The PR merges on green.
+- 2026-11-04 10:15 — **PR 6479 merged.** NURBS stage 4 is done: plane × NURBS is on the one 1×2 arm and `PlaneSection` is retired (dual review, tally 0, row PR-6479.md). **NURBS 3b (node ends) asked for a plan.** It rides 3b-ii's node listing, with lines and side from the decided Hessian, the end ray matched once at carry, and carriers ending at the node along their ray.
