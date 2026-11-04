@@ -96,9 +96,12 @@ Its map applies each sub-arc's Möbius change. The certificate compares
 weights, and the measured step reads the turn at unit end weights. The
 mesher's chord rate is scaled by `max(λ, 1/λ)`.
 
-The l-bracket now imports (census `(1, 1, 10, 21, 14)`). Its volume
-enclosure `[3.43388e-6, 3.43846e-6]` holds an independent admesh-clean
-mesh volume of `3.43577e-6`. Full dm1 refuses one door later, at the
+The l-bracket now imports (census `(1, 1, 10, 21, 14)`). At ε 1e-9 its
+volume enclosure `[3.43388e-6, 3.43846e-6]` holds an independent
+admesh-clean mesh volume of `3.43577e-6` (δ 1e-5). At ε 1e-12 the
+enclosure is `3.4361170e-6 ± 5e-13`, and the mesh is off it by its
+chords, 3.4e-10, inside δ times the area (1.7e-8). The row pins that
+bound at every ε. Full dm1 refuses one door later, at the
 aggregate gate, on the instances' touches, and is filed on importgate
 (`dm1s-touching-instances-refuse-at-the-aggregate-gate-unrecorded`). The
 three rows and `wild.rs`'s fragment are pinned there. The row

@@ -396,8 +396,8 @@ fn a_row_at_unequal_end_weights_holds_its_arc_rim() {
         );
     }
     // Each sub-arc's weight is its own margin: a half row at end weights
-    // `1, 2, 1` whose second sub-arc's weight is off by 1e-6 refuses in
-    // band there, where the first sub-arc's reads the circle.
+    // `1, 2, 1` whose second sub-arc's weight is off by five bands of the
+    // radius refuses there, where the first sub-arc's reads the circle.
     let half = |second: f64| {
         let mut control = Vec::new();
         let mut weights = Vec::new();
@@ -420,7 +420,7 @@ fn a_row_at_unequal_end_weights_holds_its_arc_rim() {
         ))
     };
     let pi = core::f64::consts::PI;
-    for (second, certifies) in [(1.0, true), (1.0 + 1e-6, false)] {
+    for (second, certifies) in [(1.0, true), (1.0 + 5.0 * band().zero() / R, false)] {
         let wall = half(second);
         let image = pick_arc_rim(&rim(1.0), (0.0, pi), &wall, band())
             .expect("the pick decides")

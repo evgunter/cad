@@ -320,21 +320,23 @@ fn the_l_bracket_alone_adopts_its_reversed_slit() {
                 "the l-bracket's census (solids, shells, faces, edges, vertices), its \
                  cylinder wall split into four sub-patches"
             );
-            // The certified volume holds an independent one: the mesh's,
-            // its chords cutting inside the arc rims the import now reads.
+            // The certified volume against an independent one, the
+            // mesh's: its chords stand off the faces by at most δ, so the
+            // two volumes part by at most δ times the area.
             let tol = Tol::witness();
             let e = body
                 .measure(topo::test_support::pinned_resolution::<f64>(tol))
                 .expect("the l-bracket measures")
                 .enclosure;
-            let m = mesh::tessellate(b, 1e-5, tol).expect("the l-bracket meshes");
+            let delta = 1e-5;
+            let m = mesh::tessellate(b, delta, tol).expect("the l-bracket meshes");
             mesh::validate::check_mesh(&m).expect("the l-bracket's mesh is closed");
             let v = mesh::validate::signed_volume(&m);
+            let (lo, hi) = (e.volume - e.volume_pad, e.volume + e.volume_pad);
+            let off = delta * (e.surface_area + e.area_pad);
             assert!(
-                (e.volume - v).abs() <= e.volume_pad,
-                "the l-bracket's volume {} ± {} holds its mesh's {v}",
-                e.volume,
-                e.volume_pad
+                v >= lo - off && v <= hi + off,
+                "the l-bracket's volume [{lo}, {hi}] is its mesh's {v} within δ·A = {off}"
             );
         }
         Err(StepImportError::Adoption { id, attempts, .. }) => panic!(

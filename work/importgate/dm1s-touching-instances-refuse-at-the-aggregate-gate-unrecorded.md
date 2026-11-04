@@ -16,10 +16,10 @@ let dm1's arc rims mint (a row at end weights 1 and 2 holds its rim,
 
 The l-bracket component alone now imports
 (`r1_dm1_probe::the_l_bracket_alone_adopts_its_reversed_slit`, census
-`(1, 1, 10, 21, 14)`). Its volume enclosure
+`(1, 1, 10, 21, 14)`). At ε 1e-9 its volume enclosure
 `[3.43388e-6, 3.43846e-6]` m³ holds an independent mesh volume of
 `3.43577e-6` m³, from a 1e-5 tessellation that admesh reads as
-watertight. Full dm1 (one bracket, three bolts, three nuts, seven placed
+watertight. At every ε the two part by less than δ times the area. Full dm1 (one bracket, three bolts, three nuts, seven placed
 instances) refuses at every ambient band (1e-9, 1e-6, 1e-12) in
 `step_import::gate3_findings` (`crates/step-import/src/lib.rs`), the
 aggregate gate over the assembled body:
