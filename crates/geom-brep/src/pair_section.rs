@@ -3467,3 +3467,80 @@ mod wiring {
         );
     }
 }
+
+#[cfg(test)]
+#[allow(clippy::panic, clippy::expect_used, clippy::unwrap_used)]
+mod end_at_rows {
+    use geom::{Curve3, Line};
+    use geom_core::{Point3, Vec3};
+
+    use super::{
+        ArcPlace, CarriedComponent, ComponentEnds, ComponentShape, NodeEnd, NodeEnds, NodeLine,
+        RaySense, SiteRefusal, SpanEnd,
+    };
+
+    /// An arc over `[0, 1]` with both ends at node 0: it starts along
+    /// `+lines[0]` and ends along `+lines[1]`.
+    fn loop_at_node() -> CarriedComponent<f64> {
+        let ends = NodeEnds {
+            start: Some(NodeEnd {
+                node: 0,
+                line: NodeLine::First,
+                sense: RaySense::Along,
+            }),
+            end: Some(NodeEnd {
+                node: 0,
+                line: NodeLine::Second,
+                sense: RaySense::Along,
+            }),
+        };
+        CarriedComponent {
+            carrier: Curve3::Line(Line {
+                origin: Point3::new(0.0, 0.0, 0.0),
+                dir: Vec3::new(1.0, 0.0, 0.0),
+            }),
+            span: (0.0, 1.0),
+            shape: ComponentShape::Open {
+                ends: ComponentEnds {
+                    nodes: ends,
+                    ..ComponentEnds::default()
+                },
+            },
+            certificate: None,
+            winds: [false, false],
+            pad: 0.0,
+            reach: 0.0,
+            witness: Point3::new(0.5, 0.0, 0.0),
+        }
+    }
+
+    /// **An arc with both ends at one node is read by the end its germ
+    /// names** (D2): the ray `(First, Along)` reads the start, `(Second,
+    /// Along)` the end, no ray or another ray neither. Red against the
+    /// start read whatever the ray.
+    #[test]
+    fn an_arc_with_both_ends_at_one_node_is_read_by_its_ray() {
+        let c = loop_at_node();
+        assert!(matches!(
+            c.end_at(0, Some((NodeLine::First, RaySense::Along))),
+            Ok(ArcPlace::AtEnd {
+                end: SpanEnd::Start,
+                ..
+            })
+        ));
+        assert!(matches!(
+            c.end_at(0, Some((NodeLine::Second, RaySense::Along))),
+            Ok(ArcPlace::AtEnd {
+                end: SpanEnd::End,
+                ..
+            })
+        ));
+        for ray in [None, Some((NodeLine::First, RaySense::Against))] {
+            assert!(
+                matches!(c.end_at(0, ray), Err(SiteRefusal::Desync(_))),
+                "{ray:?}"
+            );
+        }
+        assert!(matches!(c.end_at(1, None), Err(SiteRefusal::Desync(_))));
+    }
+}
