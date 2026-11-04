@@ -2,10 +2,13 @@
 id: conic-speed-hi-reads-the-signed-larger-semi-axis
 kind: issue
 title: Conic::speed_hi and speed_lo read the signed semi-axes, so a circle or an unchecked ellipse stored with a negative one under-reads its speed
-status: open
+status: closed
 opened: 2026-11-04
 priority: P2
 cost: M
+parent: an-ellipses-general-lane-is-written-on-no-chart
+closed: 2026-11-04
+pr: 6524
 ---
 
 
@@ -45,3 +48,31 @@ reads `max(|a|, |b|)` for `quadric_harmonics`' `terms`,
 Read magnitudes in `speed_hi`, `speed_lo` and `speed_at` (bit-identical
 for every carrier a door builds, whose semi-axes are positive), then
 retire `semi_reach` into it.
+
+## Closed
+
+PR 6524, closed on the invariant rather than by reading magnitudes
+(review CC2, revised). A negative semi-axis is not another spelling of
+the same edge: every door builds positive ones, STEP's are positive
+lengths, and a signed one reverses the traversal. So the edge
+certificate decides it once, typed, at the head of its span check,
+before any reader of the carrier's speed:
+`CertifyError::SemiAxisNotPositive`, the kernel's defect at a build,
+the stored culprit at rest, a damaged file at import. Main ended such a
+record as a span that does not run forward, a lever for a defect.
+`Conic::semi_axes`, `speed_lo` and `speed_hi` state the positive
+invariant at their definition and read it as is. `implicit::semi_reach`
+and its mutant are gone, and the charge reads `speed_hi` again.
+
+Rows:
+- `pcurve_cache::ellipse_lane_rows::a_conic_stored_with_a_semi_axis_not_positive_is_a_defect`:
+  an ellipse with either or both semi-axes negative, and a circle of
+  negative or zero radius, at f64 and Interval, with the three door
+  endings. Red under `semi-axis-unchecked`.
+- `tests/ellipse_signed_semi_axis_gate.rs`, re-pointed from
+  `StatedInterval` to the typed refusal.
+
+The readers this item named (`sample_rounding`,
+`torus_curvature_bound`, `conic_residual_harmonics` and the others
+outside geom-brep) read only certified edges' carriers, so they
+inherit the invariant. The swept list is in the PR body.

@@ -557,6 +557,18 @@ pub enum CertifyError {
         /// The metered length's verdict, with its reporting margin.
         verdict: Refused,
     },
+    /// **A conic carrier stores a semi-axis that is not positive**: a
+    /// circle's radius, or either of an ellipse's semi-axes, at or below
+    /// zero. Every door builds positive semi-axes, a STEP ellipse's are
+    /// positive lengths, and a signed one reverses the traversal, so the
+    /// record breaks the representation's invariant rather than spelling
+    /// the same edge: the kernel's defect at a build, the stored culprit
+    /// at rest, a damaged file at the import door. Decided once, at the
+    /// head of the span check, before any reader of the carrier's speed.
+    SemiAxisNotPositive {
+        /// The carrier's kind.
+        carrier: geom::CurveKind,
+    },
     /// A periodic carrier's stored interval (a circle's, an ellipse's, a
     /// spiric's) spans definitely more than one full period beyond
     /// tolerance. This closes the 9-sample winding alias (M2 PR 3
@@ -577,8 +589,7 @@ pub enum CertifyError {
     /// [`CertCheck::ParamWinding`]), and at a public door
     /// ([`EdgeCurve::certify`], [`EdgeCurve::recertify`] and their `_via`
     /// doors) that is its input — a zero, reversed or past-a-turn
-    /// `param_start … param_end`, a chord between coincident points, a
-    /// circle or ellipse carrier of no positive radius, or a stored arc
+    /// `param_start … param_end`, a chord between coincident points, or a stored arc
     /// re-certified at a band finer than the one it was minted at, where
     /// its headroom read as zero. At a build it ends in the check's
     /// lever; at the import door it ends as any reading of the check's
@@ -929,6 +940,12 @@ impl core::fmt::Display for CertifyError {
             Self::IntervalNotForward { verdict } => {
                 StatedSpan::Forward(ForwardReading::Decided(*verdict)).tell(STORED_INTERVAL, f)
             }
+            Self::SemiAxisNotPositive { carrier } => write!(
+                f,
+                "the {} carrier stores a semi-axis that is not positive, and a conic's semi-axes \
+                 are positive lengths",
+                carrier.name()
+            ),
             Self::SpanMeterCollapsed { verdict } => write!(
                 f,
                 "{SPAN_METER} is {} zero (margin {} m), so the stored interval has no proven \
@@ -1149,6 +1166,7 @@ impl CertifyError {
             | Self::WrapOnNonPeriodic
             | Self::TangentCertificateUnsupported
             | Self::StatedInterval { .. }
+            | Self::SemiAxisNotPositive { .. }
             | Self::Band(_) => return None,
         };
         Some(Decision::Check(check, arm))
@@ -1178,6 +1196,7 @@ impl CertifyError {
     pub(crate) fn own_ending(&self, at: ReadAt) -> Option<String> {
         match self {
             Self::StatedInterval { refused } => Some(refused.ending(at)),
+            Self::SemiAxisNotPositive { .. } => Some(crate::recourse::defect_ending(at).to_owned()),
             _ => self.incidence_read().map(|read| read.ending(at)),
         }
     }
@@ -3913,12 +3932,36 @@ fn decide_turn<T: Decide>(
     // (`geom::carrier_speed::speed_floor`, the one spelling the conic
     // readers share): a circle's radius; an ellipse's smaller semi-axis
     // (|dP/dθ| ≥ min(a, b), so the span times it is a certified lower
-    // bound on the child's arc length, in either stored order), so a
-    // non-positive semi-axis, either one, is refused as
-    // `IntervalNotForward`, a door's `StatedInterval`; a spiric's MINOR
+    // bound on the child's arc length, in either stored order; both are
+    // positive, decided above); a spiric's MINOR
     // radius (`|dP/dv| ≥ r`). The winding bound is the
     // 8kτ sample-alias argument about the parameter period, which all
     // three share.
+    // A conic's semi-axes are positive (`CertifyError::SemiAxisNotPositive`),
+    // the invariant every reader of its speed (`geom::Conic::speed_lo`)
+    // states, so it is decided here, before the first of them.
+    if let Some(conic) = spec.carrier.conic() {
+        let (a, b) = conic.semi_axes();
+        let positive = |x: T| {
+            #[cfg(test)]
+            if crate::pcurve_cache::mutants::semi_axis_unchecked() {
+                return true;
+            }
+            matches!(
+                geom_core::k_stats::decide(
+                    "edge_conic_semi_axis_positive",
+                    Margin::sign_of(x),
+                    Band::enclosure_sign()
+                ),
+                Ok(Sign::Positive)
+            )
+        };
+        if !(positive(a) && positive(b)) {
+            return Err(CertifyError::SemiAxisNotPositive {
+                carrier: spec.carrier.kind(),
+            });
+        }
+    }
     Ok(match &spec.carrier {
         periodic @ (Curve3::Circle(..) | Curve3::Ellipse(..) | Curve3::Spiric { .. }) => {
             let Some(floor) = geom::carrier_speed::speed_floor(periodic) else {

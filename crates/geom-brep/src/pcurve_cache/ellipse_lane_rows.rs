@@ -10,10 +10,11 @@
 //!
 //! Mutants (`PCERT_RADIAL_PAIR_MUTANT`): `circle-incidence` reds the
 //! rows standing a measured distance off a cylinder, cone or torus and
-//! the search; `charge-circular` (the charge read at the first semi-axis
-//! for both) and `semi-reach-signed` (at the signed larger one) red the
-//! coefficient rows; `ellipse-term-dropped` (the second harmonic's
-//! `a² − b²` part dropped) reds the coefficient rows and the search.
+//! the search; `charge-circular` (the cone's charge read at the first
+//! semi-axis for both) reds the coefficient rows; `ellipse-term-dropped`
+//! (the second harmonic's `a² − b²` part dropped) reds the coefficient
+//! rows and the search; `semi-axis-unchecked` (the edge certificate's
+//! positive semi-axis check skipped) reds the defect row.
 
 use core::f64::consts::{FRAC_PI_2, TAU};
 
@@ -380,20 +381,13 @@ fn unit(s: &mut fuzz::Rng) -> Vec3<f64> {
 
 /// An ellipse of the draw, centred at `centre` in the plane of normal
 /// `n`: its larger semi-axis `big`, its ratio `b/a` log-uniform down to
-/// `1e-6`, stored larger-first or larger-second, and a sixth of them
-/// with a semi-axis stored negative (an unchecked `Ellipse`, whose
-/// points are the same set).
+/// `1e-6`, stored larger-first or larger-second.
 fn drawn_ellipse(s: &mut fuzz::Rng, centre: Point3<f64>, n: Vec3<f64>, big: f64) -> Curve3<f64> {
     let small = big * s.log_uniform(1e-6, 1.0);
     let (a, b) = if s.below(2) == 0 {
         (big, small)
     } else {
         (small, big)
-    };
-    let (a, b) = match s.below(6) {
-        0 => (-a, b),
-        1 => (a, -b),
-        _ => (a, b),
     };
     let u = n.cross(unit(s)).normalize();
     Curve3::Ellipse(geom::Ellipse::new(geom::Frame::new(centre, n, u), a, b))
@@ -409,12 +403,9 @@ type OtherChartsRow = (String, Curve3<f64>, Point3<f64>, Vec3<f64>, f64, f64);
 /// written down (a needle cone of half-angle `1e-4` and a flat one of
 /// `π/2 − 1e-4`, `1e5` off the origin, a torus of tube ratio `1e-4`, and
 /// a cone's exact section near the parabola, each with an ellipse of
-/// ratio `1e-6` stored larger-second; and an ellipse stored with a
-/// semi-axis of `−10` about a chart of radius `0.1`, whose reach a signed
-/// read takes as `1e-3`), and draws of the circle rows'
+/// ratio `1e-6` stored larger-second), and draws of the circle rows'
 /// search widened to ellipses of ratio down to `1e-6`, stored either
-/// way round and a sixth with a negative semi-axis. Red under
-/// `charge-circular`, `semi-reach-signed` and `ellipse-term-dropped`.
+/// way round. Red under `charge-circular` and `ellipse-term-dropped`.
 #[test]
 fn an_ellipses_coefficients_stay_within_their_charge_on_every_chart() {
     let far = 1e5;
@@ -449,33 +440,14 @@ fn an_ellipses_coefficients_stay_within_their_charge_on_every_chart() {
             cone_section_ellipse(&surface, 1.0, (FRAC_PI_2 - alpha) * (1.0 - 1e-6)),
         ));
     }
-    let negative = Curve3::Ellipse(geom::Ellipse::new(
-        geom::Frame::new(
-            at + axis * 0.01,
-            tilted,
-            tilted.cross(Vec3::unit_x()).normalize(),
-        ),
-        -10.0,
-        1e-3,
-    ));
-    let mut others: Vec<OtherChartsRow> = vec![
-        (
-            "a thin torus's ratio-1e-6 ellipse".into(),
-            eccentric(at + axis * 0.3, tilted, 2.0),
-            at,
-            axis,
-            2.0,
-            2e-4,
-        ),
-        (
-            "a negative semi-axis a hundred times the chart".into(),
-            negative,
-            at,
-            axis,
-            0.1,
-            0.05,
-        ),
-    ];
+    let mut others: Vec<OtherChartsRow> = vec![(
+        "a thin torus's ratio-1e-6 ellipse".into(),
+        eccentric(at + axis * 0.3, tilted, 2.0),
+        at,
+        axis,
+        2.0,
+        2e-4,
+    )];
     let mut s = fuzz::start("pcurve_cache::ellipse_lane_rows::coefficients");
     for i in 0..fuzz::scaled(300) {
         let far = if s.below(2) == 0 {
@@ -1042,5 +1014,105 @@ fn the_extremes_are_covered_at_their_50_digit_distance() {
             t.total(),
             ti.total()
         );
+    }
+}
+
+/// **A conic stored with a semi-axis that is not positive is a defect,
+/// typed, at the edge certificate** (`CertifyError::SemiAxisNotPositive`),
+/// never a span that does not run forward: the parallel of the unit
+/// sphere at height `0.6` stored as an ellipse with its first, its second
+/// or both semi-axes negative, and as a circle of negative or zero
+/// radius, each described on the sphere's chart, at `f64` and at
+/// `Interval`. The positive spelling certifies. Each refusal renders the
+/// kernel's defect at a build, the stored culprit at rest and a damaged
+/// file at the import door. Red under `semi-axis-unchecked`.
+#[test]
+fn a_conic_stored_with_a_semi_axis_not_positive_is_a_defect() {
+    use crate::recourse::{ReadAt, Reading};
+    use crate::{CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, SurfaceKey};
+    let sphere = Surface::Sphere {
+        center: Point3::origin(),
+        radius: 1.0,
+        axis: Vec3::unit_z(),
+        u_ref: Vec3::unit_x(),
+    };
+    let mut surfaces: slotmap::SlotMap<SurfaceKey, Surface<f64>> = slotmap::SlotMap::with_key();
+    let key = surfaces.insert(sphere);
+    let frame = geom::Frame::new(Point3::new(0.0, 0.0, 0.6), Vec3::unit_z(), Vec3::unit_x());
+    let ellipse = |a: f64, b: f64| Curve3::Ellipse(geom::Ellipse::new(frame, a, b));
+    let circle = |r: f64| Curve3::Circle(geom::Circle::new(frame, r));
+    let (rho, squash) = (0.8, 0.8 - 0.25 * zero());
+    let f = Interval::from_f64;
+    let certify = |carrier: &Curve3<f64>| {
+        let (t0, t1) = (0.3, 2.5);
+        let at_f64 = EdgeCurve::certify(
+            EdgeCurveSpec {
+                description: EdgeDescriptionSpec::chart(key),
+                carrier: carrier.clone(),
+                param_start: t0,
+                param_end: t1,
+            },
+            carrier.eval(t0),
+            carrier.eval(t1),
+            |k| surfaces.get(k).cloned(),
+            geom_core::test_support::fixture_lever(1.0),
+            band(),
+            crate::NurbsLane::certified(),
+        )
+        .map(|_| ());
+        let lifted = carrier.map_scalar(f);
+        let at_interval = EdgeCurve::certify(
+            EdgeCurveSpec {
+                description: EdgeDescriptionSpec::chart(key),
+                carrier: lifted.clone(),
+                param_start: f(t0),
+                param_end: f(t1),
+            },
+            lifted.eval(f(t0)),
+            lifted.eval(f(t1)),
+            |k| surfaces.get(k).map(|s| s.map_scalar(f)),
+            geom_core::test_support::fixture_lever(f(1.0)),
+            band(),
+            crate::NurbsLane::certified(),
+        )
+        .map(|_| ());
+        [("f64", at_f64), ("Interval", at_interval)]
+    };
+    for (lane, got) in certify(&ellipse(rho, squash)) {
+        assert!(
+            got.is_ok(),
+            "the positive spelling certifies ({lane}): {got:?}"
+        );
+    }
+    let doors = [
+        (ReadAt::Run(Reading::Build), geom_core::KERNEL_DEFECT_ENDING),
+        (
+            ReadAt::Run(Reading::AtRest),
+            geom_core::KERNEL_OR_FILE_DEFECT_ENDING,
+        ),
+        (
+            ReadAt::File(geom_core::FileCoincidence::new(1e-6)),
+            geom_core::DAMAGED_FILE_ENDING,
+        ),
+    ];
+    for (what, carrier) in [
+        ("the first semi-axis negative", ellipse(-rho, squash)),
+        ("the second negative", ellipse(rho, -squash)),
+        ("both negative", ellipse(-rho, -squash)),
+        ("a circle of negative radius", circle(-rho)),
+        ("a circle of zero radius", circle(0.0)),
+    ] {
+        for (lane, got) in certify(&carrier) {
+            let Err(err @ CertifyError::SemiAxisNotPositive { .. }) = &got else {
+                panic!("{what} ({lane}): refused as a semi-axis not positive: {got:?}")
+            };
+            for (at, culprit) in doors {
+                assert_eq!(
+                    err.ending(at).as_deref(),
+                    Some(culprit),
+                    "{what} ({lane}) at {at:?}"
+                );
+            }
+        }
     }
 }

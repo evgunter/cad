@@ -1086,22 +1086,6 @@ pub struct ConicHarmonics<T> {
     pub floor: T,
 }
 
-/// The larger of the conic's semi-axes' MAGNITUDES, the reach its
-/// harmonic part's rounding is charged at: [`Conic::speed_hi`] is the
-/// larger signed semi-axis, which under-reads a negative one.
-fn semi_reach<T: Real>(conic: &dyn Conic<T>) -> T {
-    let (a, b) = conic.semi_axes();
-    #[cfg(test)]
-    if crate::pcurve_cache::mutants::semi_reach_signed() {
-        return conic.speed_hi();
-    }
-    #[cfg(test)]
-    if crate::pcurve_cache::mutants::charge_circular() {
-        return a.abs();
-    }
-    a.abs().max(b.abs())
-}
-
 /// The quadric arm of [`ConicHarmonics`]: `perp` is the surface's `⊥`.
 fn quadric_harmonics<T: Real>(
     conic: &dyn Conic<T>,
@@ -1131,7 +1115,7 @@ fn quadric_harmonics<T: Real>(
         s1: two * b * e.dot(vp) / per,
         c2: (aa - c2_bb) * half / per,
         s2: a * b * up.dot(vp) / per,
-        terms: (d.norm() + semi_reach(conic)).powi(2) + r.powi(2),
+        terms: (d.norm() + conic.speed_hi()).powi(2) + r.powi(2),
         per,
         floor: T::one(),
     }
@@ -1230,7 +1214,7 @@ pub fn conic_cone_harmonics<T: Real>(
         (hu.powi(2) - c2_hv.powi(2)) * half,
         hu * hv,
     ];
-    let reach_m = d.norm() + semi_reach(conic);
+    let reach_m = d.norm() + conic.speed_hi();
     let pad = T::from_f64(CEILING_PAD);
     let per = reach_m * pad;
     // The form's coefficients are `cos²α` times the wall's, built from
@@ -1414,7 +1398,7 @@ pub(crate) fn conic_axis_distance_floor<T: Real>(
         perp(conic.frame().v_ref()),
     );
     let (aa, bb) = (a.powi(2) * up.norm_squared(), b.powi(2) * vp.norm_squared());
-    let terms = (d.norm() + semi_reach(conic)).powi(2);
+    let terms = (d.norm() + conic.speed_hi()).powi(2);
     let near_sq = e.norm_squared() + (aa + bb) * half
         - harmonic_sup_scalar(two * a * e.dot(up), two * b * e.dot(vp))
         - harmonic_sup_scalar((aa - bb) * half, a * b * up.dot(vp))

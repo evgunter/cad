@@ -119,7 +119,10 @@ pub trait Conic<T: Real>: core::fmt::Debug {
     fn frame(&self) -> &Frame<T>;
 
     /// `(semi_u, semi_v)` in stored order: a circle's are its radius
-    /// twice.
+    /// twice. Both are positive: every door builds them so, and the edge
+    /// certificate refuses a record that stores one at or below zero
+    /// (`geom_brep::CertifyError::SemiAxisNotPositive`), so the speed
+    /// readers below read them as lengths, unsigned.
     fn semi_axes(&self) -> (T, T);
 
     /// The point at `theta`.
@@ -143,11 +146,12 @@ pub trait Conic<T: Real>: core::fmt::Debug {
     /// centre's ray (scaled per axis on an ellipse) otherwise.
     fn azimuth(&self, p: Point3<T>) -> Azimuth<T>;
 
-    /// The least speed `|P′|` over the carrier: the smaller semi-axis.
+    /// The least speed `|P′|` over the carrier: the smaller semi-axis
+    /// (positive, [`Self::semi_axes`]).
     fn speed_lo(&self) -> T;
 
     /// The greatest speed `|P′|` over the carrier, and a bound on `|P″|`:
-    /// the larger semi-axis.
+    /// the larger semi-axis (positive, [`Self::semi_axes`]).
     fn speed_hi(&self) -> T;
 
     /// The speed `|P′(θ)|` at `theta`, held to

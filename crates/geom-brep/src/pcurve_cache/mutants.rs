@@ -47,7 +47,7 @@ pub(super) const SITES: [&str; 35] = [
     "form-uncharged",
     "lane-envelope-bound",
     "cone-terms-unprojected",
-    "semi-reach-signed",
+    "semi-axis-unchecked",
     "charge-circular",
     "ellipse-term-dropped",
     "ruling-per-parameter",
@@ -313,12 +313,12 @@ pub(crate) fn cone_terms_unprojected() -> bool {
     on("cone-terms-unprojected")
 }
 
-/// A conic's harmonic reach read off its stored semi-axes signed
-/// ([`geom::Conic::speed_hi`]), not their magnitudes: the charge
-/// under-reads a conic stored with a negative semi-axis (its rows are
-/// `ellipse_lane_rows`).
-pub(crate) fn semi_reach_signed() -> bool {
-    on("semi-reach-signed")
+/// The edge certificate's semi-axis check skipped: a conic stored with
+/// a semi-axis that is not positive reaches the span meter, which ends
+/// it as a span that does not run forward (its row is
+/// `ellipse_lane_rows::a_conic_stored_with_a_semi_axis_not_positive_is_a_defect`).
+pub(crate) fn semi_axis_unchecked() -> bool {
+    on("semi-axis-unchecked")
 }
 
 /// A conic's charge read as a circle's, `|a| = |b|`: the reach and the
