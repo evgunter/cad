@@ -279,7 +279,7 @@ of them is a defect.
 | Location | a placement | [placement] |
 | A pose's symmetry and a mate's fold | one `Subgroup` type | [variables.poses] |
 | A coincidence decided from values | recorded at the one coincidence door | [coincidence] |
-| Whether two surface records are one surface | the act that decided their coincidence, which leaves their faces on one record | [coincidence.door] |
+| Whether faces lie on one surface | the record they wear; the act that decided their coincidence reads its verdict over the faces it decided and the faces it moves, closed under same-record adjacency, and leaves them on one record | [coincidence.door] |
 | Whether a coincidence is structural | that door, and nowhere else | [coincidence.structural] |
 | A value authored several ways | a family of forms lowering through one reading | [recipe.forms] |
 | Which version of a document a reference means | its content pin | [assemblies.pins] |
@@ -523,7 +523,12 @@ with its lever arm a `Lever` from one of its sources (`crates/geom-core/README.m
 angle displaces the geometry it governs — 1/κ_rel for tangency, the
 distance of each face's own points from the other's carrier for
 parallelism, the session-box extent as the conservative universal arm
-only where no such geometry is in hand. ε ≈ 1e-9 m gives micron-to-kilometer coverage with ~4 orders of
+only where no such geometry is in hand. A face's measure reads its
+surface over the face alone: a planar face contributes its boundary's
+flux about a point of the face, and a carrier datum the kind's symmetry
+forgets (a plane's origin, a cylinder's origin along its axis) enters no
+face's term at a lever beyond the face; the same re-anchoring serves
+every reading over a face, at every scalar. ε ≈ 1e-9 m gives micron-to-kilometer coverage with ~4 orders of
 f64 headroom at km scale. Import does not motivate loosening ε ([import]).
 
 
@@ -1702,10 +1707,17 @@ forms is only ever a cache generated from the symbolic evaluation and
 checked against it, never written by hand. A reading that only chooses
 a cell's form (a lane choice, [verdicts.consumers]) infers no
 coincidence and records nothing; a door that makes cells one on a
-class it read (the boolean's edge join) records it. A verdict that two surface records are one
-carrier ends in one surface record: the act that decided it leaves every
-face on the other record re-pointed onto the kept one, and the row
-records why. Two distinct records at rest are two surfaces.
+class it read (the boolean's edge join) records it. A verdict that faces lie on one carrier
+ends with them on one surface record. The act that decided it re-points
+onto the kept record each face it decided that wears the other, every
+fragment of them, and every face joined to one of these by an edge
+across which the two wear one record; it reads its verdict once, over
+the faces it decided and every face it moves, and the row records why.
+A verdict decided from values holds over the extent it was read on, so
+it moves no other face of either record; a structural one is one record
+already and reads no extent. The kept record is the one that alone is
+also worn by faces the verdict did not decide, else the first-written
+operand's. Two distinct records at rest are two surfaces.
 
 **Booleans.** `[coincidence.booleans]` The booleans are the four
 operators ([operations.operators]), and a boolean's operands must
@@ -1724,10 +1736,9 @@ of `A` both operands carry are glued structurally.
 
 Where its verdicts decide Zero, a union, a cut or a meet glues where
 an arm exists for the carrier pair ([topology]'s frontier), keeping
-one fixed operand's description for a merged face (which one is
-arbitrary; the kernel keeps the first-written operand's, the simplest
-fixed rule, where a rule that read values would choose by rounding
-between two descriptions within the band of each other), and an assemble
+one fixed operand's description for a merged face (the record
+that alone is also worn by faces the verdict did not decide, else the
+first-written operand's: fixed rules that read keys, never values), and an assemble
 records the touch ([topology.records]); each refuses what falls in the
 sliver band. Its result holds no in-band pair, a pair of result cells
 whose one census number lies in band. A solid's only shell is its outer
