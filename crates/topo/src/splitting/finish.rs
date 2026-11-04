@@ -2078,7 +2078,7 @@ fn whole_body_side<T: Decide>(
             Reading::Edge(edge, carrier, (t0, t1)) => {
                 let mid = carrier.eval(t0 + (t1 - t0) * T::from_f64(0.5));
                 let offset =
-                    crate::sector_shape::plane_offset(plane.origin, plane.normal.get(), mid);
+                    geom_brep::sector_shape::plane_offset(plane.origin, plane.normal.get(), mid);
                 Rung::decide(
                     "split_edge_side",
                     geom_core::Margin::of(offset),

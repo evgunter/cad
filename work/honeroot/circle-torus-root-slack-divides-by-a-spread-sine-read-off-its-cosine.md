@@ -15,7 +15,7 @@ moves is the owner's to say.
 
 ## What happens
 
-`parallel_axes_roots` (`topo/src/boolean/circle_torus.rs`) places the
+`parallel_axes_roots` (`geom-brep/src/curve_face/circle_torus.rs`) places the
 roots at `spread = acos c` and meters their slack as
 `radius·(charge/slope + rounding/sin_spread)`, with
 `sin_spread = √(1 − c²)` (`circle_torus.rs:609`) and the same

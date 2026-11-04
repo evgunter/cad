@@ -1,7 +1,7 @@
 ---
 id: dead-result-and-option-wraps-in-quad-lane-and-circle-roots
 kind: issue
-title: props::quad_lane's chan and translated_curve, and boolean::circle_roots' certified_subdivision, wrap an answer no exit leaves unfilled
+title: props::quad_lane's chan and translated_curve, and geom_brep::curve_face::circle_roots' certified_subdivision, wrap an answer no exit leaves unfilled
 status: open
 opened: 2026-10-04
 priority: P4
@@ -19,7 +19,7 @@ That PR fixed the five hits its own diff made (`boolean/ops.rs`'s
   exit fills with `Ok`.
 - `crates/topo/src/props/quad_lane.rs`, `translated_curve`: returns an
   `Option` every exit fills with `Some`.
-- `crates/topo/src/boolean/circle_roots.rs`, `certified_subdivision`
+- `crates/geom-brep/src/curve_face/circle_roots.rs`, `certified_subdivision`
   (CLEAVE/HONE ground): returns a `Result` every exit fills with `Ok`.
 
 A wrap no exit uses makes each caller handle a refusal that cannot
