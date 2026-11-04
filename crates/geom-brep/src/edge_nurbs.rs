@@ -334,6 +334,10 @@ fn exact_arc_rim_words(iso: Option<crate::pcurve_cache::PcurveCheck>) -> &'stati
             "its exact image along a boundary row of its wall misses it by more than the \
              tolerance at a sample"
         }
+        Some(C::ChartIncidence) => {
+            "its exact boundary-row image's certificate reads it off its wall (a sample's \
+             distance from the wall's control hulls is past the tolerance)"
+        }
         Some(C::Envelope | C::EnvelopeTerm(_)) => {
             "the bound on its exact boundary-row image's miss between samples exceeds the \
              tolerance"
@@ -349,7 +353,6 @@ fn exact_arc_rim_words(iso: Option<crate::pcurve_cache::PcurveCheck>) -> &'stati
             | C::ImageIdentity
             | C::AzimuthPeriod
             | C::TubePeriod
-            | C::ChartIncidence
             | C::Sector,
         ) => "its exact boundary-row image's certificate refused it",
     }

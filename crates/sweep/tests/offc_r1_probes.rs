@@ -80,6 +80,28 @@ const TWISTED_REATTACH_RESIDUAL: f64 = 2.847541864867139e-11;
 /// difference in silence the day they part.
 const TWISTED_REATTACH_RESIDUAL_NEG: f64 = 2.847541864867139e-11;
 
+/// **The door's measured threshold** for `d = +D`: the least ε at which
+/// `EdgeCurve::certify` takes every re-attached edge, by bisection. The
+/// door reads the carrier's incidence on its wall before the residual
+/// (D3), and that read shows a sample on the wall only at a chart point
+/// its walk finds within the zero band, so the door certifies a little
+/// above [`TWISTED_REATTACH_RESIDUAL`], never below it; between the two
+/// it ends in the read's lever. Pinned bit-exactly as the residual is.
+const TWISTED_REATTACH_DOOR: f64 = 2.8487866616551874e-11;
+
+/// The same for `d = −D`, where the walk finds its point at the
+/// residual's own threshold.
+const TWISTED_REATTACH_DOOR_NEG: f64 = 2.847541864867139e-11;
+
+/// The door's measured threshold for the sign in play.
+fn door_for(d: f64) -> f64 {
+    if d < 0.0 {
+        TWISTED_REATTACH_DOOR_NEG
+    } else {
+        TWISTED_REATTACH_DOOR
+    }
+}
+
 /// The measured threshold for the sign in play.
 fn residual_for(d: f64) -> f64 {
     if d < 0.0 {
@@ -229,9 +251,11 @@ fn the_twisted_walls_are_not_planar() {
 /// assumed**: this row runs at every ε and asserts the same constant,
 /// and the two arms reach it by different routes — below the threshold
 /// from the replica's direct measurement, above it from a bisection
-/// driven by the kernel's own `EdgeCurve::certify`. Both answered
-/// `2.847541864867139e-11` (bits `0x3dbf4f1e28342ac2`) for `d = +D` at
-/// ε = 1e-12 and ε = 1e-9, three orders apart, bit for bit. That agreement is
+/// driven by the kernel's own `EdgeCurve::certify`. The replica answers
+/// `2.847541864867139e-11` (bits `0x3dbf4f1e28342ac2`) for both signs;
+/// the door, which reads the carrier's incidence first, answers its own
+/// [`TWISTED_REATTACH_DOOR`] at or just above it, at ε = 1e-12 and
+/// ε = 1e-9, three orders apart, bit for bit. That agreement is
 /// what says the quantity is construction arithmetic — a fixed number
 /// of metres compared against ε — rather than something the band
 /// moves, which is the property the #921 pattern needs and would not
@@ -242,6 +266,10 @@ fn the_twisted_reattach_threshold_is_where_it_was_measured() {
         let expected = residual_for(d);
         let mut body = twisted_loft(0.05);
         let outcome = try_approx_walls(&mut body, d, ENGINE_FIT_TARGET);
+        let expected = match &outcome {
+            Ok(_) => door_for(d),
+            Err(_) => expected,
+        };
         let measured = match &outcome {
             // Above the threshold the surgery completed, so the number
             // is recovered from the KERNEL's certifier by bisection —
@@ -277,6 +305,12 @@ fn the_twisted_reattach_threshold_is_where_it_was_measured() {
         // surgery COMPLETED — below the threshold the edges were never
         // attached, so there is nothing to certify either side of.
         if outcome.is_ok() {
+            let residual = residual_for(d);
+            assert!(
+                residual <= expected && expected <= residual * 1.001,
+                "the door's threshold {expected:e} sits at or just above the residual's \
+                 {residual:e}"
+            );
             for (e, _) in body.edges() {
                 assert!(
                     reattach_certifies_at(&body, e, expected * 1.001),
@@ -286,7 +320,7 @@ fn the_twisted_reattach_threshold_is_where_it_was_measured() {
             }
             assert!(
                 body.edges()
-                    .any(|(e, _)| !reattach_certifies_at(&body, e, expected * 0.999)),
+                    .any(|(e, _)| !reattach_certifies_at(&body, e, residual * 0.999)),
                 "some edge must refuse just below the measured threshold — the replica of \
                  the iso arm has drifted from the kernel's"
             );

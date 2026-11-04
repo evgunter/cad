@@ -488,8 +488,9 @@ fn a_curved_carriers_image_bowed_between_samples_refuses_at_the_hull_at_every_sc
 
 /// **A spline image short of the edge refuses.** The bound is over the
 /// image's domain, and a spline carrier evaluated past its knot domain
-/// clamps, so nothing else notices an edge interval that overruns it:
-/// check 4 refuses it, at either end, and certifies one inside.
+/// extends its end span, off the bounded wall: the door's incidence read
+/// ends an edge interval that overruns it, at either end, and certifies
+/// one inside.
 #[test]
 fn a_spline_image_short_of_the_edge_refuses() {
     for ((a, b), certifies) in [
@@ -510,7 +511,7 @@ fn a_spline_image_short_of_the_edge_refuses() {
             assert!(got.is_ok(), "[{a}, {b}] lies in the image: {got:?}");
         } else {
             assert!(
-                matches!(got, Err(PcurveCertifyError::FittedCertificate { .. })),
+                matches!(got, Err(PcurveCertifyError::CarrierOffChart { .. })),
                 "[{a}, {b}] overruns the image's [0, 1]: {got:?}"
             );
         }

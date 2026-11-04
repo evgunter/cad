@@ -2698,13 +2698,15 @@ impl PcurveCheck {
     /// through that image ([`crate::plane_nurbs_incidence`]):
     /// [`Self::of_fitted_limb`] read back. The map residual is
     /// `|S(P(t)) − C(t)|` at a point, [`SsiLimb::HullValueChart`]'s
-    /// quantity, and the envelope (or one of its terms) bounds it over
+    /// quantity, and the chart's incidence read bounds that from below
+    /// (a sample's distance from the chart), so it restates the same
+    /// limb; the envelope (or one of its terms) bounds it over
     /// the span, [`SsiLimb::HullSupChart`]'s. `None` for a check that
     /// restates no limb.
     #[must_use]
     pub fn incidence_limb(self) -> Option<SsiLimb> {
         match self {
-            Self::MapResidual => Some(SsiLimb::HullValueChart),
+            Self::MapResidual | Self::ChartIncidence => Some(SsiLimb::HullValueChart),
             Self::Envelope | Self::EnvelopeTerm(_) => Some(SsiLimb::HullSupChart),
             Self::ParamSpan
             | Self::ChartWinding
@@ -2713,7 +2715,6 @@ impl PcurveCheck {
             | Self::ImageIdentity
             | Self::AzimuthPeriod
             | Self::TubePeriod
-            | Self::ChartIncidence
             | Self::Sector => None,
         }
     }
@@ -4651,7 +4652,10 @@ impl<T: Decide> PcurveCache<T> {
     /// (`docs/PCURVE-UNIFY-DESIGN.md` U2) certifies through
     /// [`PcurveCache::certify_general`] beside this door.
     ///
-    /// Same four checks in the same fixed order as
+    /// The carrier's incidence on the chart is read first, as
+    /// [`PcurveCache::certify`] reads it, so a carrier off its wall ends
+    /// as that read and never as the image's own bound. Then the same
+    /// four checks in the same fixed order as
     /// [`PcurveCache::certify`], with two differences that are the
     /// whole content of the lane: check 1 admits any carrier on a spline
     /// chart, and check 4 is the hull bound on `|S(P(t)) − C(t)|` over
@@ -4673,6 +4677,7 @@ impl<T: Decide> PcurveCache<T> {
         band: Band,
         lane: crate::FittedLane<T>,
     ) -> Result<Self, PcurveCertifyError> {
+        read_shown(carrier, t0, t1, surface, band)?;
         let certificate = run_fitted_checks(&image, t0, t1, carrier, surface, band, Some(lane))?;
         Ok(Self {
             pcurve: Pcurve::Fitted(image),
@@ -4686,6 +4691,9 @@ impl<T: Decide> PcurveCache<T> {
     /// arm) at the FITTED GRADE: the identical four checks in the
     /// identical order as [`PcurveCache::certify_fitted`], against the
     /// identical chart, producing the identical certificate.
+    ///
+    /// The carrier's incidence on the chart is read first, as at
+    /// [`PcurveCache::certify_fitted`].
     ///
     /// The two doors are separate because their ENTRY requirements
     /// differ, not their statements: `certify_fitted` is entered by a
@@ -4730,6 +4738,7 @@ impl<T: Decide> PcurveCache<T> {
         band: Band,
         lane: Option<crate::FittedLane<T>>,
     ) -> Result<Self, PcurveCertifyError> {
+        read_shown(carrier, t0, t1, surface, band)?;
         let certificate = run_fitted_checks(&image, t0, t1, carrier, surface, band, lane)?;
         Ok(Self {
             pcurve: Pcurve::General(image),
@@ -9351,16 +9360,15 @@ fn farthest_over_span<T: Real>(
 /// whether `carrier` lies on `surface`'s chart over `[t0, t1]`, read as
 /// [`chart_pcurve`] reads it before it images, in the carrier's own
 /// frame and less its rounding, so a carrier off its face ends as that
-/// read and never as another decider's arithmetic. On a spline chart
-/// this door passes every carrier unread: the spline chart's read is
-/// [`read_edge_incidence`]'s, which this door's callers do not take yet
-/// (`work/pcert/a-spline-charts-certificate-door-reads-no-incidence-so-an-off-carrier-ends-as-its-images-bound.md`).
+/// read and never as another decider's arithmetic. On a spline chart, a
+/// bounded patch, the read is [`read_edge_incidence`]'s, over the span.
 ///
 /// # Errors
 ///
 /// The read's refusal: [`PcurveCertifyError::CarrierOffChart`] for a
 /// definite miss or a pose, [`PcurveCertifyError::Escalated`]
-/// ([`PcurveCheck::ChartIncidence`]) in band.
+/// ([`PcurveCheck::ChartIncidence`]) in band or unsettled, and on a
+/// spline chart as [`read_edge_incidence`].
 pub fn read_incidence<T: Decide>(
     carrier: &Curve3<T>,
     t0: T,
@@ -9375,8 +9383,8 @@ pub fn read_incidence<T: Decide>(
 /// test took it ([`incidence::Incident`]): the one read of the carrier on
 /// its chart that a certification carries to check 4's re-derivation
 /// (`Placement::shown`). `None` where no closed-form test reads (a
-/// spline chart, or a spline carrier's own test), which has no class
-/// arm to carry it to.
+/// spline chart's hull read, or a spline carrier's own test), which has
+/// no class arm to carry it to.
 fn read_shown<T: Decide>(
     carrier: &Curve3<T>,
     t0: T,
@@ -9384,8 +9392,12 @@ fn read_shown<T: Decide>(
     surface: &Surface<T>,
     band: Band,
 ) -> Result<Option<incidence::Incident>, PcurveCertifyError> {
-    if matches!(surface, Surface::Nurbs(_) | Surface::Approx(_)) {
-        return Ok(None);
+    if surface.spline_chart().is_some() {
+        #[cfg(test)]
+        if mutants::spline_shown_unread() {
+            return Ok(None);
+        }
+        return read_edge_incidence(carrier, t0, t1, surface, band).map(|()| None);
     }
     if let Curve3::Nurbs(net) = carrier {
         return match net_incidence(net, Some((t0, t1)), surface, band)? {
@@ -9451,7 +9463,8 @@ pub fn read_edge_incidence<T: Decide>(
 /// slid to its foot nearest the point) and less its rounding, so a
 /// corner far from its plane's anchor is read on where it lies on, at
 /// every distance. `topo`'s planar tier reads a flat face's corners here.
-/// On a spline chart this door passes the point unread.
+/// On a spline chart the point is read by the chart's control hulls
+/// (`spline_incidence`), walked once.
 ///
 /// # Errors
 ///
@@ -9463,9 +9476,6 @@ pub fn read_point_incidence<T: Decide>(
     surface: &Surface<T>,
     band: Band,
 ) -> Result<(), PcurveCertifyError> {
-    if matches!(surface, Surface::Nurbs(_) | Surface::Approx(_)) {
-        return Ok(());
-    }
     match incidence::point_incident(point, surface, band)? {
         Incidence::On => Ok(()),
         Incidence::Off(margin) => Err(OffChart(
@@ -11448,13 +11458,29 @@ mod incidence {
     }
 
     /// **The chart's incidence test of one point** ([`super::read_point_incidence`]):
-    /// the point's distance from the analytic chart, decided by
-    /// [`incidence_over_span`] in the point's own frame ([`anchored`]).
+    /// the point's distance from an analytic chart, decided by
+    /// [`incidence_over_span`] in the point's own frame ([`anchored`]);
+    /// from a spline chart, by its control hulls (`spline_incidence`).
     pub(super) fn point_incident<T: Decide>(
         point: geom_core::Point3<T>,
         surface: &Surface<T>,
         band: Band,
     ) -> Result<Incidence, PcurveCertifyError> {
+        if let Some(chart) = surface.spline_chart() {
+            if surface.is_placeholder_chart() {
+                return Err(PcurveCertifyError::PlaceholderChart);
+            }
+            #[cfg(test)]
+            if super::mutants::spline_shown_unread() {
+                return Ok(Incidence::On);
+            }
+            return super::spline_incidence::spline_point_incidence(
+                "pcurve_spline_point_incident",
+                chart,
+                point,
+                band,
+            );
+        }
         let probe = point_probe(point);
         let (moved, slack) = match anchored(&probe, surface, (T::zero(), T::zero())) {
             Some((_, moved, slack, _)) => (moved, slack),
@@ -11965,6 +11991,9 @@ mod placement_rows;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::panic)]
 mod radial_pair_rows;
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod spline_door_rows;
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -14033,20 +14062,26 @@ mod tests {
     /// The domain gate holds: an image whose moving channel leaves the
     /// column's knot domain refuses by name — the hull bound holds on
     /// the domain only, even though the straight ruling EXTRAPOLATES
-    /// exactly (the pointwise schedule alone would pass this).
+    /// exactly (the pointwise schedule alone would pass this). At the
+    /// door the carrier past the patch's end is read off the bounded
+    /// patch first, so the gate is read behind the door.
     #[test]
     fn an_image_leaving_the_column_domain_refuses() {
-        let got = PcurveCache::certify(
-            Pcurve::IsoLine {
-                p0: Point2::new(0.0, 0.0),
-                pl: Vec2::new(0.0, 1.0),
-            },
+        let carrier = ruling_line(Point3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
+        let (p0, pl) = (Point2::new(0.0, 0.0), Vec2::new(0.0, 1.0));
+        let at_door = PcurveCache::certify(
+            Pcurve::IsoLine { p0, pl },
             0.0,
             1.5,
-            &ruling_line(Point3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0)),
+            &carrier,
             &ruled_wall(),
             band(),
         );
+        assert!(
+            matches!(at_door, Err(PcurveCertifyError::CarrierOffChart { .. })),
+            "a ruling past the patch's end is off the patch: {at_door:?}"
+        );
+        let got = run_iso_checks(p0, pl, 0.0, 1.5, &carrier, &ruled_wall(), band());
         match got {
             Err(PcurveCertifyError::IsoUnsupported { what }) => {
                 assert!(
