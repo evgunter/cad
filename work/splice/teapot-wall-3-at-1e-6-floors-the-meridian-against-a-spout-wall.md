@@ -2,10 +2,11 @@
 id: teapot-wall-3-at-1e-6-floors-the-meridian-against-a-spout-wall
 kind: issue
 title: Teapot wall 3 at ε 1e-6 refuses SplineCrossingUnsettled { why: Floor }: the belly meridian's interior walk against a spout NURBS wall floors one wall before the held pierce
-status: open
+status: dispatched
 opened: 2026-11-03
 priority: P0
 cost: M
+branch: splice/teapot-1e6-floor
 ---
 
 
