@@ -1586,6 +1586,54 @@ Flagged, NOT fixed here (dispositions):
   Their K samples still reach the sink under the two names above. Not a
   `decide_flagged` site; `LEDGER_FLAGGED_SITES` does not move.
 
+- **F32** (added by ONECOPY's foot-certificate unit) `curve_foot_polish`
+  — `geom/src/curves/on_carrier.rs` `smaller`, the polish's tie-break
+  between two candidate feet on an ellipse, a spiric oval or a spline:
+  `b − a`, the difference of two gaps (metres). It keeps the best of a
+  spline's seeds and of its polished ends, and it keeps or stops each
+  Gauss–Newton step. An undecided pick keeps the candidate already
+  held, at `f64` and at `Interval` alike, and two tied candidates can
+  lie on different branches of a spline: the pick moves the foot.
+  What keeps it off the logged doors is that **no reader can rest on
+  the pick**, by construction:
+  - A foot has no bare parameter. The point's parameter is
+    `OnCarrier::On`'s, certified by a gap in the band's zero
+    (`curve_carrier_gap`, logged), or `Foot::nearest`'s, certified by
+    the kind (a line, a circle, which have no polish). `Foot::seed` is
+    the parameter as found, for a further search or a bound, and its
+    contract certifies nothing.
+  - What `On` certifies is the point up to the band's zero, with the
+    branch only where the carrier's branches are decided apart. Where
+    they are, a pick on the wrong branch has a gap past the band and
+    costs `on_carrier`'s own escalation or refusal, never a wrong
+    answer
+    (`geom::curves::on_carrier::rows::a_tie_across_a_hairpins_branches_is_the_certificates_to_read`
+    pins the box ladder). Where they are not, a carrier within the zero
+    of itself near the point, `On` holds on either branch: at
+    `Interval` a box of ±1e-10 about a hairpin 3e-10 wide reads `On` at
+    the seed's branch with nothing logged
+    (`…::a_hairpin_closer_than_the_band_certifies_on_at_the_seeds_branch_at_interval`).
+    Narrowing does part the branches there: the review's probe reads
+    `On { t ≈ 0.08 }` at a point box and `On { t ≈ 0.92 }` from ±1e-11
+    up. So in this regime the logged tie was the driver's one cue to
+    refine, and unlogged, the driver loses it. The loss is accepted here
+    because the cue was never the certificate's: what is missing is a
+    reading that the carrier's branches lie apart near the point. That
+    is filed as `a-carriers-branches-within-the-band-of-each-other`.
+  - Every verdict a foot gives is read and logged in `Foot::on_carrier`
+    (`curve_carrier_gap`, `curve_carrier_clear`,
+    `curve_carrier_piece_clear`, `curve_carrier_straddle`).
+  - Logged, the pick escalated at `Interval` whatever the box: on a
+    census of 240 feet (PR 6483's review, not pinned by a test), 1 to 6
+    times per spline foot (at least 1), once per ellipse foot, never on
+    a circle (which has no polish). That is a standing cue to bisect
+    that `editor-core`'s `drive::log_read` reads as the leaf's verdict
+    and no box answers.
+
+  **Carried as `k_stats::check_unlogged(.., "F32")`**. Its K samples
+  still reach the sink under `curve_foot_polish`. Not a `decide_flagged`
+  site; `LEDGER_FLAGGED_SITES` does not move.
+
 - **F33** (added by ONECOPY's meet-pose unit) `curve_pair_pose_across`
   — `geom-brep/src/curve_pair/pose.rs` `conic_conic`: which of two
   conics, each crossing the other's plane, is read across it. The

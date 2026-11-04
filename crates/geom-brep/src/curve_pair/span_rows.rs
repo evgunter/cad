@@ -49,9 +49,9 @@ fn name(got: Result<Option<Hit<f64>>, geom::CarrierRefusal>) -> &'static str {
 }
 
 /// What a place reads as: its variant's name.
-fn place(got: Result<Place<f64>, geom::CarrierRefusal>) -> &'static str {
+fn place(got: Result<Place, geom::CarrierRefusal>) -> &'static str {
     match got {
-        Ok(Place::Inside { .. }) => "inside",
+        Ok(Place::Inside) => "inside",
         Ok(Place::End(_)) => "end",
         Ok(Place::Past) => "past",
         Err(_) => "escalated",
@@ -360,7 +360,7 @@ fn a_point_on_a_circles_axis_is_off_with_no_place_read() {
         Vec3::new(p(1.0), p(0.0), p(0.0)),
     );
     let centre = Point3::new(p(0.0), p(0.0), p(1.0));
-    let antipode = c.foot(centre, p(4.0 * PI / 3.0)).t().0;
+    let antipode = c.foot(centre, p(4.0 * PI / 3.0)).nearest().unwrap().0;
     assert_eq!(
         antipode,
         7.0 * PI / 3.0,

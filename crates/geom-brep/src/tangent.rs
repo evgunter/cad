@@ -207,6 +207,8 @@ pub fn tangent_certificate_lane<T: Real>(
             Surface::Plane { .. } | Surface::Cylinder { .. } | Surface::Sphere { .. }
         )
     };
+    // A spindle sheet is left out: no door mints a tangent edge on one,
+    // its pair sections being `intersect::route`'s no-lane row.
     let round =
         |s: &Surface<T>| straight(s) || matches!(s, Surface::Torus { .. } | Surface::Cone { .. });
     match carrier {

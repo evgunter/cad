@@ -29,12 +29,25 @@
 //! the foot's gap is never worse than its seed's.
 //!
 //! **Nearest.** On a line and a circle the foot is the point's nearest
-//! point of the whole carrier ([`Foot::is_nearest`]). On an ellipse, a
+//! point of the whole carrier ([`Foot::nearest`]). On an ellipse, a
 //! spiric oval and a spline it is a polished stationary point, which may
 //! be a far branch's (a spline's hairpin, or a seed on the wrong side): a
 //! reading that rests on the foot being nearest — that the point lies off
 //! a span because its foot does — reads a certificate instead
 //! ([`Curve3::clear_of`]).
+//!
+//! **A foot has no bare parameter.** The point's parameter is read only
+//! where something certifies it: [`OnCarrier::On`] (a gap in the band's
+//! zero) or [`Foot::nearest`] (the kind). [`Foot::seed`] is the parameter
+//! as found, for a further search, and certifies nothing. `On` certifies
+//! the point up to the band's zero: the carrier passes within the zero of
+//! it at `t`. It certifies the branch too only where the carrier's
+//! branches are decided apart. A carrier that comes within the zero of
+//! itself near the point (a hairpin narrower than the zero) reads `On` on
+//! either branch, so a reader of the branch's own geometry (a tangent)
+//! rests on the carrier's branches being apart, not on `On`. No reader
+//! rests on which of two tied polish candidates was kept, and the
+//! polish's comparisons are a heuristic's, decided outside the log.
 //!
 //! **On the carrier** is decided on the foot's gap, zero in the band
 //! (`curve_carrier_gap`). **Off the carrier** is decided only on a lower
@@ -71,7 +84,7 @@
 //! escalates.
 
 use geom_core::bisect::{Step, bisect};
-use geom_core::k_stats::{decide, decide_reported, straddle};
+use geom_core::k_stats::{check_unlogged, decide, decide_reported, straddle};
 use geom_core::{
     Band, Decide, Decided, Indeterminate, Margin, MarginDiag, Point3, Real, Sign, SupSpeed, Vec3,
 };
@@ -106,22 +119,29 @@ impl<'c, T: Decide> Foot<'c, T> {
         self.q
     }
 
-    /// The carrier's parameter, as found: a closed carrier's is not
-    /// reduced to any branch.
-    pub fn t(&self) -> T {
+    /// **The parameter as found, certifying nothing**: a seed for a
+    /// further search of the carrier near the point, never the point's
+    /// parameter. Where two candidates tie, which one is kept is the
+    /// polish's choice, and the two can lie on different branches of a
+    /// spline. The point's parameter is [`OnCarrier::On`]'s or
+    /// [`Self::nearest`]'s. A closed carrier's is not reduced to any
+    /// branch.
+    pub fn seed(&self) -> T {
         self.t
+    }
+
+    /// **The parameter of the point's nearest point of the whole
+    /// carrier**, where the kind makes the foot that point (module docs:
+    /// a line, a circle); `None` on every other kind. A closed carrier's
+    /// is not reduced to any branch.
+    pub fn nearest(&self) -> Option<T> {
+        self.carrier.foot_is_nearest().then_some(self.t)
     }
 
     /// `|q − C(t)|`, an upper bound on the point's distance from the
     /// carrier: what [`Self::on_carrier`] decides `On` on.
     pub fn gap(&self) -> T {
         self.gap
-    }
-
-    /// **Whether the foot is the point's nearest point of the whole
-    /// carrier** ([`Curve3::foot_is_nearest`]).
-    pub fn is_nearest(&self) -> bool {
-        self.carrier.foot_is_nearest()
     }
 
     /// **Whether the point lies on the carrier** (module docs): on by the
@@ -133,14 +153,14 @@ impl<'c, T: Decide> Foot<'c, T> {
     /// [`CarrierRefusal`]: an escalation where neither decides, the lower
     /// bound in the band's zero and the gap past it straddling the band,
     /// or a spline's walk that cannot run.
-    pub fn on_carrier(&self, band: Band) -> Result<OnCarrier, CarrierRefusal> {
+    pub fn on_carrier(&self, band: Band) -> Result<OnCarrier<T>, CarrierRefusal> {
         let gap = decide_reported("curve_carrier_gap", Margin::of(self.gap), band);
         if let Ok(Decided {
             sign: Sign::Zero,
             margin,
         }) = gap
         {
-            return Ok(OnCarrier::On { margin });
+            return Ok(OnCarrier::On { t: self.t, margin });
         }
         let clear = match self.carrier.clearance(self.q) {
             Some(lower) => decide_reported("curve_carrier_clear", Margin::of(lower), band),
@@ -179,10 +199,13 @@ pub enum Clearance {
 
 /// Where [`Foot::on_carrier`] places a point.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub enum OnCarrier {
-    /// Within the band of the carrier at the foot; `margin` is the gap
-    /// reading's.
+pub enum OnCarrier<T> {
+    /// Within the band of the carrier at the foot `t`; `margin` is the
+    /// gap reading's.
     On {
+        /// The point's parameter: the foot's, certified by a gap in the
+        /// band's zero. A closed carrier's is not reduced to any branch.
+        t: T,
         /// The gap reading's margin.
         margin: MarginDiag,
     },
@@ -326,18 +349,22 @@ impl<T: Decide> Curve3<T> {
     /// the whole carrier** (module docs): on a line and a circle, where
     /// it is found in closed form. The one list of those kinds, matched
     /// exhaustively so a new kind decides here.
-    pub fn foot_is_nearest(&self) -> bool {
+    fn foot_is_nearest(&self) -> bool {
         match self {
             Self::Line(_) | Self::Circle(_) => true,
             Self::Ellipse(_) | Self::Spiric { .. } | Self::Nurbs(_) => false,
         }
     }
 
-    /// **`q`'s foot on the carrier where it is the nearest point of the
-    /// whole carrier** ([`Self::foot_is_nearest`], asked before the foot
-    /// is found); `None` on every other kind.
-    pub fn nearest_foot(&self, q: Point3<T>, near: T) -> Option<Foot<'_, T>> {
-        self.foot_is_nearest().then(|| self.foot(q, near))
+    /// **The parameter of `q`'s nearest point of the whole carrier**,
+    /// where the kind makes the foot that point: [`Foot::nearest`] of the
+    /// foot seeded at `near`, asked of the kind before the foot is found,
+    /// so a kind with none searches nothing. `None` on every other kind.
+    pub fn nearest(&self, q: Point3<T>, near: T) -> Option<T> {
+        if !self.foot_is_nearest() {
+            return None;
+        }
+        self.foot(q, near).nearest()
     }
 
     /// **`q`'s foot on the carrier** (module docs). `near` is a seed: the
@@ -430,7 +457,7 @@ impl<T: Decide> Curve3<T> {
         q: Point3<T>,
         near: T,
         band: Band,
-    ) -> Result<OnCarrier, CarrierRefusal> {
+    ) -> Result<OnCarrier<T>, CarrierRefusal> {
         self.foot(q, near).on_carrier(band)
     }
 
@@ -566,13 +593,14 @@ pub(super) fn height_and_radius<T: Decide>(w: Vec3<T>, axis: Vec3<T>) -> (T, T) 
     (h, (w - axis * h).norm())
 }
 
-/// Whether `a` is decided smaller than `b`, read on the least band so it
-/// takes the sign alone. Logged: an undecided pick keeps the candidate
-/// already held, and two tied candidates can lie on different branches
-/// of a spline, so the foot's parameter rests on it and a narrower box
-/// answers it.
+/// Whether `a` is decided smaller than `b`: a heuristic's choice, read
+/// on the least band so it takes the sign alone, and decided outside the
+/// log (ledger row F32). An undecided pick keeps the candidate already
+/// held, which can lie on another branch of a spline; no reader rests on
+/// which, since a foot's parameter is read only where something
+/// certifies it ([`OnCarrier::On`], [`Foot::nearest`]).
 fn smaller<T: Decide>(a: T, b: T) -> bool {
-    decide("curve_foot_polish", Margin::of(b - a), Band::least()) == Ok(Sign::Positive)
+    check_unlogged("curve_foot_polish", b - a, Band::least(), "F32") == Ok(Sign::Positive)
 }
 
 #[cfg(test)]
