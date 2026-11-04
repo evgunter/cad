@@ -8,6 +8,7 @@ priority: P1
 cost: H
 closed: 2026-11-04
 branch: band/knife-edge-blend
+pr: 6510
 ---
 
 Filed by the REFS orchestrator (2026-11-02), from Ev's questions on PR 6344 ("why do cusps and slits refuse? just not built yet?"; "if it's an exact rolling ball then it's not local anyway").
