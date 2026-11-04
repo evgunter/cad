@@ -424,13 +424,20 @@ fn a_split_document_read_by_port_round_trips_byte_identical() {
 /// changes the edge curve's `Debug` the digest feeds. With that `Debug`
 /// written in main's shape every row here reproduces main's value at all
 /// three ε rows, so nothing else moved.
+///
+/// RE-BLESSED, `part_select` and `kitchen_sink`, for a boolean that
+/// leaves each glued one-carrier pair's faces on one surface record
+/// (DESIGN `[coincidence.door]`): both documents union, and the moved
+/// faces' surface keys and senses feed the digest. The same value at all
+/// three ε rows; `m10_p_fence`'s f64 row and its ids-masked geometry row
+/// held, so no point moved.
 #[test]
 fn the_split_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
         ("cut_cylinder", 0x2e84_77bc_7b57_1d78_u64),
-        ("part_select", 0x8429_e064_94cc_634d),
-        ("kitchen_sink", 0x9343_0074_7900_50e2),
+        ("part_select", 0x125f_3f25_817d_7cf5),
+        ("kitchen_sink", 0x9c8b_db43_4b3c_bb02),
     ] {
         assert!(SPLIT_DOCUMENTS.contains(&name));
         let doc = corpus::documents()
