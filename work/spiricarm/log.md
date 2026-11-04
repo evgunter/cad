@@ -95,3 +95,10 @@
   - **The P1 cost row is re-measured in release:** 5.5–11.9 s per op. The march is the cost now.
   - **Stage 1 closed.** The orchestrator branch merge brought main's code in (PR 6486's `quad_lane` arm, auto-merged), so the head re-earns CI before merging.
 - 2026-11-04 — **PR 6478 merged** (stage 1 of the rotational lane). **Dispatched stage 2** as `the-rotational-lane-reads-the-sphere-chart` (H, dual). It closes the P0 projected-boundary row and teapot wall 2's current stop, and it takes the P2 junction-gap row, which the sphere's F enlarges.
+- 2026-11-04 — **Spindle stage 2 is up as PR 6497** (head `c7142ee577`, CI green). The football builds, as do the apple and the horn's needle tip.
+  - `SheetApex` retires. At tier 3, an apex at a vertex passes as a pole does.
+  - `edge_join::singular_at` now names the sheet. The second sweep pass found that it had hidden behind a `_ =>` catch-all.
+  - Props add a zero-length rim at an apex. `cert_spindle` is the new mesh certificate. Six mutants each turn their row red.
+  - **The horn snap:** a reach decided zero now stores an exact horn, `R = r`. I believe this is the kernel's practice at every kind boundary decided zero (the sphere's `R = 0`), and the reviewers are asked to falsify that.
+  - **Filed:** `a-football-revolved-part-way-refuses-at-its-cap-meridians-certificate` (P3). The reviewers are asked whether P3 is right for a user-drawable revolve that refuses with a kernel-defect message.
+  - **Dual dispatched** as two cloud sessions, with identical briefs (`spiricarm/review-6497-brief`, sha256 `ed4748b2…`).
