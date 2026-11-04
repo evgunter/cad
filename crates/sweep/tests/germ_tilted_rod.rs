@@ -290,7 +290,9 @@ fn stop_word(r: &Result<BooleanResult<f64>, BooleanError>, kind: Option<SurfaceK
 /// gate's volume on a torus face (the refused face's own surface read,
 /// `topo::boolean::refused_face_kind`; a face of another chart reads
 /// "… on a … face"), by the refusal's cause. The rod's chorded wall
-/// measures through the rotational lane, so no run stops on it.
+/// measures through the rotational lane, so no run stops on it. The
+/// steeper tilt's union is pinned by identity as well, at every ε row, in
+/// [`the_steeper_tilts_union_stops_by_identity`].
 // Pinned red at every ε row, each word on its owner's row:
 // "torus trim volume" and "ring volume" (a torus wall the chords trim,
 // or one left holding a ring) on

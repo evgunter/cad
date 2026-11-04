@@ -45,3 +45,20 @@ What to settle:
 
 A single row near an hour at one ε puts the nightly's 120-minute
 `full-suite` timeout within reach.
+
+## Evidence: one pose's union alone (2026-11-04)
+
+`germ_tilted_rod::the_steeper_tilts_union_stops_by_identity` runs only
+`h ∪ c` at β 0.7, at both spins. It was timed on the same session box,
+alone:
+
+| ε | time |
+|---|---|
+| 1e-9 | 92.5 s |
+| 1e-6 | 23.1 s |
+| 1e-12 | 680.3 s |
+
+So one union costs about 7× more at 1e-12 than at 1e-9, and about 4×
+more at 1e-9 than at 1e-6. The whole table runs 40 such cells. The cost
+grows with the band's tightness in the boolean itself, not in the test
+harness.
