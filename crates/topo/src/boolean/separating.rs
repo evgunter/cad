@@ -360,8 +360,8 @@ pub(crate) fn anchor<T: Decide>(body: &Body<T>, item: Item<T>) -> Option<Point3<
             points.push(edge_end_point(body, ek, e.he_minus, "he_minus"));
         }
         Item::Face(f) => {
-            let face = crate::live::proven(&body.faces, f, crate::entity::EntityId::Face);
-            for member in body.face_boundary_linked(f, face) {
+            let face = body.proven_face(f);
+            for member in face.boundary() {
                 points.push(match member {
                     BoundaryMember::Isolated { point, .. } => point,
                     BoundaryMember::Edge { ek, edge, .. } => {

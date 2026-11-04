@@ -532,8 +532,8 @@ pub(crate) fn offset_charts_together_staged<T: Decide + crate::props::AtRestPoli
         // turn is the identity and a corner walk would answer a
         // question the surface already settles.
         let first = *m.faces.first().ok_or(ReplaceFaceError::EmptyGroup)?;
-        let first_data = proven(&body.faces, first, EntityId::Face);
-        let d = match body.face_surface_linked(first, first_data) {
+        let first_data = body.proven_face(first);
+        let d = match first_data.surface() {
             Surface::Cone { .. } => {
                 crate::offset_nappe::group_nappe(body, &m.faces, band)?.turn(m.distance)
             }
@@ -541,16 +541,16 @@ pub(crate) fn offset_charts_together_staged<T: Decide + crate::props::AtRestPoli
         };
         for &face in &m.faces {
             let data = body
-                .get_face(face)
+                .passed_face(face)
                 .ok_or(ReplaceFaceError::StaleFace { face })?;
-            let old = body.face_surface_linked(face, data).clone();
+            let old = data.surface().clone();
             let new = geom_brep::offset_surface(&old, d, band)
                 .map_err(|error| ReplaceFaceError::Offset { face, error })?;
             let constraint = classify(face, &new, &frame, band)?;
             charts.push((
                 face,
                 MovedChart {
-                    old_key: data.surface,
+                    old_key: data.record().surface,
                     rigid: rigid_shift(&old, &new),
                     old,
                     new,
@@ -995,11 +995,12 @@ pub(crate) fn is_axial_in<T: Decide>(
         }
         Err(source) => return Err(source),
     };
-    for (face, f) in body.faces() {
+    for f in body.face_views() {
+        let face = f.key();
         if !scope.holds_face(face) {
             continue;
         }
-        let surface = body.face_surface_linked(face, f);
+        let surface = f.surface();
         match classify(face, surface, &frame, band) {
             Ok(_) => {}
             // The gate's own definite verdicts: this body is not
@@ -1027,11 +1028,12 @@ fn axial_frame<T: Real>(
         .map(|(k, _)| k)
         .ok_or(ReplaceFaceError::EmptyGroup)?;
     let mut seed: Option<(Point3<T>, Vec3<T>)> = None;
-    for (face, f) in body.faces() {
+    for f in body.face_views() {
+        let face = f.key();
         if !scope.holds_face(face) {
             continue;
         }
-        let found = match body.face_surface_linked(face, f) {
+        let found = match f.surface() {
             Surface::Cylinder { origin, axis, .. } => Some((*origin, axis.normalize())),
             Surface::Cone { apex, axis, .. } => Some((*apex, axis.normalize())),
             Surface::Sphere { center, axis, .. } => Some((*center, axis.normalize())),

@@ -201,9 +201,9 @@ pub(crate) fn offset_planes_together_staged<T: Decide + crate::props::AtRestPoli
     for m in moves {
         for &face in &m.faces {
             let data = body
-                .get_face(face)
+                .passed_face(face)
                 .ok_or(ReplaceFaceError::StaleFace { face })?;
-            let surface = body.face_surface_linked(face, data);
+            let surface = data.surface();
             let Surface::Plane { origin, normal, .. } = surface else {
                 return Err(ReplaceFaceError::TogetherNonPlanar {
                     face,
@@ -214,7 +214,7 @@ pub(crate) fn offset_planes_together_staged<T: Decide + crate::props::AtRestPoli
             planes.push((
                 face,
                 MovedPlane {
-                    old_key: data.surface,
+                    old_key: data.record().surface,
                     normal: *normal,
                     c: normal.dot(radius(*origin + delta)),
                     delta,
@@ -508,9 +508,8 @@ pub(crate) fn offset_planes_together_staged<T: Decide + crate::props::AtRestPoli
             return Err(ReplaceFaceError::EmptyGroup);
         };
         let p = plane_of(first).unwrap_or_else(|| unmoved_in_scope(first));
-        let face = proven(&work.faces, first, EntityId::Face);
-        let Surface::Plane { origin, u_ref, .. } = work.face_surface_linked(first, face).clone()
-        else {
+        let face = work.proven_face(first);
+        let Surface::Plane { origin, u_ref, .. } = face.surface().clone() else {
             unreachable!("{first:?}'s chart was read a plane in this call's plan phase")
         };
         charts.push(crate::replace_face::offset_rechart(
@@ -888,8 +887,8 @@ impl Scope {
                 for &face in &linked(&body.shells, shell, EntityId::Shell, holder, "shells").faces {
                     self.faces.insert(face, solid);
                     let holder = EntityId::Shell(shell);
-                    let f = linked(&body.faces, face, EntityId::Face, holder, "faces");
-                    for member in body.face_boundary_linked(face, f) {
+                    let f = body.linked_face(face, holder, "faces");
+                    for member in f.boundary() {
                         self.vertices.insert(member.vertex(), solid);
                         if let BoundaryMember::Edge { ek, .. } = member {
                             self.edges.insert(ek, solid);
