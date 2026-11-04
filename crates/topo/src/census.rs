@@ -11805,15 +11805,9 @@ fn arc_interiors_meet<T: Decide>(
 /// The points of `from`'s ends, each with `on`'s middle parameter to
 /// seed its foot there; none for a span with no ends.
 fn run_ends<T: Decide>(on: &CarrierSpan<'_, T>, from: &CarrierSpan<'_, T>) -> Vec<(Point3<T>, T)> {
-    use geom_brep::curve_pair::SpanEnd;
-    if !from.ended() {
-        return Vec::new();
-    }
     let (t0, t1) = on.params();
     let near = geom::mid_param(t0, t1);
-    [SpanEnd::Start, SpanEnd::Stop]
-        .map(|end| (from.carrier().eval(from.end(end)), near))
-        .to_vec()
+    from.ends().map(|(_, q)| (q, near)).collect()
 }
 
 /// **`cuts` put in order along `curve`** ([`arc_interiors_meet`]), each

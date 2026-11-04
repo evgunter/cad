@@ -46,7 +46,7 @@ pub(crate) fn mag(v: Interval) -> f64 {
 
 /// The midpoint of each enclosure of `v`.
 pub(crate) fn midpoint(v: &[Interval; 3]) -> [f64; 3] {
-    v.map(|c| c.lo() + (c.hi() - c.lo()) * 0.5)
+    v.map(|c| geom::bracket_mid((c.lo(), c.hi())))
 }
 
 /// The midpoint of each enclosure of `m`.

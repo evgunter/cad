@@ -535,7 +535,12 @@ impl<T: Decide> Legs<T> for SphereFaceRegion<T> {
             // quarter turn of the end, the raw root less the end's
             // parameter, a difference of two near numbers that keeps its
             // relative precision; past that, the half-width less the
-            // angle from the middle.
+            // angle from the middle. No row guards the first form against
+            // the second, and none can at an honest offset: the end's own
+            // point is rounded (an end at `π` as an `f64` lies `1.2e-16`
+            // short of the pole), more than any offset from the escalation
+            // that the two forms read apart, so a row there pins that
+            // rounding, not this precision.
             let to_end = |end: Vec3<T>, local: T| {
                 (between(toward, end) - quarter).select_le_zero(local, half - off)
             };
