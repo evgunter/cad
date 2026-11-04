@@ -98,7 +98,7 @@ fn the_coaxial_pose_is_two_circles_and_records_its_coincidence() {
         ClassCarrier::Closed(curve) => curve.eval(0.4),
         _ => unreachable!(),
     };
-    let foot = carried.foot(p, band()).unwrap();
+    let foot = on_arc(carried.site(p, band()).unwrap());
     assert_eq!(foot.component, 1, "the foot's component");
 }
 
@@ -352,7 +352,7 @@ fn the_general_rung_carries_through_its_door() {
     let witness = section.counted().expect("a counted section")[0]
         .witness
         .unwrap();
-    assert_eq!(carried.foot(witness, band()).unwrap().component, 0);
+    assert_eq!(on_arc(carried.site(witness, band()).unwrap()).component, 0);
     // Seated at an interior parameter: the loop opened there, certified
     // again, the same locus run from that point round to it.
     let (lo, hi) = c.span;
@@ -812,7 +812,7 @@ fn two_loops_keep_their_sites_and_order_near_the_node() {
                     let theta = std::f64::consts::PI * (1.0 + (2.0 * u - 1.0).powi(3));
                     let p = wall_point(r, d, big, theta, sheet).unwrap();
                     let at = format!("d {d}, R {big}, θ {theta}");
-                    let f = c.foot(p, band()).unwrap_or_else(|e| panic!("{at}: {e:?}"));
+                    let f = on_arc(c.site(p, band()).unwrap_or_else(|e| panic!("{at}: {e:?}")));
                     assert_eq!(*want.get_or_insert(f.component), f.component, "{at}");
                     ts.push(f.t);
                 }
@@ -856,9 +856,10 @@ fn one_loop_keeps_its_order_near_the_node() {
                 let Some(p) = wall_point(r, d, big, theta, sheet) else {
                     continue;
                 };
-                let f = c
-                    .foot(p, band())
-                    .unwrap_or_else(|e| panic!("d {d}, R {big}, τ {tau}: {e:?}"));
+                let f = on_arc(
+                    c.site(p, band())
+                        .unwrap_or_else(|e| panic!("d {d}, R {big}, τ {tau}: {e:?}")),
+                );
                 assert_eq!(f.component, 0);
                 ts.push(f.t);
             }
@@ -894,7 +895,7 @@ fn near_the_node_no_site_reads_on_the_other_sheets_loop() {
                     let Some(p) = wall_point(r, d, big, theta, sheet) else {
                         continue;
                     };
-                    let Ok(f) = c.foot(p, band()) else {
+                    let Ok(geom_brep::SiteReading::OnArc(f)) = c.site(p, band()) else {
                         refused += 1;
                         continue;
                     };
@@ -941,5 +942,13 @@ fn a_closed_form_is_seated_by_its_span() {
                 "seat {at}: the carrier is as it was"
             );
         }
+    }
+}
+
+/// The foot of a site off every node: these sections list none.
+fn on_arc(reading: geom_brep::SiteReading<f64>) -> geom_brep::SiteFoot<f64> {
+    match reading {
+        geom_brep::SiteReading::OnArc(foot) => foot,
+        geom_brep::SiteReading::AtNode(n) => panic!("a site at node {n} of a section with none"),
     }
 }

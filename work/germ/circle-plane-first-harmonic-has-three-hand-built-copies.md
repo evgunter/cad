@@ -45,7 +45,7 @@ stored frame leaves it undecided.
 On main at `bb25fa4f` the hand-built copies are gone: the circle (and
 conic) against a plane is one door,
 `circle_roots::FirstHarmonic::circle_off_plane` / `conic_off_plane`
-(`crates/topo/src/boolean/circle_roots.rs` ~:204-247, "The one spelling
+(`crates/geom-brep/src/curve_face/circle_roots.rs` ~:204-247, "The one spelling
 of a circle against a plane"), read by `ops.rs` (~:7025),
 `sphere_region.rs` (~:296), `torus_region.rs` and `ruled_region.rs`.
 The charge it carries is still the one this row questions: one uniform

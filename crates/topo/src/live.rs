@@ -1702,6 +1702,26 @@ fn wrong_key(&self, he: K, other: K, from: F) -> Result<Live, E> {
         );
     }
 
+    /// **No code in this crate reads a face's surface through the public
+    /// door** ([`Body::face_surface`]): inside the crate a face is read
+    /// through a resolved [`FaceView`], so the door's `Option` is never
+    /// a second spelling of [`Body::passed_face`]'s.
+    #[test]
+    fn the_public_surface_door_is_read_only_outside_the_crate() {
+        const READERS: &[(&str, &str)] = &[
+            ("body.rs", "the door itself"),
+            (
+                "boolean/join.rs",
+                "the join's own `face_surface` helper, held by its face_surface_tests",
+            ),
+        ];
+        let strays = read_outside(&["face_surface("], READERS);
+        assert!(
+            strays.is_empty(),
+            "the public surface door read inside the crate: {strays:#?}"
+        );
+    }
+
     /// The crate sources outside `readers` whose code reads any of
     /// `reads`, as a method (`.read`) or by path (`::read`).
     fn read_outside(reads: &[&str], readers: &[(&str, &str)]) -> Vec<std::path::PathBuf> {

@@ -96,7 +96,7 @@ fn seat(c: Point3<f64>, at: Seat, edges: [[f64; 3]; 3]) -> (Body<f64>, VertexKey
                     matches!(
                         body.curves.get(edge.curve).and_then(crate::null::CurveGeom::certified)
                             .map(|c| c.carrier().clone()),
-                        Some(geom::Curve3::Circle(arc)) if (arc.frame.center.z - c.z).abs() < 1e-12
+                        Some(geom::Curve3::Circle(arc)) if (arc.frame.origin.z - c.z).abs() < 1e-12
                     )
                 })
                 .map(|(k, _)| k)

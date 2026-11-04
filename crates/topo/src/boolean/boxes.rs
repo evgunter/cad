@@ -2208,10 +2208,10 @@ impl core::fmt::Display for EdgeUncovered {
 /// The cover's frame for a [`BoxFrame`]: the world's, or its rows. An
 /// adapter for the face lanes, which still read their boxes in a
 /// [`BoxFrame`].
-pub(crate) fn cover_frame<T: Real>(frame: &BoxFrame<T>) -> geom::cover::Frame<T> {
+pub(crate) fn cover_frame<T: Real>(frame: &BoxFrame<T>) -> geom::cover::BoxAxes<T> {
     match frame {
-        BoxFrame::World => geom::cover::Frame::World,
-        BoxFrame::Aimed(rows) => geom::cover::Frame::Rows(*rows),
+        BoxFrame::World => geom::cover::BoxAxes::World,
+        BoxFrame::Aimed(rows) => geom::cover::BoxAxes::Rows(*rows),
     }
 }
 
@@ -2220,10 +2220,8 @@ pub(crate) fn cover_frame<T: Real>(frame: &BoxFrame<T>) -> geom::cover::Frame<T>
 /// adapter for the face lanes' slab arms.
 pub(crate) fn cover_axial<T: Real>(cover: &Cover<T>, origin: Point3<T>, axis: Vec3<T>) -> (T, T) {
     let base = (origin - Point3::origin()).dot(axis);
-    (
-        T::zero() - cover.support(-axis) - base,
-        cover.support(axis) - base,
-    )
+    let (lo, hi) = cover.range_along(axis);
+    (lo - base, hi - base)
 }
 
 /// The box of the ball about `c` of radius `r`, from their enclosures,
@@ -2311,7 +2309,7 @@ pub(crate) mod tests {
     //! list rather than any box.
 
     use super::*;
-    use crate::boolean::conic_oracle::exact::Dd;
+    use geom_brep::curve_face::conic_oracle::exact::Dd;
 
     /// **A spline edge's axial span from its cover holds the curve**
     /// ([`cover_axial`], about an origin off the curve): random clamped nets of degree one
@@ -5540,7 +5538,7 @@ pub(crate) mod tests {
     /// construction both do — near the fold that rounding moves `f` by
     /// far more than an ulp.
     ///
-    /// [`Dd`]: crate::boolean::conic_oracle::exact::Dd
+    /// [`Dd`]: geom_brep::curve_face::conic_oracle::exact::Dd
     fn spiric_f_dd(big_r: f64, r: f64, d: f64, cos_v: f64) -> Dd {
         let rho = Dd::of(big_r).add(Dd::of(r).mul(Dd::of(cos_v)));
         rho.sub(Dd::of(d)).mul(rho.add(Dd::of(d))).sqrt()
@@ -5727,7 +5725,7 @@ pub(crate) mod tests {
             let ends = (carrier.eval(t0), carrier.eval(t1));
             let cover = edge_cover_over(&carrier, (t0, t1), ends).unwrap();
             let bracketed = cover.aabb(0.0);
-            let (lo, hi) = cover.box_in(&geom::cover::Frame::World);
+            let (lo, hi) = cover.box_in(&geom::cover::BoxAxes::World);
             let census = Aabb {
                 min_x: lo.x,
                 min_y: lo.y,
@@ -5982,7 +5980,7 @@ pub(crate) mod tests {
             Curve3::Circle(geom::Circle {
                 frame:
                     geom::Frame {
-                        center,
+                        origin: center,
                         axis,
                         u_ref,
                     },
@@ -5991,7 +5989,7 @@ pub(crate) mod tests {
             Curve3::Ellipse(geom::Ellipse {
                 frame:
                     geom::Frame {
-                        center,
+                        origin: center,
                         axis,
                         u_ref,
                     },
@@ -6697,7 +6695,12 @@ pub(crate) mod sphere_rect_rows {
             .unwrap();
         let arc = |body: &mut Body<f64>, carrier: Curve3<f64>, (t0, t1): (f64, f64)| {
             let Curve3::Circle(geom::Circle {
-                frame: geom::Frame { center, axis, .. },
+                frame:
+                    geom::Frame {
+                        origin: center,
+                        axis,
+                        ..
+                    },
                 ..
             }) = carrier
             else {
@@ -6945,7 +6948,12 @@ pub(crate) mod sphere_rect_rows {
         let arc =
             |body: &mut Body<f64>, carrier: Curve3<f64>, u_ref: Vec3<f64>, (t0, t1): (f64, f64)| {
                 let Curve3::Circle(geom::Circle {
-                    frame: geom::Frame { center, axis, .. },
+                    frame:
+                        geom::Frame {
+                            origin: center,
+                            axis,
+                            ..
+                        },
                     ..
                 }) = carrier
                 else {

@@ -462,7 +462,7 @@ impl<T: Decide> Body<T> {
                 }
                 let old = face_data.surface;
                 let resolved = self.resolve_face_surface(
-                    &chart.face_surface(wearer.sense),
+                    &chart.wearer_surface(wearer.sense),
                     face,
                     (old, face_data.sense),
                     ParentSide::With,
@@ -974,7 +974,7 @@ impl<T: Decide> Body<T> {
                 Slot::Kept(k) => self.same_chart(*surface, k),
                 Slot::Minted(chart) => charts
                     .get(chart)
-                    .is_some_and(|c| self.same_chart_spec(*surface, &c.face_surface(true))),
+                    .is_some_and(|c| self.same_chart_spec(*surface, &c.wearer_surface(true))),
             };
             if !same {
                 *image = None;
@@ -1656,7 +1656,7 @@ impl<T: Real> Rechart<T> {
     }
 
     /// The [`FaceSurface`] a face stating `sense` takes onto this chart.
-    fn face_surface(&self, sense: bool) -> FaceSurface<T> {
+    fn wearer_surface(&self, sense: bool) -> FaceSurface<T> {
         match &self.surface {
             ChartSurface::New(surface) => FaceSurface::New {
                 surface: surface.clone(),

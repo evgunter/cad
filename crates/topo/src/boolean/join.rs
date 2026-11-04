@@ -16,9 +16,9 @@
 //! with a frame each ([`SectionLoops`]), of which a germ takes the one
 //! its branch names ([`germ_section_frame`]; the branch is decided where
 //! the germ is minted, [`germ_branch`]). Two cylinders are read on their
-//! section value instead ([`cylinder_read`]): the bisector pose's two
-//! planes as two loops (the same [`SectionLoops`] split), and every other
-//! pose's carried components, the parallel pose's rulings among them.
+//! section value instead ([`cylinder_read`]): every pose's carried
+//! components, the parallel pose's rulings and the bisector pose's arcs
+//! between its nodes among them.
 //! A straight section of two lines through a point — a plane through a
 //! cone's apex — names its lines the same way ([`super::Branch::Line`]):
 //! two germs face only where their branches agree, on a loop or a line
@@ -227,11 +227,6 @@ enum GermLane<T: geom_core::Real> {
     /// they span ([`cone_apex_plane`]), and each side's chord is its own
     /// wall's ruling in it.
     Rulings((Point3<T>, UnitVec3<T>)),
-    /// An equal cylinder pair with intersecting axes: the segment rides
-    /// the ellipse of its germ's branch, which lies in that branch's
-    /// bisector plane, and each side's chord is its own wall cut by
-    /// that plane.
-    Bisector((Point3<T>, UnitVec3<T>)),
     /// A segment along a conic edge of the solid `on` only, lying inside
     /// the other's curved face: `on`'s chord copies its edge, and the
     /// other's is its face cut by the edge's plane, which meets that
@@ -256,7 +251,7 @@ impl<T: geom_core::Real> GermLane<T> {
             Self::Carried(_) => (RingClosure::Chord, RingClosure::Chord),
             Self::PlaneWall(plane) => (RingClosure::Planar, RingClosure::Wall(plane)),
             Self::WallPlane(plane) => (RingClosure::Wall(plane), RingClosure::Planar),
-            Self::Radical(plane) | Self::Rulings(plane) | Self::Bisector(plane) => {
+            Self::Radical(plane) | Self::Rulings(plane) => {
                 (RingClosure::Wall(plane), RingClosure::Wall(plane))
             }
             Self::EdgePlane {
@@ -285,10 +280,6 @@ enum KindArm {
     WallPlane,
     /// [`GermLane::Radical`].
     Spheres,
-    /// [`GermLane::Bisector`]: a cylinder pair whose section is the two
-    /// bisector-plane ellipses, a germ inside a face of each operand
-    /// ([`segment_arm`]).
-    Bisector,
     /// [`GermLane::Rulings`]: a cone pair through one apex, which meet in
     /// rulings through it ([`segment_arm`], [`cone_apex_plane`]).
     Apex,
@@ -372,7 +363,7 @@ impl<T: Decide> SegmentPair<T> {
         };
         let arm = match (seg.lane, carried) {
             (SegmentLane::AlongEdge, _) | (SegmentLane::Section, Some(_)) => None,
-            (SegmentLane::Section, None) => Some(segment_arm(red, germ, (&a.1, &b.1), band)?),
+            (SegmentLane::Section, None) => Some(segment_arm((&a.1, &b.1), band)?),
         };
         let [(entry, _), (cand, _)] = seg.ends;
         let site_loop = if entry == cand && carried.is_none() {
@@ -409,19 +400,12 @@ fn branch_component<T: Decide>(
 }
 
 /// **The kind arm of a segment's germ face pair** ([`kind_arm`]), whose
-/// faces' surfaces are `sa` and `sb`: a cylinder pair reads its arm off
-/// the one reading of its pose, the section table's ([`cylinder_read`]):
-/// [`KindArm::Bisector`] for a germ inside a face of each operand on the
-/// bisector pose; and for every other pose, or a germ along an edge, no
-/// arm, so the segment rides its carried component or the edge-plane
-/// lane.
+/// faces' surfaces are `sa` and `sb`; two cones through one apex take
+/// their rulings' plane.
 fn segment_arm<T: Decide>(
-    red: &BooleanReduction<T>,
-    germ: &HalfGerm<T>,
     (sa, sb): (&geom::Surface<T>, &geom::Surface<T>),
     band: Band,
 ) -> Result<KindArm, BooleanError> {
-    use geom::SurfaceKind::Cylinder;
     // Two cones through one apex meet in rulings through it, the plane
     // they span their straight lane's.
     if let (geom::Surface::Cone { apex: p1, .. }, geom::Surface::Cone { apex: p2, .. }) = (sa, sb)
@@ -431,18 +415,7 @@ fn segment_arm<T: Decide>(
     {
         return Ok(KindArm::Apex);
     }
-    if (sa.kind(), sb.kind()) != (Cylinder, Cylinder) {
-        return Ok(kind_arm(sa.kind(), sb.kind()));
-    }
-    let faces = ((&red.a, germ.a_face), (&red.b, germ.b_face));
-    Ok(match cylinder_read(&red.sections, faces.0, faces.1)? {
-        Some(CylinderRead::Bisector(_))
-            if germ.a_locus.edge().is_none() && germ.b_locus.edge().is_none() =>
-        {
-            KindArm::Bisector
-        }
-        Some(CylinderRead::Bisector(_) | CylinderRead::Carried) | None => KindArm::None,
-    })
+    Ok(kind_arm(sa.kind(), sb.kind()))
 }
 
 /// How one solid's ring-lane island is closed for its winding, as
@@ -525,14 +498,6 @@ enum AuxDatum {
     Radical {
         own: crate::geometry::SurfaceKey,
         partner: crate::geometry::SurfaceKey,
-    },
-    /// One bisector plane of an equal cylinder pair with intersecting
-    /// axes: this body's wall, the other body's, and the branch whose
-    /// ellipse lies in it.
-    Bisector {
-        own: crate::geometry::SurfaceKey,
-        partner: crate::geometry::SurfaceKey,
-        branch: super::Branch,
     },
     /// The plane of a conic edge of the solid `on`, by the edge's split
     /// root: every piece of one split edge lies on the root's conic, so
@@ -637,18 +602,16 @@ impl SolidJoin {
         &mut self,
         body: &mut Body<T>,
         plan: &JoinPlan,
-        ((component, lever), partner): (
-            (&geom_brep::CarriedComponent<T>, geom_core::Lever<T>),
-            geom::Surface<T>,
-        ),
+        (seated, partner): (&SeatedCarried<T>, geom::Surface<T>),
         datum: AuxDatum,
         leave: Leave<T>,
     ) -> Result<SegmentCurve<T>, BooleanError> {
         let mut ctx = crate::chord_join::CarriedCtx {
-            component: component.clone(),
+            component: seated.component.clone(),
             partner,
             partner_key: self.aux.get(&datum).copied(),
-            lever,
+            lever: seated.lever,
+            nodes: seated.nodes.clone(),
         };
         let curve = self.curve(body, plan, JoinLane::Carried(&mut ctx), leave)?;
         if let Some(k) = ctx.partner_key {
@@ -1290,9 +1253,6 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
         .iter()
         .map(|seg| SegmentPair::read(red, seg, band))
         .collect::<Result<Vec<_>, BooleanError>>()?;
-    // The bisector lane's planes, read once per wall pair before any
-    // surgery, so every segment on one branch rides one plane.
-    let bisectors = bisector_planes(red, &segments, &pairs, band)?;
     let seats = carried_seats(red, &open_records(red)?, &segments, &pairs, band)?;
     let mut sa = SolidJoin::new(red, Operand::A, band);
     let mut sb = SolidJoin::new(red, Operand::B, band);
@@ -1453,11 +1413,21 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
                 Operand::B => &ga,
             };
             let (geom::Curve3::Circle(geom::Circle {
-                frame: geom::Frame { center, axis, .. },
+                frame:
+                    geom::Frame {
+                        origin: center,
+                        axis,
+                        ..
+                    },
                 ..
             })
             | geom::Curve3::Ellipse(geom::Ellipse {
-                frame: geom::Frame { center, axis, .. },
+                frame:
+                    geom::Frame {
+                        origin: center,
+                        axis,
+                        ..
+                    },
                 ..
             })) = along.carrier
             else {
@@ -1498,7 +1468,12 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
                     let radical = match geom_brep::sphere_sphere_section(&ga, &gb, band) {
                         Ok(geom_brep::SphereSphereSection::Circle(geom::Curve3::Circle(
                             geom::Circle {
-                                frame: geom::Frame { center, axis, .. },
+                                frame:
+                                    geom::Frame {
+                                        origin: center,
+                                        axis,
+                                        ..
+                                    },
                                 ..
                             },
                         ))) => (center, germ_normal(germ_reach(&red.a)?, center, axis)?),
@@ -1517,23 +1492,6 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
                         Err(_) => return Err(desync("germ pair's section refused at join time")),
                     };
                     GermLane::Radical(radical)
-                }
-                // **An equal cylinder pair with intersecting axes rides
-                // its germ's BISECTOR PLANE**: the walls meet in two
-                // ellipses, one in each bisector plane of the axes, and
-                // each plane cuts each wall in exactly its ellipse, so
-                // each side's chord is the plane × cylinder arm's arc on
-                // its own wall, as the sphere pair's is on its radical
-                // plane. The germ's branch names the plane.
-                KindArm::Bisector => {
-                    let lp = bisectors
-                        .get(&(ka, kb))
-                        .ok_or(desync("a bisector segment's wall pair has no planes"))?
-                        .pick(germ.branch)?;
-                    GermLane::Bisector((
-                        lp.center,
-                        germ_normal(germ_reach(&red.a)?, lp.center, lp.axis)?,
-                    ))
                 }
                 KindArm::Apex => GermLane::Rulings(cone_apex_plane(
                     (germ.a_face, &ga),
@@ -1642,8 +1600,8 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
                     .get(&(ka, kb, k))
                     .copied()
                     .ok_or(desync("a carried segment's component has no seat"))?;
-                let (component, lever) = carried_component(red, &germ, k, at)?;
-                let component = (&component, lever);
+                let seated = carried_component(red, &germ, k, at)?;
+                let component = &seated;
                 (
                     sa.carried_curve(
                         &mut red.a,
@@ -1763,31 +1721,6 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
                     (&curves.1, Operand::B, germ.b_face, gb.kind()),
                 ])?;
                 curves
-            }
-            Some(GermLane::Bisector(plane)) => {
-                let datum = |own, partner| AuxDatum::Bisector {
-                    own,
-                    partner,
-                    branch: germ.branch,
-                };
-                (
-                    sa.split_curve(
-                        &mut red.a,
-                        &plan_a,
-                        plane,
-                        datum(ka, kb),
-                        germ.branch,
-                        leave_a,
-                    )?,
-                    sb.split_curve(
-                        &mut red.b,
-                        &plan_b,
-                        plane,
-                        datum(kb, ka),
-                        germ.branch,
-                        leave_b,
-                    )?,
-                )
             }
             Some(GermLane::EdgePlane { on, root, plane }) => {
                 let datum = AuxDatum::EdgePlane { on, root };
@@ -1926,40 +1859,6 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
         along: [sa.along, sb.along],
         fates: super::fate::FateCuts::default(),
     })
-}
-
-/// **The bisector lane's section, per wall pair**, keyed by the two
-/// walls' surface keys, A's first: each segment of
-/// [`KindArm::Bisector`] reads its face pair's two bisector-plane
-/// ellipses ([`face_pair_section_loops`]) before any surgery divides a
-/// face, the first reading of a wall pair standing for every segment on
-/// it, so the chords of one branch lie in one plane.
-fn bisector_planes<T: Decide>(
-    red: &BooleanReduction<T>,
-    segments: &[SectionSegment<T>],
-    pairs: &[SegmentPair<T>],
-    band: Band,
-) -> Result<
-    BTreeMap<(crate::geometry::SurfaceKey, crate::geometry::SurfaceKey), SectionLoops<T>>,
-    BooleanError,
-> {
-    let desync = |what| BooleanError::JoinDesync { what };
-    let mut planes = BTreeMap::new();
-    for (seg, pair) in segments.iter().zip(pairs) {
-        if pair.arm != Some(KindArm::Bisector) {
-            continue;
-        }
-        let (fa, fb) = (seg.germ.a_face, seg.germ.b_face);
-        let key = (pair.a.0, pair.b.0);
-        if let std::collections::btree_map::Entry::Vacant(slot) = planes.entry(key) {
-            let loops = face_pair_section_loops(&red.sections, (&red.a, fa), (&red.b, fb), band)?
-                .ok_or(desync(
-                "a bisector segment's face pair has no section loops",
-            ))?;
-            slot.insert(loops);
-        }
-    }
-    Ok(planes)
 }
 
 /// **How far a partner site is along the germ line**, seen from the
@@ -2786,11 +2685,21 @@ fn germ_section_loops<T: Decide>(
         return match along.carrier {
             geom::Curve3::Line(_) => Ok(None),
             geom::Curve3::Circle(geom::Circle {
-                frame: geom::Frame { center, axis, .. },
+                frame:
+                    geom::Frame {
+                        origin: center,
+                        axis,
+                        ..
+                    },
                 ..
             })
             | geom::Curve3::Ellipse(geom::Ellipse {
-                frame: geom::Frame { center, axis, .. },
+                frame:
+                    geom::Frame {
+                        origin: center,
+                        axis,
+                        ..
+                    },
                 ..
             }) => Ok(Some(SectionLoops::conic((center, axis)))),
             geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => {
@@ -2820,14 +2729,10 @@ pub(super) fn face_pair_section_loops<T: Decide>(
     (body_b, face_b): (&Body<T>, FaceKey),
     band: Band,
 ) -> Result<Option<SectionLoops<T>>, BooleanError> {
-    match cylinder_read(sections, (body_a, face_a), (body_b, face_b))? {
-        Some(CylinderRead::Bisector(loops)) => return Ok(Some(loops)),
-        Some(CylinderRead::Carried) => {
-            return Err(BooleanError::JoinDesync {
-                what: "a cylinder pair read by its carried components was asked for its loops",
-            });
-        }
-        None => {}
+    if cylinder_read(sections, (body_a, face_a), (body_b, face_b))? {
+        return Err(BooleanError::JoinDesync {
+            what: "a cylinder pair read by its carried components was asked for its loops",
+        });
     }
     let ((_, sa), (_, sb)) = (face_surface(body_a, face_a), face_surface(body_b, face_b));
     let (at, extent) = frame_lever((sa, body_a, face_a), (sb, body_b, face_b), band)?;
@@ -3388,37 +3293,25 @@ impl<T: Decide> SectionLoops<T> {
     /// **The branch the site `p` lies on** ([`super::Branch`]), the
     /// one reading of the split, taken where a germ is minted
     /// ([`germ_branch`]). The split's margin is definite at every point
-    /// of a served section off its nodes: on the plane×torus pair's
-    /// loops everywhere (`bool_join_section_loop`), so a site whose
-    /// margin is `Zero` there is on neither loop, a desync; on the
-    /// bisector ellipses everywhere but where they cross
-    /// (`bool_germ_bisector_branch`), so a `Zero` there is a germ at a
-    /// node, `Ok(None)`. An undecided margin escalates.
+    /// of a served section, the plane×torus pair's loops
+    /// (`bool_join_section_loop`), so a site whose margin is `Zero` is on
+    /// neither loop, a desync. An undecided margin escalates.
     pub(super) fn branch_at(
         &self,
         p: geom_core::Point3<T>,
         band: Band,
-    ) -> Result<Option<super::Branch>, BooleanError> {
+    ) -> Result<super::Branch, BooleanError> {
         let split = match self {
-            Self::One(_) => return Ok(Some(super::Branch::Only)),
+            Self::One(_) => return Ok(super::Branch::Only),
             Self::Two { split, .. } => split,
         };
-        let name = match split {
-            LoopSplit::Bisector { .. } => "bool_germ_bisector_branch",
-            LoopSplit::Side { .. } | LoopSplit::Radius { .. } => "bool_join_section_loop",
-        };
-        match decide(name, Margin::of(split.margin(p)), band) {
-            Ok(Sign::Positive) => Ok(Some(super::Branch::Positive)),
-            Ok(Sign::Negative) => Ok(Some(super::Branch::Negative)),
-            Ok(Sign::Zero) => match split {
-                LoopSplit::Bisector { .. } => Ok(None),
-                LoopSplit::Side { .. } | LoopSplit::Radius { .. } => {
-                    Err(BooleanError::JoinDesync {
-                        what: "a germ site lies on neither loop of its section (its loop margin is \
-                           in the band)",
-                    })
-                }
-            },
+        match decide("bool_join_section_loop", Margin::of(split.margin(p)), band) {
+            Ok(Sign::Positive) => Ok(super::Branch::Positive),
+            Ok(Sign::Negative) => Ok(super::Branch::Negative),
+            Ok(Sign::Zero) => Err(BooleanError::JoinDesync {
+                what: "a germ site lies on neither loop of its section (its loop margin is in the \
+                       band)",
+            }),
             Err(diag) => Err(join_escalate(diag)),
         }
     }
@@ -3451,25 +3344,24 @@ impl<T: Decide> SectionLoops<T> {
 /// edge's own curve ([`germ_section_loops`]). A germ inside a face of
 /// each operand on a pair the operation's section table holds rides the
 /// component of the pair's carried section its site has its foot on
-/// ([`geom_brep::CarriedSection::foot`], [`super::Branch::Component`]),
+/// ([`geom_brep::CarriedSection::site`], [`super::Branch::Component`]),
 /// the pair carried here if no germ carried it before. A germ of a
 /// plane×cone pair whose section is the two lines through the apex
 /// rides one of them ([`apex_line`], `site` and the germ's direction
-/// `dir`). Of the rest, every kind pair but the two whose sections are
-/// two loops — plane×torus and the intersecting equal-radius cylinder
-/// pair — rides its section's one loop or one straight line, read at
-/// the join; otherwise the face pair's section is read
-/// ([`face_pair_section_loops`]) and its split decided at the site
+/// `dir`). Of the rest, every kind pair but plane×torus, whose section
+/// is two loops, rides its section's one loop or one straight line, read
+/// at the join; plane×torus reads the face pair's section
+/// ([`face_pair_section_loops`]) and decides its split at the site
 /// ([`SectionLoops::branch_at`]).
 ///
 /// # Errors
 ///
 /// The table's refusals of the pair, carried ([`section_unbuilt`]), and
-/// the site's foot ([`site_refusal`]); the section's own refusals ([`frame_refusal`]),
-/// the split's escalation and desync, and [`BooleanError::NodeUnbuilt`]
-/// for a germ on a node of the cylinder pair's section, where the two
-/// ellipses cross: an operand's edge through the node.
-/// [`apex_line`]'s, for a germ on the apex line pair.
+/// the site's reading ([`site_refusal`]), with
+/// [`BooleanError::NodeUnbuilt`] for a site at a node of the carried
+/// section, which names no arc: an operand's edge through the node. The
+/// section's own refusals ([`frame_refusal`]), the split's escalation
+/// and desync; [`apex_line`]'s, for a germ on the apex line pair.
 pub(super) fn germ_branch<T: Decide>(
     sections: &super::section_table::SectionTable<T>,
     (body_a, face_a): (&Body<T>, FaceKey),
@@ -3510,24 +3402,19 @@ pub(super) fn germ_branch<T: Decide>(
         }
         (None, None) => {}
     }
-    match cylinder_read(sections, (body_a, face_a), (body_b, face_b))? {
-        Some(CylinderRead::Bisector(loops)) => {
-            return loops
-                .branch_at(site, band)?
-                .ok_or(BooleanError::NodeUnbuilt {
-                    a_face: face_a,
-                    b_face: face_b,
-                    why: super::NodeWhy::GermOnNode,
-                });
-        }
-        Some(CylinderRead::Carried) | None => {}
-    }
     if let Some(carried) = sections.carried((body_a, face_a), (body_b, face_b)) {
-        return carried
-            .map_err(|why| faces_section_unbuilt(why, (body_a, face_a), (body_b, face_b)))?
-            .foot(site, band)
-            .map(|foot| super::Branch::Component(foot.component))
-            .map_err(site_refusal);
+        let section = carried
+            .map_err(|why| faces_section_unbuilt(why, (body_a, face_a), (body_b, face_b)))?;
+        return match section.site(site, band).map_err(site_refusal)? {
+            geom_brep::SiteReading::OnArc(foot) => Ok(super::Branch::Component(foot.component)),
+            // A germ the sweep mints at a node (an operand's edge through
+            // it) names no arc there; the node pass mints the node's own.
+            geom_brep::SiteReading::AtNode(_) => Err(BooleanError::NodeUnbuilt {
+                a_face: face_a,
+                b_face: face_b,
+                why: super::NodeWhy::GermOnNode,
+            }),
+        };
     }
     let kind = |body: &Body<T>, f: FaceKey| face_surface(body, f).1.kind();
     match (kind(body_a, face_a), kind(body_b, face_b)) {
@@ -3547,13 +3434,7 @@ pub(super) fn germ_branch<T: Decide>(
     else {
         return Ok(super::Branch::Only);
     };
-    loops
-        .branch_at(site, band)?
-        .ok_or(BooleanError::NodeUnbuilt {
-            a_face: face_a,
-            b_face: face_b,
-            why: super::NodeWhy::GermOnNode,
-        })
+    loops.branch_at(site, band)
 }
 
 /// **The line of a plane×cone pair's apex line pair a germ rides**
@@ -3723,8 +3604,9 @@ fn germ_section<'r, T: Decide>(
 }
 
 /// **Each carried component's seat**, by the pair's surfaces and the
-/// component: the least foot parameter of any site on it, every site
-/// being an end of a segment (the matcher consumes every germ). A
+/// component: the least foot parameter of any site on it, a site at a
+/// node standing at the arc's end there, every site being an end of a
+/// segment (the matcher consumes every germ). A
 /// function of the section and its sites alone, so the component is
 /// opened at the same site whatever order the segments are joined in.
 ///
@@ -3762,17 +3644,27 @@ fn carried_seats<T: Decide>(
                 .a
                 .half_edge_start_point(open[r].a[slot].0.he)
                 .ok_or(desync("germ site has no point"))?;
-            let foot = section.foot(site, band).map_err(site_refusal)?;
-            if foot.component != k {
-                return Err(desync(
-                    "a carried segment's site lies on another component than its germ's branch \
-                     names",
-                ));
-            }
+            let t = match section.site(site, band).map_err(site_refusal)? {
+                geom_brep::SiteReading::OnArc(foot) if foot.component == k => foot.t,
+                geom_brep::SiteReading::OnArc(_) => {
+                    return Err(desync(
+                        "a carried segment's site lies on another component than its germ's \
+                         branch names",
+                    ));
+                }
+                // A site at a node stands at its arc's end there.
+                geom_brep::SiteReading::AtNode(n) => match section.end_at(k, n) {
+                    Ok(geom_brep::ArcPlace::AtEnd { t, .. }) => t,
+                    Ok(geom_brep::ArcPlace::At(_)) => {
+                        return Err(desync("a site at a node read off its arc's end"));
+                    }
+                    Err(e) => return Err(site_refusal(e)),
+                },
+            };
             seats
                 .entry((pair.a.0, pair.b.0, k))
-                .and_modify(|t: &mut T| *t = t.min(foot.t))
-                .or_insert(foot.t);
+                .and_modify(|seat: &mut T| *seat = seat.min(t))
+                .or_insert(t);
         }
     }
     Ok(seats)
@@ -3786,10 +3678,18 @@ fn unheld_section() -> BooleanError {
     }
 }
 
+/// **A carried component as a chord reads it**: seated, with its
+/// section's scale and nodes.
+struct SeatedCarried<T: geom_core::Real> {
+    component: geom_brep::CarriedComponent<T>,
+    lever: geom_core::Lever<T>,
+    nodes: Vec<geom_brep::SectionNode<T>>,
+}
+
 /// **Component `k` of `germ`'s carried section, seated** at its seat
 /// parameter `at` ([`carried_seats`],
-/// [`super::section_table::SectionTable::seated`]), and the section's
-/// scale.
+/// [`super::section_table::SectionTable::seated`]), the section's scale
+/// and its nodes.
 ///
 /// # Errors
 ///
@@ -3800,12 +3700,16 @@ fn carried_component<T: Decide>(
     germ: &HalfGerm<T>,
     k: usize,
     at: T,
-) -> Result<(geom_brep::CarriedComponent<T>, geom_core::Lever<T>), BooleanError> {
+) -> Result<SeatedCarried<T>, BooleanError> {
     let section = germ_section(red, germ)?.ok_or_else(unheld_section)?;
     let faces = ((&red.a, germ.a_face), (&red.b, germ.b_face));
     match red.sections.seated(faces.0, faces.1, k, at) {
         None => Err(unheld_section()),
-        Some(Ok(component)) => Ok((component.clone(), section.lever())),
+        Some(Ok(component)) => Ok(SeatedCarried {
+            component: component.clone(),
+            lever: section.lever(),
+            nodes: section.nodes().to_vec(),
+        }),
         Some(Err(why)) => Err(faces_section_unbuilt(why, faces.0, faces.1)),
     }
 }
@@ -3870,23 +3774,9 @@ pub(super) fn section_unbuilt(
     }
 }
 
-/// [`section_unbuilt`] on the faces `fa` of `a` and `fb` of `b`.
-/// **How the join reads a cylinder pair** from the operation's section
-/// table, the one reading of the pair: the bisector pose's two ellipses
-/// in their planes (one loop per plane, split by the planes as the frame
-/// split them), or, for every other pose, the parallel pose's rulings
-/// among them, the pair's carried components.
-pub(super) enum CylinderRead<T: geom_core::Real> {
-    /// The bisector pose: its ellipses' planes as two loops
-    /// ([`geom_brep::CylinderCylinderPose::bisector_planes`]).
-    Bisector(SectionLoops<T>),
-    /// Every other pose: the carried components
-    /// ([`super::section_table::SectionTable::carried`]).
-    Carried,
-}
-
-/// **[`CylinderRead`] of A's face `a` against B's `b`**, `None` for a
-/// pair that is not two cylinders.
+/// **Whether A's face `a` and B's `b` are a cylinder pair the join reads
+/// on its section value**, the table's carried components: two walls,
+/// held by the table on the cylinder pose.
 ///
 /// # Errors
 ///
@@ -3897,12 +3787,12 @@ pub(super) fn cylinder_read<T: Decide>(
     sections: &super::section_table::SectionTable<T>,
     a: (&Body<T>, FaceKey),
     b: (&Body<T>, FaceKey),
-) -> Result<Option<CylinderRead<T>>, BooleanError> {
+) -> Result<bool, BooleanError> {
     let wall = |(body, f): (&Body<T>, FaceKey)| {
         matches!(face_surface(body, f).1, geom::Surface::Cylinder { .. })
     };
     if !(wall(a) && wall(b)) {
-        return Ok(None);
+        return Ok(false);
     }
     let section = match sections.held(a, b) {
         Some(Ok(section)) => section,
@@ -3919,35 +3809,11 @@ pub(super) fn cylinder_read<T: Decide>(
             });
         }
     };
-    let geom_brep::PairPose::CylinderCylinder(pose) = section.pose() else {
-        return Err(BooleanError::JoinDesync {
+    match section.pose() {
+        geom_brep::PairPose::CylinderCylinder(_) => Ok(true),
+        _ => Err(BooleanError::JoinDesync {
             what: "two cylinder faces' section holds another pose",
-        });
-    };
-    if let Some(planes) = pose.bisector_planes() {
-        return Ok(Some(CylinderRead::Bisector(bisector_loops(planes))));
-    }
-    Ok(Some(CylinderRead::Carried))
-}
-
-/// **The bisector pose's two loops**: one per bisector plane, the
-/// `â₁ − â₂` plane's on the split's positive side, told apart by the
-/// planes ([`LoopSplit::Bisector`]).
-pub(super) fn bisector_loops<T: geom_core::Real>(
-    (center, [n1, n2]): (Point3<T>, [Vec3<T>; 2]),
-) -> SectionLoops<T> {
-    let lp = |axis| SectionLoop {
-        center,
-        axis,
-        ball: None,
-    };
-    SectionLoops::Two {
-        loops: [lp(n1), lp(n2)],
-        split: LoopSplit::Bisector {
-            origin: center,
-            sum: n2,
-            diff: n1,
-        },
+        }),
     }
 }
 
@@ -3971,8 +3837,8 @@ fn germ_rides_carried<T: Decide>(
 
 /// **Whether the join reads the pair from its carried components**, the
 /// one home of the fact: a pair the table holds rides the carried lane
-/// by its pose, every pose but the cylinder pair's bisector pose, which
-/// the join reads in its two planes ([`cylinder_read`]). The match names
+/// by its pose, every pose of it, the cylinder pair's read on its value
+/// ([`cylinder_read`]). The match names
 /// every pose, so a pose added to the value decides here before any of
 /// its components rides. A held refusal rides too: the join reads it
 /// where it carries the pair ([`faces_section_unbuilt`]).
@@ -3982,11 +3848,8 @@ fn rides_carried<T: Decide>(
     b: (&Body<T>, FaceKey),
 ) -> Result<bool, BooleanError> {
     use geom_brep::PairPose as P;
-    if let Some(read) = cylinder_read(sections, a, b)? {
-        return Ok(match read {
-            CylinderRead::Bisector(_) => false,
-            CylinderRead::Carried => true,
-        });
+    if cylinder_read(sections, a, b)? {
+        return Ok(true);
     }
     Ok(match sections.held(a, b) {
         None => false,
@@ -4007,6 +3870,7 @@ fn rides_carried<T: Decide>(
     })
 }
 
+/// [`section_unbuilt`] on the faces `fa` of `a` and `fb` of `b`.
 fn faces_section_unbuilt<T: geom_core::Real>(
     why: super::section_table::Uncarried<'_>,
     (a, fa): (&Body<T>, FaceKey),
@@ -4115,7 +3979,12 @@ fn conic_section_frame_at<T: Decide>(
             };
             return match geom_brep::plane_sphere_section(plane_s, sph_s, band) {
                 Ok(geom_brep::PlaneSphereSection::Circle(geom::Curve3::Circle(geom::Circle {
-                    frame: geom::Frame { center, axis, .. },
+                    frame:
+                        geom::Frame {
+                            origin: center,
+                            axis,
+                            ..
+                        },
                     ..
                 }))) => Ok(Some((center, axis))),
                 Ok(geom_brep::PlaneSphereSection::Circle(_)) => Err(FrameError::Desync(
@@ -4151,7 +4020,12 @@ fn conic_section_frame_at<T: Decide>(
             return match geom_brep::sphere_sphere_section(sa, sb, band) {
                 Ok(geom_brep::SphereSphereSection::Circle(geom::Curve3::Circle(
                     geom::Circle {
-                        frame: geom::Frame { center, axis, .. },
+                        frame:
+                            geom::Frame {
+                                origin: center,
+                                axis,
+                                ..
+                            },
                         ..
                     },
                 ))) => Ok(Some((center, axis))),
@@ -4214,12 +4088,22 @@ fn conic_section_frame_at<T: Decide>(
     };
     match section {
         Ok(geom_brep::PlaneCylinderSection::Rim(geom::Curve3::Circle(geom::Circle {
-            frame: geom::Frame { center, axis, .. },
+            frame:
+                geom::Frame {
+                    origin: center,
+                    axis,
+                    ..
+                },
             ..
         })))
         | Ok(geom_brep::PlaneCylinderSection::TiltedEllipse(geom::Curve3::Ellipse(
             geom::Ellipse {
-                frame: geom::Frame { center, axis, .. },
+                frame:
+                    geom::Frame {
+                        origin: center,
+                        axis,
+                        ..
+                    },
                 ..
             },
         ))) => Ok(Some((center, axis))),
@@ -4331,11 +4215,21 @@ pub(super) fn pk_section<T: Decide>(
     match geom_brep::plane_cone_section(plane, cone, reach, band) {
         Ok(
             geom_brep::PlaneConeSection::TiltedEllipse(geom::Curve3::Ellipse(geom::Ellipse {
-                frame: geom::Frame { center, axis, .. },
+                frame:
+                    geom::Frame {
+                        origin: center,
+                        axis,
+                        ..
+                    },
                 ..
             }))
             | geom_brep::PlaneConeSection::AxisNormalCircle(geom::Curve3::Circle(geom::Circle {
-                frame: geom::Frame { center, axis, .. },
+                frame:
+                    geom::Frame {
+                        origin: center,
+                        axis,
+                        ..
+                    },
                 ..
             })),
         ) => Ok(PkSection::Loop(center, axis)),
@@ -4438,7 +4332,12 @@ fn pt_germ_frame<T: Decide>(
     let carried = || FrameError::Desync("plane×torus classification carried another carrier");
     let circle = |curve: geom::Curve3<T>| match curve {
         geom::Curve3::Circle(geom::Circle {
-            frame: geom::Frame { center, axis, .. },
+            frame:
+                geom::Frame {
+                    origin: center,
+                    axis,
+                    ..
+                },
             ..
         }) => Ok(SectionLoop {
             center,
@@ -4549,7 +4448,8 @@ enum Faced<T: geom_core::Real> {
 /// **Whether two germs face each other along their section's
 /// component** ([`super::section_table`]), each a germ and its site:
 /// each site's foot on the component it lies on
-/// ([`geom_brep::CarriedSection::foot`]), read here at the germ's
+/// ([`geom_brep::CarriedSection::site`]; a germ at a node stands at the
+/// end of the arc its branch names, leaving along it), read here at the germ's
 /// half-edge's start, which must name the component its germ's branch
 /// was minted from (at the mint's own reading of the site,
 /// [`germ_branch`]); and the direction each germ leaves along
@@ -4582,7 +4482,31 @@ fn along_facing<T: Decide>(
     }
     let desync = |what| BooleanError::JoinDesync { what };
     let read = |germ: &HalfGerm<T>, p| -> Result<GermFoot<T>, FootRefusal> {
-        let foot = section.foot(p, band).map_err(FootRefusal::Site)?;
+        let foot = match section.site(p, band).map_err(FootRefusal::Site)? {
+            geom_brep::SiteReading::OnArc(foot) => foot,
+            // A germ at a node was minted from its arc's end there, which
+            // fixes its foot and the way it leaves.
+            geom_brep::SiteReading::AtNode(n) => {
+                let super::Branch::Component(k) = germ.branch else {
+                    return Err(FootRefusal::Desync(
+                        "a germ at a node names no arc of its section",
+                    ));
+                };
+                return match section.end_at(k, n).map_err(FootRefusal::Site)? {
+                    geom_brep::ArcPlace::AtEnd { t, end } => Ok(GermFoot {
+                        foot: geom_brep::SiteFoot {
+                            component: k,
+                            t,
+                            tangent: section.components()[k].carrier.ders1(t).1,
+                        },
+                        up: end == geom_brep::SpanEnd::Start,
+                    }),
+                    geom_brep::ArcPlace::At(_) => Err(FootRefusal::Desync(
+                        "a site at a node read off its arc's end",
+                    )),
+                };
+            }
+        };
         if germ.branch != super::Branch::Component(foot.component) {
             return Err(FootRefusal::Desync(
                 "a germ's site has its foot on another component than its branch names",
@@ -6792,10 +6716,12 @@ mod frame_dispatch_tests {
             );
             let corners: Vec<_> = body.vertex_points().collect();
             let (corner, through) = corners[g.below(corners.len())];
-            let radial = {
-                let w = through - frame.origin;
-                (w - axis * w.dot(axis)).normalize()
-            };
+            let radial = geom::Line {
+                origin: frame.origin,
+                dir: axis,
+            }
+            .offset(through)
+            .normalize();
             let w = if g.unit() < 0.3 {
                 axis.cross(radial)
             } else {
@@ -7207,69 +7133,6 @@ mod frame_dispatch_tests {
         }
     }
 
-    /// **The bisector split names each ellipse and vanishes at the
-    /// nodes**, read on the pose's bisector planes ([`super::bisector_loops`]).
-    /// At several angles between meeting axes, every sampled
-    /// point of the table's `a1 − a2`-plane ellipse reads the positive
-    /// branch and picks the loop turning about that plane's normal, every
-    /// point of the `a1 + a2`-plane ellipse the negative one, and the two
-    /// nodes `p ± r·n̂` read no branch.
-    #[test]
-    fn the_bisector_split_names_each_ellipse_and_vanishes_at_the_nodes() {
-        use super::super::Branch;
-        use geom_brep::{EqualCylinderSection, cylinder_cylinder_section};
-        let p = Point3::new(0.3, -0.2, 0.7);
-        let a1 = Vec3::new(0.0, 0.0, 1.0);
-        for deg in [30.0_f64, 60.0, 90.0, 140.0] {
-            let t = deg.to_radians();
-            let a2 = Vec3::new(t.sin(), 0.0, t.cos());
-            let (sa, sb) = (cylinder_at(p, a1, 1.0), cylinder_at(p, a2, 1.0));
-            let reach = geom_brep::Reach::of_frame(at(), (1.0, 1.0));
-            let region = geom_brep::Reach::Ball(reach.ball());
-            let pose = geom_brep::CylinderCylinderPose::decide(&sa, &sb, &region, band())
-                .expect("two cylinders")
-                .expect("a decided pose");
-            let loops = super::bisector_loops(
-                pose.bisector_planes()
-                    .unwrap_or_else(|| panic!("{deg}°: the bisector pose")),
-            );
-            let Ok(EqualCylinderSection::TwoEllipses { e1, e2, .. }) =
-                cylinder_cylinder_section(&sa, &sb, &reach.ball(), band())
-            else {
-                panic!("{deg}°: the table constructs the ellipses");
-            };
-            for (ellipse, want) in [(&e1, Branch::Positive), (&e2, Branch::Negative)] {
-                let geom::Curve3::Ellipse(geom::Ellipse {
-                    frame: geom::Frame { axis, .. },
-                    ..
-                }) = *ellipse
-                else {
-                    panic!("{deg}°: an ellipse carrier");
-                };
-                for k in 0..12 {
-                    // Clear of the nodes, which stand at the minor
-                    // vertices (parameters ±π/2).
-                    let s = f64::from(k) * core::f64::consts::FRAC_PI_6 + 0.2;
-                    let q = ellipse.eval(s);
-                    let got = loops.branch_at(q, band()).expect("decided");
-                    assert_eq!(got, Some(want), "{deg}°, parameter {s}");
-                    let lp = loops.pick(want).expect("a loop");
-                    assert!(
-                        lp.axis.cross(axis).norm() < 1e-12,
-                        "{deg}°: the branch picks the loop in its own plane"
-                    );
-                }
-            }
-            let n = a1.cross(a2).normalize();
-            for node in [p + n, p - n] {
-                assert!(
-                    matches!(loops.branch_at(node, band()), Ok(None)),
-                    "{deg}°: a node reads no branch"
-                );
-            }
-        }
-    }
-
     /// **The nodes are a property of the whole intersecting
     /// equal-radius family, not of the perpendicular pose.** The two
     /// bisector planes' common line runs through the axes' meeting
@@ -7320,7 +7183,7 @@ mod frame_dispatch_tests {
                     let geom::Curve3::Ellipse(geom::Ellipse {
                         frame:
                             geom::Frame {
-                                center,
+                                origin: center,
                                 axis,
                                 u_ref,
                             },

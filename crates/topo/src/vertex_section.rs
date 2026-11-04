@@ -75,7 +75,7 @@ pub(crate) struct SectionPlane<T: geom_core::Real> {
 }
 
 /// A door's signed offset of the vertex from the plane, as it evaluated
-/// it ([`crate::sector_shape::plane_offset_rounded`]), and the normal it
+/// it ([`geom_brep::sector_shape::plane_offset_rounded`]), and the normal it
 /// evaluated it with.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Offset<T: geom_core::Real> {

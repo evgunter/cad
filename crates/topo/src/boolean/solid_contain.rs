@@ -1176,8 +1176,7 @@ fn torus_closed_group<T: Decide>(
 /// `(ρ² − r²)/2r` in metres: the form the certification layer
 /// classifies.
 fn wall_elevation<T: Decide>(origin: Point3<T>, axis: Vec3<T>, radius: T, q: Point3<T>) -> T {
-    let w = q - origin;
-    let radial = w - axis * w.dot(axis);
+    let radial = geom::Line { origin, dir: axis }.offset(q);
     (radial.norm_squared() - radius.powi(2)) / (T::from_f64(2.0) * radius)
 }
 
@@ -1364,7 +1363,7 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
         let geom::Curve3::Circle(geom::Circle {
             frame:
                 geom::Frame {
-                    center: c_c,
+                    origin: c_c,
                     axis: n_c,
                     u_ref: u_c,
                 },
@@ -2445,7 +2444,7 @@ pub(super) fn line_wall_roots<T: Decide>(
     about: About,
 ) -> Result<WallRoots<T>, WallRootFault> {
     let w0 = q - origin;
-    let w0p = w0 - axis * w0.dot(axis);
+    let w0p = geom::Line { origin, dir: axis }.offset(q);
     let dp = d - axis * d.dot(axis);
     let a2 = dp.norm_squared();
     let two_r = T::from_f64(2.0) * radius;
@@ -2900,7 +2899,10 @@ fn ray_passes_beside<T: Decide>(
         let h = (v - q).dot(m);
         (h, T::zero() - h)
     };
-    let edge = |c: &geom::cover::Cover<T>| (T::zero() - c.support(-m) - base, base - c.support(m));
+    let edge = |c: &geom::cover::Cover<T>| {
+        let (lo, hi) = c.range_along(m);
+        (lo - base, base - hi)
+    };
     for (a, b) in verts.into_iter().map(vertex).chain(covers.iter().map(edge)) {
         above = Some(above.map_or(a, |x| x.min(a)));
         below = Some(below.map_or(b, |x| x.min(b)));
@@ -3397,7 +3399,7 @@ impl<T: Decide> EdgeMeets<T> {
             .ok_or(RayFault::Fatal(PointInSolidError::CorruptFace {
                 face: faces[0],
             }))?;
-        let gap = crate::sector_shape::point_segment_distance(q, far, at);
+        let gap = geom_brep::sector_shape::point_segment_distance(q, far, at);
         // The distance is a short chain (differences, a projection, a
         // norm), each rounding under half an ulp of the lengths it is
         // read from: the kernel's one charge for such a chain.
@@ -3549,15 +3551,14 @@ fn wall_crosses_by_turn<T: Decide>(
             geom::Curve3::Circle(geom::Circle {
                 frame:
                     geom::Frame {
-                        center,
+                        origin: center,
                         axis: normal,
                         ..
                     },
                 radius: r,
             }) => {
-                let w = center - origin;
                 r.abs() * (normal / normal.norm()).cross(axis).norm()
-                    + (w - axis * w.dot(axis)).norm()
+                    + geom::Line { origin, dir: axis }.offset(center).norm()
             }
             _ => return Ok(None),
         };
@@ -3727,7 +3728,7 @@ pub(crate) fn edge_clearance<T: Decide>(
         .and_then(|ed| body.get_curve_geom(ed.curve))
         .and_then(crate::null::CurveGeom::certified)?;
     match *curve.carrier() {
-        geom::Curve3::Line(_) => Some(crate::sector_shape::point_segment_distance(
+        geom::Curve3::Line(_) => Some(geom_brep::sector_shape::point_segment_distance(
             at(e.ends[0])?,
             at(e.ends[1])?,
             m,

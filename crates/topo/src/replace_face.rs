@@ -1105,7 +1105,7 @@ fn transport_curve<T: Decide>(
             Curve3::Circle(geom::Circle {
                 frame:
                     geom::Frame {
-                        center,
+                        origin: center,
                         axis: ca,
                         u_ref,
                     },
@@ -1144,7 +1144,7 @@ fn transport_curve<T: Decide>(
                 Curve3::Circle(geom::Circle {
                     frame:
                         geom::Frame {
-                            center,
+                            origin: center,
                             axis: ca,
                             u_ref,
                         },
@@ -1185,7 +1185,7 @@ fn transport_curve<T: Decide>(
             Curve3::Circle(geom::Circle {
                 frame:
                     geom::Frame {
-                        center: c,
+                        origin: c,
                         axis: ca,
                         u_ref,
                     },
@@ -1270,29 +1270,14 @@ pub(crate) fn translate_curve<T: Real>(
 ) -> Result<Curve3<T>, geom_core::spline::SplineError> {
     Ok(match curve {
         Curve3::Line(geom::Line { origin, dir }) => Curve3::line(*origin + delta, *dir),
-        Curve3::Circle(geom::Circle {
-            frame:
-                geom::Frame {
-                    center,
-                    axis,
-                    u_ref,
-                },
-            radius,
-        }) => Curve3::circle(*center + delta, *axis, *radius, *u_ref),
-        Curve3::Ellipse(geom::Ellipse {
-            frame:
-                geom::Frame {
-                    center,
-                    axis,
-                    u_ref,
-                },
-            semi_u,
-            semi_v,
-        }) => Curve3::Ellipse(geom::Ellipse::new(
-            geom::Frame::new(*center + delta, *axis, *u_ref),
-            *semi_u,
-            *semi_v,
-        )),
+        Curve3::Circle(c) => Curve3::Circle(geom::Circle {
+            frame: c.frame.translated(delta),
+            ..*c
+        }),
+        Curve3::Ellipse(e) => Curve3::Ellipse(geom::Ellipse {
+            frame: e.frame.translated(delta),
+            ..*e
+        }),
         Curve3::Spiric {
             center,
             axis,
@@ -1326,7 +1311,7 @@ fn homothety<T: Real>(
         Curve3::Circle(geom::Circle {
             frame:
                 geom::Frame {
-                    center,
+                    origin: center,
                     axis,
                     u_ref,
                 },
@@ -2350,7 +2335,7 @@ fn cone_v_range<T: Decide>(
         Curve3::Circle(geom::Circle {
             frame:
                 geom::Frame {
-                    center,
+                    origin: center,
                     axis: ca,
                     u_ref,
                 },
@@ -2366,7 +2351,7 @@ fn cone_v_range<T: Decide>(
         Curve3::Ellipse(geom::Ellipse {
             frame:
                 geom::Frame {
-                    center,
+                    origin: center,
                     axis: ca,
                     u_ref,
                 },

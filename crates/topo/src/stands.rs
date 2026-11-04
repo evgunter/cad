@@ -405,7 +405,7 @@ fn line_meetings<T: Decide>(
         geom::Curve3::Circle(geom::Circle {
             frame:
                 geom::Frame {
-                    center,
+                    origin: center,
                     axis,
                     u_ref,
                 },
@@ -414,7 +414,7 @@ fn line_meetings<T: Decide>(
         geom::Curve3::Ellipse(geom::Ellipse {
             frame:
                 geom::Frame {
-                    center,
+                    origin: center,
                     axis,
                     u_ref,
                 },

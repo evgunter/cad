@@ -22,7 +22,7 @@ the table routes to `Door::SplineFace` goes to `spline_face`). The
 analytic doors the table names (`PlaneCrossing`, `LineRoots`,
 `ConicQuadric`, `ConicTorus`) and the unbuilt `SplineComposite` and
 `Spiric` doors are still reached through the sweep's own matches:
-the planar lane on `face_plane` and `splitting::plane_crossing_lane`,
+the planar lane on `face_plane` and `geom_brep::curve_face::plane_crossing::plane_crossing_lane`,
 the curved arm on the surface variant and the carrier kind. So for
 those pairs the table documents a dispatch it does not perform, and a
 door moved in one place does not move in the other.

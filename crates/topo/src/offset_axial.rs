@@ -2119,7 +2119,7 @@ fn mint_carrier<T: Decide>(
         if let Curve3::Circle(geom::Circle {
             frame:
                 geom::Frame {
-                    center: cc,
+                    origin: cc,
                     axis,
                     u_ref,
                 },
@@ -2165,7 +2165,7 @@ fn mint_carrier<T: Decide>(
                 Curve3::Circle(geom::Circle {
                     frame:
                         geom::Frame {
-                            center: cc,
+                            origin: cc,
                             axis,
                             u_ref,
                         },
@@ -2199,7 +2199,7 @@ fn mint_carrier<T: Decide>(
                 Curve3::Circle(geom::Circle {
                     frame:
                         geom::Frame {
-                            center: cc,
+                            origin: cc,
                             axis,
                             u_ref,
                         },
@@ -2281,12 +2281,10 @@ fn mint_carrier<T: Decide>(
         let old_dir = old.eval(old_span.1) - old.eval(old_span.0);
         let q_mid = old.mid_point(old_span.0, old_span.1);
         let off = |l: &Curve3<T>| {
-            let Some(geom::Line { origin, dir }) = l.as_line() else {
+            let Some(line) = l.as_line() else {
                 unreachable!("{edge:?}: a generator pair is two lines")
             };
-            let d = dir.normalize();
-            let v = q_mid - origin;
-            (v - d * v.dot(d)).norm()
+            line.offset(q_mid).norm()
         };
         let chosen = match decide(
             "offset_axial_generator_side",
@@ -2471,7 +2469,7 @@ fn mint_carrier<T: Decide>(
         Curve3::Circle(geom::Circle {
             frame:
                 geom::Frame {
-                    center,
+                    origin: center,
                     axis,
                     u_ref,
                 },
@@ -2767,7 +2765,12 @@ fn param_on<T: Decide>(
         // A circle's motion is the angle between the two points' rays
         // about its own centre, read off the points themselves.
         Curve3::Circle(geom::Circle {
-            frame: geom::Frame { center, axis, .. },
+            frame:
+                geom::Frame {
+                    origin: center,
+                    axis,
+                    ..
+                },
             ..
         }) => {
             let n = axis.normalize();
@@ -3008,7 +3011,7 @@ fn reauthor<T: Decide>(
                     }
                     geom_brep::SketchSegment::Arc { arc: was, .. } => {
                         let Curve3::Circle(geom::Circle {
-                            frame: geom::Frame { center, .. },
+                            frame: geom::Frame { origin: center, .. },
                             radius,
                         }) = carrier
                         else {

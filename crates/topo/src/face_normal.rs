@@ -456,8 +456,7 @@ pub(crate) fn face_outward_normal_at_foot<T: Decide>(
             return Ok(Some(plane_outward_normal(f.record(), normal)));
         }
         geom::Surface::Cylinder { origin, axis, .. } => {
-            let q = p - origin;
-            clear(Margin::norm3(q - axis * q.dot(axis)))?;
+            clear(Margin::norm3(geom::Line { origin, dir: axis }.offset(p)))?;
         }
         geom::Surface::Sphere { center, .. } => clear(Margin::norm3(p - center))?,
         geom::Surface::Cone { apex, axis, .. } => {
@@ -471,8 +470,11 @@ pub(crate) fn face_outward_normal_at_foot<T: Decide>(
             major_radius,
             ..
         } => {
-            let q = p - center;
-            let radial = q - axis * q.dot(axis);
+            let radial = geom::Line {
+                origin: center,
+                dir: axis,
+            }
+            .offset(p);
             clear(Margin::norm3(radial))?;
             let core = center + radial * (major_radius / radial.norm());
             clear(Margin::norm3(p - core))?;
@@ -634,17 +636,22 @@ pub(crate) fn cone_point<T: Decide>(
     p: Point3<T>,
     band: Band,
 ) -> Result<ConePoint, geom_core::Indeterminate> {
-    let q = p - apex;
-    let radial = q - axis * q.dot(axis);
+    let radial = geom::Line {
+        origin: apex,
+        dir: axis,
+    }
+    .offset(p);
     // An off-axis reading in the band reads on: the apex test below
     // decides whether the point is the apex or only near the axis.
     if let Ok(Sign::Positive) = decide("cone_off_axis", Margin::norm3(radial), band) {
         return Ok(ConePoint::OffAxis);
     }
-    Ok(match decide("cone_at_apex", Margin::norm3(q), band)? {
-        Sign::Positive | Sign::Negative => ConePoint::NearAxis,
-        Sign::Zero => ConePoint::Apex,
-    })
+    Ok(
+        match decide("cone_at_apex", Margin::norm3(p - apex), band)? {
+            Sign::Positive | Sign::Negative => ConePoint::NearAxis,
+            Sign::Zero => ConePoint::Apex,
+        },
+    )
 }
 
 /// [`cone_point`] as the pierce door reads it: a point with no
@@ -1426,6 +1433,30 @@ mod tests {
             matches!(face_outward_normal_at(&body, face, p, band()), Ok(None)),
             "the point door has no spline arm: it reads a chart point"
         );
+    }
+
+    /// **A reverted body's spline face reads its outward normal
+    /// negated.** `Body::revert` leaves a spline face's chart as it is
+    /// and flips the face's `sense`, so the reading at the same chart
+    /// point is the original's negation: a door that read the chart's
+    /// normal without the face's bit would read the two alike.
+    #[test]
+    fn a_reverted_spline_face_reads_its_outward_normal_negated() {
+        let (body, face) = face_on(smooth_bump());
+        let reverted = body.revert().unwrap();
+        assert!(
+            !reverted.get_face(face).unwrap().sense,
+            "the reverted face is the sense-false one"
+        );
+        let uv = (0.25, 0.5);
+        let p = Point3::new(0.25, 0.5, 1.0 + 0.4 * 0.25 * 0.75);
+        let lean = Vec3::new(-0.2, 0.0, 1.0).normalize();
+        for (b, want, what) in [(&body, lean, "as built"), (&reverted, -lean, "reverted")] {
+            let n = super::spline_outward_normal_at(b, face, uv, p, band())
+                .unwrap_or_else(|e| panic!("{what}: {e:?}"))
+                .vec();
+            assert!((n - want).norm() < 1e-12, "{what}: {n:?}, want {want:?}");
+        }
     }
 
     /// **A chart point on a crease refuses by name, and one beside it

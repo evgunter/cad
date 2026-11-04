@@ -1173,7 +1173,7 @@ struct Cone<T: Real> {
 
 impl<T: geom_core::spline::SpanLocate> Cone<T> {
     fn new(apex: Point3<T>, axis: Vec3<T>, alpha: T, u_ref: Vec3<T>) -> Self {
-        let frame = geom::square_frame(axis, u_ref);
+        let frame = geom::Frame::new(apex, axis, u_ref).square();
         Self {
             apex,
             a: frame.axis,
@@ -1838,12 +1838,19 @@ pub(super) fn of_pair_section<T: Decide>(
     // A tangency the section still crosses is read through its
     // components: a node whose arcs all have carriers, and a tangent
     // ruling the region cuts, an unbounded component W1 clears however it
-    // touches. Any other tangency is R-tan, or a touch at one point.
+    // touches. Any other tangency is R-tan, or a touch at one point: the
+    // pinch among them, whose node the value does not list while its
+    // lobes mint no carrier.
+    let pinched = matches!(
+        section.pose(),
+        geom_brep::PairPose::CylinderCylinder(pose) if pose.pinched()
+    );
     let crossed = !section.nodes().is_empty()
         && components
             .iter()
             .all(|c| !matches!(c.carrier, ClassCarrier::Unminted(_)));
     let unbounded = section.nodes().is_empty()
+        && !pinched
         && !components.is_empty()
         && components.iter().all(|c| ends(c).cut);
     if let (Some(zero), false) = (section.tangency(), crossed || unbounded) {

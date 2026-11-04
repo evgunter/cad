@@ -420,11 +420,7 @@ fn plane_nurbs_refusals() -> Vec<PlaneNurbsRefusal> {
             limb: geom_brep::SsiLimb::Tube,
             cause: diag(),
         },
-        PlaneNurbsRefusal::ArcRim(geom_brep::ArcRimRefusal::Escalated {
-            check: geom_brep::PcurveCheck::MapResidual,
-            cause: diag(),
-        }),
-        PlaneNurbsRefusal::ArcRim(geom_brep::ArcRimRefusal::Refused {
+        PlaneNurbsRefusal::ArcRim(geom_brep::ArcRimRefusal {
             iso: Some(geom_brep::PcurveCheck::MapResidual),
             limb: geom_brep::SsiLimb::HullValueChart,
             bound: MarginDiag::value(4.6e-4),
@@ -524,13 +520,11 @@ fn certify_errors() -> Vec<CertifyError> {
         },
         CertifyError::UnresolvedSurface { key },
         CertifyError::Unimplemented,
-        CertifyError::PlaneNurbs(PlaneNurbsRefusal::ArcRim(
-            geom_brep::ArcRimRefusal::Refused {
-                iso: None,
-                limb: geom_brep::SsiLimb::HullValueChart,
-                bound: MarginDiag::value(4.6e-4),
-            },
-        )),
+        CertifyError::PlaneNurbs(PlaneNurbsRefusal::ArcRim(geom_brep::ArcRimRefusal {
+            iso: None,
+            limb: geom_brep::SsiLimb::HullValueChart,
+            bound: MarginDiag::value(4.6e-4),
+        })),
         CertifyError::IntersectionSameSurface { key },
         CertifyError::Row {
             surface: key,
@@ -2078,17 +2072,6 @@ pub(crate) fn nested_coverage_gaps() -> Vec<String> {
         "PlaneNurbsRefusal",
         &plane_nurbs_refusals(),
     ));
-    let arc_rims: Vec<geom_brep::ArcRimRefusal> = plane_nurbs_refusals()
-        .into_iter()
-        .filter_map(|e| match e {
-            PlaneNurbsRefusal::ArcRim(r) => Some(r),
-            _ => None,
-        })
-        .collect();
-    out.extend(gaps::<_, geom_brep::edge_nurbs::ArcRimRefusalKind>(
-        "ArcRimRefusal",
-        &arc_rims,
-    ));
     out.extend(gaps::<_, geom_brep::edge_nurbs::AnalyticRung3RefusalKind>(
         "AnalyticRung3Refusal",
         &analytic_rung3_refusals(),
@@ -2130,6 +2113,7 @@ pub(crate) fn nested_coverage_gaps() -> Vec<String> {
 
 #[cfg(test)]
 mod tests {
+    use geom_brep::recourse::DoorCheck as _;
     use geom_brep::recourse::Reading;
     use geom_core::FileCoincidence;
 
@@ -2771,6 +2755,120 @@ mod tests {
                 },
                 1 + usize::from(pose),
             );
+        }
+        assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+    }
+
+    /// **Every certification door ends through the one decision table**
+    /// (`geom_brep::recourse::Decision`), at a build, at rest and at the
+    /// import door. Over the edge door's, the pcurve door's and the two
+    /// lanes' rosters, which `nested_coverage_gaps` holds to every
+    /// variant, each refusal's `ending` is the table's ending of the
+    /// decision it names (`recourse::census`), save where the door reads
+    /// the refusal itself first (an incidence refusal by its read, a
+    /// stated interval by its span), through the reading `ending` takes.
+    /// Every refusal has an ending, save the edge door's arms that name
+    /// no decision, listed by name (`no_decision`); and every kind of
+    /// decision the table writes is reached by some refusal, so a kind no
+    /// door reads any more, or one added with no refusal of any door,
+    /// reds by name.
+    #[test]
+    fn every_refusal_ends_through_the_one_decision_table() {
+        use geom_brep::certify::CertifyError;
+        use geom_brep::recourse::{DecisionKind, Door, ReadAt, census};
+        use std::collections::BTreeSet;
+        use strum::IntoEnumIterator as _;
+
+        /// The edge door's arms that name no decision and so end in
+        /// none, as filed on
+        /// `a-certify-errors-no-decision-arms-end-apart-from-the-one-table`.
+        /// An arm demoted to no decision reds until it is added here.
+        fn no_decision(e: &CertifyError) -> bool {
+            matches!(
+                e,
+                CertifyError::UnresolvedSurface { .. }
+                    | CertifyError::Unimplemented
+                    | CertifyError::IntersectionSameSurface { .. }
+                    | CertifyError::WrapOnNonPeriodic
+                    | CertifyError::TangentCertificateUnsupported
+                    | CertifyError::Band(_)
+                    | CertifyError::Row {
+                        refusal: geom_brep::RowRefusal::OffSide,
+                        ..
+                    }
+            )
+        }
+        let doors = [
+            ReadAt::from(Reading::Build),
+            Reading::AtRest.into(),
+            FileCoincidence::new(1e-6).into(),
+        ];
+        let certify = super::certify_errors();
+        let pcurve = super::pcurve_certify_errors();
+        let plane = super::plane_nurbs_refusals();
+        let rung3 = super::analytic_rung3_refusals();
+        // Per refusal: what it is, the door, its door's ending at a
+        // reading, and whether it may end in none.
+        type Ending<'a> = Box<dyn Fn(ReadAt) -> Option<String> + 'a>;
+        let mut reads: Vec<(String, Door<'_>, Ending<'_>, bool)> = Vec::new();
+        for e in &certify {
+            let none = no_decision(e);
+            reads.push((
+                format!("{e:?}"),
+                e.into(),
+                Box::new(|at| e.ending(at)),
+                none,
+            ));
+        }
+        for e in &pcurve {
+            reads.push((
+                format!("{e:?}"),
+                e.into(),
+                Box::new(|at| Some(e.ending(at))),
+                false,
+            ));
+        }
+        for e in &plane {
+            reads.push((
+                format!("{e:?}"),
+                e.into(),
+                Box::new(|at| Some(e.ending(at))),
+                false,
+            ));
+        }
+        for e in &rung3 {
+            reads.push((
+                format!("{e:?}"),
+                e.into(),
+                Box::new(|at| Some(e.ending(at))),
+                false,
+            ));
+        }
+        let mut wrong = Vec::new();
+        for (what, door, ending, none) in &reads {
+            for at in doors {
+                let read = census(*door, at);
+                let want = read.own.or(read.table);
+                let got = ending(at);
+                if got != want {
+                    wrong.push(format!(
+                        "{what} at {at:?} ends outside the table: {got:?}, not {want:?}"
+                    ));
+                }
+                if got.is_none() != *none {
+                    wrong.push(format!(
+                        "{what} at {at:?} ends in {got:?}, against the no-decision list"
+                    ));
+                }
+            }
+        }
+        // The kind a refusal's decision is does not depend on the reading.
+        let reached: BTreeSet<DecisionKind> = reads
+            .iter()
+            .filter_map(|(_, door, ..)| census(*door, Reading::Build).kind)
+            .collect();
+        for kind in DecisionKind::iter().filter(|kind| !reached.contains(kind)) {
+            wrong.push(format!("no refusal ends by the table's {kind:?}"));
         }
         assert!(wrong.is_empty(), "{}", wrong.join("\n"));
     }

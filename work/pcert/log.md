@@ -971,3 +971,34 @@ E1c waits on the answer.
     - `a-ruling-read-in-band-meets-consumers-that-read-no-projected-image` (P2);
     - **`the-ruling-question-is-read-in-two-units` (P1)**: props meters a ruling's tilt over the edge, while the mint reads its radial speed per unit parameter.
   - Next: E4 and the projected-image second spelling (both on `projected.rs`), E5 after plane-nurbs, and E3.
+- 2026-11-04 — **E5 merged** (PR 6484): the mint-side class picks on a spline chart take the general lane in band (D3).
+  - The exact arc rim read in band now reads its fitted image, and the fitted path's own decision stands. `ArcRimRefusal::Escalated` is gone.
+  - `pick_arc_rim`: an in-band closed-form step no longer hides a measured row.
+  - `iso_schedule`: candidates read in band pass on to the general image.
+  - `nurbs_iso_derive`'s `arc_rim` arm is the one disposition for a circle in every description form. It reads the pick, then the row's certificate. If neither shows the circle, it refuses `NoGeneralLane{Unwritten}`, "not yet".
+  - Review tier: single FULL. Fix list T was read by the orchestrator:
+    - T1, option (b): a spline chart has no incidence test, so a circle off its wall ends "not yet" too. Filed P1, H.
+    - T2: one disposition per (Nurbs, Circle).
+    - T3: M7 is pinned.
+    - T4: the mutant table.
+    - T5: style.
+  - Cost about 0.95–1.0× main.
+  - Filed:
+    - `a-spline-chart-has-no-incidence-test-so-a-lane-choice-refusal-cannot-tell-off-from-uncovered` (P1);
+    - `a-curved-carriers-degree-one-general-image-ends-as-a-kernel-bug` (P1; E4's U2 class);
+    - `a-loft-section-rims-in-band-pick-offers-a-tolerance` (P2);
+    - `a-lane-choice-pick-splices-its-in-band-runs-live` (P2);
+    - `in-band-test-distances-are-spelled-five-ways` (P3).
+  - Next on `edge_nurbs.rs`: `two-decision-tables-for-one-ending`.
+- 2026-11-04 — **`two-decision-tables-for-one-ending` merged** (PR 6493).
+  - `recourse::Decision<C: DoorCheck>` and one `ending` replace `pcurve_cache::Decision` and `edge_nurbs::LaneDecision`.
+  - `CertifyError`'s table is folded in as the third.
+  - `Lever` and the kernel-limit texts now live in `recourse`.
+  - One `decided()`/`decision()` convention at every door.
+  - No ending moved: the review's dump of 510 entries is byte-identical at both heads.
+  - The guard `every_refusal_ends_through_the_one_decision_table` reads one `census` hook. It holds an explicit no-decision list that cites its row, so the reviewer's mutant M3 (a decided arm demoted to None) reds.
+  - Review tier: single STYLE. Verdict APPROVE-WITH-FIXES; fix list W was read by the orchestrator.
+  - Filed:
+    - `a-certify-errors-no-decision-arms-end-apart-from-the-one-table` (P2; `Band`'s lever-arm ending is unreachable today);
+    - `the-pcurve-mint-error-keeps-a-third-ending-table` (P2);
+    - `the-door-defect-is-two-kinds-of-the-one-decision-table` (P4).
