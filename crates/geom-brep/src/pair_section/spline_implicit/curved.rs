@@ -114,6 +114,21 @@ pub(super) fn section(
             let out = reading.all().map_err(super::super::whole_reading_refused)?;
             listed(pose, Bracketed::Curved(&partner, &form), out, &[], band)
         }
+        Sweep::Enclosing { decided, .. } => {
+            let witnesses = super::witnesses(reading.boxes(), &decided);
+            let out = super::read_crossing(reading, &decided)?;
+            let listing = super::Listing {
+                decided: &decided,
+                witnesses: &witnesses,
+            };
+            listed(
+                pose,
+                Bracketed::Curved(&partner, &form),
+                out,
+                &[listing],
+                band,
+            )
+        }
         Sweep::LoopFree(decided) => {
             let witnesses = super::witnesses(reading.boxes(), &decided);
             if super::crosses(&decided, reach) {

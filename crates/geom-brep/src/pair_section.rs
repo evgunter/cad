@@ -2450,28 +2450,51 @@ impl<T: Decide> CarriedComponent<T> {
         }
     }
 
-    /// **This component's end at the node `n`** ([`ArcPlace::AtEnd`]).
+    /// **This component's end at the node `n`** ([`ArcPlace::AtEnd`]),
+    /// the one leaving along `ray` where the germ reading it names one
+    /// (its line and sense, [`NodeEnd`]): an arc with both ends at one
+    /// node is read at it by the end its germ leaves along.
     ///
     /// # Errors
     ///
-    /// [`SiteRefusal::Desync`] where it has no end at `n`, or both: an
-    /// arc with both ends at one node is read at it by the end its germ
-    /// leaves along, which no germ names yet.
-    pub fn end_at(&self, n: usize) -> Result<ArcPlace<T>, SiteRefusal> {
-        match node_of_ends(self) {
-            [Some(a), Some(b)] if a == n && b == n => Err(SiteRefusal::Desync(
-                "an arc with both ends at one node is read at it by the end its germ leaves \
-                 along, which no germ names",
+    /// [`SiteRefusal::Desync`] where it has no end at `n`; where both are
+    /// at `n` and `ray` names neither, or none is named; and where `ray`
+    /// is named and the one end at `n` leaves along another.
+    pub fn end_at(
+        &self,
+        n: usize,
+        ray: Option<(NodeLine, RaySense)>,
+    ) -> Result<ArcPlace<T>, SiteRefusal> {
+        let ComponentShape::Open { ends } = self.shape else {
+            return Err(SiteRefusal::Desync(
+                "a site at a node lies on a component with no end there",
+            ));
+        };
+        let at = |end: Option<NodeEnd>| end.filter(|e| e.node == n);
+        let named = |end: NodeEnd| ray.is_none_or(|r| r == (end.line, end.sense));
+        let start = ArcPlace::AtEnd {
+            t: self.span.0,
+            end: SpanEnd::Start,
+        };
+        let finish = ArcPlace::AtEnd {
+            t: self.span.1,
+            end: SpanEnd::End,
+        };
+        match (at(ends.nodes.start), at(ends.nodes.end)) {
+            (Some(a), Some(b)) => match ray {
+                Some(_) if named(a) && !named(b) => Ok(start),
+                Some(_) if named(b) && !named(a) => Ok(finish),
+                _ => Err(SiteRefusal::Desync(
+                    "an arc with both ends at one node is read at it by the end its germ \
+                     leaves along, and the germ names neither",
+                )),
+            },
+            (Some(a), None) if named(a) => Ok(start),
+            (None, Some(b)) if named(b) => Ok(finish),
+            (Some(_), None) | (None, Some(_)) => Err(SiteRefusal::Desync(
+                "a site at a node is read off the end its germ does not leave along",
             )),
-            [Some(a), _] if a == n => Ok(ArcPlace::AtEnd {
-                t: self.span.0,
-                end: SpanEnd::Start,
-            }),
-            [_, Some(b)] if b == n => Ok(ArcPlace::AtEnd {
-                t: self.span.1,
-                end: SpanEnd::End,
-            }),
-            _ => Err(SiteRefusal::Desync(
+            (None, None) => Err(SiteRefusal::Desync(
                 "a site at a node lies on a component with no end there",
             )),
         }
@@ -2493,7 +2516,7 @@ impl<T: Decide> CarriedComponent<T> {
         band: Band,
     ) -> Result<ArcPlace<T>, SiteRefusal> {
         if let (Some(n), _) = at_node(nodes, p, band)? {
-            return self.end_at(n);
+            return self.end_at(n, None);
         }
         self.reads(p, band)?
             .map(ArcPlace::At)
@@ -2744,18 +2767,37 @@ impl<T: Decide> CarriedSection<T> {
         ))
     }
 
-    /// **Component `k`'s end at the node `n`** ([`ArcPlace::AtEnd`]).
+    /// **Component `k`'s end at the node `n`** ([`ArcPlace::AtEnd`]),
+    /// the one leaving along `ray` where the germ names it
+    /// ([`CarriedComponent::end_at`]).
     ///
     /// # Errors
     ///
-    /// [`SiteRefusal::Desync`] where `k` has no end at `n`, or both: an
-    /// arc with both ends at one node is read at it by the end its germ
-    /// leaves along, which no germ names yet.
-    pub fn end_at(&self, k: usize, n: usize) -> Result<ArcPlace<T>, SiteRefusal> {
+    /// [`SiteRefusal::Desync`] as [`CarriedComponent::end_at`] reads it,
+    /// and for a component not in the section.
+    pub fn end_at(
+        &self,
+        k: usize,
+        n: usize,
+        ray: Option<(NodeLine, RaySense)>,
+    ) -> Result<ArcPlace<T>, SiteRefusal> {
         let c = self.components.get(k).ok_or(SiteRefusal::Desync(
             "a site's component is not in its section",
         ))?;
-        c.end_at(n)
+        c.end_at(n, ray)
+    }
+
+    /// **The ray of node `n` a germ leaving along `dir` names**, by its
+    /// line and sense ([`SectionNode::RAYS`]): the ray nearest `dir`, as
+    /// a germ minted from an arc end there leaves along that end's ray.
+    /// `None` for a node not in the section.
+    pub fn ray_along(&self, n: usize, dir: Vec3<T>) -> Option<(NodeLine, RaySense)> {
+        let node = self.nodes.get(n)?;
+        let dots = node
+            .rays()
+            .map(|r| dir.dot(r).point_value().unwrap_or(f64::NEG_INFINITY));
+        let best = (0..4).max_by(|&i, &j| dots[i].total_cmp(&dots[j]))?;
+        Some(SectionNode::<T>::RAYS[best])
     }
 }
 

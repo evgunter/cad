@@ -109,6 +109,8 @@ use crate::ssi::residual::ImplicitForm;
 use crate::ssi::{BranchEnd, BranchTip, SsiBoundaryContact, SsiBranch, SsiDomain, SsiTube};
 
 mod curved;
+#[cfg(test)]
+mod node_rows;
 mod sweep;
 
 /// **A spline wall and an implicit partner**, in the order the section
@@ -768,6 +770,15 @@ pub(super) fn section(
         sweep::Sweep::Declined(_) => {
             let out = reading.all().map_err(super::whole_reading_refused)?;
             return listed(pose, Bracketed::Plane(pivot.heights), out, &[], band);
+        }
+        sweep::Sweep::Enclosing { decided, .. } => {
+            let witnesses = witnesses(reading.boxes(), &decided);
+            let out = read_crossing(reading, &decided)?;
+            let listing = Listing {
+                decided: &decided,
+                witnesses: &witnesses,
+            };
+            return listed(pose, Bracketed::Plane(pivot.heights), out, &[listing], band);
         }
         sweep::Sweep::LoopFree(decided) => decided,
     };

@@ -413,7 +413,15 @@ impl<'a> ImplicitSection<'a> {
         // first, ahead of the pass whose crossings it would settle.
         let ends = lane.ends()?;
         let pass = passed(&self.pass, || lane.wall.pass(&lane.form))?;
-        let seeds = exhaust::seed_chart_partner(lane.seed_floor, |cell| lane.excluded(cell))?;
+        // A cell inside a decided point's box is that point's: no seed.
+        let claims = |cell: UvRect| {
+            lane.claimed.iter().any(|r| {
+                r.u.0 <= cell.u.0 && cell.u.1 <= r.u.1 && r.v.0 <= cell.v.0 && cell.v.1 <= r.v.1
+            })
+        };
+        let seeds = exhaust::seed_chart_partner(lane.seed_floor, |cell| {
+            Ok(claims(cell) || lane.excluded(cell)?)
+        })?;
         #[allow(clippy::cast_possible_truncation)]
         let seed_count = seeds.len() as u32;
 

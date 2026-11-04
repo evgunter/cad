@@ -103,6 +103,16 @@ pub(super) enum Sweep {
     LoopFree(Vec<Critical>),
     /// The sweep proves nothing: the pose is read whole.
     Declined(Declined),
+    /// Every critical point decided, and the section's components may
+    /// close about a point the sweep excludes ([`Declined::Enclosed`],
+    /// its box `at`): the pose is read whole with the decided points
+    /// handed in, as a loop through a node is.
+    Enclosing {
+        /// The critical points of `φ` within the band, each decided Zero.
+        decided: Vec<Critical>,
+        /// The box of the enclosed point.
+        at: [f64; 4],
+    },
 }
 
 /// Why the sweep declined.
@@ -408,6 +418,9 @@ pub(super) fn sweep(
     }
     match joined(&excluded.into_inner(), root) {
         Sweep::LoopFree(_) => Sweep::LoopFree(decided),
+        Sweep::Declined(Declined::Enclosed(at)) if !decided.is_empty() => {
+            Sweep::Enclosing { decided, at }
+        }
         declined => declined,
     }
 }

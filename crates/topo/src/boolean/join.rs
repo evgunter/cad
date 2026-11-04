@@ -3653,13 +3653,15 @@ fn carried_seats<T: Decide>(
                     ));
                 }
                 // A site at a node stands at its arc's end there.
-                geom_brep::SiteReading::AtNode(n) => match section.end_at(k, n) {
-                    Ok(geom_brep::ArcPlace::AtEnd { t, .. }) => t,
-                    Ok(geom_brep::ArcPlace::At(_)) => {
-                        return Err(desync("a site at a node read off its arc's end"));
+                geom_brep::SiteReading::AtNode(n) => {
+                    match section.end_at(k, n, section.ray_along(n, seg.germ.dir)) {
+                        Ok(geom_brep::ArcPlace::AtEnd { t, .. }) => t,
+                        Ok(geom_brep::ArcPlace::At(_)) => {
+                            return Err(desync("a site at a node read off its arc's end"));
+                        }
+                        Err(e) => return Err(site_refusal(e)),
                     }
-                    Err(e) => return Err(site_refusal(e)),
-                },
+                }
             };
             seats
                 .entry((pair.a.0, pair.b.0, k))
@@ -4492,7 +4494,10 @@ fn along_facing<T: Decide>(
                         "a germ at a node names no arc of its section",
                     ));
                 };
-                return match section.end_at(k, n).map_err(FootRefusal::Site)? {
+                return match section
+                    .end_at(k, n, section.ray_along(n, germ.dir))
+                    .map_err(FootRefusal::Site)?
+                {
                     geom_brep::ArcPlace::AtEnd { t, end } => Ok(GermFoot {
                         foot: geom_brep::SiteFoot {
                             component: k,
