@@ -353,7 +353,13 @@ impl RotationalChartQ {
     /// `v_off + v_sign·z`, on the sphere `sin v = p_z/|p|`, which every
     /// name of the point shares (the deck map is checked at the image,
     /// [`ProjectedEdgeQ::of_image`]).
-    fn projected_forms(self, v_off: Interval, v_sign: f64, at: &FrameJets, anchor: f64) -> [Jet; 2] {
+    fn projected_forms(
+        self,
+        v_off: Interval,
+        v_sign: f64,
+        at: &FrameJets,
+        anchor: f64,
+    ) -> [Jet; 2] {
         match self {
             Self::Cylinder { radius } => {
                 let g = at
@@ -379,7 +385,9 @@ impl RotationalChartQ {
     /// `L1`.
     fn projected_speed(self, at: &FrameJets) -> Interval {
         match self {
-            Self::Cylinder { radius } => chart_speed(radius, Interval::one(), at.du.0[0], at.height().0[1]),
+            Self::Cylinder { radius } => {
+                chart_speed(radius, Interval::one(), at.du.0[0], at.height().0[1])
+            }
             Self::Sphere { radius, .. } => {
                 let (p, d) = (at.p.map(|j| j.0[0]), at.dp.map(|j| j.0[0]));
                 let cross = (p[1] * d[2] - p[2] * d[1]).abs_enclosure()
@@ -653,7 +661,12 @@ fn net_rate(b: [Jet; 3], db: [Jet; 3], w: Jet) -> FrameJets {
         .mul(db[1])
         .sub(b[1].mul(db[0]))
         .mul(b[0].sqr().add(b[1].sqr()).recip());
-    FrameJets { du, p: b, dp: db, w }
+    FrameJets {
+        du,
+        p: b,
+        dp: db,
+        w,
+    }
 }
 
 /// The frame point of a projected circle at the trig jets `c`, `s` of
@@ -1090,8 +1103,7 @@ pub fn rotational_cut_face_rounds<T: Decide>(
 fn sphere_outside(radius: Interval, outward: bool, area: Interval, turns: i64) -> Interval {
     let sphere = pt(2.0) * crate::props::bracket::tau_bracket() * radius.sqr();
     #[allow(clippy::cast_precision_loss)]
-    let x = (if outward { area } else { -area })
-        + pt(0.5) * sphere * pt(turns as f64);
+    let x = (if outward { area } else { -area }) + pt(0.5) * sphere * pt(turns as f64);
     let n = (mid(x) / mid(sphere)).floor() + 1.0;
     pt(n) * sphere - x
 }
@@ -1106,10 +1118,9 @@ fn sphere_signed_area(
     turns: &[i64],
 ) -> Interval {
     let sphere = pt(2.0) * crate::props::bracket::tau_bracket() * radius.sqr();
-    let face = per_loop
-        .iter()
-        .zip(turns)
-        .fold(sphere, |a, (l, &k)| a - sphere_outside(radius, outward, l[1], k));
+    let face = per_loop.iter().zip(turns).fold(sphere, |a, (l, &k)| {
+        a - sphere_outside(radius, outward, l[1], k)
+    });
     if outward { face } else { -face }
 }
 
@@ -1147,7 +1158,12 @@ fn require_sphere_sides(
     }
     let face = sphere_signed_area(radius, outward, per_loop, turns);
     let face = if outward { face } else { -face };
-    crate::props::curved::require_holes_wound_against("props_chart_area_side", (face, whole), &holes, band)
+    crate::props::curved::require_holes_wound_against(
+        "props_chart_area_side",
+        (face, whole),
+        &holes,
+        band,
+    )
 }
 
 /// An edge's chart point `(u, v)` where its traversal starts (`end`

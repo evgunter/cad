@@ -3,9 +3,9 @@
 //! crossed into certification arithmetic, by the caller's lift, at any
 //! scalar the image holds.
 
+use geom_core::Bounds;
 use geom_core::Real;
 use geom_core::interval::Interval;
-use geom_core::Bounds;
 
 use super::rotational::{FramedQ, ProjectedEdgeQ, RotationalChartQ};
 use crate::pcurve_cache::{FramedCarrier, ProjectedChart, ProjectedImage};
