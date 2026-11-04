@@ -220,3 +220,33 @@ fn psi_reads_the_chart_point_on_its_branch_at_interval() {
     let compared = compare(Interval::from_f64, |x| (x.lo(), x.hi()));
     assert!(compared > 20_000, "the sweep compared {compared} reads");
 }
+
+/// **The one moved baseline**: ψ's sphere latitude at a point with
+/// `z = −0.0` exactly reads `+0.0`, where the old spelling (`z.atan2(ρ)`)
+/// read `−0.0`. The latitude is now named on its branch about zero
+/// ([`geom::Azimuth::about`], `0·π/2 + atan2`), and `+0 + −0` is `+0`.
+/// The two are equal values; this row pins the bit.
+#[test]
+fn the_sphere_latitude_at_negative_zero_height_reads_positive_zero() {
+    let image = ProjectedImage {
+        chart: ProjectedChart::<f64>::Sphere,
+        carrier: FramedCarrier::Line {
+            point: Vec3::zero(),
+            dir: Vec3::zero(),
+            origin: 0.0,
+            span: 1.0,
+        },
+        breaks: breaks_vector(&[0.0, 1.0]),
+        azimuth: vec![0],
+        tube: Vec::new(),
+        u_off: 0.0,
+        v_off: 0.0,
+        v_sign: 1.0,
+    };
+    let v = image.raw(Vec3::new(0.6, 0.1, -0.0), 0).y;
+    assert_eq!(
+        v.to_bits(),
+        0.0f64.to_bits(),
+        "the latitude at z = −0.0 reads {v:?}, not +0.0"
+    );
+}

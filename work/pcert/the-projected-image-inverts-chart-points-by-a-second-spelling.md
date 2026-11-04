@@ -40,7 +40,7 @@ Routed, not exempt. The chart's channel table is spelled once, `geom::ChartChann
 
 How the Interval scalar and the branch centres survive: the branch is the namer's, not a decision, so ψ still evaluates at every scalar with no band, and `Pcurve::eval`'s signature is unchanged. The branch is decided once, at derivation, by the sector condition. A per-point "principal, then periodic_branch" route was set aside for three reasons: it would read a whole-period integer off a value, which C4 forbids; it would put band decisions into every evaluation; and it would move every non-zero-centre channel by ulps.
 
-Moved baselines: none in certified answers. A one-shot bitwise comparison of the new ψ against the old formula over 23 M `f64` reads found 648 differences, all the sphere latitude at `z = −0.0` exactly, which now reads `+0.0` (equal values). Over 0.29 M `Interval` reads it found 0 differences. The placed value differs only where the image's `v_off` is also `−0.0`.
+Moved baselines: one, and no certified answer. The sphere latitude at exactly `z = −0.0` reads `+0.0` where it read `−0.0` (equal values), pinned by `the_sphere_latitude_at_negative_zero_height_reads_positive_zero`. A one-shot bitwise comparison of the new ψ against the old formula over 23 M `f64` reads found 648 differences, all the sphere latitude at `z = −0.0` exactly, which now reads `+0.0` (equal values). Over 0.29 M `Interval` reads it found 0 differences. The placed value differs only where the image's `v_off` is also `−0.0`.
 
 The row `projected/one_reading_rows.rs` compares ψ against `ChartInverse::point` plus the branch, at `f64` and `Interval`. It covers the sphere, the cylinder, a narrow and a wide cone on both nappes, and a ring and a near-horn torus, sweeping across both cuts and off the surface.
 
@@ -50,3 +50,5 @@ The sweep's out-of-scope sites have their own rows:
 - `derive-class-spells-a-parallels-latitude-and-a-rims-slant-on-its-own`
 - `the-winding-count-reads-chart-channels-by-its-own-atan2`
 - `sphere-and-torus-levels-are-read-as-sin-cos-pairs-by-their-own-spelling`
+
+`about` and PR 6482's `Azimuth::near` answer one question; the pcert orchestrator ruled one door, `near`, with `about`'s exact rotation as its quarter arm, folded in by 6482: `work/onecopy/azimuth-near-and-azimuth-about-answer-one-question.md`.
