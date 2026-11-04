@@ -338,11 +338,27 @@ fn a_meridian_stated_off_by_a_milliradian_refuses_on_the_torus() {
 
 /// **The short-span limit at `Interval`, pinned where it stands today**:
 /// the stadium junction over `1e-5` of its section escalates its touch
-/// bound (`shared_row_touch`), the three in-span readings' harmonic
-/// widening past the band, while `f64` still reads Touching. Red if the
-/// limit moves either way (`work/select/the-shared-row-contact-class-is-levered-by-the-edges-length.md`).
+/// bound (`shared_row_touch`) at `Interval` while `f64` still reads
+/// Touching. Red if the limit moves either way
+/// (`work/select/the-shared-row-contact-class-is-levered-by-the-edges-length.md`).
+///
+/// Pinned at the default ε only. The `Interval` touch bound, levered, is
+/// about `1e-13 / span` here, so each ε's band meets it at its own span:
+/// at ε = 1e-12 every span up to `1e-2` escalates, and at ε = 1e-6 the
+/// walls' own row certificates refuse a span this short before the
+/// contact is read. Those rows say so in the log.
 #[test]
 fn a_stadium_section_over_ten_microradians_escalates_its_touch_at_interval() {
+    let eps = crate::shared::tol::eps();
+    if eps.to_bits() != geom_core::tolerance::DEFAULT_EPS.to_bits() {
+        println!(
+            "SKIPPED at ε {eps:e}: the short-span limit is pinned at the default ε {:e}, \
+             where the Interval touch bound (about 1e-13 / span) crosses the band at a span \
+             the walls' row certificates still admit",
+            geom_core::tolerance::DEFAULT_EPS
+        );
+        return;
+    }
     let mut row = stadium_junction();
     row.span = (0.0, 1e-5);
     assert_eq!(
