@@ -1319,9 +1319,8 @@ fn top_front_edge(body: &Body<f64>) -> [EdgeKey; 1] {
 /// which the Boolean serves against the bore's cylinder, so the
 /// reordered request builds, tier-3 valid. The fillet's band is a
 /// cylinder skew to the bore's, which the Boolean reads on its section
-/// value and carries, marched; the result gate then refuses the body,
-/// whose spline-chorded walls have no volume lane: the leg is the
-/// sentence's, the gap the volume lane's.
+/// value and carries, marched, and the reordered request builds too, its
+/// spline-chorded walls measured by the rotational lane.
 #[test]
 fn the_reorder_leg_builds_where_the_boolean_serves_the_band() {
     use crate::common::bores::bored_brick;
@@ -1386,17 +1385,38 @@ fn the_reorder_leg_builds_where_the_boolean_serves_the_band() {
         (v - closed).abs() <= pad + 1e-9,
         "the reordered chamfer is the rule's `S − R − H`: {v} ± {pad} vs {closed}"
     );
-    let filleted = cut(&blended(false));
+    let filleted = cut(&blended(false))
+        .unwrap_or_else(|e| {
+            panic!(
+                "the bore after the fillet builds: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        })
+        .body()
+        .expect("the bore leaves material")
+        .body
+        .clone()
+        .into_body();
+    validate_geometric(&filleted, tol())
+        .unwrap_or_else(|e| panic!("the reordered fillet is tier-3 valid, got {e:?}"));
+    // `S − R − H`: the brick, less the fillet's band `(1 − π/4)·d² · 4`,
+    // less the bore up to the band's quarter round, whose height over
+    // the bore's disc is `2.5 − d + √(d² − (y − y₀)²)`, `y₀ = −2 + d`:
+    // with `y = −1.8 + 0.1·sin θ`, `∫ 2·√(0.01 − s²)·height ds` is
+    // `∫ 0.02·cos²θ·height dθ`, smooth over `θ ∈ [−π/2, π/2]`.
+    let height = |y: f64| 2.5 - d + (d * d - (y + 2.0 - d).powi(2)).sqrt();
+    let bore = |t: f64| 0.02 * t.cos().powi(2) * height(-1.8 + 0.1 * t.sin());
+    let half = std::f64::consts::FRAC_PI_2;
+    let mut held = 0.0;
+    for k in 0..16 {
+        let a = -half + f64::from(k) * half / 8.0;
+        held += crate::common::quadrature::gk15(&bore, a, a + half / 8.0).0;
+    }
+    let (v, pad) = crate::band_planar_cut_off::volume_enclosure(&filleted);
+    let closed = 40.0 - (1.0 - std::f64::consts::FRAC_PI_4) * d * d * 4.0 - held;
     assert!(
-        matches!(
-            &filleted,
-            Err(topo::boolean::BooleanError::ResultInvalid { errors })
-                if errors.iter().any(|v| matches!(v, topo::ValidationError::VolumeUncomputable { .. }))
-        ),
-        "the bore after the fillet: the band's cylinder against the skew bore is carried, and \
-         the body waits on the volume lane of a spline-chorded wall; once that lands, this row \
-         flips to a build. Got {:?}",
-        filleted.err()
+        (v - closed).abs() <= pad + crate::common::differential::VOLUME_CLAIM,
+        "the reordered fillet is the rule's `S − R − H`: {v} ± {pad} vs {closed}"
     );
 }
 

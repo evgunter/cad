@@ -7,12 +7,15 @@
 //!
 //! # The lanes
 //!
-//! Five engines, one file each; each file's docs carry its rule and its
-//! honesty pads:
+//! Five engines; each one's docs carry its rule and its honesty pads:
 //!
-//! - [`cylinder`]: [`cylinder_cut_face_rounds`], a cylinder face with a
-//!   curved trim, by the Green form on its harmonic pcurves (on the
-//!   transcendental-free enclosures of [`trig`]);
+//! - [`rotational`]: [`rotational_cut_face_rounds`], a face on a chart
+//!   of revolution (the cylinder) with a curved trim, by the Green form
+//!   on its harmonic pcurves (on the transcendental-free trig enclosures,
+//!   `props::trig`) and its projected ones (on the curved rims' Taylor
+//!   rule, `props::taylor`; their reading of an image,
+//!   `projected_edge.rs`, and the carrier-swap rows, `rotational/`, are
+//!   files of their own);
 //! - [`green`]: the B-spline Green integral, [`bspline_green_integral`],
 //!   the same boundary rule on spline channels, with no at-rest consumer;
 //! - [`patch`]: [`nurbs_patch_face_rounds`], the polynomial patch over a
@@ -58,21 +61,25 @@
 
 mod area;
 mod cells;
-mod cylinder;
 mod green;
 mod net;
 mod patch;
+mod projected_edge;
 mod rational;
+mod rotational;
 mod run;
-mod trig;
 mod trimmed;
 
 pub use area::boundary_chord_perimeter_lo;
 
-pub use cylinder::{HarmChan, TrimEdgeQ, cylinder_cut_face, cylinder_cut_face_rounds};
+pub use super::trig::trig_at_limit;
 pub use green::bspline_green_integral;
 pub use net::{PatchNet, RVec3};
 pub use patch::{nurbs_patch_face, nurbs_patch_face_rounds};
+pub use rotational::{
+    ChartTermQ, EdgeTermQ, FramedQ, HarmChan, ProjectedEdgeQ, RotationalChartQ, RotationalFaceQ,
+    TrimEdgeQ, rotational_cut_face_rounds,
+};
 #[cfg(any(test, feature = "test-support"))]
 pub use run::rounds_run_by;
 pub use run::{
@@ -80,8 +87,6 @@ pub use run::{
     mean_boundary_displacement, narrower,
 };
 pub(super) use run::{EDGE_INIT_PIECES, Run, face_extent};
-pub use trig::trig_at_limit;
-pub(super) use trig::{rotate, spread_cos, spread_sin, trig_at};
 pub use trimmed::{TrimChord, TrimPiece, trimmed_patch_face_rounds};
 
 /// Test vocabulary for the lanes' callers in this crate.

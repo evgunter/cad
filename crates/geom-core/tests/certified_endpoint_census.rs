@@ -415,7 +415,7 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          that asks of other values",
     ),
     (
-        "crates/geom-brep/src/props/quad/trig.rs",
+        "crates/geom-brep/src/props/trig.rs",
         5,
         0,
         "`cos_step`/`sin_step` (3) and the two half-angle clamps build from `pt` of a \
