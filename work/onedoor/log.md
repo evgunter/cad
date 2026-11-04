@@ -215,3 +215,8 @@ second site needs to ask the question at all. (ONEDOOR orchestrator)
   - (3) is a code defect, fixed in the fix pass whatever the fork decides. The fix pass waits for the fork, so the PR is not churned twice.
   - **Class:** a verdict decided over a region and applied over a larger one. The reach of a decision must be the reach of its effect. The tree had a decision record (the record) and a decision region (the extent) with no type joining them.
   - (ONEDOOR orchestrator)
+- 2026-11-04 — **Extent fork: first reports in.**
+  - **A** (likely): a value-decided verdict reaches only the faces it decided, every fragment included. The verdict is a token, chained classes are decided once at the glue, and a planar face's measure is its boundary's flux about the face. A rewords `[coincidence.door]` and adds a `[tolerance.measure]` sentence.
+  - **B** (likely): a verdict is about faces, never records. The token carries the group, which is the adjacency closure forced by `[edges]` (the merge's maximal run, so one home), and `Vouch` goes. One re-anchoring function serves the verdict and props. B also proposes a separable kept-side rule.
+  - Both name the widening of the ratified sentence, from "the other face" to "every face on the other record", as defect 1's cause, and the f64 plane flux about the record origin as defect 2's, which is on main today.
+  - Round 2 asks about the differences: closure vs. decided faces only, on a concrete case; Vouch; the kept side; the measure fix's one form; the exact wording. (ONEDOOR orchestrator)
