@@ -123,15 +123,18 @@ fn reading(carrier: &Curve3<f64>, span: (f64, f64), ruling: Ruling<f64>) -> (f64
         },
     };
     let at = ruling_miss(&line_i, (f(span.0), f(span.1)), ruling_i).value();
-    (
-        ruling_miss(line, span, ruling).value(),
-        (at.lo(), at.hi()),
-    )
+    (ruling_miss(line, span, ruling).value(), (at.lo(), at.hi()))
 }
 
 /// The image over `span` certifies at both scalars: its certificate's
 /// envelope inside the band.
-fn certifies(what: &str, image: (&Pcurve<f64>, &Pcurve<Interval>), carrier: &Curve3<f64>, span: (f64, f64), surface: &Surface<f64>) {
+fn certifies(
+    what: &str,
+    image: (&Pcurve<f64>, &Pcurve<Interval>),
+    carrier: &Curve3<f64>,
+    span: (f64, f64),
+    surface: &Surface<f64>,
+) {
     let f = Interval::from_f64;
     let (carrier_i, surface_i) = lift(carrier, surface);
     let cache = PcurveCache::certify(image.0.clone(), span.0, span.1, carrier, surface, band())
@@ -306,7 +309,13 @@ fn a_scaled_direction_reads_the_same_margin() {
             cylinder(),
             Ruling::Axis(Vec3::unit_z()),
         ),
-        ("cone", cone_line, CONE_SPAN, cone(), Ruling::Generator { apex, g }),
+        (
+            "cone",
+            cone_line,
+            CONE_SPAN,
+            cone(),
+            Ruling::Generator { apex, g },
+        ),
     ];
     for (what, carrier, span, surface, ruling) in rows {
         let Curve3::Line(geom::Line { origin, dir }) = carrier else {
@@ -318,13 +327,17 @@ fn a_scaled_direction_reads_the_same_margin() {
             let scaled = Curve3::line(origin, dir * k);
             let span_k = (span.0 / k, span.1 / k);
             let (at, (lo, hi)) = reading(&scaled, span_k, ruling);
+            // The cross product's rounding, metres over the span.
+            let slack = 1e-9 * base + 64.0 * f64::EPSILON * (span.1 - span.0);
             assert!(
-                (at - base).abs() <= 1e-9 * base && lo <= base * (1.0 + 1e-9) && hi >= base * (1.0 - 1e-9),
+                (at - base).abs() <= slack && lo <= base + slack && hi >= base - slack,
                 "{what}, ×{k}: the reading {at:e} ([{lo:e}, {hi:e}]) is the unscaled {base:e}"
             );
             let [d_k, d_k_i] = derivations(&scaled, span_k, &surface);
             let class = |d: &Result<Derivation, PcurveCertifyError>| {
-                d.as_ref().map(core::mem::discriminant).map_err(core::mem::discriminant)
+                d.as_ref()
+                    .map(core::mem::discriminant)
+                    .map_err(core::mem::discriminant)
             };
             assert!(
                 class(&d_k) == class(&d) && class(&d_k_i) == class(&d),
@@ -395,9 +408,7 @@ fn a_true_ruling_keeps_the_closed_form_on_both_nappes() {
             for span in [(0.5, 2.0), (0.5, 40.0)] {
                 let what = format!("σ {sigma}, φ {phi}, over {span:?}");
                 let [d, d_i] = derivations(&carrier, span, &surface);
-                let ruling = |d: &Result<Derivation, PcurveCertifyError>| {
-                    matches!(d, Ok(Derivation::ConeRuling { anchored: true, nappe: n }) if *n == nappe)
-                };
+                let ruling = |d: &Result<Derivation, PcurveCertifyError>| matches!(d, Ok(Derivation::ConeRuling { anchored: true, nappe: n }) if *n == nappe);
                 assert!(
                     ruling(&d) && ruling(&d_i),
                     "{what}: the generator's closed form at both scalars: {d:?} / {d_i:?}"

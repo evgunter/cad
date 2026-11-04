@@ -11970,9 +11970,6 @@ mod circle_lane_rows;
 mod cone_line_rows;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::panic)]
-mod ruling_reading_rows;
-#[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::panic)]
 mod cylinder_line_rows;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::panic)]
@@ -11985,6 +11982,9 @@ mod placement_rows;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::panic)]
 mod radial_pair_rows;
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod ruling_reading_rows;
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -14427,7 +14427,10 @@ mod iso_family {
             1.0,
             1.0 / theta.cos(),
         ));
-        assert_eq!(chart_iso_family(&section, (0.0, core::f64::consts::TAU), &cylinder, band), Ok(None));
+        assert_eq!(
+            chart_iso_family(&section, (0.0, core::f64::consts::TAU), &cylinder, band),
+            Ok(None)
+        );
         // A line tilted 1e-2 leaves the cylinder past the band over its
         // span: the incidence test reads it off before any family.
         assert!(matches!(

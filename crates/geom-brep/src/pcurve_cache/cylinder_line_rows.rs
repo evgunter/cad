@@ -275,7 +275,10 @@ fn a_line_shown_off_its_rulings_on_the_wall_takes_the_projected_lane() {
         "the ruling reading is definite"
     );
     certifies_projected("a line off its rulings", &carrier, (0.0, 1.0), &surface);
-    assert_eq!(chart_iso_family(&carrier, (0.0, 1.0), &surface, band()), Ok(None));
+    assert_eq!(
+        chart_iso_family(&carrier, (0.0, 1.0), &surface, band()),
+        Ok(None)
+    );
 }
 
 /// A line definitely off the wall ends as its incidence read, before any
