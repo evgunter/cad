@@ -45,6 +45,7 @@ not (
   (binary_id(topo::all) & test(=a_circle_not_shown_on_a_spline_row_refuses_alike_in_every_form::a_rim_not_shown_refuses_alike_in_every_form_at_interval)) |
   (binary_id(sweep::all) & test(=a_wall_row_read_in_band_takes_the_lane_a_miss_takes::a_rim_in_the_band_ends_as_its_incidence_read_at_interval)) |
   (binary_id(topo::all) & test(=an_off_iso_straight_edge_takes_its_general_row::an_in_band_seam_takes_the_general_image_at_interval)) |
+  (binary_id(topo::all) & (test(=a_spline_faces_stated_image_reads_its_carrier_first::every_door_reads_the_wall_at_f64) | test(=a_spline_faces_stated_image_reads_its_carrier_first::every_door_reads_the_wall_at_interval))) |
   (binary_id(topo) & test(=live::tests::a_faces_loops_are_walked_in_one_place)) |
   (binary_id(topo) & test(=live::tests::loop_keys_is_read_only_where_a_miss_is_reported)) |
   (binary_id(topo) & test(=live::tests::the_unchecked_cycles_are_read_only_where_a_miss_is_reported)) |
