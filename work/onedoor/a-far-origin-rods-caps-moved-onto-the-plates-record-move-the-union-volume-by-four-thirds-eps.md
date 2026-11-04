@@ -2,8 +2,9 @@
 id: a-far-origin-rods-caps-moved-onto-the-plates-record-move-the-union-volume-by-four-thirds-eps
 kind: issue
 title: Moving a rod's caps onto the plate's records moves the far-origin union's volume by 4/3 ε in one fold order (union_fold_face_face_touch, back 300)
-status: open
+status: closed
 opened: 2026-11-04
+closed: 2026-11-04
 ---
 
 
@@ -33,10 +34,29 @@ volume read its closed form. The two fold orders before it read it
 within `1e-9`. The test stops at the first failing cell, so the order
 after it and the `back 1000` row are unread.
 
-Not re-baselined. The open question is whether a volume that moves by
-about one band when a face moves onto a carrier in band of its own is
-correct. If it is, the bound is ε-relative and the row says so. If it
-is not, the defect is in what the move leaves for the quadrature to
-read: the cap's boundary circles stay certified on the leaning plane,
-and its images are derived again on the plate's chart. It is unknown
-why the first two orders do not show it.
+## Closed: correct, bound re-derived (2026-11-04)
+
+The shift is independent of `back` (10, 300 and 1000 read alike), and it
+shows only in the orders that fold the rod first. Those are the orders
+that keep the rod's records and move the plate's faces onto them. At a
+lean of `0.2 ε` it is absent, because the caps are no longer glued one
+carrier there. At a lean of `0` it is absent too.
+
+It is derived exactly. A plane face contributes `(1/6) a · ∮ p × dp`,
+where `a` is its record's anchor (`geom_brep::props`'s per-surface
+anchors). The plate's top loop stays at `z = 1`, so `∮ p × dp = 32 ẑ`.
+The rod's top record is anchored at `y = 2.5`, where it stands
+`2.5 · lean` above `z = 1`. So the top face reads `16 · 2.5 · lean / 3`
+more, which is `4/3 ε` at `lean = 0.1 ε`. The bottom record is anchored
+at the origin, on both bottom planes, so the bottom face reads the same.
+That is the measured `1.3333 ε` at ε 1e-9 and 1e-6. It is within the
+band times the moved face's area (`16 ε`), so it is correct under the
+tolerance model.
+
+The row's bound is now `1e-9 + 16 · 2.5 · lean / 3`, with that
+derivation in a comment (`touches_within`). It passes at all three ε
+rows.
+
+The derivation also shows where the bound comes from: the gap is read
+at the kept record's anchor, not over the faces. That caveat is filed
+as `work/onedoor/a-face-moved-onto-a-record-reads-its-volume-at-the-records-anchor.md`.
