@@ -89,6 +89,9 @@
 //!   reader its rows check with, as [`cone_nappe`];
 //! - [`oblique`] — the oblique clip, a body cut by a turned cube so
 //!   its corners are oblique trihedra (body authoring, same routing);
+//! - [`op_census`] — every op of an operand and a partner held to a
+//!   typed refusal or a measured body, and the ops that build to one
+//!   `V(O ∩ B)`: a check of a body, so beside [`solid_truth`];
 //! - [`pinch_cones`] — a boolean's cones at a point from the operands'
 //!   convex pieces, and the vertices a built body holds there: a truth
 //!   derived without the kernel plus the check against it, so beside
@@ -319,6 +322,11 @@ pub mod oblique;
 /// what a "no intersection machinery" row checks of a bracket, so it
 /// routes beside [`census`].
 pub mod crossing;
+
+/// Every op of an operand and a partner held to a typed refusal or a
+/// measured body, and the ops that build to one `V(O ∩ B)`: a check of a
+/// body, so beside [`solid_truth`].
+pub mod op_census;
 
 use geom::NurbsCurve3;
 use geom_core::{Affine3, Band, Mat3, Point2, Point3, RigidMotion, Tol, UnitVec3, Vec3};

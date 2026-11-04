@@ -30,8 +30,9 @@ Every input to that is analytic today:
   (`boolean/carrier_eq.rs`, `the_inventory_named_is_the_inventory`:
   `SurfaceKind::Nurbs | SurfaceKind::Approx`), so no spline pair is
   ever settled, held or deferred.
-- `∩` and `∖` refuse `Nurbs` at the door (`reduce::revert_arm_exists`).
-  `∪` admits it for the plane × NURBS germ arm.
+- Every op admits `Nurbs` on one face-kind roster
+  (`reduce::boolean_arm_exists`; ∩ and ∖ since SPLICE's PR 6476, note
+  below).
 - The vertex classifier's on-sector lumping needs a declared
   coplanarity (`vtxfac` Delta 2), and refuses on a curved pierced face
   whose carrier algebra needs an origin.
@@ -58,3 +59,28 @@ read two classes. Until then, the spline-copy refusal
 (`a-spline-body-against-its-copy-refuses-before-the-on-verdict`) keeps
 the blind spot visible. Lifting that refusal is when this row's work
 comes due.
+
+## The revert roster took the spline kind: the obligation stays on the inventory (SPLICE PR 6476, 2026-11-03)
+
+PR 6476 deleted the ∖/∩ revert roster, so ∩ and ∖ now admit `Nurbs`
+wherever ∪ does. That is half of this row's trigger ("the inventory or
+the revert roster takes a spline kind"). The PR does not discharge the
+obligation. It loses no protection, because the deferral this row is
+about still takes no spline pair:
+
+- `OnDeferred::hold` holds only a pair the reduction settled to one
+  carrier (`ops.rs`, `settled.iter().any(..)`).
+- Settling runs the carrier ladder.
+- The ladder's inventory still leaves out `SurfaceKind::Nurbs |
+  SurfaceKind::Approx` (`boolean/carrier_eq.rs`,
+  `the_inventory_named_is_the_inventory`).
+
+So no spline pair is settled, held or answered from its sides under any
+op, as before. A spline wall lying on a spline wall still refuses
+before the side certificate runs. PR 6476's census holds that at
+shared-cap and stacked placements: every op refuses typed.
+
+The obligation now comes due with the inventory alone. The PR that
+puts a spline kind into the carrier ladder's inventory pins the spline
+poses in `two_rims_review_probes` and checks the vertex classifier, as
+"What closes it" says.
