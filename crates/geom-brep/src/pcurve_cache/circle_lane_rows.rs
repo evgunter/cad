@@ -681,6 +681,221 @@ fn the_form_bound_covers_the_form_enclosed_at_interval() {
     }
 }
 
+/// The exact excess of a cone section's `f64` form coefficients
+/// (`implicit::conic_cone_harmonics`, times their `per`, both as stored)
+/// over the coefficients of the stored inputs: `Σ_k |f64_k − exact_k|`,
+/// each `exact_k` read at both ends of `cos²α`'s and `sin²α`'s
+/// enclosures, and the charge `rounding_charge(terms)` it must stay
+/// under. The `wall` and `height` coefficients are exact rationals of
+/// the stored apex, axis, centre, normal, reference and radius
+/// (`v = n × u` exactly); only `α`'s sine and cosine are enclosed. The
+/// sum bounds what the sup of the harmonics can lose to the
+/// coefficients' rounding.
+fn cone_coefficient_excess(surface: &Surface<f64>, carrier: &Curve3<f64>) -> (bool, f64) {
+    use crate::exact_q::Q;
+    let Surface::Cone {
+        apex,
+        axis,
+        half_angle,
+        ..
+    } = *surface
+    else {
+        unreachable!("a cone row")
+    };
+    let Some(conic) = carrier.conic() else {
+        unreachable!("a circle row")
+    };
+    let h = crate::implicit::conic_cone_harmonics(conic, apex, axis, half_angle);
+    let frame = conic.frame();
+    let (a, b) = conic.semi_axes();
+    let q = |v: Vec3<f64>| [Q::of(v.x), Q::of(v.y), Q::of(v.z)];
+    let dot = |x: &[Q; 3], y: &[Q; 3]| x[0].mul(&y[0]).add(&x[1].mul(&y[1])).add(&x[2].mul(&y[2]));
+    let cross = |x: &[Q; 3], y: &[Q; 3]| {
+        [
+            x[1].mul(&y[2]).sub(&x[2].mul(&y[1])),
+            x[2].mul(&y[0]).sub(&x[0].mul(&y[2])),
+            x[0].mul(&y[1]).sub(&x[1].mul(&y[0])),
+        ]
+    };
+    let ax = q(axis);
+    let perp = |x: &[Q; 3]| {
+        let along = dot(&ax, x);
+        [
+            x[0].sub(&ax[0].mul(&along)),
+            x[1].sub(&ax[1].mul(&along)),
+            x[2].sub(&ax[2].mul(&along)),
+        ]
+    };
+    let (o, c) = (
+        q(apex - Point3::origin()),
+        q(frame.origin - Point3::origin()),
+    );
+    let d = [c[0].sub(&o[0]), c[1].sub(&o[1]), c[2].sub(&o[2])];
+    let u = q(frame.u_ref);
+    let v = cross(&q(frame.axis), &u);
+    let (e, up, vp) = (perp(&d), perp(&u), perp(&v));
+    let (a, b, two, half) = (Q::of(a), Q::of(b), Q::of(2.0), Q::of(0.5));
+    let (aa, bb) = (a.mul(&a).mul(&dot(&up, &up)), b.mul(&b).mul(&dot(&vp, &vp)));
+    let wall = [
+        dot(&e, &e).add(&aa.add(&bb).mul(&half)),
+        two.mul(&a).mul(&dot(&e, &up)),
+        two.mul(&b).mul(&dot(&e, &vp)),
+        aa.sub(&bb).mul(&half),
+        a.mul(&b).mul(&dot(&up, &vp)),
+    ];
+    let (h0, hu, hv) = (dot(&d, &ax), a.mul(&dot(&u, &ax)), b.mul(&dot(&v, &ax)));
+    let height = [
+        h0.mul(&h0).add(&hu.mul(&hu).add(&hv.mul(&hv)).mul(&half)),
+        two.mul(&h0).mul(&hu),
+        two.mul(&h0).mul(&hv),
+        hu.mul(&hu).sub(&hv.mul(&hv)).mul(&half),
+        hu.mul(&hv),
+    ];
+    let (sin_a, cos_a) = Interval::from_f64(half_angle).sin_cos();
+    let (cc, ss) = (cos_a * cos_a, sin_a * sin_a);
+    let per = Q::of(h.per);
+    let stored = [h.c0, h.c1, h.s1, h.c2, h.s2];
+    let excess = (0..5).fold(Q::of(0.0), |sum, k| {
+        let at = Q::of(stored[k]).mul(&per);
+        let worst = [cc.lo(), cc.hi()]
+            .into_iter()
+            .flat_map(|x| [ss.lo(), ss.hi()].map(|y| (x, y)))
+            .map(|(x, y)| {
+                at.sub(&Q::of(x).mul(&wall[k]).sub(&Q::of(y).mul(&height[k])))
+                    .abs()
+            })
+            .fold(Q::of(0.0), Q::max);
+        sum.add(&worst)
+    });
+    let charge = geom_core::rounding_charge(h.terms);
+    (excess.le(&Q::of(charge)), charge)
+}
+
+/// **A cone section's form coefficients stay within their charge**,
+/// exactly: [`cone_coefficient_excess`] over the delta verifier's needle
+/// (`α 0.003`, a section at height 1 tilted `1e-7`, the apex `1e5` off
+/// the origin, whose 50-digit distance from the cone is `2.72e-12` m)
+/// and 600 draws of its coefficient search on PR 6485 (needle, wide and
+/// middling cones, the apex at the origin or up to `1e5` off it,
+/// sections at heights `1e-4` to `1e3` of either nappe, level or tilted
+/// up to `1e-2`; a draw tilted past a wide cone's opening is skipped). topo's `reduce::conic_clearance` and `conic_quadric`
+/// read these harmonics and charge, so the row is theirs too. Red under
+/// `cone-terms-unprojected`.
+#[test]
+fn a_cone_sections_coefficients_stay_within_their_charge() {
+    let mut rows: Vec<(String, Surface<f64>, Curve3<f64>)> = Vec::new();
+    let needle = |far: f64, axis: Vec3<f64>, u_ref: Vec3<f64>, alpha: f64| Surface::Cone {
+        apex: Point3::new(0.3 + far, -0.7 - 0.6 * far, 0.2 + 0.5 * far),
+        axis,
+        half_angle: alpha,
+        u_ref,
+    };
+    let axis = Vec3::new(0.2, -0.4, 1.0).normalize();
+    let surface = needle(1e5, axis, axis.cross(Vec3::unit_x()).normalize(), 0.003);
+    rows.push((
+        "the verifier's needle".into(),
+        surface.clone(),
+        cone_section_circle(&surface, 0.003, 1.0, 1e-7),
+    ));
+    let mut s = fuzz::start("pcurve_cache::circle_lane_rows::cone_coefficients");
+    for i in 0..600 {
+        let alpha = match s.below(3) {
+            0 => s.log_uniform(1e-4, 0.05),
+            1 => s.range(1.52, 1.5707),
+            _ => s.range(0.05, 1.5),
+        };
+        let far = if s.below(2) == 0 {
+            0.0
+        } else {
+            s.log_uniform(1.0, 1e5)
+        };
+        let axis =
+            Vec3::new(s.range(-1.0, 1.0), s.range(-1.0, 1.0), s.range(-1.0, 1.0)).normalize();
+        let u_ref = axis.cross(Vec3::new(0.3, 1.0, -0.2)).normalize();
+        let surface = needle(far, axis, u_ref, alpha);
+        let h = s.log_uniform(1e-4, 1e3) * if s.below(2) == 0 { 1.0 } else { -1.0 };
+        let tau = if s.below(2) == 0 {
+            0.0
+        } else {
+            s.log_uniform(1e-9, 1e-2)
+        };
+        let carrier = cone_section_circle(&surface, alpha, h, tau);
+        // A wide cone tilted past its opening cuts a hyperbola: no
+        // section circle.
+        if carrier.conic().is_some_and(|c| c.semi_axes().0.is_finite()) {
+            rows.push((
+                format!("draw {i}: α {alpha:e}, far {far:e}, h {h:e}, τ {tau:e}"),
+                surface,
+                carrier,
+            ));
+        }
+    }
+    for (what, surface, carrier) in rows {
+        let (within, charge) = cone_coefficient_excess(&surface, &carrier);
+        assert!(
+            within,
+            "{what}: the coefficients' exact excess is over their charge {charge:e}"
+        );
+    }
+}
+
+/// The verifier's needle (the row above): its `f64` projected envelope
+/// covers its 50-digit distance from the cone, `2.7234227197864185e-12`
+/// m, and so does its `Interval` envelope. Red under
+/// `cone-terms-unprojected`.
+#[test]
+fn a_needle_cones_far_section_is_covered_at_its_50_digit_distance() {
+    let far = 1e5;
+    let axis = Vec3::new(0.2, -0.4, 1.0).normalize();
+    let surface = Surface::Cone {
+        apex: Point3::new(0.3 + far, -0.7 - 0.6 * far, 0.2 + 0.5 * far),
+        axis,
+        half_angle: 0.003,
+        u_ref: axis.cross(Vec3::unit_x()).normalize(),
+    };
+    let carrier = cone_section_circle(&surface, 0.003, 1.0, 1e-7);
+    let exact = 2.723_422_719_786_418_5e-12;
+    let b = band();
+    let p = projected::project(&carrier, Some((0.0, TAU)), &surface, b)
+        .unwrap_or_else(|e| panic!("the section projects: {e:?}"));
+    let (t, _) = projected::projected_envelope(
+        &p,
+        0.0,
+        TAU,
+        &p.chart_box(0.0, TAU),
+        &carrier,
+        &surface,
+        b,
+        None,
+    )
+    .unwrap_or_else(|e| panic!("the envelope reads: {e:?}"));
+    assert!(
+        t.total() >= exact,
+        "f64 envelope {:e} under the 50-digit distance {exact:e}",
+        t.total()
+    );
+    let f = Interval::from_f64;
+    let (ci, si) = (carrier.map_scalar(f), surface.map_scalar(f));
+    let pi = projected::project(&ci, Some((f(0.0), f(TAU))), &si, b)
+        .unwrap_or_else(|e| panic!("the section projects at Interval: {e:?}"));
+    let (ti, _) = projected::projected_envelope(
+        &pi,
+        f(0.0),
+        f(TAU),
+        &pi.chart_box(f(0.0), f(TAU)),
+        &ci,
+        &si,
+        b,
+        None,
+    )
+    .unwrap_or_else(|e| panic!("the envelope reads at Interval: {e:?}"));
+    assert!(
+        ti.total().lo() >= exact,
+        "Interval envelope {:?} under the 50-digit distance {exact:e}",
+        ti.total()
+    );
+}
+
 /// **A circle's or a cone line's projected envelope covers its
 /// residual** (a counterexample search; the seed varies). Each draw
 /// places a chart at a random scale and axis, at the origin or up to

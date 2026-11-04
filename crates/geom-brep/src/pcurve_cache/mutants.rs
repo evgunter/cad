@@ -24,7 +24,7 @@ const NAME: Option<&str> = option_env!("PCERT_RADIAL_PAIR_MUTANT");
 
 /// Every site this crate's hooks name. topo's `chord_join` declares its
 /// own two (`topo-gate`, `topo-v-var`) under the same variable.
-pub(super) const SITES: [&str; 21] = [
+pub(super) const SITES: [&str; 22] = [
     "class-circle",
     "zero-winding",
     "torus-parallel",
@@ -46,6 +46,7 @@ pub(super) const SITES: [&str; 21] = [
     "circle-incidence",
     "form-uncharged",
     "lane-envelope-bound",
+    "cone-terms-unprojected",
 ];
 
 fn on(site: &str) -> bool {
@@ -223,4 +224,12 @@ pub(super) fn form_uncharged<T: Real>(harmonics: T) -> Option<T> {
 /// are `circle_lane_rows`).
 pub(crate) fn lane_envelope_bound() -> bool {
     on("lane-envelope-bound")
+}
+
+/// A cone section's form coefficients charged at their parts' reaches
+/// alone, the projection's `|d|`-scale rounding uncharged: the charge
+/// misses a needle cone's section far from its apex (its rows are
+/// `circle_lane_rows`).
+pub(crate) fn cone_terms_unprojected() -> bool {
+    on("cone-terms-unprojected")
 }
