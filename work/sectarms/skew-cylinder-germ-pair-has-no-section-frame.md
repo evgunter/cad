@@ -9,6 +9,7 @@ cost: H
 refs: [4025, cylinder-sphere-germ-pair-has-no-join-lane]
 pr: 6139
 branch: sectarms/cylinder-pair-on-the-value
+closed: 2026-11-04
 ---
 
 Found by the cylinder × sphere frame lane's sweep of the germ pairs that
