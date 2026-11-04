@@ -31,7 +31,7 @@ fn pad_of(face: &RotationalFaceQ) -> f64 {
                 .collect()
         })
         .collect();
-    chart_term_pad(face, &entries)
+    chart_term_pad(face, &entries, Band::linear(Tol::witness()).unwrap())
 }
 
 /// A unit-cylinder rectangle `u ∈ [0, θ]`, `v ∈ [0, h]` (frame: the axis

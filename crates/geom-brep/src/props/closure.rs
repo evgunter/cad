@@ -172,7 +172,7 @@ pub(super) fn interval_loop_turns<T: Decide, const N: usize>(
         let mut m = [0.0; N];
         for c in 0..N {
             if periodic[c] {
-                m[c] = (mid(j.delta[c]) / core::f64::consts::TAU).round();
+                m[c] = nearest_turns(j.delta[c]);
             }
             gap = gap + j.lever[c] * (j.delta[c] - pt(m[c]) * tau).abs_enclosure();
         }
@@ -192,6 +192,15 @@ pub(super) fn interval_loop_turns<T: Decide, const N: usize>(
         }
     }
     Ok(turns)
+}
+
+/// The whole number of periods `m` nearest a junction's gap `delta`'s
+/// midpoint: what [`interval_loop_turns`] takes off it, and what the
+/// rotational lane's connector leaves (`quad::rotational`'s
+/// `junction_gap`), which the sphere's poles' count reads, so the two
+/// are one reading.
+pub(super) fn nearest_turns(delta: Interval) -> f64 {
+    (mid(delta) / core::f64::consts::TAU).round()
 }
 
 /// One junction of a closed-form loop: per periodic coordinate, the
