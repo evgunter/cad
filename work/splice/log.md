@@ -1459,3 +1459,8 @@ general regularity sweep. SECTARMS's cylinder × cylinder unit adopts
     - other sweep hits filed (spline_arc ball/cross, edge_nurbs edge_piece, projected frame_box_on), with `window_arms` folded in only if the one home makes it a call;
     - a carrier-walk witness allowed if `read_capped` calls exactly it, plus one attempt at a far rational arc loft through a boolean.
   - **Class (logged):** a floor read off a control box at f64 after an untracked cut is not a lower bound. Every cut box that decides needs the cut's rounding charged, and `Interval` alone does not do it where the net is collapsed to its value channel.
+- 2026-11-04 22:15Z — **PR 6530 (`spline-region-charge`) landing.**
+  - The revert is accepted: head `8eaf2fdf`, CI run 41911412907 green. The reviewed read term is back, which I checked in the diff at `spline_region.rs:512`, and the narrowing is filed P3, unbuilt.
+  - The reruns are clean: topo 3972/3975 (inherited reds only); sweep `/spline/` 43/43 at 1e-6 and 1e-12; the census stdout identical to main's at 1e-6.
+  - Main merged; `cargo check -p topo --all-targets` is clean, with no conflict markers.
+  - State sync: closed `spline-region-decides-off-the-carrier-on-an-uncharged-f64-box-floor`.
