@@ -495,3 +495,9 @@ and bodies unchanged. No orchestrator yet.
 - 2026-11-04 03:00 — **PR 6466 merged** (cylinder 3b-ii: nodes on the value, bisector lane retired; dual review, tally 0, row PR-6466.md). **Closed:** `the-carried-lane-chords-only-spline-components` (3b) and `skew-cylinder-germ-pair-has-no-section-frame`. Cylinder × cylinder is on the value end to end.
 - 2026-11-04 — **Cylinder × sphere on the ruling sweep dispatched** (P1 M, single full review) to a fresh implementer, plan first. Its timings are to be reported against SECT's ball × cylinder cost row. The 3b-ii lane's target is freed.
 - 2026-11-04 — **Cylinder × sphere plan accepted.** The sweep's ball (F1) is (a): a ball strictly containing the section, with its padding argued and any cut end refused `Unaccounted`. It decides nothing new, since the sphere's ball holds the section. The public `cylinder_sphere_ssi` door (F2) is decided by its callers: any production caller is a second reading and is routed to the value, while a test-only door stays as `implicit_pair_r3`'s vehicle and gets a P3 row.
+- 2026-11-04 — **Cylinder × sphere is up as PR 6518** (`RuledCylinderSphere` on a 2R ball; witnessed rings; the march from witnesses; a coverage sphere arm with a headroom row). CI is green.
+  - **Beyond the plan:** a shared `Sweeper::run` change drops undecided first cuts.
+  - **Moved toward refusing:** band-adjacent poses that the closed form decided, about 0.75% of fuzz, under two named, capped cases.
+  - **Timing:** unchanged; certificates dominate, so the march was not the cost.
+  - **Mutants:** m8 survives, equivalent at 2R.
+  - **Review:** a single full review is dispatched to the cloud, asked to check the shared change and the caps hardest.
