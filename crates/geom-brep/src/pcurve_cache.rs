@@ -193,7 +193,8 @@ use crate::ladder::{IdentityLadder, read_identity};
 #[cfg(test)]
 use crate::recourse::Reading;
 use crate::recourse::{
-    ReadAt, RefusedArm, RefusedSide::StoredContradiction, SizedDecision, SpanDecision, Unsized,
+    Decision, ReadAt, RefusedArm, RefusedSide::StoredContradiction, SizedDecision, SpanDecision,
+    Unsized,
 };
 use crate::ssi::{SsiDecision, SsiLimb};
 
@@ -2414,11 +2415,13 @@ impl PcurveCertifyError {
         match self.decision() {
             Decision::Check(check, arm) => Some((check, arm)),
             Decision::SsiUndecided(..)
-            | Decision::SsiLimb(..)
+            | Decision::Ssi(_)
+            | Decision::OneArc(_)
+            | Decision::Fitted(_)
+            | Decision::Lever(_)
             | Decision::Unsized(_)
             | Decision::NotYet
-            | Decision::Fitted(_)
-            | Decision::Lever(_) => None,
+            | Decision::KernelLimit { .. } => None,
         }
     }
 
@@ -2426,7 +2429,7 @@ impl PcurveCertifyError {
     /// (D4 ¶1 (i)): the exhaustive match a new arm names its decision in
     /// before it compiles, which [`Self::ending`] and [`Self::decided`]
     /// both read.
-    fn decision(&self) -> Decision<'_> {
+    fn decision(&self) -> Decision<'_, PcurveCheck> {
         let definite = RefusedArm::SignCertain(None);
         match self {
             Self::Escalated { check, cause, .. } => {
@@ -2438,7 +2441,10 @@ impl PcurveCertifyError {
                     Some(check) => Decision::Check(check, RefusedArm::SignCertain(Some(*margin))),
                     // A limb this door never decides ends as the SSI
                     // door ends it.
-                    None => Decision::SsiLimb(*limb, *margin),
+                    None => Decision::Ssi(crate::ssi::SsiError::CertificateLimb {
+                        limb: *limb,
+                        margin: *margin,
+                    }),
                 }
             }
             Self::IntervalNotForward => Decision::Check(PcurveCheck::ParamSpan, definite),
@@ -2495,29 +2501,27 @@ impl PcurveCertifyError {
     }
 
     /// The ending this refusal's decision gives it, read at `at`
-    /// ([`Self::decision`]): an incidence refusal by its read
-    /// ([`IncidenceRead::ending`], E1d's door rule), a check's refused arm
-    /// by its routing ([`PcurveCheck::recourse`]), an SSI decision as the
-    /// SSI door ends it, a lane's gap "not yet", a structural
-    /// contradiction the door's defect, and a lever its own.
+    /// ([`Self::decision`], through the one decision table's
+    /// [`crate::recourse::Decision::ending`]); an incidence refusal ends
+    /// by its read instead ([`IncidenceRead::ending`], E1d's door rule).
     #[must_use]
     pub fn ending(&self, at: impl Into<ReadAt>) -> String {
         let at = at.into();
         if let Some(read) = IncidenceRead::of(self) {
             return read.ending(at);
         }
-        match self.decision() {
-            Decision::Check(check, arm) => check.recourse(arm, at),
-            Decision::SsiUndecided(decision, cause) => decision.ending(cause, at),
-            // The SSI door's own ending, which reads no margin.
-            Decision::SsiLimb(limb, margin) => {
-                crate::ssi::SsiError::CertificateLimb { limb, margin }.ending(at)
-            }
-            Decision::Unsized(decision) => decision.recourse(RefusedArm::SignCertain(None), at),
-            Decision::NotYet => crate::recourse::not_yet(RefusedArm::SignCertain(None), at),
-            Decision::Fitted(ending) => ending.ending(at),
-            Decision::Lever(lever) => lever.recourse(at),
-        }
+        self.decision().ending(at)
+    }
+
+    /// The kind of this refusal's decision and the one decision table's
+    /// ending of it at `at` ([`crate::recourse::Decision::ending`]): what
+    /// the row holding every door to that table reads
+    /// (`topo::test_support_samples`).
+    #[cfg(feature = "test-support")]
+    #[doc(hidden)]
+    #[must_use]
+    pub fn decided_ending(&self, at: impl Into<ReadAt>) -> (crate::recourse::EndingKind, String) {
+        self.decision().census(at.into())
     }
 
     /// This refusal's text read at `at`: its payload ended by its
@@ -2557,29 +2561,15 @@ impl PcurveCertifyError {
     }
 }
 
-/// **The decision a [`PcurveCertifyError`] is a refused arm of**
-/// ([`PcurveCertifyError::decision`]).
-#[derive(Clone, Copy)]
-enum Decision<'a> {
-    /// A check of this door, on the arm it refused.
-    Check(PcurveCheck, RefusedArm<'a>),
-    /// An SSI decision the fitted lane's certificate could not decide.
-    SsiUndecided(SsiDecision, &'a Indeterminate),
-    /// A certificate limb this door never decides, refused definitely.
-    SsiLimb(SsiLimb, geom_core::MarginDiag),
-    /// A decision with no size the user chose.
-    Unsized(Unsized),
-    /// A lane choice or a lane's capability gap: lever-only "not yet".
-    NotYet,
-    /// A fitted certificate's structural refusal.
-    Fitted(FittedEnding),
-    /// A lever on the input no margin reads.
-    Lever(Lever),
+impl crate::recourse::DoorCheck for PcurveCheck {
+    fn recourse(self, arm: RefusedArm<'_>, at: ReadAt) -> String {
+        PcurveCheck::recourse(self, arm, at)
+    }
 }
 
 /// A refusal whose recourse is a lever on the input no margin reads, the
 /// same at every door: the one table of these levers, which the lane
-/// refusals read too (`edge_nurbs::LaneDecision`).
+/// refusals read too ([`crate::recourse::Decision::Lever`]).
 #[derive(Clone, Copy)]
 pub(crate) enum Lever {
     /// The carrier's parameter range cannot carry the image.

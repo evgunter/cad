@@ -727,6 +727,95 @@ pub const NARROW_SPAN: &str = narrow_span!();
 /// (`encl/narrow-span-refusals-do-not-say-which-span`).
 pub const NARROW_SPAN_RECOURSE: &str = narrow_span_recourse!();
 
+/// **A door's certification check**, as the one decision table reads it
+/// ([`Decision::Check`]): the check's own routing ends a refusal of it.
+/// Edge certification's ([`crate::CertCheck`]) and the pcurve door's
+/// ([`crate::PcurveCheck`]) implement it.
+pub(crate) trait DoorCheck: Copy {
+    /// The one ending a refusal of this check carries on `arm`, read at
+    /// `at`.
+    fn recourse(self, arm: RefusedArm<'_>, at: ReadAt) -> String;
+}
+
+/// **The decision a certification refusal is a refused arm of** (D4 ¶1
+/// (i)), at a door whose checks are `C`: the one table every
+/// certification door's refusals read their ending through
+/// ([`crate::CertifyError`], [`crate::PcurveCertifyError`],
+/// [`crate::edge_nurbs::PlaneNurbsRefusal`],
+/// [`crate::edge_nurbs::AnalyticRung3Refusal`]). Each refusal names its
+/// decision in its own exhaustive `decided()`; each kind of ending is
+/// written once, in [`Decision::ending`]. Where the refusal is one
+/// another door also reads, it ends by that door's home.
+#[cfg_attr(
+    feature = "test-support",
+    derive(strum::EnumDiscriminants),
+    strum_discriminants(
+        name(EndingKind),
+        derive(strum::EnumIter, Hash, PartialOrd, Ord),
+        vis(pub),
+        doc(hidden)
+    )
+)]
+pub(crate) enum Decision<'a, C> {
+    /// A check of this door, on the arm it refused.
+    Check(C, RefusedArm<'a>),
+    /// An SSI decision a certificate could not decide, escalated there:
+    /// that door's undecided sentence ([`crate::ssi::SsiDecision`]).
+    SsiUndecided(crate::ssi::SsiDecision, &'a Indeterminate),
+    /// The SSI door's refusal, carried: that door's ending of it.
+    Ssi(crate::ssi::SsiError),
+    /// The SSI door's one-arc proof, read as a stored edge's
+    /// ([`crate::ssi::OneArcRefusal::ending`]).
+    OneArc(crate::ssi::OneArcRefusal),
+    /// The image producer's own refusal, or a fitted certificate's
+    /// structural one, as the pcurve door ends it.
+    Fitted(crate::pcurve_cache::FittedEnding),
+    /// A lever on the input no margin reads.
+    Lever(crate::pcurve_cache::Lever),
+    /// A decision with no size the user chose.
+    Unsized(Unsized),
+    /// A lane choice or a lane's capability gap (D3): "not yet", never a
+    /// defect and never a tolerance.
+    NotYet,
+    /// Limb 2's kernel limit, whose story is read off its own data.
+    KernelLimit {
+        /// The certified bound.
+        bound: f64,
+        /// The carrier's own enclosure width there.
+        width: f64,
+        /// The edge's extent.
+        extent: f64,
+    },
+}
+
+impl<C: DoorCheck> Decision<'_, C> {
+    /// The ending this decision gives its refusal, read at `at`.
+    pub(crate) fn ending(self, at: ReadAt) -> String {
+        let definite = RefusedArm::SignCertain(None);
+        match self {
+            Self::Check(check, arm) => check.recourse(arm, at),
+            Self::SsiUndecided(decision, cause) => decision.ending(cause, at),
+            Self::Ssi(e) => e.ending(at),
+            Self::OneArc(cause) => cause.ending(crate::ssi::OneArcDoor::AtRest, at),
+            Self::Fitted(ending) => ending.ending(at),
+            Self::Lever(lever) => lever.recourse(at),
+            Self::Unsized(decision) => decision.recourse(definite, at),
+            Self::NotYet => not_yet(definite, at),
+            Self::KernelLimit {
+                bound,
+                width,
+                extent,
+            } => crate::edge_nurbs::kernel_limit_ending(bound, width, extent),
+        }
+    }
+
+    /// This decision's kind and its ending at `at`.
+    #[cfg(feature = "test-support")]
+    pub(crate) fn census(self, at: ReadAt) -> (EndingKind, String) {
+        (EndingKind::from(&self), self.ending(at))
+    }
+}
+
 /// The content words `text` says more than once, for the payload pins:
 /// a payload says each thing once. Possessives fold into their noun
 /// (`edge's` is `edge`), and function words and pronouns are not

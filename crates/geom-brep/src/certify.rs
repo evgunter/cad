@@ -71,8 +71,8 @@ use crate::implicit::implicit_residual;
 use crate::keys::SurfaceKey;
 use crate::pcurve_cache::{Pcurve, PcurveCertifyError, PcurveCheck, chart_pcurve_over};
 use crate::recourse::{
-    Classified, ReadAt, Refused, RefusedArm, RefusedSide, SizedDecision, SizedPass, SpanDecision,
-    Unsized,
+    Classified, Decision, ReadAt, Refused, RefusedArm, RefusedSide, SizedDecision, SizedPass,
+    SpanDecision, Unsized,
 };
 
 // **The sized decisions' nouns, each spelled once.** A size noun is the
@@ -1090,7 +1090,15 @@ impl CertifyError {
     /// than from a rendered string.
     #[must_use]
     pub fn decision(&self) -> Option<(CertCheck, RefusedArm<'_>)> {
-        Some(match self {
+        self.decided()?.check()
+    }
+
+    /// **The decision this refusal is a refused arm of**, one per arm
+    /// (D4 ¶1 (i)), or `None` for a refusal that is no decision's: the
+    /// exhaustive match a new arm names its decision in before it
+    /// compiles, which [`Self::ending`] and [`Self::decision`] both read.
+    fn decided(&self) -> Option<Decision<'_, CertCheck>> {
+        let (check, arm) = match self {
             Self::ResidualExceeded { check, margin, .. } => {
                 (*check, RefusedArm::SignCertain(Some(*margin)))
             }
@@ -1119,9 +1127,9 @@ impl CertifyError {
                 CertCheck::ChartIncidence,
                 RefusedArm::SignCertain(margin.map(crate::OffMargin::diag)),
             ),
-            Self::PlaneNurbs(refusal) => return refusal.decision(),
-            Self::AnalyticRung3(refusal) => return refusal.decision(),
-            Self::Row { refusal, .. } => return refusal.decision(),
+            Self::PlaneNurbs(refusal) => return Some(refusal.decided()),
+            Self::AnalyticRung3(refusal) => return Some(refusal.decided()),
+            Self::Row { refusal, .. } => refusal.decision()?,
             Self::UnresolvedSurface { .. }
             | Self::Unimplemented
             | Self::IntersectionSameSurface { .. }
@@ -1129,15 +1137,16 @@ impl CertifyError {
             | Self::TangentCertificateUnsupported
             | Self::StatedInterval { .. }
             | Self::Band(_) => return None,
-        })
+        };
+        Some(Decision::Check(check, arm))
     }
 
     /// The ending this refusal's decision gives it, read at `at`
-    /// ([`recourse`] over [`CertifyError::decision`]), or `None` for a
-    /// refusal that is no decision's refused arm. The exceptions have no
-    /// `decision()` and end by their own: the lanes' one-arc proof
-    /// (`TubeNotOneArc`, [`crate::ssi::OneArcRefusal::ending`]), and a
-    /// door's input interval ([`StatedSpan::ending`]).
+    /// ([`Self::decided`], through the one decision table's
+    /// [`crate::recourse::Decision::ending`]), or `None` for a refusal
+    /// that is no decision's refused arm. A door's input interval ends by
+    /// its own ([`StatedSpan::ending`]), and an incidence refusal by its
+    /// read.
     ///
     /// `Display` renders the payload alone: where a refusal is read
     /// decides its ending (D4 ¶1 (i)), so the door that reports it
@@ -1146,15 +1155,27 @@ impl CertifyError {
     pub fn ending(&self, at: impl Into<ReadAt>) -> Option<String> {
         let at = at.into();
         match self {
-            Self::PlaneNurbs(refusal) => Some(refusal.ending(at)),
-            Self::AnalyticRung3(refusal) => Some(refusal.ending(at)),
             Self::StatedInterval { refused } => Some(refused.ending(at)),
             // A carrier's incidence ends by what was read, through the one
             // map every incidence ending goes through
             // ([`crate::IncidenceRead::ending`]).
             _ if let Some(read) = self.incidence_read() => Some(read.ending(at)),
-            _ => self.decision().map(|(check, arm)| recourse(check, arm, at)),
+            _ => self.decided().map(|decision| decision.ending(at)),
         }
+    }
+
+    /// The kind of this refusal's decision and the one decision table's
+    /// ending of it at `at` ([`crate::recourse::Decision::ending`]): what
+    /// the row holding every door to that table reads
+    /// (`topo::test_support_samples`).
+    #[cfg(feature = "test-support")]
+    #[doc(hidden)]
+    #[must_use]
+    pub fn decided_ending(
+        &self,
+        at: impl Into<ReadAt>,
+    ) -> Option<(crate::recourse::EndingKind, String)> {
+        self.decided().map(|decision| decision.census(at.into()))
     }
 
     /// **The incidence read this refusal carries**
@@ -1460,6 +1481,34 @@ impl core::fmt::Display for StatedSpan {
 /// The lever of both transversality decisions: the sampled angle and
 /// the uniqueness tube's bound are moved by the same change.
 const CROSS_LEVER: &str = "move the geometry so the surfaces cross at a clearer angle";
+
+impl crate::recourse::DoorCheck for CertCheck {
+    fn recourse(self, arm: RefusedArm<'_>, at: ReadAt) -> String {
+        recourse(self, arm, at)
+    }
+}
+
+impl<'a> Decision<'a, CertCheck> {
+    /// The certification check this decision is a refused arm of, where
+    /// it is one: a check of this door, or a certificate limb's check for
+    /// a limb escalated at the SSI door.
+    pub(crate) fn check(&self) -> Option<(CertCheck, RefusedArm<'a>)> {
+        match *self {
+            Self::Check(check, arm) => Some((check, arm)),
+            Self::SsiUndecided(crate::ssi::SsiDecision::Limb(limb), cause) => {
+                Some((limb.check(), RefusedArm::Undecided(cause)))
+            }
+            Self::SsiUndecided(..)
+            | Self::Ssi(_)
+            | Self::OneArc(_)
+            | Self::Fitted(_)
+            | Self::Lever(_)
+            | Self::Unsized(_)
+            | Self::NotYet
+            | Self::KernelLimit { .. } => None,
+        }
+    }
+}
 
 impl CertCheck {
     /// The one ending a refusal of this check carries on `arm`, read at
