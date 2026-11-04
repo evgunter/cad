@@ -2953,20 +2953,28 @@ mod wiring {
     /// **A doubled ring is caught** (R1): two general rings of a sphere
     /// past a wall's far ruling, and the ball round the donut's axis,
     /// listed from a march that found one loop twice, read counted and
-    /// read marched. The count agrees and no witness is listed, so only
-    /// the loops' identity can see it: each branch's witness lies on the
-    /// other branch. (The lane is the door's own: its fields are written
-    /// by its constructor alone, so the doubled march is handed to the
-    /// listing `carry` hands its march to.)
+    /// read marched. The count agrees. The wall's rings are each
+    /// witnessed by the ruling sweep, so the counted listing sees it as a
+    /// witness on no branch; the donut's are witnessless, and there, as
+    /// in every marched listing, only the loops' identity can see it: each
+    /// branch's witness lies on the other branch. (The lane is the door's
+    /// own: its fields are written by its constructor alone, so the
+    /// doubled march is handed to the listing `carry` hands its march
+    /// to.)
     #[test]
     fn a_doubled_ring_is_caught() {
         use super::{CarryError, ClassCarrier, Components, SsiLane};
-        for (what, (a, b)) in [
+        for (what, (a, b), witnessed) in [
             (
                 "two rings round the wall",
                 wall_and_ball((0.1, 0.0, 0.2), 0.7),
+                true,
             ),
-            ("the ball round the donut's axis", ball_round_the_axis()),
+            (
+                "the ball round the donut's axis",
+                ball_round_the_axis(),
+                false,
+            ),
         ] {
             let section = built(&a, &b);
             let listed = section
@@ -2974,10 +2982,11 @@ mod wiring {
                 .unwrap_or_else(|| panic!("{what}: counted"));
             assert!(
                 listed.len() == 2
-                    && listed
-                        .iter()
-                        .all(|c| c.witness.is_none() && matches!(c.carrier, ClassCarrier::General)),
-                "{what}: two witnessless general loops"
+                    && listed.iter().all(|c| {
+                        c.witness.is_some() == witnessed
+                            && matches!(c.carrier, ClassCarrier::General)
+                    }),
+                "{what}: two general loops, witnessed: {witnessed}"
             );
             assert!(
                 section.carry(Some(SsiLane::marched()), band()).is_ok(),
@@ -2988,7 +2997,9 @@ mod wiring {
                 ..section.clone()
             };
             for (read, s) in [("counted", &section), ("marched", &marched)] {
-                let got = s.listed(|| doubled(s, band()), band());
+                // The counted section's march, doubled: a marched cylinder ×
+                // sphere section states no seeds to march from.
+                let got = s.listed(|| doubled(&section, band()), band());
                 assert!(
                     matches!(got, Err(CarryError::Desync(_))),
                     "{what}, {read}: one loop marched twice: {:?}",
@@ -3169,6 +3180,99 @@ mod wiring {
             coverage(a, b, pose.region(), &tubes(&fitted[..1])).is_err(),
             "a branch's tubes dropped: a cell uncovered"
         );
+    }
+
+    /// **The cylinder × sphere coverage keeps its headroom** (the row-5
+    /// `debug_assert` in `ssi::march_cylinder_sphere`): over a sphere
+    /// crossing the wall in one loop, in two, centred on it, and on a
+    /// turned wall, read in both orders, each march's coverage closes
+    /// within a third of `COVERAGE_DEPTH`'s halvings and a sixty-fourth of
+    /// `COVERAGE_CELLS`'s cells, and with any one branch's tubes dropped
+    /// a cell is uncovered: no meeting lies outside the sphere's ball, so
+    /// every one needs a tube. The calibration it measures is printed.
+    #[test]
+    fn the_cylinder_sphere_coverage_keeps_its_headroom() {
+        use super::ruling::{COVERAGE_CELLS, COVERAGE_DEPTH, coverage};
+        use geom_core::{Point3, Vec3};
+        let tubes = |branches: &[super::FittedCarrier<f64>]| -> Vec<_> {
+            branches
+                .iter()
+                .flat_map(|b| {
+                    let (geom::Curve3::Nurbs(net), crate::ssi::SsiTube::Spatial { radius }) =
+                        (&b.carrier, b.certificate.tube)
+                    else {
+                        panic!("a fitted ℝ³ branch");
+                    };
+                    crate::ssi::certify::tube_boxes(net, radius)
+                })
+                .collect()
+        };
+        let turned = Vec3::new(0.3, -0.2, 1.0).normalize();
+        let turned_wall = geom::Surface::Cylinder {
+            origin: Point3::new(0.1, -0.2, 0.3),
+            axis: turned,
+            radius: 0.4,
+            u_ref: turned.orthonormal_basis().0,
+        };
+        let ball = |c: (f64, f64, f64), radius: f64| geom::Surface::Sphere {
+            center: Point3::new(c.0, c.1, c.2),
+            radius,
+            axis: Vec3::unit_z(),
+            u_ref: Vec3::unit_x(),
+        };
+        let (wall, _) = wall_and_ball((0.0, 0.0, 0.0), 1.0);
+        let (mut deepest, mut most) = (0, 0);
+        for (what, a, b) in [
+            ("one loop", wall.clone(), ball((0.7, 0.1, 0.2), 0.4)),
+            ("two loops", wall.clone(), ball((0.1, 0.0, 0.2), 0.7)),
+            (
+                "centred on the wall",
+                wall.clone(),
+                ball((0.0, 0.5, -0.1), 0.4),
+            ),
+            (
+                "turned, one loop",
+                turned_wall.clone(),
+                ball((0.6, 0.1, 0.5), 0.35),
+            ),
+            (
+                "turned, two loops",
+                turned_wall.clone(),
+                ball((0.2, -0.1, 0.0), 0.9),
+            ),
+        ] {
+            for (order, x, y) in [("cylinder, sphere", &a, &b), ("sphere, cylinder", &b, &a)] {
+                let label = format!("{what} ({order})");
+                let section = built(x, y);
+                let super::PairPose::CylinderSphere(pose) = section.pose() else {
+                    panic!("{label}: a cylinder × sphere pose");
+                };
+                let fitted = march_over_the_ball(&section, band())
+                    .unwrap_or_else(|e| panic!("{label}: the march: {e:?}"));
+                assert_eq!(
+                    fitted.len(),
+                    section.seeds().len(),
+                    "{label}: one branch per witness"
+                );
+                let read = coverage(pose.cylinder(), pose.sphere(), pose.ball(), &tubes(&fitted))
+                    .unwrap_or_else(|cell| panic!("{label}: uncovered at {cell:?}"));
+                assert!(
+                    read.depth <= COVERAGE_DEPTH / 3 && read.cells <= COVERAGE_CELLS / 64,
+                    "{label}: headroom: {read:?}"
+                );
+                (deepest, most) = (deepest.max(read.depth), most.max(read.cells));
+                for k in 0..fitted.len() {
+                    let mut kept = fitted.clone();
+                    kept.remove(k);
+                    assert!(
+                        coverage(pose.cylinder(), pose.sphere(), pose.ball(), &tubes(&kept))
+                            .is_err(),
+                        "{label}: branch {k}'s tubes dropped: a cell uncovered"
+                    );
+                }
+            }
+        }
+        println!("cylinder × sphere coverage: deepest {deepest} halvings, at most {most} cells");
     }
 
     /// **Cut ends matched one to one, not by count or by witness**: each

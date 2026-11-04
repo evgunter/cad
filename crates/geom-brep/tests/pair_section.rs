@@ -586,6 +586,44 @@ fn decided_offset(e: f64) -> f64 {
     }
 }
 
+/// **Where the value's ruling sweep may escalate a crossing the retired
+/// formulas count**: the sweep reads `Δ = R − ρ` along the wall's
+/// rulings, which ranges from the far reach `R − (e + r)` to the near
+/// reach `R − |e − r|`, each cell decided on its whole enclosure widened
+/// by its rounding. It escalates where a reach lies within that rounding
+/// (about 1e-15 at these sizes) of a band edge, and where the whole range
+/// lies within three bands of zero, so that no cell reaching past the
+/// band on both sides of a branch point has its slope decided past it.
+fn sweep_may_escalate(e: f64, r: f64, big: f64) -> bool {
+    let b = band();
+    let reaches = [big - (e - r).abs(), big - (e + r)];
+    let edge = reaches.iter().any(|m| {
+        [b.zero(), b.escalate()]
+            .iter()
+            .any(|k| (m.abs() - k).abs() <= 1e-14)
+    });
+    let flat = reaches.iter().all(|m| m.abs() <= 3.0 * b.escalate());
+    edge || flat
+}
+
+/// Whether the value's `new` reading stands against the retired `old`:
+/// the same, or the ruling sweep's escalation of a crossing
+/// [`sweep_may_escalate`] names, counted in `escalated`.
+fn reads_as_retired(
+    new: (Class, bool),
+    old: (Class, bool),
+    (e, r, big): (f64, f64, f64),
+    escalated: &mut usize,
+) -> bool {
+    if new == old {
+        return true;
+    }
+    let crossing = matches!(old, (Class::Lone | Class::Pair, false));
+    let escalates = new == (Class::Tangent, false) && crossing && sweep_may_escalate(e, r, big);
+    *escalated += usize::from(escalates);
+    escalates
+}
+
 /// The value's reading of a pair: its guard class, and whether it
 /// records a coincidence.
 fn read_class(a: &Surface<f64>, b: &Surface<f64>) -> (Class, bool) {
@@ -658,7 +696,7 @@ fn the_pose_reads_the_retired_formulas_at_every_boundary() {
         0.05,
         -0.05,
     ];
-    let (mut n, mut in_band) = (0, 0);
+    let (mut n, mut in_band, mut escalated) = (0, 0, 0);
     for e in offsets {
         let sph_centre = Point3::new(e, 0.0, 0.2);
         for base in [(e - r).abs(), e + r, r, 0.3, 0.9] {
@@ -685,15 +723,19 @@ fn the_pose_reads_the_retired_formulas_at_every_boundary() {
                         in_band += 1;
                         assert_eq!(new, (Class::Tangent, false), "in the band: {what}");
                     } else {
-                        assert_eq!(new, old, "off the band: {what}");
+                        assert!(
+                            reads_as_retired(new, old, (e, r, big), &mut escalated),
+                            "off the band: {what}: {new:?} against {old:?}"
+                        );
                     }
                 }
             }
         }
     }
+    println!("{n} readings, {in_band} in the band, {escalated} escalated by the ruling sweep");
     assert!(
-        n > 1000 && in_band > 100,
-        "{n} readings, {in_band} in the band"
+        n > 1000 && in_band > 100 && escalated <= n / 20,
+        "{n} readings, {in_band} in the band, {escalated} escalated by the ruling sweep"
     );
 }
 
@@ -706,7 +748,7 @@ fn no_pose_off_the_band_moves_from_the_retired_formulas() {
     use test_utils::fuzz;
     let mut g = fuzz::start("pair_section::retired_formulas");
     let b = band();
-    let (mut rows, mut checked) = (0, 0);
+    let (mut rows, mut checked, mut escalated) = (0, 0, 0);
     let poses = fuzz::scaled(5_000);
     for k in 0..poses {
         let origin = Point3::new(g.unit() - 0.5, g.unit() - 0.5, g.unit() - 0.5);
@@ -747,19 +789,19 @@ fn no_pose_off_the_band_moves_from_the_retired_formulas() {
         );
         for (x, y) in [(&cyl, &sph), (&sph, &cyl)] {
             let new = read_class(x, y);
-            assert_eq!(
-                new,
-                old,
-                "pose {k} (off {off:e}, r {r}, R {big}); {}",
+            assert!(
+                reads_as_retired(new, old, (e, r, big), &mut escalated),
+                "pose {k} (off {off:e}, r {r}, R {big}): {new:?} against {old:?}; {}",
                 fuzz::replay()
             );
             rows += usize::from(new.1);
             checked += 1;
         }
     }
+    println!("{checked} readings, {escalated} escalated by the ruling sweep");
     assert!(
-        rows > poses / 10 && checked > poses,
-        "{rows} rows, {checked} readings; {}",
+        rows > poses / 10 && checked > poses && escalated <= checked / 50,
+        "{rows} rows, {checked} readings, {escalated} escalated by the ruling sweep; {}",
         fuzz::replay()
     );
 }

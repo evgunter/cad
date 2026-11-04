@@ -711,21 +711,27 @@ impl<T: Decide, R: Ruled<T>> Sweeper<'_, T, R> {
         #[allow(clippy::cast_precision_loss)]
         let width = core::f64::consts::TAU / START as f64;
         // Each first cut where `Δ`'s side decides ([`Self::decided_at`]),
-        // the last the first's turn on, so the cells tile the turn.
+        // the last the first's turn on, so the cells tile the turn. A cut
+        // after the first where it decides nowhere stands where `Δ` is in
+        // the band over more than half a cell, and is dropped: a branch
+        // cell must reach past that stretch on both sides, so the cells
+        // either side of it are read as one. The first cut is kept
+        // wherever it stands, so every cell lies in the turn [`Cell`]
+        // reads.
         let cuts: Vec<f64> = (0..START)
-            .map(|k| {
+            .filter_map(|k| {
                 #[allow(clippy::cast_precision_loss)]
                 let base = width * k as f64;
-                self.decided_at(base, width, |phi| self.discriminant_reads(phi))
+                let at = self.decided_at(base, width, |phi| self.discriminant_reads(phi));
+                (k == 0 || self.discriminant_reads(at)).then_some(at)
             })
             .collect();
-        for k in 0..START {
-            let hi = if k + 1 == START {
-                cuts[0] + core::f64::consts::TAU
-            } else {
-                cuts[k + 1]
-            };
-            self.discriminant_cell(Cell::new(cuts[k], hi), &mut cells)?;
+        for (k, &lo) in cuts.iter().enumerate() {
+            let hi = cuts
+                .get(k + 1)
+                .copied()
+                .unwrap_or(cuts[0] + core::f64::consts::TAU);
+            self.discriminant_cell(Cell::new(lo, hi), &mut cells)?;
         }
         if cells.iter().all(|(_, d)| *d == Disc::Positive) {
             let turn: Vec<Cell<T>> = cells.into_iter().map(|(c, _)| c).collect();
@@ -1448,7 +1454,7 @@ pub(crate) fn coverage(
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::{Cell, Ruled, RuledCylinders};
-    use crate::pair_section::{CcStance, CylinderCylinderPose};
+    use crate::pair_section::{CcStance, CylinderCylinderPose, CylinderSpherePose};
     use crate::{ExtentBall, Reach};
     use geom::Surface;
     use geom_core::{Band, Point3, Tol, Vec3};
@@ -1548,6 +1554,98 @@ mod tests {
                 } else {
                     assert!(most > 0.0, "{label}: the walls cross");
                 }
+            }
+        }
+    }
+
+    /// **A sphere's `Δ` reaches the pose's margins at its extremes**: the
+    /// margin read over a fine turn reaches the near reach `R − |d − r|`
+    /// at its most and the far reach `R − (d + r)` at its least, the two
+    /// margins the pose decides the count on, for a sphere crossing the
+    /// wall in one loop, in two, centred on the wall, missing it, inside
+    /// it, and on a turned axis, in both orders; and the slope is of the
+    /// sign of `Δ`'s change across each cell of the turn.
+    #[test]
+    fn a_spheres_discriminant_extremes_are_the_poses_reaches() {
+        let sphere = |c: (f64, f64, f64), radius: f64| Surface::Sphere {
+            center: Point3::new(c.0, c.1, c.2),
+            radius,
+            axis: Vec3::unit_z(),
+            u_ref: Vec3::unit_x(),
+        };
+        let turned = Vec3::new(0.3, -0.2, 1.0);
+        let poses = [
+            (
+                "one loop",
+                wall((0.0, 0.0, 0.0), Vec3::unit_z(), 0.5),
+                sphere((0.6, 0.0, 0.2), 0.3),
+            ),
+            (
+                "two loops",
+                wall((0.0, 0.0, 0.0), Vec3::unit_z(), 0.5),
+                sphere((0.1, 0.0, 0.2), 0.7),
+            ),
+            (
+                "centred on the wall",
+                wall((0.0, 0.0, 0.0), Vec3::unit_z(), 0.5),
+                sphere((0.0, 0.5, -0.1), 0.4),
+            ),
+            (
+                "missing it",
+                wall((0.0, 0.0, 0.0), Vec3::unit_z(), 0.5),
+                sphere((1.2, 0.3, 0.0), 0.4),
+            ),
+            (
+                "inside it",
+                wall((0.0, 0.0, 0.0), Vec3::unit_z(), 0.5),
+                sphere((0.1, 0.1, 0.0), 0.2),
+            ),
+            (
+                "turned, one loop",
+                wall((0.1, -0.2, 0.3), turned, 0.4),
+                sphere((0.6, 0.1, 0.5), 0.35),
+            ),
+            (
+                "turned, two loops",
+                wall((0.1, -0.2, 0.3), turned, 0.4),
+                sphere((0.2, -0.1, 0.0), 0.9),
+            ),
+        ];
+        for (what, c, s) in poses {
+            for (order, x, y) in [("cylinder, sphere", &c, &s), ("sphere, cylinder", &s, &c)] {
+                let label = format!("{what} ({order})");
+                let pose = CylinderSpherePose::decide(x, y, band())
+                    .expect("a cylinder and a sphere")
+                    .unwrap_or_else(|e| panic!("{label}: a decided pose: {e:?}"));
+                let ruled = pose.ruled().expect("an off-axis centre");
+                let ((r, big_r), d) = (pose.radii(), pose.offset());
+                let (mut most, mut least) = (f64::NEG_INFINITY, f64::INFINITY);
+                let n = 4096;
+                let at = |k: i32| core::f64::consts::TAU * f64::from(k) / f64::from(n);
+                for k in 0..=n {
+                    let m = ruled.discriminant(&Cell::at(at(k)));
+                    most = most.max(m.hi);
+                    least = least.min(m.lo);
+                }
+                for k in 0..n {
+                    let rise = ruled.discriminant(&Cell::at(at(k + 1))).lo
+                        - ruled.discriminant(&Cell::at(at(k))).lo;
+                    let slope = ruled.discriminant_slope(&Cell::new(at(k), at(k + 1)));
+                    assert!(
+                        (rise <= 0.0 || slope.hi > 0.0) && (rise >= 0.0 || slope.lo < 0.0),
+                        "{label}: cell {k}: `Δ` moves {rise} across a slope of {slope:?}"
+                    );
+                }
+                assert!(
+                    (most - (big_r - (d - r).abs())).abs() <= 1e-12,
+                    "{label}: the most is the near reach, {most} against {}",
+                    big_r - (d - r).abs()
+                );
+                assert!(
+                    (least - (big_r - (d + r))).abs() <= 1e-12,
+                    "{label}: the least is the far reach, {least} against {}",
+                    big_r - (d + r)
+                );
             }
         }
     }
