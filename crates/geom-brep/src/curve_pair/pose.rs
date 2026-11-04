@@ -271,15 +271,18 @@ pub enum Sense {
     Opposite,
 }
 
-/// A candidate meeting: a point, and its parameter on each carrier (the
-/// carrier's own on the one it was placed on, its foot on the other).
+/// A candidate meeting: a point, and a seed on each carrier for reading
+/// it there. On the carrier it was placed on the seed is the point's own
+/// parameter; on the other it is its foot's [`geom::Foot::seed`], which
+/// certifies nothing. A reader that needs the point's parameter on a
+/// carrier reads that carrier's certificate at it.
 #[derive(Clone, Copy, Debug)]
 pub struct Candidate<T: geom_core::Real> {
     /// The point.
     pub point: Point3<T>,
-    /// Its parameter on the first carrier.
+    /// Its seed on the first carrier.
     pub ta: T,
-    /// Its parameter on the second carrier.
+    /// Its seed on the second carrier.
     pub tb: T,
 }
 
