@@ -2579,24 +2579,22 @@ fn require_cone_generator<T: Decide>(
 /// reading, and an unread candidate's NaN (an end at the apex) is not
 /// read.
 fn cone_generator_miss<T: Decide>(apex: Point3<T>, dir: Vec3<T>, e: &LoopEdge<T>) -> Margin<T> {
-    let start = geom::Line {
-        origin: e.p0(),
-        dir,
-    };
-    let span = (T::zero(), e.t1 - e.t0);
-    let through = |q: Vec3<T>| {
+    // The far end lies on the line through the apex and itself, so the
+    // reading is the near end's distance: read at the stored point, a
+    // span of none, with no `dir·Δt` rounding to re-derive the far end.
+    let through = |near: Point3<T>, far: Vec3<T>| {
         ruling_miss(
-            &start,
-            span,
+            &geom::Line { origin: near, dir },
+            (T::zero(), T::zero()),
             Ruling::Generator {
                 apex,
-                g: q * (T::one() / q.norm()),
+                g: far * (T::one() / far.norm()),
             },
         )
         .value()
     };
     let (q0, q1) = (e.p0() - apex, e.p1() - apex);
-    Margin::of((q1.norm() - q0.norm()).select_le_zero(through(q0), through(q1)))
+    Margin::of((q1.norm() - q0.norm()).select_le_zero(through(e.p1(), q0), through(e.p0(), q1)))
 }
 
 /// **How far a segment sags inside the chord of its ends' radii**, with
