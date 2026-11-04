@@ -2,11 +2,11 @@
 id: door-searches-left-on-the-hand-rolled-ladder
 kind: issue
 title: Door searches still hand-rolling geom_brep::ladder::climb after onecopy/ladder-climb: each site, and why it was not ported there
-status: dispatched
+status: open
 opened: 2026-11-03
 priority: P1
 cost: M
-branch: onecopy/ladder-climb-2
+refs: [6495]
 ---
 
 The remainder of `witness-and-door-searches-hand-roll-the-ladder`.
