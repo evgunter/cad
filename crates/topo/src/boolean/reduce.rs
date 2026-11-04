@@ -9837,3 +9837,112 @@ mod review_5993_rows {
         }
     }
 }
+
+/// Reviewer rows for [`spline_off_carrier`]: a carrier whose residual
+/// sees only part of its algebraic variety, a sheet in band on every
+/// piece, and the cone's mirror nappe.
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod spline_off_carrier_review_rows {
+    use super::spline_off_carrier;
+    use geom::{NurbsSurface, Surface};
+    use geom_core::spline::{KnotVector, Knots};
+    use geom_core::{Band, Point3, Tol, Vec3};
+
+    fn band() -> Band {
+        Band::linear(Tol::witness()).unwrap()
+    }
+
+    /// A quarter turn about `z` of the rational profile `rows` of
+    /// `(radius, height, weight)` in one meridian half-plane, a single
+    /// Bézier piece of degree `rows.len() - 1` in `v`.
+    fn revolved(rows: &[(f64, f64, f64)]) -> NurbsSurface<f64> {
+        let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        let p = rows.len() - 1;
+        let mut kv = vec![0.0; p + 1];
+        kv.extend(vec![1.0; p + 1]);
+        let kv = KnotVector::clamped(kv, p).unwrap();
+        let w = core::f64::consts::FRAC_1_SQRT_2;
+        let mut control = Vec::new();
+        let mut weights = Vec::new();
+        for (dir, wu) in [((1.0, 0.0), 1.0), ((1.0, 1.0), w), ((0.0, 1.0), 1.0)] {
+            for &(r, z, wv) in rows {
+                control.push(Point3::new(r * dir.0, r * dir.1, z));
+                weights.push(wu * wv);
+            }
+        }
+        NurbsSurface::new(Knots::from(ku), Knots::from(kv), control, weights).unwrap()
+    }
+
+    /// An apple spindle (`R = 0.5`, `r = 1`) and the exact revolved
+    /// meridian arc from 90° to 150°, across the apex at 120°. Below the
+    /// apex (`v < 0.5`) the sheet IS the spindle's sheet over an open
+    /// set; past it the meridian circle runs on into the other sheet of
+    /// the same algebraic torus, which the spindle's residual reads off.
+    /// The sheet lies on the carrier over an open set, so it must not
+    /// read distinct from it.
+    #[test]
+    fn a_sheet_on_a_spindle_across_its_apex_stays_unread() {
+        let spindle = Surface::Spindle {
+            center: Point3::origin(),
+            axis: Vec3::unit_z(),
+            major_radius: 0.5,
+            minor_radius: 1.0,
+            u_ref: Vec3::unit_x(),
+        };
+        let (c, s) = (0.5_f64, 0.0_f64);
+        let at = |deg: f64| {
+            let t = deg.to_radians();
+            (c + t.cos(), s + t.sin())
+        };
+        let (p0, p2) = (at(90.0), at(150.0));
+        let half = 30.0_f64.to_radians();
+        let mid = 120.0_f64.to_radians();
+        let p1 = (c + mid.cos() / half.cos(), s + mid.sin() / half.cos());
+        let s = revolved(&[(p0.0, p0.1, 1.0), (p1.0, p1.1, half.cos()), (p2.0, p2.1, 1.0)]);
+        // The premise: the sheet's lower part is on the spindle.
+        let on = s.eval(0.5, 0.25);
+        let r = geom_brep::implicit::implicit_residual(&spindle, on);
+        assert!(r.abs() < 1e-12, "the sheet's lower part lies on the spindle: {r}");
+        assert!(
+            !spline_off_carrier(&s, &spindle, band()),
+            "a sheet on the spindle over an open set reads distinct from it"
+        );
+    }
+
+    /// A cylinder patch pushed out by half the band's escalation: every
+    /// point is in band, none off, so the sheet stays unread.
+    #[test]
+    fn a_sheet_in_band_of_the_cylinder_stays_unread() {
+        let b = band();
+        let d = 0.5 * b.escalate();
+        assert!(b.zero() < d, "the band has room between its edges");
+        let cylinder = Surface::Cylinder {
+            origin: Point3::origin(),
+            axis: Vec3::unit_z(),
+            radius: 1.0,
+            u_ref: Vec3::unit_x(),
+        };
+        let s = revolved(&[(1.0 + d, 0.0, 1.0), (1.0 + d, 1.0, 1.0)]);
+        assert!(!spline_off_carrier(&s, &cylinder, b));
+    }
+
+    /// A sheet on the cone's MIRROR nappe, and one through the apex onto
+    /// it: both lie on the double cone, so both stay unread.
+    #[test]
+    fn a_sheet_on_the_cones_mirror_nappe_stays_unread() {
+        let cone = Surface::Cone {
+            apex: Point3::origin(),
+            axis: Vec3::unit_z(),
+            half_angle: core::f64::consts::FRAC_PI_4,
+            u_ref: Vec3::unit_x(),
+        };
+        let mirror = revolved(&[(1.0, -1.0, 1.0), (2.0, -2.0, 1.0)]);
+        assert!(!spline_off_carrier(&mirror, &cone, band()));
+        let through = revolved(&[(1.0, 1.0, 1.0), (-1.0, -1.0, 1.0)]);
+        assert!(!spline_off_carrier(&through, &cone, band()));
+        // And a sheet off it does read off: the rows can go red.
+        let off = revolved(&[(1.0, -2.0, 1.0), (2.0, -1.0, 1.0)]);
+        assert!(spline_off_carrier(&off, &cone, band()));
+    }
+}

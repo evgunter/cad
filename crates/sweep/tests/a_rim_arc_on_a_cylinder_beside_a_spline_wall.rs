@@ -126,3 +126,32 @@ fn a_rim_arc_beside_a_bent_spline_wall_is_taken_on_the_cylinder() {
         );
     }
 }
+
+/// Reviewer probe: the tube wall's `u` knots and its one-sided `∂u` at
+/// each interior run, by difference quotients.
+#[test]
+fn review_probe_the_tube_walls_u_joint_continuity() {
+    let t = tube(Point3::new(1.5, 0.0, 3.0));
+    for (k, _) in t.faces() {
+        if let Some(geom::Surface::Nurbs(s)) = t.face_surface(k) {
+            let ku: Vec<(f64, usize)> = s.knot_values_u().runs().collect();
+            let kv: Vec<(f64, usize)> = s.knot_values_v().runs().collect();
+            println!("face {k:?}: u runs {ku:?}; v runs {kv:?}; S(0,0)={:?} S(0.5,0)={:?} S(1,0)={:?}", s.eval(0.0, 0.0), s.eval(0.5, 0.0), s.eval(1.0, 0.0));
+            for &(b, _) in &ku[1..ku.len() - 1] {
+                for v in [0.0, 0.3, 0.7] {
+                    let h = 1e-6;
+                    let p = s.eval(b, v);
+                    let left = (p - s.eval(b - h, v)) / h;
+                    let right = (s.eval(b + h, v) - p) / h;
+                    println!(
+                        "  u={b} v={v}: left {:?} right {:?} |diff| {:.3e} |left| {:.3e}",
+                        left,
+                        right,
+                        (left - right).norm(),
+                        left.norm()
+                    );
+                }
+            }
+        }
+    }
+}
