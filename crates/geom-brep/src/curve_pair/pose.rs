@@ -279,7 +279,7 @@
 mod window;
 
 use geom::{Azimuth, Curve3, CurveKind};
-use geom_core::k_stats::{check_unlogged, decide, straddle};
+use geom_core::k_stats::{check_unlogged, decide, prove, straddle};
 use geom_core::one_line::{OnOneLine, on_one_line};
 use geom_core::{Band, Decide, Lever, Margin, Point3, Sign, Vec3};
 
@@ -306,6 +306,12 @@ pub enum Sense {
 /// parameter; on the other it is its foot's [`geom::Foot::seed`], which
 /// certifies nothing. A reader that needs the point's parameter on a
 /// carrier reads that carrier's certificate at it.
+///
+/// `bound` is what the generator states of its window (module docs,
+/// "The gap's lower bound"): `None` where an Off at the point speaks for
+/// the whole window (an end, a witness, an exact root), which reads as
+/// the point alone; otherwise the window's floor and reach. The reader
+/// does the one composition (`Found::read`).
 #[derive(Clone, Copy, Debug)]
 pub struct Candidate<T: geom_core::Real> {
     /// The point.
@@ -314,6 +320,22 @@ pub struct Candidate<T: geom_core::Real> {
     pub ta: T,
     /// Its seed on the second carrier.
     pub tb: T,
+    /// The window it stands for, `None` for a point that is its own.
+    pub bound: Option<WindowBound<T>>,
+}
+
+/// **What a polished pair states of its window** (module docs, "The
+/// gap's lower bound"), for the reader to compose with its point's
+/// reading (`Found::read`).
+#[derive(Clone, Copy, Debug)]
+pub struct WindowBound<T> {
+    /// A lower bound in metres on the gap between any two points of the
+    /// carriers in the window, `|w·n̂| − bend`; `−∞` where undecided.
+    pub floor: T,
+    /// The most metres along either carrier, from the candidate's own
+    /// parameters, at which two points of the window lie within the
+    /// band's escalation of each other, `m₋`; `+∞` where undecided.
+    pub reach: T,
 }
 
 /// The pose of two spans' carriers (module docs).
@@ -370,9 +392,7 @@ mod row {
     pub(super) const EXTREME: &str = "curve_pair_pose_extreme";
     pub(super) const ROOT_GAP: &str = "curve_pair_pose_root_gap";
     pub(super) const CLEAR: &str = "curve_pair_pose_clear";
-    pub(super) const TRAVEL: &str = "curve_pair_pose_travel";
     pub(super) const BASIN: &str = "curve_pair_pose_basin";
-    pub(super) const POLISH: &str = "curve_pair_pose_polish";
     pub(super) const CENTRES: &str = "curve_pair_pose_centres";
     pub(super) const RADII: &str = "curve_pair_pose_radii";
     pub(super) const ONE_CURVE: &str = "curve_pair_pose_one_curve";
@@ -449,6 +469,7 @@ fn flip<T: geom_core::Real>(c: Candidate<T>) -> Candidate<T> {
         point: c.point,
         ta: c.tb,
         tb: c.ta,
+        bound: c.bound,
     }
 }
 
@@ -538,6 +559,7 @@ pub(super) fn end_candidates<T: Decide>(a: &Span<'_, T>, b: &Span<'_, T>) -> Vec
             point,
             ta,
             tb: foot(b, point),
+            bound: None,
         });
     }
     for (tb, point) in b.ends() {
@@ -545,6 +567,7 @@ pub(super) fn end_candidates<T: Decide>(a: &Span<'_, T>, b: &Span<'_, T>) -> Vec
             point,
             ta: foot(a, point),
             tb,
+            bound: None,
         });
     }
     out
@@ -581,20 +604,6 @@ fn definite<T: Decide>(
     })
 }
 
-/// Whether a meter's margin reads definitely `want`; any other reading,
-/// an escalation included, refuses [`Unsettled::Meter`].
-fn metered<T: Decide>(
-    row: &'static str,
-    margin: Margin<T>,
-    want: Sign,
-    band: Band,
-) -> Result<(), MeetFault> {
-    match decide(row, margin, band) {
-        Ok(sign) if sign == want => Ok(()),
-        Ok(_) | Err(_) => Err(MeetFault::Unsettled(Unsettled::Meter)),
-    }
-}
-
 /// The witnesses of a coincident pair ([`Span::witness_params`] on each
 /// span), each placed on the carrier of the span it came from and given
 /// its foot on the other by `foot_a`/`foot_b`.
@@ -614,6 +623,7 @@ fn witnesses<T: Decide>(
             point,
             ta,
             tb: foot_b(point),
+            bound: None,
         });
     }
     for tb in b.witness_params(ends(a, foot_b)) {
@@ -622,6 +632,7 @@ fn witnesses<T: Decide>(
             point,
             ta: foot_a(point),
             tb,
+            bound: None,
         });
     }
     out
@@ -642,6 +653,16 @@ impl<T: Decide> Side<'_, T> {
             Self::Line((origin, dir)) => Curve3::Line(geom::Line { origin, dir }).ders1(t),
             Self::Conic(k) => k.jet_at(t),
         }
+    }
+
+    /// The most metres the carrier runs between the parameters `t0` and
+    /// `t1`: their difference at its greatest speed.
+    fn run(self, t0: T, t1: T) -> T {
+        let speed = match self {
+            Self::Line((_, dir)) => dir.norm(),
+            Self::Conic(k) => k.speed_hi(),
+        };
+        (t1 - t0).abs() * speed
     }
 
     /// A bound on the curvature within `reach` metres of `t`: zero on a
@@ -686,45 +707,48 @@ struct Polish<'k, T: geom_core::Real> {
 }
 
 impl<T: Decide> Polish<'_, T> {
-    /// The closest pair, metered, or `None` where no point of the arc is
-    /// within the band of the second carrier (module docs).
+    /// The closest pair's candidate, or `None` where no point of the
+    /// window is within the band of the second carrier (module docs,
+    /// "Across planes" and "The gap's lower bound").
+    ///
+    /// # Errors
+    ///
+    /// [`Unsettled::Meter`] on `curve_pair_pose_basin` where the basin's
+    /// inequality is not proved.
     fn closest(&self, band: Band) -> Result<Option<Candidate<T>>, MeetFault> {
         let (s0, t0) = self.start;
-        let ((p0, da), (q0, db)) = (self.a.ders(s0), self.b.ders(t0));
         if decide(row::CLEAR, Margin::of(self.clear - self.reach), band) == Ok(Sign::Positive) {
             return Ok(None);
         }
-        let sine = unit(da).cross(unit(db)).norm();
+        let two = T::from_f64(2.0);
         let e = T::from_f64(band.escalate());
-        let region = (self.reach + e) * T::from_f64(2.0);
-        let curvature = self.a.curvature_near(s0, region) + self.b.curvature_near(t0, region);
-        let turn = T::from_f64(2.0) * curvature * region;
-        metered(
-            row::BASIN,
-            Margin::levered(sine - turn, self.lever),
-            Sign::Positive,
-            band,
-        )?;
-        let (s, t, moved) =
+        let region = (self.reach + e) * two;
+        let (s, t) =
             super::polish::pair(|s| self.a.ders(s), |t| self.b.ders(t), self.start, |_| true);
-        let ((p, _), (q, _)) = (self.a.ders(s), self.b.ders(t));
-        // Within its basin the polish stays in the region; one that left
-        // it twice over is a polish the basin meter did not certify.
-        let travel = (p - p0).norm() + (q - q0).norm();
-        metered(
-            row::TRAVEL,
-            Margin::of(region + region - travel),
-            Sign::Positive,
-            band,
-        )?;
-        match decide(row::POLISH, Margin::of(moved), band) {
-            Ok(Sign::Zero | Sign::Negative) => {}
-            Ok(Sign::Positive) | Err(_) => return Err(MeetFault::Unsettled(Unsettled::Meter)),
+        let ((p, da), (q, db)) = (self.a.ders(s), self.b.ders(t));
+        // Every pair of the window lies within `region` of the start, and
+        // the polished pair within its travel of it: within `span` of the
+        // polished pair, along either carrier.
+        let span = region + self.a.run(s0, s).max(self.b.run(t0, t));
+        let curvature = self.a.curvature_near(s0, span) + self.b.curvature_near(t0, span);
+        let sine = unit(da).cross(unit(db)).norm();
+        // The sine's lower bound over the window, and the basin: that
+        // bound past the window's turn, so the window's span lies below
+        // the move's larger root (module docs).
+        let sine_lo = sine - curvature * span;
+        if prove(
+            row::BASIN,
+            Margin::levered(sine_lo - curvature * span, self.lever),
+        ) != Ok(Sign::Positive)
+        {
+            return Err(MeetFault::Unsettled(Unsettled::Meter { row: row::BASIN }));
         }
+        let bound = super::polish::bound((p, da), (q, db), sine_lo, curvature, e);
         Ok(Some(Candidate {
             point: p,
             ta: s,
             tb: t,
+            bound: Some(bound),
         }))
     }
 }
@@ -876,6 +900,7 @@ fn line_line<T: Decide>(
             point,
             ta: line_foot(la, point),
             tb: line_foot(lb, point),
+            bound: None,
         }])
     };
     match route(s, s / u1.dot(u2).abs(), off, at, (arm, noise), band)? {
@@ -978,6 +1003,7 @@ fn line_conic<T: Decide>(
             point,
             ta: line_foot(line, point),
             tb: theta,
+            bound: None,
         }
     };
     let found: Vec<T> = known.iter().map(|c| c.tb).collect();
@@ -1086,6 +1112,7 @@ fn conic_conic<T: Decide>(
             point,
             ta: theta,
             tb: foot(b, point),
+            bound: None,
         }
     };
     match coplanar {

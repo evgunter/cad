@@ -254,6 +254,43 @@ fn same<T: Decide>(s: T, t: T) -> bool {
     super::compare("curve_pair_walk_same_foot", s, t) == Some(Sign::Zero)
 }
 
+/// **The window of a polished piece pair** (`pose`'s module docs, "The
+/// gap's lower bound"): every pair of the pieces lies within `span`
+/// metres, along its carrier, of the polished parameter on it (its run
+/// to the piece's middle and the piece's own reach), and the carriers'
+/// curvature is at most their bounds over the whole carrier. Where the
+/// sine at the pair, less the turn over `span` twice, is not proved
+/// positive (`curve_pair_walk_basin`) the premise fails and the window
+/// is undecided.
+fn window<T: Decide>(
+    (ra, pa, s): (&Read<'_, '_, T>, Piece<T>, T),
+    (rb, pb, t): (&Read<'_, '_, T>, Piece<T>, T),
+    band: Band,
+) -> super::WindowBound<T> {
+    let run = |r: &Read<'_, '_, T>, p: Piece<T>, u: T| {
+        Margin::metered_sup(u - p.mid(), r.hi()).value().abs() + p.reach(r.hi())
+    };
+    let span = run(ra, pa, s).max(run(rb, pb, t));
+    let curvature = ra.curvature + rb.curvature;
+    let ((p, da), (q, db)) = (ra.curve().ders1(s), rb.curve().ders1(t));
+    let unit = |v: Vec3<T>| v * (T::one() / v.norm());
+    let sine_lo = unit(da).cross(unit(db)).norm() - curvature * span;
+    let premise = geom_core::k_stats::prove(
+        "curve_pair_walk_basin",
+        Margin::of(sine_lo - curvature * span),
+    );
+    if premise != Ok(Sign::Positive) {
+        return super::polish::undecided();
+    }
+    super::polish::bound(
+        (p, da),
+        (q, db),
+        sine_lo,
+        curvature,
+        T::from_f64(band.escalate()),
+    )
+}
+
 /// Whether the pieces `pa` of `a` and `pb` of `b` are definitely apart
 /// (module docs).
 fn pieces_apart<T: Decide>(
@@ -371,7 +408,7 @@ pub(super) fn meet<T: Decide>(
                 let slack = (ra.curve().eval(ma) - rb.curve().eval(mb)).norm()
                     + pa.reach(ra.hi())
                     + pb.reach(rb.hi());
-                let (s, t, _) = super::polish::pair(
+                let (s, t) = super::polish::pair(
                     |s| ra.curve().ders1(s),
                     |t| rb.curve().ders1(t),
                     (ma, mb),
@@ -379,8 +416,13 @@ pub(super) fn meet<T: Decide>(
                 );
                 let t = rb.curve().foot(ra.curve().eval(s), t).seed();
                 let s = ra.curve().foot(rb.curve().eval(t), s).seed();
-                let q = ra.curve().eval(s);
-                found.offer(q, || read_both((a, &[s]), (b, &[t]), q, band), band);
+                let candidate = super::Candidate {
+                    point: ra.curve().eval(s),
+                    ta: s,
+                    tb: t,
+                    bound: Some(window((&ra, pa, s), (&rb, pb, t), band)),
+                };
+                found.read(a, b, candidate, band);
                 return Step::Settled;
             }
             if !stop_a && (stop_b || pa.depth <= pb.depth) {

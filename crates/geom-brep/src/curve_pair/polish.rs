@@ -1,85 +1,121 @@
 //! **Gauss–Newton polish** of two carriers' closest pair, each carrier
 //! read through its point and first derivative at a parameter (a point's
-//! foot on one carrier is [`geom::Curve3::foot`]). A polished parameter is a place to read,
-//! never a decision: every point it yields is read by
-//! [`super::Span::contact`].
+//! foot on one carrier is [`geom::Curve3::foot`]), and **the lower bound
+//! on the gap** the polished pair gives (`pose`'s module docs, "The gap's
+//! lower bound"). A polished parameter is a place to read, never a
+//! decision: every point it yields is read by [`super::Span::contact`],
+//! and what the window around it holds is read off [`bound`], never off
+//! whether the polish converged.
+//!
+//! **The search is `f64` structure** (`geom::projection_policy`'s "f64
+//! structure + T payload"): each step is evaluated at `T` at the
+//! iterate, entered through `Real::from_computed`, and the iterate moves
+//! by the step's bracket midpoint ([`geom::bracket_mid`]). A step read
+//! from a whole enclosure would be a step from every point of it, which
+//! grows the iterate by the box's spread each step rather than closing
+//! on the pair. At `f64` the midpoint of a point is the point, so the
+//! search is bit for bit the plain `f64` iteration.
+//!
+//! **A selection that moves with the inputs**, so at a `Dual` the
+//! polished pair carries no tangent of its own, and at `Sym` it is a
+//! literal: #874's class (`geom::projection_policy`'s `mid`). What a
+//! consumer reads at the pair (its points, `contact`'s certified
+//! parameter) is evaluated at `T` there.
 
-use geom_core::{Decide, Point3, Vec3};
+use geom_core::k_stats::prove;
+use geom_core::{Decide, Margin, Point3, Sign, Vec3};
+
+use super::pose::WindowBound;
 
 /// The steps each polish takes.
 const STEPS: usize = 4;
 
+/// The row the bound's move reads its premise on.
+const MOVE: &str = "curve_pair_pose_move";
+
 /// Gauss–Newton from `(s, t)` toward the closest pair of the carriers
 /// `a` and `b`, a step taken where `keep` accepts the metres it moves the
-/// pair: the pair, and the metres its last step moved it.
+/// pair (read at `T` at the iterate): the pair, entered at `T`. A start or
+/// a step with no finite bracket ends the search where it stands.
 pub(super) fn pair<T: Decide>(
     a: impl Fn(T) -> (Point3<T>, Vec3<T>),
     b: impl Fn(T) -> (Point3<T>, Vec3<T>),
-    (mut s, mut t): (T, T),
+    (s0, t0): (T, T),
     keep: impl Fn(T) -> bool,
-) -> (T, T, T) {
-    let mut moved = T::zero();
+) -> (T, T) {
+    let (Some(mut s), Some(mut t)) = (mid(s0), mid(t0)) else {
+        return (s0, t0);
+    };
     for _ in 0..STEPS {
-        (s, t) = (place(s), place(t));
-        let ((pa, da), (pb, db)) = (a(s), b(t));
+        let ((pa, da), (pb, db)) = (a(T::from_computed(s)), b(T::from_computed(t)));
         let (w, n) = (pb - pa, da.cross(db));
         let nn = n.dot(n);
         let (ds, dt) = (w.cross(db).dot(n) / nn, w.cross(da).dot(n) / nn);
-        moved = da.norm() * ds.abs() + db.norm() * dt.abs();
+        let moved = da.norm() * ds.abs() + db.norm() * dt.abs();
+        let (Some(ds), Some(dt)) = (mid(ds), mid(dt)) else {
+            break;
+        };
         if keep(moved) {
-            s = s + ds;
-            t = t + dt;
+            s += ds;
+            t += dt;
         }
     }
-    (s, t, moved)
+    (T::from_computed(s), T::from_computed(t))
 }
 
-/// **The place a step is read from**: an enclosure's middle
-/// ([`geom::bracket_mid`]), and any other value itself. A step read from
-/// a whole enclosure is a step from every point of it, which grows the
-/// iterate by the box's spread each step rather than closing on the
-/// pair; a step from one point is that point's, and the pair it ends on
-/// is one place the readings after it read.
-///
-/// **A bracket with an infinite end has no middle**, and is kept whole:
-/// the step is then read from the whole enclosure, its metres are as
-/// wide, and the meters after the polish refuse on them. Poison has no
-/// bracket and is kept too. A finite bracket whose width overflows (ends
-/// past `±9e307`) gives an infinite place, and needs no guard: the step
-/// read there is not finite, and the convergence meter
-/// (`curve_pair_pose_polish`) needs its metres in the zero band, which an
-/// infinite margin (definite) or a NaN one (indeterminate) never is.
-///
-/// **A selection that moves with the inputs**, so at a `Dual` over an
-/// enclosure the place is the value channel's middle with the tangent
-/// dropped, and at `Sym` over one a literal: #874's class
-/// (`geom::projection_policy`'s `mid`). A point scalar, `Dual<f64>`
-/// included, is its own middle and keeps everything it carries.
-fn place<T: Decide>(x: T) -> T {
-    match x.structure_bracket() {
-        Some((lo, hi)) if lo != hi && lo.is_finite() && hi.is_finite() => {
-            T::from_computed(geom::bracket_mid((lo, hi)))
-        }
-        _ => x,
+/// The middle of `x`'s bracket ([`geom::bracket_mid`]), or `None` where
+/// it has no finite one: poison, an end at infinity, or a width that
+/// overflows.
+fn mid<T: Decide>(x: T) -> Option<f64> {
+    x.structure_bracket()
+        .filter(|(lo, hi)| lo.is_finite() && hi.is_finite())
+        .map(geom::bracket_mid)
+        .filter(|m| m.is_finite())
+}
+
+/// **The window's bound** at the polished pair, `p` with its tangent
+/// `da` on the first carrier and `q` with `db` on the second; `sine` a
+/// lower bound on the sine between the tangents over the window,
+/// `curvature` the carriers' summed curvature bound there and `e` the
+/// band's escalation (`pose`'s module docs, "The gap's lower bound"),
+/// on the premise that every pair of the window lies within `span`
+/// metres of `(p, q)` along the carriers, `curvature · span < sine`. The
+/// floor `|w·n̂| − bend` and the reach `m₋`; undecided (`−∞`, `+∞`)
+/// where the move's quadratic has no real root (`curve_pair_pose_move`
+/// not proved positive), so the window's Off escalates.
+pub(super) fn bound<T: Decide>(
+    (p, da): (Point3<T>, Vec3<T>),
+    (q, db): (Point3<T>, Vec3<T>),
+    sine: T,
+    curvature: T,
+    e: T,
+) -> WindowBound<T> {
+    let n = da.cross(db);
+    let n = n * (T::one() / n.norm());
+    let w = q - p;
+    let along = w.dot(n);
+    let slack = (w - n * along).norm();
+    let excess = slack + e;
+    let two = T::from_f64(2.0);
+    let disc = sine.powi(2) - two * curvature * excess;
+    if prove(MOVE, Margin::of(disc)) != Ok(Sign::Positive) {
+        return undecided();
+    }
+    // `m₋ = (sin − √disc)/K`, written without the division by `K` so
+    // that a pair of lines (`K = 0`) reads `excess/sin`.
+    let reach = two * excess / (sine + disc.sqrt());
+    let bend = curvature * reach.powi(2) / two;
+    WindowBound {
+        floor: along.abs() - bend,
+        reach,
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use geom_core::Interval;
-
-    /// The middle of an enclosure, a point kept, and an enclosure with an
-    /// infinite end kept whole.
-    #[test]
-    fn a_place_is_an_enclosures_middle_and_an_unbounded_one_is_kept() {
-        use geom_core::Bounds;
-        let ends = |x: Interval| (x.lo(), x.hi());
-        assert_eq!(
-            ends(super::place(Interval::from_bounds(1.0, 3.0))),
-            (2.0, 2.0)
-        );
-        assert_eq!(super::place(0.25_f64).to_bits(), 0.25_f64.to_bits());
-        let unbounded = Interval::from_bounds(1.0, f64::INFINITY);
-        assert_eq!(ends(super::place(unbounded)), (1.0, f64::INFINITY));
+/// The bound of a window nothing bounds: no floor, and no reach short of
+/// the whole carriers.
+pub(super) fn undecided<T: Decide>() -> WindowBound<T> {
+    WindowBound {
+        floor: T::from_f64(f64::NEG_INFINITY),
+        reach: T::from_f64(f64::INFINITY),
     }
 }
