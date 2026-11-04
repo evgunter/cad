@@ -335,3 +335,28 @@ fn a_meridian_stated_off_by_a_milliradian_refuses_on_the_torus() {
         "the off-by-δ meridian refuses on the torus's row certificate: {got:?}"
     );
 }
+
+/// **The short-span limit at `Interval`, pinned where it stands today**:
+/// the stadium junction over `1e-5` of its section escalates its touch
+/// bound (`shared_row_touch`), the three in-span readings' harmonic
+/// widening past the band, while `f64` still reads Touching. Red if the
+/// limit moves either way (`work/select/the-shared-row-contact-class-is-levered-by-the-edges-length.md`).
+#[test]
+fn a_stadium_section_over_ten_microradians_escalates_its_touch_at_interval() {
+    let mut row = stadium_junction();
+    row.span = (0.0, 1e-5);
+    assert_eq!(
+        certified(&row).unwrap(),
+        RowContact::Touching,
+        "f64 still reads it"
+    );
+    let got = certified(&row.lifted());
+    assert!(
+        matches!(
+            &got,
+            Err(CertifyError::Escalated { check: geom_brep::CertCheck::Transversality, cause, .. })
+                if cause.predicate == Some("shared_row_touch")
+        ),
+        "Interval escalates the touch bound over 1e-5: {got:?}"
+    );
+}
