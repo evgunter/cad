@@ -660,3 +660,134 @@ fn the_spheres_arm_refuses_what_it_cannot_read() {
         "a ring wound with its face: {got:?}"
     );
 }
+
+// ---------------------------------------------------------------------
+// R2 review probes (PR 6509): cases the rows above do not reach.
+// ---------------------------------------------------------------------
+
+/// Holds, or refuses typed: never a wrong enclosure. Returns whether it held.
+fn r2_holds_or_refuses(
+    label: &str,
+    ball: Ball,
+    outward: bool,
+    loops: &[Vec<SphereEdge>],
+    area: f64,
+    about: Point3<f64>,
+) -> bool {
+    let (flux, area) = sphere_truth(ball, outward, loops, area, about);
+    let mut held = true;
+    for (which, name) in [("own", Name::Own), ("twin", Name::Twin)] {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let run = sphere_face(ball, outward, loops, about, name).and_then(|f| {
+            rotational_cut_face_rounds::<f64>(&f, band, RoundWindow::SCHEDULE, &mut to_target(1e-9))
+        });
+        match run.map(|r| { println!("  end {:?}", r.end); r.bounds }) {
+            Ok(got) => {
+                println!("{label} ({which}): flux {:?} want {flux}, area {:?} want {area}", got.flux, got.area);
+                encloses(got.flux, flux, &format!("{label} ({which}) flux"));
+                encloses(got.area, area, &format!("{label} ({which}) area"));
+            }
+            Err(e) => {
+                println!("{label} ({which}): refused {e:?}");
+                held = false;
+            }
+        }
+    }
+    held
+}
+
+/// A hemisphere exactly: the rim at the equator, `sin v = 0`.
+#[test]
+fn r2_a_hemisphere_exactly() {
+    let ball = Ball::tilted(Point3::new(0.4, -0.2, 0.3), 0.7);
+    let about = Point3::new(0.1, 0.5, -0.2);
+    let half = 0.5 * ball.sphere_area();
+    for swap in [false, true] {
+        for (forward, outward) in [(true, true), (true, false), (false, false), (false, true)] {
+            assert!(r2_holds_or_refuses(
+                &format!("hemisphere fwd {forward} out {outward} swap {swap}"),
+                ball, outward, &north_cap(ball, 0.0, forward, swap), half, about,
+            ));
+        }
+    }
+}
+
+/// A cap sector wider than a half turn: the pole junction's gap rounds to a
+/// whole turn (m = 1), and at exactly a half turn.
+#[test]
+fn r2_a_wide_cap_sector() {
+    let ball = Ball::tilted(Point3::new(0.4, -0.2, 0.3), 0.7);
+    let about = Point3::new(0.1, 0.5, -0.2);
+    let level = 0.4_f64;
+    for a in [PI, 4.0, 6.0, TAU - 1e-3] {
+        for swap in [true, false] {
+            let loops = [vec![
+                rim(ball, level, (0.0, a), true, swap),
+                meridian(ball, a, (level, FRAC_PI_2), true),
+                meridian(ball, 0.0, (level, FRAC_PI_2), false),
+            ]];
+            let area = a * ball.r * ball.r * (1.0 - level.sin());
+            assert!(r2_holds_or_refuses(&format!("sector {a} swap {swap}"), ball, true, &loops, area, about));
+            // The complement, inward: same loop, the other side.
+            assert!(r2_holds_or_refuses(&format!("sector {a} complement inward swap {swap}"), ball, false, &loops, ball.sphere_area() - area, about));
+        }
+    }
+}
+
+/// Lunes from pole to pole, no ring: narrow, a hemisphere, wide.
+#[test]
+fn r2_lunes() {
+    let ball = Ball::tilted(Point3::new(0.4, -0.2, 0.3), 0.7);
+    let about = Point3::new(0.1, 0.5, -0.2);
+    for a in [0.5, PI, 5.0] {
+        let loops = [vec![
+            meridian(ball, a, (-FRAC_PI_2, FRAC_PI_2), true),
+            meridian(ball, 0.0, (-FRAC_PI_2, FRAC_PI_2), false),
+        ]];
+        let area = 2.0 * a * ball.r * ball.r;
+        assert!(r2_holds_or_refuses(&format!("lune {a}"), ball, true, &loops, area, about));
+        assert!(r2_holds_or_refuses(&format!("lune {a} complement inward"), ball, false, &loops, ball.sphere_area() - area, about));
+    }
+}
+
+/// Near the full sphere and near nothing: a tiny disc and its complement.
+#[test]
+fn r2_tiny_disc_and_near_full_sphere() {
+    let ball = Ball::tilted(Point3::new(0.4, -0.2, 0.3), 0.7);
+    let about = Point3::new(0.1, 0.5, -0.2);
+    for theta in [1e-2, 1e-3, 1e-4] {
+        let disc = ball.cap(theta);
+        r2_holds_or_refuses(&format!("disc {theta}"), ball, true, &[vec![tilted(ball, (1.0, 0.2), theta, true)]], disc, about);
+        r2_holds_or_refuses(&format!("sphere less disc {theta}"), ball, true, &[vec![tilted(ball, (1.0, 0.2), theta, false)]], ball.sphere_area() - disc, about);
+        r2_holds_or_refuses(&format!("sphere less disc {theta}, inward"), ball, false, &[vec![tilted(ball, (1.0, 0.2), theta, true)]], ball.sphere_area() - disc, about);
+    }
+}
+
+/// A circle grazing a pole ever closer: holds or refuses, never guesses.
+#[test]
+fn r2_grazing_the_pole() {
+    let ball = Ball::tilted(Point3::new(0.4, -0.2, 0.3), 0.7);
+    let about = Point3::new(0.1, 0.5, -0.2);
+    let theta = 0.4;
+    for miss in [1e-3, 1e-5, 1e-7, -1e-5, -1e-3] {
+        let at = (0.7, FRAC_PI_2 - theta - miss);
+        r2_holds_or_refuses(&format!("disc missing the pole by {miss}"), ball, true, &[vec![tilted(ball, at, theta, true)]], ball.cap(theta), about);
+        r2_holds_or_refuses(&format!("sphere less disc missing the pole by {miss}"), ball, true, &[vec![tilted(ball, at, theta, false)]], ball.sphere_area() - ball.cap(theta), about);
+    }
+}
+
+/// Two discs as rings on one sphere face, and a zone with a tilted hole.
+#[test]
+fn r2_two_holes() {
+    let ball = Ball::tilted(Point3::new(0.4, -0.2, 0.3), 0.7);
+    let about = Point3::new(0.1, 0.5, -0.2);
+    let (t1, t2) = (0.3, 0.25);
+    assert!(r2_holds_or_refuses("sphere less two discs", ball, true,
+        &[vec![tilted(ball, (1.0, 0.2), t1, false)], vec![tilted(ball, (4.0, -0.5), t2, false)]],
+        ball.sphere_area() - ball.cap(t1) - ball.cap(t2), about));
+    let (low, high) = (-0.6_f64, 0.7_f64);
+    let zone = TAU * ball.r * ball.r * (high.sin() - low.sin());
+    assert!(r2_holds_or_refuses("zone less a disc", ball, true,
+        &[vec![rim(ball, low, (0.0, TAU), true, true)], vec![rim(ball, high, (0.0, TAU), false, true)], vec![tilted(ball, (2.0, 0.0), 0.2, false)]],
+        zone - ball.cap(0.2), about));
+}
