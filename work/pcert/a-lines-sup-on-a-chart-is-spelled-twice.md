@@ -5,7 +5,7 @@ title: "A line's distance supremum on a cylinder or cone is spelled twice: the i
 status: open
 opened: 2026-11-04
 priority: P3
-cost: S
+cost: C
 ---
 
 
