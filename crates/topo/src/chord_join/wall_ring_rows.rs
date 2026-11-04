@@ -31,7 +31,7 @@ pub(super) fn wall_side(
     (oldf, newf): (FaceKey, FaceKey),
     ring: LoopKey,
 ) -> Result<RingSide, SplitJoinError> {
-    let surface = body.face_surface(oldf).unwrap().clone();
+    let surface = body.proven_face(oldf).surface().clone();
     let quadric = Quadric::of(&surface).unwrap();
     path_ring_side(body, (&surface, &quadric), (oldf, newf), ring, band())
 }

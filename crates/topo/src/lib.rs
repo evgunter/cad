@@ -1222,7 +1222,7 @@ pub mod test_support {
         face: crate::FaceKey,
         band: geom_core::Band,
     ) -> bool {
-        let Some(surface) = body.face_surface(face) else {
+        let Some(surface) = body.passed_face(face).map(|f| f.surface()) else {
             return false;
         };
         matches!(
@@ -1276,10 +1276,10 @@ pub mod test_support {
         band: geom_core::Band,
     ) -> Result<Option<bool>, crate::PointInSolidError> {
         let Some((_, normal)) = crate::face_normal::face_plane(body, face) else {
-            let f = crate::live::proven(&body.faces, face, crate::entity::EntityId::Face);
+            let f = body.proven_face(face);
             return Err(crate::PointInSolidError::KindUnsupported {
                 face,
-                kind: body.face_surface_linked(face, f).kind(),
+                kind: f.surface().kind(),
             });
         };
         crate::boolean::solid_contain::point_in_face(body, face, normal, p, band)
