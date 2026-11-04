@@ -1052,3 +1052,26 @@ E1c waits on the answer.
   - Filed:
     - `the-projected-box-forms-spell-the-point-reading-apart` (P2);
     - two P2s and two P3s on other chart-point spellings (props, replace_face, derive_class, winds, sphere and torus pairs).
+- 2026-11-04 — **`the-ruling-question-is-read-in-two-units` merged** (PR 6504): whether a line is a ruling of a cylinder or cone is one reading, `ruling_miss`, in metres over the edge's span, shared by the mint, props and the boolean.
+  - The ruling is anchored where the closed form places its image: on a cylinder, the ruling through the line's origin; on a cone, the generator the anchor names. The cone arm gets the class gate it lacked (`a-line-near-a-cone-is-read-as-a-ruling-without-a-class-gate`, closed).
+  - On a cylinder, the line's class gate reads the meridian form's own miss: the lean over the span plus the origin's radial standoff (fix AB1, mutant `meridian-standoff-unread`).
+  - Review tier: single FULL. NOT-MERGEABLE-AS-IS. M1 (executed) was the meter's anchor at the span start against the image at the origin; m1 (executed) was the props cone pair scaling with `|dir|`.
+    - Fix list AA went to one delta verifier, who returned APPROVE-WITH-FIXES: Zero did not bound the meridian's miss.
+    - Fix list AB followed, read by the orchestrator. Green at all three ε locally and hosted.
+  - Filed:
+    - `a-line-passing-a-cones-apex-off-the-cone-reads-on-to-the-sampled-incidence` (P1). The verifier measured 2.6ε–263ε off ending "not yet" at the mint. No false certificate, so P1, not P0.
+    - `a-generator-anchored-near-the-apex-names-its-closed-form-poorly` (P3).
+  - Friction: the first reviewer was dispatched on a short sha and never started (`ref_not_found`), costing about 1.5 h. Lanes now get full 40-char shas, confirmed connected.
+- 2026-11-04 — **`the-edge-join-records-no-coincidence-for-the-class-it-joins-on` merged** (PR 6512, E3). When the boolean's edge join makes two edges one on a class reading, it records the Zero that reading stands on as a Coincidence row (D3/D10, Ev on [ev] 5113). An in-band reading refuses on its lever, and a definite one keeps the edges apart.
+  - One door. `chart_iso_family` returns `IsoReading { family, zero }`, where the zero is `MarginDiag::worst` of the class gates it decided Zero and the incidence margin. The sibling `chart_iso_zero` and the join's second derivation are gone.
+  - Every class gate decides through `class_gate`, including 6504's RADIAL_MOVING and CONE_RULING. The locus compares families only; the margin rides beside it. A join row reads input edges through `input_end`, so op-minted chords are not taken as inputs.
+  - Review tier: single FULL. APPROVE-WITH-FIXES.
+    - The latent MAJOR (executed): `join_input_edge` read op-minted chords as input edges.
+    - MINOR (executed): the margin kept the first gate, not the worst.
+    - Fix list BB was read by the orchestrator. BB3, the fold after 6504, is green hosted and green locally at 1e-9 and 1e-6. At 1e-12 only the onecopy reds remain.
+  - Filed:
+    - `a-non-ruling-class-reading-in-band-at-the-join-ends-not-yet` (P2: the sphere, torus and cone rim);
+    - `the-join-outside-the-boolean-records-no-class-zero` (P2);
+    - `a-join-onto-an-op-minted-edge-records-no-row` (P3);
+    - `the-joins-in-band-class-reading-ends-two-ways` (P3).
+  - Merged past main's two ε 1e-12 reds, both onecopy's and filed: the needle (PR 6492) and `section_end_poses` (PR 6482).
