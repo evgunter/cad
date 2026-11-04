@@ -236,6 +236,9 @@ struct Net<'a, T: Real> {
     /// The parameter rectangle the cells cover, `[u0, u1, v0, v1]`, shrunk
     /// so a computed parameter's rounding stays inside it ([`Net::foot`]).
     domain: [f64; 4],
+    /// The chart on its brackets' middles, which the foot's iteration
+    /// reads: it decides nothing, so it need not be the scalar's.
+    shadow: NurbsSurface<f64>,
 }
 
 /// A homogeneous control point, `[w·x, w·y, w·z, w]` about the centre,
@@ -405,6 +408,7 @@ impl<'a, T: Decide> Net<'a, T> {
             pv,
             depth: depth_cap(lo, hi, band),
             domain: inside(bu[0], bu[cu], bv[0], bv[cv]),
+            shadow: chart.map_scalar(middle),
         })
     }
 
@@ -436,6 +440,35 @@ impl<'a, T: Decide> Net<'a, T> {
     ) -> Read<T> {
         let moved = q - self.centre;
         let key_q = [moved.x, moved.y, moved.z].map(middle);
+        let mut foot_cause = None;
+        if let Some(hint) = hint.as_deref_mut() {
+            // The last sample's foot, or the nearest cell's centre.
+            let start = hint.or_else(|| {
+                self.cells
+                    .iter()
+                    .map(|cell| (box_key(cell, key_q, self.pu, self.pv), cell))
+                    .min_by(|(a, _), (b, _)| a.0.total_cmp(&b.0).then(a.1.total_cmp(&b.1)))
+                    .map(|(_, cell)| {
+                        let [u0, u1, v0, v1] = cell.rect;
+                        (u0 + (u1 - u0) * 0.5, v0 + (v1 - v0) * 0.5)
+                    })
+            });
+            if let Some(at) = start.and_then(|start| self.foot(q, start)) {
+                let distance = (self
+                    .chart
+                    .eval(T::from_computed(at.0), T::from_computed(at.1))
+                    - q)
+                    .norm();
+                match decide(FOOT, Margin::of(distance), band) {
+                    Ok(Sign::Zero) => {
+                        *hint = Some(at);
+                        return Read::On;
+                    }
+                    Ok(_) => {}
+                    Err(cause) => foot_cause = Some(cause),
+                }
+            }
+        }
         let mut seq = 0usize;
         let mut queue = std::collections::BinaryHeap::new();
         let mut push = |queue: &mut std::collections::BinaryHeap<Queued<T>>, cell: Cell<T>| {
@@ -445,32 +478,6 @@ impl<'a, T: Decide> Net<'a, T> {
         };
         for cell in &self.cells {
             push(&mut queue, cell.clone());
-        }
-        let start = hint.as_deref().map(|hint| {
-            hint.or_else(|| {
-                queue.peek().map(|top| {
-                    let [u0, u1, v0, v1] = top.cell.rect;
-                    (u0 + (u1 - u0) * 0.5, v0 + (v1 - v0) * 0.5)
-                })
-            })
-        });
-        let mut foot_cause = None;
-        if let Some(at) = start.flatten().and_then(|start| self.foot(q, start)) {
-            let distance = (self
-                .chart
-                .eval(T::from_computed(at.0), T::from_computed(at.1))
-                - q)
-                .norm();
-            match decide(FOOT, Margin::of(distance), band) {
-                Ok(Sign::Zero) => {
-                    if let Some(hint) = hint.as_deref_mut() {
-                        *hint = Some(at);
-                    }
-                    return Read::On;
-                }
-                Ok(_) => {}
-                Err(cause) => foot_cause = Some(cause),
-            }
         }
         // The least floor over the cells that cleared and over the kept
         // ones, and the least distance of a point past the zero band.
@@ -567,25 +574,21 @@ impl<'a, T: Decide> Net<'a, T> {
     }
 
     /// **The sample's foot on the chart**: Gauss–Newton on `|S(u, v) − q|²`
-    /// from `start`, on the brackets' middles, held in [`Net::domain`]. It
+    /// from `start`, on the chart's `f64` shadow, held in [`Net::domain`]. It
     /// decides nothing: any parameter of the domain gives a point of the
     /// chart, whose distance from the sample bounds the sample's from
     /// above. `None` where the iteration leaves the reals.
     fn foot(&self, q: Point3<T>, start: (f64, f64)) -> Option<(f64, f64)> {
         const STEPS: usize = 12;
         let [u0, u1, v0, v1] = self.domain;
-        let (qx, qy, qz) = (middle(q.x), middle(q.y), middle(q.z));
+        let q = [middle(q.x), middle(q.y), middle(q.z)];
         let tiny = 1e-12 * (u1 - u0).max(v1 - v0);
         let (mut u, mut v) = (start.0.clamp(u0, u1), start.1.clamp(v0, v1));
         for _ in 0..STEPS {
-            let jet = self.chart.ders(T::from_computed(u), T::from_computed(v));
-            let m = |w: Vec3<T>| [middle(w.x), middle(w.y), middle(w.z)];
-            let (su, sv) = (m(jet.du), m(jet.dv));
-            let r = [
-                middle(jet.point.x) - qx,
-                middle(jet.point.y) - qy,
-                middle(jet.point.z) - qz,
-            ];
+            let jet = self.shadow.ders(u, v);
+            let (su, sv) = (jet.du.to_array(), jet.dv.to_array());
+            let p = jet.point.to_array();
+            let r = [p[0] - q[0], p[1] - q[1], p[2] - q[2]];
             let dot = |a: [f64; 3], b: [f64; 3]| a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
             let (a, b, c) = (dot(su, su), dot(su, sv), dot(sv, sv));
             let (g, h) = (dot(r, su), dot(r, sv));

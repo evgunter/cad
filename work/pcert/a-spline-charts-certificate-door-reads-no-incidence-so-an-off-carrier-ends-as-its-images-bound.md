@@ -2,7 +2,8 @@
 id: a-spline-charts-certificate-door-reads-no-incidence-so-an-off-carrier-ends-as-its-images-bound
 kind: issue
 title: A spline chart's certificate door reads no incidence, so an off carrier ends as its image's bound
-status: open
+status: closed
+closed: 2026-11-04
 opened: 2026-11-04
 priority: P1
 cost: M
@@ -58,3 +59,47 @@ DL3's "absent by type" holds for `validate_geometric`, not for
 `validate_pcurves`: that door compiles at `Dual` and answers clean there on
 an off carrier. The row rests on DL3's other half, that a dual's answer is
 not the validation of record.
+
+## Closed (2026-11-04): a spline chart's certificate doors read incidence
+
+`pcert/spline-certificate-door`. `pcurve_cache.rs` `read_shown` reads the
+spline arm over the edge's span (`read_edge_incidence`'s read), so every door
+behind it reads a carrier on a spline face before metering its image:
+
+- `PcurveCache::certify` and `recertify`, and `certify_fitted` and
+  `certify_general`, which now read first as `certify` does;
+- the stated route (`read_incidence`, `certify.rs` `canonical_of`);
+- `read_point_incidence`, by `spline_incidence::spline_point_incidence`, one
+  walk for the one point.
+
+A carrier off its wall ends `CarrierOffChart` by each door's term (the kernel's
+defect at a build, the stored culprit at rest through `validate::off_face_ending`,
+the damaged file at import), and one in band ends `Escalated`
+(`PcurveCheck::ChartIncidence`) in the read's lever, never as the image's own
+bound.
+
+**The own-chart arm** (`topo::pcurves::nurbs_iso_derive`) reads nothing: it
+returns the stated image, and every door that stores or validates it certifies
+it through `certify` or `certify_general`, which read first. Pinned by
+`topo/tests/a_spline_faces_stated_image_reads_its_carrier_first.rs`, whose
+lamina states every edge as its own face's image, at rest unstored.
+
+**Dual.** `validate_pcurves` at `Dual` no longer answers clean on an off
+carrier: an own-chart `General` image refuses `CarrierOffChart` at
+`certify_general`'s read before check 4 asks for the fitted door, so
+`FittedLaneUnsupported` (which `not_owed` excuses) is never reached
+(`at_a_dual_an_off_carrier_is_a_finding`). DL3 still makes the base scalar's
+evaluation the validation of record.
+
+**Cost.** Each read now tries the sample's foot first: Gauss–Newton on the
+chart's `f64` shadow from the last sample's foot, its point evaluated in the
+scalar and decided as a kept cell's centre is, so an on-chart sample reads in a
+few evaluations instead of a dive. In band, the foot arms the walk's band prune
+from its first visit.
+
+Rows:
+
+- `geom-brep/src/pcurve_cache/spline_door_rows.rs`, every door at `f64` and
+  `Interval`, on, off and in band, with the `spline-shown-unread` mutant;
+- the topo row above.
+

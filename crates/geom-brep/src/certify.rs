@@ -4064,17 +4064,21 @@ fn canonical_of<T: Decide>(
                 // object.
                 Some(p) => {
                     // A stated image is metered against the chart below;
-                    // whether the carrier lies on the chart is read first,
-                    // as the mint reads it (D3), so a carrier off its face
-                    // ends as that read, never as the residual's meter.
-                    crate::pcurve_cache::read_incidence(
-                        &spec.carrier,
-                        spec.param_start,
-                        spec.param_end,
-                        surface,
-                        band,
-                    )
-                    .map_err(|e| mint_refusal(e, surface, &spec.carrier))?;
+                    // whether the carrier lies on the chart is read first
+                    // on an analytic chart, as the mint reads it (D3), and
+                    // on a spline chart where the meter refuses
+                    // (`stated_refusal`), so a carrier off its face ends
+                    // as that read, never as the residual's meter.
+                    if surface.spline_chart().is_none() {
+                        crate::pcurve_cache::read_incidence(
+                            &spec.carrier,
+                            spec.param_start,
+                            spec.param_end,
+                            surface,
+                            band,
+                        )
+                        .map_err(|e| mint_refusal(e, surface, &spec.carrier))?;
+                    }
                     p.clone()
                 }
                 // D4, the minted half: an analytic chart's image is
@@ -4096,6 +4100,33 @@ fn canonical_of<T: Decide>(
             })
         }
     })
+}
+
+/// **A stated image's residual refusal on a spline chart, ended by the
+/// carrier's incidence read** (D3): the read is taken where the meter
+/// refuses, so a carrier off its wall ends as that read
+/// ([`mint_refusal`]), never as the residual, and an image that misses a
+/// carrier the read does not show off ends as the meter's refusal. On an
+/// analytic chart the read came first (`canonical_of`).
+fn stated_refusal<T: Decide>(
+    refusal: CertifyError,
+    spec: &EdgeCurveSpec<T>,
+    surface: &Surface<T>,
+    band: Band,
+) -> CertifyError {
+    if surface.spline_chart().is_none() {
+        return refusal;
+    }
+    match crate::pcurve_cache::read_incidence(
+        &spec.carrier,
+        spec.param_start,
+        spec.param_end,
+        surface,
+        band,
+    ) {
+        Err(read) => mint_refusal(read, surface, &spec.carrier),
+        Ok(()) => refusal,
+    }
 }
 
 /// **A chart image's refusal, as the edge certificate's**: an incidence
@@ -4528,7 +4559,8 @@ fn run_checks<T: Decide + geom_core::CertifiedBounds>(
                     Margin::of(p.distance(surface.eval(q.x, q.y))),
                     band,
                     &mut max_residual,
-                )?;
+                )
+                .map_err(|refusal| stated_refusal(refusal, spec, surface, band))?;
                 // **The declaration is metered too, or it is not a
                 // record of anything** (P-1b, reinstated in review).
                 // A declared locus says a sketch entity under a sweep

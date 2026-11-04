@@ -16,6 +16,11 @@
 //!   [`crate::EdgeDescriptionSpec::chart_image`]);
 //! - [`crate::read_point_incidence`].
 //!
+//! On a spline chart a certificate door meters the image first and reads
+//! the carrier only where the image refuses (`ended_by_incidence`): a
+//! certificate that holds already bounds every carrier point within the
+//! band of the wall.
+//!
 //! The wall is the unit cylinder `z ∈ [0, 1]` over `[0, 1.2]` rad in two
 //! rational quadratic sub-arcs, whose knot `u = ½` is the ruling at
 //! `0.6` rad. The carrier is that ruling moved out to radius `ρ`: on the
@@ -264,4 +269,43 @@ fn every_door_reads_the_wall_at_f64() {
 #[test]
 fn every_door_reads_the_wall_at_interval() {
     every_door_reads_the_wall::<Interval>();
+}
+
+/// **At a dual, a curve in UV with no fitted door is read first where it
+/// refuses**: on the wall it refuses `FittedLaneUnsupported`, the scalar
+/// certifying nothing fitted; off it, the read ends it `CarrierOffChart`,
+/// so `topo`'s `not_owed`, which excuses the first, never excuses an off
+/// carrier.
+#[test]
+fn at_a_dual_an_off_carrier_ends_off_the_chart_before_the_fitted_door() {
+    type T = geom_core::Dual64;
+    let (c, b) = (<T as geom_core::Real>::from_f64, band());
+    let general = |place| {
+        PcurveCache::certify_general(
+            column_curve::<T>(),
+            c(0.0),
+            c(1.0),
+            &ruling::<T>(place),
+            &ring::<T>(),
+            b,
+            None,
+        )
+        .map(|_| ())
+    };
+    let on = general(Place::On);
+    assert!(
+        matches!(on, Err(PcurveCertifyError::FittedLaneUnsupported { .. })),
+        "on the wall the dual has no fitted door: {on:?}"
+    );
+    let off = general(Place::Off);
+    assert!(
+        matches!(
+            off,
+            Err(PcurveCertifyError::CarrierOffChart {
+                chart: geom::SurfaceKind::Nurbs,
+                ..
+            })
+        ),
+        "off the wall the read ends it: {off:?}"
+    );
 }

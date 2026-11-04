@@ -4583,17 +4583,17 @@ impl<T: Decide> PcurveCache<T> {
         surface: &Surface<T>,
         band: Band,
     ) -> Result<Self, PcurveCertifyError> {
-        let shown = read_shown(carrier, t0, t1, surface, band)?;
-        let certificate = match &pcurve {
+        let shown = read_first(carrier, t0, t1, surface, band)?;
+        let certificate = ended_by_incidence(carrier, (t0, t1), surface, band, || match &pcurve {
             Pcurve::Fitted(_) | Pcurve::General(_) => {
-                return Err(PcurveCertifyError::FittedGradeAtClosedFormDoor {
+                Err(PcurveCertifyError::FittedGradeAtClosedFormDoor {
                     image: PcurveKind::of(&pcurve),
-                });
+                })
             }
             // The iso lane (M6-3): closed-form like the harmonic one —
             // no bracket obligation — so it shares this `Decide`-scalar
             // door.
-            Pcurve::IsoLine { p0, pl } => run_iso_checks(*p0, *pl, t0, t1, carrier, surface, band)?,
+            Pcurve::IsoLine { p0, pl } => run_iso_checks(*p0, *pl, t0, t1, carrier, surface, band),
             Pcurve::IsoArc {
                 p0,
                 pd,
@@ -4602,31 +4602,31 @@ impl<T: Decide> PcurveCache<T> {
                 breaks,
             } => run_iso_arc_checks(
                 *p0, *pd, *at0, *angle, breaks, t0, t1, carrier, surface, band,
-            )?,
+            ),
             // EXHAUSTIVE by variant, never a catch-all (D3): a
             // catch-all here would route a NEW closed-form variant
             // into the harmonic checker silently, and the build would
             // not say a word. Adding a variant must be a
             // compiler-guided edit at every dispatch site.
             Pcurve::Harmonic { u, v } => {
-                run_harmonic_checks((*u, *v), t0, t1, carrier, surface, band, shown)?
+                run_harmonic_checks((*u, *v), t0, t1, carrier, surface, band, shown)
             }
             // The spiric lane: closed-form like the harmonic and iso
             // ones — no bracket obligation — so it shares this
             // `Decide`-scalar door.
             spiric @ Pcurve::Spiric { .. } => {
-                run_spiric_checks(spiric, t0, t1, carrier, surface, band)?
+                run_spiric_checks(spiric, t0, t1, carrier, surface, band)
             }
             section @ Pcurve::FocalSection(_) => {
-                run_focal_section_checks(section, t0, t1, carrier, surface, band)?
+                run_focal_section_checks(section, t0, t1, carrier, surface, band)
             }
             // A circle's projected row certifies here at every scalar; a
             // net's needs the fitted door, which this door does not
             // hold ([`PcurveCache::certify_projected`]).
             projected @ Pcurve::Projected(_) => {
-                projected::run_projected_checks(projected, t0, t1, carrier, surface, band, None)?
+                projected::run_projected_checks(projected, t0, t1, carrier, surface, band, None)
             }
-        };
+        })?;
         Ok(Self {
             pcurve,
             param_start: t0,
@@ -4652,10 +4652,10 @@ impl<T: Decide> PcurveCache<T> {
     /// (`docs/PCURVE-UNIFY-DESIGN.md` U2) certifies through
     /// [`PcurveCache::certify_general`] beside this door.
     ///
-    /// The carrier's incidence on the chart is read first, as
-    /// [`PcurveCache::certify`] reads it, so a carrier off its wall ends
-    /// as that read and never as the image's own bound. Then the same
-    /// four checks in the same fixed order as
+    /// A refusal is ended by the carrier's incidence read
+    /// (`ended_by_incidence`), so a carrier off its wall ends as that
+    /// read and never as the image's own bound. The same four checks in
+    /// the same fixed order as
     /// [`PcurveCache::certify`], with two differences that are the
     /// whole content of the lane: check 1 admits any carrier on a spline
     /// chart, and check 4 is the hull bound on `|S(P(t)) − C(t)|` over
@@ -4677,8 +4677,10 @@ impl<T: Decide> PcurveCache<T> {
         band: Band,
         lane: crate::FittedLane<T>,
     ) -> Result<Self, PcurveCertifyError> {
-        read_shown(carrier, t0, t1, surface, band)?;
-        let certificate = run_fitted_checks(&image, t0, t1, carrier, surface, band, Some(lane))?;
+        read_first(carrier, t0, t1, surface, band)?;
+        let certificate = ended_by_incidence(carrier, (t0, t1), surface, band, || {
+            run_fitted_checks(&image, t0, t1, carrier, surface, band, Some(lane))
+        })?;
         Ok(Self {
             pcurve: Pcurve::Fitted(image),
             param_start: t0,
@@ -4692,7 +4694,7 @@ impl<T: Decide> PcurveCache<T> {
     /// identical order as [`PcurveCache::certify_fitted`], against the
     /// identical chart, producing the identical certificate.
     ///
-    /// The carrier's incidence on the chart is read first, as at
+    /// A refusal is ended by the carrier's incidence read, as at
     /// [`PcurveCache::certify_fitted`].
     ///
     /// The two doors are separate because their ENTRY requirements
@@ -4738,8 +4740,10 @@ impl<T: Decide> PcurveCache<T> {
         band: Band,
         lane: Option<crate::FittedLane<T>>,
     ) -> Result<Self, PcurveCertifyError> {
-        read_shown(carrier, t0, t1, surface, band)?;
-        let certificate = run_fitted_checks(&image, t0, t1, carrier, surface, band, lane)?;
+        read_first(carrier, t0, t1, surface, band)?;
+        let certificate = ended_by_incidence(carrier, (t0, t1), surface, band, || {
+            run_fitted_checks(&image, t0, t1, carrier, surface, band, lane)
+        })?;
         Ok(Self {
             pcurve: Pcurve::General(image),
             param_start: t0,
@@ -4786,8 +4790,9 @@ impl<T: Decide> PcurveCache<T> {
     /// (re-certification re-derives, it does not trust — for a fitted
     /// cache, its hull bound).
     ///
-    /// The carrier's incidence on the chart is read first, over
-    /// `edge_span`, the edge's own interval: the read is about the edge,
+    /// The carrier's incidence on the chart is read over `edge_span`, the
+    /// edge's own interval, first on an analytic chart and on a spline
+    /// chart where the row refuses (`ended_by_incidence`): the read is about the edge,
     /// not the row. A row stored over another span (a foreign arc of the
     /// same locus, a row cut short) is the row's defect, which its own
     /// checks name (check 1's identity, `topo`'s row interval); read over
@@ -4815,8 +4820,8 @@ impl<T: Decide> PcurveCache<T> {
         band: Band,
         lane: Option<crate::FittedLane<T>>,
     ) -> Result<PcurveCertificate<T>, PcurveCertifyError> {
-        let shown = read_shown(carrier, t0, t1, surface, band)?;
-        match &self.pcurve {
+        let shown = read_first(carrier, t0, t1, surface, band)?;
+        ended_by_incidence(carrier, (t0, t1), surface, band, || match &self.pcurve {
             Pcurve::Fitted(image) | Pcurve::General(image) => run_fitted_checks(
                 image,
                 self.param_start,
@@ -4888,7 +4893,7 @@ impl<T: Decide> PcurveCache<T> {
                 band,
                 shown,
             ),
-        }
+        })
     }
 }
 
@@ -9413,6 +9418,50 @@ fn read_shown<T: Decide>(
         band,
     )
     .map(Some)
+}
+
+/// **The certificate doors' incidence read, where it comes first**: an
+/// analytic chart's, before the image is metered, its witness carried to
+/// check 4 ([`read_shown`]). A spline chart's is read only where the
+/// image refuses ([`ended_by_incidence`]), so nothing here.
+fn read_first<T: Decide>(
+    carrier: &Curve3<T>,
+    t0: T,
+    t1: T,
+    surface: &Surface<T>,
+    band: Band,
+) -> Result<Option<incidence::Incident>, PcurveCertifyError> {
+    if surface.spline_chart().is_some() {
+        return Ok(None);
+    }
+    read_shown(carrier, t0, t1, surface, band)
+}
+
+/// **A certificate on a spline chart, ended by the carrier's incidence
+/// where it refuses** (D3). A certificate that holds bounds every point
+/// of the carrier within the band of a point of the chart (its envelope
+/// is a sup over the span), so the carrier is on its wall and the read
+/// would add nothing; one that refuses is ended by the read
+/// ([`read_shown`]'s spline arm) where the read refuses, a carrier off
+/// its wall as `CarrierOffChart` and one in band of it in the read's
+/// lever, never as the image's own bound, and by its own refusal where
+/// the read shows the carrier not off. On an analytic chart the read came
+/// first ([`read_first`]) and `certify` is returned as it stands.
+fn ended_by_incidence<T: Decide, R>(
+    carrier: &Curve3<T>,
+    (t0, t1): (T, T),
+    surface: &Surface<T>,
+    band: Band,
+    certify: impl FnOnce() -> Result<R, PcurveCertifyError>,
+) -> Result<R, PcurveCertifyError> {
+    let got = certify();
+    match got {
+        Err(refusal) if surface.spline_chart().is_some() => {
+            read_shown(carrier, t0, t1, surface, band)?;
+            Err(refusal)
+        }
+        got => got,
+    }
 }
 
 /// **The edge's own incidence read** (D3): [`read_incidence`], with a
