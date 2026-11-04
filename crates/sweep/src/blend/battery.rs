@@ -48,7 +48,7 @@ use super::build::fan_at;
 use super::open::end_face::CycleReading;
 use super::surgery::{
     CORNER_SUPPORT_NOT_PLANAR, certified_curve, disagrees, scaffolding, strip_frame, strip_reading,
-    strip_ring, unbuilt_geometry, unresolved, unwalked,
+    strip_ring, unbuilt_chain, unbuilt_geometry, unresolved, unwalked,
 };
 use super::{
     BlendDecision, BlendError, BlendKind, BlendSite, ClassifiedMargin, CornerConfig, classify,
@@ -1714,7 +1714,11 @@ fn chain_turns<T: Decide + Bounds>(
         // Each tangent heads INTO the junction, so a smooth joint reads
         // them opposed.
         let (tau_a, tau_b) = (pick(&ca, ta0, ta1), pick(&cb, tb0, tb1));
-        match chain_g1(tau_a, tau_b, a.arm_len.min(b.arm_len), *v, band) {
+        let g1 = chain_g1(tau_a, tau_b, a.arm_len.min(b.arm_len), *v, band);
+        if g1.is_ok() && !same_supports(body, a, b)? {
+            band_g1(body, a, b, *v, band)?;
+        }
+        match g1 {
             // At a Zero `sin θ` over a definitely positive arm the two
             // unit tangents are within the band of `±1` apart, so the
             // dot's sign is certain on any enclosure; it is read, not
@@ -1757,6 +1761,90 @@ fn chain_turns<T: Decide + Bounds>(
         }
     }
     Ok((turns, tangent))
+}
+
+/// Whether two links lie between the same two support SURFACES, in
+/// either slot order: then one arm of one pair blends both, and their
+/// bands are one surface through the junction.
+pub(crate) fn same_supports<T: Real>(
+    body: &Body<T>,
+    a: &Link<T>,
+    b: &Link<T>,
+) -> Result<bool, BlendError> {
+    let surface = |f: FaceKey| -> Result<SurfaceKey, BlendError> {
+        body.get_face(f)
+            .map(|fd| fd.surface)
+            .ok_or_else(|| unresolved(EntityId::Face(f), "a link's support"))
+    };
+    let (a0, a1) = (surface(a.face_a)?, surface(a.face_b)?);
+    let (b0, b1) = (surface(b.face_a)?, surface(b.face_b)?);
+    Ok((a0, a1) == (b0, b1) || (a0, a1) == (b1, b0))
+}
+
+/// **The centre of a link's rolling-ball section through `p`**: the
+/// spine's point in the plane through `p` normal to it — the cylinder
+/// band's axis foot, the torus band's spine circle at `p`'s azimuth.
+pub(crate) fn section_centre<T: Real>(blend: &EdgeBlend<T>, p: Point3<T>) -> Option<Point3<T>> {
+    match blend.surface {
+        Surface::Cylinder { origin, axis, .. } => Some(origin + axis * (p - origin).dot(axis)),
+        Surface::Torus {
+            center,
+            axis,
+            major_radius,
+            ..
+        } => {
+            let q = p - center;
+            let radial = (q - axis * q.dot(axis)).normalize();
+            Some(center + radial * major_radius)
+        }
+        _ => None,
+    }
+}
+
+/// **`fillet3_chain_g1` over the BANDS at a junction between links on
+/// different supports**: the two links' balls at the junction rest in
+/// one section, margin the distance between their section centres in
+/// meters. Zero is the shared section along which the two bands meet
+/// G1; a definite distance is supports creasing at the junction, where
+/// the two bands share no section.
+///
+/// # Errors
+///
+/// [`BlendError::UnsupportedChain`] on a definite distance or a band
+/// with no section, [`BlendError::Escalated`] in band.
+fn band_g1<T: Decide + Bounds>(
+    body: &Body<T>,
+    a: &Link<T>,
+    b: &Link<T>,
+    vertex: VertexKey,
+    band: Band,
+) -> Result<(), BlendError> {
+    let p = body
+        .get_vertex(vertex)
+        .and_then(|x| body.get_point(x.point))
+        .copied()
+        .ok_or_else(|| unresolved(EntityId::Vertex(vertex), "a junction"))?;
+    let (Some(ca), Some(cb)) = (section_centre(&a.blend, p), section_centre(&b.blend, p)) else {
+        return Err(unbuilt_chain(
+            a.edge,
+            "a chain's links meet on different supports where a band has no rolling-ball \
+             section",
+        ));
+    };
+    let site = BlendSite::Joint { vertex };
+    match classify(
+        site,
+        BlendDecision::ChainG1,
+        Margin::of(ca.distance(cb)),
+        band,
+    )? {
+        Sign::Zero => Ok(()),
+        Sign::Positive | Sign::Negative => Err(unbuilt_chain(
+            a.edge,
+            "the supports crease at a junction of the chain, so its two links' bands share no \
+             section there",
+        )),
+    }
 }
 
 /// **The chains the verdict carries**: each walked chain classified at

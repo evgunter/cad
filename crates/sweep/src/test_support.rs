@@ -1399,6 +1399,7 @@ pub fn assert_naming_totality<T: Real>(
         .map(|(e, _, _)| *e)
         .chain(rec.meridian_remnants.iter().map(|(e, _)| *e))
         .chain(rec.slits.iter().map(|(e, _, _)| *e))
+        .chain(rec.sections.iter().map(|(e, _, _)| *e))
         .chain(rec.trims.iter().map(|(e, _, _)| *e))
         .chain(rec.arcs.iter().map(|(e, _, _)| *e))
         .chain(rec.mitres.iter().map(|(e, _)| *e))
@@ -1434,6 +1435,7 @@ pub fn assert_naming_totality<T: Real>(
         .iter()
         .copied()
         .chain(rec.slits.iter().map(|(e, m, _)| (*e, *m)))
+        .chain(rec.sections.iter().map(|(e, m, _)| (*e, *m)))
         .collect();
     for e in &minted_edges {
         match fragments.iter().find(|(k, _)| k == e) {

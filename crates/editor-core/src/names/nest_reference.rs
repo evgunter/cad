@@ -199,6 +199,9 @@ pub(super) enum RoleSeg {
     TurnFoot {
         vertex: NameRef,
     },
+    BandSection {
+        vertex: NameRef,
+    },
     BandFace(Vec<StableName>),
     BandTrim {
         edge: NameRef,
