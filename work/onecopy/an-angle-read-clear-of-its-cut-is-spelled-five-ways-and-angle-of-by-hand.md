@@ -2,12 +2,14 @@
 id: an-angle-read-clear-of-its-cut-is-spelled-five-ways-and-angle-of-by-hand
 kind: issue
 title: An angle read clear of its cut, anchored at a seed, is spelled five ways, and Conic::angle_of is written by hand at about seven sites outside geom
-status: dispatched
+status: closed
 opened: 2026-11-03
 priority: P1
 cost: M
 refs: [6449]
 branch: onecopy/angle-reads
+closed: 2026-11-04
+pr: 6482
 ---
 
 
