@@ -14,9 +14,9 @@ use std::sync::Arc;
 use geom_core::{Band, Bounds, Dual, Interval, KnotVector, Point3, Real, Sym, UnitVec3, Vec3};
 use test_utils::fuzz::{self, Rng};
 
-use super::{Cover, Covered, Entity, Frame, Lattice, ParamWindow, Site, Uncovered, Unknown};
+use super::{BoxAxes, Cover, Covered, Entity, Lattice, ParamWindow, Site, Uncovered, Unknown};
 use crate::curves::NurbsCurve3;
-use crate::{Curve3, Line, Surface, SurfaceKind};
+use crate::{Curve3, Frame, Line, Surface, SurfaceKind};
 
 test_utils::gated_to![
     "crates/geom/src/curves/boxes.rs",
@@ -69,7 +69,7 @@ fn across(axis: Vec3<f64>, rng: &mut Rng) -> Vec3<f64> {
 /// The solid ball about `c` of radius `|r|`: a sphere's whole cover, the
 /// tube with no spine.
 fn ball<T: Real>(c: Point3<T>, r: T) -> Cover<T> {
-    Cover::tube(c, Vec3::unit_z(), Vec3::unit_x(), T::zero(), r).unwrap()
+    Cover::tube(&Frame::new(c, Vec3::unit_z(), Vec3::unit_x()), T::zero(), r).unwrap()
 }
 
 fn band() -> Band {
@@ -179,8 +179,8 @@ fn check(case: &Case) {
             ))
         );
     };
-    let mut frames = vec![Frame::World];
-    frames.extend(case.dirs.iter().map(|&e| Frame::aimed(unit_at(e))));
+    let mut frames = vec![BoxAxes::World];
+    frames.extend(case.dirs.iter().map(|&e| BoxAxes::aimed(unit_at(e))));
     for &e in &case.dirs {
         let (sf, si) = (case.at_f64.support(e), case.at_iv.support(ivec(e)));
         same(sf, si, "support");
@@ -201,7 +201,7 @@ fn check(case: &Case) {
     for frame in &frames {
         let rows = frame.rows();
         let (lf, hf) = case.at_f64.box_in(frame);
-        let (li, hi) = case.at_iv.box_in(&Frame::Rows(rows.map(ivec)));
+        let (li, hi) = case.at_iv.box_in(&BoxAxes::Rows(rows.map(ivec)));
         let lows = [(lf.x, li.x), (lf.y, li.y), (lf.z, li.z)];
         let highs = [(hf.x, hi.x), (hf.y, hi.y), (hf.z, hi.z)];
         for k in 0..3 {
@@ -442,7 +442,12 @@ fn the_tubes_support_is_r_times_the_cross_part_plus_r() {
         let center = point(&mut rng, 5.0);
         let axis = unit(&mut rng);
         let (big, small) = (rng.range(1.0, 3.0), rng.range(0.1, 0.9));
-        let tube = Cover::tube(center, axis, across(axis, &mut rng), big, small).unwrap();
+        let tube = Cover::tube(
+            &Frame::new(center, axis, across(axis, &mut rng)),
+            big,
+            small,
+        )
+        .unwrap();
         let e = unit(&mut rng);
         let exact = (center - Point3::origin()).dot(e) + big * axis.cross(e).norm() + small;
         let got = tube.support(e);
@@ -466,9 +471,7 @@ fn a_bracketed_tube_encloses_every_torus_it_admits() {
         let w = rng.log_uniform(1e-9, 1e-2);
         let wide = |x: f64| Interval::from_bounds(x - w, x + w);
         let cover = Cover::tube(
-            center.map(wide),
-            ivec(axis),
-            ivec(u_ref),
+            &Frame::new(center.map(wide), ivec(axis), ivec(u_ref)),
             wide(big),
             wide(small),
         )
@@ -747,16 +750,14 @@ fn trim_rows(part: Trim, label: &str) {
             check(&Case {
                 name: format!("torus patch (zone {zone}) #{case}"),
                 at_f64: Cover::patch(
-                    center,
-                    (axis, u_ref),
+                    &Frame::new(center, axis, u_ref),
                     (big, signed),
                     u,
                     ParamWindow::new(v0, v1),
                 )
                 .unwrap(),
                 at_iv: Cover::patch(
-                    ipt(center),
-                    (ivec(axis), ivec(u_ref)),
+                    &Frame::new(ipt(center), ivec(axis), ivec(u_ref)),
                     (iv(big), iv(signed)),
                     iu,
                     ParamWindow::new(iv(v0), iv(v1)),
@@ -784,16 +785,14 @@ fn trim_rows(part: Trim, label: &str) {
             check(&Case {
                 name: format!("sphere patch (zone {zone}) #{case}"),
                 at_f64: Cover::patch(
-                    center,
-                    (axis, u_ref),
+                    &Frame::new(center, axis, u_ref),
                     (0.0, small),
                     u,
                     ParamWindow::new(lat0, lat1),
                 )
                 .unwrap(),
                 at_iv: Cover::patch(
-                    ipt(center),
-                    (ivec(axis), ivec(u_ref)),
+                    &Frame::new(ipt(center), ivec(axis), ivec(u_ref)),
                     (iv(0.0), iv(small)),
                     iu,
                     ParamWindow::new(iv(lat0), iv(lat1)),
@@ -1149,7 +1148,7 @@ fn a_negative_radius_occupies_what_its_magnitude_or_its_locus_names() {
     let near = |got: f64, want: f64, what: &str| {
         assert!((got - want).abs() < 1e-12, "{what}: {got} against {want}");
     };
-    let tube = Cover::tube(o, z, x, 2.0, -0.5).unwrap();
+    let tube = Cover::tube(&Frame::new(o, z, x), 2.0, -0.5).unwrap();
     near(tube.support(z), 0.5, "the tube along its axis");
     near(tube.support(x), 2.5, "the tube across its axis");
     near(tube.ball().1, 2.5, "the tube's ball");
@@ -1168,8 +1167,7 @@ fn a_negative_radius_occupies_what_its_magnitude_or_its_locus_names() {
         "a frustum across its axis at its wide end",
     );
     let patch = Cover::patch(
-        o,
-        (z, x),
+        &Frame::new(o, z, x),
         (3.0, -1.0),
         None,
         ParamWindow::new(0.0, FRAC_PI_2),
@@ -1215,13 +1213,16 @@ fn a_non_finite_datum_builds_no_cover() {
     let (z, x) = (Vec3::unit_z(), Vec3::unit_x());
     let (nan, inf) = (f64::NAN, f64::INFINITY);
     let window = ParamWindow::new(0.0, 1.0);
-    assert!(Cover::tube(o, z, x, 0.0, inf).is_none(), "an infinite ball");
+    assert!(
+        Cover::tube(&Frame::new(o, z, x), 0.0, inf).is_none(),
+        "an infinite ball"
+    );
     assert!(
         Cover::points(vec![o, Point3::new(0.0, 0.0, inf)]).is_none(),
         "an infinite vertex"
     );
     assert!(
-        Cover::arc(o, (x, Vec3::unit_y()), (1.0, nan), window).is_none(),
+        Cover::arc(&Frame::new(o, z, x), (1.0, nan), window).is_none(),
         "a NaN semi-axis"
     );
     assert!(
@@ -1253,7 +1254,7 @@ fn a_non_finite_datum_builds_no_cover() {
         );
     }
     assert!(
-        Cover::tube(Point3::new(f64::NAN, 0.0, 0.0), z, x, 2.0, 0.5).is_none(),
+        Cover::tube(&Frame::new(Point3::new(f64::NAN, 0.0, 0.0), z, x), 2.0, 0.5).is_none(),
         "a NaN centre"
     );
     assert!(
@@ -1266,8 +1267,7 @@ fn a_non_finite_datum_builds_no_cover() {
     );
     assert!(
         Cover::patch(
-            o,
-            (z, x),
+            &Frame::new(o, z, x),
             (3.0, 1.0),
             None,
             ParamWindow::new(0.0, f64::INFINITY)

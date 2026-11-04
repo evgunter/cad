@@ -316,16 +316,12 @@ impl<'a> Writer<'a> {
     /// not repair.
     fn axis2_placement(
         &mut self,
-        origin: Point3<f64>,
-        axis: Vec3<f64>,
-        ref_dir: Vec3<f64>,
-        origin_context: &'static str,
-        axis_context: &'static str,
-        ref_context: &'static str,
+        frame: &geom::Frame<f64>,
+        [origin_context, axis_context, ref_context]: [&'static str; 3],
     ) -> Result<u64, StepExportError> {
-        let cp = self.cartesian_point(origin, origin_context)?;
-        let a = self.direction(axis, axis_context)?;
-        let r = self.direction(ref_dir, ref_context)?;
+        let cp = self.cartesian_point(frame.origin, origin_context)?;
+        let a = self.direction(frame.axis, axis_context)?;
+        let r = self.direction(frame.u_ref, ref_context)?;
         Ok(self.emit(&format!("AXIS2_PLACEMENT_3D('', #{cp}, #{a}, #{r})")))
     }
 
@@ -401,23 +397,9 @@ impl<'a> Writer<'a> {
             // for field, including the seam at `u_ref` (θ = 0) and the
             // right-hand winding about `axis`. Exact, native, no
             // parameter remapping.
-            Curve3::Circle(geom::Circle {
-                frame:
-                    geom::Frame {
-                        center,
-                        axis,
-                        u_ref,
-                    },
-                radius,
-            }) => {
-                let placement = self.axis2_placement(
-                    center,
-                    axis,
-                    u_ref,
-                    "circle centre",
-                    "circle axis",
-                    "circle u_ref",
-                )?;
+            Curve3::Circle(geom::Circle { frame, radius }) => {
+                let placement =
+                    self.axis2_placement(&frame, ["circle centre", "circle axis", "circle u_ref"])?;
                 let r = fmt_real(radius, "circle radius")?;
                 self.emit(&format!("CIRCLE('', #{placement}, {r})"))
             }
@@ -432,24 +414,19 @@ impl<'a> Writer<'a> {
             // the axes every reader wants and reparameterizing the
             // curve for nothing.
             Curve3::Ellipse(geom::Ellipse {
-                frame:
-                    geom::Frame {
-                        center,
-                        axis,
-                        u_ref,
-                    },
+                frame,
                 semi_u,
                 semi_v,
             }) => {
                 // STEP's `semi_axis_1` lies along the placement's
                 // reference direction, in either order with `semi_axis_2`.
                 let placement = self.axis2_placement(
-                    center,
-                    axis,
-                    u_ref,
-                    "ellipse centre",
-                    "ellipse axis",
-                    "ellipse u_ref (seam direction)",
+                    &frame,
+                    [
+                        "ellipse centre",
+                        "ellipse axis",
+                        "ellipse u_ref (seam direction)",
+                    ],
                 )?;
                 let a = fmt_real(semi_u, "ellipse semi-axis along the seam")?;
                 let b = fmt_real(semi_v, "ellipse semi-axis across the seam")?;
@@ -810,20 +787,16 @@ impl<'a> Writer<'a> {
         // prints natively since M6-3 (`Self::b_spline_surface`, the
         // loft walls); the one refusal left is the mvfs placeholder,
         // a mid-surgery fact rather than a frontier.
+        // The analytic arms' placement is the surface's own frame.
+        let frame = || {
+            surface.frame().ok_or(StepExportError::Corrupt {
+                what: "an analytic surface answers no frame",
+            })
+        };
         let surface_id = match *surface {
-            Surface::Plane {
-                origin,
-                normal,
-                u_ref,
-            } => {
-                let placement = self.axis2_placement(
-                    origin,
-                    normal,
-                    u_ref,
-                    "plane origin",
-                    "plane normal",
-                    "plane u_ref",
-                )?;
+            Surface::Plane { .. } => {
+                let placement = self
+                    .axis2_placement(&frame()?, ["plane origin", "plane normal", "plane u_ref"])?;
                 self.emit(&format!("PLANE('', #{placement})"))
             }
             // `cylindrical_surface`: S(u, v) = location + radius·(cos
@@ -831,19 +804,10 @@ impl<'a> Writer<'a> {
             // field for field (`origin` the v = 0 axis point, `u_ref`
             // the seam at u = 0). Both parameters keep their kernel
             // meaning (u radians, v metres).
-            Surface::Cylinder {
-                origin,
-                axis,
-                radius,
-                u_ref,
-            } => {
+            Surface::Cylinder { radius, .. } => {
                 let placement = self.axis2_placement(
-                    origin,
-                    axis,
-                    u_ref,
-                    "cylinder origin",
-                    "cylinder axis",
-                    "cylinder u_ref",
+                    &frame()?,
+                    ["cylinder origin", "cylinder axis", "cylinder u_ref"],
                 )?;
                 let r = fmt_real(radius, "cylinder radius")?;
                 self.emit(&format!("CYLINDRICAL_SURFACE('', #{placement}, {r})"))
@@ -867,20 +831,9 @@ impl<'a> Writer<'a> {
             // (When pcurves land, the cos α factor is the thing to
             // carry.) `semi_angle` is the kernel `half_angle`
             // verbatim, both in (0, π/2) radians.
-            Surface::Cone {
-                apex,
-                axis,
-                half_angle,
-                u_ref,
-            } => {
-                let placement = self.axis2_placement(
-                    apex,
-                    axis,
-                    u_ref,
-                    "cone apex",
-                    "cone axis",
-                    "cone u_ref",
-                )?;
+            Surface::Cone { half_angle, .. } => {
+                let placement =
+                    self.axis2_placement(&frame()?, ["cone apex", "cone axis", "cone u_ref"])?;
                 let angle = fmt_real(half_angle, "cone half-angle")?;
                 self.emit(&format!("CONICAL_SURFACE('', #{placement}, 0.0, {angle})"))
             }
@@ -888,20 +841,9 @@ impl<'a> Writer<'a> {
             // (cos u·x + sin u·y) + sin v·z) — the kernel's `Sphere`
             // formula field for field (longitude u about the pole
             // `axis`, latitude v, seam meridian at `u_ref`).
-            Surface::Sphere {
-                center,
-                radius,
-                axis,
-                u_ref,
-            } => {
-                let placement = self.axis2_placement(
-                    center,
-                    axis,
-                    u_ref,
-                    "sphere centre",
-                    "sphere axis",
-                    "sphere u_ref",
-                )?;
+            Surface::Sphere { radius, .. } => {
+                let placement = self
+                    .axis2_placement(&frame()?, ["sphere centre", "sphere axis", "sphere u_ref"])?;
                 let r = fmt_real(radius, "sphere radius")?;
                 self.emit(&format!("SPHERICAL_SURFACE('', #{placement}, {r})"))
             }
@@ -911,20 +853,12 @@ impl<'a> Writer<'a> {
             // minor angle v with v = 0 on the outer equator, seam at
             // `u_ref`).
             Surface::Torus {
-                center,
-                axis,
                 major_radius,
                 minor_radius,
-                u_ref,
+                ..
             } => {
-                let placement = self.axis2_placement(
-                    center,
-                    axis,
-                    u_ref,
-                    "torus centre",
-                    "torus axis",
-                    "torus u_ref",
-                )?;
+                let placement =
+                    self.axis2_placement(&frame()?, ["torus centre", "torus axis", "torus u_ref"])?;
                 let major = fmt_real(major_radius, "torus major radius")?;
                 let minor = fmt_real(minor_radius, "torus minor radius")?;
                 self.emit(&format!(

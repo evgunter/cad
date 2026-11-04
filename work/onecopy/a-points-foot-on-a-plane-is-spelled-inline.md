@@ -2,12 +2,14 @@
 id: a-points-foot-on-a-plane-is-spelled-inline
 kind: issue
 title: A point's foot on a plane is spelled inline in five places with no geom home
-status: dispatched
+status: closed
 opened: 2026-11-02
 priority: P2
 cost: E
 branch: onecopy/frame-readings
 rides_with: the-frame-carries-every-placement-reading
+closed: 2026-11-04
+pr: 6463
 ---
 
 Found by the sweep of the `onehome/geom-readings` lane (the axis-foot shape `o + a·((p − o)·a)` has a plane twin, `p − n·((p − o)·n)`), against main `44577259fb`.

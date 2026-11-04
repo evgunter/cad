@@ -64,6 +64,8 @@ mod a_carried_record_no_reading_covers;
 mod a_circle_of_one_radius_elsewhere_is_no_rim;
 #[path = "a_closed_rider_lying_in_a_face_refuses_its_slit_form.rs"]
 mod a_closed_rider_lying_in_a_face_refuses_its_slit_form;
+#[path = "a_conical_ended_football_revolves.rs"]
+mod a_conical_ended_football_revolves;
 #[path = "a_curve_off_its_face_at_a_build_is_the_kernels.rs"]
 mod a_curve_off_its_face_at_a_build_is_the_kernels;
 #[path = "a_curved_keel_in_the_plane.rs"]
@@ -170,6 +172,8 @@ mod a_tube_ending_on_a_ball;
 mod a_vertex_on_a_grazing_plane;
 #[path = "a_vertex_piercing_a_lens_wall.rs"]
 mod a_vertex_piercing_a_lens_wall;
+#[path = "a_wall_row_read_in_band_takes_the_lane_a_miss_takes.rs"]
+mod a_wall_row_read_in_band_takes_the_lane_a_miss_takes;
 #[path = "a_wall_seam_takes_the_column_it_lies_on.rs"]
 mod a_wall_seam_takes_the_column_it_lies_on;
 #[path = "a_wrap_tip_reads_its_full_turn_in_the_boolean.rs"]
@@ -1235,6 +1239,8 @@ mod shell7_seam_corner;
 mod spiric_rim;
 #[path = "spline_spiric_operands.rs"]
 mod spline_spiric_operands;
+#[path = "spline_subtract_intersect_census.rs"]
+mod spline_subtract_intersect_census;
 
 #[path = "shell7_r1_diff.rs"]
 mod shell7_r1_diff;

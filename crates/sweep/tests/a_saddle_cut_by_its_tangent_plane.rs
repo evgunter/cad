@@ -5,9 +5,8 @@
 //! `x = 0` and `z = 0`, a straight section of two lines crossing at a
 //! point. Two smooth carriers meet in two crossing lines only at a
 //! tangency, so the pair is a spline × plane tangent section, which no
-//! lane builds yet: each op refuses typed at the spline × plane pair,
-//! intersect and subtract at the revert roster, and union in the join,
-//! where no frame names the wall × plane germ pair's section. Its closed
+//! lane builds yet: each op refuses typed at the spline × plane pair, in
+//! the join, where no frame names the wall × plane germ pair's section. Its closed
 //! forms (the block `8`, its part above the plane `1/2`) are the row
 //! `work/splice/a-saddle-cut-by-its-tangent-plane-builds-at-its-closed-form.md`
 //! asks for.
@@ -17,7 +16,7 @@ use geom::SurfaceKind::{Nurbs, Plane};
 use geom_core::{Point2, Tol};
 use profile::test_support::bulge_loop;
 use sweep::test_support::{finished, stacked_at};
-use topo::{AtRestBody, BooleanError, PairRefusalSite, intersect, subtract, union};
+use topo::{AtRestBody, BooleanError, intersect, subtract, union};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -87,27 +86,17 @@ fn cut_face(h: &AtRestBody<f64>) -> topo::FaceKey {
 }
 
 /// **Every op, either way round, refuses at the spline × plane pair**:
-/// intersect and subtract at the revert roster, union in the join at
-/// the germ frame of the saddle's wall against the half-space's face
-/// `y = 0` (`work/sectarms/a-nurbs-wall-against-a-plane-has-no-germ-frame.md`).
+/// in the join, at the germ frame of the saddle's wall against the
+/// half-space's face `y = 0`
+/// (`work/sectarms/a-nurbs-wall-against-a-plane-has-no-germ-frame.md`),
+/// the two faces named by identity in the operands' order.
 /// Its held pierce reads first: the block's corner edges pierce the
 /// plane at `(±1, 0, ±1)`, a unit off the wall, which reads them off
 /// its carrier.
 #[test]
-fn a_saddle_cut_by_its_tangent_plane_refuses_at_the_spline_plane_pair() {
+fn a_saddle_cut_by_its_tangent_plane_refuses_at_the_germ_frame_under_every_op() {
     let (s, h) = (saddle_block(), above());
     let (wall, cut) = (saddle_wall(&s), cut_face(&h));
-    let roster = |r: &Result<topo::BooleanResult<f64>, BooleanError>| {
-        matches!(
-            r,
-            Err(BooleanError::CurvedPairUnsupported {
-                site: PairRefusalSite::RevertRoster,
-                kind: Nurbs,
-                other_kind: Plane,
-                ..
-            })
-        )
-    };
     // The A face first: the saddle's wall in `s ∪ h`, the cut face in
     // `h ∪ s`.
     let frame = |r: &Result<topo::BooleanResult<f64>, BooleanError>, saddle_first: bool| {
@@ -127,20 +116,16 @@ fn a_saddle_cut_by_its_tangent_plane_refuses_at_the_spline_plane_pair() {
                 if (*a_face, *ak, *b_face, *bk) == (a, a_kind, b, b_kind)
         )
     };
-    for (op, r, at_frame) in [
-        ("s ∩ h", intersect(&s, &h, tol()), None),
-        ("h ∩ s", intersect(&h, &s, tol()), None),
-        ("s ∖ h", subtract(&s, &h, tol()), None),
-        ("h ∖ s", subtract(&h, &s, tol()), None),
-        ("s ∪ h", union(&s, &h, tol()), Some(true)),
-        ("h ∪ s", union(&h, &s, tol()), Some(false)),
+    for (op, r, saddle_first) in [
+        ("s ∩ h", intersect(&s, &h, tol()), true),
+        ("h ∩ s", intersect(&h, &s, tol()), false),
+        ("s ∖ h", subtract(&s, &h, tol()), true),
+        ("h ∖ s", subtract(&h, &s, tol()), false),
+        ("s ∪ h", union(&s, &h, tol()), true),
+        ("h ∪ s", union(&h, &s, tol()), false),
     ] {
-        let refused = match at_frame {
-            Some(saddle_first) => frame(&r, saddle_first),
-            None => roster(&r),
-        };
         assert!(
-            refused,
+            frame(&r, saddle_first),
             "{op}: refuses typed at the spline × plane pair, not {r:?}"
         );
     }

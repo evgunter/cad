@@ -67,6 +67,7 @@ use geom_core::{Band, Point3, Real, Vec3};
 
 use crate::convention::{ConventionEnd, RepresentabilityMargin};
 use crate::datum::{AnalyticData, DatumValue};
+use crate::frame::Frame;
 
 use crate::azimuth;
 pub use approx::{ApproxSurface, ApproxWindow, OffsetCertificate, SurfaceDescription, SurfaceSpec};
@@ -369,6 +370,54 @@ impl<T: Real> Surface<T> {
             Self::Approx(_) => SurfaceKind::Approx,
         }
     }
+
+    /// **The placement of an analytic surface**: a plane's origin,
+    /// normal and `u` axis, a cylinder's axis point, a cone's apex, a
+    /// sphere's or a torus's centre, each with its axis and seam `u_ref`
+    /// (each variant's docs say what they place). `None` for a net.
+    #[must_use]
+    pub fn frame(&self) -> Option<Frame<T>> {
+        match *self {
+            Self::Plane {
+                origin,
+                normal,
+                u_ref,
+            } => Some(Frame::new(origin, normal, u_ref)),
+            Self::Cylinder {
+                origin,
+                axis,
+                u_ref,
+                radius: _,
+            } => Some(Frame::new(origin, axis, u_ref)),
+            Self::Cone {
+                apex,
+                axis,
+                u_ref,
+                half_angle: _,
+            } => Some(Frame::new(apex, axis, u_ref)),
+            Self::Sphere {
+                center,
+                axis,
+                u_ref,
+                radius: _,
+            } => Some(Frame::new(center, axis, u_ref)),
+            Self::Torus {
+                center,
+                axis,
+                u_ref,
+                major_radius: _,
+                minor_radius: _,
+            }
+            | Self::Spindle {
+                center,
+                axis,
+                u_ref,
+                major_radius: _,
+                minor_radius: _,
+            } => Some(Frame::new(center, axis, u_ref)),
+            Self::Nurbs(_) | Self::Approx(_) => None,
+        }
+    }
 }
 
 impl SurfaceKind {
@@ -603,6 +652,24 @@ pub fn spindle_sheet<T: geom_core::Decide>(
         SpindleEnd::Horn,
         &[Positive, Zero],
     )
+}
+
+/// **The meridian's side, its one home**: `σ = sgn R` as an exact `±1`,
+/// the side of the axis a revolved circle's centre sits on, measured in
+/// the meridian half-plane of the surface's points. `+1` on a ring torus
+/// and an apple sheet, `−1` on a lemon sheet, where the centre lies
+/// across the axis. Formulas shared by the torus and the sheet read a
+/// meridian's out-direction, or its centre's direction, through it.
+///
+/// It transfers a sign that is DECIDED at rest, and is not a two-way
+/// choice standing in for one (`work/lathe/copysign-stands-in-for-a-nappe-and-a-max-fold-and-hulls.md`):
+/// a ring torus carries `R > r > 0` ([`require_ring_torus`]), and
+/// [`spindle_sheet`] decides a sheet's `R` clear of zero
+/// (`spindle_not_sphere`, `R = 0` is the sphere). So no datum at rest
+/// gives it a zero, and at `Interval` an enclosure of `R` that holds
+/// no zero gives the point `±1`, never the hull.
+pub fn meridian_side<T: Real>(major_radius: T) -> T {
+    T::one().copysign(major_radius)
 }
 
 /// A spindle sheet's apexes, as [`sheet_apex`] places them: their
@@ -1044,7 +1111,7 @@ impl<T: SpanLocate> Surface<T> {
                 radius,
                 u_ref,
             } => {
-                let radial = azimuth::frame(axis, u_ref, u).radial.0;
+                let radial = azimuth::frame(&Frame::new(origin, axis, u_ref), u).radial.0;
                 origin + radial * radius + axis * v
             }
             &Surface::Cone {
@@ -1054,7 +1121,7 @@ impl<T: SpanLocate> Surface<T> {
                 u_ref,
             } => {
                 let (s_a, c_a) = half_angle.sin_cos();
-                let radial = azimuth::frame(axis, u_ref, u).radial.0;
+                let radial = azimuth::frame(&Frame::new(apex, axis, u_ref), u).radial.0;
                 apex + axis * (v * c_a) + radial * (v * s_a)
             }
             &Surface::Sphere {
@@ -1064,7 +1131,7 @@ impl<T: SpanLocate> Surface<T> {
                 u_ref,
             } => {
                 let (s_v, c_v) = v.sin_cos();
-                let radial = azimuth::frame(axis, u_ref, u).radial.0;
+                let radial = azimuth::frame(&Frame::new(center, axis, u_ref), u).radial.0;
                 center + (radial * c_v + axis * s_v) * radius
             }
             &Surface::Torus {
@@ -1082,7 +1149,7 @@ impl<T: SpanLocate> Surface<T> {
                 u_ref,
             } => {
                 let (s_v, c_v) = v.sin_cos();
-                let radial = azimuth::frame(axis, u_ref, u).radial.0;
+                let radial = azimuth::frame(&Frame::new(center, axis, u_ref), u).radial.0;
                 center + radial * (major_radius + minor_radius * c_v) + axis * (minor_radius * s_v)
             }
             Surface::Nurbs(n) => n.eval(u, v),
@@ -1205,7 +1272,7 @@ impl<T: SpanLocate> Surface<T> {
                 radius,
                 u_ref,
             } => {
-                let f = azimuth::frame(axis, u_ref, u);
+                let f = azimuth::frame(&Frame::new(origin, axis, u_ref), u);
                 let radial = f.radial.0;
                 let tangential = f.tangential.0;
                 SurfaceJet {
@@ -1224,7 +1291,7 @@ impl<T: SpanLocate> Surface<T> {
                 u_ref,
             } => {
                 let (s_a, c_a) = half_angle.sin_cos();
-                let f = azimuth::frame(axis, u_ref, u);
+                let f = azimuth::frame(&Frame::new(apex, axis, u_ref), u);
                 let radial = f.radial.0;
                 let tangential = f.tangential.0;
                 SurfaceJet {
@@ -1243,7 +1310,7 @@ impl<T: SpanLocate> Surface<T> {
                 u_ref,
             } => {
                 let (s_v, c_v) = v.sin_cos();
-                let f = azimuth::frame(axis, u_ref, u);
+                let f = azimuth::frame(&Frame::new(center, axis, u_ref), u);
                 let radial = f.radial.0;
                 let tangential = f.tangential.0;
                 SurfaceJet {
@@ -1270,7 +1337,7 @@ impl<T: SpanLocate> Surface<T> {
                 u_ref,
             } => {
                 let (s_v, c_v) = v.sin_cos();
-                let f = azimuth::frame(axis, u_ref, u);
+                let f = azimuth::frame(&Frame::new(center, axis, u_ref), u);
                 let radial = f.radial.0;
                 let tangential = f.tangential.0;
                 SurfaceJet {

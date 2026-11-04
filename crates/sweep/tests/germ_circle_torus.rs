@@ -1,5 +1,5 @@
 //! GERM: the circle × torus root lane at the boolean's crossing layer
-//! (`topo::boolean::circle_torus`, routed from the circle rung of
+//! (`geom_brep::curve_face::circle_torus`, routed from the circle rung of
 //! `reduce::curved_face_arm` through `wall_crossing`).
 //!
 //! Before the lane, a circle edge against a torus face was decided only
@@ -326,11 +326,12 @@ fn carrier_of(body: &Body<f64>, edge: EdgeKey) -> (Carrier, (f64, f64)) {
     let e = body.get_edge(edge).unwrap();
     let c = body.get_curve_geom(e.curve).unwrap().certified().unwrap();
     let geom::Curve3::Circle(geom::Circle {
-        frame: geom::Frame {
-            center,
-            axis,
-            u_ref,
-        },
+        frame:
+            geom::Frame {
+                origin: center,
+                axis,
+                u_ref,
+            },
         radius,
     }) = *c.carrier()
     else {

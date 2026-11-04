@@ -335,7 +335,7 @@ fn a_ball_scraping_the_wall_refuses_at_the_section_pass() {
 /// cylinder×torus union is no longer the gate's to refuse. The
 /// cylinder's rim circles genuinely cross the tube (the ring passes
 /// through the cylinder's end caps at `(0, 0, ±2)`), and that
-/// circle×torus crossing has a root lane (`topo::boolean::circle_torus`),
+/// circle×torus crossing has a root lane (`geom_brep::curve_face::circle_torus`),
 /// as the OTHER direction's does — a circle of the torus against the
 /// cylinder's wall, the conic × quadric root door
 /// (`topo::boolean::conic_quadric`). Their pierces' sector sides

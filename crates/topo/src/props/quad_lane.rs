@@ -294,6 +294,19 @@ pub(super) fn translated_surface<T: Decide>(
             minor_radius,
             u_ref,
         },
+        Surface::Spindle {
+            center,
+            axis,
+            major_radius,
+            minor_radius,
+            u_ref,
+        } => Surface::Spindle {
+            center: shift(center),
+            axis,
+            major_radius,
+            minor_radius,
+            u_ref,
+        },
         _ => return None,
     })
 }
@@ -303,31 +316,17 @@ pub(super) fn translated_surface<T: Decide>(
 /// Euclidean, so a translation is the curve's image).
 pub(super) fn translated_curve<T: Decide>(curve: &Curve3<T>, by: Point3<T>) -> Option<Curve3<T>> {
     let shift = |p: Point3<T>| Point3::origin() + (p - by);
+    let back = -(by - Point3::origin());
     Some(match curve.clone() {
         Curve3::Line(geom::Line { origin, dir }) => Curve3::line(shift(origin), dir),
-        Curve3::Circle(geom::Circle {
-            frame:
-                geom::Frame {
-                    center,
-                    axis,
-                    u_ref,
-                },
-            radius,
-        }) => Curve3::circle(shift(center), axis, radius, u_ref),
-        Curve3::Ellipse(geom::Ellipse {
-            frame:
-                geom::Frame {
-                    center,
-                    axis,
-                    u_ref,
-                },
-            semi_u,
-            semi_v,
-        }) => Curve3::Ellipse(geom::Ellipse::new(
-            geom::Frame::new(shift(center), axis, u_ref),
-            semi_u,
-            semi_v,
-        )),
+        Curve3::Circle(c) => Curve3::Circle(geom::Circle {
+            frame: c.frame.translated(back),
+            ..c
+        }),
+        Curve3::Ellipse(e) => Curve3::Ellipse(geom::Ellipse {
+            frame: e.frame.translated(back),
+            ..e
+        }),
         Curve3::Spiric {
             center,
             axis,

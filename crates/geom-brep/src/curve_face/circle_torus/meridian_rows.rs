@@ -1,5 +1,5 @@
 //! **The circle × torus door's meridian rung**
-//! ([`super::meridian_deviation`], `bool_circle_torus_meridian`), held
+//! ([`super::meridian_deviation`], `circle_torus_meridian`), held
 //! to an independent oracle: each carrier is sampled densely and every
 //! sample's distance from the torus is read in the torus's own frame,
 //! `|√((ρ_axis − R)² + h²) − r|`, without the door's residual or its
@@ -22,7 +22,7 @@
 #![allow(clippy::unwrap_used, clippy::panic, clippy::float_cmp)]
 
 test_utils::gated_to![
-    "crates/topo/src/boolean/circle_roots.rs",
+    "crates/geom-brep/src/curve_face/circle_roots.rs",
     "crates/geom-brep/src/half_angle.rs",
     "crates/geom-brep/src/quartic.rs",
     "crates/geom-core/src/bisect.rs",
@@ -119,15 +119,15 @@ fn door(
     circle: Circle,
     torus: Torus,
     band: Band,
-) -> Result<Result<CircleRoots<f64>, Unsettled>, BooleanError> {
+) -> Result<Result<CircleRoots<f64>, Unsettled>, DoorRefusal> {
     circle_torus_roots(&circle.carrier(), 0.3, 2.1, &torus.surface(), band)
 }
 
-fn meridian_escalation(got: &Result<Result<CircleRoots<f64>, Unsettled>, BooleanError>) -> bool {
+fn meridian_escalation(got: &Result<Result<CircleRoots<f64>, Unsettled>, DoorRefusal>) -> bool {
     matches!(
         got,
-        Err(BooleanError::Escalated { diag, .. })
-            if diag.predicate == Some("bool_circle_torus_meridian")
+        Err(DoorRefusal::Escalated(diag))
+            if diag.predicate == Some("circle_torus_meridian")
     )
 }
 
@@ -230,6 +230,7 @@ fn posed(
 #[test]
 fn the_meridian_rung_at_any_pose_scale_and_band() {
     use test_utils::fuzz;
+    // A frozen stream label, not a module path: renaming it changes the draws.
     let mut rng = fuzz::start("boolean::circle_torus::meridian_poses");
     let per_cell = fuzz::scaled(1);
     let unit = |rng: &mut fuzz::Rng| loop {
@@ -378,7 +379,7 @@ fn a_spindle_torus_takes_no_meridian_rung() {
             assert!(
                 !matches!(
                     got,
-                    Ok(Ok(CircleRoots::On(_))) | Err(BooleanError::ClassificationInvariant { .. })
+                    Ok(Ok(CircleRoots::On(_))) | Err(DoorRefusal::Invariant(_))
                 ),
                 "r/R {ratio}, {label}: read {got:?}"
             );

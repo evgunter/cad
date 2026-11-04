@@ -2,12 +2,14 @@
 id: the-frame-carries-every-placement-reading
 kind: unit
 title: geom::Frame gets its own module and every placement reading; doors return the home by reference; the circle and line consumer structs hold geom::Circle and geom::Line
-status: dispatched
+status: closed
 priority: P1
 cost: H
 parent: analytic-surfaces-spell-their-frame-field-by-field
 opened: 2026-11-03
 branch: onecopy/frame-readings
+closed: 2026-11-04
+pr: 6463
 ---
 
 Stages 1 and 2 of the placement decision recorded on `analytic-surfaces-spell-their-frame-field-by-field` ("Decided"). Read that section first; it binds this unit.
