@@ -5916,9 +5916,16 @@ fn ruling_generator<T: Real>(axis: Vec3<T>, half_angle: T, q: Vec3<T>) -> Vec3<T
 /// any line along its unit axis, or a cone's generator through its apex
 /// along the unit `g`.
 #[derive(Clone, Copy, Debug)]
-pub(crate) enum Ruling<T: Real> {
+pub enum Ruling<T: Real> {
+    /// A cylinder's, along its unit axis.
     Axis(Vec3<T>),
-    Generator { apex: Point3<T>, g: Vec3<T> },
+    /// A cone's generator.
+    Generator {
+        /// The cone's apex, which the generator runs through.
+        apex: Point3<T>,
+        /// The generator's unit direction.
+        g: Vec3<T>,
+    },
 }
 
 /// **Whether a line is a ruling of its chart**, the one reading the mint's
@@ -5933,7 +5940,7 @@ pub(crate) enum Ruling<T: Real> {
 /// reading adds the span start's distance from it; the sum bounds the
 /// line's distance from the generator over the span, which is how far the
 /// generator's closed form misses the line.
-pub(crate) fn ruling_miss<T: Real>(
+pub fn ruling_miss<T: Real>(
     &geom::Line { origin, dir }: &geom::Line<T>,
     (t0, t1): (T, T),
     ruling: Ruling<T>,
