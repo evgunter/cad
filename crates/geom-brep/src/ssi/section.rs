@@ -475,14 +475,10 @@ impl SectionReader {
         self.pieces.metres(sup)
     }
 
-    /// Whether `φ` is the plane's distance, whose slope per metre is a
-    /// sine, never above 1: the plane read by its origin and normal, or
-    /// by its form, `f = z` in its frame.
+    /// Whether `φ` is the plane's distance read by its origin and normal,
+    /// whose slope per metre is a sine, never above 1.
     pub(crate) fn is_distance(&self) -> bool {
-        self.pieces
-            .scale
-            .as_ref()
-            .is_none_or(|s| matches!(s.form.form(), super::residual::Form::Plane))
+        self.pieces.scale.is_none()
     }
 
     /// The stretch `[a, b]` of the curve: its pieces cut to it.

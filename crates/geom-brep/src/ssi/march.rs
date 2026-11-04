@@ -2575,17 +2575,19 @@ pub(crate) mod tests {
 
     /// **The step rungs read the carrier's curvature, not the state
     /// curve's.** The plane `y = −1/8` cuts the dome
-    /// `y = −4·s(1−s)·t(1−t)` (a quadratic 3×3 net, `x = s`, `z = t`) in
-    /// a loop of 3-D curvature 1.4–4.7/m, traced on the 1×2 system with
-    /// the plane as its partner, whose state curve is the wall's pcurve,
-    /// bending in its chart unlike the carrier. At ε = 1e-9 the fit rung
-    /// holds every step, so each chord is `(24·δ·ε/κ³)^¼` at the
-    /// carrier's own curvature κ, read here off the circle through three
-    /// consecutive marched points rather than off the stepper. Every
-    /// chord the rung sized lies within 5% of it (the last, which closes
-    /// the loop onto its seed, is the closure's), and the loop takes
-    /// about 1030 steps. A rung read on the state curve moves the chords
-    /// off it.
+    /// `y = −4·s(1−s)·t(1−t)`, a quadratic 3×3 net whose chart stretches
+    /// threefold across `s` (`x = (s + s²)/2`, `z = t`), in a loop traced
+    /// on the 1×2 system with the plane as its partner, whose state curve
+    /// is the wall's pcurve, bending in its chart unlike the carrier. At
+    /// ε = 1e-9 the fit rung `(24·δ·ε/κ³)^¼` at the carrier's own
+    /// curvature κ, read here off the circle through three consecutive
+    /// marched points rather than off the stepper, bounds every chord
+    /// (none past it by 5%; the last, which closes the loop onto its
+    /// seed, is the closure's) and holds at least nine in ten within 5%
+    /// (measured 993 of 1051: the rest are halved by the residual test
+    /// near the seed). The loop takes about 1112 steps. A rung read on
+    /// the state curve moves the chords off it: 405 chords past it, 155
+    /// within 5%, measured.
     #[test]
     fn the_fit_rung_reads_the_carriers_curvature_on_a_curved_wall() {
         use super::{RectEnd, RectExit, SSI_STEP_DEVIATION};
@@ -2596,9 +2598,11 @@ pub(crate) mod tests {
         let k = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
         let control = (0..9)
             .map(|n| {
-                let (i, j) = (f64::from(n / 3), f64::from(n % 3));
+                let (i, j) = (n / 3, f64::from(n % 3));
                 let y = if n == 4 { -1.0 } else { 0.0 };
-                Point3::new(i / 2.0, y, j / 2.0)
+                // `x = (s + s²)/2`: the chart stretches threefold across
+                // `s`, so the wall's pcurve bends unlike the carrier.
+                Point3::new([0.0, 0.25, 1.0][i as usize], y, j / 2.0)
             })
             .collect();
         let wall = NurbsSurface::new(k.clone(), k, control, vec![1.0; 9]).unwrap();
@@ -2645,18 +2649,28 @@ pub(crate) mod tests {
         let target = 24.0 * SSI_STEP_DEVIATION * eps;
         // The last chord closes the loop onto the seed, a step the
         // closure ends, not one the rung sized.
-        for i in 1..p.len() - 2 {
+        let mut held = 0usize;
+        let chords = 1..p.len() - 2;
+        let count = chords.len();
+        for i in chords {
             let (a, b) = (p[i] - p[i - 1], p[i + 1] - p[i - 1]);
             let kappa = 2.0 * a.cross(b).norm() / (a.norm() * b.norm() * (b - a).norm());
             let chord = (p[i + 1] - p[i]).norm();
             let rung = (target / (kappa * kappa * kappa)).sqrt().sqrt();
             assert!(
-                (chord / rung - 1.0).abs() < 0.05,
-                "step {i}: chord {chord:e} m against the fit rung {rung:e} m at κ = {kappa:.3}/m"
+                chord / rung < 1.05,
+                "step {i}: chord {chord:e} m past the fit rung {rung:e} m at κ = {kappa:.3}/m"
             );
+            if (chord / rung - 1.0).abs() < 0.05 {
+                held += 1;
+            }
         }
         assert!(
-            (1000..1060).contains(&trace.steps),
+            10 * held >= 9 * count,
+            "the fit rung holds {held} of {count} chords"
+        );
+        assert!(
+            (1080..1140).contains(&trace.steps),
             "the loop takes {} steps",
             trace.steps
         );
