@@ -314,7 +314,7 @@ impl BlendArm {
 /// never from a coordinate-axis tie-break. Poison propagates when `x`
 /// is parallel to `a`, which is the honest answer: there is no
 /// distinguished perpendicular there.
-fn perp_unit<T: Real>(x: Vec3<T>, a: Vec3<T>) -> Vec3<T> {
+pub(in crate::blend) fn perp_unit<T: Real>(x: Vec3<T>, a: Vec3<T>) -> Vec3<T> {
     // Named binding so the interval-square tripwire's self-multiplication
     // grep does not false-positive on `a * a.dot(x)` (a vector scaled by a
     // projection coefficient, not a scalar square) — the affine.rs
@@ -353,15 +353,20 @@ pub fn plane_plane_blend<T: Real>(
     let d = n_a.dot(n_b);
     let one = T::one();
     let center = p - (n_a + n_b) * (signed / (one + d));
-    let foot_a = center + n_a * signed;
-    let foot_b = center + n_b * signed;
+    let side = convexity.ball_side(true);
+    let (a, b) = (
+        SupportTrace::Straight { normal: n_a, side },
+        SupportTrace::Straight { normal: n_b, side },
+    );
+    let foot_a = a.contact(center, radius);
+    let foot_b = b.contact(center, radius);
     let setback = radius * ((one - d) / (one + d)).sqrt();
     EdgeBlend {
         surface: Surface::Cylinder {
             origin: center,
             axis: tau,
             radius,
-            u_ref: (foot_a - center).normalize(),
+            u_ref: a.foot(center),
         },
         spine_curvature: T::zero(),
         trim_a: (
@@ -545,8 +550,8 @@ pub fn plane_sphere_blend<T: Real>(
 /// the side the chart normal points into; [`Convexity::ball_side`] is
 /// where it is read, from stored structure and never from a sampled
 /// normal (S10/S11). It selects the `R ∓ r` fold: every consumer spells
-/// it as [`sided`], a conditional negation of the radius, so it is a
-/// side here and never a `±1`.
+/// it as [`sided`], a conditional negation of the radius or of the
+/// foot direction, so it is a side here and never a `±1`.
 #[derive(Clone, Copy, Debug)]
 pub enum SupportTrace<T: Real> {
     /// A STRAIGHT trace: the line through the rim point whose unit
@@ -585,12 +590,26 @@ impl<T: Real> SupportTrace<T> {
     /// centre by `radius` along the trace's own outward direction.
     fn contact(self, center: Point3<T>, radius: T) -> Point3<T> {
         match self {
-            Self::Straight { normal, side } => center + normal * sided(side, radius),
+            Self::Straight { .. } => center + self.foot(center) * radius,
             Self::Round {
                 center: c,
                 radius: rr,
                 side,
             } => c + (center - c) * (rr / (rr - sided(side, radius))),
+        }
+    }
+
+    /// The unit direction from the ball at `center` to its
+    /// [`Self::contact`], read off the trace. The contact's offset
+    /// from `center` is the radius against coordinates of the body's
+    /// size, so a direction read back off the two points keeps only
+    /// the digits the radius leaves.
+    fn foot(self, center: Point3<T>) -> Vec3<T> {
+        match self {
+            Self::Straight { normal, side } => sided(side, normal),
+            Self::Round {
+                center: c, side, ..
+            } => sided(side, (center - c).normalize()),
         }
     }
 }
@@ -1065,7 +1084,7 @@ impl<T: Real> Ruling<T> {
                 origin: center,
                 axis: self.tau,
                 radius,
-                u_ref: (q_a - center).normalize(),
+                u_ref: a.foot(center),
             },
             spine_curvature: T::zero(),
             trim_a: (Curve3::line(q_a, self.tau), (q_a - self.rim).norm()),
@@ -1161,9 +1180,9 @@ pub fn corner_ball<T: Real>(
     let num = n2.cross(n3) * rhs[0] + n3.cross(n1) * rhs[1] + n1.cross(n2) * rhs[2];
     let c = anchor + num / det;
     // The feet lie along `n_i` from a convex rest and along `−n_i` from
-    // a concave one — the same fold as the centre's, `−signed/r`.
-    let side = -signed / radius;
-    let (u_ref, axis) = corner_chart([n1 * side, n2 * side, n3 * side]);
+    // a concave one — the same fold as the centre's.
+    let foot = |n: Vec3<T>| sided(convexity.ball_side(true), n);
+    let (u_ref, axis) = corner_chart([foot(n1), foot(n2), foot(n3)]);
     CornerBall {
         surface: Surface::Sphere {
             center: c,
