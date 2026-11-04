@@ -168,47 +168,52 @@ impl Axial {
     /// stationary points of `q²`, in `(s0, s1)`.
     fn torus(&self, big: f64, (s0, s1): (f64, f64)) -> Vec<f64> {
         let star = self.foot();
-        // Polynomials in `y = t / scale`, so the quartic's coefficients
-        // are of the span's size.
-        let scale = s0.abs().max(s1.abs());
+        // Polynomials in `y = (t − t*) / scale`, about the line's nearest
+        // approach to the axis, so `P`'s coefficients do not cancel there
+        // and the quartic's are of the span's size.
+        let centre = if star.is_finite() { star } else { 0.0 };
+        let scale = (s0 - centre).abs().max((s1 - centre).abs());
         if !(scale > 0.0 && scale.is_finite() && big.is_finite()) {
             return vec![star];
         }
+        let (q, q_off) = (self.q + self.u * centre, self.q_off + self.u_off * centre);
         let (u, uo) = (self.u * scale, self.u_off * scale);
         // P = |q⊥ + y·u⊥|², P' and Q' in y (their common factor 2
         // dropped: it cancels from `Q'²P − R²P'²`).
-        let p = [
-            self.q_off.dot(self.q_off),
-            2.0 * self.q_off.dot(uo),
-            uo.dot(uo),
-        ];
-        let dp = [self.q_off.dot(uo), uo.dot(uo)];
-        let dq = [self.q.dot(u), u.dot(u)];
+        let p = [q_off.dot(q_off), 2.0 * q_off.dot(uo), uo.dot(uo)];
+        let dp = [q_off.dot(uo), uo.dot(uo)];
+        let dq = [q.dot(u), u.dot(u)];
         let quartic = sub(&mul(&mul(&dq, &dq), &p), &mul(&[big * big], &mul(&dp, &dp)));
-        let (lo, hi) = (s0 / scale, s1 / scale);
+        let (lo, hi) = ((s0 - centre) / scale, (s1 - centre) / scale);
         let roots = roots_in(&quartic, lo, hi);
-        // `s(y) = Q'·ρ − R·P'`, whose roots are the stationary points.
-        let eval = |c: &[f64], y: f64| c.iter().rev().fold(0.0, |acc, k| acc * y + k);
-        let s = |y: f64| eval(&dq, y) * eval(&p, y).max(0.0).sqrt() - big * eval(&dp, y);
-        let mut marks: Vec<f64> = [lo, hi, star / scale]
+        // `s(y) = Q'·ρ − R·P'`, whose roots are the stationary points,
+        // read on the vectors themselves.
+        let s = |y: f64| {
+            let w = q_off + uo * y;
+            (q + u * y).dot(u) * w.norm() - big * w.dot(uo)
+        };
+        let mut marks: Vec<f64> = [lo, hi, 0.0]
             .into_iter()
             .chain(roots.iter().copied())
             .filter(|y| y.is_finite())
             .collect();
         marks.sort_by(f64::total_cmp);
+        marks.dedup();
+        // Every root of `s` is a root of the quartic, so each lies at a
+        // quartic root as isolated, or, where the quartic's own rounding
+        // moved it, between two marks across which `s` changes sign.
+        let refined = marks
+            .windows(2)
+            .filter(|m| s(m[0]) * s(m[1]) < 0.0)
+            .map(|m| bisect(&s, m[0], m[1]));
         let mut ts = vec![star];
-        for r in roots {
-            let at = marks.partition_point(|m| *m < r);
-            let below = marks[..at].last().copied().unwrap_or(lo);
-            let above = marks[at..].iter().copied().find(|m| *m > r).unwrap_or(hi);
-            let (a, b) = ((below + r) * 0.5, (r + above) * 0.5);
-            let y = if s(a) * s(b) < 0.0 {
-                bisect(&s, a, b)
-            } else {
-                r
-            };
-            ts.push(y * scale);
-        }
+        ts.extend(
+            roots
+                .iter()
+                .copied()
+                .chain(refined)
+                .map(|y| centre + y * scale),
+        );
         ts
     }
 }

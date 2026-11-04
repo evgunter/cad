@@ -12110,6 +12110,9 @@ mod cylinder_line_rows;
 mod harmonic_sup_rows;
 mod line_incidence;
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod line_incidence_rows;
+#[cfg(test)]
 pub(crate) mod mutants;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::panic)]
