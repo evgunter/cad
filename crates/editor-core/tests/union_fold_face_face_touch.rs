@@ -120,9 +120,24 @@ fn touches(
     doc: &ProfileDoc,
     what: &str,
     members: &[RecipeNodeId],
-    (plate, rod): (RecipeNodeId, RecipeNodeId),
+    pair: (RecipeNodeId, RecipeNodeId),
     solids: usize,
     volume: f64,
+    records: usize,
+) {
+    touches_within(doc, what, members, pair, solids, (volume, 0.0), records);
+}
+
+/// [`touches`], the volume read within `slack` of its closed form
+/// beyond the rounding bound.
+#[allow(clippy::too_many_arguments)]
+fn touches_within(
+    doc: &ProfileDoc,
+    what: &str,
+    members: &[RecipeNodeId],
+    (plate, rod): (RecipeNodeId, RecipeNodeId),
+    solids: usize,
+    (volume, slack): (f64, f64),
     records: usize,
 ) {
     let (doc, u) = union_over(doc.clone(), members);
@@ -150,8 +165,8 @@ fn touches(
     )
     .volume;
     assert!(
-        (v - volume).abs() < 1e-9,
-        "{what}: volume {v}, want {volume}"
+        (v - volume).abs() < 1e-9 + slack,
+        "{what}: volume {v}, want {volume} within {slack:e}"
     );
     let kind = |f: topo::FaceKey| {
         let face = body.body().get_face(f).unwrap();
@@ -398,6 +413,22 @@ fn a_carrier_whose_origin_stands_far_off_hands_on_the_pass_s_line() {
     // A rod 3000 long is no finished body at ε 1e-12 (its volume's
     // off-axis reading escalates), so the far row reads 1000 there.
     let far = if eps < 1e-10 { 1000.0 } else { 3000.0 };
+    // The rod's caps are in band of the plate's top and bottom planes,
+    // so the union leaves each pair's faces on one record. Where the
+    // rod's record is kept, the plate's faces move onto it while their
+    // boundaries stay where they were. A plane face contributes
+    // `(1/6) a · ∮ p × dp` to the volume, `a` its record's anchor
+    // (`geom_brep::props`), and the plate's top loop gives
+    // `∮ p × dp = 2 · 16 · ẑ` whichever record it is on. The rod's top
+    // record is anchored at its cap's centre, `y = 2.5`, where it stands
+    // `2.5 · lean` above `z = 1`, so the top face reads
+    // `16 · 2.5 · lean / 3` more. The bottom record's anchor is the
+    // origin, where both bottom planes pass, so that face reads the same.
+    // The plate's records anchor where the rod's planes meet them, so
+    // the rod's caps moved onto the plate's read nothing more. That is
+    // `4/3 ε` at a lean of `0.1 ε`, within the band times the face's
+    // area.
+    let moved = 16.0 * 2.5 * lean / 3.0;
     for back in [300.0, far] {
         let (doc, plate) = plate();
         let (doc, rod) = far_origin_rod(doc, plate, lean, back);
@@ -408,13 +439,13 @@ fn a_carrier_whose_origin_stands_far_off_hands_on_the_pass_s_line() {
             ("rod, block, plate", [rod, apart, plate]),
             ("plate, block, rod", [plate, apart, rod]),
         ] {
-            touches(
+            touches_within(
                 &doc,
                 &format!("back {back}: {order}"),
                 &members,
                 (plate, rod),
                 3,
-                PLATE_AND_ROD + 1.0,
+                (PLATE_AND_ROD + 1.0, moved),
                 1,
             );
         }

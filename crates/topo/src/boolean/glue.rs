@@ -53,8 +53,8 @@ const _: () = assert!(
 );
 
 /// A glued pair's two sides as `(kept, other)` ([`KEPT`]): given
-/// `side`'s `x` and the other operand's `y`. The boolean hands the
-/// merge each glued pair kept side first (`ops::GluedSurfaces::of_result`).
+/// `side`'s `x` and the other operand's `y`. The boolean leaves each
+/// glued pair's faces on its kept side's record (`ops::OneCarrierPairs::unify`).
 pub(crate) fn kept_first<X: Copy>((side, x): (Operand, X), y: X) -> (X, X) {
     if side == KEPT { (x, y) } else { (y, x) }
 }

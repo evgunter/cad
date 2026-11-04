@@ -537,6 +537,7 @@ pub(crate) fn name_revolve<T: Decide>(
             end_cap,
             start_meridians,
             end_meridians,
+            ..
         } => {
             insert_face(&mut t, RoleSeg::RevolveCap(MeridianEnd::Start), *start_cap)?;
             insert_face(&mut t, RoleSeg::RevolveCap(MeridianEnd::End), *end_cap)?;

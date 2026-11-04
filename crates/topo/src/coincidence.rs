@@ -14,8 +14,9 @@
 //! does to those cells (a merge, a split into fragments).
 //!
 //! What is recorded is what a ladder decides from a margin and the
-//! result holds. A pair on one surface key is structure and is not
-//! recorded, and an ON verdict that only places topology is not a
+//! result holds. A pair on one surface key is structure, or the trace
+//! of a verdict that two records were one carrier, whose row is
+//! recorded by the act that left them one record; an ON verdict that only places topology is not a
 //! coincidence (D1): a boolean records every vertex identity it decides
 //! with a margin, as a row of the relation it decided where its inputs'
 //! cells state it and as a [`Relation::Meet`] of those cells where they
@@ -42,9 +43,10 @@ pub enum RowCell {
     /// the operation reads, not a cell of any body.
     Tool,
     /// A cell of the body the row was decided on, for a decision about
-    /// one body at rest rather than about an operation's inputs: the
-    /// at-rest census's rows ([`crate::census_rest_decision`] and its
-    /// contact rows) are the only ones that carry it.
+    /// one body rather than about an operation's inputs: the at-rest
+    /// census's rows ([`crate::census_rest_decision`] and its contact
+    /// rows), and two records an edge lies between decided one carrier
+    /// ([`crate::Body::unify_across`]).
     Result {
         /// The cell, in the result's keys.
         cell: Cell,

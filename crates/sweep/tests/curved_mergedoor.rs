@@ -797,11 +797,25 @@ fn stacked_equal_pegs_same_sense_walls() {
         faces.iter().all(|&(_, s)| s == faces[0].1),
         "F: one sense throughout — a continuation, not a slit: {faces:?}"
     );
+    let surfaces: std::collections::BTreeSet<_> = faces
+        .iter()
+        .map(|&(f, _)| bb.body.get_face(f).unwrap().surface)
+        .collect();
+    assert_eq!(
+        surfaces.len(),
+        1,
+        "F: the glue leaves both walls on one record: {surfaces:?}"
+    );
     let keys: Vec<_> = faces.iter().map(|&(f, _)| f).collect();
+    // The rim's arcs at z = 1; the walls' rulings are lines.
     let cross: Vec<_> = shared_edges(&bb.body, &keys)
         .into_iter()
-        .filter(|&(_, f1, f2)| {
-            bb.body.get_face(f1).unwrap().surface != bb.body.get_face(f2).unwrap().surface
+        .filter(|&(e, _, _)| {
+            let edge = bb.body.get_edge(e).unwrap();
+            bb.body
+                .get_curve_geom(edge.curve)
+                .and_then(topo::CurveGeom::certified)
+                .is_some_and(|c| c.carrier().kind() == geom::CurveKind::Circle)
         })
         .collect();
     assert_eq!(

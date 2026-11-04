@@ -277,7 +277,7 @@ pub(super) fn build_partial<T: Decide + topo::AtRestPolicy>(
     // canonical order, segments in swept order; per walled segment the
     // start rim then the end rim; on-axis segments classify the two
     // caps against each other (module docs). ----
-    finish_partial(
+    let coplanar_caps = finish_partial(
         &mut body,
         &cols,
         &bases,
@@ -347,6 +347,7 @@ pub(super) fn build_partial<T: Decide + topo::AtRestPolicy>(
             end_cap: end_face,
             start_meridians: start_mer,
             end_meridians: end_mer,
+            coplanar_caps,
         },
     })
 }
@@ -389,7 +390,9 @@ pub(super) fn he_edge<T: Decide>(body: &Body<T>, he: topo::HalfEdgeKey) -> EdgeK
 /// then end-chain meridian upgrades to `Intersection { cap, wall }`;
 /// per on-axis segment the shared edge classifies the two caps against
 /// each other — `Intersection { start, end }` when definitely
-/// transverse (θ ≠ π), conventional when definitely smooth (θ = π).
+/// transverse (θ ≠ π), conventional when definitely smooth (θ = π),
+/// where the caps are one carrier and are left on one record: that
+/// decision's row is returned.
 #[allow(clippy::too_many_arguments)] // one internal call site.
 fn finish_partial<T: Decide + topo::AtRestPolicy>(
     body: &mut Body<T>,
@@ -397,11 +400,12 @@ fn finish_partial<T: Decide + topo::AtRestPolicy>(
     bases: &[Vec<topo::HalfEdgeKey>],
     walls_all: &[Vec<Option<FaceKey>>],
     tops_all: &[Vec<Option<EdgeKey>>],
-    start_surface: topo::SurfaceKey,
-    end_surface: topo::SurfaceKey,
+    mut start_surface: topo::SurfaceKey,
+    mut end_surface: topo::SurfaceKey,
     band: Band,
     tol: Tol,
-) -> Result<(), RevolveError> {
+) -> Result<Option<topo::Coincidence>, RevolveError> {
+    let mut coplanar = None;
     for (li, col) in cols.iter().enumerate() {
         for (j, seg) in col.segs.iter().enumerate() {
             let segment_index = seg.canonical_segment;
@@ -431,11 +435,21 @@ fn finish_partial<T: Decide + topo::AtRestPolicy>(
                         sliver,
                         tol,
                     )?;
+                    // Caps the axis edge rests in one chart of are one
+                    // carrier: they are left on one record, and the
+                    // decision recorded.
+                    if let Some(row) = body.unify_across(bottom, tol)? {
+                        let Ok(sides) = topo::readback::edge_sides(body, bottom) else {
+                            unreachable!("axis edge {bottom:?} was read a moment ago")
+                        };
+                        (start_surface, end_surface) = sides.surfaces();
+                        coplanar = Some(row);
+                    }
                 }
             }
         }
     }
-    Ok(())
+    Ok(coplanar)
 }
 
 /// One loop's sweep products, per collapsed segment (`None` = on-axis

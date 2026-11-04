@@ -140,6 +140,72 @@ impl<T: Decide> Body<T> {
         }
     }
 
+    /// **Two surface records decided one carrier become one record**
+    /// (DESIGN `[coincidence.door]`): every face on `other` moves onto
+    /// `kept` through the describing re-chart ([`Rechart::shared`]),
+    /// its sense restated so its material side is unchanged
+    /// (`charts_agree`: whether the two charts face the same way), and
+    /// `other` goes where nothing names it. The edges the move strands
+    /// are restated: a description naming `other` names `kept`, its
+    /// chart image re-derived where the two charts differ
+    /// ([`Body::carried_redescriptions`]), and one naming the pair
+    /// `{kept, other}` lies between two faces of one record now and
+    /// rests in its chart. Every listed edge is certified on `kept` as
+    /// `site`'s; no other boundary is asked to lie on `kept`, since it
+    /// lay on `other`, decided the same carrier. The caller decided the
+    /// coincidence and records its row; this reads no value.
+    ///
+    /// # Errors
+    ///
+    /// The re-chart door's ([`Body::set_face_surfaces_describing`](crate::construction::Construct::set_face_surfaces_describing)).
+    pub(crate) fn unify_surfaces(
+        &mut self,
+        site: crate::policy_lane::KernelSite,
+        (kept, other): (SurfaceKey, SurfaceKey),
+        charts_agree: bool,
+        tol: Tol,
+    ) -> Result<(), EulerOpError>
+    where
+        T: crate::props::AtRestPolicy,
+    {
+        if kept == other {
+            return Ok(());
+        }
+        let mut wearers = self
+            .faces()
+            .filter(|(_, face)| face.surface == other)
+            .map(|(key, face)| (key, face.sense == charts_agree));
+        let Some((first, sense)) = wearers.next() else {
+            return Ok(());
+        };
+        let chart = wearers.fold(Rechart::shared(kept, first, sense), |chart, (f, s)| {
+            chart.with(f, s)
+        });
+        let charts = vec![chart];
+        let mut specs = self.carried_redescriptions(&charts)?;
+        let one = geom_brep::SurfacePair::new(kept, other);
+        for edge in self.stranded_by(&charts)? {
+            if specs.iter().any(|(e, _)| *e == edge) {
+                continue;
+            }
+            let data = proven(&self.edges, edge, EntityId::Edge);
+            let Some(curve) = self.edge_curve_linked(edge, data).certified() else {
+                continue;
+            };
+            if matches!(Named::of_description(curve.description()), Named::Pair(p) if p == one) {
+                specs.push((edge, curve.restated_at(geom_brep::RestLocus::Chart(kept))));
+            }
+        }
+        self.set_face_surfaces_certifying(
+            crate::policy_lane::Origin::Kernels(site),
+            charts,
+            &specs,
+            Vouch::OneCarrier,
+            tol,
+        )
+        .map(drop)
+    }
+
     /// The door [`Construct::set_face_surface_unvouched_for_tests`](crate::construction::Construct::set_face_surface_unvouched_for_tests) forwards to;
     /// documented there.
     #[cfg(any(test, feature = "test-support", feature = "sweep-testing"))]
@@ -167,6 +233,7 @@ impl<T: Decide> Body<T> {
             crate::policy_lane::Origin::Callers,
             charts,
             redescriptions,
+            Vouch::Asked,
             tol,
         )
     }
@@ -206,6 +273,7 @@ impl<T: Decide> Body<T> {
             crate::policy_lane::Origin::Kernels(site),
             charts,
             &specs,
+            Vouch::Asked,
             tol,
         )
     }
@@ -217,6 +285,7 @@ impl<T: Decide> Body<T> {
         origin: crate::policy_lane::Origin,
         charts: Vec<Rechart<T>>,
         redescriptions: &[(EdgeKey, EdgeCurveSpec<T>)],
+        vouch: Vouch,
         tol: Tol,
     ) -> Result<Vec<SurfaceKey>, EulerOpError>
     where
@@ -299,7 +368,10 @@ impl<T: Decide> Body<T> {
             charts: &charts,
             written: &written,
         };
-        for m in faces.iter().filter(|m| !m.on_parent_chart) {
+        for m in faces
+            .iter()
+            .filter(|m| !m.on_parent_chart && vouch == Vouch::Asked)
+        {
             let edges = self.run_edges(&self.proven_face(m.face).half_edges());
             let unvouched = self.unvouched(edges, moved, |f| f == m.face, &reading)?;
             if !unvouched.is_empty() && !refusals_lifted() {
@@ -1748,6 +1820,18 @@ impl<T: Real> Written<T> {
         self.at.insert(row.0, self.rows.len());
         self.rows.push(row);
     }
+}
+
+/// Whether a describing re-chart asks that each moved face's boundary
+/// lies on its new chart ([`Body::unvouched`]).
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Vouch {
+    /// Asked, of every face that leaves its chart.
+    Asked,
+    /// Not asked: the faces leave a record for one decided the same
+    /// carrier ([`Body::unify_surfaces`]), so a boundary that lay on
+    /// the one lies on the other.
+    OneCarrier,
 }
 
 /// A [`Rechart`]'s chart: [`FaceSurface`]'s `New` and `Shared`, the

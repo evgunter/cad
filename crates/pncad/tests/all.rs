@@ -1291,6 +1291,7 @@ fn revolved_kind_is_matchable(kind: &RevolvedKind) -> &'static str {
             end_cap,
             start_meridians,
             end_meridians,
+            ..
         } => {
             named::<FaceKey>(*start_cap);
             named::<FaceKey>(*end_cap);
