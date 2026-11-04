@@ -36,7 +36,8 @@ use crate::curve_pair::{Hit, MeetFault, Meetings, Span, meet};
 /// boundary has left the span undecided.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Door {
-    /// A line or a conic against a plane: the plane-crossing lane.
+    /// A line or a conic against a plane: the plane-crossing lane
+    /// ([`plane_crossing`]).
     PlaneCrossing,
     /// A line against a cylinder, a cone, a sphere or a torus: the
     /// certified roots of the surface's residual along the line.
@@ -44,7 +45,8 @@ pub enum Door {
     /// A circle or an ellipse against a cylinder, a cone or a sphere: the
     /// residual's trigonometric polynomial in the conic's angle.
     ConicQuadric,
-    /// A circle or an ellipse against a torus.
+    /// A circle or an ellipse against a torus ([`circle_torus`],
+    /// [`ellipse_torus`]).
     ConicTorus,
     /// A spline span against an analytic face: the face's residual
     /// composed along the span (the ring composite).
@@ -129,6 +131,37 @@ pub fn route(curve: CurveKind, surface: SurfaceKind) -> Route {
             "a span against a spindle sheet's face, which has no lane yet",
         ),
     }
+}
+
+/// **The K-name prefix of every door this crate decides in**, by door:
+/// a K name's prefix is the module that decides its margin
+/// (`[topo.homes]`), and every name decided in `curve_face.rs` or under
+/// `curve_face/` starts with one of these or with [`TABLE_K_PREFIX`]
+/// (its row `every_door_name_carries_a_listed_prefix` reads those
+/// sources for it). A door built elsewhere decides under its own
+/// module's prefix there, and has no row here until it moves beside
+/// [`route`]. A reader that asks whether a recorded name is curve × face
+/// machinery asks [`decided_by_curve_face`], not a copy of this list.
+pub const DOOR_K_PREFIXES: &[(Door, &str)] = &[
+    (Door::PlaneCrossing, "plane_crossing_"),
+    (Door::ConicTorus, "circle_torus_"),
+    (Door::ConicTorus, "ellipse_torus_"),
+    (Door::SplineComposite, "spline_composite_"),
+    (Door::SplineFace, "spline_face_"),
+];
+
+/// The K-name prefix of this module's own readings, ahead of any door:
+/// the boundary pass and its windows.
+pub const TABLE_K_PREFIX: &str = "curve_face_";
+
+/// Whether `predicate` is decided by the curve × face table or one of
+/// its doors in this crate ([`TABLE_K_PREFIX`], [`DOOR_K_PREFIXES`]).
+#[must_use]
+pub fn decided_by_curve_face(predicate: &str) -> bool {
+    predicate.starts_with(TABLE_K_PREFIX)
+        || DOOR_K_PREFIXES
+            .iter()
+            .any(|(_, prefix)| predicate.starts_with(prefix))
 }
 
 /// What the boundary pass makes of a span ([`boundary`]).
@@ -504,7 +537,16 @@ fn carrier(refusal: geom::CarrierRefusal) -> BoundaryRefusal {
     )
 }
 
+pub mod circle_roots;
+pub mod circle_torus;
 pub mod composite;
+// The conic rows' shared test oracles (test builds, and `topo`'s through
+// `test-support`).
+#[cfg(any(test, feature = "test-support"))]
+#[doc(hidden)]
+pub mod conic_oracle;
+pub mod ellipse_torus;
+pub mod plane_crossing;
 #[cfg(test)]
 mod review_rows;
 #[cfg(test)]

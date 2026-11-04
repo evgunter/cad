@@ -2,8 +2,11 @@
 id: a-rim-arc-lying-on-a-cylinder-refuses-as-a-curved-pierce
 kind: issue
 title: A circle arc of one operand lying on the other's cylinder refuses CurvedPierceUnsupported where a mate holds the two rims: klein wall 3 stops there
-status: open
+status: dispatched
 opened: 2026-11-03
+priority: P0
+cost: M
+branch: splice/rim-arc-on-cylinder
 ---
 
 

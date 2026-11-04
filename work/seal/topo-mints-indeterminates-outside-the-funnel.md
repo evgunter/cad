@@ -476,7 +476,7 @@ sites are the PRED, CLEAVE and D10 rows in this table.
 | C2 | `rules.rs:319` `apply_rule_a` | `enters_material` reads `Tangent` after the parallelism gate | c, one fact decided twice |
 | C3 | `rules.rs:488` `wall_graze` | `wall_bend_order2`: `Exits`/`Tangent` after rule (a) read "enters" | c, decided twice |
 | C4 | `rules.rs:500` `wall_graze` | `wall_bend_order2`: the sectors disagree | c, disagreement or straddle (ledger F11) |
-| C5 | `splitting/classify.rs:608` | `split_conic_graze_side` decided Zero (reachable at K ≤ 2) | a |
+| C5 | `geom-brep/src/curve_face/plane_crossing.rs` (`conic_plane_candidates`) | `plane_crossing_graze_side` decided Zero (reachable at K ≤ 2) | a |
 | C6 | `splitting/containment.rs:311` `ReadEscalation::straddle` | two bounds straddle the band | a (item 6) |
 | C7 | `containment.rs:1993` | `point_in_arc_loop_boundary_disagreement` | c, disagreement |
 | C8 | `splitting/order.rs:126` `in_plane_frame` | `split_join_frame_arm`: every member decided non-positive | a (the #3686 correction) |

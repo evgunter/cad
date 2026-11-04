@@ -22,8 +22,8 @@ use geom_brep::roots::{Roots, Unsettled};
 use geom_core::{Band, Decide, Indeterminate, InfSpeed, Margin, Point3, Real, Sign, Vec3};
 
 use super::BooleanError;
-use super::circle_roots::CircleRoots;
 use crate::validate::decide;
+use geom_brep::curve_face::circle_roots::CircleRoots;
 
 /// The funnel row a crossing's sense is decided on: the cosine between
 /// the piece's direction and the outward normal, levered by the piece's
@@ -158,6 +158,16 @@ fn door(error: BooleanError) -> TraceFault {
     match error {
         BooleanError::Escalated { diag, .. } => TraceFault::Escalated(diag),
         other => unreachable!("the trace dispatches each root door on its own kinds: {other:?}"),
+    }
+}
+
+/// A curve × face door's refusal, as the trace's: its escalation is the
+/// trace's own, carrying no decision of the Boolean's.
+fn door_refusal(refusal: geom_brep::curve_face::circle_roots::DoorRefusal) -> TraceFault {
+    use geom_brep::curve_face::circle_roots::DoorRefusal;
+    match refusal {
+        DoorRefusal::Escalated(diag) => TraceFault::Escalated(diag),
+        DoorRefusal::Invariant(what) => unreachable!("a root door's invariant: {what}"),
     }
 }
 
@@ -302,25 +312,30 @@ pub fn circle_crossings<T: Decide>(
         _ => {
             let circle = Curve3::Circle(geom::Circle {
                 frame: geom::Frame {
-                    center,
+                    origin: center,
                     axis,
                     u_ref,
                 },
                 radius,
             });
             let found = match surface {
-                Surface::Torus { .. } => {
-                    super::circle_torus::circle_torus_roots(&circle, T::zero(), tau, surface, band)
-                }
+                Surface::Torus { .. } => geom_brep::curve_face::circle_torus::circle_torus_roots(
+                    &circle,
+                    T::zero(),
+                    tau,
+                    surface,
+                    band,
+                )
+                .map_err(door_refusal)?,
                 _ => super::conic_quadric::conic_quadric_roots(
                     &circle,
                     T::zero(),
                     tau,
                     surface,
                     band,
-                ),
-            }
-            .map_err(door)?;
+                )
+                .map_err(door)?,
+            };
             roots_of(found)?
                 .into_iter()
                 .map(|theta| {

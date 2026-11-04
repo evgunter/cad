@@ -49,7 +49,7 @@ the radical form `d² ± r₁² ∓ r₂²`); these hits are other predicates:
 spanning a wall, not a crossing); `torus.rs`'s coaxial cylinder wall
 (a circle against a line); `pair_section/gap.rs`'s critical-gap levels
 (`ρ₁ + ρ₂`, `|ρ₁ − ρ₂|` against a swept distance);
-`topo/src/boolean/circle_torus.rs`'s contour angle (classified by its
+`geom-brep/src/curve_face/circle_torus.rs`'s contour angle (classified by its
 bands, placed by the law of cosines); `topo/src/boolean/join.rs`
 `parallel_radical_plane` (measured harmless,
 `circle-pair-radical-chord-has-no-shared-home`); and

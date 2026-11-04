@@ -1302,11 +1302,11 @@ fn conic_or_line_on<T: Decide>(
             geom::Curve3::Circle(..) | geom::Curve3::Ellipse(..),
             &geom::Surface::Plane { origin, normal, .. },
         ) => {
-            return match crate::splitting::plane_crossing_lane(
+            return match geom_brep::curve_face::plane_crossing::plane_crossing_lane(
                 carrier, t0, t1, origin, normal, band,
             ) {
-                crate::splitting::PlaneCrossingLane::Conic(
-                    crate::splitting::ConicPlaneMeet::Parallel { offset },
+                geom_brep::curve_face::plane_crossing::PlaneCrossingLane::Conic(
+                    geom_brep::curve_face::plane_crossing::ConicPlaneMeet::Parallel { offset },
                 ) => match crate::validate::decide(
                     "bool_conic_face_plane_offset",
                     Margin::of(offset),
@@ -1516,7 +1516,7 @@ mod torus_rows {
     ) -> geom::Curve3<f64> {
         geom::Curve3::Circle(geom::Circle {
             frame: geom::Frame {
-                center,
+                origin: center,
                 axis,
                 u_ref,
             },
@@ -1990,16 +1990,8 @@ fn bend_across<T: Decide>(
 ) -> Option<geom_core::Vec3<T>> {
     let toward = match *surface {
         geom::Surface::Plane { .. } => return Some(geom_core::Vec3::zero()),
-        geom::Surface::Cylinder { origin, axis, .. } => {
-            geom::Line { origin, dir: axis }.foot(p) - p
-        }
-        geom::Surface::Cone { apex, axis, .. } => {
-            geom::Line {
-                origin: apex,
-                dir: axis,
-            }
-            .foot(p)
-                - p
+        geom::Surface::Cylinder { .. } | geom::Surface::Cone { .. } => {
+            surface.frame()?.axis_line().foot(p) - p
         }
         _ => return None,
     };
@@ -2619,7 +2611,7 @@ pub(super) const PARTING_ORDER: &str = "bool_parting_order";
 /// edges meet.
 fn crossing_escalated(diag: geom_core::Indeterminate) -> BooleanError {
     BooleanError::Escalated {
-        decision: BooleanDecision::Crossing(crate::splitting::CrossingDecision::OnEdge),
+        decision: BooleanDecision::Crossing(geom_brep::edge_crossing::CrossingDecision::OnEdge),
         diag,
     }
 }
@@ -3246,5 +3238,41 @@ mod spline_rider {
             Placed::Off,
             "a net beyond the band on one side reads off"
         );
+    }
+}
+
+/// **The slit pass's floor on a reverted spline face** ([`spline_floor`]):
+/// the floor's outward normal at the in-trim foot is the chart's in the
+/// face's sense, so the reverted face reads the original's negation.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod reverted_floor {
+    use geom_core::{Band, Point3, Tol, Vec3};
+
+    /// **The cube's spline top reads `+z` at its middle as built and
+    /// `−z` reverted.** `Body::revert` keeps the chart and its trim and
+    /// flips the face's `sense`; a floor read off the chart's normal
+    /// without the bit would read `+z` on both.
+    #[test]
+    fn a_reverted_spline_floor_reads_its_outward_normal_negated() {
+        use crate::sector_face::tests::{planar_chart, spline_topped_cube};
+        let band = Band::linear(Tol::witness()).unwrap();
+        let chart = planar_chart(vec![0.0, 0.0, 1.0, 1.0], 1, &[0.0, 1.0]);
+        let (body, top) = spline_topped_cube(chart, true);
+        let reverted = body.revert().unwrap();
+        assert!(
+            !reverted.get_face(top).unwrap().sense,
+            "the reverted top is the sense-false one"
+        );
+        let p = Point3::new(0.5, 0.5, 1.0);
+        for (b, z, what) in [(&body, 1.0, "as built"), (&reverted, -1.0, "reverted")] {
+            let n = super::spline_floor(b, top, p, band)
+                .unwrap_or_else(|e| panic!("{what}: {e:?}"))
+                .unwrap_or_else(|| panic!("{what}: the middle reads at an in-trim foot"));
+            assert!(
+                (n - Vec3::new(0.0, 0.0, z)).norm() < 1e-12,
+                "{what}: {n:?}, want z = {z}"
+            );
+        }
     }
 }

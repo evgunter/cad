@@ -2465,7 +2465,7 @@ struct Wedge<T: Real> {
 /// A wedge is the material between an edge's two face sheets, CCW
 /// about the edge's own direction from its minus half's sheet to its
 /// plus half's: an interior direction comes from the sector rungs
-/// ([`crate::sector_shape::sector_shape`]), which refuse a spike, and
+/// ([`geom_brep::sector_shape::sector_shape`]), which refuse a spike, and
 /// whether a direction lies strictly inside it is tier 3's pinch-corner
 /// reading ([`crate::validate::wedge_holds_named`], under names of its
 /// own, [`LINE_WEDGE`]), the same question that
@@ -2539,21 +2539,22 @@ fn wedge<T: Decide>(
     let own = n_plus.vec().cross(e.dir);
     let next = n_minus.vec().cross(-e.dir);
     let arm = e.len;
-    let shape = crate::sector_shape::edge_wedge_shape(own * arm, next * arm, e.dir, band).map_err(
-        |fault| match fault {
-            crate::sector_shape::SectorFault::Rung {
-                rung: crate::sector_shape::SectorRung::Straight { .. },
+    let shape = geom_brep::sector_shape::edge_wedge_shape(own * arm, next * arm, e.dir, band)
+        .map_err(|fault| match fault {
+            geom_brep::sector_shape::SectorFault::Rung {
+                rung: geom_brep::sector_shape::SectorRung::Straight { .. },
                 diag,
             } if diag.margin.rejected_sign().is_some() => {
                 WedgeRefusal::Unread(e.key, TouchUnread::Degenerate)
             }
-            crate::sector_shape::SectorFault::Rung { diag, .. } => WedgeRefusal::Undecided(diag),
-            crate::sector_shape::SectorFault::NonFiniteChord
-            | crate::sector_shape::SectorFault::UnderflowedChord => {
+            geom_brep::sector_shape::SectorFault::Rung { diag, .. } => {
+                WedgeRefusal::Undecided(diag)
+            }
+            geom_brep::sector_shape::SectorFault::NonFiniteChord
+            | geom_brep::sector_shape::SectorFault::UnderflowedChord => {
                 WedgeRefusal::Unread(e.key, TouchUnread::ChordScale)
             }
-        },
-    )?;
+        })?;
     Ok(Wedge {
         axis: e.dir,
         own: shape.unit_own,
@@ -17742,7 +17743,7 @@ mod tests {
             let geom::Curve3::Ellipse(geom::Ellipse {
                 frame:
                     geom::Frame {
-                        center,
+                        origin: center,
                         axis,
                         u_ref,
                     },
@@ -20474,7 +20475,7 @@ mod curved_edge_edge {
                         .and_then(|d| body.get_curve_geom(d.curve))
                         .and_then(|g| g.certified())
                         .is_some_and(|c| {
-                            matches!(c.carrier(), Curve3::Circle(geom::Circle { frame: geom::Frame { center, .. }, .. }) if center.z == 0.0)
+                            matches!(c.carrier(), Curve3::Circle(geom::Circle { frame: geom::Frame { origin: center, .. }, .. }) if center.z == 0.0)
                         })
             })
             .expect("the sheet's bottom rim");
