@@ -217,3 +217,8 @@
   - **Sent to the lane.** Class note: a sweep for copies by regex finds only the spellings its author already imagined. The type that carries the stored datum (`ContactCarrier::TrimLine` with its line) is what makes the next one land. (ONECOPY orchestrator)
 
 - 2026-11-04 — PR 6533 fix pass reported at head `a9ca21bd`, with hosted CI green. TrimLine now carries the stored trimline, and the worst envelope over shears ±0.1 to ±0.8 is 1.57e-13 against a 6e-13 bound. The new pins go red when the old reads are restored. `corner_ball` and build.rs route through `sided`. S3 is filed at `work/band/a-blend-arcs-seam-reference-is-read-off-its-vertex-less-its-centre.md`. The slow set is 94/94 at both ε, against base 91/92 at 1e-12. The delta review is sent to the reviewer.
+
+- 2026-11-04 — PR 6533 delta review: MERGE. The reviewer restored each old read and saw all three pins go red. The `placed` closure leaves Transverse unchanged, and the sided routing matches the old values. Notes that do not gate the merge, both to go on the band row after the merge:
+  - NOTE-1: the chamfer's support trimlines still re-read τ through `Chord` (`planar.rs:564`, `surgery.rs:5333-5336`), though the arm stores `Line{foot,tau}`. They are planes, so it probably costs nothing.
+  - A slip: only shear −0.8 was red, not ±0.8.
+  Main (PR 6530/6534, splice) merged into the branch cleanly as `c47276d9`; only the nextest slow-set lines were combined. The gate is running.
