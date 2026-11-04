@@ -36,6 +36,11 @@
 #                 absolute value), so it lies clear of `atan2`'s cut and
 #                 asks no decision, as `geom::separation` does; at `Real`
 #                 there is no door to ask (`geom::surfaces::sheet_apex`)
+#   past-at-real  the `(0, τ]` read of a point's turn past a start,
+#                 `π + atan2(−y, −x)`, at `T: Real`, where no door
+#                 applies (`Azimuth::near` decides, and needs `Decide`);
+#                 at `Decide` this read is `Azimuth::near(t + π) − t`
+#                 (surgery's `ArcReads::arc_past`)
 #   user          an angle the user states or reads (the expression
 #                 language's atan2, a mate's angles, a measure, a sketch)
 #   awaits-6443   `topo::boolean::rim_wedge`, rewritten by ONEDOOR's
@@ -87,7 +92,7 @@ EXEMPT = {
     "crates/geom-core/src/interval.rs",
     "crates/geom-core/src/sym.rs",
 }
-CLASSES = {"turn", "harmonic", "harmonic-cut", "chart", "upper-half", "user", "awaits-6443"}
+CLASSES = {"turn", "harmonic", "harmonic-cut", "chart", "upper-half", "past-at-real", "user", "awaits-6443"}
 TEST_NAME = re.compile(r"(?:_rows|_fuzz)\.rs$|^test_support")
 
 

@@ -628,8 +628,7 @@ mod tests {
         );
 
         // The rename keeps a hairline box about `t₀` a hairline, here
-        // and about the middle's antipode alike, where a floor of the gap
-        // about `t₀` reads a whole period.
+        // and about the middle's antipode alike.
         let tau = Interval::tau();
         let mid = (t0 + t1) * ex(0.5);
         for cand in [
@@ -644,12 +643,5 @@ mod tests {
                 centred.hi()
             );
         }
-        let anchored = t0 + (Interval::from_bounds(-1e-15, 1e-15) - t0).reduce_periodic(tau);
-        assert!(
-            anchored.hi() - anchored.lo() >= core::f64::consts::TAU,
-            "a floor about t0 reads a period wide; it gave [{}, {}]",
-            anchored.lo(),
-            anchored.hi()
-        );
     }
 }

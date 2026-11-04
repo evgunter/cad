@@ -356,8 +356,7 @@ impl<T: Real> Conic<T> for Circle<T> {
     /// reads its own: a circle of negative radius, traversed through the
     /// seam's antipode, reads the parameter that reproduces the point.
     fn azimuth(&self, p: Point3<T>) -> Azimuth<T> {
-        let (x, y) = self.frame.in_plane(p);
-        Azimuth::of(y * self.radius, x * self.radius)
+        self.frame.azimuth(p).scaled(self.radius, self.radius)
     }
 
     fn speed_lo(&self) -> T {
@@ -526,8 +525,7 @@ impl<T: Real> Conic<T> for Ellipse<T> {
     /// `(x/a, y/b)`'s direction, read as `(y·a, x·b)`: the same
     /// direction scaled by `a·b`, with no division.
     fn azimuth(&self, p: Point3<T>) -> Azimuth<T> {
-        let (x, y) = self.frame.in_plane(p);
-        Azimuth::of(y * self.semi_u, x * self.semi_v)
+        self.frame.azimuth(p).scaled(self.semi_u, self.semi_v)
     }
 
     fn speed_lo(&self) -> T {

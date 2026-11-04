@@ -196,6 +196,14 @@ impl<T: Real> Azimuth<T> {
         Self { y, x }
     }
 
+    /// The direction with its `y` component times `y_by` and its `x`
+    /// times `x_by`: a frame's direction read in a conic's unit
+    /// coordinates, scaled by the product of its semi-axes so no division
+    /// enters ([`crate::Conic::azimuth`]).
+    pub(crate) fn scaled(self, y_by: T, x_by: T) -> Self {
+        Self::of(self.y * y_by, self.x * x_by)
+    }
+
     /// **A point's direction in a torus's tube section**: the point at
     /// `height` along the axis and `rho` from it, about the tube's centre
     /// circle of `major_radius`, `(height, ρ − R)` in the meridian
@@ -265,29 +273,40 @@ impl<T: Decide> Azimuth<T> {
     /// one angle, so both are taken at [`Band::least`] outside the log
     /// (`docs/predicate-dimension-audit.md` row F31).
     ///
-    /// A direction whose length is not definitely positive decides no
-    /// angle. A point direction of exactly no length names every angle
-    /// alike, and reads `reference` itself, the angle the caller asked
-    /// about. An enclosure that only reaches zero length may hold a
-    /// direction of any angle, so it reads the whole window about
-    /// `reference`, `[reference − π, reference + π]`, never a narrow
-    /// answer. A direction with a component that is not finite names
+    /// A point direction that is exactly zero names every angle alike,
+    /// and reads `reference` itself, the angle the caller asked about;
+    /// any other point direction reads its angle, however small its
+    /// length (one whose squares underflow included). An enclosure that
+    /// reaches zero length may hold a direction of any angle, so it reads
+    /// the whole window about `reference`, `[reference − π, reference + π]`,
+    /// never a narrow answer. A direction with a component that is not finite names
     /// none, and reads NaN.
     pub fn near(self, reference: T) -> T {
         if !(geom_core::real::is_finite_length(self.y) && geom_core::real::is_finite_length(self.x))
         {
             return T::from_f64(f64::NAN);
         }
-        if !(T::one() / self.length()).is_bounded() {
-            let point = self.y.point_value().is_some() && self.x.point_value().is_some();
-            return if point {
-                reference
-            } else {
-                (reference - T::pi()).enclosure_hull(reference + T::pi())
-            };
+        match (self.y.point_value(), self.x.point_value()) {
+            // A point direction: no length only where it is exactly zero;
+            // any other reads its angle, however small its length.
+            (Some(y), Some(x)) if y == 0.0 && x == 0.0 => return reference,
+            (Some(_), Some(_)) => {}
+            // An enclosure that reaches zero length may hold any angle.
+            _ if !(T::one() / self.length()).is_bounded() => {
+                let window = (reference - T::pi()).enclosure_hull(reference + T::pi());
+                debug_assert!(!window.is_poison(), "an enclosure's window is no poison");
+                return window;
+            }
+            _ => {}
         }
         let read = unlogged("F31", || {
-            self.read_in(Window::Angle, "azimuth_near_cut_side", Band::least())
+            stable_azimuth(
+                "azimuth_near_cut_side",
+                self.y,
+                self.x,
+                Window::Angle.start(),
+                Band::least(),
+            )
         });
         Period::new(T::tau()).near(read, reference)
     }
@@ -525,6 +544,38 @@ mod tests {
                 "angle {angle} about {reference}: {n:?} misses {want}"
             );
         }
+    }
+
+    /// **A point direction whose length underflows still reads its
+    /// angle**: only an exact zero reads the reference. At `f64` and at
+    /// `Interval` point inputs, `(y, x)` of `(0, 1e-200)`, `(0, −1e-200)`
+    /// and `(1e-170, −1e-170)` read `0`, `π` and `3π/4` near `2`.
+    #[test]
+    fn an_underflowing_point_direction_reads_its_angle() {
+        use core::f64::consts::PI;
+        use geom_core::{Bounds, Interval};
+        for (y, x, want) in [
+            (0.0, 1e-200, 0.0),
+            (0.0, -1e-200, PI),
+            (1e-170, -1e-170, 0.75 * PI),
+        ] {
+            let got = Azimuth::of(y, x).near(2.0_f64);
+            assert!(
+                (got - want).abs() < 1e-12,
+                "f64 ({y}, {x}): {got}, not {want}"
+            );
+            let iv = Azimuth::of(Interval::from_f64(y), Interval::from_f64(x))
+                .near(Interval::from_f64(2.0));
+            assert!(
+                iv.lo() - 1e-12 <= want && want <= iv.hi() + 1e-12 && iv.hi() - iv.lo() < 1e-12,
+                "Interval ({y}, {x}): {iv:?}, not about {want}"
+            );
+        }
+        assert_eq!(
+            Azimuth::of(-0.0, 0.0).near(2.0_f64),
+            2.0,
+            "an exact zero reads the reference"
+        );
     }
 
     /// **`separation` is the distance round the turn, narrow at the

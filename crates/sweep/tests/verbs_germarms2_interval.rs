@@ -220,22 +220,6 @@ fn assert_the_fixture_escape(d: &str, reposed: &BooleanError, what: &str) {
 /// [`same_door_or_escalated`] writes the reason for.
 #[test]
 fn the_meeting_axes_pose_builds_at_the_certified_scalar() {
-    // Pinned red at 1e-12 since PR 5156: the join's certification
-    // escalates on a surface residual at the zero band's edge
-    // (`work/germ/main-red-the-meeting-axes-pose-refuses-its-endpoint-at-1e-12`).
-    test_utils::pinned_red::row(
-        geom_core::Tol::witness().eps(),
-        &[1e-12],
-        "the meeting-axes pose",
-        &[
-            "the meeting-axes pose builds: Err(Join(BooleanJoin(Euler(Certification { error: Escalated { check: SurfaceResidual",
-        ],
-        the_meeting_axes_pose_builds_at_the_certified_scalar_row,
-    );
-}
-
-/// The row [`the_meeting_axes_pose_builds_at_the_certified_scalar`] runs, under its pin.
-fn the_meeting_axes_pose_builds_at_the_certified_scalar_row() {
     let a = spin(&cyl(1.0, 1.2), z_axis(), PI / 4.0);
     let b = spin(
         &spin(&cyl(1.0, 1.2), x_axis(), PI / 2.0),

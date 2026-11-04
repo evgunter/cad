@@ -54,3 +54,8 @@ refusal gone on that branch, the 1e-12 stop is the join's certification
 on a surface residual
 (`Join(BooleanJoin(Euler(Certification { error: Escalated { check: SurfaceResidual { .. }, sample: 5, .. }))))`),
 not `EndpointEnd`; the row's pin there names it, at 1e-12 only.
+
+**Closes on ONECOPY `onecopy/angle-reads` (PR 6482, 2026-11-04).** On that
+branch the row builds at 1e-12 as well, and passes its volume and node
+checks; its `pinned_red` wrapper is dropped there, so the row asserts the
+build at every ε. The status is GERM's to set once that PR merges.
