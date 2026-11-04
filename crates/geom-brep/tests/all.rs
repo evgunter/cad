@@ -149,6 +149,8 @@ mod m7_8_plane_nurbs_edge;
 mod m8_f67_r1_probes;
 #[path = "marched_windings.rs"]
 mod marched_windings;
+#[path = "off_coaxial_drift_oracle.rs"]
+mod off_coaxial_drift_oracle;
 #[path = "offa_r1_probes.rs"]
 mod offa_r1_probes;
 #[path = "offb_r1_probes.rs"]
