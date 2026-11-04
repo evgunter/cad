@@ -91,13 +91,16 @@
 //! - **Genuinely undetected until C9/C6**: the other SAME-solid
 //!   distinct-key curved pairs (the backstop is cross-solid); a point
 //!   where a solid touches itself with a curved face or edge in its link
-//!   whose tangent cones leave it unread ([`SelfTouch::SecondOrder`]) —
-//!   a cone's apex or a vertex in the band of its axis, a corner whose
-//!   two edges leave along one tangent (a cusp; a spur's tip, the loop back
-//!   along the half-edge it came by, reads as the whole turn), a spline face held off a
-//!   corner, a face whose foot normal, reach or corner face does not
-//!   read, a curved edge with no certified curve, sheets tangent to
-//!   first order there, or sectors read lying on each other (two
+//!   whose tangent cones leave it unread, at first order and one order
+//!   down ([`crate::link::FaceSector::tangent`], `link::second_order`;
+//!   [`SelfTouch::SecondOrder`]) — a cone's apex or a vertex in the band
+//!   of its axis, a cusp corner whose edges' bends do not part it, a horn
+//!   beside a sheet along its ray or a ring of horns that reads as no
+//!   thorn, a spline face held off a corner, a face whose foot normal,
+//!   reach or corner face does not read, a curved edge with no certified
+//!   curve, sheets along a tied ray that one order down meet or do not
+//!   part, a curved sheet holding a tied ray inside it, two whole tangent
+//!   planes on one plane, or sectors read lying on each other (two
 //!   tangent sectors that coincide, or a slit or doubled sheet of planar
 //!   faces in a link with a curved face) — which
 //!   [`sweep_self_touch_points`] leaves unread
@@ -8337,9 +8340,10 @@ fn edge_in_own_face<T: Decide>(
 /// planar face with a spline edge, or a point tied inside a curved edge
 /// ([`Germ::of_holds`] answers `Unreadable` before any other
 /// refusal) is read as its faces' tangent cones ([`self_touch_verdict`]),
-/// wherever their first order decides. Where it does not, or the cones
-/// do not build, the point is left unread, named
-/// ([`SelfTouch::SecondOrder`]): no reading of second order parts it yet.
+/// wherever their first order decides, or one order down where it ties
+/// at a cusp corner or along a ray (`link::second_order`). Where neither
+/// decides, or the cones do not build, the point is left unread, named
+/// ([`SelfTouch::SecondOrder`]).
 fn sweep_self_touch_points<T: Decide>(
     body: &Body<T>,
     geo: &Geo<T>,
@@ -8416,19 +8420,25 @@ enum SelfTouch {
     /// The link's verdict.
     Read(TouchVerdict),
     /// A curved face or edge takes part and the faces' tangent cones do
-    /// not decide the point ([`Link::tangent_of`]): what a reading of
-    /// second order would part, which there is none of yet, and what the
-    /// tangent reading cannot build. [`TouchUnread::Unreadable`] for a
-    /// face with no tangent plane there (a cone's apex, or a vertex in
-    /// the band of its axis), a corner whose two edges leave it along one
-    /// tangent (a cusp) other than a spur's tip, a spline face held off a
-    /// corner, a face whose normal at the foot or whose reach does not
-    /// read, a corner face [`crate::sector_face::resolve`] refuses, a
-    /// curved edge with no certified curve, or a bound or plane lying on
-    /// another sheet's to first order only (a tangency, two kissing balls
-    /// at any pose included); [`TouchUnread::Degenerate`] for two sectors
-    /// read lying on each other, which takes in a slit or a doubled sheet
-    /// of planar faces as well as tangent sectors that coincide.
+    /// not decide the point ([`Link::tangent_of`]), at first order or one
+    /// order down (`link::second_order`), or the tangent reading cannot
+    /// build. [`TouchUnread::Unreadable`] for a face with no tangent plane
+    /// there (a cone's apex, or a vertex in the band of its axis), a cusp
+    /// corner its edges' bends do not part, a horn beside a sector along
+    /// its ray or a ring of horns that reads as no thorn, a spline face
+    /// held off a corner, a face whose normal at the foot or whose reach
+    /// does not read, a corner face [`crate::sector_face::resolve`]
+    /// refuses, a curved edge with no certified curve, sheets along a
+    /// tied ray that one order down meet or do not part, a curved sheet
+    /// holding such a ray inside it, or two whole tangent planes on one
+    /// plane (two kissing balls at any pose included). A sign one order
+    /// down that the band leaves undecided, in band or moved there by the
+    /// first order's charged residue, is [`TouchUnread::Unreadable`] too:
+    /// this `why` does not part an in-band reading one order down from a
+    /// structural refusal.
+    /// [`TouchUnread::Degenerate`] for two sectors read lying on each
+    /// other, which takes in a slit or a doubled sheet of planar faces as
+    /// well as tangent sectors that coincide.
     SecondOrder(TouchUnread),
 }
 
@@ -8725,8 +8735,11 @@ impl<T: Decide> Link<T> {
     /// is named by its edge ([`rest::one_material`] holds the cone to the
     /// coincidences its faces keep).
     ///
-    /// A face with no tangent plane at the point (a cone's apex, or a
-    /// vertex in the band of its axis), a spline face held anywhere but a
+    /// A cusp corner reads as its edges bend: the whole turn, or a horn
+    /// the link keeps beside its sectors ([`Link::of_tangent`]). A face
+    /// with no tangent plane at the point (a cone's apex, or a vertex in
+    /// the band of its axis), a cusp corner its bends do not part, a
+    /// spline face held anywhere but a
     /// corner, a curved edge with no certified curve, or a face whose
     /// normal or reach does not read is [`TouchUnread::Unreadable`]; a
     /// reading of it in band, [`TouchUnread::InBand`].
@@ -8737,19 +8750,20 @@ impl<T: Decide> Link<T> {
         p: Point3<T>,
         band: Band,
     ) -> Result<Self, TouchUnread> {
-        let mut sectors = Vec::new();
+        let mut pieces = Vec::new();
         for (&f, all) in holds {
-            sectors.extend(tangent_sectors(body, geo, f, p, all, band)?);
+            pieces.extend(tangent_sectors(body, geo, f, p, all, band)?);
         }
-        Self::of(p, sectors)
+        Self::of_tangent(p, pieces)
     }
 }
 
 /// **Face `f`'s tangent sectors at `p`**, held as `holds` say
 /// ([`Link::tangent_of`]): one per pass of its loops through a corner it
-/// is held at, then one per pass along an edge it is held inside whose
-/// ends are no such corner, and where neither holds it, its whole
-/// tangent plane.
+/// is held at (a horn where a cusp corner is one,
+/// [`crate::link::FaceSector::tangent`]), then one per pass along
+/// an edge it is held inside whose ends are no such corner, and where
+/// neither holds it, its whole tangent plane.
 fn tangent_sectors<T: Decide>(
     body: &Body<T>,
     geo: &Geo<T>,
@@ -8757,8 +8771,8 @@ fn tangent_sectors<T: Decide>(
     p: Point3<T>,
     holds: &[Held],
     band: Band,
-) -> Result<Vec<FaceSector<T>>, TouchUnread> {
-    use crate::link::TangentFan;
+) -> Result<Vec<crate::link::TangentPiece<T>>, TouchUnread> {
+    use crate::link::{Bound, TangentFan};
     let face = body.get_face(f).ok_or(TouchUnread::Corrupt)?;
     let surface = body
         .get_surface(face.surface)
@@ -8775,14 +8789,25 @@ fn tangent_sectors<T: Decide>(
             let into = half.prev;
             let back = body.mate(into).ok_or(TouchUnread::Corrupt)?;
             let normal = corner_normal(body, half.start, back, band)?;
-            let (d0, l0) = departure(body, half.start, he)?;
-            let (d1, l1) = departure(body, half.start, back)?;
+            let (d0, line0, bend0) = departure(body, half.start, he)?;
+            let (d1, line1, bend1) = departure(body, half.start, back)?;
             let e_in = body.get_half_edge(into).ok_or(TouchUnread::Corrupt)?.edge;
             let apex = *geo.vmap.get(&half.start).ok_or(TouchUnread::Corrupt)?;
             let fan = TangentFan::Corner {
                 d0,
                 d1,
-                bounds: [(half.edge, l0), (e_in, l1)],
+                bounds: [
+                    Bound {
+                        edge: half.edge,
+                        line: line0,
+                        bend: bend0,
+                    },
+                    Bound {
+                        edge: e_in,
+                        line: line1,
+                        bend: bend1,
+                    },
+                ],
                 spur: back == he,
             };
             out.push(FaceSector::tangent(
@@ -8808,11 +8833,15 @@ fn tangent_sectors<T: Decide>(
             if !held_edge(half.edge) || corner(half.start) || corner(end) {
                 continue;
             }
-            let (along, line) = direction_at(body, he, p)?;
+            let (along, line, bend) = direction_at(body, he, p)?;
             let fan = TangentFan::Edge {
                 along,
                 reach: reach()?,
-                edge: (half.edge, line),
+                edge: Bound {
+                    edge: half.edge,
+                    line,
+                    bend,
+                },
             };
             out.push(FaceSector::tangent(
                 surface.clone(),
@@ -8894,28 +8923,33 @@ fn foot_normal<T: Decide>(
     }
 }
 
-/// Where half-edge `he` leaves its start `v`, scaled to its reach, and
-/// whether it is a line: the splitting lane's reading
+/// Where half-edge `he` leaves its start `v`, scaled to its reach,
+/// whether it is a line, and its curvature vector there (nothing on a
+/// line): the splitting lane's reading
 /// ([`crate::splitting::neighborhood::chord`]), a line's chord or a
 /// curve's tangent scaled to its extent.
 fn departure<T: Decide>(
     body: &Body<T>,
     v: VertexKey,
     he: HalfEdgeKey,
-) -> Result<(Vec3<T>, bool), TouchUnread> {
+) -> Result<(Vec3<T>, bool, Vec3<T>), TouchUnread> {
     let (_, dir, bend) =
         crate::splitting::neighborhood::chord(body, v, he).map_err(|_| TouchUnread::Unreadable)?;
-    Ok((dir, bend.is_none()))
+    Ok((
+        dir,
+        bend.is_none(),
+        bend.map_or(Vec3::zero(), |b| b.curvature),
+    ))
 }
 
-/// Half-edge `he`'s unit direction at `p`, a point inside its edge, and
-/// whether the edge is a line: a line's chord, a curve's tangent at
-/// `p`'s foot on its carrier.
+/// Half-edge `he`'s unit direction at `p`, a point inside its edge,
+/// whether the edge is a line, and its curvature vector there: a line's
+/// chord, a curve's tangent and bend at `p`'s foot on its carrier.
 fn direction_at<T: Decide>(
     body: &Body<T>,
     he: HalfEdgeKey,
     p: Point3<T>,
-) -> Result<(Vec3<T>, bool), TouchUnread> {
+) -> Result<(Vec3<T>, bool, Vec3<T>), TouchUnread> {
     let half = body.get_half_edge(he).ok_or(TouchUnread::Corrupt)?;
     let edge = body.get_edge(half.edge).ok_or(TouchUnread::Corrupt)?;
     let curve = body
@@ -8926,8 +8960,14 @@ fn direction_at<T: Decide>(
     let (t0, t1) = curve.params();
     let line = matches!(curve.carrier(), geom::Curve3::Line(_));
     let t = curve.carrier().foot(p, geom::mid_param(t0, t1)).t();
-    let d = curve.carrier().deriv(t).normalize();
-    Ok((if he == edge.he_plus { d } else { -d }, line))
+    let deriv = curve.carrier().deriv(t);
+    let d = deriv.normalize();
+    let bend = if line {
+        Vec3::zero()
+    } else {
+        geom_brep::curvature_vector(deriv, curve.carrier().deriv2(t))
+    };
+    Ok((if he == edge.he_plus { d } else { -d }, line, bend))
 }
 
 impl<T: Decide> Link<T> {
@@ -8987,7 +9027,7 @@ impl<T: Decide> Link<T> {
         let (mut planar, mut into, mut chords) = (Vec::new(), Vec::new(), Vec::new());
         for he in [halves.he_plus, halves.he_minus] {
             let f = body.face_of_half_edge(he).ok_or(TouchUnread::Corrupt)?;
-            let (along, _) = direction_at(body, he, p)?;
+            let (along, _, _) = direction_at(body, he, p)?;
             if planar_face(geo, f).is_some() {
                 into.push(outward(f)?.cross(along).normalize());
                 if !planar.contains(&f) {
