@@ -336,10 +336,11 @@ fn r1_a_three_arc_rim_carves_where_a_two_arc_rim_does() {
 
 /// **The in-band convexity-sign escalation renders the TANGENTIAL
 /// sentence, not the chain-flip one.** A 5ε wedge at a 1 m arm
-/// escalates `fillet3_convexity_sign` at the link's own lever; that
-/// is the same site and the same user situation as the wedge decided
-/// `Zero`, whose refusal is `KnifeEdge`, so the two arms carry
-/// one recourse (D4 ¶1 addendum). "Split the chain at the convexity
+/// escalates `fillet3_convexity_sign` at the link's own lever, an edge
+/// neither at a definite angle nor definitely tangent, and the
+/// sentence names both ways out (D4 ¶1 addendum). (The wedge decided
+/// `Zero` with the material facing itself is a knife, which the battery
+/// reads on rather than refusing here.) "Split the chain at the convexity
 /// flip" belongs to `ConvexitySignFlip` — a chain whose links all
 /// resolved definitely and disagree — and is advice about a flip no
 /// escalation here decided; this row pins its absence.
@@ -373,17 +374,12 @@ fn r1_in_band_convexity_sign_renders_the_tangential_sentence() {
         !text.contains(sweep::blend::FILLET3_CONVEXITY_RECOURSE),
         "no flip was decided, so the flip sentence is absent: {text}"
     );
-    // The definite neighbour, rendered from the same site: a wedge
-    // decided Zero with the material facing itself. Both arms, one
-    // sentence.
+    // The definite neighbour from the same site: a wedge decided Zero
+    // with the material facing itself is a knife, read on, not refused.
     let back = plane(Vec3::new(-1.0, 0.0, 0.0));
-    let flat = wedge_at(out(&x), out(&back), tau, metre(), e, band()).unwrap_err();
-    assert!(matches!(flat, BlendError::KnifeEdge { .. }), "{flat:?}");
-    assert!(
-        flat.render(geom_brep::recourse::Reading::Build)
-            .contains(sweep::blend::FILLET3_WEDGE_RECOURSE),
-        "{flat}"
-    );
+    let (flat, _) = wedge_at(out(&x), out(&back), tau, metre(), e, band())
+        .expect("a knife is read, not refused");
+    assert_eq!(flat, sweep::blend::LinkWedge::Knife);
 }
 
 /// **Can a BODY reach the in-band convexity arm?** A profile whose

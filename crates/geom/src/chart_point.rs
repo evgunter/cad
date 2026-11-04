@@ -27,6 +27,13 @@
 //! | sphere | azimuth of `(x, y)` | latitude of `(ρ, h)` |
 //! | torus, spindle | azimuth of `(x, y)` | tube angle of `(ρ − R, h)` |
 //!
+//! The table is spelled once, in [`ChartChannels::read`], which decides
+//! nothing: each angle leaves as the direction it is read off, and the
+//! caller names it. [`ChartInverse::point`] names it in its window and
+//! decides the cone's nappe on `h`; `geom_brep`'s projected image (C4)
+//! names it on the branch its piece's sector decided at derivation
+//! ([`Azimuth::about`]), its nappe fixed per image.
+//!
 //! A cone's `v` is the point's foot on the nearer generator of its
 //! half-plane pair, `σ` the sign of `h`: on the mirror nappe (`σ = −1`)
 //! the radial term runs against `radial(u)`, so the azimuth is read off
@@ -179,68 +186,203 @@ impl<T: Real> ChartInverse<T> {
     }
 }
 
-impl<T: Decide> ChartInverse<T> {
-    /// The chart coordinates of `p`, its angles read at `band` (module
-    /// docs).
-    pub fn point(&self, p: Point3<T>, band: Band) -> ChartPoint<T> {
-        let (x, y, h) = self.frame.local(p);
-        let rho = Azimuth::of(y, x).length();
-        let off =
-            |name, length: T| !matches!(decide(name, Margin::of(length), band), Ok(Sign::Positive));
-        let (u, v, singular) = match self.arm {
-            ChartArm::Plane => (x, y, false),
-            ChartArm::Cylinder { .. } => (
-                Azimuth::of(y, x).principal(band),
-                h,
-                off("chart_point_on_axis", rho),
-            ),
-            ChartArm::Cone { half_angle } => {
-                let (sin_half_angle, cos_half_angle) = half_angle.sin_cos();
-                // The nearer of the two generators in the point's
-                // half-plane pair: the `+radial` one where `h > 0`, the
-                // mirror one where `h < 0`. Within the band of `h = 0`
-                // both pass within it, so neither is the point's.
-                let nappe = decide("chart_point_cone_nappe", Margin::of(h), band);
-                let (radial, sigma) = match nappe {
-                    Ok(Sign::Negative) => (Azimuth::of(T::zero() - y, T::zero() - x), -T::one()),
-                    Ok(Sign::Positive | Sign::Zero) | Err(_) => (Azimuth::of(y, x), T::one()),
+/// Which angle a chart channel names (module docs' table): the
+/// azimuth, a sphere's latitude, a torus's tube angle, or a spindle
+/// sheet's.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ChartAngle {
+    /// The azimuth of `(x, y)`, or of `−(x, y)` on a cone's mirror nappe.
+    Azimuth,
+    /// A sphere's latitude, the angle of `(ρ, h)`.
+    Latitude,
+    /// A torus's tube angle, the angle of `(ρ − R, h)`.
+    Tube,
+    /// A spindle sheet's tube angle, the angle of `(ρ − R, h)` with `R`
+    /// signed.
+    SheetTube,
+}
+
+impl ChartAngle {
+    /// The window a point reading names this angle in (C4): the
+    /// latitude's for a sphere's latitude and a spindle sheet's tube
+    /// angle, the angle window for the rest.
+    pub fn window(self) -> Window {
+        match self {
+            Self::Azimuth | Self::Tube => Window::Angle,
+            Self::Latitude | Self::SheetTube => Window::Latitude,
+        }
+    }
+}
+
+/// **The chart's channels**: the one spelling of the module docs'
+/// table, the arithmetic [`ChartInverse::point`] and `geom_brep`'s
+/// projected image run on frame-local components `(x, y, h)`. Sites
+/// that still spell a channel apart are filed under `work/pcert/`
+/// (`a-cone-points-v-is-read-off-its-height-in-props-and-replace-face`,
+/// `derive-class-spells-a-parallels-latitude-and-a-rims-slant-on-its-own`,
+/// `the-winding-count-reads-chart-channels-by-its-own-atan2`,
+/// `sphere-and-torus-levels-are-read-as-sin-cos-pairs-by-their-own-spelling`,
+/// and the image's own box forms in
+/// `the-projected-box-forms-spell-the-point-reading-apart`). It decides nothing: each
+/// angle leaves as the direction it is read off ([`Azimuth`]), and the
+/// caller names it. [`ChartInverse::point`] names it in its window
+/// ([`Azimuth::principal_in`]); `geom_brep`'s projected image `ψ`
+/// (C4) names it on the branch its piece's sector decided at derivation
+/// ([`Azimuth::about`]), so the image evaluates at every scalar with no
+/// band and stays one continuous branch across its piece.
+///
+/// The arm carries its scalars as the channels read them (a cone's
+/// `sin α` and `cos α`, a torus's `R`), so a caller holding them copied
+/// (the projected image stores its chart's) reads through the same
+/// arithmetic, and the cone's nappe is the caller's: decided on `h` by
+/// [`ChartInverse::point`], fixed per image by the projected image.
+#[derive(Clone, Copy, Debug)]
+pub enum ChartChannels<T> {
+    /// `u = x`, `v = y`.
+    Plane,
+    /// `u` the azimuth, `v = h`.
+    Cylinder,
+    /// `u` the azimuth of `σ·(x, y)`, `v = h·cos α + σ·ρ·sin α`.
+    Cone {
+        /// `sin α`.
+        sin: T,
+        /// `cos α`.
+        cos: T,
+        /// The mirror nappe, `σ = −1`; the opening one, `σ = 1`, when
+        /// false.
+        mirror: bool,
+    },
+    /// `u` the azimuth, `v` the latitude.
+    Sphere,
+    /// `u` the azimuth, `v` the tube angle.
+    Torus {
+        /// The major radius `R`.
+        major: T,
+    },
+    /// `u` the azimuth, `v` the sheet's tube angle.
+    Spindle {
+        /// The signed major radius `R`.
+        major: T,
+    },
+}
+
+/// What [`ChartChannels::read`] answers: the coordinates, and `ρ` on
+/// the arms with an azimuth (the radius the azimuth is read at).
+#[derive(Clone, Copy, Debug)]
+pub struct ChannelRead<T: Real> {
+    /// The chart coordinates.
+    pub uv: Point2<T>,
+    /// `ρ = |(x, y)|`, `None` on the plane.
+    pub rho: Option<T>,
+}
+
+impl<T: Real> ChartChannels<T> {
+    /// The chart coordinates of the frame-local point `(x, y, h)`, each
+    /// angle named by `name` off the direction it is read from, the
+    /// azimuth first (type docs).
+    pub fn read(
+        self,
+        (x, y, h): (T, T, T),
+        mut name: impl FnMut(ChartAngle, Azimuth<T>) -> T,
+    ) -> ChannelRead<T> {
+        let radial = Azimuth::of(y, x);
+        let rho = || radial.length();
+        let (u, v, rho) = match self {
+            Self::Plane => (x, y, None),
+            Self::Cylinder => (name(ChartAngle::Azimuth, radial), h, Some(rho())),
+            Self::Cone { sin, cos, mirror } => {
+                let rho = rho();
+                // On the mirror nappe the radial term runs against
+                // `radial(u)`, so the azimuth is read off `−(x, y)`.
+                let (direction, sigma) = if mirror {
+                    (Azimuth::of(T::zero() - y, T::zero() - x), -T::one())
+                } else {
+                    (radial, T::one())
                 };
                 (
-                    radial.principal(band),
-                    h * cos_half_angle + sigma * rho * sin_half_angle,
-                    !matches!(nappe, Ok(Sign::Positive | Sign::Negative))
-                        || off("chart_point_on_axis", rho),
+                    name(ChartAngle::Azimuth, direction),
+                    h * cos + sigma * rho * sin,
+                    Some(rho),
                 )
             }
-            ChartArm::Sphere { .. } => (
-                Azimuth::of(y, x).principal(band),
-                Azimuth::of(h, rho).principal_in(Window::Latitude, band),
-                off("chart_point_on_axis", rho),
-            ),
-            ChartArm::Torus { major, .. } => {
-                let tube = Azimuth::tube(h, rho, major);
+            Self::Sphere => {
+                let rho = rho();
+                let u = name(ChartAngle::Azimuth, radial);
                 (
-                    Azimuth::of(y, x).principal(band),
-                    tube.principal(band),
-                    off("chart_point_on_axis", rho)
-                        || off("chart_point_on_tube_circle", tube.length()),
+                    u,
+                    name(ChartAngle::Latitude, Azimuth::of(h, rho)),
+                    Some(rho),
                 )
             }
+            Self::Torus { major } => {
+                let rho = rho();
+                let u = name(ChartAngle::Azimuth, radial);
+                (
+                    u,
+                    name(ChartAngle::Tube, Azimuth::tube(h, rho, major)),
+                    Some(rho),
+                )
+            }
+            Self::Spindle { major } => {
+                let rho = rho();
+                let u = name(ChartAngle::Azimuth, radial);
+                let v = name(ChartAngle::SheetTube, Azimuth::tube(h, rho, major));
+                (u, v, Some(rho))
+            }
+        };
+        ChannelRead {
+            uv: Point2::new(u, v),
+            rho,
+        }
+    }
+}
+
+impl<T: Decide> ChartInverse<T> {
+    /// The chart coordinates of `p`, its angles read at `band` (module
+    /// docs): [`ChartChannels::read`] on `p`'s frame-local components,
+    /// each angle named in its window, the cone's nappe decided on `h`.
+    pub fn point(&self, p: Point3<T>, band: Band) -> ChartPoint<T> {
+        let (x, y, h) = self.frame.local(p);
+        let off =
+            |name, length: T| !matches!(decide(name, Margin::of(length), band), Ok(Sign::Positive));
+        // The cone's nappe: the nearer of the two generators in the
+        // point's half-plane pair, the `+radial` one where `h > 0`, the
+        // mirror one where `h < 0`. Within the band of `h = 0` both
+        // pass within it, so neither is the point's.
+        let mut nappe_decided = true;
+        let channels = match self.arm {
+            ChartArm::Plane => ChartChannels::Plane,
+            ChartArm::Cylinder { .. } => ChartChannels::Cylinder,
+            ChartArm::Cone { half_angle } => {
+                let (sin, cos) = half_angle.sin_cos();
+                let nappe = decide("chart_point_cone_nappe", Margin::of(h), band);
+                nappe_decided = matches!(nappe, Ok(Sign::Positive | Sign::Negative));
+                ChartChannels::Cone {
+                    sin,
+                    cos,
+                    mirror: matches!(nappe, Ok(Sign::Negative)),
+                }
+            }
+            ChartArm::Sphere { .. } => ChartChannels::Sphere,
+            ChartArm::Torus { major, .. } => ChartChannels::Torus { major },
             // A sheet's `v` is closed on `[−v*, v*]` about zero, read in the
             // latitude's window, which holds it whole only for `v* < π − 1`:
             // a wider apple's far side reads a turn off (filed).
-            ChartArm::Spindle { major, .. } => {
-                let tube = Azimuth::tube(h, rho, major);
-                (
-                    Azimuth::of(y, x).principal(band),
-                    tube.principal_in(Window::Latitude, band),
-                    off("chart_point_on_axis", rho)
-                        || off("chart_point_on_tube_circle", tube.length()),
-                )
-            }
+            ChartArm::Spindle { major, .. } => ChartChannels::Spindle { major },
         };
+        let mut tube = None;
+        let read = channels.read((x, y, h), |angle, direction| {
+            if matches!(angle, ChartAngle::Tube | ChartAngle::SheetTube) {
+                tube = Some(direction);
+            }
+            direction.principal_in(angle.window(), band)
+        });
+        let on_axis = || read.rho.is_some_and(|rho| off("chart_point_on_axis", rho));
+        let on_tube_circle =
+            || tube.is_some_and(|tube| off("chart_point_on_tube_circle", tube.length()));
+        let singular = !nappe_decided || on_axis() || on_tube_circle();
         ChartPoint {
-            uv: Point2::new(u, v),
+            uv: read.uv,
             singular,
         }
     }

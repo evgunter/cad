@@ -131,3 +131,4 @@
   - **Filed.** `meet-reads-two-conics-tangent-at-a-shared-end-in-one-order-only`, which the lane says predates 6492.
   - **FULL review dispatched** to a cloud session. It judges whether a charge on a choice falls under `[simple.conditioned]`, whether an order-dependent tie-break can land as an interim step, and whether the charge is derived or guessed.
   - **Coupling.** This touches `pose.rs` alongside PR 6516 and the planned polish redesign, so the merge order is 6522, then whichever of 6516 and 6525 is ready first, with the other merging main.
+- 2026-11-04 — PR 6522 merged at `b2a57369be` (`92f8ec60a8`), after my merge of main, a green gate, and `section_end_poses` 6/6 at default, 1e-6 and 1e-12 locally. The section-end P0 closes. The lane at session_013mPGJ3A3Kdic2ksHSq47MQ is released.

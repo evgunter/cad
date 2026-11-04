@@ -218,6 +218,47 @@ impl<T: Real> Azimuth<T> {
     pub fn length(self) -> T {
         (self.x.powi(2) + self.y.powi(2)).sqrt()
     }
+
+    /// The angle named on the branch within half a turn of `centre`:
+    /// `θ + atan2(R(−θ)·(x, y))` with `θ = centre.angle()`. It decides
+    /// nothing; the caller has decided the branch (`geom_brep`'s
+    /// projected image decides each piece's centre at derivation, its
+    /// sector condition putting the piece in the open half-plane the
+    /// centre faces, so `atan2` is read clear of its cut). The rotation
+    /// is exact, so rotating back adds no width at a bracketed scalar.
+    ///
+    /// [`Azimuth::near`] answers a different question: it decides which
+    /// copy of the window's read lies near a reference that can be any
+    /// angle, renaming it by whole turns. `about` takes a branch already
+    /// decided, so it reads off any direction it is given, a direction
+    /// on the centre's antipode included, without a decision.
+    pub fn about(self, centre: Quarter) -> T {
+        let (x, y) = centre.rotate(self.x, self.y);
+        centre.angle::<T>() + y.atan2(x)
+    }
+}
+
+/// **A branch centre a whole number of quarter turns**, `m·π/2`: the
+/// centre [`Azimuth::about`] names an angle on, so that rotating a
+/// direction back by it is exact (a swap and sign flips).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct Quarter(pub i32);
+
+impl Quarter {
+    /// `R(−m·π/2)·(x, y)`, exactly.
+    pub fn rotate<T: Real>(self, x: T, y: T) -> (T, T) {
+        match self.0.rem_euclid(4) {
+            0 => (x, y),
+            1 => (y, T::zero() - x),
+            2 => (T::zero() - x, T::zero() - y),
+            _ => (T::zero() - y, x),
+        }
+    }
+
+    /// `m·π/2`.
+    pub fn angle<T: Real>(self) -> T {
+        T::pi() * T::from_f64(0.5 * f64::from(self.0))
+    }
 }
 
 impl<T: Decide> Azimuth<T> {
@@ -281,6 +322,9 @@ impl<T: Decide> Azimuth<T> {
     /// the whole window about `reference`, `[reference − π, reference + π]`,
     /// never a narrow answer. A direction with a component that is not finite names
     /// none, and reads NaN.
+    ///
+    /// An evaluation on a branch already decided, about a whole number of
+    /// quarter turns, is [`Azimuth::about`]'s, which decides nothing.
     pub fn near(self, reference: T) -> T {
         if !(geom_core::real::is_finite_length(self.y) && geom_core::real::is_finite_length(self.x))
         {
@@ -639,5 +683,51 @@ mod tests {
         );
         assert_eq!(radial.0.x, f.tangential.0.x);
         assert_eq!(tangential.0.x, f.radial.0.x);
+    }
+
+    /// **A quarter turn rotates exactly, and `about` names the angle on
+    /// its branch**: `Quarter(m).rotate` is `R(−m·π/2)`, each output
+    /// component bit for bit an input component or its negation; `angle`
+    /// is `m·π/2`; and `about` answers the direction's angle (its `cos` and
+    /// `sin` recover the direction) within half a turn of the centre, for
+    /// every direction off the centre's antipode, at every centre in
+    /// `−4..8`.
+    #[test]
+    fn a_quarter_rotates_exactly_and_about_names_the_angle_on_its_branch() {
+        use core::f64::consts::{FRAC_PI_2, PI};
+        for m in -4..8 {
+            let q = Quarter(m);
+            let theta = f64::from(m) * FRAC_PI_2;
+            assert_eq!(q.angle::<f64>(), theta, "m {m}: the angle");
+            for i in 0..64 {
+                let a = -3.1 + 0.1 * f64::from(i);
+                let (x, y) = (1.3 * a.cos(), 1.3 * a.sin());
+                let (rx, ry) = q.rotate(x, y);
+                let (c, s) = (theta.cos(), theta.sin());
+                assert!(
+                    (rx - (c * x + s * y)).abs() < 1e-15 && (ry - (c * y - s * x)).abs() < 1e-15,
+                    "m {m}: R(−θ)·({x}, {y}) is ({rx}, {ry})"
+                );
+                let exact = |r: f64| [x, -x, y, -y].iter().any(|&v| v.to_bits() == r.to_bits());
+                assert!(
+                    exact(rx) && exact(ry),
+                    "m {m}: the rotation is a swap and sign flips"
+                );
+                // Off the antipode, where the branch's cut lies.
+                let off = (a - theta + PI).rem_euclid(core::f64::consts::TAU);
+                if !(1e-6..=core::f64::consts::TAU - 1e-6).contains(&off) {
+                    continue;
+                }
+                let u = Azimuth::of(y, x).about(q);
+                assert!(
+                    (u - theta).abs() < PI + 1e-12,
+                    "m {m}: {u} is not within half a turn of {theta}"
+                );
+                assert!(
+                    (1.3 * u.cos() - x).abs() < 1e-12 && (1.3 * u.sin() - y).abs() < 1e-12,
+                    "m {m}: {u} is not the angle of ({x}, {y})"
+                );
+            }
+        }
     }
 }
