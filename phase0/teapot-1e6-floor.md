@@ -61,8 +61,8 @@ fragment reads clear, and both rows go on to `GermFrameUnsupported
 { a: 6v1 Sphere, b: 3v3 Nurbs }` (re-measured: default and 1e-12 both).
 
 The reach's scaling: it is ∝ ε while the floor is ∝ √ε, so
-reach/floor = 1024·√(esc/rho)·8/pace-ish: ≈ 170 at 1e-6, ≈ 5 at 1e-9,
-< 1 at 1e-12. "A little past each end" is millimetres at 1e-6.
+reach/floor (in metres) = 8192·√(escalate/rho): ≈ 173 at 1e-6, ≈ 5.5 at 1e-9,
+0.17 at 1e-12. "A little past each end" is millimetres at 1e-6.
 
 ## Proposed fix (walk fix)
 
