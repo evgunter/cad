@@ -411,50 +411,106 @@ fn a_foot_on_a_far_branch_at_f64_is_the_certificates_to_read() {
     }
 }
 
+/// The reads of a foot's seed in `code` (comment- and string-blanked
+/// text): each `.seed()` call, and each path from `Foot` to `::seed` in
+/// any spelling (`Foot::seed`, `Foot::<f64>::seed`, the qualified
+/// `<geom::Foot<'_, f64>>::seed`, a method reference `.map(Foot::seed)`),
+/// the path ending at the first `(`, `)`, `;`, `{` or `}`.
+fn seed_reads(code: &str) -> usize {
+    let ident = |c: char| c.is_alphanumeric() || c == '_';
+    let calls = code.matches(".seed()").count();
+    let paths = code
+        .match_indices("Foot")
+        .filter(|&(at, _)| !code[..at].ends_with(ident))
+        .filter(|&(at, _)| {
+            let rest = &code[at + 4..];
+            let end = rest.find(['(', ')', ';', '{', '}']).unwrap_or(rest.len());
+            rest[..end].trim_end().ends_with("::seed")
+                || rest[..end]
+                    .find("::seed")
+                    .is_some_and(|k| !rest[k + 6..].starts_with(ident))
+        })
+        .count();
+    calls + paths
+}
+
+/// **`seed_reads` sees every spelling**: a row a bug in the count could
+/// break, on text, not on the tree.
+#[test]
+fn every_spelling_of_a_seed_read_is_counted() {
+    for (code, n) in [
+        ("f.seed()", 1),
+        ("geom::Foot::seed(f)", 1),
+        ("geom::Foot::<f64>::seed(f)", 1),
+        ("<geom::Foot<'_, f64>>::seed(f)", 1),
+        ("feet.map(Foot::seed)", 1),
+        ("fn _v(f: Foot<'_, f64>) -> f64 { f.seed() }", 1),
+        ("Foot::seed_of(f); BigFoot::seed(f); Foot::nearest(f)", 0),
+        ("cell.seed(); a.seed()", 2),
+    ] {
+        assert_eq!(seed_reads(code), n, "{code}");
+    }
+}
+
 /// **A foot's seed is read only where it seeds a search or a bound**
 /// (module docs, "A foot has no bare parameter"). [`super::Foot::seed`]
 /// returns the same field as [`OnCarrier::On`]'s `t`, so the type alone
 /// cannot keep a verdict reader off it: every file under `crates/*/src`
-/// that calls `.seed()`, or names `Foot::seed`, is listed here with what
-/// its read seeds. A new reader goes red here, and owes either a
-/// certificate (`On`'s `t`, [`super::Foot::nearest`]) or its line below.
+/// that reads it ([`seed_reads`]) is listed here with the number of reads
+/// and what they seed. A new read goes red here, in a listed file or not,
+/// and owes either a certificate (`On`'s `t`, [`super::Foot::nearest`])
+/// or its count raised with its reason.
 ///
-/// Blind spot: `.seed()` is a method name, not a type, so another type's
-/// `seed()` lands here too and is listed as such; a seed read through a
-/// re-export under another name is not seen.
+/// Blind spots: `.seed()` is a method name, not a type, so another
+/// type's `seed()` is counted too and listed as such; a `Foot` renamed on
+/// import (`use geom::Foot as F`) is not seen; and `tests/`, `benches`
+/// and `demos` are not scanned (only `crates/*/src`, where the
+/// `#[cfg(test)]` rows are).
 #[test]
 fn a_foots_seed_is_read_only_where_it_seeds_a_search_or_a_bound() {
-    const READERS: &[(&str, &str)] = &[
-        ("geom/src/curves/on_carrier.rs", "the foot's home"),
-        ("geom/src/curves/on_carrier/rows.rs", "the foot's own rows"),
+    const READERS: &[(&str, usize, &str)] = &[
+        (
+            "geom/src/curves/on_carrier/rows.rs",
+            6,
+            "the foot's own rows",
+        ),
         (
             "geom-brep/src/curve_pair/walk.rs",
+            3,
             "the walk's feet seed `read_both`, which reads the span's certificate",
         ),
         (
             "geom-brep/src/curve_pair/pose.rs",
+            1,
             "a candidate's parameters seed the pose's reading of the pair",
         ),
         (
             "geom-brep/src/curve_pair/pose/window.rs",
+            1,
             "the bound along `b` reads the speed at the seed, anchored on the gap",
         ),
         (
             "geom-brep/src/curve_pair/span.rs",
-            "the place reads the ends' sides at the seed; `Reading::On` takes `On`'s `t`",
+            1,
+            "`Span::place` reads the ends' sides at the seed; `Span::read` takes \
+             `On`'s `t` for `Reading::On`. `place` is itself a reading, which \
+             `curved_edges::passes` reads directly \
+             (`curved-edges-passes-hand-composes-on-carrier-and-span-place`)",
         ),
         (
             "topo/src/boolean/solid_contain/curved_edges.rs",
-            "the ray's foot iteration seeds `on_carrier` and `Span::place` at its point",
+            1,
+            "the ray's foot iteration seeds `on_carrier` and `Span::place` at its point \
+             (`curved-edges-passes-hand-composes-on-carrier-and-span-place`)",
         ),
         (
             "geom-brep/src/ssi/exhaust.rs",
+            2,
             "a cell's own `seed()`, not a foot's",
         ),
     ];
     let crates = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR")).join("..");
-    let mut seen = 0;
-    let strays: Vec<String> = test_utils::source::rust_sources(&crates)
+    let mut found: Vec<(String, usize)> = test_utils::source::rust_sources(&crates)
         .into_iter()
         .filter_map(|f| {
             let p = f
@@ -462,22 +518,20 @@ fn a_foots_seed_is_read_only_where_it_seeds_a_search_or_a_bound() {
                 .ok()?
                 .to_string_lossy()
                 .replace('\\', "/");
-            p.contains("/src/").then_some((f, p))
+            if !p.contains("/src/") {
+                return None;
+            }
+            let code = test_utils::source::code_only(&std::fs::read_to_string(&f).unwrap());
+            let n = seed_reads(&code);
+            (n > 0).then_some((p, n))
         })
-        .filter(|(f, p)| {
-            let code = test_utils::source::code_only(&std::fs::read_to_string(f).unwrap());
-            let reads = code.contains(".seed()") || code.contains("Foot::seed");
-            seen += usize::from(reads);
-            reads && !READERS.iter().any(|(r, _)| p == r)
-        })
-        .map(|(_, p)| p)
         .collect();
-    assert!(
-        seen >= READERS.len() - 1,
-        "the walk found only {seen} readers: it is not reading crates/*/src"
-    );
-    assert!(
-        strays.is_empty(),
-        "a foot's seed read outside its list: {strays:#?}"
+    found.sort();
+    let mut want: Vec<(String, usize)> =
+        READERS.iter().map(|&(p, n, _)| (p.to_owned(), n)).collect();
+    want.sort();
+    assert_eq!(
+        found, want,
+        "a foot's seed read outside its list, or a listed count moved"
     );
 }
