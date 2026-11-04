@@ -656,3 +656,4 @@ fn a_projected_line_holds_the_closed_form() {
 
 mod framed;
 mod pads;
+mod sphere;

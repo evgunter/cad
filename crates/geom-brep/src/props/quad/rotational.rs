@@ -762,10 +762,33 @@ fn projected_integrals(
 }
 
 /// Pieces per span or cut interval at which a projected edge's metric
-/// length and its turn are read once, before the rounds: the length is
+/// length and its turn are first read, before the rounds: the length is
 /// an upper bound at any count, and the turn need only tell whole turns
 /// apart ([`loop_windings`]).
 const PROJECTED_ENTRY_PIECES: usize = 4;
+
+/// The most pieces per span or cut interval [`entry_turn`] reads a turn
+/// at.
+const PROJECTED_TURN_PIECES: usize = 1024;
+
+/// A projected edge's turn `Δu`, in its carrier's order, read at
+/// [`PROJECTED_ENTRY_PIECES`] and at four times as many pieces again
+/// while its enclosure is wider than an eighth of a turn, up to
+/// [`PROJECTED_TURN_PIECES`]: a chord that passes near the chart's axis
+/// (a sphere's pole) turns fast there, and its turn at the first count
+/// may not tell whole turns apart ([`branch_turns`]). The widest reading
+/// stops at the cap, and [`branch_turns`] refuses it.
+fn entry_turn(p: &ProjectedEdgeQ, chart: RotationalChartQ) -> Interval {
+    let eighth = core::f64::consts::TAU / 8.0;
+    let mut pieces = PROJECTED_ENTRY_PIECES;
+    loop {
+        let ([_, _, turn], _) = projected_integrals(p, chart, 0.0, pieces);
+        if pieces >= PROJECTED_TURN_PIECES || (turn.is_certified() && turn.width() < eighth) {
+            return turn;
+        }
+        pieces *= 4;
+    }
+}
 
 /// A certified upper bound on a projected edge's metric length (metres),
 /// `Σ h·sup speed` over its pieces ([`RotationalChartQ::projected_speed`]);
@@ -819,7 +842,7 @@ fn edge_entry(e: &EdgeTermQ, chart: RotationalChartQ) -> Result<EdgeEntry, Props
         }
         EdgeTermQ::Projected(p) => {
             let length = projected_metric_length(p, chart);
-            let ([_, _, turn], _) = projected_integrals(p, chart, 0.0, PROJECTED_ENTRY_PIECES);
+            let turn = entry_turn(p, chart);
             if !(length.is_finite() && turn.is_certified()) {
                 return Err(PropsError::QuadratureUnsupported {
                     what: "a projected edge whose chart speed or turn reads no enclosure — its \
@@ -1267,16 +1290,12 @@ fn loop_windings<T: Decide>(
 /// **The whole turns a projected edge's turn makes past its ends'
 /// difference**, in its carrier's order: `(Δu − (u₁ − u₀))/2π`, the ends
 /// read by the image's evaluator, which places each on its piece's
-/// branch, and the turn by the rule at [`PROJECTED_ENTRY_PIECES`]. The
-/// two differ by whole turns where the image's branches meet as its
-/// sectors say, so the enclosure must lie within a quarter turn of one
-/// whole number; anything else is an image whose evaluator and integral
-/// disagree, and refuses. How wide the turn's enclosure is at that
-/// resolution is the carrier's: a short or gently turning chord reads it
-/// to well under a quarter turn, and one that turns fast for its pieces
-/// (a spiral of 1.3 turns on 8 pieces a span reads 13.5 rad wide) refuses
-/// here rather than guess the turn — a sound refusal, which a finer entry
-/// reading would narrow.
+/// branch, and the turn by the rule ([`entry_turn`]). The two differ by
+/// whole turns where the image's branches meet as its sectors say, so
+/// the enclosure must lie within a quarter turn of one whole number;
+/// anything else is an image whose evaluator and integral disagree, and
+/// refuses, as does a turn [`entry_turn`]'s finest reading leaves wider
+/// than that.
 fn branch_turns(p: &ProjectedEdgeQ, turn: Interval) -> Result<i64, PropsError> {
     let tau = crate::props::bracket::tau_bracket();
     let gap = (turn - (p.ends[1].0 - p.ends[0].0)) / tau;
@@ -1408,6 +1427,98 @@ mod tests {
             cb: pt(cb),
             cl: pt(cl),
         }
+    }
+
+    /// A rim `v = level` over `u ∈ us` and a ruling `u = at` over
+    /// `v ∈ vs`, each read with the envelope `env`.
+    fn rim_q(level: f64, us: (f64, f64), forward: bool, env: f64) -> TrimEdgeQ {
+        TrimEdgeQ {
+            u: chan(0.0, 0.0, 0.0, 1.0),
+            v: chan(level, 0.0, 0.0, 0.0),
+            t0: pt(us.0),
+            t1: pt(us.1),
+            forward,
+            trig0: crate::props::trig::trig_at_limit(pt(us.0)),
+            trig1: Some(crate::props::trig::trig_at_limit(pt(us.1))),
+            env: pt(env),
+        }
+    }
+
+    fn ruling_q(at: f64, vs: (f64, f64), forward: bool, env: f64) -> TrimEdgeQ {
+        TrimEdgeQ {
+            u: chan(at, 0.0, 0.0, 0.0),
+            v: chan(0.0, 0.0, 0.0, 1.0),
+            ..rim_q(0.0, vs, forward, env)
+        }
+    }
+
+    /// **A junction's connector is in the region term**: a tall
+    /// rectangle `[0, 1] × [0, 100]` whose top is four rims, each image
+    /// short of its vertices by `δ` (within its envelope `δ`, so the
+    /// closure accepts every junction). The image chain leaves `8δ` of
+    /// the top open at a level `50` above the anchor, `400δ` of area and
+    /// flux, past the map-residual pad's `202δ`: only the connectors
+    /// close it, and the enclosures hold the closed forms.
+    #[test]
+    fn a_tall_face_whose_images_stop_short_holds_its_closed_form() {
+        let (h, d) = (100.0, 1e-4);
+        let mut edges = vec![
+            rim_q(0.0, (0.0, 1.0), true, d),
+            ruling_q(1.0, (0.0, h), true, d),
+        ];
+        for k in 0..4 {
+            let (a, b) = (0.75 - 0.25 * f64::from(k), 1.0 - 0.25 * f64::from(k));
+            edges.push(rim_q(h, (a + d, b - d), false, d));
+        }
+        edges.push(ruling_q(0.0, (0.0, h), false, d));
+        let band = geom_core::Band::linear(Tol::witness()).unwrap();
+        let got = rotational_cut_face_rounds::<f64>(
+            &unit_face(&[&edges]),
+            band,
+            RoundWindow::SCHEDULE,
+            &mut to_target(1e-9),
+        )
+        .expect("the tall face measures")
+        .bounds;
+        test_target::encloses(got.flux, h, "the tall face's flux");
+        test_target::encloses(got.area, h, "the tall face's area");
+    }
+
+    /// **The connectors' corners are padded**: the unit square, each side
+    /// ten pieces whose images are moved out by `e` and cover the middle
+    /// half of their piece, each within its envelope. The image chain
+    /// closed by its forty connectors bounds about `1 + 4e`, and the
+    /// map-residual pad, read along the images, pays only `2.8e` of the
+    /// `4e` strip between the chain and the square: the rest lies beside
+    /// the connectors, which only the connectors' own pad holds.
+    #[test]
+    fn images_short_of_their_pieces_and_moved_out_hold_the_square() {
+        let n = 10;
+        let e = 0.25 / f64::from(n);
+        let env = 1.42 * e;
+        let piece = |k: u32| {
+            (
+                f64::from(k) / f64::from(n) + e,
+                f64::from(k + 1) / f64::from(n) - e,
+            )
+        };
+        let flip = |(a, b): (f64, f64)| (1.0 - b, 1.0 - a);
+        let mut edges = Vec::new();
+        edges.extend((0..n).map(|k| rim_q(-e, piece(k), true, env)));
+        edges.extend((0..n).map(|k| ruling_q(1.0 + e, piece(k), true, env)));
+        edges.extend((0..n).map(|k| rim_q(1.0 + e, flip(piece(k)), false, env)));
+        edges.extend((0..n).map(|k| ruling_q(-e, flip(piece(k)), false, env)));
+        let band = geom_core::Band::linear(Tol::witness()).unwrap();
+        let got = rotational_cut_face_rounds::<f64>(
+            &unit_face(&[&edges]),
+            band,
+            RoundWindow::SCHEDULE,
+            &mut to_target(1e-9),
+        )
+        .expect("the square measures")
+        .bounds;
+        test_target::encloses(got.flux, 1.0, "the square's flux");
+        test_target::encloses(got.area, 1.0, "the square's area");
     }
 
     /// A full sinusoid band on a unit cylinder: bottom rim v = 0
