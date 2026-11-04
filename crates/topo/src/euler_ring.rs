@@ -1236,7 +1236,7 @@ impl<T: Decide> Body<T> {
     /// the loop's new face is on a different CHART from its old one,
     /// and touches nothing when it is not. A face re-charted in place
     /// takes the same answer, one chart decision over every loop the
-    /// face has ([`Body::require_whole_faces`] proves them).
+    /// face has ([`Body::half_edges_proven_whole`] proves them).
     ///
     /// A pcurve row is a curve stated in a FACE's chart, keyed on a
     /// half-edge ([`crate::pcurves`]). Re-parenting a loop changes

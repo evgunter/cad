@@ -275,7 +275,7 @@
 //! other side: nothing moves, and the CHART moves under every row the
 //! face stores at once. It carries them across a swap onto the same
 //! chart and drops them on any other ([`crate::Body::drop_rows`], over
-//! the loops [`crate::Body::require_whole_faces`] proves), which is what makes its own
+//! the loops [`crate::Body::half_edges_proven_whole`] proves), which is what makes its own
 //! declaration below true as written — a swap onto a plane or a
 //! placeholder used to leave a COMPLETE row set stated in the chart
 //! the face left, and this pass skips exactly that face.
@@ -5911,7 +5911,7 @@ pub(crate) mod staleness_posture {
                 "re-charts a face in place, which changes what every row the face stores is \
              ABOUT while changing no key: the rows are kept across a swap onto the same \
              chart (`Body::same_chart`) and dropped on any other (`Body::drop_rows`, over the loops \
-             `Body::require_whole_faces` proves). \
+             `Body::half_edges_proven_whole` proves). \
              Content staleness alone would be \
              the tier-3 pass's, but only where the NEW surface mints — a swap onto a plane \
              or a placeholder left a COMPLETE row set stated in the chart the face left, \

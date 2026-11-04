@@ -5580,8 +5580,8 @@ mod refused_faces {
     /// Every face of `body` and its surface kind, read before the gate
     /// takes the body.
     pub(super) fn kinds<T: Real>(body: &Body<T>) -> Vec<(FaceKey, geom::SurfaceKind)> {
-        body.faces()
-            .map(|(f, data)| (f, body.face_surface_linked(f, data).kind()))
+        body.face_views()
+            .map(|face| (face.key(), face.surface().kind()))
             .collect()
     }
 

@@ -394,7 +394,7 @@ impl<T: Real> BoundaryMember<'_, T> {
     /// disposition of a lone-vertex loop for a reader of half-edges**: it
     /// holds no half-edge and no edge, so it bounds no area and has
     /// nothing to walk. [`FaceView::cycles`], [`FaceView::half_edges`] and
-    /// [`FaceView::edges`] inherit this skip; [`Body::require_whole_faces`]
+    /// [`FaceView::edges`] inherit this skip; [`Body::half_edges_proven_whole`]
     /// reads the loop itself through [`FaceView::loops`], since no
     /// half-edge may claim it.
     pub(crate) fn half_edge(&self) -> Option<HalfEdgeKey> {
@@ -589,10 +589,12 @@ impl<'a, T: Real> FaceView<'a, T> {
 }
 
 impl<T: Real> Body<T> {
-    /// **The whole-face proof**: no half-edge claims a loop of any of
-    /// `faces` but the members their cycles walk, so each face's
-    /// [`FaceView::half_edges`] is every half-edge it holds. A door that
-    /// drops or moves every row a face holds asks it: a surface setter
+    /// **Each face's half-edges, proven whole**: [`FaceView::half_edges`]
+    /// of each of `faces`, in order, with the proof that no half-edge
+    /// claims a loop of any of them but the members their cycles walk, so
+    /// each list is every half-edge its face holds. A door that drops or
+    /// moves every row a face holds reads its rows here, never through the
+    /// plain [`FaceView::half_edges`]: a surface setter
     /// re-charting a face in place drops the face's rows
     /// ([`Body::drop_rows_on_chart_change`]), and the rows it removes are
     /// then the rows [`crate::pcurves::validate_pcurves`] would have read,
@@ -608,19 +610,22 @@ impl<T: Real> Body<T> {
     /// As [`FaceView::boundary`], and where a half-edge claims a loop of
     /// one of `faces` its cycle walk does not reach.
     #[track_caller]
-    pub(crate) fn require_whole_faces<'a>(
+    pub(crate) fn half_edges_proven_whole<'a>(
         &'a self,
         faces: impl IntoIterator<Item = FaceView<'a, T>>,
-    ) {
+    ) -> Vec<Vec<HalfEdgeKey>> {
         let mut loops: SecondaryMap<LoopKey, ()> = SecondaryMap::new();
         let mut members: SecondaryMap<HalfEdgeKey, ()> = SecondaryMap::new();
+        let mut proven = Vec::new();
         for face in faces {
             for (lk, _, _) in face.loops() {
                 loops.insert(lk, ());
             }
-            for he in face.half_edges() {
+            let halves = face.half_edges();
+            for &he in &halves {
                 members.insert(he, ());
             }
+            proven.push(halves);
         }
         if let Some((stray, data)) = self
             .half_edges
@@ -633,6 +638,7 @@ impl<T: Real> Body<T> {
                 data.parent_loop
             );
         }
+        proven
     }
 
     /// **`face`, a key the kernel enumerated, minted, resolved or read out
@@ -1528,17 +1534,17 @@ fn wrong_key(&self, he: K, other: K, from: F) -> Result<Live, E> {
             flat,
             "the half-edges are the cycles, in order"
         );
-        body.require_whole_faces([body.proven_face(face)]);
+        body.half_edges_proven_whole([body.proven_face(face)]);
         let stray = body.half_edges.insert(HalfEdge {
             parent_loop: tip,
             ..scaffold()
         });
         let named = format!("{stray:?} claims loop {tip:?} and its cycle walk does not reach it");
         crate::review_d18::assert_torn_op_panics(
-            "require_whole_faces, a half-edge claiming the lone-vertex ring",
+            "half_edges_proven_whole, a half-edge claiming the lone-vertex ring",
             &mut body,
             &[&named, crate::body::CYCLES_ARE_CLAIMANTS],
-            |b| b.require_whole_faces([b.proven_face(face)]),
+            |b| b.half_edges_proven_whole([b.proven_face(face)]),
         );
     }
 
@@ -1708,13 +1714,7 @@ fn wrong_key(&self, he: K, other: K, from: F) -> Result<Live, E> {
     /// a second spelling of [`Body::passed_face`]'s.
     #[test]
     fn the_public_surface_door_is_read_only_outside_the_crate() {
-        const READERS: &[(&str, &str)] = &[
-            ("body.rs", "the door itself"),
-            (
-                "boolean/join.rs",
-                "the join's own `face_surface` helper, held by its face_surface_tests",
-            ),
-        ];
+        const READERS: &[(&str, &str)] = &[("body.rs", "the door itself")];
         let strays = read_outside(&["face_surface("], READERS);
         assert!(
             strays.is_empty(),

@@ -1918,7 +1918,7 @@ pub trait Construct<T: geom_core::Real> {
     /// sides swapped, and it takes their answer: a swap onto the same
     /// chart carries every row untouched, and a swap onto a different
     /// one drops the rows of the face's loops, proven whole in the plan
-    /// ([`Body::require_whole_faces`]), deriving nothing. A caller that wants the face's rows on its new chart
+    /// ([`Body::half_edges_proven_whole`]), deriving nothing. A caller that wants the face's rows on its new chart
     /// runs [`crate::pcurves::mint_pcurves`]. Leaving them was silent
     /// wherever the new surface does not mint — tier 3's pcurve pass
     /// skips such a face — so what the drop removes is a wrong row no

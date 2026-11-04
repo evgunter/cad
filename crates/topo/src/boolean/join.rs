@@ -311,7 +311,7 @@ fn kind_arm(a: geom::SurfaceKind, b: geom::SurfaceKind) -> KindArm {
 /// `face_surface_tests::the_join_walks_to_a_faces_surface_in_one_place`,
 /// which counts the reads in this file's source.
 #[track_caller]
-fn face_surface<T: geom_core::Real>(
+fn keyed_surface<T: geom_core::Real>(
     body: &Body<T>,
     face: FaceKey,
 ) -> (crate::geometry::SurfaceKey, &geom::Surface<T>) {
@@ -346,8 +346,8 @@ impl<T: Decide> SegmentPair<T> {
         let germ = &seg.germ;
         let owned = |(key, surface): (_, &geom::Surface<T>)| (key, surface.clone());
         let (a, b) = (
-            owned(face_surface(&red.a, germ.a_face)),
-            owned(face_surface(&red.b, germ.b_face)),
+            owned(keyed_surface(&red.a, germ.a_face)),
+            owned(keyed_surface(&red.b, germ.b_face)),
         );
         // A pair the join carries ([`rides_carried`]) rides the carried
         // lane on the component the germ's branch names, a fitted one by
@@ -1038,7 +1038,7 @@ fn closes_at_its_site<T: Decide>(
     b_he: HalfEdgeKey,
     band: Band,
 ) -> Result<bool, BooleanError> {
-    let rim = |body: &Body<T>, f: FaceKey| RimSide::of(face_surface(body, f).1);
+    let rim = |body: &Body<T>, f: FaceKey| RimSide::of(keyed_surface(body, f).1);
     Ok(
         match (
             site_cell(&red.a, g0.a_locus, g0.he)?,
@@ -1388,7 +1388,7 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
             BooleanError::CurvedBooleanUnsupported {
                 operand,
                 face,
-                kind: face_surface(body, face).1.kind(),
+                kind: keyed_surface(body, face).1.kind(),
             }
         };
         // A segment along a conic edge of one solid, inside the other's
@@ -2528,8 +2528,8 @@ fn two_rulings<T: Decide>(
     germ: &HalfGerm<T>,
     band: Band,
 ) -> Result<bool, BooleanError> {
-    let (_, sa) = face_surface(&red.a, germ.a_face);
-    let (_, sb) = face_surface(&red.b, germ.b_face);
+    let (_, sa) = keyed_surface(&red.a, germ.a_face);
+    let (_, sb) = keyed_surface(&red.b, germ.b_face);
     Ok(match (sa, sb) {
         (geom::Surface::Cone { apex: p1, .. }, geom::Surface::Cone { apex: p2, .. }) => {
             super::fan::cones_share_apex(*p1, *p2, band).map_err(join_escalate)?
@@ -2638,7 +2638,7 @@ fn germ_loops<T: Decide>(
     let Some(held) = held else {
         return germ_section_loops(&red.sections, (&red.a, &red.b), germ, band);
     };
-    let ((_, sa), (_, sb)) = (face_surface(a.0, a.1), face_surface(b.0, b.1));
+    let ((_, sa), (_, sb)) = (keyed_surface(a.0, a.1), keyed_surface(b.0, b.1));
     let refused = |e| frame_refusal(e, (a.1, sa), (b.1, sb));
     match held.clone().map_err(refused)? {
         PkSection::Lines(_) => Ok(None),
@@ -2734,7 +2734,7 @@ pub(super) fn face_pair_section_loops<T: Decide>(
             what: "a cylinder pair read by its carried components was asked for its loops",
         });
     }
-    let ((_, sa), (_, sb)) = (face_surface(body_a, face_a), face_surface(body_b, face_b));
+    let ((_, sa), (_, sb)) = (keyed_surface(body_a, face_a), keyed_surface(body_b, face_b));
     let (at, extent) = frame_lever((sa, body_a, face_a), (sb, body_b, face_b), band)?;
     pair_section_frame_at(sa, sb, at, extent, band)
         .map_err(|e| frame_refusal(e, (face_a, sa), (face_b, sb)))
@@ -3416,7 +3416,7 @@ pub(super) fn germ_branch<T: Decide>(
             }),
         };
     }
-    let kind = |body: &Body<T>, f: FaceKey| face_surface(body, f).1.kind();
+    let kind = |body: &Body<T>, f: FaceKey| keyed_surface(body, f).1.kind();
     match (kind(body_a, face_a), kind(body_b, face_b)) {
         (Plane, Torus) | (Torus, Plane) => {}
         (Plane, Cone) | (Cone, Plane) => {
@@ -3493,7 +3493,7 @@ fn pair_reading<T: Decide>(
     (body_b, face_b): (&Body<T>, FaceKey),
     band: Band,
 ) -> Result<PkSection<T>, BooleanError> {
-    let ((_, sa), (_, sb)) = (face_surface(body_a, face_a), face_surface(body_b, face_b));
+    let ((_, sa), (_, sb)) = (keyed_surface(body_a, face_a), keyed_surface(body_b, face_b));
     let refused = |e| frame_refusal(e, (face_a, sa), (face_b, sb));
     if let Some(held) = sections.plane_cone((body_a, face_a), (body_b, face_b)) {
         return held.clone().map_err(refused);
@@ -3789,7 +3789,7 @@ pub(super) fn cylinder_read<T: Decide>(
     b: (&Body<T>, FaceKey),
 ) -> Result<bool, BooleanError> {
     let wall = |(body, f): (&Body<T>, FaceKey)| {
-        matches!(face_surface(body, f).1, geom::Surface::Cylinder { .. })
+        matches!(keyed_surface(body, f).1, geom::Surface::Cylinder { .. })
     };
     if !(wall(a) && wall(b)) {
         return Ok(false);
@@ -3876,7 +3876,7 @@ fn faces_section_unbuilt<T: geom_core::Real>(
     (a, fa): (&Body<T>, FaceKey),
     (b, fb): (&Body<T>, FaceKey),
 ) -> BooleanError {
-    let kind = |body: &Body<T>, f| face_surface(body, f).1.kind();
+    let kind = |body: &Body<T>, f| keyed_surface(body, f).1.kind();
     section_unbuilt(why, (fa, kind(a, fa)), (fb, kind(b, fb)))
 }
 
@@ -4747,7 +4747,7 @@ fn choose_roles<T: crate::props::AtRestPolicy>(
         Quadric,
         Carried,
     }
-    let surface = || face_surface(body, face).1;
+    let surface = || keyed_surface(body, face).1;
     let ring = match closure {
         RingClosure::Wall(section) => match crate::ring_path::Quadric::of(surface()) {
             Some(crate::ring_path::Quadric::Cylinder { .. }) | None => RingFace::Wall(section),
@@ -6406,7 +6406,7 @@ mod frame_dispatch_tests {
             normal,
             u_ref: Vec3::new(0.0, 1.0, 0.0).cross(normal).normalize(),
         };
-        let wall = crate::boolean::join::face_surface(body, face).1.clone();
+        let wall = crate::boolean::join::keyed_surface(body, face).1.clone();
         let on = super::super::carrier_pair::face_witnesses(body, face).unwrap();
         [
             ("plane, wall", &plane, &wall),
@@ -7830,7 +7830,7 @@ mod of_join_rows {
 #[allow(clippy::expect_used)]
 mod face_surface_tests {
     /// **The join walks to a face's surface in one place**
-    /// ([`super::face_surface`]): every read of a surface in this file's
+    /// ([`super::keyed_surface`]): every read of a surface in this file's
     /// code, a face's or a key's, is that function's one.
     #[test]
     fn the_join_walks_to_a_faces_surface_in_one_place() {
@@ -7845,7 +7845,7 @@ mod face_surface_tests {
         .flat_map(|needle| code.match_indices(needle).map(|(at, _)| at))
         .collect();
         let homes: Vec<usize> = code
-            .match_indices("fn face_surface<")
+            .match_indices("fn keyed_surface<")
             .map(|(at, _)| at)
             .collect();
         assert_eq!(homes.len(), 1, "one home");
@@ -7859,7 +7859,7 @@ mod face_surface_tests {
             .collect();
         assert!(
             reads.len() == 1 && elsewhere.is_empty(),
-            "a surface read outside `face_surface`, at lines {elsewhere:?} ({} reads in all)",
+            "a surface read outside `keyed_surface`, at lines {elsewhere:?} ({} reads in all)",
             reads.len()
         );
     }

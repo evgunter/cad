@@ -103,9 +103,8 @@ impl<T: Decide> Body<T> {
         let dropped = if resolved.on_parent_chart {
             Vec::new()
         } else {
-            let face = self.proven_face(face);
-            self.require_whole_faces([face]);
-            face.half_edges()
+            self.half_edges_proven_whole([self.proven_face(face)])
+                .concat()
         };
 
         // ---- Mutation (infallible from here on). ----
@@ -312,13 +311,10 @@ impl<T: Decide> Body<T> {
                 });
             }
         }
-        let recharted: Vec<_> = faces
-            .iter()
-            .filter(|m| !m.on_parent_chart)
-            .map(|m| self.proven_face(m.face))
-            .collect();
-        self.require_whole_faces(recharted.iter().copied());
-        let dropped: Vec<HalfEdgeKey> = recharted.iter().flat_map(|f| f.half_edges()).collect();
+        let recharted = faces.iter().filter(|m| !m.on_parent_chart);
+        let dropped = self
+            .half_edges_proven_whole(recharted.map(|m| self.proven_face(m.face)))
+            .concat();
 
         // ---- Mutation (infallible from here on). ----
         //

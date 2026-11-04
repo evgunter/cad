@@ -2448,8 +2448,8 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
     /// group was read off the staged body, tier-1-valid.
     fn rechart_survivor(&mut self, rep: FaceKey, description: (SurfaceKey, bool)) {
         let survivor = self.proven_face(rep);
-        self.require_whole_faces([survivor]);
-        let (old, halves) = (survivor.record().surface, survivor.half_edges());
+        let old = survivor.record().surface;
+        let halves = self.half_edges_proven_whole([survivor]).concat();
         self.drop_rows_on_chart_change(halves, old, description.0);
         self.rechart_in_place(rep, description);
     }
