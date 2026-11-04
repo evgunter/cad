@@ -582,7 +582,6 @@ fn conics_tangent_at_a_shared_end_tie_the_across_choice() {
         (&round, (-1.570_796_326_794_893, 0.463_099_272_662_401_64)),
     );
     let got = read(spans.0, spans.1, at);
-    let back = read(spans.1, spans.0, at);
     let met = got.unwrap_or_else(|r| panic!("the tangent pair refused: {r:?}"));
     assert!(
         met.shared.is_none() && met.points.len() == 1,
