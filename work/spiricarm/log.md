@@ -84,3 +84,8 @@
   - **Tally candidates:** none (no MAJOR).
   - **Fix pass:** the union, sent to the piece 2 lane (resumed).
   - **Class (logged at adjudication):** a soundness argument written in a doc with no executing row is two reviews in a row's finding on this track (6473's dead apex arm, 6486's unguarded lever). Briefs for stage 2 will require that every new certificate ships with a fuzz or a mutant row that goes red without its load-bearing check.
+- 2026-11-04 — **PR 6486's fix pass is taken** (head `de3d64a0da`, CI green). The orchestrator read it.
+  - Interior before apex; the sheet lever is guarded by a seeded fuzz that goes red at three seeds without it; one home each for the arc predicate and `ê_r`; `geom::meridian_side` replaces five copysigns.
+  - The reviewers' rows are adopted. Filed `lathe/a-sphere-class-arc-centre-just-across-the-axis-refuses-at-the-pcurve-mint` (P3).
+  - The row is `docs/dual-review-log/rows/PR-6486.md` (fair pair, no MAJOR).
+  - **Stage 1 is closed**: the football with conical ends builds. Stage 2 (the apex as a pole, which lands the football itself) is next on the parent row.
