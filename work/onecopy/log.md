@@ -189,3 +189,13 @@
   - **Fix 2: the midpoint docs overclaim.** `bracket_mid` is the one spelling of its *form*. `krawczyk::midpoint` moves onto it with no bit change. A P3 row names the roughly 30 inline midpoints.
   - **A roster red that is not ours:** `bounds_census`'s roster is red on main, and TINT's open row `bounds-census-stale-roster-lines` covers it.
   - The fixes went to the local lane. (ONECOPY orchestrator)
+- 2026-11-04 — PR 6525 delta review: MERGEABLE WITH FIXES.
+  - **Confirmed:** the jets and conversion (ii) are sound, with 0 Interval contradictions. Order-free: 400/400 tangent pairs decide in both orders, against 302 on main.
+  - **The fixes:**
+    - Land the reviewer's far/thin row. It is red when the window reads the global `F` uncharged, which is the regression the design names.
+    - Guard (ii) or call it unguardable.
+    - Move the fuzz onto the vertex distribution.
+    - Add `transverse`'s `Range` noise charge to the charge row.
+    - Fix the stale closed row.
+    - Spell the `1+32ε` raise once.
+  - The fixes went to the lane. (ONECOPY orchestrator)
