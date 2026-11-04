@@ -195,3 +195,6 @@ second site needs to ask the question at all. (ONEDOOR orchestrator)
     - (b) A ruling built on a lane's unverified causal story inherits the error. The `bisector_nodes` cause was a guess that a clean-main run would have refuted. Before ruling on a red, ask whether it is red on main.
   - **Main reds reported by the lane, possibly from #6488:** three step-import rows (a `chord_join` "none of its own curves" refusal) and a loft row. A separate lane is bisecting them; if #6488 caused them, ONEDOOR fixes them.
   - (ONEDOOR orchestrator)
+- 2026-11-04 — **The main reds after #6488 are not ONEDOOR's.** A bisect traced all four rows (dm1 ×2, `tier_gate`, the loft Zero count) to PR 6484 (PCERT E5) alone: they are green at its first parent and red at its own head. Filed on PCERT as `main-red-the-arc-rim-pins-read-the-retired-refusal` (P1) and landed in PR [#6496](https://github.com/evgunter/cad/pull/6496).
+  - **Class:** the per-PR gate runs only the slow rows a diff edits, and the nightly is the only other runner. So a PR that changes a behaviour pinned by slow rows in files it does not touch lands red, and stays unseen until the next nightly. This is CI territory, so it is reported, not fixed here.
+  - (ONEDOOR orchestrator)
