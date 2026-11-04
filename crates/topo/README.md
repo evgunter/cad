@@ -1176,12 +1176,14 @@ curved edge held at its corner, a planar face with a spline edge, or a
 point tied inside a curved edge read as its faces' tangent cones
 (`FaceSector::tangent`) where their first order decides, one order
 down where it ties at a cusp corner or along a ray
-(`link::second_order`), and left unread where neither decides
+(`link::second_order`), two sheets on one wedge read as the lens their
+bends make, two planar faces on each other refused as the planar link
+refuses them, and left unread where none of these decides
 (`census::SelfTouch::SecondOrder`: a cone's apex, a horn beside a sheet
-along its ray, a curved sheet holding a tied ray inside it, sheets the
-bends do not part, a face whose tangent reading does not build, or
-sectors lying on each other). Every other use of a face's normal in the
-coincidence sweeps is sense-invariant.
+along its ray, sheets the bends do not part, a face whose tangent
+reading does not build, or tangent sectors lying on each other that no
+lens reads). Every other use of a face's normal in the coincidence
+sweeps is sense-invariant.
 
 The tangent reading is the germ's (`rest::first_order`). Under the
 blow-up `q ↦ p + (q − p)/t` the faces about `p` tend in C¹, as
@@ -1226,12 +1228,13 @@ for good. So the germ about `u` is the cut's picture along the ray:
   a thorn, inside it for a needle, so no sheet of the cone comes near
   it and the windings either side of the polygon differ by one;
 - **sheets along a ray where a bound ties** are half-lines from their
-  edges' points into their sectors, and planar sheets through the ray
-  whole lines through the point; where no two meet but at an edge's
-  point they share (without folding there), they are curves bounding
-  the material on their outward sides, and the cone, which sees them
-  meet on the ray as edges meet, reads the faces' winding about it as
-  the cut does.
+  edges' points into their sectors, planar sheets through the ray whole
+  lines through the point, and curved ones whole lines through their
+  normal sections' curvature vectors along the ray; where no two meet
+  but at an edge's point they share (without folding there), they are
+  curves bounding the material on their outward sides, and the cone,
+  which sees them meet on the ray as edges meet, reads the faces'
+  winding about it as the cut does.
 
 Each such sign is the bend's Taylor term at the arm `l` in metres
 (`Δκ·l²/2`), decided with the first order's residue there charged
@@ -1255,7 +1258,51 @@ inside the band. Left unread:
 - a thorn the cone round it reaches (the ray not decidedly outside the
   cone's material for a thorn, inside it for a needle), which may be a
   real overlap;
-- a curved sheet holding a tied ray inside it, whose line is not read.
+- a curved sheet holding a tied ray inside it whose face has no
+  certified bend.
+
+Two sectors bounded at the point by the same two edges, of opposed
+outward normals and not both planes, are one wedge to first order: a
+**lens** (`second_order::lenses`). One order down each is its face's
+graph over the wedge, `h(u)·s²/2` along the first's outward normal `m`
+at distance `s` along the unit `u`, `h` the face's normal section's
+acceleration (`bound_side::FaceBend::section`). Both faces hold both
+edges, so each edge's curvature vector along `m` is both faces' normal
+section along it (Meusnier), and `q = h₂ − h₁`, a quadratic form on the
+plane, vanishes along both bounds `u₀`, `u₁`: it is a multiple of
+`(u × u₀)·(u × u₁)` along `m`, of one sign across a wedge under half a
+turn. That sign, read at the wedge's middle at the arm with the second
+plane's parting from the first there charged, is the lens's: positive,
+each sheet on the other's outward side, a void between them; negative,
+a sliver of material. Each bound must read `q` Zero. Read along the
+wedge, `q((1 − t)u₀ + t·u₁) = b₀(1 − t)² + 2b₁t(1 − t) + b₂t²` with the
+bounds' `|b₀|, |b₂|` within the band's zero `z` at the arm, so a sign
+other than the middle's `q` takes by at most `z`: there the sheets lie
+within the band of each other, beside the edges they share. A face with
+no certified bend, a sector of more than one wedge, a middle in band,
+normals not decidedly opposed, or a sector in two pairs is left unread.
+
+A link with lenses is read as its remainder, its other sectors and its
+horns, with each lens cut out of the remainder's material or added to
+it (`rest::lensed`). No ray of another sector lies on a lens's closed
+wedge and no other sector on its middle, each decided; no other sector
+crosses the wedge (a crossing, confirmed in the ball); the remainder
+reads one material; and each lens's middle reads decidedly inside that
+material for a void and outside it for a sliver. A remainder of no
+sector and no horn has no material to read, and its lenses are then all
+of one kind. So no sheet but its own meets a lens off `p`, the lens lies
+in one region of the remainder, and cutting it out or adding it moves
+that region's winding one step toward the other value: the windings
+stay two consecutive values. Anything else is left unread.
+
+Two planar sectors on one plane holding a common area, a slit or a
+sheet doubled, are the faces' own geometry and no tie: two planes are
+their faces' own, and each face fills its tangent sector near the point
+off its bounds, so the faces hold that area whatever else the link
+holds. Such a link refuses `Degenerate` before any tie, horn or lens of
+it is read (`rest::slit`), as the planar link refuses the same two
+faces: the solid touches itself over an area there, which tier 3′ does
+not read.
 
 The chord reading is the cross-section's (`FaceSector::chord`). A
 cylinder or cone face along a line edge of it, the edge lying in a

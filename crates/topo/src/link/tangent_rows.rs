@@ -222,8 +222,9 @@ fn a_corners_fan_turns_as_its_departures_do() {
 /// **A tangent link reads only the coincidences its faces keep**: a
 /// corner on a ball's tangent plane rests off the ball and crosses into
 /// it; a corner edge along that plane leaves the ball only to second
-/// order and refuses, but along a cylinder's ruling it lies in the
-/// cylinder and reads; a planar corner's line edge lying in a planar
+/// order, the ball bending away from the corner's faces there, and
+/// rests, and refuses under a spherical cavity bending up into them;
+/// along a cylinder's ruling it lies in the cylinder and reads; a planar corner's line edge lying in a planar
 /// face reads as the planar link does; two line edges on one ray of a
 /// curved corner read, a curve's tangent on a line refuses; two balls'
 /// tangent planes on one plane refuse. Red where a kept coincidence
@@ -245,10 +246,16 @@ fn a_tangent_link_reads_only_the_coincidences_its_faces_keep() {
     let flat = [v(1.0, 0.0, 0.0), v(-0.2, 0.3, 1.0), v(-0.1, -0.4, 1.0)];
     let mut on_ball = corner(&flat, true, &k, &[]);
     on_ball.push(whole(sphere(-1.0), true));
-    assert_eq!(
-        read(on_ball),
-        Unread(TouchUnread::Unreadable),
+    assert!(
+        matches!(read(on_ball), TouchVerdict::Rest(_)),
         "along a ball"
+    );
+    let mut under_cavity = corner(&flat, true, &k, &[]);
+    under_cavity.push(whole(sphere(0.5), false));
+    assert_eq!(
+        read(under_cavity),
+        Unread(TouchUnread::Unreadable),
+        "along a cavity bending up into the corner"
     );
     let mut on_ruling = corner(&flat, true, &k, &[]);
     on_ruling.push(whole(cylinder(), true));

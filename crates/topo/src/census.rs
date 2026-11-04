@@ -99,10 +99,10 @@
 //!   thorn, a spline face held off a corner, a face whose foot normal,
 //!   reach or corner face does not read, a curved edge with no certified
 //!   curve, sheets along a tied ray that one order down meet or do not
-//!   part, a curved sheet holding a tied ray inside it, two whole tangent
-//!   planes on one plane, or sectors read lying on each other (two
-//!   tangent sectors that coincide, or a slit or doubled sheet of planar
-//!   faces in a link with a curved face) — which
+//!   part, a curved sheet holding a tied ray inside it with no certified
+//!   bend, two whole tangent planes on one plane, or two tangent sectors
+//!   lying on each other that no lens reads
+//!   (`link::second_order::lenses`) — which
 //!   [`sweep_self_touch_points`] leaves unread
 //!   (`work/restread/tier-3-prime-reads-no-side-where-a-solid-touches-itself-at-a-point-on-a-curved-face.md`);
 //!   and one
@@ -8429,16 +8429,18 @@ enum SelfTouch {
     /// held off a corner, a face whose normal at the foot or whose reach
     /// does not read, a corner face [`crate::sector_face::resolve`]
     /// refuses, a curved edge with no certified curve, sheets along a
-    /// tied ray that one order down meet or do not part, a curved sheet
-    /// holding such a ray inside it, or two whole tangent planes on one
-    /// plane (two kissing balls at any pose included). A sign one order
-    /// down that the band leaves undecided, in band or moved there by the
-    /// first order's charged residue, is [`TouchUnread::Unreadable`] too:
-    /// this `why` does not part an in-band reading one order down from a
-    /// structural refusal.
-    /// [`TouchUnread::Degenerate`] for two sectors read lying on each
-    /// other, which takes in a slit or a doubled sheet of planar faces as
-    /// well as tangent sectors that coincide.
+    /// tied ray that one order down meet or do not part (a curved sheet
+    /// holding such a ray inside it with no certified bend among them),
+    /// two whole tangent planes on one plane (two kissing balls at any
+    /// pose included), two sectors lying on each other where one is no
+    /// plane and no lens reads them, or a lens the link round it does not
+    /// hold. A sign one order down that
+    /// the band leaves undecided, in band or moved there by the first
+    /// order's charged residue, is [`TouchUnread::Unreadable`] too: this
+    /// `why` does not part an in-band reading one order down from a
+    /// structural refusal. Two planar faces lying on each other are no
+    /// such point: the link refuses them [`TouchUnread::Degenerate`], as
+    /// the planar link does.
     SecondOrder(TouchUnread),
 }
 
@@ -8469,9 +8471,7 @@ fn self_touch_verdict<T: Decide>(
             match Link::tangent_of(body, geo, &holds, at, band)
                 .map(|link| rest::one_material(&link, band))
             {
-                Ok(TouchVerdict::Unread(
-                    why @ (TouchUnread::Unreadable | TouchUnread::Degenerate),
-                ))
+                Ok(TouchVerdict::Unread(why @ TouchUnread::Unreadable))
                 | Err(why @ TouchUnread::Unreadable) => SelfTouch::SecondOrder(why),
                 Ok(verdict) => SelfTouch::Read(verdict),
                 Err(why) => SelfTouch::Read(TouchVerdict::Unread(why)),

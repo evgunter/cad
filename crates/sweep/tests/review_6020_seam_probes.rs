@@ -293,3 +293,71 @@ fn review_6020_boolean_seam_poses() {
         println!("{l}");
     }
 }
+
+/// **A half holding two planar faces on each other refuses at the
+/// point**: the counterbore split through its floor's rim `P`, leaning
+/// in by 0.05, under either normal and at either azimuth. Each half
+/// carries, on the cut plane, a face whose interior holds `P` and a face
+/// of the other sense cornered there, the two holding a common area
+/// (`work/heldrecords/a-plane-touching-a-counterbores-floor-rim-ships-sides-tier-three-prime-refuses.md`).
+/// Tier 3′ refuses `P` `Degenerate`, as it refuses two planar faces on
+/// each other wherever the link meets them, and reads no point there a
+/// crossing. Red where `P` passes unread.
+#[test]
+fn a_counterbore_half_with_two_faces_on_each_other_refuses_at_the_point() {
+    let y = Vec3::new(0.0, 1.0, 0.0);
+    let t = 0.05f64;
+    let at = |w: &str| -> Point3<f64> {
+        let c: Vec<f64> = w
+            .trim_matches(|c| c == '(' || c == ')')
+            .split(", ")
+            .map(|x| x.parse().expect("a coordinate"))
+            .collect();
+        Point3::new(c[0], c[1], c[2])
+    };
+    for az in [0.0f64, 0.3] {
+        let d = Vec3::new(az.cos(), 0.0, az.sin());
+        let p = Point3::new(0.3 * d.x, 0.6, 0.3 * d.z);
+        for s in [1.0, -1.0] {
+            let n = (y * t.cos() - d * t.sin()) * s;
+            let plane: SplitPlane<f64> = topo::test_support::split_plane(p, n, tol());
+            let res = split(
+                &sweep::test_support::finished("the operand", revolved(&COUNTERBORE), tol()),
+                &plane,
+                tol(),
+            )
+            .expect("the pose builds");
+            for (side, part) in [("below", res.below), ("above", res.above)] {
+                let SplitPart::Body(half) = part else {
+                    panic!("a{az} s{s} {side}: a half");
+                };
+                let h = half.into_body();
+                let errors =
+                    topo::validate_pseudomanifold(&h, &topo::ContactRecords::default(), tol())
+                        .expect_err("the half's touches are unrecorded");
+                let mut at_p = false;
+                for e in &errors {
+                    match e {
+                        topo::ValidationError::BoundaryCrossesItselfUndecided {
+                            witness,
+                            why,
+                            ..
+                        } => {
+                            assert_eq!(
+                                *why,
+                                topo::TouchUnread::Degenerate,
+                                "a{az} s{s} {side} at {witness}"
+                            );
+                            at_p |= (at(witness) - p).norm() < 1e-9;
+                        }
+                        topo::ValidationError::BoundaryCrossesItself { witness, .. } => {
+                            panic!("a{az} s{s} {side}: a crossing at {witness}")
+                        }
+                        _ => {}
+                    }
+                }
+                assert!(at_p, "a{az} s{s} {side}: P refuses: {errors:?}");
+            }
+        }
+    }
+}

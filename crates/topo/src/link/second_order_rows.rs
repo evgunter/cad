@@ -592,13 +592,14 @@ fn a_sheet_along_anothers_line_is_read_with_its_lean_charged_interval() {
 }
 
 /// [`wedge_over_a_plane`], its arc's departure along `+y` leaning
-/// `lean` toward `−x` at the arm, and the plane `x = 0` a ball's tangent
-/// plane where `curved`.
+/// `lean` toward `−x` at the arm, and the plane `x = 0` a sphere's
+/// tangent plane where `curved` is its radius: a ball under the plane,
+/// or, negative, a spherical cavity over it.
 fn wedge_over_a_sheet<T: Decide>(
     p: Point3<T>,
     up: f64,
     lean: f64,
-    curved: bool,
+    curved: Option<f64>,
 ) -> Vec<TangentPiece<T>> {
     let k = edges(1);
     let e = Bound {
@@ -609,18 +610,18 @@ fn wedge_over_a_sheet<T: Decide>(
     let (x, out) = (turned::<T>(2.0, 0.0, 0.0), turned::<T>(2.0, 0.0, -lean));
     let s = core::f64::consts::FRAC_1_SQRT_2;
     let n = turned::<T>(0.0, 0.0, 1.0);
-    let sheet = if curved {
+    let sheet = if let Some(r) = curved {
         let fan = TangentFan::Inside {
             reach: T::from_f64(2.0),
             frame: [v(1.0, 0.0, 0.0), v(0.0, 1.0, 0.0), v(0.0, 0.0, 1.0)],
         };
         let ball = geom::Surface::Sphere {
-            center: p - n * T::from_f64(2.0),
-            radius: T::from_f64(2.0),
+            center: p - n * T::from_f64(r),
+            radius: T::from_f64(r.abs()),
             axis: n,
             u_ref: turned(1.0, 0.0, 0.0),
         };
-        FaceSector::tangent(ball, true, n, p, fan, band()).expect("a ball's plane")
+        FaceSector::tangent(ball, r > 0.0, n, p, fan, band()).expect("a sphere's plane")
     } else {
         whole(p, n)
     };
@@ -648,11 +649,15 @@ fn a_fin_on_a_plane<T: Decide>(p: Point3<T>) -> Vec<TangentPiece<T>> {
 /// **What one order down leaves unread stays unread**: an arc bending
 /// off a plane by just past the escalation rests, and refuses where its
 /// departure leans toward the plane by seven tenths of the band's zero,
-/// the lean charged; an arc over a ball's tangent plane refuses, the
-/// ball's line in the cut not read; a fin, an edge's two faces running
-/// on along one line one way, refuses as unread, not as faces on each
-/// other. Red where an anchor's first-order residue is not charged, a
-/// curved sheet is read as its plane, or a fold is passed. The lean's
+/// the lean charged; over a sphere's tangent plane the arc is read
+/// against the sphere's line in the cut, at its normal section's
+/// curvature: a ball under the plane, or a cavity over it bending up
+/// slower than the arc, rests, and a cavity bending up faster, reaching
+/// the wedge's faces in the cut, refuses; a fin, an edge's two planar
+/// faces running on along one line one way, lies on itself over an area
+/// and refuses `Degenerate`, as the planar link refuses two planar faces
+/// on each other. Red where an anchor's first-order residue is not
+/// charged, a curved sheet is read as its plane, or a fold is passed. The lean's
 /// charge is witnessed near the origin: a kilometre off, on `Interval` at
 /// the finest band, the leaning arc refuses with or without it.
 fn what_one_order_down_leaves_unread_stays_unread<T: Decide>() {
@@ -662,22 +667,44 @@ fn what_one_order_down_leaves_unread_stays_unread<T: Decide>() {
     for p in apexes::<T>() {
         assert!(
             matches!(
-                read(p, wedge_over_a_sheet(p, up, 0.0, false)),
+                read(p, wedge_over_a_sheet(p, up, 0.0, None)),
                 TouchVerdict::Rest(_)
             ),
             "an arc just past the escalation off a plane at {p:?}"
         );
         assert_eq!(
-            read(p, wedge_over_a_sheet(p, up, 0.7 * zero, false)),
+            read(p, wedge_over_a_sheet(p, up, 0.7 * zero, None)),
             unread,
             "the arc leaning toward the plane at {p:?}"
         );
+        for (what, r, rests) in [
+            ("a ball under the plane", 2.0, true),
+            (
+                "a cavity over it bending up slower than the arc",
+                -2.0,
+                true,
+            ),
+            (
+                "a cavity over it bending up faster than the arc",
+                -0.5,
+                false,
+            ),
+        ] {
+            let got = read(p, wedge_over_a_sheet(p, 1.0, 0.0, Some(r)));
+            if rests {
+                assert!(
+                    matches!(got, TouchVerdict::Rest(_)),
+                    "{what} at {p:?}: {got:?}"
+                );
+            } else {
+                assert_eq!(got, unread, "{what} at {p:?}");
+            }
+        }
         assert_eq!(
-            read(p, wedge_over_a_sheet(p, 1.0, 0.0, true)),
-            unread,
-            "an arc over a ball's tangent plane at {p:?}"
+            read(p, a_fin_on_a_plane(p)),
+            TouchVerdict::Unread(TouchUnread::Degenerate),
+            "a fin at {p:?}"
         );
-        assert_eq!(read(p, a_fin_on_a_plane(p)), unread, "a fin at {p:?}");
     }
 }
 
