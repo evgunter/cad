@@ -48,3 +48,14 @@ on that predicate
 (`work/charttail/main-red-the-meeting-axes-pose-refuses-on-a-ruled-region-span-since-5664`).
 
 Un-pinning owes a re-measure: each pin stops its row at main's first stop, so whatever runs after it in the row is unmeasured. Known behind the 1e-12 pin: possibly this row's `carrier_endpoint_end`, which the `bool_ruled_region_span` stop now precedes.
+
+**Moved (ONECOPY `onecopy/angle-reads`, 2026-11-03).** With the default-ε
+refusal gone on that branch, the 1e-12 stop is the join's certification
+on a surface residual
+(`Join(BooleanJoin(Euler(Certification { error: Escalated { check: SurfaceResidual { .. }, sample: 5, .. }))))`),
+not `EndpointEnd`; the row's pin there names it, at 1e-12 only.
+
+**Closes on ONECOPY `onecopy/angle-reads` (PR 6482, 2026-11-04).** On that
+branch the row builds at 1e-12 as well, and passes its volume and node
+checks; its `pinned_red` wrapper is dropped there, so the row asserts the
+build at every ε. The status is GERM's to set once that PR merges.
