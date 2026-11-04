@@ -2,10 +2,12 @@
 id: an-ellipses-general-lane-is-written-on-no-chart
 kind: issue
 title: An ellipse has no general (projected) lane on any chart: an in-band ellipse, or one within the band of a chart that holds none, refuses not yet
-status: open
+status: closed
 opened: 2026-11-03
 priority: P1
 cost: M
+closed: 2026-11-04
+pr: 6524
 ---
 
 
@@ -58,3 +60,25 @@ section, an ellipse within the band of a sphere, and the search in
 `pcurve_cache::circle_lane_rows` widened to ellipses. Check the mesh
 and topo readers of `FramedCarrier::Circle` (`mesh::chords`,
 `mesh::memo`) when it is renamed.
+
+## Closed
+
+PR 6524. An ellipse takes the projected lane on the sphere, cylinder,
+cone and torus (`projected::lane_of`'s `Lane::Conic`, the framed
+carrier renamed `FramedCarrier::Conic`). The audit found no hidden
+`|a| = |b|` in the circle lane's terms. It did find a signed read:
+`Conic::speed_hi` under-charged a negative stored semi-axis, and the
+lane's charge now reads magnitudes (`implicit::semi_reach`). A cylinder
+conic whose orientation reads Zero now takes the general lane, where it
+read a winding of `0` and ended as a measured miss. The cylinder's "in
+band" orientation is unreachable by a certifiable carrier, and the
+cone's is reachable only in a sliver; the PR states both arguments.
+
+Rows and evidence: `pcurve_cache/ellipse_lane_rows.rs`, and a 50-digit
+sweep (`scripts/oracles/ellipse_lane_50_digit.py`) with 0 under over
+580 rows at both scalars.
+
+Residue filed:
+- `work/onecopy/conic-speed-hi-reads-the-signed-larger-semi-axis.md`;
+- `work/tang/a-sphere-ring-bounded-by-an-ellipse-is-unread-by-the-chord-join.md`;
+- `work/tesssize/an-ellipse-edge-on-a-sphere-or-torus-face-skips-the-lattice-step.md`.
