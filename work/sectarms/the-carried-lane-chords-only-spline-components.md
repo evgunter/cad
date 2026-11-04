@@ -42,8 +42,9 @@ A carried chord on a closed-form component:
 - its evidence of lying on both surfaces (an exact carrier needs no
   certificate);
 - a site at a node read as the node (C5), with the germ's arc named by
-  its branch at mint (`vtxfac::mint_node`'s plane branch), not by a
-  positional foot.
+  the arc end it is minted from, not by a positional foot. (Corrected
+  2026-11-03: the earlier text said "by its branch at mint", but the
+  plane branch names an ellipse, not an arc.)
 
 After that, the rulings and bisector lanes, and the plane-lane rows that
 pin them, retire into the carried lane.
@@ -80,3 +81,26 @@ F1. That fork decides how a germ at a node names its arc once the
 bisector planes no longer do. The orchestrator is running it through the
 design-fork procedure. Until then the bisector pose keeps
 `GermLane::Bisector` exactly as before.
+
+## 2026-11-03: 3b-ii, the nodes listed on the value
+
+Branch `sectarms/cylinder-node-listing`, after fork F1 (row 248; Ev
+approved in PR 6398):
+- The value lists each bisector node as a `SectionNode`: its point, the
+  walls' common normal (their outward radial), its two tangent lines
+  and the side bit, all closed form. Each arc end names
+  `NodeEnd { node, line, sense }` on `NodeEnds { start, end }`, by span
+  end. A node is listed only where the region holds it.
+- `CarriedSection::site` reads `AtNode(n) | OnArc(foot)`, testing the
+  node first; a foot on an open conic arc must lie within its span.
+- The node pass mints one germ per arc end (the ray, `Component(k)`).
+  The bisector lane retires (`GermLane::Bisector`, `KindArm::Bisector`,
+  `bisector_planes`, `bisector_loops`, `LoopSplit::Bisector`,
+  `AuxDatum::Bisector`, `bool_node_run_turn`), and `rides_carried`
+  names every cylinder pose as riding.
+- **Left for spline 3b:** an arc with both ends at one node is read at
+  that node by the end its germ leaves along, and no germ names that end
+  yet: `CarriedComponent::end_at` desyncs, naming it. The spline node's
+  arcs must name the end on the germ, or refuse typed.
+- The pinch's node is not listed:
+  `the-cylinder-pinchs-node-is-not-listed` (P2).
