@@ -701,7 +701,7 @@ fn the_kind_refusal_no_longer_names_the_torus() {
 
 /// **The radii regime that is not a torus.** Issue 1011's torus half
 /// asks for both radii regimes if both are mintable through public
-/// doors. They are not: `Surface::Torus` carries the ring convention
+/// doors. Only the ring is a torus: `Surface::Torus` carries the ring convention
 /// `R > r`, and `topo::validate`'s tier-3 check reports `DegenerateTorus`
 /// on any face carrying one at rest — so the containment arm is written
 /// for ring tori and premises `R > r` where it needs it (the residual's

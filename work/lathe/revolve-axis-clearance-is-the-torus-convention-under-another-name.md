@@ -69,3 +69,15 @@ near-horn sliver (`SliverAxisClearance`, the sized ending), as the
 ratified arc rule (`crates/topo/README.md`'s structural conventions)
 states. No "not supported" text remains, and there is no definite
 refusal left to end in the ring convention's words.
+
+The row had two halves, and only the definite one retired. The
+in-band half persists: the margin is still `rc − radius`, now
+`axis_arc_reach`, and in band it still refuses
+`SliverAxisClearance`, with the sized ending (the tolerance a value
+gives). What settles it is no longer the repair shape above
+(`TorusConvention::Ring`'s words) but the ratified arc rule: the
+reach picks the kind, so its band is the near-horn sliver between a
+ring torus and a horn sheet, which the rule names a sliver as it does
+`ArcCenter`'s and `LineRadial`'s. Below the band's zero a horn-class
+sheet builds with `R` up to `r` plus the band, which piece 1's
+clamped apex radicand closes at one cusp.

@@ -1129,26 +1129,30 @@ fn nappe_of<T: Decide>(mid: T, band: Band) -> Result<Nappe, PcurveCertifyError> 
     }
 }
 
-/// The metre conversion of `surface`'s canonical form for a carrier
-/// whose middle sits at height `mid` in its chart frame: on a cone, of
-/// the nappe the middle lies on ([`chart_at`]'s).
+/// The nappe a carrier whose middle sits at height `mid` in the chart
+/// frame lies on, on a cone ([`chart_at`]'s), and `None` on every other
+/// analytic chart: what [`Meters::of`] reads besides the surface.
 ///
 /// # Errors
 ///
 /// [`chart_at`]'s on a cone; [`PcurveCertifyError::UnsupportedChart`]
 /// off an analytic chart.
-pub(crate) fn meters_at<T: Decide>(
+pub(crate) fn nappe_at<T: Decide>(
     surface: &Surface<T>,
     mid: impl FnOnce() -> T,
     band: Band,
-) -> Result<Meters<T>, PcurveCertifyError> {
-    let nappe = match surface {
-        Surface::Cone { .. } => Some(nappe_of(mid(), band)?),
-        _ => None,
-    };
-    Meters::of(surface, nappe, |x| x).ok_or(PcurveCertifyError::UnsupportedChart {
-        chart: surface.kind(),
-    })
+) -> Result<Option<Nappe>, PcurveCertifyError> {
+    match surface {
+        Surface::Cone { .. } => Ok(Some(nappe_of(mid(), band)?)),
+        Surface::Plane { .. }
+        | Surface::Cylinder { .. }
+        | Surface::Sphere { .. }
+        | Surface::Torus { .. }
+        | Surface::Spindle { .. } => Ok(None),
+        Surface::Nurbs(_) | Surface::Approx(_) => Err(PcurveCertifyError::UnsupportedChart {
+            chart: surface.kind(),
+        }),
+    }
 }
 
 /// **Whether `carrier` has a projected image on `surface`**: the one
@@ -1655,14 +1659,6 @@ impl<S: Real> Meters<S> {
         })
     }
 
-    /// The nappe the conversion reads, on a cone.
-    pub(crate) fn nappe(self) -> Option<Nappe> {
-        match self {
-            Self::Cone { nappe, .. } => Some(nappe),
-            _ => None,
-        }
-    }
-
     /// **The apex root**: on a cone, `√|f|` bounds a part's distance from
     /// the cone's implicit surface wherever the lever does not decide
     /// positive (a part reaching the apex). In the meridian half-plane
@@ -1680,17 +1676,26 @@ impl<S: Real> Meters<S> {
     /// since the division needs it positive: on a cone
     /// `ρ cos α + (σz) sin α`, on a torus `(ρ + R)² − r²`.
     ///
-    /// On a spindle sheet `f = (m² − r²)(M² − r²)` reads both of the
-    /// torus's sheets: `m` is the distance from the sheet's tube circle
-    /// (centre `R`) and `M` from the other's (centre `−R`), with
-    /// `M² − m² = 4Rρ`. On the sheet `sgn R·(M² − r²) = 4|R|ρ`, and on
-    /// the other it is zero, so the lever is that factor decided
-    /// positive, read off the part's box: `(ρ_min + R)² + z_min² − r²`
-    /// on an apple (`R > 0`), `r² − (ρ + R)²_max − z²_max` on a lemon.
-    /// Then `|m − r|` is the distance from the whole circle, which is
-    /// the sheet's own wherever the circle's nearest point is on the
-    /// sheet's side of the axis: `|m − r|·|R| ≤ r·ρ`, decided positive
-    /// too.
+    /// On a spindle sheet `f = (m² − r²)(M² − r²)` vanishes on both of
+    /// the torus's sheets: `m` is the distance from the sheet's tube
+    /// circle (centre `R`) and `M` from the other's (centre `−R`), with
+    /// `M² − m² = 4Rρ`. Two decisions make the bound this sheet's, and
+    /// each does a different job:
+    ///
+    /// - **The lever** `σ·(M² − r²)`, `σ = sgn R`, decided positive over
+    ///   the box, is what `|f|` is divided by to leave `|m − r|`, the
+    ///   distance from the sheet's whole meridian circle. On the sheet it
+    ///   is `4|R|ρ`. `σ` only picks which end of the box certifies it:
+    ///   the least `(ρ + R)² + z² − r²` on an apple (`R > 0`), and
+    ///   `r² − (ρ + R)² − z²` at the box's greatest on a lemon. It does
+    ///   not select the sheet: a part on the OTHER sheet's circle, or
+    ///   past the apexes, can still clear it.
+    /// - **The side check** selects it. `|m − r|` is the distance from
+    ///   the whole circle, which is the sheet's own distance only where
+    ///   the circle's nearest point is on the sheet's side of the axis,
+    ///   and that is `|m − r|·|R| ≤ r·ρ`, decided positive. Without it
+    ///   the bound under-reads parts near the other sheet or the apexes
+    ///   (`a_spindle_bound_is_this_sheets_distance`).
     pub(crate) fn over<E>(
         self,
         f: S,
@@ -1728,7 +1733,8 @@ impl<S: Real> Meters<S> {
                 let (lo, hi) = ((rho + major).powi(2), (rho_hi + major).powi(2));
                 let least = lo.min(hi) + z_min - minor.powi(2);
                 let most = lo.max(hi) + z2(z.0).max(z2(z.1)) - minor.powi(2);
-                let sigma = S::one().copysign(major);
+                // `σ = sgn R`, decided at rest (`geom::meridian_side`).
+                let sigma = geom::meridian_side(major);
                 let half = S::from_f64(0.5);
                 let outer = ((S::one() + sigma) * least - (S::one() - sigma) * most) * half;
                 let d = torus(positive(outer)?, minor);

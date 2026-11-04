@@ -3760,12 +3760,11 @@ pub(crate) fn limb2_offset_sup<T: Decide + geom_core::Bounds + geom_core::Certif
             chart: surface.kind(),
         });
     };
-    let nappe = projected::meters_at(
+    let nappe = projected::nappe_at(
         surface,
         || (carrier.mid_point(window.0, window.1) - origin).dot(e[2]),
         band,
-    )?
-    .nappe();
+    )?;
     let twin = orthonormal_chart(surface);
     let Some((o, te)) = projected::chart_frame(&twin) else {
         unreachable!("an analytic chart has a frame")
@@ -6428,13 +6427,10 @@ fn incidence<T: Decide>(
                     let k = (minor_sq - n_sq) / ((minor_radius + n) * n);
                     let a_star = w_r * (aw / wr_sq) + axis * aa;
                     // `b*` turns `a*` in the meridian's half-plane, the
-                    // centre's or, on a lemon, the opposite one.
-                    let (aw_side, side) = if matches!(surface, Surface::Spindle { .. }) {
-                        let sign = T::one().copysign(major_radius);
-                        (aw * sign, w_r * sign)
-                    } else {
-                        (aw, w_r)
-                    };
+                    // centre's or, on a lemon, the opposite one: `σ = sgn R`,
+                    // decided at rest on both kinds (`geom::meridian_side`).
+                    let sign = geom::meridian_side(major_radius);
+                    let (aw_side, side) = (aw * sign, w_r * sign);
                     let b_star =
                         (axis * aw_side - side * aa) / wr_sq.sqrt() * angle_rate::<T>(sigma);
                     let pair = harmonic_sup(a_star * k + (a_star - a), b_star * k + (b_star - b));
@@ -9648,6 +9644,34 @@ pub fn chart_iso_family<T: Decide>(
     })
 }
 
+/// Which revolved circle a torus-family chart is: the ring torus or a
+/// spindle sheet. The two share their parametrisation (a signed `R` on
+/// the sheet), so the formulas they share take one arm, and what parts
+/// them (the sheet's tube angle in the latitude window, its meridian
+/// circle leaving it past its apexes, its oblique circles on the
+/// general lane) reads this, decided once here over every kind.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum RevolvedTube {
+    Ring,
+    Sheet,
+}
+
+impl RevolvedTube {
+    /// `None` off a revolved circle.
+    fn of<T: Real>(surface: &Surface<T>) -> Option<Self> {
+        match surface {
+            Surface::Torus { .. } => Some(Self::Ring),
+            Surface::Spindle { .. } => Some(Self::Sheet),
+            Surface::Plane { .. }
+            | Surface::Cylinder { .. }
+            | Surface::Cone { .. }
+            | Surface::Sphere { .. }
+            | Surface::Nurbs(_)
+            | Surface::Approx(_) => None,
+        }
+    }
+}
+
 /// [`chart_pcurve`]'s harmonic arms, answering the image together with
 /// the structure selections that produced it ([`Derivation`]) — the
 /// one body both the mint and check 4's re-derivation run.
@@ -10410,14 +10434,16 @@ fn derive_class<T: Decide>(
             minor_radius,
             u_ref,
         } => {
-            let sheet = matches!(surface, Surface::Spindle { .. });
-            let tube_angle = if sheet { Along::Latitude } else { Along::Tube };
-            let oblique = |shown| {
-                if sheet {
-                    Err(incidence::general_lane(shown, None))
-                } else {
-                    torus_oblique_circle(carrier, surface, place, band, shown)
-                }
+            let Some(tube) = RevolvedTube::of(surface) else {
+                unreachable!("the arm matched a torus or a sheet")
+            };
+            let tube_angle = match tube {
+                RevolvedTube::Sheet => Along::Latitude,
+                RevolvedTube::Ring => Along::Tube,
+            };
+            let oblique = |shown| match tube {
+                RevolvedTube::Sheet => Err(incidence::general_lane(shown, None)),
+                RevolvedTube::Ring => torus_oblique_circle(carrier, surface, place, band, shown),
             };
             let shown = incidence::incident(carrier, surface, place, band)?;
             let cv = axis.cross(u_ref);
@@ -10509,12 +10535,9 @@ fn derive_class<T: Decide>(
                         Sign::Positive | Sign::Negative => return oblique(shown),
                     }
                     // The meridian's half-plane: its centre's, or on a
-                    // lemon the opposite one, where `R < 0` lies.
-                    let side = if sheet {
-                        w_r * T::one().copysign(major_radius)
-                    } else {
-                        w_r
-                    };
+                    // lemon the opposite one, where `R < 0` lies
+                    // (`geom::meridian_side`, decided at rest).
+                    let side = w_r * geom::meridian_side(major_radius);
                     let alpha = place.phase(
                         Along::Azimuth,
                         Azimuth::of(side.dot(cv), side.dot(u_ref)),
@@ -11520,10 +11543,9 @@ mod incidence {
         };
         // A sheet's meridian circle leaves the sheet past its apexes, so
         // a sheet reads only the edge's span.
-        let turn = if place.edge_only || matches!(surface, Surface::Spindle { .. }) {
-            place.span
-        } else {
-            (T::zero(), T::tau())
+        let turn = match (place.edge_only, super::RevolvedTube::of(surface)) {
+            (true, _) | (false, Some(super::RevolvedTube::Sheet)) => place.span,
+            (false, Some(super::RevolvedTube::Ring) | None) => (T::zero(), T::tau()),
         };
         match chart_incidence(name, carrier, surface, turn, slack, band)? {
             Incidence::On => Ok(tested),

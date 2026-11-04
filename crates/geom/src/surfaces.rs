@@ -605,6 +605,24 @@ pub fn spindle_sheet<T: geom_core::Decide>(
     )
 }
 
+/// **The meridian's side, its one home**: `σ = sgn R` as an exact `±1`,
+/// the side of the axis a revolved circle's centre sits on, measured in
+/// the meridian half-plane of the surface's points. `+1` on a ring torus
+/// and an apple sheet, `−1` on a lemon sheet, where the centre lies
+/// across the axis. Formulas shared by the torus and the sheet read a
+/// meridian's out-direction, or its centre's direction, through it.
+///
+/// It transfers a sign that is DECIDED at rest, and is not a two-way
+/// choice standing in for one (`work/lathe/copysign-stands-in-for-a-nappe-and-a-max-fold-and-hulls.md`):
+/// a ring torus carries `R > r > 0` ([`require_ring_torus`]), and
+/// [`spindle_sheet`] decides a sheet's `R` clear of zero
+/// (`spindle_not_sphere`, `R = 0` is the sphere). So no datum at rest
+/// gives it a zero, and at `Interval` an enclosure of `R` that holds
+/// no zero gives the point `±1`, never the hull.
+pub fn meridian_side<T: Real>(major_radius: T) -> T {
+    T::one().copysign(major_radius)
+}
+
 /// A spindle sheet's apexes, as [`sheet_apex`] places them: their
 /// height `√(r² − R²)` above and below the centre along the axis, and
 /// the tube angle `v*` they lie at (`cos v* = −R/r`).

@@ -154,9 +154,10 @@ pub enum TubeError {
         /// The predicate-layer escalation.
         source: Indeterminate,
     },
-    /// The shared revolve machinery refused (ring-torus convention,
-    /// operator/certification failures, the pcurve mint — every arm
-    /// typed on [`RevolveError`]).
+    /// The shared revolve machinery refused (a tube circle reaching the
+    /// axis, its inner vertex across it or on it; operator and
+    /// certification failures; the pcurve mint — every arm typed on
+    /// [`RevolveError`]).
     Revolve(RevolveError),
 }
 

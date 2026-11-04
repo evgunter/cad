@@ -551,9 +551,10 @@ pub enum RevolveError {
         /// The predicate-layer escalation.
         source: Indeterminate,
     },
-    /// An arc segment's interior definitely dips into `r < 0` (span
-    /// beyond the half-period around an on-axis center, or an apex on
-    /// the negative side — the half-plane check for arc interiors).
+    /// An arc segment's interior definitely dips into `r < 0`: it
+    /// reaches `m = c − r·ê_r`, its circle's point of least radius, on
+    /// a sphere's or a sheet's circle (`axis_arc_interior`, the
+    /// half-plane check for arc interiors).
     ArcCrossesAxis {
         /// Canonical index of the loop.
         loop_index: usize,
@@ -1072,8 +1073,8 @@ fn partial_angle_reverses<T: Decide>(t: T, r_max: T, band: Band) -> Result<bool,
 /// # Errors
 ///
 /// [`RevolveError`] — closed and typed: degenerate/sliver axis and
-/// angle, half-plane violations, sliver radii, unsupported toroids,
-/// non-manifold axis contact, sliver dihedrals, Newell failures, and
+/// angle, half-plane violations, sliver radii, a sheet's apex on the
+/// profile, non-manifold axis contact, sliver dihedrals, Newell failures, and
 /// every operator/certification refusal.
 ///
 /// # Panics
@@ -1142,13 +1143,13 @@ mod tests {
     use super::*;
 
     /// **A revolve escalation ends by its decision's kind.** The angle
-    /// and the arc span are angles, the axis direction's length is a
-    /// gauge, and the line runs, the arc centre and the cosurface
-    /// distance select a form: each ends in the lever alone on every
-    /// reading. The arc's apex and clearance are distances the profile
-    /// keeps from the axis, and the gap between two axis runs a
-    /// distance it keeps between them: each offers the tolerance a
-    /// value gives.
+    /// and the arc's interior (the turn to its circle's point of least
+    /// radius) are angles, the axis direction's length is a gauge, and
+    /// the line runs, the arc centre and the cosurface distance select
+    /// a form: each ends in the lever alone on every reading. The arc
+    /// circle's reach is a distance it keeps from the axis, and the gap
+    /// between two axis runs a distance the profile keeps between them:
+    /// each offers the tolerance a value gives.
     #[test]
     fn a_revolve_escalation_ends_by_its_decisions_kind() {
         use crate::swept::undecided_fixtures::{LEVER, SIZED, expected, readings};

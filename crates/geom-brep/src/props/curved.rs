@@ -5385,7 +5385,9 @@ fn torus_chart_loop<T: Decide>(
     // to `u·|w|/ρ`, which the core circle would carry `major` times over.
     let about_core = |m: Vec3<T>, d: Vec3<T>, w: Vec3<T>| {
         let radial = m - axis * m.dot(axis);
-        let out = radial * (T::one().copysign(major) / radial.norm());
+        // Toward the meridian's half-plane: across the axis from its
+        // centre on a lemon (`geom::meridian_side`, decided at rest).
+        let out = radial * (geom::meridian_side(major) / radial.norm());
         let (xd, yd) = (d.dot(out), d.dot(axis));
         let (xw, yw) = tube(w);
         (xd * yw - yd * xw).atan2(xd * xw + yd * yw)
@@ -5881,7 +5883,9 @@ fn torus_meridian_orient<T: Decide>(
     let orient = classify(
         "props_meridian_orient",
         Margin::levered(
-            n_c.dot(tau) * T::one().copysign(major),
+            // Read against `sgn R·ρ̂` (`geom::meridian_side`, decided at
+            // rest), the meridian's own out-direction on either kind.
+            n_c.dot(tau) * geom::meridian_side(major),
             crate::ExtentBall::of_circle(c_c, minor).lever(),
         ),
         band,

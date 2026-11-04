@@ -1137,8 +1137,13 @@ fn grid_counts(
                 ceil_count(vspan, cap_angular(hv))?,
             ))
         }
-        // Tier 3 refuses a sheet face reaching an apex, so no pole
-        // column is read.
+        // No pole column is read, and nothing here guarantees there is
+        // none: tier 3 refuses a sheet face reaching an apex at rest
+        // (`SheetApexReached`; such faces are stage 2's), but this door
+        // takes an unvalidated body and does not re-check, so a face
+        // forged onto an apex arrives with `has_pole` set and is sized
+        // as the torus's grid, `cert_torus` its only backstop. No row
+        // meshes one.
         ChartKind::Spindle { major, minor } => {
             let (hu, hv) = torus_grid_steps(delta, major, minor);
             Ok((

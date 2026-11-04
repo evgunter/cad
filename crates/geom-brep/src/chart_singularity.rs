@@ -838,13 +838,17 @@ struct WalkSample<T: Real> {
 /// - it stays off the surface axis where `ρ_min = ρ(m) − r` is positive,
 ///   and then turns about it through at most `2r/ρ_min` — a line's
 ///   exactly its principal step;
-/// - its chart `v` moves by at most `2r/R` on a sphere (`R` a spindle
-///   sheet's minor radius on a sheet) and `2r` along a cone's slant, and a circle's by its height range about the axis
-///   over `ρ_min`;
+/// - its chart `v` moves by at most `2r/a` on a sphere of radius `a`
+///   and on a spindle sheet of minor radius `a`, `2r` along a cone's
+///   slant, and a circle's by its height range about the axis over
+///   `ρ_min`;
 /// - so its share of the metric area `−∮ g(v) du` is within
 ///   `1.5·sup|g′|·Δv·Δu` of the trapezoid the walk sums (`∂g/∂v` is the
-///   chart's area element: `R² cos v`, `sin α · |v|` on a cone, and
-///   `r(R + r cos v)` on a spindle sheet, bounded by `r(|R| + r)`).
+///   chart's area element: `a² cos v` on the sphere, `sin α · |v|` on a
+///   cone, and `a(R + a cos v)` on a spindle sheet of signed major
+///   radius `R`. On the sheet `|v| ≤ v*`, where `R + a cos v` runs from
+///   `0` at the apexes to `R + a` at `v = 0` for either sign of `R`, so
+///   its sup is `a(R + a)`: the sheet's widest radius times `a`).
 ///
 /// A step is bisected until it is certified to turn by less than a
 /// sixteenth of a turn, so its principal step is its turn and the steps
@@ -1023,7 +1027,7 @@ struct Shape<T: Real> {
 
 #[derive(Clone, Copy)]
 enum ShapeKind<T> {
-    /// A sphere of radius `R`.
+    /// A sphere of its radius.
     Sphere(T),
     /// A cone of half-angle `α`: `sin α`, `cos α`.
     Cone(T, T),
@@ -1210,7 +1214,9 @@ fn step_bound<T: Decide>(
     };
     let slope = match shape.kind {
         ShapeKind::Sphere(r) => r.powi(2),
-        ShapeKind::Sheet(major, minor) => minor * (major.abs() + minor),
+        // `R + r cos v ∈ [0, R + r]` on the sheet's window, for either
+        // sign of `R` (the doc above).
+        ShapeKind::Sheet(major, minor) => minor * (major + minor),
         ShapeKind::Cone(sin, _) => {
             let v = |w: WalkSample<T>| w.uv.map_or(T::zero(), |uv| uv.y.abs());
             sin * (v(s).max(v(q)) + span)
