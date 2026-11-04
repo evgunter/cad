@@ -83,3 +83,10 @@
   - Each candidate carries `excess: T`, so a meter against the band cannot be typed.
   The lesson for the class: a meter read against the model's band is a unit error that the type system can rule out. Implementation waits for the meet-interval PR, then goes to the same lane.
 - 2026-11-04 — PR 6482 merged at `522ae629e6` (`a6f0b5e99c`). I merged main into 6483 and resolved it: `self_touch_curved` takes main's read; the F31 audit takes 6482's text; the lever row's two seed notes are both kept. Compiling caught a clash git could not see: 6482 dropped `on_carrier`'s `check_unlogged` import, and 6483's F32 reads it. Clippy, the gates, geom (565) and topo census/link/touch (546) all pass. The state-sync rides last, and the gate is running at `a56784c9d6`. The disk filled mid-run; I reclaimed the finished lanes' targets and clones (meet-pose, rev-loops, rev-cpr2, foot-designer-a, tgt-6482).
+- 2026-11-04 — PR 6495's second delta review: APPROVE-WITH-FIXES; MAJOR-A and MINOR-B are closed. The new rank types re-spell partitions that already exist. Sent the lane one last commit:
+  - `piece_reading` reads `ContainError::refusal()`; slit and rehome disagreed on three arms;
+  - `PointInSolidError::refusal` is derived from its own `in_band`/`confined`/`sideless`/`inconclusive`;
+  - the doc splice is undone, and the dead `Sides::holds` channel goes;
+  - `Standing` folds into `ladder::Refusal` with an `Unsettled` arm if that takes ≤150 lines; otherwise it is filed as a row.
+
+  Class: a fix that names a single home ("so no reader spells a second table") has to grep for the second table before it says so.
