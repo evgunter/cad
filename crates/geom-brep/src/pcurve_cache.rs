@@ -9603,10 +9603,13 @@ crate::ended_by_write!(IsoFamilyRefusal);
 /// The iso family the image of `carrier` over the edge's span `[t0, t1]`
 /// on `surface`'s chart lies on, read off the class arm
 /// [`chart_pcurve_over`]'s derivation selects for it, so the family is
-/// the mint's own structure. `None` for a planar chart, a spiric carrier,
-/// and an image on no family (a cylinder's oblique section or a line
-/// shown off its rulings, a cone's tilted section or a line shown off its
-/// generators, a torus's Villarceau circle).
+/// the mint's own structure. The span is the edge's: a sheet's meridian
+/// circle leaves the sheet past its apexes, so only the part an edge holds
+/// is on it, and a line's ruling reading is metered over it. `None` for a
+/// planar chart, a spiric carrier, and an image on no family (a cylinder's
+/// oblique section or a line shown off its rulings, a cone's tilted
+/// section or a line shown off its generators, a torus's Villarceau
+/// circle).
 ///
 /// # Errors
 ///
@@ -10543,7 +10546,7 @@ fn derive_class<T: Decide>(
                     // window like the azimuth (a parallel holds it).
                     let v0 = place.phase(
                         tube_angle,
-                        Azimuth::of(w.dot(axis), rho - major_radius),
+                        Azimuth::tube(w.dot(axis), rho, major_radius),
                         |_| T::zero(),
                         band,
                     )?;

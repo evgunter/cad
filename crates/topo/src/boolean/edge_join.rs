@@ -397,7 +397,9 @@ pub(super) fn singular_at<T: Decide>(
     let arm = match *s {
         geom::Surface::Cone { apex, .. } => (p - apex).norm(),
         geom::Surface::Sphere { center, axis, .. } => off_axis(center, axis),
-        geom::Surface::Torus { center, axis, .. } => off_axis(center, axis),
+        geom::Surface::Torus { center, axis, .. } | geom::Surface::Spindle { center, axis, .. } => {
+            off_axis(center, axis)
+        }
         _ => return Ok(false),
     };
     geom_core::k_stats::decide("join_regular_point", Margin::of(arm), band)
