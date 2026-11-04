@@ -144,7 +144,7 @@ use geom_core::{Band, Indeterminate, MarginDiag, NOT_YET_ENDING, Point3, Real, S
 
 use crate::certify::CertCheck;
 use crate::recourse::{
-    ReadAt, Refused, RefusedArm, RefusedSide, SizedDecision, Unsized, defect_ending,
+    DoorCheck, ReadAt, Refused, RefusedArm, RefusedSide, SizedDecision, Unsized, defect_ending,
 };
 
 pub use boundary::{
@@ -1464,7 +1464,7 @@ impl SsiError {
         let reading = reading.into();
         match self {
             Self::TransversalityBand { verdict, .. } => {
-                crate::certify::recourse(CertCheck::Transversality, verdict.arm(), reading)
+                CertCheck::Transversality.recourse(verdict.arm(), reading)
             }
             Self::PairTangent { pair, verdict } => pair.sized().recourse(verdict.arm(), reading),
             Self::RadiusNotPositive { radius } => radius
@@ -1488,13 +1488,13 @@ impl SsiError {
             Self::CertificateEscalated { limb, cause } => {
                 SsiDecision::Limb(*limb).ending(cause, reading)
             }
-            Self::CertificateLimb { limb, .. } => {
-                crate::certify::recourse(limb.check(), RefusedArm::SignCertain(None), reading)
-            }
+            Self::CertificateLimb { limb, .. } => limb
+                .check()
+                .recourse(RefusedArm::SignCertain(None), reading),
             // The search's one lever ([`OneArcRefusal::ending`]).
             Self::TubeNotOneArc { cause, .. } => cause.ending(OneArcDoor::Search, reading),
             Self::TubeStraddles { verdict, .. } => {
-                crate::certify::recourse(SsiLimb::Tube.check(), verdict.arm(), reading)
+                SsiLimb::Tube.check().recourse(verdict.arm(), reading)
             }
             Self::SelfCrossingLocus { .. } => {
                 SELF_CROSSING.recourse(RefusedArm::SignCertain(None), reading)
@@ -1529,9 +1529,7 @@ impl SsiError {
             }
             // The same decision, and so the same ending, as the edge
             // lane's refusal of the same fact.
-            Self::ChartSpeed(r) => {
-                crate::certify::recourse(r.check(), RefusedArm::SignCertain(None), reading)
-            }
+            Self::ChartSpeed(r) => r.check().recourse(RefusedArm::SignCertain(None), reading),
             // A step that cannot be taken or that collapses into the
             // band is the operands' scale against the domain the caller
             // named, decided without a margin to name. A march speed
@@ -1602,7 +1600,7 @@ impl SsiError {
             // The surfaces' tangency along the side: the march's own
             // transversality decision, read across the wall's edge.
             Self::BoundaryTangent { verdict, .. } => {
-                crate::certify::recourse(CertCheck::Transversality, verdict.arm(), reading)
+                CertCheck::Transversality.recourse(verdict.arm(), reading)
             }
             Self::SideSignBudget { .. } => SIDE_SIGN_BUDGET_RECOURSE.to_owned(),
             // The section certified a sign change in the bracket, so a
@@ -2554,10 +2552,8 @@ impl TraceDecision {
         let at = at.into();
         let arm = RefusedArm::Undecided(cause);
         match self {
-            Self::TransversalityArm => {
-                crate::certify::recourse(CertCheck::TransversalityArm, arm, at)
-            }
-            Self::Transversality => crate::certify::recourse(CertCheck::Transversality, arm, at),
+            Self::TransversalityArm => CertCheck::TransversalityArm.recourse(arm, at),
+            Self::Transversality => CertCheck::Transversality.recourse(arm, at),
             Self::CylinderSphereTangency => TangentPair::CylinderSphere.sized().recourse(arm, at),
             Self::SphereTorusTangency => TangentPair::SphereTorus.sized().recourse(arm, at),
             Self::CylinderTorusTangency => TangentPair::CylinderTorus.sized().recourse(arm, at),
@@ -2604,9 +2600,7 @@ impl SsiDecision {
     pub fn ending(self, cause: &Indeterminate, at: impl Into<ReadAt>) -> String {
         match self {
             Self::Trace(decision) => decision.ending(cause, at),
-            Self::Limb(limb) => {
-                crate::certify::recourse(limb.check(), RefusedArm::Undecided(cause), at)
-            }
+            Self::Limb(limb) => limb.check().recourse(RefusedArm::Undecided(cause), at),
         }
     }
 }

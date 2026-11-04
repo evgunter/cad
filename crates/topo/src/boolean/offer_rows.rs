@@ -1195,7 +1195,7 @@ fn coaxial_frame(cyl: f64, sph: f64) -> Result<(), BooleanError> {
 
 /// **The germ mint's reading of the site `site` on the section of `c`
 /// and `s`**: the pair classified, carried through the march's lane,
-/// and the site's foot on it ([`geom_brep::CarriedSection::foot`]).
+/// and the site's foot on it ([`geom_brep::CarriedSection::site`]).
 fn section_site(
     c: &geom::Surface<f64>,
     s: &geom::Surface<f64>,
@@ -1215,7 +1215,7 @@ fn section_site(
         .carry(Some(geom_brep::SsiLane::marched()), band())
         .map_err(|e| unbuilt(super::super::section_table::Uncarried::Carry(&e)))?;
     carried
-        .foot(site, band())
+        .site(site, band())
         .map(|_| ())
         .map_err(super::super::join::site_refusal)
 }
@@ -3020,7 +3020,6 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("vtxfac.rs", "germ_order", "Coincide::Sectors", 1),
-    ("vtxfac.rs", "mint_node", "Coincide::Sectors", 1),
     ("node.rs", "wall_sense", "Coincide::Sectors", 1),
     (
         "node.rs",
