@@ -9,12 +9,14 @@ rust-version.workspace = true
 workspace = true
 
 [features]
-# The variant rosters behind `topo`'s sample-coverage row
-# (`topo::test_support_samples`): with this on, the enums a
-# `topo::ValidationError` renders through derive a companion
-# discriminant enum (`strum::EnumDiscriminants`), so a variant added
-# here is a gap in that row by construction, not by a hand-kept list.
-# Test-only: enabled through `topo`'s `test-support` alone.
+# Test-only reach for other crates' rows, enabled through `topo`'s
+# `test-support` alone. Two kinds: rosters (a companion discriminant
+# enum, `strum::EnumDiscriminants`, on the enums a
+# `topo::ValidationError` renders through, behind
+# `topo::test_support_samples`, so a variant added here is a gap in
+# that row by construction; `strum::EnumIter` where a roster row walks
+# an enum), and constructors and oracles no production path takes. The
+# gated items are `grep -rn 'feature = "test-support"' src`.
 test-support = ["dep:strum", "geom/test-support", "geom-core/test-support"]
 # Forwards geom-core's K-telemetry recording scalar so the
 # workspace-wide `--features probe` lane builds uniformly. See geom-core's manifest

@@ -1548,11 +1548,9 @@ pub(crate) fn arc_distance_floor<T: Decide>(
     q: Point3<T>,
 ) -> Option<ArcFloor<'_, T>> {
     Some(match *carrier {
-        geom::Curve3::Line(_) => ArcFloor::Segment(crate::sector_shape::point_segment_distance(
-            carrier.eval(t0),
-            carrier.eval(t1),
-            q,
-        )),
+        geom::Curve3::Line(_) => ArcFloor::Segment(
+            geom_brep::sector_shape::point_segment_distance(carrier.eval(t0), carrier.eval(t1), q),
+        ),
         geom::Curve3::Circle(_) | geom::Curve3::Ellipse(_) => {
             let Some(crate::ring_path::LoopArc::Conic(arc)) =
                 crate::ring_path::LoopArc::of(carrier, (t0, t1))

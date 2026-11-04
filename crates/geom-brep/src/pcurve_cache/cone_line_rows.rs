@@ -236,7 +236,7 @@ fn the_cone_form_sup_covers_the_segments_form() {
 /// floor, its miss reads `L_max/L_min` over (4× and 2000× here: the
 /// lever grows along a ruling from the apex). Halved where the lever's
 /// spread passes `LEVER_SPREAD`, check 4's incidence term reads it within
-/// that factor and the form's rounding charge, at both spans.
+/// that factor of the miss and the form's rounding charge, at both spans.
 #[test]
 fn the_cone_lines_incidence_over_reads_by_at_most_the_lever_spread() {
     let alpha = 0.5_f64;
@@ -277,9 +277,13 @@ fn the_cone_lines_incidence_over_reads_by_at_most_the_lever_spread() {
         )
         .unwrap_or_else(|e| panic!("[{t0}, {t1}]: check 4's terms: {e:?}"));
         let incidence = terms.0[EnvelopeTerm::Incidence.slot()];
-        println!("[delta-64ulp] [{t0}, {t1}] off {off:e} incidence {incidence:e} excess over 1.125 off {:e} (allowance {:e})", incidence - 1.125 * off, 64.0 * f64::EPSILON);
+        // Each part's form carries its rounding charge, at most the
+        // whole segment's over the lever's least value, at its start.
+        let charge = geom_core::rounding_charge(
+            2.0 * q0.norm_squared().max(q1.norm_squared()) + (q1 - q0).norm_squared(),
+        ) / lever(q0);
         assert!(
-            incidence >= off * (1.0 - 1e-6) && incidence <= 1.125 * off + 64.0 * f64::EPSILON,
+            incidence >= off * (1.0 - 1e-6) && incidence <= 1.125 * (off + charge),
             "[{t0}, {t1}]: the incidence term {incidence:e} reads the miss {off:e} within the \
              lever's spread"
         );

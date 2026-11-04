@@ -13,7 +13,7 @@ From the stage (b) review residue (`curve-pair-reader-stage-b-review-residue` (c
 
 Two readers solve the same question, the roots of `c₀ + A·cos(θ − φ)` along a conic:
 - `geom_brep::curve_pair::pose::harmonic_roots`: extremes read through `roots::extreme_sign`. An extreme in the zero band is a touch, unless the root gap, read at the extreme less its noise, is definite. A definite straddle is two roots, read from the extreme that has crossed less.
-- `topo::boolean::circle_roots::first_harmonic_roots_in_band`: the circle × surface doors' reader. It meters each root's slack against the band, reads the roots against the span, and charges phase noise. An extreme in band refuses `Unsettled::Tangency`.
+- `geom_brep::curve_face::circle_roots::first_harmonic_roots_in_band`: the circle × surface doors' reader. It meters each root's slack against the band, reads the roots against the span, and charges phase noise. An extreme in band refuses `Unsettled::Tangency`.
 
 **They decide an in-band extreme differently:** one reads a touch, the other refuses. The straddle policies differ too: `pose::constant` escalates a straddle, while `circle_roots::constant_residual_roots` refuses `Tangency`. Both now read `roots::spread_readings`.
 

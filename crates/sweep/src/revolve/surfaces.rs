@@ -64,6 +64,17 @@ pub(super) fn wall_surface<T: Real>(
             minor_radius: minor,
             u_ref: frame.u3,
         },
+        WallKind::Spindle {
+            center_sk,
+            major,
+            minor,
+        } => Surface::Spindle {
+            center: frame.foot3(center_sk),
+            axis: frame.a3,
+            major_radius: major,
+            minor_radius: minor,
+            u_ref: frame.u3,
+        },
     }
 }
 

@@ -43,7 +43,7 @@ pub(super) const SITES: [&str; 21] = [
     "skip-incidence",
     "radial-fold",
     "segment-form-ends",
-    "circle-chart-incidence",
+    "circle-incidence",
     "form-uncharged",
     "lane-envelope-bound",
 ];
@@ -207,8 +207,8 @@ pub(super) fn segment_form_ends<T: Real>(f0: T, f1: T, _middle: T) -> Option<T> 
 /// A circle's distance from a cylinder, cone or torus dropped from its
 /// projected envelope: the envelope misses a circle off the chart (its
 /// rows are `circle_lane_rows`).
-pub(super) fn circle_chart_incidence<T: Real>(surface: &Surface<T>) -> Option<T> {
-    (on("circle-chart-incidence") && !matches!(surface, Surface::Sphere { .. })).then(T::zero)
+pub(super) fn circle_incidence<T: Real>(surface: &Surface<T>) -> Option<T> {
+    (on("circle-incidence") && !matches!(surface, Surface::Sphere { .. })).then(T::zero)
 }
 
 /// A circle's chart form read at its computed harmonics alone, its

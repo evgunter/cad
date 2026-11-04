@@ -26,7 +26,7 @@ escalated typed refusal, never a raw comparison.
 | C1 locus ladder | `crates/geom/src/curves.rs` (`Curve3`: Line, Circle, Ellipse, Spiric, Nurbs); `crates/geom-brep/src/intersect.rs` (`Rung`); `crates/geom-brep/src/intersect/conic_arc.rs` (the plane×cone parabola and hyperbola arcs) |
 | C2, C3 SSI and its certificate | `crates/geom-brep/src/ssi.rs` + `ssi/{march,certify,exhaust,enclose,jet,system,boundary,section,ends,pair,four}.rs`; `crates/geom-brep/src/intersect/section_bounds.rs` (the bounds a classified pair's section states, which retire the tube) |
 | C4 pcurves | `crates/geom-brep/src/pcurve_cache.rs` (value, certificate), `pcurve.rs` (conic constructors), `crates/topo/src/pcurves.rs` (storage, minting, branch walk); description form in `description.rs` |
-| C5 dispatch table | `crates/geom-brep/src/intersect.rs` (`route`, the section functions); for curve pairs `crates/geom-brep/src/curve_pair.rs` (`method`, `meet`) and `curve_pair/{span,pose,polish,walk}.rs` |
+| C5 dispatch table | `crates/geom-brep/src/intersect.rs` (`route`, the section functions); for curve pairs `crates/geom-brep/src/curve_pair.rs` (`method`, `meet`) and `curve_pair/{span,pose,polish,walk}.rs`; for a curve against a face `crates/geom-brep/src/curve_face.rs` (`route`, `boundary`) and its doors `curve_face/{plane_crossing,circle_torus,ellipse_torus,circle_roots,composite,spline_face}.rs` |
 | C6 structure certified for every member, values in the scalar, generic certification | `crates/geom-core/src/spline/`, `crates/geom/src/curves/fit.rs` |
 | C7 tangency | `crates/geom-brep/src/tangent.rs`, `enters.rs`, `conic_bend.rs` (a conic edge's side of a plane one order down), `locus.rs` (the closed-form tangent locus, the `Tangent` witness lane); marks in `crates/topo/src/validate.rs` (`ContactMark`) |
 | C8 fillets | `crates/sweep/src/blend/` (see `crates/sweep/README.md`) |
@@ -752,7 +752,10 @@ A closed-form class gate is a lane choice (D3): in band or definite,
 the carrier takes the general lane, its projected image, whose
 certificate does not rest on the class; the closed form is taken only
 where the class is shown, and a pair whose general lane is not yet
-written refuses "not yet". Those pairs are: an ellipse on any chart; a
+written refuses "not yet". Those pairs are: an ellipse the chart's
+class readings do not show one of its own, on any chart (on the plane,
+and as a section of a cylinder or a cone, an ellipse images in closed
+form, and needs no general lane there); a
 line within the band of a sphere or a torus, which hold none; a line
 within the band of a cone that is no ruling, which the cone's arm reads
 as a ruling and so refuses at its certificate rather than "not yet";
@@ -1136,8 +1139,13 @@ enclosed by the chart's partials over a window inside the edge, every
 solution in that box of the state lies within the band of the end, a
 tangent touch and an end on a crease included, and the walk does not
 read past that end. A spiric
-span against a spline face is unbuilt. The analytic
-arms are the sweep's existing root doors. A meeting inside a spline
+span against a spline face is unbuilt. Of the analytic arms, the
+plane-crossing door (`curve_face::plane_crossing`: a line's endpoints,
+a conic's roots against the plane) and the conic × torus doors
+(`curve_face::circle_torus`, `curve_face::ellipse_torus`, over the
+shared half-angle root cores `curve_face::circle_roots`) are built
+here; the line × quadric and conic × quadric arms are the boolean's
+root doors in `topo`. A meeting inside a spline
 face's chart is placed by the trim at the chart point it was found at,
 on its own sheet (`topo::boolean::spline_region::spline_chart_placement`);
 a point in space has its placement built
