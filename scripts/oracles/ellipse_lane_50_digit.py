@@ -33,7 +33,7 @@ def vec(xs):
 
 
 def dot(a, b):
-    return sum(x * y for x, y in zip(a, b))
+    return sum(x * y for x, y in zip(a, b, strict=True))
 
 
 def cross(a, b):
@@ -47,7 +47,7 @@ def unit(a):
 
 def split(q, axis):
     h = dot(q, axis)
-    w = [x - axis_i * h for x, axis_i in zip(q, axis)]
+    w = [x - axis_i * h for x, axis_i in zip(q, axis, strict=True)]
     return h, mp.sqrt(dot(w, w))
 
 
@@ -80,7 +80,33 @@ def distance_of(chart):
 
 
 def sub(a, b):
-    return [x - y for x, y in zip(a, b)]
+    return [x - y for x, y in zip(a, b, strict=True)]
+
+
+def largest_distance(chart, carrier, span, k=512):
+    """The carrier's largest 50-digit distance from its chart over the span."""
+    nums = vec(carrier)
+    c0, n, u, a, b = nums[0:3], nums[3:6], nums[6:9], nums[9], nums[10]
+    v = cross(n, u)
+    t0, t1 = vec(span)
+    dist = distance_of(chart)
+
+    def at(t):
+        ct, st = mp.cos(t), mp.sin(t)
+        return dist([c0[i] + a * u[i] * ct + b * v[i] * st for i in range(3)])
+
+    ts = [t0 + (t1 - t0) * i / k for i in range(k + 1)]
+    ds = [at(t) for t in ts]
+    j = max(range(k + 1), key=lambda i: ds[i])
+    lo, hi = ts[max(j - 1, 0)], ts[min(j + 1, k)]
+    g = (mp.sqrt(5) - 1) / 2
+    for _ in range(80):
+        m1, m2 = hi - g * (hi - lo), lo + g * (hi - lo)
+        if at(m1) > at(m2):
+            hi = m2
+        else:
+            lo = m1
+    return max(ds[j], at((lo + hi) / 2))
 
 
 def main(path):
@@ -91,34 +117,13 @@ def main(path):
             if not line.startswith("ROW "):
                 continue
             chart, carrier, span, env = (part.split() for part in line[4:].split("|"))
-            nums = vec(carrier)
-            c0, n, u, a, b = nums[0:3], nums[3:6], nums[6:9], nums[9], nums[10]
-            v = cross(n, u)
-            t0, t1 = vec(span)
-            dist = distance_of(chart)
-
-            def at(t):
-                ct, st = mp.cos(t), mp.sin(t)
-                return dist([c0[i] + a * u[i] * ct + b * v[i] * st for i in range(3)])
-
-            k = 512
-            ts = [t0 + (t1 - t0) * i / k for i in range(k + 1)]
-            ds = [at(t) for t in ts]
-            j = max(range(k + 1), key=lambda i: ds[i])
-            lo, hi = ts[max(j - 1, 0)], ts[min(j + 1, k)]
-            g = (mp.sqrt(5) - 1) / 2
-            for _ in range(80):
-                m1, m2 = hi - g * (hi - lo), lo + g * (hi - lo)
-                if at(m1) > at(m2):
-                    hi = m2
-                else:
-                    lo = m1
-            true = max(ds[j], at((lo + hi) / 2))
-            for name, e in zip(("f64", "Interval"), env):
+            true = largest_distance(chart, carrier, span)
+            for name, e in zip(("f64", "Interval"), env, strict=True):
                 e = mp.mpf(float(e))
                 ratio = e / true if true > 0 else mp.inf
                 key = (chart[0], name)
-                worst[key] = min(worst.get(key, (mp.inf, 0))[0], ratio), worst.get(key, (0, 0))[1] + 1
+                ratio_so_far, count = worst.get(key, (mp.inf, 0))
+                worst[key] = (min(ratio_so_far, ratio), count + 1)
                 if e < true:
                     bad += 1
                     print(f"UNDER {name}: envelope {mp.nstr(e, 17)} < distance {mp.nstr(true, 20)}: {line.strip()}")
