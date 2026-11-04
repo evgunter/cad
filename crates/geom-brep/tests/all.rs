@@ -125,6 +125,8 @@ mod foot_and_phase_rows;
 mod germ_pose_gate;
 #[path = "implicit_chart_section.rs"]
 mod implicit_chart_section;
+#[path = "rev6528_probes.rs"]
+mod rev6528_probes;
 #[path = "imported_chart_arc_rim.rs"]
 mod imported_chart_arc_rim;
 #[path = "interior_iso_column.rs"]

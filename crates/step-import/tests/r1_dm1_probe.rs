@@ -327,3 +327,30 @@ fn the_l_bracket_alone_adopts_its_reversed_slit() {
         other => panic!("the l-bracket imports whole — re-measure: {other:?}"),
     }
 }
+
+/// Review probe (PR 6528): the l-bracket's certified volume against an
+/// independent mesh volume at δ = 1e-5.
+#[test]
+fn rev6528_probe_l_bracket_volume() {
+    let tol = Tol::witness();
+    let text = l_bracket_only(&dm1());
+    let Ok(step_import::StepImport::Solid { body, .. }) =
+        import_step(&text, &ImportOptions::default(), tol)
+    else {
+        panic!("imports")
+    };
+    let e = body
+        .measure(topo::test_support::pinned_resolution::<f64>(tol))
+        .expect("measures")
+        .enclosure;
+    let m = mesh::tessellate(body.body(), 1e-5, tol).expect("meshes");
+    mesh::validate::check_mesh(&m).expect("closed");
+    let v = mesh::validate::signed_volume(&m);
+    eprintln!(
+        "L-BRACKET enclosure {:e} ± {:e} = [{:e}, {:e}], mesh {v:e}",
+        e.volume,
+        e.volume_pad,
+        e.volume - e.volume_pad,
+        e.volume + e.volume_pad
+    );
+}

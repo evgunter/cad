@@ -270,6 +270,8 @@ mod curved_edge_ray_probes;
 mod curved_trims_build_at_their_volumes;
 #[path = "cylinder_sphere_frame.rs"]
 mod cylinder_sphere_frame;
+#[path = "rev6528_probes.rs"]
+mod rev6528_probes;
 #[path = "degree1_loft_slabs.rs"]
 mod degree1_loft_slabs;
 #[path = "four_crossings_on_one_section_circle.rs"]
