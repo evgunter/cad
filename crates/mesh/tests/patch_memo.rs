@@ -587,12 +587,14 @@ fn the_trimmed_lane_misses_when_a_pcurve_changes_and_hits_when_a_plane_does() {
                 t0,
                 angle,
                 breaks,
+                ends,
             } => Pcurve::IsoArc {
                 p0: Point2::new(p0.x + nudge, p0.y),
                 pd,
                 t0,
                 angle,
                 breaks,
+                ends,
             },
             Pcurve::Fitted(_) | Pcurve::General(_) => panic!("an analytic chart carries no fit"),
             // The nudge is a translation of the chart, which the

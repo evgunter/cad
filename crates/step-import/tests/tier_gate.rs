@@ -310,25 +310,11 @@ const EPS_ROWS: [(&str, f64, &str, Disposition); 36] = [
     (HALFCAP_EPS7, 1e-12, "file", Pass(1, 1, 3, 4, 3)),
     // -- tests/fixtures/wild/stepcode/dm1-id-214.stp (#327) -----------
     // The AMBIENT sweep only, at this file's own ε_in: three cells,
-    // all at the pcurve MINT on the l-bracket wall's ARC rim.
-    //
-    // They used to be the RATIONAL FLUX STALL at the two fine bands
-    // and the convergence predicate's ESCALATION at the coarse one —
-    // both the at-rest gate chasing a PRECISION, finished since
-    // Tier 3's check 7 reads a SIGN (this file's volume enclosure
-    // excludes zero at round 0 at every band) — and then the ladder's
-    // `#389` gap those had masked. That gap is RETIRED (#388):
-    // degree-1 carriers promote to `Curve3::Line` and the promoted
-    // slit holds its wall's boundary-column candidate in either
-    // traversal order (`r1_dm1_probe`'s tripwire and l-bracket
-    // witness). What every band meets now is the frontier past it:
-    // wall `#382` states its circle as four rational spans whose end
-    // weights are 1 and 2 (unnormalized), against three-arc rational
-    // rim circles. Since the import splits the wall at its C⁰ knots,
-    // each sub-patch is one such span, and the arc-rim pick finds no
-    // row holding the rim circle at its probe; before the split, the
-    // whole-chart arc-rim construction refused the same rim at its
-    // residual (`MapResidual`).
+    // all at the assembled body's at-rest gate. Every component adopts
+    // and mints its pcurves (wall `#382`'s sub-patch rows hold their
+    // arc rims at end weights 1 and 2, and the l-bracket imports alone,
+    // `r1_dm1_probe`), and the bolts and nuts sit on the bracket, so
+    // two instances share vertex positions the gate finds unrecorded.
     //
     // It was nine cells until the 2026-08-13 test-time audit — the six
     // dropped ones were the `1e-6` and `1e-12` ε_in tags, and they all
@@ -339,9 +325,9 @@ const EPS_ROWS: [(&str, f64, &str, Disposition); 36] = [
     // promoted). That measurement is now RECORDED here rather than
     // re-executed every run; see [`eps_in_rows_for`] for what the
     // three imports it cost were buying and what was given up.
-    (DM1, 1e-9, "file", Refused(ARC_RIM_NOT_HELD)),
-    (DM1, 1e-6, "file", Refused(ARC_RIM_NOT_HELD)),
-    (DM1, 1e-12, "file", Refused(ARC_RIM_NOT_HELD)),
+    (DM1, 1e-9, "file", Refused(DM1_CONTACT_UNRECORDED)),
+    (DM1, 1e-6, "file", Refused(DM1_CONTACT_UNRECORDED)),
+    (DM1, 1e-12, "file", Refused(DM1_CONTACT_UNRECORDED)),
     // -- tests/fixtures/poleguard/*.step (issue 896) ------------------
     // The AMBIENT sweep only, at the files' own ε_in (they state
     // themselves to full double precision). The near-pole feature is
@@ -453,13 +439,10 @@ const PARAM_SPAN_UNTOLD: &str = "lies inside the ambiguity band (1e-12, 1e-11). 
 // candidate in either traversal order —
 // `r1_dm1_probe::the_l_bracket_alone_adopts_its_reversed_slit` imports
 // the component that carries `#389` and gets past every polyline edge.
-/// dm1's frontier at every band: the pcurve mint on the l-bracket
-/// wall's arc rim, split at its C⁰ knots into one-span sub-patches
-/// whose rows state the circle with end weights 1 and 2, and the
-/// arc-rim pick holds no row at its probe. Named
-/// specifically so a refusal that drifted to a different door cannot
-/// stand in.
-const ARC_RIM_NOT_HELD: &str = "not an arc rim of this chart";
+/// dm1's frontier at every band: the assembled body's at-rest gate,
+/// on a vertex two instances share. Named specifically so a refusal
+/// that drifted to a different door cannot stand in.
+const DM1_CONTACT_UNRECORDED: &str = "is an unrecorded contact";
 const NIST09: &str = "tests/fixtures/wild/nist/nist_ftc_09_asme1_rd.stp";
 const HALFCAP_EPS6: &str = "tests/fixtures/halfcap/halfcap_eps6.step";
 const HALFCAP_EPS7: &str = "tests/fixtures/halfcap/halfcap_eps7.step";

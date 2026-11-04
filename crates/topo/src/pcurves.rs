@@ -809,7 +809,7 @@ pub fn pcurve_of<T: AtRestPolicy>(
     // derivation, not the closed-form harmonic table. An approximating
     // surface's chart IS its fit's, so it takes the same route.
     if surface.spline_chart().is_some() {
-        return nurbs_iso_derive(body, half_edge, &surface, band);
+        return nurbs_iso_derive(body, half_edge, &surface, band).map(|d| d.image);
     }
     analytic_derive(&carrier, t0, t1, &surface, band, half_edge)
 }
@@ -1271,7 +1271,7 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
     half_edge: HalfEdgeKey,
     surface: &Surface<T>,
     band: Band,
-) -> Result<Pcurve<T>, PcurveMintError> {
+) -> Result<Derivation<T>, PcurveMintError> {
     use geom_core::{Point2, Vec2};
     let refuse = |what: &'static str| PcurveMintError::Certify {
         half_edge,
@@ -1312,7 +1312,7 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
     // only where the pick fails, since a row the certificate holds is the
     // circle on the wall. Any other certificate refusal is about the chart
     // or the run, not the candidate, and leaves with its own words.
-    let arc_rim = || -> Result<Pcurve<T>, PcurveMintError> {
+    let arc_rim = || -> Result<Derivation<T>, PcurveMintError> {
         let no_lane = || PcurveMintError::Certify {
             half_edge,
             error: match geom_brep::read_edge_incidence(&carrier, t0, t1, surface, band) {
@@ -1328,7 +1328,10 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
             return Err(no_lane());
         };
         match PcurveCache::certify(rim.clone(), t0, t1, &carrier, surface, band) {
-            Ok(_) => Ok(rim),
+            Ok(cache) => Ok(Derivation {
+                image: rim,
+                certified: Some(cache),
+            }),
             Err(
                 PcurveCertifyError::Escalated { .. }
                 | PcurveCertifyError::FittedEscalated { .. }
@@ -1494,7 +1497,7 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
             .map_err(|error| PcurveMintError::Certify { half_edge, error })
     };
     let own = half_edge_surface_key(body, half_edge);
-    match half_edge_description(body, half_edge)? {
+    let image = match half_edge_description(body, half_edge)? {
         // **This face's OWN chart image is the answer.** Since the
         // conventional descriptions collapsed (U2), an edge described
         // as an image in THIS chart carries the image itself — there
@@ -1526,7 +1529,7 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
         | geom_brep::EdgeDescription::Intersection { .. }
             if matches!(carrier, geom::Curve3::Circle(..)) =>
         {
-            arc_rim()
+            return arc_rim();
         }
         // **The wall–wall seam stated on the OTHER wall.** An iso LINE
         // image in another chart, read as a column of this one: the
@@ -1623,7 +1626,23 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
                 ),
             },
         ),
-    }
+    };
+    image.map(|image| Derivation {
+        image,
+        certified: None,
+    })
+}
+
+/// **A derived image, with its certificate where the derivation already
+/// read it**: the arc rim's lane choice certifies the row it picked
+/// ([`nurbs_iso_derive`]), and the mint's pass 2 ([`certify_walked`])
+/// keeps that certificate rather than reading the same row a second
+/// time. Every other image is certified there. The certificate travels
+/// with its image through the walk ([`WalkItem`], [`walk_cycle`]), so
+/// whatever would move the image is where the certificate is dropped.
+pub(crate) struct Derivation<T: Real> {
+    image: Pcurve<T>,
+    certified: Option<PcurveCache<T>>,
 }
 
 /// The **general curve-in-UV image** of a carrier on this face's own
@@ -2129,6 +2148,9 @@ pub(crate) struct Walked<T: Real, K = HalfEdgeKey> {
     t0: T,
     t1: T,
     element: Option<JointElement>,
+    /// The derivation's own certificate of `pcurve` over `[t0, t1]`
+    /// ([`Derivation`]), which pass 2 keeps.
+    certified: Option<PcurveCache<T>>,
 }
 
 /// One face's boundary as this module's passes walk it: each loop's
@@ -3226,12 +3248,15 @@ fn certify_walked<T: Decide, K: Copy>(
 ) -> Result<Certified<T, K>, Vec<(K, PcurveCertifyError)>> {
     let mut rows = Vec::with_capacity(walked.len());
     let mut refused = Vec::new();
-    for w in walked {
-        let cache = match (&w.pcurve, fitted) {
-            (Pcurve::Fitted(_) | Pcurve::General(_) | Pcurve::Projected(_), Some(fitted)) => {
+    for mut w in walked {
+        let cache = match (w.certified.take(), &w.pcurve, fitted) {
+            (Some(cache), ..) => Ok(cache),
+            (None, Pcurve::Fitted(_) | Pcurve::General(_) | Pcurve::Projected(_), Some(fitted)) => {
                 fitted(&w)
             }
-            _ => PcurveCache::certify(w.pcurve.clone(), w.t0, w.t1, &w.carrier, surface, band),
+            (None, ..) => {
+                PcurveCache::certify(w.pcurve.clone(), w.t0, w.t1, &w.carrier, surface, band)
+            }
         };
         // The walk derived this image: a lane choice's envelope refusal
         // is the lane's gap (`geom_brep::minted_refusal`).
@@ -3804,6 +3829,7 @@ pub(crate) fn site_rows<T: Decide>(
                         t1,
                         plus: is_plus(body, he),
                         vertex: entry_vertex(body, he),
+                        certified: None,
                     })
                 }
                 (_, at) => {
@@ -3817,6 +3843,7 @@ pub(crate) fn site_rows<T: Decide>(
                         t1,
                         plus,
                         vertex,
+                        certified: None,
                     })
                 }
             }
@@ -3827,7 +3854,7 @@ pub(crate) fn site_rows<T: Decide>(
             return Ok(SiteRows::Clear(every_half()));
         };
         let mut carriers = carriers.into_iter();
-        for (i, (image, t0, t1, element)) in pinned.into_iter().enumerate() {
+        for (i, (image, t0, t1, element, _)) in pinned.into_iter().enumerate() {
             if keep[i].is_none() {
                 let element = element.unwrap_or_else(|| {
                     unreachable!("walk_cycle decides every joint of a loop it closes")
@@ -3845,6 +3872,7 @@ pub(crate) fn site_rows<T: Decide>(
                     t0,
                     t1,
                     element: None,
+                    certified: None,
                 }),
             }
         }
@@ -3921,15 +3949,16 @@ pub(crate) fn walk_loop<T: AtRestPolicy>(
     let mut carriers: Vec<geom::Curve3<T>> = Vec::with_capacity(cycle.len());
     let item = |i: usize| -> Result<WalkItem<'_, T>, PcurveMintError> {
         let he = cycle[i];
-        let (carrier, t0, t1, base) = derive_image(body, he, surface, band)?;
+        let (carrier, t0, t1, derived) = derive_image(body, he, surface, band)?;
         let plus = is_plus(body, he);
         carriers.push(carrier);
         Ok(WalkItem {
-            base: Cow::Owned(base),
+            base: Cow::Owned(derived.image),
             t0,
             t1,
             plus,
             vertex: entry_vertex(body, he),
+            certified: derived.certified,
         })
     };
     let walked =
@@ -3958,13 +3987,14 @@ pub(crate) fn walk_loop<T: AtRestPolicy>(
             WalkFail::NotClosed => PcurveMintError::LoopNotClosed { face },
         })?;
     out.extend(cycle.iter().zip(carriers).zip(walked).map(
-        |((&key, carrier), (pcurve, t0, t1, element))| Walked {
+        |((&key, carrier), (pcurve, t0, t1, element, certified))| Walked {
             key,
             carrier,
             pcurve: pcurve.into_owned(),
             t0,
             t1,
             element,
+            certified,
         },
     ));
     Ok(())
@@ -3992,22 +4022,23 @@ fn walk_runs<T: AtRestPolicy>(
     let mut items: Vec<Option<Derived<T>>> = cycle
         .iter()
         .map(|&he| {
-            let derived = derive_image(body, he, surface, band).map(|(carrier, t0, t1, base)| {
-                let plus = is_plus(body, he);
-                let base = Cow::Owned(base);
-                let vertex = entry_vertex(body, he);
-                (
-                    he,
-                    carrier,
-                    WalkItem {
-                        base,
-                        t0,
-                        t1,
-                        plus,
-                        vertex,
-                    },
-                )
-            });
+            let derived =
+                derive_image(body, he, surface, band).map(|(carrier, t0, t1, derived)| {
+                    let plus = is_plus(body, he);
+                    let vertex = entry_vertex(body, he);
+                    (
+                        he,
+                        carrier,
+                        WalkItem {
+                            base: Cow::Owned(derived.image),
+                            t0,
+                            t1,
+                            plus,
+                            vertex,
+                            certified: derived.certified,
+                        },
+                    )
+                });
             derived.map_err(|e| refused.push(e)).ok()
         })
         .collect();
@@ -4037,13 +4068,14 @@ fn walk_runs<T: AtRestPolicy>(
         };
         match walk_cycle(chart, keys.len(), item, |_| None, band, false) {
             Ok(pinned) => out.extend(keys.iter().zip(carriers).zip(pinned).map(
-                |((&key, carrier), (pcurve, t0, t1, element))| Walked {
+                |((&key, carrier), (pcurve, t0, t1, element, certified))| Walked {
                     key,
                     carrier,
                     pcurve: pcurve.into_owned(),
                     t0,
                     t1,
                     element,
+                    certified,
                 },
             )),
             Err(WalkFail::Miss {
@@ -4088,16 +4120,19 @@ fn derive_image<T: AtRestPolicy>(
     he: HalfEdgeKey,
     surface: &Surface<T>,
     band: Band,
-) -> Result<(geom::Curve3<T>, T, T, Pcurve<T>), PcurveMintError> {
+) -> Result<(geom::Curve3<T>, T, T, Derivation<T>), PcurveMintError> {
     let (carrier, t0, t1) = half_edge_carrier(body, he)?;
-    let base = if surface.spline_chart().is_some() {
+    let derived = if surface.spline_chart().is_some() {
         // Spline charts derive from the edge's intensional
         // description (M6-3) — see `nurbs_iso_derive`.
         nurbs_iso_derive(body, he, surface, band)?
     } else {
-        analytic_derive(&carrier, t0, t1, surface, band, he)?
+        Derivation {
+            image: analytic_derive(&carrier, t0, t1, surface, band, he)?,
+            certified: None,
+        }
     };
-    Ok((carrier, t0, t1, base))
+    Ok((carrier, t0, t1, derived))
 }
 
 /// One half-edge of a cycle as [`walk_cycle`] reads it: its chart
@@ -4112,12 +4147,23 @@ pub(crate) struct WalkItem<'a, T: Real> {
     t1: T,
     plus: bool,
     vertex: geom_core::Point3<T>,
+    /// The derivation's certificate of `base` over `[t0, t1]`
+    /// ([`Derivation`]).
+    certified: Option<PcurveCache<T>>,
 }
 
 /// One image [`walk_cycle`] placed: the image with its carrier
-/// interval, and the element of the joint into it — `None` only for the
-/// first item of an open run, which joins nothing.
-type Pinned<'a, T> = (Cow<'a, Pcurve<T>>, T, T, Option<JointElement>);
+/// interval, the element of the joint into it — `None` only for the
+/// first item of an open run, which joins nothing — and the item's
+/// certificate of that image, which stands because the walk places the
+/// image as it was derived.
+type Pinned<'a, T> = (
+    Cow<'a, Pcurve<T>>,
+    T,
+    T,
+    Option<JointElement>,
+    Option<PcurveCache<T>>,
+);
 
 /// Why [`decide_joint`] decided no element.
 pub(crate) enum PinMiss {
@@ -4197,6 +4243,7 @@ fn walk_cycle<'a, T: Decide, E>(
             t1,
             plus,
             vertex,
+            certified,
         } = item(index).map_err(WalkFail::Item)?;
         let (entry_t, exit_t) = entry_exit(plus, t0, t1);
         let element = match (prev_exit, kept(index)) {
@@ -4209,7 +4256,7 @@ fn walk_cycle<'a, T: Decide, E>(
         };
         first_entry.get_or_insert((entry_t, vertex));
         prev_exit = Some(base.eval(exit_t));
-        out.push((base, t0, t1, element));
+        out.push((base, t0, t1, element, certified));
     }
     if closes && let (Some(prev), Some((entry_t, vertex))) = (prev_exit, first_entry) {
         // The closure joint: the first image's entry carried onto the
@@ -5114,7 +5161,8 @@ fn read_loop<T: AtRestPolicy>(
         );
     if singular.is_none() {
         for w in &walked {
-            if !matches!(w.pcurve, Pcurve::Fitted(_) | Pcurve::General(_)) {
+            if w.certified.is_none() && !matches!(w.pcurve, Pcurve::Fitted(_) | Pcurve::General(_))
+            {
                 PcurveCache::certify(w.pcurve.clone(), w.t0, w.t1, &w.carrier, chart, band)
                     .map_err(|error| PcurveMintError::Certify {
                         half_edge: w.key,
@@ -5400,8 +5448,8 @@ pub(crate) fn pcurve_pass<T: AtRestPolicy>(body: &Body<T>, band: Band) -> Pcurve
                     (cache.pcurve().clone(), t0, t1)
                 }
                 None => {
-                    let (_, t0, t1, base) = derive_image(body, he, surface, band).ok()?;
-                    (base, t0, t1)
+                    let (_, t0, t1, derived) = derive_image(body, he, surface, band).ok()?;
+                    (derived.image, t0, t1)
                 }
             };
             let (entry_t, exit_t) = entry_exit(plus, t0, t1);

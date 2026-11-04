@@ -4208,6 +4208,7 @@ mod tests {
             t0: 0.0,
             angle: core::f64::consts::FRAC_PI_2,
             breaks: geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
+            ends: Box::default(),
         };
         // The UV image is the straight segment p0 → p0 + pd by
         // variant; a span that is the whole arc ends at its ends,

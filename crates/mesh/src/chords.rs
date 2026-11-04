@@ -388,18 +388,13 @@ fn nurbs_tighten(
         // hull for the general spline image.
         let (su, sv) = match cache.pcurve() {
             Pcurve::IsoLine { pl, .. } => (pl.x.abs(), pl.y.abs()),
-            // The ARC rim (M8-3). With `s = ½ + tan(φ/2)/(2·tan(h/4))`
-            // and `g = (k + s)/m`,
-            //   `dg/dt = sec²(φ/2) / (4·m·tan(h/4))`,
-            // maximal at the sub-arc ends (`|φ| = h/2`), where
-            // `sec²(h/4)/(4·m·tan(h/4)) = 1/(2·m·sin(h/2))`.
-            // A closed-form sup over the whole span, like the other
-            // two arms — no sampling.
+            // The ARC rim (M8-3): [`iso_arc_rate`].
             Pcurve::IsoArc {
                 pd,
                 t0: arc_t0,
                 angle,
                 breaks,
+                ends,
                 ..
             } => {
                 let spans = geom_brep::iso_arc_spans(breaks);
@@ -430,9 +425,7 @@ fn nurbs_tighten(
                     }
                     joints = lcm(joints, spans);
                 }
-                #[allow(clippy::cast_precision_loss)]
-                let m = spans as f64;
-                let rate = 1.0 / (2.0 * m * (angle / (2.0 * m)).sin());
+                let rate = iso_arc_rate(*angle, spans, ends);
                 (pd.x.abs() * rate, pd.y.abs() * rate)
             }
             Pcurve::Harmonic { u, v } => harmonic_uv_speeds(*u, *v),
@@ -486,6 +479,26 @@ fn nurbs_tighten(
         Ok(Some(((hu, hv), (su, sv))))
     })?;
     Ok(n.div_ceil(joints) * joints)
+}
+
+/// **An arc rim's `sup |dg/dt|`**, a closed form over the whole span
+/// with no sampling. With `s = ½ + tan(φ/2)/(2·tan(h/4))` and
+/// `g = (k + s)/m`, `dg/dt = sec²(φ/2) / (4·m·tan(h/4))`, maximal at the
+/// sub-arc ends (`|φ| = h/2`), where it is `1/(2·m·sin(h/2))`. A row at
+/// unequal end weights (`ends`) moves the chart parameter through
+/// `σ = λs/(λs + 1 − s)` on each sub-arc, whose `dσ/ds` lies between
+/// `λ` and `1/λ`, so the sup is scaled by the largest of those.
+fn iso_arc_rate(angle: f64, spans: usize, ends: &[f64]) -> f64 {
+    #[allow(clippy::cast_precision_loss)]
+    let m = spans as f64;
+    let skew = ends
+        .windows(2)
+        .map(|e| {
+            let lambda = geom_brep::iso_arc_skew(e[0], e[1]);
+            lambda.max(1.0 / lambda)
+        })
+        .fold(1.0_f64, f64::max);
+    skew / (2.0 * m * (angle / (2.0 * m)).sin())
 }
 
 /// The least common multiple of two sub-arc counts.
@@ -847,6 +860,46 @@ mod tests {
     use geom_core::spline::KnotVector;
     use geom_core::{Point2, Point3};
     use topo::EdgeKey;
+
+    /// **An arc rim's rate bound dominates its image's speed**, at one
+    /// end weight and at unequal ones: the chart's `u` channel of a
+    /// quarter rim, differenced on a fine schedule, never moves faster
+    /// than [`iso_arc_rate`] says. On a row stated at end weights `1, 2`
+    /// the image's speed at the sub-arc's far end is `√2` times the
+    /// standard form's, which the rate's Möbius factor carries.
+    #[test]
+    fn an_arc_rims_rate_bounds_its_image_at_every_end_weight() {
+        let angle = core::f64::consts::FRAC_PI_2;
+        let breaks = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        for ends in [vec![], vec![1.0, 2.0], vec![2.0, 1.0], vec![1.0, 1e4]] {
+            let image = Pcurve::IsoArc {
+                p0: Point2::new(0.0, 0.0),
+                pd: geom_core::Vec2::new(1.0, 0.0),
+                t0: 0.0,
+                angle,
+                breaks: breaks.clone(),
+                ends: ends.clone().into(),
+            };
+            let bound = iso_arc_rate(angle, 1, &ends);
+            let n = 20_000;
+            let mut fastest = 0.0_f64;
+            for i in 0..n {
+                let (a, b) = (
+                    angle * f64::from(i) / f64::from(n),
+                    angle * f64::from(i + 1) / f64::from(n),
+                );
+                fastest = fastest.max((image.eval(b).x - image.eval(a).x).abs() / (b - a));
+            }
+            assert!(
+                fastest <= bound * (1.0 + 1e-9),
+                "ends {ends:?}: the image moves at {fastest}, past its rate bound {bound}"
+            );
+            assert!(
+                fastest >= 0.99 * bound,
+                "ends {ends:?}: the bound {bound} is the sup the image reaches, not {fastest}"
+            );
+        }
+    }
 
     /// A degree-1 chart image, the shape this head's producer mints
     /// (`edge_nurbs::PXN_IMAGE_DEGREE = 1`, 33 interpolated feet): a
