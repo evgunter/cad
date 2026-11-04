@@ -8,7 +8,7 @@
 //! keeps its own term.
 //!
 //! The fixture is the unit cylinder sheet over `[0, TURN] × [0, 1]`
-//! (`topo::test_support::cyl_wall_sheet_keyed`) with its analytic
+//! (`topo::test_support::cyl_wall_sheet_tilted`) with its analytic
 //! cylinder swapped for a rational ring net in two sub-arcs over
 //! `z ∈ [−½, 1]`: the top rim is the net's `v = 1` row, and the bottom
 //! rim at `z = 0` lies on the wall's interior, crossing the knot line
@@ -19,7 +19,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom::{Curve3, NurbsSurface, Surface};
+use geom::{NurbsSurface, Surface};
 use geom_brep::{EdgeCurveSpec, LaneGap, Pcurve, PcurveCertifyError};
 use geom_core::spline::KnotVector;
 use geom_core::{Band, Point3, Tol};
@@ -46,16 +46,19 @@ fn band() -> Band {
     Band::linear(tol()).unwrap()
 }
 
-/// A bend that leaves the wall within the band of the rim: past
-/// `zero()`, short of `escalate()`, at its widest.
+/// A bend ([`ring`]) that leaves the wall within the band of the bottom
+/// rim: past `zero()`, short of `escalate()`, at its widest.
 fn in_band_push() -> f64 {
     let b = band();
-    0.5 * (b.zero() + b.escalate()) * (1.0 + (TURN / 4.0).cos())
+    1.5 * 0.5 * (b.zero() + b.escalate()) * (1.0 + (TURN / 4.0).cos())
 }
 
 /// The unit cylinder over `z ∈ [LOW, 1]` through `TURN` from `x̂`, in
-/// two rational quadratic sub-arcs, the second's middle control point
-/// pushed `push` off the axis.
+/// two rational quadratic sub-arcs, the second's middle control point on
+/// the `z = LOW` row pushed `push` off the axis: at `z = 0`, two thirds
+/// of the way down, the wall parts from the unit circle by
+/// `(2/3)·push / (1 + cos(TURN/4))` at that sub-arc's middle, and the top
+/// rim's row is the circle's.
 fn ring(push: f64) -> NurbsSurface<f64> {
     let h = TURN / 2.0;
     let mut ku = vec![0.0; 3];
@@ -69,8 +72,8 @@ fn ring(push: f64) -> NurbsSurface<f64> {
         } else {
             (1.0, 1.0)
         };
-        let r = reach * if j == 3 { 1.0 + push } else { 1.0 };
-        for z in [LOW, 1.0] {
+        for (z, bend) in [(LOW, push), (1.0, 0.0)] {
+            let r = reach * if j == 3 { 1.0 + bend } else { 1.0 };
             control.push(Point3::new(r * theta.cos(), r * theta.sin(), z));
             weights.push(w);
         }
@@ -112,9 +115,9 @@ fn bottom_curve<T: AtRestPolicy>(
     (edge, curve)
 }
 
-/// The sheet at `T` with its bottom rim restated as `rim`, the cylinder
-/// swapped for [`ring`]`(push)`; the wall face and the bottom rim's
-/// half-edge on it.
+/// The sheet at `T` with its bottom rim as `rim`, the cylinder swapped
+/// for [`ring`]`(push)`: the wall face and the bottom rim's half-edge on
+/// it.
 fn sheet<T: AtRestPolicy + geom_core::Bounds>(
     rim: Rim,
     push: f64,
@@ -159,7 +162,8 @@ fn bottom_rim<T: AtRestPolicy + geom_core::Bounds>(body: &Body<T>, wall: FaceKey
         .expect("the bottom rim bounds the wall")
 }
 
-/// The wall's rows minted, and the bottom rim's.
+/// The wall's rows minted: the body, the bottom rim's half-edge, and its
+/// row or its refusal.
 fn minted<T: AtRestPolicy + geom_core::Bounds>(
     rim: Rim,
     push: f64,
@@ -186,16 +190,64 @@ fn minted<T: AtRestPolicy + geom_core::Bounds>(
     (body, bottom, got)
 }
 
+/// Whether `error` is the general lane's gap: "not yet", decided or in
+/// band, and its ending at a build that and no tolerance offer.
+fn is_the_lanes_gap(error: &PcurveCertifyError) -> bool {
+    let gap = matches!(
+        error,
+        PcurveCertifyError::NoGeneralLane {
+            chart: geom::SurfaceKind::Nurbs,
+            gap: LaneGap::Envelope,
+            ..
+        } | PcurveCertifyError::Escalated {
+            check: geom_brep::PcurveCheck::GeneralLane,
+            ..
+        }
+    );
+    let ending = error.ending(geom_brep::recourse::Reading::Build);
+    gap && ending.contains(geom_core::NOT_YET_ENDING) && !ending.contains("loosen")
+}
+
+/// The finest `ε` at which an `Interval` certificate reads the image's
+/// samples in band: a degree-5 image evaluated over an interval
+/// parameter is about `1e-12` m wide at a sample, which check 3's
+/// enclosure carries.
+const INTERVAL_SAMPLE_WIDTH: f64 = 2e-12;
+
+/// Whether `T`'s certificate reads the image's samples under its width
+/// ([`INTERVAL_SAMPLE_WIDTH`]) in this run.
+fn under_the_sample_width<T: AtRestPolicy>() -> bool {
+    T::NAME == "interval" && band().zero() < INTERVAL_SAMPLE_WIDTH
+}
+
 /// Every rim on the true ring mints its `General` image and certifies:
-/// the circle in both forms, which no row holds, and the ellipse.
+/// the circle in both forms, which no row holds, and the ellipse, which
+/// has no exact class. At `Interval` where the band is under the image's
+/// sample width, the certificate reads in band and the row ends "not yet".
 fn a_bending_rim_certifies<T: AtRestPolicy + geom_core::Bounds>() {
     for rim in RIMS {
         let (_, _, got) = minted::<T>(rim, 0.0);
-        eprintln!(
-            "ROW {} {rim:?}: {:?}",
-            T::NAME,
-            got.as_ref().map(|c| c.certificate().clone())
-        );
+        match got {
+            Ok(row) => {
+                assert!(
+                    matches!(row.pcurve(), Pcurve::General(_)),
+                    "{rim:?}: the row is the general image, at {}: {:?}",
+                    T::NAME,
+                    row.pcurve()
+                );
+                let envelope = row.certificate().envelope;
+                assert!(
+                    envelope.hi() <= band().zero(),
+                    "{rim:?}: the hull bound is within ε, at {}: {envelope:?}",
+                    T::NAME
+                );
+            }
+            Err(error) => assert!(
+                under_the_sample_width::<T>() && is_the_lanes_gap(&error),
+                "{rim:?}: the general image certifies, at {}: {error:?}",
+                T::NAME
+            ),
+        }
     }
 }
 
@@ -207,4 +259,99 @@ fn a_bending_rim_certifies_at_f64() {
 #[test]
 fn a_bending_rim_certifies_at_interval() {
     a_bending_rim_certifies::<geom_core::Interval>();
+}
+
+/// A ring bent within the band of the rim: the chart's incidence read
+/// does not show the rim off, so it takes the general image, whose
+/// certificate cannot bound its miss inside the band. No structure
+/// reaches a carrier the wall misses, and the refusal is the lane's gap,
+/// in every form.
+fn a_band_scale_pose_ends_not_yet<T: AtRestPolicy + geom_core::Bounds>() {
+    for rim in RIMS {
+        let (_, _, got) = minted::<T>(rim, in_band_push());
+        let Err(error) = got else {
+            panic!(
+                "{rim:?}: a rim in band of the wall does not certify, at {}",
+                T::NAME
+            )
+        };
+        assert!(
+            is_the_lanes_gap(&error),
+            "{rim:?}: a rim in band of the wall ends \"not yet\", at {}: {error:?}",
+            T::NAME
+        );
+    }
+}
+
+#[test]
+fn a_band_scale_pose_ends_not_yet_at_f64() {
+    a_band_scale_pose_ends_not_yet::<f64>();
+}
+
+#[test]
+fn a_band_scale_pose_ends_not_yet_at_interval() {
+    a_band_scale_pose_ends_not_yet::<geom_core::Interval>();
+}
+
+/// A `General` row the mint certified, read at rest where it no longer
+/// holds: its wall bent in band of its carrier, and its carrier lifted a
+/// quarter up the wall, which the row then misses. The stored row keeps
+/// its own term, never the lane's gap, which is a statement about a
+/// fresh image alone.
+fn a_stored_row_off_its_wall_keeps_its_term<T: AtRestPolicy + geom_core::Bounds>() {
+    for rim in RIMS {
+        let (body, bottom, got) = minted::<T>(rim, 0.0);
+        let row = match got {
+            Ok(row) => row,
+            Err(error) => {
+                assert!(
+                    under_the_sample_width::<T>() && is_the_lanes_gap(&error),
+                    "{rim:?}: the mint stores a row, at {}: {error:?}",
+                    T::NAME
+                );
+                println!(
+                    "SKIPPED: {rim:?} at {} under its sample width stores no row to read at rest",
+                    T::NAME
+                );
+                continue;
+            }
+        };
+        assert!(
+            matches!(row.pcurve(), Pcurve::General(_)),
+            "{rim:?}: a General row"
+        );
+        let (_, curve) = bottom_curve(&body, bottom);
+        let wall = |push: f64| Surface::Nurbs(Arc::new(ring(push).map_scalar(T::from_f64)));
+        let lifted = curve
+            .carrier()
+            .translated(geom_core::Vec3::new(0.0, 0.0, 0.25).map(T::from_f64))
+            .expect("a conic moves");
+        for (pose, carrier, surface) in [
+            (
+                "its wall bent in band",
+                curve.carrier(),
+                wall(in_band_push()),
+            ),
+            ("its carrier lifted", &lifted, wall(0.0)),
+        ] {
+            let refused =
+                row.recertify(carrier, curve.params(), &surface, band(), T::fitted_lane());
+            assert!(
+                refused.as_ref().is_err_and(|e| !is_the_lanes_gap(e)),
+                "{rim:?}, {pose}: the stored row refuses at rest by its own term, at {}: \
+                 {refused:?}",
+                T::NAME
+            );
+        }
+    }
+}
+
+#[test]
+fn a_stored_row_off_its_wall_keeps_its_term_at_f64() {
+    a_stored_row_off_its_wall_keeps_its_term::<f64>();
+}
+
+#[test]
+fn a_stored_row_off_its_wall_keeps_its_term_at_interval() {
+    a_stored_row_off_its_wall_keeps_its_term::<geom_core::Interval>();
 }

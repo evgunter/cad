@@ -399,7 +399,8 @@ fn polygon_variation(block: &[RPt2]) -> (f64, f64) {
 /// chord: the extent ALONG the chord times the extent ACROSS it, both
 /// taken outward off the brackets. Exactly zero for a two-point block
 /// — a degree-1 arc IS its chord, so there is no lune at all, which is
-/// every image this head's producer mints (`PXN_IMAGE_DEGREE = 1`).
+/// every image this head's producer mints for a line or a spline
+/// (`PXN_IMAGE_DEGREE = 1`).
 fn lune_area(block: &[RPt2], a: (f64, f64), b: (f64, f64)) -> f64 {
     let (cu, cv) = (b.0 - a.0, b.1 - a.1);
     let len = (cu.powi(2) + cv.powi(2)).sqrt();
@@ -1912,7 +1913,7 @@ mod tests {
     ///
     /// The loop `(0,0) → (1,0) → (1,1) → (0,0)` closes with a
     /// degree-1 `General` image, which is the class this head's
-    /// producer actually mints (`PXN_IMAGE_DEGREE = 1`): the region is
+    /// producer mints for a line (`PXN_IMAGE_DEGREE = 1`): the region is
     /// half the unit square, so `flux = c/2` and `area = 1/2`
     /// exactly. The rectangle lane cannot answer it at all — it reads
     /// endpoints and calls a diagonal a refusal — so this row is the

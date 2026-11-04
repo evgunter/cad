@@ -9155,7 +9155,9 @@ fn chart_image<T: Decide>(
         }
         return projected::project(carrier, span, surface, band)
             .map(|image| Pcurve::Projected(Box::new(image)))
-            .map_err(|refused| general_lane_refusal(refused, LaneImage::Projected, carrier, surface));
+            .map_err(|refused| {
+                general_lane_refusal(refused, LaneImage::Projected, carrier, surface)
+            });
     }
     match derive_class(carrier, surface, place, band) {
         Ok((image, _)) => Ok(image),
@@ -9169,7 +9171,9 @@ fn chart_image<T: Decide>(
             _ if projected::has_lane(carrier, surface) => {
                 projected::project(carrier, span, surface, band)
                     .map(|image| Pcurve::Projected(Box::new(image)))
-                    .map_err(|refused| general_lane_refusal(refused, LaneImage::Projected, carrier, surface))
+                    .map_err(|refused| {
+                        general_lane_refusal(refused, LaneImage::Projected, carrier, surface)
+                    })
             }
             Some(cause) => Err(incidence::class_escalated(shown, cause)),
             None => Err(PcurveCertifyError::NoGeneralLane {
@@ -9249,9 +9253,8 @@ pub(crate) const POSE_LEVER: &str = "a carrier through a pole, the cone's apex o
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum LaneGap {
     /// No general lane is written for this (chart, carrier) pair
-    /// ([`projected::has_lane`] on an analytic chart; on a spline chart,
-    /// a circle the arc rim's row does not hold, which the mint's
-    /// degree-1 `General` image cannot certify).
+    /// ([`projected::has_lane`]); an analytic chart's alone, since a
+    /// spline chart's general lane is its `General` image.
     Unwritten,
     /// The lane is written for the pair but does not image this pose: its
     /// partition found no piece sector ([`projected::SectorChannel`])
