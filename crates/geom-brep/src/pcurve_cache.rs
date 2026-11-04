@@ -616,10 +616,9 @@ pub enum Pcurve<T: Real> {
         /// as `1, w₁/√(w₀w₂), 1, …` read through a Möbius change of its
         /// parameter, `σ = λs / (λs + 1 − s)` on each sub-arc with
         /// `λ = √(eₖ/eₖ₊₁)` ([`iso_arc_g`]). Empty for a row at one end
-        /// weight, where `σ = s`. Pure `f64` structure like `breaks`,
-        /// copied off the row's held weights and compared to them on the
-        /// bits by the certificate.
-        ends: Box<[f64]>,
+        /// weight, where `σ = s`. Copied off the row's held weights, and
+        /// compared to them exactly by the certificate.
+        ends: Box<[T]>,
     },
     /// The **exact chart image of a [`geom::Curve3::Spiric`]** on the
     /// charts a spiric lies on — the plane of its own cutting section,
@@ -894,7 +893,7 @@ impl WallTorus {
 /// The chart parameter `g(t) ∈ [0, 1]` of an [`Pcurve::IsoArc`]
 /// (variant docs for the derivation). Total: a malformed `breaks`
 /// answers poison rather than panicking (D4).
-fn iso_arc_g<T: SpanLocate>(t: T, t0: T, angle: T, breaks: &KnotVector, ends: &[f64]) -> T {
+fn iso_arc_g<T: SpanLocate>(t: T, t0: T, angle: T, breaks: &KnotVector, ends: &[T]) -> T {
     let spans = iso_arc_spans(breaks);
     if spans == 0 || !(ends.is_empty() || ends.len() == spans + 1) {
         return T::from_f64(f64::NAN);
@@ -917,13 +916,13 @@ fn iso_arc_g<T: SpanLocate>(t: T, t0: T, angle: T, breaks: &KnotVector, ends: &[
     for span in set.first.index()..=set.last.index() {
         let k = span.saturating_sub(degree);
         #[allow(clippy::cast_precision_loss)]
-        let kf = T::from_f64(k as f64);
+        let kf = T::from_f64(span.saturating_sub(degree) as f64);
         let phi = (t - t0) - (kf + T::from_f64(0.5)) * h;
         let (s_h, c_h) = (phi * T::from_f64(0.5)).sin_cos();
         let s = T::from_f64(0.5) + (s_h / c_h) / (T::from_f64(2.0) * tan_q);
         let s = match (ends.get(k), ends.get(k + 1)) {
             (Some(&a), Some(&b)) => {
-                let lambda = (T::from_f64(a) / T::from_f64(b)).sqrt();
+                let lambda = (a / b).sqrt();
                 lambda * s / (lambda * s + T::one() - s)
             }
             _ => s,
@@ -7961,11 +7960,8 @@ pub(crate) fn arc_rim_turn<T: Decide>(
     spans: usize,
     band: Band,
 ) -> Option<T> {
-    let (held, bits) = (column.weights(), column.weights_f64_interim());
-    let w = match (held.get(..3), bits.get(..3)) {
-        (Some(&[w0, w1, w2]), Some(&[b0, _, b2])) if b0.to_bits() != b2.to_bits() => {
-            w1 / (w0 * w2).sqrt()
-        }
+    let w = match column.weights().get(..3) {
+        Some(&[w0, w1, w2]) if !geom_core::is_exact_zero(w0 - w2) => w1 / (w0 * w2).sqrt(),
         _ => arc_rim_ratio(column)?,
     };
     match decide("pcurve_iso_arc_weight", Margin::of(T::one() - w), band) {
@@ -8029,7 +8025,7 @@ fn run_iso_arc_checks<T: Decide>(
     at0: T,
     angle: T,
     breaks: &KnotVector,
-    ends: &[f64],
+    ends: &[T],
     t0: T,
     t1: T,
     carrier: &Curve3<T>,
@@ -8258,7 +8254,7 @@ fn run_iso_arc_checks<T: Decide>(
     // A column whose end weights are not one constant is the same arc
     // through a Möbius change of each sub-arc's parameter, which the
     // image states as its `ends` (variant docs). Its end weights are
-    // the image's, on the bits, once the traversal is read below; its
+    // the image's exactly, once the traversal is read below; its
     // interior weights may be anything, and each sub-arc's normalized
     // `wₖ/√(eₖ·eₖ₊₁)` is decided against `cos(h/2)` on its own.
     let row_ends: Vec<f64> = bw.iter().step_by(2).copied().collect();
@@ -8352,13 +8348,16 @@ fn run_iso_arc_checks<T: Decide>(
         chat.reverse();
     }
     if !ends.is_empty() {
-        let along = |w: &f64| w.to_bits();
-        let image: Vec<u64> = ends.iter().map(along).collect();
-        let mut row: Vec<u64> = row_ends.iter().map(along).collect();
+        let mut row: Vec<T> = held.iter().step_by(2).copied().collect();
         if !forward {
             row.reverse();
         }
-        if image != row {
+        let same = ends.len() == row.len()
+            && ends
+                .iter()
+                .zip(&row)
+                .all(|(a, b)| geom_core::is_exact_zero(*a - *b));
+        if !same {
             return Err(bad(
                 "an arc rim whose image's end weights are not its chart column's, in its \
                  traversal — its map is not the column's parameter",
