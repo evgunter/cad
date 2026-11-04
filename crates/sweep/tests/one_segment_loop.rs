@@ -898,10 +898,21 @@ fn a_one_segment_circle_on_or_against_the_axis_refuses() {
             "{what}: {got:?}"
         );
     };
-    // A partial revolve reaching a sheet's apex refuses at its
-    // certificate (`work/spiricarm/a-football-revolved-part-way-refuses-at-its-cap-meridians-certificate.md`).
-    let apex = |what: &str, got: &E| {
-        assert!(matches!(got, E::Op { .. }), "{what}: {got:?}");
+    // A horn's circle through its cusp, revolved part way, refuses at
+    // the attachment gate on a stated interval decided zero
+    // (`work/spiricarm/a-football-revolved-part-way-refuses-at-its-cap-meridians-certificate.md`).
+    let pinched_part_way = |what: &str, got: &E| {
+        assert!(
+            matches!(
+                got,
+                E::Op {
+                    source: topo::EulerOpError::Certification {
+                        error: geom_brep::CertifyError::StatedInterval { .. }
+                    }
+                }
+            ),
+            "{what}: {got:?}"
+        );
     };
     let vertex = |what: &str, got: &E| {
         assert!(
@@ -928,7 +939,7 @@ fn a_one_segment_circle_on_or_against_the_axis_refuses() {
         (
             "tangent to the axis at its vertex",
             circle_at(1.0, 0.0, 1.0, PI, TAU),
-            apex,
+            pinched_part_way,
         ),
         (
             "tangent to the axis away from its vertex",

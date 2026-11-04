@@ -412,6 +412,7 @@ pub(crate) fn carrier_of<T: Decide>(body: &Body<T>, ent: EntityRef) -> Carrier<'
                 },
                 (Some(Surface::Cone { .. }), _) => Carrier::Other("a cone face"),
                 (Some(Surface::Torus { .. }), _) => Carrier::Other("a torus face"),
+                (Some(Surface::Spindle { .. }), _) => Carrier::Other("a spindle-torus sheet face"),
                 (Some(_), _) => Carrier::Other("a free-form face"),
                 (None, _) => Carrier::Other("an unreadable face"),
             }

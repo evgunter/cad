@@ -203,12 +203,19 @@ impl Chart<f64> {
                 unreachable!("Chart::poles: only a spindle sheet has sheet apexes")
             }
         };
-        let mut points = geom_brep::chart_singularity::singular_points(&self.inverse);
-        // A horn's two apexes are its one cusp, at `v* = π`, where the
-        // sheet's latitude window reads it.
-        points.dedup_by(|b, a| (a.1 - b.1).norm() == 0.0);
-        points
+        // A horn (`geom::sheet_apex` closes its height at zero) has one
+        // cusp, both of its apexes: listed once, as the upper, at
+        // `v* = π`, where the sheet's latitude window reads it.
+        let horn = match self.kind {
+            ChartKind::Spindle { major, minor } => geom::sheet_apex(major, minor).height == 0.0,
+            ChartKind::Cylinder { .. }
+            | ChartKind::Cone { .. }
+            | ChartKind::Sphere { .. }
+            | ChartKind::Torus { .. } => false,
+        };
+        geom_brep::chart_singularity::singular_points(&self.inverse)
             .into_iter()
+            .filter(|(which, _)| !(horn && *which == Singularity::SheetApexDown))
             .map(|(which, p)| {
                 let v = match which {
                     Singularity::North => core::f64::consts::FRAC_PI_2,
@@ -253,6 +260,47 @@ mod tests {
             (u - core::f64::consts::PI).abs() < 1e-12,
             "expected pi, got {u}"
         );
+    }
+
+    /// **A sheet's poles are its own apexes**: each pole's `v` evaluates,
+    /// at every `u`, to the pole's point, on the axis, for a lemon, an
+    /// apple and a horn. The other sheet of the same torus shares the
+    /// points but not the angles (`π − v*`), so a pole read off the other
+    /// sheet evaluates off the axis, and this goes red; a horn lists its
+    /// one cusp once.
+    #[test]
+    fn a_sheets_poles_are_its_own_apexes() {
+        for (major, minor, count) in [(-0.5, 1.0, 2), (0.4, 1.0, 2), (0.3, 0.7, 2), (1.0, 1.0, 1)] {
+            let sheet = z_chart(|center, axis, u_ref| Surface::Spindle {
+                center,
+                axis,
+                major_radius: major,
+                minor_radius: minor,
+                u_ref,
+            });
+            let surface = Surface::Spindle {
+                center: Point3::new(0.0, 0.0, 0.0),
+                axis: Vec3::new(0.0, 0.0, 1.0),
+                major_radius: major,
+                minor_radius: minor,
+                u_ref: Vec3::new(1.0, 0.0, 0.0),
+            };
+            let poles = sheet.poles();
+            assert_eq!(poles.len(), count, "R {major}: {poles:?}");
+            for (p, v) in poles {
+                assert!(
+                    p.x.hypot(p.y) <= 1e-15,
+                    "R {major}: pole {p:?} off the axis"
+                );
+                for u in [0.0, 1.0, 2.5, -2.0] {
+                    let q = surface.eval(u, v);
+                    assert!(
+                        (q - p).norm() <= 1e-12,
+                        "R {major}: v {v} at u {u} is {q:?}, not the pole {p:?}"
+                    );
+                }
+            }
+        }
     }
 
     /// The lever arm is the distance from the axis, and sliding a point

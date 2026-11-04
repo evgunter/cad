@@ -655,7 +655,7 @@ mod tests {
     /// the circle's nearest point is off the arc.
     fn sheet_dist(major: f64, minor: f64, p: Point3<f64>) -> f64 {
         let (rho, z) = (p.x.hypot(p.y), p.z);
-        let v_star = (-major / minor).acos();
+        let v_star = (-major / minor).clamp(-1.0, 1.0).acos();
         let (x, y) = (rho - major, z);
         if y.atan2(x).abs() <= v_star {
             return (x.hypot(y) - minor).abs();
@@ -665,32 +665,48 @@ mod tests {
     }
 
     /// **`cert_spindle` bounds a fan triangle's distance from its sheet**
-    /// (a seeded fuzz). Each triangle has one corner at an apex with an
-    /// arbitrary `u`, and two near it: every point of the flat triangle
-    /// is within the certificate of the sheet, measured exactly
-    /// ([`sheet_dist`], blind to the chart). The apex's `u` is dropped
-    /// from the certificate's `Δu` and its `v` kept; with the `v` dropped
-    /// as well this goes red.
+    /// (a seeded fuzz). Each triangle has one corner, in any slot, at an
+    /// apex with an arbitrary `u`, and two near it: every point of the
+    /// flat triangle is within the certificate of the sheet, measured
+    /// exactly ([`sheet_dist`], blind to the chart). The sheets reach the
+    /// tightest the bound gets: a fifth horns (`R = r`, the needle's
+    /// cusp), a tenth a hair inside one, a tenth needle-thin lemons, the
+    /// rest across `|R| ≤ 0.999r`, with fans to `Δu ≤ 1.5`. The apex's
+    /// `u` is dropped from the certificate's `Δu` and its `v` kept; with
+    /// the `v` dropped as well this goes red.
     #[test]
-    fn cert_spindle_bounds_a_fan_triangle_on_lemon_and_apple_sheets() {
+    fn cert_spindle_bounds_a_fan_triangle_on_every_sheet() {
         let mut rng = test_utils::fuzz::start("cert_spindle_fan");
         for _ in 0..test_utils::fuzz::scaled(20_000) {
             let minor = rng.range(0.05, 2.0);
-            let major = minor * rng.range(-0.98, 0.98);
-            let vs = (-major / minor).acos();
+            let pick = rng.unit();
+            let major = if pick < 0.2 {
+                minor
+            } else if pick < 0.3 {
+                minor * (1.0 - 1e-9)
+            } else if pick < 0.4 {
+                -minor * (1.0 - 1e-6)
+            } else {
+                minor * rng.range(-0.999, 0.999)
+            };
+            let vs = (-major / minor).clamp(-1.0, 1.0).acos();
             let up = rng.unit() < 0.5;
             let at = if up { vs } else { -vs };
-            let (du, dv) = (rng.range(0.0, 0.6), rng.range(0.0, 0.6_f64.min(vs)));
+            let (du, dv) = (rng.range(0.0, 1.5), rng.range(0.0, vs.min(1.5)));
             let u0 = rng.range(-PI, PI);
             let mut uv = [[rng.range(-PI, PI), at]; 3];
             for corner in &mut uv[1..] {
                 let off = rng.unit() * dv;
                 *corner = [u0 + rng.unit() * du, if up { at - off } else { at + off }];
             }
-            let apex = [true, false, false];
+            #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+            let slot = ((rng.unit() * 3.0) as usize).min(2);
+            uv.swap(0, slot);
+            let mut apex = [false; 3];
+            apex[slot] = true;
             let cert = cert_spindle(major, minor, uv, apex);
             let c = uv.map(|[u, v]| torus_point(major, minor, u, v));
-            let n = 8u32;
+            let n = 12u32;
             let mut worst: f64 = 0.0;
             for i in 0..=n {
                 for j in 0..=(n - i) {
@@ -706,7 +722,7 @@ mod tests {
             }
             assert!(
                 worst <= cert * (1.0 + 1e-9) + 1e-12,
-                "R {major} r {minor} uv {uv:?}: distance {worst} exceeds {cert} ({})",
+                "R {major} r {minor} uv {uv:?} apex {apex:?}: distance {worst} exceeds {cert} ({})",
                 test_utils::fuzz::replay()
             );
         }

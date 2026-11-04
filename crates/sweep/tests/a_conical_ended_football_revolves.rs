@@ -487,11 +487,10 @@ fn props_meets_an_independent_quadrature_on_every_band() {
 /// circle of radius 1 centred `1 + d` from the axis, `d` read against
 /// the run's band (zero `z`, escalate `e`), so the row holds at every ε.
 ///
-/// - `|d|` well inside the band's zero (`±z/2`, and `d = 0`): a horn,
-///   stored `R = r` exactly, which builds, passes tier 3 and measures
-///   the horn's band to within what moving its datum by `|d|` moves:
-///   the volume by at most `|d|` times the area, the area by about
-///   `|d|/r` of itself, both taken twice.
+/// - `|d|` well inside the band's zero (`±z/2`, and `d = 0`): a
+///   horn-class sheet, with `R = 1 + d` up to a hair past `r`, which
+///   builds, passes tier 3 and measures exact (piece 1's clamped apex
+///   radicand closes it at one cusp).
 /// - `d` in the band past its zero (`±3z`): the near-horn sliver,
 ///   `SliverAxisClearance` on `ArcReach`.
 /// - `d` past the escalate (`±2e`) and far out (`±1e-3`): a lemon-side
@@ -530,17 +529,7 @@ fn the_near_horn_ladder_reads_its_band() {
             k.iter().filter(|s| s.starts_with(kind)).count() == 2,
             "{what} (d = {d:e}): {k:?}"
         );
-        if d.abs() < z {
-            assert!(
-                k.iter().filter(|s| *s == "spindle(1)").count() == 2,
-                "{what} (d = {d:e}): a horn is stored R = r, {k:?}"
-            );
-            let (volume, area) = at(0.0).exact();
-            let moved = 2.0 * d.abs() * (area / volume).max(1.0);
-            holds_exact(what, built.body, (volume, area), 1e-10 + moved);
-        } else {
-            holds_exact(what, built.body, b.exact(), 1e-10);
-        }
+        holds_exact(what, built.body, b.exact(), 1e-10);
     }
     for d in [-3.0 * z, 3.0 * z] {
         let b = at(d);

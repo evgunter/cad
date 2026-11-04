@@ -9553,10 +9553,10 @@ crate::ended_by_write!(IsoFamilyRefusal);
 /// chart lies on, read off the class arm [`chart_pcurve`]'s derivation
 /// selects for it, so the family is the mint's own structure. The span
 /// is the edge's: a sheet's meridian circle leaves the sheet past its
-/// apexes, so only the part an edge holds is on it. `None` for a planar chart, a
-/// spiric carrier, and an image on no family (a cylinder's oblique
-/// section or a line shown off its rulings, a cone's tilted section, a
-/// torus's Villarceau circle).
+/// apexes, so only the part an edge holds is on it. `None` for a planar
+/// chart, a spiric carrier, and an image on no family (a cylinder's
+/// oblique section or a line shown off its rulings, a cone's tilted
+/// section, a torus's Villarceau circle).
 ///
 /// # Errors
 ///

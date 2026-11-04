@@ -5573,6 +5573,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
         function: "revolve_error_tag",
         values: &[
             "angle_escalated",
+            "apex_end_off_sheet",
             "arc_crosses_axis",
             "axis_escalated",
             "axis_gap_escalated",

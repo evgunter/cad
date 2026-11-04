@@ -577,16 +577,15 @@ pub(super) fn classify_segment<T: Decide>(
             if matches!(interior, Sign::Zero) && !(va.pinned || vb.pinned) {
                 return Err(crosses());
             }
-            // A reach decided zero is a horn, `R = r`: its one cusp is
-            // the centre's foot on the axis, where a circle a hair off
-            // tangency meets it. Read at `R = rc` a hair inside, the
-            // sheet's two apexes would part by `√(2r·|rc − r|)`, far
-            // past the band its reach was decided in.
-            let major = if matches!(reach, Sign::Zero) {
-                radius
-            } else {
-                rc
-            };
+            let major = sheet_major(
+                s,
+                (va, vb),
+                frame,
+                (rc, radius),
+                reach,
+                loop_index,
+                &classify,
+            )?;
             Ok(WallClass::Wall {
                 kind: WallKind::Spindle {
                     center_sk: centre,
@@ -597,6 +596,67 @@ pub(super) fn classify_segment<T: Decide>(
             })
         }
     }
+}
+
+/// **The sheet's major radius, read where the arc ends on the axis.**
+/// The circle meets the axis at the sheet's apexes, `±√(r² − R²)` along
+/// it from the centre's foot, so an end on the axis is an apex. The
+/// drawn circle (`R = rc`) is read first: it holds where every end on
+/// the axis lies at one of its apexes (`axis_arc_apex_end`). A reach
+/// decided zero has a second reading, the horn (`R = r`), whose one
+/// cusp is the centre's foot. The two part by `√(2r·|rc − r|)` along
+/// the axis, far more than `|rc − r|`, so which one holds the drawn
+/// ends is the question the band answers, not the reach: a circle a
+/// hair off tangency drawn to its foot (the needle) is a horn, and one
+/// drawn to where it crosses (an apple near the horn) is its own sheet.
+/// An end that neither reading holds lies on the stretch where a circle
+/// near tangency runs within the band of the axis: `ApexEndOffSheet`.
+/// With no end on the axis, the drawn circle stands.
+///
+/// The horn moves the circle by `|rc − r|` everywhere, inside the band
+/// the reach was decided zero in, so its volume and area move by at
+/// most that times the area and the length of the meridian.
+fn sheet_major<T: Decide>(
+    s: &SweptSeg<T>,
+    (va, vb): (&VertexClass<T>, &VertexClass<T>),
+    frame: &AxisFrame<T>,
+    (rc, radius): (T, T),
+    reach: Sign,
+    loop_index: usize,
+    classify: &impl Fn(ClearanceDecision, Margin<T>) -> Result<Sign, RevolveError>,
+) -> Result<T, RevolveError> {
+    let SegmentKind::Arc { arc, .. } = s.kind.get() else {
+        unreachable!("sheet_major: only an arc sweeps a sheet")
+    };
+    let foot = frame.axial(arc.centre);
+    let ends: Vec<T> = [(va, s.a), (vb, s.b)]
+        .into_iter()
+        .filter(|(v, _)| v.pinned)
+        .map(|(_, p)| (frame.axial(p) - foot).abs())
+        .collect();
+    if ends.is_empty() {
+        return Ok(rc);
+    }
+    // The farthest end from its nearest apex on the reading.
+    let off = |major: T| {
+        let height = geom::sheet_apex(major, radius).height;
+        ends.iter()
+            .map(|&a| (a - height).abs())
+            .fold(T::zero(), |m, d| m.max(d))
+    };
+    let holds = |major: T| {
+        classify(ClearanceDecision::ApexEnd, Margin::of(off(major))).map(|s| s == Sign::Zero)
+    };
+    if holds(rc)? {
+        return Ok(rc);
+    }
+    if reach == Sign::Zero && holds(radius)? {
+        return Ok(radius);
+    }
+    Err(RevolveError::ApexEndOffSheet {
+        loop_index,
+        segment_index: s.canonical_segment,
+    })
 }
 
 /// One of a full revolve's axis-contact runs: a maximal cyclic run of
