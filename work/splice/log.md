@@ -1501,7 +1501,7 @@ general regularity sweep. SECTARMS's cylinder × cylinder unit adopts
   - Main merged; `cargo check -p topo --all-targets` is clean, with no conflict markers.
   - State sync: closed `spline-region-decides-off-the-carrier-on-an-uncharged-f64-box-floor`.
 - 2026-11-04 22:40Z — **PR 6530 merged** (`b2eb7192`, head `cc41fa90`, CI run 41923211393 green). Lane `session_013QoYWViQCDK7cyUP3Ktm28` archived; worktrees removed.
-- 2026-11-04 22:40Z — **Sitting ends; program set `blocked`.** Every live P0/P1 row is now parked.
+- 2026-11-04 22:40Z — **Sitting ends; program set `ready`.** Every live P0/P1 row is now parked, but open P2/P3 rows remain to pick up.
   - **Merged since the reopening:** PR 6519 (teapot wall 3's 1e-6 floor, P0), PR 6523 (a section spiric on a cap plane, P1), PR 6530 (the spline-region f64 charge, P1), and tracker PR 6529.
   - **Earlier in the sitting:** 6429, 6437, 6441, 6435, 6434, 6476, 6481, 6487, 6494, 6499.
   - **Parked:**
