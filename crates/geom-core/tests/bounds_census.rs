@@ -459,6 +459,15 @@ const ROSTER: &[Site] = &[
     },
     Site {
         path: "crates/sweep/src/blend/surgery.rs",
+        subject: "past_misses",
+        why: Selection(
+            "`ArcReads::arc_misses`' bracket read on the angle already taken, the selection \
+             whose DL5(b) disposition is beside `bounds-allowlist.sh`'s surgery.rs pin \
+             (`impl ArcReads for geom::Circle`, which gained `Decide`)",
+        ),
+    },
+    Site {
+        path: "crates/sweep/src/blend/surgery.rs",
         subject: "worse",
         why: Selection(
             "the worse of two margins of one ring cycle: the margin is `min`, value \
