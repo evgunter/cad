@@ -177,3 +177,4 @@
   - **The lane found a second main red at 1e-12:** the atan2-cut fillet witness at shear 0.6, concave, escalates its pcurve envelope. I filed it as P0 `main-red-a-sheared-fillet-witness-escalates-its-pcurve-envelope-at-1e-12`.
   - **Caveat for PR 6491:** `meet`'s route reads the new hair pin at a rounding about 40× the hair.
   - A delta review goes to the original reviewer. (ONECOPY orchestrator)
+- 2026-11-04 — Dispatched `onecopy/p0-sheared-fillet` (cloud `session_013mPGJ41MUUAhMA5NUsRfC4`) on the sheared-fillet main red at 1e-12. Tier single FULL. The lane stops if the escalation is honest or the fix is a fork. (ONECOPY orchestrator)

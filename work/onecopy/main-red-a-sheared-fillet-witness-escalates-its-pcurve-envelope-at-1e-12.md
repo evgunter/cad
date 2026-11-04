@@ -2,10 +2,11 @@
 id: main-red-a-sheared-fillet-witness-escalates-its-pcurve-envelope-at-1e-12
 kind: issue
 title: main red at 1e-12: band_planar_cut_off_interval's atan2-cut fillet witness (shear 0.6, concave) escalates its pcurve envelope at Interval
-status: open
+status: dispatched
 opened: 2026-11-04
 priority: P0
 cost: M
+branch: onecopy/p0-sheared-fillet
 ---
 
 
