@@ -2,7 +2,8 @@
 id: horn-and-spindle-tori-have-no-representation
 kind: issue
 title: Surface::Torus represents only ring tori (R > r > 0); horn and spindle tori, which ACIS-family kernels represent, have none
-status: open
+status: closed
+closed: 2026-11-04
 opened: 2026-10-14
 priority: P0
 cost: X
@@ -59,3 +60,7 @@ Ev approved the agreed recommendation: a new analytic kind `Surface::Spindle`, o
 2. The apex as a pole (`Singularity`, `Chart::poles`, mesh's pole fans, the pole form, tier 3's apex check). This lands the football.
 
 The consumers (offset's `TorusRing`, blend's `SpineIrregular`, STEP's `DEGENERATE_TOROIDAL_SURFACE`) are rows of their own once stage 1 lands.
+
+## Closed (2026-11-04)
+
+Both stages landed: `the-spindle-sheet-away-from-its-apexes` (PRs 6473 and 6486) and `the-spindle-sheets-apex-is-a-pole` (PR 6497). The football revolves. The residue is filed on spiricarm (the part-way revolve P1, the seam reading P3, the wide apple, the tour stop) and on shell, band, exch and export (offset, blend and STEP consumers).
