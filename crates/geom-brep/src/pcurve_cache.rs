@@ -66,7 +66,8 @@
 //!   `envelope_lemma_fuzz`, and not at a certifying scalar (`Interval`,
 //!   `Sym<Interval>`), over a box or at a point alike.
 //! - **On an analytic chart, a carrier with no closed-form image** (a
-//!   spline carrier, a sphere's general circle) stores its projected
+//!   spline carrier, a circle or a cylinder's or cone's line no class images)
+//!   stores its projected
 //!   image, the chart's own inverse applied to the carrier, and its
 //!   envelope is again the whole certified statement
 //!   ([`EnvelopeStatement::MapResidualProjected`], [`projected`]'s
@@ -2208,6 +2209,18 @@ impl PcurveCertifyError {
                 chart.name(),
                 channel.describe()
             ),
+            Self::NoGeneralLane {
+                chart,
+                carrier,
+                gap: LaneGap::Envelope,
+            } => write!(
+                f,
+                "pcurve certification: the {} carrier is on the {} chart but is none of its own \
+                 curves, and its general (projected) image's certificate does not yet bound \
+                 this pose. Recourse: {ENVELOPE_LEVER}",
+                carrier.name(),
+                chart.name(),
+            ),
             // The payload says what was read; the ending says what to do,
             // and it is the read's at the door ([`IncidenceRead::ending`]),
             // so no recourse is written here.
@@ -2462,7 +2475,7 @@ impl PcurveCertifyError {
                 ..
             } => Decision::Check(PcurveCheck::ChartClass, definite),
             Self::NoGeneralLane {
-                gap: LaneGap::Pose { .. },
+                gap: LaneGap::Pose { .. } | LaneGap::Envelope,
                 ..
             } => Decision::Check(PcurveCheck::GeneralLane, definite),
             // A stored image's copied structure: its identity, its
@@ -9048,13 +9061,12 @@ pub(crate) fn own_interval<T: Real>(carrier: &Curve3<T>) -> (T, T) {
 /// band. A carrier the test does not show off the chart whose class
 /// reading shows none of the chart's own classes takes the general lane
 /// (D3's lane choice) where one is written ([`projected::has_lane`]: a
-/// circle on a sphere, a line on a cylinder, a spline on any analytic
-/// chart), and otherwise
+/// circle on a sphere, cylinder, cone or torus, a line on a cylinder or a
+/// cone, a spline on any analytic chart), and otherwise
 /// refuses lever-only "not yet": `Escalated` ([`PcurveCheck::ChartClass`])
 /// with the class reading's cause where it was in band, and
 /// [`PcurveCertifyError::NoGeneralLane`] ([`LaneGap::Unwritten`]) where it
-/// was definite. A circle on a cone, torus or cylinder, a line on a cone
-/// and an ellipse have no general lane yet (unit E4, `work/pcert/plan.md`).
+/// was definite. An ellipse has no general lane yet (`work/pcert/`).
 /// Where the projected lane is taken, a circle's or a line's lane choice
 /// or a spline's only image, the lane's own capability gap also ends "not yet":
 /// `Escalated` ([`PcurveCheck::GeneralLane`]) where its sector or nappe
@@ -9070,9 +9082,9 @@ pub fn chart_pcurve<T: Decide>(
 }
 
 /// [`chart_pcurve`] for an edge over `[t0, t1]`: the same image for
-/// every class but a sphere's general circle, whose projected image is
-/// partitioned over the edge's own interval rather than one turn from
-/// `0`. The door a caller holding the edge's interval takes (the mint,
+/// every class but a circle's or a line's projected image, which is
+/// partitioned over the edge's own interval rather than over the
+/// carrier's own. The door a caller holding the edge's interval takes (the mint,
 /// the site mint).
 ///
 /// # Errors
@@ -9153,6 +9165,39 @@ fn chart_image<T: Decide>(
     }
 }
 
+/// **The mint's own image refused by its certificate, as the lane's
+/// gap** (D3): a circle or a line takes the projected image because no
+/// class was shown, so where the certificate of that image, just derived
+/// by [`chart_pcurve_over`] for the edge, refuses on its sector, its
+/// metre conversion's lever or its envelope, the lane does not yet
+/// certify the pose, and the refusal ends "not yet" as the lane's other
+/// gaps do ([`general_lane_refusal`], the one place they are relabelled).
+///
+/// Read by the doors that certify an image they just derived (the
+/// mint's walk, `topo::pcurves`), never by one that re-certifies a
+/// stored row: there an envelope refusal says the row is wrong (a copy
+/// lifted off its deck, an image moved off its carrier, a row of another
+/// carrier) and ends as its own term. Every other image passes through,
+/// a spline's net among them, whose only image this is.
+#[must_use]
+pub fn minted_refusal<T: Real>(
+    refused: PcurveCertifyError,
+    image: &Pcurve<T>,
+    carrier: &Curve3<T>,
+    surface: &Surface<T>,
+) -> PcurveCertifyError {
+    if !(matches!(image, Pcurve::Projected(_))
+        && matches!(carrier, Curve3::Circle(..) | Curve3::Line(_)))
+    {
+        return refused;
+    }
+    #[cfg(test)]
+    if mutants::lane_envelope_bound() {
+        return refused;
+    }
+    general_lane_refusal(refused, carrier, surface)
+}
+
 /// The lever of a [`LaneGap::Pose`]: the one sentence both
 /// [`PcurveCertifyError::NoGeneralLane`]'s and
 /// [`crate::CertifyError::NoGeneralLane`]'s Display give it.
@@ -9179,26 +9224,50 @@ pub enum LaneGap {
         /// The channel that failed.
         channel: projected::SectorChannel,
     },
+    /// The lane images this pose, but its certificate does not bound the
+    /// image's miss inside the band: check 4's envelope, an upper bound on
+    /// the miss, refused it ([`ENVELOPE_LEVER`]).
+    Envelope,
 }
+
+/// The lever of a [`LaneGap::Envelope`]: the one sentence both
+/// [`PcurveCertifyError::NoGeneralLane`]'s and
+/// [`crate::CertifyError::NoGeneralLane`]'s Display give it.
+pub(crate) const ENVELOPE_LEVER: &str = "the general image's certificate bounds the carrier's \
+     miss from above, and over this edge that bound does not fit inside the band; a shorter \
+     edge, away from the chart's singular set, reads a tighter one";
 
 /// **The projected lane's refusal at the mint**: the one place a
 /// general-lane refusal is relabelled, read from both of `chart_image`'s
-/// calls of the lane (a circle's lane choice and a spline's only image),
-/// and nothing in `projected` learns of either. The lane's own capability
-/// gap on a carrier the incidence test does not show off the chart, its
-/// partition's sector reading (and, for a cone net or circle, the nappe
-/// `chart_of` reads at its midpoint), ends "not yet"
-/// ([`PcurveCheck::GeneralLane`]): in band as an escalation of that
-/// check, decided as [`LaneGap::Pose`]. Every other refusal `project`
-/// returns stays as it is: the deck's placement (`Placement::turns`)
-/// refuses only a poisoned midpoint or one past every turn an `i32`
-/// counts, and the kind and chart refusals are fenced off by
+/// calls of the lane (a circle's lane choice and a spline's only image)
+/// and, through [`minted_refusal`], from the mint's certificate of a
+/// lane choice's own fresh image; nothing in `projected` learns of
+/// either. The lane's own capability gap on a carrier the incidence test
+/// does not show off the chart ends "not yet"
+/// ([`PcurveCheck::GeneralLane`]):
+///
+/// - its partition's sector reading (and, for a cone net or circle, the
+///   nappe `chart_of` reads at its midpoint), and check 4's sector and
+///   metre-conversion lever: in band as an escalation of that check,
+///   decided as [`LaneGap::Pose`];
+/// - check 4's envelope (an upper bound on the miss,
+///   [`PcurveCheck::bounds_a_miss`]), which only the certificate reads: in
+///   band as the same escalation, decided as [`LaneGap::Envelope`].
+///
+/// Every other refusal stays as it is: the deck's placement
+/// (`Placement::turns`) refuses only a poisoned midpoint or one past every
+/// turn an `i32` counts, and the kind and chart refusals are fenced off by
 /// [`projected::has_lane`] before the call.
 fn general_lane_refusal<T: Real>(
     refused: PcurveCertifyError,
     carrier: &Curve3<T>,
     surface: &Surface<T>,
 ) -> PcurveCertifyError {
+    let gap = |gap| PcurveCertifyError::NoGeneralLane {
+        chart: surface.kind(),
+        carrier: carrier.kind(),
+        gap,
+    };
     match refused {
         PcurveCertifyError::Escalated {
             check: PcurveCheck::Sector,
@@ -9209,11 +9278,22 @@ fn general_lane_refusal<T: Real>(
             sample,
             cause,
         },
-        PcurveCertifyError::SectorRefused { piece, channel } => PcurveCertifyError::NoGeneralLane {
-            chart: surface.kind(),
-            carrier: carrier.kind(),
-            gap: LaneGap::Pose { piece, channel },
+        PcurveCertifyError::Escalated {
+            check: check @ (PcurveCheck::Envelope | PcurveCheck::EnvelopeTerm(_)),
+            sample,
+            cause,
+        } if check.bounds_a_miss() => PcurveCertifyError::Escalated {
+            check: PcurveCheck::GeneralLane,
+            sample,
+            cause,
         },
+        PcurveCertifyError::SectorRefused { piece, channel } => {
+            gap(LaneGap::Pose { piece, channel })
+        }
+        PcurveCertifyError::ResidualExceeded {
+            check: check @ (PcurveCheck::Envelope | PcurveCheck::EnvelopeTerm(_)),
+            ..
+        } if check.bounds_a_miss() => gap(LaneGap::Envelope),
         other => other,
     }
 }
@@ -9497,11 +9577,13 @@ pub fn chart_iso_family<T: Decide>(
         }) if cause.predicate == Some(RADIAL_MOVING) => {
             return Err(IsoFamilyRefusal::Undecided(cause));
         }
-        // A line shown off the ruling: its image is the general one, on
-        // no family.
+        // A carrier shown none of the chart's classes where the pair has
+        // a general lane (a line off a cylinder's rulings, a circle off a
+        // cone's rims or a torus's circles): its image is the general
+        // one, on no family.
         Err(Underived::General {
             undecided: None, ..
-        }) if matches!(surface, Surface::Cylinder { .. }) => return Ok(None),
+        }) if projected::has_lane(carrier, surface) => return Ok(None),
         Err(underived) => return Err(IsoFamilyRefusal::Image(harmonic_refusal(underived))),
     };
     Ok(match derivation {
@@ -10539,7 +10621,7 @@ fn cylinder_rim_axial<T: Decide>(a: T, b: T, band: Band) -> (T, T) {
 }
 
 /// [`derive_class`] for a caller that wants a closed-form image or a
-/// refusal: the sphere's general circle has none.
+/// refusal: a circle or line no class images has none.
 fn derive_harmonic<T: Decide>(
     carrier: &Curve3<T>,
     surface: &Surface<T>,
@@ -11835,12 +11917,18 @@ fn channels_of<T: Real>(image: &Pcurve<T>) -> (Channel<T>, Channel<T>) {
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::panic)]
+mod circle_lane_rows;
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod cone_line_rows;
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
 mod cylinder_line_rows;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::panic)]
 mod harmonic_sup_rows;
 #[cfg(test)]
-mod mutants;
+pub(crate) mod mutants;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::panic)]
 mod placement_rows;
@@ -13292,8 +13380,7 @@ mod tests {
         // Near the tube's top an off-axis centre `δ` leaves the torus
         // only by `δ²/2r`, so a circle ⊥ the axis centred off it — past
         // the centring band — is not shown off the chart, and no closed
-        // form images it. Its general lane is not written yet on a torus
-        // (D3: lever-only "not yet").
+        // form images it: it takes the general lane, the projected image.
         let delta = 2.0 * Tol::witness().k() * Tol::witness().eps();
         let crest = circle(
             Point3::new(delta, 0.0, minor),
@@ -13303,13 +13390,7 @@ mod tests {
         );
         let got = chart_pcurve(&crest, &torus, band());
         assert!(
-            matches!(
-                got,
-                Err(PcurveCertifyError::NoGeneralLane {
-                    gap: LaneGap::Unwritten,
-                    ..
-                })
-            ),
+            matches!(got, Ok(Pcurve::Projected(_))),
             "a crest parallel centred off the axis: {got:?}"
         );
     }
