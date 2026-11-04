@@ -153,7 +153,7 @@ Read against origin/main `2f10bc9a4d` (2026-10-09). Read-only lane.
 | 27 | `rules.rs:319` | `enters_material` | `Tangent` after the parallelism gate | P(c) | `SliverSector` ending is not a defect ending. On the same CLEAVE row |
 | 28 | `rules.rs:488` | `wall_bend_order2` | `Exits` or `Tangent` where rule (a) read "enters" | P(c) | Same |
 | 29 | `rules.rs:500` | `wall_bend_order2` | Sectors disagree | P(c) | Same |
-| 30 | `splitting/classify.rs:608` | `split_conic_graze_side` | `decide` gives `Zero`. This is reachable at K ≤ 2 according to its own comment | **D** | → `BellyGraze`. `decide_nonzero` keeps the tag |
+| 30 | `geom-brep/src/curve_face/plane_crossing.rs` (`conic_plane_candidates`) | `plane_crossing_graze_side` | `decide` gives `Zero`. This is reachable at K ≤ 2 according to its own comment | **D** | → `BellyGraze`. `decide_nonzero` keeps the tag |
 | 31 | `census.rs:2583` | `material_wedge_side` | `classify_dihedral` gives a definite **Transverse** after the edge screen | P(c) | `CensusEscalated` → `too_close` poison arm "check the inputs, then declare/move". The declare arm is not followable for a contradiction. On CLEAVE's parked row |
 | 32 | `boolean/sphere_region.rs:384` | (retired) | `CircleRoots::CountDisagrees` | P(c) | Retired (PR 4607): the variant is gone; the first-harmonic doors answer `FirstHarmonicRoots` |
 | 33 | `solid_contain.rs:5401` | (retired) | `TorusRoots::CountDisagrees` | P(c) | Retired (PR 4607): `PointInSolidError::RootCountDisagrees`, blocking the ray; the cause (rung 1's uncharged `Δ` rounding) is INSIDE's `ray-torus-count-certifies-on-an-uncharged-discriminant` |
@@ -218,7 +218,7 @@ That is 38 arms over 35 production mint sites (22 direct, 13 through the helper)
      exists now).
    - Ground: CLEAVE, HONE, INSIDE.
 3. **Splitting definite verdicts** (#26 `split_sector_extent` Zero → a collapsed-face verdict; #30
-   `split_conic_graze_side` → `decide_nonzero`). Cost E.
+   `plane_crossing_graze_side` → `decide_nonzero`). Cost E.
    - Ground: CLEAVE / GAUGE / HONE.
    - #26 sits on CLEAVE's **parked** `topo-mints-indeterminates-outside-the-funnel` (blocked_on
      `intent-stage4-is-built`, `design: true`). Confirm with CLEAVE, or take that row's rules.rs

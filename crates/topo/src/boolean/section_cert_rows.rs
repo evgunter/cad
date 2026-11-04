@@ -3336,8 +3336,8 @@ fn a_ball_touching_a_wall_near_its_axis_stands_on_both_carriers() {
 /// dropped, and [`super::perp_to`] as `v − a·(a·v)`.
 #[test]
 fn every_torus_touch_holds_against_a_sampling_oracle() {
-    use super::super::conic_oracle::unit;
     use core::f64::consts::FRAC_PI_2;
+    use geom_brep::curve_face::conic_oracle::unit;
     use test_utils::fuzz;
     let band = band();
     let eps = band.zero();
@@ -3359,7 +3359,7 @@ fn every_torus_touch_holds_against_a_sampling_oracle() {
             );
             let t = Tor::new(
                 Point3::origin() + (c - Point3::origin()) * scale,
-                unit(&mut rng),
+                unit(|lo, hi| rng.range(lo, hi)),
                 big_r,
                 ratio * big_r,
             );

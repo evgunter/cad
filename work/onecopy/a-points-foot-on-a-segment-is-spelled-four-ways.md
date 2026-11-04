@@ -14,7 +14,7 @@ Found by the sweep of `onecopy/small-reads` (shape `(p − origin)·dir` and `di
 
 A point's foot on a segment is the line's parameter held to `[0, 1]` (or to `[0, len]` on a unit direction), and the point there. `geom::Line` has no such reading, so each site spells it by hand:
 
-- `crates/topo/src/sector_shape.rs` `point_segment_distance`: `(w·d / |d|²)` clamped, then `|w − d·t|`. Its callers include `boolean/solid_contain.rs` `EdgeMeets::vertex`, which reads the ray's own parameter beside it inline, `(at − q)·d`.
+- `crates/geom-brep/src/sector_shape.rs` `point_segment_distance`: `(w·d / |d|²)` clamped, then `|w − d·t|`. Its callers include `boolean/solid_contain.rs` `EdgeMeets::vertex`, which reads the ray's own parameter beside it inline, `(at − q)·d`.
 - `crates/topo/src/link.rs` `foot` (the segment `a`–`b`'s nearest point), `((p − a)·ab / |ab|²)` clamped.
 - `crates/topo/src/link.rs` `lowest_on`'s ray arm: `apex + u·max(u·(q − apex), 0)`, a ray's foot (held at one end only).
 - `crates/topo/src/census.rs` `distance`, its edge arm: `(u − p0)·dir` held to `[0, len]` on a line edge's segment (`EdgeGeo`).
@@ -25,4 +25,4 @@ Two more reads of a segment's parameter beside them: `census.rs` `ee_bound_backe
 
 Test-only spellings beside them, which may stay as independent oracles: `ring_path.rs` `segment_arc_distance` (`#[cfg(test)]`).
 
-Before you fix it, decide the home: a `Line::param` held to a parameter span (the edge's own `(t0, t1)`) fits all four, since a segment is a line edge's span; a `Segment` type would be a second holder of the line. `sector_shape`'s Body-free functions are moving to `geom-brep` under ONEDOOR's `crossing-doors-leave-topo-for-geom-brep`, so coordinate with that row.
+Before you fix it, decide the home: a `Line::param` held to a parameter span (the edge's own `(t0, t1)`) fits all four, since a segment is a line edge's span; a `Segment` type would be a second holder of the line. `sector_shape`'s Body-free functions moved to `geom-brep` (`crates/geom-brep/src/sector_shape.rs`, ~:457-483) under ONEDOOR's `crossing-doors-leave-topo-for-geom-brep`. Beside `point_segment_distance` there, `plane_offset` and `plane_offset_rounded` are general point readings (a point's signed distance from a plane) homed in a module about a corner's sectors; the one home this item picks should say where those go too (PR 6488 review, R2).

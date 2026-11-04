@@ -16,12 +16,12 @@ plane with the same closed form: a sinusoid `D + R·cos(θ − φ)`, a phase
 `φ = atan2`, and roots at `φ ± acos(clamp(−D/R))`. Each one decides on
 its own what the tangent arm (`R − |D|` within the band) means:
 
-- `topo::splitting::classify::conic_plane_meet`, the split's and the
-  Boolean sweep's crossing lane. Its graze arm (`split_conic_belly_graze`
+- `geom_brep::curve_face::plane_crossing::conic_plane_meet`, the split's and the
+  Boolean sweep's crossing lane. Its graze arm (`plane_crossing_belly_graze`
   `Zero`) took `acos` of the residue's ratio. Inside the conic, that
   placed the one root on a residue crossing √(2ε/R) rad off the
   extremum. Since `cleave/inband-graze` (PR 4179) it places the root at
-  `φ` or `φ + π`, on the side `split_conic_graze_side` decides.
+  `φ` or `φ + π`, on the side `plane_crossing_graze_side` decides.
 - `geom_brep::intersect::plane_cone_section`, apex lane. On
   `pn_apex_section` `Zero`, `ApexTangentLine(gen_at(phi + delta))` still
   takes `acos` of the residue's ratio. Measured: with the plane dipped
@@ -40,7 +40,7 @@ R, φ)` and the band, and returns `Miss`, `Graze(θ)` with θ = φ or φ + π
 from the decided sign of D, `Secant(θ₁, θ₂)`, or the escalation. All three
 sites would read its arms rather than solving the ratio themselves. The
 crossing lane's arm is the reference, and its rows
-(`classify::tests::belly_graze_trio`,
+(`geom_brep::curve_face::plane_crossing::tests::belly_graze_trio`,
 `an_interval_graze_root_is_as_tight_as_its_phase`) can move with it.
 
 ## Found by
@@ -57,8 +57,8 @@ reads the residue's ratio. The line pair's clamped `acos` is unchanged.
 
 Review r5152 of PR 5152 notes a difference in decision posture between
 the two fixed graze arms:
-- `splitting/classify.rs:640` decides the graze side as a named
-  decision, `decide_nonzero("split_conic_graze_side", …)`.
+- `geom-brep/src/curve_face/plane_crossing.rs` (`conic_plane_candidates`) decides the graze side as a named
+  decision, `decide_nonzero("plane_crossing_graze_side", …)`.
 - The apex lane (`geom-brep/src/intersect.rs`, `pn_apex_section`'s
   `Zero` arm) picks it on the raw sign of `c` with `copysign`, on the
   argument that `pn_aperture_sin`'s guard keeps `|c|` past about
@@ -70,3 +70,11 @@ f64 arm could pick the wrong side silently; the miss is bounded by about
 `2Kε` at the lever. The Interval arm widens to both generators instead.
 
 The one home this item proposes should take the decided form.
+
+## More copies (PR 6488 review, R2)
+
+The same sinusoid solve, `atan2` of the two amplitudes for the phase and `acos` of the offset's ratio for the half-width, is also spelled at:
+- `crates/topo/src/ring_path.rs` `plane_roots` (~:1849-1850, `cb.atan2(ca)`);
+- `crates/topo/src/shell.rs` `cut_counting` (~:4979-4983, `b.atan2(a)`);
+- `crates/topo/src/offset_axial.rs` `solve_corner` (~:1683-1684, `b_co.atan2(a_co)`, `cos_d.acos()`);
+- `crates/geom-brep/src/curve_face/circle_roots.rs` `FirstHarmonic::conic_off_plane` (~:241) and `harmonic_crossing` (~:432), now in the same directory as `crates/geom-brep/src/curve_face/plane_crossing.rs`'s `conic_plane_candidates` and `span_roots`, with nothing in either naming the other.

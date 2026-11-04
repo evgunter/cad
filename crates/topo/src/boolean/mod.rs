@@ -79,22 +79,16 @@ mod carrier_cross;
 pub mod carrier_eq;
 pub(crate) mod carrier_pair;
 mod carrier_touch;
-mod circle_roots;
-mod circle_torus;
 pub(crate) mod combine;
 #[cfg(test)]
 mod cone_frame_rows;
 mod conic_quadric;
 pub mod contact_verify;
-// The conic rows' shared test oracles (test builds only).
-#[cfg(test)]
-mod conic_oracle;
 mod contain;
 mod discard;
 #[cfg(feature = "door-tier3-meter")]
 mod door_meter;
 pub(crate) mod edge_join;
-mod ellipse_torus;
 // The variant roster the sample-coverage row reads (test builds only).
 #[cfg(test)]
 pub(crate) use contain::ContainErrorKind;
@@ -267,7 +261,7 @@ pub use voids::{
 /// bound).
 #[must_use]
 pub fn decision_words(predicate: &str) -> Option<&'static str> {
-    if let Some(words) = crate::sector_shape::rung_words(predicate) {
+    if let Some(words) = geom_brep::sector_shape::rung_words(predicate) {
         return Some(words);
     }
     if let Some(reading) = refusal_routes::PARALLELISMS
@@ -370,12 +364,12 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         // reads before it differentiates the torus.
         "torus_tube_positive" => TorusConvention::Tube.subject(),
         "ring_torus_convention" => TorusConvention::Ring.subject(),
-        "split_edge_param_interior" | "split_conic_crossing_root" | "bool_wall_root_in_span" => {
+        "split_edge_param_interior" | "plane_crossing_root_in_span" | "bool_wall_root_in_span" => {
             CrossingDecision::OnEdge.subject()
         }
-        "split_conic_root_order" | "spline_composite_roots_apart" | "spline_face_roots_apart" => {
-            CrossingDecision::Order.subject()
-        }
+        "plane_crossing_root_order"
+        | "spline_composite_roots_apart"
+        | "spline_face_roots_apart" => CrossingDecision::Order.subject(),
         "spline_composite_root_at_end"
         | "spline_composite_root_at_crease"
         | "spline_face_root_at_end" => CrossingDecision::OnEdge.subject(),
@@ -2991,7 +2985,7 @@ pub enum BooleanError {
     /// torus or a cone (away from its apex: [`Self::CrossingAtConeApex`]),
     /// whose
     /// crossing parameters come from the certified root lanes (the line
-    /// quadratics and quartic, and `boolean::circle_roots`' doors) and
+    /// quadratics and quartic, and `geom_brep::curve_face::circle_roots`' doors) and
     /// whose landing point the face's region
     /// places. What this variant reports is the rest: a tangency (not a
     /// crossing at any order the lanes see), a line parallel to a cone's
@@ -4492,6 +4486,20 @@ pub enum BooleanErrorKind {
 }
 
 impl BooleanError {
+    /// A curve × face root door's refusal
+    /// ([`geom_brep::curve_face::circle_roots::DoorRefusal`], which the
+    /// conic doors and the line × torus door refuse in), its in-band sign
+    /// an escalation as `decision`.
+    pub(in crate::boolean) fn of_door_refusal(
+        decision: BooleanDecision,
+    ) -> impl Fn(geom_brep::curve_face::circle_roots::DoorRefusal) -> Self {
+        use geom_brep::curve_face::circle_roots::DoorRefusal;
+        move |refusal| match refusal {
+            DoorRefusal::Escalated(diag) => Self::Escalated { decision, diag },
+            DoorRefusal::Invariant(what) => Self::ClassificationInvariant { what },
+        }
+    }
+
     /// The operand gate's refusal on `operand`
     /// ([`crate::AtRestBody::gate_unverdicted`]), typed for the Boolean.
     pub(crate) fn unfinished(operand: Operand, unfinished: crate::validate::Unfinished) -> Self {
