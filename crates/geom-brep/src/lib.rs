@@ -229,7 +229,7 @@ pub use props::{
     FaceContribution, LoopEdge, PropsError, curved_face, planar_face, require_iso_rectangle,
     require_one_chart_branch,
 };
-pub use row_contact::{RowContact, analytic_row_certifies, analytic_shared_row};
+pub use row_contact::{RowContact, analytic_row_contact, analytic_shared_row};
 pub use ssi::{
     BandVerdict, BoundaryChart, BoundaryPoint, BoundarySection, ChartAxis, ChartCorner, ChartEnd,
     ChartSide, ChartSpeedRefusal, ChartedNurbs, DomainField, ExhaustLane, Exhaustiveness,

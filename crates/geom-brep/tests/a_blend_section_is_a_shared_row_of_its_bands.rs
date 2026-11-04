@@ -14,8 +14,9 @@ use core::f64::consts::FRAC_PI_2;
 use geom::{Curve3, Surface};
 use geom_brep::pcurve_cache::Channel;
 use geom_brep::{
-    CertifyError, CurveSelector, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, Pcurve, RowContact,
-    RowRefusal, SharedRow, Structural, SurfaceKey, SurfacePair, analytic_shared_row,
+    CertifyError, CurveSelector, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, Pcurve,
+    PcurveCache, RowContact, RowRefusal, SharedRow, Structural, SurfaceKey, SurfacePair,
+    analytic_shared_row,
 };
 use geom_core::{Interval, Point3, Real, Vec3};
 use slotmap::SlotMap;
@@ -69,9 +70,11 @@ fn stadium_junction() -> Row<f64> {
     }
 }
 
-/// A unit cylinder about z and the sphere of radius 2 about
-/// (0, 0, −√3), which cross along the unit circle in z = 0 at 60°.
-fn cylinder_through_sphere() -> Row<f64> {
+/// A unit cylinder about z and the sphere through the unit circle in
+/// z = 0 whose normal there makes `angle` with the cylinder's: centred at
+/// (0, 0, −tan `angle`), radius 1/cos `angle`. The two cross along that
+/// circle at `angle`, over `span`.
+fn cylinder_through_sphere(angle: f64, span: (f64, f64)) -> Row<f64> {
     Row {
         walls: [
             Surface::Cylinder {
@@ -81,8 +84,8 @@ fn cylinder_through_sphere() -> Row<f64> {
                 u_ref: Vec3::new(1.0, 0.0, 0.0),
             },
             Surface::Sphere {
-                center: Point3::new(0.0, 0.0, -(3.0f64.sqrt())),
-                radius: 2.0,
+                center: Point3::new(0.0, 0.0, -angle.tan()),
+                radius: 1.0 / angle.cos(),
                 axis: Vec3::new(0.0, 0.0, 1.0),
                 u_ref: Vec3::new(1.0, 0.0, 0.0),
             },
@@ -93,7 +96,35 @@ fn cylinder_through_sphere() -> Row<f64> {
             1.0,
             Vec3::new(1.0, 0.0, 0.0),
         ),
-        span: (0.0, FRAC_PI_2),
+        span,
+    }
+}
+
+/// A cone about z with its apex at the origin and a 30° half-angle, and
+/// the plane through its axis that holds the generator along
+/// (sin 30°, 0, cos 30°), which crosses the cone at 90° along it. The
+/// carrier is that generator, its parameter's origin `before` metres
+/// before the apex, over `span`.
+fn cone_generator(before: f64, span: (f64, f64)) -> Row<f64> {
+    let (s, c) = 30f64.to_radians().sin_cos();
+    let along = Vec3::new(s, 0.0, c);
+    let apex = Point3::new(0.0, 0.0, 0.0);
+    Row {
+        walls: [
+            Surface::Cone {
+                apex,
+                axis: Vec3::new(0.0, 0.0, 1.0),
+                half_angle: 30f64.to_radians(),
+                u_ref: Vec3::new(1.0, 0.0, 0.0),
+            },
+            Surface::Plane {
+                origin: apex,
+                normal: Vec3::new(0.0, 1.0, 0.0),
+                u_ref: along,
+            },
+        ],
+        carrier: Curve3::line(apex - along * before, along),
+        span,
     }
 }
 
@@ -142,28 +173,37 @@ fn certify<T: geom_core::Decide + geom_core::CertifiedBounds>(
 }
 
 /// `row` certified under its stated shared row, with the contact class
-/// its certificate read (`row_contact::analytic_row_contact`, at the
-/// same lever).
+/// read by the certificate's own reading at the certificate's own lever
+/// (`edge_extent_inf` over the edge), over each wall's certified image.
 fn certified<T: geom_core::Decide + geom_core::CertifiedBounds>(
     row: &Row<T>,
 ) -> Result<RowContact, CertifyError> {
     let selector = stated(row).expect("both walls state the row and certify it");
+    certify(row, selector.clone())?;
     let CurveSelector::Structural(Structural::SharedRow(shared)) = &selector else {
         panic!("the constructor states a shared row");
     };
     let (surfaces, pair, _) = arena(row);
-    let walls = pair
-        .keys()
-        .map(|k| (&surfaces[k], shared.image_on(pair, k).unwrap()));
-    let class = geom_brep::row_contact::analytic_row_contact(
-        row.span,
-        walls,
-        geom_core::test_support::fixture_lever(T::from_f64(1.0)),
+    let (t0, t1) = row.span;
+    let cache = |k: SurfaceKey| {
+        PcurveCache::certify(
+            shared.image_on(pair, k).unwrap().clone(),
+            t0,
+            t1,
+            &row.carrier,
+            &surfaces[k],
+            band(),
+        )
+        .expect("each wall's image certified under the edge")
+    };
+    let [ka, kb] = pair.keys();
+    let (ca, cb) = (cache(ka), cache(kb));
+    let ends = (row.carrier.eval(t0), row.carrier.eval(t1));
+    geom_brep::analytic_row_contact(
+        [(ka, &surfaces[ka], &ca), (kb, &surfaces[kb], &cb)],
+        geom_brep::edge_extent_inf(&row.carrier, t0, t1, ends),
         band(),
     )
-    .map(|(class, _)| class);
-    certify(row, selector.clone())?;
-    class
 }
 
 #[test]
@@ -181,19 +221,82 @@ fn a_blend_section_certifies_as_a_touching_shared_row() {
     );
 }
 
+/// The walls' angle along a shared circle is constant, and the reading
+/// charges it no variation: 60° and 1° over a full turn, and a milliradian
+/// over a quarter turn, all certify as crossing.
 #[test]
 fn a_crossing_analytic_shared_row_certifies_as_crossing() {
-    let row = cylinder_through_sphere();
-    assert_eq!(
-        certified(&row).unwrap(),
-        RowContact::Crossing,
-        "f64: the walls cross at 60° along the whole row"
-    );
-    assert_eq!(
-        certified(&row.lifted()).unwrap(),
-        RowContact::Crossing,
-        "Interval: the walls cross at 60° along the whole row"
-    );
+    let (quarter, turn) = (FRAC_PI_2, core::f64::consts::TAU);
+    for (angle, span) in [
+        (60f64.to_radians(), (0.0, quarter)),
+        (1f64.to_radians(), (0.0, turn)),
+        (1e-3, (0.0, quarter)),
+    ] {
+        let row = cylinder_through_sphere(angle, span);
+        assert_eq!(
+            certified(&row).unwrap(),
+            RowContact::Crossing,
+            "f64: {angle} rad over {span:?}"
+        );
+        assert_eq!(
+            certified(&row.lifted()).unwrap(),
+            RowContact::Crossing,
+            "Interval: {angle} rad over {span:?}"
+        );
+    }
+}
+
+/// A cone's generator certifies on one nappe, whichever end of its
+/// parameter the apex sits at: past the apex (the origin a metre before
+/// it, the span `(1.5, 2.5)`), and from it (the origin at the apex, the
+/// span `(0.5, 1)`). At `f64` only: the plane's image of the generator
+/// holds `v` by a coefficient `sin α·cos α − cos α·sin α`, exactly zero at
+/// `f64` and an enclosure about zero at `Interval`, where the constructor
+/// therefore states no row.
+#[test]
+fn a_cone_generator_on_one_nappe_certifies_as_crossing() {
+    for (before, span) in [(1.0, (1.5, 2.5)), (0.0, (0.5, 1.0))] {
+        let row = cone_generator(before, span);
+        assert_eq!(
+            certified(&row).unwrap(),
+            RowContact::Crossing,
+            "the origin {before} m before the apex, over {span:?}"
+        );
+    }
+}
+
+/// A generator through the apex, or ending on it, refuses on the cone as
+/// a row through its chart's singular point, before any image
+/// certificate or contact reading.
+#[test]
+fn a_cone_generator_reaching_the_apex_refuses_on_the_cone() {
+    for (before, span) in [(1.0, (0.5, 1.5)), (0.0, (0.0, 1.0))] {
+        let row = cone_generator(before, span);
+        let (_, pair, keys) = arena(&row);
+        let image = |k: SurfaceKey| {
+            geom_brep::pcurve_cache::chart_pcurve_over(
+                &row.carrier,
+                span.0,
+                span.1,
+                &row.walls[keys.iter().position(|x| *x == k).unwrap()],
+                band(),
+            )
+            .unwrap()
+        };
+        let shared = SharedRow::new(pair, (keys[0], image(keys[0])), (keys[1], image(keys[1])))
+            .expect("both images are rows");
+        let got = certify(
+            &row,
+            CurveSelector::Structural(Structural::SharedRow(shared)),
+        );
+        assert!(
+            matches!(
+                got,
+                Err(CertifyError::Row { surface, refusal: RowRefusal::Singular }) if surface == keys[0]
+            ),
+            "over {span:?} the row reaches the apex: {got:?}"
+        );
+    }
 }
 
 /// The torus's row image is its meridian, a row with the azimuth fixed;
@@ -230,5 +333,30 @@ fn a_meridian_stated_off_by_a_milliradian_refuses_on_the_torus() {
             Err(CertifyError::Row { surface, refusal: RowRefusal::Image(_) }) if surface == torus
         ),
         "the off-by-δ meridian refuses on the torus's row certificate: {got:?}"
+    );
+}
+
+/// **The short-span limit at `Interval`, pinned where it stands today**:
+/// the stadium junction over `1e-5` of its section escalates its touch
+/// bound (`shared_row_touch`), the three in-span readings' harmonic
+/// widening past the band, while `f64` still reads Touching. Red if the
+/// limit moves either way (`work/select/the-shared-row-contact-class-is-levered-by-the-edges-length.md`).
+#[test]
+fn a_stadium_section_over_ten_microradians_escalates_its_touch_at_interval() {
+    let mut row = stadium_junction();
+    row.span = (0.0, 1e-5);
+    assert_eq!(
+        certified(&row).unwrap(),
+        RowContact::Touching,
+        "f64 still reads it"
+    );
+    let got = certified(&row.lifted());
+    assert!(
+        matches!(
+            &got,
+            Err(CertifyError::Escalated { check: geom_brep::CertCheck::Transversality, cause, .. })
+                if cause.predicate == Some("shared_row_touch")
+        ),
+        "Interval escalates the touch bound over 1e-5: {got:?}"
     );
 }

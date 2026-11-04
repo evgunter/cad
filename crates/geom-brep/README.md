@@ -79,7 +79,8 @@ the whole row, never at sampled feet alone (`row_contact`). Two spline
 walls must cross along all of it. Two
 analytic walls must cross along all of it or touch along all of it, as
 a blend's section between two bands does; a row that does neither
-refuses.
+refuses, and so does a row that reaches its chart's singular point (a
+cone's apex).
 Limbs 1 and 2 are owed by every carrier, of every kind, however it was
 minted. Limb 3 is owed unless the pair's section function, for this
 pose, states the two numbers the tube would prove: a lower bound on the

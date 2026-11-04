@@ -29,8 +29,8 @@
 //! **The Tangent lane reuses the jet machinery, it does not restate
 //! it.** `tangent_jet`, `tangent_certificate_lane`,
 //! `tangent_span_bounds` and the certification schedule's own
-//! stations (`schedule_param`) all come from `geom_brep` — the
-//! demanded set IS the certifiable set, which is C3's order-k boundary
+//! stations (`schedule_param`) all come from `geom_brep` — the lane
+//! this gates on is the certificate's own, which is C3's order-k boundary
 //! as a fact about the code rather than a promise about it. Outside the lane, this
 //! refuses [`ContactRefusal::NotCertifiable`]: an order-k > 1 contact
 //! has no record type, so it gets no verdict either.
@@ -79,7 +79,7 @@ use super::carrier_eq::{CarrierEqError, CarrierRelation};
 ///
 /// [`ContactRefusal`] — contradiction (aligned senses, or two
 /// carriers), escalation, or a configuration outside the class's
-/// certifiable set.
+/// certificate lane.
 pub fn rest_pair_verdict<T: Decide>(
     a: &Body<T>,
     fa: FaceKey,
@@ -313,8 +313,8 @@ fn tangent_table<T: Decide>(
     claim: Claim,
     band: Band,
 ) -> Result<geom_core::MarginDiag, TableRefusal> {
-    // The lane gate FIRST: the demanded set is the certifiable set,
-    // so a configuration whose span bounds do not exist gets no
+    // The lane gate FIRST: the lane is the certificate's own, so a
+    // configuration whose span bounds do not exist gets no
     // per-sample verdict either — refusing here is the order-k
     // boundary, not a missing feature.
     if !tangent_certificate_lane(carrier, s1, s2) {
@@ -937,8 +937,8 @@ mod tests {
     }
 
     /// Outside the certified lane there is no verdict at all — the
-    /// demanded set IS the certifiable set (C3's order-k boundary),
-    /// so a cone tangency refuses typed rather than being sampled.
+    /// lane is the certificate's own (C3's order-k boundary), so a cone
+    /// tangency refuses typed rather than being sampled.
     #[test]
     fn outside_the_lane_refuses_typed_rather_than_sampling() {
         let cone = Surface::Cone {

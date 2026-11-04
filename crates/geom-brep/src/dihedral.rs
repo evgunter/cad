@@ -214,7 +214,7 @@ macro_rules! material_pairing_clause {
 /// typed [`Indeterminate`] error — the sliver escalation, D4 ¶3).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum DihedralClass {
-    /// Tangent planes definitely distinct: a genuine corner;
+    /// Tangent planes definitely distinct: a genuine corner; a witness
     /// `Intersection`'s transversality precondition holds here.
     Transverse,
     /// Tangent planes coincident at tolerance — and NOTHING more:

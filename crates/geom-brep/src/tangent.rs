@@ -188,14 +188,14 @@ pub struct TangentSpanBounds<T: Real> {
 /// There the deviation measured below is large, so the span bounds are
 /// large, and certification refuses LOUDLY
 /// (`ResidualExceeded { TangentHull }`) instead of certifying something
-/// it has not bounded: **in-lane but uncertifiable**. A blend mints the
-/// class: where a rounded outline's line link meets an arc link, the
-/// cylinder band and the torus band meet G1 along the rolling ball's
-/// section, the torus's meridian. No witness certificate could pass
-/// there, since `κ_rel` vanishes where the section meets the cap. The
-/// section is a row of both bands' charts, known in advance, so its
-/// selector is structural, a shared row (`crate::row_contact`), and no
-/// jet margin is asked of it.
+/// it has not bounded: **in-lane but uncertifiable**. A blend's section
+/// is of this class: where a rounded outline's line link meets an arc
+/// link, the cylinder band and the torus band meet G1 along the rolling
+/// ball's section, the torus's meridian, and `κ_rel` vanishes where the
+/// section meets the cap, so no witness certificate can pass there. The
+/// section is a row of both bands' charts, known in advance; the shared
+/// row (`crate::row_contact`) is the structural selector that states it,
+/// and asks no jet margin of it.
 pub fn tangent_certificate_lane<T: Real>(
     carrier: &Curve3<T>,
     s1: &Surface<T>,
