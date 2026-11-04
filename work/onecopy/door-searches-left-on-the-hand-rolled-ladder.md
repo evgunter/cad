@@ -87,7 +87,7 @@ say why its rule is different; where it ranks differently from
   `Passes` with results stashed through `FnMut`, a definite refusal →
   `Rung::Aborts`, and `Escalated` → in band, ideally after the
   read-then-mint split `faces_holding_pierce` already makes.
-- **`geom_brep::edge_nurbs::measured_ends`**. It is identity-shaped (a
+- **`geom_brep::edge_nurbs::measured_ends`** (now portable: its `bare` is `Rung::Unsettled`). It is identity-shaped (a
   miss answers), always reads both ends, and has a third kept kind
   (`bare`: in band with its enclosure reaching zero) ranked BELOW in band,
   which defers to the caller's `stall`. `Evidence` has no such rank, so a
@@ -137,19 +137,20 @@ edge on the point, and it carries no margin. The delta review's probe
 showed that table hiding an in-band placement that a coarser band
 reads as a defect.
 
-So the rank now lives on each type, beside its variants:
-- `chart_singularity::Standing` / `Unread::standing`: a margin, a limit
-  (a straddle, a walk that winds more than once), or UNSETTLED (ranked
-  after every kept reading);
-- `ladder::Refusal`, with a `refusal()` method on `PointInLoopError`,
-  `PointInSolidError` and `ContainError`: a margin, in band, a limit, or
-  an abort.
+So the rank now lives on each type, beside its variants, and in ONE
+classification: `ladder::Refusal` (margin, in band, limit, abort,
+unsettled), with a method on each reading type that states it:
+- `Unread::refusal` (`chart_singularity`);
+- `PointInLoopError::refusal`;
+- `PointInSolidError::refusal`, derived from the type's own partition
+  (`in_band` / `confined` / `sideless` / `inconclusive`);
+- `ContainError::refusal`, which `fate::rehome` and `slit::piece_rung`
+  both read.
 
-Two rank sets remain, because "unsettled" (band-dependent, no margin,
-ranked LAST) is a third rank of evidence `ladder::Evidence` has no
-place for. `edge_nurbs::measured_ends`' `bare` is the same question.
-Folding both into `ladder` as a third kept rank is the open design
-call.
+`Rung::Unsettled` and `Evidence`'s third slot carry "unsettled: ranked
+after every kept reading" in the ladder, so no side channel spells it.
+`edge_nurbs::measured_ends`' `bare` is now portable as `Rung::Unsettled`
+(below).
 
 ## Not a site
 

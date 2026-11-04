@@ -1377,7 +1377,7 @@ fn rehome<T: Decide>(
                 }
                 // Every other refusal is kept, or aborts, as the door's
                 // refusal states it is ([`super::ContainError::refusal`]).
-                Err(e) => e.refusal().rung(contained(e, ""), Err),
+                Err(e) => e.refusal().rung(contained(e, ""), |e| Rung::Aborts(Err(e))),
                 // On the new face's boundary, or a curved region with no
                 // verdict: the vertex says nothing.
                 Ok(_) => Rung::Passes,

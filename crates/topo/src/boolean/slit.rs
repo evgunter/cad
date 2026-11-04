@@ -1134,28 +1134,31 @@ fn holding<T: Decide>(
             unread,
         )
     }) {
-        Climb::Answered { .. } => Ok(Some(divided)),
+        Climb::Answered { answer, .. } => answer.map(|()| Some(divided)),
         Climb::Passed => Ok(None),
         Climb::Undecided(read) => unplaced(read),
     }
 }
 
 /// One piece's reading as a rung of [`holding`]'s ladder: `In` answers,
-/// `NotIn` passes. A piece the door could not place (`Unread`, as
-/// `unread` types it) is a limit no tolerance moves, ranked ahead of a
-/// piece read in band ([`geom_brep::ladder::Evidence`]): a tighter
-/// tolerance that decides the in-band piece `NotIn` still leaves the
-/// unread one unplaced.
+/// `NotIn` passes. A piece the door could not place is ranked as the
+/// door's refusal states ([`ContainError::refusal`], the one table
+/// [`super::fate`]'s ring rehoming reads too): a limit ahead of a piece
+/// read in band, and a refusal of the whole query (a corrupt face, two
+/// readings of an arc's end that contradict) aborts. A curved region
+/// that gives no verdict is a limit. An escalation is ranked by its
+/// margin; any other refusal is a limit.
 fn piece_rung(
     reading: Result<PieceRead, BooleanError>,
     unread: impl FnOnce(Option<ContainError>) -> BooleanError,
-) -> Rung<(), BooleanError> {
+) -> Rung<Result<(), BooleanError>, BooleanError> {
     match reading {
-        Ok(PieceRead::In) => Rung::Answers(()),
+        Ok(PieceRead::In) => Rung::Answers(Ok(())),
         Ok(PieceRead::NotIn) => Rung::Passes,
-        Ok(PieceRead::Unread(why)) => Rung::Blocked(unread(why)),
-        // An escalation is kept as its margin is; any other refusal is a
-        // limit no tolerance moves.
+        Ok(PieceRead::Unread(Some(why))) => why
+            .refusal()
+            .rung(unread(Some(why)), |refused| Rung::Aborts(Err(refused))),
+        Ok(PieceRead::Unread(None)) => Rung::Blocked(unread(None)),
         Err(read @ BooleanError::Escalated { diag, .. }) => Rung::kept(diag).map_kept(|_| read),
         Err(read) => Rung::Blocked(read),
     }
