@@ -952,8 +952,8 @@ pub fn body_volume(body: &Body<f64>) -> f64 {
 
 /// **The mesh's geometry, against the body's.** Its volume within the
 /// chordal deficit of the body's, both read off the B-rep
-/// (`mesh::validate::check_volume`), and every sphere- and
-/// cylinder-face triangle wound outward ([`assert_outward`]).
+/// (`mesh::validate::check_volume`), and every sphere-, cylinder-,
+/// torus- and sheet-face triangle wound outward ([`assert_outward`]).
 pub fn assert_meshed_geometry(label: &str, body: &Body<f64>, mesh: &mesh::Mesh, delta: f64) {
     let p = body_props(body);
     mesh::validate::check_volume(mesh, p.volume, p.surface_area, delta)
@@ -961,10 +961,12 @@ pub fn assert_meshed_geometry(label: &str, body: &Body<f64>, mesh: &mesh::Mesh, 
     assert_outward(label, body, mesh);
 }
 
-/// **Every sphere- and cylinder-face triangle of `mesh` winds outward.**
-/// A triangle's normal, as the mesh winds it, must point the way its
-/// face's outward normal does at its centroid: off the sphere's centre,
-/// or off the cylinder's axis, reversed on a `sense: false` face. A
+/// **Every sphere-, cylinder-, torus- and sheet-face triangle of `mesh`
+/// winds outward.** A triangle's normal, as the mesh winds it, must
+/// point the way its face's outward normal does at its centroid: off the
+/// sphere's centre, off the cylinder's axis, or off the centre of the
+/// meridian circle through it on a torus or a spindle sheet (across the
+/// axis on a lemon), reversed on a `sense: false` face. A
 /// triangle folded over the chord beside it, or a face meshed inside
 /// out, is a closed manifold mesh that [`mesh::validate::check_mesh`]
 /// passes; this is the geometry it does not read. Faces on other
@@ -980,6 +982,25 @@ pub fn assert_outward(label: &str, body: &Body<f64>, mesh: &mesh::Mesh) {
             geom::Surface::Cylinder { origin, axis, .. } => {
                 let d = p - origin;
                 Some(d - axis * d.dot(axis))
+            }
+            // Out from the point's meridian circle's centre, `R` along
+            // the point's own radial direction: across the axis on a
+            // lemon sheet, where `R < 0`.
+            geom::Surface::Torus {
+                center,
+                axis,
+                major_radius,
+                ..
+            }
+            | geom::Surface::Spindle {
+                center,
+                axis,
+                major_radius,
+                ..
+            } => {
+                let w = p - center;
+                let radial = w - axis * w.dot(axis);
+                Some(p - (center + radial * (major_radius / radial.norm())))
             }
             _ => None,
         };
