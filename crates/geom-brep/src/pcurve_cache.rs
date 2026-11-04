@@ -4894,20 +4894,18 @@ struct Harmonic3<T: Real> {
     l: Vec3<T>,
 }
 
-/// The amplitude of `form`'s motion off the cylinder axis `axis`, in
-/// metres (its harmonic coefficients are displacements): zero for a
-/// ruling, the radial circle's size for a carrier moving around it —
-/// its `cos t`/`sin t` pair at its exact sup. A carrier this reads
-/// under the escalation band but over the zero band takes the meridian;
-/// one that turns on the chart has `‖a_r‖ ≈ R`, and its winding margin
-/// `‖a_r × b_r‖/R ≤ R` is in the band too, so no carrier the moving
-/// class could certify is read there.
+/// The amplitude of a conic `form`'s motion off the cylinder axis
+/// `axis`, in metres (its harmonic coefficients are displacements): its
+/// radial `cos t`/`sin t` pair at its exact sup. A conic that turns on
+/// the chart has `‖a_r‖ ≈ R`; one read in band has its winding margin
+/// `‖a_r × b_r‖/R ≤ R` in the band too, so no carrier the moving class
+/// could certify is read there. A line's reading is [`ruling_miss`].
 fn radial_amplitude<T: Real>(form: &Harmonic3<T>, axis: Vec3<T>) -> T {
     let radial = |v: Vec3<T>| v - axis * v.dot(axis);
-    let (a_r, b_r, l_r) = (radial(form.a), radial(form.b), radial(form.l));
-    let amplitude = harmonic_sup(a_r, b_r) + l_r.norm();
+    let (a_r, b_r) = (radial(form.a), radial(form.b));
+    let amplitude = harmonic_sup(a_r, b_r);
     #[cfg(test)]
-    let amplitude = mutants::radial_amplitude(a_r, b_r, l_r).unwrap_or(amplitude);
+    let amplitude = mutants::radial_amplitude(a_r, b_r).unwrap_or(amplitude);
     amplitude
 }
 
@@ -5911,6 +5909,72 @@ fn frame_defect<T: Real>(surface: &Surface<T>, v_reach: T) -> T {
 fn ruling_generator<T: Real>(axis: Vec3<T>, half_angle: T, q: Vec3<T>) -> Vec3<T> {
     let (s_ha, c_ha) = half_angle.sin_cos();
     axis * c_ha + q * (s_ha / q.norm())
+}
+
+/// **The ruling a line is read against** ([`ruling_miss`]).
+#[derive(Clone, Copy, Debug)]
+pub enum Ruling<T: Real> {
+    /// A cylinder's ruling through the line's origin, along the unit axis.
+    Axis(Vec3<T>),
+    /// A cone's generator.
+    Generator {
+        /// The cone's apex, which the generator runs through.
+        apex: Point3<T>,
+        /// The generator's unit direction.
+        g: Vec3<T>,
+    },
+}
+
+/// **Whether a line is a ruling of its chart**, the one reading the mint's
+/// class arms, props' boundary parse and the boolean share: the line's
+/// greatest distance from `ruling` over the edge's span `[t0, t1]`, in
+/// metres. A distance from a line is convex along a line, so the greatest
+/// is at an end of the span and the reading is exact. It is the line's
+/// and not its parametrisation's speed: a line with `dir` scaled and its
+/// span scaled back reads the same.
+///
+/// The ruling is anchored where the closed form that a Zero reading
+/// selects places its image: on a cylinder, the ruling through the line's
+/// `origin` (the meridian form's azimuth), whose distance at `t` is
+/// `|t|·‖dir × axis‖`, so the reading is `‖dir × axis‖` metered over the
+/// span's reach from the origin; on a cone, the generator the arm names,
+/// whose distance is the closed form's whole miss. The meridian form
+/// images the cylinder's ruling at the chart's radius, so its arm adds
+/// the origin's radial gap to read that form's miss. The metered rate is exact, so the
+/// product is the distance itself and is decided on either side. A
+/// caller that images nothing, and so asks only whether the edge lies
+/// along a ruling, passes the line anchored at the span's start (props).
+pub fn ruling_miss<T: Real>(
+    &geom::Line { origin, dir }: &geom::Line<T>,
+    (t0, t1): (T, T),
+    ruling: Ruling<T>,
+) -> Margin<T> {
+    #[cfg(test)]
+    let (t0, t1) = if mutants::ruling_per_parameter() {
+        (T::zero(), T::one())
+    } else {
+        (t0, t1)
+    };
+    match ruling {
+        Ruling::Axis(axis) => {
+            let reach = t0.abs().max(t1.abs());
+            #[cfg(test)]
+            let reach = if mutants::ruling_unplaced() {
+                (t1 - t0).abs()
+            } else {
+                reach
+            };
+            Margin::metered(reach, InfSpeed::new(dir.cross(axis).norm()))
+        }
+        Ruling::Generator { apex, g } => {
+            let off = |t: T| (origin + dir * t - apex).cross(g).norm();
+            #[cfg(test)]
+            if mutants::ruling_unplaced() {
+                return Margin::of(off(T::zero()) + dir.cross(g).norm() * (t1 - t0).abs());
+            }
+            Margin::of(off(t0).max(off(t1)))
+        }
+    }
 }
 
 /// A rim's slant: the projection `h·cos α + n·ρ·sin α` of a point at
@@ -9532,9 +9596,13 @@ pub enum IsoFamilyRefusal {
 /// moves.
 const RADIAL_MOVING: &str = "pcurve_chart_radial_moving";
 
+/// The cone arm's ruling reading: whether a line is the generator its
+/// anchor names ([`ruling_miss`]).
+const CONE_RULING: &str = "pcurve_cone_chart_ruling";
+
 /// What the chart-class reading of [`chart_iso_family`] asks of an
 /// edge, after "whether": the one spelling of that question.
-pub const ISO_FAMILY_CLAUSE: &str = "runs along a cylinder's ruling or around it";
+pub const ISO_FAMILY_CLAUSE: &str = "runs along a ruling of its chart or around it";
 
 /// `at` ends the image's own refusal at the door that reads it; `None`
 /// writes the payload alone, as `Display` does.
@@ -9554,42 +9622,40 @@ impl IsoFamilyRefusal {
 
 crate::ended_by_write!(IsoFamilyRefusal);
 
-/// The iso family the image of `carrier` over `span` on `surface`'s
-/// chart lies on, read off the class arm [`chart_pcurve`]'s derivation
-/// selects for it, so the family is the mint's own structure. The span
-/// is the edge's: a sheet's meridian circle leaves the sheet past its
-/// apexes, so only the part an edge holds is on it. `None` for a planar
-/// chart, a spiric carrier, and an image on no family (a cylinder's
+/// The iso family the image of `carrier` over the edge's span `[t0, t1]`
+/// on `surface`'s chart lies on, read off the class arm
+/// [`chart_pcurve_over`]'s derivation selects for it, so the family is
+/// the mint's own structure. The span is the edge's: a sheet's meridian
+/// circle leaves the sheet past its apexes, so only the part an edge holds
+/// is on it, and a line's ruling reading is metered over it. `None` for a
+/// planar chart, a spiric carrier, and an image on no family (a cylinder's
 /// oblique section or a line shown off its rulings, a cone's tilted
-/// section, a torus's Villarceau circle).
+/// section or a line shown off its generators, a torus's Villarceau
+/// circle).
 ///
 /// # Errors
 ///
-/// [`IsoFamilyRefusal::Image`] with [`chart_pcurve`]'s refusal, and
-/// [`IsoFamilyRefusal::Undecided`] where the cylinder arm's class
-/// reading is in the band, where the mint takes the general lane.
+/// [`IsoFamilyRefusal::Image`] with [`chart_pcurve_over`]'s refusal, and
+/// [`IsoFamilyRefusal::Undecided`] where the cylinder's or the cone's
+/// ruling reading is in the band, where the mint takes the general lane.
 pub fn chart_iso_family<T: Decide>(
     carrier: &Curve3<T>,
-    span: (T, T),
+    (t0, t1): (T, T),
     surface: &Surface<T>,
     band: Band,
 ) -> Result<Option<IsoFamily>, IsoFamilyRefusal> {
     if matches!(carrier, Curve3::Spiric { .. }) {
         return Ok(None);
     }
-    let derivation = match derive_class(
-        carrier,
-        surface,
-        Placement::over(span, carrier, surface),
-        band,
-    ) {
+    let place = Placement::over((t0, t1), carrier, surface);
+    let derivation = match derive_class(carrier, surface, place, band) {
         Ok((_, derivation)) => derivation,
-        // The ruling reading in band; any other class reading in band
+        // A ruling reading in band; any other class reading in band
         // keeps its own ending.
         Err(Underived::General {
             undecided: Some(cause),
             ..
-        }) if cause.predicate == Some(RADIAL_MOVING) => {
+        }) if matches!(cause.predicate, Some(RADIAL_MOVING | CONE_RULING)) => {
             return Err(IsoFamilyRefusal::Undecided(cause));
         }
         // A carrier shown none of the chart's classes where the pair has
@@ -9712,14 +9778,26 @@ fn derive_class<T: Decide>(
             // section/rim case — and β is its orientation against the
             // chart frame.
             let w_r = radial(w);
-            // The reading is `σ(a_r, b_r) + ‖l_r‖`, compared against
-            // the band directly. A conic's part is metres: the radial
-            // oscillation's amplitude. A line's `‖l_r‖` is metres per
-            // unit of its parameter, so it reads the line's radial
-            // speed, not how far it leaves a ruling over the edge
-            // (`work/pcert/the-ruling-question-is-read-in-two-units.md`).
-            let moving = radial_amplitude(&form, axis);
-            let reading = decide(RADIAL_MOVING, Margin::of(moving), band);
+            // A line reads the meridian form's own miss, check 4's two
+            // terms for it: how far it leaves the ruling through its
+            // origin over the span ([`ruling_miss`]), and how far that
+            // ruling stands off the wall, the form imaging it at the
+            // chart's radius. A conic reads its radial oscillation's
+            // amplitude.
+            let moving = match carrier {
+                Curve3::Line(line) => {
+                    let standoff = norm_gap(radius, radius.powi(2), w_r);
+                    #[cfg(test)]
+                    let standoff = if mutants::meridian_standoff_unread() {
+                        T::zero()
+                    } else {
+                        standoff
+                    };
+                    Margin::of(ruling_miss(line, place.span, Ruling::Axis(axis)).value() + standoff)
+                }
+                _ => Margin::of(radial_amplitude(&form, axis)),
+            };
+            let reading = decide(RADIAL_MOVING, moving, band);
             #[cfg(test)]
             let reading = match reading {
                 Err(_) if mutants::radial_fold() => Ok(Sign::Zero),
@@ -9879,13 +9957,44 @@ fn derive_class<T: Decide>(
                             }
                         };
                     let r_dir = r_ref * h_sign.value();
+                    // An anchor on the axis off the apex names no
+                    // generator: the only ruling through an axis point is
+                    // the apex's, so the line is no ruling.
+                    if !(T::one() / r_dir.norm()).is_bounded() {
+                        return Err(incidence::general_lane(shown, None));
+                    }
+                    let g = ruling_generator(axis, half_angle, r_dir);
+                    // Whether the line is that generator (D3's lane
+                    // choice): shown, the generator's closed form; in band
+                    // or definite, the general lane.
+                    let reading = decide(
+                        CONE_RULING,
+                        ruling_miss(
+                            &geom::Line { origin, dir },
+                            place.span,
+                            Ruling::Generator { apex, g },
+                        ),
+                        band,
+                    );
+                    #[cfg(test)]
+                    let reading = if mutants::cone_ruling_gate() {
+                        Ok(Sign::Zero)
+                    } else {
+                        reading
+                    };
+                    match reading {
+                        Ok(Sign::Zero) => {}
+                        Err(cause) => return Err(incidence::general_lane(shown, Some(cause))),
+                        Ok(Sign::Positive | Sign::Negative) => {
+                            return Err(incidence::general_lane(shown, None));
+                        }
+                    }
                     let alpha = place.phase(
                         Along::Azimuth,
                         Azimuth::of(r_dir.dot(cv), r_dir.dot(u_ref)),
                         |_| T::zero(),
                         band,
                     )?;
-                    let g = ruling_generator(axis, half_angle, r_dir);
                     Ok((
                         Pcurve::Harmonic {
                             u: Channel::fixed_angle(alpha),
@@ -11965,6 +12074,9 @@ mod placement_rows;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::panic)]
 mod radial_pair_rows;
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod ruling_reading_rows;
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -14389,21 +14501,11 @@ mod iso_family {
             Vec3::unit_x(),
         );
         assert_eq!(
-            chart_iso_family(
-                &line(0.0),
-                crate::pcurve_cache::own_interval(&line(0.0)),
-                &cylinder,
-                band
-            ),
+            chart_iso_family(&line(0.0), (0.0, 1.0), &cylinder, band),
             Ok(Some(IsoFamily::U))
         );
         assert_eq!(
-            chart_iso_family(
-                &rim,
-                crate::pcurve_cache::own_interval(&rim),
-                &cylinder,
-                band
-            ),
+            chart_iso_family(&rim, (0.0, core::f64::consts::TAU), &cylinder, band),
             Ok(Some(IsoFamily::V))
         );
         // An oblique section lies on the cylinder and is no iso line.
@@ -14418,34 +14520,19 @@ mod iso_family {
             1.0 / theta.cos(),
         ));
         assert_eq!(
-            chart_iso_family(
-                &section,
-                crate::pcurve_cache::own_interval(&section),
-                &cylinder,
-                band
-            ),
+            chart_iso_family(&section, (0.0, core::f64::consts::TAU), &cylinder, band),
             Ok(None)
         );
         // A line tilted 1e-2 leaves the cylinder past the band over its
         // span: the incidence test reads it off before any family.
         assert!(matches!(
-            chart_iso_family(
-                &line(1e-2),
-                crate::pcurve_cache::own_interval(&line(1e-2)),
-                &cylinder,
-                band
-            ),
+            chart_iso_family(&line(1e-2), (0.0, 1.0), &cylinder, band),
             Err(IsoFamilyRefusal::Image(
                 super::PcurveCertifyError::CarrierOffChart { .. }
             ))
         ));
         assert!(matches!(
-            chart_iso_family(
-                &line(1e-7),
-                crate::pcurve_cache::own_interval(&line(1e-7)),
-                &cylinder,
-                band
-            ),
+            chart_iso_family(&line(1e-7), (0.0, 1.0), &cylinder, band),
             Err(IsoFamilyRefusal::Undecided(_))
         ));
     }
@@ -14462,7 +14549,7 @@ mod iso_family {
         });
         assert_eq!(
             refusal.render(crate::recourse::Reading::Build),
-            "whether the edge runs along a cylinder's ruling or around it is undecided: margin \
+            "whether the edge runs along a ruling of its chart or around it is undecided: margin \
              5e-8 lies inside the ambiguity band (1e-9, 1e-6)"
         );
     }
