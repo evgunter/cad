@@ -167,3 +167,13 @@
   - **Rows to file:** `coplanar_ellipses`'s global level, the near-tangent tilt class, the `rounding_charge` gate gap, and F33 onto a `Tie` door.
   - **Class finding.** A chooser that is asked which reading can certify is a symptom: one of the readings is crippled. Fix that reading, and keep the chooser conditioning-only.
   - Sent to the 6525 lane. The review gets a delta pass. (ONECOPY orchestrator)
+- 2026-11-04 — PR 6516's fix pass is at `ed74313f07`, with the gate green.
+  - **Suites:** no outcome moved against base `354f9b3f`, at head and base, slow set included.
+  - **Departures I accepted:**
+    - n1 goes in the census's cannot-match list, not the roster, since the roster is exact against the sole doors.
+    - Q7 is not taken, because it would be a second spelling of `Span::branch`.
+    - `geom::bracket_mid` is the midpoint's one formula, read by `projection_policy::mid` and `place`.
+  - **An extra removal:** `band_planar_cut_off_interval`'s `tier_3_prime` admission. That meter no longer fires.
+  - **The lane found a second main red at 1e-12:** the atan2-cut fillet witness at shear 0.6, concave, escalates its pcurve envelope. I filed it as P0 `main-red-a-sheared-fillet-witness-escalates-its-pcurve-envelope-at-1e-12`.
+  - **Caveat for PR 6491:** `meet`'s route reads the new hair pin at a rounding about 40× the hair.
+  - A delta review goes to the original reviewer. (ONECOPY orchestrator)
