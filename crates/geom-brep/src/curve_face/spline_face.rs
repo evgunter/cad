@@ -50,7 +50,10 @@
 //!   [`END_REACH`]), as far as it runs smoothly (to its domain's end or
 //!   the nearest crease beyond the end), so a meeting at an end is
 //!   isolated like any other; one within the band of an end, or past it,
-//!   is not reported. At every end, of every kind of span, the walk also
+//!   is not reported. So a box at the floor wholly past an end, its
+//!   carrier decided past the band of the end's point, holds no answer
+//!   of the span's and settles; one within the band of an end refuses
+//!   like any other. At every end, of every kind of span, the walk also
 //!   tries an **end's box**: a box it reads, or one of the floor growths
 //!   it tries a proof on, that holds the end's state (the end's parameter
 //!   and its foot on the chart) and on which every solution lies within
@@ -147,6 +150,10 @@ const PAST_THE_BAND: &str = "spline_face_past_the_band";
 /// K name: how far a solution in an end's box can lie from the end, read
 /// against the band.
 const AT_THE_END: &str = "spline_face_at_the_end";
+
+/// K name: whether a box past an end of the span stands past the band
+/// of that end's point.
+const PAST_THE_END: &str = "spline_face_past_the_end";
 
 /// How far past each end of the span that no sector holds the walk reads
 /// the carrier, in escalation lengths at the span's pace (a lower bound
@@ -535,6 +542,27 @@ impl<T: CertifiedBounds> Pair<'_, T> {
     /// foot on `chart` of the carrier's point there, with an enclosure of
     /// `F` at that state. The point's enclosure only seeds the foot, so its
     /// middle is taken. `None` where the foot is not found.
+    /// Whether every solution in `x` lies past an end of `span` and is
+    /// decided past the band from that end's point: its parameters lie
+    /// wholly beyond the end, and the carrier over them stands past the
+    /// band of it.
+    fn past_an_end(&self, x: Cell, (a, b): (f64, f64), band: Band) -> bool {
+        let (lo, hi) = x.0[0];
+        let end = if lo > b {
+            b
+        } else if hi < a {
+            a
+        } else {
+            return false;
+        };
+        let (c, e) = (self.path.at(x.interval(0)), self.path.at(exact(end)));
+        let gap = norm(core::array::from_fn(|k| c[k] - e[k]));
+        matches!(
+            decide(PAST_THE_END, Margin::of(gap), band),
+            Ok(Sign::Positive)
+        )
+    }
+
     fn end_state(&self, end: f64, chart: &NurbsSurface<T>) -> Option<End> {
         let c = self.path.at(exact(end));
         let [x, y, z] = midpoint(&c).map(T::from_computed);
@@ -977,6 +1005,15 @@ pub fn isolate<T: CertifiedBounds>(
             let [lo, hi] = x.halves(k);
             return Step::Halve([(lo, block), (hi, block)]);
         }
+        // Past an end, and past the band of it, at the floor: no meeting
+        // past an end is reported, so this box holds none of the span's
+        // answers, and its floor is no refusal of the span's. The reach
+        // past each end scales with the band and the floor with its
+        // square root, so at a coarse band the window holds boxes
+        // millimetres from the span.
+        if pair.past_an_end(x, (a, b), band) {
+            return Step::Settled;
+        }
         // Within the band at the floor, and no meeting holds it: a pass
         // within the band, a tangency, a meeting on the chart's edge, or
         // one on a crease.
@@ -1149,3 +1186,6 @@ mod review_6157_rows;
 
 #[cfg(test)]
 mod review_r2_rows;
+
+#[cfg(test)]
+mod past_end_rows;
