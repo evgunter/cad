@@ -2,20 +2,12 @@
 id: a-section-spiric-on-a-cap-plane-reads-unread-against-the-wall-it-ends-on
 kind: issue
 title: A section spiric on one operand's cap plane is asked against that operand's cylinder wall, which shares both its ends, and refuses unread: the tilted rod's β 0.7 union stops there
-<<<<<<< HEAD
-status: dispatched
-opened: 2026-11-03
-priority: P1
-cost: M
-branch: splice/spiric-on-cap-plane
-=======
 status: closed
 opened: 2026-11-03
 priority: P1
 cost: M
 closed: 2026-11-04
 pr: 6523
->>>>>>> origin/main
 ---
 
 
