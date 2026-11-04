@@ -1550,9 +1550,9 @@ pub fn wall_probes(ev: &Evaluation<f64>, r: &Recipe) {
     // planar walls; it sweeps them whole now (BAND, one wall per run),
     // so the request reaches the vessel's sphere face meeting the
     // handle's torus. The section value carries that pair's loops, the
-    // segment lays them, and the union builds; its result's volume is not
-    // computed (a trimmed sphere face has no volume lane on its chart yet),
-    // so the result is invalid.
+    // segment lays them, and the union builds; its chorded sphere face
+    // measures, but the handle's chorded torus face has no volume lane on
+    // its chart yet, so the result is invalid.
     crate::walls::wall(
         "teapot",
         2,

@@ -185,17 +185,18 @@ fn coaxial_poses_build_every_op_at_their_volumes() {
 }
 
 /// **The non-coaxial transversal pose crosses, passes the germ frame
-/// and the join, and refuses at the result gate's volume.** The
-/// crossing that used to keep the pierce door is certified now by the
-/// conic × quadric root door (`topo::boolean::conic_quadric`), its
-/// pierce's sector side certifies, the matcher pairs the cylinder ×
-/// sphere germs by foot on the section's one loop (`R < r + d`), and the
-/// join cuts both sides' chords from that loop; the cylinder face they
-/// bound measures through the rotational lane, and the sphere face has
-/// no lane for its chord (`crate::cylinder_sphere_frame::Door::Sphere`),
-/// in both poses.
+/// and the join, and builds.** The crossing that used to keep the pierce
+/// door is certified now by the conic × quadric root door
+/// (`topo::boolean::conic_quadric`), its pierce's sector side
+/// certifies, the matcher pairs the cylinder × sphere germs by foot on
+/// the section's one loop (`R < r + d`), and the join cuts both sides'
+/// chords from that loop; the cylinder and sphere faces they bound
+/// measure through the rotational lane, in both poses. The union is no
+/// legal operand only because a later boolean's point-in-solid walk
+/// cannot read its chorded sphere face
+/// (`crate::cylinder_sphere_frame::no_operand_at_the_sphere`).
 #[test]
-fn a_transversal_pose_reaches_the_join_lane_in_both_poses() {
+fn a_transversal_pose_builds_in_both_poses() {
     let c = cyl(1.0, -2.0, 2.0);
     let s = ball_at(1.5, Vec3::new(0.6, 0.0, 0.0));
     for (label, c, s) in [
@@ -206,11 +207,12 @@ fn a_transversal_pose_reaches_the_join_lane_in_both_poses() {
             finished(label, c, Tol::witness()),
             finished(label, s, Tol::witness()),
         );
-        let err = topo::union(&c, &s, Tol::witness()).expect_err("no sphere volume lane");
-        assert_eq!(
-            crate::cylinder_sphere_frame::door(&err),
-            Some(crate::cylinder_sphere_frame::Door::Sphere),
-            "{label}: {err:?}"
+        let got = topo::union(&c, &s, Tol::witness())
+            .unwrap_or_else(|e| panic!("{label}: the union refused: {e:?}"));
+        let body = got.body().expect("the union has a body");
+        assert!(
+            crate::cylinder_sphere_frame::no_operand_at_the_sphere(&body.body),
+            "{label}: the union is no operand only at the chorded sphere face"
         );
     }
 }

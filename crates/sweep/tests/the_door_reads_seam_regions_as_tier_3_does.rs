@@ -50,15 +50,17 @@ fn g<E>(r: Result<topo::BooleanResult<f64>, E>) -> Option<AB> {
     r.ok().and_then(|r| r.body().map(|b| b.body.clone()))
 }
 
-/// The result gate's volume on a sphere face: a trim the chart table has
-/// no lane for, or a ring, which the sphere reads only where circles
-/// bound it. The refused face's own surface is read
-/// (`topo::boolean::refused_face_kind`), so the stop names the
-/// sphere only where the gate refused a sphere face: every face that
-/// refuses here is one (a chorded cylinder face measures through the
-/// rotational lane), so the one stop reads alike in every face order,
-/// and a refusal on another chart's face reads as that chart's.
-const SPHERE_FACE: &str = "VolumeUncomputable on a sphere face";
+/// The result gate's volume on a face, a trim the chart table has no
+/// lane for or a ring its lane does not read, named by the refused
+/// face's own surface (`topo::boolean::refused_face_kind`). No boolean
+/// here stops there: a chorded cylinder or sphere face measures through
+/// the rotational lane.
+const VOLUME_ON: &str = "VolumeUncomputable on a";
+
+/// The result's piece sort, whose point-in-solid walk cannot read a
+/// sphere face bounded by a spline chord
+/// (`work/inside/point-in-solid-refuses-a-sphere-face-bounded-by-a-spline-chord.md`).
+const PIECES: &str = "the piece sort's walk on a chorded sphere face";
 
 /// Where a boolean stops: `body`, or its refusal by variant and the
 /// door that raised it.
@@ -74,10 +76,9 @@ fn stop(r: &Result<topo::BooleanResult<f64>, topo::BooleanError>) -> String {
     } else if (e.contains("VolumeUncomputable") && e.contains("RingOnCurvedFace"))
         || (quadrature && e.contains("a trimmed face with no volume lane on its chart"))
     {
-        match kind {
-            Some(geom::SurfaceKind::Sphere) => SPHERE_FACE.into(),
-            other => format!("VolumeUncomputable on a {other:?} face"),
-        }
+        format!("{VOLUME_ON} {kind:?} face")
+    } else if e.starts_with("Pieces(Probe") && e.contains("PartialSphereFace") {
+        PIECES.into()
     } else {
         e.chars().take(160).collect()
     }
@@ -89,43 +90,44 @@ fn stop(r: &Result<topo::BooleanResult<f64>, topo::BooleanError>) -> String {
 /// the door's assertion with the corpus's other valid bodies. The tilted
 /// ball's four booleans with the upright rod build since the join's
 /// carried lane chords closed-form components (SECTARMS stage 3b-i);
-/// they stopped at the join's lane dispatch before.
+/// they stopped at the join's lane dispatch before. Every other boolean
+/// builds but one of each rod's `b − a`, whose result's piece sort
+/// refuses ([`PIECES`]).
 fn pinned(part: Part) -> Stops {
-    const SPHERE: &str = SPHERE_FACE;
     const BODY: &str = "body";
     let table: &[(&str, &str)] = match part {
         Part::Rest => &[],
         Part::Rod => &[
-            ("unit u rod", SPHERE),
-            ("unit i rod", SPHERE),
-            ("unit a-b rod", SPHERE),
-            ("unit b-a rod", SPHERE),
+            ("unit u rod", BODY),
+            ("unit i rod", BODY),
+            ("unit a-b rod", BODY),
+            ("unit b-a rod", PIECES),
             ("tilt u rod", BODY),
             ("tilt i rod", BODY),
             ("tilt a-b rod", BODY),
             ("tilt b-a rod", BODY),
         ],
         Part::UnitTurnedRod => &[
-            ("unit u rodx", SPHERE),
-            ("unit i rodx", SPHERE),
-            ("unit a-b rodx", SPHERE),
-            ("unit b-a rodx", SPHERE),
+            ("unit u rodx", BODY),
+            ("unit i rodx", BODY),
+            ("unit a-b rodx", BODY),
+            ("unit b-a rodx", PIECES),
         ],
         Part::TiltTurnedRod => &[
-            ("tilt u rodx", SPHERE),
-            ("tilt i rodx", SPHERE),
-            ("tilt a-b rodx", SPHERE),
-            ("tilt b-a rodx", SPHERE),
+            ("tilt u rodx", BODY),
+            ("tilt i rodx", BODY),
+            ("tilt a-b rodx", BODY),
+            ("tilt b-a rodx", PIECES),
         ],
         Part::Stub => &[
-            ("unit u stub", SPHERE),
-            ("unit i stub", SPHERE),
-            ("unit a-b stub", SPHERE),
-            ("unit b-a stub", SPHERE),
-            ("tilt u stub", SPHERE),
-            ("tilt i stub", SPHERE),
-            ("tilt a-b stub", SPHERE),
-            ("tilt b-a stub", SPHERE),
+            ("unit u stub", BODY),
+            ("unit i stub", BODY),
+            ("unit a-b stub", BODY),
+            ("unit b-a stub", BODY),
+            ("tilt u stub", BODY),
+            ("tilt i stub", BODY),
+            ("tilt a-b stub", BODY),
+            ("tilt b-a stub", BODY),
         ],
     };
     table
