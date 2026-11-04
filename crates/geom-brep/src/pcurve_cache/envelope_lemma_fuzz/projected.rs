@@ -1063,7 +1063,7 @@ fn a_broken_sector_and_an_arc_through_the_pole_refuse() {
     );
     let image = project(&circle, Some((0.2, 1.4)), &sphere, b).expect("clear of the poles");
     let mut turned = image.clone();
-    turned.azimuth[0] += 2;
+    turned.azimuth[0].0 += 2;
     let err = PcurveCache::certify(
         Pcurve::Projected(Box::new(turned)),
         0.2,
@@ -1135,7 +1135,7 @@ fn wrong_nappe_refusal() -> PcurveCertifyError {
         *nappe = crate::Nappe::Mirror;
     }
     for m in &mut image.azimuth {
-        *m += 2;
+        m.0 += 2;
     }
     let lane = crate::FittedLane::<Interval>::certified();
     let (t0, t1) = (Interval::from_f64(0.0), Interval::from_f64(1.0));
@@ -1935,9 +1935,9 @@ fn turned_piece_refusal(torus: bool) -> PcurveCertifyError {
     let mut image = project(&c, None, &surf, b).expect("on the chart");
     assert_eq!(image.pieces(), 1, "a 120° arc holds one sector");
     if torus {
-        image.tube[0] += 2;
+        image.tube[0].0 += 2;
     } else {
-        image.azimuth[0] += 2;
+        image.azimuth[0].0 += 2;
     }
     let lane = crate::FittedLane::<f64>::certified();
     PcurveCache::certify_projected(image, 0.0, 1.0, &c, &surf, b, Some(lane))
@@ -1991,9 +1991,9 @@ fn grazing_piece_refusal(torus: bool) -> PcurveCertifyError {
     };
     let mut image = project(&c, None, &surf, b).expect("on the chart");
     image.breaks = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
-    image.azimuth = vec![0];
+    image.azimuth = vec![geom::Quarter(0)];
     if torus {
-        image.tube = vec![0];
+        image.tube = vec![geom::Quarter(0)];
     }
     let lane = crate::FittedLane::<f64>::certified();
     PcurveCache::certify_projected(image, 0.0, 1.0, &c, &surf, b, Some(lane))
@@ -2061,7 +2061,7 @@ fn a_period_jump_inside_a_piece_or_at_a_break_refuses() {
     );
     let image = project(&c, None, &cylinder, b).expect("on the cylinder");
     let mut turned = image.clone();
-    *turned.azimuth.last_mut().unwrap() += 4;
+    turned.azimuth.last_mut().unwrap().0 += 4;
     let lane = crate::FittedLane::<f64>::certified();
     let err = PcurveCache::certify_projected(turned, 0.0, 1.0, &c, &cylinder, b, Some(lane))
         .expect_err("a whole-turn jump at a break");

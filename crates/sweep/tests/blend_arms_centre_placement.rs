@@ -14,7 +14,7 @@
 use geom_brep::SurfaceSide;
 use geom_core::{Bounds, Interval, Point3, Real, Vec3};
 use sweep::blend::Convexity;
-use sweep::blend::arms::{SupportTrace, corner_ball, sheet_center};
+use sweep::blend::arms::{Branch, SupportTrace, corner_ball, sheet_center};
 
 const U: f64 = f64::EPSILON;
 
@@ -63,6 +63,7 @@ impl Pair {
             round(self.c_a, self.r_a),
             round(self.c_b, self.r_b),
             T::from_f64(self.radius),
+            Branch::Rim,
         )
     }
 }

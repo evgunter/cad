@@ -1301,25 +1301,31 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
     // row and the `u` direction are one pick, and the arc the closed
     // form or the row measures, the incidence lane's too
     // ([`geom_brep::pick_arc_rim`]); the row's arc-rim certificate is
-    // the pick's second reading. Both are a lane choice (D3): a circle
-    // the pick does not show on a row, or whose row the certificate
-    // refuses or reads in band, takes the general lane, which a circle
+    // the pick's second reading. Both are a lane choice (D3), reached
+    // only behind the chart's incidence read: a circle the pick does not
+    // show on a row, or whose row the certificate refuses or reads in
+    // band, ends as that read where it is shown off the wall or in band
+    // (`no_lane`), and otherwise takes the general lane, which a circle
     // on a spline chart does not have (`derive_general_image` is degree
     // 1, so a circle's image refuses at its map wherever its foot path
-    // bends), and refuses "not yet", recording nothing. Any other
-    // certificate refusal is about the chart or the run, not the
-    // candidate, and leaves with its own words.
+    // bends), and refuses "not yet", recording nothing. The read is taken
+    // only where the pick fails, since a row the certificate holds is the
+    // circle on the wall. Any other certificate refusal is about the chart
+    // or the run, not the candidate, and leaves with its own words.
     let arc_rim = || -> Result<Pcurve<T>, PcurveMintError> {
-        let no_lane = PcurveMintError::Certify {
+        let no_lane = || PcurveMintError::Certify {
             half_edge,
-            error: PcurveCertifyError::NoGeneralLane {
-                chart: surface.kind(),
-                carrier: carrier.kind(),
-                gap: geom_brep::LaneGap::Unwritten,
+            error: match geom_brep::read_edge_incidence(&carrier, t0, t1, surface, band) {
+                Ok(()) => PcurveCertifyError::NoGeneralLane {
+                    chart: surface.kind(),
+                    carrier: carrier.kind(),
+                    gap: geom_brep::LaneGap::Unwritten,
+                },
+                Err(read) => read,
             },
         };
         let Ok(Some(rim)) = geom_brep::pick_arc_rim(&carrier, (t0, span), surface, band) else {
-            return Err(no_lane);
+            return Err(no_lane());
         };
         match PcurveCache::certify(rim.clone(), t0, t1, &carrier, surface, band) {
             Ok(_) => Ok(rim),
@@ -1328,7 +1334,7 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
                 | PcurveCertifyError::FittedEscalated { .. }
                 | PcurveCertifyError::ResidualExceeded { .. }
                 | PcurveCertifyError::IsoUnsupported { .. },
-            ) => Err(no_lane),
+            ) => Err(no_lane()),
             Err(error) => Err(PcurveMintError::Certify { half_edge, error }),
         }
     };
@@ -1470,7 +1476,19 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
         // `PXN_IMAGE_DEGREE`), so it certifies wherever the foot path
         // is straight to ε. A closed-form carrier's degree-1 image
         // refuses where an ellipse bends the foot path, as the edge
-        // certificate's own does.
+        // certificate's own does. The general lane is a lane choice
+        // (D3), reached only behind the chart's incidence read: a
+        // carrier shown off the wall ends as that read. A read not shown
+        // off, in band included, goes on to the general image, whose
+        // certificate reads the carrier against its wall itself and ends
+        // at its own lever; a lane choice with no lane after it (the arc
+        // rim's, the catch-all below) ends as the read instead.
+        if let Err(error) = geom_brep::read_edge_incidence(&carrier, t0, t1, surface, band)
+            && geom_brep::IncidenceRead::of(&error)
+                .is_some_and(geom_brep::IncidenceRead::is_definite)
+        {
+            return Err(PcurveMintError::Certify { half_edge, error });
+        }
         derive_general_image(&carrier, (t0, t1), wall)
             .map(|image| Pcurve::General(std::sync::Arc::new(image)))
             .map_err(|error| PcurveMintError::Certify { half_edge, error })
@@ -1589,14 +1607,22 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
         | geom_brep::EdgeDescription::OnPair { .. } => {
             iso_schedule("pcurve_iso_seam_column", Vec::new())
         }
+        // No lane is written for the rest, a capability gap reached only
+        // behind the chart's incidence read: a carrier shown off the wall,
+        // or read in band, ends as that read.
         geom_brep::EdgeDescription::TangentIntersection { .. }
         | geom_brep::EdgeDescription::Chart(_)
-        | geom_brep::EdgeDescription::Scaffold(_) => Err(refuse(
-            "no iso derivation for this locus on a NURBS chart — only chart images of \
+        | geom_brep::EdgeDescription::Scaffold(_) => Err(
+            match geom_brep::read_edge_incidence(&carrier, t0, t1, surface, band) {
+                Err(error) => PcurveMintError::Certify { half_edge, error },
+                Ok(()) => refuse(
+                    "no iso derivation for this locus on a NURBS chart — only chart images of \
              this chart, iso-line images of the neighbouring wall, boundary-iso \
              Intersection seams, and LINE or CIRCLE cap rims have exact chart images \
              (the trimmed-NURBS pcurve lane is the cut-loft unit's)",
-        )),
+                ),
+            },
+        ),
     }
 }
 

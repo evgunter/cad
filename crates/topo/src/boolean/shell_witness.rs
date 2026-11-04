@@ -260,7 +260,7 @@ pub(super) fn shell_verdict<T: Decide + crate::props::AtRestPolicy>(
     };
     match t.kept.ranked() {
         Ranked::Blocked(e) => Err(BooleanError::Containment(e)),
-        Ranked::InBand(e) => Err(BooleanError::ShellWitnessExhausted {
+        Ranked::InBand(e) | Ranked::Unsettled(e) => Err(BooleanError::ShellWitnessExhausted {
             operand,
             shell,
             on_boundary: t.on_boundary,
