@@ -57,10 +57,10 @@ const ENGINE_FIT_TARGET: f64 = 1e-6;
 /// translated along the wall's MID-POINT normal, so the described
 /// offset misses the wall by `d·(n(u,v) − n₀)` and the residual is
 /// construction arithmetic — a fixed number of metres, independent of
-/// ε. The check is `|r| ≤ ε`, so the fixture certifies exactly when ε
-/// is at or above this value, and below it the kernel refuses
-/// `CertifyError::ResidualExceeded { check: ChartResidual, .. }`, which
-/// is the kernel being RIGHT.
+/// ε. The check is `|r| ≤ ε`, so the residual holds exactly when ε is at
+/// or above this value; below it the carrier is off the wall's fit by
+/// more than the band, and the kernel refuses
+/// `CertifyError::CarrierOffChart`, which is the kernel being RIGHT.
 ///
 /// Pinned BIT-EXACTLY, both directions, by
 /// [`the_twisted_reattach_threshold_is_where_it_was_measured`]: a
@@ -162,21 +162,20 @@ fn assert_honest_reattach_refusal(r: &ReattachRefusal, d: f64) {
             r.error
         );
     };
-    let geom_brep::CertifyError::ResidualExceeded { check, .. } = error else {
-        panic!(
-            "below the threshold the residual DEFINITELY exceeds the band, so the refusal \
-             is ResidualExceeded rather than an escalation — got {error:?}"
-        );
-    };
-    assert_eq!(
-        *check,
-        geom_brep::CertCheck::ChartResidual,
-        "the refusing check is the iso lane's metric residual"
+    assert!(
+        matches!(
+            error,
+            geom_brep::CertifyError::CarrierOffChart {
+                chart: geom::SurfaceKind::Approx,
+                ..
+            }
+        ),
+        "below the threshold the re-attached carrier is DEFINITELY off the wall's fit, \
+         which the stated route reads before the residual — got {error:?}"
     );
-    // The number the refusal does not carry. `ResidualExceeded` reports
-    // a verdict, not a margin (unlike the #921 family's escalations,
-    // whose `Indeterminate` carries an enclosure), so the fixture
-    // measures the classified quantity itself and pins it here.
+    // The number the refusal does not carry: the read's margin is a lower
+    // bound on the carrier's distance, not the image's residual, so the
+    // fixture measures the residual itself and pins it here.
     assert!(
         r.max_iso_residual == expected,
         "the re-attach residual at d = {d:e} is {:e}, not its measured value \
