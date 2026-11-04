@@ -277,6 +277,7 @@ fn the_cone_lines_incidence_over_reads_by_at_most_the_lever_spread() {
         )
         .unwrap_or_else(|e| panic!("[{t0}, {t1}]: check 4's terms: {e:?}"));
         let incidence = terms.0[EnvelopeTerm::Incidence.slot()];
+        println!("[delta-64ulp] [{t0}, {t1}] off {off:e} incidence {incidence:e} excess over 1.125 off {:e} (allowance {:e})", incidence - 1.125 * off, 64.0 * f64::EPSILON);
         assert!(
             incidence >= off * (1.0 - 1e-6) && incidence <= 1.125 * off + 64.0 * f64::EPSILON,
             "[{t0}, {t1}]: the incidence term {incidence:e} reads the miss {off:e} within the \

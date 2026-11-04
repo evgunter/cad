@@ -11869,6 +11869,12 @@ fn channels_of<T: Real>(image: &Pcurve<T>) -> (Channel<T>, Channel<T>) {
 #[allow(clippy::unwrap_used, clippy::panic)]
 mod circle_lane_rows;
 #[cfg(test)]
+#[allow(warnings, clippy::all, clippy::pedantic)]
+mod review_6485_probe;
+#[cfg(test)]
+#[allow(warnings, clippy::all, clippy::pedantic)]
+mod review_6485_delta;
+#[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::panic)]
 mod cone_line_rows;
 #[cfg(test)]

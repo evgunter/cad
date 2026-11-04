@@ -58,3 +58,7 @@ geom = { path = "../geom", features = ["test-support"] }
 [[test]]
 name = "all"
 path = "tests/all.rs"
+
+[[test]]
+name = "review_probe_apex"
+path = "tests/review_probe_6485_apex.rs"
