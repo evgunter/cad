@@ -425,9 +425,9 @@ where
 /// polyline's length where every gap's half falls in the band, bounded
 /// by the lane ([`BranchBound::of_lane`]). Otherwise, on the ℝ³ lane,
 /// [`SsiError::RefinementExhausted`] stopped with nothing to halve, the
-/// slab's limit as its refusal ([`SsiError::TraceUnresolved`]); on the
-/// plane × NURBS lane, [`SsiError::MarchShortOfFit`], counting what each
-/// gap's midpoint did.
+/// slab's limit as its refusal ([`SsiError::TraceUnresolved`]); on a
+/// chart lane, [`SsiError::MarchShortOfFit`], counting what each gap's
+/// midpoint did.
 pub(crate) fn fit_minimum<const M: usize, const N: usize, S>(
     sys: &S,
     mut states: Vec<[f64; N]>,
@@ -1308,6 +1308,60 @@ mod tests {
                 })
             ),
             "two states the band apart on the wall: the sized refusal"
+        );
+    }
+
+    /// **A 1×2 branch short of the fit is bounded by the wall.** A plane
+    /// at height ½ cuts the ramp `z = v` along `v = ½`; two states of that
+    /// section `2e-9` apart in `u` have their one gap's half in the band,
+    /// so the fit's minimum refuses the sized way, bounded by the wall's
+    /// rectangle with the wall's recourse, not the ℝ³ slab's. Red against
+    /// a bound read off the state's length as ℝ⁴ alone.
+    #[test]
+    fn a_short_implicit_chart_branch_is_bounded_by_the_wall() {
+        use super::fit_minimum;
+        use geom::{NurbsSurface, Surface};
+        use geom_core::spline::KnotVector;
+        let band = Band::new(1.0e-9, 1.0e-8).unwrap();
+        let k = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let ramp = NurbsSurface::new(
+            k.clone(),
+            k,
+            vec![
+                Point3::new(0.0, 0.0, 0.0),
+                Point3::new(0.0, 1.0, 1.0),
+                Point3::new(1.0, 0.0, 0.0),
+                Point3::new(1.0, 1.0, 1.0),
+            ],
+            vec![1.0; 4],
+        )
+        .unwrap();
+        let plane = Surface::Plane {
+            origin: Point3::new(0.5, 0.5, 0.5),
+            normal: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let sys = crate::ssi::system::ImplicitChartR2 {
+            partner: &plane,
+            wall: &ramp,
+        };
+        let ctx = MarchContext::<2> {
+            domain: [[0.0, 1.0]; 2],
+            extent: 1.0,
+            tol: kernel_ctx(band).tol,
+            max_steps: SSI_MAX_STEPS,
+            spent: Default::default(),
+        };
+        let got = fit_minimum(&sys, vec![[0.5, 0.5], [0.5 + 2e-9, 0.5]], &ctx, band);
+        assert!(
+            matches!(
+                got,
+                Err(SsiError::ShortBranchUncertified {
+                    bounded_by: BranchBound::Wall,
+                    ..
+                })
+            ),
+            "two states the band apart on the wall's chart: {got:?}"
         );
     }
 }

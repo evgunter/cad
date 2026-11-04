@@ -1,7 +1,7 @@
 ---
 id: a-non-ruling-class-reading-in-band-at-the-join-ends-not-yet
 kind: issue
-title: The join's in-band class reading on a sphere, cone or torus ends 'no way through yet', not on its lever
+title: The join's in-band class reading on a sphere, torus or cone rim ends 'no way through yet', not on its lever
 status: open
 opened: 2026-11-04
 priority: P2
@@ -13,9 +13,10 @@ cost: M
 
 `crates/geom-brep/src/pcurve_cache.rs`, `chart_iso_family`: a class
 reading in band comes back `IsoFamilyRefusal::Undecided` only when its
-predicate is `pcurve_chart_radial_moving` (the cylinder's ruling). Any
-other class gate in band (the sphere's, cone's or torus's axial,
-centred or meridian gate) falls to the last arm and comes back
+predicate is a ruling reading (`pcurve_chart_radial_moving`, the
+cylinder's, or `pcurve_cone_chart_ruling`, the cone's). Any other class
+gate in band (the sphere's or torus's axial, centred or meridian gate,
+the cone's rim gates) falls to the last arm and comes back
 `IsoFamilyRefusal::Image(harmonic_refusal(..))`, a lane choice's "not
 yet".
 
@@ -34,8 +35,8 @@ join door end at a build with:
 
 The pose has a lever (move the arc onto the parallel or clearly off
 it); "no way through yet" is the wrong ending for a structural act.
-pcert E3 did not edit `chart_iso_family` (the one-ruling-reading lane
-was editing its arms).
+pcert E3 left the in-band mapping as the one-ruling-reading lane wrote
+it.
 
 ## Done when
 

@@ -564,23 +564,23 @@ fn trio_convexity_sign() {
     assert_eq!(smooth, LinkWedge::Smooth);
     assert_eq!(m.sign, Sign::Zero);
     // Exactly on, normals opposed: the material meets across one
-    // tangent plane — a cusp or slit, refused definitely.
-    let knife = plane_wedge(x, -x, e).unwrap_err();
-    assert!(matches!(knife, BlendError::KnifeEdge { .. }), "{knife:?}");
-    assert!(
-        knife
-            .render(geom_brep::recourse::Reading::Build)
-            .contains("cusp or slit"),
-        "{knife_at}",
-        knife_at = knife.render(geom_brep::recourse::Reading::Build)
-    );
+    // tangent plane — a cusp or slit, whose side is the jet's question
+    // (`battery::knife_end`), not refused here.
+    let (knife, m) = plane_wedge(x, -x, e).expect("a knife is read, not refused");
+    assert_eq!(knife, LinkWedge::Knife);
+    assert_eq!(m.sign, Sign::Zero);
     // In band: the same site, one wedge too small to call. It carries
-    // the knife's sentence — a chain flip is a different refusal at a
-    // different site and nothing here decided one. (The perturbation
+    // the tangential sentence — a chain flip is a different refusal at
+    // a different site and nothing here decided one. (The perturbation
     // turns the normals ABOUT the edge tangent, which is the only turn
     // the margin's triple product can see.)
     let escalated = plane_wedge(x, Vec3::new(1.0, in_band(), 0.0).normalize(), e).unwrap_err();
-    assert_same_recourse(&knife, &escalated, "meet at a definite angle");
+    assert!(
+        matches!(escalated, BlendError::Escalated { .. }),
+        "the in-band row must escalate, not classify"
+    );
+    let text = escalated.render(geom_brep::recourse::Reading::Build);
+    assert!(text.contains("meet at a definite angle"), "{text}");
 }
 
 #[test]

@@ -47,10 +47,12 @@ lever; a definite reading keeps the edges apart.
 
 ## Resolution
 
-PR 6512. `geom_brep::chart_iso_zero` reports the Zero a class reading
-stands on (the largest of the class gates `derive_class` decided Zero
-and the incidence test's margin, which `Incidence::On` now carries);
-`chart_iso_family` is unchanged. `edge_join::join_all` hands back a
+PR 6512. `geom_brep::chart_iso_family` returns the reading
+(`IsoReading`): the family and the Zero it stands on, the largest of
+the class gates the derivation decided Zero (the cylinder's and the
+cone's ruling gates among them) and the incidence test's margin, which
+`Incidence::On` now carries. `edge_join::joinable` captures each edge's
+Zero beside its locus, and `edge_join::join_all` hands back a
 `ClassZero` for each join made on an iso family, and
 `boolean::ops::join_rows` records it at every output path as one
 `DecisionSite::IsoJoin` row, `Relation::SameOriented`, naming the two
@@ -66,11 +68,12 @@ merge keeps cut by design (sweep README, "Walls"; `PeriodClosure`). So
 the record path is pinned at `topo`'s unit level
 (`edge_join::class_zero_rows`, `ops::join_row_rows`), and no golden
 moves. Done when's second part (the in-band reading refuses with the
-decision's lever) is met only for the cylinder ruling, the one class
-reading `chart_iso_family` hands the join as `Undecided`: there both
-doors end on a lever, the join door's the wrong one
-(`the-joins-in-band-class-reading-ends-two-ways`). On a sphere, cone or
-torus the in-band gate reaches the join as an image refusal and ends
+decision's lever) is met only for a ruling on a cylinder or cone, the
+class readings `chart_iso_family` hands the join as `Undecided`: there
+both doors end on a lever, the join door's the wrong one
+(`the-joins-in-band-class-reading-ends-two-ways`). On a sphere or torus,
+or a cone's rim, the in-band gate reaches the join as an image refusal
+and ends
 "no way through yet", no lever at all
 (`a-non-ruling-class-reading-in-band-at-the-join-ends-not-yet`).
 Residues: `a-join-onto-an-op-minted-edge-records-no-row`,
