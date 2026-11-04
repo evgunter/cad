@@ -2492,3 +2492,104 @@ fn a_spline_net_the_projected_lane_cannot_partition_ends_not_yet() {
     }
     assert!(wrong.is_empty(), "{wrong:#?}");
 }
+
+/// REVIEW PROBE (PR 6521): the sheet's certified reading at `Interval`,
+/// as `spans_of` takes it (`lower > 0` on each lever), on boxes seeded
+/// near either apex at scales `1e-12..1e-3`, on this sheet and on the
+/// other, with sheets running from a fat lemon/apple to a near-horn
+/// (`|R|/r` up to `1 − 1e-9`).
+#[test]
+fn review_6521_probe_apex_fuzz_interval() {
+    use super::super::projected::Meters;
+    let mut s = fuzz::start("review_6521_probe_apex_fuzz_interval");
+    let (mut read_n, mut apex_n, mut other_n) = (0u64, 0u64, 0u64);
+    for i in 0..fuzz::scaled(200_000) {
+        let minor = s.range(0.2, 2.0);
+        let gap = s.log_uniform(1e-9, 0.9);
+        let sign = if s.unit() < 0.5 { -1.0 } else { 1.0 };
+        let major = sign * minor * (1.0 - gap);
+        let h = ((minor - major) * (minor + major)).sqrt();
+        let apex = if s.unit() < 0.5 { h } else { -h };
+        let scale = s.log_uniform(1e-12, 1e-3);
+        // Seed: on this sheet near the apex, on the other near it, or at it.
+        let (rho0, z0, other) = match i % 3 {
+            0 => {
+                let vs = (-major / minor).acos();
+                let v = vs - s.unit() * (scale / minor).min(vs);
+                let v = if apex > 0.0 { v } else { -v };
+                (major + minor * v.cos(), minor * v.sin(), false)
+            }
+            1 => {
+                let vs = (major / minor).acos();
+                let v = vs - s.unit() * (scale / minor).min(vs);
+                let v = if apex > 0.0 { v } else { -v };
+                (-major + minor * v.cos(), minor * v.sin(), true)
+            }
+            _ => (0.0, apex, false),
+        };
+        let rho_c = (rho0 + scale * s.range(-1.0, 1.0)).max(0.0);
+        let z_c = z0 + scale * s.range(-1.0, 1.0);
+        let point = s.unit() < 0.3;
+        let (dr, dz) = if point {
+            (0.0, 0.0)
+        } else {
+            (scale * s.unit(), scale * s.unit())
+        };
+        let (rho_lo, rho_hi) = ((rho_c - dr).max(0.0), rho_c + dr);
+        let (z_lo, z_hi) = (z_c - dz, z_c + dz);
+        let n = if point { 0 } else { 12 };
+        let (mut f_sup, mut far) = (0.0_f64, 0.0_f64);
+        for a in 0..=n {
+            for b in 0..=n {
+                let at = |k: u32| if n == 0 { 0.0 } else { f64::from(k) / f64::from(n) };
+                let rho = rho_lo + (rho_hi - rho_lo) * at(a);
+                let z = z_lo + (z_hi - z_lo) * at(b);
+                f_sup = f_sup.max(sheet_form(major, minor, rho, z).abs());
+                far = far.max(review_sheet_distance(major, minor, rho, z));
+            }
+        }
+        let f_sup = 2.0 * f_sup + 1e-300;
+        let pt = |x: f64| Interval::from_bounds(x, x);
+        let meters = Meters::Spindle {
+            major: pt(major),
+            minor: pt(minor),
+        };
+        let over = meters
+            .over(pt(f_sup), (pt(rho_lo), pt(rho_hi)), (z_lo, z_hi), |l: Interval| {
+                if l.is_certified() && l.lo() > 0.0 { Ok(l) } else { Err(()) }
+            })
+            .is_ok();
+        let read = meters.certified(pt(f_sup), (pt(rho_lo), pt(rho_hi)), (z_lo, z_hi), |l| {
+            l.is_certified() && l.lo() > 0.0
+        });
+        let Some(bound) = read else { continue };
+        read_n += 1;
+        if !over {
+            apex_n += 1;
+        }
+        if other {
+            other_n += 1;
+        }
+        let bound = bound.hi();
+        assert!(
+            far <= bound * (1.0 + 1e-9) + 1e-15,
+            "draw {i}: R {major} r {minor} apex {apex} other {other} over {over}, box ρ [{rho_lo}, {rho_hi}] \
+             z [{z_lo}, {z_hi}]: a point {far} from the sheet past {bound}; {}",
+            fuzz::replay()
+        );
+    }
+    eprintln!("review probe: read {read_n}, by the apex reading {apex_n}, seeded on the other sheet {other_n}");
+}
+
+/// [`sheet_distance`] with the apex height read without cancellation.
+fn review_sheet_distance(major: f64, minor: f64, rho: f64, z: f64) -> f64 {
+    let m = ((rho - major).powi(2) + z * z).sqrt();
+    if major + minor * (rho - major) / m >= 0.0 {
+        (m - minor).abs()
+    } else {
+        let h = ((minor - major) * (minor + major)).sqrt();
+        (rho * rho + (z - h).powi(2))
+            .sqrt()
+            .min((rho * rho + (z + h).powi(2)).sqrt())
+    }
+}

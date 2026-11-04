@@ -747,3 +747,66 @@ fn a_horns_cusp_revolved_part_way_refuses_at_its_cap_meridians() {
         );
     }
 }
+
+/// REVIEW PROBE (PR 6521): what a part-way football costs, and whether
+/// it builds, across near-horn lemons and apples, scales and turns.
+#[test]
+fn review_6521_probe_lune_cost() {
+    let mut rows = Vec::new();
+    for (big_over_r, r) in [
+        (-0.5, 1.0),
+        (0.4, 1.0),
+        (-0.99, 1.0),
+        (-0.9999, 1.0),
+        (-0.999_999, 1.0),
+        (0.99, 1.0),
+        (0.9999, 1.0),
+        (0.999_999, 1.0),
+        (-0.01, 1.0),
+        (0.01, 1.0),
+        (-0.5, 1e3),
+        (-0.5, 1e-3),
+        (0.4, 1e3),
+        (0.4, 1e-3),
+    ] {
+        for theta in [1e-3, 2.0, 6.28, -6.28] {
+            let big = big_over_r * r;
+            let t0 = std::time::Instant::now();
+            let got = revolve(
+                &validated(vec![football(big, r)]),
+                y_axis(),
+                Revolution::Partial(theta),
+                Tol::witness(),
+            );
+            let dt = t0.elapsed().as_secs_f64();
+            let what = match &got {
+                Ok(_) => "built".to_string(),
+                Err(e) => format!("{e:?}").chars().take(160).collect(),
+            };
+            rows.push(format!("R/r {big_over_r} r {r} θ {theta}: {dt:.3} s {what}"));
+        }
+    }
+    for row in &rows {
+        eprintln!("review probe: {row}");
+    }
+}
+
+/// REVIEW PROBE (PR 6521): a near-sphere football, full and part way.
+#[test]
+fn review_6521_probe_near_sphere() {
+    for big in [-0.2, -0.1, -0.05, -0.03, -0.02, -0.01, 0.01, 0.02, 0.05, 0.1, 0.2] {
+        for by in [Revolution::Full, Revolution::Partial(2.0)] {
+            let got = revolve(
+                &validated(vec![football(big, 1.0)]),
+                y_axis(),
+                by,
+                Tol::witness(),
+            );
+            let what = match &got {
+                Ok(_) => "built".to_string(),
+                Err(e) => format!("{e}").chars().take(220).collect(),
+            };
+            eprintln!("review probe: R {big} {by:?}: {what}");
+        }
+    }
+}
