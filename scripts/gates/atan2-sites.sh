@@ -64,7 +64,8 @@
 # WHAT IS READ: `.atan2(` (whitespace allowed before the paren) in every
 # `crates/*/src/**/*.rs`, comments and literals out, `#[cfg(test)]`
 # modules out. A file is test-only, and not read, where a
-# `#[cfg(test)] mod NAME;` declares it, or where its name ends `_rows.rs`
+# `#[cfg(test)] mod NAME;` declares it (with every file under its
+# directory `NAME/`), or where its name ends `_rows.rs`
 # or `_fuzz.rs` or starts `test_support`. BLIND SPOTS: a call through a
 # path (`f64::atan2(y, x)`, `Real::atan2(y, x)`), through a function
 # pointer, or inside a macro's expansion; a test-only module declared
@@ -169,17 +170,19 @@ def without_test_mods(text):
 files = sorted(glob.glob("crates/*/src/**/*.rs", recursive=True))
 code = {p: strip(open(p, encoding="utf-8").read()) for p in files}
 test_only = set()
+test_dirs = set()
 for path, text in code.items():
     d, stem = os.path.dirname(path), os.path.basename(path)[:-3]
     base = d if stem in ("lib", "mod", "main") else os.path.join(d, stem)
     for m in re.finditer(CFG_TEST + ";", text):
         test_only.add(os.path.join(base, m.group(1) + ".rs"))
-        test_only.add(os.path.join(base, m.group(1), "mod.rs"))
+        test_dirs.add(os.path.join(base, m.group(1)) + os.sep)
 
 FN = re.compile(r"\bfn\s+(\w+)")
 counts = {}
 for path in files:
-    if path in EXEMPT or path in test_only or TEST_NAME.search(os.path.basename(path)):
+    if (path in EXEMPT or path in test_only or TEST_NAME.search(os.path.basename(path))
+            or any(path.startswith(d) for d in test_dirs)):
         continue
     text = without_test_mods(code[path])
     for m in CALL.finditer(text):
@@ -269,6 +272,9 @@ plant_not_sites() {
   printf '// y.atan2(x)\npub const S: &str = "y.atan2(x)";\n#[cfg(test)]\nmod tests {\n    fn f(y: f64) -> f64 { y.atan2(1.0) }\n}\n' \
     >> "$1/crates/clean/src/lib.rs"
   printf 'fn f(y: f64) -> f64 { y.atan2(1.0) }\n' > "$1/crates/clean/src/angle_rows.rs"
+  printf '#[cfg(test)]\nmod probes;\n' >> "$1/crates/clean/src/lib.rs"
+  mkdir -p "$1/crates/clean/src/probes"
+  printf 'fn f(y: f64) -> f64 { y.atan2(1.0) }\n' > "$1/crates/clean/src/probes/deep.rs"
   mkdir -p "$1/crates/geom/src"
   printf 'fn f(y: f64) -> f64 { y.atan2(1.0) }\n' > "$1/crates/geom/src/azimuth.rs"
 }
@@ -287,7 +293,7 @@ gate_selftest() {
   gate_selftest_case "in-frame angle" plant_in_frame_row
   gate_selftest_case "arrived outside geom::azimuth" plant_moved_function
   gate_selftest_passes "a site at its row" plant_at_table
-  gate_selftest_passes "a comment, a string, a test module, a rows file and the home" plant_not_sites
+  gate_selftest_passes "a comment, a string, a test module and a file under its directory, a rows file and the home" plant_not_sites
   printf '%s selftest OK: passes a clean fixture, a site at its row, and calls in comments, strings, test modules, rows files and the home; fires on a new site, an unrecorded fall, an in-frame row and a site moved to another function\n' "$(gate_name)"
 }
 

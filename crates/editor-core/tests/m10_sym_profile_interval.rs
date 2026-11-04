@@ -790,13 +790,15 @@ const PLATE_MAX_TERMS: usize = 28;
 /// explained: `Plain/Decision` 1149 → 1203 calls (20618 → 60702 forms),
 /// `Early/Decision` 342 → 396 (11649 → 51733), both `*/Assertion` lines
 /// 20 forms up and `Door/Decision` 8. The angle reads' `Period::near`
-/// moves none of it: its merge base prints this ledger.
+/// moves none of it: its merge base prints this ledger. Its
+/// `*/Assertion` and `Door/Decision` digests re-taken again at what main
+/// measures (2026-11-04, `5d7602ff`), the counts held.
 const PLATE_LEDGER: &str = "\
      Plain/Decision calls 1203 forms 60702 frozen 36 digest 457440ce7de9a424ed0065851f00a412\n\
-     Plain/Assertion calls 824 forms 9351 frozen 193 digest 1c7cae524fff25b163221fb998cc8eeb\n\
+     Plain/Assertion calls 824 forms 9351 frozen 193 digest 97789bb665946c02b5bebf1d1baaeeff\n\
      Early/Decision calls 396 forms 51733 frozen 0 digest b272d5e188ed848881fea7f04a859248\n\
-     Early/Assertion calls 824 forms 10765 frozen 0 digest 1beb9d2711e6c773fa4a2d36495f2fa7\n\
-     Door/Decision calls 557 forms 13577 frozen 0 digest 05036d815e1c3697e696619907651888";
+     Early/Assertion calls 824 forms 10765 frozen 0 digest 9a4c77de848c841fcbec6f432309a2a4\n\
+     Door/Decision calls 557 forms 13577 frozen 0 digest 0b513bbc711539cfa00cdbffc4df2189";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**
 /// For the slab and the plate at their nominals, every (walk, origin)
