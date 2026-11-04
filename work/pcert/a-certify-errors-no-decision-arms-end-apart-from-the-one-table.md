@@ -14,9 +14,10 @@ cost: E
 ## What
 
 `CertifyError::decided` (`crates/geom-brep/src/certify.rs`) names no
-decision for seven arms (`UnresolvedSurface`, `Unimplemented`,
+decision for six arms (`UnresolvedSurface`, `Unimplemented`,
 `IntersectionSameSurface`, `WrapOnNonPeriodic`,
-`TangentCertificateUnsupported`, `StatedInterval`, `Band`), so
+`TangentCertificateUnsupported`, `Band`), nor for `Row` on
+`RowRefusal::OffSide` (`RowRefusal::decision`), so
 `CertifyError::ending` gives them none and `CertifyError::render`
 writes the payload alone. Two other readers of the same refusals end
 them by kinds the one decision table (`recourse::Decision`) already
@@ -34,7 +35,15 @@ writes:
   `BAND_TOLERANCE_RECOURSE`, the lever-arm arm included
   (`classify_certify`, `crates/topo/src/validate.rs`). One fact ends
   three ways.
-- **`Unimplemented`, `TangentCertificateUnsupported`.** No ending at
+  The lever-arm arm of that at-rest `TOLERANCE` is unreachable through
+  `CertifyError` today: every producer of `CertifyError::Band` builds
+  the run's band with `Band::linear` (`topo`'s `euler`, `euler_kill`,
+  `split` and `attach`), which refuses only `InvalidValue` or `Empty`,
+  never `InvalidLeverArm`. So the live disagreement is the edge door's
+  `BandError` sentence against `BAND_TOLERANCE_RECOURSE` on those two
+  arms. That is what keeps this row at P2.
+- **`Unimplemented`, `TangentCertificateUnsupported`, `Row` on
+  `OffSide`.** No ending at
   the edge door; "not yet" (`NOT_YET_ENDING`) at rest
   (`classify_certify`). The table's `Decision::NotYet` is that ending.
 - **`IntersectionSameSurface`, `WrapOnNonPeriodic`.** No ending at the
@@ -42,7 +51,10 @@ writes:
   `Decision::Unsized(Unsized::Defect)` is that ending.
 
 Left as they were by `two-decision-tables-for-one-ending`, which was
-a refactor and could move no text.
+a refactor and could move no text. Its census row
+(`every_refusal_ends_through_the_one_decision_table`,
+`crates/topo/src/test_support_samples.rs`) lists these arms by name in
+`no_decision`: an arm this row gives a decision comes off that list.
 
 ## Repair shape
 

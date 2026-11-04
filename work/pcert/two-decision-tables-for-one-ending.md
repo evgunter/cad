@@ -49,6 +49,8 @@ their decision as a `recourse::Decision<C: DoorCheck>` in their own
 exhaustive `decided()`, and end through its one `ending`; `LaneDecision`
 and the pcurve door's private `Decision` are gone. No ending moved
 text. `topo`'s `every_refusal_ends_through_the_one_decision_table`
-holds each door to the table at every reading and every kind live.
+holds each door to the table at every reading, every kind live, and
+every refusal to an ending save the no-decision arms it names.
 Filed: `a-certify-errors-no-decision-arms-end-apart-from-the-one-table`,
-`the-pcurve-mint-error-keeps-a-third-ending-table`.
+`the-pcurve-mint-error-keeps-a-third-ending-table`,
+`the-door-defect-is-two-kinds-of-the-one-decision-table`.
