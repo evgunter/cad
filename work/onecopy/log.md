@@ -120,3 +120,9 @@
     - `place` is a third bracket-midpoint spelling, NaN on an unbounded enclosure, and it drops the tangent at `Dual<Interval>`, which has no bounds_census record.
     - `Span` has four doors over two facts, and its pub `end_point` bypasses `ended`.
   - **Class lesson.** A pin names its row; fixing the row must find the pin (a link check is owed). And "every site reads it" claims need a grep that matches every spelling.
+- 2026-11-04 — The P0 section-end lane opened PR 6522.
+  - **Root cause.** No angle-read defect. 6482's `azimuth(p).near(0)` puts the chord end one ulp from the old `angle_of`, and it is the closer one. With a carrier speed of about 1e5, that ulp is the whole end miss. The old decision and the new MapResidual escalation (`ulp(30000.3) = 3.64e-12`) measure the same rounding, and the last bit chooses which check meets it.
+  - **The class predates 6482.** At `e9eaae65`, 17 pcurve refusals and 149 finish refusals were already untyped.
+  - **Fix.** Test-only: the witness pose is re-posed (`0.3 → 0.5`, which escalates its end pin at both commits), with its argument written in the doc.
+  - **Filed.** `charttail/an-unresolved-section-carrier-refuses-downstream-untyped-at-1e-12`, the structural answer.
+  - **My read.** Accepted. Main had moved 80 code files, so I merged main via update-branch (`b2a57369be`). The gate is re-running, and I am running the row at all three ε locally.
