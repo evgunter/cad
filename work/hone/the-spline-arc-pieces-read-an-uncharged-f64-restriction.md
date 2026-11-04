@@ -35,3 +35,14 @@ At a placement or a size of `1e4` and more, ulps of the coordinates reach the
 Charge the piece's net for its restriction's rounding, as the spline face
 placement now does, or read the net at an enclosure scalar. A row: a point on
 a far spline edge of a planar loop, at the 1e-12 band, never read clear.
+
+**Tried once, at band `(1e-12, 1e-11)`, no false clear** (`splice/spline-region-charge`'s
+fix pass). There were 2000 points exactly on far straight rational arcs:
+- degree 2 to 4, with up to three interior knots;
+- `1e3` to `1e6` long, placed up to `8e4` out;
+- weights up to eight decades apart.
+
+Each point was read through `PiecedArc::contact` with the spline rows, and none read `Off`. The ball's reach is
+the farthest control point's distance from the box centre, so a point inside a piece has slack
+far beyond an ulp. The exposure left is a point at a piece's own end point, where two pieces'
+separate restrictions round apart, and the crossing count. Hence P2.
