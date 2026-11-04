@@ -5794,10 +5794,10 @@ mod tests {
                 crate::ValidationError::Pcurve {
                     finding: crate::PcurveMintError::Certify {
                         half_edge: spline_half,
-                        error: geom_brep::PcurveCertifyError::IsoUnsupported {
-                            what: "no boundary row of this chart, in either u direction, \
-                                   holds the circle at the probe — not an arc rim of this \
-                                   chart",
+                        error: geom_brep::PcurveCertifyError::NoGeneralLane {
+                            chart: geom::SurfaceKind::Nurbs,
+                            carrier: geom::CurveKind::Circle,
+                            gap: geom_brep::LaneGap::Unwritten,
                         },
                     },
                 },
