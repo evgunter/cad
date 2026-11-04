@@ -345,3 +345,118 @@ fn at_a_dual_an_off_carrier_ends_off_the_chart_before_the_fitted_door() {
         "off the wall the read ends it: {off:?}"
     );
 }
+
+// ---- review 6531 probes (not for merge) ----
+
+/// R1: a row certified over `[0, 1]` re-certified for an edge spanning
+/// `[0, 1.5]` (the carrier past `z = 1` is off the bounded patch).
+fn r1_cut_short<T: Decide + geom_core::CertifiedBounds>() -> (String, String) {
+    let (c, b) = (T::from_f64, band());
+    let wall = ring::<T>();
+    let carrier = ruling::<T>(Place::On);
+    let stored = PcurveCache::certify(column(), c(0.0), c(1.0), &carrier, &wall, b).unwrap();
+    let re = stored
+        .recertify(&carrier, (c(0.0), c(1.5)), &wall, b, Some(FittedLane::certified()))
+        .map(|_| ());
+    let read = crate::read_incidence(&carrier, c(0.0), c(1.5), &wall, b);
+    (format!("{re:?}"), format!("{read:?}"))
+}
+
+#[test]
+fn review_r1_cut_short_recertify() {
+    let (re, read) = r1_cut_short::<f64>();
+    eprintln!("R1 f64 recertify over edge span [0,1.5]: {re}\n   read_incidence: {read}");
+    let (re, read) = r1_cut_short::<Interval>();
+    eprintln!("R1 Interval recertify: {re}\n   read_incidence: {read}");
+}
+
+/// R2: the ruling with a 1 mm radial bulge wholly inside `(0, 3/256)`,
+/// between every residual sample (i/8) and every read sample (i/64).
+fn bulged<T: Decide>() -> Curve3<T> {
+    let ts = [0.0, 1.0 / 256.0, 1.0 / 128.0, 3.0 / 256.0, 1.0];
+    let mut k = vec![0.0, 0.0];
+    k.extend(&ts[1..4]);
+    k.extend([1.0, 1.0]);
+    let control = ts
+        .iter()
+        .enumerate()
+        .map(|(i, &t)| {
+            let r = if i == 2 { 1.0 + 1e-3 } else { 1.0 };
+            Point3::new(r * RULING.cos(), r * RULING.sin(), t)
+        })
+        .collect();
+    let net = geom::NurbsCurve3::new(KnotVector::clamped(k, 1).unwrap(), control, vec![1.0; 5])
+        .unwrap();
+    Curve3::Nurbs(Arc::new(net.map_scalar(T::from_f64)))
+}
+
+fn r2<T: Decide>(lanes: Lanes<T>) -> Vec<String> {
+    let (c, b) = (T::from_f64, band());
+    let wall = ring::<T>();
+    let carrier = bulged::<T>();
+    let mid = carrier.eval(c(1.0 / 128.0));
+    let mut out = vec![format!("bulge point {mid:?}")];
+    out.push(format!(
+        "certify(column): {:?}",
+        PcurveCache::certify(column(), c(0.0), c(1.0), &carrier, &wall, b).map(|_| ())
+    ));
+    out.push(format!(
+        "certify_general: {:?}",
+        PcurveCache::certify_general(column_curve(), c(0.0), c(1.0), &carrier, &wall, b, Some(lanes.fitted)).map(|_| ())
+    ));
+    out.push(format!(
+        "read_incidence: {:?}",
+        crate::read_incidence(&carrier, c(0.0), c(1.0), &wall, b)
+    ));
+    out.push(format!("read_point_incidence(bulge): {:?}", crate::read_point_incidence(mid, &wall, b)));
+    let mut table: slotmap::SlotMap<SurfaceKey, Surface<T>> = slotmap::SlotMap::with_key();
+    let key = table.insert(wall.clone());
+    let ends = (carrier.eval(c(0.0)), carrier.eval(c(1.0)));
+    let spec = EdgeCurveSpec {
+        description: EdgeDescriptionSpec::chart_image(key, column()),
+        carrier,
+        param_start: c(0.0),
+        param_end: c(1.0),
+    };
+    out.push(format!("stated route: {:?}", (lanes.edge)(spec, ends, &table)));
+    out
+}
+
+#[test]
+fn review_r2_between_samples() {
+    for l in r2::<f64>(Lanes { fitted: FittedLane::certified(), edge: edge_f64 }) {
+        eprintln!("R2 f64 {l}");
+    }
+    for l in r2::<Interval>(Lanes { fitted: FittedLane::certified(), edge: edge_interval }) {
+        eprintln!("R2 Interval {l}");
+    }
+}
+
+/// R3: a chart whose `u` domain is a few ulps wide: does the foot's
+/// clamp (`inside`) panic?
+#[test]
+fn review_r3_narrow_domain_foot() {
+    let lo = 1.0f64;
+    let hi = lo + 4.0 * f64::EPSILON;
+    let net = NurbsSurface::new(
+        KnotVector::clamped(vec![lo, lo, hi, hi], 1).unwrap(),
+        KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
+        vec![
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(0.0, 1.0, 0.0),
+            Point3::new(1.0, 0.0, 0.0),
+            Point3::new(1.0, 1.0, 0.0),
+        ],
+        vec![1.0; 4],
+    );
+    eprintln!("R3 surface built: {}", net.is_ok());
+    let wall = Surface::Nurbs(Arc::new(net.unwrap()));
+    let got = std::panic::catch_unwind(|| {
+        crate::read_point_incidence(Point3::new(0.5, 0.5, 0.0), &wall, band())
+    });
+    eprintln!("R3 read_point_incidence: {got:?}");
+    let got = std::panic::catch_unwind(|| {
+        crate::read_point_incidence(Point3::new(0.5, 0.5, 1e-3), &wall, band())
+    });
+    eprintln!("R3 read_point_incidence off: {got:?}");
+}
