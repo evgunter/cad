@@ -2,7 +2,9 @@
 id: main-red-a-section-ends-own-rounding-escalates-at-1e-12-after-angle-reads
 kind: issue
 title: Main red at 1e-12: section_end_poses' own-rounding row escalates its map residual since PR 6482 (angle-reads)
-status: open
+status: closed
+closed: 2026-11-04
+pr: 6522
 opened: 2026-11-04
 priority: P0
 cost: E
@@ -31,3 +33,7 @@ Every PR that runs sweep at 1e-12 is red on it, beside `main-red-the-needle-refu
 ## Owed
 
 Root-cause why 6482's anchored angle read moves this section end's map residual to `3.6e-12` (in band at 1e-12) where it was decided before, fix it, and confirm the row at all three ε.
+
+## Resolution
+
+The angle read is not wrong for this caller. 6482's `SectionConic::param` (`Conic::azimuth(p).near(0)`, `atan2(y·a, x·b)`) names the chord's end `t₁ = -0.3046853160300073`, where the retired `angle_of` (`atan2(y/b, x/a)`) gave `-0.30468531603000726`, one ulp away. On a carrier of speed `b ≈ 1e5`, that ulp is the whole miss: the end pin is `3.6e-12` (in band) at `e9eaae65` and `2.5e-16` on main. So the new read is the closer one, and the pin now decides. The split goes on to the pcurve cache. There the map residual meets the same carrier's own rounding, `ulp(30000.3) = 3.64e-12`, because the ellipse's centre is `r/θ ≈ 3e4` off the face. That escalation is honest. The pose is re-posed in the row to `(0.3, 0, 1e-5, 0.5)`, which escalates its end pin at both commits. The downstream refusals, which the join does not type as the kernel's, are filed as CHARTTAIL's `an-unresolved-section-carrier-refuses-downstream-untyped-at-1e-12`.

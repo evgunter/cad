@@ -296,7 +296,7 @@ use pncad::select::{
     face_carrier_kind, face_frame, meridian_vertex, select, vertex_position,
 };
 use pncad::topo::readback::euler_counts;
-use pncad::topo::{Body, BooleanError, FaceKey, Operand};
+use pncad::topo::{Body, BooleanError};
 
 use crate::{SceneBody, TourStop, View};
 
@@ -1598,8 +1598,6 @@ pub fn wall_probes(ev: &Evaluation<f64>, r: &Recipe) {
     // point off their trims, and the join then has no frame for the
     // section of the belly's sphere and the spout's outer wall
     // (`work/sectarms/a-nurbs-face-against-a-cone-or-sphere-has-no-section-arm`).
-    // At ε = 1e-6 the meridian stops one wall earlier, where its interior
-    // walk against one of the spout's bore walls floors.
     //
     // The predicate resolves the two faces the refusal names and pins
     // them by geometry ([`wall3_pinned`]), not by the keys' values: an
@@ -1611,7 +1609,7 @@ pub fn wall_probes(ev: &Evaluation<f64>, r: &Recipe) {
         join_outcome(ev, r.spout_union),
         |e| {
             let tol = Tol::witness();
-            wall3_pinned(e, &body_at(ev, r.spout, tol), &body_at(ev, r.pot, tol), tol)
+            wall3_pinned(e, &body_at(ev, r.spout, tol), &body_at(ev, r.pot, tol))
         },
         "make the teapot ONE solid: union the handle and the spout into the vessel, drop \
          walls 2 and 3, re-state the montage caption (which currently says four solids), \
@@ -1624,68 +1622,21 @@ pub fn wall_probes(ev: &Evaluation<f64>, r: &Recipe) {
 /// its chart's `(1, 1)`, on the symmetry plane `z = 0`: measured off the
 /// loft, which interpolates its stations.
 const SPOUT_OUTER_TIP: [f64; 3] = [-0.081_711_418_8, 0.153_348_328_1, 0.0];
-/// The far corner of the bore wall beside it, measured the same way.
-const SPOUT_BORE_TIP: [f64; 3] = [-0.084_611_661_5, 0.152_934_007_7, 0.0];
 
-/// **Wall 3's pinned refusal.** At ε = 1e-6 the belly's quarter
-/// meridian, from the mouth's junction `(−R_NECK, Y_MOUTH)` to the
-/// foot's `(−R_FOOT, Y_FOOT)`, is read against the spout's bore wall
-/// whose chart runs from the root section, `SPOUT_BORE · SPOUT_R0` below
-/// [`SPOUT_ROOT`], to [`SPOUT_BORE_TIP`], and the interior walk floors
-/// there
-/// (`work/splice/teapot-wall-3-at-1e-6-floors-the-meridian-against-a-spout-wall`).
-/// At the other rows the join finds no frame for the germ pair of the
-/// belly's sphere (centre `Y_BELLY_C` on the axis, radius `R_BELLY`), the
-/// A face, against the spout's outer wall, from `SPOUT_R0` above the
-/// root to [`SPOUT_OUTER_TIP`], the B face
+/// **Wall 3's pinned refusal**, at every ε: the join finds no frame for
+/// the germ pair of the belly's sphere (centre `Y_BELLY_C` on the axis,
+/// radius `R_BELLY`), the A face, against the spout's outer wall, from
+/// `SPOUT_R0` above the root to [`SPOUT_OUTER_TIP`], the B face
 /// (`work/sectarms/a-nurbs-face-against-a-cone-or-sphere-has-no-section-arm`).
-/// Every face and edge is resolved in the operand's own body and matched
-/// by its geometry.
+/// Every face is resolved in the operand's own body and matched by its
+/// geometry.
 ///
 /// The match is absolute, at a nanometre: the corners are the authored
 /// stations and the loft's own evaluation of them, not readings of the
 /// run's band, so they do not move with ε, and the faces they tell
 /// apart stand millimetres apart.
-pub fn wall3_pinned(e: &BooleanError, spout: &Body<f64>, pot: &Body<f64>, tol: Tol) -> bool {
+pub fn wall3_pinned(e: &BooleanError, spout: &Body<f64>, pot: &Body<f64>) -> bool {
     let near = |p: Point3<f64>, q: [f64; 3]| (p - Point3::new(q[0], q[1], q[2])).norm() < 1e-9;
-    let root = |dz: f64| [SPOUT_ROOT.x, SPOUT_ROOT.y, dz];
-    let wall = |face: FaceKey, root: [f64; 3], far: [f64; 3]| {
-        spout
-            .get_face(face)
-            .and_then(|f| spout.get_surface(f.surface))
-            .is_some_and(|s| match s {
-                Surface::Nurbs(n) => {
-                    let (u0, u1) = n.knot_values_u().domain();
-                    let (v0, v1) = n.knot_values_v().domain();
-                    near(n.eval(u0, v0), root) && near(n.eval(u1, v1), far)
-                }
-                _ => false,
-            })
-    };
-    if (tol.eps() / 1.0e-6 - 1.0).abs() < 1.0e-3 {
-        let BooleanError::SplineCrossingUnsettled {
-            operand: Operand::A,
-            edge,
-            face,
-            face_of: Operand::B,
-            why: pncad::geom_brep::roots::Unsettled::Floor,
-        } = e
-        else {
-            return false;
-        };
-        let the_meridian = pot.get_edge(*edge).is_some_and(|d| {
-            let ends = [d.he_plus, d.he_minus].map(|h| pot.half_edge_start_point(h));
-            let circle = matches!(
-                pot.get_curve_geom(d.curve),
-                Some(pncad::topo::CurveGeom::Certified(c))
-                    if matches!(c.carrier(), Curve3::Circle(_))
-            );
-            circle
-                && matches!(ends, [Some(p), Some(q)]
-                    if near(p, [-R_NECK, Y_MOUTH, 0.0]) && near(q, [-R_FOOT, Y_FOOT, 0.0]))
-        });
-        return the_meridian && wall(*face, root(-SPOUT_BORE * SPOUT_R0), SPOUT_BORE_TIP);
-    }
     let BooleanError::GermFrameUnsupported {
         a_face: belly,
         a_kind: SurfaceKind::Sphere,
@@ -1702,7 +1653,19 @@ pub fn wall3_pinned(e: &BooleanError, spout: &Body<f64>, pot: &Body<f64>, tol: T
             matches!(s, Surface::Sphere { center, radius, .. }
                 if near(*center, [0.0, Y_BELLY_C, 0.0]) && (radius - R_BELLY).abs() < 1e-12)
         });
-    the_belly && wall(*face, root(SPOUT_R0), SPOUT_OUTER_TIP)
+    let the_outer_wall = spout
+        .get_face(*face)
+        .and_then(|f| spout.get_surface(f.surface))
+        .is_some_and(|s| match s {
+            Surface::Nurbs(n) => {
+                let (u0, u1) = n.knot_values_u().domain();
+                let (v0, v1) = n.knot_values_v().domain();
+                near(n.eval(u0, v0), [SPOUT_ROOT.x, SPOUT_ROOT.y, SPOUT_R0])
+                    && near(n.eval(u1, v1), SPOUT_OUTER_TIP)
+            }
+            _ => false,
+        });
+    the_belly && the_outer_wall
 }
 
 /// The scene's recipe, built and evaluated. Both the render walk and

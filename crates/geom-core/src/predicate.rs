@@ -1963,6 +1963,26 @@ impl MarginDiag {
         self.with_zero(zero)
     }
 
+    /// **The larger of two Zeros' readings, standing for a decision
+    /// both were Zeros of**: the reading farther from zero (an
+    /// enclosure's farther bound), a poisoned one poisoning it, proven
+    /// only where both are, as [`Self::jointly`] tags it. A decision that
+    /// rests on several Zeros (two edges one carrier because each lies
+    /// on it) records its worst miss, not its first reading.
+    #[must_use]
+    pub fn worst(self, other: Self) -> Self {
+        let reach = |m: Self| match m.0 {
+            Reading::Value(v, ..) => Some(v.abs()),
+            Reading::Enclosure { lo, hi, .. } => Some(lo.abs().max(hi.abs())),
+            Reading::Invalid => None,
+        };
+        match (reach(self), reach(other)) {
+            (Some(a), Some(b)) if b > a => other.jointly(self),
+            (Some(_), Some(_)) => self.jointly(other),
+            _ => Self::INVALID,
+        }
+    }
+
     /// **The enclosure of two readings of one quantity**: from the lower
     /// of their lower ends to the higher of their upper ends, untagged.
     /// `None` where either was poisoned, which bounds nothing.
