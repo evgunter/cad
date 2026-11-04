@@ -1200,13 +1200,12 @@ impl CertifyError {
     pub(crate) fn own_ending(&self, at: ReadAt) -> Option<String> {
         match self {
             Self::StatedInterval { refused } => Some(refused.ending(at)),
-            Self::SemiAxisNegative { .. } => Some(match at {
-                // The kernel mints no negative semi-axis, so a build meets
-                // one only as its caller's input.
-                ReadAt::Run(crate::recourse::Reading::Build) => {
-                    geom_core::lever_recourse(SEMI_AXIS_LEVER, None)
-                }
-                _ => crate::recourse::defect_ending(at).to_owned(),
+            Self::SemiAxisNegative { .. } => Some(match at.culprit() {
+                // The kernel mints no negative semi-axis, so where it
+                // would be the culprit (a build) the record is its
+                // caller's input.
+                geom_core::Culprit::Kernel => geom_core::lever_recourse(SEMI_AXIS_LEVER, None),
+                geom_core::Culprit::Stored(_) => crate::recourse::defect_ending(at).to_owned(),
             }),
             _ => self.incidence_read().map(|read| read.ending(at)),
         }
