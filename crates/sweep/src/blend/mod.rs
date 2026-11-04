@@ -1159,10 +1159,9 @@ pub const FILLET3_CORNER_RECOURSE: &str = "end the blend at a flat-faced corner,
 /// names the two requests there that build, one edge alone (the
 /// cut-off) and the two edges that round alike (the mitre), and says
 /// the rule the refused request wants is not built.
-pub const FILLET3_MIXED_CORNER_RECOURSE: &str = "at a corner where convex and concave edges \
-     meet, blend one of its edges, or only the two that round alike; blending the edge that \
-     rounds the other way together with another edge there wants the mixed corner's own rule \
-     (that edge's band cut off, the other two carried through), which is not built yet";
+pub const FILLET3_MIXED_CORNER_RECOURSE: &str = "blend one of this corner's edges, or the two \
+     that round alike; the edge that rounds the other way, blended with another, wants the mixed \
+     corner's own rule (its band cut off, the other two carried through), not built yet";
 /// The lever of a turn's two readings (`fillet3_turn_feet_gap`,
 /// `fillet3_turn_overrun_chord`, and their straddle
 /// `fillet3_turn_feet`): in band, the two bands' feet on the third

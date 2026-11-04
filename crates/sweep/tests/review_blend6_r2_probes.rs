@@ -38,7 +38,7 @@ use sweep::chamfer::chamfer_edges;
 use sweep::test_support::cube;
 use sweep::{Extrusion, extrude};
 use topo::query;
-use topo::{Body, EdgeKey, EntityId};
+use topo::{Body, EntityId};
 
 /// The cube side, meters.
 const L: f64 = 1.0;

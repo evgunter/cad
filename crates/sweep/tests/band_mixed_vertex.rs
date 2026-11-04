@@ -22,7 +22,7 @@ use sweep::blend::build::{chamfer_edges, fillet_edges};
 use sweep::blend::{BlendError, CornerConfig, FILLET3_MIXED_CORNER_RECOURSE};
 use sweep::test_support::{assert_naming_totality, corners, finished, prism_at, realized};
 use topo::boolean::BooleanOp;
-use topo::{Body, EdgeKey, SolidContainment, VertexKey, point_in_solid, validate_geometric};
+use topo::{Body, SolidContainment, VertexKey, point_in_solid, validate_geometric};
 
 use crate::band_planar_cut_off::{D, Verb, carve, edge, tol};
 use crate::common::interval::iv;
@@ -299,7 +299,7 @@ fn the_odd_edge_with_another_edge_of_its_corner_refuses() {
     let inset = plate_boss(1.0);
     let f = |a, b| edge(&flush, a, b);
     let i = |a, b| edge(&inset, a, b);
-    let rows: [(&str, &Body<f64>, [f64; 3], Vec<EdgeKey>); 4] = [
+    let rows = [
         (
             "flush root and vertical",
             &flush,
