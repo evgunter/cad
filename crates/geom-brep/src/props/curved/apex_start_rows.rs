@@ -37,7 +37,7 @@ fn circle(
     LoopEdge::hand_built(
         Curve3::Circle(geom::Circle {
             frame: geom::Frame {
-                center: Point3::new(0.0, 0.0, -depth),
+                origin: Point3::new(0.0, 0.0, -depth),
                 axis: Vec3::new(0.0, 0.0, 1.0),
                 u_ref: Vec3::new(1.0, 0.0, 0.0),
             },

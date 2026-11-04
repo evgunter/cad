@@ -27,9 +27,9 @@ Cost as scoped by the implementing lane: two functions, 16 grep hits, ~1 day. It
 
 ## Unit 2 — `plane_crossing_lane`, and it carries a K-name question
 
-`crates/topo/src/boolean/reduce.rs:565` calls `crate::splitting::plane_crossing_lane` (defined `crates/topo/src/splitting/classify.rs:147`) on the boolean's **production** edge×face crossing path — not a test. The surrounding comment says *"the splitting lane's C12.1 machinery reused verbatim"*, and the function's own doc says *"shared with the boolean reduction sweep"*.
+`crates/topo/src/boolean/reduce.rs:565` calls `geom_brep::curve_face::plane_crossing::plane_crossing_lane` (defined in `crates/geom-brep/src/curve_face/plane_crossing.rs`) on the boolean's **production** edge×face crossing path — not a test. The surrounding comment says *"the splitting lane's C12.1 machinery reused verbatim"*, and the function's own doc says *"shared with the boolean reduction sweep"*.
 
-It **decides three K predicates**: `split_conic_plane_parallel`, `split_conic_belly_graze`, `split_conic_phase_frame` — all under `split_*` names, decided on the boolean lane.
+It **decides three K predicates**: `plane_crossing_plane_parallel`, `plane_crossing_belly_graze`, `plane_crossing_phase_frame` — all under `split_*` names, decided on the boolean lane.
 
 That is exactly the shape S5 cited as proof the wrong-way dependency is *"bidirectional in fact"* (`bool_between_arc_window` decided at `splitting/join.rs:1611`), and exactly what #690 fixed for the join core. #690's stage table says of the vertex sweep *"different computations … **Nothing shared to extract**"* — refuted; the sharing already exists and only its home is wrong.
 
@@ -69,7 +69,7 @@ one, and the body above are unchanged by the move.
 ## Note (REACH, PR 3984, 2026-10-03)
 
 Unit 2's core was renamed and widened in place rather than moved:
-`splitting::classify::plane_crossing_lane` (was
+`geom_brep::curve_face::plane_crossing::plane_crossing_lane` (was
 `conic_plane_crossing_roots`) now answers every carrier kind —
 `PlaneCrossingLane::{Line, Conic(ConicPlaneMeet), Unlaned}` — so the
 boolean sweep reads its line / conic / no-lane dispatch from the split
@@ -107,7 +107,7 @@ At `d1ac6881`:
   - `chord_join.rs` imports from `splitting/` and, in `SplitJoinError`'s `Display`, from `boolean/` (`kind_word`, `meeting_recourse`, `Branch`).
   - `sector_shape.rs` imports `boolean::sectors::metering_arm`, while its own doc says it adds no edge.
 - The placement argument is written separately in four module docs and three `lib.rs` comments. DESIGN.md's `topo` row now reads "plane splitting, the boolean engine and its census/contact-record machinery (sibling modules at the crate root)", and no rule for what qualifies is stated anywhere.
-- `plane_crossing_lane` (`splitting/classify.rs`) decides six `split_*` K names, not three or four, and is called from `boolean/{reduce,slit,factored_crossing}.rs`.
+- `plane_crossing_lane` (`geom-brep/src/curve_face/plane_crossing.rs`) decides six `plane_crossing_*` K names, not three or four, and is called from `boolean/{reduce,slit,factored_crossing}.rs`.
 - The join core (`ChordJoiner`, `SplitJoinError`, `JoinLane`) has moved from `splitting/join.rs` to `chord_join.rs`, and its `Display` no longer says "split join".
 - `bool_between_arc_window` is gone.
 - The `sector_face` twins are now thin wrappers over `crate::sector_face::resolve`.

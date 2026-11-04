@@ -638,7 +638,7 @@ const PLATE_MAX_TERMS: usize = 28;
 /// slab's `Early/Assertion` digests move the same way at each ε row.
 ///
 /// The pcurve envelope's orthonormal chart squaring its frame by cross
-/// products (`geom::square_frame`) builds its frame terms in another
+/// products (`geom::Frame::square`) builds its frame terms in another
 /// form: `Plain/Decision`, `Early/Assertion` and `Door/Decision` +14
 /// forms each, and the `Plain/Assertion` digest; every call and freeze
 /// holds.

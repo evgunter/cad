@@ -336,8 +336,7 @@ pub(super) fn bisector_datum<T: Decide>(
         });
     };
     // The pierced wall's residual grows radially, away from its axis.
-    let w = p - origin;
-    let radial = w - axis * (w.dot(axis) / axis.norm_squared());
+    let radial = geom::Line { origin, dir: axis }.offset(p);
     let r = radial.norm();
     let outward = wall_sense(
         n_pierced.vec(),

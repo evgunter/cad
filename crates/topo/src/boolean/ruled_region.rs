@@ -28,7 +28,7 @@
 //!    the leg's own or misses it; a planar section's plane meets the leg
 //!    at the roots of a first harmonic in the leg's parameter, certified
 //!    by the shared door
-//!    ([`super::circle_roots::first_harmonic_roots_in_band`]); a line
+//!    ([`geom_brep::curve_face::circle_roots::first_harmonic_roots_in_band`]); a line
 //!    edge, a ruling, crosses the leg's plane once, in closed form. A
 //!    ruling leg meets a circle or a section in the edge's own parameter
 //!    against the leg's meridian plane (the plane through the axis and
@@ -131,8 +131,6 @@
 use geom::Conic;
 use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
 
-use super::BooleanDecision;
-use super::circle_roots::{FirstHarmonic, FirstHarmonicRows, first_harmonic_roots_in_band};
 use super::region::{
     self, End, Fault, Landing, Legs, Line, Paths, Region, RegionEdge, RegionRefusal, Round,
     circle_edge_hit, found, in_band, span, targets,
@@ -144,6 +142,9 @@ use crate::null::Scaffolding;
 use crate::ray_walk::{self, RayFault, SegmentRows};
 use crate::splitting::containment::ConicRows;
 use crate::validate::decide;
+use geom_brep::curve_face::circle_roots::{
+    FirstHarmonic, FirstHarmonicRows, first_harmonic_roots_in_band,
+};
 use geom_brep::roots::Roots;
 
 const ROOT_ROWS: FirstHarmonicRows = FirstHarmonicRows {
@@ -151,7 +152,6 @@ const ROOT_ROWS: FirstHarmonicRows = FirstHarmonicRows {
     coaxial: "bool_ruled_region_roots_coaxial",
     extreme: "bool_ruled_region_roots_extreme",
     root_slack: "bool_ruled_region_roots_slack",
-    decision: BooleanDecision::CONTAINMENT_UNNAMED,
 };
 
 /// A conic edge's boundary reading's rows (module docs).
@@ -763,7 +763,13 @@ impl<T: Decide> Legs<T> for RuledFaceRegion<T> {
         match (&edge.carrier, leg.course) {
             (
                 &geom::Curve3::Line(geom::Line { origin, dir }),
-                LegShape::Parallel(Round { center, .. }),
+                LegShape::Parallel(Round {
+                    circle:
+                        geom::Circle {
+                            frame: geom::Frame { origin: center, .. },
+                            ..
+                        },
+                }),
             ) => {
                 // A ruling crosses the parallel's plane once, at the
                 // parallel's one point on it.
@@ -793,11 +799,11 @@ impl<T: Decide> Legs<T> for RuledFaceRegion<T> {
             (conic, LegShape::Parallel(round)) => {
                 let conic = conic_of(conic);
                 let roots = first_harmonic_roots_in_band(
-                    &FirstHarmonic::circle_off_plane(
-                        (round.center, round.normal, round.radius, round.e1),
-                        (conic.frame().center, conic.frame().axis),
+                    &FirstHarmonic::conic_off_plane(
+                        &round.circle,
+                        (conic.frame().origin, conic.frame().axis),
                     ),
-                    round.radius,
+                    round.circle.radius,
                     T::zero(),
                     T::tau(),
                     &ROOT_ROWS,
@@ -819,13 +825,9 @@ impl<T: Decide> Legs<T> for RuledFaceRegion<T> {
             }
             (conic, LegShape::Ruling { radial, nappe, .. }) => {
                 let conic = conic_of(conic);
-                let f = conic.frame();
                 let normal = axis.cross(radial);
                 let roots = first_harmonic_roots_in_band(
-                    &FirstHarmonic::conic_off_plane(
-                        (f.center, f.axis, conic.semi_axes(), f.u_ref),
-                        (base, normal),
-                    ),
+                    &FirstHarmonic::conic_off_plane(conic, (base, normal)),
                     conic.speed_hi(),
                     edge.t0,
                     edge.t1,

@@ -250,9 +250,9 @@ fn the_zero_arm_is_tallied_and_does_not_gate() {
         "zero-arm.csv",
         &format!(
             "{HEADER}\n\
-             demo/lily_walls,bool_circle_torus_root_slack,1.9291935961799184e-14,1e-12,1e-11,zero\n\
-             demo/lily_walls,bool_circle_torus_root_slack,3.14912307142162e-13,1e-12,1e-11,zero\n\
-             demo/lily_walls,bool_circle_torus_meridian,1.0416e-14,1e-12,1e-11,zero\n\
+             demo/lily_walls,circle_torus_root_slack,1.9291935961799184e-14,1e-12,1e-11,zero\n\
+             demo/lily_walls,circle_torus_root_slack,3.14912307142162e-13,1e-12,1e-11,zero\n\
+             demo/lily_walls,circle_torus_meridian,1.0416e-14,1e-12,1e-11,zero\n\
              demo/az,pm_census_ee_span,5.3e-15,1e-12,1e-11,zero\n"
         ),
     );
@@ -266,9 +266,9 @@ fn the_zero_arm_is_tallied_and_does_not_gate() {
     );
     for pin in [
         "rule 2 zero arm (tallied, not gating): 3 zero-classified margin(s) above band_zero/10^2",
-        "bool_circle_torus_root_slack: 2, largest |m|/band_zero = 3.149e-1 — the margin uses 31% \
+        "circle_torus_root_slack: 2, largest |m|/band_zero = 3.149e-1 — the margin uses 31% \
          of eps here (demo/lily_walls line 3, |m|=3.14912307142162e-13, band_zero=1e-12)",
-        "bool_circle_torus_meridian: 1, largest |m|/band_zero = 1.042e-2",
+        "circle_torus_meridian: 1, largest |m|/band_zero = 1.042e-2",
         "rule 2 zero arm (tallied, not gating) 3",
     ] {
         assert!(so.contains(pin), "tally missing {pin:?}: {so}");
@@ -291,7 +291,7 @@ fn the_definite_arm_still_fails_beside_a_zero_arm_tally() {
         "definite-arm.csv",
         &format!(
             "{HEADER}\n\
-             demo/lily_walls,bool_circle_torus_root_slack,3.14912307142162e-13,1e-12,1e-11,zero\n\
+             demo/lily_walls,circle_torus_root_slack,3.14912307142162e-13,1e-12,1e-11,zero\n\
              demo/x,volume_backstop,3e-7,1e-9,1e-8,positive\n"
         ),
     );
