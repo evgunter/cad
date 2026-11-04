@@ -5539,7 +5539,13 @@ pub(super) fn gate<T: Decide + Bounds + AtRestPolicy>(
     pinched_at_cone_apex(&body, band)?;
     #[cfg(feature = "door-tier3-meter")]
     let from = std::time::Instant::now();
+    #[cfg(any(test, feature = "test-support"))]
+    let kinds = refused_faces::kinds(&body);
     let kept = T::gate_at_rest_kept(body, tol);
+    #[cfg(any(test, feature = "test-support"))]
+    if let Err(errors) = &kept {
+        refused_faces::note(&kinds, errors);
+    }
     #[cfg(feature = "door-tier3-meter")]
     super::door_meter::note_gate(super::door_meter::GateReading::of(
         from.elapsed(),
@@ -5551,6 +5557,78 @@ pub(super) fn gate<T: Decide + Bounds + AtRestPolicy>(
     }
     coincident_wedges_disjoint(&kept, band)?;
     Ok(kept)
+}
+
+/// **The face the result gate last refused a volume on, and its surface
+/// kind**: the record [`refused_face_kind`] reads, so a row pinning a
+/// refusal on a chart can read that chart off the face itself rather
+/// than off its message alone. Each refusing gate of this thread
+/// overwrites it.
+#[cfg(any(test, feature = "test-support"))]
+mod refused_faces {
+    use crate::body::Body;
+    use crate::entity::FaceKey;
+    use crate::props::MassPropsError;
+    use crate::validate::ValidationError;
+    use geom_core::Real;
+
+    std::thread_local! {
+        static LAST: core::cell::Cell<Option<(FaceKey, geom::SurfaceKind)>> =
+            const { core::cell::Cell::new(None) };
+    }
+
+    /// Every face of `body` and its surface kind, read before the gate
+    /// takes the body.
+    pub(super) fn kinds<T: Real>(body: &Body<T>) -> Vec<(FaceKey, geom::SurfaceKind)> {
+        body.faces()
+            .map(|(f, data)| (f, body.face_surface_linked(f, data).kind()))
+            .collect()
+    }
+
+    /// The face a validation finding refuses the volume of.
+    pub(super) fn of(error: &ValidationError) -> Option<FaceKey> {
+        match error {
+            ValidationError::VolumeUncomputable {
+                source:
+                    MassPropsError::Face { face, .. } | MassPropsError::RingOnCurvedFace { face },
+                ..
+            } => Some(*face),
+            _ => None,
+        }
+    }
+
+    /// Records the first face `errors` refuse a volume on, with its kind.
+    pub(super) fn note(kinds: &[(FaceKey, geom::SurfaceKind)], errors: &[ValidationError]) {
+        if let Some(face) = errors.iter().find_map(of)
+            && let Some(&(_, kind)) = kinds.iter().find(|(f, _)| *f == face)
+        {
+            LAST.with(|l| l.set(Some((face, kind))));
+        }
+    }
+
+    /// The recorded face's kind, where it is `face`.
+    pub(super) fn kind_of(face: FaceKey) -> Option<geom::SurfaceKind> {
+        LAST.with(core::cell::Cell::get)
+            .and_then(|(f, kind)| (f == face).then_some(kind))
+    }
+}
+
+/// **The surface kind of the face whose volume `e` refuses**: where `e`
+/// is the result gate's single volume finding on one face
+/// ([`ValidationError::VolumeUncomputable`] on a face's closed form or
+/// quadrature, or a ring on a curved face), that face's kind as the gate
+/// was handed it. Read it right after the boolean that refused: the
+/// record is this thread's last refusing gate's.
+#[cfg(any(test, feature = "test-support"))]
+#[must_use]
+pub fn refused_face_kind(e: &BooleanError) -> Option<geom::SurfaceKind> {
+    let BooleanError::ResultInvalid { errors } = e else {
+        return None;
+    };
+    let [error] = errors.as_slice() else {
+        return None;
+    };
+    refused_faces::of(error).and_then(refused_faces::kind_of)
 }
 
 /// **No cone face of the result pinches at its apex**: a loop that
