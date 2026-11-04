@@ -37,6 +37,10 @@
 //!   `P_θφ = 0`) a cell-half's hypotenuse midpoint deviates by exactly
 //!   this to second order, measured below. Certificate
 //!   `(A·Δu² + 2B·Δu·Δv + C·Δv²)/8`.
+//! - **Spindle sheet**: the torus's, with an apex corner's `u` read as
+//!   another corner's ([`cert_spindle`]): the apex is one point for
+//!   every `u`, so the triangle is the same in space, and its
+//!   parametric patch spans only the other corners' `u`.
 //! - **Plane**: affine — deviation 0, no certificate needed.
 //!
 //! Two additive slacks sit outside all bounds, documented in the crate
@@ -181,6 +185,30 @@ pub fn cert_torus(major: f64, minor: f64, uv: [[f64; 2]; 3]) -> f64 {
         u1 - u0,
         v1 - v0,
     )
+}
+
+/// Spindle-sheet certificate: [`cert_torus`] over the triangle with
+/// each apex corner's `u` read as a non-apex corner's. Every `u` at an
+/// apex (`v = ±v*`) maps to the one point there, so that triangle has
+/// the same three corners in space and a parametric patch on the sheet
+/// whose `u` extent is the non-apex corners' alone, as the cone's
+/// certificate drops its apex from `Δu`. Its `v` extent still reaches
+/// the apex. A triangle with fewer than two corners off an apex is no
+/// fan triangle, and certifies nothing (+∞).
+pub fn cert_spindle(major: f64, minor: f64, uv: [[f64; 2]; 3], apex: [bool; 3]) -> f64 {
+    let Some(u) = (0..3).find(|&i| !apex[i]).map(|i| uv[i][0]) else {
+        return f64::INFINITY;
+    };
+    if apex.iter().filter(|&&a| a).count() > 1 {
+        return f64::INFINITY;
+    }
+    let mut read = uv;
+    for (corner, &at) in read.iter_mut().zip(&apex) {
+        if at {
+            corner[0] = u;
+        }
+    }
+    cert_torus(major, minor, read)
 }
 
 /// The doubly-curved chord bound `(A·Δu² + 2B·Δu·Δv + C·Δv²)/8` on

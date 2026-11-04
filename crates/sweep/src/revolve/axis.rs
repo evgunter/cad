@@ -553,10 +553,8 @@ pub(super) fn classify_segment<T: Decide>(
             // circle clear of the axis sweeps a ring torus, one that
             // reaches it (a horn at zero) one sheet of a spindle torus,
             // the side of the axis the arc lies on, with `R = rc`.
-            if matches!(
-                classify(ClearanceDecision::ArcReach, Margin::of(rc - radius))?,
-                Sign::Positive
-            ) {
+            let reach = classify(ClearanceDecision::ArcReach, Margin::of(rc - radius))?;
+            if matches!(reach, Sign::Positive) {
                 return Ok(WallClass::Wall {
                     kind: WallKind::Torus {
                         center_sk: centre,
@@ -575,19 +573,19 @@ pub(super) fn classify_segment<T: Decide>(
             if matches!(interior, Sign::Negative) {
                 return Err(crosses());
             }
-            if va.pinned || vb.pinned {
-                return Err(RevolveError::SheetApex {
-                    loop_index,
-                    segment_index: s.canonical_segment,
-                });
-            }
-            if matches!(interior, Sign::Zero) {
+            if matches!(interior, Sign::Zero) && !(va.pinned || vb.pinned) {
                 return Err(crosses());
             }
+            // A reach decided zero is a horn, `R = r`: its one cusp is
+            // the centre's foot on the axis, where a circle a hair off
+            // tangency meets it. Read at `R = rc` a hair inside, the
+            // sheet's two apexes would part by `√(2r·|rc − r|)`, far
+            // past the band its reach was decided in.
+            let major = if matches!(reach, Sign::Zero) { radius } else { rc };
             Ok(WallClass::Wall {
                 kind: WallKind::Spindle {
                     center_sk: centre,
-                    major: rc,
+                    major,
                     minor: radius,
                 },
                 sense,

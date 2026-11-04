@@ -389,6 +389,7 @@ pub(super) fn closed_loop_turns<'a, T: Decide + 'a, const N: usize>(
         }
         let mut k = [0i64; N];
         for c in 0..N {
+            eprintln!("DBG loop_turns c={c} w={:?} lever={:?}", w[c], lever[c]);
             k[c] = loop_turns(w[c], lever[c], band)?;
             if k[c].abs() > 1 {
                 // Past one turn: refused as no boundary's.

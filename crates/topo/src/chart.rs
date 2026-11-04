@@ -190,8 +190,8 @@ impl<T: Decide> Chart<T> {
 impl Chart<f64> {
     /// The chart's singular points with their v values: the list
     /// [`geom_brep::chart_singularity::singular_points`] states (sphere
-    /// poles, cone apex, a spindle sheet's apexes at `v = ±v*`; empty
-    /// otherwise).
+    /// poles, cone apex, a spindle sheet's apexes at `v = ±v*`, a
+    /// horn's one cusp once; empty otherwise).
     pub fn poles(&self) -> Vec<(Point3<f64>, f64)> {
         use geom_brep::chart_singularity::Singularity;
         let v_star = || match self.kind {
@@ -203,7 +203,11 @@ impl Chart<f64> {
                 unreachable!("Chart::poles: only a spindle sheet has sheet apexes")
             }
         };
-        geom_brep::chart_singularity::singular_points(&self.inverse)
+        let mut points = geom_brep::chart_singularity::singular_points(&self.inverse);
+        // A horn's two apexes are its one cusp, at `v* = π`, where the
+        // sheet's latitude window reads it.
+        points.dedup_by(|b, a| a.1 == b.1);
+        points
             .into_iter()
             .map(|(which, p)| {
                 let v = match which {
