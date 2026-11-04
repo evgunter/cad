@@ -109,6 +109,18 @@ the pick dropping `ends`. isotail's
 `dm1-arc-rim-pick-reads-no-row-on-an-unnormalized-rational-span` is
 closed by the same fix.
 
+The same fix reaches a second case. A degree-1 loft whose narrow
+interior arc reaches its row refined, at uniform sub-arcs with end
+weights `1, (1 + w)/2, 1`, now lofts. Its pin
+`degree1_loft_slabs::an_interior_arc_refined_by_its_neighbours_refuses_typed`
+became `…_lofts`: every case builds and is at rest, and the first
+meshes to its integrated volume. A line rim on such a creased wall does
+not mesh, which predates this change (`[0, 1, 0]` meets it with no
+refined row). It is filed as
+`work/tess/a-line-rim-on-a-creased-loft-wall-does-not-mesh.md`, and
+isotail's `a-loft-whose-arc-bulge-varies-per-section-refuses-its-arc-rim`
+carries the note.
+
 **The loft: a repeated read.** `arc_rim` certified the picked row, and
 the mint's pass 2 (`certify_walked`) certified the same image over the
 same span again: the walk passes a derived image through unchanged.
