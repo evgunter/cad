@@ -178,3 +178,9 @@
   - **Caveat for PR 6491:** `meet`'s route reads the new hair pin at a rounding about 40× the hair.
   - A delta review goes to the original reviewer. (ONECOPY orchestrator)
 - 2026-11-04 — Dispatched `onecopy/p0-sheared-fillet` (cloud `session_013mPGJ41MUUAhMA5NUsRfC4`) on the sheared-fillet main red at 1e-12. Tier single FULL. The lane stops if the escalation is honest or the fix is a fork. (ONECOPY orchestrator)
+- 2026-11-04 — PR 6525 is at `3bfdc8f48`, with the gate green.
+  - **What landed:** the decision, plus a local `H`. The premise that `H` was posed locally was false. Its global charge, about 7.5e-13 at coordinates near 180, also made main's slow-set `leaning_prisms…` red at 1e-12, and that is now fixed too.
+  - **Tests:** no green→red. The needle, leaning prisms and the new order rows go red→green.
+  - **Rows filed:** `coplanar_ellipses`'s global level, the near-tangent tilt class, and the `rounding_charge` gate gap.
+  - **Not landed:** the far, thin oracle row. Its construction did not bite.
+  - **Next:** a delta review goes to the original reviewer. (ONECOPY orchestrator)
