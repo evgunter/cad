@@ -9162,9 +9162,7 @@ pub(crate) const POSE_LEVER: &str = "a carrier through a pole, the cone's apex o
 
 /// **Why D3's lane choice found no general image** for a carrier the
 /// chart's incidence test does not show off it
-/// ([`PcurveCertifyError::NoGeneralLane`]). A spline chart has no
-/// incidence test, so there the carrier is one that no exact class
-/// showed, whether or not it lies on the chart.
+/// ([`PcurveCertifyError::NoGeneralLane`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum LaneGap {
     /// No general lane is written for this (chart, carrier) pair
@@ -9328,7 +9326,9 @@ fn read_shown<T: Decide>(
 /// closed conic read over `[t0, t1]`, the edge, rather than over its
 /// whole turn. An arc on its face whose circle leaves the face past the
 /// arc's ends is on the face here. The planar tier reads an edge on its
-/// plane by it.
+/// plane by it. On a spline chart, a bounded patch, every carrier is read
+/// over the edge by the chart's control hulls (`spline_incidence`), the
+/// read `topo`'s spline-chart lane choices take before they end.
 ///
 /// The mint and the certification read a conic over its turn
 /// ([`read_incidence`]): read over each edge's span, every arc of one
@@ -9346,9 +9346,7 @@ pub fn read_edge_incidence<T: Decide>(
     surface: &Surface<T>,
     band: Band,
 ) -> Result<(), PcurveCertifyError> {
-    if matches!(surface, Surface::Nurbs(_) | Surface::Approx(_))
-        || carrier.kind() == geom::CurveKind::Nurbs
-    {
+    if surface.spline_chart().is_none() && carrier.kind() == geom::CurveKind::Nurbs {
         return read_incidence(carrier, t0, t1, surface, band);
     }
     incidence::incident(
@@ -11325,7 +11323,8 @@ mod incidence {
     /// ([`chart_incidence`]); on a cone it first decides its lowest point
     /// off the apex's height ([`cone_conic_incidence`]); a line is
     /// sampled over the placement's span, the only part of it the image
-    /// states.
+    /// states, and so is every carrier on a spline chart, a bounded patch
+    /// read by its control hulls (`spline_incidence`).
     ///
     /// # Errors
     ///
@@ -11375,6 +11374,31 @@ mod incidence {
         if super::mutants::skip_incidence() {
             return Ok(tested);
         }
+        // A spline chart is a bounded patch, so the read is the span's
+        // whatever the carrier ([`super::spline_incidence`]).
+        if let Some(chart) = surface.spline_chart() {
+            if surface.is_placeholder_chart() {
+                return Err(PcurveCertifyError::PlaceholderChart);
+            }
+            let name = match surface {
+                Surface::Approx(_) => "pcurve_approx_chart_incident",
+                _ => "pcurve_nurbs_chart_incident",
+            };
+            return match super::spline_incidence::spline_incidence(
+                name,
+                chart,
+                place.span,
+                |t| carrier.eval(t),
+                band,
+            )? {
+                Incidence::On => Ok(tested),
+                Incidence::Off(margin) => Err(OffChart(
+                    "the carrier's points are not on the spline chart (a sample's distance from \
+                     its control hulls is past the band)",
+                )
+                .with_margin(super::OffMargin::Past(margin), surface, carrier)),
+            };
+        }
         // Read in the chart's own frame, so a sample's distance carries
         // the rounding of the carrier's size, not of its placement.
         let anchored = anchored(carrier, surface, place.span);
@@ -11416,8 +11440,8 @@ mod incidence {
                 "the carrier's points are not on the plane",
             ),
             _ => unreachable!(
-                "incident: a spline chart has no closed-form mint, and a spline carrier takes \
-                 its own test (`net_incidence`)"
+                "incident: a spline carrier on an analytic chart takes its own test \
+                 (`net_incidence`)"
             ),
         };
         // A sheet's meridian circle leaves the sheet past its apexes, so
@@ -11792,6 +11816,7 @@ fn spiric_off_own_chart(why: &'static str) -> OffChart {
 // Check 4's per-arm lemma, swept, in a module of its own so the per-file
 // test gate can skip the sweep without skipping the deterministic rows.
 pub mod projected;
+mod spline_incidence;
 pub use projected::{FramedCarrier, ProjectedChart, ProjectedImage, SectorChannel};
 
 #[cfg(test)]

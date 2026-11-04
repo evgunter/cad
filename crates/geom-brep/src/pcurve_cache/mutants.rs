@@ -24,7 +24,7 @@ const NAME: Option<&str> = option_env!("PCERT_RADIAL_PAIR_MUTANT");
 
 /// Every site this crate's hooks name. topo's `chord_join` declares its
 /// own two (`topo-gate`, `topo-v-var`) under the same variable.
-pub(super) const SITES: [&str; 18] = [
+pub(super) const SITES: [&str; 19] = [
     "class-circle",
     "zero-winding",
     "torus-parallel",
@@ -43,6 +43,7 @@ pub(super) const SITES: [&str; 18] = [
     "skip-incidence",
     "radial-fold",
     "line-cylinder-ends",
+    "spline-floor-net",
 ];
 
 fn on(site: &str) -> bool {
@@ -184,6 +185,13 @@ fn the_named_mutant_is_a_site() {
 /// (its rows are `off_chart_class_rows`).
 pub(super) fn skip_incidence() -> bool {
     on("skip-incidence")
+}
+
+/// A spline chart's floor read as the nearest control point's distance,
+/// with no hull: a sample between control points reads off a patch it
+/// lies on (its rows are `spline_incidence_rows`).
+pub(super) fn spline_floor_net() -> bool {
+    on("spline-floor-net")
 }
 
 /// The cylinder arm's ruling reading folded again: an in-band reading
