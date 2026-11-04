@@ -579,8 +579,10 @@ fn thorn_and_corner(c: Point3<f64>, edges: [Vec3<f64>; 3]) -> (Body<f64>, Vertex
     };
     let faces: Vec<FaceKey> = body.faces().map(|(f, _)| f).collect();
     for f in faces {
-        let held: Vec<Point3<f64>> = face_cycles(&body, body.get_face(f).unwrap())
-            .flat_map(|cycle| cycle.unwrap())
+        let held: Vec<Point3<f64>> = body
+            .proven_face(f)
+            .cycles()
+            .flat_map(|(_, cycle)| cycle)
             .map(|he| at(&body, body.half_edges[he].start))
             .collect();
         let has = |q: Point3<f64>| held.iter().any(|&r| near(q, r));
