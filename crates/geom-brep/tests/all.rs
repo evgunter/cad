@@ -52,8 +52,6 @@
 // directory carrying a `mod.rs`.
 mod shared;
 
-#[path = "review_band_row_r2.rs"]
-mod review_band_row_r2;
 #[path = "a_blend_section_is_a_shared_row_of_its_bands.rs"]
 mod a_blend_section_is_a_shared_row_of_its_bands;
 #[path = "a_shared_row_is_certified_per_wall.rs"]
@@ -90,6 +88,8 @@ mod chart_singularity_locate;
 mod chart_singularity_sweep;
 #[path = "closed_form_limb2.rs"]
 mod closed_form_limb2;
+#[path = "review_band_row_r2.rs"]
+mod review_band_row_r2;
 
 #[path = "axis_rows_read_as_one_sum.rs"]
 mod axis_rows_read_as_one_sum;
