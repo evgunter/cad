@@ -34,6 +34,7 @@ crates/profile/src/sugar.rs	setback	1	user
 crates/step-import/src/normalize/singularity.rs	crossings	1	harmonic
 crates/sweep/src/blend/reach.rs	sheet_clip	1	turn
 crates/sweep/src/blend/surgery.rs	attach_contact	1	turn
+crates/sweep/src/revolve/axis.rs	turn_past	1	turn
 crates/topo/src/boolean/boxes.rs	sphere_window	1	chart
 crates/topo/src/boolean/boxes.rs	torus_rect_extent	2	chart
 crates/geom-brep/src/curve_face/circle_roots.rs	first_harmonic_root_directions	2	harmonic-cut

@@ -638,8 +638,9 @@ pub(crate) fn gap_is_noise(gap: f64, lever: f64, eps: Eps) -> bool {
 /// {1e-9, 1e-7, 1e-3}, identity and oblique placements — no junction
 /// ever landed at `0 < radial <= eps`. `split_edge`'s interiority gate
 /// is metred against the same band, so it will not drop a vertex
-/// within ~ε of an endpoint, and `revolve` refuses near-horn toroids
-/// at a certified bar. The route with NO such gate, and so the
+/// within ~ε of an endpoint, and `revolve` reads no cone apex within
+/// ε of the axis it does not place on it (a circle's near-horn band
+/// refuses as a sliver, and its zero builds a horn sheet, no cone). The route with NO such gate, and so the
 /// settling experiment nobody has run, is import: a STEP fixture
 /// stating a cone face whose generator is two collinear `EDGE_CURVE`s
 /// meeting within ε of the apex — the same door `split_oblique.step`
