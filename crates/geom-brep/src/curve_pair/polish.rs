@@ -44,7 +44,11 @@ pub(super) fn pair<T: Decide>(
 /// **A bracket with an infinite end has no middle**, and is kept whole:
 /// the step is then read from the whole enclosure, its metres are as
 /// wide, and the meters after the polish refuse on them. Poison has no
-/// bracket and is kept too.
+/// bracket and is kept too. A finite bracket whose width overflows (ends
+/// past `±9e307`) gives an infinite place, and needs no guard: the step
+/// read there is not finite, and the convergence meter
+/// (`curve_pair_pose_polish`) needs its metres in the zero band, which an
+/// infinite margin (definite) or a NaN one (indeterminate) never is.
 ///
 /// **A selection that moves with the inputs**, so at a `Dual` over an
 /// enclosure the place is the value channel's middle with the tangent

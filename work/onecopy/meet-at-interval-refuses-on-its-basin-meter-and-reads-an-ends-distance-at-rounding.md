@@ -6,7 +6,7 @@ status: dispatched
 opened: 2026-11-04
 priority: P1
 cost: M
-refs: [region-landings-read-a-leg-against-an-edge-by-hand-rows-beside-meet, curve-pair-polish-at-interval-reads-the-iterates-width]
+refs: [region-landings-read-a-leg-against-an-edge-by-hand-rows-beside-meet, curve-pair-polish-at-interval-reads-the-iterates-width, inline-bracket-midpoints-are-spelled-in-two-forms]
 branch: onecopy/meet-interval
 ---
 
@@ -109,14 +109,13 @@ link.
 **The precision pin, again.** The `2e-11` re-pose no longer guards the
 landing's precision branch (`sphere_region.rs`, `to_end`): with
 `to_end` always the half-width less the angle from the middle (M-a),
-the old pin goes red and the `2e-11` one stays green. PR 6516 adds
-`points_a_hair_past_the_escalation_off_a_lunes_pole_vertex_read_at_the_ends_precision`
-at `1.000_000_3e-11`, band `(1e-12, 1e-11)`. It is green at head and red
-under M-a (`bool_sphere_region_span` at `9.99956e-12`). It is `3e-18`
-past the escalation, below every coordinate rounding, so a chord to the
-end's point cannot decide it either: PR 6491's route through `meet` will
-meet it as it met the old pin. The `2e-11` pin is kept, as the property
-any route must decide.
+the old pin goes red and the `2e-11` one stays green. No row can guard
+it at an honest offset. Rows at `1e-11 + 1e-16` and `1e-11 + 3e-16` are
+green at head and green under M-a, and any offset small enough to read
+the two forms apart lies inside the end's own rounding (`1.22e-16`), so
+a row there pins that rounding, which Question 2 ruled coincidence. The
+branch's comment records this; the `2e-11` pin is kept (orchestrator's
+ruling, option (a)).
 
 **Still owed:**
 - `Span::new` evaluates both end points eagerly. That includes
@@ -127,9 +126,9 @@ any route must decide.
   the carrier's speed range eagerly, which costs more than two
   evaluations.
 - The transverse route's parallel straddle (n3 of the review).
-- The other two bracket midpoints, `geom_brep::krawczyk::midpoint` and
-  `pair_section/spline_implicit/sweep/critical.rs`'s `mid` (both
-  `½(lo + hi)`), are not moved onto `geom::bracket_mid`: on finite
-  brackets the forms differ only in the last bit, so moving them can
-  move `Interval` bits. That is separate work.
+- `geom_brep::krawczyk::midpoint` was `lo + (hi − lo)·0.5`, bitwise
+  `geom::bracket_mid`'s form, and now reads it. `pair_section/
+  spline_implicit/sweep/critical.rs`'s `mid` is `½(lo + hi)`, which
+  differs in the last bit, so it stays: it belongs to
+  `inline-bracket-midpoints-are-spelled-in-two-forms`.
 

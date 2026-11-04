@@ -1132,28 +1132,13 @@ fn points_of_the_other_half_read_off_a_face_holding_a_window_at_the_certified_sc
 /// the other ([`lune_pole_rows`]). Every leg from such a point meets the
 /// meridian edge again at its antipode, as far from the south pole, so
 /// each end's distance is read twice the escalation off it, past any
-/// rounding of the end's point: any reading of the end decides it.
+/// rounding of the end's point: any reading of the end decides it. A
+/// point at exactly the escalation width is no row: the meridian's span
+/// ends at `π` as an `f64`, whose point lies `1.2e-16` short of the
+/// pole, and a reading there is decided by that rounding.
 #[test]
 fn points_two_escalations_off_a_lunes_pole_vertex_read_on_their_side() {
     lune_pole_rows(2e-11);
-}
-
-/// **A point a hair past the escalation off a lune's pole vertex reads
-/// at the end's precision**: the rows of [`lune_pole_rows`] at
-/// `1.000_000_3e-11`, `3e-18` past the band's escalation `1e-11`. The
-/// meeting at the point's antipode is read against the meridian's end
-/// as the raw root less the end's parameter, a difference of two near
-/// numbers that keeps its relative precision
-/// (`topo/src/boolean/sphere_region.rs`, the landing's `to_end`), and
-/// decides. Read as the half-width less the angle from the middle, the
-/// distance carries the angles' rounding, `~4e-16`, and escalates on
-/// `bool_sphere_region_span`; so does a chord to the end's point, which
-/// lies `1.2e-16` short of the pole (the span ends at `π` as an `f64`).
-/// The band is kept at `(1e-12, 1e-11)` so that the hair is below every
-/// coordinate rounding and above none of the parameter's.
-#[test]
-fn points_a_hair_past_the_escalation_off_a_lunes_pole_vertex_read_at_the_ends_precision() {
-    lune_pole_rows(1.000_000_3e-11);
 }
 
 /// The 90° lune of a revolved unit ball (poles on `y`) and its 270°
