@@ -88,7 +88,7 @@ use crate::ssi::residual::ImplicitForm;
 mod critical;
 
 use critical::Jets;
-pub(in crate::pair_section) use critical::{Critical, Kind};
+pub(in crate::pair_section) use critical::{Critical, Kind, NODE_BOX, NodeFrame};
 
 /// **The partner the sweep reads `φ` of**: its form, a plane's read at
 /// its pivot.

@@ -101,6 +101,13 @@ struct Lane<'a> {
     /// a reading that marches meets.
     ctx: Result<MarchContext<2>, SsiError>,
     seed_floor: SweepFloor<UvRect>,
+    /// The node boxes a march ends on entering, by node
+    /// ([`ImplicitSection::with_criticals`]).
+    nodes: Vec<[[f64; 2]; 2]>,
+    /// The boxes of the decided critical points, nodes' and touches':
+    /// each proved to hold the one zero of `∇φ` in it, claimed as
+    /// regions by seeding and accounting.
+    claimed: Vec<UvRect>,
 }
 
 impl Lane<'_> {
@@ -116,6 +123,7 @@ impl Lane<'_> {
             ctx,
             &self.wall_op,
             self.wall.band(),
+            &self.nodes,
         ))
     }
 
@@ -259,6 +267,8 @@ impl<'a> ImplicitSection<'a> {
                 sys: ImplicitChartR2 { partner, wall },
                 ctx,
                 seed_floor,
+                nodes: Vec::new(),
+                claimed: Vec::new(),
             },
             pass: OnceCell::new(),
             banked: Banked::new(branch_chart_tubes),
@@ -322,6 +332,21 @@ impl<'a> ImplicitSection<'a> {
             pass: OnceCell::from(pass),
             ..self
         })
+    }
+
+    /// **The section with the classification's decided critical points
+    /// handed in** (C5): `nodes`, each node's box, which a march ends on
+    /// entering (C5's node end), indexed as the branches' node tips
+    /// ([`super::BranchTip::Node`]); and `claimed`, every decided point's
+    /// box, nodes' and touches', each holding the one zero of `∇φ` in
+    /// it, which seeding skips and accounting reads as a region.
+    pub(crate) fn with_criticals(mut self, nodes: &[UvRect], claimed: &[UvRect]) -> Self {
+        self.lane.nodes = nodes
+            .iter()
+            .map(|r| [[r.u.0, r.u.1], [r.v.0, r.v.1]])
+            .collect();
+        self.lane.claimed = claimed.to_vec();
+        self
     }
 
     /// The wall's chart enclosures, minted once for the section.
@@ -396,11 +421,13 @@ impl<'a> ImplicitSection<'a> {
             self.banked.bank(branch);
         }
         let states = seeds.iter().map(|&(u, v)| [u, v]);
-        self.banked.closed_loops(&ends, states, &pass.regions)?;
+        let regions: Vec<UvRect> = pass.regions.iter().chain(&lane.claimed).copied().collect();
+        let open = self.banked.open(&pass.crossings);
+        self.banked.closed_loops(&ends, states, &regions, &open)?;
 
         let tubes: Vec<UvRect> = self.banked.tubes.iter().flatten().copied().collect();
         let exhaustiveness = exhaust::account_chart_partner(
-            (&tubes, &pass.regions, &pass.clear),
+            (&tubes, &regions, &pass.clear),
             lane.wall.account_floor(),
             |cell| lane.excluded(cell),
         )?;

@@ -607,6 +607,25 @@ pub enum BranchEnd {
     /// Cut ends, on the ℝ³ lane: the trace reached the caller's slab at
     /// both ends, definitely or in the band.
     Cut,
+    /// Ends of which at least one is a node, on the 1×2 lane: the branch
+    /// runs from `from` to `to`, each a crossing of the wall's sides or
+    /// a node, entered at its box (C5's node end).
+    Node {
+        /// The tip it starts at.
+        from: BranchTip,
+        /// The tip it ends at.
+        to: BranchTip,
+    },
+}
+
+/// **One tip of a branch with a node end** ([`BranchEnd::Node`]).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum BranchTip {
+    /// A crossing of the wall's sides the boundary pass certified.
+    Rim(BoundaryPoint),
+    /// A node, by its index among the nodes the reading was handed: the
+    /// march ended on entering its box.
+    Node(usize),
 }
 
 pub use super::boundary::BoundaryPoint;
@@ -704,11 +723,15 @@ pub(crate) trait Exit<const M: usize, const N: usize, S: LocalSystem<M, N>> {
 /// A chart lane's exit: the knot rectangles of the state's chart
 /// coordinates from `first` on, left by a structure test (module docs).
 /// The NURBS × NURBS lane bounds all four ([`RectExit::PAIR`]), the 1×2
-/// lane the wall's two that are its whole state ([`RectExit::CHART`]).
+/// lane the wall's two that are its whole state ([`RectExit::chart_with`]).
 #[derive(Clone, Copy, Debug)]
-pub(crate) struct RectExit {
+pub(crate) struct RectExit<'a> {
     /// The first bounded coordinate.
     pub(crate) first: usize,
+    /// The node boxes, over the bounded coordinates `first` and
+    /// `first + 1`: a march ends on entering one ([`RectEnd::Node`]),
+    /// and no state inside one is in the domain.
+    pub(crate) nodes: &'a [[[f64; 2]; 2]],
 }
 
 /// How a march bounded by knot rectangles ended.
@@ -724,14 +747,45 @@ pub(crate) enum RectEnd<const N: usize> {
         /// settled, outside the rectangle.
         outside: [f64; N],
     },
+    /// Its step from its last state entered the box of node `node`.
+    Node {
+        /// The node's index among the exit's boxes.
+        node: usize,
+    },
 }
 
-impl RectExit {
+impl RectExit<'static> {
     /// The NURBS × NURBS lane's: both rectangles.
-    pub(crate) const PAIR: Self = Self { first: 0 };
-    /// The 1×2 residual × chart lane's: the wall's rectangle, the
-    /// state's only two coordinates.
-    pub(crate) const CHART: Self = Self { first: 0 };
+    pub(crate) const PAIR: Self = Self {
+        first: 0,
+        nodes: &[],
+    };
+}
+
+impl<'a> RectExit<'a> {
+    /// The 1×2 residual × chart lane's exit: the wall's rectangle, the
+    /// state's only two coordinates, and the node boxes `nodes`.
+    pub(crate) const fn chart_with(nodes: &'a [[[f64; 2]; 2]]) -> Self {
+        Self { first: 0, nodes }
+    }
+
+    /// The node whose box holds the state's bounded coordinates
+    /// `first` and `first + 1` (closed), if any.
+    pub(crate) fn node_at<const N: usize>(self, x: &[f64; N]) -> Option<usize> {
+        if self.first + 1 >= N {
+            return None;
+        }
+        let (u, v) = (x[self.first], x[self.first + 1]);
+        self.nodes
+            .iter()
+            .position(|[bu, bv]| u >= bu[0] && u <= bu[1] && v >= bv[0] && v <= bv[1])
+    }
+
+    /// Whether a state's bounded coordinates lie in their rectangles
+    /// and in no node box.
+    pub(crate) fn holds_domain<const N: usize>(self, x: &[f64; N], ctx: &MarchContext<N>) -> bool {
+        self.inside(x, ctx) && self.node_at(x).is_none()
+    }
 
     /// Whether a state's bounded coordinates lie in their rectangles
     /// (a structure test on the raw coordinates, C6's lane). An exit
@@ -747,7 +801,7 @@ impl RectExit {
     }
 }
 
-impl<const M: usize, const N: usize, S: SectionSystem<M, N>> Exit<M, N, S> for RectExit {
+impl<const M: usize, const N: usize, S: SectionSystem<M, N>> Exit<M, N, S> for RectExit<'_> {
     type End = RectEnd<N>;
     const CLOSED: RectEnd<N> = RectEnd::Closed;
 
@@ -763,7 +817,7 @@ impl<const M: usize, const N: usize, S: SectionSystem<M, N>> Exit<M, N, S> for R
         mode: StepperMode,
         _band: Band,
     ) -> Result<(), SsiError> {
-        if self.inside(x, ctx) {
+        if self.holds_domain(x, ctx) {
             Ok(())
         } else {
             Err(SsiError::SeedOffDomain {
@@ -782,14 +836,17 @@ impl<const M: usize, const N: usize, S: SectionSystem<M, N>> Exit<M, N, S> for R
         ctx: &MarchContext<N>,
         _band: Band,
     ) -> Result<Option<RectEnd<N>>, SsiError> {
-        Ok((!self.inside(&next, ctx)).then_some(RectEnd::Left {
-            inside,
-            outside: next,
-        }))
+        if !self.inside(&next, ctx) {
+            return Ok(Some(RectEnd::Left {
+                inside,
+                outside: next,
+            }));
+        }
+        Ok(self.node_at(&next).map(|node| RectEnd::Node { node }))
     }
 
     fn holds(&self, x: &[f64; N], ctx: &MarchContext<N>) -> bool {
-        self.inside(x, ctx)
+        self.holds_domain(x, ctx)
     }
 
     fn unsettled(
@@ -798,10 +855,13 @@ impl<const M: usize, const N: usize, S: SectionSystem<M, N>> Exit<M, N, S> for R
         predicted: [f64; N],
         ctx: &MarchContext<N>,
     ) -> Option<RectEnd<N>> {
-        (!self.inside(&predicted, ctx)).then_some(RectEnd::Left {
-            inside,
-            outside: predicted,
-        })
+        if !self.inside(&predicted, ctx) {
+            return Some(RectEnd::Left {
+                inside,
+                outside: predicted,
+            });
+        }
+        self.node_at(&predicted).map(|node| RectEnd::Node { node })
     }
 }
 
@@ -2629,7 +2689,7 @@ pub(crate) mod tests {
         let seed = [s, 0.5];
         let trace = march(
             &sys,
-            &RectExit::CHART,
+            &RectExit::chart_with(&[]),
             seed,
             ctx,
             StepperMode::Realized,

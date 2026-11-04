@@ -67,11 +67,77 @@ pub(in crate::pair_section) struct Critical {
     pub at: (f64, f64),
     /// The box in which `∇φ` has this one zero.
     pub cell: UvRect,
+    /// The first box the Krawczyk operator proved holds this one zero of
+    /// `∇φ` (`K` strictly inside it), the widest such: the region the
+    /// point claims, which seeding skips and accounting reads, and, at a
+    /// node, the box a march ends on entering (C5's node end).
+    pub region: UvRect,
     /// A touch or a node.
     pub kind: Kind,
     /// The value's margin, decided zero.
     pub margin: MarginDiag,
+    /// A node's frame, read off the Hessian enclosure that decided it
+    /// ([`NodeFrame`]); `None` at a touch.
+    pub node: Option<NodeFrame>,
 }
+
+/// **A node as the value lists it** (C5), read off `φ`'s Hessian `H` over
+/// the final box `b`, the enclosure that decided the node (`det H < 0`):
+/// its point `S(b)`, the wall's unit normal `n = S_u × S_v` there, the
+/// two null lines of `H` carried to the wall's tangent plane, the second
+/// turned from the first counterclockwise about `n` by less than a half
+/// turn, and whether the wall lies on `n`'s side of the partner in the
+/// sector between the first line's and the second line's positive rays.
+///
+/// In the chart, `dᵀHd = a·du² + 2h·du·dv + c·dv²` vanishes on two
+/// directions, written homogeneously so no division reads a straddling
+/// entry: with `q = −(h + s·√(h² − ac))`, `s` the sign of `h`'s middle,
+/// they are `(c, q)` and `(q, a)` (their slopes `q/c` and `a/q`, the
+/// quadratic's two roots), each nonzero where `q` is certified off zero.
+/// Each is carried to the tangent plane as `S_u·du + S_v·dv`. The turn
+/// of the two about `n`, the sign of `H` on the sector's bisector, and
+/// the sign of `∇f·n` (which side of the partner `f > 0` is along `n`)
+/// are each read as the sign of an enclosure over `b`, as `det H` is;
+/// an enclosure that straddles zero leaves the node undecided and the
+/// sweep declines. In the sector, a wall point stands `δ` off the partner
+/// along `n` and `φ ≈ δ·(∇f·n)`, so the wall is on `n`'s side where `H`'s
+/// sign and `∇f·n`'s agree.
+#[derive(Clone, Copy, Debug)]
+pub(in crate::pair_section) struct NodeFrame {
+    /// The node, `S(b)`'s middle.
+    pub point: geom_core::Point3<f64>,
+    /// The wall's unit normal there.
+    pub normal: Vec3<f64>,
+    /// The two null lines, unit, in the wall's tangent plane.
+    pub lines: [Vec3<f64>; 2],
+    /// Whether the wall lies on `normal`'s side of the partner in sector
+    /// 0, from `+lines[0]` to `+lines[1]`.
+    pub wall_above: bool,
+    /// The widest coordinate of `S(b)`, in metres: the node is placed
+    /// within the band where this is within its zero ([`NODE_BOX`]).
+    pub width: f64,
+}
+
+impl PartialEq for NodeFrame {
+    /// Bit for bit.
+    fn eq(&self, other: &Self) -> bool {
+        let bits = |f: &Self| {
+            let [l0, l1] = f.lines;
+            [
+                f.point.x, f.point.y, f.point.z, f.normal.x, f.normal.y, f.normal.z, l0.x, l0.y,
+                l0.z, l1.x, l1.y, l1.z,
+            ]
+            .map(f64::to_bits)
+        };
+        bits(self) == bits(other)
+            && self.wall_above == other.wall_above
+            && self.width.to_bits() == other.width.to_bits()
+    }
+}
+
+/// Why a node's frame is not read: its point not placed within the band
+/// (C5: "placed … or enclosed alone in a certified box").
+pub(in crate::pair_section) const NODE_BOX: &str = "spline_node_box";
 
 /// The wall's chart, read in interval arithmetic: its jet over a box.
 pub(super) struct Jets {
@@ -242,20 +308,20 @@ fn krawczyk(jets: &Jets, phi: Phi<'_>, x: [Interval; 2]) -> Option<([Interval; 2
 /// `∇φ` is continuous.
 pub(super) fn decide(jets: &Jets, phi: Phi<'_>, x: UvRect, band: Band) -> Option<Critical> {
     let mut b = [range(x.u)?, range(x.v)?];
-    let mut proved = false;
+    let mut region: Option<[Interval; 2]> = None;
     for _ in 0..KRAWCZYK_ROUNDS {
         let (next, inside) = krawczyk(jets, phi, b)?;
         let narrower = next[0].hi() - next[0].lo() < b[0].hi() - b[0].lo()
             || next[1].hi() - next[1].lo() < b[1].hi() - b[1].lo();
+        if inside && region.is_none() {
+            region = Some(b);
+        }
         b = next;
-        proved |= inside;
         if !narrower {
             break;
         }
     }
-    if !proved {
-        return None;
-    }
+    let region = region?;
     let at = read(jets, phi, b[0], b[1]);
     let det = at.hessian[0][0] * at.hessian[1][1] - at.hessian[0][1] * at.hessian[1][0];
     if !det.is_certified() {
@@ -271,16 +337,103 @@ pub(super) fn decide(jets: &Jets, phi: Phi<'_>, x: UvRect, band: Band) -> Option
     if !at.value.is_certified() {
         return None;
     }
+    let rect = |b: [Interval; 2]| UvRect {
+        u: (b[0].lo(), b[0].hi()),
+        v: (b[1].lo(), b[1].hi()),
+    };
     match decide_magnitude_reported("spline_critical_value", Margin::of(at.ceiling), band) {
-        Ok((Magnitude::Zero, margin)) => Some(Critical {
-            at: (mid(b[0]), mid(b[1])),
-            cell: UvRect {
-                u: (b[0].lo(), b[0].hi()),
-                v: (b[1].lo(), b[1].hi()),
-            },
-            kind,
-            margin,
-        }),
+        Ok((Magnitude::Zero, margin)) => {
+            let node = match kind {
+                Kind::Touch => None,
+                Kind::Node => Some(node_frame(jets, phi, b, at.hessian)?),
+            };
+            Some(Critical {
+                at: (mid(b[0]), mid(b[1])),
+                cell: rect(b),
+                region: rect(region),
+                kind,
+                margin,
+                node,
+            })
+        }
         Ok((Magnitude::Positive, _)) | Err(_) => None,
     }
+}
+
+/// The certified sign of an enclosure: `Some(true)` positive, `None`
+/// where it straddles zero or is refused.
+fn sign(i: Interval) -> Option<bool> {
+    if !i.is_certified() {
+        return None;
+    }
+    if i.lo() > 0.0 {
+        Some(true)
+    } else if i.hi() < 0.0 {
+        Some(false)
+    } else {
+        None
+    }
+}
+
+/// **A node's frame** ([`NodeFrame`]) over the final box `b`, from the
+/// Hessian enclosure `h` that decided it; `None` where any sign it reads
+/// straddles zero.
+fn node_frame(
+    jets: &Jets,
+    phi: Phi<'_>,
+    b: [Interval; 2],
+    h: [[Interval; 2]; 2],
+) -> Option<NodeFrame> {
+    let jet = jets.net.ders(b[0], b[1]);
+    let (su, sv) = (jet.du, jet.dv);
+    let n = su.cross(sv);
+    let (a, hh, c) = (h[0][0], h[0][1], h[1][1]);
+    let root = Certification::sqrt(hh.sqr() - a * c);
+    let s = if mid(hh) >= 0.0 {
+        Interval::point(1.0)
+    } else {
+        Interval::point(-1.0)
+    };
+    let q = Interval::point(0.0) - (hh + s * root);
+    sign(q)?;
+    let chart = [[c, q], [q, a]];
+    let norm = |w: Vec3<Interval>| Certification::sqrt(w.x.sqr() + w.y.sqr() + w.z.sqr());
+    let world = chart.map(|[du, dv]| su * du + sv * dv);
+    let length = world.map(norm);
+    if !length.iter().all(|l| sign(*l) == Some(true)) {
+        return None;
+    }
+    let unit = [world[0] / length[0], world[1] / length[1]];
+    // Order the lines so the second turns from the first counterclockwise
+    // about `n` by less than a half turn.
+    let turn = sign(unit[0].cross(unit[1]).dot(n))?;
+    let (first, second) = if turn { (0, 1) } else { (1, 0) };
+    // `H` on the sector's bisector, in the chart.
+    let d = [
+        chart[first][0] / length[first] + chart[second][0] / length[second],
+        chart[first][1] / length[first] + chart[second][1] / length[second],
+    ];
+    let on_bisector = a * d[0].sqr() + Interval::point(2.0) * hh * d[0] * d[1] + c * d[1].sqr();
+    let sector = sign(on_bisector)?;
+    let box3 = crate::ssi::enclose::Box3 {
+        x: jet.point.x,
+        y: jet.point.y,
+        z: jet.point.z,
+    };
+    let along = sign(phi.gradient(phi.framed(box3)).dot(n))?;
+    let point = geom_core::Point3::new(mid(jet.point.x), mid(jet.point.y), mid(jet.point.z));
+    let f64_unit = |w: Vec3<Interval>| {
+        let v = Vec3::new(mid(w.x), mid(w.y), mid(w.z));
+        v * (1.0 / v.norm())
+    };
+    Some(NodeFrame {
+        point,
+        normal: f64_unit(n),
+        lines: [f64_unit(unit[first]), f64_unit(unit[second])],
+        wall_above: sector == along,
+        width: [jet.point.x, jet.point.y, jet.point.z]
+            .map(|i| i.hi() - i.lo())
+            .into_iter()
+            .fold(0.0, f64::max),
+    })
 }

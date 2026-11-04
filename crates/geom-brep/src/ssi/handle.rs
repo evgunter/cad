@@ -32,7 +32,8 @@ use super::ends::Ends;
 use super::exhaust::UvRect;
 use super::four::Box4;
 use super::march::{
-    BranchEnd, RectEnd, StepperMode, decide_transversality, domain_margin, march, newton_refine,
+    BranchEnd, BranchTip, RectEnd, StepperMode, decide_transversality, domain_margin, march,
+    newton_refine,
 };
 use super::system::SectionSystem;
 use super::{SsiBranch, SsiError};
@@ -118,7 +119,7 @@ where
         let mode = StepperMode::Realized;
         let x = newton_refine(self.sys, start, self.ctx.tol)
             .ok_or(SsiError::SeedRefinementFailed { mode: mode.name() })?;
-        if !self.exit.inside(&x, &self.ctx) {
+        if !self.exit.holds_domain(&x, &self.ctx) {
             return Err(SsiError::SeedOffDomain {
                 mode: mode.name(),
                 margin: domain_margin(&x, &self.ctx, self.sys, &x),
@@ -209,9 +210,13 @@ impl<T: Copy> Banked<T> {
         let ended: Vec<_> = self
             .branches
             .iter()
-            .filter_map(|b| match b.end {
-                BranchEnd::Rim { from, to } => Some([from, to]),
-                _ => None,
+            .flat_map(|b| match b.end {
+                BranchEnd::Rim { from, to } => [Some(from), Some(to)],
+                BranchEnd::Node { from, to } => [from, to].map(|t| match t {
+                    BranchTip::Rim(at) => Some(at),
+                    BranchTip::Node(_) => None,
+                }),
+                BranchEnd::Closed | BranchEnd::Cut => [None, None],
             })
             .flatten()
             .collect();
@@ -222,13 +227,16 @@ impl<T: Copy> Banked<T> {
             .collect()
     }
 
-    /// **The closed loops** from the subdivision's `seeds`: a seed whose
-    /// settled state a tube or one of `also` already holds is skipped,
-    /// any other is marched, and a march that closes is fitted,
-    /// certified and banked. A seed that will not settle inside the
-    /// rectangles is no branch; one that settles on an open branch
-    /// reaches the boundary, where the branch was traced from its
-    /// crossings.
+    /// **The closed loops, and the arcs between nodes,** from the
+    /// subdivision's `seeds`: a seed whose settled state a tube or one of
+    /// `also` already holds is skipped, any other is marched, and a march
+    /// that closes is fitted, certified and banked. A march that enters a
+    /// node's box lies on an arc with a node end that no crossing traced
+    /// (between two nodes, or from a node back to it): it is traced both
+    /// ways through the seed ([`Ends::through_seed`], ending at the
+    /// `crossings` or the nodes) and banked. A seed that will not settle
+    /// inside the rectangles is no branch; one whose march leaves the
+    /// rectangle settles on an open branch traced from its crossings.
     ///
     /// # Errors
     ///
@@ -241,6 +249,7 @@ impl<T: Copy> Banked<T> {
         ends: &Ends<'_, S, M, N>,
         seeds: impl IntoIterator<Item = [f64; N]>,
         also: &[T],
+        crossings: &[Crossing<[f64; N]>],
     ) -> Result<(), SsiError>
     where
         S: SectionSystem<M, N>,
@@ -273,11 +282,18 @@ impl<T: Copy> Banked<T> {
                     continue;
                 }
             };
-            let RectEnd::Closed = trace.end else {
-                continue;
-            };
-            let branch = ends.finish(&trace.states, BranchEnd::Closed)?;
-            self.bank(branch);
+            match trace.end {
+                RectEnd::Closed => {
+                    let branch = ends.finish(&trace.states, BranchEnd::Closed)?;
+                    self.bank(branch);
+                }
+                RectEnd::Node { .. } => {
+                    if let Err(e) = self.through(ends, landed, crossings) {
+                        refused.push((landed, e));
+                    }
+                }
+                RectEnd::Left { .. } => {}
+            }
         }
         match refused.into_iter().find(|(x, _)| !held(self, x)) {
             Some((_, e)) => Err(e),

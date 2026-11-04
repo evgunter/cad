@@ -969,6 +969,39 @@ pub struct NodeSet {
     pub winds: [bool; 2],
 }
 
+/// **The node-joined sets of `listed`** ([`NodeSet`]): arcs joined where
+/// they share a node, each set claiming `winds`.
+pub(super) fn node_joined<T: Real>(
+    listed: &[SectionComponent<T>],
+    nodes: usize,
+    winds: [bool; 2],
+) -> Vec<NodeSet> {
+    let ends = |c: &SectionComponent<T>| match c.shape {
+        ComponentShape::Open { ends } => ends.nodes.nodes(),
+        ComponentShape::Loop | ComponentShape::Point => [None, None],
+    };
+    let mut sets: Vec<NodeSet> = Vec::new();
+    for node in 0..nodes {
+        let arcs: Vec<usize> = (0..listed.len())
+            .filter(|&i| ends(&listed[i]).contains(&Some(node)))
+            .collect();
+        if arcs.is_empty() {
+            continue;
+        }
+        // Merge every set already holding one of these arcs.
+        let (mut joined, rest): (Vec<NodeSet>, Vec<NodeSet>) = sets
+            .into_iter()
+            .partition(|set| set.arcs.iter().any(|a| arcs.contains(a)));
+        let mut all: Vec<usize> = joined.drain(..).flat_map(|set| set.arcs).collect();
+        all.extend(arcs);
+        all.sort_unstable();
+        all.dedup();
+        sets = rest;
+        sets.push(NodeSet { arcs: all, winds });
+    }
+    sets
+}
+
 /// **The pose a section was built over**, one per pair it serves.
 #[derive(Clone, Debug)]
 pub enum PairPose<T: Real> {
@@ -1865,9 +1898,9 @@ impl<T: Decide> FittedCarrier<T> {
                     "the march left the ball's box, which holds the whole section",
                 ));
             }
-            (BranchEnd::Rim { .. }, _) => {
+            (BranchEnd::Rim { .. } | BranchEnd::Node { .. }, _) => {
                 return Err(CarryError::Desync(
-                    "an ℝ³ march ended on a chart's side, which it does not trace",
+                    "an ℝ³ march ended on a chart's side or at a node, which it does not trace",
                 ));
             }
         };

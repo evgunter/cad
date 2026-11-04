@@ -43,7 +43,8 @@ use geom_core::{Band, Margin, Point2, Point3};
 
 use super::boundary::Crossing;
 use super::march::{
-    BranchEnd, MarchContext, RectEnd, RectExit, StepperMode, decide_transversality, march,
+    BranchEnd, BranchTip, MarchContext, RectEnd, RectExit, StepperMode, decide_transversality,
+    march,
 };
 use super::refine::refine_by_certificate;
 use super::section::{BandVerdict, band_verdict};
@@ -52,6 +53,15 @@ use super::{
     BranchBound, FittedBranch, SsiBranch, SsiError, SsiOperand, certify, fit_branch, seam_tol,
 };
 
+/// Where a march from a crossing ended ([`Ends::march_from`]).
+#[derive(Clone, Copy, Debug)]
+enum Far {
+    /// At the crossing of this index.
+    Crossing(usize),
+    /// On entering the box of this node.
+    Node(usize),
+}
+
 /// What the branches between known ends read, minted once per call,
 /// over the lane's system `S` of `M` equations in `N` unknowns.
 pub(crate) struct Ends<'a, S, const M: usize, const N: usize> {
@@ -59,8 +69,9 @@ pub(crate) struct Ends<'a, S, const M: usize, const N: usize> {
     pub sys: &'a S,
     /// The march's context, the caller's feature extent among it.
     pub ctx: MarchContext<N>,
-    /// The rectangles the march is bounded by.
-    pub exit: RectExit,
+    /// The rectangles the march is bounded by, and the node boxes it
+    /// ends on entering.
+    pub exit: RectExit<'a>,
     /// The operands the certificate reads.
     pub operands: Operands<'a>,
     /// The run band.
@@ -254,7 +265,7 @@ fn inwardness<const N: usize>(
     x: &[f64; N],
     d: &[f64; N],
     ctx: &MarchContext<N>,
-    exit: RectExit,
+    exit: RectExit<'_>,
 ) -> f64 {
     (exit.first..N)
         .map(|i| {
@@ -274,7 +285,7 @@ fn inwardness<const N: usize>(
 fn tangent<const M: usize, const N: usize, S: LocalSystem<M, N>>(
     sys: &S,
     x: &[f64; N],
-    (ctx, exit): (&MarchContext<N>, RectExit),
+    (ctx, exit): (&MarchContext<N>, RectExit<'_>),
     into: bool,
 ) -> [f64; N] {
     let d = Svd::<M, N>::new(sys.jacobian(x)).null_direction();
@@ -305,17 +316,19 @@ impl<'a> Ends<'a, ParametricPairR4<'a>, 3, 4> {
 
 impl<'a> Ends<'a, ImplicitChartR2<'a>, 1, 2> {
     /// The ends' reader for one residual × NURBS call: the march bounded
-    /// by the wall's rectangle, the state's only coordinates.
+    /// by the wall's rectangle, the state's only coordinates, and ended
+    /// on entering any of the node boxes `nodes`.
     pub(crate) fn implicit(
         sys: &'a ImplicitChartR2<'a>,
         ctx: MarchContext<2>,
         wall: &'a SsiOperand<'a, f64>,
         band: Band,
+        nodes: &'a [[[f64; 2]; 2]],
     ) -> Self {
         Self {
             sys,
             ctx,
-            exit: RectExit::CHART,
+            exit: RectExit::chart_with(nodes),
             operands: Operands::Implicit {
                 partner: sys.partner,
                 wall,
@@ -364,7 +377,9 @@ impl<const M: usize, const N: usize, S: SectionSystem<M, N>> Ends<'_, S, M, N> {
                 }
                 Err(hermite) => match self.marched(a, crossings, &used) {
                     Ok((b, branch)) => {
-                        used[b] = true;
+                        if let Some(b) = b {
+                            used[b] = true;
+                        }
                         branch
                     }
                     Err(march) => return Err(neither(hermite, march, near, self.band)),
@@ -376,29 +391,45 @@ impl<const M: usize, const N: usize, S: SectionSystem<M, N>> Ends<'_, S, M, N> {
     }
 
     /// The marched candidate from crossing `a`: its far crossing's
-    /// index, and the branch fitted and certified.
+    /// index (none where it ends at a node), and the branch fitted and
+    /// certified.
     fn marched(
         &self,
         a: Crossing<[f64; N]>,
         crossings: &[Crossing<[f64; N]>],
         used: &[bool],
-    ) -> Result<(usize, SsiBranch), SsiError> {
-        let (b, states) = self.march_from(a, crossings, used)?;
-        let end = BranchEnd::Rim {
-            from: a.at,
-            to: crossings[b].at,
+    ) -> Result<(Option<usize>, SsiBranch), SsiError> {
+        let (far, states) = self.march_from(a, crossings, used)?;
+        let end = match far {
+            Far::Crossing(b) => BranchEnd::Rim {
+                from: a.at,
+                to: crossings[b].at,
+            },
+            Far::Node(k) => BranchEnd::Node {
+                from: BranchTip::Rim(a.at),
+                to: BranchTip::Node(k),
+            },
         };
-        Ok((b, self.finish(&states, end)?))
+        let branch = self.finish(&states, end)?;
+        // A node end uses no crossing: the caller marks `a` alone.
+        Ok((
+            match far {
+                Far::Crossing(b) => Some(b),
+                Far::Node(_) => None,
+            },
+            branch,
+        ))
     }
 
     /// The march from crossing `a`, inward, to the crossing on the side
-    /// it leaves: that crossing's index, and the states.
+    /// it leaves, or to the node whose box it enters: which, and the
+    /// states.
     fn march_from(
         &self,
         a: Crossing<[f64; N]>,
         crossings: &[Crossing<[f64; N]>],
         used: &[bool],
-    ) -> Result<(usize, Vec<[f64; N]>), SsiError> {
+    ) -> Result<(Far, Vec<[f64; N]>), SsiError> {
         let d = Svd::<M, N>::new(self.sys.jacobian(&a.state)).null_direction();
         let direction = if inwardness(&a.state, &d, &self.ctx, self.exit) >= 0.0 {
             1.0
@@ -414,15 +445,17 @@ impl<const M: usize, const N: usize, S: SectionSystem<M, N>> Ends<'_, S, M, N> {
             direction,
             self.band,
         )?;
-        let RectEnd::Left { inside, outside } = trace.end else {
+        let (inside, outside) = match trace.end {
+            RectEnd::Left { inside, outside } => (inside, outside),
+            RectEnd::Node { node, .. } => return Ok((Far::Node(node), trace.states)),
             // A march from the wall's boundary that comes back to its
             // start without leaving: no crossing ends it.
-            return Err(SsiError::CrossingUnmatched { from: Some(a.at) });
+            RectEnd::Closed => return Err(SsiError::CrossingUnmatched { from: Some(a.at) }),
         };
         let b = self.match_exit(Some(a), inside, outside, crossings, used)?;
         let mut states = trace.states;
         close_at(self.sys, &mut states, crossings[b].state);
-        Ok((b, states))
+        Ok((Far::Crossing(b), states))
     }
 
     /// The unused crossing on a side the step from `inside` to
@@ -482,8 +515,8 @@ impl<const M: usize, const N: usize, S: SectionSystem<M, N>> Ends<'_, S, M, N> {
 
     /// **The branch through an interior `seed`**: a loop where the march
     /// closes; otherwise marched both ways, each half ending at the
-    /// crossing on the side it leaves. The states, and how the branch
-    /// ends.
+    /// crossing on the side it leaves or at the node whose box it
+    /// enters. The states, and how the branch ends.
     ///
     /// # Errors
     ///
@@ -505,35 +538,34 @@ impl<const M: usize, const N: usize, S: SectionSystem<M, N>> Ends<'_, S, M, N> {
             )
         };
         let fwd = run(1.0, self.ctx)?;
-        let RectEnd::Left {
-            inside: f_in,
-            outside: f_out,
-        } = fwd.end
-        else {
+        if let RectEnd::Closed = fwd.end {
             return Ok((fwd.states, BranchEnd::Closed));
-        };
+        }
         let bwd = run(-1.0, self.ctx.rest(&fwd))?;
-        let RectEnd::Left {
-            inside: b_in,
-            outside: b_out,
-        } = bwd.end
-        else {
-            return Err(SsiError::CrossingUnmatched { from: None });
-        };
         let mut used = vec![false; crossings.len()];
-        let to = self.match_exit(None, f_in, f_out, crossings, &used)?;
-        used[to] = true;
-        let from = self.match_exit(None, b_in, b_out, crossings, &used)?;
-        let mut back = bwd.states;
-        close_at(self.sys, &mut back, crossings[from].state);
-        back.reverse();
+        let mut tip =
+            |end: RectEnd<N>, states: &mut Vec<[f64; N]>| -> Result<BranchTip, SsiError> {
+                match end {
+                    RectEnd::Left { inside, outside } => {
+                        let c = self.match_exit(None, inside, outside, crossings, &used)?;
+                        used[c] = true;
+                        close_at(self.sys, states, crossings[c].state);
+                        Ok(BranchTip::Rim(crossings[c].at))
+                    }
+                    RectEnd::Node { node, .. } => Ok(BranchTip::Node(node)),
+                    RectEnd::Closed => Err(SsiError::CrossingUnmatched { from: None }),
+                }
+            };
         let mut forth = fwd.states;
-        close_at(self.sys, &mut forth, crossings[to].state);
+        let to = tip(fwd.end, &mut forth)?;
+        let mut back = bwd.states;
+        let from = tip(bwd.end, &mut back)?;
+        back.reverse();
         let mut states = back;
         states.extend_from_slice(&forth[1..]);
-        let end = BranchEnd::Rim {
-            from: crossings[from].at,
-            to: crossings[to].at,
+        let end = match (from, to) {
+            (BranchTip::Rim(from), BranchTip::Rim(to)) => BranchEnd::Rim { from, to },
+            (from, to) => BranchEnd::Node { from, to },
         };
         Ok((states, end))
     }
