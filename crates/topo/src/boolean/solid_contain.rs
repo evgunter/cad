@@ -3568,9 +3568,14 @@ fn wall_crosses_by_turn<T: Decide>(
             return Ok(None);
         };
         let off = match *curve.carrier() {
-            geom::Curve3::Line(geom::Line { dir, .. }) => {
+            geom::Curve3::Line(geom::Line { origin: o, dir }) => {
                 let (t0, t1) = curve.params();
-                (dir / dir.norm()).cross(axis).norm() * ((t1 - t0) * dir.norm()).abs()
+                let start = geom::Line {
+                    origin: o + dir * t0,
+                    dir,
+                };
+                geom_brep::ruling_miss(&start, (T::zero(), t1 - t0), geom_brep::Ruling::Axis(axis))
+                    .value()
             }
             geom::Curve3::Circle(geom::Circle {
                 frame:
