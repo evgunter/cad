@@ -501,3 +501,12 @@ and bodies unchanged. No orchestrator yet.
   - **Timing:** unchanged; certificates dominate, so the march was not the cost.
   - **Mutants:** m8 survives, equivalent at 2R.
   - **Review:** a single full review is dispatched to the cloud, asked to check the shared change and the caps hardest.
+- 2026-11-04 10:00 — **PR 6479 fix pass accepted.** All six must-fix items are done and every mutant is killed:
+  - one plane home: limb 3, the side readers and the sweep read `ImplicitForm`;
+  - the km frontier is pinned and its issue corrected to P2;
+  - `Slab` labelled by lane;
+  - the pivot-padding killer row;
+  - the weakened rows re-pinned;
+  - rustdoc links.
+
+  The review row is the last commit (`8f4f30f`, tally 0; the push went through on the second try after a GitHub 500). The PR merges on green.
