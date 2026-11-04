@@ -83,8 +83,8 @@ use geom_core::{
     Vec3,
 };
 
-use crate::certify::{CERT_SAMPLES, CertCheck, recourse, schedule_fraction};
-use crate::recourse::{ReadAt, Refused, RefusedArm};
+use crate::certify::{CERT_SAMPLES, CertCheck, schedule_fraction};
+use crate::recourse::{Decision, ReadAt, Refused, RefusedArm};
 use crate::ssi::enclose::CellGrid;
 use crate::ssi::{
     ChartSpeedRefusal, OneArcRefusal, PointLever, SsiError, SsiLimb, SsiOperand, SsiTube,
@@ -381,11 +381,9 @@ pub(crate) const PCURVE_FIT_REFUSAL: &str = "the chart image could not be interp
      schedule's fixed, strictly ascending parameters the interpolation refuses only a foot it \
      cannot take (a non-finite one) or a collocation system it cannot solve";
 
-/// The one recourse for a carrier whose parameter domain its chart
-/// image cannot be expressed on ([`CarrierDomainRefusal`]), read by the
-/// lane's refusal and by `topo`'s at-rest classifier alike.
-pub const CARRIER_DOMAIN_RECOURSE: &str = "Recourse: give the curve a parameter range of moderate \
-     width near zero, such as 0 to 1; an affine reparameterization moves no point of it";
+pub use crate::recourse::{
+    CARRIER_DOMAIN_RECOURSE, KERNEL_LIMIT_EXTENT_FACTOR, KERNEL_LIMIT_ROUNDING_FACTOR,
+};
 
 /// The chart image could not be re-expressed on the carrier's own
 /// parameter domain `[lo, hi]`: the domain door
@@ -497,82 +495,6 @@ impl core::fmt::Display for CarrierDomainRefusal {
     }
 }
 
-/// **The decision a lane refusal is a refused arm of** (D4 ¶1 (i)): the
-/// exhaustive table [`PlaneNurbsRefusal::ending`] and
-/// [`AnalyticRung3Refusal::ending`] both read, so that a new arm names
-/// its decision before it compiles. Where the refusal is one another door
-/// also reads, it ends by that door's home: the SSI door's
-/// ([`SsiError::ending`]) for a refusal the lane lifts from it, the
-/// pcurve door's ([`crate::pcurve_cache::FittedEnding`],
-/// `pcurve_cache::Lever`) for the image producer's own.
-enum LaneDecision<'a> {
-    /// A certification check of this door, on the arm it refused.
-    Check(CertCheck, RefusedArm<'a>),
-    /// A certificate limb the SSI door decides, escalated there: that
-    /// door's undecided sentence ([`crate::ssi::SsiDecision`]).
-    SsiUndecided(crate::ssi::SsiDecision, &'a Indeterminate),
-    /// The SSI door's one-arc proof, read as a stored edge's
-    /// ([`OneArcRefusal::ending`]).
-    OneArc(OneArcRefusal),
-    /// The SSI door's refusal the lane carries: that door's ending of it.
-    Ssi(SsiError),
-    /// The image producer's own refusal, as the pcurve door ends it.
-    Fitted(crate::pcurve_cache::FittedEnding),
-    /// A lever on the input no margin reads, the pcurve door's.
-    Lever(crate::pcurve_cache::Lever),
-    /// A capability gap of the rung-3 certificate with no other door's
-    /// twin (D3): "not yet", never a defect and never a tolerance.
-    NotYet,
-    /// Limb 2's kernel limit, whose story is read off its own data.
-    KernelLimit {
-        /// The certified bound.
-        bound: f64,
-        /// The carrier's own enclosure width there.
-        width: f64,
-        /// The edge's extent.
-        extent: f64,
-    },
-}
-
-impl<'a> LaneDecision<'a> {
-    /// The ending this decision gives its refusal, read at `at`.
-    fn ending(self, at: ReadAt) -> String {
-        match self {
-            Self::Check(check, arm) => recourse(check, arm, at),
-            Self::SsiUndecided(decision, cause) => decision.ending(cause, at),
-            Self::OneArc(cause) => cause.ending(crate::ssi::OneArcDoor::AtRest, at),
-            Self::Ssi(e) => e.ending(at),
-            Self::Fitted(ending) => ending.ending(at),
-            Self::Lever(lever) => lever.recourse(at),
-            Self::NotYet => crate::recourse::not_yet(RefusedArm::SignCertain(None), at),
-            Self::KernelLimit {
-                bound,
-                width,
-                extent,
-            } => kernel_limit_ending(bound, width, extent),
-        }
-    }
-
-    /// The certification check this decision is a refused arm of, where
-    /// it is one: a check of this door, or a certificate limb's check for
-    /// a limb escalated at the SSI door.
-    fn check(&self) -> Option<(CertCheck, RefusedArm<'a>)> {
-        match *self {
-            Self::Check(check, arm) => Some((check, arm)),
-            Self::SsiUndecided(crate::ssi::SsiDecision::Limb(limb), cause) => {
-                Some((limb.check(), RefusedArm::Undecided(cause)))
-            }
-            Self::SsiUndecided(..)
-            | Self::OneArc(_)
-            | Self::Ssi(_)
-            | Self::Fitted(_)
-            | Self::Lever(_)
-            | Self::NotYet
-            | Self::KernelLimit { .. } => None,
-        }
-    }
-}
-
 /// **A refusal of the uniqueness tube a lane carries whole**: the SSI
 /// door's own arm ([`SsiError::TubeLadderEmpty`],
 /// [`SsiError::TubeProbeSilent`], [`SsiError::TubeDegenerate`]), copied
@@ -632,11 +554,12 @@ impl core::fmt::Display for TubeRefusal {
 
 impl PlaneNurbsRefusal {
     /// The ending this refusal's decision gives it, read at `at`
-    /// ([`Self::decided`]): a check's refused arm by its routing
-    /// ([`recourse`]), a certificate limb's escalation and the one-arc
-    /// proof as the SSI door ends them, a lane's capability gap "not
-    /// yet", the image producer's own refusal the door's defect, and a
-    /// lever on the input its own.
+    /// ([`Self::decided`], through the one decision table's
+    /// [`Decision::ending`]): a check's refused arm by its routing
+    /// ([`CertCheck::recourse`]), a certificate limb's escalation and
+    /// the one-arc proof as the SSI door ends them, a lane's capability
+    /// gap "not yet", the image producer's own refusal the door's
+    /// defect, and a lever on the input its own.
     ///
     /// `Display` renders the payload alone, as [`crate::CertifyError`]'s
     /// does, and the door that reports the refusal appends this, or
@@ -662,55 +585,54 @@ impl PlaneNurbsRefusal {
     /// (D4 ¶1 (i)): the exhaustive match a new arm names its decision in
     /// before it compiles, which [`Self::ending`] and [`Self::decision`]
     /// both read.
-    fn decided(&self) -> LaneDecision<'_> {
-        use crate::pcurve_cache::{FittedEnding, Lever};
+    pub(crate) fn decided(&self) -> Decision<'_, CertCheck> {
+        use crate::pcurve_cache::FittedEnding;
+        use crate::recourse::Lever;
         let definite = RefusedArm::SignCertain(None);
         match self {
             Self::NotTransverse { verdict, .. } => {
-                LaneDecision::Check(CertCheck::Transversality, verdict.arm())
+                Decision::Check(CertCheck::Transversality, verdict.arm())
             }
             Self::TransversalityEscalated { cause, .. } => {
-                LaneDecision::Check(CertCheck::Transversality, RefusedArm::Undecided(cause))
+                Decision::Check(CertCheck::Transversality, RefusedArm::Undecided(cause))
             }
             Self::Limb { limb, margin, .. } => {
-                LaneDecision::Check(limb.check(), RefusedArm::SignCertain(Some(*margin)))
+                Decision::Check(limb.check(), RefusedArm::SignCertain(Some(*margin)))
             }
             // The tube's margin is a lower bound on the lane's
             // transversality over the chain (`ssi_tube_transversality`),
             // and this refusal is its decided verdict.
             Self::TubeStraddles { verdict, .. } => {
-                LaneDecision::Check(CertCheck::TransversalityTube, verdict.arm())
+                Decision::Check(CertCheck::TransversalityTube, verdict.arm())
             }
             Self::ArcRim(refusal) => {
                 let (check, arm) = refusal.decision();
-                LaneDecision::Check(check, arm)
+                Decision::Check(check, arm)
             }
-            Self::ReportedTransversalityPoisoned(cause) => LaneDecision::Check(
+            Self::ReportedTransversalityPoisoned(cause) => Decision::Check(
                 CertCheck::PlaneNurbsReportedTransversality,
                 RefusedArm::Undecided(cause),
             ),
-            Self::ChartSpeed(r) => LaneDecision::Check(r.check(), definite),
+            Self::ChartSpeed(r) => Decision::Check(r.check(), definite),
             Self::Escalated { limb, cause } => {
-                LaneDecision::SsiUndecided(crate::ssi::SsiDecision::Limb(*limb), cause)
+                Decision::SsiUndecided(crate::ssi::SsiDecision::Limb(*limb), cause)
             }
-            Self::TubeNotOneArc { cause, .. } => LaneDecision::OneArc(*cause),
+            Self::TubeNotOneArc { cause, .. } => Decision::OneArc(*cause),
             // A foot that would not settle, at the schedule or at limb 1,
             // is the image producer's and the SSI door's one fact, ended
             // from the SSI door's home through the pcurve door's.
-            Self::FootPointInconclusive { .. } => LaneDecision::Fitted(FittedEnding::FootUnsettled),
-            Self::PcurveFit => LaneDecision::Fitted(FittedEnding::Defect),
-            Self::CarrierDomain(_) => LaneDecision::Lever(Lever::CarrierDomain),
-            Self::PlaceholderWall => LaneDecision::Lever(Lever::Placeholder),
+            Self::FootPointInconclusive { .. } => Decision::Fitted(FittedEnding::FootUnsettled),
+            Self::PcurveFit => Decision::Fitted(FittedEnding::Defect),
+            Self::CarrierDomain(_) => Decision::Lever(Lever::CarrierDomain),
+            Self::PlaceholderWall => Decision::Lever(Lever::Placeholder),
             // The SSI door's refusals the lane carries, ended there.
-            Self::CarrierEnclosure(r) => LaneDecision::Ssi(SsiError::CarrierEnclosure(*r)),
-            Self::Unsupported { what } => {
-                LaneDecision::Ssi(SsiError::UnsupportedCertificate { what })
-            }
-            Self::WrongLane { expected } => LaneDecision::Ssi(SsiError::WrongLane { expected }),
-            Self::Tube(t) => LaneDecision::Ssi(t.ssi()),
+            Self::CarrierEnclosure(r) => Decision::Ssi(SsiError::CarrierEnclosure(*r)),
+            Self::Unsupported { what } => Decision::Ssi(SsiError::UnsupportedCertificate { what }),
+            Self::WrongLane { expected } => Decision::Ssi(SsiError::WrongLane { expected }),
+            Self::Tube(t) => Decision::Ssi(t.ssi()),
             // An SSI refusal no producer of this lane returns: the lane's
             // own inconsistency, the door's defect.
-            Self::OutsideVocabulary => LaneDecision::Fitted(FittedEnding::Defect),
+            Self::OutsideVocabulary => Decision::Fitted(FittedEnding::Defect),
         }
     }
 
@@ -2615,23 +2537,23 @@ impl AnalyticRung3Refusal {
     /// (D4 ¶1 (i)): the exhaustive match a new arm names its decision in
     /// before it compiles, which [`Self::ending`] and [`Self::decision`]
     /// both read.
-    fn decided(&self) -> LaneDecision<'_> {
+    pub(crate) fn decided(&self) -> Decision<'_, CertCheck> {
         match self {
-            Self::Limb { margin, .. } => LaneDecision::Check(
+            Self::Limb { margin, .. } => Decision::Check(
                 Rung3Limb::HullValue.check(),
                 RefusedArm::SignCertain(Some(*margin)),
             ),
             Self::Escalated { limb, cause, .. } => {
-                LaneDecision::Check(limb.check(), RefusedArm::Undecided(cause))
+                Decision::Check(limb.check(), RefusedArm::Undecided(cause))
             }
             Self::Stalled { cause, .. } => {
-                LaneDecision::Check(Rung3Limb::HullSup.check(), RefusedArm::Undecided(cause))
+                Decision::Check(Rung3Limb::HullSup.check(), RefusedArm::Undecided(cause))
             }
             Self::TubeStraddles { verdict, .. } => {
-                LaneDecision::Check(CertCheck::TransversalityTube, verdict.arm())
+                Decision::Check(CertCheck::TransversalityTube, verdict.arm())
             }
             // The one-arc proof is the SSI door's own decision.
-            Self::TubeNotOneArc { cause, .. } => LaneDecision::OneArc(*cause),
+            Self::TubeNotOneArc { cause, .. } => Decision::OneArc(*cause),
             // The kernel's limit is no decision's refused arm about the
             // input: its own story, read off its data.
             Self::KernelLimit {
@@ -2639,26 +2561,22 @@ impl AnalyticRung3Refusal {
                 width,
                 extent,
                 ..
-            } => LaneDecision::KernelLimit {
+            } => Decision::KernelLimit {
                 bound: *bound,
                 width: *width,
                 extent: *extent,
             },
             // The SSI door's refusals the certificate carries, ended there.
-            Self::CarrierEnclosure(r) => LaneDecision::Ssi(SsiError::CarrierEnclosure(*r)),
-            Self::Unsupported { what } => {
-                LaneDecision::Ssi(SsiError::UnsupportedCertificate { what })
-            }
-            Self::Tube(t) => LaneDecision::Ssi(t.ssi()),
-            Self::OutsideVocabulary => {
-                LaneDecision::Fitted(crate::pcurve_cache::FittedEnding::Defect)
-            }
+            Self::CarrierEnclosure(r) => Decision::Ssi(SsiError::CarrierEnclosure(*r)),
+            Self::Unsupported { what } => Decision::Ssi(SsiError::UnsupportedCertificate { what }),
+            Self::Tube(t) => Decision::Ssi(t.ssi()),
+            Self::OutsideVocabulary => Decision::Fitted(crate::pcurve_cache::FittedEnding::Defect),
             // Capability gaps with no other door's twin: a composite of
             // the operand no bound covers, and a pose the tube has no
             // gradient enclosure for. Whether the `PcurveCertifyError` the
             // offset bound flattens should keep its own decision is
             // `wrappers-that-flatten-a-pcurve-certify-error-end-it-by-their-own-decision`.
-            Self::NoOffsetBound { .. } | Self::NoTubeEnclosure { .. } => LaneDecision::NotYet,
+            Self::NoOffsetBound { .. } | Self::NoTubeEnclosure { .. } => Decision::NotYet,
         }
     }
 
@@ -2761,48 +2679,6 @@ impl core::fmt::Display for AnalyticRung3Refusal {
                 "the uniqueness tube refused for a reason outside this certificate's vocabulary",
             ),
         }
-    }
-}
-
-/// How far above the carrier's own enclosure width limb 2's bound may lie
-/// and still read as that width ([`AnalyticRung3Refusal::KernelLimit`]'s
-/// ending). An order of magnitude: the composite's arithmetic adds a few
-/// roundings at the net's scale to the net's own.
-pub const KERNEL_LIMIT_ROUNDING_FACTOR: f64 = 16.0;
-
-/// How far above `extent · 2⁻⁵²` the carrier's own enclosure width may
-/// lie and still be its extent's rounding
-/// ([`AnalyticRung3Refusal::KernelLimit`]'s ending): past it the width
-/// is set by something other than the edge's length — its distance from
-/// the operand's origin, or the width of its inputs' own enclosures —
-/// and the story does not say which.
-pub const KERNEL_LIMIT_EXTENT_FACTOR: f64 = 64.0;
-
-/// **The one story of limb 2's kernel limit** ([tolerance.recourse] (i),
-/// (iv)), its recourse read off the data: a bound within
-/// [`KERNEL_LIMIT_ROUNDING_FACTOR`] of the carrier's own rounding `width`
-/// is that width; where that width is the edge's own extent's rounding
-/// (within [`KERNEL_LIMIT_EXTENT_FACTOR`] of `extent · 2⁻⁵²`), the extent
-/// is the limit at this tolerance and shorter edges are the lever. A
-/// wider enclosure, or a bound far above it, has a cause the story
-/// cannot know from these numbers, so it claims none: it names
-/// loosening as the last resort and the kernel bug it may be.
-fn kernel_limit_ending(bound: f64, width: f64, extent: f64) -> String {
-    let rounding = bound <= KERNEL_LIMIT_ROUNDING_FACTOR * width;
-    if rounding && width <= KERNEL_LIMIT_EXTENT_FACTOR * extent * f64::EPSILON {
-        "The bound is the curve's own rounding at its length, too long to certify at this \
-         tolerance. Recourse: split the edge into shorter edges"
-            .to_owned()
-    } else if rounding {
-        format!(
-            "The bound is the curve's own enclosure width, wider than its length's rounding. {}",
-            geom_core::KERNEL_LIMIT_RECOURSE
-        )
-    } else {
-        format!(
-            "The bound lies far above the curve's own enclosure width. {}",
-            geom_core::KERNEL_LIMIT_RECOURSE
-        )
     }
 }
 

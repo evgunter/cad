@@ -89,3 +89,8 @@
   - The reviewers' rows are adopted. Filed `lathe/a-sphere-class-arc-centre-just-across-the-axis-refuses-at-the-pcurve-mint` (P3).
   - The row is `docs/dual-review-log/rows/PR-6486.md` (fair pair, no MAJOR).
   - **Stage 1 is closed**: the football with conical ends builds. Stage 2 (the apex as a pole, which lands the football itself) is next on the parent row.
+- 2026-11-04 — **PR 6486 merged; stage 1 closed.** **Dispatched stage 2** as `the-spindle-sheets-apex-is-a-pole` (H, dual): the apex as a pole, which lands the football, the apple and the horn's needle tip. It carries the stage 1 reviews' two rules: every guard ships with a row that goes red without it, and the census sweeps every family the code joins.
+- 2026-11-04 — **PR 6478's fix pass is taken** (head `7473e98c0b`, read by the orchestrator: `chart_term_pad`). The bilateral MAJOR is padded and guarded; 14 of 15 mutants are red, and the 15th survives by design, stated at the claim site. The merged pins now read the face's kind, which caught one wrong pin. The duplication folded. The row is `docs/dual-review-log/rows/PR-6478.md` (fair pair).
+  - **Filed by the lane:** the region term omits junction connectors, which is pre-existing in the harmonic lane too (P2); the projected edge cost weights are unmeasured (P3).
+  - **The P1 cost row is re-measured in release:** 5.5–11.9 s per op. The march is the cost now.
+  - **Stage 1 closed.** The orchestrator branch merge brought main's code in (PR 6486's `quad_lane` arm, auto-merged), so the head re-earns CI before merging.
