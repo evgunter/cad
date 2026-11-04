@@ -52,12 +52,17 @@
 //!    carries, reads the same bracket with no `Bounds` bound to match.
 //!    One such read is a selection that moves with the inputs, #874's
 //!    class, outside the locally-constant condition a `Selection` line
-//!    rests on: `geom_brep::curve_pair::polish`'s `place` steps the
-//!    closest pair's polish from an enclosure's middle
-//!    (`geom::bracket_mid`), so it drops the tangent at `Dual<Interval>`
-//!    and is a literal at `Sym<Interval>`, as `geom::projection_policy`'s
-//!    `mid` freeze below does. The walk cannot see it, so it has no
-//!    roster line; it is recorded here instead.
+//!    rests on: `geom_brep::curve_pair::polish`'s `pair` runs the
+//!    closest pair's Gauss–Newton search as `f64` structure on bracket
+//!    midpoints (`geom::bracket_mid`) and enters the pair through
+//!    `from_computed`, so the pair carries no tangent of its own at a
+//!    `Dual` and is a literal at `Sym`, as `geom::projection_policy`'s
+//!    `mid` freeze below does. Its disposition is that freeze's
+//!    `Selection`: the pair is a place, and what a consumer reads there
+//!    is evaluated at `T`. No consumer reads the pair's tangent today:
+//!    the only `Dual` bodies are gate fixtures that never reach
+//!    `curve_pair::meet`. The walk cannot see it, so it has no roster
+//!    line; it is recorded here instead.
 //!
 //! Closing (2) and (3) for the tree needs a walk of every generic
 //! parameter's RESOLVED bound set — a `rustc` driver or a

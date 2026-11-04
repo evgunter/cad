@@ -190,33 +190,92 @@
 //! when they pass within the band without touching: the meeting lies
 //! `h/σ` along the curve, `h` their distance and `σ` the sine of the
 //! curve's angle to the plane. So a crossing (or a touch) of the other's
-//! plane only starts the candidate: it is polished by Gauss–Newton to the
-//! two carriers' closest pair, and that pair is read. Every point of the
-//! curve within the band's escalation `e` of the other carrier is within
-//! `e` of the other's plane, so it lies on the arc about a crossing or a
-//! touch where the height is within `e`: `ℓ`, read off the harmonic (or
-//! `e/σ` on a line). The pair the polish is after lies within
-//! `2(ℓ + e)` of where it starts, on either carrier. Three meters guard it,
-//! each refusing [`Unsettled::Meter`] unless definite:
+//! plane only starts the candidate: it is polished by Gauss–Newton
+//! ([`super::polish`], an `f64` structure search) toward the two
+//! carriers' closest pair, and that pair is read with what it states of
+//! its window. Every point of the curve within the band's escalation `e`
+//! of the other carrier is within `e` of the other's plane, so it lies on
+//! the arc about a crossing or a touch where the height is within `e`:
+//! `ℓ`, read off the harmonic (or `e/σ` on a line). The *window* is the
+//! pairs of the two carriers within `region = 2(ℓ + e)` of where the
+//! polish starts, on either carrier: every pair within `e` of each other
+//! is in it. Nothing reads whether the polish converged: the pair is a
+//! place, and what it says of the window is a bound.
 //!
-//! - **its basin** (`curve_pair_pose_basin`): over that reach each
-//!   tangent turns by at most its carrier's curvature times the reach, so
-//!   `sin φ − 2(κ₁ + κ₂)·2(ℓ + e)`, `φ` the angle between the tangents
-//!   where the polish starts, levered as the tilt is, must read positive:
-//!   the tangents then keep at least half the angle between them,
-//!   the closest pair is the one stationary pair there, and the polish
-//!   contracts toward it;
-//! - **its travel** (`curve_pair_pose_travel`): the polished pair lies
-//!   within twice the region of where it started, as the basin says;
-//! - **its convergence** (`curve_pair_pose_polish`): the polish's last
-//!   step moves the pair within the band's zero.
+//! # The gap's lower bound
 //!
-//! **Each step is read from a point** ([`super::polish`]): at an
-//! enclosing scalar the iterate's middle, entered as a point, so the
-//! step and the metres it moves are that point's, not a step from every
-//! point of the iterate's box. The basin is read where the polish
-//! starts, and the travel and convergence meters at the pair the last
-//! step ends on, as every polished pair is then read on both spans.
+//! At the polished pair, `p` on the first carrier and `q` on the second,
+//! with unit tangents `u` and `v`, write `w = q − p`, `n̂ = u×v/|u×v|`, and
+//! the *slack* `σ_w = |w − n̂(n̂·w)|`, the part of the gap a move along the
+//! carriers could still take up. Two premises, stated where they are
+//! read:
+//!
+//! - **(P1) the span.** Every pair of the window lies within `span`
+//!   metres of `(p, q)`, along each carrier: `span = region + travel`,
+//!   `travel` the polish's parameter run at the carrier's greatest speed
+//!   (the larger of the two).
+//! - **(P2) the curvature.** `K = κ₁ + κ₂` bounds the carriers'
+//!   curvatures over every arc within `span` of the start
+//!   (`Side::curvature_near`).
+//!
+//! By arc length from the pair, a point of each carrier is `A = p + uα +
+//! r_A` and `B = q + vβ + r_B`, with `|r_A| ≤ κ₁α²/2` and `|r_B| ≤ κ₂β²/2`
+//! (a curve's departure from its tangent line). With `m = max(|α|, |β|)`,
+//! `A − B = −w + uα − vβ + r` and `|r| ≤ K·m²/2`:
+//!
+//! - **across**, `u` and `v` are square to `n̂`, so
+//!   `|A − B| ≥ |(A − B)·n̂| ≥ |w·n̂| − K·m²/2`;
+//! - **along**, the least of `|uα − vβ|` over `β` is `|α|·sin φ`, and over
+//!   `α` it is `|β|·sin φ`, so `|uα − vβ| ≥ sin φ·m` and
+//!   `|A − B| ≥ s·m − σ_w − K·m²/2` for any `s ≤ sin φ`.
+//!
+//! **The move.** A pair within `e` therefore has `f(m) < 0`, where
+//! `f(m) = s·m − K·m²/2 − (σ_w + e)`. Where `D = s² − 2K(σ_w + e)` is
+//! positive (`curve_pair_pose_move`, a proof's inequality), `f` is
+//! positive between its roots `m∓ = (s ∓ √D)/K`, so `m < m₋` or
+//! `m > m₊`. **The basin** (`curve_pair_pose_basin`) is the premise that
+//! puts the window below `m₊`: `s − K·span > 0`, since then
+//! `span < s/K ≤ m₊`, and by (P1) `m ≤ span`. Every pair of the window
+//! within `e` lies within `m₋ = 2(σ_w + e)/(s + √D)` of `(p, q)` along
+//! both carriers (written so a pair of lines, `K = 0`, reads
+//! `(σ_w + e)/s`). `s` is the sine's lower bound over the window,
+//! `sin φ − K·span`, so the basin reads `sin φ − 2K·span > 0`, the
+//! tangents keeping at least half their angle; the travel the polish
+//! made is folded into `span` rather than metered on its own.
+//!
+//! **The floor and the reach.** Such a pair is at least
+//! `floor = |w·n̂| − K·m₋²/2` apart, the gap across less the *bend* over
+//! the move. So:
+//!
+//! - **a floor past the band** (`curve_pair_pose_closest`) contradicts any
+//!   pair within `e`: the window holds no meeting;
+//! - **the reach** `m₋` places every such pair: on the first carrier
+//!   within `m₋` of `p`, on the second within `m₋` of `q`. Where `p` reads
+//!   past a span and its chord to each of the span's ends exceeds `m₋`
+//!   past the band (`curve_pair_span_past_reach`), the arc of `m₋` either
+//!   side of `p` reaches neither end (a chord is at most its arc), so no
+//!   pair of the window lies on that span ([`Span::past_by`]); `q` on the
+//!   second span alike.
+//!
+//! Where `D` is not proved positive the bound is undecided: no floor, and
+//! no reach short of the carriers. **The composition is the reader's**
+//! (`Found::read`), on the candidate's [`WindowBound`]: a floor past the
+//! band is no meeting; otherwise the point is read on both spans, and On
+//! there is a meeting, with no premise on the polish. An Off prunes only
+//! where a span is cleared past the reach; otherwise it is a straddle of
+//! the floor against the gap at the pair (`curve_pair_meet_window`), or
+//! the reach's own (`curve_pair_span_past_reach_straddle`), and
+//! escalates. A location along the carriers enters only to prune, and is
+//! read in metres against the band; where it is ill-conditioned (a small
+//! `s`, a wide enclosure) the reach is long and the Off escalates, which
+//! is the safe direction. A candidate whose point speaks for its whole
+//! window, an end, a witness or an exact root, states no window, and its
+//! read is its point's alone, as before windows were stated.
+//!
+//! The basin and the move are proofs' inequalities, read exactly
+//! ([`geom_core::k_stats::prove`]); a basin not proved refuses
+//! [`Unsettled::Meter`] on its row. The floor, the reach and the gap are
+//! metres of gap, read against the band. All are logged.
 //!
 //! # The spans' ends, and deflation
 //!
@@ -257,11 +316,11 @@
 //! A conic's plane root whose window holds a found meeting is read
 //! instead (`window`): where the window certainly holds no meeting but
 //! the found ones, the root is not polished. Every other plane root is
-//! polished and metered as it would be with no meeting found; a candidate
-//! it gives nearer a found meeting than the escalation is that meeting
-//! again (C5's ring rule), and a meter that cannot place one refuses. The coplanar subdivisions divide nothing
-//! out: their roots nearer a found meeting than the escalation are not
-//! read again.
+//! polished and bounded as it would be with no meeting found; a
+//! candidate it gives nearer a found meeting than the escalation is that
+//! meeting again (C5's ring rule), and a basin that is not proved
+//! refuses. The coplanar subdivisions divide nothing out: their roots
+//! nearer a found meeting than the escalation are not read again.
 //!
 //! # The band
 //!
@@ -273,7 +332,7 @@
 //! margin (`curve_pair_pose_parallel`), its gap (`curve_pair_pose_gap`)
 //! and its tilt over the overlap (`curve_pair_pose_tilt`), the polish's
 //! clearance (`curve_pair_pose_clear`), and the like in the window's
-//! readings and the branch compares. A meter's escalation refuses
+//! readings and the branch compares. A basin that is not proved refuses
 //! [`Unsettled::Meter`]. No escalation prunes a candidate.
 
 mod window;

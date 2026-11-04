@@ -2268,12 +2268,14 @@ fn a_spline_with_a_corner_meets_a_line_past_it() {
 
 /// **Circles on one sphere meet at the certified scalar where they meet
 /// at `f64`**: the pair of [`circles_on_one_sphere_meet_on_both_at_any_tilt`]
-/// at its widest tilt, lifted to point intervals, at the band
-/// `(1e-12, 1e-11)`. A polish stepped from a whole enclosure grows by
-/// the box's spread each step, and a step solved through its normal
-/// equations reads the rounding of the pair's gap over the squared sine
-/// between the tangents: either puts the last step wider than the zero
-/// band, and the convergence meter refused.
+/// at every tilt `f64` decides above the basin floor (`1e-2`, `1e-3`,
+/// `3e-4`), lifted to point intervals, at the band `(1e-12, 1e-11)`. A
+/// polish stepped from a whole enclosure grows by the box's spread each
+/// step; and a meter that compares where along the carriers the pair
+/// sits with the zero band reads the data's spread over the sine between
+/// the tangents. Main refused tilt `1e-3` on its convergence meter
+/// (`curve_pair_pose_polish`, step `[0, 2e-12]`); the window's bound
+/// reads metres of gap, and decides every tilt here.
 #[test]
 fn circles_on_one_sphere_meet_at_the_certified_scalar() {
     use geom_core::{Interval, Real};

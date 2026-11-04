@@ -33,9 +33,15 @@
 //! within the band. A pair that
 //! stops is polished toward the meeting by Gauss–Newton, each carrier's
 //! foot of the other's point is polished, and the point is read on both
-//! spans ([`Span::contact`]). Every piece the walk does not clear ends at
-//! such a pair, so no meeting is left unread; an escalated clearing keeps
-//! its piece. Every point read is read under the reader's stretch rule
+//! spans ([`Span::contact`]) with the window the pieces make: the pair's
+//! gap bound and reach (`pose`'s module docs, "The gap's lower bound"),
+//! every pair of the pieces within the pieces' reach and the polish's
+//! run of it, and the curvature at most the carriers' bounds. An Off at
+//! the polished pair prunes only where that bound says the pieces hold
+//! no meeting of the spans; where its premise is not proved
+//! (`curve_pair_walk_basin`) the window is undecided and the Off
+//! escalates. Every piece the walk does not clear ends at such a pair,
+//! so no meeting is left unread; an escalated clearing keeps its piece. Every point read is read under the reader's stretch rule
 //! (the parent module's docs). A walk past
 //! [`geom_core::bisect::PIECE_BUDGET`] refuses typed
 //! ([`Unsettled::Exhausted`]).
