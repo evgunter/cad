@@ -801,7 +801,7 @@ fn a_cone_sections_coefficients_stay_within_their_charge() {
     for i in 0..600 {
         let alpha = match s.below(3) {
             0 => s.log_uniform(1e-4, 0.05),
-            1 => s.range(1.52, 1.5707),
+            1 => s.range(1.52, core::f64::consts::FRAC_PI_2 - 1e-4),
             _ => s.range(0.05, 1.5),
         };
         let far = if s.below(2) == 0 {
