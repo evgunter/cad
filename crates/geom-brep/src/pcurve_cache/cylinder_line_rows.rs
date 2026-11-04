@@ -8,7 +8,7 @@
 //!
 //! Built with `PCERT_RADIAL_PAIR_MUTANT` naming `radial-fold` (an in-band
 //! ruling folded onto the meridian form), the in-band rows refuse; naming
-//! `line-cylinder-ends` (the incidence sup read at the segment's ends
+//! `segment-form-ends` (the incidence sup read at the segment's ends
 //! only), the chord row refuses.
 use core::f64::consts::PI;
 
@@ -322,7 +322,7 @@ fn a_ruling_in_band_names_no_family_undecided() {
 /// [`projected::line_off_cylinder_sup`] covers the segment's densely
 /// sampled distance from the cylinder at `f64` and at `Interval`, on a
 /// chord dipping toward the axis (its ends on the wall, its middle
-/// `R(1 − cos a)` inside: red under `line-cylinder-ends`), a chord
+/// `R(1 − cos a)` inside: red under `segment-form-ends`), a chord
 /// outside, a ruling off the wall (tight there), and a segment crossing
 /// the wall.
 #[test]

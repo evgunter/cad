@@ -1585,6 +1585,24 @@ Flagged, NOT fixed here (dispositions):
   Their K samples still reach the sink under the two names above. Not a
   `decide_flagged` site; `LEDGER_FLAGGED_SITES` does not move.
 
+- **F33** (added by ONECOPY's meet-pose unit) `curve_pair_pose_across`
+  — `geom-brep/src/curve_pair/pose.rs` `conic_conic`: which of two
+  conics, each crossing the other's plane, is read across it. The
+  difference of the two `(A² − c₀²)/r²` is dimensionless, the squared
+  sine of each conic's crossing for a circle; it has no length door,
+  so it is read bare, at `Band::least`. It picks between two sound
+  readings of one meeting, each of which decides or escalates on its
+  own rows. What keeps it off the logged doors is that no outcome of it
+  is a reading: an undecided difference (two conics crossing alike, an
+  enclosure straddling the tie) reads the first, and either reading is
+  sound there, so a narrower reading of it changes no answer the
+  caller certifies. Logged, every undecided pick at `Interval` would
+  hand the driver an escalation for a choice that decides nothing.
+
+  **Carried as `k_stats::check_unlogged(.., "F33")`**. Its K samples
+  still reach the sink under `curve_pair_pose_across`. Not a
+  `decide_flagged` site; `LEDGER_FLAGGED_SITES` does not move.
+
 **Every `props/curved.rs` row above is cited BY TARGET NAME, not by
 line** (S176(a)). The line numbers they carried were written against a
 2026-08 tree and had already rotted at #877's merge base; #877 moved

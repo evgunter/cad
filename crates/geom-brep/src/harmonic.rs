@@ -2,8 +2,8 @@
 //! closed form, for a vector pair ([`harmonic_sup`]) and a scalar one
 //! ([`harmonic_sup_scalar`]) — the one home of both, read wherever a
 //! bound meets one `cos t`/`sin t` pair (check 4's envelope terms and
-//! class gates in `pcurve_cache`, the off-sphere bound in
-//! `sphere_circle`, the cone conic's least reach in `implicit`).
+//! class gates in `pcurve_cache`, a chart's form along a conic and the
+//! cone conic's least reach in `implicit`).
 //!
 //! Each closed form is the sup exactly, in ℝ. Every step is one of the
 //! scalar's own operations, so at `Interval` the result encloses the
