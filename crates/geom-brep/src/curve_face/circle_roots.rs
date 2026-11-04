@@ -91,6 +91,7 @@ use crate::half_angle::{
     DegreeTwo, HalfAngleFrame, HalfAngleRows, MAX_DEGREE, RootSlack, half_angle_roots,
 };
 use crate::roots::{OnCarrier, RootRefusal, Roots, Unsettled, extreme_sign, spread_signs};
+use geom_core::period::Period;
 use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
 
 use geom_core::Indeterminate;
@@ -114,7 +115,7 @@ pub enum DoorRefusal {
 /// the surface (its residual a zero constant; a constant definite
 /// residual is a miss), or a certified count (even, at most twice the
 /// residual's degree) of carrier parameters `θ`, each within `π` of the
-/// arc's midpoint ([`crate::half_angle::near_midpoint`]), so it
+/// arc's midpoint ([`Period::near`]), so it
 /// compares with the arc `[t₀, t₁]` the caller passed without wrapping. A door that certifies none of these refuses
 /// with an [`Unsettled`] beside its [`DoorRefusal`].
 pub type CircleRoots<T> = Roots<T, { 2 * MAX_DEGREE }, OnCarrier>;
@@ -260,7 +261,7 @@ pub struct FirstHarmonicRows {
 /// **The certified roots of a first-harmonic residual along a carrier
 /// whose speed `|C′(θ)|` is at most `speed`** (a circle's radius, an
 /// ellipse's larger semi-axis), reported within `π` of the midpoint of
-/// `[t0, t1]` ([`crate::half_angle::near_midpoint`]): the
+/// `[t0, t1]` ([`Period::near`]): the
 /// decisions of the module docs ("The first-harmonic door"), under the
 /// caller's `rows`.
 ///
@@ -304,15 +305,9 @@ pub fn first_harmonic_roots_in_band<T: Decide>(
 
 /// **The roots of a first harmonic in a leg's own parameter over its
 /// whole turn**, as [`first_harmonic_roots_in_band`] reads them over
-/// `[0, τ]`, except where the leg's start lies on the plane: its residual
-/// at `s = 0` within the band's zero. Such a leg has a root at its start,
-/// at the cut of the whole turn's branch about `π`, where unwinding moves
-/// it by a turn either way and an enclosing scalar holds it as a whole
-/// turn's hull (`Real::periodic_branch`'s tie). There each root is left
-/// as computed, `φ ± acos(−c₀/A₁)`, a representative modulo a turn, which
-/// a reader that takes a root as the point it gives (`cos s`, `sin s`)
-/// reads alike. The pick is arithmetic (`Real::select_le_zero`), with no
-/// decision of its own.
+/// `[0, τ]`. A root at the leg's start is half a turn from the middle and
+/// lands on `τ` ([`Period::near`]'s tie), which a reader that takes a
+/// root as the point it gives (`cos s`, `sin s`) reads as `0`.
 ///
 /// # Errors
 ///
@@ -478,9 +473,8 @@ fn harmonic_crossing<T: Decide>(
     Ok(Harmonic::Crosses { half_chord })
 }
 
-/// [`harmonic_crossing`]'s roots as angles: on the branch of `window`'s
-/// middle, or, with none, a leg's over `[0, τ]` unwound where its start
-/// lies on the plane.
+/// [`harmonic_crossing`]'s roots as angles within half a turn of
+/// `window`'s middle, or, with none, of a leg's whole turn `[0, τ]`.
 fn harmonic_roots<T: Decide>(
     h: &FirstHarmonic<T>,
     speed: T,
@@ -493,28 +487,18 @@ fn harmonic_roots<T: Decide>(
         Harmonic::On => return Ok(Roots::On(OnCarrier)),
         Harmonic::Crosses { half_chord } => half_chord,
     };
-    let two = T::from_f64(2.0);
-    let phi = h.sin_part.atan2(h.cos_part);
-    // The roots on the branch of the span's middle: sound at every scalar
-    // by `geom::on_span_branch`'s window re-centring argument. Its readers
-    // read an end of a whole-turn span alike: the wall crossing's
-    // `at_end`, the sphere cut-in's vertex lookup at either end, and
-    // `torus_region`'s readings `sideless` at either end
-    // (`sphere_region` reads [`first_harmonic_root_directions`]). None reads
-    // a root as an identity, which is why the floor stays: a structural
-    // pick would decide nothing a reader uses.
+    // The roots within half a turn of the span's middle, by
+    // `Period::near`'s span argument. Its readers read an end of a
+    // whole-turn span alike: the wall crossing's `at_end`, the sphere
+    // cut-in's vertex lookup at either end, and `torus_region`'s readings
+    // `sideless` at either end (`sphere_region` reads
+    // [`first_harmonic_root_directions`]).
+    let (t0, t1) = window.unwrap_or((T::zero(), T::tau()));
+    let middle = geom::mid_param(t0, t1);
+    let phi = geom::Azimuth::of(h.sin_part, h.cos_part).near(middle);
     let (a, b) = (phi - half_chord, phi + half_chord);
-    Ok(Roots::all(match window {
-        Some(span) => [geom::on_span_branch(a, span), geom::on_span_branch(b, span)],
-        None => {
-            let turn = (T::zero(), T::tau());
-            let at_start = ((h.lo + h.hi) / two + h.cos_part).abs() - T::from_f64(band.zero());
-            [
-                at_start.select_le_zero(a, geom::on_span_branch(a, turn)),
-                at_start.select_le_zero(b, geom::on_span_branch(b, turn)),
-            ]
-        }
-    }))
+    let turn = Period::new(T::tau());
+    Ok(Roots::all([turn.near(a, middle), turn.near(b, middle)]))
 }
 
 /// A root door's answer for a row: its roots, or its refusal, a limit

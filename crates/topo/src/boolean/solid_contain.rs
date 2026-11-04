@@ -460,11 +460,35 @@ impl PointInSolidError {
     /// point stands ([`Self::in_band`]), a limit the door met near it
     /// ([`Self::confined`]), or a side that neither the volume nor an
     /// aimed ray could read for the point's rays that met nothing
-    /// ([`Self::sideless`]) — another point's rays may meet the boundary. Every other refusal is about a body — a
-    /// face kind with no arm, a corrupt face — and answers the same at
-    /// any point.
+    /// ([`Self::sideless`]) — another point's rays may meet the boundary.
+    /// Every other refusal is about a body — a face kind with no arm, a
+    /// corrupt face — and answers the same at any point.
     pub(crate) fn inconclusive(&self) -> bool {
         self.in_band() || self.confined() || self.sideless()
+    }
+
+    /// What this refusal is to a ladder over several points
+    /// ([`geom_brep::ladder::Refusal`]), derived from the partition above,
+    /// the type's one classification: a reading in band is ranked by its
+    /// margin where it carries one; a limit the door met near the point,
+    /// or a side no ray could read, is a limit; and every refusal that is
+    /// not [`Self::inconclusive`] answers the same at any point (a face
+    /// kind with no arm, a corrupt or inside-out body, a solid that is
+    /// not there), so a ladder over points reading it again gains
+    /// nothing: it aborts.
+    pub(in crate::boolean) fn refusal(&self) -> geom_brep::ladder::Refusal {
+        use geom_brep::ladder::Refusal;
+        if self.in_band() {
+            match self {
+                Self::Escalated { diag, .. } => Refusal::Margin(*diag),
+                Self::Loop(e) => e.refusal(),
+                _ => Refusal::InBand,
+            }
+        } else if self.confined() || self.sideless() {
+            Refusal::Limit
+        } else {
+            Refusal::Abort
+        }
     }
 
     /// A ray of the point's that met nothing, whose side neither the
@@ -3544,9 +3568,14 @@ fn wall_crosses_by_turn<T: Decide>(
             return Ok(None);
         };
         let off = match *curve.carrier() {
-            geom::Curve3::Line(geom::Line { dir, .. }) => {
+            geom::Curve3::Line(geom::Line { origin: o, dir }) => {
                 let (t0, t1) = curve.params();
-                (dir / dir.norm()).cross(axis).norm() * ((t1 - t0) * dir.norm()).abs()
+                let start = geom::Line {
+                    origin: o + dir * t0,
+                    dir,
+                };
+                geom_brep::ruling_miss(&start, (T::zero(), t1 - t0), geom_brep::Ruling::Axis(axis))
+                    .value()
             }
             geom::Curve3::Circle(geom::Circle {
                 frame:
@@ -4968,7 +4997,9 @@ fn missed_side<T: Decide + crate::props::AtRestPolicy>(
             }
             return Err(match kept.ranked() {
                 geom_brep::ladder::Ranked::Blocked(e) => RayFault::Blocked(e),
-                geom_brep::ladder::Ranked::InBand(e) => RayFault::InBand(e),
+                geom_brep::ladder::Ranked::InBand(e) | geom_brep::ladder::Ranked::Unsettled(e) => {
+                    RayFault::InBand(e)
+                }
                 geom_brep::ladder::Ranked::Neither => RayFault::Unread,
             });
         }

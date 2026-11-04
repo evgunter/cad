@@ -139,10 +139,10 @@ fn a_ruling_in_band_certifies_through_the_projected_lane() {
         let surface = cylinder(radius);
         for phi in [0.3, PI - 1e-3, -PI + 1e-3, -1.2] {
             let carrier = line_at(&surface, phi, 0.0, in_band());
-            let Some(form) = carrier_harmonic(&carrier) else {
-                unreachable!("a line has a harmonic form")
+            let Curve3::Line(line) = &carrier else {
+                unreachable!("line_at builds a line")
             };
-            let moving = radial_amplitude(&form, Vec3::unit_z());
+            let moving = ruling_miss(line, (-0.5, 0.5), Ruling::Axis(Vec3::unit_z())).value();
             assert!(
                 (band().zero()..band().escalate()).contains(&moving),
                 "R {radius}, φ {phi}: the ruling reading {moving:e} is in the band"
@@ -245,7 +245,7 @@ fn a_shown_ruling_takes_the_meridian_form() {
             .unwrap_or_else(|e| panic!("a shown ruling certifies at Interval: {e:?}"));
         }
         assert_eq!(
-            chart_iso_family(&carrier, &surface, band()),
+            chart_iso_family(&carrier, span, &surface, band()),
             Ok(Some(IsoFamily::U)),
             "off {off:e}: a shown ruling's family"
         );
@@ -267,15 +267,18 @@ fn a_line_shown_off_its_rulings_on_the_wall_takes_the_projected_lane() {
     let (s, c) = 0.7_f64.sin_cos();
     let dir = Vec3::unit_z() + Vec3::new(-s, c, 0.0) * (100.0 * band().escalate());
     let carrier = Curve3::line(at - dir * 0.5, dir);
-    let Some(form) = carrier_harmonic(&carrier) else {
-        unreachable!("a line has a harmonic form")
+    let Curve3::Line(line) = &carrier else {
+        unreachable!("a line")
     };
     assert!(
-        radial_amplitude(&form, Vec3::unit_z()) > band().escalate(),
+        ruling_miss(line, (0.0, 1.0), Ruling::Axis(Vec3::unit_z())).value() > band().escalate(),
         "the ruling reading is definite"
     );
     certifies_projected("a line off its rulings", &carrier, (0.0, 1.0), &surface);
-    assert_eq!(chart_iso_family(&carrier, &surface, band()), Ok(None));
+    assert_eq!(
+        chart_iso_family(&carrier, (0.0, 1.0), &surface, band()),
+        Ok(None)
+    );
 }
 
 /// A line definitely off the wall ends as its incidence read, before any
@@ -311,11 +314,11 @@ fn a_ruling_in_band_names_no_family_undecided() {
     let carrier = line_at(&surface, 0.4, 0.0, in_band());
     assert!(
         matches!(
-            chart_iso_family(&carrier, &surface, band()),
+            chart_iso_family(&carrier, (-0.5, 0.5), &surface, band()),
             Err(IsoFamilyRefusal::Undecided(_))
         ),
         "{:?}",
-        chart_iso_family(&carrier, &surface, band())
+        chart_iso_family(&carrier, (-0.5, 0.5), &surface, band())
     );
 }
 

@@ -1301,6 +1301,9 @@ mod wire_loft_end_profile_lift;
 #[path = "wedge_end_doors.rs"]
 mod wedge_end_doors;
 
+#[path = "a_knife_edge_fillet_builds_where_its_ball_is_defined.rs"]
+mod a_knife_edge_fillet_builds_where_its_ball_is_defined;
+
 #[path = "review_4831_probes.rs"]
 mod review_4831_probes;
 
@@ -1387,6 +1390,8 @@ mod a_cylinder_resting_on_a_box_top_grazes_along_a_line;
 mod a_plane_near_a_needle_cones_apex;
 #[path = "a_saddle_cut_by_its_tangent_plane.rs"]
 mod a_saddle_cut_by_its_tangent_plane;
+#[path = "a_tangent_seam_on_a_spline_wall_ends_as_its_incidence_read.rs"]
+mod a_tangent_seam_on_a_spline_wall_ends_as_its_incidence_read;
 #[path = "fallback_rows_review_head.rs"]
 mod fallback_rows_review_head;
 #[path = "review_5956_delta_needle.rs"]
@@ -1399,3 +1404,5 @@ mod review_6002_needle_join;
 mod review_6020_seam_probes;
 #[path = "review_r1_roots_split.rs"]
 mod review_r1_roots_split;
+#[path = "the_football_revolves.rs"]
+mod the_football_revolves;

@@ -40,7 +40,7 @@ use crate::common::oracles::sigma;
 use geom::{Curve3, Surface};
 use geom_brep::SurfaceSide::{self, Inner, Outer};
 use geom_core::{Point3, Vec3};
-use sweep::blend::arms::{BlendArm, EdgeBlend, Meridian, Ruling, plane_sphere_blend};
+use sweep::blend::arms::{BlendArm, Branch, EdgeBlend, Meridian, Ruling, plane_sphere_blend};
 use sweep::blend::{Convexity, FILLET3_SPINE_KIND_RECOURSE};
 
 const EPS: f64 = 1e-12;
@@ -260,9 +260,15 @@ impl Row {
                 "{}: the fixture is coaxial, departures {da}/{db}",
                 self.arm.name()
             );
-            let b = sheet.blend(ta, tb, radius);
-            let center =
-                sweep::blend::arms::sheet_center(self.rim, sheet.sheet_normal(), ta, tb, radius);
+            let b = sheet.blend(ta, tb, radius, Branch::Rim);
+            let center = sweep::blend::arms::sheet_center(
+                self.rim,
+                sheet.sheet_normal(),
+                ta,
+                tb,
+                radius,
+                Branch::Rim,
+            );
             (b, center)
         } else {
             let sheet = Ruling {
@@ -277,8 +283,9 @@ impl Row {
                 "{}: the fixture shares its ruling, departures {da}/{db}",
                 self.arm.name()
             );
-            let b = sheet.blend(ta, tb, radius);
-            let center = sweep::blend::arms::sheet_center(self.rim, sheet.tau, ta, tb, radius);
+            let b = sheet.blend(ta, tb, radius, Branch::Rim);
+            let center =
+                sweep::blend::arms::sheet_center(self.rim, sheet.tau, ta, tb, radius, Branch::Rim);
             (b, center)
         }
     }
@@ -498,7 +505,7 @@ fn the_shared_reduction_agrees_with_the_plane_sphere_arm() {
                 Convexity::Convex.ball_side(sphere_sense),
             )
             .unwrap();
-        let new = sheet.blend(tp, ts, radius);
+        let new = sheet.blend(tp, ts, radius, Branch::Rim);
         let (
             Surface::Torus {
                 center: c0,

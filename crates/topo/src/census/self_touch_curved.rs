@@ -9,8 +9,7 @@
 //! wall's ruling (a line the wall keeps), along an arc's tangent (a
 //! tangency the bends part one order down, [`crate::link::FaceSector::tangent`]'s
 //! second-order reading: off the post or under it a rest, into it
-//! refused), or along the wall's circle's tangent (a rest: one order
-//! down the wall bends away under the corner's faces).
+//! refused), or along the wall's circle's tangent (refused).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use super::*;
@@ -198,7 +197,7 @@ fn rows_hold(at: Seat) {
             ("straddling", straddle, crossing),
             ("along the ruling", ruling, rest),
             ("along the ruling, into", ruling_into, crossing),
-            ("along the circle", circle, rest),
+            ("along the circle", circle, tangency),
             (
                 "along the circle, off it in band",
                 lift(3.0 * zero),
@@ -428,6 +427,58 @@ fn a_cusp_corner_is_left_to_second_order() {
     assert_eq!(verdict, SelfTouch::SecondOrder(TouchUnread::Unreadable));
 }
 
+/// **An elliptic edge's direction at a touch reads at its certified
+/// parameter, and where it does not read it refuses as itself**
+/// ([`half_edge_tangent`]): on an oblique wall's rim, one closed ellipse,
+/// at `f64` and at `Interval`. A point on the rim reads the tangent there,
+/// turned to each half. A point off it, which the span does not certify
+/// on its interior, is [`TouchUnread::EdgeTangent`], never
+/// [`TouchUnread::Unreadable`]: no second-order reading parts it, so it
+/// must not reach [`SelfTouch::SecondOrder`].
+#[test]
+fn an_elliptic_edges_direction_reads_at_its_certified_parameter_or_refuses_as_itself() {
+    fn rows<T: Decide + crate::props::AtRestPolicy + core::fmt::Debug>(
+        scalar: &str,
+        upper: fn(T) -> f64,
+    ) {
+        let (body, _, _) = crate::test_support_fixtures::oblique_rim_wall_in::<T>(0.4);
+        let (e, edge) = body.edges.iter().next().expect("the rim");
+        let rim = body
+            .curves
+            .get(edge.curve)
+            .and_then(crate::null::CurveGeom::certified)
+            .expect("the rim's certified curve")
+            .carrier()
+            .clone();
+        let t = T::from_f64(1.0);
+        let on = rim.eval(t);
+        let want = rim.deriv(t).normalize();
+        for (he, sign) in [(edge.he_plus, T::one()), (edge.he_minus, -T::one())] {
+            let (d, line, _) = half_edge_tangent(&body, he, on, band())
+                .unwrap_or_else(|why| panic!("{scalar}: on the rim, {why:?}"));
+            assert!(!line, "{scalar}: the rim is no line");
+            let gap = upper((d - want * sign).norm());
+            assert!(
+                gap < 1e-9,
+                "{scalar}: the tangent at t = 1 on {e:?}, off by {gap:e}"
+            );
+        }
+        let off = on + Vec3::new(T::zero(), T::zero(), T::from_f64(0.1));
+        let refused = half_edge_tangent(&body, edge.he_plus, off, band());
+        assert!(
+            matches!(
+                refused,
+                Err(TouchUnread::EdgeTangent(
+                    crate::link::EdgeTangentUnread::OffInterior
+                ))
+            ),
+            "{scalar}: a point the span does not certify refuses as itself, got {refused:?}"
+        );
+    }
+    rows::<f64>("f64", |x| x);
+    rows::<geom_core::Interval>("Interval", geom_core::Bounds::hi);
+}
+
 /// The arc of the circle about `center` of unit axis `axis` and radius
 /// `radius` that edge `e` runs along, the short way from its `he_plus`
 /// start to its end.
@@ -582,8 +633,8 @@ fn thorn_and_corner(c: Point3<f64>, edges: [Vec3<f64>; 3]) -> (Body<f64>, Vertex
     for f in faces {
         let held: Vec<Point3<f64>> = body
             .proven_face(f)
-            .half_edges()
-            .into_iter()
+            .cycles()
+            .flat_map(|(_, cycle)| cycle)
             .map(|he| at(&body, body.half_edges[he].start))
             .collect();
         let has = |q: Point3<f64>| held.iter().any(|&r| near(q, r));

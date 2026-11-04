@@ -1022,3 +1022,43 @@ E1c waits on the answer.
     - `a-stored-foreign-rows-at-rest-ending-depends-on-the-scalar` (P2);
     - `a-minted-refusals-provenance-is-guarded-only-by-its-doc` (P2; the widened relabel's residual risk is recorded on it);
     - `the-cones-fidelity-lever-reads-the-boxs-spread-not-the-poses` (P2).
+- 2026-11-04 — **`a-spline-chart-has-no-incidence-test-…` merged** (PR 6498): a spline chart has an incidence test.
+  - `pcurve_cache::spline_incidence` is a certified lower bound on a point's distance from a NURBS chart or an Approx's fit: Boehm-cut Bézier cells, box/slab floors, de Casteljau quartering, a best-first f64 shadow, and an f64 rounding charge covering the cut, the blend and the read.
+  - It is `incident`'s NURBS/Approx arm. topo's spline-chart lane choices read it first: the arc rim and catch-all end Off as `CarrierOffChart`; `iso_schedule`'s fall-through sends a read not shown off to the general image, whose certificate reads the wall (the subsumption principle, ruled Y7).
+  - Review tier: DUAL, letter H, concurrent pair (byte 1, odd, A = R2). Both APPROVE-WITH-FIXES, 0 MAJOR, tallied 0. Fix passes Y and YY, one delta verifier: about 30k Offs at band 1e-12, 5427 in exact rationals, 0 false.
+  - Cost: about 0.95× main overall. The in-band Interval seam row is 7.8× (filed P2).
+  - Filed:
+    - `the-spline-incidence-read-dives-where-its-floors-already-decide` (P2);
+    - `a-spline-charts-certificate-door-reads-no-incidence-…` (P1; Dual's `validate_pcurves` answers clean, DL3 keeps it P1);
+    - isotail's spline-wall limb row (P1);
+    - splice `spline-region-decides-off-the-carrier-on-an-uncharged-f64-box-floor` (P1);
+    - splice's cell-walk P3.
+  - Merged past main's two ε 1e-12 reds, both onecopy's and filed: the needle (PR 6492), and `section_end_poses` (PR 6482, bisected by the lane, filed in PR 6515).
+- 2026-11-04 — **`the-projected-image-inverts-chart-points-by-a-second-spelling` merged** (PR 6500).
+  - ψ reads its channels through `geom::ChartChannels`, the table `ChartInverse::point` reads, and names each angle on its piece's branch through `Azimuth::about(Quarter)`. That rotation is exact and decides nothing, so ψ still evaluates at every scalar without a band.
+  - Branch centres are stored as `Quarter` and fail loud on a missing piece. `rotate_box` takes a `Quarter` on every arm.
+  - Two moved baselines, both in sector:
+    - the sphere latitude at z = −0.0 reads +0.0;
+    - at Interval, a coordinate with an end under 2^-960 can have a one-step tighter enclosure, inside the old one.
+
+    The kept row `old_formula_rows` holds the old spelling as the oracle.
+  - Ruling: `about` and onecopy's `near` are two questions, not one door. `near` decides against a `T` reference; `about` evaluates on a known quarter. This revised the first ruling after the review's MINOR-1(c). They name each other in their docs.
+  - Review tier: single FULL. Verdict APPROVE-WITH-FIXES:
+    - bit-identity in sector over ~27 M reads;
+    - 48,570 Interval boxes, 0 outside;
+    - cost about 1.01×.
+
+    Fix list Z was read by the orchestrator.
+  - Filed:
+    - `the-projected-box-forms-spell-the-point-reading-apart` (P2);
+    - two P2s and two P3s on other chart-point spellings (props, replace_face, derive_class, winds, sphere and torus pairs).
+- 2026-11-04 — **`the-ruling-question-is-read-in-two-units` merged** (PR 6504): whether a line is a ruling of a cylinder or cone is one reading, `ruling_miss`, in metres over the edge's span, shared by the mint, props and the boolean.
+  - The ruling is anchored where the closed form places its image: on a cylinder, the ruling through the line's origin; on a cone, the generator the anchor names. The cone arm gets the class gate it lacked (`a-line-near-a-cone-is-read-as-a-ruling-without-a-class-gate`, closed).
+  - On a cylinder, the line's class gate reads the meridian form's own miss: the lean over the span plus the origin's radial standoff (fix AB1, mutant `meridian-standoff-unread`).
+  - Review tier: single FULL. NOT-MERGEABLE-AS-IS. M1 (executed) was the meter's anchor at the span start against the image at the origin; m1 (executed) was the props cone pair scaling with `|dir|`.
+    - Fix list AA went to one delta verifier, who returned APPROVE-WITH-FIXES: Zero did not bound the meridian's miss.
+    - Fix list AB followed, read by the orchestrator. Green at all three ε locally and hosted.
+  - Filed:
+    - `a-line-passing-a-cones-apex-off-the-cone-reads-on-to-the-sampled-incidence` (P1). The verifier measured 2.6ε–263ε off ending "not yet" at the mint. No false certificate, so P1, not P0.
+    - `a-generator-anchored-near-the-apex-names-its-closed-form-poorly` (P3).
+  - Friction: the first reviewer was dispatched on a short sha and never started (`ref_not_found`), costing about 1.5 h. Lanes now get full 40-char shas, confirmed connected.

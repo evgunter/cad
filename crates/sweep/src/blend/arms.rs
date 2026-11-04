@@ -595,6 +595,79 @@ impl<T: Real> SupportTrace<T> {
     }
 }
 
+/// **Which of the two crossings of the offset traces is the edge's
+/// ball** ([`sheet_center`]).
+#[derive(Clone, Copy, Debug)]
+pub enum Branch<T: Real> {
+    /// The crossing that returns the rim as `radius → 0`: every edge
+    /// whose supports meet at a definite angle.
+    Rim,
+    /// A knife edge (a cusp or slit): the crossing on the side of the
+    /// rim this unit points to, the in-face direction both supports
+    /// leave the edge by ([`inward_unit`] of the `he_plus` face). Read
+    /// off the traversal, never off a sampled crossing.
+    Knife(Vec3<T>),
+}
+
+/// **`fillet3_knife_room`'s margin**: whether the ball of radius
+/// `radius` exists at a knife edge, in METERS. At a cusp or slit the
+/// supports meet tangentially, so the offset traces the ball's centre
+/// lies on cross away from the rim or not at all; this is their secant
+/// margin, positive exactly where they cross in two points.
+///
+/// - **circle × circle**: [`Circles::secant`] of the two offset
+///   circles. Two cylinders kissing externally (the valley between two
+///   touching tubes) always cross; two internally tangent ones (a lune)
+///   cross while `r < R_big − R_small`, the room their crescent opens
+///   to: the offsets' internal clearance is `(R_big − R_small) −
+///   |R_big − R_small − 2r|`, which reaches zero there.
+/// - **line × circle**: the offset circle's radius less the offset
+///   line's distance from its centre. A knife between a line and a
+///   circle has the ball outside the circle, so this is positive at
+///   every radius; it is decided all the same.
+/// - **line × line**: zero. Two straight traces tangent at the rim are
+///   one line, whose offsets are parallel: the supports never open, so
+///   there is no ball (and no valid body carries the pair).
+#[must_use]
+pub fn knife_room<T: Real>(rim: Point3<T>, a: SupportTrace<T>, b: SupportTrace<T>, radius: T) -> T {
+    use SupportTrace::{Round, Straight};
+    let offset = |rr: T, side| (rr - sided(side, radius)).abs();
+    match (a, b) {
+        (Straight { .. }, Straight { .. }) => T::zero(),
+        (
+            Straight { normal, side },
+            Round {
+                center,
+                radius: rr,
+                side: sr,
+            },
+        )
+        | (
+            Round {
+                center,
+                radius: rr,
+                side: sr,
+            },
+            Straight { normal, side },
+        ) => {
+            let line = rim - normal * sided(side, radius);
+            offset(rr, sr) - (center - line).dot(normal).abs()
+        }
+        (
+            Round {
+                center: c_a,
+                radius: r_a,
+                side: s_a,
+            },
+            Round {
+                center: c_b,
+                radius: r_b,
+                side: s_b,
+            },
+        ) => Circles::new(c_a.distance(c_b), offset(r_a, s_a), offset(r_b, s_b)).secant(),
+    }
+}
+
 /// **The rolling ball's centre in the sheet** — the crossing of the two
 /// OFFSET traces, in closed form, for each of the three trace pairings.
 ///
@@ -637,6 +710,17 @@ impl<T: Real> SupportTrace<T> {
 /// reaches the CYLINDER's `origin` and its `u_ref`, and the refusal
 /// arrives one step later — at the certification of the band the
 /// open-chain surgery mints between the link's plane caps.
+///
+/// **At a knife edge the rim branch is undefined, and `branch` names
+/// the ball's side instead** ([`Branch::Knife`]). There the two traces
+/// touch at the rim, so the rim lies on the circles' line of centres
+/// (`μ = 0`) or the line runs along the circle (`b = 0`): the rim
+/// selector reads an exact zero, and the sign of rounding noise would
+/// pick the crossing. The knife's ball rests in the crescent the
+/// supports open into, on the side both faces leave the edge by, so
+/// the knife branch keeps the crossing on that side of the rim. A
+/// line × line pair has no knife crossing at all (parallel offsets),
+/// which [`knife_room`] decides before any centre is read.
 #[must_use]
 pub fn sheet_center<T: Real>(
     rim: Point3<T>,
@@ -644,6 +728,7 @@ pub fn sheet_center<T: Real>(
     a: SupportTrace<T>,
     b: SupportTrace<T>,
     radius: T,
+    branch: Branch<T>,
 ) -> Point3<T> {
     use SupportTrace::{Round, Straight};
     let one = T::one();
@@ -686,7 +771,18 @@ pub fn sheet_center<T: Real>(
             let t = sheet_normal.cross(normal);
             let b_coef = rr * t.dot(u);
             let d_coef = (rr + rr) * radius * (sided(sr, one) - sided(side, normal.dot(u)));
-            let lambda = b_coef * ((one - d_coef / b_coef.powi(2)).sqrt() - one);
+            let lambda = match branch {
+                Branch::Rim => b_coef * ((one - d_coef / b_coef.powi(2)).sqrt() - one),
+                // `λ = −b ± √(b² − D)`, the root on the side `toward`
+                // points along the line: a sign pick by `t̂·toward`,
+                // which is ±1 at a knife and never near zero there (the
+                // line runs along the circle at the rim, so `t̂` is the
+                // common tangent, and `toward` is that tangent's unit,
+                // both in the sheet), so no rounding chooses it.
+                Branch::Knife(toward) => {
+                    (b_coef.powi(2) - d_coef).sqrt().copysign(t.dot(toward)) - b_coef
+                }
+            };
             rim + t * lambda - normal * sided(side, radius)
         }
         (
@@ -706,8 +802,21 @@ pub fn sheet_center<T: Real>(
             let off_b = (r_b - sided(s_b, radius)).abs();
             let offsets = Circles::new(c_a.distance(c_b), off_a, off_b).at(c_a, c_b);
             let across = sheet_normal.cross(offsets.direction());
-            let mu = (rim - c_a).dot(across);
-            let y = mu * ((offsets.pair().half_chord_squared() / mu.powi(2)).sqrt());
+            let h2 = offsets.pair().half_chord_squared();
+            let y = match branch {
+                // The rim's own transverse coordinate `μ` carries the
+                // half-chord's sign, branch-free.
+                Branch::Rim => {
+                    let mu = (rim - c_a).dot(across);
+                    mu * (h2 / mu.powi(2)).sqrt()
+                }
+                // At a knife the rim lies ON the line of centres, so `μ`
+                // is an exact zero; the side is a sign pick by
+                // `toward·across` instead, which is ±1 there and never
+                // near zero (`toward` is the common tangent's unit, ⊥ the
+                // line of centres in the sheet, and so is `across`).
+                Branch::Knife(toward) => h2.sqrt().copysign(toward.dot(across)),
+            };
             offsets.chord_ends(across, y)[0]
         }
     }
@@ -838,9 +947,15 @@ impl<T: Real> Meridian<T> {
     /// swallows reaches it as a finite curvature — the two degenerate
     /// cases [`plane_sphere_blend`] distinguishes, unchanged here.
     #[must_use]
-    pub fn blend(&self, a: SupportTrace<T>, b: SupportTrace<T>, radius: T) -> EdgeBlend<T> {
+    pub fn blend(
+        &self,
+        a: SupportTrace<T>,
+        b: SupportTrace<T>,
+        radius: T,
+        branch: Branch<T>,
+    ) -> EdgeBlend<T> {
         let radial = self.radial();
-        let center = sheet_center(self.rim, self.sheet_normal(), a, b, radius);
+        let center = sheet_center(self.rim, self.sheet_normal(), a, b, radius, branch);
         let level = |q: Point3<T>| {
             geom::Line {
                 origin: self.origin,
@@ -936,8 +1051,14 @@ impl<T: Real> Ruling<T> {
     /// [`sheet_center`] rides the cylinder's `origin` and `u_ref`
     /// instead (see that function's family note).
     #[must_use]
-    pub fn blend(&self, a: SupportTrace<T>, b: SupportTrace<T>, radius: T) -> EdgeBlend<T> {
-        let center = sheet_center(self.rim, self.tau, a, b, radius);
+    pub fn blend(
+        &self,
+        a: SupportTrace<T>,
+        b: SupportTrace<T>,
+        radius: T,
+        branch: Branch<T>,
+    ) -> EdgeBlend<T> {
+        let center = sheet_center(self.rim, self.tau, a, b, radius, branch);
         let (q_a, q_b) = (a.contact(center, radius), b.contact(center, radius));
         EdgeBlend {
             surface: Surface::Cylinder {
