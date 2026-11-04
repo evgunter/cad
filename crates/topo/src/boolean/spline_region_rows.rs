@@ -1005,3 +1005,147 @@ fn a_placeholder_at_each_joint_across_a_closed_charts_seam_reads_as_the_bare_fac
         }
     }
 }
+
+mod phase0_probe {
+    use super::super::{CARRIER, Patch, bezier_cells};
+    use crate::validate::decide;
+    use geom::NurbsSurface;
+    use geom_core::spline::KnotVector;
+    use geom_core::{Band, Bounds, Interval, Margin, Point3, Sign, Vec3};
+
+    fn lift(x: f64) -> Interval {
+        <Interval as geom_core::Real>::from_f64(x)
+    }
+
+    fn knots(rng: &mut test_utils::fuzz::Rng, p: usize) -> KnotVector {
+        let mut interior: Vec<f64> = (0..rng.below(5)).map(|_| rng.range(0.05, 0.95)).collect();
+        interior.sort_by(f64::total_cmp);
+        let mut v = vec![0.0; p + 1];
+        for x in interior {
+            v.extend(core::iter::repeat_n(x, 1 + rng.below(p)));
+        }
+        v.extend(core::iter::repeat_n(1.0, p + 1));
+        KnotVector::clamped(v, p).unwrap()
+    }
+
+    /// The carrier walk of `read_capped` alone: whether it ends off the
+    /// carrier (no cell kept), and the least floor it dropped a cell on.
+    fn walk_off(chart: &NurbsSurface<f64>, q: Point3<f64>, band: Band) -> (bool, f64) {
+        let cells: Vec<Patch<f64>> = bezier_cells(chart).unwrap();
+        let mut queue: Vec<(Patch<f64>, usize)> = cells.into_iter().map(|c| (c, 0)).collect();
+        let mut visits = 0;
+        let mut least = f64::INFINITY;
+        while let Some((cell, depth)) = queue.pop() {
+            let g = cell.hull_gap(q);
+            if let Ok(Sign::Positive) = decide(CARRIER, Margin::of(g), band) {
+                least = least.min(g);
+                continue;
+            }
+            visits += 1;
+            if visits > 1 << 13 {
+                return (false, least);
+            }
+            let (cu, cv) = cell.rect.centre();
+            if !matches!(
+                decide(CARRIER, Margin::of((chart.eval(cu, cv) - q).norm()), band),
+                Ok(Sign::Positive)
+            ) {
+                return (false, least);
+            }
+            if depth == 48 || cell.extent() <= band.zero() * 0.5 {
+                return (false, least);
+            }
+            let ((a, b), (c, d)) = cell.quartered();
+            queue.extend([a, b, c, d].map(|x| (x, depth + 1)));
+        }
+        (true, least)
+    }
+
+    #[derive(Debug, Default)]
+    struct T {
+        eligible: usize,
+        off: usize,
+        on_zero: usize,
+        excess: f64,
+    }
+
+    #[test]
+    #[ignore]
+    fn phase0_probe() {
+        let band = Band::new(1e-12, 1e-11).unwrap();
+        let mut rng = test_utils::fuzz::start("phase0");
+        let (mut corner, mut row) = (T::default(), T::default());
+        for _ in 0..4000 {
+            // corner family: PCERT's, flat at o.z, the corner the box's
+            let fam = rng.below(2);
+            let (pu, pv) = if fam == 0 {
+                let p = 1 + rng.below(3);
+                (p, p)
+            } else {
+                (2 + rng.below(3), 1 + rng.below(3))
+            };
+            let (ku, kv) = (knots(&mut rng, pu), knots(&mut rng, pv));
+            let (nu, nv) = (ku.control_count(), kv.control_count());
+            let scale = 10f64.powf(rng.range(2.0, 5.0));
+            let o = Vec3::new(
+                rng.range(-1.0, 1.0),
+                rng.range(-1.0, 1.0),
+                rng.range(-1.0, 1.0),
+            ) * 10f64.powf(rng.range(0.0, 5.0));
+            let mut control = Vec::new();
+            for i in 0..nu {
+                for j in 0..nv {
+                    let x = (i as f64 / nu as f64
+                        + if fam == 0 { rng.range(0.0, 0.01) } else { 0.0 })
+                        * scale;
+                    let (y, z) = if fam == 0 {
+                        ((j as f64 / nv as f64 + rng.range(0.0, 0.01)) * scale, 0.0)
+                    } else if j == 0 {
+                        (0.0, 0.0)
+                    } else {
+                        ((j as f64 / nv as f64) * scale, rng.range(-0.3, 0.3) * scale)
+                    };
+                    control.push(Point3::new(x, y, z) + o);
+                }
+            }
+            if fam == 0 {
+                control[0] = Point3::new(o.x - 1e-3 * scale, o.y - 1e-3 * scale, o.z);
+            }
+            let spread = [0.0, 1.0, 2.0, 4.0][rng.below(4)];
+            let weights = (0..nu * nv)
+                .map(|_| 10f64.powf(rng.range(-spread, spread)))
+                .collect();
+            let chart = NurbsSurface::new(ku, kv, control.clone(), weights).unwrap();
+            let d = band.escalate() * rng.range(0.0, 1.0);
+            let (q, foot) = if fam == 0 {
+                let c0 = control[0];
+                (c0 + Vec3::new(-1.0, -1.0, 1.0).normalize() * d, c0)
+            } else {
+                // a point of the straight row v = 0, along y = o.y, z = o.z
+                let x =
+                    control[0].x + (control[(nu - 1) * nv].x - control[0].x) * rng.range(0.0, 1.0);
+                let foot = Point3::new(x, control[0].y, control[0].z);
+                (foot + Vec3::new(0.0, -1.0, 0.0) * d, foot)
+            };
+            let upper = (q.map(lift) - foot.map(lift)).norm().hi();
+            let t = if fam == 0 { &mut corner } else { &mut row };
+            if upper >= band.escalate() {
+                continue;
+            }
+            t.eligible += 1;
+            let (off, least) = walk_off(&chart, q, band);
+            if off {
+                t.off += 1;
+                if upper <= band.zero() {
+                    t.on_zero += 1;
+                }
+                t.excess = t.excess.max(least - upper);
+                eprintln!(
+                    "[phase0-hit] fam {fam} p ({pu},{pv}) spread {spread} scale {scale:.1e} |o| {:.1e} upper {upper:.2e} least {least:.2e}",
+                    o.norm()
+                );
+            }
+        }
+        eprintln!("[phase0] corner {corner:?}\n[phase0] row {row:?}");
+    }
+}
