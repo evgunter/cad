@@ -490,7 +490,7 @@ mod tests {
                 );
                 // Off the antipode, where the branch's cut lies.
                 let off = (a - theta + PI).rem_euclid(core::f64::consts::TAU);
-                if off < 1e-6 || off > core::f64::consts::TAU - 1e-6 {
+                if !(1e-6..=core::f64::consts::TAU - 1e-6).contains(&off) {
                     continue;
                 }
                 let u = Azimuth::of(y, x).about(q);
