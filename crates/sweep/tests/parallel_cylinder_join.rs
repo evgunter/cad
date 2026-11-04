@@ -15,11 +15,19 @@
 
 use core::f64::consts::PI;
 
-use crate::common::differential::outcome;
+use crate::common::crossed_cylinders::{self as crossed, Cylinder, Op};
+use crate::common::differential::{judged_within, outcome, resolution_pad};
 use crate::conic_edge_curved_face::{DRUM_RADIUS, TILT, drum_lower};
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use sweep::test_support::finished;
 use topo::{AtRestBody, BooleanError, BooleanErrorKind, BooleanResult};
+
+/// **A regression guard, not a soundness claim**: four times the widest
+/// volume half-width the turned pose's six runs measured at ε `1e-9`
+/// (`2.26e-6`, PR 6478), under [`resolution_pad`]'s sound ceiling
+/// (`1.61e-5` here). Read at that ε only; the other ε rows are held by
+/// the ceiling alone.
+const TURNED_PAD_GUARD: f64 = 9.1e-6;
 
 /// A vertical rod of radius `r` about `(x, y)` over `z ∈ [z0, z1]`.
 fn rod(r: f64, (x, y): (f64, f64), (z0, z1): (f64, f64)) -> AtRestBody<f64> {
@@ -593,9 +601,10 @@ fn seams_on_the_walls(axis: Vec3<f64>, theta: f64) -> Pose {
 /// SOUND, as at `0.5·zero / 3.2`. Turned clearly apart, a fifth of a radian, every op
 /// ends at a frontier at the witness band (elsewhere an escalation may
 /// come first, which the row admits): about `x` the join
-/// carries the skew walls' marched section and the result gate refuses
-/// the body, whose spline-chorded walls have no volume lane
-/// (`ResultInvalid`), and about `y` an edge pierces a curved face the
+/// carries the skew walls' marched section and every op builds SOUND
+/// against the crossed cylinders' sliced volume
+/// (`common::crossed_cylinders`), its spline-chorded walls measured by
+/// the rotational lane, and about `y` an edge pierces a curved face the
 /// Boolean cannot yet read (`CurvedPierceUnsupported`).
 #[test]
 fn seams_lying_on_the_walls_read_the_axes_across_the_region() {
@@ -612,10 +621,10 @@ fn seams_lying_on_the_walls_read_the_axes_across_the_region() {
     // pose about `y` the corners' overlap: each row there escalates or
     // meets its frontier, and never builds or desyncs.
     let witness = (zero - 1e-9).abs() < 1e-12;
-    for (axis, frontier) in axes.into_iter().zip([
-        BooleanErrorKind::ResultInvalid,
-        BooleanErrorKind::CurvedPierceUnsupported,
-    ]) {
+    for (axis, frontier) in axes
+        .into_iter()
+        .zip([None, Some(BooleanErrorKind::CurvedPierceUnsupported)])
+    {
         let tipped = seams_on_the_walls(axis, 2.15 * zero / 3.2);
         for (op, r, _) in tipped.runs() {
             let axes_angle = matches!(
@@ -635,15 +644,54 @@ fn seams_lying_on_the_walls_read_the_axes_across_the_region() {
             );
         }
         let turned = seams_on_the_walls(axis, 0.2);
+        let (ca, cb) = (
+            Cylinder::upright(0.0, 0.0, 1.0, (-1.0, 1.0)),
+            Cylinder::upright(1.0, 1.0, 1.0, (-0.5, 0.5)).under(Affine3::rotation_about_axis(
+                Point3::new(1.0, 1.0, 0.0),
+                axis,
+                0.2,
+            )),
+        );
         for (op, r, _) in turned.runs() {
-            assert!(
-                matches!(&r, Err(e) if e.kind() == frontier)
-                    || !witness && matches!(&r, Err(BooleanError::Escalated { .. })),
-                "{} | {op}: want {frontier:?}, got {:?}",
-                turned.label,
-                r.map(|_| "a body")
-                    .map_err(|e| e.render(geom_brep::recourse::Reading::Build))
-            );
+            let escalated = !witness && matches!(&r, Err(BooleanError::Escalated { .. }));
+            match frontier {
+                Some(frontier) => assert!(
+                    matches!(&r, Err(e) if e.kind() == frontier) || escalated,
+                    "{} | {op}: want {frontier:?}, got {:?}",
+                    turned.label,
+                    r.map(|_| "a body")
+                        .map_err(|e| e.render(geom_brep::recourse::Reading::Build))
+                ),
+                None => {
+                    let want = match op {
+                        "U ab" | "U ba" => crossed::volume(ca, cb, Op::Union),
+                        "I ab" | "I ba" => crossed::volume(ca, cb, Op::Intersect),
+                        "S ab" => crossed::volume(ca, cb, Op::Subtract),
+                        _ => crossed::volume(cb, ca, Op::Subtract),
+                    };
+                    // The two rods' area together, `6π + 4π`: their chorded
+                    // walls accept a round that only just meets the
+                    // resolution ([`resolution_pad`]).
+                    let budget = resolution_pad(tol, 10.0 * PI);
+                    let line = if escalated {
+                        String::from("escalated")
+                    } else {
+                        let read = judged_within(r, Some(want), tol, budget);
+                        assert!(
+                            tol.eps() != 1e-9 || read.pad.is_none_or(|pad| pad <= TURNED_PAD_GUARD),
+                            "{} | {op}: the half-width {:?} past the regression guard",
+                            turned.label,
+                            read.pad
+                        );
+                        read.line
+                    };
+                    assert!(
+                        escalated || line.starts_with("OK SOUND"),
+                        "{} | {op}: {line}",
+                        turned.label
+                    );
+                }
+            }
         }
     }
 }
