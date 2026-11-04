@@ -6,7 +6,7 @@
 //! what it passes on and what its refused side is ([`SizedDecision`]);
 //! the refused arm ([`RefusedArm`]) and the door that reads it
 //! ([`ReadAt`]) decide the rest. Edge certification
-//! (`crate::certify::recourse`) and the offset meters
+//! (`CertCheck`'s [`DoorCheck::recourse`]) and the offset meters
 //! (`crate::offset_meters::Meter`) both end their sized decisions here.
 //!
 //! A decision with no size the user chose ends here too: in a defect or

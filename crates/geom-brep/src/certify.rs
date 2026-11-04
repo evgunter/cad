@@ -1232,7 +1232,8 @@ const TANGENT_PLANES_UNDEFINED: &str = "a surface's gradient is zero or undefine
 const TANGENT_PLANES_RECOURSE: &str = "keep the edge clear of each surface's axis or centre; over \
      a parameter box, a narrower box encloses the edge and its surfaces closer to where they are";
 
-/// How one decision's refusals end: the one table [`recourse`] reads.
+/// How one decision's refusals end: the one table `CertCheck`'s
+/// [`DoorCheck::recourse`] reads.
 #[derive(Debug)]
 enum Ending {
     /// A decision on a size the user may intend ([`SizedDecision`]).
@@ -9122,7 +9123,8 @@ mod tests {
 
     /// **The collapsed-arm gates' definite refusals read the import door
     /// like every sized decision's** (D4 ¶1): a collapsed transversality
-    /// arm and a collapsed span meter end through [`recourse`] at the door, so
+    /// arm and a collapsed span meter end through
+    /// [`DoorCheck::recourse`] at the door, so
     /// a zero within the file's ε_in is a size the file cannot tell from
     /// zero, not the at-rest offer to tighten alone.
     #[test]
