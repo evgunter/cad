@@ -26,7 +26,12 @@ The refusal comes from the window, then the polish:
 
 The other order's height carries the separation, so it reads off or receding there.
 
-Before PR 6492 the first conic was always read, so `meet(round, long)` refused there too. The tie now reproduces that. This is not a regression, but it is an asymmetry `order_rows::agree` would count as one: one order decides, the other refuses.
+This is a regression against main's parent before PR 6492 (`fd1c1949a5`), in the order the census reads:
+
+- **On `fd1c1949a5`** the first conic was always read. `meet(long, round)` read the long ellipse across the circle's plane and decided; the census passed. `meet(round, long)` read the circle, the reading that refuses.
+- **On main `c70b3bb82`**, measured: PR 6492's bare difference reads the circle in both orders, so both refuse `Unsettled::Meter`.
+- **This PR's first head** charged the scores and read the first conic at the tie. That restored the parent's one-sided answer, deciding in one order and refusing in the other.
+- **With the window's height and level read locally** (the decision below), both readings certify the touch, in either order.
 
 ## Owed
 
