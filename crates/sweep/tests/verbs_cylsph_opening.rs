@@ -191,8 +191,9 @@ fn coaxial_poses_build_every_op_at_their_volumes() {
 /// pierce's sector side certifies, the matcher pairs the cylinder ×
 /// sphere germs by foot on the section's one loop (`R < r + d`), and the
 /// join cuts both sides' chords from that loop; the cylinder face they
-/// bound has no volume lane for a projected boundary
-/// (`crate::cylinder_sphere_frame::Door::Projected`), in both poses.
+/// bound measures through the rotational lane, and the sphere face has
+/// no lane for its chord (`crate::cylinder_sphere_frame::Door::Sphere`),
+/// in both poses.
 #[test]
 fn a_transversal_pose_reaches_the_join_lane_in_both_poses() {
     let c = cyl(1.0, -2.0, 2.0);
@@ -205,10 +206,10 @@ fn a_transversal_pose_reaches_the_join_lane_in_both_poses() {
             finished(label, c, Tol::witness()),
             finished(label, s, Tol::witness()),
         );
-        let err = topo::union(&c, &s, Tol::witness()).expect_err("no projected volume lane");
+        let err = topo::union(&c, &s, Tol::witness()).expect_err("no sphere volume lane");
         assert_eq!(
             crate::cylinder_sphere_frame::door(&err),
-            Some(crate::cylinder_sphere_frame::Door::Projected),
+            Some(crate::cylinder_sphere_frame::Door::Sphere),
             "{label}: {err:?}"
         );
     }

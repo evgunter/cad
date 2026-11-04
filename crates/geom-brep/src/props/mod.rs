@@ -132,6 +132,7 @@ pub mod quad;
 pub mod rational_rim;
 pub mod spiric;
 pub(crate) mod taylor;
+mod trig;
 
 use geom::Curve3;
 use geom_core::spline::SpanLocate;
@@ -139,6 +140,7 @@ use geom_core::{Indeterminate, KERNEL_OR_FILE_DEFECT_ENDING, Point3, Real, Sized
 
 use crate::recourse::{RefusedArm, RefusedSide, SizedDecision, Unsized};
 
+pub use bracket::exact_point;
 pub use curved::{
     ClosedSurface, MaterialSign, SeamCover, SeamLoops, boundary_material_sign,
     boundary_material_sign_holding, boundary_material_sign_loops, closed_surface,
