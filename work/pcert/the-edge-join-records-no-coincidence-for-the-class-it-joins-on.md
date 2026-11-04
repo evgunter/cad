@@ -2,10 +2,12 @@
 id: the-edge-join-records-no-coincidence-for-the-class-it-joins-on
 kind: issue
 title: The boolean's edge join makes two edges one on a class reading and records no coincidence
-status: open
+status: closed
 opened: 2026-11-04
 priority: P1
 cost: M
+pr: 6512
+closed: 2026-11-04
 ---
 
 
@@ -42,3 +44,28 @@ A boolean whose join makes two edges of its inputs one on an
 iso-family reading records one row naming both, at its own site, with
 the reading's margin; the in-band reading refuses with the decision's
 lever; a definite reading keeps the edges apart.
+
+## Resolution
+
+PR 6512. `geom_brep::chart_iso_zero` reports the Zero a class reading
+stands on (the class gates `derive_class` decided Zero, jointly with
+the incidence test's margin, which `Incidence::On` now carries);
+`chart_iso_family` is unchanged. `edge_join::join_all` hands back a
+`ClassZero` for each join made on an iso family, and
+`boolean::ops::join_rows` records it at every output path as one
+`DecisionSite::IsoJoin` row, `Relation::SameOriented`, naming the two
+input edges. A join of two pieces of one input edge is that edge read
+twice and records nothing; a join on equal descriptions (`Intersection`,
+`TangentIntersection` on one `SurfacePair`) is the pair's locus read
+twice and records nothing.
+
+Through today's boolean no join of two different input edges reaches the
+iso arm: two faces on one surface key meet along a ruling only on a
+closed wall, and continuing one across operands is a closed run the
+merge keeps cut by design (sweep README, "Walls"; `PeriodClosure`). So
+the record path is pinned at `topo`'s unit level
+(`edge_join::class_zero_rows`, `ops::join_row_rows`), and no golden
+moves. Residues: `a-join-onto-an-op-minted-edge-records-no-row`,
+`the-join-outside-the-boolean-records-no-class-zero`,
+`a-non-ruling-class-reading-in-band-at-the-join-ends-not-yet`,
+`the-joins-in-band-class-reading-ends-two-ways`.
