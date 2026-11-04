@@ -15,6 +15,9 @@ use super::{Hit, MeetRefusal, Meetings, Pose, Span, meet, pose};
 
 type Read = Result<Meetings<f64>, MeetRefusal<f64>>;
 
+/// Two spans, each a carrier over its parameters.
+type Pair = [(Curve3<f64>, (f64, f64)); 2];
+
 fn read(a: (&Curve3<f64>, (f64, f64)), b: (&Curve3<f64>, (f64, f64)), band: Band) -> Read {
     meet(&Span::new(a.0, a.1), &Span::new(b.0, b.1), band)
 }
@@ -51,7 +54,7 @@ fn agree(label: &str, got: &Read, back: &Read, band: Band) -> Option<String> {
 }
 
 /// Each pair read in both orders, the failures collected.
-fn every(pairs: &[(String, [(Curve3<f64>, (f64, f64)); 2])], band: Band) -> Vec<String> {
+fn every(pairs: &[(String, Pair)], band: Band) -> Vec<String> {
     pairs
         .iter()
         .filter_map(|(label, [(a, sa), (b, sb)])| {
