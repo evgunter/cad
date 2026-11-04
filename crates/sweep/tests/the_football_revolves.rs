@@ -232,7 +232,25 @@ fn a_football_restored_on_the_other_sheet_is_refused_at_its_edges() {
                 .unwrap();
         }
         let errors = topo::AtRestBody::validate(body, tol).expect_err(what);
-        eprintln!("PROBE other sheet {what}: {errors:?}");
+        let off_sheet = |e: &topo::ValidationError| {
+            matches!(
+                e,
+                topo::ValidationError::EdgeCertification {
+                    error: geom_brep::CertifyError::CarrierOffChart {
+                        chart: geom::SurfaceKind::Spindle,
+                        ..
+                    },
+                    ..
+                }
+            )
+        };
+        assert!(
+            errors.iter().any(off_sheet)
+                && errors
+                    .iter()
+                    .all(|e| off_sheet(e) || matches!(e, topo::ValidationError::Pcurve { .. })),
+            "{what}: {errors:?}"
+        );
     }
 }
 
@@ -249,9 +267,20 @@ fn a_football_revolved_part_way_refuses_typed() {
             Revolution::Partial(2.0),
             Tol::witness(),
         );
-        eprintln!("PROBE part way {what}: {:?}", got.as_ref().map(|_| ()));
         assert!(
-            matches!(got, Err(RevolveError::Op { .. })),
+            matches!(
+                got,
+                Err(RevolveError::Op {
+                    source: topo::EulerOpError::Certification {
+                        error: geom_brep::CertifyError::AnalyticRung3(
+                            geom_brep::AnalyticRung3Refusal::NoOffsetBound {
+                                operand: geom::SurfaceKind::Spindle,
+                                ..
+                            }
+                        )
+                    }
+                })
+            ),
             "{what}: {:?}",
             got.map(|_| ())
         );
@@ -489,8 +518,10 @@ fn a_sheet_faces_boundary_encodes_its_side_where_a_rim_closes_it() {
 }
 
 /// **A football face with its bit flipped is refused**, one face or
-/// both: the π-bands encode no side, so what refuses is the body (a
-/// lamina's wedge, a negative volume).
+/// both: the π-bands encode no side and no seam region reads a sheet
+/// (`work/spiricarm/a-sheet-face-whose-boundary-encodes-no-side-has-no-seam-region-reading.md`),
+/// so what refuses is the body: the two faces' wedge at each meridian
+/// where one is flipped, a negative volume where both are.
 #[test]
 fn a_football_with_a_sheet_faces_bit_flipped_is_refused() {
     let tol = Tol::witness();
@@ -509,7 +540,17 @@ fn a_football_with_a_sheet_faces_bit_flipped_is_refused() {
                 body = body.flipped_face_sense_for_tests(k).unwrap();
             }
             let errors = topo::AtRestBody::validate(body, tol).expect_err("a flipped bit");
-            eprintln!("PROBE flipped {big} {}: {errors:?}", keys.len());
+            let refused = if keys.len() == 1 {
+                errors
+                    .iter()
+                    .all(|e| matches!(e, topo::ValidationError::LaminaWedge { .. }))
+            } else {
+                matches!(
+                    errors.as_slice(),
+                    [topo::ValidationError::NegativeVolume { .. }]
+                )
+            };
+            assert!(refused, "R {big}, {} flipped: {errors:?}", keys.len());
         }
     }
 }
