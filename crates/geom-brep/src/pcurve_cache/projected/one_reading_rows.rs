@@ -19,7 +19,7 @@
 
 use core::f64::consts::{FRAC_PI_2, TAU};
 
-use geom::{ChartInverse, Surface};
+use geom::{ChartInverse, Quarter, Surface};
 use geom_core::{Band, Bounds, Decide, Interval, Point2, Point3, Real, Vec3};
 
 /// The bracket a scalar carries, as `(lo, hi)`.
@@ -164,8 +164,8 @@ fn compare<T: Decide>(lift: impl Fn(f64) -> T, bracket: Bracket<T>) -> usize {
                                 span: T::one(),
                             },
                             breaks: breaks_vector(&[0.0, 1.0]),
-                            azimuth: vec![m],
-                            tube: if torus { vec![n] } else { Vec::new() },
+                            azimuth: vec![Quarter(m)],
+                            tube: if torus { vec![Quarter(n)] } else { Vec::new() },
                             u_off: T::zero(),
                             v_off: T::zero(),
                             v_sign: T::one(),
@@ -237,7 +237,7 @@ fn the_sphere_latitude_at_negative_zero_height_reads_positive_zero() {
             span: 1.0,
         },
         breaks: breaks_vector(&[0.0, 1.0]),
-        azimuth: vec![0],
+        azimuth: vec![Quarter(0)],
         tube: Vec::new(),
         u_off: 0.0,
         v_off: 0.0,

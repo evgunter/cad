@@ -42,9 +42,10 @@
 //! | torus | `α(x, y)` | `φ_k + atan2(R(−φ_k)·(ρ − R, z))` |
 //!
 //! `σ = ±1` is the cone's nappe, the image's own (its carrier's middle,
-//! `chart_of`), where the point reading decides it on each point's `z`. The cone's `v` is the slant of the
-//! perpendicular foot of the point on the generator through its
-//! azimuth, not its height (which is off by `1/cos α`).
+//! `chart_of`), where the point reading decides it on each point's `z`.
+//! The cone's `v` is the slant of the perpendicular foot of the point on
+//! the generator through its azimuth, not its height (which is off by
+//! `1/cos α`).
 //!
 //! **`S(ψ(ξ))` is the chart's nearest point to `ξ`** on the plane, the
 //! cylinder, the sphere and the torus, and on the cone the foot on the
@@ -328,10 +329,10 @@ pub struct ProjectedImage<T: Real> {
     /// The piece breaks on the piece parameter: a clamped degree-1 knot
     /// vector, one span per piece.
     pub(super) breaks: KnotVector,
-    /// `θ_k = m_k·π/2`, one quarter-turn index per piece.
-    pub(super) azimuth: Vec<i32>,
+    /// `θ_k = m_k·π/2`, one quarter turn per piece.
+    pub(super) azimuth: Vec<Quarter>,
     /// `φ_k = n_k·π/2`, one per piece on a torus chart; empty elsewhere.
-    pub(super) tube: Vec<i32>,
+    pub(super) tube: Vec<Quarter>,
     pub(super) u_off: T,
     pub(super) v_off: T,
     pub(super) v_sign: T,
@@ -360,15 +361,32 @@ impl<T: Real> ProjectedImage<T> {
 
     /// The per-piece branch centres `θ_k`, as quarter turns.
     #[must_use]
-    pub fn azimuth(&self) -> &[i32] {
+    pub fn azimuth(&self) -> &[Quarter] {
         &self.azimuth
     }
 
     /// The per-piece tube branch centres `φ_k` (torus only), as quarter
     /// turns.
     #[must_use]
-    pub fn tube(&self) -> &[i32] {
+    pub fn tube(&self) -> &[Quarter] {
         &self.tube
+    }
+
+    /// Piece `k`'s azimuth centre `θ_k`. Every curved image carries one
+    /// per piece (the derivation writes them; `certify` refuses a row
+    /// that does not), so a missing one is a kernel bug.
+    fn theta(&self, k: usize) -> Quarter {
+        self.azimuth.get(k).copied().unwrap_or_else(|| {
+            unreachable!("piece {k} of {} has no azimuth centre", self.azimuth.len())
+        })
+    }
+
+    /// Piece `k`'s tube centre `φ_k`, on a torus chart (as [`Self::theta`]).
+    fn phi(&self, k: usize) -> Quarter {
+        self.tube
+            .get(k)
+            .copied()
+            .unwrap_or_else(|| unreachable!("piece {k} of {} has no tube centre", self.tube.len()))
     }
 
     /// The deck map `(u_off, v_off, v_sign)`.
@@ -410,13 +428,11 @@ impl<T: Real> ProjectedImage<T> {
     /// decided the branch at derivation, so the image decides nothing
     /// here and evaluates at every scalar.
     fn raw(&self, p: Vec3<T>, k: usize) -> Point2<T> {
-        let centre = |q: &[i32]| Quarter(q.get(k).copied().unwrap_or(0));
-        let (theta, phi) = (centre(&self.azimuth), centre(&self.tube));
         self.chart
             .channels()
             .read((p.x, p.y, p.z), |angle, direction| match angle {
-                ChartAngle::Azimuth => direction.about(theta),
-                ChartAngle::Tube => direction.about(phi),
+                ChartAngle::Azimuth => direction.about(self.theta(k)),
+                ChartAngle::Tube => direction.about(self.phi(k)),
                 ChartAngle::Latitude => direction.about(Quarter(0)),
                 ChartAngle::SheetTube => {
                     unreachable!("a spindle sheet has no projected chart (`chart_at` refuses it)")
@@ -478,9 +494,17 @@ fn atan2_range<T: Real>(x: (T, T), y: (T, T)) -> (T, T) {
 }
 
 /// A box rotated by `−m·π/2`, exactly.
-fn rotate_box<T: Real>(m: i32, x: (T, T), y: (T, T)) -> ((T, T), (T, T)) {
+///
+/// [`Quarter::rotate`]'s range form: the rotation is a swap and sign
+/// flips, so each output range is one input range, or its negation with
+/// its ends swapped. Written on the ranges rather than as the min and max
+/// of the rotated corners, which at `Interval` (an elementwise envelope)
+/// would read the same box only where each range's two ends are ordered
+/// elementwise; `the_box_rotation_is_the_quarters_on_its_corners` ties
+/// the two.
+fn rotate_box<T: Real>(q: Quarter, x: (T, T), y: (T, T)) -> ((T, T), (T, T)) {
     let neg = |(lo, hi): (T, T)| (T::zero() - hi, T::zero() - lo);
-    match m.rem_euclid(4) {
+    match q.0.rem_euclid(4) {
         0 => (x, y),
         1 => (y, neg(x)),
         2 => (neg(x), neg(y)),
@@ -615,7 +639,7 @@ impl<T: SpanLocate> ProjectedImage<T> {
     /// to `t0` or `t1`, as [`Self::frame_box`] stretches an end piece.
     fn frame_box_on(&self, k: usize, part: ParamRange, t0: T, t1: T) -> FrameBox<T> {
         let (s0, s1) = (part.start(), part.end());
-        let theta = Quarter(self.azimuth.get(k).copied().unwrap_or(0));
+        let theta = self.theta(k);
         let sigma = self.chart.sigma();
         let knots = self.breaks.knots();
         match &self.carrier {
@@ -647,7 +671,7 @@ impl<T: SpanLocate> ProjectedImage<T> {
                 let (x, y) = if matches!(self.chart, ProjectedChart::Plane) {
                     (x, y)
                 } else {
-                    rotate_box(theta.0, scale(x, sigma), scale(y, sigma))
+                    rotate_box(theta, scale(x, sigma), scale(y, sigma))
                 };
                 FrameBox { x, y, z }
             }
@@ -717,15 +741,14 @@ impl<T: SpanLocate> ProjectedImage<T> {
 
     /// The tube channel's rotated box `(ρ − R, z)` by `−φ_k`.
     pub(crate) fn tube_box(&self, k: usize, b: &FrameBox<T>, major: T) -> ((T, T), (T, T)) {
-        let phi = self.tube.get(k).copied().unwrap_or(0);
         let rho = Self::rho_range(b);
-        rotate_box(phi, (rho.0 - major, rho.1 - major), b.z)
+        rotate_box(self.phi(k), (rho.0 - major, rho.1 - major), b.z)
     }
 
     /// The channel ranges over one box of piece `k`, before the deck
     /// map.
     fn window(&self, k: usize, b: &FrameBox<T>) -> ChartWindow<T> {
-        let theta = Quarter(self.azimuth.get(k).copied().unwrap_or(0)).angle::<T>();
+        let theta = self.theta(k).angle::<T>();
         let (u, v) = match self.chart {
             ProjectedChart::Plane => (b.x, b.y),
             ref chart => {
@@ -751,7 +774,7 @@ impl<T: SpanLocate> ProjectedImage<T> {
                         )
                     }
                     ProjectedChart::Torus { major } => {
-                        let phi = Quarter(self.tube.get(k).copied().unwrap_or(0)).angle::<T>();
+                        let phi = self.phi(k).angle::<T>();
                         let (tx, ty) = self.tube_box(k, b, major);
                         let r = atan2_range(tx, ty);
                         (phi + r.0, phi + r.1)
@@ -1027,7 +1050,7 @@ fn choose_quarters<T: Decide>(image: &mut ProjectedImage<T>, k: usize, t0: T, t1
             .unwrap_or(false)
     };
     for m in 0..4 {
-        image.azimuth[k] = m;
+        image.azimuth[k] = Quarter(m);
         let b = image.frame_box(k, t0, t1);
         if clear(b.x.0) {
             break;
@@ -1036,7 +1059,7 @@ fn choose_quarters<T: Decide>(image: &mut ProjectedImage<T>, k: usize, t0: T, t1
     if let ProjectedChart::Torus { major } = image.chart {
         let b = image.frame_box(k, t0, t1);
         for n in 0..4 {
-            image.tube[k] = n;
+            image.tube[k] = Quarter(n);
             if clear(image.tube_box(k, &b, major).0.0) {
                 break;
             }
@@ -1316,7 +1339,7 @@ pub(crate) fn project<T: Decide>(
         chart,
         carrier: framed,
         breaks: breaks_vector(&[0.0, 1.0]),
-        azimuth: vec![0],
+        azimuth: vec![Quarter(0)],
         tube: Vec::new(),
         u_off: T::zero(),
         v_off: T::zero(),
@@ -1365,8 +1388,8 @@ pub(crate) fn project<T: Decide>(
     unwrap_quarters(&mut azimuth);
     unwrap_quarters(&mut tube);
     image.breaks = breaks_vector(&breaks);
-    image.azimuth = azimuth;
-    image.tube = tube;
+    image.azimuth = azimuth.into_iter().map(Quarter).collect();
+    image.tube = tube.into_iter().map(Quarter).collect();
     // C4's placement: the deck origin names the image's azimuth, and on
     // a torus its tube angle, in the principal window at the span's
     // midpoint, so where the carrier's parameter starts moves no image;
@@ -1426,9 +1449,9 @@ fn refine<T: Decide>(
     tube: &mut Vec<i32>,
 ) -> Result<(), Refine> {
     image.breaks = breaks_vector(&[a, b]);
-    image.azimuth = vec![0];
+    image.azimuth = vec![Quarter(0)];
     image.tube = if matches!(image.chart, ProjectedChart::Torus { .. }) {
-        vec![0]
+        vec![Quarter(0)]
     } else {
         Vec::new()
     };
@@ -1442,9 +1465,9 @@ fn refine<T: Decide>(
     match verdict {
         Ok(None) => {
             breaks.push(b);
-            azimuth.push(image.azimuth[0]);
+            azimuth.push(image.azimuth[0].0);
             if let Some(&phi) = image.tube.first() {
-                tube.push(phi);
+                tube.push(phi.0);
             }
             Ok(())
         }
@@ -2713,7 +2736,7 @@ pub(super) fn projected_envelope<T: Decide>(
         let (i, j) = (w[0], w[1]);
         for angles in [&image.azimuth, &image.tube] {
             if let (Some(&x), Some(&y)) = (angles.get(i), angles.get(j))
-                && (y - x).abs() > 1
+                && (y.0 - x.0).abs() > 1
             {
                 return Err(sector_refused(j, SectorChannel::Branch));
             }
@@ -3117,3 +3140,7 @@ mod turn_rows;
 #[cfg(test)]
 #[allow(clippy::panic)]
 mod one_reading_rows;
+
+#[cfg(test)]
+#[allow(clippy::panic)]
+mod old_formula_rows;

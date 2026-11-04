@@ -215,8 +215,15 @@ impl ChartAngle {
 }
 
 /// **The chart's channels**: the one spelling of the module docs'
-/// table, the arithmetic every reading of a point's chart coordinates
-/// runs on frame-local components `(x, y, h)`. It decides nothing: each
+/// table, the arithmetic [`ChartInverse::point`] and `geom_brep`'s
+/// projected image run on frame-local components `(x, y, h)`. Sites
+/// that still spell a channel apart are filed under `work/pcert/`
+/// (`a-cone-points-v-is-read-off-its-height-in-props-and-replace-face`,
+/// `derive-class-spells-a-parallels-latitude-and-a-rims-slant-on-its-own`,
+/// `the-winding-count-reads-chart-channels-by-its-own-atan2`,
+/// `sphere-and-torus-levels-are-read-as-sin-cos-pairs-by-their-own-spelling`,
+/// and the image's own box forms in
+/// `the-projected-box-forms-spell-the-point-reading-apart`). It decides nothing: each
 /// angle leaves as the direction it is read off ([`Azimuth`]), and the
 /// caller names it. [`ChartInverse::point`] names it in its window
 /// ([`Azimuth::principal_in`]); `geom_brep`'s projected image `ψ`
