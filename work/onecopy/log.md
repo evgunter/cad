@@ -91,3 +91,6 @@
   - `Standing` folds into `ladder::Refusal` with an `Unsettled` arm if that takes ≤150 lines; otherwise it is filed as a row.
 
   Class: a fix that names a single home ("so no reader spells a second table") has to grep for the second table before it says so.
+- 2026-11-04 — PR 6483 merged. It had a FULL review with MAJORs, a delta review returning APPROVE-WITH-FIXES, and a last commit I read. Three rows close: `a-foot-has-no-bare-parameter`, `a-foots-parameter-is-read-without-its-certificate` and `a-foots-polish-tie-break-escalates-where-no-foot-rests-on-it`.
+  - Homes: `Foot::{nearest, seed}` with `On { t }` certified by the gap. `census::curved::edge_tangent_at` is the one certified edge tangent, `census::edge_line` the one straightness reading, and `EdgeTangentUnread` is typed. The seed pin counts reads per file in every spelling. F32 is unlogged, and it says what the driver loses.
+  - My merge of main: `self_touch_curved` takes main's FaceView read. The audit's F31 takes 6482's widened text. `on_carrier.rs` re-imports `check_unlogged`: 6482 dropped the import with `angle_near`, while 6483's F32 reads it. That is a semantic clash git could not see, caught by the compile.

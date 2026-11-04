@@ -292,15 +292,18 @@ pub enum Sense {
     Opposite,
 }
 
-/// A candidate meeting: a point, and its parameter on each carrier (the
-/// carrier's own on the one it was placed on, its foot on the other).
+/// A candidate meeting: a point, and a seed on each carrier for reading
+/// it there. On the carrier it was placed on the seed is the point's own
+/// parameter; on the other it is its foot's [`geom::Foot::seed`], which
+/// certifies nothing. A reader that needs the point's parameter on a
+/// carrier reads that carrier's certificate at it.
 #[derive(Clone, Copy, Debug)]
 pub struct Candidate<T: geom_core::Real> {
     /// The point.
     pub point: Point3<T>,
-    /// Its parameter on the first carrier.
+    /// Its seed on the first carrier.
     pub ta: T,
-    /// Its parameter on the second carrier.
+    /// Its seed on the second carrier.
     pub tb: T,
 }
 
@@ -482,11 +485,9 @@ fn reach<T: Decide>(s: &Span<'_, T>) -> T {
     Margin::metered_sup((t1 - t0).abs(), s.speeds().1).value()
 }
 
-/// The line's foot of `q` ([`Curve3::foot`], the one foot reading).
+/// The parameter of `q`'s foot on the line ([`geom::Line::param`]).
 fn line_foot<T: Decide>((origin, dir): (Point3<T>, Vec3<T>), q: Point3<T>) -> T {
-    Curve3::Line(geom::Line { origin, dir })
-        .foot(q, T::zero())
-        .t()
+    geom::Line { origin, dir }.param(q)
 }
 
 /// A lower bound on `q`'s distance from the carrier
@@ -496,11 +497,12 @@ fn clearance<T: Decide>(c: &Curve3<T>, q: Point3<T>) -> T {
     c.clearance(q).unwrap_or_else(T::zero)
 }
 
-/// `q`'s foot on `s`'s carrier ([`Curve3::foot`]), seeded at the span's
-/// middle.
+/// `q`'s foot on `s`'s carrier ([`Curve3::foot`]) seeded at the span's
+/// middle, as a seed ([`geom::Foot::seed`]): a candidate the pose reads
+/// on, not a certified parameter.
 fn foot<T: Decide>(s: &Span<'_, T>, q: Point3<T>) -> T {
     let (t0, t1) = s.params();
-    s.carrier().foot(q, geom::mid_param(t0, t1)).t()
+    s.carrier().foot(q, geom::mid_param(t0, t1)).seed()
 }
 
 /// **Each span's ends, read against the other** (module docs, "The
