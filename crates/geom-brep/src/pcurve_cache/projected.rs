@@ -2011,10 +2011,10 @@ pub(crate) fn window_of<T: Decide>(
 /// # Errors
 ///
 /// [`PcurveCertifyError::ImageMismatch`] when no part meets the window,
-/// or one that does has no certified composite bound or floor; a cone's
-/// or a torus's lever that does not decide positive refuses
+/// or one that does has no certified composite bound or floor; a cone's,
+/// a torus's or a sheet's lever that does not decide positive refuses
 /// [`SectorChannel::Lever`] at the part, except where `apex` reads such
-/// a cone or sheet part through [`Meters::apex_root`] (limb 2's reading).
+/// a cone or sheet part through [`Meters::apex_part`] (limb 2's reading).
 pub(super) fn net_incidence<T: Decide>(
     hull: &ProjectedHull,
     (t0, t1): (T, T),
