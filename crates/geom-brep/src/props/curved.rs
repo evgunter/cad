@@ -5683,7 +5683,6 @@ fn sheet_apex_jumps<T: Decide>(
         };
         let (into, out) = (pieces[j].edge, pieces[next].edge);
         let at = radial(into.traversal_ends().1).norm();
-        eprintln!("DBG apex junction j={j} at={:?} rising={rising}", at);
         if classify(
             "props_sheet_apex_junction",
             Margin::of(at),
@@ -5715,7 +5714,6 @@ fn sheet_apex_jumps<T: Decide>(
             (false, true) => turn - T::tau(),
         };
         let sin_v = apex.height / minor;
-        eprintln!("DBG jump du={:?} turn={:?} lever={:?}", du, turn, lever);
         pieces[j].apex_after = Some(ApexJump {
             du,
             sin_v: if rising { sin_v } else { -sin_v },

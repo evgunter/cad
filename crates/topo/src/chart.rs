@@ -206,7 +206,7 @@ impl Chart<f64> {
         let mut points = geom_brep::chart_singularity::singular_points(&self.inverse);
         // A horn's two apexes are its one cusp, at `v* = π`, where the
         // sheet's latitude window reads it.
-        points.dedup_by(|b, a| a.1 == b.1);
+        points.dedup_by(|b, a| (a.1 - b.1).norm() == 0.0);
         points
             .into_iter()
             .map(|(which, p)| {

@@ -18788,17 +18788,16 @@ mod door_roster {
             .collect()
     }
 
-    /// **A sheet apex at a vertex of its face is reached**: the brick's
-    /// top face on a lemon (`R = −0.3`, `r = 0.5`, apexes `0.4` above
-    /// and below its centre) whose upper apex is the corner `(1, 1, 1)`.
-    /// The placement reads it at the vertex, which passes a pole and
-    /// refuses an apex; the lower apex, off the face, the walk of its
-    /// loop shows outside.
+    /// **A sheet apex at a vertex of its face passes**, as a pole
+    /// there does: the brick's top face on a lemon (`R = −0.3`,
+    /// `r = 0.5`, apexes `0.4` above and below its centre) whose upper
+    /// apex is the corner `(1, 1, 1)`. The placement reads it at the
+    /// vertex; the lower apex, off the face, the walk of its loop shows
+    /// outside.
     #[test]
-    fn a_sheet_apex_at_a_face_vertex_is_reached() {
-        use geom_brep::chart_singularity::Singularity::SheetApexUp;
+    fn a_sheet_apex_at_a_face_vertex_passes() {
         let findings = brick_face_on_a_sheet(top, geom_core::Point3::new(1.0, 1.0, 0.6), -0.3, 0.5);
-        assert_eq!(reached(&findings), [SheetApexUp], "{findings:?}");
+        assert!(findings.is_empty(), "{findings:?}");
     }
 
     /// **A sheet apex in its face's interior is no vertex**: the
@@ -18856,9 +18855,10 @@ mod door_roster {
 
     /// **A horn a hair past `R = r`, accepted in band, closes at one
     /// finite cusp**: `spindle_sheet` decides it a horn, its chart's
-    /// apexes are both the centre with `v = π` (the clamped radicand of
-    /// `geom::sheet_apex`, where `√(r² − R²)` was NaN), and tier 3 reads
-    /// the cusp, at the top face's centre, as reached.
+    /// apexes are both the centre (the clamped radicand of
+    /// `geom::sheet_apex`, where `√(r² − R²)` was NaN), which its chart
+    /// lists once, at `v = π`, and tier 3 reads the cusp, at the top
+    /// face's centre, as reached.
     #[test]
     #[allow(clippy::unwrap_used)]
     fn a_horn_a_hair_past_r_closes_at_one_finite_cusp() {
@@ -18875,10 +18875,10 @@ mod door_roster {
             u_ref: geom_core::Vec3::new(1.0, 0.0, 0.0),
         };
         let poles = crate::chart::Chart::of(&sheet).unwrap().poles();
-        assert_eq!(poles.len(), 2);
+        assert_eq!(poles.len(), 1, "{poles:?}");
         for (p, v) in &poles {
             assert_eq!((p.x, p.y, p.z), (center.x, center.y, center.z), "{poles:?}");
-            assert_eq!(v.abs(), core::f64::consts::PI, "{poles:?}");
+            assert_eq!(*v, core::f64::consts::PI, "{poles:?}");
         }
         let findings = brick_face_on_a_sheet(top, center, major, minor);
         assert_eq!(reached(&findings).len(), 2, "{findings:?}");

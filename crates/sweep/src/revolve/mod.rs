@@ -575,15 +575,6 @@ pub enum RevolveError {
         /// The predicate-layer escalation.
         source: Indeterminate,
     },
-    /// An arc whose circle reaches the axis and that ends on it: the
-    /// end is an apex of the spindle sheet the arc sweeps, which no
-    /// door builds a face to yet.
-    SheetApex {
-        /// Canonical index of the loop.
-        loop_index: usize,
-        /// Canonical index of the segment.
-        segment_index: usize,
-    },
     /// Full revolve of a profile whose axis contact is not made of
     /// contiguous runs of on-axis segments: an isolated on-axis vertex
     /// (or a run-detached one) revolves to a non-manifold solid (D1).
@@ -907,16 +898,6 @@ impl RevolveError {
                     )
                 )
             }
-            Self::SheetApex {
-                loop_index,
-                segment_index,
-            } => write!(
-                f,
-                "the arc at profile loop {loop_index} segment {segment_index} ends on the \
-                 revolve axis at an apex of the spindle sheet it sweeps, and no face reaching \
-                 a sheet's apex is built yet. Recourse: end the arc off the axis and close \
-                 the profile to the axis with a line"
-            ),
             Self::NonManifoldAxisContact {
                 loop_index,
                 vertex_index,

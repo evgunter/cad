@@ -5589,7 +5589,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "op",
             "pcurve",
             "pinned_run_station",
-            "sheet_apex",
             "sliver_axis_clearance",
             "sliver_join",
             "sliver_radius",

@@ -648,4 +648,81 @@ mod tests {
             );
         }
     }
+
+    /// The exact distance from `p` to the sheet `(R, r)` about `z`: in
+    /// `p`'s meridian half-plane, to the sheet's arc `|v| ≤ v*` of the
+    /// circle of radius `r` about `(R, 0)`, or to the nearer apex where
+    /// the circle's nearest point is off the arc.
+    fn sheet_dist(major: f64, minor: f64, p: Point3<f64>) -> f64 {
+        let (rho, z) = (p.x.hypot(p.y), p.z);
+        let v_star = (-major / minor).acos();
+        let (x, y) = (rho - major, z);
+        if y.atan2(x).abs() <= v_star {
+            return (x.hypot(y) - minor).abs();
+        }
+        let h = minor * v_star.sin();
+        rho.hypot(z - h).min(rho.hypot(z + h))
+    }
+
+    /// **`cert_spindle` bounds a fan triangle's distance from its sheet**
+    /// (a seeded fuzz). Each triangle has one corner at an apex with an
+    /// arbitrary `u`, and two near it: every point of the flat triangle
+    /// is within the certificate of the sheet, measured exactly
+    /// ([`sheet_dist`], blind to the chart). The apex's `u` is dropped
+    /// from the certificate's `Δu` and its `v` kept; with the `v` dropped
+    /// as well this goes red.
+    #[test]
+    fn cert_spindle_bounds_a_fan_triangle_on_lemon_and_apple_sheets() {
+        let mut rng = test_utils::fuzz::start("cert_spindle_fan");
+        for _ in 0..test_utils::fuzz::scaled(20_000) {
+            let minor = rng.range(0.05, 2.0);
+            let major = minor * rng.range(-0.98, 0.98);
+            let vs = (-major / minor).acos();
+            let up = rng.unit() < 0.5;
+            let at = if up { vs } else { -vs };
+            let (du, dv) = (rng.range(0.0, 0.6), rng.range(0.0, 0.6_f64.min(vs)));
+            let u0 = rng.range(-PI, PI);
+            let mut uv = [[rng.range(-PI, PI), at]; 3];
+            for corner in &mut uv[1..] {
+                let off = rng.unit() * dv;
+                *corner = [u0 + rng.unit() * du, if up { at - off } else { at + off }];
+            }
+            let apex = [true, false, false];
+            let cert = cert_spindle(major, minor, uv, apex);
+            let c = uv.map(|[u, v]| torus_point(major, minor, u, v));
+            let n = 8u32;
+            let mut worst: f64 = 0.0;
+            for i in 0..=n {
+                for j in 0..=(n - i) {
+                    let (li, lj) = (f64::from(i) / f64::from(n), f64::from(j) / f64::from(n));
+                    let lk = 1.0 - li - lj;
+                    let q = Point3::new(
+                        c[0].x * li + c[1].x * lj + c[2].x * lk,
+                        c[0].y * li + c[1].y * lj + c[2].y * lk,
+                        c[0].z * li + c[1].z * lj + c[2].z * lk,
+                    );
+                    worst = worst.max(sheet_dist(major, minor, q));
+                }
+            }
+            assert!(
+                worst <= cert * (1.0 + 1e-9) + 1e-12,
+                "R {major} r {minor} uv {uv:?}: distance {worst} exceeds {cert} ({})",
+                test_utils::fuzz::replay()
+            );
+        }
+    }
+
+    /// **A triangle with fewer than two corners off an apex certifies
+    /// nothing**: both apexes and a third corner span the sheet's whole
+    /// `v` window, which no fan triangle does.
+    #[test]
+    fn cert_spindle_refuses_a_triangle_on_two_apexes() {
+        let vs = (0.5_f64).acos();
+        let uv = [[0.0, vs], [0.3, -vs], [0.1, 0.0]];
+        assert_eq!(
+            cert_spindle(-0.5, 1.0, uv, [true, true, false]),
+            f64::INFINITY
+        );
+        assert!(cert_spindle(-0.5, 1.0, uv, [true, false, false]).is_finite());
+    }
 }
