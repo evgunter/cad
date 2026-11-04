@@ -33,6 +33,13 @@ Its arms are kinds the table already writes:
 A new ending kind added to the table does not reach this match, and
 the `Band` split already differs.
 
+The at-rest classifier (`classify_pcurve`,
+`crates/topo/src/validate.rs`) spells the same arms' endings a second
+time beside their reasons, and the two disagree on one:
+`JointWithoutRoom` ends in its lever (`JOINT_WITHOUT_ROOM_RECOURSE`) in
+`PcurveMintError::ending` but in `NOT_YET_ENDING` at rest. The
+classifier's comment says the arm is never produced at rest.
+
 ## Repair shape
 
 Outside geom-brep, so not folded by the refactor. Either read the
