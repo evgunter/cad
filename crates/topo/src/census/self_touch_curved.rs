@@ -427,8 +427,9 @@ fn a_cusp_corner_is_left_to_second_order() {
 /// must not reach [`SelfTouch::SecondOrder`].
 #[test]
 fn an_elliptic_edges_direction_reads_at_its_certified_parameter_or_refuses_as_itself() {
-    fn rows<T: Decide + geom_core::Bounds + crate::props::AtRestPolicy + core::fmt::Debug>(
+    fn rows<T: Decide + crate::props::AtRestPolicy + core::fmt::Debug>(
         scalar: &str,
+        upper: fn(T) -> f64,
     ) {
         let (body, _, _) = crate::test_support_fixtures::oblique_rim_wall_in::<T>(0.4);
         let (e, edge) = body.edges.iter().next().expect("the rim");
@@ -446,7 +447,7 @@ fn an_elliptic_edges_direction_reads_at_its_certified_parameter_or_refuses_as_it
             let (d, line) = half_edge_tangent(&body, he, on, band())
                 .unwrap_or_else(|why| panic!("{scalar}: on the rim, {why:?}"));
             assert!(!line, "{scalar}: the rim is no line");
-            let gap = geom_core::Bounds::hi((d - want * sign).norm());
+            let gap = upper((d - want * sign).norm());
             assert!(
                 gap < 1e-9,
                 "{scalar}: the tangent at t = 1 on {e:?}, off by {gap:e}"
@@ -459,6 +460,6 @@ fn an_elliptic_edges_direction_reads_at_its_certified_parameter_or_refuses_as_it
             "{scalar}: a point the span does not certify refuses as itself, got {refused:?}"
         );
     }
-    rows::<f64>("f64");
-    rows::<geom_core::Interval>("Interval");
+    rows::<f64>("f64", |x| x);
+    rows::<geom_core::Interval>("Interval", geom_core::Bounds::hi);
 }

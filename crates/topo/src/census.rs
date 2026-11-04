@@ -8984,7 +8984,7 @@ fn half_edge_tangent<T: Decide>(
         }
         None => return Err(edge_tangent_refusal(&refused)),
     };
-    let line = matches!(tangent, curved::EdgeTangent::Line(_));
+    let line = matches!(tangent, curved::EdgeTangent::Straight(_));
     let d = tangent.dir();
     Ok((if he == edge.he_plus { d } else { -d }, line))
 }

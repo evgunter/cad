@@ -212,19 +212,19 @@ pub(super) fn tangent_on_interior<T: Decide>(
 /// ([`edge_tangent_at`]).
 #[derive(Clone, Copy, Debug)]
 pub(super) enum EdgeTangent<T: Real> {
-    /// A line's direction: the same at every point, read off the
-    /// carrier by its kind.
-    Line(geom_core::Vec3<T>),
+    /// A straight edge's direction: its line's, the same at every point,
+    /// read off the carrier by its kind.
+    Straight(geom_core::Vec3<T>),
     /// A curve's tangent at the parameter the edge's span certifies the
     /// point on ([`Hit::On`]).
-    Curve(geom_core::Vec3<T>),
+    Curved(geom_core::Vec3<T>),
 }
 
 impl<T: Real> EdgeTangent<T> {
     /// The unit direction, either way.
     pub(super) fn dir(self) -> geom_core::Vec3<T> {
         match self {
-            Self::Line(dir) | Self::Curve(dir) => dir,
+            Self::Straight(dir) | Self::Curved(dir) => dir,
         }
     }
 }
@@ -250,12 +250,12 @@ pub(super) fn edge_tangent_at<T: Decide>(
         .and_then(crate::null::CurveGeom::certified)
         .and_then(|curve| curve.carrier().as_line());
     if let Some(line) = line {
-        return Some(Some(EdgeTangent::Line(line.dir.normalize())));
+        return Some(Some(EdgeTangent::Straight(line.dir.normalize())));
     }
     let r = read(body, e, band, errors)?;
     Some(
         on_interior_at(body, &r, q, band, errors)?
-            .map(|(t, _)| EdgeTangent::Curve(r.curve.deriv(t).normalize())),
+            .map(|(t, _)| EdgeTangent::Curved(r.curve.deriv(t).normalize())),
     )
 }
 
