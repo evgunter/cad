@@ -39,7 +39,7 @@ use geom_core::{Band, Decide, Lever, Margin, Real, Sign, Vec3};
 use crate::certify::{CertifyError, NOT_A_SAMPLE, RowRefusal};
 use crate::description::{HarmonicRow, WallRow, harmonic_row, wall_row};
 use crate::keys::SurfaceKey;
-use crate::pcurve_cache::{Pcurve, PcurveCache};
+use crate::pcurve_cache::{Pcurve, PcurveCache, PcurveCheck};
 use crate::recourse::{Classified, Refused};
 
 /// What a shared row's certificate reads of its two surfaces' contact
@@ -76,7 +76,7 @@ pub fn analytic_shared_row<T: Decide>(
     let (ia, ib) = (image(wa)?, image(wb)?);
     let rows =
         crate::certify::pair_row_certifies([(wa, &ia), (wb, &ib)], (carrier, (t0, t1)), band);
-    if !matches!(rows, Some([WallRow::Analytic(_), WallRow::Analytic(_)])) {
+    if rows != Some([WallRow::Analytic, WallRow::Analytic]) {
         return None;
     }
     let row = crate::SharedRow::new(pair, (ka, ia), (kb, ib))?;
@@ -103,19 +103,34 @@ pub(crate) fn row_normal<T: Decide>(wall: &Surface<T>, image: &Pcurve<T>, t: T) 
 ///
 /// [`CertifyError::Row`] ([`RowRefusal::Singular`]) on `key` where the
 /// row reaches one, [`CertifyError::Unimplemented`] for an image that is
-/// no analytic row of `wall`, and [`CertifyError::Escalated`]
-/// ([`crate::CertCheck::ImageSpan`]) where a decision lands in the band.
+/// no analytic row of `wall`, [`RowRefusal::ImageEscalated`]
+/// ([`PcurveCheck::ChartClass`]) on `key` where the row's reading lands in
+/// the band (`description::harmonic_row`), and [`CertifyError::Escalated`]
+/// ([`crate::CertCheck::ImageSpan`]) where a singular-point decision does.
 pub(crate) fn row_clear_of_singularities<T: Decide>(
     key: SurfaceKey,
     wall: &Surface<T>,
     image: &Pcurve<T>,
     (t0, t1): (T, T),
     band: Band,
-) -> Result<(), CertifyError> {
-    let Ok(WallRow::Analytic(row)) = wall_row(wall, image) else {
+) -> Result<HarmonicRow, CertifyError> {
+    if wall_row(wall, image) != Ok(WallRow::Analytic) {
         return Err(CertifyError::Unimplemented);
+    }
+    let row = match harmonic_row(image, (t0, t1), band) {
+        Ok(Some(row)) => row,
+        Ok(None) => return Err(CertifyError::Unimplemented),
+        Err(cause) => {
+            return Err(CertifyError::Row {
+                surface: key,
+                refusal: RowRefusal::ImageEscalated {
+                    check: PcurveCheck::ChartClass,
+                    cause,
+                },
+            });
+        }
     };
-    let singular = Err(CertifyError::Row {
+    let singular = Err::<HarmonicRow, _>(CertifyError::Row {
         surface: key,
         refusal: RowRefusal::Singular,
     });
@@ -139,7 +154,7 @@ pub(crate) fn row_clear_of_singularities<T: Decide>(
             if start == Sign::Zero || start != end {
                 singular
             } else {
-                Ok(())
+                Ok(row)
             }
         }
         Surface::Torus {
@@ -150,10 +165,10 @@ pub(crate) fn row_clear_of_singularities<T: Decide>(
             .map_err(escalated)?
             .sign
         {
-            Sign::Positive => Ok(()),
+            Sign::Positive => Ok(row),
             _ => singular,
         },
-        _ => Ok(()),
+        _ => Ok(row),
     }
 }
 
@@ -172,30 +187,30 @@ pub fn analytic_row_contact<T: Decide>(
     band: Band,
 ) -> Result<RowContact, CertifyError> {
     let span = walls[0].2.params();
-    for (key, wall, cache) in walls {
-        row_clear_of_singularities(key, wall, cache.pcurve(), span, band)?;
-    }
-    let [(_, a, ca), (_, b, cb)] = walls;
-    read_contact([(a, ca.pcurve()), (b, cb.pcurve())], span, extent, band)
+    let [(ka, a, ca), (kb, b, cb)] = walls;
+    let ra = row_clear_of_singularities(ka, a, ca.pcurve(), span, band)?;
+    let rb = row_clear_of_singularities(kb, b, cb.pcurve(), span, band)?;
+    read_contact(
+        [(a, ca.pcurve(), ra), (b, cb.pcurve(), rb)],
+        span,
+        extent,
+        band,
+    )
 }
 
-/// [`analytic_row_contact`] once both rows are known clear of their
-/// charts' singular points.
+/// [`analytic_row_contact`] once both rows are read and known clear of
+/// their charts' singular points (`row_clear_of_singularities`).
 pub(crate) fn read_contact<T: Decide>(
-    walls: [(&Surface<T>, &Pcurve<T>); 2],
+    walls: [(&Surface<T>, &Pcurve<T>, HarmonicRow); 2],
     span: (T, T),
     extent: Lever<T>,
     band: Band,
 ) -> Result<RowContact, CertifyError> {
-    let turning = walls.map(|(_, image)| harmonic_row(image).map(|r: HarmonicRow| r.turning));
-    let [Some(ta), Some(tb)] = turning else {
-        return Err(CertifyError::Unimplemented);
-    };
-    let [(a, ia), (b, ib)] = walls;
+    let [(a, ia, ra), (b, ib, rb)] = walls;
     contact_of(
         |t| row_normal(a, ia, t),
         |t| row_normal(b, ib, t),
-        [ta, tb],
+        [ra.turning, rb.turning],
         span,
         extent,
         band,
@@ -565,7 +580,8 @@ mod tests {
                     v: v_moving,
                 },
             ] {
-                let Ok(WallRow::Analytic(row)) = wall_row(chart, &image) else {
+                let read = harmonic_row(&image, (0.2, 1.1), band());
+                let (Ok(WallRow::Analytic), Ok(Some(row))) = (wall_row(chart, &image), read) else {
                     panic!("{:?} admits {image:?}", chart.kind());
                 };
                 let normal = |t: f64| row_normal(chart, &image, t);
