@@ -2,11 +2,12 @@
 id: meet-at-interval-refuses-on-its-basin-meter-and-reads-an-ends-distance-at-rounding
 kind: issue
 title: curve_pair::meet at Interval refuses on its basin meter where the region rows decided, reads an end's distance at rounding, and costs 3-6x the rows
-status: open
+status: dispatched
 opened: 2026-11-04
 priority: P1
 cost: M
 refs: [region-landings-read-a-leg-against-an-edge-by-hand-rows-beside-meet]
+branch: onecopy/meet-interval
 ---
 
 Found by `onecopy/meet-pose` (PR 6491, now a draft), which routed the four region `landings` (`topo/src/boolean/{region,sphere_region,torus_region,ruled_region}.rs`) through `geom_brep::curve_pair::meet`. On `Interval` and at a fine band, `meet` decides less than the hand rows it replaced and costs more. **The landings route (PR 6491) waits on this row.**
