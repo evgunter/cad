@@ -1488,9 +1488,15 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
         // refuses where an ellipse bends the foot path, as the edge
         // certificate's own does. The general lane is a lane choice
         // (D3), reached only behind the chart's incidence read: a
-        // carrier shown off the wall, or read in band, ends as that read.
-        geom_brep::read_edge_incidence(&carrier, t0, t1, surface, band)
-            .map_err(|error| PcurveMintError::Certify { half_edge, error })?;
+        // carrier shown off the wall ends as that read. One read in band
+        // takes the general lane, as D3 sends an in-band class reading
+        // there, and its certificate decides it.
+        if let Err(error) = geom_brep::read_edge_incidence(&carrier, t0, t1, surface, band)
+            && geom_brep::IncidenceRead::of(&error)
+                .is_some_and(geom_brep::IncidenceRead::is_definite)
+        {
+            return Err(PcurveMintError::Certify { half_edge, error });
+        }
         derive_general_image(&carrier, (t0, t1), wall)
             .map(|image| Pcurve::General(std::sync::Arc::new(image)))
             .map_err(|error| PcurveMintError::Certify { half_edge, error })

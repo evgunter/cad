@@ -11,9 +11,9 @@
 //!
 //! - a seam's pick (`pcurve_iso_wall_seam`) shows no column, and the
 //!   seam takes its `General` image;
-//! - a rim's pick (`pcurve_iso_arc_row_direction`) shows no row, and a
-//!   circle on a spline chart has no general lane yet: the rim refuses
-//!   "not yet".
+//! - a rim's pick (`pcurve_iso_arc_row_direction`) shows no row, and the
+//!   rim ends as the wall's incidence read: in band, in its lever; moved
+//!   past the band, off the chart.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -114,23 +114,43 @@ fn a_seam_in_the_band_takes_its_general_image_at_interval() {
     a_seam_in_the_band_takes_its_general_image::<geom_core::Interval>();
 }
 
-/// **A rim in the band refuses "not yet".** The wall moved `in_band()`
-/// along `z`, its rows' normal: every arc-rim candidate is undecided at
-/// the probe, so the rim is not shown on a row, and a circle on a spline
-/// chart has no general lane: it refuses that gap, ending "not yet" with
-/// no tolerance offer.
-///
-/// There is no decided-off twin of this row. A spline chart has no
-/// incidence test (`work/pcert/a-spline-chart-has-no-incidence-test-so-a-lane-choice-refusal-cannot-tell-off-from-uncovered.md`),
-/// so a rim decided off its wall ends in the same gap rather than as its
-/// incidence read. No row should pin that. No door reaches it on a body
-/// the kernel built either: the mint images only certified edges, and a
-/// spline-adjacent edge's certificate reads the carrier against its wall
-/// at the door.
-fn a_rim_in_the_band_refuses_not_yet<T: AtRestPolicy + Bounds>() {
+/// **A rim in the band ends in its incidence read's lever.** The wall
+/// moved `in_band()` along `z`, its rows' normal: every arc-rim candidate
+/// is undecided at the probe, so the rim is not shown on a row, and the
+/// lane choice ends as the wall's incidence read
+/// (`geom_brep::read_edge_incidence`), which is in band too: `Escalated`
+/// (`ChartIncidence`), its lever at every door, never a defect, for the
+/// bottom rim, which the wall has left by the move. The top rim lies
+/// inside the moved wall, on its chart where no row holds it, and refuses
+/// "not yet". Moved a millimetre instead, the bottom rim's read is decided
+/// off and it ends `CarrierOffChart`, the defect ending of the door that
+/// reads it, and the top rim still refuses "not yet".
+fn a_rim_in_the_band_ends_as_its_incidence_read<T: AtRestPolicy + Bounds>() {
     let body = semicircle_prism::<T>();
     let (wall, rims, _) = wall_rows(&body);
     let near = moved(&body, wall, Vec3::new(0.0, 0.0, in_band()));
+    let off = moved(&body, wall, Vec3::new(0.0, 0.0, 1e-3));
+    let height = |h: HalfEdgeKey| {
+        let (carrier, (t0, _), _) = edge_on_wall(&body, h);
+        carrier.eval(t0).z.lo()
+    };
+    let bottom = rims
+        .iter()
+        .map(|&h| height(h))
+        .fold(f64::INFINITY, f64::min);
+    let not_yet = |got: &Result<Pcurve<T>, PcurveMintError>| {
+        matches!(
+            got,
+            Err(PcurveMintError::Certify {
+                error: PcurveCertifyError::NoGeneralLane {
+                    chart: geom::SurfaceKind::Nurbs,
+                    carrier: geom::CurveKind::Circle,
+                    gap: geom_brep::LaneGap::Unwritten,
+                },
+                ..
+            })
+        )
+    };
     for h in rims {
         let (carrier, (t0, t1), surface) = edge_on_wall(&near, h);
         assert!(
@@ -139,43 +159,68 @@ fn a_rim_in_the_band_refuses_not_yet<T: AtRestPolicy + Bounds>() {
             T::NAME
         );
         let got = derived(&near, h);
+        if height(h) > bottom {
+            assert!(
+                not_yet(&got) && not_yet(&derived(&off, h)),
+                "{h:?}: the top rim is on the moved wall, no row holding it, at {}: {got:?}",
+                T::NAME
+            );
+            continue;
+        }
         let Err(
             ref refused @ PcurveMintError::Certify {
                 error:
-                    PcurveCertifyError::NoGeneralLane {
-                        chart: geom::SurfaceKind::Nurbs,
-                        carrier: geom::CurveKind::Circle,
-                        gap: geom_brep::LaneGap::Unwritten,
+                    ref error @ PcurveCertifyError::Escalated {
+                        check: geom_brep::PcurveCheck::ChartIncidence,
+                        ..
                     },
                 ..
             },
         ) = got
         else {
             panic!(
-                "{h:?}: a rim in the band has no general lane, at {}: {got:?}",
+                "{h:?}: a rim in the band ends as its incidence read, at {}: {got:?}",
                 T::NAME
             )
         };
+        let read = geom_brep::IncidenceRead::of(error).expect("an incidence refusal");
+        assert!(!read.is_definite(), "{h:?}: the read is in band");
         for at in [
             geom_brep::recourse::Reading::Build,
             geom_brep::recourse::Reading::AtRest,
         ] {
-            let ending = refused.ending(at).expect("a lane gap has an ending");
+            let ending = refused.ending(at).expect("an incidence read has an ending");
             assert!(
-                ending.ends_with(geom_core::NOT_YET_ENDING) && !ending.contains("tolerance"),
-                "{h:?}: \"not yet\", no tolerance offer, at {} {at:?}: {ending}",
+                ending.ends_with(&read.ending(at)) && !ending.contains("defect"),
+                "{h:?}: the read's lever, at {} {at:?}: {ending}",
                 T::NAME
             );
         }
+        let got = derived(&off, h);
+        assert!(
+            matches!(
+                got,
+                Err(PcurveMintError::Certify {
+                    error: PcurveCertifyError::CarrierOffChart {
+                        chart: geom::SurfaceKind::Nurbs,
+                        carrier: geom::CurveKind::Circle,
+                        ..
+                    },
+                    ..
+                })
+            ),
+            "{h:?}: a rim its wall moved a millimetre from ends off the chart, at {}: {got:?}",
+            T::NAME
+        );
     }
 }
 
 #[test]
-fn a_rim_in_the_band_refuses_not_yet_at_f64() {
-    a_rim_in_the_band_refuses_not_yet::<f64>();
+fn a_rim_in_the_band_ends_as_its_incidence_read_at_f64() {
+    a_rim_in_the_band_ends_as_its_incidence_read::<f64>();
 }
 
 #[test]
-fn a_rim_in_the_band_refuses_not_yet_at_interval() {
-    a_rim_in_the_band_refuses_not_yet::<geom_core::Interval>();
+fn a_rim_in_the_band_ends_as_its_incidence_read_at_interval() {
+    a_rim_in_the_band_ends_as_its_incidence_read::<geom_core::Interval>();
 }

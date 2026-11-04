@@ -581,7 +581,8 @@ fn r1_dual_scalar_wall_seam_arm_names_the_missing_lane() {
             Some(Surface::Nurbs(n))
                 if !n.is_placeholder()
                     && n.control().iter().any(|p| p.y.lo() != -SCALE)
-                    && n.control().iter().any(|p| p.x.lo().abs() == SCALE) =>
+                    && n.control().iter().all(|p| p.x.lo() <= 0.0)
+                    && n.control().iter().any(|p| p.x.lo() == -SCALE) =>
             {
                 Some(f.surface)
             }
