@@ -107,9 +107,9 @@
 //! # Scope (OQ6, decided at #85)
 //!
 //! In: closed smooth chains; open chains whose ends are trivalent
-//! vertices of one convexity between planes, where the request decides
-//! the end by how many of the vertex's three edges it names — all three,
-//! the corner patch (a sphere octant resting inside the material or in
+//! vertices between planes, where the request decides the end by how
+//! many of the vertex's three edges it names — all three, at a vertex
+//! of one convexity, the corner patch (a sphere octant resting inside the material or in
 //! the void with its ball, or the chamfer's flat patch); two, the MITRE
 //! where the two bands' feet on the third edge are one point
 //! ([`CornerConfig::Turn`], [`RunOutPolicy::Mitre`]): the bands meet
@@ -787,9 +787,8 @@ impl fmt::Display for BlendSite {
 
 /// The **run-out policy vocabulary** (OQ6, decided by Ev at #85; the
 /// cut-off ratified on PR 1736's thread and generalised, with the
-/// mitre, on PR 4085's). [`RunOutPolicy::RunOutFeather`] is a
-/// refusal-payload name: no band takes it, and a refusal names it as
-/// the front door that does not exist yet.
+/// mitre, on PR 4085's). [`RunOutPolicy::RunOutFeather`] names a
+/// policy no band takes and no [`CornerConfig`] assigns.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum RunOutPolicy {
     /// The blend runs at full radius all the way to the vertex and a
@@ -799,16 +798,17 @@ pub enum RunOutPolicy {
     /// patch, each on either material side.
     ///
     /// It is the policy MOST out-of-scope corners name, but not all of
-    /// them ([`CornerConfig::policy`] is the map): a MIXED-CONVEXITY
-    /// vertex names [`Self::RunOutFeather`] instead, because a corner
-    /// patch cannot help where the ball changes sides; and a
-    /// [`CornerConfig::SeamVertex`] names NO policy at all, because it
-    /// is not a corner — the surface is smooth through it, so there is
-    /// nothing for a run-out to run out into.
+    /// them ([`CornerConfig::policy`] is the map): a
+    /// [`CornerConfig::SeamVertex`] names NO policy, because it is not
+    /// a corner — the surface is smooth through it, so there is nothing
+    /// for a run-out to run out into — and a mixed-convexity vertex
+    /// names none, because its own rule is no policy here.
     RunOutStopAtVertex,
     /// The radius decays to zero before the vertex and the blend
     /// fades back into the sharp edge. No variable-radius machinery
     /// exists, so this policy is named and never taken.
+    ///
+    /// Unproduced; retired with the mixed corner's vocabulary, PR 6507.
     RunOutFeather,
     /// **The band ends in the end face's plane section of it** — the
     /// policy of a [`CornerConfig::EndFace`]: the end where one edge of
@@ -851,12 +851,9 @@ impl fmt::Display for RunOutPolicy {
 /// fixture that reaches it.
 ///
 /// **This vocabulary has no name for the uniform CONCAVE trihedron**,
-/// which both verbs now carve — so no refusal needs one, and no site
-/// mints [`Self::MixedConvexity`] with `convex: 0` any more. Whether
-/// the CARVED configuration deserves its own tag remains the
-/// corner-taxonomy question OQ6 reserves for Ev
-/// (`work/code-quality/corner-config-tag-all-concave-trihedron.md`,
-/// raised when only the chamfer carved it).
+/// which both verbs carve — so no refusal needs one, and no site
+/// mints [`Self::MixedConvexity`] with `convex: 0`. Ev ruled on PR 1935
+/// that the carved configuration gets no tag until a consumer wants one.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CornerConfig {
     /// Three edges, all definitely convex, support normals definitely
@@ -873,16 +870,19 @@ pub enum CornerConfig {
         valence: usize,
     },
     /// **A trivalent corner whose three edges' convexity signs
-    /// disagree**, `convex` saying how it was read.
+    /// disagree, requested in a way its uniform rules do not build**,
+    /// `convex` saying how it was read.
     ///
-    /// Only `1` and `2` are minted, and at both the tag is literal
-    /// and holds for every band there is: the signs do not agree, so
-    /// the blend would have to change sides mid-corner. `0` and `3`
-    /// never appear — those are the UNIFORM trihedra, which both
-    /// verbs carve (`3` is [`Self::ThreeConvexEdges`]; the all-concave
-    /// corner has no tag because no refusal names it,
-    /// `work/code-quality/corner-config-tag-all-concave-trihedron.md`
-    /// being where a carved-configuration tag would be ratified).
+    /// The ODD edge is the one whose convexity differs from the other
+    /// two. One requested edge there is cut off and the other two alone
+    /// meet in the mitre, so this tag is minted where the odd edge is
+    /// requested together with another edge of the corner, all three
+    /// included: that wants the mixed corner's own rule, the odd band
+    /// cut off and the other two carried through, which is not built.
+    /// Only `1` and `2` are minted. `0` and `3` are the UNIFORM
+    /// trihedra, which both verbs carve (`3` is
+    /// [`Self::ThreeConvexEdges`]; the all-concave corner has no tag,
+    /// by Ev's ruling on PR 1935).
     MixedConvexity {
         /// How many of the three edges classified convex — `1` or
         /// `2`.
@@ -948,9 +948,9 @@ impl CornerConfig {
     #[must_use]
     pub fn policy(self) -> Option<RunOutPolicy> {
         match self {
-            // A corner patch cannot help where the ball changes sides
-            // mid-corner; feathering is the policy that addresses it.
-            Self::MixedConvexity { .. } => Some(RunOutPolicy::RunOutFeather),
+            // The mixed corner's own rule is no run-out policy in this
+            // vocabulary.
+            Self::MixedConvexity { .. } => None,
             // Not a corner: the surface is smooth through the point, so
             // there is nothing for a run-out to run out INTO.
             Self::SeamVertex => None,
@@ -973,6 +973,7 @@ impl CornerConfig {
         match self {
             // Not a corner: the closed-rim door that exists.
             Self::SeamVertex => FILLET3_SEAM_VERTEX_RECOURSE,
+            Self::MixedConvexity { .. } => FILLET3_MIXED_CORNER_RECOURSE,
             // The decided-Zero arm of the independence decision, which
             // tells its in-band sibling's story (D4 ¶1 (iv)): the corner
             // is already trivalent and uniform, so what moves it is
@@ -984,7 +985,6 @@ impl CornerConfig {
             | Self::EndFace
             | Self::Turn
             | Self::NEdgeVertex { .. }
-            | Self::MixedConvexity { .. }
             | Self::Indeterminate => FILLET3_CORNER_RECOURSE,
         }
     }
@@ -1136,19 +1136,18 @@ pub const FILLET3_CHAIN_RECOURSE: &str = "supply a connected chain that is tange
 pub const FILLET3_CONVEXITY_RECOURSE: &str =
     "split the chain at the convexity flip and blend each run separately";
 /// The recourse for an end no band builds, in words a person at the
-/// viewer can act on — it names the ends that DO carve: all three edges, two (meeting in the mitre where their feet
-/// on the third edge are one point, the far band overrunning it where
-/// they stand clearly apart), and one alone. "Whatever is requested"
-/// covers a vertex that mixes convexity: it ends no chain whether the
-/// request names one of its edges, two, or all three, because its
-/// configuration is read before the count. Its last clause, "in one
+/// viewer can act on — it names the ends that DO carve: all three
+/// edges where they round alike, two that round alike (meeting in the
+/// mitre where their feet on the third edge are one point, the far band
+/// overrunning it where they stand clearly apart), and one alone. Its last clause, "in one
 /// operation", answers the four-edge vertex a mitre leaves where the third
 /// edge ends: that edge blended in a later call ends at a valence-4
 /// vertex, and requested in the mitre's own call it builds the corner
 /// patch instead. The run-outs' own details name their shapes.
 ///
-/// The ends it names are true of either verb on either material side:
-/// the uniform trivalent vertex carves wherever the material lies (the
+/// The ends it names are true of either verb on either material side,
+/// at a uniform vertex and a mixed one: the uniform trivalent vertex
+/// carves wherever the material lies (the
 /// rolling ball's octant rests inside the material or in the void with
 /// its ball; the flat patch and the cut-off never had a side), and of
 /// either band at any angle of its plane end face — a chord, a circle
@@ -1157,8 +1156,16 @@ pub const FILLET3_CONVEXITY_RECOURSE: &str =
 /// `blend_recourse_followability::the_corner_recourse_names_a_fully_requested_uniform_corner_that_builds`
 /// and `band_planar_cut_off`, which build each end it names.
 pub const FILLET3_CORNER_RECOURSE: &str = "end the blend at a flat-faced corner, \
-     uniformly convex or concave, blending all three edges, two meeting on the third or clearly \
-     apart, or one ending at a flat face, in one operation";
+     blending all three edges where they round alike, two that round alike meeting on the third \
+     or clearly apart, or one ending at a flat face, in one operation";
+/// The recourse at a mixed-convexity corner whose odd edge is requested
+/// with another of its edges ([`CornerConfig::MixedConvexity`]). It
+/// names the two requests there that build, one edge alone (the
+/// cut-off) and the two edges that round alike (the mitre), and says
+/// the rule the refused request wants is not built.
+pub const FILLET3_MIXED_CORNER_RECOURSE: &str = "blend one of this corner's edges, or the two \
+     that round alike; the edge that rounds the other way, blended with another, wants the mixed \
+     corner's own rule (its band cut off, the other two carried through), not built yet";
 /// The lever of a turn's two readings (`fillet3_turn_feet_gap`,
 /// `fillet3_turn_overrun_chord`, and their straddle
 /// `fillet3_turn_feet`): in band, the two bands' feet on the third
@@ -1180,9 +1187,9 @@ pub const FILLET3_CAP_TILT_RECOURSE: &str = "square the end face to the edge, wh
 /// The lever of `fillet3_corner_independence`, shared by its in-band
 /// arm and its decided-Zero one ([`CornerConfig::DependentNormals`]).
 ///
-/// The corner it is read at is already trivalent and of one convexity,
-/// so the corner sentence's configuration clause is satisfied and names
-/// nothing the decision turned on. Its margin is `|det(n₁, n₂, n₃)|·r`:
+/// The corner it is read at is already trivalent and requested as some
+/// end builds it, so the corner sentence's configuration clause is
+/// satisfied and names nothing the decision turned on. Its margin is `|det(n₁, n₂, n₃)|·r`:
 /// the determinant vanishes when the three support planes are all
 /// parallel to one line, and the blend size levers it. Held to it by
 /// `blend_recourse_followability::the_corner_independence_recourse_is_followed_by_each_of_its_levers`.
@@ -2287,7 +2294,7 @@ impl core::error::Error for BlendError {}
 /// `test-support` for the same reason `test_support` is — a `tests/`
 /// file cannot name a `#[cfg(test)]` item.
 #[cfg(any(test, feature = "test-support"))]
-pub const ALL_RECOURSES: [(&str, &str); 21] = [
+pub const ALL_RECOURSES: [(&str, &str); 22] = [
     ("radius", FILLET3_RADIUS_RECOURSE),
     ("contact", FILLET3_CONTACT_RECOURSE),
     ("contact-arm", FILLET3_CONTACT_ARM_RECOURSE),
@@ -2303,6 +2310,7 @@ pub const ALL_RECOURSES: [(&str, &str); 21] = [
     ("turn", FILLET3_TURN_RECOURSE),
     ("cap-tilt", FILLET3_CAP_TILT_RECOURSE),
     ("seam-vertex", FILLET3_SEAM_VERTEX_RECOURSE),
+    ("mixed-corner", FILLET3_MIXED_CORNER_RECOURSE),
     ("assembly", FILLET3_ASSEMBLY_RECOURSE),
     ("geometry", FILLET3_GEOMETRY_RECOURSE),
     ("ring", FILLET3_RING_RECOURSE),
@@ -2323,8 +2331,8 @@ mod recourse_tests {
         Convexity, CornerConfig, FILLET3_ASSEMBLY_RECOURSE, FILLET3_CHAIN_RECOURSE,
         FILLET3_CLEARANCE_RECOURSE, FILLET3_CLEARANCE_SPLIT_RECOURSE, FILLET3_CONVEXITY_RECOURSE,
         FILLET3_CORNER_RECOURSE, FILLET3_GEOMETRY_RECOURSE, FILLET3_INSIDE_RECOURSE,
-        FILLET3_RADIUS_RECOURSE, FILLET3_RING_RECOURSE, FILLET3_SEAM_VERTEX_RECOURSE,
-        FILLET3_SPINE_KIND_RECOURSE, FILLET3_SPINE_RECOURSE, FILLET3_WEDGE_RECOURSE,
+        FILLET3_RADIUS_RECOURSE, FILLET3_RING_RECOURSE, FILLET3_SPINE_KIND_RECOURSE,
+        FILLET3_SPINE_RECOURSE, FILLET3_WEDGE_RECOURSE,
     };
 
     /// **A contact edge's must-carry escalation ends as the decision its
@@ -2558,6 +2566,11 @@ mod recourse_tests {
                 corner: CornerConfig::DependentNormals,
                 policy: CornerConfig::DependentNormals.policy(),
             },
+            BlendError::UnsupportedCorner {
+                vertex: VertexKey::default(),
+                corner: CornerConfig::MixedConvexity { convex: 1 },
+                policy: CornerConfig::MixedConvexity { convex: 1 }.policy(),
+            },
             BlendError::SpineUnsupported {
                 edge: EdgeKey::default(),
                 supports: "a support pair with no analytic arm",
@@ -2671,12 +2684,20 @@ mod recourse_tests {
     }
 
     /// **The tag's two maps agree.** A tag names no run-out policy
-    /// exactly when it is not a corner — the seam vertex, whose recourse
-    /// is the closed-rim door — since `Display` takes both halves from
-    /// the tag and says "only a run-out policy would handle this" of
-    /// every tag that names one.
+    /// exactly when its recourse is a sentence of its own — the seam
+    /// vertex's closed-rim door, the mixed corner's unbuilt rule — since
+    /// `Display` takes both halves from the tag and says "only a run-out
+    /// policy would handle this" of every tag that names one.
     #[test]
-    fn a_corner_tag_names_no_policy_exactly_when_it_is_not_a_corner() {
+    fn a_corner_tag_names_no_policy_exactly_when_its_recourse_is_its_own() {
+        // The sentences a tag's recourse can share: a battery
+        // decision's lever, or the corner sentence naming the ends
+        // that carve.
+        let shared: Vec<&str> = BlendDecision::ALL
+            .iter()
+            .map(|d| d.lever())
+            .chain([FILLET3_CORNER_RECOURSE])
+            .collect();
         for corner in [
             CornerConfig::ThreeConvexEdges,
             CornerConfig::NEdgeVertex { valence: 4 },
@@ -2689,7 +2710,7 @@ mod recourse_tests {
         ] {
             assert_eq!(
                 corner.policy().is_none(),
-                corner.recourse() == FILLET3_SEAM_VERTEX_RECOURSE,
+                !shared.contains(&corner.recourse()),
                 "{corner} names policy {:?} but recourse {:?} — the two maps have drifted",
                 corner.policy(),
                 corner.recourse()

@@ -624,10 +624,7 @@ fn carried_refusal_payloads_are_matchable_through_the_prelude() {
         CornerConfig::NEdgeVertex { valence: 4 }.policy(),
         Some(RunOutPolicy::RunOutStopAtVertex)
     );
-    assert_eq!(
-        CornerConfig::MixedConvexity { convex: 2 }.policy(),
-        Some(RunOutPolicy::RunOutFeather)
-    );
+    assert_eq!(CornerConfig::MixedConvexity { convex: 2 }.policy(), None);
 
     assert_eq!(
         blend_site_and_convexity_are_matchable(BlendSite::Chain, Convexity::Convex),

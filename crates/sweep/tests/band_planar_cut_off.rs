@@ -224,9 +224,14 @@ impl Verb {
     /// (`common::oracles`), `(2/3)d³` for the chamfer and
     /// `(2 − 7π/12)r³` for the fillet.
     pub(crate) fn corner(self) -> f64 {
+        self.corner_at(D)
+    }
+
+    /// [`Self::corner`] at band size `r`.
+    pub(crate) fn corner_at(self, r: f64) -> f64 {
         match self {
-            Self::Chamfer => 2.0 / 3.0 * D.powi(3),
-            Self::Fillet => (2.0 - 7.0 * PI / 12.0) * D.powi(3),
+            Self::Chamfer => 2.0 / 3.0 * r.powi(3),
+            Self::Fillet => (2.0 - 7.0 * PI / 12.0) * r.powi(3),
         }
     }
 }
@@ -504,8 +509,9 @@ fn shoelace_yz(ps: &[Point3<f64>]) -> f64 {
 
 /// **The refusals the cut-off leaves**, each typed: a curved end face,
 /// a foot that lands inside a face rather than on the end face's rim,
-/// an end vertex of valence four, and a mixed-convexity end. A turn's
-/// own refusals are `band_planar_mitre`'s.
+/// an end vertex of valence four, and a mixed-convexity end whose odd
+/// edge is requested with another of its edges. A turn's own refusals
+/// are `band_planar_mitre`'s.
 #[test]
 fn every_end_the_cut_off_does_not_build_refuses_typed() {
     // A curved end face: a prism whose right side is an arc.
@@ -591,8 +597,9 @@ fn every_end_the_cut_off_does_not_build_refuses_typed() {
         tol(),
     );
     let inner = edge(&l_prism, [1.0, 1.0, 0.0], [1.0, 1.0, 1.0]);
+    let top = edge(&l_prism, [1.0, 1.0, 1.0], [2.0, 1.0, 1.0]);
     for verb in [Verb::Chamfer, Verb::Fillet] {
-        match verb.run(&l_prism, &[inner]) {
+        match verb.run(&l_prism, &[inner, top]) {
             Err(BlendError::UnsupportedCorner {
                 corner: CornerConfig::MixedConvexity { .. },
                 ..
