@@ -1466,3 +1466,26 @@ general regularity sweep. SECTARMS's cylinder × cylinder unit adopts
   - Three mutants are named red. There is no boolean witness: today's arc lofts' weights (0.71–1) never reach the defect.
   - Filed at P2: charttail chart arms, hone spline_arc, isotail edge_piece, pcert frame_box.
   - The brief presses on three things: the knotted-insertion bound checked against the topo copy itself, the trim's parity argument, and endings moved in sweep and the tour, which the lane did not run.
+- 2026-11-04 19:52Z — **PR 6530 single FULL review** (frozen `e2185db6`; reviewer `session_013QoYWWSS2CEuh85skE5JgS`, evidence `splice/review-6530` @ `09272fd5`): APPROVE-WITH-FIXES.
+  - **What held:**
+    - the bound holds against a double-double Boehm reference: worst drift/bound 0.95 for cells and 0.98 for pieces (first-order, a thin margin);
+    - the parity argument's shared ends hold in code;
+    - no ending moved: sweep `/spline/` and the spline-operand census are line-identical at 1e-6 and 1e-12, and teapot/lily/klein are unchanged;
+    - cost is about +1%.
+  - **MAJOR (test gap, executed):** six of nine charge sites survive every PR row: the read term alone, the cut term alone, the insertion-ratio charge, the Interval half-width, the shift, the iso ends. `u`-unwidening survives even the reviewer's rows.
+  - **MINORs:**
+    - a NaN bound is silently dropped by `f64::max`, narrowing instead of refusing (latent);
+    - the "verbatim" copy dropped `structure_positive`'s weight guard, and `refined` passes unit weights to `refine_plan`.
+  - **NOTEs:**
+    - the Fitted arm's Interval parameter bracket is uncharged;
+    - `close_gap`'s ulp sliver;
+    - the HONE spline-arc filing is a P1 candidate.
+  - **Fix pass sent:**
+    - a named row for every mutant, including the reviewer's three green rows;
+    - a NaN bound refuses (adopting the reviewer's two red rows);
+    - the weight guard restored and the copy's differences stated;
+    - the Fitted bracket charged or shown immaterial;
+    - the `close_gap` argument;
+    - doc fixes;
+    - one far-arc probe for the HONE row's band.
+  - **Class (logged):** a rounding charge built from several terms needs a row per term. A row that turns red only when the whole charge is dropped pins none of the terms.
