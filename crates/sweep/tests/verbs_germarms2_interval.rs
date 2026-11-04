@@ -171,13 +171,13 @@ fn assert_the_fixture_escape(d: &str, reposed: &BooleanError, what: &str) {
         band.zero()
     );
     // Each site's own predicate, as measured: the crossing insertion's
-    // incidence read, the join edge's start. The crossing insertion's was
-    // its mapped source until PCERT E1c (PR 5889), whose certification
-    // reads the carrier's incidence first: the skew pose's re-posed line
-    // reads `[0, 1.14e-12]` there at ε 1e-12, the same rounding fringe
-    // the mapped source escalated in.
+    // mapped source, the join edge's start. The certification reads the
+    // carrier's incidence first, at the line's span ends and its foot on
+    // the axis, where the skew pose's re-posed line reads inside the zero
+    // band at ε 1e-12; the mapped source then reads `[0, 1.06e-12]`, the
+    // rounding fringe.
     let (source, site_predicate) = match reposed {
-        BooleanError::CrossingInsertion { source, .. } => (source, "pcurve_line_chart_incident"),
+        BooleanError::CrossingInsertion { source, .. } => (source, "carrier_matches_mapped_source"),
         BooleanError::Join(j) => match j.error() {
             topo::SplitJoinError::Euler(source) => (source, "carrier_endpoint_start"),
             _ => panic!("{what}: the only admitted escape is a certification escalation; got {r}"),

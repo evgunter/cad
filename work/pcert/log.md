@@ -1075,3 +1075,19 @@ E1c waits on the answer.
     - `a-join-onto-an-op-minted-edge-records-no-row` (P3);
     - `the-joins-in-band-class-reading-ends-two-ways` (P3).
   - Merged past main's two ε 1e-12 reds, both onecopy's and filed: the needle (PR 6492) and `section_end_poses` (PR 6482).
+- 2026-11-04 — **`a-line-passing-a-cones-apex-off-the-cone-reads-on-to-the-sampled-incidence` merged** (PR 6527): a line's incidence is read, not sampled.
+  - `incident`'s line arm reads the chart's exact distance at the span ends and at every interior parameter where it can peak (`pcurve_cache::line_incidence`). That makes the read the supremum on all six analytic charts.
+  - Candidates come from monotone pieces. The span is cut at marks so that the read derivative is monotone on each piece, then each sign change is bisected (capped at 200):
+    - cone: `t*` and the apex-plane crossing `t_h`;
+    - torus and spindle, read on q²: `t*`, plus `t* ± τc` for R > 0, where `ρ(τc)³ = R·v²d²/|u|²`.
+  - The sphere reads its centre's foot. On a line along a torus axis the whole span is one piece, whose root is the foot. Placement precision is second order at smooth stationary points and first order at the kinks.
+  - Review tier: single FULL, soundness-led. NOT-MERGEABLE-AS-IS.
+    - M1 (executed, a regression against main): a line along a spindle's or torus's axis read On while 0.2 off. The quartic vanished identically and the centre's foot was never a candidate.
+    - Fix list DD rewrote the read as monotone pieces.
+    - One delta verifier: APPROVE. 10,483 lines against a 40-digit supremum, including exact and near-axis lines, horn tori and R≈r spindles, gave 0 misses. 2,280 pieces had 0 double roots.
+    - The final NIT pass was read by the orchestrator.
+  - Cost: at most 8 evaluations against 65. `read_incidence` is under main on every chart at both scalars, for example the cylinder at 5.6/47 ms against 103/506 ms.
+  - One moved fixture: `verbs_germarms2_interval` at 1e-12. Its in-band escalation is now `carrier_matches_mapped_source`, since the line reads inside the zero band at its ends and foot.
+  - Filed:
+    - `a-closed-conics-and-a-spline-nets-incidence-on-an-analytic-chart-is-sampled` (P2);
+    - `a-lines-sup-on-a-chart-is-spelled-twice` (P3).
