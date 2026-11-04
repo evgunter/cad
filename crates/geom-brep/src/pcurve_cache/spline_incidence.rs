@@ -71,6 +71,8 @@ use super::{INCIDENCE_SAMPLES, Incidence, PcurveCertifyError, incidence_escalate
 
 #[cfg(test)]
 mod rows;
+#[cfg(test)]
+mod probe;
 
 /// A cell's floor against the sample: whether the cell clears it.
 pub(super) const HULL: &str = "pcurve_spline_chart_hull";
