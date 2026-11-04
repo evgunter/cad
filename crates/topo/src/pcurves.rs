@@ -1253,9 +1253,9 @@ impl RowSpace {
 ///   ([`Pcurve::IsoArc`], M8-3), its boundary row and `u` direction
 ///   picked together at the probe ([`probe_pick`]): the whole
 ///   row over the edge's interval, then the row over the arc it
-///   measures, which a rim covering part of the row (a sub-edge) takes. Both mapped
-///   description forms the kernel mints for a circle reach it — see the
-///   arm's own note.
+///   measures, which a rim covering part of the row (a sub-edge) takes. Every
+///   description form of a circle reaches it — see the arm's own note — and
+///   a circle no row holds refuses "not yet" in every form.
 /// - An [`geom_brep::EdgeDescription::Intersection`] over a spline or
 ///   line carrier, and a LINE carrier in any other form, that lies on a
 ///   boundary column maps as that column: the same iso line the
@@ -1263,12 +1263,11 @@ impl RowSpace {
 ///   description names no chart coordinate; one on a boundary row (a
 ///   cap–wall rim) maps as that row. The residency is a pick over the
 ///   columns and rows and their two directions, each judged at the
-///   edge's ends and a quarter span in ([`probe_pick`]), definite or
-///   escalated; then over the
+///   edge's ends and a quarter span in ([`probe_pick`]), a candidate
+///   it does not show passing to the next step; then over the
 ///   row, and for a line the column, whose moving map the carrier's
 ///   end feet measure (a sub-edge, a cap rim an offset moved, and for
-///   a line an interior column). An Intersection circle is offered to
-///   the arc rim, and kept where the rim certifies. Any other locus or
+///   a line an interior column). Any other locus or
 ///   carrier — a SPLINE on an interior
 ///   column is the executed case (#498), an off-iso straight edge
 ///   another — takes U2's `General`
@@ -1309,20 +1308,39 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
     };
     // The ARC-RIM class: a circle on one of the chart's boundary rows,
     // over the whole row or part of it, its image the row on the
-    // chart's own rational-quadratic parameter (`Pcurve::IsoArc`). An
-    // IsoUnsupported refusal says this carrier is not such a rim.
+    // chart's own rational-quadratic parameter (`Pcurve::IsoArc`). The
+    // row and the `u` direction are one pick, and the arc the closed
+    // form or the row measures, the incidence lane's too
+    // ([`geom_brep::pick_arc_rim`]); the row's arc-rim certificate is
+    // the pick's second reading. Both are a lane choice (D3): a circle
+    // the pick does not show on a row, or whose row the certificate
+    // refuses or reads in band, takes the general lane, which a circle
+    // on a spline chart does not have (`derive_general_image` is degree
+    // 1, so a circle's image refuses at its map wherever its foot path
+    // bends), and refuses "not yet", recording nothing. Any other
+    // certificate refusal is about the chart or the run, not the
+    // candidate, and leaves with its own words.
     let arc_rim = || -> Result<Pcurve<T>, PcurveMintError> {
-        // The row and the `u` direction are one pick, and the arc the
-        // closed form or the row measures, the incidence lane's too
-        // ([`geom_brep::pick_arc_rim`]); the full arc-rim certification
-        // still follows.
-        match geom_brep::pick_arc_rim(&carrier, (t0, span), surface, band) {
-            Ok(Some(cand)) => Ok(cand),
-            Err(cause) => Err(PcurveMintError::Escalated { half_edge, cause }),
-            Ok(None) => Err(refuse(
-                "no boundary row of this chart, in either u direction, holds the circle \
-                 at the probe — not an arc rim of this chart",
-            )),
+        let no_lane = PcurveMintError::Certify {
+            half_edge,
+            error: PcurveCertifyError::NoGeneralLane {
+                chart: surface.kind(),
+                carrier: carrier.kind(),
+                gap: geom_brep::LaneGap::Unwritten,
+            },
+        };
+        let Ok(Some(rim)) = geom_brep::pick_arc_rim(&carrier, (t0, span), surface, band) else {
+            return Err(no_lane);
+        };
+        match PcurveCache::certify(rim.clone(), t0, t1, &carrier, surface, band) {
+            Ok(_) => Ok(rim),
+            Err(
+                PcurveCertifyError::Escalated { .. }
+                | PcurveCertifyError::FittedEscalated { .. }
+                | PcurveCertifyError::ResidualExceeded { .. }
+                | PcurveCertifyError::IsoUnsupported { .. },
+            ) => Err(no_lane),
+            Err(error) => Err(PcurveMintError::Certify { half_edge, error }),
         }
     };
 
@@ -1341,9 +1359,9 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
         };
         let line = !carrier.is_curved();
         // The iso candidates are offered to the carriers the iso
-        // class certifies: a spline and a line. A circle's exact
-        // class is the arc rim, tried below; an ellipse or a spiric
-        // has none on a spline chart.
+        // class certifies: a spline and a line. A circle never reaches
+        // here (its arm is the arc rim's); an ellipse or a spiric has no
+        // exact class on a spline chart.
         let iso = line || matches!(carrier, geom::Curve3::Nurbs(_));
         let columns = [cu0, cu1].into_iter().filter(|_| iso).flat_map(|x| {
             [(cv0, cv1), (cv1, cv0)].map(|(v_at_t0, v_at_t1)| {
@@ -1385,7 +1403,10 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
                 }
             })
         });
-        let mut deferred = match probe_pick(
+        // Each pick is a lane choice (D3): a candidate the probe shows
+        // is taken, and one it does not, in band or decided off, passes
+        // to the next step and in the end to the general image.
+        if let Ok(Some(cand)) = probe_pick(
             what,
             &carrier,
             (t0, span),
@@ -1393,10 +1414,8 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
             band,
             stated.into_iter().chain(columns).chain(rows),
         ) {
-            Ok(Some(cand)) => return Ok(cand),
-            Ok(None) => None,
-            Err(cause) => Some(cause),
-        };
+            return Ok(cand);
+        }
         // ---- The fixed schedule found nothing: MEASURE the map. ----
         // The candidates above assume the carrier traverses the chart's
         // WHOLE domain along its moving axis, because that is what a
@@ -1419,8 +1438,7 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
         // Boor collapse; an `Intersection` spline seam on an interior
         // column takes `General` below (#498)
         // (`work/pcert/a-spline-seam-on-an-interior-column-is-offered-no-measured-column.md`).
-        if deferred.is_none()
-            && (row_space.forward || row_space.backward)
+        if (row_space.forward || row_space.backward)
             && let (Some(f0), Some(f1)) = (
                 derive_chart_foot(carrier.eval(t0), surface).ok().flatten(),
                 derive_chart_foot(carrier.eval(t1), surface).ok().flatten(),
@@ -1443,7 +1461,7 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
                     p0: Point2::new(x, f0.y - sv * t0),
                     pl: Vec2::new(T::zero(), sv),
                 });
-            match probe_pick(
+            if let Ok(Some(cand)) = probe_pick(
                 what,
                 &carrier,
                 (t0, span),
@@ -1451,44 +1469,7 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
                 band,
                 rows.chain(columns),
             ) {
-                Ok(Some(cand)) => return Ok(cand),
-                Ok(None) => {}
-                Err(cause) => deferred = Some(cause),
-            }
-        }
-        // A circle on a boundary row is the arc rim's, where the arc-rim
-        // certification holds; any other circle, an IsoUnsupported
-        // answer, is not, and neither is a pick that certification
-        // definitely refuses: the spline-pair edge certificates take a
-        // circle carrier, so an `Intersection` circle on a spline chart
-        // that is no arc rim falls through to `General` like any other
-        // locus.
-        if deferred.is_none() && matches!(carrier, geom::Curve3::Circle(..)) {
-            match arc_rim() {
-                Err(PcurveMintError::Certify {
-                    error: PcurveCertifyError::IsoUnsupported { .. },
-                    ..
-                }) => {}
-                // An undecided certification is the rim's to report:
-                // the mint certifies the pick again and escalates it.
-                // A definite refusal of the rim's locus says the circle
-                // is not this row, and falls through; any other refusal
-                // is about the chart or the run, not the candidate, and
-                // leaves with its own words.
-                Ok(rim) => match PcurveCache::certify(rim.clone(), t0, t1, &carrier, surface, band)
-                {
-                    Ok(_)
-                    | Err(
-                        PcurveCertifyError::Escalated { .. }
-                        | PcurveCertifyError::FittedEscalated { .. },
-                    ) => return Ok(rim),
-                    Err(
-                        PcurveCertifyError::ResidualExceeded { .. }
-                        | PcurveCertifyError::IsoUnsupported { .. },
-                    ) => {}
-                    Err(error) => return Err(PcurveMintError::Certify { half_edge, error }),
-                },
-                refused => return refused,
+                return Ok(cand);
             }
         }
         // ---- Nothing exact holds. Store the image as it is. ----
@@ -1499,15 +1480,8 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
         // certificate itself derives (`edge_nurbs::chart_image`, at
         // `PXN_IMAGE_DEGREE`), so it certifies wherever the foot path
         // is straight to ε. A closed-form carrier's degree-1 image
-        // refuses at the hull where a circle or ellipse bends the foot
-        // path, as the edge certificate's own does.
-        //
-        // An escalated candidate outranks the image and its refusal
-        // alike: a candidate that escalates keeps escalating, and the
-        // derived image only ever speaks on a DEFINITE fall-through.
-        if let Some(cause) = deferred {
-            return Err(PcurveMintError::Escalated { half_edge, cause });
-        }
+        // refuses where an ellipse bends the foot path, as the edge
+        // certificate's own does.
         derive_general_image(&carrier, (t0, t1), wall)
             .map(|image| Pcurve::General(std::sync::Arc::new(image)))
             .map_err(|error| PcurveMintError::Certify { half_edge, error })
@@ -1520,6 +1494,33 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
         // is nothing left to derive, and re-deriving it would be a
         // second opinion about a locus the description already states.
         geom_brep::EdgeDescription::Chart(ref c) if c.surface == own => Ok(c.pcurve.clone()),
+        // **The M8-3 ARC-RIM arm.** An ARC cap rim's chart image is
+        // the same boundary line the LINE arm mints, but its moving
+        // channel is the chart's own rational-quadratic parameter
+        // rather than the arc angle — the `Pcurve::IsoArc` map.
+        //
+        // The arm is keyed on the CARRIER, not on the description
+        // form (an `Intersection` circle included), because the carrier
+        // is what the certification reads:
+        // a circle rim is a circle rim however its own chart writes
+        // it down. Keying on the form would have made the SAME
+        // geometry mint natively and refuse on the round trip — a
+        // description-form accident, not a fact about the rim.
+        //
+        // The sub-arc count is read off the chart's u structure (one
+        // span per sub-arc, by the loft's construction); that read is
+        // a SELECTION, and the CHECK is the full arc-rim certification
+        // that follows, which compares the chart's boundary row
+        // against the carrier circle's own rational-quadratic form and
+        // refuses a chart that is not this construction.
+        geom_brep::EdgeDescription::Chart(_)
+        | geom_brep::EdgeDescription::Scaffold(_)
+        | geom_brep::EdgeDescription::OnPair { .. }
+        | geom_brep::EdgeDescription::Intersection { .. }
+            if matches!(carrier, geom::Curve3::Circle(..)) =>
+        {
+            arc_rim()
+        }
         // **The wall–wall seam stated on the OTHER wall.** An iso LINE
         // image in another chart, read as a column of this one: the
         // stated `v` map is a candidate only, since nothing here says
@@ -1547,31 +1548,6 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
                 .map(|foot| column(computed_foot::<T>(foot).x));
             let stated = [cu0, cu1].map(column).into_iter().chain(at_foot).collect();
             iso_schedule("pcurve_iso_wall_seam", stated)
-        }
-        // **The M8-3 ARC-RIM arm.** An ARC cap rim's chart image is
-        // the same boundary line the LINE arm mints, but its moving
-        // channel is the chart's own rational-quadratic parameter
-        // rather than the arc angle — the `Pcurve::IsoArc` map.
-        //
-        // The arm is keyed on the CARRIER, not on the description
-        // form, because the carrier is what the certification reads:
-        // a circle rim is a circle rim however its own chart writes
-        // it down. Keying on the form would have made the SAME
-        // geometry mint natively and refuse on the round trip — a
-        // description-form accident, not a fact about the rim.
-        //
-        // The sub-arc count is read off the chart's u structure (one
-        // span per sub-arc, by the loft's construction); that read is
-        // a SELECTION, and the CHECK is the full arc-rim certification
-        // that follows, which compares the chart's boundary row
-        // against the carrier circle's own rational-quadratic form and
-        // refuses a chart that is not this construction.
-        geom_brep::EdgeDescription::Chart(_)
-        | geom_brep::EdgeDescription::Scaffold(_)
-        | geom_brep::EdgeDescription::OnPair { .. }
-            if matches!(carrier, geom::Curve3::Circle(..)) =>
-        {
-            arc_rim()
         }
         // **The boundary-iso arms: an INTERSECTION seam, and a LINE rim
         // in any other form.** The same wall–wall seam the `IsoCurve`
@@ -3255,9 +3231,14 @@ fn certify_walked<T: Decide, K: Copy>(
             }
             _ => PcurveCache::certify(w.pcurve.clone(), w.t0, w.t1, &w.carrier, surface, band),
         };
+        // The walk derived this image: a lane choice's envelope refusal
+        // is the lane's gap (`geom_brep::minted_refusal`).
         match cache {
             Ok(cache) => rows.push((w.key, cache, w.element)),
-            Err(error) => refused.push((w.key, error)),
+            Err(error) => refused.push((
+                w.key,
+                geom_brep::minted_refusal(error, &w.pcurve, &w.carrier, surface),
+            )),
         }
     }
     if refused.is_empty() {
@@ -5135,7 +5116,7 @@ fn read_loop<T: AtRestPolicy>(
                 PcurveCache::certify(w.pcurve.clone(), w.t0, w.t1, &w.carrier, chart, band)
                     .map_err(|error| PcurveMintError::Certify {
                         half_edge: w.key,
-                        error,
+                        error: geom_brep::minted_refusal(error, &w.pcurve, &w.carrier, chart),
                     })?;
             }
         }
@@ -8141,7 +8122,7 @@ pub(crate) mod pole_slit_tests {
         let circle = |center: Point3<f64>, axis: Vec3<f64>, radius: f64, u_ref: Vec3<f64>| {
             Curve3::Circle(geom::Circle {
                 frame: geom::Frame {
-                    center,
+                    origin: center,
                     axis,
                     u_ref,
                 },
@@ -8420,7 +8401,7 @@ pub(crate) mod pole_slit_tests {
                         let he = body.get_edge(e).unwrap().he_plus;
                         matches!(
                             super::half_edge_carrier(&body, he),
-                            Ok((Curve3::Circle(geom::Circle { frame: geom::Frame { center, .. }, .. }), _, _)) if center.z == 0.0
+                            Ok((Curve3::Circle(geom::Circle { frame: geom::Frame { origin: center, .. }, .. }), _, _)) if center.z == 0.0
                         )
                     })
                     .expect("the bottom arc");

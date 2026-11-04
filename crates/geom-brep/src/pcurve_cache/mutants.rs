@@ -221,6 +221,6 @@ pub(super) fn form_uncharged<T: Real>(harmonics: T) -> Option<T> {
 /// A lane choice's envelope refusal left as the envelope's own (a bound
 /// on a miss, a tolerance offer) rather than the lane's gap (its rows
 /// are `circle_lane_rows`).
-pub(super) fn lane_envelope_bound() -> bool {
+pub(crate) fn lane_envelope_bound() -> bool {
     on("lane-envelope-bound")
 }

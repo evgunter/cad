@@ -446,7 +446,7 @@ fn a_grazing_circle_takes_the_general_lane_and_a_moved_villarceau_circle_is_off_
     let Curve3::Circle(geom::Circle {
         frame:
             geom::Frame {
-                center: c,
+                origin: c,
                 axis: n,
                 u_ref: e,
             },
@@ -578,11 +578,12 @@ fn each_villarceau_gate_alone_refuses_typed() {
         unreachable!()
     };
     let Curve3::Circle(geom::Circle {
-        frame: geom::Frame {
-            center,
-            axis: n,
-            u_ref,
-        },
+        frame:
+            geom::Frame {
+                origin: center,
+                axis: n,
+                u_ref,
+            },
         radius,
     }) = villarceau(0.4, 1.0, 1.0, 0.0)
     else {
@@ -621,7 +622,7 @@ fn each_villarceau_gate_alone_refuses_typed() {
     for (gate, center, axis, radius, u_ref) in rows {
         let carrier = Curve3::Circle(geom::Circle {
             frame: geom::Frame {
-                center,
+                origin: center,
                 axis,
                 u_ref,
             },
@@ -752,7 +753,10 @@ fn a_plane_gate_in_band_near_the_horn_takes_the_general_lane_never_the_focal_sec
         // Its certificate covers the residual, or ends as the lane's own
         // "not yet", never a tolerance offer.
         let (t0, t1) = (0.2, 3.0);
-        match PcurveCache::certify(image.clone(), t0, t1, &carrier, &surface, band) {
+        // The mint's own image, certified as the mint certifies it.
+        match PcurveCache::certify(image.clone(), t0, t1, &carrier, &surface, band)
+            .map_err(|e| geom_brep::minted_refusal(e, &image, &carrier, &surface))
+        {
             Ok(cache) => {
                 let sup = (0..=4096)
                     .map(|i| {

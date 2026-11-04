@@ -2326,13 +2326,20 @@ fn line_off_cone_sup<T: Decide>(
         };
         ((rho_lo, lo), rho_hi * cos + hi * sin)
     };
+    // The spread read as a ratio, `(ceiling − SPREAD·floor)/ceiling`,
+    // whose size (an eighth where it matters) the band decides at any
+    // scale of lever; a ceiling not shown positive, or a ratio in band,
+    // reads as spread (a halving only tightens the conversion).
     let spread = |(rho, axial): (T, T), ceiling: T| {
         let floor = rho * cos + axial * sin;
         geom_core::k_stats::detached(|| {
-            positive(
-                "pcurve_projected_lever_spread",
-                ceiling - floor * T::from_f64(LEVER_SPREAD),
-                band,
+            Ok::<bool, Indeterminate>(
+                !positive("pcurve_projected_lever_spread", ceiling, band)?
+                    || positive(
+                        "pcurve_projected_lever_spread",
+                        (ceiling - floor * T::from_f64(LEVER_SPREAD)) / ceiling,
+                        band,
+                    )?,
             )
         })
         .0
@@ -2693,69 +2700,6 @@ pub(super) fn projected_envelope<T: Decide>(
     Ok((terms, name))
 }
 
-/// **A lane choice's envelope refusal is the lane's capability gap**
-/// (D3): a circle or a line takes the projected image because no class
-/// was shown, so where check 4's envelope (an upper bound on the miss,
-/// [`PcurveCheck::bounds_a_miss`]) refuses or reads in band, the lane
-/// does not yet certify the pose, and the refusal ends "not yet" as the
-/// lane's other gaps do: in band as [`PcurveCheck::GeneralLane`]'s
-/// escalation, definite as [`LaneGap::Envelope`](super::LaneGap), and
-/// a metre conversion's lever refused as the pose's
-/// ([`LaneGap::Pose`](super::LaneGap)). The placement's terms
-/// (`FidelityU`, `FidelityV`) read the stored row's deck against the
-/// chart's, where a lifted copy refuses, and keep their own ending. A spline's net, whose only image
-/// this is, keeps the envelope's own ending.
-fn lane_choice_envelope<T: Real>(
-    refused: PcurveCertifyError,
-    carrier: &Curve3<T>,
-    surface: &Surface<T>,
-) -> PcurveCertifyError {
-    if !matches!(carrier, Curve3::Circle(..) | Curve3::Line(_)) {
-        return refused;
-    }
-    #[cfg(test)]
-    if super::mutants::lane_envelope_bound() {
-        return refused;
-    }
-    let lane_term = |check: PcurveCheck| {
-        check.bounds_a_miss()
-            && !matches!(
-                check,
-                PcurveCheck::EnvelopeTerm(EnvelopeTerm::FidelityU | EnvelopeTerm::FidelityV)
-            )
-    };
-    match refused {
-        PcurveCertifyError::Escalated {
-            check: check @ (PcurveCheck::Envelope | PcurveCheck::EnvelopeTerm(_)),
-            sample,
-            cause,
-        } if lane_term(check) => PcurveCertifyError::Escalated {
-            check: PcurveCheck::GeneralLane,
-            sample,
-            cause,
-        },
-        PcurveCertifyError::ResidualExceeded {
-            check: check @ (PcurveCheck::Envelope | PcurveCheck::EnvelopeTerm(_)),
-            ..
-        } if lane_term(check) => PcurveCertifyError::NoGeneralLane {
-            chart: surface.kind(),
-            carrier: carrier.kind(),
-            gap: super::LaneGap::Envelope,
-        },
-        // The metre conversion's lever (the cone's apex, the torus's
-        // core) is the pose's, as at the mint's partition.
-        PcurveCertifyError::SectorRefused {
-            piece,
-            channel: channel @ SectorChannel::Lever,
-        } => PcurveCertifyError::NoGeneralLane {
-            chart: surface.kind(),
-            carrier: carrier.kind(),
-            gap: super::LaneGap::Pose { piece, channel },
-        },
-        other => other,
-    }
-}
-
 /// The four checks of a projected row, in the fixed order every lane
 /// keeps: the lane and its structure; the interval and the period
 /// headroom; the schedule, as the envelope's cross-check on the witness
@@ -2950,8 +2894,7 @@ pub(super) fn run_projected_checks<T: Decide>(
                 .map_or(PcurveCheck::Envelope, PcurveCheck::EnvelopeTerm)
         })?;
         Ok(envelope)
-    })()
-    .map_err(|refused| lane_choice_envelope(refused, carrier, surface))?;
+    })()?;
     Ok(super::PcurveCertificate::closed(
         samples,
         max_residual,

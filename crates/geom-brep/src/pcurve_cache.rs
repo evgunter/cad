@@ -4992,7 +4992,7 @@ fn carrier_harmonic<T: Real>(carrier: &Curve3<T>) -> Option<Harmonic3<T>> {
         Curve3::Circle(_) | Curve3::Ellipse(_) => carrier.conic().map(|k| {
             let (a, b) = k.semi_axis_vectors();
             Harmonic3 {
-                c: k.frame().center,
+                c: k.frame().origin,
                 a,
                 b,
                 l: Vec3::zero(),
@@ -5811,104 +5811,67 @@ fn periodic_envelope_shown<T: Decide>(
     Ok(terms)
 }
 
-/// The chart with its frame made orthonormal ([`geom::square_frame`]):
+/// The chart with its frame made orthonormal ([`geom::Frame::square`]):
 /// `n̂ = axis/‖axis‖`, and `ê₁` the part of `u_ref` normal to `n̂`,
 /// normalised (the map's `v_ref` is then `n̂ × ê₁`). In exact
 /// arithmetic it is the frame the lemma on
 /// [`EnvelopeStatement::MapResidualClosedForm`] assumes; a literal
 /// unit frame is its own twin, and its twin's forms reduce to its own.
 pub(crate) fn orthonormal_chart<T: Real>(surface: &Surface<T>) -> Surface<T> {
-    let frame = |axis: Vec3<T>, u_ref: Vec3<T>| {
-        let f = geom::square_frame(axis, u_ref);
-        (f.axis, f.u_ref)
+    let Some(square) = surface.frame().map(|f| f.square()) else {
+        unreachable!("orthonormal_chart: a spline chart has no frame to make orthonormal")
     };
+    let (axis, u_ref) = (square.axis, square.u_ref);
     match *surface {
-        Surface::Cylinder {
+        Surface::Cylinder { origin, radius, .. } => Surface::Cylinder {
             origin,
             axis,
             radius,
             u_ref,
-        } => {
-            let (axis, u_ref) = frame(axis, u_ref);
-            Surface::Cylinder {
-                origin,
-                axis,
-                radius,
-                u_ref,
-            }
-        }
+        },
         Surface::Cone {
+            apex, half_angle, ..
+        } => Surface::Cone {
             apex,
             axis,
             half_angle,
             u_ref,
-        } => {
-            let (axis, u_ref) = frame(axis, u_ref);
-            Surface::Cone {
-                apex,
-                axis,
-                half_angle,
-                u_ref,
-            }
-        }
-        Surface::Sphere {
+        },
+        Surface::Sphere { center, radius, .. } => Surface::Sphere {
             center,
             radius,
             axis,
             u_ref,
-        } => {
-            let (axis, u_ref) = frame(axis, u_ref);
-            Surface::Sphere {
-                center,
-                radius,
-                axis,
-                u_ref,
-            }
-        }
+        },
         Surface::Torus {
             center,
-            axis,
             major_radius,
             minor_radius,
-            u_ref,
-        } => {
-            let (axis, u_ref) = frame(axis, u_ref);
-            Surface::Torus {
-                center,
-                axis,
-                major_radius,
-                minor_radius,
-                u_ref,
-            }
-        }
-        Surface::Spindle {
+            ..
+        } => Surface::Torus {
             center,
             axis,
             major_radius,
             minor_radius,
             u_ref,
-        } => {
-            let (axis, u_ref) = frame(axis, u_ref);
-            Surface::Spindle {
-                center,
-                axis,
-                major_radius,
-                minor_radius,
-                u_ref,
-            }
-        }
-        Surface::Plane {
-            origin,
-            normal,
+        },
+        Surface::Spindle {
+            center,
+            major_radius,
+            minor_radius,
+            ..
+        } => Surface::Spindle {
+            center,
+            axis,
+            major_radius,
+            minor_radius,
             u_ref,
-        } => {
-            let (normal, u_ref) = frame(normal, u_ref);
-            Surface::Plane {
-                origin,
-                normal,
-                u_ref,
-            }
-        }
+        },
+        Surface::Plane { origin, .. } => Surface::Plane {
+            origin,
+            normal: axis,
+            u_ref,
+        },
         Surface::Nurbs(_) | Surface::Approx(_) => {
             unreachable!("orthonormal_chart: a spline chart has no frame to make orthonormal")
         }
@@ -8039,11 +8002,12 @@ fn run_iso_arc_checks<T: Decide>(
         return Err(PcurveCertifyError::PlaceholderChart);
     }
     let Curve3::Circle(geom::Circle {
-        frame: geom::Frame {
-            center,
-            axis,
-            u_ref,
-        },
+        frame:
+            geom::Frame {
+                origin: center,
+                axis,
+                u_ref,
+            },
         radius,
     }) = carrier
     else {
@@ -9252,6 +9216,71 @@ fn chart_image<T: Decide>(
     }
 }
 
+/// **The mint's own image refused by its certificate, as the lane's
+/// gap** (D3): a circle or a line takes the projected image because no
+/// class was shown, so where the certificate of that image, just derived
+/// by [`chart_pcurve_over`] for the edge, refuses on its envelope (an
+/// upper bound on the miss, [`PcurveCheck::bounds_a_miss`]) or reads it in
+/// band, the lane does not yet certify the pose, and the refusal ends
+/// "not yet" as the lane's other gaps do: in band as
+/// [`PcurveCheck::GeneralLane`]'s escalation, definite as
+/// [`LaneGap::Envelope`], and a metre conversion's lever refused as the
+/// pose's ([`LaneGap::Pose`]).
+///
+/// Read by the doors that certify an image they just derived (the
+/// mint's walk, `topo::pcurves`), never by one that re-certifies a
+/// stored row: there an envelope refusal says the row is wrong (a copy
+/// lifted off its deck, an image moved off its carrier) and ends as its
+/// own term. Every other image and every other refusal passes through,
+/// a spline's net among them, whose only image this is.
+#[must_use]
+pub fn minted_refusal<T: Real>(
+    refused: PcurveCertifyError,
+    image: &Pcurve<T>,
+    carrier: &Curve3<T>,
+    surface: &Surface<T>,
+) -> PcurveCertifyError {
+    if !(matches!(image, Pcurve::Projected(_))
+        && matches!(carrier, Curve3::Circle(..) | Curve3::Line(_)))
+    {
+        return refused;
+    }
+    #[cfg(test)]
+    if mutants::lane_envelope_bound() {
+        return refused;
+    }
+    match refused {
+        PcurveCertifyError::Escalated {
+            check: check @ (PcurveCheck::Envelope | PcurveCheck::EnvelopeTerm(_)),
+            sample,
+            cause,
+        } if check.bounds_a_miss() => PcurveCertifyError::Escalated {
+            check: PcurveCheck::GeneralLane,
+            sample,
+            cause,
+        },
+        PcurveCertifyError::ResidualExceeded {
+            check: check @ (PcurveCheck::Envelope | PcurveCheck::EnvelopeTerm(_)),
+            ..
+        } if check.bounds_a_miss() => PcurveCertifyError::NoGeneralLane {
+            chart: surface.kind(),
+            carrier: carrier.kind(),
+            gap: LaneGap::Envelope,
+        },
+        // The metre conversion's lever (the cone's apex, the torus's
+        // core) is the pose's, as at the mint's partition.
+        PcurveCertifyError::SectorRefused {
+            piece,
+            channel: channel @ projected::SectorChannel::Lever,
+        } => PcurveCertifyError::NoGeneralLane {
+            chart: surface.kind(),
+            carrier: carrier.kind(),
+            gap: LaneGap::Pose { piece, channel },
+        },
+        other => other,
+    }
+}
+
 /// The lever of a [`LaneGap::Pose`]: the one sentence both
 /// [`PcurveCertifyError::NoGeneralLane`]'s and
 /// [`crate::CertifyError::NoGeneralLane`]'s Display give it.
@@ -9261,11 +9290,15 @@ pub(crate) const POSE_LEVER: &str = "a carrier through a pole, the cone's apex o
 
 /// **Why D3's lane choice found no general image** for a carrier the
 /// chart's incidence test does not show off it
-/// ([`PcurveCertifyError::NoGeneralLane`]).
+/// ([`PcurveCertifyError::NoGeneralLane`]). A spline chart has no
+/// incidence test, so there the carrier is one that no exact class
+/// showed, whether or not it lies on the chart.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum LaneGap {
     /// No general lane is written for this (chart, carrier) pair
-    /// ([`projected::has_lane`]).
+    /// ([`projected::has_lane`] on an analytic chart; on a spline chart,
+    /// a circle the arc rim's row does not hold, which the mint's
+    /// degree-1 `General` image cannot certify).
     Unwritten,
     /// The lane is written for the pair but does not image this pose: its
     /// partition found no piece sector ([`projected::SectorChannel`])
@@ -9888,7 +9921,7 @@ fn derive_class<T: Decide>(
                     ))
                 }
                 Curve3::Circle(geom::Circle {
-                    frame: geom::Frame { center, .. },
+                    frame: geom::Frame { origin: center, .. },
                     ..
                 }) => {
                     // Rim class: carrier plane ⊥ axis (a, b axial parts
@@ -10006,7 +10039,7 @@ fn derive_class<T: Decide>(
                 Curve3::Ellipse(geom::Ellipse {
                     frame:
                         geom::Frame {
-                            center,
+                            origin: center,
                             axis: e_axis,
                             u_ref: seam,
                         },
@@ -10896,7 +10929,7 @@ fn torus_oblique_circle<T: Decide>(
     let (
         &Curve3::Circle(geom::Circle {
             frame: geom::Frame {
-                center: c, axis: n, ..
+                origin: c, axis: n, ..
             },
             radius,
         }),
@@ -11288,11 +11321,11 @@ mod incidence {
                 [ox + dx * m, oy + dy * m, oz + dz * m]
             }
             Curve3::Circle(geom::Circle {
-                frame: geom::Frame { center, .. },
+                frame: geom::Frame { origin: center, .. },
                 ..
             })
             | Curve3::Ellipse(geom::Ellipse {
-                frame: geom::Frame { center, .. },
+                frame: geom::Frame { origin: center, .. },
                 ..
             })
             | Curve3::Spiric { center, .. } => exact_vec(center - geom_core::Point3::origin()),
@@ -11363,11 +11396,11 @@ mod incidence {
                 let mut moved = carrier.translated(-k)?;
                 match &mut moved {
                     Curve3::Circle(geom::Circle {
-                        frame: geom::Frame { center: at, .. },
+                        frame: geom::Frame { origin: at, .. },
                         ..
                     })
                     | Curve3::Ellipse(geom::Ellipse {
-                        frame: geom::Frame { center: at, .. },
+                        frame: geom::Frame { origin: at, .. },
                         ..
                     })
                     | Curve3::Spiric { center: at, .. } => *at = geom_core::Point3::origin(),
@@ -13222,7 +13255,7 @@ mod tests {
         let circle = |center: Point3<f64>, axis: Vec3<f64>, radius: f64, u_ref: Vec3<f64>| {
             Curve3::Circle(geom::Circle {
                 frame: geom::Frame {
-                    center,
+                    origin: center,
                     axis,
                     u_ref,
                 },
@@ -14948,14 +14981,14 @@ mod limb2_memo_rows {
                 Curve3::Circle(geom::Circle {
                     frame:
                         geom::Frame {
-                            center,
+                            origin: center,
                             axis,
                             u_ref,
                         },
                     ..
                 }) => Curve3::Circle(geom::Circle {
                     frame: geom::Frame {
-                        center,
+                        origin: center,
                         axis,
                         u_ref,
                     },
@@ -15139,7 +15172,7 @@ mod limb2_quick_rows {
             let Curve3::Circle(geom::Circle {
                 frame:
                     geom::Frame {
-                        center,
+                        origin: center,
                         axis,
                         u_ref,
                     },
@@ -15150,7 +15183,7 @@ mod limb2_quick_rows {
             };
             let c = Curve3::Circle(geom::Circle {
                 frame: geom::Frame {
-                    center,
+                    origin: center,
                     axis,
                     u_ref,
                 },

@@ -153,8 +153,7 @@ fn each_harmonic_group_of_the_cone_residual_decides_alone() {
 /// wide one, where the centring gate fails. There the incidence test,
 /// not the gate, decides — and the circle is not shown off the cone, a
 /// circle that is none of its rims (a cone holds no other circle), which
-/// takes the general lane: its projected image, which certifies or ends
-/// as the lane's "not yet".
+/// takes the general lane: its projected image, which certifies.
 #[test]
 fn a_near_rim_circle_tilted_inside_the_axial_band_is_on_the_cone() {
     let e = eps();
@@ -183,27 +182,19 @@ fn a_near_rim_circle_tilted_inside_the_axial_band_is_on_the_cone() {
                      image, never off the chart: {got:?}"
                 )
             };
-            // Its certificate holds, or (at a small ε, where the rounding
-            // charged on a radius-48 circle's form reaches the band) ends
-            // as the lane's own "not yet".
-            match geom_brep::PcurveCache::certify(
+            let cache = geom_brep::PcurveCache::certify(
                 image,
                 0.0,
                 core::f64::consts::TAU,
                 &circle,
                 &cone(alpha),
                 band(),
-            ) {
-                Ok(cache) => assert!(
-                    cache.certificate().envelope < band().zero(),
-                    "alpha = {alpha}: its envelope is inside the band"
-                ),
-                Err(e) => assert!(
-                    e.ending(geom_brep::recourse::Reading::Build)
-                        .starts_with(geom_core::NOT_YET_ENDING),
-                    "alpha = {alpha}: the projected image certifies or ends not yet: {e:?}"
-                ),
-            }
+            )
+            .unwrap_or_else(|e| panic!("alpha = {alpha}: the projected image certifies: {e:?}"));
+            assert!(
+                cache.certificate().envelope < band().zero(),
+                "alpha = {alpha}: its envelope is inside the band"
+            );
         }
     }
 }

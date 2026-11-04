@@ -2470,7 +2470,10 @@ fn record_germ_dir<T: Decide>(
     let s_b = b_body.proven_face_surface(sb.face).clone();
     let reach = declared.reach_of(super::Operand::A, sa.face, super::Operand::B, sb.face)?;
     let d = match geom_brep::tangent_locus(&s_a, &s_b, reach, band) {
-        Ok(geom_brep::TangentLocus::Line { dir, .. }) => dir.normalize(),
+        Ok(geom_brep::TangentLocus::Line {
+            line: geom::Line { dir, .. },
+            ..
+        }) => dir.normalize(),
         Err(geom_brep::TangentLocusError::Escalated(diag)) => {
             return Err(BooleanError::coincidence(
                 Coincide::TangentLocus,

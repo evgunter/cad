@@ -41,7 +41,7 @@ fn turned(carrier: &Curve3<f64>, surface: &Surface<f64>, ang: f64) -> Curve3<f64
         Curve3::Circle(geom::Circle {
             frame:
                 geom::Frame {
-                    center,
+                    origin: center,
                     axis: n,
                     u_ref: x,
                 },
@@ -276,7 +276,7 @@ fn fmt_surface(s: &Surface<f64>) -> String {
 }
 fn fmt_carrier(c: &Curve3<f64>) -> String {
     match c {
-        Curve3::Circle(geom::Circle { frame: geom::Frame { center, axis, u_ref }, radius }) => {
+        Curve3::Circle(geom::Circle { frame: geom::Frame { origin: center, axis, u_ref }, radius }) => {
             format!("circle;{};{};{};{radius:?}", fmt_p(*center), fmt_v(*axis), fmt_v(*u_ref))
         }
         Curve3::Line(geom::Line { origin, dir }) => format!("line;{};{}", fmt_p(*origin), fmt_v(*dir)),
@@ -403,6 +403,7 @@ fn review_6485_delta_radius48_parts() {
     if let Ok(pi) = projected::project(&ci, Some((f(0.0), f(TAU))), &si, b) {
         if let Ok((t, _)) = projected::projected_envelope(&pi, f(0.0), f(TAU), &pi.chart_box(f(0.0), f(TAU)), &ci, &si, b, None) {
             println!("[r48]   Interval Incidence hi {:e} total hi {:e}", t.0[EnvelopeTerm::Incidence.slot()].hi(), t.total().hi());
+            for term in EnvelopeTerm::ALL { println!("[r48]   I {term:?} [{:e}, {:e}]", t.0[term.slot()].lo(), t.0[term.slot()].hi()); }
         }
     }
     let got = chart_pcurve_over(&circle, 0.0, TAU, &cone, b)
@@ -455,7 +456,55 @@ fn review_6485_delta_row_parts() {
         }
         println!("[parts] pointwise Interval |form| least-magnitude sup {best:e}");
         let fr = ci.conic().unwrap().frame();
-        println!("[parts] I frame center {:?} u {:?} v {:?} semi {:?}", fr.center, fr.u_ref, fr.v_ref(), ci.conic().unwrap().semi_axes());
+        println!("[parts] I frame center {:?} u {:?} v {:?} semi {:?}", fr.origin, fr.u_ref, fr.v_ref(), ci.conic().unwrap().semi_axes());
         println!("[parts] I coeffs*per c0 {:?} c1 {:?} s1 {:?} c2 {:?} s2 {:?} per {:?}", h.c0 * h.per, h.c1 * h.per, h.s1 * h.per, h.c2 * h.per, h.s2 * h.per, h.per);
     }
+}
+
+/// V2: the cone harmonics' f64 coefficients (times `per`) against their
+/// charge `rounding_charge(terms)`, for review-probes/6485-delta-v2.py to
+/// compare with the exact coefficients of the same stored inputs.
+#[test]
+fn review_6485_delta_v2_coeff_dump() {
+    use std::io::Write;
+    let Ok(path) = std::env::var("RP_V2_DUMP") else { return };
+    let mut out = std::fs::File::create(path).unwrap();
+    let mut s = test_utils::fuzz::start("review_6485_delta_v2");
+    for _ in 0..3000 {
+        let alpha = match s.below(3) { 0 => s.log_uniform(1e-4, 0.05), 1 => s.range(1.52, 1.5707), _ => s.range(0.05, 1.5) };
+        let far = if s.below(2) == 0 { 0.0 } else { s.log_uniform(1.0, 1e5) };
+        let apex = Point3::new(0.3 + far, -0.7 - 0.6 * far, 0.2 + 0.5 * far);
+        let axis = Vec3::new(s.range(-1.0, 1.0), s.range(-1.0, 1.0), s.range(-1.0, 1.0)).normalize();
+        let u_ref = axis.cross(Vec3::new(0.3, 1.0, -0.2)).normalize();
+        let cone = Surface::Cone { apex, axis, half_angle: alpha, u_ref };
+        let h = s.log_uniform(1e-4, 1e3) * if s.below(2) == 0 { 1.0 } else { -1.0 };
+        let tau = if s.below(2) == 0 { 0.0 } else { s.log_uniform(1e-9, 1e-2) };
+        let c = d_section(&cone, alpha, h, tau);
+        let conic = c.conic().unwrap();
+        let hh = crate::implicit::conic_cone_harmonics(conic, apex, axis, alpha);
+        let charge = geom_core::rounding_charge(hh.terms);
+        writeln!(out, "{}|{}|{:?}|{:?}|{:?}|{:?}|{:?}|{:?}|{:?}|{:?}", fmt_surface(&cone), fmt_carrier(&c),
+            hh.c0 * hh.per, hh.c1 * hh.per, hh.s1 * hh.per, hh.c2 * hh.per, hh.s2 * hh.per, charge, hh.terms, hh.per).unwrap();
+    }
+}
+
+/// V2 red probe: a needle cone's tilted section (α 0.003, h 1, τ 1e-7,
+/// apex 1e5 off the origin), whose 50-digit distance from the cone is
+/// `2.7234227197864185e-12` m (review-probes/6485-delta-hp.py on
+/// 6485-delta-hp-dump.txt's row). The f64 envelope must cover it.
+#[test]
+fn review_6485_delta_v2_needle_cone_f64_envelope_covers_the_50_digit_distance() {
+    let far = 1e5;
+    let at = Point3::new(0.3 + far, -0.7 - 0.6 * far, 0.2 + 0.5 * far);
+    let axis = Vec3::new(0.2, -0.4, 1.0).normalize();
+    let u_ref = axis.cross(Vec3::unit_x()).normalize();
+    let alpha = 0.003;
+    let s = Surface::Cone { apex: at, axis, half_angle: alpha, u_ref };
+    let c = d_section(&s, alpha, 1.0, 1e-7);
+    let exact = 2.7234227197864185e-12;
+    let b = band();
+    let p = projected::project(&c, Some((0.0, TAU)), &s, b).unwrap();
+    let (t, _) = projected::projected_envelope(&p, 0.0, TAU, &p.chart_box(0.0, TAU), &c, &s, b, None).unwrap();
+    let env = t.total();
+    assert!(env >= exact, "f64 envelope {env:e} under the 50-digit distance {exact:e} (carrier {})", fmt_carrier(&c));
 }
