@@ -530,8 +530,9 @@ pub(super) fn first_unsupported_pair<T: Decide + Bounds>(
         // that carries no unsupported kind at all — the common case
         // pays nothing for this gate.
         let mut offenders: Vec<(FaceKey, geom::SurfaceKind)> = Vec::new();
-        for (key, f) in body.faces() {
-            let s = body.face_surface_linked(key, f);
+        for f in body.face_views() {
+            let key = f.key();
+            let s = f.surface();
             if !supported(s) {
                 offenders.push((key, s.kind()));
             }
@@ -543,9 +544,9 @@ pub(super) fn first_unsupported_pair<T: Decide + Bounds>(
         // offender exists: the scan is `offenders × other faces`, so
         // re-boxing per offender would re-walk a whole body per cone.
         let others: Vec<(FaceKey, geom::SurfaceKind, bvh::Aabb)> = other
-            .faces()
-            .map(|(key, f)| {
-                let kind = other.face_surface_linked(key, f).kind();
+            .face_views()
+            .map(|f| {
+                let (key, kind) = (f.key(), f.surface().kind());
                 Ok((key, kind, super::boxes::face_box(other, key, pad, band)?))
             })
             .collect::<Result<_, BooleanError>>()?;
@@ -817,7 +818,7 @@ pub(super) fn gate_maximal_faces<T: Decide>(
             // exactly what a maximal-faced curved operand looks like
             // (the cosurface merge itself KEEPS such a cut). Only the
             // PLANAR same-key pair is the F7 defect.
-            let planar = matches!(body.proven_face_surface(f1), geom::Surface::Plane { .. });
+            let planar = matches!(body.proven_face(f1).surface(), geom::Surface::Plane { .. });
             if planar {
                 return Err(BooleanError::NonMaximalFaces {
                     operand,
@@ -1262,7 +1263,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                         origin: chart_origin,
                         normal: chart_normal,
                         ..
-                    } = y.proven_face_surface(face)
+                    } = y.proven_face(face).surface()
                     else {
                         return Err(BooleanError::ClassificationInvariant {
                             what: "planar lane: the face's plane resolved above",
@@ -1749,12 +1750,13 @@ pub(super) fn sweep_and_settle<T: Decide + Bounds + crate::props::AtRestPolicy>(
 }
 
 /// The vertices bounding `face` of `body`, outer loop and rings, for a
-/// face the contact record names ([`Body::proven_face_boundary`]).
+/// face the contact record names ([`crate::live::FaceView::boundary`]).
 fn face_vertices<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
 ) -> std::collections::BTreeSet<VertexKey> {
-    body.proven_face_boundary(face)
+    body.proven_face(face)
+        .boundary()
         .map(|member| member.vertex())
         .collect()
 }
@@ -2181,7 +2183,7 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
     band: Band,
     tol: Tol,
 ) -> Result<CurvedEvent<T>, BooleanError> {
-    let surface = y.proven_face_surface(face).clone();
+    let surface = y.proven_face(face).surface().clone();
     let frontier = || BooleanError::CurvedPierceUnsupported {
         operand: x_is,
         face,
@@ -3334,7 +3336,7 @@ fn spline_interior<T: Decide + crate::props::AtRestPolicy>(
     if !geom_brep::curve_face::route(curve.carrier().kind(), kind).implemented {
         return Err(unbuilt());
     }
-    let surface = y.proven_face_surface(face).clone();
+    let surface = y.proven_face(face).surface().clone();
     let chart = surface
         .spline_chart()
         .ok_or(BooleanError::ClassificationInvariant {
@@ -4589,7 +4591,7 @@ fn spline_plane_crossings<T: Bounds + crate::props::AtRestPolicy>(
     band: Band,
 ) -> Result<Vec<T>, BooleanError> {
     use geom_brep::curve_face::{Door, route};
-    let surface = y.proven_face_surface(face);
+    let surface = y.proven_face(face).surface();
     let arm = route(curve.carrier().kind(), surface.kind());
     let net = match curve.carrier() {
         geom::Curve3::Nurbs(net) if arm.door == Door::SplineComposite && arm.implemented => {
@@ -6416,7 +6418,7 @@ fn read_lying_in<T: Decide + crate::props::AtRestPolicy>(
                 along_boundary(x_is, y, (w, p), face, contacts, band, tol)?;
             }
             LyingIn::Curved(face, on_curved) => {
-                let surface = y.proven_face_surface(face);
+                let surface = y.proven_face(face).surface();
                 let frontier = BooleanError::CurvedPierceUnsupported {
                     operand: x_is,
                     face,
@@ -7521,7 +7523,7 @@ mod edge_span_tests {
             Tol::witness(),
         );
         crate::test_support_fixtures::set_sheet_sense(&mut y, face, true, Tol::witness());
-        let wall = y.face_surface(face).expect("the sheet's wall").clone();
+        let wall = y.proven_face(face).surface().clone();
         let got = wall_crossing(
             &y,
             face,
