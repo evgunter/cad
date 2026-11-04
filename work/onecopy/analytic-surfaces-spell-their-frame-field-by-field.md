@@ -6,7 +6,7 @@ status: parked
 opened: 2026-11-02
 priority: P1
 cost: H
-blocked_on: [the-frame-carries-every-placement-reading, 6371, 6443]
+blocked_on: [6371]
 ---
 
 Found by the ONEHOME orchestrator while adjudicating PR 6328's style review (2026-11-02).
