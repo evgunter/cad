@@ -5574,6 +5574,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
         function: "revolve_error_tag",
         values: &[
             "angle_escalated",
+            "apex_end_off_sheet",
             "arc_crosses_axis",
             "axis_escalated",
             "axis_gap_escalated",
@@ -5590,7 +5591,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "op",
             "pcurve",
             "pinned_run_station",
-            "sheet_apex",
             "sliver_axis_clearance",
             "sliver_join",
             "sliver_radius",
