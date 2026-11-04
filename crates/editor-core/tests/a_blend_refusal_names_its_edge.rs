@@ -38,7 +38,8 @@ fn mint(doc: &ProfileDoc, node: AuthoredNode) -> (ProfileDoc, RecipeNodeId) {
 
 /// The lune between the internally tangent circles (0,1) r 1 and
 /// (0,2) r 2, `ProgramStep::Cusp` at the kiss: its extrude sweeps one
-/// strut at material wedge 0, a knife edge no blend has a side for.
+/// strut at material wedge 0, a knife edge. Its crescent opens to
+/// `R_big − R_small = 1`, so no fillet ball wider than that exists there.
 fn cusp_lune() -> LoopProgram<editor_core::Formula> {
     LoopProgram::Chain(vec![
         ProgramStep::At([len(0.0), len(4.0)]),
@@ -51,9 +52,13 @@ fn cusp_lune() -> LoopProgram<editor_core::Formula> {
     ])
 }
 
-/// **Every edge of a cusp body filleted**: the kiss refuses as a knife
-/// edge, and the node's refusal names that edge by its name in the
-/// operand's table — one of the names the selection was made of.
+/// **A cusp's kiss filleted wider than its crescent**: the kiss refuses
+/// as a knife edge with no room for the ball (`KnifeRefusal::NoRoom`),
+/// and the node's refusal names that edge by its name in the operand's
+/// table — one of the operand's edge names. (A fillet of every edge at a
+/// radius the crescent holds builds the knife's band and refuses at the
+/// cusp's cap vertices instead, whose three support normals are
+/// dependent: the cap's and the two tangent walls', `n̂` and `−n̂`.)
 #[test]
 fn a_knife_edge_refusal_names_the_edge_by_its_stable_name() {
     let (doc, profile) = mint(
@@ -104,7 +109,7 @@ fn a_knife_edge_refusal_names_the_edge_by_its_stable_name() {
             .cloned()
             .expect("the table names the kiss")
     };
-    let (doc, fillet) = mint(&doc, Node::fillet(extrude, len(0.05), every.clone()));
+    let (doc, fillet) = mint(&doc, Node::fillet(extrude, len(1.2), vec![kiss.clone()]));
     let ev = eval(&doc);
     let Some(NodeResult::Failed(failure)) = ev.nodes.get(&fillet) else {
         panic!(
@@ -113,7 +118,11 @@ fn a_knife_edge_refusal_names_the_edge_by_its_stable_name() {
         );
     };
     let NodeErrorKind::Blend {
-        error: sweep::blend::BlendError::KnifeEdge { .. },
+        error:
+            sweep::blend::BlendError::KnifeEdge {
+                refusal: sweep::blend::KnifeRefusal::NoRoom { .. },
+                ..
+            },
         edge: Some(name),
         ..
     } = &failure.kind

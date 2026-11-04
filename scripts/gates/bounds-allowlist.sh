@@ -755,7 +755,16 @@ BOUNDS_ALLOWLIST=(
   # topology's own edge fans. It reads no bracket of its own, and its
   # selection only narrows what the screen meters to what the exact
   # meter downstream meters whole.
-  'crates/sweep/src/blend/battery.rs 21 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
+  # 21 -> 23: `knife_end` (a cusp's or slit's end, under
+  # `material_wedge_side`) and `knife_room_at` (`fillet3_knife_room`) are
+  # predicate 5's knife reads, the same battery seam as
+  # `radius_headroom`: each decides only through `classify`, and reads
+  # a bracket only to report a refusal, the classified margin through
+  # `classified` (whose `measured` is the payload read) and the request
+  # radius through `.lo()` for `KnifeRefusal::NoRoom`. The next tighter
+  # bound, `Decide` alone, fails there: `classified` takes `T: Bounds`.
+  # Neither picks anything from a bracket.
+  'crates/sweep/src/blend/battery.rs 23 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   'crates/sweep/src/blend/build.rs 5 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   # surgery.rs 14 -> 15: `support_boundary_clearance` is the ring
   # carry-through pass's support-boundary arm split into its own
