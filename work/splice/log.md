@@ -1449,3 +1449,13 @@ general regularity sweep. SECTARMS's cylinder × cylinder unit adopts
   - Main merged, and `cargo check -p topo -p sweep --all-targets` is clean.
   - State sync: closed `a-section-spiric-on-a-cap-plane-reads-unread-against-the-wall-it-ends-on`.
 - 2026-11-04 15:48Z — **PR 6523 merged** (`a0cd09c8`, head `6dbc0302`, CI run 41856334073 green). Lane `session_013QoYWVga4S7t6gZGFDzKrR` archived; worktree removed. Both of the open P0/P1 rows Ev asked to finish this sitting are now closed (teapot 1e-6 by PR 6519, spiric on a cap plane by PR 6523). The spline-region charge lane, the third P1, is in its Phase 0.
+- 2026-11-04 16:10Z — **Spline-region charge, Phase 0 ruled.** Measured on main `2c73aabf` (draft PR 6530, head `535b3b70`).
+  - At band 1e-12, `read_capped`'s carrier walk reads points on the sheet Off. Up to 133 of about 2000 samples (two seeds, knotted rational rows); worst, a point at distance 0 with a floor of 4.4e-11.
+  - Every hit is rational at size or placement ≥ 3.4e3. No demo reaches it.
+  - **Ruled:**
+    - one home for the tracked cut and charged floor, moved out of PCERT's `spline_incidence.rs` into a public geom-brep module that both walks read. Review rises to DUAL;
+    - guarded: if a live `pcert/*` branch edits that file, copy into topo instead, stay at FULL, and cite the P3 two-walks row;
+    - `Trim::copy` folded in. It is uncharged even at Interval, since its pieces collapse to their value channel;
+    - other sweep hits filed (spline_arc ball/cross, edge_nurbs edge_piece, projected frame_box_on), with `window_arms` folded in only if the one home makes it a call;
+    - a carrier-walk witness allowed if `read_capped` calls exactly it, plus one attempt at a far rational arc loft through a boolean.
+  - **Class (logged):** a floor read off a control box at f64 after an untracked cut is not a lower bound. Every cut box that decides needs the cut's rounding charged, and `Interval` alone does not do it where the net is collapsed to its value channel.
