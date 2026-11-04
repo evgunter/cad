@@ -198,30 +198,6 @@ fn isolated_axis_vertex_in_full_revolve_is_non_manifold() {
 // suites.
 
 #[test]
-fn a_lemon_arc_ending_on_the_axis_is_a_sheet_apex() {
-    // The arc on the circle centred at (−0.5, 0) with radius 1 between
-    // its two axis points (0, ∓√0.75), bulging through (0.5, 0), closed
-    // along the axis: the whole lemon, both of its apexes vertices.
-    let h = 0.75_f64.sqrt();
-    let lp = bulge_loop(vec![
-        (Point2::new(0.0, -h), (PI / 6.0).tan()),
-        (Point2::new(0.0, h), 0.0),
-    ]);
-    let vp = validated(vec![lp]);
-    let e = revolve(&vp, axis_y(), Revolution::Partial(1.0), Tol::witness()).unwrap_err();
-    assert!(
-        matches!(
-            e,
-            RevolveError::SheetApex {
-                loop_index: 0,
-                segment_index: 0
-            }
-        ),
-        "{e:?}"
-    );
-}
-
-#[test]
 fn arc_interior_across_the_axis_is_typed() {
     // A clockwise semicircle from (0, −1) to (0, 1) bulging through
     // (−1, 0): endpoints on the axis, apex definitely across it.
@@ -250,7 +226,7 @@ fn full_circle(cx: f64, cy: f64, r: f64, phase: f64) -> ProfileLoop<f64> {
 /// **The arc rule reads the interior before the ends**: an arc that
 /// passes its circle's point of least radius crosses the axis, whether
 /// or not an end of it is on the axis, so each of these refuses
-/// `ArcCrossesAxis` and none `SheetApex`.
+/// `ArcCrossesAxis`.
 ///
 /// - A full circle wholly across the axis, touching it at its one vertex
 ///   (`R = −r`, centre `(−1, 0)`): no sheet exists for it.

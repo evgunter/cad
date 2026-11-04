@@ -8,7 +8,7 @@
 //!
 //! Built with `PCERT_RADIAL_PAIR_MUTANT` naming `radial-fold` (an in-band
 //! ruling folded onto the meridian form), the in-band rows refuse; naming
-//! `line-cylinder-ends` (the incidence sup read at the segment's ends
+//! `segment-form-ends` (the incidence sup read at the segment's ends
 //! only), the chord row refuses.
 use core::f64::consts::PI;
 
@@ -245,7 +245,7 @@ fn a_shown_ruling_takes_the_meridian_form() {
             .unwrap_or_else(|e| panic!("a shown ruling certifies at Interval: {e:?}"));
         }
         assert_eq!(
-            chart_iso_family(&carrier, &surface, band()),
+            chart_iso_family(&carrier, super::own_interval(&carrier), &surface, band()),
             Ok(Some(IsoFamily::U)),
             "off {off:e}: a shown ruling's family"
         );
@@ -275,7 +275,10 @@ fn a_line_shown_off_its_rulings_on_the_wall_takes_the_projected_lane() {
         "the ruling reading is definite"
     );
     certifies_projected("a line off its rulings", &carrier, (0.0, 1.0), &surface);
-    assert_eq!(chart_iso_family(&carrier, &surface, band()), Ok(None));
+    assert_eq!(
+        chart_iso_family(&carrier, super::own_interval(&carrier), &surface, band()),
+        Ok(None)
+    );
 }
 
 /// A line definitely off the wall ends as its incidence read, before any
@@ -311,18 +314,18 @@ fn a_ruling_in_band_names_no_family_undecided() {
     let carrier = line_at(&surface, 0.4, 0.0, in_band());
     assert!(
         matches!(
-            chart_iso_family(&carrier, &surface, band()),
+            chart_iso_family(&carrier, super::own_interval(&carrier), &surface, band()),
             Err(IsoFamilyRefusal::Undecided(_))
         ),
         "{:?}",
-        chart_iso_family(&carrier, &surface, band())
+        chart_iso_family(&carrier, super::own_interval(&carrier), &surface, band())
     );
 }
 
 /// [`projected::line_off_cylinder_sup`] covers the segment's densely
 /// sampled distance from the cylinder at `f64` and at `Interval`, on a
 /// chord dipping toward the axis (its ends on the wall, its middle
-/// `R(1 − cos a)` inside: red under `line-cylinder-ends`), a chord
+/// `R(1 − cos a)` inside: red under `segment-form-ends`), a chord
 /// outside, a ruling off the wall (tight there), and a segment crossing
 /// the wall.
 #[test]

@@ -94,3 +94,32 @@
   - **Filed by the lane:** the region term omits junction connectors, which is pre-existing in the harmonic lane too (P2); the projected edge cost weights are unmeasured (P3).
   - **The P1 cost row is re-measured in release:** 5.5–11.9 s per op. The march is the cost now.
   - **Stage 1 closed.** The orchestrator branch merge brought main's code in (PR 6486's `quad_lane` arm, auto-merged), so the head re-earns CI before merging.
+- 2026-11-04 — **PR 6478 merged** (stage 1 of the rotational lane). **Dispatched stage 2** as `the-rotational-lane-reads-the-sphere-chart` (H, dual). It closes the P0 projected-boundary row and teapot wall 2's current stop, and it takes the P2 junction-gap row, which the sphere's F enlarges.
+- 2026-11-04 — **Spindle stage 2 is up as PR 6497** (head `c7142ee577`, CI green). The football builds, as do the apple and the horn's needle tip.
+  - `SheetApex` retires. At tier 3, an apex at a vertex passes as a pole does.
+  - `edge_join::singular_at` now names the sheet. The second sweep pass found that it had hidden behind a `_ =>` catch-all.
+  - Props add a zero-length rim at an apex. `cert_spindle` is the new mesh certificate. Six mutants each turn their row red.
+  - **The horn snap:** a reach decided zero now stores an exact horn, `R = r`. I believe this is the kernel's practice at every kind boundary decided zero (the sphere's `R = 0`), and the reviewers are asked to falsify that.
+  - **Filed:** `a-football-revolved-part-way-refuses-at-its-cap-meridians-certificate` (P3). The reviewers are asked whether P3 is right for a user-drawable revolve that refuses with a kernel-defect message.
+  - **Dual dispatched** as two cloud sessions, with identical briefs (`spiricarm/review-6497-brief`, sha256 `ed4748b2…`).
+- 2026-11-04 — **PR 6497's dual is delivered.** Both reviewers returned APPROVE-WITH-FIXES on `c7142ee577`, with no MAJOR. Both executed their checks: 22+ probe bodies on an apex measured exactly, and each ran a 200–240k fuzz of `cert_spindle` with 0 under-reads. So the pair is fair.
+  - **Bilateral:**
+    - `sheet_material_sign`'s two sheet branches have no red row (mutants survive), and one arm swallows any `Err`, an in-band escalation included;
+    - the part-way row is under-banded (P3 → P1, taken);
+    - the wrong-apex row is refused by edge certification, not by any apex reading (the same class as stage 1's wrong-sheet row);
+    - three closure mutants survive everything;
+    - the ladder allowance is argued, not derived;
+    - `Chart::poles` dedups with an exact float compare;
+    - the azimuth at an apex end is read twice.
+  - **Unilateral, R2:** the horn snap moves a sheet's apexes by √(2r|d|), not |d|, so a near-horn apple drawn apex to apex refuses `SheetApexReached` with a recourse the user already followed. This falsifies my claim that the snap is the sphere's practice; the form matches, the metric does not. Also `read_seam_regions` is sphere-only (the PR body overclaims); `chart_iso_family`'s span change applies to every kind; `tangent::round` omits the sheet; editor-core's measure label.
+  - **Unilateral, R1:** the fan-triangle row stops short of the horn, where its bound is tightest.
+  - **Tally candidates:** none (no MAJOR).
+  - **Fix pass:** the union, sent to the apex lane (resumed). The snap is to be decided in the metric that moves, with a stop rule: if it is a design fork against the ratified arc rule, it comes back to me.
+  - **Class (logged at adjudication):** a wrong-X witness row refused by an earlier gate than the one it names cannot go red for X. Both spindle stages shipped one, so stage briefs now name the gate a witness must reach.
+  - **Class:** a suite whose every face has the same sense cannot tell a sense-dependent reading's two branches apart. Look for other readings fixed only by a single-sense suite.
+- 2026-11-04 — **PR 6497's fix pass is taken** (head `e6b2e75119`, CI green; the orchestrator read `sheet_major`).
+  - **The horn snap** is now decided in the apex metric (`ApexEnd`, refusing `ApexEndOffSheet`). This is not a fork: `ArcReach` still picks the kind, and the near-horn band still refuses as a sliver, read in the metric the apex moves in.
+  - The guards on `sheet_material_sign` are witnessed; there is a real apex witness row; the reviewers' bodies are adopted.
+  - **Disclosed:** three snap mutants were not re-run after the order changed.
+  - The review row is `docs/dual-review-log/rows/PR-6497.md` (a fair pair).
+  - **Stage 2 is closed.** The parent row (`horn-and-spindle-tori-have-no-representation`) closes with it. The part-way revolve (P1) is the next spindle row.

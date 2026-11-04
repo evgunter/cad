@@ -397,7 +397,9 @@ pub(super) fn singular_at<T: Decide>(
     let arm = match *s {
         geom::Surface::Cone { apex, .. } => (p - apex).norm(),
         geom::Surface::Sphere { center, axis, .. } => off_axis(center, axis),
-        geom::Surface::Torus { center, axis, .. } => off_axis(center, axis),
+        geom::Surface::Torus { center, axis, .. } | geom::Surface::Spindle { center, axis, .. } => {
+            off_axis(center, axis)
+        }
         _ => return Ok(false),
     };
     geom_core::k_stats::decide("join_regular_point", Margin::of(arm), band)
@@ -548,7 +550,7 @@ fn joinable<T: Decide>(
                 Some(Locus::Tangent)
             }
             geom_brep::EdgeDescription::Chart(chart) if sf == sg && chart.surface == sf => {
-                geom_brep::chart_iso_family(c.carrier(), surf_f, band)
+                geom_brep::chart_iso_family(c.carrier(), c.params(), surf_f, band)
                     .map_err(|e| undecided(JoinReading::ChartClass(e)))?
                     .map(Locus::Iso)
             }
@@ -557,8 +559,9 @@ fn joinable<T: Decide>(
             {
                 let mut found = None;
                 for (minus, s) in [(false, surf_f), (true, surf_g)] {
-                    if let Some(family) = geom_brep::chart_iso_family(c.carrier(), s, band)
-                        .map_err(|e| undecided(JoinReading::ChartClass(e)))?
+                    if let Some(family) =
+                        geom_brep::chart_iso_family(c.carrier(), c.params(), s, band)
+                            .map_err(|e| undecided(JoinReading::ChartClass(e)))?
                     {
                         found = Some(Locus::PairIso(minus, family));
                         break;
@@ -1704,8 +1707,8 @@ mod undecided_text {
             ),
             (
                 geom_brep::PcurveCertifyError::NoGeneralLane {
-                    chart: geom::SurfaceKind::Torus,
-                    carrier: geom::CurveKind::Circle,
+                    chart: geom::SurfaceKind::Sphere,
+                    carrier: geom::CurveKind::Ellipse,
                     gap: geom_brep::LaneGap::Unwritten,
                 },
                 false,

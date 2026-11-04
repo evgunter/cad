@@ -2,12 +2,14 @@
 id: a-foots-parameter-is-read-without-its-certificate
 kind: issue
 title: A foot's t is read without its on_carrier certificate (census direction_at, curve_pair walk and pose), so a polish tie across a spline's branches silently reverses a tangent unless the tie stays logged
-status: dispatched
+status: closed
+closed: 2026-11-04
 opened: 2026-11-03
 priority: P1
 cost: M
 refs: [6475]
 branch: onecopy/foot-certificate
+pr: 6483
 ---
 
 
@@ -42,7 +44,7 @@ Making the polish tell a cross-branch tie from a converged one is not an alterna
   - `Foot::nearest() -> Option<T>` is `Some` only where the foot is nearest by kind (line, circle). It folds in `nearest_foot`/`is_nearest`.
   - `Foot::seed() -> T` certifies nothing by contract.
   - `Foot::gap()` and `point()` stay.
-  - Once no reader can rest on the pick, `smaller` (`curve_foot_polish`) goes through `check_unlogged` (ledger row F32). Its argument is now structural: the only parameter a reader can hold is `On`'s, decided on the gap. This removes the measured noise: at `Interval` every spline foot logs ≥4 escalations and every ellipse or spiric foot ≥1, whatever the box, which is a standing bisect cue `drive::log_read` can never satisfy.
+  - Once no reader can rest on the pick, `smaller` (`curve_foot_polish`) goes through `check_unlogged` (ledger row F32). Its argument is now structural: the only parameter a reader can hold is `On`'s, decided on the gap. This removes the measured noise: at `Interval`, whatever the box, a spline foot logs 1 to 6 escalations (at least 1), an ellipse foot 1 and a circle foot none. That is a standing bisect cue `drive::log_read` can never satisfy. The counts come from PR 6483's review, a census of 240 feet; no test pins them.
 - **`geom-brep`.**
   - `Span::read` forwards `On`'s `t` into `Reading::On`.
   - `pair_section::reads` is `On { t, .. } => Some(t)`.

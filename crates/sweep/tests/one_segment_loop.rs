@@ -898,13 +898,17 @@ fn a_one_segment_circle_on_or_against_the_axis_refuses() {
             "{what}: {got:?}"
         );
     };
-    let apex = |what: &str, got: &E| {
+    // A horn's circle through its cusp, revolved part way, refuses at
+    // the attachment gate on a stated interval decided zero
+    // (`work/spiricarm/a-football-revolved-part-way-refuses-at-its-cap-meridians-certificate.md`).
+    let pinched_part_way = |what: &str, got: &E| {
         assert!(
             matches!(
                 got,
-                E::SheetApex {
-                    loop_index: 0,
-                    segment_index: 0
+                E::Op {
+                    source: topo::EulerOpError::Certification {
+                        error: geom_brep::CertifyError::StatedInterval { .. }
+                    }
                 }
             ),
             "{what}: {got:?}"
@@ -930,11 +934,12 @@ fn a_one_segment_circle_on_or_against_the_axis_refuses() {
         // The sheet classes: the carrier reaches the axis off-centre,
         // and a full turn holds the point where it reaches furthest.
         ("crossing the axis", circle(0.5, 0.0, 1.0, TAU), arc),
-        // A horn's cusp at the vertex is the sheet's apex.
+        // A horn's cusp at the vertex: the sheet's apex, reached from
+        // both sides.
         (
             "tangent to the axis at its vertex",
             circle_at(1.0, 0.0, 1.0, PI, TAU),
-            apex,
+            pinched_part_way,
         ),
         (
             "tangent to the axis away from its vertex",
