@@ -3574,6 +3574,145 @@ mod spiric_quadric_rows {
     }
 }
 
+/// **Reviewer rows on the spiric × quadric arm** ([`super::spiric_on_quadric`]'s
+/// neighbours): a touch between the samples, a torus the spiric
+/// crosses, and samples in band with none off.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod spiric_quadric_review_rows {
+    use super::{EdgeInFaceGap, Placed, conic_or_line_on};
+    use geom_core::{Band, Margin, Point3, Sign, Tol, Vec3};
+
+    fn band() -> Band {
+        Band::linear(Tol::witness()).unwrap()
+    }
+
+    const UNREAD: Placed = Placed::Unread(EdgeInFaceGap::CarrierUnread);
+
+    fn spiric(major: f64, minor: f64, offset: f64) -> geom::Curve3<f64> {
+        geom::Curve3::Spiric {
+            center: Point3::origin(),
+            axis: Vec3::unit_z(),
+            u_ref: Vec3::unit_x(),
+            major_radius: major,
+            minor_radius: minor,
+            offset,
+        }
+    }
+
+    fn read(surface: &geom::Surface<f64>, q: Point3<f64>) -> Result<Sign, String> {
+        crate::validate::decide(
+            "test_review_sample",
+            Margin::of(geom_brep::implicit::implicit_residual(surface, q)),
+            band(),
+        )
+        .map_err(|d| format!("{d:?}"))
+    }
+
+    /// **A spiric tangent to a cylinder at its span's midpoint reads
+    /// off**: the touch is exact, so the carriers meet there, yet the
+    /// midpoint is the only sample on the wall and the quarter samples
+    /// read off. Pins the residue the arm admits (a touch between
+    /// points read off), and goes red where only the midpoint is
+    /// sampled.
+    #[test]
+    fn a_spiric_tangent_to_a_cylinder_at_its_midpoint_reads_off() {
+        let s = spiric(2.0, 1.0, 0.5);
+        let p = s.eval(0.0);
+        let h = 1e-6;
+        let tangent = s.eval(h) - s.eval(-h);
+        let tangent = tangent / tangent.norm();
+        let normal = Vec3::unit_x().cross(tangent);
+        let radius = 0.3;
+        let wall = geom::Surface::Cylinder {
+            origin: p + normal * radius,
+            axis: Vec3::unit_x(),
+            radius,
+            u_ref: Vec3::unit_y(),
+        };
+        assert_eq!(read(&wall, p), Ok(Sign::Zero), "the touch at the midpoint");
+        for f in [0.25_f64, 0.75] {
+            let t = -0.5 + f;
+            assert!(
+                matches!(read(&wall, s.eval(t)), Ok(Sign::Positive | Sign::Negative)),
+                "the sample at {f} is off the wall"
+            );
+        }
+        assert_eq!(
+            conic_or_line_on(&s, (-0.5, 0.5), &wall, band()).unwrap(),
+            Placed::Off,
+            "a touch between samples read off reads off"
+        );
+    }
+
+    /// **A spiric crossing a torus other than its own stays unread**:
+    /// the arm admits quadrics only. Red where the arm admits a torus.
+    #[test]
+    fn a_spiric_crossing_another_torus_stays_unread() {
+        let s = spiric(2.0, 1.0, 0.5);
+        let hub = s.eval(0.0);
+        let other = geom::Surface::Torus {
+            center: hub,
+            axis: Vec3::unit_x(),
+            major_radius: 0.3,
+            minor_radius: 0.1,
+            u_ref: Vec3::unit_y(),
+        };
+        assert!(
+            matches!(read(&other, s.eval(0.25)), Ok(Sign::Positive | Sign::Negative)),
+            "a sample is off the other torus"
+        );
+        assert_eq!(
+            conic_or_line_on(&s, (-0.5, 0.5), &other, band()).unwrap(),
+            UNREAD,
+            "a spiric against another torus"
+        );
+    }
+
+    /// **A spiric whose samples are in band of a cylinder, none off,
+    /// stays unread**: an undecided sample is not a sample off. The
+    /// spiric hugs its meridian cylinder, at an offset whose deviation
+    /// lands between the band's zero and its escalation. Red where an
+    /// undecided reading reads off.
+    #[test]
+    fn a_spiric_in_band_undecided_of_a_cylinder_stays_unread() {
+        let (big, small) = (2.0, 0.5);
+        let wall = geom::Surface::Cylinder {
+            origin: Point3::new(0.0, big, 0.0),
+            axis: Vec3::unit_x(),
+            radius: small,
+            u_ref: Vec3::unit_y(),
+        };
+        let b = band();
+        let span = (-1.0, 1.0);
+        // Search the offset whose samples read undecided, none apart.
+        let mut found = None;
+        for k in 0..400 {
+            let target = b.zero() + (b.escalate() - b.zero()) * f64::from(k) / 400.0;
+            let d = (2.0 * (big - small) * target).sqrt();
+            let s = spiric(big, small, d);
+            let reads: Vec<_> = [0.25, 0.5, 0.75]
+                .iter()
+                .map(|f| read(&wall, s.eval(span.0 + (span.1 - span.0) * f)))
+                .collect();
+            let none_apart = reads
+                .iter()
+                .all(|r| !matches!(r, Ok(Sign::Positive | Sign::Negative)));
+            let some_undecided = reads.iter().any(Result::is_err);
+            if none_apart && some_undecided {
+                found = Some(s);
+                break;
+            }
+        }
+        let s = found.expect("an offset whose samples read in band, none apart");
+        assert_eq!(
+            conic_or_line_on(&s, span, &wall, band()).unwrap(),
+            UNREAD,
+            "a spiric with undecided samples and none off"
+        );
+    }
+}
+
 /// **The slit pass's floor on a reverted spline face** ([`spline_floor`]):
 /// the floor's outward normal at the in-trim foot is the chart's in the
 /// face's sense, so the reverted face reads the original's negation.
