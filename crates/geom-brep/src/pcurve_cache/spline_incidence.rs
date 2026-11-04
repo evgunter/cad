@@ -64,7 +64,7 @@
 //! cell's own charges nothing there. The floor is also charged
 //! [`geom_core::rounding_charge`] of twice the reach of the points, the
 //! sample and `c`, which covers the moves and the read of a box or a
-//! slab, as [`super::incidence_over_span`] charges its read. It is a
+//! slab, as [`super::incidence_at`] charges its read. It is a
 //! first-order rounding estimate, the `f64` lane's contract, as
 //! [`geom_core::running`]'s is.
 //!

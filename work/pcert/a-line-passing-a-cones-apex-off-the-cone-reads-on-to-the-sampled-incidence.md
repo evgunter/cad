@@ -2,10 +2,11 @@
 id: a-line-passing-a-cones-apex-off-the-cone-reads-on-to-the-sampled-incidence
 kind: issue
 title: A line passing a cone's apex off the cone reads on to the sampled incidence test, and ends at check 4 rather than as its incidence read
-status: open
+status: closed
 opened: 2026-11-04
 priority: P1
 cost: M
+closed: 2026-11-04
 ---
 
 
@@ -72,3 +73,35 @@ sampling it: a line's sup on a cylinder is already read by
 the line as a sample wherever the apex projects into the span.
 
 Row: the probe above, ending `CarrierOffChart` at both scalars.
+
+## Closed
+
+A line's incidence read is no longer sampled: `incident`'s line arm
+reads the chart's exact distance at the span's ends and at every
+parameter between where it can peak
+(`pcurve_cache::line_incidence::critical_fractions`), so the read is
+the distance's supremum over the span on every analytic chart:
+- the plane at the ends;
+- the sphere and cylinder at the foot of the centre or axis;
+- the cone at the axis's nearest approach, the apex plane's crossing
+  (the apex's own kink) and each side's stationary point;
+- the torus and spindle at the axis's nearest approach and the
+  stationary points of `q²`, isolated on a quartic and refined on the
+  unsquared form.
+
+The probe ends `CarrierOffChart` at both scalars, at the mint and at
+the incidence door alone (`read_incidence`), at every ε where it is
+past the band, and the verifier's in-band shifts (3 and 10·zero) end in
+the incidence lever:
+`ruling_reading_rows::a_line_passing_the_apex_off_the_cone_ends_as_its_incidence_read`,
+red under the `sampled-line-incidence` mutant. A counterexample search
+against an independent hunt of the distance
+(`line_incidence_rows::no_parameter_of_the_span_is_farther_than_the_read`)
+holds the read to the supremum on eight charts, and
+`line_incidence_rows::a_line_on_the_chart_or_inside_the_zero_band_is_not_read_off`
+holds the no-false-Off side.
+
+The other carriers the sampled read serves (closed conics, spline nets
+on analytic charts) are filed:
+`a-closed-conics-and-a-spline-nets-incidence-on-an-analytic-chart-is-sampled`
+(P2).
