@@ -39,35 +39,45 @@ impl Row<f64> {
     }
 }
 
-/// The stadium's junction (a 0.5 half-length, 0.5 end-radius slot,
-/// filleted at 0.1): the line link's cylinder band, the arc link's torus
-/// band, and the quarter section from the wall at (0.5, −0.5, 0.9) to the
-/// cap at (0.5, −0.4, 1.0).
-fn stadium_junction() -> Row<f64> {
+/// **A rounded outline's line-to-arc junction**, filleted at `r` with the
+/// cap at `z + r`: the arc link's torus band about `centre` (axis z, spine
+/// radius `big`), the line link's cylinder band along the heading `d` at
+/// `heading` radians, and the quarter section from the wall to the cap.
+/// The junction's spine point is `centre + big·n` with `n = (d_y, −d_x, 0)`
+/// the outline's outward normal there, and the section is the circle of
+/// radius `r` about it, square to `d`.
+fn junction(centre: Point3<f64>, big: f64, r: f64, heading: f64) -> Row<f64> {
+    let (s, c) = heading.sin_cos();
+    let d = Vec3::new(c, s, 0.0);
+    let n = Vec3::new(d.y, -d.x, 0.0);
+    let spine = centre + n * big;
     Row {
         walls: [
             Surface::Cylinder {
-                origin: Point3::new(0.0, -0.4, 0.9),
-                axis: Vec3::new(1.0, 0.0, 0.0),
-                radius: 0.1,
-                u_ref: Vec3::new(0.0, -1.0, 0.0),
+                origin: spine,
+                axis: d,
+                radius: r,
+                u_ref: n,
             },
             Surface::Torus {
-                center: Point3::new(0.5, 0.0, 0.9),
+                center: centre,
                 axis: Vec3::new(0.0, 0.0, 1.0),
-                major_radius: 0.4,
-                minor_radius: 0.1,
+                major_radius: big,
+                minor_radius: r,
                 u_ref: Vec3::new(1.0, 0.0, 0.0),
             },
         ],
-        carrier: Curve3::circle(
-            Point3::new(0.5, -0.4, 0.9),
-            Vec3::new(-1.0, 0.0, 0.0),
-            0.1,
-            Vec3::new(0.0, -1.0, 0.0),
-        ),
+        carrier: Curve3::circle(spine, -d, r, n),
         span: (0.0, FRAC_PI_2),
     }
+}
+
+/// The stadium's junction (a 0.5 half-length, 0.5 end-radius slot,
+/// filleted at 0.1): the line link's cylinder band along x, the arc
+/// link's torus band, and the quarter section from the wall at
+/// (0.5, −0.5, 0.9) to the cap at (0.5, −0.4, 1.0).
+fn stadium_junction() -> Row<f64> {
+    junction(Point3::new(0.5, 0.0, 0.9), 0.4, 0.1, 0.0)
 }
 
 /// A unit cylinder about z and the sphere through the unit circle in
@@ -221,6 +231,38 @@ fn a_blend_section_certifies_as_a_touching_shared_row() {
     );
 }
 
+/// **A section on a band that is not axis-aligned is a shared row too.**
+/// The stadium rotated about z by 7°, 30°, 45° and 90°, and a rounded
+/// pentagon's junction (its arc about (1.2, −0.7), spine radius 0.3,
+/// filleted at 0.08, entered along a heading of 144°): the cylinder's
+/// image of the section holds its axial coordinate by coefficients the
+/// derivation computes, a residual of rounding at `f64`, which the row's
+/// reading decides as zero against the band.
+#[test]
+fn a_section_on_a_rotated_band_certifies_as_a_touching_shared_row() {
+    let rotated = |deg: f64| {
+        let (s, c) = deg.to_radians().sin_cos();
+        let centre = Point3::new(0.5 * c, 0.5 * s, 0.9);
+        (
+            format!("the stadium turned {deg}°"),
+            junction(centre, 0.4, 0.1, deg.to_radians()),
+        )
+    };
+    let mut rows: Vec<(String, Row<f64>)> = [7.0, 30.0, 45.0, 90.0].map(rotated).into();
+    rows.push((
+        "a rounded pentagon".to_owned(),
+        junction(Point3::new(1.2, -0.7, 0.9), 0.3, 0.08, 144f64.to_radians()),
+    ));
+    for (what, row) in &rows {
+        assert_eq!(certified(row).unwrap(), RowContact::Touching, "f64: {what}");
+        assert_eq!(
+            certified(&row.lifted()).unwrap(),
+            RowContact::Touching,
+            "Interval: {what}"
+        );
+    }
+}
+
 /// The walls' angle along a shared circle is constant, and the reading
 /// charges it no variation: 60° and 1° over a full turn, and a milliradian
 /// over a quarter turn, all certify as crossing.
@@ -249,10 +291,10 @@ fn a_crossing_analytic_shared_row_certifies_as_crossing() {
 /// A cone's generator certifies on one nappe, whichever end of its
 /// parameter the apex sits at: past the apex (the origin a metre before
 /// it, the span `(1.5, 2.5)`), and from it (the origin at the apex, the
-/// span `(0.5, 1)`). At `f64` only: the plane's image of the generator
-/// holds `v` by a coefficient `sin α·cos α − cos α·sin α`, exactly zero at
-/// `f64` and an enclosure about zero at `Interval`, where the constructor
-/// therefore states no row.
+/// span `(0.5, 1)`). The plane's image of the generator holds `v` by the
+/// slope `sin α·cos α − cos α·sin α`, exactly zero at `f64` and an
+/// enclosure about zero at `Interval`; the row's reading decides it zero
+/// against the band at both.
 #[test]
 fn a_cone_generator_on_one_nappe_certifies_as_crossing() {
     for (before, span) in [(1.0, (1.5, 2.5)), (0.0, (0.5, 1.0))] {
@@ -260,7 +302,12 @@ fn a_cone_generator_on_one_nappe_certifies_as_crossing() {
         assert_eq!(
             certified(&row).unwrap(),
             RowContact::Crossing,
-            "the origin {before} m before the apex, over {span:?}"
+            "f64: the origin {before} m before the apex, over {span:?}"
+        );
+        assert_eq!(
+            certified(&row.lifted()).unwrap(),
+            RowContact::Crossing,
+            "Interval: the origin {before} m before the apex, over {span:?}"
         );
     }
 }

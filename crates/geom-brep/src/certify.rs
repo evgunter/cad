@@ -3466,6 +3466,14 @@ fn row_certifies<T: Decide>(
     band: Band,
 ) -> Option<crate::description::WallRow> {
     let row = crate::description::wall_row(wall, image).ok()?;
+    if row == crate::description::WallRow::Analytic
+        && !matches!(
+            crate::description::harmonic_row(image, (t0, t1), band),
+            Ok(Some(_))
+        )
+    {
+        return None;
+    }
     crate::pcurve_cache::PcurveCache::certify(image.clone(), t0, t1, carrier, wall, band)
         .is_ok()
         .then_some(row)
@@ -4754,12 +4762,14 @@ fn run_checks<T: Decide + geom_core::CertifiedBounds>(
         // An analytic row is read clear of its chart's singular points
         // first: past one, its image certificate reads a chart the
         // contact reading's premise does not hold on.
-        let analytic = walls[0].1.spline_chart().is_none();
-        if analytic {
-            for (key, wall, image) in walls {
-                crate::row_contact::row_clear_of_singularities(*key, wall, image, (t0, t1), band)?;
-            }
-        }
+        let rows = if walls[0].1.spline_chart().is_none() {
+            let row = |(key, wall, image): &(SurfaceKey, Surface<T>, Pcurve<T>)| {
+                crate::row_contact::row_clear_of_singularities(*key, wall, image, (t0, t1), band)
+            };
+            Some([row(&walls[0])?, row(&walls[1])?])
+        } else {
+            None
+        };
         for (key, wall, image) in walls {
             let cache = crate::pcurve_cache::PcurveCache::certify(
                 image.clone(),
@@ -4813,10 +4823,14 @@ fn run_checks<T: Decide + geom_core::CertifiedBounds>(
                 )?;
                 row_crossing_verdict(crossing, extent, band)?;
             }
-            // Both analytic: the resolution admits no mixed pair.
+            // Both analytic: the resolution admits no mixed pair, and
+            // the rows were read clear of their singular points above.
             _ => {
+                let Some([ra, rb]) = rows else {
+                    return Err(CertifyError::Unimplemented);
+                };
                 crate::row_contact::read_contact(
-                    [(a, image_a), (b, image_b)],
+                    [(a, image_a, ra), (b, image_b, rb)],
                     (t0, t1),
                     extent,
                     band,
