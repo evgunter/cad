@@ -1456,9 +1456,9 @@ pub fn cyl_wall_sheet_tilted<T: geom_core::Decide + crate::props::AtRestPolicy>(
         let u_ref = -(m + frame.axis * tilt) / reach;
         let origin = frame.centre(v0) - frame.axis * (tilt * frame.radius * c);
         let plane = body.add_surface(Surface::Plane {
-            origin: origin.map(T::from_f64),
-            normal: normal.map(T::from_f64),
-            u_ref: u_ref.map(T::from_f64),
+            origin: origin.map(T::from_computed),
+            normal: normal.map(T::from_computed),
+            u_ref: u_ref.map(T::from_computed),
         });
         let ellipse = Curve3::Ellipse(geom::Ellipse::new(
             geom::Frame::new(origin, normal, u_ref),
@@ -1469,11 +1469,11 @@ pub fn cyl_wall_sheet_tilted<T: geom_core::Decide + crate::props::AtRestPolicy>(
         EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
                 pair: SurfacePair::new(cyl, plane),
-                selector: geom_brep::CurveSelector::Witness(ellipse.eval(pi).map(T::from_f64)),
+                selector: geom_brep::CurveSelector::Witness(ellipse.eval(pi).map(T::from_computed)),
             },
-            carrier: ellipse.map_scalar(T::from_f64),
-            param_start: T::from_f64(pi - half),
-            param_end: T::from_f64(pi + half),
+            carrier: ellipse.map_scalar(T::from_computed),
+            param_start: T::from_computed(pi - half),
+            param_end: T::from_computed(pi + half),
         }
     };
     let e_b = body

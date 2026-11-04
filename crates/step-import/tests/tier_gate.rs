@@ -453,13 +453,13 @@ const PARAM_SPAN_UNTOLD: &str = "lies inside the ambiguity band (1e-12, 1e-11). 
 // candidate in either traversal order —
 // `r1_dm1_probe::the_l_bracket_alone_adopts_its_reversed_slit` imports
 // the component that carries `#389` and gets past every polyline edge.
-/// dm1's frontier at every band: the pcurve mint on the l-bracket
-/// wall's arc rim, split at its C⁰ knots into one-span sub-patches
-/// whose rows state the circle with end weights 1 and 2, and the
-/// arc-rim pick holds no row at its probe. Named
-/// specifically so a refusal that drifted to a different door cannot
-/// stand in.
-const ARC_RIM_NOT_HELD: &str = "not an arc rim of this chart";
+/// dm1's frontier at every band: the l-bracket wall's arc rim, which
+/// no row of its split one-span sub-patches holds, mints its `General`
+/// row, and the shared gate's volume then meets that rational wall at
+/// the trimmed quadrature lane, which reads polynomial charts only.
+/// Named specifically so a refusal that drifted to a different door
+/// cannot stand in.
+const ARC_RIM_NOT_HELD: &str = "a RATIONAL chart reached the trimmed lane";
 const NIST09: &str = "tests/fixtures/wild/nist/nist_ftc_09_asme1_rd.stp";
 const HALFCAP_EPS6: &str = "tests/fixtures/halfcap/halfcap_eps6.step";
 const HALFCAP_EPS7: &str = "tests/fixtures/halfcap/halfcap_eps7.step";

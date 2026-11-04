@@ -2896,9 +2896,19 @@ where
     KnotVector::unit_segment(NonZeroUsize::MIN)
         .on_domain(t0, t1)
         .map_err(domain_refusal)?;
+    let project = |t: T| wall.project(eval(t)).map(|p| Point2::new(p.u, p.v));
+    // The image's miss at a fraction: its chart point mapped through the
+    // wall, from the carrier's point there, read in `f64`.
+    let miss = |at: f64, p: Point2<f64>| {
+        let gap = wall.eval(T::from_computed(p.x), T::from_computed(p.y))
+            - eval(T::from_computed(t0 + (t1 - t0) * at));
+        gap.norm().hi()
+    };
+    let lines = knot_lines(wall);
     let mut kept = None;
     for (rung, &feet) in CURVED_IMAGE_FEET.iter().enumerate() {
-        let (image, miss) = match curved_rung(eval, ((t0, t1), ends), feet, wall) {
+        let read = curved_rung(&project, &miss, &lines, ((t0, t1), ends), feet);
+        let (image, miss) = match read {
             Ok(image) => image,
             Err(refused) if rung == 0 => return Err(refused),
             Err(_) => break,
@@ -2934,18 +2944,15 @@ const CROSSING_HALVINGS: u32 = 60;
 
 /// One rung of [`curved_chart_image`] on the `f64` fraction domain
 /// `[0, 1]`, with its miss sampled midway between each pair of feet.
-fn curved_rung<T>(
-    eval: &dyn Fn(T) -> Point3<T>,
+fn curved_rung<T: Real>(
+    project: &dyn Fn(T) -> Result<Point2<f64>, geom::SurfaceProjectionInconclusive>,
+    miss_at: &dyn Fn(f64, Point2<f64>) -> f64,
+    lines: &[KnotLine],
     (domain, ends): ((f64, f64), (T, T)),
     feet: u32,
-    wall: &NurbsSurface<T>,
-) -> Result<(NurbsCurve2<f64>, f64), PlaneNurbsRefusal>
-where
-    T: Decide + Bounds + geom_core::CertifiedEnclosure,
-{
+) -> Result<(NurbsCurve2<f64>, f64), PlaneNurbsRefusal> {
     let (t0, t1) = domain;
-    let station = |f: f64| T::from_f64(t0 + (t1 - t0) * f);
-    let project = |t: T| wall.project(eval(t)).map(|p| Point2::new(p.u, p.v));
+    let station = |f: f64| T::from_computed(t0 + (t1 - t0) * f);
     let mut path = Vec::with_capacity(feet as usize);
     for i in 0..feet {
         let foot = project(crate::certify::held_station(domain, ends, i, feet)).map_err(|e| {
@@ -2960,14 +2967,13 @@ where
             cut: false,
         });
     }
-    let lines = knot_lines(wall);
     let mut cut_path = Vec::with_capacity(path.len());
     for pair in path.windows(2) {
         let [a, b] = [pair[0], pair[1]];
         cut_path.push(a);
         let mut cuts: Vec<PathFoot> = lines
             .iter()
-            .filter_map(|&line| crossing(&project, &station, (a, b), line))
+            .filter_map(|&line| crossing(project, &station, (a, b), line))
             .collect();
         cuts.sort_by(|x, y| x.at.total_cmp(&y.at));
         cuts.dedup_by(|x, y| x.at == y.at);
@@ -2979,9 +2985,7 @@ where
         .windows(2)
         .map(|pair| {
             let at = 0.5 * (pair[0].at + pair[1].at);
-            let p = image.eval(at);
-            let gap = wall.eval(T::from_f64(p.x), T::from_f64(p.y)) - eval(station(at));
-            gap.norm().hi()
+            miss_at(at, image.eval(at))
         })
         .fold(
             0.0_f64,
@@ -3003,21 +3007,19 @@ struct PathFoot {
 /// for `u`) and its value.
 type KnotLine = (usize, f64);
 
-/// The wall's distinct interior knot values on each axis.
-fn knot_lines<T: geom_core::Real>(wall: &NurbsSurface<T>) -> Vec<KnotLine> {
-    [wall.knots_u_f64_interim(), wall.knots_v_f64_interim()]
+/// The wall's distinct interior knot values on each axis, read off its
+/// held runs at their midpoints.
+fn knot_lines<T: Bounds>(wall: &NurbsSurface<T>) -> Vec<KnotLine> {
+    [wall.knot_values_u(), wall.knot_values_v()]
         .into_iter()
         .enumerate()
-        .flat_map(|(axis, kv)| {
-            let (lo, hi) = kv.domain();
-            let mut values: Vec<f64> = kv
-                .knots()
-                .iter()
-                .copied()
-                .filter(|&k| lo < k && k < hi)
-                .collect();
-            values.dedup();
-            values.into_iter().map(move |k| (axis, k))
+        .flat_map(|(axis, knots)| {
+            let runs: Vec<f64> = knots.runs().map(|(k, _)| 0.5 * (k.lo() + k.hi())).collect();
+            let interior = runs
+                .get(1..runs.len().saturating_sub(1))
+                .unwrap_or(&[])
+                .to_vec();
+            interior.into_iter().map(move |k| (axis, k))
         })
         .collect()
 }
@@ -3113,7 +3115,11 @@ fn broken_interpolant(
             .map_err(fit)?
             .on_domain(a, b)
             .map_err(|_| PlaneNurbsRefusal::PcurveFit)?;
-        let ks = curve.knots_f64_interim().knots();
+        let ks: Vec<f64> = curve
+            .knot_values()
+            .runs()
+            .flat_map(|(k, m)| core::iter::repeat_n(k, m))
+            .collect();
         let cs = curve.control();
         if j == 0 {
             knots.extend_from_slice(&ks[..ks.len() - 1]);

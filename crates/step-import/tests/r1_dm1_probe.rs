@@ -306,11 +306,12 @@ fn l_bracket_only(text: &str) -> String {
 /// slit carrier promotes to `Curve3::Line`, and — its control order
 /// being REVERSED against its wall's boundary column, the one such
 /// reversal in the file — it adopts through the column candidate run
-/// backwards. The first refusal is now the pcurve MINT on the wall's
-/// ARC rim: wall `#382` states its circle as four rational spans with
+/// backwards. Wall `#382` states its circle as four rational spans with
 /// unnormalized end weights (1 and 2), which the import splits at its
-/// C⁰ knots into one-span sub-patches, and the arc-rim pick holds no
-/// row at its probe against the three-arc rational rim circles. At the merge base this same pruned text refused
+/// C⁰ knots into one-span sub-patches; no row holds the arc rim, which
+/// mints its `General` image. The first refusal is now the shared
+/// gate's volume: that rational wall reaches the trimmed quadrature
+/// lane, which reads polynomial charts only. At the merge base this same pruned text refused
 /// `Adoption { id: 389, attempts: [] }` — the gap this pins retired.
 #[test]
 fn the_l_bracket_alone_adopts_its_reversed_slit() {
@@ -320,11 +321,11 @@ fn the_l_bracket_alone_adopts_its_reversed_slit() {
             "the polyline gap must stay retired: edge #{id} refused with {} candidate(s)",
             attempts.len()
         ),
-        Err(StepImportError::Pcurves { source, .. }) => {
-            let shown = source.render(geom_brep::recourse::Reading::Build);
+        Err(StepImportError::TierInvalid { errors, .. }) => {
+            let shown = format!("{errors:?}");
             assert!(
-                shown.contains("not an arc rim of this chart"),
-                "the successor frontier is the arc-rim pick: {shown}"
+                shown.contains("a RATIONAL chart reached the trimmed lane"),
+                "the successor frontier is the trimmed lane's rational chart: {shown}"
             );
         }
         other => panic!("the l-bracket's frontier moved — re-measure: {other:?}"),
