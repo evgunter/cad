@@ -32,3 +32,19 @@ make a third copy. One home in `geom-brep` would hold the argument once:
 the carrier kinds whose residual is the whole variety, and "a point of
 each piece decided off", taking the piece and its sample points as
 input. The two callers would keep their own schedules.
+
+## Evidence: a third reader of the same shape, held back (2026-11-04)
+
+Added by SPLICE's `splice/spiric-on-cap-plane` lane. A spiric carrier
+against a ring torus is a third reader of this certificate's shape. The
+spiric is an irreducible quartic, and the torus's equation along it is
+real-analytic in `v`. So one point of it decided off the torus's variety
+reads it off along every piece. That lane left it unread, at
+`slit::conic_or_line_on`'s `(Spiric | Nurbs, _)` arm, rather than write
+a third copy here.
+
+Its spiric × sphere, cylinder and cone reading
+(`slit::spiric_on_quadric`) is a different certificate: a Bézout degree
+bound that samples nothing. Its sampled interior point is a band guard,
+not an identity. So it is not a copy of this one. The one home this row
+proposes would take the torus reading too.
