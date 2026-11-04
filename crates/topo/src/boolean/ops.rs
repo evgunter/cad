@@ -1152,6 +1152,7 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         [&discarded[0], &discarded[1]],
         band,
     )?;
+    probe6512(&edge_joins, &class_zeros, &ledger, views, &body, a, b);
     coincidences.extend(join_rows(&class_zeros, &ledger, views));
     share_recorded_points(&mut body, (&contacts, &coincidences), views, band)?;
     let (parted, contacts) = super::slit::part_riders(&mut body, &contacts, band, tol)?;
@@ -11413,5 +11414,36 @@ mod join_row_rows {
             join_rows(&[zero(e1, minted)], &ledger(&a, Mints::default()), views).is_empty(),
             "an edge the op minted names no input cell: no row"
         );
+    }
+}
+
+fn probe6512<T: Decide>(
+    joins: &[super::edge_join::EdgeJoin],
+    zeros: &[super::edge_join::ClassZero],
+    ledger: &Ledger,
+    views: [&KeyView<'_>; 2],
+    body: &Body<T>,
+    a: &Body<T>,
+    b: &Body<T>,
+) {
+    if std::env::var("PROBE6512").is_err() { return; }
+    let in_input = |c: Option<crate::RowCell>| match c {
+        Some(crate::RowCell::Input { input, cell: Cell::Edge(k) }) => {
+            let body = if input == Operand::A { a } else { b };
+            Some(body.get_edge(k).is_some())
+        }
+        None => None,
+        _ => Some(false),
+    };
+    let mut bad = 0; let mut tot = 0; let mut none = 0;
+    for (e, _) in body.edges() {
+        tot += 1;
+        match in_input(join_input_edge(e, ledger, views)) { Some(true) => {}, Some(false) => { bad += 1; let d = body.get_edge(e).and_then(|d| body.get_curve_geom(d.curve)).and_then(|c| c.certified()).map(|c| format!("{:?}", std::mem::discriminant(c.description()))); let sides = crate::readback::edge_sides(body, e).ok().map(|s| s.surfaces()); eprintln!("PROBE6512 notinput edge={e:?} desc={d:?} kind={:?} surfaces={sides:?} incA={} incB={}", body.get_edge(e).and_then(|d| body.get_curve_geom(d.curve)).and_then(|c| c.certified()).map(|c| match c.description() { geom_brep::EdgeDescription::Intersection{..} => "Intersection", geom_brep::EdgeDescription::TangentIntersection{..} => "Tangent", geom_brep::EdgeDescription::Chart(_) => "Chart", geom_brep::EdgeDescription::OnPair{..} => "OnPair", _ => "other" }), ledger.incidence[0].edge.contains_key(&e), ledger.incidence[1].edge.contains_key(&e)); }, None => none += 1 }
+    }
+    eprintln!("PROBE6512 edges total={tot} not_input_key={bad} none={none}");
+    for j in joins {
+        let (g, k) = (join_input_edge(j.gone, ledger, views), join_input_edge(j.kept, ledger, views));
+        let class = zeros.iter().any(|z| z.gone == j.gone && z.kept == j.kept);
+        eprintln!("PROBE6512 join class={class} gone={:?}/{:?} kept={:?}/{:?} same={}", g, in_input(g), k, in_input(k), g.is_some() && g == k);
     }
 }

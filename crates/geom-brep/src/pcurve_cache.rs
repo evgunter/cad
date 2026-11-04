@@ -14494,6 +14494,39 @@ mod iso_family {
         ));
     }
 
+    #[test]
+    fn probe6512_zero_on_no_family() {
+        let cylinder = Surface::Cylinder {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::unit_z(),
+            radius: 1.0,
+            u_ref: Vec3::unit_x(),
+        };
+        let band = Band::new(1e-9, 1e-6).expect("a band");
+        let theta = 0.3_f64;
+        let section = Curve3::Ellipse(geom::Ellipse::new(
+            geom::Frame::new(Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, theta.sin(), theta.cos()), Vec3::unit_x()),
+            1.0, 1.0 / theta.cos(),
+        ));
+        let span = crate::pcurve_cache::own_interval(&section);
+        let fam = chart_iso_family(&section, span, &cylinder, band);
+        let zero = super::chart_iso_zero(&section, span, &cylinder, band);
+        eprintln!("PROBE6512 ellipse family={fam:?} zero={zero:?}");
+        // a ruling: which margin is recorded vs incidence
+        let line = Curve3::line(Point3::new(1.0 + 5e-10, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
+        let span = crate::pcurve_cache::own_interval(&line);
+        eprintln!("PROBE6512 ruling off by 5e-10: family={:?} zero={:?}", chart_iso_family(&line, (0.0,1.0), &cylinder, band), super::chart_iso_zero(&line, (0.0,1.0), &cylinder, band));
+        let _ = span;
+        let plane = Surface::Plane { origin: Point3::new(0.0,0.0,0.0), normal: Vec3::unit_z(), u_ref: Vec3::unit_x() };
+        let pl = Curve3::line(Point3::new(0.0, 0.0, 0.0), Vec3::new(1.0, 1.0, 0.0).normalize());
+        eprintln!("PROBE6512 plane line: family={:?} zero={:?}", chart_iso_family(&pl, (0.0,1.0), &plane, band), super::chart_iso_zero(&pl, (0.0,1.0), &plane, band));
+        // sphere parallel off-sphere by 4e-10 radially vs centred
+        let sphere = Surface::Sphere { center: Point3::new(0.0,0.0,0.0), radius: 1.0, axis: Vec3::unit_z(), u_ref: Vec3::unit_x() };
+        let r1 = (1.0f64 - 0.25).sqrt();
+        let par = Curve3::circle(Point3::new(0.0, 0.0, 0.5), Vec3::unit_z(), r1 + 8e-10, Vec3::unit_x());
+        eprintln!("PROBE6512 sphere parallel radius+8e-10: family={:?} zero={:?}", chart_iso_family(&par, (0.0,1.0), &sphere, band), super::chart_iso_zero(&par, (0.0,1.0), &sphere, band));
+    }
+
     /// The undecided family's sentence is its question and payload: the
     /// door holding it writes the ending.
     #[test]
