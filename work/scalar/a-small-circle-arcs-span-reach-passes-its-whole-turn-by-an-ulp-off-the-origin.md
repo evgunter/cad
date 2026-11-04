@@ -5,12 +5,12 @@ title: A 1 mm circle arc's span reach from its centre, 1 km off the origin, pass
 status: open
 opened: 2026-11-03
 priority: P2
-refs: [a-unit-ellipse-arcs-span-reach-passes-its-whole-turn-by-an-ulp, a-conic-arcs-span-reach-passes-its-whole-turn-lever]
+refs: [a-conic-arcs-span-reach-passes-its-whole-turn-lever]
 ---
 
 Found by RESTREAD's 6422 verifier, red at merge base `82938e9734` too.
 No row under `work/` names this seed. The class is the unit ellipse's
-ulp case (`a-unit-ellipse-arcs-span-reach-passes-its-whole-turn-by-an-ulp`),
+ulp case (folded into `a-conic-arcs-span-reach-passes-its-whole-turn-lever` by PR 6483),
 here at a 1 mm radius about a centre a kilometre off.
 
 `crates/geom-brep/tests/span_reach_hunt.rs`
@@ -35,3 +35,15 @@ CAD_FUZZ_SEED=0xe3d7d198da905f4c CAD_FUZZ_EFFORT=1 \
 The fix for the unit-ellipse row (a clamp to the whole turn's reach, or
 the assertion's rounding tolerance) also clears this seed, and the seed
 is pinned as a deterministic row beside it.
+
+## Another seed (SPLICE, 2026-11-04)
+
+`span_reach_hunt::a_conic_arcs_span_reach_is_never_short_of_its_farthest_point`
+was red in `splice/teapot-1e6-floor`'s full geom-brep run, and is red at
+`CAD_FUZZ_SEED=0x7236d51c917fecd0 CAD_FUZZ_EFFORT=1` with that branch's
+only kernel change switched off. The circle has radius 1000 about the
+origin, axis `(0.7086, −0.4991, −0.4988)`, over
+`[−1.64831, −1.37312]`, read from its centre: its span reach is
+`1000.0000000000003` and passes the whole turn. This is the same class
+at a 1 km radius with its centre on the origin, so it is not only a far
+centre.

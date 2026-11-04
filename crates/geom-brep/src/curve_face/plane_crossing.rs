@@ -5,6 +5,7 @@
 //! span; a spiric or a spline has no closed form here.
 
 use geom_core::k_stats::{NonzeroSign, decide, decide_nonzero};
+use geom_core::period::Period;
 use geom_core::{Band, Decide, Indeterminate, Margin, Sign};
 
 use crate::edge_crossing::CrossingDecision;
@@ -291,30 +292,7 @@ fn span_roots<T: Decide>(
     // it in metres.
     let meter = geom_core::InfSpeed::new(s_u.min(s_v));
     let mut roots: Vec<T> = Vec::with_capacity(2);
-    let half = T::from_f64(0.5);
-    let mid = (t0 + t1) * half;
-    // Per-candidate interiority under TWO reduction anchors (M5 S13).
-    // The verdict is about `c mod τ` against `[t₀, t₁]`, but any single
-    // periodic-reduction anchor has one degenerate point where the
-    // Interval floor straddles an integer and the enclosure explodes to
-    // a full period. The two anchors are the two windows: the midpoint
-    // one is `reduce_periodic_centred` about `mid`, the fallback is
-    // `reduce_periodic` about `t₀`. Their bad points are DISTINCT for
-    // every sub-period span, which is what makes the retry a different
-    // representation rather than a second try at the same one — they
-    // sit **(τ − span)/2 apart** on the circle, half the span's
-    // complement: half a period only in the span → 0 limit, shrinking as
-    // the span grows to zero at a full period.
-    // Anchored at the span MIDPOINT the bad point is the
-    // midpoint's antipode (a definitely-EXTERIOR root — the re-run of a
-    // split fragment meets the full circle's opposite intersection
-    // exactly there), anchored at t₀ it is t₀ itself (a
-    // definitely-ON-endpoint root — the fragment's own start vertex,
-    // already swept). The two bad points coincide only on a full-period
-    // span (a closed edge's lone vertex on the plane), so an
-    // indeterminate verdict under one anchor retries the other — the
-    // SAME margin in a non-degenerate representation, never a second
-    // tolerance — and only a double failure escalates (F6).
+    let mid = geom::mid_param(t0, t1);
     let verdict_at = |t: T| -> Result<(bool, T), Indeterminate> {
         for margin in [
             Margin::metered(t - t0, meter),
@@ -330,24 +308,17 @@ fn span_roots<T: Decide>(
         }
         Ok((true, t))
     };
-    // The midpoint anchor is sound at every scalar by `geom::on_span_branch`'s
-    // window re-centring argument: `verdict_at` decides a root at either
-    // end of a closed edge's full-period span alike (not interior), and
-    // reads it only against the span's ends, never as an identity. The
-    // `t₀` retry below serves its straddle.
+    // Each candidate within half a turn of the span's middle, by
+    // `Period::near`'s span argument: `verdict_at` decides a root at
+    // either end of a closed edge's full-period span alike (not
+    // interior), and reads it only against the span's ends. The rename
+    // keeps an enclosure at its input's width everywhere, the middle's
+    // antipode included, so an undecided verdict is the root's own and
+    // escalates (F6).
     for c in candidates.into_iter().flatten() {
-        let centred = crate::half_angle::near_midpoint(mid, c);
-        let (interior, t) = match verdict_at(centred) {
+        let (interior, t) = match verdict_at(Period::new(tau).near(c, mid)) {
             Ok(v) => v,
-            Err(first) => {
-                let anchored = t0 + (c - t0).reduce_periodic(tau);
-                match verdict_at(anchored) {
-                    Ok(v) => v,
-                    Err(_) => {
-                        return ConicPlaneMeet::Roots(Err(ConicRootFault::CrossingInterior(first)));
-                    }
-                }
-            }
+            Err(diag) => return ConicPlaneMeet::Roots(Err(ConicRootFault::CrossingInterior(diag))),
         };
         if interior {
             roots.push(t);
@@ -620,21 +591,14 @@ mod tests {
         }
     }
 
-    /// **The midpoint anchor's straddle row, at `Interval`** (issue
-    /// 1191). Nothing in the shipped suites drives either anchor into a
-    /// straddle, so this row does it on the site's own numbers.
+    /// **A root on the span's start keeps its width, at `Interval`**
+    /// (issue 1191).
     ///
     /// A candidate root sitting ON the span's start is the ordinary
     /// case — a re-run split fragment meets the full circle at its own
     /// start vertex — and at `Interval` its enclosure straddles `t₀`.
-    /// The MIDPOINT anchor's jump is `(τ − span)/2` away from there (a
-    /// quarter period on this semicircle; `span_roots`), so
-    /// the recentred parameter comes back at the width of its input and
-    /// the interiority verdict is reached; the `t₀` anchor's jump is
-    /// exactly on it, which is why it is the FALLBACK and not the first
-    /// try. The row measures both reductions on the same box so the
-    /// design's premise — two jumps, `(τ − span)/2` apart — is pinned
-    /// rather than described.
+    /// The rename about the middle comes back at the width of its input,
+    /// so the interiority verdict is reached.
     ///
     /// Consults no tolerance: the two widths are widths, and the band
     /// is only what the site's own margins need in order to run.
@@ -663,31 +627,21 @@ mod tests {
             "both roots are the span's own endpoints and belong to the vertex sweep"
         );
 
-        // The premise, measured: a hairline box about `t₀` is a
-        // hairline under the midpoint anchor and a whole period under
-        // the `t₀` anchor.
-        //
-        // DISPOSITION: this half re-derives both anchorings inline and
-        // so pins the two WINDOWS rather than the site. The site's own
-        // pin is the `on_plane` call above, which reds if the
-        // anchor order changes; this half says why that order is the
-        // right one.
+        // The rename keeps a hairline box about `t₀` a hairline, here
+        // and about the middle's antipode alike.
         let tau = Interval::tau();
         let mid = (t0 + t1) * ex(0.5);
-        let cand = Interval::from_bounds(-1e-15, 1e-15);
-        let centred = mid + (cand - mid).reduce_periodic_centred(tau);
-        let anchored = t0 + (cand - t0).reduce_periodic(tau);
-        assert!(
-            centred.hi() - centred.lo() <= 1e-9,
-            "the midpoint anchor widened: [{}, {}]",
-            centred.lo(),
-            centred.hi()
-        );
-        assert!(
-            anchored.hi() - anchored.lo() >= core::f64::consts::TAU,
-            "the t0 anchor is supposed to be the wide one here; it gave [{}, {}]",
-            anchored.lo(),
-            anchored.hi()
-        );
+        for cand in [
+            Interval::from_bounds(-1e-15, 1e-15),
+            mid + Interval::pi() + Interval::from_bounds(-1e-15, 1e-15),
+        ] {
+            let centred = geom_core::period::Period::new(tau).near(cand, mid);
+            assert!(
+                centred.hi() - centred.lo() <= 1e-9,
+                "the rename widened: [{}, {}]",
+                centred.lo(),
+                centred.hi()
+            );
+        }
     }
 }

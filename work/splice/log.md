@@ -1435,3 +1435,7 @@ general regularity sweep. SECTARMS's cylinder × cylinder unit adopts
     - correct the ONECOPY evidence;
     - file the triplicated two-oval regime predicate on ONECOPY (P3);
     - a named pose/op key.
+- 2026-11-04 14:45Z — **PR 6519 (`teapot-1e6-floor`) landing.**
+  - Fix pass read and accepted: head `9714d441`, CI green. The adopted row `a_box_past_an_end_settles_only_past_the_band_of_that_ends_point` goes red under each of the three mutants at three ε; the two negatives are renamed as regression records; the docs are fixed; the circle × torus case is refiled as its own HONEROOT row (P3).
+  - Main merged, and `cargo check -p geom-brep -p topo --all-targets` is clean. Main had moved `edge_join.rs` and `ops.rs`, so I checked for a semantic conflict.
+  - State sync: closed `teapot-wall-3-at-1e-6-floors-the-meridian-against-a-spout-wall` and dropped it from `curved-demo-joins-build`'s blocked_on.

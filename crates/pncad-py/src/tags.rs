@@ -1343,7 +1343,7 @@ pub fn revolve_error_tag(err: &RevolveError) -> &'static str {
         RevolveError::SliverRadius { .. } => "sliver_radius",
         RevolveError::ArcCrossesAxis { .. } => "arc_crosses_axis",
         RevolveError::SliverAxisClearance { .. } => "sliver_axis_clearance",
-        RevolveError::SheetApex { .. } => "sheet_apex",
+        RevolveError::ApexEndOffSheet { .. } => "apex_end_off_sheet",
         RevolveError::NonManifoldAxisContact { .. } => "non_manifold_axis_contact",
         RevolveError::AxisGapEscalated { .. } => "axis_gap_escalated",
         RevolveError::HoleTouchesAxis { .. } => "hole_touches_axis",
@@ -2990,6 +2990,7 @@ pub fn decision_site_tag(site: pncad::document::coincidence::DecisionSite) -> &'
         S::BatteryJoint => "battery_joint",
         S::BatterySupportAxis => "battery_support_axis",
         S::VertexFusion => "vertex_fusion",
+        S::IsoJoin => "iso_join",
         S::CensusAtRest => "census_at_rest",
         S::ProfileJunction => "profile_junction",
     }

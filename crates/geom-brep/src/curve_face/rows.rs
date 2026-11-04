@@ -223,7 +223,7 @@ fn a_corner_in_the_gap_is_undecided_over_a_window_holding_it() {
         .collect();
     let span = Span::new(&grazing, (-1.0, 1.0));
     let located = super::located(&span, &edges, &[], band());
-    let foot = grazing.foot(Point3::new(0.0, 1.0, 0.0), 0.0).t();
+    let foot = grazing.nearest(Point3::new(0.0, 1.0, 0.0), 0.0).unwrap();
     assert!(!located.undecided.is_empty(), "the corner is refused");
     for u in &located.undecided {
         let (lo, hi) = u.window;
@@ -480,6 +480,7 @@ fn every_door_name_carries_a_listed_prefix() {
         NameCarrier::Const("TORUS_ROOT_SLACK"),
         NameCarrier::Const("PAST_THE_BAND"),
         NameCarrier::Const("AT_THE_END"),
+        NameCarrier::Const("PAST_THE_END"),
         NameCarrier::Call("spread_signs"),
         NameCarrier::Call("constant_residual_roots"),
         NameCarrier::Call("gap"),
@@ -529,6 +530,7 @@ fn every_door_name_carries_a_listed_prefix() {
             "spline_face.rs: (x.interval(0), w)",
             "spline_face.rs: AT_THE_END",
             "spline_face.rs: PAST_THE_BAND",
+            "spline_face.rs: PAST_THE_END",
             "spline_face.rs: row",
         ],
         "the census's indirect sites"

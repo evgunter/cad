@@ -46,3 +46,16 @@ End the in-band pick as the decided-off one: `SectionRim` carries no
 with an in-band section rim (sections whose arcs part by a bulge inside
 the band), and a mutant that restores the `Some(cause)` arm, which reds
 it.
+
+## The decided-off arm, too (PR 6498's sweep, review fix Y10)
+
+`describe_section_rim`'s decided-off arm (`Ok(None)`) reads only the pick, an
+upper bound. A rim circle that is not on its wall's row and a rim that lies
+on the wall where no row holds it therefore both end
+`LoftError::SectionRim { source: None }`. That arm's lever, "loft at
+v-degree 2 or more", fits only the second. Reading
+`geom_brep::read_edge_incidence` first, as `nurbs_iso_derive`'s arc rim now
+does, would end the first as the carrier's incidence read. A kernel-built
+loft places its rim on the row, so only a section the loft itself mis-placed
+reaches it. `sweep/src/loft.rs` is carverest's and lathe's ground per
+`work.py territory`; the row stays here, where E5 filed it.
