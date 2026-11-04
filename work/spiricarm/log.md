@@ -132,3 +132,19 @@
   - **The lane closed the P0 and the P2 rows inside the PR.** The reviewers are asked whether each closure meets its row's "done when", and whether a cylinder × sphere result that cannot be a later operand leaves a P0 standing on INSIDE.
   - Also filed: `the-spiric-wall-lane-omits-its-junctions-connectors-from-its-region-term` (P2).
   - **Dual review dispatched** as two cloud sessions, with identical briefs (`spiricarm/review-6509-brief`, sha256 `7910ac19…`).
+- 2026-11-04 — **PR 6509's dual is delivered.** Both reviewers returned APPROVE-WITH-FIXES on `fe92371df8`, with no MAJOR.
+  - **Execution:** both ran it. R1 built 80 enclosure readings and R2 six pole-rule rows; neither found a wrong enclosure.
+  - **Disclosed:** R2 read the style brief truncated and did not read the discipline doc or the plan's lessons. That is not an orchestrator relaxation (rule 4), so the pair stays fair, and the row notes it.
+  - **Bilateral:**
+    - the sphere's pads and guards are unwitnessed (about ten mutants survive every rotational row), stage 1's class again;
+    - the INSIDE row is under-banded at P1 (taken: P0);
+    - `at_its_volume` accepts `Pieces` on any run, reads the operand check off a substring, and has a 10⁴ ceiling slack;
+    - teapot wall 2's pin reads only the message, stage 1's class again;
+    - the corner pad is derivable (both gave an isoperimetric derivation; R2 adds a near-straight condition);
+    - the closure's `m` has two homes.
+  - **Unilateral, R1:** the twin-name lever's `abs` carries weight (an open loop certifies without it, executed); three docs describe a sense cross-check the route lacks; the refusal row runs under the own name only.
+  - **Unilateral, R2:** the unit's own spec file was not on the branch; bodies that newly build have no truth checked.
+  - **Tally candidates:** none (no MAJOR).
+  - **Fix pass:** the union, sent to the sphere lane (resumed).
+  - **Class (logged at adjudication):** "a pad or guard ships with a red row" was in this unit's spec and still went unmet for the sphere. Mutant scripts from review are the instrument that finds it. Future stage briefs require the implementer to run a mutant pass over its own pads before opening the PR.
+  - **Re-band:** `inside/point-in-solid-refuses-a-sphere-face-bounded-by-a-spline-chord` goes P1 → P0, in PR 6509. The orchestrator posts this note on INSIDE's log.
