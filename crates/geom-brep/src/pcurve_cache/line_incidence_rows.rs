@@ -29,8 +29,11 @@ use test_utils::fuzz;
 use super::harmonic_sup_rows::{band, zero};
 use super::{PcurveCertifyError, chart_distance, line_incidence, read_incidence};
 
-/// The charts searched, each with its singular points.
-fn charts() -> Vec<(&'static str, Surface<f64>, Vec<Point3<f64>>)> {
+/// A chart searched: its name, the surface, and its singular points.
+type Chart = (&'static str, Surface<f64>, Vec<Point3<f64>>);
+
+/// The charts searched.
+fn charts() -> Vec<Chart> {
     let axis = Vec3::new(0.1, -0.2, 1.0).normalize();
     let u_ref = Vec3::new(1.0, 0.0, -0.1).normalize();
     let c = Point3::new(0.4, 0.1, -0.3);
@@ -329,6 +332,10 @@ fn no_parameter_of_the_span_is_farther_than_the_read() {
 /// scalars, where a read whose rounding the charge did not cover, or a
 /// candidate placed off the span, would refuse or escalate.
 #[test]
+#[allow(
+    clippy::approx_constant,
+    reason = "3.1415 is an azimuth just short of the seam, not π"
+)]
 fn a_line_on_the_chart_or_inside_the_zero_band_is_not_read_off() {
     let f = Interval::from_f64;
     let mut read = 0;

@@ -646,6 +646,10 @@ fn a_line_across_the_apex_that_is_no_generator_ends_not_yet() {
 /// off. Red under `sampled-line-incidence`, whose samples read the line
 /// on the cone.
 #[test]
+#[allow(
+    clippy::approx_constant,
+    reason = "3.1415 is the probe's azimuth, just short of the seam, not π"
+)]
 fn a_line_passing_the_apex_off_the_cone_ends_as_its_incidence_read() {
     let surface = cone();
     let f = Interval::from_f64;
