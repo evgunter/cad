@@ -517,4 +517,3 @@ fn a_slab_across_the_whole_face_pairs_each_piece_with_its_own_side() {
         touches(&doc, what, &members, (plate, rod), 1, v, 2);
     }
 }
-
