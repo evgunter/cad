@@ -303,25 +303,19 @@ fn sphere_parallel_a_still_winding_reads_its_drift_once() {
     );
 }
 
-/// `vector`, the winding-Zero drifts no carrier reaches: the cylinder's
-/// class needs a radial amplitude decided past the escalation band,
-/// and the torus's reads the full `R + r` beside it. `incidence` is
-/// pinned on a form whose radial coefficients are `⊥` and of length
-/// `δ`: the drift is `δ`.
+/// `vector`, the torus's winding-Zero drift, which no carrier reaches
+/// (it reads the full `R + r` beside it; the cylinder has no Zero
+/// winding, `Derivation::CylinderMoving`). `incidence` is pinned on a
+/// form whose radial coefficients are `⊥` and of length `δ`: the drift
+/// is `δ`.
 #[test]
-fn moving_classes_still_windings_read_their_drift_once() {
+fn the_torus_parallels_still_winding_reads_its_drift_once() {
     let d = 0.75 * zero();
     let form = Harmonic3 {
         c: Point3::origin(),
         a: Vec3::new(d, 0.0, 0.0),
         b: Vec3::new(0.0, d, 0.0),
         l: Vec3::zero(),
-    };
-    let cyl = Surface::Cylinder {
-        origin: Point3::origin(),
-        axis: Vec3::unit_z(),
-        radius: 0.5,
-        u_ref: Vec3::unit_x(),
     };
     let torus = Surface::Torus {
         center: Point3::origin(),
@@ -330,18 +324,19 @@ fn moving_classes_still_windings_read_their_drift_once() {
         minor_radius: 0.25,
         u_ref: Vec3::unit_x(),
     };
-    for (what, surface, derivation) in [
-        ("cylinder", &cyl, Derivation::CylinderMoving { beta: 0 }),
-        ("torus", &torus, Derivation::TorusParallel { beta: 0 }),
-    ] {
-        let mut terms = EnvelopeTerms::new();
-        incidence(form, surface, derivation, 1.0, &mut terms);
-        let drift = terms.0[EnvelopeTerm::Drift.slot()];
-        assert!(
-            (drift - d).abs() <= 4.0 * f64::EPSILON * d,
-            "{what}: drift {drift:e} for a radial circle of {d:e}"
-        );
-    }
+    let mut terms = EnvelopeTerms::new();
+    incidence(
+        form,
+        &torus,
+        Derivation::TorusParallel { beta: 0 },
+        1.0,
+        &mut terms,
+    );
+    let drift = terms.0[EnvelopeTerm::Drift.slot()];
+    assert!(
+        (drift - d).abs() <= 4.0 * f64::EPSILON * d,
+        "torus: drift {drift:e} for a radial circle of {d:e}"
+    );
 }
 
 /// `scalar`, the tilt of a cone rim, a sphere parallel and a torus

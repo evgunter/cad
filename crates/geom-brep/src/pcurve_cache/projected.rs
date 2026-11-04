@@ -165,7 +165,7 @@ use super::{
 };
 
 /// `σ = ±1` of a cone's nappe (module docs).
-fn nappe_sign(nappe: Nappe) -> f64 {
+pub(super) fn nappe_sign(nappe: Nappe) -> f64 {
     match nappe {
         Nappe::Opening => 1.0,
         Nappe::Mirror => -1.0,

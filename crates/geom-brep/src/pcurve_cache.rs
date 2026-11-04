@@ -4967,6 +4967,26 @@ const WINDING_TABLE: core::ops::RangeInclusive<i32> = -1..=1;
 /// [`WINDING_TABLE`]: the one place a sign becomes a count. A count
 /// reversed is the reversed sign's (`Sign::flip`), or, on a stored
 /// channel, [`Channel::mapped`]'s.
+/// The sense a cylinder's moving conic turns about the axis, the only
+/// windings its arm admits ([`Derivation::CylinderMoving`]).
+#[derive(Clone, Copy, Debug)]
+enum Turning {
+    /// Counter-clockwise about the axis, winding `1`.
+    Forward,
+    /// Clockwise, winding `−1`.
+    Backward,
+}
+
+impl Turning {
+    /// The winding the image stores.
+    fn winding(self) -> i32 {
+        match self {
+            Self::Forward => 1,
+            Self::Backward => -1,
+        }
+    }
+}
+
 fn winding_of(sign: Sign) -> i32 {
     match sign {
         Sign::Negative => -1,
@@ -5526,8 +5546,11 @@ fn run_harmonic_checks<T: Decide>(
 #[derive(Clone, Copy, Debug)]
 enum Derivation {
     Plane,
+    /// A conic turning about the wall's axis. Its winding is never zero:
+    /// a conic whose orientation reads Zero is no class of the wall and
+    /// takes the general lane.
     CylinderMoving {
-        beta: i32,
+        sense: Turning,
     },
     CylinderMeridian,
     /// `anchored`: the nappe was read off the anchor's height, not the
@@ -6120,11 +6143,11 @@ fn incidence<T: Decide>(
             let radial = |v: Vec3<T>| v - axis * v.dot(axis);
             let (w_r, a_r, b_r) = (radial(c - origin), radial(a), radial(b));
             match derivation {
-                Derivation::CylinderMoving { beta } => {
+                Derivation::CylinderMoving { sense } => {
                     terms.add(Centre, w_r.norm());
                     class_circle(
                         terms,
-                        beta,
+                        sense.winding(),
                         (radius, radius.powi(2)),
                         (a_r, b_r),
                         axis,
@@ -9846,17 +9869,19 @@ fn derive_class<T: Decide>(
                     // swings and returns, no class of the cylinder, so
                     // it takes the general lane, as on the cone.
                     let orient = a_r.cross(b_r).dot(axis);
-                    let beta = match decide(
+                    let sense = match decide(
                         "pcurve_chart_orientation",
                         Margin::over_lever(orient, radius),
                         band,
                     ) {
+                        Ok(Sign::Positive) => Turning::Forward,
+                        Ok(Sign::Negative) => Turning::Backward,
                         Ok(Sign::Zero) => return Err(incidence::general_lane(shown, None)),
-                        Ok(sign) => winding_of(sign),
                         Err(cause) => {
                             return Err(incidence::general_lane(shown, Some(cause)));
                         }
                     };
+                    let beta = sense.winding();
                     let alpha = place.phase(
                         Along::Azimuth,
                         Azimuth::of(a_r.dot(cv), a_r.dot(u_ref)),
@@ -9877,7 +9902,7 @@ fn derive_class<T: Decide>(
                                 l: form.l.dot(axis),
                             },
                         },
-                        Derivation::CylinderMoving { beta },
+                        Derivation::CylinderMoving { sense },
                     ))
                 }
             }

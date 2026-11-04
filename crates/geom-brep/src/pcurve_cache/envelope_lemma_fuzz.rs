@@ -624,9 +624,7 @@ fn arm(derivation: Derivation) -> &'static str {
         _ => turning,
     };
     match derivation {
-        Derivation::CylinderMoving { beta } => {
-            moving(beta, "cylinder moving", "cylinder moving, zero winding")
-        }
+        Derivation::CylinderMoving { .. } => "cylinder moving",
         Derivation::CylinderMeridian => "cylinder meridian",
         Derivation::ConeRuling { anchored: true, .. } => "cone ruling, anchored",
         Derivation::ConeRuling {
@@ -657,9 +655,8 @@ fn arm(derivation: Derivation) -> &'static str {
 /// table that under-states anything.
 fn arm_terms() -> Vec<(&'static str, Vec<EnvelopeTerm>)> {
     use EnvelopeTerm::{Centre, Drift, Line, Radius};
-    let cases: [(&str, &[EnvelopeTerm]); 14] = [
+    let cases: [(&str, &[EnvelopeTerm]); 13] = [
         ("cylinder moving", &[Centre, Radius]),
-        ("cylinder moving, zero winding", &[Centre, Radius, Drift]),
         ("cylinder meridian", &[Line, Radius, Drift]),
         ("cone ruling, by direction", &[Radius, Line]),
         ("cone ruling, anchored", &[Radius, Line]),

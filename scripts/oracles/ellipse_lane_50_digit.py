@@ -10,7 +10,8 @@ distance from its chart over the span:
 - the carrier is `C(t) = C0 + a*u*cos t + b*(n x u)*sin t` on the stored frame,
   each printed number read as the `f64` it round-trips to, then exactly;
 - the distances are the surfaces' own: `||q| - R|` (sphere), `|rho - R|`
-  (cylinder), `|rho cos(alpha) - |h| sin(alpha)|` (the double cone) and
+  (cylinder), `|rho cos(alpha) - sigma h sin(alpha)|` (the image's own nappe, `sigma`
+  the sign the row carries, so excess on the other nappe is read) and
   `|hypot(rho - R, h) - r|` (torus), with the axis read as unit.
 
 The span is sampled at 512 points and the largest sample refined by golden
@@ -60,12 +61,12 @@ def distance_of(chart):
         o, ax, r = nums[0:3], unit(nums[3:6]), nums[6]
         return lambda p: abs(split(sub(p, o), ax)[1] - r)
     if kind == "cone":
-        o, ax, alpha = nums[0:3], unit(nums[3:6]), nums[6]
+        o, ax, alpha, sigma = nums[0:3], unit(nums[3:6]), nums[6], nums[7]
         sa, ca = mp.sin(alpha), mp.cos(alpha)
 
         def cone(p):
             h, rho = split(sub(p, o), ax)
-            return abs(rho * ca - abs(h) * sa)
+            return abs(rho * ca - sigma * h * sa)
 
         return cone
     if kind == "torus":

@@ -617,14 +617,15 @@ fn only_an_incidence_reading_ends_as_one() {
     );
 }
 
-/// **A class rate read Zero is no incidence reading, so the incidence test
-/// decides** (D3; review on PR 5844, H2). Each closed-form arm that reads
-/// a class's rate (`pcurve_chart_orientation` on a cone ellipse,
+/// **A class rate read Zero is no incidence reading: the carrier takes
+/// the general lane unless the incidence test shows it off** (D3; review
+/// on PR 5844, H2). Each closed-form arm that reads a class's rate
+/// (`pcurve_chart_orientation` on a cone ellipse,
 /// `pcurve_sphere_chart_polar_rate`, `pcurve_torus_chart_meridional_rate`)
 /// and reads it Zero sends the carrier through D3's one door to the
 /// general lane: a carrier off the chart is the test's definite miss, one
-/// not shown off is the general lane's, here "not yet". Each arm is
-/// reached:
+/// not shown off is the general lane's, which images it where the lane is
+/// written and is "not yet" where it is not. Each arm is reached:
 /// - a thin ellipse (minor semi-axis under ε) along a cone generator,
 ///   whose radial projection does not wind: on the cone, the projected
 ///   image;
@@ -640,7 +641,7 @@ fn only_an_incidence_reading_ends_as_one() {
 /// incidence refusal, the second as an incidence ending and the third as
 /// a lever.
 #[test]
-fn a_class_rate_read_zero_takes_the_incidence_door() {
+fn a_class_rate_read_zero_takes_the_general_lane_unless_shown_off() {
     use geom_brep::recourse::Reading;
     use geom_brep::{IncidenceRead, OffMargin};
     let e = eps();

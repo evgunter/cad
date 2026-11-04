@@ -313,7 +313,9 @@ fn a_conic_in_a_plane_along_a_cylinders_axis_certifies() {
 }
 
 /// **An ellipse definitely off its chart ends as its incidence read**
-/// before any lane, at both scalars: each lane row's carrier moved past
+/// before any lane, at both scalars, and renders the definite miss: the
+/// kernel's defect at a build, the stored culprit at rest, the damaged
+/// file at the import door: each lane row's carrier moved past
 /// the escalation band (the cone's needle and the wall's stood `4·escalate`
 /// out, the sphere's parallel squashed and the crest ellipse narrowed
 /// until each stands that far off).
@@ -339,13 +341,35 @@ fn an_ellipse_definitely_off_ends_as_its_incidence_read() {
         ),
         ("torus", &torus, crest_ellipse(&torus, far.sqrt())),
     ];
+    use crate::recourse::{ReadAt, Reading};
+    let doors = [
+        (ReadAt::Run(Reading::Build), geom_core::KERNEL_DEFECT_ENDING),
+        (
+            ReadAt::Run(Reading::AtRest),
+            geom_core::KERNEL_OR_FILE_DEFECT_ENDING,
+        ),
+        (
+            ReadAt::File(geom_core::FileCoincidence::new(1e-6)),
+            geom_core::DAMAGED_FILE_ENDING,
+        ),
+    ];
     for (what, surface, carrier) in rows {
         let (at_f64, at_interval) = derived(&carrier, (0.3, 2.5), surface);
-        assert!(
-            matches!(at_f64, Err(PcurveCertifyError::CarrierOffChart { .. }))
-                && matches!(at_interval, Err(PcurveCertifyError::CarrierOffChart { .. })),
-            "{what}: ends as its incidence read: {at_f64:?} / {at_interval:?}"
-        );
+        for (lane, got) in [
+            ("f64", at_f64.map(|_| ())),
+            ("Interval", at_interval.map(|_| ())),
+        ] {
+            let Err(err @ PcurveCertifyError::CarrierOffChart { margin, .. }) = &got else {
+                panic!("{what} ({lane}): ends as its incidence read: {got:?}")
+            };
+            assert!(
+                !matches!(margin, Some(crate::OffMargin::InBand(_))),
+                "{what} ({lane}): the definite miss: {err:?}"
+            );
+            for (at, culprit) in doors {
+                assert_eq!(err.ending(at), culprit, "{what} ({lane}) at {at:?}");
+            }
+        }
     }
 }
 
@@ -816,17 +840,20 @@ fn the_search_as_rows() {
         else {
             continue;
         };
+        let nappe = image.projected().and_then(|p| p.chart().nappe());
         println!(
             "{}",
-            oracle_row(&surface, &carrier, (t0, t1), (envelope, hi))
+            oracle_row(&surface, &carrier, nappe, (t0, t1), (envelope, hi))
         );
     }
 }
 
-/// One line of [`the_search_as_rows`] for the 50-digit oracle.
+/// One line of [`the_search_as_rows`] for the 50-digit oracle; a cone's
+/// carries the image's nappe as the sign `σ` its residual is read on.
 fn oracle_row(
     surface: &Surface<f64>,
     carrier: &Curve3<f64>,
+    nappe: Option<crate::offset::Nappe>,
     (t0, t1): (f64, f64),
     (envelope, hi): (f64, f64),
 ) -> String {
@@ -848,7 +875,17 @@ fn oracle_row(
             axis,
             half_angle,
             ..
-        } => format!("cone {} {} {half_angle:e}", p(apex), v(axis)),
+        } => {
+            let Some(nappe) = nappe else {
+                unreachable!("a cone's image is read on a nappe")
+            };
+            format!(
+                "cone {} {} {half_angle:e} {:e}",
+                p(apex),
+                v(axis),
+                projected::nappe_sign(nappe)
+            )
+        }
         Surface::Torus {
             center,
             axis,
@@ -990,7 +1027,13 @@ fn the_extremes_are_covered_at_their_50_digit_distance() {
         .unwrap_or_else(|e| panic!("{what}: the envelope reads at Interval: {e:?}"));
         println!(
             "{}",
-            oracle_row(&surface, &carrier, (t0, t1), (t.total(), ti.total().hi()))
+            oracle_row(
+                &surface,
+                &carrier,
+                p.chart().nappe(),
+                (t0, t1),
+                (t.total(), ti.total().hi())
+            )
         );
         assert!(
             t.total() >= exact && ti.total().hi() >= exact,
