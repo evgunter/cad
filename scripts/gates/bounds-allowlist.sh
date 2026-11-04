@@ -817,7 +817,21 @@ BOUNDS_ALLOWLIST=(
   #   down on is left to the ring pass, which meters it whole; any
   #   reading not certain is neither, metered as before. It inherits
   #   `ring_clearance`'s DL5(b) disposition and the reach's.
-  'crates/sweep/src/blend/surgery.rs 22 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
+  # surgery.rs 22 -> 24: the mixed rim's twins of two doors already
+  # argued here, each needing `Bounds` only for the callees it shares
+  # with its twin, so `Decide` alone fails to compile at those calls:
+  # - `rim_phase_mixed`, `rim_phase_annulus`'s walk with one band face
+  #   per link, calls `seam_split_param`, `split_fragment` and
+  #   `strut_foot`. It reads no bracket of its own.
+  # - `mixed_boundary_clearance`, `support_boundary_clearance` per link,
+  #   calls `piece_distance`, `piece_along`, `boxed_reach` and
+  #   `ring_clearance`, and inherits their dispositions. Its one read,
+  #   `(rim_at - at_trim).lo() > 0.0`, is the twin's SELECTION of which
+  #   side of the trim the rim lies on, definite by a setback (DL5(b)),
+  #   an indefinite read refusing. Its windowed and far-side margins are
+  #   `max`es of the pieces' extents, arithmetic, and `ring_clearance`
+  #   decides the margin.
+  'crates/sweep/src/blend/surgery.rs 24 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   # reach.rs 9 -> 14: `sign` decides a reference point's side of a
   # bound past its bracket (`±1` decided, `0` -- a vacuous bound --
   # where not), replacing the self-division `x/|x|` that gave the

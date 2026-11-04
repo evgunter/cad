@@ -1867,7 +1867,7 @@ fn resolve_seam_split_rim<'a, T: Decide + Bounds>(
 /// - each mate ring-free and carrying exactly its own arc of the chain;
 /// - at every junction the two arcs and ONE other edge, which separates
 ///   the junction's two mates.
-fn resolve_mixed_rim<'a, T: Decide + Bounds>(
+fn resolve_mixed_rim<'a, T: Decide>(
     body: &Body<T>,
     chain: &'a Chain<T>,
 ) -> Result<RimPlan<'a, T>, BlendError> {
@@ -1877,8 +1877,7 @@ fn resolve_mixed_rim<'a, T: Decide + Bounds>(
         if !(link.arm.is_coaxial_torus() || link.arm == super::arms::BlendArm::PlanePlaneCylinder) {
             return Err(unbuilt_chain(
                 link.edge,
-                "a closed chain of links on different supports has a link whose band is \
-                 neither a cylinder over two planes nor a torus",
+                "a closed mixed chain's link is neither a plane–plane cylinder nor a torus",
             ));
         }
     }
@@ -1886,8 +1885,7 @@ fn resolve_mixed_rim<'a, T: Decide + Bounds>(
         if same_supports(body, links[j.arriving], links[j.leaving])? {
             return Err(unbuilt_chain(
                 link0.edge,
-                "a closed chain of links on different supports runs two consecutive links on \
-                 one support pair",
+                "a closed mixed chain runs two consecutive links on one support pair",
             ));
         }
     }
@@ -1926,8 +1924,7 @@ fn resolve_mixed_rim<'a, T: Decide + Bounds>(
     if cycle != want {
         return Err(unbuilt_chain(
             link0.edge,
-            "a closed chain of links on different supports is not a whole cycle of the face \
-             they share",
+            "a closed mixed chain is not a whole cycle of its shared face",
         ));
     }
     for (link, &m) in links.iter().zip(&mates) {
@@ -2076,8 +2073,8 @@ fn shared_support_gate<T: Real>(rims: &[RimPlan<'_, T>]) -> Result<(), BlendErro
             if mixed(a) != mixed(b) {
                 return Err(unbuilt_chain(
                     b.chain.first().edge,
-                    "a rim of links on different supports shares a support face with a ladder \
-                     or annulus rim; blend them in SEQUENTIAL calls",
+                    "a mixed rim shares a support with another rim; blend them in SEQUENTIAL \
+                     calls",
                 ));
             }
             let annulus = |r: &RimPlan<'_, T>| matches!(r.shape, RimShape::Annulus(_));
@@ -5513,7 +5510,7 @@ enum MixedTrim<T: Real> {
     Arc(Curve3<T>, (T, T)),
 }
 
-impl<T: Decide + Bounds> MixedTrim<T> {
+impl<T: Decide> MixedTrim<T> {
     /// The foot on this trim at a junction `p`, read from the end of
     /// the run `at_start` names: a straight trim's foot of `p`, an arc's
     /// window end.
@@ -5542,7 +5539,7 @@ impl<T: Decide + Bounds> MixedTrim<T> {
 }
 
 /// A link's two trims, host then mate, each run with its own loop.
-fn mixed_trims<T: Decide + Bounds>(
+fn mixed_trims<T: Decide>(
     body: &Body<T>,
     l: &Link<T>,
     host: FaceKey,
@@ -6086,65 +6083,46 @@ fn attach_contact<T: Decide + Bounds + topo::AtRestPolicy>(
             let len = p0.distance(p1);
             (Curve3::line(p0, (p1 - p0) / len), T::zero(), len)
         }
-        // ONE construction for both arc kinds, deliberately: a corner
-        // arc and a band's slit are the same short arc about a stored
+        // ONE construction for the three arc kinds, deliberately: a corner
+        // arc, a band's slit and a section are the same short arc about a stored
         // centre (sweep < π, so the `atan2` turn is unambiguous), and
-        // the only thing that differs is the DESCRIPTION they take
-        // below. Byte-identical copies of the geometry would let one
+        // what differs is the DESCRIPTION they take below and, for a
+        // section, the plane its frame is stated in. Byte-identical copies of the geometry would let one
         // drift from the other with nothing to say so.
-        // A section lies in the plane normal to the spine at its centre:
-        // a cylinder band's axis, else a torus band's azimuth there. Its
-        // frame is stated in that plane rather than read off the feet, so
-        // the row it is of holds its fixed coordinate as the chart does.
-        ContactCarrier::Section { center, radius } => {
-            let normal = [s1, s2]
-                .into_iter()
-                .filter_map(|k| body.get_surface(k))
-                .find_map(|s| match *s {
-                    Surface::Cylinder { axis, .. } => Some(axis),
-                    _ => None,
-                })
-                .or_else(|| {
-                    [s1, s2]
-                        .into_iter()
-                        .filter_map(|k| body.get_surface(k))
-                        .find_map(|s| match *s {
-                            Surface::Torus {
-                                center: o, axis, ..
-                            } => Some(axis.cross(center - o).normalize()),
-                            _ => None,
-                        })
-                })
-                .ok_or_else(|| {
+        ContactCarrier::CornerArc { center, radius }
+        | ContactCarrier::SeamArc { center, radius }
+        | ContactCarrier::Section { center, radius } => {
+            // A section lies in the plane normal to the spine at its
+            // centre (a cylinder band's axis, else a torus band's azimuth
+            // there), and its frame is stated in that plane rather than
+            // read off the feet, so the row it is of holds its fixed
+            // coordinate as the chart does.
+            let plane = if is_section {
+                Some(section_normal(body, [s1, s2], center).ok_or_else(|| {
                     disagrees(
                         EntityId::Edge(edge),
                         "a section between two rolling-ball bands",
                     )
-                })?;
+                })?)
+            } else {
+                None
+            };
             let flat = |p: Point3<T>| {
                 let d = p - center;
-                (d - normal * d.dot(normal)).normalize()
+                match plane {
+                    Some(n) => (d - n * d.dot(n)).normalize(),
+                    None => d.normalize(),
+                }
             };
             let (u, w) = (flat(p0), flat(p1));
             let turn = u.cross(w);
-            let n = if turn.dot(normal).lo() < 0.0 {
-                -normal
-            } else {
-                normal
+            let n = match plane {
+                Some(n) if turn.dot(n).lo() < 0.0 => -n,
+                Some(n) => n,
+                None => turn.normalize(),
             };
             (
                 Curve3::circle(center, n, radius, u),
-                T::zero(),
-                turn.norm().atan2(u.dot(w)),
-            )
-        }
-        ContactCarrier::CornerArc { center, radius }
-        | ContactCarrier::SeamArc { center, radius } => {
-            let u = (p0 - center).normalize();
-            let w = (p1 - center).normalize();
-            let turn = u.cross(w);
-            (
-                Curve3::circle(center, turn.normalize(), radius, u),
                 T::zero(),
                 turn.norm().atan2(u.dot(w)),
             )
@@ -6312,6 +6290,31 @@ fn attach_contact<T: Decide + Bounds + topo::AtRestPolicy>(
     // operator refusal that raised it.
     .map_err(|e| op("surgery contact edge", e))?;
     Ok(())
+}
+
+/// **The plane a mixed rim's section lies in**, as its unit normal: a
+/// cylinder band's axis where one of the section's two surfaces is a
+/// cylinder, else the normal of the torus band's meridian plane through
+/// `center`.
+fn section_normal<T: Decide>(
+    body: &Body<T>,
+    surfaces: [SurfaceKey; 2],
+    center: Point3<T>,
+) -> Option<Vec3<T>> {
+    let all = || surfaces.into_iter().filter_map(|k| body.get_surface(k));
+    all()
+        .find_map(|s| match *s {
+            Surface::Cylinder { axis, .. } => Some(axis),
+            _ => None,
+        })
+        .or_else(|| {
+            all().find_map(|s| match *s {
+                Surface::Torus {
+                    center: o, axis, ..
+                } => Some(axis.cross(center - o).normalize()),
+                _ => None,
+            })
+        })
 }
 
 /// What a closure kill hands [`Body::kev_describing`] for the one

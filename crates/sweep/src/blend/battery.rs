@@ -1812,7 +1812,7 @@ pub(crate) fn section_centre<T: Real>(blend: &EdgeBlend<T>, p: Point3<T>) -> Opt
 ///
 /// [`BlendError::UnsupportedChain`] on a definite distance or a band
 /// with no section, [`BlendError::Escalated`] in band.
-fn band_g1<T: Decide + Bounds>(
+fn band_g1<T: Decide>(
     body: &Body<T>,
     a: &Link<T>,
     b: &Link<T>,
@@ -1841,8 +1841,7 @@ fn band_g1<T: Decide + Bounds>(
         Sign::Zero => Ok(()),
         Sign::Positive | Sign::Negative => Err(unbuilt_chain(
             a.edge,
-            "the supports crease at a junction of the chain, so its two links' bands share no \
-             section there",
+            "the supports crease at a junction, so its two bands share no section",
         )),
     }
 }
