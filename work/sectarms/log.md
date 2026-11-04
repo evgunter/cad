@@ -467,3 +467,13 @@ and bodies unchanged. No orchestrator yet.
     - rows that got weaker;
     - rustdoc links to removed items.
   - **File:** the pre-existing erratic stored-origin hull verdict.
+
+- 2026-11-04 — **PR 6466 fix pass accepted.** All 5 must-fix and 11 fix-if-small items are done.
+  - **Seam threshold corrected:** both seams decide on 0.2795·δ² and build from about 1.89e-4; the old 0.84·δ² was another chord's margin. A guard row pins both sides.
+  - **Ray order:** one home, in `SectionNode::RAYS`.
+  - **`crossing_equal_rods`:** traced. On main, a pierce recorded `Positive` was handed to an edge germ whose other end carried `Only`, which left four ends loose. This confirms R1's hypothesis, and the HONEJOIN row records the cause.
+  - **Chord ends:** they read `reads()`, kept and disclosed as the section's single site reading. A narrower re-read could refuse a site the join had accepted.
+  - **D3:** a `debug_assert` checks it.
+  - **Slow sets:** 9,666 of 9,670 pass. All four reds fail on main too, including `the_near_node_poses_at_the_witness_band` at δ 1e-8 (`VolumeUncomputable`). The lane is asked to file that one with its source commit.
+  - **Still owed:** a fresh main merge, since the branch conflicts again. The review row (tally 0, byte 114) goes in after it.
+- 2026-11-04 — **PR 6479 coded blind at tally 0** (byte 65, A = R2). Its row is drafted.
