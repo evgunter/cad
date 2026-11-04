@@ -383,10 +383,14 @@ struct SlackTerms {
 impl SlackTerms {
     fn of(c: [f64; 3], n: [f64; 3], u: [f64; 3], rho: f64, sc: [f64; 3], r: f64) -> Self {
         let h = geom_brep::circle_sphere_harmonic(
-            Point3::from_array(c),
-            Vec3::new(n[0], n[1], n[2]),
-            rho,
-            Vec3::new(u[0], u[1], u[2]),
+            &geom::Circle::new(
+                geom::Frame::new(
+                    Point3::from_array(c),
+                    Vec3::new(n[0], n[1], n[2]),
+                    Vec3::new(u[0], u[1], u[2]),
+                ),
+                rho,
+            ),
             Point3::from_array(sc),
             r,
         );

@@ -6566,7 +6566,7 @@ fn sphere_pair_cut<T: Decide>(
         Ok(geom_brep::SphereSphereSection::Circle(geom::Curve3::Circle(geom::Circle {
             frame:
                 geom::Frame {
-                    center: foot,
+                    origin: foot,
                     axis: normal,
                     u_ref,
                 },
@@ -7170,21 +7170,14 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
                     return Err(corrupt("cut-in: a boundary edge has no carrier"));
                 };
                 let (t0, t1) = curve.params();
-                let geom::Curve3::Circle(geom::Circle {
-                    frame:
-                        geom::Frame {
-                            center: cc,
-                            axis: ca,
-                            u_ref: cu,
-                        },
-                    radius: cr,
-                }) = *curve.carrier()
+                let geom::Curve3::Circle(edge_circle @ geom::Circle { radius: cr, .. }) =
+                    *curve.carrier()
                 else {
                     return Err(refuse("a boundary edge of the sphere face is not a circle"));
                 };
                 let roots = super::circle_roots::first_harmonic_roots(
-                    &super::circle_roots::FirstHarmonic::circle_off_plane(
-                        (cc, ca, cr, cu),
+                    &super::circle_roots::FirstHarmonic::conic_off_plane(
+                        &edge_circle,
                         (cut.center, k),
                     ),
                     cr,

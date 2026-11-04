@@ -764,7 +764,7 @@ fn emitted_conic_carriers_equal_the_kernel_carriers_bitwise() {
                 Curve3::Circle(geom::Circle {
                     frame:
                         geom::Frame {
-                            center,
+                            origin: center,
                             axis,
                             u_ref,
                         },
@@ -780,7 +780,7 @@ fn emitted_conic_carriers_equal_the_kernel_carriers_bitwise() {
                 Curve3::Ellipse(geom::Ellipse {
                     frame:
                         geom::Frame {
-                            center,
+                            origin: center,
                             axis,
                             u_ref,
                         },

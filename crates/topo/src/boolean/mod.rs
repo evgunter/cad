@@ -1096,11 +1096,8 @@ pub struct GlueVerdict<T: Real = f64> {
     b: FaceKey,
     class: GlueClass,
     margin: MarginDiag,
-    line: Option<DecidedLine<T>>,
+    line: Option<geom::Line<T>>,
 }
-
-/// A tangent line as decided: `origin + t·dir`.
-pub(crate) type DecidedLine<T> = (Point3<T>, geom_core::Vec3<T>);
 
 impl<T: Real> GlueVerdict<T> {
     /// The A-operand face.
@@ -1144,7 +1141,7 @@ impl<T: Real> GlueVerdict<T> {
     /// a tangency with the line `lines` holds for its pair.
     pub(crate) fn of_rows(
         rows: &[crate::Coincidence],
-        lines: &std::collections::BTreeMap<(FaceKey, FaceKey), DecidedLine<T>>,
+        lines: &std::collections::BTreeMap<(FaceKey, FaceKey), geom::Line<T>>,
     ) -> Vec<Self> {
         rows.iter()
             .filter_map(|row| {
@@ -1172,7 +1169,7 @@ impl<T: Real> GlueVerdict<T> {
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct GivenDecision<T: Real> {
     pub(crate) margin: MarginDiag,
-    pub(crate) line: Option<DecidedLine<T>>,
+    pub(crate) line: Option<geom::Line<T>>,
 }
 
 /// **The pairs one boolean glues**, and the records it carries: the
@@ -1734,7 +1731,7 @@ pub(crate) struct VerifiedGlue<T: Real> {
     pub(crate) touches: Vec<GluedTouch>,
     /// The line each tangency verified along a line was decided along
     /// ([`GlueVerdict`]).
-    pub(crate) lines: std::collections::BTreeMap<(FaceKey, FaceKey), DecidedLine<T>>,
+    pub(crate) lines: std::collections::BTreeMap<(FaceKey, FaceKey), geom::Line<T>>,
     /// The one-carrier pairs a margin decided, one row each in
     /// declaration order: a declaration's verification is a value
     /// decision, so its glue is recorded like any other
@@ -2444,7 +2441,7 @@ pub struct BooleanReduction<T: Real> {
     pub(crate) glued: Vec<(u32, u32)>,
     /// The line each glued tangency verified along a line was decided
     /// along, by its pair in operand keys ([`GlueVerdict::of_rows`]).
-    pub(crate) tangent_lines: std::collections::BTreeMap<(FaceKey, FaceKey), DecidedLine<T>>,
+    pub(crate) tangent_lines: std::collections::BTreeMap<(FaceKey, FaceKey), geom::Line<T>>,
     /// Each pair of pierces one ring serves, decided one point
     /// ([`RingTie`]).
     pub(crate) ring_ties: Vec<RingTie>,
@@ -7131,8 +7128,7 @@ fn given_verdicts<T: Decide>(
             GlueClass::Tangent => {
                 let kinds = (kind(a, fa), kind(b, fb));
                 let given = given.ok_or(invariant("a given pair carries no decision"))?;
-                if let Some((origin, dir)) = given.line {
-                    let line = geom::Line { origin, dir };
+                if let Some(line) = given.line {
                     let (_, overlap) = witness_span(a, fa, b, fb, &line, band, pad)?;
                     if locus_through_both_faces(
                         [(a, fa, Operand::A, kinds.0), (b, fb, Operand::B, kinds.1)],
@@ -7150,7 +7146,7 @@ fn given_verdicts<T: Decide>(
                         verified
                             .coincidences
                             .push(tangent_row(fa, fb, given.margin));
-                        verified.lines.insert((fa, fb), (origin, dir));
+                        verified.lines.insert((fa, fb), line);
                     }
                 }
                 verified.tangent.insert(
@@ -7308,7 +7304,7 @@ pub(crate) struct Tangency<T: Real> {
     /// or the shared rim's identity).
     pub(crate) margin: MarginDiag,
     /// The line locus as decided, to be handed on; none along a rim.
-    pub(crate) line: Option<DecidedLine<T>>,
+    pub(crate) line: Option<geom::Line<T>>,
 }
 
 /// What [`GluedPairs`] keeps of a glued tangency: its carriers' kinds
@@ -7366,8 +7362,7 @@ fn tangent_line<T: Decide>(
         })
     };
     match geom_brep::tangent_locus_of_faces(sa, sb, reach, band, extents) {
-        Ok(geom_brep::TangentLocus::Line { origin, dir, gap }) => {
-            let line = geom::Line { origin, dir };
+        Ok(geom_brep::TangentLocus::Line { line, gap }) => {
             let (span, overlap) = witness_span(a, fa, b, fb, &line, band, pad)?;
             Ok(Ok(TangentLine {
                 carrier: geom::Curve3::Line(line),
@@ -7670,9 +7665,7 @@ fn verify_tangency<T: Decide>(
         match tangent_line((a, fa, &sa), (b, fb, &sb), band).map_err(Refused)? {
             Ok(line) => {
                 overlap = Some(line.overlap);
-                if let geom::Curve3::Line(geom::Line { origin, dir }) = line.carrier {
-                    decided = Some((origin, dir));
-                }
+                decided = line.carrier.as_line();
                 let locus = match line.carrier {
                     geom::Curve3::Line(geom::Line { origin, dir }) => rim_wedge::Locus::Line {
                         origin,
@@ -7922,13 +7915,18 @@ fn conic_reach<T: Decide>(
             let (center, reach) = match *body.edge_curve_linked(ek, edge).certified()?.carrier() {
                 geom::Curve3::Line(_) => continue,
                 geom::Curve3::Circle(geom::Circle {
-                    frame: geom::Frame { center, axis, .. },
+                    frame:
+                        geom::Frame {
+                            origin: center,
+                            axis,
+                            ..
+                        },
                     radius,
                 }) => (center, radius * axis.cross(dir).norm()),
                 geom::Curve3::Ellipse(geom::Ellipse {
                     frame:
                         geom::Frame {
-                            center,
+                            origin: center,
                             axis,
                             u_ref,
                         },
