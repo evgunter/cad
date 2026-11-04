@@ -1172,7 +1172,10 @@ fn ends_not_yet(e: &PcurveCertifyError) -> bool {
 ///   converted on parts halved where the cone's lever spreads, so it
 ///   certifies at `f64`, its envelope over the residual, and at
 ///   `Interval` too but where its enclosures' width, read through the
-///   apex's Lipschitz factor, reaches the band, where it ends "not yet";
+///   fidelity term's lever (the part's box's slant over its least
+///   radius, the box's spread rather than the pose's, filed as
+///   `work/pcert/the-cones-fidelity-lever-reads-the-boxs-spread-not-the-poses.md`),
+///   reaches the band, where it ends "not yet";
 /// - a crest circle on a near-horn torus (`r = R − 1e-5`), whose fidelity
 ///   reads the tube's core `1e-5` away: at `Interval` its envelope lands
 ///   in band, the lane's escalation (`GeneralLane`);

@@ -2436,9 +2436,9 @@ fn line_off_cone_sup<T: Decide>(
         let floor = rho * cos + axial * sin;
         geom_core::k_stats::detached(|| {
             Ok::<bool, Indeterminate>(
-                !positive("pcurve_projected_lever_spread", ceiling, band)?
+                !positive("pcurve_projected_lever_ceiling", ceiling, band)?
                     || positive(
-                        "pcurve_projected_lever_spread",
+                        "pcurve_projected_lever_spread_ratio",
                         (ceiling - floor * T::from_f64(LEVER_SPREAD)) / ceiling,
                         band,
                     )?,
