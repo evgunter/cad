@@ -83,6 +83,12 @@ use super::{INCIDENCE_SAMPLES, Incidence, PcurveCertifyError, incidence_escalate
 
 #[cfg(test)]
 mod rows;
+#[cfg(test)]
+mod probe;
+#[cfg(test)]
+mod probes_r2;
+#[cfg(test)]
+mod probe_delta;
 
 /// A cell's floor against the sample: whether the cell clears it.
 pub(super) const HULL: &str = "pcurve_spline_chart_hull";
@@ -483,6 +489,10 @@ impl<'a, T: Decide> Net<'a, T> {
             return gap;
         }
         #[cfg(test)]
+        if std::env::var("R2_NO_CHARGE").is_ok() || probe_delta::NO_CHARGE.with(std::cell::Cell::get) {
+            return gap;
+        }
+        #[cfg(test)]
         if super::mutants::spline_charge_dropped() {
             return gap;
         }
@@ -493,6 +503,14 @@ impl<'a, T: Decide> Net<'a, T> {
         let read = rounding_charge(
             T::from_f64(2.0) * (reach + (q - Point3::origin()).norm() + self.centre.norm()),
         );
+        #[cfg(test)]
+        {
+            let (c, r) = (cut_rounding(cell), middle(read));
+            probe_delta::RATIO.with(|x| x.set(x.get().max(c / r)));
+            if probe_delta::NO_CUT.with(std::cell::Cell::get) {
+                return (gap - read).max(T::zero());
+            }
+        }
         (gap - T::from_computed(cut_rounding(cell)) - read).max(T::zero())
     }
 }
