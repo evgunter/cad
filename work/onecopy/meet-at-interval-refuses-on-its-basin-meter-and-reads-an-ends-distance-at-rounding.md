@@ -165,3 +165,18 @@ ruling, option (a)).
 PR 6516 fixes regression (i) at its root. Gauss–Newton now steps from a point, ends are read once, and an endless span has no ends. Question 2's ruling also lands: the lune pin is re-posed, and its precision branch is recorded as unguardable at an honest offset.
 
 What is still owed on this row is the polish-meters decision above, "Decided: what the polish certifies at Interval". Its implementation is the next unit. PR 6491's landings wait on it.
+
+## Amended at dispatch (2026-11-04)
+
+The implementer read the four sites before writing code. Item 4 of the decision was wrong for two of them, so it is amended, ruled by the orchestrator:
+
+- **The exact proof door** (logged, with no `Band` parameter) takes only the proof inequalities: `curve_pair::compare`'s callers and the basin.
+- **Not every site is a proof.** `curve_foot_polish` is a heuristic choice, which ledger F32 ruled out of the log, and a test pins that. It stays where it is. F33 is the same case.
+- **Walk's `step_taken` is also a choice.** A dropped step can lose a foot but never invents one. It stays on its current door until the choice-door unit (`a-heuristics-choice-has-no-door-of-its-own`).
+- **The rule** is: a proof's inequality is read exactly and logged; metres of gap are read against the band and logged; a heuristic's choice is unlogged under a ledger row until the choice door exists.
+
+Item 2's bend is made precise:
+- `bend = K·m₋²/2`, with `K = κ₁+κ₂` and `m₋ = (sin φ − √(sin²φ − 2K(slack + e)))/K`.
+- `sin φ` is the basin's lower bound over the region.
+- The escalation enters the move, so to first order the move is `(slack + e)/sin φ`, not `slack/sin φ`.
+- Where the discriminant is negative, the bound is undecided: it escalates and never prunes.
