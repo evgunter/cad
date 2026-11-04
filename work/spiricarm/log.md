@@ -43,3 +43,44 @@
   - **Class:** an error variant whose only test is a `Display` sample can be dead code with every test green. Each new finding variant needs an executing row.
   - **Friction:** five lanes' targets (3.5 to 9.4 GB each) filled the disk within two hours. Dispatch briefs should name a target budget, and review targets are reclaimed the moment a report lands.
 - 2026-11-03 — **PR 6473 fix pass taken** (head `f93ee4c03b`, read by the orchestrator). The union landed with five executing apex rows, which go red when the wiring is removed. v* now has one home, `geom::sheet_apex`. The census of error prose at head adds no mismatch: all are stale main pins, already filed. The row is `docs/dual-review-log/rows/PR-6473.md`, excluded under 6(e) (disk). Piece 1 merges; the unit stays dispatched for piece 2 (the revolve's arc classification and the readers the conical-ended football needs).
+- 2026-11-03 — **PR 6473 merged** (piece 1). The red python job is inherited from main and annotated on the PR. **Dispatched piece 2** on `spiricarm/spindle-football`: the revolve reads the arc, plus the readers, oracles and demo that make the conical-ended football build. It may split into 2a and 2b. It reuses piece 1's clone and target, with a stated 10 GB budget.
+- 2026-11-03 — **Rotational lane stage 1 is up as PR 6478** (head `e12e3c8d00`, CI fully green).
+  - Phase 0: (h) holds (the cylinder × cylinder results hold only cylinder and plane faces), and (f) holds at the default ε (chord deviations 1e-12 to 7.8e-11 m).
+  - **Now SOUND against an exact sliced oracle:** drum × rod (four ops), the fenced unions, the review probe's poses, and the blend's fillet leg.
+  - The tilted-rod ∪ builds at the right volume but refuses at the census. Filed as `inside/the-census-reads-no-ruling-inside-a-chorded-cylinder-face`.
+  - The cylinder × sphere and donut rows are re-pinned to their next stop. The P1 cost row is rewritten as a pure cost row.
+  - **Dual review dispatched as two cloud sessions** (concurrent pair, letter H, frozen head `e12e3c8d00`). The briefs are identical, pushed at `spiricarm/review-6478-brief` (sha256 `615b46c9…`). Cloud sessions were used because this box's disk (9.5 GB free) cannot hold two more review targets beside piece 2's lane, and the protocol says to reduce simultaneous duals rather than narrow a method.
+  - A container restart stopped piece 2's lane. Its clone survived with its commits pushed, and it was resumed with the post-restart cautions.
+- 2026-11-03 — **Spindle piece 2 is up as PR 6486** (head `49d88cc0f1`, CI green). The football with conical ends now revolves.
+  - **It stayed one PR**, not 2a and 2b. Tier 3's volume needs props, props opens the mesh's shape door, and half of it would not leave main sound.
+  - **The revolve reads the arc**: `ArcInterior`, then `ArcReach` picks the kind. A new `RevolveError::SheetApex` covers stage 2's case.
+  - **Edge certification:** a sheet distance (`Meters::Spindle`), plus six sign fixes for formulas that assumed R > 0.
+  - **Tier 3** reads a sheet face's side with a walk of its loops.
+  - **The oracle** has four bands, each checked against exact `∮πρ²dz` and `∮2πρ ds` with a wrong-sheet row; the lemon also passes admesh.
+  - **Residue:** the tour stop was withdrawn and filed (`the-conical-ended-football-has-no-tour-stop`, P3). The lane closed LATHE's `revolve-axis-clearance-is-the-torus-convention-under-another-name` as retired by the change (the reviewers are asked to check that closure). The wide apple now builds and measures, but its tessellation refuses (evidence added to its row).
+  - **Dual dispatched** as two cloud sessions on `49d88cc0f1`, with identical briefs (`spiricarm/review-6486-brief`, sha256 `d69e6f32…`).
+- 2026-11-03 — **PR 6478's dual is delivered.** Both reviewers returned APPROVE-WITH-FIXES on `e12e3c8d00` and both executed their findings, so the pair is fair.
+  - **Bilateral MAJOR, executed by both:** the chart term `o·A⃗` reads the carriers' vector area while `−∮F du` reads the images' region, and the ribbon between them (|lever|·length·env) is uncontained. R1 measured a 1e-3 miss at ε 1e-6 with L = 1e3; R2 measured a 7.7e-8 miss 1000 m out. The PR had disclosed it as "Unproven" but filed nothing.
+  - **Bilateral MINORs:**
+    - the swap rows' chart term is circular (the expected value is built with the function under test, so mutant M12 survives);
+    - `branch_turns` is never nonzero;
+    - the residual pad is unwitnessed;
+    - the merged pins assert a chart kind only in prose;
+    - the cut-loop accumulator has about five copies, a fresh duplication inside a unit that closes one.
+  - **Unilateral, R1:** the `v_off` and `Line u′` mutants survive; rows behind `resolution_pad` pin far less than they measure.
+  - **Unilateral, R2:** a `taylor` ↔ `quad` dependency cycle; sector breaks unwitnessed; the `exact` closure written four times; the old "conic trim" vocabulary left in pins.
+  - **Tally candidates:** none (the only MAJOR is bilateral).
+  - **Fix pass:** the union, sent to the implementer, resumed.
+  - **Class (logged at adjudication):** a fixture whose expected value is computed with the function under test cancels that function's errors, so every row agrees with itself. Expected values come from an independent formula or computation.
+  - **Class:** a "disclosed, unproven" gap left only in a PR body has no durable home. Implementer briefs already say a PR body is not a slate; this lane did it anyway, on a gap a reviewer then showed to be a soundness hole.
+- 2026-11-04 — **PR 6486's dual is delivered.** Both reviewers returned APPROVE-WITH-FIXES on `49d88cc0f1`, with no MAJOR. Both executed their checks: each fuzzed `Meters::Spindle` at 400k draws and checked props independently. So the pair is fair.
+  - **Bilateral:**
+    - `SheetApex` is decided before the arc's interior, against the ratified arc rule (R1 MINOR, executed; R2 NOTE);
+    - the sheet-selecting lever in `Meters::Spindle` is load-bearing and unguarded (dropping it gives 1271 under-reads, and every PR row stays green);
+    - stale prose names the retired decisions;
+    - the arc-holds-its-least-radius predicate is spelled two ways in `axis.rs`.
+  - **Unilateral, R1:** the football's wrong-sheet row cannot go red alone; five new `copysign(major)` sites fall in LATHE's open copysign class; `matches!(Spindle)` is re-minted inside shared arms; a near-horn band mints R up to r + band.
+  - **Unilateral, R2:** `assert_outward` ignores sheet faces; the sheet walk's slope is loose on a lemon; the LATHE row closed in this PR still has a live half (the in-band reading, settled by the arc rule); `meters_at` builds a whole `Meters` to read one bit.
+  - **Tally candidates:** none (no MAJOR).
+  - **Fix pass:** the union, sent to the piece 2 lane (resumed).
+  - **Class (logged at adjudication):** a soundness argument written in a doc with no executing row is two reviews in a row's finding on this track (6473's dead apex arm, 6486's unguarded lever). Briefs for stage 2 will require that every new certificate ships with a fuzz or a mutant row that goes red without its load-bearing check.
