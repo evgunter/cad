@@ -101,7 +101,8 @@
 //!   a difference within the two charges, or one undecided, reads the
 //!   first. Two conics tangent at a point are that tie: each lies
 //!   tangent to the other's plane, so both scores are zero but for
-//!   rounding, and read bare their difference would pick by it. **What is order-free**: the route (apart, level,
+//!   rounding, and read bare their difference would pick by it.
+//!   **What is order-free**: the route (apart, level,
 //!   across, escalation) depends only on the pair, and across planes
 //!   the harmonic read is the same in either order wherever the choice
 //!   decides. In one plane the arms below parametrize the first conic
@@ -275,7 +276,7 @@ mod window;
 use geom::{Azimuth, Curve3, CurveKind};
 use geom_core::k_stats::{check_unlogged, decide, straddle};
 use geom_core::one_line::{OnOneLine, on_one_line};
-use geom_core::{Band, Decide, Lever, Margin, Point3, Sign, Vec3};
+use geom_core::{Band, Decide, Lever, Margin, Point3, Rounded, Sign, Vec3};
 
 use super::span::Span;
 use super::{Arm, MeetFault, Method};
@@ -1053,17 +1054,19 @@ fn conic_conic<T: Decide>(
         for read in swings {
             read?;
         }
-        // Each score with its rounding: `A` and `c₀` are each within
-        // `noise`, so `A² − c₀²` within `noise·(A + |c₀| + noise)`, the
-        // score's own arithmetic inside that.
+        // Each score with its rounding, `A` and `c₀` each within `noise`.
         let steep = |(c0, _, _): (T, T, T), swing: T, k: &dyn Conic<T>| {
             let (p, q) = k.semi_axes();
-            let r2 = p.abs().max(q.abs()).powi(2);
-            let charge = noise * (swing + c0.abs() + noise) / r2;
-            ((swing.powi(2) - c0.powi(2)) / r2, charge)
+            let within = |x: T| Rounded {
+                value: x,
+                error: noise,
+            };
+            let r2 = Rounded::exact(p.abs().max(q.abs())).square().divisor();
+            let r2 = r2.ok_or(MeetFault::Desync)?;
+            Ok::<_, MeetFault>((within(swing).square() - within(c0).square()).quotient(r2))
         };
-        let ((sa, ca), (sb, cb)) = (steep(ha, swing_a, &ka), steep(hb, swing_b, &kb));
-        let by_b = sb - sa - (ca + cb);
+        let (sa, sb) = (steep(ha, swing_a, &ka)?, steep(hb, swing_b, &kb)?);
+        let by_b = sb.value - sa.value - (sa.error + sb.error);
         if check_unlogged(row::ACROSS, by_b, Band::least(), "F33") == Ok(Sign::Positive) {
             let flipped: Vec<_> = known.iter().copied().map(flip).collect();
             let read = transverse((b, &kb, &ka, a), hb, swing_b, (noise, arm), &flipped, band);
@@ -1166,8 +1169,9 @@ fn frame_gap<T: Decide>(e: &dyn Conic<T>, f: &dyn Conic<T>) -> T {
 
 /// `ka`'s height above `kb`'s plane, `(c0, cp, sp)` with the swing read
 /// definite (module docs): its crossings and touch, each polished to the
-/// closest pair. `ka` is the conic that crosses the other's plane the
-/// less obliquely, chosen by the caller.
+/// closest pair. `ka` is the conic the caller's across choice reads: the
+/// one that crosses the other's plane the less obliquely where that
+/// choice decides, and the first of the pair at a tie.
 fn transverse<T: Decide>(
     (a, ka, kb, b): (&Span<'_, T>, &dyn Conic<T>, &dyn Conic<T>, &Span<'_, T>),
     (c0, cp, sp): (T, T, T),

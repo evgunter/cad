@@ -1639,19 +1639,21 @@ Flagged, NOT fixed here (dispositions):
   conics, each crossing the other's plane, is read across it. The
   difference of the two `(A² − c₀²)/r²` is dimensionless, the squared
   sine of each conic's crossing for a circle; it has no length door,
-  so it is read at `Band::least`, less each score's rounding charge
-  (`noise·(A + |c₀| + noise)/r²`), so two scores apart by rounding
-  alone tie. It picks between two sound readings of one meeting, each
-  of which decides, escalates or refuses on its own rows. What keeps it
-  off the logged doors is that no outcome of it is a reading: a
-  difference within the charges or undecided (two conics crossing
-  alike, two conics tangent at a point, an enclosure straddling the
-  tie) reads the first, and either reading is sound there. Sound is
-  not equally decisive: at two conics tangent at a shared end, read
-  across the near-circle's plane `meet` refuses and read across the
-  long ellipse's it decides
-  (`curve_pair::order_rows::conics_tangent_at_a_shared_end_tie_the_across_choice`). Logged, every undecided pick at `Interval` would
-  hand the driver an escalation for a choice that decides nothing.
+  so it is read at `Band::least`, less each score's rounding bound
+  (`geom_core::Rounded`, first order `2δ(A + |c₀|)/r²`, `δ` the
+  height's charge), so two scores apart by rounding alone tie. It picks
+  between two sound readings of one meeting, each of which decides,
+  escalates or refuses on its own rows. What keeps it off the logged
+  doors is that no outcome of it is a reading: a difference within the
+  bounds or undecided (two conics crossing alike, two conics tangent at
+  a point, an enclosure straddling the tie) reads the first, and either
+  reading is sound there. Sound is not equally decisive: at two conics
+  tangent at a shared end, the near-circle read across the long
+  ellipse's plane refuses and the long ellipse read across the
+  near-circle's decides
+  (`curve_pair::order_rows::conics_tangent_at_a_shared_end_tie_the_across_choice`).
+  Logged, every undecided pick at `Interval` would hand the driver an
+  escalation for a choice that decides nothing.
 
   **Carried as `k_stats::check_unlogged(.., "F33")`**. Its K samples
   still reach the sink under `curve_pair_pose_across`. Not a
