@@ -89,7 +89,7 @@ const DEPTH_HEADROOM: f64 = 8.0;
 /// The kept cells one sample's walk may visit.
 const CELL_VISITS: usize = 1 << 12;
 /// The cells a walk visits past its first point read in band.
-const ON_VISITS: usize = 1 << 7;
+const ON_VISITS: usize = 1 << 5;
 
 /// **The spline chart's incidence test of the carrier `at` over
 /// `[t0, t1]`** (module docs), at [`INCIDENCE_SAMPLES`] + 1 evenly
@@ -368,7 +368,9 @@ impl<'a, T: Decide> Net<'a, T> {
                     near.get_or_insert(visits);
                 }
             }
-            if cell.depth >= self.depth {
+            // A poisoned floor or point is not cured by quartering, since
+            // the poison is in the net or the sample: the cell is a leaf.
+            if cell.depth >= self.depth || gap.is_poison() || distance.is_poison() {
                 unsettled = true;
                 continue;
             }
