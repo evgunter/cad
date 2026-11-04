@@ -893,8 +893,8 @@ pub fn plane_nurbs_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
 
     // ---- The fixed schedule: foot points, and the normal angle. ----
     // The feet and the image are `chart_image`'s, which is also the
-    // pcurve mint's producer: ONE derivation of this image exists in
-    // the tree, and this lane certifies the same bits the mint stores.
+    // pcurve mint's producer for a spline or a line: this lane certifies
+    // the same bits the mint stores for them.
     // The transversality sweep rides the same walk as a per-sample
     // hook, so the ORDER in which the two refusals can fire is exactly
     // what it was when the two loops were one.
@@ -2723,13 +2723,12 @@ impl<'a, T: geom_core::Real> Schedule<'a, T> {
 ///
 /// **Two consumers, one producer.** [`plane_nurbs_limbs`] certifies the image as
 /// part of the plane × NURBS edge certificate at ADOPT time;
-/// [`crate::FittedLane::general_image`] hands the same image to
-/// the pcurve mint, where it becomes a stored
+/// [`crate::FittedLane::general_image`] hands the same image of a spline
+/// or a line to the pcurve mint, where it becomes a stored
 /// [`crate::Pcurve::General`] cache certified through
-/// [`crate::PcurveCache::certify_general`]. They must be the same bits
-/// — an edge whose certificate was derived from one image and whose
-/// cache stores another would be certifying a curve the body does not
-/// carry — so there is one producer and both call it.
+/// [`crate::PcurveCache::certify_general`]. They are the same bits, so
+/// the row a spline's edge certificate read is the row the body stores.
+/// A bending carrier's mint image is [`curved_chart_image`]'s.
 ///
 /// `per_sample` is a hook run at every schedule sample in order, with
 /// the sample index and its foot; it is where [`plane_nurbs_limbs`] puts its
@@ -3209,8 +3208,8 @@ pub const PXN_FIT_SAMPLES: u32 = 33;
 /// the wall's chart to within `ε` over a schedule step — planar
 /// sections along iso-structured walls, which is the seam class. A
 /// genuinely curved plane × NURBS locus refuses with its MEASURED
-/// bound in the payload (never a widened gate), and tightening that is
-/// the algebraic route already banked with #264's envelope findings.
+/// bound in the payload (never a widened gate). The pcurve mint images
+/// such a carrier at [`curved_chart_image`]'s rungs instead.
 pub const PXN_IMAGE_DEGREE: usize = 1;
 
 /// A chart foot the projection measured, at the caller's scalar: two

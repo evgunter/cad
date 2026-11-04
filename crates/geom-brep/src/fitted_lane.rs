@@ -172,18 +172,16 @@ impl<T: Real> FittedLane<T> {
 
     /// **The chart image of a carrier on a NURBS wall.**
     ///
-    /// The producer is `edge_nurbs`'s — the one derivation of this
-    /// object in the tree (`edge_nurbs::chart_image`): foot points at
-    /// the D9-fixed schedule, interpolated on the carrier's own
-    /// parameter at degree 1 (`PXN_IMAGE_DEGREE`). It is EVIDENCE and
-    /// certifies nothing by itself; the caller's next move is
-    /// [`crate::PcurveCache::certify_general`], which bounds
+    /// The producer is `edge_nurbs`'s: foot points at the D9-fixed
+    /// schedule, interpolated on the carrier's own parameter. A spline's
+    /// or a line's image is the degree-1 one its edge certificate reads
+    /// (`edge_nurbs::chart_image`, at `PXN_IMAGE_DEGREE`), which
+    /// certifies where the foot path is straight to ε. A circle's,
+    /// ellipse's or spiric's foot path bends, and its image climbs
+    /// `edge_nurbs::curved_chart_image`'s rungs, read against `band`. It
+    /// is EVIDENCE and certifies nothing by itself; the caller's next
+    /// move is [`crate::PcurveCache::certify_general`], which bounds
     /// `sup_t |S(P(t)) − C(t)|` over the whole span against the chart.
-    /// A degree-1 image certifies only where the foot path is straight
-    /// to ε: a spline carrier's wherever its edge certificate holds
-    /// (that certificate reads this same image), a line's on a flat
-    /// chart, and a circle's, ellipse's or spiric's foot path bends, so
-    /// its image refuses at the hull ([`PcurveCertifyError::FittedCertificate`]).
     ///
     /// `params` is read only for a carrier with no knot domain. A
     /// spline's image spans its own knot domain, because the composite

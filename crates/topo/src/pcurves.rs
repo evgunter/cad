@@ -5695,6 +5695,12 @@ pub(crate) mod staleness_posture {
              own; `cyl_wall_sheet` is the door that runs the pass over what it grew",
             ),
             (
+                "cyl_wall_sheet_tilted",
+                Neither,
+                "`cyl_wall_sheet_keyed` with its bottom rim tilted: the same `Neither` \
+             operators, minting no row of its own",
+            ),
+            (
                 "validate_pseudomanifold",
                 Neither,
                 "`Certifier`'s gate pass: it reads the body through a shared borrow, and its \
@@ -7010,7 +7016,7 @@ mod derive_without_a_door {
             &carrier,
             params,
             &chart,
-            Band::linear(geom_core::Tol::witness()).unwrap(),
+            geom_core::Band::linear(geom_core::Tol::witness()).unwrap(),
         )
         .unwrap_err();
         let PcurveCertifyError::FittedLaneUnsupported { scalar: "dual" } = err else {
