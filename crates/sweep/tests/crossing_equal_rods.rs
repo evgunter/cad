@@ -19,14 +19,14 @@
 //! reads the walls' axes, finds them apart, and hands the germ to the
 //! edge-plane lane rather than the parallel pair's radical plane. That
 //! lane copies its edge on the edge's own side, the ellipse's own curve.
-//! Past the copy, at spins `(0, 0)` every op builds a sound body at its
-//! closed form, but above ε = 1e-12 its certified enclosure is wider
-//! than `differential`'s budget (to `1.1e-5` m³ at ε = 1e-9, `5.7e-5`
-//! at 1e-6), so it is judged against [`PAD_CEILING`]; at every other
-//! pose every op refuses
-//! `UnpairedLooseEnds`
-//! (`honejoin/the-edge-plane-lane-copies-no-ellipse-edge`). The pins
-//! name those endings exactly, so a fix to either moves them.
+//! Past the copy, at every spin pinned, every op builds a sound body at
+//! its closed form, the walls' own section riding the carried lane. Above
+//! ε = 1e-12 the certified enclosure is wider than `differential`'s
+//! budget (to `1.1e-5` m³ at ε = 1e-9, `5.7e-5` at 1e-6), so it is
+//! judged against [`PAD_CEILING`]. An op that refuses `UnpairedLooseEnds`
+//! (`honejoin/the-edge-plane-lane-copies-no-ellipse-edge`), as every op
+//! off spins `(0, 0)` did under the retired bisector lane, moves the
+//! pins.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::{FRAC_PI_2, PI};
@@ -143,37 +143,35 @@ fn not_ending((sa, sb, x0): (f64, f64, f64), want: Ending) -> Vec<String> {
 
 /// **The crossing pair is not read as parallel**: at the row's pose
 /// every op in both orders gets past the edge-plane lane's copy of the
-/// ellipse edge and refuses `UnpairedLooseEnds`, a refusal on valid
-/// input that `honejoin/the-edge-plane-lane-copies-no-ellipse-edge`
-/// owns, and none at the parallel pair's radical plane (`JoinDesync`).
-/// An op that builds, or refuses otherwise, moves this pin with that
-/// row.
+/// ellipse edge and builds a sound body at its closed form, and none
+/// refuses at the parallel pair's radical plane (`JoinDesync`). An op
+/// that refuses moves this pin.
 #[test]
-fn crossing_rods_end_past_the_ellipse_edge_copy() {
-    let moved = not_ending((0.4, 0.3, 0.2), Ending::LooseEnds);
+fn crossing_rods_build_past_the_ellipse_edge_copy() {
+    let moved = not_ending((0.4, 0.3, 0.2), Ending::Builds);
     assert!(
         moved.is_empty(),
-        "the-edge-plane-lane-copies-no-ellipse-edge: every op leaves loose ends\n{}",
+        "every op builds at its closed form\n{}",
         moved.join("\n")
     );
 }
 
-/// [`crossing_rods_end_past_the_ellipse_edge_copy`] at two more spin
+/// [`crossing_rods_build_past_the_ellipse_edge_copy`] at two more spin
 /// pairs, both seam rulings at `±x` among them, and with `B` from
-/// `x = 0.5`. With both seams at `±x`, every op builds.
+/// `x = 0.5`: every op builds.
 #[test]
-fn crossing_rods_end_past_the_ellipse_edge_copy_at_every_spin() {
+fn crossing_rods_build_past_the_ellipse_edge_copy_at_every_spin() {
     let moved: Vec<String> = [
-        ((1.0, -0.7, 0.2), Ending::LooseEnds),
+        ((1.0, -0.7, 0.2), Ending::Builds),
         ((0.0, 0.0, 0.2), Ending::Builds),
-        ((0.4, 0.3, 0.5), Ending::LooseEnds),
+        ((0.4, 0.3, 0.5), Ending::Builds),
     ]
     .into_iter()
     .flat_map(|(pose, want)| not_ending(pose, want))
     .collect();
     assert!(
         moved.is_empty(),
-        "the-edge-plane-lane-copies-no-ellipse-edge: each pose ends as pinned\n{}",
+        "each pose builds at its closed form\n{}",
         moved.join("\n")
     );
 }
@@ -241,7 +239,7 @@ fn held(
 
 /// **At spins `(0, 0)` the six ops hold their closed forms to a
 /// bounded enclosure** (review of PR 5940): what
-/// [`crossing_rods_end_past_the_ellipse_edge_copy_at_every_spin`] reads
+/// [`crossing_rods_build_past_the_ellipse_edge_copy_at_every_spin`] reads
 /// as `Builds`, held here to [`MIDPOINT`] as well.
 #[test]
 fn crossing_rods_at_rest_spins_hold_a_bounded_enclosure() {

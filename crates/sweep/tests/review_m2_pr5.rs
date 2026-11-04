@@ -1078,9 +1078,9 @@ fn survives_two_isolated_axis_vertices_pinch_is_non_manifold() {
 
 #[test]
 fn survives_tight_but_definite_torus_clearance_is_accepted() {
-    // False-positive hunt on the conservative UnsupportedToroid
-    // refusal: an arc whose carrier clears the axis by 1e−3 m — a
-    // DEFINITE clearance at every ε row — must build a ring torus,
+    // False-positive hunt on the ring/sheet boundary: an arc whose
+    // carrier clears the axis by 1e−3 m — a DEFINITE clearance at
+    // every ε row — must build a ring torus, not a spindle sheet,
     // however visually extreme the tube is.
     let r_c = 0.998;
     let (cx, cy) = (1.0, 0.5);
@@ -1293,9 +1293,9 @@ fn survives_near_tangent_arc_join_classification() {
     }
 }
 
-/// **The same join against the axis refuses at the arc's ring-torus
-/// clearance**: centred near (1, 1) at radius ≈ 1, the arc's carrier
-/// crosses the axis by a few ε, which `axis_arc_clearance` reads
+/// **The same join against the axis refuses at the arc's reach of
+/// the axis**: centred near (1, 1) at radius ≈ 1, the arc's carrier
+/// crosses the axis by a few ε, which `axis_arc_reach` reads
 /// before the revolve reaches the dihedral. The join turns 0.8ε, so
 /// the profile reads it tangent and the revolve is reached.
 #[test]
