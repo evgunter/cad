@@ -171,12 +171,12 @@ seg_tags! {
     EndArc,
     Mitre,
     TurnFoot,
-    BandSection,
     BandFace,
     BandTrim,
     BandFoot,
     BandCross,
     BandCut,
+    BandSection,
     BandSlit,
     // Shell
     Inner,

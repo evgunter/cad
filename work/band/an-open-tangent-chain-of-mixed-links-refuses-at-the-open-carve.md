@@ -19,7 +19,7 @@ The witness is the teardrop, `crates/sweep/tests/band_planar_cut_off.rs::a_close
 
 What carries over from the closed mixed rim (`surgery::rim_phase_mixed`):
 - the junction record: the section centre, the host foot and the mate foot;
-- the junction moves: split the edge off the rim at the mate foot, strut to the host foot, the strut's `kev` re-basing the split piece into the section edge, described as a `CornerArc`;
+- the junction moves: split the edge off the rim at the mate foot, strut to the host foot, the strut's `kev` re-basing the split piece into the section edge, described as the shared row of its two bands' charts (`ContactCarrier::Section`, `geom_brep::analytic_shared_row`);
 - the `BandSection` name.
 
 What does not:

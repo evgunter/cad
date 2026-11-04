@@ -234,6 +234,11 @@ fn a_rounded_pockets_floor_fillets_whole_adding_pappuss_volume() {
         let truth = a * (perimeter() - 2.0 * PI * d);
         let (v0, w0) = volume(&body);
         let (v1, w1) = volume(&out.body);
+        assert!(
+            w0 + w1 < 1e-7,
+            "{what}: the enclosure is a claim: ±{}",
+            w0 + w1
+        );
         let added = v1 - v0;
         assert!(
             (added - truth).abs() <= w0 + w1 + 1e-12,
@@ -274,6 +279,11 @@ fn a_rounded_pockets_mouth_fillets_whole_removing_pappuss_volume() {
         let truth = a * (perimeter() + 2.0 * PI * d);
         let (v0, w0) = volume(&body);
         let (v1, w1) = volume(&out.body);
+        assert!(
+            w0 + w1 < 1e-7,
+            "{what}: the enclosure is a claim: ±{}",
+            w0 + w1
+        );
         let removed = v0 - v1;
         assert!(
             (removed - truth).abs() <= w0 + w1 + 1e-12,

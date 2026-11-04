@@ -223,7 +223,9 @@ pub struct BlendNaming {
     /// between two curved walls still mints these).
     pub rim_feet: Vec<(VertexKey, VertexKey)>,
     /// Meridian split vertex ← (the source meridian edge it split, the
-    /// splitting band's identity). Two bands whose rims are the two
+    /// splitting band's identity): where the band's MATE trimline crosses
+    /// a source edge running off the rim — a seam meridian, or a mixed
+    /// rim's junction edge between two mates (its mate foot). Two bands whose rims are the two
     /// ends of one meridian segment each split that segment's seam, so
     /// the band discriminates.
     pub meridian_splits: Vec<(VertexKey, EdgeKey, Vec<EdgeKey>)>,

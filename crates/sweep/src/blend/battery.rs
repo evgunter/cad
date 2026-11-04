@@ -41,8 +41,8 @@ use geom_core::{Band, Bounds, Decide, Lever, Margin, MarginDiag, Point3, Real, S
 use topo::{Body, EdgeKey, EntityId, FaceKey, HalfEdgeKey, SurfaceKey, VertexKey};
 
 use super::arms::{
-    BlendArm, EdgeBlend, Meridian, Ruling, chamfer_strip, line_meet, plane_plane_blend,
-    plane_sphere_blend,
+    BallSection, BlendArm, EdgeBlend, Meridian, Ruling, chamfer_strip, line_meet,
+    plane_plane_blend, plane_sphere_blend,
 };
 use super::build::fan_at;
 use super::open::end_face::CycleReading;
@@ -1765,7 +1765,11 @@ fn chain_turns<T: Decide + Bounds>(
 
 /// Whether two links lie between the same two support SURFACES, in
 /// either slot order: then one arm of one pair blends both, and their
-/// bands are one surface through the junction.
+/// bands are one surface through the junction. Surfaces and not faces,
+/// because the band is a function of the surfaces: two faces of one
+/// surface (a seam-split wall's half-bands) give one band. Which FACE a
+/// mixed rim's links share is the carve's question, and
+/// `surgery::resolve_mixed_rim` asks it of faces.
 pub(crate) fn same_supports<T: Real>(
     body: &Body<T>,
     a: &Link<T>,
@@ -1779,26 +1783,6 @@ pub(crate) fn same_supports<T: Real>(
     let (a0, a1) = (surface(a.face_a)?, surface(a.face_b)?);
     let (b0, b1) = (surface(b.face_a)?, surface(b.face_b)?);
     Ok((a0, a1) == (b0, b1) || (a0, a1) == (b1, b0))
-}
-
-/// **The centre of a link's rolling-ball section through `p`**: the
-/// spine's point in the plane through `p` normal to it — the cylinder
-/// band's axis foot, the torus band's spine circle at `p`'s azimuth.
-pub(crate) fn section_centre<T: Real>(blend: &EdgeBlend<T>, p: Point3<T>) -> Option<Point3<T>> {
-    match blend.surface {
-        Surface::Cylinder { origin, axis, .. } => Some(origin + axis * (p - origin).dot(axis)),
-        Surface::Torus {
-            center,
-            axis,
-            major_radius,
-            ..
-        } => {
-            let q = p - center;
-            let radial = (q - axis * q.dot(axis)).normalize();
-            Some(center + radial * major_radius)
-        }
-        _ => None,
-    }
 }
 
 /// **`fillet3_chain_g1` over the BANDS at a junction between links on
@@ -1824,7 +1808,7 @@ fn band_g1<T: Decide>(
         .and_then(|x| body.get_point(x.point))
         .copied()
         .ok_or_else(|| unresolved(EntityId::Vertex(vertex), "a junction"))?;
-    let (Some(ca), Some(cb)) = (section_centre(&a.blend, p), section_centre(&b.blend, p)) else {
+    let (Some(ca), Some(cb)) = (BallSection::of(&a.blend, p), BallSection::of(&b.blend, p)) else {
         return Err(unbuilt_chain(
             a.edge,
             "a chain's links meet on different supports where a band has no rolling-ball \
@@ -1835,7 +1819,7 @@ fn band_g1<T: Decide>(
     match classify(
         site,
         BlendDecision::ChainG1,
-        Margin::of(ca.distance(cb)),
+        Margin::of(ca.centre.distance(cb.centre)),
         band,
     )? {
         Sign::Zero => Ok(()),
@@ -3160,6 +3144,15 @@ fn consumption_sweep<T: Decide + Bounds>(
             run_of.push((l.edge, ids[i]));
         }
     }
+    // Links of one closed chain whose bands cannot meet: those joined
+    // along the chain, either way round, by links turning less than a
+    // half turn in all. Each link's band lies within its own window (the
+    // slab between a straight link's end normals, the wedge of an arc's),
+    // and the windows of two links joined by such a run lie on either side
+    // of it, so the pair is not a question; their sampled gap against
+    // both setbacks would refuse two arcs flanking a short flat whatever
+    // the flat's own length. A turning read near the half turn screens.
+    let apart = closed_chain_apart(body, chains)?;
     let run =
         |e: EdgeKey| -> Option<usize> { run_of.iter().find(|(ee, _)| *ee == e).map(|(_, r)| *r) };
     let members = |e: EdgeKey| -> Vec<EdgeKey> {
@@ -3203,6 +3196,9 @@ fn consumption_sweep<T: Decide + Bounds>(
                     continue;
                 }
                 if decided.contains(&(*ei, *ej)) || decided.contains(&(*ej, *ei)) {
+                    continue;
+                }
+                if apart.contains(&(*ei, *ej)) || apart.contains(&(*ej, *ei)) {
                     continue;
                 }
                 // The closest approach of the two sampled boundaries,
@@ -3269,6 +3265,51 @@ fn consumption_sweep<T: Decide + Bounds>(
         }
     }
     Ok(())
+}
+
+/// **The pairs of one closed chain's links that are not a clearance
+/// question** ([`consumption_sweep`]): two links joined along the chain,
+/// one way round or the other, by links whose turnings sum to less than a
+/// half turn. A link's turning is its arc's sweep, a line's zero; a
+/// carrier of another kind turns a half turn, so it joins nothing. The
+/// sum is read for selection only: a sum not certainly below the half
+/// turn leaves the pair to the screen.
+fn closed_chain_apart<T: Decide + Bounds>(
+    body: &Body<T>,
+    chains: &[Chain<T>],
+) -> Result<Vec<(EdgeKey, EdgeKey)>, BlendError> {
+    let mut apart = Vec::new();
+    for chain in chains {
+        if !matches!(chain.closure, ChainClosure::Closed) {
+            continue;
+        }
+        let links: Vec<&Link<T>> = chain.links().collect();
+        let n = links.len();
+        let mut turning = Vec::with_capacity(n);
+        for l in &links {
+            let (c, t0, t1) = carrier_of(body, l.edge)?;
+            turning.push(match c {
+                Curve3::Line(_) => T::zero(),
+                Curve3::Circle(_) => (t1 - t0).abs(),
+                _ => T::pi(),
+            });
+        }
+        // Walk order along the chain, so links `i` and `i + 1` meet.
+        let half = T::pi();
+        let below = |sum: T| (sum - half).hi() < 0.0;
+        for i in 0..n {
+            for k in 2..n.saturating_sub(1) {
+                let j = (i + k) % n;
+                let ahead = (1..k)
+                    .map(|m| turning[(i + m) % n])
+                    .fold(T::zero(), |a, b| a + b);
+                if below(ahead) {
+                    apart.push((links[i].edge, links[j].edge));
+                }
+            }
+        }
+    }
+    Ok(apart)
 }
 
 /// **The rings of a support `face` that the strip meter decides**, each

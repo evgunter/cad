@@ -91,6 +91,8 @@ mod assemble_one_local_battery;
 mod atrest_carried_coincidence;
 #[path = "atrest_operation_rows_quiet.rs"]
 mod atrest_operation_rows_quiet;
+#[path = "band_closed_mixed_chain_names.rs"]
+mod band_closed_mixed_chain_names;
 #[path = "band_joined_rim_names.rs"]
 mod band_joined_rim_names;
 #[path = "band_planar_cut_off_names.rs"]
