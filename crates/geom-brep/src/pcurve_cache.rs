@@ -619,7 +619,7 @@ pub enum Pcurve<T: Real> {
         /// weight, where `σ = s`. Pure `f64` structure like `breaks`,
         /// copied off the row's held weights and compared to them on the
         /// bits by the certificate.
-        ends: Vec<f64>,
+        ends: Box<[f64]>,
     },
     /// The **exact chart image of a [`geom::Curve3::Spiric`]** on the
     /// charts a spiric lies on — the plane of its own cutting section,
@@ -8118,7 +8118,7 @@ fn run_iso_arc_checks<T: Decide>(
         t0: at0,
         angle,
         breaks: breaks.clone(),
-        ends: ends.to_vec(),
+        ends: ends.into(),
     };
     let mut max_residual = T::zero();
     schedule_residuals(

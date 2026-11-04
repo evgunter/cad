@@ -1194,7 +1194,7 @@ fn a_shared_row_admits_only_row_images() {
             t0,
             angle,
             breaks: breaks.clone(),
-            ends: Vec::new(),
+            ends: Box::default(),
         };
         assert!(
             SharedRow::new(

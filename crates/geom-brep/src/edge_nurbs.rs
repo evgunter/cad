@@ -1135,7 +1135,7 @@ fn arc_rim_images<T: SpanLocate>(
                     angle,
                     breaks: breaks.clone(),
                     ends: if forward {
-                        ends.clone()
+                        ends.as_slice().into()
                     } else {
                         ends.iter().rev().copied().collect()
                     },

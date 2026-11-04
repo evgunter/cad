@@ -103,7 +103,7 @@ fn a_forward_arc_rim_certifies_on_a_non_unit_chart() {
             t0: 0.0,
             angle: tau,
             breaks: breaks(),
-            ends: Vec::new(),
+            ends: Box::default(),
         },
         0.0,
         tau,
@@ -138,7 +138,7 @@ fn a_reversed_arc_rim_certifies_on_a_non_unit_chart() {
             t0: 0.0,
             angle: tau,
             breaks: breaks(),
-            ends: Vec::new(),
+            ends: Box::default(),
         },
         0.0,
         tau,
@@ -166,7 +166,7 @@ fn an_interior_column_still_refuses() {
             t0: 0.0,
             angle: tau,
             breaks: breaks(),
-            ends: Vec::new(),
+            ends: Box::default(),
         },
         0.0,
         tau,
@@ -251,7 +251,7 @@ fn a_scaled_arc_column_certifies_and_a_broken_pattern_refuses() {
                 t0: 0.0,
                 angle: tau,
                 breaks: breaks(),
-                ends: Vec::new(),
+                ends: Box::default(),
             },
             0.0,
             tau,
@@ -325,7 +325,7 @@ fn a_row_at_unequal_end_weights_holds_its_arc_rim() {
         Vec3::new(0.0, 1.0, 0.0),
     );
     for (what, carrier, ends) in [
-        ("with u", rim(1.0), vec![1.0, 2.0]),
+        ("with u", rim(1.0), vec![1.0_f64, 2.0]),
         ("against u", against, vec![2.0, 1.0]),
     ] {
         let image = pick_arc_rim(&carrier, (0.0, quarter), &wall, band())
@@ -335,7 +335,8 @@ fn a_row_at_unequal_end_weights_holds_its_arc_rim() {
             panic!("{what}: an arc-rim image, got {image:?}")
         };
         assert_eq!(
-            held, &ends,
+            &**held,
+            ends.as_slice(),
             "{what}: the image carries the row's end weights"
         );
         let cache = PcurveCache::certify(image.clone(), 0.0, quarter, &carrier, &wall, band())
@@ -362,7 +363,7 @@ fn a_row_at_unequal_end_weights_holds_its_arc_rim() {
             t0,
             angle,
             breaks: breaks.clone(),
-            ends: Vec::new(),
+            ends: Box::default(),
         };
         let standard = PcurveCache::certify(standard, 0.0, quarter, &carrier, &wall, band());
         assert!(
@@ -383,7 +384,7 @@ fn a_row_at_unequal_end_weights_holds_its_arc_rim() {
             t0,
             angle,
             breaks: breaks.clone(),
-            ends: off,
+            ends: off.into(),
         };
         let nudged = PcurveCache::certify(nudged, 0.0, quarter, &carrier, &wall, band());
         assert!(
