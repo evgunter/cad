@@ -725,9 +725,9 @@ pub enum RowRefusal {
         /// The classifier's diagnostic.
         cause: Indeterminate,
     },
-    /// The row is not on a side of the wall's chart domain. The shared
-    /// row is built for boundary rows; a structural selector for any
-    /// other row or column known in advance (D2) has no certificate yet.
+    /// The row is not on a side of the wall's spline chart domain. A
+    /// spline wall's shared row is read on a domain side only; an
+    /// analytic chart's row is read anywhere on it.
     OffSide,
     /// The wall's chart has no speeds to read the walls' crossing along
     /// the row in ([`crate::ssi::ChartSpeedRefusal`]).
@@ -736,11 +736,12 @@ pub enum RowRefusal {
 
 impl RowRefusal {
     /// The decision this refusal is a refused arm of, `None` for the
-    /// structural [`RowRefusal::OffSide`]. The row image is an `IsoArc`'s
-    /// or an `IsoLine`'s certificate, so its check reads as an arc rim's
-    /// does ([`arc_rim_check`]): definite on the incidence limb it names
-    /// (the hull bound for one that names none), undecided at the same
-    /// routing; a chart speed reads as the spline lanes' does.
+    /// structural [`RowRefusal::OffSide`]. The row image's certificate (an
+    /// `IsoArc`'s or an `IsoLine`'s on a spline chart, a closed form's on
+    /// an analytic one) reads as an arc rim's does ([`arc_rim_check`]):
+    /// definite on the incidence limb it names (the hull bound for one
+    /// that names none), undecided at the same routing; a chart speed
+    /// reads as the spline lanes' does.
     #[must_use]
     pub fn decision(&self) -> Option<(CertCheck, RefusedArm<'_>)> {
         Some(match self {
@@ -766,7 +767,7 @@ impl RowRefusal {
 /// in the band escalates, since a lower bound there tells no tangency from
 /// a crossing too shallow to read. A cover with an unread piece is fed to
 /// the same gate as the invalid margin it is, which escalates.
-fn row_crossing_verdict<T: Decide>(
+pub(crate) fn row_crossing_verdict<T: Decide>(
     crossing: crate::ssi::RowCrossing,
     extent: geom_core::Lever<T>,
     band: Band,
@@ -982,9 +983,8 @@ impl core::fmt::Display for CertifyError {
                 refusal: RowRefusal::OffSide,
             } => write!(
                 f,
-                "the shared row on surface {surface:?} is not on a side of its chart's domain: \
-                 the shared row is built for boundary rows, and D2's structural selector for \
-                 any other row or column known in advance has no certificate yet"
+                "the shared row on surface {surface:?} is not on a side of its spline chart's \
+                 domain: a spline wall's shared row is read on a domain side only"
             ),
             Self::Row {
                 surface,
@@ -3403,22 +3403,26 @@ impl<T: Real> IntersectionDraft<T> {
 }
 
 impl<T: Decide> IntersectionDraft<T> {
-    /// **D2's question of a seam between two spline walls: is its curve
-    /// known in advance?** `Some` where it is a row on each wall's chart
-    /// boundary: `walls` are the seam's two surfaces, each with the edge's
-    /// image on it, and each image is an iso row along a domain side of
-    /// that wall's chart and certifies there over the draft's own carrier
-    /// and interval (the wall's chart-image certificate, which the
-    /// structural selector's own certificate reads). `None` otherwise,
-    /// and for a draft that drew a chord: no row is stated over one.
+    /// **D2's question of a seam between two walls: is its curve known in
+    /// advance?** `Some` where it is a row of each wall's chart: `walls`
+    /// are the seam's two surfaces, each with the edge's image on it, both
+    /// spline or both analytic, and each image certifies there over the
+    /// draft's own carrier and interval (the wall's chart-image
+    /// certificate, which the structural selector's own certificate
+    /// reads). On a spline wall the image is an iso row along a domain
+    /// side of its chart ([`side_row_certifies`]); on an analytic wall,
+    /// any row of its chart ([`crate::analytic_row_certifies`]). `None`
+    /// otherwise, and for a draft that drew a chord: no row is stated over
+    /// one.
     ///
     /// Asked of the geometry alone: the images are what the walls' charts
     /// state for this carrier, whoever built the edge.
     ///
-    /// Built for boundary rows, which a rim between two walls grafted at a
-    /// shared section needs. D2's structural selector covers any row or
-    /// column known in advance; the domain-side restriction is this
-    /// reader's scope, not the selector's definition.
+    /// A spline wall's row is read on a domain side only, which a rim
+    /// between two walls grafted at a shared section needs. D2's
+    /// structural selector covers any row or column known in advance; the
+    /// domain-side restriction is this reader's scope, not the selector's
+    /// definition.
     pub fn shared_row(
         &self,
         pair: SurfacePair,
@@ -3430,10 +3434,15 @@ impl<T: Decide> IntersectionDraft<T> {
         }
         let [(ka, wa, ia), (kb, wb, ib)] = walls;
         let span = (self.param_start, self.param_end);
-        let on_side = |wall: &Surface<T>, image: &Pcurve<T>| {
-            side_row_certifies(wall, image, (&self.carrier, span), band)
+        let row = |wall: &Surface<T>, image: &Pcurve<T>| {
+            if wall.spline_chart().is_some() {
+                side_row_certifies(wall, image, (&self.carrier, span), band)
+            } else {
+                crate::row_contact::analytic_row_certifies(wall, image, (&self.carrier, span), band)
+            }
         };
-        if !(on_side(wa, &ia) && on_side(wb, &ib)) {
+        let spline = wa.spline_chart().is_some();
+        if spline != wb.spline_chart().is_some() || !(row(wa, &ia) && row(wb, &ib)) {
             return None;
         }
         let row = crate::description::SharedRow::new(pair, (ka, ia), (kb, ib))?;
@@ -3732,26 +3741,31 @@ fn resolve_spec<T: Decide>(
             if k1 == k2 {
                 return Err(CertifyError::IntersectionSameSurface { key: k1 });
             }
-            // Each wall states its row on its own chart, which is
-            // evaluated as a stated chart image is: a described spline
-            // chart and nothing else.
+            // Each wall states its row on its own chart: a described
+            // spline chart's row on a side of its domain, or an analytic
+            // chart's row anywhere on it (`row_contact::analytic_row`).
+            // The two walls are both spline or both analytic.
             let wall = |k: SurfaceKey, image: &Pcurve<T>| {
                 let s = resolve_iso(k)?;
-                let Some(chart) = s.spline_chart() else {
-                    return Err(CertifyError::Unimplemented);
-                };
-                if !crate::description::on_domain_side(chart, image) {
-                    return Err(CertifyError::Row {
-                        surface: k,
-                        refusal: RowRefusal::OffSide,
-                    });
+                match s.spline_chart() {
+                    Some(chart) if !crate::description::on_domain_side(chart, image) => {
+                        Err(CertifyError::Row {
+                            surface: k,
+                            refusal: RowRefusal::OffSide,
+                        })
+                    }
+                    None if !crate::row_contact::analytic_row(&s, image) => {
+                        Err(CertifyError::Unimplemented)
+                    }
+                    _ => Ok((k, s, image.clone())),
                 }
-                Ok((k, s, image.clone()))
             };
             let [ia, ib] = row.images();
-            Resolved::SharedRow {
-                walls: [wall(k1, ia)?, wall(k2, ib)?],
+            let walls = [wall(k1, ia)?, wall(k2, ib)?];
+            if walls[0].1.spline_chart().is_some() != walls[1].1.spline_chart().is_some() {
+                return Err(CertifyError::Unimplemented);
             }
+            Resolved::SharedRow { walls }
         }
         EdgeDescriptionSpec::Intersection {
             pair,
@@ -4697,8 +4711,10 @@ fn run_checks<T: Decide + geom_core::CertifiedBounds>(
 
     // ---- Intersection under a shared row (D2's structural selector):
     // each wall's certificate of its own row image, limbs 1 and 2 on
-    // that chart (C2), and the walls definitely transverse along the
-    // row at the feet it states. No limb 3: the row is the curve. ----
+    // that chart (C2), and the row's contact class over the whole row.
+    // Two spline walls cross definitely along it; two analytic walls
+    // cross or touch along all of it (`row_contact`). No limb 3: the
+    // row is the curve. ----
     if let Resolved::SharedRow { walls } = &resolved {
         for (key, wall, image) in walls {
             let cache = crate::pcurve_cache::PcurveCache::certify(
@@ -4714,39 +4730,56 @@ fn run_checks<T: Decide + geom_core::CertifiedBounds>(
             max_residual = max_residual.max(on_locus.abs()).max(hull.abs());
         }
         let [(_, a, image_a), (_, b, image_b)] = walls;
-        let (Some(a), Some(b)) = (a.spline_chart(), b.spline_chart()) else {
-            return Err(CertifyError::Unimplemented);
-        };
-        crate::edge_nurbs::row_transversality((t0, t1), (a, image_a), (b, image_b), extent, band)
-            .map_err(|e| from_plane_nurbs(e.lane()))?;
-        let span = (t0.lo(), t1.hi());
-        // A row image moves monotonically along one coordinate
-        // (`description::row_of`, the admission guard), so over a piece it
-        // lies in the hull of its two ends' images.
-        let read = |lo: f64, hi: f64| {
-            let (lo_t, hi_t) = (T::from_computed(lo), T::from_computed(hi));
-            let bracket = |x: T| (x.lo(), x.hi());
-            let ends = |image: &Pcurve<T>, k: usize| {
-                let at = |t: T| {
-                    let p = image.eval(t);
-                    bracket(if k == 0 { p.x } else { p.y })
+        match (a.spline_chart(), b.spline_chart()) {
+            (Some(a), Some(b)) => {
+                crate::edge_nurbs::row_transversality(
+                    (t0, t1),
+                    (a, image_a),
+                    (b, image_b),
+                    extent,
+                    band,
+                )
+                .map_err(|e| from_plane_nurbs(e.lane()))?;
+                let span = (t0.lo(), t1.hi());
+                // A row image moves monotonically along one coordinate
+                // (`description::row_of`, the admission guard), so over a
+                // piece it lies in the hull of its two ends' images.
+                let read = |lo: f64, hi: f64| {
+                    let (lo_t, hi_t) = (T::from_computed(lo), T::from_computed(hi));
+                    let bracket = |x: T| (x.lo(), x.hi());
+                    let ends = |image: &Pcurve<T>, k: usize| {
+                        let at = |t: T| {
+                            let p = image.eval(t);
+                            bracket(if k == 0 { p.x } else { p.y })
+                        };
+                        [at(lo_t), at(hi_t)]
+                    };
+                    crate::ssi::row_piece([
+                        ends(image_a, 0),
+                        ends(image_a, 1),
+                        ends(image_b, 0),
+                        ends(image_b, 1),
+                    ])
                 };
-                [at(lo_t), at(hi_t)]
-            };
-            crate::ssi::row_piece([
-                ends(image_a, 0),
-                ends(image_a, 1),
-                ends(image_b, 0),
-                ends(image_b, 1),
-            ])
-        };
-        let crossing = crate::ssi::row_crossing((a, b), span, read).map_err(
-            |crate::ssi::RowUnreadable(wall, refusal)| CertifyError::Row {
-                surface: walls[wall].0,
-                refusal: RowRefusal::ChartSpeed(refusal),
-            },
-        )?;
-        row_crossing_verdict(crossing, extent, band)?;
+                let crossing = crate::ssi::row_crossing((a, b), span, read).map_err(
+                    |crate::ssi::RowUnreadable(wall, refusal)| CertifyError::Row {
+                        surface: walls[wall].0,
+                        refusal: RowRefusal::ChartSpeed(refusal),
+                    },
+                )?;
+                row_crossing_verdict(crossing, extent, band)?;
+            }
+            // Both analytic: the resolution admits no mixed pair.
+            _ => {
+                let (_, touch) = crate::row_contact::analytic_row_contact(
+                    (t0, t1),
+                    [(a, image_a), (b, image_b)],
+                    extent,
+                    band,
+                )?;
+                max_residual = max_residual.max(touch.abs());
+            }
+        }
     }
 
     // ---- Intersection of two analytic surfaces: C2's limbs, through
