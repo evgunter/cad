@@ -622,3 +622,47 @@ fn a_plane_stored_far_along_itself_reads_the_touch_its_pivot_pads() {
         "stored 1e7 m along: one touch, got {got:?}"
     );
 }
+
+#[test]
+fn zz_node_probe() {
+    let a = [-0.5, 0.0, 0.5];
+    let g = [0.25, -0.25, 0.25];
+    for (name, w) in [
+        ("cross4", net(&|i, j| 4.0 * a[i] * a[j])),
+        ("asym2", net(&|i, j| 2.0 * (g[i] - 2.0 * g[j]))),
+    ] {
+        let r = pair_section(&level(0.0), &w, None, Some(SsiLane::marched()), band());
+        match r {
+            Ok(SectionRead::Built(s)) => {
+                println!("ZZ {name} nodes {:?}", s.nodes());
+                println!("ZZ {name} sets {:?}", s.node_sets());
+                println!("ZZ {name} comps {:?}", s.components());
+            }
+            other => println!("ZZ {name} other {other:?}"),
+        }
+    }
+}
+
+#[test]
+fn zz_node_probe2() {
+    let a = [-0.5, 0.0, 0.5];
+    let saddle = net(&|i, j| 4.0 * a[i] * a[j]);
+    let Sweep::LoopFree(d) = swept(&level(0.0), &saddle) else {
+        return;
+    };
+    println!("ZZ2 region {:?}", d[0].region);
+    let Surface::Nurbs(n) = &saddle else { panic!() };
+    let pose = super::super::SplineImplicitPose::of(&level(0.0), &saddle).unwrap();
+    let lv = level(0.0);
+    let reading = crate::ImplicitSection::of(&lv, n, pose.domain(), band()).unwrap();
+    let nodes: Vec<_> = d.iter().map(|c| c.region).collect();
+    let r = reading.with_criticals(&nodes, &nodes).all();
+    match r {
+        Ok(o) => {
+            for b in &o.branches {
+                println!("ZZ2 {:?} {:?}", b.end, b.params);
+            }
+        }
+        Err(e) => println!("ZZ2 err {e:?}"),
+    }
+}

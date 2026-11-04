@@ -709,6 +709,12 @@ pub(crate) trait Exit<const M: usize, const N: usize, S: LocalSystem<M, N>> {
     /// Whether a state lies in the lane's domain: the wall's rectangle,
     /// or the caller's slab.
     fn holds(&self, x: &[f64; N], ctx: &MarchContext<N>) -> bool;
+    /// Whether the chord from `a` to `b` passes through a part of the
+    /// domain's complement that `b` lies past, a node's box: such a step
+    /// is not kept, and halves until it stops short of it or ends in it.
+    fn passes(&self, _a: &[f64; N], _b: &[f64; N]) -> bool {
+        false
+    }
     /// The end of a march whose predicted step to `predicted` would not
     /// settle back onto the locus, or `None` when that is the march
     /// losing its branch.
@@ -747,10 +753,15 @@ pub(crate) enum RectEnd<const N: usize> {
         /// settled, outside the rectangle.
         outside: [f64; N],
     },
-    /// Its step from its last state entered the box of node `node`.
+    /// Its step from `inside` toward `outside` entered the box of node
+    /// `node`.
     Node {
         /// The node's index among the exit's boxes.
         node: usize,
+        /// The last state outside every node box.
+        inside: [f64; N],
+        /// The state the step reached, in the box or past it.
+        outside: [f64; N],
     },
 }
 
@@ -779,6 +790,45 @@ impl<'a> RectExit<'a> {
         self.nodes
             .iter()
             .position(|[bu, bv]| u >= bu[0] && u <= bu[1] && v >= bv[0] && v <= bv[1])
+    }
+
+    /// The first node whose box the chord from `a` to `b` meets, over the
+    /// bounded coordinates `first` and `first + 1` (closed), if any: a
+    /// step that passes through a node's box enters it, whether or not
+    /// either end lies in it.
+    pub(crate) fn node_on<const N: usize>(self, a: &[f64; N], b: &[f64; N]) -> Option<usize> {
+        self.entry(a, b).map(|(node, _)| node)
+    }
+
+    /// The first node whose box the chord from `a` to `b` meets, and the
+    /// chord's point where it enters that box ([`Self::node_on`]).
+    pub(crate) fn entry<const N: usize>(
+        self,
+        a: &[f64; N],
+        b: &[f64; N],
+    ) -> Option<(usize, [f64; N])> {
+        if self.first + 1 >= N {
+            return None;
+        }
+        let (i, j) = (self.first, self.first + 1);
+        let at = |t: f64| core::array::from_fn::<f64, N, _>(|k| a[k] + (b[k] - a[k]) * t);
+        self.nodes.iter().enumerate().find_map(|(n, [bu, bv])| {
+            // Liang–Barsky: the chord's parameter interval inside the box.
+            let (mut lo, mut hi) = (0.0_f64, 1.0_f64);
+            for (k, [b0, b1]) in [(i, *bu), (j, *bv)] {
+                let d = b[k] - a[k];
+                if d == 0.0 {
+                    if a[k] < b0 || a[k] > b1 {
+                        return None;
+                    }
+                    continue;
+                }
+                let (t0, t1) = ((b0 - a[k]) / d, (b1 - a[k]) / d);
+                lo = lo.max(t0.min(t1));
+                hi = hi.min(t0.max(t1));
+            }
+            (lo <= hi).then(|| (n, at(lo)))
+        })
     }
 
     /// Whether a state's bounded coordinates lie in their rectangles
@@ -836,17 +886,27 @@ impl<const M: usize, const N: usize, S: SectionSystem<M, N>> Exit<M, N, S> for R
         ctx: &MarchContext<N>,
         _band: Band,
     ) -> Result<Option<RectEnd<N>>, SsiError> {
-        if !self.inside(&next, ctx) {
-            return Ok(Some(RectEnd::Left {
+        // A step whose chord passes through a node's box enters it,
+        // before any side it reaches past the box.
+        if let Some(node) = self.node_on(&inside, &next) {
+            return Ok(Some(RectEnd::Node {
+                node,
                 inside,
                 outside: next,
             }));
         }
-        Ok(self.node_at(&next).map(|node| RectEnd::Node { node }))
+        Ok((!self.inside(&next, ctx)).then_some(RectEnd::Left {
+            inside,
+            outside: next,
+        }))
     }
 
     fn holds(&self, x: &[f64; N], ctx: &MarchContext<N>) -> bool {
         self.holds_domain(x, ctx)
+    }
+
+    fn passes(&self, a: &[f64; N], b: &[f64; N]) -> bool {
+        self.node_on(a, b).is_some() && self.node_at(b).is_none()
     }
 
     fn unsettled(
@@ -855,13 +915,17 @@ impl<const M: usize, const N: usize, S: SectionSystem<M, N>> Exit<M, N, S> for R
         predicted: [f64; N],
         ctx: &MarchContext<N>,
     ) -> Option<RectEnd<N>> {
-        if !self.inside(&predicted, ctx) {
-            return Some(RectEnd::Left {
+        if let Some(node) = self.node_on(&inside, &predicted) {
+            return Some(RectEnd::Node {
+                node,
                 inside,
                 outside: predicted,
             });
         }
-        self.node_at(&predicted).map(|node| RectEnd::Node { node })
+        (!self.inside(&predicted, ctx)).then_some(RectEnd::Left {
+            inside,
+            outside: predicted,
+        })
     }
 }
 
@@ -1338,6 +1402,9 @@ where
                 };
                 let kept = |h: f64| {
                     let end = add(&x, &predict(h));
+                    if exit.passes(&x, &end) {
+                        return false;
+                    }
                     if exit.holds(&end, &ctx) {
                         return on_locus(&end);
                     }

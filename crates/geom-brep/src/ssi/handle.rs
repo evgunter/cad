@@ -288,8 +288,27 @@ impl<T: Copy> Banked<T> {
                     self.bank(branch);
                 }
                 RectEnd::Node { .. } => {
-                    if let Err(e) = self.through(ends, landed, crossings) {
-                        refused.push((landed, e));
+                    // The other way: a march that leaves the rectangle
+                    // lies on an arc from a crossing, traced from it; one
+                    // that enters a node's box too lies on an arc between
+                    // nodes, which no crossing traced.
+                    let back = march(
+                        ends.sys,
+                        &ends.exit,
+                        state,
+                        ends.ctx.rest(&trace),
+                        StepperMode::Realized,
+                        -1.0,
+                        ends.band,
+                    );
+                    match back {
+                        Ok(b) if matches!(b.end, RectEnd::Node { .. }) => {
+                            if let Err(e) = self.through(ends, landed, crossings) {
+                                refused.push((landed, e));
+                            }
+                        }
+                        Ok(_) => {}
+                        Err(e) => refused.push((landed, e)),
                     }
                 }
                 RectEnd::Left { .. } => {}

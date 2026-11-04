@@ -306,7 +306,12 @@ fn krawczyk(jets: &Jets, phi: Phi<'_>, x: [Interval; 2]) -> Option<([Interval; 2
 /// holds decided Zero, or `None` where it is not decided here. `x` lies
 /// inside one piece of the rectangle between its creases, over which
 /// `∇φ` is continuous.
-pub(super) fn decide(jets: &Jets, phi: Phi<'_>, x: UvRect, band: Band) -> Option<Critical> {
+pub(super) fn decide(
+    jets: &Jets,
+    phi: Phi<'_>,
+    (x, piece): (UvRect, UvRect),
+    band: Band,
+) -> Option<Critical> {
     let mut b = [range(x.u)?, range(x.v)?];
     let mut region: Option<[Interval; 2]> = None;
     for _ in 0..KRAWCZYK_ROUNDS {
@@ -350,7 +355,7 @@ pub(super) fn decide(jets: &Jets, phi: Phi<'_>, x: UvRect, band: Band) -> Option
             Some(Critical {
                 at: (mid(b[0]), mid(b[1])),
                 cell: rect(b),
-                region: rect(region),
+                region: rect(grown(jets, phi, region, piece)),
                 kind,
                 margin,
                 node,
@@ -358,6 +363,49 @@ pub(super) fn decide(jets: &Jets, phi: Phi<'_>, x: UvRect, band: Band) -> Option
         }
         Ok((Magnitude::Positive, _)) | Err(_) => None,
     }
+}
+
+/// The most times a proved box is doubled about its middle (D9, a fixed
+/// rule).
+const GROW_ROUNDS: u32 = 24;
+
+/// The widest a proved box grows, as a fraction of its piece's narrower
+/// side, so the boxes of two points in one piece stay apart.
+const GROW_SHARE: f64 = 1.0 / 32.0;
+
+/// **The widest box about `b` the Krawczyk operator proves holds one
+/// zero of `∇φ`** (`K` strictly inside it): `b` doubled about its middle
+/// while the doubled box lies strictly inside `piece`, no wider than
+/// [`GROW_SHARE`] of the piece, and is proved. A march from the arcs
+/// ends on entering it, so it is grown past where the arcs' slopes read
+/// in the band; every box it passes through is proved, so the zero it
+/// holds is still the only one.
+fn grown(jets: &Jets, phi: Phi<'_>, b: [Interval; 2], piece: UvRect) -> [Interval; 2] {
+    let m = [mid(b[0]), mid(b[1])];
+    let cap = GROW_SHARE * (piece.u.1 - piece.u.0).min(piece.v.1 - piece.v.0);
+    let mut half = [0.5 * (b[0].hi() - b[0].lo()), 0.5 * (b[1].hi() - b[1].lo())];
+    let mut best = b;
+    for _ in 0..GROW_ROUNDS {
+        half = half.map(|h| 2.0 * h);
+        if half.iter().any(|&h| h > cap) {
+            break;
+        }
+        let (u, v) = (
+            (m[0] - half[0], m[0] + half[0]),
+            (m[1] - half[1], m[1] + half[1]),
+        );
+        if !(u.0 > piece.u.0 && u.1 < piece.u.1 && v.0 > piece.v.0 && v.1 < piece.v.1) {
+            break;
+        }
+        let (Some(bu), Some(bv)) = (range(u), range(v)) else {
+            break;
+        };
+        match krawczyk(jets, phi, [bu, bv]) {
+            Some((_, true)) => best = [bu, bv],
+            _ => break,
+        }
+    }
+    best
 }
 
 /// The certified sign of an enclosure: `Some(true)` positive, `None`

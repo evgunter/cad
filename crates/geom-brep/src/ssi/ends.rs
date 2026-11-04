@@ -367,8 +367,15 @@ impl<const M: usize, const N: usize, S: SectionSystem<M, N>> Ends<'_, S, M, N> {
                 .filter(|&j| !used[j])
                 .map(|j| (j, distance(self.sys, &a.state, &crossings[j].state)))
                 .min_by(|x, y| x.1.total_cmp(&y.1));
+            // With no crossing left, the branch ends at a node: marched
+            // alone, with no Hermite candidate between crossings.
             let Some((j, near)) = nearest else {
-                return Err(SsiError::CrossingUnmatched { from: Some(a.at) });
+                let (b, branch) = self.marched(a, crossings, &used)?;
+                if b.is_some() {
+                    return Err(SsiError::CrossingUnmatched { from: Some(a.at) });
+                }
+                out.push(branch);
+                continue;
             };
             let branch = match self.hermite(a, crossings[j], near) {
                 Ok(branch) => {
@@ -447,7 +454,15 @@ impl<const M: usize, const N: usize, S: SectionSystem<M, N>> Ends<'_, S, M, N> {
         )?;
         let (inside, outside) = match trace.end {
             RectEnd::Left { inside, outside } => (inside, outside),
-            RectEnd::Node { node, .. } => return Ok((Far::Node(node), trace.states)),
+            RectEnd::Node {
+                node,
+                inside,
+                outside,
+            } => {
+                let mut states = trace.states;
+                self.enter(&mut states, inside, outside);
+                return Ok((Far::Node(node), states));
+            }
             // A march from the wall's boundary that comes back to its
             // start without leaving: no crossing ends it.
             RectEnd::Closed => return Err(SsiError::CrossingUnmatched { from: Some(a.at) }),
@@ -513,6 +528,20 @@ impl<const M: usize, const N: usize, S: SectionSystem<M, N>> Ends<'_, S, M, N> {
         }
     }
 
+    /// A branch's last state where its step from `inside` toward
+    /// `outside` enters a node's box: the chord's entry point, settled
+    /// onto the section, so the branch reaches the box and no gap lies
+    /// between its tube and the box. Where it does not settle, the branch
+    /// ends at `inside`.
+    fn enter(&self, states: &mut Vec<[f64; N]>, inside: [f64; N], outside: [f64; N]) {
+        let Some((_, at)) = self.exit.entry(&inside, &outside) else {
+            return;
+        };
+        if let Some(x) = super::march::newton_refine(self.sys, at, self.ctx.tol) {
+            close_at(self.sys, states, x);
+        }
+    }
+
     /// **The branch through an interior `seed`**: a loop where the march
     /// closes; otherwise marched both ways, each half ending at the
     /// crossing on the side it leaves or at the node whose box it
@@ -552,7 +581,14 @@ impl<const M: usize, const N: usize, S: SectionSystem<M, N>> Ends<'_, S, M, N> {
                         close_at(self.sys, states, crossings[c].state);
                         Ok(BranchTip::Rim(crossings[c].at))
                     }
-                    RectEnd::Node { node, .. } => Ok(BranchTip::Node(node)),
+                    RectEnd::Node {
+                        node,
+                        inside,
+                        outside,
+                    } => {
+                        self.enter(states, inside, outside);
+                        Ok(BranchTip::Node(node))
+                    }
                     RectEnd::Closed => Err(SsiError::CrossingUnmatched { from: None }),
                 }
             };

@@ -379,7 +379,7 @@ pub(super) fn sweep(
             return Sweep::Declined(Declined::Unread);
         };
         for (cluster, sub) in clusters(&survivors, floor.width()) {
-            match critical::decide(jets, phi, cluster, band) {
+            match critical::decide(jets, phi, (cluster, sub), band) {
                 Some(c)
                     if c.cell.u.0 > sub.u.0
                         && c.cell.u.1 < sub.u.1
@@ -395,6 +395,15 @@ pub(super) fn sweep(
                     )));
                 }
             }
+        }
+    }
+    // Two decided points' boxes overlapping would leave a march entering
+    // the overlap at either: the sweep declines.
+    let meets =
+        |a: UvRect, b: UvRect| a.u.0 <= b.u.1 && b.u.0 <= a.u.1 && a.v.0 <= b.v.1 && b.v.0 <= a.v.1;
+    for (i, a) in decided.iter().enumerate() {
+        if let Some(b) = decided[i + 1..].iter().find(|b| meets(a.region, b.region)) {
+            return Sweep::Declined(Declined::Floor(b.at));
         }
     }
     match joined(&excluded.into_inner(), root) {
