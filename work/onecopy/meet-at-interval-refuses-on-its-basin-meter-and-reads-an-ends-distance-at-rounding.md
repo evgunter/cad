@@ -69,3 +69,21 @@ Bring its per-pair cost near the rows' cost. Then re-run PR 6491's landings rout
 ## Also owed (2026-11-04, from the orchestrator's read of PR 6492)
 
 - `pose::conic_conic`'s parallel screen reads `constant(row::PARALLEL, c0, swing + noise)` and drops a gap read through `matches!(.., Ok(true))`. When the swing is level, the same margin is read again on `row::OFFSET`. So a gap height records two escalations for one margin, and the PARALLEL one is unanswered when a later route decides. Read the margin once and act on it twice. This belongs to the class in `a-heuristics-choice-has-no-door-of-its-own` (PR 6483).
+
+
+## Measured on `onecopy/meet-interval` (2026-11-04)
+
+Commits `3e18c0ba64`, `d52d7e161e` take what needs no ruling:
+- `polish::pair` reads each step from a point (an enclosure's middle) and solves it in the cross-product form `s = (w × b′)·n/|n|²`, `n = a′ × b′`. The normal-equations form read the rounding of the gap over `sin² φ`.
+- `Span` evaluates its end points once (`Span::end_point`), and an endless span has no ends (`Span::ends`): no end candidates, no witnesses anchored at its seam.
+- `conic_conic` reads its height screen once and acts on it twice.
+
+Against PR 6491's head with these applied: (i) `a_pole_a_hair_either_side_of_a_tilted_rim_is_read_at_both_scalars` passes; (ii) still escalates; the cost (iii) falls but stays at about 4x main's on six sampled rows (15.5 s against main's 3.5 s, 18.4 s before).
+
+**Question 1: what the polish's meters certify at an enclosing scalar.** In `verbs_tubewall_r2_probes::certified::r2_interval_rows_over_varied_radii`, 13,000 of 24,000 `meet` calls refuse `Unsettled::Meter`, each sending its path to the next one: 11,344 on `curve_pair_pose_travel` (margin `[9.3e-9, 1.25e-7]` at band `(1e-9, 1e-8)`) and 1,640 on `curve_pair_pose_polish` (step `[0, 1.2e-9]`). A step read from one point still encloses the carriers' own spread divided by the sine between the tangents. So the convergence meter compares where along the curves the closest pair sits with the zero band, when the reading needs how far apart the curves are. Several answers are viable:
+- (a) run the search and its meters on the enclosures' midpoints (the f64-structure lift of `geom::projection_policy`), and leave the deciding to `Span::contact` at `T`;
+- (b) meter what the reading needs: the last step's metres times the sine, or the gap's change;
+- (c) an interval Newton (Krawczyk) existence test for the closest pair at an enclosing scalar.
+The same shows in `meet_rows::circles_on_one_sphere_meet_at_the_certified_scalar` at tilt 1e-3 (step `[0, 2e-12]` at band `(1e-12, 1e-11)`, from point-interval circles). The committed row pins only tilt 1e-2.
+
+**Question 2: the precision pin sits on the band's closed edge.** In `points_a_band_off_a_lunes_pole_vertex_read_at_the_ends_precision`, every leg from `p = (0, 1, 1e-11)` is a great circle through `-p`, which lies `1e-11` from the south pole inside the 90° meridian. That edge's span ends at `t1 = π_f64`, whose point is `(7.5e-33, -1, -1.2246e-16)`. So the meeting at `-p` lies `1e-11 − 1.22e-16 = 9.99988e-12` from the span's end, exactly for the data. The hand row read `π_f64 − fl(π − 1e-11) = 1.0000000827e-11`: the root's rounding to the `π`-grid cancelled the end's. That is coincidence, not precision. With endless legs reading no seam, the first refusal is now `curve_carrier_gap` at `9.99988e-12`, the north pole against a leg that passes `1e-11` from it. A point at exactly the escalation width of a vertex is decided by `1e-16` either way. Either the pin moves off the edge, or `meet` reads an end's distance in parameter space, which would be a second reading of a fact the chord reads.
