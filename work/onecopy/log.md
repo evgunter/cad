@@ -106,3 +106,10 @@
   - the needle's meet count, after PR 6492: `onecopy/p0-needle`, session_013mPGJ2oAi47f4EfDzt4XFu, told about the polish-meters decision and to check `onecopy/meet-interval`.
 
   Lesson: our lanes ran the touched crates' slow sets at the default ε only. Sweep at 1e-12 is the ci profile's run, which neither the PR gate nor the lanes reached. Briefs that touch readings now require all three ε on sweep.
+- 2026-11-04 — The meet-interval lane opened PR 6516 at `b80329354c`, with the gate green. It carries:
+  - the polish stepping from a point in the cross-product form;
+  - a span's ends read once;
+  - the height screen read once;
+  - the lune pin re-posed 2e-11 off the vertex, as I ruled.
+
+  The lane's full suites (geom-brep, topo, sweep) show the same reds at head and base, at the default ε. A FULL review is dispatched to session_013mPGJ1mbS3kUq2KmhnB6J7. It also runs sweep and geom-brep at 1e-12 against base and reports on the two P0s, and it judges the PR as an interim step before the decided f64-lift design. The local lane af87d40c9022afb11 has finished, and its pose target dir is reclaimed. The polish-meters implementation goes out after 6516 lands.
