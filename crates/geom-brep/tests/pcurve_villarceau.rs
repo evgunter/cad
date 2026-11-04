@@ -752,7 +752,10 @@ fn a_plane_gate_in_band_near_the_horn_takes_the_general_lane_never_the_focal_sec
         // Its certificate covers the residual, or ends as the lane's own
         // "not yet", never a tolerance offer.
         let (t0, t1) = (0.2, 3.0);
-        match PcurveCache::certify(image.clone(), t0, t1, &carrier, &surface, band) {
+        // The mint's own image, certified as the mint certifies it.
+        match PcurveCache::certify(image.clone(), t0, t1, &carrier, &surface, band)
+            .map_err(|e| geom_brep::minted_refusal(e, &image, &carrier, &surface))
+        {
             Ok(cache) => {
                 let sup = (0..=4096)
                     .map(|i| {

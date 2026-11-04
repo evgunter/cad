@@ -3255,9 +3255,14 @@ fn certify_walked<T: Decide, K: Copy>(
             }
             _ => PcurveCache::certify(w.pcurve.clone(), w.t0, w.t1, &w.carrier, surface, band),
         };
+        // The walk derived this image: a lane choice's envelope refusal
+        // is the lane's gap (`geom_brep::minted_refusal`).
         match cache {
             Ok(cache) => rows.push((w.key, cache, w.element)),
-            Err(error) => refused.push((w.key, error)),
+            Err(error) => refused.push((
+                w.key,
+                geom_brep::minted_refusal(error, &w.pcurve, &w.carrier, surface),
+            )),
         }
     }
     if refused.is_empty() {
@@ -5135,7 +5140,7 @@ fn read_loop<T: AtRestPolicy>(
                 PcurveCache::certify(w.pcurve.clone(), w.t0, w.t1, &w.carrier, chart, band)
                     .map_err(|error| PcurveMintError::Certify {
                         half_edge: w.key,
-                        error,
+                        error: geom_brep::minted_refusal(error, &w.pcurve, &w.carrier, chart),
                     })?;
             }
         }

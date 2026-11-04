@@ -9252,6 +9252,71 @@ fn chart_image<T: Decide>(
     }
 }
 
+/// **The mint's own image refused by its certificate, as the lane's
+/// gap** (D3): a circle or a line takes the projected image because no
+/// class was shown, so where the certificate of that image, just derived
+/// by [`chart_pcurve_over`] for the edge, refuses on its envelope (an
+/// upper bound on the miss, [`PcurveCheck::bounds_a_miss`]) or reads it in
+/// band, the lane does not yet certify the pose, and the refusal ends
+/// "not yet" as the lane's other gaps do: in band as
+/// [`PcurveCheck::GeneralLane`]'s escalation, definite as
+/// [`LaneGap::Envelope`], and a metre conversion's lever refused as the
+/// pose's ([`LaneGap::Pose`]).
+///
+/// Read by the doors that certify an image they just derived (the
+/// mint's walk, `topo::pcurves`), never by one that re-certifies a
+/// stored row: there an envelope refusal says the row is wrong (a copy
+/// lifted off its deck, an image moved off its carrier) and ends as its
+/// own term. Every other image and every other refusal passes through,
+/// a spline's net among them, whose only image this is.
+#[must_use]
+pub fn minted_refusal<T: Real>(
+    refused: PcurveCertifyError,
+    image: &Pcurve<T>,
+    carrier: &Curve3<T>,
+    surface: &Surface<T>,
+) -> PcurveCertifyError {
+    if !(matches!(image, Pcurve::Projected(_))
+        && matches!(carrier, Curve3::Circle(..) | Curve3::Line(_)))
+    {
+        return refused;
+    }
+    #[cfg(test)]
+    if mutants::lane_envelope_bound() {
+        return refused;
+    }
+    match refused {
+        PcurveCertifyError::Escalated {
+            check: check @ (PcurveCheck::Envelope | PcurveCheck::EnvelopeTerm(_)),
+            sample,
+            cause,
+        } if check.bounds_a_miss() => PcurveCertifyError::Escalated {
+            check: PcurveCheck::GeneralLane,
+            sample,
+            cause,
+        },
+        PcurveCertifyError::ResidualExceeded {
+            check: check @ (PcurveCheck::Envelope | PcurveCheck::EnvelopeTerm(_)),
+            ..
+        } if check.bounds_a_miss() => PcurveCertifyError::NoGeneralLane {
+            chart: surface.kind(),
+            carrier: carrier.kind(),
+            gap: LaneGap::Envelope,
+        },
+        // The metre conversion's lever (the cone's apex, the torus's
+        // core) is the pose's, as at the mint's partition.
+        PcurveCertifyError::SectorRefused {
+            piece,
+            channel: channel @ projected::SectorChannel::Lever,
+        } => PcurveCertifyError::NoGeneralLane {
+            chart: surface.kind(),
+            carrier: carrier.kind(),
+            gap: LaneGap::Pose { piece, channel },
+        },
+        other => other,
+    }
+}
+
 /// The lever of a [`LaneGap::Pose`]: the one sentence both
 /// [`PcurveCertifyError::NoGeneralLane`]'s and
 /// [`crate::CertifyError::NoGeneralLane`]'s Display give it.

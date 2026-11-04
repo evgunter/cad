@@ -1087,10 +1087,13 @@ pub struct ConicHarmonics<T> {
     pub s2: T,
     /// A bound on every magnitude the coefficients are built from (m²,
     /// before the division by [`Self::per`]), the rounding of the
-    /// projection included: `(|C₀ − o| + max(|a|, |b|))² + r²` — the
-    /// scale their rounding is charged against, read at the semi-axes'
-    /// MAGNITUDES (a signed or ordered read under-charges a negative
-    /// `semi_u`, or a `semi_v` stored larger).
+    /// projection included: `(|C₀ − o| + max(|a|, |b|))² + r²` on a sphere
+    /// or a wall, and on a cone `cos²α·(|⊥(C₀ − o)| + ρ̃)² +
+    /// sin²α·(|(C₀ − o)·â| + h̃)²`, `ρ̃` and `h̃` the sups of the carrier's
+    /// radial and axial harmonics, each part of its form at its own
+    /// factor — the scale their rounding is charged against, read at
+    /// the semi-axes' MAGNITUDES (a signed or ordered read under-charges a
+    /// negative `semi_u`, or a `semi_v` stored larger).
     pub terms: T,
     /// The length the m² form is divided by to give the polynomial:
     /// `2r` on a sphere or a wall, the carrier's reach from the apex on
@@ -1219,14 +1222,23 @@ pub fn conic_cone_harmonics<T: Real>(
     let reach_m = d.norm() + conic.speed_hi();
     let pad = T::from_f64(CEILING_PAD);
     let per = reach_m * pad;
-    let terms = reach_m.powi(2);
+    // The form's coefficients are `cos²α` times the wall's, built from
+    // magnitudes up to the carrier's reach from the axis, less `sin²α`
+    // times the height's, up to its reach along it (each part's centre
+    // plus its harmonic's sup): each weighted by its own factor, so a
+    // wide cone's tiny `cos²α` charges its large radial terms only that
+    // much, and a circle across the axis charges no radial reach to its
+    // height.
+    let radial_reach = e.norm() + crate::harmonic::harmonic_sup(up * a, vp * b);
+    let axial_reach = h0.abs() + harmonic_sup_scalar(hu, hv);
+    let terms = cc * radial_reach.powi(2) + ss * axial_reach.powi(2);
     let form = |k: usize| (cc * wall[k] - ss * height[k]) / per;
     // `|q|²`'s least value, from its own harmonics, less their rounding.
     let (uu, vv) = (a.powi(2) * u.norm_squared(), b.powi(2) * v.norm_squared());
     let near_sq = d.norm_squared() + (uu + vv) * half
         - harmonic_sup_scalar(two * a * d.dot(u), two * b * d.dot(v))
         - harmonic_sup_scalar((uu - vv) * half, a * b * u.dot(v))
-        - rounding_charge(terms);
+        - rounding_charge(reach_m.powi(2));
     let near = near_sq.max(T::zero()).sqrt();
     ConicHarmonics {
         c0: form(0),

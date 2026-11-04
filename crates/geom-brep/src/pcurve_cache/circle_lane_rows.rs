@@ -912,7 +912,8 @@ fn a_circles_projected_envelope_covers_its_residual() {
     }
 }
 
-/// The mint's image of `carrier` over `span`, certified, at `f64` and at
+/// The mint's image of `carrier` over `span`, certified as the mint
+/// certifies its own image ([`minted_refusal`]), at `f64` and at
 /// `Interval`: the envelope's upper end, or the refusal.
 fn minted_and_certified(
     carrier: &Curve3<f64>,
@@ -923,12 +924,14 @@ fn minted_and_certified(
     let (c, s) = (carrier.map_scalar(f), surface.map_scalar(f));
     [
         chart_pcurve_over(carrier, t0, t1, surface, band()).and_then(|image| {
-            PcurveCache::certify(image, t0, t1, carrier, surface, band())
+            PcurveCache::certify(image.clone(), t0, t1, carrier, surface, band())
                 .map(|cache| cache.certificate().envelope)
+                .map_err(|e| minted_refusal(e, &image, carrier, surface))
         }),
         chart_pcurve_over(&c, f(t0), f(t1), &s, band()).and_then(|image| {
-            PcurveCache::certify(image, f(t0), f(t1), &c, &s, band())
+            PcurveCache::certify(image.clone(), f(t0), f(t1), &c, &s, band())
                 .map(|cache| cache.certificate().envelope.hi())
+                .map_err(|e| minted_refusal(e, &image, &c, &s))
         }),
     ]
 }
@@ -949,10 +952,12 @@ fn ends_not_yet(e: &PcurveCertifyError) -> bool {
 /// refuses with its pose as its lever, never a tolerance offer), at
 /// `f64` and at `Interval`:
 ///
-/// - the reviewers' cone ruling read from `9e-4` of the apex (half-angle
-///   `0.016`): its incidence is converted on parts halved where the
-///   cone's lever spreads, so it certifies at both scalars, its envelope
-///   over the residual;
+/// - a ruling of the reviewers' needle cone (half-angle `0.016`), standing
+///   `0.13·zero` off, read from `9e-4` of the apex: its incidence is
+///   converted on parts halved where the cone's lever spreads, so it
+///   certifies at `f64`, its envelope over the residual, and at
+///   `Interval` too but where its enclosures' width, read through the
+///   apex's Lipschitz factor, reaches the band, where it ends "not yet";
 /// - a crest circle on a near-horn torus (`r = R − 1e-5`), whose fidelity
 ///   reads the tube's core `1e-5` away: at `Interval` its envelope lands
 ///   in band, the lane's escalation (`GeneralLane`);
@@ -962,18 +967,10 @@ fn ends_not_yet(e: &PcurveCertifyError) -> bool {
 ///   both scalars, ending as the lane's gap.
 #[test]
 fn a_lane_choices_envelope_refusal_ends_not_yet() {
-    let line = Curve3::line(
-        Point3::new(
-            1.239792126505943e-10,
-            -9.746673200094881e-10,
-            -1.939344479653521e-9,
-        ),
-        Vec3::new(
-            -0.031367901511575216,
-            0.38332687822435824,
-            0.9230799310923882,
-        ),
-    );
+    // The reviewers' needle cone and span, with a ruling of it anchored
+    // at the apex's height within the band and standing `0.13·zero` off
+    // (their pose stood a fixed `1.298e-10` off, at 60 digits: past the
+    // band at a smaller ε, where its incidence read ends it first).
     let apex = Surface::Cone {
         apex: Point3::origin(),
         axis: Vec3::new(
@@ -984,35 +981,35 @@ fn a_lane_choices_envelope_refusal_ends_not_yet() {
         half_angle: 0.016142392389299435,
         u_ref: Vec3::new(-0.7808453755737287, -0.590498825246728, 0.203940277599489),
     };
-    let span = (0.0009067415940370447, 2.4187216369829954);
-    // The pose stands `1.3e-10` off the cone: inside the band at the
-    // default ε, past it at a smaller one, where its incidence read ends it
-    // first.
-    let image = projected::project(&line, Some(span), &apex, band())
-        .unwrap_or_else(|e| panic!("the apex ruling has a projected image: {e:?}"));
-    let sup = sampled_residual(
-        &Pcurve::Projected(Box::new(image)),
-        span,
-        &line,
-        &apex,
-        4096,
+    let (sa, ca) = 0.016142392389299435_f64.sin_cos();
+    let phi = 1.9_f64;
+    let g = Vec3::new(sa * phi.cos(), sa * phi.sin(), ca);
+    let normal = Vec3::new(ca * phi.cos(), ca * phi.sin(), -sa);
+    let line = Curve3::line(
+        world(&apex, g * (in_band() / ca) + normal * (0.13 * zero())),
+        world_dir(&apex, g),
     );
+    let span = (0.0009067415940370447, 2.4187216369829954);
+    let image = chart_pcurve_over(&line, span.0, span.1, &apex, band())
+        .unwrap_or_else(|e| panic!("the apex ruling mints: {e:?}"));
+    let sup = sampled_residual(&image, span, &line, &apex, 4096);
+    // At `Interval` the fidelity's Lipschitz bound near the apex
+    // (`1 + v·sin α/ρ`, some thousands here) multiplies the enclosures'
+    // own width, which at a small ε reaches the band: the lane's "not
+    // yet", the apex's pose its lever.
     for (scalar, got) in ["f64", "Interval"]
         .into_iter()
         .zip(minted_and_certified(&line, span, &apex))
     {
-        if sup < 0.9 * zero() {
-            let envelope =
-                got.unwrap_or_else(|e| panic!("apex ruling, {scalar}: certifies: {e:?}"));
-            assert!(
+        match got {
+            Ok(envelope) => assert!(
                 envelope >= sup && envelope < zero(),
                 "apex ruling, {scalar}: the envelope {envelope:e} covers the residual {sup:e}"
-            );
-        } else if sup > 1.1 * zero() {
-            assert!(
-                matches!(got, Err(PcurveCertifyError::CarrierOffChart { .. })),
-                "apex ruling, {scalar}: {sup:e} off ends as its incidence read: {got:?}"
-            );
+            ),
+            Err(e) => assert!(
+                scalar == "Interval" && ends_not_yet(&e),
+                "apex ruling, {scalar}: certifies, or at Interval ends not yet: {e:?}"
+            ),
         }
     }
 
@@ -1056,6 +1053,74 @@ fn a_lane_choices_envelope_refusal_ends_not_yet() {
                 ) && ends_not_yet(e)
             }),
             "cylinder chord, {scalar}: ends not yet: {got:?}"
+        );
+    }
+}
+
+/// **A stored row's envelope refusal ends as its own term; the mint's own
+/// image's ends as the lane's gap** (the provenance [`minted_refusal`]
+/// reads). The cylinder chord of
+/// [`a_lane_choices_envelope_refusal_ends_not_yet`]: its fresh image,
+/// certified as the mint certifies it, ends "not yet". The same image,
+/// stored and then moved a whole period off its deck, re-certified as a
+/// stored row is, ends as the deck's term (`FidelityU`), the lifted copy
+/// the row is, never relabelled. At `f64` and at `Interval`.
+#[test]
+fn a_stored_rows_envelope_refusal_keeps_its_term() {
+    let wall = cylinder(1.0);
+    let a = (1.0 - 0.6 * zero()).acos();
+    let (sa, ca) = a.sin_cos();
+    let (q0, q1) = (Vec3::new(ca, -sa, 0.1), Vec3::new(ca, sa, 0.4));
+    let chord = Curve3::line(world(&wall, q0), world_dir(&wall, q1 - q0));
+    let span = (0.0, 1.0);
+    for (scalar, got) in ["f64", "Interval"]
+        .into_iter()
+        .zip(minted_and_certified(&chord, span, &wall))
+    {
+        assert!(
+            got.as_ref().err().is_some_and(ends_not_yet),
+            "the fresh image, {scalar}: ends not yet: {got:?}"
+        );
+    }
+    let image = chart_pcurve_over(&chord, span.0, span.1, &wall, band())
+        .unwrap_or_else(|e| panic!("the chord mints: {e:?}"));
+    let moved = image.translate(TAU, 0.0);
+    let f = Interval::from_f64;
+    for (scalar, got) in [
+        (
+            "f64",
+            PcurveCache::certify(moved.clone(), span.0, span.1, &chord, &wall, band()).err(),
+        ),
+        (
+            "Interval",
+            PcurveCache::certify(
+                chart_pcurve_over(
+                    &chord.map_scalar(f),
+                    f(span.0),
+                    f(span.1),
+                    &wall.map_scalar(f),
+                    band(),
+                )
+                .unwrap_or_else(|e| panic!("the chord mints at Interval: {e:?}"))
+                .translate(f(TAU), f(0.0)),
+                f(span.0),
+                f(span.1),
+                &chord.map_scalar(f),
+                &wall.map_scalar(f),
+                band(),
+            )
+            .err(),
+        ),
+    ] {
+        assert!(
+            matches!(
+                got,
+                Some(PcurveCertifyError::ResidualExceeded {
+                    check: PcurveCheck::EnvelopeTerm(EnvelopeTerm::FidelityU),
+                    ..
+                })
+            ),
+            "the stored copy moved a period, {scalar}: ends as the deck's term: {got:?}"
         );
     }
 }
