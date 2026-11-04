@@ -395,6 +395,43 @@ fn a_row_at_unequal_end_weights_holds_its_arc_rim() {
             "{what}: end weights not the row's refuse at the structure: {nudged:?}"
         );
     }
+    // Each sub-arc's weight is its own margin: a half row at end weights
+    // `1, 2, 1` whose second sub-arc's weight is off by 1e-6 refuses in
+    // band there, where the first sub-arc's reads the circle.
+    let half = |second: f64| {
+        let mut control = Vec::new();
+        let mut weights = Vec::new();
+        for (x, y, w) in [
+            (R, 0.0, 1.0),
+            (R, R, 1.0),
+            (0.0, R, 2.0),
+            (-R, R, second),
+            (-R, 0.0, 1.0),
+        ] {
+            for v in [0.0, H] {
+                control.push(Point3::new(x, y, v));
+                weights.push(w);
+            }
+        }
+        let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 0.5, 1.0, 1.0, 1.0], 2).unwrap();
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        Surface::Nurbs(std::sync::Arc::new(
+            NurbsSurface::new(ku, kv, control, weights).unwrap(),
+        ))
+    };
+    let pi = core::f64::consts::PI;
+    for (second, certifies) in [(1.0, true), (1.0 + 1e-6, false)] {
+        let wall = half(second);
+        let image = pick_arc_rim(&rim(1.0), (0.0, pi), &wall, band())
+            .expect("the pick decides")
+            .expect("the row holds the half rim at its probe");
+        let got = PcurveCache::certify(image, 0.0, pi, &rim(1.0), &wall, band());
+        assert_eq!(
+            got.is_ok(),
+            certifies,
+            "the second sub-arc's weight {second}: {got:?}"
+        );
+    }
     // A rim covering part of the row: the measured step reads the row's
     // turn off its weights at unit end weight.
     let (t0, span) = (0.3, 0.9);

@@ -299,7 +299,8 @@ fn l_bracket_only(text: &str) -> String {
 /// backwards. Wall `#382` states its circle as four rational spans at
 /// end weights 1 and 2, which the import splits at its C⁰ knots into
 /// one-span sub-patches; each sub-patch's row holds its quarter of the
-/// rim, and the component imports whole. At the merge base of #388
+/// rim, and the component imports whole, its certified volume holding
+/// its mesh's. At the merge base of #388
 /// this same pruned text refused `Adoption { id: 389, attempts: [] }`.
 #[test]
 fn the_l_bracket_alone_adopts_its_reversed_slit() {
@@ -318,6 +319,22 @@ fn the_l_bracket_alone_adopts_its_reversed_slit() {
                 (1, 1, 10, 21, 14),
                 "the l-bracket's census (solids, shells, faces, edges, vertices), its \
                  cylinder wall split into four sub-patches"
+            );
+            // The certified volume holds an independent one: the mesh's,
+            // its chords cutting inside the arc rims the import now reads.
+            let tol = Tol::witness();
+            let e = body
+                .measure(topo::test_support::pinned_resolution::<f64>(tol))
+                .expect("the l-bracket measures")
+                .enclosure;
+            let m = mesh::tessellate(b, 1e-5, tol).expect("the l-bracket meshes");
+            mesh::validate::check_mesh(&m).expect("the l-bracket's mesh is closed");
+            let v = mesh::validate::signed_volume(&m);
+            assert!(
+                (e.volume - v).abs() <= e.volume_pad,
+                "the l-bracket's volume {} ± {} holds its mesh's {v}",
+                e.volume,
+                e.volume_pad
             );
         }
         Err(StepImportError::Adoption { id, attempts, .. }) => panic!(

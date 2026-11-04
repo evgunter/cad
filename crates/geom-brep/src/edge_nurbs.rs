@@ -1147,17 +1147,17 @@ fn arc_rim_images<T: SpanLocate>(
 }
 
 /// **A boundary row's end weights**, along the chart's `u`, where they
-/// are not one value ([`Pcurve::IsoArc`]'s `ends`): the held weights at
-/// the row's sub-arc joints, its even-indexed control points. Empty for
-/// a row at one end weight, and for a row the chart cannot give.
+/// are not one value ([`Pcurve::IsoArc`]'s `ends`). Empty for a row at
+/// one end weight, and for a row the chart cannot give.
 fn row_end_weights<T: SpanLocate>(chart: &NurbsSurface<T>, end: bool) -> Vec<T> {
     let Ok(row) = crate::nurbs_iso::boundary_iso_v(chart, end) else {
         return Vec::new();
     };
-    let ends: Vec<T> = row.weights().iter().step_by(2).copied().collect();
-    match ends.split_first() {
-        Some((&first, rest)) if rest.iter().any(|&e| !geom_core::is_exact_zero(e - first)) => ends,
-        _ => Vec::new(),
+    let ends = crate::pcurve_cache::joint_weights(&row);
+    if crate::pcurve_cache::one_value(&ends) {
+        Vec::new()
+    } else {
+        ends
     }
 }
 

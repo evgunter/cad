@@ -488,9 +488,10 @@ fn a_degree_one_path_sweep_is_one_wall_per_slab() {
 /// same arc through each sub-arc's change of parameter, which its arc
 /// rim's image states (`Pcurve::IsoArc`'s `ends`). Every case builds
 /// and is at rest, and the first meshes to its integrated volume. The
-/// line rim of a bulge-0 section on a creased wall does not mesh yet
+/// other two each carry a bulge-0 section, whose line rim on a creased
+/// wall meshes only at a δ whose chord points straddle no crease
 /// (`work/tess/a-line-rim-on-a-creased-loft-wall-does-not-mesh.md`), so
-/// the other two are not meshed here.
+/// they are not meshed here.
 #[test]
 fn an_interior_arc_refined_by_its_neighbours_lofts() {
     let corners = [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)];
@@ -525,8 +526,11 @@ fn an_interior_arc_refined_by_its_neighbours_lofts() {
             let (got, pad) = volume(&lofted.body);
             let delta = 2e-3;
             let v = meshed_volume(&lofted.body, delta, &what);
+            // Measured 4.5e-6 relative at this δ: the chords cut inside
+            // the one arc wall only, far under the 3δ a whole circle's
+            // mesh may lose.
             assert!(
-                ((v - got) / got).abs() < 3.0 * delta + pad / got,
+                ((v - got) / got).abs() < 1e-5 + pad / got,
                 "{what}: mesh volume {v} vs integrated {got} ± {pad}"
             );
         }

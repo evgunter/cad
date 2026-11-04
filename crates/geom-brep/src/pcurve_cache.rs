@@ -179,7 +179,7 @@ use geom::{Curve3, NurbsCurve2, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
 use geom_core::k_stats::decide;
 use geom_core::predicate::{Band, BandError};
-use geom_core::spline::{KnotVector, SpanLocate, SplineError, constant_weight};
+use geom_core::spline::{KnotVector, SpanLocate, SplineError};
 use geom_core::{
     Decide, Decided, Indeterminate, InfSpeed, Margin, Point2, Point3, Real, Sign, SupSpeed, Vec2,
     Vec3, rounding_charge,
@@ -922,7 +922,7 @@ fn iso_arc_g<T: SpanLocate>(t: T, t0: T, angle: T, breaks: &KnotVector, ends: &[
         let s = T::from_f64(0.5) + (s_h / c_h) / (T::from_f64(2.0) * tan_q);
         let s = match (ends.get(k), ends.get(k + 1)) {
             (Some(&a), Some(&b)) => {
-                let lambda = (a / b).sqrt();
+                let lambda = iso_arc_skew(a, b);
                 lambda * s / (lambda * s + T::one() - s)
             }
             _ => s,
@@ -7914,18 +7914,58 @@ struct ArcRimWeight<T> {
     /// built over the same angle as the circle, in the scalar, is
     /// `w − w`: at `Sym` a symbolic Zero, which the weight held as an
     /// `f64` constant (`from_f64` of its value) is not. Poison for a
-    /// column with fewer than two weights.
+    /// column with fewer than three weights.
     margin: T,
 }
 
-/// **The arc pattern's interior weight at unit end weight**: `w₁/w₀`
-/// on the column's held weights. A rational curve is invariant under
-/// one positive scale of all its weights, so a column `c, c·w, c, …`
-/// is the arc `1, w, 1, …`, and the ratio is the `w` the pattern
-/// states. `None` for a column with fewer than two weights.
+/// **The arc pattern's interior weight at unit end weight**: the
+/// column's first sub-arc's [`arc_rim_normal_weight`]. `None` for a
+/// column with fewer than three weights.
 fn arc_rim_ratio<T: Real>(column: &NurbsCurve3<T>) -> Option<T> {
-    let w = column.weights();
-    Some(*w.get(1)? / *w.first()?)
+    match column.weights().get(..3)? {
+        &[w0, w1, w2] => Some(arc_rim_normal_weight(w0, w1, w2)),
+        _ => None,
+    }
+}
+
+/// **A sub-arc's interior weight at unit end weights**, `w₁/√(w₀·w₂)`:
+/// a rational quadratic is the same curve under one positive scale of
+/// its weights and under a Möbius change of its parameter, which
+/// together take `w₀, w₁, w₂` to `1, w₁/√(w₀·w₂), 1`. Where the two end
+/// weights are one value it is `w₁/w₀`, which keeps a held pattern's
+/// weight a symbolic identity at `Sym`.
+pub(crate) fn arc_rim_normal_weight<T: Real>(w0: T, w1: T, w2: T) -> T {
+    if geom_core::is_exact_zero(w0 - w2) {
+        w1 / w0
+    } else {
+        w1 / (w0 * w2).sqrt()
+    }
+}
+
+/// **A column's held weights at its sub-arc joints**: its even-indexed
+/// control points, an arc rim image's `ends` where they are not
+/// [`one_value`].
+pub(crate) fn joint_weights<T: Real>(column: &NurbsCurve3<T>) -> Vec<T> {
+    column.weights().iter().step_by(2).copied().collect()
+}
+
+/// **Whether held weights are one value**: each equal to the first,
+/// read as structure ([`geom_core::is_exact_zero`] of the difference).
+/// A held weight is a point at every scalar, so this is their own
+/// equality, on the value channel at `Sym`.
+pub(crate) fn one_value<T: Real>(weights: &[T]) -> bool {
+    weights
+        .split_first()
+        .is_none_or(|(&first, rest)| rest.iter().all(|&w| geom_core::is_exact_zero(w - first)))
+}
+
+/// **A sub-arc's Möbius ratio** `λ = √(a/b)` between the end weights `a`
+/// at its start and `b` at its end ([`Pcurve::IsoArc`]'s `ends`): the
+/// chart parameter is `λs / (λs + 1 − s)` of the standard one, whose
+/// rate against it lies between `λ` and `1/λ`.
+#[must_use]
+pub fn iso_arc_skew<T: Real>(a: T, b: T) -> T {
+    (a / b).sqrt()
 }
 
 fn arc_rim_weight<T: SpanLocate>(
@@ -7960,10 +8000,7 @@ pub(crate) fn arc_rim_turn<T: Decide>(
     spans: usize,
     band: Band,
 ) -> Option<T> {
-    let w = match column.weights().get(..3) {
-        Some(&[w0, w1, w2]) if !geom_core::is_exact_zero(w0 - w2) => w1 / (w0 * w2).sqrt(),
-        _ => arc_rim_ratio(column)?,
-    };
+    let w = arc_rim_ratio(column)?;
     match decide("pcurve_iso_arc_weight", Margin::of(T::one() - w), band) {
         Ok(Sign::Positive) => {}
         Ok(Sign::Zero | Sign::Negative) | Err(_) => return None,
@@ -8233,8 +8270,8 @@ fn run_iso_arc_checks<T: Decide>(
         }
     }
     let slack_knots = stretch_u.to_meters(knot_dev);
-    let bw = b.weights_f64_interim();
-    if bw.len() != 2 * spans + 1 {
+    let held = b.weights();
+    if held.len() != 2 * spans + 1 {
         return Err(bad(
             "an arc rim whose chart column weights are not the arc pattern",
         ));
@@ -8242,9 +8279,9 @@ fn run_iso_arc_checks<T: Decide>(
     // The pattern is `c, c·w, c, …, c` for one positive scale `c`: one
     // scale leaves the rational basis unchanged, so the column is the
     // arc `1, w, 1, …`, and `Ĉ` below, built at unit end weight, shares
-    // its basis. Each half of the pattern is one constant, compared on
-    // the bits as every constancy is (`constant_weight`). It reads the
-    // weights' VALUE channel, not their plain constants: a held arc's
+    // its basis. Each half of the pattern is one value ([`one_value`]),
+    // which reads the weights' VALUE channel at `Sym`, not their plain
+    // constants: a held arc's
     // interior weight is `cos(h/2)` in the scalar, no plain constant at
     // `Sym`, and the pattern's equalities are value identities decided
     // at the witness only
@@ -8257,11 +8294,9 @@ fn run_iso_arc_checks<T: Decide>(
     // the image's exactly, once the traversal is read below; its
     // interior weights may be anything, and each sub-arc's normalized
     // `wₖ/√(eₖ·eₖ₊₁)` is decided against `cos(h/2)` on its own.
-    let row_ends: Vec<f64> = bw.iter().step_by(2).copied().collect();
-    let interior: Vec<f64> = bw.iter().skip(1).step_by(2).copied().collect();
-    if ends.is_empty()
-        && (constant_weight(&row_ends).is_none() || constant_weight(&interior).is_none())
-    {
+    let row_ends = joint_weights(&b);
+    let interior: Vec<T> = held.iter().skip(1).step_by(2).copied().collect();
+    if ends.is_empty() && !(one_value(&row_ends) && one_value(&interior)) {
         return Err(bad(
             "an arc rim whose chart column weights are not `c, c·w, c, …` with ONE \
              interior ratio — the uniform sub-arc construction",
@@ -8273,12 +8308,13 @@ fn run_iso_arc_checks<T: Decide>(
         cos_half,
         margin,
     } = arc_rim_weight(&b, angle, spans);
-    let held = b.weights();
     let margins: Vec<T> = if ends.is_empty() {
         vec![margin]
     } else {
         (0..spans)
-            .map(|k| held[2 * k + 1] / (held[2 * k] * held[2 * k + 2]).sqrt() - cos_half)
+            .map(|k| {
+                arc_rim_normal_weight(held[2 * k], held[2 * k + 1], held[2 * k + 2]) - cos_half
+            })
             .collect()
     };
     for margin in margins {
@@ -8348,7 +8384,7 @@ fn run_iso_arc_checks<T: Decide>(
         chat.reverse();
     }
     if !ends.is_empty() {
-        let mut row: Vec<T> = held.iter().step_by(2).copied().collect();
+        let mut row = row_ends;
         if !forward {
             row.reverse();
         }

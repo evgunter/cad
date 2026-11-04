@@ -38,3 +38,20 @@ An `IsoLine` image across a crease needs a chord point at the crease:
 the line's parameter where its affine `u` channel meets the crease's
 `u`. That is exact for an iso line, as the arc rim's joint is for its
 map.
+
+## It depends on δ (PR 6528's review, 2026-11-04)
+
+Whether a line rim's chord points straddle a crease depends on the
+chord count, so the refusal comes and goes with δ. Measured on the
+three degree-1 lofts of
+`sweep degree1_loft_slabs::an_interior_arc_refined_by_its_neighbours_lofts`
+(✓ meshes, ✗ refuses as above):
+
+| bulges | δ 1e-3 | δ 2e-3 | δ 5e-3 |
+|---|---|---|---|
+| `[1, 0.2, 1]` (no line rim) | ✓ | ✓ | not measured |
+| `[1, 0.2, 0, 0.7, 1]` | ✓ | ✗ | ✗ |
+| `[0, 1, 0.3, 0]` | ✗ | ✓ | ✗ |
+
+A body that meshes at one δ and refuses at a neighbouring one is the
+crease gap, not the body. The row meshes its first case only.
