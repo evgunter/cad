@@ -1374,3 +1374,14 @@ general regularity sweep. SECTARMS's cylinder × cylinder unit adopts
   - Two P3 rows filed on ONECOPY.
   - State sync: closed `a-rim-arc-lying-on-a-cylinder-refuses-as-a-curved-pierce` and dropped it from `curved-demo-joins-build`'s blocked_on. Klein walls 3 and 4 now wait on SECTARMS' cone stage, already listed.
   - **Merge-window friction (a semantic conflict).** Main's FaceView refactor (`8afdb823`) deleted `Body::proven_face_surface`. The state-sync head merged main cleanly, but `topo` stopped compiling (CI run 41773492152, all red within two minutes). The orchestrator re-read both surfaces through `proven_face(..).surface()`, and the eight `spline_off_carrier` rows pass locally. This tracker entry is the last commit.
+- 2026-11-04 05:35Z — **PR 6481 merged** (`85b1b22e`, head `bc76bba2`, CI run 41777180974 green). Lane `session_013QoYWU9Aeu63rM1pUrPe3f` archived; worktree removed.
+- 2026-11-04 05:35Z — **Sitting ends; program set `ready`.**
+  - **Merged this sitting** (2026-11-03/04): PRs 6429 (far-union volume), 6437 (kind-reads bundle), 6441 (split parameter), 6435 (held pierce), 6434 (spline join), 6476 (∖/∩ admit NURBS), 6481 (rim arc on a cylinder), 6487 (same-operand rider parked), plus tracker PR 6494.
+  - **P0/P1 still live:**
+    - P0 open `teapot-wall-3-at-1e-6-floors-the-meridian-against-a-spout-wall`;
+    - P1 open `a-section-spiric-on-a-cap-plane-reads-unread-against-the-wall-it-ends-on`;
+    - P0 parked `curved-demo-joins-build`, blocked on SECTARMS' NURBS×cone/sphere section (klein walls 3 and 4, teapot wall 3), SPIRICARM's volume lane (teapot wall 2), the C5 plane×torus arm (lily wall 8) and the teapot 1e-6 floor above;
+    - P0 parked `an-unread-rider-related-only-by-its-own-vertices-refuses`, blocked on CLEAR's embedding gate;
+    - P1 parked `a-creased-spline-gets-no-second-order-clearing`.
+  - **Not dispatched, on budget.** A lane's rate-limit event read weekly usage at 92% at 01:00Z, so no new unit was started after PR 6481.
+  - **For Ev:** the same-operand exemption's option (b). Ship the exemption on the ratified DESIGN [topology.tiers] embedding contract (a finished body's boundary is embedded) before CLEAR's gate certifies it. That would restore the lofted cylinder's far `O ∪ B` / `B ∪ O` and its around `B ∖ O`, which refuse since PR 6437. Option (a), waiting on CLEAR, is what stands.
