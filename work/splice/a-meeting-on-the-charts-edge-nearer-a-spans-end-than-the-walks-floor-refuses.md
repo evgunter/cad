@@ -26,7 +26,7 @@ refuses `Unsettled::Floor` although no answer of the span's lies there.
 ## Measured
 
 `spline_face/past_end_rows.rs`,
-`a_crossing_on_the_charts_edge_within_the_floor_of_the_end_refuses`
+`regression_a_crossing_within_a_floor_box_of_the_end_still_refuses`
 pins it at every ε row: the arc of radius 0.25 crossing the flat
 patch's edge `x = 1`, its span a quarter radian long and ending
 `4 · escalate` short of the crossing, refuses `Floor`. With the span

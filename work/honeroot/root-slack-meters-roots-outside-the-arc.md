@@ -37,19 +37,3 @@ span (`bool_line_cone_root_slack`). Unmeasured on the conic doors: the
 ellipse × torus door (`ellipse_torus_root_slack`) and the conic ×
 quadric door's cone arm (`bool_conic_cone_root_slack`) meter every
 root.
-
-## Measured on the circle × torus door: the side decision, not the slack (SPLICE, 2026-11-04)
-
-Found by the sibling sweep of `splice/teapot-1e6-floor` (a span's walk
-refusing on a meeting past its end). The same shape refuses through
-another of the subdivision's predicates. Fixture: the torus about `z`,
-major radius 1, minor 0.25; the circle of radius 0.5 about
-`(1.75, 0, 0)` in the plane `y = 0`, `u_ref = −x`, which touches the
-torus's outer equator at `θ = 0`, `(1.25, 0, 0)`, and stands clear of
-it everywhere else. At ε 1e-9,
-`circle_torus::circle_torus_roots(&ring, 1.0, 2.0, &torus, band)`
-(the arc lies one radian, 0.5 m, from the touch) returns
-`Err(Escalated(Indeterminate { margin: 1.22e-9, predicate:
-"circle_torus_sub_side" }))`, the same refusal as the arc `[−0.5, 0.5]`
-that holds the touch. An arc that touches nothing refuses on a graze
-off it.

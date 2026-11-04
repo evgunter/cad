@@ -62,8 +62,9 @@
 //!   it needs no reading past either domain: it is what reads an end
 //!   the walk cannot read past (a NURBS span ending at its domain's end
 //!   or on a crease of its own) and an end on the chart's domain edge.
-//!   Any other meeting on the chart's domain edge is isolated by no box
-//!   inside the domain, so it refuses like any other unaccounted box,
+//!   Any other meeting on the chart's domain edge, inside the span or
+//!   within a box at the floor that straddles an end, is isolated by no
+//!   box inside the domain, so it refuses like any other unaccounted box,
 //!   an open chart's edge and a closed chart's seam alike.
 //! - **The sector at an end.** An end whose foot lies on an edge of the
 //!   chart's domain, the face's rim, is read first by its departure
@@ -109,7 +110,8 @@ pub enum SplineFaceRefusal {
     /// The walk reached a limit: [`Unsettled::Floor`] (a box at the floor
     /// not read past the band that no meeting accounts for: a pass within
     /// the band, a tangency, two meetings the band cannot part, or a
-    /// meeting on the chart's domain edge), [`Unsettled::Crease`] (such a
+    /// meeting on the chart's domain edge inside the span or in a box
+    /// straddling an end), [`Unsettled::Crease`] (such a
     /// box within its floor reach of a crease among its block's sides, as
     /// a meeting within the band of a crease leaves one),
     /// [`Unsettled::Tangency`] (two meetings decided at one point),
@@ -538,14 +540,10 @@ impl<T: CertifiedBounds> Pair<'_, T> {
         None
     }
 
-    /// The state of the span's end at the parameter `end`: `end` and the
-    /// foot on `chart` of the carrier's point there, with an enclosure of
-    /// `F` at that state. The point's enclosure only seeds the foot, so its
-    /// middle is taken. `None` where the foot is not found.
-    /// Whether every solution in `x` lies past an end of `span` and is
-    /// decided past the band from that end's point: its parameters lie
-    /// wholly beyond the end, and the carrier over them stands past the
-    /// band of it.
+    /// Whether `x` lies past an end of the span `(a, b)` and past the band
+    /// of that end's point: its `t` side lies wholly above `b` or wholly
+    /// below `a`, and the carrier over it is decided past the band from
+    /// the carrier's point at that end.
     fn past_an_end(&self, x: Cell, (a, b): (f64, f64), band: Band) -> bool {
         let (lo, hi) = x.0[0];
         let end = if lo > b {
@@ -563,6 +561,10 @@ impl<T: CertifiedBounds> Pair<'_, T> {
         )
     }
 
+    /// The state of the span's end at the parameter `end`: `end` and the
+    /// foot on `chart` of the carrier's point there, with an enclosure of
+    /// `F` at that state. The point's enclosure only seeds the foot, so its
+    /// middle is taken. `None` where the foot is not found.
     fn end_state(&self, end: f64, chart: &NurbsSurface<T>) -> Option<End> {
         let c = self.path.at(exact(end));
         let [x, y, z] = midpoint(&c).map(T::from_computed);
@@ -1007,10 +1009,7 @@ pub fn isolate<T: CertifiedBounds>(
         }
         // Past an end, and past the band of it, at the floor: no meeting
         // past an end is reported, so this box holds none of the span's
-        // answers, and its floor is no refusal of the span's. The reach
-        // past each end scales with the band and the floor with its
-        // square root, so at a coarse band the window holds boxes
-        // millimetres from the span.
+        // answers, and its floor is no refusal of the span's.
         if pair.past_an_end(x, (a, b), band) {
             return Step::Settled;
         }

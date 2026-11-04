@@ -14,7 +14,7 @@ use geom::{Curve3, NurbsSurface};
 use geom_core::spline::KnotVector;
 use geom_core::{Band, Point3, Tol, Vec3};
 
-use super::{END_REACH, SplineFaceRefusal};
+use super::{Cell, END_REACH, NurbsBoxes, Pair, Path, SpanCarrier, SplineFaceRefusal};
 use crate::curve_face::{Boundary, OnBoundary, boundary};
 use crate::curve_pair::{Hit, Span};
 use crate::roots::Unsettled;
@@ -89,12 +89,15 @@ fn a_crossing_on_the_charts_edge_past_the_spans_end_is_not_the_spans() {
     );
 }
 
-/// **A crossing within the band of the end is the end's.** No box past
-/// the band of the end holds it: the end's box accounts for it, the
-/// walk reports no meeting inside the span, and the end's point reads
-/// on the chart within the band, which is where its meeting is placed.
+/// **A regression record: a crossing within the band of the end is the
+/// end's.** The end's box accounts for it before any box reaches the
+/// floor, so the past-the-end decision is never read here and no change
+/// to it can turn this row red; it records that the answer stays the
+/// end's. The walk reports no meeting inside the span, and the end's
+/// point reads on the chart within the band, which is where its meeting
+/// is placed.
 #[test]
-fn a_crossing_on_the_charts_edge_within_the_band_of_the_end_is_the_ends() {
+fn regression_a_crossing_within_the_band_of_the_end_stays_the_ends() {
     let gap = 0.5 * band().zero();
     let span = short_of_the_crossing(gap, short());
     let got = crate::NurbsLane::<f64>::certified().chart_meetings(&arc(), span, &flat(), band());
@@ -109,12 +112,16 @@ fn a_crossing_on_the_charts_edge_within_the_band_of_the_end_is_the_ends() {
     );
 }
 
-/// **A crossing nearer the end than the floor still refuses.** On a span
-/// long enough that a box at the floor round the crossing reaches back
-/// over the end, the box is not past the end, and the walk refuses as
-/// it does for any box it cannot read.
+/// **A regression record: a crossing nearer the end than the floor still
+/// refuses.** On a span long enough that a box at the floor round the
+/// crossing reaches back over the end, the box straddles the end and
+/// the walk refuses as it does for any box it cannot read. A straddling
+/// box never reaches the band decision, and its carrier enclosure holds
+/// the end's point, so no change to that decision can turn this row
+/// red; [`a_box_past_an_end_settles_only_past_the_band_of_that_ends_point`]
+/// is the row that reads it.
 #[test]
-fn a_crossing_on_the_charts_edge_within_the_floor_of_the_end_refuses() {
+fn regression_a_crossing_within_a_floor_box_of_the_end_still_refuses() {
     let gap = 4.0 * band().escalate();
     let got = crate::NurbsLane::<f64>::certified().chart_meetings(
         &arc(),
@@ -159,4 +166,54 @@ fn the_next_span_meets_the_crossing_on_the_boundary() {
             && (s - 0.75).abs() <= band().zero(),
         "at θ = π/2, (1, 3/4, 0), 3/4 along the edge: {got:?}"
     );
+}
+
+/// **The decision itself**, cell by cell: a box wholly past an end
+/// settles only where its carrier is decided past the band of THAT end's
+/// point; within the band of it, straddling an end, or inside the span,
+/// it does not.
+#[test]
+fn a_box_past_an_end_settles_only_past_the_band_of_that_ends_point() {
+    let (curve, chart) = (arc(), flat());
+    let carrier = SpanCarrier::of(&curve);
+    let pair = Pair {
+        path: Path::of(&carrier).unwrap(),
+        boxes: NurbsBoxes::new(&chart),
+        speeds: [R, 1.0, 1.0],
+    };
+    let span = (FRAC_PI_2 - 0.5, FRAC_PI_2 - 0.25);
+    let (a, b) = span;
+    // In parameter: a quarter of the band's zero past the end, past the
+    // band by far, and a box side of a few escalation lengths.
+    let near = 0.25 * band().zero() / R;
+    let far = 64.0 * band().escalate() / R;
+    let side = 4.0 * band().escalate() / R;
+    let cell = |t: (f64, f64)| Cell([t, (0.0, 1.0), (0.0, 1.0)]);
+    let cases = [
+        (
+            "within the band past b",
+            cell((b + near, b + near + side)),
+            false,
+        ),
+        (
+            "past the band past b",
+            cell((b + far, b + far + side)),
+            true,
+        ),
+        (
+            "within the band before a",
+            cell((a - near - side, a - near)),
+            false,
+        ),
+        (
+            "past the band before a",
+            cell((a - far - side, a - far)),
+            true,
+        ),
+        ("straddling b", cell((b - side, b + side)), false),
+        ("inside the span", cell((a + far, a + far + side)), false),
+    ];
+    for (what, x, settles) in cases {
+        assert_eq!(pair.past_an_end(x, span, band()), settles, "{what}: {x:?}");
+    }
 }
