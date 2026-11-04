@@ -504,10 +504,35 @@ pub enum TouchUnread {
     Degenerate,
     /// A link's extent is too long or too short to be a number.
     ChordScale,
+    /// A curved edge's tangent at the touch point did not read, for the
+    /// reason it carries. It is no tangency a reading of second order
+    /// would part ([`Self::Unreadable`]).
+    EdgeTangent(EdgeTangentUnread),
     /// The topology around the touch did not read. The census runs only
     /// on bodies tier 1 admits (loops closed, every key resolving), so
     /// this is a kernel defect.
     Corrupt,
+}
+
+/// Why a curved edge's tangent at a touch point did not read
+/// ([`TouchUnread::EdgeTangent`]).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[cfg_attr(any(test, feature = "test-support"), derive(strum::EnumIter))]
+pub enum EdgeTangentUnread {
+    /// The edge's span does not certify the point on its interior: two
+    /// readings of one fact (the touch held inside the edge, and the
+    /// span) disagree.
+    #[default]
+    OffInterior,
+    /// The edge carries no certified curve.
+    NoCurve,
+    /// The edge's speed bounds meter no reach or no length over its
+    /// span.
+    Unmetered,
+    /// A spline edge's piece walk ran past its budget.
+    Exhausted,
+    /// A spline edge's speed bound is zero or poison.
+    Unbounded,
 }
 
 impl From<TouchUnread> for TouchVerdict {

@@ -179,12 +179,11 @@ fn clears(x: Interval) -> bool {
 }
 
 impl Channel {
-    /// The plane coordinates of `p` about the channel's centre.
-    fn coords(self, p: Point3<f64>) -> (f64, f64) {
+    fn azimuth(self, p: Point3<f64>) -> geom::Azimuth<f64> {
         match self {
             Self::Axis { origin, e1, e2 } => {
                 let w = p - origin;
-                (w.dot(e1), w.dot(e2))
+                geom::Azimuth::of(w.dot(e2), w.dot(e1))
             }
             Self::Core {
                 center,
@@ -193,14 +192,9 @@ impl Channel {
             } => {
                 let w = p - center;
                 let (_, rho) = super::square_part(w, axis);
-                (rho - big_r, w.dot(axis))
+                geom::Azimuth::tube(w.dot(axis), rho, big_r)
             }
         }
-    }
-
-    fn angle(self, p: Point3<f64>) -> f64 {
-        let (x, y) = self.coords(p);
-        y.atan2(x)
     }
 
     /// Whether the box `b` clears the centre in the channel's plane.
@@ -295,9 +289,8 @@ pub(crate) fn winding(
         let mut total = 0.0;
         for &(enclosure, _, (a, b)) in pieces {
             let delta = {
-                let d = chan.angle(net.eval(b)) - chan.angle(net.eval(a));
-                (d + core::f64::consts::PI).rem_euclid(core::f64::consts::TAU)
-                    - core::f64::consts::PI
+                let from = chan.azimuth(net.eval(a)).near(0.0);
+                chan.azimuth(net.eval(b)).near(from) - from
             };
             if !chan.clear(enclosure) || delta.abs() > TRUSTED_TURN {
                 return Err(WindsRefusal::Unseparated);

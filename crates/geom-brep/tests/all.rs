@@ -54,6 +54,8 @@ mod shared;
 
 #[path = "a_shared_row_is_certified_per_wall.rs"]
 mod a_shared_row_is_certified_per_wall;
+#[path = "an_iso_family_reads_the_edges_span.rs"]
+mod an_iso_family_reads_the_edges_span;
 #[path = "analytic_rung3_certificate.rs"]
 mod analytic_rung3_certificate;
 #[path = "approx_surface.rs"]
@@ -147,6 +149,8 @@ mod m7_8_plane_nurbs_edge;
 mod m8_f67_r1_probes;
 #[path = "marched_windings.rs"]
 mod marched_windings;
+#[path = "off_coaxial_drift_oracle.rs"]
+mod off_coaxial_drift_oracle;
 #[path = "offa_r1_probes.rs"]
 mod offa_r1_probes;
 #[path = "offb_r1_probes.rs"]

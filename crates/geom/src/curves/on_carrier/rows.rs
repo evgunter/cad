@@ -68,7 +68,7 @@ fn normal(c: &Curve3<f64>, t: f64) -> Vec3<f64> {
     }
 }
 
-fn name(r: Result<OnCarrier, CarrierRefusal>) -> &'static str {
+fn name<T>(r: Result<OnCarrier<T>, CarrierRefusal>) -> &'static str {
     match r {
         Ok(OnCarrier::On { .. }) => "on",
         Ok(OnCarrier::Off) => "off",
@@ -144,10 +144,10 @@ fn a_thin_ellipses_foot_reads_the_distance_not_its_unit_image() {
     let q = c.eval(t) + normal(&c, t) * ZERO;
     let foot = c.foot(q, 0.0);
     assert!(foot.gap() < 1.5 * ZERO, "{}", foot.gap());
-    assert!((foot.t() - t).abs() < 1e-6, "{}", foot.t());
+    assert!((foot.seed() - t).abs() < 1e-6, "{}", foot.seed());
     assert!((foot.point() - q).norm() == 0.0);
     assert!(
-        !foot.is_nearest(),
+        foot.nearest().is_none(),
         "an ellipse's foot is a stationary point"
     );
 }
@@ -184,7 +184,7 @@ fn a_closed_splines_foot_crosses_its_seam() {
         assert!(
             foot.gap() < ZERO,
             "t {t} from {seed}: foot at {} gap {:e}",
-            foot.t(),
+            foot.seed(),
             foot.gap()
         );
         assert_eq!(
@@ -255,14 +255,9 @@ fn a_closed_splines_foot_is_found_from_any_seed() {
     );
 }
 
-/// A cubic hairpin's two branches tie across a wide `Interval` box: the
-/// polish keeps the seed's branch, whose tangent no point of the box
-/// has, and a narrower box picks the right one. So the tie reaches the
-/// log as the driver's cue to refine.
-#[test]
-fn a_tie_across_a_hairpins_branches_reaches_the_log() {
-    use geom_core::{Bounds, Interval, Real, k_stats::detached};
-    let h = 0.2;
+/// A cubic hairpin with branches `h` apart, and the point on its near
+/// branch at `t = 0.08`.
+fn hairpin(h: f64) -> (Curve3<f64>, Point3<f64>) {
     let c = Curve3::Nurbs(std::sync::Arc::new(
         crate::NurbsCurve3::new(
             geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0], 3)
@@ -278,24 +273,265 @@ fn a_tie_across_a_hairpins_branches_reaches_the_log() {
         .unwrap(),
     ));
     let p = c.eval(0.08);
+    (c, p)
+}
+
+/// The point `p` widened to an `Interval` box of half-width `r`.
+fn boxed(p: Point3<f64>, r: f64) -> Point3<geom_core::Interval> {
+    let w = |x: f64| geom_core::Interval::from_bounds(x - r, x + r);
+    Point3::new(w(p.x), w(p.y), w(p.z))
+}
+
+/// **A tie across a hairpin's branches is the certificate's to read**.
+/// The hairpin's branches lie 0.2 apart. On an `Interval` box about a
+/// point on the near branch, seeded on the far one, a wide box ties
+/// every polish candidate and the polish keeps the seed's branch. That
+/// pick is a heuristic's and stays out of the log (ledger row F32).
+/// What a reader can hold is the certificate, and across the box ladder
+/// it never says `On` at the far branch:
+///
+/// - ±0.05 and ±1e-3: the spline's piece walk runs past its budget
+///   (`Unwalked(Exhausted)`), a refusal no narrower box in that range
+///   answers (`a-splines-on-carrier-exhausts-its-piece-budget-at-interval`);
+/// - ±1e-6: an escalation in the band (`Escalated(InBand)`), the
+///   driver's cue to refine;
+/// - ±1e-11: `On` at the near branch, `t ≈ 0.08`.
+#[test]
+fn a_tie_across_a_hairpins_branches_is_the_certificates_to_read() {
+    use geom_core::{Bounds, Interval, Real, k_stats::detached};
+    let (c, p) = hairpin(0.2);
     let ci: Curve3<Interval> = c.map_scalar(Interval::from_f64);
-    let w = |x: f64| Interval::from_bounds(x - 0.05, x + 0.05);
-    let (foot, rec) = detached(|| {
-        ci.foot(
-            Point3::new(w(p.x), w(p.y), w(p.z)),
-            Interval::from_f64(0.92),
-        )
-    });
+    let seed = Interval::from_f64(0.92);
+    let (foot, rec) = detached(|| ci.foot(boxed(p, 0.05), seed));
     assert!(
-        foot.t().lo() > 0.5,
+        foot.seed().lo() > 0.5,
         "the tie keeps the seed's branch: {:?}",
-        foot.t()
+        foot.seed()
     );
     assert!(
-        rec.recorded()
+        !rec.recorded()
             .escalations
             .iter()
             .any(|e| e.predicate() == "curve_foot_polish"),
-        "a tie across branches, which refining resolves, must reach the driver"
+        "the polish's tie-break is a heuristic's and stays out of the log"
+    );
+    for r in [0.05, 1e-3] {
+        assert_eq!(
+            name(ci.on_carrier(boxed(p, r), seed, band())),
+            "exhausted",
+            "±{r}: the piece walk runs past its budget"
+        );
+    }
+    assert!(
+        matches!(
+            ci.on_carrier(boxed(p, 1e-6), seed, band()),
+            Err(CarrierRefusal::Escalated(CarrierEscalation::InBand(_)))
+        ),
+        "±1e-6: the certificate escalates in the band"
+    );
+    let narrow = ci.on_carrier(boxed(p, 1e-11), seed, band());
+    assert!(
+        matches!(narrow, Ok(OnCarrier::On { t, .. }) if t.lo() > 0.08 - 1e-6 && t.hi() < 0.08 + 1e-6),
+        "±1e-11: on at the near branch, not the seed's: {narrow:?}"
+    );
+}
+
+/// **Below the band's zero, `On` certifies the point and not the
+/// branch**. A hairpin whose branches lie 3e-10 apart, inside the 1e-9
+/// zero, reads `On` at the seed's branch at `Interval` (`t = 0.92`, the
+/// reversed tangent) with nothing logged, and `On` at the near branch at
+/// `f64`. Both are true of the point: it lies within the band of the
+/// carrier at either parameter. A reader of the branch (a tangent)
+/// rests on the carrier's branches being decided apart, which this
+/// carrier's are not (`a-carriers-branches-within-the-band-of-each-other`).
+#[test]
+fn a_hairpin_closer_than_the_band_certifies_on_at_the_seeds_branch_at_interval() {
+    use geom_core::{Bounds, Interval, Real};
+    let (c, p) = hairpin(3e-10);
+    let ci: Curve3<Interval> = c.map_scalar(Interval::from_f64);
+    let on = ci.on_carrier(boxed(p, 1e-10), Interval::from_f64(0.92), band());
+    assert!(
+        matches!(on, Ok(OnCarrier::On { t, .. }) if t.lo() > 0.5),
+        "On's t is the seed's branch below the band: {on:?}"
+    );
+    assert!(
+        matches!(c.on_carrier(p, 0.92, band()), Ok(OnCarrier::On { t, .. }) if t < 0.5),
+        "at f64 the polish finds the near branch"
+    );
+}
+
+/// **A foot on a far branch at `f64` is the certificate's to read**: on
+/// a cubic spline of five knot spans, a point on the carrier at
+/// `t = 0.35` polishes, from every seed but its own parameter, to a
+/// stationary point near `t = 0.03`, 0.05 away. No tie and no log is involved, so no tie log
+/// could catch it; what a reader can hold is the certificate, and it
+/// says neither `On` (the foot's gap is far past the band) nor `Off`
+/// (the point is on the carrier): it escalates.
+#[test]
+fn a_foot_on_a_far_branch_at_f64_is_the_certificates_to_read() {
+    let c = Curve3::Nurbs(std::sync::Arc::new(
+        crate::NurbsCurve3::new(
+            geom_core::spline::KnotVector::clamped(
+                vec![0.0, 0.0, 0.0, 0.0, 0.2, 0.4, 0.6, 0.8, 1.0, 1.0, 1.0, 1.0],
+                3,
+            )
+            .unwrap(),
+            vec![
+                Point3::new(0.25350192097619306, 1.366246580479202, 0.10734265927471985),
+                Point3::new(
+                    0.8036949878629633,
+                    0.013067913669976727,
+                    0.03308834410972377,
+                ),
+                Point3::new(1.480946409416911, 0.4537707418975514, 0.1764560519141859),
+                Point3::new(0.03646373591417751, 1.0290841026582689, 0.07594285140734353),
+                Point3::new(0.4630589620214056, 1.7067471422313527, 0.031091972942131577),
+                Point3::new(1.1544836707277542, 0.48528073793130444, 0.01100075298321821),
+                Point3::new(0.7893432608276867, 1.5915056214557455, 0.025122531729525922),
+                Point3::new(1.2935210084059152, 1.3895124153536436, 0.08367157011772855),
+            ],
+            vec![1.0; 8],
+        )
+        .unwrap(),
+    ));
+    let p = c.eval(0.35);
+    for seed in [0.0, 0.3, 0.5, 1.0] {
+        let foot = c.foot(p, seed);
+        assert!(
+            foot.gap() > 1e-3,
+            "seed {seed}: the search lands on the far branch, at {} gap {:e}",
+            foot.seed(),
+            foot.gap()
+        );
+        assert_eq!(
+            name(foot.on_carrier(band())),
+            "escalated",
+            "seed {seed}: neither on at the far foot nor off the carrier"
+        );
+    }
+}
+
+/// The reads of a foot's seed in `code` (comment- and string-blanked
+/// text): each `.seed()` call, and each path from `Foot` to `::seed` in
+/// any spelling (`Foot::seed`, `Foot::<f64>::seed`, the qualified
+/// `<geom::Foot<'_, f64>>::seed`, a method reference `.map(Foot::seed)`),
+/// the path ending at the first `(`, `)`, `;`, `{` or `}`.
+fn seed_reads(code: &str) -> usize {
+    let ident = |c: char| c.is_alphanumeric() || c == '_';
+    let calls = code.matches(".seed()").count();
+    let paths = code
+        .match_indices("Foot")
+        .filter(|&(at, _)| !code[..at].ends_with(ident))
+        .filter(|&(at, _)| {
+            let rest = &code[at + 4..];
+            let end = rest.find(['(', ')', ';', '{', '}']).unwrap_or(rest.len());
+            rest[..end].trim_end().ends_with("::seed")
+                || rest[..end]
+                    .find("::seed")
+                    .is_some_and(|k| !rest[k + 6..].starts_with(ident))
+        })
+        .count();
+    calls + paths
+}
+
+/// **`seed_reads` sees every spelling**: a row a bug in the count could
+/// break, on text, not on the tree.
+#[test]
+fn every_spelling_of_a_seed_read_is_counted() {
+    for (code, n) in [
+        ("f.seed()", 1),
+        ("geom::Foot::seed(f)", 1),
+        ("geom::Foot::<f64>::seed(f)", 1),
+        ("<geom::Foot<'_, f64>>::seed(f)", 1),
+        ("feet.map(Foot::seed)", 1),
+        ("fn _v(f: Foot<'_, f64>) -> f64 { f.seed() }", 1),
+        ("Foot::seed_of(f); BigFoot::seed(f); Foot::nearest(f)", 0),
+        ("cell.seed(); a.seed()", 2),
+    ] {
+        assert_eq!(seed_reads(code), n, "{code}");
+    }
+}
+
+/// **A foot's seed is read only where it seeds a search or a bound**
+/// (module docs, "A foot has no bare parameter"). [`super::Foot::seed`]
+/// returns the same field as [`OnCarrier::On`]'s `t`, so the type alone
+/// cannot keep a verdict reader off it: every file under `crates/*/src`
+/// that reads it ([`seed_reads`]) is listed here with the number of reads
+/// and what they seed. A new read goes red here, in a listed file or not,
+/// and owes either a certificate (`On`'s `t`, [`super::Foot::nearest`])
+/// or its count raised with its reason.
+///
+/// Blind spots: `.seed()` is a method name, not a type, so another
+/// type's `seed()` is counted too and listed as such; a `Foot` renamed on
+/// import (`use geom::Foot as F`) is not seen; and `tests/`, `benches`
+/// and `demos` are not scanned (only `crates/*/src`, where the
+/// `#[cfg(test)]` rows are).
+#[test]
+fn a_foots_seed_is_read_only_where_it_seeds_a_search_or_a_bound() {
+    const READERS: &[(&str, usize, &str)] = &[
+        (
+            "geom/src/curves/on_carrier/rows.rs",
+            6,
+            "the foot's own rows",
+        ),
+        (
+            "geom-brep/src/curve_pair/walk.rs",
+            3,
+            "the walk's feet seed `read_both`, which reads the span's certificate",
+        ),
+        (
+            "geom-brep/src/curve_pair/pose.rs",
+            1,
+            "a candidate's parameters seed the pose's reading of the pair",
+        ),
+        (
+            "geom-brep/src/curve_pair/pose/window.rs",
+            1,
+            "the bound along `b` reads the speed at the seed, anchored on the gap",
+        ),
+        (
+            "geom-brep/src/curve_pair/span.rs",
+            1,
+            "`Span::place` reads the ends' sides at the seed; `Span::read` takes \
+             `On`'s `t` for `Reading::On`. `place` is itself a reading, which \
+             `curved_edges::passes` reads directly \
+             (`curved-edges-passes-hand-composes-on-carrier-and-span-place`)",
+        ),
+        (
+            "topo/src/boolean/solid_contain/curved_edges.rs",
+            1,
+            "the ray's foot iteration seeds `on_carrier` and `Span::place` at its point \
+             (`curved-edges-passes-hand-composes-on-carrier-and-span-place`)",
+        ),
+        (
+            "geom-brep/src/ssi/exhaust.rs",
+            2,
+            "a cell's own `seed()`, not a foot's",
+        ),
+    ];
+    let crates = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR")).join("..");
+    let mut found: Vec<(String, usize)> = test_utils::source::rust_sources(&crates)
+        .into_iter()
+        .filter_map(|f| {
+            let p = f
+                .strip_prefix(&crates)
+                .ok()?
+                .to_string_lossy()
+                .replace('\\', "/");
+            if !p.contains("/src/") {
+                return None;
+            }
+            let code = test_utils::source::code_only(&std::fs::read_to_string(&f).unwrap());
+            let n = seed_reads(&code);
+            (n > 0).then_some((p, n))
+        })
+        .collect();
+    found.sort();
+    let mut want: Vec<(String, usize)> =
+        READERS.iter().map(|&(p, n, _)| (p.to_owned(), n)).collect();
+    want.sort();
+    assert_eq!(
+        found, want,
+        "a foot's seed read outside its list, or a listed count moved"
     );
 }

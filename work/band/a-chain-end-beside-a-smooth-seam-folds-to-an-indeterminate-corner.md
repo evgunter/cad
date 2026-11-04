@@ -4,6 +4,8 @@ kind: issue
 title: A blend chain ending at a vertex where a smooth seam meets folds the seam into CornerConfig::Indeterminate
 status: open
 opened: 2026-11-02
+priority: P3
+cost: E
 ---
 
 Filed by the REFS lane (`work/refs/select-all-edges-picks-edges-a-fillet-refuses.md`, PR 6344), from its sweep for blend doors that read a Zero dihedral as a refusal; measurements corrected by that PR's review.

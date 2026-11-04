@@ -274,7 +274,7 @@ impl<T: Decide> Window<'_, T> {
     fn along_b(&self, m: T, w: T, foot: &geom::Foot<'_, T>) -> T {
         let eps = T::from_f64(f64::EPSILON);
         let (_, va) = self.a.jet_at(m);
-        let (_, vb) = self.carrier_b.ders1(foot.t());
+        let (_, vb) = self.carrier_b.ders1(foot.seed());
         let k = va.dot(vb) / vb.dot(vb);
         let (sa, sb) = (self.a.speed_hi(), self.b.speed_hi());
         // `m` and `w` are each within two roundings of `(l ± r)/2`, so

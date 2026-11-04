@@ -87,15 +87,12 @@ fn the_interval_lane_holds_at_the_cut() {
     }
 }
 
-/// The FULL period at the cut. `atan2`'s enclosure widens across the
-/// negative-`x` axis, so the two points nearest the seam are the ones
-/// that must NOT come back mis-selected: the enclosure may be wide,
-/// but it must still contain the truth. The width budget is dropped
-/// here on purpose — this is the regime where widening is the
-/// documented behaviour, and asserting a narrow width would be
-/// asserting the derivation does something it never claimed.
+/// **The FULL period, at the cut and the seam.** The two points nearest
+/// the seam are half a turn from the middle, where a floor of the gap
+/// would read a whole turn: the enclosure comes back narrow and on the
+/// right copy, to the rounding of the `f64` point it is read at.
 #[test]
-fn a_full_period_widens_at_the_seam_without_mis_selecting() {
+fn a_full_period_reads_narrow_at_the_seam_without_mis_selecting() {
     let (carrier64, carrier) = pair();
     let (t0, t1) = (0.0, TAU);
     let mid = Interval::from_f64((t0 + t1) * 0.5);
@@ -103,32 +100,31 @@ fn a_full_period_widens_at_the_seam_without_mis_selecting() {
         let p = carrier64.eval(t);
         let got = carrier.param_near(p.map(Interval::from_f64), mid).unwrap();
         assert!(
-            got.lo() <= t && t <= got.hi(),
+            got.lo() - 1e-12 <= t && t <= got.hi() + 1e-12,
             "at {t}: truth outside [{}, {}]",
             got.lo(),
             got.hi()
         );
+        assert!(
+            got.hi() - got.lo() < 1e-12,
+            "at {t}: width {:e}",
+            got.hi() - got.lo()
+        );
     }
 }
 
-/// **The endpoint-anchored entry point widens the same way.** The
-/// offset door anchors at the moving endpoint's own old parameter, not
-/// at a span midpoint, so its interval posture is a separate claim:
-/// the enclosure of the answer contains the truth for an anchor
-/// anywhere on the line, and stays narrow while the point is not half
-/// a turn from it.
+/// **The endpoint-anchored entry point.** The offset door anchors at
+/// the moving endpoint's own old parameter, not at a span midpoint, so
+/// its interval posture is a separate claim: the enclosure of the
+/// answer contains the truth for an anchor anywhere on the line, to the
+/// rounding of the `f64` point it is read at, and stays narrow.
 ///
-/// **THE GRID RUNS ALL THE WAY TO `±π`, and the claim weakens exactly
-/// there** — it does not stop at 3.0 and leave the boundary to the
-/// reader's charity. Strictly inside the half turn, `near + δ` is the
-/// unique branch within half a turn and the enclosure contains THAT
-/// number. AT `|δ| = π` the point has two such branches, `near ± π`,
-/// and which one the lane encloses is decided by `atan2`'s cut on the
-/// sign of `w·τ̂` — a coin flip, measured at 12 of 30 cases in the
-/// `f64` sibling row. So the boundary asserts the property that
-/// actually holds: the enclosure contains A parameter of the point
-/// within half a turn of the anchor. Asserting `t` specifically would
-/// be asserting the coin.
+/// **The grid runs all the way to `±π`.** Strictly inside the half
+/// turn, `near + δ` is the unique branch within half a turn and the
+/// enclosure contains that number. At `|δ| = π` the point has two such
+/// branches, `near ± π`, and which one the point's own rounding puts
+/// nearer names the copy, so the boundary asserts that the enclosure
+/// holds one of them within half a turn of the anchor.
 #[test]
 fn an_endpoint_anchor_encloses_the_truth_at_every_offset() {
     let (carrier64, carrier) = pair();
@@ -142,7 +138,7 @@ fn an_endpoint_anchor_encloses_the_truth_at_every_offset() {
             if delta.abs() == PI {
                 // The two legitimate answers, a turn apart. Either may
                 // be the one enclosed; neither may be missed by both.
-                let encloses = |x: f64| got.lo() <= x && x <= got.hi();
+                let encloses = |x: f64| got.lo() - 1e-12 <= x && x <= got.hi() + 1e-12;
                 assert!(
                     encloses(near + PI) || encloses(near - PI),
                     "near={near} delta={delta}: [{}, {}] holds neither half-turn branch",
@@ -161,20 +157,16 @@ fn an_endpoint_anchor_encloses_the_truth_at_every_offset() {
                 continue;
             }
             assert!(
-                got.lo() <= t && t <= got.hi(),
+                got.lo() - 1e-12 <= t && t <= got.hi() + 1e-12,
                 "near={near} delta={delta}: truth {t} outside [{}, {}]",
                 got.lo(),
                 got.hi()
             );
-            // Away from the cut the enclosure is a handful of ulps, so
-            // an anchored read never costs a consumer its gate.
-            if delta.abs() < 3.0 {
-                assert!(
-                    got.hi() - got.lo() < 1e-9,
-                    "near={near} delta={delta}: enclosure width {:e}",
-                    got.hi() - got.lo()
-                );
-            }
+            assert!(
+                got.hi() - got.lo() < 1e-9,
+                "near={near} delta={delta}: enclosure width {:e}",
+                got.hi() - got.lo()
+            );
         }
     }
 }
@@ -253,4 +245,37 @@ fn the_anchored_form_costs_the_lane_a_few_ulps_and_no_selection() {
             // the claim; the prose carries the comparison.
         }
     }
+}
+
+/// **A box reaching the centre decides no angle.** On a circle of radius
+/// `1e-3`, a box about the point at angle `0.3` that reaches the centre
+/// holds directions of every angle; the read must enclose the true angle
+/// (here the whole window about the anchor) or refuse, never answer the
+/// anchor narrow as if it were decided.
+#[test]
+fn a_box_reaching_the_centre_encloses_the_angle_or_refuses() {
+    use geom_core::spline::SpanLocate;
+    let ex = Interval::from_f64;
+    let center = Point3::new(1.0, 2.0, 3.0);
+    let r = 1e-3;
+    let carrier = Curve3::circle(
+        center.map(ex),
+        Vec3::unit_z().map(ex),
+        ex(r),
+        Vec3::unit_x().map(ex),
+    );
+    let on = Point3::new(
+        center.x + r * 0.3_f64.cos(),
+        center.y + r * 0.3_f64.sin(),
+        center.z,
+    );
+    let hull = |a: f64, b: f64| ex(a).enclosure_hull(ex(b));
+    let p = Point3::new(hull(center.x, on.x), hull(center.y, on.y), ex(center.z));
+    let got = carrier.param_near(p, ex(2.0)).unwrap();
+    assert!(
+        got.lo().is_nan() || (got.lo() <= 0.3 && 0.3 <= got.hi()),
+        "the read [{}, {}] neither encloses 0.3 nor refuses",
+        got.lo(),
+        got.hi()
+    );
 }

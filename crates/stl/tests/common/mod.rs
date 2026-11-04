@@ -64,6 +64,9 @@ pub fn acceptance_bodies() -> Vec<(&'static str, Body<f64>, f64)> {
         ("donut", donut(), 8e-2),
         // One spindle-torus sheet (a lemon band) between two cones.
         ("football", football(), 1e-2),
+        // The football itself: the lemon's arc from apex to apex,
+        // closed along the axis, its two apexes vertices.
+        ("lemon", lemon(), 1e-2),
         ("wedge", wedge(), 1e-2),
         // Issue #111: the A×Z boolean's near-collinear seam boundaries,
         // whose exterior needle triangle used to leak past `check_mesh`
@@ -349,6 +352,25 @@ pub fn football() -> Body<f64> {
         (Point2::new(rho, -z), (half / 2.0).tan()),
         (Point2::new(rho, z), 0.0),
         (Point2::new(0.0, 1.2), 0.0),
+    ]);
+    revolve(
+        &validated(vec![lp]),
+        axis_y(),
+        Revolution::Full,
+        Tol::witness(),
+    )
+    .unwrap()
+    .body
+}
+
+/// The football: the arc of the circle of radius 1 centred half a unit
+/// across the axis, from one of its axis points to the other, closed
+/// along the axis, so both of the lemon's apexes are vertices.
+pub fn lemon() -> Body<f64> {
+    let h = 0.75_f64.sqrt();
+    let lp = bulge_loop(vec![
+        (Point2::new(0.0, -h), (core::f64::consts::PI / 6.0).tan()),
+        (Point2::new(0.0, h), 0.0),
     ]);
     revolve(
         &validated(vec![lp]),
