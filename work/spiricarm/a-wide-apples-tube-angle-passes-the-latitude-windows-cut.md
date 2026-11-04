@@ -33,3 +33,17 @@ mesh does not: `mesh::tessellate` at δ = 1e-2 refuses
 sheet's rim at `v = −2.4` read a turn off, at `+3.88`. So the window is
 what keeps the wide apple out of the football suite; that row of the
 suite is the pin once this is fixed.
+
+## Evidence (stage 2)
+
+The horn is the widest apple (`v* = π`). Stage 2 builds the needle tip
+(`crates/sweep/tests/the_football_revolves.rs`
+`a_horn_reached_at_its_cusp_from_one_side_is_a_needle_tip`) on the
+horn's upper side, `π/2 ≤ v ≤ π`, which the latitude window holds.
+`topo::Chart::poles` lists the horn's one cusp once, at `v = π`, where
+that window reads it. The same needle on the lower side,
+`−π ≤ v ≤ −π/2`, has its meridian's lower stretch `v < 1 − π` read a
+turn off, and its cusp at `+π`; it is not in the suite. A window that
+holds `[−v*, v*]` for every sheet still has to place a horn's cusp at
+`+π` for an upper face and `−π` for a lower one, so the fix reads the
+cusp's `v` off the face, as a seam's.

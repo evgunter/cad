@@ -9549,12 +9549,14 @@ impl IsoFamilyRefusal {
 
 crate::ended_by_write!(IsoFamilyRefusal);
 
-/// The iso family `carrier`'s image on `surface`'s chart lies on, read
-/// off the class arm [`chart_pcurve`]'s derivation selects for it, so
-/// the family is the mint's own structure. `None` for a planar chart, a
-/// spiric carrier, and an image on no family (a cylinder's oblique
-/// section or a line shown off its rulings, a cone's tilted section, a
-/// torus's Villarceau circle).
+/// The iso family the image of `carrier` over `span` on `surface`'s
+/// chart lies on, read off the class arm [`chart_pcurve`]'s derivation
+/// selects for it, so the family is the mint's own structure. The span
+/// is the edge's: a sheet's meridian circle leaves the sheet past its
+/// apexes, so only the part an edge holds is on it. `None` for a planar
+/// chart, a spiric carrier, and an image on no family (a cylinder's
+/// oblique section or a line shown off its rulings, a cone's tilted
+/// section, a torus's Villarceau circle).
 ///
 /// # Errors
 ///
@@ -9563,13 +9565,19 @@ crate::ended_by_write!(IsoFamilyRefusal);
 /// reading is in the band, where the mint takes the general lane.
 pub fn chart_iso_family<T: Decide>(
     carrier: &Curve3<T>,
+    span: (T, T),
     surface: &Surface<T>,
     band: Band,
 ) -> Result<Option<IsoFamily>, IsoFamilyRefusal> {
     if matches!(carrier, Curve3::Spiric { .. }) {
         return Ok(None);
     }
-    let derivation = match derive_class(carrier, surface, Placement::own(carrier, surface), band) {
+    let derivation = match derive_class(
+        carrier,
+        surface,
+        Placement::over(span, carrier, surface),
+        band,
+    ) {
         Ok((_, derivation)) => derivation,
         // The ruling reading in band; any other class reading in band
         // keeps its own ending.
@@ -10299,19 +10307,34 @@ fn derive_class<T: Decide>(
                     // takes the chart's side, a D9 tie-break.
                     let (s_m, c_m) = place.mid().sin_cos();
                     let at_mid = radial(form.a * c_m + form.b * s_m);
-                    let toward = |along: Vec3<T>| match decide(
-                        "pcurve_sphere_chart_meridian_frame",
-                        Margin::levered(
-                            d_hat.dot(along),
-                            geom_core::Lever::curvature_radius(radius),
-                        ),
-                        band,
-                    ) {
-                        Ok(Sign::Negative) => Some(true),
-                        Ok(Sign::Positive) => Some(false),
-                        Ok(Sign::Zero) | Err(_) => None,
-                    };
-                    let turned = toward(u_ref).or_else(|| toward(cv)).unwrap_or(false);
+                    // The ladder over the frame's two axes
+                    // ([`crate::ladder::climb`]): `u_ref` chooses where it
+                    // decides, `cv` only where it does not (`First`).
+                    // Neither deciding is the tie-break's case, not a
+                    // refusal.
+                    let turned = crate::ladder::climb(
+                        crate::ladder::Answering::First,
+                        [u_ref, cv],
+                        |along| {
+                            crate::ladder::Rung::decide(
+                                "pcurve_sphere_chart_meridian_frame",
+                                Margin::levered(
+                                    d_hat.dot(along),
+                                    geom_core::Lever::curvature_radius(radius),
+                                ),
+                                band,
+                                |d| match d.sign {
+                                    Sign::Negative => Some(true),
+                                    Sign::Positive => Some(false),
+                                    Sign::Zero => None,
+                                },
+                            )
+                        },
+                    )
+                    .into_reading()
+                    .ok()
+                    .flatten()
+                    .unwrap_or(false);
                     let chart_side = if turned {
                         d_hat * (T::zero() - T::one())
                     } else {
@@ -14334,11 +14357,21 @@ mod iso_family {
             Vec3::unit_x(),
         );
         assert_eq!(
-            chart_iso_family(&line(0.0), &cylinder, band),
+            chart_iso_family(
+                &line(0.0),
+                crate::pcurve_cache::own_interval(&line(0.0)),
+                &cylinder,
+                band
+            ),
             Ok(Some(IsoFamily::U))
         );
         assert_eq!(
-            chart_iso_family(&rim, &cylinder, band),
+            chart_iso_family(
+                &rim,
+                crate::pcurve_cache::own_interval(&rim),
+                &cylinder,
+                band
+            ),
             Ok(Some(IsoFamily::V))
         );
         // An oblique section lies on the cylinder and is no iso line.
@@ -14352,17 +14385,35 @@ mod iso_family {
             1.0,
             1.0 / theta.cos(),
         ));
-        assert_eq!(chart_iso_family(&section, &cylinder, band), Ok(None));
+        assert_eq!(
+            chart_iso_family(
+                &section,
+                crate::pcurve_cache::own_interval(&section),
+                &cylinder,
+                band
+            ),
+            Ok(None)
+        );
         // A line tilted 1e-2 leaves the cylinder past the band over its
         // span: the incidence test reads it off before any family.
         assert!(matches!(
-            chart_iso_family(&line(1e-2), &cylinder, band),
+            chart_iso_family(
+                &line(1e-2),
+                crate::pcurve_cache::own_interval(&line(1e-2)),
+                &cylinder,
+                band
+            ),
             Err(IsoFamilyRefusal::Image(
                 super::PcurveCertifyError::CarrierOffChart { .. }
             ))
         ));
         assert!(matches!(
-            chart_iso_family(&line(1e-7), &cylinder, band),
+            chart_iso_family(
+                &line(1e-7),
+                crate::pcurve_cache::own_interval(&line(1e-7)),
+                &cylinder,
+                band
+            ),
             Err(IsoFamilyRefusal::Undecided(_))
         ));
     }
