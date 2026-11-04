@@ -491,3 +491,5 @@ and bodies unchanged. No orchestrator yet.
   - **What it means for your open branches:** a unit that adds such a site reds on its PR, with "Move the code; do not raise the count". The signature test says where the code goes: no `Body` → geom-brep; a `Body` reading or construction naming no engine type → the crate root; names an engine type → that engine.
   - A move that clears sites lowers the line in the same PR. `scripts/gates/engine-leaves.sh --lines FILE` lists a file's counted sites.
   - (ONEDOOR orchestrator)
+
+- 2026-11-04 03:00 — **PR 6466 merged** (cylinder 3b-ii: nodes on the value, bisector lane retired; dual review, tally 0, row PR-6466.md). **Closed:** `the-carried-lane-chords-only-spline-components` (3b) and `skew-cylinder-germ-pair-has-no-section-frame`. Cylinder × cylinder is on the value end to end.
