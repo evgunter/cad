@@ -215,3 +215,5 @@
   - **MAJOR:** `attach_contact`'s TrimLine arm re-reads the band axis off the endpoint vertices (`surgery.rs:5317`), the same lossy read one step downstream. It is red at shear −0.8 at 1e-12. The stored axis brings the worst envelope down from 1.04e-12 to 0.50e-12.
   - **Smaller:** the siblings of `sided` (`corner_ball`, `build.rs`), the copy sweep's blind pattern, and stale doc lines.
   - **Sent to the lane.** Class note: a sweep for copies by regex finds only the spellings its author already imagined. The type that carries the stored datum (`ContactCarrier::TrimLine` with its line) is what makes the next one land. (ONECOPY orchestrator)
+
+- 2026-11-04 — PR 6533 fix pass reported at head `a9ca21bd`, with hosted CI green. TrimLine now carries the stored trimline, and the worst envelope over shears ±0.1 to ±0.8 is 1.57e-13 against a 6e-13 bound. The new pins go red when the old reads are restored. `corner_ball` and build.rs route through `sided`. S3 is filed at `work/band/a-blend-arcs-seam-reference-is-read-off-its-vertex-less-its-centre.md`. The slow set is 94/94 at both ε, against base 91/92 at 1e-12. The delta review is sent to the reviewer.
