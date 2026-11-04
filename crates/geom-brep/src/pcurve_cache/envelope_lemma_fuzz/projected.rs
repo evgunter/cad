@@ -1063,7 +1063,7 @@ fn a_broken_sector_and_an_arc_through_the_pole_refuse() {
     );
     let image = project(&circle, Some((0.2, 1.4)), &sphere, b).expect("clear of the poles");
     let mut turned = image.clone();
-    turned.azimuth[0] += 2;
+    turned.azimuth[0].0 += 2;
     let err = PcurveCache::certify(
         Pcurve::Projected(Box::new(turned)),
         0.2,
@@ -1135,7 +1135,7 @@ fn wrong_nappe_refusal() -> PcurveCertifyError {
         *nappe = crate::Nappe::Mirror;
     }
     for m in &mut image.azimuth {
-        *m += 2;
+        m.0 += 2;
     }
     let lane = crate::FittedLane::<Interval>::certified();
     let (t0, t1) = (Interval::from_f64(0.0), Interval::from_f64(1.0));
@@ -1192,7 +1192,10 @@ fn an_off_chart_spline_refuses_by_incidence() {
 
 /// **A line near a cylinder's ruling images on the projected lane, and
 /// its envelope dominates** (`projected::line_off_cylinder_sup`): a line
-/// whose radial speed reads in the band or definite, standing up to
+/// whose ruling reading reads in the band or definite (its lean along the
+/// wall, drawn in the band or past it, times the span's reach from its
+/// origin, drawn at least 1, so the reading is no smaller than the lean:
+/// `ruling_miss`), standing up to
 /// half the zero band off the wall, over a span on which its lean along
 /// the wall moves it by at most `0.3·zero` more, derives the projected
 /// image, certifies at `f64` and at `Interval`, and its envelope covers
@@ -1226,7 +1229,7 @@ fn a_line_near_a_ruling_certifies_and_its_envelope_dominates() {
         let side = if s.below(2) == 0 { 1.0 } else { -1.0 };
         let dir = axis * s.range(0.3, 3.0) + tang * (side * lean);
         let off = b.zero() * s.range(-0.5, 0.5);
-        let mid = s.range(-2.0, 2.0);
+        let mid = if s.below(2) == 0 { 1.0 } else { -1.0 } * s.range(1.0, 2.0);
         let h = ((0.6 * b.zero() * radius).sqrt() / lean).min(2.0) * s.range(0.1, 1.0);
         let at_mid = origin + r * (radius + off) + axis * s.range(-1.0, 1.0);
         let carrier = Curve3::line(at_mid - dir * mid, dir);
@@ -1932,9 +1935,9 @@ fn turned_piece_refusal(torus: bool) -> PcurveCertifyError {
     let mut image = project(&c, None, &surf, b).expect("on the chart");
     assert_eq!(image.pieces(), 1, "a 120° arc holds one sector");
     if torus {
-        image.tube[0] += 2;
+        image.tube[0].0 += 2;
     } else {
-        image.azimuth[0] += 2;
+        image.azimuth[0].0 += 2;
     }
     let lane = crate::FittedLane::<f64>::certified();
     PcurveCache::certify_projected(image, 0.0, 1.0, &c, &surf, b, Some(lane))
@@ -1988,9 +1991,9 @@ fn grazing_piece_refusal(torus: bool) -> PcurveCertifyError {
     };
     let mut image = project(&c, None, &surf, b).expect("on the chart");
     image.breaks = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
-    image.azimuth = vec![0];
+    image.azimuth = vec![geom::Quarter(0)];
     if torus {
-        image.tube = vec![0];
+        image.tube = vec![geom::Quarter(0)];
     }
     let lane = crate::FittedLane::<f64>::certified();
     PcurveCache::certify_projected(image, 0.0, 1.0, &c, &surf, b, Some(lane))
@@ -2058,7 +2061,7 @@ fn a_period_jump_inside_a_piece_or_at_a_break_refuses() {
     );
     let image = project(&c, None, &cylinder, b).expect("on the cylinder");
     let mut turned = image.clone();
-    *turned.azimuth.last_mut().unwrap() += 4;
+    turned.azimuth.last_mut().unwrap().0 += 4;
     let lane = crate::FittedLane::<f64>::certified();
     let err = PcurveCache::certify_projected(turned, 0.0, 1.0, &c, &cylinder, b, Some(lane))
         .expect_err("a whole-turn jump at a break");
