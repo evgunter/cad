@@ -522,3 +522,75 @@ fn a_level_conics_offset_at_the_screens_flip_is_no_contradiction() {
         }
     }
 }
+
+/// **Two conics tangent at a shared end read the first's harmonic**: the
+/// band-turn needle's two rim edges at 3° (`sweep`'s
+/// `the_needle_builds_then_refuses_at_the_turn_as_it_flattens`), a long
+/// thin ellipse and a near-circle meeting at their common vertex with
+/// one tangent. Each lies tangent to the other's plane there, so both
+/// across scores are zero but for rounding (`5.8e-15` and `6.4e-15`
+/// here). Read bare, the difference picked the circle, whose window
+/// cannot certify the touch at this band, and the polish's basin met
+/// parallel tangents (`Unsettled::Meter`). Charged with its rounding, it
+/// is the tie it is, and the first is read: one meeting, at both ends.
+#[test]
+fn conics_tangent_at_a_shared_end_tie_the_across_choice() {
+    let conic = |o: [f64; 3], n: [f64; 3], u: [f64; 3], a: f64, b: f64| {
+        Curve3::Ellipse(geom::Ellipse::new(
+            geom::Frame::new(
+                Point3::from_array(o),
+                Vec3::from_array(n),
+                Vec3::from_array(u),
+            ),
+            a,
+            b,
+        ))
+    };
+    let long = conic(
+        [-2.133_335_936_086_264_3, 0.161_803_398_874_989_5, 0.1],
+        [
+            0.046_823_529_297_233_94,
+            0.893_446_162_722_366_2,
+            -0.446_723_081_361_183_16,
+        ],
+        [
+            -0.998_903_177_041_774_8,
+            0.041_880_237_782_027_22,
+            -0.020_940_118_891_013_61,
+        ],
+        2.135_678_397_183_687_2,
+        0.1,
+    );
+    let round = conic(
+        [0.002_342_461_097_416_876_3, 0.161_803_398_874_989_5, 0.1],
+        [
+            -0.999_657_324_975_557_4,
+            0.026_176_948_307_873_26,
+            8.882_394_871_458_447e-17,
+        ],
+        [
+            -0.026_176_948_307_873_26,
+            -0.999_657_324_975_557_4,
+            -3.392_049_750_087_985_2e-15,
+        ],
+        0.100_034_279_249_086_81,
+        0.1,
+    );
+    let at = Band::new(1e-12, 1e-11).unwrap();
+    let spans = (
+        (&long, (-PI, -3.141_044_317_251_385)),
+        (&round, (-1.570_796_326_794_893, 0.463_099_272_662_401_64)),
+    );
+    let got = read(spans.0, spans.1, at);
+    let back = read(spans.1, spans.0, at);
+    let met = got.unwrap_or_else(|r| panic!("the tangent pair refused: {r:?}"));
+    assert!(
+        met.shared.is_none() && met.points.len() == 1,
+        "one meeting, at the shared vertex: {met:?}"
+    );
+    let m = &met.points[0];
+    assert!(
+        matches!(m.on_a, Hit::End(_)) && matches!(m.on_b, Hit::End(_)),
+        "the meeting is both spans' end: {m:?}"
+    );
+}

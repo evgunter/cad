@@ -94,11 +94,14 @@
 //!   the closest pair polished from one (below). **The conic read is the
 //!   one that crosses the other's plane the less obliquely**: the larger
 //!   `(A² − c₀²)/r²`, `r` its larger semi-axis, which is the squared
-//!   sine of its crossing for a circle. That is a choice between two
-//!   sound readings, not a reading: it is taken off the log
-//!   (`curve_pair_pose_across`, `k_stats::check_unlogged`, ledger row
-//!   F33, at [`Band::least`]), and a tie or an undecided difference
-//!   reads the first. **What is order-free**: the route (apart, level,
+//!   sine of its crossing for a circle, each charged with the rounding
+//!   its height carries. That is a choice between two sound readings,
+//!   not a reading: it is taken off the log (`curve_pair_pose_across`,
+//!   `k_stats::check_unlogged`, ledger row F33, at [`Band::least`]), and
+//!   a difference within the two charges, or one undecided, reads the
+//!   first. Two conics tangent at a point are that tie: each lies
+//!   tangent to the other's plane, so both scores are zero but for
+//!   rounding, and read bare their difference would pick by it. **What is order-free**: the route (apart, level,
 //!   across, escalation) depends only on the pair, and across planes
 //!   the harmonic read is the same in either order wherever the choice
 //!   decides. In one plane the arms below parametrize the first conic
@@ -1050,11 +1053,17 @@ fn conic_conic<T: Decide>(
         for read in swings {
             read?;
         }
+        // Each score with its rounding: `A` and `c₀` are each within
+        // `noise`, so `A² − c₀²` within `noise·(A + |c₀| + noise)`, the
+        // score's own arithmetic inside that.
         let steep = |(c0, _, _): (T, T, T), swing: T, k: &dyn Conic<T>| {
             let (p, q) = k.semi_axes();
-            (swing.powi(2) - c0.powi(2)) / p.abs().max(q.abs()).powi(2)
+            let r2 = p.abs().max(q.abs()).powi(2);
+            let charge = noise * (swing + c0.abs() + noise) / r2;
+            ((swing.powi(2) - c0.powi(2)) / r2, charge)
         };
-        let by_b = steep(hb, swing_b, &kb) - steep(ha, swing_a, &ka);
+        let ((sa, ca), (sb, cb)) = (steep(ha, swing_a, &ka), steep(hb, swing_b, &kb));
+        let by_b = sb - sa - (ca + cb);
         if check_unlogged(row::ACROSS, by_b, Band::least(), "F33") == Ok(Sign::Positive) {
             let flipped: Vec<_> = known.iter().copied().map(flip).collect();
             let read = transverse((b, &kb, &ka, a), hb, swing_b, (noise, arm), &flipped, band);
