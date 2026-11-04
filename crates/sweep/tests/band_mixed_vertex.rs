@@ -15,8 +15,6 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use core::f64::consts::PI;
-
 use geom_core::{Band, Bounds, Interval, Point3};
 use sweep::blend::build::{chamfer_edges, fillet_edges};
 use sweep::blend::{BlendError, CornerConfig, FILLET3_MIXED_CORNER_RECOURSE};
@@ -25,15 +23,8 @@ use topo::boolean::BooleanOp;
 use topo::{Body, SolidContainment, VertexKey, point_in_solid, validate_geometric};
 
 use crate::band_planar_cut_off::{D, Verb, carve, edge, tol};
+use crate::band_planar_mitre::overlap;
 use crate::common::interval::iv;
-
-/// What two band prisms overlap in past a right corner, at size `D`.
-fn wedge(verb: Verb) -> f64 {
-    match verb {
-        Verb::Chamfer => D.powi(3) / 3.0,
-        Verb::Fillet => (5.0 / 3.0 - PI / 2.0) * D.powi(3),
-    }
-}
 
 /// **The L-bar**: an L-shaped section, legs 3 and 2 long and 0.5 thick,
 /// extruded 1 up. Its inside edge at (0.5, 0.5) is concave and the two
@@ -77,6 +68,50 @@ fn plate_boss(inset: f64) -> Body<f64> {
         tol(),
     );
     realized(BooleanOp::Union, &plate, &boss, tol())
+}
+
+/// **A curved link alone at a mixed vertex refuses as at a uniform
+/// one**, both verbs: the arc root of a quarter-cylinder boss on a
+/// plate ends at vertices where the boss's convex vertical edges meet
+/// the concave root, and it refuses exactly as the same arc does at a
+/// lone quarter-cylinder's uniform corner — its own arm's refusal,
+/// never the mixed corner's.
+#[test]
+fn a_curved_link_alone_at_a_mixed_vertex_refuses_as_at_a_uniform_one() {
+    let bulge = (core::f64::consts::PI / 8.0).tan();
+    let quarter = || {
+        vec![
+            (geom_core::Point2::new(1.0, 0.5), 0.0),
+            (geom_core::Point2::new(2.0, 0.5), bulge),
+            (geom_core::Point2::new(1.0, 1.5), 0.0),
+        ]
+    };
+    let plate = prism_at(
+        corners(&[(0.0, 0.0), (6.0, 0.0), (6.0, 4.0), (0.0, 4.0)]),
+        0.0,
+        0.5,
+        tol(),
+    );
+    let boss = prism_at(quarter(), 0.25, 1.75, tol());
+    let body = realized(BooleanOp::Union, &plate, &boss, tol());
+    let arc = edge(&body, [2.0, 0.5, 0.5], [1.0, 1.5, 0.5]);
+    let lone = prism_at(quarter(), 0.0, 1.5, tol());
+    let lone_arc = edge(&lone, [2.0, 0.5, 0.0], [1.0, 1.5, 0.0]);
+    for verb in [Verb::Chamfer, Verb::Fillet] {
+        let mixed = verb.run(&body, &[arc]).map(|_| ()).unwrap_err();
+        let uniform = verb.run(&lone, &[lone_arc]).map(|_| ()).unwrap_err();
+        assert_eq!(
+            core::mem::discriminant(&mixed),
+            core::mem::discriminant(&uniform),
+            "{verb:?}: as at a uniform vertex: {mixed:?} vs {uniform:?}"
+        );
+        assert!(
+            !mixed
+                .render(geom_brep::recourse::Reading::Build)
+                .contains(FILLET3_MIXED_CORNER_RECOURSE),
+            "{verb:?}: not the mixed corner's recourse: {mixed:?}"
+        );
+    }
 }
 
 fn vertex_at(body: &Body<f64>, q: [f64; 3]) -> VertexKey {
@@ -196,7 +231,7 @@ fn the_flush_pair_meets_in_a_mitre_that_removes_the_wedge() {
             &body,
             &[rim, up],
             verb,
-            verb.section() * 2.0 + wedge(verb),
+            verb.section() * 2.0 + overlap(verb),
             "the flush pair",
         );
         let rec = out.naming.as_ref().expect("births");
@@ -264,13 +299,16 @@ fn the_inset_root_rim_fills_the_mirror_wedge_at_each_corner() {
     let side = edge(&body, [1.0, 0.5, 0.5], [1.0, 3.5, 0.5]);
     let back = edge(&body, [1.0, 3.5, 0.5], [1.5, 3.5, 0.5]);
     let far = edge(&body, [1.5, 0.5, 0.5], [1.5, 3.5, 0.5]);
-    let shared = vertex_at(&body, [1.0, 0.5, 0.5]);
+    let far_ends = [
+        vertex_at(&body, [1.5, 0.5, 0.5]),
+        vertex_at(&body, [1.0, 3.5, 0.5]),
+    ];
     for verb in [Verb::Chamfer, Verb::Fillet] {
         let out = carve(
             &body,
             &[front, side, back, far],
             verb,
-            -(verb.section() * 7.0 + 4.0 * wedge(verb)),
+            -(verb.section() * 7.0 + 4.0 * overlap(verb)),
             "the inset root rim",
         );
         let rec = out.naming.as_ref().expect("births");
@@ -278,8 +316,11 @@ fn the_inset_root_rim_fills_the_mirror_wedge_at_each_corner() {
         match verb.run(&body, &[front, side]) {
             Err(BlendError::UnsupportedRunOut {
                 at: topo::EntityId::Vertex(v),
-                ..
-            }) => assert_ne!(v, shared, "{verb:?}: not at the corner the two share"),
+                detail,
+            }) => assert!(
+                far_ends.contains(&v) && detail.contains("foot lands inside a face"),
+                "{verb:?}: at a far end, a foot inside a face: {detail}"
+            ),
             got => panic!(
                 "{verb:?}: two root edges refuse at a far foot, got {:?}",
                 got.map(|_| ())

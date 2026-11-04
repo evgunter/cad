@@ -613,7 +613,8 @@ fn the_brackets_every_convex_edge_carves_mitring_over_the_reflex_corners() {
     );
     let removed = crate::band_planar_cut_off::volume(&bracket)
         - crate::band_planar_cut_off::volume(&out.body);
-    let want = d * d / 2.0 * 21.0 - 10.0 * (2.0 / 3.0) * d.powi(3) + 2.0 * d.powi(3) / 3.0;
+    let want = d * d / 2.0 * 21.0 - 10.0 * crate::band_planar_cut_off::Verb::Chamfer.corner_at(d)
+        + 2.0 * d.powi(3) / 3.0;
     assert!(
         (removed - want).abs() < 1e-12,
         "the bracket loses {removed}, the closed form {want}"

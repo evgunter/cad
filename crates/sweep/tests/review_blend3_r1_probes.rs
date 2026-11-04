@@ -42,7 +42,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::band_planar_cut_off::volume;
+use crate::band_planar_cut_off::{Verb, volume};
 use crate::common::cavity::{brick, cut, edges_with_corners, prism, rod};
 use crate::common::oracles::{chamfered_cube_removed, rounded_box_volume};
 use geom_core::{Point2, Point3, Tol};
@@ -193,7 +193,7 @@ fn r1_a_pockets_concave_edges_carve_ending_at_the_rims_mixed_corners() {
         "the carved pocket, tier 3"
     );
     let added = volume(&out.body) - volume(&body);
-    let want = 8.0 * D * D / 2.0 * 2.0 - 4.0 * (2.0 / 3.0) * D.powi(3);
+    let want = 8.0 * D * D / 2.0 * 2.0 - 4.0 * Verb::Chamfer.corner_at(D);
     assert!(
         (added - want).abs() < 1e-12,
         "the pocket fills {added}, the void box's chamfer {want}"

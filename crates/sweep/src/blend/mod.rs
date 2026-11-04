@@ -807,6 +807,8 @@ pub enum RunOutPolicy {
     /// The radius decays to zero before the vertex and the blend
     /// fades back into the sharp edge. No variable-radius machinery
     /// exists, so this policy is named and never taken.
+    ///
+    /// Unproduced; retired with the mixed corner's vocabulary, PR 6507.
     RunOutFeather,
     /// **The band ends in the end face's plane section of it** — the
     /// policy of a [`CornerConfig::EndFace`]: the end where one edge of
@@ -1134,16 +1136,18 @@ pub const FILLET3_CHAIN_RECOURSE: &str = "supply a connected chain that is tange
 pub const FILLET3_CONVEXITY_RECOURSE: &str =
     "split the chain at the convexity flip and blend each run separately";
 /// The recourse for an end no band builds, in words a person at the
-/// viewer can act on — it names the ends that DO carve: all three edges, two (meeting in the mitre where their feet
-/// on the third edge are one point, the far band overrunning it where
-/// they stand clearly apart), and one alone. Its last clause, "in one
+/// viewer can act on — it names the ends that DO carve: all three
+/// edges where they round alike, two that round alike (meeting in the
+/// mitre where their feet on the third edge are one point, the far band
+/// overrunning it where they stand clearly apart), and one alone. Its last clause, "in one
 /// operation", answers the four-edge vertex a mitre leaves where the third
 /// edge ends: that edge blended in a later call ends at a valence-4
 /// vertex, and requested in the mitre's own call it builds the corner
 /// patch instead. The run-outs' own details name their shapes.
 ///
-/// The ends it names are true of either verb on either material side:
-/// the uniform trivalent vertex carves wherever the material lies (the
+/// The ends it names are true of either verb on either material side,
+/// at a uniform vertex and a mixed one: the uniform trivalent vertex
+/// carves wherever the material lies (the
 /// rolling ball's octant rests inside the material or in the void with
 /// its ball; the flat patch and the cut-off never had a side), and of
 /// either band at any angle of its plane end face — a chord, a circle
@@ -1152,8 +1156,8 @@ pub const FILLET3_CONVEXITY_RECOURSE: &str =
 /// `blend_recourse_followability::the_corner_recourse_names_a_fully_requested_uniform_corner_that_builds`
 /// and `band_planar_cut_off`, which build each end it names.
 pub const FILLET3_CORNER_RECOURSE: &str = "end the blend at a flat-faced corner, \
-     uniformly convex or concave, blending all three edges, two meeting on the third or clearly \
-     apart, or one ending at a flat face, in one operation";
+     blending all three edges where they round alike, two that round alike meeting on the third \
+     or clearly apart, or one ending at a flat face, in one operation";
 /// The recourse at a mixed-convexity corner whose odd edge is requested
 /// with another of its edges ([`CornerConfig::MixedConvexity`]). It
 /// names the two requests there that build, one edge alone (the
@@ -2327,9 +2331,8 @@ mod recourse_tests {
         Convexity, CornerConfig, FILLET3_ASSEMBLY_RECOURSE, FILLET3_CHAIN_RECOURSE,
         FILLET3_CLEARANCE_RECOURSE, FILLET3_CLEARANCE_SPLIT_RECOURSE, FILLET3_CONVEXITY_RECOURSE,
         FILLET3_CORNER_RECOURSE, FILLET3_GEOMETRY_RECOURSE, FILLET3_INSIDE_RECOURSE,
-        FILLET3_MIXED_CORNER_RECOURSE, FILLET3_RADIUS_RECOURSE, FILLET3_RING_RECOURSE,
-        FILLET3_SEAM_VERTEX_RECOURSE, FILLET3_SPINE_KIND_RECOURSE, FILLET3_SPINE_RECOURSE,
-        FILLET3_WEDGE_RECOURSE,
+        FILLET3_RADIUS_RECOURSE, FILLET3_RING_RECOURSE, FILLET3_SPINE_KIND_RECOURSE,
+        FILLET3_SPINE_RECOURSE, FILLET3_WEDGE_RECOURSE,
     };
 
     /// **A contact edge's must-carry escalation ends as the decision its
@@ -2687,6 +2690,14 @@ mod recourse_tests {
     /// policy would handle this" of every tag that names one.
     #[test]
     fn a_corner_tag_names_no_policy_exactly_when_its_recourse_is_its_own() {
+        // The sentences a tag's recourse can share: a battery
+        // decision's lever, or the corner sentence naming the ends
+        // that carve.
+        let shared: Vec<&str> = BlendDecision::ALL
+            .iter()
+            .map(|d| d.lever())
+            .chain([FILLET3_CORNER_RECOURSE])
+            .collect();
         for corner in [
             CornerConfig::ThreeConvexEdges,
             CornerConfig::NEdgeVertex { valence: 4 },
@@ -2699,8 +2710,7 @@ mod recourse_tests {
         ] {
             assert_eq!(
                 corner.policy().is_none(),
-                [FILLET3_SEAM_VERTEX_RECOURSE, FILLET3_MIXED_CORNER_RECOURSE]
-                    .contains(&corner.recourse()),
+                !shared.contains(&corner.recourse()),
                 "{corner} names policy {:?} but recourse {:?} — the two maps have drifted",
                 corner.policy(),
                 corner.recourse()

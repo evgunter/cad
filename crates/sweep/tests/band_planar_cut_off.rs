@@ -224,9 +224,14 @@ impl Verb {
     /// (`common::oracles`), `(2/3)d³` for the chamfer and
     /// `(2 − 7π/12)r³` for the fillet.
     pub(crate) fn corner(self) -> f64 {
+        self.corner_at(D)
+    }
+
+    /// [`Self::corner`] at band size `r`.
+    pub(crate) fn corner_at(self, r: f64) -> f64 {
         match self {
-            Self::Chamfer => 2.0 / 3.0 * D.powi(3),
-            Self::Fillet => (2.0 - 7.0 * PI / 12.0) * D.powi(3),
+            Self::Chamfer => 2.0 / 3.0 * r.powi(3),
+            Self::Fillet => (2.0 - 7.0 * PI / 12.0) * r.powi(3),
         }
     }
 }
