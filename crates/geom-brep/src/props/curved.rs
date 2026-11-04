@@ -6331,3 +6331,28 @@ mod apex_start_rows;
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::panic)]
 mod turn_rows;
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod review_6504_probe {
+    use super::*;
+    use geom_core::{Band, Tol};
+
+    /// A cone generator shifted 5e-7 tangentially (definitely off the
+    /// apex), read with `dir` unit and with `dir` scaled 1e-3 (span ×1e3).
+    #[test]
+    fn props_cone_generator_reads_the_scale() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let apex = Point3::new(0.0, 0.0, 0.0);
+        let axis = Vec3::unit_z();
+        let (sin_a, cos_a) = 0.5f64.sin_cos();
+        let g = Vec3::new(sin_a, 0.0, cos_a);
+        let shift = Vec3::new(0.0, 5e-7, 0.0);
+        for k in [1.0, 1e-3, 1e3] {
+            let carrier = Curve3::line(apex + g * 1.0 + shift, g * k);
+            let e = LoopEdge::hand_built(carrier, 0.0, 1.0 / k, true, 0, 1);
+            let r = require_cone_generator(apex, axis, sin_a, cos_a, g * k, &e, band);
+            eprintln!("PROPSCONE k {k:e}: {r:?}");
+        }
+    }
+}

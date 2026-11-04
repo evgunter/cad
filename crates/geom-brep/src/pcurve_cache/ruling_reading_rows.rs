@@ -496,3 +496,102 @@ fn an_in_band_tilt_takes_the_general_lane_on_each_chart() {
         );
     }
 }
+
+/// REVIEW PROBE (6504): the meridian image's azimuth is read at the
+/// line's ORIGIN, the reading is metered from the SPAN START. A line
+/// tilted along the wall at its origin, read over a short span far from
+/// the origin.
+#[test]
+fn review_probe_origin_off_the_span() {
+    let surface = cylinder();
+    for (theta, k, l) in [
+        (1e3 * zero(), 1.0, 1e-4),
+        (1e2 * zero(), 1.0, 1e-3),
+        (10.0 * band().escalate(), 0.5, 1e-2 * zero() / band().escalate()),
+    ] {
+        let carrier = tilted(0.3, theta);
+        let span = (k, k + l);
+        let (at, _) = reading(&carrier, span, Ruling::Axis(Vec3::unit_z()));
+        let [d, d_i] = derivations(&carrier, span, &surface);
+        let mint = chart_pcurve_over(&carrier, span.0, span.1, &surface, band());
+        let fam = chart_iso_family(&carrier, span, &surface, band());
+        let cert = mint.as_ref().ok().map(|image| {
+            PcurveCache::certify(image.clone(), span.0, span.1, &carrier, &surface, band())
+                .map(|c| c.certificate().envelope)
+        });
+        eprintln!(
+            "PROBE θ {theta:e} k {k} l {l:e}: zero {:e} esc {:e} reading {at:e}\n  d {d:?}\n  d_i {d_i:?}\n  mint {mint:?}\n  certify {cert:?}\n  family {fam:?}",
+            zero(),
+            band().escalate()
+        );
+    }
+}
+
+/// REVIEW PROBE (6504): cone sweep. Reports any ConeRuling that fails to
+/// certify, and any mint ending in a non-"not yet" refusal other than
+/// off-chart.
+#[test]
+fn review_probe_cone_sweep() {
+    let surface = cone();
+    let Surface::Cone { apex, axis, .. } = surface else { unreachable!() };
+    let mut bad = Vec::new();
+    let mut n = 0;
+    let mut tally = std::collections::BTreeMap::<String, usize>::new();
+    for sigma in [1.0, -1.0] {
+        for phi in [1.0, -2.5, 3.1415] {
+            for h in [1e-6, 0.3, 2.0] {
+                let (anchor, g, tangent) = cone_at(phi, sigma, h);
+                for theta in [0.0, 1e-13, 1e-11, 1e-10, 3e-10, 1e-9, 3e-9, 1e-8, 1e-7, 1e-5, 1e-3] {
+                    for shift in [0.0, 1e-9, 1e-7, 1e-5] {
+                        for span in [(0.0, 1.0), (0.5, 0.501), (3.0, 3.001), (-0.5, 0.5), (0.0, 1e-3)] {
+                            let dir = g * theta.cos() + tangent * theta.sin();
+                            let carrier = Curve3::line(anchor + tangent * shift, dir);
+                            n += 1;
+                            let f = Interval::from_f64;
+                            let (ci, si) = lift(&carrier, &surface);
+                            let [d, d_i] = derivations(&carrier, span, &surface);
+                            for (sc, d, mint) in [
+                                ("f64", d, chart_pcurve_over(&carrier, span.0, span.1, &surface, band()).map(|_| ()).and_then(|_| {
+                                    let im = chart_pcurve_over(&carrier, span.0, span.1, &surface, band()).unwrap();
+                                    PcurveCache::certify(im, span.0, span.1, &carrier, &surface, band()).map(|_| ())
+                                })),
+                                ("iv", d_i, chart_pcurve_over(&ci, f(span.0), f(span.1), &si, band()).and_then(|im| {
+                                    PcurveCache::certify(im, f(span.0), f(span.1), &ci, &si, band()).map(|_| ())
+                                })),
+                            ] {
+                                let key = format!(
+                                    "{sc} {} -> {}",
+                                    match &d { Ok(d) => format!("{:?}", core::mem::discriminant(d)).len().to_string() + &format!("{d:?}").split(' ').next().unwrap().to_string(), Err(e) => format!("{e:?}").split(['{', '(', ' ']).next().unwrap().to_string() },
+                                    match &mint { Ok(()) => "certified".to_string(), Err(e) => format!("{e:?}").split(['{', '(', ' ']).next().unwrap().to_string() }
+                                );
+                                *tally.entry(key).or_default() += 1;
+                                let bad_end = match &mint {
+                                    Ok(()) => false,
+                                    Err(PcurveCertifyError::CarrierOffChart { .. }) => false,
+                                    Err(e) => !not_yet(e) && !matches!(e, PcurveCertifyError::Escalated { .. }),
+                                };
+                                if bad_end || (matches!(d, Ok(Derivation::ConeRuling { .. })) && mint.is_err()) {
+                                    bad.push(format!("σ{sigma} φ{phi} h{h} θ{theta:e} s{shift:e} {span:?} {sc}: {d:?} -> {mint:?}"));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    // Lines through the apex: along the axis, across it, and a generator.
+    for dir in [axis, Vec3::new(1.0, 0.3, 0.0), cone_at(0.7, 1.0, 1.0).1] {
+        for span in [(0.0, 1e-10), (0.0, 1e-3), (-1e-3, 1e-3), (-1.0, 1.0)] {
+            let carrier = Curve3::line(apex, dir);
+            let m = chart_pcurve_over(&carrier, span.0, span.1, &surface, band());
+            let c = m.clone().and_then(|im| PcurveCache::certify(im, span.0, span.1, &carrier, &surface, band()).map(|_| ()));
+            let [d, _] = derivations(&carrier, span, &surface);
+            eprintln!("APEX dir {dir:?} {span:?}: d {d:?} mint-cert {c:?}");
+        }
+    }
+    eprintln!("cone sweep n {n}");
+    for (k, v) in &tally { eprintln!("  {v:6} {k}"); }
+    for b in bad.iter().take(40) { eprintln!("BAD {b}"); }
+    eprintln!("bad total {}", bad.len());
+}
