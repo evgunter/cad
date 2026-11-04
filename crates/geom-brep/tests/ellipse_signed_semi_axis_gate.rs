@@ -3,7 +3,7 @@
 //! non-positive semi-axis, either one, as a record that breaks the
 //! representation's invariant.
 
-#![allow(clippy::unwrap_used)]
+#![allow(clippy::unwrap_used, clippy::panic)]
 
 use geom::{Curve3, Surface};
 use geom_brep::{
