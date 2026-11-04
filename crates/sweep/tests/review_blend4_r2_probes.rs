@@ -243,7 +243,7 @@ fn r2_corner_arcs_are_sub_pi_turns_about_the_stored_centre_on_both_sides() {
                 let Curve3::Circle(geom::Circle {
                     frame:
                         geom::Frame {
-                            center: ac,
+                            origin: ac,
                             axis: aa,
                             u_ref: au,
                         },

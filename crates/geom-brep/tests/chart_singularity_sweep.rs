@@ -629,7 +629,7 @@ mod sampled_and_fuzzed {
                         let Curve3::Circle(geom::Circle {
                             frame:
                                 geom::Frame {
-                                    center,
+                                    origin: center,
                                     axis,
                                     u_ref,
                                 },
@@ -850,7 +850,7 @@ mod sampled_and_fuzzed {
         let Curve3::Circle(geom::Circle {
             frame:
                 geom::Frame {
-                    center,
+                    origin: center,
                     axis,
                     u_ref,
                 },

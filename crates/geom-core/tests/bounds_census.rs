@@ -353,7 +353,7 @@ const ROSTER: &[Site] = &[
         subject: "impl<T: Bounds> CapSliver<T>",
         why: Selection(
             "the cut-off's end-face sliver meter `clearance`. It reads no bracket itself — its \
-             reads are `CircleFrame::misses`' and the on-axis guards', reached through \
+             reads are `ArcReads::arc_misses`' and the on-axis guards', reached through \
              `piece_distance` and `piece_along` in `surgery.rs` — and its result is the \
              margin `ring_clearance` decides, so it inherits that door's DL5(b) \
              disposition and no other",
@@ -481,9 +481,9 @@ const ROSTER: &[Site] = &[
     },
     Site {
         path: "crates/sweep/src/blend/surgery.rs",
-        subject: "impl<T: Bounds> CircleFrame<T>",
+        subject: "impl<T: Bounds> ArcReads<T> for geom::Circle<T>",
         why: Selection(
-            "an arc's closed-form extremes (`distance`, `along`). `misses` reads the \
+            "an arc's closed-form extremes (`arc_distance`, `arc_along`). `arc_misses` reads the \
              stored window's and the angle's brackets, asking `geom::periodic_window_may_hold`, \
              to SELECT, per extreme, between the arc's two ends \
              and the whole circle's value; the result is a margin `ring_clearance` \
@@ -496,6 +496,14 @@ const ROSTER: &[Site] = &[
              lies. The on-axis `lo() <= 0` guards select the whole-circle pair, which \
              bounds the arc's wherever `c` is and equals the ends' pair where a point \
              scalar takes it",
+        ),
+    },
+    Site {
+        path: "crates/sweep/src/blend/surgery.rs",
+        subject: "past_misses",
+        why: Selection(
+            "`ArcReads::arc_misses`' bracket read on the angle already taken, the selection \
+             whose DL5(b) disposition is the entry above",
         ),
     },
     Site {
@@ -514,7 +522,7 @@ const ROSTER: &[Site] = &[
         subject: "piece_along",
         why: Selection(
             "an edge's extent along a direction over its own window: a segment's ends \
-             read no bracket, and a circle's reads are `CircleFrame`'s above, whose \
+             read no bracket, and a circle's reads are `ArcReads`' above, whose \
              DL5(b) disposition this inherits",
         ),
     },
@@ -539,7 +547,7 @@ const ROSTER: &[Site] = &[
         why: Selection(
             "an edge's near and far distance from a point over its own window: a \
              segment's clamped foot is `max`/`min` arithmetic with no bracket read, and a \
-             circle's reads are `CircleFrame`'s above, whose DL5(b) disposition this \
+             circle's reads are `ArcReads`' above, whose DL5(b) disposition this \
              inherits",
         ),
     },
@@ -564,7 +572,7 @@ const ROSTER: &[Site] = &[
         why: Payload(
             "a test-side ORACLE inside `misses_is_the_relative_bracket_read`, generic so \
              the f64 and interval lanes are compared against one spelling: the former \
-             `CircleFrame::misses` predicate, whose bracket reads become the bool one \
+             `ArcReads::arc_misses` predicate, whose bracket reads become the bool one \
              `assert_eq!` compares and stop",
         ),
     },

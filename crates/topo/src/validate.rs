@@ -9499,7 +9499,10 @@ fn ring_outer_meeting<T: Decide>(
         crate::boolean::loop_circle(body, outer, band),
         crate::boolean::loop_circle(body, ring, band),
     ) {
-        return match circle_pair(circles_of(o.center, o.radius, r.center, r.radius), band) {
+        return match circle_pair(
+            circles_of(o.frame.origin, o.radius, r.frame.origin, r.radius),
+            band,
+        ) {
             Ok(CirclePair::Apart | CirclePair::Nested) => RingOuterVerdict::Disjoint,
             Ok(
                 CirclePair::ExternallyTangent
@@ -9640,7 +9643,7 @@ fn meet_segment<T: Real>(body: &Body<T>, he: HalfEdgeKey) -> Option<(EdgeKey, Me
         geom::Curve3::Circle(geom::Circle {
             frame:
                 geom::Frame {
-                    center,
+                    origin: center,
                     axis,
                     u_ref,
                 },
@@ -9982,7 +9985,7 @@ fn window<T: Decide>(segment: MeetSegment<T>, p: geom_core::Point3<T>, band: Ban
         } => {
             let carrier = geom::Curve3::Circle(geom::Circle {
                 frame: geom::Frame {
-                    center,
+                    origin: center,
                     axis,
                     u_ref,
                 },
@@ -10206,7 +10209,12 @@ fn locus_gap<T: Real>(carrier: &geom::Curve3<T>, p: geom_core::Point3<T>) -> Opt
         // The distance from a point to a full circle: the in-plane
         // radial defect and the out-of-plane offset, in quadrature.
         geom::Curve3::Circle(geom::Circle {
-            frame: geom::Frame { center, axis, .. },
+            frame:
+                geom::Frame {
+                    origin: center,
+                    axis,
+                    ..
+                },
             radius,
         }) => {
             let d = p - *center;
@@ -14890,7 +14898,7 @@ mod tests {
         let u_ref = (s - center) / radius;
         let carrier = geom::Curve3::Circle(geom::Circle {
             frame: geom::Frame {
-                center,
+                origin: center,
                 axis,
                 u_ref,
             },
@@ -16107,7 +16115,7 @@ mod tests {
             .expect("one sense of the circle is the arc asked for");
         let carrier = geom::Curve3::Circle(geom::Circle {
             frame: geom::Frame {
-                center,
+                origin: center,
                 axis,
                 u_ref,
             },

@@ -202,15 +202,17 @@ pub fn circle_torus_roots<T: Decide>(
     band: Band,
 ) -> Result<Result<CircleRoots<T>, Unsettled>, DoorRefusal> {
     let (
-        &geom::Curve3::Circle(geom::Circle {
-            frame:
-                geom::Frame {
-                    center,
-                    axis,
-                    u_ref,
-                },
-            radius,
-        }),
+        &geom::Curve3::Circle(
+            circle @ geom::Circle {
+                frame:
+                    geom::Frame {
+                        origin: center,
+                        axis,
+                        u_ref,
+                    },
+                radius,
+            },
+        ),
         &geom::Surface::Torus {
             center: t_center,
             axis: t_axis,
@@ -278,10 +280,7 @@ pub fn circle_torus_roots<T: Decide>(
             }
             Ok(Sign::Positive) => door_refusal(parallel_axes_roots(
                 &ParallelPose {
-                    center,
-                    radius,
-                    u_ref,
-                    v_ref,
+                    circle,
                     w_perp,
                     offset,
                     h0,
@@ -345,8 +344,7 @@ pub fn circle_torus_roots<T: Decide>(
     // `F` the jet reads: the exact third and fourth harmonics against the
     // computed ones, and the jet's exact `v̂ = n̂ × û` against the rounded
     // `v_ref` the harmonics are built from.
-    let conic = geom::Circle::new(geom::Frame::new(center, axis, u_ref), radius);
-    let h = crate::conic_torus_harmonics(&conic, t_center, t_axis, major_radius, minor_radius);
+    let h = crate::conic_torus_harmonics(&circle, t_center, t_axis, major_radius, minor_radius);
     let hypot = |x: T, y: T| (x.powi(2) + y.powi(2)).sqrt();
     let dropped = hypot(h.cos[3], h.sin[3]) + hypot(h.cos[4], h.sin[4]);
     let harmonics = DegreeTwo::new(h.cos[0], h.cos[1], h.sin[1], h.cos[2], h.sin[2]);
@@ -354,8 +352,9 @@ pub fn circle_torus_roots<T: Decide>(
     let lever = (two * radius).min(major_radius + minor_radius);
     // The walk's Taylor terms, read at the point (module docs, "The
     // harmonics' noise, and the jet").
-    let jet =
-        |theta| crate::conic_torus_jet(&conic, t_center, t_axis, major_radius, minor_radius, theta);
+    let jet = |theta| {
+        crate::conic_torus_jet(&circle, t_center, t_axis, major_radius, minor_radius, theta)
+    };
     door_half_angle_roots(
         &harmonics,
         |theta| crate::implicit_residual(torus, point_at(theta)),
@@ -380,7 +379,7 @@ pub fn circle_torus_roots<T: Decide>(
             row: ROOT_SLACK,
             residual: &|theta| {
                 crate::conic_torus_implicit(
-                    &conic,
+                    &circle,
                     t_center,
                     t_axis,
                     major_radius,
@@ -456,10 +455,8 @@ fn meridian_deviation<T: geom_core::Real>(
 
 /// The parallel-axes pose's data ([`parallel_axes_roots`]).
 struct ParallelPose<T: geom_core::Real> {
-    center: Point3<T>,
-    radius: T,
-    u_ref: Vec3<T>,
-    v_ref: Vec3<T>,
+    /// The carrier.
+    circle: geom::Circle<T>,
     /// The carrier centre's offset from the torus axis, perpendicular
     /// to it, and its length.
     w_perp: Vec3<T>,
@@ -528,10 +525,16 @@ fn parallel_axes_roots<T: Decide>(
     band: Band,
 ) -> Result<CircleRoots<T>, RootRefusal> {
     let &ParallelPose {
-        center,
-        radius,
-        u_ref,
-        v_ref,
+        circle:
+            geom::Circle {
+                frame:
+                    geom::Frame {
+                        origin: center,
+                        u_ref,
+                        ..
+                    },
+                radius,
+            },
         w_perp,
         offset,
         h0,
@@ -539,6 +542,7 @@ fn parallel_axes_roots<T: Decide>(
         t0,
         t1,
     } = pose;
+    let v_ref = pose.circle.frame.v_ref();
     let two = T::from_f64(2.0);
     let charge_h = tilt * (two * h0.abs() + tilt) / (two * minor_radius);
     let depth = (minor_radius.powi(2) - h0.powi(2)) / (two * minor_radius);
@@ -683,7 +687,7 @@ mod tests {
     ) -> Result<Result<CircleRoots<T>, Unsettled>, DoorRefusal> {
         let carrier = geom::Curve3::Circle(geom::Circle {
             frame: geom::Frame {
-                center,
+                origin: center,
                 axis,
                 u_ref,
             },

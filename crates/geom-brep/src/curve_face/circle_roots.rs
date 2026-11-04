@@ -217,34 +217,19 @@ pub struct FirstHarmonic<T> {
 }
 
 impl<T: Decide> FirstHarmonic<T> {
-    /// **A circle's signed distance off a plane**: the circle
-    /// `center + radius·(û cos θ + v̂ sin θ)`, `v̂ = axis × û`, against the
-    /// plane through `on` of unit normal `n`, its residual
-    /// `n·(center − on) + radius(n·û) cos θ + radius(n·v̂) sin θ` and one
-    /// uniform rounding charge on the terms it is formed from. The one
-    /// spelling of a circle against a plane: an edge against a ray's or a
-    /// leg's plane, a leg against an edge's, a sphere face's arc against a
-    /// cut.
-    pub fn circle_off_plane(
-        (center, axis, radius, u_ref): (Point3<T>, Vec3<T>, T, Vec3<T>),
-        plane: (Point3<T>, Vec3<T>),
-    ) -> Self {
-        Self::conic_off_plane((center, axis, (radius, radius), u_ref), plane)
-    }
-
     /// **A conic's signed distance off a plane**: the ellipse
     /// `center + a·û cos θ + b·v̂ sin θ`, `v̂ = axis × û` (a circle where
     /// `a = b`), against the plane through `on` of unit normal `n` — the
-    /// residual `n·(center − on) + a(n·û) cos θ + b(n·v̂) sin θ`, charged
-    /// as [`Self::circle_off_plane`] charges a circle, at the larger
-    /// semi-axis.
-    pub fn conic_off_plane(
-        (center, axis, (a, b), u_ref): (Point3<T>, Vec3<T>, (T, T), Vec3<T>),
-        (on, n): (Point3<T>, Vec3<T>),
-    ) -> Self {
-        let offset = center - on;
+    /// residual `n·(center − on) + a(n·û) cos θ + b(n·v̂) sin θ` and one
+    /// uniform rounding charge on the terms it is formed from, at the
+    /// larger semi-axis. The one spelling of a conic against a plane: an
+    /// edge against a ray's or a leg's plane, a leg against an edge's, a
+    /// sphere face's arc against a cut.
+    pub fn conic_off_plane(conic: &dyn geom::Conic<T>, (on, n): (Point3<T>, Vec3<T>)) -> Self {
+        let (f, (a, b)) = (conic.frame(), conic.semi_axes());
+        let offset = f.origin - on;
         let d = n.dot(offset);
-        let (cos_part, sin_part) = (a * n.dot(u_ref), b * n.dot(axis.cross(u_ref)));
+        let (cos_part, sin_part) = (a * n.dot(f.u_ref), b * n.dot(f.v_ref()));
         let amplitude = (cos_part.powi(2) + sin_part.powi(2)).sqrt();
         let noise = geom_core::rounding_charge(offset.norm() + a.max(b));
         Self {

@@ -260,15 +260,7 @@ pub(super) fn conic_quadric_roots<T: Decide>(
     let conic = carrier.conic().ok_or_else(desync)?;
     match (carrier, surface) {
         (
-            &geom::Curve3::Circle(geom::Circle {
-                frame:
-                    geom::Frame {
-                        center,
-                        axis,
-                        u_ref,
-                    },
-                radius,
-            }),
+            &geom::Curve3::Circle(circle),
             &geom::Surface::Sphere {
                 center: s_center,
                 radius: s_radius,
@@ -276,8 +268,7 @@ pub(super) fn conic_quadric_roots<T: Decide>(
             },
         ) => {
             // `A₂ ≡ 0`: the first harmonic, in its factored form.
-            let h =
-                geom_brep::circle_sphere_harmonic(center, axis, radius, u_ref, s_center, s_radius);
+            let h = geom_brep::circle_sphere_harmonic(&circle, s_center, s_radius);
             return first_harmonic_roots(
                 &FirstHarmonic {
                     lo: h.lo,
@@ -568,7 +559,7 @@ fn through_the_apex<T: Decide>(
     // and `|ε₁| ≤ 2δ·speed/per`. `δ` carries the point's own rounding.
     let delta = off_apex.norm()
         + geom_core::running::direction_rounding(
-            (conic.frame().center - apex).norm() + conic.speed_hi(),
+            (conic.frame().origin - apex).norm() + conic.speed_hi(),
         );
     let (e0, e1) = (
         delta.powi(2) / h.per,

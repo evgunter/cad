@@ -280,7 +280,7 @@ pub fn truth(carrier: &geom::Curve3<f64>, surface: &geom::Surface<f64>) -> Truth
         geom::Curve3::Circle(geom::Circle {
             frame:
                 geom::Frame {
-                    center,
+                    origin: center,
                     axis,
                     u_ref,
                 },
@@ -289,7 +289,7 @@ pub fn truth(carrier: &geom::Curve3<f64>, surface: &geom::Surface<f64>) -> Truth
         geom::Curve3::Ellipse(geom::Ellipse {
             frame:
                 geom::Frame {
-                    center,
+                    origin: center,
                     axis,
                     u_ref,
                 },
