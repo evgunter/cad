@@ -21,7 +21,8 @@
 //! read through substituted fragments alone.
 
 use crate::body::Body;
-use crate::entity::{EdgeKey, Face, FaceKey, HalfEdgeKey, VertexKey};
+use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, VertexKey};
+use crate::live::FaceView;
 use crate::provenance::Provenance;
 
 use super::{BooleanError, Operand};
@@ -187,15 +188,15 @@ pub(super) fn own_in_result<T: geom_core::Real>(
 /// the row along the kept edges its one-sided chords run on; a path
 /// that cuts none passes `None`.
 ///
-/// `data` is `face`'s record, which the caller resolved: out of the
-/// face arena, or as a link of the shell that lists it.
+/// `face` is resolved by the caller: out of the face arena, or as a link
+/// of the shell that lists it.
 ///
 /// # Panics
 ///
-/// As [`Body::face_edges_linked`], past the face.
+/// As [`crate::live::FaceView::edges`].
 pub(super) fn discard_row<T: geom_core::Real>(
     body: &Body<T>,
-    (face, data): (FaceKey, &Face),
+    face: FaceView<'_, T>,
     operand: Operand,
     kept_across: &dyn Fn(FaceKey) -> bool,
     kept_ends: &dyn Fn(
@@ -207,12 +208,12 @@ pub(super) fn discard_row<T: geom_core::Real>(
 ) -> Result<DiscardRow, BooleanError> {
     let mut row = DiscardRow {
         operand,
-        face,
+        face: face.key(),
         bordered: Vec::new(),
         bordered_through: Vec::new(),
         boundary_chains: Vec::new(),
     };
-    for edge in body.face_edges_linked(face, data) {
+    for edge in face.edges() {
         let (ek, [start, end], mate, mate_face) = (edge.edge, edge.ends, edge.mate, edge.across);
         let through = match chords {
             Some(c) => match c.bordered(operand, ek, start, mate_face)? {

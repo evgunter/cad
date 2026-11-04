@@ -535,6 +535,8 @@ mod meet_rows;
 #[cfg(test)]
 mod one_curve_rows;
 #[cfg(test)]
+mod order_rows;
+#[cfg(test)]
 mod plane_rows;
 #[cfg(test)]
 mod span_rows;

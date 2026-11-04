@@ -24,7 +24,7 @@ const NAME: Option<&str> = option_env!("PCERT_RADIAL_PAIR_MUTANT");
 
 /// Every site this crate's hooks name. topo's `chord_join` declares its
 /// own two (`topo-gate`, `topo-v-var`) under the same variable.
-pub(super) const SITES: [&str; 18] = [
+pub(super) const SITES: [&str; 22] = [
     "class-circle",
     "zero-winding",
     "torus-parallel",
@@ -42,7 +42,11 @@ pub(super) const SITES: [&str; 18] = [
     "envelope-fit",
     "skip-incidence",
     "radial-fold",
-    "line-cylinder-ends",
+    "segment-form-ends",
+    "circle-incidence",
+    "form-uncharged",
+    "lane-envelope-bound",
+    "cone-terms-unprojected",
 ];
 
 fn on(site: &str) -> bool {
@@ -193,9 +197,39 @@ pub(super) fn radial_fold() -> bool {
     on("radial-fold")
 }
 
-/// A line's distance from a cylinder read at the segment's two ends
-/// only, dropping the middle Bernstein coefficient: the sup misses a
-/// chord that dips toward the axis (its rows are `cylinder_line_rows`).
-pub(super) fn line_off_cylinder<T: Real>(f0: T, f1: T, _middle: T) -> Option<T> {
-    on("line-cylinder-ends").then(|| f0.abs().max(f1.abs()))
+/// A line's chart form read at the segment's two ends only, dropping
+/// the middle Bernstein coefficient: the sup misses a chord that dips
+/// toward the axis (its rows are `cylinder_line_rows` and
+/// `cone_line_rows`).
+pub(super) fn segment_form_ends<T: Real>(f0: T, f1: T, _middle: T) -> Option<T> {
+    on("segment-form-ends").then(|| f0.abs().max(f1.abs()))
+}
+
+/// A circle's distance from a cylinder, cone or torus dropped from its
+/// projected envelope: the envelope misses a circle off the chart (its
+/// rows are `circle_lane_rows`).
+pub(super) fn circle_incidence<T: Real>(surface: &Surface<T>) -> Option<T> {
+    (on("circle-incidence") && !matches!(surface, Surface::Sphere { .. })).then(T::zero)
+}
+
+/// A circle's chart form read at its computed harmonics alone, its
+/// coefficients' rounding uncharged: the bound misses a thin torus's
+/// cancellation at `f64` (its rows are `circle_lane_rows`).
+pub(super) fn form_uncharged<T: Real>(harmonics: T) -> Option<T> {
+    on("form-uncharged").then_some(harmonics)
+}
+
+/// A lane choice's envelope refusal left as the envelope's own (a bound
+/// on a miss, a tolerance offer) rather than the lane's gap (its rows
+/// are `circle_lane_rows`).
+pub(crate) fn lane_envelope_bound() -> bool {
+    on("lane-envelope-bound")
+}
+
+/// A cone section's form coefficients charged at their parts' reaches
+/// alone, the projection's `|d|`-scale rounding uncharged: the charge
+/// misses a needle cone's section far from its apex (its rows are
+/// `circle_lane_rows`).
+pub(crate) fn cone_terms_unprojected() -> bool {
+    on("cone-terms-unprojected")
 }
