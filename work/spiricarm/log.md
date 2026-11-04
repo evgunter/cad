@@ -148,3 +148,11 @@
   - **Fix pass:** the union, sent to the sphere lane (resumed).
   - **Class (logged at adjudication):** "a pad or guard ships with a red row" was in this unit's spec and still went unmet for the sphere. Mutant scripts from review are the instrument that finds it. Future stage briefs require the implementer to run a mutant pass over its own pads before opening the PR.
   - **Re-band:** `inside/point-in-solid-refuses-a-sphere-face-bounded-by-a-spline-chord` goes P1 → P0, in PR 6509. The orchestrator posts this note on INSIDE's log.
+- 2026-11-04 — **The part-way football is up as PR 6521** (head `c974bfa84d`, CI green). A football revolved part way now builds as its lune. Lemon, apple, slim lemon, a lune past a half turn and a negative angle are each checked against θ/2π of the closed form plus the caps.
+  - **The edge at an apex** is bounded by its distance from the nearer apex. The cone's `√|f|` is rejected, because on a sheet it accepts the other sheet; a mutant using it goes red.
+  - **Where the band cannot decide a sheet lever near an apex**, the certificate takes the hull's certified reading (`Meters::certified`). The lane judges this allowed under DESIGN [verdicts]; the reviewer is asked to weigh it.
+  - **A horn's part-way pinch** now refuses `NonManifoldAxisContact`.
+  - **Filed:**
+    - `a-horns-cusp-revolved-part-way-refuses-at-its-cap-meridians-certificate` (P2): at the cusp the two sheets are tangent rather than crossing;
+    - `limb-2s-floor-on-a-sheet-reads-the-whole-torus` (P3).
+  - **Review tier: single FULL**, set at dispatch. One cloud reviewer was dispatched (`spiricarm/review-6521-brief`).
