@@ -948,9 +948,11 @@ fn a_lane_choices_azimuth_refusal_ends_not_yet() {
         .unwrap_or_else(|e| panic!("the rim projects: {e:?}"));
     image.breaks = one_piece();
     image.azimuth.truncate(1);
-    let refused =
+    let Err(refused) =
         PcurveCache::certify_projected(image.clone(), 0.0, SPAN, &carrier, &surface, b, None)
-            .expect_err("a piece reaching the axis");
+    else {
+        panic!("a piece reaching the axis certified")
+    };
     assert!(azimuth(&refused), "f64: {refused:?}");
     let minted = minted_refusal(
         refused,
@@ -974,9 +976,11 @@ fn a_lane_choices_azimuth_refusal_ends_not_yet() {
         .unwrap_or_else(|e| panic!("the rim projects at Interval: {e:?}"));
     image_i.breaks = one_piece();
     image_i.azimuth.truncate(1);
-    let refused_i =
+    let Err(refused_i) =
         PcurveCache::certify_projected(image_i.clone(), f(0.0), f(SPAN), &ci, &si, b, None)
-            .expect_err("a piece reaching the axis, at Interval");
+    else {
+        panic!("a piece reaching the axis certified at Interval")
+    };
     assert!(azimuth(&refused_i), "Interval: {refused_i:?}");
     let minted_i = minted_refusal(refused_i, &Pcurve::Projected(Box::new(image_i)), &ci, &si);
     assert!(pose(&minted_i), "Interval: {minted_i:?}");
