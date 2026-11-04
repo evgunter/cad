@@ -56,8 +56,8 @@ fn compose(a: &[f64], s: f64, o: f64) -> Vec<f64> {
     let mut out = vec![0.0; a.len()];
     for (k, &ak) in a.iter().enumerate() {
         // (s t + o)^k
-        for j in 0..=k {
-            out[j] += ak * choose(k, j) * s.powi(j as i32) * o.powi((k - j) as i32);
+        for (j, slot) in out.iter_mut().enumerate().take(k + 1) {
+            *slot += ak * choose(k, j) * s.powi(j as i32) * o.powi((k - j) as i32);
         }
     }
     out

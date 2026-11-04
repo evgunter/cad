@@ -1013,7 +1013,10 @@ fn listed(
         },
     };
     let frames: Vec<&sweep::NodeFrame> = decided.iter().filter_map(|c| c.node.as_ref()).collect();
-    if frames.iter().any(|f| !(f.width <= band.zero())) {
+    if frames
+        .iter()
+        .any(|f| f.width.is_nan() || f.width > band.zero())
+    {
         return Err(SectionError::Pinched {
             predicate: sweep::NODE_BOX,
         });

@@ -952,9 +952,20 @@ its value on a ceiling in metres for Zero; a cluster not decided so
 declines the sweep. A section whose decided points are touches alone,
 and whose pass found no end, is those touches, each a point component
 with its witness and a tangency decided Zero, the reading the guard's
-touch arm takes; a node, or a touch beside components with ends,
-pinches them (`spline_critical_value`), since the march that would list
-them does not start at a decided tangency.
+touch arm takes. A node, or a touch beside components with ends, is
+read whole with the decided points handed in, as a section the sweep
+finds closing about an excluded point is when every critical point is
+decided: each point's Krawczyk box, the widest the operator proves holds
+its one zero of `∇φ`, is a region seeding skips and accounting reads,
+and a march ends on entering a node's box. The node is listed with its
+point (its enclosure within the band, else `spline_node_box`), the
+wall's normal, the two null lines of `φ`'s Hessian carried to the wall's
+tangent plane and the sector side, each read off the Hessian enclosure
+that decided it; each arc end there names the ray nearest the arc's
+direction at its end, by a decided lead and a 45° floor, every ray
+claimed once (else `spline_node_ray`); a touch beside arcs is a point
+component with them. Its carriers are not minted: no component of a
+spline × implicit section is carried.
 The boolean reads the rung-3 arms cylinder×sphere and the three torus
 pairs through the section value (`pair_section`), classified, then
 carried: the classification decides the pair's pose once and, where a
