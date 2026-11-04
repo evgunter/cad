@@ -12198,6 +12198,9 @@ mod line_incidence;
 #[allow(clippy::unwrap_used, clippy::panic)]
 mod line_incidence_rows;
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod review_6527_probe;
+#[cfg(test)]
 pub(crate) mod mutants;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::panic)]
