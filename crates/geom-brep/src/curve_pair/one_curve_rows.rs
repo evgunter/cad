@@ -146,14 +146,14 @@ fn two_ellipses_are_one_curve_only_within_the_band_of_each_other() {
             let pose = |what: &str, d: f64| match what {
                 "centre in the plane" => geom::Ellipse {
                     frame: geom::Frame {
-                        center: e.frame().center + (u + v).normalize() * d,
+                        origin: e.frame().origin + (u + v).normalize() * d,
                         ..e.frame
                     },
                     ..e
                 },
                 "centre off the plane" => geom::Ellipse {
                     frame: geom::Frame {
-                        center: e.frame().center + n * d,
+                        origin: e.frame().origin + n * d,
                         ..e.frame
                     },
                     ..e
