@@ -410,3 +410,74 @@ fn a_foot_on_a_far_branch_at_f64_is_the_certificates_to_read() {
         );
     }
 }
+
+/// **A foot's seed is read only where it seeds a search or a bound**
+/// (module docs, "A foot has no bare parameter"). [`super::Foot::seed`]
+/// returns the same field as [`OnCarrier::On`]'s `t`, so the type alone
+/// cannot keep a verdict reader off it: every file under `crates/*/src`
+/// that calls `.seed()`, or names `Foot::seed`, is listed here with what
+/// its read seeds. A new reader goes red here, and owes either a
+/// certificate (`On`'s `t`, [`super::Foot::nearest`]) or its line below.
+///
+/// Blind spot: `.seed()` is a method name, not a type, so another type's
+/// `seed()` lands here too and is listed as such; a seed read through a
+/// re-export under another name is not seen.
+#[test]
+fn a_foots_seed_is_read_only_where_it_seeds_a_search_or_a_bound() {
+    const READERS: &[(&str, &str)] = &[
+        ("geom/src/curves/on_carrier.rs", "the foot's home"),
+        ("geom/src/curves/on_carrier/rows.rs", "the foot's own rows"),
+        (
+            "geom-brep/src/curve_pair/walk.rs",
+            "the walk's feet seed `read_both`, which reads the span's certificate",
+        ),
+        (
+            "geom-brep/src/curve_pair/pose.rs",
+            "a candidate's parameters seed the pose's reading of the pair",
+        ),
+        (
+            "geom-brep/src/curve_pair/pose/window.rs",
+            "the bound along `b` reads the speed at the seed, anchored on the gap",
+        ),
+        (
+            "geom-brep/src/curve_pair/span.rs",
+            "the place reads the ends' sides at the seed; `Reading::On` takes `On`'s `t`",
+        ),
+        (
+            "topo/src/boolean/solid_contain/curved_edges.rs",
+            "the ray's foot iteration seeds `on_carrier` and `Span::place` at its point",
+        ),
+        (
+            "geom-brep/src/ssi/exhaust.rs",
+            "a cell's own `seed()`, not a foot's",
+        ),
+    ];
+    let crates = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR")).join("..");
+    let mut seen = 0;
+    let strays: Vec<String> = test_utils::source::rust_sources(&crates)
+        .into_iter()
+        .filter_map(|f| {
+            let p = f
+                .strip_prefix(&crates)
+                .ok()?
+                .to_string_lossy()
+                .replace('\\', "/");
+            p.contains("/src/").then_some((f, p))
+        })
+        .filter(|(f, p)| {
+            let code = test_utils::source::code_only(&std::fs::read_to_string(f).unwrap());
+            let reads = code.contains(".seed()") || code.contains("Foot::seed");
+            seen += usize::from(reads);
+            reads && !READERS.iter().any(|(r, _)| p == r)
+        })
+        .map(|(_, p)| p)
+        .collect();
+    assert!(
+        seen >= READERS.len() - 1,
+        "the walk found only {seen} readers: it is not reading crates/*/src"
+    );
+    assert!(
+        strays.is_empty(),
+        "a foot's seed read outside its list: {strays:#?}"
+    );
+}
