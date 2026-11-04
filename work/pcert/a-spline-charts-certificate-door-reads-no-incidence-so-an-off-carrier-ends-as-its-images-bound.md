@@ -62,15 +62,16 @@ not the validation of record.
 
 ## Closed (2026-11-04): a spline chart's certificate doors read incidence
 
-`pcert/spline-certificate-door`. `pcurve_cache.rs` `read_shown` reads the
-spline arm over the edge's span (`read_edge_incidence`'s read), so every door
-behind it reads a carrier on a spline face before metering its image:
+`pcert/spline-certificate-door`. `pcurve_cache.rs` `read_shown` reads the spline
+arm over the edge's span (`read_edge_incidence`'s read), and every certificate
+door on a spline chart ends a refusal by it (`ended_by_incidence`):
 
-- `PcurveCache::certify` and `recertify`, and `certify_fitted` and
-  `certify_general`, which now read first as `certify` does;
-- the stated route (`read_incidence`, `certify.rs` `canonical_of`);
-- `read_point_incidence`, by `spline_incidence::spline_point_incidence`, one
-  walk for the one point.
+- `PcurveCache::certify` and `recertify`, `certify_fitted` and `certify_general`;
+- the stated route (`certify.rs`: `canonical_of` reads an analytic chart first
+  as before, and a spline chart's read ends the residual meter's refusal,
+  `stated_refusal`);
+- `read_incidence` and `read_point_incidence` read it outright, the point by
+  `spline_incidence::spline_point_incidence`, one walk for the one point.
 
 A carrier off its wall ends `CarrierOffChart` by each door's term (the kernel's
 defect at a build, the stored culprit at rest through `validate::off_face_ending`,
@@ -78,28 +79,40 @@ the damaged file at import), and one in band ends `Escalated`
 (`PcurveCheck::ChartIncidence`) in the read's lever, never as the image's own
 bound.
 
+**Read where the image refuses, not first.** On a spline chart a certificate
+that holds bounds every carrier point within the band of a point of the wall
+(its envelope is a sup over the span), so a read before it adds nothing there.
+Taken first, the read cost up to 10× on the loft rows (5376 reads of 65
+samples in one elbow row). Taken on the refusal, it is off the hot path, the
+endings are the same for every off or in-band carrier, and an on-chart
+carrier that certified on main certifies unchanged. The stated route's meter is
+sampled, not a sup, so a carrier off its wall only between its samples passes
+there as on main, and the row's own certificate at the mint (an envelope) ends
+it.
+
 **The own-chart arm** (`topo::pcurves::nurbs_iso_derive`) reads nothing: it
 returns the stated image, and every door that stores or validates it certifies
-it through `certify` or `certify_general`, which read first. Pinned by
-`topo/tests/a_spline_faces_stated_image_reads_its_carrier_first.rs`, whose
-lamina states every edge as its own face's image, at rest unstored.
+it through `certify` or `certify_general`, which end a refusal by the read.
+Pinned by `topo/tests/a_spline_faces_stated_image_reads_its_carrier_first.rs`,
+whose lamina states every edge as its own face's image, read at rest unstored.
 
 **Dual.** `validate_pcurves` at `Dual` no longer answers clean on an off
-carrier: an own-chart `General` image refuses `CarrierOffChart` at
-`certify_general`'s read before check 4 asks for the fitted door, so
-`FittedLaneUnsupported` (which `not_owed` excuses) is never reached
-(`at_a_dual_an_off_carrier_is_a_finding`). DL3 still makes the base scalar's
+carrier: an own-chart `General` image refuses at check 3 or check 4
+(`FittedLaneUnsupported`), and the read then ends it `CarrierOffChart`, which
+`not_owed` does not excuse (`at_a_dual_an_off_carrier_ends_off_the_chart_before_the_fitted_door`,
+`at_a_dual_an_off_carrier_is_a_finding`). DL3 still makes the base scalar's
 evaluation the validation of record.
 
-**Cost.** Each read now tries the sample's foot first: Gauss–Newton on the
-chart's `f64` shadow from the last sample's foot, its point evaluated in the
-scalar and decided as a kept cell's centre is, so an on-chart sample reads in a
-few evaluations instead of a dive. In band, the foot arms the walk's band prune
-from its first visit.
+**The read's foot.** Each sample now tries its foot before the walk:
+Gauss–Newton on the chart's `f64` shadow from the last sample's foot, its point
+evaluated in the scalar and decided as a kept cell's centre is. An on-chart
+sample reads in a few evaluations instead of a dive; in band, the foot arms the
+walk's band prune from its first visit.
 
 Rows:
 
-- `geom-brep/src/pcurve_cache/spline_door_rows.rs`, every door at `f64` and
-  `Interval`, on, off and in band, with the `spline-shown-unread` mutant;
-- the topo row above.
-
+- `geom-brep/src/pcurve_cache/spline_door_rows.rs`: every door at `f64` and
+  `Interval`, on, off and in band, and the dual's `certify_general`; the
+  `spline-shown-unread` mutant reds every off and in-band reading;
+- the topo row above, the same doors through a body, the import term and the
+  dual; the same mutant, applied by hand, reds every reading.
