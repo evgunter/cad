@@ -58,7 +58,7 @@ use geom::Surface;
 use geom_brep::SurfaceSide::{self, Inner, Outer};
 use geom_core::{Point2, Point3, Tol, Vec3};
 use sweep::Revolution;
-use sweep::blend::arms::{Meridian, SupportTrace, sheet_center};
+use sweep::blend::arms::{Branch, Meridian, SupportTrace, sheet_center};
 use sweep::blend::build::fillet_edges;
 use sweep::test_support::{
     assert_full_revolve_rim, assert_naming_totality, revolved_about_y, rim_arcs_at,
@@ -547,7 +547,14 @@ fn the_lanterns_arms_fold_both_sense_bits() {
             (Outer, Inner),
         ] {
             let (sa, sb) = (sigma(side_a), sigma(side_b));
-            let c = sheet_center(sheet.rim, sheet.sheet_normal(), ta(side_a), tb(side_b), r);
+            let c = sheet_center(
+                sheet.rim,
+                sheet.sheet_normal(),
+                ta(side_a),
+                tb(side_b),
+                r,
+                Branch::Rim,
+            );
             if !feasible(sa, sb) {
                 assert!(
                     !(c.x.is_finite() && c.y.is_finite() && c.z.is_finite()),

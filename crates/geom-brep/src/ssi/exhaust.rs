@@ -53,9 +53,9 @@
 //!
 //! One structure, two duties — and **which duty is a parameter the
 //! caller states**, never a condition the recursion reads off its own
-//! input. [`seed_r3`] and [`seed_chart_plane`] generate seeds: they take
+//! input. [`seed_r3`] and [`seed_chart_partner`] generate seeds: they take
 //! no tube set and cannot refuse at the floor. [`account_r3`] and
-//! [`account_chart_plane`] discharge the obligation: they return the
+//! [`account_chart_partner`] discharge the obligation: they return the
 //! receipt and nothing else, and they refuse at the floor unconditionally
 //! — including when their tube set is empty, which is precisely the run
 //! that has proved nothing: every seed failed to refine, or every
@@ -70,16 +70,14 @@
 //! permits brute force here and nothing in the contract changes when
 //! the pruning does.
 
-use geom::{NurbsSurface, Surface};
+use geom::Surface;
 use geom_core::Bounds;
 use geom_core::interval::certification::Certification;
 use geom_core::interval::max_bound;
-use geom_core::{Interval, Point3, SizedPass, SupSpeed, Vec3};
+use geom_core::{Interval, Point3, SizedPass, SupSpeed};
 
 use super::SsiError;
-use super::enclose::{
-    Box3, NurbsBoxes, UvWindow, has_implicit_enclosure, implicit_enclosure, refused_box,
-};
+use super::enclose::{Box3, UvWindow, has_implicit_enclosure, implicit_enclosure};
 use super::four::{Box4, PairBoxes};
 use crate::recourse::{RefusedArm, RefusedSide, SizedDecision, defect_ending};
 
@@ -264,7 +262,7 @@ pub struct Exhaustiveness {
     /// the accounting duty returns one: there, a leaf is excluded,
     /// accounted, or the typed refusal, so no leaf can land outside a
     /// bucket. The seeding duty's surviving leaves are the seeds, and
-    /// [`seed_r3`] / [`seed_chart_plane`] hand back no receipt at all.
+    /// [`seed_r3`] / [`seed_chart_partner`] hand back no receipt at all.
     pub refined: u32,
     /// The deepest recursion reached.
     pub max_depth: u32,
@@ -831,7 +829,7 @@ impl SweepCell for Box3 {
 ///
 /// The lane belongs to the ANSWER rather than to the walk. Both
 /// seeding doors could name their lane — [`seed_r3`] is on ℝ³ and
-/// [`seed_chart_plane`] holds the chart rate — and neither has
+/// [`seed_chart_partner`] holds the chart rate — and neither has
 /// anywhere to put it: a seeding run's survivors are seeds and it
 /// returns no receipt at all. So the two accounting doors attach the
 /// lane to this, where it is read, rather than the walk carrying a
@@ -1197,71 +1195,10 @@ pub(crate) fn isolate_section(
     Ok(cells)
 }
 
-/// **Seed generation**, chart lane: the centers of the parameter cells
-/// that survived exclusion against the plane.
-///
-/// Takes its floor as [`account_chart_plane`] does, minted over the
-/// same root by the same door ([`SweepFloor::chart`]): the chart lane
-/// is entered through one shape whichever duty is being asked for.
-/// What it does not do is hand back a lane — seeding hands back no
-/// receipt to state one on.
-///
-/// # Errors
-///
-/// As [`account_chart_plane`], minus the floor refusal.
-pub(crate) fn seed_chart_plane(
-    surface: &NurbsSurface<f64>,
-    plane_origin: Point3<f64>,
-    plane_normal: Vec3<f64>,
-    floor: SweepFloor<UvRect>,
-) -> Result<Vec<(f64, f64)>, SsiError> {
-    let (_, seeds) =
-        sweep_chart_plane(surface, plane_origin, plane_normal, floor, SweepDuty::Seed)?;
-    Ok(seeds)
-}
-
-/// **The accounting proof**, chart lane: every leaf of the floor's
-/// parameter rectangle is excluded — by its own enclosure, or inside
-/// one of the boundary pass's `clear` cells — or lies inside one of
-/// `tubes` or of the boundary contacts' `regions`; a cell that is none
-/// of these, at the floor, is the typed refusal — every set empty
-/// included.
-///
-/// The floor carries the certified chart speed of `surface` that
-/// crossed the caller's metres into chart units, and hands it on to
-/// the receipt so no caller has to hold the rate to read the answer.
-///
-/// # Errors
-///
-/// As [`account_r3`].
-pub(crate) fn account_chart_plane(
-    surface: &NurbsSurface<f64>,
-    plane_origin: Point3<f64>,
-    plane_normal: Vec3<f64>,
-    tubes: &[UvRect],
-    regions: &[UvRect],
-    clear: &[UvRect],
-    floor: SweepFloor<UvRect>,
-) -> Result<Exhaustiveness, SsiError> {
-    let (tally, _) = sweep_chart_plane(
-        surface,
-        plane_origin,
-        plane_normal,
-        floor,
-        SweepDuty::Account {
-            tubes,
-            regions,
-            clear,
-        },
-    )?;
-    Ok(tally.receipt(floor.lane, floor.width()))
-}
-
 /// **Seed generation**, chart lane, against any partner: the centres of
 /// the cells of the floor's rectangle that `excluded` does not clear, at
-/// the floor. [`seed_chart_plane`] with the partner's exclusion handed
-/// in, so a partner whose `φ` is not the plane's height is swept by the
-/// same recursion.
+/// the floor, the partner's exclusion handed in: one recursion sweeps
+/// every partner's `φ`.
 ///
 /// # Errors
 ///
@@ -1275,7 +1212,8 @@ pub(crate) fn seed_chart_partner(
 }
 
 /// **The accounting proof**, chart lane, against any partner:
-/// [`account_chart_plane`] with the partner's exclusion handed in.
+/// the receipt over the floor's rectangle, the partner's exclusion handed
+/// in.
 ///
 /// # Errors
 ///
@@ -1301,8 +1239,8 @@ pub(crate) const REGULAR_SURVIVORS: usize = 256;
 
 /// **The regularity sweep**, chart lane, over the one shared [`sweep`]:
 /// a cell is excluded where `excluded` reads the partner's `φ` over it,
-/// `value`'s enclosure (the plane's height on the accounting's own
-/// enclosure, [`chart_plane_height`]), as past it, and stops where
+/// `value`'s enclosure (the partner's form over the cell's box), as past
+/// it, and stops where
 /// `regular` holds. The answer is the centres of the cells neither holds
 /// at the floor, more than [`REGULAR_SURVIVORS`] of them where the sweep
 /// stopped; and how many cells read regular.
@@ -1321,57 +1259,6 @@ pub(crate) fn sweep_chart_regular(
         Ok(excluded(cell, phi))
     })?;
     Ok((survivors, tally.regular))
-}
-
-/// **The plane's height over a cell**: `φ(u,v) = n·(S(u,v) − p₀)`
-/// enclosed on the surface's certified first-order box over it, `n` the
-/// plane's normal as stored.
-///
-/// # Errors
-///
-/// [`SsiError::UnsupportedCertificate`] where the enclosure refuses.
-pub(crate) fn chart_plane_height(
-    boxes: &NurbsBoxes<'_, f64>,
-    plane_origin: Point3<f64>,
-    plane_normal: Vec3<f64>,
-    cell: UvRect,
-) -> Result<Interval, SsiError> {
-    let b = cell
-        .window()
-        .map_or_else(refused_box, |w| boxes.rect_box(w));
-    let phi = Interval::point(plane_normal.x) * (b.x - Interval::point(plane_origin.x))
-        + Interval::point(plane_normal.y) * (b.y - Interval::point(plane_origin.y))
-        + Interval::point(plane_normal.z) * (b.z - Interval::point(plane_origin.z));
-    if !phi.is_certified() {
-        // The one measured route here is weight underflow: the
-        // chart-speed mint refuses every net whose quotient-rule
-        // arithmetic (`NurbsBoxes::speed_sup`) leaves the finite
-        // range before this sweep runs, so that cause is named
-        // nowhere below.
-        return Err(SsiError::UnsupportedCertificate {
-            what: "the NURBS control-net enclosure refused over a cell — \
-                   a weight so small that the rational's own denominator \
-                   underflows to zero",
-        });
-    }
-    Ok(phi)
-}
-
-/// The chart lane's exclusion rule, over the one shared [`sweep`]:
-/// against a **plane** the locus is `φ(u,v) = n·(S(u,v) − p₀) = 0`, so
-/// a cell is solution-free when a zero-free enclosure of `φ` — computed
-/// from the surface's certified first-order box — says so.
-fn sweep_chart_plane(
-    surface: &NurbsSurface<f64>,
-    plane_origin: Point3<f64>,
-    plane_normal: Vec3<f64>,
-    floor: SweepFloor<UvRect>,
-    duty: SweepDuty<'_, UvRect>,
-) -> Result<(SweepTally, Vec<(f64, f64)>), SsiError> {
-    let boxes = NurbsBoxes::new(surface);
-    sweep(floor, duty, |cell| {
-        chart_plane_height(&boxes, plane_origin, plane_normal, cell).map(excludes_zero)
-    })
 }
 
 /// A box in the NURBS × NURBS lane's ℝ⁴ state space — the pair lane's

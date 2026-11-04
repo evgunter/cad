@@ -115,7 +115,7 @@ pub(crate) enum Reading<S> {
     /// The first decisive witness's side.
     Side(S),
     /// No witness decided.
-    Undecided(Tally),
+    Undecided(Box<Tally>),
 }
 
 /// The witnesses of a complex none of which decided.
@@ -242,11 +242,11 @@ pub(crate) fn ladder<T: Decide, S, E: From<LadderRefusal>>(
     });
     match climbed {
         Ok((_, answer)) => answer.map(Reading::Side),
-        Err(kept) => Ok(Reading::Undecided(Tally {
+        Err(kept) => Ok(Reading::Undecided(Box::new(Tally {
             on_boundary,
             in_band,
             kept,
-        })),
+        }))),
     }
 }
 
@@ -577,7 +577,7 @@ pub(crate) fn witness_insides<T: Decide + crate::props::AtRestPolicy>(
     match ladder(body, reads[i].sel.faces(), band, probe) {
         Ok(Reading::Side(inside)) => Insides::Read(inside),
         Ok(Reading::Undecided(t)) => match t.kept.ranked() {
-            Ranked::Blocked(e) | Ranked::InBand(e) => Insides::Refused(e),
+            Ranked::Blocked(e) | Ranked::InBand(e) | Ranked::Unsettled(e) => Insides::Refused(e),
             Ranked::Neither => Insides::Touching,
         },
         Err(e) => Insides::Refused(e),

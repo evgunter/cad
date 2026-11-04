@@ -1454,3 +1454,151 @@ mod side_through_a_pole {
         }
     }
 }
+
+/// **The pass reports a distance in band ahead of an edge that does not
+/// settle**, the order `geom_brep::chart_singularity::place_on_boundary`
+/// ranks them in, in either loop order: the north pole of a unit sphere
+/// lies `5ε` inside a circle's edge (the plane `x = 5ε`) and `3ε` from a
+/// grazing ellipse whose refinement does not settle. At the default band
+/// the pass refuses the distance (`SingularityUndecided`) in both
+/// orders; at a coarser one the first edge places the pole. Refusing the ellipse as a
+/// foreign carrier at the default band would hide a placement a coarser
+/// band reads definite.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod an_undecided_distance_ahead_of_an_unsettled_edge {
+    use std::collections::BTreeMap;
+
+    use geom::{Curve3, Surface};
+    use geom_core::{Point3, Vec3};
+
+    use super::{Action, Read, scan};
+    use crate::entities::{EdgeSpec, EdgeUse, FaceSpec, LoopSpec, SolidSpec};
+    use crate::error::StepImportError;
+
+    fn read(eps: f64, escalate: f64) -> Read {
+        Read {
+            eps,
+            escalate,
+            band: geom_core::Band::new(eps, escalate).ok(),
+            file: geom_core::FileCoincidence::new(eps),
+            coarser: Read::coarser(eps, escalate),
+        }
+    }
+
+    fn solid(rim_first: bool) -> SolidSpec {
+        let d = 5e-9_f64;
+        let rim = Curve3::circle(
+            Point3::new(d, 0.0, 0.0),
+            Vec3::new(1.0, 0.0, 0.0),
+            (1.0 - d * d).sqrt(),
+            Vec3::new(0.0, 1.0, 0.0),
+        );
+        let (delta, major) = (3e-9, 1e7);
+        let graze = Curve3::Ellipse(geom::Ellipse::new(
+            geom::Frame::new(
+                Point3::new(0.0, 0.0, 1.0 + delta - major),
+                Vec3::new(0.0, 1.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+            ),
+            major,
+            1.0,
+        ));
+        let edges = BTreeMap::from([
+            (
+                11,
+                EdgeSpec {
+                    start: 1,
+                    end: 1,
+                    carrier: rim.clone(),
+                    t0: 0.0,
+                    t1: core::f64::consts::TAU,
+                    reversed: false,
+                },
+            ),
+            (
+                12,
+                EdgeSpec {
+                    start: 2,
+                    end: 3,
+                    carrier: graze.clone(),
+                    t0: -0.5,
+                    t1: 0.5,
+                    reversed: false,
+                },
+            ),
+        ]);
+        let vertices = BTreeMap::from([
+            (1, rim.eval(0.0)),
+            (2, graze.eval(-0.5)),
+            (3, graze.eval(0.5)),
+        ]);
+        let lp = |edge| LoopSpec {
+            outer: false,
+            uses: vec![EdgeUse {
+                edge,
+                forward: true,
+            }],
+        };
+        let loops = if rim_first {
+            vec![lp(11), lp(12)]
+        } else {
+            vec![lp(12), lp(11)]
+        };
+        SolidSpec {
+            id: 100,
+            faces: vec![FaceSpec {
+                id: 101,
+                surface: Surface::Sphere {
+                    center: Point3::new(0.0, 0.0, 0.0),
+                    radius: 1.0,
+                    axis: Vec3::new(0.0, 0.0, 1.0),
+                    u_ref: Vec3::new(1.0, 0.0, 0.0),
+                },
+                sense: true,
+                loops,
+                band: false,
+            }],
+            edges,
+            vertices,
+            band_seams: Default::default(),
+        }
+    }
+
+    /// What the pass did, for a message.
+    fn shown(got: &Result<Option<Action>, StepImportError>) -> String {
+        match got {
+            Ok(Some(Action::InsideEdge { edge, t, .. })) => format!("inside edge {edge} at {t}"),
+            Ok(Some(_)) => "another disposition".to_owned(),
+            Ok(None) => "none".to_owned(),
+            Err(e) => format!("{e:?}"),
+        }
+    }
+
+    #[test]
+    fn the_pass_refuses_the_distance_and_a_coarser_band_cuts_the_edge() {
+        for rim_first in [true, false] {
+            let got = scan(&solid(rim_first), 0, &read(1e-9, 1e-8));
+            assert!(
+                matches!(got, Err(StepImportError::SingularityUndecided { .. })),
+                "rim first {rim_first}, default band: {}",
+                shown(&got)
+            );
+            // At the coarser band the first edge to place the pole is
+            // its answer: the circle, cut there; or the ellipse, which
+            // settles on the pole and whose carrier the pass reads no
+            // crossing of.
+            let got = scan(&solid(rim_first), 0, &read(1e-8, 1e-7));
+            let placed = if rim_first {
+                matches!(got, Ok(Some(Action::InsideEdge { edge: 11, .. })))
+            } else {
+                matches!(got, Err(StepImportError::Topology { id: 101, .. }))
+            };
+            assert!(
+                placed,
+                "rim first {rim_first}, coarser band: {}",
+                shown(&got)
+            );
+        }
+    }
+}

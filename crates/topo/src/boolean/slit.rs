@@ -122,6 +122,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use geom_brep::curve_pair::{Hit, MeetFault, Span, SpanEnd, meet};
+use geom_brep::ladder::{Answering, Climb, Rung, climb};
 use geom_core::{Band, Decide, Margin, Point3, Sign, Tol, Vec3};
 
 use super::contain::ContainError;
@@ -1120,23 +1121,47 @@ fn holding<T: Decide>(
         .chain(at.into_iter().rev())
         .chain(core::iter::once(t1))
         .collect();
-    let mut unasked = None;
-    for piece in ends.windows(2) {
-        let mid = carrier.eval(geom::mid_param(piece[0], piece[1]));
-        // Whether the face holds the point is read here first, so the
-        // door's margin in band is the operands' geometry.
-        match piece_reading(body, f, mid, band, DoorInBand::Containment) {
-            Ok(PieceRead::In) => return Ok(Some(divided)),
-            Ok(PieceRead::NotIn) => {}
-            Ok(PieceRead::Unread(why)) => {
-                unasked.get_or_insert(unread(why));
-            }
-            Err(read) => {
-                unasked.get_or_insert(read);
-            }
-        }
+    // The ladder ([`climb`]) whose answer is the first piece `f` holds:
+    // any piece in `f` says the edge lies in it ([`Answering::Any`]).
+    // Whether the face holds the point is read here first, so the door's
+    // margin in band is the operands' geometry.
+    let pieces = ends
+        .windows(2)
+        .map(|piece| carrier.eval(geom::mid_param(piece[0], piece[1])));
+    match climb(Answering::Any, pieces, |mid| {
+        piece_rung(
+            piece_reading(body, f, mid, band, DoorInBand::Containment),
+            unread,
+        )
+    }) {
+        Climb::Answered { answer, .. } => answer.map(|()| Some(divided)),
+        Climb::Passed => Ok(None),
+        Climb::Undecided(read) => unplaced(read),
     }
-    unasked.map_or(Ok(None), unplaced)
+}
+
+/// One piece's reading as a rung of [`holding`]'s ladder: `In` answers,
+/// `NotIn` passes. A piece the door could not place is ranked as the
+/// door's refusal states ([`ContainError::refusal`], the one table
+/// [`super::fate`]'s ring rehoming reads too): a limit ahead of a piece
+/// read in band, and a refusal of the whole query (a corrupt face, two
+/// readings of an arc's end that contradict) aborts. A curved region
+/// that gives no verdict is a limit. An escalation is ranked by its
+/// margin; any other refusal is a limit.
+fn piece_rung(
+    reading: Result<PieceRead, BooleanError>,
+    unread: impl FnOnce(Option<ContainError>) -> BooleanError,
+) -> Rung<Result<(), BooleanError>, BooleanError> {
+    match reading {
+        Ok(PieceRead::In) => Rung::Answers(Ok(())),
+        Ok(PieceRead::NotIn) => Rung::Passes,
+        Ok(PieceRead::Unread(Some(why))) => why
+            .refusal()
+            .rung(unread(Some(why)), |refused| Rung::Aborts(Err(refused))),
+        Ok(PieceRead::Unread(None)) => Rung::Blocked(unread(None)),
+        Err(read @ BooleanError::Escalated { diag, .. }) => Rung::kept(diag).map_kept(|_| read),
+        Err(read) => Rung::Blocked(read),
+    }
 }
 
 /// Where along `along`, edge `e`'s span, the records `named` place a
@@ -3276,5 +3301,60 @@ mod reverted_floor {
                 "{what}: {n:?}, want z = {z}"
             );
         }
+    }
+}
+
+/// [`holding`]'s ranking: where no piece lies in the face, a piece the
+/// door could not place refuses ahead of one read in band before it.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod piece_rung_rows {
+    use geom_brep::ladder::{Answering, Climb, climb};
+
+    use super::{BooleanError, EdgeInFaceGap, PieceRead, piece_rung};
+    use crate::entity::{EdgeKey, FaceKey};
+
+    #[test]
+    fn an_unread_piece_refuses_ahead_of_an_earlier_in_band_one() {
+        let unread = |why| BooleanError::EdgeInFace {
+            edge: EdgeKey::default(),
+            face: FaceKey::default(),
+            gap: EdgeInFaceGap::Unread(why),
+        };
+        let in_band = || BooleanError::Escalated {
+            decision: super::BooleanDecision::VertexOnVertex,
+            diag: geom_core::Indeterminate {
+                margin: geom_core::MarginDiag::value(5e-9),
+                band: geom_core::Band::new(1e-9, 1e-8).unwrap(),
+                predicate: Some("test_piece"),
+                terminal_sliver: false,
+            },
+        };
+        let got = climb(
+            Answering::Any,
+            [
+                Err(in_band()),
+                Ok(PieceRead::NotIn),
+                Ok(PieceRead::Unread(None)),
+            ],
+            |r| piece_rung(r, unread),
+        );
+        let Climb::Undecided(refusal) = got else {
+            panic!("no piece in the face: {got:?}")
+        };
+        assert!(
+            matches!(
+                refusal,
+                BooleanError::EdgeInFace {
+                    gap: EdgeInFaceGap::Unread(None),
+                    ..
+                }
+            ),
+            "the unread piece: {refusal:?}"
+        );
+        let got = climb(Answering::Any, [Err(in_band()), Ok(PieceRead::In)], |r| {
+            piece_rung(r, unread)
+        });
+        assert!(matches!(got, Climb::Answered { at: 1, .. }), "{got:?}");
     }
 }

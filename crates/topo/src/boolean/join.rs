@@ -5789,7 +5789,9 @@ fn loop_roles(
         // point), so both of those and an empty one read undecided.
         (Reading::Undecided(o), Reading::Undecided(r)) => Err(match o.kept.then(r.kept).ranked() {
             geom_brep::ladder::Ranked::Blocked(e) => BooleanError::Containment(e),
-            geom_brep::ladder::Ranked::InBand(_) | geom_brep::ladder::Ranked::Neither => {
+            geom_brep::ladder::Ranked::InBand(_)
+            | geom_brep::ladder::Ranked::Unsettled(_)
+            | geom_brep::ladder::Ranked::Neither => {
                 BooleanError::from(SplitJoinError::SectionLoopUndecided { face })
             }
         }),
@@ -5940,7 +5942,6 @@ mod loop_roles_rows {
     use super::loop_roles;
     use crate::chord_join::SplitJoinError;
     use crate::entity::{FaceKey, LoopKey};
-    use crate::stands::Tally;
     use slotmap::SlotMap;
 
     fn keys() -> (FaceKey, LoopKey, LoopKey) {
@@ -5953,7 +5954,7 @@ mod loop_roles_rows {
     }
 
     fn undecided() -> Reading {
-        Reading::Undecided(Tally::default())
+        Reading::Undecided(Box::default())
     }
 
     /// Each loop's reading, alone or with its opposite, fixes the same
