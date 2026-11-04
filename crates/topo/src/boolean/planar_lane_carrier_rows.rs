@@ -218,7 +218,7 @@ fn brick_face(x: (f64, f64), y: (f64, f64), n: Vec3<f64>) -> (Body<f64>, FaceKey
     let g = b
         .faces()
         .map(|(k, _)| k)
-        .find(|&f| super::face_plane(&b, f).is_some_and(|p| p.normal.dot(n) > 0.5))
+        .find(|&f| super::plane_desc(&b, f).is_some_and(|p| p.normal.dot(n) > 0.5))
         .expect("the brick has the face");
     (b, g)
 }

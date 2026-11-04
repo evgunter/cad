@@ -216,6 +216,20 @@ impl Fnv {
                 self.s(*minor_radius);
                 self.v3(u_ref);
             }
+            Surface::Spindle {
+                center,
+                axis,
+                major_radius,
+                minor_radius,
+                u_ref,
+            } => {
+                self.u64(67);
+                self.p3(center);
+                self.v3(axis);
+                self.s(*major_radius);
+                self.s(*minor_radius);
+                self.v3(u_ref);
+            }
             Surface::Nurbs(n) => {
                 self.u64(65);
                 let (cu, cv) = n.control_counts();

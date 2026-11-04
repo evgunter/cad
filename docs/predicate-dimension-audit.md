@@ -781,7 +781,7 @@ which is what actually moves the number.
 | ring_path.rs (`path_parity`) | split_ring_path_in_span | a crossing's distance to a span end (a circle's parameter levered at its radius, a conic's at its minor semi-axis, a line's length) times the slope `\|n̂·τ̂\|` the piece crosses the other's plane at: the carrier displacement that moves the root past the end, shrunk toward zero by the coordinates' resolution (`charge`, `resolution`: `slack / arm` in the parameter); a crossing any of whose readings is decided out of span is passed over, even where another escalates | m | OK (TANG) |
 | chord_join.rs (`chart_ring_side`, retired) | split_ring_chart_window, split_ring_chart_ray_azimuth, split_ring_chart_ray_height (retired: a cylinder face re-homes its rings by a path, `path_ring_side`, read by the `split_ring_path_*` rows) | — | — | retired |
 | chord_join.rs (`run_azimuth_images`' ring re-homing) | split_chart_azimuth_frame (retired: the read goes through `geom_brep::Azimuth::principal`, decided as `pcurve_chart_cut_side`) | — | — | retired |
-| chord_join.rs:1623/1639 | split_sphere_window_pole(_side) | radius − axial distance | m | OK |
+| chart_window.rs (`run_azimuth_images`) | chart_window_sphere_pole(_side) | radius − axial distance | m | OK |
 | splitting/join.rs:377 | split_section_area | 2·\|A\|/P mean width | m | FIXED (factor-2 doc/code mismatch; dimension was already m) |
 | splitting/join.rs (`spur_tips`, retired) | split_section_spur (retired: a slit is read from topology, by its halves' point keys, `Tree::slit`) | — | — | retired |
 | splitting/finish.rs:414 | classify_dihedral arm | edge extents (m) | m | OK |
@@ -1428,7 +1428,7 @@ Flagged, NOT fixed here (dispositions):
   Zero for a pole definitely inside, the sibling F8 never named.
   `Zero` is taken as "at an end or outside", so the latitude fold would
   miss an interior pole and the window would stop short of it by up to
-  `R·w/2`. By reading, today's `chord_join::face_azimuth_window` refuses
+  `R·w/2`. By reading, today's `chart_window::face_azimuth_window` refuses
   a meridian edge through a pole (no closed-form chart image across it),
   which sends the face out of the class first; unverified by a run. The
   margin `geom_brep::props`' `span_membership` takes (the signed chord to

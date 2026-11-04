@@ -170,7 +170,9 @@ fn shell_runs_no_intersection_machinery() {
     let crossing: Vec<&'static str> = verdicts
         .iter()
         .map(|v| v.predicate)
-        .filter(|p| p.starts_with("bool_") && !VALIDATOR_SHARED.contains(p))
+        .filter(|p| {
+            crate::common::crossing::decided_by_crossing(p) && !VALIDATOR_SHARED.contains(p)
+        })
         .collect();
     assert!(
         crossing.is_empty(),
@@ -1351,7 +1353,9 @@ fn shell_of_a_hollow_runs_no_intersection_machinery() {
     let crossing: Vec<&'static str> = verdicts
         .iter()
         .map(|v| v.predicate)
-        .filter(|p| p.starts_with("bool_") && !VALIDATOR_SHARED.contains(p))
+        .filter(|p| {
+            crate::common::crossing::decided_by_crossing(p) && !VALIDATOR_SHARED.contains(p)
+        })
         .collect();
     assert!(
         crossing.is_empty(),

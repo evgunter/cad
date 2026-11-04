@@ -1373,6 +1373,25 @@ pub(crate) fn face_box_rule<T: Decide>(
             minor_radius: *minor_radius,
             u_ref: *u_ref,
         },
+        // A sheet lies on its whole revolved circle, the tube about the
+        // circle of radius `|R|`: read as a torus off its ring, whose
+        // window is the whole tube. The tube radius is at least `|R|`,
+        // so no sheet reads as a ring, a stored one outside its range
+        // included, and the extent holds the tube about `|R|` of radius
+        // `r`.
+        Surface::Spindle {
+            center,
+            axis,
+            major_radius,
+            minor_radius,
+            u_ref,
+        } => FaceBoxRule::TorusWindow {
+            center: *center,
+            axis: *axis,
+            major_radius: major_radius.abs(),
+            minor_radius: minor_radius.max(major_radius.abs()),
+            u_ref: *u_ref,
+        },
     })
 }
 
@@ -2218,10 +2237,8 @@ pub(crate) fn cover_frame<T: Real>(frame: &BoxFrame<T>) -> geom::cover::Frame<T>
 /// adapter for the face lanes' slab arms.
 pub(crate) fn cover_axial<T: Real>(cover: &Cover<T>, origin: Point3<T>, axis: Vec3<T>) -> (T, T) {
     let base = (origin - Point3::origin()).dot(axis);
-    (
-        T::zero() - cover.support(-axis) - base,
-        cover.support(axis) - base,
-    )
+    let (lo, hi) = cover.range_along(axis);
+    (lo - base, hi - base)
 }
 
 /// The box of the ball about `c` of radius `r`, from their enclosures,

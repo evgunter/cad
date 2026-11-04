@@ -6320,7 +6320,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
             let curved: Vec<FaceKey> = piercing_body
                 .faces()
                 .map(|(k, _)| k)
-                .filter(|&k| reduce::face_plane(piercing_body, k).is_none())
+                .filter(|&k| crate::face_normal::face_plane(piercing_body, k).is_none())
                 .collect();
             for face in curved {
                 curved_boxes.insert(face, boxes::face_box(piercing_body, face, pad, band)?);
@@ -7131,12 +7131,12 @@ fn given_verdicts<T: Decide>(
             GlueClass::Tangent => {
                 let kinds = (kind(a, fa), kind(b, fb));
                 let given = given.ok_or(invariant("a given pair carries no decision"))?;
-                if let Some(line) = given.line {
-                    let (origin, dir) = line;
-                    let (_, overlap) = witness_span(a, fa, b, fb, (origin, dir), band, pad)?;
+                if let Some((origin, dir)) = given.line {
+                    let line = geom::Line { origin, dir };
+                    let (_, overlap) = witness_span(a, fa, b, fb, &line, band, pad)?;
                     if locus_through_both_faces(
                         [(a, fa, Operand::A, kinds.0), (b, fb, Operand::B, kinds.1)],
-                        &geom::Curve3::Line(geom::Line { origin, dir }),
+                        &geom::Curve3::Line(line),
                         overlap,
                         DeclarationRead::Spent(GlueClass::Tangent),
                         band,
@@ -7150,7 +7150,7 @@ fn given_verdicts<T: Decide>(
                         verified
                             .coincidences
                             .push(tangent_row(fa, fb, given.margin));
-                        verified.lines.insert((fa, fb), line);
+                        verified.lines.insert((fa, fb), (origin, dir));
                     }
                 }
                 verified.tangent.insert(
@@ -7367,9 +7367,10 @@ fn tangent_line<T: Decide>(
     };
     match geom_brep::tangent_locus_of_faces(sa, sb, reach, band, extents) {
         Ok(geom_brep::TangentLocus::Line { origin, dir, gap }) => {
-            let (span, overlap) = witness_span(a, fa, b, fb, (origin, dir), band, pad)?;
+            let line = geom::Line { origin, dir };
+            let (span, overlap) = witness_span(a, fa, b, fb, &line, band, pad)?;
             Ok(Ok(TangentLine {
-                carrier: geom::Curve3::Line(geom::Line { origin, dir }),
+                carrier: geom::Curve3::Line(line),
                 span,
                 overlap,
                 gap,
@@ -7862,21 +7863,21 @@ fn witness_span<T: Decide>(
     fa: FaceKey,
     b: &Body<T>,
     fb: FaceKey,
-    (origin, dir): (Point3<T>, geom_core::Vec3<T>),
+    line: &geom::Line<T>,
     band: Band,
     pad: T,
 ) -> Result<((T, T), (T, T)), BooleanError> {
-    let along = |p: Point3<T>| (p - origin).dot(dir);
+    let along = |p: Point3<T>| line.param(p);
     let span = |body: &Body<T>, f, operand| -> Result<(T, T), BooleanError> {
         let invalid = |what| BooleanError::InvalidInput { operand, what };
         let mut ts: Vec<T> = face_boundary_points(body, f, operand)?
             .into_iter()
             .map(along)
             .collect();
-        match conic_reach(body, f, along, dir) {
+        match conic_reach(body, f, along, line.dir) {
             Some(extra) => ts.extend(extra),
             None => {
-                let aim = geom_core::UnitVec3::new(dir, "bool_tangent_line_aim", band)
+                let aim = geom_core::UnitVec3::new(line.dir, "bool_tangent_line_aim", band)
                     .map_err(|_| invalid("the tangent line has no direction"))?;
                 let (lo, hi) =
                     crate::census::face_reach_in(body, f, band, &boxes::BoxFrame::aimed(aim))
@@ -8047,7 +8048,8 @@ pub(crate) enum FaceUnread {
     /// The placement's own refusal.
     Placement(contain::PlacementError),
     /// The boundary pass's refusal of the locus against the face's
-    /// boundary ([`boundary_cuts`]): its meetings, so the runs, are
+    /// boundary ([`boundary_cuts`]): over a member's window, or over the
+    /// whole face where the pass faults, its meetings, so the runs, are
     /// unknown.
     Boundary(geom_brep::curve_face::BoundaryRefusal),
     /// An edge of the face's boundary holds no certified curve, which the
@@ -8065,10 +8067,11 @@ pub(crate) enum FaceUnread {
 /// The overlap is cut wherever either face's boundary meets the locus
 /// ([`boundary_cuts`]), so no boundary crosses the open run between two
 /// cuts and one station, its middle, answers for each run. A station
-/// both faces read in answers `true` whatever the cuts. Where the
-/// boundary pass does not give a face's meetings, that face's out
-/// settles no run: a run only it reads out leaves the line unread, and
-/// its refusal is pushed.
+/// both faces read in answers `true` whatever the cuts. A member of a
+/// face's boundary the pass cannot read is undecided over a window of
+/// the locus, whose ends are cuts; there, and over the whole locus where
+/// the face's cuts are unknown, that face's out settles no run: a run
+/// only it reads out leaves the line unread, and its refusal is pushed.
 /// A run inside the zero band is one cut met twice and is not read; a
 /// run in band is read, and may hold.
 ///
@@ -8085,8 +8088,9 @@ pub(crate) enum FaceUnread {
 /// # Errors
 ///
 /// Where no station answers `true`: the boundary refusals of the faces
-/// whose cuts are unknown, where a run only such a face read out; else
-/// the first held station's refusals.
+/// whose cuts are unknown and of the first window of each face that held
+/// a run only it read out, where there was such a run; else the first
+/// held station's refusals.
 pub(crate) fn line_through_both_faces<T: Decide, E>(
     faces: [(&Body<T>, FaceKey); 2],
     locus: &geom::Curve3<T>,
@@ -8106,16 +8110,14 @@ pub(crate) fn line_through_both_faces<T: Decide, E>(
         unread(i, why, held);
         None
     };
-    let mut cuts = vec![overlap.0, overlap.1];
-    let mut unknown = [None, None];
-    for (i, &(body, face)) in faces.iter().enumerate() {
-        match boundary_cuts(body, face, locus, overlap, band) {
-            Ok(ts) => cuts.extend(ts),
-            Err(why) => unknown[i] = Some(why),
-        }
-    }
-    let mut cuts: Vec<T> = cuts
+    // Each face's located boundary pass, or why its cuts are unknown.
+    let read = faces.map(|(body, face)| boundary_cuts(body, face, locus, overlap, band));
+    let mut cuts: Vec<T> = [overlap.0, overlap.1]
         .into_iter()
+        .chain(
+            read.iter()
+                .flat_map(|r| r.as_ref().map(|l| l.cuts()).unwrap_or_default()),
+        )
         .filter(|t| !t.is_poison())
         .map(|t| t.max(overlap.0).min(overlap.1))
         .collect();
@@ -8127,11 +8129,23 @@ pub(crate) fn line_through_both_faces<T: Decide, E>(
             cuts[j] = hi;
         }
     }
+    let speed = locus.deriv(geom::mid_param(overlap.0, overlap.1)).norm();
+    // The first of face `i`'s undecided windows the run reaches into.
+    let undecided_over = |i: usize, run: &[T]| {
+        read[i]
+            .as_ref()
+            .ok()
+            .and_then(|l| l.undecided_over((run[0], run[1]), speed, band))
+            .map(|u| u.why)
+    };
     // A face's out at a station settles the run only where its cuts are
-    // known: no boundary of it crosses the run.
-    let settles = |i: usize, at: Option<bool>| at == Some(false) && unknown[i].is_none();
+    // known over it: no boundary of it crosses the run.
+    let settles = |i: usize, at: Option<bool>, run: &[T]| {
+        at == Some(false) && read[i].is_ok() && undecided_over(i, run).is_none()
+    };
     let mut held = None;
-    let mut open = false;
+    let mut open: Vec<(usize, geom_brep::curve_face::BoundaryRefusal)> = Vec::new();
+    let mut open_unknown = false;
     for run in cuts.windows(2) {
         // A run inside the zero band is one cut met twice.
         if matches!(
@@ -8143,25 +8157,41 @@ pub(crate) fn line_through_both_faces<T: Decide, E>(
         let p = locus.eval((run[0] + run[1]) * T::from_f64(0.5));
         let mut station = Vec::new();
         let first = inside(0, p, &mut station);
-        if settles(0, first) {
+        if settles(0, first, run) {
             continue;
         }
         let second = inside(1, p, &mut station);
         match (first, second) {
             (Some(true), Some(true)) => return Ok(true),
-            _ if settles(1, second) => {}
-            (Some(false), _) | (_, Some(false)) => open = true,
+            _ if settles(1, second, run) => {}
+            (Some(false), _) | (_, Some(false)) => {
+                for (i, at) in [first, second].into_iter().enumerate() {
+                    if at != Some(false) {
+                        continue;
+                    }
+                    if read[i].is_err() {
+                        open_unknown = true;
+                    } else if let Some(why) = undecided_over(i, run)
+                        && !open.iter().any(|&(f, _)| f == i)
+                    {
+                        open.push((i, why));
+                    }
+                }
+            }
             _ => {
                 held.get_or_insert(station);
             }
         }
     }
-    if open {
+    if open_unknown || !open.is_empty() {
         let mut why = Vec::new();
-        for (i, unread_face) in unknown.into_iter().enumerate() {
-            if let Some(u) = unread_face {
+        for (i, face_read) in read.into_iter().enumerate() {
+            if let Err(u) = face_read {
                 unread(i, u, &mut why);
             }
+        }
+        for (i, refusal) in open {
+            unread(i, FaceUnread::Boundary(refusal), &mut why);
         }
         return Err(why);
     }
@@ -8169,16 +8199,18 @@ pub(crate) fn line_through_both_faces<T: Decide, E>(
 }
 
 /// **Where `face`'s boundary meets `locus` over `span`**: the parameter
-/// of every meeting the boundary pass reads
-/// ([`carrier_cross::FaceBoundary::read`], each boundary vertex and edge
-/// read against the span through the curve-pair table). A run the locus
-/// shares with a boundary edge ends at a boundary vertex or at the span's
-/// end, each a cut already.
+/// of every meeting the located boundary pass reads
+/// ([`carrier_cross::FaceBoundary::located`], each boundary vertex and
+/// edge read against the span through the curve-pair table), and the
+/// two ends of the window each member it could not read is undecided
+/// over ([`geom_brep::curve_pair::Span::window_near`]). A run the locus
+/// shares with a boundary edge ends at a boundary vertex or at the
+/// span's end, each a cut already.
 ///
 /// # Errors
 ///
-/// [`FaceUnread::Boundary`] where the pass refuses, a fault included, and
-/// as a fault where `face` does not resolve; [`FaceUnread::Uncertified`]
+/// [`FaceUnread::Boundary`] where a member's reading faults, and as a
+/// fault where `face` does not resolve; [`FaceUnread::Uncertified`]
 /// where a boundary edge holds no certified curve.
 ///
 /// # Panics
@@ -8191,7 +8223,8 @@ fn boundary_cuts<T: Decide>(
     locus: &geom::Curve3<T>,
     span: (T, T),
     band: Band,
-) -> Result<Vec<T>, FaceUnread> {
+) -> Result<geom_brep::curve_face::Located<T>, FaceUnread> {
+    use geom_brep::curve_face::BoundaryRefusal;
     let boundary = carrier_cross::face_boundary(body, face)
         .map_err(|e| {
             // A face the caller read its placement on that the walk
@@ -8200,16 +8233,15 @@ fn boundary_cuts<T: Decide>(
                 BooleanError::ClassificationInvariant { what } => what,
                 _ => "boundary pass: face lost",
             };
-            FaceUnread::Boundary(geom_brep::curve_face::BoundaryRefusal::Fault { what })
+            FaceUnread::Boundary(BoundaryRefusal::Fault { what })
         })?
         .ok_or(FaceUnread::Uncertified)?;
     let swept = geom_brep::curve_pair::Span::new(locus, span);
-    let reading = boundary.read(&swept, band).map_err(FaceUnread::Boundary)?;
-    Ok(reading
-        .meetings
-        .iter()
-        .map(|m| swept.at(m.on_span))
-        .collect())
+    let located = boundary.located(&swept, band);
+    match located.fault() {
+        Some(fault) => Err(FaceUnread::Boundary(fault)),
+        None => Ok(located),
+    }
 }
 
 /// The face's boundary vertex positions (outer loop then rings, cycle
@@ -8518,10 +8550,12 @@ mod tests {
     /// added to `SurfaceKind` fails here until someone decides its arm.
     #[test]
     fn only_tangencies_that_are_a_global_side_certify_one() {
-        use geom::SurfaceKind::{self, Approx, Cone, Cylinder, Nurbs, Plane, Sphere, Torus};
-        let all = [Plane, Cylinder, Cone, Sphere, Torus, Nurbs, Approx];
+        use geom::SurfaceKind::{
+            self, Approx, Cone, Cylinder, Nurbs, Plane, Sphere, Spindle, Torus,
+        };
+        let all = [Plane, Cylinder, Cone, Sphere, Torus, Spindle, Nurbs, Approx];
         let visit = |k: SurfaceKind| match k {
-            Plane | Cylinder | Cone | Sphere | Torus | Nurbs | Approx => k,
+            Plane | Cylinder | Cone | Sphere | Torus | Spindle | Nurbs | Approx => k,
         };
         let admitted: Vec<(SurfaceKind, SurfaceKind)> = all
             .iter()

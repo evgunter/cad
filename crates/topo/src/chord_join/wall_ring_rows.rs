@@ -648,7 +648,7 @@ fn a_cylinder_island_closed_by_a_ruling_winds_by_a_path() {
 fn vertex_at(body: &Body<f64>, p: Point3<f64>) -> VertexKey {
     let near: Vec<VertexKey> = body
         .vertices()
-        .filter(|&(k, _)| (vertex_point(body, k) - p).norm() < 1e-12)
+        .filter(|&(k, _)| (body.resolve_vertex_point(k, Proven) - p).norm() < 1e-12)
         .map(|(k, _)| k)
         .collect();
     assert_eq!(near.len(), 1, "one vertex at {p:?}");

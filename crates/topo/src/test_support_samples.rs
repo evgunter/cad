@@ -94,6 +94,12 @@ fn zero_verdict(margin: f64) -> Refused {
     })
 }
 
+/// A spindle sheet of tube radius 1 whose major radius misses its
+/// range: decided at `0` (the sphere), undecided a hair past the horn.
+fn spindle_miss(major: f64) -> geom::SpindleMiss {
+    geom::spindle_sheet(major, 1.0, band()).expect_err("the major radius misses the range")
+}
+
 /// A positive-passing gate's rejection of a reading past the band on
 /// the refused side.
 fn rejected_negative(predicate: &'static str) -> Indeterminate {
@@ -414,11 +420,7 @@ fn plane_nurbs_refusals() -> Vec<PlaneNurbsRefusal> {
             limb: geom_brep::SsiLimb::Tube,
             cause: diag(),
         },
-        PlaneNurbsRefusal::ArcRim(geom_brep::ArcRimRefusal::Escalated {
-            check: geom_brep::PcurveCheck::MapResidual,
-            cause: diag(),
-        }),
-        PlaneNurbsRefusal::ArcRim(geom_brep::ArcRimRefusal::Refused {
+        PlaneNurbsRefusal::ArcRim(geom_brep::ArcRimRefusal {
             iso: Some(geom_brep::PcurveCheck::MapResidual),
             limb: geom_brep::SsiLimb::HullValueChart,
             bound: MarginDiag::value(4.6e-4),
@@ -518,13 +520,11 @@ fn certify_errors() -> Vec<CertifyError> {
         },
         CertifyError::UnresolvedSurface { key },
         CertifyError::Unimplemented,
-        CertifyError::PlaneNurbs(PlaneNurbsRefusal::ArcRim(
-            geom_brep::ArcRimRefusal::Refused {
-                iso: None,
-                limb: geom_brep::SsiLimb::HullValueChart,
-                bound: MarginDiag::value(4.6e-4),
-            },
-        )),
+        CertifyError::PlaneNurbs(PlaneNurbsRefusal::ArcRim(geom_brep::ArcRimRefusal {
+            iso: None,
+            limb: geom_brep::SsiLimb::HullValueChart,
+            bound: MarginDiag::value(4.6e-4),
+        })),
         CertifyError::IntersectionSameSurface { key },
         CertifyError::Row {
             surface: key,
@@ -1439,6 +1439,18 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
             face,
             verdict: negative_verdict(-1e-3),
         },
+        ValidationError::DegenerateSpindle {
+            face,
+            miss: spindle_miss(0.0),
+        },
+        ValidationError::DegenerateSpindle {
+            face,
+            miss: spindle_miss(1.0 + 0.5 * band().escalate()),
+        },
+        ValidationError::SheetApexReached {
+            face,
+            point: geom_brep::chart_singularity::Singularity::SheetApexUp,
+        },
         ValidationError::DescriptionNotAdjacent { edge },
         ValidationError::PlanarFaceResidual { face, vertex },
         ValidationError::PlanarBoundaryResidual { face, edge },
@@ -2059,17 +2071,6 @@ pub(crate) fn nested_coverage_gaps() -> Vec<String> {
     out.extend(gaps::<_, PlaneNurbsRefusalKind>(
         "PlaneNurbsRefusal",
         &plane_nurbs_refusals(),
-    ));
-    let arc_rims: Vec<geom_brep::ArcRimRefusal> = plane_nurbs_refusals()
-        .into_iter()
-        .filter_map(|e| match e {
-            PlaneNurbsRefusal::ArcRim(r) => Some(r),
-            _ => None,
-        })
-        .collect();
-    out.extend(gaps::<_, geom_brep::edge_nurbs::ArcRimRefusalKind>(
-        "ArcRimRefusal",
-        &arc_rims,
     ));
     out.extend(gaps::<_, geom_brep::edge_nurbs::AnalyticRung3RefusalKind>(
         "AnalyticRung3Refusal",

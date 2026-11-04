@@ -1244,7 +1244,9 @@ fn transport_curve<T: Decide>(
                 ))
             }
         },
-        Surface::Approx(_) => None,
+        // The offset door mints no spindle sheet, so no edge is moved
+        // with one.
+        Surface::Spindle { .. } | Surface::Approx(_) => None,
     })
 }
 
@@ -3120,7 +3122,7 @@ fn carried_alike<T: Decide>(
     tol: Tol,
 ) -> Result<Transported<T>, ReplaceFaceError<T>> {
     let exact = |c: &MovedChart<'_, T>| match c.old_surface {
-        Surface::Nurbs(_) | Surface::Approx(_) => false,
+        Surface::Nurbs(_) | Surface::Approx(_) | Surface::Spindle { .. } => false,
         Surface::Cylinder { .. } | Surface::Cone { .. } => !matches!(old, Curve3::Nurbs(_)),
         Surface::Plane { .. } | Surface::Sphere { .. } | Surface::Torus { .. } => true,
     };

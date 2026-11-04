@@ -489,12 +489,14 @@ impl<T: Real> Bound<T> {
 /// **A surface's own signed distance**, 1-Lipschitz and zero on the
 /// surface: exact for a plane, a cylinder, a sphere and a ring torus;
 /// for a cone, `ρ·cos α − |z|·sin α`, zero on both nappes. `None` for a
-/// surface with no closed form here (NURBS, an approximating surface).
+/// surface with no closed form here (a spindle sheet, NURBS, an
+/// approximating surface).
 ///
 /// Every torus read here is a ring torus (`R > r`): a stored face's by
 /// tier 3, which refuses a horn or spindle at rest (`DegenerateTorus`),
 /// and a band's by predicate 3 (the spine's radius exceeds the ball's).
-/// On a spindle `|(ρ − R, z)| − r` would be no distance off the lemon.
+/// On a spindle sheet `|(ρ − R, z)| − r` would be no distance off the
+/// lemon near its apexes.
 fn surface_distance<T: Real>(s: &Surface<T>, x: Point3<T>) -> Option<T> {
     match s {
         Surface::Plane { origin, normal, .. } => Some((x - *origin).dot(normal.normalize())),
@@ -524,7 +526,7 @@ fn surface_distance<T: Real>(s: &Surface<T>, x: Point3<T>) -> Option<T> {
             let (rho, z) = sheet_of(*center, axis.normalize(), x);
             Some(((rho - *major_radius).powi(2) + z.powi(2)).sqrt() - *minor_radius)
         }
-        Surface::Nurbs(_) | Surface::Approx(_) => None,
+        Surface::Spindle { .. } | Surface::Nurbs(_) | Surface::Approx(_) => None,
     }
 }
 
@@ -712,7 +714,7 @@ fn sheet_fn<T: Decide + Bounds>(
                 rho + tilt(*axis) * *major_radius,
             )
         }
-        Surface::Nurbs(_) | Surface::Approx(_) => return None,
+        Surface::Spindle { .. } | Surface::Nurbs(_) | Surface::Approx(_) => return None,
     })
 }
 

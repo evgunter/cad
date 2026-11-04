@@ -11,8 +11,9 @@ use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
 
 use super::solid_contain::PointInSolidError;
 use crate::body::Body;
-use crate::entity::{EdgeKey, EntityId, FaceKey, LoopKey};
-use crate::live::{BoundaryMember, proven};
+use crate::entity::{EdgeKey, FaceKey, LoopKey};
+use crate::live::BoundaryMember;
+use crate::null::Scaffolding;
 use crate::ray_walk::{self, Crossings, RayFault};
 use crate::splitting::containment::{ConicArc, ConicArcError, ConicHit, ConicRows};
 use crate::splitting::{PointInLoopError, Uncrossable};
@@ -259,16 +260,6 @@ impl<T: Decide> RegionEdge<T> {
     }
 }
 
-/// What a gather makes of null scaffolding: an edge with no certified
-/// curve whose two ends are one point, a zero-length copy of a vertex.
-#[derive(Clone, Copy, Debug)]
-pub(crate) enum Scaffolding {
-    /// Left out: it bounds nothing.
-    Skipped,
-    /// No region, as for any edge with no certified curve.
-    Refused,
-}
-
 /// **`face`'s boundary**: its surface boundary
 /// ([`crate::surface_boundary::surface_cycles`]), each edge on its
 /// certified carrier, cycle by cycle in walk order, each edge naming its
@@ -312,15 +303,11 @@ pub(crate) fn boundary<T: Decide>(
                 continue;
             };
             let Some(curve) = body.edge_curve_linked(edge_key, edge).certified() else {
-                if let Scaffolding::Skipped = scaffolding {
-                    let point = |h| {
-                        let start = proven(&body.half_edges, h, EntityId::HalfEdge).start;
-                        body.resolve_vertex_point_key(start, crate::live::Proven)
-                    };
-                    if point(edge.he_plus) == point(edge.he_minus) {
-                        null.push(edge_key);
-                        continue;
-                    }
+                if scaffolding == Scaffolding::Skipped
+                    && crate::null::is_placeholder(body, edge_key)
+                {
+                    null.push(edge_key);
+                    continue;
                 }
                 return Ok(None);
             };
