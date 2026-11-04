@@ -2,12 +2,11 @@
 id: meet-at-interval-refuses-on-its-basin-meter-and-reads-an-ends-distance-at-rounding
 kind: issue
 title: curve_pair::meet at Interval refuses on its basin meter where the region rows decided, reads an end's distance at rounding, and costs 3-6x the rows
-status: dispatched
+status: open
 opened: 2026-11-04
 priority: P1
 cost: M
-refs: [region-landings-read-a-leg-against-an-edge-by-hand-rows-beside-meet, curve-pair-polish-at-interval-reads-the-iterates-width, inline-bracket-midpoints-are-spelled-in-two-forms]
-branch: onecopy/meet-interval
+refs: [6516, region-landings-read-a-leg-against-an-edge-by-hand-rows-beside-meet, curve-pair-polish-at-interval-reads-the-iterates-width, inline-bracket-midpoints-are-spelled-in-two-forms]
 ---
 
 Found by `onecopy/meet-pose` (PR 6491, now a draft), which routed the four region `landings` (`topo/src/boolean/{region,sphere_region,torus_region,ruled_region}.rs`) through `geom_brep::curve_pair::meet`. On `Interval` and at a fine band, `meet` decides less than the hand rows it replaced and costs more. **The landings route (PR 6491) waits on this row.**
@@ -132,3 +131,9 @@ ruling, option (a)).
   differs in the last bit, so it stays: it belongs to
   `inline-bracket-midpoints-are-spelled-in-two-forms`.
 
+
+## State after PR 6516 (2026-11-04)
+
+PR 6516 fixes regression (i) at its root. Gauss–Newton now steps from a point, ends are read once, and an endless span has no ends. Question 2's ruling also lands: the lune pin is re-posed, and its precision branch is recorded as unguardable at an honest offset.
+
+What is still owed on this row is the polish-meters decision above, "Decided: what the polish certifies at Interval". Its implementation is the next unit. PR 6491's landings wait on it.
