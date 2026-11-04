@@ -66,9 +66,9 @@ use sweep::blend::{
     ALL_RECOURSES, BlendDecision, BlendError, CHAMFER_ARM_RECOURSE, CornerConfig,
     FILLET3_ASSEMBLY_RECOURSE, FILLET3_CHAIN_RECOURSE, FILLET3_CLEARANCE_RECOURSE,
     FILLET3_CONVEXITY_RECOURSE, FILLET3_CORNER_INDEPENDENCE_RECOURSE, FILLET3_CORNER_RECOURSE,
-    FILLET3_GEOMETRY_RECOURSE, FILLET3_RADIUS_RECOURSE, FILLET3_RING_RECOURSE,
-    FILLET3_SPINE_KIND_RECOURSE, FILLET3_SPINE_RECOURSE, FILLET3_TURN_RECOURSE,
-    FILLET3_WEDGE_RECOURSE,
+    FILLET3_GEOMETRY_RECOURSE, FILLET3_KNIFE_RECOURSE, FILLET3_RADIUS_RECOURSE,
+    FILLET3_RING_RECOURSE, FILLET3_SPINE_KIND_RECOURSE, FILLET3_SPINE_RECOURSE,
+    FILLET3_TURN_RECOURSE, KnifeRefusal,
 };
 use sweep::test_support::{
     ROD_FILLET, cube, dome, one_edge_rim_at, prism, realized, rim_arcs_at, rod_creases,
@@ -250,16 +250,11 @@ fn the_clearance_recourse_reduces_to_a_blend_size_that_builds() {
     builds(&body, &rim, 0.05, "the reduced blend size");
 }
 
-/// **`FILLET3_WEDGE_RECOURSE` — "blend an edge whose supports meet
-/// at a definite angle".**
-///
-/// A slit — a plate bored by a declared-cusp lune, whose kiss is a strut
-/// where the plate's material meets itself across one tangent plane —
-/// decides Zero with the outward normals opposed. The definite-angle
-/// edge the sentence names is on the SAME body: one of the plate's own
-/// vertical corners.
-#[test]
-fn the_tangential_recourse_names_a_definite_angle_edge_that_builds() {
+/// The plate bored by a declared-cusp lune: its kiss is a slit, a strut
+/// where the plate's material meets itself across one tangent plane.
+/// Returns the body, the kiss, and one of the plate's own vertical
+/// corners, a definite-angle edge.
+fn lune_slit_plate() -> (Body<f64>, EdgeKey, EdgeKey) {
     let plate = bulge_loop(sweep::test_support::corners(&[
         (-1.0, -1.0),
         (3.0, -1.0),
@@ -302,16 +297,49 @@ fn the_tangential_recourse_names_a_definite_angle_edge_that_builds() {
                 .all(|p| (p.x - 3.0).abs() < 1e-9 && (p.y - 5.0).abs() < 1e-9)
         })
         .expect("the plate's vertical corner at (3, 5)");
-    let err = refusal(&body, &[kiss], 0.05, "a slit strut", false);
+    (body, kiss, corner)
+}
+
+/// **`FILLET3_KNIFE_RECOURSE` — "reduce the fillet radius until the
+/// ball fits in the crescent".**
+///
+/// The lune's crescent opens to `R_big − R_small = 1`, so the slit's
+/// ball does not exist at `r = 1.2` (`fillet3_knife_room`), and the
+/// reduced radius the sentence names builds and validates.
+#[test]
+fn the_knife_recourse_is_followed_by_a_ball_that_fits_the_crescent() {
+    let (body, kiss, _) = lune_slit_plate();
+    let err = refusal(&body, &[kiss], 1.2, "a slit wider than its crescent", false);
     assert!(
         matches!(
             err,
-            BlendError::KnifeEdge { margin, .. }
-                if margin.predicate == "fillet3_convexity_sign" && margin.sign == Sign::Zero
+            BlendError::KnifeEdge {
+                margin,
+                refusal: KnifeRefusal::NoRoom { .. },
+                ..
+            } if margin.predicate == "fillet3_knife_room" && margin.sign == Sign::Negative
         ),
-        "a slit is the zero-margin wedge, got {err:?}"
+        "a ball wider than the crescent has no room, got {err:?}"
     );
-    carries(&err, FILLET3_WEDGE_RECOURSE, "knife edge");
+    carries(&err, FILLET3_KNIFE_RECOURSE, "knife room");
+    builds(&body, &[kiss], 0.3, "the ball that fits the crescent");
+}
+
+/// **No fixture in this suite reaches `FILLET3_WEDGE_RECOURSE`** —
+/// "blend an edge whose supports meet at a definite angle or definitely
+/// tangent".
+///
+/// It is the lever of an in-band convexity sign only: an edge whose
+/// dihedral is neither definite nor definitely zero at its arm. The
+/// slit this row used to witness decides Zero, and a knife now builds
+/// where its ball is defined, so the caller meets a band, not the
+/// sentence. **The premise:** no door here authors an edge whose wedge
+/// lands within the band of tangency, and this row goes red where the
+/// slit stops building.
+#[test]
+fn the_tangential_recourse_has_no_witness_once_a_slit_builds() {
+    let (body, kiss, corner) = lune_slit_plate();
+    builds(&body, &[kiss], 0.05, "the slit's own fillet");
     builds(&body, &[corner], 0.05, "the definite-angle edge");
 }
 

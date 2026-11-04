@@ -23,6 +23,7 @@ use geom_core::{Band, BandError, Indeterminate, MarginDiag, Sign, Tol};
 use sweep::blend::build::fillet_edges;
 use sweep::blend::{
     BlendError, BlendKind, BlendRefusal, BlendSite, ClassifiedMargin, Convexity, CornerConfig,
+    KnifeRefusal,
 };
 use sweep::test_support::cube;
 use topo::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
@@ -68,6 +69,12 @@ fn seeds() -> Vec<BlendError> {
         BlendError::KnifeEdge {
             edge: EdgeKey::default(),
             margin: decided("fillet3_convexity_sign", 0.0, Sign::Zero),
+            refusal: KnifeRefusal::Chamfer,
+        },
+        BlendError::KnifeEdge {
+            edge: EdgeKey::default(),
+            margin: decided("fillet3_knife_room", -1e-3, Sign::Negative),
+            refusal: KnifeRefusal::NoRoom { radius: 1.2 },
         },
         BlendError::SpineIrregular {
             margin: decided("fillet3_spine_regularity", -1e-3, Sign::Negative),
@@ -197,9 +204,10 @@ fn seeds() -> Vec<BlendError> {
 
 /// Whether a seeded arm is allowed to speak a verb's word mid-text —
 /// the PR's own dispositions: ball facts keep ball language
-/// (`RadiusHeadroom`, `SpineIrregular`, and an escalation routed to a
-/// ball predicate's recourse), the chamfer's own arm speaks as the
-/// chamfer, and three recourse constants carry deliberately
+/// (`RadiusHeadroom`, `SpineIrregular`, a knife with no room for the
+/// ball, and an escalation routed to a ball predicate's recourse), the
+/// chamfer's own arms speak as the chamfer (`ChamferArmUnsupported`,
+/// and a knife, which no chamfer strip is built for), and three recourse constants carry deliberately
 /// CONDITIONED per-verb clauses ("for a fillet, …", "a chamfer has no
 /// closed-chain band") on `UnsupportedChain`, `UnsupportedGeometry`
 /// and the seam-vertex corner tag.
@@ -207,6 +215,7 @@ fn verb_words_allowed(err: &BlendError) -> bool {
     match err {
         BlendError::RadiusHeadroom { .. }
         | BlendError::SpineIrregular { .. }
+        | BlendError::KnifeEdge { .. }
         | BlendError::ChamferArmUnsupported { .. }
         | BlendError::UnsupportedChain { .. }
         | BlendError::UnsupportedGeometry { .. } => true,
@@ -215,7 +224,7 @@ fn verb_words_allowed(err: &BlendError) -> bool {
         }
         BlendError::Escalated { source, .. } => matches!(
             source.predicate,
-            Some("fillet3_radius_headroom" | "fillet3_spine_regularity")
+            Some("fillet3_radius_headroom" | "fillet3_spine_regularity" | "fillet3_knife_room")
         ),
         _ => false,
     }

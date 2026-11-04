@@ -282,9 +282,12 @@ pub fn lune(tol: Tol) -> ProfileLoop<f64> {
 /// **Whether a blend read a requested edge as tangent**: the request
 /// `edges` of `body` at `size` refused as a knife edge (`outcome`), or
 /// read by the battery as holding a smooth seam, which the verbs leave
-/// silently. Either is a dihedral that decided Zero, so a row that
-/// guards a transverse corner against a false zero asks this rather
-/// than for one of the two.
+/// silently, or as a knife (a cusp or slit), which the fillet builds
+/// where its ball is defined and the chamfer's battery refuses as
+/// [`crate::blend::KnifeRefusal::Chamfer`] when it resolves the link.
+/// Each is a dihedral that decided Zero, so a row that guards a
+/// transverse corner against a false zero asks this rather than for
+/// one of them.
 #[must_use]
 pub fn read_as_tangent(
     body: &Body<f64>,
@@ -303,6 +306,13 @@ pub fn read_as_tangent(
         size,
     };
     run_battery(&req, band).is_ok_and(|v| !v.smooth.is_empty())
+        || matches!(
+            crate::blend::run_battery_for(&req, band, crate::blend::BlendKind::Chamfer),
+            Err(crate::blend::BlendError::KnifeEdge {
+                refusal: crate::blend::KnifeRefusal::Chamfer,
+                ..
+            })
+        )
 }
 
 /// What a blend result is, entity for entity: its face, edge and vertex

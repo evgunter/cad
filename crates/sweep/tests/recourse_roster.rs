@@ -165,6 +165,10 @@ const PAIRING: &[(BlendDecision, &str)] = &[
         sweep::blend::FILLET3_CHAIN_RECOURSE,
     ),
     (
+        BlendDecision::KnifeRoom,
+        sweep::blend::FILLET3_KNIFE_RECOURSE,
+    ),
+    (
         BlendDecision::RingClearance,
         sweep::blend::FILLET3_RING_RECOURSE,
     ),

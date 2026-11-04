@@ -1301,8 +1301,8 @@ mod wire_loft_end_profile_lift;
 #[path = "wedge_end_doors.rs"]
 mod wedge_end_doors;
 
-#[path = "knife_edge_blend_probes.rs"]
-mod knife_edge_blend_probes;
+#[path = "a_knife_edge_fillet_builds_where_its_ball_is_defined.rs"]
+mod a_knife_edge_fillet_builds_where_its_ball_is_defined;
 
 #[path = "review_4831_probes.rs"]
 mod review_4831_probes;

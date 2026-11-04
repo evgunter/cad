@@ -849,12 +849,16 @@ fn two_discs_kissing_externally_touch_at_every_op() {
 // The consumers: a declared cusp body refuses typed or comes out sane.
 // ---------------------------------------------------------------------
 
-/// **Chamfer and fillet refuse the cusp strut typed** — on the lune's
-/// cusp (wedge 0) and on a lune-shaped hole's slit (wedge 2π) alike:
-/// the supports meet tangentially, and the blend there, whose ball
-/// touches them away from the edge, is not built.
+/// **The chamfer refuses the cusp strut typed, and the fillet builds
+/// it** — on the lune's cusp (wedge 0) and on a lune-shaped hole's slit
+/// (wedge 2π) alike. The supports meet tangentially: the chamfer's
+/// arms are plane–plane, so no strip is built there
+/// (`KnifeRefusal::Chamfer`), and the fillet's ball rests in the
+/// crescent away from the edge, which builds tier-3 valid
+/// (`a_knife_edge_fillet_builds_where_its_ball_is_defined` checks its
+/// volume against the closed form).
 #[test]
-fn chamfer_and_fillet_refuse_a_cusp_or_slit_strut_typed() {
+fn the_chamfer_refuses_a_cusp_or_slit_strut_typed_and_the_fillet_builds_it() {
     let cusp = extruded(vec![lune()], 0.0, 1.0);
     let slit = extruded(vec![rect(-1.0, -1.0, 3.0, 5.0), lune()], 0.0, 1.0);
     for (name, built, loop_index) in [("cusp", &cusp, 0), ("slit", &slit, 1)] {
@@ -865,30 +869,23 @@ fn chamfer_and_fillet_refuse_a_cusp_or_slit_strut_typed() {
             .find(|&e| tangent_edges(&built.body).iter().any(|(t, _)| *t == e))
             .expect("the strut the cusp joint swept is marked Tangent");
         let operand = sweep::test_support::at_rest(&built.body, tol());
-        for (verb, got) in [
-            (
-                "chamfer",
-                chamfer_edges(&operand, &[strut], 0.05, tol()).map(|_| ()),
+        let refusal = chamfer_edges(&operand, &[strut], 0.05, tol())
+            .err()
+            .unwrap_or_else(|| panic!("{name}: chamfered a wedge-{name} edge"));
+        assert!(
+            matches!(
+                refusal.error,
+                BlendError::KnifeEdge { edge, refusal: sweep::blend::KnifeRefusal::Chamfer, .. }
+                    if edge == strut
             ),
-            (
-                "fillet",
-                fillet_edges(&operand, &[strut], 0.05, tol()).map(|_| ()),
-            ),
-        ] {
-            match got {
-                Err(refusal) => {
-                    assert!(
-                        matches!(refusal.error, BlendError::KnifeEdge { edge, .. } if edge == strut),
-                        "{name} {verb}: expected KnifeEdge on the strut, got {refusal:?}"
-                    );
-                    // The refusal says what it established: a wedge
-                    // decided Zero with the material facing itself.
-                    let text = refusal.render(geom_brep::recourse::Reading::Build);
-                    assert!(text.contains("cusp or slit"), "{name} {verb}: {text}");
-                }
-                Ok(()) => panic!("{name} {verb}: blended a wedge-{name} edge"),
-            }
-        }
+            "{name}: expected the chamfer's KnifeEdge on the strut, got {refusal:?}"
+        );
+        let text = refusal.render(geom_brep::recourse::Reading::Build);
+        assert!(text.contains("cusp or slit"), "{name}: {text}");
+        let out = fillet_edges(&operand, &[strut], 0.05, tol())
+            .unwrap_or_else(|r| panic!("{name}: the fillet refused {:?}", r.error));
+        topo::validate_geometric(&out.body, tol())
+            .unwrap_or_else(|e| panic!("{name}: the fillet is tier-3 valid, got {e:?}"));
     }
 }
 
