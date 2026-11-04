@@ -9,7 +9,8 @@
 //! wall's ruling (a line the wall keeps), along an arc's tangent (a
 //! tangency the bends part one order down, [`crate::link::FaceSector::tangent`]'s
 //! second-order reading: off the post or under it a rest, into it
-//! refused), or along the wall's circle's tangent (refused).
+//! refused), or along the wall's circle's tangent (a rest: one order
+//! down the wall bends away under the corner's faces).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use super::*;
@@ -197,7 +198,7 @@ fn rows_hold(at: Seat) {
             ("straddling", straddle, crossing),
             ("along the ruling", ruling, rest),
             ("along the ruling, into", ruling_into, crossing),
-            ("along the circle", circle, tangency),
+            ("along the circle", circle, rest),
             (
                 "along the circle, off it in band",
                 lift(3.0 * zero),
