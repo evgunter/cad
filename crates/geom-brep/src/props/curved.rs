@@ -37,7 +37,7 @@ use super::closure::{self, ChartLoop, EdgeTurn, Joint};
 use super::{FaceContribution, LoopEdge, PropsCheck, PropsError, loop_vector_area};
 use crate::dihedral::decide;
 use crate::implicit::cone_offset;
-use crate::pcurve_cache::{BranchMiss, Period};
+use crate::pcurve_cache::{BranchMiss, Period, Ruling, ruling_miss};
 
 /// The flux and area of a curved face from its **outer** loop:
 /// [`curved_face_loops`] over that one loop. `band` is the run's
@@ -490,9 +490,8 @@ pub fn require_iso_rectangle<T: Decide>(
 ///   this arm decides nothing rather than deciding `Ok` at a band.
 /// * **cone — the apex.** A generator's stored span may contain the
 ///   apex; `props_cone_apex` is the signed distance from the apex's
-///   line parameter to the nearer span end, which IS metres (a line's
-///   `t` is arc length on a unit `dir`, the same dimensional argument
-///   `props_meridian_generator` makes). Rims are coaxial circles,
+///   line parameter to the nearer span end, metered at the line's
+///   speed. Rims are coaxial circles,
 ///   immune as the cylinder's are.
 /// * **sphere — the poles.** Decided on
 ///   [`sphere_meridian_pole_margins`]. Rims are not measured against
@@ -572,23 +571,25 @@ pub fn require_one_chart_branch<T: Decide>(
                 // door refuses.
                 if classify(
                     "props_meridian_apex",
-                    Margin::norm3((apex - e.p0()).cross(dir)),
+                    cone_generator_miss(apex, dir, e),
                     band,
                     PropsCheck::Exact,
                 )? != Sign::Zero
                 {
                     continue;
                 }
-                // The apex's own parameter on the generator's line
-                // (`dir` unit — `props_meridian_generator` certifies
-                // the direction and the parse mints it so — hence `t`
-                // is metres); the margin is its signed distance to the
-                // nearer span end, positive exactly when the apex is
-                // interior to the span.
-                let t_apex = (apex - origin).dot(dir);
+                // The apex's own parameter on the generator's line; the
+                // margin is its signed distance to the nearer span end,
+                // metered at the line's speed, positive exactly when the
+                // apex is interior to the span.
+                let t_apex = (apex - origin).dot(dir) / dir.norm_squared();
                 let m = (t_apex - e.t0).min(e.t1 - t_apex);
                 if matches!(
-                    decide("props_cone_apex", Margin::of(m), band),
+                    decide(
+                        "props_cone_apex",
+                        Margin::metered(m, InfSpeed::new(dir.norm())),
+                        band
+                    ),
                     Ok(Sign::Positive)
                 ) {
                     return Err(PropsError::NotOneChartBranch {
@@ -1861,7 +1862,7 @@ fn cylinder_boundary<T: Decide>(
     let mut levels: Vec<T> = Vec::new();
     for e in edges {
         match e.carrier {
-            Curve3::Line(geom::Line { dir, .. }) => {
+            Curve3::Line(ref line) => {
                 // Incidence at the true distance from the cylinder over
                 // the span: the ends' radial residuals, and how far the
                 // segment sags inside between them ([`radial_sag`]).
@@ -1877,13 +1878,17 @@ fn cylinder_boundary<T: Decide>(
                     band,
                     Premise::OnSurface,
                 )?;
-                // Whether the on-surface line is a ruling: its deviation
-                // from the ruling through its start, which a line tipped
-                // in the tangent plane leaves to first order while it
-                // leaves the cylinder to second.
+                // Whether the on-surface line is a ruling, the mint's own
+                // reading anchored at the span's start: a line tipped in
+                // the tangent plane leaves the ruling through its start to
+                // first order while it leaves the cylinder to second.
+                let start = geom::Line {
+                    origin: e.p0(),
+                    dir: line.dir,
+                };
                 require_zero(
                     "props_meridian_axial",
-                    Margin::metered(e.t1 - e.t0, InfSpeed::new(dir.cross(axis).norm())),
+                    ruling_miss(&start, (T::zero(), e.t1 - e.t0), Ruling::Axis(axis)),
                     band,
                     Premise::Inventory,
                 )?;
@@ -2516,16 +2521,11 @@ fn require_cone_ellipse<T: Decide>(
 /// ([`radial_sag`]). The ends and the crossing are exact.
 ///
 /// Then whether the on-surface line is a generator, the inventory's
-/// question: at the generator angle to the axis
-/// (`props_meridian_generator`) and through the apex
-/// (`props_meridian_apex`, the apex's distance from the line, `dir`
-/// unit). A line through the apex at angle `β` to the axis is off the
-/// cone by `s·sin(β − α)` at distance `s` from the apex, and
-/// `sin(β − α)` is the cone's residual at the unit direction
-/// ([`cone_offset`] of `|dir × axis|` and `|dir·axis|`), so the angle is
-/// levered by the edge's reach from the apex, the farther of its ends.
-/// A line tipped in the tangent plane misses the apex to first order and
-/// leaves the cone to second.
+/// question (`props_meridian_generator`, [`cone_generator_miss`]): how far
+/// it leaves the line through the apex and its farther end. A line on the
+/// cone through the apex is a generator, and a line tipped in the tangent
+/// plane misses the apex to first order while it leaves the cone to
+/// second.
 fn require_cone_generator<T: Decide>(
     apex: Point3<T>,
     axis: Vec3<T>,
@@ -2563,24 +2563,38 @@ fn require_cone_generator<T: Decide>(
     )?;
     require_zero(
         "props_meridian_generator",
-        Margin::levered(
-            cone_offset(dir.cross(axis).norm(), dir.dot(axis).abs(), sin_a, cos_a),
-            crate::Reach::Span {
-                carrier: e.carrier.clone(),
-                t0: e.t0,
-                t1: e.t1,
-            }
-            .lever_from(apex),
-        ),
-        band,
-        Premise::Inventory,
-    )?;
-    require_zero(
-        "props_meridian_apex",
-        Margin::norm3((apex - e.p0()).cross(dir)),
+        cone_generator_miss(apex, dir, e),
         band,
         Premise::Inventory,
     )
+}
+
+/// **How far a cone edge leaves the generator through its farther end**,
+/// the one ruling reading ([`ruling_miss`]) against the line from the
+/// apex through whichever end of the span is farther from it (the
+/// well-conditioned one: a span end near the apex names its generator's
+/// direction poorly). Zero on a line through the apex; with the edge on
+/// the cone, Zero on a generator alone. The end is chosen by
+/// [`Real::select_le_zero`], decided nowhere: either choice is a sound
+/// reading, and an unread candidate's NaN (an end at the apex) is not
+/// read.
+fn cone_generator_miss<T: Decide>(apex: Point3<T>, dir: Vec3<T>, e: &LoopEdge<T>) -> Margin<T> {
+    // The far end lies on the line through the apex and itself, so the
+    // reading is the near end's distance: read at the stored point, a
+    // span of none, with no `dir·Δt` rounding to re-derive the far end.
+    let through = |near: Point3<T>, far: Vec3<T>| {
+        ruling_miss(
+            &geom::Line { origin: near, dir },
+            (T::zero(), T::zero()),
+            Ruling::Generator {
+                apex,
+                g: far * (T::one() / far.norm()),
+            },
+        )
+        .value()
+    };
+    let (q0, q1) = (e.p0() - apex, e.p1() - apex);
+    Margin::of((q1.norm() - q0.norm()).select_le_zero(through(e.p1(), q0), through(e.p0(), q1)))
 }
 
 /// **How far a segment sags inside the chord of its ends' radii**, with
@@ -6594,3 +6608,50 @@ mod apex_start_rows;
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::panic)]
 mod turn_rows;
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod ruling_scale_rows {
+    //! Props' ruling readings are the line's, not its parametrisation's:
+    //! a line read with its `dir` scaled and its span scaled back answers
+    //! alike, on the cone (`props_meridian_generator`) and the cylinder
+    //! (`props_meridian_axial`).
+    use super::*;
+    use geom_core::Tol;
+
+    fn band() -> Band {
+        Band::linear(Tol::witness()).unwrap()
+    }
+
+    /// A cone generator, and the same shifted `s` along the rim's tangent
+    /// so it stands `zero/2` off the cone (`s²·cos α/2ρ`) and misses the
+    /// apex by about `s/2`, far past the band; each read with `dir` unit
+    /// and scaled `1e-3` and `1e3`: the generator passes and the shifted
+    /// line refuses `props_meridian_generator`, at every scale. Before
+    /// the reading took the home, a shifted line read with `dir` scaled
+    /// `1e-3` passed.
+    #[test]
+    fn a_cone_generator_reads_alike_at_every_scale() {
+        let apex = Point3::new(0.0, 0.0, 0.0);
+        let axis = Vec3::unit_z();
+        let (sin_a, cos_a) = 0.5f64.sin_cos();
+        let g = Vec3::new(sin_a, 0.0, cos_a);
+        let shift = (band().zero() * sin_a / cos_a / cos_a).sqrt();
+        for (shift, generator) in [(0.0, true), (shift, false)] {
+            for k in [1.0, 1e-3, 1e3] {
+                let carrier = Curve3::line(apex + g + Vec3::new(0.0, shift, 0.0), g * k);
+                let e = LoopEdge::hand_built(carrier, 0.0, 1.0 / k, true, 0, 1);
+                let read = require_cone_generator(apex, axis, sin_a, cos_a, g * k, &e, band());
+                match (generator, &read) {
+                    (true, Ok(())) => {}
+                    (
+                        false,
+                        Err(PropsError::NotIsoRectangle {
+                            what: "props_meridian_generator",
+                        }),
+                    ) => {}
+                    _ => panic!("shift {shift:e}, dir ×{k:e}: {read:?}"),
+                }
+            }
+        }
+    }
+}
