@@ -1273,8 +1273,10 @@ pub(super) enum Placed {
 /// height ([`RIDER_SPIRIC_PLANE`]). A spline can lie on a surface along
 /// part of its length only, so no point of it read off says it lies there
 /// along no piece: it reads off only where it is certified off over its
-/// whole length ([`clears_plane`], a plane's). A spiric on any other
-/// analytic surface, and a spline not certified off, is unread
+/// whole length ([`clears_plane`], a plane's). A spiric lies along no
+/// piece of a sphere, a cylinder or a cone by degree, and reads off one
+/// where a point of its span reads off it ([`spiric_on_quadric`]). A
+/// spiric on a torus, and a spline not certified off, is unread
 /// ([`EdgeInFaceGap::CarrierUnread`]); nothing reads it on. A spline face
 /// is unread for every carrier ([`EdgeInFaceGap::SplineFace`]): its chart
 /// is not read here.
@@ -1384,9 +1386,29 @@ fn conic_or_line_on<T: Decide>(
             RIDER_ON_CURVED,
             Coincide::EdgeOnCurvedFace,
         ),
-        // No line lies along any piece of a sphere or a ring torus.
+        // No line lies along any piece of a sphere or a ring torus: a
+        // degree argument, as for a spiric on a quadric below.
         (geom::Curve3::Line(_), geom::Surface::Sphere { .. } | geom::Surface::Torus { .. }) => {
             return Ok(Placed::Off);
+        }
+        (
+            &geom::Curve3::Spiric {
+                major_radius,
+                minor_radius,
+                offset,
+                ..
+            },
+            geom::Surface::Sphere { .. }
+            | geom::Surface::Cylinder { .. }
+            | geom::Surface::Cone { .. },
+        ) => {
+            return Ok(spiric_on_quadric(
+                carrier,
+                (t0, t1),
+                (major_radius, minor_radius, offset),
+                surface,
+                band,
+            ));
         }
         // A spiric lies in its own plane, so against a plane it reads as a
         // conic does: in it where the two planes are one, and otherwise
@@ -1482,6 +1504,76 @@ fn clears_plane<T: Decide>(
             }
         }
         _ => false,
+    }
+}
+
+/// The site [`spiric_on_quadric`] decides a spiric's offset off zero, and
+/// short of `R − r`, under.
+const RIDER_SPIRIC_REGIME: &str = "bool_rider_spiric_regime";
+
+/// **Where spiric `carrier`, over `(t0, t1)`, lies against sphere,
+/// cylinder or cone `surface`**: off it along every piece wherever its
+/// section is in the two-oval regime and a point of the span's interior
+/// reads definitely off; otherwise unread. Never on.
+///
+/// **The degree certificate.** In the two-oval regime, `0 < |d| < R − r`
+/// for `d` the offset (decided here, [`RIDER_SPIRIC_REGIME`], as
+/// [`geom::Curve3::spiric`] decides it at the mint), the section is an
+/// irreducible quartic. In its plane, with `x` along `m`, `z` along the
+/// axis and `s = x² + z²`, it is `(s + A)² − 4R²x² − 4R²d² = 0`, with
+/// `A = d² + R² − r²`. Its quartic part `s²` has no real linear factor,
+/// so a real factorisation is into two quadrics `s + a·x + c·z + b`.
+/// Matching coefficients forces `c = 0`, `a = ±2R`, `b = A` and then
+/// `d = 0`: the two meridian circles. A factorisation over ℂ alone is a
+/// conjugate pair `G·Ḡ`, whose real points are those of `Re G = Im G = 0`,
+/// four at most, while the oval has infinitely many.
+///
+/// None of the three surfaces holds a plane, so each meets the spiric's
+/// plane in a curve of degree two at most:
+/// - a sphere in a circle, a point or nothing;
+/// - a cylinder in an ellipse (a circle where the plane is square to the
+///   axis), or, where the plane is parallel to the axis, two lines, one
+///   or none;
+/// - a cone in a conic, or, through its apex, two lines, one, or the apex
+///   alone.
+///
+/// By Bézout the spiric shares at most eight points with any of these,
+/// so it lies along no piece of the surface. This is the
+/// `(Line, Sphere | Torus)` arm's argument, a degree bound rather than a
+/// sampled identity. Offset zero (two circles), and the offsets from
+/// `R − r` on (a node at the inner equator, one oval, then the point at
+/// `R + r`), are out of the regime and read unread, as is any offset in
+/// band of either end.
+///
+/// **The band.** The certificate is a statement about the carriers. A
+/// spiric can still run within the band of the surface over its whole
+/// span without lying on it: one at offset `d` hugs the cylinder about
+/// its meridian circle to `d² / 2(R − r)`. So the reading also needs a
+/// point of the span's interior, at a quarter, a half or three quarters,
+/// decided definitely off the surface ([`RIDER_ON_CURVED`]). A span in
+/// band at all three is unread. A shorter stretch in band between
+/// points read off is a touch, which no curve × face door reads for a
+/// spiric yet (`geom_brep::curve_face::route`'s `Door::Spiric`).
+fn spiric_on_quadric<T: Decide>(
+    carrier: &geom::Curve3<T>,
+    (t0, t1): (T, T),
+    (big, small, offset): (T, T, T),
+    surface: &geom::Surface<T>,
+    band: Band,
+) -> Placed {
+    let unread = Placed::Unread(EdgeInFaceGap::CarrierUnread);
+    let decided = |m: T| crate::validate::decide(RIDER_SPIRIC_REGIME, Margin::of(m), band);
+    let off_axis = matches!(decided(offset), Ok(Sign::Positive | Sign::Negative));
+    if !off_axis || decided(big - small - offset.abs()) != Ok(Sign::Positive) {
+        return unread;
+    }
+    let points: Vec<_> = [0.25, 0.5, 0.75]
+        .into_iter()
+        .map(|f| carrier.eval(t0 + (t1 - t0) * T::from_f64(f)))
+        .collect();
+    match crate::census::points_on_surface(surface, &points, RIDER_ON_CURVED, band) {
+        Ok(false) => Placed::Off,
+        Ok(true) | Err(_) => unread,
     }
 }
 
@@ -3264,6 +3356,220 @@ mod spline_rider {
             conic_or_line_on(&clear, (0.0, 1.0), &plane, band()).unwrap(),
             Placed::Off,
             "a net beyond the band on one side reads off"
+        );
+    }
+}
+
+/// **A spiric reads off a sphere, a cylinder or a cone by degree**
+/// ([`spiric_on_quadric`]), only in the two-oval regime and only where a
+/// point of its span reads off, and stays unread on a torus.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod spiric_quadric_rows {
+    use super::{EdgeInFaceGap, Placed, conic_or_line_on};
+    use geom_core::{Band, Margin, Point3, Sign, Tol, Vec3};
+
+    fn band() -> Band {
+        Band::linear(Tol::witness()).unwrap()
+    }
+
+    const UNREAD: Placed = Placed::Unread(EdgeInFaceGap::CarrierUnread);
+
+    /// The spiric about the `z` axis, `R = 2`, `r = 1`, in the plane
+    /// `x = d`.
+    fn spiric(offset: f64) -> geom::Curve3<f64> {
+        geom::Curve3::Spiric {
+            center: Point3::origin(),
+            axis: Vec3::unit_z(),
+            u_ref: Vec3::unit_x(),
+            major_radius: 2.0,
+            minor_radius: 1.0,
+            offset,
+        }
+    }
+
+    /// **The tilted rod's β 0.7 cap chord against the rod's wall reads
+    /// off**, and the reading is true: the chord's ends lie on the wall
+    /// and its interior is definitely off it at every sixteenth of the
+    /// span, where it runs inside the rim. Pinned at the carriers the
+    /// union mints
+    /// (`crates/sweep/tests/germ_tilted_rod.rs`, β 0.7 spin 0). Red where
+    /// the spiric × cylinder arm leaves it unread, as before the arm.
+    #[test]
+    fn the_tilted_rods_cap_chord_reads_off_the_rods_wall() {
+        let u = Vec3::new(0.644_217_687_237_691, 0.0, 0.764_842_187_284_488_5);
+        let chord = geom::Curve3::Spiric {
+            center: Point3::origin(),
+            axis: -Vec3::unit_y(),
+            u_ref: -u,
+            major_radius: 2.0,
+            minor_radius: 0.5,
+            offset: 0.240_408_162_972_156_28,
+        };
+        let wall = geom::Surface::Cylinder {
+            origin: Point3::new(0.898_095_237_867_232_8, 0.0, -1.070_779_062_198_284),
+            axis: u,
+            radius: 0.15,
+            u_ref: Vec3::new(u.z, 0.0, -u.x),
+        };
+        let span = (2.944_616_507_758_367_7, 3.338_568_799_421_218_5);
+        let off = |t: f64| {
+            crate::validate::decide(
+                "test_chord_off_wall",
+                Margin::of(geom_brep::implicit::implicit_residual(&wall, chord.eval(t))),
+                band(),
+            )
+        };
+        for k in 0..=16 {
+            let t = span.0 + (span.1 - span.0) * f64::from(k) / 16.0;
+            let want = if k == 0 || k == 16 {
+                Sign::Zero
+            } else {
+                Sign::Negative
+            };
+            assert_eq!(off(t), Ok(want), "the chord at {k}/16 of its span");
+        }
+        assert_eq!(
+            conic_or_line_on(&chord, span, &wall, band()).unwrap(),
+            Placed::Off,
+            "the cap chord against the rod's wall"
+        );
+    }
+
+    /// **A spiric crossing a quadric's section reads off it.** The spiric
+    /// at `x = ½` over `v ∈ (−½, ½)` runs through the middle of a circle
+    /// of radius `0.3` in its plane, centred on its `v = 0` point and
+    /// crossing it twice. The circle is the section of a cylinder and a
+    /// cone about `x`, and of a sphere, each read with the span's ends
+    /// off the surface and its middle inside. Red on any of them read
+    /// unread or on.
+    #[test]
+    fn a_spiric_crossing_a_quadrics_section_reads_off_it() {
+        let s = spiric(0.5);
+        let hub = s.eval(0.0);
+        assert!((hub.x - 0.5).abs() < 1e-15, "the hub lies in the plane");
+        let tan = 0.3_f64.atan();
+        for (what, surface) in [
+            (
+                "a cylinder",
+                geom::Surface::Cylinder {
+                    origin: hub,
+                    axis: Vec3::unit_x(),
+                    radius: 0.3,
+                    u_ref: Vec3::unit_y(),
+                },
+            ),
+            (
+                "a cone",
+                geom::Surface::Cone {
+                    apex: hub - Vec3::unit_x(),
+                    axis: Vec3::unit_x(),
+                    half_angle: tan,
+                    u_ref: Vec3::unit_y(),
+                },
+            ),
+            (
+                "a sphere",
+                geom::Surface::Sphere {
+                    center: hub,
+                    radius: 0.3,
+                    axis: Vec3::unit_z(),
+                    u_ref: Vec3::unit_x(),
+                },
+            ),
+        ] {
+            assert_eq!(
+                conic_or_line_on(&s, (-0.5, 0.5), &surface, band()).unwrap(),
+                Placed::Off,
+                "{what}"
+            );
+        }
+    }
+
+    /// **Out of the two-oval regime, or on a torus, a spiric stays
+    /// unread against the surface.** On its own torus it lies on the
+    /// surface, which no arm reads, so it is never off there. At offset
+    /// zero its plane cuts the torus in two circles. At an offset in band
+    /// of zero, or from `R − r` on, the section is not the irreducible
+    /// quartic the degree bound needs. Each case is against the
+    /// cylinder about the spiric's `v = 0` point. Red on any of them
+    /// read off.
+    #[test]
+    fn a_spiric_out_of_regime_or_on_a_torus_stays_unread() {
+        let own = geom::Surface::Torus {
+            center: Point3::origin(),
+            axis: Vec3::unit_z(),
+            major_radius: 2.0,
+            minor_radius: 1.0,
+            u_ref: Vec3::unit_x(),
+        };
+        assert_eq!(
+            conic_or_line_on(&spiric(0.5), (-0.5, 0.5), &own, band()).unwrap(),
+            UNREAD,
+            "on its own torus"
+        );
+        let eps = Tol::witness().eps();
+        for (what, offset) in [
+            ("offset zero", 0.0),
+            ("an offset in band of zero", eps * 1e-3),
+            ("offset R − r", 1.0),
+            ("offset past R − r", 1.5),
+        ] {
+            let s = spiric(offset);
+            let wall = geom::Surface::Cylinder {
+                origin: Point3::new(offset, 2.5, 0.0),
+                axis: Vec3::unit_x(),
+                radius: 0.3,
+                u_ref: Vec3::unit_y(),
+            };
+            assert_eq!(
+                conic_or_line_on(&s, (-0.5, 0.5), &wall, band()).unwrap(),
+                UNREAD,
+                "{what}"
+            );
+        }
+    }
+
+    /// **A spiric hugging a cylinder within the band over its whole span
+    /// stays unread**, though by degree it lies on it along no piece.
+    /// At offset `d = √ε / 10` the spiric about `z` (`R = 2`, `r = ½`)
+    /// lies within `d² / 2(R − r)`, about `ε / 300`, of the cylinder of
+    /// radius `r` about the line `y = R, z = 0` along `x`: the cylinder
+    /// round its meridian circle. That holds at every sample, so the
+    /// band reads the spiric on the wall, and `Off` would hide a rider
+    /// lying in it. Red where the arm reads it off by degree alone.
+    #[test]
+    fn a_spiric_within_the_band_of_a_cylinder_stays_unread() {
+        let d = Tol::witness().eps().sqrt() / 10.0;
+        let s = geom::Curve3::Spiric {
+            center: Point3::origin(),
+            axis: Vec3::unit_z(),
+            u_ref: Vec3::unit_x(),
+            major_radius: 2.0,
+            minor_radius: 0.5,
+            offset: d,
+        };
+        let wall = geom::Surface::Cylinder {
+            origin: Point3::new(0.0, 2.0, 0.0),
+            axis: Vec3::unit_x(),
+            radius: 0.5,
+            u_ref: Vec3::unit_y(),
+        };
+        let span = (-1.0, 1.0);
+        let far = (0..=8)
+            .map(|k| {
+                let q = s.eval(span.0 + (span.1 - span.0) * f64::from(k) / 8.0);
+                geom_brep::implicit::implicit_residual(&wall, q).abs()
+            })
+            .fold(0.0, f64::max);
+        assert!(
+            far < Tol::witness().eps() && far > 0.0,
+            "the spiric hugs the wall inside the band but not on it: {far:e}"
+        );
+        assert_eq!(
+            conic_or_line_on(&s, span, &wall, band()).unwrap(),
+            UNREAD,
+            "a spiric in band of the wall over its span"
         );
     }
 }
