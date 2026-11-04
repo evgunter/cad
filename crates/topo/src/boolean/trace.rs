@@ -143,7 +143,7 @@ impl core::error::Error for TraceFault {}
 fn unsettled_words(why: Unsettled) -> &'static str {
     match why {
         Unsettled::Tangency => "a double root",
-        Unsettled::Meter => "a residual the band cannot meter",
+        Unsettled::Meter { .. } => "a residual the band cannot meter",
         Unsettled::Exhausted => "the walk ran past its piece budget",
         Unsettled::Floor => "a piece at the walk's floor the band does not read past",
         Unsettled::Resolvent => "a resolvent with no positive root",

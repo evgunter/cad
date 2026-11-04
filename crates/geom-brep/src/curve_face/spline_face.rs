@@ -1146,7 +1146,10 @@ pub fn settle<T: Decide>(
         // Definitely off at the located meeting: the enclosure's point
         // is not resolved to the band.
         if gap("spline_face_root_on", point, foot)? != Sign::Zero {
-            return Err(Unsettled::Meter.into());
+            return Err(Unsettled::Meter {
+                row: "spline_face_root_on",
+            }
+            .into());
         }
         let mut at_end = false;
         for end in ends {
@@ -1158,7 +1161,10 @@ pub fn settle<T: Decide>(
         // An enclosure reaching past an end its point is definitely
         // apart from is not resolved to the band.
         if !(a < root.0[0].0 && root.0[0].1 < b) {
-            return Err(Unsettled::Meter.into());
+            return Err(Unsettled::Meter {
+                row: "spline_face_root_at_end",
+            }
+            .into());
         }
         if let Some(before) = out.last()
             && gap("spline_face_roots_apart", point, before.point)? == Sign::Zero

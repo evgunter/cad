@@ -629,12 +629,13 @@ fn parallel_axes_roots<T: Decide>(
         let rounding = rounding_charge(contour.powi(2) + offset.powi(2) + radius.powi(2))
             / (two * radius * offset);
         let slack = radius * (charge / slope + rounding / sin_spread);
-        match decide("circle_torus_root_slack", Margin::of(slack), band) {
-            Ok(Sign::Positive) => return Err(Unsettled::Meter.into()),
+        const SLACK: &str = "circle_torus_root_slack";
+        match decide(SLACK, Margin::of(slack), band) {
+            Ok(Sign::Positive) => return Err(Unsettled::Meter { row: SLACK }.into()),
             // A NaN slack (a zero slope, which the placements above have
             // already refused as a graze) is `Err` and refuses too.
             Ok(Sign::Zero | Sign::Negative) => {}
-            Err(_) => return Err(Unsettled::Meter.into()),
+            Err(_) => return Err(Unsettled::Meter { row: SLACK }.into()),
         }
         // Each root within half a turn of the span's middle, by
         // `Period::near`'s span argument. What a caller may assume: the

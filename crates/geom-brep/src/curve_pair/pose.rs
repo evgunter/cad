@@ -807,7 +807,7 @@ fn route<T: Decide>(
         return Ok(Route::Crossing);
     }
     if definite(row::OFFSET, Margin::of(offset), band)? {
-        return Err(MeetFault::Unsettled(Unsettled::Meter));
+        return Err(MeetFault::Unsettled(Unsettled::Meter { row: row::OFFSET }));
     }
     Ok(Route::Level)
 }
@@ -892,7 +892,7 @@ fn line_line<T: Decide>(
         // a shallow corner, read as the crossing the longer span's tilt
         // decides.
         Route::Level if definite(row::TILT, Margin::levered(s, arm), band)? => Ok(crossing()),
-        Route::Level => Err(MeetFault::Unsettled(Unsettled::Meter)),
+        Route::Level => Err(MeetFault::Unsettled(Unsettled::Meter { row: row::TILT })),
     }
 }
 

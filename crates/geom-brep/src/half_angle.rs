@@ -879,7 +879,7 @@ fn subdivision<T: Decide>(
                     // Definitely off beside a sign change: the residual's
                     // step between adjacent scalars is past the band.
                     Ok(Sign::Positive | Sign::Negative) => {
-                        return Step::Stop(Unsettled::Meter.into());
+                        return Step::Stop(Unsettled::Meter { row: rows.side }.into());
                     }
                 }
             }
@@ -903,7 +903,9 @@ fn subdivision<T: Decide>(
                 let arc = speed_hi * reach / lever;
                 match decide(meter.row, Margin::of(arc), band) {
                     Ok(Sign::Zero | Sign::Negative) => {}
-                    Ok(Sign::Positive) | Err(_) => return Step::Stop(Unsettled::Meter.into()),
+                    Ok(Sign::Positive) | Err(_) => {
+                        return Step::Stop(Unsettled::Meter { row: meter.row }.into());
+                    }
                 }
             }
             roots.push(root);

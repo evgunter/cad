@@ -467,7 +467,9 @@ fn cone_roots<T: Decide>(
             let reach = (first.lo.abs().max(first.hi.abs()) + first.lo_noise) / h.floor;
             return Ok(match decide(CONE_ON_SURFACE, Margin::of(reach), band) {
                 Ok(Sign::Zero) => Ok(Roots::On(OnCarrier)),
-                Ok(Sign::Positive | Sign::Negative) | Err(_) => Err(Unsettled::Meter),
+                Ok(Sign::Positive | Sign::Negative) | Err(_) => Err(Unsettled::Meter {
+                    row: CONE_ON_SURFACE,
+                }),
             });
         }
         found
@@ -645,7 +647,11 @@ fn through_the_apex<T: Decide>(
         );
         match decide(CONE_ROOT_SLACK, Margin::of(slack), band) {
             Ok(Sign::Zero) => found[2 + slot] = theta,
-            Ok(Sign::Positive | Sign::Negative) | Err(_) => return Read(Err(Unsettled::Meter)),
+            Ok(Sign::Positive | Sign::Negative) | Err(_) => {
+                return Read(Err(Unsettled::Meter {
+                    row: CONE_ROOT_SLACK,
+                }));
+            }
         }
     }
     let apart = geom::separation(found[2], found[3]) - two * width;
