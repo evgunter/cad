@@ -752,7 +752,10 @@ A closed-form class gate is a lane choice (D3): in band or definite,
 the carrier takes the general lane, its projected image, whose
 certificate does not rest on the class; the closed form is taken only
 where the class is shown, and a pair whose general lane is not yet
-written refuses "not yet". Those pairs are: an ellipse on any chart; a
+written refuses "not yet". Those pairs are: an ellipse the chart's
+class readings do not show one of its own, on any chart (on the plane,
+and as a section of a cylinder or a cone, an ellipse images in closed
+form, and needs no general lane there); a
 line within the band of a sphere or a torus, which hold none; a line
 within the band of a cone that is no ruling, which the cone's arm reads
 as a ruling and so refuses at its certificate rather than "not yet";

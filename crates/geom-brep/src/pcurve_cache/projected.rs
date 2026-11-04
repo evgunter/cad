@@ -2301,12 +2301,14 @@ fn closed_form_meters<T: Decide>(
 /// past [`LEVER_SPREAD`] times its floor is halved, a selection read off
 /// the lever's ends with nothing recorded. A part still spread after
 /// [`LEVER_DEPTH`] halvings reaches toward the apex: the pose's lever
-/// refusal ([`SectorChannel::Lever`]), at that part's index.
+/// refusal ([`SectorChannel::Lever`]), at `piece`, the image's piece the
+/// edge reads (a part is the conversion's, not the image's).
 fn line_off_cone_sup<T: Decide>(
     meters: Meters<T>,
     (sin, cos): (T, T),
     chart: &ProjectedChart<T>,
     (q0, q1): (Vec3<T>, Vec3<T>),
+    piece: usize,
     band: Band,
 ) -> Result<T, PcurveCertifyError> {
     let floors = |qa: Vec3<T>, qb: Vec3<T>| {
@@ -2349,22 +2351,26 @@ fn line_off_cone_sup<T: Decide>(
     let cut = |k: u32| q0 + (q1 - q0) * T::from_f64(f64::from(k) / f64::from(cuts));
     let mut parts: Vec<(Vec3<T>, Vec3<T>, u32)> =
         (0..cuts).rev().map(|k| (cut(k), cut(k + 1), 0)).collect();
-    let (mut sup, mut read) = (T::zero(), 0usize);
+    let mut sup = T::zero();
     while let Some((qa, qb, depth)) = parts.pop() {
         let (lo, ceiling) = floors(qa, qb);
         if spread(lo, ceiling) {
             if depth == LEVER_DEPTH {
-                return Err(sector_refused(read, SectorChannel::Lever));
+                return Err(sector_refused(piece, SectorChannel::Lever));
             }
             let mid = qa + (qb - qa) * T::from_f64(0.5);
             parts.push((mid, qb, depth + 1));
             parts.push((qa, mid, depth + 1));
             continue;
         }
-        let part =
-            closed_form_meters(meters, line_off_cone_form(qa, qb, sin, cos), lo, read, band)?;
+        let part = closed_form_meters(
+            meters,
+            line_off_cone_form(qa, qb, sin, cos),
+            lo,
+            piece,
+            band,
+        )?;
         sup = sup.max(part);
-        read += 1;
     }
     Ok(sup)
 }
@@ -2521,7 +2527,7 @@ pub(super) fn projected_envelope<T: Decide>(
                 band,
             )?;
             #[cfg(test)]
-            let incidence = super::mutants::circle_chart_incidence(surface).unwrap_or(incidence);
+            let incidence = super::mutants::circle_incidence(surface).unwrap_or(incidence);
             (incidence, d, rho_floor)
         }
         (
@@ -2563,6 +2569,7 @@ pub(super) fn projected_envelope<T: Decide>(
                         (sin, cos),
                         &image.chart,
                         (p + l * t0, p + l * t1),
+                        lo,
                         band,
                     )?
                 }

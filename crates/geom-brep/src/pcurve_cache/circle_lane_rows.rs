@@ -7,7 +7,7 @@
 //! read. Every row holds at `f64` and at `Interval`, and at every ε of
 //! the run.
 //!
-//! Built with `PCERT_RADIAL_PAIR_MUTANT` naming `circle-chart-incidence`
+//! Built with `PCERT_RADIAL_PAIR_MUTANT` naming `circle-incidence`
 //! (the incidence term dropped on these charts), the rows standing a
 //! measured distance off the chart refuse, and so does the search; naming
 //! `form-uncharged` (the form's coefficients' rounding uncharged), the
@@ -259,7 +259,7 @@ fn class_in_band(what: &str, carrier: &Curve3<f64>, span: (f64, f64), surface: &
 /// certifies through the projected lane on both nappes, on a narrow and
 /// a wide cone, over an arc across the azimuth window's cut and over a
 /// whole turn; its envelope covers the residual, which is incidence
-/// alone (red under `circle-chart-incidence`).
+/// alone (red under `circle-incidence`).
 #[test]
 fn a_cone_circle_that_is_no_rim_certifies_through_the_projected_lane() {
     for alpha in [0.15, 1.1] {
@@ -295,7 +295,7 @@ fn a_cone_circle_that_is_no_rim_certifies_through_the_projected_lane() {
 /// off the axis, so none of the torus's circles) standing up to
 /// `0.4·zero` off the tube certifies through the projected lane on a
 /// ring torus, its tube channel's sector held, and names no iso family;
-/// red under `circle-chart-incidence`.
+/// red under `circle-incidence`.
 #[test]
 fn a_torus_crest_circle_certifies_through_the_projected_lane() {
     for (major, minor) in [(2.0, 0.5), (1.0, 0.9)] {
@@ -704,7 +704,7 @@ fn the_form_bound_covers_the_form_enclosed_at_interval() {
 /// read over a random arc that may cross the azimuth window's cut or
 /// make a whole turn. Wherever check 4 reads the envelope, its `f64` and
 /// `Interval` envelopes cover the densely sampled residual. Red under
-/// `form-uncharged` and `circle-chart-incidence`.
+/// `form-uncharged` and `circle-incidence`.
 #[test]
 fn a_circles_projected_envelope_covers_its_residual() {
     let mut s = fuzz::start("pcurve_cache::circle_lane_rows::search");
@@ -1122,5 +1122,96 @@ fn a_stored_rows_envelope_refusal_keeps_its_term() {
             ),
             "the stored copy moved a period, {scalar}: ends as the deck's term: {got:?}"
         );
+    }
+}
+
+/// A carrier turned about `surface`'s axis by `angle`: on a surface of
+/// revolution, as much on the chart as before, and no longer the carrier
+/// a row minted for the original images.
+fn turned(carrier: &Curve3<f64>, surface: &Surface<f64>, angle: f64) -> Curve3<f64> {
+    let Some((o, e)) = projected::chart_frame(surface) else {
+        unreachable!("the rows' charts are analytic")
+    };
+    let k = e[2];
+    let (s, c) = angle.sin_cos();
+    let turn = |v: Vec3<f64>| v * c + k.cross(v) * s + k * (k.dot(v) * (1.0 - c));
+    match *carrier {
+        Curve3::Circle(geom::Circle {
+            frame:
+                geom::Frame {
+                    origin: centre,
+                    axis: n,
+                    u_ref: x,
+                },
+            radius,
+        }) => Curve3::circle(o + turn(centre - o), turn(n), radius, turn(x)),
+        Curve3::Line(geom::Line { origin, dir }) => Curve3::line(o + turn(origin - o), turn(dir)),
+        _ => unreachable!("the rows' carriers are circles and lines"),
+    }
+}
+
+/// **A stored row that is not its edge's carrier never ends "not yet"**
+/// (the delta verifier's probe on PR 6485): the mint's own image of a
+/// carrier `A` (a torus crest circle, a cone ruling read clear of its
+/// apex, a cone's tilted section), certified for `A`, re-checked at rest
+/// (`recertify`) against `A` turned about the chart's axis by `1e-6` to
+/// `1e-2` rad, which is on the chart as much as `A` is. The stored row is
+/// wrong, so at `f64` and at `Interval` it ends by its own term's
+/// decision, never as the lane's gap, which only the mint's own image
+/// takes ([`minted_refusal`]).
+#[test]
+fn a_foreign_stored_row_never_ends_not_yet() {
+    use crate::recourse::Reading;
+    let f = Interval::from_f64;
+    let torus = torus(2.0, 0.5);
+    let cone = cone(1.1);
+    let (sa, ca) = 1.1_f64.sin_cos();
+    let g = Vec3::new(sa * 0.7_f64.cos(), sa * 0.7_f64.sin(), ca);
+    let ruling = Curve3::line(world(&cone, g * (in_band() / ca)), world_dir(&cone, g));
+    let tau = cone_tilt_for(&cone, 1.1, 2.0, 0.4 * zero());
+    let rows = [
+        (
+            "torus crest",
+            &torus,
+            crest_circle(&torus, (0.4 * zero()).sqrt(), 0.3),
+            (1.0, 3.9),
+        ),
+        ("cone ruling", &cone, ruling, (0.5, 2.0)),
+        (
+            "cone section",
+            &cone,
+            cone_section_circle(&cone, 1.1, 2.0, tau),
+            (2.0, 4.5),
+        ),
+    ];
+    for (what, surface, a, span) in rows {
+        let (a_i, s_i) = (a.map_scalar(f), surface.map_scalar(f));
+        let row = chart_pcurve_over(&a, span.0, span.1, surface, band())
+            .and_then(|image| PcurveCache::certify(image, span.0, span.1, &a, surface, band()))
+            .unwrap_or_else(|e| panic!("{what}: A's row certifies at f64: {e:?}"));
+        let row_i = chart_pcurve_over(&a_i, f(span.0), f(span.1), &s_i, band())
+            .and_then(|image| PcurveCache::certify(image, f(span.0), f(span.1), &a_i, &s_i, band()))
+            .unwrap_or_else(|e| panic!("{what}: A's row certifies at Interval: {e:?}"));
+        for angle in [1e-6, 1e-4, 1e-2] {
+            let b = turned(&a, surface, angle);
+            for (scalar, got) in [
+                ("f64", row.recertify(&b, span, surface, band(), None).err()),
+                (
+                    "Interval",
+                    row_i
+                        .recertify(&b.map_scalar(f), (f(span.0), f(span.1)), &s_i, band(), None)
+                        .err(),
+                ),
+            ] {
+                let Some(e) = got else {
+                    panic!("{what}, turned {angle:e}, {scalar}: a foreign row certified")
+                };
+                assert!(
+                    !e.ending(Reading::AtRest)
+                        .starts_with(geom_core::NOT_YET_ENDING),
+                    "{what}, turned {angle:e}, {scalar}: a foreign stored row ends not yet: {e:?}"
+                );
+            }
+        }
     }
 }

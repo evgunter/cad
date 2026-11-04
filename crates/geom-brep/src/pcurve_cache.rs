@@ -9219,19 +9219,16 @@ fn chart_image<T: Decide>(
 /// **The mint's own image refused by its certificate, as the lane's
 /// gap** (D3): a circle or a line takes the projected image because no
 /// class was shown, so where the certificate of that image, just derived
-/// by [`chart_pcurve_over`] for the edge, refuses on its envelope (an
-/// upper bound on the miss, [`PcurveCheck::bounds_a_miss`]) or reads it in
-/// band, the lane does not yet certify the pose, and the refusal ends
-/// "not yet" as the lane's other gaps do: in band as
-/// [`PcurveCheck::GeneralLane`]'s escalation, definite as
-/// [`LaneGap::Envelope`], and a metre conversion's lever refused as the
-/// pose's ([`LaneGap::Pose`]).
+/// by [`chart_pcurve_over`] for the edge, refuses on its sector, its
+/// metre conversion's lever or its envelope, the lane does not yet
+/// certify the pose, and the refusal ends "not yet" as the lane's other
+/// gaps do ([`general_lane_refusal`], the one place they are relabelled).
 ///
 /// Read by the doors that certify an image they just derived (the
 /// mint's walk, `topo::pcurves`), never by one that re-certifies a
 /// stored row: there an envelope refusal says the row is wrong (a copy
-/// lifted off its deck, an image moved off its carrier) and ends as its
-/// own term. Every other image and every other refusal passes through,
+/// lifted off its deck, an image moved off its carrier, a row of another
+/// carrier) and ends as its own term. Every other image passes through,
 /// a spline's net among them, whose only image this is.
 #[must_use]
 pub fn minted_refusal<T: Real>(
@@ -9249,36 +9246,7 @@ pub fn minted_refusal<T: Real>(
     if mutants::lane_envelope_bound() {
         return refused;
     }
-    match refused {
-        PcurveCertifyError::Escalated {
-            check: check @ (PcurveCheck::Envelope | PcurveCheck::EnvelopeTerm(_)),
-            sample,
-            cause,
-        } if check.bounds_a_miss() => PcurveCertifyError::Escalated {
-            check: PcurveCheck::GeneralLane,
-            sample,
-            cause,
-        },
-        PcurveCertifyError::ResidualExceeded {
-            check: check @ (PcurveCheck::Envelope | PcurveCheck::EnvelopeTerm(_)),
-            ..
-        } if check.bounds_a_miss() => PcurveCertifyError::NoGeneralLane {
-            chart: surface.kind(),
-            carrier: carrier.kind(),
-            gap: LaneGap::Envelope,
-        },
-        // The metre conversion's lever (the cone's apex, the torus's
-        // core) is the pose's, as at the mint's partition.
-        PcurveCertifyError::SectorRefused {
-            piece,
-            channel: channel @ projected::SectorChannel::Lever,
-        } => PcurveCertifyError::NoGeneralLane {
-            chart: surface.kind(),
-            carrier: carrier.kind(),
-            gap: LaneGap::Pose { piece, channel },
-        },
-        other => other,
-    }
+    general_lane_refusal(refused, carrier, surface)
 }
 
 /// The lever of a [`LaneGap::Pose`]: the one sentence both
@@ -9324,22 +9292,35 @@ pub(crate) const ENVELOPE_LEVER: &str = "the general image's certificate bounds 
 
 /// **The projected lane's refusal at the mint**: the one place a
 /// general-lane refusal is relabelled, read from both of `chart_image`'s
-/// calls of the lane (a circle's lane choice and a spline's only image),
-/// and nothing in `projected` learns of either. The lane's own capability
-/// gap on a carrier the incidence test does not show off the chart, its
-/// partition's sector reading (and, for a cone net or circle, the nappe
-/// `chart_of` reads at its midpoint), ends "not yet"
-/// ([`PcurveCheck::GeneralLane`]): in band as an escalation of that
-/// check, decided as [`LaneGap::Pose`]. Every other refusal `project`
-/// returns stays as it is: the deck's placement (`Placement::turns`)
-/// refuses only a poisoned midpoint or one past every turn an `i32`
-/// counts, and the kind and chart refusals are fenced off by
+/// calls of the lane (a circle's lane choice and a spline's only image)
+/// and, through [`minted_refusal`], from the mint's certificate of a
+/// lane choice's own fresh image; nothing in `projected` learns of
+/// either. The lane's own capability gap on a carrier the incidence test
+/// does not show off the chart ends "not yet"
+/// ([`PcurveCheck::GeneralLane`]):
+///
+/// - its partition's sector reading (and, for a cone net or circle, the
+///   nappe `chart_of` reads at its midpoint), and check 4's sector and
+///   metre-conversion lever: in band as an escalation of that check,
+///   decided as [`LaneGap::Pose`];
+/// - check 4's envelope (an upper bound on the miss,
+///   [`PcurveCheck::bounds_a_miss`]), which only the certificate reads: in
+///   band as the same escalation, decided as [`LaneGap::Envelope`].
+///
+/// Every other refusal stays as it is: the deck's placement
+/// (`Placement::turns`) refuses only a poisoned midpoint or one past every
+/// turn an `i32` counts, and the kind and chart refusals are fenced off by
 /// [`projected::has_lane`] before the call.
 fn general_lane_refusal<T: Real>(
     refused: PcurveCertifyError,
     carrier: &Curve3<T>,
     surface: &Surface<T>,
 ) -> PcurveCertifyError {
+    let gap = |gap| PcurveCertifyError::NoGeneralLane {
+        chart: surface.kind(),
+        carrier: carrier.kind(),
+        gap,
+    };
     match refused {
         PcurveCertifyError::Escalated {
             check: PcurveCheck::Sector,
@@ -9350,11 +9331,22 @@ fn general_lane_refusal<T: Real>(
             sample,
             cause,
         },
-        PcurveCertifyError::SectorRefused { piece, channel } => PcurveCertifyError::NoGeneralLane {
-            chart: surface.kind(),
-            carrier: carrier.kind(),
-            gap: LaneGap::Pose { piece, channel },
+        PcurveCertifyError::Escalated {
+            check: check @ (PcurveCheck::Envelope | PcurveCheck::EnvelopeTerm(_)),
+            sample,
+            cause,
+        } if check.bounds_a_miss() => PcurveCertifyError::Escalated {
+            check: PcurveCheck::GeneralLane,
+            sample,
+            cause,
         },
+        PcurveCertifyError::SectorRefused { piece, channel } => {
+            gap(LaneGap::Pose { piece, channel })
+        }
+        PcurveCertifyError::ResidualExceeded {
+            check: check @ (PcurveCheck::Envelope | PcurveCheck::EnvelopeTerm(_)),
+            ..
+        } if check.bounds_a_miss() => gap(LaneGap::Envelope),
         other => other,
     }
 }
