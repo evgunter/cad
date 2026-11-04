@@ -26,6 +26,8 @@
 //! Read at `f64` and `Interval`, and the unstored pass at a dual, where
 //! the read refuses before any fitted door is asked for.
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
 use geom::{NurbsSurface, Surface};
 use geom_brep::recourse::Reading;
 use geom_brep::{CertifyError, EdgeCurveSpec, EdgeDescriptionSpec, Pcurve, PcurveCertifyError};

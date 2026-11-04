@@ -12238,7 +12238,7 @@ mod radial_pair_rows;
 #[allow(clippy::unwrap_used, clippy::panic)]
 mod ruling_reading_rows;
 #[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::panic)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod spline_door_rows;
 
 #[cfg(test)]

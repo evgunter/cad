@@ -32,12 +32,25 @@ use std::sync::Arc;
 
 use geom::{Curve3, NurbsCurve2, NurbsSurface, Surface};
 use geom_core::spline::KnotVector;
-use geom_core::{Band, CertifiedBounds, Decide, Interval, Point2, Point3, Tol, Vec2, Vec3};
+use geom_core::{Band, Decide, Interval, Point2, Point3, Tol, Vec2, Vec3};
 
 use super::{Pcurve, PcurveCache, PcurveCertifyError, PcurveCheck};
 use crate::{
     CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, FittedLane, NurbsLane, SurfaceKey,
 };
+
+/// The certified doors a scalar that may certify holds, handed in by its
+/// concrete row.
+#[derive(Clone, Copy)]
+#[allow(clippy::type_complexity)]
+struct Lanes<T: geom_core::Real> {
+    fitted: FittedLane<T>,
+    edge: fn(
+        EdgeCurveSpec<T>,
+        (Point3<T>, Point3<T>),
+        &slotmap::SlotMap<SurfaceKey, Surface<T>>,
+    ) -> Result<(), CertifyError>,
+}
 
 /// The ruling's angle, the wall's knot `u = ½`.
 const RULING: f64 = 0.6;
@@ -130,13 +143,14 @@ fn column_curve<T: Decide>() -> Arc<NurbsCurve2<T>> {
 }
 
 /// The doors' readings for the ruling at `place`, each named.
-fn doors<T: Decide + CertifiedBounds>(
+fn doors<T: Decide>(
     place: Place,
+    lanes: Lanes<T>,
 ) -> Vec<(&'static str, Result<(), PcurveCertifyError>)> {
     let (c, b) = (T::from_f64, band());
     let (wall, carrier) = (ring::<T>(), ruling::<T>(place));
     let (t0, t1) = (c(0.0), c(1.0));
-    let lane = FittedLane::<T>::certified();
+    let lane = lanes.fitted;
     let stored = PcurveCache::certify(column(), t0, t1, &ruling::<T>(Place::On), &wall, b)
         .expect("the column certifies on the wall");
     let point = Point3::new(
@@ -178,32 +192,48 @@ fn doors<T: Decide + CertifiedBounds>(
 
 /// The edge certificate of the ruling at `place`, described by its
 /// stated column on the wall.
-fn stated<T: Decide + CertifiedBounds>(place: Place) -> Result<(), CertifyError> {
+fn stated<T: Decide>(place: Place, lanes: Lanes<T>) -> Result<(), CertifyError> {
     let c = T::from_f64;
     let mut table: slotmap::SlotMap<SurfaceKey, Surface<T>> = slotmap::SlotMap::with_key();
     let key = table.insert(ring::<T>());
     let carrier = ruling::<T>(place);
-    let (start, end) = (carrier.eval(c(0.0)), carrier.eval(c(1.0)));
-    EdgeCurve::certify(
-        EdgeCurveSpec {
-            description: EdgeDescriptionSpec::chart_image(key, column()),
-            carrier,
-            param_start: c(0.0),
-            param_end: c(1.0),
-        },
-        start,
-        end,
-        |k| table.get(k).cloned(),
-        geom_core::test_support::fixture_lever(c(1.0)),
-        band(),
-        NurbsLane::certified(),
-    )
-    .map(|_| ())
+    let ends = (carrier.eval(c(0.0)), carrier.eval(c(1.0)));
+    let spec = EdgeCurveSpec {
+        description: EdgeDescriptionSpec::chart_image(key, column()),
+        carrier,
+        param_start: c(0.0),
+        param_end: c(1.0),
+    };
+    (lanes.edge)(spec, ends, &table)
 }
+
+/// The edge certificate's door at one scalar that may certify.
+macro_rules! edge_at {
+    ($name:ident, $t:ty) => {
+        fn $name(
+            spec: EdgeCurveSpec<$t>,
+            (start, end): (Point3<$t>, Point3<$t>),
+            table: &slotmap::SlotMap<SurfaceKey, Surface<$t>>,
+        ) -> Result<(), CertifyError> {
+            EdgeCurve::certify(
+                spec,
+                start,
+                end,
+                |k| table.get(k).cloned(),
+                geom_core::test_support::fixture_lever(<$t as geom_core::Real>::one()),
+                band(),
+                NurbsLane::certified(),
+            )
+            .map(|_| ())
+        }
+    };
+}
+edge_at!(edge_f64, f64);
+edge_at!(edge_interval, Interval);
 
 /// Every door's reading at every place, the misreads gathered so each
 /// door that misreads is named.
-fn every_door_reads_the_wall<T: Decide + CertifiedBounds>() {
+fn every_door_reads_the_wall<T: Decide>(lanes: Lanes<T>) {
     let mut misread = Vec::new();
     let mut check = |door: &str, place: Place, ok: bool, got: String| {
         if !ok {
@@ -211,7 +241,7 @@ fn every_door_reads_the_wall<T: Decide + CertifiedBounds>() {
         }
     };
     for place in [Place::On, Place::Off, Place::InBand] {
-        for (door, got) in doors::<T>(place) {
+        for (door, got) in doors::<T>(place, lanes) {
             let ok = match place {
                 Place::On => got.is_ok(),
                 Place::Off => matches!(
@@ -231,7 +261,7 @@ fn every_door_reads_the_wall<T: Decide + CertifiedBounds>() {
             };
             check(door, place, ok, format!("{got:?}"));
         }
-        let got = stated::<T>(place);
+        let got = stated::<T>(place, lanes);
         let ok = match place {
             Place::On => got.is_ok(),
             Place::Off => matches!(
@@ -263,12 +293,18 @@ fn every_door_reads_the_wall<T: Decide + CertifiedBounds>() {
 
 #[test]
 fn every_door_reads_the_wall_at_f64() {
-    every_door_reads_the_wall::<f64>();
+    every_door_reads_the_wall::<f64>(Lanes {
+        fitted: FittedLane::certified(),
+        edge: edge_f64,
+    });
 }
 
 #[test]
 fn every_door_reads_the_wall_at_interval() {
-    every_door_reads_the_wall::<Interval>();
+    every_door_reads_the_wall::<Interval>(Lanes {
+        fitted: FittedLane::certified(),
+        edge: edge_interval,
+    });
 }
 
 /// **At a dual, a curve in UV with no fitted door is read first where it

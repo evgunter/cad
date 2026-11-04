@@ -592,7 +592,7 @@ impl<'a, T: Decide> Net<'a, T> {
             let dot = |a: [f64; 3], b: [f64; 3]| a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
             let (a, b, c) = (dot(su, su), dot(su, sv), dot(sv, sv));
             let (g, h) = (dot(r, su), dot(r, sv));
-            let det = a * c - b * b;
+            let det = a * c - b.powi(2);
             if !(det.is_finite() && det > 0.0) {
                 return Some((u, v));
             }
