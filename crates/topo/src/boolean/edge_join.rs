@@ -559,8 +559,9 @@ fn joinable<T: Decide>(
             {
                 let mut found = None;
                 for (minus, s) in [(false, surf_f), (true, surf_g)] {
-                    if let Some(family) = geom_brep::chart_iso_family(c.carrier(), c.params(), s, band)
-                        .map_err(|e| undecided(JoinReading::ChartClass(e)))?
+                    if let Some(family) =
+                        geom_brep::chart_iso_family(c.carrier(), c.params(), s, band)
+                            .map_err(|e| undecided(JoinReading::ChartClass(e)))?
                     {
                         found = Some(Locus::PairIso(minus, family));
                         break;

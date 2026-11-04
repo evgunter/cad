@@ -1730,8 +1730,20 @@ pub fn curved_face_holding<T: Decide>(
             minor_radius,
             ..
         } => {
-            let side = if sense { ApexSide::Left } else { ApexSide::Right };
-            torus_face(center, axis, major_radius, minor_radius, loops, Some(side), band)
+            let side = if sense {
+                ApexSide::Left
+            } else {
+                ApexSide::Right
+            };
+            torus_face(
+                center,
+                axis,
+                major_radius,
+                minor_radius,
+                loops,
+                Some(side),
+                band,
+            )
         }
         // The volume/area inventory is closed-form per analytic kind;
         // a spline has no entry and neither does an offset description
@@ -5489,7 +5501,11 @@ fn torus_chart_loop<T: Decide>(
                 let near = |w: Vec3<T>| (w - axis * w.dot(axis)).norm();
                 // An end at a sheet's apex has no azimuth: the turn is
                 // read to the edge's middle instead.
-                let middle = || p.edge.carrier.eval((p.edge.t0 + p.edge.t1) * T::from_f64(0.5));
+                let middle = || {
+                    p.edge
+                        .carrier
+                        .eval((p.edge.t0 + p.edge.t1) * T::from_f64(0.5))
+                };
                 let (ua, ub) = (
                     if pieces[(k + n - 1) % n].apex_after.is_some() {
                         middle() - center

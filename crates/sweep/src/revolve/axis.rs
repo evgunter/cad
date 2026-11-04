@@ -581,7 +581,11 @@ pub(super) fn classify_segment<T: Decide>(
             // tangency meets it. Read at `R = rc` a hair inside, the
             // sheet's two apexes would part by `√(2r·|rc − r|)`, far
             // past the band its reach was decided in.
-            let major = if matches!(reach, Sign::Zero) { radius } else { rc };
+            let major = if matches!(reach, Sign::Zero) {
+                radius
+            } else {
+                rc
+            };
             Ok(WallClass::Wall {
                 kind: WallKind::Spindle {
                     center_sk: centre,

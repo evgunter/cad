@@ -9577,7 +9577,12 @@ pub fn chart_iso_family<T: Decide>(
     if matches!(carrier, Curve3::Spiric { .. }) {
         return Ok(None);
     }
-    let derivation = match derive_class(carrier, surface, Placement::over(span, carrier, surface), band) {
+    let derivation = match derive_class(
+        carrier,
+        surface,
+        Placement::over(span, carrier, surface),
+        band,
+    ) {
         Ok((_, derivation)) => derivation,
         // The ruling reading in band; any other class reading in band
         // keeps its own ending.
@@ -14362,7 +14367,10 @@ mod iso_family {
             1.0,
             1.0 / theta.cos(),
         ));
-        assert_eq!(chart_iso_family(&section, own_interval(&section), &cylinder, band), Ok(None));
+        assert_eq!(
+            chart_iso_family(&section, own_interval(&section), &cylinder, band),
+            Ok(None)
+        );
         // A line tilted 1e-2 leaves the cylinder past the band over its
         // span: the incidence test reads it off before any family.
         assert!(matches!(

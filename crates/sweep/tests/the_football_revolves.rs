@@ -49,8 +49,16 @@ fn probe_the_football() {
         ("the apple", football(0.4, 1.0), Revolution::Full),
         ("the needle", needle, Revolution::Full),
         ("the pinch", pinch, Revolution::Full),
-        ("the lemon part way", football(-0.5, 1.0), Revolution::Partial(2.0)),
-        ("the apple part way", football(0.4, 1.0), Revolution::Partial(4.0)),
+        (
+            "the lemon part way",
+            football(-0.5, 1.0),
+            Revolution::Partial(2.0),
+        ),
+        (
+            "the apple part way",
+            football(0.4, 1.0),
+            Revolution::Partial(4.0),
+        ),
     ] {
         let built = match revolve(&validated(vec![lp]), y_axis(), how, tol) {
             Ok(b) => b,
@@ -71,7 +79,10 @@ fn probe_the_football() {
             }
         };
         match topo::mass_properties(&body, tol, topo::test_support::pinned_resolution(tol)) {
-            Ok(p) => eprintln!("{what}: volume {} area {}", p.enclosure.volume, p.enclosure.surface_area),
+            Ok(p) => eprintln!(
+                "{what}: volume {} area {}",
+                p.enclosure.volume, p.enclosure.surface_area
+            ),
             Err(e) => eprintln!("{what}: props: {e:?}"),
         }
     }
