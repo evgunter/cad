@@ -600,22 +600,25 @@ pub(super) fn classify_segment<T: Decide>(
 
 /// **The sheet's major radius, read where the arc ends on the axis.**
 /// The circle meets the axis at the sheet's apexes, `±√(r² − R²)` along
-/// it from the centre's foot, so an end on the axis is an apex. The
-/// drawn circle (`R = rc`) is read first: it holds where every end on
-/// the axis lies at one of its apexes (`axis_arc_apex_end`). A reach
-/// decided zero has a second reading, the horn (`R = r`), whose one
-/// cusp is the centre's foot. The two part by `√(2r·|rc − r|)` along
-/// the axis, far more than `|rc − r|`, so which one holds the drawn
-/// ends is the question the band answers, not the reach: a circle a
-/// hair off tangency drawn to its foot (the needle) is a horn, and one
-/// drawn to where it crosses (an apple near the horn) is its own sheet.
-/// An end that neither reading holds lies on the stretch where a circle
-/// near tangency runs within the band of the axis: `ApexEndOffSheet`.
-/// With no end on the axis, the drawn circle stands.
+/// it from the centre's foot, so an end on the axis is an apex. A reach
+/// decided zero has two readings: the horn (`R = r`), whose one cusp is
+/// the centre's foot, and the drawn circle (`R = rc`). Their apexes part
+/// by `√(2r·|rc − r|)` along the axis, far more than `|rc − r|`, so the
+/// band asks which reading holds every end on the axis at an apex
+/// (`axis_arc_apex_end`), not the reach:
+/// - the horn first: where it holds, the drawn apexes, if any, are
+///   within the band of its cusp and of each other, and a sheet whose
+///   two apexes the band cannot part is the horn (the needle, a circle a
+///   hair off tangency drawn to its foot);
+/// - then the drawn circle, the one reading a clear reach has (an apple
+///   near the horn drawn to where it crosses the axis is its own sheet);
+/// - an end neither holds lies on the stretch where a circle near
+///   tangency runs within the band of the axis: `ApexEndOffSheet`.
 ///
-/// The horn moves the circle by `|rc − r|` everywhere, inside the band
-/// the reach was decided zero in, so its volume and area move by at
-/// most that times the area and the length of the meridian.
+/// With no end on the axis the drawn circle stands. The horn moves the
+/// circle by `|rc − r|` everywhere, inside the band the reach was
+/// decided zero in, so its volume and area move by at most that times
+/// the area and the length of the meridian.
 fn sheet_major<T: Decide>(
     s: &SweptSeg<T>,
     (va, vb): (&VertexClass<T>, &VertexClass<T>),
@@ -647,11 +650,11 @@ fn sheet_major<T: Decide>(
     let holds = |major: T| {
         classify(ClearanceDecision::ApexEnd, Margin::of(off(major))).map(|s| s == Sign::Zero)
     };
-    if holds(rc)? {
-        return Ok(rc);
-    }
     if reach == Sign::Zero && holds(radius)? {
         return Ok(radius);
+    }
+    if holds(rc)? {
+        return Ok(rc);
     }
     Err(RevolveError::ApexEndOffSheet {
         loop_index,

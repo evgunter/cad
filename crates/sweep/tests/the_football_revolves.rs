@@ -29,7 +29,7 @@ fn y_axis() -> RevolveAxis<f64> {
 /// arc from the lower apex to the upper through the circle's widest
 /// point, closed down the axis.
 fn football(big: f64, r: f64) -> profile::ProfileLoop<f64> {
-    let h = (r * r - big * big).sqrt();
+    let h = ((r - big) * (r + big)).sqrt();
     let v_star = (-big / r).acos();
     bulge_loop(vec![
         (Point2::new(0.0, -h), (v_star / 2.0).tan()),
@@ -310,7 +310,10 @@ fn apex_angle(big: f64, r: f64) -> f64 {
 
 /// The football's arc drawn as two halves meeting at its widest point.
 fn football_halves(big: f64, r: f64) -> profile::ProfileLoop<f64> {
-    let (h, b) = ((r * r - big * big).sqrt(), (apex_angle(big, r) / 4.0).tan());
+    let (h, b) = (
+        ((r - big) * (r + big)).sqrt(),
+        (apex_angle(big, r) / 4.0).tan(),
+    );
     bulge_loop(vec![
         (Point2::new(0.0, -h), b),
         (Point2::new(big + r, 0.0), b),
@@ -576,7 +579,8 @@ fn the_wide_apples_and_the_lower_needle_measure() {
             2.0 * PI * (PI / 2.0 - 1.0) + PI,
         ),
     );
-    for big in [0.6_f64, 0.8, 0.99, 1.0 - 1e-6] {
+    let z = geom_core::Band::linear(Tol::witness()).unwrap().zero();
+    for big in [0.6_f64, 0.8, 0.99, 1.0 - (1e3 * z).max(1e-6)] {
         measures(
             &format!("a wide apple R {big}"),
             football(big, 1.0),
@@ -590,17 +594,40 @@ fn the_wide_apples_and_the_lower_needle_measure() {
 /// zero either way. The band reads the arc's ends on the axis against
 /// each reading's apexes, which part by `√(2r·|rc − r|)`:
 /// - an apple a hair inside the horn drawn apex to apex (two half
-///   arcs, `R = 1 − 1e-10` and `1 − 1e-11`, its apexes `1.4e-5` and
-///   `4.5e-6` along the axis from the centre's foot) is its own sheet,
-///   `R = rc`, through tier 3 and measuring the apple's closed form;
+///   arcs, `R = 1 − z/10` and `1 − z/100` for the band's zero `z`, its
+///   apexes `√(z/5)` and `√(z/50)` along the axis from the centre's
+///   foot, far past the band) is its own sheet, `R = rc`, through tier 3
+///   and measuring the apple's closed form. Where the stored centre's
+///   rounding moves those apexes past the band (at a fine ε), it refuses
+///   `ApexEndOffSheet` instead;
 /// - the needle, drawn to the centre's foot, is the horn (its own row);
-/// - an arc a hair outside tangency ending on the axis `2e-5` from the
-///   foot, at no reading's apex, refuses `ApexEndOffSheet`.
+/// - an arc `z/4` outside tangency ending on the axis `√z` from the
+///   foot (within `3z/4` of the axis there), at no reading's apex,
+///   refuses `ApexEndOffSheet`.
 #[test]
 fn near_the_horn_the_drawn_ends_say_which_sheet() {
     let tol = Tol::witness();
-    for d in [1e-10_f64, 1e-11] {
+    let band = geom_core::Band::linear(tol).unwrap();
+    let z = band.zero();
+    for d in [z / 10.0, z / 100.0] {
         let big = 1.0 - d;
+        // The stored circle's centre carries a rounding `u` of its own,
+        // which moves its apexes by `u/h` at height `h = √(2d)`: past the
+        // band (a fine ε), no reading holds the drawn ends.
+        if f64::EPSILON / (2.0 * d).sqrt() > z / 10.0 {
+            let got = revolve(
+                &validated(vec![football_halves(big, 1.0)]),
+                y_axis(),
+                Revolution::Full,
+                tol,
+            );
+            assert!(
+                matches!(got, Err(RevolveError::ApexEndOffSheet { .. })),
+                "R = 1 − {d:e}: {:?}",
+                got.map(|_| ())
+            );
+            continue;
+        }
         let built = revolve(
             &validated(vec![football_halves(big, 1.0)]),
             y_axis(),
@@ -625,8 +652,7 @@ fn near_the_horn_the_drawn_ends_say_which_sheet() {
             pappus(big, 1.0),
         );
     }
-    let band = geom_core::Band::linear(tol).unwrap();
-    let (cx, y0) = (1.0 + 0.25 * band.zero(), 2e-5_f64);
+    let (cx, y0) = (1.0 + 0.25 * z, z.sqrt());
     let start = Point2::new(cx - (1.0 - y0 * y0).sqrt(), y0);
     let span = PI - y0.asin() - PI / 2.0;
     let got = revolve(
