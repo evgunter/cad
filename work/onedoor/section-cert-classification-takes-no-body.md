@@ -4,6 +4,7 @@ kind: issue
 title: "[topo.homes] arm 1: section_cert's classification takes no Body but reads a topo root reading; its certify reads arena keys"
 status: open
 opened: 2026-11-03
+priority: P2
 ---
 
 

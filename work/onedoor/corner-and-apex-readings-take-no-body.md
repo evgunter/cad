@@ -4,6 +4,7 @@ kind: issue
 title: "[topo.homes] arm 1: sector_shape.rs's apex reading takes no Body and stays in topo, waiting on sector_face::ConeApex"
 status: open
 opened: 2026-11-03
+priority: P2
 ---
 
 

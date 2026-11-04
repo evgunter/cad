@@ -4,6 +4,7 @@ kind: issue
 title: "[topo.homes] arm 1: bound_side's reading takes no Body but reads link::metric and link::Round, which live inside link.rs"
 status: open
 opened: 2026-11-03
+priority: P2
 ---
 
 

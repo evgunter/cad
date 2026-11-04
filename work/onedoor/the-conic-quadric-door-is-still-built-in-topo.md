@@ -4,6 +4,7 @@ kind: issue
 title: "[topo.homes] arm 1: route's ConicQuadric door (boolean/conic_quadric) takes no Body and is still built in topo"
 status: open
 opened: 2026-11-03
+priority: P2
 ---
 
 

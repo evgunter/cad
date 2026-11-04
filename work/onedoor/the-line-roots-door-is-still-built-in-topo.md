@@ -4,6 +4,7 @@ kind: issue
 title: "[topo.homes] arm 1: route's LineRoots door (solid_contain's line × quadric roots, reduce::line_wall_roots_of) takes no Body and is still built in topo"
 status: open
 opened: 2026-11-03
+priority: P2
 ---
 
 

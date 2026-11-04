@@ -4,6 +4,7 @@ kind: issue
 title: "[topo.homes] arm 1: splitting's arc readers (pieced_arc, spiric_arc, spline_arc) and order take no Body and stay in an engine"
 status: open
 opened: 2026-11-03
+priority: P2
 ---
 
 
