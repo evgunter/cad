@@ -1478,9 +1478,11 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
         // refuses where an ellipse bends the foot path, as the edge
         // certificate's own does. The general lane is a lane choice
         // (D3), reached only behind the chart's incidence read: a
-        // carrier shown off the wall ends as that read. One read in band
-        // takes the general lane, as D3 sends an in-band class reading
-        // there, and its certificate decides it.
+        // carrier shown off the wall ends as that read. A read not shown
+        // off, in band included, goes on to the general image, whose
+        // certificate reads the carrier against its wall itself and ends
+        // at its own lever; a lane choice with no lane after it (the arc
+        // rim's, the catch-all below) ends as the read instead.
         if let Err(error) = geom_brep::read_edge_incidence(&carrier, t0, t1, surface, band)
             && geom_brep::IncidenceRead::of(&error)
                 .is_some_and(geom_brep::IncidenceRead::is_definite)

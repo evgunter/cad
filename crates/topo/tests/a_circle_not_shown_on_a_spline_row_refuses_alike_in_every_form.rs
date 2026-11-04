@@ -228,6 +228,20 @@ fn rim_image_on_the_ring<T: AtRestPolicy + geom_core::Bounds>() {
             "{form:?}: a rim the wall is bent off ends off the chart, at {}: {off:?}",
             T::NAME
         );
+        // At the import door a definite miss names the damaged file, with
+        // no ε_in offer (Ev's PR 5838 ruling).
+        let Err(ref refused) = off else {
+            unreachable!()
+        };
+        let at_import = refused
+            .ending(geom_core::FileCoincidence::new(1e-6))
+            .expect("an incidence read has an ending");
+        assert_eq!(
+            at_import,
+            geom_core::DAMAGED_FILE_ENDING,
+            "{form:?}: off the wall at the import door, at {}",
+            T::NAME
+        );
         // Bent in band: the read is in band too, and ends in its lever.
         let near = derived::<T>((in_band_push, 0.0), form);
         assert!(

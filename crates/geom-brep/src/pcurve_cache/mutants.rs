@@ -24,7 +24,7 @@ const NAME: Option<&str> = option_env!("PCERT_RADIAL_PAIR_MUTANT");
 
 /// Every site this crate's hooks name. topo's `chord_join` declares its
 /// own two (`topo-gate`, `topo-v-var`) under the same variable.
-pub(super) const SITES: [&str; 23] = [
+pub(super) const SITES: [&str; 26] = [
     "class-circle",
     "zero-winding",
     "torus-parallel",
@@ -48,6 +48,9 @@ pub(super) const SITES: [&str; 23] = [
     "lane-envelope-bound",
     "cone-terms-unprojected",
     "spline-floor-net",
+    "spline-charge-dropped",
+    "spline-cut-uncharged",
+    "spline-blend-undercut",
 ];
 
 fn on(site: &str) -> bool {
@@ -196,6 +199,25 @@ pub(super) fn skip_incidence() -> bool {
 /// lies on (its rows are `spline_incidence_rows`).
 pub(super) fn spline_floor_net() -> bool {
     on("spline-floor-net")
+}
+
+/// A spline chart's floor read at `f64` with no rounding charge at all:
+/// a sample a band past a far or large patch reads off a patch it lies
+/// within the band of (its rows are `spline_incidence_rows`).
+pub(super) fn spline_charge_dropped() -> bool {
+    on("spline-charge-dropped")
+}
+
+/// A spline chart's floor charged the read's rounding but not the cut's
+/// (its rows are `spline_incidence_rows`).
+pub(super) fn spline_cut_uncharged() -> bool {
+    on("spline-cut-uncharged")
+}
+
+/// A spline chart cut's blend charged a quarter of its rounding (its row
+/// is `spline_incidence_rows`'s cut-drift row).
+pub(super) fn spline_blend_undercut() -> bool {
+    on("spline-blend-undercut")
 }
 
 /// The cylinder arm's ruling reading folded again: an in-band reading

@@ -9352,8 +9352,10 @@ fn farthest_over_span<T: Real>(
 /// whether `carrier` lies on `surface`'s chart over `[t0, t1]`, read as
 /// [`chart_pcurve`] reads it before it images, in the carrier's own
 /// frame and less its rounding, so a carrier off its face ends as that
-/// read and never as another decider's arithmetic. A spline chart's
-/// images are description-driven and read nothing here.
+/// read and never as another decider's arithmetic. On a spline chart
+/// this door passes every carrier unread: the spline chart's read is
+/// [`read_edge_incidence`]'s, which this door's callers do not take yet
+/// (`work/pcert/a-spline-charts-certificate-door-reads-no-incidence-so-an-off-carrier-ends-as-its-images-bound.md`).
 ///
 /// # Errors
 ///
@@ -9418,7 +9420,13 @@ fn read_shown<T: Decide>(
 ///
 /// # Errors
 ///
-/// As [`read_incidence`].
+/// On an analytic chart, as [`read_incidence`]. On a spline chart:
+/// [`PcurveCertifyError::CarrierOffChart`] for a carrier a sample of
+/// which is shown off the chart; [`PcurveCertifyError::Escalated`]
+/// ([`PcurveCheck::ChartIncidence`]) where none is and some sample is
+/// read in band, unsettled at the walk's caps, or unreadable (a net that
+/// does not cut, a weight not shown positive); and
+/// [`PcurveCertifyError::PlaceholderChart`] on the placeholder chart.
 pub fn read_edge_incidence<T: Decide>(
     carrier: &Curve3<T>,
     t0: T,
@@ -9444,7 +9452,7 @@ pub fn read_edge_incidence<T: Decide>(
 /// slid to its foot nearest the point) and less its rounding, so a
 /// corner far from its plane's anchor is read on where it lies on, at
 /// every distance. `topo`'s planar tier reads a flat face's corners here.
-/// A spline chart reads nothing.
+/// On a spline chart this door passes the point unread.
 ///
 /// # Errors
 ///

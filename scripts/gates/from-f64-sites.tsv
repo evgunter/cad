@@ -60,9 +60,8 @@ crates/geom-brep/src/pcurve_cache/projected.rs	1	constant	nappe_sign(*nappe)	a c
 crates/geom-brep/src/pcurve_cache/projected.rs	1	constant	s0	a circle image's partition break on its unit piece parameter, a point the partition chose
 crates/geom-brep/src/pcurve_cache/projected.rs	1	constant	s1	a circle image's partition break on its unit piece parameter, a point the partition chose
 crates/geom-brep/src/pcurve_cache/projected.rs	1	launders(an-edges-parameter-ends-enter-a-carrier-piece-as-constants)	v	net_param: a parameter that is no net breakpoint: an edge enclosure's f64 end (a computed value, laundered), or a partition or halving break (a genuine constant)
-crates/geom-brep/src/pcurve_cache/spline_incidence.rs	1	constant	3.0_f64.sqrt()	the f64 cut's rounding charge: √3, a box's diagonal over its side
 crates/geom-brep/src/pcurve_cache/spline_incidence.rs	1	constant	f64::from(i) / n	a sample schedule's fraction
-crates/geom-brep/src/pcurve_cache/spline_incidence.rs	1	constant	levels as f64	a count: the blend levels a cell's cut has been through, its rounding charge's multiplier
+crates/geom-brep/src/pcurve_cache/spline_incidence.rs	1	constant	band.zero()	the band's zero width, a tolerance: whether an in-band floor is past it
 crates/geom-brep/src/props/closure.rs	1	constant	VERTEX_SLACK * band.zero()	the vertex slack, a multiple of the band's zero width: a tolerance
 crates/geom-brep/src/props/loop_area.rs	1	constant	*w	a Gauss weight
 crates/geom-brep/src/props/loop_area.rs	1	constant	*x	a Gauss node

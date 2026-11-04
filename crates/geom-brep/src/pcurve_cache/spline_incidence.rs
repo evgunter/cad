@@ -45,26 +45,37 @@
 //! are of the patch's size, not its placement. At an enclosure scalar
 //! ([`geom_core::Witness::Exact`]) the move and the cut are in the
 //! enclosure's own arithmetic, so each control point's box holds the
-//! exact one, and the floors are decided as they are. At `f64` the cut
-//! rounds: each blend `x + (y − x)·s` of the insertions and the
-//! quarterings is of values within the net's largest homogeneous
-//! coordinate, a few half-ulps of it, and a blend carries its inputs'
-//! errors as a convex combination does. A cell `d` quarterings deep has
-//! been through `k + d·(p + q)` levels (`k` the insertions, `p` and `q`
-//! the degrees), each charged [`geom_core::rounding_charge`] of the
-//! largest coordinate and of the weight, out of homogeneous form over
-//! the least weight. The moves of the net and the sample by `c`, and the
-//! sample's reading of a box or a slab, are charged the same rounding of
-//! their reach, as [`super::incidence_over_span`] charges its read. A
+//! exact one, and the floors are decided as they are.
+//!
+//! At `f64` each homogeneous control point carries a first-order bound
+//! on each channel's rounding, set where the point is made and carried
+//! through every blend `x + (y − x)·t` of the insertions and the
+//! quarterings ([`blend`]): the inputs' bounds blend as the values do,
+//! and each blend adds `u·|y − x|·t + u·|result|`, plus `|y − x|·δt` for
+//! an insertion's ratio of knots (`δt` three units of roundoff of `t`).
+//! Out of homogeneous form a point is off by at most
+//! `(e_xyz + |P|·e_w)/(w − e_w) + u·|P|` per coordinate, and the floor is
+//! charged the root sum of the worst per channel ([`cut_rounding`]). Every
+//! bound is read at the point it belongs to, so a weight far from the
+//! cell's own charges nothing there. The floor is also charged
+//! [`geom_core::rounding_charge`] of twice the reach of the points, the
+//! sample and `c`, which covers the moves and the read of a box or a
+//! slab, as [`super::incidence_over_span`] charges its read. It is a
 //! first-order rounding estimate, the `f64` lane's contract, as
-//! [`geom_core::running`]'s is. The upper bound is the chart's own
-//! evaluation, whose rounding errs only toward reading the sample on.
+//! [`geom_core::running`]'s is.
+//!
+//! The upper bound is the chart's own evaluation at `f64`, so its
+//! rounding errs either way. Toward on, it can read a sample on the
+//! chart where its exact distance is a few roundings of a far patch's
+//! placement past the zero band. That ends the read as not shown off, a
+//! lane gap and never a false `Off`.
 
 use geom::NurbsSurface;
 use geom_core::k_stats::{decide, decide_reported, straddle};
 use geom_core::spline::{Knots, SpanLocate};
 use geom_core::{
-    Band, Decide, Decided, Indeterminate, Margin, Point3, Real, Sign, Vec3, rounding_charge,
+    Band, Decide, Decided, Indeterminate, Margin, Point3, Real, Sign, UNIT_ROUNDOFF, Vec3,
+    rounding_charge,
 };
 
 use super::{INCIDENCE_SAMPLES, Incidence, PcurveCertifyError, incidence_escalated};
@@ -89,8 +100,6 @@ const CELL_DEPTH: usize = 48;
 const DEPTH_HEADROOM: f64 = 8.0;
 /// The kept cells one sample's walk may visit.
 const CELL_VISITS: usize = 1 << 12;
-/// The cells a walk visits past its first point read in band.
-const ON_VISITS: usize = 1 << 5;
 
 /// **The spline chart's incidence test of the carrier `at` over
 /// `[t0, t1]`** (module docs), at [`INCIDENCE_SAMPLES`] + 1 evenly
@@ -173,38 +182,27 @@ struct Net<'a, T: Real> {
     cells: Vec<Cell<T>>,
     pu: usize,
     pv: usize,
-    /// The insertions the cut made, both directions.
-    inserted: usize,
     /// The quarterings a walk may make ([`depth_cap`]).
     depth: usize,
-    /// At `f64` ([`Rounding`]).
-    rounding: Option<Rounding<T>>,
 }
 
-/// The `f64` cut's rounding (module docs, *Rounding*).
-#[derive(Clone, Copy)]
-struct Rounding<T> {
-    /// What one blend level charges a point.
-    per_level: T,
-    /// The cells' points' largest reach from the centre, and the
-    /// centre's from the origin.
-    reach: T,
-}
+/// A homogeneous control point, `[w·x, w·y, w·z, w]` about the centre,
+/// with a first-order bound on each channel's accumulated rounding at
+/// `f64` (module docs, *Rounding*); zero at an enclosure scalar, whose
+/// arithmetic holds the exact value already.
+type Control<T> = ([T; 4], [f64; 4]);
 
 /// One Bézier cell: its parameter rectangle `[u0, u1] × [v0, v1]`, its
-/// control net about the centre in homogeneous form, row-major in `u`,
-/// the same net's `f64` shadow (the middle of each coordinate's bracket,
-/// cut alongside it), and how many times it was quartered. The shadow
-/// orders the walk and decides nothing.
+/// control net row-major in `u`, and how many times it was quartered.
 #[derive(Clone)]
 struct Cell<T> {
     rect: [f64; 4],
-    net: Vec<[T; 4]>,
-    shadow: Vec<[f64; 4]>,
+    net: Vec<Control<T>>,
     depth: usize,
 }
 
-/// A cell in the walk's queue, nearest shadow box first, then the
+/// A cell in the walk's queue, the nearest box (read on the brackets'
+/// middles, which order the walk and decide nothing) first, then the
 /// deepest, then the order it was queued in (D9).
 struct Queued<T> {
     key: f64,
@@ -237,6 +235,41 @@ impl<T> Ord for Queued<T> {
     }
 }
 
+/// **One blend `x + (y − x)·t`** of two homogeneous control points, each
+/// channel by [`SpanLocate::homogeneous_step`], with its rounding bound
+/// at `f64`: the inputs' bounds blended as the values are, plus the
+/// difference's rounding (`u·|y − x|·t`), the sum's (`u·|result|`), and
+/// `t`'s own (`|y − x|·dt`). `dt` is zero for a quartering's exact half,
+/// and three units of roundoff of `t` for an insertion's ratio of knots
+/// (two differences and a quotient).
+fn blend<T: Decide>(x: Control<T>, y: Control<T>, t: T, ratio: bool, track: bool) -> Control<T> {
+    let h: [T; 4] = core::array::from_fn(|c| T::homogeneous_step(x.0[c], y.0[c], t));
+    if !track {
+        return (h, [0.0; 4]);
+    }
+    let tf = middle(t);
+    let dt = if ratio {
+        3.0 * UNIT_ROUNDOFF * tf.abs()
+    } else {
+        0.0
+    };
+    #[cfg(test)]
+    let scale = if super::mutants::spline_blend_undercut() {
+        0.25
+    } else {
+        1.0
+    };
+    #[cfg(not(test))]
+    let scale = 1.0;
+    let e = core::array::from_fn(|c| {
+        let span = (middle(y.0[c]) - middle(x.0[c])).abs();
+        (1.0 - tf) * x.1[c]
+            + tf * y.1[c]
+            + scale * (UNIT_ROUNDOFF * (span * tf + middle(h[c]).abs()) + span * dt)
+    });
+    (h, e)
+}
+
 impl<'a, T: Decide> Net<'a, T> {
     fn of(chart: &'a NurbsSurface<T>, band: Band) -> Option<Self> {
         let (ku, kv) = (chart.knot_values_u(), chart.knot_values_v());
@@ -245,6 +278,7 @@ impl<'a, T: Decide> Net<'a, T> {
         if pu == 0 || pv == 0 || nu == 0 || nv == 0 {
             return None;
         }
+        let track = T::WITNESS == geom_core::Witness::Inexact;
         let (control, weights) = (chart.control(), chart.weights());
         let (lo, hi) = shadow_box(control);
         let centre = Vec3::new(
@@ -252,23 +286,35 @@ impl<'a, T: Decide> Net<'a, T> {
             T::from_computed(lo[1] + (hi[1] - lo[1]) * 0.5),
             T::from_computed(lo[2] + (hi[2] - lo[2]) * 0.5),
         );
-        let homogeneous = |k: usize| {
+        // Moved about the centre and out to homogeneous form: the
+        // difference and the product round each coordinate by `u` of it.
+        let homogeneous = |k: usize| -> Control<T> {
             let (p, w) = (control[k] - centre, weights[k]);
-            [p.x * w, p.y * w, p.z * w, w]
+            let h = [p.x * w, p.y * w, p.z * w, w];
+            let e = if track {
+                core::array::from_fn(|c| {
+                    if c == 3 {
+                        0.0
+                    } else {
+                        2.0 * UNIT_ROUNDOFF * middle(h[c]).abs()
+                    }
+                })
+            } else {
+                [0.0; 4]
+            };
+            (h, e)
         };
         // Along `v` first, one row per `u` index; then along `u`, one
         // row per refined `v` index.
-        let (ku_full, add_u) = (expanded(ku), insertions(ku)?);
-        let (kv_full, add_v) = (expanded(kv), insertions(kv)?);
-        let rows: Vec<Vec<[T; 4]>> = (0..nu)
+        let rows: Vec<Vec<Control<T>>> = (0..nu)
             .map(|i| {
                 let row = (0..nv).map(|j| homogeneous(i * nv + j)).collect();
-                inserted(&kv_full, pv, row, &add_v)
+                refined(kv, row, track)
             })
             .collect::<Option<_>>()?;
         let nv = rows.first()?.len();
-        let columns: Vec<Vec<[T; 4]>> = (0..nv)
-            .map(|j| inserted(&ku_full, pu, rows.iter().map(|r| r[j]).collect(), &add_u))
+        let columns: Vec<Vec<Control<T>>> = (0..nv)
+            .map(|j| refined(ku, rows.iter().map(|r| r[j]).collect(), track))
             .collect::<Option<_>>()?;
         let nu = columns.first()?.len();
         let (bu, bv) = (breaks(ku)?, breaks(kv)?);
@@ -285,48 +331,43 @@ impl<'a, T: Decide> Net<'a, T> {
                         net.push(columns[j * pv + b][i * pu + a]);
                     }
                 }
-                let shadow = net.iter().map(|h| h.map(middle)).collect();
                 cells.push(Cell {
                     rect: [bu[i], bu[i + 1], bv[j], bv[j + 1]],
                     net,
-                    shadow,
                     depth: 0,
                 });
             }
         }
-        let rounding = (T::WITNESS == geom_core::Witness::Inexact).then(|| {
-            let (per_level, reach) = rounding(&cells);
-            Rounding {
-                per_level,
-                reach: reach + centre.norm(),
-            }
-        });
         Some(Self {
             chart,
             centre,
             cells,
             pu,
             pv,
-            inserted: add_u.len() + add_v.len(),
             depth: depth_cap(lo, hi, band),
-            rounding,
         })
     }
 
-    /// **One sample's walk** (module docs), nearest shadow box first,
-    /// so a sample on the chart dives to its cell rather than walking
-    /// every cell beside it to the cap. A point of the chart read in band
-    /// of the sample shows it within the band, so not off; the walk then
-    /// looks only [`ON_VISITS`] cells further for one within the zero
-    /// band.
+    /// **One sample's walk** (module docs), nearest box first, so a
+    /// sample on the chart dives to its cell rather than walking every
+    /// cell beside it to the cap.
+    ///
+    /// A point of the chart read in band of the sample shows it within
+    /// the band, so not off it. Past that, only a cell whose floor reads
+    /// within the zero band can hold a point within the zero band of the
+    /// sample, a floor bounding every point of its cell and so of every
+    /// cell cut from it: a cell whose floor reads past the zero band is
+    /// dropped unread. A sample in band of the chart is so left with no
+    /// cell once its cells are small enough that their floors pass the
+    /// zero band.
     fn read(&self, q: Point3<T>, band: Band) -> Read<T> {
         let moved = q - self.centre;
-        let shadow_q = [moved.x, moved.y, moved.z].map(middle);
+        let key_q = [moved.x, moved.y, moved.z].map(middle);
         let mut seq = 0usize;
         let mut queue = std::collections::BinaryHeap::new();
         let mut push = |queue: &mut std::collections::BinaryHeap<Queued<T>>, cell: Cell<T>| {
             seq += 1;
-            let key = shadow_gap(&cell, shadow_q);
+            let key = box_key(&cell, key_q);
             queue.push(Queued { key, seq, cell });
         };
         for cell in &self.cells {
@@ -336,7 +377,7 @@ impl<'a, T: Decide> Net<'a, T> {
         // ones, and the least distance of a point past the zero band.
         let (mut floor, mut kept, mut foot) = (None, None, None);
         let mut pending: Option<Indeterminate> = None;
-        let mut near: Option<usize> = None;
+        let mut near = false;
         let mut unsettled = false;
         let mut visits = 0usize;
         let least = |acc: Option<T>, x: T| Some(acc.map_or(x, |a| a.min(x)));
@@ -347,11 +388,18 @@ impl<'a, T: Decide> Net<'a, T> {
                     floor = least(floor, gap);
                     continue;
                 }
-                Ok(_) => kept = least(kept, gap),
-                Err(cause) => keep(&mut pending, cause),
+                Ok(Sign::Zero) => kept = least(kept, gap),
+                Ok(Sign::Negative) => unreachable!("read: a floor is a distance"),
+                Err(cause) => {
+                    keep(&mut pending, cause);
+                    if near && past_zero(gap, band) {
+                        unsettled = true;
+                        continue;
+                    }
+                }
             }
             visits += 1;
-            if visits > CELL_VISITS || near.is_some_and(|at| visits > at + ON_VISITS) {
+            if visits > CELL_VISITS {
                 unsettled = true;
                 break;
             }
@@ -366,7 +414,7 @@ impl<'a, T: Decide> Net<'a, T> {
                 Ok(_) => foot = least(foot, distance),
                 Err(cause) => {
                     keep(&mut pending, cause);
-                    near.get_or_insert(visits);
+                    near = true;
                 }
             }
             // A poisoned floor or point is not cured by quartering, since
@@ -402,13 +450,13 @@ impl<'a, T: Decide> Net<'a, T> {
 
     /// **The cell's floor against the moved sample `q`** (module docs,
     /// *The bound*): the larger of its distances to the control points'
-    /// box and slab, less the cut's rounding at `f64`. The poison where a
-    /// weight is not shown positive.
+    /// box and slab, less, at `f64`, the cut's rounding and the read's.
+    /// The poison where a weight is not shown positive.
     fn floor(&self, cell: &Cell<T>, q: Point3<T>) -> T {
-        if !cell.net.iter().all(|h| h[3].structure_positive()) {
+        if !cell.net.iter().all(|(h, _)| h[3].structure_positive()) {
             return T::from_f64(f64::NAN);
         }
-        let points: Vec<Point3<T>> = cell.net.iter().map(|&h| point(h)).collect();
+        let points: Vec<Point3<T>> = cell.net.iter().map(|&(h, _)| point(h)).collect();
         #[cfg(test)]
         if super::mutants::spline_floor_net() {
             return points
@@ -422,21 +470,80 @@ impl<'a, T: Decide> Net<'a, T> {
             Some(slab) => gap.max(slab),
             None => gap,
         };
-        match self.rounding {
-            None => gap,
-            Some(Rounding { per_level, reach }) => {
-                let levels = self.inserted + cell.depth * (self.pu + self.pv);
-                let charge = per_level * T::from_f64(levels as f64)
-                    + rounding_charge(T::from_f64(2.0) * (reach + (q - Point3::origin()).norm()));
-                (gap - charge).max(T::zero())
-            }
+        if T::WITNESS == geom_core::Witness::Exact {
+            return gap;
+        }
+        #[cfg(test)]
+        if super::mutants::spline_charge_dropped() {
+            return gap;
+        }
+        let reach = points
+            .iter()
+            .map(|p| (*p - Point3::origin()).norm())
+            .fold(T::zero(), T::max);
+        let read = rounding_charge(
+            T::from_f64(2.0) * (reach + (q - Point3::origin()).norm() + self.centre.norm()),
+        );
+        (gap - T::from_computed(cut_rounding(cell)) - read).max(T::zero())
+    }
+}
+
+/// Whether an in-band floor is shown past the band's zero, so its cell
+/// holds no point within the zero band of the sample: an exact order
+/// ([`Band::least`]), since an enclosure straddling the zero is in band
+/// too and may hold such a point.
+fn past_zero<T: Decide>(gap: T, band: Band) -> bool {
+    matches!(
+        decide(
+            HULL,
+            Margin::of(gap - T::from_f64(band.zero())),
+            Band::least()
+        ),
+        Ok(Sign::Positive)
+    )
+}
+
+/// **The cut's rounding of a cell's points** at `f64` (module docs,
+/// *Rounding*): how far the box or the slab of the computed points can
+/// lie from the exact ones', `√(Σ_c ε_c²)` over the channels, `ε_c` the
+/// largest over the points of `(e_c + |P_c|·e_w)/(w − e_w) + u·|P_c|`
+/// (out of homogeneous form, the quotient's own rounding included). Any
+/// direction holds the hull in its slab, so a slab read on the computed
+/// points' direction moves with the points alone. Infinite where a
+/// weight's bound reaches the weight, which leaves the cell no floor.
+fn cut_rounding<T: SpanLocate>(cell: &Cell<T>) -> f64 {
+    #[cfg(test)]
+    if super::mutants::spline_cut_uncharged() {
+        return 0.0;
+    }
+    let mut worst = [0.0f64; 3];
+    for control in &cell.net {
+        let bound = point_rounding(control);
+        for c in 0..3 {
+            worst[c] = worst[c].max(bound[c]);
         }
     }
+    worst.iter().map(|x| x * x).sum::<f64>().sqrt()
+}
+
+/// One control point's rounding out of homogeneous form, per coordinate
+/// ([`cut_rounding`]): `(e_c + |P_c|·e_w)/(w − e_w) + u·|P_c|`, infinite
+/// where the weight's bound reaches the weight.
+fn point_rounding<T: SpanLocate>((h, e): &Control<T>) -> [f64; 3] {
+    let w = middle(h[3]);
+    let lead = w - e[3];
+    if !(lead > 0.0) {
+        return [f64::INFINITY; 3];
+    }
+    core::array::from_fn(|c| {
+        let p = (middle(h[c]) / w).abs();
+        (e[c] + p * e[3]) / lead + UNIT_ROUNDOFF * p
+    })
 }
 
 impl<T: Decide> Cell<T> {
     /// The cell split at the middle of its `u` range (`along_u`) or its
-    /// `v` range, by de Casteljau on each row, its shadow alike.
+    /// `v` range, by de Casteljau on each row.
     fn split(&self, pu: usize, pv: usize, along_u: bool) -> (Self, Self) {
         let (n, m) = if along_u { (pu, pv) } else { (pv, pu) };
         let at = |i: usize, k: usize| {
@@ -446,21 +553,20 @@ impl<T: Decide> Cell<T> {
                 k * (pv + 1) + i
             }
         };
+        let track = T::WITNESS == geom_core::Witness::Inexact;
         let half = T::from_f64(0.5);
         let mut left = self.net.clone();
         let mut right = self.net.clone();
         for k in 0..=m {
-            let mut row: Vec<[T; 4]> = (0..=n).map(|i| self.net[at(i, k)]).collect();
+            let mut row: Vec<Control<T>> = (0..=n).map(|i| self.net[at(i, k)]).collect();
             for level in 0..=n {
                 left[at(level, k)] = row[0];
                 right[at(n - level, k)] = row[n - level];
                 for i in 0..n - level {
-                    let (a, b) = (row[i], row[i + 1]);
-                    row[i] = core::array::from_fn(|c| T::homogeneous_step(a[c], b[c], half));
+                    row[i] = blend(row[i], row[i + 1], half, false, track);
                 }
             }
         }
-        let (shadow_left, shadow_right) = halves_f64(&self.shadow, n, m, &at);
         let [u0, u1, v0, v1] = self.rect;
         let (rect_left, rect_right) = if along_u {
             let mid = u0 + (u1 - u0) * 0.5;
@@ -474,20 +580,18 @@ impl<T: Decide> Cell<T> {
             Self {
                 rect: rect_left,
                 net: left,
-                shadow: shadow_left,
                 depth,
             },
             Self {
                 rect: rect_right,
                 net: right,
-                shadow: shadow_right,
                 depth,
             },
         )
     }
 }
 
-/// The box of the control points' shadows.
+/// The box of the control points, on their brackets' middles.
 fn shadow_box<T: SpanLocate>(control: &[Point3<T>]) -> ([f64; 3], [f64; 3]) {
     let (mut lo, mut hi) = ([f64::INFINITY; 3], [f64::NEG_INFINITY; 3]);
     for p in control {
@@ -500,66 +604,27 @@ fn shadow_box<T: SpanLocate>(control: &[Point3<T>]) -> ([f64; 3], [f64; 3]) {
     (lo, hi)
 }
 
-/// The rounding one blend level charges a point at `f64`, and the
-/// points' largest reach from the centre (module docs, *Rounding*).
-fn rounding<T: Real>(cells: &[Cell<T>]) -> (T, T) {
-    let (mut m_xyz, mut m_w, mut w_min, mut reach) = (T::zero(), T::zero(), None, T::zero());
-    for h in cells.iter().flat_map(|c| c.net.iter()) {
-        m_xyz = m_xyz.max(h[0].abs()).max(h[1].abs()).max(h[2].abs());
-        m_w = m_w.max(h[3].abs());
-        w_min = Some(w_min.map_or(h[3], |w: T| w.min(h[3])));
-        reach = reach.max((point(*h) - Point3::origin()).norm());
-    }
-    let w_min = w_min.unwrap_or_else(T::zero);
-    let per_level = T::from_f64(3.0_f64.sqrt())
-        * (rounding_charge(m_xyz) + reach * rounding_charge(m_w))
-        / w_min;
-    (per_level, reach)
-}
-
 /// The break values of `knots`, one per run, on the value channel.
 fn breaks<T: Decide>(knots: &Knots<T>) -> Option<Vec<f64>> {
     let out: Vec<f64> = knots.runs().map(|(v, _)| v.value_channel()).collect();
     out.iter().all(|x| x.is_finite()).then_some(out)
 }
 
-/// [`Cell::split`]'s de Casteljau on the shadow, in plain `f64`.
-fn halves_f64(
-    net: &[[f64; 4]],
-    n: usize,
-    m: usize,
-    at: &dyn Fn(usize, usize) -> usize,
-) -> (Vec<[f64; 4]>, Vec<[f64; 4]>) {
-    let mut left = net.to_vec();
-    let mut right = net.to_vec();
-    for k in 0..=m {
-        let mut row: Vec<[f64; 4]> = (0..=n).map(|i| net[at(i, k)]).collect();
-        for level in 0..=n {
-            left[at(level, k)] = row[0];
-            right[at(n - level, k)] = row[n - level];
-            for i in 0..n - level {
-                let (a, b) = (row[i], row[i + 1]);
-                row[i] = core::array::from_fn(|c| a[c] + (b[c] - a[c]) * 0.5);
-            }
-        }
-    }
-    (left, right)
-}
-
-/// The middle of a value's bracket, the shadow's coordinate: NaN for
-/// the poison, which orders last.
+/// The middle of a value's bracket: the walk's order, and the value an
+/// `f64` rounding bound is read at. NaN for the poison.
 fn middle<T: SpanLocate>(x: T) -> f64 {
     x.structure_bracket()
         .map_or(f64::NAN, |(lo, hi)| lo + (hi - lo) * 0.5)
 }
 
-/// The gap from the shadow sample to the shadow's box: the walk's
-/// order. NaN orders last.
-fn shadow_gap<T>(cell: &Cell<T>, q: [f64; 3]) -> f64 {
+/// The squared gap from the sample to the cell's box, on the brackets'
+/// middles: the walk's order. NaN orders last.
+fn box_key<T: SpanLocate>(cell: &Cell<T>, q: [f64; 3]) -> f64 {
     let (mut lo, mut hi) = ([f64::INFINITY; 3], [f64::NEG_INFINITY; 3]);
-    for h in &cell.shadow {
+    for (h, _) in &cell.net {
+        let w = middle(h[3]);
         for k in 0..3 {
-            let x = h[k] / h[3];
+            let x = middle(h[k]) / w;
             lo[k] = lo[k].min(x);
             hi[k] = hi[k].max(x);
         }
@@ -568,6 +633,59 @@ fn shadow_gap<T>(cell: &Cell<T>, q: [f64; 3]) -> f64 {
         .map(|k| (lo[k] - q[k]).max(q[k] - hi[k]).max(0.0).powi(2))
         .sum::<f64>();
     if d.is_nan() { f64::INFINITY } else { d }
+}
+
+/// **A homogeneous row refined to a Bézier cut along `knots`**: every
+/// interior knot raised to the degree by Boehm's insertion, through the
+/// kernel's insertion plans ([`geom_core::spline::plan_inputs::refine_plan`])
+/// applied in the scalar ([`geom_core::spline::CurvePlan::apply_homogeneous`]):
+/// each ratio formed from the held knots, each step a [`blend`], so an
+/// enclosure holds the exact refined row and the `f64` bound follows the
+/// arithmetic. `None` where a knot has no value or a plan refuses.
+fn refined<T: Decide>(
+    knots: &Knots<T>,
+    row: Vec<Control<T>>,
+    track: bool,
+) -> Option<Vec<Control<T>>> {
+    let p = knots.degree();
+    let runs: Vec<(T, usize)> = knots.runs().collect();
+    let mut add = Vec::new();
+    for &(value, m) in runs.iter().skip(1).take(runs.len().saturating_sub(2)) {
+        let x = value.value_channel();
+        if m > p || x.is_nan() {
+            return None;
+        }
+        add.extend(core::iter::repeat_n(x, p - m));
+    }
+    if add.is_empty() {
+        return Some(row);
+    }
+    // Every knot an insertion meets is one of the held breakpoints.
+    let held = |v: f64| {
+        runs.iter()
+            .find(|(value, _)| value.value_channel() == v)
+            .map_or_else(|| T::from_f64(f64::NAN), |(value, _)| *value)
+    };
+    let unit = geom_core::spline::Weights::new(vec![T::one(); row.len()]).ok()?;
+    let plans = geom_core::spline::plan_inputs::refine_plan(knots, &unit, &add).ok()?;
+    let mut values: Vec<T> = knots.values().to_vec();
+    let poison: Control<T> = ([T::from_f64(f64::NAN); 4], [f64::NAN; 4]);
+    let mut row = row;
+    for plan in &plans {
+        let pairs: Vec<(Control<T>, T)> = row.iter().map(|c| (*c, c.0[3])).collect();
+        row = plan
+            .apply_homogeneous(
+                &values,
+                &pairs,
+                ((poison, poison.0[3]), &held),
+                |x, y, t| blend(x, y, t, true, track),
+            )
+            .into_iter()
+            .map(|(c, _)| c)
+            .collect();
+        values = plan.knots().knots().iter().map(|&v| held(v)).collect();
+    }
+    (row.iter().all(|(h, _)| !h[3].is_poison())).then_some(row)
 }
 
 /// A homogeneous control point out of homogeneous form.
@@ -593,12 +711,11 @@ fn box_gap<T: Real>(points: &[Point3<T>], q: Point3<T>) -> T {
 
 /// The distance from `q` to the slab of `points` normal to the cross
 /// product of the net's corner diagonals, which holds their hull for any
-/// direction; `None` where that direction has no unit (a cell whose
+/// direction; `None` where that direction has no length (a cell whose
 /// diagonals are parallel or a point).
 fn slab_gap<T: Real>(points: &[Point3<T>], pu: usize, pv: usize, q: Point3<T>) -> Option<T> {
     let corner = |a: usize, b: usize| points[a * (pv + 1) + b];
     let n = (corner(pu, pv) - corner(0, 0)).cross(corner(0, pv) - corner(pu, 0));
-    let n = n / n.norm();
     let height = |p: Point3<T>| (p - Point3::origin()).dot(n);
     let mut heights = points.iter().map(|&p| height(p));
     let first = heights.next()?;
@@ -620,71 +737,4 @@ fn depth_cap(lo: [f64; 3], hi: [f64; 3], band: Band) -> usize {
     } else {
         CELL_DEPTH
     }
-}
-
-/// The knot vector's every value, each run repeated by its
-/// multiplicity, in the scalar.
-fn expanded<T: Decide>(knots: &Knots<T>) -> Vec<T> {
-    knots
-        .runs()
-        .flat_map(|(value, m)| core::iter::repeat_n(value, m))
-        .collect()
-}
-
-/// The interior knots to insert so each reaches the degree, the breaks
-/// of a Bézier cut, in the scalar; `None` past the degree or at a knot
-/// with no value.
-fn insertions<T: Decide>(knots: &Knots<T>) -> Option<Vec<T>> {
-    let p = knots.degree();
-    let runs: Vec<(T, usize)> = knots.runs().collect();
-    let mut add = Vec::new();
-    for &(value, m) in runs.iter().skip(1).take(runs.len().saturating_sub(2)) {
-        if m > p || value.value_channel().is_nan() {
-            return None;
-        }
-        add.extend(core::iter::repeat_n(value, p - m));
-    }
-    Some(add)
-}
-
-/// **A homogeneous row with `add` inserted into its knots** (Boehm's
-/// insertion, one knot at a time, The NURBS Book A5.1 at `r = 1`): each
-/// new point the blend `P[i−1] + (P[i] − P[i−1])·α` of its neighbours,
-/// `α = (x − U[i]) / (U[i+p] − U[i])` in the scalar, so an enclosure
-/// holds the exact refined row. The span a knot lands in is located on
-/// the value channel, a structure read of point knots. `None` where a
-/// knot has no value or a span is empty.
-fn inserted<T: Decide>(
-    knots: &[T],
-    p: usize,
-    mut row: Vec<[T; 4]>,
-    add: &[T],
-) -> Option<Vec<[T; 4]>> {
-    let mut knots = knots.to_vec();
-    for &x in add {
-        let at = x.value_channel();
-        // The last knot at or below `x`, and how many knots equal it.
-        let k = knots.iter().rposition(|u| u.value_channel() <= at)?;
-        let s = knots[..=k]
-            .iter()
-            .rev()
-            .take_while(|u| u.value_channel() == at)
-            .count();
-        if k < p || s > p {
-            return None;
-        }
-        let mut next = Vec::with_capacity(row.len() + 1);
-        next.extend_from_slice(&row[..=k - p]);
-        for i in k - p + 1..=k - s {
-            let alpha = (x - knots[i]) / (knots[i + p] - knots[i]);
-            let (a, b) = (row[i - 1], row[i]);
-            next.push(core::array::from_fn(|c| {
-                T::homogeneous_step(a[c], b[c], alpha)
-            }));
-        }
-        next.extend_from_slice(&row[k - s..]);
-        knots.insert(k + 1, x);
-        row = next;
-    }
-    Some(row)
 }
