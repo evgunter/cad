@@ -5317,20 +5317,19 @@ fn attach_contact<T: Decide + Bounds + topo::AtRestPolicy>(
     );
     // A stored carrier placed over the edge: windowed at its endpoints,
     // and run back where `p1` reads before `p0`, the same locus.
-    let placed = |curve: Curve3<T>, what: &'static str| -> Result<(Curve3<T>, T, T), BlendError> {
-        let unread = || disagrees(EntityId::Edge(edge), what);
-        let window = |c: &Curve3<T>| arc_window(c, p0, p1).ok_or_else(unread);
-        let (t0, t1) = window(&curve)?;
+    let placed = |curve: Curve3<T>| -> Option<(Curve3<T>, T, T)> {
+        let (t0, t1) = arc_window(&curve, p0, p1)?;
         if (t1 - t0).lo() > 0.0 {
-            Ok((curve, t0, t1))
+            Some((curve, t0, t1))
         } else {
-            let back = curve.reversed().ok_or_else(unread)?;
-            let (t0, t1) = window(&back)?;
-            Ok((back, t0, t1))
+            let back = curve.reversed()?;
+            let (t0, t1) = arc_window(&back, p0, p1)?;
+            Some((back, t0, t1))
         }
     };
     let (curve, t0, t1) = match carrier {
-        ContactCarrier::TrimLine(line) => placed(Curve3::Line(line), "a trimline's end parameter")?,
+        ContactCarrier::TrimLine(line) => placed(Curve3::Line(line))
+            .ok_or_else(|| disagrees(EntityId::Edge(edge), "a trimline's end parameter"))?,
         ContactCarrier::Chord => {
             let len = p0.distance(p1);
             (Curve3::line(p0, (p1 - p0) / len), T::zero(), len)
@@ -5354,7 +5353,8 @@ fn attach_contact<T: Decide + Bounds + topo::AtRestPolicy>(
         }
         // The plan ran the section forward from one foot to the other;
         // the edge runs whichever way its `he_plus` does.
-        ContactCarrier::Transverse(curve) => placed(curve, "a cut-off arc's end parameter")?,
+        ContactCarrier::Transverse(curve) => placed(curve)
+            .ok_or_else(|| disagrees(EntityId::Edge(edge), "a cut-off arc's end parameter"))?,
         ContactCarrier::Exact(curve, t0, t1) => (curve, t0, t1),
     };
     let description = if is_seam {
