@@ -1640,19 +1640,16 @@ Flagged, NOT fixed here (dispositions):
   conics, each crossing the other's plane, is read across it. The
   difference of the two `(A² − c₀²)/r²` is dimensionless, the squared
   sine of each conic's crossing for a circle; it has no length door,
-  so it is read at `Band::least`, less each score's rounding bound
-  (`geom_core::Rounded`, first order `2δ(A + |c₀|)/r²`, `δ` the
-  height's charge), so two scores apart by rounding alone tie. It picks
-  between two sound readings of one meeting, each of which decides,
-  escalates or refuses on its own rows. What keeps it off the logged
-  doors is that no outcome of it is a reading: a difference within the
-  bounds or undecided (two conics crossing alike, two conics tangent at
-  a point, an enclosure straddling the tie) reads the first, and either
-  reading is sound there. Sound is not equally decisive: at two conics
-  tangent at a shared end, the near-circle read across the long
-  ellipse's plane refuses and the long ellipse read across the
-  near-circle's decides
-  (`curve_pair::order_rows::conics_tangent_at_a_shared_end_tie_the_across_choice`).
+  so it is read bare, at `Band::least`. It picks between two sound
+  readings of one meeting, each of which decides or escalates on its
+  own rows. What keeps it off the logged doors is that no outcome of it
+  is a reading: an undecided difference (two conics crossing alike, an
+  enclosure straddling the tie) reads the first, and either reading is
+  sound there: neither answers wrong. Two conics tangent at a point tie
+  but for rounding, each tangent to the other's plane, so there either
+  may be read, and the window certifies their touch on either: its
+  height and level are read locally, about the piece
+  (`curve_pair::order_rows::conics_tangent_at_a_shared_end_meet_once_in_either_order`).
   Logged, every undecided pick at `Interval` would hand the driver an
   escalation for a choice that decides nothing.
 

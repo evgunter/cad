@@ -7,11 +7,8 @@
 //! an off piece is past the zero band throughout, an on piece within it,
 //! a receding piece's distance never falls away from the joint.
 //!
-//! The rounding charged at a reading's call sites (the level's
-//! `rounding_charge`, the height's `noise`) is not checked here: it covers
-//! the f64 harmonics' distance from the true polynomials, below the
-//! resolution of an f64 distance. Its guarantee rests on the shared
-//! `rounding_charge` estimate, and the Interval lane reads enclosures.
+//! The height and the level are read locally and uncharged at `f64`;
+//! the Interval lane reads their enclosures.
 
 #![allow(clippy::unwrap_used, clippy::panic, clippy::many_single_char_names)]
 
@@ -168,24 +165,19 @@ fn pair(rng: &mut fuzz::Rng, z: f64, touch: bool) -> (Curve3<f64>, Curve3<f64>, 
     (a, b, (big_a, big_b), scale)
 }
 
-/// The window reader of `a` against `b`, its height and rounding read as
-/// the pose reads them.
+/// The window reader of `a` against `b`, its height read as the pose
+/// reads it.
 fn window<'w, T: geom_core::Decide>(
     ka: &'w dyn Conic<T>,
     kb: &'w dyn Conic<T>,
     b: &'w Curve3<T>,
 ) -> Window<'w, T> {
-    let lever = ka.speed_hi().max(kb.speed_hi());
-    let o = Point3::origin();
     Window {
         a: ka,
         span_a: (T::from_f64(-1.0), T::from_f64(1.0)),
         b: kb,
         carrier_b: b,
         height: height(ka, kb.frame().origin, kb.frame().axis),
-        noise: geom_core::rounding_charge(
-            (ka.frame().origin - o).norm() + (kb.frame().origin - o).norm() + lever + lever,
-        ),
     }
 }
 

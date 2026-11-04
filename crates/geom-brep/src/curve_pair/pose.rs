@@ -94,15 +94,11 @@
 //!   the closest pair polished from one (below). **The conic read is the
 //!   one that crosses the other's plane the less obliquely**: the larger
 //!   `(A² − c₀²)/r²`, `r` its larger semi-axis, which is the squared
-//!   sine of its crossing for a circle, each charged with the rounding
-//!   its height carries. That is a choice between two sound readings,
-//!   not a reading: it is taken off the log (`curve_pair_pose_across`,
-//!   `k_stats::check_unlogged`, ledger row F33, at [`Band::least`]), and
-//!   a difference within the two charges, or one undecided, reads the
-//!   first. Two conics tangent at a point are that tie: each lies
-//!   tangent to the other's plane, so both scores are zero but for
-//!   rounding, and read bare their difference would pick by it.
-//!   **What is order-free**: the route (apart, level,
+//!   sine of its crossing for a circle. That is a choice between two
+//!   sound readings, not a reading: it is taken off the log
+//!   (`curve_pair_pose_across`, `k_stats::check_unlogged`, ledger row
+//!   F33, at [`Band::least`]), and a tie or an undecided difference
+//!   reads the first. **What is order-free**: the route (apart, level,
 //!   across, escalation) depends only on the pair, and across planes
 //!   the harmonic read is the same in either order wherever the choice
 //!   decides. In one plane the arms below parametrize the first conic
@@ -276,7 +272,7 @@ mod window;
 use geom::{Azimuth, Curve3, CurveKind};
 use geom_core::k_stats::{check_unlogged, decide, straddle};
 use geom_core::one_line::{OnOneLine, on_one_line};
-use geom_core::{Band, Decide, Lever, Margin, Point3, Rounded, Sign, Vec3};
+use geom_core::{Band, Decide, Lever, Margin, Point3, Sign, Vec3};
 
 use super::span::Span;
 use super::{Arm, MeetFault, Method};
@@ -1054,19 +1050,11 @@ fn conic_conic<T: Decide>(
         for read in swings {
             read?;
         }
-        // Each score with its rounding, `A` and `c₀` each within `noise`.
         let steep = |(c0, _, _): (T, T, T), swing: T, k: &dyn Conic<T>| {
             let (p, q) = k.semi_axes();
-            let within = |x: T| Rounded {
-                value: x,
-                error: noise,
-            };
-            let r2 = Rounded::exact(p.abs().max(q.abs())).square().divisor();
-            let r2 = r2.ok_or(MeetFault::Desync)?;
-            Ok::<_, MeetFault>((within(swing).square() - within(c0).square()).quotient(r2))
+            (swing.powi(2) - c0.powi(2)) / p.abs().max(q.abs()).powi(2)
         };
-        let (sa, sb) = (steep(ha, swing_a, &ka)?, steep(hb, swing_b, &kb)?);
-        let by_b = sb.value - sa.value - (sa.error + sb.error);
+        let by_b = steep(hb, swing_b, &kb) - steep(ha, swing_a, &ka);
         if check_unlogged(row::ACROSS, by_b, Band::least(), "F33") == Ok(Sign::Positive) {
             let flipped: Vec<_> = known.iter().copied().map(flip).collect();
             let read = transverse((b, &kb, &ka, a), hb, swing_b, (noise, arm), &flipped, band);
@@ -1192,7 +1180,6 @@ fn transverse<T: Decide>(
         b: kb,
         carrier_b: b.carrier(),
         height: (c0, cp, sp),
-        noise,
     };
     let joints: Vec<_> = known
         .iter()
@@ -1408,7 +1395,7 @@ fn coplanar_ellipses<T: Decide>(
 ) -> Result<Pose<T>, MeetFault> {
     let (big_a, big_b) = kb.semi_axes();
     let (ub, vb) = (kb.frame().u_ref, kb.frame().v_ref());
-    let (poly, terms) = level_on(ka, kb);
+    let (poly, terms) = coplanar_level(ka, kb);
     let small = big_a.abs().min(big_b.abs());
     let (t0, t1) = e.params();
     let (ceiling, reach) = level_ceiling(small);
@@ -1432,10 +1419,101 @@ fn coplanar_ellipses<T: Decide>(
 
 /// **`b`'s level along `a`**: `F(θ) = X²/A² + Y²/B² − 1` at the image of
 /// `a(θ)` in `b`'s plane, `(X, Y)` in `b`'s frame and `(A, B)` its
-/// semi-axes, of degree two in `a`'s angle (each of `X` and `Y` is a
-/// first harmonic); and the term bound its rounding is charged on. The
-/// height of `a(θ)` above `b`'s plane plays no part.
-pub(super) fn level_on<T: Decide>(
+/// semi-axes. The height of `a(θ)` above `b`'s plane plays no part.
+///
+/// **It is read locally**: at `θ`, from `a`'s point and derivatives there
+/// in `b`'s frame ([`Level::jet_at`]), never from its global harmonics.
+/// Posed about `b`'s centre those carry rounding of order `((|w| + R)/s)²`,
+/// `w` the centres' offset, `R` `a`'s size and `s` `b`'s smaller
+/// semi-axis, which at a far or thin pair reaches the band's zero; the
+/// local form's rounding is that of `F`'s own few terms. A reading over a
+/// piece takes the jet at its middle and [`Level::fourth`] for Taylor's
+/// remainder, a bound that needs no precision.
+pub(super) struct Level<'k, T: geom_core::Real> {
+    a: &'k dyn Conic<T>,
+    centre: Point3<T>,
+    axes: (Vec3<T>, Vec3<T>),
+    squares: (T, T),
+    fourth: T,
+}
+
+impl<T: Decide> Level<'_, T> {
+    /// `F` and its first three derivatives at `θ`. On a conic
+    /// `P″ = −(P − c)` and `P‴ = −P′`, `c` its centre.
+    pub(super) fn jet_at(&self, theta: T) -> [T; 4] {
+        let (p, dp) = self.a.jet_at(theta);
+        let ddp = self.a.frame().origin - p;
+        let (ub, vb) = self.axes;
+        let q = p - self.centre;
+        let side = |axis: Vec3<T>, square: T| {
+            let (x, x1, x2) = (q.dot(axis), dp.dot(axis), ddp.dot(axis));
+            let x3 = T::zero() - x1;
+            let three = T::from_f64(3.0);
+            [
+                x.powi(2) / square,
+                x * x1 / square,
+                (x1.powi(2) + x * x2) / square,
+                (three * x1 * x2 + x * x3) / square,
+            ]
+        };
+        let (x, y) = (side(ub, self.squares.0), side(vb, self.squares.1));
+        let two = T::from_f64(2.0);
+        [
+            x[0] + y[0] - T::one(),
+            two * (x[1] + y[1]),
+            two * (x[2] + y[2]),
+            two * (x[3] + y[3]),
+        ]
+    }
+
+    /// `|∇F|` at the image of `a(θ)`: `2·√(X²/A⁴ + Y²/B⁴)`.
+    pub(super) fn gradient_at(&self, theta: T) -> T {
+        let q = self.a.point_at(theta) - self.centre;
+        let (ub, vb) = self.axes;
+        let (x, y) = (q.dot(ub) / self.squares.0, q.dot(vb) / self.squares.1);
+        T::from_f64(2.0) * (x.powi(2) + y.powi(2)).sqrt()
+    }
+
+    /// A bound on `|F⁗|` over every angle. Each of `X` and `Y` is
+    /// `x₀ + ρ·cos(θ − φ)`, so `X²`'s first and second harmonics have
+    /// amplitudes `2|x₀|ρ` and `ρ²/2`, and `|(X²)⁗| ≤ 2|x₀|ρ + 8ρ²`. A sum
+    /// of non-negative terms, raised past its few roundings.
+    pub(super) fn fourth(&self) -> T {
+        self.fourth
+    }
+}
+
+/// [`Level`] of `kb` along `ka`.
+pub(super) fn level_on<'k, T: Decide>(ka: &'k dyn Conic<T>, kb: &dyn Conic<T>) -> Level<'k, T> {
+    let (big_a, big_b) = kb.semi_axes();
+    let (ub, vb) = (kb.frame().u_ref, kb.frame().v_ref());
+    let (ua, va) = (
+        ka.frame().u_ref * ka.semi_axes().0,
+        ka.frame().v_ref() * ka.semi_axes().1,
+    );
+    let w = ka.frame().origin - kb.frame().origin;
+    let squares = (big_a.powi(2), big_b.powi(2));
+    let (two, eight) = (T::from_f64(2.0), T::from_f64(8.0));
+    let side = |axis: Vec3<T>, square: T| {
+        let rho = (ua.dot(axis).powi(2) + va.dot(axis).powi(2)).sqrt();
+        (two * w.dot(axis).abs() * rho + eight * rho.powi(2)) / square
+    };
+    let raised = T::from_f64(1.0 + 32.0 * f64::EPSILON);
+    Level {
+        a: ka,
+        centre: kb.frame().origin,
+        axes: (ub, vb),
+        squares,
+        fourth: (side(ub, squares.0) + side(vb, squares.1)) * raised,
+    }
+}
+
+/// **The coplanar ellipses' level, read globally**: [`Level`]'s `F` as
+/// one trigonometric polynomial of degree two in `a`'s angle (each of `X`
+/// and `Y` a first harmonic), and the term bound its rounding is charged
+/// on. Only `coplanar_ellipses` reads it, through the certified
+/// subdivision; the window reads [`Level`].
+fn coplanar_level<T: Decide>(
     ka: &dyn Conic<T>,
     kb: &dyn Conic<T>,
 ) -> (crate::half_angle::TrigPoly<T>, T) {
