@@ -1434,6 +1434,9 @@ fn link_reads<T: Decide>(
             LinkRefusal::Unread(TouchUnread::ChordScale) => {
                 "a cell with an edge too long or too short to measure"
             }
+            LinkRefusal::Unread(TouchUnread::EdgeTangent { .. }) => {
+                "a cell on a curved edge whose direction does not read there"
+            }
             LinkRefusal::Unread(TouchUnread::Corrupt) => "a cell whose topology does not read",
         };
         unsupported_as("gap", class, read.class())

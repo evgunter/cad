@@ -192,9 +192,9 @@ fn on_interior_reading<T: Decide>(
 /// measure from where it is read, and where that is known only from both
 /// sides (an ellipse, spiric or spline edge, whose bound from above can
 /// pass it many times over) the tangent carries both and the wedge acts
-/// only on a sign both read. `Some(None)` where `q` is not on the
-/// interior; `None` where a decision escalated or the edge is not read
-/// (pushed).
+/// only on a sign both read. The direction is [`edge_tangent_at`]'s.
+/// `Some(None)` where `q` is not on the interior; `None` where a
+/// decision escalated or the edge is not read (pushed).
 pub(super) fn tangent_on_interior<T: Decide>(
     body: &Body<T>,
     e: EdgeKey,
@@ -202,28 +202,61 @@ pub(super) fn tangent_on_interior<T: Decide>(
     band: Band,
     errors: &mut Vec<ValidationError>,
 ) -> Option<Option<Departure<T>>> {
-    let r = read(body, e, band, errors)?;
-    let e = crate::live::proven(&body.edges, r.edge, EntityId::Edge);
-    let lever = crate::boolean::boxes::edge_reach_bounds(body, r.edge, e, q)?;
-    Some(
-        on_interior_at(body, &r, q, band, errors)?
-            .map(|(t, _)| Departure::along(r.curve.deriv(t).normalize(), lever)),
-    )
+    let tangent = edge_tangent_at(body, e, q, band, errors)?;
+    let edge = crate::live::proven(&body.edges, e, EntityId::Edge);
+    let lever = crate::boolean::boxes::edge_reach_bounds(body, e, edge, q)?;
+    Some(tangent.map(|tangent| Departure::along(tangent.dir(), lever)))
 }
 
-/// **The parameter of `e` at `q`, where `q` lies on its interior**: the
-/// one its span certifies `q` on ([`Hit::On`]), on the branch about the
-/// span's middle. `Some(None)` where `q` is not on the interior; `None`
-/// where a decision escalated or the edge is not read (pushed).
-pub(super) fn param_on_interior<T: Decide>(
+/// An edge's unit tangent at a point, along its plus half
+/// ([`edge_tangent_at`]).
+#[derive(Clone, Copy, Debug)]
+pub(super) enum EdgeTangent<T: Real> {
+    /// A line's direction: the same at every point, read off the
+    /// carrier by its kind.
+    Line(geom_core::Vec3<T>),
+    /// A curve's tangent at the parameter the edge's span certifies the
+    /// point on ([`Hit::On`]).
+    Curve(geom_core::Vec3<T>),
+}
+
+impl<T: Real> EdgeTangent<T> {
+    /// The unit direction, either way.
+    pub(super) fn dir(self) -> geom_core::Vec3<T> {
+        match self {
+            Self::Line(dir) | Self::Curve(dir) => dir,
+        }
+    }
+}
+
+/// **`e`'s unit tangent at `q`, where `q` lies on its interior**, along
+/// its plus half: the one reading of an edge's direction at a point.
+/// A line's is its carrier's direction, by its kind. A curve's is its
+/// tangent at the parameter its span certifies `q` on ([`Hit::On`]), so
+/// no reader of it rests on an uncertified foot. `Some(None)` where `q`
+/// is not on a curve's interior; `None` where a decision escalated or
+/// the edge is not read (pushed).
+pub(super) fn edge_tangent_at<T: Decide>(
     body: &Body<T>,
     e: EdgeKey,
     q: Point3<T>,
     band: Band,
     errors: &mut Vec<ValidationError>,
-) -> Option<Option<T>> {
+) -> Option<Option<EdgeTangent<T>>> {
+    let line = body
+        .edges
+        .get(e)
+        .and_then(|d| body.curves.get(d.curve))
+        .and_then(crate::null::CurveGeom::certified)
+        .and_then(|curve| curve.carrier().as_line());
+    if let Some(line) = line {
+        return Some(Some(EdgeTangent::Line(line.dir.normalize())));
+    }
     let r = read(body, e, band, errors)?;
-    Some(on_interior_at(body, &r, q, band, errors)?.map(|(t, _)| t))
+    Some(
+        on_interior_at(body, &r, q, band, errors)?
+            .map(|(t, _)| EdgeTangent::Curve(r.curve.deriv(t).normalize())),
+    )
 }
 
 /// [`on_interior_reading`], keeping the parameter `q`'s foot is at.

@@ -488,6 +488,15 @@ pub enum TouchUnread {
     Degenerate,
     /// A link's extent is too long or too short to be a number.
     ChordScale,
+    /// A curved edge's tangent at the touch point did not read: the
+    /// edge's span does not certify the point on its interior, or the
+    /// edge's own reading refused (a spline's walk past its budget, a
+    /// curve with no certificate). `what` says which. It is no tangency
+    /// a reading of second order would part ([`Self::Unreadable`]).
+    EdgeTangent {
+        /// What did not read.
+        what: &'static str,
+    },
     /// The topology around the touch did not read. The census runs only
     /// on bodies tier 1 admits (loops closed, every key resolving), so
     /// this is a kernel defect.

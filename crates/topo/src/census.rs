@@ -7418,6 +7418,9 @@ pub(crate) enum Undecided {
     TouchDegenerate,
     /// Arm 2: a touch at a corner whose edge length is not a number.
     TouchChordScale,
+    /// Arm 2: a touch on a curved edge whose tangent there did not read
+    /// ([`TouchUnread::EdgeTangent`]).
+    TouchEdgeTangent,
     /// Arm 2: every vertex of the contained instance on the boundary.
     AllOn,
     /// Arm 2: the contained instance has no vertex.
@@ -7498,6 +7501,7 @@ impl Undecided {
                 | Self::TouchUnanalysed
                 | Self::TouchDegenerate
                 | Self::TouchChordScale
+                | Self::TouchEdgeTangent
         )
     }
 
@@ -7584,6 +7588,11 @@ impl Undecided {
                 "they touch at a corner with an edge too long or too short to measure. \
                  Recourse: rescale the model so every edge length is an ordinary number, \
                  or move them until their bounding boxes no longer overlap"
+            }
+            Self::TouchEdgeTangent => {
+                "they touch on a curved edge whose direction there the check could not read, \
+                 so it cannot tell whether they overlap. There is no way through yet for \
+                 this shape; otherwise move them until their bounding boxes no longer overlap"
             }
             Self::AllOn => {
                 "every corner of one lies on the other's boundary, so the corners cannot \
@@ -7862,6 +7871,7 @@ impl TouchUnread {
             Self::Unanalysed => Undecided::TouchUnanalysed,
             Self::Degenerate => Undecided::TouchDegenerate,
             Self::ChordScale => Undecided::TouchChordScale,
+            Self::EdgeTangent { .. } => Undecided::TouchEdgeTangent,
             Self::Corrupt => Undecided::CorruptInstance,
         }
     }
@@ -7929,6 +7939,12 @@ impl TouchUnread {
                 "an edge there is too long or too short to measure. Recourse: rescale the \
                  model so every edge length is an ordinary number"
             }
+            Self::EdgeTangent { .. } => concat!(
+                "a curved edge meets the point, and the check could not read its direction \
+                 there. ",
+                geom_core::not_yet_ending!(),
+                " for this shape"
+            ),
             Self::Corrupt => concat!(
                 "the part's topology there could not be walked. ",
                 geom_core::kernel_or_file_defect_ending!()
@@ -8944,12 +8960,12 @@ fn departure<T: Decide>(
 }
 
 /// **Half-edge `he`'s unit direction at `p`**, a point inside its edge,
-/// and whether the edge is a line. A line's is its carrier's direction,
-/// the same at every point. A curve's is its tangent at the parameter
-/// the edge's span certifies `p` on ([`curved::param_on_interior`]): a
-/// point the span does not certify on its interior refuses, an
-/// escalation as [`TouchUnread::InBand`] and anything else as
-/// [`TouchUnread::Unreadable`].
+/// and whether the edge is a line: the edge's tangent there
+/// ([`curved::edge_tangent_at`]), turned to the half. Where it does not
+/// read: an escalation is [`TouchUnread::InBand`], and anything else
+/// (the span does not certify `p` on the interior, or the edge's reading
+/// refused) is [`TouchUnread::EdgeTangent`], naming what. Neither is a
+/// tangency a second-order reading would part.
 fn half_edge_tangent<T: Decide>(
     body: &Body<T>,
     he: HalfEdgeKey,
@@ -8958,33 +8974,41 @@ fn half_edge_tangent<T: Decide>(
 ) -> Result<(Vec3<T>, bool), TouchUnread> {
     let half = body.get_half_edge(he).ok_or(TouchUnread::Corrupt)?;
     let edge = body.get_edge(half.edge).ok_or(TouchUnread::Corrupt)?;
-    let carrier = body
-        .curves
-        .get(edge.curve)
-        .and_then(crate::null::CurveGeom::certified)
-        .ok_or(TouchUnread::Unreadable)?
-        .carrier();
-    let (d, line) = match carrier.as_line() {
-        Some(line) => (line.dir.normalize(), true),
-        None => {
-            let mut refused = Vec::new();
-            match curved::param_on_interior(body, half.edge, p, band, &mut refused) {
-                Some(Some(t)) => (carrier.deriv(t).normalize(), false),
-                Some(None) => return Err(TouchUnread::Unreadable),
-                None => {
-                    let escalated = refused
-                        .iter()
-                        .any(|r| matches!(r, ValidationError::CensusEscalated { .. }));
-                    return Err(if escalated {
-                        TouchUnread::InBand
-                    } else {
-                        TouchUnread::Unreadable
-                    });
-                }
-            }
+    let mut refused = Vec::new();
+    let tangent = match curved::edge_tangent_at(body, half.edge, p, band, &mut refused) {
+        Some(Some(tangent)) => tangent,
+        Some(None) => {
+            return Err(TouchUnread::EdgeTangent {
+                what: "the edge's span does not certify the touch point on its interior",
+            });
         }
+        None => return Err(edge_tangent_refusal(&refused)),
     };
+    let line = matches!(tangent, curved::EdgeTangent::Line(_));
+    let d = tangent.dir();
     Ok((if he == edge.he_plus { d } else { -d }, line))
+}
+
+/// What an edge's tangent reading pushed when it did not read, as a
+/// touch's refusal: an escalation is a sign in band; a refusal carries
+/// its own `what`.
+fn edge_tangent_refusal(refused: &[ValidationError]) -> TouchUnread {
+    refused
+        .iter()
+        .find_map(|r| match r {
+            ValidationError::CensusEscalated { .. } => Some(TouchUnread::InBand),
+            ValidationError::CensusUnsupported {
+                cause:
+                    CensusUnsupportedCause::ContactLane(
+                        crate::contact::ContactRefusal::NotCertifiable { what },
+                    ),
+                ..
+            } => Some(TouchUnread::EdgeTangent { what }),
+            _ => None,
+        })
+        .unwrap_or(TouchUnread::EdgeTangent {
+            what: "the edge's tangent at the touch point did not read",
+        })
 }
 
 impl<T: Decide> Link<T> {
