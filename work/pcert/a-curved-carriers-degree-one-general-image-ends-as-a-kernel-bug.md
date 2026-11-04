@@ -2,7 +2,8 @@
 id: a-curved-carriers-degree-one-general-image-ends-as-a-kernel-bug
 kind: issue
 title: The mint's degree-1 General image of a curved carrier on a spline chart refuses its map residual with a tolerance offer and a kernel-bug ending
-status: open
+status: closed
+closed: 2026-11-04
 opened: 2026-11-03
 priority: P1
 cost: M
@@ -52,3 +53,31 @@ refuses), after which circles can take `General` too and E5's
 ends "not yet" with the image as its lever (D3), never a tolerance
 offer or a kernel-bug ending. A row needs an ellipse on a spline wall
 that the mint images.
+
+## Closed
+
+`pcert/curved-general-image`. The mint's producer images a bending
+carrier (curved, no net: a circle, an ellipse) finely enough for the
+`General` row to certify it: `edge_nurbs::curved_chart_image`, degree 5
+through 33, 65, 129 or 257 feet of the uniform schedule, stopping at the
+first rung whose miss sampled between feet is within `band.zero()/16`,
+and broken at full multiplicity where the foot path crosses one of the
+wall's interior knot lines. A line's and a spline's image is today's
+degree-1 one. Where the certificate still refuses a fresh image of a
+bending carrier (a band-scale pose, the finest rung, `Interval` at ε
+1e-12), `geom_brep::minted_refusal` relabels it in
+`general_lane_refusal` as the lane's gap, "not yet"; a stored row at
+rest keeps its term. Circles take the general lane too: the arc rim's
+fall-through is the same `general` closure `iso_schedule` ends in, and
+E5's `NoGeneralLane` for a circle no row holds is gone.
+
+Rows: `topo/tests/a_bending_carrier_on_a_spline_wall_takes_the_general_lane.rs`
+and `geom-brep/tests/pcurve_general.rs`
+`the_derived_route_certifies_a_line_and_a_bending_carrier_*`.
+
+Filed:
+- `work/pcert/an-ellipse-stated-as-another-charts-image-on-a-spline-chart-takes-no-general-lane.md`;
+- `work/quad/a-rational-spline-face-with-a-general-row-has-no-volume-lane.md`;
+- evidence on `work/ssiedge/plane-nurbs-limb-two-refuses-a-non-row-section.md`
+  (the edge certificates' producers), `work/isotail/curved-trim-e2e-fixture-waits-for-a-producer.md`
+  and `work/nurbs/nurbs-curve-interval-eval-loses-the-partition-of-unity-over-a-wide-t.md`.

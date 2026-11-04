@@ -614,7 +614,8 @@ fn a_carrier_domain_the_door_refuses_refuses_as_the_domain_door() {
             ),
             ("line", line),
         ] {
-            let mint = FittedLane::<f64>::certified().general_image(&carrier, (lo, hi), &wall);
+            let mint =
+                FittedLane::<f64>::certified().general_image(&carrier, (lo, hi), &wall, band());
             let Err(PcurveCertifyError::CarrierDomain(r)) = mint else {
                 panic!(
                     "[{lo:e}, {hi:e}] {name}: the mint must refuse as the domain door: {mint:?}"

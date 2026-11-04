@@ -63,6 +63,8 @@ use topo::test_support as common;
 mod fixture;
 mod probe_support;
 
+#[path = "a_bending_carrier_on_a_spline_wall_takes_the_general_lane.rs"]
+mod a_bending_carrier_on_a_spline_wall_takes_the_general_lane;
 #[path = "a_block_resting_in_the_zero_band_unions.rs"]
 mod a_block_resting_in_the_zero_band_unions;
 #[path = "a_callers_interval_is_refused_at_its_door.rs"]
