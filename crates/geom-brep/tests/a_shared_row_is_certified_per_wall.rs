@@ -595,12 +595,14 @@ fn a_rim_across_a_closed_charts_closure_is_no_shared_row() {
             t0,
             angle,
             breaks,
+            ends,
         } => Pcurve::IsoArc {
             p0,
             pd,
             t0: t0 + tau,
             angle,
             breaks,
+            ends,
         },
         other => panic!("an arc row: {other:?}"),
     });
@@ -1177,6 +1179,7 @@ fn a_shared_row_admits_only_row_images() {
         t0,
         angle,
         breaks,
+        ..
     } = ib
     else {
         panic!("an arc rim");
@@ -1191,6 +1194,7 @@ fn a_shared_row_admits_only_row_images() {
             t0,
             angle,
             breaks: breaks.clone(),
+            ends: Vec::new(),
         };
         assert!(
             SharedRow::new(

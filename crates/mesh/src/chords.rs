@@ -394,12 +394,16 @@ fn nurbs_tighten(
             // maximal at the sub-arc ends (`|φ| = h/2`), where
             // `sec²(h/4)/(4·m·tan(h/4)) = 1/(2·m·sin(h/2))`.
             // A closed-form sup over the whole span, like the other
-            // two arms — no sampling.
+            // two arms — no sampling. A row stated at unequal end
+            // weights moves the chart parameter through `σ = λs/(λs +
+            // 1 − s)` on each sub-arc, whose `dσ/ds` lies between `λ`
+            // and `1/λ`, so the sup is scaled by the largest of those.
             Pcurve::IsoArc {
                 pd,
                 t0: arc_t0,
                 angle,
                 breaks,
+                ends,
                 ..
             } => {
                 let spans = geom_brep::iso_arc_spans(breaks);
@@ -432,7 +436,14 @@ fn nurbs_tighten(
                 }
                 #[allow(clippy::cast_precision_loss)]
                 let m = spans as f64;
-                let rate = 1.0 / (2.0 * m * (angle / (2.0 * m)).sin());
+                let skew = ends
+                    .windows(2)
+                    .map(|e| {
+                        let lambda = (e[0] / e[1]).sqrt();
+                        lambda.max(1.0 / lambda)
+                    })
+                    .fold(1.0_f64, f64::max);
+                let rate = skew / (2.0 * m * (angle / (2.0 * m)).sin());
                 (pd.x.abs() * rate, pd.y.abs() * rate)
             }
             Pcurve::Harmonic { u, v } => harmonic_uv_speeds(*u, *v),

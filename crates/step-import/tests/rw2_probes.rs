@@ -261,6 +261,7 @@ fn probe_foreign_segmentation_certifies_through_the_same_door() {
         t0: 0.0,
         angle: theta,
         breaks,
+        ends: Vec::new(),
     };
     let band = geom_core::Band::linear(Tol::witness()).unwrap();
     let cache = PcurveCache::certify(pcurve, 0.0, theta, &carrier, &surface, band)
@@ -306,6 +307,7 @@ fn probe_foreign_segmentation_certifies_through_the_same_door() {
         t0: 0.0,
         angle: theta,
         breaks: breaks2,
+        ends: Vec::new(),
     };
     let refusal = PcurveCache::certify(pcurve2, 0.0, theta, &carrier, &surface2, band)
         .expect_err("a wrong interior weight must refuse");

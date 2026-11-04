@@ -610,6 +610,16 @@ pub enum Pcurve<T: Real> {
         /// Sub-arc breakpoints on `τ ∈ [0, 1]`: a uniform clamped
         /// degree-1 knot vector with one span per sub-arc.
         breaks: KnotVector,
+        /// The row's end weights at the sub-arc joints, in the image's
+        /// own order (`g = 0` first), where they are not one constant:
+        /// a row stated `w₀, w₁, w₂, …` with `w₀ ≠ w₂` is the same arc
+        /// as `1, w₁/√(w₀w₂), 1, …` read through a Möbius change of its
+        /// parameter, `σ = λs / (λs + 1 − s)` on each sub-arc with
+        /// `λ = √(eₖ/eₖ₊₁)` ([`iso_arc_g`]). Empty for a row at one end
+        /// weight, where `σ = s`. Pure `f64` structure like `breaks`,
+        /// copied off the row's held weights and compared to them on the
+        /// bits by the certificate.
+        ends: Vec<f64>,
     },
     /// The **exact chart image of a [`geom::Curve3::Spiric`]** on the
     /// charts a spiric lies on — the plane of its own cutting section,
@@ -884,9 +894,9 @@ impl WallTorus {
 /// The chart parameter `g(t) ∈ [0, 1]` of an [`Pcurve::IsoArc`]
 /// (variant docs for the derivation). Total: a malformed `breaks`
 /// answers poison rather than panicking (D4).
-fn iso_arc_g<T: SpanLocate>(t: T, t0: T, angle: T, breaks: &KnotVector) -> T {
+fn iso_arc_g<T: SpanLocate>(t: T, t0: T, angle: T, breaks: &KnotVector, ends: &[f64]) -> T {
     let spans = iso_arc_spans(breaks);
-    if spans == 0 {
+    if spans == 0 || !(ends.is_empty() || ends.len() == spans + 1) {
         return T::from_f64(f64::NAN);
     }
     #[allow(clippy::cast_precision_loss)]
@@ -905,11 +915,19 @@ fn iso_arc_g<T: SpanLocate>(t: T, t0: T, angle: T, breaks: &KnotVector) -> T {
     let degree = breaks.degree();
     let mut acc: Option<T> = None;
     for span in set.first.index()..=set.last.index() {
+        let k = span.saturating_sub(degree);
         #[allow(clippy::cast_precision_loss)]
-        let kf = T::from_f64(span.saturating_sub(degree) as f64);
+        let kf = T::from_f64(k as f64);
         let phi = (t - t0) - (kf + T::from_f64(0.5)) * h;
         let (s_h, c_h) = (phi * T::from_f64(0.5)).sin_cos();
         let s = T::from_f64(0.5) + (s_h / c_h) / (T::from_f64(2.0) * tan_q);
+        let s = match (ends.get(k), ends.get(k + 1)) {
+            (Some(&a), Some(&b)) => {
+                let lambda = (T::from_f64(a) / T::from_f64(b)).sqrt();
+                lambda * s / (lambda * s + T::one() - s)
+            }
+            _ => s,
+        };
         let g = (kf + s) / m;
         acc = Some(match acc {
             None => g,
@@ -1196,12 +1214,14 @@ impl<T: Real> Pcurve<T> {
                 t0,
                 angle,
                 breaks,
+                ends,
             } => Pcurve::IsoArc {
                 p0: point(*p0),
                 pd: vector(*pd),
                 t0: *t0,
                 angle: *angle,
                 breaks: breaks.clone(),
+                ends: ends.clone(),
             },
             // The CAP image is linear in its chart-space coefficients
             // exactly as the harmonic one is — `p0` through `point`,
@@ -1379,8 +1399,9 @@ impl<T: SpanLocate> Pcurve<T> {
                 t0,
                 angle,
                 breaks,
+                ends,
             } => {
-                let g = iso_arc_g(t, *t0, *angle, breaks);
+                let g = iso_arc_g(t, *t0, *angle, breaks, ends);
                 Point2::new(p0.x + pd.x * g, p0.y + pd.y * g)
             }
             // One `sin_cos`, one `sqrt` (inside `spiric_radial`), one
@@ -4599,8 +4620,9 @@ impl<T: Decide> PcurveCache<T> {
                 t0: at0,
                 angle,
                 breaks,
+                ends,
             } => run_iso_arc_checks(
-                *p0, *pd, *at0, *angle, breaks, t0, t1, carrier, surface, band,
+                *p0, *pd, *at0, *angle, breaks, ends, t0, t1, carrier, surface, band,
             )?,
             // EXHAUSTIVE by variant, never a catch-all (D3): a
             // catch-all here would route a NEW closed-form variant
@@ -4832,12 +4854,14 @@ impl<T: Decide> PcurveCache<T> {
                 t0,
                 angle,
                 breaks,
+                ends,
             } => run_iso_arc_checks(
                 *p0,
                 *pd,
                 *t0,
                 *angle,
                 breaks,
+                ends,
                 self.param_start,
                 self.param_end,
                 carrier,
@@ -7925,17 +7949,25 @@ fn arc_rim_weight<T: SpanLocate>(
 }
 
 /// **The turn a chart column's arc weight states**: `m` sub-arcs of
-/// `h = 2·acos(w)` each, `w` the column's interior weight. The inverse
-/// of [`arc_rim_weight`]'s `w = cos(h/2)`, read by the arc rim's measured
-/// image (`edge_nurbs::arc_rim_measured`). `None` for a column with fewer
-/// than two weights, or whose weight is not decided below 1: a
+/// `h = 2·acos(w)` each, `w` the column's first sub-arc's interior
+/// weight at unit end weights, `w₁/√(w₀·w₂)` (`w₁/w₀` where the two end
+/// weights are one value). The inverse of [`arc_rim_weight`]'s
+/// `w = cos(h/2)`, read by the arc rim's measured image
+/// (`edge_nurbs::arc_rim_measured`). `None` for a column with fewer
+/// than three weights, or whose weight is not decided below 1: a
 /// polynomial column (`w = 1`) states no turn.
 pub(crate) fn arc_rim_turn<T: Decide>(
     column: &NurbsCurve3<T>,
     spans: usize,
     band: Band,
 ) -> Option<T> {
-    let w = arc_rim_ratio(column)?;
+    let (held, bits) = (column.weights(), column.weights_f64_interim());
+    let w = match (held.get(..3), bits.get(..3)) {
+        (Some(&[w0, w1, w2]), Some(&[b0, _, b2])) if b0.to_bits() != b2.to_bits() => {
+            w1 / (w0 * w2).sqrt()
+        }
+        _ => arc_rim_ratio(column)?,
+    };
     match decide("pcurve_iso_arc_weight", Margin::of(T::one() - w), band) {
         Ok(Sign::Positive) => {}
         Ok(Sign::Zero | Sign::Negative) | Err(_) => return None,
@@ -7980,11 +8012,15 @@ pub fn iso_arc_spans(breaks: &KnotVector) -> usize {
 /// six decades past useful.
 ///
 /// The structure `Ĉ` assumes — degree 2, uniform clamped knots with
-/// one span per sub-arc on `[0, 1]`, weights `1, w, 1, w, …, 1` — is
-/// read as EXACT `f64` structure (C6) and refused typed when it does
-/// not hold, so an imported rational chart that is not this
-/// construction cannot slip through. That `w` really is `cos(h/2)` is
-/// the one DECIDED margin, metered into metres by the radius.
+/// one span per sub-arc on `[0, 1]`, weights `1, w, 1, w, …, 1` up to
+/// one scale, or end weights the image states as its `ends` — is read
+/// as EXACT `f64` structure (C6) and refused typed when it does not
+/// hold, so an imported rational chart that is not this construction
+/// cannot slip through. A column at unequal end weights is the same
+/// arc through each sub-arc's Möbius change of parameter, which the
+/// image's map applies, so `Ĉ` keeps its control points and shares
+/// `B`'s weights. That each sub-arc's `w` at unit end weights really is
+/// `cos(h/2)` is the DECIDED margin, metered into metres by the radius.
 #[allow(clippy::too_many_arguments)] // one parameter per named quantity
 #[allow(clippy::too_many_lines)] // one class, kept whole like its siblings
 fn run_iso_arc_checks<T: Decide>(
@@ -7993,6 +8029,7 @@ fn run_iso_arc_checks<T: Decide>(
     at0: T,
     angle: T,
     breaks: &KnotVector,
+    ends: &[f64],
     t0: T,
     t1: T,
     carrier: &Curve3<T>,
@@ -8081,6 +8118,7 @@ fn run_iso_arc_checks<T: Decide>(
         t0: at0,
         angle,
         breaks: breaks.clone(),
+        ends: ends.to_vec(),
     };
     let mut max_residual = T::zero();
     schedule_residuals(
@@ -8216,33 +8254,52 @@ fn run_iso_arc_checks<T: Decide>(
     // at the witness only
     // (`work/intent/held-value-equalities-decided-on-the-value-channel.md`);
     // the margin below reads the column's held `w₁/w₀`.
-    let ends: Vec<f64> = bw.iter().step_by(2).copied().collect();
+    //
+    // A column whose end weights are not one constant is the same arc
+    // through a Möbius change of each sub-arc's parameter, which the
+    // image states as its `ends` (variant docs). Its end weights are
+    // the image's, on the bits, once the traversal is read below; its
+    // interior weights may be anything, and each sub-arc's normalized
+    // `wₖ/√(eₖ·eₖ₊₁)` is decided against `cos(h/2)` on its own.
+    let row_ends: Vec<f64> = bw.iter().step_by(2).copied().collect();
     let interior: Vec<f64> = bw.iter().skip(1).step_by(2).copied().collect();
-    if constant_weight(&ends).is_none() || constant_weight(&interior).is_none() {
+    if ends.is_empty()
+        && (constant_weight(&row_ends).is_none() || constant_weight(&interior).is_none())
+    {
         return Err(bad(
             "an arc rim whose chart column weights are not `c, c·w, c, …` with ONE \
              interior ratio — the uniform sub-arc construction",
         ));
     }
-    // --- The one decided margin: `w = cos(h/2)`. ---
+    // --- The decided margins: `w = cos(h/2)`. ---
     let ArcRimWeight {
         h,
         cos_half,
         margin,
     } = arc_rim_weight(&b, angle, spans);
-    match decide(
-        "pcurve_iso_boundary",
-        Margin::metered(margin, InfSpeed::new(*radius)),
-        band,
-    )
-    .map_err(&esc)?
-    {
-        Sign::Zero => {}
-        Sign::Positive | Sign::Negative => {
-            return Err(bad(
-                "an arc rim whose chart column weight is not `cos(h/2)` for its sub-arc \
-                 angle — the column is not this circle's rational-quadratic form",
-            ));
+    let held = b.weights();
+    let margins: Vec<T> = if ends.is_empty() {
+        vec![margin]
+    } else {
+        (0..spans)
+            .map(|k| held[2 * k + 1] / (held[2 * k] * held[2 * k + 2]).sqrt() - cos_half)
+            .collect()
+    };
+    for margin in margins {
+        match decide(
+            "pcurve_iso_boundary",
+            Margin::metered(margin, InfSpeed::new(*radius)),
+            band,
+        )
+        .map_err(&esc)?
+        {
+            Sign::Zero => {}
+            Sign::Positive | Sign::Negative => {
+                return Err(bad(
+                    "an arc rim whose chart column weight is not `cos(h/2)` for its sub-arc \
+                     angle — the column is not this circle's rational-quadratic form",
+                ));
+            }
         }
     }
     // --- `Ĉ` in B's own space, and the hull. ---
@@ -8293,6 +8350,20 @@ fn run_iso_arc_checks<T: Decide>(
     let forward = !reversed;
     if !forward {
         chat.reverse();
+    }
+    if !ends.is_empty() {
+        let along = |w: &f64| w.to_bits();
+        let image: Vec<u64> = ends.iter().map(along).collect();
+        let mut row: Vec<u64> = row_ends.iter().map(along).collect();
+        if !forward {
+            row.reverse();
+        }
+        if image != row {
+            return Err(bad(
+                "an arc rim whose image's end weights are not its chart column's, in its \
+                 traversal — its map is not the column's parameter",
+            ));
+        }
     }
     if chat.len() != b.control().len() {
         return Err(bad(
@@ -14573,6 +14644,7 @@ mod iso_arc_poison {
             Dual64::constant(0.0),
             Dual64::constant(1.0),
             &breaks,
+            &[],
         );
         assert!(g.value.is_nan() && g.deriv.is_nan(), "{g:?}");
     }

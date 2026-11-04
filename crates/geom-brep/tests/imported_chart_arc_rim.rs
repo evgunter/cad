@@ -16,7 +16,7 @@
 use crate::shared::tol::band;
 use geom::Curve3;
 use geom::{NurbsSurface, Surface};
-use geom_brep::{Pcurve, PcurveCache};
+use geom_brep::{Pcurve, PcurveCache, pick_arc_rim};
 use geom_core::spline::KnotVector;
 use geom_core::{Point2, Point3, Vec2, Vec3};
 
@@ -103,6 +103,7 @@ fn a_forward_arc_rim_certifies_on_a_non_unit_chart() {
             t0: 0.0,
             angle: tau,
             breaks: breaks(),
+            ends: Vec::new(),
         },
         0.0,
         tau,
@@ -137,6 +138,7 @@ fn a_reversed_arc_rim_certifies_on_a_non_unit_chart() {
             t0: 0.0,
             angle: tau,
             breaks: breaks(),
+            ends: Vec::new(),
         },
         0.0,
         tau,
@@ -164,6 +166,7 @@ fn an_interior_column_still_refuses() {
             t0: 0.0,
             angle: tau,
             breaks: breaks(),
+            ends: Vec::new(),
         },
         0.0,
         tau,
@@ -248,6 +251,7 @@ fn a_scaled_arc_column_certifies_and_a_broken_pattern_refuses() {
                 t0: 0.0,
                 angle: tau,
                 breaks: breaks(),
+                ends: Vec::new(),
             },
             0.0,
             tau,
@@ -282,4 +286,120 @@ fn a_scaled_arc_column_certifies_and_a_broken_pattern_refuses() {
         }
         other => panic!("an end weight off the pattern must refuse typed: {other:?}"),
     }
+}
+
+/// One sub-arc of dm1's split wall: a quarter turn, `u ∈ [0, K]` on the
+/// file's knot, its column stated at end weights `1` and `2` with
+/// interior weight `1` — the quarter arc `1, √2/2, 1` read through a
+/// Möbius change of its parameter.
+fn skewed_quarter_wall() -> Surface<f64> {
+    let k = 0.27027027027027;
+    let mut control = Vec::new();
+    let mut weights = Vec::new();
+    for (x, y, w) in [(R, 0.0, 1.0), (R, R, 1.0), (0.0, R, 2.0)] {
+        for v in [0.0, H] {
+            control.push(Point3::new(x, y, v));
+            weights.push(w);
+        }
+    }
+    let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, k, k, k], 2).unwrap();
+    let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+    Surface::Nurbs(std::sync::Arc::new(
+        NurbsSurface::new(ku, kv, control, weights).unwrap(),
+    ))
+}
+
+/// **A row at unequal end weights holds its arc rim.** The pick shows
+/// the quarter rim on the row in either winding, its image carrying the
+/// row's end weights in its own order, and the image certifies. The
+/// same image read as the standard form (no end weights) is a
+/// different parameterization of the row, and refuses.
+#[test]
+fn a_row_at_unequal_end_weights_holds_its_arc_rim() {
+    let quarter = core::f64::consts::FRAC_PI_2;
+    let wall = skewed_quarter_wall();
+    let against = Curve3::circle(
+        Point3::new(0.0, 0.0, 0.0),
+        Vec3::new(0.0, 0.0, -1.0),
+        R,
+        Vec3::new(0.0, 1.0, 0.0),
+    );
+    for (what, carrier, ends) in [
+        ("with u", rim(1.0), vec![1.0, 2.0]),
+        ("against u", against, vec![2.0, 1.0]),
+    ] {
+        let image = pick_arc_rim(&carrier, (0.0, quarter), &wall, band())
+            .unwrap_or_else(|e| panic!("{what}: the pick decides, got {e:?}"))
+            .unwrap_or_else(|| panic!("{what}: the row holds the rim"));
+        let Pcurve::IsoArc { ends: held, .. } = &image else {
+            panic!("{what}: an arc-rim image, got {image:?}")
+        };
+        assert_eq!(
+            held, &ends,
+            "{what}: the image carries the row's end weights"
+        );
+        let cache = PcurveCache::certify(image.clone(), 0.0, quarter, &carrier, &wall, band())
+            .unwrap_or_else(|e| panic!("{what}: the rim certifies, got {e:?}"));
+        assert!(
+            cache.certificate().envelope < 1e-9,
+            "{what}: envelope {:e}",
+            cache.certificate().envelope
+        );
+        let Pcurve::IsoArc {
+            p0,
+            pd,
+            t0,
+            angle,
+            breaks,
+            ..
+        } = image
+        else {
+            unreachable!()
+        };
+        let standard = Pcurve::IsoArc {
+            p0,
+            pd,
+            t0,
+            angle,
+            breaks: breaks.clone(),
+            ends: Vec::new(),
+        };
+        let standard = PcurveCache::certify(standard, 0.0, quarter, &carrier, &wall, band());
+        assert!(
+            matches!(
+                standard,
+                Err(geom_brep::PcurveCertifyError::ResidualExceeded { .. }
+                    | geom_brep::PcurveCertifyError::IsoUnsupported { .. })
+            ),
+            "{what}: the standard-form image is not this row's parameter: {standard:?}"
+        );
+        // An end weight an ulp off the row's: the schedule cannot see it,
+        // and the map's identity with the row rests on it.
+        let mut off = ends.clone();
+        off[1] = f64::from_bits(off[1].to_bits() + 1);
+        let nudged = Pcurve::IsoArc {
+            p0,
+            pd,
+            t0,
+            angle,
+            breaks: breaks.clone(),
+            ends: off,
+        };
+        let nudged = PcurveCache::certify(nudged, 0.0, quarter, &carrier, &wall, band());
+        assert!(
+            matches!(
+                nudged,
+                Err(geom_brep::PcurveCertifyError::IsoUnsupported { .. })
+            ),
+            "{what}: end weights not the row's refuse at the structure: {nudged:?}"
+        );
+    }
+    // A rim covering part of the row: the measured step reads the row's
+    // turn off its weights at unit end weight.
+    let (t0, span) = (0.3, 0.9);
+    let image = pick_arc_rim(&rim(1.0), (t0, span), &wall, band())
+        .expect("the pick decides")
+        .expect("the row holds the part of the rim");
+    PcurveCache::certify(image, t0, t0 + span, &rim(1.0), &wall, band())
+        .expect("the part of the rim certifies on the row's arc");
 }

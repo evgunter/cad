@@ -103,6 +103,7 @@ fn arc_row(image: &Pcurve<f64>) -> test_utils::arc_row::ArcRow {
         t0,
         angle,
         breaks,
+        ..
     } = image
     else {
         panic!("an IsoArc row: {image:?}")
