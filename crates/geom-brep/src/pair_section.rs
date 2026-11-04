@@ -431,6 +431,42 @@ impl<T: Decide> CylinderSpherePose<T> {
         ExtentBall::of_sphere(self.center, self.big_r)
     }
 
+    /// **The ball the ruling sweep reads the section against**: about the
+    /// sphere's centre, of radius `2R`. The section lies on the sphere, so
+    /// its own ball holds it whole and no component has a cut end; but
+    /// every meeting lies on that ball's boundary, where no leaf of the
+    /// sweep decides a side. Every meeting stands `R` from the centre, so
+    /// against `2R` a cell's meetings read inside exactly where their
+    /// enclosure's reach past its true points is under `R` (less the band
+    /// and the rounding): the room is the sphere's own scale, which a
+    /// cell's rulings (`r` times its width) and their meetings' spread
+    /// along the ruling (at most `2R`) reach under after a few halvings at
+    /// most. A cell's two ends then always read inside, so a sheet is
+    /// never cut, and the sweep's reading of a sheet's monotonicity and
+    /// velocity can answer nothing but inside: neither enters this pair's
+    /// count.
+    pub(crate) fn sweep_ball(&self) -> ExtentBall<T> {
+        ExtentBall::of_sphere(self.center, T::from_f64(2.0) * self.big_r)
+    }
+
+    /// **The cylinder's rulings against the sphere**
+    /// ([`ruling::RuledCylinderSphere`]), in the frame toward the centre,
+    /// where the centre stands off the axis.
+    pub(crate) fn ruled(&self) -> Option<ruling::RuledCylinderSphere<T>> {
+        let CsStance::Apart { toward, .. } = self.stance else {
+            return None;
+        };
+        Some(ruling::RuledCylinderSphere {
+            foot: self.foot,
+            n: toward,
+            v: self.axis.cross(toward),
+            axis: self.axis,
+            r: self.r,
+            d: self.offset,
+            big_r: self.big_r,
+        })
+    }
+
     /// The cylinder's radius `r` and the sphere's `R`, both decided
     /// positive.
     pub fn radii(&self) -> (T, T) {
@@ -1159,7 +1195,7 @@ pub fn pair_section<T: Decide>(
     let (ka, kb) = (a.kind(), b.kind());
     match (ka, kb) {
         (Cylinder, Sphere) | (Sphere, Cylinder) => match CylinderSpherePose::decide(a, b, band) {
-            Some(pose) => Ok(SectionRead::Built(cylinder_sphere(pose?))),
+            Some(pose) => cylinder_sphere(pose?, band).map(SectionRead::Built),
             None => Err(SectionError::WrongLane {
                 expected: "a cylinder and a sphere",
             }),
@@ -1273,7 +1309,10 @@ const TANGENT_COMPONENT: &str =
     "the surfaces are tangent along it or at it, a C7 construction the section does not mint";
 
 /// The cylinder × sphere arm over its decided pose.
-fn cylinder_sphere<T: Decide>(pose: CylinderSpherePose<T>) -> PairSection<T> {
+fn cylinder_sphere<T: Decide>(
+    pose: CylinderSpherePose<T>,
+    band: Band,
+) -> Result<PairSection<T>, SectionError> {
     // `winds` is read in the order the pose was asked of.
     let order = |on_cylinder: bool, on_sphere: bool| {
         if pose.cylinder_first {
@@ -1325,36 +1364,74 @@ fn cylinder_sphere<T: Decide>(pose: CylinderSpherePose<T>) -> PairSection<T> {
                 Some(pose.nearest_ruling(toward)),
                 ClassCarrier::Unminted(TANGENT_COMPONENT),
             )],
-            // One loop, witnessed on the ruling nearest the centre,
-            // `√((R − |d − r|)(R + |d − r|))` above the foot.
-            (Sign::Positive, Some(Sign::Negative | Sign::Zero) | None) => {
+            // One loop, or two past the far ruling: the ruling sweep
+            // counts them and witnesses each. The sphere's ball holds the
+            // section, so a swept component with a cut end is a sweep
+            // that disagrees with the pose.
+            (Sign::Positive, Some(Sign::Negative | Sign::Positive)) => {
+                let ruled = pose.ruled().unwrap_or_else(|| {
+                    unreachable!("an off-axis stance's pose reads its ruled side")
+                });
+                let swept =
+                    ruling::sweep(&ruled, pose.sweep_ball(), band).map_err(|e| match e {
+                        ruling::SweepRefusal::Escalated(diag) => SectionError::Escalated(diag),
+                        ruling::SweepRefusal::Inconsistent(cause) => SectionError::Unaccounted {
+                            cause: cause.to_owned(),
+                        },
+                    })?;
+                debug_assert_eq!(
+                    swept.loops,
+                    if far.map(|f| f.sign) == Some(Sign::Positive) {
+                        2
+                    } else {
+                        1
+                    },
+                    "the ruling sweep's arcs of a positive discriminant are the loops the \
+                     pose's far reach counts: one arc bounded by two branch points where the \
+                     sphere crosses the wall in one loop, the whole turn past the far ruling"
+                );
+                swept
+                    .components
+                    .into_iter()
+                    .map(|c| match c.cut_ends {
+                        Some(_) => Err(SectionError::Unaccounted {
+                            cause: "the ruling sweep cut a cylinder × sphere component, \
+                                    which the sphere's own ball holds whole"
+                                .to_owned(),
+                        }),
+                        None => Ok(SectionComponent::closed_form(
+                            ComponentShape::Loop,
+                            order(c.encircles, false),
+                            Some(c.witness),
+                            ClassCarrier::General,
+                        )),
+                    })
+                    .collect::<Result<_, _>>()?
+            }
+            // The figure-eight through the far ruling's node, witnessed on
+            // the ruling nearest the centre, `√((R − |d − r|)(R + |d − r|))`
+            // above the foot.
+            (Sign::Positive, Some(Sign::Zero) | None) => {
                 let q = (pose.offset - pose.r).abs();
                 let t = ((pose.big_r - q) * (pose.big_r + q)).sqrt();
-                let carrier = match far.map(|f| f.sign) {
-                    Some(Sign::Negative) => ClassCarrier::General,
-                    _ => ClassCarrier::Unminted(TANGENT_COMPONENT),
-                };
                 vec![SectionComponent::closed_form(
                     ComponentShape::Loop,
                     [false, false],
                     Some(pose.nearest_ruling(toward) + pose.axis * t),
-                    carrier,
+                    ClassCarrier::Unminted(TANGENT_COMPONENT),
                 )]
-            }
-            (Sign::Positive, Some(Sign::Positive)) => {
-                vec![ring(ClassCarrier::General), ring(ClassCarrier::General)]
             }
         },
     };
     decided.extend(pose.tangency());
-    PairSection {
+    Ok(PairSection {
         lever: geom_core::Lever::curvature_radius(pose.r),
         pose: PairPose::CylinderSphere(pose),
         decided,
         components: Components::Counted(components),
         nodes: Vec::new(),
         node_sets: Vec::new(),
-    }
+    })
 }
 
 /// **Why a site has no component of its section**, or more than one.
@@ -1948,7 +2025,7 @@ fn march_over_the_ball(
     let branches = |o: crate::ssi::SsiOutcome| o.branches;
     let out = match pose {
         PairPose::CylinderSphere(p) => {
-            crate::ssi::march_cylinder_sphere(p, domain, band).map(branches)
+            crate::ssi::march_cylinder_sphere(p, &section.seeds(), domain, band)
         }
         PairPose::SphereTorus(p) => crate::ssi::march_sphere_torus(p, domain, band).map(branches),
         PairPose::CylinderTorus(p) => {
