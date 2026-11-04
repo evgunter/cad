@@ -132,3 +132,11 @@
   - **FULL review dispatched** to a cloud session. It judges whether a charge on a choice falls under `[simple.conditioned]`, whether an order-dependent tie-break can land as an interim step, and whether the charge is derived or guessed.
   - **Coupling.** This touches `pose.rs` alongside PR 6516 and the planned polish redesign, so the merge order is 6522, then whichever of 6516 and 6525 is ready first, with the other merging main.
 - 2026-11-04 — PR 6522 merged at `b2a57369be` (`92f8ec60a8`), after my merge of main, a green gate, and `section_end_poses` 6/6 at default, 1e-6 and 1e-12 locally. The section-end P0 closes. The lane at session_013mPGJ3A3Kdic2ksHSq47MQ is released.
+- 2026-11-04 — PR 6525's FULL review (cloud `session_013mPGJ4XmZV2KjkLsnViPMU`) says NOT-MERGEABLE-AS-IS.
+  - **What is confirmed.** The causal story holds to the bit, and no test outcome moves elsewhere.
+  - **MAJOR-1.** The charge plus the first-conic tie-break makes `meet` order-dependent on conics tangent at a shared end: 123/400 random pairs on head against 12/400 on main, and 13/27 spun needle poses against 0/27. On main, the bare difference's rounding coin is antisymmetric, so it is order-free.
+  - **MAJOR-2.** At tilts of about 1e-6 to 1e-4 rad, the score decisively picks the reading that cannot certify, so both orders refuse. The class is wider than exact tangency.
+  - **Minors.** The charge is half its bound and is a second spelling of `running::Rounded`. F33's ledger reverses the two orders. Also `[simple.conditioned]`.
+  - **What happens next.** The across choice at a tangent touch is a fork: what `meet` reads there, and where the rule lives. The draw on `analysis/design-fork/onecopy-across-key` is bytes 34 and 131, so three designers. The brief and the review are in `~/.local/share/cad-work/oc-fork6/`.
+  - **The lane** (`session_013mPGJ2oAi47f4EfDzt4XFu`) holds, with its minors kept local.
+  - **The P0 stays red** until the decision. I judged that a fix which breaks order-freeness across a class is worse than one red nightly row. (ONECOPY orchestrator)
