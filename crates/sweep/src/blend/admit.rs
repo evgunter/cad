@@ -99,7 +99,7 @@ impl<'a, T: Real> AdmittedOpen<'a, T> {
     /// A corner (the fillet's octant; the chamfer's flat patch) reads
     /// its orientation bit off any ONE of its incident links rather
     /// than testing that they agree, and what makes that sound is the
-    /// battery's corner-configuration predicate: a termination is
+    /// battery's corner-configuration predicate: a corner patch is
     /// admitted only where all three of its edges carry ONE convexity,
     /// so the three links cannot disagree by the time a corner is
     /// planned.

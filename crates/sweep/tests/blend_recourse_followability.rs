@@ -1178,7 +1178,7 @@ fn the_convexity_recourse_has_no_witness_in_this_suite() {
     assert!(
         !err.render(geom_brep::recourse::Reading::Build)
             .contains(FILLET3_CONVEXITY_RECOURSE),
-        "and the caller is handed the corner recourse, not the convexity one"
+        "and the caller is handed the mixed corner's recourse, not the convexity one"
     );
 }
 

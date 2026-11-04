@@ -26,7 +26,7 @@ use profile::{Profile, ProfileLoop, RawLoop, SketchPlane};
 use sweep::ExtrudeSide;
 use sweep::blend::arms::corner_ball;
 use sweep::blend::build::fillet_edges;
-use sweep::blend::{BlendError, Convexity, CornerConfig, FILLET3_CORNER_RECOURSE};
+use sweep::blend::{BlendError, Convexity, CornerConfig, FILLET3_MIXED_CORNER_RECOURSE};
 use sweep::test_support::cube;
 use sweep::{Extrusion, extrude};
 use topo::readback::euler_counts;
@@ -378,15 +378,16 @@ fn every_minted_fillet_face_faces_its_own_void() {
     }
 }
 
-/// **The corner recourse is followable, on both sides, as written.**
-/// A fillet refused at a MIXED corner ships a sentence naming the
-/// uniform trivalent corner — all convex or all concave — as what
-/// carves. This row takes the refusal (the L-bracket's reflex edge,
-/// whose ends are 2-of-3 corners), asserts the sentence, then
-/// EXECUTES both of its clauses at the refused size: the all-convex
-/// cube and the all-concave cavity both carve.
+/// **The mixed corner's recourse is followable as written.** A fillet
+/// refused at a MIXED corner, its odd edge requested with another of
+/// its edges, ships a sentence naming the two requests there that
+/// carve: one edge alone, and the two that round alike. This row takes
+/// the refusal (the L-bracket's reflex edge with a convex rim edge of
+/// its top corner), asserts the sentence, then EXECUTES both clauses at
+/// the refused size: the reflex edge alone, and the corner's two rim
+/// edges.
 #[test]
-fn the_corner_recourse_is_followable_on_both_sides() {
+fn the_mixed_corner_recourse_is_followable_as_written() {
     let lp = ProfileLoop::polygon([
         Point2::new(0.0, 0.0),
         Point2::new(2.0, 0.0),
@@ -408,40 +409,39 @@ fn the_corner_recourse_is_followable_on_both_sides() {
     )
     .expect("the bracket extrudes")
     .body;
-    let on_reflex = |q: Point3<f64>| (q.x - 1.0).abs() < 1e-12 && (q.y - 1.0).abs() < 1e-12;
-    let reflex: Vec<EdgeKey> = bracket
-        .edges()
-        .filter(|(k, _)| {
-            let Some(e) = bracket.get_edge(*k) else {
-                return false;
-            };
-            let pt = |vk| {
-                bracket
-                    .get_vertex(vk)
-                    .and_then(|x| bracket.get_point(x.point))
-                    .copied()
-            };
-            let (Some(a), Some(b)) = (
-                bracket
-                    .get_half_edge(e.he_plus)
-                    .map(|h| h.start)
-                    .and_then(pt),
-                bracket.half_edge_end(e.he_plus).and_then(pt),
-            ) else {
-                return false;
-            };
-            on_reflex(a) && on_reflex(b)
-        })
-        .map(|(k, _)| k)
-        .collect();
-    assert_eq!(reflex.len(), 1, "the bracket's one reflex vertical edge");
-    let refused = fillet_edges(
-        &sweep::test_support::at_rest(&bracket, Tol::witness()),
-        &reflex,
-        0.1,
-        Tol::witness(),
-    )
-    .expect_err("a mixed corner refuses");
+    let between = |on: &dyn Fn(Point3<f64>) -> bool| -> EdgeKey {
+        let found: Vec<EdgeKey> = bracket
+            .edges()
+            .map(|(k, _)| k)
+            .filter(|&k| {
+                let he = bracket.get_edge(k).expect("an edge").he_plus;
+                let pt = |vk| {
+                    *bracket
+                        .get_point(bracket.get_vertex(vk).expect("a vertex").point)
+                        .expect("a point")
+                };
+                on(pt(bracket.get_half_edge(he).expect("a half").start))
+                    && on(pt(bracket.half_edge_end(he).expect("an end")))
+            })
+            .collect();
+        let [k] = found[..] else {
+            panic!("one edge, got {}", found.len());
+        };
+        k
+    };
+    let near = |a: f64, b: f64| (a - b).abs() < 1e-12;
+    let reflex = between(&|q| near(q.x, 1.0) && near(q.y, 1.0));
+    let rim_x = between(&|q| near(q.y, 1.0) && near(q.z, 1.0) && q.x > 1.0 - 1e-12);
+    let rim_y = between(&|q| near(q.x, 1.0) && near(q.z, 1.0) && q.y > 1.0 - 1e-12);
+    let run = |edges: &[EdgeKey]| {
+        fillet_edges(
+            &sweep::test_support::at_rest(&bracket, Tol::witness()),
+            edges,
+            0.1,
+            Tol::witness(),
+        )
+    };
+    let refused = run(&[reflex, rim_x]).expect_err("the odd edge with a rim edge refuses");
     let text = refused.error.render(geom_brep::recourse::Reading::Build);
     assert!(
         matches!(
@@ -454,25 +454,9 @@ fn the_corner_recourse_is_followable_on_both_sides() {
         "the reflex edge's ends are mixed corners, got {text}"
     );
     assert!(
-        text.contains(FILLET3_CORNER_RECOURSE),
-        "the refusal ships the corner recourse, got {text}"
+        text.contains(FILLET3_MIXED_CORNER_RECOURSE),
+        "the refusal ships the mixed corner's recourse, got {text}"
     );
-    // Both clauses of the sentence, executed at the refused size.
-    let cube_body = cube(2.0, Tol::witness());
-    let cube_edges: Vec<EdgeKey> = cube_body.edges().map(|(k, _)| k).collect();
-    fillet_edges(
-        &sweep::test_support::at_rest(&cube_body, Tol::witness()),
-        &cube_edges,
-        0.1,
-        Tol::witness(),
-    )
-    .expect("the all-convex clause carves");
-    let cavity = vented_cavity();
-    fillet_edges(
-        &sweep::test_support::at_rest(&cavity, Tol::witness()),
-        &cavity_edges(&cavity),
-        0.1,
-        Tol::witness(),
-    )
-    .expect("the all-concave clause carves");
+    run(&[reflex]).expect("one edge alone carves");
+    run(&[rim_x, rim_y]).expect("the two edges that round alike carve");
 }

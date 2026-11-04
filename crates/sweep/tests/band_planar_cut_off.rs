@@ -504,8 +504,9 @@ fn shoelace_yz(ps: &[Point3<f64>]) -> f64 {
 
 /// **The refusals the cut-off leaves**, each typed: a curved end face,
 /// a foot that lands inside a face rather than on the end face's rim,
-/// an end vertex of valence four, and a mixed-convexity end. A turn's
-/// own refusals are `band_planar_mitre`'s.
+/// an end vertex of valence four, and a mixed-convexity end whose odd
+/// edge is requested with another of its edges. A turn's own refusals
+/// are `band_planar_mitre`'s.
 #[test]
 fn every_end_the_cut_off_does_not_build_refuses_typed() {
     // A curved end face: a prism whose right side is an arc.
@@ -591,8 +592,9 @@ fn every_end_the_cut_off_does_not_build_refuses_typed() {
         tol(),
     );
     let inner = edge(&l_prism, [1.0, 1.0, 0.0], [1.0, 1.0, 1.0]);
+    let top = edge(&l_prism, [1.0, 1.0, 1.0], [2.0, 1.0, 1.0]);
     for verb in [Verb::Chamfer, Verb::Fillet] {
-        match verb.run(&l_prism, &[inner]) {
+        match verb.run(&l_prism, &[inner, top]) {
             Err(BlendError::UnsupportedCorner {
                 corner: CornerConfig::MixedConvexity { .. },
                 ..
