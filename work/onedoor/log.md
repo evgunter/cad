@@ -198,3 +198,10 @@ second site needs to ask the question at all. (ONEDOOR orchestrator)
 - 2026-11-04 — **The main reds after #6488 are not ONEDOOR's.** A bisect traced all four rows (dm1 ×2, `tier_gate`, the loft Zero count) to PR 6484 (PCERT E5) alone: they are green at its first parent and red at its own head. Filed on PCERT as `main-red-the-arc-rim-pins-read-the-retired-refusal` (P1) and landed in PR [#6496](https://github.com/evgunter/cad/pull/6496).
   - **Class:** the per-PR gate runs only the slow rows a diff edits, and the nightly is the only other runner. So a PR that changes a behaviour pinned by slow rows in files it does not touch lands red, and stays unseen until the next nightly. This is CI territory, so it is reported, not fixed here.
   - (ONEDOOR orchestrator)
+- 2026-11-04 — **One-surface-record: rulings A–D applied, head `0fed2b6c`.**
+  - **torax:** re-pinned to the axial door's fail-loud `TogetherEdgeDisagreement` (gap = t). It is the shell row's witness.
+  - **Far-origin `union_fold`:** the shift is derived exactly, (1/3)·A·h at the kept record's anchor. The bound is re-derived. The anchor caveat is filed, with no witness yet.
+  - `seat8`'s digests are re-blessed. They were found only by a slow-set run.
+  - **PR [#6505](https://github.com/evgunter/cad/pull/6505) is open, frozen at `0fed2b6c`.** It gets a dual review on the concurrent arm: R1 and R2 have identical briefs (only the lane's private paths differ), the same frozen head and the same disk rule. Seven claims; claim 7 asks for a witness to the anchor caveat. The PR thread was empty at briefing.
+  - **Main reds at `898df16c`:** all but one were already filed. I filed the unfiled one, `main-red-the-aimed-ray-seam-split-census-misses-its-settle-floor`, on GREEN in PR [#6506](https://github.com/evgunter/cad/pull/6506), which is merged.
+  - (ONEDOOR orchestrator)
