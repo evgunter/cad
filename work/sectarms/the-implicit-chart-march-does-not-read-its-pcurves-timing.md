@@ -3,6 +3,8 @@ id: the-implicit-chart-march-does-not-read-its-pcurves-timing
 kind: issue
 title: The 1×2 march's step test does not bound the wall pcurve's timing against the carrier
 status: open
+priority: P3
+cost: H
 opened: 2026-11-03
 ---
 

@@ -290,3 +290,58 @@ fn the_plane_doors_refuse_a_curved_partner() {
         got.err()
     );
 }
+
+/// **The kilometre frontier of limb 1's foot, guarded on both sides.**
+/// The bump of PR 6479's review (R2's far sweep: a bicubic 5×5 net over
+/// `[0, 1]²` whose middle nine controls stand 0.6 up) cut by the level
+/// plane at 0.15, the whole pose moved along `x`, at ε 1e-6. At 1000 m
+/// the loop certifies; at 2000 m limb 1's foot on the wall's chart does
+/// not converge, and the section refuses `FootPointInconclusive`
+/// (`work/sectarms/a-chart-limb-1-foot-refuses-a-pose-far-from-the-origin.md`,
+/// whose 54-pose table shows the frontier noisy between the two). Red
+/// against a foot that moves the frontier either way past these poses:
+/// the near one refused, or the far one decided without the foot's
+/// floor being stated. Run at its own band.
+#[test]
+fn the_plane_reads_the_kilometre_foot_frontier_on_both_sides() {
+    #[allow(clippy::cast_precision_loss)]
+    fn bump(t: f64) -> NurbsSurface<f64> {
+        let k = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
+        let mut control = Vec::with_capacity(25);
+        for i in 0..5 {
+            for j in 0..5 {
+                let (s, r) = (i as f64 / 4.0, j as f64 / 4.0);
+                let up = (s - 0.5).abs() < 0.3 && (r - 0.5).abs() < 0.3;
+                control.push(Point3::new(s + t, r, if up { 0.6 } else { 0.0 }));
+            }
+        }
+        NurbsSurface::new(k.clone(), k, control, vec![1.0; 25]).unwrap()
+    }
+    let b = geom_core::Band::new(1e-6, 1e-5).unwrap();
+    for (t, decides) in [(1000.0, true), (2000.0, false)] {
+        let plane = Surface::Plane {
+            origin: Point3::new(0.5 + t, 0.5, 0.15),
+            normal: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let domain = SsiDomain {
+            center: Point3::new(0.5 + t, 0.5, 0.2),
+            half_extent: 2.0,
+            extent: 1.0,
+            floor_scale: 1.0,
+        };
+        let r = geom_brep::ssi::plane_nurbs_ssi(&plane, &bump(t), domain, b);
+        if decides {
+            let out = r.unwrap_or_else(|e| panic!("{t} m: the loop certifies, got {e:?}"));
+            assert!(
+                matches!(out.branches.as_slice(), [one] if one.end == BranchEnd::Closed),
+                "{t} m: one loop, got {out:?}"
+            );
+        } else {
+            assert!(
+                matches!(r, Err(SsiError::FootPointInconclusive { .. })),
+                "{t} m: limb 1's foot refuses, got {r:?}"
+            );
+        }
+    }
+}
