@@ -12,7 +12,8 @@
 //! otherwise the middle of each piece of the span the point may rest on
 //! polished to the point's foot ([`Curve3::foot`]). A witness halfway to
 //! an unpolished piece middle lies within the band's gap of a joint, not
-//! at it.
+//! at it. An endless span ([`Span::endless`]) has no ends ([`Span::ends`]):
+//! none is read, and none anchors a witness.
 //!
 //! **The walk** is [`geom_core::bisect`]'s, over pairs of pieces. A piece
 //! reaches at most `ℓ` metres from its middle point, `ℓ` its half-span
@@ -289,9 +290,8 @@ fn witnesses<T: Decide>(
 ) -> Result<Vec<Point3<T>>, geom_core::bisect::Exhausted> {
     let mut points = Vec::new();
     for (r, other) in [(ra, rb), (rb, ra)] {
-        let (o0, o1) = other.span.params();
         let mut ends = Vec::new();
-        for q in [other.curve().eval(o0), other.curve().eval(o1)] {
+        for (_, q) in other.span.ends() {
             ends.extend(polished_feet(r, q, band)?);
         }
         points.extend(
@@ -329,11 +329,9 @@ pub(super) fn meet<T: Decide>(
         found: found.points,
         shared: None,
     };
-    // Each span's ends against the other, first.
+    // Each span's ends against the other, first: none of an endless one.
     for (r, other, first) in [(&ra, &rb, true), (&rb, &ra, false)] {
-        let (t0, t1) = r.span.params();
-        for t in [t0, t1] {
-            let q = r.curve().eval(t);
+        for (t, q) in r.span.ends() {
             let Ok(feet) = polished_feet(other, q, band) else {
                 return Err(exhausted(found));
             };

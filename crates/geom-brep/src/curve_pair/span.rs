@@ -75,6 +75,8 @@ pub struct Span<'a, T: Real> {
     carrier: &'a Curve3<T>,
     t0: T,
     t1: T,
+    /// The carrier's points at `t0` and `t1`, evaluated once.
+    ends: (Point3<T>, Point3<T>),
     ended: bool,
     lo: InfSpeed<T>,
     hi: SupSpeed<T>,
@@ -155,14 +157,16 @@ enum Side {
 }
 
 impl<'a, T: Decide> Span<'a, T> {
-    /// The span of `carrier` over `(t0, t1)`, its rate bounds read once
-    /// ([`geom::carrier_speed::speed_range`]).
+    /// The span of `carrier` over `(t0, t1)`, its rate bounds
+    /// ([`geom::carrier_speed::speed_range`]) and its end points read
+    /// once.
     pub fn new(carrier: &'a Curve3<T>, (t0, t1): (T, T)) -> Self {
         let (lo, hi) = geom::carrier_speed::speed_range(carrier);
         Self {
             carrier,
             t0,
             t1,
+            ends: (carrier.eval(t0), carrier.eval(t1)),
             ended: true,
             lo,
             hi,
@@ -189,16 +193,29 @@ impl<'a, T: Decide> Span<'a, T> {
         self.carrier
     }
 
-    /// The parameter interval.
+    /// **The parameter interval**: the span's one door to its first and
+    /// last parameters, which on an endless span are its seam and no end.
     pub fn params(&self) -> (T, T) {
         (self.t0, self.t1)
     }
 
-    /// The parameter of `which` end.
-    pub fn end(&self, which: SpanEnd) -> T {
+    /// **The span's ends**, each its parameter and its point, the start
+    /// first: both ends of an ended span, and none of an endless one,
+    /// whose first and last parameters are a seam in its interior. The
+    /// span's one door to its end points.
+    pub fn ends(&self) -> impl Iterator<Item = (T, Point3<T>)> {
+        let n = if self.ended { 2 } else { 0 };
+        [(self.t0, self.ends.0), (self.t1, self.ends.1)]
+            .into_iter()
+            .take(n)
+    }
+
+    /// `which` end's parameter and point, as [`Self::ends`] holds them,
+    /// read only where the span is known to have ends.
+    fn end(&self, which: SpanEnd) -> (T, Point3<T>) {
         match which {
-            SpanEnd::Start => self.t0,
-            SpanEnd::Stop => self.t1,
+            SpanEnd::Start => (self.t0, self.ends.0),
+            SpanEnd::Stop => (self.t1, self.ends.1),
         }
     }
 
@@ -207,7 +224,7 @@ impl<'a, T: Decide> Span<'a, T> {
     pub fn at(&self, hit: Hit<T>) -> T {
         match hit {
             Hit::On { t, .. } => t,
-            Hit::End(which) => self.end(which),
+            Hit::End(which) => self.end(which).0,
         }
     }
 
@@ -249,9 +266,14 @@ impl<'a, T: Decide> Span<'a, T> {
     /// **The parameters a shared run of this span and another is read
     /// at**: this span's middle, and halfway between each of its ends and
     /// each of `feet`, the feet on this carrier of the other span's ends.
-    /// A positive-length overlap of the two spans holds one of them.
+    /// A positive-length overlap of the two spans holds one of them. An
+    /// endless span has no ends, so its middle alone: the overlap with an
+    /// ended span is that span, whose own middle holds it.
     pub fn witness_params(&self, feet: impl IntoIterator<Item = T>) -> Vec<T> {
         let mut ts = vec![geom::mid_param(self.t0, self.t1)];
+        if !self.ended {
+            return ts;
+        }
         for t in feet {
             let t = self.branch(t);
             ts.extend([geom::mid_param(self.t0, t), geom::mid_param(t, self.t1)]);
@@ -278,15 +300,12 @@ impl<'a, T: Decide> Span<'a, T> {
         if !self.ended {
             return Ok(Place::Inside);
         }
-        let ends = [
-            (SpanEnd::Start, t - self.t0, self.t0),
-            (SpanEnd::Stop, self.t1 - t, self.t1),
-        ];
+        let ends = [(SpanEnd::Start, t - self.t0), (SpanEnd::Stop, self.t1 - t)];
         // An end at the point first, on its raw chord: no side matters
         // beside it.
         let mut chords = Vec::with_capacity(2);
-        for (which, _, end) in ends {
-            let chord = q - self.carrier.eval(end);
+        for (which, _) in ends {
+            let chord = q - self.end(which).1;
             let read = decide_reported("curve_pair_span_end_chord", Margin::norm3(chord), band);
             if let Ok(Decided {
                 sign: Sign::Zero, ..
@@ -298,7 +317,7 @@ impl<'a, T: Decide> Span<'a, T> {
         }
         let mut sides = [Side::Clear; 2];
         let mut past = None;
-        for (side, ((_, m, _), read)) in sides.iter_mut().zip(ends.into_iter().zip(chords)) {
+        for (side, ((_, m), read)) in sides.iter_mut().zip(ends.into_iter().zip(chords)) {
             let chord = read?;
             *side = self.side(m, chord, band)?;
             if *side == Side::Past {
