@@ -164,11 +164,11 @@ fn plate_row<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy>(
 }
 
 /// **The rounded plate filleted all round builds** at the pin's radius
-/// and near the validity bound `r < H/2` (the two rims' trims on one
-/// wall), at `f64`.
+/// and near the validity bound `r < R/2`, where an arc's torus band
+/// would have a spine radius `R − r` no larger than its tube, at `f64`.
 #[test]
 fn a_rounded_plate_filleted_all_round_removes_pappuss_volume() {
-    for r in [0.05, 0.2] {
+    for r in [0.05, 0.14] {
         plate_row::<f64>(&format!("r = {r}"), r, r);
     }
 }
@@ -176,7 +176,7 @@ fn a_rounded_plate_filleted_all_round_removes_pappuss_volume() {
 /// The same plate at the certified scalar.
 #[test]
 fn a_rounded_plate_filleted_all_round_removes_pappuss_volume_at_interval() {
-    for r in [0.05, 0.2] {
+    for r in [0.05, 0.14] {
         plate_row::<Interval>(&format!("Interval, r = {r}"), r, iv(r));
     }
 }
@@ -223,7 +223,7 @@ fn a_rounded_pockets_floor_fillets_whole_adding_pappuss_volume() {
     let body = pocket();
     let floor = rim_at(&body, 0.5);
     assert_eq!(floor.len(), 8, "the floor's rim: four lines and four arcs");
-    for r in [0.05, 0.2] {
+    for r in [0.05, 0.14] {
         let what = format!("pocket floor, r = {r}");
         let out = fillet_edges(&at_rest(&body, tol()), &floor, r, tol())
             .unwrap_or_else(|e| panic!("{what}: the floor fillets whole, got {e:?}"));
@@ -263,7 +263,7 @@ fn a_rounded_pockets_mouth_fillets_whole_removing_pappuss_volume() {
         })
         .collect();
     assert_eq!(mouth.len(), 8, "the mouth: four lines and four arcs");
-    for r in [0.05, 0.2] {
+    for r in [0.05, 0.14] {
         let what = format!("pocket mouth, r = {r}");
         let out = fillet_edges(&at_rest(&body, tol()), &mouth, r, tol())
             .unwrap_or_else(|e| panic!("{what}: the mouth fillets whole, got {e:?}"));

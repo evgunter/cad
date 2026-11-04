@@ -328,14 +328,15 @@ fn bulged(pts: Vec<(Point2<f64>, f64)>, z0: f64, z1: f64) -> Body<f64> {
     .body
 }
 
-/// **A straight link whose end face is tangent to its spine** — an
-/// obround boss's top rim, at a line-to-arc junction, and a rounded
-/// block's — has no plane that ends its window there. The meter refuses
-/// that typed (`UnsupportedRunOut` at the junction) where the window's
-/// pad once divided by `n·τ = 0` and ran to infinity. `fillet_edges`
-/// refuses these closed mixed chains upstream today.
+/// **A straight link running into a junction ends its window at the
+/// section it shares with the next link** — an obround boss's top rim,
+/// at a line-to-arc junction, and a rounded block's. The face the
+/// window runs into there is the next link's mate, tangent to the spine,
+/// so it ends nothing; the section plane through the junction, normal
+/// to the spine, does. Both rims read clear, a post standing off the
+/// boss included.
 #[test]
-fn a_spine_with_a_tangent_end_face_refuses_typed_not_with_an_unbounded_window() {
+fn a_spine_into_a_junction_ends_its_window_at_the_shared_section() {
     let p = |x: f64, y: f64| Point2::new(x, y);
     let plate = brick(Point3::new(-6.0, -3.0, 0.0), Point3::new(6.0, 3.0, 1.0));
     let obround = bulged(
@@ -378,17 +379,9 @@ fn a_spine_with_a_tangent_end_face_refuses_typed_not_with_an_unbounded_window() 
             edges,
             size: 0.2,
         };
-        let e = band_reach(&req, band()).expect_err("a tangent end face ends no window");
-        assert!(
-            matches!(
-                e,
-                BlendError::UnsupportedRunOut {
-                    at: EntityId::Vertex(_),
-                    ..
-                }
-            ),
-            "{what}: {e:?}"
-        );
+        band_reach(&req, band()).unwrap_or_else(|e| {
+            panic!("{what}: the junction's section ends the window, got {e:?}")
+        });
     }
 }
 

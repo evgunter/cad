@@ -44,10 +44,11 @@
 //! support faces, which a coplanar-face merge leaves wherever a wall
 //! was subdivided — and is carved as ONE face over all its links.
 //!
-//! **Closed chains** (any link whose blend is a TORUS) come in TWO
-//! shapes, which
-//! are different surgeries and not two settings of one — see
-//! [`RimShape`].
+//! **Closed chains** come in THREE shapes, which are different
+//! surgeries and not settings of one — see [`RimShape`]: the ladder and
+//! the annulus, one torus band over a rim on one support pair, and the
+//! MIXED rim, one band face per link where the links' supports differ
+//! ([`rim_phase_mixed`]).
 //!
 //! The **LADDER** rim (the pip rims): the chain must be a ring of its
 //! PLANE support and the entire boundary of its curved support (a
@@ -158,7 +159,9 @@
 //! edges requested),
 //! closed rims that are neither a circle-carried ring of a PLANE
 //! against ring-free caps nor a rim between two revolution walls (of
-//! one edge, or of several arcs a chart seam split), and a LADDER rim
+//! one edge, or of several arcs a chart seam split) nor a MIXED rim of
+//! links on different supports around one shared face ([`MixedRim`]),
+//! a mixed rim sharing a support with a ladder or annulus rim, and a LADDER rim
 //! sharing a support with an ANNULUS rim in ONE call (the annulus
 //! band consumes structure of the shared face beyond its own rim —
 //! [`shared_support_gate`], whose recourse is sequential calls; two
@@ -3571,12 +3574,13 @@ fn support_boundary_clearance<T: Decide + Bounds>(
 /// of that support — the torus link's latitudes (the distance from the
 /// trim's centre on a plane, the height along the axis on a wall), the
 /// plane–plane link's distance across its edge ([`strip_frame`]) — and
-/// within the link's window along the spine. The window is not read: an
-/// edge is clear when its whole range lies on the trim's side of the
-/// trim level or beyond the rim's level, which clears it of the
-/// unwindowed band and so of the strip. On a mate, which lies within its
-/// link's window, the far side is empty; on the host, shared by every
-/// link, it is what clears an edge away from a link's window.
+/// within the link's window along the spine. An edge is clear when its
+/// whole range lies on the trim's side of the trim level, or beyond the
+/// rim's level, or — on a straight link — wholly past one end of the
+/// window: each clears it of the strip. The arc's window is not read, so
+/// near an arc the reading is conservative. On a mate, which lies within
+/// its link's window, the last two are empty; on the host, shared by
+/// every link, they clear an edge away from a link.
 fn mixed_boundary_clearance<T: Decide + Bounds>(
     body: &Body<T>,
     rim: &RimPlan<'_, T>,
@@ -3597,6 +3601,16 @@ fn mixed_boundary_clearance<T: Decide + Bounds>(
         // The level function `(centre, None)` the distance from the
         // centre, `(origin, Some(u))` the reach along `u`; the trim's
         // level and the rim's.
+        // A straight link's window along its spine: an edge wholly past
+        // either end of it is clear of its strip.
+        let window = if l.arm.is_coaxial_torus() {
+            None
+        } else {
+            let (ends, (t0, t1)) = stored_piece(body, l.edge)?;
+            let (a, b) = (ends.eval(t0), ends.eval(t1));
+            let tau = (b - a).normalize();
+            Some((a, tau, (b - a).dot(tau)))
+        };
         let (ci, direction, at_trim, rim_at) = if l.arm.is_coaxial_torus() {
             let ((ci, si), _) = rim_trim_circles(l.edge, &l.blend, l.face_a == face)?;
             let (carrier, _) = stored_piece(body, l.edge)?;
@@ -3674,8 +3688,8 @@ fn mixed_boundary_clearance<T: Decide + Bounds>(
         for cycle in cycles {
             let margins = cycle
                 .into_iter()
-                .map(|(edge, carrier, window)| {
-                    let ((low, high), bounded) = reach(&carrier, window).ok_or_else(|| {
+                .map(|(edge, carrier, piece)| {
+                    let ((low, high), bounded) = reach(&carrier, piece).ok_or_else(|| {
                         unbuilt_geometry(
                             EntityId::Edge(edge),
                             "an outer-boundary edge of a rim's support has no finite certified \
@@ -3687,7 +3701,13 @@ fn mixed_boundary_clearance<T: Decide + Bounds>(
                     } else {
                         (low - at_trim, rim_at - high)
                     };
-                    Ok((trim_side.max(far_side), bounded))
+                    let mut margin = trim_side.max(far_side);
+                    if let Some((a, tau, len)) = window {
+                        if let Some((lo, hi)) = piece_along(&carrier, piece, a, tau) {
+                            margin = margin.max((-hi).max(lo - len));
+                        }
+                    }
+                    Ok((margin, bounded))
                 })
                 .collect::<Result<Vec<_>, BlendError>>()?;
             if let Some((margin, bounded)) = margins.into_iter().reduce(worse) {
@@ -3856,6 +3876,13 @@ pub(super) enum ContactCarrier<T: Real> {
     /// described as the SEAM image of the band's own
     /// surface (sweep < π; the donut's representation).
     SeamArc { center: Point3<T>, radius: T },
+    /// A mixed rim's SECTION: the rolling ball's circle about `center`
+    /// where two links' bands meet (sweep < π). It is a row of both
+    /// bands' charts — a cylinder's transverse circle, a torus's
+    /// meridian — known before either band exists, so it is described
+    /// as their shared row ([`geom_brep::analytic_shared_row`]), never
+    /// as a tangency to be witnessed.
+    Section { center: Point3<T>, radius: T },
 }
 
 /// The third element is the REQUESTED link the contact edge belongs
@@ -5632,6 +5659,27 @@ fn rim_phase_mixed<T: Decide + Bounds + topo::AtRestPolicy>(
         );
     }
 
+    // A cylinder face's chart is seamed opposite the middle of its
+    // section, so no section runs across the chart seam.
+    for (k, &i) in starters.iter().enumerate() {
+        if let Surface::Cylinder {
+            origin,
+            axis,
+            radius,
+            ..
+        } = surfaces[i]
+        {
+            let (host, mate) = targets[k];
+            let mid = (host - centres[k]) + (mate - centres[k]);
+            surfaces[i] = Surface::Cylinder {
+                origin,
+                axis,
+                radius,
+                u_ref: -(mid - axis * mid.dot(axis)).normalize(),
+            };
+        }
+    }
+
     // ---- (1) The mate splits, on the live edge off the rim. ----
     let mut mate_feet: Vec<SplitFragments> = Vec::with_capacity(n);
     for (k, c) in mixed.crossings.iter().enumerate() {
@@ -5820,7 +5868,7 @@ fn rim_phase_mixed<T: Decide + Bounds + topo::AtRestPolicy>(
         };
         described.push((
             mate_feet[k].near,
-            ContactCarrier::CornerArc {
+            ContactCarrier::Section {
                 center: centres[k],
                 radius,
             },
@@ -6024,6 +6072,7 @@ fn attach_contact<T: Decide + Bounds + topo::AtRestPolicy>(
         }
     };
     let is_seam = matches!(carrier, ContactCarrier::SeamArc { .. });
+    let is_section = matches!(carrier, ContactCarrier::Section { .. });
     let transverse = matches!(
         carrier,
         ContactCarrier::Chord | ContactCarrier::Transverse(_)
@@ -6039,6 +6088,52 @@ fn attach_contact<T: Decide + Bounds + topo::AtRestPolicy>(
         // the only thing that differs is the DESCRIPTION they take
         // below. Byte-identical copies of the geometry would let one
         // drift from the other with nothing to say so.
+        // A section lies in the plane normal to the spine at its centre:
+        // a cylinder band's axis, else a torus band's azimuth there. Its
+        // frame is stated in that plane rather than read off the feet, so
+        // the row it is of holds its fixed coordinate as the chart does.
+        ContactCarrier::Section { center, radius } => {
+            let normal = [s1, s2]
+                .into_iter()
+                .filter_map(|k| body.get_surface(k))
+                .find_map(|s| match *s {
+                    Surface::Cylinder { axis, .. } => Some(axis),
+                    _ => None,
+                })
+                .or_else(|| {
+                    [s1, s2]
+                        .into_iter()
+                        .filter_map(|k| body.get_surface(k))
+                        .find_map(|s| match *s {
+                            Surface::Torus {
+                                center: o, axis, ..
+                            } => Some(axis.cross(center - o).normalize()),
+                            _ => None,
+                        })
+                })
+                .ok_or_else(|| {
+                    disagrees(
+                        EntityId::Edge(edge),
+                        "a section between two rolling-ball bands",
+                    )
+                })?;
+            let flat = |p: Point3<T>| {
+                let d = p - center;
+                (d - normal * d.dot(normal)).normalize()
+            };
+            let (u, w) = (flat(p0), flat(p1));
+            let turn = u.cross(w);
+            let n = if turn.dot(normal).lo() < 0.0 {
+                -normal
+            } else {
+                normal
+            };
+            (
+                Curve3::circle(center, n, radius, u),
+                T::zero(),
+                turn.norm().atan2(u.dot(w)),
+            )
+        }
         ContactCarrier::CornerArc { center, radius }
         | ContactCarrier::SeamArc { center, radius } => {
             let u = (p0 - center).normalize();
@@ -6076,6 +6171,23 @@ fn attach_contact<T: Decide + Bounds + topo::AtRestPolicy>(
             ));
         }
         EdgeDescriptionSpec::wrap(s1)
+    } else if is_section {
+        let (Some(surf1), Some(surf2)) = (body.get_surface(s1), body.get_surface(s2)) else {
+            return Err(unresolved(EntityId::Edge(edge), "a section's two surfaces"));
+        };
+        let pair = SurfacePair::new(s1, s2);
+        let selector = geom_brep::analytic_shared_row(
+            pair,
+            [(s1, surf1), (s2, surf2)],
+            &curve,
+            (t0, t1),
+            band,
+        )
+        .ok_or(BlendError::SurgeryInvariant {
+            at: EntityId::Edge(edge),
+            detail: "a mixed rim's section is not a shared row of its two bands' charts",
+        })?;
+        EdgeDescriptionSpec::Intersection { pair, selector }
     } else if transverse {
         // The chamfer's edges and the ruled band's cut-off arcs: two
         // surfaces crossing at a definite angle, so the intrinsic
