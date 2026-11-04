@@ -290,35 +290,6 @@ fn sheared<T: Decide + Bounds + topo::AtRestPolicy>(
     (body, top)
 }
 
-/// Tier 3′, past one refusal: below `ε = 1e-9` the curve-pair meter
-/// cannot settle a fillet joint's meeting count
-/// (`work/cpair/curve-pair-polish-meters-refuse-shallow-meetings.md`),
-/// so there, and only there, that typed refusal is all it may say.
-fn tier_3_prime(body: &Body<Interval>, tol: Tol, what: &str) {
-    let Err(findings) = validate_pseudomanifold(body, &ContactRecords::default(), tol) else {
-        return;
-    };
-    let unsettled = |e: &topo::ValidationError| {
-        matches!(
-            e,
-            topo::ValidationError::CensusUnsupported {
-                cause: topo::CensusUnsupportedCause::ContactLane(
-                    topo::ContactRefusal::NotCertifiable { .. }
-                ),
-                ..
-            }
-        )
-    };
-    assert!(
-        tol.eps() < 1e-9 && findings.iter().all(unsettled),
-        "{what}: tier 3′, got {findings:?}"
-    );
-    println!(
-        "{what}: tier 3′ unsettled at ε {} (cpair's meter): {findings:?}",
-        tol.eps()
-    );
-}
-
 /// **A fillet foot on `atan2`'s cut carves at the certified scalar as
 /// at `f64`**: the sheared box's top edge over a ladder of shears of
 /// both signs, convex and concave, both verbs. At a positive shear the
@@ -331,7 +302,7 @@ fn tier_3_prime(body: &Body<Interval>, tol: Tol, what: &str) {
 /// enclosure bracketing the `f64` body's within the props pad and its
 /// midpoint within `midpoint_tol`. At `ε = 1e-12` a control's
 /// `Interval` build may escalate its pcurve envelope instead, a witness
-/// never, and tier 3′ may meet cpair's meter ([`tier_3_prime`]).
+/// never.
 #[test]
 fn a_fillet_foot_on_atan2s_cut_at_an_oblique_end_carves_at_the_certified_scalar() {
     use crate::band_planar_cut_off::{midpoint_tol, pad_ceiling};
@@ -402,7 +373,8 @@ fn a_fillet_foot_on_atan2s_cut_at_an_oblique_end_carves_at_the_certified_scalar(
                 };
                 validate_geometric(&out.body, tol)
                     .unwrap_or_else(|e| panic!("{what}: tier 3, got {e:?}"));
-                tier_3_prime(&out.body, tol, &what);
+                validate_pseudomanifold(&out.body, &ContactRecords::default(), tol)
+                    .unwrap_or_else(|e| panic!("{what}: tier 3′, got {e:?}"));
                 assert_naming_totality(&ibody, &out, &[iedge], &what);
                 let p = topo::mass_properties(
                     &topo::test_support::finished(
