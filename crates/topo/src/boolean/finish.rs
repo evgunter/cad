@@ -446,11 +446,10 @@ fn section_boundary<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
 ) -> Result<Vec<HalfEdgeKey>, BooleanError> {
-    let f = body.get_face(face).ok_or(BooleanError::JoinDesync {
+    let f = body.passed_face(face).ok_or(BooleanError::JoinDesync {
         what: "a section face no longer resolves",
     })?;
-    Ok(body
-        .face_boundary_linked(face, f)
+    Ok(f.boundary()
         .filter_map(|member| match member {
             BoundaryMember::Edge { he, .. } => Some(he),
             BoundaryMember::Isolated { .. } => None,
@@ -580,16 +579,10 @@ fn discarded<T: Decide>(
             .faces
         {
             if !sides.contains_key(face) && !chords.cuts.is_substituted(operand, face) {
-                let data = crate::live::linked(
-                    &body.faces,
-                    face,
-                    crate::entity::EntityId::Face,
-                    crate::entity::EntityId::Shell(shell),
-                    "faces",
-                );
+                let face = body.linked_face(face, crate::entity::EntityId::Shell(shell), "faces");
                 out.push(discard_row(
                     body,
-                    (face, data),
+                    face,
                     operand,
                     &kept_across,
                     &kept_ends,
@@ -611,11 +604,10 @@ fn section_loops<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
 ) -> Result<Vec<Vec<HalfEdgeKey>>, BooleanError> {
-    let f = body.get_face(face).ok_or(BooleanError::JoinDesync {
+    let f = body.passed_face(face).ok_or(BooleanError::JoinDesync {
         what: "a section face no longer resolves",
     })?;
-    Ok(body
-        .face_boundary_by_loop(face, f)
+    Ok(f.boundary_by_loop()
         .map(|(_, members, _)| {
             members
                 .into_iter()

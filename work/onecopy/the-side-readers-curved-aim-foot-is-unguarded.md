@@ -14,3 +14,9 @@ Filed by `onecopy/foot-and-angle` (PR 6449). That PR moved `geom::curves::on_car
 What the row no longer sees: an aim at the rod's cylinder wall (or a cone wall) that takes a closed-form circle foot. The remaining entries (`point_in_loop`, `point_in_arc_loop`, `bool_ruled_region`, `bool_pierce_normal_on`) are not shown to fire on that path.
 
 Fix, the cheap way: read the path's samples, which still reach the sink under `curve_foot_branch` (`geom_core::k_stats` under the `probe` feature), and assert none are taken by the aims. Alternatively, name a logged predicate on the foot path the aims must not take.
+
+**Names moved** (`onecopy/angle-reads`): `angle_near` is retired into
+`geom::Azimuth::near`, so the foot's samples now reach the sink under
+`azimuth_near_cut_side` (the window's cut side) and `period_near_mark`
+(the rename's half-period marks), both F31; `curve_foot_branch` is no
+longer recorded.

@@ -126,7 +126,7 @@ use crate::entity::{EdgeKey, EntityId, Face, FaceKey, HalfEdgeKey, VertexKey};
 use crate::injective::{
     self, Axis, Boundary, Iso, Local, Near, Outcome, Piece, Rim, Shared, Use, full_turn,
 };
-use crate::live::{BoundaryMember, proven};
+use crate::live::{BoundaryMember, FaceView, proven};
 use lift::{Lift, certified_lift};
 
 /// The funnel site name of the clearance comparison — the separation
@@ -3268,7 +3268,7 @@ impl RegionMemo {
         }
         let region = match w.region {
             Region::Whole => CellRegion::Inside,
-            Region::Trimmed => match w.body.face_surface(w.face) {
+            Region::Trimmed => match w.body.passed_face(w.face).map(|f| f.surface()) {
                 None => CellRegion::Undecided,
                 Some(stored) => {
                     // The carrier is the window's own lift, which
@@ -3386,10 +3386,10 @@ fn window_of<'b, T: Decide + CertifiedBounds>(
             side,
         })
     };
-    let Some(f) = body.get_face(face) else {
+    let Some(f) = body.passed_face(face) else {
         return unsupported("an unreadable face");
     };
-    let stored = body.face_surface_linked(face, f);
+    let stored = f.surface();
     let Some((bounds, boundary)) = boundary_of(body, face) else {
         return unsupported("a face whose boundary carries no sound enclosure");
     };
@@ -3437,7 +3437,7 @@ fn window_of<'b, T: Decide + CertifiedBounds>(
             // which would wind once. So a boundary winding nowhere
             // leaves the apex off the face, or `0` inside `slant`.
             let slant = (extent - *apex).dot(*axis) / half_angle.cos();
-            let v = if winds_nowhere(body, face, f) {
+            let v = if winds_nowhere(body, f) {
                 (slant.lo(), slant.hi())
             } else {
                 (slant.lo().min(0.0), slant.hi().max(0.0))
@@ -3447,7 +3447,7 @@ fn window_of<'b, T: Decide + CertifiedBounds>(
         Surface::Sphere { .. } => superset(full_turn(), full_latitude()),
         Surface::Torus { .. } => superset(full_turn(), full_turn()),
         Surface::Spindle { .. } => return unsupported("a spindle sheet's face"),
-        Surface::Nurbs(net) => match iso_bounded_domain(body, f, net) {
+        Surface::Nurbs(net) => match iso_bounded_domain(body, f.record(), net) {
             Ok((u, v)) => (u, v, Region::Whole),
             Err(carrier) => return unsupported(carrier),
         },
@@ -3477,15 +3477,15 @@ fn window_of<'b, T: Decide + CertifiedBounds>(
 /// joints, over every loop together, compose to the identity with no
 /// reset. A missing joint, or an outer loop with no edges, reads as
 /// winding; every hop of the walk is a link
-/// ([`Body::face_boundary_by_loop`]).
+/// ([`crate::live::FaceView::boundary_by_loop`]).
 ///
 /// On a cone a reset is written at a joint on the apex
 /// ([`crate::joint`]); absent one, the composed `u` of the whole
 /// boundary is its winding about the axis. What a total of zero tells
 /// [`window_of`] is argued there.
-fn winds_nowhere<T: Decide>(body: &Body<T>, face: FaceKey, f: &Face) -> bool {
+fn winds_nowhere<T: Decide>(body: &Body<T>, f: FaceView<'_, T>) -> bool {
     let mut elements = Vec::new();
-    for (_, members, role) in body.face_boundary_by_loop(face, f) {
+    for (_, members, role) in f.boundary_by_loop() {
         for member in members {
             let Some(he) = member.half_edge() else {
                 if role.is_outer() {
@@ -3727,7 +3727,7 @@ fn narrows(whole: &Aabb, half: &Aabb) -> bool {
 /// resolve, one of whose edges carries no certified curve, or one any of
 /// whose lifted values does not certify: an unclaimable extent, never a
 /// silently smaller one. The walk past the face is
-/// [`Body::face_boundary_by_loop`]'s, every hop a link.
+/// [`crate::live::FaceView::boundary_by_loop`]'s, every hop a link.
 ///
 /// The lifted boundary carries each edge's carrier and span, its two
 /// end vertices, and each of the face's half-edges on it with that
@@ -3741,16 +3741,16 @@ fn boundary_of<T: Decide + CertifiedBounds>(
     face: FaceKey,
 ) -> Option<(Aabb, Boundary)> {
     certified_lift(|lift: Lift<'_, T>| -> Option<(Aabb, Boundary)> {
-        let f = body.get_face(face)?;
+        let f = body.passed_face(face)?;
         let point = |p: &Point3<T>| p.map(|x| lift.of(x));
         let mut pts: Vec<Point3<Interval>> = Vec::new();
         let mut out = Boundary {
-            sense: f.sense,
+            sense: f.sense(),
             ..Boundary::default()
         };
         let mut halves: BTreeMap<EdgeKey, Vec<HalfEdgeKey>> = BTreeMap::new();
         let mut images: BTreeMap<HalfEdgeKey, Image> = BTreeMap::new();
-        for (lk, members, role) in body.face_boundary_by_loop(face, f) {
+        for (lk, members, role) in f.boundary_by_loop() {
             let mut cycle = false;
             for member in &members {
                 let p = point(&body.member_point(member));
@@ -3763,7 +3763,7 @@ fn boundary_of<T: Decide + CertifiedBounds>(
             }
             if cycle && let Ok(rows) = crate::pcurves::loop_lift(body, lk) {
                 if role.is_outer() {
-                    let surface = body.face_surface_linked(face, f);
+                    let surface = f.surface();
                     let periodic =
                         [Axis::U, Axis::V].map(|axis| injective::periodic(surface, axis));
                     out.extent = extent_of(

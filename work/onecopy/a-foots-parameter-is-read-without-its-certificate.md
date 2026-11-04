@@ -2,11 +2,12 @@
 id: a-foots-parameter-is-read-without-its-certificate
 kind: issue
 title: A foot's t is read without its on_carrier certificate (census direction_at, curve_pair walk and pose), so a polish tie across a spline's branches silently reverses a tangent unless the tie stays logged
-status: open
+status: dispatched
 opened: 2026-11-03
 priority: P1
 cost: M
 refs: [6475]
+branch: onecopy/foot-certificate
 ---
 
 

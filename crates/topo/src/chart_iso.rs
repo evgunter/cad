@@ -64,11 +64,6 @@ pub fn mid_azimuth(chart: &Chart, curve: &geom_brep::EdgeCurve<f64>) -> f64 {
     chart.u_of(curve.mid_point())
 }
 
-/// `raw + 2πk` nearest `prev`.
-pub fn unwrap_near(raw: f64, prev: f64) -> f64 {
-    raw + TAU * ((prev - raw) / TAU).round()
-}
-
 /// Rim-vs-meridian classification, on the carrier alone: line
 /// carriers are meridians; circle carriers split on axis alignment
 /// (structurally either parallel — a rim — or perpendicular — a

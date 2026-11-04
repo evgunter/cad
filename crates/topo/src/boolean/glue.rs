@@ -146,7 +146,7 @@ fn tangency<T: Decide>(
     fb: FaceKey,
     band: Band,
 ) -> Result<bool, BooleanError> {
-    let kind = |body: &Body<T>, f| body.proven_face_surface(f).kind();
+    let kind = |body: &Body<T>, f| body.proven_face(f).surface().kind();
     let read = DeclarationRead::Moot;
     if !ruled((kind(a, fa), kind(b, fb)))
         && !super::rim_wedge::rim_exists(a, fa, b, fb, band)
@@ -201,9 +201,9 @@ pub(super) fn overlapping_pairs<T: Decide + Bounds>(
 ) -> Result<Vec<(FaceKey, FaceKey)>, BooleanError> {
     let pad = boxes::sweep_pad(band);
     let boxed = |body: &Body<T>| -> Result<Vec<(FaceKey, bvh::Aabb)>, BooleanError> {
-        body.faces()
-            .filter(|&(k, face)| keep(body.face_surface_linked(k, face)))
-            .map(|(k, _)| Ok((k, boxes::face_box(body, k, pad, band)?)))
+        body.face_views()
+            .filter(|face| keep(face.surface()))
+            .map(|face| Ok((face.key(), boxes::face_box(body, face.key(), pad, band)?)))
             .collect()
     };
     pairs_among(&boxed(a)?, &boxed(b)?)
@@ -268,8 +268,8 @@ pub(crate) fn section_door<T: Decide + Bounds>(
     let recorded = decls.verdicts != super::Verdicts::Given;
     // Every face read here is one this door enumerated from its body.
     let surface = |body: &Body<T>, f| {
-        let face = crate::live::proven(&body.faces, f, crate::entity::EntityId::Face);
-        (face.surface, body.face_surface_linked(f, face).clone())
+        let face = body.proven_face(f);
+        (face.record().surface, face.surface().clone())
     };
     let read = |s: &geom::Surface<T>| geom_brep::pair_section::serves(s.kind());
     let row = |(fa, fb), relation, site, margin| crate::Coincidence {

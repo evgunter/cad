@@ -2340,7 +2340,10 @@ fn the_second_order_band_has_three_outcomes_and_they_are_three_answers() {
 /// a sign or a pairing (`.convexity(`, `"dihedral_sign"`, `.pairing(`,
 /// `pairing_as(`, `classify_material_pairing_as(`), a station minted by
 /// hand, a `"tangent_second_order"` decide or a material read inlined
-/// back into either file's production code reds here. The
+/// back into either file's production code reds here. The link's
+/// reading one order down (`link/second_order.rs`) reads another picture
+/// (a cone's cut at a tied ray, not a dihedral along an edge): it calls
+/// no fold or walk and spells none of these. The
 /// `#[cfg(test)]` modules are blanked first: a row there asserting a
 /// predicate name is not a second spelling.
 #[test]
@@ -2421,6 +2424,17 @@ fn check_4_and_the_rim_read_the_wedge_through_the_one_fold() {
             ("edge_wedge_over(", 1),
             ("WedgeWalk::around_circle(", 1),
             ("WedgeWalk::along_edge(", 0),
+        ],
+        &[reads.as_slice(), material.as_slice()].concat(),
+    );
+    // The link's reading one order down reads another picture: no fold,
+    // no walk, and none of the readers' names.
+    scan(
+        "src/link/second_order.rs",
+        &[
+            ("edge_wedge_over(", 0),
+            ("second_order_walk(", 0),
+            ("WedgeWalk::", 0),
         ],
         &[reads.as_slice(), material.as_slice()].concat(),
     );
@@ -2919,8 +2933,8 @@ fn shell_extent(body: &Body<f64>, shell: crate::entity::ShellKey) -> (Point3<f64
     let mut lo = Point3::new(f64::INFINITY, f64::INFINITY, f64::INFINITY);
     let mut hi = Point3::new(f64::NEG_INFINITY, f64::NEG_INFINITY, f64::NEG_INFINITY);
     for &face in &body.get_shell(shell).expect("a live shell").faces {
-        let f = body.get_face(face).expect("a live face");
-        for (_, l, _) in body.face_loops_linked(face, f) {
+        let f = body.proven_face(face);
+        for (_, l, _) in f.loops() {
             let crate::entity::LoopBoundary::Cycle { first } = l.boundary else {
                 panic!("a cube's loops are cycles")
             };

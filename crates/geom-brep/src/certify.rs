@@ -866,6 +866,19 @@ impl core::fmt::Display for CertifyError {
                 channel.describe(),
                 crate::pcurve_cache::POSE_LEVER,
             ),
+            Self::NoGeneralLane {
+                chart,
+                carrier,
+                gap: crate::LaneGap::Envelope,
+            } => write!(
+                f,
+                "a conventional description's {} carrier is on its {} chart but is none of \
+                 the chart's own curves, and its general image's certificate on that chart does \
+                 not yet bound this pose. Recourse: {}",
+                carrier.name(),
+                chart.name(),
+                crate::pcurve_cache::ENVELOPE_LEVER,
+            ),
             Self::CarrierOffChart {
                 chart,
                 carrier,
@@ -1120,7 +1133,7 @@ impl CertifyError {
                 ..
             } => (CertCheck::ChartClass, RefusedArm::SignCertain(None)),
             Self::NoGeneralLane {
-                gap: crate::LaneGap::Pose { .. },
+                gap: crate::LaneGap::Pose { .. } | crate::LaneGap::Envelope,
                 ..
             } => (CertCheck::GeneralLane, RefusedArm::SignCertain(None)),
             Self::CarrierOffChart { margin, .. } => (

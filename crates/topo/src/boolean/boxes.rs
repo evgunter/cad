@@ -197,7 +197,7 @@ use geom_core::{Band, Bounds, Decide, Point3, Real, UnitVec3, Vec3};
 use super::BooleanError;
 use crate::body::Body;
 use crate::entity::{Edge, EdgeKey, EntityId, FaceKey, HalfEdgeKey};
-use crate::live::{BoundaryMember, linked, proven};
+use crate::live::{BoundaryMember, FaceView, linked, proven};
 
 /// The sweep's box pad in meters — what candidate generation must add
 /// so pruning can never lose an accepted pair. Derivation (each term
@@ -969,7 +969,7 @@ pub(crate) fn harmonic_travel<T: Real>(
 }
 
 /// **The face's loops, as [`WindowStep`]s**, read a loop at a time
-/// through [`crate::body::Body::face_boundary_by_loop`]: the window
+/// through [`crate::live::FaceView::boundary_by_loop`]: the window
 /// steps the boolean lane, the census lane and the construction rows
 /// all read.
 ///
@@ -987,8 +987,8 @@ pub(crate) fn face_window_steps<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
 ) -> Vec<Vec<WindowStep<'_, T>>> {
-    let f = proven(&body.faces, face, EntityId::Face);
-    body.face_boundary_by_loop(face, f)
+    let f = body.proven_face(face);
+    f.boundary_by_loop()
         .map(|(_, members, _)| {
             let cycle: Vec<(HalfEdgeKey, &Edge)> = members
                 .into_iter()
@@ -1459,13 +1459,13 @@ pub(crate) fn sphere_reach<T: Decide>(
     band: Band,
     frame: &BoxFrame<T>,
 ) -> (Point3<T>, Point3<T>) {
-    let f = proven(&body.faces, face, EntityId::Face);
-    let surface = body.face_surface_linked(face, f);
+    let f = body.proven_face(face);
+    let surface = f.surface();
     let Surface::Sphere { center, radius, .. } = surface else {
         unreachable!("sphere_reach reads a sphere face")
     };
     let c = frame.point(*center);
-    let (axis, az, lat) = match sphere_window(body, face, f, surface, band) {
+    let (axis, az, lat) = match sphere_window(body, f, surface, band) {
         SphereWindow::Ball => {
             let ball = ball_extent(&SpanBox::point(c), *radius);
             return (
@@ -1558,8 +1558,7 @@ const SPHERE_REACH_ULPS: f64 = 16.0;
 /// a record miss past `face` too, and panics the same way.
 fn sphere_window<T: Decide>(
     body: &Body<T>,
-    face: FaceKey,
-    f: &crate::entity::Face,
+    f: FaceView<'_, T>,
     surface: &Surface<T>,
     band: Band,
 ) -> SphereWindow<T> {
@@ -1575,26 +1574,20 @@ fn sphere_window<T: Decide>(
     else {
         return SphereWindow::Ball;
     };
-    let outer = linked(
-        &body.loops,
-        f.outer,
-        EntityId::Loop,
-        EntityId::Face(face),
-        "outer",
-    );
+    let (outer, outer_loop) = f.outer();
     if matches!(
-        body.loop_members_linked(f.outer, outer).as_slice(),
+        body.loop_members_linked(outer, outer_loop).as_slice(),
         [BoundaryMember::Isolated { .. }]
     ) {
         return SphereWindow::Ball;
     }
-    let outer = match crate::props::chart_image_edges(body, f.outer) {
+    let outer = match crate::props::chart_image_edges(body, outer) {
         Ok((outer, _)) if outer.is_empty() => return SphereWindow::Ball,
         Ok((outer, _)) => outer,
         Err(LoopEdgesError::NullScaffoldEdge { .. }) => return SphereWindow::Ball,
-        Err(refusal @ LoopEdgesError::Corrupt { .. }) => torn_outer_loop(body, face, f, refusal),
+        Err(refusal @ LoopEdgesError::Corrupt { .. }) => torn_outer_loop(body, f, refusal),
     };
-    let side = if f.sense {
+    let side = if f.sense() {
         Sign::Positive
     } else {
         Sign::Negative
@@ -1605,10 +1598,11 @@ fn sphere_window<T: Decide>(
         return SphereWindow::Ball;
     }
     let trim =
-        match super::solid_contain::sphere_chart_trim(body, face, *center, *radius, *axis, band) {
+        match super::solid_contain::sphere_chart_trim(body, f.key(), *center, *radius, *axis, band)
+        {
             Ok(Some(trim)) => trim,
             Ok(None) | Err(PointInSolidError::Escalated { .. }) => return SphereWindow::Ball,
-            Err(refusal) => torn_outer_loop(body, face, f, refusal),
+            Err(refusal) => torn_outer_loop(body, f, refusal),
         };
     let Ok(unit) = UnitVec3::new(*axis, BOX_SPHERE_AXIS, band) else {
         return SphereWindow::Ball;
@@ -1656,19 +1650,12 @@ fn sphere_window<T: Decide>(
 #[track_caller]
 fn torn_outer_loop<T: Decide>(
     body: &Body<T>,
-    face: FaceKey,
-    f: &crate::entity::Face,
+    f: FaceView<'_, T>,
     refusal: impl core::fmt::Debug,
 ) -> ! {
-    body.face_surface_linked(face, f);
-    let outer = linked(
-        &body.loops,
-        f.outer,
-        EntityId::Loop,
-        EntityId::Face(face),
-        "outer",
-    );
-    for member in body.loop_members_linked(f.outer, outer) {
+    f.surface();
+    let (outer, outer_loop) = f.outer();
+    for member in body.loop_members_linked(outer, outer_loop) {
         if let BoundaryMember::Edge { he, half, ek, edge } = member {
             body.edge_curve_linked(ek, edge);
             body.linked_vertex_point(half.start, EntityId::HalfEdge(he), "start");
@@ -1677,7 +1664,7 @@ fn torn_outer_loop<T: Decide>(
     }
     unreachable!(
         "the outer loop of {} refused {refusal:?} with every record on it resolved",
-        EntityId::Face(face)
+        EntityId::Face(f.key())
     )
 }
 
@@ -1774,8 +1761,8 @@ pub(crate) fn face_box<T: Decide + Bounds>(
     pad: f64,
     band: Band,
 ) -> Result<Aabb, BooleanError> {
-    let f = proven(&body.faces, face, EntityId::Face);
-    let surface = body.face_surface_linked(face, f);
+    let f = body.proven_face(face);
+    let surface = f.surface();
     // The axial window from the boundary's OWN locus, edge by edge
     // (each edge's cover's support either way, `cover_axial`), not from
     // the corners of a box around it: at a tilted axis a box's spread in
@@ -1790,7 +1777,7 @@ pub(crate) fn face_box<T: Decide + Bounds>(
         };
         let mut acc: Option<Span<f64>> = None;
         let mut grow = |s: Span<f64>| acc = Some(acc.map_or(s, |a: Span<f64>| a.hull(s)));
-        for member in body.face_boundary_linked(face, f) {
+        for member in f.boundary() {
             grow(match member {
                 BoundaryMember::Isolated { point: p, .. } => {
                     let h = (p - origin).dot(axis);
@@ -1907,7 +1894,7 @@ pub(crate) fn face_box<T: Decide + Bounds>(
             // the boundary's own box is what makes the box trim-scoped
             // in azimuth as well as axially — see [`clip_to_boundary`]
             // for why that is sound and why it needs no chart work.
-            clip_to_boundary(slab, boundary_hull(body, face, f))
+            clip_to_boundary(slab, boundary_hull(body, f))
         }
         FaceBoxRule::ConeSlab {
             apex,
@@ -1932,7 +1919,7 @@ pub(crate) fn face_box<T: Decide + Bounds>(
                 sin.hi() / cos.lo(),
             ))
         }
-        FaceBoxRule::BoundaryHull => boundary_hull(body, face, f).unwrap_or_else(Aabb::poison),
+        FaceBoxRule::BoundaryHull => boundary_hull(body, f).unwrap_or_else(Aabb::poison),
     };
     Ok(boxed.padded(pad))
 }
@@ -2016,14 +2003,10 @@ fn aabb_of(s: SpanBox<f64>) -> Aabb {
 /// the axial coordinate is linear along the surface, so the face's
 /// axial extremes lie on the boundary, but not necessarily at a
 /// boundary VERTEX.
-fn boundary_hull<T: Decide + Bounds>(
-    body: &Body<T>,
-    face: FaceKey,
-    f: &crate::entity::Face,
-) -> Option<Aabb> {
+fn boundary_hull<T: Decide + Bounds>(body: &Body<T>, f: FaceView<'_, T>) -> Option<Aabb> {
     let mut acc: Option<Aabb> = None;
     let mut grow = |x: Aabb| acc = Some(acc.map_or(x, |a: Aabb| a.hull(&x)));
-    for member in body.face_boundary_linked(face, f) {
+    for member in f.boundary() {
         grow(match member {
             BoundaryMember::Isolated { point: p, .. } => {
                 Aabb::from_points([p]).unwrap_or_else(Aabb::poison)
@@ -2875,7 +2858,7 @@ pub(crate) mod tests {
     #[test]
     fn a_nurbs_patchs_interior_bulge_is_inside_its_box() {
         let (body, face, _) = nurbs_bulge_face();
-        let surface = body.face_surface(face).unwrap().clone();
+        let surface = body.proven_face(face).surface().clone();
         // The lifted interior, on the surface itself — its boundary
         // curves all lie in `z = 0`, so no hull of the BOUNDARY can
         // contain this point.
@@ -3155,8 +3138,8 @@ pub(crate) mod tests {
             (-pi / 2.0 + 0.1, pi / 2.0 - 0.1),
         ] {
             let (body, face) = cyl_wall(1.0, u0, u1, z0, z1);
-            let f = body.get_face(face).unwrap();
-            let Surface::Cylinder { axis, radius, .. } = body.face_surface_linked(face, f) else {
+            let f = body.proven_face(face);
+            let Surface::Cylinder { axis, radius, .. } = f.surface() else {
                 panic!("the fixture's face carries a cylinder");
             };
             for (what, band) in [
@@ -3177,7 +3160,7 @@ pub(crate) mod tests {
                 // Not the band's sweep pad: at these bands it is wider
                 // than the bulge a vertex-only hull would miss.
                 let pad = 1e-9;
-                let hull = boundary_hull(&body, face, f).expect("the wall's boundary boxes");
+                let hull = boundary_hull(&body, f).expect("the wall's boundary boxes");
                 let bracket = Bracket::open();
                 let b = face_box(&body, face, pad, band);
                 let c = crate::census::face_reach(&body, face, band);
