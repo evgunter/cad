@@ -547,3 +547,65 @@ fn a_thin_torus_circle_refuses_as_the_kernel_limit_of_its_composite() {
         "{ending:?}"
     );
 }
+
+/// The lemon sheet `R = −½, r = 1` about `z` through the origin, its
+/// apexes at `(0, 0, ±√3/2)`, and the plane `y = 0` through its axis.
+fn lemon_and_its_meridian_plane() -> (Surface<f64>, Surface<f64>) {
+    let sheet = Surface::Spindle {
+        center: Point3::origin(),
+        axis: Vec3::unit_z(),
+        major_radius: -0.5,
+        minor_radius: 1.0,
+        u_ref: Vec3::unit_x(),
+    };
+    let plane = Surface::Plane {
+        origin: Point3::origin(),
+        normal: Vec3::unit_y(),
+        u_ref: Vec3::unit_x(),
+    };
+    (sheet, plane)
+}
+
+/// The unit circle about `(c, 0, 0)` in `y = 0`, from `+x` toward `+z`.
+fn meridian(c: f64) -> Curve3<f64> {
+    Curve3::Circle(geom::Circle {
+        frame: geom::Frame::new(Point3::new(c, 0.0, 0.0), -Vec3::unit_y(), Vec3::unit_x()),
+        radius: 1.0,
+    })
+}
+
+/// **Limb 2 against a sheet reads that sheet up to its apexes.** The
+/// lemon's meridian from one apex to the other (the arc of the circle
+/// about `(−½, 0, 0)` with `|t| ≤ π/3`) certifies, its parts at the
+/// apexes read by their distance from the apex. The other sheet's
+/// meridian through the same two apexes (the circle about `(½, 0, 0)`,
+/// `|t| ≤ 2π/3`), and its last micro-radian before the upper apex, lie
+/// on the torus's implicit form, where `|f|` reads zero; limb 2 refuses
+/// them against the sheet, its bound the distance from an apex. It
+/// reads no floor, as its floors are the implicit form's. Reading `|f|` at the apexes, as the cone's
+/// reading does, passes both.
+#[test]
+fn limb_2_against_a_sheet_reads_that_sheet_up_to_its_apexes() {
+    let (sheet, plane) = lemon_and_its_meridian_plane();
+    let third = PI / 3.0;
+    let limbs =
+        |c: f64, span| geom_brep::analytic_edge_limbs(&meridian(c), span, &sheet, &plane, band());
+    let own = limbs(-0.5, (-third, third));
+    assert!(own.is_ok(), "the lemon's own meridian: {own:?}");
+    for (what, span) in [
+        ("the other sheet's meridian", (-2.0 * third, 2.0 * third)),
+        ("its last micro-radian", (2.0 * third - 1e-6, 2.0 * third)),
+    ] {
+        let got = limbs(0.5, span);
+        assert!(
+            matches!(
+                got,
+                Err(AnalyticRung3Refusal::KernelLimit {
+                    operand: geom::SurfaceKind::Spindle,
+                    ..
+                })
+            ),
+            "{what}: {got:?}"
+        );
+    }
+}

@@ -1509,10 +1509,8 @@ pub(crate) struct SpanHull {
     /// The range of `z` over the part's points.
     pub(crate) z: (f64, f64),
     /// A certified upper bound in metres on the part's distance from
-    /// the chart ([`Meters::over`] in certification arithmetic, each
-    /// lever certified positive, and [`Meters::apex_root`] on a cone or
-    /// a sheet where one is not): `+∞` where neither reads, NaN where a
-    /// bound above is not certified.
+    /// the chart ([`Meters::certified`]): `+∞` where it does not read,
+    /// NaN where a bound above is not certified.
     pub(crate) meters: f64,
     /// Certified lower bounds in metres on the distance from the chart
     /// at the part's two ends ([`Meters::divisor`]), `0` where none is.
@@ -1734,16 +1732,37 @@ impl<S: Real> Meters<S> {
         }
     }
 
+    /// **A part's reading in certification arithmetic**
+    /// ([`SpanHull::meters`]): [`Self::over`] with each lever taken where
+    /// `positive` certifies it, else [`Self::apex_root`]; `None` where
+    /// neither reads.
+    pub(crate) fn certified(
+        self,
+        f: S,
+        rho: (S, S),
+        z: (f64, f64),
+        positive: impl Fn(S) -> bool,
+    ) -> Option<S> {
+        self.over(
+            f,
+            rho,
+            z,
+            |lever| if positive(lever) { Ok(lever) } else { Err(()) },
+        )
+        .ok()
+        .or_else(|| self.apex_root(f, rho.1, z))
+    }
+
     /// **Limb 2's reading of a part whose lever the band does not decide
-    /// positive**, `f` its `|f|` bound at `T` and `span` its hull: on a
-    /// cone [`Self::apex_root`]; on a sheet the hull's own certified
-    /// reading ([`SpanHull::meters`]), the same [`Self::over`] with each
-    /// lever's positivity read off its certified enclosure and the apex
-    /// reading where that is not positive. A sheet's two sheets meet at
-    /// its apexes, so a part within the sliver band of one has its levers
-    /// in band and its distance from the apex past ε: no band-decided
-    /// reading of it reaches the band. `None` off the cone and the sheet,
-    /// and where the hull's reading is not certified.
+    /// positive**, `f` its `|f|` bound at `S` and `span` its hull: on a
+    /// cone [`Self::apex_root`]; on a sheet the hull's own reading
+    /// ([`Self::certified`], [`SpanHull::meters`]), each lever's
+    /// positivity read off its certified enclosure. The torus's two
+    /// sheets meet at this sheet's apexes, so a part within the sliver
+    /// band of an apex has its levers in band, and its distance from the
+    /// apex is past ε: no reading whose levers the band decides reaches
+    /// the band there. `None` off the cone and the sheet, and where the
+    /// hull's reading is not certified.
     pub(crate) fn apex_part(self, f: S, span: &SpanHull) -> Option<S> {
         match self {
             Self::Spindle { .. } => span

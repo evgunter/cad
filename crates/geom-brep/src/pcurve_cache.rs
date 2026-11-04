@@ -3481,21 +3481,10 @@ fn spans_of(
                 && z.1.is_finite()
             {
                 meters
-                    .over(point(f_sup), (point(rho_lo), point(rho_hi)), z, |lever| {
-                        if lower(lever, true) > 0.0 {
-                            Ok(lever)
-                        } else {
-                            Err(())
-                        }
+                    .certified(point(f_sup), (point(rho_lo), point(rho_hi)), z, |lever| {
+                        lower(lever, true) > 0.0
                     })
-                    .map_or_else(
-                        |()| {
-                            meters
-                                .apex_root(point(f_sup), point(rho_hi), z)
-                                .map_or(f64::INFINITY, |m| upper(m, true))
-                        },
-                        |m| upper(m, true),
-                    )
+                    .map_or(f64::INFINITY, |m| upper(m, true))
             } else {
                 f64::NAN
             };
