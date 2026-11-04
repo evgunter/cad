@@ -7055,7 +7055,7 @@ class Coincidence:
     `tangent_witness`, `coaxial_sphere`, `sphere_on_torus_axis`,
     `coaxial_cylinder_torus`, `coaxial_tori`, `crossing_cylinders`, `split_on`,
     `battery_turn`, `battery_joint`, `battery_support_axis`,
-    `profile_junction`, `vertex_fusion`, `edge_join` or
+    `profile_junction`, `vertex_fusion`, `iso_join` or
     `census_at_rest`. A `profile_junction` row is `tangent` or `cusp`
     between two carriers and `same_oriented` where its two pieces
     continue one carrier; a `tangent_witness` row is `surface_tangent`,

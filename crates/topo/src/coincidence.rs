@@ -209,7 +209,7 @@ pub enum DecisionSite {
     /// because each carrier was read on one iso family of one chart
     /// through a regular point they share ([`Relation::SameOriented`]),
     /// the margin the two readings' Zeros jointly.
-    EdgeJoin,
+    IsoJoin,
     /// The at-rest census: two cells of different groups of a body at
     /// rest (two copies, two imported instances) decided one, or two
     /// placed faces decided one carrier, opposed.

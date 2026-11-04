@@ -2990,7 +2990,7 @@ pub fn decision_site_tag(site: pncad::document::coincidence::DecisionSite) -> &'
         S::BatteryJoint => "battery_joint",
         S::BatterySupportAxis => "battery_support_axis",
         S::VertexFusion => "vertex_fusion",
-        S::EdgeJoin => "edge_join",
+        S::IsoJoin => "iso_join",
         S::CensusAtRest => "census_at_rest",
         S::ProfileJunction => "profile_junction",
     }

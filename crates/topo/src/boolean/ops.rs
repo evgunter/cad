@@ -4664,7 +4664,7 @@ fn cite_rows(
 }
 
 /// **The rows of the class Zeros the joins acted on**
-/// (`[coincidence.door]`): one [`crate::DecisionSite::EdgeJoin`] row per
+/// (`[coincidence.door]`): one [`crate::DecisionSite::IsoJoin`] row per
 /// join made on an iso-family reading, naming the two edges as the
 /// input edges they lie on ([`join_input_edge`]), `gone` first, decided
 /// one carrier continuing through the joined vertex
@@ -4687,7 +4687,7 @@ fn join_rows(
                 cells: [gone, kept],
                 more: [None; 3],
                 relation: crate::Relation::SameOriented,
-                site: crate::DecisionSite::EdgeJoin,
+                site: crate::DecisionSite::IsoJoin,
                 margin: z.margin,
                 discharge: crate::Discharge::of(z.margin),
             })
@@ -11319,7 +11319,7 @@ mod spline_seam_rows {
 #[cfg(test)]
 mod join_row_rows {
     //! **[`join_rows`]**: a class Zero the join acted on between two
-    //! input edges is one [`crate::DecisionSite::EdgeJoin`] row naming
+    //! input edges is one [`crate::DecisionSite::IsoJoin`] row naming
     //! both, `gone` first, at its margin; one between two pieces of one
     //! input edge, or onto an edge the op minted, is none. The ledger is
     //! one brick's clone as operand A's, B absent from the result.
@@ -11371,7 +11371,7 @@ mod join_row_rows {
             (row.relation, row.site, row.margin),
             (
                 crate::Relation::SameOriented,
-                crate::DecisionSite::EdgeJoin,
+                crate::DecisionSite::IsoJoin,
                 margin
             ),
             "one carrier continuing, at the join's site and the readings' margin"

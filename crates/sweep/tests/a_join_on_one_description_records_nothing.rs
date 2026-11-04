@@ -52,7 +52,7 @@ fn stacked_rods_join_their_rulings_on_one_description_and_record_no_join() {
     let joins: Vec<_> = out
         .coincidences
         .iter()
-        .filter(|row| row.site == topo::DecisionSite::EdgeJoin)
+        .filter(|row| row.site == topo::DecisionSite::IsoJoin)
         .collect();
     assert!(
         joins.is_empty(),

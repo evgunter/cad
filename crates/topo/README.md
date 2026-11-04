@@ -997,7 +997,7 @@ reparents only within one shell (`EulerOpError::CrossShell`).
   The iso-family arm is a class reading of each carrier, so a boolean
   whose join makes two of its input edges one on it records that
   reading's Zero, both edges' jointly, as one coincidence row naming the
-  two (`DecisionSite::EdgeJoin`, one carrier continuing) for the
+  two (`DecisionSite::IsoJoin`, one carrier continuing) for the
   `unproven-coincidence` lint ([coincidence]); a join of two pieces of
   one input edge is that edge read twice, and a join of two edges whose
   descriptions name one surface pair is that pair's locus read twice,

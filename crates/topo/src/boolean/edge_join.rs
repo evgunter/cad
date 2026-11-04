@@ -125,10 +125,10 @@ struct Join {
 /// Zeros jointly ([`geom_brep::chart_iso_zero`]). The boolean records
 /// it as a coincidence (`[coincidence.door]`).
 #[derive(Clone, Copy, Debug)]
-pub(crate) struct ClassZero {
-    pub(crate) gone: EdgeKey,
-    pub(crate) kept: EdgeKey,
-    pub(crate) margin: geom_core::MarginDiag,
+pub(super) struct ClassZero {
+    pub(super) gone: EdgeKey,
+    pub(super) kept: EdgeKey,
+    pub(super) margin: geom_core::MarginDiag,
 }
 
 /// **What each edge a run of joins made covers**, read off the joins'
