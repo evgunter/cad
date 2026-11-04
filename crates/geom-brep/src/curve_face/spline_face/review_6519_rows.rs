@@ -84,3 +84,36 @@ fn review_6519_a_box_past_an_end_settles_only_past_the_band_of_that_ends_point()
         assert_eq!(pair.past_an_end(x, span, band()), settles, "{what}: {x:?}");
     }
 }
+
+/// The PR's sibling measurement, re-taken: a circle touching the torus's
+/// outer equator at `θ = 0` and clear of it elsewhere, read over the arc
+/// `[1, 2]` that does not hold the touch.
+#[test]
+fn review_6519_a_circle_touching_a_torus_off_the_arc() {
+    let torus = geom::Surface::Torus {
+        center: Point3::new(0.0, 0.0, 0.0),
+        axis: Vec3::unit_z(),
+        major_radius: 1.0,
+        minor_radius: 0.25,
+        u_ref: Vec3::unit_x(),
+    };
+    let ring = Curve3::circle(
+        Point3::new(1.75, 0.0, 0.0),
+        Vec3::unit_y(),
+        0.5,
+        -Vec3::unit_x(),
+    );
+    for arc in [(1.0, 2.0), (-0.5, 0.5)] {
+        let got = crate::curve_face::circle_torus::circle_torus_roots(
+            &ring,
+            arc.0,
+            arc.1,
+            &torus,
+            band(),
+        );
+        #[allow(clippy::print_stdout)]
+        {
+            println!("REVIEW-6519 arc {arc:?}: {got:?}");
+        }
+    }
+}
