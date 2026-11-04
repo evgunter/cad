@@ -186,3 +186,12 @@ second site needs to ask the question at all. (ONEDOOR orchestrator)
   - **Class found by the fix pass:** a decision that is built and then dropped, while a site census still counts it. A count of sites is not evidence the site decides anything.
   - Dual-review row `PR-6488` recorded. The unit closes on merge.
   - (ONEDOOR orchestrator)
+- 2026-11-04 — **One-surface-record resume reported at `ed760f37`.**
+  - **Ruling (3) withdrawn.** Its premise was wrong: `bisector_nodes` is red on main, not on this branch, and `unify_surfaces` never runs on that row. The lane filed it on TINT. The inherited chart-map diff re-read frames rather than carrying the door's evidence, and no probe witnessed it, so it is parked on `onedoor/one-surface-record-chartmap-wip`.
+  - **torax.** The build still refuses, now with `TogetherEdgeDisagreement` (gap = t) on the axis edge between two caps on one record. This is the shell row's offset-door defect. It is re-pinned only if the refusal is fail-loud.
+  - **The far-origin `union_fold` row.** Its volume moves by 4/3 ε. The lane is to derive the expected shift; if the derivation predicts it, the bound becomes ε-relative, otherwise it is a defect.
+  - **Class findings:**
+    - (a) Local runs under `--profile ci` skip the slow set, so a lane's green run can hide its own reds. Two editor-core digests and the far-origin row surfaced only in a full run.
+    - (b) A ruling built on a lane's unverified causal story inherits the error. The `bisector_nodes` cause was a guess that a clean-main run would have refuted. Before ruling on a red, ask whether it is red on main.
+  - **Main reds reported by the lane, possibly from #6488:** three step-import rows (a `chord_join` "none of its own curves" refusal) and a loft row. A separate lane is bisecting them; if #6488 caused them, ONEDOOR fixes them.
+  - (ONEDOOR orchestrator)
