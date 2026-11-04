@@ -172,3 +172,8 @@ second site needs to ask the question at all. (ONEDOOR orchestrator)
   - **(3) The `bisector_nodes` regression.** The unification discards closed-form chart images, so quadrature can no longer integrate them. Ruled option (a): the coincidence door returns the chart relation as its evidence, and `unify_surfaces` restates the images through geom-brep's one transport door. Option (b), teaching quadrature fitted images, was not taken.
   - **Class:** a decision that discards the evidence it decided on forces a later reader to re-derive it, here as a lossy fit. The coincidence act knows the frame relation, so it hands it on.
   - (ONEDOOR orchestrator)
+- 2026-11-04 — **PR [#6488](https://github.com/evgunter/cad/pull/6488) merged** (`dee740c3`). The crossing doors now live in geom-brep.
+  - Main's `Frame`, `ParallelPose` and `conic_off_plane` edits were ported to the doors' new homes at `a9559b4a`.
+  - CI was green on the final head.
+  - Remaining `[topo.homes]` move rows: seven, banded P2. `engine-leaves-by-visibility` is parked on them.
+  - (ONEDOOR orchestrator)
