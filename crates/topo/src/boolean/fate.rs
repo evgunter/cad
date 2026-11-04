@@ -1352,9 +1352,9 @@ fn rehome<T: Decide>(
         };
         // The ladder ([`climb`]) whose answer is the first vertex placed:
         // a ring the cut does not cross is on one side, so every vertex
-        // placed reads it alike ([`Answering::Any`]). A vertex the reading
-        // cannot place (on the boundary, a limit) passes; one in band is
-        // kept, and refuses only where no vertex places the ring.
+        // placed reads it alike ([`Answering::Any`]). A vertex on the
+        // boundary passes; a limit and a vertex in band are kept, ranked,
+        // and refuse only where no vertex places the ring.
         let placed = climb(Answering::Any, vertices, |v| {
             let Some(p) = body
                 .get_vertex(v)
@@ -1370,10 +1370,30 @@ fn rehome<T: Decide>(
             match at {
                 Ok(Some(super::FaceContainment::In)) => Rung::Answers(Ok(true)),
                 Ok(Some(super::FaceContainment::Out)) => Rung::Answers(Ok(false)),
+                // On the new face's boundary, or a curved region with no
+                // verdict: the vertex says nothing.
+                Ok(
+                    None
+                    | Some(super::FaceContainment::OnEdge(_) | super::FaceContainment::OnVertex(_)),
+                ) => Rung::Passes,
                 Err(e @ super::ContainError::Escalated { diag, .. }) => {
                     Rung::kept(diag).map_kept(|_| contained(e, ""))
                 }
-                _ => Rung::Passes,
+                // The face was just made by the driver: one that does not
+                // resolve is a desync.
+                Err(super::ContainError::StaleFace(face)) => {
+                    super::contain::driver_face_stale(face)
+                }
+                // A limit of the reading no tolerance moves, ranked ahead
+                // of a vertex in band.
+                Err(
+                    e @ (super::ContainError::RayExhausted
+                    | super::ContainError::EmptyLoop(_)
+                    | super::ContainError::LoopUnreadable(_)
+                    | super::ContainError::Uncrossable(_)
+                    | super::ContainError::Curved(_)
+                    | super::ContainError::ArcEndClearOfCorners(_)),
+                ) => Rung::Blocked(contained(e, "")),
             }
         });
         match placed {

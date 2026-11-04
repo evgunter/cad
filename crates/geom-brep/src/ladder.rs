@@ -81,6 +81,17 @@ impl Kept<Indeterminate> {
     }
 }
 
+impl<E> Kept<E> {
+    /// The same kept kind over `f`'s reading: a reader whose refusal
+    /// carries more than the cause it was ranked by.
+    pub fn map<F>(self, f: impl FnOnce(E) -> F) -> Kept<F> {
+        match self {
+            Self::InBand(e) => Kept::InBand(f(e)),
+            Self::Blocked(e) => Kept::Blocked(f(e)),
+        }
+    }
+}
+
 impl<A, E> From<Kept<E>> for Rung<A, E> {
     fn from(kept: Kept<E>) -> Self {
         match kept {

@@ -122,7 +122,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use geom_brep::curve_pair::{Hit, MeetFault, Span, SpanEnd, meet};
-use geom_brep::ladder::{Answering, Climb, Rung, climb};
+use geom_brep::ladder::{Answering, Climb, Kept, Rung, climb};
 use geom_core::{Band, Decide, Margin, Point3, Sign, Tol, Vec3};
 
 use super::contain::ContainError;
@@ -1153,7 +1153,12 @@ fn piece_rung(
         Ok(PieceRead::In) => Rung::Answers(()),
         Ok(PieceRead::NotIn) => Rung::Passes,
         Ok(PieceRead::Unread(why)) => Rung::Blocked(unread(why)),
-        Err(read) => Rung::InBand(read),
+        // An escalation is kept as its margin is; any other refusal is a
+        // limit no tolerance moves.
+        Err(read @ BooleanError::Escalated { diag, .. }) => {
+            Rung::from(Kept::of(diag)).map_kept(|_| read)
+        }
+        Err(read) => Rung::Blocked(read),
     }
 }
 
@@ -3313,7 +3318,15 @@ mod piece_rung_rows {
             face: FaceKey::default(),
             gap: EdgeInFaceGap::Unread(why),
         };
-        let in_band = || BooleanError::JoinDesync { what: "in band" };
+        let in_band = || BooleanError::Escalated {
+            decision: super::BooleanDecision::VertexOnVertex,
+            diag: geom_core::Indeterminate {
+                margin: geom_core::MarginDiag::value(5e-9),
+                band: geom_core::Band::new(1e-9, 1e-8).unwrap(),
+                predicate: Some("test_piece"),
+                terminal_sliver: false,
+            },
+        };
         let got = climb(
             Answering::Any,
             [

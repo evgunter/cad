@@ -640,3 +640,88 @@ fn spurs_through_both_poles_leave_their_sides_to_the_rim() {
         ]
     );
 }
+
+/// The sliver beside the north pole of
+/// [`a_sampled_sliver_beside_a_pole_reads_outside_or_undecided`], its two
+/// long sides `w` apart.
+fn pole_sliver(w: f64) -> Vec<LoopEdge<f64>> {
+    let delta = 1e-3_f64;
+    let ellipse = |dist: f64| {
+        Curve3::Ellipse(geom::Ellipse::new(
+            geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(dist.cos(), 0.0, dist.sin()),
+                Vec3::new(-dist.sin(), 0.0, dist.cos()),
+            ),
+            1.0,
+            1.0,
+        ))
+    };
+    let half = 0.05_f64;
+    let o = Point3::new(0.0, 0.0, 0.0);
+    let rung = |p: Point3<f64>, q: Point3<f64>| {
+        let n = (p - o).cross(q - o);
+        Curve3::circle(o, n / n.norm(), 1.0, p - o)
+    };
+    let ang = |p: Point3<f64>, q: Point3<f64>| {
+        let (u, v) = (p - o, q - o);
+        u.cross(v).norm().atan2(u.dot(v))
+    };
+    let (a, b) = (ellipse(delta), ellipse(delta + w));
+    let (a0, a1, b0, b1) = (a.eval(-half), a.eval(half), b.eval(-half), b.eval(half));
+    vec![
+        LoopEdge::hand_built(a.clone(), -half, half, true, 0, 1),
+        LoopEdge::hand_built(rung(a1, b1), 0.0, ang(a1, b1), true, 1, 2),
+        LoopEdge::hand_built(b, -half, half, false, 2, 3),
+        LoopEdge::hand_built(rung(b0, a0), 0.0, ang(b0, a0), true, 3, 0),
+    ]
+}
+
+/// **`holds` ranks what its loops kept by `ladder::Evidence`**, the
+/// door step-import's pass reads (`normalize::singularity::holds`): a
+/// loop whose walk does not read ([`Unread::Loop`], a limit import
+/// refuses `unreadable`) listed before a sliver whose side straddles its
+/// bound (a limit too) refuses on the first limit, and either order
+/// refuses on the one listed first. Whether a reading is exempt is the
+/// consumer's question (tier 3's pole rule), not the ladder's.
+#[test]
+fn holds_refuses_on_the_first_limit_its_loops_kept() {
+    use geom_brep::chart_singularity::{SideUnread, Singularity, holds};
+    let twice = vec![LoopEdge::hand_built(
+        section(Vec3::new(0.0, 0.0, 1.0), 0.5),
+        0.0,
+        2.0 * TAU,
+        true,
+        0,
+        0,
+    )];
+    let sliver = pole_sliver(1e-4);
+    let read =
+        |loops: &[&[LoopEdge<f64>]]| holds(&unit_sphere(), loops, true, Singularity::North, band());
+    assert!(
+        matches!(
+            read(&[sliver.as_slice()]),
+            Err(Unread::Side {
+                why: SideUnread::Straddle,
+                ..
+            })
+        ),
+        "the sliver alone straddles"
+    );
+    let got = read(&[twice.as_slice(), sliver.as_slice()]);
+    assert!(
+        matches!(got, Err(Unread::Loop { r#loop: 0 })),
+        "the unreadable walk first: {got:?}"
+    );
+    let got = read(&[sliver.as_slice(), twice.as_slice()]);
+    assert!(
+        matches!(
+            got,
+            Err(Unread::Side {
+                r#loop: 0,
+                why: SideUnread::Straddle
+            })
+        ),
+        "the straddle first: {got:?}"
+    );
+}

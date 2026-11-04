@@ -27,15 +27,14 @@ say why its rule is different; where it ranks differently from
 
 (`edge_nurbs::measured_ends` also ranks differently: below.)
 
-- **`topo::census::shared_run`** (`Some(Some(m)) if m.overlap`; still
-  hand-rolled after tranche 2): the census derives the cause from its own
-  reading log (`escalated_since` over `read`), not from a kept reading,
-  and its two causes feed two different findings. A port needs the
-  census's log to be the climb's record, which is a census design
-  question. Original note:
-  answers) prefers an `Undecided` cause over any other: its own
-  ranking. The census is a detector, so check whether its ranking is
-  the detector's posture or a third order.
+- **`topo::census::shared_run`** (`Some(Some(m)) if m.overlap` answers).
+  What blocks a port is its ranking, not its log: `read` is a local
+  `Vec`, and `escalated_since` can run inside a rung. It ranks an
+  `InteriorsUnread::Undecided` (in band) AHEAD of `Unbuilt` (a limit:
+  the reading is not built), which is the inverse of `Evidence`. The two
+  causes feed two different census findings (`Undecided` vs
+  `FLUSH_UNREAD`), so which one a detector should report first is the
+  census's call. Settle the order, then port.
 - **`topo::pcurves`' stage chain** (the stated, fixed, then measured
   candidates of `probe_pick`, then the General image). `probe_pick`
   itself climbs (`first_within`). The chain is a lane choice whose
@@ -43,11 +42,16 @@ say why its rule is different; where it ranks differently from
   a stage kept, and a `climb` over the stages would change no outcome and
   no record (`First` keeps them live, as now). Left as written unless a
   stage's escalation should refuse.
-- (the row's original note:) **`topo::pcurves`' `probe_pick` loop** (the measured-row stage)
-  keeps the LAST deferred cause, and a later stage runs only where
-  nothing was deferred, so an earlier stage's in-band pick masks a
-  later stage's decision. Both behaviours differ from `climb`; the
-  second changes outcomes, not only the record.
+- **`topo::offset_axial`'s corner-pair loop** (the profile solve over
+  pairs of the vertex's fan). `First` (the first well-conditioned pair
+  that resolves names the corner). Not a clean port, for two reasons:
+  - its kept slot (`tangent`) holds either a FALLBACK ANSWER (a tangent
+    pair's foot) or a refusal. A ladder has no "kept answer";
+  - an in-band conditioning `decide` returns at once
+    (`ReplaceFaceError::Escalated`) even where a later pair would
+    resolve, which is the hand-rolled divergence from the ladder's rule.
+  A port needs the fallback answer as a third outcome, or a second
+  ladder over the tangent feet read after the first.
 
 ## The rule plus an agreement check
 
@@ -100,6 +104,36 @@ more decided rung and asserts it agrees would make the premise a fact.
 It costs a reading per ladder, and no current row reaches a violation.
 Filed here as part of this row, not separately: a check is worth adding
 where a port's premise is weakest (the NURBS ring edges first).
+
+Tranche 2 adds five premises of the same kind:
+- `one_region::read_cycle`: a cycle's vertices read one side;
+- `fate::rehome`: a ring the cut does not cross reads one side;
+- `slit::holding`: any piece in the face places the edge in it;
+- `side_reader::cast_aims`: every ray from outside reads one side;
+- `chart_singularity::Sides::holds`: any loop leaving the point outside answers alike.
+
+**And none of the `Any` record paths is reached.** The full review of
+PR 6495 instrumented the ported ladders over every suite, and no `Any`
+port ever kept a reading and then answered. So the superseded record
+that `Any` buys is unexercised outside `ladder.rs`'s own rows and
+`ray_walk`'s. A row needing a kept reading ahead of a deciding one is
+owed for each port. The cheapest is `cast_aims` with a `Pair` ahead of
+a deciding ray; no fixture builds one today.
+
+## Exemption is the consumer's, not the ladder's
+
+Tranche 2 first ranked `chart_singularity`'s "exempt" readings
+(`Unread::Loop`, `Unread::Carrier`) last, as though the ladder decided
+what a consumer exempts. It does not:
+- tier 3 exempts a pole such a reading meets (its own rule beside
+  `Undecided::of`, in `validate`'s check 6);
+- the import pass refuses both (an unreadable face, a foreign carrier).
+
+So both `chart_singularity` ladders now rank by `Unread::kept`, which
+puts limits first and exempts nothing. An "exempt" kept kind in
+`ladder` is therefore NOT wanted. `edge_nurbs::measured_ends`' `bare`
+(below) is a different question: a third rank of evidence, not an
+exemption.
 
 ## Not a site
 
