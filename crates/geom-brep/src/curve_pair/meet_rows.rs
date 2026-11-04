@@ -2292,31 +2292,34 @@ fn circles_on_one_sphere_meet_at_the_certified_scalar() {
             v(frame.u_ref),
         )
     };
-    let (a, b) = circles_on_one_sphere(1e-2);
-    let span = (0.05, TAU - 0.05);
-    let at_f64 = meet(&Span::new(&a, span), &Span::new(&b, span), band).unwrap();
-    let (a, b) = (lift(&a), lift(&b));
-    let span = (i(span.0), i(span.1));
-    let m = meet(&Span::new(&a, span), &Span::new(&b, span), band)
-        .unwrap_or_else(|e| panic!("at Interval: {:?}", e.fault));
-    assert!(
-        !m.points.is_empty() && m.points.len() == at_f64.points.len(),
-        "the meetings f64 reads, {at_f64:?}, at Interval: {m:?}"
-    );
-    // Each Interval meeting is one f64 reads: its middle within the
-    // band's escalation of an f64 meeting.
     let mid = |x: Interval| geom::bracket_mid((geom_core::Bounds::lo(x), geom_core::Bounds::hi(x)));
-    for p in &m.points {
-        let q = Point3::new(mid(p.point.x), mid(p.point.y), mid(p.point.z));
-        let near = at_f64
-            .points
-            .iter()
-            .map(|f| (f.point - q).norm())
-            .fold(f64::INFINITY, f64::min);
+    for tilt in [1e-2, 1e-3, 3e-4] {
+        let (a, b) = circles_on_one_sphere(tilt);
+        let span = (0.05, TAU - 0.05);
+        let at_f64 = meet(&Span::new(&a, span), &Span::new(&b, span), band).unwrap();
+        let (a, b) = (lift(&a), lift(&b));
+        let span = (i(span.0), i(span.1));
+        let m = meet(&Span::new(&a, span), &Span::new(&b, span), band)
+            .unwrap_or_else(|e| panic!("tilt {tilt:e} at Interval: {:?}", e.fault));
         assert!(
-            near <= band.escalate(),
-            "an Interval meeting at {q:?} lies {near:e} from every f64 meeting: {at_f64:?}"
+            !m.points.is_empty() && m.points.len() == at_f64.points.len(),
+            "tilt {tilt:e}: the meetings f64 reads, {at_f64:?}, at Interval: {m:?}"
         );
+        // Each Interval meeting is one f64 reads: its middle within the
+        // band's escalation of an f64 meeting.
+        for p in &m.points {
+            let q = Point3::new(mid(p.point.x), mid(p.point.y), mid(p.point.z));
+            let near = at_f64
+                .points
+                .iter()
+                .map(|f| (f.point - q).norm())
+                .fold(f64::INFINITY, f64::min);
+            assert!(
+                near <= band.escalate(),
+                "tilt {tilt:e}: an Interval meeting at {q:?} lies {near:e} from every f64 \
+                 meeting: {at_f64:?}"
+            );
+        }
     }
 }
 
@@ -2363,4 +2366,122 @@ fn the_walk_offers_an_endless_span_no_end_reads() {
         matches!(&walked, Ok(m) if m.points.is_empty() && m.shared.is_none()),
         "clear of the circle: {walked:?}"
     );
+}
+
+/// **A window read off short of its reach escalates; its point read with
+/// no window, or past a span by more than its reach, does not.** The
+/// axes of `x` and `y` cross at the origin. A polished pair left `10⁻⁶`
+/// apart in their plane, `p = (10⁻⁶, 0, 0)` on the first and the origin
+/// on the second, states a window ([`super::polish::bound`]) whose floor
+/// is zero (the gap lies along the carriers) and whose reach is about
+/// `10⁻⁶`. Its point is on the first span and off the second by more
+/// than the band, so read as its point alone it is no meeting; read with
+/// its window it straddles the floor against the gap at the pair
+/// (`curve_pair_meet_window`) and escalates, never prunes. With the
+/// second span moved past the origin by far more than the reach, the
+/// window's whole run lies past that span and it prunes.
+#[test]
+fn a_window_read_off_short_of_its_reach_escalates() {
+    let (x, y) = (
+        line([0.0; 3], [1.0, 0.0, 0.0]),
+        line([0.0; 3], [0.0, 1.0, 0.0]),
+    );
+    let (p, q) = (Point3::new(1e-6, 0.0, 0.0), Point3::origin());
+    let bound = super::polish::bound(
+        (p, Vec3::new(1.0, 0.0, 0.0)),
+        (q, Vec3::new(0.0, 1.0, 0.0)),
+        1.0,
+        0.0,
+        band().escalate(),
+    );
+    assert!(
+        bound.floor == 0.0 && (bound.reach - (1e-6 + band().escalate())).abs() < 1e-15,
+        "{bound:?}"
+    );
+    let candidate = |bound| super::Candidate {
+        point: p,
+        ta: 1e-6,
+        tb: 0.0,
+        bound,
+    };
+    let read = |b: &Span<'_, f64>, bound| {
+        let a = Span::new(&x, (-1.0, 1.0));
+        let mut found = super::Found::default();
+        found.read(&a, b, candidate(bound), band());
+        found.finish(&a, b, None, band())
+    };
+    let across = Span::new(&y, (-1.0, 1.0));
+    let got = read(&across, None);
+    assert!(
+        matches!(&got, Ok(m) if m.points.is_empty()),
+        "its point alone: {got:?}"
+    );
+    let got = read(&across, Some(bound));
+    assert!(
+        matches!(&got, Err(r) if matches!(r.fault,
+            MeetFault::Escalated(diag) if diag.predicate == Some("curve_pair_meet_window"))),
+        "its window: {got:?}"
+    );
+    let past = Span::new(&y, (0.5, 1.0));
+    let got = read(&past, Some(bound));
+    assert!(
+        matches!(&got, Ok(m) if m.points.is_empty()),
+        "its window past the span: {got:?}"
+    );
+}
+
+/// **A candidate with no window reads as its point alone, bit for bit**:
+/// each end of two pairs (two segments, a circle's arc and a line), read
+/// through [`super::Found::read`], gives the meetings, the refusal and
+/// the logged decisions that reading its point on both spans gives, the
+/// read before windows were stated. Ends, witnesses and exact roots state
+/// no window, so this is their read.
+#[test]
+fn a_candidate_with_no_window_reads_as_its_point_alone() {
+    use geom_core::k_stats::detached;
+    let pairs = [
+        (
+            line([0.0; 3], [1.0, 0.0, 0.0]),
+            (-1.0, 1.0),
+            line([0.0; 3], [0.0, 1.0, 0.0]),
+            (0.0, 1.0),
+        ),
+        (
+            circle([0.0; 3], [0.0, 0.0, 1.0], 1.0),
+            (0.2, 2.0),
+            line([0.5, -2.0, 0.0], [0.0, 1.0, 0.0]),
+            (0.0, 4.0),
+        ),
+    ];
+    for (ca, ra, cb, rb) in &pairs {
+        let (a, b) = (Span::new(ca, *ra), Span::new(cb, *rb));
+        for c in super::pose::end_candidates(&a, &b) {
+            assert!(c.bound.is_none(), "an end states no window");
+            let (via, rec_via) = detached(|| {
+                let mut found = super::Found::default();
+                found.read(&a, &b, c, band());
+                format!("{:?}", found.finish(&a, &b, None, band()))
+            });
+            let (alone, rec_alone) = detached(|| {
+                let mut found = super::Found::default();
+                found.offer(
+                    c.point,
+                    || {
+                        super::both(
+                            a.contact(c.point, c.ta, band()),
+                            b.contact(c.point, c.tb, band()),
+                        )
+                    },
+                    band(),
+                );
+                format!("{:?}", found.finish(&a, &b, None, band()))
+            });
+            assert_eq!(via, alone, "{c:?}");
+            assert_eq!(
+                format!("{:?}", rec_via.recorded()),
+                format!("{:?}", rec_alone.recorded()),
+                "{c:?}"
+            );
+        }
+    }
 }
