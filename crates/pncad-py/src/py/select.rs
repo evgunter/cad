@@ -153,6 +153,7 @@ pub(crate) enum SegTag {
     BandFoot,
     BandCross,
     BandCut,
+    BandSection,
     BandSlit,
     // Shell
     Inner,
@@ -203,6 +204,7 @@ impl SegTag {
             Self::EndArc => s::SegTag::EndArc,
             Self::Mitre => s::SegTag::Mitre,
             Self::TurnFoot => s::SegTag::TurnFoot,
+            Self::BandSection => s::SegTag::BandSection,
             Self::BandFace => s::SegTag::BandFace,
             Self::BandTrim => s::SegTag::BandTrim,
             Self::BandFoot => s::SegTag::BandFoot,
@@ -951,6 +953,7 @@ mod growth_tripwire {
             s::SegTag::EndArc => SegTag::EndArc,
             s::SegTag::Mitre => SegTag::Mitre,
             s::SegTag::TurnFoot => SegTag::TurnFoot,
+            s::SegTag::BandSection => SegTag::BandSection,
             s::SegTag::BandFace => SegTag::BandFace,
             s::SegTag::BandTrim => SegTag::BandTrim,
             s::SegTag::BandFoot => SegTag::BandFoot,

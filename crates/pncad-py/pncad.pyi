@@ -4547,6 +4547,7 @@ class SegTag:
     BandFoot: Final[SegTag]
     BandCross: Final[SegTag]
     BandCut: Final[SegTag]
+    BandSection: Final[SegTag]
     BandSlit: Final[SegTag]
     Inner: Final[SegTag]
     Rim: Final[SegTag]
