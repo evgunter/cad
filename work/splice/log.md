@@ -1405,3 +1405,7 @@ general regularity sweep. SECTARMS's cylinder × cylinder unit adopts
   - The lane's report: teapot wall 3 at 1e-6 reaches `GermFrameUnsupported { 6v1 Sphere, 3v3 Nurbs }`, one pin across ε; the continuation piece reads the crossing (`Pierce { t: 0.343435, OnEdge(20v1) }`).
   - Filed: the straddling residue at P3; evidence on HONEROOT's root-slack row and on SCALAR's span-reach row.
   - Inherited slow-set reds named: sweep ×3, topo ×2, geom-brep ×1. The reviewer is to reproduce the `Floor` one on main.
+- 2026-11-04 12:55Z — **PR 6523 (`spiric-on-cap-plane`) single FULL review dispatched** on the frozen head `6d9a323f89268c082faa2ad784f05c32d0ac8f00` (CI run 41830799104 green). Reviewer `session_013QoYWXdnBJHpASo4cCKDTW`, evidence `splice/review-6523`, brief `briefs-1103/review-6523.md`.
+  - The lane's report: one arm, `(Spiric, Sphere | Cylinder | Cone) → Off`, gated on the re-decided two-oval regime, with irreducibility argued at the site. A band guard needs an interior sample decided off.
+  - The residue it names: a near touch between the samples still reads Off; `Door::Spiric` is unbuilt (evidence on REACHHOLD's row). The reviewer is asked to build that pose and find its stop.
+  - The β 0.7 union moves to `"spiric wall volume"` (SPIRICARM), pinned by identity in `STEEP_UNION_STOP`.
