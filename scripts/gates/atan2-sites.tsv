@@ -12,8 +12,6 @@ crates/geom-brep/src/pair_section/torus_arms.rs	across_strip	1	chart
 crates/geom-brep/src/pcurve_cache.rs	focal_section_azimuth	1	chart
 crates/geom-brep/src/pcurve_cache.rs	eval	1	chart
 crates/geom-brep/src/pcurve_cache.rs	chart_box	2	chart
-crates/geom-brep/src/pcurve_cache/projected.rs	raw	1	chart
-crates/geom-brep/src/pcurve_cache/projected.rs	branch_azimuth	1	chart
 crates/geom-brep/src/pcurve_cache/projected.rs	atan2_range	4	chart
 crates/geom-brep/src/pcurve_cache/projected.rs	window	4	chart
 crates/geom-brep/src/props/closure.rs	new	1	turn

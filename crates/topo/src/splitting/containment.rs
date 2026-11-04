@@ -357,6 +357,24 @@ pub enum PointInLoopError {
     OffPlane(OffPlane),
 }
 
+impl PointInLoopError {
+    /// What this refusal is to a ladder over several points
+    /// ([`geom_brep::ladder::Refusal`]): an escalation by its margin, a
+    /// schedule no ray settled in band, an edge no ray crosses a limit,
+    /// and a loop that does not walk or a point off its plane a refusal
+    /// of the whole query.
+    #[must_use]
+    pub fn refusal(&self) -> geom_brep::ladder::Refusal {
+        use geom_brep::ladder::Refusal;
+        match self {
+            Self::Escalated { diag, .. } => Refusal::Margin(*diag),
+            Self::RayExhausted { .. } => Refusal::InBand,
+            Self::Uncrossable(_) => Refusal::Limit,
+            Self::CorruptLoop { .. } | Self::OffPlane(_) => Refusal::Abort,
+        }
+    }
+}
+
 /// **Which of [`point_in_loop`]'s preconditions failed**, for `loop`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct OffPlane {

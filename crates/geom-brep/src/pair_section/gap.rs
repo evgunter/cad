@@ -116,6 +116,8 @@ use geom_core::{
     rounding_charge,
 };
 
+use crate::ladder::{Answering, Climb, Rung, climb};
+
 /// The cells the first cut makes of the turn.
 const GAP_START: usize = 32;
 /// The most cells one sweep reads before it escalates.
@@ -603,18 +605,20 @@ pub(crate) fn critical_gap<T: Decide>(
         spent += 1;
         let w = (hi - lo) / two;
         let m = lo + w;
-        let mut open = None;
-        for &far in branches {
+        // The cell's branches, a ladder ([`climb`]) whose answer is the
+        // first tangent branch, which names the gap (`Answering::First`);
+        // a branch the cell leaves open is kept, and bisects the cell
+        // where none is tangent.
+        let r = match climb(Answering::First, branches, |&far| {
             match sweep.cell(far, (lo, m, hi), w) {
-                Cell::Clear => {}
-                Cell::Tangent(gap) => return Ok(gap),
-                Cell::Open(r) => {
-                    open.get_or_insert(r);
-                }
+                Cell::Clear => Rung::Passes,
+                Cell::Tangent(gap) => Rung::Answers(gap),
+                Cell::Open(r) => Rung::InBand(r),
             }
-        }
-        let Some(r) = open else {
-            continue;
+        }) {
+            Climb::Answered { answer, .. } => return Ok(answer),
+            Climb::Passed => continue,
+            Climb::Undecided(r) => r,
         };
         let reach = core.circle.radius * w;
         let floored = matches!(
