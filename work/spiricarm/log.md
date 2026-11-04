@@ -123,3 +123,4 @@
   - **Disclosed:** three snap mutants were not re-run after the order changed.
   - The review row is `docs/dual-review-log/rows/PR-6497.md` (a fair pair).
   - **Stage 2 is closed.** The parent row (`horn-and-spindle-tori-have-no-representation`) closes with it. The part-way revolve (P1) is the next spindle row.
+- 2026-11-04 — **PR 6497 merged; the horn row is closed.** **Dispatched** `a-football-revolved-part-way-refuses-at-its-cap-meridians-certificate` (P1, M; single FULL review, an edge certificate near an apex) on `spiricarm/spindle-partway`.

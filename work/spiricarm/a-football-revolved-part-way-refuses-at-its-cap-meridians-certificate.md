@@ -2,10 +2,11 @@
 id: a-football-revolved-part-way-refuses-at-its-cap-meridians-certificate
 kind: issue
 title: A football revolved part way refuses at the meridian a cap meets the sheet on: the edge ends at both apexes, where Meters::Spindle's lever is not positive
-status: open
+status: dispatched
 opened: 2026-11-04
 priority: P1
 cost: M
+branch: spiricarm/spindle-partway
 ---
 
 
@@ -46,3 +47,9 @@ cusp, revolved part way, refuses `RevolveError::Op` (a stated interval
 decided zero) rather than as the pinch the full revolve names
 (`NonManifoldAxisContact`); `crates/sweep/tests/one_segment_loop.rs`
 `a_one_segment_circle_on_or_against_the_axis_refuses` pins it.
+
+## Dispatched (2026-11-04)
+
+Branch `spiricarm/spindle-partway`. Review tier: **single FULL review**. It changes an edge certificate near an apex: a wrong lever certifies an edge off its sheet, and believing the fix takes more than reading it, though it is narrower than a stage. Look first at the precedent: how a cone's partial revolve certifies the meridian that ends at its apex (`Meters`' cone arm, `apex_root`). Ask whether the sheet's apex wants the same treatment.
+
+Every new or changed guard ships with a row, or a seeded fuzz, that goes red when its load-bearing check is removed (the stage 1 and stage 2 reviews). A wrong-X witness must reach the gate it names.
