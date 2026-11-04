@@ -7,6 +7,7 @@ opened: 2026-11-02
 priority: P0
 cost: H
 design: true
+pr: 6507
 ---
 
 Filed by the REFS orchestrator (2026-11-02), from the designers' measurement on `work/refs/select-all-edges-picks-edges-a-fillet-refuses.md` (Ev: P0, "an ordinary part cannot be filleted all round in one click").
