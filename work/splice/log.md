@@ -1363,3 +1363,4 @@ general regularity sweep. SECTARMS's cylinder × cylinder unit adopts
   - Evidence moved to `a-meeting-on-a-g1-arc-joint-of-a-spline-face-refuses-as-a-crease`.
   - Two P3 rows filed on ONECOPY.
   - State sync: closed `a-rim-arc-lying-on-a-cylinder-refuses-as-a-curved-pierce` and dropped it from `curved-demo-joins-build`'s blocked_on. Klein walls 3 and 4 now wait on SECTARMS' cone stage, already listed.
+  - **Merge-window friction (a semantic conflict).** Main's FaceView refactor (`8afdb823`) deleted `Body::proven_face_surface`. The state-sync head merged main cleanly, but `topo` stopped compiling (CI run 41773492152, all red within two minutes). The orchestrator re-read both surfaces through `proven_face(..).surface()`, and the eight `spline_off_carrier` rows pass locally. This tracker entry is the last commit.
