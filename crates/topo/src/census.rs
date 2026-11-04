@@ -1987,7 +1987,10 @@ fn in_overlap_closure<T: Decide>(
     if cy == FaceContainment::Out {
         return Some(false);
     }
-    let aligned = matches!(contact, PairContact::Area { aligned: true });
+    let facing = match contact {
+        PairContact::Area { aligned: true } => Facing::Same,
+        _ => Facing::Opposite,
+    };
     let along = match contact {
         // The two closures share the touch point alone.
         PairContact::Point => return Some(true),
@@ -2014,7 +2017,7 @@ fn in_overlap_closure<T: Decide>(
             [(fx, cx), (fy, cy)],
             q,
             axis,
-            aligned,
+            facing,
             band,
             errors,
         ) {
@@ -2029,8 +2032,7 @@ fn in_overlap_closure<T: Decide>(
         Err(Unread::Unbuilt) => Err(None),
     };
     let (x, y) = match (cone(fx, cx), cone(fy, cy)) {
-        (Ok(x), Ok(Cone::Corner(y))) if aligned => (x, Cone::Corner(y)),
-        (Ok(x), Ok(Cone::Corner(y))) => (x, Cone::Corner(y.reversed())),
+        (Ok(x), Ok(Cone::Corner(y))) => (x, Cone::Corner(facing.read(y))),
         (Ok(x), Ok(Cone::Full)) => (x, Cone::Full),
         (Err(Some(cause)), _) | (_, Err(Some(cause))) => {
             errors.push(ValidationError::CensusEscalated { cause });
@@ -2056,6 +2058,34 @@ fn in_overlap_closure<T: Decide>(
     (!undecided).then_some(false)
 }
 
+/// **How two faces on one carrier face each other**: the relative
+/// sense two faces' cones are read with ([`cones_meet`]), the second
+/// face's corner read about the first's outward normal as given where
+/// they face the same way and reversed where they face opposite ways.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Facing {
+    /// The same way (an overlap of two solids, a flush pair).
+    Same,
+    /// Opposite ways (a rest, or two faces of one solid on one record).
+    Opposite,
+}
+
+impl Facing {
+    /// Two faces of one surface record, by their senses on it.
+    fn of_senses(a: bool, b: bool) -> Self {
+        if a == b { Self::Same } else { Self::Opposite }
+    }
+
+    /// The second face's corner read about the first face's outward
+    /// normal.
+    fn read<T: Decide>(self, c: Corner<T>) -> Corner<T> {
+        match self {
+            Self::Same => c,
+            Self::Opposite => c.reversed(),
+        }
+    }
+}
+
 /// Why [`cones_meet`] read no answer.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum ConesUnread {
@@ -2070,8 +2100,7 @@ enum ConesUnread {
 /// ([`face_cone`], in the plane tangent there) share an open sector.
 /// A whole plane on either side does; two corners are read by
 /// [`corners_meet`] about `axis`, `x`'s outward normal at `q`, `y`'s
-/// read about it as given where the two face the same way (`aligned`)
-/// and reversed where they face opposite ways. On one carrier each face
+/// read about it as `facing` says ([`Facing::read`]). On one carrier each face
 /// holds, near `q`, every direction strictly inside its cone, so a
 /// shared open sector is points of both interiors arbitrarily near `q`.
 /// An escalation is pushed.
@@ -2082,7 +2111,7 @@ fn cones_meet<T: Decide>(
     [(x, at_x), (y, at_y)]: [(FaceKey, FaceContainment); 2],
     q: Point3<T>,
     axis: Vec3<T>,
-    aligned: bool,
+    facing: Facing,
     band: Band,
     errors: &mut Vec<ValidationError>,
 ) -> Result<bool, ConesUnread> {
@@ -2093,8 +2122,7 @@ fn cones_meet<T: Decide>(
     match cones {
         (Ok(Cone::Full), _) | (_, Ok(Cone::Full)) => Ok(true),
         (Ok(Cone::Corner(cx)), Ok(Cone::Corner(cy))) => {
-            let cy = if aligned { cy } else { cy.reversed() };
-            corners_meet(axis, cx, cy, band, errors).ok_or(ConesUnread::Escalated)
+            corners_meet(axis, cx, facing.read(cy), band, errors).ok_or(ConesUnread::Escalated)
         }
         (Err(Unread::Escalated(cause)), _) | (_, Err(Unread::Escalated(cause))) => {
             errors.push(ValidationError::CensusEscalated { cause });
@@ -6403,7 +6431,7 @@ fn curved_same_side_pairs<T: Decide>(
                 out.apart.extend([(fa, fb), (fb, fa)]);
                 continue;
             }
-            let shared = face_interiors_meet(body, geo, fa, fb, band);
+            let shared = face_interiors_meet(body, geo, fa, fb, Facing::Same, band);
             if let Some(t) = trace.as_deref_mut() {
                 t.aligned
                     .note((EntityId::Face(fa), EntityId::Face(fb)), shared == Ok(true));
@@ -6583,7 +6611,7 @@ fn same_side_overlap<T: Decide>(
         .any(|r| matches!(r, Err(ChartRegionError::NonPlanarTrim { .. })));
     let exact = premise == crate::chart_region::CarrierPremise::Decided;
     if touching && (exact || fa.polygon && fb.polygon) {
-        return face_interiors_meet(body, geo, fa.key, fb.key, band)
+        return face_interiors_meet(body, geo, fa.key, fb.key, Facing::Same, band)
             .map_err(SameSideUnread::Interiors);
     }
     if touching {
@@ -6593,7 +6621,7 @@ fn same_side_overlap<T: Decide>(
     // where it reads nothing, that refusal stands.
     if arcs
         && exact
-        && let Ok(meet) = face_interiors_meet(body, geo, fa.key, fb.key, band)
+        && let Ok(meet) = face_interiors_meet(body, geo, fa.key, fb.key, Facing::Same, band)
     {
         return Ok(meet);
     }
@@ -6630,11 +6658,11 @@ fn report_found_pairs(found: &[FoundPair], declared: &Declared, errors: &mut Vec
 /// **Whether two faces of one surface record share interior**: the
 /// region door in the shared chart, and where it refuses for want of a
 /// lane (not in band, not a torn arena), the faces' own reading
-/// ([`face_interiors_meet`]), on a carrier that is one by key: its
-/// `false` is a certificate on either path. Its `true` is not (it reads
-/// the cones of two crossings it parts as shared interior, and two
-/// opposed faces abutting along a rim are such a pair), so there, and
-/// where it reads nothing, the region door's refusal stands.
+/// ([`face_interiors_meet`]) with their facing read off their senses on
+/// the record: its `false` is a certificate on either path. Its `true`
+/// is not inside the band (a lens shallower than the zero reads as a
+/// meeting), so there, and where it reads nothing, the region door's
+/// refusal stands.
 fn one_record_overlap<T: Decide>(
     body: &Body<T>,
     geo: &Geo<T>,
@@ -6643,9 +6671,11 @@ fn one_record_overlap<T: Decide>(
     band: Band,
 ) -> Result<crate::chart_region::ChartOverlap, ChartRegionError> {
     use crate::chart_region::ChartOverlap;
+    let sense = |f| proven(&body.faces, f, EntityId::Face).sense;
+    let facing = Facing::of_senses(sense(fa), sense(fb));
     match lane.chart_overlap(body, fa, body, fb, band) {
         Err(refusal @ (ChartRegionError::Escalated(_) | ChartRegionError::Corrupt)) => Err(refusal),
-        Err(refusal) => match face_interiors_meet(body, geo, fa, fb, band) {
+        Err(refusal) => match face_interiors_meet(body, geo, fa, fb, facing, band) {
             Ok(false) => Ok(ChartOverlap::Empty),
             Ok(true) | Err(_) => Err(refusal),
         },
@@ -11347,9 +11377,8 @@ fn flush_pairs<T: Decide>(
                         band,
                     )
                 }
-                None => {
-                    face_interiors_meet(body, geo, fa, fb, band).map_err(SameSideUnread::Interiors)
-                }
+                None => face_interiors_meet(body, geo, fa, fb, Facing::Same, band)
+                    .map_err(SameSideUnread::Interiors),
             };
             match reading {
                 Ok(true) => {}
@@ -11448,8 +11477,8 @@ impl InteriorsUnread {
     }
 }
 
-/// **Whether two planar faces on one plane, facing the same way, share
-/// interior**: some vertex of one lies strictly inside the other, two of
+/// **Whether two planar faces on one plane, facing as `facing` says,
+/// share interior**: some vertex of one lies strictly inside the other, two of
 /// their edges cross properly (two half-planes whose lines cross share a
 /// quadrant), or at a vertex of one on the other's boundary their cones
 /// share material ([`corners_meet`]). Where the interiors meet, a point
@@ -11460,6 +11489,7 @@ fn planar_interiors_meet<T: Decide>(
     geo: &Geo<T>,
     fa: &FaceGeo<T>,
     fb: &FaceGeo<T>,
+    facing: Facing,
     band: Band,
 ) -> Result<bool, InteriorsUnread> {
     if !(fa.polygon && fb.polygon) {
@@ -11487,7 +11517,7 @@ fn planar_interiors_meet<T: Decide>(
             }
             let at_x = FaceContainment::OnVertex(v);
             let pair = [(x.key, at_x), (y.key, at)];
-            match cones_meet(body, geo, pair, p, axis, true, band, &mut read) {
+            match cones_meet(body, geo, pair, p, axis, facing, band, &mut read) {
                 Ok(true) => return Ok(true),
                 Ok(false) => {}
                 Err(ConesUnread::Escalated) => note(InteriorsUnread::Undecided, &mut unread),
@@ -11507,8 +11537,8 @@ fn planar_interiors_meet<T: Decide>(
     unread.map_or(Ok(false), Err)
 }
 
-/// **Whether two faces on one carrier, facing the same way, share
-/// interior**: [`planar_interiors_meet`] where both are planar polygons;
+/// **Whether two faces on one carrier, facing as `facing` says
+/// ([`Facing`]), share interior**: [`planar_interiors_meet`] where both are planar polygons;
 /// elsewhere the witness search ([`shared_interior_witness`]) answers
 /// first, and where it finds no meeting the reading of every edge's
 /// pieces between its meetings with the other boundary
@@ -11523,15 +11553,16 @@ fn face_interiors_meet<T: Decide>(
     geo: &Geo<T>,
     fa: FaceKey,
     fb: FaceKey,
+    facing: Facing,
     band: Band,
 ) -> Result<bool, InteriorsUnread> {
     match (planar_face(geo, fa), planar_face(geo, fb)) {
         (Some(x), Some(y)) if x.polygon && y.polygon => {
-            planar_interiors_meet(body, geo, x, y, band)
+            planar_interiors_meet(body, geo, x, y, facing, band)
         }
-        _ => match shared_interior_witness(body, geo, fa, fb, band) {
+        _ => match shared_interior_witness(body, geo, fa, fb, facing, band) {
             Ok(SharedInterior) => Ok(true),
-            Err(_) => arc_interiors_meet(body, geo, fa, fb, band),
+            Err(_) => arc_interiors_meet(body, geo, fa, fb, facing, band),
         },
     }
 }
@@ -11541,8 +11572,8 @@ fn face_interiors_meet<T: Decide>(
 struct SharedInterior;
 
 /// **A point both faces' interiors reach**, for two faces of any kind on
-/// one smooth carrier facing the same way (Door 1 decided the carrier
-/// Zero, `SameOriented`). The probes are points of either face's closure:
+/// one smooth carrier facing as `facing` says (Door 1 decided the
+/// carrier Zero, or the two lie on one record). The probes are points of either face's closure:
 /// each vertex, each edge's midpoint, and the first meeting of an edge of
 /// each on both edges' interiors ([`curved::interiors_meeting`]). Each is
 /// placed in the other face ([`placed`]), and the interiors meet:
@@ -11567,6 +11598,7 @@ fn shared_interior_witness<T: Decide>(
     geo: &Geo<T>,
     fa: FaceKey,
     fb: FaceKey,
+    facing: Facing,
     band: Band,
 ) -> Result<SharedInterior, InteriorsUnread> {
     let mut read = Vec::new();
@@ -11591,7 +11623,7 @@ fn shared_interior_witness<T: Decide>(
             Some((curve.mid_point(), FaceContainment::OnEdge(e)))
         });
         for (q, at) in corners.chain(middles) {
-            if found(meets_at(body, geo, (x, at), y, q, band, &mut read)) {
+            if found(meets_at(body, geo, (x, at), y, q, facing, band, &mut read)) {
                 return Ok(SharedInterior);
             }
         }
@@ -11607,7 +11639,7 @@ fn shared_interior_witness<T: Decide>(
                     ];
                     match normal_at(body, fa, m.point, band, &mut read) {
                         Ok(axis) => {
-                            cones_meet(body, geo, pair, m.point, axis, true, band, &mut read)
+                            cones_meet(body, geo, pair, m.point, axis, facing, band, &mut read)
                                 .map_err(InteriorsUnread::from)
                         }
                         Err(why) => Err(why),
@@ -11624,9 +11656,10 @@ fn shared_interior_witness<T: Decide>(
     Err(unread)
 }
 
-/// **Whether two faces on one carrier, facing the same way, share
+/// **Whether two faces on one carrier, facing as `facing` says, share
 /// interior**, for faces whose boundaries carry arcs or lie on a curved
-/// carrier (Door 1 decided the carrier Zero, `SameOriented`). Each edge
+/// carrier (Door 1 decided the carrier Zero, or the two lie on one
+/// record). Each edge
 /// of either face is cut at its own ends, at each point meeting with
 /// each edge of the other face ([`geom_brep::curve_pair::meet`], which
 /// returns two spans' complete set of point meetings and shared runs, or
@@ -11674,6 +11707,7 @@ fn arc_interiors_meet<T: Decide>(
     geo: &Geo<T>,
     fa: FaceKey,
     fb: FaceKey,
+    facing: Facing,
     band: Band,
 ) -> Result<bool, InteriorsUnread> {
     let mut read = Vec::new();
@@ -11776,7 +11810,7 @@ fn arc_interiors_meet<T: Decide>(
                     }
                 }
                 let at = FaceContainment::OnEdge(*e);
-                match meets_at(body, geo, (x, at), y, q, band, &mut read) {
+                match meets_at(body, geo, (x, at), y, q, facing, band, &mut read) {
                     Ok(true) => return Ok(true),
                     Ok(false) => {}
                     Err(why) => note(why, &mut unread),
@@ -11888,6 +11922,7 @@ fn meets_at<T: Decide>(
     (x, at): (FaceKey, FaceContainment),
     y: FaceKey,
     q: Point3<T>,
+    facing: Facing,
     band: Band,
     read: &mut Vec<ValidationError>,
 ) -> Result<bool, InteriorsUnread> {
@@ -11900,7 +11935,7 @@ fn meets_at<T: Decide>(
         FaceContainment::In => Ok(true),
         on_y => {
             let axis = normal_at(body, x, q, band, read)?;
-            cones_meet(body, geo, [(x, at), (y, on_y)], q, axis, true, band, read)
+            cones_meet(body, geo, [(x, at), (y, on_y)], q, axis, facing, band, read)
                 .map_err(InteriorsUnread::from)
         }
     }
@@ -13324,7 +13359,7 @@ mod tests {
             let top_b = keys.face(pb.top_face).unwrap();
             let fa = planar_face(&geo, pa.top_face).expect("a planar top");
             let fb = planar_face(&geo, top_b).expect("b planar top");
-            planar_interiors_meet(&body, &geo, fa, fb, band())
+            planar_interiors_meet(&body, &geo, fa, fb, Facing::Same, band())
         };
         let sq = |x0: f64, y0: f64, x1: f64, y1: f64| [(x0, y0), (x1, y0), (x1, y1), (x0, y1)];
         assert_eq!(
@@ -21384,8 +21419,8 @@ mod arc_interiors {
         let b = add_piece(&mut body, c + v * (2.0 * r - depth), r, (PI, 2.0 * PI));
         let geo = snapshot(&body);
         [
-            face_interiors_meet(&body, &geo, a, b, band()),
-            arc_interiors_meet(&body, &geo, a, b, band()),
+            face_interiors_meet(&body, &geo, a, b, Facing::Same, band()),
+            arc_interiors_meet(&body, &geo, a, b, Facing::Same, band()),
         ]
     }
 
@@ -21479,10 +21514,10 @@ mod arc_interiors {
         let fb = add_piece(&mut body, b.0, b.1, b.2);
         let geo = snapshot(&body);
         [
-            face_interiors_meet(&body, &geo, fa, fb, band()),
-            arc_interiors_meet(&body, &geo, fa, fb, band()),
-            face_interiors_meet(&body, &geo, fb, fa, band()),
-            arc_interiors_meet(&body, &geo, fb, fa, band()),
+            face_interiors_meet(&body, &geo, fa, fb, Facing::Same, band()),
+            arc_interiors_meet(&body, &geo, fa, fb, Facing::Same, band()),
+            face_interiors_meet(&body, &geo, fb, fa, Facing::Same, band()),
+            arc_interiors_meet(&body, &geo, fb, fa, Facing::Same, band()),
         ]
     }
 
@@ -21576,10 +21611,84 @@ mod arc_interiors {
             let a = add_piece(&mut body, c, 1.0, (0.0, PI));
             let b = add_piece(&mut body, c, 1.0, (t0, t1));
             assert_eq!(
-                face_interiors_meet(&body, &snapshot(&body), a, b, band()),
+                face_interiors_meet(&body, &snapshot(&body), a, b, Facing::Same, band()),
                 Ok(meet),
                 "the half over [{t0}, {t1}]"
             );
+        }
+    }
+
+    /// **Opposed pieces of one circle on one record that overlap read as
+    /// a meeting, and ones that only abut read apart**, either order and
+    /// by either reading: a piece against the back face of another (its
+    /// lamina's other face, put on the first piece's record with the
+    /// opposite sense), the facing read off the two senses. Red if the
+    /// second face's cone is read unreversed: congruent opposed faces
+    /// then read apart, and abutting ones as sharing interior.
+    #[test]
+    fn opposed_pieces_on_one_record_meet_where_they_overlap() {
+        let (c, ..) = frame();
+        for (label, a, b, meet) in [
+            ("identical halves", (0.0, PI), (0.0, PI), true),
+            ("half and quarter", (0.0, PI), (0.0, 0.5 * PI), true),
+            (
+                "half and inner run",
+                (0.0, PI),
+                (0.25 * PI, 0.75 * PI),
+                true,
+            ),
+            (
+                "straddling a vertex",
+                (0.0, PI),
+                (-0.25 * PI, 0.25 * PI),
+                true,
+            ),
+            ("turned halves", (0.0, PI), (0.5 * PI, 1.5 * PI), true),
+            (
+                "halves sharing a diameter",
+                (0.0, PI),
+                (PI, 2.0 * PI),
+                false,
+            ),
+            (
+                "quarters sharing an end",
+                (0.0, 0.5 * PI),
+                (0.5 * PI, PI),
+                false,
+            ),
+            (
+                "reflex and complement",
+                (0.0, 1.5 * PI),
+                (1.5 * PI, 2.0 * PI),
+                false,
+            ),
+        ] {
+            let mut body = Body::<f64>::new();
+            let fa = add_piece(&mut body, c, 1.0, a);
+            let before: Vec<FaceKey> = body.faces().map(|(f, _)| f).collect();
+            let fb = add_piece(&mut body, c, 1.0, b);
+            let back = body
+                .faces()
+                .map(|(f, _)| f)
+                .find(|f| *f != fb && !before.contains(f))
+                .expect("the piece's back face");
+            let key = body.get_face(fa).unwrap().surface;
+            body.set_face_surface_unvouched_for_tests(
+                back,
+                FaceSurface::Shared { key, sense: true },
+            )
+            .expect("the back face on the first piece's record");
+            let geo = snapshot(&body);
+            let sense = |f| body.get_face(f).unwrap().sense;
+            let facing = Facing::of_senses(sense(fa), sense(back));
+            assert_eq!(facing, Facing::Opposite, "{label}: the senses oppose");
+            let read = [
+                face_interiors_meet(&body, &geo, fa, back, facing, band()),
+                arc_interiors_meet(&body, &geo, fa, back, facing, band()),
+                face_interiors_meet(&body, &geo, back, fa, facing, band()),
+                arc_interiors_meet(&body, &geo, back, fa, facing, band()),
+            ];
+            assert_eq!(read, [Ok(meet); 4], "{label}");
         }
     }
 }

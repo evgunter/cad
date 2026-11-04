@@ -28,29 +28,23 @@ takes the faces' own reading (`face_interiors_meet`) where that reads
 - `rest_mate_every_op`'s arc-split bores;
 - `two_rims_review_probes`' rod on a step.
 
-What remains is two rows in `crates/sweep/tests/a_closed_conic_in_the_partners_face.rs`:
-`a_boss_over_a_hole_by_pose` and
+Two rows in `crates/sweep/tests/a_closed_conic_in_the_partners_face.rs`
+then read `CensusUnsupported`: `a_boss_over_a_hole_by_pose` and
 `a_hole_sharing_the_rim_along_an_arc_then_leaving_it_tangent`. In both, the
-opposed boss and hole walls abut along the rim. The region walk refuses
-`TouchingBoundary`, and the faces' own reading answers `true`. That `true`
-is no certificate: the witness search reads two crossings and their cones
-as shared interior. So the arm reports `CensusUnsupported`, which the rows'
-pins (only `EdgeEdgeOverlap` and `CensusUndecidable`) do not admit.
+opposed boss and hole walls abut along the rim and the region walk refuses
+`TouchingBoundary`. The faces' own reading answered `true` there because it
+read every pair as facing the same way: its cone readings (`cones_meet`)
+took the second face's corner as given, so an opposed face's corner read
+as its complement. Abutting opposed walls read as sharing interior, and
+congruent opposed faces read apart.
 
 The rims' `UnrecordedContact { EdgeEdgeOverlap }` is not new. It is the
 rows' pinned residue (`Reads::Unrecorded`; the second row asserts only it).
 
-Options:
-1. A region reading in the shared chart that decides two faces abutting
-   along a boundary arc apart, the chart-region door's `TouchingBoundary`
-   arm on a curved chart.
-2. A `face_interiors_meet` variant whose `true` is certified for opposed
-   faces.
-3. Admit the arm's `CensusUnsupported` for an abutting pair in the two
-   rows' pins, which states the gap rather than closing it.
+## Closed
 
-
-Closed 2026-11-03 on branch `onedoor/one-surface-record`. The two closed-conic
-rows admit exactly the abutting walls' `TouchingBoundary` refusal (option
-3). The capability, option 1, is its own row on charttail:
-`work/charttail/a-chart-region-reading-decides-two-faces-of-one-curved-record-abutting-along-an-arc-apart.md`.
+2026-11-03 on branch `onedoor/one-surface-record`. The faces' reading
+takes the two faces' facing (`census.rs` `Facing`), which
+`one_record_overlap` reads off their senses on the record, and reads the
+second cone reversed where they oppose. The abutting walls then read
+apart, and the two closed-conic rows hold their pins unchanged.
