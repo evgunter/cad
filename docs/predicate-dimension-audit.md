@@ -1645,9 +1645,13 @@ Flagged, NOT fixed here (dispositions):
   own rows. What keeps it off the logged doors is that no outcome of it
   is a reading: an undecided difference (two conics crossing alike, an
   enclosure straddling the tie) reads the first, and either reading is
-  sound there, so a narrower reading of it changes no answer the
-  caller certifies. Logged, every undecided pick at `Interval` would
-  hand the driver an escalation for a choice that decides nothing.
+  sound there: neither answers wrong. Two conics tangent at a point tie
+  but for rounding, each tangent to the other's plane, so there either
+  may be read, and the window certifies their touch on either: its
+  height and level are read locally, about the piece
+  (`curve_pair::order_rows::conics_tangent_at_a_shared_end_meet_once_in_either_order`).
+  Logged, every undecided pick at `Interval` would hand the driver an
+  escalation for a choice that decides nothing.
 
   **Carried as `k_stats::check_unlogged(.., "F33")`**. Its K samples
   still reach the sink under `curve_pair_pose_across`. Not a
