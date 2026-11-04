@@ -161,6 +161,7 @@ pub(crate) fn minted_segment(seg: RoleSeg) -> RoleSeg {
         | RoleSeg::EndArc { .. }
         | RoleSeg::Mitre { .. }
         | RoleSeg::TurnFoot { .. }
+        | RoleSeg::BandSection { .. }
         | RoleSeg::BandTrim { .. }
         | RoleSeg::BandFoot(_)
         | RoleSeg::BandCut(_)

@@ -141,6 +141,7 @@ pub(crate) fn origin(seg: &RoleSeg) -> SegOrigin<'_> {
         | RoleSeg::EndArc { .. }
         | RoleSeg::Mitre { .. }
         | RoleSeg::TurnFoot { .. }
+        | RoleSeg::BandSection { .. }
         | RoleSeg::BandFace(_)
         | RoleSeg::BandTrim { .. }
         | RoleSeg::BandFoot(_)

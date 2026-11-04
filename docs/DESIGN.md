@@ -1035,9 +1035,11 @@ EdgeDescription =
   native or imported geometry: import adopts extensional input by
   recovering the selector a native body would carry, or refuses typed
   where no lane recovers one ([import]).
-- **Validity is margined.** `Intersection` requires transversality along
-  the locus; a tangency of order k is read through its k-jet, with its
-  margin at order k+1, transverse to the locus. A locus in the ambiguous
+- **Validity is margined.** A witness selector is admitted by its
+  margin: `Intersection` requires transversality along the locus; a
+  tangency of order k is read through its k-jet, with its margin at order
+  k+1, transverse to the locus. A structural selector owes its
+  per-surface certificates and one contact class along the whole row. A locus in the ambiguous
   band, certifiable as neither, fails loudly at construction exactly as
   at import, and so does an edge read definitely transverse at some
   stations and definitely smooth at others.

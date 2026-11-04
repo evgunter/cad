@@ -8,9 +8,8 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Point2, Tol};
-use profile::{SketchPlane, test_support::bulge_loop};
 use sweep::blend::{BlendError, CornerConfig, fillet_edges};
-use sweep::test_support::{at_rest, corners, cylinder_of_arcs_at, extruded, prism_at, realized};
+use sweep::test_support::{at_rest, corners, cylinder_of_arcs_at, prism_at, realized};
 use topo::boolean::BooleanOp;
 use topo::{Body, EdgeKey};
 
@@ -70,43 +69,6 @@ fn pin_today_the_bracket_filleted_all_round_refuses_a_mixed_convexity_corner() {
             })
         ),
         "today the bracket refuses at a mixed corner, got {got:?}"
-    );
-}
-
-/// **The rounded rectangle**: [−1, 1] × [−0.6, 0.6], corner radius 0.3,
-/// extruded 0.5 up. Each cap's outline is one closed tangent-continuous
-/// chain of four lines and four quarter arcs.
-fn rounded_rectangle() -> Body<f64> {
-    let q = (core::f64::consts::FRAC_PI_2 / 4.0).tan();
-    extruded(
-        SketchPlane::xy(),
-        vec![bulge_loop(vec![
-            (Point2::new(-0.7, -0.6), 0.0),
-            (Point2::new(0.7, -0.6), q),
-            (Point2::new(1.0, -0.3), 0.0),
-            (Point2::new(1.0, 0.3), q),
-            (Point2::new(0.7, 0.6), 0.0),
-            (Point2::new(-0.7, 0.6), q),
-            (Point2::new(-1.0, 0.3), 0.0),
-            (Point2::new(-1.0, -0.3), q),
-        ])],
-        0.5,
-        tol(),
-    )
-}
-
-/// **PIN (flipped by `work/band/a-rounded-outline-is-a-closed-chain-of-mixed-links-the-blend-refuses.md`)**:
-/// the rounded rectangle with every edge requested leaves its eight
-/// smooth struts and refuses each cap's outline, a closed chain of
-/// mixed links, as an unbuilt chain shape.
-#[test]
-fn pin_today_a_rounded_rectangle_filleted_all_round_refuses_its_closed_mixed_chain() {
-    let body = rounded_rectangle();
-    let got =
-        fillet_edges(&at_rest(&body, tol()), &every_edge(&body), 0.05, tol()).map_err(|r| r.error);
-    assert!(
-        matches!(got, Err(BlendError::UnsupportedChain { .. })),
-        "today a rounded outline refuses as a closed chain shape, got {got:?}"
     );
 }
 

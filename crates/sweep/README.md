@@ -33,7 +33,7 @@ chamfers) is registered in `docs/KERNEL-VERBS.md`; the canal blend is
 | Analytic arms: sheet derivation, `BlendArm`, chamfer strip, corner ball | `crates/sweep/src/blend/arms.rs` |
 | Admission tokens (holding the value is the fact) | `crates/sweep/src/blend/admit.rs` |
 | Assembly front doors, `Blended` result type, octant charts | `crates/sweep/src/blend/build.rs` |
-| In-place composition surgery: the door, the plans, the ring check, the description pass, the one `kef` door; the closed-rim walks (ladder rims, annulus rims across seams) | `crates/sweep/src/blend/surgery.rs` |
+| In-place composition surgery: the door, the plans, the ring check, the description pass, the one `kef` door; the closed-rim walks (ladder rims, annulus rims across seams, mixed rims) | `crates/sweep/src/blend/surgery.rs` |
 | Predicate 2's reach: every band against every face of the body that is not a support of its chain, in any shell, before any mutation | `crates/sweep/src/blend/reach.rs` |
 | The carve that takes a feature wholly inside a straight band's material, removed or filled: the grouping into features, and the walk that removes one | `crates/sweep/src/blend/consume.rs` |
 | The open bands: the plane–plane band with its trihedral corners, the ruled band with its transverse cut-off | `crates/sweep/src/blend/open/planar.rs`, `crates/sweep/src/blend/open/ruled.rs` |
@@ -564,7 +564,32 @@ links: Zero, one band through a joint; definite, two chain ends at a
 turn; sliver, escalated. Tangency is what lets one band run through a
 junction, not a condition on the request. It keeps its name and its
 place in the order, and still refuses at a junction involving a curved
-link. The planar band carves locally, as the ruled band does: the end
+link where it reads a definite turn. Where a tangent junction joins
+links on different supports (a line into an arc of a rounded outline)
+it reads the BANDS as well: the two links' balls at the junction rest
+in one section, margin the distance between their section centres.
+Zero is a section the two bands share and meet G1 along; definite is
+supports creasing there, refused `UnsupportedChain`; in band, escalated.
+
+**A closed chain of mixed links** — a rounded outline's lines and arcs,
+a cylinder band over each line and a torus band over each arc — is
+carved on the one face its links share, whose whole cycle (outer or a
+ring) it is, as the annulus rim is: at each junction the edge between
+the two mates splits at the mate foot, a strut reaches the host foot,
+each link's trims are cut and its arc excised, and the strut's `kev`
+re-bases the split piece into the SECTION, the ball's circle between
+the two feet. Each link keeps its own band face, and the section is
+described as the shared row of the two bands' charts (a cylinder's
+transverse circle, a torus's meridian;
+`geom_brep::analytic_shared_row`). A convex rim removes, and a concave
+one adds, the section `r²(1 − π/4)` along the path its centroid takes
+(`band_closed_mixed_chain`). A run of two links on one support pair
+inside such a chain, a chain sharing no one face, and an OPEN mixed
+chain refuse `UnsupportedChain`
+(`work/band/an-open-tangent-chain-of-mixed-links-refuses-at-the-open-carve.md`);
+a chamfer has no arm over an arc, so its rounded outlines refuse at the
+arc. The section is named `BandSection { vertex }`, after the junction
+vertex it replaces. The planar band carves locally, as the ruled band does: the end
 face's rim edges split at the feet, the end curve `mef`'d across it, one
 trimline per support; at a turn, L split at its foot, a strut out to the
 trimlines' crossing on the shared face, and the mitre `mef`'d across one

@@ -94,7 +94,7 @@ use topo::{Body, EdgeKey, EntityId, FaceBoxes, FaceKey, LoopKey, SurfaceKey, Ver
 
 use super::arms::{chamfer_corner_patch, corner_ball, line_meet};
 use super::battery::{
-    Chain, Convexity, Link, carrier_of, classified, face_clearance_margin, outward,
+    Chain, Convexity, Link, carrier_of, classified, face_clearance_margin, outward, same_supports,
 };
 use super::surgery::{degenerate, disagrees, loop_walk, unresolved, unwalked};
 use super::{BlendDecision, BlendError, BlendKind, BlendSite, classify};
@@ -985,7 +985,7 @@ fn straight_reach<T: Decide + Bounds>(
     link: &Link<T>,
     st: &Station<T>,
     corners: &[(VertexKey, Vec<Point3<T>>)],
-    (request, taken): (&[VertexKey], &[LoopKey]),
+    (request, taken, sections): (&[VertexKey], &[LoopKey], &[VertexKey]),
     chain: usize,
     band: Band,
 ) -> Result<Stretch<T>, BlendError> {
@@ -1057,6 +1057,23 @@ fn straight_reach<T: Decide + Bounds>(
     let mut skip = Vec::new();
     for v in [link.start, link.end] {
         let pv = point_of(body, v)?;
+        // At a junction onto a link on other supports the band runs on
+        // into that link's: this link's material ends in the section
+        // plane through the vertex, normal to the spine, which the two
+        // bands share.
+        if sections.contains(&v) {
+            let cap = half_space(pv, tau, q);
+            core.push(cap.clone());
+            caps.push((Role::Other, cap));
+            for f in faces_at(body, v)? {
+                if f != link.face_a && f != link.face_b {
+                    skip.push(f);
+                }
+            }
+            let sv = (pv - start).dot(tau);
+            ends.push((sv, sv, sv, sv));
+            continue;
+        }
         let patch = corners.iter().find(|(cv, _)| *cv == v);
         let mut pad = T::zero();
         for f in faces_at(body, v)? {
@@ -2634,12 +2651,31 @@ pub(crate) fn band_reach<T: Decide + Bounds>(
         .iter()
         .map(|c| c.links().flat_map(|l| [l.face_a, l.face_b]).collect())
         .collect();
+    // The junctions onto a link on other supports, where a band runs
+    // on into the next link's through their shared section.
+    let mut sections: Vec<VertexKey> = Vec::new();
+    for c in chains {
+        let links: Vec<&Link<T>> = c.links().collect();
+        for j in &c.junctions {
+            if !same_supports(body, links[j.arriving], links[j.leaving])? {
+                sections.push(j.vertex);
+            }
+        }
+    }
     for (ci, link) in &all {
         let st = station(body, link)?;
         let mut r = if link.arm.is_coaxial_torus() {
             circular_reach(body, link, &st, &ends_all, *ci, band)?
         } else {
-            straight_reach(body, link, &st, &corners, (&ends_all, &taken), *ci, band)?
+            straight_reach(
+                body,
+                link,
+                &st,
+                &corners,
+                (&ends_all, &taken, &sections),
+                *ci,
+                band,
+            )?
         };
         r.skip.extend(&supports[*ci]);
         r.skip.sort_unstable();

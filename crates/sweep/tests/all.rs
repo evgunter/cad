@@ -206,6 +206,8 @@ mod an_inside_out_thin_tube_operand;
 mod at_rest_pcurve_faces;
 #[path = "band_apart_partners_on_a_steep_ellipse.rs"]
 mod band_apart_partners_on_a_steep_ellipse;
+#[path = "band_closed_mixed_chain.rs"]
+mod band_closed_mixed_chain;
 #[path = "band_subdivided_side_walls.rs"]
 mod band_subdivided_side_walls;
 #[path = "bisector_lane_stubs.rs"]

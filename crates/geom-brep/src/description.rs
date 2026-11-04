@@ -219,12 +219,15 @@ pub enum Structural<T: Real> {
 }
 
 /// **A row of each surface's chart that is the edge on both** — a rim
-/// where two swept or skinned walls meet at a shared section. One closed
-/// form, symmetric in the pair: each surface states its own row image.
+/// where two swept or skinned walls meet at a shared section, or a
+/// blend's section where two bands meet. One closed form, symmetric in
+/// the pair: each surface states its own row image.
 ///
-/// The images are held in the pair's key order and are iso rows only
-/// ([`Pcurve::IsoLine`] or [`Pcurve::IsoArc`] along one chart
-/// coordinate); [`SharedRow::new`] refuses anything else.
+/// The images are held in the pair's key order and are rows only: on a
+/// spline chart an iso row ([`Pcurve::IsoLine`] or [`Pcurve::IsoArc`]
+/// along one chart coordinate), on an analytic chart a closed-form image
+/// with one coordinate fixed ([`harmonic_row`]).
+/// [`SharedRow::new`] refuses anything else.
 #[derive(Clone, Debug)]
 pub struct SharedRow<T: Real> {
     images: [Pcurve<T>; 2],
@@ -282,9 +285,103 @@ pub(crate) fn row_of<T: Real>(image: &Pcurve<T>) -> Option<(bool, T)> {
     }
 }
 
-/// Whether `image` is a row image at all ([`row_of`]).
+/// Whether `image` is a row image at all: a spline chart's ([`row_of`])
+/// or an analytic chart's ([`harmonic_row`]). Which chart it is a row of
+/// is [`wall_row`]'s question.
 fn is_row<T: Real>(image: &Pcurve<T>) -> bool {
-    row_of(image).is_some()
+    row_of(image).is_some() || harmonic_row(image).is_some()
+}
+
+/// How an analytic row image moves: which coordinate moves, and whether
+/// it turns (an angle winding ±1) or slides (a free coordinate, linear).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct HarmonicRow {
+    /// The moving coordinate is `u` (else `v`).
+    pub(crate) along_u: bool,
+    /// The moving coordinate is an angle winding once per carrier period
+    /// (else a free coordinate moving linearly).
+    pub(crate) turning: bool,
+}
+
+/// **An analytic row image's reading**: a closed-form image
+/// ([`Pcurve::Harmonic`]) that holds one coordinate fixed and moves the
+/// other once around per carrier period (an angle winding ±1) or
+/// linearly (a free coordinate). `None` for anything else.
+pub(crate) fn harmonic_row<T: Real>(image: &Pcurve<T>) -> Option<HarmonicRow> {
+    use crate::pcurve_cache::Channel;
+    let zero = |x: T| geom_core::is_exact_zero(x);
+    let fixed = |c: &Channel<T>| match *c {
+        Channel::Angle { winding, .. } => winding == 0,
+        Channel::Free { a, b, l, .. } => zero(a) && zero(b) && zero(l),
+    };
+    let moving = |c: &Channel<T>| match *c {
+        Channel::Angle { winding, .. } => (winding.abs() == 1).then_some(true),
+        Channel::Free { a, b, l, .. } => (zero(a) && zero(b) && !zero(l)).then_some(false),
+    };
+    let Pcurve::Harmonic { u, v } = image else {
+        return None;
+    };
+    if fixed(v)
+        && let Some(turning) = moving(u)
+    {
+        Some(HarmonicRow {
+            along_u: true,
+            turning,
+        })
+    } else if fixed(u)
+        && let Some(turning) = moving(v)
+    {
+        Some(HarmonicRow {
+            along_u: false,
+            turning,
+        })
+    } else {
+        None
+    }
+}
+
+/// What kind of chart a shared row's image is a row of ([`wall_row`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum WallRow {
+    /// An iso row along a domain side of a spline chart.
+    Spline,
+    /// A row of a plane's, cylinder's, cone's, sphere's or torus's chart.
+    Analytic(HarmonicRow),
+}
+
+/// Why an image is no shared row's on its wall ([`wall_row`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum NotARow {
+    /// A spline chart's image that is no iso row on a side of its domain.
+    OffSide,
+    /// Any other wall or image.
+    Unadmitted,
+}
+
+/// **The shared row's one admission rule, per wall**: on a spline chart,
+/// an iso row along a domain side ([`on_domain_side`]); on a plane's,
+/// cylinder's, cone's, sphere's or torus's chart, a row anywhere on it
+/// ([`harmonic_row`]). Read by the certificate, the drafts' readers and
+/// the constructor alike.
+pub(crate) fn wall_row<T: Real>(
+    wall: &geom::Surface<T>,
+    image: &Pcurve<T>,
+) -> Result<WallRow, NotARow> {
+    use geom::Surface;
+    match wall.spline_chart() {
+        Some(chart) if on_domain_side(chart, image) => Ok(WallRow::Spline),
+        Some(_) => Err(NotARow::OffSide),
+        None => match wall {
+            Surface::Plane { .. }
+            | Surface::Cylinder { .. }
+            | Surface::Cone { .. }
+            | Surface::Sphere { .. }
+            | Surface::Torus { .. } => harmonic_row(image)
+                .map(WallRow::Analytic)
+                .ok_or(NotARow::Unadmitted),
+            _ => Err(NotARow::Unadmitted),
+        },
+    }
 }
 
 /// **Whether `image` is a row along a domain side of `chart`**: a row

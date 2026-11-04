@@ -244,6 +244,12 @@ pub struct BlendNaming {
     /// source meridian's surviving pieces are recorded once each, and
     /// their names are unique by that alone.
     pub slits: Vec<(EdgeKey, EdgeKey, Vec<EdgeKey>)>,
+    /// A mixed rim's SECTION ← (the source edge whose rim-side piece
+    /// became it, the source junction vertex it replaces): the circle arc
+    /// along which the bands of the junction's two links meet, G1, from
+    /// the host foot to the mate foot. Like a slit, it is a surviving
+    /// piece of the edge the carve split there.
+    pub sections: Vec<(EdgeKey, EdgeKey, VertexKey)>,
 
     /// What the blend retired from the source.
     pub dead: Retired,
@@ -274,7 +280,7 @@ impl BlendNaming {
     /// none of the points of the cell it replaces, so it takes no record
     /// from it. A source edge the band's carve split is divided into its
     /// surviving pieces ([`Self::meridian_remnants`],
-    /// [`Self::slits`]) and the vertices that split
+    /// [`Self::slits`], [`Self::sections`]) and the vertices that split
     /// it, the carved span removed; a support face is divided into itself
     /// and the trimlines and feet the blend minted in it, the strip it
     /// carved away removed. Every other cell whose geometry the blend
@@ -337,6 +343,9 @@ impl BlendNaming {
         }
         for &(slit, source, _) in &self.slits {
             piece(source, Cell::Edge(slit), false);
+        }
+        for &(section, source, _) in &self.sections {
+            piece(source, Cell::Edge(section), false);
         }
         for &(v, source, _) in &self.meridian_splits {
             piece(source, Cell::Vertex(v), true);
