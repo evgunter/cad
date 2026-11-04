@@ -162,9 +162,11 @@ fn read<T: Decide>(p: Point3<T>, pieces: Vec<TangentPiece<T>>) -> TouchVerdict {
 /// at the point is a rest. Read against a whole plane through `p`
 /// square to the lens's middle, the lens must be the region's other
 /// kind: a void inside the plane's material and a sliver outside it rest,
-/// the other two are refused. A plane through the lens's middle crosses
-/// it. Red where a lens's kind is read the other way round, the region
-/// round it is not read, or a sheet crossing it is passed.
+/// the other two are refused. One tangent plane cut in two along the
+/// same two edges, both faces the same way out, is no lens. A
+/// plane through the lens's middle crosses it. Red where a lens's kind
+/// is read the other way round, the region round it is not read, a pair
+/// facing one way is taken for a lens, or a sheet crossing it is passed.
 fn a_lens_is_the_void_or_the_sliver_its_sheets_bend_to<T: Decide>() {
     let unread = TouchVerdict::Unread(TouchUnread::Unreadable);
     for p in apexes::<T>() {
@@ -210,6 +212,20 @@ fn a_lens_is_the_void_or_the_sliver_its_sheets_bend_to<T: Decide>() {
         let (rod, bore) = rod_and_bore(p, 1.0);
         mixed.extend(lens(p, (bore, rod), quarter([0.0, 0.0, -1.0]), pair(2)));
         assert_eq!(read(p, mixed), unread, "a void and a sliver at {p:?}");
+        // The rod's tangent plane cut in two along the lens's edges, the
+        // two faces the same way out: one sheet, no lens, read as one flat
+        // link, which ties no winding (in band).
+        let (d0, d1) = quarter::<T>([0.0, 0.0, 1.0]);
+        let rod = || rod_and_bore(p, 1.0).0;
+        let halves = vec![
+            corner(p, (rod(), true), v(1.0, 0.0, 0.0), (d0, d1), pair(0)),
+            corner(p, (rod(), true), v(1.0, 0.0, 0.0), (d1, d0), [k[1], k[0]]),
+        ];
+        assert_eq!(
+            read(p, halves),
+            TouchVerdict::Unread(TouchUnread::InBand),
+            "a tangent plane in two at {p:?}"
+        );
         // The plane y = 0 through the lens's middle crosses both its
         // sheets.
         let mut crossed: Vec<_> =
