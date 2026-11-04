@@ -1609,14 +1609,22 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
         | geom_brep::EdgeDescription::OnPair { .. } => {
             iso_schedule("pcurve_iso_seam_column", Vec::new())
         }
+        // No lane is written for the rest, a capability gap reached only
+        // behind the chart's incidence read: a carrier shown off the wall,
+        // or read in band, ends as that read.
         geom_brep::EdgeDescription::TangentIntersection { .. }
         | geom_brep::EdgeDescription::Chart(_)
-        | geom_brep::EdgeDescription::Scaffold(_) => Err(refuse(
-            "no iso derivation for this locus on a NURBS chart — only chart images of \
+        | geom_brep::EdgeDescription::Scaffold(_) => Err(
+            match geom_brep::read_edge_incidence(&carrier, t0, t1, surface, band) {
+                Err(error) => PcurveMintError::Certify { half_edge, error },
+                Ok(()) => refuse(
+                    "no iso derivation for this locus on a NURBS chart — only chart images of \
              this chart, iso-line images of the neighbouring wall, boundary-iso \
              Intersection seams, and LINE or CIRCLE cap rims have exact chart images \
              (the trimmed-NURBS pcurve lane is the cut-loft unit's)",
-        )),
+                ),
+            },
+        ),
     }
 }
 
