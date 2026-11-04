@@ -691,3 +691,59 @@ fn near_the_horn_the_drawn_ends_say_which_sheet() {
         got.map(|_| ())
     );
 }
+
+/// **A horn's cusp revolved part way refuses at its cap meridians**: the
+/// needle tip, and the horn's circle as four quarter arcs with a face
+/// reaching the cusp from each side. A cap meets the horn along a
+/// meridian that ends at the cusp, where the horn's two sheets are
+/// tangent, so the sheet's distance bound reads no better than the
+/// distance from the cusp over a stretch near it, and limb 2 stops past
+/// the band
+/// (`work/spiricarm/a-horns-cusp-revolved-part-way-refuses-at-its-cap-meridians-certificate.md`).
+#[test]
+fn a_horns_cusp_revolved_part_way_refuses_at_its_cap_meridians() {
+    let quarter = -(PI / 8.0).tan();
+    for (what, lp) in [
+        (
+            "the needle",
+            bulge_loop(vec![
+                (Point2::new(0.0, 0.0), quarter),
+                (Point2::new(1.0, 1.0), 0.0),
+                (Point2::new(0.0, 1.0), 0.0),
+            ]),
+        ),
+        (
+            "the horn's circle in quarters",
+            bulge_loop(vec![
+                (Point2::new(0.0, 0.0), quarter),
+                (Point2::new(1.0, 1.0), quarter),
+                (Point2::new(2.0, 0.0), quarter),
+                (Point2::new(1.0, -1.0), quarter),
+            ]),
+        ),
+    ] {
+        let got = revolve(
+            &validated(vec![lp]),
+            y_axis(),
+            Revolution::Partial(2.0),
+            Tol::witness(),
+        );
+        assert!(
+            matches!(
+                got,
+                Err(RevolveError::Op {
+                    source: topo::EulerOpError::Certification {
+                        error: geom_brep::CertifyError::AnalyticRung3(
+                            geom_brep::AnalyticRung3Refusal::KernelLimit {
+                                operand: geom::SurfaceKind::Spindle,
+                                ..
+                            }
+                        )
+                    }
+                })
+            ),
+            "{what}: {:?}",
+            got.map(|_| ())
+        );
+    }
+}
