@@ -238,3 +238,31 @@ fn a_piece_through_a_cones_apex_refuses_at_the_apex() {
         "a circle through the apex"
     );
 }
+
+/// A circle along the torus's top parallel, 5e-9 m below it, is in the
+/// circle × torus door's escalation gap at a band of `[1e-9, 1e-8]`: the trace refuses with the door's own
+/// escalation (`TraceFault::Escalated`, named by the door's K name),
+/// which states its own recourse, and with no decision of the Boolean's.
+#[test]
+fn a_circle_in_the_torus_doors_band_refuses_with_the_doors_escalation() {
+    let got = circle_crossings(
+        &torus(),
+        true,
+        (
+            Point3::new(0.0, 0.0, 0.5 - 5e-9),
+            Vec3::new(0.0, 0.0, 1.0),
+            2.0,
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
+        Band::new(1e-9, 1e-8).unwrap(),
+    );
+    let Err(TraceFault::Escalated(diag)) = got else {
+        panic!("the door's escalation, not {got:?}");
+    };
+    assert!(
+        diag.predicate
+            .is_some_and(|p| geom_brep::curve_face::decided_by_curve_face(p)
+                && p.starts_with("circle_torus_")),
+        "named by the circle × torus door: {diag:?}"
+    );
+}

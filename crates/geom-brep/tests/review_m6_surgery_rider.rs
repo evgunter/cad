@@ -131,7 +131,10 @@ fn enclosure_never_beaten_by_dense_sampling() {
                 }
             }
         };
-        let Some((lo, hi)) = circle_residual_extremes(&s, center, axis, radius, u_ref) else {
+        let Some((lo, hi)) = circle_residual_extremes(
+            &s,
+            &geom::Circle::new(geom::Frame::new(center, axis, u_ref), radius),
+        ) else {
             panic!("an enclosure is expected for sphere/cylinder/torus");
         };
         assert!(
@@ -217,7 +220,11 @@ fn positive_margin_implies_one_sided() {
                 u_ref: Vec3::unit_x(),
             }
         };
-        let (lo, hi) = circle_residual_extremes(&s, center, axis, radius, u_ref).unwrap();
+        let (lo, hi) = circle_residual_extremes(
+            &s,
+            &geom::Circle::new(geom::Frame::new(center, axis, u_ref), radius),
+        )
+        .unwrap();
         let margin = lo.max(-hi);
         if margin <= 0.0 {
             continue;
@@ -317,8 +324,13 @@ fn the_arc_enclosure_is_never_beaten_by_a_dense_oracle() {
                 rng.range(0.05, 4.0),
             )
         };
-        let (lo, hi) = circle_arc_residual_range(&s, center, axis, radius, u_ref, t0, t1)
-            .expect("the torus arm answers");
+        let (lo, hi) = circle_arc_residual_range(
+            &s,
+            &geom::Circle::new(geom::Frame::new(center, axis, u_ref), radius),
+            t0,
+            t1,
+        )
+        .expect("the torus arm answers");
         if !(lo.is_finite() && hi.is_finite()) {
             infinite += 1;
             continue;

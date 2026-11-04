@@ -1012,7 +1012,12 @@ fn mapped_self_description(
             vec: p_end - p_start,
         })),
         Curve3::Circle(geom::Circle {
-            frame: geom::Frame { center, axis, .. },
+            frame:
+                geom::Frame {
+                    origin: center,
+                    axis,
+                    ..
+                },
             ..
         }) => Some(MappedCurve::whole(MappedSource::RevolvedPoint {
             point: Point2::new(0.0, 0.0),
@@ -1076,11 +1081,12 @@ fn arc_rim_on_wall_boundary(
     tol: Tol,
 ) -> Result<(), ArcRimRefusal> {
     let Curve3::Circle(geom::Circle {
-        frame: geom::Frame {
-            center,
-            axis,
-            u_ref,
-        },
+        frame:
+            geom::Frame {
+                origin: center,
+                axis,
+                u_ref,
+            },
         radius,
     }) = *carrier
     else {
