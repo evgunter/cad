@@ -46,7 +46,6 @@
 //! `f64` values: the rule's endpoint-bracket pad is never paid.
 
 use geom::NurbsCurve3;
-use geom_core::Bounds;
 use geom_core::Point3;
 use geom_core::interval::Interval;
 use geom_core::interval::certification::Certification;
@@ -56,7 +55,7 @@ use geom_core::spline::pieces::binomial;
 use super::PropsError;
 use super::bracket::pt;
 use super::quad::RVec3;
-use super::taylor::{Jet, composite_by};
+use super::taylor::Jet;
 
 /// One Bézier span `[a, b]` of a rational rim, inside the edge's carrier
 /// interval: `B`'s three channels and `w`, each as its power form about
@@ -149,7 +148,24 @@ pub fn rational_edge_q(
     forward: bool,
     reference: Point3<Interval>,
 ) -> Result<RationalEdgeQ, PropsError> {
-    let exact = |t: Interval| (t.is_certified() && t.lo() == t.hi()).then_some(t.lo());
+    rational_edge_q_split(curve, (t0, t1), forward, reference, &[])
+}
+
+/// [`rational_edge_q`] with its spans cut further at every `extra`
+/// parameter strictly inside `[t0, t1]`: a projected image's sector
+/// breaks, which the rotational lane's pieces refine.
+///
+/// # Errors
+///
+/// As [`rational_edge_q`].
+pub fn rational_edge_q_split(
+    curve: &NurbsCurve3<Interval>,
+    (t0, t1): (Interval, Interval),
+    forward: bool,
+    reference: Point3<Interval>,
+    extra: &[f64],
+) -> Result<RationalEdgeQ, PropsError> {
+    let exact = super::bracket::exact_point;
     let (Some(t0), Some(t1)) = (exact(t0), exact(t1)) else {
         return Err(PropsError::QuadratureUnsupported {
             what: "a rational rim edge whose carrier interval ends are not exact parameters",
@@ -185,12 +201,16 @@ pub fn rational_edge_q(
             })
             .collect()
     });
+    let breaks_at: Vec<f64> = [t0, t1]
+        .into_iter()
+        .chain(extra.iter().copied().filter(|&x| t0 < x && x < t1))
+        .collect();
     let mut decomposed = Vec::with_capacity(4);
     for channel in &channels {
         decomposed.push(
             kv.with_coeffs(channel)
                 .ok_or(refused.clone())?
-                .bernstein_spans(&[t0, t1]),
+                .bernstein_spans(&breaks_at),
         );
     }
     let breaks = decomposed[0].breaks().to_vec();
@@ -269,44 +289,75 @@ fn piece_form(span: &RationalSpanQ, p: f64, q: f64) -> PieceForm {
     }
 }
 
+/// The jets of `B`, `dB/dt` and `w` on a piece, at the enclosure `t`
+/// of the rule's node or of the whole piece.
+fn piece_jets(f: &PieceForm, t: Interval) -> ([Jet; 3], [Jet; 3], Jet) {
+    // `v = (t − p)/(q − p) − ½`, enclosed: the centre the forms are
+    // about, whatever `f64` the rule's node rounds to.
+    let v = Jet::var(t)
+        .sub(Jet::cst(pt(f.p)))
+        .scale(f.inv_len)
+        .sub(Jet::cst(pt(0.5)));
+    let b: [Jet; 3] = core::array::from_fn(|c| horner(&f.numer[c], v));
+    // `dB/dt = dB/dv · dv/dt`.
+    let db: [Jet; 3] = core::array::from_fn(|c| horner(&f.slope[c], v).scale(f.inv_len));
+    (b, db, horner(&f.weight, v))
+}
+
+/// **`∫ g(B, B′, w) dt` over the edge's carrier interval**, span by
+/// span at `pieces` per span ([`super::taylor::composite_over`]), for `N` integrands of
+/// the carrier's homogeneous numerator `B`, its derivative and its
+/// weight `w`, each handed as jets; with per integrand the part of its
+/// width a later round removes. The traversal is NOT folded in.
+pub(super) fn rational_integrals<const N: usize>(
+    e: &RationalEdgeQ,
+    pieces: usize,
+    g: impl Fn([Jet; 3], [Jet; 3], Jet) -> [Jet; N],
+) -> ([Interval; N], [f64; N]) {
+    super::taylor::composite_over(
+        e.spans.iter().map(|s| (s.a, s.b, s)),
+        pieces,
+        |s, p, q| piece_form(s, p, q),
+        |f, t| {
+            let (b, db, w) = piece_jets(f, t);
+            g(b, db, w)
+        },
+    )
+}
+
+/// **`Σ h·bound(B, B′, w)` over the edge's pieces**, `pieces` per span
+/// ([`super::taylor::rate_bound_over`]): `bound` reads the jets enclosing
+/// the piece and answers an upper bound of a nonnegative rate over it.
+pub(super) fn rational_rate_bound(
+    e: &RationalEdgeQ,
+    pieces: usize,
+    bound: impl Fn([Jet; 3], [Jet; 3], Jet) -> f64,
+) -> f64 {
+    super::taylor::rate_bound_over(
+        e.spans.iter().map(|s| (s.a, s.b, s)),
+        pieces,
+        |s, p, q| piece_form(s, p, q),
+        |f, t| {
+            let (b, db, w) = piece_jets(f, t);
+            bound(b, db, w)
+        },
+    )
+}
+
 /// One rational rim edge's vector-area term `(1/2)∫ B × B′/w² dt` at
 /// `pieces` per span, traversal folded in, and per component the part of
 /// its width a later round removes.
 #[must_use]
 pub fn rational_vector_area_split(e: &RationalEdgeQ, pieces: usize) -> (RVec3, [f64; 3]) {
-    let mut va = [Interval::zero(); 3];
-    let mut removable = [0.0_f64; 3];
-    for span in &e.spans {
-        let (part, rem) = composite_by(
-            pt(span.a),
-            pt(span.b),
-            pieces,
-            |p, q| piece_form(span, p, q),
-            |f, t| {
-                // `v = (t − p)/(q − p) − ½`, enclosed: the centre the forms
-                // are about, whatever `f64` the rule's node rounds to.
-                let v = Jet::var(t)
-                    .sub(Jet::cst(pt(f.p)))
-                    .scale(f.inv_len)
-                    .sub(Jet::cst(pt(0.5)));
-                let b: [Jet; 3] = core::array::from_fn(|c| horner(&f.numer[c], v));
-                // `dB/dt = dB/dv · dv/dt`.
-                let db: [Jet; 3] =
-                    core::array::from_fn(|c| horner(&f.slope[c], v).scale(f.inv_len));
-                let scale = horner(&f.weight, v).sqr().recip().scale(pt(0.5));
-                [
-                    b[1].mul(db[2]).sub(b[2].mul(db[1])),
-                    b[2].mul(db[0]).sub(b[0].mul(db[2])),
-                    b[0].mul(db[1]).sub(b[1].mul(db[0])),
-                ]
-                .map(|c| c.mul(scale))
-            },
-        );
-        for k in 0..3 {
-            va[k] = va[k] + part[k];
-            removable[k] += rem[k];
-        }
-    }
+    let (va, removable) = rational_integrals(e, pieces, |b, db, w| {
+        let scale = w.sqr().recip().scale(pt(0.5));
+        [
+            b[1].mul(db[2]).sub(b[2].mul(db[1])),
+            b[2].mul(db[0]).sub(b[0].mul(db[2])),
+            b[0].mul(db[1]).sub(b[1].mul(db[0])),
+        ]
+        .map(|c| c.mul(scale))
+    });
     (if e.forward { va } else { va.map(|x| -x) }, removable)
 }
 
@@ -315,6 +366,7 @@ pub fn rational_vector_area_split(e: &RationalEdgeQ, pieces: usize) -> (RVec3, [
 #[allow(clippy::unwrap_used, clippy::panic, clippy::excessive_precision)]
 mod tests {
     use super::*;
+    use geom_core::Bounds;
     use geom_core::spline::KnotVector;
 
     fn iv(x: f64) -> Interval {

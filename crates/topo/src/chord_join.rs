@@ -1299,6 +1299,9 @@ pub(crate) struct CarriedCtx<T: Real> {
     pub(crate) partner_key: Option<SurfaceKey>,
     /// The section's own scale ([`geom_brep::CarriedSection::lever`]).
     pub(crate) lever: geom_core::Lever<T>,
+    /// The section's nodes ([`geom_brep::CarriedSection::nodes`]), which a
+    /// chord's ends are read at first.
+    pub(crate) nodes: Vec<geom_brep::SectionNode<T>>,
 }
 
 /// The section conic — the curve both chord lanes take an arc
@@ -2342,11 +2345,11 @@ fn chord_spec<T: Decide>(
     body.get_vertex(u1).ok_or(SplitJoinError::Corrupt {
         entity: EntityId::Vertex(u1),
     })?;
-    let face_data = body.get_face(face).ok_or_else(|| corrupt_face(face))?;
-    let wall_key = face_data.surface;
+    let view = body.passed_face(face).ok_or_else(|| corrupt_face(face))?;
+    let wall_key = view.record().surface;
     // The surface is a link of the face the join divides, mid-operation
     // ([`crate::live::OPERATORS_KEEP_LINKS`]): a torn one is not curved.
-    if let geom::Surface::Plane { .. } = body.face_surface_linked(face, face_data) {
+    if let geom::Surface::Plane { .. } = view.surface() {
         // The boolean's planar-side chord of a curved germ pair
         // takes its own lane (M5 PR 9); every other lane keeps
         // the straight chord BIT-IDENTICALLY.
@@ -2618,7 +2621,8 @@ pub(crate) fn wall_section<T: Decide>(
     at: VertexKey,
 ) -> Result<Option<WallSection<T>>, SplitJoinError> {
     let wall = body
-        .face_surface(face)
+        .passed_face(face)
+        .map(|f| f.surface())
         .cloned()
         .ok_or_else(|| corrupt_face(face))?;
     match wall {
@@ -2920,9 +2924,10 @@ fn carried_chord_spec<T: Decide>(
     };
     let (lo, hi) = component.span;
     // A closed form's parameter is an angle: a foot on a closed one is
-    // read in the turn its seat starts, `[lo, hi)`. That no chord on a
-    // closed loop crosses the seat rests on the seat being one of the
-    // loop's sites, the least foot of any (`boolean::join`'s
+    // read in the turn its seat starts, `[lo, hi)`, as an open arc's is
+    // read in the turn its span starts (`CarriedComponent::reads`). That
+    // no chord on a closed loop crosses the seat rests on the seat being
+    // one of the loop's sites, the least foot of any (`boolean::join`'s
     // `carried_seats`), not on anything read here: the forward reading
     // below refuses a chord that would cross it.
     let turn = (spline.is_none() && component.closed()).then_some(hi - lo);
@@ -2936,72 +2941,70 @@ fn carried_chord_spec<T: Decide>(
                 == Sign::Zero,
         )
     };
-    let foot = |p: Point3<T>| -> Result<T, SplitJoinError> {
-        let foot = carrier.foot(p, lo);
-        match foot.on_carrier(band) {
-            Ok(geom::OnCarrier::On { .. }) => {
-                let t = match turn {
-                    Some(turn) => lo + (foot.t() - lo).reduce_periodic(turn),
-                    None => foot.t(),
-                };
-                // A site of an open closed form (a ruling the region
-                // cuts, an arc between nodes) lies within its span: the
-                // section was listed over the region every site lies in.
-                debug_assert!(
-                    spline.is_some()
-                        || component.closed()
-                        || match (t.point_value(), lo.point_value(), hi.point_value()) {
-                            (Some(t), Some(lo), Some(hi)) => {
-                                let slack = band.escalate() * (1.0 + t.abs());
-                                lo - slack <= t && t <= hi + slack
-                            }
-                            _ => true,
-                        },
-                    "a carried chord's end lies past its open component's span"
-                );
-                Ok(t)
-            }
-            Ok(geom::OnCarrier::Off) => {
-                Err(invariant("a carried chord's end lies off its component"))
-            }
-            Err(refusal) => Err(refusal.escalation().map_or(
-                invariant("a carried chord end's distance from its component could not be read"),
-                escalated,
-            )),
+    // The section's reading of a site, asked of this component: at a
+    // node, its arc's end there, which fixes the way it leaves; off every
+    // node, its foot.
+    let place = |p: Point3<T>| -> Result<geom_brep::ArcPlace<T>, SplitJoinError> {
+        match component.place(&ctx.nodes, p, band) {
+            Ok(geom_brep::ArcPlace::At(t)) => Ok(geom_brep::ArcPlace::At(match turn {
+                Some(turn) => lo + (t - lo).reduce_periodic(turn),
+                None => t,
+            })),
+            Ok(end) => Ok(end),
+            Err(geom_brep::SiteRefusal::Escalated(diag)) => Err(escalated(diag)),
+            Err(geom_brep::SiteRefusal::Desync(what)) => Err(invariant(what)),
         }
     };
-    let (p1, p2) = (
-        body.resolve_vertex_point(u1, Proven),
-        body.resolve_vertex_point(u2, Proven),
-    );
-    let seat1 = at_seat(p1)?;
-    let from = if seat1 { lo } else { foot(p1)? };
-    let tangent = carrier.deriv(from);
     if leave.datum != Datum::Germ {
         return Err(invariant(
             "a carried chord's departure is not a germ's direction",
         ));
     }
-    let along = leave.dir.dot(tangent) / tangent.norm();
-    let up = match decide(
-        "chord_carried_leave",
-        Margin::levered(along, ctx.lever),
-        band,
-    )
-    .map_err(escalated)?
-    {
-        Sign::Positive => true,
-        Sign::Negative => false,
-        Sign::Zero => {
-            return Err(invariant(
-                "the section's direction of departure handed to a chord end has no component \
-                 along the section there",
-            ));
+    let (p1, p2) = (
+        body.resolve_vertex_point(u1, Proven),
+        body.resolve_vertex_point(u2, Proven),
+    );
+    let seat1 = at_seat(p1)?;
+    let (from, at_end) = if seat1 {
+        (lo, None)
+    } else {
+        match place(p1)? {
+            geom_brep::ArcPlace::AtEnd { t, end } => (t, Some(end == geom_brep::SpanEnd::Start)),
+            geom_brep::ArcPlace::At(t) => (t, None),
+        }
+    };
+    let tangent = carrier.deriv(from);
+    let up = match at_end {
+        Some(up) => up,
+        None => {
+            let along = leave.dir.dot(tangent) / tangent.norm();
+            match decide(
+                "chord_carried_leave",
+                Margin::levered(along, ctx.lever),
+                band,
+            )
+            .map_err(escalated)?
+            {
+                Sign::Positive => true,
+                Sign::Negative => false,
+                Sign::Zero => {
+                    return Err(invariant(
+                        "the section's direction of departure handed to a chord end has no \
+                         component along the section there",
+                    ));
+                }
+            }
         }
     };
     let (start, stop) = if up { (lo, hi) } else { (hi, lo) };
     let t1 = if seat1 { start } else { from };
-    let t2 = if at_seat(p2)? { stop } else { foot(p2)? };
+    let t2 = if at_seat(p2)? {
+        stop
+    } else {
+        match place(p2)? {
+            geom_brep::ArcPlace::AtEnd { t, .. } | geom_brep::ArcPlace::At(t) => t,
+        }
+    };
     // The travel in parameter, metered by the carrier's speed at the
     // chord's start. Only its sign is consumed, and the margin's sign is
     // the travel's own (the speed is positive): the point speed sets only
@@ -3415,14 +3418,14 @@ fn between_edge_is_section<T: Decide>(
     }
 }
 
-/// [`Body::outer_cycle_linked`] for `face`, the caller's key:
+/// [`crate::live::FaceView::outer_cycle`] for `face`, the caller's key:
 /// [`SplitJoinError::Corrupt`] where it does not resolve.
 fn outer_cycle<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
 ) -> Result<Option<Vec<HalfEdgeKey>>, SplitJoinError> {
-    let data = body.get_face(face).ok_or_else(|| corrupt_face(face))?;
-    Ok(body.outer_cycle_linked(face, data))
+    let face = body.passed_face(face).ok_or_else(|| corrupt_face(face))?;
+    Ok(face.outer_cycle())
 }
 
 /// `∫ (v − anchor) du` of a harmonic chart image from `t0` to `t1`, and
@@ -3581,9 +3584,9 @@ pub(crate) fn chart_island_winding<T: Decide>(
     closure: (Point3<T>, UnitVec3<T>),
     band: Band,
 ) -> Result<Result<Sign, Indeterminate>, SplitJoinError> {
-    let face_data = body.get_face(face).ok_or_else(|| corrupt_face(face))?;
-    let sense = face_data.sense;
-    let surface = body.face_surface_linked(face, face_data).clone();
+    let view = body.passed_face(face).ok_or_else(|| corrupt_face(face))?;
+    let sense = view.sense();
+    let surface = view.surface().clone();
     let WallChart {
         origin: centre,
         axis,
@@ -3862,8 +3865,8 @@ impl<T: Decide> IslandReading<T> {
         band: Band,
     ) -> Result<Result<Self, Indeterminate>, SplitJoinError> {
         let invariant = |what| SplitJoinError::SectionInvariant { face, what };
-        let face_data = body.get_face(face).ok_or_else(|| corrupt_face(face))?;
-        let surface = body.face_surface_linked(face, face_data);
+        let view = body.passed_face(face).ok_or_else(|| corrupt_face(face))?;
+        let surface = view.surface();
         let quadric = Quadric::of(surface).ok_or_else(|| ring_island_unread(face, surface))?;
         let cycle = body.loop_cycle(h1).ok_or_else(|| corrupt_he(h1))?;
         let end = cycle
@@ -3913,7 +3916,7 @@ impl<T: Decide> IslandReading<T> {
             Err(diag) => return Ok(Err(diag)),
         }
         arcs.push(chord);
-        let left = quadric.outward(q, face_data.sense).cross(travel);
+        let left = quadric.outward(q, view.sense()).cross(travel);
         Ok(Ok(Self {
             quadric,
             arcs,
@@ -5052,9 +5055,9 @@ impl ChordJoiner {
         tol: Tol,
     ) -> Result<(), SplitJoinError> {
         let invariant = |what| SplitJoinError::SectionInvariant { face: oldf, what };
-        let old = body.get_face(oldf).ok_or_else(|| corrupt_face(oldf))?;
-        let outer = old.outer;
-        let surface = body.face_surface_linked(oldf, old);
+        let old = body.passed_face(oldf).ok_or_else(|| corrupt_face(oldf))?;
+        let outer = old.record().outer;
+        let surface = old.surface();
         if RimSide::of(surface) != Some(RimSide::Plane) {
             return Err(invariant(
                 "a null strut's chords divide a face that is not a plane",
@@ -5148,7 +5151,10 @@ impl ChordJoiner {
         let side = match kind {
             LoneRing::Closed => None,
             LoneRing::Pierce => {
-                let surface = body.face_surface(oldf).ok_or_else(|| corrupt_face(oldf))?;
+                let surface = body
+                    .passed_face(oldf)
+                    .map(|f| f.surface())
+                    .ok_or_else(|| corrupt_face(oldf))?;
                 Some(RimSide::of(surface).ok_or(invariant(
                     "a one-site loop's pierce ring on a face no whole conic is sided on",
                 ))?)
@@ -5242,7 +5248,8 @@ impl ChordJoiner {
         }
         let run = body.get_face(newf).ok_or_else(|| corrupt_face(newf))?.outer;
         let surface = body
-            .face_surface(oldf)
+            .passed_face(oldf)
+            .map(|f| f.surface())
             .cloned()
             .ok_or_else(|| corrupt_face(oldf))?;
         // How a ring's side is read: off the plane, or by a path on a
@@ -5359,7 +5366,11 @@ fn face_plane_normal<T: Decide>(
     face: FaceKey,
 ) -> Result<geom_core::Vec3<T>, SplitJoinError> {
     // Corruption and an unwired arm are different refusals.
-    match body.face_surface(face).ok_or_else(|| corrupt_face(face))? {
+    match body
+        .passed_face(face)
+        .map(|f| f.surface())
+        .ok_or_else(|| corrupt_face(face))?
+    {
         geom::Surface::Plane { normal, .. } => Ok(*normal),
         _ => Err(SplitJoinError::SectionInvariant {
             face,

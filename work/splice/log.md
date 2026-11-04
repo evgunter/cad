@@ -1364,3 +1364,13 @@ general regularity sweep. SECTARMS's cylinder × cylinder unit adopts
   - **Style.** The deny-list should be an allow-list (Q7). The doc's carrier list is not the admitted set. No row touches the other kinds. Four `runs()` breakpoint copies. Two homes for the identity certificate (`slit::carrier_on_surface`). A magic `band.zero() > 1e-7` branch.
   - **Fix pass sent to the lane.** An allow-list (Plane, Cylinder, Sphere, ring Torus, double Cone) with the doc matched; the reviewer's spindle, in-band and mirror-nappe rows; positive rows for plane, sphere and torus; the evidence and PR body corrected; the ε-keyed branch; the breakpoints and certificate-home rows filed at P3.
   - **Class (logged):** a certificate argued over "the algebraic carriers" gates by deny-list, so a carrier whose decided residual is one sheet of its variety slips in. Gate an identity certificate on an allow-list of the kinds whose residual is the whole variety.
+- 2026-11-04 04:35Z — **PR 6481 (`rim-arc-on-cylinder`) landing.** The fix pass is read and accepted, at head `66d96e9e` with CI run 41771378724 green.
+  - The gate is an allow-list (Plane, Cylinder, Sphere, Cone, and Torus with `R − r` decided Positive), with `_ => false`, checked in the diff.
+  - Mutants, each red by name:
+    - margin → `a_sheet_in_band_of_the_cylinder_stays_unread`;
+    - one-nappe cone → `a_sheet_on_the_cones_mirror_nappe_stays_unread`;
+    - deny-list → `a_sheet_on_a_spindle_across_its_apex_stays_unread`.
+  - Evidence moved to `a-meeting-on-a-g1-arc-joint-of-a-spline-face-refuses-as-a-crease`.
+  - Two P3 rows filed on ONECOPY.
+  - State sync: closed `a-rim-arc-lying-on-a-cylinder-refuses-as-a-curved-pierce` and dropped it from `curved-demo-joins-build`'s blocked_on. Klein walls 3 and 4 now wait on SECTARMS' cone stage, already listed.
+  - **Merge-window friction (a semantic conflict).** Main's FaceView refactor (`8afdb823`) deleted `Body::proven_face_surface`. The state-sync head merged main cleanly, but `topo` stopped compiling (CI run 41773492152, all red within two minutes). The orchestrator re-read both surfaces through `proven_face(..).surface()`, and the eight `spline_off_carrier` rows pass locally. This tracker entry is the last commit.

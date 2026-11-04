@@ -1102,7 +1102,7 @@ impl<T: Decide> Body<T> {
                 && self.joint(after).is_some()
             {
                 return Err(EulerOpError::PcurveMint {
-                    face: crate::pcurves::half_edge_face(self, half).0,
+                    face: crate::pcurves::half_edge_face(self, half).key(),
                     refusal: crate::pcurves::SiteRowRefusal::KeysOnly,
                 });
             }
