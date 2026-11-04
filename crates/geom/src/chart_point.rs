@@ -27,6 +27,13 @@
 //! | sphere | azimuth of `(x, y)` | latitude of `(ρ, h)` |
 //! | torus, spindle | azimuth of `(x, y)` | tube angle of `(ρ − R, h)` |
 //!
+//! The table is spelled once, in [`ChartChannels::read`], which decides
+//! nothing: each angle leaves as the direction it is read off, and the
+//! caller names it. [`ChartInverse::point`] names it in its window and
+//! decides the cone's nappe on `h`; `geom_brep`'s projected image (C4)
+//! names it on the branch its piece's sector decided at derivation
+//! ([`Azimuth::about`]), its nappe fixed per image.
+//!
 //! A cone's `v` is the point's foot on the nearer generator of its
 //! half-plane pair, `σ` the sign of `h`: on the mirror nappe (`σ = −1`)
 //! the radial term runs against `radial(u)`, so the azimuth is read off

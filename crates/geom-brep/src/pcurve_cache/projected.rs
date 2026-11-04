@@ -21,10 +21,17 @@
 //!
 //! # The channels
 //!
-//! On chart-frame coordinates `(x, y, z)` (origin at the chart's origin,
-//! apex or centre; `z` along the axis), with `ρ = √(x² + y²)` and the
-//! azimuth `α(x, y) = θ_k + atan2(R(−θ_k)·(x, y))` read on the branch
-//! nearest the piece's centre:
+//! The channels are the chart's one reading of a point's coordinates
+//! (D3): [`geom::ChartChannels`], the table [`geom::ChartInverse::point`]
+//! reads, on the stored chart scalars. Where the point reading names each
+//! angle in its window at a band, the image names it on its piece's
+//! branch ([`geom::Azimuth::about`]), the branch the sector condition
+//! decided at derivation, so the image decides nothing when it is
+//! evaluated, reads at every scalar, and is one continuous branch across
+//! each piece. On chart-frame coordinates `(x, y, z)` (origin at the
+//! chart's origin, apex or centre; `z` along the axis), with
+//! `ρ = √(x² + y²)` and the azimuth `α(x, y) = θ_k + atan2(R(−θ_k)·(x, y))`
+//! read on the branch nearest the piece's centre:
 //!
 //! | chart | `u` | `v` |
 //! |---|---|---|
@@ -34,7 +41,8 @@
 //! | sphere | `α(x, y)` | `atan2(z, ρ)` |
 //! | torus | `α(x, y)` | `φ_k + atan2(R(−φ_k)·(ρ − R, z))` |
 //!
-//! `σ = ±1` is the cone's nappe. The cone's `v` is the slant of the
+//! `σ = ±1` is the cone's nappe, the image's own (its carrier's middle,
+//! `chart_of`), where the point reading decides it on each point's `z`. The cone's `v` is the slant of the
 //! perpendicular foot of the point on the generator through its
 //! azimuth, not its height (which is off by `1/cos α`).
 //!
