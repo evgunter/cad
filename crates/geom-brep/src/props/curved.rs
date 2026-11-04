@@ -37,7 +37,7 @@ use super::closure::{self, ChartLoop, EdgeTurn, Joint};
 use super::{FaceContribution, LoopEdge, PropsCheck, PropsError, loop_vector_area};
 use crate::dihedral::decide;
 use crate::implicit::cone_offset;
-use crate::pcurve_cache::{BranchMiss, Period};
+use crate::pcurve_cache::{BranchMiss, Period, Ruling, ruling_miss};
 
 /// The flux and area of a curved face from its **outer** loop:
 /// [`curved_face_loops`] over that one loop. `band` is the run's
@@ -1836,7 +1836,7 @@ fn cylinder_boundary<T: Decide>(
     let mut levels: Vec<T> = Vec::new();
     for e in edges {
         match e.carrier {
-            Curve3::Line(geom::Line { dir, .. }) => {
+            Curve3::Line(ref line) => {
                 // Incidence at the true distance from the cylinder over
                 // the span: the ends' radial residuals, and how far the
                 // segment sags inside between them ([`radial_sag`]).
@@ -1852,13 +1852,13 @@ fn cylinder_boundary<T: Decide>(
                     band,
                     Premise::OnSurface,
                 )?;
-                // Whether the on-surface line is a ruling: its deviation
-                // from the ruling through its start, which a line tipped
-                // in the tangent plane leaves to first order while it
-                // leaves the cylinder to second.
+                // Whether the on-surface line is a ruling, the mint's own
+                // reading: a line tipped in the tangent plane leaves the
+                // ruling through its start to first order while it leaves
+                // the cylinder to second.
                 require_zero(
                     "props_meridian_axial",
-                    Margin::metered(e.t1 - e.t0, InfSpeed::new(dir.cross(axis).norm())),
+                    ruling_miss(line, (e.t0, e.t1), Ruling::Axis(axis)),
                     band,
                     Premise::Inventory,
                 )?;

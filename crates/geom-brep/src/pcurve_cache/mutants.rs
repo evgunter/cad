@@ -24,7 +24,7 @@ const NAME: Option<&str> = option_env!("PCERT_RADIAL_PAIR_MUTANT");
 
 /// Every site this crate's hooks name. topo's `chord_join` declares its
 /// own two (`topo-gate`, `topo-v-var`) under the same variable.
-pub(super) const SITES: [&str; 22] = [
+pub(super) const SITES: [&str; 24] = [
     "class-circle",
     "zero-winding",
     "torus-parallel",
@@ -47,6 +47,8 @@ pub(super) const SITES: [&str; 22] = [
     "form-uncharged",
     "lane-envelope-bound",
     "cone-terms-unprojected",
+    "ruling-per-parameter",
+    "cone-ruling-gate",
 ];
 
 fn on(site: &str) -> bool {
@@ -159,8 +161,8 @@ pub(super) fn cone_drift<T: Real>(d_sin: T, d_cos: T) -> Option<T> {
 }
 
 /// The cylinder class selector: the radial pair's coefficients added.
-pub(super) fn radial_amplitude<T: Real>(a_r: Vec3<T>, b_r: Vec3<T>, l_r: Vec3<T>) -> Option<T> {
-    on("radial-amplitude").then(|| a_r.norm() + b_r.norm() + l_r.norm())
+pub(super) fn radial_amplitude<T: Real>(a_r: Vec3<T>, b_r: Vec3<T>) -> Option<T> {
+    on("radial-amplitude").then(|| a_r.norm() + b_r.norm())
 }
 
 /// The sphere's and the torus tube's frame defects: radial and axial
@@ -195,6 +197,18 @@ pub(super) fn skip_incidence() -> bool {
 /// `cylinder_line_rows`).
 pub(super) fn radial_fold() -> bool {
     on("radial-fold")
+}
+
+/// A line's ruling reading per unit of its parameter, the span unread
+/// (its rows are `ruling_reading_rows`).
+pub(super) fn ruling_per_parameter() -> bool {
+    on("ruling-per-parameter")
+}
+
+/// The cone arm images a line as the ruling at its anchor's azimuth
+/// with no ruling reading (its rows are `ruling_reading_rows`).
+pub(super) fn cone_ruling_gate() -> bool {
+    on("cone-ruling-gate")
 }
 
 /// A line's chart form read at the segment's two ends only, dropping
