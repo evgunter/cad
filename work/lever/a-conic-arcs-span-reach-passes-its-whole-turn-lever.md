@@ -58,3 +58,4 @@ Moved from `work/issues/` to `work/lever/` on 2026-11-03, when the `work/issues/
 - A circle of radius 1000 (`semi_u = semi_v = 1000`), over `[-9.77, 0.935]`, more than a turn, read from its centre: `1000.0000000000002`. `CAD_FUZZ_SEED=0x638e2db0bd762c87`.
 - An ellipse `semi_u = 1000`, `semi_v = 44.71`, over `[9.6126, 12.3840]`, under half a turn: `1000.0000000000001` passes the whole turn. `CAD_FUZZ_SEED=0x13cb24d6ae40c408`, reproduced here.
 - `CAD_FUZZ_SEED=0xb00ab0bb194042ff` (PR 6483's fix-pass `geom-brep` run): `1.0000000000000002` passes the whole turn.
+- `CAD_FUZZ_SEED=0x1d0f25bef65ecd3b` (the same run's rerun on `5a524e418`): `1000.0000000000001` passes the whole turn.
