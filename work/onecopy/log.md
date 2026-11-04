@@ -224,3 +224,5 @@
   Main (PR 6530/6534, splice) merged into the branch cleanly as `c47276d9`; only the nextest slow-set lines were combined. The gate is running.
 
 - 2026-11-04 — PR 6533 merged as `fe78065195`, gated on `c47276d9`. That closes the sheared-fillet P0. Both delta-review notes went onto `work/band/a-blend-arcs-seam-reference-is-read-off-its-vertex-less-its-centre.md`: the chamfer `Chord` re-read of τ, and the shear −0.8 correction (also made on the closed P0 row).
+
+- 2026-11-04 — Dispatched cloud lane `session_013mPGJ4o1bDkCjbhg6Kqiat` on the P1 main red `main-red-the-m7-8-plain-names-probe-fails-after-the-faceview-fix-pass`, branch `onecopy/m7-8-plain-names`. The brief: reproduce it, bisect (suspect `e383ccfbcc`), then fix it as a regression at its home or re-pin it as a legitimate move.

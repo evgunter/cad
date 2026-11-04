@@ -2,10 +2,11 @@
 id: main-red-the-m7-8-plain-names-probe-fails-after-the-faceview-fix-pass
 kind: issue
 title: main red: cert_m3r1_probes::m3_the_plain_names_report_the_corrupt_m7_8_wall_edge_by_edge_and_nothing_else fails on main 7d3f0b73
-status: open
+status: dispatched
 opened: 2026-11-04
 priority: P1
 cost: E
+branch: onecopy/m7-8-plain-names
 ---
 
 
