@@ -432,21 +432,22 @@ impl<T: Decide> CylinderSpherePose<T> {
     }
 
     /// **The ball the ruling sweep reads the section against**: about the
-    /// sphere's centre, of radius `2R`. The section lies on the sphere, so
-    /// its own ball holds it whole and no component has a cut end; but
-    /// every meeting lies on that ball's boundary, where no leaf of the
-    /// sweep decides a side. Every meeting stands `R` from the centre, so
-    /// against `2R` a cell's meetings read inside exactly where their
-    /// enclosure's reach past its true points is under `R` (less the band
-    /// and the rounding): the room is the sphere's own scale, which a
-    /// cell's rulings (`r` times its width) and their meetings' spread
-    /// along the ruling (at most `2R`) reach under after a few halvings at
-    /// most. A cell's two ends then always read inside, so a sheet is
-    /// never cut, and the sweep's reading of a sheet's monotonicity and
-    /// velocity can answer nothing but inside: neither enters this pair's
-    /// count.
-    pub(crate) fn sweep_ball(&self) -> ExtentBall<T> {
-        ExtentBall::of_sphere(self.center, T::from_f64(2.0) * self.big_r)
+    /// sphere's centre, of radius `R + max(R, 64·escalate)`. The section
+    /// lies on the sphere, so its own ball holds it whole and no component
+    /// has a cut end; but every meeting lies on that ball's boundary,
+    /// where no leaf of the sweep decides a side. Every meeting stands `R`
+    /// from the centre, so a cell's meetings read inside exactly where
+    /// their enclosure's reach past its true points is under the padding
+    /// (less the band and the rounding). The padding is the sphere's own
+    /// scale, so that it grows with the loops a cell must hold; and never
+    /// under 64 escalation widths, so that a sphere a few bands across
+    /// still has room many bands past the band. A cell's two ends then
+    /// always read inside, so a sheet is never cut, and the sweep's
+    /// reading of a sheet's monotonicity and velocity can answer nothing
+    /// but inside: neither enters this pair's count.
+    pub(crate) fn sweep_ball(&self, band: Band) -> ExtentBall<T> {
+        let pad = self.big_r.max(T::from_f64(64.0 * band.escalate()));
+        ExtentBall::of_sphere(self.center, self.big_r + pad)
     }
 
     /// **The cylinder's rulings against the sphere**
@@ -1372,13 +1373,7 @@ fn cylinder_sphere<T: Decide>(
                 let ruled = pose.ruled().unwrap_or_else(|| {
                     unreachable!("an off-axis stance's pose reads its ruled side")
                 });
-                let swept =
-                    ruling::sweep(&ruled, pose.sweep_ball(), band).map_err(|e| match e {
-                        ruling::SweepRefusal::Escalated(diag) => SectionError::Escalated(diag),
-                        ruling::SweepRefusal::Inconsistent(cause) => SectionError::Unaccounted {
-                            cause: cause.to_owned(),
-                        },
-                    })?;
+                let swept = ruling::sweep(&ruled, pose.sweep_ball(band), band)?;
                 debug_assert_eq!(
                     swept.loops,
                     if far.map(|f| f.sign) == Some(Sign::Positive) {
@@ -1411,7 +1406,7 @@ fn cylinder_sphere<T: Decide>(
             // The figure-eight through the far ruling's node, witnessed on
             // the ruling nearest the centre, `√((R − |d − r|)(R + |d − r|))`
             // above the foot.
-            (Sign::Positive, Some(Sign::Zero) | None) => {
+            (Sign::Positive, Some(Sign::Zero)) => {
                 let q = (pose.offset - pose.r).abs();
                 let t = ((pose.big_r - q) * (pose.big_r + q)).sqrt();
                 vec![SectionComponent::closed_form(
@@ -1421,6 +1416,10 @@ fn cylinder_sphere<T: Decide>(
                     ClassCarrier::Unminted(TANGENT_COMPONENT),
                 )]
             }
+            (Sign::Positive, None) => unreachable!(
+                "the pose reads the far reach wherever the near reach is positive \
+                 (`CylinderSpherePose::decide_stance`)"
+            ),
         },
     };
     decided.extend(pose.tangency());
@@ -3501,7 +3500,7 @@ mod wiring {
     /// march starts from the count's witnesses, so it has no marched
     /// reading.)
     #[test]
-    fn close_rings_carry_counted_and_marched() {
+    fn close_rings_carry_counted() {
         // Pinned red at 1e-6: at δ 3e-4 no rung of the march's tube is a
         // graph, and nothing refines it
         // (`work/ssiarith/an-r3-tube-no-rung-makes-a-graph-is-never-refined.md`).
@@ -3512,12 +3511,12 @@ mod wiring {
             &[
                 "δ 3e-4, counted: March(TubeStraddles { verdict: Zero(Classified { margin: MarginDiag(Value(0.0, None, ZeroWord(0))), band: Band { zero: 1e-6, escalate: 9.999999999999999e-6 } }), boxes: 206 })",
             ],
-            close_rings_carry_counted_and_marched_row,
+            close_rings_carry_counted_row,
         );
     }
 
-    /// The row [`close_rings_carry_counted_and_marched`] runs, under its pin.
-    fn close_rings_carry_counted_and_marched_row() {
+    /// The row [`close_rings_carry_counted`] runs, under its pin.
+    fn close_rings_carry_counted_row() {
         use super::SsiLane;
         for delta in [3e-2, 1e-2, 3e-3, 1e-3, 3e-4] {
             let (wall, ball) = wall_and_ball((0.1, 0.0, 0.2), 0.6 + delta);

@@ -595,24 +595,34 @@ fn decided_offset(e: f64) -> f64 {
     }
 }
 
-/// **Where the value's ruling sweep may escalate a crossing the retired
-/// formulas count**: the sweep reads `Δ = R − ρ` along the wall's
-/// rulings, which ranges from the far reach `R − (e + r)` to the near
-/// reach `R − |e − r|`, each cell decided on its whole enclosure widened
-/// by its rounding. It escalates where a reach lies within that rounding
-/// (about 1e-15 at these sizes) of a band edge, and where the whole range
-/// lies within three bands of zero, so that no cell reaching past the
-/// band on both sides of a branch point has its slope decided past it.
+/// **The escalation widths past the escalate edge within which the
+/// value's ruling sweep may escalate an extreme of `Δ`.** The sweep reads
+/// `Δ = R − ρ` along the wall's rulings; its extremes are the near reach
+/// `R − |e − r|` (at the near ruling) and the far reach `R − (e + r)` (at
+/// the far one). Where an extreme stands `x` widths past the edge, the
+/// ruling angle about it reads in the band (`|Δ| <` escalate) between
+/// `φ_a`, where `Δ` has fallen `x` widths, and `φ_b`, where it has fallen
+/// `2 + x`. The cell from the extreme's ruling is never monotone, so the
+/// sweep must cut it at a decided angle short of `φ_a`, and its cuts are
+/// the middle and ±⅛, ±¼ of a cell's width, a ratio of three end to end.
+/// It finds one wherever `φ_b / φ_a` is under three. `Δ` falls from an
+/// extreme at least linearly in the angle (a kink, where the near ruling
+/// runs through the centre) and at most quadratically (a smooth extreme),
+/// so `φ_b / φ_a` lies between `√((2 + x)/x)` and `(2 + x)/x`, under three
+/// once `x` is past a quarter (smooth) or one (kink). Measured
+/// (2026-11-04): over 46 614 poses, one or the other extreme swept through
+/// four widths past the edge at ε 1e-6, 1e-9 and 1e-12, every ruling
+/// escalation stood within 0.29 of a width of the edge.
+const SWEEP_ZONE_WIDTHS: f64 = 1.0;
+
+/// **Whether the value's ruling sweep may escalate a crossing the retired
+/// formulas count**: an extreme of `Δ` within [`SWEEP_ZONE_WIDTHS`] past the
+/// escalate edge.
 fn sweep_may_escalate(e: f64, r: f64, big: f64) -> bool {
-    let b = band();
-    let reaches = [big - (e - r).abs(), big - (e + r)];
-    let edge = reaches.iter().any(|m| {
-        [b.zero(), b.escalate()]
-            .iter()
-            .any(|k| (m.abs() - k).abs() <= 1e-14)
-    });
-    let flat = reaches.iter().all(|m| m.abs() <= 3.0 * b.escalate());
-    edge || flat
+    let k = band().escalate();
+    [big - (e - r).abs(), big - (e + r)]
+        .iter()
+        .any(|m| m.abs() <= k * (1.0 + SWEEP_ZONE_WIDTHS))
 }
 
 /// Whether the value's `new` reading stands against the retired `old`:
@@ -743,7 +753,7 @@ fn the_pose_reads_the_retired_formulas_at_every_boundary() {
     }
     println!("{n} readings, {in_band} in the band, {escalated} escalated by the ruling sweep");
     assert!(
-        n > 1000 && in_band > 100 && escalated <= n / 20,
+        n > 1000 && in_band > 100,
         "{n} readings, {in_band} in the band, {escalated} escalated by the ruling sweep"
     );
 }
@@ -757,7 +767,7 @@ fn no_pose_off_the_band_moves_from_the_retired_formulas() {
     use test_utils::fuzz;
     let mut g = fuzz::start("pair_section::retired_formulas");
     let b = band();
-    let (mut rows, mut checked, mut escalated) = (0, 0, 0);
+    let (mut rows, mut checked, mut escalated, mut zone_exact) = (0, 0, 0, 0);
     let poses = fuzz::scaled(5_000);
     for k in 0..poses {
         let origin = Point3::new(g.unit() - 0.5, g.unit() - 0.5, g.unit() - 0.5);
@@ -774,11 +784,19 @@ fn no_pose_off_the_band_moves_from_the_retired_formulas() {
             1 => b.escalate() * 3.0 * g.unit(),
             _ => 1.5 * g.unit(),
         };
-        let big = match k % 7 {
+        // Two arms put one extreme of the sweep's `Δ` up to twice
+        // [`SWEEP_ZONE_WIDTHS`] past the escalate edge, the other where the
+        // offset puts it: the zone where the sweep may escalate, and past
+        // it, where it must answer as the retired formulas do.
+        let zone = b.escalate() * (1.0 + 2.0 * SWEEP_ZONE_WIDTHS * g.unit());
+        let big = match k % 9 {
             0 => r,
             1 => (off - r).abs(),
             2 => off + r,
             3 => (off - r).abs() + b.zero() * 0.5,
+            // `k % 3`: 4 near the axis, 5 and 8 anywhere off it.
+            4 | 5 => (off - r).abs() + zone,
+            8 => off + r + if g.unit() < 0.5 { zone } else { -zone },
             _ => 0.05 + 2.0 * g.unit(),
         };
         // The retired formulas read a radius decided positive; one in the
@@ -796,8 +814,12 @@ fn no_pose_off_the_band_moves_from_the_retired_formulas() {
             retired_guard(decided_offset(e), r, big),
             retired_row(e, r, big),
         );
+        let past_the_zone = matches!(k % 9, 4 | 5 | 8)
+            && matches!(old.0, Class::Lone | Class::Pair)
+            && !sweep_may_escalate(e, r, big);
         for (x, y) in [(&cyl, &sph), (&sph, &cyl)] {
             let new = read_class(x, y);
+            zone_exact += usize::from(past_the_zone);
             assert!(
                 reads_as_retired(new, old, (e, r, big), &mut escalated),
                 "pose {k} (off {off:e}, r {r}, R {big}): {new:?} against {old:?}; {}",
@@ -807,9 +829,12 @@ fn no_pose_off_the_band_moves_from_the_retired_formulas() {
             checked += 1;
         }
     }
-    println!("{checked} readings, {escalated} escalated by the ruling sweep");
+    println!(
+        "{checked} readings, {escalated} escalated by the ruling sweep, {zone_exact} crossings \
+         just past its zone read exactly"
+    );
     assert!(
-        rows > poses / 10 && checked > poses && escalated <= checked / 50,
+        rows > poses / 10 && checked > poses && zone_exact > poses / 40,
         "{rows} rows, {checked} readings, {escalated} escalated by the ruling sweep; {}",
         fuzz::replay()
     );

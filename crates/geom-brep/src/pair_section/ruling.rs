@@ -527,15 +527,29 @@ pub(crate) struct RuledCylinderSphere<T: Real> {
 }
 
 impl<T: Real> RuledCylinderSphere<T> {
-    /// `ρ²` over the cell, in the factored form that stays tight where
-    /// `ρ` is least.
+    /// `1 − cos φ` over the cell, read where it keeps its relative
+    /// precision: as `sin²φ / (1 + cos φ)` on a cell inside the half turn
+    /// about `φ = 0`, where `1 − cos φ` would cancel, else directly. A
+    /// selection on the cell's angles, not a decision.
+    fn versine(cell: &Cell<T>) -> Iv<T> {
+        use core::f64::consts::{FRAC_PI_2, PI};
+        if cell.hi < FRAC_PI_2 || cell.lo > PI + FRAC_PI_2 {
+            cell.sin.square().over(cell.cos.shift(T::one()))
+        } else {
+            cell.cos.from(T::one())
+        }
+    }
+
+    /// `ρ² = (r − d)² + 2rd(1 − cos φ)` over the cell: both terms are
+    /// read to their own relative precision, so the rounding is charged
+    /// at `ρ²`'s own size, and `ρ` stays tight where it is least.
     fn reach_sq(&self, cell: &Cell<T>) -> Iv<T> {
         let (r, d) = (self.r, self.d);
-        cell.cos
-            .from(T::one())
-            .scale(T::from_f64(2.0) * r * d)
-            .shift((r - d).powi(2))
-            .widen(rounding_charge((r + d).powi(2)))
+        let (near, turn) = ((r - d).powi(2), T::from_f64(2.0) * r * d);
+        let v = Self::versine(cell);
+        v.scale(turn)
+            .shift(near)
+            .widen(rounding_charge(near + turn * v.hi))
     }
 
     /// `√(R² − ρ²)` over the cell, through zero where it straddles it.
@@ -566,7 +580,7 @@ impl<T: Real> Ruled<T> for RuledCylinderSphere<T> {
     fn discriminant_slope(&self, cell: &Cell<T>) -> Iv<T> {
         cell.sin
             .scale(T::zero() - self.r * self.d / self.big_r)
-            .widen(rounding_charge(self.r + self.d))
+            .widen(rounding_charge(self.r * self.d / self.big_r))
     }
 
     fn meeting(&self, cell: &Cell<T>, sheet: Sheet) -> V3<T> {
@@ -629,6 +643,20 @@ pub(crate) enum SweepRefusal {
     /// Two of the sweep's readings disagree about the side of the ball
     /// one stretch of a sheet lies on.
     Inconsistent(&'static str),
+}
+
+/// **A sweep's refusal as the section value's**, for every ruled pair: an
+/// escalation is the value's escalation, and readings that disagree are
+/// an unaccounted section, carrying their cause.
+impl From<SweepRefusal> for crate::intersect::SectionError {
+    fn from(e: SweepRefusal) -> Self {
+        match e {
+            SweepRefusal::Escalated(diag) => Self::Escalated(diag),
+            SweepRefusal::Inconsistent(cause) => Self::Unaccounted {
+                cause: cause.to_owned(),
+            },
+        }
+    }
 }
 
 /// `Δ`'s reading of one cell of the turn.
@@ -712,12 +740,12 @@ impl<T: Decide, R: Ruled<T>> Sweeper<'_, T, R> {
         let width = core::f64::consts::TAU / START as f64;
         // Each first cut where `Δ`'s side decides ([`Self::decided_at`]),
         // the last the first's turn on, so the cells tile the turn. A cut
-        // after the first where it decides nowhere stands where `Δ` is in
-        // the band over more than half a cell, and is dropped: a branch
-        // cell must reach past that stretch on both sides, so the cells
+        // after the first where `Δ` decides at none of the five angles
+        // [`off_a_zero`] offers about it is dropped: a branch cell must
+        // reach past the stretch in the band it stands in, so the cells
         // either side of it are read as one. The first cut is kept
         // wherever it stands, so every cell lies in the turn [`Cell`]
-        // reads.
+        // reads, and the turn is never read over no cell.
         let cuts: Vec<f64> = (0..START)
             .filter_map(|k| {
                 #[allow(clippy::cast_precision_loss)]
@@ -726,11 +754,16 @@ impl<T: Decide, R: Ruled<T>> Sweeper<'_, T, R> {
                 (k == 0 || self.discriminant_reads(at)).then_some(at)
             })
             .collect();
+        let Some(&first) = cuts.first() else {
+            return Err(SweepRefusal::Inconsistent(
+                "the ruling sweep kept no first cut, so its turn holds no cell",
+            ));
+        };
         for (k, &lo) in cuts.iter().enumerate() {
             let hi = cuts
                 .get(k + 1)
                 .copied()
-                .unwrap_or(cuts[0] + core::f64::consts::TAU);
+                .unwrap_or(first + core::f64::consts::TAU);
             self.discriminant_cell(Cell::new(lo, hi), &mut cells)?;
         }
         if cells.iter().all(|(_, d)| *d == Disc::Positive) {
@@ -1453,7 +1486,7 @@ pub(crate) fn coverage(
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
-    use super::{Cell, Ruled, RuledCylinders};
+    use super::{Cell, Iv, Ruled, RuledCylinders, SweepRefusal, V3, sweep};
     use crate::pair_section::{CcStance, CylinderCylinderPose, CylinderSpherePose};
     use crate::{ExtentBall, Reach};
     use geom::Surface;
@@ -1555,6 +1588,80 @@ mod tests {
                     assert!(most > 0.0, "{label}: the walls cross");
                 }
             }
+        }
+    }
+
+    /// **A discriminant in the band over the whole turn escalates**: no
+    /// first cut decides, and the first is kept anyway, so the turn is read
+    /// as one cell, split to the budget. A sweep that dropped every first
+    /// cut would read the turn over no cell.
+    #[test]
+    fn a_discriminant_in_the_band_over_the_whole_turn_escalates() {
+        struct Flat;
+        impl Ruled<f64> for Flat {
+            fn lever(&self) -> geom_core::Lever<f64> {
+                geom_core::Lever::curvature_radius(1.0)
+            }
+            fn discriminant(&self, _: &Cell<f64>) -> Iv<f64> {
+                Iv::point(0.0)
+            }
+            fn discriminant_slope(&self, _: &Cell<f64>) -> Iv<f64> {
+                Iv::point(0.0)
+            }
+            fn meeting(&self, _: &Cell<f64>, _: super::Sheet) -> V3<f64> {
+                V3::at(Point3::origin())
+            }
+            fn velocity(&self, _: &Cell<f64>, _: super::Sheet) -> V3<f64> {
+                V3::at(Point3::origin())
+            }
+        }
+        let got = sweep(&Flat, ExtentBall::of_sphere(Point3::origin(), 1.0), band());
+        assert!(
+            matches!(got, Err(SweepRefusal::Escalated(_))),
+            "a turn in the band escalates: {got:?}"
+        );
+    }
+
+    /// **The coverage reads a sphere's meetings**: two rings of the wall
+    /// `r = 1/2` about `z` against a sphere at `(0.1, 0, 0.2)` of radius
+    /// `0.7`, each enclosed by boxes about points of its closed form
+    /// (`h² = R² − r² − d² + 2rd·cos θ` over the centre's height), are
+    /// covered, and with either ring's boxes dropped a cell is not. The
+    /// sweep's march is not read, so the default set holds the coverage's
+    /// sphere arm to its quadratic without the slow set's carries.
+    #[test]
+    fn the_coverage_reads_a_spheres_meetings() {
+        use crate::ssi::enclose::Box3;
+        let (r, d, big) = (0.5f64, 0.1f64, 0.7f64);
+        let c = wall((0.0, 0.0, 0.0), Vec3::unit_z(), r);
+        let s = Surface::Sphere {
+            center: Point3::new(d, 0.0, 0.2),
+            radius: big,
+            axis: Vec3::unit_z(),
+            u_ref: Vec3::unit_x(),
+        };
+        let ring = |sheet: f64| -> Vec<Box3> {
+            (0..2048)
+                .map(|k| {
+                    let theta = core::f64::consts::TAU * f64::from(k) / 2048.0;
+                    let h = (big * big - r * r - d * d + 2.0 * r * d * theta.cos()).sqrt();
+                    let (sn, cs) = theta.sin_cos();
+                    Box3::around(Point3::new(r * cs, r * sn, 0.2 + sheet * h), 0.01)
+                })
+                .collect()
+        };
+        let (upper, lower) = (ring(1.0), ring(-1.0));
+        let both: Vec<Box3> = upper.iter().chain(&lower).copied().collect();
+        let ball = ExtentBall::of_sphere(Point3::new(d, 0.0, 0.2), big);
+        assert!(
+            super::coverage(&c, &s, ball, &both).is_ok(),
+            "both rings' boxes cover every cell"
+        );
+        for (which, kept) in [("upper", &lower), ("lower", &upper)] {
+            assert!(
+                super::coverage(&c, &s, ball, kept).is_err(),
+                "the {which} ring's boxes dropped: a cell uncovered"
+            );
         }
     }
 
