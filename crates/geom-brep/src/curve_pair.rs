@@ -470,7 +470,7 @@ fn stretches<T: Decide>(
                 margin,
             },
             Ok(Some(Hit::End(which))) => {
-                let end = b.carrier().eval(b.end(which));
+                let end = b.end_point(which);
                 match geom_core::k_stats::decide_reported(
                     "curve_pair_span_end_chord",
                     geom_core::Margin::norm3(q - end),

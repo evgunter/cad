@@ -20,12 +20,11 @@ pub(super) fn pair<T: Decide>(
 ) -> (T, T, T) {
     let mut moved = T::zero();
     for _ in 0..STEPS {
+        (s, t) = (place(s), place(t));
         let ((pa, da), (pb, db)) = (a(s), b(t));
-        let d = pa - pb;
-        let (aa, bb, ab) = (da.dot(da), db.dot(db), da.dot(db));
-        let (ad, bd) = (da.dot(d), db.dot(d));
-        let det = aa * bb - ab.powi(2);
-        let (ds, dt) = ((ab * bd - bb * ad) / det, (aa * bd - ab * ad) / det);
+        let (w, n) = (pb - pa, da.cross(db));
+        let nn = n.dot(n);
+        let (ds, dt) = (w.cross(db).dot(n) / nn, w.cross(da).dot(n) / nn);
         moved = da.norm() * ds.abs() + db.norm() * dt.abs();
         if keep(moved) {
             s = s + ds;
@@ -33,4 +32,17 @@ pub(super) fn pair<T: Decide>(
         }
     }
     (s, t, moved)
+}
+
+/// **The place a step is read from**: an enclosure's middle, and any
+/// other value itself. A step read from a whole enclosure is a step from
+/// every point of it, which grows the iterate by the box's spread each
+/// step rather than closing on the pair; a step from one point is that
+/// point's, and the pair it ends on is one place the readings after it
+/// read.
+fn place<T: Decide>(x: T) -> T {
+    match x.structure_bracket() {
+        Some((lo, hi)) if lo != hi => T::from_computed(lo + 0.5 * (hi - lo)),
+        _ => x,
+    }
 }

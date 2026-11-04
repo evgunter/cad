@@ -83,11 +83,11 @@
 //!   pair is [`Pose::Apart`]. Only then are the two swings read
 //!   (`curve_pair_pose_swing`), both before either is acted on. One
 //!   read zero lies in a plane parallel to the other's, its height
-//!   constant to within that swing: its offset read zero
-//!   (`curve_pair_pose_offset`), the conics lie in one plane to within
-//!   the slant `|c₀|` plus the swing (the larger slant where both read
-//!   zero), below; its offset, the screen's same margins read on its own
-//!   row, escalates in the gap. Only where neither
+//!   constant to within that swing: the screen's one reading of that
+//!   height, acted on again, decides it. Zero all round, the conics lie
+//!   in one plane to within the slant `|c₀|` plus the swing (the larger
+//!   slant where both read zero), below; in the gap, its escalation is
+//!   the pair's. Only where neither
 //!   swing reads zero does one in the gap escalate. Both definite: the
 //!   height of one conic above the other's plane, a first harmonic whose
 //!   roots are where it crosses that plane, places the candidates, each
@@ -220,7 +220,9 @@
 //! meet in the band at an end of one of them, which no isolated
 //! candidate reads. So each span's ends are read against the other
 //! first ([`end_candidates`]): a span end within the band of the other
-//! span is a meeting, and one in the band's gap escalates.
+//! span is a meeting, and one in the band's gap escalates. An endless
+//! span ([`Span::endless`]) has no end: no point lies past it, and its
+//! seam is a point of its interior like any other.
 //!
 //! **A meeting so found is a root the pose already holds where the
 //! arm's equation is the meeting's own**, and there the arm divides it
@@ -274,7 +276,7 @@ use geom_core::k_stats::{check_unlogged, decide, straddle};
 use geom_core::one_line::{OnOneLine, on_one_line};
 use geom_core::{Band, Decide, Lever, Margin, Point3, Sign, Vec3};
 
-use super::span::Span;
+use super::span::{Span, SpanEnd};
 use super::{Arm, MeetFault, Method};
 use crate::half_angle::{
     DegreeTwo, SubdivisionFrame, SubdivisionRows, TouchRows, certified_subdivision_touching,
@@ -524,18 +526,14 @@ fn foot<T: Decide>(s: &Span<'_, T>, q: Point3<T>) -> T {
 /// the other's.
 pub(super) fn end_candidates<T: Decide>(a: &Span<'_, T>, b: &Span<'_, T>) -> Vec<Candidate<T>> {
     let mut out = Vec::with_capacity(4);
-    let (a0, a1) = a.params();
-    for ta in [a0, a1] {
-        let point = a.carrier().eval(ta);
+    for (ta, point) in a.ends() {
         out.push(Candidate {
             point,
             ta,
             tb: foot(b, point),
         });
     }
-    let (b0, b1) = b.params();
-    for tb in [b0, b1] {
-        let point = b.carrier().eval(tb);
+    for (tb, point) in b.ends() {
         out.push(Candidate {
             point,
             ta: foot(a, point),
@@ -600,8 +598,7 @@ fn witnesses<T: Decide>(
     foot_b: &impl Fn(Point3<T>) -> T,
 ) -> Vec<Candidate<T>> {
     let ends = |s: &Span<'_, T>, foot: &dyn Fn(Point3<T>) -> T| {
-        let (t0, t1) = s.params();
-        [foot(s.carrier().eval(t0)), foot(s.carrier().eval(t1))]
+        s.ends().map(|(_, q)| foot(q)).collect::<Vec<_>>()
     };
     let mut out = Vec::new();
     for ta in a.witness_params(ends(b, foot_a)) {
@@ -727,18 +724,16 @@ impl<T: Decide> Polish<'_, T> {
 
 /// The metres `s`'s two ends lie from the origin, as evaluated.
 fn ends<T: Decide>(s: &Span<'_, T>) -> T {
-    let (t0, t1) = s.params();
-    let from = |t: T| (s.carrier().eval(t) - Point3::origin()).norm();
-    from(t0) + from(t1)
+    let from = |which| (s.end_point(which) - Point3::origin()).norm();
+    from(SpanEnd::Start) + from(SpanEnd::Stop)
 }
 
 /// The projection of `s`'s ends on the line `(o, u)`, `u` a unit: their
 /// distances along it from `o`.
 fn on_line<T: Decide>((o, u): (Point3<T>, Vec3<T>), s: &Span<'_, T>) -> (T, T) {
-    let (t0, t1) = s.params();
     (
-        (s.carrier().eval(t0) - o).dot(u),
-        (s.carrier().eval(t1) - o).dot(u),
+        (s.end_point(SpanEnd::Start) - o).dot(u),
+        (s.end_point(SpanEnd::Stop) - o).dot(u),
     )
 }
 
@@ -827,11 +822,10 @@ fn one_line<T: Decide>(
         (w - u * w.dot(u)).norm()
     };
     for (s, other) in [(a, lb), (b, la)] {
-        let (t0, t1) = s.params();
-        for t in [t0, t1] {
+        for which in [SpanEnd::Start, SpanEnd::Stop] {
             if definite(
                 row::OFFSET,
-                Margin::of(off(other, s.carrier().eval(t))),
+                Margin::of(off(other, s.end_point(which))),
                 band,
             )? {
                 return Ok(false);
@@ -857,10 +851,7 @@ fn line_line<T: Decide>(
     // `origin + dir·t` rounds at `|origin| + |dir|·|t|`, which a far
     // origin makes far larger than the end's own distance
     // (`geom_core::one_line`, "The charge").
-    let ends_of = |s: &Span<'_, T>| {
-        let (t0, t1) = s.params();
-        (s.carrier().eval(t0), s.carrier().eval(t1))
-    };
+    let ends_of = |s: &Span<'_, T>| (s.end_point(SpanEnd::Start), s.end_point(SpanEnd::Stop));
     let produced = |(o, d): (Point3<T>, Vec3<T>), s: &Span<'_, T>| {
         let (t0, t1) = s.params();
         (o - Point3::origin()).norm() * T::from_f64(2.0) + d.norm() * (t0.abs() + t1.abs())
@@ -1033,30 +1024,32 @@ fn conic_conic<T: Decide>(
     let hb = height(&kb, ka.frame().origin, ka.frame().axis);
     let swing = |(_, cp, sp): (T, T, T)| (cp.powi(2) + sp.powi(2)).sqrt();
     let (swing_a, swing_b) = (swing(ha), swing(hb));
+    let sides = [(swing_a, ha), (swing_b, hb)];
     // The one reading of a conic's height against the other's plane:
     // clear of it all round is apart, whatever the swing reads.
-    for (swing, (c0, _, _)) in [(swing_a, ha), (swing_b, hb)] {
-        if matches!(constant(row::PARALLEL, c0, swing + noise, band), Ok(true)) {
+    let mut heights = Vec::with_capacity(2);
+    for (swing, (c0, _, _)) in sides {
+        let height = constant(row::PARALLEL, c0, swing + noise, band);
+        if matches!(height, Ok(true)) {
             return Ok(Pose::Apart);
         }
+        heights.push(height);
     }
     // Both swings are read before either is acted on, so the route does
     // not depend on which conic comes first. A conic whose swing reads
     // zero lies in a plane parallel to the other's, in it to within the
     // slant `|c₀|` plus its swing (the larger of the two where both are
-    // level); its offset in the gap escalates. Only where neither reads
+    // level); its height in the gap escalates. Only where neither reads
     // zero does a swing in the gap escalate.
-    let sides = [(swing_a, ha), (swing_b, hb)];
     let swings = sides.map(|(swing, _)| decide(row::SWING, Margin::of(swing), band));
     let mut slant: Option<T> = None;
-    for (read, (swing, (c0, _, _))) in swings.iter().zip(sides) {
+    for ((read, height), (swing, (c0, _, _))) in swings.iter().zip(heights).zip(sides) {
         if *read != Ok(Sign::Zero) {
             continue;
         }
-        // The same margins the screen read, on the offset's row: read
-        // clear they would have been apart there, so only their gap
-        // escalation is left to act on.
-        constant(row::OFFSET, c0, swing + noise, band)?;
+        // The screen's own reading: not clear, so in the zero band all
+        // round or escalated.
+        height?;
         let level = c0.abs() + swing;
         slant = Some(slant.map_or(level, |other| other.max(level)));
     }

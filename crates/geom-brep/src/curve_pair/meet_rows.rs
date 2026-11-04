@@ -2237,3 +2237,53 @@ fn a_spline_with_a_corner_meets_a_line_past_it() {
         "one meeting, on both interiors: {m:?}"
     );
 }
+
+/// **Circles on one sphere meet at the certified scalar where they meet
+/// at `f64`**: the pair of [`circles_on_one_sphere_meet_on_both_at_any_tilt`]
+/// at its widest tilt, lifted to point intervals, at the band
+/// `(1e-12, 1e-11)`. A polish stepped from a whole enclosure grows by
+/// the box's spread each step, and a step solved through its normal
+/// equations reads the rounding of the pair's gap over the squared sine
+/// between the tangents: either puts the last step wider than the zero
+/// band, and the convergence meter refused.
+#[test]
+fn circles_on_one_sphere_meet_at_the_certified_scalar() {
+    use geom_core::{Interval, Real};
+    let band = Band::new(1e-12, 1e-11).unwrap();
+    let i = Interval::from_f64;
+    let lift = |c: &Curve3<f64>| {
+        let Curve3::Circle(geom::Circle { frame, radius }) = *c else {
+            unreachable!("a circle")
+        };
+        let v = |v: Vec3<f64>| Vec3::new(i(v.x), i(v.y), i(v.z));
+        let o = frame.origin;
+        Curve3::circle(
+            Point3::new(i(o.x), i(o.y), i(o.z)),
+            v(frame.axis),
+            i(radius),
+            v(frame.u_ref),
+        )
+    };
+    let (centre, radius, h) = (Point3::new(3.7, -2.1, 0.4), 1.3, 0.5);
+    let (s, c) = 1e-2_f64.sin_cos();
+    let foot = |n: Vec3<f64>| {
+        let d = Vec3::new(0.0, h, 0.0).dot(n);
+        (centre + n * d, (radius * radius - d * d).sqrt())
+    };
+    let (n1, n2) = (Vec3::new(0.0, 1.0, 0.0), Vec3::new(0.0, c, s));
+    let ((c1, r1), (c2, r2)) = (foot(n1), foot(n2));
+    let (a, b) = (
+        circle(c1.to_array(), n1.to_array(), r1),
+        circle(c2.to_array(), n2.to_array(), r2),
+    );
+    let span = (0.05, TAU - 0.05);
+    let at_f64 = meet(&Span::new(&a, span), &Span::new(&b, span), band).unwrap();
+    let (a, b) = (lift(&a), lift(&b));
+    let span = (i(span.0), i(span.1));
+    let m = meet(&Span::new(&a, span), &Span::new(&b, span), band)
+        .unwrap_or_else(|e| panic!("at Interval: {:?}", e.fault));
+    assert!(
+        !m.points.is_empty() && m.points.len() == at_f64.points.len(),
+        "the meetings f64 reads, {at_f64:?}, at Interval: {m:?}"
+    );
+}
