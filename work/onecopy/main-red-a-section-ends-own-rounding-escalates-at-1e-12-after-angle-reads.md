@@ -2,10 +2,11 @@
 id: main-red-a-section-ends-own-rounding-escalates-at-1e-12-after-angle-reads
 kind: issue
 title: Main red at 1e-12: section_end_poses' own-rounding row escalates its map residual since PR 6482 (angle-reads)
-status: open
+status: dispatched
 opened: 2026-11-04
 priority: P0
 cost: E
+branch: onecopy/p0-section-end
 ---
 
 

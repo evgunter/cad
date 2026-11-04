@@ -100,3 +100,9 @@
   - Disclosed behaviour changes: rehome and slit abort on body-level refusals and corruptions that were limits.
   - `door-searches-left-on-the-hand-rolled-ladder` goes back to open, because `shared_run`, `offset_axial`, `measured_ends` and `seam_germ_side` remain.
   - My merge of main was clean; clippy, gates and lint are clean, and topo, geom-brep and step-import ran before merging.
+- 2026-11-04 — PR 6495 merged at `9f2b832db3` (`d15c34e863`). My merge of main was clean. The touched rows, slow set included, show 1210 of 1215; the 5 failures are 4 main reds plus one per-op-postcondition pinned red that `--run-ignored all` ran. The lane at session_013mPGJ6JvwyvTbNJwVFVQDD is released.
+- 2026-11-04 — Two P0 main reds at ε 1e-12 were filed onto ONECOPY by PCERT, each bisected to one of our merges. Both are dispatched as cloud lanes, root cause first, with a fix at the one home and never by re-spelling at the call site:
+  - section_end_poses' map residual, after PR 6482: `onecopy/p0-section-end`, session_013mPGJ3A3Kdic2ksHSq47MQ;
+  - the needle's meet count, after PR 6492: `onecopy/p0-needle`, session_013mPGJ2oAi47f4EfDzt4XFu, told about the polish-meters decision and to check `onecopy/meet-interval`.
+
+  Lesson: our lanes ran the touched crates' slow sets at the default ε only. Sweep at 1e-12 is the ci profile's run, which neither the PR gate nor the lanes reached. Briefs that touch readings now require all three ε on sweep.
