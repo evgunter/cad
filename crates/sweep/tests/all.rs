@@ -1390,6 +1390,8 @@ mod a_cylinder_resting_on_a_box_top_grazes_along_a_line;
 mod a_plane_near_a_needle_cones_apex;
 #[path = "a_saddle_cut_by_its_tangent_plane.rs"]
 mod a_saddle_cut_by_its_tangent_plane;
+#[path = "a_tangent_seam_on_a_spline_wall_ends_as_its_incidence_read.rs"]
+mod a_tangent_seam_on_a_spline_wall_ends_as_its_incidence_read;
 #[path = "fallback_rows_review_head.rs"]
 mod fallback_rows_review_head;
 #[path = "review_5956_delta_needle.rs"]
