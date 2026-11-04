@@ -470,7 +470,14 @@ fn stretches<T: Decide>(
                 margin,
             },
             Ok(Some(Hit::End(which))) => {
-                let end = b.end_point(which);
+                // Only an ended span reads a point at an end, so the end
+                // is one of its two.
+                let nth = usize::from(which == SpanEnd::Stop);
+                let Some((_, end)) = b.ends().nth(nth) else {
+                    return Err(MeetFault::Contradiction {
+                        readings: "a point read at an end of a span with no ends",
+                    });
+                };
                 match geom_core::k_stats::decide_reported(
                     "curve_pair_span_end_chord",
                     geom_core::Margin::norm3(q - end),

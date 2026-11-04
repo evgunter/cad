@@ -193,30 +193,16 @@ impl<'a, T: Decide> Span<'a, T> {
         self.carrier
     }
 
-    /// The parameter interval.
+    /// **The parameter interval**: the span's one door to its first and
+    /// last parameters, which on an endless span are its seam and no end.
     pub fn params(&self) -> (T, T) {
         (self.t0, self.t1)
     }
 
-    /// The parameter of `which` end.
-    pub fn end(&self, which: SpanEnd) -> T {
-        match which {
-            SpanEnd::Start => self.t0,
-            SpanEnd::Stop => self.t1,
-        }
-    }
-
-    /// The carrier's point at `which` end's parameter.
-    pub fn end_point(&self, which: SpanEnd) -> Point3<T> {
-        match which {
-            SpanEnd::Start => self.ends.0,
-            SpanEnd::Stop => self.ends.1,
-        }
-    }
-
-    /// **The span's ends**, each its parameter and its point: both ends
-    /// of an ended span, and none of an endless one, whose first and last
-    /// parameters are a seam in its interior.
+    /// **The span's ends**, each its parameter and its point, the start
+    /// first: both ends of an ended span, and none of an endless one,
+    /// whose first and last parameters are a seam in its interior. The
+    /// span's one door to its end points.
     pub fn ends(&self) -> impl Iterator<Item = (T, Point3<T>)> {
         let n = if self.ended { 2 } else { 0 };
         [(self.t0, self.ends.0), (self.t1, self.ends.1)]
@@ -224,12 +210,21 @@ impl<'a, T: Decide> Span<'a, T> {
             .take(n)
     }
 
+    /// `which` end's parameter and point, as [`Self::ends`] holds them,
+    /// read only where the span is known to have ends.
+    fn end(&self, which: SpanEnd) -> (T, Point3<T>) {
+        match which {
+            SpanEnd::Start => (self.t0, self.ends.0),
+            SpanEnd::Stop => (self.t1, self.ends.1),
+        }
+    }
+
     /// Where `hit` sits on the span's carrier: its parameter, or its
     /// end's.
     pub fn at(&self, hit: Hit<T>) -> T {
         match hit {
             Hit::On { t, .. } => t,
-            Hit::End(which) => self.end(which),
+            Hit::End(which) => self.end(which).0,
         }
     }
 
@@ -310,7 +305,7 @@ impl<'a, T: Decide> Span<'a, T> {
         // beside it.
         let mut chords = Vec::with_capacity(2);
         for (which, _) in ends {
-            let chord = q - self.end_point(which);
+            let chord = q - self.end(which).1;
             let read = decide_reported("curve_pair_span_end_chord", Margin::norm3(chord), band);
             if let Ok(Decided {
                 sign: Sign::Zero, ..

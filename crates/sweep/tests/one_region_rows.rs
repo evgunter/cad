@@ -1129,14 +1129,37 @@ fn points_of_the_other_half_read_off_a_face_holding_a_window_at_the_certified_sc
 /// on its own side of the face**: on the 90° lune of a revolved ball
 /// (poles on `y`) and its 270° complement, at the band `(1e-12, 1e-11)`,
 /// points `2e-11` off the north pole decide out of the one face and in
-/// the other. Every leg from such a point meets the meridian edge again
-/// at its antipode, as far from the south pole, so each end's distance
-/// is read twice the escalation off it, past any rounding of the end's
-/// point. A point at exactly the escalation width is no row: the
-/// meridian's span ends at `π` as an `f64`, whose point lies `1.2e-16`
-/// short of the pole, and a reading there is decided by that rounding.
+/// the other ([`lune_pole_rows`]). Every leg from such a point meets the
+/// meridian edge again at its antipode, as far from the south pole, so
+/// each end's distance is read twice the escalation off it, past any
+/// rounding of the end's point: any reading of the end decides it.
 #[test]
 fn points_two_escalations_off_a_lunes_pole_vertex_read_on_their_side() {
+    lune_pole_rows(2e-11);
+}
+
+/// **A point a hair past the escalation off a lune's pole vertex reads
+/// at the end's precision**: the rows of [`lune_pole_rows`] at
+/// `1.000_000_3e-11`, `3e-18` past the band's escalation `1e-11`. The
+/// meeting at the point's antipode is read against the meridian's end
+/// as the raw root less the end's parameter, a difference of two near
+/// numbers that keeps its relative precision
+/// (`topo/src/boolean/sphere_region.rs`, the landing's `to_end`), and
+/// decides. Read as the half-width less the angle from the middle, the
+/// distance carries the angles' rounding, `~4e-16`, and escalates on
+/// `bool_sphere_region_span`; so does a chord to the end's point, which
+/// lies `1.2e-16` short of the pole (the span ends at `π` as an `f64`).
+/// The band is kept at `(1e-12, 1e-11)` so that the hair is below every
+/// coordinate rounding and above none of the parameter's.
+#[test]
+fn points_a_hair_past_the_escalation_off_a_lunes_pole_vertex_read_at_the_ends_precision() {
+    lune_pole_rows(1.000_000_3e-11);
+}
+
+/// The 90° lune of a revolved unit ball (poles on `y`) and its 270°
+/// complement, at the band `(1e-12, 1e-11)`: points `d` off the north
+/// pole read out of the one face and in the other.
+fn lune_pole_rows(d: f64) {
     let disc = [(0.0, -1.0, 1.0), (0.0, 1.0, 0.0)];
     let meridian = bulge_loop(
         disc.iter()
@@ -1159,16 +1182,16 @@ fn points_two_escalations_off_a_lunes_pole_vertex_read_on_their_side() {
         (
             90.0_f64,
             vec![
-                (Point3::new(0.0, 1.0, 2e-11), out),
-                (Point3::new(0.0, -1.0, 2e-11), out),
-                (Point3::new(-2e-11, 1.0, 0.0), out),
+                (Point3::new(0.0, 1.0, d), out),
+                (Point3::new(0.0, -1.0, d), out),
+                (Point3::new(-d, 1.0, 0.0), out),
             ],
         ),
         (
             270.0,
             vec![
-                (Point3::new(-2e-11, 1.0, 0.0), inside),
-                (Point3::new(0.0, 1.0, -2e-11), inside),
+                (Point3::new(-d, 1.0, 0.0), inside),
+                (Point3::new(0.0, 1.0, -d), inside),
             ],
         ),
     ] {
@@ -1184,7 +1207,7 @@ fn points_two_escalations_off_a_lunes_pole_vertex_read_on_their_side() {
             assert_eq!(
                 topo::curved_face_containment(&lune, face, q, band),
                 Ok(want),
-                "{q:?} on the {deg}° lune"
+                "{q:?} on the {deg}° lune, {d:e} off its pole"
             );
         }
     }

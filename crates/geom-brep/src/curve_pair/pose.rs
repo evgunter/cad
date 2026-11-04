@@ -211,6 +211,13 @@
 //! - **its convergence** (`curve_pair_pose_polish`): the polish's last
 //!   step moves the pair within the band's zero.
 //!
+//! **Each step is read from a point** ([`super::polish`]): at an
+//! enclosing scalar the iterate's middle, entered as a point, so the
+//! step and the metres it moves are that point's, not a step from every
+//! point of the iterate's box. The basin is read where the polish
+//! starts, and the travel and convergence meters at the pair the last
+//! step ends on, as every polished pair is then read on both spans.
+//!
 //! # The spans' ends, and deflation
 //!
 //! A touch or a crossing is one point, but two curves near it stay
@@ -276,7 +283,7 @@ use geom_core::k_stats::{check_unlogged, decide, straddle};
 use geom_core::one_line::{OnOneLine, on_one_line};
 use geom_core::{Band, Decide, Lever, Margin, Point3, Sign, Vec3};
 
-use super::span::{Span, SpanEnd};
+use super::span::Span;
 use super::{Arm, MeetFault, Method};
 use crate::half_angle::{
     DegreeTwo, SubdivisionFrame, SubdivisionRows, TouchRows, certified_subdivision_touching,
@@ -467,6 +474,20 @@ fn line_of<T: Decide>(c: &Curve3<T>) -> Result<(Point3<T>, Vec3<T>), MeetFault> 
         Curve3::Circle(..) | Curve3::Ellipse(..) | Curve3::Spiric { .. } | Curve3::Nurbs(_) => {
             Err(MeetFault::Desync)
         }
+    }
+}
+
+/// A line span's two end points, start first.
+type Ends<T> = (Point3<T>, Point3<T>);
+
+/// **A line span's two end points**, start first ([`Span::ends`]). A
+/// line is open, so a span of one always has ends: an endless one is a
+/// span read as the kind it is not, as a carrier of the wrong kind is.
+fn line_ends<T: Decide>(s: &Span<'_, T>) -> Result<Ends<T>, MeetFault> {
+    let mut ends = s.ends().map(|(_, q)| q);
+    match (ends.next(), ends.next()) {
+        (Some(p0), Some(p1)) => Ok((p0, p1)),
+        _ => Err(MeetFault::Desync),
     }
 }
 
@@ -708,19 +729,16 @@ impl<T: Decide> Polish<'_, T> {
     }
 }
 
-/// The metres `s`'s two ends lie from the origin, as evaluated.
-fn ends<T: Decide>(s: &Span<'_, T>) -> T {
-    let from = |which| (s.end_point(which) - Point3::origin()).norm();
-    from(SpanEnd::Start) + from(SpanEnd::Stop)
+/// The metres a line span's two ends ([`line_ends`]) lie from the
+/// origin, as evaluated.
+fn ends<T: Decide>((p0, p1): Ends<T>) -> T {
+    (p0 - Point3::origin()).norm() + (p1 - Point3::origin()).norm()
 }
 
-/// The projection of `s`'s ends on the line `(o, u)`, `u` a unit: their
-/// distances along it from `o`.
-fn on_line<T: Decide>((o, u): (Point3<T>, Vec3<T>), s: &Span<'_, T>) -> (T, T) {
-    (
-        (s.end_point(SpanEnd::Start) - o).dot(u),
-        (s.end_point(SpanEnd::Stop) - o).dot(u),
-    )
+/// The projection of a line span's two ends on the line `(o, u)`, `u` a
+/// unit: their distances along it from `o`.
+fn on_line<T: Decide>((o, u): (Point3<T>, Vec3<T>), (p0, p1): Ends<T>) -> (T, T) {
+    ((p0 - o).dot(u), (p1 - o).dot(u))
 }
 
 /// Where the router sends a line's pair (module docs, "The router").
@@ -799,21 +817,17 @@ fn route<T: Decide>(
 /// of the other's carrier. A line's distance from another is affine in
 /// its parameter, so its ends bound it over the span.
 fn one_line<T: Decide>(
-    (a, la): (&Span<'_, T>, (Point3<T>, Vec3<T>)),
-    (b, lb): (&Span<'_, T>, (Point3<T>, Vec3<T>)),
+    (a, la): (Ends<T>, (Point3<T>, Vec3<T>)),
+    (b, lb): (Ends<T>, (Point3<T>, Vec3<T>)),
     band: Band,
 ) -> Result<bool, MeetFault> {
     let off = |(o, u): (Point3<T>, Vec3<T>), q: Point3<T>| {
         let w = q - o;
         (w - u * w.dot(u)).norm()
     };
-    for (s, other) in [(a, lb), (b, la)] {
-        for which in [SpanEnd::Start, SpanEnd::Stop] {
-            if definite(
-                row::OFFSET,
-                Margin::of(off(other, s.end_point(which))),
-                band,
-            )? {
+    for ((p0, p1), other) in [(a, lb), (b, la)] {
+        for q in [p0, p1] {
+            if definite(row::OFFSET, Margin::of(off(other, q)), band)? {
                 return Ok(false);
             }
         }
@@ -837,13 +851,13 @@ fn line_line<T: Decide>(
     // `origin + dir·t` rounds at `|origin| + |dir|·|t|`, which a far
     // origin makes far larger than the end's own distance
     // (`geom_core::one_line`, "The charge").
-    let ends_of = |s: &Span<'_, T>| (s.end_point(SpanEnd::Start), s.end_point(SpanEnd::Stop));
+    let (ends_a, ends_b) = (line_ends(a)?, line_ends(b)?);
     let produced = |(o, d): (Point3<T>, Vec3<T>), s: &Span<'_, T>| {
         let (t0, t1) = s.params();
         (o - Point3::origin()).norm() * T::from_f64(2.0) + d.norm() * (t0.abs() + t1.abs())
     };
-    let (a0, a1) = ends_of(a);
-    let at = on_one_line(u1, (a0, a1), ends_of(b), produced(la, a) + produced(lb, b));
+    let (a0, _) = ends_a;
+    let at = on_one_line(u1, ends_a, ends_b, produced(la, a) + produced(lb, b));
     let w = a0 + u1 * at.mid() - o2;
     let off = (w - u2 * w.dot(u2)).norm();
     let lever = reach(a).max(reach(b));
@@ -853,7 +867,7 @@ fn line_line<T: Decide>(
     let arm = geom_core::Lever::unsourced(lever);
     let origin = Point3::origin();
     let noise = geom_core::rounding_charge(
-        (o1 - origin).norm() + (o2 - origin).norm() + ends(a) + ends(b) + lever + lever,
+        (o1 - origin).norm() + (o2 - origin).norm() + ends(ends_a) + ends(ends_b) + lever + lever,
     );
     let crossing = || {
         let along = (o2 - o1).cross(u2).dot(n) / s.powi(2);
@@ -868,10 +882,12 @@ fn line_line<T: Decide>(
         Route::Apart => Ok(Pose::Apart),
         Route::Parallel => Ok(Pose::Parallel),
         Route::Crossing => Ok(crossing()),
-        Route::Level if one_line((a, (o1, u1)), (b, (o2, u2)), band)? => Ok(Pose::Coincident {
-            sense: sense(u1.dot(u2), arm, band)?,
-            witnesses: witnesses(a, b, &|q| line_foot(la, q), &|q| line_foot(lb, q)),
-        }),
+        Route::Level if one_line((ends_a, (o1, u1)), (ends_b, (o2, u2)), band)? => {
+            Ok(Pose::Coincident {
+                sense: sense(u1.dot(u2), arm, band)?,
+                witnesses: witnesses(a, b, &|q| line_foot(la, q), &|q| line_foot(lb, q)),
+            })
+        }
         // Level where they can meet but apart past the band along a span:
         // a shallow corner, read as the crossing the longer span's tilt
         // decides.
@@ -905,14 +921,15 @@ fn line_conic<T: Decide>(
     let noise = geom_core::rounding_charge(
         (o - origin).norm() + (k.frame().origin - origin).norm() + lever + k.speed_hi(),
     );
-    let screened = noise + geom_core::rounding_charge(ends(a));
+    let ends_a = line_ends(a)?;
+    let screened = noise + geom_core::rounding_charge(ends(ends_a));
     // A conic's extent is no second span: its projection is read from the
     // line's origin, charged as the router's screens are. That anchor
     // charges the carrier origin's metres once, where a read from the
     // span's start would charge both ends' evaluation, twice as many
     // (`work/cpair/the-line-conic-router-reads-its-projections-from-the-lines-carrier-origin`).
     let at = OnOneLine::of(
-        on_line((o, u), a),
+        on_line((o, u), ends_a),
         (c - k.speed_hi(), c + k.speed_hi()),
         screened,
     );

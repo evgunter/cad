@@ -184,6 +184,17 @@ pub const PROJECT_EPS_COSINE: f64 = 1e-12;
 /// `geom/tests/dual_foot_tangent.rs` pins the reported tangents and goes
 /// red the day #874 moves them.
 pub(crate) fn mid<T: Bounds>(v: T) -> f64 {
-    let (lo, hi) = (v.lo(), v.hi());
+    bracket_mid((v.lo(), v.hi()))
+}
+
+/// **The midpoint of a bracket `(lo, hi)`**: the one spelling of the
+/// bracket midpoint, which [`mid`] reads a scalar's bracket through and
+/// a caller holding a bracket by another door
+/// (`SpanLocate::structure_bracket`) reads directly. Everything [`mid`]
+/// says of the form holds here: `lo + ½(hi − lo)`, the identity on a
+/// finite point, and NaN on a bracket with an infinite end. A caller for
+/// whom NaN is not a refusal reads the bracket's finiteness first.
+#[must_use]
+pub fn bracket_mid((lo, hi): (f64, f64)) -> f64 {
     lo + 0.5 * (hi - lo)
 }

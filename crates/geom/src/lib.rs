@@ -183,9 +183,10 @@ pub use param::mid_param;
 pub use periodic::periodic_window_may_hold;
 // The §6.1 policy module is interior — its body is the argument for
 // these four values, not API — but the values themselves are the
-// public names both halves' callers have always used.
+// public names both halves' callers have always used, and its bracket
+// midpoint is the one a selection outside this crate reads.
 pub use projection_policy::{
-    PROJECT_EPS_COSINE, PROJECT_EPS_POINT, PROJECT_MAX_ITERS, PROJECT_SEEDS_PER_SPAN,
+    PROJECT_EPS_COSINE, PROJECT_EPS_POINT, PROJECT_MAX_ITERS, PROJECT_SEEDS_PER_SPAN, bracket_mid,
 };
 pub use surfaces::{
     AnalyticPairs, ApproxSurface, ApproxWindow, NetState, NurbsSurface, OffsetCertificate,
