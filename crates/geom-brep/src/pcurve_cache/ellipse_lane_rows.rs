@@ -375,6 +375,10 @@ fn drawn_ellipse(s: &mut fuzz::Rng, centre: Point3<f64>, n: Vec3<f64>, big: f64)
     Curve3::Ellipse(geom::Ellipse::new(geom::Frame::new(centre, n, u), a, b))
 }
 
+/// A row of the sphere, wall and torus coefficient check: its name, the
+/// ellipse, and the charts' centre, axis, radius and tube radius.
+type OtherChartsRow = (String, Curve3<f64>, Point3<f64>, Vec3<f64>, f64, f64);
+
 /// **An ellipse's form coefficients stay within their charge on every
 /// chart**, exactly ([`cone_coefficient_excess`] on the cone,
 /// [`other_charts_within`] on the sphere, wall and torus): the extremes
@@ -430,7 +434,7 @@ fn an_ellipses_coefficients_stay_within_their_charge_on_every_chart() {
         -10.0,
         1e-3,
     ));
-    let mut others: Vec<(String, Curve3<f64>, Point3<f64>, Vec3<f64>, f64, f64)> = vec![
+    let mut others: Vec<OtherChartsRow> = vec![
         (
             "a thin torus's ratio-1e-6 ellipse".into(),
             eccentric(at + axis * 0.3, tilted, 2.0),
@@ -868,11 +872,15 @@ fn oracle_row(
     )
 }
 
+/// A pinned extreme: its name, chart, ellipse, span and 50-digit distance.
+type Extreme = (&'static str, Surface<f64>, Curve3<f64>, (f64, f64), f64);
+
 /// The pinned extremes of [`the_extremes_are_covered_at_their_50_digit_distance`]:
 /// a name, the chart, the ellipse, the span, and the carrier's 50-digit
 /// distance from the chart over the span
-/// (`scripts/oracles/ellipse_lane_50_digit.py`).
-fn extremes() -> Vec<(&'static str, Surface<f64>, Curve3<f64>, (f64, f64), f64)> {
+/// (`scripts/oracles/ellipse_lane_50_digit.py`), rounded to the nearest
+/// `f64`.
+fn extremes() -> Vec<Extreme> {
     let far = |d: f64| Point3::new(0.3 + d, -0.7 - 0.6 * d, 0.2 + 0.5 * d);
     let axis = Vec3::new(0.2, -0.4, 1.0).normalize();
     let u_ref = axis.cross(Vec3::unit_x()).normalize();
@@ -909,7 +917,7 @@ fn extremes() -> Vec<(&'static str, Surface<f64>, Curve3<f64>, (f64, f64), f64)>
             needle.clone(),
             cone_section_ellipse(&needle, 1.0, 0.5 * (FRAC_PI_2 - 0.003)),
             (0.0, TAU),
-            5.465_458_614_727_484_7e-12,
+            5.465_458_614_727_484e-12,
         ),
         (
             "a flat cone's section 1e5 out",
@@ -923,14 +931,14 @@ fn extremes() -> Vec<(&'static str, Surface<f64>, Curve3<f64>, (f64, f64), f64)>
             thin.clone(),
             crest_ellipse(&thin, 4.5e-7),
             (0.0, TAU),
-            5.068_641_677_846_516_7e-11,
+            5.068_641_677_846_517e-11,
         ),
         (
             "a sphere's squashed parallel 1e3 out",
             ball.clone(),
             squashed_parallel(&ball, 1.1, 7.2e-10),
             (-1.0, 2.0),
-            6.991_683_275_536_128_8e-10,
+            6.991_683_275_536_129e-10,
         ),
         (
             "a wall's tangent needle 1e3 out",
