@@ -6940,13 +6940,13 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
     band: Band,
     tol: Tol,
 ) -> Result<CutsPerOperand, BooleanError> {
-    const ROWS: super::circle_roots::FirstHarmonicRows = super::circle_roots::FirstHarmonicRows {
-        noise: "bool_sphere_cut_roots_noise",
-        coaxial: "bool_sphere_cut_roots_coaxial",
-        extreme: "bool_sphere_cut_roots_extreme",
-        root_slack: "bool_sphere_cut_roots_slack",
-        decision: BooleanDecision::Sphere(SphereQuestion::CutIn),
-    };
+    const ROWS: geom_brep::curve_face::circle_roots::FirstHarmonicRows =
+        geom_brep::curve_face::circle_roots::FirstHarmonicRows {
+            noise: "bool_sphere_cut_roots_noise",
+            coaxial: "bool_sphere_cut_roots_coaxial",
+            extreme: "bool_sphere_cut_roots_extreme",
+            root_slack: "bool_sphere_cut_roots_slack",
+        };
     let corrupt = |what| BooleanError::ClassificationInvariant { what };
     // The faces each scanned face has been cut into so far, beside its
     // own key: `(operand, scanned face, piece)`.
@@ -7127,8 +7127,8 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
                 else {
                     return Err(refuse("a boundary edge of the sphere face is not a circle"));
                 };
-                let roots = super::circle_roots::first_harmonic_roots(
-                    &super::circle_roots::FirstHarmonic::conic_off_plane(
+                let roots = geom_brep::curve_face::circle_roots::first_harmonic_roots(
+                    &geom_brep::curve_face::circle_roots::FirstHarmonic::conic_off_plane(
                         &edge_circle,
                         (cut.center, k),
                     ),
@@ -7137,7 +7137,10 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
                     t1,
                     &ROWS,
                     band,
-                )?;
+                )
+                .map_err(BooleanError::of_door_refusal(
+                    BooleanDecision::Sphere(SphereQuestion::CutIn),
+                ))?;
                 let thetas = match roots {
                     Ok(geom_brep::roots::Roots::Miss) => continue,
                     Ok(geom_brep::roots::Roots::Certified(found)) => found.roots().to_vec(),
