@@ -188,7 +188,7 @@ impl TrimPiece {
 }
 
 /// One trim-loop EDGE of the trimmed lane, fully bracketed by the
-/// caller (key-free, like [`TrimEdgeQ`](super::cylinder::TrimEdgeQ)).
+/// caller (key-free, like [`TrimEdgeQ`](super::rotational::TrimEdgeQ)).
 ///
 /// An iso image is one exact chord and carries no `piece`: its
 /// endpoints are structure (`p0 → p0 + pd`), so there is no arc to

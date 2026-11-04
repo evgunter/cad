@@ -2401,14 +2401,16 @@ fn closed_form_meters<T: Decide>(
 /// past [`LEVER_SPREAD`] times its floor is halved, a selection read off
 /// the lever's ends with nothing recorded. A part still spread after
 /// [`LEVER_DEPTH`] halvings reaches toward the apex: the pose's lever
-/// refusal ([`SectorChannel::Lever`]), at `piece`, the image's piece the
-/// edge reads (a part is the conversion's, not the image's).
+/// refusal ([`SectorChannel::Lever`]), at the image's piece that holds
+/// the part (`piece_of`, read off the part's fractions `(s_a, s_b)` of the
+/// segment, which is affine in `t`; a part is the conversion's, not the
+/// image's), and so is a lever not shown positive on a part.
 fn line_off_cone_sup<T: Decide>(
     meters: Meters<T>,
     (sin, cos): (T, T),
     chart: &ProjectedChart<T>,
     (q0, q1): (Vec3<T>, Vec3<T>),
-    piece: usize,
+    piece_of: impl Fn(T, T) -> usize,
     band: Band,
 ) -> Result<T, PcurveCertifyError> {
     let floors = |qa: Vec3<T>, qb: Vec3<T>| {
@@ -2436,9 +2438,9 @@ fn line_off_cone_sup<T: Decide>(
         let floor = rho * cos + axial * sin;
         geom_core::k_stats::detached(|| {
             Ok::<bool, Indeterminate>(
-                !positive("pcurve_projected_lever_spread", ceiling, band)?
+                !positive("pcurve_projected_lever_ceiling", ceiling, band)?
                     || positive(
-                        "pcurve_projected_lever_spread",
+                        "pcurve_projected_lever_spread_ratio",
                         (ceiling - floor * T::from_f64(LEVER_SPREAD)) / ceiling,
                         band,
                     )?,
@@ -2448,26 +2450,27 @@ fn line_off_cone_sup<T: Decide>(
         .unwrap_or(true)
     };
     let cuts = u32::try_from(INCIDENCE_CUTS).unwrap_or(u32::MAX);
-    let cut = |k: u32| q0 + (q1 - q0) * T::from_f64(f64::from(k) / f64::from(cuts));
-    let mut parts: Vec<(Vec3<T>, Vec3<T>, u32)> =
-        (0..cuts).rev().map(|k| (cut(k), cut(k + 1), 0)).collect();
+    let cut = |k: u32| T::from_f64(f64::from(k) / f64::from(cuts));
+    let at = |s: T| q0 + (q1 - q0) * s;
+    let mut parts: Vec<(T, T, u32)> = (0..cuts).rev().map(|k| (cut(k), cut(k + 1), 0)).collect();
     let mut sup = T::zero();
-    while let Some((qa, qb, depth)) = parts.pop() {
+    while let Some((sa, sb, depth)) = parts.pop() {
+        let (qa, qb) = (at(sa), at(sb));
         let (lo, ceiling) = floors(qa, qb);
         if spread(lo, ceiling) {
             if depth == LEVER_DEPTH {
-                return Err(sector_refused(piece, SectorChannel::Lever));
+                return Err(sector_refused(piece_of(sa, sb), SectorChannel::Lever));
             }
-            let mid = qa + (qb - qa) * T::from_f64(0.5);
-            parts.push((mid, qb, depth + 1));
-            parts.push((qa, mid, depth + 1));
+            let mid = sa + (sb - sa) * T::from_f64(0.5);
+            parts.push((mid, sb, depth + 1));
+            parts.push((sa, mid, depth + 1));
             continue;
         }
         let part = closed_form_meters(
             meters,
             line_off_cone_form(qa, qb, sin, cos),
             lo,
-            piece,
+            piece_of(sa, sb),
             band,
         )?;
         sup = sup.max(part);
@@ -2670,7 +2673,12 @@ pub(super) fn projected_envelope<T: Decide>(
                         (sin, cos),
                         &image.chart,
                         (p + l * t0, p + l * t1),
-                        lo,
+                        |sa, sb| {
+                            let t = |s: T| t0 + (t1 - t0) * s;
+                            image
+                                .overlapped(t(sa), t(sb))
+                                .map_or(lo, |(first, _)| first)
+                        },
                         band,
                     )?
                 }

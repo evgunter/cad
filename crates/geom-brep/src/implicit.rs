@@ -1064,10 +1064,13 @@ pub struct ConicHarmonics<T> {
     /// A bound on every magnitude the coefficients are built from (m²,
     /// before the division by [`Self::per`]), the rounding of the
     /// projection included: `(|C₀ − o| + max(|a|, |b|))² + r²` on a sphere
-    /// or a wall, and on a cone `cos²α·(|⊥(C₀ − o)| + ρ̃)² +
-    /// sin²α·(|(C₀ − o)·â| + h̃)²`, `ρ̃` and `h̃` the sups of the carrier's
-    /// radial and axial harmonics, each part of its form at its own
-    /// factor — the scale their rounding is charged against, read at
+    /// or a wall, and on a cone `cos²α·ρ·(ρ + λ_ρ) + sin²α·h·(h + λ_h)`,
+    /// `ρ = |⊥(C₀ − o)| + ρ̃` and `h = |(C₀ − o)·â| + h̃` (`ρ̃`, `h̃` the
+    /// sups of the carrier's radial and axial harmonics), each part of
+    /// its form at its own factor, and `λ_ρ`, `λ_h` the levers its
+    /// projections' rounding enters at (the magnitudes `d·â`, `u·â`,
+    /// `v·â`, `⊥d` and `n × u` are formed at, read per component) — the
+    /// scale their rounding is charged against, read at
     /// the semi-axes' MAGNITUDES (a signed or ordered read under-charges a
     /// negative `semi_u`, or a `semi_v` stored larger).
     pub terms: T,
@@ -1207,7 +1210,44 @@ pub fn conic_cone_harmonics<T: Real>(
     // height.
     let radial_reach = e.norm() + crate::harmonic::harmonic_sup(up * a, vp * b);
     let axial_reach = h0.abs() + harmonic_sup_scalar(hu, hv);
-    let terms = cc * radial_reach.powi(2) + ss * axial_reach.powi(2);
+    // Each part also carries the rounding of the projections it is read
+    // from, which is not relative to the part: `d·â`, `u·â` and `v·â`
+    // round at the scale of their products' magnitudes however small
+    // the dot comes out, and `⊥d` at `|d|`'s, `v = n × u` at its own
+    // products'. Each error enters a coefficient times the part's other
+    // factor, so it is charged as the part's reach times its lever —
+    // the magnitudes the error is formed at, read per component so an
+    // axis-aligned pose (whose dots are exact) is charged nothing: a
+    // needle cone's section far from its apex has a radial reach a
+    // sliver of `|d|`, and a wide cone's section a height a sliver of
+    // its radius.
+    let abs_dot =
+        |x: Vec3<T>, y: Vec3<T>| (x.x * y.x).abs() + (x.y * y.y).abs() + (x.z * y.z).abs();
+    let (n, uu_ref) = (conic.frame().axis, conic.frame().u_ref);
+    let v_abs = Vec3::new(
+        (n.y * uu_ref.z).abs() + (n.z * uu_ref.y).abs(),
+        (n.z * uu_ref.x).abs() + (n.x * uu_ref.z).abs(),
+        (n.x * uu_ref.y).abs() + (n.y * uu_ref.x).abs(),
+    );
+    let (d_dot, u_dot, v_dot) = (
+        abs_dot(d, c_axis),
+        abs_dot(u, c_axis),
+        abs_dot(v_abs, c_axis),
+    );
+    let (a_m, b_m) = (a.abs(), b.abs());
+    let radial_lever = d.norm()
+        + T::from_f64(5.0) * d_dot
+        + T::from_f64(4.0) * a_m * u_dot
+        + b_m * (two * v_abs.norm() + T::from_f64(6.0) * v_dot);
+    let axial_lever = two * d_dot + T::from_f64(3.0) * a_m * u_dot + T::from_f64(5.0) * b_m * v_dot;
+    let terms = cc * radial_reach * (radial_reach + radial_lever)
+        + ss * axial_reach * (axial_reach + axial_lever);
+    #[cfg(test)]
+    let terms = if crate::pcurve_cache::mutants::cone_terms_unprojected() {
+        cc * radial_reach.powi(2) + ss * axial_reach.powi(2)
+    } else {
+        terms
+    };
     let form = |k: usize| (cc * wall[k] - ss * height[k]) / per;
     // `|q|²`'s least value, from its own harmonics, less their rounding.
     let (uu, vv) = (a.powi(2) * u.norm_squared(), b.powi(2) * v.norm_squared());

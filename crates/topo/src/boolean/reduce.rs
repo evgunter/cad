@@ -154,8 +154,9 @@ pub(super) struct ContactAcc {
     in_plane: Vec<InPlane>,
     /// The bisector plane each vertex the sweep placed on an equal
     /// cylinder pair's partner wall lies on ([`factored_crossing`]), by
-    /// its operand: the pierce reads that wall through it.
-    pub(super) branches: std::collections::BTreeMap<(Operand, VertexKey), super::Branch>,
+    /// its operand and its index in `node::bisectors`' order: the pierce
+    /// reads that wall through it.
+    pub(super) planes: std::collections::BTreeMap<(Operand, VertexKey), usize>,
     /// The chart point each vertex the sweep placed inside a spline face
     /// was placed at, on the face's own sheet, by the vertex's operand and
     /// the face: the pierce reads the face's normal there
@@ -308,11 +309,11 @@ impl ContactAcc {
         core::mem::take(&mut self.charts)
     }
 
-    /// The branches the sweep recorded ([`Self::branches`]), taken out.
-    pub(super) fn take_branches(
+    /// The bisector planes the sweep recorded ([`Self::planes`]), taken out.
+    pub(super) fn take_planes(
         &mut self,
-    ) -> std::collections::BTreeMap<(Operand, VertexKey), super::Branch> {
-        core::mem::take(&mut self.branches)
+    ) -> std::collections::BTreeMap<(Operand, VertexKey), usize> {
+        core::mem::take(&mut self.planes)
     }
 
     /// The records, each citing rows of the decisions alongside them.
@@ -1079,16 +1080,16 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 // against the piercing side, and the remainder fragment
                 // is re-queued so the second root of the same span is
                 // found on the next pass.
-                let (t, p, at, on, branch, chart, on_edge) = match event {
+                let (t, p, at, on, plane, chart, on_edge) = match event {
                     CurvedEvent::Pierce {
                         t,
                         p,
                         at,
                         on,
-                        branch,
+                        plane,
                         chart,
                         on_edge,
-                    } => (t, p, at, on, branch, chart, on_edge),
+                    } => (t, p, at, on, plane, chart, on_edge),
                     CurvedEvent::Deferred => {
                         deferred.push(DeferredTouch {
                             x_is,
@@ -1124,8 +1125,8 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                         let w =
                             split_at(x, x_is, edge_key, t, super::Cell::Face(face), tol, contacts)?;
                         push_vf(contacts, x_is, w, face, on);
-                        if let Some(branch) = branch {
-                            contacts.branches.insert((x_is, w), branch);
+                        if let Some(plane) = plane {
+                            contacts.planes.insert((x_is, w), plane);
                         }
                         if let Some(uv) = chart {
                             contacts.chart_point(x_is, w, face, uv);
@@ -2723,7 +2724,7 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
                     p,
                     at,
                     on,
-                    branch: None,
+                    plane: None,
                     chart: None,
                     on_edge: None,
                 }),
@@ -2859,7 +2860,7 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
                     p,
                     at,
                     on,
-                    branch: None,
+                    plane: None,
                     chart: None,
                     on_edge: None,
                 }),
@@ -2907,7 +2908,7 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
                     p,
                     at,
                     on,
-                    branch: None,
+                    plane: None,
                     chart: None,
                     on_edge: None,
                 }),
@@ -3028,7 +3029,7 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
                             p,
                             at,
                             on,
-                            branch: None,
+                            plane: None,
                             chart: None,
                             on_edge: None,
                         }),
@@ -3222,7 +3223,7 @@ fn spline_face<T: Decide + crate::props::AtRestPolicy>(
                     p,
                     at,
                     on: Some(margin),
-                    branch: None,
+                    plane: None,
                     chart: None,
                     on_edge: super::carrier_cross::held_on(at, held),
                 }),
@@ -3362,7 +3363,7 @@ fn spline_interior<T: Decide + crate::props::AtRestPolicy>(
                 p: m.point,
                 at,
                 on: Some(margin),
-                branch: None,
+                plane: None,
                 chart: None,
                 on_edge: None,
             });
@@ -3374,7 +3375,7 @@ fn spline_interior<T: Decide + crate::props::AtRestPolicy>(
                     p: m.point,
                     at: FaceContainment::In,
                     on: None,
-                    branch: None,
+                    plane: None,
                     chart: Some(m.uv),
                     on_edge: None,
                 });
@@ -3625,7 +3626,7 @@ fn interior<T: Decide>(
             p,
             at,
             on: Some(margin),
-            branch: None,
+            plane: None,
             chart: None,
             on_edge,
         })
@@ -3976,7 +3977,7 @@ fn lying_on<T: Decide + crate::props::AtRestPolicy>(
                 p,
                 at,
                 on: Some(margin),
-                branch: None,
+                plane: None,
                 chart: None,
                 on_edge,
             }),
@@ -4449,7 +4450,7 @@ fn spline_wall_event<T: Decide + Bounds + crate::props::AtRestPolicy>(
                         p,
                         at,
                         on,
-                        branch: None,
+                        plane: None,
                         chart: None,
                         on_edge: None,
                     });
@@ -5230,11 +5231,12 @@ pub(super) enum CurvedEvent<T: geom_core::Real> {
         /// The margin that decided `p` on the boundary entity `at`
         /// names (`None` for `In`, a transverse pierce).
         on: Option<MarginDiag>,
-        /// The bisector plane the crossing lies on, where the sweep read
-        /// an equal cylinder pair's wall through its planes
-        /// ([`factored_crossing`]); the pierce reads the partner wall
-        /// through it.
-        branch: Option<super::Branch>,
+        /// The bisector plane the crossing lies on, by its index in
+        /// `node::bisectors`' order, where the sweep read an equal
+        /// cylinder pair's wall through its planes ([`factored_crossing`]):
+        /// the root of that plane's factor. The pierce reads the partner
+        /// wall through it.
+        plane: Option<usize>,
         /// The chart point a spline face's interior meeting was found and
         /// placed in the trim at: the pierce reads the face's normal there
         /// ([`ContactAcc::charts`]).

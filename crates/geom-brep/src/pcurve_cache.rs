@@ -11909,7 +11909,7 @@ mod cylinder_line_rows;
 #[allow(clippy::unwrap_used, clippy::panic)]
 mod harmonic_sup_rows;
 #[cfg(test)]
-mod mutants;
+pub(crate) mod mutants;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::panic)]
 mod placement_rows;
