@@ -435,7 +435,7 @@ fn band_scale_circle_mints(carrier: &Curve3<f64>, span: (f64, f64), surface: &Su
 /// off its terms at `f64` and at `Interval` (the latter's upper end), so
 /// a carrier whose certificate stops at an earlier check still has its
 /// lemma read.
-fn check_4_terms(
+pub(super) fn check_4_terms(
     image: &Pcurve<f64>,
     image_i: &Pcurve<Interval>,
     carrier: &Curve3<f64>,
@@ -691,7 +691,7 @@ fn the_form_bound_covers_the_form_enclosed_at_interval() {
 /// (`v = n × u` exactly); only `α`'s sine and cosine are enclosed. The
 /// sum bounds what the sup of the harmonics can lose to the
 /// coefficients' rounding.
-fn cone_coefficient_excess(surface: &Surface<f64>, carrier: &Curve3<f64>) -> (bool, f64) {
+pub(super) fn cone_coefficient_excess(surface: &Surface<f64>, carrier: &Curve3<f64>) -> (bool, f64) {
     use crate::exact_q::Q;
     let Surface::Cone {
         apex,
@@ -1602,9 +1602,7 @@ fn q_trig_product(
 /// cross term the projection's rounding enters at.
 #[test]
 fn the_other_charts_circle_coefficients_stay_within_their_charge() {
-    use crate::exact_q::Q;
     let mut s = fuzz::start("pcurve_cache::circle_lane_rows::other_coefficients");
-    let (two, half) = (Q::of(2.0), Q::of(0.5));
     for i in 0..400 {
         let far = if s.below(2) == 0 {
             0.0
@@ -1628,93 +1626,112 @@ fn the_other_charts_circle_coefficients_stay_within_their_charge() {
         };
         let r = scale * s.log_uniform(0.1, 3.0);
         let small = r * s.log_uniform(1e-4, 0.99999);
-        let frame = conic.frame();
-        let (a, b) = conic.semi_axes();
-        let (o, c) = (
-            q3(at - Point3::origin()),
-            q3(frame.origin - Point3::origin()),
-        );
-        let d = q_sub(&c, &o);
-        let (uq, ax) = (q3(frame.u_ref), q3(axis));
-        let vq = q_cross(&q3(frame.axis), &uq);
-        let (aq, bq, rq) = (Q::of(a), Q::of(b), Q::of(r));
-        // The quadrics: `|⊥(C − o)|² − r²`, `⊥` the identity on the sphere.
-        for (what, wall) in [("sphere", false), ("cylinder", true)] {
-            let perp = |x: &Q3| {
-                if wall {
-                    let along = q_dot(&ax, x);
-                    [
-                        x[0].sub(&ax[0].mul(&along)),
-                        x[1].sub(&ax[1].mul(&along)),
-                        x[2].sub(&ax[2].mul(&along)),
-                    ]
-                } else {
-                    x.clone()
-                }
-            };
-            let (e, up, vp) = (perp(&d), perp(&uq), perp(&vq));
-            let aa = aq.mul(&aq).mul(&q_dot(&up, &up));
-            let bb = bq.mul(&bq).mul(&q_dot(&vp, &vp));
-            let exact = [
-                q_dot(&e, &e).add(&aa.add(&bb).mul(&half)).sub(&rq.mul(&rq)),
-                two.mul(&aq).mul(&q_dot(&e, &up)),
-                two.mul(&bq).mul(&q_dot(&e, &vp)),
-                aa.sub(&bb).mul(&half),
-                aq.mul(&bq).mul(&q_dot(&up, &vp)),
-            ];
-            let h = if wall {
-                crate::implicit::conic_cylinder_harmonics(conic, at, axis, r)
-            } else {
-                crate::implicit::conic_sphere_harmonics(conic, at, r)
-            };
+        let [sphere, wall, torus] = other_charts_within(conic, at, axis, r, small);
+        for (what, within) in [("sphere", sphere), ("cylinder", wall), ("torus", torus)] {
             assert!(
-                q_within(
-                    &[h.c0, h.c1, h.s1, h.c2, h.s2],
-                    &exact,
-                    h.per,
-                    geom_core::rounding_charge(h.terms)
-                ),
+                within,
                 "draw {i}: the {what}'s coefficients' exact excess is over their charge"
             );
         }
-        // The torus: `(|w|² + R² − r²)² − 4R²(|w|² − (w·â)²)`, `w = C − o`.
-        let z = || Q::of(0.0);
-        let aa = aq.mul(&aq).mul(&q_dot(&uq, &uq));
-        let bb = bq.mul(&bq).mul(&q_dot(&vq, &vq));
-        let sq = (
-            [
-                q_dot(&d, &d).add(&aa.add(&bb).mul(&half)),
-                two.mul(&aq).mul(&q_dot(&d, &uq)),
-                aa.sub(&bb).mul(&half),
-                z(),
-                z(),
-            ],
-            [
-                z(),
-                two.mul(&bq).mul(&q_dot(&d, &vq)),
-                aq.mul(&bq).mul(&q_dot(&uq, &vq)),
-                z(),
-                z(),
-            ],
-        );
-        let hq = (
-            [q_dot(&d, &ax), aq.mul(&q_dot(&uq, &ax)), z(), z(), z()],
-            [z(), bq.mul(&q_dot(&vq, &ax)), z(), z(), z()],
-        );
-        let (big, tube) = (Q::of(r), Q::of(small));
-        let mut pq = sq.clone();
-        pq.0[0] = pq.0[0].add(&big.mul(&big).sub(&tube.mul(&tube)));
-        let (pp, hh) = (q_trig_product(&pq, &pq), q_trig_product(&hq, &hq));
-        let four_rr = Q::of(4.0).mul(&big).mul(&big);
-        let exact: Vec<Q> = (0..5)
-            .map(|j| pp.0[j].sub(&four_rr.mul(&sq.0[j].sub(&hh.0[j]))))
-            .chain((0..5).map(|j| pp.1[j].sub(&four_rr.mul(&sq.1[j].sub(&hh.1[j])))))
-            .collect();
-        let h = crate::implicit::conic_torus_harmonics(conic, at, axis, r, small);
-        let stored: Vec<f64> = h.cos.iter().chain(h.sin.iter()).copied().collect();
-        assert!(
-            q_within(&stored, &exact, 1.0, geom_core::rounding_charge(h.terms)),
-            "draw {i}: the torus's coefficients' exact excess is over their charge"
+    }
+}
+
+/// Whether a conic's exact coefficient excess is within its charge on
+/// the sphere `(at, r)`, the wall `(at, axis, r)` and the torus
+/// `(at, axis, r, small)`, in that order: the stored coefficients
+/// (times their `per` on the quadrics) differ from the exact ones of the
+/// stored inputs by at most `rounding_charge(terms)` in sum.
+pub(super) fn other_charts_within(
+    conic: &dyn geom::Conic<f64>,
+    at: Point3<f64>,
+    axis: Vec3<f64>,
+    r: f64,
+    small: f64,
+) -> [bool; 3] {
+    use crate::exact_q::Q;
+    let (two, half) = (Q::of(2.0), Q::of(0.5));
+    let mut within = [false; 3];
+    let frame = conic.frame();
+    let (a, b) = conic.semi_axes();
+    let (o, c) = (
+        q3(at - Point3::origin()),
+        q3(frame.origin - Point3::origin()),
+    );
+    let d = q_sub(&c, &o);
+    let (uq, ax) = (q3(frame.u_ref), q3(axis));
+    let vq = q_cross(&q3(frame.axis), &uq);
+    let (aq, bq, rq) = (Q::of(a), Q::of(b), Q::of(r));
+    // The quadrics: `|⊥(C − o)|² − r²`, `⊥` the identity on the sphere.
+    for (slot, wall) in [(0, false), (1, true)] {
+        let perp = |x: &Q3| {
+            if wall {
+                let along = q_dot(&ax, x);
+                [
+                    x[0].sub(&ax[0].mul(&along)),
+                    x[1].sub(&ax[1].mul(&along)),
+                    x[2].sub(&ax[2].mul(&along)),
+                ]
+            } else {
+                x.clone()
+            }
+        };
+        let (e, up, vp) = (perp(&d), perp(&uq), perp(&vq));
+        let aa = aq.mul(&aq).mul(&q_dot(&up, &up));
+        let bb = bq.mul(&bq).mul(&q_dot(&vp, &vp));
+        let exact = [
+            q_dot(&e, &e).add(&aa.add(&bb).mul(&half)).sub(&rq.mul(&rq)),
+            two.mul(&aq).mul(&q_dot(&e, &up)),
+            two.mul(&bq).mul(&q_dot(&e, &vp)),
+            aa.sub(&bb).mul(&half),
+            aq.mul(&bq).mul(&q_dot(&up, &vp)),
+        ];
+        let h = if wall {
+            crate::implicit::conic_cylinder_harmonics(conic, at, axis, r)
+        } else {
+            crate::implicit::conic_sphere_harmonics(conic, at, r)
+        };
+        within[slot] = q_within(
+            &[h.c0, h.c1, h.s1, h.c2, h.s2],
+            &exact,
+            h.per,
+            geom_core::rounding_charge(h.terms),
         );
     }
+    // The torus: `(|w|² + R² − r²)² − 4R²(|w|² − (w·â)²)`, `w = C − o`.
+    let z = || Q::of(0.0);
+    let aa = aq.mul(&aq).mul(&q_dot(&uq, &uq));
+    let bb = bq.mul(&bq).mul(&q_dot(&vq, &vq));
+    let sq = (
+        [
+            q_dot(&d, &d).add(&aa.add(&bb).mul(&half)),
+            two.mul(&aq).mul(&q_dot(&d, &uq)),
+            aa.sub(&bb).mul(&half),
+            z(),
+            z(),
+        ],
+        [
+            z(),
+            two.mul(&bq).mul(&q_dot(&d, &vq)),
+            aq.mul(&bq).mul(&q_dot(&uq, &vq)),
+            z(),
+            z(),
+        ],
+    );
+    let hq = (
+        [q_dot(&d, &ax), aq.mul(&q_dot(&uq, &ax)), z(), z(), z()],
+        [z(), bq.mul(&q_dot(&vq, &ax)), z(), z(), z()],
+    );
+    let (big, tube) = (Q::of(r), Q::of(small));
+    let mut pq = sq.clone();
+    pq.0[0] = pq.0[0].add(&big.mul(&big).sub(&tube.mul(&tube)));
+    let (pp, hh) = (q_trig_product(&pq, &pq), q_trig_product(&hq, &hq));
+    let four_rr = Q::of(4.0).mul(&big).mul(&big);
+    let exact: Vec<Q> = (0..5)
+        .map(|j| pp.0[j].sub(&four_rr.mul(&sq.0[j].sub(&hh.0[j]))))
+        .chain((0..5).map(|j| pp.1[j].sub(&four_rr.mul(&sq.1[j].sub(&hh.1[j])))))
+        .collect();
+    let h = crate::implicit::conic_torus_harmonics(conic, at, axis, r, small);
+    let stored: Vec<f64> = h.cos.iter().chain(h.sin.iter()).copied().collect();
+    within[2] = q_within(&stored, &exact, 1.0, geom_core::rounding_charge(h.terms));
+within
 }
