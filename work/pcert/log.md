@@ -1022,3 +1022,15 @@ E1c waits on the answer.
     - `a-stored-foreign-rows-at-rest-ending-depends-on-the-scalar` (P2);
     - `a-minted-refusals-provenance-is-guarded-only-by-its-doc` (P2; the widened relabel's residual risk is recorded on it);
     - `the-cones-fidelity-lever-reads-the-boxs-spread-not-the-poses` (P2).
+- 2026-11-04 — **`a-spline-chart-has-no-incidence-test-…` merged** (PR 6498): a spline chart has an incidence test.
+  - `pcurve_cache::spline_incidence` is a certified lower bound on a point's distance from a NURBS chart or an Approx's fit: Boehm-cut Bézier cells, box/slab floors, de Casteljau quartering, a best-first f64 shadow, and an f64 rounding charge covering the cut, the blend and the read.
+  - It is `incident`'s NURBS/Approx arm. topo's spline-chart lane choices read it first: the arc rim and catch-all end Off as `CarrierOffChart`; `iso_schedule`'s fall-through sends a read not shown off to the general image, whose certificate reads the wall (the subsumption principle, ruled Y7).
+  - Review tier: DUAL, letter H, concurrent pair (byte 1, odd, A = R2). Both APPROVE-WITH-FIXES, 0 MAJOR, tallied 0. Fix passes Y and YY, one delta verifier: about 30k Offs at band 1e-12, 5427 in exact rationals, 0 false.
+  - Cost: about 0.95× main overall. The in-band Interval seam row is 7.8× (filed P2).
+  - Filed:
+    - `the-spline-incidence-read-dives-where-its-floors-already-decide` (P2);
+    - `a-spline-charts-certificate-door-reads-no-incidence-…` (P1; Dual's `validate_pcurves` answers clean, DL3 keeps it P1);
+    - isotail's spline-wall limb row (P1);
+    - splice `spline-region-decides-off-the-carrier-on-an-uncharged-f64-box-floor` (P1);
+    - splice's cell-walk P3.
+  - Merged past main's two ε 1e-12 reds, both onecopy's and filed: the needle (PR 6492), and `section_end_poses` (PR 6482, bisected by the lane, filed in PR 6515).
