@@ -3117,3 +3117,7 @@ mod turn_rows;
 #[cfg(test)]
 #[allow(clippy::panic)]
 mod one_reading_rows;
+
+#[cfg(test)]
+#[allow(clippy::panic, clippy::unwrap_used)]
+mod review_probe_rows;
