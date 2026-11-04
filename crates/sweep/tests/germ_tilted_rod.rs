@@ -289,8 +289,7 @@ fn stop_word(r: &Result<BooleanResult<f64>, BooleanError>, kind: Option<SurfaceK
 /// measured alike at the compiled ε, 1e-6 and 1e-12: each at the result
 /// gate's volume on a torus face (the refused face's own surface read,
 /// `topo::boolean::refused_face_kind`; a face of another chart reads
-/// "… on a … face"), by the refusal's cause, but the steeper tilt's
-/// union, at the slit pass's rider reading. The rod's chorded wall
+/// "… on a … face"), by the refusal's cause. The rod's chorded wall
 /// measures through the rotational lane, so no run stops on it.
 // Pinned red at every ε row, each word on its owner's row:
 // "torus trim volume" and "ring volume" (a torus wall the chords trim,
@@ -298,9 +297,6 @@ fn stop_word(r: &Result<BooleanResult<f64>, BooleanError>, kind: Option<SurfaceK
 // work/spiricarm/a-torus-wall-trimmed-by-a-spline-rim-has-no-volume-lane.md;
 // "spiric wall volume" (a torus wall holding a spiric beside a chord) on
 // work/spiricarm/a-torus-wall-holding-a-spiric-beside-a-spline-chord-has-no-volume-lane.md.
-// "unread rider" (the steeper tilt's union, an unread carrier refused at
-// the slit pass's rider reading) on
-// work/splice/an-unread-rider-related-only-by-its-own-vertices-refuses.md.
 // As each lands, its words move on to the run's next stop or to a body
 // held to its volume, and the table is re-pinned there.
 const OTHER_SPINS_STOPS: [[&str; 5]; 8] = [
@@ -347,20 +343,31 @@ const OTHER_SPINS_STOPS: [[&str; 5]; 8] = [
         "spiric wall volume",
     ],
     [
-        "unread rider",
+        "spiric wall volume",
         "spiric wall volume",
         "spiric wall volume",
         "spiric wall volume",
         "spiric wall volume",
     ],
     [
-        "unread rider",
+        "spiric wall volume",
         "spiric wall volume",
         "spiric wall volume",
         "spiric wall volume",
         "spiric wall volume",
     ],
 ];
+
+/// **The steeper tilt's union stops by identity** at both spins: its cap
+/// chord, a spiric in the rod's cap plane, reads off the rod's wall by
+/// degree (`topo::boolean::slit`'s spiric × quadric arm), so the slit
+/// pass reads no rider there, and the union goes on to the result
+/// gate's volume on the half donut's torus wall, face `3v1` of the
+/// result.
+const STEEP_UNION_STOP: &str = "Some(ResultInvalid { errors: [VolumeUncomputable { \
+     solid: SolidKey(1v1), source: Face { face: FaceKey(3v1), source: \
+     QuadratureUnsupported { what: \"a torus wall edge beside a spiric whose lifted image is \
+     neither a spiric wall image nor a harmonic rim or meridian\" } } }] })";
 
 /// **The other spins, and the steeper tilts, refuse typed** before any
 /// body is built, on every op, each at its pinned door
@@ -391,7 +398,13 @@ fn other_spins_and_steeper_tilts_refuse_at_their_germs() {
         let c = rod(beta, spin);
         let before = geom_brep::implicit_pair_marches();
         let mut row = Vec::new();
-        for (_, _, _, r, kind) in every_op(&h, &c) {
+        for (op, (_, _, what, r, kind)) in every_op(&h, &c).into_iter().enumerate() {
+            if beta == 0.7 && op == 0 {
+                let stop = format!("{:?}", r.as_ref().err());
+                if stop != STEEP_UNION_STOP {
+                    row.push(format!("{what} at spin {spin} stops at {stop}"));
+                }
+            }
             row.push(stop_word(&r, kind));
         }
         let marches = geom_brep::implicit_pair_marches() - before;
