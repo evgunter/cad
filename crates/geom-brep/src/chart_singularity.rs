@@ -561,7 +561,7 @@ enum Near<T> {
 }
 
 /// **The carrier parameter of the point of `carrier` nearest `x`**: its
-/// [`Curve3::nearest_foot`] seeded at `from`, `None` where the carrier
+/// [`Curve3::nearest`] seeded at `from`, `None` where the carrier
 /// has none. A periodic carrier's ([`Curve3::is_periodic`]) is brought
 /// into `[from, from + τ]`, the turn at or past `from`: the upper end is
 /// reached only where the reduction rounds, a point a hair behind `from`
@@ -569,7 +569,7 @@ enum Near<T> {
 /// point on a circle's axis, where every point of the circle is nearest,
 /// reads `from`.
 pub fn foot<T: Decide>(carrier: &Curve3<T>, x: Point3<T>, from: T) -> Option<T> {
-    let t = carrier.nearest_foot(x, from)?.t();
+    let t = carrier.nearest(x, from)?;
     Some(if carrier.is_periodic() {
         from + (t - from).reduce_periodic(T::tau())
     } else {
@@ -1224,7 +1224,7 @@ fn step_bound<T: Decide>(
                 return None;
             }
             let turn = if along && edges[s.edge].line {
-                principal(b.x - a.x).abs()
+                geom::separation(b.x, a.x)
             } else {
                 span / rho_min
             };
@@ -1264,12 +1264,6 @@ fn step_bound<T: Decide>(
         ShapeKind::Other => T::zero(),
     };
     Some(T::from_f64(1.5) * slope * dv * turn)
-}
-
-/// The principal value of an angle step, in `(−π, π]`.
-fn principal<T: Real>(d: T) -> T {
-    let (s, c) = d.sin_cos();
-    s.atan2(c)
 }
 
 /// A walk's sums: its winding, its area, its bound, and each step's
@@ -1318,7 +1312,7 @@ fn sum_walk<T: Decide>(
     for (j, &(i, uv)) in charted.iter().enumerate() {
         (v_lo, v_hi) = (v_lo.min(uv.y), v_hi.max(uv.y));
         let (k, next) = charted[(j + 1) % m];
-        let step = principal(next.x - uv.x);
+        let step = geom_core::period::Period::new(T::tau()).near(next.x - uv.x, T::zero());
         total = total + step;
         let term = -(shape.g(uv.y) + shape.g(next.y)) * T::from_f64(0.5) * step;
         area = area + term;

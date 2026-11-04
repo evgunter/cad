@@ -67,6 +67,16 @@ impl<T: Real> Frame<T> {
         (w.dot(self.u_ref), w.dot(self.v_ref()))
     }
 
+    /// **`p`'s direction about the axis**: [`Self::in_plane`] read as an
+    /// angle from `u_ref` toward `v_ref` ([`crate::Azimuth`]), the one
+    /// in-frame angle read of a point. A point on the axis has no
+    /// direction ([`crate::Azimuth::near`] says what it reads).
+    #[must_use]
+    pub fn azimuth(&self, p: Point3<T>) -> crate::Azimuth<T> {
+        let (x, y) = self.in_plane(p);
+        crate::Azimuth::of(y, x)
+    }
+
     /// `p`'s height above the frame's plane: `(p − origin)·axis`.
     #[must_use]
     pub fn height(&self, p: Point3<T>) -> T {

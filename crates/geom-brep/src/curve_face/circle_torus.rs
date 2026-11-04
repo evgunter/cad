@@ -561,8 +561,9 @@ fn parallel_axes_roots<T: Decide>(
     // covers.
     let charge = two * (charge_h + tilt.powi(2) / radius * (rho_max + major_radius) / minor_radius);
     // `θ₀`: the carrier's farthest point from the torus axis, along
-    // `+w_perp`.
-    let theta0 = w_perp.dot(v_ref).atan2(w_perp.dot(u_ref));
+    // `+w_perp`, read within half a turn of the span's middle.
+    let middle = geom::mid_param(t0, t1);
+    let theta0 = geom::Azimuth::of(w_perp.dot(v_ref), w_perp.dot(u_ref)).near(middle);
     let place = |theta: T, rho: T| -> Result<Option<Band3>, Indeterminate> {
         let (s, c) = theta.sin_cos();
         let res =
@@ -635,16 +636,16 @@ fn parallel_axes_roots<T: Decide>(
             Ok(Sign::Zero | Sign::Negative) => {}
             Err(_) => return Err(Unsettled::Meter.into()),
         }
-        // Each root on the branch of the span's middle: sound at every
-        // scalar by `geom::on_span_branch`'s window re-centring argument.
-        // What a caller may assume: the root is a crossing's angle on
-        // that branch, as an enclosure. On a whole-turn span a root at
-        // one end is the same crossing as a root at the other, and which
-        // end it lands at is not decided here, so a caller reads a root
-        // against the span's ends (or as the point it names), never as an
-        // identity between two calls.
+        // Each root within half a turn of the span's middle, by
+        // `Period::near`'s span argument. What a caller may assume: the
+        // root is a crossing's angle within half a turn of the middle, as
+        // an enclosure. On a whole-turn span a root at one end is the same
+        // crossing as a root at the other, and it lands on the upper end
+        // (`Period::near`'s tie), so a caller reads a root against the
+        // span's ends (or as the point it names), never as an identity
+        // between two calls.
         for theta in [theta0 + spread, theta0 - spread] {
-            thetas[count] = geom::on_span_branch(theta, (t0, t1));
+            thetas[count] = geom_core::period::Period::new(T::tau()).near(theta, middle);
             count += 1;
         }
     }
