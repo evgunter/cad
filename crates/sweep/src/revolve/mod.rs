@@ -1054,8 +1054,7 @@ fn partial_angle_reverses<T: Decide>(t: T, r_max: T, band: Band) -> Result<bool,
 /// # Errors
 ///
 /// [`RevolveError`] — closed and typed: degenerate/sliver axis and
-/// angle, half-plane violations, sliver radii, a sheet's apex on the
-/// profile, non-manifold axis contact, sliver dihedrals, Newell failures, and
+/// angle, half-plane violations, sliver radii, non-manifold axis contact, sliver dihedrals, Newell failures, and
 /// every operator/certification refusal.
 ///
 /// # Panics

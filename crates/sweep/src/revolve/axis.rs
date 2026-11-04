@@ -565,10 +565,11 @@ pub(super) fn classify_segment<T: Decide>(
                 });
             }
             // The interior first (the arc rule): an arc that passes `m`
-            // crosses the axis whatever its ends. Then the ends: every
+            // crosses the axis whatever its ends. `m` at an end is a
+            // horn's cusp, which only an end on the axis reaches. Every
             // point the circle shares with the axis is an apex of the
-            // sheet, `m` among them on a horn, so `m` at an end is an
-            // end on the axis.
+            // sheet, a vertex in the pole form; one the loop touches
+            // outside an on-axis run is the full revolve's pinch.
             let interior = interior()?;
             if matches!(interior, Sign::Negative) {
                 return Err(crosses());
