@@ -3702,10 +3702,11 @@ fn mixed_boundary_clearance<T: Decide + Bounds>(
                         (low - at_trim, rim_at - high)
                     };
                     let mut margin = trim_side.max(far_side);
-                    if let Some((a, tau, len)) = window {
-                        if let Some((lo, hi)) = piece_along(&carrier, piece, a, tau) {
-                            margin = margin.max((-hi).max(lo - len));
-                        }
+                    let along = window.and_then(|(a, tau, len)| {
+                        piece_along(&carrier, piece, a, tau).map(|(lo, hi)| (lo, hi, len))
+                    });
+                    if let Some((lo, hi, len)) = along {
+                        margin = margin.max((-hi).max(lo - len));
                     }
                     Ok((margin, bounded))
                 })
@@ -5498,6 +5499,9 @@ fn rim_phase_annulus<T: Decide + Bounds + topo::AtRestPolicy>(
     Ok((band_face, band_surface, described))
 }
 
+/// A mixed rim's band faces with their surfaces, in chain-link order.
+type BandFaces<T> = Vec<(FaceKey, Surface<T>)>;
+
 /// One support's trimline of one link of a [`MixedRim`], run the way
 /// that support's loop runs along the link.
 enum MixedTrim<T: Real> {
@@ -5588,7 +5592,7 @@ fn rim_phase_mixed<T: Decide + Bounds + topo::AtRestPolicy>(
     sources: &SourceFaces,
     rec: &mut BlendNaming,
     tol: Tol,
-) -> Result<(Vec<(FaceKey, Surface<T>)>, Described<T>), BlendError> {
+) -> Result<(BandFaces<T>, Described<T>), BlendError> {
     let links: Vec<&Link<T>> = rim.chain.links().collect();
     let n = links.len();
     let host = rim.host0();

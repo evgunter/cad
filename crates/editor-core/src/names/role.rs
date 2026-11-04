@@ -1496,13 +1496,6 @@ pub enum RoleSeg {
     /// The surviving piece of a source edge the band's trimline cut —
     /// on a ladder rim a cap meridian, on a ruled band a cap rim edge.
     BandCut(NameRef),
-    /// A band's SLIT: the double-traversed torus meridian that keeps
-    /// the annular band RING-FREE (`sweep::blend::surgery`'s donut
-    /// representation). Both arguments are needed: two rims at the two
-    /// ends of one meridian segment each slit that segment's seam, so
-    /// one source edge yields a slit per band, discriminated by which
-    /// band slit it — the [`RoleSeg::BandTrim`] shape, with the band in
-    /// the support's place.
     /// **A mixed rim's section**: the circle arc along which the bands
     /// of a closed chain's two links on different supports meet, G1, at
     /// the source vertex the links joined at — from the host foot there
@@ -1512,6 +1505,13 @@ pub enum RoleSeg {
         /// The source junction vertex.
         vertex: NameRef,
     },
+    /// A band's SLIT: the double-traversed torus meridian that keeps
+    /// the annular band RING-FREE (`sweep::blend::surgery`'s donut
+    /// representation). Both arguments are needed: two rims at the two
+    /// ends of one meridian segment each slit that segment's seam, so
+    /// one source edge yields a slit per band, discriminated by which
+    /// band slit it — the [`RoleSeg::BandTrim`] shape, with the band in
+    /// the support's place.
     BandSlit {
         /// The source edge whose severed piece became it.
         edge: NameRef,

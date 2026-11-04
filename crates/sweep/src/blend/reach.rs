@@ -985,8 +985,7 @@ fn straight_reach<T: Decide + Bounds>(
     link: &Link<T>,
     st: &Station<T>,
     corners: &[(VertexKey, Vec<Point3<T>>)],
-    (request, taken): (&[VertexKey], &[LoopKey]),
-    sections: &[VertexKey],
+    (request, taken, sections): (&[VertexKey], &[LoopKey], &[VertexKey]),
     chain: usize,
     band: Band,
 ) -> Result<Stretch<T>, BlendError> {
@@ -2673,8 +2672,7 @@ pub(crate) fn band_reach<T: Decide + Bounds>(
                 link,
                 &st,
                 &corners,
-                (&ends_all, &taken),
-                &sections,
+                (&ends_all, &taken, &sections),
                 *ci,
                 band,
             )?
