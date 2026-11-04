@@ -2,10 +2,12 @@
 id: a-line-near-a-cone-is-read-as-a-ruling-without-a-class-gate
 kind: issue
 title: A line within the band of a cone that is no ruling takes the ruling's closed form and refuses at check 4, rather than taking the general lane
-status: open
+status: closed
 opened: 2026-11-03
 priority: P1
 cost: M
+pr: 6504
+closed: 2026-11-04
 ---
 
 
@@ -65,3 +67,13 @@ guard to `projected::has_lane`, so a cone line shown off its rulings,
 once the cone arm reads them as a lane choice, already answers no
 family. The fix widens the in-band arm to the cone's ruling predicate.
 
+
+## Closed
+
+PR 6504. The cone's line arm reads `pcurve_cone_chart_ruling`: the
+line's distance from the generator its anchor names, through the apex,
+over the span (`ruling_miss`). Zero takes the closed form. In band or
+definite, the line takes the general lane. `chart_iso_family`'s in-band
+arm reads it too. E4's probe now takes the general lane and certifies,
+at ε 1e-9, 1e-6 and 1e-12 (`ruling_reading_rows`), and is red under
+the `cone-ruling-gate` mutant.
