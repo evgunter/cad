@@ -575,10 +575,11 @@ pub enum RevolveError {
         /// The predicate-layer escalation.
         source: Indeterminate,
     },
-    /// An arc whose circle reaches the axis and that ends on it: the
-    /// end is an apex of the spindle sheet the arc sweeps, which no
-    /// door builds a face to yet.
-    SheetApex {
+    /// An arc whose circle reaches the axis within the band of
+    /// tangency ends on the axis at neither the apexes of the sheet its
+    /// circle sweeps nor the horn's one cusp: on the stretch where the
+    /// circle runs within the band of the axis, where no sheet's apex is.
+    ApexEndOffSheet {
         /// Canonical index of the loop.
         loop_index: usize,
         /// Canonical index of the segment.
@@ -744,16 +745,21 @@ pub enum ClearanceDecision {
     /// distance less its radius, positive a ring torus and otherwise a
     /// spindle sheet.
     ArcReach,
+    /// An arc's end on the axis against the apexes of the sheet its
+    /// circle sweeps: its distance along the axis from the nearest,
+    /// zero where the reading holds it.
+    ApexEnd,
 }
 
 impl ClearanceDecision {
     /// Every clearance decision.
-    pub const ALL: [Self; 5] = [
+    pub const ALL: [Self; 6] = [
         Self::LineRadial,
         Self::LineAxial,
         Self::ArcCenter,
         Self::ArcInterior,
         Self::ArcReach,
+        Self::ApexEnd,
     ];
 
     /// The `k_stats` name the decision is metered under.
@@ -765,6 +771,7 @@ impl ClearanceDecision {
             Self::ArcCenter => "axis_arc_center",
             Self::ArcInterior => "axis_arc_interior",
             Self::ArcReach => "axis_arc_reach",
+            Self::ApexEnd => "axis_arc_apex_end",
         }
     }
 
@@ -776,7 +783,7 @@ impl ClearanceDecision {
     /// whose sign picks ring or sheet.
     #[must_use]
     pub const fn sized(self) -> bool {
-        matches!(self, Self::ArcReach)
+        matches!(self, Self::ArcReach | Self::ApexEnd)
     }
 
     /// What the decision asks of the segment, as the noun it is about
@@ -788,6 +795,10 @@ impl ClearanceDecision {
             Self::ArcCenter => ("the centre of the arc", "lies on the revolve axis"),
             Self::ArcInterior => ("the arc", "keeps its interior off the revolve axis"),
             Self::ArcReach => ("the circle of the arc", "stays clear of the revolve axis"),
+            Self::ApexEnd => (
+                "the end of the arc on the revolve axis",
+                "lies at an apex of the sheet the arc sweeps",
+            ),
         }
     }
 
@@ -907,15 +918,16 @@ impl RevolveError {
                     )
                 )
             }
-            Self::SheetApex {
+            Self::ApexEndOffSheet {
                 loop_index,
                 segment_index,
             } => write!(
                 f,
                 "the arc at profile loop {loop_index} segment {segment_index} ends on the \
-                 revolve axis at an apex of the spindle sheet it sweeps, and no face reaching \
-                 a sheet's apex is built yet. Recourse: end the arc off the axis and close \
-                 the profile to the axis with a line"
+                 revolve axis where its circle runs along it a hair off tangency, at no apex of \
+                 the sheet the circle sweeps. Recourse: end the arc where its circle crosses \
+                 the axis, or draw the circle tangent to the axis and end the arc at the \
+                 tangent point"
             ),
             Self::NonManifoldAxisContact {
                 loop_index,
@@ -1073,9 +1085,10 @@ fn partial_angle_reverses<T: Decide>(t: T, r_max: T, band: Band) -> Result<bool,
 /// # Errors
 ///
 /// [`RevolveError`] — closed and typed: degenerate/sliver axis and
-/// angle, half-plane violations, sliver radii, a sheet's apex on the
-/// profile, non-manifold axis contact, sliver dihedrals, Newell failures, and
-/// every operator/certification refusal.
+/// angle, half-plane violations, sliver radii, an arc end on the axis
+/// at no apex of its sheet, non-manifold axis contact, sliver
+/// dihedrals, Newell failures, and every operator/certification
+/// refusal.
 ///
 /// # Panics
 ///
@@ -1147,7 +1160,8 @@ mod tests {
     /// radius) are angles, the axis direction's length is a gauge, and
     /// the line runs, the arc centre and the cosurface distance select
     /// a form: each ends in the lever alone on every reading. The arc
-    /// circle's reach is a distance it keeps from the axis, and the gap
+    /// circle's reach is a distance it keeps from the axis, an arc end's
+    /// distance from its sheet's apex one the profile draws, and the gap
     /// between two axis runs a distance the profile keeps between them:
     /// each offers the tolerance a value gives.
     #[test]
@@ -1177,6 +1191,12 @@ mod tests {
             (
                 ClearanceDecision::ArcReach,
                 "whether the circle of the arc at loop 0 segment 2 stays clear of the revolve axis",
+                SIZED,
+            ),
+            (
+                ClearanceDecision::ApexEnd,
+                "whether the end of the arc on the revolve axis at loop 0 segment 2 lies at an \
+                 apex of the sheet the arc sweeps",
                 SIZED,
             ),
         ];

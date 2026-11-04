@@ -280,8 +280,10 @@ fn a_chamfer_recourse_followed_as_a_chamfer_reaches_its_promised_outcome() {
 /// chamfer**: the dihedral sign is metered during link RESOLUTION,
 /// before the arm table, so a co-surface seam meridian (one sphere on
 /// both sides, sine exactly zero) is a smooth seam `chamfer_edges`
-/// leaves as it is, and a declared cusp's kiss refuses `KnifeEdge`
-/// through it — not the arm-table refusal.
+/// leaves as it is, and a declared cusp's kiss reads as a knife there
+/// and then meets the chamfer's one refusal for a pair its plane–plane
+/// arm does not cover, `ChamferArmUnsupported` — the chamfer's own arm,
+/// speaking as the chamfer.
 #[test]
 fn a_chamfer_leaves_a_co_surface_seam_and_refuses_a_cusp_as_the_chamfer() {
     let ball = sweep::test_support::revolved_about_y(
@@ -329,13 +331,11 @@ fn a_chamfer_leaves_a_co_surface_seam_and_refuses_a_cusp_as_the_chamfer() {
         Tol::witness(),
     )
     .expect_err("a cusp's strip is not built");
-    match err.error {
-        BlendError::KnifeEdge { margin, .. } => {
-            assert_eq!(margin.predicate, "fillet3_convexity_sign");
-            assert_eq!(margin.sign, geom_core::Sign::Zero);
-        }
-        ref other => panic!("expected the shared knife arm, got {other:?}"),
-    }
+    assert!(
+        matches!(err.error, BlendError::ChamferArmUnsupported { edge, .. } if edge == kiss),
+        "expected the chamfer's arm refusal on the kiss, got {:?}",
+        err.error
+    );
     assert_speaks_as_the_chamfer(&err, "knife");
 }
 

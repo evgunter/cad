@@ -1806,27 +1806,37 @@ pub fn kill_under_a_null_strut(
 /// rim alone) and the vertex.
 #[cfg(test)]
 pub(crate) fn oblique_rim_wall(phi: f64) -> (Body<f64>, FaceKey, crate::VertexKey) {
+    oblique_rim_wall_in::<f64>(phi)
+}
+
+/// [`oblique_rim_wall`] at any scalar.
+#[cfg(test)]
+pub(crate) fn oblique_rim_wall_in<T: geom_core::Decide + crate::props::AtRestPolicy>(
+    phi: f64,
+) -> (Body<T>, FaceKey, crate::VertexKey) {
     let tol = Tol::witness();
+    let f = T::from_f64;
     let (s, c) = phi.sin_cos();
+    let (zero, one) = (T::zero(), T::one());
     let carrier = Curve3::Ellipse(geom::Ellipse::new(
         geom::Frame::new(
             Point3::origin(),
-            Vec3::new(-s, 0.0, c),
-            Vec3::new(c, 0.0, s),
+            Vec3::new(f(-s), zero, f(c)),
+            Vec3::new(f(c), zero, f(s)),
         ),
-        1.0 / c,
-        1.0,
+        f(1.0 / c),
+        one,
     ));
-    let mut body = Body::<f64>::new();
-    let seed = body.mvfs(carrier.eval(0.0), true).unwrap();
+    let mut body = Body::<T>::new();
+    let seed = body.mvfs(carrier.eval(zero), true).unwrap();
     body.set_face_surface(
         seed.face,
         FaceSurface::New {
             surface: Surface::Cylinder {
                 origin: Point3::origin(),
-                axis: Vec3::unit_z(),
-                radius: 1.0,
-                u_ref: Vec3::unit_x(),
+                axis: Vec3::new(zero, zero, one),
+                radius: one,
+                u_ref: Vec3::new(one, zero, zero),
             },
             sense: true,
         },
@@ -1835,10 +1845,10 @@ pub(crate) fn oblique_rim_wall(phi: f64) -> (Body<f64>, FaceKey, crate::VertexKe
     let cyl = body.get_face(seed.face).unwrap().surface;
     let plane = body.add_surface(Surface::Plane {
         origin: Point3::origin(),
-        normal: Vec3::new(-s, 0.0, c),
-        u_ref: Vec3::new(c, 0.0, s),
+        normal: Vec3::new(f(-s), zero, f(c)),
+        u_ref: Vec3::new(f(c), zero, f(s)),
     });
-    let tau = core::f64::consts::TAU;
+    let tau = T::tau();
     body.mef(
         MefSite::Lone {
             r#loop: seed.r#loop,
@@ -1846,10 +1856,10 @@ pub(crate) fn oblique_rim_wall(phi: f64) -> (Body<f64>, FaceKey, crate::VertexKe
         EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
                 pair: SurfacePair::new(cyl, plane),
-                selector: geom_brep::CurveSelector::Witness(carrier.eval(0.5 * tau)),
+                selector: geom_brep::CurveSelector::Witness(carrier.eval(f(0.5) * tau)),
             },
             carrier,
-            param_start: 0.0,
+            param_start: zero,
             param_end: tau,
         },
         FaceSurface::Inherit,

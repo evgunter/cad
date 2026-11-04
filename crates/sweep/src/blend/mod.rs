@@ -271,6 +271,15 @@ pub enum BlendDecision {
     /// is a smooth seam or a cusp or slit
     /// ([`geom_brep::MATERIAL_PAIRING`]).
     MaterialSide,
+    /// `fillet3_knife_end`: a cusp's or slit's end, which side of the
+    /// edge its material lies on (`battery::knife_end`). Passes on
+    /// either definite sign: a cusp's ball rests in the material, a
+    /// slit's in the void.
+    KnifeEnd,
+    /// `fillet3_knife_room`: a cusp's or slit's supports open wide
+    /// enough for the ball, whose centre lies where their offsets
+    /// cross away from the edge.
+    KnifeRoom,
     /// `fillet3_ring_clearance`: a trimline clears a ring or edge in its
     /// support face.
     RingClearance,
@@ -329,7 +338,7 @@ pub enum BlendDecision {
 impl BlendDecision {
     /// Every decision, for the suites that read the closed set.
     #[cfg(any(test, feature = "test-support"))]
-    pub const ALL: [Self; 19] = [
+    pub const ALL: [Self; 21] = [
         Self::RadiusHeadroom,
         Self::FaceClearance,
         Self::SpineRegularity,
@@ -337,6 +346,8 @@ impl BlendDecision {
         Self::ChainArm,
         Self::ConvexitySign,
         Self::MaterialSide,
+        Self::KnifeEnd,
+        Self::KnifeRoom,
         Self::RingClearance,
         Self::SupportCoaxiality,
         Self::ContactArm,
@@ -373,6 +384,8 @@ impl BlendDecision {
             Self::ChainArm => "fillet3_chain_arm",
             Self::ConvexitySign => "fillet3_convexity_sign",
             Self::MaterialSide => "material_wedge_side",
+            Self::KnifeEnd => "fillet3_knife_end",
+            Self::KnifeRoom => "fillet3_knife_room",
             Self::RingClearance => "fillet3_ring_clearance",
             Self::SupportCoaxiality => "fillet3_support_coaxiality",
             Self::ContactArm => "dihedral_arm",
@@ -403,6 +416,12 @@ impl BlendDecision {
             Self::ChainArm => "whether a link of the chain is long enough to measure an angle over",
             Self::ConvexitySign => "whether the edge is convex or concave",
             Self::MaterialSide => geom_brep::material_pairing_clause!(),
+            Self::KnifeEnd => {
+                "whether a cusp's or slit's material lies between its two faces or around them"
+            }
+            Self::KnifeRoom => {
+                "whether a cusp or slit opens wide enough for the ball between its two faces"
+            }
             Self::RingClearance => "whether a trimline clears a hole in its support face",
             Self::SupportCoaxiality => "whether the two support faces share an axis or a ruling",
             Self::ContactArm => concat!(
@@ -464,6 +483,8 @@ impl BlendDecision {
             // short to read a side over (`geom_brep::MATERIAL_PAIRING`):
             // the arm gate's own lever.
             Self::MaterialSide => FILLET3_CHAIN_RECOURSE,
+            Self::KnifeEnd => FILLET3_KNIFE_END_RECOURSE,
+            Self::KnifeRoom => FILLET3_KNIFE_RECOURSE,
             Self::RingClearance => FILLET3_RING_RECOURSE,
             Self::SupportCoaxiality => FILLET3_SPINE_KIND_RECOURSE,
             Self::ContactArm => FILLET3_CONTACT_ARM_RECOURSE,
@@ -488,6 +509,10 @@ impl BlendDecision {
                 Some(("curvature headroom", SizedPass::Positive))
             }
             Self::FaceClearance | Self::RingClearance => Some(("clearance", SizedPass::Positive)),
+            Self::KnifeRoom => Some(("room", SizedPass::Positive)),
+            // The levered sagitta between the two faces: a smaller
+            // tolerance decides it a cusp or a slit.
+            Self::KnifeEnd => Some(("opening", SizedPass::NonZero)),
             Self::ChainArm => Some(("link length", SizedPass::Positive)),
             Self::CutOffFeet => Some(("separation of the feet", SizedPass::Positive)),
             Self::ConvexitySign => Some(("wedge opening", SizedPass::NonZero)),
@@ -1089,15 +1114,26 @@ pub const FILLET3_CLEARANCE_RECOURSE: &str = "reduce the blend size, enlarge the
 pub const FILLET3_CLEARANCE_SPLIT_RECOURSE: &str = "reduce the blend size, enlarge the shared support face, or split the request \
      into SEQUENTIAL calls (the second on the first's result), since the two setbacks \
      belong to different chains";
-/// The recourse for an edge whose supports meet tangentially with their
-/// material facing each other — a cusp or slit — and for a convexity
-/// sign in band. A cusp's or slit's blend is defined (its rolling ball
-/// rests where the supports' offsets meet, away from the edge) but not
-/// built: `work/band/a-knife-edge-blend-is-unbuilt-though-its-rolling-ball-is-defined.md`. So the sentence asks for the edge to be left out
-/// of the request. Both verbs meter the dihedral, so it speaks of the
-/// blend, not the ball.
-pub const FILLET3_WEDGE_RECOURSE: &str = "blend an edge whose supports meet at a definite angle, or leave a cusp or \
-     slit out of the request";
+/// The recourse for a convexity sign in band: an edge whose supports
+/// meet neither at a definite angle nor definitely tangent. Both verbs
+/// meter the dihedral, so it speaks of the blend, not the ball.
+pub const FILLET3_WEDGE_RECOURSE: &str = "blend an edge whose supports meet at a definite angle or definitely \
+     tangent, or leave it out of the request";
+/// The recourse for a fillet at a cusp or slit whose supports do not
+/// open wide enough for the ball ([`BlendDecision::KnifeRoom`]): the
+/// ball's centre lies where the supports' offsets cross, away from the
+/// edge, and a radius past the room the crescent opens to has no such
+/// crossing.
+pub const FILLET3_KNIFE_RECOURSE: &str = "reduce the fillet radius until the ball fits in the crescent between the \
+     cusp's or slit's faces, or leave that edge out of the request";
+/// The recourse for a cusp or slit whose faces do not open measurably
+/// apart ([`BlendDecision::KnifeEnd`]): no radius has room between
+/// them, so it does not offer a smaller one. A definite reading here is
+/// a lamina, which no valid body carries (`battery::knife_end`); the
+/// sentence serves the in-band reading, where the edge's side is not
+/// decided.
+pub const FILLET3_KNIFE_END_RECOURSE: &str = "leave that cusp or slit out of the request: its faces do not open measurably \
+     apart, so no ball has room between them";
 /// The recourse for a spine the rolling ball's own envelope folds on.
 /// Ball language kept deliberately: spine regularity is a rolling-ball
 /// fact, metered on no chamfer run.
@@ -1533,24 +1569,35 @@ pub enum BlendError {
         /// of the face's boundary inside the material, another outside.
         bounded: bool,
     },
-    /// **Predicate 5, the knife edge**: the dihedral's signed margin
-    /// decided Zero with the two faces' outward normals opposed
-    /// ([`geom_brep::EdgeWedge::Knife`]): a cusp (wedge 0) or a knife
-    /// slit (wedge 2π). Its rolling ball is defined, centred where the
-    /// supports' `r`-offsets meet and touching them away from the edge,
-    /// where they open to `2r` (the concave fill between two tangent
-    /// cylinders, centre at `R + r` from both axes); that construction
-    /// is not built (`work/band/a-knife-edge-blend-is-unbuilt-though-its-rolling-ball-is-defined.md`). (Zero with
-    /// the normals aligned is the smooth seam, which the verb leaves
-    /// as it is.) Distinct from [`BlendError::ConvexitySignFlip`]: a
-    /// `Zero` edge does not disagree with the chain's convexity — none
-    /// was decided.
+    /// **A knife edge the fillet does not build**: the dihedral's signed
+    /// margin decided Zero with the two faces' outward normals opposed
+    /// ([`geom_brep::EdgeWedge::Knife`]), a cusp (wedge 0) or a knife
+    /// slit (wedge 2π), and [`KnifeRefusal`] says why no band is made.
+    ///
+    /// The fillet builds a knife where its ball is defined: the ball
+    /// rests in the crescent the supports open into, on the material
+    /// side at a cusp and the void side at a slit, centred where their
+    /// `r`-offsets cross away from the edge (the concave fill between
+    /// two touching tubes, centre at `R + r` from both axes). It refuses
+    /// only where that crossing does not exist ([`KnifeRefusal::NoRoom`]),
+    /// or where the faces never open at all ([`KnifeRefusal::NeverOpens`]).
+    /// The chamfer does not reach this refusal: its one arm is
+    /// plane–plane, so a knife meets [`BlendError::ChamferArmUnsupported`]
+    /// as every curved pair does.
+    /// (Zero with the normals aligned is the smooth seam, which the verb
+    /// leaves as it is.) Distinct from [`BlendError::ConvexitySignFlip`]:
+    /// a knife does not disagree with the chain's convexity — its side
+    /// is read from the jet, not the dihedral.
     KnifeEdge {
         /// The edge whose dihedral decided Zero.
         edge: EdgeKey,
-        /// `((n_a × n_b)·τ̂)·arm`, meters — decided Zero at the
-        /// metered lever by `fillet3_convexity_sign`.
+        /// The reading the refusal was decided on, meters: the room
+        /// `fillet3_knife_room` decided Zero or negative
+        /// ([`KnifeRefusal::NoRoom`]), or the end `fillet3_knife_end`
+        /// decided Zero ([`KnifeRefusal::NeverOpens`]).
         margin: ClassifiedMargin,
+        /// Why the knife is not built.
+        refusal: KnifeRefusal,
     },
     /// **Predicate 3**: the spine (the rolling-ball centre locus, an
     /// offset locus) folds on itself at this radius.
@@ -1612,11 +1659,15 @@ pub enum BlendError {
     ConvexitySignFlip {
         /// The edge whose sign disagrees with the chain's.
         edge: EdgeKey,
-        /// `((n₁ × n₂)·τ̂)·arm`, meters; positive = convex. This is
-        /// the link's OWN classified dihedral margin, the one
-        /// `fillet3_convexity_sign` decided when the link resolved —
-        /// the reading whose sign is the disagreement, carried from
-        /// the decision rather than re-derived at the refusal.
+        /// Meters; positive = convex. This is the link's OWN
+        /// classified margin, the one its convexity was decided from
+        /// when the link resolved (`battery::Link::convexity_margin`):
+        /// `((n₁ × n₂)·τ̂)·arm` under `fillet3_convexity_sign` on a
+        /// definite wedge, and on a knife link the end's levered
+        /// sagitta under `fillet3_knife_end` (a cusp convex, a slit
+        /// concave) — the reading whose sign is the disagreement,
+        /// carried from the decision rather than re-derived at the
+        /// refusal.
         margin: ClassifiedMargin,
         /// The chain's own convexity, as established by its first
         /// definitely-classified link.
@@ -1945,6 +1996,23 @@ pub enum BlendError {
     },
 }
 
+/// Why a [`BlendError::KnifeEdge`] is not built.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum KnifeRefusal {
+    /// The supports' offsets do not cross away from the edge at this
+    /// radius (`fillet3_knife_room`), so the ball is not defined there.
+    NoRoom {
+        /// The fillet radius, meters — the REQUEST quantity, a bare
+        /// `f64` for the reason [`BlendError::RadiusHeadroom`]'s is.
+        radius: f64,
+    },
+    /// The supports never open (`fillet3_knife_end` decided Zero): no
+    /// ball has room between them at any radius. No valid body reaches
+    /// it — opposed tangent faces whose jets osculate are a lamina,
+    /// which tier 3 refuses (`battery::knife_end`).
+    NeverOpens,
+}
+
 impl BlendError {
     /// **The one edge this refusal is about**, where it names one: a
     /// link's, or the entity it was read at when that is an edge. A
@@ -2088,11 +2156,25 @@ impl BlendError {
                     )
                 )
             }
-            Self::KnifeEdge { margin, .. } => write!(
+            Self::KnifeEdge {
+                margin,
+                refusal: KnifeRefusal::NeverOpens,
+                ..
+            } => write!(
                 f,
-                "an edge is a cusp or slit ({margin}), whose blend is not built yet: its ball \
-                 touches the supports away from the edge, where they open to 2r{}",
-                ended(door.map(|door| BlendDecision::ConvexitySign.recourse(margin.arm(), door)))
+                "a cusp's or slit's faces do not open apart ({margin}), so no ball fits \
+                 between them{}",
+                ended(door.map(|door| BlendDecision::KnifeEnd.recourse(margin.arm(), door)))
+            ),
+            Self::KnifeEdge {
+                margin,
+                refusal: KnifeRefusal::NoRoom { radius },
+                ..
+            } => write!(
+                f,
+                "a cusp's or slit's faces do not open wide enough for a ball of radius \
+                 {radius} m between them ({margin}){}",
+                ended(door.map(|door| BlendDecision::KnifeRoom.recourse(margin.arm(), door)))
             ),
             Self::SpineIrregular { margin, radius } => write!(
                 f,
@@ -2287,7 +2369,7 @@ impl core::error::Error for BlendError {}
 /// `test-support` for the same reason `test_support` is — a `tests/`
 /// file cannot name a `#[cfg(test)]` item.
 #[cfg(any(test, feature = "test-support"))]
-pub const ALL_RECOURSES: [(&str, &str); 21] = [
+pub const ALL_RECOURSES: [(&str, &str); 23] = [
     ("radius", FILLET3_RADIUS_RECOURSE),
     ("contact", FILLET3_CONTACT_RECOURSE),
     ("contact-arm", FILLET3_CONTACT_ARM_RECOURSE),
@@ -2295,6 +2377,8 @@ pub const ALL_RECOURSES: [(&str, &str); 21] = [
     ("clearance", FILLET3_CLEARANCE_RECOURSE),
     ("clearance-split", FILLET3_CLEARANCE_SPLIT_RECOURSE),
     ("wedge", FILLET3_WEDGE_RECOURSE),
+    ("knife", FILLET3_KNIFE_RECOURSE),
+    ("knife-end", FILLET3_KNIFE_END_RECOURSE),
     ("spine", FILLET3_SPINE_RECOURSE),
     ("chain", FILLET3_CHAIN_RECOURSE),
     ("convexity", FILLET3_CONVEXITY_RECOURSE),
@@ -2324,8 +2408,9 @@ mod recourse_tests {
         FILLET3_CLEARANCE_RECOURSE, FILLET3_CLEARANCE_SPLIT_RECOURSE, FILLET3_CONVEXITY_RECOURSE,
         FILLET3_CORNER_RECOURSE, FILLET3_GEOMETRY_RECOURSE, FILLET3_INSIDE_RECOURSE,
         FILLET3_RADIUS_RECOURSE, FILLET3_RING_RECOURSE, FILLET3_SEAM_VERTEX_RECOURSE,
-        FILLET3_SPINE_KIND_RECOURSE, FILLET3_SPINE_RECOURSE, FILLET3_WEDGE_RECOURSE,
+        FILLET3_SPINE_KIND_RECOURSE, FILLET3_SPINE_RECOURSE,
     };
+    use super::{FILLET3_KNIFE_END_RECOURSE, FILLET3_KNIFE_RECOURSE, KnifeRefusal};
 
     /// **A contact edge's must-carry escalation ends as the decision its
     /// reading asks**: the first-order arm and wedge each on their own
@@ -2434,7 +2519,14 @@ mod recourse_tests {
                 })
             }
             BlendError::FaceClearance { .. } => Recourse::Exactly(FILLET3_CLEARANCE_RECOURSE),
-            BlendError::KnifeEdge { .. } => Recourse::Exactly(FILLET3_WEDGE_RECOURSE),
+            BlendError::KnifeEdge {
+                refusal: KnifeRefusal::NeverOpens,
+                ..
+            } => Recourse::Exactly(FILLET3_KNIFE_END_RECOURSE),
+            BlendError::KnifeEdge {
+                refusal: KnifeRefusal::NoRoom { .. },
+                ..
+            } => Recourse::Exactly(FILLET3_KNIFE_RECOURSE),
             BlendError::SpineIrregular { .. } => Recourse::Exactly(FILLET3_SPINE_RECOURSE),
             BlendError::ChainNotG1 { .. } => Recourse::Exactly(FILLET3_CHAIN_RECOURSE),
             BlendError::ConvexitySignFlip { .. } => Recourse::Exactly(FILLET3_CONVEXITY_RECOURSE),
@@ -2527,7 +2619,13 @@ mod recourse_tests {
             },
             BlendError::KnifeEdge {
                 edge: EdgeKey::default(),
-                margin: decided("fillet3_convexity_sign", 0.0, Sign::Zero),
+                margin: decided("fillet3_knife_end", 0.0, Sign::Zero),
+                refusal: KnifeRefusal::NeverOpens,
+            },
+            BlendError::KnifeEdge {
+                edge: EdgeKey::default(),
+                margin: decided("fillet3_knife_room", -1e-3, Sign::Negative),
+                refusal: KnifeRefusal::NoRoom { radius: 1.2 },
             },
             BlendError::SpineIrregular {
                 margin: decided("fillet3_spine_regularity", -1e-3, Sign::Negative),

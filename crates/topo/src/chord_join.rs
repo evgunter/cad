@@ -1319,6 +1319,13 @@ pub(crate) struct SectionConic<T: Real> {
     square: bool,
 }
 
+impl<T: Decide> SectionConic<T> {
+    /// The eccentric anomaly of a point on the conic, in `(−π, π]`.
+    pub(crate) fn param(&self, p: Point3<T>) -> T {
+        self.conic().azimuth(p).near(T::zero())
+    }
+}
+
 impl<T: Real> SectionConic<T> {
     /// The carrier read as a conic.
     pub(crate) fn conic(&self) -> &dyn Conic<T> {
@@ -1330,11 +1337,6 @@ impl<T: Real> SectionConic<T> {
     fn as_conic<'a, R>(&'a self, read: impl FnOnce(&'a geom::Curve3<T>) -> Option<R>) -> R {
         read(&self.carrier)
             .unwrap_or_else(|| unreachable!("a section conic is a circle or an ellipse"))
-    }
-
-    /// The eccentric anomaly of a point on the conic, its principal angle.
-    pub(crate) fn param(&self, p: Point3<T>) -> T {
-        self.conic().angle_of(p)
     }
 
     /// The conic's derivative in `θ` (metres per radian).

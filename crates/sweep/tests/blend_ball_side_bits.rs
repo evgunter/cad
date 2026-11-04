@@ -25,7 +25,7 @@
 use geom::Surface;
 use geom_brep::SurfaceSide::{self, Inner, Outer};
 use geom_core::{Point3, Vec3};
-use sweep::blend::arms::{Meridian, Ruling};
+use sweep::blend::arms::{Branch, Meridian, Ruling};
 
 const RADIUS: f64 = 0.25;
 
@@ -180,7 +180,7 @@ fn the_coaxial_arm_answers_each_ball_side_pair_as_pinned() {
         let (a, b) = supports(name);
         let (ta, _) = m.trace(a, side_a).expect("a coaxial support traces");
         let (tb, _) = m.trace(b, side_b).expect("a coaxial support traces");
-        let blend = m.blend(ta, tb, RADIUS);
+        let blend = m.blend(ta, tb, RADIUS, Branch::Rim);
         let Surface::Torus {
             center: c,
             major_radius,
@@ -207,7 +207,7 @@ fn the_coaxial_arm_answers_each_ball_side_pair_as_pinned() {
         let both = |side: SurfaceSide| {
             let (ta, _) = m.trace(a, side).expect("traces");
             let (tb, _) = m.trace(b, side).expect("traces");
-            m.blend(ta, tb, RADIUS)
+            m.blend(ta, tb, RADIUS, Branch::Rim)
         };
         let (convex, concave) = (both(Inner), both(Outer));
         assert!(
@@ -316,7 +316,7 @@ fn the_ruled_arm_answers_each_ball_side_pair_as_pinned() {
         };
         let (ta, _) = r.trace(a, side_a).expect("a ruled support traces");
         let (tb, _) = r.trace(b, side_b).expect("a ruled support traces");
-        let blend = r.blend(ta, tb, RADIUS);
+        let blend = r.blend(ta, tb, RADIUS, Branch::Rim);
         let Surface::Cylinder {
             origin: o,
             u_ref: u,
