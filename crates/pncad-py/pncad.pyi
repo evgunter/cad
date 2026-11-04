@@ -4614,6 +4614,7 @@ class SurfaceKind:
     Cone: Final[SurfaceKind]
     Sphere: Final[SurfaceKind]
     Torus: Final[SurfaceKind]
+    Spindle: Final[SurfaceKind]
     Nurbs: Final[SurfaceKind]
     Approx: Final[SurfaceKind]
 

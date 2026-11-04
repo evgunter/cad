@@ -237,108 +237,95 @@ pub enum PlaneNurbsRefusal {
     /// of its interval: the carrier-enclosure door's refusal, naming
     /// the carrier's kind and the span.
     CarrierEnclosure(crate::CarrierEnclosureRefusal),
+    /// The wall is the placeholder ([`geom::PLACEHOLDER_SURFACE`]): it
+    /// has no description to project onto, so the lane derives no foot
+    /// path. Told apart from [`Unsupported`](Self::Unsupported) because
+    /// describing the surface is a way through
+    /// ([`crate::pcurve_cache::PLACEHOLDER_RECOURSE`], the pcurve door's
+    /// lever for the same wall), where a shape outside the inventory
+    /// has none yet.
+    PlaceholderWall,
     /// The (carrier, operand) shape is outside the lane's certified
-    /// inventory, named exactly. A routing boundary (C12.1), never a
-    /// runtime fallback.
+    /// inventory, named exactly ([`SsiError::UnsupportedCertificate`]).
     Unsupported {
         /// The refused class, named.
         what: &'static str,
     },
+    /// The lane was called with operands another door traces: a
+    /// caller's routing mistake, ended as the SSI door ends its own
+    /// ([`SsiError::WrongLane`]).
+    WrongLane {
+        /// What this lane takes, named.
+        expected: &'static str,
+    },
+    /// The uniqueness tube refused structurally, carried whole.
+    Tube(TubeRefusal),
+    /// An SSI refusal no producer of this lane returns: the lane's own
+    /// inconsistency, never a capability gap.
+    OutsideVocabulary,
 }
 
 /// **Why an arc rim's exact image on a spline chart did not certify it**,
 /// on either lane that reads one ([`plane_nurbs_incidence`],
-/// [`nurbs_pair_limbs`]), by the one policy both follow:
-///
-/// - an exact image that escalates, at the pick or in its certificate,
-///   refuses with that escalation, and the fitted image does not make it
-///   definite (D4 ¶3, the pcurve mint's rule too);
-/// - one that refuses definitely, or a rim no candidate holds, reads the
-///   chart's fitted image, and where that image's certificate refuses at
-///   a limb with its bound, both causes are carried. That bound is an
-///   upper bound on the miss, which the fitted image's bent foot path
-///   inflates on an arc, never the miss itself. A fitted path that
-///   refused before bounding refuses as itself.
+/// [`nurbs_pair_limbs`]), by the one policy both follow. The exact image
+/// is a lane choice (D3): one the pick shows and whose certificate
+/// certifies is the answer, and every other reading (no candidate shown,
+/// a certificate refused or read in band) takes the chart's fitted
+/// image, recording nothing. Where that image's certificate refuses at
+/// a limb with its bound after the exact image refused definitely (its
+/// certificate refused, or every candidate decided off), both
+/// causes are carried. That bound is an upper bound on the miss, which
+/// the fitted image's bent foot path inflates on an arc, never the miss
+/// itself. A fitted path that refused before bounding, or after an exact
+/// image read in band, refuses as itself.
 #[derive(Clone, Copy, Debug, PartialEq)]
-#[cfg_attr(
-    feature = "test-support",
-    derive(strum::EnumDiscriminants),
-    strum_discriminants(name(ArcRimRefusalKind), derive(strum::EnumIter), doc(hidden))
-)]
-pub enum ArcRimRefusal {
-    /// The exact image refused definitely and the fitted image's
-    /// certificate refused at a limb.
-    Refused {
-        /// The check of the exact image's certificate that refused, `None`
-        /// where no image was in hand (no candidate held the carrier at
-        /// the pick's probe: a rim off the chart, or a partial one whose
-        /// full-row images part from it there) or the refusal was no
-        /// check's.
-        iso: Option<crate::pcurve_cache::PcurveCheck>,
-        /// The fitted path's refusing limb.
-        limb: SsiLimb,
-        /// Its bound.
-        bound: MarginDiag,
-    },
-    /// The exact image escalated, at the pick ([`pick_arc_rim`], its map
-    /// residual at the probe) or in its certificate.
-    Escalated {
-        /// The exact image's check that escalated.
-        check: crate::pcurve_cache::PcurveCheck,
-        /// The classifier's diagnostic.
-        cause: Indeterminate,
-    },
+pub struct ArcRimRefusal {
+    /// The check of the exact image's certificate that refused
+    /// definitely, `None` where no image was in hand (every candidate
+    /// decided off the carrier at the pick's probe: a rim off the chart,
+    /// or a partial one whose full-row images part from it there) or the
+    /// refusal was no check's.
+    pub iso: Option<crate::pcurve_cache::PcurveCheck>,
+    /// The fitted path's refusing limb.
+    pub limb: SsiLimb,
+    /// Its bound.
+    pub bound: MarginDiag,
 }
 
 impl ArcRimRefusal {
-    /// The decision this refusal is a refused arm of. A definite refusal
-    /// reads as the exact image's check where that names an incidence
-    /// limb ([`crate::pcurve_cache::PcurveCheck::incidence_limb`]), its
-    /// certificate carrying no margin past its verdict, and as the fitted
-    /// limb with its bound otherwise; an escalation reads as the exact
-    /// image's check, undecided.
+    /// The decision this refusal is a refused arm of: the exact image's
+    /// check where that names an incidence limb
+    /// ([`crate::pcurve_cache::PcurveCheck::incidence_limb`]), its
+    /// certificate carrying no margin past its verdict, and the fitted
+    /// limb with its bound otherwise.
     #[must_use]
     pub fn decision(&self) -> (CertCheck, RefusedArm<'_>) {
-        match self {
-            Self::Refused { iso, limb, bound } => {
-                match iso.and_then(crate::pcurve_cache::PcurveCheck::incidence_limb) {
-                    Some(exact) => (exact.check(), RefusedArm::SignCertain(None)),
-                    None => (limb.check(), RefusedArm::SignCertain(Some(*bound))),
-                }
-            }
-            Self::Escalated { check, cause } => (
-                crate::certify::arc_rim_check(*check),
-                RefusedArm::Undecided(cause),
-            ),
+        match self
+            .iso
+            .and_then(crate::pcurve_cache::PcurveCheck::incidence_limb)
+        {
+            Some(exact) => (exact.check(), RefusedArm::SignCertain(None)),
+            None => (self.limb.check(), RefusedArm::SignCertain(Some(self.bound))),
         }
     }
 }
 
 impl core::fmt::Display for ArcRimRefusal {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            Self::Refused { iso, limb, bound } => write!(
-                f,
-                "an arc rim's incidence on its spline wall did not certify: {}, and the check \
-                 through its fitted image refused too — {}",
-                exact_arc_rim_words(*iso),
-                PlaneNurbsRefusal::Limb {
-                    limb: *limb,
-                    margin: *bound
-                }
-            ),
-            Self::Escalated { check, cause } => write!(
-                f,
-                "an arc rim's exact image along a boundary row of its wall escalated at its \
-                 {check:?} check: {}",
-                cause.payload()
-            ),
-        }
+        write!(
+            f,
+            "an arc rim's incidence on its spline wall did not certify: {}, and the check \
+             through its fitted image refused too — {}",
+            exact_arc_rim_words(self.iso),
+            PlaneNurbsRefusal::Limb {
+                limb: self.limb,
+                margin: self.bound
+            }
+        )
     }
 }
 
-/// What an arc rim's exact image said, in [`ArcRimRefusal::Refused`]'s
-/// words.
+/// What an arc rim's exact image said, in [`ArcRimRefusal`]'s words.
 fn exact_arc_rim_words(iso: Option<crate::pcurve_cache::PcurveCheck>) -> &'static str {
     use crate::pcurve_cache::PcurveCheck as C;
     match iso {
@@ -377,7 +364,7 @@ fn after_exact(
 ) -> PlaneNurbsRefusal {
     match (fitted, exact) {
         (PlaneNurbsRefusal::Limb { limb, margin }, Some(iso)) => {
-            PlaneNurbsRefusal::ArcRim(ArcRimRefusal::Refused {
+            PlaneNurbsRefusal::ArcRim(ArcRimRefusal {
                 iso,
                 limb,
                 bound: margin,
@@ -502,75 +489,249 @@ impl CarrierDomainRefusal {
     }
 }
 
+/// The payload alone: the ending is read at the door that reports the
+/// refusal ([`PlaneNurbsRefusal::render`], whose arm carries this one).
 impl core::fmt::Display for CarrierDomainRefusal {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{}. {CARRIER_DOMAIN_RECOURSE}", self.payload())
+        self.write_payload(f)
+    }
+}
+
+/// **The decision a lane refusal is a refused arm of** (D4 ¶1 (i)): the
+/// exhaustive table [`PlaneNurbsRefusal::ending`] and
+/// [`AnalyticRung3Refusal::ending`] both read, so that a new arm names
+/// its decision before it compiles. Where the refusal is one another door
+/// also reads, it ends by that door's home: the SSI door's
+/// ([`SsiError::ending`]) for a refusal the lane lifts from it, the
+/// pcurve door's ([`crate::pcurve_cache::FittedEnding`],
+/// `pcurve_cache::Lever`) for the image producer's own.
+enum LaneDecision<'a> {
+    /// A certification check of this door, on the arm it refused.
+    Check(CertCheck, RefusedArm<'a>),
+    /// A certificate limb the SSI door decides, escalated there: that
+    /// door's undecided sentence ([`crate::ssi::SsiDecision`]).
+    SsiUndecided(crate::ssi::SsiDecision, &'a Indeterminate),
+    /// The SSI door's one-arc proof, read as a stored edge's
+    /// ([`OneArcRefusal::ending`]).
+    OneArc(OneArcRefusal),
+    /// The SSI door's refusal the lane carries: that door's ending of it.
+    Ssi(SsiError),
+    /// The image producer's own refusal, as the pcurve door ends it.
+    Fitted(crate::pcurve_cache::FittedEnding),
+    /// A lever on the input no margin reads, the pcurve door's.
+    Lever(crate::pcurve_cache::Lever),
+    /// A capability gap of the rung-3 certificate with no other door's
+    /// twin (D3): "not yet", never a defect and never a tolerance.
+    NotYet,
+    /// Limb 2's kernel limit, whose story is read off its own data.
+    KernelLimit {
+        /// The certified bound.
+        bound: f64,
+        /// The carrier's own enclosure width there.
+        width: f64,
+        /// The edge's extent.
+        extent: f64,
+    },
+}
+
+impl<'a> LaneDecision<'a> {
+    /// The ending this decision gives its refusal, read at `at`.
+    fn ending(self, at: ReadAt) -> String {
+        match self {
+            Self::Check(check, arm) => recourse(check, arm, at),
+            Self::SsiUndecided(decision, cause) => decision.ending(cause, at),
+            Self::OneArc(cause) => cause.ending(crate::ssi::OneArcDoor::AtRest, at),
+            Self::Ssi(e) => e.ending(at),
+            Self::Fitted(ending) => ending.ending(at),
+            Self::Lever(lever) => lever.recourse(at),
+            Self::NotYet => crate::recourse::not_yet(RefusedArm::SignCertain(None), at),
+            Self::KernelLimit {
+                bound,
+                width,
+                extent,
+            } => kernel_limit_ending(bound, width, extent),
+        }
+    }
+
+    /// The certification check this decision is a refused arm of, where
+    /// it is one: a check of this door, or a certificate limb's check for
+    /// a limb escalated at the SSI door.
+    fn check(&self) -> Option<(CertCheck, RefusedArm<'a>)> {
+        match *self {
+            Self::Check(check, arm) => Some((check, arm)),
+            Self::SsiUndecided(crate::ssi::SsiDecision::Limb(limb), cause) => {
+                Some((limb.check(), RefusedArm::Undecided(cause)))
+            }
+            Self::SsiUndecided(..)
+            | Self::OneArc(_)
+            | Self::Ssi(_)
+            | Self::Fitted(_)
+            | Self::Lever(_)
+            | Self::NotYet
+            | Self::KernelLimit { .. } => None,
+        }
+    }
+}
+
+/// **A refusal of the uniqueness tube a lane carries whole**: the SSI
+/// door's own arm ([`SsiError::TubeLadderEmpty`],
+/// [`SsiError::TubeProbeSilent`], [`SsiError::TubeDegenerate`]), copied
+/// so the lane's refusal stays `Copy` and ends as that door ends it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum TubeRefusal {
+    /// [`SsiError::TubeLadderEmpty`].
+    LadderEmpty {
+        /// The extent the ladder scaled from, in metres.
+        extent: f64,
+        /// The ladder floor the tolerance sets, in metres.
+        floor: f64,
+    },
+    /// [`SsiError::TubeProbeSilent`].
+    ProbeSilent {
+        /// How many rungs were offered.
+        rungs: u32,
+        /// How many had a transversality enclosure refused.
+        refused: u32,
+    },
+    /// [`SsiError::TubeDegenerate`].
+    Degenerate(crate::ssi::TubeDegeneracy),
+}
+
+impl TubeRefusal {
+    /// The tube's refusal `e`, or `None` for any other SSI refusal.
+    fn of(e: &SsiError) -> Option<Self> {
+        match *e {
+            SsiError::TubeLadderEmpty { extent, floor } => {
+                Some(Self::LadderEmpty { extent, floor })
+            }
+            SsiError::TubeProbeSilent { rungs, refused } => {
+                Some(Self::ProbeSilent { rungs, refused })
+            }
+            SsiError::TubeDegenerate(d) => Some(Self::Degenerate(d)),
+            _ => None,
+        }
+    }
+
+    /// The SSI door's refusal this is.
+    fn ssi(self) -> SsiError {
+        match self {
+            Self::LadderEmpty { extent, floor } => SsiError::TubeLadderEmpty { extent, floor },
+            Self::ProbeSilent { rungs, refused } => SsiError::TubeProbeSilent { rungs, refused },
+            Self::Degenerate(d) => SsiError::TubeDegenerate(d),
+        }
+    }
+}
+
+/// The SSI door's payload, without the door's own `ssi: ` lead.
+impl core::fmt::Display for TubeRefusal {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let text = self.ssi().to_string();
+        f.write_str(text.strip_prefix("ssi: ").unwrap_or(&text))
     }
 }
 
 impl PlaneNurbsRefusal {
     /// The ending this refusal's decision gives it, read at `at`
-    /// ([`recourse`]), or `None` for a refusal that is no decision's
-    /// refused arm, but for the pcurve fit's, which ends in the door's
-    /// defect ending ([`ReadAt::culprit`]). `Display` renders the payload
-    /// alone, as [`crate::CertifyError`]'s does, and the door appends
-    /// this.
+    /// ([`Self::decided`]): a check's refused arm by its routing
+    /// ([`recourse`]), a certificate limb's escalation and the one-arc
+    /// proof as the SSI door ends them, a lane's capability gap "not
+    /// yet", the image producer's own refusal the door's defect, and a
+    /// lever on the input its own.
+    ///
+    /// `Display` renders the payload alone, as [`crate::CertifyError`]'s
+    /// does, and the door that reports the refusal appends this, or
+    /// renders both through [`Self::render`].
     ///
     /// The per-sample transversality and the uniqueness tube are the
     /// `Transversality` decision, whose band-decided arms end alike (D4
     /// ¶1 (iv)); a certificate limb's refusal, definite or escalated,
     /// ends by its limb's decision ([`SsiLimb::check`]).
     #[must_use]
-    pub fn ending(&self, at: impl Into<ReadAt>) -> Option<String> {
-        match self {
-            Self::TubeNotOneArc { cause, .. } => {
-                return Some(cause.ending(crate::ssi::OneArcDoor::AtRest, at));
-            }
-            Self::Escalated { limb, cause } => {
-                return Some(crate::ssi::SsiDecision::Limb(*limb).ending(cause, at));
-            }
-            // No decision's refused arm: the producer refused, so it ends
-            // in the defect ending naming the door's culprit.
-            Self::PcurveFit => return Some(crate::recourse::defect_ending(at).to_owned()),
-            _ => {}
-        }
-        self.decision().map(|(check, arm)| recourse(check, arm, at))
+    pub fn ending(&self, at: impl Into<ReadAt>) -> String {
+        self.decided().ending(at.into())
     }
 
-    /// The decision this refusal is a refused arm of, and which arm
-    /// ([`crate::CertifyError::decision`]'s structure).
+    /// This refusal's text read at `at`: its payload ended by its
+    /// decision's ending there ([`Self::ending`]).
     #[must_use]
-    pub fn decision(&self) -> Option<(CertCheck, RefusedArm<'_>)> {
-        Some(match self {
-            Self::NotTransverse { verdict, .. } => (CertCheck::Transversality, verdict.arm()),
+    pub fn render(&self, at: impl Into<ReadAt>) -> String {
+        format!("{self}. {}", self.ending(at))
+    }
+
+    /// **The decision this refusal is a refused arm of**, one per arm
+    /// (D4 ¶1 (i)): the exhaustive match a new arm names its decision in
+    /// before it compiles, which [`Self::ending`] and [`Self::decision`]
+    /// both read.
+    fn decided(&self) -> LaneDecision<'_> {
+        use crate::pcurve_cache::{FittedEnding, Lever};
+        let definite = RefusedArm::SignCertain(None);
+        match self {
+            Self::NotTransverse { verdict, .. } => {
+                LaneDecision::Check(CertCheck::Transversality, verdict.arm())
+            }
             Self::TransversalityEscalated { cause, .. } => {
-                (CertCheck::Transversality, RefusedArm::Undecided(cause))
+                LaneDecision::Check(CertCheck::Transversality, RefusedArm::Undecided(cause))
             }
             Self::Limb { limb, margin, .. } => {
-                (limb.check(), RefusedArm::SignCertain(Some(*margin)))
+                LaneDecision::Check(limb.check(), RefusedArm::SignCertain(Some(*margin)))
             }
             // The tube's margin is a lower bound on the lane's
             // transversality over the chain (`ssi_tube_transversality`),
             // and this refusal is its decided verdict.
-            Self::TubeStraddles { verdict, .. } => (CertCheck::TransversalityTube, verdict.arm()),
-            Self::Escalated { limb, cause } => (limb.check(), RefusedArm::Undecided(cause)),
-            Self::ArcRim(refusal) => return Some(refusal.decision()),
-            Self::ReportedTransversalityPoisoned(cause) => (
+            Self::TubeStraddles { verdict, .. } => {
+                LaneDecision::Check(CertCheck::TransversalityTube, verdict.arm())
+            }
+            Self::ArcRim(refusal) => {
+                let (check, arm) = refusal.decision();
+                LaneDecision::Check(check, arm)
+            }
+            Self::ReportedTransversalityPoisoned(cause) => LaneDecision::Check(
                 CertCheck::PlaneNurbsReportedTransversality,
                 RefusedArm::Undecided(cause),
             ),
-            Self::ChartSpeed(r) => (r.check(), RefusedArm::SignCertain(None)),
-            // The one-arc proof is the SSI door's own decision, and
-            // `ending` reads it there.
-            Self::FootPointInconclusive { .. }
-            | Self::TubeNotOneArc { .. }
-            | Self::PcurveFit
-            | Self::CarrierDomain(_)
-            | Self::CarrierEnclosure(_)
-            | Self::Unsupported { .. } => {
-                return None;
+            Self::ChartSpeed(r) => LaneDecision::Check(r.check(), definite),
+            Self::Escalated { limb, cause } => {
+                LaneDecision::SsiUndecided(crate::ssi::SsiDecision::Limb(*limb), cause)
             }
-        })
+            Self::TubeNotOneArc { cause, .. } => LaneDecision::OneArc(*cause),
+            // A foot that would not settle, at the schedule or at limb 1,
+            // is the image producer's and the SSI door's one fact, ended
+            // from the SSI door's home through the pcurve door's.
+            Self::FootPointInconclusive { .. } => LaneDecision::Fitted(FittedEnding::FootUnsettled),
+            Self::PcurveFit => LaneDecision::Fitted(FittedEnding::Defect),
+            Self::CarrierDomain(_) => LaneDecision::Lever(Lever::CarrierDomain),
+            Self::PlaceholderWall => LaneDecision::Lever(Lever::Placeholder),
+            // The SSI door's refusals the lane carries, ended there.
+            Self::CarrierEnclosure(r) => LaneDecision::Ssi(SsiError::CarrierEnclosure(*r)),
+            Self::Unsupported { what } => {
+                LaneDecision::Ssi(SsiError::UnsupportedCertificate { what })
+            }
+            Self::WrongLane { expected } => LaneDecision::Ssi(SsiError::WrongLane { expected }),
+            Self::Tube(t) => LaneDecision::Ssi(t.ssi()),
+            // An SSI refusal no producer of this lane returns: the lane's
+            // own inconsistency, the door's defect.
+            Self::OutsideVocabulary => LaneDecision::Fitted(FittedEnding::Defect),
+        }
+    }
+
+    /// The decision this refusal is a refused arm of, and which arm,
+    /// where that decision is a certification check
+    /// ([`crate::CertifyError::decision`]'s structure); `None` for every
+    /// other decision ([`Self::decided`]), whose ending
+    /// [`Self::ending`] gives.
+    ///
+    /// A certificate limb escalated at the SSI door is that limb's
+    /// check here, for a holder naming the decision that could not be
+    /// read, and the SSI door's undecided sentence in [`Self::ending`].
+    #[must_use]
+    pub fn decision(&self) -> Option<(CertCheck, RefusedArm<'_>)> {
+        self.decided().check()
+    }
+}
+
+impl crate::recourse::Ended for PlaneNurbsRefusal {
+    fn ended(&self, at: ReadAt) -> String {
+        self.render(at)
     }
 }
 
@@ -688,9 +849,24 @@ impl core::fmt::Display for PlaneNurbsRefusal {
                 f,
                 "limb 2 could not enclose the declared carrier between samples: {r}"
             ),
+            Self::PlaceholderWall => write!(
+                f,
+                "{}, so the lane has no described wall to project the carrier onto",
+                geom::PLACEHOLDER_SURFACE
+            ),
             Self::Unsupported { what } => {
                 write!(f, "outside the spline Intersection lane: {what}")
             }
+            Self::WrongLane { expected } => {
+                write!(
+                    f,
+                    "the spline Intersection lane was called on the wrong pair: it takes {expected}"
+                )
+            }
+            Self::Tube(t) => write!(f, "{t}"),
+            Self::OutsideVocabulary => f.write_str(
+                "the rung-3 certificate refused for a reason outside this lane's vocabulary",
+            ),
         }
     }
 }
@@ -882,15 +1058,13 @@ fn plane_lane_door<T: Real>(
     wall: &NurbsSurface<T>,
 ) -> Result<Vec3<T>, PlaneNurbsRefusal> {
     let Surface::Plane { normal, .. } = *plane else {
-        return Err(PlaneNurbsRefusal::Unsupported {
-            what: "the analytic operand of this lane is a PLANE; another kind needs its own \
-                   chart uniqueness form",
+        return Err(PlaneNurbsRefusal::WrongLane {
+            expected: "a plane as the analytic operand; another kind needs its own chart \
+                       uniqueness form",
         });
     };
     if wall.is_placeholder() {
-        return Err(PlaneNurbsRefusal::Unsupported {
-            what: geom::PLACEHOLDER_SURFACE,
-        });
+        return Err(PlaneNurbsRefusal::PlaceholderWall);
     }
     Ok(normal)
 }
@@ -1094,10 +1268,12 @@ fn uniform_breaks(spans: usize) -> Option<KnotVector> {
 ///
 /// # Errors
 ///
-/// The first in-band candidate's [`Indeterminate`] where none holds: an
-/// undecided pick is the rim's to report, never a definite miss. A
-/// closed-form candidate that escalates outranks the measured step,
-/// which is then not taken.
+/// The first in-band candidate's [`Indeterminate`] where none holds, the
+/// closed-form step's ahead of the measured step's: an undecided pick
+/// is not a definite miss. An in-band closed-form candidate does not
+/// stop the measured step, whose shown image is the answer. A lane
+/// choice reads the error as "not shown" and takes its general lane;
+/// a caller that must have the rim (a loft's section rim) reports it.
 pub fn pick_arc_rim<T: Decide>(
     carrier: &Curve3<T>,
     (t0, span): (T, T),
@@ -1117,9 +1293,17 @@ pub fn pick_arc_rim<T: Decide>(
             candidates,
         )
     };
-    match pick(arc_rim_candidates(chart, t0, span))? {
-        Some(image) => Ok(Some(image)),
-        None => pick(arc_rim_measured(carrier, chart, (t0, span), band)),
+    let closed = pick(arc_rim_candidates(chart, t0, span));
+    if let Ok(Some(image)) = closed {
+        return Ok(Some(image));
+    }
+    match (
+        closed,
+        pick(arc_rim_measured(carrier, chart, (t0, span), band)),
+    ) {
+        (_, Ok(Some(image))) => Ok(Some(image)),
+        (Err(cause), _) | (Ok(_), Err(cause)) => Err(cause),
+        (Ok(_), Ok(None)) => Ok(None),
     }
 }
 
@@ -1220,9 +1404,9 @@ pub fn first_within<C, T: Decide>(
 ///   ([`arc_rim_measured`]). Its one limit is **an `f64` read**: the
 ///   row's weight pattern is read on the `f64` value channel.
 ///
-///   Where it does not certify, [`ArcRimRefusal`]'s policy decides: an
-///   escalation refuses, and a definite refusal reads the fitted path
-///   below, a sound certificate of its own.
+///   Where it does not certify, [`ArcRimRefusal`]'s policy decides: the
+///   carrier reads the fitted path below, a sound certificate of its own,
+///   whether the exact image refused or read in band.
 /// - **Any other carrier**: the carrier's fitted chart image
 ///   ([`chart_image`], from the same fixed schedule of foot points as
 ///   the full lane's) and limbs 1 and 2 over it.
@@ -1238,7 +1422,7 @@ pub fn first_within<C, T: Decide>(
 /// or non-spline wall, a foot that will not converge, an image that will
 /// not fit, and either limb's refusal with its measured bound;
 /// [`PlaneNurbsRefusal::ArcRim`] for a circle carrier whose exact image
-/// did not certify, by [`ArcRimRefusal`]'s policy.
+/// refused definitely and whose fitted path refused at a limb.
 pub fn plane_nurbs_incidence<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
     carrier: &Curve3<T>,
     params: (T, T),
@@ -1249,19 +1433,16 @@ pub fn plane_nurbs_incidence<T: Decide + Bounds + geom_core::CertifiedEnclosure>
 ) -> Result<PlaneNurbsIncidence<T>, PlaneNurbsRefusal> {
     use crate::ssi::certify::IncidenceOperand;
     let Some(chart) = wall.spline_chart() else {
-        return Err(PlaneNurbsRefusal::Unsupported {
-            what: "the wall of this lane is a spline chart",
+        return Err(PlaneNurbsRefusal::WrongLane {
+            expected: "a spline chart as the wall",
         });
     };
     plane_lane_door(plane, chart)?;
     let exact = match carrier {
-        Curve3::Circle(..) => Some(
-            exact_arc_rim(carrier, params, wall, stated, band)
-                .map_err(PlaneNurbsRefusal::ArcRim)?,
-        ),
+        Curve3::Circle(..) => Some(exact_arc_rim(carrier, params, wall, stated, band)),
         _ => None,
     };
-    if let Some(Ok(cache)) = &exact {
+    if let Some(ExactRim::Certified(cache)) = &exact {
         let c = cache.certificate();
         let (on_locus, hull) = crate::ssi::certify::incidence_limbs(
             carrier,
@@ -1295,60 +1476,65 @@ pub fn plane_nurbs_incidence<T: Decide + Bounds + geom_core::CertifiedEnclosure>
             .map_err(refusal)
         });
     let (on_locus_max, hull_sup) =
-        fitted.map_err(|e| after_exact(e, exact.and_then(Result::err)))?;
+        fitted.map_err(|e| after_exact(e, exact.as_ref().and_then(ExactRim::refused)))?;
     Ok(PlaneNurbsIncidence {
         on_locus_max,
         hull_sup,
     })
 }
 
+/// **What an arc rim's exact image read** ([`exact_arc_rim`]): the lane
+/// choice between it and the chart's fitted image (D3,
+/// [`ArcRimRefusal`]'s policy). `C` is what a certified image carries.
+enum ExactRim<C> {
+    /// The pick showed an image and its certificate certified.
+    Certified(C),
+    /// Decided against the exact image: its certificate's refusing check
+    /// (`None` where the refusal was no check's), or `None` where every
+    /// candidate decided off the carrier at the pick's probe.
+    Refused(Option<crate::pcurve_cache::PcurveCheck>),
+    /// The pick or the certificate read in band. It takes the fitted
+    /// image as `Refused` does, and the fitted image's refusal stands as
+    /// itself.
+    InBand,
+}
+
+impl<C> ExactRim<C> {
+    /// The refusing check [`after_exact`] carries, for a definite refusal
+    /// alone.
+    fn refused(&self) -> Option<Option<crate::pcurve_cache::PcurveCheck>> {
+        match self {
+            Self::Refused(iso) => Some(*iso),
+            Self::Certified(_) | Self::InBand => None,
+        }
+    }
+}
+
 /// **An arc rim's exact image on a chart, and its certificate**: `stated`
 /// as it stands where the caller holds one, otherwise
 /// [`pick_arc_rim`]'s. The one home of that reading for every lane
 /// that meters a circle carrier against a spline chart
-/// ([`plane_nurbs_incidence`], [`nurbs_pair_limbs`]). `Ok(Err)` is a
-/// definite refusal: the certificate's refusing check (`None` where the
-/// refusal was no check's), or the pick's finding no candidate (`None`).
-///
-/// # Errors
-///
-/// [`ArcRimRefusal::Escalated`] where the pick (its map residual at the
-/// probe) or the certificate escalated.
-#[allow(clippy::type_complexity)]
+/// ([`plane_nurbs_incidence`], [`nurbs_pair_limbs`]).
 fn exact_arc_rim<T: Decide>(
     carrier: &Curve3<T>,
     (t0, t1): (T, T),
     wall: &Surface<T>,
     stated: Option<&Pcurve<T>>,
     band: Band,
-) -> Result<
-    Result<crate::pcurve_cache::PcurveCache<T>, Option<crate::pcurve_cache::PcurveCheck>>,
-    ArcRimRefusal,
-> {
-    use crate::pcurve_cache::{PcurveCache, PcurveCertifyError as E, PcurveCheck};
+) -> ExactRim<crate::pcurve_cache::PcurveCache<T>> {
+    use crate::pcurve_cache::{PcurveCache, PcurveCertifyError as E};
     let image = match stated {
         Some(image) => image.clone(),
         None => match pick_arc_rim(carrier, (t0, t1 - t0), wall, band) {
             Ok(Some(image)) => image,
-            Ok(None) => return Ok(Err(None)),
-            Err(cause) => {
-                return Err(ArcRimRefusal::Escalated {
-                    check: PcurveCheck::MapResidual,
-                    cause,
-                });
-            }
+            Ok(None) => return ExactRim::Refused(None),
+            Err(_) => return ExactRim::InBand,
         },
     };
     match PcurveCache::certify(image, t0, t1, carrier, wall, band) {
-        Ok(cache) => Ok(Ok(cache)),
-        Err(E::Escalated { check, cause, .. }) => Err(ArcRimRefusal::Escalated { check, cause }),
-        // No `IsoArc` check runs an SSI decision; were one to, it
-        // escalates the envelope it bounds.
-        Err(E::FittedEscalated { cause, .. }) => Err(ArcRimRefusal::Escalated {
-            check: PcurveCheck::Envelope,
-            cause,
-        }),
-        Err(refused) => Ok(Err(refused.refused_check())),
+        Ok(cache) => ExactRim::Certified(cache),
+        Err(E::Escalated { .. } | E::FittedEscalated { .. }) => ExactRim::InBand,
+        Err(refused) => ExactRim::Refused(refused.refused_check()),
     }
 }
 
@@ -1371,8 +1557,7 @@ fn exact_arc_rim<T: Decide>(
 /// the image picked from the chart's own boundary rows by
 /// [`pick_arc_rim`]): its certificate's sampled residual and envelope.
 /// Where it does not certify, [`ArcRimRefusal`]'s policy decides, as on
-/// the plane lane: an escalation refuses, and a definite refusal reads
-/// the chart's fitted image's limbs. Every reading of
+/// the plane lane: the chart reads its fitted image's limbs. Every reading of
 /// limbs 1 and 2 bounds the carrier's distance from the chart from
 /// above, so an exact image's certified bound and a fitted image's
 /// refusal never disagree on which side of the band the carrier lies:
@@ -1386,9 +1571,9 @@ fn exact_arc_rim<T: Decide>(
 ///
 /// [`PlaneNurbsRefusal`], whose vocabulary this lane shares: a foot that
 /// will not converge, an image that will not fit, a sample whose two
-/// charts are not definitely transverse, an exact image that escalated
-/// ([`PlaneNurbsRefusal::ArcRim`]), and a limb's refusal with its
-/// measured bound.
+/// charts are not definitely transverse, and a limb's refusal with its
+/// measured bound ([`PlaneNurbsRefusal::ArcRim`] after an exact image
+/// refused definitely).
 pub fn nurbs_pair_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
     carrier: &Curve3<T>,
     params: (T, T),
@@ -1398,9 +1583,7 @@ pub fn nurbs_pair_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
     band: Band,
 ) -> Result<PlaneNurbsLimbs<T>, PlaneNurbsRefusal> {
     if a.is_placeholder() || b.is_placeholder() {
-        return Err(PlaneNurbsRefusal::Unsupported {
-            what: geom::PLACEHOLDER_SURFACE,
-        });
+        return Err(PlaneNurbsRefusal::PlaceholderWall);
     }
     // Each chart localized on its own cell grid, as the plane lane's wall.
     let (grid_a, grid_b) = (wall_grid(a), wall_grid(b));
@@ -1454,7 +1637,7 @@ pub fn nurbs_pair_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
     let (mut on_locus_max, mut hull_sup) = (T::zero(), T::zero());
     for (chart, fitted, exact) in [(a, &pcurve_a, &exact_a), (b, &pcurve_b, &exact_b)] {
         let (on_locus, hull) = match exact {
-            Some(Ok((cache, _))) => cache.certificate().limbs(),
+            Some(ExactRim::Certified((cache, _))) => cache.certificate().limbs(),
             _ => crate::ssi::certify::incidence_limbs(
                 carrier,
                 params,
@@ -1462,13 +1645,7 @@ pub fn nurbs_pair_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
                 band,
                 &mut crate::ssi::certify::Refused::default(),
             )
-            .map_err(|e| {
-                let iso = match exact {
-                    Some(Err(iso)) => Some(*iso),
-                    _ => None,
-                };
-                after_exact(refusal(e), iso)
-            })?,
+            .map_err(|e| after_exact(refusal(e), exact.as_ref().and_then(ExactRim::refused)))?,
         };
         on_locus_max = on_locus_max.max(on_locus);
         hull_sup = hull_sup.max(hull);
@@ -1481,13 +1658,12 @@ pub fn nurbs_pair_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
     // (`work/splice/a-two-chart-tube-cannot-prove-one-arc-along-a-chart-boundary.md`).
     // A rim on both walls' boundary rows is a shared row, certified
     // without this tube.
-    #[allow(clippy::type_complexity)]
-    fn tube_image<'a, C, I, T: Real>(
-        exact: &'a Option<Result<(C, NurbsCurve2<T>), I>>,
+    fn tube_image<'a, C, T: Real>(
+        exact: &'a Option<ExactRim<(C, NurbsCurve2<T>)>>,
         fitted: &'a NurbsCurve2<T>,
     ) -> &'a NurbsCurve2<T> {
         match exact {
-            Some(Ok((_, polyline))) => polyline,
+            Some(ExactRim::Certified((_, polyline))) => polyline,
             _ => fitted,
         }
     }
@@ -1611,11 +1787,10 @@ pub(crate) fn row_transversality<T: Decide>(
 }
 
 /// **A circle carrier's exact image on a spline chart** ([`exact_arc_rim`],
-/// the chart taken as its wall): `Ok(cache, polyline)` where it
-/// certifies, with the polyline limb 3's tube is built about, and the
-/// refusing check where it refuses definitely ([`ArcRimRefusal`]'s
-/// policy sends the chart to its fitted image). `None` for any other
-/// carrier.
+/// the chart taken as its wall): [`ExactRim::Certified`] with the
+/// polyline limb 3's tube is built about where it certifies, and its
+/// other readings as they stand ([`ArcRimRefusal`]'s policy sends the
+/// chart to its fitted image). `None` for any other carrier.
 ///
 /// The polyline runs through the image's points at the fitted image's
 /// knots, `Q(tₖ) = E(tₖ)`, each read at `T`. The image is the segment
@@ -1638,9 +1813,8 @@ pub(crate) fn row_transversality<T: Decide>(
 ///
 /// # Errors
 ///
-/// [`ArcRimRefusal::Escalated`] where the pick or the certificate
-/// escalated; [`PlaneNurbsRefusal::Unsupported`] where the fitted image
-/// is not the degree-1 polyline the tube's reading needs.
+/// [`PlaneNurbsRefusal::Unsupported`] where the fitted image is not the
+/// degree-1 polyline the tube's reading needs.
 #[allow(clippy::type_complexity)]
 fn exact_chart_image<T: Decide>(
     carrier: &Curve3<T>,
@@ -1648,12 +1822,7 @@ fn exact_chart_image<T: Decide>(
     (chart, fitted): (&NurbsSurface<T>, &NurbsCurve2<T>),
     band: Band,
 ) -> Result<
-    Option<
-        Result<
-            (crate::pcurve_cache::PcurveCache<T>, NurbsCurve2<T>),
-            Option<crate::pcurve_cache::PcurveCheck>,
-        >,
-    >,
+    Option<ExactRim<(crate::pcurve_cache::PcurveCache<T>, NurbsCurve2<T>)>>,
     PlaneNurbsRefusal,
 > {
     if !matches!(carrier, Curve3::Circle(..)) {
@@ -1661,9 +1830,9 @@ fn exact_chart_image<T: Decide>(
     }
     let wall = Surface::Nurbs(std::sync::Arc::new(chart.clone()));
     let cache = match exact_arc_rim(carrier, params, &wall, None, band) {
-        Ok(Ok(cache)) => cache,
-        Ok(Err(iso)) => return Ok(Some(Err(iso))),
-        Err(e) => return Err(PlaneNurbsRefusal::ArcRim(e)),
+        ExactRim::Certified(cache) => cache,
+        ExactRim::Refused(iso) => return Ok(Some(ExactRim::Refused(iso))),
+        ExactRim::InBand => return Ok(Some(ExactRim::InBand)),
     };
     let knots = fitted.knot_values();
     if knots.degree() != 1 || knots.runs().count() != fitted.control().len() {
@@ -1681,7 +1850,7 @@ fn exact_chart_image<T: Decide>(
             what: EXACT_TUBE_NEEDS_A_POLYLINE,
         }
     })?;
-    Ok(Some(Ok((cache, polyline))))
+    Ok(Some(ExactRim::Certified((cache, polyline))))
 }
 
 /// [`exact_chart_image`]'s refusal where the fitted image is no degree-1
@@ -2369,6 +2538,11 @@ pub enum AnalyticRung3Refusal {
         /// The refused class.
         what: &'static str,
     },
+    /// The uniqueness tube refused structurally, carried whole.
+    Tube(TubeRefusal),
+    /// An SSI refusal the tube-only certificate never returns: the
+    /// certificate's own inconsistency, never a capability gap.
+    OutsideVocabulary,
 }
 
 impl AnalyticRung3Refusal {
@@ -2412,69 +2586,98 @@ impl AnalyticRung3Refusal {
                 limb.name()
             ),
             SsiError::UnsupportedCertificate { what } => Self::Unsupported { what },
-            SsiError::TubeProbeSilent { refused, .. } if refused > 0 => Self::Unsupported {
-                what: "no rung of the uniqueness tube measured a margin, and a transversality \
-                       enclosure was refused",
-            },
-            SsiError::TubeProbeSilent { .. } => Self::Unsupported {
-                what: "no rung of the uniqueness tube built a chain around the carrier",
-            },
-            _ => Self::Unsupported {
-                what: "the uniqueness tube refused for a reason outside this certificate's \
-                       vocabulary",
-            },
+            // The tube's structural refusals, ended as the SSI door ends
+            // them; any other arm is one this certificate never returns.
+            e => TubeRefusal::of(&e).map_or(Self::OutsideVocabulary, Self::Tube),
         }
     }
 
-    /// The ending this refusal's decision gives it, read at `at`, or
-    /// `None` for a refusal that is no decision's refused arm
-    /// ([`PlaneNurbsRefusal::ending`]'s structure).
+    /// The ending this refusal's decision gives it, read at `at`
+    /// ([`Self::decided`], [`PlaneNurbsRefusal::ending`]'s structure).
+    ///
+    /// `Display` renders the payload alone, and the door that reports
+    /// the refusal appends this, or renders both through
+    /// [`Self::render`].
     #[must_use]
-    pub fn ending(&self, at: impl Into<ReadAt>) -> Option<String> {
-        if let Self::TubeNotOneArc { cause, .. } = *self {
-            return Some(cause.ending(crate::ssi::OneArcDoor::AtRest, at));
-        }
-        if let Self::KernelLimit {
-            bound,
-            width,
-            extent,
-            ..
-        } = *self
-        {
-            return Some(kernel_limit_ending(bound, width, extent));
-        }
-        self.decision().map(|(check, arm)| recourse(check, arm, at))
+    pub fn ending(&self, at: impl Into<ReadAt>) -> String {
+        self.decided().ending(at.into())
     }
 
-    /// The decision this refusal is a refused arm of, and which arm.
+    /// This refusal's text read at `at`: its payload ended by its
+    /// decision's ending there ([`Self::ending`]).
     #[must_use]
-    pub fn decision(&self) -> Option<(CertCheck, RefusedArm<'_>)> {
-        Some(match self {
-            Self::Limb { margin, .. } => (
+    pub fn render(&self, at: impl Into<ReadAt>) -> String {
+        format!("{self}. {}", self.ending(at))
+    }
+
+    /// **The decision this refusal is a refused arm of**, one per arm
+    /// (D4 ¶1 (i)): the exhaustive match a new arm names its decision in
+    /// before it compiles, which [`Self::ending`] and [`Self::decision`]
+    /// both read.
+    fn decided(&self) -> LaneDecision<'_> {
+        match self {
+            Self::Limb { margin, .. } => LaneDecision::Check(
                 Rung3Limb::HullValue.check(),
                 RefusedArm::SignCertain(Some(*margin)),
             ),
-            Self::Escalated { limb, cause, .. } => (limb.check(), RefusedArm::Undecided(cause)),
+            Self::Escalated { limb, cause, .. } => {
+                LaneDecision::Check(limb.check(), RefusedArm::Undecided(cause))
+            }
             Self::Stalled { cause, .. } => {
-                (Rung3Limb::HullSup.check(), RefusedArm::Undecided(cause))
+                LaneDecision::Check(Rung3Limb::HullSup.check(), RefusedArm::Undecided(cause))
             }
-            Self::TubeStraddles { verdict, .. } => (CertCheck::TransversalityTube, verdict.arm()),
-            // The one-arc proof is the SSI door's own decision, and
-            // `ending` reads it there.
+            Self::TubeStraddles { verdict, .. } => {
+                LaneDecision::Check(CertCheck::TransversalityTube, verdict.arm())
+            }
+            // The one-arc proof is the SSI door's own decision.
+            Self::TubeNotOneArc { cause, .. } => LaneDecision::OneArc(*cause),
             // The kernel's limit is no decision's refused arm about the
-            // input, and `ending` gives its own story.
-            Self::NoOffsetBound { .. }
-            | Self::KernelLimit { .. }
-            | Self::CarrierEnclosure(_)
-            | Self::NoTubeEnclosure { .. }
-            | Self::TubeNotOneArc { .. }
-            | Self::Unsupported { .. } => {
-                return None;
+            // input: its own story, read off its data.
+            Self::KernelLimit {
+                bound,
+                width,
+                extent,
+                ..
+            } => LaneDecision::KernelLimit {
+                bound: *bound,
+                width: *width,
+                extent: *extent,
+            },
+            // The SSI door's refusals the certificate carries, ended there.
+            Self::CarrierEnclosure(r) => LaneDecision::Ssi(SsiError::CarrierEnclosure(*r)),
+            Self::Unsupported { what } => {
+                LaneDecision::Ssi(SsiError::UnsupportedCertificate { what })
             }
-        })
+            Self::Tube(t) => LaneDecision::Ssi(t.ssi()),
+            Self::OutsideVocabulary => {
+                LaneDecision::Fitted(crate::pcurve_cache::FittedEnding::Defect)
+            }
+            // Capability gaps with no other door's twin: a composite of
+            // the operand no bound covers, and a pose the tube has no
+            // gradient enclosure for. Whether the `PcurveCertifyError` the
+            // offset bound flattens should keep its own decision is
+            // `wrappers-that-flatten-a-pcurve-certify-error-end-it-by-their-own-decision`.
+            Self::NoOffsetBound { .. } | Self::NoTubeEnclosure { .. } => LaneDecision::NotYet,
+        }
+    }
+
+    /// The decision this refusal is a refused arm of, and which arm,
+    /// where that decision is a certification check; `None` for every
+    /// other decision ([`Self::decided`]).
+    #[must_use]
+    pub fn decision(&self) -> Option<(CertCheck, RefusedArm<'_>)> {
+        self.decided().check()
     }
 }
 
+impl crate::recourse::Ended for AnalyticRung3Refusal {
+    fn ended(&self, at: ReadAt) -> String {
+        self.render(at)
+    }
+}
+
+/// The payload alone: the ending is read at the door that reports the
+/// refusal ([`AnalyticRung3Refusal::render`]).
 impl core::fmt::Display for AnalyticRung3Refusal {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
@@ -2552,6 +2755,10 @@ impl core::fmt::Display for AnalyticRung3Refusal {
             Self::Unsupported { what } => {
                 write!(f, "outside the analytic rung-3 certificate: {what}")
             }
+            Self::Tube(t) => write!(f, "{t}"),
+            Self::OutsideVocabulary => f.write_str(
+                "the uniqueness tube refused for a reason outside this certificate's vocabulary",
+            ),
         }
     }
 }
@@ -2660,7 +2867,8 @@ impl<'a, T: geom_core::Real> Schedule<'a, T> {
 /// fit when the image's knots collapse on it;
 /// [`PlaneNurbsRefusal::FootPointInconclusive`] at the first sample
 /// whose projection does not converge (never a best-effort foot);
-/// [`PlaneNurbsRefusal::PcurveFit`] when the interpolation refuses; or
+/// [`PlaneNurbsRefusal::PcurveFit`] when the interpolation refuses;
+/// [`PlaneNurbsRefusal::PlaceholderWall`] on the placeholder; or
 /// whatever `per_sample` returns.
 ///
 /// The carrier enters as its [`Schedule`]: `net_schedule` for a
@@ -2685,9 +2893,7 @@ where
         // yet, and projecting onto it would return
         // feet of a surface that does not exist. `plane_nurbs_limbs`
         // still checks first, so its own refusal ORDER is unchanged.
-        return Err(PlaneNurbsRefusal::Unsupported {
-            what: geom::PLACEHOLDER_SURFACE,
-        });
+        return Err(PlaneNurbsRefusal::PlaceholderWall);
     }
     let domain_refusal = |e| PlaneNurbsRefusal::CarrierDomain(CarrierDomainRefusal::of(t0, t1, &e));
     // The domain door, asked first on a vector with no interior knots
@@ -2752,7 +2958,7 @@ where
 ///
 /// [`PlaneNurbsRefusal::FootPointInconclusive`] when the projection
 /// will not converge (never a best-effort foot), or
-/// [`PlaneNurbsRefusal::Unsupported`] on the placeholder (`geom::PLACEHOLDER_SURFACE`).
+/// [`PlaneNurbsRefusal::PlaceholderWall`] on the placeholder.
 pub(crate) fn chart_foot<T>(
     point: Point3<T>,
     wall: &NurbsSurface<T>,
@@ -2761,9 +2967,7 @@ where
     T: Decide + Bounds + geom_core::CertifiedEnclosure,
 {
     if wall.is_placeholder() {
-        return Err(PlaneNurbsRefusal::Unsupported {
-            what: geom::PLACEHOLDER_SURFACE,
-        });
+        return Err(PlaneNurbsRefusal::PlaceholderWall);
     }
     let proj = wall
         .project(point)
@@ -2937,9 +3141,12 @@ fn refusal(e: SsiError) -> PlaneNurbsRefusal {
         SsiError::UnsupportedCertificate { what } => PlaneNurbsRefusal::Unsupported { what },
         SsiError::ChartSpeed(r) => PlaneNurbsRefusal::ChartSpeed(r),
         SsiError::CarrierEnclosure(r) => PlaneNurbsRefusal::CarrierEnclosure(r),
-        _ => PlaneNurbsRefusal::Unsupported {
-            what: "the rung-3 certificate refused for a reason outside this lane's vocabulary",
-        },
+        // The tube's structural refusals, ended as the SSI door ends them;
+        // any other arm is one no producer of this lane returns.
+        e => TubeRefusal::of(&e).map_or(
+            PlaneNurbsRefusal::OutsideVocabulary,
+            PlaneNurbsRefusal::Tube,
+        ),
     }
 }
 
@@ -2978,32 +3185,47 @@ mod tests {
         );
     }
 
-    /// **A silent tube says why it is silent.** Where a transversality
-    /// enclosure was refused at some rung the edge says so; where no rung
-    /// built a chain it says that. Neither reads as the generic
-    /// out-of-vocabulary refusal.
+    /// **A silent tube is carried whole and ends as the SSI door ends
+    /// it**: one whose rungs had a transversality enclosure refused is a
+    /// pair the tube cannot yet enclose, and one that built no chain at
+    /// all is the kernel's own box chain failing, never the generic
+    /// out-of-vocabulary refusal. Red where the certificate flattens the
+    /// tube's refusal into a prose `Unsupported` again, whose "not yet"
+    /// would answer the second.
     #[test]
-    fn a_silent_tube_names_its_silence() {
+    fn a_silent_tube_ends_as_the_ssi_door_ends_it() {
+        use crate::recourse::Reading;
         use crate::ssi::SsiError;
-        let words =
-            |rungs, refused| match AnalyticRung3Refusal::of_tube(SsiError::TubeProbeSilent {
-                rungs,
-                refused,
-            }) {
-                AnalyticRung3Refusal::Unsupported { what } => what,
-                other => panic!("not the silent tube's refusal: {other:?}"),
-            };
-        assert!(
-            words(20, 20).contains("enclosure was refused"),
-            "{}",
-            words(20, 20)
+        for (rungs, refused) in [(20, 20), (20, 3), (20, 0)] {
+            let ssi = SsiError::TubeProbeSilent { rungs, refused };
+            let lane = AnalyticRung3Refusal::of_tube(ssi.clone());
+            assert_eq!(
+                lane,
+                AnalyticRung3Refusal::Tube(TubeRefusal::ProbeSilent { rungs, refused }),
+                "{rungs}/{refused}"
+            );
+            for at in [Reading::Build, Reading::AtRest] {
+                assert_eq!(
+                    lane.ending(at),
+                    ssi.ending(at),
+                    "{rungs}/{refused} at {at:?}"
+                );
+            }
+            let words = lane.to_string();
+            assert!(
+                words.contains(&format!("{refused} had a transversality enclosure refused")),
+                "{words}"
+            );
+        }
+        assert_eq!(
+            AnalyticRung3Refusal::of_tube(SsiError::TubeProbeSilent {
+                rungs: 20,
+                refused: 0
+            })
+            .ending(Reading::AtRest),
+            crate::recourse::defect_ending(Reading::AtRest),
+            "a chain the kernel could not build is its own defect"
         );
-        assert!(
-            words(20, 3).contains("enclosure was refused"),
-            "{}",
-            words(20, 3)
-        );
-        assert!(words(20, 0).contains("built a chain"), "{}", words(20, 0));
     }
 
     /// A unit-domain image with the structure a lift must carry
@@ -3049,7 +3271,7 @@ mod tests {
         ] {
             let refusal = PlaneNurbsRefusal::TubeNotOneArc { rungs: 20, cause };
             for reading in [Reading::Build, Reading::AtRest] {
-                let ending = refusal.ending(reading).unwrap();
+                let ending = refusal.ending(reading);
                 let rendered = format!("{refusal} {ending}");
                 let words = rendered.split_whitespace().count();
                 assert!(words <= 75, "{words} words: {rendered}");
@@ -3079,7 +3301,7 @@ mod tests {
             }),
         };
         let file = |eps_in| FileCoincidence::new(eps_in);
-        let within = refusal(5e-9).ending(file(1e-6)).unwrap();
+        let within = refusal(5e-9).ending(file(1e-6));
         assert!(
             within.starts_with(
                 "This clearance is within the file's declared coincidence distance ε_in = 1e-6 \

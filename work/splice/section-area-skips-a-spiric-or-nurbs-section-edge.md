@@ -2,12 +2,14 @@
 id: section-area-skips-a-spiric-or-nurbs-section-edge
 kind: issue
 title: certify_section_area reads a spiric or NURBS section edge as its chord
-status: dispatched
+status: closed
 opened: 2026-10-03
 priority: P1
 cost: E
 refs: [3984]
 branch: splice/kind-reads
+closed: 2026-11-03
+pr: 6437
 ---
 
 
@@ -42,3 +44,7 @@ From GAUGE. Moved by `git mv` in the chat-approved refold that opened SPLICE (`w
 Moved from SPLICE to SPLICESEAM on 2026-10-28, by `git mv` in SPLICE's split along its seams (Track size; Ev, in chat, 2026-10-28).
 
 Moved from SPLICESEAM to SPLICE on 2026-11-02, by `git mv`, when SPLICESEAM merged back into SPLICE: the track budget now counts only the P0, P1 and unbanded rows a sitting dispatches (Ev, in chat, 2026-11-02), so the four tracks of SPLICE's 2026-10-28 split came in under one budget.
+
+## Closed (SPLICE, PR 6437, 2026-11-03)
+
+`certify_section_area` matches all five carrier kinds with no wildcard: a line takes no correction, a circle or an ellipse its term, and a spiric or NURBS section edge refuses `RunEdgeCarrierUnsupported`. A row reds on the chord.

@@ -67,3 +67,11 @@ take it soon. When it is fixed, pin both seeds as deterministic rows
 beside the fix.
 
 Moved from GERMCERT to GERM on 2026-11-02, by `git mv`, when GERMCERT merged into GERM: the track budget now counts only the P0, P1 and unbanded rows a sitting dispatches (Ev, in chat, 2026-11-02), so GERM, GERMCERT, ROOTS and APEX came in under one budget.
+
+## Another seed, at the default ε (2026-11-03, `onecopy/small-reads`)
+
+`cargo nextest run -p geom` on PR 6475's branch failed this test. That branch's geom diff is a doc comment and one new unit test, so the failure is not its own:
+
+> sup over the defect: 0.13233093034424084 (f64) / 0.13233093034424084 (Interval) < 0.132330930344241 at 23/64: a 0.03369404504116446 b 0.13233093034424084 t0 18.85412848563191 gap 1.2723748588382879e-2
+
+Reproduce: `CAD_FUZZ_SEED=0x6aefff4768992785 CAD_FUZZ_EFFORT=1`. Here the ceiling is `|b|`, not `|a|`, so the clamp at the ceiling bites from either coefficient.

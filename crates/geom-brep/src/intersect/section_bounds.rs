@@ -332,7 +332,10 @@ impl Quadric {
                     cos_a: Interval::from_certified(cos_a),
                 }
             }
-            Surface::Torus { .. } | Surface::Nurbs(_) | Surface::Approx(_) => return None,
+            Surface::Torus { .. }
+            | Surface::Spindle { .. }
+            | Surface::Nurbs(_)
+            | Surface::Approx(_) => return None,
         })
     }
 

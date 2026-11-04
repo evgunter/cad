@@ -259,6 +259,19 @@ impl<T: Real> Surface<T> {
                 minor_radius: f(*minor_radius),
                 u_ref: u_ref.map(&f),
             },
+            Surface::Spindle {
+                center,
+                axis,
+                major_radius,
+                minor_radius,
+                u_ref,
+            } => Surface::Spindle {
+                center: center.map(&f),
+                axis: axis.map(&f),
+                major_radius: f(*major_radius),
+                minor_radius: f(*minor_radius),
+                u_ref: u_ref.map(&f),
+            },
             Surface::Nurbs(n) => Surface::Nurbs(std::sync::Arc::new(n.map_scalar(&f))),
             Surface::Approx(a) => Surface::Approx(std::sync::Arc::new(a.map_scalar(&f))),
         }

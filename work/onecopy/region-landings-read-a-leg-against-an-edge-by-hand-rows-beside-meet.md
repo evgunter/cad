@@ -23,6 +23,16 @@ The rows are a plane crossing, a collinear test and first-harmonic roots. That i
 Fix: read each leg against each edge through `meet` (or the boundary pass), after checking what each `Landing` carries that a `Meeting` does not.
 
 
+## Tried on `onecopy/meet-reads` (PR 6477), and reverted
+
+What the callers need is what a `Meeting` carries. `region::offer` takes each landing's point, the edge's parameter there, and whether it lies within the band of an edge end. That is `Meeting::point`, `on_b`'s `Hit::On { t, .. }`, and `Hit::End`. A shared run is `Meetings::shared`, which today's `Roots::On` → `Leg::along` arms read. The leg is a bounded span once a ruling's far end is set past the edge's cover along it. A bounded leg's meeting at its own end is no crossing, as a cone's apex and an aimed path's corner already are.
+
+The lane routed all four doors through one `region::landings` over `meet`, gave each `Course` a `carrier`, and dropped `Legs::landings`. 216 of 218 region and point-in-solid rows passed. Two pinned rows went red:
+- `sphere_region::tests::a_slim_lunes_far_pole_reads_out_by_the_two_leg_path` (the blend4 fillet corner: sphere radius 8.726e-4, band (1e-6, 1e-5)): `Err(Escalated)` at 3e-3 rad, on `curve_pair_pose_swing`. The hand rows decide this pair by reading the extremes `c0 ± A1`.
+- `sphere_region::tests::the_aim_lies_in_the_face`, its "tiny cap" (rim 1e-4 rad): `curve_pair_pose_extreme` on the ray × rim pair. The hand rows decide it by reading the edge over the leg's plane.
+
+The lane attributed both reds to an on-surface premise. That was wrong, as "Decided" below says: both are `meet`'s own decision order and its parametrization. The fork is decided, and `onecopy/meet-pose` carries it.
+
 ## Decided (2026-11-03, two designers, agreed on first reports)
 
 The design-fork procedure weighed this; the draw is on `analysis/design-fork/onecopy-landings`. Both designers recommend the same final state. Neither fork option PR 6477 named is taken: a surface argument to `meet`, or an on-surface reader beside it, would be a second predicate for one fact and would extend C5. This elaborates `[one-way.readings]` and C5 as written, and lands without Ev.

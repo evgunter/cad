@@ -2,12 +2,12 @@
 id: a-foot-has-no-bare-parameter
 kind: unit
 title: Foot::t() goes: the parameter is OnCarrier::On's, Foot::nearest()'s or Foot::seed()'s; direction_at retires onto curved::tangent_on_interior; then the polish tie leaves the log (F32)
-status: parked
+status: dispatched
 opened: 2026-11-03
 priority: P1
 cost: M
 parent: a-foots-parameter-is-read-without-its-certificate
-blocked_on: [6475]
+branch: onecopy/foot-certificate
 ---
 
 

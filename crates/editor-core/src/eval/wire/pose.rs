@@ -677,7 +677,7 @@ fn read_off_body<T: crate::mate::SolveScalar>(
             ))
         }
         (K::Plane, _) => Err(fault(PoseReadFault::NotPlanar { carrier: kind })),
-        (K::Axis, S::Cylinder | S::Cone | S::Torus) => {
+        (K::Axis, S::Cylinder | S::Cone | S::Torus | S::Spindle) => {
             let face_pose = topo::readback::face_pose(body, face).map_err(readback)?;
             Ok(PoseValue::axis_through(
                 face_pose.origin,
@@ -685,7 +685,7 @@ fn read_off_body<T: crate::mate::SolveScalar>(
             ))
         }
         (K::Axis, _) => Err(fault(PoseReadFault::NoAxis { carrier })),
-        (K::Point, S::Sphere | S::Torus | S::Cone) => Ok(PoseValue::Point {
+        (K::Point, S::Sphere | S::Torus | S::Spindle | S::Cone) => Ok(PoseValue::Point {
             position: topo::readback::face_pose(body, face)
                 .map_err(readback)?
                 .origin,

@@ -940,6 +940,17 @@ E1c waits on the answer.
   - **P3:** the rest of the refusal-vocabulary residue.
   - **P4:** the frozen-node cost item.
   - Order: E2 → E3 → E4, E5 beside. `plane-nurbs-refusal-ending…` and the two second-spelling rows fit between units, wherever they touch different code from the unit in flight.
+- 2026-11-03 — **P1 `plane-nurbs-refusal-ending-groups-the-producers-refusals-into-none` merged** (PR 6474). Every `PlaneNurbsRefusal` and `AnalyticRung3Refusal` arm ends by its decision through an exhaustive match: no grouped `None`, no `_ =>`.
+  - Shared refusals end from one home with `PcurveCertifyError`:
+    - the placeholder wall ends in `PLACEHOLDER_RECOURSE`;
+    - `CarrierEnclosure` ends "not yet";
+    - an unsettled foot reads `SsiError::FootPointInconclusive`'s ending, which is now "not yet" at every reading, never a defect or a damaged file. That ending also corrects 6448's `FootUnsettled` and the SSI door's own golden.
+    - A wrong-lane call ends as `WrongLane`.
+    - The SSI flattens carry the `SsiError`'s own ending, which closes `wrappers-that-flatten-an-ssi-error-end-it-by-their-own-decision`.
+  - Review tier: single FULL. Review: APPROVE-WITH-FIXES, 0 MAJOR / 6 MINOR, with the fix list S read by the orchestrator.
+  - **The pose gap was reverted.** The lane had routed `GeneralLane` to the pose lever. The review found the gap also catches in-band poses *beside* a pole, where "split the edge at it" names no passage, and the same apex fact ending two ways. The 6448 pair stands, and the evidence is recorded on the row.
+  - The every-arm row now reads the other doors' homes, so the reviewer's mutant D reds at every door, and the edge-door lever is pinned by identity.
+  - Filed **`two-decision-tables-for-one-ending` (P1)**: `LaneDecision` and `pcurve_cache`'s `Decision` drift apart.
 - 2026-11-03 — **`harmonic3-circle-and-ellipse-arms-re-spell-conic-of` closed** (PR 6468): there was no code to change. PR 6349 (onehome) had already made `carrier_harmonic` read `Conic::of` / `semi_axis_vectors()`, bit-identical at f64 and at Interval. Filed `work/shell/topo-stands-and-shell-moved-walls-re-spell-a-conics-frame-by-kind.md`. Review tier: the orchestrator's read.
 - 2026-11-03 — **E2 merged** (PR 6470): a line on a cylinder has a general (projected) lane, as Ev ruled on `[ev]` PR 5186.
   - The lane: `has_lane` admits (Line, Cylinder), and check 4's line arm bounds incidence by a Bernstein convex-hull sup of ρ² − R², converted through the cylinder arm's own `over`.
@@ -960,3 +971,22 @@ E1c waits on the answer.
     - `a-ruling-read-in-band-meets-consumers-that-read-no-projected-image` (P2);
     - **`the-ruling-question-is-read-in-two-units` (P1)**: props meters a ruling's tilt over the edge, while the mint reads its radial speed per unit parameter.
   - Next: E4 and the projected-image second spelling (both on `projected.rs`), E5 after plane-nurbs, and E3.
+- 2026-11-04 — **E5 merged** (PR 6484): the mint-side class picks on a spline chart take the general lane in band (D3).
+  - The exact arc rim read in band now reads its fitted image, and the fitted path's own decision stands. `ArcRimRefusal::Escalated` is gone.
+  - `pick_arc_rim`: an in-band closed-form step no longer hides a measured row.
+  - `iso_schedule`: candidates read in band pass on to the general image.
+  - `nurbs_iso_derive`'s `arc_rim` arm is the one disposition for a circle in every description form. It reads the pick, then the row's certificate. If neither shows the circle, it refuses `NoGeneralLane{Unwritten}`, "not yet".
+  - Review tier: single FULL. Fix list T was read by the orchestrator:
+    - T1, option (b): a spline chart has no incidence test, so a circle off its wall ends "not yet" too. Filed P1, H.
+    - T2: one disposition per (Nurbs, Circle).
+    - T3: M7 is pinned.
+    - T4: the mutant table.
+    - T5: style.
+  - Cost about 0.95–1.0× main.
+  - Filed:
+    - `a-spline-chart-has-no-incidence-test-so-a-lane-choice-refusal-cannot-tell-off-from-uncovered` (P1);
+    - `a-curved-carriers-degree-one-general-image-ends-as-a-kernel-bug` (P1; E4's U2 class);
+    - `a-loft-section-rims-in-band-pick-offers-a-tolerance` (P2);
+    - `a-lane-choice-pick-splices-its-in-band-runs-live` (P2);
+    - `in-band-test-distances-are-spelled-five-ways` (P3).
+  - Next on `edge_nurbs.rs`: `two-decision-tables-for-one-ending`.
