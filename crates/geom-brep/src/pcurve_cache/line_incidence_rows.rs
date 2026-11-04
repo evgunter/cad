@@ -435,9 +435,9 @@ fn a_line_on_the_chart_or_inside_the_zero_band_is_not_read_off() {
 ///   the apex, off at the apex's kink.
 ///
 /// Each ends `CarrierOffChart` at the incidence door and at the mint, at
-/// both scalars. Red where the torus and spindle read no centre's foot
-/// or trust a quartic that vanishes on the axis, and under
-/// `sampled-line-incidence` for the narrow ones.
+/// both scalars. Red against a read that trusts a quartic, which
+/// vanishes on the axis, and under `sampled-line-incidence` for the
+/// narrow one (the cone chord).
 #[test]
 fn a_line_whose_candidate_forms_degenerate_is_read_off() {
     let f = Interval::from_f64;

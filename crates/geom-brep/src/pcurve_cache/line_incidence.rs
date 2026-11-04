@@ -35,8 +35,8 @@
 //!   (`ρ(τc)³ = R·v²d²/|u|²`). `ρ''` is monotone on either side of
 //!   `t*`, so `(q²)''` changes sign at most once a side and `(q²)'` is
 //!   monotone between the marks; for `R ≤ 0`, `d = 0` or `v = 0`,
-//!   `(q²)'' ≥ 2|u|² > 0` away from `t*`. The foot of the centre is
-//!   read too: on a line along the axis it is the one stationary point.
+//!   `(q²)'' ≥ 2|u|² > 0` away from `t*`. On a line along the axis
+//!   (no `t*`) the span is one piece, and its root is the centre's foot.
 //!
 //! The argument holds exactly for the line the data's `f64` middles
 //! name, whatever its pose: a line along or near the axis, through the
@@ -119,12 +119,7 @@ pub(super) fn critical_fractions<T: SpanLocate>(
             axis,
             major_radius,
             ..
-        } => {
-            let c = mid_point(center);
-            let mut ts = Axial::of(o, u, c, mid3(axis)).torus(middle(major_radius), span);
-            ts.push(centre_foot(c));
-            ts
-        }
+        } => Axial::of(o, u, mid_point(center), mid3(axis)).torus(middle(major_radius), span),
     };
     let mut fractions: Vec<f64> = ts
         .into_iter()
