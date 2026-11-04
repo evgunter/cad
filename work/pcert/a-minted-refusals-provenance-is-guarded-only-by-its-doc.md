@@ -49,3 +49,16 @@ Carry provenance on the walked row (`Walked::fresh`, or a
 `Walked<Minted>` / `Walked<Stored>` split) and have `minted_refusal`
 take that row, not a bare `Pcurve`. That way a stored row cannot reach
 the relabel without being constructed as minted.
+
+## The widened relabel's residual risk
+
+Recorded by the orchestrator from E4's delta verifier, on `a4f292287c`.
+`general_lane_refusal` relabels every `SectorRefused` channel of the
+mint's fresh image as `LaneGap::Pose`: Branch, Azimuth and Tube, as well
+as Lever. On a truly fresh image, a check-4 `SectorRefused { Azimuth |
+Branch }` means the mint's partition and its own certificate disagree.
+That is either an in-band split, which correctly ends "not yet", or a
+mint defect, which this relabel would now hide behind "not yet". The
+row `a_lane_choices_azimuth_refusal_ends_not_yet` reaches the azimuth arm
+only through a hand-edited image the mint never produces. A fix for this
+row should also tell those two cases apart.
