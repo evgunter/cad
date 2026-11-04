@@ -155,7 +155,7 @@ fn section_chords<T: Decide>(
             let d = u * w.dot(normal).abs() + w * u.dot(normal).abs();
             match decide(
                 "split_germ_line",
-                Margin::levered(d.norm(), crate::boolean::sectors::metering_arm(arm)),
+                Margin::levered(d.norm(), geom_brep::sector_shape::metering_arm(arm)),
                 band,
             ) {
                 Ok(Sign::Positive) => Ok((d.normalize(), arm, None)),
@@ -204,7 +204,7 @@ fn section_chords<T: Decide>(
             "split_germ_side",
             Margin::levered(
                 r.cross(g).dot(normal),
-                crate::boolean::sectors::metering_arm(arm),
+                geom_brep::sector_shape::metering_arm(arm),
             ),
             band,
         )
@@ -215,7 +215,7 @@ fn section_chords<T: Decide>(
             Sign::Zero => {
                 match decide_nonzero(
                     "split_germ_sense",
-                    Margin::levered(r.dot(g), crate::boolean::sectors::metering_arm(arm)),
+                    Margin::levered(r.dot(g), geom_brep::sector_shape::metering_arm(arm)),
                     band,
                 )
                 .map_err(order)?
@@ -251,7 +251,7 @@ fn section_chords<T: Decide>(
             let arm = g_arm.min(h_arm);
             let sine = Margin::levered(
                 h.cross(g).dot(normal),
-                crate::boolean::sectors::metering_arm(arm),
+                geom_brep::sector_shape::metering_arm(arm),
             );
             let sign = match decide("split_germ_order", sine, band).map_err(order)? {
                 Sign::Zero => curving(members[0], i, arm)?,
@@ -341,7 +341,7 @@ fn apex_germ<T: Decide>(
         face,
         reading,
     };
-    let arm = crate::boolean::sectors::metering_arm(u.dir.norm().min(w.dir.norm()));
+    let arm = geom_brep::sector_shape::metering_arm(u.dir.norm().min(w.dir.norm()));
     crate::chord_join::apex_section_ruling(
         body,
         band,
