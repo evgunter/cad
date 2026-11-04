@@ -103,7 +103,8 @@ impl<T: Decide> Body<T> {
         let dropped = if resolved.on_parent_chart {
             Vec::new()
         } else {
-            self.face_cycles(face)
+            self.half_edges_proven_whole([self.proven_face(face)])
+                .concat()
         };
 
         // ---- Mutation (infallible from here on). ----
@@ -299,7 +300,7 @@ impl<T: Decide> Body<T> {
             written: &written,
         };
         for m in faces.iter().filter(|m| !m.on_parent_chart) {
-            let edges = self.run_edges(&self.proven_face_half_edges(m.face));
+            let edges = self.run_edges(&self.proven_face(m.face).half_edges());
             let unvouched = self.unvouched(edges, moved, |f| f == m.face, &reading)?;
             if !unvouched.is_empty() && !refusals_lifted() {
                 return Err(EulerOpError::RechartUnvouched {
@@ -310,8 +311,10 @@ impl<T: Decide> Body<T> {
                 });
             }
         }
-        let dropped =
-            self.faces_cycles(faces.iter().filter(|m| !m.on_parent_chart).map(|m| m.face));
+        let recharted = faces.iter().filter(|m| !m.on_parent_chart);
+        let dropped = self
+            .half_edges_proven_whole(recharted.map(|m| self.proven_face(m.face)))
+            .concat();
 
         // ---- Mutation (infallible from here on). ----
         //
@@ -345,7 +348,7 @@ impl<T: Decide> Body<T> {
             f.surface = new;
             f.sense = m.sense;
         }
-        self.drop_rows(dropped.into_iter().flatten());
+        self.drop_rows(dropped);
         for (edge, sides, curve) in written.rows {
             let Some(rekeyed) = curve.with_remapped_surfaces(|k| key_of(sides.repoint(k))) else {
                 unreachable!("set_face_surfaces_describing: every moved chart was minted")
@@ -432,7 +435,7 @@ impl<T: Decide> Body<T> {
     fn moved_edges(&self, faces: &[MovedFace]) -> Vec<EdgeKey> {
         let mut edges: SecondaryMap<EdgeKey, ()> = SecondaryMap::new();
         for m in faces {
-            for he in self.proven_face_half_edges(m.face) {
+            for he in self.proven_face(m.face).half_edges() {
                 edges.insert(proven(&self.half_edges, he, EntityId::HalfEdge).edge, ());
             }
         }
@@ -455,7 +458,7 @@ impl<T: Decide> Body<T> {
                 }
                 let old = face_data.surface;
                 let resolved = self.resolve_face_surface(
-                    &chart.face_surface(wearer.sense),
+                    &chart.wearer_surface(wearer.sense),
                     face,
                     (old, face_data.sense),
                     ParentSide::With,
@@ -967,7 +970,7 @@ impl<T: Decide> Body<T> {
                 Slot::Kept(k) => self.same_chart(*surface, k),
                 Slot::Minted(chart) => charts
                     .get(chart)
-                    .is_some_and(|c| self.same_chart_spec(*surface, &c.face_surface(true))),
+                    .is_some_and(|c| self.same_chart_spec(*surface, &c.wearer_surface(true))),
             };
             if !same {
                 *image = None;
@@ -1443,7 +1446,7 @@ impl<T: Decide> Body<T> {
                     EntityId::Edge(edge),
                     field,
                 );
-                let face = crate::pcurves::half_edge_face(self, he).0;
+                let face = crate::pcurves::half_edge_face(self, he).key();
                 if self.description_remints(edge, face) {
                     touched.push(he_data.parent_loop);
                 }
@@ -1503,7 +1506,7 @@ impl<T: Decide> Body<T> {
         [edge_data.he_plus, edge_data.he_minus]
             .into_iter()
             .any(|h| {
-                crate::pcurves::half_edge_face(self, h).0 == face
+                crate::pcurves::half_edge_face(self, h).key() == face
                     && (null || !self.face_on_spline_chart(face))
             })
     }
@@ -1512,10 +1515,8 @@ impl<T: Decide> Body<T> {
     /// closed-form lane does not reach. `face` is one the caller
     /// resolved.
     fn face_on_spline_chart(&self, face: FaceKey) -> bool {
-        let face_data = proven(&self.faces, face, EntityId::Face);
-        self.face_surface_linked(face, face_data)
-            .spline_chart()
-            .is_some()
+        let view = self.proven_face(face);
+        view.surface().spline_chart().is_some()
     }
 
     /// The mutation half of every door that re-describes an existing
@@ -1651,7 +1652,7 @@ impl<T: Real> Rechart<T> {
     }
 
     /// The [`FaceSurface`] a face stating `sense` takes onto this chart.
-    fn face_surface(&self, sense: bool) -> FaceSurface<T> {
+    fn wearer_surface(&self, sense: bool) -> FaceSurface<T> {
         match &self.surface {
             ChartSurface::New(surface) => FaceSurface::New {
                 surface: surface.clone(),
@@ -4635,7 +4636,7 @@ mod tests {
         let side = body
             .faces()
             .map(|(f, _)| f)
-            .find(|&f| body.proven_face_half_edges(f).len() == 4)
+            .find(|&f| body.proven_face(f).half_edges().len() == 4)
             .expect("a prism has quadrilateral sides");
         let Some(&Surface::Plane { normal, .. }) = body.get_surface(surf(&body, side)) else {
             panic!("a prism's side is a plane")

@@ -207,6 +207,8 @@ pub use nary::{
     Apart, FaceDescent, JudgedRow, MemberFace, MemberInputs, NaryEnd, NaryJudgement, NaryMember,
     NaryOp, NaryRefusal, NaryRun, NaryStep, nary_boolean, nary_boolean_apart,
 };
+#[cfg(any(test, feature = "test-support"))]
+pub use ops::refused_face_kind;
 pub use ops::{
     BooleanBody, BooleanNaming, BooleanResult, BooleanResultKind, OperandKeys, Recharts,
     SettleError, Settler, boolean_op_with, intersect, subtract, union,
@@ -1834,7 +1836,7 @@ impl<T: Decide> GluedPairs<T> {
                 continue;
             }
             // The door verified every face a certificate names.
-            let surface = body(target).proven_face_surface(target.1);
+            let surface = body(target).proven_face(target.1).surface();
             *side = read_cover_side(body(parent), parent.1, surface, band);
         }
         Ok(pairs)
@@ -2093,7 +2095,7 @@ fn tangent_struts<T: Real>(
             geom_brep::EdgeDescription::TangentIntersection { .. }
         ) && crate::attach::Named::of_description(curve.description()).adjacent_at_rest(sides)
         {
-            let kind = |f| body.proven_face_surface(f).kind();
+            let kind = |f| body.proven_face(f).surface().kind();
             let (k1, k2) = (kind(f1), kind(f2));
             out.push((f1, k1, f2, k2));
             out.push((f2, k2, f1, k1));
@@ -2158,11 +2160,10 @@ pub struct HalfGerm<T: Real> {
 /// **Which loop of its face pair's section a germ rides.** On a pair the
 /// operation's section table holds, the loop is a component of the
 /// pair's carried section, by its index: the component the germ's site
-/// has its foot on ([`geom_brep::CarriedSection::foot`]). On the pairs
+/// has its foot on ([`geom_brep::CarriedSection::site`]). On the pairs
 /// read by a frame, a section of two loops — a plane cutting a torus in
-/// two circles or two ovals, two equal cylinders with intersecting axes
-/// in two bisector-plane ellipses — tells its loops apart by a margin at
-/// a point of the section (`ring_path::LoopSplit`); a section of two
+/// two circles or two ovals — tells its loops apart by a margin at a
+/// point of the section (`ring_path::LoopSplit`); a section of two
 /// lines through a point — a plane through a cone's apex — tells its
 /// lines apart by the line a germ's site lies on, or at the point the
 /// line it runs along. Each is decided
@@ -2175,11 +2176,12 @@ pub enum Branch {
     /// The section is one loop, loops sharing one frame, or one line;
     /// or the germ runs along an edge, whose own curve it rides.
     Only,
-    /// The loop on the split's positive side.
+    /// The loop on the split's positive side (a plane×torus section).
     Positive,
     /// The loop on its negative side.
     Negative,
-    /// The component of the pair's carried section with this index.
+    /// The component of the pair's carried section with this index: at
+    /// a node, the arc whose end the germ was minted from.
     Component(usize),
     /// The line with this index of a straight section of two lines
     /// through one point: a plane through a cone's apex, in the order
@@ -2789,13 +2791,13 @@ pub enum NodeWhy {
 }
 
 thread_local! {
-    /// Whether the pierce pass reads none of the branches the sweep
-    /// recorded ([`forget_branches`]).
+    /// Whether the pierce pass reads none of the bisector planes the
+    /// sweep recorded ([`forget_branches`]).
     static FORGET_BRANCHES: core::cell::Cell<bool> = const { core::cell::Cell::new(false) };
 }
 
 /// Makes every boolean on this thread read its pierces as though the
-/// sweep had recorded no branch for any of them, until called with
+/// sweep had recorded no bisector plane for any of them, until called with
 /// `false`: each pierce then reads the pierced face's tangent plane, the
 /// fallback a missing record takes (`vtxfac::classify_vertex_on_face`).
 /// `sweep-testing` only.
@@ -6159,9 +6161,9 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         tol,
     )?;
     let mut mints = core::mem::take(&mut acc.splits);
-    let mut branches = acc.take_branches();
+    let mut planes = acc.take_planes();
     if FORGET_BRANCHES.with(core::cell::Cell::get) {
-        branches.clear();
+        planes.clear();
     }
     let charts = acc.take_charts();
     let (mut contacts, mut pending) = acc.finish();
@@ -6220,7 +6222,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
                 &declared,
                 &contacts,
                 reread,
-                branches.get(&(operand, c.vertex)).copied(),
+                planes.get(&(operand, c.vertex)).copied(),
                 charts.get(&(operand, c.vertex, c.face)).copied(),
                 &tips[usize::from(operand == Operand::B)],
                 band,
@@ -6258,7 +6260,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
                             &declared,
                             &contacts,
                             rereads.get(&(operand, c.vertex)).copied(),
-                            branches.get(&(operand, c.vertex)).copied(),
+                            planes.get(&(operand, c.vertex)).copied(),
                             charts.get(&(operand, c.vertex, c.face)).copied(),
                             &tips[usize::from(operand == Operand::B)],
                             band,
@@ -7115,7 +7117,7 @@ fn given_verdicts<T: Decide>(
     band: Band,
 ) -> Result<VerifiedGlue<T>, BooleanError> {
     let invariant = |what| BooleanError::ClassificationInvariant { what };
-    let kind = |body: &Body<T>, f| body.proven_face_surface(f).kind();
+    let kind = |body: &Body<T>, f| body.proven_face(f).surface().kind();
     let pad = witness_pad::<T>(band);
     let mut verified = VerifiedGlue::default();
     for &GluedPair {
@@ -7470,8 +7472,8 @@ pub(crate) fn tangent_pair_at_rest<T: Decide>(
 /// record or the census names: its surface and sense.
 #[track_caller]
 fn record_face<T: Real>(body: &Body<T>, f: FaceKey) -> (&geom::Surface<T>, bool) {
-    let face = crate::live::proven(&body.faces, f, crate::entity::EntityId::Face);
-    (body.face_surface_linked(f, face), face.sense)
+    let face = body.proven_face(f);
+    (face.surface(), face.sense())
 }
 
 /// A record's tangent line known to run through both faces' interiors
@@ -7578,9 +7580,9 @@ fn glued_face<T: Real>(
 ) -> Result<(geom::Surface<T>, bool), BooleanError> {
     let invalid = |what| BooleanError::InvalidInput { operand, what };
     let face = body
-        .get_face(f)
+        .passed_face(f)
         .ok_or_else(|| invalid("a glued face's key does not resolve"))?;
-    Ok((body.face_surface_linked(f, face).clone(), face.sense))
+    Ok((face.surface().clone(), face.sense()))
 }
 
 /// **The glue door's tangency check** (C4's `Tangent`, claiming nothing
@@ -7900,16 +7902,16 @@ fn witness_span<T: Decide>(
 /// each circle and ellipse edge of `f`'s boundary, its carrier's two
 /// extremes; `None` where an edge is neither one nor a line, or `f`
 /// does not resolve. Every hop past the face is a link
-/// ([`Body::face_boundary_by_loop`]).
+/// ([`crate::live::FaceView::boundary_by_loop`]).
 fn conic_reach<T: Decide>(
     body: &Body<T>,
     f: FaceKey,
     along: impl Fn(Point3<T>) -> T,
     dir: geom_core::Vec3<T>,
 ) -> Option<Vec<T>> {
-    let face = body.get_face(f)?;
+    let face = body.passed_face(f)?;
     let mut out = Vec::new();
-    for (_, members, _) in body.face_boundary_by_loop(f, face) {
+    for (_, members, _) in face.boundary_by_loop() {
         for member in members {
             let BoundaryMember::Edge { ek, edge, .. } = member else {
                 continue;
@@ -8248,7 +8250,7 @@ fn boundary_cuts<T: Decide>(
 /// order; an empty loop contributes its lone vertex) — the witness-
 /// extent datum of `verify_tangent_declaration`. The face is the
 /// caller's declaration, so its miss is the operand's refusal; every hop
-/// past it is a link ([`Body::face_boundary_linked`]).
+/// past it is a link ([`crate::live::FaceView::boundary`]).
 fn face_boundary_points<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
@@ -8258,9 +8260,8 @@ fn face_boundary_points<T: Decide>(
         operand,
         what: "declared face's boundary is unwalkable",
     };
-    let f = body.get_face(face).ok_or_else(bad)?;
-    Ok(body
-        .face_boundary_linked(face, f)
+    let f = body.passed_face(face).ok_or_else(bad)?;
+    Ok(f.boundary()
         .map(|member| body.member_point(&member))
         .collect())
 }
@@ -8288,7 +8289,8 @@ fn validate_declarations<T: Decide>(
     // typed; every later read of it is proven.
     let inventory_face = |body: &Body<T>, f: FaceKey, operand| -> Result<(), BooleanError> {
         let surface = body
-            .face_surface(f)
+            .passed_face(f)
+            .map(|f| f.surface())
             .ok_or_else(|| bad(operand, "declared face key does not resolve"))?;
         if carrier_eq::in_inventory(surface.kind()) {
             Ok(())

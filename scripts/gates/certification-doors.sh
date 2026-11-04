@@ -220,13 +220,13 @@ CERT_IMPORTERS=(
   crates/geom-brep/src/props/bracket.rs
   crates/geom-brep/src/props/quad/area.rs
   crates/geom-brep/src/props/quad/cells.rs
-  crates/geom-brep/src/props/quad/cylinder.rs
   crates/geom-brep/src/props/quad/green.rs
   crates/geom-brep/src/props/quad/net.rs
   crates/geom-brep/src/props/quad/patch.rs
   crates/geom-brep/src/props/quad/rational.rs
+  crates/geom-brep/src/props/quad/rotational.rs
   crates/geom-brep/src/props/quad/run.rs
-  crates/geom-brep/src/props/quad/trig.rs
+  crates/geom-brep/src/props/trig.rs
   crates/geom-brep/src/props/quad/trimmed.rs
   crates/geom-brep/src/props/rational_rim.rs
   crates/geom-brep/src/props/spiric.rs
