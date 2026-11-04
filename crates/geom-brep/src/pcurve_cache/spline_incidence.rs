@@ -34,7 +34,8 @@
 //!
 //! **A weight not shown positive** leaves the cell's hull unproven, so
 //! its floor is the poison: its decision escalates with an unreadable
-//! margin, and the cell is kept. A chart built through
+//! margin, and the cell is kept as a leaf: quartering does not cure the
+//! poison, nor a poisoned net or sample. A chart built through
 //! [`geom::NurbsSurface::new`] holds positive weights on their value
 //! channel; only an enclosure reaching zero meets this.
 //!
