@@ -427,6 +427,58 @@ fn a_cusp_corner_is_left_to_second_order() {
     assert_eq!(verdict, SelfTouch::SecondOrder(TouchUnread::Unreadable));
 }
 
+/// **An elliptic edge's direction at a touch reads at its certified
+/// parameter, and where it does not read it refuses as itself**
+/// ([`half_edge_tangent`]): on an oblique wall's rim, one closed ellipse,
+/// at `f64` and at `Interval`. A point on the rim reads the tangent there,
+/// turned to each half. A point off it, which the span does not certify
+/// on its interior, is [`TouchUnread::EdgeTangent`], never
+/// [`TouchUnread::Unreadable`]: no second-order reading parts it, so it
+/// must not reach [`SelfTouch::SecondOrder`].
+#[test]
+fn an_elliptic_edges_direction_reads_at_its_certified_parameter_or_refuses_as_itself() {
+    fn rows<T: Decide + crate::props::AtRestPolicy + core::fmt::Debug>(
+        scalar: &str,
+        upper: fn(T) -> f64,
+    ) {
+        let (body, _, _) = crate::test_support_fixtures::oblique_rim_wall_in::<T>(0.4);
+        let (e, edge) = body.edges.iter().next().expect("the rim");
+        let rim = body
+            .curves
+            .get(edge.curve)
+            .and_then(crate::null::CurveGeom::certified)
+            .expect("the rim's certified curve")
+            .carrier()
+            .clone();
+        let t = T::from_f64(1.0);
+        let on = rim.eval(t);
+        let want = rim.deriv(t).normalize();
+        for (he, sign) in [(edge.he_plus, T::one()), (edge.he_minus, -T::one())] {
+            let (d, line, _) = half_edge_tangent(&body, he, on, band())
+                .unwrap_or_else(|why| panic!("{scalar}: on the rim, {why:?}"));
+            assert!(!line, "{scalar}: the rim is no line");
+            let gap = upper((d - want * sign).norm());
+            assert!(
+                gap < 1e-9,
+                "{scalar}: the tangent at t = 1 on {e:?}, off by {gap:e}"
+            );
+        }
+        let off = on + Vec3::new(T::zero(), T::zero(), T::from_f64(0.1));
+        let refused = half_edge_tangent(&body, edge.he_plus, off, band());
+        assert!(
+            matches!(
+                refused,
+                Err(TouchUnread::EdgeTangent(
+                    crate::link::EdgeTangentUnread::OffInterior
+                ))
+            ),
+            "{scalar}: a point the span does not certify refuses as itself, got {refused:?}"
+        );
+    }
+    rows::<f64>("f64", |x| x);
+    rows::<geom_core::Interval>("Interval", geom_core::Bounds::hi);
+}
+
 /// The arc of the circle about `center` of unit axis `axis` and radius
 /// `radius` that edge `e` runs along, the short way from its `he_plus`
 /// start to its end.

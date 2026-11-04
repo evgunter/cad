@@ -240,7 +240,7 @@ fn polished_feet<T: Decide>(
 ) -> Result<Vec<T>, geom_core::bisect::Exhausted> {
     let mut out: Vec<T> = Vec::new();
     for seed in feet(r, q, band)? {
-        let t = r.curve().foot(q, seed).t();
+        let t = r.curve().foot(q, seed).seed();
         if !out.iter().any(|&u| same(u, t)) {
             out.push(t);
         }
@@ -379,8 +379,8 @@ pub(super) fn meet<T: Decide>(
                     (ma, mb),
                     |m| step_taken(m, slack),
                 );
-                let t = rb.curve().foot(ra.curve().eval(s), t).t();
-                let s = ra.curve().foot(rb.curve().eval(t), s).t();
+                let t = rb.curve().foot(ra.curve().eval(s), t).seed();
+                let s = ra.curve().foot(rb.curve().eval(t), s).seed();
                 let q = ra.curve().eval(s);
                 found.offer(q, || read_both((a, &[s]), (b, &[t]), q, band), band);
                 return Step::Settled;

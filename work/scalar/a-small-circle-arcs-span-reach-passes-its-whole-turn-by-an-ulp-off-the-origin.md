@@ -5,12 +5,12 @@ title: A 1 mm circle arc's span reach from its centre, 1 km off the origin, pass
 status: open
 opened: 2026-11-03
 priority: P2
-refs: [a-unit-ellipse-arcs-span-reach-passes-its-whole-turn-by-an-ulp, a-conic-arcs-span-reach-passes-its-whole-turn-lever]
+refs: [a-conic-arcs-span-reach-passes-its-whole-turn-lever]
 ---
 
 Found by RESTREAD's 6422 verifier, red at merge base `82938e9734` too.
 No row under `work/` names this seed. The class is the unit ellipse's
-ulp case (`a-unit-ellipse-arcs-span-reach-passes-its-whole-turn-by-an-ulp`),
+ulp case (folded into `a-conic-arcs-span-reach-passes-its-whole-turn-lever` by PR 6483),
 here at a 1 mm radius about a centre a kilometre off.
 
 `crates/geom-brep/tests/span_reach_hunt.rs`

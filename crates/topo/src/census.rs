@@ -1861,6 +1861,10 @@ fn face_cone<T: Decide>(
                 (false, true) => false,
                 (false, false) => return Err(Unread::Unbuilt),
             };
+            // A straight edge's departure from the point is the edge
+            // itself out to its far vertex, so it is the snapshot's chord
+            // at its length, not a unit tangent ([`curved::edge_tangent_at`]):
+            // the corner's lever is that length.
             let along = match geo.line_edge(e) {
                 Some(g) => Departure::Exact(g.dir * g.len),
                 None => {
@@ -2194,12 +2198,22 @@ fn pair_contact<T: Decide>(
 /// `validate`'s segment readers match the carrier themselves, each
 /// answering its own question, not the snapshot's.
 pub(crate) fn edge_is_line<T: Real>(body: &Body<T>, ek: crate::entity::EdgeKey) -> bool {
+    edge_line(body, ek).is_some()
+}
+
+/// **Edge `ek`'s line**, where its certified carrier reads as one
+/// ([`geom::Curve3::as_line`]): the one reading of an edge's
+/// straightness, and of its line, that [`edge_is_line`] and
+/// [`curved::edge_tangent_at`] both ask.
+pub(crate) fn edge_line<T: Real>(
+    body: &Body<T>,
+    ek: crate::entity::EdgeKey,
+) -> Option<geom::Line<T>> {
     body.edges
         .get(ek)
         .and_then(|e| body.curves.get(e.curve))
         .and_then(CurveGeom::certified)
-        .map(geom_brep::EdgeCurve::carrier)
-        .is_some_and(|c| !c.is_curved())
+        .and_then(|c| c.carrier().as_line())
 }
 
 /// Builds the geometry snapshot: exact planar entities for the
@@ -7386,6 +7400,9 @@ pub(crate) enum Undecided {
     TouchDegenerate,
     /// Arm 2: a touch at a corner whose edge length is not a number.
     TouchChordScale,
+    /// Arm 2: a touch on a curved edge whose tangent there did not read
+    /// ([`TouchUnread::EdgeTangent`]).
+    TouchEdgeTangent,
     /// Arm 2: every vertex of the contained instance on the boundary.
     AllOn,
     /// Arm 2: the contained instance has no vertex.
@@ -7466,6 +7483,7 @@ impl Undecided {
                 | Self::TouchUnanalysed
                 | Self::TouchDegenerate
                 | Self::TouchChordScale
+                | Self::TouchEdgeTangent
         )
     }
 
@@ -7552,6 +7570,11 @@ impl Undecided {
                 "they touch at a corner with an edge too long or too short to measure. \
                  Recourse: rescale the model so every edge length is an ordinary number, \
                  or move them until their bounding boxes no longer overlap"
+            }
+            Self::TouchEdgeTangent => {
+                "they touch on a curved edge whose direction there the check could not read, \
+                 so it cannot tell whether they overlap. There is no way through yet for \
+                 this shape; otherwise move them until their bounding boxes no longer overlap"
             }
             Self::AllOn => {
                 "every corner of one lies on the other's boundary, so the corners cannot \
@@ -7830,6 +7853,7 @@ impl TouchUnread {
             Self::Unanalysed => Undecided::TouchUnanalysed,
             Self::Degenerate => Undecided::TouchDegenerate,
             Self::ChordScale => Undecided::TouchChordScale,
+            Self::EdgeTangent(_) => Undecided::TouchEdgeTangent,
             Self::Corrupt => Undecided::CorruptInstance,
         }
     }
@@ -7897,6 +7921,12 @@ impl TouchUnread {
                 "an edge there is too long or too short to measure. Recourse: rescale the \
                  model so every edge length is an ordinary number"
             }
+            Self::EdgeTangent(_) => concat!(
+                "a curved edge meets the point, and the check could not read its direction \
+                 there. ",
+                geom_core::not_yet_ending!(),
+                " for this shape"
+            ),
             Self::Corrupt => concat!(
                 "the part's topology there could not be walked. ",
                 geom_core::kernel_or_file_defect_ending!()
@@ -8833,7 +8863,7 @@ fn tangent_sectors<T: Decide>(
             if !held_edge(half.edge) || corner(half.start) || corner(end) {
                 continue;
             }
-            let (along, line, bend) = direction_at(body, he, p)?;
+            let (along, line, bend) = half_edge_tangent(body, he, p, band)?;
             let fan = TangentFan::Edge {
                 along,
                 reach: reach()?,
@@ -8942,32 +8972,37 @@ fn departure<T: Decide>(
     ))
 }
 
-/// Half-edge `he`'s unit direction at `p`, a point inside its edge,
-/// whether the edge is a line, and its curvature vector there: a line's
-/// chord, a curve's tangent and bend at `p`'s foot on its carrier.
-fn direction_at<T: Decide>(
+/// **Half-edge `he`'s unit direction at `p`**, a point inside its edge,
+/// whether the edge is a line, and its curvature vector there: the
+/// edge's tangent ([`curved::edge_tangent_at`]), turned to the half.
+/// Where it does not read it refuses as [`curved::edge_tangent_refusal`]
+/// says: a sign in band, or [`TouchUnread::EdgeTangent`] with its reason.
+/// Neither is a tangency a second-order reading would part.
+fn half_edge_tangent<T: Decide>(
     body: &Body<T>,
     he: HalfEdgeKey,
     p: Point3<T>,
+    band: Band,
 ) -> Result<(Vec3<T>, bool, Vec3<T>), TouchUnread> {
     let half = body.get_half_edge(he).ok_or(TouchUnread::Corrupt)?;
     let edge = body.get_edge(half.edge).ok_or(TouchUnread::Corrupt)?;
-    let curve = body
-        .curves
-        .get(edge.curve)
-        .and_then(crate::null::CurveGeom::certified)
-        .ok_or(TouchUnread::Unreadable)?;
-    let (t0, t1) = curve.params();
-    let line = matches!(curve.carrier(), geom::Curve3::Line(_));
-    let t = curve.carrier().foot(p, geom::mid_param(t0, t1)).t();
-    let deriv = curve.carrier().deriv(t);
-    let d = deriv.normalize();
-    let bend = if line {
-        Vec3::zero()
-    } else {
-        geom_brep::curvature_vector(deriv, curve.carrier().deriv2(t))
+    let mut refused = Vec::new();
+    let tangent = match curved::edge_tangent_at(body, half.edge, p, band, &mut refused) {
+        Some(Some(tangent)) => tangent,
+        Some(None) => {
+            return Err(TouchUnread::EdgeTangent(
+                crate::link::EdgeTangentUnread::OffInterior,
+            ));
+        }
+        None => return Err(curved::edge_tangent_refusal(&refused)),
     };
-    Ok((if he == edge.he_plus { d } else { -d }, line, bend))
+    let line = matches!(tangent, curved::EdgeTangent::Straight(_));
+    let d = tangent.dir();
+    Ok((
+        if he == edge.he_plus { d } else { -d },
+        line,
+        tangent.bend(),
+    ))
 }
 
 impl<T: Decide> Link<T> {
@@ -9027,7 +9062,7 @@ impl<T: Decide> Link<T> {
         let (mut planar, mut into, mut chords) = (Vec::new(), Vec::new(), Vec::new());
         for he in [halves.he_plus, halves.he_minus] {
             let f = body.face_of_half_edge(he).ok_or(TouchUnread::Corrupt)?;
-            let (along, _, _) = direction_at(body, he, p)?;
+            let (along, _, _) = half_edge_tangent(body, he, p, band)?;
             if planar_face(geo, f).is_some() {
                 into.push(outward(f)?.cross(along).normalize());
                 if !planar.contains(&f) {
