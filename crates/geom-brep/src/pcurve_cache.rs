@@ -9673,6 +9673,7 @@ fn derive_class<T: Decide>(
 #[must_use]
 pub fn chart_iso_zero<T: Decide>(
     carrier: &Curve3<T>,
+    span: (T, T),
     surface: &Surface<T>,
     band: Band,
 ) -> Option<geom_core::MarginDiag> {
@@ -9680,7 +9681,7 @@ pub fn chart_iso_zero<T: Decide>(
     derive_class_zero(
         carrier,
         surface,
-        Placement::own(carrier, surface),
+        Placement::over(span, carrier, surface),
         band,
         &mut zero,
     )

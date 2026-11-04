@@ -761,7 +761,7 @@ fn class_zero<T: Decide>(
     let zero = |e: EdgeKey| {
         body.get_edge(e)
             .and_then(|d| body.edge_curve_linked(e, d).certified())
-            .and_then(|c| geom_brep::chart_iso_zero(c.carrier(), surface, band))
+            .and_then(|c| geom_brep::chart_iso_zero(c.carrier(), c.params(), surface, band))
             .ok_or(BooleanError::JoinDesync {
                 what: "an edge the join read on an iso family reads no class Zero there",
             })
