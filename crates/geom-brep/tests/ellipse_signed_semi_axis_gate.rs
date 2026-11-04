@@ -18,9 +18,9 @@ use slotmap::SlotMap;
 /// `(a, b)` or swapped as `(b, a)` with `u_ref` along the minor axis, its
 /// quarter arc certifies; stored with `minor = −1` or with `major = −a`
 /// and `u_ref` flipped (each the same locus, one traversed the other way)
-/// it is refused as `SemiAxisNegative`, the kernel's defect at a
-/// build, not as a span that does not run forward: both semi-axes are
-/// positive at every door.
+/// it is refused as `SemiAxisNegative`, in its own lever at a build (the
+/// caller's input), not as a span that does not run forward: both
+/// semi-axes are positive at every door.
 #[test]
 fn the_gate_meters_either_order_and_refuses_a_negative_semi_axis() {
     let band = Band::linear(Tol::witness()).unwrap();
@@ -75,10 +75,12 @@ fn the_gate_meters_either_order_and_refuses_a_negative_semi_axis() {
         let Err(err @ CertifyError::SemiAxisNegative { .. }) = &got else {
             panic!("{what}: {:?}", got.map(|_| "certified"))
         };
-        assert_eq!(
-            err.ending(geom_brep::recourse::Reading::Build).as_deref(),
-            Some(geom_core::KERNEL_DEFECT_ENDING),
-            "{what}"
+        let build = err.ending(geom_brep::recourse::Reading::Build);
+        assert!(
+            build.as_deref().is_some_and(|ending| ending
+                .contains("store each semi-axis as its positive length")
+                && !ending.contains("defect")),
+            "{what}: the caller's lever at a build: {build:?}"
         );
     }
 }

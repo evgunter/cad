@@ -1017,18 +1017,19 @@ fn the_extremes_are_covered_at_their_50_digit_distance() {
     }
 }
 
-/// **A conic stored with a negative semi-axis is a defect, typed, at the
-/// edge certificate** (`CertifyError::SemiAxisNegative`), never a span
+/// **A conic stored with a negative semi-axis refuses typed at the edge
+/// certificate** (`CertifyError::SemiAxisNegative`), never as a span
 /// that does not run forward: the parallel of the unit sphere at height
 /// `0.6` stored as an ellipse with its first, its second or both
 /// semi-axes negative, and as a circle of negative radius, each described
 /// on the sphere's chart, at `f64` and at `Interval`. The positive
 /// spelling certifies, and a circle of zero radius, a collapsed length,
-/// is the span check's (`StatedInterval`). Each refusal renders the
-/// kernel's defect at a build, the stored culprit at rest and a damaged
-/// file at the import door. Red under `semi-axis-unchecked`.
+/// is the span check's (`StatedInterval`). Each refusal renders its own
+/// lever at a build, where it is the caller's input (the kernel mints
+/// none), the stored culprit's defect at rest and a damaged file at the
+/// import door. Red under `semi-axis-unchecked`.
 #[test]
-fn a_conic_stored_with_a_negative_semi_axis_is_a_defect() {
+fn a_conic_stored_with_a_negative_semi_axis_refuses_typed() {
     use crate::recourse::{ReadAt, Reading};
     use crate::{CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, SurfaceKey};
     let sphere = Surface::Sphere {
@@ -1091,8 +1092,9 @@ fn a_conic_stored_with_a_negative_semi_axis_is_a_defect() {
             "the positive spelling certifies ({lane}): {got:?}"
         );
     }
+    let lever = geom_core::lever_recourse(crate::certify::SEMI_AXIS_LEVER, None);
     let doors = [
-        (ReadAt::Run(Reading::Build), geom_core::KERNEL_DEFECT_ENDING),
+        (ReadAt::Run(Reading::Build), lever.as_str()),
         (
             ReadAt::Run(Reading::AtRest),
             geom_core::KERNEL_OR_FILE_DEFECT_ENDING,

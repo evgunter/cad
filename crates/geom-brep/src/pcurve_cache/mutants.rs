@@ -316,7 +316,7 @@ pub(crate) fn cone_terms_unprojected() -> bool {
 /// The edge certificate's semi-axis check skipped: a conic stored with
 /// a negative semi-axis reaches the span meter, which ends
 /// it as a span that does not run forward (its row is
-/// `ellipse_lane_rows::a_conic_stored_with_a_negative_semi_axis_is_a_defect`).
+/// `ellipse_lane_rows::a_conic_stored_with_a_negative_semi_axis_refuses_typed`).
 pub(crate) fn semi_axis_unchecked() -> bool {
     on("semi-axis-unchecked")
 }

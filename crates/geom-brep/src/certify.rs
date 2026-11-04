@@ -558,12 +558,15 @@ pub enum CertifyError {
         verdict: Refused,
     },
     /// **A conic carrier stores a negative semi-axis**: a circle's
-    /// radius, or either of an ellipse's semi-axes, below zero. Every door builds positive semi-axes, a STEP ellipse's are
-    /// positive lengths, and a signed one reverses the traversal, so the
-    /// record breaks the representation's invariant rather than spelling
-    /// the same edge: the kernel's defect at a build, the stored culprit
-    /// at rest, a damaged file at the import door. Decided once, at the
-    /// head of the span check, before any reader of the carrier's speed.
+    /// radius, or either of an ellipse's semi-axes, below zero. Every door
+    /// builds positive semi-axes, a STEP ellipse's are positive lengths,
+    /// and a signed one reverses the traversal, so the record breaks the
+    /// representation's invariant rather than spelling the same edge. The
+    /// kernel mints none, so at a build it is the caller's input and ends
+    /// in its lever (store the magnitude, flip the frame's normal to
+    /// reverse the traversal); at rest it is the stored culprit's defect,
+    /// and at the import door a damaged file. Decided once, at the head of
+    /// the span check, before any reader of the carrier's speed.
     /// A zero semi-axis is a collapsed length, read by the span check
     /// itself ([`CertifyError::StatedInterval`]).
     SemiAxisNegative {
@@ -1197,7 +1200,14 @@ impl CertifyError {
     pub(crate) fn own_ending(&self, at: ReadAt) -> Option<String> {
         match self {
             Self::StatedInterval { refused } => Some(refused.ending(at)),
-            Self::SemiAxisNegative { .. } => Some(crate::recourse::defect_ending(at).to_owned()),
+            Self::SemiAxisNegative { .. } => Some(match at {
+                // The kernel mints no negative semi-axis, so a build meets
+                // one only as its caller's input.
+                ReadAt::Run(crate::recourse::Reading::Build) => {
+                    geom_core::lever_recourse(SEMI_AXIS_LEVER, None)
+                }
+                _ => crate::recourse::defect_ending(at).to_owned(),
+            }),
             _ => self.incidence_read().map(|read| read.ending(at)),
         }
     }
@@ -1262,6 +1272,11 @@ const TANGENT_PLANES_UNDEFINED: &str = "a surface's gradient is zero or undefine
 /// a cylinder's axis and at a sphere's centre, and an enclosure reaches one
 /// when the point and the surface's axis are enclosed apart by more
 /// than the radius, as two images of one widened map are.
+/// The lever of a [`CertifyError::SemiAxisNegative`] at a build, where
+/// the record is the caller's input.
+pub(crate) const SEMI_AXIS_LEVER: &str = "store each semi-axis as its positive length, and reverse the \
+     traversal by flipping the frame's normal";
+
 const TANGENT_PLANES_RECOURSE: &str = "keep the edge clear of each surface's axis or centre; over \
      a parameter box, a narrower box encloses the edge and its surfaces closer to where they are";
 
