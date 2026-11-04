@@ -1022,3 +1022,21 @@ E1c waits on the answer.
     - `a-stored-foreign-rows-at-rest-ending-depends-on-the-scalar` (P2);
     - `a-minted-refusals-provenance-is-guarded-only-by-its-doc` (P2; the widened relabel's residual risk is recorded on it);
     - `the-cones-fidelity-lever-reads-the-boxs-spread-not-the-poses` (P2).
+- 2026-11-04 — **`the-projected-image-inverts-chart-points-by-a-second-spelling` merged** (PR 6500).
+  - ψ reads its channels through `geom::ChartChannels`, the table `ChartInverse::point` reads, and names each angle on its piece's branch through `Azimuth::about(Quarter)`. That rotation is exact and decides nothing, so ψ still evaluates at every scalar without a band.
+  - Branch centres are stored as `Quarter` and fail loud on a missing piece. `rotate_box` takes a `Quarter` on every arm.
+  - Two moved baselines, both in sector:
+    - the sphere latitude at z = −0.0 reads +0.0;
+    - at Interval, a coordinate with an end under 2^-960 can have a one-step tighter enclosure, inside the old one.
+
+    The kept row `old_formula_rows` holds the old spelling as the oracle.
+  - Ruling: `about` and onecopy's `near` are two questions, not one door. `near` decides against a `T` reference; `about` evaluates on a known quarter. This revised the first ruling after the review's MINOR-1(c). They name each other in their docs.
+  - Review tier: single FULL. Verdict APPROVE-WITH-FIXES:
+    - bit-identity in sector over ~27 M reads;
+    - 48,570 Interval boxes, 0 outside;
+    - cost about 1.01×.
+
+    Fix list Z was read by the orchestrator.
+  - Filed:
+    - `the-projected-box-forms-spell-the-point-reading-apart` (P2);
+    - two P2s and two P3s on other chart-point spellings (props, replace_face, derive_class, winds, sphere and torus pairs).

@@ -681,7 +681,11 @@ cylinder or a cone, that the chart's class readings do not show one of
 its own) stores the *projected image*, the
 chart's own inverse applied to the carrier, `P(t) = ψ(C(t))`: the
 carrier's net in the chart frame, plus a partition of the span into
-pieces that each stay in one `atan2` sector. On the plane it is the
+pieces that each stay in one `atan2` sector. Its channels are the
+chart's one reading of a point's coordinates (D3; `geom::ChartChannels`,
+the table `geom::ChartInverse::point` reads), each angle named on its
+piece's branch, which the sector condition decides at derivation, so
+evaluating the image decides nothing. On the plane it is the
 carrier's net mapped through the affine chart; on the cone its second
 channel is the coordinate of the carrier point's foot on the
 generator. `S(ψ(x))` is the point of the chart nearest `x`, so the
