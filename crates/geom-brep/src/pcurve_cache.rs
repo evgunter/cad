@@ -4398,7 +4398,6 @@ fn ssi_refusal(e: crate::ssi::SsiError) -> PcurveCertifyError {
         | E::ShortBranchUncertified { .. }
         | E::MarchStepInBand { .. }
         | E::MarchShortOfFit { .. }
-        | E::WindowShortOfWall { .. }
         | E::DomainUnusable { .. }
         | E::WrongLane { .. }
         | E::InvalidMarchTol { .. }
@@ -10307,19 +10306,34 @@ fn derive_class<T: Decide>(
                     // takes the chart's side, a D9 tie-break.
                     let (s_m, c_m) = place.mid().sin_cos();
                     let at_mid = radial(form.a * c_m + form.b * s_m);
-                    let toward = |along: Vec3<T>| match decide(
-                        "pcurve_sphere_chart_meridian_frame",
-                        Margin::levered(
-                            d_hat.dot(along),
-                            geom_core::Lever::curvature_radius(radius),
-                        ),
-                        band,
-                    ) {
-                        Ok(Sign::Negative) => Some(true),
-                        Ok(Sign::Positive) => Some(false),
-                        Ok(Sign::Zero) | Err(_) => None,
-                    };
-                    let turned = toward(u_ref).or_else(|| toward(cv)).unwrap_or(false);
+                    // The ladder over the frame's two axes
+                    // ([`crate::ladder::climb`]): `u_ref` chooses where it
+                    // decides, `cv` only where it does not (`First`).
+                    // Neither deciding is the tie-break's case, not a
+                    // refusal.
+                    let turned = crate::ladder::climb(
+                        crate::ladder::Answering::First,
+                        [u_ref, cv],
+                        |along| {
+                            crate::ladder::Rung::decide(
+                                "pcurve_sphere_chart_meridian_frame",
+                                Margin::levered(
+                                    d_hat.dot(along),
+                                    geom_core::Lever::curvature_radius(radius),
+                                ),
+                                band,
+                                |d| match d.sign {
+                                    Sign::Negative => Some(true),
+                                    Sign::Positive => Some(false),
+                                    Sign::Zero => None,
+                                },
+                            )
+                        },
+                    )
+                    .into_reading()
+                    .ok()
+                    .flatten()
+                    .unwrap_or(false);
                     let chart_side = if turned {
                         d_hat * (T::zero() - T::one())
                     } else {
