@@ -20,7 +20,10 @@
 //! The boolean's output stages run it after the merge ([`join_stage`])
 //! and write, per join, the substitution rows that carry every contact
 //! record naming the cells it replaces onto the edge it makes, through
-//! the op's one substitution door ([`super::ops::carry`]).
+//! the op's one substitution door ([`super::ops::carry`]),
+//! and hand back the class Zero of each join made on an iso family
+//! ([`ClassZero`]), which the op records as a coincidence
+//! (`[coincidence.door]`).
 //!
 //! Joinable is one predicate ([`joinable`]), shared by the join and by
 //! [`joinable_vertices`]. The two edges' face pairs are one pair of
@@ -111,6 +114,24 @@ struct Join {
     far: VertexKey,
     closed: bool,
     planar: bool,
+    /// Where the two edges are one on an iso family their carriers were
+    /// read on, the Zero that reading stands on: the most either carrier
+    /// misses the family by ([`geom_brep::IsoReading::zero`],
+    /// [`geom_core::MarginDiag::worst`]).
+    class: Option<geom_core::MarginDiag>,
+}
+
+/// **The class Zero a join acted on**: `gone` and `kept` (keys as the
+/// join found them) were made one edge because each carrier was read on
+/// one iso family of one chart, and `margin` is the most either carrier
+/// misses that family by: the larger of both readings' Zeros
+/// ([`geom_brep::IsoReading::zero`]). The boolean records
+/// it as a coincidence (`[coincidence.door]`).
+#[derive(Clone, Copy, Debug)]
+pub(super) struct ClassZero {
+    pub(super) gone: EdgeKey,
+    pub(super) kept: EdgeKey,
+    pub(super) margin: geom_core::MarginDiag,
 }
 
 /// **What each edge a run of joins made covers**, read off the joins'
@@ -502,13 +523,14 @@ fn joinable<T: Decide>(
     let (Some(far), Some(far2)) = (far_of(*h1), far_of(*h2)) else {
         return Ok(None);
     };
-    let join = |planar| Join {
+    let join = |planar, class| Join {
         he,
         gone: e1,
         kept: e2,
         far,
         closed: far == far2,
         planar,
+        class,
     };
     let (sf, sg) = s1.surfaces();
     let surface = |side: crate::readback::EdgeSide| {
@@ -531,7 +553,7 @@ fn joinable<T: Decide>(
             })
         };
         let joins = sf != sg && on_the_pair(e1, d1) && on_the_pair(e2, d2);
-        return Ok(joins.then(|| join(true)));
+        return Ok(joins.then(|| join(true, None)));
     }
     let undecided = |reading| JoinUndecided { vertex: w, reading };
     let locus_of = |e: EdgeKey, d| {
@@ -542,28 +564,28 @@ fn joinable<T: Decide>(
             geom_brep::EdgeDescription::Intersection { pair, .. }
                 if sf != sg && *pair == geom_brep::SurfacePair::new(sf, sg) =>
             {
-                Some(Locus::Transverse)
+                Some((Locus::Transverse, None))
             }
             geom_brep::EdgeDescription::TangentIntersection { pair, .. }
                 if sf != sg && *pair == geom_brep::SurfacePair::new(sf, sg) =>
             {
-                Some(Locus::Tangent)
+                Some((Locus::Tangent, None))
             }
             geom_brep::EdgeDescription::Chart(chart) if sf == sg && chart.surface == sf => {
                 geom_brep::chart_iso_family(c.carrier(), c.params(), surf_f, band)
                     .map_err(|e| undecided(JoinReading::ChartClass(e)))?
-                    .map(Locus::Iso)
+                    .map(|read| (Locus::Iso(read.family), Some(read.zero)))
             }
             geom_brep::EdgeDescription::OnPair { pair }
                 if sf != sg && *pair == geom_brep::SurfacePair::new(sf, sg) =>
             {
                 let mut found = None;
                 for (minus, s) in [(false, surf_f), (true, surf_g)] {
-                    if let Some(family) =
+                    if let Some(read) =
                         geom_brep::chart_iso_family(c.carrier(), c.params(), s, band)
                             .map_err(|e| undecided(JoinReading::ChartClass(e)))?
                     {
-                        found = Some(Locus::PairIso(minus, family));
+                        found = Some((Locus::PairIso(minus, read.family), Some(read.zero)));
                         break;
                     }
                 }
@@ -576,10 +598,15 @@ fn joinable<T: Decide>(
             | geom_brep::EdgeDescription::Scaffold(_) => None,
         })
     };
-    let Some(locus) = locus_of(e1, d1)? else {
+    // Each iso reading's Zero rides beside its locus, which alone is
+    // compared.
+    let Some((locus, gone_zero)) = locus_of(e1, d1)? else {
         return Ok(None);
     };
-    if locus_of(e2, d2)? != Some(locus) {
+    let Some((kept_locus, kept_zero)) = locus_of(e2, d2)? else {
+        return Ok(None);
+    };
+    if kept_locus != locus {
         return Ok(None);
     }
     let regularity = |diag| undecided(JoinReading::Regularity(diag));
@@ -590,7 +617,8 @@ fn joinable<T: Decide>(
         }
     }
     if matches!(locus, Locus::Iso(_) | Locus::PairIso(..)) {
-        return Ok(Some(join(false)));
+        let zero = kept_zero.zip(gone_zero).map(|(k, g)| k.worst(g));
+        return Ok(Some(join(false, zero)));
     }
     // The pair's reading at `w`, levered at the two faces' extent as
     // every reader of their wedge is (`crate::wedge_reach`), read from
@@ -618,7 +646,7 @@ fn joinable<T: Decide>(
         }
         _ => false,
     };
-    Ok(regular.then(|| join(false)))
+    Ok(regular.then(|| join(false, None)))
 }
 
 /// `e`'s carrier tangent at its end `w`.
@@ -691,6 +719,9 @@ pub(crate) fn joinable_at_rest<T: Decide>(
 /// merge), the edge it was split from
 /// ([`super::BooleanNaming::killed_lineage`]).
 ///
+/// Returns the joins, and the class Zero of each one made on an
+/// iso-family reading ([`ClassZero`]), which the op records.
+///
 /// # Errors
 ///
 /// As [`Body::join_edges`](crate::construction::Construct::join_edges).
@@ -702,11 +733,11 @@ pub(super) fn join_stage<T: Decide + crate::props::AtRestPolicy>(
     lineage: &mut BTreeMap<EdgeKey, EdgeKey>,
     band: Band,
     tol: Tol,
-) -> Result<Vec<EdgeJoin>, BooleanError> {
+) -> Result<(Vec<EdgeJoin>, Vec<ClassZero>), BooleanError> {
     // The boolean's own surgery body, re-minted whole after the carry:
     // no staging and no re-mint here.
     let free = free_vertices(body, recorded);
-    let (joined, _) = join_all(body, band, tol, &|_| true, &free)?;
+    let (joined, _, zeros) = join_all(body, band, tol, &|_| true, &free)?;
     for j in &joined {
         desc.substitute((Cell::Vertex(j.vertex), Cell::Edge(j.kept)))?;
         desc.substitute((Cell::Edge(j.gone), Cell::Edge(j.kept)))?;
@@ -715,7 +746,7 @@ pub(super) fn join_stage<T: Decide + crate::props::AtRestPolicy>(
         }
     }
     record_killed_lineage(lineage, split_from, joined.iter().map(|j| j.gone));
-    Ok(joined)
+    Ok((joined, zeros))
 }
 
 /// Each edge of `body` with a `SplitEdge` record → the edge it was
@@ -903,7 +934,7 @@ impl<T: Decide + crate::props::AtRestPolicy> Body<T> {
         // Staged: a refusal past the first kill leaves `self` as found.
         let mut work = self.clone();
         let mut staged = work.begin_surgery();
-        let (joined, _) = join_all(&mut staged, band, tol, &|_| true, &BTreeSet::new())?;
+        let (joined, _, _) = join_all(&mut staged, band, tol, &|_| true, &BTreeSet::new())?;
         // A kill leaves the rows keyed by its half-edges; a body that
         // carried rows has them re-derived whole (`pcurves::mint_pcurves`
         // clears the map first), so none is left keyed by a dead cell.
@@ -925,7 +956,7 @@ impl<T: Decide + crate::props::AtRestPolicy> Body<T> {
         within: &dyn Fn(VertexKey) -> bool,
     ) -> Result<Vec<EdgeJoin>, BooleanError> {
         let mut body = self.begin_surgery();
-        let (joined, dead) = join_all(&mut body, band, tol, within, &BTreeSet::new())?;
+        let (joined, dead, _) = join_all(&mut body, band, tol, within, &BTreeSet::new())?;
         if joined.is_empty() {
             // No kill ran: the body is as the caller handed it, so this
             // call has no postcondition to sweep.
@@ -949,6 +980,10 @@ impl<T: Decide + crate::props::AtRestPolicy> Body<T> {
     }
 }
 
+/// What [`join_all`] made: the joins in order, the half-edges they
+/// killed, and the class Zero of each join that acted on one.
+type Joined = (Vec<EdgeJoin>, Vec<HalfEdgeKey>, Vec<ClassZero>);
+
 /// [`Body::join_edges`](crate::construction::Construct::join_edges)' loop, on the staged body.
 fn join_all<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
@@ -956,9 +991,10 @@ fn join_all<T: Decide + crate::props::AtRestPolicy>(
     tol: Tol,
     within: &dyn Fn(VertexKey) -> bool,
     free: &BTreeSet<VertexKey>,
-) -> Result<(Vec<EdgeJoin>, Vec<HalfEdgeKey>), BooleanError> {
+) -> Result<Joined, BooleanError> {
     let mut joined = Vec::new();
     let mut dead = Vec::new();
+    let mut zeros = Vec::new();
     loop {
         let pass = Pass::of(body, free);
         let mut next = None;
@@ -969,8 +1005,15 @@ fn join_all<T: Decide + crate::props::AtRestPolicy>(
             }
         }
         let Some((w, join)) = next else {
-            return Ok((joined, dead));
+            return Ok((joined, dead, zeros));
         };
+        if let Some(margin) = join.class {
+            zeros.push(ClassZero {
+                gone: join.gone,
+                kept: join.kept,
+                margin,
+            });
+        }
         if let Some(gone) = body.get_edge(join.gone) {
             dead.extend([gone.he_plus, gone.he_minus]);
         }
@@ -1819,14 +1862,14 @@ mod undecided_text {
                 "a chart-class value",
                 chart_class(MarginDiag::value(5e-9)),
                 "whether an edge meeting another at a vertex on one curve runs along a \
-                 cylinder's ruling or around it is undecided: margin 5e-9 lies inside the \
+                 ruling of its chart or around it is undecided: margin 5e-9 lies inside the \
                  ambiguity band (1e-9, 1e-8). Recourse: move the geometry",
             ),
             (
                 "a chart-class straddle",
                 chart_class(MarginDiag::enclosure(-2e-9, 5e-9)),
                 "whether an edge meeting another at a vertex on one curve runs along a \
-                 cylinder's ruling or around it is undecided: enclosure [-2e-9, 5e-9] cannot be \
+                 ruling of its chart or around it is undecided: enclosure [-2e-9, 5e-9] cannot be \
                  classified against the ambiguity band (1e-9, 1e-8). Recourse: move the \
                  geometry",
             ),
@@ -1834,7 +1877,7 @@ mod undecided_text {
                 "an unreadable chart-class margin",
                 chart_class(MarginDiag::INVALID),
                 "whether an edge meeting another at a vertex on one curve runs along a \
-                 cylinder's ruling or around it is undecided: margin is invalid (NaN or a \
+                 ruling of its chart or around it is undecided: margin is invalid (NaN or a \
                  refused enclosure) against the ambiguity band (1e-9, 1e-8). Recourse: move the \
                  geometry; an unreadable margin may indicate a kernel bug worth reporting",
             ),
@@ -1929,5 +1972,454 @@ mod kernel_text {
         for (door, got, ending) in rows {
             assert_eq!(got, format!("{lead}{ending}"), "{door}");
         }
+    }
+}
+
+#[cfg(test)]
+mod class_zero_rows {
+    //! **The class Zero a join acts on** ([`ClassZero`]): a sphere cap
+    //! whose rim is two arcs through one pair of points, the upper on
+    //! the parallel at `z = ½`, the lower on a circle through the same
+    //! two points tilted about `x` by `tilt` (at zero tilt the same
+    //! parallel, written with another reference direction, so the two
+    //! carriers are not one by content). Joined, the two arcs are one
+    //! closed rim, and each was read on the chart's parallels: the join
+    //! hands back that reading's Zero; definite, the tilt keeps the two
+    //! arcs. A cylinder wall's ruling split and its upper piece restated
+    //! on its own line (`ruled`) joins back on the same reading, its Zero
+    //! covering how far the piece stands off the wall. A ruling bent in
+    //! band (`bent`: its corner moved round the wall, so each piece
+    //! leaves the ruling within the band over its span) refuses typed,
+    //! ending on its lever.
+    #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+    use std::collections::BTreeSet;
+
+    use geom_core::{Band, Decide, Point3, Tol, Vec3};
+
+    use super::{BooleanError, JoinReading, join_all};
+    use crate::body::Body;
+    use crate::construction::{FaceSurface, MefSite, MevSite};
+
+    const Z1: f64 = 0.5;
+
+    /// The cap of the unit sphere above its rim (module docs), the lower
+    /// arc on the circle tilted by `tilt` radians; `grow` grows the upper
+    /// arc's radius and the lower's by its two values (off the sphere by
+    /// about that, which only the incidence test reads: the tilt and
+    /// centre gates read nothing).
+    fn cap<T: Decide + crate::props::AtRestPolicy>(
+        tilt: f64,
+        (grow_upper, grow): (f64, f64),
+        tol: Tol,
+    ) -> Body<T> {
+        let tau = core::f64::consts::TAU;
+        let c = T::from_f64;
+        let p3 = |[x, y, z]: [f64; 3]| Point3::new(c(x), c(y), c(z));
+        let v3 = |[x, y, z]: [f64; 3]| Vec3::new(c(x), c(y), c(z));
+        let r1 = (1.0 - Z1 * Z1).sqrt();
+        let (east, west) = ([r1, 0.0, Z1], [-r1, 0.0, Z1]);
+        // The tilted circle: the sphere's section by the plane through
+        // the chord `east`–`west` with normal `n`, centred at the foot of
+        // the sphere's centre on it, its reference direction off the
+        // chord so the parallel's twin is another carrier.
+        let n = [0.0, -tilt.sin(), tilt.cos()];
+        let h = Z1 * tilt.cos();
+        let centre = n.map(|k| k * h);
+        let rho = (1.0 - h * h).sqrt();
+        let cross = |a: [f64; 3], b: [f64; 3]| {
+            [
+                a[1] * b[2] - a[2] * b[1],
+                a[2] * b[0] - a[0] * b[2],
+                a[0] * b[1] - a[1] * b[0],
+            ]
+        };
+        let dot = |a: [f64; 3], b: [f64; 3]| a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+        // In the plane, off the chord's direction by 0.3 rad.
+        let beta = 0.3_f64;
+        let u_ref: [f64; 3] = core::array::from_fn(|i| {
+            beta.cos() * [1.0, 0.0, 0.0][i] + beta.sin() * cross(n, [1.0, 0.0, 0.0])[i]
+        });
+        // The lower arc runs west → east through `y < 0`, so the carrier's
+        // axis is whichever of `±n` turns it that way.
+        let arc = |axis: [f64; 3]| {
+            let v = cross(axis, u_ref);
+            let angle = |p: [f64; 3]| {
+                let d: [f64; 3] = core::array::from_fn(|i| p[i] - centre[i]);
+                dot(d, v).atan2(dot(d, u_ref)).rem_euclid(tau)
+            };
+            let t0 = angle(west);
+            let t1 = angle(east) + if angle(east) < t0 { tau } else { 0.0 };
+            let mid = 0.5 * (t0 + t1);
+            let y = rho * (mid.cos() * u_ref[1] + mid.sin() * v[1]);
+            (axis, t0, t1, y)
+        };
+        let (axis, t0, t1) = match arc(n) {
+            (axis, t0, t1, y) if y < 0.0 => (axis, t0, t1),
+            _ => {
+                let (axis, t0, t1, _) = arc(n.map(|k| -k));
+                (axis, t0, t1)
+            }
+        };
+        let lower = geom::Curve3::circle(p3(centre), v3(axis), c(rho + grow), v3(u_ref));
+        let upper = geom::Curve3::circle(
+            p3([0.0, 0.0, Z1]),
+            Vec3::unit_z(),
+            c(r1 + grow_upper),
+            Vec3::unit_x(),
+        );
+        let mut body = Body::<T>::new();
+        let seed = body.mvfs(p3(east), true).unwrap();
+        body.set_face_surface(
+            seed.face,
+            FaceSurface::New {
+                surface: geom::Surface::Sphere {
+                    center: Point3::origin(),
+                    radius: c(1.0),
+                    axis: Vec3::unit_z(),
+                    u_ref: Vec3::unit_x(),
+                },
+                sense: true,
+            },
+        )
+        .unwrap();
+        let half = body
+            .mev(
+                MevSite::Lone {
+                    r#loop: seed.r#loop,
+                },
+                p3(west),
+                geom_brep::EdgeCurveSpec::arc_of_circle(upper, c(0.0), c(core::f64::consts::PI))
+                    .unwrap(),
+                tol,
+            )
+            .unwrap();
+        let below = body
+            .mef(
+                MefSite::Chords {
+                    he1: half.he_minus,
+                    he2: half.he_plus,
+                },
+                geom_brep::EdgeCurveSpec::arc_of_circle(lower, c(t0), c(t1)).unwrap(),
+                FaceSurface::Inherit,
+                tol,
+            )
+            .unwrap();
+        for edge in [half.edge, below.edge] {
+            body.describe_at_rest(edge, tol).unwrap();
+        }
+        crate::mint_pcurves(&mut body, tol).unwrap();
+        body
+    }
+
+    fn joined<T: Decide + crate::props::AtRestPolicy>(
+        tilt: f64,
+        grow: (f64, f64),
+    ) -> Result<(usize, Vec<super::ClassZero>, Band), BooleanError> {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let mut body = cap::<T>(tilt, grow, tol);
+        let (joins, _, zeros) = join_all(&mut body, band, tol, &|_| true, &BTreeSet::new())?;
+        Ok((joins.len(), zeros, band))
+    }
+
+    fn the_parallels_join_and_hand_back_their_zero<T: Decide + crate::props::AtRestPolicy>(
+        scalar: &str,
+    ) {
+        // One arc off the sphere by half the band's zero, the upper, then
+        // the lower: its incidence reads it, its class gates read nothing,
+        // and the row carries it whichever arc the join keeps.
+        let off = 0.5 * Tol::witness().eps();
+        for grow in [(off, 0.0), (0.0, off)] {
+            let (joins, zeros, band) = joined::<T>(0.0, grow).unwrap();
+            assert_eq!(
+                joins, 1,
+                "{scalar}, {grow:?}: the two arcs of one parallel are one rim"
+            );
+            let [zero] = zeros.as_slice() else {
+                panic!("{scalar}, {grow:?}: one class Zero for the one join, got {zeros:?}");
+            };
+            assert_ne!(
+                zero.gone, zero.kept,
+                "{scalar}, {grow:?}: the Zero names both arcs"
+            );
+            let reading = zero.margin.diagnostic_f64_for_error_text();
+            let reach = match reading {
+                geom_core::ErrorTextReading::Value(v) => v.abs(),
+                geom_core::ErrorTextReading::Enclosure { lo, hi } => lo.abs().max(hi.abs()),
+                other => panic!("{scalar}, {grow:?}: the Zero reads a margin, got {other:?}"),
+            };
+            assert!(
+                reach <= band.zero() && reach >= 0.4 * off,
+                "{scalar}, {grow:?}: the margin is a Zero covering the arc's miss ({off:e}), \
+                 got {reading:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn the_parallels_join_and_hand_back_their_zero_at_f64() {
+        the_parallels_join_and_hand_back_their_zero::<f64>("f64");
+    }
+
+    #[test]
+    fn the_parallels_join_and_hand_back_their_zero_at_interval() {
+        the_parallels_join_and_hand_back_their_zero::<geom_core::Interval>("interval");
+    }
+
+    /// Where the wall starts, off the chart's seam.
+    const U0: f64 = 0.3;
+
+    /// An open wall of the unit cylinder about `z` over `u ∈ [U0, U0 + 1]`,
+    /// `v ∈ [0, 0.4]`, its ruling at `u = U0` split at `v = 0.2` and the
+    /// upper piece restated on its own line through the split point,
+    /// parallel to the axis and `off` out from the wall, so the two
+    /// carriers are not one by content.
+    fn ruled<T: Decide + crate::props::AtRestPolicy>(off: f64, tol: Tol) -> Body<T> {
+        let c = T::from_f64;
+        let mut body = Body::<T>::new();
+        let face = crate::test_support::cyl_wall_sheet(
+            &mut body,
+            crate::test_support::CylFrame {
+                origin: geom_core::Point3::origin(),
+                axis: Vec3::unit_z(),
+                radius: 1.0,
+                u_ref: Vec3::unit_x(),
+            },
+            (U0, U0 + 1.0),
+            (0.0, 0.4),
+            tol,
+        );
+        let surface = body.get_face(face).unwrap().surface;
+        let on_ruling = |e: &crate::entity::Edge| {
+            let curve = body.get_curve_geom(e.curve).unwrap().certified().unwrap();
+            let geom::Curve3::Line(line) = curve.carrier() else {
+                return false;
+            };
+            let f = |x: T| x.plain_constant().unwrap_or(f64::NAN);
+            (f(line.origin.x) - U0.cos()).abs() < 1e-12
+                && (f(line.origin.y) - U0.sin()).abs() < 1e-12
+        };
+        let ruling = body
+            .edges()
+            .find(|(_, e)| on_ruling(e))
+            .map(|(k, _)| k)
+            .expect("the sheet has a ruling at u = 0");
+        let (t0, t1) = body
+            .get_curve_geom(body.get_edge(ruling).unwrap().curve)
+            .unwrap()
+            .certified()
+            .unwrap()
+            .params();
+        let split = body.split_edge(ruling, (t0 + t1) * c(0.5), tol).unwrap();
+        let end = |h: crate::entity::HalfEdgeKey| {
+            let v = body.get_half_edge(h).unwrap().start;
+            *body.get_point(body.get_vertex(v).unwrap().point).unwrap()
+        };
+        let (from, to) = (end(split.he_plus), end(split.he_minus));
+        let up = if (to.z - from.z).plain_constant().unwrap_or(f64::NAN) > 0.0 {
+            1.0
+        } else {
+            -1.0
+        };
+        let (s0, c0) = U0.sin_cos();
+        let dir = Vec3::new(c(0.0), c(0.0), c(up));
+        let length = (to - from).norm();
+        let spec = geom_brep::EdgeCurveSpec {
+            description: geom_brep::EdgeDescriptionSpec::chart(surface),
+            carrier: geom::Curve3::Line(geom::Line {
+                origin: from + Vec3::new(c(c0 * off), c(s0 * off), c(0.0)),
+                dir,
+            }),
+            param_start: c(0.0),
+            param_end: length,
+        };
+        body.set_edge_curve(split.new_edge, spec, tol).unwrap();
+        body.describe_at_rest(ruling, tol).unwrap();
+        crate::mint_pcurves(&mut body, tol).unwrap();
+        body
+    }
+
+    /// The wall of [`ruled`], its top corner on the ruling at `u = U0`
+    /// moved round the wall by `shift` (an arc length on the unit
+    /// radius), and that ruling restated as the line from its foot to the
+    /// moved corner, then split at its middle: two pieces of one line,
+    /// each leaving the ruling by `shift / 2` over its span. Its ends stay
+    /// on their vertices, so the edge certifies, and its class reading
+    /// is metered over each piece (`geom_brep::ruling_miss`).
+    fn bent<T: Decide + crate::props::AtRestPolicy>(shift: f64, tol: Tol) -> Body<T> {
+        let c = T::from_f64;
+        let f = |x: T| x.plain_constant().unwrap_or(f64::NAN);
+        let mut body = Body::<T>::new();
+        let face = crate::test_support::cyl_wall_sheet(
+            &mut body,
+            crate::test_support::CylFrame {
+                origin: geom_core::Point3::origin(),
+                axis: Vec3::unit_z(),
+                radius: 1.0,
+                u_ref: Vec3::unit_x(),
+            },
+            (U0, U0 + 1.0),
+            (0.0, 0.4),
+            tol,
+        );
+        let surface = body.get_face(face).unwrap().surface;
+        let ruling = body
+            .edges()
+            .find(|(_, e)| {
+                let curve = body.get_curve_geom(e.curve).unwrap().certified().unwrap();
+                matches!(curve.carrier(), geom::Curve3::Line(line)
+                    if (f(line.origin.x) - U0.cos()).abs() < 1e-12
+                        && (f(line.origin.y) - U0.sin()).abs() < 1e-12)
+            })
+            .map(|(k, _)| k)
+            .expect("the sheet has a ruling at u = U0");
+        let d = body.get_edge(ruling).unwrap().clone();
+        let ends = [d.he_plus, d.he_minus].map(|h| {
+            let v = body.get_half_edge(h).unwrap().start;
+            body.get_vertex(v).unwrap().point
+        });
+        let z = |k: crate::geometry::PointKey| f(body.points[k].z);
+        let (foot, top) = if z(ends[0]) < z(ends[1]) {
+            (ends[0], ends[1])
+        } else {
+            (ends[1], ends[0])
+        };
+        let (s1, c1) = (U0 + shift).sin_cos();
+        let moved = Point3::new(c(c1), c(s1), body.points[top].z);
+        body.points[top] = moved;
+        let from = body.points[foot];
+        let length = (moved - from).norm();
+        // The edge runs he_plus's start to its end: foot to top or back.
+        let (origin, toward) = if ends[0] == foot {
+            (from, moved)
+        } else {
+            (moved, from)
+        };
+        let spec = geom_brep::EdgeCurveSpec {
+            description: geom_brep::EdgeDescriptionSpec::chart(surface),
+            carrier: geom::Curve3::Line(geom::Line {
+                origin,
+                dir: (toward - origin) / length,
+            }),
+            param_start: c(0.0),
+            param_end: length,
+        };
+        body.set_edge_curve(ruling, spec, tol).unwrap();
+        body.split_edge(ruling, length * c(0.5), tol).unwrap();
+        crate::mint_pcurves(&mut body, tol).unwrap();
+        body
+    }
+
+    fn joined_ruled<T: Decide + crate::props::AtRestPolicy>(
+        off: f64,
+    ) -> Result<(usize, Vec<super::ClassZero>), BooleanError> {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let mut body = ruled::<T>(off, tol);
+        let (joins, _, zeros) = join_all(&mut body, band, tol, &|_| true, &BTreeSet::new())?;
+        Ok((joins.len(), zeros))
+    }
+
+    fn a_ruling_on_another_line_joins_and_hands_back_its_zero<
+        T: Decide + crate::props::AtRestPolicy,
+    >(
+        scalar: &str,
+    ) {
+        // The restated piece stands off the wall by half the band's
+        // zero, which its incidence reads and the row must carry.
+        let off = 0.5 * Tol::witness().eps();
+        let (joins, zeros) = joined_ruled::<T>(off).unwrap();
+        let [zero] = zeros.as_slice() else {
+            panic!("{scalar}: one class Zero for the one join, got {zeros:?}");
+        };
+        assert_eq!(
+            joins, 1,
+            "{scalar}: the two pieces of the ruling are one edge"
+        );
+        let reach = match zero.margin.diagnostic_f64_for_error_text() {
+            geom_core::ErrorTextReading::Value(v) => v.abs(),
+            geom_core::ErrorTextReading::Enclosure { lo, hi } => lo.abs().max(hi.abs()),
+            other => panic!("{scalar}: the Zero reads a margin, got {other:?}"),
+        };
+        assert!(
+            reach >= 0.5 * off,
+            "{scalar}: the row carries the most a carrier misses its family by ({off:e} off the \
+             wall), got {reach:e}"
+        );
+    }
+
+    #[test]
+    fn a_ruling_on_another_line_joins_and_hands_back_its_zero_at_f64() {
+        a_ruling_on_another_line_joins_and_hands_back_its_zero::<f64>("f64");
+    }
+
+    #[test]
+    fn a_ruling_on_another_line_joins_and_hands_back_its_zero_at_interval() {
+        a_ruling_on_another_line_joins_and_hands_back_its_zero::<geom_core::Interval>("interval");
+    }
+
+    fn a_tilt_in_band_refuses_on_its_lever<T: Decide + crate::props::AtRestPolicy>(scalar: &str) {
+        let eps = Tol::witness().eps();
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let mut body = bent::<T>(6.0 * eps, tol);
+        let Err(refusal) = join_all(&mut body, band, tol, &|_| true, &BTreeSet::new()) else {
+            panic!("{scalar}: a ruling turned in band refuses the join");
+        };
+        let BooleanError::JoinUndecided(undecided) = &refusal else {
+            panic!("{scalar}: the join's own refusal, got {refusal:?}");
+        };
+        assert!(
+            matches!(
+                undecided.reading,
+                JoinReading::ChartClass(geom_brep::IsoFamilyRefusal::Undecided(_))
+            ),
+            "{scalar}: the class reading is in band, got {undecided:?}"
+        );
+        let build = geom_brep::recourse::ReadAt::Run(geom_brep::recourse::Reading::Build);
+        // Read at a build, each door ends on a lever, never on the
+        // kernel's defect.
+        for (door, text) in [
+            ("the boolean", refusal.render(build)),
+            (
+                "the join door",
+                super::JoinRefusal::of(&refusal).render(build),
+            ),
+        ] {
+            assert!(
+                text.contains("Recourse: move ") && !text.contains("kernel"),
+                "{scalar}, {door}: the in-band reading ends on its lever: {text}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_tilt_in_band_refuses_on_its_lever_at_f64() {
+        a_tilt_in_band_refuses_on_its_lever::<f64>("f64");
+    }
+
+    #[test]
+    fn a_tilt_in_band_refuses_on_its_lever_at_interval() {
+        a_tilt_in_band_refuses_on_its_lever::<geom_core::Interval>("interval");
+    }
+
+    fn a_definite_tilt_keeps_both_arcs<T: Decide + crate::props::AtRestPolicy>(scalar: &str) {
+        let (joins, zeros, _) = joined::<T>(0.3, (0.0, 0.0)).unwrap();
+        assert_eq!(
+            (joins, zeros.len()),
+            (0, 0),
+            "{scalar}: a tilted arc is no parallel's"
+        );
+    }
+
+    #[test]
+    fn a_definite_tilt_keeps_both_arcs_at_f64() {
+        a_definite_tilt_keeps_both_arcs::<f64>("f64");
+    }
+
+    #[test]
+    fn a_definite_tilt_keeps_both_arcs_at_interval() {
+        a_definite_tilt_keeps_both_arcs::<geom_core::Interval>("interval");
     }
 }

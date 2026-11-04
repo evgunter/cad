@@ -191,7 +191,7 @@ fn read_samples<T: Decide>(
         }
     }
     match pending {
-        None => Ok(Incidence::On),
+        None => Ok(Incidence::On(None)),
         Some(cause) => Err(incidence_escalated(cause)),
     }
 }
