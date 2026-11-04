@@ -117,3 +117,9 @@
   - **Fix pass:** the union, sent to the apex lane (resumed). The snap is to be decided in the metric that moves, with a stop rule: if it is a design fork against the ratified arc rule, it comes back to me.
   - **Class (logged at adjudication):** a wrong-X witness row refused by an earlier gate than the one it names cannot go red for X. Both spindle stages shipped one, so stage briefs now name the gate a witness must reach.
   - **Class:** a suite whose every face has the same sense cannot tell a sense-dependent reading's two branches apart. Look for other readings fixed only by a single-sense suite.
+- 2026-11-04 — **PR 6497's fix pass is taken** (head `e6b2e75119`, CI green; the orchestrator read `sheet_major`).
+  - **The horn snap** is now decided in the apex metric (`ApexEnd`, refusing `ApexEndOffSheet`). This is not a fork: `ArcReach` still picks the kind, and the near-horn band still refuses as a sliver, read in the metric the apex moves in.
+  - The guards on `sheet_material_sign` are witnessed; there is a real apex witness row; the reviewers' bodies are adopted.
+  - **Disclosed:** three snap mutants were not re-run after the order changed.
+  - The review row is `docs/dual-review-log/rows/PR-6497.md` (a fair pair).
+  - **Stage 2 is closed.** The parent row (`horn-and-spindle-tori-have-no-representation`) closes with it. The part-way revolve (P1) is the next spindle row.

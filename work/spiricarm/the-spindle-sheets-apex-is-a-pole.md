@@ -2,12 +2,14 @@
 id: the-spindle-sheets-apex-is-a-pole
 kind: unit
 title: Surface::Spindle stage 2: the sheet's apex as a pole, landing the football (an arc revolved about its own chord)
-status: dispatched
+status: closed
 opened: 2026-11-04
 priority: P0
 cost: H
 parent: horn-and-spindle-tori-have-no-representation
 branch: spiricarm/spindle-apex
+closed: 2026-11-04
+pr: 6497
 ---
 
 
@@ -47,3 +49,7 @@ Wire in each of these:
 - The wide apple, `a-wide-apples-tube-angle-passes-the-latitude-windows-cut`: an apple near its apexes is wide whenever `R > r·cos 1`. Fix it if stage 2's apple needs it.
 
 Review tier: **dual**. This is the apex machinery for a new surface kind.
+
+## Closed (2026-11-04)
+
+PR 6497. The football, the apple and the horn's needle tip revolve, certify, measure and mesh, and they pass tier 3. Residue: the part-way revolve is `a-football-revolved-part-way-refuses-at-its-cap-meridians-certificate` (P1); a sheet face that encodes no side has no seam reading (`a-sheet-face-whose-boundary-encodes-no-side-has-no-seam-region-reading`, P3); the wide apple's mesh is `a-wide-apples-tube-angle-passes-the-latitude-windows-cut`; and the tour stop.
