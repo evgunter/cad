@@ -487,3 +487,36 @@ fn the_join_dispatchs_refusal_says_what_it_actually_wires() {
         "the refusal does not state what that dispatch wires: {msg}"
     );
 }
+
+/// R2 probe (PR 6509): a single sphere face of the transversal union with
+/// its sense bit flipped — validated afresh, and measured if it validates.
+#[test]
+fn r2_a_flipped_sphere_face_sense_is_refused_or_measured() {
+    let tol = Tol::witness();
+    let c = finished("c", cyl(1.0, -2.0, 2.0), tol);
+    let s = finished("s", ball_at(1.5, Vec3::new(0.6, 0.0, 0.0)), tol);
+    let got = topo::union(&c, &s, tol).expect("the union builds");
+    let body = &got.body().expect("a body").body;
+    let res = topo::test_support::pinned_resolution(tol);
+    let v0 = topo::mass_properties(body, tol, res).expect("the union measures").enclosure;
+    println!("R2 union volume {} pad {}", v0.volume, v0.volume_pad);
+    let spheres: Vec<_> = body
+        .faces()
+        .filter(|(k, _)| matches!(body.face_surface(*k), Some(geom::Surface::Sphere { .. })))
+        .map(|(k, _)| k)
+        .collect();
+    println!("R2 sphere faces {spheres:?}");
+    for k in spheres {
+        let flipped = body.flipped_face_sense_for_tests(k).unwrap();
+        match topo::AtRestBody::validate(flipped, tol) {
+            Err(errs) => println!("R2 flip {k:?}: refused by validation: {errs:?}"),
+            Ok(at_rest) => match topo::mass_properties(&at_rest, tol, res) {
+                Ok(m) => println!(
+                    "R2 flip {k:?}: VALIDATED and measured volume {} pad {} (unflipped {})",
+                    m.enclosure.volume, m.enclosure.volume_pad, v0.volume
+                ),
+                Err(e) => println!("R2 flip {k:?}: validated, volume refused {e:?}"),
+            },
+        }
+    }
+}
