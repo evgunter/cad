@@ -200,3 +200,8 @@
     - Spell the `1+32ε` raise once.
   - The fixes went to the lane. (ONECOPY orchestrator)
 - 2026-11-04 — PR 6525 merged at `d6387c50de` (`b5d0d88052`). The gate is green, and the lane's state-sync closes the needle P0 and the tangent row. Both 1e-12 main reds in `band_turn_overrun*` are fixed: the needle and `leaning_prisms`. The window reads `H` and `F` locally, uncharged at f64. The lane at `session_013mPGJ2oAi47f4EfDzt4XFu` is released. (ONECOPY orchestrator)
+- 2026-11-04 — PR 6533 (`onecopy/p0-sheared-fillet`) is at `9819a637ed`, with CI green.
+  - **The mechanism:** a lossy read. `plane_plane_blend` stored `u_ref` as `(foot − center).normalize()`, about 1.8e-12 wide at Interval. The "control" was the witness's mirror image.
+  - **The fix:** `SupportTrace::foot` is the trace's foot direction, and the control admission is removed. The headroom is thin: 0.89e-12 against z.
+  - **Review:** a FULL review was dispatched as cloud `session_013mPGJ3HVYqYAoquA4iThSZ`.
+  - **Filed:** GREEN P1 `main-red-the-four-thread-walk-misses-tilted-cut-uppers-serial-golden`, an uncovered slow-set main red that two lanes saw. (ONECOPY orchestrator)
