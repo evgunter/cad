@@ -375,14 +375,14 @@ fn an_arc_rim_off_its_wall_refuses_with_both_causes() {
         matches!(
             arc_on_pair(carrier.clone(), None),
             Err(CertifyError::PlaneNurbs(PlaneNurbsRefusal::ArcRim(
-                ArcRimRefusal::Refused { iso: None, .. }
+                ArcRimRefusal { iso: None, .. }
             )))
         ),
         "no image of the wall's rows holds a rim {off:e} off it"
     );
     let refused = arc_on_pair(carrier, Some(quarter_image()));
     let Err(
-        e @ CertifyError::PlaneNurbs(PlaneNurbsRefusal::ArcRim(ArcRimRefusal::Refused {
+        e @ CertifyError::PlaneNurbs(PlaneNurbsRefusal::ArcRim(ArcRimRefusal {
             iso: Some(geom_brep::PcurveCheck::MapResidual),
             ..
         })),
@@ -408,25 +408,26 @@ fn an_arc_rim_off_its_wall_refuses_with_both_causes() {
     );
 }
 
-/// **An escalated pick escalates.** The rim `2ε` off the wall sits in
-/// the band at the pick's probe: the exact image's reading is
-/// undecided, and the fitted path does not make it definite (D4 ¶3) —
-/// the pcurve mint's rule, which the pick is.
+/// **A pick read in band takes the fitted image.** The rim `2ε` off the
+/// wall sits in the band at the pick's probe. The pick is a lane choice
+/// (D3), so the rim reads its fitted image as a definite miss does, and
+/// records nothing; that image's own limb 1 then reads the rim's
+/// distance from the wall in band, and the escalation is that limb's.
 #[test]
-fn an_arc_rim_whose_exact_image_escalates_escalates() {
+fn an_arc_rim_whose_pick_is_in_band_reads_its_fitted_image() {
     let b = band();
     let off = 0.5 * (b.zero() + b.escalate());
     let carrier = rim(1.0 + off, core::f64::consts::FRAC_PI_2);
     assert!(
         geom_brep::pick_arc_rim(&carrier.0, (0.0, carrier.1), &wall(), b).is_err(),
-        "the pick escalates at the rim's row"
+        "the pick is undecided at the rim's row"
     );
     match arc_on_pair(carrier, None) {
         Err(CertifyError::Escalated {
-            check: geom_brep::CertCheck::PlaneNurbsHullValue,
+            check: geom_brep::CertCheck::PlaneNurbsOnLocus,
             ..
         }) => {}
-        other => panic!("an exact image that escalates escalates the rim: {other:?}"),
+        other => panic!("the fitted image's limb 1 reads the rim in band: {other:?}"),
     }
 }
 
@@ -575,7 +576,7 @@ fn a_wrong_stated_image_is_not_swapped_for_the_pick() {
         })
         .expect("a candidate that is not the rim's row");
     match arc_on_pair(quarter, Some(wrong)) {
-        Err(CertifyError::PlaneNurbs(PlaneNurbsRefusal::ArcRim(ArcRimRefusal::Refused {
+        Err(CertifyError::PlaneNurbs(PlaneNurbsRefusal::ArcRim(ArcRimRefusal {
             iso: Some(_),
             ..
         }))) => {}
