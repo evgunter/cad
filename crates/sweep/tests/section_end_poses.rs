@@ -293,8 +293,12 @@ fn a_section_end_at_the_band_edge_refuses_as_the_inputs_at_the_boolean_and_its_l
 /// `(w·cos φ, w·sin φ, z)` with normal `(cos φ, sin φ, θ)`, `φ = 0.4 +
 /// 0.7·k` as the census spells it: no vertex lies near any of them, and
 /// at ε = 1e-12 each escalates a chord's end pin on its own rounding.
+/// Which check meets that rounding first rides on the end parameter's
+/// last bits; a pose whose ends pin meets it downstream instead, a
+/// refusal not typed as the kernel's
+/// (`an-unresolved-section-carrier-refuses-downstream-untyped-at-1e-12`).
 const AXIAL: [(f64, u8, f64, f64); 8] = [
-    (0.3, 0, 1e-5, 0.3),
+    (0.3, 0, 1e-5, 0.5),
     (0.3, 4, 3e-5, 0.3),
     (0.7, 2, 3e-5, 0.5),
     (0.95, 1, 3e-5, 0.3),
