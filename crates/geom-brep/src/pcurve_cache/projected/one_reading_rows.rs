@@ -22,6 +22,9 @@ use core::f64::consts::{FRAC_PI_2, TAU};
 use geom::{ChartInverse, Surface};
 use geom_core::{Band, Bounds, Decide, Interval, Point2, Point3, Real, Vec3};
 
+/// The bracket a scalar carries, as `(lo, hi)`.
+type Bracket<T> = fn(T) -> (f64, f64);
+
 use super::{
     FramedCarrier, ProjectedChart, ProjectedImage, breaks_vector, chart_at, chart_frame, to_frame,
 };
@@ -112,23 +115,21 @@ fn nearest_quarter(angle: f64) -> i32 {
 
 /// `value` moved by whole turns onto the branch nearest `centre`: the
 /// oracle's own branch step, in the scalar.
-fn onto<T: Real + Bounds>(value: T, centre: f64) -> T {
-    let mid = 0.5 * (value.lo() + value.hi());
+fn onto<T: Real>(value: T, centre: f64, bracket: Bracket<T>) -> T {
+    let (lo, hi) = bracket(value);
+    let mid = 0.5 * (lo + hi);
     let k = <f64 as Real>::periodic_branch(centre - mid, TAU);
     value + T::pi() * T::from_f64(2.0 * k)
 }
 
 /// Whether two enclosures meet within `tol`, each narrower than `tol`.
-fn meet<T: Bounds>(a: T, b: T, tol: f64) -> bool {
-    a.hi() - a.lo() <= tol
-        && b.hi() - b.lo() <= tol
-        && a.lo() <= b.hi() + tol
-        && b.lo() <= a.hi() + tol
+fn meet((a_lo, a_hi): (f64, f64), (b_lo, b_hi): (f64, f64), tol: f64) -> bool {
+    a_hi - a_lo <= tol && b_hi - b_lo <= tol && a_lo <= b_hi + tol && b_lo <= a_hi + tol
 }
 
 /// The rows' one body at the scalar `T`, answering how many points it
 /// compared.
-fn compare<T: Decide + Bounds>(lift: impl Fn(f64) -> T) -> usize {
+fn compare<T: Decide>(lift: impl Fn(f64) -> T, bracket: Bracket<T>) -> usize {
     let mut compared = 0;
     for (name, surface) in charts() {
         let surface_t = surface.map_scalar(&lift);
@@ -172,27 +173,28 @@ fn compare<T: Decide + Bounds>(lift: impl Fn(f64) -> T) -> usize {
                         let psi = image.raw(framed, 0);
                         let theta = f64::from(m) * FRAC_PI_2;
                         let want = Point2::new(
-                            onto(read.uv.x, theta),
+                            onto(read.uv.x, theta, bracket),
                             if torus {
-                                onto(read.uv.y, f64::from(n) * FRAC_PI_2)
+                                onto(read.uv.y, f64::from(n) * FRAC_PI_2, bracket)
                             } else {
                                 read.uv.y
                             },
                         );
                         let tol = 1e-12;
                         assert!(
-                            meet(psi.x, want.x, tol) && meet(psi.y, want.y, tol),
+                            meet(bracket(psi.x), bracket(want.x), tol)
+                                && meet(bracket(psi.y), bracket(want.y), tol),
                             "{name} at ({u}, {v}) moved {d}, centres ({m}, {n}), at {}: ψ reads \
                              ({}, {})..({}, {}), the reading on that branch ({}, {})..({}, {})",
                             T::NAME,
-                            psi.x.lo(),
-                            psi.y.lo(),
-                            psi.x.hi(),
-                            psi.y.hi(),
-                            want.x.lo(),
-                            want.y.lo(),
-                            want.x.hi(),
-                            want.y.hi(),
+                            bracket(psi.x).0,
+                            bracket(psi.y).0,
+                            bracket(psi.x).1,
+                            bracket(psi.y).1,
+                            bracket(want.x).0,
+                            bracket(want.y).0,
+                            bracket(want.x).1,
+                            bracket(want.y).1,
                         );
                         compared += 1;
                     }
@@ -207,7 +209,7 @@ fn compare<T: Decide + Bounds>(lift: impl Fn(f64) -> T) -> usize {
 /// `f64` (module docs).
 #[test]
 fn psi_reads_the_chart_point_on_its_branch_at_f64() {
-    let compared = compare(|x| x);
+    let compared = compare(|x| x, |x| (x, x));
     assert!(compared > 20_000, "the sweep compared {compared} reads");
 }
 
@@ -215,6 +217,6 @@ fn psi_reads_the_chart_point_on_its_branch_at_f64() {
 /// within `1e-12` wide.
 #[test]
 fn psi_reads_the_chart_point_on_its_branch_at_interval() {
-    let compared = compare(Interval::from_f64);
+    let compared = compare(Interval::from_f64, |x| (x.lo(), x.hi()));
     assert!(compared > 20_000, "the sweep compared {compared} reads");
 }
