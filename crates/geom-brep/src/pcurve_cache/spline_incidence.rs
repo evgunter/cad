@@ -532,7 +532,7 @@ fn cut_rounding<T: SpanLocate>(cell: &Cell<T>) -> f64 {
             worst[c] = worst[c].max(bound[c]);
         }
     }
-    worst.iter().map(|x| x * x).sum::<f64>().sqrt()
+    worst.iter().map(|x| x.powi(2)).sum::<f64>().sqrt()
 }
 
 /// One control point's rounding out of homogeneous form, per coordinate
@@ -541,7 +541,7 @@ fn cut_rounding<T: SpanLocate>(cell: &Cell<T>) -> f64 {
 fn point_rounding<T: SpanLocate>((h, e): &Control<T>) -> [f64; 3] {
     let w = middle(h[3]);
     let lead = w - e[3];
-    if !(lead > 0.0) {
+    if lead.partial_cmp(&0.0) != Some(core::cmp::Ordering::Greater) {
         return [f64::INFINITY; 3];
     }
     #[cfg(test)]
@@ -581,7 +581,7 @@ impl<T: Decide> Cell<T> {
             .map(|i| (0..pv).map(|j| gap(at(i, j), at(i, j + 1))).sum::<f64>())
             .fold(0.0, f64::max)
             .max(gap(at(0, 0), at(0, pv)).max(gap(at(pu, 0), at(pu, pv))));
-        !(along_v > along_u)
+        along_v.partial_cmp(&along_u) != Some(core::cmp::Ordering::Greater)
     }
 
     /// The cell split at the middle of its `u` range (`along_u`) or its

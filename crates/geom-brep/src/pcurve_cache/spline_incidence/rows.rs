@@ -264,8 +264,8 @@ fn near_patch(rng: &mut test_utils::fuzz::Rng) -> (NurbsSurface<f64>, &'static s
         .map(|_| 10f64.powf(rng.range(-0.5, 0.5)))
         .collect();
     let chart = NurbsSurface::new(
-        chart.knots_u_f64_interim().clone(),
-        chart.knots_v_f64_interim().clone(),
+        chart.knot_values_u().clone(),
+        chart.knot_values_v().clone(),
         control,
         weights,
     )
@@ -405,8 +405,8 @@ fn big_family(rng: &mut test_utils::fuzz::Rng, band: Band) -> Tally {
             .map(|p| Point3::new(p.x * f, p.y * f, p.z * f))
             .collect();
         let chart = NurbsSurface::new(
-            chart.knots_u_f64_interim().clone(),
-            chart.knots_v_f64_interim().clone(),
+            chart.knot_values_u().clone(),
+            chart.knot_values_v().clone(),
             control,
             chart.weights().to_vec(),
         )
