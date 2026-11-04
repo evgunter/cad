@@ -1567,9 +1567,9 @@ fn spiric_on_quadric<T: Decide>(
     if !off_axis || decided(big - small - offset.abs()) != Ok(Sign::Positive) {
         return unread;
     }
-    let points: Vec<_> = [0.25, 0.5, 0.75]
+    let points: Vec<_> = [T::from_f64(0.25), T::from_f64(0.5), T::from_f64(0.75)]
         .into_iter()
-        .map(|f| carrier.eval(t0 + (t1 - t0) * T::from_f64(f)))
+        .map(|f| carrier.eval(t0 + (t1 - t0) * f))
         .collect();
     match crate::census::points_on_surface(surface, &points, RIDER_ON_CURVED, band) {
         Ok(false) => Placed::Off,
