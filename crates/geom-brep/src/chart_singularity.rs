@@ -64,6 +64,7 @@ use geom_core::k_stats::{NonzeroSign, decide, decide_nonzero};
 use geom_core::predicate::Band;
 use geom_core::{Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, SizedPass, Vec3};
 
+use crate::ladder::{Answering, Climb, Kept, Rung, climb};
 use crate::props::{LoopEdge, PoleLeft, sphere_pole_left};
 use crate::recourse::{ReadAt, RefusedArm, RefusedSide, SizedDecision};
 
@@ -484,32 +485,38 @@ pub fn place_on_boundary<T: Decide>(
             Err(cause) => return Err(Unread::Boundary { cause, distance }),
         }
     }
-    // Inside an edge: the first that decides on.
-    let mut in_band: Option<Unread<T>> = None;
+    // Inside an edge: the first that decides on, a ladder ([`climb`])
+    // whose answering edge names where the point lies
+    // (`Answering::First`). A sampled edge that does not settle is an
+    // EXEMPT reading, not a limit: tier 3 and the import pass do not
+    // refuse on it ([`Undecided::of`]), so it is ranked after a distance
+    // in band, which they report. It passes, and is the refusal only
+    // where no edge decides and none is in band.
     let mut unsettled: Option<Unread<T>> = None;
-    for (l, lp) in loops.iter().enumerate() {
-        for (k, e) in lp.edges.iter().enumerate() {
-            match nearest_on_edge(e, x, band) {
-                Near::Off => {}
-                Near::On { t } => {
-                    return Ok(Some(Lies::InsideEdge {
-                        r#loop: l,
-                        edge: k,
-                        t,
-                    }));
-                }
-                Near::InBand { cause, distance } => {
-                    in_band.get_or_insert(Unread::Boundary { cause, distance });
-                }
-                Near::Unsettled => {
-                    unsettled.get_or_insert(Unread::Carrier { r#loop: l, edge: k });
-                }
+    let edges = loops
+        .iter()
+        .enumerate()
+        .flat_map(|(l, lp)| lp.edges.iter().enumerate().map(move |(k, e)| (l, k, e)));
+    match climb(Answering::First, edges, |(l, k, e)| {
+        match nearest_on_edge(e, x, band) {
+            Near::Off => Rung::Passes,
+            Near::On { t } => Rung::Answers(Lies::InsideEdge {
+                r#loop: l,
+                edge: k,
+                t,
+            }),
+            Near::InBand { cause, distance } => {
+                Rung::kept(cause).map_kept(|cause| Unread::Boundary { cause, distance })
+            }
+            Near::Unsettled => {
+                unsettled.get_or_insert(Unread::Carrier { r#loop: l, edge: k });
+                Rung::Passes
             }
         }
-    }
-    match in_band.or(unsettled) {
-        Some(why) => Err(why),
-        None => Ok(None),
+    }) {
+        Climb::Answered { answer, .. } => Ok(Some(answer)),
+        Climb::Undecided(why) => Err(why),
+        Climb::Passed => unsettled.map_or(Ok(None), Err),
     }
 }
 
@@ -754,20 +761,57 @@ impl<'a, T: Decide> Sides<'a, T> {
         x: Point3<T>,
         sense: bool,
     ) -> Result<bool, Unread<T>> {
-        let mut unread: Option<Unread<T>> = None;
-        for l in 0..self.loops.len() {
-            if !crate::chart_image::bounds_area(self.loops[l]) {
-                continue;
-            }
+        // The ladder ([`climb`]) whose answer is a loop that leaves `x`
+        // outside: any one does, alike ([`Answering::Any`]).
+        let bounding: Vec<usize> = (0..self.loops.len())
+            .filter(|&l| crate::chart_image::bounds_area(self.loops[l]))
+            .collect();
+        let mut exempt = None;
+        let outside = climb(Answering::Any, bounding, |l| {
             match self.left_holds(l, singularity, x) {
-                Ok(left) if left != sense => return Ok(false),
-                Ok(_) => {}
-                Err(why) => {
-                    unread.get_or_insert(why);
-                }
+                Ok(left) if left != sense => Rung::Answers(()),
+                Ok(_) => Rung::Passes,
+                Err(why) => unread_rung(why, &mut exempt),
             }
+        });
+        match outside {
+            Climb::Answered { .. } => Ok(false),
+            Climb::Undecided(why) => Err(why),
+            Climb::Passed => exempt.map_or(Ok(true), Err),
         }
-        unread.map_or(Ok(true), Err)
+    }
+}
+
+/// A loop's side that did not read, as a rung of [`Sides::holds`]: a
+/// side read in band is kept as its margin is ([`Kept::of`]); one that
+/// straddles its own bound is a limit no tolerance moves; a loop whose
+/// walk does not read ([`Unread::Loop`], or [`Unread::Carrier`]) is EXEMPT, as tier 3 and the
+/// import pass read it ([`Undecided::of`]), so it passes, recorded in
+/// `exempt`, and refuses only where nothing reportable was kept — the
+/// order [`place_on_boundary`] reads an unsettled edge in.
+fn unread_rung<T>(why: Unread<T>, exempt: &mut Option<Unread<T>>) -> Rung<(), Unread<T>> {
+    let kept = match &why {
+        Unread::Loop { .. } | Unread::Carrier { .. } => None,
+        Unread::Side {
+            why: SideUnread::Straddle,
+            ..
+        } => Some(Kept::Blocked(())),
+        Unread::Side {
+            why: SideUnread::Banded(cause),
+            ..
+        }
+        | Unread::Boundary { cause, .. } => Some(match Kept::of(*cause) {
+            Kept::Blocked(_) => Kept::Blocked(()),
+            Kept::InBand(_) => Kept::InBand(()),
+        }),
+    };
+    match kept {
+        None => {
+            exempt.get_or_insert(why);
+            Rung::Passes
+        }
+        Some(Kept::Blocked(())) => Rung::Blocked(why),
+        Some(Kept::InBand(())) => Rung::InBand(why),
     }
 }
 
@@ -1461,4 +1505,60 @@ pub fn spline_collapsed_row<T: Decide>(
         )
     });
     (!spans).then_some(row)
+}
+
+/// [`Sides::holds`]' ranking ([`unread_rung`]): where no loop leaves the
+/// point outside, a side that straddles its bound refuses ahead of one
+/// read in band, and a reportable side ahead of an exempt loop read
+/// before it; an exempt loop alone is the refusal only where nothing
+/// else was kept.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod unread_rung_rows {
+    use geom_core::{Band, Indeterminate, MarginDiag};
+
+    use super::{SideUnread, Unread, unread_rung};
+    use crate::ladder::{Answering, Climb, climb};
+
+    fn ranked(readings: Vec<Unread<f64>>) -> (Climb<(), Unread<f64>>, Option<Unread<f64>>) {
+        let mut exempt = None;
+        let got = climb(Answering::Any, readings, |why| {
+            unread_rung(why, &mut exempt)
+        });
+        (got, exempt)
+    }
+
+    #[test]
+    fn a_reportable_side_refuses_ahead_of_an_exempt_loop() {
+        let banded = Unread::Side {
+            r#loop: 0,
+            why: SideUnread::Banded(Indeterminate {
+                margin: MarginDiag::value(5e-9),
+                band: Band::new(1e-9, 1e-8).unwrap(),
+                predicate: Some("test_side"),
+                terminal_sliver: false,
+            }),
+        };
+        let straddle = Unread::Side {
+            r#loop: 2,
+            why: SideUnread::Straddle,
+        };
+        let walk = Unread::Loop { r#loop: 1 };
+        let (got, _) = ranked(vec![banded.clone(), walk.clone(), straddle]);
+        assert!(
+            matches!(got, Climb::Undecided(Unread::Side { r#loop: 2, .. })),
+            "the straddle, a limit, ahead of the in-band side: {got:?}"
+        );
+        let (got, _) = ranked(vec![walk.clone(), banded]);
+        assert!(
+            matches!(got, Climb::Undecided(Unread::Side { r#loop: 0, .. })),
+            "the in-band side ahead of the exempt loop read before it: {got:?}"
+        );
+        let (got, exempt) = ranked(vec![walk]);
+        assert!(matches!(got, Climb::Passed), "{got:?}");
+        assert!(
+            matches!(exempt, Some(Unread::Loop { r#loop: 1 })),
+            "{exempt:?}"
+        );
+    }
 }
