@@ -236,7 +236,7 @@ fn the_cone_form_sup_covers_the_segments_form() {
 /// floor, its miss reads `L_max/L_min` over (4× and 2000× here: the
 /// lever grows along a ruling from the apex). Halved where the lever's
 /// spread passes `LEVER_SPREAD`, check 4's incidence term reads it within
-/// that factor, at both spans.
+/// that factor and the form's rounding charge, at both spans.
 #[test]
 fn the_cone_lines_incidence_over_reads_by_at_most_the_lever_spread() {
     let alpha = 0.5_f64;
@@ -278,7 +278,7 @@ fn the_cone_lines_incidence_over_reads_by_at_most_the_lever_spread() {
         .unwrap_or_else(|e| panic!("[{t0}, {t1}]: check 4's terms: {e:?}"));
         let incidence = terms.0[EnvelopeTerm::Incidence.slot()];
         assert!(
-            incidence >= off * (1.0 - 1e-6) && incidence <= 1.125 * off * (1.0 + 1e-6),
+            incidence >= off * (1.0 - 1e-6) && incidence <= 1.125 * off + 64.0 * f64::EPSILON,
             "[{t0}, {t1}]: the incidence term {incidence:e} reads the miss {off:e} within the \
              lever's spread"
         );

@@ -985,18 +985,35 @@ fn a_lane_choices_envelope_refusal_ends_not_yet() {
         u_ref: Vec3::new(-0.7808453755737287, -0.590498825246728, 0.203940277599489),
     };
     let span = (0.0009067415940370447, 2.4187216369829954);
-    let image = chart_pcurve_over(&line, span.0, span.1, &apex, band())
-        .unwrap_or_else(|e| panic!("the apex ruling mints: {e:?}"));
-    let sup = sampled_residual(&image, span, &line, &apex, 4096);
+    // The pose stands `1.3e-10` off the cone: inside the band at the
+    // default ε, past it at a smaller one, where its incidence read ends it
+    // first.
+    let image = projected::project(&line, Some(span), &apex, band())
+        .unwrap_or_else(|e| panic!("the apex ruling has a projected image: {e:?}"));
+    let sup = sampled_residual(
+        &Pcurve::Projected(Box::new(image)),
+        span,
+        &line,
+        &apex,
+        4096,
+    );
     for (scalar, got) in ["f64", "Interval"]
         .into_iter()
         .zip(minted_and_certified(&line, span, &apex))
     {
-        let envelope = got.unwrap_or_else(|e| panic!("apex ruling, {scalar}: certifies: {e:?}"));
-        assert!(
-            envelope >= sup && envelope < zero(),
-            "apex ruling, {scalar}: the envelope {envelope:e} covers the residual {sup:e}"
-        );
+        if sup < 0.9 * zero() {
+            let envelope =
+                got.unwrap_or_else(|e| panic!("apex ruling, {scalar}: certifies: {e:?}"));
+            assert!(
+                envelope >= sup && envelope < zero(),
+                "apex ruling, {scalar}: the envelope {envelope:e} covers the residual {sup:e}"
+            );
+        } else if sup > 1.1 * zero() {
+            assert!(
+                matches!(got, Err(PcurveCertifyError::CarrierOffChart { .. })),
+                "apex ruling, {scalar}: {sup:e} off ends as its incidence read: {got:?}"
+            );
+        }
     }
 
     let horn = torus(1.0, 1.0 - 1e-5);
