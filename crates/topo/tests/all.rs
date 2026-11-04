@@ -83,6 +83,8 @@ mod a_keel_on_the_floor_subtracts_as_a_slit;
 mod a_keel_wrapped_at_both_ends_splits_as_a_ring;
 #[path = "a_slit_tip_at_a_cone_apex_reads_its_full_turn.rs"]
 mod a_slit_tip_at_a_cone_apex_reads_its_full_turn;
+#[path = "a_spline_faces_stated_image_ends_by_its_carriers_incidence.rs"]
+mod a_spline_faces_stated_image_ends_by_its_carriers_incidence;
 #[path = "a_trace_reads_a_piece_against_its_carrier.rs"]
 mod a_trace_reads_a_piece_against_its_carrier;
 #[path = "a_zero_vertex_pair_keeps_the_kept_sides_point.rs"]

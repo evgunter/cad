@@ -286,6 +286,11 @@ pub struct ArcRimRefusal {
     /// or a partial one whose full-row images part from it there) or the
     /// refusal was no check's.
     pub iso: Option<crate::pcurve_cache::PcurveCheck>,
+    /// The margin the exact image's certificate refused by, where it kept
+    /// one: for its incidence read
+    /// ([`crate::pcurve_cache::PcurveCheck::ChartIncidence`]), the
+    /// carrier's distance from the wall past the band.
+    pub read: Option<MarginDiag>,
     /// The fitted path's refusing limb.
     pub limb: SsiLimb,
     /// Its bound.
@@ -295,8 +300,8 @@ pub struct ArcRimRefusal {
 impl ArcRimRefusal {
     /// The decision this refusal is a refused arm of: the exact image's
     /// check where that names an incidence limb
-    /// ([`crate::pcurve_cache::PcurveCheck::incidence_limb`]), its
-    /// certificate carrying no margin past its verdict, and the fitted
+    /// ([`crate::pcurve_cache::PcurveCheck::incidence_limb`]), with the
+    /// margin its certificate refused by where it kept one, and the fitted
     /// limb with its bound otherwise.
     #[must_use]
     pub fn decision(&self) -> (CertCheck, RefusedArm<'_>) {
@@ -304,7 +309,7 @@ impl ArcRimRefusal {
             .iso
             .and_then(crate::pcurve_cache::PcurveCheck::incidence_limb)
         {
-            Some(exact) => (exact.check(), RefusedArm::SignCertain(None)),
+            Some(exact) => (exact.check(), RefusedArm::SignCertain(self.read)),
             None => (self.limb.check(), RefusedArm::SignCertain(Some(self.bound))),
         }
     }
@@ -334,6 +339,10 @@ fn exact_arc_rim_words(iso: Option<crate::pcurve_cache::PcurveCheck>) -> &'stati
             "its exact image along a boundary row of its wall misses it by more than the \
              tolerance at a sample"
         }
+        Some(C::ChartIncidence) => {
+            "its exact boundary-row image's certificate reads it off its wall (a sample's \
+             distance from the wall's control hulls is past the tolerance)"
+        }
         Some(C::Envelope | C::EnvelopeTerm(_)) => {
             "the bound on its exact boundary-row image's miss between samples exceeds the \
              tolerance"
@@ -349,7 +358,6 @@ fn exact_arc_rim_words(iso: Option<crate::pcurve_cache::PcurveCheck>) -> &'stati
             | C::ImageIdentity
             | C::AzimuthPeriod
             | C::TubePeriod
-            | C::ChartIncidence
             | C::Sector,
         ) => "its exact boundary-row image's certificate refused it",
     }
@@ -360,12 +368,13 @@ fn exact_arc_rim_words(iso: Option<crate::pcurve_cache::PcurveCheck>) -> &'stati
 /// limb's refusal carries both causes; any other stands as itself.
 fn after_exact(
     fitted: PlaneNurbsRefusal,
-    exact: Option<Option<crate::pcurve_cache::PcurveCheck>>,
+    exact: Option<(Option<crate::pcurve_cache::PcurveCheck>, Option<MarginDiag>)>,
 ) -> PlaneNurbsRefusal {
     match (fitted, exact) {
-        (PlaneNurbsRefusal::Limb { limb, margin }, Some(iso)) => {
+        (PlaneNurbsRefusal::Limb { limb, margin }, Some((iso, read))) => {
             PlaneNurbsRefusal::ArcRim(ArcRimRefusal {
                 iso,
+                read,
                 limb,
                 bound: margin,
             })
@@ -1415,7 +1424,7 @@ enum ExactRim<C> {
     /// Decided against the exact image: its certificate's refusing check
     /// (`None` where the refusal was no check's), or `None` where every
     /// candidate decided off the carrier at the pick's probe.
-    Refused(Option<crate::pcurve_cache::PcurveCheck>),
+    Refused(Option<crate::pcurve_cache::PcurveCheck>, Option<MarginDiag>),
     /// The pick or the certificate read in band. It takes the fitted
     /// image as `Refused` does, and the fitted image's refusal stands as
     /// itself.
@@ -1425,9 +1434,9 @@ enum ExactRim<C> {
 impl<C> ExactRim<C> {
     /// The refusing check [`after_exact`] carries, for a definite refusal
     /// alone.
-    fn refused(&self) -> Option<Option<crate::pcurve_cache::PcurveCheck>> {
+    fn refused(&self) -> Option<(Option<crate::pcurve_cache::PcurveCheck>, Option<MarginDiag>)> {
         match self {
-            Self::Refused(iso) => Some(*iso),
+            Self::Refused(iso, read) => Some((*iso, *read)),
             Self::Certified(_) | Self::InBand => None,
         }
     }
@@ -1450,14 +1459,14 @@ fn exact_arc_rim<T: Decide>(
         Some(image) => image.clone(),
         None => match pick_arc_rim(carrier, (t0, t1 - t0), wall, band) {
             Ok(Some(image)) => image,
-            Ok(None) => return ExactRim::Refused(None),
+            Ok(None) => return ExactRim::Refused(None, None),
             Err(_) => return ExactRim::InBand,
         },
     };
     match PcurveCache::certify(image, t0, t1, carrier, wall, band) {
         Ok(cache) => ExactRim::Certified(cache),
         Err(E::Escalated { .. } | E::FittedEscalated { .. }) => ExactRim::InBand,
-        Err(refused) => ExactRim::Refused(refused.refused_check()),
+        Err(refused) => ExactRim::Refused(refused.refused_check(), refused.refused_margin()),
     }
 }
 
@@ -1754,7 +1763,7 @@ fn exact_chart_image<T: Decide>(
     let wall = Surface::Nurbs(std::sync::Arc::new(chart.clone()));
     let cache = match exact_arc_rim(carrier, params, &wall, None, band) {
         ExactRim::Certified(cache) => cache,
-        ExactRim::Refused(iso) => return Ok(Some(ExactRim::Refused(iso))),
+        ExactRim::Refused(iso, read) => return Ok(Some(ExactRim::Refused(iso, read))),
         ExactRim::InBand => return Ok(Some(ExactRim::InBand)),
     };
     let knots = fitted.knot_values();

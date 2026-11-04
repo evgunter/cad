@@ -192,17 +192,24 @@ fn rim_image_on_the_ring<T: AtRestPolicy + geom_core::Bounds>() {
     assert!(
         matches!(
             row_certificate::<T>(in_band_push),
-            Err(PcurveCertifyError::Escalated { .. })
+            Err(PcurveCertifyError::Escalated {
+                check: geom_brep::PcurveCheck::ChartIncidence,
+                ..
+            })
         ),
-        "the bent row's certificate reads the bend in band, at {}",
+        "the bent row's certificate reads the circle in band of the wall first, at {}",
         T::NAME
     );
     assert!(
         matches!(
             row_certificate::<T>(OFF_PUSH),
-            Err(PcurveCertifyError::ResidualExceeded { .. })
+            Err(PcurveCertifyError::CarrierOffChart {
+                chart: geom::SurfaceKind::Nurbs,
+                carrier: geom::CurveKind::Circle,
+                ..
+            })
         ),
-        "the bent row's certificate refuses the bend, at {}",
+        "the bent row's certificate reads the circle off the wall first, at {}",
         T::NAME
     );
     for form in [Form::Intersection, Form::Scaffold] {

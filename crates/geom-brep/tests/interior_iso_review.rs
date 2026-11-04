@@ -334,8 +334,8 @@ fn c2_body<T: Decide + Bounds>(lane: &str) {
     let env = ok.certificate().envelope.hi();
     assert!(env < 1e-12, "{lane}: case (a) envelope {env:e}");
     // A constant non-unit carrier against varying `W_j`: a different
-    // curve, so check 3 sees it before the shared-space check does —
-    // either refusal is sound.
+    // curve, off the chart, so the door's incidence read ends it before
+    // any check does.
     let c2 = NurbsCurve3::new(
         row.knots_f64_interim().clone(),
         row.control().to_vec(),
@@ -345,10 +345,7 @@ fn c2_body<T: Decide + Bounds>(lane: &str) {
     let e = certify_line::<T>(&s, &c2, (u, v0), (0.0, v1 - v0))
         .expect_err("a constant carrier against varying W refuses");
     assert!(
-        matches!(
-            e,
-            PcurveCertifyError::IsoUnsupported { .. } | PcurveCertifyError::ResidualExceeded { .. }
-        ),
+        matches!(e, PcurveCertifyError::CarrierOffChart { .. }),
         "{lane}: {e:?}"
     );
     // A proportional (2·W) carrier IS the same curve in ℝ, and the
@@ -408,10 +405,7 @@ fn c2_body<T: Decide + Bounds>(lane: &str) {
     let e = certify_line::<T>(&sb, &vary, (u, v0), (0.0, v1 - v0))
         .expect_err("a varying carrier against a polynomial row refuses");
     assert!(
-        matches!(
-            e,
-            PcurveCertifyError::IsoUnsupported { .. } | PcurveCertifyError::ResidualExceeded { .. }
-        ),
+        matches!(e, PcurveCertifyError::CarrierOffChart { .. }),
         "{lane}: {e:?}"
     );
     // A both-varying net: perturb a weight on a row NOT live at
@@ -532,10 +526,13 @@ fn r1_c3_slack_soundness_interval() {
 // ------------------------------------------------------ out-of-domain u*
 
 /// An `IsoLine` whose fixed `u` lies OUTSIDE the chart's `u` domain
-/// refuses typed at the seam class's domain decide — even when the
-/// carrier is the span's polynomial extension bit for bit and the
-/// window is the pcurve's own box (check 5 vacuous, as on the mint
-/// path). The chart is R1's at ×10 so that `1e-3` off the domain is
+/// refuses typed — even when the carrier is the span's polynomial
+/// extension bit for bit and the window is the pcurve's own box (check 5
+/// vacuous, as on the mint path). The extension is off the bounded
+/// patch, so the door reads the carrier off the chart before any class
+/// check (`CarrierOffChart`); the seam class's own domain decide is
+/// pinned behind the door (`pcurve_cache::tests::an_image_leaving_the_column_domain_refuses`).
+/// The chart is R1's at ×10 so that `1e-3` off the domain is
 /// definitely outside at every ε the matrix draws.
 fn out_of_domain_body<T: Decide + Bounds>(lane: &str) {
     for (name, net) in [
@@ -560,12 +557,15 @@ fn out_of_domain_body<T: Decide + Bounds>(lane: &str) {
                 &Surface::Nurbs(Arc::new(lift_surface::<T>(&s))),
                 band(),
             );
-            let Err(PcurveCertifyError::IsoUnsupported { what }) = r else {
-                panic!("{lane} {name} u* = {u}: a column outside the domain refuses typed: {r:?}")
-            };
             assert!(
-                what.contains("outside the chart's u domain"),
-                "{lane} {name} u* = {u}: the refusal names the domain: {what}"
+                matches!(
+                    r,
+                    Err(PcurveCertifyError::CarrierOffChart {
+                        chart: geom::SurfaceKind::Nurbs,
+                        ..
+                    })
+                ),
+                "{lane} {name} u* = {u}: a column outside the domain is off the patch: {r:?}"
             );
         }
     }
