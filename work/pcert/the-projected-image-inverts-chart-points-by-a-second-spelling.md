@@ -2,7 +2,9 @@
 id: the-projected-image-inverts-chart-points-by-a-second-spelling
 kind: issue
 title: The projected image inverts chart points by a second spelling, and reads a cone point's v off its ruling foot
-status: open
+status: closed
+closed: 2026-11-04
+branch: pcert/projected-one-inverse
 opened: 2026-10-24
 priority: P1
 cost: M
@@ -27,3 +29,23 @@ The per-piece branch centres are the image's own placement (the sector partition
 ## Owed
 
 Route ψ's channels through `geom::ChartInverse` (frame-local, then the piece's branch), or state why an image's derivation is exempt. Report any moved baseline.
+
+## Closed
+
+Routed, not exempt. The chart's channel table is spelled once, `geom::ChartChannels::read` (`crates/geom/src/chart_point.rs`). It decides nothing: each angle leaves as the direction it is read off (`geom::Azimuth`), and the caller names it.
+
+- `ChartInverse::point` is that table. It names each angle in its window (`principal_in`) and decides the cone's nappe on `h`, with the same decisions in the same order as before.
+- ψ (`ProjectedImage::raw`) is that table on the image's stored scalars, with the image's nappe. It names each angle on the piece's branch: the azimuth about `θ_k`, the torus tube about `φ_k`, the latitude about zero. It uses `Azimuth::about` with a `geom::Quarter`, which is `branch_azimuth` moved into geom, and its rotation is the one the frame boxes now use.
+
+How the Interval scalar and the branch centres survive: the branch is the namer's, not a decision, so ψ still evaluates at every scalar with no band, and `Pcurve::eval`'s signature is unchanged. The branch is decided once, at derivation, by the sector condition. A per-point "principal, then periodic_branch" route was set aside for three reasons: it would read a whole-period integer off a value, which C4 forbids; it would put band decisions into every evaluation; and it would move every non-zero-centre channel by ulps.
+
+Moved baselines: none in certified answers. A one-shot bitwise comparison of the new ψ against the old formula over 23 M `f64` reads found 648 differences, all the sphere latitude at `z = −0.0` exactly, which now reads `+0.0` (equal values). Over 0.29 M `Interval` reads it found 0 differences. The placed value differs only where the image's `v_off` is also `−0.0`.
+
+The row `projected/one_reading_rows.rs` compares ψ against `ChartInverse::point` plus the branch, at `f64` and `Interval`. It covers the sphere, the cylinder, a narrow and a wide cone on both nappes, and a ring and a near-horn torus, sweeping across both cuts and off the surface.
+
+The sweep's out-of-scope sites have their own rows:
+
+- `a-cone-points-v-is-read-off-its-height-in-props-and-replace-face`
+- `derive-class-spells-a-parallels-latitude-and-a-rims-slant-on-its-own`
+- `the-winding-count-reads-chart-channels-by-its-own-atan2`
+- `sphere-and-torus-levels-are-read-as-sin-cos-pairs-by-their-own-spelling`
