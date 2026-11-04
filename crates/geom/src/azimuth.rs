@@ -200,6 +200,41 @@ impl<T: Real> Azimuth<T> {
     pub fn length(self) -> T {
         (self.x.powi(2) + self.y.powi(2)).sqrt()
     }
+
+    /// The angle named on the branch within half a turn of `centre`:
+    /// `θ + atan2(R(−θ)·(x, y))` with `θ = centre.angle()`. It decides
+    /// nothing; the caller has decided the branch (`geom_brep`'s
+    /// projected image decides each piece's centre at derivation, its
+    /// sector condition putting the piece in the open half-plane the
+    /// centre faces, so `atan2` is read clear of its cut). The rotation
+    /// is exact, so the centre adds no width at a bracketed scalar.
+    pub fn about(self, centre: Quarter) -> T {
+        let (x, y) = centre.rotate(self.x, self.y);
+        centre.angle::<T>() + y.atan2(x)
+    }
+}
+
+/// **A branch centre a whole number of quarter turns**, `m·π/2`: the
+/// centre [`Azimuth::about`] names an angle on, so that rotating a
+/// direction back by it is exact (a swap and sign flips).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct Quarter(pub i32);
+
+impl Quarter {
+    /// `R(−m·π/2)·(x, y)`, exactly.
+    pub fn rotate<T: Real>(self, x: T, y: T) -> (T, T) {
+        match self.0.rem_euclid(4) {
+            0 => (x, y),
+            1 => (y, T::zero() - x),
+            2 => (T::zero() - x, T::zero() - y),
+            _ => (T::zero() - y, x),
+        }
+    }
+
+    /// `m·π/2`.
+    pub fn angle<T: Real>(self) -> T {
+        T::pi() * T::from_f64(0.5 * f64::from(self.0))
+    }
 }
 
 impl<T: Decide> Azimuth<T> {

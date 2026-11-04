@@ -164,8 +164,10 @@ pub mod surfaces;
 #[doc(hidden)]
 pub mod test_support;
 
-pub use azimuth::{ANGLE_WINDOW_START, Azimuth, LATITUDE_WINDOW_START, Window};
-pub use chart_point::{ChartArm, ChartInverse, ChartPoint, NoClosedInverse};
+pub use azimuth::{ANGLE_WINDOW_START, Azimuth, LATITUDE_WINDOW_START, Quarter, Window};
+pub use chart_point::{
+    ChannelRead, ChartAngle, ChartArm, ChartChannels, ChartInverse, ChartPoint, NoClosedInverse,
+};
 pub use convention::{ConventionEnd, ConventionMeasure, RepresentabilityMargin, SquareFrame};
 pub use curves::second_derivative::{SecondDerivativeUnbounded, nonrational_second_derivative_sup};
 pub use curves::{
