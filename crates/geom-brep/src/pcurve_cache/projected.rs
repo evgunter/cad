@@ -1509,8 +1509,9 @@ pub(crate) struct SpanHull {
     /// The range of `z` over the part's points.
     pub(crate) z: (f64, f64),
     /// A certified upper bound in metres on the part's distance from
-    /// the chart ([`Meters::over`] in certification arithmetic): `+∞`
-    /// where the cone's lever is not certified positive, NaN where a
+    /// the chart ([`Meters::over`] in certification arithmetic, each
+    /// lever certified positive, and [`Meters::apex_root`] on a cone or
+    /// a sheet where one is not): `+∞` where neither reads, NaN where a
     /// bound above is not certified.
     pub(crate) meters: f64,
     /// Certified lower bounds in metres on the distance from the chart
@@ -1702,15 +1703,52 @@ impl<S: Real> Meters<S> {
         })
     }
 
-    /// **The apex root**: on a cone, `√|f|` bounds a part's distance from
-    /// the cone's implicit surface wherever the lever does not decide
-    /// positive (a part reaching the apex). In the meridian half-plane
-    /// `f = a·b`, with `a = ρ cos α − z sin α` and `b = ρ cos α + z sin α`
-    /// the distances from the two generator lines, both on the implicit
-    /// cone, so the distance is at most `min(|a|, |b|) ≤ √|f|`. `None` off
-    /// the cone.
-    pub(crate) fn apex_root(self, f: S) -> Option<S> {
-        matches!(self, Self::Cone { .. }).then(|| f.sqrt())
+    /// **The apex reading**: a bound on a part's distance wherever the
+    /// lever does not decide positive (a part reaching an apex), for a
+    /// part whose `|f|` is at most `f`, whose `ρ` is at most `rho_hi` and
+    /// whose `z` ranges over `z`. `None` off the cone and the sheet.
+    ///
+    /// - On a cone, `√|f|` bounds the distance from the implicit cone. In
+    ///   the meridian half-plane `f = a·b`, with `a = ρ cos α − z sin α`
+    ///   and `b = ρ cos α + z sin α` the distances from the two generator
+    ///   lines, both on the implicit cone, so the distance is at most
+    ///   `min(|a|, |b|) ≤ √|f|`.
+    /// - On a spindle sheet, the distance from the nearer apex
+    ///   `(0, ±√(r² − R²))`: each apex is a point of the sheet, so a part
+    ///   is no farther from the sheet than from it. `|f|` cannot stand in
+    ///   for it, since it vanishes on the other sheet too, which meets
+    ///   this one at the apexes.
+    pub(crate) fn apex_root(self, f: S, rho_hi: S, z: (f64, f64)) -> Option<S> {
+        match self {
+            Self::Cone { .. } => Some(f.sqrt()),
+            Self::Spindle { major, minor } => {
+                let height = geom::sheet_apex(major, minor).height;
+                let (z0, z1) = (S::from_computed(z.0), S::from_computed(z.1));
+                let reach = |apex: S| {
+                    let along = (z0 - apex).abs().max((z1 - apex).abs());
+                    (rho_hi.powi(2) + along.powi(2)).sqrt()
+                };
+                Some(reach(height).min(reach(-height)))
+            }
+            _ => None,
+        }
+    }
+
+    /// **Limb 2's reading of a part whose lever the band does not decide
+    /// positive**, `f` its `|f|` bound at `T` and `span` its hull: on a
+    /// cone [`Self::apex_root`]; on a sheet the hull's own certified
+    /// reading ([`SpanHull::meters`]), the same [`Self::over`] with each
+    /// lever's positivity read off its certified enclosure and the apex
+    /// reading where that is not positive. A sheet's two sheets meet at
+    /// its apexes, so a part within the sliver band of one has its levers
+    /// in band and its distance from the apex past ε: no band-decided
+    /// reading of it reaches the band. `None` off the cone and the sheet,
+    /// and where the hull's reading is not certified.
+    pub(crate) fn apex_part(self, f: S, span: &SpanHull) -> Option<S> {
+        match self {
+            Self::Spindle { .. } => span.meters.is_finite().then(|| S::from_computed(span.meters)),
+            _ => self.apex_root(f, S::from_computed(span.rho_hi), span.z),
+        }
     }
 
     /// An upper bound in metres on the distance of a part whose `|f|` is
@@ -1954,7 +1992,7 @@ pub(crate) fn window_of<T: Decide>(
 /// or one that does has no certified composite bound or floor; a cone's
 /// or a torus's lever that does not decide positive refuses
 /// [`SectorChannel::Lever`] at the part, except where `apex` reads such
-/// a cone part through [`Meters::apex_root`] (limb 2's reading).
+/// a cone or sheet part through [`Meters::apex_root`] (limb 2's reading).
 pub(super) fn net_incidence<T: Decide>(
     hull: &ProjectedHull,
     (t0, t1): (T, T),
@@ -2007,7 +2045,7 @@ pub(super) fn net_incidence<T: Decide>(
                     sector_refused(j, SectorChannel::Lever),
                 )
             })
-            .or_else(|refusal| apex.then(|| meters.apex_root(f)).flatten().ok_or(refusal))?;
+            .or_else(|refusal| apex.then(|| meters.apex_part(f, span)).flatten().ok_or(refusal))?;
         incidence = incidence.max(disp);
     }
     let Some(rho_floor) = rho_floor else {

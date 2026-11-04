@@ -69,10 +69,22 @@ fn pappus(big: f64, r: f64) -> (f64, f64) {
 
 /// The body revolved, its datum read, meshed closed, through tier 3, and
 /// measured against `(volume, area)`.
-fn holds(what: &str, lp: profile::ProfileLoop<f64>, sheet: f64, (volume, area): (f64, f64)) {
+fn holds(what: &str, lp: profile::ProfileLoop<f64>, sheet: f64, expected: (f64, f64)) {
+    holds_by(what, lp, Revolution::Full, (2, sheet), expected);
+}
+
+/// [`holds`] revolved `by`, with `faces` sheet faces of major radius
+/// `sheet`.
+fn holds_by(
+    what: &str,
+    lp: profile::ProfileLoop<f64>,
+    by: Revolution<f64>,
+    (faces, sheet): (usize, f64),
+    (volume, area): (f64, f64),
+) {
     let tol = Tol::witness();
-    let built = revolve(&validated(vec![lp]), y_axis(), Revolution::Full, tol)
-        .unwrap_or_else(|e| panic!("{what}: {e}"));
+    let built =
+        revolve(&validated(vec![lp]), y_axis(), by, tol).unwrap_or_else(|e| panic!("{what}: {e}"));
     let sheets: Vec<f64> = built
         .body
         .faces()
@@ -82,8 +94,8 @@ fn holds(what: &str, lp: profile::ProfileLoop<f64>, sheet: f64, (volume, area): 
         })
         .collect();
     assert!(
-        sheets.len() == 2 && sheets.iter().all(|&m| (m - sheet).abs() <= 1e-15),
-        "{what}: the sheet faces' major radii {sheets:?}, not two of {sheet}"
+        sheets.len() == faces && sheets.iter().all(|&m| (m - sheet).abs() <= 1e-15),
+        "{what}: the sheet faces' major radii {sheets:?}, not {faces} of {sheet}"
     );
     let delta = 1e-2;
     let mesh = mesh::tessellate(&built.body, delta, tol)
@@ -257,35 +269,33 @@ fn a_football_restored_on_the_other_sheet_is_refused_at_its_edges() {
     }
 }
 
-/// **A football revolved part way refuses typed** at the meridian a cap
-/// meets the sheet on: that edge ends at both apexes, where the sheet's
-/// distance bound has no positive lever
-/// (`work/spiricarm/a-football-revolved-part-way-refuses-at-its-cap-meridians-certificate.md`).
+/// **A football revolved part way is its lune**: one sheet face between
+/// two meridians that end at both apexes, each shared with a plane cap,
+/// meshed closed, through tier 3, and measuring `θ/2π` of the
+/// football's volume and of its sheet's area, and two caps of the
+/// profile's area: the circular segment on a lemon, the rest of the
+/// disc on an apple. Each cap meridian is certified on the sheet up to
+/// its apexes, where the sheet's two sheets meet.
 #[test]
-fn a_football_revolved_part_way_refuses_typed() {
-    for (what, big) in [("the lemon", -0.5), ("the apple", 0.4)] {
-        let got = revolve(
-            &validated(vec![football(big, 1.0)]),
-            y_axis(),
-            Revolution::Partial(2.0),
-            Tol::witness(),
-        );
-        assert!(
-            matches!(
-                got,
-                Err(RevolveError::Op {
-                    source: topo::EulerOpError::Certification {
-                        error: geom_brep::CertifyError::AnalyticRung3(
-                            geom_brep::AnalyticRung3Refusal::NoOffsetBound {
-                                operand: geom::SurfaceKind::Spindle,
-                                ..
-                            }
-                        )
-                    }
-                })
-            ),
-            "{what}: {:?}",
-            got.map(|_| ())
+fn a_football_revolved_part_way_is_its_lune() {
+    for (what, big, r, theta) in [
+        ("the lemon", -0.5, 1.0, 2.0_f64),
+        ("the apple", 0.4, 1.0, 2.0),
+        ("a slim lemon", -0.9, 1.0, 1.0),
+        ("a lemon past a half turn", -0.5, 1.0, 4.5),
+        ("a small apple", 0.3, 0.7, -2.5),
+    ] {
+        let (volume, area) = pappus(big, r);
+        let d = big.abs();
+        let segment = r * r * (d / r).acos() - d * (r * r - d * d).sqrt();
+        let cap = if big < 0.0 { segment } else { PI * r * r - segment };
+        let share = theta.abs() / (2.0 * PI);
+        holds_by(
+            what,
+            football(big, r),
+            Revolution::Partial(theta),
+            (1, big),
+            (share * volume, share * area + 2.0 * cap),
         );
     }
 }
@@ -677,3 +687,4 @@ fn near_the_horn_the_drawn_ends_say_which_sheet() {
         got.map(|_| ())
     );
 }
+
