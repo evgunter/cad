@@ -18,7 +18,7 @@ use geom_core::{Band, Point3, Vec3};
 use test_utils::fuzz;
 
 use super::meet_rows::{band, circle, ellipse, line, shallow_circles, touching_circles, u_for};
-use super::{Hit, MeetRefusal, Meetings, Pose, Span, meet, pose};
+use super::{Hit, MeetFault, MeetRefusal, Meetings, Pose, Span, meet, pose};
 
 type Read = Result<Meetings<f64>, MeetRefusal<f64>>;
 
@@ -71,13 +71,12 @@ fn agree(
         return Some(format!("{label}: answers differ\n  {got:?}\n  {back:?}"));
     }
     let e = band.escalate();
-    let closed = |c: &Curve3<f64>| !matches!(c, Curve3::Line(_));
     let slack = 1e3 * e;
     for p in &got.points {
         let partner = back.points.iter().any(|q| {
             (p.point - q.point).norm() <= e
-                && same_hit(&p.on_a, &q.on_b, closed(a), slack)
-                && same_hit(&p.on_b, &q.on_a, closed(b), slack)
+                && same_hit(&p.on_a, &q.on_b, a.is_periodic(), slack)
+                && same_hit(&p.on_b, &q.on_a, b.is_periodic(), slack)
         });
         if !partner {
             return Some(format!("{label}: {p:?} has no swapped partner in {back:?}"));
@@ -494,4 +493,32 @@ fn meet_reads_one_answer_in_either_order_over_random_near_parallel_pairs() {
         fuzz::replay(),
         bad.iter().take(6).cloned().collect::<Vec<_>>().join("\n")
     );
+}
+
+/// **A level conic's offset at the screen's flip is no contradiction**
+/// (the delta review of PR 6492). A circle 250 m out and a small circle
+/// tilted `2·10⁻⁸` beside it, its centre a few ulps either side of the
+/// height where the parallel screen's margin flips: the screen and the
+/// level conic's offset read one margin, so neither can read clear where
+/// the other did not. Red where the two were spelled apart and their
+/// rounding disagreement was raised as `MeetFault::Contradiction`.
+#[test]
+fn a_level_conics_offset_at_the_screens_flip_is_no_contradiction() {
+    let t = 2e-8f64;
+    let a = circle([-250.0, 0.0, 0.0], [0.0, 0.0, 1.0], 0.4);
+    let h0 = 1.0400888888962435e-8f64;
+    for d in -2i64..=2 {
+        let h = f64::from_bits(h0.to_bits().wrapping_add_signed(d));
+        let b = circle([-249.6, 0.0, h], [0.0, t.sin(), t.cos()], 0.02);
+        let s = (0.0, TAU);
+        for got in [
+            read((&a, s), (&b, s), band()),
+            read((&b, s), (&a, s), band()),
+        ] {
+            assert!(
+                !matches!(&got, Err(e) if matches!(e.fault, MeetFault::Contradiction { .. })),
+                "h {h:e}: {got:?}"
+            );
+        }
+    }
 }

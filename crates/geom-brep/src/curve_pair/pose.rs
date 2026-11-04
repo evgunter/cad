@@ -76,8 +76,9 @@
 //! - **Two conics.** Each conic's height above the other's plane is a
 //!   first harmonic `c₀ + A·cos(θ − φ)` in its own angle, `A` its swing.
 //!   **The parallel argument runs first, whatever the swing reads**, as
-//!   the router's does: where `|c₀| − A`, less the rounding, decides
-//!   positive for either conic (`curve_pair_pose_parallel`), that conic
+//!   the router's does: where the height read with its swing and its
+//!   rounding as its spread, `c₀ ∓ (A + noise)`, decides one-signed for
+//!   either conic (`curve_pair_pose_parallel`), that conic
 //!   lies wholly on one side of the other's plane, past the band, and the
 //!   pair is [`Pose::Apart`]. Only then are the two swings read
 //!   (`curve_pair_pose_swing`), both before either is acted on. One
@@ -85,7 +86,8 @@
 //!   constant to within that swing: its offset read zero
 //!   (`curve_pair_pose_offset`), the conics lie in one plane to within
 //!   the slant `|c₀|` plus the swing (the larger slant where both read
-//!   zero), below; its offset in the gap escalates. Only where neither
+//!   zero), below; its offset, the screen's same margins read on its own
+//!   row, escalates in the gap. Only where neither
 //!   swing reads zero does one in the gap escalate. Both definite: the
 //!   height of one conic above the other's plane, a first harmonic whose
 //!   roots are where it crosses that plane, places the candidates, each
@@ -1031,9 +1033,10 @@ fn conic_conic<T: Decide>(
     let hb = height(&kb, ka.frame().origin, ka.frame().axis);
     let swing = |(_, cp, sp): (T, T, T)| (cp.powi(2) + sp.powi(2)).sqrt();
     let (swing_a, swing_b) = (swing(ha), swing(hb));
+    // The one reading of a conic's height against the other's plane:
+    // clear of it all round is apart, whatever the swing reads.
     for (swing, (c0, _, _)) in [(swing_a, ha), (swing_b, hb)] {
-        let clear = Margin::of(c0.abs() - swing - noise);
-        if decide(row::PARALLEL, clear, band) == Ok(Sign::Positive) {
+        if matches!(constant(row::PARALLEL, c0, swing + noise, band), Ok(true)) {
             return Ok(Pose::Apart);
         }
     }
@@ -1050,11 +1053,10 @@ fn conic_conic<T: Decide>(
         if *read != Ok(Sign::Zero) {
             continue;
         }
-        if constant(row::OFFSET, c0, swing + noise, band)? {
-            return Err(MeetFault::Contradiction {
-                readings: "a level conic's offset reads clear where the parallel screen did not",
-            });
-        }
+        // The same margins the screen read, on the offset's row: read
+        // clear they would have been apart there, so only their gap
+        // escalation is left to act on.
+        constant(row::OFFSET, c0, swing + noise, band)?;
         let level = c0.abs() + swing;
         slant = Some(slant.map_or(level, |other| other.max(level)));
     }

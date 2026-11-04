@@ -1588,8 +1588,9 @@ Flagged, NOT fixed here (dispositions):
   own rows. What keeps it off the logged doors is that no outcome of it
   is a reading: an undecided difference (two conics crossing alike, an
   enclosure straddling the tie) reads the first, and either reading is
-  sound there. Logged, a tie at `Interval` would hand the driver an
-  escalation no box answers, on every symmetric crossing.
+  sound there, so a narrower reading of it changes no answer the
+  caller certifies. Logged, every undecided pick at `Interval` would
+  hand the driver an escalation for a choice that decides nothing.
 
   **Carried as `k_stats::check_unlogged(.., "F33")`**. Its K samples
   still reach the sink under `curve_pair_pose_across`. Not a
