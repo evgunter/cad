@@ -1489,3 +1489,9 @@ general regularity sweep. SECTARMS's cylinder × cylinder unit adopts
     - doc fixes;
     - one far-arc probe for the HONE row's band.
   - **Class (logged):** a rounding charge built from several terms needs a row per term. A row that turns red only when the whole charge is dropped pins none of the terms.
+- 2026-11-04 20:52Z — **PR 6530 fix pass** (head `2ebbb704`, CI run 41907494060 green). Accepted except for one change.
+  - Every one of ten mutants is red by a named row: the reviewer's five rows adopted, plus a cut-and-read composition row, a transposed trim row for `u`, a shift row and an iso-end row.
+  - NaN and infinite bounds now refuse. The weight guard is restored at both scalars, and `bezier_cells` refuses a non-positive cut weight, which restores main's Interval refusal. The Fitted run's Interval ends are charged, and `close_gap` compares homogeneous forms.
+  - The HONE far-arc probe read 0 false clears in 2000, so that row stays P2.
+  - **Sent back:** unasked, the lane had narrowed the reviewed read charge `rounding_charge(2·(reach+|q−c|+|c|))` to `rounding_charge(|q−c| + gap)`. A soundness charge narrowed after review needs its own review, so it is reverted, with the narrowing to be filed P3 if wanted.
+  - Also asked for: topo's full slow set, sweep `/spline/` at 1e-6/1e-12, and the spline-operand census diffed against main, since `bezier_cells` now refuses more.
