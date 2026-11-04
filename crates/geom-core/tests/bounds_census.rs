@@ -47,6 +47,18 @@
 //!    argument). A macro BODY written out in the file is matched — the
 //!    `geom` projection impls below are inside one.
 //!
+//! 5. **A bracket read through another door**:
+//!    `SpanLocate::structure_bracket`, which every `Decide` scalar
+//!    carries, reads the same bracket with no `Bounds` bound to match.
+//!    One such read is a selection that moves with the inputs, #874's
+//!    class, outside the locally-constant condition a `Selection` line
+//!    rests on: `geom_brep::curve_pair::polish`'s `place` steps the
+//!    closest pair's polish from an enclosure's middle
+//!    (`geom::bracket_mid`), so it drops the tangent at `Dual<Interval>`
+//!    and is a literal at `Sym<Interval>`, as `geom::projection_policy`'s
+//!    `mid` freeze below does. The walk cannot see it, so it has no
+//!    roster line; it is recorded here instead.
+//!
 //! Closing (2) and (3) for the tree needs a walk of every generic
 //! parameter's RESOLVED bound set — a `rustc` driver or a
 //! `rust-analyzer` query, not a bigger regex — which is the standing

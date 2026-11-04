@@ -214,6 +214,25 @@ fn a_line_meets_a_circle_through_its_plane_or_in_it() {
     assert!(matches!(got, Ok(Pose::Apart)), "{got:?}");
 }
 
+/// **Two circles cut from one sphere**, of radius `1.3` about
+/// `(3.7, −2.1, 0.4)`, by two planes through `centre + (0, 0.5, 0)`, the
+/// second turned by `theta` about the line there along `x`: the circles
+/// meet on that line.
+fn circles_on_one_sphere(theta: f64) -> (Curve3<f64>, Curve3<f64>) {
+    let (centre, radius, h) = (Point3::new(3.7, -2.1, 0.4), 1.3, 0.5);
+    let (s, c) = theta.sin_cos();
+    let foot = |n: Vec3<f64>| {
+        let d = Vec3::new(0.0, h, 0.0).dot(n);
+        (centre + n * d, (radius * radius - d * d).sqrt())
+    };
+    let (n1, n2) = (Vec3::new(0.0, 1.0, 0.0), Vec3::new(0.0, c, s));
+    let ((c1, r1), (c2, r2)) = (foot(n1), foot(n2));
+    (
+        circle(c1.to_array(), n1.to_array(), r1),
+        circle(c2.to_array(), n2.to_array(), r2),
+    )
+}
+
 /// **Two circles cut from one sphere**, their planes tilted by `θ`, built
 /// to meet: they cross at an angle of about `θ`. Above the basin floor
 /// (the basin meter's crossing angle, about `√(8κe)`, `2.4·10⁻⁴` here) every meeting
@@ -224,8 +243,6 @@ fn a_line_meets_a_circle_through_its_plane_or_in_it() {
 /// plane the coplanar arm decides.
 #[test]
 fn circles_on_one_sphere_meet_on_both_at_any_tilt() {
-    let centre = Point3::new(3.7, -2.1, 0.4);
-    let radius = 1.3;
     for (theta, decided) in [
         (1e-2_f64, true),
         (1e-3, true),
@@ -235,18 +252,7 @@ fn circles_on_one_sphere_meet_on_both_at_any_tilt() {
         (1e-7, false),
         (1e-11, true),
     ] {
-        // Two planes through `centre + (0, h, 0)`, the second turned by
-        // `θ` about the line there along `x`: the circles meet on it.
-        let h = 0.5;
-        let (s, c) = theta.sin_cos();
-        let foot = |n: Vec3<f64>| {
-            let d = Vec3::new(0.0, h, 0.0).dot(n);
-            (centre + n * d, (radius * radius - d * d).sqrt())
-        };
-        let (n1, n2) = (Vec3::new(0.0, 1.0, 0.0), Vec3::new(0.0, c, s));
-        let ((c1, r1), (c2, r2)) = (foot(n1), foot(n2));
-        let a = circle(c1.to_array(), n1.to_array(), r1);
-        let b = circle(c2.to_array(), n2.to_array(), r2);
+        let (a, b) = circles_on_one_sphere(theta);
         let label = format!("tilt {theta:e}");
         let m = meets((&a, (0.05, TAU - 0.05)), (&b, (0.05, TAU - 0.05)));
         if !decided {
@@ -2235,5 +2241,104 @@ fn a_spline_with_a_corner_meets_a_line_past_it() {
     assert!(
         m.points.len() == 1 && interiors_meet(&m),
         "one meeting, on both interiors: {m:?}"
+    );
+}
+
+/// **Circles on one sphere meet at the certified scalar where they meet
+/// at `f64`**: the pair of [`circles_on_one_sphere_meet_on_both_at_any_tilt`]
+/// at its widest tilt, lifted to point intervals, at the band
+/// `(1e-12, 1e-11)`. A polish stepped from a whole enclosure grows by
+/// the box's spread each step, and a step solved through its normal
+/// equations reads the rounding of the pair's gap over the squared sine
+/// between the tangents: either puts the last step wider than the zero
+/// band, and the convergence meter refused.
+#[test]
+fn circles_on_one_sphere_meet_at_the_certified_scalar() {
+    use geom_core::{Interval, Real};
+    let band = Band::new(1e-12, 1e-11).unwrap();
+    let i = Interval::from_f64;
+    let lift = |c: &Curve3<f64>| {
+        let Curve3::Circle(geom::Circle { frame, radius }) = *c else {
+            unreachable!("a circle")
+        };
+        let v = |v: Vec3<f64>| Vec3::new(i(v.x), i(v.y), i(v.z));
+        let o = frame.origin;
+        Curve3::circle(
+            Point3::new(i(o.x), i(o.y), i(o.z)),
+            v(frame.axis),
+            i(radius),
+            v(frame.u_ref),
+        )
+    };
+    let (a, b) = circles_on_one_sphere(1e-2);
+    let span = (0.05, TAU - 0.05);
+    let at_f64 = meet(&Span::new(&a, span), &Span::new(&b, span), band).unwrap();
+    let (a, b) = (lift(&a), lift(&b));
+    let span = (i(span.0), i(span.1));
+    let m = meet(&Span::new(&a, span), &Span::new(&b, span), band)
+        .unwrap_or_else(|e| panic!("at Interval: {:?}", e.fault));
+    assert!(
+        !m.points.is_empty() && m.points.len() == at_f64.points.len(),
+        "the meetings f64 reads, {at_f64:?}, at Interval: {m:?}"
+    );
+    // Each Interval meeting is one f64 reads: its middle within the
+    // band's escalation of an f64 meeting.
+    let mid = |x: Interval| geom::bracket_mid((geom_core::Bounds::lo(x), geom_core::Bounds::hi(x)));
+    for p in &m.points {
+        let q = Point3::new(mid(p.point.x), mid(p.point.y), mid(p.point.z));
+        let near = at_f64
+            .points
+            .iter()
+            .map(|f| (f.point - q).norm())
+            .fold(f64::INFINITY, f64::min);
+        assert!(
+            near <= band.escalate(),
+            "an Interval meeting at {q:?} lies {near:e} from every f64 meeting: {at_f64:?}"
+        );
+    }
+}
+
+/// **The walk offers an endless span no end reads.** A whole circle read
+/// with no ends ([`Span::endless`]) has none to offer ([`Span::ends`]),
+/// and its seam is a point of its interior: a line crossing the circle
+/// square at the seam meets it once, on the circle's interior, by the
+/// walk as by the closed forms, and a line clear of the circle not at
+/// all. Read as ends, the seam's point would be offered as an end of
+/// the circle, which it is not.
+#[test]
+fn the_walk_offers_an_endless_span_no_end_reads() {
+    let c = circle([0.0; 3], [0.0, 0.0, 1.0], 1.0);
+    let whole = Span::new(&c, (0.0, TAU)).endless();
+    assert_eq!(whole.ends().count(), 0, "an endless span has no ends");
+    let across = line([1.0, 0.0, -0.5], [0.0, 0.0, 1.0]);
+    let clear = line([2.0, 0.0, -0.5], [0.0, 0.0, 1.0]);
+    let (seg, far) = (
+        Span::new(&across, (0.0, 1.0)),
+        Span::new(&clear, (0.0, 1.0)),
+    );
+    for (order, walked, closed) in [
+        (
+            "circle first",
+            super::walk::meet(&whole, &seg, band()),
+            meet(&whole, &seg, band()),
+        ),
+        (
+            "line first",
+            super::walk::meet(&seg, &whole, band()),
+            meet(&seg, &whole, band()),
+        ),
+    ] {
+        let (Ok(walked), Ok(closed)) = (walked, closed) else {
+            panic!("{order}: both decide")
+        };
+        assert!(
+            walked.points.len() == 1 && closed.points.len() == 1 && interiors_meet(&walked),
+            "{order}: one meeting, on both interiors: walked {walked:?}, closed {closed:?}"
+        );
+    }
+    let walked = super::walk::meet(&whole, &far, band());
+    assert!(
+        matches!(&walked, Ok(m) if m.points.is_empty() && m.shared.is_none()),
+        "clear of the circle: {walked:?}"
     );
 }

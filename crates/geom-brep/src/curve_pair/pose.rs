@@ -83,11 +83,11 @@
 //!   pair is [`Pose::Apart`]. Only then are the two swings read
 //!   (`curve_pair_pose_swing`), both before either is acted on. One
 //!   read zero lies in a plane parallel to the other's, its height
-//!   constant to within that swing: its offset read zero
-//!   (`curve_pair_pose_offset`), the conics lie in one plane to within
-//!   the slant `|c₀|` plus the swing (the larger slant where both read
-//!   zero), below; its offset, the screen's same margins read on its own
-//!   row, escalates in the gap. Only where neither
+//!   constant to within that swing: the screen's one reading of that
+//!   height, acted on again, decides it. Zero all round, the conics lie
+//!   in one plane to within the slant `|c₀|` plus the swing (the larger
+//!   slant where both read zero), below; in the gap, its escalation is
+//!   the pair's. Only where neither
 //!   swing reads zero does one in the gap escalate. Both definite: the
 //!   height of one conic above the other's plane, a first harmonic whose
 //!   roots are where it crosses that plane, places the candidates, each
@@ -211,6 +211,13 @@
 //! - **its convergence** (`curve_pair_pose_polish`): the polish's last
 //!   step moves the pair within the band's zero.
 //!
+//! **Each step is read from a point** ([`super::polish`]): at an
+//! enclosing scalar the iterate's middle, entered as a point, so the
+//! step and the metres it moves are that point's, not a step from every
+//! point of the iterate's box. The basin is read where the polish
+//! starts, and the travel and convergence meters at the pair the last
+//! step ends on, as every polished pair is then read on both spans.
+//!
 //! # The spans' ends, and deflation
 //!
 //! A touch or a crossing is one point, but two curves near it stay
@@ -220,7 +227,9 @@
 //! meet in the band at an end of one of them, which no isolated
 //! candidate reads. So each span's ends are read against the other
 //! first ([`end_candidates`]): a span end within the band of the other
-//! span is a meeting, and one in the band's gap escalates.
+//! span is a meeting, and one in the band's gap escalates. An endless
+//! span ([`Span::endless`]) has no end: no point lies past it, and its
+//! seam is a point of its interior like any other.
 //!
 //! **A meeting so found is a root the pose already holds where the
 //! arm's equation is the meeting's own**, and there the arm divides it
@@ -468,6 +477,20 @@ fn line_of<T: Decide>(c: &Curve3<T>) -> Result<(Point3<T>, Vec3<T>), MeetFault> 
     }
 }
 
+/// A line span's two end points, start first.
+type Ends<T> = (Point3<T>, Point3<T>);
+
+/// **A line span's two end points**, start first ([`Span::ends`]). A
+/// line is open, so a span of one always has ends: an endless one is a
+/// span read as the kind it is not, as a carrier of the wrong kind is.
+fn line_ends<T: Decide>(s: &Span<'_, T>) -> Result<Ends<T>, MeetFault> {
+    let mut ends = s.ends().map(|(_, q)| q);
+    match (ends.next(), ends.next()) {
+        (Some(p0), Some(p1)) => Ok((p0, p1)),
+        _ => Err(MeetFault::Desync),
+    }
+}
+
 /// A conic carrier's frame.
 fn conic_of<T: Decide>(c: &Curve3<T>) -> Result<&dyn Conic<T>, MeetFault> {
     c.conic().ok_or(MeetFault::Desync)
@@ -510,18 +533,14 @@ fn foot<T: Decide>(s: &Span<'_, T>, q: Point3<T>) -> T {
 /// the other's.
 pub(super) fn end_candidates<T: Decide>(a: &Span<'_, T>, b: &Span<'_, T>) -> Vec<Candidate<T>> {
     let mut out = Vec::with_capacity(4);
-    let (a0, a1) = a.params();
-    for ta in [a0, a1] {
-        let point = a.carrier().eval(ta);
+    for (ta, point) in a.ends() {
         out.push(Candidate {
             point,
             ta,
             tb: foot(b, point),
         });
     }
-    let (b0, b1) = b.params();
-    for tb in [b0, b1] {
-        let point = b.carrier().eval(tb);
+    for (tb, point) in b.ends() {
         out.push(Candidate {
             point,
             ta: foot(a, point),
@@ -586,8 +605,7 @@ fn witnesses<T: Decide>(
     foot_b: &impl Fn(Point3<T>) -> T,
 ) -> Vec<Candidate<T>> {
     let ends = |s: &Span<'_, T>, foot: &dyn Fn(Point3<T>) -> T| {
-        let (t0, t1) = s.params();
-        [foot(s.carrier().eval(t0)), foot(s.carrier().eval(t1))]
+        s.ends().map(|(_, q)| foot(q)).collect::<Vec<_>>()
     };
     let mut out = Vec::new();
     for ta in a.witness_params(ends(b, foot_a)) {
@@ -711,21 +729,16 @@ impl<T: Decide> Polish<'_, T> {
     }
 }
 
-/// The metres `s`'s two ends lie from the origin, as evaluated.
-fn ends<T: Decide>(s: &Span<'_, T>) -> T {
-    let (t0, t1) = s.params();
-    let from = |t: T| (s.carrier().eval(t) - Point3::origin()).norm();
-    from(t0) + from(t1)
+/// The metres a line span's two ends ([`line_ends`]) lie from the
+/// origin, as evaluated.
+fn ends<T: Decide>((p0, p1): Ends<T>) -> T {
+    (p0 - Point3::origin()).norm() + (p1 - Point3::origin()).norm()
 }
 
-/// The projection of `s`'s ends on the line `(o, u)`, `u` a unit: their
-/// distances along it from `o`.
-fn on_line<T: Decide>((o, u): (Point3<T>, Vec3<T>), s: &Span<'_, T>) -> (T, T) {
-    let (t0, t1) = s.params();
-    (
-        (s.carrier().eval(t0) - o).dot(u),
-        (s.carrier().eval(t1) - o).dot(u),
-    )
+/// The projection of a line span's two ends on the line `(o, u)`, `u` a
+/// unit: their distances along it from `o`.
+fn on_line<T: Decide>((o, u): (Point3<T>, Vec3<T>), (p0, p1): Ends<T>) -> (T, T) {
+    ((p0 - o).dot(u), (p1 - o).dot(u))
 }
 
 /// Where the router sends a line's pair (module docs, "The router").
@@ -804,22 +817,17 @@ fn route<T: Decide>(
 /// of the other's carrier. A line's distance from another is affine in
 /// its parameter, so its ends bound it over the span.
 fn one_line<T: Decide>(
-    (a, la): (&Span<'_, T>, (Point3<T>, Vec3<T>)),
-    (b, lb): (&Span<'_, T>, (Point3<T>, Vec3<T>)),
+    (a, la): (Ends<T>, (Point3<T>, Vec3<T>)),
+    (b, lb): (Ends<T>, (Point3<T>, Vec3<T>)),
     band: Band,
 ) -> Result<bool, MeetFault> {
     let off = |(o, u): (Point3<T>, Vec3<T>), q: Point3<T>| {
         let w = q - o;
         (w - u * w.dot(u)).norm()
     };
-    for (s, other) in [(a, lb), (b, la)] {
-        let (t0, t1) = s.params();
-        for t in [t0, t1] {
-            if definite(
-                row::OFFSET,
-                Margin::of(off(other, s.carrier().eval(t))),
-                band,
-            )? {
+    for ((p0, p1), other) in [(a, lb), (b, la)] {
+        for q in [p0, p1] {
+            if definite(row::OFFSET, Margin::of(off(other, q)), band)? {
                 return Ok(false);
             }
         }
@@ -843,16 +851,13 @@ fn line_line<T: Decide>(
     // `origin + dir·t` rounds at `|origin| + |dir|·|t|`, which a far
     // origin makes far larger than the end's own distance
     // (`geom_core::one_line`, "The charge").
-    let ends_of = |s: &Span<'_, T>| {
-        let (t0, t1) = s.params();
-        (s.carrier().eval(t0), s.carrier().eval(t1))
-    };
+    let (ends_a, ends_b) = (line_ends(a)?, line_ends(b)?);
     let produced = |(o, d): (Point3<T>, Vec3<T>), s: &Span<'_, T>| {
         let (t0, t1) = s.params();
         (o - Point3::origin()).norm() * T::from_f64(2.0) + d.norm() * (t0.abs() + t1.abs())
     };
-    let (a0, a1) = ends_of(a);
-    let at = on_one_line(u1, (a0, a1), ends_of(b), produced(la, a) + produced(lb, b));
+    let (a0, _) = ends_a;
+    let at = on_one_line(u1, ends_a, ends_b, produced(la, a) + produced(lb, b));
     let w = a0 + u1 * at.mid() - o2;
     let off = (w - u2 * w.dot(u2)).norm();
     let lever = reach(a).max(reach(b));
@@ -862,7 +867,7 @@ fn line_line<T: Decide>(
     let arm = geom_core::Lever::unsourced(lever);
     let origin = Point3::origin();
     let noise = geom_core::rounding_charge(
-        (o1 - origin).norm() + (o2 - origin).norm() + ends(a) + ends(b) + lever + lever,
+        (o1 - origin).norm() + (o2 - origin).norm() + ends(ends_a) + ends(ends_b) + lever + lever,
     );
     let crossing = || {
         let along = (o2 - o1).cross(u2).dot(n) / s.powi(2);
@@ -877,10 +882,12 @@ fn line_line<T: Decide>(
         Route::Apart => Ok(Pose::Apart),
         Route::Parallel => Ok(Pose::Parallel),
         Route::Crossing => Ok(crossing()),
-        Route::Level if one_line((a, (o1, u1)), (b, (o2, u2)), band)? => Ok(Pose::Coincident {
-            sense: sense(u1.dot(u2), arm, band)?,
-            witnesses: witnesses(a, b, &|q| line_foot(la, q), &|q| line_foot(lb, q)),
-        }),
+        Route::Level if one_line((ends_a, (o1, u1)), (ends_b, (o2, u2)), band)? => {
+            Ok(Pose::Coincident {
+                sense: sense(u1.dot(u2), arm, band)?,
+                witnesses: witnesses(a, b, &|q| line_foot(la, q), &|q| line_foot(lb, q)),
+            })
+        }
         // Level where they can meet but apart past the band along a span:
         // a shallow corner, read as the crossing the longer span's tilt
         // decides.
@@ -914,14 +921,15 @@ fn line_conic<T: Decide>(
     let noise = geom_core::rounding_charge(
         (o - origin).norm() + (k.frame().origin - origin).norm() + lever + k.speed_hi(),
     );
-    let screened = noise + geom_core::rounding_charge(ends(a));
+    let ends_a = line_ends(a)?;
+    let screened = noise + geom_core::rounding_charge(ends(ends_a));
     // A conic's extent is no second span: its projection is read from the
     // line's origin, charged as the router's screens are. That anchor
     // charges the carrier origin's metres once, where a read from the
     // span's start would charge both ends' evaluation, twice as many
     // (`work/cpair/the-line-conic-router-reads-its-projections-from-the-lines-carrier-origin`).
     let at = OnOneLine::of(
-        on_line((o, u), a),
+        on_line((o, u), ends_a),
         (c - k.speed_hi(), c + k.speed_hi()),
         screened,
     );
@@ -1019,30 +1027,32 @@ fn conic_conic<T: Decide>(
     let hb = height(&kb, ka.frame().origin, ka.frame().axis);
     let swing = |(_, cp, sp): (T, T, T)| (cp.powi(2) + sp.powi(2)).sqrt();
     let (swing_a, swing_b) = (swing(ha), swing(hb));
+    let sides = [(swing_a, ha), (swing_b, hb)];
     // The one reading of a conic's height against the other's plane:
     // clear of it all round is apart, whatever the swing reads.
-    for (swing, (c0, _, _)) in [(swing_a, ha), (swing_b, hb)] {
-        if matches!(constant(row::PARALLEL, c0, swing + noise, band), Ok(true)) {
+    let mut heights = Vec::with_capacity(2);
+    for (swing, (c0, _, _)) in sides {
+        let height = constant(row::PARALLEL, c0, swing + noise, band);
+        if matches!(height, Ok(true)) {
             return Ok(Pose::Apart);
         }
+        heights.push(height);
     }
     // Both swings are read before either is acted on, so the route does
     // not depend on which conic comes first. A conic whose swing reads
     // zero lies in a plane parallel to the other's, in it to within the
     // slant `|c₀|` plus its swing (the larger of the two where both are
-    // level); its offset in the gap escalates. Only where neither reads
+    // level); its height in the gap escalates. Only where neither reads
     // zero does a swing in the gap escalate.
-    let sides = [(swing_a, ha), (swing_b, hb)];
     let swings = sides.map(|(swing, _)| decide(row::SWING, Margin::of(swing), band));
     let mut slant: Option<T> = None;
-    for (read, (swing, (c0, _, _))) in swings.iter().zip(sides) {
+    for ((read, height), (swing, (c0, _, _))) in swings.iter().zip(heights).zip(sides) {
         if *read != Ok(Sign::Zero) {
             continue;
         }
-        // The same margins the screen read, on the offset's row: read
-        // clear they would have been apart there, so only their gap
-        // escalation is left to act on.
-        constant(row::OFFSET, c0, swing + noise, band)?;
+        // The screen's own reading: not clear, so in the zero band all
+        // round or escalated.
+        height?;
         let level = c0.abs() + swing;
         slant = Some(slant.map_or(level, |other| other.max(level)));
     }
@@ -1157,8 +1167,9 @@ fn frame_gap<T: Decide>(e: &dyn Conic<T>, f: &dyn Conic<T>) -> T {
 
 /// `ka`'s height above `kb`'s plane, `(c0, cp, sp)` with the swing read
 /// definite (module docs): its crossings and touch, each polished to the
-/// closest pair. `ka` is the conic that crosses the other's plane the
-/// less obliquely, chosen by the caller.
+/// closest pair. `ka` is the conic the caller's across choice reads: the
+/// one that crosses the other's plane the less obliquely where that
+/// choice decides, and the first of the pair at a tie.
 fn transverse<T: Decide>(
     (a, ka, kb, b): (&Span<'_, T>, &dyn Conic<T>, &dyn Conic<T>, &Span<'_, T>),
     (c0, cp, sp): (T, T, T),
@@ -1179,7 +1190,6 @@ fn transverse<T: Decide>(
         b: kb,
         carrier_b: b.carrier(),
         height: (c0, cp, sp),
-        noise,
     };
     let joints: Vec<_> = known
         .iter()
@@ -1395,7 +1405,7 @@ fn coplanar_ellipses<T: Decide>(
 ) -> Result<Pose<T>, MeetFault> {
     let (big_a, big_b) = kb.semi_axes();
     let (ub, vb) = (kb.frame().u_ref, kb.frame().v_ref());
-    let (poly, terms) = level_on(ka, kb);
+    let (poly, terms) = coplanar_level(ka, kb);
     let small = big_a.abs().min(big_b.abs());
     let (t0, t1) = e.params();
     let (ceiling, reach) = level_ceiling(small);
@@ -1419,10 +1429,113 @@ fn coplanar_ellipses<T: Decide>(
 
 /// **`b`'s level along `a`**: `F(θ) = X²/A² + Y²/B² − 1` at the image of
 /// `a(θ)` in `b`'s plane, `(X, Y)` in `b`'s frame and `(A, B)` its
-/// semi-axes, of degree two in `a`'s angle (each of `X` and `Y` is a
-/// first harmonic); and the term bound its rounding is charged on. The
-/// height of `a(θ)` above `b`'s plane plays no part.
-pub(super) fn level_on<T: Decide>(
+/// semi-axes. The height of `a(θ)` above `b`'s plane plays no part.
+///
+/// **It is read locally**: at `θ`, from `a`'s point and derivatives there
+/// in `b`'s frame ([`Level::jet_at`]), never from its global harmonics.
+/// Posed about `b`'s centre those carry rounding of order `((|w| + R)/s)²`,
+/// `w` the centres' offset, `R` `a`'s size and `s` `b`'s smaller
+/// semi-axis, which at a far or thin pair reaches the band's zero; the
+/// local form's rounding is that of `F`'s own few terms. A reading over a
+/// piece takes the jet at its middle and [`Level::fourth`] for Taylor's
+/// remainder, a bound that needs no precision.
+pub(super) struct Level<'k, T: geom_core::Real> {
+    a: &'k dyn Conic<T>,
+    centre: Point3<T>,
+    axes: (Vec3<T>, Vec3<T>),
+    squares: (T, T),
+    fourth: T,
+}
+
+impl<T: Decide> Level<'_, T> {
+    /// `F` and its first three derivatives at `θ`. On a conic
+    /// `P″ = −(P − c)` and `P‴ = −P′`, `c` its centre.
+    pub(super) fn jet_at(&self, theta: T) -> [T; 4] {
+        let (p, dp) = self.a.jet_at(theta);
+        let ddp = self.a.frame().origin - p;
+        let (ub, vb) = self.axes;
+        let q = p - self.centre;
+        let side = |axis: Vec3<T>, square: T| {
+            let (x, x1, x2) = (q.dot(axis), dp.dot(axis), ddp.dot(axis));
+            let x3 = T::zero() - x1;
+            let three = T::from_f64(3.0);
+            [
+                x.powi(2) / square,
+                x * x1 / square,
+                (x1.powi(2) + x * x2) / square,
+                (three * x1 * x2 + x * x3) / square,
+            ]
+        };
+        let (x, y) = (side(ub, self.squares.0), side(vb, self.squares.1));
+        let two = T::from_f64(2.0);
+        [
+            x[0] + y[0] - T::one(),
+            two * (x[1] + y[1]),
+            two * (x[2] + y[2]),
+            two * (x[3] + y[3]),
+        ]
+    }
+
+    /// `|∇F|` at the image of `a(θ)`: `2·√(X²/A⁴ + Y²/B⁴)`.
+    pub(super) fn gradient_at(&self, theta: T) -> T {
+        let q = self.a.point_at(theta) - self.centre;
+        let (ub, vb) = self.axes;
+        let (x, y) = (q.dot(ub) / self.squares.0, q.dot(vb) / self.squares.1);
+        T::from_f64(2.0) * (x.powi(2) + y.powi(2)).sqrt()
+    }
+
+    /// A bound on `|F⁗|` over every angle. Each of `X` and `Y` is
+    /// `x₀ + ρ·cos(θ − φ)`, so `X²`'s first and second harmonics have
+    /// amplitudes `2|x₀|ρ` and `ρ²/2`, and `|(X²)⁗| ≤ 2|x₀|ρ + 8ρ²`. A sum
+    /// of non-negative terms, raised past its roundings ([`up`]): a dot
+    /// product's five, `ρ`'s four more, and each side's six, summed.
+    pub(super) fn fourth(&self) -> T {
+        self.fourth
+    }
+}
+
+/// `x`, non-negative and computed in `N` roundings to nearest, raised to
+/// an upper bound on the real value it stands for. Each rounding is
+/// within `u = ε/2` relative, so `x̂ ≥ x·(1 − u)ᴺ`, and the factor
+/// `c = 1 + (N + 1)·2u`, a constant exact in `f64` for any `N` short of
+/// `2⁵¹`, lifts it past `x` in one more rounding:
+/// `x̂·c·(1 − u) ≥ x·(1 − (N + 1)·u)·(1 + 2(N + 1)·u) ≥ x` while
+/// `(N + 1)·u ≤ ½`. At an enclosure `c` is a point and the product is
+/// outward already, so this only widens it.
+pub(super) fn up<const N: u32, T: Decide>(x: T) -> T {
+    x * T::from_f64(1.0 + f64::EPSILON * (N + 1) as f64)
+}
+
+/// [`Level`] of `kb` along `ka`.
+pub(super) fn level_on<'k, T: Decide>(ka: &'k dyn Conic<T>, kb: &dyn Conic<T>) -> Level<'k, T> {
+    let (big_a, big_b) = kb.semi_axes();
+    let (ub, vb) = (kb.frame().u_ref, kb.frame().v_ref());
+    let (ua, va) = (
+        ka.frame().u_ref * ka.semi_axes().0,
+        ka.frame().v_ref() * ka.semi_axes().1,
+    );
+    let w = ka.frame().origin - kb.frame().origin;
+    let squares = (big_a.powi(2), big_b.powi(2));
+    let (two, eight) = (T::from_f64(2.0), T::from_f64(8.0));
+    let side = |axis: Vec3<T>, square: T| {
+        let rho = (ua.dot(axis).powi(2) + va.dot(axis).powi(2)).sqrt();
+        (two * w.dot(axis).abs() * rho + eight * rho.powi(2)) / square
+    };
+    Level {
+        a: ka,
+        centre: kb.frame().origin,
+        axes: (ub, vb),
+        squares,
+        fourth: up::<24, _>(side(ub, squares.0) + side(vb, squares.1)),
+    }
+}
+
+/// **The coplanar ellipses' level, read globally**: [`Level`]'s `F` as
+/// one trigonometric polynomial of degree two in `a`'s angle (each of `X`
+/// and `Y` a first harmonic), and the term bound its rounding is charged
+/// on. Only `coplanar_ellipses` reads it, through the certified
+/// subdivision; the window reads [`Level`].
+fn coplanar_level<T: Decide>(
     ka: &dyn Conic<T>,
     kb: &dyn Conic<T>,
 ) -> (crate::half_angle::TrigPoly<T>, T) {

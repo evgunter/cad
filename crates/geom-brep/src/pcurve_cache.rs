@@ -9362,15 +9362,15 @@ fn general_lane_refusal<T: Real>(
 }
 
 /// The largest exact distance from `surface` ([`chart_distance`]) of
-/// `at(t)` at [`INCIDENCE_SAMPLES`] + 1 evenly spaced parameters of
-/// `[t0, t1]`, its ends included: an open carrier's sampled incidence. A
-/// poisoned distance is carried to the decision rather than dropped by
+/// `at(t)` at the parameters `ts`: an evenly spaced schedule
+/// ([`sample_schedule`]) or a line's ends and critical points
+/// (`line_incidence`). A poisoned distance is carried to the decision rather than dropped by
 /// `max`. Returned with the samples' reach: their largest offset from
 /// the chart's anchor, plus the chart's own size, the scale every
 /// coordinate the distance is computed from is rounded at.
-fn farthest_over_span<T: Real>(
+fn farthest_at<T: Real>(
     surface: &Surface<T>,
-    (t0, t1): (T, T),
+    ts: impl IntoIterator<Item = T>,
     at: impl Fn(T) -> Point3<T>,
 ) -> (T, T) {
     let (anchor, size) = match *surface {
@@ -9391,12 +9391,10 @@ fn farthest_over_span<T: Real>(
         } => (center, major_radius.abs() + minor_radius),
         Surface::Cone { apex, .. } => (apex, T::zero()),
         Surface::Nurbs(_) | Surface::Approx(_) => {
-            unreachable!("farthest_over_span: the incidence test reads an analytic chart")
+            unreachable!("farthest_at: the incidence test reads an analytic chart")
         }
     };
-    let n = f64::from(INCIDENCE_SAMPLES);
-    (0..=INCIDENCE_SAMPLES).fold((T::zero(), size), |(far, reach), i| {
-        let t = t0 + (t1 - t0) * T::from_f64(f64::from(i) / n);
+    ts.into_iter().fold((T::zero(), size), |(far, reach), t| {
         let p = at(t);
         let d = chart_distance(surface, p);
         let far = if far.is_poison() || d.is_poison() {
@@ -9406,6 +9404,13 @@ fn farthest_over_span<T: Real>(
         };
         (far, reach.max((p - anchor).norm() + size))
     })
+}
+
+/// [`INCIDENCE_SAMPLES`] + 1 evenly spaced parameters of `[t0, t1]`, its
+/// ends included.
+fn sample_schedule<T: Real>((t0, t1): (T, T)) -> impl Iterator<Item = T> {
+    let n = f64::from(INCIDENCE_SAMPLES);
+    (0..=INCIDENCE_SAMPLES).map(move |i| t0 + (t1 - t0) * T::from_f64(f64::from(i) / n))
 }
 
 /// **The mint's incidence read alone** (D3), for a door that meters an
@@ -11371,21 +11376,12 @@ fn chart_incidence<T: Decide>(
     incidence_over_span(name, surface, turn, |t| carrier.eval(t), slack, band)
 }
 
-/// **A carrier's sampled incidence test**, decided one-sidedly: `Off`
-/// only when the carrier is definitely off the chart somewhere. The
-/// largest exact distance from the chart of its points at the
-/// [`farthest_over_span`] samples of `span`, less the rounding of the
-/// coordinates it is computed from, bounds its distance from below, so
-/// a `Positive` verdict on it is certified; `Zero` says only that the
-/// carrier is not shown off, and is `On` here — the image the caller
-/// derives is then measured by its certificate, and a carrier that is no
-/// class of the chart takes D3's lane choice ([`incidence::general_lane`]).
-/// The one decider of a closed conic's, a line's and a spline's tests.
+/// **A carrier's sampled incidence test**: [`incidence_at`] over the
+/// [`sample_schedule`] of `span`.
 ///
 /// # Errors
 ///
-/// [`PcurveCertifyError::Escalated`] ([`PcurveCheck::ChartIncidence`])
-/// when the sampled distance lands in the sliver band, or is poisoned.
+/// As [`incidence_at`].
 fn incidence_over_span<T: Decide>(
     name: &'static str,
     surface: &Surface<T>,
@@ -11394,7 +11390,36 @@ fn incidence_over_span<T: Decide>(
     slack: T,
     band: Band,
 ) -> Result<Incidence, PcurveCertifyError> {
-    let (farthest, reach) = farthest_over_span(surface, span, at);
+    incidence_at(name, surface, sample_schedule(span), at, slack, band)
+}
+
+/// **A carrier's incidence test at the parameters `ts`**, decided
+/// one-sidedly: `Off` only when the carrier is definitely off the chart
+/// somewhere. The largest exact distance from the chart of its points
+/// at `ts` ([`farthest_at`]), less the rounding of the coordinates it is
+/// computed from, bounds its distance from below, so a `Positive`
+/// verdict on it is certified. Where `ts` holds every parameter the
+/// distance can peak at (a line's, `line_incidence`) it is the
+/// distance's supremum, so `Zero` shows the carrier within the band;
+/// where `ts` is a schedule of samples, `Zero` says only that the
+/// carrier is not shown off. Either is `On` here — the image the caller
+/// derives is then measured by its certificate, and a carrier that is no
+/// class of the chart takes D3's lane choice ([`incidence::general_lane`]).
+/// The one decider of a closed conic's, a line's and a spline's tests.
+///
+/// # Errors
+///
+/// [`PcurveCertifyError::Escalated`] ([`PcurveCheck::ChartIncidence`])
+/// when the distance lands in the sliver band, or is poisoned.
+fn incidence_at<T: Decide>(
+    name: &'static str,
+    surface: &Surface<T>,
+    ts: impl IntoIterator<Item = T>,
+    at: impl Fn(T) -> Point3<T>,
+    slack: T,
+    band: Band,
+) -> Result<Incidence, PcurveCertifyError> {
+    let (farthest, reach) = farthest_at(surface, ts, at);
     // The distance is computed from coordinates rounded at the samples'
     // reach, after a move into the carrier's frame that rounded by
     // `slack` (`incidence::anchored`): together the rounding `c`. It is
@@ -11764,8 +11789,11 @@ mod incidence {
         }
     }
 
-    /// A line's incidence test: the sampled test
-    /// ([`super::incidence_over_span`]) over the placement's `span`.
+    /// A line's incidence test: [`super::incidence_at`] at the
+    /// placement's `span` ends and at every parameter between where the
+    /// line's distance from the chart can peak
+    /// ([`super::line_incidence`]), so the read is the distance's
+    /// supremum over the span.
     fn line_incidence<T: Decide>(
         carrier: &Curve3<T>,
         surface: &Surface<T>,
@@ -11773,17 +11801,31 @@ mod incidence {
         slack: T,
         band: Band,
     ) -> Result<Option<geom_core::MarginDiag>, PcurveCertifyError> {
-        match super::incidence_over_span(
+        let Curve3::Line(line) = carrier else {
+            unreachable!("line_incidence: the line arm reads a line")
+        };
+        let (t0, t1) = span;
+        let inner: Vec<T> = super::line_incidence::critical_fractions(line, surface, span)
+            .into_iter()
+            .map(|l| t0 + (t1 - t0) * T::from_f64(l))
+            .collect();
+        #[cfg(test)]
+        let inner = if super::mutants::sampled_line_incidence() {
+            super::sample_schedule(span).collect()
+        } else {
+            inner
+        };
+        match super::incidence_at(
             "pcurve_line_chart_incident",
             surface,
-            span,
+            [t0, t1].into_iter().chain(inner),
             |t| carrier.eval(t),
             slack,
             band,
         )? {
             Incidence::Off(margin) => Err(OffChart(
-                "the line's points are not on the chart (its distance from the chart at a \
-                 sample of its span is past the band)",
+                "the line's points are not on the chart (its distance from the chart is past \
+                 the band somewhere in its span)",
             )
             .with_margin(super::OffMargin::Past(margin), surface, carrier)),
             Incidence::On(margin) => Ok(margin),
@@ -12151,6 +12193,10 @@ mod cylinder_line_rows;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::panic)]
 mod harmonic_sup_rows;
+mod line_incidence;
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod line_incidence_rows;
 #[cfg(test)]
 pub(crate) mod mutants;
 #[cfg(test)]

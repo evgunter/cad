@@ -7,11 +7,8 @@
 //! an off piece is past the zero band throughout, an on piece within it,
 //! a receding piece's distance never falls away from the joint.
 //!
-//! The rounding charged at a reading's call sites (the level's
-//! `rounding_charge`, the height's `noise`) is not checked here: it covers
-//! the f64 harmonics' distance from the true polynomials, below the
-//! resolution of an f64 distance. Its guarantee rests on the shared
-//! `rounding_charge` estimate, and the Interval lane reads enclosures.
+//! The height and the level are read locally and uncharged at `f64`;
+//! the Interval lane reads their enclosures.
 
 #![allow(clippy::unwrap_used, clippy::panic, clippy::many_single_char_names)]
 
@@ -168,24 +165,19 @@ fn pair(rng: &mut fuzz::Rng, z: f64, touch: bool) -> (Curve3<f64>, Curve3<f64>, 
     (a, b, (big_a, big_b), scale)
 }
 
-/// The window reader of `a` against `b`, its height and rounding read as
-/// the pose reads them.
+/// The window reader of `a` against `b`, its height read as the pose
+/// reads it.
 fn window<'w, T: geom_core::Decide>(
     ka: &'w dyn Conic<T>,
     kb: &'w dyn Conic<T>,
     b: &'w Curve3<T>,
 ) -> Window<'w, T> {
-    let lever = ka.speed_hi().max(kb.speed_hi());
-    let o = Point3::origin();
     Window {
         a: ka,
         span_a: (T::from_f64(-1.0), T::from_f64(1.0)),
         b: kb,
         carrier_b: b,
         height: height(ka, kb.frame().origin, kb.frame().axis),
-        noise: geom_core::rounding_charge(
-            (ka.frame().origin - o).norm() + (kb.frame().origin - o).norm() + lever + lever,
-        ),
     }
 }
 
@@ -602,4 +594,52 @@ fn a_span_four_turns_out_is_read_at_every_turn_of_the_window() {
         !certified,
         "a window with the second meeting in it is not the joints'"
     );
+}
+
+/// **A far, thin touch reads its level locally** (the delta review of PR
+/// 6525): a circle of radius 7.8 tangent near the major vertex of a
+/// `9.8 × 0.027` ellipse, two pieces about `2·10⁻⁹` rad from the touch at
+/// the fine band. The level posed about the ellipse's centre rounds by
+/// `((|w| + R)/s)²` ulps, past the band's zero: read from those harmonics
+/// uncharged, the first piece reads on where the dense distance is past
+/// the zero band. Guards that the window's level is read about the piece.
+#[test]
+fn a_far_thin_touch_reads_its_level_locally() {
+    let a = Curve3::circle(
+        Point3::new(
+            2.000_733_089_906_098,
+            0.120_290_927_807_544_09,
+            0.001_545_478_629_104_394_5,
+        ),
+        Vec3::new(
+            0.000_198_388_305_349_933_14,
+            -3.064_147_273_603_985e-6,
+            0.999_999_980_316_345_4,
+        ),
+        7.789_240_998_753_546,
+        Vec3::new(
+            0.999_880_724_536_364_6,
+            -0.015_443_358_874_471_637,
+            -0.000_198_411_967_124_295_83,
+        ),
+    );
+    let axes = (9.789_045_031_948_858, 0.026_598_861_928_547_84);
+    let b = Curve3::Ellipse(geom::Ellipse::new(
+        geom::Frame::new(
+            Point3::origin(),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
+        axes.0,
+        axes.1,
+    ));
+    let band = Band::new(1e-12, 1e-11).unwrap();
+    for piece in [
+        (-2.876_367_476_779_094_8e-9, -2.239_056_786_136_914_6e-9),
+        (-1.956_978_469_885_861_5e-9, -1.955_894_014_129_153_5e-9),
+    ] {
+        if let Err(why) = check(&a, &b, (axes, axes.0), piece, false, band) {
+            panic!("{why}");
+        }
+    }
 }
