@@ -18,14 +18,17 @@
 //! answers poison, which pins nothing.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 // The pinned literals are the reduction's own bits; the ruled plane's
-// `u_ref` lands on `1/√2` to the ulp, and it is pinned as the bits the
-// arm answered, not as the constant.
+// `u_ref` is its normal `(1, 1, 0).normalize()`, one ulp below `1/√2`,
+// and it is pinned as the bits the arm answered, not as the constant.
 #![allow(clippy::approx_constant)]
 
+use crate::common::interval::iv;
 use geom::Surface;
 use geom_brep::SurfaceSide::{self, Inner, Outer};
+use geom_core::Bounds;
 use geom_core::{Point3, Vec3};
-use sweep::blend::arms::{Branch, Meridian, Ruling};
+use sweep::blend::Convexity;
+use sweep::blend::arms::{Branch, Meridian, Ruling, plane_plane_blend};
 
 const RADIUS: f64 = 0.25;
 
@@ -337,5 +340,48 @@ fn the_ruled_arm_answers_each_ball_side_pair_as_pinned() {
         assert_bits(u.z, u_ref[2], &format!("{what} u_ref.z"));
         assert_bits(blend.trim_a.1, setbacks[0], &format!("{what} setback a"));
         assert_bits(blend.trim_b.1, setbacks[1], &format!("{what} setback b"));
+    }
+}
+
+/// **The plane–plane band's seam reference is its first support's foot
+/// direction, `±n_a`, to the bit**: `n_a` on a convex chain, its exact
+/// negation on a concave one, never the foot point less the centre (a
+/// radius-scale offset read off body-scale points). At `Interval` it is
+/// no wider than `n_a` itself.
+#[test]
+fn the_plane_plane_bands_u_ref_is_its_first_supports_foot_direction() {
+    let n = Vec3::new(0.0, 1.0, -0.6).normalize();
+    let up = Vec3::new(0.0, 0.0, 1.0);
+    let p = Point3::new(1.3, 0.7, 1.0);
+    let tau = Vec3::new(1.0, 0.0, 0.0);
+    for (convexity, sign) in [(Convexity::Convex, 1.0), (Convexity::Concave, -1.0)] {
+        let blend = plane_plane_blend(p, tau, n, up, 0.1, convexity);
+        let Surface::Cylinder { u_ref, .. } = blend.surface else {
+            panic!("{convexity}: the plane–plane arm mints a cylinder");
+        };
+        let want = n * sign;
+        for (got, want, c) in [
+            (u_ref.x, want.x, "x"),
+            (u_ref.y, want.y, "y"),
+            (u_ref.z, want.z, "z"),
+        ] {
+            assert_bits(got, want, &format!("{convexity} u_ref.{c}"));
+        }
+        let ivv = |v: Vec3<f64>| v.map(iv);
+        let n_i = ivv(n);
+        let blend = plane_plane_blend(p.map(iv), ivv(tau), n_i, ivv(up), iv(0.1), convexity);
+        let Surface::Cylinder { u_ref, .. } = blend.surface else {
+            panic!("{convexity}: the plane–plane arm mints a cylinder at Interval");
+        };
+        for (got, of, c) in [
+            (u_ref.x, n_i.x, "x"),
+            (u_ref.y, n_i.y, "y"),
+            (u_ref.z, n_i.z, "z"),
+        ] {
+            assert!(
+                got.hi() - got.lo() <= of.hi() - of.lo(),
+                "{convexity} u_ref.{c} at Interval: {got:?} is wider than n_a's {of:?}"
+            );
+        }
     }
 }

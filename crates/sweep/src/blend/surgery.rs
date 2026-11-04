@@ -3483,9 +3483,11 @@ fn boxed_reach<T: geom_core::spline::SpanLocate>(
 #[derive(Clone)]
 pub(super) enum ContactCarrier<T: Real> {
     /// A straight trimline where the band meets its support
-    /// TANGENTIALLY — the rolling ball's contact line (carrier rebuilt
-    /// from the edge's vertices).
-    TrimLine,
+    /// TANGENTIALLY — the rolling ball's contact line, as the band's
+    /// arm stored it (`open_trimline`): its direction is the band's
+    /// axis, which the edge's two vertices only re-read to their own
+    /// width.
+    TrimLine(geom::Line<T>),
     /// A straight edge where two surfaces meet TRANSVERSALLY: every
     /// edge a chamfer mints, since a strip meets its supports and its
     /// corner patches at a definite angle, and two planes crossing at
@@ -5313,8 +5315,23 @@ fn attach_contact<T: Decide + Bounds + topo::AtRestPolicy>(
         carrier,
         ContactCarrier::Chord | ContactCarrier::Transverse(_)
     );
+    // A stored carrier placed over the edge: windowed at its endpoints,
+    // and run back where `p1` reads before `p0`, the same locus.
+    let placed = |curve: Curve3<T>, what: &'static str| -> Result<(Curve3<T>, T, T), BlendError> {
+        let unread = || disagrees(EntityId::Edge(edge), what);
+        let window = |c: &Curve3<T>| arc_window(c, p0, p1).ok_or_else(unread);
+        let (t0, t1) = window(&curve)?;
+        if (t1 - t0).lo() > 0.0 {
+            Ok((curve, t0, t1))
+        } else {
+            let back = curve.reversed().ok_or_else(unread)?;
+            let (t0, t1) = window(&back)?;
+            Ok((back, t0, t1))
+        }
+    };
     let (curve, t0, t1) = match carrier {
-        ContactCarrier::TrimLine | ContactCarrier::Chord => {
+        ContactCarrier::TrimLine(line) => placed(Curve3::Line(line), "a trimline's end parameter")?,
+        ContactCarrier::Chord => {
             let len = p0.distance(p1);
             (Curve3::line(p0, (p1 - p0) / len), T::zero(), len)
         }
@@ -5336,20 +5353,8 @@ fn attach_contact<T: Decide + Bounds + topo::AtRestPolicy>(
             )
         }
         // The plan ran the section forward from one foot to the other;
-        // the edge runs whichever way its `he_plus` does, so where `p1`
-        // reads before `p0` the carrier is run back, the same locus.
-        ContactCarrier::Transverse(curve) => {
-            let unread = || disagrees(EntityId::Edge(edge), "a cut-off arc's end parameter");
-            let window = |c: &Curve3<T>| arc_window(c, p0, p1).ok_or_else(unread);
-            let (t0, t1) = window(&curve)?;
-            if (t1 - t0).lo() > 0.0 {
-                (curve, t0, t1)
-            } else {
-                let back = curve.reversed().ok_or_else(unread)?;
-                let (t0, t1) = window(&back)?;
-                (back, t0, t1)
-            }
-        }
+        // the edge runs whichever way its `he_plus` does.
+        ContactCarrier::Transverse(curve) => placed(curve, "a cut-off arc's end parameter")?,
         ContactCarrier::Exact(curve, t0, t1) => (curve, t0, t1),
     };
     let description = if is_seam {

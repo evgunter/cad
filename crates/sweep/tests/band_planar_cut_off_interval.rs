@@ -14,7 +14,7 @@ use core::f64::consts::PI;
 
 use crate::common::interval::iv;
 use geom_core::k_stats::Bracket;
-use geom_core::{Bounds, Decide, Interval, Point3, Sign, Tol};
+use geom_core::{Bounds, Decide, Interval, Point3, Sign, Tol, Vec3};
 use sweep::blend::build::{chamfer_edges, fillet_edges};
 use sweep::test_support::{assert_naming_totality, block};
 use topo::{
@@ -294,7 +294,7 @@ fn sheared<T: Decide + Bounds + topo::AtRestPolicy>(
 /// both signs, convex and concave, both verbs. At a positive shear the
 /// fillet's foot on the top rim is the end ellipse's major vertex, half
 /// a turn from `u_ref`, where a parameter read from the seam straddles
-/// `atan2`'s cut: those six rows are the witnesses. The negative-shear
+/// `atan2`'s cut: those ten rows are the witnesses. The negative-shear
 /// rows put the foot on `u_ref` itself, and a chamfer's cut-off reads
 /// no arc; they are the ladder's controls. Every row builds at both
 /// scalars, tiers 3 and 3′ and naming total at `Interval`, its `ΔV`
@@ -304,7 +304,7 @@ fn sheared<T: Decide + Bounds + topo::AtRestPolicy>(
 fn a_fillet_foot_on_atan2s_cut_at_an_oblique_end_carves_at_the_certified_scalar() {
     use crate::band_planar_cut_off::{midpoint_tol, pad_ceiling};
     let tol = Tol::witness();
-    for s in [-0.6, -0.3, -0.1, 0.1, 0.3, 0.6] {
+    for s in [-0.8, -0.7, -0.6, -0.3, -0.1, 0.1, 0.3, 0.6, 0.7, 0.8] {
         for convex in [true, false] {
             let (fbody, fedge) = sheared::<f64>(s, convex, tol);
             let (ibody, iedge) = sheared::<Interval>(s, convex, tol);
@@ -372,6 +372,73 @@ fn a_fillet_foot_on_atan2s_cut_at_an_oblique_end_carves_at_the_certified_scalar(
                 assert!(
                     removed.hi() - removed.lo() + 2.0 * pad < 2.0 * pad_ceiling(),
                     "{what}: the enclosure is a claim: {removed:?} ± {pad}"
+                );
+            }
+        }
+    }
+}
+
+/// Every straight edge bounding `body`'s band cylinders, with its
+/// carrier's direction and the cylinder's axis.
+fn foot_lines<T: Bounds + Decide>(body: &Body<T>) -> Vec<(EdgeKey, Vec3<T>, Vec3<T>)> {
+    query::all_edges(body)
+        .into_iter()
+        .filter_map(|e| {
+            let edge = body.get_edge(e)?;
+            let geom::Curve3::Line(line) = body
+                .get_curve_geom(edge.curve)?
+                .certified()?
+                .carrier()
+                .clone()
+            else {
+                return None;
+            };
+            [edge.he_plus, edge.he_minus].into_iter().find_map(|he| {
+                match body.face_surface(body.face_of_half_edge(he)?)? {
+                    geom::Surface::Cylinder { axis, .. } => Some((e, line.dir, *axis)),
+                    _ => None,
+                }
+            })
+        })
+        .collect()
+}
+
+/// **A fillet's foot line carries the band's axis**: at rest each
+/// straight edge on a band cylinder runs along the stored axis, `±` its
+/// bits at `f64` and no wider at `Interval` — never the direction its
+/// two vertices re-read, which is as wide as they are.
+#[test]
+fn a_fillet_foot_line_carries_the_bands_axis() {
+    let tol = Tol::witness();
+    for s in [-0.8, 0.6] {
+        for convex in [true, false] {
+            let what = format!("shear {s}, convex {convex}");
+            let (fbody, fedge) = sheared::<f64>(s, convex, tol);
+            let out = fillet_edges(&fbody, &[fedge], D, tol)
+                .unwrap_or_else(|e| panic!("{what}: carves at f64, got {e:?}"));
+            let lines = foot_lines(&out.body);
+            assert_eq!(lines.len(), 2, "{what}: the band's two foot lines at f64");
+            for (e, dir, axis) in lines {
+                let bits = |v: Vec3<f64>| [v.x, v.y, v.z].map(f64::to_bits);
+                assert!(
+                    bits(dir) == bits(axis) || bits(dir) == bits(-axis),
+                    "{what}: {e:?}'s direction {dir:?} is ± the band's axis {axis:?}"
+                );
+            }
+            let (ibody, iedge) = sheared::<Interval>(s, convex, tol);
+            let out = fillet_edges(&ibody, &[iedge], iv(D), tol)
+                .unwrap_or_else(|e| panic!("{what}: carves at Interval, got {e:?}"));
+            let lines = foot_lines(&out.body);
+            assert_eq!(
+                lines.len(),
+                2,
+                "{what}: the band's two foot lines at Interval"
+            );
+            for (e, dir, axis) in lines {
+                let width = |v: Vec3<Interval>| [v.x, v.y, v.z].map(|c| c.hi() - c.lo());
+                assert!(
+                    width(dir).iter().zip(width(axis)).all(|(d, a)| *d <= a),
+                    "{what}: {e:?}'s direction {dir:?} is no wider than the band's axis {axis:?}"
                 );
             }
         }

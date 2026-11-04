@@ -272,7 +272,12 @@ pub(in crate::blend) fn ruled_phase<T: Decide + Bounds + topo::AtRestPolicy>(
                 tol,
             )
             .map_err(|e| op("ruled trimline mef", e))?;
-        described.push((created.edge, ContactCarrier::TrimLine, crease));
+        let (origin, dir) = open_trimline(l, face)?;
+        described.push((
+            created.edge,
+            ContactCarrier::TrimLine(geom::Line { origin, dir }),
+            crease,
+        ));
         rec.trims.push((created.edge, crease, face));
         trims.push(created.edge);
     }
