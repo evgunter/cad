@@ -2,7 +2,8 @@
 id: a-spline-chart-has-no-incidence-test-so-a-lane-choice-refusal-cannot-tell-off-from-uncovered
 kind: issue
 title: A spline chart has no incidence test, so a lane-choice refusal on it cannot tell a carrier off the chart from one no lane covers
-status: open
+status: closed
+closed: 2026-11-04
 opened: 2026-11-03
 priority: P1
 cost: H
@@ -56,3 +57,33 @@ fall-through, through `Incident`, `class_escalated` and `NoGeneralLane`
 as `chart_image` does. A row needs a circle decided off a spline wall
 that ends `CarrierOffChart`, and one on it, no row holding it, that ends
 "not yet".
+
+## Closed (2026-11-04): a spline chart has an incidence test
+
+`pcert/spline-chart-incidence`. `pcurve_cache::spline_incidence` is the
+spline arm of `incidence::incident` (NURBS, and an `Approx`'s fit): the
+chart cut into Bézier cells, each cell's floor the larger of its
+distances to its control points' box and slab (a superset of the cell
+when every weight is positive), cells quartered where the floor does not
+clear the band, and the chart's own point at a kept cell's centre the
+upper bound. It is read over the edge's span (a patch is bounded) at
+the samples `incidence_over_span` reads, through `read_edge_incidence`.
+In `topo::pcurves::nurbs_iso_derive`, the arc-rim arm and the
+catch-all read it where they refuse, and `iso_schedule`'s fall-through
+reads it before the general image:
+
+- off ends `CarrierOffChart`;
+- in band ends `Escalated` (`ChartIncidence`), except at the
+  fall-through, where it takes the general lane (D3);
+- not shown off takes the lane gap (`NoGeneralLane`, "not yet").
+
+Rows: `spline_incidence::rows` and
+`topo/tests/a_circle_not_shown_on_a_spline_row_refuses_alike_in_every_form.rs`.
+The sweep's other hits are filed: the certificate door
+(`a-spline-charts-certificate-door-reads-no-incidence-so-an-off-carrier-ends-as-its-images-bound`),
+the edge certificate's spline lanes
+(`work/isotail/a-plane-or-pair-lane-on-a-spline-wall-ends-an-off-carrier-as-its-limbs-bound.md`),
+the seam face's dropped refusal
+(`work/charttail/a-seam-faces-image-refusal-is-dropped-so-off-and-uncovered-both-end-unplaced.md`),
+and the two cell walks
+(`work/splice/the-spline-chart-cell-walk-is-written-twice.md`).
