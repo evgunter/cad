@@ -288,7 +288,11 @@ fn a_football_revolved_part_way_is_its_lune() {
         let (volume, area) = pappus(big, r);
         let d = big.abs();
         let segment = r * r * (d / r).acos() - d * (r * r - d * d).sqrt();
-        let cap = if big < 0.0 { segment } else { PI * r * r - segment };
+        let cap = if big < 0.0 {
+            segment
+        } else {
+            PI * r * r - segment
+        };
         let share = theta.abs() / (2.0 * PI);
         holds_by(
             what,
@@ -687,4 +691,3 @@ fn near_the_horn_the_drawn_ends_say_which_sheet() {
         got.map(|_| ())
     );
 }
-

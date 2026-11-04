@@ -1746,7 +1746,10 @@ impl<S: Real> Meters<S> {
     /// and where the hull's reading is not certified.
     pub(crate) fn apex_part(self, f: S, span: &SpanHull) -> Option<S> {
         match self {
-            Self::Spindle { .. } => span.meters.is_finite().then(|| S::from_computed(span.meters)),
+            Self::Spindle { .. } => span
+                .meters
+                .is_finite()
+                .then(|| S::from_computed(span.meters)),
             _ => self.apex_root(f, S::from_computed(span.rho_hi), span.z),
         }
     }
@@ -2045,7 +2048,11 @@ pub(super) fn net_incidence<T: Decide>(
                     sector_refused(j, SectorChannel::Lever),
                 )
             })
-            .or_else(|refusal| apex.then(|| meters.apex_part(f, span)).flatten().ok_or(refusal))?;
+            .or_else(|refusal| {
+                apex.then(|| meters.apex_part(f, span))
+                    .flatten()
+                    .ok_or(refusal)
+            })?;
         incidence = incidence.max(disp);
     }
     let Some(rho_floor) = rho_floor else {
