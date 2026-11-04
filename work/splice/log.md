@@ -1409,3 +1409,29 @@ general regularity sweep. SECTARMS's cylinder × cylinder unit adopts
   - The lane's report: one arm, `(Spiric, Sphere | Cylinder | Cone) → Off`, gated on the re-decided two-oval regime, with irreducibility argued at the site. A band guard needs an interior sample decided off.
   - The residue it names: a near touch between the samples still reads Off; `Door::Spiric` is unbuilt (evidence on REACHHOLD's row). The reviewer is asked to build that pose and find its stop.
   - The β 0.7 union moves to `"spiric wall volume"` (SPIRICARM), pinned by identity in `STEEP_UNION_STOP`.
+- 2026-11-04 13:58Z — **PR 6519 single FULL review** (frozen `9aba71ae`; reviewer `session_013QoYWYXJ2kcKNKAQdZAB8q`, evidence `splice/review-6519` @ `6862bfbe`): APPROVE-WITH-FIXES, no MAJOR.
+  - Settling is sound, and the next piece reads the crossing. Among the teapot, lily and klein demos at 1e-6, the only built result moved is teapot wall 3. The inherited `Floor` red is mass-properties' `settle::Unmet`, a different class.
+  - **MINORs:**
+    - three mutants survive all 157 `curve_face` rows at three ε (always settle, compare raw, flip the end);
+    - `end_state`'s doc now sits on `past_an_end`;
+    - a stale module-doc sentence;
+    - the circle × torus side decision was filed onto HONEROOT's root-slack row, which is a different predicate.
+  - **Fix pass sent:**
+    - adopt the reviewer's six-cell unit row; make the negatives exercise the decision or rename them as regression records;
+    - restore the docs and fix the module sentence;
+    - refile the circle × torus case as its own HONEROOT row (P3);
+    - move the "why it became needed" comment to the PR body.
+- 2026-11-04 13:58Z — **PR 6523 single FULL review** (frozen `6d9a323f`; reviewer `session_013QoYWXdnBJHpASo4cCKDTW`, evidence `splice/review-6523` @ `89a20300`): APPROVE-WITH-FIXES, no MAJOR.
+  - Irreducibility was re-derived by hand; it holds for every d ≠ 0, so the R − r bound is conservative. Degree ≤ 2 holds for every admitted variant.
+  - The near touch reads Off. That is semantically right for the rider question, and the existing conic arms share the residue.
+  - **MINORs:**
+    - three mutants survive (admit Torus, `Err → Off`, midpoint only);
+    - `STEEP_UNION_STOP`'s keys were never measured at 1e-12, which the nightly runs.
+  - **Fix pass sent:**
+    - adopt the reviewer's three rows;
+    - measure the β 0.7 union cell alone at 1e-12, or pin per ε;
+    - say the regime bound is conservative;
+    - an undecided reading escalates like the neighbouring arms, not as a carrier gap;
+    - correct the ONECOPY evidence;
+    - file the triplicated two-oval regime predicate on ONECOPY (P3);
+    - a named pose/op key.
