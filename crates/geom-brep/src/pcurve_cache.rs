@@ -11926,13 +11926,13 @@ fn channels_of<T: Real>(image: &Pcurve<T>) -> (Channel<T>, Channel<T>) {
 mod circle_lane_rows;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::panic)]
-mod ellipse_lane_rows;
-#[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::panic)]
 mod cone_line_rows;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::panic)]
 mod cylinder_line_rows;
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod ellipse_lane_rows;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::panic)]
 mod harmonic_sup_rows;
@@ -13044,7 +13044,12 @@ mod tests {
             ),
             "the orientation reads Zero: no class"
         );
-        super::circle_lane_rows::certifies_projected("a circle tangent to the wall", &carrier, (0.0, PI), &cyl);
+        super::circle_lane_rows::certifies_projected(
+            "a circle tangent to the wall",
+            &carrier,
+            (0.0, PI),
+            &cyl,
+        );
     }
 
     /// The chart-derivation pins across the frontier's two flips

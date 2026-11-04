@@ -116,7 +116,10 @@ pub(super) fn cone_distance(surface: &Surface<f64>, alpha: f64, p: Point3<f64>) 
     (x.hypot(y) * alpha.cos() - z.abs() * alpha.sin()).abs()
 }
 
-pub(super) fn sampled_distance(carrier: &Curve3<f64>, distance: impl Fn(Point3<f64>) -> f64) -> f64 {
+pub(super) fn sampled_distance(
+    carrier: &Curve3<f64>,
+    distance: impl Fn(Point3<f64>) -> f64,
+) -> f64 {
     (0..4096)
         .map(|i| distance(carrier.eval(f64::from(i) * TAU / 4096.0)))
         .fold(0.0, f64::max)
@@ -235,7 +238,12 @@ pub(super) fn certifies_projected(
 
 /// The class reading lands in band: the closed-form derivation escalates
 /// as a class reading.
-pub(super) fn class_in_band(what: &str, carrier: &Curve3<f64>, span: (f64, f64), surface: &Surface<f64>) {
+pub(super) fn class_in_band(
+    what: &str,
+    carrier: &Curve3<f64>,
+    span: (f64, f64),
+    surface: &Surface<f64>,
+) {
     let derivation = derive_harmonic(
         carrier,
         surface,
@@ -691,7 +699,10 @@ fn the_form_bound_covers_the_form_enclosed_at_interval() {
 /// (`v = n × u` exactly); only `α`'s sine and cosine are enclosed. The
 /// sum bounds what the sup of the harmonics can lose to the
 /// coefficients' rounding.
-pub(super) fn cone_coefficient_excess(surface: &Surface<f64>, carrier: &Curve3<f64>) -> (bool, f64) {
+pub(super) fn cone_coefficient_excess(
+    surface: &Surface<f64>,
+    carrier: &Curve3<f64>,
+) -> (bool, f64) {
     use crate::exact_q::Q;
     let Surface::Cone {
         apex,
@@ -1733,5 +1744,5 @@ pub(super) fn other_charts_within(
     let h = crate::implicit::conic_torus_harmonics(conic, at, axis, r, small);
     let stored: Vec<f64> = h.cos.iter().chain(h.sin.iter()).copied().collect();
     within[2] = q_within(&stored, &exact, 1.0, geom_core::rounding_charge(h.terms));
-within
+    within
 }

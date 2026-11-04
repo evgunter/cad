@@ -869,8 +869,8 @@ fn an_edge_on_a_chart_with_no_general_lane_ends_not_yet() {
     let (h, rho) = (0.6_f64, 0.8_f64);
     let half = (0.5 * e).sqrt();
     let line = Curve3::line(Point3::new(rho - 0.125 * e, 0.0, h), Vec3::unit_y());
-    let err = sphere_chart_edge(&line, (-half, half))
-        .expect_err("a line on a sphere has no image yet");
+    let err =
+        sphere_chart_edge(&line, (-half, half)).expect_err("a line on a sphere has no image yet");
     assert!(matches!(err, CertifyError::NoGeneralLane { .. }), "{err:?}");
     assert_eq!(
         err.decision().map(|(check, _)| check),
@@ -1270,9 +1270,15 @@ fn a_tiny_ellipse_within_eps_of_the_sphere_or_torus_takes_the_general_lane() {
         };
         let at_f64 = PcurveCache::certify(image, 0.0, tau, &ellipse, &surface, band())
             .unwrap_or_else(|e| panic!("{face} (f64): certifies: {e:?}"));
-        let at_interval =
-            PcurveCache::certify(image_i, lift(0.0), lift(tau), &carrier_i, &surface_i, band())
-                .unwrap_or_else(|e| panic!("{face} (Interval): certifies: {e:?}"));
+        let at_interval = PcurveCache::certify(
+            image_i,
+            lift(0.0),
+            lift(tau),
+            &carrier_i,
+            &surface_i,
+            band(),
+        )
+        .unwrap_or_else(|e| panic!("{face} (Interval): certifies: {e:?}"));
         assert!(
             at_f64.certificate().envelope < band().zero()
                 && at_interval.certificate().envelope.hi() < band().zero(),

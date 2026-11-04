@@ -676,11 +676,12 @@ whatever the carrier's kind: a spline carrier enters the composite as
 its own net, a line as its degree-1 net, and a circle, ellipse or
 spiric as a per-span enclosure in certification arithmetic (C9).
 On an analytic chart, a carrier with no closed-form image (a spline
-carrier; a circle on a sphere, cylinder, cone or torus, or a line on a
-cylinder or a cone, that the chart's class readings do not show one of
-its own) stores the *projected image*, the
+carrier; a circle or an ellipse on a sphere, cylinder, cone or torus,
+or a line on a cylinder or a cone, that the chart's class readings do
+not show one of its own) stores the *projected image*, the
 chart's own inverse applied to the carrier, `P(t) = ψ(C(t))`: the
-carrier's net in the chart frame, plus a partition of the span into
+carrier written in the chart frame (a net, a conic's harmonic form
+`c + a·cos t + b·sin t`, or a line), plus a partition of the span into
 pieces that each stay in one `atan2` sector. Its channels are the
 chart's one reading of a point's coordinates (D3; `geom::ChartChannels`,
 the table `geom::ChartInverse::point` reads), each angle named on its
@@ -754,10 +755,7 @@ A closed-form class gate is a lane choice (D3): in band or definite,
 the carrier takes the general lane, its projected image, whose
 certificate does not rest on the class; the closed form is taken only
 where the class is shown, and a pair whose general lane is not yet
-written refuses "not yet". Those pairs are: an ellipse the chart's
-class readings do not show one of its own, on any chart (on the plane,
-and as a section of a cylinder or a cone, an ellipse images in closed
-form, and needs no general lane there); a
+written refuses "not yet". Those pairs are: a
 line within the band of a sphere or a torus, which hold none; a line
 within the band of a cone that is no ruling, which the cone's arm reads
 as a ruling and so refuses at its certificate rather than "not yet";
@@ -768,7 +766,7 @@ ended by the door that reads it (D4 ¶1 (iv)), and a read in band, at a
 pose or undecided, ends in the decision's lever at every door. Which
 sketch entity an edge came from (`EdgeAuthority`) is provenance, and no
 ending reads it. A
-carrier whose route refuses (a spline or a circle whose projected image
+carrier whose route refuses (a spline or a conic whose projected image
 reaches a pole) refuses at the producer like any other refusal: no
 class goes unrouted, so the exemption excuses only a scalar that holds
 no certified lane, at which a net's projected row cannot read its hull. The

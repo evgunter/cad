@@ -17,7 +17,7 @@
 
 use core::f64::consts::{FRAC_PI_2, TAU};
 
-use geom_core::Interval;
+use geom_core::{Bounds, Interval};
 use test_utils::fuzz;
 
 use super::circle_lane_rows::{
@@ -180,7 +180,12 @@ fn takes_the_general_lane(
     surface: &Surface<f64>,
     undecided: bool,
 ) {
-    let read = derive_class(carrier, surface, Placement::over(span, carrier, surface), band());
+    let read = derive_class(
+        carrier,
+        surface,
+        Placement::over(span, carrier, surface),
+        band(),
+    );
     assert!(
         matches!(
             &read,
@@ -248,8 +253,16 @@ fn an_in_band_cone_section_certifies_through_the_projected_lane() {
 fn an_ellipse_within_the_band_of_a_sphere_or_a_torus_certifies() {
     let (sphere, torus) = (sphere(1.0), torus(2.0, 0.5));
     let rows = [
-        ("sphere", &sphere, squashed_parallel(&sphere, 0.6, 0.875 * zero())),
-        ("torus", &torus, crest_ellipse(&torus, (0.7 * zero()).sqrt())),
+        (
+            "sphere",
+            &sphere,
+            squashed_parallel(&sphere, 0.6, 0.875 * zero()),
+        ),
+        (
+            "torus",
+            &torus,
+            crest_ellipse(&torus, (0.7 * zero()).sqrt()),
+        ),
     ];
     for (what, surface, carrier) in rows {
         for span in [(0.3, 2.5), (-1.0, TAU - 1.0)] {
@@ -274,7 +287,10 @@ fn a_conic_in_a_plane_along_a_cylinders_axis_certifies() {
     let wall = cylinder(1.0);
     let b = (1.4 * zero()).sqrt();
     let rows = [
-        ("an upright needle", tangent_needle(&wall, (0.3, b, 0.0), 0.0)),
+        (
+            "an upright needle",
+            tangent_needle(&wall, (0.3, b, 0.0), 0.0),
+        ),
         (
             "a tilted ellipse",
             tangent_needle(&wall, (1.6 * b, 0.8 * b, 0.4), -0.2 * zero()),
@@ -306,9 +322,21 @@ fn an_ellipse_definitely_off_ends_as_its_incidence_read() {
     let far = 4.0 * band().escalate();
     let (cone, wall, sphere, torus) = (cone(0.5), cylinder(1.0), sphere(1.0), torus(2.0, 0.5));
     let rows = [
-        ("cone", &cone, cone_needle(&cone, 1.0, 1.2, (0.3, 1.002 * band().escalate(), 0.06), far)),
-        ("wall", &wall, tangent_needle(&wall, (0.3, (1.4 * zero()).sqrt(), 0.0), far)),
-        ("sphere", &sphere, squashed_parallel(&sphere, 0.6, 1.25 * far)),
+        (
+            "cone",
+            &cone,
+            cone_needle(&cone, 1.0, 1.2, (0.3, 1.002 * band().escalate(), 0.06), far),
+        ),
+        (
+            "wall",
+            &wall,
+            tangent_needle(&wall, (0.3, (1.4 * zero()).sqrt(), 0.0), far),
+        ),
+        (
+            "sphere",
+            &sphere,
+            squashed_parallel(&sphere, 0.6, 1.25 * far),
+        ),
         ("torus", &torus, crest_ellipse(&torus, far.sqrt())),
     ];
     for (what, surface, carrier) in rows {
@@ -333,7 +361,11 @@ fn unit(s: &mut fuzz::Rng) -> Vec3<f64> {
 /// points are the same set).
 fn drawn_ellipse(s: &mut fuzz::Rng, centre: Point3<f64>, n: Vec3<f64>, big: f64) -> Curve3<f64> {
     let small = big * s.log_uniform(1e-6, 1.0);
-    let (a, b) = if s.below(2) == 0 { (big, small) } else { (small, big) };
+    let (a, b) = if s.below(2) == 0 {
+        (big, small)
+    } else {
+        (small, big)
+    };
     let (a, b) = match s.below(6) {
         0 => (-a, b),
         1 => (a, -b),
@@ -390,7 +422,11 @@ fn an_ellipses_coefficients_stay_within_their_charge_on_every_chart() {
         ));
     }
     let negative = Curve3::Ellipse(geom::Ellipse::new(
-        geom::Frame::new(at + axis * 0.01, tilted, tilted.cross(Vec3::unit_x()).normalize()),
+        geom::Frame::new(
+            at + axis * 0.01,
+            tilted,
+            tilted.cross(Vec3::unit_x()).normalize(),
+        ),
         -10.0,
         1e-3,
     ));
@@ -471,6 +507,186 @@ fn an_ellipses_coefficients_stay_within_their_charge_on_every_chart() {
     }
 }
 
+/// One draw of [`an_ellipses_projected_envelope_covers_its_residual`].
+struct Draw {
+    chart: usize,
+    scale: f64,
+    far: f64,
+    surface: Surface<f64>,
+    carrier: Curve3<f64>,
+    span: (f64, f64),
+}
+
+/// A draw of the search (its doc lists the draws).
+fn draw(s: &mut fuzz::Rng) -> Draw {
+    let b = band();
+    let sign = |s: &mut fuzz::Rng| if s.below(2) == 0 { 1.0 } else { -1.0 };
+    let off = |s: &mut fuzz::Rng| {
+        if s.below(3) == 0 {
+            s.log_uniform(b.escalate(), 1e-4)
+        } else {
+            b.zero() * s.range(0.01, 0.9)
+        }
+    };
+    let scale = s.log_uniform(0.05, 20.0);
+    let far = if s.below(2) == 0 {
+        0.0
+    } else {
+        s.log_uniform(1.0, 1e3)
+    };
+    let place = Point3::new(far, -0.5 * far, 0.3 * far);
+    let axis = Vec3::new(s.range(-1.0, 1.0), s.range(-1.0, 1.0), 1.0).normalize();
+    let u_ref = axis.cross(Vec3::new(0.3, 1.0, -0.2)).normalize();
+    let chart = s.below(4);
+    let (surface, carrier) = match chart {
+        0 => {
+            let alpha = s.log_uniform(0.003, 1.567);
+            let surface = Surface::Cone {
+                apex: place,
+                axis,
+                half_angle: alpha,
+                u_ref,
+            };
+            let carrier = if s.below(2) == 0 {
+                let h = s.log_uniform(1e-4, 2.0) * scale * sign(s);
+                let tau = (FRAC_PI_2 - alpha) * s.range(0.0, 0.999);
+                let section = cone_section_ellipse(&surface, h, tau);
+                let Some(conic) = section.conic() else {
+                    unreachable!("a section is a conic")
+                };
+                let (a, bb) = conic.semi_axes();
+                let moved = conic.frame().origin + unit(s) * off(s);
+                Curve3::Ellipse(geom::Ellipse::new(
+                    geom::Frame::new(moved, conic.frame().axis, conic.frame().u_ref),
+                    a,
+                    bb,
+                ))
+            } else {
+                let minor = s.log_uniform(1.01 * b.escalate(), 1e-3 * scale);
+                let chi = s.range(-1.5, 1.5);
+                cone_needle(
+                    &surface,
+                    sign(s),
+                    s.log_uniform(1e-3, 2.0) * scale,
+                    (s.log_uniform(1e-3, 0.5) * scale, minor, chi),
+                    sign(s) * off(s),
+                )
+            };
+            (surface, carrier)
+        }
+        1 => {
+            let ratio = if s.below(2) == 0 {
+                s.log_uniform(1e-3, 0.5)
+            } else {
+                1.0 - s.log_uniform(1e-5, 0.5)
+            };
+            let surface = Surface::Torus {
+                center: place,
+                axis,
+                major_radius: scale,
+                minor_radius: scale * ratio,
+                u_ref,
+            };
+            let d = (2.0 * scale * ratio * off(s)).sqrt();
+            let crest = crest_ellipse(&surface, d);
+            let carrier = if s.below(2) == 0 {
+                crest
+            } else {
+                // The bottom crest: the same ellipse mirrored.
+                let Some(conic) = crest.conic() else {
+                    unreachable!("a crest ellipse is a conic")
+                };
+                let (a, bb) = conic.semi_axes();
+                let lift = (conic.frame().origin - place).dot(axis);
+                Curve3::Ellipse(geom::Ellipse::new(
+                    geom::Frame::new(
+                        conic.frame().origin - axis * (2.0 * lift),
+                        conic.frame().axis,
+                        conic.frame().u_ref,
+                    ),
+                    a,
+                    bb,
+                ))
+            };
+            (surface, carrier)
+        }
+        2 => {
+            let surface = Surface::Cylinder {
+                origin: place,
+                axis,
+                radius: scale,
+                u_ref,
+            };
+            let carrier = if s.below(2) == 0 {
+                let minor = (2.0 * scale * off(s)).sqrt();
+                tangent_needle(
+                    &surface,
+                    (s.log_uniform(1e-3, 1.0) * scale, minor, s.range(-1.5, 1.5)),
+                    0.0,
+                )
+            } else {
+                let phi = s.range(0.0, 1.5);
+                let (sp, cp) = phi.sin_cos();
+                framed_ellipse(
+                    &surface,
+                    Vec3::new(0.0, 0.0, s.range(-1.0, 1.0) * scale),
+                    (Vec3::unit_x(), scale + sign(s) * off(s)),
+                    (Vec3::new(0.0, cp, sp), scale / cp),
+                )
+            };
+            (surface, carrier)
+        }
+        _ => {
+            let surface = Surface::Sphere {
+                center: place,
+                radius: scale,
+                axis,
+                u_ref,
+            };
+            let z = scale * s.range(-0.95, 0.95);
+            let rho = (scale * scale - z * z).sqrt();
+            let carrier = squashed_parallel(&surface, z, off(s) * scale / rho);
+            (surface, carrier)
+        }
+    };
+    // Stored larger-first or larger-second, the same set of points.
+    let carrier = match carrier {
+        Curve3::Ellipse(e) if s.below(2) == 0 => {
+            let (n, u) = (e.frame.axis, e.frame.u_ref);
+            Curve3::Ellipse(geom::Ellipse::new(
+                geom::Frame::new(e.frame.origin, n, n.cross(u)),
+                e.semi_v,
+                e.semi_u,
+            ))
+        }
+        other => other,
+    };
+    let offset = unit(s) * (0.3 * b.zero() * f64::from(u8::from(s.below(2) == 0)));
+    let Curve3::Ellipse(e) = carrier else {
+        unreachable!("the draws are ellipses")
+    };
+    let carrier = Curve3::Ellipse(geom::Ellipse::new(
+        geom::Frame::new(e.frame.origin + offset, e.frame.axis, e.frame.u_ref),
+        e.semi_u,
+        e.semi_v,
+    ));
+    let t0 = s.range(-4.0, 4.0);
+    let t1 = t0
+        + if s.below(4) == 0 {
+            TAU
+        } else {
+            s.range(0.2, 6.0)
+        };
+    Draw {
+        chart,
+        scale,
+        far,
+        surface,
+        carrier,
+        span: (t0, t1),
+    }
+}
+
 /// **An ellipse's projected envelope covers its residual** (a
 /// counterexample search; the seed varies): the circle rows' search
 /// (`circle_lane_rows`) widened to ellipses. Each draw places a chart at
@@ -503,164 +719,15 @@ fn an_ellipses_projected_envelope_covers_its_residual() {
     let b = band();
     let f = Interval::from_f64;
     let mut tally = [[0usize; 3]; 4];
-    let sign = |s: &mut fuzz::Rng| if s.below(2) == 0 { 1.0 } else { -1.0 };
-    let off = |s: &mut fuzz::Rng| {
-        if s.below(3) == 0 {
-            s.log_uniform(b.escalate(), 1e-4)
-        } else {
-            b.zero() * s.range(0.01, 0.9)
-        }
-    };
     for trial in 0..fuzz::scaled(300) {
-        let scale = s.log_uniform(0.05, 20.0);
-        let far = if s.below(2) == 0 {
-            0.0
-        } else {
-            s.log_uniform(1.0, 1e3)
-        };
-        let place = Point3::new(far, -0.5 * far, 0.3 * far);
-        let axis = Vec3::new(s.range(-1.0, 1.0), s.range(-1.0, 1.0), 1.0).normalize();
-        let u_ref = axis.cross(Vec3::new(0.3, 1.0, -0.2)).normalize();
-        let chart = s.below(4);
-        let (surface, carrier) = match chart {
-            0 => {
-                let alpha = s.log_uniform(0.003, 1.567);
-                let surface = Surface::Cone {
-                    apex: place,
-                    axis,
-                    half_angle: alpha,
-                    u_ref,
-                };
-                let carrier = if s.below(2) == 0 {
-                    let h = s.log_uniform(1e-4, 2.0) * scale * sign(&mut s);
-                    let tau = (FRAC_PI_2 - alpha) * s.range(0.0, 0.999);
-                    let section = cone_section_ellipse(&surface, h, tau);
-                    let Some(conic) = section.conic() else {
-                        unreachable!("a section is a conic")
-                    };
-                    let (a, bb) = conic.semi_axes();
-                    let moved = conic.frame().origin + unit(&mut s) * off(&mut s);
-                    Curve3::Ellipse(geom::Ellipse::new(
-                        geom::Frame::new(moved, conic.frame().axis, conic.frame().u_ref),
-                        a,
-                        bb,
-                    ))
-                } else {
-                    let minor = s.log_uniform(1.01 * b.escalate(), 1e-3 * scale);
-                    let chi = s.range(-1.5, 1.5);
-                    cone_needle(
-                        &surface,
-                        sign(&mut s),
-                        s.log_uniform(1e-3, 2.0) * scale,
-                        (s.log_uniform(1e-3, 0.5) * scale, minor, chi),
-                        sign(&mut s) * off(&mut s),
-                    )
-                };
-                (surface, carrier)
-            }
-            1 => {
-                let ratio = if s.below(2) == 0 {
-                    s.log_uniform(1e-3, 0.5)
-                } else {
-                    1.0 - s.log_uniform(1e-5, 0.5)
-                };
-                let surface = Surface::Torus {
-                    center: place,
-                    axis,
-                    major_radius: scale,
-                    minor_radius: scale * ratio,
-                    u_ref,
-                };
-                let d = (2.0 * scale * ratio * off(&mut s)).sqrt();
-                let crest = crest_ellipse(&surface, d);
-                let carrier = if s.below(2) == 0 {
-                    crest
-                } else {
-                    // The bottom crest: the same ellipse mirrored.
-                    let Some(conic) = crest.conic() else {
-                        unreachable!("a crest ellipse is a conic")
-                    };
-                    let (a, bb) = conic.semi_axes();
-                    let lift = (conic.frame().origin - place).dot(axis);
-                    Curve3::Ellipse(geom::Ellipse::new(
-                        geom::Frame::new(
-                            conic.frame().origin - axis * (2.0 * lift),
-                            conic.frame().axis,
-                            conic.frame().u_ref,
-                        ),
-                        a,
-                        bb,
-                    ))
-                };
-                (surface, carrier)
-            }
-            2 => {
-                let surface = Surface::Cylinder {
-                    origin: place,
-                    axis,
-                    radius: scale,
-                    u_ref,
-                };
-                let carrier = if s.below(2) == 0 {
-                    let minor = (2.0 * scale * off(&mut s)).sqrt();
-                    tangent_needle(
-                        &surface,
-                        (s.log_uniform(1e-3, 1.0) * scale, minor, s.range(-1.5, 1.5)),
-                        0.0,
-                    )
-                } else {
-                    let phi = s.range(0.0, 1.5);
-                    let (sp, cp) = phi.sin_cos();
-                    framed_ellipse(
-                        &surface,
-                        Vec3::new(0.0, 0.0, s.range(-1.0, 1.0) * scale),
-                        (Vec3::unit_x(), scale + sign(&mut s) * off(&mut s)),
-                        (Vec3::new(0.0, cp, sp), scale / cp),
-                    )
-                };
-                (surface, carrier)
-            }
-            _ => {
-                let surface = Surface::Sphere {
-                    center: place,
-                    radius: scale,
-                    axis,
-                    u_ref,
-                };
-                let z = scale * s.range(-0.95, 0.95);
-                let rho = (scale * scale - z * z).sqrt();
-                let carrier = squashed_parallel(&surface, z, off(&mut s) * scale / rho);
-                (surface, carrier)
-            }
-        };
-        // Stored larger-first or larger-second, the same set of points.
-        let carrier = match carrier {
-            Curve3::Ellipse(e) if s.below(2) == 0 => {
-                let (n, u) = (e.frame.axis, e.frame.u_ref);
-                Curve3::Ellipse(geom::Ellipse::new(
-                    geom::Frame::new(e.frame.origin, n, n.cross(u)),
-                    e.semi_v,
-                    e.semi_u,
-                ))
-            }
-            other => other,
-        };
-        let offset = unit(&mut s) * (0.3 * b.zero() * f64::from(u8::from(s.below(2) == 0)));
-        let Curve3::Ellipse(e) = carrier else {
-            unreachable!("the draws are ellipses")
-        };
-        let carrier = Curve3::Ellipse(geom::Ellipse::new(
-            geom::Frame::new(e.frame.origin + offset, e.frame.axis, e.frame.u_ref),
-            e.semi_u,
-            e.semi_v,
-        ));
-        let t0 = s.range(-4.0, 4.0);
-        let t1 = t0
-            + if s.below(4) == 0 {
-                TAU
-            } else {
-                s.range(0.2, 6.0)
-            };
+        let Draw {
+            chart,
+            scale,
+            far,
+            surface,
+            carrier,
+            span: (t0, t1),
+        } = draw(&mut s);
         let context = || {
             format!(
                 "trial {trial}, chart {chart}, scale {scale:e}, far {far:e}, span ({t0}, {t1}), \
@@ -702,6 +769,227 @@ fn an_ellipses_projected_envelope_covers_its_residual() {
         println!(
             "[fuzz] ellipse_lane_rows::search, chart {chart}: {none} took no projected image, \
              {refused} refused at check 4, {read} read check 4's envelope"
+        );
+    }
+}
+
+/// **The search's draws as rows for a 50-digit oracle**: each draw whose
+/// envelope check 4 reads, one line of its chart, carrier, span and
+/// `f64` and `Interval` envelopes, every number in `{:e}` (which rounds
+/// trips the `f64`). Evidence for a reviewer, not a gate: run with
+/// `CAD_FUZZ_SEED=<seed> cargo nextest run -p geom-brep --lib --run-ignored only ellipse_lane_rows::the_search_as_rows --no-capture`
+/// and read the lines with `scripts/oracles/ellipse_lane_50_digit.py`,
+/// which holds each envelope against the carrier's 50-digit distance
+/// from its chart.
+#[test]
+#[ignore = "a dump for the 50-digit oracle, read by hand"]
+fn the_search_as_rows() {
+    let mut s = fuzz::start("pcurve_cache::ellipse_lane_rows::rows");
+    let f = Interval::from_f64;
+    for _ in 0..fuzz::scaled(600) {
+        let Draw {
+            surface,
+            carrier,
+            span: (t0, t1),
+            ..
+        } = draw(&mut s);
+        let (Ok(image), Ok(image_i)) = (
+            projected::project(&carrier, Some((t0, t1)), &surface, band()),
+            projected::project(
+                &carrier.map_scalar(f),
+                Some((f(t0), f(t1))),
+                &surface.map_scalar(f),
+                band(),
+            ),
+        ) else {
+            continue;
+        };
+        let (image, image_i) = (
+            Pcurve::Projected(Box::new(image)),
+            Pcurve::Projected(Box::new(image_i)),
+        );
+        let Ok((envelope, hi)) = check_4_terms(&image, &image_i, &carrier, (t0, t1), &surface)
+        else {
+            continue;
+        };
+        println!(
+            "{}",
+            oracle_row(&surface, &carrier, (t0, t1), (envelope, hi))
+        );
+    }
+}
+
+/// One line of [`the_search_as_rows`] for the 50-digit oracle.
+fn oracle_row(
+    surface: &Surface<f64>,
+    carrier: &Curve3<f64>,
+    (t0, t1): (f64, f64),
+    (envelope, hi): (f64, f64),
+) -> String {
+    let v = |x: Vec3<f64>| format!("{:e} {:e} {:e}", x.x, x.y, x.z);
+    let p = |x: Point3<f64>| v(x - Point3::origin());
+    let Curve3::Ellipse(e) = carrier else {
+        unreachable!("the rows are ellipses")
+    };
+    let chart = match *surface {
+        Surface::Sphere { center, radius, .. } => format!("sphere {} {radius:e}", p(center)),
+        Surface::Cylinder {
+            origin,
+            axis,
+            radius,
+            ..
+        } => format!("cylinder {} {} {radius:e}", p(origin), v(axis)),
+        Surface::Cone {
+            apex,
+            axis,
+            half_angle,
+            ..
+        } => format!("cone {} {} {half_angle:e}", p(apex), v(axis)),
+        Surface::Torus {
+            center,
+            axis,
+            major_radius,
+            minor_radius,
+            ..
+        } => format!(
+            "torus {} {} {major_radius:e} {minor_radius:e}",
+            p(center),
+            v(axis)
+        ),
+        _ => unreachable!("the rows' charts"),
+    };
+    format!(
+        "ROW {chart} | {} {} {} {:e} {:e} | {t0:e} {t1:e} | {envelope:e} {hi:e}",
+        p(e.frame.origin),
+        v(e.frame.axis),
+        v(e.frame.u_ref),
+        e.semi_u,
+        e.semi_v
+    )
+}
+
+/// The pinned extremes of [`the_extremes_are_covered_at_their_50_digit_distance`]:
+/// a name, the chart, the ellipse, the span, and the carrier's 50-digit
+/// distance from the chart over the span
+/// (`scripts/oracles/ellipse_lane_50_digit.py`).
+fn extremes() -> Vec<(&'static str, Surface<f64>, Curve3<f64>, (f64, f64), f64)> {
+    let far = |d: f64| Point3::new(0.3 + d, -0.7 - 0.6 * d, 0.2 + 0.5 * d);
+    let axis = Vec3::new(0.2, -0.4, 1.0).normalize();
+    let u_ref = axis.cross(Vec3::unit_x()).normalize();
+    let cone_at = |d: f64, alpha: f64| Surface::Cone {
+        apex: far(d),
+        axis,
+        half_angle: alpha,
+        u_ref,
+    };
+    let needle = cone_at(1e5, 0.003);
+    let flat = cone_at(1e5, FRAC_PI_2 - 1e-3);
+    let thin = Surface::Torus {
+        center: far(1e3),
+        axis,
+        major_radius: 2.0,
+        minor_radius: 2e-3,
+        u_ref,
+    };
+    let ball = Surface::Sphere {
+        center: far(1e3),
+        radius: 4.6,
+        axis,
+        u_ref,
+    };
+    let wall = Surface::Cylinder {
+        origin: far(1e3),
+        axis,
+        radius: 1.0,
+        u_ref,
+    };
+    vec![
+        (
+            "a needle cone's section 1e5 out",
+            needle.clone(),
+            cone_section_ellipse(&needle, 1.0, 0.5 * (FRAC_PI_2 - 0.003)),
+            (0.0, TAU),
+            5.465_458_614_727_484_7e-12,
+        ),
+        (
+            "a flat cone's section 1e5 out",
+            flat.clone(),
+            cone_section_ellipse(&flat, 1e-3, 1e-4),
+            (0.3, 2.5),
+            1.873_556_395_183_807_6e-12,
+        ),
+        (
+            "a thin torus's crest ellipse 1e3 out",
+            thin.clone(),
+            crest_ellipse(&thin, 4.5e-7),
+            (0.0, TAU),
+            5.068_641_677_846_516_7e-11,
+        ),
+        (
+            "a sphere's squashed parallel 1e3 out",
+            ball.clone(),
+            squashed_parallel(&ball, 1.1, 7.2e-10),
+            (-1.0, 2.0),
+            6.991_683_275_536_128_8e-10,
+        ),
+        (
+            "a wall's tangent needle 1e3 out",
+            wall.clone(),
+            tangent_needle(&wall, (0.3, 3.7e-5, 0.0), 0.0),
+            (0.0, TAU),
+            6.845_443_184_123_417e-10,
+        ),
+    ]
+}
+
+/// **The extremes are covered at their 50-digit distance**: each pinned
+/// ellipse's `f64` envelope, and the upper end of its `Interval`
+/// envelope (the end the certificate reads), is at least the carrier's
+/// distance from its chart over the span, measured at 50 digits from the
+/// stored values. The carriers are literals, so every ε reads the same
+/// distances.
+#[test]
+fn the_extremes_are_covered_at_their_50_digit_distance() {
+    let f = Interval::from_f64;
+    let b = band();
+    for (what, surface, carrier, (t0, t1), exact) in extremes() {
+        let p = projected::project(&carrier, Some((t0, t1)), &surface, b)
+            .unwrap_or_else(|e| panic!("{what}: projects: {e:?}"));
+        let (t, _) = projected::projected_envelope(
+            &p,
+            t0,
+            t1,
+            &p.chart_box(t0, t1),
+            &carrier,
+            &surface,
+            b,
+            None,
+        )
+        .unwrap_or_else(|e| panic!("{what}: the envelope reads: {e:?}"));
+        let (ci, si) = (carrier.map_scalar(f), surface.map_scalar(f));
+        let pi = projected::project(&ci, Some((f(t0), f(t1))), &si, b)
+            .unwrap_or_else(|e| panic!("{what}: projects at Interval: {e:?}"));
+        let (ti, _) = projected::projected_envelope(
+            &pi,
+            f(t0),
+            f(t1),
+            &pi.chart_box(f(t0), f(t1)),
+            &ci,
+            &si,
+            b,
+            None,
+        )
+        .unwrap_or_else(|e| panic!("{what}: the envelope reads at Interval: {e:?}"));
+        println!(
+            "{}",
+            oracle_row(&surface, &carrier, (t0, t1), (t.total(), ti.total().hi()))
+        );
+        assert!(
+            t.total() >= exact && ti.total().hi() >= exact,
+            "{what}: the envelopes {:e} (f64) and {:?} (Interval) are under the 50-digit \
+             distance {exact:e}",
+            t.total(),
+            ti.total()
         );
     }
 }
