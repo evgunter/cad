@@ -180,3 +180,11 @@ Item 2's bend is made precise:
 - `sin φ` is the basin's lower bound over the region.
 - The escalation enters the move, so to first order the move is `(slack + e)/sin φ`, not `slack/sin φ`.
 - Where the discriminant is negative, the bound is undecided: it escalates and never prunes.
+
+**Second amendment: the composition (items 2 and 5).** As written, the decision could not prune a window whose carriers meet *outside* the spans, which is the common two-circles-on-a-sphere case. There `L` is not Positive. `contact` reads Off past an end, and under the decision that Off escalates. Main prunes it today through the convergence premise, which the decision retired. Ruled:
+
+- The polished candidate carries `reach = m₋`, the bend derivation's bound on how far along either carrier any pair within `e` lies from `p`. Ends, witnesses and exact roots carry 0.
+- `Found::read` prunes an Off only when `L` decides Positive, or when `p`'s past-end side margin less `reach` decides Positive against the band. Both are logged. Anything else escalates.
+- `reach = 0` reproduces today's reading.
+- A location enters only to prune, never to accept.
+- The implementer measures escalations against main at all three ε before the PR. If any test flips, or the past-end-by-less-than-`e/sin φ` class is not rare, the unit stops.
