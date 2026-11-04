@@ -335,9 +335,10 @@ fn the_knife_recourse_is_followed_by_a_ball_that_fits_the_crescent() {
 /// where its ball is defined, so the caller meets a band, not the
 /// sentence. **The premise:** no door here authors an edge whose wedge
 /// lands within the band of tangency, and this row goes red where the
-/// slit stops building.
+/// slit stops building. The missing witness is its own row,
+/// `work/band/the-in-band-wedge-recourse-has-no-witness.md`.
 #[test]
-fn the_tangential_recourse_has_no_witness_once_a_slit_builds() {
+fn the_wedge_recourse_has_no_witness_in_this_suite() {
     let (body, kiss, corner) = lune_slit_plate();
     builds(&body, &[kiss], 0.05, "the slit's own fillet");
     builds(&body, &[corner], 0.05, "the definite-angle edge");

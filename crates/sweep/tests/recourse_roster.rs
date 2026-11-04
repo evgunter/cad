@@ -165,6 +165,10 @@ const PAIRING: &[(BlendDecision, &str)] = &[
         sweep::blend::FILLET3_CHAIN_RECOURSE,
     ),
     (
+        BlendDecision::KnifeEnd,
+        sweep::blend::FILLET3_KNIFE_END_RECOURSE,
+    ),
+    (
         BlendDecision::KnifeRoom,
         sweep::blend::FILLET3_KNIFE_RECOURSE,
     ),
@@ -396,11 +400,13 @@ const NO_TOLERANCE: &[BlendDecision] = &[
 ];
 
 /// The decisions that pass on a negative sign as well as a positive one:
-/// the convexity sign on either side, the material side either way, and
-/// the contact edge's second-order separation on any definite sign.
+/// the convexity sign on either side, the material side either way, a
+/// knife's end either way (a cusp or a slit), and the contact edge's
+/// second-order separation on any definite sign.
 const TWO_SIDED: &[BlendDecision] = &[
     BlendDecision::ConvexitySign,
     BlendDecision::MaterialSide,
+    BlendDecision::KnifeEnd,
     BlendDecision::ContactSecondOrder,
 ];
 

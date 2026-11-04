@@ -3640,11 +3640,11 @@ fn blend() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         (
-            "KnifeEdge(chamfer)",
+            "KnifeEdge(never opens)",
             E::KnifeEdge {
                 edge,
-                margin: decided("fillet3_convexity_sign", 0.0, Sign::Zero),
-                refusal: KnifeRefusal::Chamfer,
+                margin: decided("fillet3_knife_end", 0.0, Sign::Zero),
+                refusal: KnifeRefusal::NeverOpens,
             },
         ),
         (

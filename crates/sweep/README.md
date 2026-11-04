@@ -406,7 +406,7 @@ normals opposed is a cusp (wedge 0) or slit (wedge 2π), and its side is
 the jet's question, not the dihedral's: `battery::knife_end` reads the
 relative transverse curvature signed into the plus face's outward frame
 (`geom_brep::material_kappa_rel`, the reading the tier-3 fold decides
-the end with) under `material_wedge_side`. A cusp's ball rests in the
+the end with) under `fillet3_knife_end`. A cusp's ball rests in the
 material crescent between the supports, the side a convex edge's takes;
 a slit's rests in the void crescent, as a concave edge's does; and the
 link carries that convexity, so every later predicate reads it as it
@@ -425,8 +425,9 @@ tangent cylinders has it while `r < R_big − R_small` — and a radius
 past it refuses `BlendError::KnifeEdge { refusal: KnifeRefusal::NoRoom }`.
 A ball that exists but whose band leaves its supports is the face
 clearance, ring and reach meters' to refuse, as on any other edge. The
-chamfer refuses every knife (`KnifeRefusal::Chamfer`): its arms are
-plane–plane, and no two planes meet at a knife on a valid body.
+chamfer reaches no knife refusal of its own: its one arm is
+plane–plane, a knife's supports are never two planes on a valid body,
+and a knife meets `ChamferArmUnsupported` as any curved pair does.
 
 **A3-2 — a valence-4 seam vertex is not a corner.** Where a chart seam
 (the `u = 0` meridian of a revolved wall) crosses an otherwise smooth

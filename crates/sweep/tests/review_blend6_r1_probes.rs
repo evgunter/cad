@@ -68,8 +68,8 @@ fn seeds() -> Vec<BlendError> {
         },
         BlendError::KnifeEdge {
             edge: EdgeKey::default(),
-            margin: decided("fillet3_convexity_sign", 0.0, Sign::Zero),
-            refusal: KnifeRefusal::Chamfer,
+            margin: decided("fillet3_knife_end", 0.0, Sign::Zero),
+            refusal: KnifeRefusal::NeverOpens,
         },
         BlendError::KnifeEdge {
             edge: EdgeKey::default(),
@@ -206,8 +206,8 @@ fn seeds() -> Vec<BlendError> {
 /// the PR's own dispositions: ball facts keep ball language
 /// (`RadiusHeadroom`, `SpineIrregular`, a knife with no room for the
 /// ball, and an escalation routed to a ball predicate's recourse), the
-/// chamfer's own arms speak as the chamfer (`ChamferArmUnsupported`,
-/// and a knife, which no chamfer strip is built for), and three recourse constants carry deliberately
+/// chamfer's own arm speaks as the chamfer (`ChamferArmUnsupported`),
+/// and three recourse constants carry deliberately
 /// CONDITIONED per-verb clauses ("for a fillet, …", "a chamfer has no
 /// closed-chain band") on `UnsupportedChain`, `UnsupportedGeometry`
 /// and the seam-vertex corner tag.

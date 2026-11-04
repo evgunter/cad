@@ -281,13 +281,12 @@ pub fn lune(tol: Tol) -> ProfileLoop<f64> {
 
 /// **Whether a blend read a requested edge as tangent**: the request
 /// `edges` of `body` at `size` refused as a knife edge (`outcome`), or
-/// read by the battery as holding a smooth seam, which the verbs leave
-/// silently, or as a knife (a cusp or slit), which the fillet builds
-/// where its ball is defined and the chamfer's battery refuses as
-/// [`crate::blend::KnifeRefusal::Chamfer`] when it resolves the link.
-/// Each is a dihedral that decided Zero, so a row that guards a
-/// transverse corner against a false zero asks this rather than for
-/// one of them.
+/// some requested edge resolves as a smooth seam, which the verbs leave
+/// silently, or as a knife (a cusp or slit), whose convexity is the
+/// end `fillet3_knife_end` read rather than the dihedral's sign, or
+/// refuses as one. Each is a dihedral that decided Zero, so a row that
+/// guards a transverse corner against a false zero asks this rather
+/// than for one of them.
 #[must_use]
 pub fn read_as_tangent(
     body: &Body<f64>,
@@ -296,23 +295,20 @@ pub fn read_as_tangent(
     outcome: &Result<Blended<f64>, crate::blend::BlendError>,
     tol: Tol,
 ) -> bool {
-    if matches!(outcome, Err(crate::blend::BlendError::KnifeEdge { .. })) {
+    use crate::blend::{BlendDecision, BlendError};
+    if matches!(outcome, Err(BlendError::KnifeEdge { .. })) {
         return true;
     }
     let band = Band::linear(tol).expect("the run's band");
-    let req = BlendRequest {
-        body,
-        edges: edges.to_vec(),
-        size,
-    };
-    run_battery(&req, band).is_ok_and(|v| !v.smooth.is_empty())
-        || matches!(
-            crate::blend::run_battery_for(&req, band, crate::blend::BlendKind::Chamfer),
-            Err(crate::blend::BlendError::KnifeEdge {
-                refusal: crate::blend::KnifeRefusal::Chamfer,
-                ..
-            })
-        )
+    edges.iter().any(
+        |&edge| match resolve_link(body, edge, size, band, BlendKind::Fillet) {
+            Ok(Resolved::Smooth(..)) | Err(BlendError::KnifeEdge { .. }) => true,
+            Ok(Resolved::Link(link)) => {
+                link.convexity_margin.predicate == BlendDecision::KnifeEnd.predicate()
+            }
+            Err(_) => false,
+        },
+    )
 }
 
 /// What a blend result is, entity for entity: its face, edge and vertex

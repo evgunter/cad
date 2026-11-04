@@ -286,7 +286,10 @@ pub struct Link<T: Real> {
     pub blend: EdgeBlend<T>,
     /// The link's convexity verdict.
     pub convexity: Convexity,
-    /// The dihedral margin that verdict was decided from, kept whole.
+    /// The margin that verdict was decided from, kept whole: the
+    /// dihedral's (`fillet3_convexity_sign`) on a link whose wedge is
+    /// definite, and on a knife link, whose dihedral decided Zero, the
+    /// end its convexity came from (`fillet3_knife_end`, [`knife_end`]).
     /// The chain's sign-consistency check refuses on a link whose
     /// verdict disagrees with the chain's, and the number that refusal
     /// owes its reader is THIS one — the reading the classifier
@@ -783,8 +786,8 @@ pub fn wedge_at<T: Decide + Bounds>(
     }
 }
 
-/// **`material_wedge_side` at a knife edge**: which end of the wedge
-/// range a cusp or slit is, and so which side its ball rests on.
+/// **`fillet3_knife_end`** — which end of the wedge range a cusp or
+/// slit is, and so which side its ball rests on.
 ///
 /// Margin: the jet's relative transverse curvature signed into the
 /// plus face's OUTWARD frame ([`geom_brep::material_kappa_rel`], the
@@ -794,14 +797,28 @@ pub fn wedge_at<T: Decide + Bounds>(
 /// the crescent between the supports, and the ball rests in it, the
 /// side a convex edge's ball takes ([`Convexity::Convex`]). `Negative`
 /// is a slit (wedge 2π): the crescent is the void, and the ball rests
-/// there, as a concave edge's does ([`Convexity::Concave`]). A
-/// `Zero` is two supports that never open — no ball fits between
-/// them at any radius — and refuses as a knife with no room.
+/// there, as a concave edge's does ([`Convexity::Concave`]).
+///
+/// **One lever with tier 3.** `arm` is the link's wedge arm,
+/// [`geom_brep::folded_lever_arm`] of the same two surfaces over the
+/// same [`topo::wedge_reach`] that tier 3's station arm folds when it
+/// reads this end (`geom_brep::edge_wedge`'s `MaterialReads`); only the
+/// point differs, the link's mid sample here. A tier-3 knife's end is
+/// one end along the whole edge (stations that disagree are `Mixed`,
+/// refused), and tier 3 decided it definite at each of its stations,
+/// so the two reads cannot disagree in sign; a mid reading inside the
+/// band escalates rather than disagreeing.
+///
+/// A definite `Zero` is two supports that never open, no ball fitting
+/// between them at any radius ([`KnifeRefusal::NeverOpens`]). **No
+/// valid body reaches it**: opposed tangent faces whose jets osculate
+/// are a lamina, which tier 3 refuses, so an at-rest operand's knife
+/// always reads a definite end; the arm is the refusal such a reading
+/// owes, not a configuration the verbs meet.
 ///
 /// `s_plus` and `sense_plus` are the face on the edge's `he_plus`
 /// side, `tau` that half-edge's direction, as the tier-3 walk reads
-/// them; the decision is the one [`BlendDecision::MaterialSide`] names,
-/// metered at the link's own site.
+/// them.
 ///
 /// # Errors
 ///
@@ -816,24 +833,21 @@ pub fn knife_end<T: Decide + Bounds>(
     tau: Vec3<T>,
     arm: geom_core::Lever<T>,
     edge: EdgeKey,
-    radius: T,
     band: Band,
-) -> Result<(geom_brep::WedgeEnd, Convexity, ClassifiedMargin), BlendError> {
+) -> Result<(Convexity, ClassifiedMargin), BlendError> {
     let jet = geom_brep::tangent_jet(s_plus, s_minus, p, tau);
     let signed = geom_brep::material_kappa_rel(jet.kappa_rel, sense_plus);
     let margin = Margin::sagitta(signed, arm.length());
-    let decision = BlendDecision::MaterialSide;
+    let decision = BlendDecision::KnifeEnd;
     let sign = classify(BlendSite::Link { edge }, decision, margin, band)?;
     let reading = classified(decision, margin.value(), band, sign);
     match sign {
-        Sign::Positive => Ok((geom_brep::WedgeEnd::Cusp, Convexity::Convex, reading)),
-        Sign::Negative => Ok((geom_brep::WedgeEnd::Slit, Convexity::Concave, reading)),
+        Sign::Positive => Ok((Convexity::Convex, reading)),
+        Sign::Negative => Ok((Convexity::Concave, reading)),
         Sign::Zero => Err(BlendError::KnifeEdge {
             edge,
             margin: reading,
-            refusal: KnifeRefusal::NoRoom {
-                radius: radius.lo(),
-            },
+            refusal: KnifeRefusal::NeverOpens,
         }),
     }
 }
@@ -1193,13 +1207,15 @@ pub(crate) fn resolve_link<T: Decide + Bounds>(
         match wedge_at(outward_a, outward_b, tau, wedge_arm, edge, band)? {
             (LinkWedge::Blend(convexity), margin) => (convexity, margin, Branch::Rim),
             (LinkWedge::Smooth, margin) => return Ok(Resolved::Smooth(edge, margin)),
-            // The chamfer's arms are plane–plane, and no two planes
-            // meet at a knife on a valid body, so no knife has a strip.
-            (LinkWedge::Knife, margin) if matches!(kind, BlendKind::Chamfer) => {
-                return Err(BlendError::KnifeEdge {
+            // The chamfer's one arm is plane–plane, and a knife's
+            // supports are not two planes on any valid body (two planes
+            // tangent along a line are coplanar, a lamina tier 3
+            // refuses), so a knife reaches the chamfer's one refusal for
+            // a pair its arm does not cover, as any curved pair does.
+            (LinkWedge::Knife, _) if matches!(kind, BlendKind::Chamfer) => {
+                return Err(BlendError::ChamferArmUnsupported {
                     edge,
-                    margin,
-                    refusal: KnifeRefusal::Chamfer,
+                    supports: CHAMFER_SUPPORTS,
                 });
             }
             // A cusp or slit: its side is the jet's, and its ball's
@@ -1208,8 +1224,8 @@ pub(crate) fn resolve_link<T: Decide + Bounds>(
             // link records the end's reading as its convexity margin:
             // that is the decision its convexity came from.
             (LinkWedge::Knife, _) => {
-                let (_, convexity, margin) =
-                    knife_end(&sa, senses.0, &sb, p, tau, wedge_arm, edge, radius, band)?;
+                let (convexity, margin) =
+                    knife_end(&sa, senses.0, &sb, p, tau, wedge_arm, edge, band)?;
                 let toward = inward_unit(n_a, tau.normalize());
                 (convexity, margin, Branch::Knife(toward))
             }
@@ -1260,6 +1276,10 @@ fn plane_u<T: Real>(s: &Surface<T>) -> Vec3<T> {
 pub(super) const ARM_ROSTER: &str = "non-(plane–plane / plane–sphere / sphere–cone / sphere–sphere / cone–plane / \
      cone–cone / cylinder–cone / cylinder–sphere / cylinder–plane / cylinder–plane(∥) / \
      cylinder–cylinder)";
+
+/// What the chamfer's one refusal for an uncovered pair names: its one
+/// arm is plane–plane.
+const CHAMFER_SUPPORTS: &str = "non-(plane–plane)";
 
 /// The roster as data, for the arm-coverage row that keeps it honest.
 #[must_use]
@@ -1384,23 +1404,21 @@ fn classify_arm<T: Decide + Bounds>(
             )),
             _ => Err(BlendError::ChamferArmUnsupported {
                 edge,
-                supports: "non-(plane–plane)",
+                supports: CHAMFER_SUPPORTS,
             }),
         };
     }
-    // Two planes, or a plane and a sphere, touch at a knife only in a
-    // line of coplanar faces or a point, neither an edge of a valid
-    // body; their closed forms read no knife branch, so a knife there
-    // has no room rather than a centre picked by rounding.
-    let planar = matches!(
-        (sa, sb),
-        (
-            Surface::Plane { .. },
-            Surface::Plane { .. } | Surface::Sphere { .. }
-        ) | (Surface::Sphere { .. }, Surface::Plane { .. })
-    );
-    if planar && matches!(branch, Branch::Knife(_)) {
-        knife_room_at(edge, T::zero(), radius, band)?;
+    // A knife's ball is read in a sheet, whichever its supports: two
+    // planes or a plane and a sphere meet at no knife on a valid body
+    // (coplanar faces are a lamina, a sphere touches a plane at a
+    // point), and if one were asked the sheet reduction traces a plane
+    // all the same, so `fillet3_knife_room` refuses it there, where
+    // every other knife's room is decided ([`super::arms::knife_room`]).
+    if let Branch::Knife(_) = branch {
+        return curved_arm(
+            sa, sb, senses, convexity, branch, carrier, p, extent, radius, edge, band,
+        )
+        .map(|(arm, blend, axis)| (arm, blend, Some(axis)));
     }
     match (sa, sb) {
         (Surface::Plane { .. }, Surface::Plane { .. }) => Ok((
@@ -1541,7 +1559,9 @@ fn curved_arm<T: Decide + Bounds>(
 ) -> Result<(BlendArm, EdgeBlend<T>, SupportAxis), BlendError> {
     // A knife's ball exists only where the offset traces cross away
     // from the rim (`fillet3_knife_room`), decided once the pair is
-    // known to be coaxial or co-ruled and before any centre is read.
+    // known to be coaxial or co-ruled and before any centre is read, and
+    // before the arm table is asked: a knife on a pair the table does
+    // not cover (two planes) has no room, and says so there.
     let room = |ta, tb| match branch {
         Branch::Rim => Ok(()),
         Branch::Knife(_) => knife_room_at(edge, knife_room(p, ta, tb, radius), radius, band),
@@ -1557,7 +1577,10 @@ fn curved_arm<T: Decide + Bounds>(
                 },
             ..
         }) => {
-            let arm = coaxial_arm(sa, sb).ok_or_else(|| unsupported(ARM_ROSTER))?;
+            let arm = coaxial_arm(sa, sb);
+            if arm.is_none() && matches!(branch, Branch::Rim) {
+                return Err(unsupported(ARM_ROSTER));
+            }
             let sheet = Meridian {
                 origin: center,
                 axis,
@@ -1572,10 +1595,14 @@ fn curved_arm<T: Decide + Bounds>(
             let margin = support_coaxiality(edge, da.max(db), band, NOT_COAXIAL)?;
             let axis = (topo::Relation::Coaxial, margin);
             room(ta, tb)?;
+            let arm = arm.ok_or_else(|| unsupported(ARM_ROSTER))?;
             Ok((arm, sheet.blend(ta, tb, radius, branch), axis))
         }
         Curve3::Line(geom::Line { dir, .. }) => {
-            let arm = ruling_arm(sa, sb).ok_or_else(|| unsupported(ARM_ROSTER))?;
+            let arm = ruling_arm(sa, sb);
+            if arm.is_none() && matches!(branch, Branch::Rim) {
+                return Err(unsupported(ARM_ROSTER));
+            }
             let sheet = Ruling {
                 tau: dir.normalize(),
                 rim: p,
@@ -1590,6 +1617,7 @@ fn curved_arm<T: Decide + Bounds>(
             let margin = support_coaxiality(edge, da.max(db), band, NOT_COAXIAL)?;
             let axis = (topo::Relation::CoRuled, margin);
             room(ta, tb)?;
+            let arm = arm.ok_or_else(|| unsupported(ARM_ROSTER))?;
             Ok((arm, sheet.blend(ta, tb, radius, branch), axis))
         }
         _ => Err(unsupported(ARM_ROSTER)),

@@ -851,9 +851,10 @@ fn two_discs_kissing_externally_touch_at_every_op() {
 
 /// **The chamfer refuses the cusp strut typed, and the fillet builds
 /// it** — on the lune's cusp (wedge 0) and on a lune-shaped hole's slit
-/// (wedge 2π) alike. The supports meet tangentially: the chamfer's
-/// arms are plane–plane, so no strip is built there
-/// (`KnifeRefusal::Chamfer`), and the fillet's ball rests in the
+/// (wedge 2π) alike. The supports meet tangentially: the chamfer's one
+/// arm is plane–plane, so the kiss meets its refusal for a pair that
+/// arm does not cover (`ChamferArmUnsupported`), and the fillet's ball
+/// rests in the
 /// crescent away from the edge, which builds tier-3 valid
 /// (`a_knife_edge_fillet_builds_where_its_ball_is_defined` checks its
 /// volume against the closed form).
@@ -875,13 +876,10 @@ fn the_chamfer_refuses_a_cusp_or_slit_strut_typed_and_the_fillet_builds_it() {
         assert!(
             matches!(
                 refusal.error,
-                BlendError::KnifeEdge { edge, refusal: sweep::blend::KnifeRefusal::Chamfer, .. }
-                    if edge == strut
+                BlendError::ChamferArmUnsupported { edge, .. } if edge == strut
             ),
-            "{name}: expected the chamfer's KnifeEdge on the strut, got {refusal:?}"
+            "{name}: expected the chamfer's arm refusal on the strut, got {refusal:?}"
         );
-        let text = refusal.render(geom_brep::recourse::Reading::Build);
-        assert!(text.contains("cusp or slit"), "{name}: {text}");
         let out = fillet_edges(&operand, &[strut], 0.05, tol())
             .unwrap_or_else(|r| panic!("{name}: the fillet refused {:?}", r.error));
         topo::validate_geometric(&out.body, tol())

@@ -774,12 +774,13 @@ pub fn sheet_center<T: Real>(
             let lambda = match branch {
                 Branch::Rim => b_coef * ((one - d_coef / b_coef.powi(2)).sqrt() - one),
                 // `λ = −b ± √(b² − D)`, the root on the side `toward`
-                // points along the line, carried as `s·√(…/s²)` for
-                // `s = t̂·toward` (a unit at a knife, where `t̂` is the
-                // common tangent): no comparison, as the rim branch.
+                // points along the line: a sign pick by `t̂·toward`,
+                // which is ±1 at a knife and never near zero there (the
+                // line runs along the circle at the rim, so `t̂` is the
+                // common tangent, and `toward` is that tangent's unit,
+                // both in the sheet), so no rounding chooses it.
                 Branch::Knife(toward) => {
-                    let s = t.dot(toward);
-                    s * ((b_coef.powi(2) - d_coef) / s.powi(2)).sqrt() - b_coef
+                    (b_coef.powi(2) - d_coef).sqrt().copysign(t.dot(toward)) - b_coef
                 }
             };
             rim + t * lambda - normal * sided(side, radius)
@@ -801,15 +802,21 @@ pub fn sheet_center<T: Real>(
             let off_b = (r_b - sided(s_b, radius)).abs();
             let offsets = Circles::new(c_a.distance(c_b), off_a, off_b).at(c_a, c_b);
             let across = sheet_normal.cross(offsets.direction());
-            // The rim's own transverse coordinate, or at a knife (where
-            // the rim lies ON the line of centres and that coordinate
-            // is an exact zero) the side the ball rests on, which is a
-            // unit there: `toward` is the common tangent, ⊥ the line.
-            let mu = match branch {
-                Branch::Rim => (rim - c_a).dot(across),
-                Branch::Knife(toward) => toward.dot(across),
+            let h2 = offsets.pair().half_chord_squared();
+            let y = match branch {
+                // The rim's own transverse coordinate `μ` carries the
+                // half-chord's sign, branch-free.
+                Branch::Rim => {
+                    let mu = (rim - c_a).dot(across);
+                    mu * (h2 / mu.powi(2)).sqrt()
+                }
+                // At a knife the rim lies ON the line of centres, so `μ`
+                // is an exact zero; the side is a sign pick by
+                // `toward·across` instead, which is ±1 there and never
+                // near zero (`toward` is the common tangent's unit, ⊥ the
+                // line of centres in the sheet, and so is `across`).
+                Branch::Knife(toward) => h2.sqrt().copysign(toward.dot(across)),
             };
-            let y = mu * ((offsets.pair().half_chord_squared() / mu.powi(2)).sqrt());
             offsets.chord_ends(across, y)[0]
         }
     }

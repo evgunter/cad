@@ -7,19 +7,25 @@
 //! in the void at a slit — centred where the supports' `r`-offsets
 //! cross away from the edge, on the side both faces leave it by. Each
 //! row below builds one such body through a public door the user can
-//! author it with and checks the fillet's volume change against a
-//! closed form: the crescent's horn cut off by the ball, by Green's
+//! author it with and checks the fillet against closed forms: its
+//! volume change, the crescent's horn cut off by the ball (Green's
 //! theorem over the three curves that bound it, times the prism's
-//! depth, or carried round the axis by Pappus for a revolved rim. A
-//! cusp loses that horn, a slit gains it.
+//! depth, or carried round the axis by Pappus for a revolved rim), and,
+//! on one row of each prism body, point membership at a lattice against
+//! the result's region (`common::membership::holds`), which sees a
+//! move the volume alone would cancel. A cusp loses that horn, a slit
+//! gains it.
 //!
 //! The refusals are pinned beside them: a radius past the room the
-//! crescent opens to (`KnifeRefusal::NoRoom`), a ball reaching past
-//! its supports (the reach and clearance meters), and the chamfer,
-//! whose arms are plane–plane (`KnifeRefusal::Chamfer`). The mirrored
-//! and rotated crescents guard the side selector: the closed form the
-//! ball's centre was picked by before read an exact zero at a knife and
-//! chose by the sign of rounding noise.
+//! crescent opens to (`KnifeRefusal::NoRoom`), a foot past the end of
+//! its support (the clearance screen), the lune slit from `r = 2/3`
+//! (the cap-sliver screen reading an exact zero,
+//! `work/band/the-cap-sliver-screen-reads-an-exact-zero-where-a-lune-slits-wall-ends-at-its-arcs-centre.md`),
+//! and the chamfer, whose one arm is plane–plane
+//! (`ChamferArmUnsupported`). The mirrored and rotated crescents guard
+//! the side selector: the closed form the ball's centre was picked by
+//! before read an exact zero at a knife and chose by the sign of
+//! rounding noise.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -27,45 +33,29 @@ use std::f64::consts::{FRAC_1_SQRT_2, FRAC_PI_2, PI};
 
 use geom_core::{Point2, Point3, Tol, Vec2};
 use profile::test_support::bulge_loop;
-use profile::{Open, Profile, ProfileLoop, SketchPlane, Start};
+use profile::{Open, ProfileLoop, SketchPlane, Start};
 use sweep::blend::{BlendError, KnifeRefusal, chamfer_edges, fillet_edges};
-use sweep::test_support::finished;
-use sweep::{ExtrudeSide, Extrusion, Revolution, RevolveAxis, extrude, revolve};
+use sweep::test_support::{corners, extruded, finished};
+use sweep::{Revolution, RevolveAxis, revolve};
 use topo::{AtRestBody, Body, BooleanResult, ContactMark, EdgeKey};
+
+use crate::common::membership;
 
 fn tol() -> Tol {
     Tol::witness()
 }
 
-fn validated(loops: Vec<ProfileLoop<f64>>) -> profile::ValidatedProfile<f64> {
-    Profile::new(SketchPlane::xy(), loops)
-        .validate(tol())
-        .expect("the row's profile validates")
-}
-
 /// `loops` extruded over `z ∈ [0, 1]`.
 fn prism(loops: Vec<ProfileLoop<f64>>) -> Body<f64> {
-    extrude(
-        &validated(loops),
-        Extrusion::Distance {
-            depth: 1.0,
-            side: ExtrudeSide::Along,
-        },
-        tol(),
-    )
-    .expect("the row extrudes")
-    .body
+    extruded(SketchPlane::xy(), loops, 1.0, tol())
 }
 
 fn rect(x0: f64, y0: f64, x1: f64, y1: f64) -> ProfileLoop<f64> {
-    bulge_loop(vec![
-        (Point2::new(x0, y0), 0.0),
-        (Point2::new(x1, y0), 0.0),
-        (Point2::new(x1, y1), 0.0),
-        (Point2::new(x0, y1), 0.0),
-    ])
+    bulge_loop(corners(&[(x0, y0), (x1, y0), (x1, y1), (x0, y1)]))
 }
 
+/// The circle about `(cx, cy)` of radius `r`, as two half-turn bulges
+/// (no `test_support` fixture spells a circle loop).
 fn circle(cx: f64, cy: f64, r: f64) -> ProfileLoop<f64> {
     bulge_loop(vec![
         (Point2::new(cx + r, cy), 1.0),
@@ -101,8 +91,8 @@ fn volume(what: &str, body: &AtRestBody<f64>) -> f64 {
     topo::test_support::pinned_volume(what, body, tol()).volume
 }
 
-/// The fillet of `edge` at `r`, built, and the volume it changed.
-fn filleted_dv(what: &str, operand: &AtRestBody<f64>, edge: EdgeKey, r: f64) -> f64 {
+/// The fillet of `edge` at `r`, built.
+fn filleted(what: &str, operand: &AtRestBody<f64>, edge: EdgeKey, r: f64) -> AtRestBody<f64> {
     let out = fillet_edges(operand, &[edge], r, tol()).unwrap_or_else(|e| {
         panic!(
             "{what} at r = {r}: refused {:?}: {}",
@@ -114,8 +104,12 @@ fn filleted_dv(what: &str, operand: &AtRestBody<f64>, edge: EdgeKey, r: f64) -> 
         !out.blend_faces.is_empty() || !out.band_faces.is_empty(),
         "{what} at r = {r}: no band built"
     );
-    let after = finished(what, out.body, tol());
-    volume(what, &after) - volume(what, operand)
+    finished(what, out.body, tol())
+}
+
+/// The volume the fillet of `edge` at `r` changed.
+fn filleted_dv(what: &str, operand: &AtRestBody<f64>, edge: EdgeKey, r: f64) -> f64 {
+    volume(what, &filleted(what, operand, edge, r)) - volume(what, operand)
 }
 
 fn assert_close(what: &str, got: f64, want: f64) {
@@ -127,7 +121,9 @@ fn assert_close(what: &str, got: f64, want: f64) {
 
 // ---------------------------------------------------------------------
 // The closed forms: Green's theorem over a region bounded by circular
-// arcs and segments, its area and its first moment about the y axis.
+// arcs and segments, its area and its first moment about the y axis;
+// and each result's region, as a signed margin for the membership
+// lattice (positive inside).
 // ---------------------------------------------------------------------
 
 #[derive(Clone, Copy)]
@@ -185,21 +181,52 @@ fn foot_on_circle(c: [f64; 2], rr: f64, ball: [f64; 2]) -> [f64; 2] {
     add(c, d, rr / d[0].hypot(d[1]))
 }
 
-/// The area of the horn a ball about `ball` of radius `r` cuts off a
-/// crescent whose knife is at `rim`, between the circles `a` and `b`
-/// (each `(centre, radius)`).
+/// A planar region in the sketch plane, a signed margin at `(x, y)`.
+type Margin2 = Box<dyn Fn(f64, f64) -> f64>;
+
+/// `m2` over the prism's depth `z ∈ [0, 1]`, for the lattice.
+fn over_depth(m2: Margin2) -> impl Fn(Point3<f64>) -> f64 {
+    move |p| m2(p.x, p.y).min(p.z).min(1.0 - p.z)
+}
+
+/// Inside the circle about `c` of radius `r`.
+fn inside(c: [f64; 2], r: f64) -> impl Fn(f64, f64) -> f64 {
+    move |x, y| r - (x - c[0]).hypot(y - c[1])
+}
+
+/// The side of the line through `a` and `b` that `tip` lies on.
+fn tip_side(a: [f64; 2], b: [f64; 2], tip: [f64; 2]) -> impl Fn(f64, f64) -> f64 {
+    let (dx, dy) = (b[0] - a[0], b[1] - a[1]);
+    let len = dx.hypot(dy);
+    let (nx, ny) = (-dy / len, dx / len);
+    let sign = ((tip[0] - a[0]) * nx + (tip[1] - a[1]) * ny).signum();
+    move |x, y| sign * ((x - a[0]) * nx + (y - a[1]) * ny)
+}
+
+/// A crescent's horn, cut off at the ball: between the two circles
+/// (`between`), outside the ball, and on the knife's side of the chord
+/// through the ball's two feet.
+struct Horn {
+    area: f64,
+    region: Margin2,
+}
+
+/// The horn a ball about `ball` of radius `r` cuts off a crescent whose
+/// knife is at `rim`, between the circles `a` and `b` (each
+/// `(centre, radius)`), the crescent read by `between`.
 fn two_circle_horn(
     rim: [f64; 2],
     (c_a, r_a): ([f64; 2], f64),
     (c_b, r_b): ([f64; 2], f64),
     ball: [f64; 2],
     r: f64,
-) -> f64 {
+    between: Margin2,
+) -> Horn {
     let (f_a, f_b) = (
         foot_on_circle(c_a, r_a, ball),
         foot_on_circle(c_b, r_b, ball),
     );
-    green(&[
+    let area = green(&[
         Piece::Arc {
             c: c_a,
             r: r_a,
@@ -220,20 +247,39 @@ fn two_circle_horn(
         },
     ])
     .0
-    .abs()
+    .abs();
+    let (out_ball, side) = (inside(ball, r), tip_side(f_a, f_b, rim));
+    Horn {
+        area,
+        region: Box::new(move |x, y| between(x, y).min(-out_ball(x, y)).min(side(x, y))),
+    }
 }
 
 // ---------------------------------------------------------------------
 // The lune: a cusp, and the same lune as a hole, a slit.
 // ---------------------------------------------------------------------
 
-/// The lune between `(0,1) r 1` and `(0,2) r 2`
-/// ([`sweep::test_support::lune`]): the ball touching the small circle
-/// from outside and the big one from inside sits at
+/// The lune between `(0,1) r 1` and `(0,2) r 2` (inside the big circle,
+/// outside the small one, `x > 0`), its area `3π/2`.
+fn lune_region() -> Margin2 {
+    let (big, small) = (inside([0.0, 2.0], 2.0), inside([0.0, 1.0], 1.0));
+    Box::new(move |x, y| big(x, y).min(-small(x, y)).min(x))
+}
+
+/// The lune's horn ([`sweep::test_support::lune`]): the ball touching
+/// the small circle from outside and the big one from inside sits at
 /// `(√(8r(1 − r)), 3r)`, and exists while `r < 2 − 1`.
-fn lune_horn(r: f64) -> f64 {
+fn lune_horn(r: f64) -> Horn {
     let ball = [(8.0 * r * (1.0 - r)).sqrt(), 3.0 * r];
-    two_circle_horn([0.0, 0.0], ([0.0, 1.0], 1.0), ([0.0, 2.0], 2.0), ball, r)
+    let (big, small) = (inside([0.0, 2.0], 2.0), inside([0.0, 1.0], 1.0));
+    two_circle_horn(
+        [0.0, 0.0],
+        ([0.0, 1.0], 1.0),
+        ([0.0, 2.0], 2.0),
+        ball,
+        r,
+        Box::new(move |x, y| big(x, y).min(-small(x, y))),
+    )
 }
 
 fn lune_rows() -> [(&'static str, Body<f64>, f64); 2] {
@@ -248,6 +294,11 @@ fn lune_rows() -> [(&'static str, Body<f64>, f64); 2] {
     ]
 }
 
+/// The lattice over the lune, the plate's hole and a margin past both.
+fn lune_lattice() -> (Point3<f64>, Point3<f64>) {
+    (Point3::new(-0.2, -0.2, -0.1), Point3::new(2.2, 4.2, 1.1))
+}
+
 #[test]
 fn a_lune_cusp_loses_its_horn_and_a_lune_slit_gains_it() {
     for (what, body, sign) in lune_rows() {
@@ -255,38 +306,43 @@ fn a_lune_cusp_loses_its_horn_and_a_lune_slit_gains_it() {
         let operand = finished(what, body, tol());
         for r in [0.05, 0.3, 0.6] {
             let dv = filleted_dv(what, &operand, edge, r);
-            assert_close(&format!("{what} at r = {r}"), dv, sign * lune_horn(r));
+            assert_close(&format!("{what} at r = {r}"), dv, sign * lune_horn(r).area);
         }
     }
 }
 
-/// **Past `r = 8/9` the ball's own circle crosses the lune's `x = 0`
-/// wall**, but only its arc facing the knife is the band, and that arc
-/// stays clear of the wall. The cusp builds there. The slit, which adds
-/// material, refuses at the ring meter with a BOUND: that conservative
-/// screen cannot certify the wall's edge clear of the face the band
-/// buries, and refuses rather than guess (`crates/geom-brep/README.md`,
-/// C8), so it is not the knife's refusal either.
+/// **Membership, not only volume**: the cusp at `0.3` is the lune less
+/// its horn, the slit the plate less the lune, with the horn filled.
 #[test]
-fn past_eight_ninths_the_lune_cusp_builds_and_the_slit_meets_the_ring_screen() {
-    let r = 0.95;
-    let [(cusp_what, cusp, sign), (slit_what, slit, _)] = lune_rows();
+fn the_lune_fillets_place_every_lattice_point() {
+    let r = 0.3;
+    let [(cusp_what, cusp, _), (slit_what, slit, _)] = lune_rows();
+    let area = lune_horn(r).area;
     let edge = knife_at(cusp_what, &cusp, on_the_z_axis);
-    let operand = finished(cusp_what, cusp, tol());
-    let dv = filleted_dv(cusp_what, &operand, edge, r);
-    assert_close(&format!("{cusp_what} at r = {r}"), dv, sign * lune_horn(r));
+    let built = filleted(cusp_what, &finished(cusp_what, cusp, tol()), edge, r);
+    let (lune, cut) = (lune_region(), lune_horn(r).region);
+    membership::holds(
+        cusp_what,
+        &built,
+        1.5 * PI - area,
+        &over_depth(Box::new(move |x, y| lune(x, y).min(-cut(x, y)))),
+        lune_lattice(),
+        10,
+    );
 
     let edge = knife_at(slit_what, &slit, on_the_z_axis);
-    let operand = finished(slit_what, slit, tol());
-    let refusal = fillet_edges(&operand, &[edge], r, tol())
-        .expect_err("the ring screen cannot certify the wall");
-    assert!(
-        matches!(
-            refusal.error,
-            BlendError::RingClearance { bounded: true, .. }
-        ),
-        "{slit_what}: {:?}",
-        refusal.error
+    let built = filleted(slit_what, &finished(slit_what, slit, tol()), edge, r);
+    let (lune, fill) = (lune_region(), lune_horn(r).region);
+    let plate = |x: f64, y: f64| (x + 1.0).min(3.0 - x).min(y + 1.0).min(5.0 - y);
+    membership::holds(
+        slit_what,
+        &built,
+        24.0 - 1.5 * PI + area,
+        &over_depth(Box::new(move |x, y| {
+            plate(x, y).min((-lune(x, y)).max(fill(x, y)))
+        })),
+        lune_lattice(),
+        10,
     );
 }
 
@@ -331,37 +387,142 @@ fn a_lune_refuses_a_ball_wider_than_its_crescent() {
     }
 }
 
+/// **The cusp builds up to its room; the slit stops at `r = 2/3`.**
+///
+/// The cusp builds at `0.95`, where the ball's own circle crosses the
+/// lune's `x = 0` wall: only its arc facing the knife is the band, and
+/// that arc stays clear of the wall.
+///
+/// The slit builds at `0.66` and refuses from `2/3`, though its band is
+/// as clear of the wall as the cusp's: the cut-off's cap-sliver screen
+/// (`surgery.rs`'s end-face cycle pass) reads the plate's `x = 0` wall
+/// edge at an EXACT zero there. That edge runs from `(0, 4)` down to
+/// `(0, 2)`, the big arc's centre, which lies at every radius on the
+/// line through the ball's centre and its big foot — the boundary of
+/// the screen's half-plane along the section's second axis — so that
+/// term is zero on the edge at every `r`, and from `2/3` on no other term
+/// of the enclosing region clears it. The reading is a bound, never a
+/// crossing (`RingClearance { bounded: true }`): a correct shape refused
+/// by a screen reading an exact zero at a reachable pose
+/// (`work/band/the-cap-sliver-screen-reads-an-exact-zero-where-a-lune-slits-wall-ends-at-its-arcs-centre.md`).
+/// This row pins today's boundary.
+#[test]
+fn the_lune_cusp_builds_to_its_room_and_the_slit_stops_at_two_thirds() {
+    let [(cusp_what, cusp, cusp_sign), (slit_what, slit, slit_sign)] = lune_rows();
+    let edge = knife_at(cusp_what, &cusp, on_the_z_axis);
+    let operand = finished(cusp_what, cusp, tol());
+    let dv = filleted_dv(cusp_what, &operand, edge, 0.95);
+    assert_close(
+        &format!("{cusp_what} at r = 0.95"),
+        dv,
+        cusp_sign * lune_horn(0.95).area,
+    );
+
+    let edge = knife_at(slit_what, &slit, on_the_z_axis);
+    let operand = finished(slit_what, slit, tol());
+    let dv = filleted_dv(slit_what, &operand, edge, 0.66);
+    assert_close(
+        &format!("{slit_what} at r = 0.66"),
+        dv,
+        slit_sign * lune_horn(0.66).area,
+    );
+    for r in [0.67, 0.8, 0.95] {
+        let refusal = fillet_edges(&operand, &[edge], r, tol())
+            .expect_err("the cap-sliver screen reads the wall at zero");
+        assert!(
+            matches!(
+                refusal.error,
+                BlendError::RingClearance { bounded: true, margin, .. }
+                    if margin.sign == geom_core::Sign::Zero
+            ),
+            "{slit_what} at r = {r}: {:?}",
+            refusal.error
+        );
+    }
+}
+
 // ---------------------------------------------------------------------
 // The valley between two touching tubes on a plate: a slit, authored
-// as a profile and through the Boolean in either order.
+// as a profile, through the Boolean in either order, and at Interval.
 // ---------------------------------------------------------------------
 
-/// Two unit tubes on a plate, the valley between them a slit: the
-/// profile's top runs over the right tube's arc into the kiss at the
-/// origin and out over the left tube's, the plate filling the lower
-/// cusp. Authored raw; the profile door decides the kiss a cusp joint.
-fn valley() -> ProfileLoop<f64> {
+/// The valley profile's vertices: two unit tubes on a plate, its top
+/// running over the right tube's arc into the kiss at the origin and
+/// out over the left tube's, the plate filling the lower cusp. The
+/// profile door decides the kiss a cusp joint.
+fn valley_vertices() -> Vec<((f64, f64), f64)> {
     let sweep_angle = PI - 0.6_f64.atan2(0.8);
     let b = (sweep_angle / 4.0).tan();
-    bulge_loop(vec![
-        (Point2::new(-1.8, -1.5), 0.0),
-        (Point2::new(1.8, -1.5), 0.0),
-        (Point2::new(1.8, 0.6), b),
-        (Point2::new(0.0, 0.0), b),
-        (Point2::new(-1.8, 0.6), 0.0),
+    vec![
+        ((-1.8, -1.5), 0.0),
+        ((1.8, -1.5), 0.0),
+        ((1.8, 0.6), b),
+        ((0.0, 0.0), b),
+        ((-1.8, 0.6), 0.0),
+    ]
+}
+
+fn valley() -> ProfileLoop<f64> {
+    bulge_loop(
+        valley_vertices()
+            .into_iter()
+            .map(|((x, y), b)| (Point2::new(x, y), b))
+            .collect(),
+    )
+}
+
+/// The valley profile's area, by Green's theorem over its pieces.
+fn valley_area() -> f64 {
+    green(&[
+        Piece::Line {
+            from: [-1.8, -1.5],
+            to: [1.8, -1.5],
+        },
+        Piece::Line {
+            from: [1.8, -1.5],
+            to: [1.8, 0.6],
+        },
+        Piece::Arc {
+            c: [1.0, 0.0],
+            r: 1.0,
+            from: [1.8, 0.6],
+            to: [0.0, 0.0],
+        },
+        Piece::Arc {
+            c: [-1.0, 0.0],
+            r: 1.0,
+            from: [0.0, 0.0],
+            to: [-1.8, 0.6],
+        },
+        Piece::Line {
+            from: [-1.8, 0.6],
+            to: [-1.8, -1.5],
+        },
     ])
+    .0
+    .abs()
 }
 
 /// The valley the ball fills between the unit tubes about `(±1, 0)`:
 /// its centre stands at `(0, √(r² + 2r))`, `1 + r` from both axes.
-fn valley_fill(r: f64) -> f64 {
+fn valley_fill(r: f64) -> Horn {
     let ball = [0.0, (r * r + 2.0 * r).sqrt()];
-    two_circle_horn([0.0, 0.0], ([1.0, 0.0], 1.0), ([-1.0, 0.0], 1.0), ball, r)
+    let (right, left) = (inside([1.0, 0.0], 1.0), inside([-1.0, 0.0], 1.0));
+    two_circle_horn(
+        [0.0, 0.0],
+        ([1.0, 0.0], 1.0),
+        ([-1.0, 0.0], 1.0),
+        ball,
+        r,
+        Box::new(move |x, y| (-right(x, y)).min(-left(x, y)).min(y).min(1.0 - x.abs())),
+    )
 }
 
 #[test]
 fn the_valley_between_two_touching_tubes_fills() {
-    let profile = validated(vec![valley()]);
+    let profile = profile::Profile::new(SketchPlane::xy(), vec![valley()])
+        .validate(tol())
+        .expect("the valley validates");
     assert_eq!(
         profile.loops()[0].cusp_joints(),
         &[3],
@@ -372,8 +533,25 @@ fn the_valley_between_two_touching_tubes_fills() {
     let operand = finished("the valley", body, tol());
     for r in [0.05, 0.3] {
         let dv = filleted_dv("the valley", &operand, edge, r);
-        assert_close(&format!("the valley at r = {r}"), dv, valley_fill(r));
+        assert_close(&format!("the valley at r = {r}"), dv, valley_fill(r).area);
     }
+    let r = 0.3;
+    let built = filleted("the valley", &operand, edge, r);
+    let (right, left) = (inside([1.0, 0.0], 1.0), inside([-1.0, 0.0], 1.0));
+    let fill = valley_fill(r).region;
+    membership::holds(
+        "the valley",
+        &built,
+        valley_area() + valley_fill(r).area,
+        &over_depth(Box::new(move |x, y| {
+            let plate = (1.8 - x.abs())
+                .min(y + 1.5)
+                .min((-y).max(right(x, y)).max(left(x, y)));
+            plate.max(fill(x, y))
+        })),
+        (Point3::new(-2.0, -1.7, -0.1), Point3::new(2.0, 1.2, 1.1)),
+        10,
+    );
 }
 
 /// **The valley through the Boolean**: a plate whose top face passes
@@ -409,8 +587,62 @@ fn the_valley_through_the_boolean_fills_in_either_order() {
         let edge = knife_at(what, &body, on_the_z_axis);
         let r = 0.1;
         let dv = filleted_dv(what, &body, edge, r);
-        assert_close(&format!("{what} at r = {r}"), dv, valley_fill(r));
+        assert_close(&format!("{what} at r = {r}"), dv, valley_fill(r).area);
     }
+}
+
+/// **The valley at Interval**: the knife's end, its room and its
+/// crossing decide definitely over enclosures, the band builds tier-3
+/// valid, and the volume's enclosure holds the closed form.
+#[test]
+fn the_valley_fills_at_interval() {
+    use crate::common::interval::{iv, p2};
+    use geom_core::{Bounds, Interval};
+    let r = 0.1;
+    let loop_iv: ProfileLoop<Interval> = bulge_loop(
+        valley_vertices()
+            .into_iter()
+            .map(|((x, y), b)| (p2(x, y), iv(b)))
+            .collect(),
+    );
+    let body = extruded(SketchPlane::xy(), vec![loop_iv], iv(1.0), tol());
+    let point = |v| *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
+    let on_axis = |p: &Point3<Interval>| p.x.hi().abs() < 1e-9 && p.y.hi().abs() < 1e-9;
+    let knives: Vec<EdgeKey> = topo::contact_marks(&body, tol())
+        .expect("the valley is tier-3 valid at Interval")
+        .iter()
+        .filter(|(_, m)| **m == ContactMark::Tangent)
+        .map(|(e, _)| e)
+        .filter(|&e| {
+            let he = body.get_edge(e).unwrap().he_plus;
+            on_axis(&point(body.get_half_edge(he).unwrap().start))
+                && on_axis(&point(body.half_edge_end(he).unwrap()))
+        })
+        .collect();
+    let [edge] = knives[..] else {
+        panic!("one knife on the kiss at Interval, found {knives:?}");
+    };
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&body, tol()),
+        &[edge],
+        iv(r),
+        tol(),
+    )
+    .unwrap_or_else(|e| panic!("the valley fills at Interval, got {:?}", e.error));
+    let filled = finished("the valley at Interval", out.body, tol());
+    assert_eq!(topo::validate_geometric(&filled, tol()), Ok(()), "tier 3");
+    let vol = topo::mass_properties(&filled, tol(), topo::test_support::pinned_resolution(tol()))
+        .expect("the measured body")
+        .met()
+        .expect("the measured body")
+        .volume;
+    let want = valley_area() + valley_fill(r).area;
+    assert!(
+        vol.lo() <= want && want <= vol.hi(),
+        "enclosure [{}, {}] must contain {want}",
+        vol.lo(),
+        vol.hi()
+    );
 }
 
 // ---------------------------------------------------------------------
@@ -439,45 +671,71 @@ fn crescent(phi: f64, mirror: bool) -> ProfileLoop<f64> {
         .into()
 }
 
+/// The crescent at `phi = 0`: outside the unit circle, inside its
+/// tangent at `n̂ = (h, h)`, above `y = 0`.
+fn crescent_region() -> Margin2 {
+    let h = FRAC_1_SQRT_2;
+    Box::new(move |x, y| (x.hypot(y) - 1.0).min(1.0 - h * (x + y)).min(y))
+}
+
 /// The horn of the crescent at `phi = 0`, in its own frame: tangent
 /// point `n̂ = (h, h)`, line direction `t̂ = (h, −h)` towards the
 /// crescent; the ball outside the circle and on the circle's side of
 /// the line sits at `(1 − r)n̂ + 2√r t̂`, its feet `ball + r n̂` on the
-/// line and on the circle along the line of centres.
-fn crescent_horn_pieces(r: f64) -> [Piece; 3] {
+/// line and on the circle along the line of centres. Returns the
+/// horn's boundary, the ball's centre and its two feet.
+fn crescent_horn_pieces(r: f64) -> ([Piece; 3], [f64; 2], [f64; 2], [f64; 2]) {
     let h = FRAC_1_SQRT_2;
     let (n, t) = ([h, h], [h, -h]);
     let ball = add([n[0] * (1.0 - r), n[1] * (1.0 - r)], t, 2.0 * r.sqrt());
     let on_line = add(ball, n, r);
     let on_circle = foot_on_circle([0.0, 0.0], 1.0, ball);
-    [
-        Piece::Line {
-            from: n,
-            to: on_line,
-        },
-        Piece::Arc {
-            c: ball,
-            r,
-            from: on_line,
-            to: on_circle,
-        },
-        Piece::Arc {
-            c: [0.0, 0.0],
-            r: 1.0,
-            from: on_circle,
-            to: n,
-        },
-    ]
+    (
+        [
+            Piece::Line {
+                from: n,
+                to: on_line,
+            },
+            Piece::Arc {
+                c: ball,
+                r,
+                from: on_line,
+                to: on_circle,
+            },
+            Piece::Arc {
+                c: [0.0, 0.0],
+                r: 1.0,
+                from: on_circle,
+                to: n,
+            },
+        ],
+        ball,
+        on_line,
+        on_circle,
+    )
 }
 
 fn crescent_horn(r: f64) -> f64 {
-    green(&crescent_horn_pieces(r)).0.abs()
+    green(&crescent_horn_pieces(r).0).0.abs()
+}
+
+/// The horn's region: the crescent, outside the ball, on the knife's
+/// side of the chord through the feet.
+fn crescent_horn_region(r: f64) -> Margin2 {
+    let (_, ball, on_line, on_circle) = crescent_horn_pieces(r);
+    let h = FRAC_1_SQRT_2;
+    let (crescent, out_ball, side) = (
+        crescent_region(),
+        inside(ball, r),
+        tip_side(on_line, on_circle, [h, h]),
+    );
+    Box::new(move |x, y| crescent(x, y).min(-out_ball(x, y)).min(side(x, y)))
 }
 
 /// The ring the horn sweeps about the y axis (Pappus: `2π·x̄·A`, and
 /// `x̄·A` is the first moment).
 fn crescent_ring(r: f64) -> f64 {
-    2.0 * PI * green(&crescent_horn_pieces(r)).1.abs()
+    2.0 * PI * green(&crescent_horn_pieces(r).0).1.abs()
 }
 
 fn on_the_kiss(phi: f64, mirror: bool) -> impl Fn(&Point3<f64>) -> bool {
@@ -488,7 +746,8 @@ fn on_the_kiss(phi: f64, mirror: bool) -> impl Fn(&Point3<f64>) -> bool {
 /// **The crescent prism loses its horn, whichever way it is placed.**
 /// The rotations and the mirror guard the side selector: the ball's
 /// crossing is picked by the side both faces leave the knife by, not
-/// by a quantity that is zero there.
+/// by a quantity that is zero there. At `phi = 0` the lattice places
+/// every point against the crescent less its horn.
 #[test]
 fn a_cylinder_plane_cusp_loses_its_horn_in_every_pose() {
     for (phi, mirror) in [
@@ -507,6 +766,21 @@ fn a_cylinder_plane_cusp_loses_its_horn_in_every_pose() {
             assert_close(&format!("{what} at r = {r}"), dv, -crescent_horn(r));
         }
     }
+    let r = 0.1;
+    let body = prism(vec![crescent(0.0, false)]);
+    let edge = knife_at("the crescent prism", &body, on_the_kiss(0.0, false));
+    let operand = finished("the crescent prism", body, tol());
+    let before = volume("the crescent prism", &operand);
+    let built = filleted("the crescent prism", &operand, edge, r);
+    let (crescent, horn) = (crescent_region(), crescent_horn_region(r));
+    membership::holds(
+        "the crescent prism",
+        &built,
+        before - crescent_horn(r),
+        &over_depth(Box::new(move |x, y| crescent(x, y).min(-horn(x, y)))),
+        (Point3::new(0.6, -0.1, -0.1), Point3::new(1.5, 0.8, 1.1)),
+        10,
+    );
 }
 
 #[test]
@@ -524,33 +798,55 @@ fn a_crescent_hole_is_a_slit_that_gains_its_horn() {
     }
 }
 
-/// **A foot past the end of its support refuses**: the ball's foot on
-/// the crescent's line stands `2√r` from the knife, past the line's one
-/// unit for `r > 1/4`, so at `r = 0.3` the band would leave its face.
-/// The face-clearance screen refuses it, with the line face's one unit
-/// less the foot's setback `2√r` as its margin; the ball exists, so it
-/// is not the knife's refusal.
+/// **A foot past the end of its support refuses**, and the arc's foot
+/// leaves first. The ball's foot on the circle stands at angle
+/// `π/4 − atan(2√r/(1 − r))`, below the arc's start at `0` once
+/// `2√r > 1 − r`, that is from `r = (√2 − 1)² ≈ 0.1716`; its foot on the
+/// line stands `2√r` from the knife, past the line's one unit only from
+/// `r = 1/4`. So the crescent builds at `0.17`, and from `0.172` the
+/// face-clearance screen refuses on the ARC's face (a cylinder), at
+/// `0.2` too. At `0.3` both feet are past their faces, and the screen
+/// reports the line's, the worse: one unit less the foot's `2√r`. The
+/// ball exists throughout, so none of these is the knife's refusal.
 #[test]
-fn a_crescent_whose_line_is_shorter_than_its_foot_refuses() {
+fn a_crescent_whose_arc_is_shorter_than_its_foot_refuses() {
     let body = prism(vec![crescent(0.0, false)]);
     let edge = knife_at("the crescent prism", &body, on_the_kiss(0.0, false));
-    let operand = finished("the crescent prism", body, tol());
-    let refusal =
-        fillet_edges(&operand, &[edge], 0.3, tol()).expect_err("the foot leaves the line");
-    let BlendError::FaceClearanceUncertified { margin, .. } = refusal.error else {
-        panic!("expected the clearance screen, got {:?}", refusal.error);
-    };
-    assert_eq!(margin.predicate, "fillet3_face_clearance");
-    assert_eq!(margin.sign, geom_core::Sign::Negative);
-    let got = margin
-        .reading
-        .diagnostic_f64_for_error_text()
-        .value()
-        .expect("a value reading");
-    assert!(
-        (got - (1.0 - 2.0 * 0.3_f64.sqrt())).abs() < 1e-9,
-        "margin {got}"
-    );
+    let operand = finished("the crescent prism", body.clone(), tol());
+    let dv = filleted_dv("the crescent prism", &operand, edge, 0.17);
+    assert_close("the crescent prism at r = 0.17", dv, -crescent_horn(0.17));
+    for (r, arc) in [(0.172, true), (0.2, true), (0.3, false)] {
+        let refusal =
+            fillet_edges(&operand, &[edge], r, tol()).expect_err("the arc's foot leaves the arc");
+        let BlendError::FaceClearanceUncertified { face, margin, .. } = refusal.error else {
+            panic!(
+                "r = {r}: expected the clearance screen, got {:?}",
+                refusal.error
+            );
+        };
+        assert_eq!(margin.predicate, "fillet3_face_clearance");
+        assert_eq!(margin.sign, geom_core::Sign::Negative, "r = {r}");
+        let surface = body
+            .get_surface(body.get_face(face).unwrap().surface)
+            .unwrap();
+        if arc {
+            assert!(
+                matches!(surface, geom::Surface::Cylinder { .. }),
+                "r = {r}: the arc's face refuses first, got {surface:?}"
+            );
+        } else {
+            assert!(
+                matches!(surface, geom::Surface::Plane { .. }),
+                "r = {r}: the line's face is the worse, got {surface:?}"
+            );
+            let got = margin
+                .reading
+                .diagnostic_f64_for_error_text()
+                .value()
+                .expect("a value reading");
+            assert!((got - (1.0 - 2.0 * r.sqrt())).abs() < 1e-9, "margin {got}");
+        }
+    }
 }
 
 #[test]
@@ -559,14 +855,12 @@ fn a_sphere_cone_cusp_rim_loses_its_ring() {
         origin: Point2::new(0.0, 0.0),
         dir: Vec2::new(0.0, 1.0),
     };
-    let ring = revolve(
-        &validated(vec![crescent(0.0, false)]),
-        axis,
-        Revolution::Full,
-        tol(),
-    )
-    .unwrap()
-    .body;
+    let profile = profile::Profile::new(SketchPlane::xy(), vec![crescent(0.0, false)])
+        .validate(tol())
+        .expect("the crescent validates");
+    let ring = revolve(&profile, axis, Revolution::Full, tol())
+        .unwrap()
+        .body;
     let h = FRAC_1_SQRT_2;
     let rim = knife_at("the crescent ring", &ring, |p| {
         (p.y - h).abs() < 1e-9 && (p.x.hypot(p.z) - h).abs() < 1e-9
@@ -589,10 +883,11 @@ fn a_sphere_cone_cusp_rim_loses_its_ring() {
 /// A predicate picking a knife's ends out of a body's points.
 type OnKnife = Box<dyn Fn(&Point3<f64>) -> bool>;
 
-/// **The chamfer refuses every knife**: its arms are plane–plane, and a
-/// knife's supports are curved, and the refusal says so.
+/// **The chamfer meets its one arm's refusal at every knife**: its arm
+/// is plane–plane, a knife's supports are curved, and the kiss refuses
+/// `ChamferArmUnsupported` as any curved pair does.
 #[test]
-fn the_chamfer_refuses_every_knife_with_its_own_recourse() {
+fn the_chamfer_refuses_every_knife_at_its_one_arm() {
     let [(_, cusp, _), (_, slit, _)] = lune_rows();
     let rows: [(&str, Body<f64>, OnKnife); 4] = [
         ("the lune cusp", cusp, Box::new(on_the_z_axis)),
@@ -611,16 +906,13 @@ fn the_chamfer_refuses_every_knife_with_its_own_recourse() {
             .err()
             .unwrap_or_else(|| panic!("{what}: chamfered a knife"));
         assert!(
-            matches!(
-                refusal.error,
-                BlendError::KnifeEdge { edge: at, refusal: KnifeRefusal::Chamfer, .. } if at == edge
-            ),
+            matches!(refusal.error, BlendError::ChamferArmUnsupported { edge: at, .. } if at == edge),
             "{what}: {:?}",
             refusal.error
         );
         let text = refusal.render(geom_brep::recourse::Reading::Build);
         assert!(
-            text.contains(sweep::blend::CHAMFER_KNIFE_RECOURSE),
+            text.contains(sweep::blend::CHAMFER_ARM_RECOURSE),
             "{what}: {text}"
         );
     }
@@ -628,7 +920,8 @@ fn the_chamfer_refuses_every_knife_with_its_own_recourse() {
 
 /// **Two tangent tubes unioned are two solids whose kiss edges are
 /// seams**: each keeps its own edge on the kiss, read
-/// `SmoothUnderdetermined`, and both verbs leave each as it is.
+/// `SmoothUnderdetermined`, and both verbs leave each as it is
+/// (`work/band/a-fillet-leaves-the-kiss-of-two-touching-solids-as-it-is-with-no-refusal.md`).
 #[test]
 fn two_tangent_tubes_unioned_are_two_solids_whose_kiss_edges_are_left_as_they_are() {
     let slab = |loops| finished("a slab", prism(loops), tol());
