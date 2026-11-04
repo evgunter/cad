@@ -481,16 +481,18 @@ fn a_degree_one_path_sweep_is_one_wall_per_slab() {
     );
 }
 
-/// **An arc whose sub-arc count differs across the sections refuses
-/// typed at degree 1, and lofts at degree 2.** The arc wall carries every
-/// section's sub-arc structure, so the narrow interior arc reaches its
-/// row refined at the wide arcs' joints, which the arc-rim class does
-/// not describe
-/// (`work/isotail/a-loft-whose-arc-bulge-varies-per-section-refuses-its-arc-rim.md`).
-/// The refusal names the section and carries no escalation; its
-/// recourse, degree 2, builds the same sections.
+/// **An arc whose sub-arc count differs across the sections lofts at
+/// degree 1.** The arc wall carries every section's sub-arc structure,
+/// so the narrow interior arc reaches its row refined at the wide arcs'
+/// joints: uniform sub-arcs whose end weights are not one value, the
+/// same arc through each sub-arc's change of parameter, which its arc
+/// rim's image states (`Pcurve::IsoArc`'s `ends`). Every case builds
+/// and is at rest, and the first meshes to its integrated volume. The
+/// line rim of a bulge-0 section on a creased wall does not mesh yet
+/// (`work/tess/a-line-rim-on-a-creased-loft-wall-does-not-mesh.md`), so
+/// the other two are not meshed here.
 #[test]
-fn an_interior_arc_refined_by_its_neighbours_refuses_typed() {
+fn an_interior_arc_refined_by_its_neighbours_lofts() {
     let corners = [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)];
     // A square whose +x side is an arc of bulge `b` (a line at 0).
     let section = |b: f64| -> Section {
@@ -502,31 +504,31 @@ fn an_interior_arc_refined_by_its_neighbours_refuses_typed() {
             .collect();
         vec![bulge_loop(chain)]
     };
-    let cases: [(&[f64], usize); 3] = [
-        (&[1.0, 0.2, 1.0], 1),
-        (&[1.0, 0.2, 0.0, 0.7, 1.0], 1),
-        (&[0.0, 1.0, 0.3, 0.0], 2),
+    let cases: [&[f64]; 3] = [
+        &[1.0, 0.2, 1.0],
+        &[1.0, 0.2, 0.0, 0.7, 1.0],
+        &[0.0, 1.0, 0.3, 0.0],
     ];
-    for (bulges, section_at) in cases {
+    for (k, bulges) in cases.into_iter().enumerate() {
+        let what = format!("{bulges:?}");
         let sections: Vec<Section> = bulges.iter().map(|&b| section(b)).collect();
         #[allow(clippy::cast_precision_loss)]
         let zs: Vec<f64> = (0..bulges.len()).map(|i| i as f64).collect();
-        let places = stacked_at(&zs);
-        match loft_body::<f64>(&sections, &places, 1, tol()) {
-            Err(sweep::LoftError::SectionRim {
-                section,
-                source: None,
-            }) => assert_eq!(section, section_at, "{bulges:?}: the refused section"),
-            other => panic!(
-                "{bulges:?}: degree 1 refuses at the refined arc rim, got {:?}",
-                other.map(|_| ())
-            ),
-        }
-        loft_body::<f64>(&sections, &places, 2, tol()).unwrap_or_else(|e| {
+        let lofted = loft_body::<f64>(&sections, &stacked_at(&zs), 1, tol()).unwrap_or_else(|e| {
             panic!(
-                "{bulges:?}: the recourse, degree 2, builds: {e_at}",
+                "{what}: degree 1 lofts the refined arc rim: {e_at}",
                 e_at = e.render(geom_brep::recourse::Reading::Build)
             )
         });
+        at_rest(&lofted.body, &what);
+        if k == 0 {
+            let (got, pad) = volume(&lofted.body);
+            let delta = 2e-3;
+            let v = meshed_volume(&lofted.body, delta, &what);
+            assert!(
+                ((v - got) / got).abs() < 3.0 * delta + pad / got,
+                "{what}: mesh volume {v} vs integrated {got} ± {pad}"
+            );
+        }
     }
 }
