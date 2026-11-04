@@ -2854,3 +2854,29 @@ mod tests {
         assert!(wrong.is_empty(), "{}", wrong.join("\n"));
     }
 }
+
+#[cfg(test)]
+mod review_dump {
+    use geom_brep::recourse::{ReadAt, Reading};
+    use geom_core::FileCoincidence;
+    #[test]
+    fn review_dump_endings() {
+        let doors = [ReadAt::from(Reading::Build), Reading::AtRest.into(), FileCoincidence::new(1e-6).into()];
+        let mut out = String::new();
+        for at in doors {
+            for e in super::certify_errors() {
+                out += &format!("C {at:?} {e:?}\n  E {:?}\n  R {}\n  D {:?}\n", e.ending(at), e.render(at), e.decision());
+            }
+            for e in super::pcurve_certify_errors() {
+                out += &format!("P {at:?} {e:?}\n  E {}\n", e.ending(at));
+            }
+            for e in super::plane_nurbs_refusals() {
+                out += &format!("N {at:?} {e:?}\n  E {}\n  D {:?}\n", e.ending(at), e.decision());
+            }
+            for e in super::analytic_rung3_refusals() {
+                out += &format!("A {at:?} {e:?}\n  E {}\n  D {:?}\n", e.ending(at), e.decision());
+            }
+        }
+        std::fs::write(std::env::var("DUMP_OUT").unwrap(), out).unwrap();
+    }
+}
