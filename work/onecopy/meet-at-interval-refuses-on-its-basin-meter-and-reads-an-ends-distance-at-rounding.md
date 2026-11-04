@@ -64,3 +64,7 @@ Make `meet` at least as decisive as the region rows at `Interval`, where the ban
 
 Bring its per-pair cost near the rows' cost. Then re-run PR 6491's landings route against these rows.
 
+
+## Also owed (2026-11-04, from the orchestrator's read of PR 6492)
+
+- `pose::conic_conic`'s parallel screen reads `constant(row::PARALLEL, c0, swing + noise)` and drops a gap read through `matches!(.., Ok(true))`. When the swing is level, the same margin is read again on `row::OFFSET`. So a gap height records two escalations for one margin, and the PARALLEL one is unanswered when a later route decides. Read the margin once and act on it twice. This belongs to the class in `a-heuristics-choice-has-no-door-of-its-own` (PR 6483).
