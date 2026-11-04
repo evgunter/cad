@@ -30,23 +30,33 @@ The corner-kiss rows pin the refusal until then.
 
 The same keying meets a revolve's caps. A half-turn revolve now leaves
 its two coplanar caps on one record (`sweep::revolve`,
-`RevolvedKind::Partial::coplanar_caps`), split by the axis edge.
-`crates/sweep/tests/torax_axial.rs`
-`torax_the_half_turn_lune_refuses_the_parallel_cap_pair` pins `topo::shell`
-refusing at the corner (`TogetherAxialCorner`, "parallel"), and is red.
+`RevolvedKind::Partial::coplanar_caps`), split by the axis edge. The
+witness is `crates/sweep/tests/torax_axial.rs`
+`torax_the_half_turn_lune_refuses_at_its_axis_edge`.
 
-2026-11-03: `lune(0.3, π)` is three faces: the sphere wall on its own
+2026-11-04: `lune(0.3, π)` is three faces: the sphere wall on its own
 record, and the two caps on one plane record, both at sense `true`, so
 they share one material side. `shell` at `t = 0.05` refuses
-`ShellError::Face { TogetherEdgeDisagreement { edge, gap: 0.05 } }` at
-the axis edge, whose two sides are the two caps on that one record. The
-door moves the record by `t`, and the gap reads as the edge's curve left
-where it was. A hollow half ball is buildable, so this is the
-door's: an edge both of whose faces wear one moved record moves with
-that record, and no corner solve is needed for it. No public build
-reaches the meridian-pair arm's parallel-caps refusal any more: two
-caps containing the axis that are parallel are coplanar, and a revolve
-now leaves coplanar caps on one record. The arm's other
-`TogetherAxialCorner` refusals keep their witnesses
-(`crates/sweep/tests/shell_curved_mouth.rs`
+`ShellError::Face { TogetherEdgeDisagreement { edge, gap } }` at the
+axis edge, whose two sides are the two caps on that one record. The gap
+is `t` exactly: the edge's minted curve stands `t` off one of the moved
+surfaces it separates (`offset_axial.rs`, the `offset_axial_edge_on_surface`
+check). The axial door has a same-record seam arm, which translates a
+plane's seam by the chart's rigid move (`mint_carrier`), so the gap
+says the edge's two sides reach the door as charts that moved apart.
+Which chart, and why, is unread.
+
+The refusal is fail-loud. Every in-scope edge's minted carrier is
+checked at its midpoint against both moved surfaces before its spec is
+written. A gap past the band refuses, and a gap in band escalates. No
+path returns a body with the edge left behind. A hollow half ball is
+buildable, so this is the door's defect.
+
+The meridian-pair arm's parallel-caps `TogetherAxialCorner` refusal is
+left as it is. No public build reaches it any more: two caps containing
+the axis that are parallel are coplanar, and a revolve now leaves
+coplanar caps on one record. Whether to make it a
+`ClassificationInvariant`, or to pin it from an arm-level Body, is this
+program's call. The arm's other `TogetherAxialCorner` refusals keep
+their witnesses (`crates/sweep/tests/shell_curved_mouth.rs`
 `opening_a_tangent_dome_refuses_two_equidistant_roots`, the tie).
