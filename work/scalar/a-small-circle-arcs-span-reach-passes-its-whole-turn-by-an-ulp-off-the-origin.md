@@ -35,3 +35,11 @@ CAD_FUZZ_SEED=0xe3d7d198da905f4c CAD_FUZZ_EFFORT=1 \
 The fix for the unit-ellipse row (a clamp to the whole turn's reach, or
 the assertion's rounding tolerance) also clears this seed, and the seed
 is pinned as a deterministic row beside it.
+
+## Another seed (PCERT, `pcert/ellipse-general-lane`)
+
+`CAD_FUZZ_SEED=0x779cfe276a43b33a`: an ellipse with semi-axes `1000` and
+`44.71` about the origin, over `[9.165, 10.896]`, read from the origin.
+The reach is `1000.0000000000002`, one ulp past the whole-turn lever of
+`1000`. Same class, at the origin rather than off it, so the offset
+from the origin is not what this row's title says decides it.
