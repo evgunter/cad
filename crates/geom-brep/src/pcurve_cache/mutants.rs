@@ -24,7 +24,7 @@ const NAME: Option<&str> = option_env!("PCERT_RADIAL_PAIR_MUTANT");
 
 /// Every site this crate's hooks name. topo's `chord_join` declares its
 /// own two (`topo-gate`, `topo-v-var`) under the same variable.
-pub(super) const SITES: [&str; 31] = [
+pub(super) const SITES: [&str; 32] = [
     "class-circle",
     "zero-winding",
     "torus-parallel",
@@ -50,6 +50,7 @@ pub(super) const SITES: [&str; 31] = [
     "ruling-per-parameter",
     "cone-ruling-gate",
     "ruling-unplaced",
+    "meridian-standoff-unread",
     "spline-floor-net",
     "spline-charge-dropped",
     "spline-cut-uncharged",
@@ -258,6 +259,12 @@ pub(super) fn ruling_per_parameter() -> bool {
 /// rate over the length (its rows are `ruling_reading_rows`).
 pub(super) fn ruling_unplaced() -> bool {
     on("ruling-unplaced")
+}
+
+/// The cylinder arm's line class read on its lean alone, the origin's
+/// radial standoff unread (its row is `ruling_reading_rows`).
+pub(super) fn meridian_standoff_unread() -> bool {
+    on("meridian-standoff-unread")
 }
 
 /// The cone arm images a line as the ruling at its anchor's azimuth

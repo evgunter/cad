@@ -763,9 +763,12 @@ every carrier on a spindle chart. Whether a line is a ruling of a
 cylinder or a cone is one reading (`ruling_miss`), shared by the mint,
 props and the boolean: the line's greatest distance over the edge's
 span from the ruling, in metres. The ruling is anchored where the
-closed form places its image, so the reading is that image's miss: on
-a cylinder, the ruling through the line's origin; on a cone, the
-generator through the apex that the line's anchor names. A reader
+closed form places its image: on a cylinder, the ruling through the
+line's origin; on a cone, the generator through the apex that the
+line's anchor names, whose distance is that form's whole miss. The
+cylinder's meridian form images the ruling at the chart's radius, so
+its class gate adds the origin's radial gap, and a Zero there is the
+form's own miss. A reader
 that images nothing anchors the line at its span's start. Whether the carrier lies
 on the chart at all is a residual, not a class gate: a definite miss
 is a contradiction between what the edge states and its geometry,

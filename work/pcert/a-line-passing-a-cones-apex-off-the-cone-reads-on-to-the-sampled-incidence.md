@@ -35,6 +35,20 @@ The projected image mints at f64, and `PcurveCache::certify` refuses
 `SectorRefused { Lever }`, which topo's walk (`minted_refusal`) would
 relabel "not yet" (`NoGeneralLane { Pose }`).
 
+The same gap also ends an off carrier "not yet" at the mint itself,
+not only after topo's relabel. The PR 6504 delta verifier measured it
+on the shifted generator over `[−0.5, 0.5]`:
+- at ε 1e-12, apex shifts of 3ε to 300ε (2.6ε to 263ε off the cone at
+  the apex) end `NoGeneralLane { Pose }` directly at the mint, at both
+  scalars;
+- at ε 1e-9 that holds for 3ε to 30ε on azimuth −2.5, while azimuth
+  3.1415 escalates.
+
+Each of these is off the chart by more than the band, so "not yet" (a
+lane's capability gap, lever-only) is as wrong an ending for it as the
+check-4 miss is. It has the same root cause: the sampled read does not
+show the carrier off.
+
 Neither is this carrier's ending. It is off the chart, and D4 ¶1 (iv)
 ends a definite miss as its incidence read (`CarrierOffChart`), at the
 door that reads it.

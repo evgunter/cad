@@ -5934,11 +5934,13 @@ pub enum Ruling<T: Real> {
 /// span scaled back reads the same.
 ///
 /// The ruling is anchored where the closed form that a Zero reading
-/// selects places its image, so the reading is that image's miss: on a
-/// cylinder, the ruling through the line's `origin` (the meridian form's
-/// azimuth), whose distance at `t` is `|t|·‖dir × axis‖`, so the reading
-/// is `‖dir × axis‖` metered over the span's reach from the origin; on a
-/// cone, the generator the arm names. The metered rate is exact, so the
+/// selects places its image: on a cylinder, the ruling through the line's
+/// `origin` (the meridian form's azimuth), whose distance at `t` is
+/// `|t|·‖dir × axis‖`, so the reading is `‖dir × axis‖` metered over the
+/// span's reach from the origin; on a cone, the generator the arm names,
+/// whose distance is the closed form's whole miss. The meridian form
+/// images the cylinder's ruling at the chart's radius, so its arm adds
+/// the origin's radial gap to read that form's miss. The metered rate is exact, so the
 /// product is the distance itself and is decided on either side. A
 /// caller that images nothing, and so asks only whether the edge lies
 /// along a ruling, passes the line anchored at the span's start (props).
@@ -9776,11 +9778,23 @@ fn derive_class<T: Decide>(
             // section/rim case — and β is its orientation against the
             // chart frame.
             let w_r = radial(w);
-            // A line reads how far it leaves a ruling over the span
-            // ([`ruling_miss`]); a conic, its radial oscillation's
+            // A line reads the meridian form's own miss, check 4's two
+            // terms for it: how far it leaves the ruling through its
+            // origin over the span ([`ruling_miss`]), and how far that
+            // ruling stands off the wall, the form imaging it at the
+            // chart's radius. A conic reads its radial oscillation's
             // amplitude.
             let moving = match carrier {
-                Curve3::Line(line) => ruling_miss(line, place.span, Ruling::Axis(axis)),
+                Curve3::Line(line) => {
+                    let standoff = norm_gap(radius, radius.powi(2), w_r);
+                    #[cfg(test)]
+                    let standoff = if mutants::meridian_standoff_unread() {
+                        T::zero()
+                    } else {
+                        standoff
+                    };
+                    Margin::of(ruling_miss(line, place.span, Ruling::Axis(axis)).value() + standoff)
+                }
                 _ => Margin::of(radial_amplitude(&form, axis)),
             };
             let reading = decide(RADIAL_MOVING, moving, band);

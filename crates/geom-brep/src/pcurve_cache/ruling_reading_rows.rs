@@ -631,3 +631,73 @@ fn a_line_across_the_apex_that_is_no_generator_ends_not_yet() {
         }
     }
 }
+
+/// **A line read Zero on its lean but standing off the wall**: the
+/// meridian form images the ruling at the chart's radius, so its miss is
+/// the line's lean over the span and its origin's radial standoff
+/// together, and the class gate reads both. A line standing `0.45` and
+/// `0.9·zero` off the wall (either side), leaning so its ruling reading
+/// alone is `0.5`, `0.9` and `0.99·zero`, over spans whose reach from the
+/// origin is under and over 1 (the region the projected fuzzer does not
+/// draw): at `0.45·zero` off it certifies at both scalars, through the
+/// meridian form or the general lane; at `0.9·zero` it certifies or ends
+/// "not yet"; never a check-4 miss. Red under `meridian-standoff-unread`,
+/// which reads the lean alone, takes the meridian form, and check 4 then
+/// reads its miss in band.
+#[test]
+fn a_line_standing_off_the_wall_reads_its_standoff_with_its_lean() {
+    let surface = cylinder();
+    let Surface::Cylinder { origin, radius, .. } = surface else {
+        unreachable!("a cylinder")
+    };
+    let f = Interval::from_f64;
+    for phi in [0.3, -2.0] {
+        let (s, c) = f64::sin_cos(phi);
+        let (r, tang) = (Vec3::new(c, s, 0.0), Vec3::new(-s, c, 0.0));
+        for off in [0.45, -0.45, 0.9, -0.9] {
+            for frac in [0.5, 0.9, 0.99] {
+                for (k, h) in [(0.0, 0.5), (0.3, 0.1), (1.5, 0.2), (-1.0, 0.5)] {
+                    let span = (k - h, k + h);
+                    let reach = span.0.abs().max(span.1.abs());
+                    let carrier = Curve3::line(
+                        origin + r * (radius + off * zero()),
+                        Vec3::unit_z() + tang * (frac * zero() / reach),
+                    );
+                    let what = format!("φ {phi}, off {off}·zero, lean {frac}·zero, over {span:?}");
+                    let (carrier_i, surface_i) = lift(&carrier, &surface);
+                    let certified = (
+                        chart_pcurve_over(&carrier, span.0, span.1, &surface, band()).and_then(
+                            |im| {
+                                PcurveCache::certify(im, span.0, span.1, &carrier, &surface, band())
+                                    .map(|_| ())
+                            },
+                        ),
+                        chart_pcurve_over(&carrier_i, f(span.0), f(span.1), &surface_i, band())
+                            .and_then(|im| {
+                                PcurveCache::certify(
+                                    im,
+                                    f(span.0),
+                                    f(span.1),
+                                    &carrier_i,
+                                    &surface_i,
+                                    band(),
+                                )
+                                .map(|_| ())
+                            }),
+                    );
+                    let ok = |r: &Result<(), PcurveCertifyError>| match r {
+                        Ok(()) => true,
+                        Err(e) => off.abs() > 0.5 && not_yet(e),
+                    };
+                    assert!(
+                        ok(&certified.0) && ok(&certified.1),
+                        "{what}: certifies (or, 0.9·zero off, ends not yet) at both scalars: \
+                         {:?} / {:?}",
+                        certified.0,
+                        certified.1
+                    );
+                }
+            }
+        }
+    }
+}
