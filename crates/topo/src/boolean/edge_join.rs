@@ -1704,8 +1704,8 @@ mod undecided_text {
             ),
             (
                 geom_brep::PcurveCertifyError::NoGeneralLane {
-                    chart: geom::SurfaceKind::Torus,
-                    carrier: geom::CurveKind::Circle,
+                    chart: geom::SurfaceKind::Sphere,
+                    carrier: geom::CurveKind::Ellipse,
                     gap: geom_brep::LaneGap::Unwritten,
                 },
                 false,
