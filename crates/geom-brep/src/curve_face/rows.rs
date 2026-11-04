@@ -480,6 +480,7 @@ fn every_door_name_carries_a_listed_prefix() {
         NameCarrier::Const("TORUS_ROOT_SLACK"),
         NameCarrier::Const("PAST_THE_BAND"),
         NameCarrier::Const("AT_THE_END"),
+        NameCarrier::Const("PAST_THE_END"),
         NameCarrier::Call("spread_signs"),
         NameCarrier::Call("constant_residual_roots"),
         NameCarrier::Call("gap"),
@@ -529,6 +530,7 @@ fn every_door_name_carries_a_listed_prefix() {
             "spline_face.rs: (x.interval(0), w)",
             "spline_face.rs: AT_THE_END",
             "spline_face.rs: PAST_THE_BAND",
+            "spline_face.rs: PAST_THE_END",
             "spline_face.rs: row",
         ],
         "the census's indirect sites"

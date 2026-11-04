@@ -149,3 +149,41 @@ fn a_form_the_rings_guards_freeze_is_not_over_the_budget() {
     });
     assert_eq!(got, Err(Undischarged::Otherwise));
 }
+
+/// **The worst of two Zeros** ([`MarginDiag::worst`]): the reading
+/// farther from zero, either way round, proven only when both are, and
+/// poisoned by a poisoned one.
+#[test]
+fn the_worst_of_two_zeros_reads_the_larger_and_is_proven_only_when_both_are() {
+    let (got, _) = with_deferred_session(budget(), SymRules::shipped(), SymRetry::none(), || {
+        let x = p("x", 1.0);
+        let thm = zero(x - x);
+        let open = zero(x - p("y", 1.0 + 5.0e-10));
+        let reach = |m: MarginDiag| match m.diagnostic_f64_for_error_text() {
+            geom_core::predicate::ErrorTextReading::Value(v) => v.abs(),
+            other => panic!("a point reading, got {other:?}"),
+        };
+        [
+            (discharge(thm.worst(open)), reach(thm.worst(open)) > 4.0e-10),
+            (discharge(open.worst(thm)), reach(open.worst(thm)) > 4.0e-10),
+            (discharge(thm.worst(thm)), reach(thm.worst(thm)) == 0.0),
+        ]
+    });
+    assert_eq!(got, [(false, true), (false, true), (true, true)]);
+    let (near, far) = (MarginDiag::value(1.0e-10), MarginDiag::value(-3.0e-10));
+    assert_eq!(
+        near.worst(far),
+        far,
+        "the farther reading, either way round"
+    );
+    assert_eq!(
+        far.worst(near),
+        far,
+        "the farther reading, either way round"
+    );
+    assert_eq!(
+        near.worst(MarginDiag::INVALID),
+        MarginDiag::INVALID,
+        "poison poisons"
+    );
+}

@@ -149,7 +149,7 @@ pub(super) fn spline_incidence<T: Decide>(
         }
     }
     match pending {
-        None => Ok(Incidence::On),
+        None => Ok(Incidence::On(None)),
         Some(cause) => Err(incidence_escalated(cause)),
     }
 }
