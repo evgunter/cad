@@ -126,3 +126,8 @@
   - **Fix.** Test-only: the witness pose is re-posed (`0.3 → 0.5`, which escalates its end pin at both commits), with its argument written in the doc.
   - **Filed.** `charttail/an-unresolved-section-carrier-refuses-downstream-untyped-at-1e-12`, the structural answer.
   - **My read.** Accepted. Main had moved 80 code files, so I merged main via update-branch (`b2a57369be`). The gate is re-running, and I am running the row at all three ε locally.
+- 2026-11-04 — The P0 needle lane opened PR 6525 at `85fcd7451`, gate green. Its root cause: two rim conics tangent at a shared vertex have across scores of exactly 0, so F33's bare difference at `Band::least()` was decided by rounding. It picked the circle, whose touch window cannot certify.
+  - **Fix.** Each score carries a rounding charge (the parallel screen's noise), and a tie reads the first conic.
+  - **Filed.** `meet-reads-two-conics-tangent-at-a-shared-end-in-one-order-only`, which the lane says predates 6492.
+  - **FULL review dispatched** to a cloud session. It judges whether a charge on a choice falls under `[simple.conditioned]`, whether an order-dependent tie-break can land as an interim step, and whether the charge is derived or guessed.
+  - **Coupling.** This touches `pose.rs` alongside PR 6516 and the planned polish redesign, so the merge order is 6522, then whichever of 6516 and 6525 is ready first, with the other merging main.
