@@ -205,3 +205,7 @@
   - **The fix:** `SupportTrace::foot` is the trace's foot direction, and the control admission is removed. The headroom is thin: 0.89e-12 against z.
   - **Review:** a FULL review was dispatched as cloud `session_013mPGJ3HVYqYAoquA4iThSZ`.
   - **Filed:** GREEN P1 `main-red-the-four-thread-walk-misses-tilted-cut-uppers-serial-golden`, an uncovered slow-set main red that two lanes saw. (ONECOPY orchestrator)
+- 2026-11-04 — PR 6516 merged at `ef82097926` (`b9cc0096cb`).
+  - **Before the merge:** the gate was green, and the branch was already up to date with main, 6525 included.
+  - **The row stays open:** the meet-interval row holds the polish-meters decision, which is not yet implemented.
+  - **Dispatched:** `onecopy/polish-meters` to the same local lane, as planned. Tier single FULL. (ONECOPY orchestrator)
