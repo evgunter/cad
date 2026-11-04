@@ -73,3 +73,14 @@
   - **Fix pass:** the union, sent to the implementer, resumed.
   - **Class (logged at adjudication):** a fixture whose expected value is computed with the function under test cancels that function's errors, so every row agrees with itself. Expected values come from an independent formula or computation.
   - **Class:** a "disclosed, unproven" gap left only in a PR body has no durable home. Implementer briefs already say a PR body is not a slate; this lane did it anyway, on a gap a reviewer then showed to be a soundness hole.
+- 2026-11-04 — **PR 6486's dual is delivered.** Both reviewers returned APPROVE-WITH-FIXES on `49d88cc0f1`, with no MAJOR. Both executed their checks: each fuzzed `Meters::Spindle` at 400k draws and checked props independently. So the pair is fair.
+  - **Bilateral:**
+    - `SheetApex` is decided before the arc's interior, against the ratified arc rule (R1 MINOR, executed; R2 NOTE);
+    - the sheet-selecting lever in `Meters::Spindle` is load-bearing and unguarded (dropping it gives 1271 under-reads, and every PR row stays green);
+    - stale prose names the retired decisions;
+    - the arc-holds-its-least-radius predicate is spelled two ways in `axis.rs`.
+  - **Unilateral, R1:** the football's wrong-sheet row cannot go red alone; five new `copysign(major)` sites fall in LATHE's open copysign class; `matches!(Spindle)` is re-minted inside shared arms; a near-horn band mints R up to r + band.
+  - **Unilateral, R2:** `assert_outward` ignores sheet faces; the sheet walk's slope is loose on a lemon; the LATHE row closed in this PR still has a live half (the in-band reading, settled by the arc rule); `meters_at` builds a whole `Meters` to read one bit.
+  - **Tally candidates:** none (no MAJOR).
+  - **Fix pass:** the union, sent to the piece 2 lane (resumed).
+  - **Class (logged at adjudication):** a soundness argument written in a doc with no executing row is two reviews in a row's finding on this track (6473's dead apex arm, 6486's unguarded lever). Briefs for stage 2 will require that every new certificate ships with a fuzz or a mutant row that goes red without its load-bearing check.
