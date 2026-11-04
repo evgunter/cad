@@ -38,3 +38,18 @@ once. The cost is one incidence read per spline-face certification (about a
 dive of 65 samples on an on-chart carrier), which is why it was not taken in the
 lane-choice unit, whose reads sit on refusal paths and the general fall-through
 only. Time the spline-minting slow rows before and after.
+
+## The dual scalar (review fix Y8a)
+
+A public door does validate at `Dual`: `topo::pcurves::validate_pcurves<T:
+AtRestPolicy>` (`topo::pcurves` is a `pub mod`, and `pncad::topo` re-exports
+`topo::*` less the construction tier). There, an own-chart `General` image
+refuses `FittedLaneUnsupported`, which `not_owed` excuses, so an off carrier
+passes. That is no escape of its own, and the row stays P1.
+`docs/DUAL-DESIGN.md` DL3 makes a dual evaluation validate nothing: its
+gates are structurally absent ("a dual's door mints and never checks"), and
+the base-scalar evaluation beside it, whose value channel is bit-identical,
+is the validation of record. `topo::validate_geometric` does not compile at
+`Dual` (its `CertifiedBounds` bound), and the sensitivity report refuses a
+dual pass with no validated base evaluation. The off carrier is therefore
+read where the base scalar reads it, which is this row's subject.

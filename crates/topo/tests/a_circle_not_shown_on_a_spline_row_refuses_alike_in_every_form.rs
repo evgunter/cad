@@ -230,10 +230,10 @@ fn rim_image_on_the_ring<T: AtRestPolicy + geom_core::Bounds>() {
         );
         // At the import door a definite miss names the damaged file, with
         // no ε_in offer (Ev's PR 5838 ruling).
-        let Err(ref refused) = off else {
+        let Err(ref refusal) = off else {
             unreachable!()
         };
-        let at_import = refused
+        let at_import = refusal
             .ending(geom_core::FileCoincidence::new(1e-6))
             .expect("an incidence read has an ending");
         assert_eq!(

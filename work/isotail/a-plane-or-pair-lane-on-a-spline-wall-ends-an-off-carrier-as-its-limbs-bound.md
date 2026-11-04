@@ -4,7 +4,7 @@ kind: issue
 title: A plane or pair lane on a spline wall ends an off carrier as its limbs' bound or an unsettled foot
 status: open
 opened: 2026-11-04
-priority: P2
+priority: P1
 cost: M
 ---
 
@@ -31,3 +31,8 @@ Read `geom_brep::read_edge_incidence` (which reads a spline chart since
 limb or foot refuses, before its ending is chosen, as `nurbs_iso_derive` does:
 off ends `CarrierOffChart`, in band ends in the lever, and the lane's own ending
 stands otherwise.
+
+Banded P1 at review (PR 6498, fix Y8b): this is the closed
+`a-spline-chart-has-no-incidence-test-so-a-lane-choice-refusal-cannot-tell-off-from-uncovered`'s
+own class, an upper bound ending an off carrier as an uncovered one, on the
+build and import doors (the edge certificate) rather than the mint.

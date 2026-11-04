@@ -93,7 +93,10 @@ pub(super) const FOOT: &str = "pcurve_spline_chart_foot";
 /// points decided past the band.
 pub(super) const STRADDLE: &str = "pcurve_spline_chart_straddle";
 
-/// How many times a kept cell is halved at most.
+/// How many times a kept cell is halved at most. `topo`'s spline face
+/// placement walks the same cells with its own pair (`CELL_DEPTH` 48
+/// quarterings, `CELL_VISITS` 8192): one home for both is
+/// `work/splice/the-spline-chart-cell-walk-is-written-twice.md`.
 const CELL_DEPTH: usize = 96;
 /// The levels past the one where the chart's own diagonal, halved at
 /// each, is below half the band's zero: a cell's geometric size halves
@@ -692,7 +695,10 @@ fn box_key<T: SpanLocate>(cell: &Cell<T>, q: [f64; 3], pu: usize, pv: usize) -> 
 /// applied in the scalar ([`geom_core::spline::CurvePlan::apply_homogeneous`]):
 /// each ratio formed from the held knots, each step a [`blend`], so an
 /// enclosure holds the exact refined row and the `f64` bound follows the
-/// arithmetic. `None` where a knot has no value or a plan refuses.
+/// arithmetic. Not [`geom_core::spline::RingRefinement`]: it refines one
+/// `Interval` channel ([`geom_core::spline::CurvePlan::apply_certified`]),
+/// and this cut runs at every scalar, carrying the `f64` bound beside each
+/// point. `None` where a knot has no value or a plan refuses.
 fn refined<T: Decide>(
     knots: &Knots<T>,
     row: Vec<Control<T>>,

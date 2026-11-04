@@ -77,13 +77,26 @@ reads it before the general image:
   fall-through, where it takes the general lane (D3);
 - not shown off takes the lane gap (`NoGeneralLane`, "not yet").
 
-Rows: `spline_incidence::rows` and
-`topo/tests/a_circle_not_shown_on_a_spline_row_refuses_alike_in_every_form.rs`.
-The sweep's other hits are filed: the certificate door
-(`a-spline-charts-certificate-door-reads-no-incidence-so-an-off-carrier-ends-as-its-images-bound`),
-the edge certificate's spline lanes
-(`work/isotail/a-plane-or-pair-lane-on-a-spline-wall-ends-an-off-carrier-as-its-limbs-bound.md`),
-the seam face's dropped refusal
-(`work/charttail/a-seam-faces-image-refusal-is-dropped-so-off-and-uncovered-both-end-unplaced.md`),
-and the two cell walks
-(`work/splice/the-spline-chart-cell-walk-is-written-twice.md`).
+Rows: `spline_incidence::rows`,
+`topo/tests/a_circle_not_shown_on_a_spline_row_refuses_alike_in_every_form.rs`,
+and the catch-all's own,
+`sweep/tests/a_tangent_seam_on_a_spline_wall_ends_as_its_incidence_read.rs`.
+The read's cost is still open: a band-scale sample dives (about 8× main on
+the in-band seam row at `Interval`), and a thin sheet stops at the visit cap
+(`the-spline-incidence-read-dives-where-its-floors-already-decide`, P2). The
+sweep's other hits are filed:
+
+- the certificate door
+  (`a-spline-charts-certificate-door-reads-no-incidence-so-an-off-carrier-ends-as-its-images-bound`,
+  P1);
+- the edge certificate's spline lanes
+  (`work/isotail/a-plane-or-pair-lane-on-a-spline-wall-ends-an-off-carrier-as-its-limbs-bound.md`,
+  P1);
+- the seam face's dropped refusal
+  (`work/charttail/a-seam-faces-image-refusal-is-dropped-so-off-and-uncovered-both-end-unplaced.md`);
+- the spline face placement's uncharged `f64` floor
+  (`work/splice/spline-region-decides-off-the-carrier-on-an-uncharged-f64-box-floor.md`,
+  P1);
+- the loft's section rim, added to
+  `a-loft-section-rims-in-band-pick-offers-a-tolerance`;
+- the two cell walks (`work/splice/the-spline-chart-cell-walk-is-written-twice.md`).

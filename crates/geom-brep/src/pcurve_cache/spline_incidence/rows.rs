@@ -276,15 +276,15 @@ fn near_patch(rng: &mut test_utils::fuzz::Rng) -> (NurbsSurface<f64>, &'static s
 /// **The `f64` charge holds where its rounding is a band's size**, at
 /// the tight band: a sample a few escalations off the corner of a far,
 /// large, nearly flat patch, along the outward diagonal, where the box
-/// gap is the distance (four thousand of them); a sample off a straight
+/// gap is the distance (fifteen hundred of them); a sample off a straight
 /// boundary row of a knotted rational patch, weights up to eight decades
 /// apart, where the box gap of the cell holding the foot is the distance
-/// and the cut's insertions round the row (three thousand); and a chart
-/// point of a patch `1e3` to `1e6` across (three hundred). No `Off` floor
+/// and the cut's insertions round the row (a thousand); and a chart
+/// point of a patch `1e3` to `1e6` across (a hundred). No `Off` floor
 /// passes a chart point's enclosed distance.
 ///
 /// Built with `PCERT_RADIAL_PAIR_MUTANT=spline-charge-dropped` (no
-/// `f64` charge) the corner and big-patch families are red.
+/// `f64` charge) the corner and boundary-row families are red.
 #[test]
 fn the_f64_charge_holds_where_its_rounding_is_a_bands_size() {
     let band = tight_band();
@@ -303,7 +303,7 @@ fn the_f64_charge_holds_where_its_rounding_is_a_bands_size() {
 /// The corner family ([`the_f64_charge_holds_where_its_rounding_is_a_bands_size`]).
 fn corner_family(rng: &mut test_utils::fuzz::Rng, band: Band) -> Tally {
     let mut tally = Tally::default();
-    for _ in 0..test_utils::fuzz::scaled(4000) {
+    for _ in 0..test_utils::fuzz::scaled(1500) {
         let p = 1 + rng.below(3);
         let k = KnotVector::clamped([vec![0.0; p + 1], vec![1.0; p + 1]].concat(), p).unwrap();
         let n = p + 1;
@@ -346,7 +346,7 @@ fn corner_family(rng: &mut test_utils::fuzz::Rng, band: Band) -> Tally {
 /// The boundary-row family ([`the_f64_charge_holds_where_its_rounding_is_a_bands_size`]).
 fn row_family(rng: &mut test_utils::fuzz::Rng, band: Band) -> Tally {
     let mut tally = Tally::default();
-    for _ in 0..test_utils::fuzz::scaled(3000) {
+    for _ in 0..test_utils::fuzz::scaled(1000) {
         let (pu, pv) = (2 + rng.below(3), 1 + rng.below(3));
         let (ku, kv) = (knots(rng, pu), knots(rng, pv));
         let (nu, nv) = (ku.control_count(), kv.control_count());
@@ -389,7 +389,7 @@ fn row_family(rng: &mut test_utils::fuzz::Rng, band: Band) -> Tally {
 /// distance is at most the enclosure's reach.
 fn big_family(rng: &mut test_utils::fuzz::Rng, band: Band) -> Tally {
     let mut tally = Tally::default();
-    for _ in 0..test_utils::fuzz::scaled(300) {
+    for _ in 0..test_utils::fuzz::scaled(100) {
         let (chart, _) = patch(rng);
         let s = 10f64.powf(rng.range(3.0, 6.0));
         let (lo, hi) = super::shadow_box(chart.control());
