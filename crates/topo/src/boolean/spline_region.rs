@@ -69,8 +69,8 @@
 //! form ([`point_rounding`]). The net is held about the middle of the
 //! chart's control box, so the cut is in the patch's own size. A cell's
 //! floor is less the root sum of its worst per channel and
-//! [`geom_core::rounding_charge`] of the read (the moved point's reach and
-//! the gap); a weight not shown positive, or a bound that is not finite,
+//! [`geom_core::rounding_charge`] of twice the reach of its points, the
+//! moved point and the centre; a weight not shown positive, or a bound that is not finite,
 //! leaves it the poison. A piece's box is wider by its worst per channel
 //! (no box where one is not finite), a piece taken out of an enclosure by
 //! the enclosure's half-width as well, and a run's ends by the image's
@@ -81,7 +81,7 @@
 //! arithmetic holds the exact points already and charges nothing.
 //! `geom_brep`'s spline incidence test cuts its cells the same way
 //! (`work/splice/the-spline-chart-cell-walk-is-written-twice.md`); its
-//! floor adds a slab and charges its read at its points' reach.
+//! floor adds a slab.
 
 use std::collections::VecDeque;
 use std::num::NonZeroUsize;
@@ -464,9 +464,11 @@ impl<T: Decide> Patch<T> {
             return poison;
         };
         let (mut lo, mut hi) = (first, first);
+        let mut reach = (first - Point3::origin()).norm();
         for p in points {
             lo = Point3::new(lo.x.min(p.x), lo.y.min(p.y), lo.z.min(p.z));
             hi = Point3::new(hi.x.max(p.x), hi.y.max(p.y), hi.z.max(p.z));
+            reach = reach.max((p - Point3::origin()).norm());
         }
         let axis = |lo: T, hi: T, x: T| (lo - x).max(x - hi).max(T::zero());
         let (gx, gy, gz) = (
@@ -497,17 +499,19 @@ impl<T: Decide> Patch<T> {
         } else {
             cut
         };
-        // The read's own rounding: the move `q − c` rounds each coordinate
-        // by `u·|q_c − c_c|`, each axis difference by `u` of itself, and
-        // the squares, sum and root by a few `u` of the gap; charged twice
-        // over. The points' quotients are the cut's (`point_rounding`).
-        // No fixture makes this term decide alone: near the box the move
-        // and the differences are exact or round by `u` of coordinates
-        // the cut's charge already bounds by `u·|P_c|` at least.
+        // The read's own rounding, as `geom_brep`'s spline incidence
+        // charges it: twice the reach of the points, the moved point and
+        // the centre. No fixture makes this term decide alone: near the
+        // box the move and the differences are exact or round by `u` of
+        // coordinates the cut's charge already bounds by `u·|P_c|` at
+        // least; nor the cut's alone, which this covers wherever `q`
+        // meets a box face.
         let read = if mutant("spline-region-read-dropped") {
             T::zero()
         } else {
-            rounding_charge((moved - Point3::origin()).norm() + gap)
+            rounding_charge(
+                T::from_f64(2.0) * (reach + (moved - Point3::origin()).norm() + self.centre.norm()),
+            )
         };
         (gap - T::from_computed(cut) - read).max(T::zero())
     }

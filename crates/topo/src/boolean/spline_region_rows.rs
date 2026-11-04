@@ -1734,9 +1734,9 @@ fn square_cell(centre: Vec3<f64>, e: f64) -> super::Patch<f64> {
 /// `q` meets a box face, the site argues), so the composition is
 /// pinned here, and the bounds themselves by the drift rows. A cell
 /// whose points carry `1e-6` in `z`, `2e-6` below it, about the origin,
-/// floors at about `1e-6`; the same cell carrying nothing, held `1e9`
+/// floors at about `1e-6`; the same cell carrying nothing, held `1e8`
 /// away with `q` `2e-6` below it in the cell's frame, floors at the gap
-/// less the read's `8u·(1e9 + 2e-6)`.
+/// less the read's `16u·(reach + |q − c| + 1e8)`.
 #[test]
 fn a_cells_floor_is_lowered_by_its_cut_and_its_read() {
     let below = 2e-6;
@@ -1746,10 +1746,10 @@ fn a_cells_floor_is_lowered_by_its_cut_and_its_read() {
         floor <= below - 1e-6 + 1e-12,
         "the cut's bound is charged: floor {floor:e}"
     );
-    let far = 1e9;
+    let far = 1e8;
     let read = square_cell(Vec3::new(far, 0.0, 0.0), 0.0);
     let floor = read.floor(Point3::new(far + 0.5, 0.5, -below));
-    let charge = geom_core::rounding_charge(0.5f64.hypot(0.5).hypot(below) + below);
+    let charge = geom_core::rounding_charge(2.0 * (2f64.sqrt() + 0.5f64.hypot(0.5) + far));
     assert!(
         floor <= below - 0.9 * charge && charge > 0.0,
         "the read is charged: floor {floor:e}, charge {charge:e}"
