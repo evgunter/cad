@@ -993,7 +993,15 @@ reparents only within one shell (`EulerOpError::CrossShell`).
   one regular curve at their shared vertex: the surfaces are transverse
   there (tangent arms one order up), or the chart is regular there.
   Distinct components of one locus never share a point, so the vertex
-  decides the branch, and nothing is compared between the two edges. A
+  decides the branch, and nothing is compared between the two edges.
+  The iso-family arm is a class reading of each carrier, so a boolean
+  whose join makes two of its input edges one on it records that
+  reading's Zero, both edges' jointly, as one coincidence row naming the
+  two (`DecisionSite::EdgeJoin`, one carrier continuing) for the
+  `unproven-coincidence` lint ([coincidence]); a join of two pieces of
+  one input edge is that edge read twice, and a join of two edges whose
+  descriptions name one surface pair is that pair's locus read twice,
+  so neither records anything. A
   pole, a cone's apex or any point where the locus is not one curve is
   never joinable; a reading of the vertex in the margin band refuses
   typed. A closed edge the join makes keeps one *conventional vertex*:
