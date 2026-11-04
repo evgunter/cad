@@ -75,8 +75,8 @@ column of a swept or skinned wall, or of two analytic charts, that is
 the edge on both surfaces) owes no limb 3: it is certified through each
 surface's chart-image certificate, its on-locus residual and sup-norm
 bound read per surface. A shared row also reads its contact class over
-the whole row, never at sampled feet alone, and the certificate records
-it (`row_contact`). Two spline walls must cross along all of it. Two
+the whole row, never at sampled feet alone (`row_contact`). Two spline
+walls must cross along all of it. Two
 analytic walls must cross along all of it or touch along all of it, as
 a blend's section between two bands does; a row that does neither
 refuses.

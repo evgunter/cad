@@ -141,27 +141,42 @@ fn certify<T: geom_core::Decide + geom_core::CertifiedBounds>(
     )
 }
 
-/// `row` certified under its stated shared row.
+/// `row` certified under its stated shared row, with the contact class
+/// its certificate read (`row_contact::analytic_row_contact`, at the
+/// same lever).
 fn certified<T: geom_core::Decide + geom_core::CertifiedBounds>(
     row: &Row<T>,
-) -> Result<EdgeCurve<T>, CertifyError> {
-    certify(
-        row,
-        stated(row).expect("both walls state the row and certify it"),
+) -> Result<RowContact, CertifyError> {
+    let selector = stated(row).expect("both walls state the row and certify it");
+    let CurveSelector::Structural(Structural::SharedRow(shared)) = &selector else {
+        panic!("the constructor states a shared row");
+    };
+    let (surfaces, pair, _) = arena(row);
+    let walls = pair
+        .keys()
+        .map(|k| (&surfaces[k], shared.image_on(pair, k).unwrap()));
+    let class = geom_brep::row_contact::analytic_row_contact(
+        row.span,
+        walls,
+        geom_core::test_support::fixture_lever(T::from_f64(1.0)),
+        band(),
     )
+    .map(|(class, _)| class);
+    certify(row, selector.clone())?;
+    class
 }
 
 #[test]
 fn a_blend_section_certifies_as_a_touching_shared_row() {
     let row = stadium_junction();
     assert_eq!(
-        certified(&row).unwrap().certificate().contact,
-        Some(RowContact::Touching),
+        certified(&row).unwrap(),
+        RowContact::Touching,
         "f64: the section touches along its whole row"
     );
     assert_eq!(
-        certified(&row.lifted()).unwrap().certificate().contact,
-        Some(RowContact::Touching),
+        certified(&row.lifted()).unwrap(),
+        RowContact::Touching,
         "Interval: the section touches along its whole row"
     );
 }
@@ -170,13 +185,13 @@ fn a_blend_section_certifies_as_a_touching_shared_row() {
 fn a_crossing_analytic_shared_row_certifies_as_crossing() {
     let row = cylinder_through_sphere();
     assert_eq!(
-        certified(&row).unwrap().certificate().contact,
-        Some(RowContact::Crossing),
+        certified(&row).unwrap(),
+        RowContact::Crossing,
         "f64: the walls cross at 60° along the whole row"
     );
     assert_eq!(
-        certified(&row.lifted()).unwrap().certificate().contact,
-        Some(RowContact::Crossing),
+        certified(&row.lifted()).unwrap(),
+        RowContact::Crossing,
         "Interval: the walls cross at 60° along the whole row"
     );
 }

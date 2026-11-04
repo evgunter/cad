@@ -18,7 +18,7 @@ Claimed by BAND (band-meridian lane, 2026-11-04). It sits on SELECT's ground (un
 **The unit (geom-brep).**
 - `Structural::SharedRow` certifies on analytic charts, at any contact order (`crates/geom-brep/src/certify.rs`, the `SharedRow` arms of `resolve_spec` and `run_checks`). The arm keeps the spline walls' domain-side rule and admits an analytic chart's row anywhere on it.
 - Each wall's row image certifies through its own chart-image certificate.
-- The row's contact class is read over the whole row (`crates/geom-brep/src/row_contact.rs`, `analytic_row_contact`). It is touching or crossing; a row that touches at a point and is crossing elsewhere refuses. The class is recorded in `Certificate::contact`.
+- The row's contact class is read over the whole row (`crates/geom-brep/src/row_contact.rs`, `analytic_row_contact`). It is touching or crossing; a row that touches at a point and is crossing elsewhere refuses.
 - A construction states the row through `geom_brep::analytic_shared_row`.
 
 **Done when:** the stadium junction (cylinder against torus along the meridian) certifies as a touching shared row at `f64` and `Interval`, and the `band/closed-mixed-chain` lane states it in `attach_contact`.

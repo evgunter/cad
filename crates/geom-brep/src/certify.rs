@@ -2048,10 +2048,6 @@ pub struct Certificate<T: Real> {
     /// arms move in opposite directions with scale — never laundered
     /// by re-associating a meter to make a number match.
     pub max_residual: T,
-    /// The contact class a shared row read along its whole row
-    /// ([`crate::row_contact`]): crossing or touching. `None` for every
-    /// other description.
-    pub contact: Option<crate::row_contact::RowContact>,
 }
 
 /// **A certified edge's turn**: its parameter interval, its extent
@@ -4719,7 +4715,6 @@ fn run_checks<T: Decide + geom_core::CertifiedBounds>(
     // Two spline walls cross definitely along it; two analytic walls
     // cross or touch along all of it (`row_contact`). No limb 3: the
     // row is the curve. ----
-    let mut contact = None;
     if let Resolved::SharedRow { walls } = &resolved {
         for (key, wall, image) in walls {
             let cache = crate::pcurve_cache::PcurveCache::certify(
@@ -4735,7 +4730,7 @@ fn run_checks<T: Decide + geom_core::CertifiedBounds>(
             max_residual = max_residual.max(on_locus.abs()).max(hull.abs());
         }
         let [(_, a, image_a), (_, b, image_b)] = walls;
-        contact = Some(match (a.spline_chart(), b.spline_chart()) {
+        match (a.spline_chart(), b.spline_chart()) {
             (Some(a), Some(b)) => {
                 crate::edge_nurbs::row_transversality(
                     (t0, t1),
@@ -4773,20 +4768,18 @@ fn run_checks<T: Decide + geom_core::CertifiedBounds>(
                     },
                 )?;
                 row_crossing_verdict(crossing, extent, band)?;
-                crate::row_contact::RowContact::Crossing
             }
             // Both analytic: the resolution admits no mixed pair.
             _ => {
-                let (class, touch) = crate::row_contact::analytic_row_contact(
+                let (_, touch) = crate::row_contact::analytic_row_contact(
                     (t0, t1),
                     [(a, image_a), (b, image_b)],
                     extent,
                     band,
                 )?;
                 max_residual = max_residual.max(touch.abs());
-                class
             }
-        });
+        }
     }
 
     // ---- Intersection of two analytic surfaces: C2's limbs, through
@@ -4897,7 +4890,6 @@ fn run_checks<T: Decide + geom_core::CertifiedBounds>(
         Certificate {
             samples: CERT_SAMPLES,
             max_residual,
-            contact,
         },
         canonical,
         turn,

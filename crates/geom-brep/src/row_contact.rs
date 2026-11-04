@@ -32,8 +32,8 @@ use crate::certify::CertifyError;
 use crate::pcurve_cache::{Channel, Pcurve};
 use crate::recourse::{Classified, Refused};
 
-/// What a shared row's certificate read of its two surfaces' contact
-/// along the row ([`crate::Certificate::contact`]).
+/// What a shared row's certificate reads of its two surfaces' contact
+/// along the row ([`analytic_row_contact`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum RowContact {
     /// The surfaces cross along the whole row: their normals' sine is
@@ -167,13 +167,15 @@ impl<T: Real> Harmonic<T> {
 
 /// **The contact class of a shared row on two analytic charts**, over
 /// the edge's interval `(t0, t1)`, each wall with its certified row
-/// image. Returns the class and, for a touching row, the levered bound it
-/// decided as zero, a residual the certificate folds.
+/// image, read at `extent`, the lever the edge certificate reads it at.
+/// Returns the class and, for a touching row, the levered bound it
+/// decided as zero, a residual the certificate folds. The edge
+/// certificate of an analytic shared row runs this reading.
 ///
 /// # Errors
 ///
 /// As [`contact_of`].
-pub(crate) fn analytic_row_contact<T: Decide>(
+pub fn analytic_row_contact<T: Decide>(
     span: (T, T),
     walls: [(&Surface<T>, &Pcurve<T>); 2],
     extent: Lever<T>,
