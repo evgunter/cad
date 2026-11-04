@@ -9,11 +9,11 @@ opened: 2026-11-04
 ---
 
 
-Found by `onecopy/p0-needle` (the band-turn needle's 1e-12 red). The pair is pinned in `geom-brep` `curve_pair::order_rows::conics_tangent_at_a_shared_end_tie_the_across_choice`: the needle's two rim edges at 3°, a long ellipse (semi-axes 2.1357 and 0.1) and a near-circle (radius 0.1), meeting at a shared end with one tangent. The band is 1e-12/1e-11.
+Found by `onecopy/p0-needle` (the band-turn needle's 1e-12 red). The pair is pinned in `geom-brep` `curve_pair::order_rows::conics_tangent_at_a_shared_end_meet_once_in_either_order` (first pinned, on PR 6525's first head, as `conics_tangent_at_a_shared_end_tie_the_across_choice`, since removed): the needle's two rim edges at 3°, a long ellipse (semi-axes 2.1357 and 0.1) and a near-circle (radius 0.1), meeting at a shared end with one tangent. The band is 1e-12/1e-11.
 
 ## What
 
-Each conic lies tangent to the other's plane at the shared vertex, so both of `pose.rs` `conic_conic`'s across scores are zero but for rounding. The across choice (F33) now reads that as the tie it is and reads the first conic. The two orders read differently:
+Each conic lies tangent to the other's plane at the shared vertex, so both of `pose.rs` `conic_conic`'s across scores are zero but for rounding. As filed, on PR 6525's first head, the across choice (F33) charged the scores, read that as a tie, and read the first conic; the decision below reverted that to main's bare difference. Under that first head the two orders read differently:
 
 - **`meet(long, round)`**, read across the circle's plane: decides one meeting, at both spans' ends.
 - **`meet(round, long)`**, read across the long ellipse's plane: refuses `Unsettled::Meter`, with the end meeting in `found`.

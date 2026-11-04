@@ -1477,10 +1477,23 @@ impl<T: Decide> Level<'_, T> {
     /// A bound on `|F⁗|` over every angle. Each of `X` and `Y` is
     /// `x₀ + ρ·cos(θ − φ)`, so `X²`'s first and second harmonics have
     /// amplitudes `2|x₀|ρ` and `ρ²/2`, and `|(X²)⁗| ≤ 2|x₀|ρ + 8ρ²`. A sum
-    /// of non-negative terms, raised past its few roundings.
+    /// of non-negative terms, raised past its roundings ([`up`]): a dot
+    /// product's five, `ρ`'s four more, and each side's six, summed.
     pub(super) fn fourth(&self) -> T {
         self.fourth
     }
+}
+
+/// `x`, non-negative and computed in `N` roundings to nearest, raised to
+/// an upper bound on the real value it stands for. Each rounding is
+/// within `u = ε/2` relative, so `x̂ ≥ x·(1 − u)ᴺ`, and the factor
+/// `c = 1 + (N + 1)·2u`, a constant exact in `f64` for any `N` short of
+/// `2⁵¹`, lifts it past `x` in one more rounding:
+/// `x̂·c·(1 − u) ≥ x·(1 − (N + 1)·u)·(1 + 2(N + 1)·u) ≥ x` while
+/// `(N + 1)·u ≤ ½`. At an enclosure `c` is a point and the product is
+/// outward already, so this only widens it.
+pub(super) fn up<const N: u32, T: Decide>(x: T) -> T {
+    x * T::from_f64(1.0 + f64::EPSILON * (N + 1) as f64)
 }
 
 /// [`Level`] of `kb` along `ka`.
@@ -1498,13 +1511,12 @@ pub(super) fn level_on<'k, T: Decide>(ka: &'k dyn Conic<T>, kb: &dyn Conic<T>) -
         let rho = (ua.dot(axis).powi(2) + va.dot(axis).powi(2)).sqrt();
         (two * w.dot(axis).abs() * rho + eight * rho.powi(2)) / square
     };
-    let raised = T::from_f64(1.0 + 32.0 * f64::EPSILON);
     Level {
         a: ka,
         centre: kb.frame().origin,
         axes: (ub, vb),
         squares,
-        fourth: (side(ub, squares.0) + side(vb, squares.1)) * raised,
+        fourth: up::<24, _>(side(ub, squares.0) + side(vb, squares.1)),
     }
 }
 

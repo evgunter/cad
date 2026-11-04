@@ -20,3 +20,6 @@ The docs, "whether the window holds no meeting but the found joints", read `true
 ## Owed
 
 Decide whether a window that reads off throughout, with no found meeting in it, certifies that its root holds no meeting. If it does, `holds_only` returns that, and the near-tangent tilts decide. Pin them in the spun row.
+
+**A plausible second cause** (the delta review of PR 6525): `transverse`'s `Range` still reads the height's first harmonic charged with the pose's `noise` (`Range::first_harmonic(.., noise)` → `band_arc`, `extreme_sign(row::EXTREME, …, r.noise)`). At a spin-round tilt of 1e-5 it is the likely source of the review's `curve_pair_pose_extreme` escalation. See `a-rounding-charge-through-rounding-charge-escapes-the-bare-epsilon-gate`.
+

@@ -16,6 +16,7 @@ Filed by `onecopy/p0-needle` (PR 6525), under item 7(c) of the decision on that 
 Two sites charged a globally posed harmonic for its conditioning:
 - `pose/window.rs` `Window::read`. The level was charged `rounding_charge(terms)` with `terms ≈ ((|w| + R)/s)²`. The height was charged `Window.noise`, which was `rounding_charge(|o_a| + |o_b| + 2·lever)`. About 7.5e-13 at coordinates of 180, it refused `sweep`'s leaning prisms at 1e-12. **Re-posed in PR 6525**: both are read locally.
 - `pose.rs` `coplanar_ellipses`, through `coplanar_level`'s `terms`. **Open**, see `coplanar-ellipses-reads-the-level-from-its-global-harmonics`.
+- `pose.rs` `transverse`'s `Range` (found by the delta review of PR 6525). It still charges the same globally posed height `H` with the pose's `noise`: `Range::first_harmonic(.., noise)` feeds `band_arc` (`e = escalate + noise`) and `extreme_sign(row::EXTREME, …, r.noise)`. **Open.**
 
 ## Owed
 

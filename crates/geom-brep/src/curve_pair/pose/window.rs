@@ -83,7 +83,7 @@ use geom::Curve3;
 use geom_core::k_stats::decide;
 use geom_core::{Band, Decide, Margin, Point3, Sign};
 
-use super::{Conic, Level, level_on};
+use super::{Conic, Level, level_on, up};
 
 /// The most turns of a window or a ring a span is read over.
 const MAX_TURNS: usize = 64;
@@ -142,18 +142,6 @@ fn taylor<T: Decide>([v, d1, d2, d3]: [T; 4], [e0, e1, e2, e3]: [T; 4], top: T, 
     }
 }
 
-/// `x`, non-negative and computed in `N` roundings to nearest, raised to
-/// an upper bound on the real value it stands for. Each rounding is
-/// within `u = ε/2` relative, so `x̂ ≥ x·(1 − u)ᴺ`, and the factor
-/// `c = 1 + (N + 1)·2u`, a constant exact in `f64` for any `N` short of
-/// `2⁵¹`, lifts it past `x` in one more rounding:
-/// `x̂·c·(1 − u) ≥ x·(1 − (N + 1)·u)·(1 + 2(N + 1)·u) ≥ x` while
-/// `(N + 1)·u ≤ ½`. At an enclosure `c` is a point and the product is
-/// outward already, so this only widens it.
-fn up<const N: u32, T: Decide>(x: T) -> T {
-    x * T::from_f64(1.0 + f64::EPSILON * (N + 1) as f64)
-}
-
 /// **The bend term** `(A + k²·B)·w²/2` of the on reading along `b`
 /// (module docs), `A` and `B` the conics' larger semi-axes: six
 /// roundings (`k²`, `·B`, `+ A`, `w²`, the product, the halving, inexact
@@ -189,10 +177,11 @@ impl<T: Decide> Window<'_, T> {
     }
 
     /// A bound on the height's fourth derivative, `(P − c)·n̂`, at every
-    /// angle: its swing, raised past its few roundings.
+    /// angle: its swing `√(c₁² + s₁²)`, raised past its four roundings and
+    /// the twelve of `c₁` and `s₁` (`k.along`).
     fn height_fourth(&self) -> T {
         let (_, c1, s1) = self.height;
-        (c1.powi(2) + s1.powi(2)).sqrt() * T::from_f64(1.0 + 32.0 * f64::EPSILON)
+        up::<16, _>((c1.powi(2) + s1.powi(2)).sqrt())
     }
 
     /// **How the piece `(l, r)` reads**, `away` whether `θ` increasing

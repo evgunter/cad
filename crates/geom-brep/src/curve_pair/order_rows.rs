@@ -713,20 +713,22 @@ fn through(
 }
 
 /// **Two conics tangent at a shared end read one answer in either order,
-/// over random draws** (the review of PR 6525): a point and a tangent,
-/// and two circles or ellipses through it with that tangent, each plane
-/// turned about the tangent at random, each span ending at the point and
-/// running `0.2` to `2` rad on either side. Every draw agrees in both
-/// orders ([`agree`]). A counterexample search: the seed varies,
-/// `CAD_FUZZ_SEED` replays it, the count scales with `CAD_FUZZ_EFFORT`.
-/// The review measured 123 asymmetric draws of 400 on the across choice's
-/// first-conic tie, and 12 on main.
+/// over random draws** (the delta review of PR 6525): a point and a
+/// tangent, and two conics through it with that tangent, mostly thin
+/// ellipses (aspect `10⁻²` to `0.3`), where the global forms condition
+/// worst, each at a vertex there, the second's plane turned from the first's by
+/// a dihedral of `0.02` to `1.5` rad either way about the tangent, each
+/// span ending at the point and running `0.2` to `2` rad on either side.
+/// Every draw agrees in both orders ([`agree`]). A counterexample search:
+/// the seed varies, `CAD_FUZZ_SEED` replays it, the count scales with
+/// `CAD_FUZZ_EFFORT`. Red on main, whose window reads the height and the
+/// level from charged global harmonics.
 #[test]
 fn conics_tangent_at_a_shared_end_read_one_answer_in_either_order() {
     let mut rng = fuzz::start("curve_pair tangent-end order symmetry");
     let at = needle_band();
     let mut bad = Vec::new();
-    for k in 0..fuzz::scaled(200) {
+    for k in 0..fuzz::scaled(600) {
         let p = Point3::new(
             rng.range(-5.0, 5.0),
             rng.range(-5.0, 5.0),
@@ -738,15 +740,15 @@ fn conics_tangent_at_a_shared_end_read_one_answer_in_either_order() {
             rng.range(-1.0, 1.0),
         )
         .normalize();
-        let side = |rng: &mut fuzz::Rng| {
-            let n = turned(u_for(t), t, rng.range(0.0, TAU));
+        let first = turned(u_for(t), t, rng.range(0.0, TAU));
+        let side = |rng: &mut fuzz::Rng, n: Vec3<f64>| {
             let a = rng.log_uniform(1e-2, 5.0);
-            let b = if rng.unit() < 0.4 {
+            let b = if rng.unit() < 0.15 {
                 a
             } else {
-                a * rng.log_uniform(1e-2, 1.0)
+                a * rng.log_uniform(1e-2, 0.3)
             };
-            let theta = rng.range(0.0, TAU);
+            let theta = core::f64::consts::FRAC_PI_2 * [0.0, 1.0, 2.0, 3.0][rng.below(4)];
             let run = rng.range(0.2, 2.0);
             let span = if rng.unit() < 0.5 {
                 (theta, theta + run)
@@ -755,7 +757,9 @@ fn conics_tangent_at_a_shared_end_read_one_answer_in_either_order() {
             };
             (through(p, t, n, (a, b), theta), span)
         };
-        let ((a, sa), (b, sb)) = (side(&mut rng), side(&mut rng));
+        let sign = if rng.unit() < 0.5 { -1.0 } else { 1.0 };
+        let second = turned(first, t, sign * rng.range(0.02, 1.5));
+        let ((a, sa), (b, sb)) = (side(&mut rng, first), side(&mut rng, second));
         let (got, back) = (read((&a, sa), (&b, sb), at), read((&b, sb), (&a, sa), at));
         bad.extend(agree(
             &format!("draw {k}: {a:?} {sa:?} / {b:?} {sb:?}"),
@@ -816,4 +820,87 @@ fn the_leaning_rims_tangent_at_a_shared_end_meet_once_in_either_order() {
         );
     }
     assert_eq!(agree("lean", (&a, &b), &got, &back, at), None);
+}
+
+/// **Two thin ellipses tangent at a shared vertex meet once, in either
+/// order, on the level's local distance bounds** (the delta review of PR
+/// 6525): a `0.076 × 0.00084` ellipse and a `4.3 × 0.044` one, tangent at
+/// a vertex of each, their planes `0.6` rad apart, drawn by
+/// `conics_tangent_at_a_shared_end_read_one_answer_in_either_order`'s
+/// distribution. The window certifies the touch only on the distance
+/// read from the level about the piece (`pose/window.rs`'s module docs,
+/// (ii)): red where it is read from the aspect-loose `min(s/4, |F|·s/4)`,
+/// `L·|F|` and `2/s`, under which both orders refuse.
+#[test]
+fn thin_ellipses_tangent_at_a_vertex_meet_once_on_the_local_distance() {
+    let conic = |o: [f64; 3], n: [f64; 3], u: [f64; 3], a: f64, b: f64| {
+        Curve3::Ellipse(geom::Ellipse::new(
+            geom::Frame::new(
+                Point3::from_array(o),
+                Vec3::from_array(n),
+                Vec3::from_array(u),
+            ),
+            a,
+            b,
+        ))
+    };
+    let small = conic(
+        [
+            4.717_912_550_991_345,
+            -2.907_960_429_714_728_3,
+            0.455_041_441_764_935_33,
+        ],
+        [
+            -0.082_781_960_611_789_29,
+            0.358_688_400_469_050_1,
+            0.929_779_424_576_723_2,
+        ],
+        [
+            0.377_111_084_287_549_4,
+            -0.852_328_648_659_503_8,
+            0.362_385_298_793_608_8,
+        ],
+        0.075_900_634_221_288_83,
+        0.000_843_975_271_177_740_3,
+    );
+    let long = conic(
+        [
+            4.679_073_533_594_219,
+            -2.919_151_304_306_684,
+            0.469_137_821_949_282,
+        ],
+        [
+            0.180_886_085_800_300_24,
+            0.451_518_871_247_417_1,
+            0.873_733_902_782_366,
+        ],
+        [
+            -0.377_111_084_287_549_3,
+            0.852_328_648_659_503_8,
+            -0.362_385_298_793_608_8,
+        ],
+        4.298_730_346_566_598_5,
+        0.043_615_705_863_640_66,
+    );
+    let (sa, sb) = (
+        (core::f64::consts::FRAC_PI_2, 2.684_359_882_752_261),
+        (4.712_388_980_384_69, 6.042_335_173_435_584),
+    );
+    let at = needle_band();
+    let (got, back) = (
+        read((&small, sa), (&long, sb), at),
+        read((&long, sb), (&small, sa), at),
+    );
+    for (order, r) in [("small first", &got), ("long first", &back)] {
+        let met = r
+            .as_ref()
+            .unwrap_or_else(|e| panic!("{order}: refused: {e:?}"));
+        assert!(
+            met.points.len() == 1
+                && matches!(met.points[0].on_a, Hit::End(_))
+                && matches!(met.points[0].on_b, Hit::End(_)),
+            "{order}: one meeting, at both ends: {met:?}"
+        );
+    }
+    assert_eq!(agree("thin", (&small, &long), &got, &back, at), None);
 }
