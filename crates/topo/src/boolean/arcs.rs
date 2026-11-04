@@ -55,7 +55,7 @@ pub(super) fn arcs_along<T: Decide>(
             continue;
         };
         let geom::Curve3::Circle(geom::Circle {
-            frame: geom::Frame { center, .. },
+            frame: geom::Frame { origin: center, .. },
             radius,
         }) = *curve.carrier()
         else {

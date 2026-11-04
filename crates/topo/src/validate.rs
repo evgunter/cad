@@ -476,16 +476,6 @@ pub(crate) fn decide_positive<T: Decide>(
     geom_core::k_stats::decide_positive(name, margin, band)
 }
 
-/// [`decide`] gated on a definitely negative margin
-/// ([`geom_core::k_stats::decide_negative`]).
-pub(crate) fn decide_negative<T: Decide>(
-    name: &'static str,
-    margin: Margin<T>,
-    band: Band,
-) -> Result<(), Indeterminate> {
-    geom_core::k_stats::decide_negative(name, margin, band)
-}
-
 /// **Whether a reading's own rounding leaves an in-band reading the
 /// input's**: the rounding, `K` times over, decided Zero under `name`, so
 /// it lies within the `ε/K` share of the band that K's noise headroom
@@ -3322,11 +3312,7 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
         // An arc rim's refusal reads as its exact image's check where
         // that names a limb, and as its fitted path's otherwise, as its
         // decision does (`ArcRimRefusal::decision`).
-        CertifyError::PlaneNurbs(P::ArcRim(geom_brep::ArcRimRefusal::Refused {
-            iso,
-            limb,
-            bound,
-        })) => {
+        CertifyError::PlaneNurbs(P::ArcRim(geom_brep::ArcRimRefusal { iso, limb, bound })) => {
             let limb = iso
                 .and_then(geom_brep::PcurveCheck::incidence_limb)
                 .unwrap_or(*limb);
@@ -3494,12 +3480,10 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
         CertifyError::PlaneNurbs(P::TransversalityEscalated { .. }) => {
             certify_undecided(CertCheck::Transversality)
         }
-        // Both are lifted to `CertifyError::Escalated` at the door
+        // Lifted to `CertifyError::Escalated` at the door
         // (`from_plane_nurbs`), as every lane escalation is; read here by
-        // their own decision for a caller holding the lane's refusal.
-        CertifyError::PlaneNurbs(
-            p @ (P::Escalated { .. } | P::ArcRim(geom_brep::ArcRimRefusal::Escalated { .. })),
-        ) => p
+        // its own decision for a caller holding the lane's refusal.
+        CertifyError::PlaneNurbs(p @ P::Escalated { .. }) => p
             .decision()
             .map_or(KIND, |(check, _)| certify_undecided(check)),
         CertifyError::AnalyticRung3(A::Escalated { limb, .. }) => certify_undecided(limb.check()),
@@ -9515,7 +9499,10 @@ fn ring_outer_meeting<T: Decide>(
         crate::boolean::loop_circle(body, outer, band),
         crate::boolean::loop_circle(body, ring, band),
     ) {
-        return match circle_pair(circles_of(o.center, o.radius, r.center, r.radius), band) {
+        return match circle_pair(
+            circles_of(o.frame.origin, o.radius, r.frame.origin, r.radius),
+            band,
+        ) {
             Ok(CirclePair::Apart | CirclePair::Nested) => RingOuterVerdict::Disjoint,
             Ok(
                 CirclePair::ExternallyTangent
@@ -9656,7 +9643,7 @@ fn meet_segment<T: Real>(body: &Body<T>, he: HalfEdgeKey) -> Option<(EdgeKey, Me
         geom::Curve3::Circle(geom::Circle {
             frame:
                 geom::Frame {
-                    center,
+                    origin: center,
                     axis,
                     u_ref,
                 },
@@ -9998,7 +9985,7 @@ fn window<T: Decide>(segment: MeetSegment<T>, p: geom_core::Point3<T>, band: Ban
         } => {
             let carrier = geom::Curve3::Circle(geom::Circle {
                 frame: geom::Frame {
-                    center,
+                    origin: center,
                     axis,
                     u_ref,
                 },
@@ -10222,7 +10209,12 @@ fn locus_gap<T: Real>(carrier: &geom::Curve3<T>, p: geom_core::Point3<T>) -> Opt
         // The distance from a point to a full circle: the in-plane
         // radial defect and the out-of-plane offset, in quadrature.
         geom::Curve3::Circle(geom::Circle {
-            frame: geom::Frame { center, axis, .. },
+            frame:
+                geom::Frame {
+                    origin: center,
+                    axis,
+                    ..
+                },
             radius,
         }) => {
             let d = p - *center;
@@ -14906,7 +14898,7 @@ mod tests {
         let u_ref = (s - center) / radius;
         let carrier = geom::Curve3::Circle(geom::Circle {
             frame: geom::Frame {
-                center,
+                origin: center,
                 axis,
                 u_ref,
             },
@@ -16123,7 +16115,7 @@ mod tests {
             .expect("one sense of the circle is the arc asked for");
         let carrier = geom::Curve3::Circle(geom::Circle {
             frame: geom::Frame {
-                center,
+                origin: center,
                 axis,
                 u_ref,
             },

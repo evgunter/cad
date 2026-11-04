@@ -111,7 +111,7 @@
 //! them (the split/boolean lanes do, typed).
 
 use geom::Surface;
-use geom::{Curve3, EllipseInvalid, SpiricInvalid, SquareFrame, SurfaceKind, square_frame};
+use geom::{Curve3, EllipseInvalid, Frame, SpiricInvalid, SquareFrame, SurfaceKind};
 use geom_core::{Band, Decided, Indeterminate, Margin, MarginDiag, Point3, Real, Sign, Vec3};
 
 use crate::ExtentBall;
@@ -987,8 +987,8 @@ pub fn plane_cylinder_section_read<T: Decide>(
                 RuledSection::ParallelLines { l1, l2 } => {
                     PlaneCylinderSection::ParallelLines { l1, l2 }
                 }
-                RuledSection::TangentLine { origin, dir, .. } => {
-                    PlaneCylinderSection::TangentLine(Curve3::Line(geom::Line { origin, dir }))
+                RuledSection::TangentLine { line, .. } => {
+                    PlaneCylinderSection::TangentLine(Curve3::Line(line))
                 }
                 RuledSection::Empty => PlaneCylinderSection::Empty,
             },
@@ -1052,8 +1052,7 @@ pub(crate) enum RuledSection<T: Real> {
     /// `origin + t·dir`, `origin` the axis' foot on the plane, with the
     /// margin that decided the gap Zero.
     TangentLine {
-        origin: Point3<T>,
-        dir: Vec3<T>,
+        line: geom::Line<T>,
         gap: MarginDiag,
     },
     /// The gap is definitely over `r`.
@@ -1119,8 +1118,10 @@ pub(crate) fn ruled_section<T: Decide>(
             }
         }
         (Sign::Zero, gap) => RuledSection::TangentLine {
-            origin: o - n * gap_signed,
-            dir: a,
+            line: geom::Line {
+                origin: o - n * gap_signed,
+                dir: a,
+            },
             gap: gap.jointly(parallel.margin),
         },
         (Sign::Negative, _) => RuledSection::Empty,
@@ -2014,10 +2015,10 @@ struct ApexFan<T: Real> {
 
 impl<T: Real> ApexFan<T> {
     /// The fan of `cone`'s rulings on the nappe of its axis.
-    fn of(axis: Vec3<T>, u_ref: Vec3<T>, half_angle: T) -> Self {
+    fn of(frame: &Frame<T>, half_angle: T) -> Self {
         let SquareFrame {
             axis: a, u_ref: u, ..
-        } = square_frame(axis, u_ref);
+        } = frame.square();
         let (sin_a, cos_a) = half_angle.sin_cos();
         Self {
             a,
@@ -2058,16 +2059,10 @@ pub fn plane_cone_apex_extrema<T: Real>(
     cone: &Surface<T>,
     normal: Vec3<T>,
 ) -> Option<[Vec3<T>; 2]> {
-    let &Surface::Cone {
-        axis,
-        half_angle,
-        u_ref,
-        ..
-    } = cone
-    else {
+    let &Surface::Cone { half_angle, .. } = cone else {
         return None;
     };
-    let fan = ApexFan::of(axis, u_ref, half_angle);
+    let fan = ApexFan::of(&cone.frame()?, half_angle);
     let phi = fan.azimuth(normal);
     Some([fan.ruling(phi), fan.ruling(phi + T::pi())])
 }
@@ -2249,12 +2244,12 @@ pub fn plane_cone_section<T: Decide>(
             expected: "plane×cone",
         });
     };
-    let &Surface::Cone {
-        apex,
-        axis,
-        half_angle,
-        u_ref,
-    } = cone
+    let (
+        &Surface::Cone {
+            apex, half_angle, ..
+        },
+        Some(frame),
+    ) = (cone, cone.frame())
     else {
         return Err(SectionError::WrongLane {
             expected: "plane×cone",
@@ -2263,12 +2258,12 @@ pub fn plane_cone_section<T: Decide>(
     // The cone's frame, squared once: nothing holds a stored cone's axis
     // unit or its seam square to it, and the arm reads the axis and
     // half-angle as the geometric cone, so the seam only places azimuth
-    // zero ([`square_frame`]).
+    // zero ([`Frame::square`]).
     let SquareFrame {
         axis: a,
         u_ref: cone_u,
         width: seam_width,
-    } = square_frame(axis, u_ref);
+    } = frame.square();
 
     let extent = reach.lever_from(apex);
     let (sin_a, cos_a) = half_angle.sin_cos();
@@ -2530,7 +2525,7 @@ pub fn plane_cone_section<T: Decide>(
 ///    (`D ≤ M`), and step 3 holds for any `t₀` past the true start.
 /// 5. *The lines' own rounding*, which near tangency amplifies, read
 ///    with `u` per operation on unit vectors. The frame is the stored
-///    one squared ([`square_frame`]): its unit axis stands `u` off the
+///    one squared ([`Frame::square`]): its unit axis stands `u` off the
 ///    stored axis' direction, and its seam `τ` off square to it, `τ < 6u`
 ///    where the seam's `width ≥ 16u` and charged whole (`τ = 1`) below.
 ///    `ĉ` is `3u` off and `s` `4u` off, each a further `u` for the axis,
@@ -2923,7 +2918,7 @@ pub enum ConeCylinderSection<T: Real> {
     /// radius `R`, both centred on the shared axis at
     /// `apex ± axis·(R·cot α)`, carrier axis the CONE's axis and
     /// `u_ref` the cone's own seam direction, squared to the axis
-    /// ([`geom::square_frame`]). Zero-residual-by-construction against
+    /// ([`geom::Frame::square`]). Zero-residual-by-construction against
     /// both implicit forms in ℝ.
     ///
     /// The `+`/`−` assignment is the cone's own nappe convention, not a
@@ -3021,21 +3016,21 @@ pub fn cone_cylinder_section<T: Decide>(
     let wrong = || SectionError::WrongLane {
         expected: "cone×cylinder (cone first)",
     };
-    let &Surface::Cone {
-        apex,
-        axis,
-        half_angle,
-        u_ref,
-    } = cone
+    let (
+        &Surface::Cone {
+            apex, half_angle, ..
+        },
+        Some(frame),
+    ) = (cone, cone.frame())
     else {
         return Err(wrong());
     };
-    // The cone's frame, squared once ([`square_frame`]).
+    // The cone's frame, squared once ([`Frame::square`]).
     let SquareFrame {
         axis: a,
         u_ref: cone_u,
         width: seam_width,
-    } = square_frame(axis, u_ref);
+    } = frame.square();
     let &Surface::Cylinder {
         origin: o,
         axis: b,
