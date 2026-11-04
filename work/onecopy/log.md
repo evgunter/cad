@@ -199,3 +199,4 @@
     - Fix the stale closed row.
     - Spell the `1+32ε` raise once.
   - The fixes went to the lane. (ONECOPY orchestrator)
+- 2026-11-04 — PR 6525 merged at `d6387c50de` (`b5d0d88052`). The gate is green, and the lane's state-sync closes the needle P0 and the tangent row. Both 1e-12 main reds in `band_turn_overrun*` are fixed: the needle and `leaning_prisms`. The window reads `H` and `F` locally, uncharged at f64. The lane at `session_013mPGJ2oAi47f4EfDzt4XFu` is released. (ONECOPY orchestrator)

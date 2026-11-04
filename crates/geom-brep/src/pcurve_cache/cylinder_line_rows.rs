@@ -245,7 +245,7 @@ fn a_shown_ruling_takes_the_meridian_form() {
             .unwrap_or_else(|e| panic!("a shown ruling certifies at Interval: {e:?}"));
         }
         assert_eq!(
-            chart_iso_family(&carrier, span, &surface, band()),
+            chart_iso_family(&carrier, span, &surface, band()).map(|r| r.map(|r| r.family)),
             Ok(Some(IsoFamily::U)),
             "off {off:e}: a shown ruling's family"
         );
@@ -276,7 +276,7 @@ fn a_line_shown_off_its_rulings_on_the_wall_takes_the_projected_lane() {
     );
     certifies_projected("a line off its rulings", &carrier, (0.0, 1.0), &surface);
     assert_eq!(
-        chart_iso_family(&carrier, (0.0, 1.0), &surface, band()),
+        chart_iso_family(&carrier, (0.0, 1.0), &surface, band()).map(|r| r.map(|r| r.family)),
         Ok(None)
     );
 }
@@ -314,11 +314,11 @@ fn a_ruling_in_band_names_no_family_undecided() {
     let carrier = line_at(&surface, 0.4, 0.0, in_band());
     assert!(
         matches!(
-            chart_iso_family(&carrier, (-0.5, 0.5), &surface, band()),
+            chart_iso_family(&carrier, (-0.5, 0.5), &surface, band()).map(|r| r.map(|r| r.family)),
             Err(IsoFamilyRefusal::Undecided(_))
         ),
         "{:?}",
-        chart_iso_family(&carrier, (-0.5, 0.5), &surface, band())
+        chart_iso_family(&carrier, (-0.5, 0.5), &surface, band()).map(|r| r.map(|r| r.family))
     );
 }
 

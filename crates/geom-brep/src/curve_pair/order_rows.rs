@@ -522,3 +522,385 @@ fn a_level_conics_offset_at_the_screens_flip_is_no_contradiction() {
         }
     }
 }
+
+/// The band-turn needle's two rim edges at 3° (`sweep`'s
+/// `the_needle_builds_then_refuses_at_the_turn_as_it_flattens`), at
+/// their exact bits: a long thin ellipse and a near-circle meeting at a
+/// shared end with one tangent, each span with its carrier.
+fn needle_pair() -> Pair {
+    let conic = |o: [f64; 3], n: [f64; 3], u: [f64; 3], a: f64, b: f64| {
+        Curve3::Ellipse(geom::Ellipse::new(
+            geom::Frame::new(
+                Point3::from_array(o),
+                Vec3::from_array(n),
+                Vec3::from_array(u),
+            ),
+            a,
+            b,
+        ))
+    };
+    let long = conic(
+        [-2.133_335_936_086_264_3, 0.161_803_398_874_989_5, 0.1],
+        [
+            0.046_823_529_297_233_94,
+            0.893_446_162_722_366_2,
+            -0.446_723_081_361_183_16,
+        ],
+        [
+            -0.998_903_177_041_774_8,
+            0.041_880_237_782_027_22,
+            -0.020_940_118_891_013_61,
+        ],
+        2.135_678_397_183_687_2,
+        0.1,
+    );
+    let round = conic(
+        [0.002_342_461_097_416_876_3, 0.161_803_398_874_989_5, 0.1],
+        [
+            -0.999_657_324_975_557_4,
+            0.026_176_948_307_873_26,
+            8.882_394_871_458_447e-17,
+        ],
+        [
+            -0.026_176_948_307_873_26,
+            -0.999_657_324_975_557_4,
+            -3.392_049_750_087_985_2e-15,
+        ],
+        0.100_034_279_249_086_81,
+        0.1,
+    );
+    [
+        (long, (-PI, -3.141_044_317_251_385)),
+        (round, (-1.570_796_326_794_893, 0.463_099_272_662_401_64)),
+    ]
+}
+
+/// The band the needle refused at: `ε = 10⁻¹²`.
+fn needle_band() -> Band {
+    Band::new(1e-12, 1e-11).unwrap()
+}
+
+/// **Two conics tangent at a shared end meet once, in either order**: the
+/// needle's pair. Each lies tangent to the other's plane at the shared
+/// vertex, so both across scores are zero but for rounding and either
+/// conic may be read across. Read across the long ellipse's plane, the
+/// near-circle's height stays under the zero band while the two separate
+/// in that plane, so the window certifies the touch only on the level
+/// read locally: red where the level is read from its global harmonics,
+/// whose rounding charge there is about the band's zero, and the root goes
+/// to a polish against parallel tangents (`Unsettled::Meter`).
+#[test]
+fn conics_tangent_at_a_shared_end_meet_once_in_either_order() {
+    let [(a, sa), (b, sb)] = needle_pair();
+    let at = needle_band();
+    let (got, back) = (read((&a, sa), (&b, sb), at), read((&b, sb), (&a, sa), at));
+    for (order, r) in [("long first", &got), ("round first", &back)] {
+        let met = r
+            .as_ref()
+            .unwrap_or_else(|e| panic!("{order}: the tangent pair refused: {e:?}"));
+        assert!(
+            met.shared.is_none() && met.points.len() == 1,
+            "{order}: one meeting, at the shared vertex: {met:?}"
+        );
+        let m = &met.points[0];
+        assert!(
+            matches!(m.on_a, Hit::End(_)) && matches!(m.on_b, Hit::End(_)),
+            "{order}: the meeting is both spans' end: {m:?}"
+        );
+    }
+    assert_eq!(agree("needle", (&a, &b), &got, &back, at), None);
+}
+
+/// `v` turned by `t` about the unit `k`.
+fn turned(v: Vec3<f64>, k: Vec3<f64>, t: f64) -> Vec3<f64> {
+    let (s, c) = t.sin_cos();
+    v * c + k.cross(v) * s + k * (k.dot(v) * (1.0 - c))
+}
+
+/// `c`, a circle or an ellipse, turned by `t` about the line through `at`
+/// along the unit `k`; its parameters keep their points.
+fn spun(c: &Curve3<f64>, at: Point3<f64>, k: Vec3<f64>, t: f64) -> Curve3<f64> {
+    let k_ = c.conic().unwrap();
+    let f = k_.frame();
+    let origin = at + turned(f.origin - at, k, t);
+    let (axis, u) = (turned(f.axis, k, t), turned(f.u_ref, k, t));
+    match c {
+        Curve3::Circle(_) => Curve3::circle(origin, axis, k_.semi_axes().0, u),
+        _ => {
+            let (a, b) = k_.semi_axes();
+            Curve3::Ellipse(geom::Ellipse::new(geom::Frame::new(origin, axis, u), a, b))
+        }
+    }
+}
+
+/// **The needle spun about its shared vertex reads one answer in either
+/// order** (the review of PR 6525). The pair turned whole about the
+/// vertex, about each axis and the shared tangent, at three angles: each
+/// pose stays tangent but for rounding, and decides one meeting, the
+/// same in both orders. And the near-circle alone turned about the
+/// tangent, the long ellipse's normal and their cross, by up to `10⁻⁸`
+/// either way: a crossing or a touch within the band, read alike in both
+/// orders. Tilts of `10⁻⁶` to `10⁻⁴` refuse in both orders, a known
+/// residue (`meet-refuses-a-near-tangent-tilt-in-both-orders`), and are
+/// not read here.
+#[test]
+fn the_needle_spun_about_its_vertex_reads_one_answer_in_either_order() {
+    let [(a, sa), (b, sb)] = needle_pair();
+    let at = needle_band();
+    let vertex = a.eval(sa.0);
+    let (_, tangent) = a.conic().unwrap().jet_at(sa.0);
+    let tangent = tangent.normalize();
+    let normal = a.conic().unwrap().frame().axis;
+    let mut bad = Vec::new();
+    let whole = [
+        Vec3::new(1.0, 0.0, 0.0),
+        Vec3::new(0.0, 1.0, 0.0),
+        Vec3::new(0.0, 0.0, 1.0),
+        tangent,
+    ];
+    for (n, k) in whole.iter().enumerate() {
+        for t in [0.3, 1.1, 2.5] {
+            let (a, b) = (spun(&a, vertex, *k, t), spun(&b, vertex, *k, t));
+            let (got, back) = (read((&a, sa), (&b, sb), at), read((&b, sb), (&a, sa), at));
+            let label = format!("whole about axis {n} by {t}");
+            if !matches!(&got, Ok(m) if m.points.len() == 1) {
+                bad.push(format!("{label}: not one meeting: {got:?}"));
+            }
+            bad.extend(agree(&label, (&a, &b), &got, &back, at));
+        }
+    }
+    for (n, k) in [tangent, normal, tangent.cross(normal).normalize()]
+        .iter()
+        .enumerate()
+    {
+        for t in [1e-12, -1e-12, 1e-10, -1e-10, 1e-8, -1e-8] {
+            let b = spun(&b, vertex, *k, t);
+            let (got, back) = (read((&a, sa), (&b, sb), at), read((&b, sb), (&a, sa), at));
+            bad.extend(agree(
+                &format!("round about axis {n} by {t:e}"),
+                (&a, &b),
+                &got,
+                &back,
+                at,
+            ));
+        }
+    }
+    assert!(bad.is_empty(), "{} poses:\n{}", bad.len(), bad.join("\n"));
+}
+
+/// A conic through `at` with unit tangent `t` there at its parameter
+/// `theta`, in the plane through `t` with unit normal `n` (square to
+/// `t`), semi-axes `(a, b)`, a circle where they are equal.
+fn through(
+    at: Point3<f64>,
+    t: Vec3<f64>,
+    n: Vec3<f64>,
+    (a, b): (f64, f64),
+    theta: f64,
+) -> Curve3<f64> {
+    // The tangent's direction in the frame `(û, v̂)`, `(−a·sin θ, b·cos θ)`,
+    // turned onto `t`: `û = cos φ·t + sin φ·(n̂ × t)`, `φ = −atan2(τ_y, τ_x)`.
+    let phi = -(b * theta.cos()).atan2(-a * theta.sin());
+    let e2 = n.cross(t);
+    let u = t * phi.cos() + e2 * phi.sin();
+    let v = n.cross(u);
+    let origin = at - (u * (a * theta.cos()) + v * (b * theta.sin()));
+    if a == b {
+        Curve3::circle(origin, n, a, u)
+    } else {
+        Curve3::Ellipse(geom::Ellipse::new(geom::Frame::new(origin, n, u), a, b))
+    }
+}
+
+/// **Two conics tangent at a shared end read one answer in either order,
+/// over random draws** (the delta review of PR 6525): a point and a
+/// tangent, and two conics through it with that tangent, mostly thin
+/// ellipses (aspect `10⁻²` to `0.3`), where the global forms condition
+/// worst, each at a vertex there, the second's plane turned from the first's by
+/// a dihedral of `0.02` to `1.5` rad either way about the tangent, each
+/// span ending at the point and running `0.2` to `2` rad on either side.
+/// Every draw agrees in both orders ([`agree`]). A counterexample search:
+/// the seed varies, `CAD_FUZZ_SEED` replays it, the count scales with
+/// `CAD_FUZZ_EFFORT`. Red on main, whose window reads the height and the
+/// level from charged global harmonics.
+#[test]
+fn conics_tangent_at_a_shared_end_read_one_answer_in_either_order() {
+    let mut rng = fuzz::start("curve_pair tangent-end order symmetry");
+    let at = needle_band();
+    let mut bad = Vec::new();
+    for k in 0..fuzz::scaled(600) {
+        let p = Point3::new(
+            rng.range(-5.0, 5.0),
+            rng.range(-5.0, 5.0),
+            rng.range(-5.0, 5.0),
+        );
+        let t = Vec3::new(
+            rng.range(-1.0, 1.0),
+            rng.range(-1.0, 1.0),
+            rng.range(-1.0, 1.0),
+        )
+        .normalize();
+        let first = turned(u_for(t), t, rng.range(0.0, TAU));
+        let side = |rng: &mut fuzz::Rng, n: Vec3<f64>| {
+            let a = rng.log_uniform(1e-2, 5.0);
+            let b = if rng.unit() < 0.15 {
+                a
+            } else {
+                a * rng.log_uniform(1e-2, 0.3)
+            };
+            let theta = core::f64::consts::FRAC_PI_2 * [0.0, 1.0, 2.0, 3.0][rng.below(4)];
+            let run = rng.range(0.2, 2.0);
+            let span = if rng.unit() < 0.5 {
+                (theta, theta + run)
+            } else {
+                (theta - run, theta)
+            };
+            (through(p, t, n, (a, b), theta), span)
+        };
+        let sign = if rng.unit() < 0.5 { -1.0 } else { 1.0 };
+        let second = turned(first, t, sign * rng.range(0.02, 1.5));
+        let ((a, sa), (b, sb)) = (side(&mut rng, first), side(&mut rng, second));
+        let (got, back) = (read((&a, sa), (&b, sb), at), read((&b, sb), (&a, sa), at));
+        bad.extend(agree(
+            &format!("draw {k}: {a:?} {sa:?} / {b:?} {sb:?}"),
+            (&a, &b),
+            &got,
+            &back,
+            at,
+        ));
+    }
+    assert!(
+        bad.is_empty(),
+        "{} asymmetric draws ({}):\n{}",
+        bad.len(),
+        fuzz::replay(),
+        bad.iter().take(4).cloned().collect::<Vec<_>>().join("\n")
+    );
+}
+
+/// **The leaning prism's rim pair meets once, in either order** (`sweep`'s
+/// `leaning_prisms_build_at_the_oracle_over_leans_radii_and_scales`, lean
+/// `−2`, scale `100`, `r = 0.05`): an ellipse `7.07 × 5` and a circle of
+/// radius 5, about 180 m out, tangent at a shared end. The height's split
+/// double root sits beside the joint, where the curves lie about `10⁻¹²`
+/// apart. Red where the height is read from its global harmonic with its
+/// rounding charged, about `7.5·10⁻¹³` at that size: no piece there reads.
+#[test]
+fn the_leaning_rims_tangent_at_a_shared_end_meet_once_in_either_order() {
+    let a = Curve3::Ellipse(geom::Ellipse::new(
+        geom::Frame::new(
+            Point3::new(-178.819_660_112_501_03, -5.0, 95.0),
+            Vec3::new(0.707_106_781_186_547_5, 0.707_106_781_186_547_5, 0.0),
+            Vec3::new(-0.707_106_781_186_547_5, 0.707_106_781_186_547_5, 0.0),
+        ),
+        7.071_067_811_865_475,
+        5.0,
+    ));
+    let b = Curve3::circle(
+        Point3::new(-178.819_660_112_501_03, 0.0, 95.0),
+        Vec3::new(0.0, 1.0, 0.0),
+        5.0,
+        Vec3::new(0.0, 0.0, 1.0),
+    );
+    let (sa, sb) = (
+        (0.0, core::f64::consts::FRAC_PI_2),
+        (-2.677_945_044_588_985_6, -core::f64::consts::FRAC_PI_2),
+    );
+    let at = needle_band();
+    let (got, back) = (read((&a, sa), (&b, sb), at), read((&b, sb), (&a, sa), at));
+    for (order, r) in [("ellipse first", &got), ("circle first", &back)] {
+        let met = r
+            .as_ref()
+            .unwrap_or_else(|e| panic!("{order}: refused: {e:?}"));
+        assert!(
+            met.points.len() == 1
+                && matches!(met.points[0].on_a, Hit::End(_))
+                && matches!(met.points[0].on_b, Hit::End(_)),
+            "{order}: one meeting, at both ends: {met:?}"
+        );
+    }
+    assert_eq!(agree("lean", (&a, &b), &got, &back, at), None);
+}
+
+/// **Two thin ellipses tangent at a shared vertex meet once, in either
+/// order, on the level's local distance bounds** (the delta review of PR
+/// 6525): a `0.076 × 0.00084` ellipse and a `4.3 × 0.044` one, tangent at
+/// a vertex of each, their planes `0.6` rad apart, drawn by
+/// `conics_tangent_at_a_shared_end_read_one_answer_in_either_order`'s
+/// distribution. The window certifies the touch only on the distance
+/// read from the level about the piece (`pose/window.rs`'s module docs,
+/// (ii)): red where it is read from the aspect-loose `min(s/4, |F|·s/4)`,
+/// `L·|F|` and `2/s`, under which both orders refuse.
+#[test]
+fn thin_ellipses_tangent_at_a_vertex_meet_once_on_the_local_distance() {
+    let conic = |o: [f64; 3], n: [f64; 3], u: [f64; 3], a: f64, b: f64| {
+        Curve3::Ellipse(geom::Ellipse::new(
+            geom::Frame::new(
+                Point3::from_array(o),
+                Vec3::from_array(n),
+                Vec3::from_array(u),
+            ),
+            a,
+            b,
+        ))
+    };
+    let small = conic(
+        [
+            4.717_912_550_991_345,
+            -2.907_960_429_714_728_3,
+            0.455_041_441_764_935_33,
+        ],
+        [
+            -0.082_781_960_611_789_29,
+            0.358_688_400_469_050_1,
+            0.929_779_424_576_723_2,
+        ],
+        [
+            0.377_111_084_287_549_4,
+            -0.852_328_648_659_503_8,
+            0.362_385_298_793_608_8,
+        ],
+        0.075_900_634_221_288_83,
+        0.000_843_975_271_177_740_3,
+    );
+    let long = conic(
+        [
+            4.679_073_533_594_219,
+            -2.919_151_304_306_684,
+            0.469_137_821_949_282,
+        ],
+        [
+            0.180_886_085_800_300_24,
+            0.451_518_871_247_417_1,
+            0.873_733_902_782_366,
+        ],
+        [
+            -0.377_111_084_287_549_3,
+            0.852_328_648_659_503_8,
+            -0.362_385_298_793_608_8,
+        ],
+        4.298_730_346_566_598_5,
+        0.043_615_705_863_640_66,
+    );
+    let (sa, sb) = (
+        (core::f64::consts::FRAC_PI_2, 2.684_359_882_752_261),
+        (4.712_388_980_384_69, 6.042_335_173_435_584),
+    );
+    let at = needle_band();
+    let (got, back) = (
+        read((&small, sa), (&long, sb), at),
+        read((&long, sb), (&small, sa), at),
+    );
+    for (order, r) in [("small first", &got), ("long first", &back)] {
+        let met = r
+            .as_ref()
+            .unwrap_or_else(|e| panic!("{order}: refused: {e:?}"));
+        assert!(
+            met.points.len() == 1
+                && matches!(met.points[0].on_a, Hit::End(_))
+                && matches!(met.points[0].on_b, Hit::End(_)),
+            "{order}: one meeting, at both ends: {met:?}"
+        );
+    }
+    assert_eq!(agree("thin", (&small, &long), &got, &back, at), None);
+}

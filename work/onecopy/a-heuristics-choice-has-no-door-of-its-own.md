@@ -20,6 +20,7 @@ Fix: give such choices their own door, for example `k_stats::choose(name, margin
 
 **A third instance landed while this row was open (2026-11-04):** ledger row F33 (`curve_pair_pose_across`, `geom-brep` `curve_pair::pose`'s `conic_conic`, which picks which of two conics to read across the other's plane) took the same route. It is a choice decided at `Band::least`, argued out of the log with its own row.
 
+<<<<<<< HEAD
 **Class sweep from PR 6483's review (2026-11-04).** These are more `decide(.., Band::least())` sites of this shape, each still on the logged door. Each needs its disposition (a choice or a verdict) before it moves:
 - `geom-brep` `curve_pair::compare` ("a parameter is no distance the band resolves") and its callers:
   - `curve_pair_meet_order`
@@ -34,3 +35,7 @@ Fix: give such choices their own door, for example `k_stats::choose(name, margin
 - **a reading**: the logged `decide` against the model's band.
 
 Design both doors in one place, so `Band::least()` stops being spelled at call sites at all. Then the next site has to pick a door by name.
+=======
+**F33's tie (from PR 6525, 2026-11-04):** when F33 moves onto the heuristic-choice door, give that door a `Tie` variant. F33 reads the first conic at a tie. Two conics tangent at a point tie but for rounding, each tangent to the other's plane, and there the bare difference picks by rounding. That is order-free, because the difference is antisymmetric bit for bit, and since PR 6525 either reading certifies the touch (the window reads its height and level locally). A charged tie band reading the first, PR 6525's first head, made `meet` order-dependent on tangent pairs: the review measured 123 of 400. A door with `Tie` should keep the choice antisymmetric, not fall back to argument order.
+
+>>>>>>> origin/main

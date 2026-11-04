@@ -2,11 +2,12 @@
 id: main-red-the-needle-refuses-its-meet-at-1e-12-after-meet-pose-order
 kind: issue
 title: Main red at 1e-12: the band-turn needle refuses its meeting count since PR 6492 (meet-pose-order)
-status: dispatched
+status: closed
+closed: 2026-11-04
+pr: 6525
 opened: 2026-11-04
 priority: P0
 cost: E
-branch: onecopy/p0-needle
 ---
 
 

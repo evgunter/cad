@@ -2,10 +2,11 @@
 id: spline-region-decides-off-the-carrier-on-an-uncharged-f64-box-floor
 kind: issue
 title: The spline face placement decides a point off its carrier on an uncharged f64 box floor
-status: open
+status: dispatched
 opened: 2026-11-04
 priority: P1
 cost: M
+branch: splice/spline-region-charge
 ---
 
 
