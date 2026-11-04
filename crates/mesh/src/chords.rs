@@ -735,7 +735,7 @@ fn harmonic_uv_speeds(u: geom_brep::Channel<f64>, v: geom_brep::Channel<f64>) ->
 ///
 /// The deck map moves an image by a translation and a sign, which no
 /// speed sees. A spline carrier's projected image, or any other form,
-/// refuses typed: the arm meshes circle-bounded faces.
+/// refuses typed: the arm meshes conic-bounded faces.
 pub(crate) fn sphere_uv_speeds(
     pcurve: &Pcurve<f64>,
     params: (f64, f64),
@@ -746,10 +746,10 @@ pub(crate) fn sphere_uv_speeds(
     match pcurve {
         Pcurve::Harmonic { u, v } => Ok(harmonic_uv_speeds(*u, *v)),
         Pcurve::Projected(image) => {
-            let geom_brep::FramedCarrier::Circle { centre, a, b, .. } = image.carrier() else {
+            let geom_brep::FramedCarrier::Conic { centre, a, b, .. } = image.carrier() else {
                 return Err(refuse(
                     "trimmed sphere face bounded by the projected image of a spline carrier — \
-                     the sphere arm bounds the UV speed of a circle's image only",
+                     the sphere arm bounds the UV speed of a conic's image only",
                 ));
             };
             projected_circle_speeds((*centre, *a, *b), params).ok_or(
@@ -767,7 +767,7 @@ pub(crate) fn sphere_uv_speeds(
     }
 }
 
-/// The per-axis speed bounds of a projected circle
+/// The per-axis speed bounds of a projected conic
 /// `p(t) = c + a·cos t + b·sin t` in its chart's frame over `params`
 /// ([`sphere_uv_speeds`]' doc), or `None` where the azimuth bound fails:
 /// `ρ² ≤ 0` on its closed-form lower bound, an arc through or

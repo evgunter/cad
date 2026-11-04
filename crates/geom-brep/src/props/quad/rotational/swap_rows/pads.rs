@@ -50,7 +50,7 @@ fn off_surface_face(delta: f64, lever: f64) -> (RotationalFaceQ, f64) {
     let env = pt(delta * 1.01);
     let (c, s) = (theta.cos(), theta.sin());
     let bottom = EdgeTermQ::Projected(ProjectedEdgeQ {
-        carrier: FramedQ::Circle {
+        carrier: FramedQ::Conic {
             centre: [Interval::zero(); 3],
             a: [pt(r_big), Interval::zero(), Interval::zero()],
             b: [Interval::zero(), pt(r_big), Interval::zero()],

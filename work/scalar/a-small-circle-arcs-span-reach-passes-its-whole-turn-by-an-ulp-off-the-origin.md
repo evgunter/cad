@@ -47,3 +47,11 @@ origin, axis `(0.7086, −0.4991, −0.4988)`, over
 `1000.0000000000003` and passes the whole turn. This is the same class
 at a 1 km radius with its centre on the origin, so it is not only a far
 centre.
+
+## Another seed (PCERT, `pcert/ellipse-general-lane`)
+
+`CAD_FUZZ_SEED=0x779cfe276a43b33a`: an ellipse with semi-axes `1000` and
+`44.71` about the origin, over `[9.165, 10.896]`, read from the origin.
+The reach is `1000.0000000000002`, one ulp past the whole-turn lever of
+`1000`. Same class, at the origin rather than off it, so the offset
+from the origin is not what this row's title says decides it.

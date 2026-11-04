@@ -4967,6 +4967,26 @@ const WINDING_TABLE: core::ops::RangeInclusive<i32> = -1..=1;
 /// [`WINDING_TABLE`]: the one place a sign becomes a count. A count
 /// reversed is the reversed sign's (`Sign::flip`), or, on a stored
 /// channel, [`Channel::mapped`]'s.
+/// The sense a cylinder's moving conic turns about the axis, the only
+/// windings its arm admits ([`Derivation::CylinderMoving`]).
+#[derive(Clone, Copy, Debug)]
+enum Turning {
+    /// Counter-clockwise about the axis, winding `1`.
+    Forward,
+    /// Clockwise, winding `−1`.
+    Backward,
+}
+
+impl Turning {
+    /// The winding the image stores.
+    fn winding(self) -> i32 {
+        match self {
+            Self::Forward => 1,
+            Self::Backward => -1,
+        }
+    }
+}
+
 fn winding_of(sign: Sign) -> i32 {
     match sign {
         Sign::Negative => -1,
@@ -5526,8 +5546,11 @@ fn run_harmonic_checks<T: Decide>(
 #[derive(Clone, Copy, Debug)]
 enum Derivation {
     Plane,
+    /// A conic turning about the wall's axis. Its winding is never zero:
+    /// a conic whose orientation reads Zero is no class of the wall and
+    /// takes the general lane.
     CylinderMoving {
-        beta: i32,
+        sense: Turning,
     },
     CylinderMeridian,
     /// `anchored`: the nappe was read off the anchor's height, not the
@@ -6120,11 +6143,11 @@ fn incidence<T: Decide>(
             let radial = |v: Vec3<T>| v - axis * v.dot(axis);
             let (w_r, a_r, b_r) = (radial(c - origin), radial(a), radial(b));
             match derivation {
-                Derivation::CylinderMoving { beta } => {
+                Derivation::CylinderMoving { sense } => {
                     terms.add(Centre, w_r.norm());
                     class_circle(
                         terms,
-                        beta,
+                        sense.winding(),
                         (radius, radius.powi(2)),
                         (a_r, b_r),
                         axis,
@@ -9124,13 +9147,13 @@ pub(crate) fn own_interval<T: Real>(carrier: &Curve3<T>) -> (T, T) {
 /// band. A carrier the test does not show off the chart whose class
 /// reading shows none of the chart's own classes takes the general lane
 /// (D3's lane choice) where one is written ([`projected::has_lane`]: a
-/// circle on a sphere, cylinder, cone or torus, a line on a cylinder or a
-/// cone, a spline on any analytic chart), and otherwise
+/// circle or an ellipse on a sphere, cylinder, cone or torus, a line on a
+/// cylinder or a cone, a spline on any analytic chart), and otherwise
 /// refuses lever-only "not yet": `Escalated` ([`PcurveCheck::ChartClass`])
 /// with the class reading's cause where it was in band, and
 /// [`PcurveCertifyError::NoGeneralLane`] ([`LaneGap::Unwritten`]) where it
-/// was definite. An ellipse has no general lane yet (`work/pcert/`).
-/// Where the projected lane is taken, a circle's or a line's lane choice
+/// was definite.
+/// Where the projected lane is taken, a conic's or a line's lane choice
 /// or a spline's only image, the lane's own capability gap also ends "not yet":
 /// `Escalated` ([`PcurveCheck::GeneralLane`]) where its sector or nappe
 /// reading is in band, and [`PcurveCertifyError::NoGeneralLane`]
@@ -9229,7 +9252,7 @@ fn chart_image<T: Decide>(
 }
 
 /// **The mint's own image refused by its certificate, as the lane's
-/// gap** (D3): a circle or a line takes the projected image because no
+/// gap** (D3): a conic or a line takes the projected image because no
 /// class was shown, so where the certificate of that image, just derived
 /// by [`chart_pcurve_over`] for the edge, refuses on its sector, its
 /// metre conversion's lever or its envelope, the lane does not yet
@@ -9250,7 +9273,10 @@ pub fn minted_refusal<T: Real>(
     surface: &Surface<T>,
 ) -> PcurveCertifyError {
     if !(matches!(image, Pcurve::Projected(_))
-        && matches!(carrier, Curve3::Circle(..) | Curve3::Line(_)))
+        && matches!(
+            carrier,
+            Curve3::Circle(..) | Curve3::Ellipse(..) | Curve3::Line(_)
+        ))
     {
         return refused;
     }
@@ -9899,18 +9925,26 @@ fn derive_class_zero<T: Decide>(
                     // The moving case, a conic's: radial(t) = a_r·cos t +
                     // b_r·sin t. α is the azimuth of `a_r`; β is the
                     // orientation of (a_r, b_r) against the chart's own
-                    // frame, a named trilean metered at the radius.
+                    // frame, a named trilean metered at the radius. A
+                    // conic whose orientation reads Zero lies in a plane
+                    // along the axis (a cross-section's and an oblique
+                    // section's orientation is the radius): its azimuth
+                    // swings and returns, no class of the cylinder, so
+                    // it takes the general lane, as on the cone.
                     let orient = a_r.cross(b_r).dot(axis);
-                    let beta = match decide(
+                    let sense = match decide(
                         "pcurve_chart_orientation",
                         Margin::over_lever(orient, radius),
                         band,
                     ) {
-                        Ok(sign) => winding_of(sign),
+                        Ok(Sign::Positive) => Turning::Forward,
+                        Ok(Sign::Negative) => Turning::Backward,
+                        Ok(Sign::Zero) => return Err(incidence::general_lane(shown, None)),
                         Err(cause) => {
                             return Err(incidence::general_lane(shown, Some(cause)));
                         }
                     };
+                    let beta = sense.winding();
                     let alpha = place.phase(
                         Along::Azimuth,
                         Azimuth::of(a_r.dot(cv), a_r.dot(u_ref)),
@@ -9931,7 +9965,7 @@ fn derive_class_zero<T: Decide>(
                                 l: form.l.dot(axis),
                             },
                         },
-                        Derivation::CylinderMoving { beta },
+                        Derivation::CylinderMoving { sense },
                     ))
                 }
             }
@@ -12192,6 +12226,9 @@ mod cone_line_rows;
 mod cylinder_line_rows;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::panic)]
+mod ellipse_lane_rows;
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
 mod harmonic_sup_rows;
 mod line_incidence;
 #[cfg(test)]
@@ -13284,11 +13321,11 @@ mod tests {
     /// A small circle in the plane tangent to the wall, which holds the
     /// axis, of radius `√(R·ε)/2`: it leaves the wall by its sagitta,
     /// `ε/8`, so the mint's incidence read admits it, and its radial
-    /// part moves without winding, so the derivation decides it MOVING
-    /// with a zero winding — the one moving class whose image does not
-    /// turn. The envelope bounds the residual of that image.
+    /// part moves without winding (its orientation reads Zero), which is
+    /// none of the cylinder's classes: the derivation hands it to the
+    /// general lane, whose projected image certifies at both scalars.
     #[test]
-    fn a_moving_carrier_with_no_winding_is_still_bounded() {
+    fn a_moving_carrier_with_no_winding_takes_the_general_lane() {
         let r = 0.5;
         let cyl = cylinder(r);
         let carrier = Curve3::circle(
@@ -13298,24 +13335,22 @@ mod tests {
             Vec3::unit_y(),
         );
         let place = super::Placement::own(&carrier, &cyl);
-        let (image, derivation) = derive_harmonic(&carrier, &cyl, place, band()).unwrap();
         assert!(
-            matches!(derivation, Derivation::CylinderMoving { beta: 0 }),
-            "{derivation:?}"
+            matches!(
+                derive_class(&carrier, &cyl, place, band()),
+                Err(Underived::General {
+                    undecided: None,
+                    ..
+                })
+            ),
+            "the orientation reads Zero: no class"
         );
-        let form = carrier_harmonic(&carrier).unwrap();
-        let envelope = periodic_envelope(
-            channels_of(&image),
+        super::circle_lane_rows::certifies_projected(
+            "a circle tangent to the wall",
             &carrier,
-            form,
-            &cyl,
             (0.0, PI),
-            PI,
-            band(),
-        )
-        .unwrap()
-        .total();
-        assert!(envelope >= true_sup(&image, &cyl, &carrier, 0.0, PI));
+            &cyl,
+        );
     }
 
     /// The chart-derivation pins across the frontier's two flips
