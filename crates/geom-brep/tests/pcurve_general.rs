@@ -680,3 +680,192 @@ fn ring_wall() -> NurbsSurface<f64> {
     )
     .expect("the ring builds")
 }
+
+// ---------------- review 6532 probes ----------------
+
+fn review_ellipse(k: f64, z0: f64) -> Curve3<f64> {
+    let s = (1.0 + k * k).sqrt();
+    Curve3::Ellipse(geom::Ellipse::new(
+        geom::Frame::new(
+            Point3::new(0.0, 0.0, z0),
+            Vec3::new(-k / s, 0.0, 1.0 / s),
+            Vec3::new(1.0 / s, 0.0, k / s),
+        ),
+        s,
+        1.0,
+    ))
+}
+
+fn review_tall_quarter(h: f64) -> NurbsSurface<f64> {
+    let control = vec![
+        Point3::new(1.0, 0.0, 0.0),
+        Point3::new(1.0, 0.0, h),
+        Point3::new(1.0, 1.0, 0.0),
+        Point3::new(1.0, 1.0, h),
+        Point3::new(0.0, 1.0, 0.0),
+        Point3::new(0.0, 1.0, h),
+    ];
+    let w = core::f64::consts::FRAC_1_SQRT_2;
+    NurbsSurface::new(
+        KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap(),
+        KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
+        control,
+        vec![1.0, 1.0, w, w, 1.0, 1.0],
+    )
+    .unwrap()
+}
+
+fn review_route<T: geom_core::Decide + geom_core::CertifiedBounds>(
+    name: &str,
+    carrier: &Curve3<f64>,
+    span: (f64, f64),
+    wall: &NurbsSurface<f64>,
+) {
+    let lane = FittedLane::<T>::certified();
+    let lift = |x: f64| T::from_f64(x);
+    let carrier = carrier.map_scalar(lift);
+    let wall = wall.map_scalar(lift);
+    let (t0, t1) = (lift(span.0), lift(span.1));
+    let start = std::time::Instant::now();
+    let image = lane.general_image(&carrier, (t0, t1), &wall, band());
+    let t_img = start.elapsed();
+    let Ok(image) = image else {
+        println!("PROBE {name} at {}: image refused {:?} ({t_img:?})", T::NAME, image.err());
+        return;
+    };
+    let ctl = image.control().len();
+    let start = std::time::Instant::now();
+    let got = PcurveCache::certify_general(
+        Arc::new(image),
+        t0,
+        t1,
+        &carrier,
+        &Surface::Nurbs(Arc::new(wall)),
+        band(),
+        Some(lane),
+    );
+    let t_cert = start.elapsed();
+    println!(
+        "PROBE {name} at {}: control={ctl} image {t_img:?} cert {t_cert:?}: {:?}",
+        T::NAME,
+        got.as_ref().map(|r| r.certificate().envelope).map_err(|e| e.clone())
+    );
+}
+
+fn review_probes<T: geom_core::Decide + geom_core::CertifiedBounds>() {
+    let ring = ring_wall();
+    // crossing at a foot (the PR's row)
+    review_route::<T>("ring at-foot (0,1.2)", &circle(0.0), (0.0, 1.2), &ring);
+    // crossing between feet
+    review_route::<T>("ring between (0.013,1.2)", &circle(0.0), (0.013, 1.2), &ring);
+    review_route::<T>("ring between (0,1.19)", &circle(0.0), (0.0, 1.19), &ring);
+    review_route::<T>("ring between (0.05,1.17)", &circle(0.0), (0.05, 1.17), &ring);
+    // crossing just outside the 1e-6·h snap of foot 16 at 33 feet
+    for d in [3e-6, 3e-5, 3e-4, 3e-3] {
+        let b = 0.6 / (0.5 + d / 32.0);
+        review_route::<T>(&format!("ring near-foot d={d:e}"), &circle(0.0), (0.0, b), &ring);
+    }
+    // crossing near the start (fewer than degree feet before the cut)
+    review_route::<T>("ring cut-near-start (0.57,1.2)", &circle(0.0), (0.57, 1.2), &ring);
+    review_route::<T>("ring cut-near-end (0,0.63)", &circle(0.0), (0.0, 0.63), &ring);
+    // eccentric ellipses on a tall quarter cylinder
+    for k in [1.0, 3.0, 10.0, 30.0] {
+        let wall = review_tall_quarter(k + 1.0);
+        review_route::<T>(&format!("ellipse k={k}"), &review_ellipse(k, 0.1), (0.1, 1.4), &wall);
+    }
+    // carrier near the wall's boundary (the whole quarter turn)
+    let q = fixture::quarter_cylinder_wall();
+    review_route::<T>("circle whole quarter", &circle(0.5), (0.0, core::f64::consts::FRAC_PI_2), &q);
+    review_route::<T>("circle at bottom edge z=1e-12", &circle(1e-12), (0.1, 1.4), &q);
+}
+
+#[test]
+fn review_6532_probes_at_f64() {
+    review_probes::<f64>();
+}
+
+#[test]
+fn review_6532_probes_at_interval() {
+    review_probes::<geom_core::Interval>();
+}
+
+/// R3: a curved SPLINE carrier (the rational one-span arc of the ring's
+/// circle at z = 0) keeps the degree-1 image: what does the mint end?
+#[test]
+fn review_6532_curved_spline_carrier_ending() {
+    let h: f64 = 0.6;
+    let w = h.cos();
+    let arc = NurbsCurve3::new(
+        KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap(),
+        vec![
+            Point3::new(1.0, 0.0, 0.0),
+            Point3::new(1.0, (2.0 * h).tan() * 0.0 + h.tan(), 0.0),
+            Point3::new((2.0 * h).cos(), (2.0 * h).sin(), 0.0),
+        ],
+        vec![1.0, w, 1.0],
+    )
+    .unwrap();
+    // middle control at angle h, radius 1/cos(h)
+    let arc = NurbsCurve3::new(
+        KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap(),
+        vec![
+            Point3::new(1.0, 0.0, 0.0),
+            Point3::new(1.0, h.tan(), 0.0),
+            Point3::new((2.0 * h).cos(), (2.0 * h).sin(), 0.0),
+        ],
+        arc.weights().to_vec(),
+    )
+    .unwrap();
+    let carrier = Curve3::Nurbs(Arc::new(arc));
+    let ring = ring_wall();
+    let lane = FittedLane::<f64>::certified();
+    let image = lane.general_image(&carrier, (0.0, 1.0), &ring, band());
+    println!("R3 image: {:?}", image.as_ref().map(|i| i.control().len()).err());
+    let surface = Surface::Nurbs(Arc::new(ring));
+    if let Ok(image) = image {
+        let pc = Pcurve::General(Arc::new(image.clone()));
+        let got = PcurveCache::certify_general(Arc::new(image), 0.0, 1.0, &carrier, &surface, band(), Some(lane));
+        match got {
+            Ok(r) => println!("R3 certified envelope {:?}", r.certificate().envelope),
+            Err(e) => {
+                let m = geom_brep::minted_refusal(e.clone(), &pc, &carrier, &surface);
+                println!("R3 raw {e:?}\nR3 minted {m:?}\nR3 ending: {}", m.ending(Reading::Build));
+            }
+        }
+    }
+}
+
+/// R4: a LINE on a flat wall whose v parameter is not affine in z: the
+/// line's foot path bends in the chart, but `bends` reads it straight.
+#[test]
+fn review_6532_line_on_a_nonuniform_wall_ending() {
+    let ku = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+    let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+    // row-major in u: control[iu * nv + iv]
+    let mut control = Vec::new();
+    for x in [0.0, 1.0] {
+        for z in [0.0, 0.1, 1.0] {
+            control.push(Point3::new(x, 0.0, z));
+        }
+    }
+    let wall = NurbsSurface::new(ku, kv, control, vec![1.0; 6]).unwrap();
+    let r = core::f64::consts::FRAC_1_SQRT_2;
+    let line = Curve3::line(Point3::new(0.05, 0.0, 0.05), Vec3::new(r, 0.0, r));
+    let lane = FittedLane::<f64>::certified();
+    let span = (0.0, 1.2);
+    let image = lane.general_image(&line, span, &wall, band());
+    let surface = Surface::Nurbs(Arc::new(wall));
+    match image {
+        Err(e) => println!("R4 image refused: {e:?}"),
+        Ok(image) => {
+            let pc = Pcurve::General(Arc::new(image.clone()));
+            match PcurveCache::certify_general(Arc::new(image), span.0, span.1, &line, &surface, band(), Some(lane)) {
+                Ok(r) => println!("R4 certified envelope {:?}", r.certificate().envelope),
+                Err(e) => {
+                    let m = geom_brep::minted_refusal(e.clone(), &pc, &line, &surface);
+                    println!("R4 raw {e:?}\nR4 minted {m:?}\nR4 ending: {}", m.ending(Reading::Build));
+                }
+            }
+        }
+    }
+}
