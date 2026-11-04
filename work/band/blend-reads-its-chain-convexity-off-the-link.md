@@ -6,7 +6,6 @@ status: open
 opened: 2026-10-26
 priority: P1
 cost: M
-blocked_on: [material-and-convexity-are-read-three-ways]
 ---
 
 
