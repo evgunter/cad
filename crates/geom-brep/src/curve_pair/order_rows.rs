@@ -5,10 +5,17 @@
 
 #![allow(clippy::unwrap_used, clippy::panic)]
 
+test_utils::gated_to![
+    "crates/geom-brep/src/curve_pair.rs",
+    "crates/geom-brep/src/curve_pair/",
+    "crates/geom/src/carrier_speed.rs",
+];
+
 use core::f64::consts::{PI, TAU};
 
 use geom::Curve3;
 use geom_core::{Band, Point3, Vec3};
+use test_utils::fuzz;
 
 use super::meet_rows::{band, circle, ellipse, line, shallow_circles, touching_circles, u_for};
 use super::{Hit, MeetRefusal, Meetings, Pose, Span, meet, pose};
@@ -22,15 +29,39 @@ fn read(a: (&Curve3<f64>, (f64, f64)), b: (&Curve3<f64>, (f64, f64)), band: Band
     meet(&Span::new(a.0, a.1), &Span::new(b.0, b.1), band)
 }
 
-/// Whether a hit is an end, which is the same on either order.
-fn at_end(h: &Hit<f64>) -> bool {
-    matches!(h, Hit::End(_))
+/// Whether two hits on one span are one place: the same end, or
+/// parameters within `slack`, modulo a turn on a closed carrier.
+fn same_hit(x: &Hit<f64>, y: &Hit<f64>, closed: bool, slack: f64) -> bool {
+    match (x, y) {
+        (Hit::On { t: s, .. }, Hit::On { t, .. }) => {
+            let d = s - t;
+            let d = if closed {
+                d.rem_euclid(TAU).min(TAU - d.rem_euclid(TAU))
+            } else {
+                d.abs()
+            };
+            d <= slack
+        }
+        (Hit::End(p), Hit::End(q)) => p == q,
+        _ => false,
+    }
 }
 
-/// One answer read in two orders: both refuse, or both decide the same
-/// shared run and the same meetings, each `back` meeting the swap of one
-/// of `got`'s within the band's escalation.
-fn agree(label: &str, got: &Read, back: &Read, band: Band) -> Option<String> {
+/// **One answer read in two orders**, `a` and `b` the carriers of
+/// `got`'s first and second spans. Both orders may refuse: two
+/// refusals agree whatever they name, since neither is an answer
+/// (D4). One order deciding where the other refuses is a disagreement,
+/// as is any difference in the shared run or the meetings: each of
+/// `got`'s meetings must have a partner in `back` within the band's
+/// escalation, sitting at the same place on each span, its parameter
+/// within a thousand escalations (a turn's worth on a closed carrier).
+fn agree(
+    label: &str,
+    (a, b): (&Curve3<f64>, &Curve3<f64>),
+    got: &Read,
+    back: &Read,
+    band: Band,
+) -> Option<String> {
     let (got, back) = match (got, back) {
         (Err(_), Err(_)) => return None,
         (Ok(g), Ok(b)) => (g, b),
@@ -40,11 +71,13 @@ fn agree(label: &str, got: &Read, back: &Read, band: Band) -> Option<String> {
         return Some(format!("{label}: answers differ\n  {got:?}\n  {back:?}"));
     }
     let e = band.escalate();
+    let closed = |c: &Curve3<f64>| !matches!(c, Curve3::Line(_));
+    let slack = 1e3 * e;
     for p in &got.points {
         let partner = back.points.iter().any(|q| {
             (p.point - q.point).norm() <= e
-                && at_end(&p.on_a) == at_end(&q.on_b)
-                && at_end(&p.on_b) == at_end(&q.on_a)
+                && same_hit(&p.on_a, &q.on_b, closed(a), slack)
+                && same_hit(&p.on_b, &q.on_a, closed(b), slack)
         });
         if !partner {
             return Some(format!("{label}: {p:?} has no swapped partner in {back:?}"));
@@ -60,6 +93,7 @@ fn every(pairs: &[(String, Pair)], band: Band) -> Vec<String> {
         .filter_map(|(label, [(a, sa), (b, sb)])| {
             agree(
                 label,
+                (a, b),
                 &read((a, *sa), (b, *sb), band),
                 &read((b, *sb), (a, *sa), band),
                 band,
@@ -262,7 +296,7 @@ fn a_great_circle_crosses_a_tiny_rim_in_either_order() {
                 }
             }
             assert!(
-                agree(&label, &got, &back, band).is_none(),
+                agree(&label, (&ray, &rim), &got, &back, band).is_none(),
                 "{label}: orders differ"
             );
         }
@@ -301,8 +335,163 @@ fn a_meridian_meets_a_parallel_by_the_tubes_top_once() {
             );
         }
         assert!(
-            agree(&label, &got, &back, band()).is_none(),
+            agree(&label, (&meridian, &parallel), &got, &back, band()).is_none(),
             "{label}: orders differ"
         );
     }
+}
+
+/// **A conic whose swing is in the gap beside a level conic reads one
+/// answer in either order** (the review of PR 6492). A circle of radius
+/// 0.4 in `z = 0`, and one of radius 0.02 tilted `7·10⁻⁹`, `6·10⁻¹⁰`
+/// above it, `dx` along: the small circle's swing above the large one's
+/// plane is `1.4·10⁻¹⁰`, zero; the large one's above the small one's is
+/// `2.8·10⁻⁹`, in the gap. At `dx` 0.1 and 0.3 they miss by centimetres;
+/// at 0.39 their least distance is `4.8·10⁻¹⁰`. Red where the first
+/// conic's gap swing escalates before the second's zero swing is read.
+#[test]
+fn a_gap_swing_beside_a_level_conic_reads_one_answer_in_either_order() {
+    for dx in [0.1, 0.3, 0.39] {
+        let a = circle([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 0.4);
+        let b = circle([dx, 0.0, 6e-10], [0.0, 7e-9f64.sin(), 7e-9f64.cos()], 0.02);
+        let s = (0.0, TAU);
+        let got = read((&a, s), (&b, s), band());
+        let back = read((&b, s), (&a, s), band());
+        assert!(
+            got.is_ok(),
+            "dx {dx}: a level conic beside a gap swing decides: {got:?}"
+        );
+        assert!(
+            agree(&format!("dx {dx}"), (&a, &b), &got, &back, band()).is_none(),
+            "{got:?}\n{back:?}"
+        );
+    }
+}
+
+/// **A tied choice of the conic read across records no escalation**
+/// (the review of PR 6492). Two equal great circles crossing
+/// symmetrically, at `Interval`: the two `(A² − c₀²)/r²` tie, so their
+/// difference straddles zero. The choice is between two sound readings,
+/// taken off the log (ledger row F33); logged, it put
+/// `curve_pair_pose_across` in the escalation record on every run.
+#[test]
+fn a_tied_across_choice_records_no_escalation() {
+    use geom_core::{Interval, k_stats::Bracket};
+    let i = |x: f64| Interval::from_bounds(x - 1e-15, x + 1e-15);
+    let (s, c) = (0.25f64.sin(), 0.25f64.cos());
+    let mk = |y: f64| {
+        let n = Vec3::new(0.0, y, c);
+        let u = u_for(n);
+        Curve3::circle(
+            Point3::new(i(0.3), i(-0.2), i(0.1)),
+            Vec3::new(i(n.x), i(n.y), i(n.z)),
+            i(1.0),
+            Vec3::new(i(u.x), i(u.y), i(u.z)),
+        )
+    };
+    let (a, b) = (mk(s), mk(-s));
+    let br = Bracket::open();
+    let got = meet(
+        &Span::new(&a, (i(0.1), i(6.0))),
+        &Span::new(&b, (i(0.1), i(6.0))),
+        band(),
+    );
+    let rec = br.finish();
+    assert!(
+        rec.escalations
+            .iter()
+            .all(|e| e.predicate() != "curve_pair_pose_across"),
+        "the across choice recorded an escalation: {got:?}"
+    );
+}
+
+/// A near-parallel, near-coplanar or near-tangent conic pair (the review
+/// of PR 6492): a circle, and a circle or an ellipse whose plane is
+/// tilted from 0 to `10⁻²` off the first's, set a zero, an escalation,
+/// its swing or its swing and an escalation off the first's plane.
+fn near_pair(rng: &mut fuzz::Rng, k: usize) -> (Curve3<f64>, Curve3<f64>, String) {
+    let bd = band();
+    let n = Vec3::new(
+        rng.range(-1.0, 1.0),
+        rng.range(-1.0, 1.0),
+        rng.range(-1.0, 1.0),
+    )
+    .normalize();
+    let ca = Point3::new(
+        rng.range(-5.0, 5.0),
+        rng.range(-5.0, 5.0),
+        rng.range(-5.0, 5.0),
+    );
+    let ra = rng.log_uniform(1e-4, 3.0);
+    let tilt = if k.is_multiple_of(3) {
+        0.0
+    } else {
+        rng.log_uniform(1e-13, 1e-2)
+    };
+    let az = rng.range(0.0, TAU);
+    let nb = {
+        let (u, w) = (u_for(n), n.cross(u_for(n)));
+        (n * tilt.cos() + (u * az.cos() + w * az.sin()) * tilt.sin()).normalize()
+    };
+    let scale = [
+        bd.zero(),
+        bd.escalate(),
+        ra * tilt.sin(),
+        ra * tilt.sin() + bd.escalate(),
+    ][k % 4];
+    let side = if rng.unit() < 0.5 { -1.0 } else { 1.0 };
+    let h = scale * rng.range(0.5, 2.0) * side;
+    let inplane =
+        u_for(n) * rng.range(-2.0, 2.0) * ra + n.cross(u_for(n)) * rng.range(-2.0, 2.0) * ra;
+    let cb = ca + n * h + inplane;
+    let rb = rng.log_uniform(1e-4, 3.0);
+    let a = circle(ca.to_array(), n.to_array(), ra);
+    let b = if k % 5 == 1 {
+        let minor = rb * rng.range(0.05, 0.95);
+        ellipse(
+            cb.to_array(),
+            nb.to_array(),
+            u_for(nb).to_array(),
+            rb,
+            minor,
+        )
+    } else {
+        circle(cb.to_array(), nb.to_array(), rb)
+    };
+    (
+        a,
+        b,
+        format!("draw {k}: ra {ra:e} rb {rb:e} tilt {tilt:e} h {h:e}"),
+    )
+}
+
+/// **`meet` reads one answer in either order, over random near-parallel
+/// conic pairs** (the review of PR 6492's fuzz): every draw read
+/// `meet(a, b)` and `meet(b, a)` agrees ([`agree`]: both refuse, or one
+/// answer with the roles swapped, parameters per side). A counterexample
+/// search: the seed varies, `CAD_FUZZ_SEED` replays it, and the count
+/// scales with `CAD_FUZZ_EFFORT`. It found 26 asymmetric draws of 600 on
+/// the parent of PR 6492 and 3 on its first head, the swing read in
+/// order.
+#[test]
+fn meet_reads_one_answer_in_either_order_over_random_near_parallel_pairs() {
+    let mut rng = fuzz::start("curve_pair order symmetry");
+    let bd = band();
+    let (sa, sb) = ((0.2, 5.9), (0.4, 6.1));
+    let mut bad = Vec::new();
+    for k in 0..fuzz::scaled(600) {
+        let (a, b, label) = near_pair(&mut rng, k);
+        let got = read((&a, sa), (&b, sb), bd);
+        let back = read((&b, sb), (&a, sa), bd);
+        if let Some(why) = agree(&label, (&a, &b), &got, &back, bd) {
+            bad.push(why);
+        }
+    }
+    assert!(
+        bad.is_empty(),
+        "{} asymmetric draws ({}):\n{}",
+        bad.len(),
+        fuzz::replay(),
+        bad.iter().take(6).cloned().collect::<Vec<_>>().join("\n")
+    );
 }
