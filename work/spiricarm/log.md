@@ -89,3 +89,4 @@
   - The reviewers' rows are adopted. Filed `lathe/a-sphere-class-arc-centre-just-across-the-axis-refuses-at-the-pcurve-mint` (P3).
   - The row is `docs/dual-review-log/rows/PR-6486.md` (fair pair, no MAJOR).
   - **Stage 1 is closed**: the football with conical ends builds. Stage 2 (the apex as a pole, which lands the football itself) is next on the parent row.
+- 2026-11-04 — **PR 6486 merged; stage 1 closed.** **Dispatched stage 2** as `the-spindle-sheets-apex-is-a-pole` (H, dual): the apex as a pole, which lands the football, the apple and the horn's needle tip. It carries the stage 1 reviews' two rules: every guard ships with a row that goes red without it, and the census sweeps every family the code joins.
