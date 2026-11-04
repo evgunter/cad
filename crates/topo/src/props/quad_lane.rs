@@ -504,8 +504,8 @@ pub(super) fn exact_polygon_volume(polygons: &[Vec<Vec<Point3<Interval>>>]) -> O
 /// the face walk routes it to its closed form
 /// ([`geom_brep::props::cone_face_closed_form`]). A plane or torus face
 /// reaches this lane only with a spiric on its boundary
-/// ([`rim_face`]); a sphere chart mints stored pcurves but has no
-/// flux lane here, and refuses typed.
+/// ([`rim_face`]); a cylinder or sphere face takes the rotational lane
+/// (`geom_brep::props::quad::rotational_cut_face_rounds`).
 ///
 /// The tolerance is the hook's ([`super::QuadLane`]): no lane here reads
 /// it, since each trim end's trig is formed at its parameter, not off its
@@ -572,14 +572,29 @@ fn cut_face_lane<T: Decide + Bounds + CertifiedEnclosure>(
     {
         return rim_face(body, surface, loops, band, window, centre, accept);
     }
-    let Surface::Cylinder { origin, radius, .. } = surface else {
-        return Err(PropsError::QuadratureUnsupported {
-            what: "a trimmed face with no volume lane on its chart — a cone face takes \
-                   its closed form before this lane (`cone_face_closed_form`), and the \
-                   rotational lane's chart table holds the cylinder",
-        });
-    };
     let iv = Interval::from_certified;
+    let (origin, chart) = match surface {
+        Surface::Cylinder { origin, radius, .. } => (
+            origin,
+            quad::RotationalChartQ::Cylinder {
+                radius: iv(*radius),
+            },
+        ),
+        Surface::Sphere { center, radius, .. } => (
+            center,
+            quad::RotationalChartQ::Sphere {
+                radius: iv(*radius),
+                outward: face_sense(body, loops)?,
+            },
+        ),
+        _ => {
+            return Err(PropsError::QuadratureUnsupported {
+                what: "a trimmed face with no volume lane on its chart — a cone face takes \
+                       its closed form before this lane (`cone_face_closed_form`), and the \
+                       rotational lane's chart table holds the cylinder and the sphere",
+            });
+        }
+    };
     let lift = |p: Point3<T>| Point3::new(iv(p.x), iv(p.y), iv(p.z));
     // The chart term `o·A⃗`: each closed-form edge's vector area about the
     // chart's own origin at the caller's scalar, and each rational
@@ -674,6 +689,7 @@ fn cut_face_lane<T: Decide + Bounds + CertifiedEnclosure>(
             let pair = |p: geom_core::Point2<T>| (iv(p.x), iv(p.y));
             edges.push(quad::EdgeTermQ::Projected(quad::ProjectedEdgeQ::of_image(
                 projected,
+                chart,
                 (iv(t0), iv(t1)),
                 le.forward,
                 // The ends through the image's own evaluator, on the lane,
@@ -686,9 +702,7 @@ fn cut_face_lane<T: Decide + Bounds + CertifiedEnclosure>(
         terms.push(edges);
     }
     let face = quad::RotationalFaceQ {
-        chart: quad::RotationalChartQ::Cylinder {
-            radius: iv(*radius),
-        },
+        chart,
         chart_term: quad::ChartTermQ {
             closed,
             lever: rv(lever),
@@ -702,6 +716,23 @@ fn cut_face_lane<T: Decide + Bounds + CertifiedEnclosure>(
         loops: terms,
     };
     quad::rotational_cut_face_rounds::<T>(&face, band, window, accept)
+}
+
+/// The sense bit of the face whose loops `loops` are: whether its normal
+/// is its surface's own. The sphere's terms read it (the rotational
+/// lane's module docs, the sphere): a sphere loop bounds a region on each
+/// side, and the bit says which one the face is.
+fn face_sense<T: Decide>(body: &Body<T>, loops: &[super::FlatLoop<T>]) -> Result<bool, PropsError> {
+    loops
+        .first()
+        .and_then(|(_, hes)| hes.first())
+        .and_then(|he| body.half_edges.get(*he))
+        .and_then(|he| body.loops.get(he.parent_loop))
+        .and_then(|lp| body.faces.get(lp.face))
+        .map(|face| face.sense)
+        .ok_or(PropsError::QuadratureUnsupported {
+            what: "a sphere face whose loops name no face of the body",
+        })
 }
 
 /// An upper bound on an edge's length: a line's speed `|dir|`, an arc's radius (an
