@@ -82,13 +82,13 @@ impl ProjectedEdgeQ {
                 geom_core::Point3::origin(),
                 breaks,
             )?),
-            FramedCarrier::Circle {
+            FramedCarrier::Conic {
                 centre,
                 a,
                 b,
                 origin,
                 span,
-            } => FramedQ::Circle {
+            } => FramedQ::Conic {
                 centre: vec(*centre),
                 a: vec(*a),
                 b: vec(*b),

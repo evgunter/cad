@@ -1086,6 +1086,22 @@ pub struct ConicHarmonics<T> {
     pub floor: T,
 }
 
+/// The larger of the conic's semi-axes' MAGNITUDES, the reach its
+/// harmonic part's rounding is charged at: [`Conic::speed_hi`] is the
+/// larger signed semi-axis, which under-reads a negative one.
+fn semi_reach<T: Real>(conic: &dyn Conic<T>) -> T {
+    let (a, b) = conic.semi_axes();
+    #[cfg(test)]
+    if crate::pcurve_cache::mutants::semi_reach_signed() {
+        return conic.speed_hi();
+    }
+    #[cfg(test)]
+    if crate::pcurve_cache::mutants::charge_circular() {
+        return a.abs();
+    }
+    a.abs().max(b.abs())
+}
+
 /// The quadric arm of [`ConicHarmonics`]: `perp` is the surface's `⊥`.
 fn quadric_harmonics<T: Real>(
     conic: &dyn Conic<T>,
@@ -1101,13 +1117,21 @@ fn quadric_harmonics<T: Real>(
     let (up, vp) = (perp(conic.frame().u_ref), perp(conic.frame().v_ref()));
     let (aa, bb) = (a.powi(2) * up.norm_squared(), b.powi(2) * vp.norm_squared());
     let per = two * r;
+    #[cfg(test)]
+    let c2_bb = if crate::pcurve_cache::mutants::ellipse_term_dropped() {
+        a.powi(2) * vp.norm_squared()
+    } else {
+        bb
+    };
+    #[cfg(not(test))]
+    let c2_bb = bb;
     ConicHarmonics {
         c0: (e.norm_squared() + (aa + bb) * half - r.powi(2)) / per,
         c1: two * a * e.dot(up) / per,
         s1: two * b * e.dot(vp) / per,
-        c2: (aa - bb) * half / per,
+        c2: (aa - c2_bb) * half / per,
         s2: a * b * up.dot(vp) / per,
-        terms: (d.norm() + conic.speed_hi()).powi(2) + r.powi(2),
+        terms: (d.norm() + semi_reach(conic)).powi(2) + r.powi(2),
         per,
         floor: T::one(),
     }
@@ -1182,23 +1206,31 @@ pub fn conic_cone_harmonics<T: Real>(
     let (e, up, vp) = (perp(d), perp(u), perp(v));
     // `|⊥q|²`, the wall's form before its `r²` and its division.
     let (aa, bb) = (a.powi(2) * up.norm_squared(), b.powi(2) * vp.norm_squared());
+    // `h² = (h₀ + h_u cos θ + h_v sin θ)²`.
+    let (h0, hu, hv) = (d.dot(c_axis), a * u.dot(c_axis), b * v.dot(c_axis));
+    #[cfg(test)]
+    let (c2_bb, c2_hv) = if crate::pcurve_cache::mutants::ellipse_term_dropped() {
+        (a.powi(2) * vp.norm_squared(), a * v.dot(c_axis))
+    } else {
+        (bb, hv)
+    };
+    #[cfg(not(test))]
+    let (c2_bb, c2_hv) = (bb, hv);
     let wall = [
         e.norm_squared() + (aa + bb) * half,
         two * a * e.dot(up),
         two * b * e.dot(vp),
-        (aa - bb) * half,
+        (aa - c2_bb) * half,
         a * b * up.dot(vp),
     ];
-    // `h² = (h₀ + h_u cos θ + h_v sin θ)²`.
-    let (h0, hu, hv) = (d.dot(c_axis), a * u.dot(c_axis), b * v.dot(c_axis));
     let height = [
         h0.powi(2) + (hu.powi(2) + hv.powi(2)) * half,
         two * h0 * hu,
         two * h0 * hv,
-        (hu.powi(2) - hv.powi(2)) * half,
+        (hu.powi(2) - c2_hv.powi(2)) * half,
         hu * hv,
     ];
-    let reach_m = d.norm() + conic.speed_hi();
+    let reach_m = d.norm() + semi_reach(conic);
     let pad = T::from_f64(CEILING_PAD);
     let per = reach_m * pad;
     // The form's coefficients are `cos²α` times the wall's, built from
@@ -1208,8 +1240,17 @@ pub fn conic_cone_harmonics<T: Real>(
     // wide cone's tiny `cos²α` charges its large radial terms only that
     // much, and a circle across the axis charges no radial reach to its
     // height.
-    let radial_reach = e.norm() + crate::harmonic::harmonic_sup(up * a, vp * b);
-    let axial_reach = h0.abs() + harmonic_sup_scalar(hu, hv);
+    // The charge's own read of the second semi-axis (a mutant reads it
+    // as the first's, `|a| = |b|`).
+    let (b_c, hv_c) = (b, hv);
+    #[cfg(test)]
+    let (b_c, hv_c) = if crate::pcurve_cache::mutants::charge_circular() {
+        (a, a * v.dot(c_axis))
+    } else {
+        (b_c, hv_c)
+    };
+    let radial_reach = e.norm() + crate::harmonic::harmonic_sup(up * a, vp * b_c);
+    let axial_reach = h0.abs() + harmonic_sup_scalar(hu, hv_c);
     // Each part also carries the rounding of the projections it is read
     // from, which is not relative to the part: `d·â`, `u·â` and `v·â`
     // round at the scale of their products' magnitudes however small
@@ -1234,7 +1275,7 @@ pub fn conic_cone_harmonics<T: Real>(
         abs_dot(u, c_axis),
         abs_dot(v_abs, c_axis),
     );
-    let (a_m, b_m) = (a.abs(), b.abs());
+    let (a_m, b_m) = (a.abs(), b_c.abs());
     let radial_lever = d.norm()
         + T::from_f64(5.0) * d_dot
         + T::from_f64(4.0) * a_m * u_dot
@@ -1373,7 +1414,7 @@ pub(crate) fn conic_axis_distance_floor<T: Real>(
         perp(conic.frame().v_ref()),
     );
     let (aa, bb) = (a.powi(2) * up.norm_squared(), b.powi(2) * vp.norm_squared());
-    let terms = (d.norm() + conic.speed_hi()).powi(2);
+    let terms = (d.norm() + semi_reach(conic)).powi(2);
     let near_sq = e.norm_squared() + (aa + bb) * half
         - harmonic_sup_scalar(two * a * e.dot(up), two * b * e.dot(vp))
         - harmonic_sup_scalar((aa - bb) * half, a * b * up.dot(vp))
@@ -1527,11 +1568,19 @@ pub fn conic_torus_harmonics<T: Real>(
     let rr = major_radius.powi(2);
     let k = rr - minor_radius.powi(2);
     let zero = T::zero();
+    #[cfg(test)]
+    let c2_bb = if crate::pcurve_cache::mutants::ellipse_term_dropped() {
+        a.powi(2) * v.norm_squared()
+    } else {
+        bb
+    };
+    #[cfg(not(test))]
+    let c2_bb = bb;
     let s = (
         [
             w.norm_squared() + (aa + bb) * half,
             two * a * w.dot(u),
-            (aa - bb) * half,
+            (aa - c2_bb) * half,
             zero,
             zero,
         ],

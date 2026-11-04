@@ -49,7 +49,7 @@
 //!   `−F(V)·Δu` and a ruling (`u` constant) nothing, both read exactly.
 //! - **Projected** ([`ProjectedEdgeQ`]): the chart's inverse applied to
 //!   the carrier written in the chart's frame (`Pcurve::Projected`), a
-//!   rational net ([`FramedQ::Net`]), a circle ([`FramedQ::Circle`]) or a
+//!   rational net ([`FramedQ::Net`]), a circle ([`FramedQ::Conic`]) or a
 //!   line ([`FramedQ::Line`]).
 //!   At the frame point `(x, y, z)` the azimuth's rate is
 //!   `u′ = (x·y′ − y·x′)/(x² + y²)`, which reads no branch, and the
@@ -163,7 +163,7 @@ fn face_cost(face: &RotationalFaceQ, round: usize) -> usize {
             EdgeTermQ::Harmonic(_) => W_CYLINDER,
             EdgeTermQ::Projected(p) => match &p.carrier {
                 FramedQ::Net(net) => rational(net),
-                FramedQ::Circle { cuts, .. } => W_SPIRIC * cuts.len().saturating_sub(1),
+                FramedQ::Conic { cuts, .. } => W_SPIRIC * cuts.len().saturating_sub(1),
                 FramedQ::Line { cuts, .. } => w_rational(1) * cuts.len().saturating_sub(1),
             },
         })
@@ -233,10 +233,10 @@ pub enum FramedQ {
     /// ([`crate::props::rational_rim::rational_edge_q_split`], built
     /// forward: the edge's traversal is [`ProjectedEdgeQ::forward`]).
     Net(RationalEdgeQ),
-    /// A circle `centre + a·cos t + b·sin t`, read over `cuts`: the
+    /// A circle or an ellipse `centre + a·cos t + b·sin t`, read over `cuts`: the
     /// edge's carrier interval, its ends and the image's sector breaks
     /// inside it, increasing, each an exact parameter.
-    Circle {
+    Conic {
         /// The centre.
         centre: RVec3,
         /// The `cos t` coefficient.
@@ -246,7 +246,7 @@ pub enum FramedQ {
         /// The interval's ends and the breaks between them.
         cuts: Vec<f64>,
     },
-    /// A line `point + dir·t`, read over `cuts` as a circle is.
+    /// A line `point + dir·t`, read over `cuts` as a conic is.
     Line {
         /// The point at `t = 0`.
         point: RVec3,
@@ -567,7 +567,7 @@ fn line_rate(point: RVec3, dir: RVec3, t: Jet) -> (Jet, Jet) {
 /// through [`rational_integrals`], and its reading is refused.
 fn analytic_rate(carrier: &FramedQ, t: Interval) -> (Jet, Jet) {
     match carrier {
-        FramedQ::Circle { centre, a, b, .. } => {
+        FramedQ::Conic { centre, a, b, .. } => {
             let (c, s) = trig_range(t.lo(), t.hi());
             let (_, cj, sj) = trig_jets(t, c, s);
             circle_rate(*centre, *a, *b, cj, sj)
@@ -598,7 +598,7 @@ fn framed_integrals<const N: usize>(
             let (du, z) = net_rate(b, db, w);
             g(du, z)
         }),
-        FramedQ::Circle { cuts, .. } | FramedQ::Line { cuts, .. } => composite_over(
+        FramedQ::Conic { cuts, .. } | FramedQ::Line { cuts, .. } => composite_over(
             cut_intervals(cuts),
             pieces,
             |(), _, _| (),
@@ -649,7 +649,7 @@ fn projected_metric_length(e: &ProjectedEdgeQ, lever: Interval) -> f64 {
             let (du, z) = net_rate(b, db, w);
             rate(du, z)
         }),
-        FramedQ::Circle { cuts, .. } | FramedQ::Line { cuts, .. } => rate_bound_over(
+        FramedQ::Conic { cuts, .. } | FramedQ::Line { cuts, .. } => rate_bound_over(
             cut_intervals(cuts),
             PROJECTED_ENTRY_PIECES,
             |(), _, _| (),

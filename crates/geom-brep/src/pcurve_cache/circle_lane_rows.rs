@@ -23,19 +23,19 @@ use super::*;
 
 /// A class reading in band: the geometric mean of the band's two
 /// thresholds, in metres.
-fn in_band() -> f64 {
+pub(super) fn in_band() -> f64 {
     (band().zero() * band().escalate()).sqrt()
 }
 
 /// A chart-frame point or direction of `surface`, in the world.
-fn world(surface: &Surface<f64>, p: Vec3<f64>) -> Point3<f64> {
+pub(super) fn world(surface: &Surface<f64>, p: Vec3<f64>) -> Point3<f64> {
     let Some((o, e)) = projected::chart_frame(surface) else {
         unreachable!("the rows' charts are analytic")
     };
     o + e[0] * p.x + e[1] * p.y + e[2] * p.z
 }
 
-fn world_dir(surface: &Surface<f64>, v: Vec3<f64>) -> Vec3<f64> {
+pub(super) fn world_dir(surface: &Surface<f64>, v: Vec3<f64>) -> Vec3<f64> {
     world(surface, v) - world(surface, Vec3::zero())
 }
 
@@ -52,7 +52,7 @@ fn framed_circle(
     Curve3::circle(world(surface, c), u.cross(v).normalize(), r, u.normalize())
 }
 
-fn cone(half_angle: f64) -> Surface<f64> {
+pub(super) fn cone(half_angle: f64) -> Surface<f64> {
     Surface::Cone {
         apex: Point3::new(0.3, -0.2, 0.5),
         axis: Vec3::new(0.2, 0.1, 1.0).normalize(),
@@ -61,7 +61,7 @@ fn cone(half_angle: f64) -> Surface<f64> {
     }
 }
 
-fn torus(major: f64, minor: f64) -> Surface<f64> {
+pub(super) fn torus(major: f64, minor: f64) -> Surface<f64> {
     Surface::Torus {
         center: Point3::new(-0.4, 0.7, 0.2),
         axis: Vec3::new(0.0, 0.3, 1.0).normalize(),
@@ -71,7 +71,7 @@ fn torus(major: f64, minor: f64) -> Surface<f64> {
     }
 }
 
-fn cylinder(radius: f64) -> Surface<f64> {
+pub(super) fn cylinder(radius: f64) -> Surface<f64> {
     Surface::Cylinder {
         origin: Point3::new(0.1, 0.2, -0.3),
         axis: Vec3::new(-0.3, 0.0, 1.0).normalize(),
@@ -107,7 +107,7 @@ fn cone_section_circle(surface: &Surface<f64>, alpha: f64, h: f64, tau: f64) -> 
 }
 
 /// The cone's frame distance `|ρ cos α − σ z sin α|` of a world point.
-fn cone_distance(surface: &Surface<f64>, alpha: f64, p: Point3<f64>) -> f64 {
+pub(super) fn cone_distance(surface: &Surface<f64>, alpha: f64, p: Point3<f64>) -> f64 {
     let Some((o, e)) = projected::chart_frame(surface) else {
         unreachable!("a cone has a frame")
     };
@@ -116,7 +116,7 @@ fn cone_distance(surface: &Surface<f64>, alpha: f64, p: Point3<f64>) -> f64 {
     (x.hypot(y) * alpha.cos() - z.abs() * alpha.sin()).abs()
 }
 
-fn sampled_distance(carrier: &Curve3<f64>, distance: impl Fn(Point3<f64>) -> f64) -> f64 {
+pub(super) fn sampled_distance(carrier: &Curve3<f64>, distance: impl Fn(Point3<f64>) -> f64) -> f64 {
     (0..4096)
         .map(|i| distance(carrier.eval(f64::from(i) * TAU / 4096.0)))
         .fold(0.0, f64::max)
@@ -158,7 +158,7 @@ fn crest_circle(surface: &Surface<f64>, delta: f64, phi: f64) -> Curve3<f64> {
 
 /// The image `chart_pcurve_over` derives over `span`, at `f64` and at
 /// `Interval`.
-fn derived(
+pub(super) fn derived(
     carrier: &Curve3<f64>,
     (t0, t1): (f64, f64),
     surface: &Surface<f64>,
@@ -182,7 +182,7 @@ fn derived(
 /// The projected circle image certifies at both scalars, with envelopes
 /// inside the band that cover the sampled residual; answers the `f64`
 /// and `Interval` envelopes and the residual.
-fn certifies_projected(
+pub(super) fn certifies_projected(
     what: &str,
     carrier: &Curve3<f64>,
     span: (f64, f64),
@@ -194,10 +194,10 @@ fn certifies_projected(
     assert!(
         image
             .projected()
-            .is_some_and(|p| matches!(p.carrier(), projected::FramedCarrier::Circle { .. }))
+            .is_some_and(|p| matches!(p.carrier(), projected::FramedCarrier::Conic { .. }))
             && image_i
                 .projected()
-                .is_some_and(|p| matches!(p.carrier(), projected::FramedCarrier::Circle { .. })),
+                .is_some_and(|p| matches!(p.carrier(), projected::FramedCarrier::Conic { .. })),
         "{what}: takes the projected circle image at both scalars"
     );
     let f = Interval::from_f64;
@@ -235,7 +235,7 @@ fn certifies_projected(
 
 /// The class reading lands in band: the closed-form derivation escalates
 /// as a class reading.
-fn class_in_band(what: &str, carrier: &Curve3<f64>, span: (f64, f64), surface: &Surface<f64>) {
+pub(super) fn class_in_band(what: &str, carrier: &Curve3<f64>, span: (f64, f64), surface: &Surface<f64>) {
     let derivation = derive_harmonic(
         carrier,
         surface,

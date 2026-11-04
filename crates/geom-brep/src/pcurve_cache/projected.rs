@@ -1,8 +1,8 @@
 //! **The projected image** ([`Pcurve::Projected`], C4): on an analytic
 //! chart, the image of a carrier with no closed-form image (a spline
-//! carrier; a circle on a sphere, cylinder, cone or torus not shown one
-//! of the chart's own circles; a line on a cylinder or a cone not shown
-//! a ruling)
+//! carrier; a circle or an ellipse on a sphere, cylinder, cone or torus
+//! not shown one of the chart's own classes; a line on a cylinder or a
+//! cone not shown a ruling)
 //! is the chart's own
 //! inverse applied to the carrier, `P(t) = ψ(C(t))`. It is exact, not a
 //! fit.
@@ -10,7 +10,7 @@
 //! # What the row stores
 //!
 //! The carrier written in the chart's frame (`FramedCarrier`: its
-//! control net, a circle's centre and two radius vectors, or a line's
+//! control net, a conic's centre and two semi-axis vectors, or a line's
 //! point and direction), the
 //! chart's own scalars the inverse reads, a partition of the parameter
 //! into pieces that each stay in one `atan2` sector (a per-piece branch
@@ -80,7 +80,7 @@
 //! distance from the chart's, both fidelity. **Incidence** is the
 //! carrier's distance from the chart: the chart's implicit form `f`
 //! composed along `ξ̂` (`geom_core::spline::compose::canonical_composite`
-//! for a net, `implicit::conic_form_sup` for a circle, its coefficients'
+//! for a net, `implicit::conic_form_sup` for a conic, its coefficients'
 //! rounding charged,
 //! [`line_off_cylinder_sup`] and [`line_off_cone_form`] for a line over
 //! the edge's interval), converted to
@@ -127,7 +127,7 @@
 //! as a measured miss.
 //!
 //! **The sector condition**, decided per piece: the piece's radial hull
-//! (its Bézier controls rotated by `−θ_k`, or a circle's or a line's
+//! (its Bézier controls rotated by `−θ_k`, or a conic's or a line's
 //! harmonic box)
 //! lies in the open half-plane `x′ > 0`, and on a torus the same for
 //! `(ρ − R, z)` rotated by `−φ_k`; consecutive branch centres are at most
@@ -144,7 +144,7 @@
 //! halvings), so a whole turn certifies and a sweep past one refuses.
 //!
 //! A net's hull terms are certification arithmetic (C9), so they run
-//! through the fitted door ([`crate::FittedLane`]); a circle's and a
+//! through the fitted door ([`crate::FittedLane`]); a conic's and a
 //! line's are closed forms of their coefficients and certify at every
 //! `Decide` scalar.
 
@@ -249,10 +249,10 @@ pub enum FramedCarrier<T: Real> {
     /// A spline carrier's net, with the carrier's own knots and weights.
     /// Its pieces are read on the carrier's own parameter.
     Net(Arc<NurbsCurve3<T>>),
-    /// A circle `centre + a·cos t + b·sin t`. Its pieces are read on
-    /// `s = (t − origin)/span`, the uniform partition of the interval it
-    /// was derived over.
-    Circle {
+    /// A harmonic conic `centre + a·cos t + b·sin t`, a circle's or an
+    /// ellipse's. Its pieces are read on `s = (t − origin)/span`, the
+    /// uniform partition of the interval it was derived over.
+    Conic {
         /// The centre.
         centre: Vec3<T>,
         /// The `cos t` coefficient.
@@ -265,7 +265,7 @@ pub enum FramedCarrier<T: Real> {
         span: T,
     },
     /// A line `point + dir·t`. Its pieces are read on
-    /// `s = (t − origin)/span`, as a circle's.
+    /// `s = (t − origin)/span`, as a conic's.
     Line {
         /// The point at `t = 0`.
         point: Vec3<T>,
@@ -284,7 +284,7 @@ impl<T: SpanLocate> FramedCarrier<T> {
     pub fn eval(&self, t: T) -> Vec3<T> {
         match self {
             Self::Net(net) => net.eval(t) - Point3::origin(),
-            Self::Circle { centre, a, b, .. } => {
+            Self::Conic { centre, a, b, .. } => {
                 let (s, c) = t.sin_cos();
                 *centre + *a * c + *b * s
             }
@@ -301,7 +301,7 @@ impl<T: SpanLocate> FramedCarrier<T> {
     fn piece_span(&self, a: f64, b: f64) -> (T, T) {
         match self {
             Self::Net(net) => (net_param(net, a), net_param(net, b)),
-            Self::Circle { origin, span, .. } | Self::Line { origin, span, .. } => (
+            Self::Conic { origin, span, .. } | Self::Line { origin, span, .. } => (
                 *origin + *span * T::from_f64(a),
                 *origin + *span * T::from_f64(b),
             ),
@@ -312,7 +312,7 @@ impl<T: SpanLocate> FramedCarrier<T> {
     fn piece_param(&self, t: T) -> T {
         match self {
             Self::Net(_) => t,
-            Self::Circle { origin, span, .. } | Self::Line { origin, span, .. } => {
+            Self::Conic { origin, span, .. } | Self::Line { origin, span, .. } => {
                 (t - *origin) / *span
             }
         }
@@ -615,7 +615,7 @@ impl<T: SpanLocate> ProjectedImage<T> {
     }
 
     /// Piece `k`'s chart-frame box, its end pieces stretched to `t0`
-    /// and `t1` (a circle's or a line's), so the box covers what `[t0, t1]` reads of
+    /// and `t1` (a conic's or a line's), so the box covers what `[t0, t1]` reads of
     /// the piece.
     pub(crate) fn frame_box(&self, k: usize, t0: T, t1: T) -> FrameBox<T> {
         let knots = self.breaks.knots();
@@ -634,7 +634,7 @@ impl<T: SpanLocate> ProjectedImage<T> {
     }
 
     /// The chart-frame box of `[s0, s1]`, a sub-interval of piece `k`
-    /// on the piece parameter, read on that piece's branch. A circle's or
+    /// on the piece parameter, read on that piece's branch. A conic's or
     /// a line's sub-interval at the partition's first or last break is stretched
     /// to `t0` or `t1`, as [`Self::frame_box`] stretches an end piece.
     fn frame_box_on(&self, k: usize, part: ParamRange, t0: T, t1: T) -> FrameBox<T> {
@@ -675,10 +675,10 @@ impl<T: SpanLocate> ProjectedImage<T> {
                 };
                 FrameBox { x, y, z }
             }
-            FramedCarrier::Circle { .. } | FramedCarrier::Line { .. } => {
+            FramedCarrier::Conic { .. } | FramedCarrier::Line { .. } => {
                 let zero = Vec3::zero();
                 let (centre, a, b, l, origin, span) = match &self.carrier {
-                    FramedCarrier::Circle {
+                    FramedCarrier::Conic {
                         centre,
                         a,
                         b,
@@ -1107,7 +1107,7 @@ fn chart_of<T: Decide>(
                 let (d0, d1) = net.knot_values().domain();
                 net.eval(T::from_f64(0.5) * (d0 + d1)).z
             }
-            FramedCarrier::Circle { origin, span, .. }
+            FramedCarrier::Conic { origin, span, .. }
             | FramedCarrier::Line { origin, span, .. } => {
                 framed.eval(*origin + *span * T::from_f64(0.5)).z
             }
@@ -1189,8 +1189,9 @@ pub(crate) fn nappe_at<T: Decide>(
 /// home of the (carrier, chart) pairs the general lane is written for,
 /// read by the mint's lane choice (`chart_image`, through [`has_lane`])
 /// and by check 4's gates here. A spline net on any analytic chart; a
-/// circle on a sphere, cylinder, cone or torus, whose incidence term is
-/// the chart's form along the circle, a trigonometric polynomial, bounded
+/// circle or an ellipse on a sphere, cylinder, cone or torus, whose
+/// incidence term is the chart's form along the conic, a trigonometric
+/// polynomial, bounded
 /// by its harmonics' sups (`implicit::conic_form_sup`); and a line on a
 /// cylinder or a cone, whose incidence term is the chart's form along
 /// the line, a quadratic, bounded by its Bernstein coefficients over the
@@ -1199,12 +1200,12 @@ pub(crate) fn lane_of<T: Real>(carrier: &Curve3<T>, surface: &Surface<T>) -> Opt
     match (carrier, surface) {
         (Curve3::Nurbs(_), _) if crate::edge_nurbs::is_analytic(surface) => Some(Lane::Net),
         (
-            Curve3::Circle(..),
+            Curve3::Circle(..) | Curve3::Ellipse(..),
             Surface::Sphere { .. }
             | Surface::Cylinder { .. }
             | Surface::Cone { .. }
             | Surface::Torus { .. },
-        ) => Some(Lane::Circle),
+        ) => Some(Lane::Conic),
         (Curve3::Line(_), &Surface::Cylinder { radius, .. }) => {
             Some(Lane::Line(LineChart::Cylinder { radius }))
         }
@@ -1221,8 +1222,8 @@ pub(crate) fn lane_of<T: Real>(carrier: &Curve3<T>, surface: &Surface<T>) -> Opt
 pub(crate) enum Lane<T> {
     /// A spline carrier's net.
     Net,
-    /// A circle.
-    Circle,
+    /// A circle or an ellipse.
+    Conic,
     /// A line, on the chart it names.
     Line(LineChart<T>),
 }
@@ -1270,7 +1271,7 @@ fn period_gate(
 
 /// The projected image of `carrier` on `surface` (module docs), over the
 /// carrier's knot domain for a net and over `span` (or the carrier's own
-/// interval, `own_interval`) for a circle or a line.
+/// interval, `own_interval`) for a conic or a line.
 ///
 /// # Errors
 ///
@@ -1303,12 +1304,12 @@ pub(crate) fn project<T: Decide>(
     };
     let framed = match carrier {
         Curve3::Nurbs(net) => FramedCarrier::Net(Arc::new(framed_net(net, origin, &e))),
-        Curve3::Circle(..) => {
+        Curve3::Circle(..) | Curve3::Ellipse(..) => {
             let Some(form) = super::carrier_harmonic(carrier) else {
-                unreachable!("a circle has a harmonic form")
+                unreachable!("a conic has a harmonic form")
             };
             let (t0, t1) = span.unwrap_or_else(|| super::own_interval(carrier));
-            FramedCarrier::Circle {
+            FramedCarrier::Conic {
                 centre: to_frame(form.c - origin, &e),
                 a: to_frame(form.a, &e),
                 b: to_frame(form.b, &e),
@@ -1325,8 +1326,8 @@ pub(crate) fn project<T: Decide>(
                 span: t1 - t0,
             }
         }
-        Curve3::Ellipse(..) | Curve3::Spiric { .. } => {
-            unreachable!("project: `has_lane` admits no ellipse or spiric")
+        Curve3::Spiric { .. } => {
+            unreachable!("project: `has_lane` admits no spiric")
         }
     };
     let escalated = |cause| PcurveCertifyError::Escalated {
@@ -1346,14 +1347,14 @@ pub(crate) fn project<T: Decide>(
         v_sign: T::one(),
     };
     // The top-level pieces: a net's knot spans (a piece's hull is one
-    // span's Bézier restriction), a circle's or a line's one interval.
+    // span's Bézier restriction), a conic's or a line's one interval.
     let tops: Vec<f64> = match &image.carrier {
         FramedCarrier::Net(net) => net
             .knots_f64_interim()
             .knot_runs()
             .map(|(k, _)| k)
             .collect(),
-        FramedCarrier::Circle { .. } | FramedCarrier::Line { .. } => vec![0.0, 1.0],
+        FramedCarrier::Conic { .. } | FramedCarrier::Line { .. } => vec![0.0, 1.0],
     };
     if matches!(image.chart, ProjectedChart::Plane) {
         image.breaks = breaks_vector(&[tops[0], tops[tops.len() - 1]]);
@@ -1364,7 +1365,7 @@ pub(crate) fn project<T: Decide>(
     // the pieces the edge overlaps).
     let edge = match image.carrier {
         FramedCarrier::Net(_) => span,
-        FramedCarrier::Circle { .. } | FramedCarrier::Line { .. } => None,
+        FramedCarrier::Conic { .. } | FramedCarrier::Line { .. } => None,
     };
     let mut breaks = vec![tops[0]];
     let mut azimuth = Vec::new();
@@ -2607,17 +2608,17 @@ pub(super) fn projected_envelope<T: Decide>(
                 net_incidence(&hull, (t0, t1), image.chart.nappe(), &twin, d, band, false)?;
             (incidence, d, rho_floor)
         }
-        (FramedCarrier::Circle { centre, a, b, .. }, Curve3::Circle(..)) => {
+        (FramedCarrier::Conic { centre, a, b, .. }, Curve3::Circle(..) | Curve3::Ellipse(..)) => {
             let Some(form) = super::carrier_harmonic(carrier) else {
-                unreachable!("a circle has a harmonic form")
+                unreachable!("a conic has a harmonic form")
             };
-            let (Some(Lane::Circle), Some(conic), Some(meters)) = (
+            let (Some(Lane::Conic), Some(conic), Some(meters)) = (
                 lane_of(carrier, &twin),
                 carrier.conic(),
                 Meters::of(&twin, image.chart.nappe(), |x| x),
             ) else {
                 return Err(refuse(
-                    "a circle's projected image is written for a sphere, cylinder, cone or torus",
+                    "a conic's projected image is written for a sphere, cylinder, cone or torus",
                 ));
             };
             let (tc, ta, tb) = (
@@ -2629,21 +2630,21 @@ pub(super) fn projected_envelope<T: Decide>(
             // exact sup.
             let d = (*centre - tc).norm() + harmonic_sup(*a - ta, *b - tb);
             // The twin's radial floor: the stored pieces' boxes' less
-            // `d`, or the whole circle's (a quarter piece's box may hold
+            // `d`, or the whole conic's (a quarter piece's box may hold
             // the axis). Every point of the segment between the stored
-            // circle and its twin is within `d` of either.
+            // conic and its twin is within `d` of either.
             let (rho_box, z, floor_at) = met_floors(image, &met, (t0, t1), band)?;
             let rho_twin =
                 (rho_box - d).max(crate::implicit::conic_axis_distance_floor(conic, o, e[2]));
             let rho_floor = (rho_twin - d).max(T::zero());
             let Some(form_sup) = crate::implicit::conic_form_sup(&twin, conic) else {
-                return Err(refuse("the circle's chart has no form along a conic"));
+                return Err(refuse("the conic's chart has no form along it"));
             };
             let f = form_sup.bound();
             #[cfg(test)]
             let f = super::mutants::form_uncharged(form_sup.harmonics).unwrap_or(f);
             // The sphere's conversion reads `|ξ|`, which the axis floor
-            // also bounds; it is read at `0`, its whole-circle form.
+            // also bounds; it is read at `0`, its whole-turn form.
             let rho = match meters {
                 Meters::Sphere { .. } => T::zero(),
                 _ => rho_twin,
@@ -2927,13 +2928,13 @@ pub(super) fn run_projected_checks<T: Decide>(
                 }
             }
         }
-        (FramedCarrier::Circle { .. }, Curve3::Circle(..))
+        (FramedCarrier::Conic { .. }, Curve3::Circle(..) | Curve3::Ellipse(..))
         | (FramedCarrier::Line { .. }, Curve3::Line(_))
             if has_lane(carrier, surface) => {}
         _ => {
             return Err(refuse(
-                "the stored carrier is not the edge's carrier kind (a spline's net, a circle on \
-                 a curved analytic chart, or a line on a cylinder or a cone)",
+                "the stored carrier is not the edge's carrier kind (a spline's net, a circle or \
+                 an ellipse on a curved analytic chart, or a line on a cylinder or a cone)",
             ));
         }
     }

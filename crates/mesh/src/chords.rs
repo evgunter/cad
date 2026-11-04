@@ -746,7 +746,7 @@ pub(crate) fn sphere_uv_speeds(
     match pcurve {
         Pcurve::Harmonic { u, v } => Ok(harmonic_uv_speeds(*u, *v)),
         Pcurve::Projected(image) => {
-            let geom_brep::FramedCarrier::Circle { centre, a, b, .. } = image.carrier() else {
+            let geom_brep::FramedCarrier::Conic { centre, a, b, .. } = image.carrier() else {
                 return Err(refuse(
                     "trimmed sphere face bounded by the projected image of a spline carrier — \
                      the sphere arm bounds the UV speed of a circle's image only",

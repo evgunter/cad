@@ -543,13 +543,13 @@ fn frame_moves(
     let derived = projected::project(carrier, Some((t0, t1)), surface, band()).unwrap();
     match (&stored.carrier, &derived.carrier) {
         (
-            projected::FramedCarrier::Circle {
+            projected::FramedCarrier::Conic {
                 centre: c1,
                 a: a1,
                 b: b1,
                 ..
             },
-            projected::FramedCarrier::Circle {
+            projected::FramedCarrier::Conic {
                 centre: c0,
                 a: a0,
                 b: b0,
@@ -566,7 +566,7 @@ fn shift_frame<T: Real>(
     [dc, da, db]: [Vec3<f64>; 3],
 ) -> projected::ProjectedImage<T> {
     let lift = |v: Vec3<f64>| Vec3::new(T::from_f64(v.x), T::from_f64(v.y), T::from_f64(v.z));
-    if let projected::FramedCarrier::Circle {
+    if let projected::FramedCarrier::Conic {
         ref mut centre,
         ref mut a,
         ref mut b,
@@ -614,7 +614,7 @@ fn projected_circle_a_moved_frame_reads_once() {
     let span = (0.3, 2.1);
     let mut stored = projected::project(&carrier, Some(span), &sphere, band()).unwrap();
     let d = 0.75 * zero();
-    if let projected::FramedCarrier::Circle {
+    if let projected::FramedCarrier::Conic {
         ref mut a,
         ref mut b,
         ..

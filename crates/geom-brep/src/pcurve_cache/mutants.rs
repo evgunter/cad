@@ -24,7 +24,7 @@ const NAME: Option<&str> = option_env!("PCERT_RADIAL_PAIR_MUTANT");
 
 /// Every site this crate's hooks name. topo's `chord_join` declares its
 /// own two (`topo-gate`, `topo-v-var`) under the same variable.
-pub(super) const SITES: [&str; 22] = [
+pub(super) const SITES: [&str; 25] = [
     "class-circle",
     "zero-winding",
     "torus-parallel",
@@ -47,6 +47,9 @@ pub(super) const SITES: [&str; 22] = [
     "form-uncharged",
     "lane-envelope-bound",
     "cone-terms-unprojected",
+    "semi-reach-signed",
+    "charge-circular",
+    "ellipse-term-dropped",
 ];
 
 fn on(site: &str) -> bool {
@@ -232,4 +235,27 @@ pub(crate) fn lane_envelope_bound() -> bool {
 /// `circle_lane_rows`).
 pub(crate) fn cone_terms_unprojected() -> bool {
     on("cone-terms-unprojected")
+}
+
+/// A conic's harmonic reach read off its stored semi-axes signed
+/// ([`geom::Conic::speed_hi`]), not their magnitudes: the charge
+/// under-reads a conic stored with a negative semi-axis (its rows are
+/// `ellipse_lane_rows`).
+pub(crate) fn semi_reach_signed() -> bool {
+    on("semi-reach-signed")
+}
+
+/// A conic's charge read as a circle's, `|a| = |b|`: the reach and the
+/// cone's levers read the first semi-axis for both, so an ellipse whose
+/// second is the larger is under-charged (its rows are
+/// `ellipse_lane_rows`).
+pub(crate) fn charge_circular() -> bool {
+    on("charge-circular")
+}
+
+/// The second harmonic's cosine coefficient read as a circle's, the
+/// ellipse's `(a² − b²)` part dropped: the form's bound misses an
+/// eccentric ellipse's (its rows are `ellipse_lane_rows`).
+pub(crate) fn ellipse_term_dropped() -> bool {
+    on("ellipse-term-dropped")
 }

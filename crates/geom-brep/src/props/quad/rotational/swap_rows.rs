@@ -596,7 +596,7 @@ fn rim_circle(
 ) -> EdgeTermQ {
     let r = pt(chart.r);
     EdgeTermQ::Projected(ProjectedEdgeQ {
-        carrier: FramedQ::Circle {
+        carrier: FramedQ::Conic {
             centre: [Interval::zero(), Interval::zero(), pt(z)],
             a: [r, Interval::zero(), Interval::zero()],
             b: [Interval::zero(), r, Interval::zero()],
@@ -611,7 +611,7 @@ fn rim_circle(
 }
 
 /// **A projected circle holds the closed form**: the rectangle's bottom
-/// rim read as a circle in the chart's frame (`FramedQ::Circle`, cut at
+/// rim read as a circle in the chart's frame (`FramedQ::Conic`, cut at
 /// a break inside it), the rest harmonic, about the chart's own origin.
 #[test]
 fn a_projected_circle_holds_the_closed_form() {
