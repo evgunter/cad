@@ -9,10 +9,11 @@
 //! (`reduce::spline_off_carrier`).
 //!
 //! The union then stops further on, describing the result's rim arc
-//! between the cylinder and the spline wall: the wall's chart is two
-//! rational arcs, and the arc's ends sit on their tangent-continuous
-//! joint, which the describer reads as a crease
-//! (`work/splice/a-closed-charts-seam-continuity-has-no-home.md`).
+//! between the cylinder and the spline wall. Each of the tube's two wall
+//! faces is a semicircle made of two rational arcs, whose joint is a knot
+//! of multiplicity the degree inside the arc, tangent continuous, and the
+//! describer reads it as a crease by its multiplicity alone
+//! (`work/splice/a-meeting-on-a-g1-arc-joint-of-a-spline-face-refuses-as-a-crease.md`).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -86,11 +87,12 @@ fn tube(end: Point3<f64>) -> AtRestBody<f64> {
 
 /// The tube bends toward `+x`, so its wall leaves the cylinder above
 /// the rim on every piece: the rim arc is taken, and the union goes on.
-/// Where it stops depends on the band. At a band of `1e-6` the tube's
-/// edge 4v1, which leaves the rim tangent to the cylinder, is read in
-/// band of the wall (an honest escalation, a second-order departure
-/// inside a wide band). Elsewhere it stops describing the result's rim
-/// arc on the wall's arc joint.
+/// Where it stops depends on the run's ε. At `1e-6` the tube's edge 4v1,
+/// which leaves the rim tangent to the cylinder, is read in band of the
+/// wall (an honest escalation, a second-order departure inside a wide
+/// band). At `1e-9` and `1e-12` it stops describing the result's rim arc
+/// on the wall's arc joint. Any other ε is unmeasured, and only the
+/// arc's being taken is asserted there.
 #[test]
 fn a_rim_arc_beside_a_bent_spline_wall_is_taken_on_the_cylinder() {
     let got = topo::union(&cylinder(), &tube(Point3::new(1.5, 0.0, 3.0)), tol());
@@ -99,8 +101,8 @@ fn a_rim_arc_beside_a_bent_spline_wall_is_taken_on_the_cylinder() {
         "the cap's rim arc lies on the cylinder beside a spline wall off it: {got:?}"
     );
     let key = |k: &dyn core::fmt::Debug| format!("{k:?}");
-    let wide = geom_core::Band::linear(tol()).unwrap().zero() > 1e-7;
-    if wide {
+    let eps = tol().eps();
+    if eps == 1e-6 {
         assert!(
             matches!(
                 &got,
@@ -109,9 +111,9 @@ fn a_rim_arc_beside_a_bent_spline_wall_is_taken_on_the_cylinder() {
                         && key(edge) == "EdgeKey(4v1)"
                         && diag.predicate == Some("spline_composite_past_the_band")
             ),
-            "at a wide band the tube's tangent edge escalates against the wall: {got:?}"
+            "at ε 1e-6 the tube's tangent edge escalates against the wall: {got:?}"
         );
-    } else {
+    } else if eps == 1e-9 || eps == 1e-12 {
         assert!(
             matches!(
                 &got,
@@ -125,4 +127,39 @@ fn a_rim_arc_beside_a_bent_spline_wall_is_taken_on_the_cylinder() {
             "the union stops describing the result's rim arc on the wall's arc joint: {got:?}"
         );
     }
+}
+
+/// The joint the describer stops on is tangent continuous: each of the
+/// tube's spline wall faces has one interior `u` run, of multiplicity the
+/// degree (a crease by multiplicity), and its one-sided `∂u` agree there.
+#[test]
+fn the_tube_walls_u_joint_is_tangent_continuous() {
+    let t = tube(Point3::new(1.5, 0.0, 3.0));
+    let mut walls = 0;
+    for (k, _) in t.faces() {
+        let Some(geom::Surface::Nurbs(s)) = t.face_surface(k) else {
+            continue;
+        };
+        walls += 1;
+        let ku: Vec<(f64, usize)> = s.knot_values_u().runs().collect();
+        let interior = &ku[1..ku.len() - 1];
+        assert_eq!(interior.len(), 1, "face {k:?}: one interior u run, {ku:?}");
+        let (b, m) = interior[0];
+        assert_eq!(
+            m,
+            s.knot_values_u().degree(),
+            "face {k:?}: a run of multiplicity the degree"
+        );
+        for v in [0.0, 0.3, 0.7] {
+            let h = 1e-6;
+            let p = s.eval(b, v);
+            let left = (p - s.eval(b - h, v)) / h;
+            let right = (s.eval(b + h, v) - p) / h;
+            assert!(
+                (left - right).norm() <= 1e-3 * left.norm(),
+                "face {k:?} at u = {b}, v = {v}: one-sided ∂u {left:?} and {right:?}"
+            );
+        }
+    }
+    assert_eq!(walls, 2, "the tube's wall is two spline faces");
 }

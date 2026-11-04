@@ -4156,6 +4156,9 @@ fn parents_distinct_from<T: Decide>(
 /// analytic carrier under.
 const SHEET_OFF_CARRIER: &str = "bool_spline_sheet_off_carrier";
 
+/// The site [`spline_off_carrier`] decides a torus carrier a ring under.
+const SHEET_RING_TORUS: &str = "bool_spline_sheet_ring_torus";
+
 /// **Whether spline sheet `sheet` lies on analytic `carrier` along no
 /// piece**: true where every Bézier piece of the net (each cell between
 /// consecutive distinct breakpoints of both knot vectors, whatever their
@@ -4164,21 +4167,50 @@ const SHEET_OFF_CARRIER: &str = "bool_spline_sheet_off_carrier";
 /// otherwise, a piece with every point on or in band included. It never
 /// reads the two as one.
 ///
-/// On one piece the sheet is a rational polynomial patch, and a plane, a
-/// cylinder, a sphere, a torus and the double cone are algebraic, so the
-/// carrier's equation along the patch, cleared of its weight, is a
+/// On one piece the sheet is a rational polynomial patch, so the
+/// carrier's polynomial equation along it, cleared of its weight, is a
 /// polynomial in the piece's two parameters. A patch lying on the carrier
 /// over any open set makes that polynomial zero there, so zero over the
-/// whole piece: one point of the piece definitely off certifies the piece
+/// whole piece, and the patch lies on the carrier's whole real variety.
+/// One point of the piece off that VARIETY therefore certifies the piece
 /// lies on the carrier along no part of it. Across a breakpoint the
 /// polynomial changes, so every piece is read, and one piece read off
 /// says nothing of another.
+///
+/// The decided residual is read as "off the variety", so the argument
+/// holds only for a carrier whose residual vanishes on its whole real
+/// variety: a plane, a cylinder, a sphere, a ring torus (`R > r`,
+/// decided here under [`SHEET_RING_TORUS`]) and a cone, whose residual
+/// reads both nappes (`|h|`). Every other carrier is unread. A spindle's
+/// residual vanishes on one of its torus's two sheets, while the quartic
+/// vanishes on both: a patch lying on the read sheet over an open set and
+/// running on into the other reads off there, so the spindle is out, as
+/// is every kind not listed.
 fn spline_off_carrier<T: Decide>(
     sheet: &geom::NurbsSurface<T>,
     carrier: &geom::Surface<T>,
     band: Band,
 ) -> bool {
-    if matches!(carrier, geom::Surface::Nurbs(_) | geom::Surface::Approx(_)) {
+    let whole_variety = match *carrier {
+        geom::Surface::Plane { .. }
+        | geom::Surface::Cylinder { .. }
+        | geom::Surface::Sphere { .. }
+        | geom::Surface::Cone { .. } => true,
+        geom::Surface::Torus {
+            major_radius,
+            minor_radius,
+            ..
+        } => matches!(
+            crate::validate::decide(
+                SHEET_RING_TORUS,
+                Margin::of(major_radius - minor_radius),
+                band
+            ),
+            Ok(Sign::Positive)
+        ),
+        _ => false,
+    };
+    if !whole_variety {
         return false;
     }
     // Clamped, so the first and last runs are the domain's ends.
@@ -4302,6 +4334,163 @@ mod spline_off_carrier_rows {
             &cylinder(),
             band()
         ));
+    }
+}
+
+/// **A sheet reads off only where a point is decided off the carrier's
+/// whole variety** ([`spline_off_carrier`]): a spindle, whose residual
+/// sees one of its two sheets, a sheet in band on every piece, and the
+/// cone's mirror nappe all stay unread.
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod spline_off_carrier_review_rows {
+    use super::spline_off_carrier;
+    use geom::{NurbsSurface, Surface};
+    use geom_core::spline::{KnotVector, Knots};
+    use geom_core::{Band, Point3, Tol, Vec3};
+
+    fn band() -> Band {
+        Band::linear(Tol::witness()).unwrap()
+    }
+
+    /// A quarter turn about `z` of the rational profile `rows` of
+    /// `(radius, height, weight)` in one meridian half-plane, a single
+    /// Bézier piece of degree `rows.len() - 1` in `v`.
+    fn revolved(rows: &[(f64, f64, f64)]) -> NurbsSurface<f64> {
+        let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        let p = rows.len() - 1;
+        let mut kv = vec![0.0; p + 1];
+        kv.extend(vec![1.0; p + 1]);
+        let kv = KnotVector::clamped(kv, p).unwrap();
+        let w = core::f64::consts::FRAC_1_SQRT_2;
+        let mut control = Vec::new();
+        let mut weights = Vec::new();
+        for (dir, wu) in [((1.0, 0.0), 1.0), ((1.0, 1.0), w), ((0.0, 1.0), 1.0)] {
+            for &(r, z, wv) in rows {
+                control.push(Point3::new(r * dir.0, r * dir.1, z));
+                weights.push(wu * wv);
+            }
+        }
+        NurbsSurface::new(Knots::from(ku), Knots::from(kv), control, weights).unwrap()
+    }
+
+    /// An apple spindle (`R = 0.5`, `r = 1`) and the exact revolved
+    /// meridian arc from 90° to 150°, across the apex at 120°. Below the
+    /// apex (`v < 0.5`) the sheet IS the spindle's sheet over an open
+    /// set; past it the meridian circle runs on into the other sheet of
+    /// the same algebraic torus, which the spindle's residual reads off.
+    /// The sheet lies on the carrier over an open set, so it must not
+    /// read distinct from it.
+    #[test]
+    fn a_sheet_on_a_spindle_across_its_apex_stays_unread() {
+        let spindle = Surface::Spindle {
+            center: Point3::origin(),
+            axis: Vec3::unit_z(),
+            major_radius: 0.5,
+            minor_radius: 1.0,
+            u_ref: Vec3::unit_x(),
+        };
+        let (c, s) = (0.5_f64, 0.0_f64);
+        let at = |deg: f64| {
+            let t = deg.to_radians();
+            (c + t.cos(), s + t.sin())
+        };
+        let (p0, p2) = (at(90.0), at(150.0));
+        let half = 30.0_f64.to_radians();
+        let mid = 120.0_f64.to_radians();
+        let p1 = (c + mid.cos() / half.cos(), s + mid.sin() / half.cos());
+        let s = revolved(&[
+            (p0.0, p0.1, 1.0),
+            (p1.0, p1.1, half.cos()),
+            (p2.0, p2.1, 1.0),
+        ]);
+        // The premise: the sheet's lower part is on the spindle.
+        let on = s.eval(0.5, 0.25);
+        let r = geom_brep::implicit::implicit_residual(&spindle, on);
+        assert!(
+            r.abs() < 1e-12,
+            "the sheet's lower part lies on the spindle: {r}"
+        );
+        assert!(
+            !spline_off_carrier(&s, &spindle, band()),
+            "a sheet on the spindle over an open set reads distinct from it"
+        );
+    }
+
+    /// Each other carrier the gate admits reads a sheet off it as
+    /// distinct, and a sheet on it as unread: a plane, a sphere and a ring
+    /// torus, each with an exact rational sheet lying on it.
+    #[test]
+    fn a_plane_a_sphere_and_a_ring_torus_read_a_sheet_off_them_and_not_one_on_them() {
+        let w = core::f64::consts::FRAC_1_SQRT_2;
+        let plane = Surface::Plane {
+            origin: Point3::new(0.0, 0.0, 0.5),
+            normal: Vec3::unit_z(),
+            u_ref: Vec3::unit_x(),
+        };
+        let flat = revolved(&[(1.0, 0.5, 1.0), (2.0, 0.5, 1.0)]);
+        let raised = revolved(&[(1.0, 1.0, 1.0), (2.0, 1.0, 1.0)]);
+        assert!(!spline_off_carrier(&flat, &plane, band()));
+        assert!(spline_off_carrier(&raised, &plane, band()));
+
+        let sphere = Surface::Sphere {
+            center: Point3::origin(),
+            radius: 1.0,
+            u_ref: Vec3::unit_x(),
+            axis: Vec3::unit_z(),
+        };
+        let cap = revolved(&[(1.0, 0.0, 1.0), (1.0, 1.0, w), (0.0, 1.0, 1.0)]);
+        let wall = revolved(&[(1.0, 0.0, 1.0), (1.0, 1.0, 1.0)]);
+        assert!(!spline_off_carrier(&cap, &sphere, band()));
+        assert!(spline_off_carrier(&wall, &sphere, band()));
+
+        let torus = Surface::Torus {
+            center: Point3::origin(),
+            axis: Vec3::unit_z(),
+            major_radius: 2.0,
+            minor_radius: 0.5,
+            u_ref: Vec3::unit_x(),
+        };
+        let tube = revolved(&[(2.5, 0.0, 1.0), (2.5, 0.5, w), (2.0, 0.5, 1.0)]);
+        let above = revolved(&[(2.0, 1.0, 1.0), (2.0, 2.0, 1.0)]);
+        assert!(!spline_off_carrier(&tube, &torus, band()));
+        assert!(spline_off_carrier(&above, &torus, band()));
+    }
+
+    /// A cylinder patch pushed out by half the band's escalation: every
+    /// point is in band, none off, so the sheet stays unread.
+    #[test]
+    fn a_sheet_in_band_of_the_cylinder_stays_unread() {
+        let b = band();
+        let d = 0.5 * b.escalate();
+        assert!(b.zero() < d, "the band has room between its edges");
+        let cylinder = Surface::Cylinder {
+            origin: Point3::origin(),
+            axis: Vec3::unit_z(),
+            radius: 1.0,
+            u_ref: Vec3::unit_x(),
+        };
+        let s = revolved(&[(1.0 + d, 0.0, 1.0), (1.0 + d, 1.0, 1.0)]);
+        assert!(!spline_off_carrier(&s, &cylinder, b));
+    }
+
+    /// A sheet on the cone's MIRROR nappe, and one through the apex onto
+    /// it: both lie on the double cone, so both stay unread.
+    #[test]
+    fn a_sheet_on_the_cones_mirror_nappe_stays_unread() {
+        let cone = Surface::Cone {
+            apex: Point3::origin(),
+            axis: Vec3::unit_z(),
+            half_angle: core::f64::consts::FRAC_PI_4,
+            u_ref: Vec3::unit_x(),
+        };
+        let mirror = revolved(&[(1.0, -1.0, 1.0), (2.0, -2.0, 1.0)]);
+        assert!(!spline_off_carrier(&mirror, &cone, band()));
+        let through = revolved(&[(1.0, 1.0, 1.0), (-1.0, -1.0, 1.0)]);
+        assert!(!spline_off_carrier(&through, &cone, band()));
+        // And a sheet off it does read off: the rows can go red.
+        let off = revolved(&[(1.0, -2.0, 1.0), (2.0, -1.0, 1.0)]);
+        assert!(spline_off_carrier(&off, &cone, band()));
     }
 }
 
