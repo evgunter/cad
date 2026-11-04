@@ -759,9 +759,12 @@ form, and needs no general lane there); a
 line within the band of a sphere or a torus, which hold none; and
 every carrier on a spindle chart. Whether a line is a ruling of a
 cylinder or a cone is one reading (`ruling_miss`), shared by the mint,
-props and the boolean: how far the line leaves the ruling over the
-edge's span, in metres. On a cone, that is the generator the line's
-anchor names, through the apex. Whether the carrier lies
+props and the boolean: the line's greatest distance over the edge's
+span from the ruling, in metres. The ruling is anchored where the
+closed form places its image, so the reading is that image's miss: on
+a cylinder, the ruling through the line's origin; on a cone, the
+generator through the apex that the line's anchor names. A reader
+that images nothing anchors the line at its span's start. Whether the carrier lies
 on the chart at all is a residual, not a class gate: a definite miss
 is a contradiction between what the edge states and its geometry,
 ended by the door that reads it (D4 ¶1 (iv)), and a read in band, at a

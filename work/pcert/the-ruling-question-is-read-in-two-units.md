@@ -51,14 +51,19 @@ Each needs a row with a short and a long edge on one tilt, red today.
 
 ## Closed
 
-PR 6504. `pcurve_cache::ruling_miss` is the one home. It meters a
-line's departure from its chart's ruling over the edge's span, in
-metres. It is read by:
+PR 6504. `pcurve_cache::ruling_miss` is the one home: a line's greatest
+distance, over the edge's span, from its chart's ruling, in metres. The
+ruling is anchored where the closed form places its image: on a
+cylinder, the ruling through the line's origin; on a cone, the
+generator the arm names.
 
-- the mint's cylinder arm (over `Placement`'s span);
-- props' `props_meridian_axial`;
+Readers:
+- the mint's cylinder and cone arms;
+- props' `props_meridian_axial` and `props_meridian_generator`, with
+  the line anchored at its span's start (the cone's two predicates,
+  which read `‖dir‖`, fold into the one reading);
 - topo's `solid_contain::wall_crosses_by_turn`.
 
-`chart_iso_family` takes the edge's span (`edge_join` passes
-`EdgeCurve::params`). Rows: `pcurve_cache::ruling_reading_rows`, red
-under the `ruling-per-parameter` mutant.
+`chart_iso_family` takes the edge's span. Rows are
+`pcurve_cache::ruling_reading_rows` and `props::curved::ruling_scale_rows`,
+red under the `ruling-per-parameter` and `ruling-unplaced` mutants.

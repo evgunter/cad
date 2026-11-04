@@ -508,8 +508,9 @@ fn an_in_band_tilt_takes_the_general_lane_on_each_chart() {
 /// its tilt times the span's reach from the origin, not times the span's
 /// length. Read so, it takes the general lane and certifies, on the
 /// cylinder (the review's probes, and one with the span before the
-/// origin) and on the cone (turned in the tangent plane at its anchor,
-/// both nappes); a true ruling read there keeps its closed form. Red
+/// origin) and, in [`the_cone_reading_is_placed_over_the_span`], on the
+/// cone (turned in the tangent plane at its anchor, both nappes); a true
+/// ruling read there keeps its closed form. Red
 /// under `ruling-unplaced`, which reads the span's length: each tilted
 /// line then reads Zero, takes the closed form, and check 4 refuses it.
 #[test]
@@ -554,7 +555,12 @@ fn the_reading_is_anchored_where_the_image_is() {
             && matches!(d_i, Ok(Derivation::CylinderMeridian)),
         "a ruling read far from its origin keeps the meridian form: {d:?} / {d_i:?}"
     );
+}
 
+/// The cone's half of [`the_reading_is_anchored_where_the_image_is`],
+/// its own row so `ruling-unplaced` is shown red on each chart.
+#[test]
+fn the_cone_reading_is_placed_over_the_span() {
     let surface = cone();
     let (k, l) = (2.0, 1e-2);
     let theta = (10.0 * band().escalate() / (k + l)).asin();
@@ -581,5 +587,47 @@ fn the_reading_is_anchored_where_the_image_is() {
             "σ {sigma}: a generator read far from its anchor keeps the closed form: {d:?} / \
              {d_i:?}"
         );
+    }
+}
+
+/// **A line read across the apex that is no generator ends "not yet"**:
+/// a generator anchored at height `0.3` shifted along the rim's tangent
+/// by `s` = `1.02` and `1.1·zero`, read over a span through the apex. It
+/// passes the apex `s` to the side, `s·cos α` off the cone (within the
+/// zero band), and leaves its generator in band. It takes the general
+/// lane, whose partition finds no sector across the apex, and ends there
+/// (`NoGeneralLane { Pose }` or the lane's own escalation) at both
+/// scalars and on both nappes; never the generator's closed form, and
+/// never a check-4 miss. Shifted further, it is off the cone at the apex,
+/// which the sampled incidence test does not show
+/// (`work/pcert/a-line-passing-a-cones-apex-off-the-cone-reads-on-to-the-sampled-incidence.md`).
+/// Red under `cone-ruling-gate`, which takes the closed form.
+#[test]
+fn a_line_across_the_apex_that_is_no_generator_ends_not_yet() {
+    let surface = cone();
+    let f = Interval::from_f64;
+    for sigma in [1.0, -1.0] {
+        let (anchor, g, tangent) = cone_at(-2.5, sigma, 0.3);
+        for k in [1.02, 1.1] {
+            for span in [(-0.5, 0.5), (-0.4, 1.0)] {
+                let what = format!("σ {sigma}, shifted {k}·zero, over {span:?}");
+                let carrier = Curve3::line(anchor + tangent * (k * zero()), g);
+                let [d, d_i] = derivations(&carrier, span, &surface);
+                assert!(
+                    !matches!(d, Ok(Derivation::ConeRuling { .. }))
+                        && !matches!(d_i, Ok(Derivation::ConeRuling { .. })),
+                    "{what}: not the generator's closed form: {d:?} / {d_i:?}"
+                );
+                let (carrier_i, surface_i) = lift(&carrier, &surface);
+                let at_f64 = chart_pcurve_over(&carrier, span.0, span.1, &surface, band());
+                let at_interval =
+                    chart_pcurve_over(&carrier_i, f(span.0), f(span.1), &surface_i, band());
+                assert!(
+                    at_f64.as_ref().err().is_some_and(not_yet)
+                        && at_interval.as_ref().err().is_some_and(not_yet),
+                    "{what}: ends not yet at both scalars: {at_f64:?} / {at_interval:?}"
+                );
+            }
+        }
     }
 }

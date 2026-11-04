@@ -6610,3 +6610,50 @@ mod apex_start_rows;
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::panic)]
 mod turn_rows;
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod ruling_scale_rows {
+    //! Props' ruling readings are the line's, not its parametrisation's:
+    //! a line read with its `dir` scaled and its span scaled back answers
+    //! alike, on the cone (`props_meridian_generator`) and the cylinder
+    //! (`props_meridian_axial`).
+    use super::*;
+    use geom_core::Tol;
+
+    fn band() -> Band {
+        Band::linear(Tol::witness()).unwrap()
+    }
+
+    /// A cone generator, and the same shifted `s` along the rim's tangent
+    /// so it stands `zero/2` off the cone (`s²·cos α/2ρ`) and misses the
+    /// apex by about `s/2`, far past the band; each read with `dir` unit
+    /// and scaled `1e-3` and `1e3`: the generator passes and the shifted
+    /// line refuses `props_meridian_generator`, at every scale. Before
+    /// the reading took the home, a shifted line read with `dir` scaled
+    /// `1e-3` passed.
+    #[test]
+    fn a_cone_generator_reads_alike_at_every_scale() {
+        let apex = Point3::new(0.0, 0.0, 0.0);
+        let axis = Vec3::unit_z();
+        let (sin_a, cos_a) = 0.5f64.sin_cos();
+        let g = Vec3::new(sin_a, 0.0, cos_a);
+        let shift = (band().zero() * sin_a / cos_a / cos_a).sqrt();
+        for (shift, generator) in [(0.0, true), (shift, false)] {
+            for k in [1.0, 1e-3, 1e3] {
+                let carrier = Curve3::line(apex + g + Vec3::new(0.0, shift, 0.0), g * k);
+                let e = LoopEdge::hand_built(carrier, 0.0, 1.0 / k, true, 0, 1);
+                let read = require_cone_generator(apex, axis, sin_a, cos_a, g * k, &e, band());
+                match (generator, &read) {
+                    (true, Ok(())) => {}
+                    (
+                        false,
+                        Err(PropsError::NotIsoRectangle {
+                            what: "props_meridian_generator",
+                        }),
+                    ) => {}
+                    _ => panic!("shift {shift:e}, dir ×{k:e}: {read:?}"),
+                }
+            }
+        }
+    }
+}
