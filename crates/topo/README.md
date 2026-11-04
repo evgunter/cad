@@ -996,14 +996,14 @@ reparents only within one shell (`EulerOpError::CrossShell`).
   decides the branch, and nothing is compared between the two edges.
   The iso-family arm is a class reading of each carrier, so a boolean
   whose join makes two of its input edges one on it records that
-  reading's Zero, both edges' jointly, as one coincidence row naming the
-  two (`DecisionSite::IsoJoin`, one carrier continuing) for the
-  `unproven-coincidence` lint ([coincidence]); a join of two pieces of
-  one input edge is that edge read twice, and a join of two edges whose
-  descriptions name one surface pair is that pair's locus read twice,
-  so neither records anything. A
-  pole, a cone's apex or any point where the locus is not one curve is
-  never joinable; a reading of the vertex in the margin band refuses
+  reading's Zero, the most either carrier misses its family by, as one
+  coincidence row naming the two (`DecisionSite::IsoJoin`, one carrier
+  continuing) for the `unproven-coincidence` lint ([coincidence]); a
+  join of two pieces of one input edge is that edge read twice, and a
+  join of two edges whose descriptions name one surface pair is that
+  pair's locus read twice, so neither records anything. A pole, a
+  cone's apex or any point where the locus is not one curve is never
+  joinable; a reading of the vertex in the margin band refuses
   typed. A closed edge the join makes keeps one *conventional vertex*:
   a vertex whose only edge is that one closed edge, at both its ends.
   Its position, and the edge's parameter origin and witness that hang

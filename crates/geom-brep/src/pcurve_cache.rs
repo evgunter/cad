@@ -9662,9 +9662,9 @@ fn derive_class<T: Decide>(
 /// **The Zero a class reading stands on**: the class's own gates the
 /// derivation decided Zero (a ruling's radial motion, a rim's or a
 /// parallel's tilt and centre, a meridian's plane through the axis and
-/// its centre), jointly with the incidence test's margin
-/// ([`geom_core::MarginDiag::jointly`]), the gate read last its
-/// reading. A cylinder's circle and a cone's line are their chart's
+/// its centre) and the incidence test's margin, as the largest of them
+/// ([`geom_core::MarginDiag::worst`]): the most the carrier misses its
+/// class by. A cylinder's circle and a cone's line are their chart's
 /// class by incidence alone, so theirs is the test's. `None` where the
 /// derivation refuses or takes the general lane. It reads the
 /// derivation [`chart_iso_family`] reads, decision for decision, for a
@@ -9689,10 +9689,10 @@ pub fn chart_iso_zero<T: Decide>(
     zero
 }
 
-/// `zero` with `margin` noted jointly, `margin` its reading
+/// `zero` with `margin` noted, the larger of the two kept
 /// ([`chart_iso_zero`]).
 fn note_zero(zero: &mut Option<geom_core::MarginDiag>, margin: geom_core::MarginDiag) {
-    *zero = Some(zero.map_or(margin, |held| margin.jointly(held)));
+    *zero = Some(zero.map_or(margin, |held| margin.worst(held)));
 }
 
 /// A class gate: [`decide`], its Zero noted in `zero`

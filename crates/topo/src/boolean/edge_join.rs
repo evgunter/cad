@@ -121,8 +121,9 @@ struct Join {
 
 /// **The class Zero a join acted on**: `gone` and `kept` (keys as the
 /// join found them) were made one edge because each carrier was read on
-/// one iso family of `face`'s chart, and `margin` is the two readings'
-/// Zeros jointly ([`geom_brep::chart_iso_zero`]). The boolean records
+/// one iso family of `face`'s chart, and `margin` is the most either
+/// carrier misses that family by: the largest of both readings' Zeros
+/// ([`geom_brep::chart_iso_zero`]). The boolean records
 /// it as a coincidence (`[coincidence.door]`).
 #[derive(Clone, Copy, Debug)]
 pub(super) struct ClassZero {
@@ -745,7 +746,8 @@ pub(super) fn join_stage<T: Decide + crate::props::AtRestPolicy>(
 }
 
 /// The class Zero `join` acts on, read on `face`'s chart: each edge's
-/// iso-family reading's Zero ([`geom_brep::chart_iso_zero`]), jointly.
+/// iso-family reading's Zero ([`geom_brep::chart_iso_zero`]), the
+/// larger kept ([`geom_core::MarginDiag::worst`]).
 ///
 /// # Errors
 ///
@@ -769,7 +771,7 @@ fn class_zero<T: Decide>(
     Ok(ClassZero {
         gone: join.gone,
         kept: join.kept,
-        margin: zero(join.kept)?.jointly(zero(join.gone)?),
+        margin: zero(join.kept)?.worst(zero(join.gone)?),
     })
 }
 
@@ -2170,7 +2172,7 @@ mod class_zero_rows {
     /// Where the wall starts, off the chart's seam.
     const U0: f64 = 0.3;
 
-    fn ruled<T: Decide + crate::props::AtRestPolicy>(tilt: f64, tol: Tol) -> Body<T> {
+    fn ruled<T: Decide + crate::props::AtRestPolicy>(tilt: f64, off: f64, tol: Tol) -> Body<T> {
         let c = T::from_f64;
         let mut body = Body::<T>::new();
         let face = crate::test_support::cyl_wall_sheet(
@@ -2222,7 +2224,10 @@ mod class_zero_rows {
         let length = (to - from).norm();
         let spec = geom_brep::EdgeCurveSpec {
             description: geom_brep::EdgeDescriptionSpec::chart(surface),
-            carrier: geom::Curve3::Line(geom::Line { origin: from, dir }),
+            carrier: geom::Curve3::Line(geom::Line {
+                origin: from + Vec3::new(c(c0 * off), c(s0 * off), c(0.0)),
+                dir,
+            }),
             param_start: c(0.0),
             param_end: length,
         };
@@ -2234,10 +2239,11 @@ mod class_zero_rows {
 
     fn joined_ruled<T: Decide + crate::props::AtRestPolicy>(
         tilt: f64,
+        off: f64,
     ) -> Result<(usize, Vec<super::ClassZero>), BooleanError> {
         let tol = Tol::witness();
         let band = Band::linear(tol).unwrap();
-        let mut body = ruled::<T>(tilt, tol);
+        let mut body = ruled::<T>(tilt, off, tol);
         let (joins, _, zeros) = join_all(&mut body, band, tol, &|_| true, &BTreeSet::new())?;
         Ok((joins.len(), zeros))
     }
@@ -2247,11 +2253,26 @@ mod class_zero_rows {
     >(
         scalar: &str,
     ) {
-        let (joins, zeros) = joined_ruled::<T>(0.0).unwrap();
+        // The restated piece stands off the wall by half the band's
+        // zero, which its incidence reads and the row must carry.
+        let off = 0.5 * Tol::witness().eps();
+        let (joins, zeros) = joined_ruled::<T>(0.0, off).unwrap();
+        let [zero] = zeros.as_slice() else {
+            panic!("{scalar}: one class Zero for the one join, got {zeros:?}");
+        };
         assert_eq!(
-            (joins, zeros.len()),
-            (1, 1),
-            "{scalar}: the two pieces of the ruling are one edge, joined on their class Zero"
+            joins, 1,
+            "{scalar}: the two pieces of the ruling are one edge"
+        );
+        let reach = match zero.margin.diagnostic_f64_for_error_text() {
+            geom_core::ErrorTextReading::Value(v) => v.abs(),
+            geom_core::ErrorTextReading::Enclosure { lo, hi } => lo.abs().max(hi.abs()),
+            other => panic!("{scalar}: the Zero reads a margin, got {other:?}"),
+        };
+        assert!(
+            reach >= 0.5 * off,
+            "{scalar}: the row carries the most a carrier misses its family by ({off:e} off the \
+             wall), got {reach:e}"
         );
     }
 
@@ -2267,7 +2288,7 @@ mod class_zero_rows {
 
     fn a_tilt_in_band_refuses_on_its_lever<T: Decide + crate::props::AtRestPolicy>(scalar: &str) {
         let eps = Tol::witness().eps();
-        let Err(refusal) = joined_ruled::<T>(3.0 * eps) else {
+        let Err(refusal) = joined_ruled::<T>(3.0 * eps, 0.0) else {
             panic!("{scalar}: a ruling turned in band refuses the join");
         };
         let BooleanError::JoinUndecided(undecided) = &refusal else {

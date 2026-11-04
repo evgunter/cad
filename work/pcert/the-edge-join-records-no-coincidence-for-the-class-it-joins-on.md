@@ -48,8 +48,8 @@ lever; a definite reading keeps the edges apart.
 ## Resolution
 
 PR 6512. `geom_brep::chart_iso_zero` reports the Zero a class reading
-stands on (the class gates `derive_class` decided Zero, jointly with
-the incidence test's margin, which `Incidence::On` now carries);
+stands on (the largest of the class gates `derive_class` decided Zero
+and the incidence test's margin, which `Incidence::On` now carries);
 `chart_iso_family` is unchanged. `edge_join::join_all` hands back a
 `ClassZero` for each join made on an iso family, and
 `boolean::ops::join_rows` records it at every output path as one
@@ -65,7 +65,15 @@ closed wall, and continuing one across operands is a closed run the
 merge keeps cut by design (sweep README, "Walls"; `PeriodClosure`). So
 the record path is pinned at `topo`'s unit level
 (`edge_join::class_zero_rows`, `ops::join_row_rows`), and no golden
-moves. Residues: `a-join-onto-an-op-minted-edge-records-no-row`,
+moves. Done when's second part (the in-band reading refuses with the
+decision's lever) is met only for the cylinder ruling, the one class
+reading `chart_iso_family` hands the join as `Undecided`: there both
+doors end on a lever, the join door's the wrong one
+(`the-joins-in-band-class-reading-ends-two-ways`). On a sphere, cone or
+torus the in-band gate reaches the join as an image refusal and ends
+"no way through yet", no lever at all
+(`a-non-ruling-class-reading-in-band-at-the-join-ends-not-yet`).
+Residues: `a-join-onto-an-op-minted-edge-records-no-row`,
 `the-join-outside-the-boolean-records-no-class-zero`,
 `a-non-ruling-class-reading-in-band-at-the-join-ends-not-yet`,
 `the-joins-in-band-class-reading-ends-two-ways`.

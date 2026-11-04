@@ -207,8 +207,9 @@ pub enum DecisionSite {
     VertexFusion,
     /// A boolean's edge join: two edges of its inputs made one edge
     /// because each carrier was read on one iso family of one chart
-    /// through a regular point they share ([`Relation::SameOriented`]),
-    /// the margin the two readings' Zeros jointly.
+    /// through a regular point they share ([`Relation::SameOriented`]).
+    /// The margin is the most either carrier misses that family by: the
+    /// largest of the two edges' class gates and incidence readings.
     IsoJoin,
     /// The at-rest census: two cells of different groups of a body at
     /// rest (two copies, two imported instances) decided one, or two
