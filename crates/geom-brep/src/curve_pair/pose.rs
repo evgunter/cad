@@ -395,6 +395,11 @@ pub struct WindowBound<T> {
     /// parameters, at which two points of the window lie within the
     /// band's escalation of each other, `m₋`; `+∞` where undecided.
     pub reach: T,
+    /// The basin's `span`, where it is proved: every pair of the window
+    /// lies within it of the candidate's parameters, along each carrier,
+    /// and the gap is strictly monotone along each carrier either side of
+    /// the closest pair over it. `None` where no basin is proved.
+    pub basin: Option<T>,
 }
 
 /// The pose of two spans' carriers (module docs).
@@ -802,7 +807,7 @@ impl<T: Decide> Polish<'_, T> {
         {
             return Err(MeetFault::Unsettled(Unsettled::Meter { row: row::BASIN }));
         }
-        let bound = super::polish::bound((p, da), (q, db), sine_lo, curvature, e);
+        let bound = super::polish::bound((p, da), (q, db), sine_lo, curvature, (e, span));
         Ok(Some(Candidate {
             point: p,
             ta: s,

@@ -78,17 +78,18 @@ fn mid<T: Decide>(x: T) -> Option<f64> {
 /// lower bound on the sine between the tangents over the window,
 /// `curvature` the carriers' summed curvature bound there and `e` the
 /// band's escalation (`pose`'s module docs, "The gap's lower bound"),
-/// on the premise that every pair of the window lies within `span`
-/// metres of `(p, q)` along the carriers, `curvature · span < sine`. The
-/// floor `|w·n̂| − bend` and the reach `m₋`; undecided (`−∞`, `+∞`)
-/// where the move's quadratic has no real root (`curve_pair_pose_move`
-/// not proved positive), so the window's Off escalates.
+/// on the premise, the basin, proved by the caller: every pair of the
+/// window lies within `span` metres of `(p, q)` along the carriers, and
+/// `curvature · span < sine`. The floor `|w·n̂| − bend`, the reach `m₋`
+/// and the basin's `span`; floor and reach undecided (`−∞`, `+∞`) where
+/// the move's quadratic has no real root (`curve_pair_pose_move` not
+/// proved positive).
 pub(super) fn bound<T: Decide>(
     (p, da): (Point3<T>, Vec3<T>),
     (q, db): (Point3<T>, Vec3<T>),
     sine: T,
     curvature: T,
-    e: T,
+    (e, span): (T, T),
 ) -> WindowBound<T> {
     let n = da.cross(db);
     let n = n * (T::one() / n.norm());
@@ -99,7 +100,10 @@ pub(super) fn bound<T: Decide>(
     let two = T::from_f64(2.0);
     let disc = sine.powi(2) - two * curvature * excess;
     if prove(MOVE, Margin::of(disc)) != Ok(Sign::Positive) {
-        return undecided();
+        return WindowBound {
+            basin: Some(span),
+            ..undecided()
+        };
     }
     // `m₋ = (sin − √disc)/K`, written without the division by `K` so
     // that a pair of lines (`K = 0`) reads `excess/sin`.
@@ -108,14 +112,16 @@ pub(super) fn bound<T: Decide>(
     WindowBound {
         floor: along.abs() - bend,
         reach,
+        basin: Some(span),
     }
 }
 
-/// The bound of a window nothing bounds: no floor, and no reach short of
-/// the whole carriers.
+/// The bound of a window nothing bounds: no floor, no reach short of the
+/// whole carriers, and no basin.
 pub(super) fn undecided<T: Decide>() -> WindowBound<T> {
     WindowBound {
         floor: T::from_f64(f64::NEG_INFINITY),
         reach: T::from_f64(f64::INFINITY),
+        basin: None,
     }
 }

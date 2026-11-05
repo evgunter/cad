@@ -293,7 +293,7 @@ fn window<T: Decide>(
         (q, db),
         sine_lo,
         curvature,
-        T::from_f64(band.escalate()),
+        (T::from_f64(band.escalate()), span),
     )
 }
 

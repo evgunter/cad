@@ -2394,7 +2394,7 @@ fn a_window_read_off_short_of_its_reach_escalates() {
         (q, Vec3::new(0.0, 1.0, 0.0)),
         1.0,
         0.0,
-        band().escalate(),
+        (band().escalate(), 0.1),
     );
     assert!(
         bound.floor == 0.0 && (bound.reach - (1e-6 + band().escalate())).abs() < 1e-15,
