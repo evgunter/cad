@@ -2522,10 +2522,9 @@ fn the_run_arm_reads_a_keel_wall_past_a_bores_rim_with_mains_answer() {
     let Ok(Pose::Generic(cs)) = pose(&a, &b, band()) else {
         panic!("a crossing of the rim's plane")
     };
-    let c = cs
-        .into_iter()
-        .find(|c| c.bound.is_some())
-        .expect("a polished candidate");
+    let Some(c) = cs.into_iter().find(|c| c.bound.is_some()) else {
+        panic!("a polished candidate")
+    };
     let no_basin = super::Candidate {
         bound: c.bound.map(|w| super::WindowBound { basin: None, ..w }),
         ..c

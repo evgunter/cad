@@ -1837,7 +1837,9 @@ mod polish_rows {
             got.point.to_array().iter().all(|c| c.abs() < 1e-15),
             "{got:?}"
         );
-        let window = got.bound.expect("a polished candidate states its window");
+        let Some(window) = got.bound else {
+            panic!("a polished candidate states its window: {got:?}")
+        };
         assert!(
             window.floor.abs() < 1e-15 && window.reach > 0.0 && window.reach < 2e-8,
             "{window:?}"

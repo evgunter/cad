@@ -316,9 +316,12 @@ fn ringed_by<T: Decide>(
     })
 }
 
+/// A meeting's two sides: where its point sits on each span.
+type Sides<T> = (Hit<T>, Hit<T>);
+
 /// A point read on both spans: a meeting's two sides, `None` off either,
 /// or the first refusal.
-type Both<T> = Result<Option<(Hit<T>, Hit<T>)>, geom::CarrierRefusal>;
+type Both<T> = Result<Option<Sides<T>>, geom::CarrierRefusal>;
 
 /// Two point-on-span readings as one [`Both`].
 fn both<T>(
@@ -403,7 +406,7 @@ impl<T: Decide> Found<T> {
     fn offer<E: Into<MeetFault>>(
         &mut self,
         point: Point3<T>,
-        read: impl FnOnce() -> Result<Option<(Hit<T>, Hit<T>)>, E>,
+        read: impl FnOnce() -> Result<Option<Sides<T>>, E>,
         band: Band,
     ) {
         if ringed(&self.points, point, band) {
@@ -475,7 +478,7 @@ fn window_off<T: Decide>(
     bound: pose::WindowBound<T>,
     floor: Result<geom_core::Decided, Indeterminate>,
     band: Band,
-) -> Result<Option<(Hit<T>, Hit<T>)>, MeetFault> {
+) -> Result<Option<Sides<T>>, MeetFault> {
     let q = b.carrier().eval(c.tb);
     if let Some(basin) = bound.basin
         && (run_past((a, c.point, c.ta), (b, c.tb), basin, band)
