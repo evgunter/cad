@@ -228,3 +228,9 @@
 - 2026-11-04 — Dispatched cloud lane `session_013mPGJ4o1bDkCjbhg6Kqiat` on the P1 main red `main-red-the-m7-8-plain-names-probe-fails-after-the-faceview-fix-pass`, branch `onecopy/m7-8-plain-names`. The brief: reproduce it, bisect (suspect `e383ccfbcc`), then fix it as a regression at its home or re-pin it as a legitimate move.
 
 - 2026-11-05 — The m7-8-plain-names lane opened PR 6535 at head `193e062b`. The move is legitimate: PR 6498 (the spline chart's incidence read) moved the wall's refusal to `CarrierOffChart`, and FaceView did not cause it. The bisect: fd1c1949 pass, f6e97bd6 fail. The probe now matches through the home classifier `IncidenceRead::of`. It landed red because the probe is in the slow set, which PR 6498's per-PR gate never ran. FULL review sent to `session_013mPGJ3HVYqYAoquA4iThSZ`.
+
+- 2026-11-05 — PR 6535 FULL review: MERGE. The reviewer reproduced the bisect at f3bdc9ab and f6e97bd6. The new refusal is truthful: a 0.00208 margin against a true offset of about 0.0099. The match is no looser than before, and the "edge by edge and nothing else" pin stands. I sent a small fix pass:
+  - MINOR-1, the export row's "pins" made "would pin";
+  - a Resolution on the closed row naming PR 6498;
+  - a two-sided bound on the margin;
+  - a P3 row for the next by-name pin (`topo/tests/review_m3_pr4.rs:719-731`).
