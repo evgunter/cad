@@ -260,3 +260,5 @@
   - NOTE-3: the remaining `solve_pairs` combinations are disclosed.
   - NOTE-4: the duplicate census row is folded into splitdoor's.
   Class lesson: a lane that retires one hand-spelled fold (`keep`) can leave its sibling fold (`refusal`) copied. A review should ask about every fold over the same enum.
+
+- 2026-11-05 — PR 6536 delta review: MERGE. `Evidence::refusal` is the only spelling of the fold, the three pins are still red under main's rule, and the splitdoor verdict is untouched. Merged as `dbce1f3a9a`, gated on `251980e8`. The review's NOTE, that a refusal's standing now has two return types (`Refusal::rung` and `Kept`), is filed as P3 `a-refusals-standing-has-two-return-types`.

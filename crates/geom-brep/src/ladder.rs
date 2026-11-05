@@ -305,10 +305,7 @@ pub fn climb<I, A, E>(
 ) -> Climb<A, E> {
     match climb_evidence(answering, rungs, read) {
         Ok((at, answer)) => Climb::Answered { at, answer },
-        Err(kept) => match kept.ranked() {
-            Ranked::Blocked(e) | Ranked::InBand(e) | Ranked::Unsettled(e) => Climb::Undecided(e),
-            Ranked::Neither => Climb::Passed,
-        },
+        Err(kept) => kept.refusal().map_or(Climb::Passed, Climb::Undecided),
     }
 }
 
@@ -342,17 +339,17 @@ pub fn climb_evidence<I, A, E>(
                 continue;
             }
             Rung::InBand(e) => {
-                kept.in_band(e);
+                kept.keep(Kept::InBand(e));
                 held.push((log, true));
                 continue;
             }
             Rung::Blocked(e) => {
-                kept.blocked(e);
+                kept.keep(Kept::Blocked(e));
                 held.push((log, true));
                 continue;
             }
             Rung::Unsettled(e) => {
-                kept.unsettled.get_or_insert(e);
+                kept.unsettled(e);
                 held.push((log, true));
                 continue;
             }
@@ -474,6 +471,22 @@ impl<E> Evidence<E> {
         self.in_band.get_or_insert(e);
     }
 
+    /// Keeps `kept` as what it is, if it is the first of its kind: for a
+    /// run of readings outside a climb, which no reading of answers (the
+    /// cuts a later search reads its candidates off).
+    pub fn keep(&mut self, kept: Kept<E>) {
+        match kept {
+            Kept::InBand(e) => self.in_band(e),
+            Kept::Blocked(e) => self.blocked(e),
+        }
+    }
+
+    /// Keeps `e` as an unsettled reading ([`Rung::Unsettled`]), if it is
+    /// the first.
+    pub fn unsettled(&mut self, e: E) {
+        self.unsettled.get_or_insert(e);
+    }
+
     /// `self`'s readings first, then `later`'s: the evidence of two runs
     /// read in that order.
     #[must_use]
@@ -490,6 +503,16 @@ impl<E> Evidence<E> {
     #[must_use]
     pub const fn met_a_limit(&self) -> bool {
         self.blocked.is_some()
+    }
+
+    /// The refusal the ranking names, of whatever kind; `None` where
+    /// nothing was kept. For a caller that refuses alike on every kind.
+    #[must_use]
+    pub fn refusal(self) -> Option<E> {
+        match self.ranked() {
+            Ranked::Blocked(e) | Ranked::InBand(e) | Ranked::Unsettled(e) => Some(e),
+            Ranked::Neither => None,
+        }
     }
 
     /// The one ranking (the type's docs).
@@ -539,6 +562,31 @@ mod tests {
         data: &[(&'static str, f64)],
     ) -> (IdentityLadder, Vec<&'static str>, Vec<&'static str>) {
         recorded(|| read_identity(data.iter().map(|&(n, m)| (n, Margin::of(m))), band()))
+    }
+
+    /// **`Evidence::refusal` names the ranked refusal**, whatever its
+    /// kind: a limit ahead of an in-band reading read before it, in band
+    /// ahead of unsettled, and none where nothing was kept.
+    #[test]
+    fn evidence_refusal_is_the_ranked_one_of_any_kind() {
+        use super::Kept;
+        let mut e = Evidence::default();
+        e.unsettled("unsettled");
+        e.keep(Kept::InBand("in band"));
+        e.keep(Kept::Blocked("limit"));
+        assert_eq!(
+            e.refusal(),
+            Some("limit"),
+            "a limit outranks what came before it"
+        );
+        let mut e = Evidence::default();
+        e.unsettled("unsettled");
+        e.keep(Kept::InBand("in band"));
+        assert_eq!(e.refusal(), Some("in band"), "in band outranks unsettled");
+        let mut e = Evidence::default();
+        e.unsettled("unsettled");
+        assert_eq!(e.refusal(), Some("unsettled"), "unsettled is a refusal");
+        assert_eq!(Evidence::<&str>::default().refusal(), None, "nothing kept");
     }
 
     /// **A later definite datum answers past an earlier in-band one**,
