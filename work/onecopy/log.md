@@ -262,3 +262,6 @@
   Class lesson: a lane that retires one hand-spelled fold (`keep`) can leave its sibling fold (`refusal`) copied. A review should ask about every fold over the same enum.
 
 - 2026-11-05 — PR 6536 delta review: MERGE. `Evidence::refusal` is the only spelling of the fold, the three pins are still red under main's rule, and the splitdoor verdict is untouched. Merged as `dbce1f3a9a`, gated on `251980e8`. The review's NOTE, that a refusal's standing now has two return types (`Refusal::rung` and `Kept`), is filed as P3 `a-refusals-standing-has-two-return-types`.
+
+- 2026-11-05 — The polish-meters cost gate tripped: about 6 poses in three sweep tests (a keel near-tangent to a bore, a steep ellipse's end, and a moved copy) that main decides and (A) escalated on the reach rows. No test outcome moved, and geom-brep and topo were identical at all ε. Third amendment ruled: (C), the run argument posed on the basin's monotonicity. If `p` is decided in band, `d` is monotone to the end, and the end is decidedly Off, the pose prunes. The lane resumed for implementation and a sweep census re-run.
+  Class lesson: a bound that is sound but loose (reach ≈ (σ+e)/sin φ) costs exactly where sin φ is small. Prefer an argument from a decided reading (the end's own Off) over a bound on travel.

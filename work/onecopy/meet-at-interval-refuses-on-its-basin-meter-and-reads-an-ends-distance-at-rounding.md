@@ -188,3 +188,16 @@ Item 2's bend is made precise:
 - `reach = 0` reproduces today's reading.
 - A location enters only to prune, never to accept.
 - The implementer measures escalations against main at all three ε before the PR. If any test flips, or the past-end-by-less-than-`e/sin φ` class is not rare, the unit stops.
+
+## Third amendment (2026-11-05): the run argument, after the cost gate tripped
+
+The census of `reach` (A) moved no test outcome. But a polished pair past a span's end by less than its reach is not rare: about 6 distinct poses in three sweep tests, recurring at every ε, which main decides and the head escalated. They are near-tangent and steep poses, where `sin φ` is small and the reach is long.
+
+**Ruled: (C).** An Off past a span's end prunes when:
+1. `p` is decided within `e`, with the sign of `d(p)` known;
+2. the basin certifies that `d` is strictly monotone on the closed stretch from `p` to that end;
+3. the end candidate there reads `|d(end)| > e` Positive, on the same sign side.
+
+Then `|d|` grows from `p` through the end and into the span for as far as the basin reaches, so nothing in the span within the basin meets. This is a decided reading of the pose, not a premise about the polish. Otherwise the reach test serves, then escalation. Straddles apply the test at each end.
+
+Census gate: sweep re-run at three ε; decided → escalated against main is 0, or each one is explained as outside the basin.
