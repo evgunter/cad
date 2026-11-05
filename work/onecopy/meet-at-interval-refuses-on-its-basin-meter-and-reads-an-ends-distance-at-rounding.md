@@ -2,11 +2,14 @@
 id: meet-at-interval-refuses-on-its-basin-meter-and-reads-an-ends-distance-at-rounding
 kind: issue
 title: curve_pair::meet at Interval refuses on its basin meter where the region rows decided, reads an end's distance at rounding, and costs 3-6x the rows
-status: open
+status: closed
+closed: 2026-11-05
+pr: 6537
 opened: 2026-11-04
 priority: P1
 cost: M
 refs: [6516, region-landings-read-a-leg-against-an-edge-by-hand-rows-beside-meet, curve-pair-polish-at-interval-reads-the-iterates-width, inline-bracket-midpoints-are-spelled-in-two-forms]
+branch: onecopy/polish-meters
 ---
 
 Found by `onecopy/meet-pose` (PR 6491, now a draft), which routed the four region `landings` (`topo/src/boolean/{region,sphere_region,torus_region,ruled_region}.rs`) through `geom_brep::curve_pair::meet`. On `Interval` and at a fine band, `meet` decides less than the hand rows it replaced and costs more. **The landings route (PR 6491) waits on this row.**
@@ -69,6 +72,33 @@ Bring its per-pair cost near the rows' cost. Then re-run PR 6491's landings rout
 
 - `pose::conic_conic`'s parallel screen reads `constant(row::PARALLEL, c0, swing + noise)` and drops a gap read through `matches!(.., Ok(true))`. When the swing is level, the same margin is read again on `row::OFFSET`. So a gap height records two escalations for one margin, and the PARALLEL one is unanswered when a later route decides. Read the margin once and act on it twice. This belongs to the class in `a-heuristics-choice-has-no-door-of-its-own` (PR 6483).
 
+## Decided: what the polish certifies at Interval (2026-11-04)
+
+This is a design fork weighed by three designers (A Fable; B and C Opus; draw on `analysis/design-fork/onecopy-polish-meters`). All three agreed after one round; reports are in the orchestrator's scratch, `oc-fork5`. No ratified text changes: the meters are specified only in `pose.rs`'s module docs (PR 5121, agent-written), and C5 does not name them. This also answers the design question on CPAIR's `curve-pair-polish-at-interval-reads-the-iterates-width` and `curve-pair-polish-meters-refuse-shallow-meetings` (route 2, "κ over the polish's actual travel").
+
+**Diagnosis (sure).** Both refusing meters compare a *location along the carriers* with the band. A location's enclosure at T is the data's spread over sin φ, while a distance between carriers is 1-Lipschitz in the data. The ~13,000 refusals are that conditioning. The meters guard only completeness: an Off at the polished pair speaks for the region only if that pair is the region's closest pair.
+
+**The final state.**
+1. **Search is structure.** Gauss–Newton runs in f64 on the brackets' midpoints. The pair enters T through `from_computed`, which is the "f64 structure + T payload" pattern of `projection_policy`. `bounds_census` records the Dual disposition as a `Selection` (#874's class: a Dual meeting loses its tangent's dependence on the data). No consumer reads that dependence today, because the only Dual bodies are gate fixtures that never reach `meet`. This supersedes the branch's per-step `place` recentring, which still ran each step at T.
+2. **The window's Off is one lower bound in metres of gap, read against the band.** At the pair, `w = q − p` and `n̂ = unit(a′×b′)`.
+   - The *slack* `|w − n̂(n̂·w)|` is the part of the gap a move along the carriers could still remove.
+   - The bound is `lower(|w·n̂|) − bend`, where `bend` is the carriers' curvature over the move the slack implies (about `(κ₁+κ₂)(slack/sin φ)²`). The implementer proves the exact constant in `pose.rs`'s docs.
+   - If the bound reads Positive against the band, there is no candidate.
+   - Otherwise the candidate goes to `Span::contact`, which reads On with no convergence premise. An Off from `contact` under an undecided bound is a straddle that escalates and never prunes (C5).
+   - There is no K premise: the slack is never read against the band on its own row.
+3. **Travel folds into the basin.** The basin margin is `sin φ − 2(κ₁+κ₂)·max(region, travel + Δ)`, with Δ the slack-implied move. It is read exactly. A location enters only as a turn, levered (`Lever`). `curve_pair_pose_travel` and `curve_pair_pose_polish` retire, and the registry, K roster and audit follow.
+4. **One rule for every meter.**
+   - A generator's own inequality (the basin) is read exactly, through one named `geom_core` door that takes no `Band`, and is logged: a `Meter` refusal is an outcome a narrower box can answer.
+   - Anything in metres of gap (the window bound, `contact`) is read against the band and logged.
+   - Nothing is unlogged.
+   - The four existing `decide(.., Band::least())` sites (`curve_pair::compare`, walk `step_taken`, `curve_foot_polish`, the basin) read that door.
+5. **What makes the next generator land right.** A generator states its excess in metres and decides nothing about its window: its candidate carries `excess: T`, which is the slack plus the bend, and zero for an end or a witness. The reader (`Found::read`) does the one composition. The exact door has no band parameter, and `metered(row, margin, want, band)` is deleted. A meter against the band becomes untypeable.
+6. **Riders.**
+   - `Unsettled::Meter { row }` names its check (`[loud-failure]`).
+   - `an_unconverged_polish_refuses` gets a fixture that still has slack after STEPS, and pins that its window escalates.
+   - The walk's polish (`walk.rs`) gets the same Off-by-lower-bound treatment, because today its `contact` Off at a polished piece pair prunes on an unproven pair.
+
+**Measure on landing.** Print the meters once at Interval on tubewall r2 and the point-interval circles at tilt 1e-3, before and after. Revalue `m10_sym_profile` and the K roster.
 
 ## Measured on `onecopy/meet-interval` (2026-11-04)
 
@@ -137,3 +167,51 @@ ruling, option (a)).
 PR 6516 fixes regression (i) at its root. Gauss–Newton now steps from a point, ends are read once, and an endless span has no ends. Question 2's ruling also lands: the lune pin is re-posed, and its precision branch is recorded as unguardable at an honest offset.
 
 What is still owed on this row is the polish-meters decision above, "Decided: what the polish certifies at Interval". Its implementation is the next unit. PR 6491's landings wait on it.
+
+## Amended at dispatch (2026-11-04)
+
+The implementer read the four sites before writing code. Item 4 of the decision was wrong for two of them, so it is amended, ruled by the orchestrator:
+
+- **The exact proof door** (logged, with no `Band` parameter) takes only the proof inequalities: `curve_pair::compare`'s callers and the basin.
+- **Not every site is a proof.** `curve_foot_polish` is a heuristic choice, which ledger F32 ruled out of the log, and a test pins that. It stays where it is. F33 is the same case.
+- **Walk's `step_taken` is also a choice.** A dropped step can lose a foot but never invents one. It stays on its current door until the choice-door unit (`a-heuristics-choice-has-no-door-of-its-own`).
+- **The rule** is: a proof's inequality is read exactly and logged; metres of gap are read against the band and logged; a heuristic's choice is unlogged under a ledger row until the choice door exists.
+
+Item 2's bend is made precise:
+- `bend = K·m₋²/2`, with `K = κ₁+κ₂` and `m₋ = (sin φ − √(sin²φ − 2K(slack + e)))/K`.
+- `sin φ` is the basin's lower bound over the region.
+- The escalation enters the move, so to first order the move is `(slack + e)/sin φ`, not `slack/sin φ`.
+- Where the discriminant is negative, the bound is undecided: it escalates and never prunes.
+
+**Second amendment: the composition (items 2 and 5).** As written, the decision could not prune a window whose carriers meet *outside* the spans, which is the common two-circles-on-a-sphere case. There `L` is not Positive. `contact` reads Off past an end, and under the decision that Off escalates. Main prunes it today through the convergence premise, which the decision retired. Ruled:
+
+- The polished candidate carries `reach = m₋`, the bend derivation's bound on how far along either carrier any pair within `e` lies from `p`. Ends, witnesses and exact roots carry 0.
+- `Found::read` prunes an Off only when `L` decides Positive, or when `p`'s past-end side margin less `reach` decides Positive against the band. Both are logged. Anything else escalates.
+- `reach = 0` reproduces today's reading.
+- A location enters only to prune, never to accept.
+- The implementer measures escalations against main at all three ε before the PR. If any test flips, or the past-end-by-less-than-`e/sin φ` class is not rare, the unit stops.
+
+## Third amendment (2026-11-05): the run argument, after the cost gate tripped
+
+The census of `reach` (A) moved no test outcome. But a polished pair past a span's end by less than its reach is not rare: about 6 distinct poses in three sweep tests, recurring at every ε, which main decides and the head escalated. They are near-tangent and steep poses, where `sin φ` is small and the reach is long.
+
+**Ruled: (C).** An Off past a span's end prunes when:
+1. `p` is decided within `e`, with the sign of `d(p)` known;
+2. the basin certifies that `d` is strictly monotone on the closed stretch from `p` to that end;
+3. the end candidate there reads `|d(end)| > e` Positive, on the same sign side.
+
+Then `|d|` grows from `p` through the end and into the span for as far as the basin reaches, so nothing in the span within the basin meets. This is a decided reading of the pose, not a premise about the polish. Otherwise the reach test serves, then escalation. Straddles apply the test at each end.
+
+Census gate: sweep re-run at three ε; decided → escalated against main is 0, or each one is explained as outside the basin.
+
+## Closed by PR 6537 (`onecopy/polish-meters`, 2026-11-05)
+
+The decision is implemented with its amendments: `k_stats::prove`, the exact bend with `m₋`, and the run arm (C). The cost gate passes at every ε: no test outcome moves. One pose that main decides now escalates, `contfp_reads_arcs_on_their_carriers::the_census_reads_a_corner_near_a_steep_ellipses_end`. It is a crossing at both spans' ends, where only the spans' orientation separates them, and the test passes either way.
+
+Three departures, disclosed in the PR:
+- item 6's fixture cannot exist under the basin premise;
+- the `Dual` disposition is `bounds_census`'s blind-spot item 5, not a roster line;
+- a polish step whose value is a point is taken at `T`, because `editor-core`'s coincidence door reads the pair's symbols at `Sym`.
+
+Owed elsewhere: the K roster, which `scripts/k_probe_sweep.sh` cannot run on main (geom-brep's tests need `test-support`), and `m10_sym_profile`'s two pinned rows, red on main with the same ledger at head. Tubewall r2 is measured on PR 6491's route.
+
