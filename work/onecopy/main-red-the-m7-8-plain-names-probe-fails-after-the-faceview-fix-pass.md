@@ -26,3 +26,17 @@ The file was last changed on main by `e383ccfbcc` ("topo: FaceView fix pass — 
 1. Reproduce the failure on main and read the panic: which edge or payload differs.
 2. Bisect to the commit that moved it.
 3. Either restore the verdict, or re-pin the probe with the reason the verdict legitimately moved, and update the export row's text to match.
+
+## Resolution
+
+The cause was PR 6498 (`pcert/spline-chart-incidence`), not the
+FaceView fix pass. A bisect over main's first-parent merges found
+#6490 (FaceView, carrying `e383ccfbcc`) and #6500 green, and #6498 red.
+#6498 runs the spline chart's incidence read ahead of the general lane
+in `topo::pcurves`' NURBS derivation. The corrupt wall's refusal
+therefore ends as that read (`CarrierOffChart`, decided past the band)
+where it used to be the general image's `ResidualExceeded { MapResidual }`.
+The move is legitimate. PR 6535 re-pins the probe through
+`geom_brep::IncidenceRead::of` and bounds the off margin by the bow's
+height over the wall's edges.
+
