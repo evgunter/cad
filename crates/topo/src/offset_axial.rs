@@ -3320,6 +3320,7 @@ mod tests {
         arm: f64,
     ) -> Result<Option<(f64, f64)>, ReplaceFaceError<f64>> {
         let band = Band::new(1e-9, 1e-8).unwrap();
+        // Unsourced lever: a synthetic corner arm, the conditioning's scale under test.
         let arms = [Lever::unsourced(arm)];
         solve_pairs(profiles, &arms, (10.0, 0.0), VertexKey::default(), band)
     }

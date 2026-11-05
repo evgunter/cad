@@ -11595,9 +11595,10 @@ fn face_interiors_meet<T: Decide>(
 struct SharedInterior;
 
 /// A probe of [`shared_interior_witness`]: a point of one face's closure
-/// placed in the other, or an edge of each.
-enum WitnessProbe<T: Real> {
-    At(FaceKey, FaceContainment, FaceKey, Point3<T>),
+/// placed in the other, with where it lies on its own face (`On`), or an
+/// edge of each.
+enum WitnessProbe<On, T: Real> {
+    At(FaceKey, On, FaceKey, Point3<T>),
     Pair(EdgeKey, EdgeKey),
 }
 
