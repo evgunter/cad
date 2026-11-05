@@ -240,3 +240,11 @@
 - 2026-11-05 — PR 6535 merged as `dd446ad83e`, gated on `f1b634bb`. The m7_8 plain-names main red is closed.
 
 - 2026-11-05 — Dispatched cloud lane `session_013mPGJ3PFKaTss2xjCqxX2Y` on P1 `door-searches-left-on-the-hand-rolled-ladder`, branch `onecopy/ladder-climb-3`. The lane ports the clean sites onto `climb`. For the ranking forks (`shared_run`, `measured_ends`) and `offset_axial`'s third outcome, it measures first and sends me the question rather than choosing.
+
+- 2026-11-05 — ladder-climb-3 rulings, measured first:
+  - Q1: census's four `InteriorsUnread` loops take Evidence's order via `InteriorsUnread::refusal`, with the limit before in band. That retires the two-orders copy. A row is filed for `of` folding `Unsettled` into Unbuilt.
+  - Q2: `measured_ends` is ported as an identity under Any.
+  - Q3: `offset_axial` gets two ladders. Ladder 1's in-band evidence refuses ahead of any tangent foot; no kept-answer outcome.
+  - Q4: the agreement checks stay. `climb_agreeing` is filed as a design row.
+  - Q5: `link::Cone::reads_given` is deferred to its own row. It is reached about 500 times per suite, and Unplaced's class needs ruling from what it means.
+  The clean ports already made are `ssi::refine::fit_minimum` and `vtxfac::faces_holding_pierce`.
