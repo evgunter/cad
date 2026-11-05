@@ -253,3 +253,10 @@
   - Ported: census's 4 loops in Evidence order, `measured_ends`, and `offset_axial`'s two ladders, all with pins red on main's order. Also `fit_minimum` and `faces_holding_pierce`, and `Evidence::keep` added to ladder.
   - Four P2 rows filed. The row is narrowed to cost E: the pierce pass and the Any ports' unreached record rows.
   - The ci runs are green at both ε. FULL review sent to `session_013mPGJ3HVYqYAoquA4iThSZ`.
+
+- 2026-11-05 — PR 6536 FULL review: MERGE. The three pins go red under main's rule, and every port keeps its outcome except where ruled. Fix pass sent:
+  - MINOR-1, a minted copy: "the ranked refusal, or none" is spelled four times. It gets one home, `Evidence::refusal`, and all four route through it.
+  - MINOR-2: the test lever moves to the fixture door, so `lever-sources` stays at 2.
+  - NOTE-3: the remaining `solve_pairs` combinations are disclosed.
+  - NOTE-4: the duplicate census row is folded into splitdoor's.
+  Class lesson: a lane that retires one hand-spelled fold (`keep`) can leave its sibling fold (`refusal`) copied. A review should ask about every fold over the same enum.
