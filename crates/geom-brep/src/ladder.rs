@@ -341,18 +341,10 @@ pub fn climb_evidence<I, A, E>(
                 }
                 continue;
             }
-            Rung::InBand(e) => {
-                kept.in_band(e);
-                held.push((log, true));
-                continue;
-            }
-            Rung::Blocked(e) => {
-                kept.blocked(e);
-                held.push((log, true));
-                continue;
-            }
-            Rung::Unsettled(e) => {
-                kept.unsettled.get_or_insert(e);
+            kept_rung @ (Rung::InBand(_) | Rung::Blocked(_) | Rung::Unsettled(_)) => {
+                if kept.keep(kept_rung).is_err() {
+                    unreachable!("a rung matched as kept is kept");
+                }
                 held.push((log, true));
                 continue;
             }
@@ -472,6 +464,25 @@ impl<E> Evidence<E> {
     /// Keeps `e` as an in-band reading, if it is the first.
     pub fn in_band(&mut self, e: E) {
         self.in_band.get_or_insert(e);
+    }
+
+    /// Keeps `rung` as [`climb`] keeps a rung it read, for a run of
+    /// readings outside a climb that no reading of answers (the cuts a
+    /// later search reads its candidates off).
+    ///
+    /// # Errors
+    ///
+    /// `rung`, where it is no kept reading: it answers, aborts or passes.
+    pub fn keep<A>(&mut self, rung: Rung<A, E>) -> Result<(), Rung<A, E>> {
+        match rung {
+            Rung::InBand(e) => self.in_band(e),
+            Rung::Blocked(e) => self.blocked(e),
+            Rung::Unsettled(e) => {
+                self.unsettled.get_or_insert(e);
+            }
+            other @ (Rung::Answers(_) | Rung::Aborts(_) | Rung::Passes) => return Err(other),
+        }
+        Ok(())
     }
 
     /// `self`'s readings first, then `later`'s: the evidence of two runs
