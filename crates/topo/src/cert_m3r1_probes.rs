@@ -288,16 +288,23 @@ fn m3_the_plain_names_report_the_corrupt_m7_8_wall_edge_by_edge_and_nothing_else
             .iter()
             .filter_map(|e| match e {
                 ValidationError::EdgeCertification { edge, .. } => Some(*edge),
-                // The rowless wall is re-derived at tier 3, and the
-                // corrupt surface refuses its own boundary.
+                // The rowless wall is re-derived at tier 3, and its
+                // derivation reads the corrupt surface off its own
+                // boundary: the chart's incidence read, read by its one
+                // classifier.
                 ValidationError::Pcurve {
                     finding:
                         crate::pcurves::PcurveMintError::Certify {
-                            half_edge,
-                            error: geom_brep::PcurveCertifyError::ResidualExceeded { .. },
-                            ..
+                            half_edge, error, ..
                         },
-                } if on_wall(*half_edge) => None,
+                } if on_wall(*half_edge)
+                    && matches!(
+                        geom_brep::IncidenceRead::of(error),
+                        Some(geom_brep::IncidenceRead::Off(Some(_)))
+                    ) =>
+                {
+                    None
+                }
                 other => panic!(
                     "{door}: reports {other:?} beside the edge findings — a `VolumeUncomputable` \
                      here is the lane-keeping body's answer, which this name no longer gives"
