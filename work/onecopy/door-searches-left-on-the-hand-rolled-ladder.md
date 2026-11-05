@@ -47,6 +47,10 @@ below still spells the rule by hand, with what a port needs.
   `side_reader::cast_aims` with a `Pair` ahead of a deciding ray, and no
   fixture builds one today.
 
+- **The class beyond this list.** The loops that keep a first refusal
+  and that no row named are listed, undispositioned, in
+  `work/onecopy/kept-refusal-loops-the-ladder-row-never-listed.md`.
+
 ## Not ported, by design
 
 - **`topo::pcurves`' stage chain** (the stated, fixed, then measured
