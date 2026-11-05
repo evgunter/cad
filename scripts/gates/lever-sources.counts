@@ -33,7 +33,7 @@ crates/topo/src/boolean/vtxfac.rs 2
 crates/topo/src/census.rs 2
 crates/topo/src/chart_region.rs 2
 crates/topo/src/chord_join.rs 1
-crates/topo/src/offset_axial.rs 3
+crates/topo/src/offset_axial.rs 2
 crates/topo/src/pcurves.rs 1
 crates/topo/src/ring_path.rs 2
 crates/topo/src/validate.rs 1

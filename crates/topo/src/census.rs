@@ -328,7 +328,7 @@ use std::collections::BTreeSet;
 
 use bvh::{Aabb, Bvh};
 use geom_brep::curve_pair::{Hit, MeetFault, Span as CarrierSpan, meet};
-use geom_brep::ladder::{Answering, Climb, Evidence, Ranked, Refusal, Rung, climb, climb_evidence};
+use geom_brep::ladder::{Answering, Climb, Evidence, Kept, Rung, climb, climb_evidence};
 use geom_core::k_stats::{Magnitude, decide_reported, straddle};
 use geom_core::one_line::on_one_line;
 use geom_core::{
@@ -11444,19 +11444,20 @@ enum InteriorsUnread {
 }
 
 impl InteriorsUnread {
-    /// What this refusal is to a ladder ([`Refusal`]): a reading in band,
-    /// or a reading not built, a limit no tolerance moves.
-    const fn refusal(self) -> Refusal {
+    /// What this refusal is to a ladder, as [`Kept`] holds it: a reading
+    /// in band, or a reading not built, a limit no tolerance moves. No
+    /// unread interior refuses the whole query or is unsettled, so the
+    /// kept kinds are the whole of it.
+    const fn kept(self) -> Kept<Self> {
         match self {
-            Self::Undecided => Refusal::InBand,
-            Self::Unbuilt => Refusal::Limit,
+            Self::Undecided => Kept::InBand(self),
+            Self::Unbuilt => Kept::Blocked(self),
         }
     }
 
-    /// This refusal as a ladder's rung ([`Refusal::rung`]): no unread
-    /// interior refuses the whole query.
+    /// This refusal as a ladder's rung ([`Self::kept`]).
     fn rung<A>(self) -> Rung<A, Self> {
-        self.refusal().rung(self, Rung::Blocked)
+        self.kept().into()
     }
 
     /// A meeting reading's refusal: an escalation or a touch undecided,
@@ -11475,7 +11476,7 @@ impl InteriorsUnread {
 
 /// One reading of whether two interiors meet, as a rung of the search
 /// for a meeting: a meeting answers, none passes, and an unread reading
-/// is kept as what it is ([`InteriorsUnread::refusal`]).
+/// is kept as what it is ([`InteriorsUnread::kept`]).
 fn meeting_rung(
     reading: Result<bool, InteriorsUnread>,
 ) -> Rung<Result<bool, InteriorsUnread>, InteriorsUnread> {
@@ -11741,9 +11742,7 @@ fn arc_interiors_meet<T: Decide>(
     // answers, so each is kept as it is read.
     let mut kept = Evidence::default();
     let mut note = |why: InteriorsUnread| {
-        if kept.keep(why.rung::<()>()).is_err() {
-            unreachable!("an unread interior is kept, never an answer");
-        }
+        kept.keep(why.kept());
     };
     let spans = |f| -> Result<Vec<_>, InteriorsUnread> {
         let edges = body.proven_face(f).edge_set();
@@ -11861,10 +11860,7 @@ fn arc_interiors_meet<T: Decide>(
     });
     match climbed {
         Ok((_, answer)) => answer,
-        Err(pieces) => match kept.then(pieces).ranked() {
-            Ranked::Blocked(why) | Ranked::InBand(why) | Ranked::Unsettled(why) => Err(why),
-            Ranked::Neither => Ok(false),
-        },
+        Err(pieces) => kept.then(pieces).refusal().map_or(Ok(false), Err),
     }
 }
 
@@ -21660,7 +21656,7 @@ mod arc_interiors {
 }
 
 /// **The census's searches for a meeting rank a reading not built ahead
-/// of one in band** ([`InteriorsUnread::refusal`], the ladder's
+/// of one in band** ([`InteriorsUnread::kept`], the ladder's
 /// [`Evidence`]): while a pair is unbuilt no tolerance certifies the
 /// interiors apart, so its refusal (`FLUSH_UNREAD`) is the one whose
 /// recourse frees the question. Fed the rungs directly, since no body a

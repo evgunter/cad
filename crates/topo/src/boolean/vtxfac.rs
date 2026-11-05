@@ -79,7 +79,7 @@
 //! same cone, its partners' faces alone.
 
 use geom_brep::OutwardNormal;
-use geom_brep::ladder::{Answering, Evidence, Ranked, Rung, climb_evidence};
+use geom_brep::ladder::{Answering, Evidence, Rung, climb_evidence};
 use geom_core::k_stats::NonzeroSign;
 use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
 
@@ -1806,9 +1806,8 @@ pub(super) fn faces_holding_pierce<T: Decide + crate::props::AtRestPolicy>(
             Err(evidence) => kept = kept.then(evidence),
         }
     }
-    match kept.ranked() {
-        Ranked::Blocked(e) | Ranked::InBand(e) | Ranked::Unsettled(e) => return Err(e),
-        Ranked::Neither => {}
+    if let Some(e) = kept.refusal() {
+        return Err(e);
     }
     reads
         .into_iter()
