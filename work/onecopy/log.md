@@ -248,3 +248,8 @@
   - Q4: the agreement checks stay. `climb_agreeing` is filed as a design row.
   - Q5: `link::Cone::reads_given` is deferred to its own row. It is reached about 500 times per suite, and Unplaced's class needs ruling from what it means.
   The clean ports already made are `ssi::refine::fit_minimum` and `vtxfac::faces_holding_pierce`.
+
+- 2026-11-05 — ladder-climb-3 opened PR 6536 at head `15fb5796`, with the CI gate ok.
+  - Ported: census's 4 loops in Evidence order, `measured_ends`, and `offset_axial`'s two ladders, all with pins red on main's order. Also `fit_minimum` and `faces_holding_pierce`, and `Evidence::keep` added to ladder.
+  - Four P2 rows filed. The row is narrowed to cost E: the pierce pass and the Any ports' unreached record rows.
+  - The ci runs are green at both ε. FULL review sent to `session_013mPGJ3HVYqYAoquA4iThSZ`.
