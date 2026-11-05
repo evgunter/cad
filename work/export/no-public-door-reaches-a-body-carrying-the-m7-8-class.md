@@ -80,6 +80,6 @@ read off the wall past the band, `CarrierOffChart`; the probe reads it
 through `geom_brep::IncidenceRead::of`), where it was the general
 image's `MapResidual`: the spline chart's incidence read (PR 6498) runs
 ahead of the general lane in `topo::pcurves`' NURBS derivation. A Python
-row on such a body pins the same split.
+row on such a body would pin the same split.
 
 - 2026-11-02 — moved from REIMPORT to EXPORT by `git mv` when REIMPORT merged into EXPORT, id and body unchanged (the track budget now counts only P0, P1 and unbanded rows, and REIMPORT had fallen far under it).
