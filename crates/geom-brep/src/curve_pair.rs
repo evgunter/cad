@@ -356,8 +356,9 @@ impl<T: Decide> Found<T> {
     /// is its point's reading on both spans. One with a window is no
     /// meeting where its floor reads past the band
     /// (`curve_pair_pose_closest`); otherwise its point read on both is a
-    /// meeting, and an Off there prunes only where the carrier's run
-    /// within the window's reach lies past a span ([`Span::past_by`]).
+    /// meeting, and an Off there prunes only where the window's run lies
+    /// past a span, by the run arm ([`run_past`]) or by the reach
+    /// ([`Span::past_by`]).
     /// Any other Off is a straddle of the floor and the gap at the pair
     /// (`curve_pair_meet_window`), and escalates.
     fn read(&mut self, a: &Span<'_, T>, b: &Span<'_, T>, c: Candidate<T>, band: Band) {

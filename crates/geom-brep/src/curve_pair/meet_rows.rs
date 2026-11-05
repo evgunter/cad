@@ -2487,3 +2487,114 @@ fn a_candidate_with_no_window_reads_as_its_point_alone() {
         }
     }
 }
+
+/// **The run arm reads a keel's wall past a bore's rim with main's
+/// answer.** A line down the keel's wall crosses the plane of the bore's
+/// rim at the rim's own end, `2.2143` rad, and just past it
+/// (`a_keel_on_a_bores_ruling`'s near-tangent pose, as `meet` met it).
+/// The polished pair lies on the line, past the rim's arc; the window's
+/// reach is far longer than its distance past the end, so the reach
+/// cannot clear it. The pair is on the line's carrier and the rim's end
+/// is decidedly off it, so the run, one interval within the basin, lies
+/// past the arc: no meeting, as main read it on its convergence meter.
+/// Read with no basin, the same candidate escalates.
+#[test]
+fn the_run_arm_reads_a_keel_wall_past_a_bores_rim_with_mains_answer() {
+    let wall = Curve3::line(
+        Point3::new(1.0, -1.710_783_078_032_602_8e-8, 2.75),
+        Vec3::new(0.0, 0.0, -1.0),
+    );
+    let rim = Curve3::circle(
+        Point3::new(1.037_500_008_874_687_3, -1.774_937_458_641_49e-8, 2.0),
+        Vec3::new(0.0, 0.0, 1.0),
+        0.037_500_008_874_691_515,
+        Vec3::new(0.599_999_621_346_698_8, 0.800_000_283_989_836, 0.0),
+    );
+    let (a, b) = (
+        Span::new(&wall, (-1.25, 0.75)),
+        Span::new(&rim, (0.0, 2.214_296_488_955_094_7)),
+    );
+    let got = meet(&a, &b, band());
+    assert!(
+        matches!(&got, Ok(m) if m.points.is_empty() && m.shared.is_none()),
+        "no meeting: {got:?}"
+    );
+    let Ok(Pose::Generic(cs)) = pose(&a, &b, band()) else {
+        panic!("a crossing of the rim's plane")
+    };
+    let c = cs
+        .into_iter()
+        .find(|c| c.bound.is_some())
+        .expect("a polished candidate");
+    let no_basin = super::Candidate {
+        bound: c.bound.map(|w| super::WindowBound { basin: None, ..w }),
+        ..c
+    };
+    let mut found = super::Found::default();
+    found.read(&a, &b, no_basin, band());
+    let got = found.finish(&a, &b, None, band());
+    assert!(
+        matches!(&got, Err(r) if matches!(r.fault, MeetFault::Escalated(_))),
+        "with no basin: {got:?}"
+    );
+}
+
+/// **The run arm needs the span's end decidedly off the other carrier.**
+/// A segment of `x` from the origin, and a line crossing `x` at
+/// `X = (−2·10⁻⁸, 0, 0)`, past the segment's start by twice the band's
+/// escalation, at an angle `θ`. The polished pair is `X`, on both
+/// carriers; the window's reach, `e/sin θ`, is longer than `X`'s chord to
+/// the start, so the reach clears nothing. At `sin θ = 0.25` the start
+/// lies `5·10⁻⁹` from the line, in the band's gap: the run may hold it,
+/// and the window escalates. At `θ = 60°` it lies `1.7·10⁻⁸` off, the run
+/// holds no end, and the window is no meeting; with no basin it
+/// escalates.
+#[test]
+fn the_run_arm_needs_the_span_end_decidedly_off_the_other_carrier() {
+    let x = line([0.0; 3], [1.0, 0.0, 0.0]);
+    let at = Point3::new(-2e-8, 0.0, 0.0);
+    let read = |sine: f64, basin: bool| {
+        let cosine = (1.0 - sine * sine).sqrt();
+        let dir = Vec3::new(cosine, sine, 0.0);
+        let other = Curve3::line(at, dir);
+        let (a, b) = (Span::new(&x, (0.0, 1.0)), Span::new(&other, (-1.0, 1.0)));
+        let bound = super::polish::bound(
+            (at, Vec3::new(1.0, 0.0, 0.0)),
+            (at, dir),
+            sine,
+            0.0,
+            (band().escalate(), 0.1),
+        );
+        let bound = if basin {
+            bound
+        } else {
+            super::WindowBound {
+                basin: None,
+                ..bound
+            }
+        };
+        let mut found = super::Found::default();
+        found.read(
+            &a,
+            &b,
+            super::Candidate {
+                point: at,
+                ta: -2e-8,
+                tb: 0.0,
+                bound: Some(bound),
+            },
+            band(),
+        );
+        found.finish(&a, &b, None, band())
+    };
+    let escalated = |got: &Result<Meetings<f64>, super::MeetRefusal<f64>>| matches!(got, Err(r) if matches!(r.fault, MeetFault::Escalated(_)));
+    let got = read(0.25, true);
+    assert!(escalated(&got), "the start in the band's gap: {got:?}");
+    let got = read(0.75_f64.sqrt(), true);
+    assert!(
+        matches!(&got, Ok(m) if m.points.is_empty()),
+        "the start decidedly off: {got:?}"
+    );
+    let got = read(0.75_f64.sqrt(), false);
+    assert!(escalated(&got), "with no basin: {got:?}");
+}

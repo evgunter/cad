@@ -257,12 +257,32 @@
 //!   pair of the window lies on that span ([`Span::past_by`]); `q` on the
 //!   second span alike.
 //!
+//! **The run.** The basin does more than bound the move: over the window
+//! the tangents keep at least half their angle, so each carrier's gap
+//! from the other is strictly monotone either side of the window's
+//! closest pair, and the *run*, the points of a carrier within `e` of
+//! the other over the window, is one interval. So where `p` is past a
+//! span and is itself in the run (on the other carrier, within its zero
+//! band), the run reaches into the span only through one of its ends.
+//! An end the window cannot reach (its chord to `p` past the basin's
+//! `span`, `curve_pair_meet_run_basin`) is not in the run; an end that is
+//! decidedly off the other carrier (`curve_carrier_clear`, past `e`) is
+//! not in it either. Where every end is one or the other, the run lies
+//! past the span, and so does every pair of the window within `e`: the
+//! Off prunes (`run_past`). That is main's argument, that the closest
+//! pair's run is read through the spans' ends, read first, with the
+//! premise it rested on (that the polish converged) replaced by a decided
+//! one: that `p` is in the run. `q` on the second span alike. Where no
+//! basin is proved (the walk's premise, `curve_pair_walk_basin`) there
+//! is no run arm.
+//!
 //! Where `D` is not proved positive the bound is undecided: no floor, and
 //! no reach short of the carriers. **The composition is the reader's**
 //! (`Found::read`), on the candidate's [`WindowBound`]: a floor past the
 //! band is no meeting; otherwise the point is read on both spans, and On
 //! there is a meeting, with no premise on the polish. An Off prunes only
-//! where a span is cleared past the reach; otherwise it is a straddle of
+//! where the run arm or the reach clears a span; otherwise it is a
+//! straddle of
 //! the floor against the gap at the pair (`curve_pair_meet_window`), or
 //! the reach's own (`curve_pair_span_past_reach_straddle`), and
 //! escalates. A location along the carriers enters only to prune, and is
