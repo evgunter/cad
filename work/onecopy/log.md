@@ -238,3 +238,5 @@
 - 2026-11-05 — The 6535 fix pass is at head `f1b634bb`. The lane bounded the margin by `bow·2/9`, not the reviewer's `bow·(4/9)²`. The reviewer's figure is the smallest edge height, at the corners; a mid-edge sample may legitimately sit up to `bow·2/9` off, so the lane's bound is the sound one. The mutation check (bound 1e-3) goes red. A P3 row was filed for the cone pin. I updated the PR body myself; the gate is running.
 
 - 2026-11-05 — PR 6535 merged as `dd446ad83e`, gated on `f1b634bb`. The m7_8 plain-names main red is closed.
+
+- 2026-11-05 — Dispatched cloud lane `session_013mPGJ3PFKaTss2xjCqxX2Y` on P1 `door-searches-left-on-the-hand-rolled-ladder`, branch `onecopy/ladder-climb-3`. The lane ports the clean sites onto `climb`. For the ranking forks (`shared_run`, `measured_ends`) and `offset_axial`'s third outcome, it measures first and sends me the question rather than choosing.
