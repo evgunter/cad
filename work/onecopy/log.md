@@ -234,3 +234,5 @@
   - a Resolution on the closed row naming PR 6498;
   - a two-sided bound on the margin;
   - a P3 row for the next by-name pin (`topo/tests/review_m3_pr4.rs:719-731`).
+
+- 2026-11-05 — The 6535 fix pass is at head `f1b634bb`. The lane bounded the margin by `bow·2/9`, not the reviewer's `bow·(4/9)²`. The reviewer's figure is the smallest edge height, at the corners; a mid-edge sample may legitimately sit up to `bow·2/9` off, so the lane's bound is the sound one. The mutation check (bound 1e-3) goes red. A P3 row was filed for the cone pin. I updated the PR body myself; the gate is running.
