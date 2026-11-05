@@ -7,20 +7,27 @@
 //! and what the window around it holds is read off [`bound`], never off
 //! whether the polish converged.
 //!
-//! **The search is `f64` structure** (`geom::projection_policy`'s "f64
-//! structure + T payload"): each step is evaluated at `T` at the
-//! iterate, entered through `Real::from_computed`, and the iterate moves
-//! by the step's bracket midpoint ([`geom::bracket_mid`]). A step read
-//! from a whole enclosure would be a step from every point of it, which
-//! grows the iterate by the box's spread each step rather than closing
-//! on the pair. At `f64` the midpoint of a point is the point, so the
-//! search is bit for bit the plain `f64` iteration.
+//! **At an enclosing scalar the search is `f64` structure**
+//! (`geom::projection_policy`'s "f64 structure + T payload"): a step
+//! whose value is an enclosure moves the iterate by its bracket midpoint
+//! ([`geom::bracket_mid`]), and the iterate enters `T` again through
+//! `Real::from_computed`, a point. A step read from a whole enclosure
+//! would be a step from every point of it, which grows the iterate by
+//! the box's spread each step rather than closing on the pair. **A step
+//! whose value is a point is taken at `T`**: at `f64`, and at `Sym` or
+//! `Dual` over `f64`, the iterate keeps what it carries, its symbols or
+//! its tangent, and the search is main's. At `f64` the two are the same
+//! bits.
 //!
-//! **A selection that moves with the inputs**, so at a `Dual` the
-//! polished pair carries no tangent of its own, and at `Sym` it is a
-//! literal: #874's class (`geom::projection_policy`'s `mid`). What a
-//! consumer reads at the pair (its points, `contact`'s certified
-//! parameter) is evaluated at `T` there.
+//! **A selection that moves with the inputs** where it is structure, so
+//! at `Dual` or `Sym` over an enclosure the polished pair carries no
+//! tangent of its own, or is a literal: #874's class
+//! (`geom::projection_policy`'s `mid`). At `Sym` over `f64` it is not:
+//! `editor-core`'s coincidence door reads the pair's symbols through a
+//! vertex's residual (`coincidence_door::two_copies_on_one_axis_glue_their_walls_on_one_axis`
+//! names the recourse that residual's form gives). What a consumer reads
+//! at the pair (its points, `contact`'s certified parameter) is
+//! evaluated at `T` there.
 
 use geom_core::k_stats::prove;
 use geom_core::{Decide, Margin, Point3, Sign, Vec3};
@@ -35,32 +42,45 @@ const MOVE: &str = "curve_pair_pose_move";
 
 /// Gauss–Newton from `(s, t)` toward the closest pair of the carriers
 /// `a` and `b`, a step taken where `keep` accepts the metres it moves the
-/// pair (read at `T` at the iterate): the pair, entered at `T`. A start or
-/// a step with no finite bracket ends the search where it stands.
+/// pair (read at `T` at the iterate): the pair. A step whose value is a
+/// point is taken at `T`; one that is an enclosure moves the iterate by
+/// its middle, and the search is `f64` structure from there on (module
+/// docs). A step with no finite bracket ends the search where it stands.
 pub(super) fn pair<T: Decide>(
     a: impl Fn(T) -> (Point3<T>, Vec3<T>),
     b: impl Fn(T) -> (Point3<T>, Vec3<T>),
-    (s0, t0): (T, T),
+    (mut s, mut t): (T, T),
     keep: impl Fn(T) -> bool,
 ) -> (T, T) {
-    let (Some(mut s), Some(mut t)) = (mid(s0), mid(t0)) else {
-        return (s0, t0);
-    };
+    let mut structure = false;
     for _ in 0..STEPS {
-        let ((pa, da), (pb, db)) = (a(T::from_computed(s)), b(T::from_computed(t)));
+        let ((pa, da), (pb, db)) = (a(s), b(t));
         let (w, n) = (pb - pa, da.cross(db));
         let nn = n.dot(n);
         let (ds, dt) = (w.cross(db).dot(n) / nn, w.cross(da).dot(n) / nn);
         let moved = da.norm() * ds.abs() + db.norm() * dt.abs();
-        let (Some(ds), Some(dt)) = (mid(ds), mid(dt)) else {
+        let (Some(ms), Some(mt)) = (mid(ds), mid(dt)) else {
             break;
         };
-        if keep(moved) {
-            s += ds;
-            t += dt;
+        if !keep(moved) {
+            continue;
+        }
+        structure |= !(is_point(ds) && is_point(dt) && is_point(s) && is_point(t));
+        if structure {
+            let (Some(s0), Some(t0)) = (mid(s), mid(t)) else {
+                break;
+            };
+            (s, t) = (T::from_computed(s0 + ms), T::from_computed(t0 + mt));
+        } else {
+            (s, t) = (s + ds, t + dt);
         }
     }
-    (T::from_computed(s), T::from_computed(t))
+    (s, t)
+}
+
+/// Whether `x`'s bracket is one point.
+fn is_point<T: Decide>(x: T) -> bool {
+    x.structure_bracket().is_some_and(|(lo, hi)| lo == hi)
 }
 
 /// The middle of `x`'s bracket ([`geom::bracket_mid`]), or `None` where
