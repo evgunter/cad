@@ -66,7 +66,7 @@ use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, ShellKey, VertexKey
 use crate::face_normal::face_plane;
 use crate::live::{Proven, proven};
 use crate::props::{QuadLane, ShellRole};
-use geom_brep::ladder::{Answering, Ranked, Rung, climb_evidence};
+use geom_brep::ladder::{Answering, Rung, climb_evidence};
 
 /// What one witness read against the probed surfaces.
 #[derive(Debug)]
@@ -576,10 +576,7 @@ pub(crate) fn witness_insides<T: Decide + crate::props::AtRestPolicy>(
     };
     match ladder(body, reads[i].sel.faces(), band, probe) {
         Ok(Reading::Side(inside)) => Insides::Read(inside),
-        Ok(Reading::Undecided(t)) => match t.kept.ranked() {
-            Ranked::Blocked(e) | Ranked::InBand(e) | Ranked::Unsettled(e) => Insides::Refused(e),
-            Ranked::Neither => Insides::Touching,
-        },
+        Ok(Reading::Undecided(t)) => t.kept.refusal().map_or(Insides::Touching, Insides::Refused),
         Err(e) => Insides::Refused(e),
     }
 }

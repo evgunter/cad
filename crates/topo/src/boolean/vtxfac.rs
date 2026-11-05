@@ -79,6 +79,7 @@
 //! same cone, its partners' faces alone.
 
 use geom_brep::OutwardNormal;
+use geom_brep::ladder::{Answering, Evidence, Rung, climb_evidence};
 use geom_core::k_stats::NonzeroSign;
 use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
 
@@ -1750,60 +1751,63 @@ pub(super) fn faces_holding_pierce<T: Decide + crate::props::AtRestPolicy>(
     band: Band,
     tol: Tol,
 ) -> Result<Vec<HeldPierce<T>>, BooleanError> {
+    // Every face of every pierce is read before anything is written,
+    // and each read is needed: a ladder no read answers, where a definite
+    // refusal stops it and an escalation is kept until every later read
+    // is taken, so which is read first does not choose between the two.
     let mut reads: Vec<HeldRead<T>> = Vec::new();
-    let mut escalated = None;
+    let mut kept = Evidence::default();
     for plan in plans {
-        for read in held_reads(
+        let held = held_reads(
             sections,
             &*piercing_body,
             pierced_body,
             box_holds,
             plan,
             band,
-        )? {
-            match read {
-                // Two pierces of one face at one point would mint two ring
-                // vertices there. No row reaches the pose, so no answer
-                // here is checked: it refuses, before anything is written.
-                Ok(read) => {
-                    for earlier in reads.iter().filter(|r| r.face == read.face) {
-                        match super::one_vertex_at(earlier.point, read.point, band) {
-                            Ok(Some(_)) => {
-                                let kind =
-                                    |body: &Body<T>, face| body.proven_face(face).surface().kind();
-                                return Err(BooleanError::HeldPierceUnbuilt {
-                                    operand: read.piercing,
-                                    face: read.face,
-                                    pierced: read.pierced,
-                                    kind: kind(piercing_body, read.face),
-                                    pierced_kind: kind(pierced_body, read.pierced),
-                                    placed: true,
-                                });
-                            }
-                            Ok(None) => {}
-                            Err(diag) => {
-                                escalated.get_or_insert(BooleanError::Escalated {
-                                    decision: super::BooleanDecision::VertexOnVertex,
-                                    diag,
-                                });
-                            }
-                        }
+        )?;
+        let climbed = climb_evidence(Answering::First, held, |read| {
+            let read = match read {
+                Ok(read) => read,
+                Err(e @ BooleanError::Escalated { .. }) => return Rung::InBand(e),
+                Err(definite) => return Rung::Aborts(definite),
+            };
+            // Two pierces of one face at one point would mint two ring
+            // vertices there. No row reaches the pose, so no answer here
+            // is checked: it refuses, before anything is written.
+            let mut escalated = None;
+            for earlier in reads.iter().filter(|r| r.face == read.face) {
+                match super::one_vertex_at(earlier.point, read.point, band) {
+                    Ok(Some(_)) => {
+                        let kind = |body: &Body<T>, face| body.proven_face(face).surface().kind();
+                        return Rung::Aborts(BooleanError::HeldPierceUnbuilt {
+                            operand: read.piercing,
+                            face: read.face,
+                            pierced: read.pierced,
+                            kind: kind(&*piercing_body, read.face),
+                            pierced_kind: kind(pierced_body, read.pierced),
+                            placed: true,
+                        });
                     }
-                    reads.push(read);
+                    Ok(None) => {}
+                    Err(diag) => {
+                        escalated.get_or_insert(BooleanError::Escalated {
+                            decision: super::BooleanDecision::VertexOnVertex,
+                            diag,
+                        });
+                    }
                 }
-                // **A definite refusal outranks an escalation**, as in the
-                // pierce pass this serves: every face of every pierce is
-                // read, so which is read first does not choose between
-                // the two.
-                Err(e @ BooleanError::Escalated { .. }) => {
-                    escalated.get_or_insert(e);
-                }
-                Err(definite) => return Err(definite),
             }
+            reads.push(read);
+            escalated.map_or(Rung::Passes, Rung::InBand)
+        });
+        match climbed {
+            Ok((_, definite)) => return Err(definite),
+            Err(evidence) => kept = kept.then(evidence),
         }
     }
-    if let Some(escalated) = escalated {
-        return Err(escalated);
+    if let Some(e) = kept.refusal() {
+        return Err(e);
     }
     reads
         .into_iter()
