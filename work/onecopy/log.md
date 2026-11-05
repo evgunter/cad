@@ -265,3 +265,11 @@
 
 - 2026-11-05 — The polish-meters cost gate tripped: about 6 poses in three sweep tests (a keel near-tangent to a bore, a steep ellipse's end, and a moved copy) that main decides and (A) escalated on the reach rows. No test outcome moved, and geom-brep and topo were identical at all ε. Third amendment ruled: (C), the run argument posed on the basin's monotonicity. If `p` is decided in band, `d` is monotone to the end, and the end is decidedly Off, the pose prunes. The lane resumed for implementation and a sweep census re-run.
   Class lesson: a bound that is sound but loose (reach ≈ (σ+e)/sin φ) costs exactly where sin φ is small. Prefer an argument from a decided reading (the end's own Off) over a bound on travel.
+
+- 2026-11-05 — The polish-meters lane opened PR 6537 at head `71936f1cc4`, and the cost gate passes after (C).
+  - No test outcome moves at any ε.
+  - One pose goes from decided to escalated at every ε: the steep ellipse's corner, with each end on the other carrier within 1.5e-8, so it is honest in band. The keel poses decide again.
+  - Refused → decided: 27 at the default ε and 132 at 1e-12.
+  - Departure 3: a point-valued polish step is taken at T, not as a literal, because editor-core's coincidence door reads the `Sym` symbols.
+  FULL review sent to `session_013mPGJ3HVYqYAoquA4iThSZ`, with a soundness sample of the newly decided poses against an oracle.
+  Filed two main reds the lane found: the K probe sweep doesn't compile under `probe` alone, and `m10_sym_profile`'s pinned rows are red on main.
