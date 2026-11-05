@@ -14,8 +14,7 @@ use core::f64::consts::PI;
 
 use crate::common::interval::iv;
 use geom_core::k_stats::Bracket;
-use geom_core::{Bounds, Decide, Interval, Point3, Sign, Tol};
-use sweep::blend::BlendError;
+use geom_core::{Bounds, Decide, Interval, Point3, Sign, Tol, Vec3};
 use sweep::blend::build::{chamfer_edges, fillet_edges};
 use sweep::test_support::{assert_naming_totality, block};
 use topo::{
@@ -295,19 +294,17 @@ fn sheared<T: Decide + Bounds + topo::AtRestPolicy>(
 /// both signs, convex and concave, both verbs. At a positive shear the
 /// fillet's foot on the top rim is the end ellipse's major vertex, half
 /// a turn from `u_ref`, where a parameter read from the seam straddles
-/// `atan2`'s cut: those six rows are the witnesses. The negative-shear
+/// `atan2`'s cut: those ten rows are the witnesses. The negative-shear
 /// rows put the foot on `u_ref` itself, and a chamfer's cut-off reads
 /// no arc; they are the ladder's controls. Every row builds at both
 /// scalars, tiers 3 and 3′ and naming total at `Interval`, its `ΔV`
 /// enclosure bracketing the `f64` body's within the props pad and its
-/// midpoint within `midpoint_tol`. At `ε = 1e-12` a control's
-/// `Interval` build may escalate its pcurve envelope instead, a witness
-/// never.
+/// midpoint within `midpoint_tol`.
 #[test]
 fn a_fillet_foot_on_atan2s_cut_at_an_oblique_end_carves_at_the_certified_scalar() {
     use crate::band_planar_cut_off::{midpoint_tol, pad_ceiling};
     let tol = Tol::witness();
-    for s in [-0.6, -0.3, -0.1, 0.1, 0.3, 0.6] {
+    for s in [-0.8, -0.7, -0.6, -0.3, -0.1, 0.1, 0.3, 0.6, 0.7, 0.8] {
         for convex in [true, false] {
             let (fbody, fedge) = sheared::<f64>(s, convex, tol);
             let (ibody, iedge) = sheared::<Interval>(s, convex, tol);
@@ -319,7 +316,6 @@ fn a_fillet_foot_on_atan2s_cut_at_an_oblique_end_carves_at_the_certified_scalar(
             let iv0 = mass_properties(&ibody, tol, topo::test_support::pinned_resolution(tol))
                 .expect("interval props");
             for round in [false, true] {
-                let witness = round && s > 0.0;
                 let what = format!("shear {s}, convex {convex}, round {round}");
                 let fout = if round {
                     fillet_edges(&fbody, &[fedge], D, tol)
@@ -341,36 +337,12 @@ fn a_fillet_foot_on_atan2s_cut_at_an_oblique_end_carves_at_the_certified_scalar(
                     .met()
                     .expect("props")
                     .volume;
-                let out = match if round {
+                let out = if round {
                     fillet_edges(&ibody, &[iedge], iv(D), tol)
                 } else {
                     chamfer_edges(&ibody, &[iedge], iv(D), tol)
-                } {
-                    Ok(out) => out,
-                    // At the finest ε a re-minted pcurve's envelope
-                    // enclosure is wider than the band, and escalates.
-                    Err(e)
-                        if !witness
-                            && tol.eps() <= 1e-12
-                            && matches!(
-                                &e.error,
-                                BlendError::Certify {
-                                    source: topo::PcurveMintError::Certify {
-                                        error: geom_brep::PcurveCertifyError::Escalated { .. },
-                                        ..
-                                    },
-                                    ..
-                                }
-                            ) =>
-                    {
-                        test_utils::vacuity::stood_down(
-                            &what,
-                            &format!("a control escalates at ε {}: {:?}", tol.eps(), e.error),
-                        );
-                        continue;
-                    }
-                    Err(e) => panic!("{what}: carves at Interval, got {e:?}"),
-                };
+                }
+                .unwrap_or_else(|e| panic!("{what}: carves at Interval, got {e:?}"));
                 validate_geometric(&out.body, tol)
                     .unwrap_or_else(|e| panic!("{what}: tier 3, got {e:?}"));
                 validate_pseudomanifold(&out.body, &ContactRecords::default(), tol)
@@ -404,4 +376,119 @@ fn a_fillet_foot_on_atan2s_cut_at_an_oblique_end_carves_at_the_certified_scalar(
             }
         }
     }
+}
+
+/// Every straight edge bounding `body`'s band cylinders, with its
+/// carrier's direction and the cylinder's axis.
+fn foot_lines<T: Bounds + Decide>(body: &Body<T>) -> Vec<(EdgeKey, Vec3<T>, Vec3<T>)> {
+    query::all_edges(body)
+        .into_iter()
+        .filter_map(|e| {
+            let edge = body.get_edge(e)?;
+            let geom::Curve3::Line(line) = body
+                .get_curve_geom(edge.curve)?
+                .certified()?
+                .carrier()
+                .clone()
+            else {
+                return None;
+            };
+            [edge.he_plus, edge.he_minus].into_iter().find_map(|he| {
+                match body.face_surface(body.face_of_half_edge(he)?)? {
+                    geom::Surface::Cylinder { axis, .. } => Some((e, line.dir, *axis)),
+                    _ => None,
+                }
+            })
+        })
+        .collect()
+}
+
+/// **A fillet's foot line carries the band's axis**: at rest each
+/// straight edge on a band cylinder runs along the stored axis, `±` its
+/// bits at `f64` and no wider at `Interval` — never the direction its
+/// two vertices re-read, which is as wide as they are.
+#[test]
+fn a_fillet_foot_line_carries_the_bands_axis() {
+    let tol = Tol::witness();
+    for s in [-0.8, 0.6] {
+        for convex in [true, false] {
+            let what = format!("shear {s}, convex {convex}");
+            let (fbody, fedge) = sheared::<f64>(s, convex, tol);
+            let out = fillet_edges(&fbody, &[fedge], D, tol)
+                .unwrap_or_else(|e| panic!("{what}: carves at f64, got {e:?}"));
+            let lines = foot_lines(&out.body);
+            assert_eq!(lines.len(), 2, "{what}: the band's two foot lines at f64");
+            for (e, dir, axis) in lines {
+                let bits = |v: Vec3<f64>| [v.x, v.y, v.z].map(f64::to_bits);
+                assert!(
+                    bits(dir) == bits(axis) || bits(dir) == bits(-axis),
+                    "{what}: {e:?}'s direction {dir:?} is ± the band's axis {axis:?}"
+                );
+            }
+            let (ibody, iedge) = sheared::<Interval>(s, convex, tol);
+            let out = fillet_edges(&ibody, &[iedge], iv(D), tol)
+                .unwrap_or_else(|e| panic!("{what}: carves at Interval, got {e:?}"));
+            let lines = foot_lines(&out.body);
+            assert_eq!(
+                lines.len(),
+                2,
+                "{what}: the band's two foot lines at Interval"
+            );
+            for (e, dir, axis) in lines {
+                let width = |v: Vec3<Interval>| [v.x, v.y, v.z].map(|c| c.hi() - c.lo());
+                assert!(
+                    width(dir).iter().zip(width(axis)).all(|(d, a)| *d <= a),
+                    "{what}: {e:?}'s direction {dir:?} is no wider than the band's axis {axis:?}"
+                );
+            }
+        }
+    }
+}
+
+/// **The foot lines certify with headroom**: over the sheared ladder's
+/// steepest shears, every foot line's pcurve on its band cylinder holds
+/// an envelope under `6e-13`, so the finest band (`ε = 1e-12`) is not
+/// one ulp-scale read from escalating. Its terms are the foot line's
+/// and the chart's own widths; a direction read back off two points a
+/// radius apart costs most of the band.
+#[test]
+fn a_sheared_fillets_foot_lines_certify_with_headroom() {
+    let tol = Tol::witness();
+    let mut worst = 0.0f64;
+    for s in [-0.8, -0.7, -0.6, 0.6, 0.7, 0.8] {
+        for convex in [true, false] {
+            let what = format!("shear {s}, convex {convex}");
+            let (ibody, iedge) = sheared::<Interval>(s, convex, tol);
+            let out = fillet_edges(&ibody, &[iedge], iv(D), tol)
+                .unwrap_or_else(|e| panic!("{what}: carves at Interval, got {e:?}"));
+            let body = &out.body;
+            let mut read = 0;
+            for (e, _, _) in foot_lines(body) {
+                let edge = body.get_edge(e).unwrap();
+                for he in [edge.he_plus, edge.he_minus] {
+                    let on_band = body
+                        .face_of_half_edge(he)
+                        .and_then(|f| body.face_surface(f))
+                        .is_some_and(|s| matches!(s, geom::Surface::Cylinder { .. }));
+                    if !on_band {
+                        continue;
+                    }
+                    let envelope = body
+                        .pcurve(he)
+                        .unwrap_or_else(|| panic!("{what}: {he:?} carries a pcurve"))
+                        .certificate()
+                        .envelope
+                        .hi();
+                    worst = worst.max(envelope);
+                    read += 1;
+                }
+            }
+            assert_eq!(read, 2, "{what}: both foot lines' band pcurves are read");
+        }
+    }
+    assert!(
+        worst < 6e-13,
+        "the worst foot-line envelope {worst:e} is under 6e-13"
+    );
+    println!("worst foot-line envelope: {worst:e}");
 }

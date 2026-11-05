@@ -294,6 +294,7 @@ use geom::SurfaceKind;
 use geom::{Curve3, Surface};
 use geom_brep::EdgeCurveSpec;
 use geom_brep::ExtentBall;
+use geom_brep::ladder::{Answering, Climb, Rung, climb};
 use geom_core::k_stats::decide;
 use geom_core::{
     Arc2, Band, Decide, Indeterminate, InfSpeed, Lever, Margin, Point3, Real, Sign, SpanLocate,
@@ -1553,46 +1554,13 @@ fn solve_corner<T: Decide>(
     // foot itself — names its foot ([`tangent_foot`]), the answer only
     // when no pair resolves; a tangency the band cannot decide escalates
     // only then too, so the outcome does not hang on the order the fan
-    // is walked. ----
-    let mut solved: Option<(T, T)> = carried;
-    if solved.is_none() {
-        let mut tangent: Option<Result<(T, T), ReplaceFaceError<T>>> = None;
-        'pairs: for (i, a) in profiles.iter().enumerate() {
-            for b in profiles.iter().skip(i + 1) {
-                let Some(det) = transversality(a, b) else {
-                    continue;
-                };
-                let mut resolvable = true;
-                for &arm in arms {
-                    match decide("offset_axial_corner", Margin::levered(det.abs(), arm), band) {
-                        Ok(Sign::Positive) => {}
-                        Ok(_) => {
-                            resolvable = false;
-                            break;
-                        }
-                        Err(source) => return Err(ReplaceFaceError::Escalated { source }),
-                    }
-                }
-                if resolvable && let Some(root) = branch(a, b, det, rho_old, h_old, band)? {
-                    solved = Some(root);
-                    break 'pairs;
-                }
-                match tangent_foot(a, b, band) {
-                    Ok(Some(foot)) => {
-                        tangent.get_or_insert(Ok(foot));
-                    }
-                    Ok(None) if resolvable => return Err(tie(vertex)),
-                    Ok(None) => {}
-                    Err(e) => {
-                        tangent.get_or_insert(Err(e));
-                    }
-                }
-            }
-        }
-        if solved.is_none() {
-            solved = tangent.transpose()?;
-        }
-    }
+    // is walked. A conditioning the band cannot decide is kept the same
+    // way, and refuses ahead of any foot: a tighter band may resolve its
+    // pair to a root. ----
+    let solved = match carried {
+        Some(corner) => Some(corner),
+        None => solve_pairs(&profiles, arms, (rho_old, h_old), vertex, band)?,
+    };
     let (rho, h) = solved.ok_or_else(|| {
         refuse(
             "no pair of the surfaces here meets transversally enough to resolve this corner \
@@ -1970,6 +1938,81 @@ fn tangent_foot<T: Decide>(
         Ok(_) => Ok(None),
         Err(source) => Err(ReplaceFaceError::Escalated { source }),
     }
+}
+
+/// **The profile solve over pairs of the corner's profiles**
+/// ([`solve_corner`]), in the order the vertex's fan is walked: two
+/// ladders ([`climb`], [`Answering::First`]).
+///
+/// 1. The pairs: the first well-conditioned pair whose branch is
+///    determined ([`branch`]) answers. A conditioning in band is kept,
+///    and refuses where no pair resolves.
+/// 2. Where no pair resolved and none was kept, the tangent feet of the
+///    pairs that could not resolve ([`tangent_foot`]): the first answers,
+///    and a tangency in band refuses where no later foot answers.
+///
+/// `None` where neither answers.
+///
+/// # Errors
+///
+/// [`ReplaceFaceError::Escalated`] on a reading in band as above;
+/// [`branch`]'s own, and [`tie`] for a resolvable pair whose roots tie
+/// off any foot.
+fn solve_pairs<T: Decide>(
+    profiles: &[Profile<T>],
+    arms: &[Lever<T>],
+    (rho_old, h_old): (T, T),
+    vertex: VertexKey,
+    band: Band,
+) -> Result<Option<(T, T)>, ReplaceFaceError<T>> {
+    // Each unresolvable pair's tangent reading, for ladder 2.
+    let mut tangents: Vec<Result<(T, T), Indeterminate>> = Vec::new();
+    let pairs = profiles
+        .iter()
+        .enumerate()
+        .flat_map(|(i, a)| profiles.iter().skip(i + 1).map(move |b| (a, b)));
+    let resolving = climb(Answering::First, pairs, |(a, b)| {
+        let Some(det) = transversality(a, b) else {
+            return Rung::Passes;
+        };
+        let mut resolvable = true;
+        for &arm in arms {
+            match decide("offset_axial_corner", Margin::levered(det.abs(), arm), band) {
+                Ok(Sign::Positive) => {}
+                Ok(_) => {
+                    resolvable = false;
+                    break;
+                }
+                Err(source) => return Rung::kept(source),
+            }
+        }
+        if resolvable {
+            match branch(a, b, det, rho_old, h_old, band) {
+                Ok(Some(root)) => return Rung::Answers(Ok(root)),
+                Ok(None) => {}
+                Err(e) => return Rung::Aborts(Err(e)),
+            }
+        }
+        match tangent_foot(a, b, band) {
+            Ok(Some(foot)) => tangents.push(Ok(foot)),
+            Ok(None) if resolvable => return Rung::Aborts(Err(tie(vertex))),
+            Ok(None) => {}
+            Err(ReplaceFaceError::Escalated { source }) => tangents.push(Err(source)),
+            Err(e) => return Rung::Aborts(Err(e)),
+        }
+        Rung::Passes
+    });
+    let solved = match resolving {
+        Climb::Answered { answer, .. } => Some(answer?),
+        Climb::Undecided(source) => return Err(ReplaceFaceError::Escalated { source }),
+        Climb::Passed => climb(Answering::First, tangents, |tangent| match tangent {
+            Ok(foot) => Rung::Answers(foot),
+            Err(source) => Rung::kept(source),
+        })
+        .into_reading()
+        .map_err(|source| ReplaceFaceError::Escalated { source })?,
+    };
+    Ok(solved)
 }
 
 /// The meeting points of two profile curves whose transversality the
@@ -3268,6 +3311,72 @@ mod tests {
             body.get_face_mut(side).expect("a cube wall").surface = wall;
         }
         body
+    }
+
+    /// [`solve_pairs`] over synthetic profiles about a circle of radius 1
+    /// centred at `(ρ, h) = (10, 0)`, one arm of `arm`.
+    fn pairs(
+        profiles: &[Profile<f64>],
+        arm: f64,
+    ) -> Result<Option<(f64, f64)>, ReplaceFaceError<f64>> {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let arms = [geom_core::test_support::fixture_lever(arm)];
+        solve_pairs(profiles, &arms, (10.0, 0.0), VertexKey::default(), band)
+    }
+
+    const CIRCLE: Profile<f64> = Profile::Circle {
+        rho_c: 10.0,
+        h_c: 0.0,
+        r: 1.0,
+    };
+
+    /// A station line `ρ = c`.
+    const fn station(c: f64) -> Profile<f64> {
+        Profile::Line { n: (1.0, 0.0), c }
+    }
+
+    /// **The pair ladders' order** (the ladder's rule over the fan):
+    /// - a tangent foot later in the fan answers past an earlier tangency
+    ///   in band (red under a rule that kept the first of either);
+    /// - a pair whose conditioning is in band refuses ahead of any foot;
+    /// - and a later pair that resolves answers past it (red under a
+    ///   rule that returned on the first conditioning in band).
+    #[test]
+    fn the_corner_pairs_climb_the_ladder() {
+        // `ρ = 11 − 5e-9` grazes the circle in band, `ρ = 11` touches it.
+        let grazing = [station(11.0 - 5e-9), CIRCLE, station(11.0)];
+        assert_eq!(
+            pairs(&grazing, 1e-6).map_err(|e| format!("{e:?}")),
+            Ok(Some((11.0, 0.0))),
+            "the later foot answers past the tangency in band"
+        );
+        // `ρ = 10` crosses the circle square, its conditioning in band at
+        // an arm of 5e-9; `ρ = 11` touches it.
+        let kept = [station(10.0), CIRCLE, station(11.0)];
+        assert!(
+            matches!(pairs(&kept, 5e-9), Err(ReplaceFaceError::Escalated { .. })),
+            "a conditioning in band refuses ahead of the foot: {:?}",
+            pairs(&kept, 5e-9)
+        );
+        // `ρ = 10` against a line crossing it at a sine of 0.05 is in band
+        // at an arm of 1e-7; against `h = 0`, square, it resolves.
+        let (s, c) = (0.05_f64, (1.0 - 0.05_f64 * 0.05).sqrt());
+        let resolving = [
+            station(10.0),
+            Profile::Line {
+                n: (c, s),
+                c: 10.0 * c,
+            },
+            Profile::Line {
+                n: (0.0, 1.0),
+                c: 0.0,
+            },
+        ];
+        assert_eq!(
+            pairs(&resolving, 1e-7).map_err(|e| format!("{e:?}")),
+            Ok(Some((10.0, 0.0))),
+            "a later pair resolves past the conditioning in band"
+        );
     }
 
     /// A torn record is not a verdict: a dangling point or surface on a

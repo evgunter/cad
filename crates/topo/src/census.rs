@@ -328,6 +328,7 @@ use std::collections::BTreeSet;
 
 use bvh::{Aabb, Bvh};
 use geom_brep::curve_pair::{Hit, MeetFault, Span as CarrierSpan, meet};
+use geom_brep::ladder::{Answering, Climb, Evidence, Kept, Rung, climb, climb_evidence};
 use geom_core::k_stats::{Magnitude, decide_reported, straddle};
 use geom_core::one_line::on_one_line;
 use geom_core::{
@@ -11417,23 +11418,17 @@ fn shared_run<T: Decide>(
     band: Band,
 ) -> Result<bool, InteriorsUnread> {
     let mut read = Vec::new();
-    let mut unread = None;
-    for &a in ea {
-        for &b in eb {
-            let before = read.len();
+    let pairs = ea.iter().flat_map(|&a| eb.iter().map(move |&b| (a, b)));
+    meeting_found(climb(Answering::Any, pairs, |(a, b)| {
+        let before = read.len();
+        meeting_rung(
             match curved::interiors_meeting(body, a, b, band, &mut read) {
-                Some(Some(m)) if m.overlap => return Ok(true),
-                Some(_) => {}
-                None => {
-                    let why = escalated_since(&read, before);
-                    if unread != Some(InteriorsUnread::Undecided) {
-                        unread = Some(why);
-                    }
-                }
-            }
-        }
-    }
-    unread.map_or(Ok(false), Err)
+                Some(Some(m)) => Ok(m.overlap),
+                Some(None) => Ok(false),
+                None => Err(escalated_since(&read, before)),
+            },
+        )
+    }))
 }
 
 /// Why [`planar_interiors_meet`] read no verdict.
@@ -11449,6 +11444,22 @@ enum InteriorsUnread {
 }
 
 impl InteriorsUnread {
+    /// What this refusal is to a ladder, as [`Kept`] holds it: a reading
+    /// in band, or a reading not built, a limit no tolerance moves. No
+    /// unread interior refuses the whole query or is unsettled, so the
+    /// kept kinds are the whole of it.
+    const fn kept(self) -> Kept<Self> {
+        match self {
+            Self::Undecided => Kept::InBand(self),
+            Self::Unbuilt => Kept::Blocked(self),
+        }
+    }
+
+    /// This refusal as a ladder's rung ([`Self::kept`]).
+    fn rung<A>(self) -> Rung<A, Self> {
+        self.kept().into()
+    }
+
     /// A meeting reading's refusal: an escalation or a touch undecided,
     /// every other refusal unbuilt. A fault folds in with the limits
     /// (`work/splitdoor/census-interiors-fold-a-meetings-fault-into-unbuilt.md`).
@@ -11461,6 +11472,39 @@ impl InteriorsUnread {
             | MeetFault::Contradiction { .. } => Self::Unbuilt,
         }
     }
+}
+
+/// One reading of whether two interiors meet, as a rung of the search
+/// for a meeting: a meeting answers, none passes, and an unread reading
+/// is kept as what it is ([`InteriorsUnread::kept`]).
+fn meeting_rung(
+    reading: Result<bool, InteriorsUnread>,
+) -> Rung<Result<bool, InteriorsUnread>, InteriorsUnread> {
+    match reading {
+        Ok(true) => Rung::Answers(Ok(true)),
+        Ok(false) => Rung::Passes,
+        Err(why) => why.rung(),
+    }
+}
+
+/// What a search for a meeting read: its answer (a meeting, or a
+/// refusal it stopped on), `Ok(false)` where every reading passed, and
+/// the ranked kept refusal ([`Evidence`]) otherwise.
+fn meeting_found(
+    climbed: Climb<Result<bool, InteriorsUnread>, InteriorsUnread>,
+) -> Result<bool, InteriorsUnread> {
+    match climbed {
+        Climb::Answered { answer, .. } => answer,
+        Climb::Passed => Ok(false),
+        Climb::Undecided(why) => Err(why),
+    }
+}
+
+/// A probe of [`planar_interiors_meet`]: a vertex of one face against
+/// the other, or an edge of each.
+enum PlanarProbe<'g, T: Real> {
+    Corner(&'g FaceGeo<T>, &'g FaceGeo<T>, VertexKey),
+    Sides(&'g EdgeGeo<T>, &'g EdgeGeo<T>),
 }
 
 /// **Whether two planar faces on one plane, facing the same way, share
@@ -11484,42 +11528,38 @@ fn planar_interiors_meet<T: Decide>(
         .ok_or(InteriorsUnread::Unbuilt)?
         .vec();
     let mut read = Vec::new();
-    let mut unread = None;
-    let note = |why: InteriorsUnread, unread: &mut Option<InteriorsUnread>| {
-        if *unread != Some(InteriorsUnread::Unbuilt) {
-            *unread = Some(why);
-        }
-    };
-    for (x, y) in [(fa, fb), (fb, fa)] {
-        for &v in &x.boundary {
-            let p = *geo.vmap.get(&v).ok_or(InteriorsUnread::Unbuilt)?;
-            let Some(at) = contain(body, y, p, band, &mut read) else {
-                note(InteriorsUnread::Undecided, &mut unread);
-                continue;
-            };
-            if at == FaceContainment::Out {
-                continue;
+    let corners = [(fa, fb), (fb, fa)].into_iter().flat_map(|(x, y)| {
+        x.boundary
+            .iter()
+            .map(move |&v| PlanarProbe::Corner(x, y, v))
+    });
+    let sides = geo.sides_of(fa.key).flat_map(|ea| {
+        geo.sides_of(fb.key)
+            .map(move |eb| PlanarProbe::Sides(ea, eb))
+    });
+    meeting_found(climb(Answering::Any, corners.chain(sides), |probe| {
+        meeting_rung(match probe {
+            PlanarProbe::Corner(x, y, v) => {
+                let Some(&p) = geo.vmap.get(&v) else {
+                    return Rung::Aborts(Err(InteriorsUnread::Unbuilt));
+                };
+                match contain(body, y, p, band, &mut read) {
+                    None => Err(InteriorsUnread::Undecided),
+                    Some(FaceContainment::Out) => Ok(false),
+                    Some(at) => {
+                        let pair = [(x.key, FaceContainment::OnVertex(v)), (y.key, at)];
+                        cones_meet(body, geo, pair, p, axis, true, band, &mut read)
+                            .map_err(InteriorsUnread::from)
+                    }
+                }
             }
-            let at_x = FaceContainment::OnVertex(v);
-            let pair = [(x.key, at_x), (y.key, at)];
-            match cones_meet(body, geo, pair, p, axis, true, band, &mut read) {
-                Ok(true) => return Ok(true),
-                Ok(false) => {}
-                Err(ConesUnread::Escalated) => note(InteriorsUnread::Undecided, &mut unread),
-                Err(ConesUnread::Unbuilt) => note(InteriorsUnread::Unbuilt, &mut unread),
-            }
-        }
-    }
-    for ea in geo.sides_of(fa.key) {
-        for eb in geo.sides_of(fb.key) {
-            match ee_meeting(ea, eb, band, &mut read) {
-                Some(Some(Meeting::Cross(_))) => return Ok(true),
-                Some(Some(Meeting::Overlap(..)) | None) => {}
-                None => note(InteriorsUnread::Undecided, &mut unread),
-            }
-        }
-    }
-    unread.map_or(Ok(false), Err)
+            PlanarProbe::Sides(ea, eb) => match ee_meeting(ea, eb, band, &mut read) {
+                Some(Some(Meeting::Cross(_))) => Ok(true),
+                Some(Some(Meeting::Overlap(..)) | None) => Ok(false),
+                None => Err(InteriorsUnread::Undecided),
+            },
+        })
+    }))
 }
 
 /// **Whether two faces on one carrier, facing the same way, share
@@ -11555,6 +11595,14 @@ fn face_interiors_meet<T: Decide>(
 /// ([`shared_interior_witness`]).
 struct SharedInterior;
 
+/// A probe of [`shared_interior_witness`]: a point of one face's closure
+/// placed in the other, with where it lies on its own face (`On`), or an
+/// edge of each.
+enum WitnessProbe<On, T: Real> {
+    At(FaceKey, On, FaceKey, Point3<T>),
+    Pair(EdgeKey, EdgeKey),
+}
+
 /// **A point both faces' interiors reach**, for two faces of any kind on
 /// one smooth carrier facing the same way (Door 1 decided the carrier
 /// Zero, `SameOriented`). The probes are points of either face's closure:
@@ -11585,18 +11633,9 @@ fn shared_interior_witness<T: Decide>(
     band: Band,
 ) -> Result<SharedInterior, InteriorsUnread> {
     let mut read = Vec::new();
-    let mut unread = InteriorsUnread::Unbuilt;
-    let mut found = |reading: Result<bool, InteriorsUnread>| match reading {
-        Ok(meet) => meet,
-        Err(why) => {
-            if why == InteriorsUnread::Undecided {
-                unread = why;
-            }
-            false
-        }
-    };
     let edges = |f| body.proven_face(f).edge_set();
     let (edges_a, edges_b) = (edges(fa), edges(fb));
+    let mut probes = Vec::new();
     for (x, y, edges) in [(fa, fb, &edges_a), (fb, fa, &edges_b)] {
         let corners = face_vertices(body, x)
             .into_iter()
@@ -11605,38 +11644,45 @@ fn shared_interior_witness<T: Decide>(
             let curve = body.get_curve_geom(body.get_edge(e)?.curve)?.certified()?;
             Some((curve.mid_point(), FaceContainment::OnEdge(e)))
         });
-        for (q, at) in corners.chain(middles) {
-            if found(meets_at(body, geo, (x, at), y, q, band, &mut read)) {
-                return Ok(SharedInterior);
-            }
-        }
+        probes.extend(
+            corners
+                .chain(middles)
+                .map(|(q, at)| WitnessProbe::At(x, at, y, q)),
+        );
     }
-    for &ea in &edges_a {
-        for &eb in &edges_b {
-            let before = read.len();
-            let reading = match curved::interiors_meeting(body, ea, eb, band, &mut read) {
-                Some(Some(m)) if !m.overlap => {
-                    let pair = [
-                        (fa, FaceContainment::OnEdge(ea)),
-                        (fb, FaceContainment::OnEdge(eb)),
-                    ];
-                    match normal_at(body, fa, m.point, band, &mut read) {
-                        Ok(axis) => {
+    probes.extend(
+        edges_a
+            .iter()
+            .flat_map(|&ea| edges_b.iter().map(move |&eb| WitnessProbe::Pair(ea, eb))),
+    );
+    // No witness found, and none kept, is no certificate either way.
+    let climbed = climb(Answering::Any, probes, |probe| {
+        meeting_rung(match probe {
+            WitnessProbe::At(x, at, y, q) => meets_at(body, geo, (x, at), y, q, band, &mut read),
+            WitnessProbe::Pair(ea, eb) => {
+                let before = read.len();
+                match curved::interiors_meeting(body, ea, eb, band, &mut read) {
+                    Some(Some(m)) if !m.overlap => {
+                        let pair = [
+                            (fa, FaceContainment::OnEdge(ea)),
+                            (fb, FaceContainment::OnEdge(eb)),
+                        ];
+                        normal_at(body, fa, m.point, band, &mut read).and_then(|axis| {
                             cones_meet(body, geo, pair, m.point, axis, true, band, &mut read)
                                 .map_err(InteriorsUnread::from)
-                        }
-                        Err(why) => Err(why),
+                        })
                     }
+                    Some(_) => Ok(false),
+                    None => Err(escalated_since(&read, before)),
                 }
-                Some(_) => Ok(false),
-                None => Err(escalated_since(&read, before)),
-            };
-            if found(reading) {
-                return Ok(SharedInterior);
             }
-        }
+        })
+    });
+    match meeting_found(climbed) {
+        Ok(true) => Ok(SharedInterior),
+        Ok(false) => Err(InteriorsUnread::Unbuilt),
+        Err(why) => Err(why),
     }
-    Err(unread)
 }
 
 /// **Whether two faces on one carrier, facing the same way, share
@@ -11692,11 +11738,11 @@ fn arc_interiors_meet<T: Decide>(
     band: Band,
 ) -> Result<bool, InteriorsUnread> {
     let mut read = Vec::new();
-    let mut unread = None;
-    let note = |why: InteriorsUnread, unread: &mut Option<InteriorsUnread>| {
-        if *unread != Some(InteriorsUnread::Undecided) {
-            *unread = Some(why);
-        }
+    // What the cuts' readings kept, ranked with the pieces' own: no cut
+    // answers, so each is kept as it is read.
+    let mut kept = Evidence::default();
+    let mut note = |why: InteriorsUnread| {
+        kept.keep(why.kept());
     };
     let spans = |f| -> Result<Vec<_>, InteriorsUnread> {
         let edges = body.proven_face(f).edge_set();
@@ -11735,22 +11781,20 @@ fn arc_interiors_meet<T: Decide>(
                                 match on.contact(end, near, band) {
                                     Ok(Some(hit)) => cuts.push(on.at(hit)),
                                     Ok(None) => {}
-                                    Err(refusal) => {
-                                        note(InteriorsUnread::of(refusal.into()), &mut unread)
-                                    }
+                                    Err(refusal) => note(InteriorsUnread::of(refusal.into())),
                                 }
                             }
                         }
                     }
                 }
-                Err(refusal) => note(InteriorsUnread::of(refusal.fault), &mut unread),
+                Err(refusal) => note(InteriorsUnread::of(refusal.fault)),
             }
         }
     }
     for (spans, cuts, other) in [(&sa, &mut cuts_a, fb), (&sb, &mut cuts_b, fa)] {
         for &v in &face_vertices(body, other) {
             let Some(&q) = geo.vmap.get(&v) else {
-                note(InteriorsUnread::Unbuilt, &mut unread);
+                note(InteriorsUnread::Unbuilt);
                 continue;
             };
             for ((_, s), cut) in spans.iter().zip(cuts.iter_mut()) {
@@ -11758,48 +11802,66 @@ fn arc_interiors_meet<T: Decide>(
                 match span.contact(q, s.middle(), band) {
                     Ok(Some(hit)) => cut.push(span.at(hit)),
                     Ok(None) => {}
-                    Err(refusal) => note(InteriorsUnread::of(refusal.into()), &mut unread),
+                    Err(refusal) => note(InteriorsUnread::of(refusal.into())),
                 }
             }
         }
     }
-    for (x, y, spans, cuts) in [(fa, fb, &sa, cuts_a), (fb, fa, &sb, cuts_b)] {
-        for ((e, s), mut cut) in spans.iter().zip(cuts) {
-            let curve = s.carrier();
-            if !along(curve, &mut cut, band) {
-                note(InteriorsUnread::Undecided, &mut unread);
-                continue;
+    // Each span's cuts are put in order before its pieces are read, one
+    // step of the search each, in the order a serial read takes them.
+    let mut cuts = [cuts_a, cuts_b];
+    let mut unordered = [vec![false; sa.len()], vec![false; sb.len()]];
+    let steps = [&sa, &sb]
+        .into_iter()
+        .enumerate()
+        .flat_map(|(side, spans)| {
+            let cuts = &cuts;
+            (0..spans.len()).flat_map(move |i| {
+                let pieces = cuts[side][i].len().saturating_sub(1);
+                std::iter::once((side, i, None)).chain((0..pieces).map(move |k| (side, i, Some(k))))
+            })
+        });
+    let steps: Vec<_> = steps.collect();
+    let climbed = climb_evidence(Answering::Any, steps, |(side, i, piece)| {
+        let (x, y, (e, s)) = match side {
+            0 => (fa, fb, &sa[i]),
+            _ => (fb, fa, &sb[i]),
+        };
+        let curve = s.carrier();
+        let cut = &mut cuts[side][i];
+        let Some(k) = piece else {
+            if along(curve, cut, band) {
+                return Rung::Passes;
             }
-            for piece in cut.windows(2) {
-                let q = curve.eval(geom::mid_param(piece[0], piece[1]));
-                // A piece whose midpoint the band cannot part from an end
-                // is that end's meeting point; one read in the escalation
-                // gap is unread.
-                let apart = |t| {
-                    decide(
-                        "pm_census_arc_piece",
-                        Margin::norm3(q - curve.eval(t)),
-                        band,
-                    )
-                };
-                match (apart(piece[0]), apart(piece[1])) {
-                    (Ok(Sign::Positive), Ok(Sign::Positive)) => {}
-                    (Ok(_), Ok(_)) => continue,
-                    _ => {
-                        note(InteriorsUnread::Undecided, &mut unread);
-                        continue;
-                    }
-                }
-                let at = FaceContainment::OnEdge(*e);
-                match meets_at(body, geo, (x, at), y, q, band, &mut read) {
-                    Ok(true) => return Ok(true),
-                    Ok(false) => {}
-                    Err(why) => note(why, &mut unread),
-                }
-            }
+            unordered[side][i] = true;
+            return InteriorsUnread::Undecided.rung();
+        };
+        if unordered[side][i] {
+            return Rung::Passes;
         }
+        let (t0, t1) = (cut[k], cut[k + 1]);
+        let q = curve.eval(geom::mid_param(t0, t1));
+        // A piece whose midpoint the band cannot part from an end is that
+        // end's meeting point; one read in the escalation gap is unread.
+        let apart = |t| {
+            decide(
+                "pm_census_arc_piece",
+                Margin::norm3(q - curve.eval(t)),
+                band,
+            )
+        };
+        match (apart(t0), apart(t1)) {
+            (Ok(Sign::Positive), Ok(Sign::Positive)) => {}
+            (Ok(_), Ok(_)) => return Rung::Passes,
+            _ => return InteriorsUnread::Undecided.rung(),
+        }
+        let at = FaceContainment::OnEdge(*e);
+        meeting_rung(meets_at(body, geo, (x, at), y, q, band, &mut read))
+    });
+    match climbed {
+        Ok((_, answer)) => answer,
+        Err(pieces) => kept.then(pieces).refusal().map_or(Ok(false), Err),
     }
-    unread.map_or(Ok(false), Err)
 }
 
 /// The points of `from`'s ends, each with `on`'s middle parameter to
@@ -21590,5 +21652,46 @@ mod arc_interiors {
                 "the half over [{t0}, {t1}]"
             );
         }
+    }
+}
+
+/// **The census's searches for a meeting rank a reading not built ahead
+/// of one in band** ([`InteriorsUnread::kept`], the ladder's
+/// [`Evidence`]): while a pair is unbuilt no tolerance certifies the
+/// interiors apart, so its refusal (`FLUSH_UNREAD`) is the one whose
+/// recourse frees the question. Fed the rungs directly, since no body a
+/// constructor builds keeps both kinds in one search; a fold that kept
+/// an undecided reading over a later unbuilt one reports `Undecided`.
+#[cfg(test)]
+mod interiors_ranking {
+    use super::{Answering, InteriorsUnread, climb, meeting_found, meeting_rung};
+
+    #[test]
+    fn an_unbuilt_reading_outranks_an_undecided_one_in_either_order() {
+        use InteriorsUnread::{Unbuilt, Undecided};
+        for order in [
+            [Err(Undecided), Err(Unbuilt)],
+            [Err(Unbuilt), Err(Undecided)],
+        ] {
+            assert_eq!(
+                meeting_found(climb(Answering::Any, order, meeting_rung)),
+                Err(Unbuilt),
+                "{order:?}: the limit is the refusal"
+            );
+        }
+        assert_eq!(
+            meeting_found(climb(
+                Answering::Any,
+                [Err(Undecided), Err(Unbuilt), Ok(false), Ok(true)],
+                meeting_rung
+            )),
+            Ok(true),
+            "a later meeting answers past both"
+        );
+        assert_eq!(
+            meeting_found(climb(Answering::Any, [Ok(false), Ok(false)], meeting_rung)),
+            Ok(false),
+            "every reading apart certifies apart"
+        );
     }
 }
