@@ -23,3 +23,32 @@ The repair is a kernel-defect ending for those two (`InteriorsUnread` has
 none today) and a row that drives a `Contradiction` through it; the
 sibling `census-meet-faults-read-as-census-unsupported` is the same fold
 at the census's cross pass.
+
+## 2026-11-05: the ladder now ranks this fold (onecopy/ladder-climb-3, PR 6536)
+
+Census's four interior-meeting searches (`shared_run`,
+`planar_interiors_meet`, `shared_interior_witness`, `arc_interiors_meet`)
+now read `geom_brep::ladder::climb`. They rank by `InteriorsUnread::kept`:
+`Undecided` in band, `Unbuilt` a limit, and a limit is ranked ahead of
+in band. So this fold now chooses the refusal:
+- every fault `InteriorsUnread::of` files as `Unbuilt` outranks an
+  escalation kept beside it;
+- `Desync` and `Contradiction`, the kernel defects above, are among them.
+
+**A dispute of this row's premise that `Unsettled` is a limit.**
+`MeetFault::Unsettled` (`crates/geom-brep/src/curve_pair.rs`, the
+variant "a root finder, a meter or the walk's budget reached its limit
+before it could certify") is a limit only if no tolerance moves it. If
+a coarser band can settle the walk, it is the ladder's `Rung::Unsettled`,
+ranked after in band. That is the misfiling PR 6495 found for
+`chart_singularity`'s `Unread::Carrier`, which had been ranked at the
+consumer.
+
+So the repair has two parts:
+- the kernel-defect ending this row names;
+- `MeetFault` stating each variant's standing beside its definition (a
+  `refusal()` returning `ladder::Refusal`), read by census instead of
+  re-ranked in `InteriorsUnread::of`.
+
+This section leaves the row's verdict as it stands. No row in the
+topo + geom-brep `ci` set reaches a search that keeps both kinds.
