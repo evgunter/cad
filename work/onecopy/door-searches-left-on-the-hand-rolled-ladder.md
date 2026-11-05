@@ -88,8 +88,8 @@ classification, `ladder::Refusal`:
 - `PointInLoopError::refusal`;
 - `PointInSolidError::refusal`;
 - `ContainError::refusal`;
-- `census::InteriorsUnread::refusal`.
+- `census::InteriorsUnread::kept` (a `Kept`: it neither aborts nor is unsettled).
 
 `census`'s fold of `MeetFault::Unsettled` into `InteriorsUnread::Unbuilt`
 is a consumer-side rank of that kind, filed as
-`work/onecopy/census-interiors-fold-an-unsettled-meeting-into-unbuilt.md`.
+`work/splitdoor/census-interiors-fold-a-meetings-fault-into-unbuilt.md` (its 2026-11-05 section).
