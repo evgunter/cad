@@ -21672,7 +21672,10 @@ mod interiors_ranking {
     #[test]
     fn an_unbuilt_reading_outranks_an_undecided_one_in_either_order() {
         use InteriorsUnread::{Unbuilt, Undecided};
-        for order in [[Err(Undecided), Err(Unbuilt)], [Err(Unbuilt), Err(Undecided)]] {
+        for order in [
+            [Err(Undecided), Err(Unbuilt)],
+            [Err(Unbuilt), Err(Undecided)],
+        ] {
             assert_eq!(
                 meeting_found(climb(Answering::Any, order, meeting_rung)),
                 Err(Unbuilt),
