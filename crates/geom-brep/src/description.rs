@@ -219,12 +219,16 @@ pub enum Structural<T: Real> {
 }
 
 /// **A row of each surface's chart that is the edge on both** — a rim
-/// where two swept or skinned walls meet at a shared section. One closed
-/// form, symmetric in the pair: each surface states its own row image.
+/// where two swept or skinned walls meet at a shared section, or a
+/// blend's section where two bands meet. One closed form, symmetric in
+/// the pair: each surface states its own row image.
 ///
-/// The images are held in the pair's key order and are iso rows only
-/// ([`Pcurve::IsoLine`] or [`Pcurve::IsoArc`] along one chart
-/// coordinate); [`SharedRow::new`] refuses anything else.
+/// The images are held in the pair's key order and are rows only: on a
+/// spline chart an iso row ([`Pcurve::IsoLine`] or [`Pcurve::IsoArc`]
+/// along one chart coordinate), on an analytic chart a closed-form image
+/// with one coordinate fixed, decided against the band where the row is
+/// read ([`harmonic_row`]).
+/// [`SharedRow::new`] refuses anything else.
 #[derive(Clone, Debug)]
 pub struct SharedRow<T: Real> {
     images: [Pcurve<T>; 2],
@@ -282,9 +286,152 @@ pub(crate) fn row_of<T: Real>(image: &Pcurve<T>) -> Option<(bool, T)> {
     }
 }
 
-/// Whether `image` is a row image at all ([`row_of`]).
+/// Whether `image` can be a row image at all: a spline chart's iso row
+/// ([`row_of`]) or an analytic chart's closed form. Which coordinate an
+/// analytic image holds fixed is decided against the band where the row is
+/// read ([`harmonic_row`]).
 fn is_row<T: Real>(image: &Pcurve<T>) -> bool {
-    row_of(image).is_some()
+    row_of(image).is_some() || matches!(image, Pcurve::Harmonic { .. })
+}
+
+/// How an analytic row image moves: which coordinate moves, and whether
+/// it turns (an angle winding ±1) or slides (a free coordinate, linear).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct HarmonicRow {
+    /// The moving coordinate is `u` (else `v`).
+    pub(crate) along_u: bool,
+    /// The moving coordinate is an angle winding once per carrier period
+    /// (else a free coordinate moving linearly).
+    pub(crate) turning: bool,
+}
+
+/// **An analytic row image's reading over the edge's interval `(t0, t1)`**:
+/// a closed-form image ([`Pcurve::Harmonic`]) that holds one coordinate
+/// fixed and moves the other once around per carrier period (an angle
+/// winding ±1) or linearly (a free coordinate). `None` for anything else.
+///
+/// An angle's winding is structure, read exactly. A free coordinate's
+/// coefficients are values the derivation computed, so each is decided
+/// against the band, a length: `a` and `b` as they stand, `l` over the
+/// edge's interval. A coefficient decided zero is held fixed, at every
+/// scalar alike; the row's own certificate then verifies the image
+/// (`PcurveCache::certify`). What rests on the reading is the contact
+/// reading's premise (`row_contact`), and a free coordinate carries none
+/// of it: on a plane, cylinder or cone the normal depends on the azimuth
+/// alone, never on a free coordinate.
+///
+/// # Errors
+///
+/// The [`Indeterminate`](geom_core::Indeterminate) of a coefficient in
+/// the band.
+pub(crate) fn harmonic_row<T: geom_core::Decide>(
+    image: &Pcurve<T>,
+    (t0, t1): (T, T),
+    band: geom_core::Band,
+) -> Result<Option<HarmonicRow>, geom_core::Indeterminate> {
+    use crate::pcurve_cache::Channel;
+    /// A channel's reading: held, turning, sliding, or neither.
+    #[derive(Clone, Copy, PartialEq)]
+    enum Reads {
+        Held,
+        Turns,
+        Slides,
+        Neither,
+    }
+    let zero = |name, x: T| -> Result<bool, geom_core::Indeterminate> {
+        let margin = geom_core::Margin::of(x);
+        Ok(crate::dihedral::decide_reported(name, margin, band)?.sign == geom_core::Sign::Zero)
+    };
+    let read = |c: &Channel<T>| -> Result<Reads, geom_core::Indeterminate> {
+        Ok(match *c {
+            Channel::Angle { winding: 0, .. } => Reads::Held,
+            Channel::Angle { winding, .. } if winding.abs() == 1 => Reads::Turns,
+            Channel::Angle { .. } => Reads::Neither,
+            Channel::Free { a, b, l, .. } => {
+                if !(zero("row_channel_harmonic", a)? && zero("row_channel_harmonic", b)?) {
+                    Reads::Neither
+                } else if zero("row_channel_slope", l * (t1 - t0))? {
+                    Reads::Held
+                } else {
+                    Reads::Slides
+                }
+            }
+        })
+    };
+    let Pcurve::Harmonic { u, v } = image else {
+        return Ok(None);
+    };
+    let moving = |r: Reads| match r {
+        Reads::Turns => Some(true),
+        Reads::Slides => Some(false),
+        Reads::Held | Reads::Neither => None,
+    };
+    let (ru, rv) = (read(u)?, read(v)?);
+    Ok(
+        if rv == Reads::Held
+            && let Some(turning) = moving(ru)
+        {
+            Some(HarmonicRow {
+                along_u: true,
+                turning,
+            })
+        } else if ru == Reads::Held
+            && let Some(turning) = moving(rv)
+        {
+            Some(HarmonicRow {
+                along_u: false,
+                turning,
+            })
+        } else {
+            None
+        },
+    )
+}
+
+/// What kind of chart a shared row's image is a row of ([`wall_row`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum WallRow {
+    /// An iso row along a domain side of a spline chart.
+    Spline,
+    /// A closed-form image on a plane's, cylinder's, cone's, sphere's or
+    /// torus's chart, its row read against the band ([`harmonic_row`]).
+    Analytic,
+}
+
+/// Why an image is no shared row's on its wall ([`wall_row`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum NotARow {
+    /// A spline chart's image that is no iso row on a side of its domain.
+    OffSide,
+    /// Any other wall or image.
+    Unadmitted,
+}
+
+/// **The shared row's admission rule, per wall, by structure**: on a
+/// spline chart, an iso row along a domain side ([`on_domain_side`]); on a
+/// plane's, cylinder's, cone's, sphere's or torus's chart, a closed-form
+/// image, whose row the band then reads ([`harmonic_row`]). Read by the
+/// certificate, the drafts' readers and the constructor alike.
+pub(crate) fn wall_row<T: Real>(
+    wall: &geom::Surface<T>,
+    image: &Pcurve<T>,
+) -> Result<WallRow, NotARow> {
+    use geom::Surface;
+    match wall.spline_chart() {
+        Some(chart) if on_domain_side(chart, image) => Ok(WallRow::Spline),
+        Some(_) => Err(NotARow::OffSide),
+        None => match (wall, image) {
+            (
+                Surface::Plane { .. }
+                | Surface::Cylinder { .. }
+                | Surface::Cone { .. }
+                | Surface::Sphere { .. }
+                | Surface::Torus { .. },
+                Pcurve::Harmonic { .. },
+            ) => Ok(WallRow::Analytic),
+            _ => Err(NotARow::Unadmitted),
+        },
+    }
 }
 
 /// **Whether `image` is a row along a domain side of `chart`**: a row
