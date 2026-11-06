@@ -4077,7 +4077,7 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
     use payloads::*;
     use profile::path::{PathError as P, PathNoCornerReason, TurnLever};
     use profile::{CornerReason, CornerRefusal, FilletLegCarrier, NoCornerReason};
-    use profile::{FilletLeg, ReplayError, ReplayErrorKind, TipState};
+    use profile::{CornerWindow, FilletLeg, ReplayError, ReplayErrorKind, TipState};
     let path: Vec<(&str, P<f64>)> = vec![
         (
             "JunctionTangent",
@@ -4402,6 +4402,32 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
                             setback: 0.412_345_678,
                             available: 0.301_234_567,
                         },
+                    },
+                ],
+            },
+        ),
+        (
+            "NoCornerOfPair(behind the incoming ray)",
+            P::NoCornerOfPair {
+                radius: 0.312_345_678,
+                corners: vec![CornerRefusal {
+                    at: Point2::new(-1.234_567, 0.987_654),
+                    reason: CornerReason::OutsideAnchors(CornerWindow::BehindIncomingRay),
+                }],
+            },
+        ),
+        (
+            "NoCornerOfPair(both windows)",
+            P::NoCornerOfPair {
+                radius: 0.312_345_678,
+                corners: vec![
+                    CornerRefusal {
+                        at: Point2::new(1.234_567, -0.987_654),
+                        reason: CornerReason::OutsideAnchors(CornerWindow::BehindArrivalAnchor),
+                    },
+                    CornerRefusal {
+                        at: Point2::new(-1.234_567, 0.987_654),
+                        reason: CornerReason::OutsideAnchors(CornerWindow::BehindIncomingRay),
                     },
                 ],
             },

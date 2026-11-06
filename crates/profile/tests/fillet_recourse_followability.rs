@@ -702,6 +702,15 @@ fn the_leg_extent_recourse_is_followed_by_giving_the_leg_an_extent() {
         "the ray-order gate answers before the collapsed-arm one, got {err:?}"
     );
     carries_no_fillet_recourse(&err, "a leg with no extent");
+    // The incoming side opens at the corner with no leg, so the lever is
+    // its start: moved back, the same bend rounds.
+    let said = err.to_string();
+    assert!(
+        said.contains(
+            "Recourse: start the incoming side short of the corner (end its leg, or move its start)"
+        ),
+        "a side that starts at its corner names its start as the lever: {said}"
+    );
     builds_and_validates(bend(0.0, 1.0, 0.2), "a leg with a real extent");
 }
 

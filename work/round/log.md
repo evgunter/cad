@@ -187,3 +187,29 @@ units of the original cut and both P0s are on main.
 from PR 6549's review) dispatched: `round/corner-behind-names-its-recourse`,
 single STYLE review. What remains at P0/P1 after it: the two forks with
 Ev (PRs 6542, 6547), each a build unit once ruled.
+
+## 2026-11-06 — hand-back (`ready`)
+
+PR 6556 merged: the corner-window refusals name their lever, a pair whose
+corners differ names each beside its corner, and the last
+`.contains("anchor")` text match is gone. With it every P0 and P1 code
+row of the sitting is on main: PRs 6544 and 6545 (the two P0s), 6546
+(the escalation unit and its four passengers, dual-reviewed), 6549
+(discoverability), 6556. Two rows closed as already fixed, two forks put
+to Ev.
+
+The three P1 rows left are the forks, parked on their `[ev]` PRs (6542,
+6547); each becomes a build unit when Ev rules, and `plan.md` says what
+each build touches. No P0/P1 row is dispatchable, so the track goes back
+`ready` for its tail (one P2, three P3). The tail's two easy rows were
+not taken: neither is cheaper for this sitting than for a successor, and
+their item files carry the evidence.
+
+Findings recorded this sitting as classes: the inherited `topo` link
+fuzzer red at the default ε (ATREST's row); the disk ceiling of three
+build lanes on one container; GitHub's merge ignoring the union driver
+on `log.md`, so a unit PR's tracker commit should not touch the log.
+
+Watching: this session stays subscribed to PRs 6542 and 6547 and acts on
+Ev's answers there (the second, Ev-decision commit of each design-fork
+row; updating the PR in place).

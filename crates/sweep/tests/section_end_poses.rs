@@ -300,7 +300,7 @@ fn a_section_end_at_the_band_edge_refuses_as_the_inputs_at_the_boolean_and_its_l
 const AXIAL: [(f64, u8, f64, f64); 8] = [
     (0.3, 0, 1e-5, 0.5),
     (0.3, 4, 3e-5, 0.3),
-    (0.7, 2, 3e-5, 0.5),
+    (0.7, 2, 3e-5, 0.3),
     (0.95, 1, 3e-5, 0.3),
     (0.7, 7, 1e-4, 0.5),
     (0.95, 2, 1e-4, 0.5),

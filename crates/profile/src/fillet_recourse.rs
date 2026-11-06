@@ -11,7 +11,7 @@
 //! whose least lever grows as ε shrinks.
 //!
 //! The definite sibling refusals spell their own recourse
-//! ([`crate::path::CornerReason::recourse`],
+//! ([`crate::PathError::NoCornerOfPair`],
 //! [`crate::PathError::FilletOffsetLeverTooShort`]), except where a
 //! sentence below says it is read by one.
 
