@@ -1144,6 +1144,18 @@ verb follows it; `.toward` is a second director exactly as
 `.angle` is; the far-end `.to(p)` needs the position slot empty
 and the angle slot bound.
 
+**What a refused fillet hands back.** A refusal states what the
+fit decided, in that decision's own numbers; it carries no carriers
+and no partial loop, and `ReplayError` is the same for every caller.
+What the fit was handed, and what it found, is the drawing replay's
+construction record (`replay_drawn`, `crates/profile/README.md`):
+each side recorded when it is bound, and the fit's answer after it.
+Both come out of one replay, so the editor draws a refused step's
+sides beside its refusal and they cannot disagree. The anchor-fit
+entry (`AnchorOutsideTrimmedExtent`) carries each overrunning leg's
+setback and available extent, and the radius of the fillet that
+ends exactly at the anchor, so its recourse values both levers.
+
 ## 4. Safety invariants
 
 1. **No junction is silently within the input tolerance of
