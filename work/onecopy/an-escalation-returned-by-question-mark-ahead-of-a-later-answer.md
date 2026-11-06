@@ -6,7 +6,7 @@ status: dispatched
 opened: 2026-11-06
 priority: P2
 cost: M
-branch: onecopy/ladder-tranche-4
+branch: onecopy/refusal-standing
 ---
 
 
