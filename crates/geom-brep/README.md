@@ -907,6 +907,18 @@ again.
 A closed form that already holds a meeting divides that meeting's root out
 of its equation and solves only for the others. The reader is given no
 topology: two edges joined at a vertex meet there because their ends meet.
+Two curves on one surface record are not a curve pair to this table.
+Their 3D gap is identically zero in the model, so a contact decision on
+it reads only the construction's rounding against the band. They meet
+where one crosses the other's plane, through the plane door
+(`curve_face::plane_crossing`), at a root on the curve's own section of
+that plane, read through the surface's chart: the co-surface arm
+(`curve_pair::on_surface`), whose plane door shares `meet`'s transverse
+harmonic (`pose::height`). A curve on a surface is built from the
+surface record and chart coordinates and from nothing else, so the
+premise is the type's. Every consumer holding two curves on one surface
+reads that arm (the region doors' landings, the sphere cut-in), and
+none hands the pair to `meet`.
 Implemented: plane×plane, plane×sphere, sphere×sphere (rung 1);
 plane×cylinder, plane×cone (the parabola and hyperbola in closed form,
 each arc minted per window, `ConicBranch::arc`),
