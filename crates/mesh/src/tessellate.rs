@@ -264,18 +264,14 @@ pub(crate) fn lane_of(
     })
 }
 
-/// A face's surface, the misses named as the tessellator names them.
+/// A face's surface ([`Body::face_surface`]), a stale face key named as
+/// the tessellator names it.
 pub(crate) fn face_surface(
     body: &Body<f64>,
     fk: FaceKey,
 ) -> Result<&Surface<f64>, TessellateError> {
-    let face = body
-        .get_face(fk)
-        .ok_or(TessellateError::MissingEntity { what: "face" })?;
-    body.get_surface(face.surface)
-        .ok_or(TessellateError::MissingEntity {
-            what: "face surface",
-        })
+    body.face_surface(fk)
+        .ok_or(TessellateError::MissingEntity { what: "face" })
 }
 
 /// One face's slot in [`tessellate_impl`]'s indexed parallel map: the
@@ -407,7 +403,7 @@ fn tessellate_impl(
         eps,
         band,
     };
-    let faces: Vec<_> = body.faces().collect();
+    let faces: Vec<FaceKey> = body.faces().map(|(fk, _)| fk).collect();
     // The meter's arming as a value: a lane runs on a worker thread,
     // which nobody armed (`budget`'s module docs).
     let arming = budget::arming();
@@ -416,7 +412,7 @@ fn tessellate_impl(
         let shared = &positions[..shared_below];
         faces
             .par_iter()
-            .map(|&(fk, face)| {
+            .map(|&fk| {
                 // ONE wrapper for both of the tessellation's
                 // thread-local channels, because they are one problem:
                 // a channel the CALLER owns and the worker does not.
@@ -442,13 +438,9 @@ fn tessellate_impl(
                 // so neither can arise here.
                 let (((memo_work, place), meter), decided) = k_stats::detached(|| {
                     budget::record(arming, || {
-                        let Some(surface) = body.get_surface(face.surface) else {
-                            return (
-                                None,
-                                Err(TessellateError::MissingEntity {
-                                    what: "face surface",
-                                }),
-                            );
+                        let surface = match face_surface(body, fk) {
+                            Ok(surface) => surface,
+                            Err(error) => return (None, Err(error)),
                         };
                         let lane = match lane_of(body, fk, surface) {
                             Ok(lane) => lane,
