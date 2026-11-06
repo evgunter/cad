@@ -47,8 +47,8 @@
 //! readers are NAMED so that a new one is a diff on this list rather
 //! than a quiet return of the old wall: the straight-origin test of
 //! ray extension (`Core::resolve_fillet`'s Positive-fit arm and
-//! `family::merge_of`, both asking only whether the by-tangent origin
-//! was a straight leg), and `carriers_are_identical` under the
+//! `family::merge_of`, both asking only whether the forward by-tangent
+//! origin was a straight leg), and `carriers_are_identical` under the
 //! `path_carrier_identity` key in `family::leg_end_arc_open` — the arc
 //! extension's vertex-move choice, a same-carrier question the ruling
 //! that every zero-turn joint is a tangent joint (D1) retires in
