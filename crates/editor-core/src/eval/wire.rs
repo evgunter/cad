@@ -1137,11 +1137,13 @@ pub(super) fn read_named_body<T: Decide>(
     let v = value_of(results, input)?;
     let v = if whole { v.whole() } else { v };
     match placeable_operand(v, input) {
-        Ok(Placeable::Instances(bodies)) => match usize::try_from(body).ok().and_then(|k| bodies.get(k)) {
-            Some(Some(body)) => Ok(body.clone()),
-            Some(None) => Err(NodeErrorKind::EmptyOperand { input }),
-            None => Err(wrong_operand(v, input, super::family::BODY)),
-        },
+        Ok(Placeable::Instances(bodies)) => {
+            match usize::try_from(body).ok().and_then(|k| bodies.get(k)) {
+                Some(Some(body)) => Ok(body.clone()),
+                Some(None) => Err(NodeErrorKind::EmptyOperand { input }),
+                None => Err(wrong_operand(v, input, super::family::BODY)),
+            }
+        }
         Ok(Placeable::Body(b)) => Ok(b),
         Err(NodeErrorKind::WrongOperand { .. }) => {
             Err(wrong_operand(v, input, super::family::BODY))
