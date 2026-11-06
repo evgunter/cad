@@ -448,3 +448,10 @@
   - One `span_place`; the lane path is miss-first too; `Round` and `Line` are built only from a foot.
   - The records are copied.
   Delta review sent to `session_013mPGJ4JScywfx3zssA8yRc`, with the torus oracle re-run and the cost re-timed.
+
+- 2026-11-06 — PR 6550 FULL review: FIX FIRST. The bisect and mechanism are right and the runs are green, but `Unmet` has no width ceiling: at 1e-12 a pad of 1e-3 would pass, which is weaker than before the regression. Fix pass sent:
+  - a ceiling at one home;
+  - the tang ∪ arm's hand-restated rule (a copy) read from the one home;
+  - false claims corrected (all six ops stop at the wall, and tang was red before `6adc5fdd` too);
+  - a row for the 1e-12 work wall.
+  Lesson: a verdict that admits a weaker reading needs its own ceiling, or it becomes a pass-through.
