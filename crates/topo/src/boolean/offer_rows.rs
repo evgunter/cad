@@ -372,13 +372,16 @@ cases! {
     // The pose's far reach a band past and short of the walls'
     // tangency. The section's coincidence names its lever and no
     // tolerance; the tolerance it withdrew decides the loop count. On
-    // either side the loops nearly meet at the far ruling (two loops
-    // past it, the figure-eight's lobes short of it), and the germ mint's
-    // march over them cannot prove one arc per tube there.
+    // either side the loops nearly meet at the far ruling. Past it, two
+    // loops, the germ mint's march over them cannot prove one arc per
+    // tube there. Short of it, the figure-eight's lobes, the ruling sweep
+    // that counts them cannot bracket the two branch points a band either
+    // side of the far ruling, and escalates on its discriminant
+    // (`work/sectarms/the-ruling-sweep-cannot-bracket-branch-points-a-band-from-a-node.md`).
     transverse_frame_reach_past_tangency: "Coincidence(Section)", D, TRANSVERSE_FRAME_SITE,
         Withdrawn(Because::MarchRefuses(TUBE_STRADDLES)) => transverse_frame(D);
     transverse_frame_reach_short_of_tangency: "Coincidence(Section)", -D,
-        TRANSVERSE_FRAME_SITE, Withdrawn(Because::MarchRefuses(TUBE_STRADDLES)) =>
+        TRANSVERSE_FRAME_SITE, Withdrawn(Because::Refuses("Coincidence(Section)")) =>
         transverse_frame(-D);
     arc_root_just_inside_its_span: "Crossing(OnEdge)", D, ROOT_SITE, Valued =>
         circle_roots(1.0 - D);

@@ -502,6 +502,116 @@ impl<T: Real> Ruled<T> for RuledCylinders<T> {
     }
 }
 
+/// **A cylinder's rulings against a sphere.** The ruled wall is
+/// `foot + r(cos φ·n + sin φ·v) + t·axis`, `foot` the sphere's centre's
+/// foot on the axis, `n` the unit direction from the axis toward the
+/// centre and `v = axis × n`. With `w` from the centre, `w·axis = t`, so a
+/// ruling meets the sphere where `t² − (R² − ρ²) = 0`, `ρ` the ruling's
+/// distance from the centre, `ρ² = (r − d)² + 2rd(1 − cos φ)` at offset
+/// `d`: `Δ` is `R − ρ` in metres, and the roots are `t = ±√(R² − ρ²)`.
+/// Its extremes over the turn are the pose's margins: `R − |d − r|` at
+/// `φ = 0` (the near reach) and `R − (d + r)` at `φ = π` (the far
+/// reach).
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct RuledCylinderSphere<T: Real> {
+    pub(crate) foot: Point3<T>,
+    pub(crate) n: Vec3<T>,
+    pub(crate) v: Vec3<T>,
+    pub(crate) axis: Vec3<T>,
+    /// The cylinder's radius.
+    pub(crate) r: T,
+    /// The centre's distance from the axis.
+    pub(crate) d: T,
+    /// The sphere's radius.
+    pub(crate) big_r: T,
+}
+
+impl<T: Real> RuledCylinderSphere<T> {
+    /// `1 − cos φ` over the cell, read where it keeps its relative
+    /// precision: as `sin²φ / (1 + cos φ)` on a cell inside the half turn
+    /// about `φ = 0`, where `1 − cos φ` would cancel, else directly. A
+    /// selection on the cell's angles, not a decision.
+    fn versine(cell: &Cell<T>) -> Iv<T> {
+        use core::f64::consts::{FRAC_PI_2, PI};
+        if cell.hi < FRAC_PI_2 || cell.lo > PI + FRAC_PI_2 {
+            cell.sin.square().over(cell.cos.shift(T::one()))
+        } else {
+            cell.cos.from(T::one())
+        }
+    }
+
+    /// `ρ² = (r − d)² + 2rd(1 − cos φ)` over the cell: both terms are
+    /// read to their own relative precision, so the rounding is charged
+    /// at `ρ²`'s own size, and `ρ` stays tight where it is least.
+    fn reach_sq(&self, cell: &Cell<T>) -> Iv<T> {
+        let (r, d) = (self.r, self.d);
+        let (near, turn) = ((r - d).powi(2), T::from_f64(2.0) * r * d);
+        let v = Self::versine(cell);
+        v.scale(turn)
+            .shift(near)
+            .widen(rounding_charge(near + turn * v.hi))
+    }
+
+    /// `√(R² − ρ²)` over the cell, through zero where it straddles it.
+    fn root(&self, cell: &Cell<T>) -> Iv<T> {
+        let big_r2 = self.big_r.powi(2);
+        self.reach_sq(cell)
+            .from(big_r2)
+            .widen(rounding_charge(big_r2))
+            .sqrt()
+    }
+}
+
+impl<T: Real> Ruled<T> for RuledCylinderSphere<T> {
+    fn lever(&self) -> geom_core::Lever<T> {
+        geom_core::Lever::curvature_radius(self.r)
+    }
+
+    fn discriminant(&self, cell: &Cell<T>) -> Iv<T> {
+        self.reach_sq(cell)
+            .sqrt()
+            .from(self.big_r)
+            .widen(rounding_charge(self.big_r + self.r + self.d))
+    }
+
+    /// `−rd·sin φ / R`: `Δ′ = −rd·sin φ / ρ` scaled by `ρ/R > 0`, so of
+    /// its sign, and equal to it at a branch point, where `ρ = R`. It
+    /// does not divide by `ρ`, which vanishes on a centre on the wall.
+    fn discriminant_slope(&self, cell: &Cell<T>) -> Iv<T> {
+        cell.sin
+            .scale(T::zero() - self.r * self.d / self.big_r)
+            .widen(rounding_charge(self.r * self.d / self.big_r))
+    }
+
+    fn meeting(&self, cell: &Cell<T>, sheet: Sheet) -> V3<T> {
+        let size = (self.foot - Point3::origin()).norm() + self.r + self.big_r;
+        let t = self
+            .root(cell)
+            .scale(sheet.sign())
+            .widen(rounding_charge(self.big_r));
+        V3::at(self.foot)
+            .plus(V3::along(self.n, cell.cos.scale(self.r)))
+            .plus(V3::along(self.v, cell.sin.scale(self.r)))
+            .plus(V3::along(self.axis, t))
+            .widen(rounding_charge(size))
+    }
+
+    fn velocity(&self, cell: &Cell<T>, sheet: Sheet) -> V3<T> {
+        // `t′ = ∓ρρ′/√(R² − ρ²)`, `ρρ′ = rd·sin φ`; the quotient levers the
+        // numerator's rounding by `(r + d)/√(R² − ρ²)`.
+        let root = self.root(cell);
+        let (r, d) = (self.r, self.d);
+        let dt = cell
+            .sin
+            .scale(T::zero() - r * d * sheet.sign::<T>())
+            .over(root)
+            .widen(rounding_charge(self.big_r + r + d) * (T::one() + (r + d) / root.lo));
+        V3::along(self.n, cell.sin.scale(T::zero() - r))
+            .plus(V3::along(self.v, cell.cos.scale(r)))
+            .plus(V3::along(self.axis, dt))
+    }
+}
+
 /// **A component the sweep lists**: open between two cut ends, or a loop
 /// the ball holds whole.
 #[derive(Clone, Copy, Debug)]
@@ -533,6 +643,20 @@ pub(crate) enum SweepRefusal {
     /// Two of the sweep's readings disagree about the side of the ball
     /// one stretch of a sheet lies on.
     Inconsistent(&'static str),
+}
+
+/// **A sweep's refusal as the section value's**, for every ruled pair: an
+/// escalation is the value's escalation, and readings that disagree are
+/// an unaccounted section, carrying their cause.
+impl From<SweepRefusal> for crate::intersect::SectionError {
+    fn from(e: SweepRefusal) -> Self {
+        match e {
+            SweepRefusal::Escalated(diag) => Self::Escalated(diag),
+            SweepRefusal::Inconsistent(cause) => Self::Unaccounted {
+                cause: cause.to_owned(),
+            },
+        }
+    }
 }
 
 /// `Δ`'s reading of one cell of the turn.
@@ -615,21 +739,32 @@ impl<T: Decide, R: Ruled<T>> Sweeper<'_, T, R> {
         #[allow(clippy::cast_precision_loss)]
         let width = core::f64::consts::TAU / START as f64;
         // Each first cut where `Δ`'s side decides ([`Self::decided_at`]),
-        // the last the first's turn on, so the cells tile the turn.
+        // the last the first's turn on, so the cells tile the turn. A cut
+        // after the first where `Δ` decides at none of the five angles
+        // [`off_a_zero`] offers about it is dropped: a branch cell must
+        // reach past the stretch in the band it stands in, so the cells
+        // either side of it are read as one. The first cut is kept
+        // wherever it stands, so every cell lies in the turn [`Cell`]
+        // reads, and the turn is never read over no cell.
         let cuts: Vec<f64> = (0..START)
-            .map(|k| {
+            .filter_map(|k| {
                 #[allow(clippy::cast_precision_loss)]
                 let base = width * k as f64;
-                self.decided_at(base, width, |phi| self.discriminant_reads(phi))
+                let at = self.decided_at(base, width, |phi| self.discriminant_reads(phi));
+                (k == 0 || self.discriminant_reads(at)).then_some(at)
             })
             .collect();
-        for k in 0..START {
-            let hi = if k + 1 == START {
-                cuts[0] + core::f64::consts::TAU
-            } else {
-                cuts[k + 1]
-            };
-            self.discriminant_cell(Cell::new(cuts[k], hi), &mut cells)?;
+        let Some(&first) = cuts.first() else {
+            return Err(SweepRefusal::Inconsistent(
+                "the ruling sweep kept no first cut, so its turn holds no cell",
+            ));
+        };
+        for (k, &lo) in cuts.iter().enumerate() {
+            let hi = cuts
+                .get(k + 1)
+                .copied()
+                .unwrap_or(first + core::f64::consts::TAU);
+            self.discriminant_cell(Cell::new(lo, hi), &mut cells)?;
         }
         if cells.iter().all(|(_, d)| *d == Disc::Positive) {
             let turn: Vec<Cell<T>> = cells.into_iter().map(|(c, _)| c).collect();
@@ -1185,26 +1320,29 @@ pub(crate) const COVERAGE_DEPTH: u32 = 30;
 /// The cells [`coverage`] reads before it gives up.
 pub(crate) const COVERAGE_CELLS: usize = 1 << 18;
 
-/// **The ruling angle's coverage of a cylinder pair**, a second reading
-/// of the count the sweep closed exhaustiveness on (C3): every cell of
-/// `ruled`'s ruling angle has its rulings' meetings with `partner` outside
-/// `ball` (the ball the march ends at), or inside one of `tubes` (the
-/// found branches' tube boxes). A component the count missed has
-/// meetings in no tube. It is read on certified enclosures at `Interval`
-/// and from the operands alone, by the general quadratic `At² + 2Bt + C`
-/// of a ruling `p + t·a` against the partner's axis `(o′, a′)`, with
-/// `w = p − o′`: `A = |a × a′|²`, `B = (w × a′)·(a × a′)`,
-/// `C = |w × a′|² − r²`, roots `(−B ± √(B² − AC))/A`. Neither the
-/// sweep's frame nor its closed form enters it, so a defect in either
-/// does not hide itself here: it is independent of the sweep in its
-/// algebra. It is not independent in its enclosure arithmetic, which it
-/// shares with the sweep ([`Cell::new`], [`Iv`], [`V3`]). Either wall may
-/// be ruled: every section point lies on exactly one of its rulings.
+/// **The ruling angle's coverage of a pair with a ruled cylinder**, a
+/// second reading of the count the sweep closed exhaustiveness on (C3):
+/// every cell of `ruled`'s ruling angle has its rulings' meetings with
+/// `partner` outside `ball` (the ball the march ends at), or inside one of
+/// `tubes` (the found branches' tube boxes). A component the count missed
+/// has meetings in no tube. It is read on certified enclosures at
+/// `Interval` and from the operands alone, by the general quadratic
+/// `At² + 2Bt + C` of a ruling `p + t·a`, roots `(−B ± √(B² − AC))/A`:
+/// against a cylinder's axis `(o′, a′)` of radius `r`, with `w = p − o′`,
+/// `A = |a × a′|²`, `B = (w × a′)·(a × a′)`, `C = |w × a′|² − r²`; against
+/// a sphere about `c` of radius `R`, with `w = p − c`, `A = a·a`,
+/// `B = w·a`, `C = w·w − R²`. Neither the sweep's frame nor its closed
+/// form enters it, so a defect in either does not hide itself here: it
+/// is independent of the sweep in its algebra. It is not independent in
+/// its enclosure arithmetic, which it shares with the sweep
+/// ([`Cell::new`], [`Iv`], [`V3`]). Either of two cylinders may be ruled:
+/// every section point lies on exactly one of its rulings.
 ///
 /// # Errors
 ///
 /// The first cell it could not cover within [`COVERAGE_DEPTH`] halvings
-/// and [`COVERAGE_CELLS`] cells, `[lo, hi]`.
+/// and [`COVERAGE_CELLS`] cells, `[lo, hi]`; the whole turn for a pair it
+/// does not read.
 pub(crate) fn coverage(
     ruled: &geom::Surface<f64>,
     partner: &geom::Surface<f64>,
@@ -1213,42 +1351,66 @@ pub(crate) fn coverage(
 ) -> Result<Coverage, [f64; 2]> {
     use crate::ssi::enclose::Box3;
     use geom_core::{Bounds as _, Interval, SpanLocate as _};
-    let (
-        &geom::Surface::Cylinder {
-            origin: o,
-            axis: a,
-            radius: rho,
-            u_ref: _,
-        },
-        &geom::Surface::Cylinder {
-            origin: q,
-            axis: b,
-            radius: r,
-            ..
-        },
-    ) = (ruled, partner)
+    let unread = [0.0, core::f64::consts::TAU];
+    let &geom::Surface::Cylinder {
+        origin: o,
+        axis: a,
+        radius: rho,
+        u_ref: _,
+    } = ruled
     else {
-        return Err([0.0, core::f64::consts::TAU]);
+        return Err(unread);
     };
     let lift = Interval::from_computed;
     let p3 = |p: Point3<f64>| Point3::new(lift(p.x), lift(p.y), lift(p.z));
     let v3 = |v: Vec3<f64>| Vec3::new(lift(v.x), lift(v.y), lift(v.z));
     // The ruled wall's own frame, squared from its seam reference.
     let Some(frame) = ruled.frame().map(|f| f.square()) else {
-        return Err([0.0, core::f64::consts::TAU]);
+        return Err(unread);
     };
     let (u, v) = (frame.u_ref, frame.axis.cross(frame.u_ref));
-    let (o, q, a, b, u, v) = (p3(o), p3(q), v3(a), v3(b), v3(u), v3(v));
-    let (rho, r) = (lift(rho), lift(r));
-    let ab = a.cross(b);
-    let big_a = ab.dot(ab);
-    // `w × a′` for the enclosure `w`.
-    let cross = |w: V3<Interval>| V3 {
-        x: w.y.scale(b.z).plus(w.z.scale(Interval::zero() - b.y)),
-        y: w.z.scale(b.x).plus(w.x.scale(Interval::zero() - b.z)),
-        z: w.x.scale(b.y).plus(w.y.scale(Interval::zero() - b.x)),
-    };
+    let (o, a, u, v) = (p3(o), v3(a), v3(u), v3(v));
+    let rho = lift(rho);
     let along = |k: Vec3<Interval>| V3::along(k, Iv::point(Interval::one()));
+    // `(A, B, C)` of the rulings through the enclosure `p`.
+    type Quadratic = Box<dyn Fn(V3<Interval>) -> (Interval, Iv<Interval>, Iv<Interval>)>;
+    let quadratic: Quadratic = match *partner {
+        geom::Surface::Cylinder {
+            origin: q,
+            axis: b,
+            radius: r,
+            ..
+        } => {
+            let (q, b, r) = (p3(q), v3(b), lift(r));
+            let ab = a.cross(b);
+            // `w × a′` for the enclosure `w`.
+            let cross = move |w: V3<Interval>| V3 {
+                x: w.y.scale(b.z).plus(w.z.scale(Interval::zero() - b.y)),
+                y: w.z.scale(b.x).plus(w.x.scale(Interval::zero() - b.z)),
+                z: w.x.scale(b.y).plus(w.y.scale(Interval::zero() - b.x)),
+            };
+            Box::new(move |p| {
+                let wb = cross(p.less(q));
+                let qb = wb.dot(along(ab));
+                let qc = wb.dot(wb).shift(Interval::zero() - r.powi(2));
+                (ab.dot(ab), qb, qc)
+            })
+        }
+        geom::Surface::Sphere {
+            center: c,
+            radius: big_r,
+            ..
+        } => {
+            let (c, big_r) = (p3(c), lift(big_r));
+            Box::new(move |p| {
+                let w = p.less(c);
+                let qb = w.dot(along(a));
+                let qc = w.dot(w).shift(Interval::zero() - big_r.powi(2));
+                (a.dot(a), qb, qc)
+            })
+        }
+        _ => return Err(unread),
+    };
     let hull = |i: Iv<Interval>| i.lo.enclosure_hull(i.hi);
     let (centre, radius) = (ball.center(), ball.radius());
     let clear = |bx: Box3| {
@@ -1281,9 +1443,7 @@ pub(crate) fn coverage(
         let p = V3::at(o)
             .plus(V3::along(u, cell.cos.scale(rho)))
             .plus(V3::along(v, cell.sin.scale(rho)));
-        let wb = cross(p.less(q));
-        let qb = wb.dot(along(ab));
-        let qc = wb.dot(wb).shift(Interval::zero() - r.powi(2));
+        let (big_a, qb, qc) = quadratic(p);
         let disc = qb.square().plus(qc.scale(Interval::zero() - big_a));
         let covered = hull(disc).is_certified() && hull(disc).hi() < 0.0
             || [Interval::one(), Interval::zero() - Interval::one()]
@@ -1326,8 +1486,8 @@ pub(crate) fn coverage(
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
-    use super::{Cell, Ruled, RuledCylinders};
-    use crate::pair_section::{CcStance, CylinderCylinderPose};
+    use super::{Cell, Iv, Ruled, RuledCylinders, SweepRefusal, V3, sweep};
+    use crate::pair_section::{CcStance, CylinderCylinderPose, CylinderSpherePose};
     use crate::{ExtentBall, Reach};
     use geom::Surface;
     use geom_core::{Band, Point3, Tol, Vec3};
@@ -1427,6 +1587,172 @@ mod tests {
                 } else {
                     assert!(most > 0.0, "{label}: the walls cross");
                 }
+            }
+        }
+    }
+
+    /// **A discriminant in the band over the whole turn escalates**: no
+    /// first cut decides, and the first is kept anyway, so the turn is read
+    /// as one cell, split to the budget. A sweep that dropped every first
+    /// cut would read the turn over no cell.
+    #[test]
+    fn a_discriminant_in_the_band_over_the_whole_turn_escalates() {
+        struct Flat;
+        impl Ruled<f64> for Flat {
+            fn lever(&self) -> geom_core::Lever<f64> {
+                geom_core::Lever::curvature_radius(1.0)
+            }
+            fn discriminant(&self, _: &Cell<f64>) -> Iv<f64> {
+                Iv::point(0.0)
+            }
+            fn discriminant_slope(&self, _: &Cell<f64>) -> Iv<f64> {
+                Iv::point(0.0)
+            }
+            fn meeting(&self, _: &Cell<f64>, _: super::Sheet) -> V3<f64> {
+                V3::at(Point3::origin())
+            }
+            fn velocity(&self, _: &Cell<f64>, _: super::Sheet) -> V3<f64> {
+                V3::at(Point3::origin())
+            }
+        }
+        let got = sweep(&Flat, ExtentBall::of_sphere(Point3::origin(), 1.0), band());
+        assert!(
+            matches!(got, Err(SweepRefusal::Escalated(_))),
+            "a turn in the band escalates: {got:?}"
+        );
+    }
+
+    /// **The coverage reads a sphere's meetings**: two rings of the wall
+    /// `r = 1/2` about `z` against a sphere at `(0.1, 0, 0.2)` of radius
+    /// `0.7`, each enclosed by boxes about points of its closed form
+    /// (`h² = R² − r² − d² + 2rd·cos θ` over the centre's height), are
+    /// covered, and with either ring's boxes dropped a cell is not. The
+    /// sweep's march is not read, so the default set holds the coverage's
+    /// sphere arm to its quadratic without the slow set's carries.
+    #[test]
+    fn the_coverage_reads_a_spheres_meetings() {
+        use crate::ssi::enclose::Box3;
+        let (r, d, big) = (0.5f64, 0.1f64, 0.7f64);
+        let c = wall((0.0, 0.0, 0.0), Vec3::unit_z(), r);
+        let s = Surface::Sphere {
+            center: Point3::new(d, 0.0, 0.2),
+            radius: big,
+            axis: Vec3::unit_z(),
+            u_ref: Vec3::unit_x(),
+        };
+        let ring = |sheet: f64| -> Vec<Box3> {
+            (0..2048)
+                .map(|k| {
+                    let theta = core::f64::consts::TAU * f64::from(k) / 2048.0;
+                    let h = (big * big - r * r - d * d + 2.0 * r * d * theta.cos()).sqrt();
+                    let (sn, cs) = theta.sin_cos();
+                    Box3::around(Point3::new(r * cs, r * sn, 0.2 + sheet * h), 0.01)
+                })
+                .collect()
+        };
+        let (upper, lower) = (ring(1.0), ring(-1.0));
+        let both: Vec<Box3> = upper.iter().chain(&lower).copied().collect();
+        let ball = ExtentBall::of_sphere(Point3::new(d, 0.0, 0.2), big);
+        assert!(
+            super::coverage(&c, &s, ball, &both).is_ok(),
+            "both rings' boxes cover every cell"
+        );
+        for (which, kept) in [("upper", &lower), ("lower", &upper)] {
+            assert!(
+                super::coverage(&c, &s, ball, kept).is_err(),
+                "the {which} ring's boxes dropped: a cell uncovered"
+            );
+        }
+    }
+
+    /// **A sphere's `Δ` reaches the pose's margins at its extremes**: the
+    /// margin read over a fine turn reaches the near reach `R − |d − r|`
+    /// at its most and the far reach `R − (d + r)` at its least, the two
+    /// margins the pose decides the count on, for a sphere crossing the
+    /// wall in one loop, in two, centred on the wall, missing it, inside
+    /// it, and on a turned axis, in both orders; and the slope is of the
+    /// sign of `Δ`'s change across each cell of the turn.
+    #[test]
+    fn a_spheres_discriminant_extremes_are_the_poses_reaches() {
+        let sphere = |c: (f64, f64, f64), radius: f64| Surface::Sphere {
+            center: Point3::new(c.0, c.1, c.2),
+            radius,
+            axis: Vec3::unit_z(),
+            u_ref: Vec3::unit_x(),
+        };
+        let turned = Vec3::new(0.3, -0.2, 1.0);
+        let poses = [
+            (
+                "one loop",
+                wall((0.0, 0.0, 0.0), Vec3::unit_z(), 0.5),
+                sphere((0.6, 0.0, 0.2), 0.3),
+            ),
+            (
+                "two loops",
+                wall((0.0, 0.0, 0.0), Vec3::unit_z(), 0.5),
+                sphere((0.1, 0.0, 0.2), 0.7),
+            ),
+            (
+                "centred on the wall",
+                wall((0.0, 0.0, 0.0), Vec3::unit_z(), 0.5),
+                sphere((0.0, 0.5, -0.1), 0.4),
+            ),
+            (
+                "missing it",
+                wall((0.0, 0.0, 0.0), Vec3::unit_z(), 0.5),
+                sphere((1.2, 0.3, 0.0), 0.4),
+            ),
+            (
+                "inside it",
+                wall((0.0, 0.0, 0.0), Vec3::unit_z(), 0.5),
+                sphere((0.1, 0.1, 0.0), 0.2),
+            ),
+            (
+                "turned, one loop",
+                wall((0.1, -0.2, 0.3), turned, 0.4),
+                sphere((0.6, 0.1, 0.5), 0.35),
+            ),
+            (
+                "turned, two loops",
+                wall((0.1, -0.2, 0.3), turned, 0.4),
+                sphere((0.2, -0.1, 0.0), 0.9),
+            ),
+        ];
+        for (what, c, s) in poses {
+            for (order, x, y) in [("cylinder, sphere", &c, &s), ("sphere, cylinder", &s, &c)] {
+                let label = format!("{what} ({order})");
+                let pose = CylinderSpherePose::decide(x, y, band())
+                    .expect("a cylinder and a sphere")
+                    .unwrap_or_else(|e| panic!("{label}: a decided pose: {e:?}"));
+                let ruled = pose.ruled().expect("an off-axis centre");
+                let ((r, big_r), d) = (pose.radii(), pose.offset());
+                let (mut most, mut least) = (f64::NEG_INFINITY, f64::INFINITY);
+                let n = 4096;
+                let at = |k: i32| core::f64::consts::TAU * f64::from(k) / f64::from(n);
+                for k in 0..=n {
+                    let m = ruled.discriminant(&Cell::at(at(k)));
+                    most = most.max(m.hi);
+                    least = least.min(m.lo);
+                }
+                for k in 0..n {
+                    let rise = ruled.discriminant(&Cell::at(at(k + 1))).lo
+                        - ruled.discriminant(&Cell::at(at(k))).lo;
+                    let slope = ruled.discriminant_slope(&Cell::new(at(k), at(k + 1)));
+                    assert!(
+                        (rise <= 0.0 || slope.hi > 0.0) && (rise >= 0.0 || slope.lo < 0.0),
+                        "{label}: cell {k}: `Δ` moves {rise} across a slope of {slope:?}"
+                    );
+                }
+                assert!(
+                    (most - (big_r - (d - r).abs())).abs() <= 1e-12,
+                    "{label}: the most is the near reach, {most} against {}",
+                    big_r - (d - r).abs()
+                );
+                assert!(
+                    (least - (big_r - (d + r))).abs() <= 1e-12,
+                    "{label}: the least is the far reach, {least} against {}",
+                    big_r - (d + r)
+                );
             }
         }
     }

@@ -236,9 +236,8 @@ pub use ssi::{
     SettlingRefusal, SsiBoundaryContact, SsiBranch, SsiCertificate, SsiDecision, SsiDomain,
     SsiError, SsiLimb, SsiOperand, SsiOutcome, SsiTube, StepFault, StepperMode, TangentPair,
     TorusPair, TraceDecision, TubeDegeneracy, boundary_section, certify_rung3, cylinder_sphere_ssi,
-    cylinder_torus_ssi, idealized_trace_r3, march_cylinder_sphere, march_cylinder_torus,
-    march_torus_torus, plane_nurbs_ssi, sphere_torus_ssi, torus_torus_ssi,
-    trace_plane_nurbs_uncertified,
+    cylinder_torus_ssi, idealized_trace_r3, march_cylinder_torus, march_torus_torus,
+    plane_nurbs_ssi, sphere_torus_ssi, torus_torus_ssi, trace_plane_nurbs_uncertified,
 };
 #[cfg(any(test, feature = "test-support"))]
 #[doc(hidden)]
