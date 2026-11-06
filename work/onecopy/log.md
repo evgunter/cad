@@ -318,3 +318,5 @@
   - `onecopy/main-reds-k-and-m10` (`session_013mPGJ3twWm8X2P9Cc7QnjR`): the K probe sweep and m10_sym;
   - `onecopy/feet-and-params` (`session_013mPGJ4KpUZurFkBCMfZ8Uh`): a segment foot, and the nearest parameter by kind;
   - `onecopy/refusal-standing` (`session_013mPGJ5BFZnAe1VYCrzZYNj`): the two return types, and the kept-refusal loops.
+
+- 2026-11-06 — Ruled for refusal-standing row 1: option C. Abort is split out of `Refusal`; `rung` takes no closure; a type that can abort returns `Result<Refusal, Aborts>`; `Kept` is the margin verdict only. The return type is the type-level gate. The row's suggested rule broke on `chart_singularity::Unread`, which has an Unsettled kind and no abort. Conditions: no outcome moves; check `git log -S` for ratified text describing `Refusal`.
