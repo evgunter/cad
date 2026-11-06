@@ -34,7 +34,6 @@ use pncad::topo::BooleanOp;
 use crate::seats::{
     FaceRole, Port, Seat, SeatError, SeatEvent, Seats, pick_said, picks_line, seat_line,
 };
-use crate::session::refuse::one_body;
 use crate::session::{
     BooleanSpec, ClearedSeat, FaceSelection, PartSelectSpec, PatternDirection, PatternRuleSpec,
     SessionOp, SplitPlane,
@@ -1774,7 +1773,7 @@ pub fn duplicate_step(
                 _ => None,
             },
         },
-        None => one_body(&value.payload),
+        None => value.payload.one_body().flatten(),
     }
     .ok_or_else(|| DuplicateFault::NotOneBody { input: spoken() })?;
     let measured = |chord: f64| {

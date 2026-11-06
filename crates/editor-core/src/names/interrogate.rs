@@ -648,7 +648,7 @@ pub(crate) fn output_body<T: Decide>(
 ) -> Result<&crate::eval::Framed<T>, InterrogateError> {
     let missing = || InterrogateError::NoSuchBody { index };
     let none = |payload| Err(InterrogateError::NoBodies { payload });
-    match payload.member_body() {
+    match payload.one_body() {
         Some(Some(body)) if index == 0 => return Ok(body),
         Some(Some(_)) => return Err(missing()),
         Some(None) => return none("empty boolean"),
@@ -656,7 +656,7 @@ pub(crate) fn output_body<T: Decide>(
     }
     match payload {
         ValuePayload::Body(_) | ValuePayload::Boolean(_) => {
-            unreachable!("`member_body` answers every one-body value")
+            unreachable!("`one_body` answers every one-body value")
         }
         // The half that owns `index` by `SplitHalf::output_body` (the
         // one definition of that mapping), if either does.
@@ -671,7 +671,12 @@ pub(crate) fn output_body<T: Decide>(
                 SplitSide::Empty => Err(missing()),
             }
         }
-        ValuePayload::Instances(v) => v.get(index as usize).ok_or_else(missing),
+        // An empty member holds no body at its place, as an empty half
+        // holds none at its port.
+        ValuePayload::Instances(v) => v
+            .get(index as usize)
+            .and_then(Option::as_ref)
+            .ok_or_else(missing),
         // The families that denote no body at all. A mate denotes
         // none, and interrogating one for geometry is the same category
         // error as interrogating a declaration — as is interrogating a

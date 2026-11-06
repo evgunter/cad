@@ -179,3 +179,27 @@
   - **Tests:** the `named` assertion now pins positions.
   - **Rows filed:** `a-family-of-bodies-has-two-payloads` (REFS P1 H, the unification) and `editor-core-cites-a-spec-d3-no-document-numbers` (REFS P4 C, about 40 sites). The Python row moved to BIND.
   - `a-family-of-boolean-results-cannot-be-read-whole-or-by-index` is closed.
+- 2026-11-06 — **PR 6557 merged** (a family of boolean results reads whole and by index; `EmptyMember` names the empty member). Next REFS P1, serially: `a-family-of-bodies-has-two-payloads` (H), unit branch `reads/family-one-payload`. It follows on from the context just built, and it is the root of three of 6557's residue rows. The lane picks the one representation by final state and stops if a user-visible fork appears. Tier **single, FULL** (a public payload type and its readers across three crates). After it: `slot-forms-want-one-trait`. Then the viewer's boolean tool, whose indexed half waits on Ev's answer on 6555.
+- 2026-11-06 — **PR 6564 (one payload for a family of bodies) green at `2ef171edb2`; single FULL review dispatched.**
+  - **Chosen:** `Instances(Vec<Option<Framed>>)`, `None` at an empty member. `Family` now holds only non-bodies.
+  - **Rejected:** a third variant, which would be two spellings of one concept, and the bridge as the public door, because a reader matching `Instances` alone would still compile.
+  - **Bridge pieces deleted:** `member_bodies` and the viewer's `one_body` copy. `ValuePayload::one_body` is now the public rule.
+  - **Readers fixed:** `output_body`, `sources_of`, Python `bodies()` and `read_named_body`. `mate/corner.rs` `read_of` reads the first body member.
+  - **Rows:** the WIREREST and BIND residue rows were claimed and closed. The tree readout for an empty member is a CHROME row with three options (a user-visible choice, left open).
+  - **Not ours:** the lane saw main's nightly red on editor-core (`docm2_part_interval` a7, an interval boolean escalation, and others). That is GREEN's ground, and it is noted here for the hand-back.
+- 2026-11-06 — **PR 6564 review: APPROVE-WITH-FIXES, one MAJOR (sure, probe).** The product `gather` reads `carry.member(i)` by its position in the filtered source list. With empty members dropped, a later body took the empty member's census: a false `UnrecordedContact` and a lost contact record. This path is new in this PR. The one-line fix is `member(ix)`, with the probe pinned.
+  - Minors:
+    - `wire_place`'s whole-family arm can build a member-less `Instances` with a `None`, which panics on a whole read;
+    - `corner.rs` `read_of` has two name spellings;
+    - the all-empty family's new behaviour is unpinned;
+    - `name_copy`'s `one`;
+    - `one_body` overclaims: demos and `mate/unobservable` still match `Body(b)` alone.
+  - Fix pass sent.
+  - **Class:** a reader indexing by position in a list that may skip places, through a method (`Carry::member`) that a field sweep (`.members`) cannot match. A sweep's blind spot was named in the PR and still missed this shape.
+- 2026-11-06 — **PR 6564 fix pass green (`6f33e679e3`); merged on the orchestrator's read of the delta.** All the findings were taken:
+  - **The MAJOR:** `gather` now reads each body's carry at its place, and the pin goes red if the old indexing is restored. The `Carry::member` class sweep is clean.
+  - **Dead arms deleted** (`unreachable!`) rather than generalised: `wire_place`'s member-less whole-family arm and `place_each`, and `read_of`'s member-less arm. `family_value` is now the only builder of a family.
+  - **All-empty family:** it gathers as one empty boolean does, and is pinned in Rust and Python.
+  - **`one_body`:** every listed demo and `mate/unobservable` reader is routed through it.
+  - **`every_body`:** it now lives in `test_support`.
+  - `a-family-of-bodies-has-two-payloads` is closed, with the WIREREST and BIND residue rows.
