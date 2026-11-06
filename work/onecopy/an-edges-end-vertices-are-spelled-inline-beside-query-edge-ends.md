@@ -6,7 +6,7 @@ status: open
 opened: 2026-11-03
 priority: P2
 cost: M
-refs: [6327]
+refs: [6327, 6552]
 ---
 
 Found by the sweep of `the-curve-pair-units-follow-ups-from-its-review` item 1, which moved `carrier_cross::face_boundary` onto `query::edge_ends`.
