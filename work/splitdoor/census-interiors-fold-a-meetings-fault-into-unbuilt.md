@@ -28,7 +28,7 @@ at the census's cross pass.
 
 Census's four interior-meeting searches (`shared_run`,
 `planar_interiors_meet`, `shared_interior_witness`, `arc_interiors_meet`)
-now read `geom_brep::ladder::climb`. They rank by `InteriorsUnread::kept`:
+now read `geom_brep::ladder::climb`. They rank by `InteriorsUnread::refusal`:
 `Undecided` in band, `Unbuilt` a limit, and a limit is ranked ahead of
 in band. So this fold now chooses the refusal:
 - every fault `InteriorsUnread::of` files as `Unbuilt` outranks an
