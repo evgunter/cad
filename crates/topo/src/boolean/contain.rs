@@ -269,15 +269,19 @@ impl ContainError {
     /// loop the door cannot read a limit; a curved face's refusal as the
     /// solid door states it; a face that does not resolve, or two
     /// definite readings of an arc's end that disagree, a refusal of the
-    /// whole query.
-    pub(in crate::boolean) fn refusal(&self) -> geom_brep::ladder::Refusal {
-        use geom_brep::ladder::Refusal;
+    /// whole query ([`geom_brep::ladder::Aborts`]).
+    pub(in crate::boolean) fn refusal(
+        &self,
+    ) -> Result<geom_brep::ladder::Refusal, geom_brep::ladder::Aborts> {
+        use geom_brep::ladder::{Aborts, Refusal};
         match self {
-            Self::Escalated { diag, .. } => Refusal::Margin(*diag),
-            Self::RayExhausted => Refusal::InBand,
-            Self::EmptyLoop(_) | Self::LoopUnreadable(_) | Self::Uncrossable(_) => Refusal::Limit,
+            Self::Escalated { diag, .. } => Ok(Refusal::Margin(*diag)),
+            Self::RayExhausted => Ok(Refusal::InBand),
+            Self::EmptyLoop(_) | Self::LoopUnreadable(_) | Self::Uncrossable(_) => {
+                Ok(Refusal::Limit)
+            }
             Self::Curved(e) => e.refusal(),
-            Self::StaleFace(_) | Self::ArcEndClearOfCorners(_) => Refusal::Abort,
+            Self::StaleFace(_) | Self::ArcEndClearOfCorners(_) => Err(Aborts),
         }
     }
 }
