@@ -2,11 +2,13 @@
 id: main-red-seams-lying-on-the-walls-read-the-axes-at-1e-12
 kind: issue
 title: main red at 1e-12: sweep parallel_cylinder_join::seams_lying_on_the_walls_read_the_axes_across_the_region (U ab: OK BAD … v=8.858311527)
-status: dispatched
+status: closed
 opened: 2026-11-06
 priority: P1
 cost: E
 branch: onecopy/seams-1e-12
+closed: 2026-11-06
+pr: 6550
 ---
 
 
