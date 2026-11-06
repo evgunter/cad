@@ -346,13 +346,27 @@
 //! other's plane marks a window, about `e/|d̂·n̂|` of arc either side,
 //! where it lies within the band's escalation of that plane, and that
 //! window can hold more than one meeting, each in a stretch of its own.
-//! A conic's plane root whose window holds a found meeting is read
-//! instead (`window`): where the window certainly holds no meeting but
-//! the found ones, the root is not polished. Every other plane root is
-//! polished and bounded as it would be with no meeting found; a
-//! candidate it gives nearer a found meeting than the escalation is that
-//! meeting again (C5's ring rule), and a basin that is not proved
-//! refuses. The coplanar subdivisions divide nothing out: their roots
+//! A conic's plane root is read through its window first (`window`),
+//! and where the window certainly holds no meeting but the found ones,
+//! none among them included, the root is not polished. What the window
+//! certifies is two claims, one per kind of arc:
+//!
+//! - **beside a found meeting**, an arc past its ring, read outward,
+//!   holds no point within the band's zero of the other carrier: every
+//!   piece reads off past the zero, or receding, and so no second
+//!   meeting adjoins the ring. A point there within the band's gap of the
+//!   other carrier is the found meeting's own stretch (C5), which the
+//!   found meeting already answers;
+//! - **with no ring**, an arc holds no point within the band's
+//!   escalation of the other carrier: every piece reads off past the
+//!   escalation. Here a near-miss in the gap answers to nothing found, so
+//!   reading it off past the zero would decide a pair the band leaves
+//!   undecided. Past the escalation, it is decided apart.
+//!
+//! Every other plane root is polished and bounded as it would be with no
+//! meeting found; a candidate it gives nearer a found meeting than the
+//! escalation is that meeting again (C5's ring rule), and a basin that is
+//! not proved refuses. The coplanar subdivisions divide nothing out: their roots
 //! nearer a found meeting than the escalation are not read again.
 //!
 //! # The band
@@ -1320,7 +1334,7 @@ fn transverse<T: Decide>(
         .collect();
     let near = |theta: T| {
         let arc = range.band_arc(theta, band);
-        if !joints.is_empty() && window.holds_only((theta - arc, theta + arc), &joints, band) {
+        if window.holds_only((theta - arc, theta + arc), &joints, band) {
             return Ok(None);
         }
         let q = ka.point_at(theta);
