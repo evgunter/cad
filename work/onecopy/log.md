@@ -273,3 +273,12 @@
   - Departure 3: a point-valued polish step is taken at T, not as a literal, because editor-core's coincidence door reads the `Sym` symbols.
   FULL review sent to `session_013mPGJ3HVYqYAoquA4iThSZ`, with a soundness sample of the newly decided poses against an oracle.
   Filed two main reds the lane found: the K probe sweep doesn't compile under `probe` alone, and `m10_sym_profile`'s pinned rows are red on main.
+
+- 2026-11-06 — PR 6537 FULL review: MERGE, with every prune's derivation checked.
+  - Oracle: 0 contradictions over 51 moved poses and 0 mismatches over 72 run-arm samples at both ε. The escalating pose is an honest 1.5e near-miss.
+  - Fix pass sent:
+    - NOTE-4: derive the monotonicity premise the run arm rests on from the basin's proof, or narrow the arm.
+    - NOTE-2: the basin premise is spelled twice (pose and walk); give it one home.
+    - NOTE-3 and NOTE-5: the end-chord siblings and `past_by`'s unreachable premise.
+    - The PR body reconciles 132 against 24 (the census sets differ).
+  The m10_sym MINOR is already filed.
