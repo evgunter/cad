@@ -791,41 +791,42 @@ fn a_near_miss_in_the_gap_beside_no_meeting_escalates() {
     assert!(bad.is_empty(), "{} poses:\n{}", bad.len(), bad.join("\n"));
 }
 
-/// **The least distance between two spans**, by an oracle that shares no
-/// code with the reader: a grid of 400 pieces over each, then 90
-/// golden-section steps about the least on each, inner and outer. On the
-/// poses read here the least lies in one valley of each grid piece, and
-/// it is read to far below the band.
-fn span_gap(a: &Curve3<f64>, sa: (f64, f64), b: &Curve3<f64>, sb: (f64, f64)) -> f64 {
-    fn golden(f: impl Fn(f64) -> f64, (mut lo, mut hi): (f64, f64)) -> f64 {
-        let g = 0.5 * (5f64.sqrt() - 1.0);
-        for _ in 0..90 {
-            let (x1, x2) = (hi - g * (hi - lo), lo + g * (hi - lo));
-            if f(x1) <= f(x2) {
-                hi = x2;
-            } else {
-                lo = x1;
-            }
+/// **The least of `f` over `(lo, hi)`**, by an oracle that shares no
+/// code with the reader: a grid of 400 pieces, then 90 golden-section
+/// steps about the grid's least. On the poses read here the least lies in
+/// one valley of each grid piece, and it is read to far below the band.
+fn oracle_least(f: &dyn Fn(f64) -> f64, (lo, hi): (f64, f64)) -> f64 {
+    let n = 400;
+    let step = (hi - lo) / f64::from(n);
+    let at = |i: u32| lo + step * f64::from(i);
+    let best = (0..=n)
+        .min_by(|&i, &j| f(at(i)).total_cmp(&f(at(j))))
+        .unwrap();
+    let (mut l, mut h) = (
+        at(best.saturating_sub(1)).max(lo),
+        (at(best) + step).min(hi),
+    );
+    let g = 0.5 * (5f64.sqrt() - 1.0);
+    for _ in 0..90 {
+        let (x1, x2) = (h - g * (h - l), l + g * (h - l));
+        if f(x1) <= f(x2) {
+            h = x2;
+        } else {
+            l = x1;
         }
-        f(0.5 * (lo + hi))
     }
-    let grid = |(lo, hi): (f64, f64), n: u32, f: &dyn Fn(f64) -> f64| -> f64 {
-        let step = (hi - lo) / f64::from(n);
-        let at = |i: u32| lo + step * f64::from(i);
-        let best = (0..=n)
-            .min_by(|&i, &j| f(at(i)).total_cmp(&f(at(j))))
-            .unwrap();
-        let bracket = (
-            at(best.saturating_sub(1)).max(lo),
-            (at(best) + step).min(hi),
-        );
-        golden(f, bracket).min(f(at(best)))
-    };
-    let inner = |s: f64| {
-        let p = a.eval(s);
-        grid(sb, 400, &|t: f64| (p - b.eval(t)).norm())
-    };
-    grid(sa, 400, &inner)
+    f(0.5 * (l + h)).min(f(at(best)))
+}
+
+/// **`p`'s least distance from the span `sb` of `b`** ([`oracle_least`]).
+pub(super) fn point_gap(p: Point3<f64>, b: &Curve3<f64>, sb: (f64, f64)) -> f64 {
+    oracle_least(&|t: f64| (p - b.eval(t)).norm(), sb)
+}
+
+/// **The least distance between two spans** ([`oracle_least`], inner and
+/// outer).
+pub(super) fn span_gap(a: &Curve3<f64>, sa: (f64, f64), b: &Curve3<f64>, sb: (f64, f64)) -> f64 {
+    oracle_least(&|s: f64| point_gap(a.eval(s), b, sb), sa)
 }
 
 /// A conic through `at` with unit tangent `t` there at its parameter

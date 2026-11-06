@@ -162,21 +162,25 @@
 //!
 //! # A touch in the subdivision
 //!
-//! **The coplanar subdivisions place a touch as the circle pair does**
+//! **The coplanar subdivisions place a touch by its in-band stretch**
 //! ([`crate::half_angle::certified_subdivision_touching`]). Two conics
 //! that touch stay within the band of each other over an arc much wider
 //! than the band, so no cut there reads a definite sign. Before that arc
 //! is cut, the piece holding it reads convex toward its ends' common
 //! side (`curve_pair_coplanar_sub_convex`): `F` has one extremum there
 //! and at most two roots, both about it. The extremum is the candidate.
-//! Where the carrier there reads in the zero band, the reach about it
-//! that holds the piece's roots is read (`curve_pair_coplanar_sub_touch`).
-//! The reach takes the extremum's depth at the least the noise allows,
-//! as the circle pair reads its root gap
-//! ([`crate::roots::past_noise`]), and its slope charged with its
-//! rounding.
-//! - **Zero** is one touch: roots that only the noise parts are one
-//!   meeting, as for the circle pair.
+//! Where the carrier there reads in the zero band, the most residual over
+//! the arc between the piece's roots is read
+//! (`curve_pair_coplanar_sub_touch`): the most `|F|` convexity leaves
+//! there, over the frame's floor on `|F|` per metre. Neither door charges
+//! a jet's rounding: the coplanar ellipses read `F` locally and exactly
+//! ([`Level`]), the circle and ellipse from their harmonics.
+//! - **Zero** is one touch. The arc lies everywhere within the zero band
+//!   of the other carrier, so by C5 (`crates/geom-brep/README.md`: a
+//!   meeting is a longest interval of one span everywhere definitely on
+//!   the other) it is one meeting, however far apart its roots lie; a
+//!   touch is that meeting's kind, two carriers whose double root the
+//!   band cannot split, not a shared run of one curve.
 //! - **In the gap** it escalates.
 //! - **Definite**, the walk goes on, and roots within one in-band arc
 //!   end in its refusal.
