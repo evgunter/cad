@@ -39,7 +39,10 @@ The `Unwalked` arm reaches the same `SplitJoinError::SectionUnwalked` both ways,
 - chord_join's inline match is now one `From<(FaceKey, SiteRefusal)> for SplitJoinError`.
 - `join::site_refusal` states why the Boolean keeps its own: its in-band site is the section's coincidence decision, with that decision's recourse.
 
-**The census's parallel spelling is gone:**
-- `census::curved` pushes `geom::PieceWalkRefusal::sentence()` and reads it back through `PieceWalkRefusal::of_sentence`.
-- `link::EdgeTangentUnread`'s `Exhausted`/`Unbounded` arms are now one `Unwalked(geom::PieceWalkRefusal)`.
-- The census's rendered sentence for a walk refusal moves to the payload's, pinned by `census::curved::tests::an_unwalked_edge_reads_back_as_its_walk_refusal`.
+**The census's parallel spelling is narrowed, not gone:**
+- `census::curved` pushes `geom::PieceWalkRefusal::sentence()` as its `ContactRefusal::NotCertifiable { what }`, and reads it back with `PieceWalkRefusal::of_sentence`. That parse runs over every variant (`strum::VariantArray`).
+- `link::EdgeTangentUnread`'s `Exhausted`/`Unbounded` arms are now one `Unwalked(geom::PieceWalkRefusal)`. Its ladder standing is `geom_brep::ladder::Refusal::of_walk`, stated once: exhausted is unsettled, unbounded is a limit.
+- Pinned by `census::curved::tests::an_unwalked_edge_reads_back_as_its_walk_refusal`, which checks the `what` text and the round trip, and by `census::link_faces_ranking` for both standings.
+- Nothing rendered moved: `NotCertifiable` renders no `what`.
+
+**What is left:** the census still identifies the walk refusal by **string equality on `what`** (`edge_tangent_refusal`), as it does for its other `NO_*` reasons. A typed `what` on `ContactRefusal::NotCertifiable`, or a typed census refusal, would end the round trip.
