@@ -854,7 +854,11 @@ impl SplitJoinError {
             }
             Self::SectionUnwalked(why) => write!(
                 f,
-                "where a site lies on its section's fitted component could not be read: {why}"
+                "where a site lies on its section's fitted component could not be read: {why}. {}",
+                match why {
+                    geom::PieceWalkRefusal::Exhausted => geom_core::KERNEL_LIMIT_RECOURSE,
+                    geom::PieceWalkRefusal::Unbounded => geom_core::NOT_YET_ENDING,
+                }
             ),
             Self::SectionUnarmed { divided, wall, .. } => {
                 let wall = crate::boolean::kind_word(*wall);
