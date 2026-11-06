@@ -4589,11 +4589,7 @@ fn boundary_crossings<T: Decide>(
     let refused =
         |r: CrossRefusal, errors: &mut Vec<ValidationError>| refuse_crossing(f.key, r, errors);
     let Some(face) = body.get_face(f.key) else {
-        refused(
-            CrossRefusal::Unsupported(ContainError::StaleFace(f.key)),
-            errors,
-        );
-        return None;
+        unreachable!("census: face {:?} was read off the live arena", f.key)
     };
     let mut cuts = Vec::new();
     for lk in face.loop_keys() {
@@ -4767,10 +4763,10 @@ fn meetings<T: Decide>(
                 CrossRefusal::Unread("the meeting reading of a census edge and a face boundary edge could not settle a count")
             }
             MeetFault::Unsupported { pose } => CrossRefusal::Unread(pose),
-            MeetFault::Desync => CrossRefusal::Unread(
-                "the meeting reading of a census edge and a face boundary edge misread a carrier's kind",
+            fault @ (MeetFault::Desync | MeetFault::Contradiction { .. }) => meet_fault(
+                format_args!("edge {:?} against boundary edge {:?}", e.key, side.key),
+                fault,
             ),
-            MeetFault::Contradiction { readings } => CrossRefusal::Unread(readings),
         }
     })?;
     if met.shared.is_some() {
@@ -6867,6 +6863,31 @@ fn pair_lane_refused(
     }
 }
 
+/// **A kernel fault a census reading met** (`[failure.taxonomy]` row 4):
+/// a reading that misread a carrier, or two of its readings that
+/// contradict. That is never a pose, and the census reads a body tiers
+/// 1–3-local passed, so the fault is the kernel's: it panics here and is
+/// never a census refusal.
+#[track_caller]
+fn census_fault(on: core::fmt::Arguments<'_>, what: &str) -> ! {
+    unreachable!(
+        "census: a reading of {on} faulted: {what}. A fault is a misread carrier or two \
+         readings that contradict, never a pose, and the census reads a body tiers 1–3-local \
+         passed"
+    )
+}
+
+/// [`census_fault`] for a meeting reading's fault (`Desync`,
+/// `Contradiction`), in the words the boundary pass gives it
+/// ([`geom_brep::curve_face::BoundaryRefusal::of`]).
+#[track_caller]
+fn meet_fault(on: core::fmt::Arguments<'_>, fault: MeetFault) -> ! {
+    match geom_brep::curve_face::BoundaryRefusal::of(fault) {
+        geom_brep::curve_face::BoundaryRefusal::Fault { what } => census_fault(on, what),
+        other => unreachable!("census: {other:?} is a meeting reading's limit, not its fault"),
+    }
+}
+
 /// What [`crate::boolean::rest_line_in_both_faces`] leaves unread on a
 /// two-carrier face pair, as the census reports it.
 fn line_unread(
@@ -6902,21 +6923,21 @@ fn line_unread(
                                reading cannot read against the tangent line",
                     },
                 ),
-                BoundaryRefusal::Fault { what } => pair_lane_refused(
-                    a,
-                    b,
-                    crate::contact::ContactRefusal::NotCertifiable { what },
+                BoundaryRefusal::Fault { what } => census_fault(
+                    format_args!(
+                        "face {:?} of the two-carrier pair ({a:?}, {b:?})",
+                        [a, b][i]
+                    ),
+                    what,
                 ),
             });
         }
-        crate::boolean::FaceUnread::Uncertified => held.push(pair_lane_refused(
-            a,
-            b,
-            crate::contact::ContactRefusal::NotCertifiable {
-                what: "a face of a two-carrier face pair whose boundary holds an edge with no \
-                       certified curve",
-            },
-        )),
+        crate::boolean::FaceUnread::Uncertified => unreachable!(
+            "census: face {:?} of the two-carrier pair ({a:?}, {b:?}) has a boundary edge with \
+             no certified curve, but the census reads only a body tier 2 passed, and tier 2 \
+             refuses a null edge at rest (`NullEdgeAtRest`)",
+            [a, b][i]
+        ),
     }
 }
 
@@ -11459,15 +11480,15 @@ impl InteriorsUnread {
     }
 
     /// A meeting reading's refusal: an escalation or a touch undecided,
-    /// every other refusal unbuilt. A fault folds in with the limits
-    /// (`work/splitdoor/census-interiors-fold-a-meetings-fault-into-unbuilt.md`).
+    /// a limit unbuilt, and a fault the kernel's ([`meet_fault`]).
+    #[track_caller]
     fn of(fault: MeetFault) -> Self {
         match fault {
             MeetFault::Escalated(_) | MeetFault::Touch(_) => Self::Undecided,
-            MeetFault::Unsettled(_)
-            | MeetFault::Unsupported { .. }
-            | MeetFault::Desync
-            | MeetFault::Contradiction { .. } => Self::Unbuilt,
+            MeetFault::Unsettled(_) | MeetFault::Unsupported { .. } => Self::Unbuilt,
+            fault @ (MeetFault::Desync | MeetFault::Contradiction { .. }) => {
+                meet_fault(format_args!("two edges' interiors"), fault)
+            }
         }
     }
 }
@@ -13765,6 +13786,57 @@ mod tests {
             text.ends_with(geom_core::KERNEL_OR_FILE_DEFECT_ENDING)
                 && !text.contains("could not be checked"),
             "{text}"
+        );
+    }
+
+    /// **A boundary-pass fault on a census face pair panics**: it is a
+    /// misread carrier, never a pose, so no input reaches it.
+    #[test]
+    #[should_panic(expected = "census: a reading of face")]
+    fn a_boundary_fault_on_a_census_pair_panics() {
+        let why =
+            crate::boolean::FaceUnread::Boundary(geom_brep::curve_face::BoundaryRefusal::Fault {
+                what: "planted",
+            });
+        line_unread(FaceKey::default(), FaceKey::default())(0, why, &mut Vec::new());
+    }
+
+    /// **A meeting reading's fault in the census panics**, a carrier
+    /// misread and two readings that contradict alike.
+    #[test]
+    #[should_panic(expected = "census: a reading of two edges' interiors faulted")]
+    fn a_meetings_desync_in_the_census_panics() {
+        let _ = InteriorsUnread::of(MeetFault::Desync);
+    }
+
+    #[test]
+    #[should_panic(expected = "faulted: planted readings")]
+    fn a_meetings_contradiction_in_the_census_panics() {
+        let _ = InteriorsUnread::of(MeetFault::Contradiction {
+            readings: "planted readings",
+        });
+    }
+
+    /// **A census face whose boundary holds no certified curve panics**:
+    /// tier 2, which the census runs behind, refuses a null edge at rest.
+    #[test]
+    #[should_panic(expected = "tier 2 refuses a null edge at rest")]
+    fn an_uncertified_boundary_on_a_census_pair_panics() {
+        let why = crate::boolean::FaceUnread::Uncertified;
+        line_unread(FaceKey::default(), FaceKey::default())(1, why, &mut Vec::new());
+    }
+
+    /// **A containment door's stale face, read by the census, panics**:
+    /// the census reads its faces off the body, so a face that does not
+    /// resolve is the kernel's, through the containment door's one text.
+    #[test]
+    #[should_panic(expected = "a kernel driver asked a containment door about face")]
+    fn a_stale_face_at_a_census_containment_read_panics() {
+        let face = FaceKey::default();
+        read_containment(
+            face,
+            Err::<(), _>(ContainError::StaleFace(face)),
+            &mut Vec::new(),
         );
     }
 
