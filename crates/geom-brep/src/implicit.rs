@@ -253,7 +253,7 @@ pub fn implicit_gradient<T: Real>(s: &Surface<T>, p: Point3<T>) -> Vec3<T> {
             let (h, w) = axial_radial(p, apex, axis);
             // w/ρ poisons on the axis (0/0) — including the apex, where
             // no tangent plane exists (honest, per the module docs).
-            let w_hat = w / w.norm();
+            let w_hat = w.normalize();
             w_hat * c_a - axis * s_a.copysign(h)
         }
         Surface::Torus {
@@ -611,7 +611,7 @@ pub(crate) fn implicit_restricted_trace<T: Real>(
 /// Poison in, poison out (singular points, `Nurbs`).
 pub fn implicit_max_normal_curvature<T: Real>(s: &Surface<T>, p: Point3<T>) -> T {
     let g = implicit_gradient(s, p);
-    let n_hat = g / g.norm();
+    let n_hat = g.normalize();
     let [
         Vec3 {
             x: hxx,

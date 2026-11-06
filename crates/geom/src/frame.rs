@@ -161,7 +161,7 @@ impl<T: Real> Frame<T> {
     /// the stored `u_ref`, taken as `a × (u_ref × a)` over the unit `a`.
     #[must_use]
     pub fn square(&self) -> SquareFrame<T> {
-        let axis = self.axis / self.axis.norm();
+        let axis = self.axis.normalize();
         let across = axis.cross(self.u_ref.cross(axis));
         let len = across.norm();
         SquareFrame {

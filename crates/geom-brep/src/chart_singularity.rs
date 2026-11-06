@@ -1170,7 +1170,7 @@ impl<T: Decide> EdgeShape<T> {
             }) => Self {
                 speed,
                 line: false,
-                height: Some(radius * T::from_f64(2.0) * axis.cross(n / n.norm()).norm()),
+                height: Some(radius * T::from_f64(2.0) * axis.cross(n.normalize()).norm()),
             },
             _ => Self {
                 speed,

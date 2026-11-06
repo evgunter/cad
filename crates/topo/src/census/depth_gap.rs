@@ -378,7 +378,7 @@ pub(super) fn face_read<T: Decide>(body: &Body<T>, f: FaceKey, band: Band) -> Op
 
 /// `v` less its component along `n`'s direction, and that component.
 pub(super) fn split<T: Decide>(v: Vec3<T>, n: Vec3<T>) -> (Vec3<T>, T) {
-    let n = n / n.norm();
+    let n = n.normalize();
     let along = v.dot(n);
     (v - n * along, along)
 }
@@ -401,8 +401,8 @@ struct Swing<T> {
 /// `|P·e|² = 1 − (e·a)² ≥ (n·a)²`) and `|P(c − o)| + R`; the height
 /// `(c − o)·a + R·(e·a)` swings by `R·|a_⊥|`, `a`'s part off `n`.
 fn swing<T: Decide>(ring: &Ring<T>, origin: Point3<T>, axis: Vec3<T>) -> Swing<T> {
-    let n = ring.normal / ring.normal.norm();
-    let a = axis / axis.norm();
+    let n = ring.normal.normalize();
+    let a = axis.normalize();
     let (off, height) = split(ring.center - origin, a);
     let off = off.norm();
     let tilt = split(a, n).0.norm() * ring.major;
@@ -483,7 +483,7 @@ pub(super) fn inf_on<T: Decide>(depth: Depth<T>, piece: &Piece<T>) -> Option<T> 
 fn nearest_offset<T: Decide>(depth: Depth<T>, p: Point3<T>, q: Point3<T>) -> Option<Vec3<T>> {
     let (u, w) = match depth {
         Depth::Axis(geom::Line { origin, dir: axis }) => {
-            let a = axis / axis.norm();
+            let a = axis.normalize();
             (split(p - origin, a).0, split(q - p, a).0)
         }
         Depth::Center { center } => (p - center, q - p),
@@ -721,7 +721,7 @@ pub(super) fn across<T: Decide>(
             .iter()
             .filter_map(|proposed| match (proposed.depth, proposed.source) {
                 (Depth::Axis(geom::Line { dir: axis, .. }), Source::Arc(p, q)) => {
-                    unit((axis / axis.norm()).cross(q - p))
+                    unit(axis.normalize().cross(q - p))
                 }
                 _ => None,
             })

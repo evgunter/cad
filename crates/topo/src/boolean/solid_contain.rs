@@ -2919,7 +2919,7 @@ fn ray_passes_beside<T: Decide>(
     let (verts, covers) = crate::splitting::containment::loop_hull(body, f.outer)
         .map_err(|e| RayFault::Fatal(PointInSolidError::Loop(e)))?;
     let m = normal.cross(d);
-    let m = m / m.norm();
+    let m = m.normalize();
     let base = (q - Point3::origin()).dot(m);
     let (mut above, mut below) = (None::<T>, None::<T>);
     // Each part's least height above the plane, and least depth below it:
@@ -3527,11 +3527,11 @@ fn wall_crosses_by_turn<T: Decide>(
     ray: TurnRay,
 ) -> Result<Option<bool>, RayFault<PointInSolidError>> {
     let band = ray.band;
-    let axis = axis / axis.norm();
+    let axis = axis.normalize();
     let radius = radius.abs();
     let split = |x: Point3<T>| {
         let (h, radial) = geom::Line { origin, dir: axis }.param_and_offset(x);
-        (h, radial / radial.norm())
+        (h, radial.normalize())
     };
     let (h_p, e1) = split(p);
     let e2 = axis.cross(e1);
@@ -3591,7 +3591,7 @@ fn wall_crosses_by_turn<T: Decide>(
                     },
                 radius: r,
             }) => {
-                r.abs() * (normal / normal.norm()).cross(axis).norm()
+                r.abs() * normal.normalize().cross(axis).norm()
                     + geom::Line { origin, dir: axis }.distance(center)
             }
             _ => return Ok(None),

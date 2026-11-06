@@ -2588,7 +2588,7 @@ fn cone_generator_miss<T: Decide>(apex: Point3<T>, dir: Vec3<T>, e: &LoopEdge<T>
             (T::zero(), T::zero()),
             Ruling::Generator {
                 apex,
-                g: far * (T::one() / far.norm()),
+                g: far.normalize(),
             },
         )
         .value()
@@ -3777,7 +3777,7 @@ fn sphere_loop<T: Decide>(
         };
         let tangent = |p: Point3<T>| {
             let d = n_c.cross(p - c_c);
-            let d = d / d.norm();
+            let d = d.normalize();
             if e.forward { d } else { -d }
         };
         arcs.push(SphereArc {
@@ -4027,7 +4027,7 @@ fn agreed_side<T: Decide>(
     axis: Vec3<T>,
     read: impl Fn(Vec3<T>) -> Result<Option<Sign>, PropsError>,
 ) -> Result<MaterialSign, PropsError> {
-    let up = axis / axis.norm();
+    let up = axis.normalize();
     let mut reading: Option<Sign> = None;
     // The sphere's singular points, from their one home, as directions.
     let origin = Point3::new(T::zero(), T::zero(), T::zero());
@@ -4428,7 +4428,7 @@ fn pole_turning<T: Decide>(
 ) -> Result<Option<T>, PropsError> {
     let unit = |x: Point3<T>| {
         let w = x - center;
-        w / w.norm()
+        w.normalize()
     };
     let half = T::from_f64(0.5);
     let image = |x: Point3<T>| {

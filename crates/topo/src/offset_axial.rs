@@ -2199,7 +2199,7 @@ fn mint_carrier<T: Decide>(
                     }
                     Err(source) => return Err(ReplaceFaceError::Escalated { source }),
                 }
-                translate(e / n * ca.distance)
+                translate(e.normalize() * ca.distance)
             }
             // A sphere's seam is a GREAT circle about the sphere's own
             // centre, and the offset is concentric: same centre, same

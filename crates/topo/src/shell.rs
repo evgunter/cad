@@ -4903,7 +4903,7 @@ fn walls_cross<T: Decide>(
     }
     // The point of `L` nearest `a`'s box centre, so every side
     // and position below is a short difference.
-    let d = cross / cross.norm();
+    let d = cross.normalize();
     let k = a.normal.dot(b.normal);
     let q = a.lo + (a.hi - a.lo) * T::from_f64(0.5);
     let r_a = a.normal.dot(a.origin - q);

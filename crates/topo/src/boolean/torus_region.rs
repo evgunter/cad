@@ -312,7 +312,7 @@ impl<T: Decide> TorusFaceRegion<T> {
             },
             y,
         );
-        n / n.norm()
+        n.normalize()
     }
 }
 

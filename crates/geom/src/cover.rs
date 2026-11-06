@@ -871,7 +871,7 @@ impl<T: Real> Arc<T> {
         let u_len = self.frame.u_ref.norm();
         let u_hat = self.frame.u_ref / u_len;
         let v_off = self.frame.v_ref() - u_hat * self.frame.v_ref().dot(u_hat);
-        let v_hat = v_off / v_off.norm();
+        let v_hat = v_off.normalize();
         let rho = (self.semi_u * u_len + self.semi_v * self.frame.v_ref().dot(v_hat)) * half;
         let dp = self.frame.u_ref * self.semi_u - u_hat * rho;
         let dq = self.frame.v_ref() * self.semi_v - v_hat * rho;

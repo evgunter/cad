@@ -7119,7 +7119,7 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
         let &geom::Surface::Sphere { axis, .. } = face.surface() else {
             return Err(corrupt("cut-in: the face is not on a sphere"));
         };
-        let axis = axis / axis.norm();
+        let axis = axis.normalize();
         // The meridian plane through the circle's centre direction, or
         // through a point of it where the circle is a rim of the chart.
         let toward = |d: Vec3<T>| axis.cross(d);
@@ -7133,7 +7133,7 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
                 ));
             }
         }
-        let k = k / k.norm();
+        let k = k.normalize();
         let h = k.cross(axis);
         // A point of the half-meridian by its coordinates across and
         // along the axis, `r·(cos φ, sin φ)`.
@@ -7150,7 +7150,7 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
                 "the section circle lies in its own meridian plane",
             ));
         }
-        let e = across / across.norm();
+        let e = across.normalize();
         let crossings = [cut.foot - e * cut.rho, cut.foot + e * cut.rho];
         for p in crossings {
             if sign("bool_sphere_cut_half", Margin::of(h.dot(p - cut.center)))? != Sign::Positive {
