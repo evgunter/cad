@@ -628,15 +628,6 @@ enum Hit {
     Refused(StepImportError),
 }
 
-/// The carrier length per unit parameter (the radius for a circle).
-fn speed(carrier: &Curve3<f64>) -> f64 {
-    match *carrier {
-        Curve3::Circle(geom::Circle { radius, .. }) => radius,
-        Curve3::Line(geom::Line { dir, .. }) => dir.norm(),
-        _ => 1.0,
-    }
-}
-
 /// The first point past its start at which `ray` meets the boundary of
 /// face `fi`, ignoring `skip`'s edge (a seam the ray leaves from), or
 /// reaches one of `singular` off the boundary.
@@ -649,7 +640,13 @@ fn first_hit(
     read: &Read,
 ) -> Result<(Hit, Point3<f64>), StepImportError> {
     let face = &solid.faces[fi];
-    let lead = read.escalate / speed(&ray.carrier);
+    let Some(speed) = geom::carrier_speed::speed_at(&ray.carrier, ray.from) else {
+        unreachable!(
+            "a ray runs on a sphere's meridian circle or a cone's generator line \
+             (`meridian_rays`), whose speed `speed_at` reads in closed form"
+        )
+    };
+    let lead = read.escalate / speed;
     let mut best: Option<(f64, Hit, Point3<f64>)> = None;
     let offer =
         |delta: f64, hit: Hit, p: Point3<f64>, best: &mut Option<(f64, Hit, Point3<f64>)>| {

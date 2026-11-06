@@ -86,22 +86,110 @@ pub enum OverlapRefusal {
     /// states it ([`BoundaryRefusal::refusal`]).
     Meeting(BoundaryRefusal),
     /// A face's boundary could not be read as the boundary pass reads it.
-    /// Ranked by its margin where it escalated; any other refusal aborts,
-    /// since [`BooleanError`] states no standing of its own to tell a
-    /// limit from a fault.
+    /// As the Boolean states it ([`BooleanError::refusal`]).
     Boundary(Arc<BooleanError>),
-    /// Two corners' bounds read in band against each other. Ranked as
-    /// [`Self::Boundary`] is.
+    /// Two corners' bounds read in band against each other. As the
+    /// Boolean states it ([`BooleanError::refusal`]).
     Corner(Arc<BooleanError>),
     /// A face's outward normal at a point of its boundary could not be
     /// read. As the normal door states it ([`NormalAtError::refusal`]).
     Normal(NormalAtError),
-    /// A reading the door has no verdict for: what it is. A limit
-    /// (`work/onecopy/overlap-refusal-unread-is-string-typed-across-classes.md`).
-    Unread {
-        /// The reading.
-        what: &'static str,
-    },
+    /// A reading the door has no verdict for. As the reading states it
+    /// ([`OverlapUnread::refusal`]).
+    Unread(OverlapUnread),
+}
+
+/// **A reading [`overlap`] has no verdict for**, each with its standing
+/// to the door's search ([`Self::refusal`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum OverlapUnread {
+    /// A face with no boundary edge, so no point of its boundary reads
+    /// the two faces' senses. An abort: every reading needs the senses.
+    NoBoundaryEdge,
+    /// The two faces' normals read square to each other where a verdict
+    /// put both on one carrier. An abort: the door's premise contradicted.
+    SquareNormals,
+    /// A point of one face reads definitely off the other's carrier,
+    /// which a verdict put both on. An abort: two readings contradict.
+    OffCarrier,
+    /// A curved face's region reading has no verdict for a point. A limit.
+    RegionUnread,
+    /// A face holding a lone vertex. A limit.
+    LoneVertex,
+    /// A boundary edge with no certified curve. A limit.
+    UncertifiedEdge,
+    /// A corner bound with no certified curve. A limit.
+    UncertifiedBound,
+    /// A boundary edge whose carrier places no parameter at a point. A
+    /// limit.
+    UnplacedParameter,
+    /// A boundary edge, or a vertex of one, that does not resolve past a
+    /// face that does. An abort: a torn body.
+    TornBoundary,
+    /// Two corner bounds leave along one ray with no bend to part them.
+    /// A limit.
+    AlongOneRay,
+    /// A region of a face a sphere's re-chart turned, which the
+    /// accumulation lost. A limit.
+    RechartedRegionLost,
+    /// A row says the face holds an accumulation face lying elsewhere. A
+    /// limit.
+    HeldElsewhere,
+    /// An accumulation face a row says the face holds, on a carrier not
+    /// read. A limit.
+    HeldCarrierUnread,
+}
+
+impl OverlapUnread {
+    /// What this reading is to the door's search for a witness
+    /// ([`geom_brep::ladder::Refusal`]), as each variant's docs state it.
+    ///
+    /// # Errors
+    ///
+    /// [`geom_brep::ladder::Aborts`] for a refusal of the whole query.
+    pub const fn refusal(self) -> Result<geom_brep::ladder::Refusal, geom_brep::ladder::Aborts> {
+        use geom_brep::ladder::{Aborts, Refusal};
+        match self {
+            Self::NoBoundaryEdge | Self::SquareNormals | Self::OffCarrier | Self::TornBoundary => {
+                Err(Aborts)
+            }
+            Self::RegionUnread
+            | Self::LoneVertex
+            | Self::UncertifiedEdge
+            | Self::UncertifiedBound
+            | Self::UnplacedParameter
+            | Self::AlongOneRay
+            | Self::RechartedRegionLost
+            | Self::HeldElsewhere
+            | Self::HeldCarrierUnread => Ok(Refusal::Limit),
+        }
+    }
+
+    /// The reading in the refusal's words.
+    const fn words(self) -> &'static str {
+        match self {
+            Self::NoBoundaryEdge => "a face with no boundary edge",
+            Self::SquareNormals => {
+                "the two faces' normals stand square to each other, so no one carrier holds both"
+            }
+            Self::OffCarrier => {
+                "a point of one face lies definitely off the other's carrier, which a verdict \
+                 put both on"
+            }
+            Self::RegionUnread => "the curved face's region reading has no verdict for the point",
+            Self::LoneVertex => "a face holding a lone vertex",
+            Self::UncertifiedEdge => "a boundary edge with no certified curve",
+            Self::UncertifiedBound => "a corner bound with no certified curve",
+            Self::UnplacedParameter => "a boundary edge whose carrier places no parameter",
+            Self::TornBoundary => "a boundary edge, or a vertex of one, that does not resolve",
+            Self::AlongOneRay => "two corner bounds leave along one ray with no bend to part them",
+            Self::RechartedRegionLost => "a lost region of a face a sphere's re-chart turned",
+            Self::HeldElsewhere => "a row says the face holds an accumulation face lying elsewhere",
+            Self::HeldCarrierUnread => {
+                "an accumulation face a row says the face holds, on a carrier not read"
+            }
+        }
+    }
 }
 
 impl OverlapRefusal {
@@ -124,11 +212,8 @@ impl OverlapRefusal {
             Self::Placement(e) => e.refusal(),
             Self::Meeting(e) => e.refusal(),
             Self::Normal(e) => e.refusal(),
-            Self::Boundary(e) | Self::Corner(e) => match **e {
-                BooleanError::Escalated { diag, .. } => Ok(Refusal::Margin(diag)),
-                _ => Err(Aborts),
-            },
-            Self::Unread { .. } => Ok(Refusal::Limit),
+            Self::Boundary(e) | Self::Corner(e) => e.refusal(),
+            Self::Unread(u) => u.refusal(),
         }
     }
 
@@ -193,7 +278,7 @@ impl OverlapRefusal {
                     write!(f, "a point where a spline face's chart has no one normal")
                 }
             },
-            Self::Unread { what } => write!(f, "no verdict: {what}"),
+            Self::Unread(u) => write!(f, "no verdict: {}", u.words()),
         }
     }
 }
@@ -265,9 +350,7 @@ fn one_sense<T: Decide>(
     band: Band,
 ) -> Result<(), OverlapRefusal> {
     let Some(&he) = loops(a)?.iter().flatten().next() else {
-        return Err(OverlapRefusal::Unread {
-            what: "a face with no boundary edge",
-        });
+        return Err(OverlapRefusal::Unread(OverlapUnread::NoBoundaryEdge));
     };
     let (carrier, (t0, t1)) = edge_span(a.0, he)?;
     let p = carrier.eval(geom::mid_param(t0, t1));
@@ -282,9 +365,7 @@ fn one_sense<T: Decide>(
     ) {
         Ok(Sign::Positive) => Ok(()),
         Ok(Sign::Negative) => Err(OverlapRefusal::OppositeSenses),
-        Ok(Sign::Zero) => Err(OverlapRefusal::Unread {
-            what: "the two faces' normals stand square to each other, so no one carrier holds both",
-        }),
+        Ok(Sign::Zero) => Err(OverlapRefusal::Unread(OverlapUnread::SquareNormals)),
         Err(diag) => Err(OverlapRefusal::Senses(diag)),
     }
 }
@@ -320,13 +401,8 @@ fn place<T: Decide>(
 ) -> Result<FaceContainment, OverlapRefusal> {
     match face_placement(body, face, q, band, "bool_overlap_on_plane") {
         Ok(CurvedPlacement::Trim(Some(at))) => Ok(at),
-        Ok(CurvedPlacement::Trim(None)) => Err(OverlapRefusal::Unread {
-            what: "the curved face's region reading has no verdict for the point",
-        }),
-        Ok(CurvedPlacement::OffCarrier) => Err(OverlapRefusal::Unread {
-            what: "a point of one face lies definitely off the other's carrier, which a verdict \
-                   put both on",
-        }),
+        Ok(CurvedPlacement::Trim(None)) => Err(OverlapRefusal::Unread(OverlapUnread::RegionUnread)),
+        Ok(CurvedPlacement::OffCarrier) => Err(OverlapRefusal::Unread(OverlapUnread::OffCarrier)),
         Err(PlacementError::OnPlane(diag)) => Err(OverlapRefusal::OnPlane(diag)),
         Err(PlacementError::Door(e)) => Err(OverlapRefusal::Placement(e)),
     }
@@ -350,9 +426,7 @@ fn loops<T: Decide>(
             match member {
                 BoundaryMember::Edge { he, .. } => cycle.push(he),
                 BoundaryMember::Isolated { .. } => {
-                    return Err(OverlapRefusal::Unread {
-                        what: "a face holding a lone vertex",
-                    });
+                    return Err(OverlapRefusal::Unread(OverlapUnread::LoneVertex));
                 }
             }
         }
@@ -371,9 +445,7 @@ fn edge_span<T: Decide>(
         .and_then(|h| body.get_edge(h.edge))
         .and_then(|e| body.get_curve_geom(e.curve))
         .and_then(|c| c.certified())
-        .ok_or(OverlapRefusal::Unread {
-            what: "a boundary edge with no certified curve",
-        })?;
+        .ok_or(OverlapRefusal::Unread(OverlapUnread::UncertifiedEdge))?;
     Ok((curve.carrier(), curve.params()))
 }
 
@@ -383,9 +455,7 @@ fn vertex_corners<T: Decide>(
     (body, face): (&Body<T>, FaceKey),
     v: VertexKey,
 ) -> Result<Vec<Corner<T>>, OverlapRefusal> {
-    let unread = || OverlapRefusal::Unread {
-        what: "a corner bound with no certified curve",
-    };
+    let unread = || OverlapRefusal::Unread(OverlapUnread::UncertifiedBound);
     let mut out = Vec::new();
     for cycle in loops((body, face))? {
         for (i, &he) in cycle.iter().enumerate() {
@@ -441,9 +511,7 @@ fn half_plane<T: Decide>(
     let (carrier, (t0, t1)) = edge_span(body, he)?;
     let t = carrier
         .param_near(p, geom::mid_param(t0, t1))
-        .ok_or(OverlapRefusal::Unread {
-            what: "a boundary edge whose carrier places no parameter",
-        })?;
+        .ok_or(OverlapRefusal::Unread(OverlapUnread::UnplacedParameter))?;
     let d = carrier.deriv(t);
     let speed = d.norm();
     let unit = if forward { d / speed } else { -(d / speed) };
@@ -461,14 +529,10 @@ fn half_plane<T: Decide>(
     let edge = body
         .get_half_edge(he)
         .and_then(|h| body.get_edge(h.edge))
-        .ok_or(OverlapRefusal::Unread {
-            what: "a boundary edge that does not resolve",
-        })?;
+        .ok_or(OverlapRefusal::Unread(OverlapUnread::TornBoundary))?;
     let vertex = |end| {
         body.half_edge_start_point(end)
-            .ok_or(OverlapRefusal::Unread {
-                what: "a boundary edge whose vertex does not resolve",
-            })
+            .ok_or(OverlapRefusal::Unread(OverlapUnread::TornBoundary))
     };
     let (at_t0, at_t1) = (vertex(edge.he_plus)?, vertex(edge.he_minus)?);
     let reach = |ta: T, (tb, end): (T, Point3<T>)| match carrier {
@@ -535,9 +599,7 @@ fn corners_meet<T: Decide>(
             Holds::Tied { along_out } if along_out == first => return Ok(true),
             Holds::Out | Holds::Tied { .. } => {}
             Holds::Along => {
-                return Err(OverlapRefusal::Unread {
-                    what: "two corner bounds leave along one ray with no bend to part them",
-                });
+                return Err(OverlapRefusal::Unread(OverlapUnread::AlongOneRay));
             }
         }
     }
@@ -599,13 +661,9 @@ fn edge_witness<T: Decide>(
 ) -> Result<bool, OverlapRefusal> {
     let boundary = super::carrier_cross::face_boundary(y.0, y.1)
         .map_err(|e| OverlapRefusal::Boundary(Arc::new(e)))?
-        .ok_or(OverlapRefusal::Unread {
-            what: "a boundary edge with no certified curve",
-        })?;
+        .ok_or(OverlapRefusal::Unread(OverlapUnread::UncertifiedEdge))?;
     if !boundary.lone.is_empty() {
-        return Err(OverlapRefusal::Unread {
-            what: "a face holding a lone vertex",
-        });
+        return Err(OverlapRefusal::Unread(OverlapUnread::LoneVertex));
     }
     let mut keep = |r: OverlapRefusal| keep_piece_refusal(kept, r);
     for cycle in loops(x)? {
@@ -691,7 +749,7 @@ mod piece_ranking {
     use geom_brep::ladder::Evidence;
     use geom_core::{Band, Indeterminate, MarginDiag};
 
-    use super::{OverlapRefusal, keep_piece_refusal};
+    use super::{OverlapRefusal, OverlapUnread, keep_piece_refusal};
 
     fn in_band() -> OverlapRefusal {
         OverlapRefusal::OnPlane(Indeterminate {
@@ -703,9 +761,7 @@ mod piece_ranking {
     }
 
     fn unread() -> OverlapRefusal {
-        OverlapRefusal::Unread {
-            what: "a boundary edge whose carrier places no parameter",
-        }
+        OverlapRefusal::Unread(OverlapUnread::UnplacedParameter)
     }
 
     #[test]
@@ -714,7 +770,7 @@ mod piece_ranking {
         keep_piece_refusal(&mut kept, in_band()).expect("in band is kept");
         keep_piece_refusal(&mut kept, unread()).expect("a limit is kept");
         assert!(
-            matches!(kept.refusal(), Some(OverlapRefusal::Unread { .. })),
+            matches!(kept.refusal(), Some(OverlapRefusal::Unread(_))),
             "a limit outranks the in-band reading kept before it"
         );
         let mut kept = Evidence::default();
@@ -729,13 +785,25 @@ mod piece_ranking {
         );
         let mut kept = Evidence::default();
         keep_piece_refusal(&mut kept, in_band()).expect("in band is kept");
-        let corner = OverlapRefusal::Corner(std::sync::Arc::new(
-            crate::boolean::BooleanError::TangencyUnsupported,
-        ));
+        let corner = |e| OverlapRefusal::Corner(std::sync::Arc::new(e));
+        keep_piece_refusal(
+            &mut kept,
+            corner(crate::boolean::BooleanError::TangencyUnsupported),
+        )
+        .expect("a corner refusal the Boolean states a limit is kept");
         assert!(
-            keep_piece_refusal(&mut kept, corner).is_err(),
-            "a corner refusal that did not escalate is never kept: BooleanError states \
-             no standing to tell a limit from a fault, so it stops the search"
+            matches!(kept.refusal(), Some(OverlapRefusal::Corner(_))),
+            "a corner limit outranks the in-band reading kept before it"
+        );
+        let fault = corner(crate::boolean::BooleanError::ClassificationInvariant { what: "t" });
+        assert!(
+            keep_piece_refusal(&mut Evidence::default(), fault).is_err(),
+            "a corner refusal the Boolean states a kernel fault stops the search"
+        );
+        let contradiction = OverlapRefusal::Unread(OverlapUnread::OffCarrier);
+        assert!(
+            keep_piece_refusal(&mut Evidence::default(), contradiction).is_err(),
+            "two readings that contradict stop the search"
         );
     }
 }
