@@ -2,12 +2,12 @@
 id: fillet-inband-recourse-drops-the-tolerance-lever
 kind: issue
 title: Three fillet recourse sentences omit the tolerance lever where it is real, and two gates have none
-status: parked
+status: closed
 opened: 2026-09-13
 priority: P1
 cost: E
-blocked_on: [the-path-doors-escalation-carries-its-gate]
 rides_with: the-path-doors-escalation-carries-its-gate
+closed: 2026-11-06
 ---
 
 
@@ -111,3 +111,7 @@ offers the tolerance only where its margin is a size the user may intend
 and a smaller ε decides it for them, not merely where it is classified
 on the linear band. `profile::Gate::FilletOffsetLever` is therefore
 `Lever`.
+
+## Closed (2026-11-06)
+
+PR 6546: one closed `profile::Gate` routes every in-band ending at the path door, validation and the guided door, derived from (gate, verdict) per D4 ¶1 (i)–(ii); see the carrier `the-path-doors-escalation-carries-its-gate` and the PR body for what this row's part became.
