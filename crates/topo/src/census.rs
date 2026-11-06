@@ -2380,7 +2380,10 @@ pub(crate) fn shared_segments<T: Real>(body: &Body<T>) -> Vec<CollinearOverlap<T
     let mut ends_of = std::collections::BTreeMap::new();
     for e in line_edges(body) {
         let [Some(p), Some(q)] = e.points else {
-            unreachable!("a body's line edge sits on its vertices' point keys")
+            census_fault(
+                format_args!("line edge {:?}", e.key),
+                "it sits off its vertices' point keys, where a body's line edge always sits",
+            )
         };
         let key = segment_key([p, q]);
         ends_of.insert(key, [e.p0, e.p1]);
@@ -2486,7 +2489,7 @@ pub(crate) fn line_wedges<T: Decide>(
             if let std::collections::btree_map::Entry::Vacant(slot) = geo.entry(key) {
                 // Tier 1 resolves every link of an edge `collinear_overlaps` read.
                 let Some(e) = edge_geo(body, key) else {
-                    unreachable!("a line edge the overlap read resolves: {key:?}")
+                    census_fault(format_args!("line edge {key:?}"), STALE_KEY)
                 };
                 slot.insert(e);
             }
@@ -3191,7 +3194,7 @@ fn read_containment<V>(
         // arm must be routed here deliberately rather than default
         // into the wrong half.
         Err(ContainError::StaleFace(face)) => {
-            census_fault(format_args!("face {face:?}"), STALE_FACE)
+            census_fault(format_args!("face {face:?}"), STALE_KEY)
         }
         // The census reads at the run's band a body tier 3 passed, and
         // tier 3 pins every carrier end within that band's zero of its
@@ -4591,7 +4594,7 @@ fn boundary_crossings<T: Decide>(
     let refused =
         |r: CrossRefusal, errors: &mut Vec<ValidationError>| refuse_crossing(f.key, r, errors);
     let Some(face) = body.get_face(f.key) else {
-        census_fault(format_args!("face {:?}", f.key), STALE_FACE)
+        census_fault(format_args!("face {:?}", f.key), STALE_KEY)
     };
     let mut cuts = Vec::new();
     for lk in face.loop_keys() {
@@ -4936,7 +4939,7 @@ fn sweep_curved_edge_edge<T: Decide>(
     // the curved candidates are the body's own live keys.
     let sides = |ek: EdgeKey| {
         crate::readback::edge_sides(body, ek)
-            .unwrap_or_else(|_| unreachable!("a curved candidate is a live edge"))
+            .unwrap_or_else(|_| census_fault(format_args!("curved edge {ek:?}"), STALE_KEY))
             .faces()
     };
     let curved: Vec<_> = cands.curved.iter().map(|&ek| (ek, sides(ek))).collect();
@@ -6655,9 +6658,7 @@ fn sweep_conformal_patches<T: Decide>(
     // reads. `geo.curved_faces` is read off the live face arena, so
     // every face resolves.
     let by_key = crate::chart_groups::ChartGroups::within(body, geo.curved_faces.iter().copied())
-        .unwrap_or_else(|face| {
-            unreachable!("census: curved face {face:?} was read off the live arena")
-        });
+        .unwrap_or_else(|face| census_fault(format_args!("curved face {face:?}"), STALE_KEY));
     for (_, group) in by_key.iter() {
         for (i, &fa) in group.iter().enumerate() {
             for &fb in &group[i + 1..] {
@@ -6865,13 +6866,17 @@ fn pair_lane_refused(
     }
 }
 
-/// **A state only a kernel bug puts in front of the census**
+/// **A state of the body only a kernel bug puts in front of the census**
 /// (`[failure.taxonomy]` row 4): a reading that misread a carrier or holds
-/// two readings that contradict (never a pose), a face read off the body
-/// that does not resolve, an edge with no certified curve. The census's
-/// contract is a body its caller gated through tiers 1–3-local
-/// ([`census_and_certify`]), so the state is the kernel's: it panics here
-/// and is never a census refusal. The one door for every such state.
+/// two readings that contradict (never a pose), a key read off the body
+/// that does not resolve ([`STALE_KEY`]), an edge with no certified curve,
+/// a line edge off its vertices' point keys. The census's contract is a
+/// body its caller gated through tiers 1–3-local ([`census_and_certify`]),
+/// so the state is the kernel's: it panics here and is never a census
+/// refusal. Every such state of the body goes through this door. An
+/// invariant of the census's own code (an index minted over its slice, an
+/// escalated reading that pushed its escalation, an answer returned above)
+/// is no state of the body and keeps its own `unreachable!`.
 #[track_caller]
 fn census_fault(on: core::fmt::Arguments<'_>, what: &str) -> ! {
     unreachable!(
@@ -6880,10 +6885,9 @@ fn census_fault(on: core::fmt::Arguments<'_>, what: &str) -> ! {
     )
 }
 
-/// [`census_fault`]'s text for a face the census read off the body that
+/// [`census_fault`]'s text for a key the census read off the body that
 /// does not resolve.
-const STALE_FACE: &str =
-    "it does not resolve, and the census reads its faces off the body it walks";
+const STALE_KEY: &str = "it does not resolve, and the census reads its keys off the body it walks";
 
 /// [`census_fault`] for a meeting reading's fault (`Desync`,
 /// `Contradiction`), in the words the boundary pass gives it
@@ -13840,9 +13844,9 @@ mod tests {
 
     /// **A containment door's stale face, read by the census, panics**:
     /// the census reads its faces off the body, so a face that does not
-    /// resolve is the kernel's ([`STALE_FACE`]).
+    /// resolve is the kernel's ([`STALE_KEY`]).
     #[test]
-    #[should_panic(expected = "does not resolve, and the census reads its faces off the body")]
+    #[should_panic(expected = "does not resolve, and the census reads its keys off the body")]
     fn a_stale_face_at_a_census_containment_read_panics() {
         let face = FaceKey::default();
         read_containment(

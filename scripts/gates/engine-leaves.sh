@@ -99,7 +99,7 @@ gate() {
   [ "$failed" = 0 ] || exit 1
   if grep -q '^CITED ' <<<"$report"; then
     grep '^CITED ' <<<"$report"
-    base_note="$base_note but the $(grep -c '^CITED ' <<<"$report") cited rise(s) above"
+    base_note="no uncited pin above the base $GATE_BASE's; $(grep -c '^CITED ' <<<"$report") cited rise(s), listed above"
   fi
   gate_ok "the engines' doors at their pinned counts ($(sed -n 's/^TOTAL //p' <<<"$report") sites in all); pins: $base_note"
 }
@@ -249,7 +249,7 @@ gate_selftest() {
   out=$(GATE_BASE=refs/gate-base "$0" --root "$tmp" 2>&1) || { printf 'SELFTEST FAILED: a cited rise reds:\n%s\n' "$out" >&2; rm -rf "$tmp"; exit 1; }
   rm -rf "$tmp"
   case "$out" in
-    *"CITED names-boolean reader.rs: 1 -> 2 (work/onecopy/move-row)"*"cited rise(s) above"*) ;;
+    *"CITED names-boolean reader.rs: 1 -> 2 (work/onecopy/move-row)"*"1 cited rise(s), listed above"*) ;;
     *) printf 'SELFTEST FAILED: a cited rise passed without naming itself in the green log:\n%s\n' "$out" >&2; exit 1 ;;
   esac
   GATE_BASE=refs/gate-base gate_selftest_case --also "RAISED names-boolean other.rs: 0 -> 1" "cite that row" plant_new_line
