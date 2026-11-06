@@ -487,3 +487,4 @@
   - Copies: the citation regex is in Python and in awk, and the census fault has four spellings.
   Fix pass sent.
 - 2026-11-06 — PR 6541 delta review: MERGE. No f64 `Rounded` charge is left, the revert matches main byte for byte, and the NOTE-2 pin goes red under the old rule. I merged main as `0570fa5f`; it compiles, and the gate is running.
+- 2026-11-06 — The 6540 gate is ok at `12b3a643`. It is held for the reviewer's true-base re-run.
