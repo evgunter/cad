@@ -522,6 +522,22 @@ impl<E> Evidence<E> {
         }
     }
 
+    /// Keeps `e` as what `standing` says it is ([`Self::keep`]), for a
+    /// refusal that may abort ([`rung_or_abort`]'s twin outside a climb).
+    ///
+    /// # Errors
+    ///
+    /// `e`, where it refuses the whole query: the run stops on it.
+    pub fn keep_or_abort(&mut self, standing: Result<Refusal, Aborts>, e: E) -> Result<(), E> {
+        match standing {
+            Ok(refusal) => {
+                self.keep(refusal, e);
+                Ok(())
+            }
+            Err(Aborts) => Err(e),
+        }
+    }
+
     /// Keeps `e` as an unsettled reading ([`Rung::Unsettled`]), if it is
     /// the first.
     pub fn unsettled(&mut self, e: E) {

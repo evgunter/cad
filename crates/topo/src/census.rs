@@ -7846,7 +7846,7 @@ mod self_touch_curved;
 
 impl TouchUnread {
     /// The cross-solid backstop's reason for a touch left unread.
-    fn refusal(self) -> Undecided {
+    fn undecided(self) -> Undecided {
         match self {
             Self::InBand => Undecided::TouchInBand,
             Self::PieceInBand => Undecided::TouchPieceInBand,
@@ -7974,7 +7974,7 @@ impl TouchVerdict {
                 Unrest::Undecided(Undecided::CorruptInstance),
                 Unrest::Crossing,
             )),
-            Self::Unread(why) => Some(Unrest::Undecided(why.refusal())),
+            Self::Unread(why) => Some(Unrest::Undecided(why.undecided())),
         }
     }
 
@@ -8681,6 +8681,25 @@ fn gather<T: Real>(
     Ok(holds)
 }
 
+/// **Every face of a link read into its sectors** by `read`, in turn:
+/// a ladder with no answer ([`Answering::First`]), since every face is
+/// needed. A refusal is kept by its standing ([`TouchUnread::refusal`]),
+/// and one of the whole query (an unreadable face, a corrupt one) stops
+/// it there. `None` where every face read.
+fn sectors_of_faces<F>(
+    faces: impl IntoIterator<Item = F>,
+    mut read: impl FnMut(F) -> Result<(), TouchUnread>,
+) -> Option<TouchUnread> {
+    let climbed = climb(Answering::First, faces, |face| match read(face) {
+        Ok(()) => Rung::Passes,
+        Err(why) => geom_brep::ladder::rung_or_abort(why.refusal(), why, |why| why),
+    });
+    match climbed {
+        Climb::Passed => None,
+        Climb::Answered { answer: why, .. } | Climb::Undecided(why) => Some(why),
+    }
+}
+
 impl<T: Decide> Germ<T> {
     /// **Solid `solid`'s material at the touch point of `keys`**: its
     /// faces there ([`gather`]) as [`Germ::of_holds`] reads them.
@@ -8736,24 +8755,11 @@ impl<T: Decide> Germ<T> {
                 reach: round.1,
             });
         }
-        // A curved face refuses at once; any other refusal waits until
-        // every face is tried. So a curved face anywhere in the link is
-        // what it refuses with, whatever order its faces are walked in.
         let mut sectors = Vec::with_capacity(faces.len());
-        let mut refused = None;
-        for (f, hs) in faces {
-            match FaceSector::of(body, geo, f, p, &hs, band) {
-                Ok(s) => sectors.extend(s),
-                Err(TouchUnread::Unreadable) => return Err(TouchUnread::Unreadable),
-                Err(v) => {
-                    refused.get_or_insert(v);
-                }
-            }
-        }
-        if let Some(v) = refused {
-            return Err(v);
-        }
-        Link::of(p, sectors).map(Germ::Link)
+        let read = sectors_of_faces(faces, |(f, hs)| {
+            FaceSector::of(body, geo, f, p, &hs, band).map(|s| sectors.extend(s))
+        });
+        read.map_or_else(|| Link::of(p, sectors).map(Germ::Link), Err)
     }
 }
 
@@ -10019,7 +10025,7 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
                     // above: here the two resolvers of a finding's
                     // solids disagree, and nothing clears on that.
                     Said::Pierce | Said::Wedges(None) => Some(Undecided::Unresolved),
-                    Said::Wedges(Some(why)) => Some(why.refusal()),
+                    Said::Wedges(Some(why)) => Some(why.undecided()),
                     Said::CurvedTouch => Some(Undecided::TouchUnreadable),
                     Said::FacePair(a, b) => (!declared.confirmed.contains(&(a, b)))
                         .then_some(Undecided::TouchUnreadable),
@@ -16876,7 +16882,7 @@ mod tests {
                 panic!("{scale}: the corner's link built");
             };
             assert_eq!(verdict, TouchUnread::ChordScale, "{scale}");
-            assert_eq!(verdict.refusal(), Undecided::TouchChordScale, "{scale}");
+            assert_eq!(verdict.undecided(), Undecided::TouchChordScale, "{scale}");
         }
     }
 
@@ -21688,6 +21694,49 @@ mod arc_interiors {
                 "the half over [{t0}, {t1}]"
             );
         }
+    }
+}
+
+/// **A link's faces are read as a ladder with no answer**
+/// ([`sectors_of_faces`]): a limit outranks an in-band refusal read
+/// before it, an unsettled one ranks last, and the first refusal of the
+/// whole query stops the reading there. Fed the readings directly, since
+/// no body a constructor builds refuses at two faces of one link.
+#[cfg(test)]
+mod link_faces_ranking {
+    use super::{TouchUnread as U, sectors_of_faces};
+    use crate::link::EdgeTangentUnread;
+
+    fn read(faces: Vec<Result<(), U>>) -> Option<U> {
+        sectors_of_faces(faces, |face| face)
+    }
+
+    #[test]
+    fn a_links_faces_rank_their_refusals_by_standing() {
+        assert_eq!(
+            read(vec![Err(U::InBand), Err(U::Degenerate)]),
+            Some(U::Degenerate),
+            "a limit outranks an in-band refusal read before it"
+        );
+        assert_eq!(
+            read(vec![
+                Err(U::EdgeTangent(EdgeTangentUnread::Exhausted)),
+                Err(U::InBand)
+            ]),
+            Some(U::InBand),
+            "an unsettled refusal ranks after one in band"
+        );
+        assert_eq!(
+            read(vec![Err(U::Corrupt), Err(U::Unreadable)]),
+            Some(U::Corrupt),
+            "the first refusal of the whole query stops the reading"
+        );
+        assert_eq!(
+            read(vec![Err(U::Degenerate), Err(U::Unreadable)]),
+            Some(U::Unreadable),
+            "an unreadable face is what a link refuses with, past a limit"
+        );
+        assert_eq!(read(vec![Ok(()), Ok(())]), None, "every face read");
     }
 }
 
