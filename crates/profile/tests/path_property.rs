@@ -1245,7 +1245,7 @@ fn an_oversized_carrier_fillet_refuses_as_the_enclosing_class() {
 }
 
 /// Carriers that never meet name their own reason — distinct from the
-/// tangency knife edge, which still reports `CarriersParallel`.
+/// tangency knife edge, which still reports `CarriersTangent`.
 ///
 /// Note this needs an INTERIOR arrival anchor, not `p: Start`: a
 /// closing arrival anchors BOTH carriers at the entry point, so they
