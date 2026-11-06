@@ -289,3 +289,9 @@
   - NOTE-3: `run_past` is folded into `past_by`.
   - NOTE-5: the unreachable is replaced by a Meter refusal.
   The `ci` census is unchanged. Delta review sent.
+
+- 2026-11-06 — PR 6537 delta review: MERGE.
+  - The derivation was checked step by step, including that the basin excludes the far root `m₊` and that b's span is covered symmetrically.
+  - Oracle at head: 3 run-arm poses and 46 reach poses, 0 wrong. No outcome moved against 71936f1c.
+  - The previous report's "run arm about 6,700" was the attribution order; the reach clears all but 4 calls.
+  - Two small notes are filed as P3 `polish-bound-spells-unit-and-normalises-n-by-hand`. The gate is running on `d4cfba9fdd`.
