@@ -633,22 +633,22 @@ fn spun(c: &Curve3<f64>, at: Point3<f64>, k: Vec3<f64>, t: f64) -> Curve3<f64> {
     }
 }
 
-/// **The needle spun about its shared vertex reads one answer in either
-/// order** (the review of PR 6525). The pair turned whole about the
-/// vertex, about each axis and the shared tangent, at three angles: each
-/// pose stays tangent but for rounding, and decides one meeting, the
-/// same in both orders. And the near-circle alone turned about the
-/// tangent, the long ellipse's normal and their cross, by up to `10⁻⁸`
-/// either way: a crossing or a touch within the band, read alike in both
-/// orders. Tilts of `10⁻⁶` to `10⁻⁴` refuse in both orders, a known
-/// residue (`meet-refuses-a-near-tangent-tilt-in-both-orders`), and are
-/// not read here.
+/// **The needle spun about its shared end reads one answer in either
+/// order** (the review of PR 6525). The pair turned whole about the end,
+/// about each axis and the shared tangent, at three angles: each pose
+/// stays tangent but for rounding, and decides one meeting, the same in
+/// both orders. And the near-circle alone turned about the tangent, the
+/// long ellipse's normal and their cross, by up to `10⁻⁴` either way: the
+/// end stays shared ([`span_gap`] in the zero band), and each pose reads
+/// one meeting in both orders, but for three that refuse in both
+/// (`meet-refuses-a-near-tangent-tilt-in-both-orders`). A refused pose
+/// that comes to decide reads one meeting too.
 #[test]
-fn the_needle_spun_about_its_vertex_reads_one_answer_in_either_order() {
+fn the_needle_spun_about_its_shared_end_reads_one_answer_in_either_order() {
     let [(a, sa), (b, sb)] = needle_pair();
     let at = needle_band();
-    let vertex = a.eval(sa.0);
-    let (_, tangent) = a.conic().unwrap().jet_at(sa.0);
+    let vertex = a.eval(sa.1);
+    let (_, tangent) = a.conic().unwrap().jet_at(sa.1);
     let tangent = tangent.normalize();
     let normal = a.conic().unwrap().frame().axis;
     let mut bad = Vec::new();
@@ -669,23 +669,163 @@ fn the_needle_spun_about_its_vertex_reads_one_answer_in_either_order() {
             bad.extend(agree(&label, (&a, &b), &got, &back, at));
         }
     }
+    // The residue's three, `(axis, tilt)`.
+    let refused = [(1, -1e-4), (2, 1e-5), (2, -1e-5)];
     for (n, k) in [tangent, normal, tangent.cross(normal).normalize()]
         .iter()
         .enumerate()
     {
-        for t in [1e-12, -1e-12, 1e-10, -1e-10, 1e-8, -1e-8] {
+        for t in [
+            1e-12, -1e-12, 1e-10, -1e-10, 1e-8, -1e-8, 1e-7, -1e-7, 1e-6, -1e-6, 1e-5, -1e-5, 1e-4,
+            -1e-4,
+        ] {
             let b = spun(&b, vertex, *k, t);
+            let label = format!("round about axis {n} by {t:e}");
+            let gap = span_gap(&a, sa, &b, sb);
+            if gap > at.zero() {
+                bad.push(format!("{label}: the end parts by {gap:e}"));
+            }
             let (got, back) = (read((&a, sa), (&b, sb), at), read((&b, sb), (&a, sa), at));
-            bad.extend(agree(
-                &format!("round about axis {n} by {t:e}"),
-                (&a, &b),
-                &got,
-                &back,
-                at,
-            ));
+            let one = |r: &Read| matches!(r, Ok(m) if m.points.len() == 1);
+            let residue = refused.contains(&(n, t));
+            for (order, r) in [("first first", &got), ("second first", &back)] {
+                if !(one(r) || residue && r.is_err()) {
+                    bad.push(format!("{label}, {order}: not one meeting: {r:?}"));
+                }
+            }
+            bad.extend(agree(&label, (&a, &b), &got, &back, at));
         }
     }
     assert!(bad.is_empty(), "{} poses:\n{}", bad.len(), bad.join("\n"));
+}
+
+/// **A plane root with no meeting found is read through its window**
+/// (`pose`'s module docs, "A crossing of the other's plane"). The
+/// near-circle turned about the long ellipse's far vertex, `3.2·10⁻⁷` off
+/// it, parts the shared end by about `5.5·10⁻⁵` per radian. At three
+/// tilts the parts are past the band's escalation ([`span_gap`]), and the
+/// near-circle's plane root, beside no found meeting, reads off past the
+/// escalation throughout its window: no meeting, in both orders. Red
+/// where a window with no ring is not read, and the root goes to a polish
+/// whose basin the near-parallel tangents leave unproved.
+#[test]
+fn the_needle_tilted_about_its_far_vertex_reads_no_meeting_where_the_window_is_off() {
+    let [(a, sa), (b, sb)] = needle_pair();
+    let at = needle_band();
+    let vertex = a.eval(sa.0);
+    let (_, tangent) = a.conic().unwrap().jet_at(sa.0);
+    let tangent = tangent.normalize();
+    let normal = a.conic().unwrap().frame().axis;
+    let cross = tangent.cross(normal).normalize();
+    let mut bad = Vec::new();
+    for (label, k, t) in [
+        ("about the tangent by -1e-4", tangent, -1e-4),
+        ("about the cross by -1e-6", cross, -1e-6),
+        ("about the cross by -1e-5", cross, -1e-5),
+    ] {
+        let b = spun(&b, vertex, k, t);
+        let gap = span_gap(&a, sa, &b, sb);
+        if gap <= at.escalate() {
+            bad.push(format!(
+                "{label}: the oracle's gap {gap:e} is not past the band"
+            ));
+        }
+        for (order, r) in [
+            ("first first", read((&a, sa), (&b, sb), at)),
+            ("second first", read((&b, sb), (&a, sa), at)),
+        ] {
+            if !matches!(&r, Ok(m) if m.points.is_empty()) {
+                bad.push(format!("{label}, {order}: not apart: {r:?}"));
+            }
+        }
+    }
+    assert!(bad.is_empty(), "{} poses:\n{}", bad.len(), bad.join("\n"));
+}
+
+/// **A near-miss in the band's gap, beside no found meeting, escalates**
+/// (`pose`'s module docs, "A crossing of the other's plane"). Two unit
+/// circles cross each other's planes square on, `d` apart where each
+/// passes the other ([`span_gap`]). No meeting is found, so each plane
+/// root's window has no ring, and it reads off only past the band's
+/// escalation: within the zero band one meeting, in the gap an
+/// escalation, past it none, in both orders and over arcs and whole
+/// turns. Red where a window with no ring reads off past the zero band,
+/// which decides the gap's poses apart.
+#[test]
+fn a_near_miss_in_the_gap_beside_no_meeting_escalates() {
+    let at = needle_band();
+    let mut bad = Vec::new();
+    for d in [0.0, 5e-13, 3e-12, 5e-12, 8e-12, 2e-11, 1e-10] {
+        let a = Curve3::circle(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            1.0,
+            Vec3::new(1.0, 0.0, 0.0),
+        );
+        let b = Curve3::circle(
+            Point3::new(2.0 + d, 0.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+            1.0,
+            Vec3::new(-1.0, 0.0, 0.0),
+        );
+        for (sa, sb) in [((-0.5, 0.5), (-0.5, 0.5)), ((-PI, PI), (-PI, PI))] {
+            let gap = span_gap(&a, sa, &b, sb);
+            let label = format!("d {d:e} over {sa:?}, gap {gap:e}");
+            for (order, r) in [
+                ("first first", read((&a, sa), (&b, sb), at)),
+                ("second first", read((&b, sb), (&a, sa), at)),
+            ] {
+                let ok = if gap <= at.zero() {
+                    matches!(&r, Ok(m) if m.points.len() == 1)
+                } else if gap <= at.escalate() {
+                    matches!(&r, Err(e) if matches!(e.fault, MeetFault::Escalated(_)))
+                } else {
+                    matches!(&r, Ok(m) if m.points.is_empty())
+                };
+                if !ok {
+                    bad.push(format!("{label}, {order}: {r:?}"));
+                }
+            }
+        }
+    }
+    assert!(bad.is_empty(), "{} poses:\n{}", bad.len(), bad.join("\n"));
+}
+
+/// **The least distance between two spans**, by an oracle that shares no
+/// code with the reader: a grid of 400 pieces over each, then 90
+/// golden-section steps about the least on each, inner and outer. On the
+/// poses read here the least lies in one valley of each grid piece, and
+/// it is read to far below the band.
+fn span_gap(a: &Curve3<f64>, sa: (f64, f64), b: &Curve3<f64>, sb: (f64, f64)) -> f64 {
+    fn golden(f: impl Fn(f64) -> f64, (mut lo, mut hi): (f64, f64)) -> f64 {
+        let g = 0.5 * (5f64.sqrt() - 1.0);
+        for _ in 0..90 {
+            let (x1, x2) = (hi - g * (hi - lo), lo + g * (hi - lo));
+            if f(x1) <= f(x2) {
+                hi = x2;
+            } else {
+                lo = x1;
+            }
+        }
+        f(0.5 * (lo + hi))
+    }
+    let grid = |(lo, hi): (f64, f64), n: u32, f: &dyn Fn(f64) -> f64| -> f64 {
+        let step = (hi - lo) / f64::from(n);
+        let at = |i: u32| lo + step * f64::from(i);
+        let best = (0..=n)
+            .min_by(|&i, &j| f(at(i)).total_cmp(&f(at(j))))
+            .unwrap();
+        let bracket = (
+            at(best.saturating_sub(1)).max(lo),
+            (at(best) + step).min(hi),
+        );
+        golden(f, bracket).min(f(at(best)))
+    };
+    let inner = |s: f64| {
+        let p = a.eval(s);
+        grid(sb, 400, &|t: f64| (p - b.eval(t)).norm())
+    };
+    grid(sa, 400, &inner)
 }
 
 /// A conic through `at` with unit tangent `t` there at its parameter
