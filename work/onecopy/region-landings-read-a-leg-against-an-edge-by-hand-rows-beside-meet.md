@@ -63,3 +63,35 @@ Draw: bytes 145 and 34, so two designers, recorded on `analysis/design-fork/onec
 - **B** (likely; rejected the framing; proposes one clarifying sentence for Ev in `[one-way.readings]` or C5). Don't route through `meet`. A leg and an edge on one surface meet as a crossing of the leg's plane: C5's curve × plane door plus a per-door component reading, written once in `region::landings`. A co-surface 3D gap is identically zero, so deciding it is ill-conditioned. This is main's cost. A co-surface arm in `curve_pair` could follow once a second consumer exists.
 
 They disagree on the final state. Reconciliation round 1 is dispatched.
+
+## Decided (2026-11-06): co-surface landings read a plane section, not a 3D gap
+
+Reconciled in one round, and the designers converged. A withdrew `meet` after measuring it: a leg built on the surface against a ruling escalates at Interval at ε 1e-12 once the coordinates or the radius near 1e3 m, which is inside the admitted box, because the enclosure's gap is about 3.4e-15 × scale.
+
+**The premise correction.** A leg and an edge of one face lie on one surface, so their 3D gap is identically zero in the model. A decision on it (`Span::contact`'s Zero) is decided nowhere under `[simple.conditioned]`. Whatever is read is the construction's rounding: the far ray's 1.2e-10 is ulp(10⁶), and the skew pair's [0, 1.79e-12] is the enclosure's width.
+
+The well-conditioned reading is the crossing of the leg's plane, which `[one-way.readings]` lists as "a curve's crossings of a surface" and C5 holds as `Door::PlaneCrossing`. This is the same harmonic generator `meet::transverse` uses, with a component stage in place of the gap stage. So it is not a second reading of one meeting. The first Decided section's set identity holds only for legs the door builds on the surface, and even there it does not make the 3D gap well-posed.
+
+**Final state, for PR 6491:**
+1. **One `region::landings`** over all four doors, keeping the branch's skeleton:
+   - `Legs::landings` deleted;
+   - `Course::span`;
+   - `End::open`;
+   - the shared run read as `Leg::along`.
+   It reads each edge's span against the leg's plane through `curve_face`'s plane door, generalised in two ways:
+   - it reports a root within the band of a span end, where today it drops one;
+   - it reads a line's affine root.
+   Existing callers' outcomes must not move.
+2. **The component** (which section curve of the plane the root is on) is read through the chart channels (`geom::ChartChannels::read`), with each door owning only its sign row, as `SIDE` does. `region::polar` retires.
+3. **The `ChartPoint` entry.** The door reads `p` once through `Surface::chart_point`. The pre-pass and `on_boundary` read the foot, and legs are built only from a `ChartPoint`, never from a `Point3`. This also fixes `on_boundary` reading `p` in 3D while the legs read its foot.
+4. **The torus's orientation choice** stays main's formula, a choice by arithmetic.
+5. **No representative midpoint.** On the plane route, p's width moves only the root, which is read in metres.
+
+Cost returns to main's: one closed form per (leg, edge) pair.
+
+**What follows, as its own rows:**
+- A co-surface arm in `geom_brep::curve_pair` (an `OnSurface` / `Section` type) as the one home once a second consumer exists, for example the sphere cut-in. It extends C5, so it is `[ev]`.
+- The `[ev]` clarifying sentence for `[one-way.readings]` or C5: co-surface carriers meet as a crossing of a plane section, never as a 3D gap.
+- `meet`'s per-call cost at Interval (5–100 ms), on its real consumers.
+- The two conic-plane spellings, which are `work/germ/circle-plane-first-harmonic-has-three-hand-built-copies.md`.
+- The far start's `q + d·t` from 10⁶ m in `solid_contain` and `side_reader`.

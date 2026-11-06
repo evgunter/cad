@@ -306,3 +306,9 @@
 
 - 2026-11-06 — The 6491 takeover stopped on its stop condition after merging main (`a5fab8a98`). Main's `meet` reads two 1e-12 rows differently from the rows: the far ray's leg is 1.2e-10 off the unit cylinder, which is a true 3D miss, and the skew pair's query is off the surface by about the band. So the Decided premise `A ∩ B = A ∩ P_B` holds only for legs on the surface. Cost: the rounded bump at Interval is 12.1 s against 1.03 s, and the cone row 172 s against 67 s.
   Design fork dispatched: two designers (draw 145, 34; A and B), recorded on `analysis/design-fork/onecopy-landings-off-surface`. The lane is holding.
+
+- 2026-11-06 — The off-surface landings fork converged in one round: A conceded after measuring that a co-surface pair escalates at Interval from about 1e3 m.
+  - Ruled: the region landings read a plane-section crossing through `curve_face`'s plane door, not `meet`. The component is read through the chart channels, and the door is entered once through `ChartPoint`. Cost is main's. The decision is in the landings row.
+  - Filed P2 `co-surface-carriers-have-no-home-of-their-own-in-curve-pair`: the `OnSurface` type, a curve_pair co-surface arm, and the `[ev]` C5 sentence.
+  - B cited a `loop-walks-…` row for `apply_cut_ins`, but no such row exists; the cut-in item lives on the new row.
+  Class lesson: "the same set" is not "the same reading". A meeting of two co-surface curves has a 3D margin that is identically zero, so the pose that is well-conditioned where it decides is the plane section's.
