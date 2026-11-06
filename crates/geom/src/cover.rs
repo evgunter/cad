@@ -357,7 +357,7 @@ fn vec_of<T: Real>(p: Point3<T>) -> Vec3<T> {
 
 /// `v`'s part off the line direction `d`.
 fn off_line<T: Real>(v: Vec3<T>, d: Vec3<T>) -> Vec3<T> {
-    v - d * (v.dot(d) / d.norm_squared())
+    v - v.project_onto(d)
 }
 
 /// The box whose row `i` spans `±` the support along row `i`.

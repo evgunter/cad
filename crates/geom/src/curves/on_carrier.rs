@@ -68,10 +68,11 @@
 //! - a spline: the certified piece walk ([`geom_core::bisect`]) over the
 //!   whole domain. A piece is cleared when its middle point's distance
 //!   less its reach (its half-span times the carrier's greatest speed,
-//!   [`crate::carrier_speed`]) decides positive (`curve_carrier_piece_clear`),
-//!   and stops once its reach is within the band
-//!   (`curve_carrier_piece`). The point is off only where every piece
-//!   clears. A walk past [`geom_core::bisect::PIECE_BUDGET`] refuses
+//!   [`crate::carrier_speed`]) decides positive (`curve_carrier_piece_clear`).
+//!   The point is off only where every piece clears, so the walk stops
+//!   at the first piece that does not clear with its reach within the
+//!   band (`curve_carrier_piece`): no later piece can make it off. A
+//!   walk past [`geom_core::bisect::PIECE_BUDGET`] refuses
 //!   ([`PieceWalkRefusal::Exhausted`]), and a speed bound that is zero or
 //!   poison refuses on kind ([`PieceWalkRefusal::Unbounded`]). A rational
 //!   spline's speed bound is certified at `Interval`; at `f64` and
@@ -192,8 +193,9 @@ pub enum Clearance {
     /// Every piece of the interval is decided past the band from the
     /// point: no point of the interval lies within the band of it.
     Clear,
-    /// A piece within the band's reach of the point is not decided clear:
-    /// its clearance's reading (zero, negative, or the escalation).
+    /// The first piece, in parameter order, whose reach is within the
+    /// band and that is not decided clear: its clearance's reading (zero,
+    /// negative, or the escalation).
     Near(Result<Decided, Indeterminate>),
 }
 
@@ -255,6 +257,29 @@ pub enum PieceWalkRefusal {
     /// The spline's greatest speed is zero or poison: its pieces have no
     /// reach to clear by.
     Unbounded,
+}
+
+impl PieceWalkRefusal {
+    /// **The recourse every rendering of this refusal ends with**: a walk
+    /// past its budget is a kernel approximation limit, whose last resort
+    /// is the tolerance; a spline with no speed bound is a carrier no walk
+    /// reads yet.
+    #[must_use]
+    pub const fn recourse(self) -> &'static str {
+        match self {
+            Self::Exhausted => geom_core::KERNEL_LIMIT_RECOURSE,
+            Self::Unbounded => geom_core::NOT_YET_ENDING,
+        }
+    }
+}
+
+impl core::fmt::Display for PieceWalkRefusal {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(match self {
+            Self::Exhausted => "a spline's piece walk ran past its budget",
+            Self::Unbounded => "a spline's speed bound is zero or poison",
+        })
+    }
 }
 
 impl CarrierRefusal {
@@ -357,59 +382,52 @@ impl<T: Decide> Curve3<T> {
     }
 
     /// **The parameter of `q`'s nearest point of the whole carrier**,
-    /// where the kind makes the foot that point: [`Foot::nearest`] of the
-    /// foot seeded at `near`, asked of the kind before the foot is found,
-    /// so a kind with none searches nothing. `None` on every other kind.
+    /// where the kind makes the foot that point: [`Self::param_near`] on
+    /// the kinds it is nearest on (a line, a circle), the same parameter
+    /// as [`Foot::nearest`]. `None` on every other kind.
     pub fn nearest(&self, q: Point3<T>, near: T) -> Option<T> {
         if !self.foot_is_nearest() {
             return None;
         }
-        self.foot(q, near).nearest()
+        self.param_near(q, near)
     }
 
     /// **`q`'s foot on the carrier** (module docs). `near` is a seed: the
     /// parameter a consumer already holds for `q`, or any parameter of
     /// the interval it reads.
     pub fn foot(&self, q: Point3<T>, near: T) -> Foot<'_, T> {
-        let seed = match self {
-            Self::Line(line) => line.param(q),
-            Self::Circle(c) => return self.foot_at(q, crate::Conic::azimuth(c, q).near(near)),
-            Self::Ellipse(e) => crate::Conic::azimuth(e, q).near(near),
-            Self::Spiric {
-                center,
-                axis,
-                major_radius,
-                ..
-            } => super::tube_section(*center, *axis, *major_radius, q).near(near),
-            Self::Nurbs(n) => {
-                let knots = n.knot_values();
-                let (lo, hi) = knots.domain();
-                let breaks: Vec<T> = knots.runs().map(|(k, _)| k).collect();
-                let mut best = self.foot_at(q, near.max(lo).min(hi));
-                for k in breaks.windows(2) {
-                    for s in SPLINE_SAMPLES {
-                        let f = self.foot_at(q, k[0] + (k[1] - k[0]) * T::from_f64(s));
-                        if smaller(f.gap, best.gap) {
-                            best = f;
-                        }
-                    }
-                }
-                let domain = Some((lo, hi));
-                let mut foot = self.polish(q, best, domain);
-                for end in [lo, hi] {
-                    let f = self.polish(q, self.foot_at(q, end), domain);
-                    if smaller(f.gap, foot.gap) {
-                        foot = f;
-                    }
-                }
-                return foot;
-            }
+        let Self::Nurbs(n) = self else {
+            let Some(seed) = self.param_near(q, near) else {
+                unreachable!("only a spline reads no parameter near a point")
+            };
+            let at = self.foot_at(q, seed);
+            return if self.foot_is_nearest() {
+                at
+            } else {
+                self.polish(q, at, None)
+            };
         };
-        let at = self.foot_at(q, seed);
-        match self {
-            Self::Line(_) => at,
-            _ => self.polish(q, at, None),
+        let knots = n.knot_values();
+        let (lo, hi) = knots.domain();
+        let breaks: Vec<T> = knots.runs().map(|(k, _)| k).collect();
+        let mut best = self.foot_at(q, near.max(lo).min(hi));
+        for k in breaks.windows(2) {
+            for s in SPLINE_SAMPLES {
+                let f = self.foot_at(q, k[0] + (k[1] - k[0]) * T::from_f64(s));
+                if smaller(f.gap, best.gap) {
+                    best = f;
+                }
+            }
         }
+        let domain = Some((lo, hi));
+        let mut foot = self.polish(q, best, domain);
+        for end in [lo, hi] {
+            let f = self.polish(q, self.foot_at(q, end), domain);
+            if smaller(f.gap, foot.gap) {
+                foot = f;
+            }
+        }
+        foot
     }
 
     /// The foot at `t` as read, unpolished.
@@ -466,11 +484,7 @@ impl<T: Decide> Curve3<T> {
     /// piece walk ([`Self::clear_of`]).
     pub fn clearance(&self, q: Point3<T>) -> Option<T> {
         Some(match *self {
-            Self::Line(crate::Line { origin, dir }) => {
-                let w = q - origin;
-                let u = dir * (T::one() / dir.norm());
-                (w - u * w.dot(u)).norm()
-            }
+            Self::Line(line) => line.offset(q).norm(),
             Self::Circle(c) => {
                 let (h, rho) = height_and_radius(q - c.frame.origin, c.frame.axis);
                 (h.powi(2) + (rho - c.radius).powi(2)).sqrt()
@@ -478,7 +492,7 @@ impl<T: Decide> Curve3<T> {
             Self::Ellipse(e) => {
                 let lower =
                     ellipse_level_clearance(e.frame.in_plane(q), (e.semi_u, e.semi_v)).abs();
-                (lower.powi(2) + (q - e.frame.origin).dot(e.frame.axis).powi(2)).sqrt()
+                (lower.powi(2) + e.frame.height(q).powi(2)).sqrt()
             }
             Self::Spiric {
                 center,
@@ -515,9 +529,10 @@ impl<T: Decide> Curve3<T> {
     /// **Whether `q` is clear of the interval `(t0, t1)` of the carrier**
     /// by the certified piece walk (module docs): every piece's middle
     /// point's distance less its reach decides positive
-    /// (`curve_carrier_piece_clear`), a piece stopping once its reach is
-    /// within the band (`curve_carrier_piece`). A lower bound on `q`'s
-    /// distance from the interval, past the band, where it is `Clear`.
+    /// (`curve_carrier_piece_clear`); `Near` at the first piece that does
+    /// not, once its reach is within the band (`curve_carrier_piece`). A
+    /// lower bound on `q`'s distance from the interval, past the band,
+    /// where it is `Clear`.
     ///
     /// # Errors
     ///
@@ -537,12 +552,8 @@ impl<T: Decide> Curve3<T> {
         {
             return Err(PieceWalkRefusal::Unbounded.into());
         }
-        let mut kept: Option<Result<Decided, Indeterminate>> = None;
-        self.point_walk(
-            q,
-            (t0, t1),
-            hi,
-            |p| -> PieceStep<core::convert::Infallible> {
+        let near = self
+            .point_walk(q, (t0, t1), hi, |p| {
                 let clear = decide_reported(
                     "curve_carrier_piece_clear",
                     Margin::of(p.gap - p.reach),
@@ -561,14 +572,12 @@ impl<T: Decide> Curve3<T> {
                     decide("curve_carrier_piece", Margin::of(p.reach), band),
                     Ok(Sign::Negative | Sign::Zero)
                 ) {
-                    kept = kept.or(Some(clear));
-                    return PieceStep::Settled;
+                    return PieceStep::Stop(clear);
                 }
                 PieceStep::Halve
-            },
-        )
-        .map_err(|_| CarrierRefusal::from(PieceWalkRefusal::Exhausted))?;
-        Ok(kept.map_or(Clearance::Clear, Clearance::Near))
+            })
+            .map_err(|_| CarrierRefusal::from(PieceWalkRefusal::Exhausted))?;
+        Ok(near.map_or(Clearance::Clear, Clearance::Near))
     }
 }
 

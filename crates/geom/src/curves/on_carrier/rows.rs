@@ -290,9 +290,9 @@ fn boxed(p: Point3<f64>, r: f64) -> Point3<geom_core::Interval> {
 /// What a reader can hold is the certificate, and across the box ladder
 /// it never says `On` at the far branch:
 ///
-/// - ±0.05 and ±1e-3: the spline's piece walk runs past its budget
-///   (`Unwalked(Exhausted)`), a refusal no narrower box in that range
-///   answers (`a-splines-on-carrier-exhausts-its-piece-budget-at-interval`);
+/// - ±0.05 and ±1e-3: an escalation, the walk stopping at the first
+///   piece about the point that does not clear: one descent, a reading a
+///   level, where walking every such piece to the budget refused;
 /// - ±1e-6: an escalation in the band (`Escalated(InBand)`), the
 ///   driver's cue to refine;
 /// - ±1e-11: `On` at the near branch, `t ≈ 0.08`.
@@ -316,10 +316,17 @@ fn a_tie_across_a_hairpins_branches_is_the_certificates_to_read() {
         "the polish's tie-break is a heuristic's and stays out of the log"
     );
     for r in [0.05, 1e-3] {
-        assert_eq!(
-            name(ci.on_carrier(boxed(p, r), seed, band())),
-            "exhausted",
-            "±{r}: the piece walk runs past its budget"
+        let (read, rec) = detached(|| ci.on_carrier(boxed(p, r), seed, band()));
+        let walk = rec
+            .recorded()
+            .escalations
+            .iter()
+            .filter(|e| e.predicate().starts_with("curve_carrier_piece"))
+            .count();
+        assert_eq!(name(read), "escalated", "±{r}: the near piece escalates");
+        assert!(
+            walk <= 64,
+            "±{r}: the walk stops at its first near piece, one escalation a level: {walk}"
         );
     }
     assert!(
