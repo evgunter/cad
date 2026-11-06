@@ -4902,7 +4902,7 @@ fn sphere_boundary<T: Decide>(
             origin: center,
             dir: axis,
         }
-        .param_and_distance(p);
+        .height_and_distance(p);
         (h / radius, rho / radius)
     };
     for e in edges {
@@ -5043,7 +5043,7 @@ fn torus_ends<T: Real>(
         origin: center,
         dir: axis,
     }
-    .param_and_distance(m0.anchor);
+    .height_and_distance(m0.anchor);
     let (sin_a, cos_a) = (ha / minor, (rho_a - major) / minor);
     // Rotate the anchor latitude by the signed span where needed.
     let (sd, cd) = m0.dt.sin_cos();
@@ -5478,9 +5478,13 @@ fn torus_chart_loop<T: Decide>(
 ) -> Result<ChartLoop<T, 2>, PropsError> {
     // A point's place on the tube: its distance out from the core
     // circle and its height, the tube angle's cosine and sine arms.
+    let core_axis = geom::Line {
+        origin: Point3::origin(),
+        dir: axis,
+    };
     let tube = |w: Vec3<T>| {
-        let h = w.dot(axis);
-        ((w - axis * h).norm() - major, h)
+        let (h, rho) = core_axis.height_and_distance(Point3::origin() + w);
+        (rho - major, h)
     };
     // The tube angle's arms from `a` to `b`: their dot and cross.
     let tube_arms = |a: Vec3<T>, b: Vec3<T>| {

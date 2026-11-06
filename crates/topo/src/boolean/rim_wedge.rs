@@ -706,7 +706,7 @@ fn on_locus<T: Decide>(locus: Locus<T>, p: Point3<T>, band: Band) -> Result<bool
                 origin: rim.center,
                 dir: rim.axis,
             }
-            .param_and_distance(p);
+            .height_and_distance(p);
             let radial = rho - rim.radius;
             (h.powi(2) + radial.powi(2)).sqrt()
         }

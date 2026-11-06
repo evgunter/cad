@@ -395,7 +395,7 @@ fn torus_distance<T: Decide>(c: &CarrierDesc<T>, p: Point3<T>) -> T {
         origin: center,
         dir: axis,
     }
-    .param_and_distance(p);
+    .height_and_distance(p);
     (((rho - major_radius).powi(2) + z.powi(2)).sqrt() - minor_radius).abs()
 }
 

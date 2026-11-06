@@ -121,7 +121,7 @@ pub(super) fn bound<T: Decide>(
         return None;
     }
     let n = da.cross(db).normalize();
-    let (along, slack) = geom::Line { origin: p, dir: n }.param_and_distance(q);
+    let (along, slack) = geom::Line { origin: p, dir: n }.height_and_distance(q);
     let excess = slack + e;
     let two = T::from_f64(2.0);
     let disc = sine.powi(2) - two * curvature * excess;

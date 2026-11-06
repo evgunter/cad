@@ -765,9 +765,11 @@ impl<T: Real> Slab<T> {
     /// as unit.
     fn point_range(&self, q: Point3<T>) -> (T, T) {
         let (lo, hi) = self.window.ordered();
-        let w = q - self.origin;
-        let h = w.dot(self.axis);
-        let rho = w.cross(self.axis).norm();
+        let (h, rho) = crate::Line {
+            origin: self.origin,
+            dir: self.axis,
+        }
+        .height_and_distance(q);
         let dh = (lo - h).max(h - hi).max(T::zero());
         let fh = (h - lo).abs().max((h - hi).abs());
         let near = (dh.powi(2) + (rho - self.radius).max(T::zero()).powi(2)).sqrt();

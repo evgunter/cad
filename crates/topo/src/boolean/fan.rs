@@ -51,7 +51,7 @@ pub(super) fn nappe_offset<T: Decide>(apex: &ConeApex<T>, like: Vec3<T>, q: Poin
         origin: apex.apex,
         dir: a,
     }
-    .param_and_distance(q);
+    .height_and_distance(q);
     let (sin, cos) = apex.half_angle.sin_cos();
     geom_brep::implicit::cone_offset(rho, z, sin, cos)
 }

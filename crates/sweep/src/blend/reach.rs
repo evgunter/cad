@@ -290,7 +290,7 @@ enum Bound<T: Real> {
 /// The axial coordinate and the distance from the axis of `x`, about
 /// the unit axis `a` through `o`, as `(ρ, z)`.
 fn sheet_of<T: Real>(o: Point3<T>, a: Vec3<T>, x: Point3<T>) -> (T, T) {
-    let (z, rho) = geom::Line { origin: o, dir: a }.param_and_distance(x);
+    let (z, rho) = geom::Line { origin: o, dir: a }.height_and_distance(x);
     (rho, z)
 }
 

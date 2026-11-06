@@ -484,9 +484,9 @@ impl<T: Decide> Curve3<T> {
     /// piece walk ([`Self::clear_of`]).
     pub fn clearance(&self, q: Point3<T>) -> Option<T> {
         Some(match *self {
-            Self::Line(line) => line.distance(q),
+            Self::Line(line) => line.offset(q).norm(),
             Self::Circle(c) => {
-                let (h, rho) = c.frame.axis_line().param_and_distance(q);
+                let (h, rho) = c.frame.axis_line().height_and_distance(q);
                 (h.powi(2) + (rho - c.radius).powi(2)).sqrt()
             }
             Self::Ellipse(e) => {
@@ -508,7 +508,7 @@ impl<T: Decide> Curve3<T> {
                     origin: center,
                     dir: axis,
                 }
-                .param_and_distance(q);
+                .height_and_distance(q);
                 let (major, minor) = (major_radius.abs(), minor_radius.abs());
                 let torus = ((rho - major).powi(2) + h.powi(2)).sqrt() - minor;
                 let side =

@@ -1222,7 +1222,7 @@ pub(super) fn torus_elevation<T: Decide>(
         origin: center,
         dir: axis,
     }
-    .param_and_distance(p);
+    .height_and_distance(p);
     ((rho - major_radius).powi(2) + h.powi(2)).sqrt() - minor_radius
 }
 
@@ -1373,7 +1373,7 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
             .get_vertex(he_data.start)
             .and_then(|v| body.get_point(v.point))
             .ok_or(PointInSolidError::CorruptFace { face })?;
-        levels.push(axis_line.param_and_distance(v));
+        levels.push(axis_line.height_and_distance(v));
         let edge = linked(
             &body.edges,
             he_data.edge,

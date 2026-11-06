@@ -542,7 +542,7 @@ impl<T: Decide + Bounds> CapSliver<T> {
             origin: self.center,
             dir: e,
         }
-        .param_and_distance(pa);
+        .height_and_distance(pa);
         let d2 = rho.powi(2);
         let minor = self.inside.map(|s| s.minor());
         // Each floor as `a + k·s`.

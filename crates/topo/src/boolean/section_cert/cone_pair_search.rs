@@ -823,7 +823,7 @@ fn clear_of(k: &Frame, partner: &Surface<f64>) -> f64 {
             origin: apex,
             dir: a,
         }
-        .param_and_distance(q);
+        .height_and_distance(q);
         (rho * alpha.cos() - h.abs() * alpha.sin()).abs()
     };
     match *partner {

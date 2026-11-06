@@ -4224,7 +4224,7 @@ impl Psi {
                     origin: apex,
                     dir: axis,
                 }
-                .param_and_distance(p);
+                .height_and_distance(p);
                 rho * cos - nappe * h * sin
             }
             Self::Graph { .. } => return None,

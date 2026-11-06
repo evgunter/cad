@@ -1595,7 +1595,7 @@ pub(crate) fn arc_distance_floor<T: Decide>(
                 origin: center,
                 dir: n,
             }
-            .param_and_distance(q);
+            .height_and_distance(q);
             let off = (minor - across).max(across - major).max(T::zero());
             ArcFloor::Conic {
                 annulus: (height.powi(2) + off.powi(2)).sqrt(),

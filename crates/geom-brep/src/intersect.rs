@@ -3128,7 +3128,7 @@ pub fn cone_cylinder_section<T: Decide>(
     // `|s| ≤ extent`), plus the circle's own turn off the cylinder's
     // cross-section, `R·(1 − cos θ) ≤ R·sin²θ`. The swing is that range's
     // reach from `d`, plus the turn.
-    let d = (apex - o).reject_from(b).norm();
+    let d = geom::Line { origin: o, dir: b }.distance(apex);
     let (near, far) = separation_range((apex, a), (o, b), above.length());
     let swing = (far - d).abs().max((d - near).abs()) + big_r * a.cross(b).norm().powi(2);
     match decide_across(["coc_coaxial", "coc_coaxial_floor"], d, swing, band)

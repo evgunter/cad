@@ -516,7 +516,7 @@ impl<T: Decide> Legs<T> for TorusFaceRegion<T> {
                     origin: center,
                     dir: axis,
                 }
-                .param_and_distance(y);
+                .height_and_distance(y);
                 Self::arc_place((edge.t0, edge.t1), (rho - major, h), minor, band)
             }
             geom::Curve3::Circle(geom::Circle {

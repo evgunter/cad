@@ -598,9 +598,14 @@ pub enum CurveData<'a, T: Real> {
 /// centre), whose readings against a point are [`Self::param`] and
 /// [`Self::foot`].
 ///
-/// `dir` is unit by the carriers' convention; the readings divide by
-/// `|dir|²`, so they hold for any nonzero `dir`. **`dir` must be
-/// nonzero**: on a zero `dir` they divide `0/0`. Nothing here checks it;
+/// `dir` is unit by the carriers' convention. The parameter readings
+/// ([`Self::param`], [`Self::foot`], [`Self::offset`] and their kin)
+/// divide by `|dir|²`, so they hold for any nonzero `dir`, a chord `b − a`
+/// among them. The metric readings of an axis ([`Self::height`],
+/// [`Self::distance`]) read `dir` as unit by contract, which is what
+/// makes them the tight ones at `Interval`. **`dir` must be
+/// nonzero**: on a zero `dir` the parameter readings divide `0/0`. Nothing
+/// here decides it;
 /// at rest, `topo`'s tier-3 check 1 refuses a zero direction on every
 /// edge carrier (crate docs, "Unit-vector and orthogonality fields").
 #[derive(Clone, Copy, Debug)]
@@ -627,8 +632,7 @@ impl<T: Real> Line<T> {
     }
 
     /// `w`'s coefficient along `dir`, `w·dir / |dir|²`: the one spelling
-    /// [`Self::param`], [`Self::param_and_offset`] and
-    /// [`Self::param_and_distance`] read.
+    /// [`Self::param`] and [`Self::param_and_offset`] read.
     fn coefficient(&self, w: Vec3<T>) -> T {
         w.dot(self.dir) / self.dir.norm_squared()
     }
@@ -677,42 +681,66 @@ impl<T: Real> Line<T> {
         self.param_and_offset(p).1
     }
 
-    /// **`p`'s distance from the line**: `|(p − origin) × dir| / |dir|`,
-    /// the one scalar reading of it. A reader that needs only the
-    /// distance reads this, not [`Self::offset`]'s norm: the cross
-    /// product names `w = p − origin` once per component where the
-    /// offset's `w − dir·t` names it twice, so at `Interval` a point that
-    /// carries width reads tighter here. Measured enclosure widths (a
-    /// point at `(0.7, 0.2, −0.4)` off the origin, of half-width `r`;
-    /// tilted axes normalized at `Interval`; at the world origin and at
-    /// `(1234.5, −987.25, 456)`, alike):
+    /// **`p`'s distance from the line**, reading `dir` as unit:
+    /// `|(p − origin) × dir|`. The metric reading of an axis, beside
+    /// [`Self::height`].
     ///
-    /// | axis | `r` | this | `offset(p).norm()` |
-    /// |---|---|---|---|
-    /// | `ẑ`, exact | 1e-9 | 2.47e-9 | 2.47e-9 |
-    /// | `(0.3, −0.5, 0.81)` | 0 | 3.1e-15 | 1.7e-15 |
-    /// | `(0.3, −0.5, 0.81)` | 1e-9 | 2.85e-9 | 4.55e-9 |
-    /// | `(1, 2, 3)` | 1e-9 | 3.55e-9 | 5.48e-9 |
+    /// **A unit `dir` is this reading's contract**, not its convenience:
+    /// on a non-unit `dir` it answers a wrong number, not a wide one. A
+    /// debug build checks it ([`Self::unit_contract`]); a caller whose
+    /// `dir` is not unit (a chord `b − a`) reads [`Self::offset`]'s norm,
+    /// which divides by `|dir|²`.
     ///
-    /// The exact point's row is rounding alone, the division by `|dir|`.
+    /// Read this rather than `offset(p).norm()` where the axis is unit:
+    /// it is the tightest of the four spellings in every regime measured
+    /// (mean `Interval` widths over 2000 random tilted axes normalized at
+    /// `Interval`, origins to ±500 m):
+    ///
+    /// | point | axis | this | `\|w × dir\| / \|dir\|` | `w − dir·(w·dir)` | `offset(p).norm()` |
+    /// |---|---|---|---|---|---|
+    /// | exact | rounding | 1.9e-15 | 3.4e-15 | 2.0e-15 | 2.9e-15 |
+    /// | exact | ±1e-12 | 3.2e-12 | 5.5e-12 | 3.5e-12 | 5.5e-12 |
+    /// | ±1e-9 | rounding | 3.3e-9 | 3.3e-9 | 5.2e-9 | 5.2e-9 |
+    /// | ±1e-9 | ±1e-12 | 3.3e-9 | 3.3e-9 | 5.2e-9 | 5.2e-9 |
     #[must_use]
     pub fn distance(&self, p: Point3<T>) -> T {
-        self.across(p - self.origin)
+        self.height_and_distance(p).1
     }
 
-    /// **`p`'s parameter and distance together**: [`Self::param`]'s `t`
-    /// and [`Self::distance`], from one `w = p − origin`, for a reader of
-    /// a point's height on an axis and its radius about it.
+    /// **`p`'s height along the line**, reading `dir` as unit:
+    /// `(p − origin)·dir`, metres from `origin`. The same contract as
+    /// [`Self::distance`]: for a unit `dir` it is [`Self::param`] without
+    /// the division by `|dir|²`, which costs `param` up to twice the width
+    /// where `dir` carries width (`w·dir` 3.0e-12 against `w·dir / |dir|²`
+    /// 5.9e-12, exact point, axis ±1e-12).
     #[must_use]
-    pub fn param_and_distance(&self, p: Point3<T>) -> (T, T) {
-        let w = p - self.origin;
-        (self.coefficient(w), self.across(w))
+    pub fn height(&self, p: Point3<T>) -> T {
+        self.height_and_distance(p).0
     }
 
-    /// `w`'s length square to `dir`, `|w × dir| / |dir|`: the one spelling
-    /// [`Self::distance`] and [`Self::param_and_distance`] read.
-    fn across(&self, w: Vec3<T>) -> T {
-        w.cross(self.dir).norm() / self.dir.norm()
+    /// **`p`'s height and distance together** ([`Self::height`],
+    /// [`Self::distance`]) from one `w = p − origin`: a point's place on
+    /// an axis and its radius about it. `dir` is unit by contract.
+    #[must_use]
+    pub fn height_and_distance(&self, p: Point3<T>) -> (T, T) {
+        self.unit_contract();
+        let w = p - self.origin;
+        (w.dot(self.dir), w.cross(self.dir).norm())
+    }
+
+    /// **The metric readings' contract, checked in a debug build**:
+    /// `|dir|²` within 64 ulps of 1. A scalar that cannot decide it (an
+    /// enclosure straddling the tolerance, a symbol) passes: the square
+    /// root of `tol − ||dir|² − 1|` is poison only where that is decidedly
+    /// negative.
+    fn unit_contract(&self) {
+        debug_assert!(
+            !(T::from_f64(64.0 * f64::EPSILON) - (self.dir.norm_squared() - T::one()).abs())
+                .sqrt()
+                .is_poison(),
+            "geom::Line::height/distance read dir as unit; a non-unit dir reads param/offset (|dir|² = {:?})",
+            self.dir.norm_squared()
+        );
     }
 
     /// **`p`'s parameter and offset together**: [`Self::param`]'s `t` and
@@ -968,7 +996,7 @@ fn tube_section<T: Decide>(
         origin: center,
         dir: axis,
     }
-    .param_and_distance(p);
+    .height_and_distance(p);
     Azimuth::tube(h, rho, major_radius)
 }
 

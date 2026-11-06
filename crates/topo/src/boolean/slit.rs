@@ -1617,7 +1617,7 @@ fn torus_between<T: Decide>(
             origin: center,
             dir: axis,
         }
-        .param_and_distance(p);
+        .height_and_distance(p);
         // The torus's equation over `2r`, the offset times `G`.
         let product = ((rho - big).powi(2) + h.powi(2) - small.powi(2))
             * ((rho + big).powi(2) + h.powi(2) - small.powi(2));

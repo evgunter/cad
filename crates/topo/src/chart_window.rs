@@ -601,7 +601,7 @@ fn pole_lever<T: Decide>(
         origin: center,
         dir: axis,
     }
-    .param_and_distance(carrier.eval(pole_t + swept));
+    .height_and_distance(carrier.eval(pole_t + swept));
     let reach = (height * pole_height).select_le_zero(radius, far);
     let bend = (radius.powi(2) - r.powi(2)).max(T::zero()).sqrt();
     Some((reach * bend - r * radius).select_le_zero(reach, r * radius / bend))

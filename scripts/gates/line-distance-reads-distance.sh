@@ -3,31 +3,51 @@
 # `geom::Line` is `Line::distance`. ONE home; ci.yml's `lint` job runs
 # every gate in this directory.
 #
-# THE RULE: a reader that needs only a point's distance from a line
-# reads `Line::distance` (`|(p − origin) × dir| / |dir|`), never
-# `Line::offset(p).norm()`. The two are the same quantity, but at
-# `Interval` a point that carries width reads about 1.5× tighter
-# through the cross product (`Line::distance`'s doc has the widths).
-# `offset` stays for a reader that needs the vector: a radial
-# direction, a gradient, a component along a normal.
+# THE RULE: a reader of a point's distance from a UNIT axis reads
+# `geom::Line::distance` (`|(p − origin) × dir|`, `dir` unit by
+# contract), not the norm of an offset spelled by hand or through
+# `Line::offset`/`Vec3::reject_from`. On a unit axis the unit read is the
+# tightest at `Interval` in every regime measured (`Line::distance`'s doc
+# has the widths): it divides by nothing, and it names the point once.
+# A non-unit direction (a chord `b − a`) is not this rule's: its distance
+# is `offset(p).norm()`, and such a reader that trips the gate either
+# normalizes its direction or is exempted here with its reason.
 #
-# KNOWN GAP: the matcher reads one line, so a chain that rustfmt breaks
-# between `.offset(…)` and `.norm()` passes. It also cannot tell a
-# `geom::Line`'s `offset` from another type's, and no other type in
-# the tree has an `offset(…)` whose `.norm()` is read, so a hit is
-# this rule's until one does.
+# KNOWN GAPS: production sources only (`#[cfg(test)]` items and
+# test-only mounts are skipped, so oracles may spell it their own way);
+# an argument nested more than two parentheses deep is not matched; a
+# cross product whose operand is not a written `(a − b)` difference (a
+# named vector) is not matched, since a free vector's cross norm is a
+# different fact; and a norm spelled `.norm_squared().sqrt()` passes.
 set -euo pipefail
 # shellcheck source=scripts/gates/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
+# The three spellings of the norm of a point's offset from a line: the
+# offset's, the rejection's, and a hand cross product of a point
+# difference with a direction.
+# THE EXEMPTIONS, each anchored on its file and its own text:
+# - `emit_topo`'s segment row passes the area `|w × d|` to
+#   `Margin::over_lever` over the segment's length, the door that is the
+#   home of a measure over its lever;
+# - four readers of a `Curve3::Line` CARRIER's own line, whose `dir` is
+#   not unit in practice (the step-import corpus mints them unnormalized),
+#   so they read the parameterization's `offset(p).norm()`, which divides:
+#   `Curve3::clearance`, `validate`'s locus gap, `ring_path`'s ruling gap
+#   and the blend battery's corner-support gap.
+EXEMPT='crates/editor-core/src/names/emit_topo\.rs:[0-9]+: .*Margin::over_lever|crates/geom/src/curves/on_carrier\.rs:[0-9]+: Self::Line\(line\) => line\.offset\(q\)\.norm\(\)|crates/topo/src/validate\.rs:[0-9]+: .*geom::Curve3::Line\(line\) => Some\(line\.offset\(p\)\.norm\(\)\)|crates/topo/src/ring_path\.rs:[0-9]+: \.offset\(from\)\.norm\(\)|crates/sweep/src/blend/battery\.rs:[0-9]+: \.offset\(foot\)\.norm\(\)'
+SHAPES='\.offset\([^()]*(\([^()]*\)[^()]*)*\)[[:space:]]*\.norm\(\)|\.reject_from\([^()]*(\([^()]*\)[^()]*)*\)[[:space:]]*\.norm\(\)|\([[:alnum:]_.*]+ - [[:alnum:]_.*]+\)[[:space:]]*\.cross\([^()]*(\([^()]*\)[^()]*)*\)[[:space:]]*\.norm\(\)'
+
 gate() {
   gate_require_crate_sources
+  gate_production_sources
   local hits
-  hits=$(gate_rust_code "${GATE_SOURCE_FILES[@]}" \
-    | gate_grep -E '\.offset\([^;]*\)\.norm\(\)')
+  hits=$(gate_rust_code --skip-cfg-test --statements "${GATE_PRODUCTION_FILES[@]}" \
+    | gate_grep -E "$SHAPES" \
+    | gate_grep -vE "^($EXEMPT)")
   if [ -n "$hits" ]; then
     printf '%s\n' "$hits"
-    gate_error "a line's distance read as offset(…).norm(): read Line::distance, the tight reading"
+    gate_error "a line's distance read as offset(…).norm(): read Line::distance, the tight reading on a unit axis"
     exit 1
   fi
   gate_ok "no line distance read as offset(…).norm()"
@@ -36,6 +56,24 @@ gate() {
 plant() {
   mkdir -p "$1/crates/planted/src"
   printf 'pub fn d(l: geom::Line<f64>, p: geom_core::Point3<f64>) -> f64 { l.offset(p).norm() }\n' \
+    > "$1/crates/planted/src/lib.rs"
+}
+
+plant_reject() {
+  mkdir -p "$1/crates/planted/src"
+  printf 'pub fn d(o: P, p: P, a: V) -> f64 { (p - o).reject_from(a).norm() }\n' \
+    > "$1/crates/planted/src/lib.rs"
+}
+
+plant_cross_across_lines() {
+  mkdir -p "$1/crates/planted/src"
+  printf 'pub fn d(o: P, p: P, a: V) -> f64 {\n    (p - o)\n        .cross(a)\n        .norm()\n}\n' \
+    > "$1/crates/planted/src/lib.rs"
+}
+
+plant_offset_inside_an_expression() {
+  mkdir -p "$1/crates/planted/src"
+  printf 'pub fn g(l: L, p: P, n: V) -> f64 { (l.offset(p) - n).norm() }\n' \
     > "$1/crates/planted/src/lib.rs"
 }
 
@@ -50,8 +88,11 @@ gate_selftest() {
   gate_selftest_clean
   gate_selftest_without_tool grep "it is grep saying it could not search"
   gate_selftest_case "$want" plant
+  gate_selftest_case "$want" plant_reject
+  gate_selftest_case "$want" plant_cross_across_lines
+  gate_selftest_passes "the norm of a vector expression holding an offset" plant_offset_inside_an_expression
   gate_selftest_passes "an offset read as the vector it is" plant_vector_use
-  printf '%s selftest OK: passes a clean fixture and an offset read as a vector; fires on offset(…).norm(); and stays RED, with a diagnosis, when grep cannot run\n' "$(gate_name)"
+  printf '%s selftest OK: passes a clean fixture and an offset read as a vector; fires on offset(…).norm(), reject_from(…).norm() and a cross norm split over lines; passes the norm of a vector expression; and stays RED, with a diagnosis, when grep cannot run\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"

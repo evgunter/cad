@@ -1141,7 +1141,7 @@ fn arc_rim_on_wall_boundary(
                 origin: center,
                 dir: a_hat,
             }
-            .param_and_distance(q);
+            .height_and_distance(q);
             let ring = (rho - radius).hypot(axial);
             // Within half a turn of the window's middle, `t0 − slack + π`.
             let theta = geom::Azimuth::of(w.dot(v_hat), w.dot(u_hat)).near(t0 - slack + tau / 2.0);
