@@ -101,7 +101,7 @@ fn the_wall_arms_margins_scale_linearly_with_the_model() {
         ]
     } else {
         &[
-            "[\"azimuth_near_cut_side: 56 pairs off, e.g. 6.811e2\", \"period_near_mark: 208 pairs off, e.g. 9.990e-1\"]",
+            "[\"azimuth_near_cut_side: 32 pairs off, e.g. 9.990e2\", \"period_near_mark: 156 pairs off, e.g. 9.990e-1\"]",
         ]
     };
     test_utils::pinned_red::row(

@@ -21,12 +21,12 @@ merge `a6f0b5e99c`) a curved aim's foot reaches the sink under the two
 F31 names (`docs/predicate-dimension-audit.md` row F31), and neither
 scales linearly:
 
-- `period_near_mark` (`geom_core::Period::near`): 208 pairs off, e.g.
+- `period_near_mark` (`geom_core::Period::near`): 156 pairs off (208 before PR 6491), e.g.
   `9.990e-1` — the ratio is 1. Its margin is `reference − t`, a
   parameter (an angle) difference, so it does not scale at all.
 - `azimuth_near_cut_side` (`geom::Azimuth::near` through
-  `stable_azimuth`): 56 pairs off, e.g. `6.811e2` — the ratio is about
-  a million, so its margin reads a quantity of length squared.
+  `stable_azimuth`): 32 pairs off (56 before PR 6491), e.g. `9.990e2` —
+  the ratio is about a million, so its margin reads a quantity of length squared.
 
 Both are taken under `k_stats::unlogged("F31", ..)` at `Band::least()`,
 a sign-only band: no decision of either depends on the margin's
@@ -48,8 +48,9 @@ out:
 ## Pin
 
 The row is pinned at what main measures, at 1e-9 and 1e-12 (and the
-default ε): `["azimuth_near_cut_side: 56 pairs off, e.g. 6.811e2",
-"period_near_mark: 208 pairs off, e.g. 9.990e-1"]`. Closing this row
+default ε): `["azimuth_near_cut_side: 32 pairs off, e.g. 9.990e2",
+"period_near_mark: 156 pairs off, e.g. 9.990e-1"]`, re-taken after PR 6491
+(`onecopy/meet-pose`, merge `0cd3e0444e`) moved it from 56 and 208. Closing this row
 takes the pin.
 
 Reproduce: `CAD_TOLERANCE_EPS=1e-9 cargo test -p sweep --features probe
