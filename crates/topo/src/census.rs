@@ -403,6 +403,14 @@ impl<T: Real> Span<T> {
     fn len(&self) -> T {
         self.at.1 - self.at.0
     }
+
+    /// The line it is a span of, `s` its parameter.
+    fn line(&self) -> geom::Line<T> {
+        geom::Line {
+            origin: self.p0,
+            dir: self.dir,
+        }
+    }
 }
 
 /// What has a straight span.
@@ -1487,9 +1495,8 @@ fn distance<T: Decide>(geo: &Geo<T>, u: Point3<T>, cell: EntityId) -> Option<Mar
     match cell {
         EntityId::Vertex(v) => Some(Margin::norm3(u - *geo.vmap.get(&v)?)),
         EntityId::Edge(e) => {
-            let e = line_edge(geo, e)?;
-            let t = (u - e.p0).dot(e.dir).max(T::zero()).min(e.len);
-            Some(Margin::norm3(u - (e.p0 + e.dir * t)))
+            let e = line_edge(geo, e)?.span();
+            Some(Margin::norm3(u - e.line().foot_within(u, e.at)))
         }
         EntityId::Face(f) => {
             let f = planar_face(geo, f)?;
@@ -6029,7 +6036,7 @@ fn ee_bound_backed<T: Decide>(
 ) -> Bound {
     let va = edge_vertex_at(ea, s, band, errors);
     let q = ea.p0 + ea.dir * s;
-    let sb = (q - eb.p0).dot(eb.dir);
+    let sb = eb.span().line().param(q);
     let vb = edge_vertex_at(eb, sb, band, errors);
     let mut holds = |cells, x: &[FaceKey], y: &[FaceKey]| {
         declared.holds(body, geo, cells, (x, y), q, band, errors) == Some(true)

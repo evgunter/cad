@@ -4068,12 +4068,15 @@ impl EditError {
                         found: *found
                     }
                 )?;
-                tail.recourse(
-                    f,
-                    format_args!(
-                        "write it from {expected} literals and parameters declared {expected}"
+                match expected {
+                    crate::SlotKind::Is(kind) => tail.recourse(
+                        f,
+                        format_args!(
+                            "write it from {kind} literals and parameters declared {kind}"
+                        ),
                     ),
-                )
+                    other => tail.recourse(f, format_args!("write it as {other}")),
+                }
             }
             Self::StructuralSlotNeedsStructuralEdit { slot } => {
                 write!(

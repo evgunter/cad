@@ -391,7 +391,7 @@ fn the_hairline_lens_at_interval_consumes_the_recorded_pick() {
         // that other pocket's own geometry — a typed authoring refusal,
         // not a lattice violation.
         Err(refused) => {
-            let ReplayErrorKind::Path(profile::PathError::Escalated { source }) = &refused.kind
+            let ReplayErrorKind::Path(profile::PathError::Escalated { source, .. }) = &refused.kind
             else {
                 panic!(
                     "told the other index the lane refused, which is consumption — but the \
@@ -752,7 +752,7 @@ fn a_center_arc_whose_centre_leaves_its_bisector_refuses_at_the_guided_replay() 
     let err = replay_guided(&lifted, &structure, t)
         .expect_err("a centre off the bisector cannot land the arc on its end");
     match &err.kind {
-        ReplayErrorKind::Path(PathError::Escalated { source }) => {
+        ReplayErrorKind::Path(PathError::Escalated { source, .. }) => {
             assert_eq!(source.predicate, Some("path_arc_center_equidistant"));
         }
         other => panic!("expected the Center door's equidistance gate, got {other:?}"),

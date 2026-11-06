@@ -281,7 +281,6 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "ProfileReplay/Path/SeamRetrimsArcFirstSide",
     "ProfileReplay/Path/UnderdeterminedLeg",
     "ProfileReplay/Path/ZeroDirection",
-    "ProfileReplay/Transition",
     // work/profiletail/profile-arms-the-weld-renders-fall-short-of-the-shape-guard.md
     "Profile/InconsistentArc",
     // work/honeword/split-finish-arms-the-weld-renders-fall-short-of-the-shape-guard.md
@@ -4019,6 +4018,7 @@ fn profile() -> Vec<(String, NodeErrorKind)> {
             "Escalated(segment)",
             E::Escalated {
                 site: EscalationSite::Segment(a),
+                gate: profile::Gate::VertexSeparation,
                 source: named("vertex_separation"),
             },
         ),
@@ -4026,6 +4026,7 @@ fn profile() -> Vec<(String, NodeErrorKind)> {
             "Escalated(pair)",
             E::Escalated {
                 site: EscalationSite::SegmentPair(a, b),
+                gate: profile::Gate::CollinearOverlap,
                 source: named("collinear_overlap"),
             },
         ),
@@ -4057,7 +4058,10 @@ fn structure_refusal_indeterminate() -> profile::StructureRefusal {
             loop_: 1,
             against: 0,
         },
-        kind: StructureRefusalKind::Indeterminate(payloads::diag()),
+        kind: StructureRefusalKind::Indeterminate {
+            gate: profile::Gate::LoopOrientation,
+            source: payloads::named("loop_orientation"),
+        },
     }
 }
 
@@ -4216,7 +4220,7 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
                     role: profile::PieceRole::Leg,
                 },
                 verb: profile::Verb::TangentArcTo,
-                predicate: "path_arc_landing",
+                read: profile::ArcRead::Landing,
                 point: Point2::new(-2.7, 2.7e-4),
                 miss: 3.4e-8,
                 scale: 1.36e4,
@@ -4233,7 +4237,7 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
                     role: profile::PieceRole::Leg,
                 },
                 verb: profile::Verb::ArcTo,
-                predicate: "path_arc_through_point",
+                read: profile::ArcRead::ThroughPoint,
                 point: Point2::new(0.0, 2.74e8),
                 miss: 3.0e-8,
                 scale: 2.74e8,
@@ -4246,6 +4250,8 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
         (
             "Escalated",
             P::Escalated {
+                site: profile::EscalatedAt::Door,
+                gate: profile::Gate::RaySide,
                 source: named("ray_side"),
             },
         ),
@@ -4409,39 +4415,45 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
             P::OverdeterminedJunction { site: "arc_to" },
         ),
     ];
+    use profile::{EscalatedAt, Gate};
     let routed = [
-        "fillet_corner_turn",
-        "fillet_corner_arm",
-        "fillet_leg_reach",
-        "fillet_leg_fit",
-        "fillet_offset_lever",
-        "fillet_enclosing_carrier",
-        "path_continuation_target_offset",
-        "path_seam_arrival_turn",
-        "path_leg_length",
-        "vertex_separation",
-        "path_junction_turn",
+        (EscalatedAt::Door, Gate::FilletCornerTurn),
+        (EscalatedAt::Door, Gate::FilletCornerArm),
+        (EscalatedAt::Door, Gate::FilletLegReach),
+        (EscalatedAt::Door, Gate::FilletLegFit),
+        (EscalatedAt::Door, Gate::FilletOffsetLever),
+        (EscalatedAt::Door, Gate::FilletEnclosingCarrier),
+        (EscalatedAt::Door, Gate::PathContinuationTargetOffset),
+        (EscalatedAt::Door, Gate::PathSeamArrivalTurn),
+        (EscalatedAt::Door, Gate::PathLegLength),
+        (EscalatedAt::Door, Gate::PathCornerTurn),
+        (EscalatedAt::StoredForm, Gate::VertexSeparation),
+        (EscalatedAt::Door, Gate::PathJunctionTurn),
     ];
     let path: Vec<(String, P<f64>)> = path
         .into_iter()
         .map(|(n, p)| (n.to_owned(), p))
-        .chain(routed.into_iter().map(|predicate| {
+        .chain(routed.into_iter().map(|(site, gate)| {
             (
-                format!("Escalated({predicate})"),
+                format!("Escalated({site:?}, {})", gate.predicate()),
                 P::Escalated {
+                    site,
+                    gate,
                     source: geom_core::Indeterminate {
-                        predicate: Some(predicate),
+                        predicate: Some(gate.predicate()),
                         ..diag()
                     },
                 },
             )
         }))
         .collect();
+    // The state that takes the most verbs, so its recourse is the
+    // longest list a lattice refusal draws.
     let transition = ReplayError {
         step: 2,
         kind: ReplayErrorKind::Transition {
-            state: TipState::Closed,
-            verb: None,
+            state: TipState::DirectedPoint,
+            verb: Some(profile::Verb::CloseTo),
         },
     };
     path.into_iter()

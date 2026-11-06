@@ -2588,27 +2588,57 @@ macro_rules! to_the_files_writer {
     };
 }
 
-/// **How an undecided decision's refusal ends** (D4 ¶1 (i)), by what
-/// its margin measures: the kind a door's decision table records for
+/// **How an undecided decision's refusal ends** (D4 ¶1 (i)), with the
+/// decision's own lever: the kind a door's closed decision type gives
 /// each decision it renders.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum EndingKind {
-    /// A size the user may have chosen: [`Indeterminate::ending`] under
-    /// [`COINCIDENCE_RECOURSE`], tolerance arm included.
-    Sized,
-    /// No size the user chose (an angle, a gauge, a curve parameter):
-    /// this lever alone, noted where the margin could not be read
+    /// A size the user may intend, which a smaller ε decides for the
+    /// request: the lever, and the conditional, valued tolerance arm
+    /// ([`Indeterminate::ending`]).
+    Sized(&'static str),
+    /// No size a smaller ε decides for the request (an angle, a gauge,
+    /// an exact-order comparison, a threshold that grows as ε shrinks):
+    /// the lever alone, noted where the margin could not be read
     /// ([`Indeterminate::lever_ending`]).
     Lever(&'static str),
 }
 
 impl EndingKind {
+    /// The lever, after "Recourse: ".
+    #[must_use]
+    pub const fn lever(self) -> &'static str {
+        match self {
+            Self::Sized(lever) | Self::Lever(lever) => lever,
+        }
+    }
+
+    /// The same kind with another lever: a site whose levers are its
+    /// own keeps the decision's kind.
+    #[must_use]
+    pub const fn with_lever(self, lever: &'static str) -> Self {
+        match self {
+            Self::Sized(_) => Self::Sized(lever),
+            Self::Lever(_) => Self::Lever(lever),
+        }
+    }
+
     /// The ending of `source` under this kind, read at the build.
     #[must_use]
     pub fn end(self, source: &Indeterminate) -> String {
         match self {
-            Self::Sized => source.ending(COINCIDENCE_RECOURSE),
+            Self::Sized(lever) => source.ending(lever),
             Self::Lever(lever) => source.lever_ending(lever),
+        }
+    }
+
+    /// `source`'s payload, what its reading is, and this kind's ending:
+    /// the sentence for a door that states its own subject before it.
+    #[must_use]
+    pub fn under(self, source: &Indeterminate) -> IndeterminateUnder<'_> {
+        match self {
+            Self::Sized(lever) => source.under(lever),
+            Self::Lever(lever) => source.under_lever(lever),
         }
     }
 }
@@ -2621,11 +2651,10 @@ impl EndingKind {
 /// neither is one anybody made.
 ///
 /// Every `Display` that routes a recourse by predicate name composes
-/// this on its fall-through arm. The home is here because the crates
-/// that route are `profile` and `sweep`, and this crate is the only
-/// ancestor they share: `sweep` depends on `profile`, `profile` on
-/// `geom-core` alone, so a sentence held in either of them is out of
-/// reach of the other.
+/// this on its fall-through arm, through [`Indeterminate::ending_by`].
+/// The home is here, with the ending it tails, so a routing table in
+/// any crate reaches it; `editor-core`'s decision table is the one that
+/// routes by name today.
 ///
 /// **It reports an absence, never a denial.** The refusal it tails has
 /// already rendered [`Indeterminate`]'s own Display, which ends in
@@ -3004,6 +3033,7 @@ impl fmt::Display for Indeterminate {
 pub struct IndeterminateUnder<'a> {
     diag: &'a Indeterminate,
     recourse: &'a str,
+    lever_only: bool,
 }
 
 impl Indeterminate {
@@ -3013,6 +3043,17 @@ impl Indeterminate {
         IndeterminateUnder {
             diag: self,
             recourse,
+            lever_only: false,
+        }
+    }
+
+    /// [`Indeterminate::under`] for a decision on no size the user chose:
+    /// the ending is [`Indeterminate::lever_ending`]'s, `lever` alone.
+    pub fn under_lever<'a>(&'a self, lever: &'a str) -> IndeterminateUnder<'a> {
+        IndeterminateUnder {
+            diag: self,
+            recourse: lever,
+            lever_only: true,
         }
     }
 }
@@ -3046,7 +3087,11 @@ impl fmt::Display for UnderTail<'_> {
             (None, Some(reading)) => write!(f, " — {reading}; ")?,
             (None, None) => f.write_str(" — ")?,
         }
-        f.write_str(&under.diag.ending(under.recourse))
+        if under.lever_only {
+            f.write_str(&under.diag.lever_ending(under.recourse))
+        } else {
+            f.write_str(&under.diag.ending(under.recourse))
+        }
     }
 }
 
