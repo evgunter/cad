@@ -1155,9 +1155,9 @@ fn piece_rung(
     match reading {
         Ok(PieceRead::In) => Rung::Answers(Ok(())),
         Ok(PieceRead::NotIn) => Rung::Passes,
-        Ok(PieceRead::Unread(Some(why))) => why
-            .refusal()
-            .rung(unread(Some(why)), |refused| Rung::Aborts(Err(refused))),
+        Ok(PieceRead::Unread(Some(why))) => {
+            geom_brep::ladder::rung_or_abort(why.refusal(), unread(Some(why)), Err)
+        }
         Ok(PieceRead::Unread(None)) => Rung::Blocked(unread(None)),
         Err(read @ BooleanError::Escalated { diag, .. }) => Rung::kept(diag).map_kept(|_| read),
         Err(read) => Rung::Blocked(read),
