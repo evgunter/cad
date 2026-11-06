@@ -464,3 +464,9 @@
 - 2026-11-06 — The 6541 fix pass is at `a898acea`: the coplanar change is fully reverted to main, NOTE-2 is pinned, and the ci set is 8606/8606 at both ε. Delta review sent to `session_013mPGJ3HVYqYAoquA4iThSZ`, ahead of its 6552 review.
 - 2026-11-06 — The topo-handles next unit is done locally: the loop doors take resolved loops through `Body::loop_cycle_linked` and `proven_loop`; all 24 value-discard arms are disposed, with one fix (`cusp`) and one new row (`ray_crossings` graze); and escalation-discards counts value discards. It waits on 6552.
 - 2026-11-06 — Ladder tranche 4 opened PR 6553 at `d212dfe8`: standings on seven types as ruled, six ports each pinned red under main's rule, the new gate `escalation-question-marks.sh` (32-site register), and the ci set 5724/5724 at both ε. FULL review sent to `session_013mPGJ5U1sALaLAPBzTAy6S`.
+
+- 2026-11-06 — The 6540 fix pass is at `2fc04c9b`, and I did the delta review myself, since the diff is small.
+  - `Line::param` now uses `norm_squared`, and `offset`, `square_foot` and `off_line` read through `project_onto`.
+  - `offset` stays subtractive rather than using `reject_from`, because the triple product widened the skew pair's enclosure past zero at 1e-12. I accept that departure.
+  - `adopt.rs` is ported, and the containment arm is order-free.
+  I merged main (editor-core and topo moves) as `12b3a643`; it compiles, and the gate is running.
