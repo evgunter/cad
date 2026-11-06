@@ -176,7 +176,7 @@ fn conic_plane_meet<T: Decide>(
     band: Band,
 ) -> ConicPlaneMeet<T> {
     let candidates = match conic_plane_candidates(conic, plane_origin, plane_normal, band) {
-        Ok(candidates) => candidates,
+        Ok((candidates, _)) => candidates,
         Err(meet) => return meet,
     };
     let (s_u, s_v) = conic.semi_axes();
@@ -185,14 +185,15 @@ fn conic_plane_meet<T: Decide>(
 
 /// **The carrier half of [`conic_plane_meet`]**: where the whole conic
 /// meets the plane, as carrier parameters (one for a graze, two for a
-/// crossing), before any span is read. `Err` carries the answer that
-/// needs no span — parallel, a miss, or the fault a rung escalated.
+/// crossing), before any span is read, and whether it is a graze. `Err`
+/// carries the answer that needs no span — parallel, a miss, or the
+/// fault a rung escalated.
 fn conic_plane_candidates<T: Decide>(
     conic: &dyn geom::Conic<T>,
     plane_origin: geom_core::Point3<T>,
     plane_normal: geom_core::Vec3<T>,
     band: Band,
-) -> Result<[Option<T>; 2], ConicPlaneMeet<T>> {
+) -> Result<([Option<T>; 2], bool), ConicPlaneMeet<T>> {
     let geom::Frame {
         origin: center,
         axis,
@@ -271,7 +272,7 @@ fn conic_plane_candidates<T: Decide>(
             }
         }
     };
-    Ok(candidates)
+    Ok((candidates, !both_roots))
 }
 
 /// The span half of [`conic_plane_meet`]: the candidates interior to
@@ -343,6 +344,174 @@ fn span_roots<T: Decide>(
         }
     }
     ConicPlaneMeet::Roots(Ok(roots))
+}
+
+/// Whether a span has ends ([`span_plane_meet`]): an edge's or a bounded
+/// leg's, or a whole turn's, whose first and last parameters are one
+/// point of its interior.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SpanEnds {
+    /// Both ends are ends.
+    Ended,
+    /// A whole turn of a periodic carrier, read over `[t0, t1]` with no
+    /// end.
+    Endless,
+}
+
+/// A root of a span against a plane ([`span_plane_meet`]).
+#[derive(Clone, Copy, Debug)]
+pub struct SpanRoot<T> {
+    /// The carrier's parameter, within half a turn of the span's middle
+    /// on a periodic carrier.
+    pub t: T,
+    /// Whether it lies within the band of an end of the span, metered
+    /// as [`plane_crossing_lane`] meters it.
+    pub at_end: bool,
+}
+
+/// What a span meets of a plane ([`span_plane_meet`]).
+#[derive(Debug)]
+pub enum SpanPlaneMeet<T> {
+    /// The carrier is parallel to the plane, wholly at `offset`, its
+    /// signed distance from it (a conic's centre's, a line's at the
+    /// span's middle): in the plane or never meeting it, the caller's to
+    /// decide.
+    Parallel {
+        /// The carrier's signed distance from the plane.
+        offset: T,
+    },
+    /// The plane grazes the carrier at a point of the span: one double
+    /// root, no crossing.
+    Touch,
+    /// The roots on the span (possibly none), each with whether it lies
+    /// at an end; unordered.
+    Roots(Vec<SpanRoot<T>>),
+}
+
+/// **Where a span crosses a plane, ends included**: the door's lane
+/// ([`plane_crossing_lane`]) read for a caller that places what it finds
+/// itself. It differs from the lane in three ways and nowhere else:
+///
+/// - a root within the band of an end of an [`SpanEnds::Ended`] span is
+///   reported with [`SpanRoot::at_end`], where the lane drops it (its
+///   callers' vertex sweep owns it);
+/// - an [`SpanEnds::Endless`] span reads every root of the whole turn,
+///   none at an end, each named within half a turn of the span's middle;
+/// - a line's one root is read here, in closed form: its signed distance
+///   `d(t) = (o − q)·n̂ + t·(d̂·n̂)` is affine, parallel where the slope
+///   times the span's length is in the zero band
+///   (`plane_crossing_line_parallel`), and otherwise the root
+///   `−d(0)/(d̂·n̂)` is read against the span as a conic's is, at the
+///   line's speed;
+///
+/// and a graze is [`SpanPlaneMeet::Touch`] where it touches the span. The
+/// carrier half (the parallel gate, the belly graze and the phase) is the
+/// lane's own, read once.
+///
+/// # Errors
+///
+/// The rung that escalated ([`ConicRootFault`]); `Ok(None)` for a carrier
+/// with no closed form (the lane's [`PlaneCrossingLane::Unlaned`]).
+pub fn span_plane_meet<T: Decide>(
+    carrier: &geom::Curve3<T>,
+    (t0, t1): (T, T),
+    ends: SpanEnds,
+    plane_origin: geom_core::Point3<T>,
+    plane_normal: geom_core::Vec3<T>,
+    band: Band,
+) -> Result<Option<SpanPlaneMeet<T>>, ConicRootFault> {
+    let found = match (carrier.conic(), carrier) {
+        (Some(conic), _) => {
+            let (candidates, graze) =
+                match conic_plane_candidates(conic, plane_origin, plane_normal, band) {
+                    Ok(found) => found,
+                    Err(ConicPlaneMeet::Parallel { offset }) => {
+                        return Ok(Some(SpanPlaneMeet::Parallel { offset }));
+                    }
+                    Err(ConicPlaneMeet::Miss) => return Ok(Some(SpanPlaneMeet::Roots(Vec::new()))),
+                    Err(ConicPlaneMeet::Roots(Err(fault))) => return Err(fault),
+                    Err(ConicPlaneMeet::Roots(Ok(_))) => {
+                        unreachable!("the carrier half answers no roots")
+                    }
+                };
+            let (s_u, s_v) = conic.semi_axes();
+            let meter = geom_core::InfSpeed::new(s_u.min(s_v));
+            let tau = T::tau();
+            let mid = geom::mid_param(t0, t1);
+            let mut roots = Vec::with_capacity(2);
+            for c in candidates.into_iter().flatten() {
+                let t = Period::new(tau).near(c, mid);
+                let at_end = match ends {
+                    SpanEnds::Endless => Some(false),
+                    SpanEnds::Ended => span_place(t, (t0, t1), meter, band)
+                        .map_err(ConicRootFault::CrossingInterior)?,
+                };
+                if let Some(at_end) = at_end {
+                    roots.push(SpanRoot { t, at_end });
+                }
+            }
+            if graze {
+                return Ok(Some(if roots.is_empty() {
+                    SpanPlaneMeet::Roots(roots)
+                } else {
+                    SpanPlaneMeet::Touch
+                }));
+            }
+            roots
+        }
+        (None, geom::Curve3::Line(line)) => {
+            let slope = line.dir.dot(plane_normal);
+            let d0 = (line.origin - plane_origin).dot(plane_normal);
+            match decide(
+                "plane_crossing_line_parallel",
+                Margin::of(slope * (t1 - t0)),
+                band,
+            ) {
+                Ok(Sign::Zero) => {
+                    let offset = d0 + slope * geom::mid_param(t0, t1);
+                    return Ok(Some(SpanPlaneMeet::Parallel { offset }));
+                }
+                Ok(Sign::Positive | Sign::Negative) => {}
+                Err(diag) => return Err(ConicRootFault::PlaneParallel(diag)),
+            }
+            let t = (T::zero() - d0) / slope;
+            let meter = geom_core::InfSpeed::new(line.dir.norm());
+            match span_place(t, (t0, t1), meter, band).map_err(ConicRootFault::CrossingInterior)? {
+                Some(at_end) => vec![SpanRoot { t, at_end }],
+                None => Vec::new(),
+            }
+        }
+        (None, _) => return Ok(None),
+    };
+    Ok(Some(SpanPlaneMeet::Roots(found)))
+}
+
+/// **A parameter against a span's ends**, on the lane's own row
+/// (`plane_crossing_root_in_span`, the two margins `(t − t₀)·meter` and
+/// `(t₁ − t)·meter`): `Some(false)` inside, `Some(true)` within the band
+/// of an end, `None` past one.
+///
+/// # Errors
+///
+/// A margin in band.
+pub fn span_place<T: Decide>(
+    t: T,
+    (t0, t1): (T, T),
+    meter: geom_core::InfSpeed<T>,
+    band: Band,
+) -> Result<Option<bool>, Indeterminate> {
+    let mut at_end = false;
+    for margin in [
+        Margin::metered(t - t0, meter),
+        Margin::metered(t1 - t, meter),
+    ] {
+        match decide("plane_crossing_root_in_span", margin, band)? {
+            Sign::Positive => {}
+            Sign::Zero => at_end = true,
+            Sign::Negative => return Ok(None),
+        }
+    }
+    Ok(Some(at_end))
 }
 
 #[cfg(test)]
@@ -643,5 +812,101 @@ mod tests {
                 centred.hi()
             );
         }
+    }
+
+    /// **The span reading reports a root at an end, where the lane drops
+    /// it.** The upper unit semicircle against the plane `y = 0` meets it
+    /// at both ends: the lane hands both to its callers' vertex sweep (no
+    /// roots); [`super::span_plane_meet`] reports each `at_end`. Read
+    /// endless, the whole turn's two roots are interior, the one at the
+    /// turn's start included.
+    #[test]
+    fn a_span_reading_reports_its_end_roots_and_an_endless_turn_has_none() {
+        use super::{SpanEnds, SpanPlaneMeet, span_plane_meet};
+        use core::f64::consts::PI;
+        let c = circle();
+        let (o, n) = plane_y(0.0);
+        assert!(
+            roots_of(plane_crossing_lane(&c, 0.0, PI, o, n, band()))
+                .unwrap()
+                .is_empty(),
+            "the lane drops roots at the span's ends"
+        );
+        let Ok(Some(SpanPlaneMeet::Roots(ended))) =
+            span_plane_meet(&c, (0.0, PI), SpanEnds::Ended, o, n, band())
+        else {
+            panic!("ended: expected roots")
+        };
+        assert_eq!(ended.len(), 2, "ended: both end roots reported: {ended:?}");
+        assert!(ended.iter().all(|r| r.at_end), "ended: each at an end: {ended:?}");
+        let Ok(Some(SpanPlaneMeet::Roots(endless))) =
+            span_plane_meet(&c, (0.0, 2.0 * PI), SpanEnds::Endless, o, n, band())
+        else {
+            panic!("endless: expected roots")
+        };
+        let mut at: Vec<f64> = endless.iter().map(|r| r.t).collect();
+        at.sort_by(f64::total_cmp);
+        assert!(
+            endless.iter().all(|r| !r.at_end)
+                && at.len() == 2
+                && ((at[0] - PI).abs() < 1e-12)
+                && (at[1].abs() < 1e-12 || (at[1] - 2.0 * PI).abs() < 1e-12),
+            "endless: the turn's roots at 0 and π, none at an end: {endless:?}"
+        );
+        let (o, n) = plane_y(1.0);
+        assert!(
+            matches!(
+                span_plane_meet(&c, (0.0, PI), SpanEnds::Ended, o, n, band()),
+                Ok(Some(SpanPlaneMeet::Touch))
+            ),
+            "a graze inside the span touches"
+        );
+    }
+
+    /// **A line's root is read in closed form**: the unit line along `x`
+    /// over `[0, 1]` against `x = 0.3` crosses inside, against `x = 1`
+    /// at its end, against `x = 2` nowhere; a plane containing its
+    /// direction is parallel, at the line's offset.
+    #[test]
+    fn a_line_crosses_a_plane_at_its_affine_root() {
+        use super::{SpanEnds, SpanPlaneMeet, span_plane_meet};
+        let line = Curve3::line(Point3::origin(), Vec3::unit_x());
+        let at = |x: f64| {
+            span_plane_meet(
+                &line,
+                (0.0, 1.0),
+                SpanEnds::Ended,
+                Point3::new(x, 0.0, 0.0),
+                Vec3::unit_x(),
+                band(),
+            )
+        };
+        let Ok(Some(SpanPlaneMeet::Roots(inside))) = at(0.3) else {
+            panic!("inside: expected roots")
+        };
+        assert!(
+            inside.len() == 1 && (inside[0].t - 0.3).abs() < 1e-15 && !inside[0].at_end,
+            "inside: {inside:?}"
+        );
+        let Ok(Some(SpanPlaneMeet::Roots(end))) = at(1.0) else {
+            panic!("end: expected roots")
+        };
+        assert!(end.len() == 1 && end[0].at_end, "at the end: {end:?}");
+        let Ok(Some(SpanPlaneMeet::Roots(past))) = at(2.0) else {
+            panic!("past: expected roots")
+        };
+        assert!(past.is_empty(), "past the span: {past:?}");
+        let parallel = span_plane_meet(
+            &line,
+            (0.0, 1.0),
+            SpanEnds::Ended,
+            Point3::new(0.0, 0.25, 0.0),
+            Vec3::unit_y(),
+            band(),
+        );
+        assert!(
+            matches!(parallel, Ok(Some(SpanPlaneMeet::Parallel { offset })) if (offset + 0.25).abs() < 1e-15),
+            "parallel at its offset: {parallel:?}"
+        );
     }
 }
