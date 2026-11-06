@@ -69,12 +69,12 @@ use geom_core::{Band, Decide, Margin, Point3, Sign, UnitVec3, Vec3};
 
 use crate::body::Body;
 use crate::boolean::boxes::{edge_end_point, sweep_pad};
-use geom::cover::BoxAxes;
 use crate::boolean::separating::{Item, apart, planar_axis, world_axes};
 use crate::boolean::{CarrierRelation, CurvedPlacement, FaceContainment, face_placement};
 use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey};
 use crate::live::{BoundaryMember, proven};
 use crate::validate::decide;
+use geom::cover::BoxAxes;
 
 /// K name: a vertex's offset from the other face's plane, read by the
 /// point placement before it places the vertex.

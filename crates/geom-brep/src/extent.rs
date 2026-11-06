@@ -1026,8 +1026,11 @@ impl<T: SpanLocate> Reach<T> {
     ) -> Lever<T> {
         Lever::of_consumed_extent(match self {
             Self::Face { at, across, .. } => {
-                let off = *at - hinge;
-                let off_perp = off - a * off.dot(a);
+                let off_perp = Line {
+                    origin: hinge,
+                    dir: a,
+                }
+                .offset(*at);
                 let off_axis = off_perp.norm();
                 let m = n - a * n.dot(a);
                 let len = m.norm().max(T::from_f64(f64::MIN_POSITIVE));
@@ -1188,11 +1191,7 @@ impl<T: SpanLocate> Reach<T> {
     /// face shorter than the radius would be levered past its own
     /// measure, and a tilt the length leaves in the band served.
     #[must_use]
-    pub fn lever_between(
-        &self,
-        line1: Line<T>,
-        line2: Line<T>,
-    ) -> Lever<T> {
+    pub fn lever_between(&self, line1: Line<T>, line2: Line<T>) -> Lever<T> {
         self.foot_lever(line1).1.min(self.foot_lever(line2).1)
     }
 

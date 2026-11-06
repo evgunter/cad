@@ -1512,7 +1512,9 @@ fn distance<T: Decide>(geo: &Geo<T>, u: Point3<T>, cell: EntityId) -> Option<Mar
                 out(u.z, lo.z, hi.z),
             );
             Some(Margin::of(
-                to_box.norm().max((u - f.origin).dot(f.normal).abs()),
+                to_box
+                    .norm()
+                    .max(geom::plane_offset(f.origin, f.normal, u).abs()),
             ))
         }
         _ => None,
@@ -1600,7 +1602,7 @@ fn pair_holds_point<T: Decide>(
     errors: &mut Vec<ValidationError>,
 ) -> bool {
     for f in [fa, fb] {
-        let residual = (q - f.origin).dot(f.normal);
+        let residual = geom::plane_offset(f.origin, f.normal, q);
         if signed_is_zero(
             "pm_census_confined_carrier",
             Margin::of(residual),
@@ -1649,7 +1651,7 @@ fn pair_holds_edges<T: Decide>(
     for f in [fa, fb] {
         for e in [ea, eb] {
             for p in [e.p0, e.p1] {
-                let residual = (p - f.origin).dot(f.normal);
+                let residual = geom::plane_offset(f.origin, f.normal, p);
                 if signed_is_zero(
                     "pm_census_confined_carrier",
                     Margin::of(residual),
@@ -3299,7 +3301,7 @@ fn pair_vertex_face<T: Decide>(
                     });
                 }
             };
-            let residual = (q - f.origin).dot(f.normal);
+            let residual = geom::plane_offset(f.origin, f.normal, q);
             let mut refused = Vec::new();
             match signed_zero_reading(
                 "pm_census_vf_residual",
@@ -3567,7 +3569,7 @@ fn pair_edge_face<T: Decide>(
     {
         return;
     }
-    let r = [e.p0, e.p1].map(|p| (p - f.origin).dot(f.normal));
+    let r = [e.p0, e.p1].map(|p| geom::plane_offset(f.origin, f.normal, p));
     let read = r
         .map(|r| geom_core::k_stats::decide_reported("pm_census_ef_residual", Margin::of(r), band));
     let pair = EfPair {
@@ -7076,9 +7078,12 @@ pub(crate) fn face_reach_in<T: Decide>(
             // exclusion: the face's pairs refuse and its solid is never
             // the container, where dropping it would under-claim.
             geom::NetState::Placeholder | geom::NetState::Poisoned => None,
-            geom::NetState::Described => {
-                point_hull(patch.control().iter().map(|p| crate::boolean::boxes::point_in(frame, *p)))
-            }
+            geom::NetState::Described => point_hull(
+                patch
+                    .control()
+                    .iter()
+                    .map(|p| crate::boolean::boxes::point_in(frame, *p)),
+            ),
         },
         crate::boolean::boxes::FaceBoxRule::SphereWindow { .. } => {
             Some(crate::boolean::boxes::sphere_reach(body, f, band, frame))
@@ -7113,7 +7118,10 @@ pub(crate) fn face_reach_in<T: Decide>(
                         &c,
                         (
                             &SpanBox::vector(crate::boolean::boxes::vector_in(frame, u_ref)),
-                            &SpanBox::vector(crate::boolean::boxes::vector_in(frame, axis.cross(u_ref))),
+                            &SpanBox::vector(crate::boolean::boxes::vector_in(
+                                frame,
+                                axis.cross(u_ref),
+                            )),
                             &ax,
                         ),
                         (Span::exact(major_radius), Span::exact(minor_radius)),
@@ -7135,7 +7143,9 @@ pub(crate) fn face_reach_in<T: Decide>(
             // necessarily at a boundary VERTEX.
             let h = boundary_axial(body, face, origin, axis.get())?;
             let slab = span_pts(crate::boolean::boxes::slab_extent(
-                &crate::boolean::boxes::SpanBox::point(crate::boolean::boxes::point_in(frame, origin)),
+                &crate::boolean::boxes::SpanBox::point(crate::boolean::boxes::point_in(
+                    frame, origin,
+                )),
                 &crate::boolean::boxes::unit_in(frame, axis),
                 h,
                 radius,
@@ -7167,8 +7177,11 @@ pub(crate) fn face_reach_in<T: Decide>(
             half_angle,
         } => {
             let h = boundary_axial(body, face, apex, axis)?;
-            let apex = crate::boolean::boxes::SpanBox::point(crate::boolean::boxes::point_in(frame, apex));
-            let axis = crate::boolean::boxes::SpanBox::vector(crate::boolean::boxes::vector_in(frame, axis));
+            let apex =
+                crate::boolean::boxes::SpanBox::point(crate::boolean::boxes::point_in(frame, apex));
+            let axis = crate::boolean::boxes::SpanBox::vector(crate::boolean::boxes::vector_in(
+                frame, axis,
+            ));
             Some(span_pts(crate::boolean::boxes::cone_frustum_extent(
                 &apex,
                 &axis,
@@ -7350,9 +7363,7 @@ fn edge_reach_of<T: Decide>(
     frame: &geom::cover::BoxAxes<T>,
 ) -> Option<(Point3<T>, Point3<T>)> {
     use crate::boolean::boxes::edge_cover_linked;
-    edge_cover_linked(body, ek, e)
-        .ok()
-        .map(|c| c.box_in(frame))
+    edge_cover_linked(body, ek, e).ok().map(|c| c.box_in(frame))
 }
 
 /// A [`crate::boolean::boxes::SpanBox`] as this lane's `(lo, hi)`
@@ -10429,7 +10440,7 @@ fn confirm_edge_face<T: Decide>(
         for p in [e.p0, e.p1] {
             match signed_is_zero(
                 "pm_census_confirm_ef",
-                Margin::of((p - f.origin).dot(f.normal)),
+                Margin::of(geom::plane_offset(f.origin, f.normal, p)),
                 band,
                 errors,
             ) {
@@ -18203,10 +18214,10 @@ mod tests {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod torn_reach_rows {
     use crate::body::Body;
-    use geom::cover::BoxAxes;
     use crate::entity::{EntityId, FaceKey, GeomRef, HalfEdgeKey, LoopBoundary};
     use crate::live::OPERATORS_KEEP_LINKS;
     use crate::review_d18::{ROW_FOUR, assert_torn_op_panics};
+    use geom::cover::BoxAxes;
     use geom_core::{Band, Tol};
 
     fn band() -> Band {

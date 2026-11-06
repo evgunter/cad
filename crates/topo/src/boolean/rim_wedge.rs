@@ -1582,9 +1582,10 @@ mod boundary_midpoint_rows {
         let p = Point3::new(theta.cos(), theta.sin(), 0.0);
         let n = Vec3::new(theta.cos(), theta.sin(), 0.0);
         let t = Vec3::new(theta.sin(), -theta.cos(), 0.0);
-        (Locus::Line(geom::Line { origin: p, dir: t }), move |u, v| {
-            p + t * u + n * v
-        })
+        (
+            Locus::Line(geom::Line { origin: p, dir: t }),
+            move |u, v| p + t * u + n * v,
+        )
     }
 
     /// The tangent line's poses, as angles on the unit circle.

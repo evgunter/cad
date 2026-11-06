@@ -247,7 +247,7 @@ fn try_plane(patch: &NurbsSurface<f64>, eps_in: f64) -> Option<(Surface<f64>, f6
     // construction (a bulge needs a bulged control point).
     let mut residual = 0.0f64;
     for p in control {
-        residual = residual.max((*p - origin).dot(normal).abs());
+        residual = residual.max(geom::plane_offset(origin, normal, *p).abs());
     }
     (residual <= eps_in).then_some((plane, residual))
 }

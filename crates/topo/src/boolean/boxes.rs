@@ -1454,7 +1454,11 @@ pub(crate) fn sphere_reach<T: Decide>(
         let pick = |v: Vec3<T>| [v.x, v.y, v.z][k];
         let ax = pick(a);
         let (p, q, u) = match az {
-            Some((u, u_ref, v_ref)) => (pick(vector_in(frame, u_ref)), pick(vector_in(frame, v_ref)), u),
+            Some((u, u_ref, v_ref)) => (
+                pick(vector_in(frame, u_ref)),
+                pick(vector_in(frame, v_ref)),
+                u,
+            ),
             // The whole turn: any frame of the axis's normal plane, of
             // which the coordinate's share is `√(1 − a²)`, read as the
             // axis's other two components' norm. `1 − a²` cancels as

@@ -353,7 +353,8 @@ impl<T: Decide> CylinderCylinderPose<T> {
         let cross = a1.cross(a2);
         let sin = cross.norm();
         let normal = cross / sin;
-        let w = reach.foot_on(crate::intersect::axis_line(l2)) - reach.foot_on(crate::intersect::axis_line(l1));
+        let w = reach.foot_on(crate::intersect::axis_line(l2))
+            - reach.foot_on(crate::intersect::axis_line(l1));
         let gap = w.dot(normal);
         // The common perpendicular's foot on the first axis, from the
         // region centre's foot.
@@ -748,8 +749,7 @@ fn bisector_nodes<T: Decide>(
                 .iter()
                 .zip(pose.radii)
                 .all(|(&(origin, axis), r)| {
-                    let w = point - origin;
-                    ((w - axis * w.dot(axis)) - n_hat * r.abs())
+                    (geom::Line { origin, dir: axis }.offset(point) - n_hat * r.abs())
                         .norm()
                         .point_value()
                         .is_none_or(|d| d <= band.escalate())

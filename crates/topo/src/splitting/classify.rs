@@ -12,11 +12,11 @@ use slotmap::SecondaryMap;
 
 use super::{PlaneSide, SplitPlane, SplitReduceError};
 use crate::body::Body;
-use geom::cover::BoxAxes;
 use crate::entity::{EdgeKey, VertexKey};
 use crate::null::CurveGeom;
 use crate::validate::decide;
 use crate::vertex_section::VertexRefusal;
+use geom::cover::BoxAxes;
 
 /// **The carrier gate, scoped to what the plane can reach** (C12.1:
 /// the gate retires per arm, never wholesale).
@@ -151,7 +151,7 @@ fn reach_clears<T: Decide>(
     // The frame turns about the world origin, so a reach's first
     // coordinate is `n·p`, and the world origin's own offset from the
     // plane turns it into `n·(p − q)`.
-    let origin = geom_brep::sector_shape::plane_offset(
+    let origin = geom::plane_offset(
         plane.origin,
         plane.normal.get(),
         Point3::new(T::zero(), T::zero(), T::zero()),
@@ -205,8 +205,7 @@ pub(super) fn classify_vertices_margined<T: Decide>(
     let mut offsets = SecondaryMap::new();
     let mut zero = Vec::new();
     for (vertex_key, p) in body.vertex_points() {
-        let offset =
-            geom_brep::sector_shape::plane_offset_rounded(plane.origin, plane.normal.get(), p);
+        let offset = geom::plane_offset_rounded(plane.origin, plane.normal.get(), p);
         let decided = crate::validate::decide_reported(
             "split_vertex_side",
             geom_core::Margin::of(offset.value),
@@ -384,7 +383,7 @@ pub(super) fn insert_crossings<T: Decide + crate::props::AtRestPolicy>(
                 }
                 let dist = |vk: VertexKey| {
                     let p = body.resolve_vertex_point(vk, crate::live::Proven);
-                    (p - plane.origin).dot(plane.normal.get())
+                    geom::plane_offset(plane.origin, plane.normal.get(), p)
                 };
                 let (d1, d2) = (dist(u), dist(v));
                 vec![t0 + (t1 - t0) * (d1 / (d1 - d2))]
@@ -553,8 +552,8 @@ mod torn_rows {
     /// would answer the census's box.
     #[test]
     fn the_gate_panics_on_a_torn_face_of_an_edge_and_a_torn_surface() {
-        use geom::cover::BoxAxes;
         use crate::live::OPERATORS_KEEP_LINKS;
+        use geom::cover::BoxAxes;
         let tol = Tol::witness();
         let band = Band::linear(tol).unwrap();
         let fresh = || crate::test_support_fixtures::geometric_cube::<f64>(tol).body;

@@ -33,11 +33,11 @@
 
 use geom_core::{Band, Decide, Margin, Point3, Real, Sign, UnitVec3, Vec3};
 
-use geom::cover::BoxAxes;
 use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey};
 use crate::live::BoundaryMember;
 use crate::validate::decide;
+use geom::cover::BoxAxes;
 
 /// K name: the offset between two items' anchors (metres), before it
 /// is read as a unit axis.

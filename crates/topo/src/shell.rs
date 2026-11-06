@@ -4455,7 +4455,7 @@ fn wall_clearance<T: Decide>(
             // offsets close that separation by `t·(1 − n_a·n_b) ≤ 2t`, so
             // a wall of at least `2t` everywhere keeps them apart. Read in either window, so a tilted pair the cosine
             // admits is not measured as parallel.
-            let gap = (b.origin - a.origin).dot(a.normal).abs();
+            let gap = geom::plane_offset(a.origin, a.normal, b.origin).abs();
             match decide(
                 "shell_wall_clearance",
                 Margin::of(gap - drift - two_t),

@@ -166,7 +166,7 @@ pub fn cone_offset<T: Real>(rho: T, s: T, sin_a: T, cos_a: T) -> T {
 pub fn implicit_residual<T: Real>(s: &Surface<T>, p: Point3<T>) -> T {
     let two = T::from_f64(2.0);
     match *s {
-        Surface::Plane { origin, normal, .. } => (p - origin).dot(normal),
+        Surface::Plane { origin, normal, .. } => geom::plane_offset(origin, normal, p),
         Surface::Sphere { center, radius, .. } => {
             let d2 = (p - center).norm_squared();
             (d2 - radius.powi(2)) / (two * radius)

@@ -3410,7 +3410,11 @@ fn between_edge_is_section<T: Decide>(
             })
         }
         geom::Curve3::Circle(..) | geom::Curve3::Ellipse(..) => {
-            let margin = Margin::of((curve.mid_point() - ctx.origin).dot(ctx.normal.get()));
+            let margin = Margin::of(geom::plane_offset(
+                ctx.origin,
+                ctx.normal.get(),
+                curve.mid_point(),
+            ));
             match decide("split_conic_inplane_mid", margin, band) {
                 Ok(Sign::Zero) => Ok(Some(true)),
                 Ok(Sign::Positive | Sign::Negative) => Ok(Some(false)),
