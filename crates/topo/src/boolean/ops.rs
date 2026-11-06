@@ -2895,7 +2895,7 @@ pub(crate) fn boundary_edges<T: Real>(
     let mut seen: BTreeSet<crate::entity::EdgeKey> = BTreeSet::new();
     let mut edges = Vec::new();
     for f in faces {
-        let Some(face) = body.passed_face(f) else {
+        let Some(face) = body.face(f) else {
             continue;
         };
         for member in face.boundary() {

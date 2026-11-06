@@ -468,7 +468,7 @@ fn lune_loops(
             continue;
         }
         let mut on_face = Vec::new();
-        for &lp in std::iter::once(&face.outer).chain(&face.rings) {
+        for (lp, _, _) in body.face(fk).expect("a live face").loops() {
             let topo::LoopBoundary::Cycle { first } = body.get_loop(lp).unwrap().boundary else {
                 on_face.push((lp, None));
                 continue;

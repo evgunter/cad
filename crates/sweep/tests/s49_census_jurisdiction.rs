@@ -219,9 +219,8 @@ fn a_cap_resting_on_a_line_bounded_face_is_examined_too() {
 
 /// The boundary vertices of `f`, outer loop then rings, in walk order.
 fn face_vertices(body: &Body<f64>, f: FaceKey) -> Vec<topo::VertexKey> {
-    let data = body.get_face(f).unwrap();
     let mut out = Vec::new();
-    for &lk in core::iter::once(&data.outer).chain(&data.rings) {
+    for (lk, _, _) in body.face(f).unwrap().loops() {
         let Some(l) = body.get_loop(lk) else { continue };
         let topo::LoopBoundary::Cycle { first } = l.boundary else {
             // A lone-vertex loop has no cycle to walk. Extruded bodies

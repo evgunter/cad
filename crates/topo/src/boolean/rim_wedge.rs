@@ -966,7 +966,7 @@ pub(crate) fn face_boundary_arcs<T: Real>(
     face: FaceKey,
 ) -> Vec<(bool, &geom_brep::EdgeCurve<T>)> {
     let mut out = Vec::new();
-    let Some(f) = body.passed_face(face) else {
+    let Some(f) = body.face(face) else {
         return out;
     };
     for member in f.boundary() {

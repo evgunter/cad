@@ -571,11 +571,11 @@ fn loop_carriers(body: &Body<f64>, l: topo::LoopKey) -> Vec<geom::Curve3<f64>> {
 /// names both and a face can refuse once per loop.
 fn planar_arm_reaches(body: &Body<f64>) -> Vec<(FaceKey, topo::LoopKey)> {
     let mut out = Vec::new();
-    for (fk, f) in body.faces() {
+    for (fk, _) in body.faces() {
         if !matches!(body.face_surface(fk), Some(Surface::Plane { .. })) {
             continue;
         }
-        for l in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
+        for (l, _, _) in body.face(fk).expect("a live face").loops() {
             let carriers = loop_carriers(body, l);
             if !carriers.is_empty()
                 && carriers.iter().all(|c| {

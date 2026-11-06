@@ -429,8 +429,7 @@ pub fn walk_order(body: &Body<f64>) -> (Vec<topo::FaceKey>, Vec<topo::EdgeKey>) 
             let shell = body.get_shell(shell_key).expect("shell resolves");
             for &face_key in &shell.faces {
                 faces.push(face_key);
-                let face = body.get_face(face_key).expect("face resolves");
-                for &loop_key in std::iter::once(&face.outer).chain(face.rings.iter()) {
+                for (loop_key, _, _) in body.face(face_key).expect("face resolves").loops() {
                     let loop_ = body.get_loop(loop_key).expect("loop resolves");
                     let topo::LoopBoundary::Cycle { first } = loop_.boundary else {
                         panic!("a finished body has no empty loop");

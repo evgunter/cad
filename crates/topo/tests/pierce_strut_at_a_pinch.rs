@@ -103,9 +103,12 @@ fn shape(body: &Body<f64>) -> (Vec<Vec<Point>>, Vec<[Point; 2]>) {
     };
     let mut faces: Vec<Vec<Point>> = body
         .faces()
-        .map(|(_, f)| {
-            let mut ps: Vec<Point> = core::iter::once(f.outer)
-                .chain(f.rings.iter().copied())
+        .map(|(fk, _)| {
+            let mut ps: Vec<Point> = body
+                .face(fk)
+                .expect("a live face")
+                .loops()
+                .map(|(lk, _, _)| lk)
                 .flat_map(|l| {
                     let first = match body.get_loop(l).unwrap().boundary {
                         topo::LoopBoundary::Cycle { first } => first,

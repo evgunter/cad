@@ -585,8 +585,11 @@ fn a_spiric_bounded_face_answers_off_its_spiric_edge() {
 
     // The face's boundary, sampled from each edge's carrier, in the
     // plane's (across, up) coordinates.
-    let loops: Vec<_> = core::iter::once(data.outer)
-        .chain(data.rings.iter().copied())
+    let loops: Vec<_> = cavity
+        .face(spiric_face)
+        .expect("face")
+        .loops()
+        .map(|(lk, _, _)| lk)
         .collect();
     let mut segments = Vec::new();
     let mut spiric = None;

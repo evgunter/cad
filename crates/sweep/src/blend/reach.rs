@@ -900,20 +900,21 @@ fn screened<T: Decide + Bounds>(
     band: Band,
 ) -> Result<bool, BlendError> {
     let f = body
-        .get_face(face)
+        .face(face)
         .ok_or_else(|| unresolved(EntityId::Face(face), "a support the band replaces"))?;
     let mut vacant = true;
-    let kept = f.rings.iter().copied().filter(|r| !taken.contains(r));
-    for lp in core::iter::once(f.outer).chain(kept) {
-        let vertices: Vec<VertexKey> = match body.get_loop(lp).map(|l| l.boundary) {
-            Some(topo::LoopBoundary::Cycle { first }) => body
+    let kept = f
+        .loops()
+        .filter(|(lp, _, role)| role.is_outer() || !taken.contains(lp));
+    for (lp, l, _) in kept {
+        let vertices: Vec<VertexKey> = match l.boundary {
+            topo::LoopBoundary::Cycle { first } => body
                 .loop_cycle(first)
                 .ok_or_else(|| unwalked(EntityId::Loop(lp), "a support's cycle"))?
                 .into_iter()
                 .filter_map(|he| body.get_half_edge(he).map(|h| h.start))
                 .collect(),
-            Some(topo::LoopBoundary::Empty { vertex }) => vec![vertex],
-            None => return Err(unresolved(EntityId::Loop(lp), "a support's loop")),
+            topo::LoopBoundary::Empty { vertex } => vec![vertex],
         };
         for v in vertices {
             if ends.binary_search(&v).is_ok() {
@@ -1730,7 +1731,7 @@ fn sheet_clip<T: Decide + Bounds>(
         _ => return None,
     };
     let pad = T::from_f64(band.escalate());
-    let f = body.get_face(face)?;
+    let f = body.face(face)?;
     let mut range: Option<[T; 4]> = None;
     let mut grow = |b: [T; 4]| {
         range = Some(range.map_or(b, |r: [T; 4]| {
@@ -1749,8 +1750,8 @@ fn sheet_clip<T: Decide + Bounds>(
         Kind::Sphere { zc, .. } => zc,
         _ => T::zero(),
     };
-    for lp in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
-        let first = match body.get_loop(lp)?.boundary {
+    for (_, l, _) in f.loops() {
+        let first = match l.boundary {
             topo::LoopBoundary::Cycle { first } => first,
             topo::LoopBoundary::Empty { vertex } => {
                 let (r, z) = sheet_of(o, a, super::surgery::point_of(body, vertex)?);
@@ -2002,7 +2003,7 @@ fn boundary_reading<T: Decide>(
     core: &[Bound<T>],
 ) -> Result<Option<(T, T)>, BlendError> {
     let f = body
-        .get_face(face)
+        .face(face)
         .ok_or_else(|| unresolved(EntityId::Face(face), "a face the band reach reads"))?;
     let most = |x: Point3<T>, g: fn(&Bound<T>, Point3<T>) -> T| {
         core.iter()
@@ -2015,10 +2016,7 @@ fn boundary_reading<T: Decide>(
         let (inner, outer) = (most(x, Bound::at_strict), most(x, Bound::at));
         reading = Some(reading.map_or((inner, outer), |(i, o)| (i.min(inner), o.max(outer))));
     };
-    for lp in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
-        let l = body
-            .get_loop(lp)
-            .ok_or_else(|| unresolved(EntityId::Loop(lp), "a face's loop"))?;
+    for (lp, l, _) in f.loops() {
         let first = match l.boundary {
             topo::LoopBoundary::Cycle { first } => first,
             topo::LoopBoundary::Empty { vertex } => {
@@ -2274,11 +2272,11 @@ fn prism_inside<T: Decide>(
         return Ok(None);
     };
     let f = body
-        .get_face(face)
+        .face(face)
         .ok_or_else(|| unresolved(EntityId::Face(face), "a face the band reach reads"))?;
     // Every edge but a line first: its ends certify the lines.
     let mut lines = Vec::new();
-    for lp in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
+    for (lp, _, _) in f.loops() {
         let Some(walk) = loop_walk(body, lp) else {
             return Ok(None);
         };
@@ -3320,11 +3318,10 @@ mod tests {
     /// Ordered samples of each boundary loop of `face`.
     #[allow(clippy::expect_used)]
     fn boundary_samples(body: &topo::Body<f64>, face: topo::FaceKey) -> Vec<Vec<Point3<f64>>> {
-        let f = body.get_face(face).expect("the face");
+        let f = body.face(face).expect("the face");
         let mut out = Vec::new();
-        for lp in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
-            let topo::LoopBoundary::Cycle { first } = body.get_loop(lp).expect("its loop").boundary
-            else {
+        for (_, l, _) in f.loops() {
+            let topo::LoopBoundary::Cycle { first } = l.boundary else {
                 continue;
             };
             let mut pts = Vec::new();

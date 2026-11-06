@@ -72,8 +72,11 @@ fn faces(body: &Body<f64>) -> Vec<(Vec<Vec<P>>, P)> {
             };
             let s = if f.sense { 1.0 } else { -1.0 };
             let n = [s * normal.x, s * normal.y, s * normal.z];
-            let loops = core::iter::once(f.outer)
-                .chain(f.rings.iter().copied())
+            let loops = body
+                .face(fk)
+                .expect("a live face")
+                .loops()
+                .map(|(lk, _, _)| lk)
                 .enumerate()
                 .map(|(k, l)| {
                     let LoopBoundary::Cycle { first } = body.get_loop(l).unwrap().boundary else {

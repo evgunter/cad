@@ -249,12 +249,12 @@ pub(crate) fn tessellate_planar(
     shared: &[Point3<f64>],
 ) -> Result<Patch, TessellateError> {
     let face = body
-        .get_face(fk)
+        .face(fk)
         .ok_or(TessellateError::MissingEntity { what: "face" })?;
 
     // Loop id cycles (outer first, then rings in face order).
-    let mut loops: Vec<Vec<u32>> = Vec::with_capacity(1 + face.rings.len());
-    for lk in core::iter::once(face.outer).chain(face.rings.iter().copied()) {
+    let mut loops: Vec<Vec<u32>> = Vec::with_capacity(1 + face.record().rings.len());
+    for (lk, _, _) in face.loops() {
         loops.push(loop_ids(body, fk, lk, chords)?);
     }
 

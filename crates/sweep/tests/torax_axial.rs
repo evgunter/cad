@@ -145,9 +145,8 @@ fn hollowed(what: &str, body: &Body<f64>) -> Body<f64> {
 
 /// Every vertex on `face`'s own boundary.
 fn face_vertices(body: &Body<f64>, face: FaceKey) -> Vec<VertexKey> {
-    let data = body.get_face(face).expect("face");
     let mut out = Vec::new();
-    for lk in core::iter::once(data.outer).chain(data.rings.iter().copied()) {
+    for (lk, _, _) in body.face(face).expect("face").loops() {
         let LoopBoundary::Cycle { first } = body.get_loop(lk).expect("loop").boundary else {
             continue;
         };

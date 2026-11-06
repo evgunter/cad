@@ -2959,13 +2959,10 @@ fn ring_clearance_pass<T: Decide + Bounds>(
     } in slivers
     {
         let fd = body
-            .get_face(s.cap)
+            .face(s.cap)
             .ok_or_else(|| unresolved(EntityId::Face(s.cap), "a cut-off's end face"))?;
         let decision = BlendDecision::RingClearance;
-        for lp in core::iter::once(fd.outer).chain(fd.rings.iter().copied()) {
-            let lone = body
-                .get_loop(lp)
-                .ok_or_else(|| unresolved(EntityId::Loop(lp), "a cut-off end face's cycle"))?;
+        for (lp, lone, _) in fd.loops() {
             if let topo::LoopBoundary::Empty { .. } = lone.boundary {
                 return Err(scaffolding(
                     EntityId::Loop(lp),
@@ -4480,10 +4477,10 @@ pub(super) fn chord_site<T: Decide>(
     fwd: usize,
 ) -> Result<(HalfEdgeKey, HalfEdgeKey, VertexKey, VertexKey), BlendError> {
     let fd = body
-        .get_face(face)
+        .face(face)
         .ok_or_else(|| unresolved(EntityId::Face(face), "a face whose cycle a chord spans"))?;
     let mut carrying = Vec::with_capacity(1);
-    for &lp in core::iter::once(&fd.outer).chain(fd.rings.iter()) {
+    for (lp, _, _) in fd.loops() {
         let walk = loop_walk(body, lp).ok_or_else(|| {
             unwalked(
                 EntityId::Loop(lp),

@@ -338,9 +338,8 @@ fn recharted(
 
 /// `(rows stored, half-edges with no row)` over every loop of `face`.
 fn rows_of(body: &Body<f64>, face: FaceKey) -> (usize, usize) {
-    let f = body.get_face(face).unwrap();
     let (mut stored, mut rowless) = (0, 0);
-    for lk in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
+    for (lk, _, _) in body.face(face).unwrap().loops() {
         let topo::LoopBoundary::Cycle { first } = body.get_loop(lk).unwrap().boundary else {
             continue;
         };

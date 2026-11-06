@@ -3268,7 +3268,7 @@ impl RegionMemo {
         }
         let region = match w.region {
             Region::Whole => CellRegion::Inside,
-            Region::Trimmed => match w.body.passed_face(w.face).map(|f| f.surface()) {
+            Region::Trimmed => match w.body.face(w.face).map(|f| f.surface()) {
                 None => CellRegion::Undecided,
                 Some(stored) => {
                     // The carrier is the window's own lift, which
@@ -3386,7 +3386,7 @@ fn window_of<'b, T: Decide + CertifiedBounds>(
             side,
         })
     };
-    let Some(f) = body.passed_face(face) else {
+    let Some(f) = body.face(face) else {
         return unsupported("an unreadable face");
     };
     let stored = f.surface();
@@ -3741,7 +3741,7 @@ fn boundary_of<T: Decide + CertifiedBounds>(
     face: FaceKey,
 ) -> Option<(Aabb, Boundary)> {
     certified_lift(|lift: Lift<'_, T>| -> Option<(Aabb, Boundary)> {
-        let f = body.passed_face(face)?;
+        let f = body.face(face)?;
         let point = |p: &Point3<T>| p.map(|x| lift.of(x));
         let mut pts: Vec<Point3<Interval>> = Vec::new();
         let mut out = Boundary {

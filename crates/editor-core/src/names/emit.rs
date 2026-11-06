@@ -1634,17 +1634,13 @@ pub(crate) fn vertex_point<T: geom_core::Real>(
 /// # Panics
 ///
 /// For a dead face ([`LIVE_ARGUMENT`]: `f` is the caller's key), or
-/// where [`loop_half_edges`] panics on one of its loops ([`TIER1`]).
+/// where one of its loops is torn ([`TIER1`], [`topo::FaceView::half_edges`]).
 #[track_caller]
 pub(crate) fn face_half_edges<T: geom_core::Real>(body: &Body<T>, f: FaceKey) -> Vec<HalfEdgeKey> {
-    let Some(face) = body.get_face(f) else {
+    let Some(face) = body.face(f) else {
         unreachable!("face walk: dangling face {f:?}; {LIVE_ARGUMENT}")
     };
-    let mut out = Vec::new();
-    for l in core::iter::once(face.outer).chain(face.rings.iter().copied()) {
-        out.extend(loop_half_edges(body, l));
-    }
-    out
+    face.half_edges()
 }
 
 /// The half-edges of loop `l`, in cycle order (none for an empty loop).
@@ -2681,7 +2677,7 @@ mod walk_tests {
     }
 
     #[test]
-    #[should_panic(expected = "face walk: dangling loop")]
+    #[should_panic(expected = "'s outer names loop")]
     fn the_face_walk_panics_on_a_dangling_loop() {
         let r = rim1();
         let outer = r.body().get_face(r.top).unwrap().outer;
@@ -2690,7 +2686,7 @@ mod walk_tests {
 
     /// A live loop whose cycle runs through a removed half-edge.
     #[test]
-    #[should_panic(expected = "face walk: unwalkable loop")]
+    #[should_panic(expected = "breaks at")]
     fn the_face_walk_panics_on_an_unwalkable_loop() {
         let r = rim1();
         let hes = face_half_edges(r.body(), r.top);

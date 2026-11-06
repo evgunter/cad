@@ -421,9 +421,8 @@ fn face_span(body: &pncad::topo::Body<f64>, face: pncad::topo::FaceKey) -> f64 {
 /// Every vertex position on a face, through its loops' cycles.
 fn face_points(body: &pncad::topo::Body<f64>, face: pncad::topo::FaceKey) -> Vec<Point3<f64>> {
     let mut out = Vec::new();
-    let f = body.get_face(face).expect("the face resolves");
-    for &lp in std::iter::once(&f.outer).chain(f.rings.iter()) {
-        let l = body.get_loop(lp).expect("the loop resolves");
+    let f = body.face(face).expect("the face resolves");
+    for (_, l, _) in f.loops() {
         let pncad::topo::LoopBoundary::Cycle { first } = l.boundary else {
             continue;
         };

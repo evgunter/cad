@@ -178,9 +178,9 @@ const REFUSES_AT_1E6: &[(&str, &str)] = &[(
 fn faces_through_two_vertices_on_one_point(body: &Body<f64>) -> usize {
     let at: Vec<_> = body.vertex_points().collect();
     body.faces()
-        .filter(|(_, f)| {
+        .filter(|(fk, _)| {
             let mut met = Vec::new();
-            for &l in std::iter::once(&f.outer).chain(&f.rings) {
+            for (l, _, _) in body.face(*fk).expect("a live face").loops() {
                 if let LoopBoundary::Cycle { first } = body.get_loop(l).unwrap().boundary {
                     for he in body.loop_cycle(first).unwrap() {
                         let v = body.get_half_edge(he).unwrap().start;

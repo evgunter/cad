@@ -261,8 +261,7 @@ fn face_surface(body: &Body<Interval>, face: FaceKey) -> Surface<Interval> {
 /// Midpoints of every edge of the face's outer loop, in 3-D.
 fn edge_mids(body: &Body<Interval>, face: FaceKey) -> Vec<Point3<f64>> {
     let mut out = Vec::new();
-    let f = body.get_face(face).unwrap();
-    for lk in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
+    for (lk, _, _) in body.face(face).unwrap().loops() {
         let lp = body.get_loop(lk).unwrap();
         let LoopBoundary::Cycle { first } = lp.boundary else {
             continue;
@@ -297,9 +296,8 @@ struct GridStats {
 /// stations along every edge.
 fn boundary_points(body: &Body<Interval>, face: FaceKey) -> Vec<Point3<f64>> {
     let mut out = Vec::new();
-    let f = body.get_face(face).unwrap();
     let flat = |p: Point3<Interval>| Point3::new(mid(p.x), mid(p.y), mid(p.z));
-    for lk in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
+    for (lk, _, _) in body.face(face).unwrap().loops() {
         let LoopBoundary::Cycle { first } = body.get_loop(lk).unwrap().boundary else {
             continue;
         };
@@ -1095,9 +1093,10 @@ fn bounded_by(
     face: FaceKey,
     pick: fn(&geom::Curve3<Interval>) -> bool,
 ) -> bool {
-    let f = body.get_face(face).unwrap();
-    core::iter::once(f.outer)
-        .chain(f.rings.iter().copied())
+    body.face(face)
+        .unwrap()
+        .loops()
+        .map(|(lk, _, _)| lk)
         .filter_map(|l| match body.get_loop(l).unwrap().boundary {
             LoopBoundary::Cycle { first } => body.loop_cycle(first),
             LoopBoundary::Empty { .. } => None,

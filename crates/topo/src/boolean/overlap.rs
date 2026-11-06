@@ -199,9 +199,7 @@ pub(crate) fn overlap_as<T: Decide>(
     band: Band,
 ) -> Result<bool, OverlapRefusal> {
     for (body, face) in [a, b] {
-        let f = body
-            .passed_face(face)
-            .ok_or(OverlapRefusal::StaleFace { face })?;
+        let f = body.face(face).ok_or(OverlapRefusal::StaleFace { face })?;
         if matches!(
             f.surface().kind(),
             geom::SurfaceKind::Nurbs | geom::SurfaceKind::Approx
@@ -302,9 +300,7 @@ type Corner<T> = (Leaving<T>, Leaving<T>);
 fn loops<T: Decide>(
     (body, face): (&Body<T>, FaceKey),
 ) -> Result<Vec<Vec<HalfEdgeKey>>, OverlapRefusal> {
-    let f = body
-        .passed_face(face)
-        .ok_or(OverlapRefusal::StaleFace { face })?;
+    let f = body.face(face).ok_or(OverlapRefusal::StaleFace { face })?;
     let mut out = Vec::new();
     for (_, members, _) in f.boundary_by_loop() {
         let mut cycle = Vec::with_capacity(members.len());

@@ -74,9 +74,11 @@ fn close(got: f64, want: f64, what: &str) {
 
 /// The edge count of each of `face`'s loops, and of its chart image.
 fn counts(body: &Body<f64>, face: FaceKey) -> (Vec<usize>, Vec<usize>) {
-    let f = body.get_face(face).unwrap();
-    let loops: Vec<_> = core::iter::once(f.outer)
-        .chain(f.rings.iter().copied())
+    let loops: Vec<_> = body
+        .face(face)
+        .unwrap()
+        .loops()
+        .map(|(lk, _, _)| lk)
         .collect();
     let full = loops
         .iter()

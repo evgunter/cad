@@ -808,9 +808,11 @@ fn a_sphere_face_with_a_straight_edge_refuses_at_both_doors() {
     let ch = chart(&planted, f);
     let disc = flat_disc(&planted);
     let rows = |body: &Body<f64>| -> (usize, usize) {
-        let fd = body.get_face(f).unwrap();
-        let halves: Vec<_> = core::iter::once(fd.outer)
-            .chain(fd.rings.iter().copied())
+        let halves: Vec<_> = body
+            .face(f)
+            .unwrap()
+            .loops()
+            .map(|(lk, _, _)| lk)
             .filter_map(|lk| match body.get_loop(lk).unwrap().boundary {
                 topo::LoopBoundary::Cycle { first } => Some(body.loop_cycle(first).unwrap()),
                 topo::LoopBoundary::Empty { .. } => None,

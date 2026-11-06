@@ -75,7 +75,7 @@ fn snapshot(body: &Body<f64>, shell: ShellKey) -> String {
             body.provenance(EntityId::Face(f))
         )
         .unwrap();
-        for lp in std::iter::once(face.outer).chain(face.rings.iter().copied()) {
+        for (lp, _, _) in body.face(f).unwrap().loops() {
             let l = body.get_loop(lp).unwrap();
             writeln!(s, " loop {lp:?} {l:?}").unwrap();
             let topo::LoopBoundary::Cycle { first: start } = l.boundary else {

@@ -121,9 +121,11 @@ pub(crate) fn post_faces<T: Real + Bounds>(
         off.norm() <= reach + slack && t >= t0 - slack && t <= t1 + slack
     };
     body.faces()
-        .filter(|(_, f)| {
-            core::iter::once(f.outer)
-                .chain(f.rings.iter().copied())
+        .filter(|(fk, _)| {
+            body.face(*fk)
+                .expect("a live face")
+                .loops()
+                .map(|(lk, _, _)| lk)
                 .all(|lp| match body.get_loop(lp).expect("a loop").boundary {
                     topo::LoopBoundary::Empty { vertex } => near(at(vertex)),
                     topo::LoopBoundary::Cycle { first } => body

@@ -257,9 +257,10 @@ mod wall_gap_support {
 
     /// The vertices of `f`'s loops.
     fn vertices(body: &Body<f64>, f: FaceKey) -> BTreeSet<VertexKey> {
-        let face = body.get_face(f).expect("a live face");
-        core::iter::once(face.outer)
-            .chain(face.rings.iter().copied())
+        body.face(f)
+            .expect("a live face")
+            .loops()
+            .map(|(lk, _, _)| lk)
             .flat_map(|l| match body.get_loop(l).expect("a live loop").boundary {
                 LoopBoundary::Empty { vertex } => vec![vertex],
                 LoopBoundary::Cycle { first } => body

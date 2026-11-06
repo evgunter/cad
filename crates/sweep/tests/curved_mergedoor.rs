@@ -842,9 +842,10 @@ fn stacked_half_discs_merge_their_glued_arc_walls() {
 
 /// The cycle halves of `f`'s loops, outer first.
 fn face_halves(body: &Body<f64>, f: topo::FaceKey) -> Vec<topo::HalfEdgeKey> {
-    let face = body.get_face(f).unwrap();
-    core::iter::once(face.outer)
-        .chain(face.rings.iter().copied())
+    body.face(f)
+        .unwrap()
+        .loops()
+        .map(|(lk, _, _)| lk)
         .filter_map(|lk| match body.get_loop(lk).unwrap().boundary {
             topo::LoopBoundary::Cycle { first } => Some(body.loop_cycle(first).unwrap()),
             topo::LoopBoundary::Empty { .. } => None,

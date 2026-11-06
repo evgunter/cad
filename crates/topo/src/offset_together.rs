@@ -201,7 +201,7 @@ pub(crate) fn offset_planes_together_staged<T: Decide + crate::props::AtRestPoli
     for m in moves {
         for &face in &m.faces {
             let data = body
-                .passed_face(face)
+                .face(face)
                 .ok_or(ReplaceFaceError::StaleFace { face })?;
             let surface = data.surface();
             let Surface::Plane { origin, normal, .. } = surface else {

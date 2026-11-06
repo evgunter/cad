@@ -3011,8 +3011,7 @@ fn loop_vertices(body: &Body<f64>, r#loop: topo::LoopKey) -> Vec<topo::VertexKey
 fn boundary_edges(body: &Body<f64>, faces: &[FaceKey]) -> Vec<topo::EdgeKey> {
     let mut out = Vec::new();
     for &face in faces {
-        let data = body.get_face(face).expect("the face");
-        for lk in core::iter::once(data.outer).chain(data.rings.iter().copied()) {
+        for (lk, _, _) in body.face(face).expect("the face").loops() {
             out.extend(loop_edges(body, lk));
         }
     }
@@ -3023,8 +3022,7 @@ fn boundary_edges(body: &Body<f64>, faces: &[FaceKey]) -> Vec<topo::EdgeKey> {
 fn boundary_vertices(body: &Body<f64>, faces: &[FaceKey]) -> Vec<topo::VertexKey> {
     let mut out = Vec::new();
     for &face in faces {
-        let data = body.get_face(face).expect("the face");
-        for lk in core::iter::once(data.outer).chain(data.rings.iter().copied()) {
+        for (lk, _, _) in body.face(face).expect("the face").loops() {
             out.extend(loop_vertices(body, lk));
         }
     }

@@ -131,9 +131,11 @@ fn faces_where<T: Real + Bounds>(
         Point3::new(mid(p.x), mid(p.y), mid(p.z))
     };
     body.faces()
-        .filter(|(_, f)| {
-            core::iter::once(f.outer)
-                .chain(f.rings.iter().copied())
+        .filter(|(fk, _)| {
+            body.face(*fk)
+                .expect("a live face")
+                .loops()
+                .map(|(lk, _, _)| lk)
                 .all(|lp| match body.get_loop(lp).expect("a loop").boundary {
                     topo::LoopBoundary::Empty { vertex } => sel(at(vertex)),
                     topo::LoopBoundary::Cycle { first } => body

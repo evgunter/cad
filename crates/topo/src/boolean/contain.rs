@@ -457,9 +457,7 @@ pub(crate) fn driver_face_stale(face: FaceKey) -> ! {
 /// `face`'s outer loop and rings ([`crate::live::FaceView::loops`]), the face
 /// the caller's key.
 fn face_loops<T: Decide>(body: &Body<T>, face: FaceKey) -> Result<Vec<LoopKey>, ContainError> {
-    let face_data = body
-        .passed_face(face)
-        .ok_or(ContainError::StaleFace(face))?;
+    let face_data = body.face(face).ok_or(ContainError::StaleFace(face))?;
     Ok(face_data.loops().map(|(lk, _, _)| lk).collect())
 }
 

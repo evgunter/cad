@@ -680,9 +680,9 @@ pub(crate) fn reach_of<T: Decide>(
     k: topo::entity::FaceKey,
     origin: Point3<T>,
 ) -> Option<T> {
-    let face = body.get_face(k)?;
+    let face = body.face(k)?;
     let mut reach = T::zero();
-    for lk in core::iter::once(face.outer).chain(face.rings.iter().copied()) {
+    for (lk, _, _) in face.loops() {
         let (edges, _) = topo::props::loop_edges(body, lk).ok()?;
         for e in &edges {
             reach = reach.max(curve_reach(&e.carrier, e.t0, e.t1, origin)?);

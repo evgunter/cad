@@ -542,7 +542,7 @@ pub(crate) fn offset_charts_together_staged<T: Decide + crate::props::AtRestPoli
         };
         for &face in &m.faces {
             let data = body
-                .passed_face(face)
+                .face(face)
                 .ok_or(ReplaceFaceError::StaleFace { face })?;
             let old = data.surface().clone();
             let new = geom_brep::offset_surface(&old, d, band)

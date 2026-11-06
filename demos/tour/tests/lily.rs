@@ -1540,7 +1540,7 @@ mod verbs_gate_r1_probes {
         let mut min_frustum_gap = f64::INFINITY;
         let mut zone_hit = false;
         let mut zone = None;
-        for (k, f) in lant.faces() {
+        for (k, _) in lant.faces() {
             match lant.face_surface(k) {
                 Some(&Surface::Cone {
                     apex,
@@ -1550,7 +1550,7 @@ mod verbs_gate_r1_probes {
                 }) if pucker.contains(&k) => {
                     let mut v_lo = f64::INFINITY;
                     let mut v_hi = f64::NEG_INFINITY;
-                    for lk in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
+                    for (lk, _, _) in lant.face(k).expect("a live face").loops() {
                         let Some(l) = lant.get_loop(lk) else { continue };
                         let pncad::topo::LoopBoundary::Cycle { first } = l.boundary else {
                             continue;
@@ -1879,7 +1879,7 @@ mod verbs_gate_r1_probes {
         let (bc, br) = ball;
         let mut lo = Point3::new(f64::INFINITY, f64::INFINITY, f64::INFINITY);
         let mut hi = Point3::new(f64::NEG_INFINITY, f64::NEG_INFINITY, f64::NEG_INFINITY);
-        for (k, f) in lant.faces() {
+        for (k, _) in lant.faces() {
             if !faces.contains(&k) {
                 continue;
             }
@@ -1893,7 +1893,7 @@ mod verbs_gate_r1_probes {
                 continue;
             };
             let (mut v_lo, mut v_hi) = (f64::INFINITY, f64::NEG_INFINITY);
-            for lk in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
+            for (lk, _, _) in lant.face(k).expect("a live face").loops() {
                 let Some(l) = lant.get_loop(lk) else { continue };
                 let pncad::topo::LoopBoundary::Cycle { first } = l.boundary else {
                     continue;

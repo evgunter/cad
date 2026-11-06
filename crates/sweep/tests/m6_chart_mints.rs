@@ -37,12 +37,12 @@ fn assert_curved_faces_fully_minted(name: &str, body: &Body<f64>) {
         "{name} tier 3"
     );
     let mut curved_hes = 0usize;
-    for (fk, face) in body.faces() {
+    for (fk, _) in body.faces() {
         let surface = body.face_surface(fk).expect("surface resolves");
         if matches!(surface, Surface::Plane { .. }) {
             continue;
         }
-        for lk in core::iter::once(face.outer).chain(face.rings.iter().copied()) {
+        for (lk, _, _) in body.face(fk).expect("a live face").loops() {
             let lp = body.get_loop(lk).expect("loop resolves");
             let topo::LoopBoundary::Cycle { first } = lp.boundary else {
                 continue;

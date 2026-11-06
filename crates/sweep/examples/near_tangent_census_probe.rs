@@ -126,13 +126,12 @@ fn edge_ends(body: &Body<f64>, e: topo::EdgeKey) -> Option<String> {
 /// A planar face's plane and loops, every loop's vertex points in walk
 /// order.
 fn face_geo(body: &Body<f64>, f: topo::FaceKey) -> Option<String> {
-    let face = body.get_face(f)?;
     let (origin, normal) = match body.face_surface(f)? {
         geom::Surface::Plane { origin, normal, .. } => (*origin, *normal),
         _ => return None,
     };
     let mut loops = Vec::new();
-    for lk in std::iter::once(face.outer).chain(face.rings.iter().copied()) {
+    for (lk, _, _) in body.face(f)?.loops() {
         let LoopBoundary::Cycle { first } = body.get_loop(lk)?.boundary else {
             continue;
         };

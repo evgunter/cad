@@ -68,7 +68,7 @@ pub fn dump(body: &Body<f64>) -> String {
             fd.sense,
             fd.rings.len()
         );
-        for lk in core::iter::once(fd.outer).chain(fd.rings.iter().copied()) {
+        for (lk, _, _) in body.face(k).unwrap().loops() {
             let LoopBoundary::Cycle { first } = body.get_loop(lk).unwrap().boundary else {
                 let _ = writeln!(s, "  L {lk:?} empty");
                 continue;

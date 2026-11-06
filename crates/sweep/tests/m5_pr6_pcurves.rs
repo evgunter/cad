@@ -96,10 +96,10 @@ fn the_tilted_cut_mints_certified_caches_on_its_curved_faces() {
     let (above, below) = tilted_cut();
     for part in [&above, &below] {
         let mut cylinder_halves = 0usize;
-        for (fk, face) in part.faces() {
+        for (fk, _) in part.faces() {
             let surface = part.face_surface(fk).unwrap();
             let is_cylinder = matches!(surface, Surface::Cylinder { .. });
-            for lp in core::iter::once(face.outer).chain(face.rings.iter().copied()) {
+            for (lp, _, _) in part.face(fk).expect("a live face").loops() {
                 let loop_data = part.get_loop(lp).unwrap();
                 let topo::LoopBoundary::Cycle { first } = loop_data.boundary else {
                     continue;

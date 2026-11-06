@@ -3228,17 +3228,17 @@ fn consumption_sweep<T: Decide + Bounds>(
         touches_any(body, &members(a), &members(b))
     };
     for face in faces {
-        let fa = body.get_face(face).ok_or_else(|| {
+        let fa = body.face(face).ok_or_else(|| {
             unresolved(
                 EntityId::Face(face),
                 "a support face, for its boundary pairs",
             )
         })?;
         let mut boundary: Vec<ScreenedEdge<T>> = Vec::new();
-        for lp in core::iter::once(fa.outer).chain(fa.rings.iter().copied()) {
+        for (lp, _, _) in fa.loops() {
             boundary.extend(screened_loop(body, lp)?);
         }
-        let decided = strip_decided(body, chains, face, &fa.rings, band)?;
+        let decided = strip_decided(body, chains, face, &fa.record().rings, band)?;
         for i in 0..boundary.len() {
             for j in (i + 1)..boundary.len() {
                 let (ei, pi) = (&boundary[i].0, &boundary[i].2);

@@ -53,9 +53,10 @@ fn rows_deep(body: &Body<f64>) -> Vec<String> {
 
 /// Every half-edge of every loop of `face`.
 fn halves_of(body: &Body<f64>, face: FaceKey) -> Vec<HalfEdgeKey> {
-    let f = body.get_face(face).unwrap();
-    core::iter::once(f.outer)
-        .chain(f.rings.iter().copied())
+    body.face(face)
+        .unwrap()
+        .loops()
+        .map(|(lk, _, _)| lk)
         .filter_map(|lk| match body.get_loop(lk).unwrap().boundary {
             topo::LoopBoundary::Cycle { first } => Some(body.loop_cycle(first).unwrap()),
             topo::LoopBoundary::Empty { .. } => None,

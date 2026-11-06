@@ -55,9 +55,10 @@ fn rod() -> Body<f64> {
 }
 
 fn halves_of(body: &Body<f64>, face: FaceKey) -> Vec<HalfEdgeKey> {
-    let f = body.get_face(face).unwrap();
-    core::iter::once(f.outer)
-        .chain(f.rings.iter().copied())
+    body.face(face)
+        .unwrap()
+        .loops()
+        .map(|(lk, _, _)| lk)
         .filter_map(|lk| match body.get_loop(lk).unwrap().boundary {
             LoopBoundary::Cycle { first } => Some(body.loop_cycle(first).unwrap()),
             LoopBoundary::Empty { .. } => None,

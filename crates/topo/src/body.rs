@@ -1125,7 +1125,7 @@ impl<T: Real> Body<T> {
     #[must_use]
     #[track_caller]
     pub fn face_surface(&self, face: FaceKey) -> Option<&Surface<T>> {
-        Some(self.passed_face(face)?.surface())
+        Some(self.face(face)?.surface())
     }
 
     /// The D5 provenance of a topology entity, or `None` if the key is

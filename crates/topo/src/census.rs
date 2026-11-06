@@ -2162,7 +2162,7 @@ fn pair_contact<T: Decide>(
     // a sphere and a plane, or two spheres. A sphere against any other
     // carrier (a ball seated in a bore meets it along a circle) is the
     // line lane's, which derives no line for it.
-    let kind = |f: FaceKey| body.passed_face(f).map(|d| d.surface().kind());
+    let kind = |f: FaceKey| body.face(f).map(|d| d.surface().kind());
     match (kind(fx), kind(fy)) {
         (
             Some(geom::SurfaceKind::Sphere),
@@ -4322,7 +4322,7 @@ fn curved_overlap_cells<T: Decide>(
     band: Band,
     errors: &mut Vec<ValidationError>,
 ) -> Vec<Point3<T>> {
-    let Some(surface) = body.passed_face(f).map(|f| f.surface()) else {
+    let Some(surface) = body.face(f).map(|f| f.surface()) else {
         return Vec::new();
     };
     match line_on_quadric_carrier(surface, e.p0, e.p1, "pm_census_ef_curved_residual", band) {
@@ -6333,7 +6333,7 @@ fn curved_same_side_pairs<T: Decide>(
     // coordinate whose extremes lie on the boundary. Read against the
     // first face's axis; a second face on another axis is a pair Door 1
     // does not read as one carrier, so dropping it loses nothing.
-    let axial = |f, origin, axis| boundary_axial(body, body.passed_face(f)?, origin, axis);
+    let axial = |f, origin, axis| boundary_axial(body, body.face(f)?, origin, axis);
     let mut out = CurvedSameSide::default();
     for (i, &fa) in cands.every_face.iter().enumerate() {
         let Some(ka) = kind(fa) else { continue };
@@ -6803,7 +6803,7 @@ fn sweep_same_solid_tangent_lines<T: Decide>(
         edges: BTreeSet<EdgeKey>,
     }
     let read = |face: FaceKey| -> Option<Candidate> {
-        let f = body.passed_face(face)?;
+        let f = body.face(face)?;
         Some(Candidate {
             face,
             solid: body.solid_of_face(face)?,
@@ -8530,7 +8530,7 @@ impl<T: Decide> FaceSector<T> {
         // A face that does not resolve, or a loop that does not walk, is
         // a defect (tier 1 admits none); a face that resolves off a plane
         // is curved.
-        let face = body.passed_face(f).ok_or(TouchUnread::Corrupt)?;
+        let face = body.face(f).ok_or(TouchUnread::Corrupt)?;
         let surface = face.surface().clone();
         let fg = planar_face(geo, f).ok_or(TouchUnread::Unreadable)?;
         if !fg.walked {
@@ -9061,7 +9061,7 @@ impl<T: Decide> Link<T> {
                 }
                 continue;
             }
-            let face = body.passed_face(f).ok_or(TouchUnread::Corrupt)?;
+            let face = body.face(f).ok_or(TouchUnread::Corrupt)?;
             // The face's other edges, which end on the edge's ends too, but
             // for a cone's seam through its apex (a loop `[e, circle, e⁻¹]`):
             // there the lever stays under `ρ/2`, short of the apex.
@@ -9123,7 +9123,7 @@ fn round_face<T: Decide>(
     f: FaceKey,
     p: Point3<T>,
 ) -> Result<Option<(crate::link::Round<T>, T)>, TouchUnread> {
-    let face = body.passed_face(f).ok_or(TouchUnread::Corrupt)?;
+    let face = body.face(f).ok_or(TouchUnread::Corrupt)?;
     let surface = face.surface();
     let Some(round) = crate::link::Round::of(surface, face.sense()) else {
         return Ok(None);
@@ -11286,7 +11286,7 @@ fn flush_pairs<T: Decide>(
     band: Band,
     region: Option<RegionLane<T>>,
 ) -> FlushAtRest {
-    let kind = |f: FaceKey| Some(body.passed_face(f)?.surface().kind());
+    let kind = |f: FaceKey| Some(body.face(f)?.surface().kind());
     let group_of = |f: FaceKey| body.solid_of_face(f).and_then(group);
     let edges: Vec<BTreeSet<EdgeKey>> = faces
         .iter()
@@ -11390,7 +11390,7 @@ fn flush_pairs<T: Decide>(
 /// Whether `f` lies on a cylinder or a sphere, the curved kinds Door 1
 /// decides exactly ([`crate::boolean::carrier_eq::exact_curved`]).
 fn exact_curved_face<T: Real>(body: &Body<T>, f: FaceKey) -> bool {
-    body.passed_face(f)
+    body.face(f)
         .map(|f| f.surface())
         .is_some_and(crate::boolean::carrier_eq::exact_curved)
 }

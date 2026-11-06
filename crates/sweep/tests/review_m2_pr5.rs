@@ -90,8 +90,8 @@ fn dense_loop_points(body: &Body<f64>, lk: topo::LoopKey, m: usize) -> Vec<Point
 /// the sampling refines (chordal).
 fn my_signed_volume(body: &Body<f64>) -> f64 {
     let mut six_v = 0.0;
-    for (_, face) in body.faces() {
-        for lk in core::iter::once(face.outer).chain(face.rings.iter().copied()) {
+    for (fk, _) in body.faces() {
+        for (lk, _, _) in body.face(fk).expect("a live face").loops() {
             let pts = dense_loop_points(body, lk, 64);
             let p1 = pts[0];
             for i in 1..pts.len() - 1 {
@@ -1224,7 +1224,7 @@ fn probe_fan_oracle_coned_volume() {
     println!("impl oracle: {}", signed_volume(&t.body));
     for (fk, face) in t.body.faces() {
         let mut six_v = 0.0;
-        for lk in core::iter::once(face.outer).chain(face.rings.iter().copied()) {
+        for (lk, _, _) in t.body.face(fk).expect("a live face").loops() {
             let pts = dense_loop_points(&t.body, lk, 64);
             let p1 = pts[0];
             for i in 1..pts.len() - 1 {

@@ -96,9 +96,8 @@ pub fn surface_of(body: &Body<f64>, face: FaceKey) -> Surface<f64> {
 /// Every corner of `face`, in `next` order over every loop — the very
 /// points `topo::face_nappe` meters.
 pub fn corners(body: &Body<f64>, face: FaceKey) -> Vec<Point3<f64>> {
-    let data = body.get_face(face).unwrap();
     let mut out = Vec::new();
-    for lk in core::iter::once(data.outer).chain(data.rings.iter().copied()) {
+    for (lk, _, _) in body.face(face).unwrap().loops() {
         let topo::LoopBoundary::Cycle { first } = body.get_loop(lk).unwrap().boundary else {
             continue;
         };
