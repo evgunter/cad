@@ -266,6 +266,9 @@ pub use ::profile::{
 //   along; this is the fillet constructor's, one door over, with the
 //   same shape and different conditions. Carrying one of the two and
 //   not the other is the inconsistency, not the reach.
+// - `TurnLever` is `PathNoCornerReason::TurnWithinTolerance`'s: which
+//   length the corner's turn was levered by — the shorter leg's arm or
+//   the anchors' separation — and so which length the caller moves.
 //
 // **`Step` is NOT here, and that is measured — the `MappedCurve`
 // argument in group 4 read on a value rather than on a refusal.** It
@@ -293,6 +296,7 @@ pub use ::profile::{
 // re-derives.
 pub use ::profile::{
     ArcCheck, ContactKind, EscalationSite, FilletLeg, FilletLegCarrier, NoCornerReason, SegmentRef,
+    TurnLever,
 };
 
 // --- 3. The four body operations ------------------------------

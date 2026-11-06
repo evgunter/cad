@@ -557,26 +557,64 @@ impl sealed::Sealed for ArrivesTangent {}
 // ------------------------------------------------------------------
 
 /// Why a fillet's virtual corner does not exist (PATHS-DESIGN §2's
-/// DOF check: parallel/non-intersecting carriers, or an intersection
-/// behind the ray start, refuse typed). Named `Path…` to keep it
-/// distinct from the crate-root [`crate::NoCornerReason`] (the verify
-/// layer's fillet-constructor vocabulary) — different doors, different
-/// conditions.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum PathNoCornerReason {
-    /// The incoming ray and the arrival carrier are parallel at
-    /// tolerance (which includes the tangent/anti-tangent corner —
-    /// there is no corner to cut; PATHS routes the declaration through
-    /// `.tangent()`/the seam fillet instead).
-    CarriersParallel,
+/// DOF check: tangent/non-intersecting carriers, a turn the tolerance
+/// cannot state, or an intersection behind the ray start, refuse
+/// typed). Named `Path…` to keep it distinct from the crate-root
+/// [`crate::NoCornerReason`] (the verify layer's fillet-constructor
+/// vocabulary) — different doors, different conditions.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum PathNoCornerReason<T: Real> {
+    /// The two carriers touch tangentially at tolerance — a ray tangent
+    /// to its circle, or two circles tangent to each other — read on an
+    /// unlevered metre margin. There is no corner to cut; PATHS routes
+    /// the declaration through `.tangent()`/the seam fillet instead.
+    CarriersTangent,
     /// **G2**: the two carriers do not meet at all — a ray that misses
     /// its circle, or circles that are disjoint, concentric, or one
     /// inside the other. Distinct from
-    /// [`CarriersParallel`](Self::CarriersParallel), which is the
+    /// [`CarriersTangent`](Self::CarriersTangent), which is the
     /// tangency knife edge: there they touch, and there is still no
     /// corner to cut.
     CarriersDoNotMeet,
+    /// The corner's turn, levered to metres, is zero at tolerance:
+    /// `sin_turn · lever` does not clear the band, so the side both
+    /// carriers offset toward is undecided. The margin is a product, and
+    /// either factor can be what collapsed — a degenerate angle (a
+    /// smooth run or a doubling back) or a real angle stated over too
+    /// short a lever. The kernel does not judge which; both factors ride
+    /// here so the caller can.
+    TurnWithinTolerance {
+        /// `dir_in × dir_out` at the corner: the sine of the turn.
+        sin_turn: T,
+        /// `dir_in · dir_out`: negative means the legs double back.
+        align: T,
+        /// The length the turn was levered by, meters.
+        lever: T,
+        /// Which length that is.
+        lever_of: TurnLever,
+    },
 }
+
+/// The length a fillet corner's turn is levered by
+/// ([`PathNoCornerReason::TurnWithinTolerance`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TurnLever {
+    /// The shorter leg's arm at the corner (the arc-carrier door).
+    ShorterLeg,
+    /// The separation of the incoming ray's start from the arrival
+    /// anchor (the straight pair).
+    AnchorSeparation,
+}
+
+/// The recourse for a straight pair's corner turn that is zero at
+/// tolerance. The lever is the anchors' separation, and at a real angle
+/// it is short only when the corner sits close to BOTH anchors: the
+/// corner has to lie definitely ahead of the ray's start and behind the
+/// arrival anchor, so moving one anchor alone leaves the other window
+/// refusing.
+pub(crate) const FILLET_ANCHOR_TURN_RECOURSE: &str = "if the angle is real, move both anchors away \
+     from the corner; if the rays continue smoothly, construct the tangency (.tangent()); if \
+     they exactly double back, the cusp is refused; otherwise move the geometry";
 
 /// Which of the two anchor windows a derived corner falls outside.
 ///
@@ -995,7 +1033,7 @@ pub enum PathError<T: Real> {
     /// [`PathNoCornerReason`]).
     NoCornerForFillet {
         /// Which structural condition failed.
-        reason: PathNoCornerReason,
+        reason: PathNoCornerReason<T>,
         /// The requested radius, meters (diagnostic).
         radius: T,
     },
@@ -1785,14 +1823,37 @@ impl<T: Real> core::fmt::Display for PathError<T> {
             ),
             Self::NoCornerForFillet { reason, radius } => {
                 let what = match reason {
-                    PathNoCornerReason::CarriersParallel => {
-                        "the incoming ray and the arrival carrier are parallel at tolerance — \
-                         no corner exists (if they are meant to run tangentially, author the \
-                         tangency: .tangent(), or the seam fillet at the seam)"
-                    }
-                    PathNoCornerReason::CarriersDoNotMeet => {
+                    PathNoCornerReason::CarriersTangent => String::from(
+                        "the two carriers touch tangentially at tolerance — no corner exists (if \
+                         they are meant to run tangentially, author the tangency: .tangent(), or \
+                         the seam fillet at the seam)",
+                    ),
+                    PathNoCornerReason::CarriersDoNotMeet => String::from(
                         "the two carriers do not meet: a ray missing its circle, or circles \
-                         disjoint, concentric, or one inside the other"
+                         disjoint, concentric, or one inside the other",
+                    ),
+                    PathNoCornerReason::TurnWithinTolerance {
+                        sin_turn,
+                        align,
+                        lever,
+                        lever_of,
+                    } => {
+                        let (lever_name, recourse) = match lever_of {
+                            TurnLever::ShorterLeg => (
+                                "the shorter leg",
+                                crate::validate::FILLET_TURN_INBAND_RECOURSE,
+                            ),
+                            TurnLever::AnchorSeparation => {
+                                ("the anchors' separation", FILLET_ANCHOR_TURN_RECOURSE)
+                            }
+                        };
+                        format!(
+                            "its turn, sin φ = {sin} (cos φ = {cos}) over {lever_name} of \
+                             {lever} m, is zero at tolerance. Recourse: {recourse}",
+                            sin = num(sin_turn),
+                            cos = num(align),
+                            lever = num(lever),
+                        )
                     }
                 };
                 write!(
@@ -2589,9 +2650,28 @@ struct PendingJunction<T: Real> {
 struct Tip<T: Real> {
     pos: Option<PosData<T>>,
     ang: Option<Bound<T>>,
-    /// Whether the bound angle was inherited by `.tangent()` (the
-    /// constructed-tangency continuations; drives the §4 item 4 checks).
-    ang_by_tangent: bool,
+    /// Whether the bound angle was inherited from the incoming end
+    /// tangent, and which way. Only a tip at a leg end with incoming data
+    /// inherits; a fillet opened here copies it into its
+    /// [`PendingMeta::by_tangent`].
+    ang_by_tangent: ByTangent,
+}
+
+/// How a tip's bound angle relates to its incoming end tangent. An
+/// inherited kind is only ever set at a leg end, by the verb that
+/// constructs the joint there (`.tangent()`, `.cusp()`, or the bare
+/// fillet's ray extension); only a [`Forward`](ByTangent::Forward) ray
+/// continues a straight leg's own carrier in its own direction, so only
+/// it may EXTEND that leg ([`PendingMeta::extends_straight_leg`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ByTangent {
+    /// Authored where it is bound.
+    No,
+    /// `.tangent()` (or a bare `fillet(r)` on a leg end): the end
+    /// tangent itself.
+    Forward,
+    /// `.cusp()`: the end tangent reversed.
+    Reversed,
 }
 
 /// The bound position bit: the point plus (directed flavor only) the
@@ -2679,8 +2759,9 @@ enum FirstSeg {
 
 /// Chain-side bookkeeping for an opened fillet: the authored ADDRESS
 /// its radius arguments are recorded at (`bound_at`,
-/// `incoming_radius`) and the §4 item 4 zero-fit knife-edge data
-/// (`by_tangent`, `origin_incoming`, `extends_carrier`). This is NOT
+/// `incoming_radius`) and whether its incoming emission extends the
+/// origin leg (`by_tangent` and `origin_incoming`, read together by
+/// [`PendingMeta::extends_straight_leg`]; `extends_carrier`). This is NOT
 /// part of the kernel's [`verbs::Pending`] state value: the kernel
 /// cannot name it, which is what keeps the verbs pure (§2c round 12).
 /// It is held WITH the pending side it describes ([`Core::pending`]),
@@ -2699,9 +2780,9 @@ struct PendingMeta<T: Real> {
     /// through-point or a centre authors the same carrier from no
     /// radius at all, so the arc it emits has no address to record.
     incoming_radius: bool,
-    /// The ray was bound by `.tangent()` (or ray-extended off a leg
-    /// end): its origin joint is already constructed.
-    by_tangent: bool,
+    /// Whether the ray was inherited at its origin, and which way: an
+    /// inherited ray's origin joint is already constructed.
+    by_tangent: ByTangent,
     /// The ray origin's incoming carrier, if the origin was a leg end.
     origin_incoming: Option<Incoming<T>>,
     /// **Arc extension** (§2c): the fused arc incoming CONTINUES the
@@ -2710,6 +2791,23 @@ struct PendingMeta<T: Real> {
     /// exemption, exactly as ray extension) instead of pushing a
     /// co-carrier neighbour.
     extends_carrier: bool,
+}
+
+impl<T: Real> PendingMeta<T> {
+    /// **Ray extension of a straight leg**: the ray is the origin leg's
+    /// own FORWARD end tangent and that leg is straight, so the incoming
+    /// run continues the leg and its emission moves the leg's end vertex
+    /// (the §4 item 4 exemption). A `.cusp()` ray runs back from the
+    /// leg's end and is emitted as its own piece. The one test both
+    /// straight-leg merge sites read (`Core::resolve_fillet`'s line×line
+    /// arm and `family::merge_of`).
+    fn extends_straight_leg(&self) -> bool {
+        self.by_tangent == ByTangent::Forward
+            && self
+                .origin_incoming
+                .as_ref()
+                .is_some_and(|i| i.carrier.is_none())
+    }
 }
 
 /// The accumulated lowering state: the vertex chain emitted so far
@@ -4268,7 +4366,7 @@ impl<T: Decide> Core<T> {
         let u2 = arr_ang.unit;
         let w = arr_pos - pending.origin;
         let wn = w.norm_squared().sqrt();
-        // (1) parallel/tangent carriers admit no corner: the turn
+        // (1) a turn zero at tolerance admits no corner: the turn
         // margin sin φ levered by the anchor separation.
         let cross = u1.perp_dot(u2);
         let turn = decide(
@@ -4283,7 +4381,12 @@ impl<T: Decide> Core<T> {
             crate::sugar::turn_side::<T>(turn).zip(crate::sugar::turn_sense(turn))
         else {
             return Err(PathError::NoCornerForFillet {
-                reason: PathNoCornerReason::CarriersParallel,
+                reason: PathNoCornerReason::TurnWithinTolerance {
+                    sin_turn: cross,
+                    align: u1.dot(u2),
+                    lever: wn,
+                    lever_of: TurnLever::AnchorSeparation,
+                },
                 radius: pending.radius,
             });
         };
@@ -4350,15 +4453,11 @@ impl<T: Decide> Core<T> {
         // constructed (a `.tangent()` ray, or a previous fillet's arc
         // end), §4 item 4 refuses carrier identity there.
         if trims.fit_in == Sign::Positive {
-            if meta.by_tangent
-                && meta
-                    .origin_incoming
-                    .as_ref()
-                    .is_some_and(|i| i.carrier.is_none())
-            {
-                // Ray extension of a STRAIGHT leg: extend the leg
-                // itself (see `extend_leg_to`); the joint declared at
-                // the leg's end is the leg→arc tangency.
+            if meta.extends_straight_leg() {
+                // Extend the leg itself (see `extend_leg_to`); the joint
+                // declared at the leg's end is the leg→arc tangency.
+                // Otherwise (a `.cusp()` ray among them) the run is its
+                // own piece below.
                 self.extend_leg_to(trims.t1)?;
             } else {
                 self.claim(meta.bound_at, crate::structure::PieceRole::RunIn);
@@ -4624,7 +4723,7 @@ fn directed_tip<T: Real>(at: Point2<T>, incoming: Incoming<T>) -> Tip<T> {
             incoming: Some(incoming),
         }),
         ang: None,
-        ang_by_tangent: false,
+        ang_by_tangent: ByTangent::No,
     }
 }
 
@@ -4652,7 +4751,7 @@ impl Open {
                     incoming: None,
                 }),
                 ang: None,
-                ang_by_tangent: false,
+                ang_by_tangent: ByTangent::No,
             },
         )
     }
@@ -4668,7 +4767,7 @@ impl Open {
             Tip {
                 pos: None,
                 ang: Some(Bound::fresh(dir)),
-                ang_by_tangent: false,
+                ang_by_tangent: ByTangent::No,
             },
         )
     }
@@ -5045,7 +5144,9 @@ impl<T: Decide, A: AngMarker> PartialPath<T, NoPos, A> {
                     incoming: None,
                 }),
                 ang: self.tip.ang,
-                ang_by_tangent: self.tip.ang_by_tangent,
+                // A tip with no position inherits nothing (only a leg
+                // end does), and the tip at `p` has no incoming data.
+                ang_by_tangent: ByTangent::No,
             },
         ))
     }
@@ -5070,7 +5171,7 @@ impl<T: Decide, P: PosMarker> PartialPath<T, P, NoAng> {
             }
         }
         self.tip.ang = Some(Bound::fresh(dir));
-        self.tip.ang_by_tangent = false;
+        self.tip.ang_by_tangent = ByTangent::No;
         Ok(in_state(self.core, self.tip))
     }
 }
@@ -5094,7 +5195,7 @@ impl<T: Decide> PartialPath<T, HasPos<WithIncoming>, NoAng> {
     /// is the row's, not the kernel's).
     fn tangent_kernel(mut self) -> PartialPath<T, HasPos<WithIncoming>, HasAng> {
         self.tip.ang = self.inherited(false);
-        self.tip.ang_by_tangent = true;
+        self.tip.ang_by_tangent = ByTangent::Forward;
         self.core.construct_last();
         in_state(self.core, self.tip)
     }
@@ -5108,7 +5209,7 @@ impl<T: Decide> PartialPath<T, HasPos<WithIncoming>, NoAng> {
     /// construction.
     fn cusp_kernel(mut self) -> PartialPath<T, HasPos<WithIncoming>, HasAng> {
         self.tip.ang = self.inherited(true);
-        self.tip.ang_by_tangent = true;
+        self.tip.ang_by_tangent = ByTangent::Reversed;
         self.core.construct_last();
         in_state(self.core, self.tip)
     }
@@ -5128,7 +5229,7 @@ impl<T: Decide> PartialPath<T, HasPos<WithIncoming>, NoAng> {
         let theta = turned(inc.ang.unit, delta);
         self.core.pend_junction(&inc, theta, tol)?;
         self.tip.ang = Some(Bound::fresh(theta));
-        self.tip.ang_by_tangent = false;
+        self.tip.ang_by_tangent = ByTangent::No;
         Ok(in_state(self.core, self.tip))
     }
 
@@ -5404,7 +5505,7 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
             Tip {
                 pos: None,
                 ang: None,
-                ang_by_tangent: false,
+                ang_by_tangent: ByTangent::No,
             },
         ))
     }

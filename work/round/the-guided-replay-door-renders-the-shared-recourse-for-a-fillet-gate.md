@@ -2,10 +2,12 @@
 id: the-guided-replay-door-renders-the-shared-recourse-for-a-fillet-gate
 kind: issue
 title: replay_guided wraps an in-band fillet verdict so the caller reads the shared coincidence recourse, not the gate's sentence
-status: open
+status: parked
 opened: 2026-09-13
 priority: P1
 cost: E
+blocked_on: [the-path-doors-escalation-carries-its-gate]
+rides_with: the-path-doors-escalation-carries-its-gate
 ---
 
 

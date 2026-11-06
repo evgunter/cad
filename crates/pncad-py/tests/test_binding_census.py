@@ -2790,6 +2790,10 @@ NOT_BOUND = {
     "FilletLeg": INTERIOR,
     "FilletLegCarrier": INTERIOR,
     "SegmentRef": INTERIOR,
+    # `PathNoCornerReason::TurnWithinTolerance`'s lever: the reason
+    # itself crosses nowhere (`no_corner_for_fillet` is the whole
+    # word), so its lever kind does not either.
+    "TurnLever": INTERIOR,
     "ContentBits": INTERIOR,
     # `BlendError::ConvexitySignFlip`'s payload and
     # `UnsupportedCorner`'s, the other two of the blend four.
