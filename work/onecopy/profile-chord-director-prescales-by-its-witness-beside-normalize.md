@@ -6,6 +6,7 @@ status: open
 opened: 2026-11-06
 priority: P3
 cost: S
+refs: [6572]
 ---
 
 
