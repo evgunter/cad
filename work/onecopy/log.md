@@ -312,3 +312,9 @@
   - Filed P2 `co-surface-carriers-have-no-home-of-their-own-in-curve-pair`: the `OnSurface` type, a curve_pair co-surface arm, and the `[ev]` C5 sentence.
   - B cited a `loop-walks-…` row for `apply_cut_ins`, but no such row exists; the cut-in item lives on the new row.
   Class lesson: "the same set" is not "the same reading". A meeting of two co-surface curves has a 3D margin that is identically zero, so the pose that is well-conditioned where it decides is the plane section's.
+
+- 2026-11-06 — The user asked what is in progress and said to ignore usage warnings from now on, to spend the week's remaining usage. That overrides the earlier wind-down instruction. No warning had arrived, so nothing had been wound down. Dispatched four more cloud lanes alongside 6491:
+  - `onecopy/curve-pair-tidy` (`session_013mPGJ2GyGL3Dk6qnqcnSBQ`): the coplanar level, the polish unit repeat, and the near-tangent tilt;
+  - `onecopy/main-reds-k-and-m10` (`session_013mPGJ3twWm8X2P9Cc7QnjR`): the K probe sweep and m10_sym;
+  - `onecopy/feet-and-params` (`session_013mPGJ4KpUZurFkBCMfZ8Uh`): a segment foot, and the nearest parameter by kind;
+  - `onecopy/refusal-standing` (`session_013mPGJ5BFZnAe1VYCrzZYNj`): the two return types, and the kept-refusal loops.

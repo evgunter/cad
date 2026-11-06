@@ -2,11 +2,12 @@
 id: main-red-the-k-probe-sweep-cannot-compile-geom-brep-under-probe-alone
 kind: issue
 title: main red: scripts/k_probe_sweep.sh no longer compiles geom-brep's tests under --features probe alone (Reach::fixture is behind test-support since 72f10792), and ray_wall_margin_twins' pin now stops on geom predicates
-status: open
+status: dispatched
 opened: 2026-11-05
 priority: P2
 cost: E
 refs: [main-reds-editor-core-slow-set-and-the-k-probe-sweep]
+branch: onecopy/main-reds-k-and-m10
 ---
 
 

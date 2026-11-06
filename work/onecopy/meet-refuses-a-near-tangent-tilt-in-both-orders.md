@@ -2,8 +2,9 @@
 id: meet-refuses-a-near-tangent-tilt-in-both-orders
 kind: issue
 title: meet refuses two conics tilted 1e-6 to 1e-4 off tangency at a shared end, in both orders: an unanchored window that reads off still goes to the polish
-status: open
+status: dispatched
 opened: 2026-11-04
+branch: onecopy/curve-pair-tidy
 ---
 
 

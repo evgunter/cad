@@ -2,11 +2,12 @@
 id: main-red-m10-sym-profiles-two-pinned-rows
 kind: issue
 title: main red: m10_sym_profile's two pinned rows are red on main at every eps (walk ledger)
-status: open
+status: dispatched
 opened: 2026-11-05
 priority: P2
 cost: E
 refs: [pcurve-fit-domain-refusal-moves-the-m10-sym-walk-ledger]
+branch: onecopy/main-reds-k-and-m10
 ---
 
 
