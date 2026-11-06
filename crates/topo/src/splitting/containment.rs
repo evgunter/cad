@@ -134,6 +134,7 @@
 use geom::Conic;
 use geom::cover::{Cover, Site};
 use geom_brep::ExtentBall;
+use geom_brep::ladder::{Answering, Climb, Rung, climb};
 use geom_brep::recourse::{LeverOnly, RefusedArm, RefusedSide, SizedDecision, SizedPass};
 use geom_core::period::{Exact, Extent, Period, Turn, TurnRow, TurnRows, TurnUndecided, Within};
 use geom_core::{
@@ -305,6 +306,20 @@ pub(crate) struct ReadEscalation {
     pub(crate) escalation: Escalation,
     /// The diagnostic (named predicate inside).
     pub(crate) diag: Indeterminate,
+}
+
+impl ReadEscalation {
+    /// What this escalation is to a ladder ([`geom_brep::ladder::Refusal`]):
+    /// a margin ranked by itself, and a straddle a limit, since no
+    /// tolerance narrows two bounds' enclosure.
+    #[must_use]
+    pub(crate) const fn refusal(&self) -> geom_brep::ladder::Refusal {
+        use geom_brep::ladder::Refusal;
+        match self.escalation {
+            Escalation::Margin => Refusal::Margin(self.diag),
+            Escalation::Straddle => Refusal::Limit,
+        }
+    }
 }
 
 impl From<Indeterminate> for ReadEscalation {
@@ -1347,11 +1362,14 @@ pub(crate) struct OnLoop<T: geom_core::Real> {
 impl<T: Decide> CarrierLoop<T> {
     /// **The boundary pass**: [`LoopEdge::contact`] of `q` against each
     /// edge in turn, under `rows`, to the first that places it on the
-    /// edge or at an end.
+    /// edge or at an end: a ladder ([`climb`], [`Answering::First`]: which
+    /// edge holds `q` is the answer), so an edge whose reading escalates
+    /// refuses only where no later edge places `q`.
     ///
     /// # Errors
     ///
-    /// The first edge's escalation.
+    /// Where no edge places `q` and one escalated, the escalation the
+    /// ladder ranks first ([`ReadEscalation::refusal`]).
     pub(crate) fn place_off(
         self,
         q: Point3<T>,
@@ -1360,23 +1378,28 @@ impl<T: Decide> CarrierLoop<T> {
     ) -> Result<Result<OffLoop<T>, OnLoop<T>>, ReadEscalation> {
         let n = self.verts.len();
         let mut off = Vec::with_capacity(n);
-        let mut hit = None;
-        for (i, edge) in self.edges.iter().enumerate() {
-            match edge
-                .contact((self.verts[i], self.verts[(i + 1) % n]), q, rows, band)?
-                .off()
+        let climbed = climb(
+            Answering::First,
+            self.edges.iter().enumerate(),
+            |(i, edge)| match edge.contact((self.verts[i], self.verts[(i + 1) % n]), q, rows, band)
             {
-                Ok(reading) => off.push(reading),
-                Err(on) => {
-                    hit = Some((i, on));
-                    break;
-                }
-            }
+                Ok(contact) => match contact.off() {
+                    Ok(reading) => {
+                        off.push(reading);
+                        Rung::Passes
+                    }
+                    Err(on) => Rung::Answers((i, on)),
+                },
+                Err(why) => why.refusal().rung(why),
+            },
+        );
+        match climbed {
+            Climb::Passed => Ok(Ok(OffLoop { lp: self, off })),
+            Climb::Answered {
+                answer: (edge, on), ..
+            } => Ok(Err(OnLoop { lp: self, edge, on })),
+            Climb::Undecided(why) => Err(why),
         }
-        Ok(match hit {
-            None => Ok(OffLoop { lp: self, off }),
-            Some((edge, on)) => Err(OnLoop { lp: self, edge, on }),
-        })
     }
 }
 
@@ -2195,6 +2218,32 @@ fn conic_crossings<T: Decide>(
 mod tests {
     use super::*;
     use geom_brep::recourse::Reading;
+
+    /// **An edge read in band refuses only where no later edge places
+    /// the point** ([`CarrierLoop::place_off`] climbs its edges): a point
+    /// at the band's distance past a square's corner along its second
+    /// edge lies in band of the first edge and on the second, which
+    /// answers.
+    #[test]
+    fn a_later_edge_places_the_point_past_an_edge_in_band() {
+        let band = Band::new(1e-9, 1e-8).expect("a valid band");
+        let p = |x: f64, y: f64| Point3::new(x, y, 0.0);
+        let square = || CarrierLoop {
+            verts: vec![p(0.0, 0.0), p(1.0, 0.0), p(1.0, 1.0), p(0.0, 1.0)],
+            keys: vec![EdgeKey::default(); 4],
+            edges: (0..4).map(|_| LoopEdge::Chord).collect(),
+            covers: Vec::new(),
+        };
+        match square().place_off(p(1.0, 5e-9), WALK_ROWS, band) {
+            Ok(Err(OnLoop { edge, .. })) => assert_eq!(edge, 1, "the second edge holds the point"),
+            Ok(Ok(_)) => panic!("the point is on the second edge, not off the loop"),
+            Err(e) => panic!("the second edge answers past the first in band, not {e:?}"),
+        }
+        assert!(
+            square().place_off(p(0.5, 5e-9), WALK_ROWS, band).is_err(),
+            "with no edge placing it, the edge in band refuses"
+        );
+    }
 
     /// [`ConicArc::of`] over a fixture span, its extent decided forward
     /// as certification decides it.
