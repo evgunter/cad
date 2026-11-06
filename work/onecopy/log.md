@@ -409,3 +409,9 @@
   - rewrite the filed row as "re-pose the subdivision's touch arm, or else `[ev]`", not "charge the window";
   - pin and disclose the zero → e move for unbounded arcs beside a ring.
   Lesson: a lane that meets a refusal it can fix with a charge must check `[simple.conditioned]` before adding one; a test that needs a non-zero error marks a pose to re-pose.
+
+- 2026-11-06 — The harmonic-cut unit is done locally, waiting on 6541.
+  - The harmonic phases are onto `Azimuth::near`, and the `harmonic-cut` gate class is retired.
+  - One 1e-12 pose is re-posed, citing 2a8502bb.
+  - The chart's cut side stays logged: one row (`placement_rows::a_direction_on_the_windows_cut…`) moves under `Band::least()`. So for a window read the choice is not a pure renaming, and the ledger now says so.
+  - It found three more editor-core slow reds on main (m10_bulge ×2, sym11), passed to the main-reds lane.
