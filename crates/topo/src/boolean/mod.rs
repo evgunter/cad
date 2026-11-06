@@ -2839,6 +2839,9 @@ pub enum SectionUnbuilt {
     /// A closed loop of the section could not be opened at its first
     /// site: the knot edit refused.
     Seat(geom_core::spline::KnotAlgebraError),
+    /// A spline component's piece walk could not run
+    /// (`geom_brep::CarryError::Unwalked`).
+    Unwalked(geom::PieceWalkRefusal),
 }
 
 impl SectionUnbuilt {
@@ -2877,6 +2880,12 @@ impl SectionUnbuilt {
             Self::Seat(e) => write!(
                 f,
                 "the section's closed loop could not be opened at its first site ({e})"
+            ),
+            Self::Unwalked(why) => write!(
+                f,
+                "whether a marched loop's points lie on its fitted carrier could not be read: \
+                 {why}. {}",
+                why.recourse()
             ),
         }
     }

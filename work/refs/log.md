@@ -124,3 +124,58 @@
 
   **Class (Q1, the fix that mints a copy):** a lane closing "an invented name" introduced a second marker home, which the brief's own trap warns of.
 - 2026-11-06 — **PR 6543 fix pass green (`1aecafc70f`); merging on the orchestrator's read of the delta.** Every finding was taken. The measure and naming escalation payloads lose their duplicate `predicate` (read from `source` through `decision::subject`/`ending`). `geom_core::UNNAMED_PREDICATE` is the marker's one home. `record_rooted` also checks that the result is absent. Blend and shell each have permanent `#[should_panic]` rows. `Shelled::lineage` states fates only for retirements no row mints. Filed: BIND `select-refusal-inband-copies-its-sources-predicate-name` (P4 E), CLEAR `the-meeting-pair-leaf-mints-a-sliver-without-the-terminal-rule` (P4 E). Both P0 rows closed (re-priced M and E).
+- 2026-11-06 — **PR 6543 merged (the P0 pair).** Next P1 dispatched: `a-selects-body-takes-an-indexed-read`, unit branch `reads/select-indexed`. Tier **single, FULL**: `Select.body` changes form and `Rebind`'s address with it, which is a correctness risk (a rebind reaching the wrong member) beyond what a read can believe. Order for the remaining P1s, serially: the viewer's boolean tool next (it may want this unit's indexed read), then `slot-forms-want-one-trait`.
+- 2026-11-06 — **`a-selects-body-takes-an-indexed-read` stopped at a fork before building** (no code). The fork: what a selection of `xs[i]` stores and means. DM3 reads as "a member keeps its family-wrapped names". DESIGN `[repetition]`'s per-copy `c[(k+1) mod N].l` needs the member's own names, read at whichever member the index picks. The tree already reads a bare-family selection by the names' form (`names_members`). The lane's premise corrections, true on any answer:
+  - `Rebind` matches names exactly, so the row's "reaches both members" hazard exists only if own names are stored;
+  - a selection's index must enter its content key (`pose.rs` `key_words`);
+  - `PoseDef` is the precedent for a definition holding its own slot variable.
+
+  `design: true` set. Fork `selects-indexed-member` went to two designers (draws on its analysis branch), given the problem only and pointed at the neighbouring indexed-read rows. If it is Ev's fork, an `[ev]` PR follows.
+- 2026-11-06 — **Fork `selects-indexed-member`: first reports in, agreeing on the core and split on details; reconciliation round 1 running.**
+  - **Both:** `Select.body` becomes `BodyRead`, with the selection's own `Count` index slots; the names are the member's own; the index is said once, in the read.
+  - **Split on four points:**
+    - the `Rebind` address (A: the family variable; B: a read, matched exactly);
+    - `Member`-named selections of a bare family at the door (A lowers them as sugar; B refuses them and changes Python's materializer);
+    - mate sides (A traced the structural member walk and offers 6a/6b; B did not trace it);
+    - DM3's wording.
+  - **B's probe:** today a per-`k` read of `xs` and `xs[k]` name members differently (`Member[i] › e` against `Member[i] › Member[i] › e`), so DM3's "one read, one name" fails at node seats too. That goes to the build or to its own row once the fork settles.
+  - **Filed from B's probe:** `a-family-of-boolean-results-cannot-be-read-whole-or-by-index` (P1 M). A union of a per-`k` subtract family refuses `WrongOperand`.
+- 2026-11-06 — **Fork `selects-indexed-member` went to Ev as draft `[ev]` PR 6555 after three rounds** (fork row 253, recommendation half).
+  - **Agreed:**
+    - `Select { body: BodyRead, names }`, with the member's own names and the index said once, in the read;
+    - `xs[k]` on the family's own chain stored as `xs`;
+    - no `Member`-headed stored name;
+    - mate sides take a written count or no index;
+    - `Rebind` stays addressed by the variable, the read address deferred (its doc says "address", and a row for per-member-built families);
+    - DM3 reworded (the PR's diff, with the `work/intent` path drive-by).
+  - **Split, for Ev:** a `Member`-named bare-family selection at the door, rewritten or refused. The two crossed three times. Each designer's final line claims agreement, because each moved in the same round.
+  - **Process note:** three rounds of crossing with no meeting. The arguments stay live because the deciding fact is a judgement ("is a family-table name a legitimate authored spelling at a body seat"), not a checkable one.
+  - PR 6555 is subscribed. The build goes into it after Ev answers.
+  - Next REFS P1, serially: `viewer-boolean-tool-cannot-pick-a-read`. Its indexed-member half follows this fork, so its premise is checked first.
+- 2026-11-06 — **PR 6557 (family of boolean results) green at `3bf9231062`; single FULL review dispatched.**
+  - **Premise narrowed:** an all-body family of booleans already reads as `Instances`. Only a family with an EMPTY boolean member fell to `Family`, so every whole read and every indexed read refused, including `cut[0]` when only its sibling `cut[1]` was empty.
+  - **Fix:** behind one bridge (`member_body` / `member_bodies`), an empty member keeps its index and names nothing, and whole reads refuse `EmptyOperand`.
+  - **Not taken:** a single representation, `Instances(Vec<Option<Framed>>)`. The reviewer is asked whether the bridge is a final state or a copy.
+  - **Rows filed:** WIREREST, the product and interrogator readers (P2 M); REFS, a selection of a member of such a family (P2 E, on 6555's ground); PYDOOR, `Value.bodies()` (P3 E).
+  - **Tier:** FULL, because the empty-member semantics decide what a union means.
+- 2026-11-06 — **PR 6557 review: APPROVE-WITH-FIXES, no MAJOR; fix pass sent.**
+  - The empty-member test fails on the pre-fix tree, and an index-shift mutant goes red, though only through `apart`'s naming check. The `named` assertion gains positions.
+  - **Taken:**
+    - a REFS P1 H row for the two payloads of "a family of bodies", with the hit list;
+    - the eighth `Body | Boolean::Body` ladder copy routes the editor-core copies through `member_body`;
+    - one spelling of the empty value;
+    - `wire_assemble`'s double classification;
+    - `EmptyOperand` naming the member;
+    - six stale docs, and the D3 citation rot;
+    - the unguarded member index;
+    - an empty member at a subtract's `from` seat;
+    - the wirerest caller list (`Evaluation::read_body` → `output_body` has seven more callers);
+    - the pydoor row's fix and home.
+  - **Class (Q1, the fix that mints a copy, second time this sitting):** a helper announced as "the one rule" beside seven unrouted copies of its predicate.
+- 2026-11-06 — **PR 6557 fix pass green (`8a1251eafb`); merged on the orchestrator's read of the delta.** All ten findings were taken:
+  - **One ladder:** every editor-core copy routes through `member_body`, and the leftover one-body arms are `unreachable!`.
+  - **Empty values and refusals:** `OpOut::empty()` is the one spelling of an empty value. A new `NodeErrorKind::EmptyMember { input, at }` names the empty member; both demo matches have catch-alls.
+  - **Docs:** the stale docs and citations are fixed.
+  - **Tests:** the `named` assertion now pins positions.
+  - **Rows filed:** `a-family-of-bodies-has-two-payloads` (REFS P1 H, the unification) and `editor-core-cites-a-spec-d3-no-document-numbers` (REFS P4 C, about 40 sites). The Python row moved to BIND.
+  - `a-family-of-boolean-results-cannot-be-read-whole-or-by-index` is closed.

@@ -438,3 +438,51 @@ fn anchors_of() -> (Point2<f64>, Point2<f64>, Point2<f64>) {
         on_circle(c2, 0.2, a_out - 0.5),
     )
 }
+
+/// **A pair's radius levers fold into the wider menu.** A corner whose
+/// trim eats an anchor names "reduce the radius or move the anchor",
+/// one whose carriers a radius swallows names "reduce the radius"; the
+/// pair names the first, which already holds the second, in either list
+/// order.
+///
+/// Red if the pair names the narrower lever, or names one per corner.
+#[test]
+fn a_pairs_radius_levers_fold_into_moving_the_anchor() {
+    use profile::{FilletLeg, FilletLegCarrier, NoCornerReason, path::CornerRefusal};
+    let anchor = CornerRefusal {
+        at: Point2::new(1.0, 0.0),
+        reason: CornerReason::AnchorOutsideTrimmedExtent {
+            side: FilletLeg::Outgoing,
+            carrier: FilletLegCarrier::Line,
+            setback: 0.4,
+            available: 0.3,
+        },
+    };
+    let radius = CornerRefusal {
+        at: Point2::new(-1.0, 0.0),
+        reason: CornerReason::NoTangentCircle(NoCornerReason::OffsetCarriersDisjoint),
+    };
+    for corners in [
+        vec![anchor.clone(), radius.clone()],
+        vec![radius.clone(), anchor.clone()],
+    ] {
+        let said = PathError::NoCornerOfPair {
+            radius: 0.3,
+            corners,
+        }
+        .to_string();
+        assert!(
+            said.ends_with(". Recourse: reduce the radius or move the anchor"),
+            "the pair names the wider menu once: {said}"
+        );
+    }
+    let said = PathError::NoCornerOfPair {
+        radius: 0.3,
+        corners: vec![radius.clone(), radius],
+    }
+    .to_string();
+    assert!(
+        said.ends_with(". Recourse: reduce the radius"),
+        "two radius corners name the radius alone: {said}"
+    );
+}

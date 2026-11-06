@@ -16,10 +16,19 @@
 # (`use … as Q`, `type Q = …`): the kind admits no new site, and each line
 # goes when its rename does.
 #
-# Not checked here: that a PR's pins are no higher than its base's (CI
-# checks out one commit, so a raised pin reads only in review), and the
-# counter's over-counts (a name it reads as the engine's where a namesake
-# was meant; engine_leaves.py states them), which err the safe way.
+# A pin only falls against the merge base too: the gate reds a pin above
+# the base's (`GATE_BASE`, which ci.yml's `lint` job sets). The one rise
+# it admits is the migration's. A new site in a reader is paid in that
+# reader's `names-*` pin, on a line that cites the move row retiring it
+# (`names-boolean 12 x.rs  # work/<program>/<id>`), and never by a new
+# `pub(crate)` in the engine; `pin-cites-an-open-row.sh` holds the row
+# open, and the green line names each cited rise. A cited line may rise
+# again while its row is open; the row's close takes the citation, and
+# from then the line only falls. Every other kind admits no rise.
+#
+# Not checked here: the counter's over-counts (a name it reads as the
+# engine's where a namesake was meant; engine_leaves.py states them),
+# which err the safe way.
 
 
 boolean-names-splitting     2  boolean/carrier_touch.rs
@@ -95,7 +104,7 @@ names-boolean               7  attach.rs
 names-boolean              14  body.rs
 names-boolean               4  bound_side.rs
 names-boolean              11  cell_region.rs
-names-boolean             503  census.rs
+names-boolean             504  census.rs  # work/onecopy/the-census-sort-of-a-boolean-refusal-has-no-legal-home-under-topo-homes
 names-boolean               2  census/curved.rs
 names-boolean              33  census/depth_gap.rs
 names-boolean              24  census/in_plane.rs

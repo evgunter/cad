@@ -40,7 +40,7 @@ use geom_core::Decide;
 use topo::readback::{self, Pose, ReadbackError};
 use topo::{Body, CurveKind};
 
-use crate::eval::{BooleanValue, Evaluation, NodeStanding, SplitSide, ValuePayload};
+use crate::eval::{Evaluation, NodeStanding, SplitSide, ValuePayload};
 use crate::names::{EntityKey, EntityKind, Entry, SplitHalf, StableName};
 use crate::node::RecipeNodeId;
 
@@ -648,22 +648,16 @@ pub(crate) fn output_body<T: Decide>(
 ) -> Result<&crate::eval::Framed<T>, InterrogateError> {
     let missing = || InterrogateError::NoSuchBody { index };
     let none = |payload| Err(InterrogateError::NoBodies { payload });
+    match payload.member_body() {
+        Some(Some(body)) if index == 0 => return Ok(body),
+        Some(Some(_)) => return Err(missing()),
+        Some(None) => return none("empty boolean"),
+        None => {}
+    }
     match payload {
-        ValuePayload::Body(b) => {
-            if index == 0 {
-                Ok(b)
-            } else {
-                Err(missing())
-            }
+        ValuePayload::Body(_) | ValuePayload::Boolean(_) => {
+            unreachable!("`member_body` answers every one-body value")
         }
-        ValuePayload::Boolean(BooleanValue::Body { body, .. }) => {
-            if index == 0 {
-                Ok(body)
-            } else {
-                Err(missing())
-            }
-        }
-        ValuePayload::Boolean(BooleanValue::Empty) => none("empty boolean"),
         // The half that owns `index` by `SplitHalf::output_body` (the
         // one definition of that mapping), if either does.
         ValuePayload::Split { above, below } => {

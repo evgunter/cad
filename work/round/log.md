@@ -170,3 +170,46 @@ which is how `fillet-step-discoverability-six-door-refusals` will run.
 - 2026-11-06 — `fillet-step-discoverability-six-door-refusals` dispatched to its own cloud session (session_013mPGJ4pin8WZZttgvZtpq7), branch `round/fillet-step-discoverable`: a Transition refusal names what its state accepts, derived from the transition data; `ProgramStep::Fillet` documents its legs; the reviewer's pad rebuilt from a naive attempt as the acceptance. Review tier: single, STYLE (docs and refusal text over one derived set).
 - 2026-11-06 — PR 6544 merges: the P0 turn-gate row closes (single FULL review APPROVE-WITH-FIXES; the fix pass found the straight lever's first wording unfollowable and replaced it with one followed to a valid loop).
 - 2026-11-06 — PR 6545 merges: the P0 cusp-fillet row closes (single FULL review APPROVE; fix pass took its one-home predicate, doc and coverage points).
+- 2026-11-06 — PR 6549 (discoverability) reviewed STYLE: APPROVE-WITH-FIXES, fix pass sent to its session. Filed `a-corner-behind-the-incoming-rays-start-names-no-recourse` (P1 E): the geometry half of the newcomer's walk, which the acceptance walk's premise could not reach.
+- 2026-11-06 — PR 6549 merges: `fillet-step-discoverability-six-door-refusals` closes (STYLE review APPROVE-WITH-FIXES; the fix pass made the `ProgramStep` docs point at the rows, one lattice sentence `profile::Refused` at every door, and filed the `AlongTrace` naming gap on DOCTAIL). Its session is archived.
+
+## 2026-11-06 — the escalation unit lands (PR 6546); the last code P1 dispatched
+
+PR 6546 merges after its dual review and fix pass: one closed
+`profile::Gate` routes every in-band ending, `fillet_offset_lever` is
+`Lever` (its margin moves against the user as ε shrinks, R1's tallied
+finding), and `tests/gate_kinds_followed.rs` pins each gate's kind by
+following its tighten. The unit and its four passengers close; the row
+is `docs/dual-review-log/rows/PR-6546.md` (tally 1). All three P1 code
+units of the original cut and both P0s are on main.
+
+`a-corner-behind-the-incoming-rays-start-names-no-recourse` (P1 E, filed
+from PR 6549's review) dispatched: `round/corner-behind-names-its-recourse`,
+single STYLE review. What remains at P0/P1 after it: the two forks with
+Ev (PRs 6542, 6547), each a build unit once ruled.
+
+## 2026-11-06 — hand-back (`ready`)
+
+PR 6556 merged: the corner-window refusals name their lever, a pair whose
+corners differ names each beside its corner, and the last
+`.contains("anchor")` text match is gone. With it every P0 and P1 code
+row of the sitting is on main: PRs 6544 and 6545 (the two P0s), 6546
+(the escalation unit and its four passengers, dual-reviewed), 6549
+(discoverability), 6556. Two rows closed as already fixed, two forks put
+to Ev.
+
+The three P1 rows left are the forks, parked on their `[ev]` PRs (6542,
+6547); each becomes a build unit when Ev rules, and `plan.md` says what
+each build touches. No P0/P1 row is dispatchable, so the track goes back
+`ready` for its tail (one P2, three P3). The tail's two easy rows were
+not taken: neither is cheaper for this sitting than for a successor, and
+their item files carry the evidence.
+
+Findings recorded this sitting as classes: the inherited `topo` link
+fuzzer red at the default ε (ATREST's row); the disk ceiling of three
+build lanes on one container; GitHub's merge ignoring the union driver
+on `log.md`, so a unit PR's tracker commit should not touch the log.
+
+Watching: this session stays subscribed to PRs 6542 and 6547 and acts on
+Ev's answers there (the second, Ev-decision commit of each design-fork
+row; updating the PR in place).

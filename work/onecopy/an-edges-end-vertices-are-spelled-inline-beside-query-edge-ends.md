@@ -2,11 +2,12 @@
 id: an-edges-end-vertices-are-spelled-inline-beside-query-edge-ends
 kind: issue
 title: An edge's two end vertices are spelled inline at about seventeen topo sites beside query::edge_ends and Body::edge_vertices
-status: open
+status: dispatched
 opened: 2026-11-03
 priority: P2
 cost: M
 refs: [6327]
+branch: onecopy/topo-handles
 ---
 
 Found by the sweep of `the-curve-pair-units-follow-ups-from-its-review` item 1, which moved `carrier_cross::face_boundary` onto `query::edge_ends`.
