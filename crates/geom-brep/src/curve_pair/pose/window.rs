@@ -211,7 +211,7 @@ impl<T: Decide> Window<'_, T> {
         // Interval reading encloses them.
         let z0 = T::zero();
         let h = taylor(self.height_jet(m), [z0; 4], self.height_fourth(), w);
-        let f = taylor(level.jet_at(m).map(|r| r.value), [z0; 4], level.fourth(), w);
+        let f = taylor(level.jet_at(m), [z0; 4], level.fourth(), w);
         let (big, small) = (self.b.speed_hi(), self.b.speed_lo());
         let height_recedes = positive(row, h.lo)
             && positive(row, h.slope_lo)
@@ -675,6 +675,69 @@ mod rows {
                 "{label}: a window with a meeting across the seam is not the joint's"
             );
         }
+    }
+
+    /// **An arc no ring bounds, in a window that holds a ring, reads off
+    /// only past the escalation.** The unit circle's window `±2·10⁻⁶`
+    /// about its span's seam. A circle in the plane of the chord between
+    /// `θ = ±10⁻⁶` meets it at `10⁻⁶`, the found meeting, whose ring bounds
+    /// the part past the seam's start; near `−10⁻⁶`, in the part before the
+    /// seam's end, which no ring bounds, it passes the first at the least
+    /// gap the closed-form distance to it reads, sampled densely. Within the zero
+    /// band the window is not the joint's (a second meeting), and past the
+    /// escalation it is. In the band's gap the arc's pieces all read off
+    /// past the zero, as a ring-bounded arc's would, so the window read the
+    /// pair apart there; now it does not certify, and the root goes to the
+    /// polish. Red where an arc no ring bounds reads off past the zero.
+    #[test]
+    fn a_free_arc_in_the_gap_beside_a_ring_is_not_the_joints() {
+        let (tau, w) = (core::f64::consts::TAU, 2e-6_f64);
+        let (z, e) = (band().zero(), band().escalate());
+        let (c, s) = ((w / 2.0).cos(), (w / 2.0).sin());
+        let a = Curve3::circle(Point3::origin(), Vec3::unit_z(), 1.0, Vec3::unit_x());
+        let mut gap_seen = 0;
+        let mut bad = Vec::new();
+        for pass in [5e-10, 8e-9, 3e-8, 1e-7] {
+            let r = 2.0 * s * s / pass;
+            let centre = Point3::new(c, s, r);
+            let b = Curve3::circle(centre, Vec3::unit_x(), r, Vec3::new(0.0, 0.0, -1.0));
+            let gap = (0..=20_000)
+                .map(|i| {
+                    let q = a.eval(-w + w * f64::from(i) / 20_000.0) - centre;
+                    let h = q.x;
+                    let rho = (q - Vec3::unit_x() * h).norm();
+                    (h * h + (rho - r).powi(2)).sqrt()
+                })
+                .fold(f64::INFINITY, f64::min);
+            let got = holds((&a, (0.0, tau)), &b, (-w, w), w / 2.0);
+            let label = format!("least gap {gap:e}");
+            if gap <= z || gap > e {
+                if got != (gap > e) {
+                    bad.push(format!("{label}: holds {got}"));
+                }
+                continue;
+            }
+            gap_seen += 1;
+            let (ka, kb) = (a.conic().unwrap(), b.conic().unwrap());
+            let window = Window {
+                a: &ka,
+                span_a: (0.0, tau),
+                b: &kb,
+                carrier_b: &b,
+                height: super::super::height(&ka, kb.frame().origin, kb.frame().axis),
+            };
+            let level = super::super::level_on(&ka, &kb);
+            let past_zero = window
+                .pieces((tau - w, tau), Some(true), &level, band())
+                .is_some_and(|reads| reads.iter().all(|&x| x == super::Read::Off));
+            if !past_zero || got {
+                bad.push(format!(
+                    "{label}: off past the zero {past_zero}, holds {got}"
+                ));
+            }
+        }
+        assert_eq!(gap_seen, 2, "two passes in the band's gap");
+        assert!(bad.is_empty(), "{}", bad.join("\n"));
     }
 
     /// **A ring lies within the band's escalation of its meeting.** A

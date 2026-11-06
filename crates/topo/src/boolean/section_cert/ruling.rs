@@ -107,7 +107,7 @@ use geom_core::{Band, Decide, Margin, Point3, Real, Sign, Vec3};
 
 use super::sign;
 use geom_brep::half_angle::{
-    DegreeTwo, RootSlack, SubdivisionFrame, SubdivisionRows, Terms, TrigPoly, certified_subdivision,
+    DegreeTwo, RootSlack, SubdivisionFrame, SubdivisionRows, TrigPoly, certified_subdivision,
 };
 use geom_core::rounding_charge;
 
@@ -514,6 +514,7 @@ fn roots<T: Decide>(
         f_per_metre: walk.per_metre,
         f_per_metre_hi: walk.per_metre,
         residual_reach: None,
+        jet: None,
     };
     let slack = RootSlack {
         row: walk.row,
@@ -528,7 +529,7 @@ fn roots<T: Decide>(
         }
     };
     let found = match certified_subdivision(
-        Terms::Harmonics(&walk.f),
+        &walk.f,
         &residual,
         &frame,
         &rows.walk,

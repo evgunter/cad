@@ -425,8 +425,8 @@ fn ladder_frame<T: Decide>(
             f_per_metre: floor,
             f_per_metre_hi: T::one(),
             residual_reach: None,
+            jet: None,
         },
-        jet: None,
         speed_lo: conic.speed_lo(),
         lever: T::from_f64(2.0) * conic.speed_lo(),
     }

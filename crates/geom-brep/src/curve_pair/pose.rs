@@ -387,14 +387,12 @@ mod window;
 use geom::{Azimuth, Curve3, CurveKind};
 use geom_core::k_stats::{check_unlogged, decide, straddle};
 use geom_core::one_line::{OnOneLine, on_one_line};
-use geom_core::running::{cross, dot, exact_vec};
-use geom_core::{Band, Decide, Lever, Margin, Point3, Rounded, Sign, Vec3};
+use geom_core::{Band, Decide, Lever, Margin, Point3, Sign, Vec3};
 
 use super::span::Span;
 use super::{Arm, MeetFault, Method};
 use crate::half_angle::{
-    DegreeTwo, Local, SubdivisionFrame, SubdivisionRows, Terms, TouchRows,
-    certified_subdivision_touching,
+    DegreeTwo, SubdivisionFrame, SubdivisionRows, TouchRows, certified_subdivision_touching,
 };
 use crate::roots::{Roots, Unsettled, arc_past, extreme_sign};
 use geom::Conic;
@@ -1471,9 +1469,10 @@ fn coplanar_ellipse_circle<T: Decide>(
         f_per_metre: r,
         f_per_metre_hi: T::from_f64(3.0) * r,
         residual_reach: Some(r),
+        jet: None,
     };
     let residual = |theta: T| (ke.point_at(theta) - kc.frame().origin).norm() - r;
-    subdivided(Terms::Harmonics(&poly), &residual, &frame, place, band)
+    subdivided(&poly, &residual, &frame, place, band)
 }
 
 /// A coplanar pair's roots and touches from the certified subdivision
@@ -1481,14 +1480,14 @@ fn coplanar_ellipse_circle<T: Decide>(
 /// candidate: none is [`Pose::Apart`], one touch alone is
 /// [`Pose::Tangent`], and a refusal is typed.
 fn subdivided<T: Decide>(
-    terms: Terms<'_, T>,
+    poly: &crate::half_angle::TrigPoly<T>,
     residual: &impl Fn(T) -> T,
     frame: &SubdivisionFrame<T>,
     place: &impl Fn(T) -> Candidate<T>,
     band: Band,
 ) -> Result<Pose<T>, MeetFault> {
     let found = certified_subdivision_touching(
-        terms,
+        poly,
         residual,
         frame,
         &COPLANAR_ROWS,
@@ -1516,7 +1515,7 @@ fn subdivided<T: Decide>(
 /// **Two ellipses in one plane** (module docs): the first's level on
 /// the second, `F(θ) = X²/A² + Y²/B² − 1` at the first's point `(X, Y)`
 /// in the second's frame, is of degree two in the first's angle, and goes
-/// to the certified subdivision, read locally ([`Level`]), in the metres of
+/// to the certified subdivision in the metres of
 /// [`geom::ellipse_level_clearance`], the lower bound on a point's
 /// distance from the second that [`Curve3::clearance`] reads, signed as
 /// `F`.
@@ -1538,7 +1537,7 @@ fn coplanar_ellipses<T: Decide>(
 ) -> Result<Pose<T>, MeetFault> {
     let (big_a, big_b) = kb.semi_axes();
     let (ub, vb) = (kb.frame().u_ref, kb.frame().v_ref());
-    let level = level_on(ka, kb);
+    let (poly, terms) = coplanar_level(ka, kb);
     let small = big_a.abs().min(big_b.abs());
     let (t0, t1) = e.params();
     let (ceiling, reach) = level_ceiling(small);
@@ -1546,24 +1545,18 @@ fn coplanar_ellipses<T: Decide>(
         t0,
         t1,
         speed_hi: ka.speed_hi(),
-        // No harmonics are read.
-        noise: T::zero(),
+        noise: geom_core::rounding_charge(terms),
         // `g` vanishes at the second's centre: no floor but zero holds.
         f_per_metre: T::zero(),
         f_per_metre_hi: ceiling,
         residual_reach: Some(reach),
-    };
-    let jet = |theta: T| level.jet_at(theta);
-    let local = Local {
-        at: &jet,
-        fourth: level.fourth(),
-        degree: 2,
+        jet: None,
     };
     let residual = |theta: T| {
         let d = ka.point_at(theta) - kb.frame().origin;
         geom::ellipse_level_clearance((d.dot(ub), d.dot(vb)), (big_a, big_b))
     };
-    subdivided(Terms::Local(local), &residual, &frame, place, band)
+    subdivided(&poly, &residual, &frame, place, band)
 }
 
 /// **`b`'s level along `a`**: `F(θ) = X²/A² + Y²/B² − 1` at the image of
@@ -1574,17 +1567,12 @@ fn coplanar_ellipses<T: Decide>(
 /// in `b`'s frame ([`Level::jet_at`]), never from its global harmonics.
 /// Posed about `b`'s centre those carry rounding of order `((|w| + R)/s)²`,
 /// `w` the centres' offset, `R` `a`'s size and `s` `b`'s smaller
-/// semi-axis, which at a far or thin pair reaches the band's zero. The
-/// local form's rounding is that of `F`'s own few terms, of order
-/// `(|w| + R)/s` where `a(θ)` lies near `b`, and [`Level::jet_at`]
-/// bounds it. A reading over a piece takes the jet at its middle and
-/// [`Level::fourth`] for Taylor's remainder, a bound that needs no
-/// precision. Both readers read this one level: the coplanar ellipses'
-/// subdivision (`coplanar_ellipses`) charging the jet's bounds, and the
-/// window its values.
+/// semi-axis, which at a far or thin pair reaches the band's zero; the
+/// local form's rounding is that of `F`'s own few terms. A reading over a
+/// piece takes the jet at its middle and [`Level::fourth`] for Taylor's
+/// remainder, a bound that needs no precision.
 pub(super) struct Level<'k, T: geom_core::Real> {
     a: &'k dyn Conic<T>,
-    b: &'k dyn Conic<T>,
     centre: Point3<T>,
     axes: (Vec3<T>, Vec3<T>),
     squares: (T, T),
@@ -1592,61 +1580,28 @@ pub(super) struct Level<'k, T: geom_core::Real> {
 }
 
 impl<T: Decide> Level<'_, T> {
-    /// **`F` and its first three derivatives at `θ`**, each with a
-    /// first-order bound on its rounding. On a conic `P″ = −(P − c)` and
-    /// `P‴ = −P′`, `c` its centre. `a`'s point is formed about `b`'s
-    /// centre, as the centres' offset `w` plus `a`'s own offset from its
-    /// centre, so its rounding is `u` of `|w|` and `a`'s size, not of
-    /// the frames' distance from the origin; each coordinate is divided
-    /// by its semi-axis before it is squared. `θ`, the frames and the
-    /// semi-axes are taken as exact; `v̂ = n̂ × û` is charged as formed,
-    /// and `cos θ` and `sin θ` one ulp each.
-    pub(super) fn jet_at(&self, theta: T) -> [Rounded<T>; 4] {
-        let ulp = T::from_f64(2.0 * geom_core::UNIT_ROUNDOFF);
-        let transcendental = |x: T| Rounded {
-            value: x,
-            error: ulp * x.abs(),
-        };
-        let (sin, cos) = theta.sin_cos();
-        let (sin, cos) = (transcendental(sin), transcendental(cos));
-        let frame = |k: &dyn Conic<T>| {
-            let f = k.frame();
-            let (n, u) = (exact_vec(f.axis), exact_vec(f.u_ref));
-            (u, cross(n, u))
-        };
-        let ((ua, va), (ub, vb)) = (frame(self.a), frame(self.b));
-        let (alpha, beta) = self.a.semi_axes();
-        let (ac, bs) = (Rounded::exact(alpha) * cos, Rounded::exact(beta) * sin);
-        let (as_, bc) = (Rounded::exact(alpha) * sin, Rounded::exact(beta) * cos);
-        let e: [Rounded<T>; 3] = core::array::from_fn(|i| ua[i] * ac + va[i] * bs);
-        let e1: [Rounded<T>; 3] = core::array::from_fn(|i| va[i] * bc - ua[i] * as_);
-        let (ca, cb) = (
-            exact_vec(self.a.frame().origin - Point3::origin()),
-            exact_vec(self.b.frame().origin - Point3::origin()),
-        );
-        let q: [Rounded<T>; 3] = core::array::from_fn(|i| (ca[i] - cb[i]) + e[i]);
-        let zero = Rounded::exact(T::zero());
-        let (two, three) = (
-            Rounded::exact(T::from_f64(2.0)),
-            Rounded::exact(T::from_f64(3.0)),
-        );
-        let (big_a, big_b) = self.b.semi_axes();
-        // `X = x/A` and its derivatives, `x` the coordinate along `axis`.
-        let side = |axis: [Rounded<T>; 3], semi: T| {
-            let x = dot(q, axis).div_exact(semi);
-            let x1 = dot(e1, axis).div_exact(semi);
-            let x2 = zero - dot(e, axis).div_exact(semi);
-            let x3 = zero - x1;
+    /// `F` and its first three derivatives at `θ`. On a conic
+    /// `P″ = −(P − c)` and `P‴ = −P′`, `c` its centre.
+    pub(super) fn jet_at(&self, theta: T) -> [T; 4] {
+        let (p, dp) = self.a.jet_at(theta);
+        let ddp = self.a.frame().origin - p;
+        let (ub, vb) = self.axes;
+        let q = p - self.centre;
+        let side = |axis: Vec3<T>, square: T| {
+            let (x, x1, x2) = (q.dot(axis), dp.dot(axis), ddp.dot(axis));
+            let x3 = T::zero() - x1;
+            let three = T::from_f64(3.0);
             [
-                x.square(),
-                x * x1,
-                x1.square() + x * x2,
-                three * x1 * x2 + x * x3,
+                x.powi(2) / square,
+                x * x1 / square,
+                (x1.powi(2) + x * x2) / square,
+                (three * x1 * x2 + x * x3) / square,
             ]
         };
-        let (x, y) = (side(ub, big_a), side(vb, big_b));
+        let (x, y) = (side(ub, self.squares.0), side(vb, self.squares.1));
+        let two = T::from_f64(2.0);
         [
-            x[0] + y[0] - Rounded::exact(T::one()),
+            x[0] + y[0] - T::one(),
             two * (x[1] + y[1]),
             two * (x[2] + y[2]),
             two * (x[3] + y[3]),
@@ -1684,7 +1639,7 @@ pub(super) fn up<const N: u32, T: Decide>(x: T) -> T {
 }
 
 /// [`Level`] of `kb` along `ka`.
-pub(super) fn level_on<'k, T: Decide>(ka: &'k dyn Conic<T>, kb: &'k dyn Conic<T>) -> Level<'k, T> {
+pub(super) fn level_on<'k, T: Decide>(ka: &'k dyn Conic<T>, kb: &dyn Conic<T>) -> Level<'k, T> {
     let (big_a, big_b) = kb.semi_axes();
     let (ub, vb) = (kb.frame().u_ref, kb.frame().v_ref());
     let (ua, va) = (
@@ -1700,12 +1655,47 @@ pub(super) fn level_on<'k, T: Decide>(ka: &'k dyn Conic<T>, kb: &'k dyn Conic<T>
     };
     Level {
         a: ka,
-        b: kb,
         centre: kb.frame().origin,
         axes: (ub, vb),
         squares,
         fourth: up::<24, _>(side(ub, squares.0) + side(vb, squares.1)),
     }
+}
+
+/// **The coplanar ellipses' level, read globally**: [`Level`]'s `F` as
+/// one trigonometric polynomial of degree two in `a`'s angle (each of `X`
+/// and `Y` a first harmonic), and the term bound its rounding is charged
+/// on. Only `coplanar_ellipses` reads it, through the certified
+/// subdivision; the window reads [`Level`].
+fn coplanar_level<T: Decide>(
+    ka: &dyn Conic<T>,
+    kb: &dyn Conic<T>,
+) -> (crate::half_angle::TrigPoly<T>, T) {
+    let (big_a, big_b) = kb.semi_axes();
+    let (ub, vb) = (kb.frame().u_ref, kb.frame().v_ref());
+    let (ua, va) = (
+        ka.frame().u_ref * ka.semi_axes().0,
+        ka.frame().v_ref() * ka.semi_axes().1,
+    );
+    let w = ka.frame().origin - kb.frame().origin;
+    // `X = x₀ + p cos θ + q sin θ`, `Y = y₀ + r cos θ + t sin θ`.
+    let (x0, p, q) = (w.dot(ub), ua.dot(ub), va.dot(ub));
+    let (y0, r, t) = (w.dot(vb), ua.dot(vb), va.dot(vb));
+    let (a2, b2) = (big_a.powi(2), big_b.powi(2));
+    let two = T::from_f64(2.0);
+    let poly = DegreeTwo::new(
+        (x0.powi(2) + (p.powi(2) + q.powi(2)) / two) / a2
+            + (y0.powi(2) + (r.powi(2) + t.powi(2)) / two) / b2
+            - T::one(),
+        two * (x0 * p / a2 + y0 * r / b2),
+        two * (x0 * q / a2 + y0 * t / b2),
+        (p.powi(2) - q.powi(2)) / (two * a2) + (r.powi(2) - t.powi(2)) / (two * b2),
+        p * q / a2 + r * t / b2,
+    )
+    .poly();
+    let small = big_a.abs().min(big_b.abs());
+    let terms = ((w.norm() + ka.speed_hi() + ka.speed_lo()) / small).powi(2) + T::one();
+    (poly, terms)
 }
 
 /// **The ceiling on an ellipse's level per metre of
