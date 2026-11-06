@@ -108,7 +108,7 @@ impl OverlapRefusal {
     /// [`geom_brep::ladder::Aborts`] for a refusal of the whole query: a
     /// spline carrier, a face that does not resolve, two faces of
     /// opposite sense, and each payload's own aborts.
-    pub(crate) fn refusal(&self) -> Result<geom_brep::ladder::Refusal, geom_brep::ladder::Aborts> {
+    fn refusal(&self) -> Result<geom_brep::ladder::Refusal, geom_brep::ladder::Aborts> {
         use geom_brep::ladder::{Aborts, Refusal};
         match self {
             Self::SplineCarrier { .. } | Self::StaleFace { .. } | Self::OppositeSenses => {

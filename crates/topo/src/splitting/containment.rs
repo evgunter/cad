@@ -313,7 +313,7 @@ impl ReadEscalation {
     /// a margin ranked by itself, and a straddle a limit, since no
     /// tolerance narrows two bounds' enclosure.
     #[must_use]
-    pub(crate) const fn refusal(&self) -> geom_brep::ladder::Refusal {
+    const fn refusal(&self) -> geom_brep::ladder::Refusal {
         use geom_brep::ladder::Refusal;
         match self.escalation {
             Escalation::Margin => Refusal::Margin(self.diag),

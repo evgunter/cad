@@ -476,7 +476,11 @@ impl PointInSolidError {
     /// kind with no arm, a corrupt or inside-out body, a solid that is
     /// not there), so a ladder over points reading it again gains
     /// nothing: it aborts ([`geom_brep::ladder::Aborts`]).
-    pub(crate) fn refusal(&self) -> Result<geom_brep::ladder::Refusal, geom_brep::ladder::Aborts> {
+    ///
+    /// # Errors
+    ///
+    /// [`geom_brep::ladder::Aborts`], for a refusal of the whole query.
+    pub fn refusal(&self) -> Result<geom_brep::ladder::Refusal, geom_brep::ladder::Aborts> {
         use geom_brep::ladder::{Aborts, Refusal};
         if self.in_band() {
             match self {
@@ -5151,6 +5155,68 @@ const AT_INFINITY: crate::props::RoleNames =
 /// The side-at-infinity decision's name on the interval re-derivation.
 const AT_INFINITY_ENCLOSURE: crate::props::RoleNames =
     crate::props::RoleNames::one("bool_point_in_solid_infinity_enclosure");
+
+/// **The census's material probe ranks this door's refusals by their
+/// standing** ([`PointInSolidError::refusal`], read by
+/// [`crate::census::probe_vertices`]): a refusal of the whole query stops
+/// the probe ahead of a later vertex inside; a limit outranks an in-band
+/// refusal read before it; and a vertex inside still answers past an
+/// in-band one. Fed the readings directly, since no body a constructor
+/// builds refuses two ways in one probe.
+#[cfg(test)]
+mod census_probe_ranking {
+    use super::{PointInSolidError, SolidContainment};
+    use crate::census::{Probe, probe_vertices};
+    use crate::entity::{SolidKey, VertexKey};
+
+    fn probe(readings: Vec<Result<SolidContainment, PointInSolidError>>) -> Probe {
+        let vertices: Vec<_> = (0..readings.len())
+            .map(|i| (VertexKey::default(), i))
+            .collect();
+        probe_vertices(
+            &vertices,
+            |i| readings[i].clone(),
+            |e| (e.refusal(), e.summary()),
+            |_| false,
+        )
+    }
+
+    #[test]
+    fn an_abort_stops_the_probe_and_a_limit_outranks_in_band() {
+        let gone = || PointInSolidError::NoSuchSolid {
+            solid: SolidKey::default(),
+        };
+        assert_eq!(
+            probe(vec![Err(gone()), Ok(SolidContainment::In)]),
+            Probe::Refused(gone().summary()),
+            "a solid that is not there refuses the whole query: no later vertex is read"
+        );
+        assert_eq!(
+            probe(vec![
+                Err(PointInSolidError::RayExhausted),
+                Err(PointInSolidError::ZeroVolumeBody)
+            ]),
+            Probe::Refused(PointInSolidError::ZeroVolumeBody.summary()),
+            "a limit outranks an in-band refusal read before it"
+        );
+        assert_eq!(
+            probe(vec![
+                Err(PointInSolidError::RayExhausted),
+                Ok(SolidContainment::In)
+            ]),
+            Probe::In(VertexKey::default()),
+            "a vertex inside answers past an in-band refusal"
+        );
+        assert_eq!(
+            probe(vec![
+                Err(PointInSolidError::RayExhausted),
+                Ok(SolidContainment::Out)
+            ]),
+            Probe::Refused(PointInSolidError::RayExhausted.summary()),
+            "with no vertex inside, the kept refusal refuses"
+        );
+    }
+}
 
 #[cfg(test)]
 mod volume_refusal_rows {
