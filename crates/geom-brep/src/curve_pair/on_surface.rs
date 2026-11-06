@@ -16,10 +16,19 @@
 //! ([`geom::ChartChannels::read`]) on the caller's row, so the reading
 //! decides it as a length.
 //!
-//! A [`SurfaceCurve`] is built from a surface record and chart coordinates
-//! and from nothing else: its centre, radius and direction are the
-//! surface's own at those coordinates, so no curve off the surface can be
-//! built as one.
+//! A [`SurfaceCurve`] is built from a surface value and chart coordinates
+//! and from nothing else: its centre, radius and direction are that
+//! surface's own at those coordinates, so no curve off it can be built as
+//! one. The surface is a `geom::Surface` value, which a caller may
+//! synthesise rather than read off a face (the sphere cut-in charts the
+//! face's sphere on its own `u_ref`; a region door rebuilds its surface
+//! from its own fields); the type ties the curve to that value, not to a
+//! face's record.
+//!
+//! An [`OnSurface`] edge is read against a curve on the same surface, and
+//! nothing in the types ties the two together: that the edge lies on the
+//! curve's surface is [`OnSurface::edge`]'s precondition, held by the
+//! caller.
 
 use geom::{Azimuth, ChartAngle, ChartArm, ChartChannels, ChartInverse, Circle, Curve3, Frame};
 use geom_core::k_stats::decide;
@@ -97,12 +106,6 @@ impl<T: Decide> SurfaceCurve<T> {
             family,
             kind: surface.kind(),
         }
-    }
-
-    /// The unit radial direction at azimuth `u` in `frame`.
-    fn radial(frame: &Frame<T>, u: T) -> Vec3<T> {
-        let (sin, cos) = u.sin_cos();
-        frame.u_ref * cos + frame.v_ref() * sin
     }
 
     fn circle(
@@ -183,7 +186,7 @@ impl<T: Decide> SurfaceCurve<T> {
     ) -> Result<Self, NoSuchFamily> {
         let chart = Self::chart(surface, "meridian")?;
         let f = *chart.frame();
-        let radial = Self::radial(&f, uv.x);
+        let radial = f.radial(uv.x);
         let normal = radial.cross(f.axis);
         let normal = if forward { normal } else { -normal };
         let start = surface.eval(uv.x, uv.y);
@@ -263,7 +266,7 @@ impl<T: Decide> SurfaceCurve<T> {
     ) -> Self {
         let f = *chart.frame();
         let (sin, cos) = u.sin_cos();
-        let normal = f.axis.cross(Self::radial(&f, u));
+        let normal = f.axis.cross(f.radial(u));
         Self {
             chart,
             shape: Shape::Line(geom::Line { origin: start, dir }),
@@ -277,6 +280,8 @@ impl<T: Decide> SurfaceCurve<T> {
 
     /// **A sphere's great circle through `uv`** along `t` there: the
     /// great circle in the plane of `t` and the radius to `uv`'s point.
+    /// `t` must not be parallel to that radius (a debug assertion), as
+    /// the sphere ray's unit tangent never is.
     ///
     /// # Errors
     ///
@@ -297,6 +302,12 @@ impl<T: Decide> SurfaceCurve<T> {
         // the sphere's great circle in the plane of `w` and `t`.
         let normal = (w / w.norm()).cross(t);
         let normal = normal / normal.norm();
+        // `t` parallel to the radius spans no plane: the zero normal over
+        // its zero length is poison.
+        debug_assert!(
+            !normal.x.is_poison(),
+            "a great circle's direction runs through the sphere's centre"
+        );
         Ok(Self::circle(
             chart,
             center,
@@ -427,24 +438,52 @@ impl<T: Decide> SurfaceCurve<T> {
 
     /// **This curve over `span` across a plane through `on` of unit normal
     /// `normal`**: the plane door's reading in the curve's own parameter
-    /// ([`span_plane_meet`]).
+    /// ([`span_plane_meet`]), decided as [`OnSurface::across`] decides an
+    /// edge's (a parallel curve in the plane or apart on `row`'s offset).
     ///
     /// # Errors
     ///
-    /// A rung in band.
+    /// A rung or an offset in band.
     pub fn across_plane(
         &self,
         span: (T, T),
         ends: SpanEnds,
         (on, normal): (Point3<T>, Vec3<T>),
+        row: &'static str,
         band: Band,
-    ) -> Result<SpanPlaneMeet<T>, Indeterminate> {
-        match span_plane_meet(&self.carrier(), span, ends, on, normal, band) {
-            Ok(Some(found)) => Ok(found),
+    ) -> Result<CoSurface<T>, Indeterminate> {
+        let carrier = self.carrier();
+        match span_plane_meet(&carrier, span, ends, on, normal, band) {
+            Ok(Some(found)) => decided(found, &carrier, row, band),
             Ok(None) => unreachable!("a surface curve is a circle or a line"),
             Err(fault) => Err(ConicRootFault::diag(fault)),
         }
     }
+}
+
+/// The plane door's answer for `carrier` decided once, for both readings
+/// ([`OnSurface::across`], [`SurfaceCurve::across_plane`]): a carrier
+/// parallel to the plane is in it or apart on `row`'s offset, and each
+/// root carries its point.
+fn decided<T: Decide>(
+    found: SpanPlaneMeet<T>,
+    carrier: &Curve3<T>,
+    row: &'static str,
+    band: Band,
+) -> Result<CoSurface<T>, Indeterminate> {
+    Ok(match found {
+        SpanPlaneMeet::Parallel { offset } => match decide(row, Margin::of(offset), band)? {
+            Sign::Zero => CoSurface::InPlane,
+            Sign::Positive | Sign::Negative => CoSurface::Roots(Vec::new()),
+        },
+        SpanPlaneMeet::Touch => CoSurface::Touch,
+        SpanPlaneMeet::Roots(roots) => CoSurface::Roots(
+            roots
+                .into_iter()
+                .map(|root| (root, carrier.eval(root.t)))
+                .collect(),
+        ),
+    })
 }
 
 /// **An edge on a surface**: a span of a face's boundary edge, on the
@@ -479,8 +518,12 @@ pub enum CoSurface<T: Real> {
 
 impl<'a, T: Decide> OnSurface<'a, T> {
     /// The span `(t0, t1)` of `carrier`, an edge of a face on the surface
-    /// its curves are read on. That the edge lies on the surface is the
-    /// premise: tier 3 places each edge on its faces' carriers at rest.
+    /// its curves are read on.
+    ///
+    /// **Precondition**: the edge lies on the surface of every
+    /// [`SurfaceCurve`] it is read against. The types do not tie the two
+    /// (module docs); the caller holds it, as tier 3 places each edge on
+    /// its faces' carriers at rest.
     pub fn edge(carrier: &'a Curve3<T>, span: (T, T)) -> Self {
         Self { carrier, span }
     }
@@ -510,25 +553,11 @@ impl<'a, T: Decide> OnSurface<'a, T> {
         band: Band,
     ) -> Result<CoSurface<T>, Indeterminate> {
         let (on, normal) = curve.plane();
-        let found =
-            match span_plane_meet(self.carrier, self.span, SpanEnds::Ended, on, normal, band) {
-                Ok(Some(found)) => found,
-                Ok(None) => return Ok(CoSurface::Unlaned),
-                Err(fault) => return Err(ConicRootFault::diag(fault)),
-            };
-        Ok(match found {
-            SpanPlaneMeet::Parallel { offset } => match decide(row, Margin::of(offset), band)? {
-                Sign::Zero => CoSurface::InPlane,
-                Sign::Positive | Sign::Negative => CoSurface::Roots(Vec::new()),
-            },
-            SpanPlaneMeet::Touch => CoSurface::Touch,
-            SpanPlaneMeet::Roots(roots) => CoSurface::Roots(
-                roots
-                    .into_iter()
-                    .map(|root| (root, self.carrier.eval(root.t)))
-                    .collect(),
-            ),
-        })
+        match span_plane_meet(self.carrier, self.span, SpanEnds::Ended, on, normal, band) {
+            Ok(Some(found)) => decided(found, self.carrier, row, band),
+            Ok(None) => Ok(CoSurface::Unlaned),
+            Err(fault) => Err(ConicRootFault::diag(fault)),
+        }
     }
 }
 

@@ -40,3 +40,5 @@ It earns its place with a second consumer. The sphere cut-in is one.
    - `apply_cut_ins` reads the cut's half-meridian as a sphere meridian through it. `FirstHarmonic::conic_off_plane` and the `bool_sphere_cut_roots_*` rows are retired (`docs/K-REPORT.md`, ONECOPY addendum on the cut-in).
 
 Item 3, the C5 rule, is the `[ev]` PR 6567. This row closes there.
+
+**Type gap left (review of 6566).** Nothing in the types ties an `OnSurface` to its `SurfaceCurve`'s surface: `OnSurface::edge` takes a bare carrier and span, and that the edge lies on the curve's surface is its documented precondition, held by the caller. A `SurfaceCurve` is tied to a `geom::Surface` value, not to a face's record: `apply_cut_ins` charts the face's sphere on its own `u_ref`, and a region door rebuilds its surface from its fields. Closing it would mean an `OnSurface` built from a face (its record and edge) and a `SurfaceCurve` carrying that record's key, so `across` could refuse a mismatch.

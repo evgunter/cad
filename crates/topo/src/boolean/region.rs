@@ -25,7 +25,7 @@
 //! corner is built from the query's chart coordinates, never from a point
 //! off the surface.
 
-use geom_brep::curve_face::plane_crossing::{RootPlace, SpanEnds, SpanPlaneMeet};
+use geom_brep::curve_face::plane_crossing::{RootPlace, SpanEnds};
 use geom_brep::curve_pair::on_surface::{CoSurface, NoSuchFamily, OnSurface, Shape, SurfaceCurve};
 use geom_core::{Band, Decide, Indeterminate, Margin, Point2, Point3, Sign, Vec3};
 
@@ -311,21 +311,16 @@ pub(in crate::boolean) fn landings<T: Decide, D: Legs<T>>(
                 SpanEnds::Ended
             };
             match curve
-                .across_plane(params, ends, (on, normal), band)
+                .across_plane(params, ends, (on, normal), D::COMPONENT, band)
                 .map_err(in_band)?
             {
-                SpanPlaneMeet::Parallel { offset } => {
-                    match decide(D::COMPONENT, Margin::of(offset), band).map_err(in_band)? {
-                        Sign::Zero => in_plane()?,
-                        Sign::Positive | Sign::Negative => {}
-                    }
-                }
-                SpanPlaneMeet::Touch => return Err(RayFault::Graze),
-                SpanPlaneMeet::Roots(roots) => {
-                    for root in roots {
-                        // At or in band of the leg's own end: the leg's
-                        // place reads it.
-                        let y = curve.carrier().eval(root.t);
+                CoSurface::InPlane => in_plane()?,
+                CoSurface::Touch => return Err(RayFault::Graze),
+                CoSurface::Unlaned => unreachable!("a leg is a circle or a line"),
+                CoSurface::Roots(roots) => {
+                    // At or in band of the leg's own end: the leg's place
+                    // reads it.
+                    for (_, y) in roots {
                         if let Some((t, sideless)) = door.on_edge_plane(leg, edge, y, band)? {
                             out.push((y, t, sideless));
                         }
