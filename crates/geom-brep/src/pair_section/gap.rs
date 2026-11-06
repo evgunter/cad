@@ -110,6 +110,7 @@
 //! held escalation if there is one, without reading the cells left.
 
 use geom::Conic as _;
+use geom_core::bisect::{Budget, Exhausted, Step, bisect_within};
 use geom_core::k_stats::{decide, decide_reported, gate_rejection, straddle};
 use geom_core::{
     Band, Decide, Decided, Indeterminate, Margin, Point3, Real, Sign, SizedPass, Vec3,
@@ -592,16 +593,14 @@ pub(crate) fn critical_gap<T: Decide>(
     };
     let two = T::from_f64(2.0);
     let piece = T::tau() / T::from_f64(GAP_START as f64);
-    let mut cells: Vec<(T, T)> = (0..GAP_START)
-        .rev()
-        .map(|k| {
-            let lo = piece * T::from_f64(k as f64);
-            (lo, lo + piece)
-        })
-        .collect();
+    let cells = (0..GAP_START).map(|k| {
+        let lo = piece * T::from_f64(k as f64);
+        (lo, lo + piece)
+    });
     let mut spent = 0;
     let mut held: Option<Indeterminate> = None;
-    while let Some((lo, hi)) = cells.pop() {
+    let mut reads = Budget::implied_by_halvings(GAP_START, GAP_CELLS);
+    let walked = bisect_within(cells, &mut reads, |(lo, hi)| {
         spent += 1;
         let w = (hi - lo) / two;
         let m = lo + w;
@@ -616,8 +615,8 @@ pub(crate) fn critical_gap<T: Decide>(
                 Cell::Open(r) => Rung::InBand(r),
             }
         }) {
-            Climb::Answered { answer, .. } => return Ok(answer),
-            Climb::Passed => continue,
+            Climb::Answered { answer, .. } => return Step::Stop(Ok(answer)),
+            Climb::Passed => return Step::Settled,
             Climb::Undecided(r) => r,
         };
         let reach = core.circle.radius * w;
@@ -626,14 +625,18 @@ pub(crate) fn critical_gap<T: Decide>(
             Ok(Sign::Zero)
         );
         if spent >= GAP_CELLS {
-            return Err(held.unwrap_or_else(|| sweep.floor_refusal(r, reach)));
+            return Step::Stop(Err(held.unwrap_or_else(|| sweep.floor_refusal(r, reach))));
         }
         if floored {
             held.get_or_insert_with(|| sweep.floor_refusal(r, reach));
-            continue;
+            return Step::Settled;
         }
-        cells.push((m, hi));
-        cells.push((lo, m));
+        Step::Halve([(lo, m), (m, hi)])
+    });
+    match walked {
+        Ok(Some(answer)) => return answer,
+        Ok(None) => {}
+        Err(Exhausted) => unreachable!("a gap's walk spends its cells before its reads"),
     }
     held.map_or(Ok(Gap::Transverse), Err)
 }

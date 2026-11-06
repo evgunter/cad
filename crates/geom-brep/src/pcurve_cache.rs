@@ -4150,7 +4150,10 @@ mod limb2_quick {
         let clears =
             |p: &Option<Part>| p.is_some_and(|p| crate::ssi::certify::clears(p.hull.meters, band));
         // Each pending span: its dyadic index, its parent's bound, and
-        // whether it is read clipped to the window's outer ends.
+        // whether it is read clipped to the window's outer ends. Not
+        // `geom_core::bisect`'s walk: a span is replaced by one span (its
+        // re-read clipped to the window) or by the one or two `halves`
+        // the window keeps, where a bisect step halves into exactly two.
         let mut pending: Vec<((u32, i64), f64, bool)> = cover(START, domain)?
             .into_iter()
             .map(|dk| (dk, f64::INFINITY, false))
