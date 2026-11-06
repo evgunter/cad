@@ -91,19 +91,19 @@ use geom_brep::curve_face::plane_crossing::span_place;
 use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
 
 use super::region::{
-    self, Across, End, Fault, Foot, Legs, Paths, Region, RegionEdge, RegionRefusal, Round,
-    Section, circle_edge_hit, in_band,
+    self, Across, End, Fault, Foot, Legs, Paths, Region, RegionEdge, RegionRefusal, Round, Section,
+    circle_edge_hit, in_band,
 };
-use crate::ray_walk::RayFault;
-use crate::validate::decide;
 use super::solid_contain::PointInSolidError;
 use crate::body::Body;
 use crate::entity::{FaceKey, LoopKey};
 use crate::null::Scaffolding;
+use crate::ray_walk::RayFault;
 use crate::splitting::containment::ConicRows;
 use crate::splitting::pieced_arc::{ArcHit, ArcRefusal, ArcRows, PiecedArc};
 use crate::splitting::spiric_arc::{Oval, SpiricArc};
 use crate::splitting::{Uncrossable, UncrossableCarrier};
+use crate::validate::decide;
 
 /// Which reading a circle edge takes on a meridian leg
 /// (`bool_torus_region_family`).
@@ -240,7 +240,6 @@ impl<T: Decide> TorusFaceRegion<T> {
         }
         region::walk(self, foot, band).map(Some)
     }
-
 
     fn frame(&self) -> geom::Frame<T> {
         geom::Frame::new(self.center, self.axis, self.u_ref)
@@ -663,6 +662,38 @@ mod tests {
     fn at(u: f64, v: f64) -> Point3<f64> {
         let rho = R + MINOR * v.cos();
         Point3::new(rho * u.cos(), rho * u.sin(), MINOR * v.sin())
+    }
+
+    /// **A point off the torus reads as its foot**: ten times the band's
+    /// escalation off along the tube's normal, every lattice point clear
+    /// of the fillet band's rims reads the side its foot reads, and a
+    /// point off a rim is on the boundary.
+    #[test]
+    fn a_point_off_the_torus_reads_as_its_foot() {
+        let b = Band::new(1e-9, 1e-8).unwrap();
+        let off = 10.0 * b.escalate();
+        let region = band(FRAC_PI_2, PI);
+        let normal = |u: f64, v: f64| Vec3::new(v.cos() * u.cos(), v.cos() * u.sin(), v.sin());
+        for d in [off, -off] {
+            for i in 0..12 {
+                let u = f64::from(i) * TAU / 12.0 + 0.05;
+                for j in 0..16 {
+                    let v = f64::from(j) * TAU / 16.0 + 0.03;
+                    let truth = v > FRAC_PI_2 && v < PI;
+                    let p = at(u, v) + normal(u, v) * d;
+                    assert_eq!(
+                        region.contains(p, b),
+                        Ok(Some(truth)),
+                        "({u}, {v}) off by {d:e}"
+                    );
+                }
+            }
+            assert_eq!(
+                region.contains(at(0.7, PI) + normal(0.7, PI) * d, b),
+                Ok(None),
+                "off the inner equator by {d:e}: on the boundary"
+            );
+        }
     }
 
     /// **A fillet's band reads across the tube's top circle.** The band

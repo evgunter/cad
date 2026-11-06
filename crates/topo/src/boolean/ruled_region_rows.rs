@@ -626,7 +626,11 @@ fn a_generator_toward_the_apex_lands_nowhere_at_it() {
         let landings = crate::boolean::region::landings(&region, e, &leg, b()).ok()?;
         let mut placed = 0;
         for (y, _, _) in landings {
-            if leg.place(y, RuledFaceRegion::<f64>::AT, b()).ok()?.is_some() {
+            if leg
+                .place(y, RuledFaceRegion::<f64>::AT, b())
+                .ok()?
+                .is_some()
+            {
                 placed += 1;
             }
         }
@@ -635,4 +639,60 @@ fn a_generator_toward_the_apex_lands_nowhere_at_it() {
     assert_eq!(at(&through), Some(0), "the generator through the apex");
     assert_eq!(at(&clear), Some(0), "a generator clear of the apex");
     assert_eq!(at(&below), Some(1), "the rim short of the apex");
+}
+
+/// **A point off the surface reads as its foot**, on a cylinder and on a
+/// cone: ten times the band's escalation off along the surface normal,
+/// every lattice point clear of the boundary reads the side its foot
+/// reads, and a point off a rim is on the boundary. The legs and the
+/// boundary pre-pass read the foot (`region::Foot`), never the point.
+#[test]
+fn a_point_off_the_surface_reads_as_its_foot() {
+    let off = 10.0 * b().escalate();
+    let rect = cylinder(window(1, (0.0, 3.0), (0.0, 2.0), false));
+    let normal = |u: f64| Vec3::new(u.cos(), u.sin(), 0.0);
+    for d in [off, -off] {
+        reads(
+            &rect,
+            lattice().map(|(u, z)| {
+                let truth = both(
+                    within(u.rem_euclid(TAU), (0.0, 3.0), 0.01),
+                    within(z, (0.0, 2.0), 0.01),
+                );
+                (wall(u, z) + normal(u) * d, truth)
+            }),
+            "the window, off its wall",
+        );
+        assert_eq!(
+            rect.contains(wall(1.0, 2.0) + normal(1.0) * d, b()),
+            Ok(None),
+            "off the window's top rim by {d:e}: on the boundary"
+        );
+    }
+    let frustum = cone(
+        vec![
+            cone_rim(1, 1.0, (0.0, TAU), true),
+            cone_rim(2, 2.0, (0.0, TAU), false),
+        ],
+        2.0,
+    );
+    let (s, c) = ALPHA.sin_cos();
+    let cone_normal = |u: f64| Vec3::new(c * u.cos(), c * u.sin(), -s);
+    for d in [off, -off] {
+        reads(
+            &frustum,
+            cone_lattice().filter(|&(_, v)| v > 0.01).map(|(u, v)| {
+                (
+                    on_cone(u, v) + cone_normal(u) * d,
+                    within(v, (1.0, 2.0), 0.01),
+                )
+            }),
+            "the frustum, off its cone",
+        );
+        assert_eq!(
+            frustum.contains(on_cone(0.4, 2.0) + cone_normal(0.4) * d, b()),
+            Ok(None),
+            "off the frustum's rim by {d:e}: on the boundary"
+        );
+    }
 }

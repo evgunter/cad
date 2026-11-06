@@ -360,7 +360,6 @@ impl<T: Decide> SphereFaceRegion<T> {
         ))
     }
 
-
     /// The unit direction of `foot` from the centre.
     fn unit(&self, foot: Foot<T>) -> Vec3<T> {
         let w = foot.at() - self.center;

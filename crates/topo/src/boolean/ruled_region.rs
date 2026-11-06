@@ -528,7 +528,11 @@ impl<T: Decide> RuledFaceRegion<T> {
 
     /// The surface's frame.
     fn frame(&self) -> geom::Frame<T> {
-        geom::Frame::new(self.surface.base(), self.surface.axis(), self.surface.u_ref())
+        geom::Frame::new(
+            self.surface.base(),
+            self.surface.axis(),
+            self.surface.u_ref(),
+        )
     }
 
     /// The unit radial direction at azimuth `u`.
@@ -665,7 +669,13 @@ impl<T: Decide> Region<T> for RuledFaceRegion<T> {
 
 impl<T: Decide> Paths<T> for RuledFaceRegion<T> {
     /// `p`'s parallel, or its ruling run `forward` outward.
-    fn single(&self, p: Foot<T>, parallel: bool, forward: bool, band: Band) -> Result<Leg<T>, Fault> {
+    fn single(
+        &self,
+        p: Foot<T>,
+        parallel: bool,
+        forward: bool,
+        band: Band,
+    ) -> Result<Leg<T>, Fault> {
         Ok(if parallel {
             self.parallel(p, forward)
         } else {
@@ -708,7 +718,10 @@ impl<T: Decide> Paths<T> for RuledFaceRegion<T> {
                 Ruled::Cylinder { .. } => (vt, vt - vp),
                 Ruled::Cone { .. } => {
                     let reach = vt.abs();
-                    (if opening { reach } else { T::zero() - reach }, reach - vp.abs())
+                    (
+                        if opening { reach } else { T::zero() - reach },
+                        reach - vp.abs(),
+                    )
                 }
             };
             let corner = Foot::of_chart(&surface, geom_core::Point2::new(up, v));

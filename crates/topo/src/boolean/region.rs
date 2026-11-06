@@ -289,7 +289,13 @@ pub(crate) fn landings<T: Decide, D: Legs<T>>(
     match door.across(leg, edge, band)? {
         Across::EdgeOverLeg => {
             let (on, normal) = leg.course.plane();
-            match met(&edge.carrier, (edge.t0, edge.t1), SpanEnds::Ended, (on, normal), band)? {
+            match met(
+                &edge.carrier,
+                (edge.t0, edge.t1),
+                SpanEnds::Ended,
+                (on, normal),
+                band,
+            )? {
                 SpanPlaneMeet::Parallel { offset } => in_plane(offset)?,
                 SpanPlaneMeet::Touch => return Err(RayFault::Graze),
                 SpanPlaneMeet::Roots(roots) => {
