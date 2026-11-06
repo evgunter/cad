@@ -894,7 +894,9 @@ generic one. Two spans meet along stretches. A *stretch* is a longest
 interval of one span which is nowhere definitely off the other; a
 *meeting* is a longest interval of one span which is everywhere
 definitely on the other, a single point for a crossing or a touch and a
-longer interval for a shared run. Each span's ends are read against the
+longer interval for a shared run. A touch's meeting is the in-band arc
+about its extremum, reported at the extremum; a shared run is one curve
+over the spans. Each span's ends are read against the
 other span before anything else. A stretch holding exactly one meeting
 is reported as that meeting, which takes the whole stretch; a stretch
 holding no meeting, or more than one, escalates, since between two
