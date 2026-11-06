@@ -1342,7 +1342,7 @@ fn solve_corner<T: Decide>(
 
     let h_old = frame.station(here);
     let radial_old = frame.radial(here);
-    let rho_old = radial_old.norm();
+    let (e_old, rho_old) = radial_old.direction_and_length();
     let mut profiles: Vec<Profile<T>> = Vec::new();
     let mut meridians: Vec<(Vec3<T>, T)> = Vec::new();
     for c in at {
@@ -1609,7 +1609,6 @@ fn solve_corner<T: Decide>(
         }
         Err(source) => return Err(ReplaceFaceError::Escalated { source }),
     }
-    let e_old = radial_old / rho_old;
     match meridians[..] {
         // Carried: the seam's azimuth is the operand's own conventional
         // datum (D2). Carrying it is what makes an unmoved corner come
@@ -2188,7 +2187,7 @@ fn mint_carrier<T: Decide>(
             // own motion is not one.
             (Surface::Cylinder { .. }, Curve3::Line(geom::Line { origin, .. })) => {
                 let e = frame.radial(*origin);
-                let n = e.norm();
+                let (e_hat, n) = e.direction_and_length();
                 match decide("offset_axial_seam_radial", Margin::of(n), band) {
                     Ok(Sign::Positive) => {}
                     Ok(_) => {
@@ -2199,7 +2198,7 @@ fn mint_carrier<T: Decide>(
                     }
                     Err(source) => return Err(ReplaceFaceError::Escalated { source }),
                 }
-                translate(e.normalize() * ca.distance)
+                translate(e_hat * ca.distance)
             }
             // A sphere's seam is a GREAT circle about the sphere's own
             // centre, and the offset is concentric: same centre, same

@@ -862,8 +862,7 @@ impl<T: Real> Arc<T> {
     /// `v̂` and their normal.
     fn circle_about(&self, at: Point3<T>) -> Circle<T> {
         let half = T::from_f64(0.5);
-        let u_len = self.frame.u_ref.norm();
-        let u_hat = self.frame.u_ref / u_len;
+        let (u_hat, u_len) = self.frame.u_ref.direction_and_length();
         let v_off = self.frame.v_ref() - u_hat * self.frame.v_ref().dot(u_hat);
         let v_hat = v_off.normalize();
         let rho = (self.semi_u * u_len + self.semi_v * self.frame.v_ref().dot(v_hat)) * half;

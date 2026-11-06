@@ -351,8 +351,7 @@ impl<T: Decide> CylinderCylinderPose<T> {
         }
         let (a1, a2) = (l1.1, l2.1);
         let cross = a1.cross(a2);
-        let sin = cross.norm();
-        let normal = cross / sin;
+        let (normal, sin) = cross.direction_and_length();
         let w = reach.foot_on(crate::intersect::axis_line(l2))
             - reach.foot_on(crate::intersect::axis_line(l1));
         let gap = w.dot(normal);
@@ -822,8 +821,7 @@ fn radical_foot<T: Real>(
     across: Vec3<T>,
     [r1, r2]: [T; 2],
 ) -> (Point3<T>, Vec3<T>, T) {
-    let d = across.norm();
-    let u = across / d;
+    let (u, d) = across.direction_and_length();
     let x = (d.powi(2) + r1.powi(2) - r2.powi(2)) / (d * T::from_f64(2.0));
     (foot + u * x, u, x)
 }
