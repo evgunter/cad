@@ -266,7 +266,7 @@ pub(in crate::boolean) enum ReadAcross<T: geom_core::Real> {
 ///
 /// A rung of the plane door in band, a component in band, or a touch
 /// sets the path aside. No landing is read off a refusal.
-pub(crate) fn landings<T: Decide, D: Legs<T>>(
+pub(in crate::boolean) fn landings<T: Decide, D: Legs<T>>(
     door: &D,
     edge: &RegionEdge<T>,
     leg: &Leg<T, D::Course>,
@@ -617,7 +617,7 @@ pub(crate) trait Region<T: Decide> {
 
 /// **A leg's course**: the line or circle it runs along from its start
 /// at place `0`, places measured in metres along it.
-pub(crate) trait Course<T: Decide> {
+pub(in crate::boolean) trait Course<T: Decide> {
     /// Where `y`, a crossing on the course, lies along it, on the row
     /// `at`: `Some(place)` ahead of the start, `None` behind it.
     ///
@@ -673,14 +673,14 @@ pub(crate) struct End<T: geom_core::Real> {
 /// One leg of a path along its course `C`, ending at `end` where it is
 /// bounded.
 #[derive(Clone, Copy)]
-pub(crate) struct Leg<T: geom_core::Real, C> {
-    pub(crate) course: C,
-    pub(crate) end: Option<End<T>>,
+pub(in crate::boolean) struct Leg<T: geom_core::Real, C> {
+    pub(in crate::boolean) course: C,
+    pub(in crate::boolean) end: Option<End<T>>,
 }
 
 impl<T: Decide, C: Course<T>> Leg<T, C> {
     /// A leg running its whole course.
-    pub(crate) fn whole(course: C) -> Self {
+    pub(in crate::boolean) fn whole(course: C) -> Self {
         Self { course, end: None }
     }
 
@@ -710,7 +710,7 @@ impl<T: Decide, C: Course<T>> Leg<T, C> {
     /// # Errors
     ///
     /// A graze or an in-band reading sets the path aside.
-    pub(crate) fn place(
+    pub(in crate::boolean) fn place(
         &self,
         y: Point3<T>,
         at: &'static str,
@@ -731,7 +731,7 @@ impl<T: Decide, C: Course<T>> Leg<T, C> {
     ///
     /// The leg reaching the edge grazes; an in-band reading sets the path
     /// aside.
-    pub(crate) fn along(
+    pub(in crate::boolean) fn along(
         &self,
         edge: &RegionEdge<T>,
         at: &'static str,
@@ -759,7 +759,7 @@ impl<T: Decide, C: Course<T>> Leg<T, C> {
 
 /// **A region read along legs**: where a leg meets the boundary, and the
 /// face's side there.
-pub(crate) trait Legs<T: Decide>: Region<T> {
+pub(in crate::boolean) trait Legs<T: Decide>: Region<T> {
     type Course: Course<T> + Copy;
 
     /// The row a crossing's place along a leg is read on.
@@ -836,7 +836,7 @@ pub(crate) enum Path<T: geom_core::Real> {
 
 /// **A region read along paths of legs**: a surface's two families of
 /// curves through a point, its parallels and one other.
-pub(crate) trait Paths<T: Decide>: Legs<T> {
+pub(in crate::boolean) trait Paths<T: Decide>: Legs<T> {
     /// `p`'s own leg of a family ([`Path::Single`]).
     ///
     /// # Errors
@@ -879,7 +879,7 @@ pub(crate) trait Paths<T: Decide>: Legs<T> {
 ///
 /// [`RegionRefusal::RayExhausted`] naming the face's outer loop where no
 /// path settled, or the first in-band one's refusal.
-pub(crate) fn walk<T: Decide, D: Paths<T>>(
+pub(in crate::boolean) fn walk<T: Decide, D: Paths<T>>(
     door: &D,
     p: QueryFoot<T>,
     band: Band,
@@ -906,7 +906,7 @@ pub(crate) fn walk<T: Decide, D: Paths<T>>(
 }
 
 /// One path from `p`: whether `p` is in the face.
-pub(crate) fn read_path<T: Decide, D: Paths<T>>(
+pub(in crate::boolean) fn read_path<T: Decide, D: Paths<T>>(
     door: &D,
     p: QueryFoot<T>,
     path: Path<T>,
@@ -942,7 +942,7 @@ pub(crate) fn read_path<T: Decide, D: Paths<T>>(
 }
 
 /// A path of the one leg `leg`: whether its start is in the face.
-pub(crate) fn read_leg<T: Decide, D: Legs<T>>(
+pub(in crate::boolean) fn read_leg<T: Decide, D: Legs<T>>(
     door: &D,
     leg: &Leg<T, D::Course>,
     band: Band,
@@ -1005,7 +1005,7 @@ impl<T: Decide> Round<T> {
     /// The leg round the circle at `center` of `radius`, in the plane of
     /// unit normal `normal`, starting along the unit `e1`, the section
     /// curve `section` of its plane.
-    pub(crate) fn new(
+    pub(in crate::boolean) fn new(
         center: Point3<T>,
         normal: Vec3<T>,
         radius: T,

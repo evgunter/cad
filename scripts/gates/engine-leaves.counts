@@ -63,7 +63,7 @@ crate-visible               2  boolean/plane_eq.rs
 crate-visible              20  boolean/records.rs
 crate-visible               8  boolean/reduce.rs
 crate-visible              24  boolean/refusal_routes.rs
-crate-visible              53  boolean/region.rs
+crate-visible              39  boolean/region.rs
 crate-visible               8  boolean/rim_wedge.rs
 crate-visible               6  boolean/ruled_region.rs
 crate-visible              12  boolean/section_cert.rs
@@ -262,5 +262,4 @@ ambiguous through_the_join               # both engines
 ambiguous torus_chart_window             # census.rs
 ambiguous uncrossable                    # test_support_samples.rs, validate.rs
 ambiguous vertex_at                      # chord_join/wall_ring_rows.rs
-ambiguous walk                           # clearance.rs, ray_walk.rs
 ambiguous with_vertex_pairs_reversed     # lib.rs
