@@ -584,10 +584,7 @@ fn trim_cells<T: Decide>(
             let n = last.len() - 1;
             last[n] = hull2(last[n], c.b);
         }
-        // The wall is the depth cap: each block reads at most a full tree
-        // of `MONOTONE_BISECTIONS` halvings, so the read budget it implies
-        // never binds.
-        let mut reads = Budget::new(blocks.len() << (MONOTONE_BISECTIONS + 1));
+        let mut reads = Budget::implied_by_depth(blocks.len(), MONOTONE_BISECTIONS as u32);
         let roots = blocks.into_iter().map(|b| (b, 0usize));
         let walked = bisect_within(roots, &mut reads, |(block, depth)| {
             let a = vertex(block[0]);

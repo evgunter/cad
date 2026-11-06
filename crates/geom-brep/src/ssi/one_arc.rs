@@ -100,9 +100,12 @@ pub(crate) const EXIT_CUT: f64 = 0.5 - 1.0 / 128.0;
 /// never under two ulps of the edge's coordinate.
 pub(crate) const EXIT_STRIP: f64 = 1.0 / 1_073_741_824.0;
 
-/// The most pieces one box's walk examines, across all of its edge or
-/// face walks: one [`Budget`] they share.
-pub(crate) const EXIT_PIECES: usize = 4096;
+/// **The pieces one box's one-arc proof may read**, across all of its
+/// edge or face walks, in either lane (ℝ³ here, ℝ⁴ in [`super::four`]):
+/// one wall they share. It is not [`geom_core::bisect::PIECE_BUDGET`],
+/// which bounds one walk; the two share a size by choice, not by
+/// derivation.
+pub(crate) const EXIT_PIECES: Budget = Budget::new(4096);
 
 /// Why a chain was not proved one arc.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -261,7 +264,7 @@ pub(crate) fn boundary_zeros<'p, T: CertifiedBounds>(
 ) -> Option<u32> {
     let partner = partner.into();
     let ((u0, u1), (v0, v1)) = (rect.u, rect.v);
-    let mut pieces = Budget::new(EXIT_PIECES);
+    let mut pieces = EXIT_PIECES;
     // Counter-clockwise: the top and left edges are walked backwards.
     let mut runs = Vec::new();
     for (edge, back) in [
@@ -925,7 +928,7 @@ pub(crate) fn face_roots<T: CertifiedBounds>(
     r: Box3,
 ) -> Option<Vec<Box3>> {
     let mut roots = Vec::new();
-    let mut pieces = Budget::new(EXIT_PIECES);
+    let mut pieces = EXIT_PIECES;
     for k in 0..3 {
         for c in [side(r, k).lo(), side(r, k).hi()] {
             face_walk(s1, s2, (with_side(r, k, pt(c)), k), &mut roots, &mut pieces)?;
@@ -1085,13 +1088,8 @@ fn r3_reaches_end<T: CertifiedBounds>(
         return Err(Shortfall::Undecided);
     }
     let mut roots = Vec::new();
-    let sliced = face_walk(
-        s1,
-        s2,
-        (with_side(r, k, pt(c)), k),
-        &mut roots,
-        &mut Budget::new(EXIT_PIECES),
-    );
+    let mut pieces = EXIT_PIECES;
+    let sliced = face_walk(s1, s2, (with_side(r, k, pt(c)), k), &mut roots, &mut pieces);
     if !roots.is_empty() {
         return Ok(());
     }
@@ -1437,14 +1435,9 @@ mod tests {
             None
         );
         // The touched edge itself refuses, rather than walking past it.
+        let mut pieces = super::EXIT_PIECES;
         assert!(
-            edge_runs(
-                &boxes,
-                &ground(),
-                (true, 0.25, (0.0, 1.0)),
-                &mut geom_core::bisect::Budget::new(super::EXIT_PIECES)
-            )
-            .is_none(),
+            edge_runs(&boxes, &ground(), (true, 0.25, (0.0, 1.0)), &mut pieces).is_none(),
             "the touched edge resolved"
         );
         assert_eq!(

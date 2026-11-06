@@ -22,7 +22,8 @@
 //! that reads many pieces spends one wall across all of them. A wall
 //! counted in something other than pieces read (halvings, a depth) stays
 //! in the visit, as a depth cap does, and the walk passes the read
-//! budget that wall implies, which never binds first.
+//! budget that wall implies ([`Budget::implied_by_halvings`],
+//! [`Budget::implied_by_depth`]), which never binds first.
 
 use crate::{Margin, Real, SupSpeed};
 
@@ -78,7 +79,29 @@ impl Budget {
         Self { left: pieces }
     }
 
-    /// The reads left.
+    /// **The reads a walk capped at `halvings` halvings in all can
+    /// make** from `roots` pieces: each halving reads two more. A walk
+    /// whose wall is its halvings, kept in its visit, passes this, which
+    /// that wall spends before it.
+    #[must_use]
+    pub const fn implied_by_halvings(roots: usize, halvings: usize) -> Self {
+        Self::new(roots.saturating_add(halvings.saturating_mul(2)))
+    }
+
+    /// **The reads a walk capped at depth `depth` can make** from `roots`
+    /// pieces: each root's full tree, `2^(depth + 1) − 1` pieces. A walk
+    /// whose wall is a depth cap, kept in its visit, passes this, which
+    /// that wall spends before it.
+    #[must_use]
+    pub const fn implied_by_depth(roots: usize, depth: u32) -> Self {
+        let tree = match 2usize.checked_pow(depth + 1) {
+            Some(n) => n - 1,
+            None => usize::MAX,
+        };
+        Self::new(roots.saturating_mul(tree))
+    }
+
+    /// The reads left; a fresh budget's size.
     #[must_use]
     pub const fn left(&self) -> usize {
         self.left
@@ -142,4 +165,47 @@ pub fn reach<T: Real>(hi: SupSpeed<T>, (a, b): (T, T)) -> T {
 /// `escalate/128` of the other.
 pub fn tangency_floor<T: Real>(rho: T, escalate: f64) -> T {
     (rho * T::from_f64(escalate)).sqrt() / T::from_f64(8.0)
+}
+
+#[cfg(test)]
+#[allow(clippy::panic)]
+mod rows {
+    use super::{Budget, Exhausted, Step, bisect_within};
+
+    /// Walks `roots` pieces, halving every piece above `depth` and
+    /// counting halvings, within `budget`: the most a depth- or
+    /// halving-capped walk reads.
+    fn full(roots: usize, depth: u32, budget: Budget) -> Result<usize, Exhausted> {
+        let mut halvings = 0;
+        bisect_within(vec![0u32; roots], &mut { budget }, |d| -> Step<u32, ()> {
+            if d == depth {
+                return Step::Settled;
+            }
+            halvings += 1;
+            Step::Halve([d + 1, d + 1])
+        })
+        .map(|_| halvings)
+    }
+
+    /// **The implied budgets are exact**: a walk that halves every piece
+    /// to its cap reads exactly `implied_by_depth` pieces, and the
+    /// halvings it spends imply exactly that budget too; one read fewer
+    /// exhausts either way.
+    #[test]
+    fn an_implied_budget_is_the_full_walk_of_its_wall() {
+        for (roots, depth) in [(1, 0), (1, 4), (8, 10), (3, 7)] {
+            let read = Budget::implied_by_depth(roots, depth).left();
+            let halvings = full(roots, depth, Budget::new(read))
+                .unwrap_or_else(|_| panic!("{roots}×{depth}: the implied budget binds"));
+            assert_eq!(
+                Budget::implied_by_halvings(roots, halvings).left(),
+                read,
+                "{roots}×{depth}: the halvings imply the same reads"
+            );
+            assert!(
+                full(roots, depth, Budget::new(read - 1)).is_err(),
+                "{roots}×{depth}: one read fewer exhausts"
+            );
+        }
+    }
 }

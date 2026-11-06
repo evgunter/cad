@@ -606,12 +606,6 @@ pub(super) fn height_and_radius<T: Decide>(w: Vec3<T>, axis: Vec3<T>) -> (T, T) 
     (h, (w - axis * h).norm())
 }
 
-/// Whether `a` is decided smaller than `b`: a heuristic's choice, read
-/// on the least band so it takes the sign alone, and decided outside the
-/// log (ledger row F32). An undecided pick keeps the candidate already
-/// held, which can lie on another branch of a spline; no reader rests on
-/// which, since a foot's parameter is read only where something
-/// certifies it ([`OnCarrier::On`], [`Foot::nearest`]).
 /// **The samples a spline's foot search polishes from**, by index, in
 /// order: both ends of the domain, each local minimum of the sampled
 /// gaps, and the [`LEAST_SAMPLES`] least gaps. A local minimum finds a
@@ -638,6 +632,12 @@ fn spline_starts<T: Decide>(samples: &[Foot<'_, T>]) -> Vec<usize> {
     starts
 }
 
+/// Whether `a` is decided smaller than `b`: a heuristic's choice, read
+/// on the least band so it takes the sign alone, and decided outside the
+/// log (ledger row F32). An undecided pick keeps the candidate already
+/// held, which can lie on another branch of a spline; no reader rests on
+/// which, since a foot's parameter is read only where something
+/// certifies it ([`OnCarrier::On`], [`Foot::nearest`]).
 fn smaller<T: Decide>(a: T, b: T) -> bool {
     check_unlogged("curve_foot_polish", b - a, Band::least(), "F32") == Ok(Sign::Positive)
 }

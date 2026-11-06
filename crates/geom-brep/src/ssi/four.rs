@@ -31,7 +31,7 @@ use geom_core::{Bounds, CertifiedBounds, Interval, Point2};
 
 use super::enclose::{Box3, NurbsBoxes, UvWindow, refused_box};
 use super::exhaust::UvRect;
-use super::one_arc::{EXIT_CUT, EXIT_DEPTH, Shortfall};
+use super::one_arc::{EXIT_CUT, EXIT_DEPTH, EXIT_PIECES, Shortfall};
 use super::section::sign;
 use crate::krawczyk::{det3, inverse3};
 
@@ -467,12 +467,9 @@ fn face_walk<T: CertifiedBounds>(
     Ok(())
 }
 
-/// The most pieces one box's walk examines in a tube's one-arc proof.
-pub(crate) const PAIR_EXIT_PIECES: u32 = 4096;
-
-/// The most pieces the boundary pass's walk of the domain box examines:
+/// The pieces the boundary pass's walk of the domain box may read:
 /// eight faces of the whole product, each read from its full extent.
-pub(crate) const PAIR_BOUNDARY_PIECES: u32 = 1 << 18;
+pub(crate) const PAIR_BOUNDARY_PIECES: Budget = Budget::new(1 << 18);
 
 /// The solutions of `F = 0` on the boundary of `r`, each in a box that
 /// holds exactly one ([`face_walk`] on each of its eight faces), with the
@@ -483,7 +480,7 @@ pub(crate) const PAIR_BOUNDARY_PIECES: u32 = 1 << 18;
 pub(crate) fn face_roots<T: CertifiedBounds>(
     pair: &PairBoxes<'_, T>,
     r: Box4,
-    budget: u32,
+    budget: Budget,
 ) -> Option<Vec<(Box4, usize, bool)>> {
     walk_faces(pair, r, budget, &[]).ok()
 }
@@ -500,7 +497,7 @@ pub(crate) fn face_roots<T: CertifiedBounds>(
 pub(crate) fn face_roots_outside<T: CertifiedBounds>(
     pair: &PairBoxes<'_, T>,
     r: Box4,
-    budget: u32,
+    budget: Budget,
     skip: &[Box4],
 ) -> Result<Vec<(Box4, usize, bool)>, super::PairBoundaryCause> {
     walk_faces(pair, r, budget, skip).map_err(|stopped| match stopped {
@@ -519,9 +516,7 @@ const COVER_CUTS: u32 = 256;
 /// which only ever leaves a piece to be read.
 pub(crate) fn covered(x: Box4, cover: &[Box4]) -> bool {
     let mut cuts = 0u32;
-    // The wall is in cuts; each cut reads two pieces, so the read budget
-    // it implies never binds first.
-    let mut reads = Budget::new(1 + 2 * COVER_CUTS as usize);
+    let mut reads = Budget::implied_by_halvings(1, COVER_CUTS as usize);
     let walked = bisect_within([x], &mut reads, |x| {
         if cover.iter().any(|c| x.contained_in(*c)) {
             return Step::Settled;
@@ -564,11 +559,11 @@ pub(crate) fn covered(x: Box4, cover: &[Box4]) -> bool {
 fn walk_faces<T: CertifiedBounds>(
     pair: &PairBoxes<'_, T>,
     r: Box4,
-    budget: u32,
+    budget: Budget,
     skip: &[Box4],
 ) -> Result<Vec<(Box4, usize, bool)>, Option<Box4>> {
     let mut out = Vec::new();
-    let mut pieces = Budget::new(budget as usize);
+    let mut pieces = budget;
     for k in 0..4 {
         for (high, c) in [(false, r.0[k].0), (true, r.0[k].1)] {
             let mut roots = Vec::new();
@@ -628,20 +623,14 @@ fn reaches_end<T: CertifiedBounds>(
         return Err(Shortfall::Undecided);
     }
     let mut on_slice = Vec::new();
-    let sliced = face_walk(
-        pair,
-        (r.holding(k, c), k),
-        &mut on_slice,
-        &mut Budget::new(PAIR_EXIT_PIECES as usize),
-        &[],
-    )
-    .ok();
+    let mut pieces = EXIT_PIECES;
+    let sliced = face_walk(pair, (r.holding(k, c), k), &mut on_slice, &mut pieces, &[]).ok();
     if !on_slice.is_empty() {
         return Ok(());
     }
     let near = match ball.meet(r) {
         None => Near::Far,
-        Some(b) => match face_roots(pair, b, PAIR_EXIT_PIECES) {
+        Some(b) => match face_roots(pair, b, EXIT_PIECES) {
             Some(v) if !v.is_empty() => Near::Found,
             Some(_) => Near::Far,
             None => Near::Unknown,
@@ -726,7 +715,7 @@ pub(crate) fn one_arc_pair<T: CertifiedBounds>(
         .ok_or(Shortfall::Undecided)?;
     let mut roots = Vec::with_capacity(cut.len());
     for (i, r) in cut.iter().enumerate() {
-        match walk_faces(pair, *r, PAIR_EXIT_PIECES, &[]) {
+        match walk_faces(pair, *r, EXIT_PIECES, &[]) {
             Ok(v) if v.len() == 2 => roots.push(v),
             #[allow(clippy::cast_possible_truncation)]
             Ok(v) => return Err(Shortfall::Count(v.len() as u32)),
@@ -1018,9 +1007,7 @@ pub(crate) fn row_cover<T: CertifiedBounds>(
     // is zero-free (`None` for a piece read at depth with no sign).
     let mut pieces: Vec<(f64, Box4, Option<bool>)> = Vec::new();
     let mut least = f64::INFINITY;
-    // The wall is the depth cap: each root reads at most a full tree of
-    // `ROW_DEPTH` halvings, so the read budget it implies never binds.
-    let mut reads = Budget::new(ROW_PIECES << (ROW_DEPTH + 1));
+    let mut reads = Budget::implied_by_depth(ROW_PIECES, ROW_DEPTH);
     let walked = bisect_within(roots, &mut reads, |(lo, hi, depth)| {
         let (x, chord) = read(lo, hi);
         let x = Box4(core::array::from_fn(|k| {
@@ -1121,7 +1108,7 @@ mod tests {
 
     use super::super::ChartedNurbs;
     use super::super::one_arc::Shortfall;
-    use super::{Box4, PAIR_EXIT_PIECES, PairBoxes, face_roots, narrow, one_arc_pair};
+    use super::{Box4, EXIT_PIECES, PairBoxes, face_roots, narrow, one_arc_pair};
 
     /// The bilinear patch through `corner(i, j)` at `(u, v) = (i, j)`.
     fn bilinear(corner: impl Fn(f64, f64) -> [f64; 3]) -> NurbsSurface<f64> {
@@ -1396,7 +1383,7 @@ mod tests {
             [x, y, 0.04 + 0.05 * y]
         });
         let pair = boxed(&trough, &plane);
-        let roots = face_roots(&pair, Box4::of_charts(&trough, &plane), PAIR_EXIT_PIECES)
+        let roots = face_roots(&pair, Box4::of_charts(&trough, &plane), EXIT_PIECES)
             .expect("the domain's boundary resolves");
         assert_eq!(roots.len(), 4, "two branches, each crossing two sides");
         let metres = |q: Box4| {

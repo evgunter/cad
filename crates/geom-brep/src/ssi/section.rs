@@ -417,9 +417,7 @@ fn refined_sign(
         .zip(signs)
         .filter_map(|(piece, read)| read.is_none().then_some(piece))
         .collect();
-    // The wall is in halvings; each halving reads two pieces, so the
-    // read budget it implies never binds first.
-    let mut reads = Budget::new(unread.len() + 2 * *budget);
+    let mut reads = Budget::implied_by_halvings(unread.len(), *budget);
     let walked = bisect_within(unread, &mut reads, |c| {
         let h = hull(&c);
         if let Some(s) = sign(h) {
