@@ -471,3 +471,10 @@
   - `adopt.rs` is ported, and the containment arm is order-free.
   I merged main (editor-core and topo moves) as `12b3a643`; it compiles, and the gate is running.
 - 2026-11-06 — engine-leaves-pins opened PR 6554 at `25d97600`: the gate reds a raised pin against the merge base unless it cites an open row (lint now fetches the base), the message is rewritten, and a census fault panics through one door, with three more misfiled sites fixed. FULL review sent to `session_013mPGJ2b7vVaMCyapnz3dn7`.
+
+- 2026-11-06 — PR 6491 delta review: MERGE.
+  - The torus departure is right: a parallel crosses the meridian's plane square, so the reading is well-conditioned everywhere.
+  - The oracle found 0 wrong and 0 refused over 19,200 torus landings, and the lane's S2 callers did not move.
+  - Cost is at or below main (the sphere row 1.6 s against 2.6 s).
+  - Note: `Round::through` and `Line::from` still take a raw centre, normal and dir, so on-surface is by convention past the start. That goes on the co-surface row.
+  I merged main as `25636f41`; it compiles and the gates pass. The CI gate is running.
