@@ -222,8 +222,9 @@ fn a_corners_fan_turns_as_its_departures_do() {
 /// **A tangent link reads only the coincidences its faces keep**: a
 /// corner on a ball's tangent plane rests off the ball and crosses into
 /// it; a corner edge along that plane leaves the ball only to second
-/// order and refuses, but along a cylinder's ruling it lies in the
-/// cylinder and reads; a planar corner's line edge lying in a planar
+/// order, the ball bending away from the corner's faces there, and
+/// rests, and refuses under a spherical cavity bending up into them;
+/// along a cylinder's ruling it lies in the cylinder and reads; a planar corner's line edge lying in a planar
 /// face reads as the planar link does; two line edges on one ray of a
 /// curved corner read, a curve's tangent on a line refuses; two balls'
 /// tangent planes on one plane refuse. Red where a kept coincidence
@@ -245,10 +246,16 @@ fn a_tangent_link_reads_only_the_coincidences_its_faces_keep() {
     let flat = [v(1.0, 0.0, 0.0), v(-0.2, 0.3, 1.0), v(-0.1, -0.4, 1.0)];
     let mut on_ball = corner(&flat, true, &k, &[]);
     on_ball.push(whole(sphere(-1.0), true));
-    assert_eq!(
-        read(on_ball),
-        Unread(TouchUnread::Unreadable),
+    assert!(
+        matches!(read(on_ball), TouchVerdict::Rest(_)),
         "along a ball"
+    );
+    let mut under_cavity = corner(&flat, true, &k, &[]);
+    under_cavity.push(whole(sphere(0.5), false));
+    assert_eq!(
+        read(under_cavity),
+        Unread(TouchUnread::Unreadable),
+        "along a cavity bending up into the corner"
     );
     let mut on_ruling = corner(&flat, true, &k, &[]);
     on_ruling.push(whole(cylinder(), true));
@@ -550,9 +557,12 @@ fn corner_on(other: geom::Surface<f64>, sense: bool) -> TouchVerdict {
 /// **A line edge in a huge sphere's or cylinder's tangent plane lies in
 /// the face only along a cylinder's ruling**: radius 1e9, so the edge's
 /// far end stands within the band of the carrier whichever way it runs.
-/// On a sphere, which has no ruling, and across a cylinder's ruling, it
-/// refuses; along the ruling it reads. Red where the band alone keeps a
-/// line on a carrier.
+/// Along the ruling it reads. On a sphere, which has no ruling, and
+/// across a cylinder's ruling, it is read one order down, where the
+/// carrier falls `l²/2R` under the edge at its unit arm: refused where
+/// the band leaves that fall in band, and a rest where the band reads
+/// it, never kept at first order. Red where the band alone keeps a line
+/// on a carrier.
 #[test]
 fn a_line_in_a_huge_carriers_plane_is_kept_only_along_a_ruling() {
     let big = 1e9;
@@ -569,12 +579,22 @@ fn a_line_in_a_huge_carriers_plane_is_kept_only_along_a_ruling() {
         u_ref: v(0.0, 0.0, 1.0),
     };
     let refused = TouchVerdict::Unread(TouchUnread::Unreadable);
-    assert_eq!(corner_on(sphere, true), refused, "a sphere");
-    assert_eq!(
-        corner_on(tube(v(0.0, 1.0, 0.0)), true),
-        refused,
-        "across a ruling"
-    );
+    let fall = 0.5 / big;
+    for (what, got) in [
+        ("a sphere", corner_on(sphere, true)),
+        ("across a ruling", corner_on(tube(v(0.0, 1.0, 0.0)), true)),
+    ] {
+        if fall < band().zero() {
+            assert_eq!(got, refused, "{what}");
+        } else if fall > 2.0 * band().escalate() {
+            assert!(matches!(got, TouchVerdict::Rest(_)), "{what}: {got:?}");
+        } else {
+            assert!(
+                got == refused || matches!(got, TouchVerdict::Rest(_)),
+                "{what}: {got:?}"
+            );
+        }
+    }
     assert!(
         matches!(
             corner_on(tube(v(1.0, 0.0, 0.0)), true),
