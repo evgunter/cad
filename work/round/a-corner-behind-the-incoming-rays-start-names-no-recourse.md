@@ -2,11 +2,13 @@
 id: a-corner-behind-the-incoming-rays-start-names-no-recourse
 kind: issue
 title: a fillet whose incoming leg ends at the corner refuses 'this corner lies behind the incoming ray's start' with no recourse, the first wall a newcomer hits once the lattice is satisfied
-status: dispatched
+status: closed
 opened: 2026-11-06
 priority: P1
 cost: E
 branch: round/corner-behind-names-its-recourse
+closed: 2026-11-06
+pr: 6556
 ---
 
 
@@ -33,3 +35,18 @@ sentence. Same family: the shared `TipState::Angle` (reached by an entry
 director and by a fillet's arrival director) offers `FarEndTo` after an
 entry `Toward`, where the path then refuses `FarEndAnchorWithoutFillet`
 — lattice-true, not acceptance-true.
+
+## Closed (2026-11-06)
+
+PR 6556. Both corner-window refusals name their lever: "start the
+incoming side short of the corner (end its leg, or move its start)" and
+"anchor the arrival side beyond the corner, within half a turn on an
+arc", each ending in one `CORNER_IS_NEVER_AUTHORED` clause. A pair
+whose corners need different levers names each beside its corner; the
+pair's `.contains("anchor")` text match is gone for a private
+`CornerLever` with an explicit `subsumes` rule (pinned both ways).
+`crates/editor-core/tests/fillet_step_walk.rs` gains the leg-at-its-corner
+and arrival-at-its-corner attempts and follows both to the pad. Single
+STYLE review: APPROVE-WITH-FIXES, all taken. The shared `Angle` state's
+`FarEndTo` offer this row's last paragraph named is
+`an-entry-director-offers-far-end-to-the-path-then-refuses` (P3).
