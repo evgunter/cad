@@ -3767,6 +3767,7 @@ pub(super) fn section_unbuilt(
         }
         Uncarried::Carry(CarryError::March(e)) => unbuilt(SectionUnbuilt::March(e.clone())),
         Uncarried::Carry(CarryError::Seat(e)) => unbuilt(SectionUnbuilt::Seat(e.clone())),
+        Uncarried::Carry(CarryError::Unwalked(why)) => unbuilt(SectionUnbuilt::Unwalked(*why)),
         Uncarried::Component => BooleanError::JoinDesync {
             what: "a germ's branch names a component its carried section does not have",
         },
@@ -3881,11 +3882,13 @@ fn faces_section_unbuilt<T: geom_core::Real>(
 }
 
 /// A site's reading against its section: an escalation as the section
-/// undecided, a site on no component a desync.
+/// undecided, a site on no component a desync, a spline component's walk
+/// that could not run as the join's ([`SplitJoinError::SectionUnwalked`]).
 pub(super) fn site_refusal(e: geom_brep::SiteRefusal) -> BooleanError {
     match e {
         geom_brep::SiteRefusal::Escalated(diag) => section_undecided(diag),
         geom_brep::SiteRefusal::Desync(what) => BooleanError::JoinDesync { what },
+        geom_brep::SiteRefusal::Unwalked(why) => SplitJoinError::SectionUnwalked(why).into(),
     }
 }
 
@@ -7824,6 +7827,26 @@ mod of_join_rows {
                 resolution: MarginDiag::value(2e-9),
             },
         }));
+    }
+
+    /// A site whose section's spline walk could not run is the join's
+    /// limit, nested whole, at both of the walk's refusals.
+    #[test]
+    fn an_unwalked_site_is_the_joins_limit() {
+        for why in [
+            geom::PieceWalkRefusal::Exhausted,
+            geom::PieceWalkRefusal::Unbounded,
+        ] {
+            let got = site_refusal(geom_brep::SiteRefusal::Unwalked(why));
+            assert!(
+                matches!(
+                    &got,
+                    BooleanError::Join(j)
+                        if matches!(j.error(), SplitJoinError::SectionUnwalked(w) if *w == why)
+                ),
+                "{why:?}: {got:?}"
+            );
+        }
     }
 }
 

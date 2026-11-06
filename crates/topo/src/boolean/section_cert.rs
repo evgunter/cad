@@ -1945,7 +1945,8 @@ pub(super) fn of_carried<T: Decide>(
             | CarryError::TubeUnread
             | CarryError::Escalated(_)
             | CarryError::Desync(_)
-            | CarryError::Seat(_),
+            | CarryError::Seat(_)
+            | CarryError::Unwalked(_),
         ) => return Section::Unmarched,
     };
     let components = section.components();

@@ -961,7 +961,7 @@ mod kernel {
             SectionLoopMixed, SectionLoopUndecided, CutInvariant, Corrupt, LineageRow,
             Band, Euler, SectionEndEscalated, SectionUnresolved, Section, OpenConicChord,
             ApexUnlifted,
-            PoleEdgesCoincide, SectionInvariant, SectionUnarmed, RunImageNotYet,
+            PoleEdgesCoincide, SectionInvariant, SectionUnwalked, SectionUnarmed, RunImageNotYet,
             RunImageIncidence, RingIslandUnread,
             RunEdgeCarrierUnsupported,
             TangentChordEscalated, TangentChordBendEscalated, TangentChordRefuted,
@@ -2571,6 +2571,10 @@ fn split() -> Vec<(String, NodeErrorKind)> {
                     face,
                     what: "a section arc with no endpoint on the face's boundary",
                 },
+            ),
+            (
+                "SectionUnwalked",
+                J::SectionUnwalked(geom::PieceWalkRefusal::Exhausted),
             ),
             (
                 "SectionUnarmed",
