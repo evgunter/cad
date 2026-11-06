@@ -298,8 +298,9 @@ fn the_off_ray_message_names_the_intent_and_the_miss() {
 /// escalates on `path_continuation_target_offset`, and a `line(3ε)` leg
 /// on `path_leg_length`. Each recourse is the authored data's (move the
 /// target onto the run's line, author a longer leg); both margins are
-/// sizes a smaller ε decides, so each adds the conditional, valued
-/// tighten and neither advises loosening ε (D4 ¶1 (i)).
+/// sizes, so each adds the conditional, valued tighten where a run
+/// admits a smaller ε that decides it, the floor note where none does,
+/// and neither advises loosening ε (D4 ¶1 (i)).
 #[test]
 fn the_in_band_continuation_escalations_offer_only_a_conditional_tighten() {
     let t = Tol::witness();
@@ -327,12 +328,15 @@ fn the_in_band_continuation_escalations_offer_only_a_conditional_tighten() {
     ] {
         let msg = err.to_string();
         assert!(format!("{err:?}").contains(want), "{err:?}");
-        assert!(
-            msg.contains(&format!(
-                "Recourse: {recourse}, or, if this size is intended, tighten the tolerance below "
-            )),
-            "{msg}"
-        );
+        // A tighten the run admits is offered conditionally; below the
+        // least ε the run admits, the floor note says none decides it.
+        let tightened = msg.contains(&format!(
+            "Recourse: {recourse}, or, if this size is intended, tighten the tolerance below "
+        ));
+        let floored = msg.contains(&format!(
+            "Recourse: {recourse}; no tolerance a run admits decides this size"
+        ));
+        assert!(tightened || floored, "{msg}");
         assert_eq!(msg.matches("tolerance").count(), 1, "{msg}");
     }
 }

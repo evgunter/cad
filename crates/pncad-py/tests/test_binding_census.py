@@ -2783,10 +2783,16 @@ NOT_BOUND = {
     # (the `path` door is one of the six it names), and not a missing
     # binding for these five types. `ArcCheck` is the sixth, on the
     # same footing: `InconsistentArc`'s payload, crossing as the word
-    # `inconsistent_arc` with its check left behind.
+    # `inconsistent_arc` with its check left behind. `Gate`,
+    # `EscalatedAt` and `ArcRead` are the same footing: the escalation
+    # arms' gate and site, and the read-back arms' read, crossing as
+    # the arm's word with the field left behind.
     "ArcCheck": INTERIOR,
+    "ArcRead": INTERIOR,
     "ContactKind": INTERIOR,
+    "EscalatedAt": INTERIOR,
     "EscalationSite": INTERIOR,
+    "Gate": INTERIOR,
     "FilletLeg": INTERIOR,
     "FilletLegCarrier": INTERIOR,
     "SegmentRef": INTERIOR,
