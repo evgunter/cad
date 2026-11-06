@@ -200,13 +200,13 @@ fn check(
     let reads = [
         (
             "f64",
-            window(&ka, &kb, b).read(piece, away, &level_on(&ka, &kb), band),
+            window(&ka, &kb, b).read(piece, Some(away), &level_on(&ka, &kb), band),
         ),
         (
             "interval",
             window(&ika, &ikb, &ib).read(
                 (iv(piece.0), iv(piece.1)),
-                away,
+                Some(away),
                 &level_on(&ika, &ikb),
                 band,
             ),

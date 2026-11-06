@@ -457,7 +457,7 @@ fn r1e_conditioning_verdict_moves_with_the_offset_alone() {
                 // IN-BAND ARM. The corner is a genuine sliver at this
                 // ε: the fixture cannot be built, and the door must say
                 // so by name rather than build something arbitrary.
-                let Some(ProfileError::Escalated { site, source }) = refusal else {
+                let Some(ProfileError::Escalated { site, source, .. }) = refusal else {
                     panic!(
                         "delta={delta:e}: chord_side margin {margin:e} is in band \
                          ({:e}, {:e}) — the profile door must escalate, got {refusal:?}",

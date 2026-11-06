@@ -1326,7 +1326,7 @@ fn the_new_arc_carrier_gates_escalate_in_band() {
         },
         Tol::witness(),
     );
-    let Err(PathError::Escalated { source }) = refused else {
+    let Err(PathError::Escalated { source, .. }) = refused else {
         panic!("in-band carrier separation must escalate, got {refused:?}");
     };
     assert_eq!(source.predicate, Some("path_carrier_meet"));
@@ -1353,7 +1353,7 @@ fn the_new_arc_carrier_gates_escalate_in_band() {
             },
             Tol::witness(),
         );
-    let Err(PathError::Escalated { source }) = refused else {
+    let Err(PathError::Escalated { source, .. }) = refused else {
         panic!("an in-band angular reach must escalate, got {refused:?}");
     };
     assert_eq!(source.predicate, Some("path_corner_reach_arc"));
@@ -1469,7 +1469,7 @@ fn the_angular_advance_gate_escalates_in_band() {
     // Assert WHICH gate escalated: an escalation from `path_carrier_meet`
     // would satisfy a bare `Escalated` match while leaving the angular
     // advance gate as untested as before.
-    let Err(PathError::Escalated { source }) = refused else {
+    let Err(PathError::Escalated { source, .. }) = refused else {
         panic!("an in-band angular ADVANCE must escalate, got {refused:?}");
     };
     assert_eq!(

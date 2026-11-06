@@ -469,9 +469,11 @@ impl<T: Decide> Found<T> {
 /// meeting where the window's run lies past either span
 /// ([`Span::past_by`], by the reach and the run arm); otherwise the
 /// escalation, the straddle of the floor against the gap at the pair
-/// where both decide, and else whichever reading did not, or, where
-/// every reading decided and none cleared, the typed refusal
-/// `Meter { row: "curve_pair_meet_window" }`.
+/// where both decide, and else whichever reading did not. Where every
+/// reading decided and none cleared, the gap at the pair reads zero
+/// while the point's contact read it off a span and no end read near:
+/// the two readings disagree at rounding, and that refuses typed,
+/// `Meter { row: "curve_pair_meet_window_contact" }`.
 fn window_off<T: Decide>(
     a: &Span<'_, T>,
     b: &Span<'_, T>,
@@ -515,7 +517,7 @@ fn window_off<T: Decide>(
         (_, _, Some(diag)) | (Err(diag), _, None) | (Ok(_), Err(diag), None) => diag,
         (Ok(_), Ok(_), None) => {
             return Err(MeetFault::Unsettled(Unsettled::Meter {
-                row: "curve_pair_meet_window",
+                row: "curve_pair_meet_window_contact",
             }));
         }
     }))

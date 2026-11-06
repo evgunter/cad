@@ -116,10 +116,10 @@ fn f64_replay_or_unresolvable(
     let unresolvable =
         |read: &str, scale: f64| ulps(read).is_some_and(|u| u * scale * ULP >= k * eps);
     let answered = match &refusal.kind {
-        ReplayErrorKind::Path(PathError::ArcMissBelowSceneResolution {
-            predicate, scale, ..
-        }) => unresolvable(predicate, *scale),
-        ReplayErrorKind::Path(PathError::Escalated { source }) => {
+        ReplayErrorKind::Path(PathError::ArcMissBelowSceneResolution { read, scale, .. }) => {
+            unresolvable(read.gate().predicate(), *scale)
+        }
+        ReplayErrorKind::Path(PathError::Escalated { source, .. }) => {
             source.predicate.is_some_and(|read| unresolvable(read, r))
         }
         _ => false,
@@ -231,7 +231,7 @@ fn departure_line_refusal<T: profile::ArcCarrierScalar>(
                 PathError::DegenerateArcChord { chord } => Some((chord.lo(), chord.hi())),
                 _ => None,
             };
-            let undecided = matches!(&e, PathError::Escalated { source }
+            let undecided = matches!(&e, PathError::Escalated { source, .. }
                 if source.predicate == Some("path_collinear_target"));
             Ok((chord, undecided))
         }
@@ -533,7 +533,7 @@ fn the_centre_arc_near_a_full_turn_keeps_its_end_vertex() {
         let li = match try_replay_at::<Interval>(&steps) {
             Ok(li) => li,
             Err(ReplayError {
-                kind: ReplayErrorKind::Path(PathError::Escalated { source }),
+                kind: ReplayErrorKind::Path(PathError::Escalated { source, .. }),
                 ..
             }) if source.predicate == Some("path_arc_center_equidistant")
                 && 64.0 * r * ULP > tol().get().eps =>
