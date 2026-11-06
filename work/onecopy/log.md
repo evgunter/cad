@@ -495,3 +495,4 @@
   - **PR 6541** as `c0b7fb3d69`, gated on `0570fa5f`: the B window, the polish unit and the span_rows re-pin. The coplanar row is reopened.
   Main had moved after each gate, in disjoint files (ROUND: editor-core, geom-core, sweep and others). For each, the local merge with main compiled the whole workspace's tests clean before I merged.
   Rule used: re-gate if files overlap; with disjoint files, a workspace `cargo check --tests` of the merge suffices.
+- 2026-11-06 — PR 6554 delta: FIX FIRST. The hatch still admits `program.md` (active), parked and deferred rows, because the fixture's program had no status. Four bare census faults remain. Second fix pass sent. Lesson: a self-test fixture that is not shaped like the real tree proves only the fixture.
