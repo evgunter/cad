@@ -77,10 +77,11 @@ impl<T: Real> Frame<T> {
         crate::Azimuth::of(y, x)
     }
 
-    /// `p`'s height above the frame's plane: `(p − origin)·axis`.
+    /// `p`'s height above the frame's plane: `(p − origin)·axis`, the
+    /// [`plane_offset`] of the plane through `origin` normal to `axis`.
     #[must_use]
     pub fn height(&self, p: Point3<T>) -> T {
-        (p - self.origin).dot(self.axis)
+        plane_offset(self.origin, self.axis, p)
     }
 
     /// **`p`'s local coordinates** `(x, y, h)`: [`Self::in_plane`] and
@@ -169,6 +170,34 @@ impl<T: Real> Frame<T> {
             width: len / self.u_ref.norm(),
         }
     }
+}
+
+/// **A point's signed offset from a plane, in metres**: `q` against the
+/// plane through `origin` with unit normal `normal`, `(q − origin)·normal`,
+/// positive on the normal's side. A point needs no lever: its distance is
+/// what a margin measures. The one spelling of the formula;
+/// [`Frame::height`] reads it on a frame's plane. A plane with no seam has
+/// no type of its own here (a [`Frame`] carries a seam): whether it gets
+/// one is the placement decision's kind-struct stage, so a holder of a
+/// bare `(origin, normal)` reads this.
+#[must_use]
+pub fn plane_offset<T: Real>(origin: Point3<T>, normal: Vec3<T>, q: Point3<T>) -> T {
+    (q - origin).dot(normal)
+}
+
+/// [`plane_offset`] with a first-order bound on its own rounding, its
+/// inputs exact ([`geom_core::running`]): the value is bit-identical to
+/// [`plane_offset`]'s, so a door that decides on one charges the other.
+#[must_use]
+pub fn plane_offset_rounded<T: Real>(
+    origin: Point3<T>,
+    normal: Vec3<T>,
+    q: Point3<T>,
+) -> geom_core::running::Rounded<T> {
+    use geom_core::running::{self, Rounded};
+    let d = [(q.x, origin.x), (q.y, origin.y), (q.z, origin.z)]
+        .map(|(a, b)| Rounded::exact(a) - Rounded::exact(b));
+    running::dot(d, running::exact_vec(normal))
 }
 
 #[cfg(test)]

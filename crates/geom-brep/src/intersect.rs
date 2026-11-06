@@ -1141,7 +1141,7 @@ pub(crate) struct RuledFrame<T: Real> {
 /// [`RuledFrame`] of the pair at `reach`.
 pub(crate) fn ruled_frame<T: Decide>(pc: &PlaneCylinder<T>, reach: &Reach<T>) -> RuledFrame<T> {
     let &PlaneCylinder { q, n, o, a, .. } = pc;
-    let o = reach.foot_on(o, a);
+    let o = reach.foot_on(geom::Line { origin: o, dir: a });
     let c = a.dot(n);
     let gap_signed = (o - q).dot(n);
     // The rulings this lane mints stand on the hinge through `o − n·gap`,
@@ -1711,7 +1711,7 @@ pub fn cylinder_axes_parallel_reported<T: Decide>(
         "cc_axes_parallel",
         Margin::levered(
             line1.1.cross(line2.1).norm(),
-            reach.lever_between(line1, line2),
+            reach.lever_between(axis_line(line1), axis_line(line2)),
         ),
         band,
     )
@@ -1739,7 +1739,7 @@ pub(crate) fn parallel_swing<T: geom_core::spline::SpanLocate>(
     d: T,
 ) -> T {
     let from = |this: (Point3<T>, Vec3<T>), other: (Point3<T>, Vec3<T>)| {
-        let (foot, lever) = reach.foot_lever(this);
+        let (foot, lever) = reach.foot_lever(axis_line(this));
         let (dmin, dmax) = separation_range((foot, this.1), other, lever.length());
         (dmax - d).abs().max((d - dmin).abs())
     };
@@ -1818,8 +1818,14 @@ fn axes_feet<T: geom_core::spline::SpanLocate>(
     (o1, a1): (Point3<T>, Vec3<T>),
     (o2, a2): (Point3<T>, Vec3<T>),
 ) -> (Point3<T>, Vec3<T>) {
-    let foot1 = reach.foot_on(o1, a1);
-    (foot1, reach.foot_on(o2, a2) - foot1)
+    let foot1 = reach.foot_on(axis_line((o1, a1)));
+    (foot1, reach.foot_on(axis_line((o2, a2))) - foot1)
+}
+
+/// An axis as this module's rows carry it, `(origin, axis)`, read as
+/// its [`geom::Line`].
+pub(crate) fn axis_line<T: Real>((origin, dir): (Point3<T>, Vec3<T>)) -> geom::Line<T> {
+    geom::Line { origin, dir }
 }
 
 /// Two parallel axes read at their feet ([`axes_feet`]). Decisions read

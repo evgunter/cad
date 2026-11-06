@@ -208,7 +208,7 @@ fn conic_plane_candidates<T: Decide>(
     } = *conic.frame();
     let (s_u, s_v) = conic.semi_axes();
     let v_ref = axis.cross(u_ref);
-    let d0 = (center - plane_origin).dot(plane_normal);
+    let d0 = geom::plane_offset(plane_origin, plane_normal, center);
     let a = u_ref.dot(plane_normal) * s_u;
     let b = v_ref.dot(plane_normal) * s_v;
     // powi, NEVER a*a: both amplitudes straddle zero on near-parallel
@@ -453,7 +453,7 @@ pub fn span_plane_meet<T: Decide>(
         }
         (None, geom::Curve3::Line(line)) => {
             let slope = line.dir.dot(plane_normal);
-            let d0 = (line.origin - plane_origin).dot(plane_normal);
+            let d0 = geom::plane_offset(plane_origin, plane_normal, line.origin);
             match decide(
                 "plane_crossing_line_parallel",
                 Margin::of(slope * (t1 - t0)),

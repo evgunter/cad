@@ -116,7 +116,7 @@
 use crate::OutwardNormal;
 use geom_core::k_stats::{decide, decide_negative, decide_positive};
 use geom_core::{
-    Band, Decide, Indeterminate, Lever, Margin, Point3, Real, Sign, Vec3, is_finite_length,
+    Band, Decide, Indeterminate, Lever, Margin, Real, Sign, Vec3, is_finite_length,
     is_underflowed_length,
 };
 
@@ -550,28 +550,6 @@ pub fn reads_slit_tip_turn(bounds: CornerBounds, fault: &SectorFault, along: Sig
                 diag,
             } if diag.margin.rejected_sign() == Some(along)
         )
-}
-
-/// **A point's signed distance from a plane, in metres**: `q` against
-/// the plane through `origin` with unit normal `normal`, positive on
-/// the normal's side. A point needs no lever: its distance is what a
-/// margin measures.
-pub fn plane_offset<T: Real>(origin: Point3<T>, normal: Vec3<T>, q: Point3<T>) -> T {
-    (q - origin).dot(normal)
-}
-
-/// [`plane_offset`] with a first-order bound on its own rounding, its
-/// inputs exact ([`geom_core::running`]): the value is bit-identical to
-/// [`plane_offset`]'s, so a door that decides on one charges the other.
-pub fn plane_offset_rounded<T: Real>(
-    origin: Point3<T>,
-    normal: Vec3<T>,
-    q: Point3<T>,
-) -> geom_core::running::Rounded<T> {
-    use geom_core::running::{self, Rounded};
-    let d = [(q.x, origin.x), (q.y, origin.y), (q.z, origin.z)]
-        .map(|(a, b)| Rounded::exact(a) - Rounded::exact(b));
-    running::dot(d, running::exact_vec(normal))
 }
 
 #[cfg(test)]

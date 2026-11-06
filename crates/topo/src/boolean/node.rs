@@ -306,7 +306,7 @@ pub(super) fn bisector_datum<T: Decide>(
     let side = |(origin, normal): Bisector<T>| {
         crate::validate::decide(
             super::reduce::factored_crossing::FACTORED_PLANE_SIDE,
-            Margin::of((p - origin).dot(normal)),
+            Margin::of(geom::plane_offset(origin, normal, p)),
             band,
         )
         .map_err(|diag| {

@@ -1866,10 +1866,7 @@ fn cylinder_boundary<T: Decide>(
                 // Incidence at the true distance from the cylinder over
                 // the span: the ends' radial residuals, and how far the
                 // segment sags inside between them ([`radial_sag`]).
-                let radial = |p: Point3<T>| {
-                    let w = p - origin;
-                    w - axis * w.dot(axis)
-                };
+                let radial = |p: Point3<T>| geom::Line { origin, dir: axis }.offset(p);
                 let (q0, q1) = (radial(e.p0()), radial(e.p1()));
                 let (f0, f1) = (q0.norm() - radius, q1.norm() - radius);
                 require_zero(
@@ -1939,7 +1936,7 @@ fn cylinder_boundary<T: Decide>(
                 let w = center - origin;
                 require_zero(
                     "props_cylinder_circle_off_axis",
-                    Margin::norm3(w - axis * w.dot(axis)),
+                    Margin::norm3(geom::Line { origin, dir: axis }.offset(center)),
                     band,
                     Premise::OnSurface,
                 )?;
@@ -2536,8 +2533,11 @@ fn require_cone_generator<T: Decide>(
     band: Band,
 ) -> Result<(), PropsError> {
     let radial = |p: Point3<T>| {
-        let w = p - apex;
-        w - axis * w.dot(axis)
+        geom::Line {
+            origin: apex,
+            dir: axis,
+        }
+        .offset(p)
     };
     let (q0, q1) = (radial(e.p0()), radial(e.p1()));
     let (h0, h1) = ((e.p0() - apex).dot(axis), (e.p1() - apex).dot(axis));
@@ -2806,8 +2806,12 @@ fn require_cone_loop_vertices_distinct<T: Decide>(
             let (Some(a), Some(b)) = (a, b) else {
                 return Err(refuse());
             };
-            let r = p - apex;
-            let rho = (r - axis * r.dot(axis)).norm();
+            let rho = geom::Line {
+                origin: apex,
+                dir: axis,
+            }
+            .offset(p)
+            .norm();
             if classify(
                 "props_cone_loop_vertex_sheet",
                 Margin::metered((a - b).abs() - T::pi(), InfSpeed::new(rho)),
@@ -2833,8 +2837,11 @@ fn cone_joints<T: Decide>(
     edges: &[LoopEdge<T>],
 ) -> Vec<Joint<T, 1>> {
     let radial = |p: Point3<T>| {
-        let w = p - apex;
-        w - axis * w.dot(axis)
+        geom::Line {
+            origin: apex,
+            dir: axis,
+        }
+        .offset(p)
     };
     edges
         .iter()
@@ -2950,8 +2957,11 @@ fn cone_loop_winding<T: Decide>(
 ) -> Result<ConeWinding<T>, PropsError> {
     let refuse = |what| Err(PropsError::ConeLoop { what });
     let radial = |p: Point3<T>| {
-        let w = p - apex;
-        w - axis * w.dot(axis)
+        geom::Line {
+            origin: apex,
+            dir: axis,
+        }
+        .offset(p)
     };
     let off = |name, rho: T| {
         classify(name, Margin::of(rho), band, PropsCheck::Inventory).map(|s| s == Sign::Positive)
@@ -5728,8 +5738,11 @@ fn sheet_apex_jumps<T: Decide>(
 ) -> Result<(), PropsError> {
     let apex = geom::sheet_apex(major, minor);
     let radial = |p: Point3<T>| {
-        let w = p - center;
-        w - axis * w.dot(axis)
+        geom::Line {
+            origin: center,
+            dir: axis,
+        }
+        .offset(p)
     };
     let n = pieces.len();
     for j in 0..n {

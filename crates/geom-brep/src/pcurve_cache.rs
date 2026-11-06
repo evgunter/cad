@@ -11151,7 +11151,11 @@ fn torus_oblique_circle<T: Decide>(
         unreachable!("torus_oblique_circle: the torus arm reads a circle carrier")
     };
     let w = c - center;
-    let w_r = w - axis * w.dot(axis);
+    let w_r = geom::Line {
+        origin: center,
+        dir: axis,
+    }
+    .offset(c);
     let gates = [
         ("pcurve_torus_villarceau_offset", Margin::of(w_r.norm() - r)),
         ("pcurve_torus_villarceau_equator", Margin::of(w.dot(axis))),

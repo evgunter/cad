@@ -262,9 +262,11 @@ fn clear_of_singular(
     match *surface {
         Surface::Cone { apex, .. } => clear(SINGULAR, (station - apex).norm()),
         Surface::Torus { center, axis, .. } | Surface::Spindle { center, axis, .. } => {
-            let n = axis / axis.norm();
-            let w = station - center;
-            clear(SINGULAR, (w - n * w.dot(n)).norm())
+            let axis_line = geom::Line {
+                origin: center,
+                dir: axis,
+            };
+            clear(SINGULAR, axis_line.offset(station).norm())
         }
         _ => true,
     }

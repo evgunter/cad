@@ -1371,7 +1371,7 @@ pub(crate) fn path_parity<T: Decide>(
                         continue;
                     }
                     let sec = section(arc);
-                    let offset = |x: Point3<T>| sec.normal.dot(x - sec.origin);
+                    let offset = |x: Point3<T>| geom::plane_offset(sec.origin, sec.normal, x);
                     let (d0, d1) = (offset(from), offset(to));
                     let side =
                         |d| decide_m("split_ring_path_segment_side", Margin::of(charge(d, slack)));
