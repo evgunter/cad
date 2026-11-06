@@ -275,11 +275,14 @@ pub(in crate::boolean) fn landings<T: Decide, D: Legs<T>>(
     band: Band,
 ) -> Result<Vec<Landing<T>>, Fault> {
     let section = leg.course.section();
+    let Ok(inverse) = geom::ChartInverse::of(&door.surface()) else {
+        unreachable!("a region door reads an analytic surface")
+    };
     let in_plane = |offset: T| -> Result<(), Fault> {
         match decide(D::COMPONENT, Margin::of(offset), band).map_err(in_band)? {
             Sign::Zero => {
                 let middle = edge.at(geom::mid_param(edge.t0, edge.t1));
-                if on_leg_section(door, section, middle, band)? {
+                if on_leg_section::<T, D>(&inverse, section, middle, band)? {
                     leg.along(edge, D::AT, band)?;
                 }
                 Ok(())
@@ -303,7 +306,7 @@ pub(in crate::boolean) fn landings<T: Decide, D: Legs<T>>(
                 SpanPlaneMeet::Roots(roots) => {
                     for root in roots {
                         let y = edge.at(root.t);
-                        if !on_leg_section(door, section, y, band)? {
+                        if !on_leg_section::<T, D>(&inverse, section, y, band)? {
                             continue;
                         }
                         let sideless = match root.place {
@@ -375,8 +378,8 @@ fn met<T: Decide>(
 /// # Errors
 ///
 /// A component in band sets the path aside; one at zero grazes.
-pub(in crate::boolean) fn on_leg_section<T: Decide, D: Legs<T>>(
-    door: &D,
+fn on_leg_section<T: Decide, D: Legs<T>>(
+    inverse: &geom::ChartInverse<T>,
     section: LegSection<T>,
     y: Point3<T>,
     band: Band,
@@ -385,9 +388,6 @@ pub(in crate::boolean) fn on_leg_section<T: Decide, D: Legs<T>>(
         LegSection::Whole => return Ok(true),
         LegSection::HalfPlane { toward, opening } => (toward, opening),
         LegSection::TubeSide { toward } => (toward, None),
-    };
-    let Ok(inverse) = geom::ChartInverse::of(&door.surface()) else {
-        unreachable!("a region door reads an analytic surface")
     };
     let (x, yy, h) = inverse.frame().local(y);
     let row = |m: T| decide(D::COMPONENT, Margin::of(m), band).map_err(in_band);

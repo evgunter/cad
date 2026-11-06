@@ -303,9 +303,11 @@ fn span_roots<T: Decide>(
     // escalates (F6).
     for t in near_span(candidates, (t0, t1)) {
         match span_place(t, (t0, t1), meter, band) {
-            Ok(Some(false)) => roots.push(t),
-            Ok(Some(true) | None) => {}
-            Err(diag) => return ConicPlaneMeet::Roots(Err(ConicRootFault::CrossingInterior(diag))),
+            Some(RootPlace::Inside) => roots.push(t),
+            Some(RootPlace::AtEnd) | None => {}
+            Some(RootPlace::Undecided(diag)) => {
+                return ConicPlaneMeet::Roots(Err(ConicRootFault::CrossingInterior(diag)));
+            }
         }
     }
     // Ascending insertion order, decided through the trilean door
@@ -436,7 +438,7 @@ pub fn span_plane_meet<T: Decide>(
             for t in near_span(candidates, (t0, t1)) {
                 let place = match ends {
                     SpanEnds::Endless => Some(RootPlace::Inside),
-                    SpanEnds::Ended => root_place(t, (t0, t1), meter, band),
+                    SpanEnds::Ended => span_place(t, (t0, t1), meter, band),
                 };
                 if let Some(place) = place {
                     roots.push(SpanRoot { t, place });
@@ -468,7 +470,7 @@ pub fn span_plane_meet<T: Decide>(
             }
             let t = (T::zero() - d0) / slope;
             let meter = geom_core::InfSpeed::new(line.dir.norm());
-            root_place(t, (t0, t1), meter, band)
+            span_place(t, (t0, t1), meter, band)
                 .map(|place| SpanRoot { t, place })
                 .into_iter()
                 .collect()
@@ -499,47 +501,29 @@ fn near_span<T: Decide>(candidates: [Option<T>; 2], (t0, t1): (T, T)) -> impl It
         .map(move |c| Period::new(T::tau()).near(c, mid))
 }
 
-/// [`span_place`] as a [`RootPlace`], `None` past an end.
-fn root_place<T: Decide>(
-    t: T,
-    span: (T, T),
-    meter: geom_core::InfSpeed<T>,
-    band: Band,
-) -> Option<RootPlace> {
-    match span_place(t, span, meter, band) {
-        Ok(Some(false)) => Some(RootPlace::Inside),
-        Ok(Some(true)) => Some(RootPlace::AtEnd),
-        Ok(None) => None,
-        Err(diag) => Some(RootPlace::Undecided(diag)),
-    }
-}
-
 /// **A parameter against a span's ends**, on the lane's own row
 /// (`plane_crossing_root_in_span`, the two margins `(t − t₀)·meter` and
 /// `(t₁ − t)·meter`, read in that order and no further than the first
-/// that is not positive): `Some(false)` inside, `Some(true)` within the
-/// band of an end, `None` past one.
-///
-/// # Errors
-///
-/// A margin in band.
+/// that is not positive): where it lies ([`RootPlace`]), or `None` past
+/// an end.
 pub fn span_place<T: Decide>(
     t: T,
     (t0, t1): (T, T),
     meter: geom_core::InfSpeed<T>,
     band: Band,
-) -> Result<Option<bool>, Indeterminate> {
+) -> Option<RootPlace> {
     for margin in [
         Margin::metered(t - t0, meter),
         Margin::metered(t1 - t, meter),
     ] {
-        match decide("plane_crossing_root_in_span", margin, band)? {
-            Sign::Positive => {}
-            Sign::Zero => return Ok(Some(true)),
-            Sign::Negative => return Ok(None),
+        match decide("plane_crossing_root_in_span", margin, band) {
+            Ok(Sign::Positive) => {}
+            Ok(Sign::Zero) => return Some(RootPlace::AtEnd),
+            Ok(Sign::Negative) => return None,
+            Err(diag) => return Some(RootPlace::Undecided(diag)),
         }
     }
-    Ok(Some(false))
+    Some(RootPlace::Inside)
 }
 
 #[cfg(test)]

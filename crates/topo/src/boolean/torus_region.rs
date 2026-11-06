@@ -93,7 +93,7 @@
 //! - **cross**: a sine times the tube's radius, the displacement the
 //!   crossing angle buys within one tube radius of the crossing.
 
-use geom_brep::curve_face::plane_crossing::span_place;
+use geom_brep::curve_face::plane_crossing::{RootPlace, span_place};
 use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
 
 use super::region::{
@@ -292,11 +292,12 @@ impl<T: Decide> TorusFaceRegion<T> {
         band: Band,
     ) -> Result<Option<(T, bool)>, Fault> {
         let theta = geom::Azimuth::of(y, x).near(geom::mid_param(t0, t1));
-        Ok(
-            span_place(theta, (t0, t1), geom_core::InfSpeed::new(lever), band)
-                .map_err(in_band)?
-                .map(|at_end| (theta, at_end)),
-        )
+        match span_place(theta, (t0, t1), geom_core::InfSpeed::new(lever), band) {
+            Some(RootPlace::Inside) => Ok(Some((theta, false))),
+            Some(RootPlace::AtEnd) => Ok(Some((theta, true))),
+            Some(RootPlace::Undecided(diag)) => Err(in_band(diag)),
+            None => Ok(None),
+        }
     }
 
     /// The unit chart normal at `y`.
