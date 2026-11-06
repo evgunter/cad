@@ -327,3 +327,8 @@
   - **curve-pair-tidy, near-tangent tilt:** B. The window also certifies a root with no found meeting, with unanchored arcs Off past the escalation. The row's stated mechanism was wrong: the guard skipped the window entirely, and the spun row's pivot was 5.5e-5 off the shared end. The row narrows to the 4 basin residues.
 
 - 2026-11-06 — The curve-pair-tidy lane reported a main red at `230be11d`: `curve_pair::span_rows::a_point_on_a_circles_axis_is_off_with_no_place_read` (span_rows.rs:364, the antipode pin is off by π), at both ε. Handed to that lane to bisect and fix, since it is likely ONECOPY's (6537 or the foot changes). My own local repro ran out of disk; reclaimed.
+
+- 2026-11-06 — Two PRs are up:
+  - **PR 6539** (refusal-standing, `1a607018`): C implemented, with no design text found to describe it and no outcome moved. Five P2 rows filed.
+  - **PR 6540** (feet-and-params, `a8836515`): segment feet onto `Line::param_within`, `foot_within` and `foot_from`, where a ray is `foot_from` because Interval ∞ is NaI; `nearest` is a certificate over `param_near`. No outcome moved, but bits move slightly.
+  FULL reviews: 6539 to `session_013mPGJ3HVYqYAoquA4iThSZ`, 6540 to a new reviewer `session_013mPGJ5U1sALaLAPBzTAy6S`.
