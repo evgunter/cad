@@ -2,10 +2,12 @@
 id: circle-plane-first-harmonic-has-three-hand-built-copies
 kind: issue
 title: The circle x plane first-harmonic door (FirstHarmonic::circle_off_plane) carries one uniform rounding charge, no phase or frame-defect charge, unaudited
-status: open
+status: closed
 opened: 2026-10-06
 priority: P2
 cost: M
+closed: 2026-11-06
+pr: 6566
 ---
 
 Found by the dual review of PR 4044 (`analysis/reach-dual/4044-r1`,

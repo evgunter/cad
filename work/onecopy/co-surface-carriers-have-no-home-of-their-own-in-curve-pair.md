@@ -39,4 +39,4 @@ It earns its place with a second consumer. The sphere cut-in is one.
    - `region::landings` and the three doors' `Round` and `Line` legs read through it. `Round::through`, `Line::from` and `LegSection` are gone.
    - `apply_cut_ins` reads the cut's half-meridian as a sphere meridian through it. `FirstHarmonic::conic_off_plane` and the `bool_sphere_cut_roots_*` rows are retired (`docs/K-REPORT.md`, ONECOPY addendum on the cut-in).
 
-Item 3, the C5 rule, is the `[ev]` PR. This row closes there.
+Item 3, the C5 rule, is the `[ev]` PR 6567. This row closes there.
