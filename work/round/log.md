@@ -122,3 +122,12 @@ sections on the measurements; the carrier-identity designers agree on
 retiring the arc identity decision and have crossed twice on the
 straight-leg merge, so the last round asks for the question beneath
 the split.
+
+## 2026-11-06 — carrier identity goes to Ev (PR 6542)
+
+Converged after three rounds: retire the arc identity decision (both
+sure) and the straight-leg merge with it (both, one unsure). The PR
+states the question beneath the split that crossed twice: is a
+profile's segment list what the author emitted, or the maximal figure
+where merging is free (is loft correspondence the profile's job)?
+Draw bytes on `analysis/design-fork/round-carrier-identity`.

@@ -8,6 +8,7 @@ refs: [2135]
 priority: P1
 cost: M
 design: true
+pr: 6542
 ---
 
 Found by BOOL-10's seal measurement (PR 2135): after `arc_continue`'s
