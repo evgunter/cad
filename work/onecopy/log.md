@@ -303,3 +303,6 @@
   - re-measure the Interval cost (the rounded bump at 2.4 s, the cone row at 126 s against 47 s) and the hair-pin caveat, and hide nothing in the slow set;
   - the lane stops on any design misfit.
   The polish-meters census worktrees and logs are reclaimed: disk is at 24G free.
+
+- 2026-11-06 — The 6491 takeover stopped on its stop condition after merging main (`a5fab8a98`). Main's `meet` reads two 1e-12 rows differently from the rows: the far ray's leg is 1.2e-10 off the unit cylinder, which is a true 3D miss, and the skew pair's query is off the surface by about the band. So the Decided premise `A ∩ B = A ∩ P_B` holds only for legs on the surface. Cost: the rounded bump at Interval is 12.1 s against 1.03 s, and the cone row 172 s against 67 s.
+  Design fork dispatched: two designers (draw 145, 34; A and B), recorded on `analysis/design-fork/onecopy-landings-off-surface`. The lane is holding.
