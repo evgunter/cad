@@ -204,6 +204,7 @@
 //!   ([`past_every_reach`]). **`bool_point_axis`**: the offset from the
 //!   faces' anchor to `q`, before it is read as one of those directions.
 
+use geom_brep::ladder::{Answering, Climb, Rung, climb, rung_or_abort};
 use geom_core::period::{Exact, Extent, Period, TurnRows, Within};
 use geom_core::{Band, Decide, Indeterminate, Lever, Margin, Point3, Sign, Vec3};
 
@@ -2030,11 +2031,14 @@ fn point_in_faces<T: Decide + crate::props::AtRestPolicy>(
         return Err(PointInSolidError::ZeroVolumeBody);
     }
     // ---- Boundary pre-pass: q on any face ⇒ OnBoundary. ----
-    // Each face's geometry is built as the pass reaches it, so a point on
-    // an earlier face answers before a later face is resolved.
+    // A ladder over the faces ([`climb`], [`Answering::Any`]: every face
+    // holding `q` says the same `OnBoundary`), so a face read in band
+    // refuses only where no later face holds `q`, each refusal kept by
+    // its standing ([`PointInSolidError::refusal`]). Each face's
+    // geometry is built as the pass reaches it, so a point on an earlier
+    // face answers before a later face is resolved.
     let mut geos: FaceGeos<T> = Vec::with_capacity(faces.len());
-    for &face in faces {
-        let escalate = |diag| PointInSolidError::Escalated { face, diag };
+    let climbed = climb(Answering::Any, faces, |&face| {
         let geo = match face_geo(body, face, &sel.charts) {
             Ok(geo) => geo,
             // **A point past the whole selection's reach**, read only
@@ -2043,233 +2047,35 @@ fn point_in_faces<T: Decide + crate::props::AtRestPolicy>(
             // leaves along a straight path that meets no face, and takes
             // the side at infinity. Outside each face's own reach is not
             // enough — the centre of a box solid lies outside every
-            // face's slab and inside the solid.
+            // face's slab and inside the solid. Either way this face
+            // decides the whole query.
             Err(refusal @ PointInSolidError::KindUnsupported { .. }) => {
                 if !past_every_reach(body, faces, q, band) {
-                    return Err(refusal);
+                    return Rung::Aborts(Err(refusal));
                 }
-                return match missed_side(body, sel, band, tol, &MissedRead::new()) {
-                    Ok(side) => Ok(side),
-                    Err(RayFault::InBand(e) | RayFault::Blocked(e) | RayFault::Fatal(e)) => Err(e),
-                    Err(RayFault::Graze | RayFault::Unread) => Err(refusal),
-                };
+                return Rung::Aborts(
+                    match missed_side(body, sel, band, tol, &MissedRead::new()) {
+                        Ok(side) => Ok(side),
+                        Err(RayFault::InBand(e) | RayFault::Blocked(e) | RayFault::Fatal(e)) => {
+                            Err(e)
+                        }
+                        Err(RayFault::Graze | RayFault::Unread) => Err(refusal),
+                    },
+                );
             }
-            Err(other) => return Err(other),
+            Err(other) => return rung_or_abort(other.refusal(), other, Err),
         };
         geos.push((face, geo));
-        let geo = &geos[geos.len() - 1].1;
-        match *geo {
-            FaceGeo::Plane(origin, normal) => {
-                // Orientation-free: a residual compared against Zero
-                // answers the same whichever way the normal points,
-                // and `point_in_face` below is ray parity (ditto).
-                let elev = geom::plane_offset(origin, normal, q);
-                match decide("bool_point_in_solid_plane", Margin::of(elev), band) {
-                    // In-plane: ON the boundary iff within the face
-                    // region (a loop-boundary graze is also ON).
-                    Ok(Sign::Zero) => match point_in_face(body, face, normal, q, band)? {
-                        Some(true) | None => return Ok(SolidContainment::OnBoundary),
-                        Some(false) => {}
-                    },
-                    Ok(_) => {}
-                    // In band of the carrier, which is a question about
-                    // this face only where q's foot on the plane is in
-                    // the face or on its boundary. A foot definitely
-                    // outside the face puts q off it whatever its
-                    // elevation; otherwise the elevation is the answer.
-                    Err(diag) => match point_in_face(body, face, normal, q - normal * elev, band) {
-                        Ok(Some(false)) => {}
-                        Ok(Some(true) | None) => return Err(escalate(diag)),
-                        Err(e) if e.in_band() => return Err(escalate(diag)),
-                        Err(e) => return Err(e),
-                    },
-                }
-            }
-            // The wall arms: the linearized residual (metres) — the same
-            // form the certification layer classifies — then, on the
-            // carrier, the face's own region says whether `q` is on THIS
-            // face, as on the trimmed sphere.
-            FaceGeo::Cylinder {
-                origin,
-                axis,
-                radius,
-                ref region,
-                ..
-            } => {
-                if decide(
-                    "bool_point_in_solid_plane",
-                    Margin::of(wall_elevation(origin, axis, radius, q)),
-                    band,
-                )
-                .map_err(escalate)?
-                    == Sign::Zero
-                {
-                    match region.contains(q, band).map_err(|e| e.of_face(face))? {
-                        Some(true) | None => return Ok(SolidContainment::OnBoundary),
-                        Some(false) => {}
-                    }
-                }
-            }
-            // The cone arm: the residual is the point's EXACT distance to
-            // the double cone ([`geom_brep::cone_elevation`]), a signed
-            // length outright that needs no linearization, unlike the
-            // cylinder and sphere residuals. A point on the mirror nappe
-            // is on the carrier, and the region puts it off the face.
-            FaceGeo::Cone {
-                apex,
-                axis,
-                half_angle,
-                ref region,
-                ..
-            } => {
-                let elev = geom_brep::cone_elevation(apex, axis, half_angle, None, q);
-                if decide("bool_point_in_solid_plane", Margin::of(elev), band).map_err(escalate)?
-                    == Sign::Zero
-                {
-                    match region.contains(q, band).map_err(|e| e.of_face(face))? {
-                        Some(true) | None => return Ok(SolidContainment::OnBoundary),
-                        Some(false) => {}
-                    }
-                }
-            }
-            // On the carrier, `q` may be on the face or off it, and which
-            // is the region this face has none of.
-            FaceGeo::PartialCone {
-                apex,
-                axis,
-                half_angle,
-                reach,
-            } => {
-                let elev = geom_brep::cone_elevation(apex, axis, half_angle, None, q);
-                if decide("bool_point_in_solid_plane", Margin::of(elev), band).map_err(escalate)?
-                    == Sign::Zero
-                    && decide(
-                        "bool_cone_partial_reach",
-                        Margin::of((q - apex).norm() - reach.length()),
-                        band,
-                    )
-                    .map_err(escalate)?
-                        != Sign::Positive
-                {
-                    return Err(PointInSolidError::PartialConeFace { face });
-                }
-            }
-            FaceGeo::PartialWall {
-                origin,
-                axis,
-                radius,
-                anchor,
-                reach,
-            } => {
-                if decide(
-                    "bool_point_in_solid_plane",
-                    Margin::of(wall_elevation(origin, axis, radius, q)),
-                    band,
-                )
-                .map_err(escalate)?
-                    == Sign::Zero
-                    && decide(
-                        "bool_wall_outline_reach",
-                        Margin::of((q - anchor).norm() - reach),
-                        band,
-                    )
-                    .map_err(escalate)?
-                        != Sign::Positive
-                {
-                    return Err(PointInSolidError::WallOutlineUnsupported { face });
-                }
-            }
-            // The full-sphere arm (M5 PR 9c): the linearized radial
-            // residual, the same metre-valued form the cylinder arm
-            // and the certification layer classify. A full chart
-            // carries no trim, so a Zero residual IS boundary — there
-            // is no second containment question to ask.
-            FaceGeo::Sphere {
-                center,
-                radius,
-                representative,
-                sense: _, // a residual against Zero: orientation-free
-            } => {
-                if face != representative {
-                    continue;
-                }
-                let elev =
-                    ((q - center).norm_squared() - radius.powi(2)) / (T::from_f64(2.0) * radius);
-                if decide("bool_point_in_solid_sphere", Margin::of(elev), band).map_err(escalate)?
-                    == Sign::Zero
-                {
-                    return Ok(SolidContainment::OnBoundary);
-                }
-            }
-            // The TRIMMED sphere arm: a Zero radial residual puts `q`
-            // on the CARRIER, and the face's own region then says
-            // whether it is on THIS face (a point on the region's
-            // boundary counts as ON, as it does for the cylinder wall).
-            FaceGeo::SpherePatch {
-                center,
-                radius,
-                ref region,
-                sense: _, // a residual against Zero: orientation-free
-            } => {
-                let elev =
-                    ((q - center).norm_squared() - radius.powi(2)) / (T::from_f64(2.0) * radius);
-                if decide("bool_point_in_solid_sphere", Margin::of(elev), band).map_err(escalate)?
-                    == Sign::Zero
-                {
-                    match region.contains(q, band).map_err(|e| e.of_face(face))? {
-                        Some(true) | None => return Ok(SolidContainment::OnBoundary),
-                        Some(false) => {}
-                    }
-                }
-            }
-            // The torus wall arms: the residual is the point's EXACT
-            // signed distance to the tube. A ring torus is the set of
-            // points whose meridian-plane offset `(ρ − R, h)` has norm
-            // `r`, and that offset is the point's own displacement from
-            // the spine circle, so `|(ρ − R, h)| − r` is a signed length
-            // outright — like the cone's residual and unlike the
-            // cylinder's and sphere's, which are `/2r` linearizations.
-            // A closed group carries no region, so a Zero residual IS
-            // boundary, as on the full sphere.
-            FaceGeo::Torus {
-                center,
-                axis,
-                major_radius,
-                minor_radius,
-                representative,
-                ..
-            } => {
-                if face != representative {
-                    continue;
-                }
-                let elev = torus_elevation(center, axis, major_radius, minor_radius, q);
-                if decide("bool_point_in_solid_plane", Margin::of(elev), band).map_err(escalate)?
-                    == Sign::Zero
-                {
-                    return Ok(SolidContainment::OnBoundary);
-                }
-            }
-            // The face's own region then says whether a point on the
-            // carrier is on THIS face, as on the trimmed sphere.
-            FaceGeo::TorusPatch {
-                center,
-                axis,
-                major_radius,
-                minor_radius,
-                ref region,
-                ..
-            } => {
-                let elev = torus_elevation(center, axis, major_radius, minor_radius, q);
-                if decide("bool_point_in_solid_plane", Margin::of(elev), band).map_err(escalate)?
-                    == Sign::Zero
-                {
-                    match region.contains(q, band).map_err(|e| e.of_face(face))? {
-                        Some(true) | None => return Ok(SolidContainment::OnBoundary),
-                        Some(false) => {}
-                    }
-                }
-            }
+        match face_holds(body, face, &geos[geos.len() - 1].1, q, band) {
+            Ok(true) => Rung::Answers(Ok(SolidContainment::OnBoundary)),
+            Ok(false) => Rung::Passes,
+            Err(e) => rung_or_abort(e.refusal(), e, Err),
         }
+    });
+    match climbed {
+        Climb::Answered { answer, .. } => return answer,
+        Climb::Undecided(e) => return Err(e),
+        Climb::Passed => {}
     }
 
     // ---- Closest-hit ray sweep over the fixed schedule. ----
@@ -2288,6 +2094,236 @@ fn point_in_faces<T: Decide + crate::props::AtRestPolicy>(
         },
         || PointInSolidError::RayExhausted,
     )
+}
+
+/// **Whether `face` holds `q` on the boundary**, read off its query
+/// geometry `geo`: one rung of [`point_in_faces`]'s pre-pass. `true`
+/// where `q` is on the face's carrier and in its region (or on its
+/// region's boundary), `false` where it is off.
+///
+/// # Errors
+///
+/// A reading the face could not decide: in band, or at a limit of what
+/// the door reads (a partial cone or wall face at `q`).
+fn face_holds<T: Decide + crate::props::AtRestPolicy>(
+    body: &Body<T>,
+    face: FaceKey,
+    geo: &FaceGeo<T>,
+    q: Point3<T>,
+    band: Band,
+) -> Result<bool, PointInSolidError> {
+    let escalate = |diag| PointInSolidError::Escalated { face, diag };
+    match *geo {
+        FaceGeo::Plane(origin, normal) => {
+            // Orientation-free: a residual compared against Zero
+            // answers the same whichever way the normal points,
+            // and `point_in_face` below is ray parity (ditto).
+            let elev = geom::plane_offset(origin, normal, q);
+            match decide("bool_point_in_solid_plane", Margin::of(elev), band) {
+                // In-plane: ON the boundary iff within the face
+                // region (a loop-boundary graze is also ON).
+                Ok(Sign::Zero) => match point_in_face(body, face, normal, q, band)? {
+                    Some(true) | None => return Ok(true),
+                    Some(false) => {}
+                },
+                Ok(_) => {}
+                // In band of the carrier, which is a question about
+                // this face only where q's foot on the plane is in
+                // the face or on its boundary. A foot definitely
+                // outside the face puts q off it whatever its
+                // elevation; otherwise the elevation is the answer.
+                Err(diag) => match point_in_face(body, face, normal, q - normal * elev, band) {
+                    Ok(Some(false)) => {}
+                    Ok(Some(true) | None) => return Err(escalate(diag)),
+                    Err(e) if e.in_band() => return Err(escalate(diag)),
+                    Err(e) => return Err(e),
+                },
+            }
+        }
+        // The wall arms: the linearized residual (metres) — the same
+        // form the certification layer classifies — then, on the
+        // carrier, the face's own region says whether `q` is on THIS
+        // face, as on the trimmed sphere.
+        FaceGeo::Cylinder {
+            origin,
+            axis,
+            radius,
+            ref region,
+            ..
+        } => {
+            if decide(
+                "bool_point_in_solid_plane",
+                Margin::of(wall_elevation(origin, axis, radius, q)),
+                band,
+            )
+            .map_err(escalate)?
+                == Sign::Zero
+            {
+                match region.contains(q, band).map_err(|e| e.of_face(face))? {
+                    Some(true) | None => return Ok(true),
+                    Some(false) => {}
+                }
+            }
+        }
+        // The cone arm: the residual is the point's EXACT distance to
+        // the double cone ([`geom_brep::cone_elevation`]), a signed
+        // length outright that needs no linearization, unlike the
+        // cylinder and sphere residuals. A point on the mirror nappe
+        // is on the carrier, and the region puts it off the face.
+        FaceGeo::Cone {
+            apex,
+            axis,
+            half_angle,
+            ref region,
+            ..
+        } => {
+            let elev = geom_brep::cone_elevation(apex, axis, half_angle, None, q);
+            if decide("bool_point_in_solid_plane", Margin::of(elev), band).map_err(escalate)?
+                == Sign::Zero
+            {
+                match region.contains(q, band).map_err(|e| e.of_face(face))? {
+                    Some(true) | None => return Ok(true),
+                    Some(false) => {}
+                }
+            }
+        }
+        // On the carrier, `q` may be on the face or off it, and which
+        // is the region this face has none of.
+        FaceGeo::PartialCone {
+            apex,
+            axis,
+            half_angle,
+            reach,
+        } => {
+            let elev = geom_brep::cone_elevation(apex, axis, half_angle, None, q);
+            if decide("bool_point_in_solid_plane", Margin::of(elev), band).map_err(escalate)?
+                == Sign::Zero
+                && decide(
+                    "bool_cone_partial_reach",
+                    Margin::of((q - apex).norm() - reach.length()),
+                    band,
+                )
+                .map_err(escalate)?
+                    != Sign::Positive
+            {
+                return Err(PointInSolidError::PartialConeFace { face });
+            }
+        }
+        FaceGeo::PartialWall {
+            origin,
+            axis,
+            radius,
+            anchor,
+            reach,
+        } => {
+            if decide(
+                "bool_point_in_solid_plane",
+                Margin::of(wall_elevation(origin, axis, radius, q)),
+                band,
+            )
+            .map_err(escalate)?
+                == Sign::Zero
+                && decide(
+                    "bool_wall_outline_reach",
+                    Margin::of((q - anchor).norm() - reach),
+                    band,
+                )
+                .map_err(escalate)?
+                    != Sign::Positive
+            {
+                return Err(PointInSolidError::WallOutlineUnsupported { face });
+            }
+        }
+        // The full-sphere arm (M5 PR 9c): the linearized radial
+        // residual, the same metre-valued form the cylinder arm
+        // and the certification layer classify. A full chart
+        // carries no trim, so a Zero residual IS boundary — there
+        // is no second containment question to ask.
+        FaceGeo::Sphere {
+            center,
+            radius,
+            representative,
+            sense: _, // a residual against Zero: orientation-free
+        } => {
+            if face != representative {
+                return Ok(false);
+            }
+            let elev = ((q - center).norm_squared() - radius.powi(2)) / (T::from_f64(2.0) * radius);
+            if decide("bool_point_in_solid_sphere", Margin::of(elev), band).map_err(escalate)?
+                == Sign::Zero
+            {
+                return Ok(true);
+            }
+        }
+        // The TRIMMED sphere arm: a Zero radial residual puts `q`
+        // on the CARRIER, and the face's own region then says
+        // whether it is on THIS face (a point on the region's
+        // boundary counts as ON, as it does for the cylinder wall).
+        FaceGeo::SpherePatch {
+            center,
+            radius,
+            ref region,
+            sense: _, // a residual against Zero: orientation-free
+        } => {
+            let elev = ((q - center).norm_squared() - radius.powi(2)) / (T::from_f64(2.0) * radius);
+            if decide("bool_point_in_solid_sphere", Margin::of(elev), band).map_err(escalate)?
+                == Sign::Zero
+            {
+                match region.contains(q, band).map_err(|e| e.of_face(face))? {
+                    Some(true) | None => return Ok(true),
+                    Some(false) => {}
+                }
+            }
+        }
+        // The torus wall arms: the residual is the point's EXACT
+        // signed distance to the tube. A ring torus is the set of
+        // points whose meridian-plane offset `(ρ − R, h)` has norm
+        // `r`, and that offset is the point's own displacement from
+        // the spine circle, so `|(ρ − R, h)| − r` is a signed length
+        // outright — like the cone's residual and unlike the
+        // cylinder's and sphere's, which are `/2r` linearizations.
+        // A closed group carries no region, so a Zero residual IS
+        // boundary, as on the full sphere.
+        FaceGeo::Torus {
+            center,
+            axis,
+            major_radius,
+            minor_radius,
+            representative,
+            ..
+        } => {
+            if face != representative {
+                return Ok(false);
+            }
+            let elev = torus_elevation(center, axis, major_radius, minor_radius, q);
+            if decide("bool_point_in_solid_plane", Margin::of(elev), band).map_err(escalate)?
+                == Sign::Zero
+            {
+                return Ok(true);
+            }
+        }
+        // The face's own region then says whether a point on the
+        // carrier is on THIS face, as on the trimmed sphere.
+        FaceGeo::TorusPatch {
+            center,
+            axis,
+            major_radius,
+            minor_radius,
+            ref region,
+            ..
+        } => {
+            let elev = torus_elevation(center, axis, major_radius, minor_radius, q);
+            if decide("bool_point_in_solid_plane", Margin::of(elev), band).map_err(escalate)?
+                == Sign::Zero
+            {
+                match region.contains(q, band).map_err(|e| e.of_face(face))? {
+                    Some(true) | None => return Ok(true),
+                    Some(false) => {}
+                }
+            }
+        }
+    }
+    Ok(false)
 }
 
 /// A ray's hit as a face's region reads it: `Some` its side, `None` on
