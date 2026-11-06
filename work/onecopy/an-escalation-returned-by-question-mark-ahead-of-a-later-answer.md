@@ -2,12 +2,11 @@
 id: an-escalation-returned-by-question-mark-ahead-of-a-later-answer
 kind: issue
 title: A reading's escalation returned by ? ahead of a later reading that could still answer: pieced_arc::contact's ends, CarrierLoop::place_off
-status: dispatched
+status: open
 opened: 2026-11-06
 priority: P2
 cost: M
 pr: 6553
-branch: onecopy/refusal-standing
 ---
 
 Found by `kept-refusal-loops-the-ladder-row-never-listed`'s second pass
