@@ -92,3 +92,33 @@ tighten is derived where a smaller ε decides; `path_junction_turn`
 stays `Lever` and the lane files a row asking whether it is the odd one
 out. Review tier raised from single to **dual** (H): the closed type is
 what every path-door escalation carries from now on.
+
+## 2026-11-06 — forks reconciling; a P0 found by measuring one
+
+Both forks asked for facts the designers could not settle by reading,
+so a probe lane measured them (branch `round/probes`,
+`crates/profile/tests/round_probe_*`):
+
+- **M1:** `line(L).cusp().fillet(r)` and `.cusp().fillet_arc(..)` move
+  the straight leg's end vertex BACKWARDS (the ray-extension merge reads
+  every by-tangent ray as a forward extension): the authored end leaves
+  the path, and past the start the declared cusp is silently dropped;
+  both validate. Filed as P0
+  `a-cusp-before-a-fillet-pulls-the-straight-leg-end-backwards` and
+  dispatched (`round/cusp-fillet-keeps-its-leg`, single FULL review):
+  the merge extends a leg only along its forward tangent, which holds
+  under either answer to the carrier-identity fork's open sub-choice.
+- **M2:** the closed-form radius of the fillet that ends at the anchor
+  equals the anchor-fit boundary on every straight×straight and
+  line×arc entry, and on 2923 of 3185 grid-A arc×arc entries; in every
+  other case it is below the loop's boundary because the other derived
+  corner builds there; never above. Exact values land on the overrun
+  side about a third of the time, so a rendered value must sit strictly
+  on the fitting side.
+
+Reconciliation so far (rows on the `[ev]` PRs): the refused-corner
+designers converged on the shape after one round and are writing final
+sections on the measurements; the carrier-identity designers agree on
+retiring the arc identity decision and have crossed twice on the
+straight-leg merge, so the last round asks for the question beneath
+the split.
