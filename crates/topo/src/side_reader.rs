@@ -1187,4 +1187,32 @@ mod pre_filter_tests {
         );
         assert!(!aimed(&log).is_empty(), "an aimed ray is cast");
     }
+
+    /// **A sheet's two faces cancel on every aimed ray**: the faces of a
+    /// cylinder-wall sheet lie on one carrier with opposite senses over
+    /// one trim, so a ray that crosses one crosses both, and no aim reads
+    /// a side, from either face. Red when a carrier's root is held by its
+    /// first face alone: each ray then counts one face, and the aims at
+    /// the two faces, from opposite sides, read opposite sides.
+    #[test]
+    fn a_sheets_two_faces_cancel_on_every_aim() {
+        use crate::test_support_fixtures::{CylFrame, cyl_wall_sheet};
+        let tol = Tol::witness();
+        let band = Band::linear(tol).expect("the witness band");
+        let mut body = Body::<f64>::new();
+        let frame = CylFrame {
+            origin: Point3::new(0.0, 0.0, 2.0),
+            axis: Vec3::unit_x(),
+            radius: 1.0,
+            u_ref: -Vec3::unit_z(),
+        };
+        let face = cyl_wall_sheet(&mut body, frame, (-0.5, 0.5), (0.5, 3.5), tol);
+        let shell = body.get_face(face).expect("the sheet's face").shell;
+        let sel = SolidFaces::of_shell(&body, shell);
+        assert_eq!(sel.faces().len(), 2, "a sheet is two faces");
+        match cast_aims(&body, &sel, band) {
+            Ok(Rays::Unread { aimed, .. }) => assert_eq!(aimed, 2, "both faces are aimed at"),
+            other => panic!("no aim at a sheet reads a side: {other:?}"),
+        }
+    }
 }

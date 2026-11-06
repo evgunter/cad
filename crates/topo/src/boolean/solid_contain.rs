@@ -4571,10 +4571,12 @@ pub(crate) fn ray_crossings<T: Decide>(
     // ---- Each root of a trimmed curved face no edge stands for, tested
     // against the face's own region: a root outside it is no crossing of
     // this face, and one on its boundary, or one the region cannot place,
-    // reads no side. Faces on one carrier (a seam split) share its roots:
-    // a face that definitely holds one holds it alone, so the others'
-    // readings of it, in band, faulted or not, decide nothing; a fault
-    // stands only where no face holds it. ----
+    // reads no side. Faces on one carrier share its roots, and each face
+    // that definitely holds one crosses there: faces of one sense tile
+    // their carrier (a seam split), so one holds it, and a sheet's two
+    // faces, opposite senses over one trim, both hold it and cancel. Where
+    // a face holds it, the others' readings of it, in band, faulted or
+    // not, decide nothing; a fault stands only where no face holds it. ----
     let mut read = vec![false; roots.len()];
     for k in 0..roots.len() {
         if read[k] {
@@ -4590,7 +4592,7 @@ pub(crate) fn ray_crossings<T: Decide>(
         if claims.iter().any(|(claimed, _)| *claimed == root_key) {
             continue;
         }
-        let (mut held, mut fault, mut boundary) = (None, None, None);
+        let (mut held, mut fault, mut boundary) = (Vec::new(), None, None);
         for &j in &shared {
             let r = roots[j];
             let Some(geo) = geo_of(r.face) else {
@@ -4618,7 +4620,7 @@ pub(crate) fn ray_crossings<T: Decide>(
                 Err(fault) => Err(fault),
             };
             match reading {
-                Ok(Some(true)) => held = held.or(Some((r, geo))),
+                Ok(Some(true)) => held.push((r, geo)),
                 Ok(Some(false)) => {}
                 Ok(None) => boundary = boundary.or(Some(r)),
                 Err(f) => fault = worse(fault, r.face, f),
@@ -4629,14 +4631,16 @@ pub(crate) fn ray_crossings<T: Decide>(
             return Err(f);
         }
         let fault = fault.map(|(_, f)| f);
-        match (held, fault, boundary) {
-            (Some((r, geo)), ..) => {
-                let outward = root_outward(body, r.face, geo, r, q, d, band)?;
-                offer_root(r.face, (r.t, r.slack), outward, false)?;
+        match (held.is_empty(), fault, boundary) {
+            (false, ..) => {
+                for (r, geo) in held {
+                    let outward = root_outward(body, r.face, geo, r, q, d, band)?;
+                    offer_root(r.face, (r.t, r.slack), outward, false)?;
+                }
             }
-            (None, Some(fault), _) => return Err(fault),
-            (None, None, Some(r)) => offer_root(r.face, (r.t, r.slack), Sign::Zero, true)?,
-            (None, None, None) => {}
+            (true, Some(fault), _) => return Err(fault),
+            (true, None, Some(r)) => offer_root(r.face, (r.t, r.slack), Sign::Zero, true)?,
+            (true, None, None) => {}
         }
     }
     for &(face, ref geo) in geos {
