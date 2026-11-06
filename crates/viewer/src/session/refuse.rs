@@ -15,9 +15,8 @@
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{
-    BooleanValue, Dimension, DimensionError, Doc, DocumentId, EditError, EvalError, Node, Operand,
-    ParseError, ProfileProgram, RecipeNodeId, SlotId, SpokenNode, SpokenVar, ValuePayload, VarId,
-    VarName,
+    Dimension, DimensionError, Doc, DocumentId, EditError, EvalError, Node, Operand, ParseError,
+    ProfileProgram, RecipeNodeId, SlotId, SpokenNode, SpokenVar, VarId, VarName,
 };
 use std::path::{Path, PathBuf};
 
@@ -1113,37 +1112,6 @@ impl core::fmt::Display for GestureFrameFault {
 }
 
 impl core::error::Error for GestureFrameFault {}
-
-/// **The one body an evaluated value IS, if it is one** — the
-/// evaluator's single-body operand door (`eval::wire::read_body`)
-/// asked of a value the viewer is holding.
-///
-/// The same two shapes that door takes: a `Body` payload, or a
-/// boolean's non-empty result. Everything else — a split's two sides,
-/// a pattern's or a placer's instances, a profile — is a
-/// value it refuses `WrongOperand`.
-///
-/// **Not [`crate::combine::denotes_body`]**, which answers the
-/// narrower question a body SEAT asks, off the node vocabulary alone,
-/// before any value exists. A seat that has an evaluation in hand can
-/// ask the door's own question instead of a predicate that tracks it.
-///
-/// Its reader is the duplicate door (`crate::combine::duplicate_step`),
-/// which measures the body it hands back.
-pub(crate) fn one_body(payload: &ValuePayload<f64>) -> Option<&pncad::document::Framed<f64>> {
-    match payload {
-        ValuePayload::Body(body) | ValuePayload::Boolean(BooleanValue::Body { body, .. }) => {
-            Some(body)
-        }
-        ValuePayload::Boolean(BooleanValue::Empty)
-        | ValuePayload::Profile(_)
-        | ValuePayload::Split { .. }
-        | ValuePayload::Instances(_)
-        | ValuePayload::Family
-        | ValuePayload::Measure { .. }
-        | ValuePayload::Assertion(_) => None,
-    }
-}
 
 #[cfg(test)]
 mod version_offer {

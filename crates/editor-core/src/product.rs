@@ -625,7 +625,7 @@ pub(crate) fn sources_of<T: Decide>(value: &NodeValue<T>) -> Option<Vec<Source0<
     let carried = || Arc::clone(&value.carry.contacts);
     let rows = || Arc::clone(&value.carry.findings);
     let norows = || Arc::new(crate::checks::at_rest::CarriedFindings::default());
-    if let Some(body) = value.payload.member_body() {
+    if let Some(body) = value.payload.one_body() {
         return Some(
             body.map(|body| (0, body.clone(), carried(), rows()))
                 .into_iter()
@@ -633,28 +633,29 @@ pub(crate) fn sources_of<T: Decide>(value: &NodeValue<T>) -> Option<Vec<Source0<
         );
     }
     match &value.payload {
-        // Cannot refuse: an instance list is minted by the pattern op,
-        // which refuses any index `names::narrow` does not fit, or
-        // by `Placeable::map`, which rebuilds an existing list one body
-        // for one.
+        // A family's body stands at its member's place, an empty member
+        // contributing nothing and shifting no later one, as a split's
+        // empty half shifts nothing. Cannot refuse: a family is minted
+        // by `family_value`, whose naming refuses any place
+        // `names::narrow` does not fit, or by a placement of one, which
+        // keeps its places.
         ValuePayload::Instances(bodies) => Some(
             bodies
                 .iter()
                 .enumerate()
-                .map(|(i, body)| {
+                .filter_map(|(i, body)| {
+                    let body = body.as_ref()?;
                     let ix = crate::names::narrow(i, crate::names::Numbered::OutputBody)
                         .unwrap_or_else(|e| {
-                            unreachable!(
-                                "instance {i} outlived its minting op's index refusal: {e}"
-                            )
+                            unreachable!("member {i} outlived its family's place refusal: {e}")
                         });
                     let member = value.carry.member(i);
-                    (
+                    Some((
                         ix,
                         body.clone(),
                         Arc::clone(&member.contacts),
                         Arc::clone(&member.findings),
-                    )
+                    ))
                 })
                 .collect(),
         ),
@@ -683,7 +684,7 @@ pub(crate) fn sources_of<T: Decide>(value: &NodeValue<T>) -> Option<Vec<Source0<
         // whose only addition is an assertion has the same product it
         // had without one.
         ValuePayload::Body(_) | ValuePayload::Boolean(_) => {
-            unreachable!("`member_body` answers every one-body value")
+            unreachable!("`one_body` answers every one-body value")
         }
         ValuePayload::Profile(_)
         | ValuePayload::Measure { .. }

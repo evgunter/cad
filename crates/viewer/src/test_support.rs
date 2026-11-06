@@ -21,9 +21,9 @@
 #![allow(clippy::panic)]
 
 use pncad::document::{
-    AuthoredNode, BooleanValue, CancelToken, ContentPin, Dimension, Doc, DocEdit, DocRef,
-    DocumentId, EditError, EvalOptions, Evaluation, Formula, FreeVar, LoopProgram, Node,
-    NodeErrorKind, PartFault, ProfileProgram, RecipeNodeId, ValuePayload, VarName, apply, evaluate,
+    AuthoredNode, CancelToken, ContentPin, Dimension, Doc, DocEdit, DocRef, DocumentId, EditError,
+    EvalOptions, Evaluation, Formula, FreeVar, LoopProgram, Node, NodeErrorKind, PartFault,
+    ProfileProgram, RecipeNodeId, VarName, apply, evaluate,
 };
 use pncad::geom_core::{Point2, Tol};
 #[cfg(test)]
@@ -623,10 +623,11 @@ pub fn evaluated_volume(eval: &Evaluation<f64>, node: RecipeNodeId, tol: Tol) ->
     let value = eval
         .value(node)
         .unwrap_or_else(|| panic!("the node evaluated: {:?}", eval.node_error(node)));
-    let body = match &value.payload {
-        ValuePayload::Body(body) | ValuePayload::Boolean(BooleanValue::Body { body, .. }) => body,
-        other => panic!("expected a body, got {other:?}"),
-    };
+    let body = value
+        .payload
+        .one_body()
+        .flatten()
+        .unwrap_or_else(|| panic!("expected a body, got {:?}", value.payload));
     pncad::topo::mass_properties(
         &pncad::topo::AtRestBody::validate(body.body().clone(), tol)
             .expect("the measured body passes tier 3"),

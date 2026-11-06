@@ -335,7 +335,13 @@ fn deep_digest<T: Decide + Bounds>(ev: &Evaluation<T>) -> u64 {
                         d.u64(18);
                         d.u64(bodies.len() as u64);
                         for b in bodies {
-                            d.body(b.body());
+                            match b {
+                                None => d.u64(0),
+                                Some(b) => {
+                                    d.u64(1);
+                                    d.body(b.body());
+                                }
+                            }
                         }
                     }
                     // The measured quantity IS a lane value, so it is

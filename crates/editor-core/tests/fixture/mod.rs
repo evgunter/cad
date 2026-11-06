@@ -4043,6 +4043,25 @@ pub fn in_space<T: geom_core::Decide + topo::AtRestPolicy>(
     }
 }
 
+/// **Every member's body of a family of bodies**, in member order: the
+/// `Instances` payload of a family no member of which is empty.
+///
+/// # Panics
+///
+/// At a member that is a boolean's empty result.
+pub fn every_body<T: geom_core::Decide>(
+    members: &[Option<editor_core::Framed<T>>],
+) -> Vec<&editor_core::Framed<T>> {
+    members
+        .iter()
+        .enumerate()
+        .map(|(i, body)| {
+            body.as_ref()
+                .unwrap_or_else(|| panic!("member {i} is the empty result"))
+        })
+        .collect()
+}
+
 /// **The document's product where it stands in the world**: the gather
 /// ([`editor_core::product_recorded`]) composed through
 /// [`editor_core::in_space`], for a row that reads positions in the

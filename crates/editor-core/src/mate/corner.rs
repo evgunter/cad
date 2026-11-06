@@ -110,17 +110,15 @@ pub(crate) fn read_of(
     let Some(NodeResult::Ok(value)) = evaluation.result(node) else {
         return Err(PinRefusal::Unevaluated { node });
     };
-    // A family is read through its first member, in that member's own
-    // names: what a reader evaluated once per member reads at each
-    // (D10 `[repetition]`).
+    // A family is read through its first member that is a body, in that
+    // member's own names: the names a reader evaluated once per member
+    // reads at each (D10 `[repetition]`), which any member spells. An
+    // empty member is refused where that reader is evaluated at it.
     if let Some(members) = &value.members {
-        let (_, first) = members
+        let Some((first, solid)) = members
             .members
-            .first()
-            .ok_or(PinRefusal::NotABody { node })?;
-        let (ValuePayload::Body(solid)
-        | ValuePayload::Boolean(crate::eval::BooleanValue::Body { body: solid, .. })) =
-            &first.payload
+            .iter()
+            .find_map(|(_, member)| Some((member, member.payload.one_body()??)))
         else {
             return Err(PinRefusal::NotABody { node });
         };
@@ -138,14 +136,21 @@ pub(crate) fn read_of(
         },
         _ => 0,
     };
-    let solid = match &value.payload {
-        ValuePayload::Body(b)
-        | ValuePayload::Boolean(crate::eval::BooleanValue::Body { body: b, .. }) => b.clone(),
-        ValuePayload::Instances(bodies) => bodies
-            .first()
-            .cloned()
-            .ok_or(PinRefusal::NotABody { node })?,
-        ValuePayload::Split { above, below } => {
+    // A family that keeps no members is read through its first body,
+    // at that body's place in its table.
+    let mut place = 0;
+    let solid = match (value.payload.one_body(), &value.payload) {
+        (Some(body), _) => body.cloned().ok_or(PinRefusal::NotABody { node })?,
+        (None, ValuePayload::Instances(bodies)) => {
+            let (at, body) = bodies
+                .iter()
+                .enumerate()
+                .find_map(|(at, body)| Some((at, body.as_ref()?)))
+                .ok_or(PinRefusal::NotABody { node })?;
+            place = u32::try_from(at).map_err(|_| PinRefusal::NotABody { node })?;
+            body.clone()
+        }
+        (None, ValuePayload::Split { above, below }) => {
             let half = crate::names::SplitHalf::of_output_body(u32::from(port))
                 .ok_or(PinRefusal::NotABody { node })?;
             let side = if half == crate::names::SplitHalf::Above {
@@ -168,7 +173,14 @@ pub(crate) fn read_of(
     let table = var
         .and_then(|var| evaluation.table(var))
         .ok_or(PinRefusal::NotABody { node })?;
-    Ok((node, solid, table.clone(), value.motion))
+    let table = if place == 0 {
+        table.clone()
+    } else {
+        table
+            .project(place)
+            .map_err(|_| PinRefusal::NotABody { node })?
+    };
+    Ok((node, solid, table, value.motion))
 }
 
 /// **A frame read off `body`'s own geometry at a corner it has**: the
