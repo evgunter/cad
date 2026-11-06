@@ -2,7 +2,7 @@
 id: overlap-refusal-unread-is-string-typed-across-classes
 kind: issue
 title: OverlapRefusal::Unread is one string-typed variant over refusals of different classes
-status: open
+status: dispatched
 opened: 2026-11-06
 priority: P3
 cost: E

@@ -2,7 +2,7 @@
 id: door-searches-left-on-the-hand-rolled-ladder
 kind: issue
 title: Door searches still hand-rolling geom_brep::ladder::climb after three tranches: the pierce pass, and the Any ports' unreached record rows
-status: open
+status: dispatched
 opened: 2026-11-03
 priority: P1
 cost: E
