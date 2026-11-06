@@ -831,8 +831,7 @@ fn clear_of(k: &Frame, partner: &Surface<f64>) -> f64 {
             ..
         } => {
             let d = axis.normalize();
-            let w = k.apex - origin;
-            let apex = ((w - d * w.dot(d)).norm() - radius).abs();
+            let apex = (geom::Line { origin, dir: d }.offset(k.apex).norm() - radius).abs();
             let aperture = (d.dot(k.a).abs().acos() - k.alpha).abs() * lever;
             apex.min(aperture)
         }

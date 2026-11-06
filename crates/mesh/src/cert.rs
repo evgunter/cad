@@ -115,8 +115,7 @@ pub fn dist_line_triangle(
     c: Point3<f64>,
 ) -> f64 {
     let proj = |p: Point3<f64>| -> Point3<f64> {
-        let w = p - o;
-        Point3::origin() + (w - d * w.dot(d))
+        Point3::origin() + geom::Line { origin: o, dir: d }.offset(p)
     };
     dist_point_triangle(Point3::origin(), proj(a), proj(b), proj(c))
 }

@@ -1957,7 +1957,7 @@ fn held_reads<T: Decide + crate::props::AtRestPolicy>(
             Some(plane) => {
                 let side = geom_core::k_stats::decide_reported(
                     "bool_vertex_face_side",
-                    Margin::of((p - plane.origin).dot(plane.normal)),
+                    Margin::of(geom::plane_offset(plane.origin, plane.normal, p)),
                     band,
                 );
                 if matches!(side, Ok(ref d) if d.sign != Sign::Zero) {

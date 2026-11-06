@@ -742,7 +742,7 @@ fn distance<T: Decide>(
                 pose: Pose::Point(p),
                 ..
             },
-        ) => Ok(magnitude((*p - *origin).dot(*normal))),
+        ) => Ok(magnitude(geom::plane_offset(*origin, *normal, *p))),
         // Plane x plane: defined ONLY between parallel planes — the
         // distance between non-parallel planes is zero along their
         // line of intersection and unbounded away from it, so there is
@@ -909,8 +909,7 @@ fn magnitude<T: Decide>(d: T) -> T {
 /// of the separation orthogonal to a UNIT direction. A metre quantity
 /// throughout.
 fn axis_offset<T: Decide>(origin: Point3<T>, axis: Vec3<T>, point: Point3<T>) -> T {
-    let rel = point - origin;
-    (rel - axis * rel.dot(axis)).norm()
+    geom::Line { origin, dir: axis }.offset(point).norm()
 }
 
 /// `angle(a, b)` -> Angle: the unsigned angle in `[0, pi]` between two

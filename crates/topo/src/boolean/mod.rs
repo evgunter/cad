@@ -7068,7 +7068,7 @@ fn verify_glued_contacts<T: Decide>(
                     (fa, fb),
                     TangentCert {
                         kinds: tangency.kinds,
-                        line: matches!(tangency.locus, rim_wedge::Locus::Line { .. }),
+                        line: matches!(tangency.locus, rim_wedge::Locus::Line(_)),
                     },
                 );
             }
@@ -7352,7 +7352,7 @@ fn tangent_line<T: Decide>(
     // reading of the carriers.
     let pad = witness_pad::<T>(band);
     let extents = |across| {
-        let frame = boxes::BoxFrame::aimed(across);
+        let frame = geom::cover::BoxAxes::aimed(across);
         [(a, fa), (b, fb)].map(|(body, face)| {
             crate::census::face_reach_in(body, face, band, &frame)
                 .map(|(lo, hi)| (lo.x - pad, hi.x + pad))
@@ -7664,10 +7664,12 @@ fn verify_tangency<T: Decide>(
                 overlap = Some(line.overlap);
                 decided = line.carrier.as_line();
                 let locus = match line.carrier {
-                    geom::Curve3::Line(geom::Line { origin, dir }) => rim_wedge::Locus::Line {
-                        origin,
-                        dir: dir / dir.norm(),
-                    },
+                    geom::Curve3::Line(geom::Line { origin, dir }) => {
+                        rim_wedge::Locus::Line(geom::Line {
+                            origin,
+                            dir: dir / dir.norm(),
+                        })
+                    }
                     _ => {
                         return Err(Refused(BooleanError::ClassificationInvariant {
                             what: "the glue door: a tangent line's carrier is not a line",
@@ -7870,7 +7872,7 @@ fn witness_span<T: Decide>(
                 let aim = geom_core::UnitVec3::new(line.dir, "bool_tangent_line_aim", band)
                     .map_err(|_| invalid("the tangent line has no direction"))?;
                 let (lo, hi) =
-                    crate::census::face_reach_in(body, f, band, &boxes::BoxFrame::aimed(aim))
+                    crate::census::face_reach_in(body, f, band, &geom::cover::BoxAxes::aimed(aim))
                         .ok_or(invalid(
                             "a face of the pair has no reach along its tangent line",
                         ))?;

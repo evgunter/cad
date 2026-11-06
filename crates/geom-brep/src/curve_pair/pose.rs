@@ -951,9 +951,8 @@ fn one_line<T: Decide>(
     (b, lb): (Ends<T>, (Point3<T>, Vec3<T>)),
     band: Band,
 ) -> Result<bool, MeetFault> {
-    let off = |(o, u): (Point3<T>, Vec3<T>), q: Point3<T>| {
-        let w = q - o;
-        (w - u * w.dot(u)).norm()
+    let off = |(origin, dir): (Point3<T>, Vec3<T>), q: Point3<T>| {
+        geom::Line { origin, dir }.offset(q).norm()
     };
     for ((p0, p1), other) in [(a, lb), (b, la)] {
         for q in [p0, p1] {
@@ -988,8 +987,12 @@ fn line_line<T: Decide>(
     };
     let (a0, _) = ends_a;
     let at = on_one_line(u1, ends_a, ends_b, produced(la, a) + produced(lb, b));
-    let w = a0 + u1 * at.mid() - o2;
-    let off = (w - u2 * w.dot(u2)).norm();
+    let off = geom::Line {
+        origin: o2,
+        dir: u2,
+    }
+    .offset(a0 + u1 * at.mid())
+    .norm();
     let lever = reach(a).max(reach(b));
     // Unsourced lever: the longer span's arc length bounded through its
     // sup speed (`reach`), a metered span; the extent home's read of the

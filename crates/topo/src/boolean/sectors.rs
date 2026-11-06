@@ -2196,7 +2196,7 @@ fn on_planar_face<T: Decide>(
     let Some((origin, normal)) = crate::face_normal::face_plane(body, face) else {
         return Ok(PlaneRead::NotPlane);
     };
-    let height = Margin::of((p - origin).dot(normal));
+    let height = Margin::of(geom::plane_offset(origin, normal, p));
     match decide("bool_germ_tie_plane", height, band).map_err(|diag| {
         BooleanError::coincidence(Coincide::EdgeOnPlane, DeclarationRead::Moot, diag)
     })? {
