@@ -2084,7 +2084,7 @@ fn free_residual<T: Decide>(
     let Curve3::Nurbs(net) = carrier else {
         return at(params.0);
     };
-    let breaks: Vec<T> = net.knot_values().runs().map(|(v, _)| v).collect();
+    let breaks: Vec<T> = net.knot_values().breakpoints().collect();
     let spans: Vec<T> = breaks
         .windows(2)
         .map(|w| at((w[0] + w[1]) / (T::one() + T::one())))

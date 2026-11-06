@@ -4160,60 +4160,24 @@ const SHEET_RING_TORUS: &str = "bool_spline_sheet_ring_torus";
 /// **Whether spline sheet `sheet` lies on analytic `carrier` along no
 /// piece**: true where every Bézier piece of the net (each cell between
 /// consecutive distinct breakpoints of both knot vectors, whatever their
-/// multiplicities) has a point decided definitely off `carrier` under
-/// [`SHEET_OFF_CARRIER`] ([`crate::census::points_on_surface`]); false
-/// otherwise, a piece with every point on or in band included. It never
-/// reads the two as one.
-///
-/// On one piece the sheet is a rational polynomial patch, so the
-/// carrier's polynomial equation along it, cleared of its weight, is a
-/// polynomial in the piece's two parameters. A patch lying on the carrier
-/// over any open set makes that polynomial zero there, so zero over the
-/// whole piece, and the patch lies on the carrier's whole real variety.
-/// One point of the piece off that VARIETY therefore certifies the piece
-/// lies on the carrier along no part of it. Across a breakpoint the
-/// polynomial changes, so every piece is read, and one piece read off
-/// says nothing of another.
-///
-/// The decided residual is read as "off the variety", so the argument
-/// holds only for a carrier whose residual vanishes on its whole real
-/// variety: a plane, a cylinder, a sphere, a ring torus (`R > r`,
-/// decided here under [`SHEET_RING_TORUS`]) and a cone, whose residual
-/// reads both nappes (`|h|`). Every other carrier is unread. A spindle's
-/// residual vanishes on one of its torus's two sheets, while the quartic
-/// vanishes on both: a patch lying on the read sheet over an open set and
-/// running on into the other reads off there, so the spindle is out, as
-/// is every kind not listed.
+/// multiplicities) reads off `carrier`'s variety
+/// ([`geom_brep::variety::Variety`], under [`SHEET_OFF_CARRIER`]);
+/// false otherwise, a piece with every point on or in band included, and
+/// a carrier the certificate does not hold for. It never reads the two as
+/// one. The certificate, and which carriers it holds for, is
+/// [`geom_brep::variety`]'s; the schedule is this reading's: five interior
+/// points of each piece.
 fn spline_off_carrier<T: Decide>(
     sheet: &geom::NurbsSurface<T>,
     carrier: &geom::Surface<T>,
     band: Band,
 ) -> bool {
-    let whole_variety = match *carrier {
-        geom::Surface::Plane { .. }
-        | geom::Surface::Cylinder { .. }
-        | geom::Surface::Sphere { .. }
-        | geom::Surface::Cone { .. } => true,
-        geom::Surface::Torus {
-            major_radius,
-            minor_radius,
-            ..
-        } => matches!(
-            crate::validate::decide(
-                SHEET_RING_TORUS,
-                Margin::of(major_radius - minor_radius),
-                band
-            ),
-            Ok(Sign::Positive)
-        ),
-        _ => false,
-    };
-    if !whole_variety {
+    use geom_brep::variety::{Piece, Variety};
+    let Some(variety) = Variety::of(carrier, SHEET_RING_TORUS, band) else {
         return false;
-    }
+    };
     // Clamped, so the first and last runs are the domain's ends.
-    let breaks =
-        |knots: &geom_core::spline::Knots<T>| -> Vec<T> { knots.runs().map(|(v, _)| v).collect() };
+    let breaks = |knots: &geom_core::spline::Knots<T>| -> Vec<T> { knots.breakpoints().collect() };
     let (bu, bv) = (breaks(sheet.knot_values_u()), breaks(sheet.knot_values_v()));
     // The piece's centre, then four points about it, as fractions of
     // its two sides.
@@ -4233,8 +4197,8 @@ fn spline_off_carrier<T: Decide>(
                 .map(|&(fu, fv)| sheet.eval(at(u[0], u[1], fu), at(v[0], v[1], fv)))
                 .collect();
             matches!(
-                crate::census::points_on_surface(carrier, &points, SHEET_OFF_CARRIER, band),
-                Ok(false)
+                variety.read_piece(&points, SHEET_OFF_CARRIER, band),
+                Ok(Piece::Off)
             )
         })
     })

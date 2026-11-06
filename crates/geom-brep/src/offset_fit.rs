@@ -1668,7 +1668,7 @@ fn seed_direction(kv: &KnotVector) -> Vec<f64> {
         .into_iter()
         .peekable();
     let mut out = Vec::new();
-    for (end, _) in kv.knot_runs() {
+    for end in kv.breakpoints() {
         while let Some(t) = interior.next_if(|t| *t < end) {
             out.push(t);
         }
