@@ -21886,6 +21886,7 @@ mod arc_interiors {
 /// probe in band read before it. Fed the readings directly: no line pair
 /// a constructor builds reads in band at one probe and inside at another.
 #[cfg(test)]
+#[allow(clippy::expect_used)]
 mod line_wedges_ranking {
     use geom_brep::ladder::{Answering, Climb, climb};
     use geom_core::{Band, Indeterminate, MarginDiag};
@@ -21897,7 +21898,7 @@ mod line_wedges_ranking {
             0,
             WedgeRefusal::Undecided(Indeterminate {
                 margin: MarginDiag::value(5e-9),
-                band: Band::new(1e-9, 1e-8).unwrap(),
+                band: Band::new(1e-9, 1e-8).expect("a valid band"),
                 predicate: Some("t"),
                 terminal_sliver: false,
             }),

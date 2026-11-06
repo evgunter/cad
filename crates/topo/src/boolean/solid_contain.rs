@@ -5216,6 +5216,7 @@ const AT_INFINITY_ENCLOSURE: crate::props::RoleNames =
 /// (`two_copies_filling_one_volume`, `census::tests::a_wall_rest_off_by_a_band_width_never_rests`,
 /// `shell_role_reader`'s leaning fill face).
 #[cfg(test)]
+#[allow(clippy::expect_used)]
 mod boundary_pre_pass_climbs {
     use geom_brep::ladder::{Answering, Climb, climb};
     use geom_core::{Band, Indeterminate, MarginDiag};
@@ -5228,7 +5229,7 @@ mod boundary_pre_pass_climbs {
             face: FaceKey::default(),
             diag: Indeterminate {
                 margin: MarginDiag::value(5e-9),
-                band: Band::new(1e-9, 1e-8).unwrap(),
+                band: Band::new(1e-9, 1e-8).expect("a valid band"),
                 predicate: Some("bool_point_in_solid_plane"),
                 terminal_sliver: false,
             },
