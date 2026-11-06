@@ -1261,13 +1261,14 @@ fn gather<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
             let table = evaluation
                 .shared_table_at(var)
                 .unwrap_or_else(crate::names::empty);
-            // A family's member brings the records its own door kept.
+            // A family's member brings the records its own door kept,
+            // and each body's carry is at its place: an empty member or
+            // half holds one, and shifts no later body onto it.
             let sources = bodies
                 .into_iter()
-                .enumerate()
-                .filter(|(_, (ix, ..))| half.is_none_or(|h| h == *ix))
-                .map(|(i, (ix, body, contacts, rows))| {
-                    let member = carry.member(i);
+                .filter(|(ix, ..)| half.is_none_or(|h| h == *ix))
+                .map(|(ix, body, contacts, rows)| {
+                    let member = carry.member(ix as usize);
                     let kept = match &carry.members {
                         Some(_) => member
                             .census

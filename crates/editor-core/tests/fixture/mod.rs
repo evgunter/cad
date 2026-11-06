@@ -1341,7 +1341,7 @@ pub fn band() -> geom_core::Band {
 /// imports them from here beside the rest of its authoring doors.
 // Not every suite that mounts the fixture reads each one.
 #[allow(unused_imports)]
-pub use editor_core::test_support::{ang, axes_at, len, len2, scl};
+pub use editor_core::test_support::{ang, axes_at, every_body, len, len2, scl};
 
 /// [`editor_core::test_support::in_world`] at the witness tolerance,
 /// the copy in the product ([`assemble_world_copies`]).
@@ -4041,25 +4041,6 @@ pub fn in_space<T: geom_core::Decide + topo::AtRestPolicy>(
         Some(map) => topo::transform_rigid(value.body(), &map, Tol::witness())
             .expect("a body composes into its space"),
     }
-}
-
-/// **Every member's body of a family of bodies**, in member order: the
-/// `Instances` payload of a family no member of which is empty.
-///
-/// # Panics
-///
-/// At a member that is a boolean's empty result.
-pub fn every_body<T: geom_core::Decide>(
-    members: &[Option<editor_core::Framed<T>>],
-) -> Vec<&editor_core::Framed<T>> {
-    members
-        .iter()
-        .enumerate()
-        .map(|(i, body)| {
-            body.as_ref()
-                .unwrap_or_else(|| panic!("member {i} is the empty result"))
-        })
-        .collect()
 }
 
 /// **The document's product where it stands in the world**: the gather

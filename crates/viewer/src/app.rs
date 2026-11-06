@@ -6295,7 +6295,7 @@ mod properties_pane_tests {
         let value = evaluation
             .value(node)
             .unwrap_or_else(|| panic!("{node:?} has a value: {:?}", evaluation.result(node)));
-        let pncad::document::ValuePayload::Body(body) = &value.payload else {
+        let Some(Some(body)) = value.payload.one_body() else {
             panic!("{node:?} is a body: {:?}", value.payload)
         };
         let into_space = pncad::document::in_space(body);

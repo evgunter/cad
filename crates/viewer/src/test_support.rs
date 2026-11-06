@@ -41,7 +41,7 @@ use crate::scene::DisplayTolerance;
 /// `editor_core::test_support`'s, over the same `Expr` the façade
 /// re-exports, so this crate reads the kernel's fixtures rather than a
 /// second spelling of them.
-pub use editor_core::test_support::{ang, len, len2, scl};
+pub use editor_core::test_support::{ang, every_body, len, len2, scl};
 
 /// A length literal that remembers it was WRITTEN in millimetres —
 /// `len` lowers canonically and carries no notation, which is what a

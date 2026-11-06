@@ -976,7 +976,7 @@ fn copy_of<T: Decide>(
     cites: &crate::coincide::CitedInput,
 ) -> OpResult<T> {
     let copy = place(source, map)?;
-    let table = names::name_copy(id, table, &[Some(copy.body())]).map_err(NodeErrorKind::Naming)?;
+    let table = names::name_copy(id, table, &[copy.body()]).map_err(NodeErrorKind::Naming)?;
     Ok(OpOut::plain(ValuePayload::Body(copy), table)
         .carrying(carry.copied(super::carry::Stands::placed(map), cites)?))
 }
@@ -996,18 +996,6 @@ fn place<T: Decide>(
         None => Ok(body.clone()),
         Some(map) => body.moved(map).map_err(NodeErrorKind::Motion),
     }
-}
-
-/// Every body of `bodies` placed by `map`, in order, an empty member
-/// kept empty: one placement of a family.
-fn place_each<T: Decide>(
-    bodies: &[Option<super::Framed<T>>],
-    map: Option<&RigidMotion<T>>,
-) -> Result<Vec<Option<super::Framed<T>>>, NodeErrorKind> {
-    bodies
-        .iter()
-        .map(|body| body.as_ref().map(|body| place(body, map)).transpose())
-        .collect()
 }
 
 /// The (Ok) value of an input node.
@@ -3050,16 +3038,16 @@ fn reads_projected<T: Decide>(
                 return Err(wrong_operand(value, family, super::family::INSTANCES));
             };
             let rank = node.body_read(seat).map_or(0, |read| read.at.len());
-            let index = match &value.members {
-                Some(members) => member_of(family, members, vals, seat, rank)?,
-                None => instance_of(family, bodies.len(), vals, SlotId::Index { seat, k: 0 })?,
+            let Some(members) = &value.members else {
+                unreachable!("family {family:?} keeps no members")
             };
+            let index = member_of(family, members, vals, seat, rank)?;
             // A member carries its own carry: its records, the pieces and
             // the census its copy holds where it stands.
             let carry = value.carry.member(index as usize).clone();
             // `member_of` finds a member among `members`, whose bodies
-            // the payload holds one per member, and `instance_of` bounds
-            // by the list itself: a place past it is a kernel bug.
+            // the payload holds one per member: a place past them is a
+            // kernel bug.
             let Some(place) = bodies.get(index as usize) else {
                 unreachable!(
                     "family {family:?}: member place {index} past its {} bodies",
@@ -4432,8 +4420,9 @@ pub(crate) const PLANE_NORMAL_ROLE: &str = "plane normal";
 pub(crate) const AXIS_DIRECTION_ROLE: &str = "axis direction";
 
 /// **A placement** (D10 `[placement.placement]`): the copy of its
-/// source's one body ([`copy_of`]), or of a family read whole, each
-/// member placed by the one map and carrying its own carry.
+/// source's one body ([`copy_of`]). A placement whose source is a
+/// family reaches the family's index, so it is evaluated once per
+/// member and never meets the family whole.
 fn wire_place<T: Decide + topo::AtRestPolicy>(
     id: RecipeNodeId,
     (of, read, results): (RecipeNodeId, crate::VarId, &Results<T>),
@@ -4444,22 +4433,8 @@ fn wire_place<T: Decide + topo::AtRestPolicy>(
     let body = match (value.payload.one_body(), &value.payload) {
         (Some(None), _) => return Ok(OpOut::empty()),
         (Some(Some(body)), _) => body,
-        (None, ValuePayload::Instances(bodies)) => {
-            let bodies = place_each(bodies, map)?;
-            let placed: Vec<Option<&Body<T>>> = bodies
-                .iter()
-                .map(|body| body.as_ref().map(super::Framed::body))
-                .collect();
-            let table =
-                names::name_copy(id, &read_table(value), &placed).map_err(NodeErrorKind::Naming)?;
-            // Each member's records cite the placement's one read.
-            return Ok(
-                OpOut::plain(ValuePayload::Instances(bodies), table).carrying(
-                    value
-                        .carry
-                        .copied(super::carry::Stands::placed(map), &cites)?,
-                ),
-            );
+        (None, ValuePayload::Instances(_)) => {
+            unreachable!("placement {id:?} met its source {of:?}'s family whole")
         }
         (None, _) => return Err(wrong_operand(value, of, super::phrase::BODY_OR_INSTANCES)),
     };

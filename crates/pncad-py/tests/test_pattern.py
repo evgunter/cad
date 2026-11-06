@@ -143,6 +143,17 @@ class TestTheRowIsAFamily(unittest.TestCase):
         for body in bodies:
             self.assertEqual(pinned(body).volume, 2.0 * 2.0 * 1.0)
 
+    def test_a_family_every_member_of_which_is_empty_lists_no_body(self):
+        """`row[k] - row[k]`: every member cuts itself away. The family
+        is still a family of bodies, holding none."""
+        doc = Doc()
+        family = row_of(doc, box(doc))
+        cut = doc.insert(Node.subtract(family, family))
+        value = evaluate(doc).value(cut)
+        self.assertEqual(value.kind, "instances")
+        self.assertEqual(len(value.members()), COUNT)
+        self.assertEqual(value.bodies(), [])
+
     def test_each_member_weighs_what_the_row_says_it_weighs(self):
         doc = Doc()
         family = row_of(doc, box(doc))

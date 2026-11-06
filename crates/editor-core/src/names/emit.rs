@@ -1328,12 +1328,11 @@ pub(crate) fn name_family<T: geom_core::Real>(
 /// body rows included, pass through whole.
 ///
 /// Keys hold verbatim, because a copy is its source's body under its
-/// frame. A family's empty member (`None` in `placed`) names nothing
-/// and keeps its place.
+/// frame.
 pub(crate) fn name_copy<T: geom_core::Real>(
     node: RecipeNodeId,
     source: &NameTable,
-    placed: &[Option<&Body<T>>],
+    placed: &[&Body<T>],
 ) -> Result<Arc<NameTable>, NamingError> {
     source.seal_order();
     let one = placed.len() == 1;
@@ -1354,9 +1353,7 @@ pub(crate) fn name_copy<T: geom_core::Real>(
         }
     }
     for (ix, body) in placed.iter().enumerate() {
-        if let Some(body) = body {
-            check_total(&t, body, narrow(ix, Numbered::OutputBody)?)?;
-        }
+        check_total(&t, body, narrow(ix, Numbered::OutputBody)?)?;
     }
     Ok(Arc::new(t))
 }

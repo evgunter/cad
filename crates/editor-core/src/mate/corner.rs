@@ -136,19 +136,10 @@ pub(crate) fn read_of(
         },
         _ => 0,
     };
-    // A family that keeps no members is read through its first body,
-    // at that body's place in its table.
-    let mut place = 0;
     let solid = match (value.payload.one_body(), &value.payload) {
         (Some(body), _) => body.cloned().ok_or(PinRefusal::NotABody { node })?,
-        (None, ValuePayload::Instances(bodies)) => {
-            let (at, body) = bodies
-                .iter()
-                .enumerate()
-                .find_map(|(at, body)| Some((at, body.as_ref()?)))
-                .ok_or(PinRefusal::NotABody { node })?;
-            place = u32::try_from(at).map_err(|_| PinRefusal::NotABody { node })?;
-            body.clone()
+        (None, ValuePayload::Instances(_)) => {
+            unreachable!("family {node:?} keeps no members")
         }
         (None, ValuePayload::Split { above, below }) => {
             let half = crate::names::SplitHalf::of_output_body(u32::from(port))
@@ -173,14 +164,7 @@ pub(crate) fn read_of(
     let table = var
         .and_then(|var| evaluation.table(var))
         .ok_or(PinRefusal::NotABody { node })?;
-    let table = if place == 0 {
-        table.clone()
-    } else {
-        table
-            .project(place)
-            .map_err(|_| PinRefusal::NotABody { node })?
-    };
-    Ok((node, solid, table, value.motion))
+    Ok((node, solid, table.clone(), value.motion))
 }
 
 /// **A frame read off `body`'s own geometry at a corner it has**: the
