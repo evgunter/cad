@@ -468,7 +468,7 @@ impl<'a> Resolver<'a> {
         Ok(if (norm - 1.0).abs() <= self.eps_in {
             ratios
         } else {
-            ratios / norm
+            ratios.normalize()
         })
     }
 
@@ -549,7 +549,7 @@ impl<'a> Resolver<'a> {
         let u_ref = if (norm - 1.0).abs() <= self.eps_in {
             perpendicular
         } else {
-            perpendicular / norm
+            perpendicular.normalize()
         };
         Ok(geom::Frame::new(origin, axis, u_ref))
     }
@@ -2409,7 +2409,7 @@ impl Resolver<'_> {
             let x = f.u_ref - z * along;
             let n = x.norm();
             (n.is_finite() && n > 0.0).then(|| {
-                let x = x / n;
+                let x = x.normalize();
                 Mat3::from_cols(x, z.cross(x), z)
             })
         };

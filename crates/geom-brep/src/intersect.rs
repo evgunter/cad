@@ -1338,10 +1338,10 @@ pub fn plane_sphere_section<T: Decide>(
         ),
         band,
     ) {
-        Ok(Sign::Positive) => seam_cand / seam_cand.norm(),
+        Ok(Sign::Positive) => seam_cand.normalize(),
         Ok(Sign::Zero | Sign::Negative) | Err(_) => {
             let polar_cand = n.cross(sph_axis);
-            polar_cand / polar_cand.norm()
+            polar_cand.normalize()
         }
     };
     match decide("ps_center_gap", Margin::of(r - s.abs()), band).map_err(SectionError::Escalated)? {
@@ -1554,10 +1554,10 @@ fn ss_frame_seam<T: Decide>(
         Margin::levered(seam_cand.norm() - T::from_f64(0.5), lever),
         band,
     ) {
-        Ok(Sign::Positive) => seam_cand / seam_cand.norm(),
+        Ok(Sign::Positive) => seam_cand.normalize(),
         Ok(Sign::Zero | Sign::Negative) | Err(_) => {
             let polar_cand = n.cross(axis);
-            polar_cand / polar_cand.norm()
+            polar_cand.normalize()
         }
     }
 }
@@ -2131,7 +2131,7 @@ pub fn cone_cone_apex_meeting<T: Real>(
     let cross = a1.cross(a2);
     ApexFansMeeting {
         base,
-        across: cross / cross.norm(),
+        across: cross.normalize(),
         disc: T::one() - along_m.powi(2) - along_n.powi(2),
     }
 }

@@ -512,7 +512,7 @@ fn leaving<T: Decide>(body: &Body<T>, he: HalfEdgeKey, secant: bool) -> Option<L
         }
     };
     Some(Leaving {
-        dir: dir / dir.norm(),
+        dir: dir.normalize(),
         reach,
         bend,
     })
@@ -564,7 +564,7 @@ pub(super) fn bisector<T: Decide>(
     let mid = s.middle();
     let len = mid.norm();
     match sign(len, T::one(), band)? {
-        Sign::Positive => Ok(mid / len),
+        Sign::Positive => Ok(mid.normalize()),
         Sign::Zero | Sign::Negative => Err(BooleanError::ClassificationInvariant {
             what: "a sector a half-turn wide reached the fate reading, whose bounds name no inside",
         }),

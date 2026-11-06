@@ -1590,7 +1590,7 @@ pub(crate) fn arc_distance_floor<T: Decide>(
                 axis,
                 ..
             } = *conic.frame();
-            let n = axis / axis.norm();
+            let n = axis.normalize();
             let w = q - center;
             let height = w.dot(n);
             let across = (w - n * height).norm();

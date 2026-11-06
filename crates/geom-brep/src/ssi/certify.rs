@@ -1371,8 +1371,7 @@ fn box_chain<T: Decide + Bounds + CertifiedEnclosure>(
         // margin's enclosure is refused with it, and the probe reads
         // that rung as unprobed ([`tube_margin`]).
         let t = carrier.deriv(T::from_f64(0.5 * (a + b)));
-        let n = t.norm();
-        out.push((bx, t / n, (a, b)));
+        out.push((bx, t.normalize(), (a, b)));
     }
     out
 }
