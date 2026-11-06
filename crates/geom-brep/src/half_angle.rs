@@ -72,9 +72,10 @@
 //! `f_per_metre` the door's floor on `|F|` per metre of residual. The
 //! subdivision charges it to every Taylor term it reads (its docs), so a
 //! pose whose noise is past the band refuses there, unless the door
-//! hands it a jet ([`SubdivisionFrame`]): `F` and its derivatives read
-//! at the carrier point, each charged its own rounding, with `noise` left
-//! only in the one global bound on `|F⁗|`. A
+//! reads `F` locally ([`Terms::Local`]): `F` and its derivatives read
+//! at the carrier point, each charged its own rounding, and a bound on
+//! `|F⁗|` of the door's own (the circle × torus door draws it from its
+//! harmonics, `noise` charged). A
 //! rounding estimate on `f64`, run on every scalar; the `Interval` lane
 //! carries its own enclosure.
 //!
@@ -115,6 +116,64 @@ pub struct TrigPoly<T> {
     pub sin: [T; MAX_DEGREE + 1],
     /// The highest harmonic read.
     pub degree: u8,
+}
+
+impl<T: geom_core::Real> TrigPoly<T> {
+    /// The harmonics `1..=N` read, `N` the degree capped at four, each
+    /// with its `k` as a scalar.
+    fn harmonics(&self) -> impl Iterator<Item = (usize, T)> {
+        (1..=self.degree.min(4)).map(|k| (usize::from(k), T::from_f64(f64::from(k))))
+    }
+
+    /// **A bound on the true `F`'s `|F⁗|`** where the harmonics are
+    /// within `noise` of it: `Σ k⁴Aₖ`, the error charged at `N⁴·noise`
+    /// (Bernstein's inequality at degree `N`, carried on the top
+    /// harmonic's term).
+    pub fn fourth_bound(&self, noise: T) -> T {
+        let top = usize::from(self.degree.min(4));
+        self.harmonics().fold(T::zero(), |acc, (k, kf)| {
+            let amp = (self.cos[k].powi(2) + self.sin[k].powi(2)).sqrt();
+            let amp = if k == top { amp + noise } else { amp };
+            acc + kf.powi(4) * amp
+        })
+    }
+
+    /// **`F` and its first three derivatives at `t`**, each with a bound
+    /// on its distance from the true one where the harmonics are within
+    /// `noise` of it: the `k`-th derivative of an error bounded by
+    /// `noise` is bounded by `Nᵏ·noise` (Bernstein's inequality, degree
+    /// `N`). The `j`-th derivative's harmonic `k` is `kʲ` times the
+    /// harmonic turned by `jπ/2`: the four turns repeat with period four.
+    pub fn taylor_at(&self, t: T, noise: T) -> [(T, T); 4] {
+        let mut sc = [(T::zero(), T::one()); MAX_DEGREE + 1];
+        for (k, kf) in self.harmonics() {
+            sc[k] = (kf * t).sin_cos();
+        }
+        let derivative = |j: u8| {
+            self.harmonics().fold(T::zero(), |acc, (k, kf)| {
+                let (sk, ck) = sc[k];
+                let (c, s) = (self.cos[k], self.sin[k]);
+                let lever = kf.powi(i32::from(j));
+                match j % 4 {
+                    0 => acc + lever * (c * ck + s * sk),
+                    1 => acc + lever * (s * ck - c * sk),
+                    2 => acc - lever * (c * ck + s * sk),
+                    _ => acc + lever * (c * sk - s * ck),
+                }
+            })
+        };
+        let value = self.harmonics().fold(self.cos[0], |acc, (k, _)| {
+            acc + self.cos[k] * sc[k].1 + self.sin[k] * sc[k].0
+        });
+        let top = self.degree.min(4);
+        let deg = T::from_f64(f64::from(top));
+        [
+            (value, noise),
+            (derivative(1), deg * noise),
+            (derivative(2), deg.powi(2) * noise),
+            (derivative(3), deg.powi(3) * noise),
+        ]
+    }
 }
 
 /// A trigonometric polynomial of degree two,
@@ -165,12 +224,9 @@ impl<T: geom_core::Real> DegreeTwo<T> {
 /// read in. A door whose `F` IS that residual passes exactly `1` for
 /// both ratios and no reach (`None`: the ceiling holds everywhere).
 ///
-/// `jet`, where a door has one, reads `F` and its first three
-/// derivatives at a parameter from the carrier point, each with a bound
-/// on its own rounding ([`Jet`]). The walk then reads its Taylor terms
-/// there and charges each that bound, and `noise` enters only the one
-/// global bound on `|F⁗|` the harmonics give.
-pub struct SubdivisionFrame<'a, T> {
+/// `noise` is read only where `F` comes from harmonics
+/// ([`Terms::Harmonics`]), and by the ladder's noise meter.
+pub struct SubdivisionFrame<T> {
     /// The arc's start.
     pub t0: T,
     /// The arc's end.
@@ -185,13 +241,38 @@ pub struct SubdivisionFrame<'a, T> {
     pub f_per_metre_hi: T,
     /// Where the ceiling stops holding; `None`, everywhere.
     pub residual_reach: Option<T>,
-    /// `F`, `F′`, `F″` and `F‴` read at the point, if the door has them.
-    pub jet: Option<&'a Jet<'a, T>>,
+}
+
+/// **What [`certified_subdivision`] reads `F` from.**
+#[derive(Clone, Copy)]
+pub enum Terms<'a, T> {
+    /// Its harmonics, the true `F` to within the frame's `noise`: each
+    /// Taylor term is read off them and charged its share
+    /// ([`TrigPoly::taylor_at`]), and `|F⁗|` is bounded by their
+    /// amplitudes ([`TrigPoly::fourth_bound`]).
+    Harmonics(&'a TrigPoly<T>),
+    /// `F` read at the carrier point, with no harmonics ([`Local`]).
+    Local(Local<'a, T>),
+}
+
+/// **`F` read locally**: its jet at a carrier parameter, each term with
+/// a bound on its rounding, a bound on `|F⁗|` over every angle, and the
+/// degree `F` has as a trigonometric polynomial (at most four), which
+/// bounds the roots round the turn. A reading of the true `F` that does
+/// not pass through harmonics, so posing `F` about a far origin charges
+/// it nothing.
+#[derive(Clone, Copy)]
+pub struct Local<'a, T> {
+    /// `F`, `F′`, `F″` and `F‴` at a parameter.
+    pub at: &'a Jet<'a, T>,
+    /// The bound on `|F⁗|` over every angle.
+    pub fourth: T,
+    /// `F`'s degree.
+    pub degree: u8,
 }
 
 /// `F` and its first three derivatives at a carrier parameter, each
-/// with a bound on its rounding: a reading of the true `F` that does not
-/// pass through the harmonics ([`SubdivisionFrame`]).
+/// with a bound on its rounding ([`Local`]).
 pub type Jet<'a, T> = dyn Fn(T) -> [geom_core::Rounded<T>; 4] + 'a;
 
 /// **The root-slack meter** a caller of [`certified_subdivision`] may
@@ -269,9 +350,14 @@ pub struct TouchRows {
     /// positive, read exactly (a sign, not a length), and so are the
     /// slopes toward the extremum at the piece's ends.
     pub convex: &'static str,
-    /// The reach about the extremum that holds the roots of `F` on the
-    /// piece, as an arc in metres: zero is one touch.
-    pub root_reach: &'static str,
+    /// The most residual, in metres, over the arc of the piece where `F`
+    /// lies on the far side of zero from its ends: zero is one touch.
+    /// Where `F` does not reach zero on the piece (no root: `G(θ*)` is
+    /// past zero and the fall's first term clamps at zero), the arc is
+    /// empty and the fall is the slope's share alone; the touch is then
+    /// the extremum's near-miss, whose own residual reads in the zero
+    /// band (`side`).
+    pub stretch: &'static str,
 }
 
 /// The roots and touches [`certified_subdivision_touching`] certifies:
@@ -284,13 +370,17 @@ pub struct Touching<T> {
     pub touches: Vec<T>,
 }
 
-/// Where [`half_angle_roots`] works: the subdivision's frame (`walk`),
+/// Where [`half_angle_roots`] works: the subdivision's frame (`walk`)
+/// and its local reading of `F` where the door has one (`jet`),
 /// the carrier's least speed `|C′|` (a circle's radius; an ellipse's
 /// semi-minor axis; the top speed is `walk`'s), and the ladder's `lever`
 /// (a length).
 pub struct HalfAngleFrame<'a, T> {
     /// The subdivision's frame.
-    pub walk: SubdivisionFrame<'a, T>,
+    pub walk: SubdivisionFrame<T>,
+    /// `F` read locally for the subdivision, where the door has it
+    /// ([`Local`]); the ladder reads the harmonics either way.
+    pub jet: Option<Local<'a, T>>,
     /// The carrier's least speed.
     pub speed_lo: T,
     /// The length the ladder's roots spread over.
@@ -336,8 +426,9 @@ pub fn half_angle_roots<T: Decide>(
     band: Band,
 ) -> Result<TrigRoots<T>, RootRefusal> {
     ladder_roots(f, &residual, &frame, rows, band)?;
+    let poly = f.poly();
     certified_subdivision(
-        &f.poly(),
+        frame.jet.map_or(Terms::Harmonics(&poly), Terms::Local),
         &residual,
         &frame.walk,
         &rows.verify,
@@ -362,6 +453,7 @@ fn ladder_roots<T: Decide>(
         walk: SubdivisionFrame { t0, t1, .. },
         speed_lo,
         lever,
+        ..
     } = *frame;
     let DegreeTwo { c0, c1, s1, c2, s2 } = *f;
     // **The noise meter** (module docs, "The harmonics' noise"): where
@@ -606,12 +698,9 @@ fn sign_change<T: Decide>(g: &impl Fn(T) -> T, l: T, r: T) -> (T, T) {
 /// it is a lower bound on the residual's least magnitude over the piece —
 /// read through a floor it would overstate it, and a carrier within the
 /// band could read clear.
-/// The harmonics are rounded: `F` read from them is the
-/// true one to within `noise`, so its `k`-th derivative to within
-/// `Nᵏ·noise` (Bernstein's inequality for a trigonometric polynomial of
-/// degree `N`), and each Taylor term above is charged its own share. A
-/// frame's `jet` replaces those readings and their charges with its own;
-/// the harmonics then give `M₄` alone.
+/// `terms` says where `F` is read ([`Terms`]): off rounded harmonics,
+/// each Taylor term charged its share of `noise` and `M₄` bounded by
+/// their amplitudes, or locally, from the door's jet and its own `M₄`.
 ///
 /// **Without a meter** (`slack` `None`) a root is only a scalar whose
 /// residual, as evaluated, reads ON beside a sign change of it: within
@@ -624,14 +713,14 @@ fn sign_change<T: Decide>(g: &impl Fn(T) -> T, l: T, r: T) -> (T, T) {
 /// charts' uncharged reading, which only chooses a refusal's row, and
 /// the rows.
 pub fn certified_subdivision<T: Decide>(
-    f: &TrigPoly<T>,
+    terms: Terms<'_, T>,
     residual: &impl Fn(T) -> T,
-    frame: &SubdivisionFrame<'_, T>,
+    frame: &SubdivisionFrame<T>,
     rows: &SubdivisionRows,
     slack: Option<&RootSlack<'_, T>>,
     band: Band,
 ) -> Result<TrigRoots<T>, RootRefusal> {
-    subdivision(f, residual, frame, rows, slack, None, band).map(|t| t.roots)
+    subdivision(terms, residual, frame, rows, slack, None, band).map(|t| t.roots)
 }
 
 /// **[`certified_subdivision`] that places a touch** where the walk
@@ -644,12 +733,16 @@ pub fn certified_subdivision<T: Decide>(
 /// twice). `θ*` is bisected on `F′`, and the residual there is read
 /// (`side`).
 ///
-/// - **ON** (the zero band). `G(x) ≥ G(θ*) + G′(θ*)(x − θ*) + c(x − θ*)²/2`
-///   on the piece, so every root lies within
-///   `(|G′(θ*)| + e₁)/c + √(2·depth/c)` of `θ*`. Here `e₁` is the bound
-///   on `F′`'s rounding, and `depth` is `G(θ*)`'s fall below zero less
-///   its noise ([`crate::roots::past_noise`]), plus `(|G′(θ*)| + e₁)²/(2c)`.
-///   Twice that reach, at the carrier's top speed, is read (`root_reach`):
+/// - **ON** (the zero band). `G″ ≥ c > 0` on the piece, read, so `G` is
+///   convex there with its least at its one extremum, and
+///   `G(x) ≥ G(θ*) + G′(θ*)(x − θ*) + c(x − θ*)²/2` puts that least at no
+///   less than `G(θ*) − (|G′(θ*)| + e₁)²/(2c)`, `e₁` the bound on `F′`'s
+///   rounding. So over the arc where `G ≤ 0`, the arc between the
+///   piece's roots, `|F|` is at most the *fall*:
+///   `max(0, −G(θ*) + e₀) + (|G′(θ*)| + e₁)²/(2c)`, `e₀` the bound on
+///   `F`'s own rounding. The residual there is at most the fall over the
+///   frame's floor on `|F|` per metre of it (`f_per_metre`), and that
+///   bound is read (`stretch`):
 ///   - zero is one touch at `θ*`, and the piece settles;
 ///   - in the gap it refuses [`RootRefusal::Touch`];
 ///   - definite, the walk goes on as [`certified_subdivision`]'s. It
@@ -657,12 +750,15 @@ pub fn certified_subdivision<T: Decide>(
 ///     roots within one in-band arc end in its refusal.
 /// - **Otherwise** the walk goes on as [`certified_subdivision`]'s.
 ///
-/// **What a touch certifies.** The reach is read at the least depth the
-/// noise allows, as the circle pair reads its extreme less its noise.
-/// So the touch is placed within the reach of every root the noise
-/// cannot part from it, and roots that only the noise parts are one
-/// meeting. True roots may lie up to about `√(2·noise/c)` past that
-/// reach.
+/// **What a touch certifies** (C5, `crates/geom-brep/README.md`: a
+/// meeting is a longest interval of one span everywhere definitely on
+/// the other, and a stretch holding exactly one is reported as it). The
+/// arc between the roots lies everywhere within the zero band of the
+/// other carrier, so it is one meeting, however long it runs: a touch's
+/// in-band run is about `√(2z/κ)` long, `κ` the relative bend, far past
+/// the band. The touch is placed at `θ*`, a point of that run. No
+/// square root of `F`'s value is taken: at a touch the true value is
+/// zero, and its root would turn `F`'s rounding into an arc.
 ///
 /// A touch counts two roots toward the degree's bound. Without
 /// `touch` the walk is [`certified_subdivision`]'s. With it, a piece
@@ -672,25 +768,25 @@ pub fn certified_subdivision<T: Decide>(
 /// # Errors
 ///
 /// As [`certified_subdivision`], and [`RootRefusal::Touch`] where the
-/// reach reads in the band's gap.
+/// stretch's bound reads in the band's gap.
 pub fn certified_subdivision_touching<T: Decide>(
-    f: &TrigPoly<T>,
+    terms: Terms<'_, T>,
     residual: &impl Fn(T) -> T,
-    frame: &SubdivisionFrame<'_, T>,
+    frame: &SubdivisionFrame<T>,
     rows: &SubdivisionRows,
     touch: &TouchRows,
     band: Band,
 ) -> Result<Touching<T>, RootRefusal> {
-    subdivision(f, residual, frame, rows, None, Some(touch), band)
+    subdivision(terms, residual, frame, rows, None, Some(touch), band)
 }
 
 /// [`certified_subdivision`]'s walk, placing touches where `touch` is
 /// given ([`certified_subdivision_touching`]).
 #[allow(clippy::too_many_lines)] // one walk: the cut, the pieces, the bisection
 fn subdivision<T: Decide>(
-    f: &TrigPoly<T>,
+    terms: Terms<'_, T>,
     residual: &impl Fn(T) -> T,
-    frame: &SubdivisionFrame<'_, T>,
+    frame: &SubdivisionFrame<T>,
     rows: &SubdivisionRows,
     slack: Option<&RootSlack<'_, T>>,
     touch: Option<&TouchRows>,
@@ -701,68 +797,23 @@ fn subdivision<T: Decide>(
         t1,
         speed_hi,
         noise,
+        f_per_metre,
         f_per_metre_hi,
         residual_reach,
-        jet,
-        ..
     } = *frame;
     let two = T::from_f64(2.0);
-    // The degree, and the harmonics `1..=N` with each `k` as a scalar.
-    let top = f.degree.min(4);
-    let n_deg = usize::from(top);
-    let harmonics = || (1..=top).map(|k| (usize::from(k), T::from_f64(f64::from(k))));
-    let deg = T::from_f64(f64::from(top));
-    let hypot = |x: T, y: T| (x.powi(2) + y.powi(2)).sqrt();
-    // `|F⁗| ≤ Σ k⁴Aₖ`, for the true `F` once its harmonics' error is
-    // charged at `N⁴·noise` (carried on the top harmonic's term).
-    let fourth_hi = harmonics().fold(T::zero(), |acc, (k, kf)| {
-        let amp = hypot(f.cos[k], f.sin[k]);
-        let amp = if k == n_deg { amp + noise } else { amp };
-        acc + kf.powi(4) * amp
-    });
-    // `(sin kt, cos kt)` for `k = 1..=N`.
-    let turns = |t: T| -> [(T, T); MAX_DEGREE + 1] {
-        let mut out = [(T::zero(), T::one()); MAX_DEGREE + 1];
-        for (k, kf) in harmonics() {
-            out[k] = (kf * t).sin_cos();
-        }
-        out
+    let (degree, fourth_hi) = match terms {
+        Terms::Harmonics(f) => (f.degree.min(4), f.fourth_bound(noise)),
+        Terms::Local(local) => (local.degree, local.fourth),
     };
-    let value = |t: T| {
-        let sc = turns(t);
-        harmonics().fold(f.cos[0], |acc, (k, _)| {
-            acc + f.cos[k] * sc[k].1 + f.sin[k] * sc[k].0
-        })
-    };
-    // The `j`-th derivative's harmonic `k` is `kʲ` times the harmonic
-    // turned by `jπ/2`: the four turns repeat with period four.
-    let derivative = |t: T, j: u8| {
-        let sc = turns(t);
-        harmonics().fold(T::zero(), |acc, (k, kf)| {
-            let (sk, ck) = sc[k];
-            let (c, s) = (f.cos[k], f.sin[k]);
-            let lever = kf.powi(i32::from(j));
-            match j % 4 {
-                0 => acc + lever * (c * ck + s * sk),
-                1 => acc + lever * (s * ck - c * sk),
-                2 => acc - lever * (c * ck + s * sk),
-                _ => acc + lever * (c * sk - s * ck),
-            }
-        })
-    };
+    let n_deg = usize::from(degree);
     // `F` and its first three derivatives at `t`, each with a bound on
-    // its distance from the true one: the door's jet where it has one,
-    // else the harmonics with `k` derivatives of an error bounded by
-    // `noise` bounded by `Nᵏ·noise` (Bernstein's inequality, degree `N`).
+    // its distance from the true one: the door's jet where it reads `F`
+    // locally, else the harmonics' ([`TrigPoly::taylor_at`]).
     let taylor = |t: T| -> [(T, T); 4] {
-        match jet {
-            Some(jet) => jet(t).map(|r| (r.value, r.error)),
-            None => [
-                (value(t), noise),
-                (derivative(t, 1), deg * noise),
-                (derivative(t, 2), deg.powi(2) * noise),
-                (derivative(t, 3), deg.powi(3) * noise),
-            ],
+        match terms {
+            Terms::Local(local) => (local.at)(t).map(|r| (r.value, r.error)),
+            Terms::Harmonics(f) => f.taylor_at(t, noise),
         }
     };
     let (six, twenty_four) = (T::from_f64(6.0), T::from_f64(24.0));
@@ -932,12 +983,14 @@ fn subdivision<T: Decide>(
                     decide(rows.side, Margin::of(residual(at)), band),
                     Ok(Sign::Zero)
                 ) {
-                    let [(g0, n0), (g1, e1), _, _] = taylor(at);
+                    // Convex on the piece (`curve`, read above), `G` is
+                    // least near `θ*`: where `G ≤ 0`, `|F|` is at most
+                    // the fall, and the residual at most that over the
+                    // floor.
+                    let [(g0, e0), (g1, e1), _, _] = taylor(at);
                     let slope_hi = g1.abs() + e1;
-                    let depth = crate::roots::past_noise(T::zero() - toward * g0, n0)
-                        + slope_hi.powi(2) / (two * curve);
-                    let reach = slope_hi / curve + (two * depth / curve).sqrt();
-                    match decide(touch.root_reach, Margin::of(two * speed_hi * reach), band) {
+                    let fall = (e0 - toward * g0).max(T::zero()) + slope_hi.powi(2) / (two * curve);
+                    match decide(touch.stretch, Margin::of(fall / f_per_metre), band) {
                         Ok(Sign::Zero) => {
                             touches.push(reported(at));
                             return Step::Settled;
@@ -1024,10 +1077,9 @@ mod subdivision_guard_rows {
             f_per_metre: 1.0,
             f_per_metre_hi: 1.0,
             residual_reach: None,
-            jet: None,
         };
         certified_subdivision(
-            f,
+            Terms::Harmonics(f),
             residual,
             &frame,
             &ROWS,
@@ -1146,10 +1198,9 @@ mod subdivision_guard_rows {
             f_per_metre: 1.0,
             f_per_metre_hi: 1.0,
             residual_reach: None,
-            jet: None,
         };
         let band = Band::new(1e-9, 1e-8).unwrap();
-        match certified_subdivision(&f, &value, &frame, &ROWS, None, band) {
+        match certified_subdivision(Terms::Harmonics(&f), &value, &frame, &ROWS, None, band) {
             Ok(Roots::Certified(found)) => {
                 let count = found.count();
                 assert_eq!(count, truth, "certified {count} roots of {truth}");
@@ -1327,7 +1378,6 @@ mod review_5993_recut_rows {
             f_per_metre: 1.0,
             f_per_metre_hi: 1.0,
             residual_reach: None,
-            jet: None,
         };
         let value = |t: f64| {
             f.cos[0]
@@ -1337,7 +1387,7 @@ mod review_5993_recut_rows {
                 + f.sin[2] * (2.0 * t).sin()
         };
         certified_subdivision(
-            f,
+            Terms::Harmonics(f),
             &value,
             &frame,
             &ROWS,
@@ -1576,13 +1626,19 @@ mod review3_fault_rows {
                     f_per_metre: 1.0,
                     f_per_metre_hi: 1.0,
                     residual_reach: None,
-                    jet: None,
                 };
                 let residual = |t: f64| {
                     ((s[2] * (2.0 * t).sin() + c[2] * (2.0 * t).cos()) + s[1] * t.sin())
                         + (c[1] * t.cos() + c[0])
                 };
-                let got = certified_subdivision(&f, &residual, &frame, &ROWS, None, band);
+                let got = certified_subdivision(
+                    Terms::Harmonics(&f),
+                    &residual,
+                    &frame,
+                    &ROWS,
+                    None,
+                    band,
+                );
                 let key = match &got {
                     Ok(Roots::Certified(found)) => format!("certified {}", found.count()),
                     Ok(other) => format!("{other:?}").chars().take(12).collect(),

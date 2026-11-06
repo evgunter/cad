@@ -162,21 +162,25 @@
 //!
 //! # A touch in the subdivision
 //!
-//! **The coplanar subdivisions place a touch as the circle pair does**
+//! **The coplanar subdivisions place a touch by its in-band stretch**
 //! ([`crate::half_angle::certified_subdivision_touching`]). Two conics
 //! that touch stay within the band of each other over an arc much wider
 //! than the band, so no cut there reads a definite sign. Before that arc
 //! is cut, the piece holding it reads convex toward its ends' common
 //! side (`curve_pair_coplanar_sub_convex`): `F` has one extremum there
 //! and at most two roots, both about it. The extremum is the candidate.
-//! Where the carrier there reads in the zero band, the reach about it
-//! that holds the piece's roots is read (`curve_pair_coplanar_sub_touch`).
-//! The reach takes the extremum's depth at the least the noise allows,
-//! as the circle pair reads its root gap
-//! ([`crate::roots::past_noise`]), and its slope charged with its
-//! rounding.
-//! - **Zero** is one touch: roots that only the noise parts are one
-//!   meeting, as for the circle pair.
+//! Where the carrier there reads in the zero band, the most residual over
+//! the arc between the piece's roots is read
+//! (`curve_pair_coplanar_sub_touch`): the most `|F|` convexity leaves
+//! there, over the frame's floor on `|F|` per metre. Neither door charges
+//! a jet's rounding: the coplanar ellipses read `F` locally and exactly
+//! ([`Level`]), the circle and ellipse from their harmonics.
+//! - **Zero** is one touch. The arc lies everywhere within the zero band
+//!   of the other carrier, so by C5 (`crates/geom-brep/README.md`: a
+//!   meeting is a longest interval of one span everywhere definitely on
+//!   the other) it is one meeting, however far apart its roots lie; a
+//!   touch is that meeting's kind, two carriers whose double root the
+//!   band cannot split, not a shared run of one curve.
 //! - **In the gap** it escalates.
 //! - **Definite**, the walk goes on, and roots within one in-band arc
 //!   end in its refusal.
@@ -392,7 +396,8 @@ use geom_core::{Band, Decide, Lever, Margin, Point3, Sign, Vec3};
 use super::span::Span;
 use super::{Arm, MeetFault, Method};
 use crate::half_angle::{
-    DegreeTwo, SubdivisionFrame, SubdivisionRows, TouchRows, certified_subdivision_touching,
+    DegreeTwo, Local, SubdivisionFrame, SubdivisionRows, Terms, TouchRows,
+    certified_subdivision_touching,
 };
 use crate::roots::{Roots, Unsettled, arc_past, extreme_sign};
 use geom::Conic;
@@ -522,7 +527,7 @@ const COPLANAR_ROWS: SubdivisionRows = SubdivisionRows {
 /// subdivision").
 const COPLANAR_TOUCH: TouchRows = TouchRows {
     convex: "curve_pair_coplanar_sub_convex",
-    root_reach: "curve_pair_coplanar_sub_touch",
+    stretch: "curve_pair_coplanar_sub_touch",
 };
 
 /// **The pose of `a`'s and `b`'s carriers** (module docs), dispatched
@@ -1472,10 +1477,9 @@ fn coplanar_ellipse_circle<T: Decide>(
         f_per_metre: r,
         f_per_metre_hi: T::from_f64(3.0) * r,
         residual_reach: Some(r),
-        jet: None,
     };
     let residual = |theta: T| (ke.point_at(theta) - kc.frame().origin).norm() - r;
-    subdivided(&poly, &residual, &frame, place, band)
+    subdivided(Terms::Harmonics(&poly), &residual, &frame, place, band)
 }
 
 /// A coplanar pair's roots and touches from the certified subdivision
@@ -1483,14 +1487,14 @@ fn coplanar_ellipse_circle<T: Decide>(
 /// candidate: none is [`Pose::Apart`], one touch alone is
 /// [`Pose::Tangent`], and a refusal is typed.
 fn subdivided<T: Decide>(
-    poly: &crate::half_angle::TrigPoly<T>,
+    terms: Terms<'_, T>,
     residual: &impl Fn(T) -> T,
     frame: &SubdivisionFrame<T>,
     place: &impl Fn(T) -> Candidate<T>,
     band: Band,
 ) -> Result<Pose<T>, MeetFault> {
     let found = certified_subdivision_touching(
-        poly,
+        terms,
         residual,
         frame,
         &COPLANAR_ROWS,
@@ -1518,7 +1522,7 @@ fn subdivided<T: Decide>(
 /// **Two ellipses in one plane** (module docs): the first's level on
 /// the second, `F(θ) = X²/A² + Y²/B² − 1` at the first's point `(X, Y)`
 /// in the second's frame, is of degree two in the first's angle, and goes
-/// to the certified subdivision in the metres of
+/// to the certified subdivision, read locally ([`Level`]), in the metres of
 /// [`geom::ellipse_level_clearance`], the lower bound on a point's
 /// distance from the second that [`Curve3::clearance`] reads, signed as
 /// `F`.
@@ -1540,26 +1544,35 @@ fn coplanar_ellipses<T: Decide>(
 ) -> Result<Pose<T>, MeetFault> {
     let (big_a, big_b) = kb.semi_axes();
     let (ub, vb) = (kb.frame().u_ref, kb.frame().v_ref());
-    let (poly, terms) = coplanar_level(ka, kb);
+    let level = level_on(ka, kb);
     let small = big_a.abs().min(big_b.abs());
+    let large = big_a.abs().max(big_b.abs());
     let (t0, t1) = e.params();
     let (ceiling, reach) = level_ceiling(small);
     let frame = SubdivisionFrame {
         t0,
         t1,
         speed_hi: ka.speed_hi(),
-        noise: geom_core::rounding_charge(terms),
-        // `g` vanishes at the second's centre: no floor but zero holds.
-        f_per_metre: T::zero(),
+        // No harmonics are read.
+        noise: T::zero(),
+        // A point's distance from the second is at most `L·|F|`,
+        // `L` its larger semi-axis (`pose::window`'s module docs, (ii)),
+        // and the bound below it reads no more: the floor `1/L`.
+        f_per_metre: T::one() / large,
         f_per_metre_hi: ceiling,
         residual_reach: Some(reach),
-        jet: None,
+    };
+    let jet = |theta: T| level.jet_at(theta).map(geom_core::Rounded::exact);
+    let local = Local {
+        at: &jet,
+        fourth: level.fourth(),
+        degree: 2,
     };
     let residual = |theta: T| {
         let d = ka.point_at(theta) - kb.frame().origin;
         geom::ellipse_level_clearance((d.dot(ub), d.dot(vb)), (big_a, big_b))
     };
-    subdivided(&poly, &residual, &frame, place, band)
+    subdivided(Terms::Local(local), &residual, &frame, place, band)
 }
 
 /// **`b`'s level along `a`**: `F(θ) = X²/A² + Y²/B² − 1` at the image of
@@ -1663,42 +1676,6 @@ pub(super) fn level_on<'k, T: Decide>(ka: &'k dyn Conic<T>, kb: &dyn Conic<T>) -
         squares,
         fourth: up::<24, _>(side(ub, squares.0) + side(vb, squares.1)),
     }
-}
-
-/// **The coplanar ellipses' level, read globally**: [`Level`]'s `F` as
-/// one trigonometric polynomial of degree two in `a`'s angle (each of `X`
-/// and `Y` a first harmonic), and the term bound its rounding is charged
-/// on. Only `coplanar_ellipses` reads it, through the certified
-/// subdivision; the window reads [`Level`].
-fn coplanar_level<T: Decide>(
-    ka: &dyn Conic<T>,
-    kb: &dyn Conic<T>,
-) -> (crate::half_angle::TrigPoly<T>, T) {
-    let (big_a, big_b) = kb.semi_axes();
-    let (ub, vb) = (kb.frame().u_ref, kb.frame().v_ref());
-    let (ua, va) = (
-        ka.frame().u_ref * ka.semi_axes().0,
-        ka.frame().v_ref() * ka.semi_axes().1,
-    );
-    let w = ka.frame().origin - kb.frame().origin;
-    // `X = x₀ + p cos θ + q sin θ`, `Y = y₀ + r cos θ + t sin θ`.
-    let (x0, p, q) = (w.dot(ub), ua.dot(ub), va.dot(ub));
-    let (y0, r, t) = (w.dot(vb), ua.dot(vb), va.dot(vb));
-    let (a2, b2) = (big_a.powi(2), big_b.powi(2));
-    let two = T::from_f64(2.0);
-    let poly = DegreeTwo::new(
-        (x0.powi(2) + (p.powi(2) + q.powi(2)) / two) / a2
-            + (y0.powi(2) + (r.powi(2) + t.powi(2)) / two) / b2
-            - T::one(),
-        two * (x0 * p / a2 + y0 * r / b2),
-        two * (x0 * q / a2 + y0 * t / b2),
-        (p.powi(2) - q.powi(2)) / (two * a2) + (r.powi(2) - t.powi(2)) / (two * b2),
-        p * q / a2 + r * t / b2,
-    )
-    .poly();
-    let small = big_a.abs().min(big_b.abs());
-    let terms = ((w.norm() + ka.speed_hi() + ka.speed_lo()) / small).powi(2) + T::one();
-    (poly, terms)
 }
 
 /// **The ceiling on an ellipse's level per metre of
