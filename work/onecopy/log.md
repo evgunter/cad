@@ -385,3 +385,8 @@
   FULL review sent to `session_013mPGJ3HVYqYAoquA4iThSZ`.
 
 - 2026-11-06 — Gave the curve-pair-tidy lane its next unit: the harmonic phases' cut side, and whether the chart's cut-side choice can leave the log. It goes on a new branch, or on its own branch after 6541 merges.
+
+- 2026-11-06 — spline-walks opened PR 6548 at `134fa11c`, with hosted CI green.
+  - Row 1: `clear_of` stops at its first near piece, so the hairpin escalates after about 30 readings instead of exhausting after 5,852.
+  - Row 2: a walk limit is typed (`Unwalked` / `SectionUnwalked`, carrying `PieceWalkRefusal`).
+  FULL review sent to `session_013mPGJ4JScywfx3zssA8yRc`.
