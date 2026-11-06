@@ -2,7 +2,7 @@
 id: value-discards-read-a-refusal-as-nothing-found
 kind: issue
 title: About two dozen arms read a refusal as nothing found (Ok(Zero) | Err(_) => None / false), outside the escalation-discards gate
-status: open
+status: dispatched
 priority: P2
 cost: M
 opened: 2026-11-03
