@@ -329,7 +329,7 @@ use std::collections::BTreeSet;
 use crate::live::NAMES_ONLY_LIVE;
 use bvh::{Aabb, Bvh};
 use geom_brep::curve_pair::{Hit, MeetFault, Span as CarrierSpan, meet};
-use geom_brep::ladder::{Answering, Climb, Evidence, Refusal, Rung, climb, climb_evidence};
+use geom_brep::ladder::{Aborts, Answering, Climb, Evidence, Refusal, Rung, climb, climb_evidence};
 use geom_core::k_stats::{Magnitude, decide_reported, straddle};
 use geom_core::one_line::on_one_line;
 use geom_core::{
@@ -2436,6 +2436,22 @@ pub(crate) enum WedgeRefusal {
     Unread(EdgeKey, TouchUnread),
 }
 
+impl WedgeRefusal {
+    /// What this refusal is to a ladder over the pairs that read it: a
+    /// decision in band by its margin, a wedge with no reading as its
+    /// reason stands ([`TouchUnread::refusal`]).
+    ///
+    /// # Errors
+    ///
+    /// [`Aborts`] where the reason refuses the whole query.
+    fn refusal(&self) -> Result<Refusal, Aborts> {
+        match self {
+            Self::Undecided(diag) => Ok(Refusal::Margin(*diag)),
+            Self::Unread(_, why) => why.refusal(),
+        }
+    }
+}
+
 /// Every reason [`WedgeRefusal::Unread`] carries, for the samples.
 #[cfg(any(test, feature = "test-support"))]
 pub(crate) const WEDGE_UNREAD: [TouchUnread; 3] = [
@@ -2508,19 +2524,59 @@ pub(crate) fn line_wedges<T: Decide>(
             }
         }
     }
-    for (i, pair) in pairs.iter().enumerate() {
+    // A ladder over the pairs, and within each over its probes ([`climb`],
+    // [`Answering::Any`]: every wedge holding another's probe strictly
+    // inside says the same overlap), so a pair or a probe read in band
+    // refuses only where no later one overlaps, each refusal kept by its
+    // standing ([`WedgeRefusal::refusal`]). A pair's two wedges are its
+    // probes' premise.
+    fn kept<A>(
+        e: (usize, WedgeRefusal),
+    ) -> Rung<Result<A, (usize, WedgeRefusal)>, (usize, WedgeRefusal)> {
+        geom_brep::ladder::rung_or_abort(e.1.refusal(), e, Err)
+    }
+    let climbed = climb(Answering::Any, pairs.iter().enumerate(), |(i, pair)| {
         let at = pair.ends[0] + (pair.ends[1] - pair.ends[0]) * T::from_f64(0.5);
         let read = |key: EdgeKey| wedge(body, &geo[&key], at, band).map_err(|r| (i, r));
-        let (a, b) = (read(pair.edges[0])?, read(pair.edges[1])?);
-        for (w, probes) in [(&a, &b), (&b, &a)] {
-            for v in [probes.own, probes.next, probes.inside] {
-                if strictly_inside(w, v, band).map_err(|r| (i, r))? {
-                    return Ok(Some(i));
-                }
-            }
+        let a = match read(pair.edges[0]) {
+            Ok(a) => a,
+            Err(e) => return kept(e),
+        };
+        let b = match read(pair.edges[1]) {
+            Ok(b) => b,
+            Err(e) => return kept(e),
+        };
+        let probes = [(&a, &b), (&b, &a)]
+            .into_iter()
+            .flat_map(|(w, p)| [p.own, p.next, p.inside].map(|v| (w, v)));
+        let inner = climb(Answering::Any, probes, |(w, v)| {
+            probe_rung(strictly_inside(w, v, band).map_err(|r| (i, r)))
+        });
+        match inner {
+            Climb::Answered { answer: Ok(()), .. } => Rung::Answers(Ok(i)),
+            Climb::Answered { answer: Err(e), .. } => Rung::Aborts(Err(e)),
+            Climb::Undecided(e) => kept(e),
+            Climb::Passed => Rung::Passes,
         }
+    });
+    match climbed {
+        Climb::Answered { answer, .. } => answer.map(Some),
+        Climb::Passed => Ok(None),
+        Climb::Undecided(e) => Err(e),
     }
-    Ok(None)
+}
+
+/// One probe of [`line_wedges`] as a rung: a probe strictly inside the
+/// other wedge answers, one not passes, and a refusal is kept by its
+/// standing ([`WedgeRefusal::refusal`]).
+fn probe_rung(
+    reading: Result<bool, (usize, WedgeRefusal)>,
+) -> Rung<Result<(), (usize, WedgeRefusal)>, (usize, WedgeRefusal)> {
+    match reading {
+        Ok(true) => Rung::Answers(Ok(())),
+        Ok(false) => Rung::Passes,
+        Err(e) => geom_brep::ladder::rung_or_abort(e.1.refusal(), e, Err),
+    }
 }
 
 /// `e`'s material wedge ([`line_wedges`]), its sheets read at `at`, a
@@ -21821,6 +21877,56 @@ mod arc_interiors {
                 "the half over [{t0}, {t1}]"
             );
         }
+    }
+}
+
+/// **A probe strictly inside answers past a probe read in band**
+/// ([`line_wedges`] climbs its pairs and each pair's probes, through
+/// [`probe_rung`]), and a wedge with no reading, a limit, outranks a
+/// probe in band read before it. Fed the readings directly: no line pair
+/// a constructor builds reads in band at one probe and inside at another.
+#[cfg(test)]
+#[allow(clippy::expect_used)]
+mod line_wedges_ranking {
+    use geom_brep::ladder::{Answering, Climb, climb};
+    use geom_core::{Band, Indeterminate, MarginDiag};
+
+    use super::{EdgeKey, TouchUnread, WedgeRefusal, probe_rung};
+
+    fn in_band() -> (usize, WedgeRefusal) {
+        (
+            0,
+            WedgeRefusal::Undecided(Indeterminate {
+                margin: MarginDiag::value(5e-9),
+                band: Band::new(1e-9, 1e-8).expect("a valid band"),
+                predicate: Some("t"),
+                terminal_sliver: false,
+            }),
+        )
+    }
+
+    #[test]
+    fn a_probe_inside_answers_past_one_in_band() {
+        let read =
+            |r: Vec<Result<bool, (usize, WedgeRefusal)>>| climb(Answering::Any, r, probe_rung);
+        assert!(
+            matches!(
+                read(vec![Err(in_band()), Ok(true)]),
+                Climb::Answered { answer: Ok(()), .. }
+            ),
+            "a later probe strictly inside answers past one in band"
+        );
+        let unread = (
+            0,
+            WedgeRefusal::Unread(EdgeKey::default(), TouchUnread::Degenerate),
+        );
+        assert!(
+            matches!(
+                read(vec![Err(in_band()), Err(unread)]),
+                Climb::Undecided((_, WedgeRefusal::Unread(_, TouchUnread::Degenerate)))
+            ),
+            "a wedge with no reading outranks the probe in band read before it"
+        );
     }
 }
 

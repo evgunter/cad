@@ -21,7 +21,7 @@ measured yet.** Read each in full before porting it.
 
 | site | shape | port |
 |---|---|---|
-| `boolean::solid_contain::point_in_faces` (six on-face reads) | any face holding the point answers `OnBoundary` | `climb`, `Any` |
+| ~~`boolean::solid_contain::point_in_faces` (six on-face reads)~~ | **ported** (`onecopy/refusal-standing`, tranche 5): the pre-pass climbs its faces | — |
 | `boolean::rim_wedge::departures` (`abut`) | either pair abutting answers | `read_identity`-shaped, `Any` |
 | `boolean::rim_wedge::rides` | either end off the line answers "not" | `read_identity` |
 | `splitting::containment::certify_plane` | any margin decided apart answers "off the plane" | `read_identity` |
@@ -48,3 +48,29 @@ outcome or ranking move. Lower its file's count in
 `scripts/gates/escalation-question-marks.counts` in the same commit.
 `solid_contain` is the largest and the most used: the point-in-solid
 door.
+
+## The callee shape (tranche 5)
+
+`escalation-question-marks.sh` now also registers a `?` on a callee
+that reads the band, inside a loop that answers early
+(`escalation-question-marks-callee.counts`). These are the HAND-ROLLED
+entries of its first register. Each was read in its loop, and none is
+measured yet.
+
+| site | shape | port |
+|---|---|---|
+| `geom_brep::curve_pair::pose::one_line` | either line off the other answers "not one line" | `climb`, `Any` |
+| `geom_brep::props::curved::sphere_region_material_sign`, `pole_side` | an arc against the pole answers | `climb`, `Any` |
+| `profile::seg::arc_arc` | any end over the other arc answers `Overlap` | `climb`, `Any` |
+| `boolean::carrier_touch::off_face`, `ball_off_face` | any cluster or edge not off answers "not off" | `climb`, `Any` |
+| `boolean::region::on_boundary` | any edge holding the point | `climb`, `Any` |
+| `boolean::sectors::rays_within` | any ray not within answers "no" | `climb`, `Any` |
+| `boolean::sectors::crescent` (its callee reads, beside its decide sites) | a crescent found | `climb`, `Any` |
+| `boolean::rim_wedge::departures` (its cover reads) | either pair's departure | `climb`, `Any` |
+| `census::span_clear` | anything meeting answers "not clear" | `climb`, `Any` |
+| `chart_region::polygon_relation` | the first decisive vertex | `climb`, `Any` (check every non-boundary vertex reads alike) |
+| `ray_walk::on_boundary` | any segment holding the point | `climb`, `Any` |
+| `replace_face::carried_alike` | any sample apart answers "not alike" | `read_identity` |
+| `shell::band_seam`, `wraps_its_period` | any side not winding once, any start winding once | `climb`, `Any` |
+| `stands::face_interior_point` | any certified interior point | `climb`, `Any` |
+| `stands::witness_insides` | its own ranking of `Witness` (`On`, `Blocked`, `InBand`) | its witnesses' standing, then `climb` |

@@ -41,7 +41,7 @@ use std::sync::Arc;
 use geom_brep::LeverBounds;
 use geom_brep::curve_face::BoundaryRefusal;
 use geom_brep::curve_pair::Span;
-use geom_brep::ladder::Evidence;
+use geom_brep::ladder::{Answering, Climb, Evidence, Rung, climb, rung_or_abort};
 use geom_core::{Band, Decide, Indeterminate, Lever, Margin, Point3, Sign, Vec3};
 
 use super::BooleanError;
@@ -565,12 +565,30 @@ fn piece_witness<T: Decide>(
     }
     let n = turned(normal_at(x, q, band)?, x_rev);
     let mine = as_read(half_plane(x.0, he, q)?, x_rev);
-    for cy in ys {
-        if corners_meet(mine, as_read(cy, y_rev), n, band)? {
-            return Ok(true);
-        }
+    // A ladder over `y`'s corners at `q` ([`climb`], [`Answering::Any`]:
+    // every corner meeting the piece says the same "a witness"), so a
+    // corner read in band refuses only where no later one meets it.
+    let climbed = climb(Answering::Any, ys, |cy| {
+        witness_rung(corners_meet(mine, as_read(cy, y_rev), n, band))
+    });
+    match climbed {
+        Climb::Answered { answer, .. } => answer,
+        Climb::Passed => Ok(false),
+        Climb::Undecided(r) => Err(r),
     }
-    Ok(false)
+}
+
+/// One reading of whether a piece is a witness, as a rung of a search for
+/// one: a witness answers, none passes, and a refusal is kept by its
+/// standing ([`OverlapRefusal::refusal`]).
+fn witness_rung(
+    reading: Result<bool, OverlapRefusal>,
+) -> Rung<Result<bool, OverlapRefusal>, OverlapRefusal> {
+    match reading {
+        Ok(true) => Rung::Answers(Ok(true)),
+        Ok(false) => Rung::Passes,
+        Err(r) => rung_or_abort(r.refusal(), r, Err),
+    }
 }
 
 /// Keeps a piece's refusal `r` in `kept` by its standing
@@ -736,6 +754,33 @@ mod piece_ranking {
             keep_piece_refusal(&mut kept, corner).is_err(),
             "a corner refusal that did not escalate is never kept: BooleanError states \
              no standing to tell a limit from a fault, so it stops the search"
+        );
+    }
+
+    /// **A corner meeting the piece answers past a corner read in band**
+    /// (`piece_witness` climbs `y`'s corners through
+    /// [`super::witness_rung`]). Fed the readings directly.
+    #[test]
+    fn a_corner_that_meets_answers_past_one_in_band() {
+        use geom_brep::ladder::{Answering, Climb, climb};
+        let read =
+            |r: Vec<Result<bool, OverlapRefusal>>| climb(Answering::Any, r, super::witness_rung);
+        assert!(
+            matches!(
+                read(vec![Err(in_band()), Ok(true)]),
+                Climb::Answered {
+                    answer: Ok(true),
+                    ..
+                }
+            ),
+            "a later corner that meets answers past an earlier one in band"
+        );
+        assert!(
+            matches!(
+                read(vec![Err(in_band()), Err(unread())]),
+                Climb::Undecided(OverlapRefusal::Unread { .. })
+            ),
+            "a limit outranks the corner in band read before it"
         );
     }
 }
