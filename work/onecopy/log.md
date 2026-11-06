@@ -427,3 +427,5 @@
   - About 680 face→surface walks are ported, with a new `topology-reads-through-topo.sh` gate.
   - The ci set passes at both ε, with 3 torn-link pins re-aimed.
   FULL review sent to `session_013mPGJ3HVYqYAoquA4iThSZ`, with the edge-ends semantics as its first check. The three unfiled main reds it found (the needle cavity, seat7 digests, and the loop-boundary-discards selftest) went to the main-reds lane.
+
+- 2026-11-06 — Design fork dispatched on `the-census-sort-of-a-boolean-refusal-has-no-legal-home-under-topo-homes`: where a crate-internal reading of an engine's type lives under ratified `[topo.homes]`. Draw 127, 42: two designers, Opus as A. Recorded on `analysis/design-fork/onecopy-census-sort-home`. The outcome goes to Ev as `[ev]` if it changes `[topo.homes]` or the gates. The topo-handles lane takes `value-discards` (all 24 arms) and the loop doors.
