@@ -131,3 +131,12 @@
   - `PoseDef` is the precedent for a definition holding its own slot variable.
 
   `design: true` set. Fork `selects-indexed-member` went to two designers (draws on its analysis branch), given the problem only and pointed at the neighbouring indexed-read rows. If it is Ev's fork, an `[ev]` PR follows.
+- 2026-11-06 — **Fork `selects-indexed-member`: first reports in, agreeing on the core and split on details; reconciliation round 1 running.**
+  - **Both:** `Select.body` becomes `BodyRead`, with the selection's own `Count` index slots; the names are the member's own; the index is said once, in the read.
+  - **Split on four points:**
+    - the `Rebind` address (A: the family variable; B: a read, matched exactly);
+    - `Member`-named selections of a bare family at the door (A lowers them as sugar; B refuses them and changes Python's materializer);
+    - mate sides (A traced the structural member walk and offers 6a/6b; B did not trace it);
+    - DM3's wording.
+  - **B's probe:** today a per-`k` read of `xs` and `xs[k]` name members differently (`Member[i] › e` against `Member[i] › Member[i] › e`), so DM3's "one read, one name" fails at node seats too. That goes to the build or to its own row once the fork settles.
+  - **Filed from B's probe:** `a-family-of-boolean-results-cannot-be-read-whole-or-by-index` (P1 M). A union of a per-`k` subtract family refuses `WrongOperand`.
