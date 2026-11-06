@@ -180,3 +180,10 @@
   - **Rows filed:** `a-family-of-bodies-has-two-payloads` (REFS P1 H, the unification) and `editor-core-cites-a-spec-d3-no-document-numbers` (REFS P4 C, about 40 sites). The Python row moved to BIND.
   - `a-family-of-boolean-results-cannot-be-read-whole-or-by-index` is closed.
 - 2026-11-06 — **PR 6557 merged** (a family of boolean results reads whole and by index; `EmptyMember` names the empty member). Next REFS P1, serially: `a-family-of-bodies-has-two-payloads` (H), unit branch `reads/family-one-payload`. It follows on from the context just built, and it is the root of three of 6557's residue rows. The lane picks the one representation by final state and stops if a user-visible fork appears. Tier **single, FULL** (a public payload type and its readers across three crates). After it: `slot-forms-want-one-trait`. Then the viewer's boolean tool, whose indexed half waits on Ev's answer on 6555.
+- 2026-11-06 — **PR 6564 (one payload for a family of bodies) green at `2ef171edb2`; single FULL review dispatched.**
+  - **Chosen:** `Instances(Vec<Option<Framed>>)`, `None` at an empty member. `Family` now holds only non-bodies.
+  - **Rejected:** a third variant, which would be two spellings of one concept, and the bridge as the public door, because a reader matching `Instances` alone would still compile.
+  - **Bridge pieces deleted:** `member_bodies` and the viewer's `one_body` copy. `ValuePayload::one_body` is now the public rule.
+  - **Readers fixed:** `output_body`, `sources_of`, Python `bodies()` and `read_named_body`. `mate/corner.rs` `read_of` reads the first body member.
+  - **Rows:** the WIREREST and BIND residue rows were claimed and closed. The tree readout for an empty member is a CHROME row with three options (a user-visible choice, left open).
+  - **Not ours:** the lane saw main's nightly red on editor-core (`docm2_part_interval` a7, an interval boolean escalation, and others). That is GREEN's ground, and it is noted here for the hand-back.
