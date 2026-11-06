@@ -112,9 +112,11 @@
 
 use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
 
+use geom_brep::curve_pair::on_surface::SurfaceCurve;
+
 use super::region::{
-    self, End, Fault, LegSection, Legs, Line, Paths, QueryFoot, Region, RegionEdge, RegionRefusal,
-    Round, circle_edge_hit, in_band, targets,
+    self, End, Fault, Legs, Line, Paths, QueryFoot, Region, RegionEdge, RegionRefusal, Round,
+    circle_edge_hit, in_band, targets,
 };
 use super::solid_contain::PointInSolidError;
 use crate::body::Body;
@@ -259,24 +261,10 @@ impl<T: Decide> region::Course<T> for LegShape<T> {
         }
     }
 
-    fn carrier(&self) -> geom::Curve3<T> {
+    fn curve(&self) -> SurfaceCurve<T> {
         match self {
-            Self::Parallel(round) => round.carrier(),
-            Self::Ruling(line) => line.carrier(),
-        }
-    }
-
-    fn plane(&self) -> (Point3<T>, Vec3<T>) {
-        match self {
-            Self::Parallel(round) => round.plane(),
-            Self::Ruling(line) => line.plane(),
-        }
-    }
-
-    fn section(&self) -> LegSection<T> {
-        match self {
-            Self::Parallel(round) => round.section(),
-            Self::Ruling(line) => line.section(),
+            Self::Parallel(round) => round.curve(),
+            Self::Ruling(line) => line.curve(),
         }
     }
 
@@ -541,56 +529,24 @@ impl<T: Decide> RuledFaceRegion<T> {
         )
     }
 
-    /// The unit radial direction at azimuth `u`.
-    fn radial(&self, u: T) -> Vec3<T> {
-        let f = self.frame();
-        let (sin, cos) = u.sin_cos();
-        f.u_ref * cos + f.v_ref() * sin
-    }
-
     /// The parallel through `p`, run `forward` (right-handed about the
     /// axis) or back: at the surface's own radius at `p`'s height.
     fn parallel(&self, p: QueryFoot<T>, forward: bool) -> Leg<T> {
-        let v = p.uv().y;
-        let axis = self.surface.axis();
-        let (center, radius) = match self.surface {
-            Ruled::Cylinder { origin, radius, .. } => (origin + axis * v, radius),
-            Ruled::Cone {
-                apex, half_angle, ..
-            } => {
-                let (sin, cos) = half_angle.sin_cos();
-                (apex + axis * (v * cos), (v * sin).abs())
-            }
-        };
-        let normal = if forward { axis } else { -axis };
-        Leg::whole(LegShape::Parallel(Round::through(
-            p,
-            center,
-            normal,
-            radius,
-            LegSection::Whole,
-        )))
+        let curve = SurfaceCurve::parallel(&self.surface.surface(), p.uv(), forward);
+        Leg::whole(LegShape::Parallel(Round::on(region::built(curve))))
     }
 
     /// The ruling through `p`, a point clear of a cone's apex on the
     /// nappe `opening`, run `outward` or back; back toward a cone's apex
     /// it ends there.
     fn ruling(&self, p: QueryFoot<T>, opening: bool, outward: bool) -> Leg<T> {
-        let (dir, end) = match self.surface {
-            Ruled::Cylinder { axis, .. } => (if outward { axis } else { -axis }, None),
-            Ruled::Cone { apex, .. } => {
-                let g = p.at() - apex;
-                let reach = g.norm();
-                let g = g / reach;
-                if outward {
-                    (g, None)
-                } else {
-                    (-g, Some(reach))
-                }
-            }
+        let end = match self.surface {
+            Ruled::Cylinder { .. } => None,
+            Ruled::Cone { apex, .. } => (!outward).then(|| (p.at() - apex).norm()),
         };
+        let curve = SurfaceCurve::ruling(&self.surface.surface(), p.uv(), opening, outward);
         Leg {
-            course: LegShape::Ruling(self.line(p, dir, opening)),
+            course: LegShape::Ruling(Line::on(region::built(curve))),
             end: end.map(|place| End {
                 place,
                 row: END,
@@ -599,45 +555,18 @@ impl<T: Decide> RuledFaceRegion<T> {
         }
     }
 
-    /// The ruling's line from `start` along `dir`, at its azimuth on the
-    /// nappe `opening`: in the plane through the axis at that azimuth, on
-    /// that half-plane's ruling.
-    fn line(&self, start: QueryFoot<T>, dir: Vec3<T>, opening: bool) -> Line<T> {
-        let u = start.uv().x;
-        let (sin, cos) = u.sin_cos();
-        let normal = self.surface.axis().cross(self.radial(u));
-        let opening = match self.surface {
-            Ruled::Cylinder { .. } => None,
-            Ruled::Cone { .. } => Some(opening),
-        };
-        Line::from(
-            start,
-            dir,
-            normal.normalize(),
-            LegSection::HalfPlane {
-                toward: geom::Azimuth::of(sin, cos),
-                opening,
-            },
-        )
-    }
-
     /// From a `p` at the cone's apex, the generator through `target`: it
     /// starts at the apex, the foot at the target's azimuth and no slant.
     fn apex_generator(&self, target: Point3<T>, band: Band) -> Result<Leg<T>, Fault> {
-        let Ruled::Cone { apex, .. } = self.surface else {
+        if !matches!(self.surface, Ruled::Cone { .. }) {
             unreachable!("only a cone has an apex")
-        };
+        }
         // A target at the apex's level gives no generator to run.
         let opening = self.nappe(target, band).map_err(|_| RayFault::Unread)?;
         let surface = self.surface.surface();
         let target = QueryFoot::read(&surface, target, band);
-        let start = QueryFoot::of_chart(&surface, geom_core::Point2::new(target.uv().x, T::zero()));
-        let g = target.at() - apex;
-        Ok(Leg::whole(LegShape::Ruling(self.line(
-            start,
-            g.normalize(),
-            opening,
-        ))))
+        let curve = SurfaceCurve::from_apex(&surface, target.uv(), opening);
+        Ok(Leg::whole(LegShape::Ruling(Line::on(region::built(curve)))))
     }
 }
 
