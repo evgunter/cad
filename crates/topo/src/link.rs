@@ -517,7 +517,6 @@ pub enum TouchUnread {
 /// Why a curved edge's tangent at a touch point did not read
 /// ([`TouchUnread::EdgeTangent`]).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-#[cfg_attr(any(test, feature = "test-support"), derive(strum::EnumIter))]
 pub enum EdgeTangentUnread {
     /// The edge's span does not certify the point on its interior: two
     /// readings of one fact (the touch held inside the edge, and the
@@ -529,10 +528,8 @@ pub enum EdgeTangentUnread {
     /// The edge's speed bounds meter no reach or no length over its
     /// span.
     Unmetered,
-    /// A spline edge's piece walk ran past its budget.
-    Exhausted,
-    /// A spline edge's speed bound is zero or poison.
-    Unbounded,
+    /// A spline edge's piece walk could not run.
+    Unwalked(geom::PieceWalkRefusal),
 }
 
 impl From<TouchUnread> for TouchVerdict {

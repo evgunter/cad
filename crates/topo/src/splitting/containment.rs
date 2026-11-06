@@ -1672,7 +1672,10 @@ pub(crate) struct ArcPieces<'c, T: geom_core::Real> {
 impl<T: Decide> ArcPieces<'_, T> {
     /// Whether `clear` decides every piece's floor clear on the
     /// carrier's point walk ([`geom::Curve3::point_walk`]), within
-    /// [`geom_core::bisect::PIECE_BUDGET`].
+    /// [`geom_core::bisect::PIECE_BUDGET`]. Not [`geom::Curve3::clear_of`]:
+    /// `clear` is the caller's lever, unlogged and with no band, so a walk
+    /// stops on a middle point that fails it rather than on a piece's
+    /// reach falling within a band.
     fn clear(self, clear: impl Fn(T) -> bool) -> bool {
         let hi = geom::carrier_speed::speed_range(self.carrier).1;
         let walk = self.carrier.point_walk(self.q, self.span, hi, |p| {

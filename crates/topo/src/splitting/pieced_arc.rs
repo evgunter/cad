@@ -91,7 +91,10 @@ pub(crate) trait PiecedArc<T: Decide> {
 
     /// **Where `q` sits against the arc.** `End` within the band of an
     /// end; `On` within the band of a point of the arc; `Off` once every
-    /// piece's ball is definitely clear of `q`.
+    /// piece's ball is definitely clear of `q`. A placement on the arc's
+    /// own ball cover, not a clearance by the carrier's reach
+    /// ([`geom::Curve3::clear_of`]): `On` is an answer, so the walk goes on
+    /// past its first in-band piece.
     ///
     /// # Errors
     ///
