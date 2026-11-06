@@ -63,7 +63,7 @@ crate-visible               2  boolean/plane_eq.rs
 crate-visible              20  boolean/records.rs
 crate-visible               8  boolean/reduce.rs
 crate-visible              24  boolean/refusal_routes.rs
-crate-visible              55  boolean/region.rs
+crate-visible              53  boolean/region.rs
 crate-visible               8  boolean/rim_wedge.rs
 crate-visible               6  boolean/ruled_region.rs
 crate-visible              12  boolean/section_cert.rs
@@ -108,7 +108,7 @@ names-boolean               5  chart_region.rs
 names-boolean              23  chord_join.rs
 names-boolean               1  chord_join/cone_ring_rows.rs
 names-boolean               1  chord_join/sibling_escalation_rows.rs
-names-boolean               3  chord_join/sphere_island_rows.rs
+names-boolean               2  chord_join/sphere_island_rows.rs
 names-boolean              11  clearance.rs
 names-boolean              18  coincidence.rs
 names-boolean              10  construction.rs
@@ -162,7 +162,7 @@ names-boolean              31  test_support_samples.rs
 names-boolean              26  test_support_volume.rs
 names-boolean              48  tier3_tests.rs
 names-boolean               2  turn_rows.rs
-names-boolean              84  validate.rs
+names-boolean              82  validate.rs
 
 names-splitting            10  cell_region.rs
 names-splitting            56  census.rs
@@ -249,7 +249,6 @@ ambiguous no_crossings_section_report    # lib.rs
 ambiguous no_event_section_report        # lib.rs
 ambiguous ops_under_test                 # lib.rs
 ambiguous overlap                        # census/link_fuzz.rs, injective.rs
-ambiguous parallel                       # injective.rs, ring_path.rs, ring_path/torus_islands.rs
 ambiguous point_in_face                  # lib.rs
 ambiguous ray_crossings                  # ray_walk.rs
 ambiguous read                           # bound_side.rs, census.rs, census/curved.rs, census/pierce_fuzz.rs, census/point.rs, census/self_touch_curved.rs, chord_join/section_end_rows.rs, injective.rs, link.rs, link/tangent_rows.rs, test_support_volume.rs

@@ -20,14 +20,19 @@
 //!    parallel then a meridian (or the mirror) through a corner, aimed
 //!    at a point of the boundary. Each leg is a circle in a plane: a
 //!    parallel's is normal to the axis, a meridian's holds it.
-//! 2. Every edge meets a leg where the curve-pair reading says they
-//!    meet ([`region::landings`], [`geom_brep::curve_pair::meet`]): a
-//!    circle edge in closed form, which reads the one of the two circles
-//!    that crosses the other's plane the less obliquely, so a parallel by
-//!    the tube's top or bottom circle, whose plane is tangent to the
-//!    torus there, is read across the meridian leg's plane; an oval by the
-//!    certified walk. A meeting within the band of an edge's end reads no
-//!    side there.
+//! 2. Every edge meets a leg at a root of one across the other's plane
+//!    ([`region::landings`], through the plane door): a circle edge
+//!    across a meridian leg's plane, which is normal to the torus
+//!    everywhere, except a parallel off the top and bottom circles, which
+//!    the leg crosses at the tube's radius (`bool_torus_region_family`);
+//!    a parallel leg across every edge's plane, whose own plane is
+//!    tangent to the torus by its top and bottom circles; and an oval's
+//!    plane, which has no closed form across a leg's, by every leg. A
+//!    plane meets the torus in two curves, so each root is then asked
+//!    which one it lies on: a leg's through the chart's channels (its
+//!    half-plane, its tube side), an edge's against its mirror or its
+//!    oval's side. A root within the band of an edge's end reads no side
+//!    there. The legs start at `p`'s foot ([`region::QueryFoot`]).
 //! 3. At the closest crossing along the path, the leg's heading against
 //!    `N × τ` says whether the path leaves the face there (so `p` is in
 //!    it) or enters it.
@@ -54,15 +59,14 @@
 //! Past that, every reading is about one path ([`crate::ray_walk`]): a
 //! closest crossing at a vertex, a tie with the closest crossing, a
 //! crossing at the path's start or within the band of its corner, a
-//! tangency of a leg with an edge, a meeting the curve-pair reading
-//! refuses short of the band (a walk past its budget among them), or a
+//! tangency of a leg with an edge, a root or a component in band, or a
 //! leg running along an edge grazes; a path that meets no edge gives nothing to read; and the next
 //! is tried.
 //!
 //! # Predicates (meters)
 //!
-//! - `bool_torus_frame_radius`: `p`'s distance from the axis, which the
-//!   legs divide by.
+//! - `bool_torus_frame_radius`: `p`'s distance from the axis, on which
+//!   every azimuth names a foot.
 //! - `bool_torus_region_at`: a crossing's place along its leg, from the
 //!   leg's start, at the leg's radius.
 //! - `bool_torus_region_corner`: a first leg's crossing, or an end of an
@@ -70,8 +74,12 @@
 //! - `bool_torus_region_order`: two crossings' places along the path.
 //! - `bool_torus_region_cross`: the sine between the leg and the edge's
 //!   face side at the closest crossing, at the tube's radius.
-//! - `curve_pair_*`: where a leg meets an edge, the curve-pair reading's
-//!   own rows.
+//! - `bool_torus_region_family`: whether a circle edge is a parallel off
+//!   the top and bottom circles, which a meridian leg crosses: a choice
+//!   between two sound readings, never a verdict.
+//! - `bool_torus_region_component`: which of a plane's two curves a root
+//!   lies on, and an edge's offset from a leg's plane it is parallel to.
+//! - `plane_crossing_*`: the roots, the plane door's own rows.
 //! - `bool_torus_region_arc_*` and `bool_torus_region_spiric_*`: the
 //!   boundary readings' rows.
 //!
@@ -80,7 +88,8 @@
 //! A verdict is read only off a path whose every decision is definite;
 //! every `Zero` below abandons the path and is never read as an answer,
 //! and so does an edge on a leg's own circle. Where a leg meets an edge
-//! is the curve-pair reading's, sound under its own rows.
+//! is the plane door's root, sound under its own rows, on the curve the
+//! component reads.
 //!
 //! - **at, corner, order**: positions on circles, each an angle times the
 //!   leg's radius — arc length, the metre a root's slack is bounded in.
@@ -91,7 +100,7 @@ use geom_brep::curve_face::plane_crossing::span_place;
 use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
 
 use super::region::{
-    self, Across, End, Fault, Foot, Legs, Paths, Region, RegionEdge, RegionRefusal, Round, Section,
+    self, ReadAcross, End, Fault, QueryFoot, Legs, Paths, Region, RegionEdge, RegionRefusal, Round, LegSection,
     circle_edge_hit, in_band,
 };
 use super::solid_contain::PointInSolidError;
@@ -234,7 +243,7 @@ impl<T: Decide> TorusFaceRegion<T> {
         let rho = (x.powi(2) + y.powi(2)).sqrt();
         crate::validate::decide_positive("bool_torus_frame_radius", Margin::of(rho), band)
             .map_err(RegionRefusal::Escalated)?;
-        let foot = Foot::read(&self.surface(), p, band);
+        let foot = QueryFoot::read(&self.surface(), p, band);
         if self.on_boundary(foot.at(), band)? {
             return Ok(None);
         }
@@ -254,7 +263,7 @@ impl<T: Decide> TorusFaceRegion<T> {
 
     /// The parallel through `p`, run `forward` (the major angle
     /// increasing) or back: the tube's circle at `p`'s tube angle.
-    fn parallel(&self, p: Foot<T>, forward: bool) -> Leg<T> {
+    fn parallel(&self, p: QueryFoot<T>, forward: bool) -> Leg<T> {
         let (u, v) = (p.uv().x, p.uv().y);
         let (sin, cos) = v.sin_cos();
         let normal = if forward { self.axis } else { -self.axis };
@@ -263,7 +272,7 @@ impl<T: Decide> TorusFaceRegion<T> {
             normal,
             self.major + self.minor * cos,
             self.radial(u),
-            Section::TubeSide {
+            LegSection::TubeSide {
                 toward: geom::Azimuth::of(T::zero(), cos),
             },
         ))
@@ -271,7 +280,7 @@ impl<T: Decide> TorusFaceRegion<T> {
 
     /// The meridian through `p`, run `forward` (the minor angle
     /// increasing) or back: the tube's circle at `p`'s azimuth.
-    fn meridian(&self, p: Foot<T>, forward: bool) -> Leg<T> {
+    fn meridian(&self, p: QueryFoot<T>, forward: bool) -> Leg<T> {
         let (u, v) = (p.uv().x, p.uv().y);
         let radial = self.radial(u);
         let (sin_v, cos_v) = v.sin_cos();
@@ -283,7 +292,7 @@ impl<T: Decide> TorusFaceRegion<T> {
             normal,
             self.minor,
             radial * cos_v + self.axis * sin_v,
-            Section::HalfPlane {
+            LegSection::HalfPlane {
                 toward: geom::Azimuth::of(sin_u, cos_u),
                 opening: None,
             },
@@ -407,7 +416,7 @@ impl<T: Decide> Region<T> for TorusFaceRegion<T> {
 
 impl<T: Decide> Paths<T> for TorusFaceRegion<T> {
     /// `p`'s parallel, or its meridian.
-    fn single(&self, p: Foot<T>, parallel: bool, forward: bool, _: Band) -> Result<Leg<T>, Fault> {
+    fn single(&self, p: QueryFoot<T>, parallel: bool, forward: bool, _: Band) -> Result<Leg<T>, Fault> {
         Ok(if parallel {
             self.parallel(p, forward)
         } else {
@@ -420,7 +429,7 @@ impl<T: Decide> Paths<T> for TorusFaceRegion<T> {
     /// through the corner.
     fn aimed(
         &self,
-        p: Foot<T>,
+        p: QueryFoot<T>,
         target: Point3<T>,
         parallel_first: bool,
         first_forward: bool,
@@ -428,17 +437,17 @@ impl<T: Decide> Paths<T> for TorusFaceRegion<T> {
         band: Band,
     ) -> Result<(Round<T>, End<T>, impl FnOnce() -> Leg<T>), Fault> {
         let surface = self.surface();
-        let target = Foot::read(&surface, target, band);
+        let target = QueryFoot::read(&surface, target, band);
         let ((up, vp), (ut, vt)) = ((p.uv().x, p.uv().y), (target.uv().x, target.uv().y));
         let (first, corner) = if parallel_first {
             (
                 self.parallel(p, first_forward),
-                Foot::of_chart(&surface, geom_core::Point2::new(ut, vp)),
+                QueryFoot::of_chart(&surface, geom_core::Point2::new(ut, vp)),
             )
         } else {
             (
                 self.meridian(p, first_forward),
-                Foot::of_chart(&surface, geom_core::Point2::new(up, vt)),
+                QueryFoot::of_chart(&surface, geom_core::Point2::new(up, vt)),
             )
         };
         let end = End {
@@ -488,14 +497,14 @@ impl<T: Decide> Legs<T> for TorusFaceRegion<T> {
     /// leg reads a parallel off the top and bottom circles that way, at
     /// the tube's radius (`bool_torus_region_family`), and every other
     /// circle across its own plane, which is normal to the torus.
-    fn across(&self, leg: &Leg<T>, edge: &Edge<T>, band: Band) -> Result<Across<T>, Fault> {
+    fn across(&self, leg: &Leg<T>, edge: &Edge<T>, band: Band) -> Result<ReadAcross<T>, Fault> {
         match edge.carrier {
             geom::Curve3::Spiric {
                 center,
                 u_ref,
                 offset,
                 ..
-            } => Ok(Across::LegOverEdge {
+            } => Ok(ReadAcross::LegOverEdge {
                 on: center + u_ref * offset,
                 normal: u_ref,
             }),
@@ -504,19 +513,19 @@ impl<T: Decide> Legs<T> for TorusFaceRegion<T> {
                 radius,
             }) => {
                 let over_edge = match leg.course.section {
-                    Section::TubeSide { .. } => true,
+                    LegSection::TubeSide { .. } => true,
                     _ => matches!(
                         self.circle_family(axis, radius, band),
                         CircleFamily::Parallel
                     ),
                 };
                 Ok(if over_edge {
-                    Across::LegOverEdge {
+                    ReadAcross::LegOverEdge {
                         on: origin,
                         normal: axis,
                     }
                 } else {
-                    Across::EdgeOverLeg
+                    ReadAcross::EdgeOverLeg
                 })
             }
             _ => unreachable!("torus_face_region admits circles and spirics only"),
@@ -567,9 +576,9 @@ impl<T: Decide> Legs<T> for TorusFaceRegion<T> {
                 let w = y - center;
                 let own = match leg.course.section {
                     // A meridian leg across a parallel's plane.
-                    Section::HalfPlane { .. } => region::on_section(
+                    LegSection::HalfPlane { .. } => region::on_leg_section(
                         self,
-                        Section::TubeSide {
+                        LegSection::TubeSide {
                             toward: geom::Azimuth::of(T::zero(), radius - self.major),
                         },
                         y,
@@ -654,8 +663,8 @@ mod tests {
     }
 
     /// `p`'s foot on the region's torus, as the door reads it.
-    fn foot(region: &TorusFaceRegion<f64>, p: Point3<f64>) -> Foot<f64> {
-        Foot::read(&Legs::surface(region), p, Band::new(1e-9, 1e-8).unwrap())
+    fn foot(region: &TorusFaceRegion<f64>, p: Point3<f64>) -> QueryFoot<f64> {
+        QueryFoot::read(&Legs::surface(region), p, Band::new(1e-9, 1e-8).unwrap())
     }
 
     /// The point at chart `(u, v)`.
@@ -932,8 +941,8 @@ mod tests {
     /// read, not premised.** A spindle (`R < r`) refuses under
     /// `ring_torus_convention`, a tube that is not a length under
     /// `torus_tube_positive` before the ring is asked, and a point on the
-    /// axis under `bool_torus_frame_radius` before a leg divides by its
-    /// distance from it; the ring torus with the same band answers.
+    /// axis under `bool_torus_frame_radius`, where no foot is its own;
+    /// the ring torus with the same band answers.
     #[test]
     fn the_region_decides_the_ring_and_the_axis() {
         let b = Band::new(1e-9, 1e-8).unwrap();

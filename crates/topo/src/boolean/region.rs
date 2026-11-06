@@ -16,8 +16,8 @@
 //! rounding. Where they meet is instead a crossing of a plane: the
 //! leg's plane cuts the surface in the leg and at most one other curve,
 //! so a root of the edge against it is a meeting where it lies on the
-//! leg's own curve ([`Section`]). That holds for a leg built on the
-//! surface, and the query is read onto it first ([`Foot`]): every leg
+//! leg's own curve ([`LegSection`]). That holds for a leg built on the
+//! surface, and the query is read onto it first ([`QueryFoot`]): every leg
 //! and corner is built from the query's chart coordinates, never from a
 //! point off the surface.
 
@@ -182,12 +182,12 @@ pub(crate) type Landing<T> = (Point3<T>, T, bool);
 /// and from nothing else, so every leg lies on the surface wherever the
 /// query lies off it; the boundary pre-pass reads the same point.
 #[derive(Clone, Copy, Debug)]
-pub(crate) struct Foot<T: geom_core::Real> {
+pub(in crate::boolean) struct QueryFoot<T: geom_core::Real> {
     uv: Point2<T>,
     at: Point3<T>,
 }
 
-impl<T: Decide> Foot<T> {
+impl<T: Decide> QueryFoot<T> {
     /// `p`'s foot on `surface`, read through its chart
     /// ([`geom::Surface::chart_point`]) once.
     ///
@@ -195,7 +195,7 @@ impl<T: Decide> Foot<T> {
     ///
     /// On a surface with no closed chart inversion: every region door
     /// reads an analytic surface.
-    pub(crate) fn read(surface: &geom::Surface<T>, p: Point3<T>, band: Band) -> Self {
+    pub(in crate::boolean) fn read(surface: &geom::Surface<T>, p: Point3<T>, band: Band) -> Self {
         let Ok(chart) = surface.chart_point(p, band) else {
             unreachable!("a region door reads an analytic surface")
         };
@@ -204,7 +204,7 @@ impl<T: Decide> Foot<T> {
 
     /// The point at chart coordinates `uv` on `surface`: a corner a door
     /// sets from two feet's coordinates.
-    pub(crate) fn of_chart(surface: &geom::Surface<T>, uv: Point2<T>) -> Self {
+    pub(in crate::boolean) fn of_chart(surface: &geom::Surface<T>, uv: Point2<T>) -> Self {
         Self {
             uv,
             at: surface.eval(uv.x, uv.y),
@@ -212,12 +212,12 @@ impl<T: Decide> Foot<T> {
     }
 
     /// The chart coordinates.
-    pub(crate) fn uv(&self) -> Point2<T> {
+    pub(in crate::boolean) fn uv(&self) -> Point2<T> {
         self.uv
     }
 
     /// The point of the surface.
-    pub(crate) fn at(&self) -> Point3<T> {
+    pub(in crate::boolean) fn at(&self) -> Point3<T> {
         self.at
     }
 }
@@ -226,7 +226,7 @@ impl<T: Decide> Foot<T> {
 /// is**: what a root on that plane is read against, through the chart's
 /// channels ([`geom::ChartChannels::read`]) on the door's own row.
 #[derive(Clone, Copy, Debug)]
-pub(crate) enum Section<T: geom_core::Real> {
+pub(in crate::boolean) enum LegSection<T: geom_core::Real> {
     /// The plane cuts the surface in the leg's curve alone.
     Whole,
     /// The plane holds the axis: the leg is its curve on the half-plane
@@ -242,7 +242,7 @@ pub(crate) enum Section<T: geom_core::Real> {
 
 /// Which curve of a pair is read across the other's plane
 /// ([`Legs::across`]).
-pub(crate) enum Across<T: geom_core::Real> {
+pub(in crate::boolean) enum ReadAcross<T: geom_core::Real> {
     /// The edge across the leg's plane, in the edge's parameter.
     EdgeOverLeg,
     /// The leg across the edge's plane through `on` of unit normal
@@ -257,7 +257,7 @@ pub(crate) enum Across<T: geom_core::Real> {
 /// the plane door ([`span_plane_meet`]), the pair's orientation the
 /// door's choice ([`Legs::across`]), and each root is a meeting where it
 /// lies on both curves: on the leg's section of its plane
-/// ([`Section`]), or where the door places it on the edge. Where along
+/// ([`LegSection`]), or where the door places it on the edge. Where along
 /// the leg each landing lies is the skeleton's to read ([`Leg::place`]).
 /// An edge in the leg's plane on the leg's own curve (a shared run) is no
 /// crossing: the leg runs along it where it reaches it ([`Leg::along`]).
@@ -277,7 +277,7 @@ pub(crate) fn landings<T: Decide, D: Legs<T>>(
         match decide(D::COMPONENT, Margin::of(offset), band).map_err(in_band)? {
             Sign::Zero => {
                 let middle = edge.at(geom::mid_param(edge.t0, edge.t1));
-                if on_section(door, section, middle, band)? {
+                if on_leg_section(door, section, middle, band)? {
                     leg.along(edge, D::AT, band)?;
                 }
                 Ok(())
@@ -287,7 +287,7 @@ pub(crate) fn landings<T: Decide, D: Legs<T>>(
     };
     let mut out = Vec::new();
     match door.across(leg, edge, band)? {
-        Across::EdgeOverLeg => {
+        ReadAcross::EdgeOverLeg => {
             let (on, normal) = leg.course.plane();
             match met(
                 &edge.carrier,
@@ -301,7 +301,7 @@ pub(crate) fn landings<T: Decide, D: Legs<T>>(
                 SpanPlaneMeet::Roots(roots) => {
                     for root in roots {
                         let y = edge.at(root.t);
-                        if !on_section(door, section, y, band)? {
+                        if !on_leg_section(door, section, y, band)? {
                             continue;
                         }
                         let sideless = match root.place {
@@ -321,7 +321,7 @@ pub(crate) fn landings<T: Decide, D: Legs<T>>(
                 }
             }
         }
-        Across::LegOverEdge { on, normal } => {
+        ReadAcross::LegOverEdge { on, normal } => {
             let (params, whole) = leg.course.span(leg.end.map(|end| end.place), edge);
             let ends = if whole {
                 SpanEnds::Endless
@@ -364,7 +364,7 @@ fn met<T: Decide>(
 }
 
 /// **Whether `y`, a point of the leg's plane on the surface, lies on the
-/// leg's own curve of it** ([`Section`]): `y` read through the chart's
+/// leg's own curve of it** ([`LegSection`]): `y` read through the chart's
 /// channels, its azimuth or tube direction against the leg's on the
 /// door's row ([`Legs::COMPONENT`]), and on a cone its nappe on its
 /// height first. A cone's apex lies on every generator: a root there is
@@ -373,16 +373,16 @@ fn met<T: Decide>(
 /// # Errors
 ///
 /// A component in band sets the path aside; one at zero grazes.
-pub(crate) fn on_section<T: Decide, D: Legs<T>>(
+pub(in crate::boolean) fn on_leg_section<T: Decide, D: Legs<T>>(
     door: &D,
-    section: Section<T>,
+    section: LegSection<T>,
     y: Point3<T>,
     band: Band,
 ) -> Result<bool, Fault> {
     let (toward, opening) = match section {
-        Section::Whole => return Ok(true),
-        Section::HalfPlane { toward, opening } => (toward, opening),
-        Section::TubeSide { toward } => (toward, None),
+        LegSection::Whole => return Ok(true),
+        LegSection::HalfPlane { toward, opening } => (toward, opening),
+        LegSection::TubeSide { toward } => (toward, None),
     };
     let Ok(inverse) = geom::ChartInverse::of(&door.surface()) else {
         unreachable!("a region door reads an analytic surface")
@@ -410,7 +410,7 @@ pub(crate) fn on_section<T: Decide, D: Legs<T>>(
         }
     };
     let want = match section {
-        Section::TubeSide { .. } => geom::ChartAngle::Tube,
+        LegSection::TubeSide { .. } => geom::ChartAngle::Tube,
         _ => geom::ChartAngle::Azimuth,
     };
     let mut read = None;
@@ -648,7 +648,7 @@ pub(crate) trait Course<T: Decide> {
     fn plane(&self) -> (Point3<T>, Vec3<T>);
 
     /// Which curve of its plane's section of the surface the course is.
-    fn section(&self) -> Section<T>;
+    fn section(&self) -> LegSection<T>;
 
     /// The span of [`Course::carrier`] a leg runs from its start, and
     /// whether it is a whole turn, whose start is no end of it
@@ -769,7 +769,7 @@ pub(crate) trait Legs<T: Decide>: Region<T> {
     const SIDE: (&'static str, &'static str);
 
     /// The row a root's section of a leg's plane is read on
-    /// ([`Section`]), and an edge's offset from a plane it is parallel
+    /// ([`LegSection`]), and an edge's offset from a plane it is parallel
     /// to.
     const COMPONENT: &'static str;
 
@@ -777,7 +777,7 @@ pub(crate) trait Legs<T: Decide>: Region<T> {
     fn lever(&self) -> T;
 
     /// The surface, whose chart's channels a root's section is read
-    /// through and whose chart a query's foot is read in ([`Foot`]).
+    /// through and whose chart a query's foot is read in ([`QueryFoot`]).
     fn surface(&self) -> geom::Surface<T>;
 
     /// Which of `leg` and `edge` is read across the other's plane: the
@@ -791,12 +791,12 @@ pub(crate) trait Legs<T: Decide>: Region<T> {
         _leg: &Leg<T, Self::Course>,
         _edge: &RegionEdge<T>,
         _band: Band,
-    ) -> Result<Across<T>, Fault> {
-        Ok(Across::EdgeOverLeg)
+    ) -> Result<ReadAcross<T>, Fault> {
+        Ok(ReadAcross::EdgeOverLeg)
     }
 
     /// Where `y`, a root of `leg` across `edge`'s plane, lies on `edge`
-    /// ([`Across::LegOverEdge`]): its parameter and whether it is at an
+    /// ([`ReadAcross::LegOverEdge`]): its parameter and whether it is at an
     /// end, or `None` off the edge (on its plane's other curve, or past
     /// its span).
     ///
@@ -844,7 +844,7 @@ pub(crate) trait Paths<T: Decide>: Legs<T> {
     /// A leg the door cannot frame sets the path aside.
     fn single(
         &self,
-        p: Foot<T>,
+        p: QueryFoot<T>,
         parallel: bool,
         forward: bool,
         band: Band,
@@ -861,7 +861,7 @@ pub(crate) trait Paths<T: Decide>: Legs<T> {
     #[allow(clippy::type_complexity)] // the first course, its corner, the second leg
     fn aimed(
         &self,
-        p: Foot<T>,
+        p: QueryFoot<T>,
         target: Point3<T>,
         parallel_first: bool,
         first_forward: bool,
@@ -881,7 +881,7 @@ pub(crate) trait Paths<T: Decide>: Legs<T> {
 /// path settled, or the first in-band one's refusal.
 pub(crate) fn walk<T: Decide, D: Paths<T>>(
     door: &D,
-    p: Foot<T>,
+    p: QueryFoot<T>,
     band: Band,
 ) -> Result<bool, RegionRefusal> {
     let both = [(true, true), (true, false), (false, true), (false, false)];
@@ -908,7 +908,7 @@ pub(crate) fn walk<T: Decide, D: Paths<T>>(
 /// One path from `p`: whether `p` is in the face.
 pub(crate) fn read_path<T: Decide, D: Paths<T>>(
     door: &D,
-    p: Foot<T>,
+    p: QueryFoot<T>,
     path: Path<T>,
     band: Band,
 ) -> Result<bool, Fault> {
@@ -998,7 +998,7 @@ fn offer<T: Decide, D: Legs<T>>(
 #[derive(Clone, Copy)]
 pub(crate) struct Round<T: geom_core::Real> {
     pub(crate) circle: geom::Circle<T>,
-    pub(crate) section: Section<T>,
+    pub(in crate::boolean) section: LegSection<T>,
 }
 
 impl<T: Decide> Round<T> {
@@ -1010,7 +1010,7 @@ impl<T: Decide> Round<T> {
         normal: Vec3<T>,
         radius: T,
         e1: Vec3<T>,
-        section: Section<T>,
+        section: LegSection<T>,
     ) -> Self {
         Self {
             circle: geom::Circle::new(geom::Frame::new(center, normal, e1), radius),
@@ -1068,7 +1068,7 @@ impl<T: Decide> Course<T> for Round<T> {
         (self.circle.frame.origin, self.circle.frame.axis)
     }
 
-    fn section(&self) -> Section<T> {
+    fn section(&self) -> LegSection<T> {
         self.section
     }
 
@@ -1088,8 +1088,8 @@ impl<T: Decide> Course<T> for Round<T> {
 pub(crate) struct Line<T: geom_core::Real> {
     pub(crate) start: Point3<T>,
     pub(crate) dir: Vec3<T>,
-    pub(crate) normal: Vec3<T>,
-    pub(crate) section: Section<T>,
+    pub(in crate::boolean) normal: Vec3<T>,
+    pub(in crate::boolean) section: LegSection<T>,
 }
 
 impl<T: Decide> Course<T> for Line<T> {
@@ -1115,7 +1115,7 @@ impl<T: Decide> Course<T> for Line<T> {
         (self.start, self.normal)
     }
 
-    fn section(&self) -> Section<T> {
+    fn section(&self) -> LegSection<T> {
         self.section
     }
 
@@ -1229,7 +1229,7 @@ mod tests {
             start: Point3::origin(),
             dir: Vec3::new(1.0, 0.0, 0.0),
             normal: Vec3::new(0.0, 0.0, 1.0),
-            section: Section::Whole,
+            section: LegSection::Whole,
         }
     }
 
@@ -1246,7 +1246,7 @@ mod tests {
             Vec3::new(0.0, 0.0, 1.0),
             1.0,
             Vec3::new(1.0, 0.0, 0.0),
-            Section::Whole,
+            LegSection::Whole,
         )
     }
 

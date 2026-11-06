@@ -5,7 +5,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use super::*;
-use crate::boolean::region::Foot;
+use crate::boolean::region::QueryFoot;
 use crate::entity::EdgeKey;
 use core::f64::consts::{PI, TAU};
 use slotmap::KeyData;
@@ -481,8 +481,8 @@ fn a_cone_faces_scale_bounds_its_reach_from_the_apex() {
 }
 
 /// `p`'s foot on the region's surface, as the door reads it.
-fn foot(region: &RuledFaceRegion<f64>, p: Point3<f64>) -> Foot<f64> {
-    Foot::read(&Legs::surface(region), p, b())
+fn foot(region: &RuledFaceRegion<f64>, p: Point3<f64>) -> QueryFoot<f64> {
+    QueryFoot::read(&Legs::surface(region), p, b())
 }
 
 /// **A generator edge through the apex reaches both nappes**, read at
@@ -645,7 +645,7 @@ fn a_generator_toward_the_apex_lands_nowhere_at_it() {
 /// cone: ten times the band's escalation off along the surface normal,
 /// every lattice point clear of the boundary reads the side its foot
 /// reads, and a point off a rim is on the boundary. The legs and the
-/// boundary pre-pass read the foot (`region::Foot`), never the point.
+/// boundary pre-pass read the foot (`region::QueryFoot`), never the point.
 #[test]
 fn a_point_off_the_surface_reads_as_its_foot() {
     let off = 10.0 * b().escalate();

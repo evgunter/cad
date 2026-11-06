@@ -18,10 +18,13 @@
 //! 1. Cast a geodesic RAY from `p` along a tangent direction `t`: the
 //!    great circle `cos s·p̂ + sin s·t`, `s ∈ (0, 2π)`, in the plane
 //!    through the centre with normal `ĝ = p̂ × t`.
-//! 2. Every arc of every loop meets the ray where the curve-pair reading
-//!    says they meet ([`region::landings`], [`geom_brep::curve_pair::meet`]),
-//!    the ray read over its whole turn and the arc over its span; a
-//!    meeting within the band of an arc's end reads no side there. A
+//! 2. Every arc of every loop meets the ray where the arc crosses the
+//!    ray's plane ([`region::landings`], through the plane door): the
+//!    plane cuts the sphere in the ray's circle alone, so every root of
+//!    the arc on it is a meeting, and a root within the band of an arc's
+//!    end reads no side there. The ray starts at `p`'s foot on the
+//!    sphere ([`region::QueryFoot`]), so a `p` off the sphere reads as
+//!    its foot. A
 //!    crossing along the ray is placed by the angle swept from `p`, the
 //!    unsigned `2·atan2` of two norms ([`region::between`]), so a
 //!    crossing at `p`'s antipode — every meridian ray from a pole meets
@@ -91,8 +94,8 @@
 //!
 //! Past that, every reading is about one ray ([`crate::ray_walk`]): a
 //! closest crossing at a vertex, a tie with the closest crossing, a
-//! tangency of the ray with an arc, a meeting the curve-pair reading
-//! refuses short of the band, or an arc on the ray's own great circle
+//! tangency of the ray with an arc, a root the plane door reads in band,
+//! or an arc on the ray's own great circle
 //! that the ray reaches grazes; a direction with no tangent
 //! share, or a great circle that meets no arc (it lies wholly on one
 //! side), gives nothing to read; and the next is tried. Root counts that
@@ -118,8 +121,10 @@
 //!   leg against its corner.
 //! - `bool_sphere_region_cross`: the sine between the ray and the arc's
 //!   face side at the closest crossing, at the sphere's radius.
-//! - `curve_pair_*`: where a leg meets an arc, the curve-pair reading's
-//!   own rows.
+//! - `bool_sphere_region_component`: an arc's offset from a leg's plane
+//!   it is parallel to: on the leg's circle, or apart from it.
+//! - `plane_crossing_*`: where an arc crosses a leg's plane, the plane
+//!   door's own rows.
 //! - `bool_sphere_region_arc_span`: an arc's gap to a period. Where `p`
 //!   sits against the arc is [`ConicArc::hit`](crate::splitting::containment::ConicArc::hit), the on-carrier and span
 //!   readings' rows (`curve_carrier_*`, `curve_pair_span_*`). `bool_sphere_region_arc_straddle`
@@ -128,8 +133,8 @@
 use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
 
 use super::region::{
-    self, End, Fault, Foot, Leg, Legs, Path, Paths, Region, RegionEdge, RegionRefusal, Round,
-    Section, circle_edge_hit, targets,
+    self, End, Fault, QueryFoot, Leg, Legs, Path, Paths, Region, RegionEdge, RegionRefusal, Round,
+    LegSection, circle_edge_hit, targets,
 };
 use super::solid_contain::PointInSolidError;
 use crate::body::Body;
@@ -231,7 +236,7 @@ impl<T: Decide> SphereFaceRegion<T> {
         if self.edges.is_empty() {
             return Ok(Some(true));
         }
-        let foot = Foot::read(&self.surface(), p, band);
+        let foot = QueryFoot::read(&self.surface(), p, band);
         if self.on_boundary(foot.at(), band)? {
             return Ok(None);
         }
@@ -356,12 +361,12 @@ impl<T: Decide> SphereFaceRegion<T> {
             a.cross(t),
             self.radius,
             a,
-            Section::Whole,
+            LegSection::Whole,
         ))
     }
 
     /// The unit direction of `foot` from the centre.
-    fn unit(&self, foot: Foot<T>) -> Vec3<T> {
+    fn unit(&self, foot: QueryFoot<T>) -> Vec3<T> {
         let w = foot.at() - self.center;
         w / w.norm()
     }
@@ -381,7 +386,7 @@ enum Probe<T: geom_core::Real> {
 impl<T: Decide> Paths<T> for SphereFaceRegion<T> {
     /// The door's single legs are its rays ([`SphereFaceRegion::contains`]),
     /// read there; none is read here.
-    fn single(&self, _: Foot<T>, _: bool, _: bool, _: Band) -> Result<Leg<T, Round<T>>, Fault> {
+    fn single(&self, _: QueryFoot<T>, _: bool, _: bool, _: Band) -> Result<Leg<T, Round<T>>, Fault> {
         Err(RayFault::Unread)
     }
 
@@ -398,7 +403,7 @@ impl<T: Decide> Paths<T> for SphereFaceRegion<T> {
     /// nothing; one in band sets the path aside.
     fn aimed(
         &self,
-        p: Foot<T>,
+        p: QueryFoot<T>,
         target: Point3<T>,
         parallel_first: bool,
         first_forward: bool,
@@ -438,7 +443,7 @@ impl<T: Decide> Paths<T> for SphereFaceRegion<T> {
         // the centre, of radius `R sin θ`, starting along `side`.
         let (center, radius) = (self.center + a * (self.radius * cos), self.radius * sin);
         let normal = if then_forward { a } else { -a };
-        let then = move || Leg::whole(Round::new(center, normal, radius, side, Section::Whole));
+        let then = move || Leg::whole(Round::new(center, normal, radius, side, LegSection::Whole));
         Ok((first, end, then))
     }
 }
@@ -1252,7 +1257,7 @@ mod tests {
                                     first_forward,
                                     then_forward,
                                 };
-                                let foot = region::Foot::read(&Legs::surface(&region), p, band);
+                                let foot = region::QueryFoot::read(&Legs::surface(&region), p, band);
                                 if let Ok(got) = region::read_path(&region, foot, path, band) {
                                     settled += 1;
                                     assert_eq!(
