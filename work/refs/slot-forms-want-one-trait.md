@@ -8,6 +8,7 @@ priority: P1
 cost: M
 closed: 2026-11-06
 branch: reads/slot-forms-trait
+pr: 6569
 ---
 
 
