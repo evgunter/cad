@@ -2,7 +2,7 @@
 id: ray-wall-twins-read-f31-angle-renames-as-margins-that-must-scale
 kind: issue
 title: ray_wall_margin_twins: the F31 angle renames (period_near_mark, azimuth_near_cut_side) are sign-only reads at Band::least() whose margins do not scale with the model, and the twins' claim reads them as if they must
-status: open
+status: dispatched
 opened: 2026-11-06
 priority: P3
 cost: E
