@@ -2,7 +2,7 @@
 id: geom-brep-keeps-six-subdivision-walks-of-its-own
 kind: issue
 title: geom-brep keeps six subdivision walks with their own stacks and depth caps beside topo's one bisection core
-status: open
+status: dispatched
 opened: 2026-10-13
 priority: P3
 cost: M

@@ -505,8 +505,10 @@ fn interior_meeting<T: Decide>(
             "the meeting reading of two curved edges could not settle a count"
         }
         MeetFault::Unsupported { pose } => pose,
-        MeetFault::Desync => "the meeting reading of two curved edges misread a carrier's kind",
-        MeetFault::Contradiction { readings } => readings,
+        fault @ (MeetFault::Desync | MeetFault::Contradiction { .. }) => super::meet_fault(
+            format_args!("curved edges {:?} and {:?}", ra.edge, rb.edge),
+            fault,
+        ),
     };
     refuse(ra.edge, what, errors);
     refuse(rb.edge, what, errors);
