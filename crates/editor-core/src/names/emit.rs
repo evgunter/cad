@@ -1273,11 +1273,12 @@ pub(crate) fn to_u32(n: usize, what: &'static str) -> u32 {
 /// own output body, the members in index order. The wrapping is
 /// uniform: it wraps every name of a member, body rows included, so a
 /// name of one member is the same selector on every member but its
-/// `at`.
+/// `at`. A member with no body (`None` in `bodies`, a boolean's empty
+/// result) names nothing and keeps its place.
 pub(crate) fn name_family<T: geom_core::Real>(
     node: RecipeNodeId,
     members: &[(super::role::MemberAt, &NameTable)],
-    bodies: &[&Body<T>],
+    bodies: &[Option<&Body<T>>],
 ) -> Result<Arc<NameTable>, NamingError> {
     let mut t = NameTable::new();
     for (at_body, (at, member)) in members.iter().enumerate() {
@@ -1313,7 +1314,9 @@ pub(crate) fn name_family<T: geom_core::Real>(
         }
     }
     for (i, body) in bodies.iter().enumerate() {
-        check_total(&t, body, narrow(i, Numbered::OutputBody)?)?;
+        if let Some(body) = body {
+            check_total(&t, body, narrow(i, Numbered::OutputBody)?)?;
+        }
     }
     Ok(Arc::new(t))
 }

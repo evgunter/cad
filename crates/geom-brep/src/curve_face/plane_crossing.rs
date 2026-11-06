@@ -177,7 +177,8 @@ fn conic_plane_meet<T: Decide>(
     plane_normal: geom_core::Vec3<T>,
     band: Band,
 ) -> ConicPlaneMeet<T> {
-    let candidates = match conic_plane_candidates(conic, plane_origin, plane_normal, band) {
+    let near = geom::mid_param(t0, t1);
+    let candidates = match conic_plane_candidates(conic, plane_origin, plane_normal, near, band) {
         Ok((candidates, _)) => candidates,
         Err(meet) => return meet,
     };
@@ -187,15 +188,17 @@ fn conic_plane_meet<T: Decide>(
 
 /// **The carrier half of [`conic_plane_meet`]**: where the whole conic
 /// meets the plane, as carrier parameters (one for a graze, two for a
-/// crossing), before any span is read, and whether it is a graze. `Err`
-/// carries the answer that needs no span — parallel, a miss, or the
-/// fault a rung escalated. The belly graze is read before the parallel
-/// gate: a conic wholly on one side of the plane is a miss whatever its
-/// tilt reads, the parallel argument before the swing.
+/// crossing), before any span is read, named within half a turn of
+/// `near` or a little past it, and whether it is a graze. `Err` carries
+/// the answer that needs no span — parallel, a miss, or the fault a rung
+/// escalated. The belly graze is read before the parallel gate: a conic
+/// wholly on one side of the plane is a miss whatever its tilt reads, the
+/// parallel argument before the swing.
 fn conic_plane_candidates<T: Decide>(
     conic: &dyn geom::Conic<T>,
     plane_origin: geom_core::Point3<T>,
     plane_normal: geom_core::Vec3<T>,
+    near: T,
     band: Band,
 ) -> Result<([Option<T>; 2], bool), ConicPlaneMeet<T>> {
     let geom::Frame {
@@ -205,7 +208,7 @@ fn conic_plane_candidates<T: Decide>(
     } = *conic.frame();
     let (s_u, s_v) = conic.semi_axes();
     let v_ref = axis.cross(u_ref);
-    let d0 = (center - plane_origin).dot(plane_normal);
+    let d0 = geom::plane_offset(plane_origin, plane_normal, center);
     let a = u_ref.dot(plane_normal) * s_u;
     let b = v_ref.dot(plane_normal) * s_v;
     // powi, NEVER a*a: both amplitudes straddle zero on near-parallel
@@ -244,21 +247,11 @@ fn conic_plane_candidates<T: Decide>(
         Ok(Sign::Zero) => false,
         Err(diag) => return Err(ConicPlaneMeet::Roots(Err(ConicRootFault::BellyGraze(diag)))),
     };
-    // The sinusoid's phase, branch-stabilized (M5 S13): `atan2`'s cut
-    // sits on the negative-`a` axis, and an interval `b` that touches
-    // zero there (a revolve-built frame's honest trig slop) explodes
-    // the enclosure to a full period even though the ROOT SET —
-    // everything downstream consumes phi mod τ — is unchanged. On the
-    // definitely-negative-`a` frame the same phase is computed as
-    // `atan2(−b, −a) + π` (identical roots mod τ, cut now on the
-    // benign axis). The frame trilean is a computation choice between
-    // two mathematically identical formulas, so its degenerate and
-    // in-band arms keep the direct formula (a deterministic tie-break,
-    // D9 — near a ≈ 0 the cut is far from both).
-    let phi = match decide("plane_crossing_phase_frame", Margin::of(a), band) {
-        Ok(Sign::Negative) => (T::zero() - b).atan2(T::zero() - a) + T::pi(),
-        Ok(Sign::Positive | Sign::Zero) | Err(_) => b.atan2(a),
-    };
+    // The sinusoid's phase within half a turn of `near`, read clear of
+    // `atan2`'s cut ([`geom::Azimuth::near`]): an interval `b` touching
+    // zero on the negative-`a` axis (a revolve-built frame's honest trig
+    // slop) stays narrow rather than spanning a turn.
+    let phi = geom::Azimuth::of(b, a).near(near);
     // A graze's one root is the sinusoid's extremum nearest the plane:
     // φ with the centre below the plane (D < 0), φ + π with it above. The
     // residue's own roots lie up to √(2ε/R) radians either side, far
@@ -420,18 +413,23 @@ pub fn span_plane_meet<T: Decide>(
 ) -> Result<Option<SpanPlaneMeet<T>>, ConicRootFault> {
     let found = match (carrier.conic(), carrier) {
         (Some(conic), _) => {
-            let (candidates, graze) =
-                match conic_plane_candidates(conic, plane_origin, plane_normal, band) {
-                    Ok(found) => found,
-                    Err(ConicPlaneMeet::Parallel { offset }) => {
-                        return Ok(Some(SpanPlaneMeet::Parallel { offset }));
-                    }
-                    Err(ConicPlaneMeet::Miss) => return Ok(Some(SpanPlaneMeet::Roots(Vec::new()))),
-                    Err(ConicPlaneMeet::Roots(Err(fault))) => return Err(fault),
-                    Err(ConicPlaneMeet::Roots(Ok(_))) => {
-                        unreachable!("the carrier half answers no roots")
-                    }
-                };
+            let (candidates, graze) = match conic_plane_candidates(
+                conic,
+                plane_origin,
+                plane_normal,
+                geom::mid_param(t0, t1),
+                band,
+            ) {
+                Ok(found) => found,
+                Err(ConicPlaneMeet::Parallel { offset }) => {
+                    return Ok(Some(SpanPlaneMeet::Parallel { offset }));
+                }
+                Err(ConicPlaneMeet::Miss) => return Ok(Some(SpanPlaneMeet::Roots(Vec::new()))),
+                Err(ConicPlaneMeet::Roots(Err(fault))) => return Err(fault),
+                Err(ConicPlaneMeet::Roots(Ok(_))) => {
+                    unreachable!("the carrier half answers no roots")
+                }
+            };
             let (s_u, s_v) = conic.semi_axes();
             let meter = conic_meter(s_u, s_v);
             let mut roots = Vec::with_capacity(2);
@@ -455,7 +453,7 @@ pub fn span_plane_meet<T: Decide>(
         }
         (None, geom::Curve3::Line(line)) => {
             let slope = line.dir.dot(plane_normal);
-            let d0 = (line.origin - plane_origin).dot(plane_normal);
+            let d0 = geom::plane_offset(plane_origin, plane_normal, line.origin);
             match decide(
                 "plane_crossing_line_parallel",
                 Margin::of(slope * (t1 - t0)),

@@ -2,8 +2,10 @@
 id: harmonic-phases-pick-their-cut-side-by-hand
 kind: issue
 title: Three harmonic phases read clear of atan2's cut by a hand-written two-formula choice, one of them logged
-status: dispatched
+status: closed
 opened: 2026-11-03
+closed: 2026-11-06
+pr: 6559
 ---
 
 

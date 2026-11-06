@@ -1941,7 +1941,7 @@ fn certify_plane<T: Decide>(
     if decide("point_in_loop_normal", unit, band).map_err(escalate)? != Sign::Zero {
         return Err(off_plane(OffPlaneCause::NormalNotUnit));
     }
-    let off = |p: Point3<T>| Margin::of((p - origin).dot(normal));
+    let off = |p: Point3<T>| Margin::of(geom::plane_offset(origin, normal, p));
     let tilt = |axis: Vec3<T>, arm: Lever<T>| Margin::levered(axis.cross(normal).norm(), arm);
     // A conic's whole carrier, read from its centre.
     for step in &steps {

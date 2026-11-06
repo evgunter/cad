@@ -2061,7 +2061,7 @@ fn point_in_faces<T: Decide + crate::props::AtRestPolicy>(
                 // Orientation-free: a residual compared against Zero
                 // answers the same whichever way the normal points,
                 // and `point_in_face` below is ray parity (ditto).
-                let elev = (q - origin).dot(normal);
+                let elev = geom::plane_offset(origin, normal, q);
                 match decide("bool_point_in_solid_plane", Margin::of(elev), band) {
                     // In-plane: ON the boundary iff within the face
                     // region (a loop-boundary graze is also ON).
@@ -4359,7 +4359,7 @@ pub(crate) fn ray_crossings<T: Decide>(
             // outside the face, so a miss is asked, not assumed: q
             // definitely off the plane, or the face definitely to one
             // side of the ray.
-            let clear = clear_of_carrier((q - origin).dot(normal), face, band, rows);
+            let clear = clear_of_carrier(geom::plane_offset(origin, normal, q), face, band, rows);
             if matches!(clear, Ok(true)) || ray_passes_beside(body, face, q, d, normal, band, rows)?
             {
                 continue;

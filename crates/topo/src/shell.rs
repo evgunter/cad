@@ -4455,7 +4455,7 @@ fn wall_clearance<T: Decide>(
             // offsets close that separation by `t·(1 − n_a·n_b) ≤ 2t`, so
             // a wall of at least `2t` everywhere keeps them apart. Read in either window, so a tilted pair the cosine
             // admits is not measured as parallel.
-            let gap = (b.origin - a.origin).dot(a.normal).abs();
+            let gap = geom::plane_offset(a.origin, a.normal, b.origin).abs();
             match decide(
                 "shell_wall_clearance",
                 Margin::of(gap - drift - two_t),
@@ -5231,7 +5231,7 @@ impl<T: Decide> MovedWall<T> {
                     let along = line.param(c);
                     // The offset off `L` as a vector, not `|w|² − along²`,
                     // which cancels to noise when a small ball sits close.
-                    let perp = (c - line.foot(c)).norm();
+                    let perp = line.offset(c).norm();
                     // Undecided reaches: the read only grows the set.
                     if !matches!(
                         decide("shell_moved_wall_ball_reach", Margin::of(rho - perp), band),

@@ -3020,8 +3020,7 @@ fn strip_clearance<T: Decide + Bounds>(
             .ok_or_else(|| unresolved(EntityId::Vertex(chord.to), "a station's point"))?;
         let [x, y] = chord.feet;
         let d = (t - o).normalize();
-        let off = x - o;
-        let m = (off - d * off.dot(d)).normalize();
+        let m = geom::Line { origin: o, dir: d }.offset(x).normalize();
         let corners = [o, t, x, y];
         let along = |u: Vec3<T>| {
             corners

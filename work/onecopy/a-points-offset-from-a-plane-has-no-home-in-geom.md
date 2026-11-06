@@ -2,8 +2,11 @@
 id: a-points-offset-from-a-plane-has-no-home-in-geom
 kind: issue
 title: A point's signed offset from a plane is homed in geom-brep's sector_shape and re-spelled inline across topo
-status: open
+status: closed
 opened: 2026-11-06
+branch: onecopy/feet-and-params
+closed: 2026-11-06
+pr: 6562
 ---
 
 
