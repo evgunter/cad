@@ -447,8 +447,9 @@ pub struct Disagree<A> {
 
 /// **The ladder that reads every rung and checks its answers agree**:
 /// [`Answering::Any`]'s premise, every answering rung gives one answer,
-/// read rather than assumed. Every rung is read (an abort still stops
-/// it); where every answer agrees, that answer, with the readings kept
+/// read rather than assumed: `agree` says whether two answers are one.
+/// Every rung is read (an abort still stops it); where every answer
+/// agrees, that answer, with the readings kept
 /// beside it spliced superseded, since none could have given another;
 /// where none answers, the kept readings ranked ([`Evidence`]) or
 /// [`Climb::Passed`].
@@ -458,9 +459,10 @@ pub struct Disagree<A> {
 /// [`Disagree`] where two answers differ: two readings that contradict,
 /// a refusal of the whole query, which the caller maps to its own abort.
 /// Every run read is spliced live.
-pub fn climb_agreeing<I, A: PartialEq, E>(
+pub fn climb_agreeing<I, A, E>(
     rungs: impl IntoIterator<Item = I>,
     mut read: impl FnMut(I) -> Rung<A, E>,
+    agree: impl Fn(&A, &A) -> bool,
 ) -> Result<Climb<A, E>, Disagree<A>> {
     let mut held = Held::default();
     let mut first: Option<(usize, A)> = None;
@@ -475,7 +477,7 @@ pub fn climb_agreeing<I, A: PartialEq, E>(
         }
         match first {
             None => first = Some((at, answer)),
-            Some((_, ref seen)) if *seen == answer => {}
+            Some((_, ref seen)) if agree(seen, &answer) => {}
             Some((_, seen)) => {
                 held.splice_all(false);
                 return Err(Disagree {
@@ -500,7 +502,7 @@ pub fn climb_agreeing<I, A: PartialEq, E>(
 /// **[`climb`] under [`Answering::Any`], its premise checked in debug
 /// builds**: the outcome and the record are [`climb`]'s, which stops at
 /// the first answer; a debug build then reads every rung after it, its
-/// recording discarded, and asserts each answer equals the first
+/// recording discarded, and asserts each answer `agree`s with the first
 /// ([`climb_agreeing`]'s check, kept off the record). An `Any` ladder
 /// whose answers can differ is a defect of its caller's premise.
 ///
@@ -508,9 +510,10 @@ pub fn climb_agreeing<I, A: PartialEq, E>(
 ///
 /// In a debug build, where a later rung answers differently from the
 /// first.
-pub fn climb_any<I, A: PartialEq + core::fmt::Debug, E>(
+pub fn climb_any<I, A: core::fmt::Debug, E>(
     rungs: impl IntoIterator<Item = I>,
     mut read: impl FnMut(I) -> Rung<A, E>,
+    agree: impl Fn(&A, &A) -> bool,
 ) -> Climb<A, E> {
     let mut rungs = rungs.into_iter();
     let mut aborted = false;
@@ -527,14 +530,14 @@ pub fn climb_any<I, A: PartialEq + core::fmt::Debug, E>(
             let (got, _discarded) = detached(|| read(rung));
             if let Rung::Answers(other) = got {
                 assert!(
-                    other == *answer,
+                    agree(answer, &other),
                     "an Any ladder's answers differ: {answer:?} then {other:?}"
                 );
             }
         }
     }
     #[cfg(not(debug_assertions))]
-    let _ = (rungs, aborted);
+    let _ = (rungs, aborted, agree);
     climbed
 }
 
@@ -834,7 +837,8 @@ mod tests {
                     Rung::Passes,
                     Rung::Answers("in")
                 ],
-                rung
+                rung,
+                PartialEq::eq
             ),
             Ok(Climb::Answered {
                 at: 1,
@@ -849,7 +853,8 @@ mod tests {
                     Rung::InBand("kept"),
                     Rung::Answers("out")
                 ],
-                rung
+                rung,
+                PartialEq::eq
             ),
             Err(Disagree {
                 first: "in",
@@ -864,7 +869,8 @@ mod tests {
                     Rung::Aborts("corrupt"),
                     Rung::Answers("out")
                 ],
-                rung
+                rung,
+                PartialEq::eq
             ),
             Ok(Climb::Answered {
                 at: 1,
@@ -879,7 +885,8 @@ mod tests {
                     Rung::Blocked("limit"),
                     Rung::Passes
                 ],
-                rung
+                rung,
+                PartialEq::eq
             ),
             Ok(Climb::Undecided("limit")),
             "with no answer, the kept readings rank"
@@ -895,6 +902,7 @@ mod tests {
                         |d| (d.sign == Sign::Zero).then_some(true),
                     )
                 },
+                PartialEq::eq,
             )
         });
         assert!(
@@ -918,6 +926,7 @@ mod tests {
         let _ = super::climb_any(
             [Rung::<_, ()>::Answers(1), Rung::Passes, Rung::Answers(2)],
             |r| r,
+            PartialEq::eq,
         );
     }
 
@@ -932,12 +941,17 @@ mod tests {
                     Rung::Answers(1),
                     Rung::Answers(1)
                 ],
-                |r| r
+                |r| r,
+                PartialEq::eq
             ),
             Climb::Answered { at: 1, answer: 1 }
         );
         assert_eq!(
-            super::climb_any([Rung::<_, ()>::Aborts(9), Rung::Answers(2)], |r| r),
+            super::climb_any(
+                [Rung::<_, ()>::Aborts(9), Rung::Answers(2)],
+                |r| r,
+                PartialEq::eq
+            ),
             Climb::Answered { at: 0, answer: 9 },
             "an abort is not compared with what follows it"
         );
