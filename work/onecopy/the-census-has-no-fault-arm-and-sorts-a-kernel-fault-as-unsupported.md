@@ -28,7 +28,7 @@ So one thing has two readings. Give the census a fault vocabulary, or decide tha
 - `line_unread`'s `BoundaryRefusal::Fault`;
 - the census's other meeting-fault folds (`edge_crossings`, `curved.rs`, `InteriorsUnread::of`; splitdoor's two rows).
 
-The following now go through the same door, so every state of the body the census meets goes through one door, with one stale-key text (`STALE_KEY`). That includes the census's other stale-key reads (`ChartGroups::within`'s curved face, `shared_segments`' line edge off its point keys, the overlap's and the curved arm's edge reads). The census's own code invariants keep their inline `unreachable!`, and the door's doc names them:
+The following now go through the same door, so every state of the body the census meets goes through one door, with a stale key stating `live`'s one premise, `NAMES_ONLY_LIVE`. That includes the census's other stale-key reads (`ChartGroups::within`'s curved face, `shared_segments`' line edge off its point keys, the overlap's and the curved arm's edge reads). The census's own code invariants keep their inline `unreachable!`, and the door's doc names them:
 - `FaceUnread::Uncertified`, with tier 2's reason;
 - `read_containment`'s `StaleFace`, which panicked before through the boolean's `driver_face_stale`;
 - `boundary_crossings`' own stale face, which was typed `CensusUnsupported`. The tests `a_boundary_fault_on_a_census_pair_panics`, `an_uncertified_boundary_on_a_census_pair_panics`, `a_stale_face_at_a_census_containment_read_panics` and `a_meetings_{desync,contradiction}_in_the_census_panics` pin them. The op's typed `ClassificationInvariant` for the same states is evidence on `work/cleavetail/classification-invariant-family-types-bug-only-states-against-d9-row-4.md`.
