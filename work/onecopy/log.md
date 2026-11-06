@@ -365,3 +365,15 @@
 - 2026-11-06 — Tranche-4 rulings:
   - **TouchUnread:** `Unreadable` and `OffInterior` abort, `Unanalysed` is a limit, `Exhausted` is Unsettled; each standing is written beside its variant.
   - **OverlapRefusal:** as proposed, plus a principle: a payload read by several doors (`MeetFault`, `BooleanError`, `NormalAtError`) carries its standing on its own type, and wrappers delegate. `MeetFault` gets one, which also bears on census's misfiling. `Unread{what}`'s string cases get a P3 row to type them.
+
+- 2026-11-06 — PR 6491 FULL review: FIX FIRST, mostly records.
+  - **The code checks out:** the oracle found 0 wrong over about 3.7M paths (ruled, sphere, torus) and 12,800 torus landings, and cost is main's.
+  - **Records:** the row on the PR branch lacked my 2026-11-06 Decided section and the co-surface row, which were written only on the state branch.
+  - **Real code findings:**
+    - M3/M4: the torus reads the tube side in m² for a meridian across a parallel's plane, so a parallel within about 1e-4 of the top circle always grazes;
+    - M5: the ruled door checks on-axis after the foot;
+    - S1: the span read is spelled twice in `plane_crossing.rs`;
+    - S2: miss-first is a knob giving two orders in one door;
+    - S5: QueryFoot-only is prose.
+  Fix pass sent; it outranks the seams red.
+  Lesson: a decision written on the state branch must be carried onto the PR branch's row by the lane's brief, or the reviewer reads a PR whose own row contradicts it.
