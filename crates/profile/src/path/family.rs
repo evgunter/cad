@@ -222,13 +222,7 @@ pub(super) fn open_arc_from_tip<T: ArcCarrierScalar>(
 /// verb and read at every resolution site.
 fn merge_of<T: Real>(pending: &verbs::Pending<T>, meta: &PendingMeta<T>) -> bool {
     match pending {
-        verbs::Pending::Ray(_) => {
-            meta.by_tangent == ByTangent::Forward
-                && meta
-                    .origin_incoming
-                    .as_ref()
-                    .is_some_and(|i| i.carrier.is_none())
-        }
+        verbs::Pending::Ray(_) => meta.extends_straight_leg(),
         verbs::Pending::Arc(_) => meta.extends_carrier,
     }
 }

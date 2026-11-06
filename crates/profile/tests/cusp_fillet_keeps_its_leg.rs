@@ -12,10 +12,15 @@
 //! a collinear spike and validation refuses it as an overlap, as it
 //! refuses `.cusp().line(..)`; at an exact incoming fit there is no run,
 //! the arc springs off the leg's end and the cusp validates.
+//!
+//! Two rows are parity rows rather than emission rows: the exact fit
+//! (`cusp_then_fillet_at_an_exact_fit_validates_its_cusp`, the cusp
+//! validates where no run is emitted) and `cusp_then_line_is_the_same_spike`
+//! (the verdict `.cusp().line(..)` already gets).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Point2, Tol};
+use geom_core::{Interval, Point2, Tol};
 use profile::{
     ArcSweep, Center, ClosedLoop, ConstructedProfile, ContactKind, PathError, ProfileError,
     Segment, SegmentRef, SketchPlane, Start, ValidatedProfile, replay_recording,
@@ -162,8 +167,127 @@ fn cusp_then_fillet_behind_the_leg_start_does_not_reverse_the_leg() {
             (-1.0, 2.0),
         ],
     );
+    assert_eq!(kinds(&c), ["line", "line", "arc", "line", "line"]);
     assert_eq!(c.loop_.constructed_joints(), &[1, 2, 3]);
+    assert_replays(&c);
     assert_spike(&c);
+}
+
+/// Corner (-0.5, 0), so t1 is the start vertex itself: the run ends on
+/// (0, 0) and the loop is the same spike. (The leg merge used to end
+/// the leg on the start, a zero-margin `SeamTangent` refusal.)
+#[test]
+fn cusp_then_fillet_with_t1_at_the_start_is_the_spike() {
+    let c = build(Before::Cusp, -0.5).expect("builds");
+    assert_vertices(
+        &c,
+        &[(0.0, 0.0), (2.0, 0.0), (0.0, 0.0), (-0.5, 0.5), (-0.5, 2.0)],
+    );
+    assert_eq!(kinds(&c), ["line", "line", "arc", "line", "line"]);
+    assert_eq!(c.loop_.constructed_joints(), &[1, 2, 3]);
+    assert_replays(&c);
+    assert_spike(&c);
+}
+
+/// The Interval lane lowers the reversed run the same way: the same
+/// segment count and constructed joints, and the same overlap verdict.
+#[test]
+fn cusp_then_fillet_on_the_interval_lane() {
+    for x in [1.0, -1.0] {
+        let c = build(Before::Cusp, x).expect("builds");
+        let iv = crate::common::try_replay_at::<Interval>(&c.program).expect("replays at Interval");
+        assert_eq!(iv.as_loop().vertices().len(), 5, "x = {x}");
+        assert_eq!(
+            iv.constructed_joints(),
+            c.loop_.constructed_joints(),
+            "x = {x}"
+        );
+        let sref = |segment_index| SegmentRef {
+            loop_index: 0,
+            segment_index,
+        };
+        assert_eq!(
+            ConstructedProfile::new(SketchPlane::xy(), vec![iv])
+                .validate(crate::common::tol())
+                .expect_err("the spike is not simple at Interval either"),
+            ProfileError::NonSimple {
+                first: sref(0),
+                second: sref(1),
+                kind: ContactKind::Overlap,
+            },
+            "x = {x}"
+        );
+    }
+}
+
+/// The `.at` binder resolves the same pending ray: binding the arrival's
+/// anchor at (1, 1) on the line x = 1 keeps the leg's end (2, 0) and
+/// emits the run to t1 = (1.5, 0).
+#[test]
+fn cusp_then_fillet_resolved_by_at_keeps_the_leg_end() {
+    let t = Tol::witness();
+    let c = profile::Open
+        .at(Point2::new(0.0, 0.0))
+        .angle(0.0, t)
+        .and_then(|x| x.line(2.0, t))
+        .and_then(|x| x.cusp().fillet(0.5, t))
+        .and_then(|x| x.toward(0.0, 1.0, t))
+        .and_then(|x| x.at(Point2::new(1.0, 1.0), t))
+        .and_then(|x| x.line(1.0, t))
+        .and_then(|x| x.line_to(Start, t))
+        .expect("builds");
+    assert_vertices(
+        &c,
+        &[(0.0, 0.0), (2.0, 0.0), (1.5, 0.0), (1.0, 0.5), (1.0, 2.0)],
+    );
+    assert_eq!(kinds(&c), ["line", "line", "arc", "line", "line"]);
+    assert_eq!(c.loop_.constructed_joints(), &[1, 2, 3]);
+    assert_replays(&c);
+    assert_spike(&c);
+}
+
+/// A seam close: the cusp at (4, 3) sends the ray back down the leg from
+/// (2, 2), to meet the start's carrier y = 0 behind the start. The leg
+/// keeps its end (4, 3), with the cusp declared there as joint 3; the
+/// run back passes through (2, 2), which validation refuses as a touch.
+#[test]
+fn cusp_then_fillet_closing_at_the_seam_keeps_the_leg_end() {
+    let t = Tol::witness();
+    let c = profile::Open
+        .at(Point2::new(0.0, 0.0))
+        .angle(0.0, t)
+        .and_then(|x| x.line(2.0, t))
+        .and_then(|x| x.line_to(Point2::new(2.0, 2.0), t))
+        .and_then(|x| x.line_to(Point2::new(4.0, 3.0), t))
+        .and_then(|x| x.cusp().fillet(0.3, t))
+        .and_then(|x| x.to(Start, t))
+        .expect("builds");
+    let vs = c.loop_.as_loop().vertices();
+    assert_eq!(vs.len(), 5, "{vs:?}");
+    assert_eq!(
+        bits(&vs[1..4]),
+        bits(&[
+            Point2::new(2.0, 0.0),
+            Point2::new(2.0, 2.0),
+            Point2::new(4.0, 3.0)
+        ]),
+        "{vs:?}"
+    );
+    assert_eq!(kinds(&c), ["line", "line", "line", "line", "arc"]);
+    assert_eq!(c.loop_.constructed_joints(), &[0, 3, 4]);
+    assert_replays(&c);
+    let sref = |segment_index| SegmentRef {
+        loop_index: 0,
+        segment_index,
+    };
+    assert_eq!(
+        validated(&c).expect_err("the run back touches the chain at (2, 2)"),
+        ProfileError::NonSimple {
+            first: sref(1),
+            second: sref(3),
+            kind: ContactKind::Touch,
+        }
+    );
 }
 
 /// An exact incoming fit (corner (1.5, 0), t1 = the leg's end) emits no
@@ -174,6 +298,7 @@ fn cusp_then_fillet_at_an_exact_fit_validates_its_cusp() {
     let c = build(Before::Cusp, 1.5).expect("builds");
     assert_vertices(&c, &[(0.0, 0.0), (2.0, 0.0), (1.5, 0.5), (1.5, 2.0)]);
     assert_eq!(kinds(&c), ["line", "arc", "line", "line"]);
+    assert_eq!(c.loop_.constructed_joints(), &[1, 2]);
     assert_replays(&c);
     let v = validated(&c).expect("validates");
     let l = &v.loops()[0];
