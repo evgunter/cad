@@ -774,7 +774,7 @@ pub(super) fn orbit_corners<T: Decide>(
                     "{operand:?}'s vertex {vertex:?} has the null edge {:?} in its orbit: a \
                      gated operand holds none, and the boolean reads a vertex's sectors once, \
                      before it hangs one there (`vtxfac::pierced_and_paired` refuses a \
-                     vertex that pierces two faces, and `classify_vertex_on_face` one that \
+                     vertex that pierces two faces, and `read_vertex_on_face` one that \
                      crosses a face it also pairs on)",
                     he_data.edge
                 )

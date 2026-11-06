@@ -555,6 +555,13 @@ impl<E> Evidence<E> {
         }
     }
 
+    /// Whether nothing was kept: [`Self::ranked`] reads
+    /// [`Ranked::Neither`].
+    #[must_use]
+    pub const fn is_empty(&self) -> bool {
+        self.blocked.is_none() && self.in_band.is_none() && self.unsettled.is_none()
+    }
+
     /// Whether a limit was kept: [`Self::ranked`] reads
     /// [`Ranked::Blocked`].
     #[must_use]
