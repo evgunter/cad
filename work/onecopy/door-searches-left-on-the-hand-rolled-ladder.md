@@ -83,12 +83,11 @@ What a consumer EXEMPTS is the consumer's rule: tier 3 exempts a pole an
 unsettled edge or an unread walk meets, and the import pass refuses
 both. Whether a reading is a LIMIT is a property of where the reading is
 minted, so it lives on each type, beside its variants, in one
-classification, `ladder::Refusal`:
-- `Unread::refusal`;
-- `PointInLoopError::refusal`;
-- `PointInSolidError::refusal`;
-- `ContainError::refusal`;
-- `census::InteriorsUnread::kept` (a `Kept`: it neither aborts nor is unsettled).
+classification, `ladder::Refusal` (`Result<Refusal, Aborts>` for a type
+that can abort; `ladder`'s module docs):
+- `Unread::refusal` and `census::InteriorsUnread::refusal` (`Refusal`);
+- `PointInLoopError::refusal`, `PointInSolidError::refusal` and
+  `ContainError::refusal` (`Result<Refusal, Aborts>`).
 
 `census`'s fold of `MeetFault::Unsettled` into `InteriorsUnread::Unbuilt`
 is a consumer-side rank of that kind, filed as
