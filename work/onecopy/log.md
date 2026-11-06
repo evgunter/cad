@@ -499,3 +499,4 @@
 - 2026-11-06 — Gave the 6491 lane (`session_013mPGJ4BHWTqt3QU2NKLLBa`) the co-surface home: an `OnSurface` type and a curve_pair co-surface arm read by the region doors and `apply_cut_ins`, with the C5 sentence as an `[ev]` PR, possibly split from the refactor.
 
 - 2026-11-06 — PR 6540 merged as `1613027896`. The true-base re-run confirmed the 9 slow reds are main's. Only an audit doc overlapped main's moves; the merge compiled and every gate passed. Dispatched the geom-Line small-reads bundle (7 rows, including the plane-offset home) to the feet-and-params lane.
+- 2026-11-06 — Ruled the plane-offset fork: not a new `geom::Plane {origin, normal}`, since the placement decision reserves `Plane { frame }` for stage 3 and leaves the seamless-plane type to it. (b) instead: one home for the offset formula, `Frame::height` where a frame is held, and the loose holders listed for stage 3. Lesson: check a row's sibling decisions before ruling a new type name.
