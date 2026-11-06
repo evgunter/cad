@@ -1104,8 +1104,8 @@ fn arc_rim_on_wall_boundary(
     {
         return Err(ArcRimRefusal::Residual(f64::INFINITY));
     }
-    let a_hat = axis / axis_norm;
-    let u_hat = u_ref / u_ref_norm;
+    let a_hat = axis.normalize();
+    let u_hat = u_ref.normalize();
     let v_hat = a_hat.cross(u_hat);
     let tau = core::f64::consts::TAU;
     // The angular slack: the ambient band through the lever arm.
@@ -1248,7 +1248,7 @@ fn line_frame(origin: Point3<f64>, dir: geom_core::Vec3<f64>) -> Option<Affine3<
     if !(norm.is_finite() && norm > 0.0) {
         return None;
     }
-    let y = perpendicular / norm;
+    let y = perpendicular.normalize();
     let z = dir.cross(y);
     Some(Affine3::from_parts(
         geom_core::Mat3::from_cols(dir, y, z),

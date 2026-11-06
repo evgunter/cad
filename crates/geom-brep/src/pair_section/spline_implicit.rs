@@ -358,7 +358,7 @@ impl<T: Decide> SplineImplicitPose<T> {
         let Surface::Plane { origin, normal, .. } = self.partner else {
             unreachable!("the pose holds a plane")
         };
-        (p - origin).dot(normal / normal.norm())
+        (p - origin).dot(normal.normalize())
     }
 }
 
@@ -385,7 +385,7 @@ impl SplineImplicitPose<f64> {
         // verdict stops moving with the pivot's last bit
         // (`a-corner-touch-verdict-moves-with-the-planes-stored-origin`);
         // then it is `Frame::foot`.
-        let n = normal / normal.norm();
+        let n = normal.normalize();
         let c = self.ball().center();
         let foot = c - n * (c - origin).dot(n);
         let (a, o, m) = (

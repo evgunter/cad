@@ -1424,7 +1424,7 @@ fn conic_or_line_on<T: Decide>(
             },
             &geom::Surface::Plane { origin, normal, .. },
         ) => {
-            let (n, u) = (normal / normal.norm(), u_ref / u_ref.norm());
+            let (n, u) = (normal.normalize(), u_ref.normalize());
             let refused = |diag| {
                 BooleanError::coincidence(Coincide::EdgeOnPlane, DeclarationRead::Moot, diag)
             };

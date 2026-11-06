@@ -292,9 +292,9 @@ fn composite_rows<T: Real>(
     // axis, which the radial terms read; the stored twin is orthonormal
     // only to its rounding.
     let [u_ref, _, axis] = frame.map(vector);
-    let e2 = axis / axis.norm();
+    let e2 = axis.normalize();
     let radial = u_ref - e2 * u_ref.dot(e2);
-    let e0 = radial / radial.norm();
+    let e0 = radial.normalize();
     let e = [e0, e2.cross(e0), e2];
     if !e
         .iter()

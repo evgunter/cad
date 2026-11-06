@@ -663,7 +663,7 @@ pub fn trace_marks(
                 let with = tangent(face, hit.outward, TraceSense::With);
                 out.marks.push(TraceMark {
                     at: Point2::new(at.x, at.y),
-                    tangent: with / with.norm(),
+                    tangent: with.normalize(),
                 });
             }
         }

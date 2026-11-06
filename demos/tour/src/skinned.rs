@@ -452,7 +452,7 @@ fn tip_axis(body: &pncad::topo::Body<f64>) -> Vec3<f64> {
         for q in &ps[i + 1..] {
             let d = *p - *q;
             if d.norm() > best.0 {
-                best = (d.norm(), d / d.norm());
+                best = (d.norm(), d.normalize());
             }
         }
     }

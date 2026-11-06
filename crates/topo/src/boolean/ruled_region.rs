@@ -613,7 +613,7 @@ impl<T: Decide> RuledFaceRegion<T> {
         Line::from(
             start,
             dir,
-            normal / normal.norm(),
+            normal.normalize(),
             LegSection::HalfPlane {
                 toward: geom::Azimuth::of(sin, cos),
                 opening,
@@ -635,7 +635,7 @@ impl<T: Decide> RuledFaceRegion<T> {
         let g = target.at() - apex;
         Ok(Leg::whole(LegShape::Ruling(self.line(
             start,
-            g / g.norm(),
+            g.normalize(),
             opening,
         ))))
     }
