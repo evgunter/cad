@@ -455,3 +455,9 @@
   - false claims corrected (all six ops stop at the wall, and tang was red before `6adc5fdd` too);
   - a row for the 1e-12 work wall.
   Lesson: a verdict that admits a weaker reading needs its own ceiling, or it becomes a pass-through.
+
+- 2026-11-06 — The spline-walks next unit is done locally.
+  - D9 reads "Every traversal is bounded: never a hang", which permits named budgets, so `Budget` and `bisect_within` go ahead. Five walks are ported, walk 7 included as accepted, and the window's literal copy of bisect is retired.
+  - 8 more walks are filed.
+  - The foot search at N=4 moves the spline suites 41.7 s → 42.1 s; one row goes 0.34 → 0.57 s, under the 1 s bar.
+  It waits on 6548's fix pass and merge.
