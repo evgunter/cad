@@ -463,3 +463,4 @@
   It waits on 6548's fix pass and merge.
 - 2026-11-06 — The 6541 fix pass is at `a898acea`: the coplanar change is fully reverted to main, NOTE-2 is pinned, and the ci set is 8606/8606 at both ε. Delta review sent to `session_013mPGJ3HVYqYAoquA4iThSZ`, ahead of its 6552 review.
 - 2026-11-06 — The topo-handles next unit is done locally: the loop doors take resolved loops through `Body::loop_cycle_linked` and `proven_loop`; all 24 value-discard arms are disposed, with one fix (`cusp`) and one new row (`ray_crossings` graze); and escalation-discards counts value discards. It waits on 6552.
+- 2026-11-06 — Ladder tranche 4 opened PR 6553 at `d212dfe8`: standings on seven types as ruled, six ports each pinned red under main's rule, the new gate `escalation-question-marks.sh` (32-site register), and the ci set 5724/5724 at both ε. FULL review sent to `session_013mPGJ5U1sALaLAPBzTAy6S`.
