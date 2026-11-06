@@ -10243,7 +10243,7 @@ fn certified_carrier<T: Real>(body: &Body<T>, edge: EdgeKey) -> Option<&geom_bre
 /// `Ellipse` and `Nurbs`.
 fn locus_gap<T: Real>(carrier: &geom::Curve3<T>, p: geom_core::Point3<T>) -> Option<T> {
     match carrier {
-        geom::Curve3::Line(line) => Some(line.offset(p).norm()),
+        geom::Curve3::Line(line) => Some(line.distance(p)),
         // The distance from a point to a full circle: the in-plane
         // radial defect and the out-of-plane offset, in quadrature.
         geom::Curve3::Circle(geom::Circle {

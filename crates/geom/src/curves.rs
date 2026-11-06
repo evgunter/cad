@@ -601,9 +601,9 @@ pub enum CurveData<'a, T: Real> {
 /// `dir` is unit by the carriers' convention. The parameter readings
 /// ([`Self::param`], [`Self::foot`], [`Self::offset`] and their kin)
 /// divide by `|dir|²`, so they hold for any nonzero `dir`, a chord `b − a`
-/// among them. The metric readings of an axis ([`Self::height`],
-/// [`Self::distance`]) read `dir` as unit by contract, which is what
-/// makes them the tight ones at `Interval`. **`dir` must be
+/// among them. The metric readings of a point against an axis
+/// ([`Self::height`], [`Self::distance`]) divide by `|dir|`, in metres
+/// for any nonzero `dir`. **`dir` must be
 /// nonzero**: on a zero `dir` the parameter readings divide `0/0`. Nothing
 /// here decides it;
 /// at rest, `topo`'s tier-3 check 1 refuses a zero direction on every
@@ -681,66 +681,57 @@ impl<T: Real> Line<T> {
         self.param_and_offset(p).1
     }
 
-    /// **`p`'s distance from the line**, reading `dir` as unit:
-    /// `|(p − origin) × dir|`. The metric reading of an axis, beside
-    /// [`Self::height`].
+    /// **`p`'s distance from the line**: `|(p − origin) × dir| / |dir|`,
+    /// correct for any nonzero `dir`. The metric reading of a point
+    /// against an axis, beside [`Self::height`]; a reader of the distance
+    /// alone reads this rather than [`Self::offset`]'s norm.
     ///
-    /// **A unit `dir` is this reading's contract**, not its convenience:
-    /// on a non-unit `dir` it answers a wrong number, not a wide one. A
-    /// debug build checks it ([`Self::unit_contract`]); a caller whose
-    /// `dir` is not unit (a chord `b − a`) reads [`Self::offset`]'s norm,
-    /// which divides by `|dir|²`.
+    /// Its width at `Interval`, against the other spellings (mean widths
+    /// over 2000 random tilted axes normalized at `Interval`, origins to
+    /// ±500 m): tight where the point carries width, since the cross
+    /// product names `w = p − origin` once per component; about twice a
+    /// unit read's where only the axis does, since it divides by `|dir|`.
+    /// The unit read (`|w × dir|` alone) is no option here: a stored
+    /// carrier axis is unit only to the convention's ~1e-10 in `|dir|²`,
+    /// and a unit read of one is wrong by more than the band.
     ///
-    /// Read this rather than `offset(p).norm()` where the axis is unit:
-    /// it is the tightest of the four spellings in every regime measured
-    /// (mean `Interval` widths over 2000 random tilted axes normalized at
-    /// `Interval`, origins to ±500 m):
-    ///
-    /// | point | axis | this | `\|w × dir\| / \|dir\|` | `w − dir·(w·dir)` | `offset(p).norm()` |
-    /// |---|---|---|---|---|---|
-    /// | exact | rounding | 1.9e-15 | 3.4e-15 | 2.0e-15 | 2.9e-15 |
-    /// | exact | ±1e-12 | 3.2e-12 | 5.5e-12 | 3.5e-12 | 5.5e-12 |
-    /// | ±1e-9 | rounding | 3.3e-9 | 3.3e-9 | 5.2e-9 | 5.2e-9 |
-    /// | ±1e-9 | ±1e-12 | 3.3e-9 | 3.3e-9 | 5.2e-9 | 5.2e-9 |
+    /// | point | axis | this | `\|w × dir\|` (unit read) | `offset(p).norm()` |
+    /// |---|---|---|---|---|
+    /// | exact | rounding | 3.4e-15 | 1.9e-15 | 2.9e-15 |
+    /// | exact | ±1e-12 | 5.5e-12 | 3.2e-12 | 5.5e-12 |
+    /// | ±1e-9 | rounding | 3.3e-9 | 3.3e-9 | 5.2e-9 |
+    /// | ±1e-9 | ±1e-12 | 3.3e-9 | 3.3e-9 | 5.2e-9 |
     #[must_use]
     pub fn distance(&self, p: Point3<T>) -> T {
         self.height_and_distance(p).1
     }
 
-    /// **`p`'s height along the line**, reading `dir` as unit:
-    /// `(p − origin)·dir`, metres from `origin`. The same contract as
-    /// [`Self::distance`]: for a unit `dir` it is [`Self::param`] without
-    /// the division by `|dir|²`, which costs `param` up to twice the width
-    /// where `dir` carries width (`w·dir` 3.0e-12 against `w·dir / |dir|²`
-    /// 5.9e-12, exact point, axis ±1e-12).
+    /// **`p`'s height along the line**: `(p − origin)·dir / |dir|`,
+    /// metres from `origin`, correct for any nonzero `dir`. Where `dir`
+    /// is unit it is [`Self::param`]; it divides by `|dir|` where `param`
+    /// divides by `|dir|²`. Where only the axis carries width it is
+    /// between the two, about 1.5× a unit read; where the point does,
+    /// all three agree:
+    ///
+    /// | point | axis | this | `w·dir` (unit read) | `w·dir / \|dir\|²` |
+    /// |---|---|---|---|---|
+    /// | exact | rounding | 2.2e-15 | 1.2e-15 | 2.7e-15 |
+    /// | exact | ±1e-12 | 4.4e-12 | 3.0e-12 | 5.9e-12 |
+    /// | ±1e-9 | rounding | 3.1e-9 | 3.1e-9 | 3.1e-9 |
+    /// | ±1e-9 | ±1e-12 | 3.1e-9 | 3.1e-9 | 3.1e-9 |
     #[must_use]
     pub fn height(&self, p: Point3<T>) -> T {
         self.height_and_distance(p).0
     }
 
     /// **`p`'s height and distance together** ([`Self::height`],
-    /// [`Self::distance`]) from one `w = p − origin`: a point's place on
-    /// an axis and its radius about it. `dir` is unit by contract.
+    /// [`Self::distance`]) from one `w = p − origin` and one `|dir|`: a
+    /// point's place on an axis and its radius about it.
     #[must_use]
     pub fn height_and_distance(&self, p: Point3<T>) -> (T, T) {
-        self.unit_contract();
         let w = p - self.origin;
-        (w.dot(self.dir), w.cross(self.dir).norm())
-    }
-
-    /// **The metric readings' contract, checked in a debug build**:
-    /// `|dir|²` within 64 ulps of 1. A scalar that cannot decide it (an
-    /// enclosure straddling the tolerance, a symbol) passes: the square
-    /// root of `tol − ||dir|² − 1|` is poison only where that is decidedly
-    /// negative.
-    fn unit_contract(&self) {
-        debug_assert!(
-            !(T::from_f64(64.0 * f64::EPSILON) - (self.dir.norm_squared() - T::one()).abs())
-                .sqrt()
-                .is_poison(),
-            "geom::Line::height/distance read dir as unit; a non-unit dir reads param/offset (|dir|² = {:?})",
-            self.dir.norm_squared()
-        );
+        let len = self.dir.norm();
+        (w.dot(self.dir) / len, w.cross(self.dir).norm() / len)
     }
 
     /// **`p`'s parameter and offset together**: [`Self::param`]'s `t` and

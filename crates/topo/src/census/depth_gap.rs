@@ -126,7 +126,8 @@ pub(super) struct Cover<T: geom_core::Real> {
 /// A depth.
 #[derive(Clone, Copy, Debug)]
 pub(super) enum Depth<T: geom_core::Real> {
-    /// The distance from the line through `origin` along `axis`.
+    /// The distance from a line: a carrier's axis, or any line of nonzero
+    /// direction ([`geom::Line::distance`] holds for either).
     Axis(geom::Line<T>),
     /// The distance from `center`.
     Center { center: Point3<T> },

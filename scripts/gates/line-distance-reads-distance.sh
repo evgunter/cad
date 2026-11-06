@@ -3,15 +3,16 @@
 # `geom::Line` is `Line::distance`. ONE home; ci.yml's `lint` job runs
 # every gate in this directory.
 #
-# THE RULE: a reader of a point's distance from a UNIT axis reads
-# `geom::Line::distance` (`|(p − origin) × dir|`, `dir` unit by
-# contract), not the norm of an offset spelled by hand or through
-# `Line::offset`/`Vec3::reject_from`. On a unit axis the unit read is the
-# tightest at `Interval` in every regime measured (`Line::distance`'s doc
-# has the widths): it divides by nothing, and it names the point once.
-# A non-unit direction (a chord `b − a`) is not this rule's: its distance
-# is `offset(p).norm()`, and such a reader that trips the gate either
-# normalizes its direction or is exempted here with its reason.
+# THE RULE: a reader of a point's distance from a line reads
+# `geom::Line::distance` (`|(p − origin) × dir| / |dir|`, correct for any
+# nonzero `dir`), not the norm of an offset spelled by hand or through
+# `Line::offset`/`Vec3::reject_from`. The regime, measured (the table is
+# `Line::distance`'s doc): where the point carries width, `distance` is
+# the tightest spelling, about 1.6× tighter than the offset's norm; where
+# only the axis does, it is about the offset's width, and twice a unit
+# read's. A unit read (no division) is not offered, because a stored axis
+# is unit only to ~1e-10 in `|dir|²`, and a unit read of one is wrong by
+# more than the band.
 #
 # KNOWN GAPS: production sources only (`#[cfg(test)]` items and
 # test-only mounts are skipped, so oracles may spell it their own way);
@@ -26,16 +27,10 @@ set -euo pipefail
 # The three spellings of the norm of a point's offset from a line: the
 # offset's, the rejection's, and a hand cross product of a point
 # difference with a direction.
-# THE EXEMPTIONS, each anchored on its file and its own text:
-# - `emit_topo`'s segment row passes the area `|w × d|` to
-#   `Margin::over_lever` over the segment's length, the door that is the
-#   home of a measure over its lever;
-# - four readers of a `Curve3::Line` CARRIER's own line, whose `dir` is
-#   not unit in practice (the step-import corpus mints them unnormalized),
-#   so they read the parameterization's `offset(p).norm()`, which divides:
-#   `Curve3::clearance`, `validate`'s locus gap, `ring_path`'s ruling gap
-#   and the blend battery's corner-support gap.
-EXEMPT='crates/editor-core/src/names/emit_topo\.rs:[0-9]+: .*Margin::over_lever|crates/geom/src/curves/on_carrier\.rs:[0-9]+: Self::Line\(line\) => line\.offset\(q\)\.norm\(\)|crates/topo/src/validate\.rs:[0-9]+: .*geom::Curve3::Line\(line\) => Some\(line\.offset\(p\)\.norm\(\)\)|crates/topo/src/ring_path\.rs:[0-9]+: \.offset\(from\)\.norm\(\)|crates/sweep/src/blend/battery\.rs:[0-9]+: \.offset\(foot\)\.norm\(\)'
+# THE ONE EXEMPTION: `emit_topo`'s segment row passes the area
+# `|w × d|` to `Margin::over_lever` over the segment's length, the door
+# that is the home of a measure over its lever.
+EXEMPT='crates/editor-core/src/names/emit_topo\.rs:[0-9]+: .*Margin::over_lever'
 SHAPES='\.offset\([^()]*(\([^()]*\)[^()]*)*\)[[:space:]]*\.norm\(\)|\.reject_from\([^()]*(\([^()]*\)[^()]*)*\)[[:space:]]*\.norm\(\)|\([[:alnum:]_.*]+ - [[:alnum:]_.*]+\)[[:space:]]*\.cross\([^()]*(\([^()]*\)[^()]*)*\)[[:space:]]*\.norm\(\)'
 
 gate() {

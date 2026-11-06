@@ -2,10 +2,9 @@
 id: a-points-distance-from-a-line-is-spelled-as-a-cross-product
 kind: issue
 title: A point's distance from a line is spelled |(p − o) × a| (/|a|) at about seven sites beside Line::offset, a tighter-or-looser trade at Interval nobody has measured
-status: closed
+status: dispatched
 opened: 2026-11-06
-closed: 2026-11-06
-pr: 6568
+branch: onecopy/feet-and-params
 ---
 
 
@@ -41,6 +40,7 @@ So the cross product is the tight distance for any point that carries width, whi
 **Decided.** `Line::distance(p) = |(p − origin) × dir| / |dir|` is the one scalar reading of a point's distance from a line, and its doc carries the width table. `Line::offset` is kept for readers that need the vector. The disposition:
 - Every scalar reader is on `distance`: 5 of the cross-product sites above (`ring_path.rs` ×2, `boolean/join.rs`, `section_cert/cone_pair_search.rs`, `sweep/src/blend/battery.rs`), and 30 `offset(p).norm()` sites, most of them made by the second unit.
 - `scripts/gates/line-distance-reads-distance.sh` fails on a new `offset(…).norm()`.
+- The review pass added `cover.rs`'s `point_range` and `intersect.rs`'s `reject_from(b).norm()`. The gate now also catches `reject_from(…).norm()` and a hand cross norm, over multi-line statements in production sources.
 - Not ported:
   - `emit_topo.rs`'s `Segment` row, whose area `|w × d|` goes to `Margin::over_lever` over the segment's length. That door is the home of a measure over its lever.
   - `pcurve_cache.rs`'s and `carrier_resolution.rs`'s sites and `section_cert_cone_rows.rs`, which are `#[cfg(test)]` oracles.

@@ -1465,7 +1465,7 @@ pub(crate) fn path_parity<T: Decide>(
                     if arrival {
                         continue;
                     }
-                    let gap = geom::Line { origin, dir }.offset(from).norm();
+                    let gap = geom::Line { origin, dir }.distance(from);
                     if decide_m(
                         "split_ring_path_rulings_distinct",
                         Margin::of(charge(gap, slack)),

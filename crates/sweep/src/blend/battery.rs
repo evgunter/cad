@@ -3330,7 +3330,7 @@ fn consumption_sweep<T: Decide + Bounds>(
                         CORNER_SUPPORT_NOT_PLANAR,
                     ));
                 };
-                let gap = geom::Line { origin: o, dir: d }.offset(foot).norm();
+                let gap = geom::Line { origin: o, dir: d }.distance(foot);
                 face_clearance(face, gap, T::zero(), look(*e, face), false, band)?;
             }
         }

@@ -484,7 +484,7 @@ impl<T: Decide> Curve3<T> {
     /// piece walk ([`Self::clear_of`]).
     pub fn clearance(&self, q: Point3<T>) -> Option<T> {
         Some(match *self {
-            Self::Line(line) => line.offset(q).norm(),
+            Self::Line(line) => line.distance(q),
             Self::Circle(c) => {
                 let (h, rho) = c.frame.axis_line().height_and_distance(q);
                 (h.powi(2) + (rho - c.radius).powi(2)).sqrt()

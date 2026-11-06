@@ -2,10 +2,9 @@
 id: a-points-height-and-radial-offset-pair-is-spelled-inline
 kind: issue
 title: A point's (height, radial offset) pair about an axis, h = w·a then w − a·h, is spelled at about thirty sites beside two helpers, with no home on geom::Line
-status: closed
+status: dispatched
 opened: 2026-11-06
-closed: 2026-11-06
-pr: 6568
+branch: onecopy/feet-and-params
 ---
 
 
@@ -28,12 +27,12 @@ Before you fix it, decide the home. One option is a pair reading on `geom::Line`
 
 ## Closed (`onecopy/feet-and-params`, third unit)
 
-`geom::Line` reads the pair in two forms, both built from the same coefficient `w·dir / |dir|²` that `Line::param` reads:
+`geom::Line` reads the pair in two forms, the vector form built from the coefficient `w·dir / |dir|²` that `Line::param` reads:
 - `param_and_offset(p)` gives `(t, w − dir·t)`, for readers that need the vector;
-- `param_and_distance(p)` gives `(t, |w × dir| / |dir|)`, for readers that need the radius.
+- `height_and_distance(p)` gives `(w·dir / |dir|, |w × dir| / |dir|)`, a height in metres and a radius, for readers that need the radius (renamed from `param_and_distance` in the review, which measured that a metric height divides by `|dir|`, not `|dir|²`).
 
 The sweep's 30 hits are disposed as follows:
-- Ported onto `param_and_distance`: 21 radius readers. These include `on_carrier`'s `height_and_radius`, which is retired, and `tube_section`.
+- Ported onto `height_and_distance`: 21 radius readers. These include `on_carrier`'s `height_and_radius`, which is retired, and `tube_section`.
 - Ported onto `param_and_offset`: 4 vector readers. These are `ring_path`'s `axial` (now a one-line delegation), `carrier_touch`, `solid_contain`'s `split`, and `circle_torus`.
 - Kept in their own unit-axis order, each with its reason in the code:
   - `implicit::axial_radial`. The implicit forms' running twins repeat its order term for term to stay bit-identical (D9). Reading it through `Line` broke `implicit::conic_tests::the_running_residuals_are_the_plain_chain` by one ulp.
