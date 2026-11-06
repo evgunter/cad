@@ -123,3 +123,4 @@
   - the `clearance` meeting-pair `Sliver` bypassing `terminal_sliver` (checked and routed).
 
   **Class (Q1, the fix that mints a copy):** a lane closing "an invented name" introduced a second marker home, which the brief's own trap warns of.
+- 2026-11-06 — **PR 6543 fix pass green (`1aecafc70f`); merging on the orchestrator's read of the delta.** Every finding was taken. The measure and naming escalation payloads lose their duplicate `predicate` (read from `source` through `decision::subject`/`ending`). `geom_core::UNNAMED_PREDICATE` is the marker's one home. `record_rooted` also checks that the result is absent. Blend and shell each have permanent `#[should_panic]` rows. `Shelled::lineage` states fates only for retirements no row mints. Filed: BIND `select-refusal-inband-copies-its-sources-predicate-name` (P4 E), CLEAR `the-meeting-pair-leaf-mints-a-sliver-without-the-terminal-rule` (P4 E). Both P0 rows closed (re-priced M and E).
