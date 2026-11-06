@@ -120,7 +120,7 @@
 //! ruling, which refuses.
 
 use geom::Conic;
-use geom_brep::ladder::{Answering, Climb, Rung, climb};
+use geom_brep::ladder::{Answering, Climb, Rung, agree_ok, climb, climb_any};
 use geom_brep::{EdgeCurveSpec, Pcurve};
 use geom_core::{
     Band, BandError, Decide, Indeterminate, InfSpeed, Margin, Point3, Real, Sign, UnitVec3, Vec3,
@@ -4816,14 +4816,18 @@ impl RimSide {
                 // and any such point reads the one side (the loop does not
                 // cross its ring's plane); an escalation escalates only
                 // where none does.
-                use geom_brep::ladder::{Answering, Climb, Rung, climb};
+                use geom_brep::ladder::{Climb, Rung, climb_any};
                 let points = loop_points(body, outer)?;
-                let read = climb(Answering::Any, points, |w| {
-                    let offset = Margin::of((w - center).dot(axis));
-                    Rung::decide("bool_lone_ring_outer_side", offset, band, |d| {
-                        (d.sign != Sign::Zero).then_some(d.sign)
-                    })
-                });
+                let read = climb_any(
+                    points,
+                    |w| {
+                        let offset = Margin::of((w - center).dot(axis));
+                        Rung::decide("bool_lone_ring_outer_side", offset, band, |d| {
+                            (d.sign != Sign::Zero).then_some(d.sign)
+                        })
+                    },
+                    PartialEq::eq,
+                );
                 let outer_side = match read {
                     Climb::Answered { answer, .. } => answer,
                     Climb::Undecided(diag) => return Err(escalated(diag)),
@@ -5454,7 +5458,7 @@ fn ring_side<T: Decide>(
         Err(e @ PointInLoopError::Escalated { diag, .. }) => Rung::kept(diag).map_kept(|_| e),
         Err(e) => Rung::Aborts(Err(SplitJoinError::from(e))),
     };
-    match climb(Answering::Any, ring_vertices(body, ring)?, read) {
+    match climb_any(ring_vertices(body, ring)?, read, agree_ok) {
         Climb::Answered { answer, .. } => answer,
         Climb::Passed => Ok(RingSide::OnRun),
         Climb::Undecided(e) => Err(SplitJoinError::RingHoming(e)),

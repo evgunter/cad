@@ -43,7 +43,7 @@
 //! loops enclose the surface's end rather than its own region reads
 //! inverted there, and this module skips it.
 
-use geom_brep::ladder::{Answering, Climb, Rung, climb};
+use geom_brep::ladder::{Climb, Rung, climb_any};
 use geom_core::{Band, Decide};
 
 use crate::body::Body;
@@ -158,6 +158,7 @@ fn torus_readings(cycles: &[WoundCycle]) -> Option<Result<Vec<Reading>, usize>> 
 }
 
 /// How one cycle reads against a cut.
+#[derive(Debug)]
 enum Read {
     /// A vertex decided on the face's side.
     Face,
@@ -230,27 +231,36 @@ fn read_cycle<T: Decide>(
     cut: &[usize],
     band: Band,
 ) -> Read {
-    let placed = climb(Answering::Any, cycle, |&h| {
-        let Some(vertex) = body.get_half_edge(h).map(|h| h.start) else {
-            return Rung::Passes;
-        };
-        let Some(q) = body
-            .get_vertex(vertex)
-            .and_then(|v| body.points.get(v.point))
-        else {
-            return Rung::Passes;
-        };
-        Rung::of_reading(door_side(body, face, cut, *q, band).map(|side| {
-            side.map(|on_face| {
-                if on_face {
-                    Read::Face
-                } else {
-                    Read::Off(vertex)
-                }
-            })
-        }))
-        .map_kept(|diag| (vertex, diag))
-    });
+    let placed = climb_any(
+        cycle,
+        |&h| {
+            let Some(vertex) = body.get_half_edge(h).map(|h| h.start) else {
+                return Rung::Passes;
+            };
+            let Some(q) = body
+                .get_vertex(vertex)
+                .and_then(|v| body.points.get(v.point))
+            else {
+                return Rung::Passes;
+            };
+            Rung::of_reading(door_side(body, face, cut, *q, band).map(|side| {
+                side.map(|on_face| {
+                    if on_face {
+                        Read::Face
+                    } else {
+                        Read::Off(vertex)
+                    }
+                })
+            }))
+            .map_kept(|diag| (vertex, diag))
+        },
+        |a, b| {
+            matches!(
+                (a, b),
+                (Read::Face, Read::Face) | (Read::Off(_), Read::Off(_))
+            )
+        },
+    );
     match placed {
         Climb::Answered { answer, .. } => answer,
         Climb::Passed => Read::Exempt,

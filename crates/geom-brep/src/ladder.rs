@@ -499,6 +499,13 @@ pub fn climb_agreeing<I, A, E>(
     })
 }
 
+/// Whether two answers that are readings are one ([`climb_agreeing`]'s
+/// and [`climb_any`]'s `agree`): both `Ok` and equal. An `Err` answer is
+/// a refusal handed back as an answer, which agrees with nothing.
+pub fn agree_ok<T: PartialEq, E>(a: &Result<T, E>, b: &Result<T, E>) -> bool {
+    matches!((a, b), (Ok(x), Ok(y)) if x == y)
+}
+
 /// **[`climb`] under [`Answering::Any`], its premise checked in debug
 /// builds**: the outcome and the record are [`climb`]'s, which stops at
 /// the first answer; a debug build then reads every rung after it, its
