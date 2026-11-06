@@ -8,6 +8,7 @@ priority: P2
 cost: M
 closed: 2026-11-06
 pr: 6548
+refs: [a-point-against-a-pieced-curve-is-read-by-three-walks-and-sorted-twice]
 ---
 
 

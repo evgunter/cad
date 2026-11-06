@@ -6,7 +6,7 @@ status: closed
 opened: 2026-11-03
 priority: P2
 cost: E
-refs: [carrier-refusal-to-error-mapping-is-spelled-at-seven-sites]
+refs: [carrier-refusal-to-error-mapping-is-spelled-at-seven-sites, a-point-against-a-pieced-curve-is-read-by-three-walks-and-sorted-twice, section-unbuilt-arms-state-no-recourse]
 closed: 2026-11-06
 pr: 6548
 ---
