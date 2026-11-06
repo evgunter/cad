@@ -353,11 +353,11 @@ impl<T: Decide> CylinderCylinderPose<T> {
         let cross = a1.cross(a2);
         let sin = cross.norm();
         let normal = cross / sin;
-        let w = reach.foot_on(l2.0, a2) - reach.foot_on(l1.0, a1);
+        let w = reach.foot_on(crate::intersect::axis_line(l2)) - reach.foot_on(crate::intersect::axis_line(l1));
         let gap = w.dot(normal);
         // The common perpendicular's foot on the first axis, from the
         // region centre's foot.
-        let f1 = reach.foot_on(l1.0, a1);
+        let f1 = reach.foot_on(crate::intersect::axis_line(l1));
         let foot = f1 + a1 * (w.cross(a2).dot(cross) / sin.powi(2));
         let e = gap.abs();
         let reach_d = read(CcDecision::CrossingGap, e - (r1 + r2), band)?;

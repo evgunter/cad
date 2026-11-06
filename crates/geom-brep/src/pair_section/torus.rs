@@ -130,7 +130,7 @@ pub fn axis_pose<T: Decide>(
     ball: ExtentBall<T>,
     band: Band,
 ) -> AxisPose<T> {
-    let at = ball.foot_on(o, d);
+    let at = ball.foot_on(geom::Line { origin: o, dir: d });
     let tilt = a.cross(d).norm();
     if !matches!(
         geom_core::k_stats::decide(

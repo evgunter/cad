@@ -189,7 +189,7 @@
 
 use bvh::Aabb;
 use geom::Surface;
-use geom::cover::{Cover, ParamWindow};
+use geom::cover::{BoxAxes, Cover, ParamWindow};
 use geom::surfaces::nurbs::NurbsSurface;
 use geom_core::spline::SpanLocate;
 use geom_core::{Band, Bounds, Decide, Point3, Real, UnitVec3, Vec3};
@@ -360,7 +360,7 @@ impl<T: Real> SpanBox<T> {
 /// reads a unit axis by type. Two mints: the bracket lane takes the
 /// witness's `f64` bracket ([`UnitSpanBox::bracketed`]); the census
 /// lane takes it at its own scalar, rotated into the frame it reads
-/// ([`BoxFrame::unit`]), which is the witness's components along
+/// ([`unit_in`]), which is the witness's components along
 /// orthonormal rows — unit to the rounding of a dot product, as the
 /// witness itself is unit to the rounding of its normalize.
 #[derive(Clone, Copy, Debug)]
@@ -373,8 +373,10 @@ impl<T: Real> UnitSpanBox<T> {
     }
 }
 
-/// **The frame a box is read in**: the world's axes, or a rotation of
-/// them whose first axis is a decided unit direction.
+/// **A point's coordinates in `axes`**, about the world origin: each
+/// its component along one row of [`geom::cover::BoxAxes`] (the axes a
+/// box is read in: the world's, or a rotation of them whose first row
+/// is a decided unit direction).
 ///
 /// Every per-kind extent in this module computes coordinate `i` of its
 /// box from coordinate `i` of its inputs alone, save one reading: a
@@ -387,7 +389,7 @@ impl<T: Real> UnitSpanBox<T> {
 /// never as anything particular to the world's `x̂`, `ŷ` or `ẑ`. An
 /// extent added here owes the same, and a row in that test. So the same extents, fed the components of their inputs
 /// along the rows of any orthonormal frame, box the face in that
-/// frame, and the first coordinate of an [`Aimed`](Self::Aimed) frame's
+/// frame, and the first coordinate of an aimed axes'
 /// box is the face's support along its aim. That is a reading that
 /// turns with the body: the world box of a turned face widens by how
 /// it is turned, and the support along a direction fixed to the face
@@ -406,57 +408,28 @@ impl<T: Real> UnitSpanBox<T> {
 /// covers that wherever a coordinate of magnitude `|p|` resolves `ε` at
 /// all — and a body placed where `ulp(|p|) > ε` has vertices the band
 /// cannot place either.
-#[derive(Clone, Copy, Debug)]
-pub(crate) enum BoxFrame<T: Real> {
-    /// The world's axes: every point and vector read as it is stored.
-    World,
-    /// The rows of a right-handed orthonormal frame whose first row is
-    /// the aim.
-    Aimed([Vec3<T>; 3]),
+pub(crate) fn point_in<T: Real>(axes: &BoxAxes<T>, p: Point3<T>) -> Point3<T> {
+    match axes {
+        BoxAxes::World => p,
+        BoxAxes::Rows(_) => {
+            let v = vector_in(axes, Vec3::new(p.x, p.y, p.z));
+            Point3::new(v.x, v.y, v.z)
+        }
+    }
 }
 
-impl<T: Real> BoxFrame<T> {
-    /// The frame whose first axis is `aim`. Its other two rows are
-    /// `orthonormal_basis`'s: a box read in it is scratch that no output
-    /// keeps, and every reading of it is the face's support along the
-    /// aim, which those rows do not move.
-    pub(crate) fn aimed(aim: UnitVec3<T>) -> Self {
-        let (b1, b2) = aim.orthonormal_basis();
-        Self::Aimed([aim.get(), b1, b2])
+/// A direction's components along `axes`' rows.
+pub(crate) fn vector_in<T: Real>(axes: &BoxAxes<T>, v: Vec3<T>) -> Vec3<T> {
+    match axes {
+        BoxAxes::World => v,
+        BoxAxes::Rows([a, b, c]) => Vec3::new(a.dot(v), b.dot(v), c.dot(v)),
     }
+}
 
-    /// The frame's rows: the world's axes, or the aimed frame's.
-    pub(crate) fn rows(&self) -> [Vec3<T>; 3] {
-        match self {
-            Self::World => [Vec3::unit_x(), Vec3::unit_y(), Vec3::unit_z()],
-            Self::Aimed(rows) => *rows,
-        }
-    }
-
-    /// A direction's components along the frame's rows.
-    pub(crate) fn vector(&self, v: Vec3<T>) -> Vec3<T> {
-        match self {
-            Self::World => v,
-            Self::Aimed([a, b, c]) => Vec3::new(a.dot(v), b.dot(v), c.dot(v)),
-        }
-    }
-
-    /// A point's coordinates in the frame, about the world origin.
-    pub(crate) fn point(&self, p: Point3<T>) -> Point3<T> {
-        match self {
-            Self::World => p,
-            Self::Aimed(_) => {
-                let v = self.vector(Vec3::new(p.x, p.y, p.z));
-                Point3::new(v.x, v.y, v.z)
-            }
-        }
-    }
-
-    /// A decided unit direction's components in the frame: a rotation
-    /// of a unit vector is one, so the witness carries.
-    pub(crate) fn unit(&self, u: UnitVec3<T>) -> UnitSpanBox<T> {
-        UnitSpanBox(SpanBox::vector(self.vector(u.get())))
-    }
+/// A decided unit direction's components along `axes`' rows: a rotation
+/// of a unit vector is one, so the witness carries.
+pub(crate) fn unit_in<T: Real>(axes: &BoxAxes<T>, u: UnitVec3<T>) -> UnitSpanBox<T> {
+    UnitSpanBox(SpanBox::vector(vector_in(axes, u.get())))
 }
 
 impl UnitSpanBox<f64> {
@@ -1457,14 +1430,14 @@ pub(crate) fn sphere_reach<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     band: Band,
-    frame: &BoxFrame<T>,
+    frame: &BoxAxes<T>,
 ) -> (Point3<T>, Point3<T>) {
     let f = body.proven_face(face);
     let surface = f.surface();
     let Surface::Sphere { center, radius, .. } = surface else {
         unreachable!("sphere_reach reads a sphere face")
     };
-    let c = frame.point(*center);
+    let c = point_in(frame, *center);
     let (axis, az, lat) = match sphere_window(body, f, surface, band) {
         SphereWindow::Ball => {
             let ball = ball_extent(&SpanBox::point(c), *radius);
@@ -1476,12 +1449,12 @@ pub(crate) fn sphere_reach<T: Decide>(
         SphereWindow::Rect { axis, az, lat } => (axis, Some(az), lat),
         SphereWindow::Zone { axis, lat } => (axis, None, lat),
     };
-    let a = frame.vector(axis.get());
+    let a = vector_in(frame, axis.get());
     let at = |c: T, k: usize| {
         let pick = |v: Vec3<T>| [v.x, v.y, v.z][k];
         let ax = pick(a);
         let (p, q, u) = match az {
-            Some((u, u_ref, v_ref)) => (pick(frame.vector(u_ref)), pick(frame.vector(v_ref)), u),
+            Some((u, u_ref, v_ref)) => (pick(vector_in(frame, u_ref)), pick(vector_in(frame, v_ref)), u),
             // The whole turn: any frame of the axis's normal plane, of
             // which the coordinate's share is `√(1 − a²)`, read as the
             // axis's other two components' norm. `1 − a²` cancels as
@@ -1823,7 +1796,7 @@ pub(crate) fn face_box<T: Decide + Bounds>(
         // The reach is read at the body's scalar and bracketed out, end
         // by end, as the torus window is.
         FaceBoxRule::SphereWindow { .. } => {
-            let (lo, hi) = sphere_reach(body, face, band, &BoxFrame::World);
+            let (lo, hi) = sphere_reach(body, face, band, &BoxAxes::World);
             Aabb {
                 min_x: lo.x.lo(),
                 min_y: lo.y.lo(),
@@ -2202,16 +2175,6 @@ impl core::fmt::Display for EdgeUncovered {
             Self::Carrier(why) => write!(f, "the edge's carrier has {why}"),
             Self::Ends => f.write_str("an end vertex of the edge is not a finite point"),
         }
-    }
-}
-
-/// The cover's frame for a [`BoxFrame`]: the world's, or its rows. An
-/// adapter for the face lanes, which still read their boxes in a
-/// [`BoxFrame`].
-pub(crate) fn cover_frame<T: Real>(frame: &BoxFrame<T>) -> geom::cover::BoxAxes<T> {
-    match frame {
-        BoxFrame::World => geom::cover::BoxAxes::World,
-        BoxFrame::Aimed(rows) => geom::cover::BoxAxes::Rows(*rows),
     }
 }
 
@@ -5320,7 +5283,8 @@ pub(crate) mod tests {
         };
         let slab = slab_extent(
             &SpanBox::point(Point3::<f64>::origin()),
-            &BoxFrame::World.unit(
+            &unit_in(
+                &BoxAxes::World,
                 UnitVec3::new(Vec3::<f64>::unit_z(), BOX_CYLINDER_AXIS, witness_band()).unwrap(),
             ),
             poison_h,
@@ -5806,12 +5770,12 @@ pub(crate) mod tests {
         let mut boxed = 0;
         for &c in &centres {
             for &aim in &aims {
-                let frame = BoxFrame::aimed(UnitVec3::new(aim, "aim", band).unwrap());
-                let BoxFrame::Aimed(rows) = frame else {
+                let frame = BoxAxes::aimed(UnitVec3::new(aim, "aim", band).unwrap());
+                let BoxAxes::Rows(rows) = frame else {
                     unreachable!("an aimed frame has rows")
                 };
-                let iframe: BoxFrame<Interval> =
-                    BoxFrame::Aimed([ivv(rows[0]), ivv(rows[1]), ivv(rows[2])]);
+                let iframe: BoxAxes<Interval> =
+                    BoxAxes::Rows([ivv(rows[0]), ivv(rows[1]), ivv(rows[2])]);
                 for &(big_r, r, d) in &tori {
                     let Ok(carrier) =
                         Curve3::spiric(c, Vec3::unit_z(), Vec3::unit_x(), big_r, r, d, band)
@@ -5823,7 +5787,7 @@ pub(crate) mod tests {
                     let ends = (carrier.eval(t0), carrier.eval(t1));
                     let (lo, hi) = edge_cover_over(&carrier, (t0, t1), ends)
                         .unwrap()
-                        .box_in(&cover_frame(&frame));
+                        .box_in(&frame);
                     let at_f64 = Aabb {
                         min_x: lo.x,
                         min_y: lo.y,
@@ -5836,7 +5800,7 @@ pub(crate) mod tests {
                     let (lo, hi) =
                         edge_cover_over(&icarrier, (iv(t0), iv(t1)), (ivp(ends.0), ivp(ends.1)))
                             .unwrap()
-                            .box_in(&cover_frame(&iframe));
+                            .box_in(&iframe);
                     let at_interval = Aabb {
                         min_x: lo.x.lo(),
                         min_y: lo.y.lo(),
@@ -6210,7 +6174,7 @@ pub(crate) mod tests {
     }
 
     /// **Every extent reads coordinate `i` from coordinate `i` alone** —
-    /// the premise [`BoxFrame`] rests on: an extent that mixed a second
+    /// the premise [`BoxAxes`] rests on: an extent that mixed a second
     /// coordinate into the first would be exact in the world frame and
     /// unsound in an aimed one, which no world row could see. Each
     /// extent is run twice on inputs that agree in `x` and disagree in
@@ -6351,7 +6315,7 @@ pub(crate) mod tests {
     /// the sum carried in two parts), at `|p|` from a millimetre to
     /// `10⁸` m. The pad, `12 ε`, covers it wherever a coordinate of
     /// magnitude `|p|` resolves `ε` at all (`ulp(|p|) ≤ ε`), which is
-    /// what [`BoxFrame`]'s docs lean on.
+    /// what [`BoxAxes`]'s docs lean on.
     #[test]
     fn the_aimed_frames_rounding_is_a_few_ulps_of_the_point() {
         let two_sum = |a: f64, b: f64| {
@@ -6386,7 +6350,7 @@ pub(crate) mod tests {
                     scale * (1.1 * t).sin(),
                     scale * (0.7 * t + 1.0).cos(),
                 );
-                let got = BoxFrame::aimed(n).point(p).x;
+                let got = point_in(&BoxAxes::aimed(n), p).x;
                 let (hi, lo) = exact_dot(n.get(), p);
                 let norm = (p.x * p.x + p.y * p.y + p.z * p.z).sqrt();
                 let err = ((got - hi) - lo).abs();
@@ -6421,7 +6385,7 @@ pub(crate) mod tests {
             Vec3::new(0.6, 0.7, -0.4),
         ] {
             let n = UnitVec3::new(aim, BOX_CYLINDER_AXIS, band).unwrap();
-            let (lo, hi) = crate::census::edge_reach_in(&body, edge, &BoxFrame::aimed(n)).unwrap();
+            let (lo, hi) = crate::census::edge_reach_in(&body, edge, &BoxAxes::aimed(n)).unwrap();
             let (t0, t1) = curve.params();
             for i in 0..=20_000 {
                 let t = t0 + (t1 - t0) * f64::from(i) / 20_000.0;
@@ -6439,7 +6403,7 @@ pub(crate) mod tests {
     }
 
     /// **The census's conic edge reach is the arc's extent in an aimed
-    /// frame**: along each of a [`BoxFrame::aimed`] frame's rows, it
+    /// frame**: along each of a [`BoxAxes::aimed`] frame's rows, it
     /// contains 40 001 samples of the arc and sits within their spacing's
     /// bulge of them, for runs short of a half-turn to nearly a full
     /// one, from several reference directions.
@@ -6463,7 +6427,7 @@ pub(crate) mod tests {
                 Vec3::new(1.0, 0.0, 0.0),
             ] {
                 let n = UnitVec3::new(aim, BOX_CYLINDER_AXIS, band).unwrap();
-                let frame = BoxFrame::aimed(n);
+                let frame = BoxAxes::aimed(n);
                 let rows = frame.rows();
                 let (lo, hi) = crate::census::edge_reach_in(&body, edge, &frame).unwrap();
                 let (lo, hi) = ([lo.x, lo.y, lo.z], [hi.x, hi.y, hi.z]);
@@ -6657,7 +6621,7 @@ pub(crate) mod sphere_rect_rows {
     use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
     use geom_core::{Band, Point3, Tol, Vec3};
 
-    use super::{BoxFrame, face_box, sphere_reach};
+    use super::{BoxAxes, face_box, sphere_reach};
     use crate::body::Body;
     use crate::construction::{FaceSurface, MefSite, MevSite};
     use crate::entity::{EntityId, FaceKey, GeomRef, LoopBoundary};
@@ -6884,7 +6848,7 @@ pub(crate) mod sphere_rect_rows {
         ] {
             let aim = aim * (1.0 / aim.norm());
             let frame =
-                BoxFrame::aimed(geom_core::UnitVec3::new(aim, "sphere_rect_rows", band).unwrap());
+                BoxAxes::aimed(geom_core::UnitVec3::new(aim, "sphere_rect_rows", band).unwrap());
             let (lo, _) = sphere_reach(&body, face, band, &frame);
             let (_, hi) = crate::census::face_reach_in(&body, face, band, &frame).unwrap();
             close(&format!("the reach along {aim:?}"), (lo.x, hi.x), aim);
@@ -7064,7 +7028,7 @@ pub(crate) mod sphere_rect_rows {
         for hc in [0.3, 1.0] {
             for senses in [(true, true), (true, false), (false, true), (false, false)] {
                 let (body, north, _) = strut_cap_ball(-0.5, hc, senses);
-                let (lo, hi) = sphere_reach(&body, north, band, &BoxFrame::World);
+                let (lo, hi) = sphere_reach(&body, north, band, &BoxAxes::World);
                 let boxed = face_box(&body, north, 0.0, band).unwrap();
                 let (clo, chi) = crate::census::face_reach(&body, north, band).unwrap();
                 // Every extreme is the ball's: a window read off either
@@ -7240,7 +7204,7 @@ pub(crate) mod sphere_rect_rows {
             let window = if hc < h0 { (hc, h0) } else { (h0, hc) };
             let frame = frame_about(axis);
             let (body, cap, _) = strut_cap(c, r, frame, (h0, hc), (true, true), true, tol);
-            let (lo, hi) = sphere_reach(&body, cap, band, &BoxFrame::World);
+            let (lo, hi) = sphere_reach(&body, cap, band, &BoxAxes::World);
             let boxed = face_box(&body, cap, 0.0, band).unwrap();
             let (clo, chi) = crate::census::face_reach(&body, cap, band).unwrap();
             assert!(
@@ -7292,7 +7256,7 @@ pub(crate) mod sphere_rect_rows {
     fn a_torn_record_under_the_sphere_rect_panics() {
         let tol = Tol::witness();
         let band = Band::linear(tol).unwrap();
-        let frame = BoxFrame::World;
+        let frame = BoxAxes::World;
         let (body, face) = sphere_zone_sheet((0.2, 1.4), (-0.3, 0.4), tol);
         let reach = |b: &Body<f64>| sphere_reach(b, face, band, &frame);
         let (lo, hi) = reach(&body);

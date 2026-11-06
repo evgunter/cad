@@ -250,12 +250,11 @@ impl<T: Real> ExtentBall<T> {
         Lever::of_consumed_extent(self.reach_from(pivot) * T::from_f64(2.0))
     }
 
-    /// The point of the line `origin + s·axis` (`axis` unit) nearest
-    /// the ball's centre: where a datum on that line is read so that
-    /// the tilt's lever from it is least.
+    /// The point of `axis` nearest the ball's centre: where a datum on
+    /// that line is read so that the tilt's lever from it is least.
     #[must_use]
-    pub fn foot_on(self, origin: Point3<T>, axis: Vec3<T>) -> Point3<T> {
-        Line { origin, dir: axis }.foot(self.center)
+    pub fn foot_on(self, axis: Line<T>) -> Point3<T> {
+        axis.foot(self.center)
     }
 
     /// The ball, if it reads: `None` where its centre or radius is
@@ -1067,7 +1066,7 @@ impl<T: SpanLocate> Reach<T> {
         Lever::of_consumed_extent(lo.abs().max(hi.abs()) / cos_a)
     }
 
-    /// The pivot on the line `origin + s·axis` (`axis` unit) the reach
+    /// The pivot on the line `axis` (its `dir` unit) the reach
     /// is read at.
     ///
     /// - [`Self::Ball`]: the foot of its centre; [`Self::Measured`]: the
@@ -1082,12 +1081,12 @@ impl<T: SpanLocate> Reach<T> {
     ///   than from any other point of the axis, the cylinder's stored
     ///   origin among them.
     #[must_use]
-    pub fn foot_on(&self, origin: Point3<T>, axis: Vec3<T>) -> Point3<T> {
+    pub fn foot_on(&self, axis: Line<T>) -> Point3<T> {
         match self {
             Self::Span {
                 carrier: Curve3::Line(_) | Curve3::Nurbs(_),
                 ..
-            } => minimax_on_axis(&self.span_points(), origin, axis),
+            } => minimax_on_axis(&self.span_points(), axis),
             Self::Span {
                 carrier:
                     Curve3::Circle(geom::Circle {
@@ -1100,11 +1099,9 @@ impl<T: SpanLocate> Reach<T> {
                     })
                     | Curve3::Spiric { center, .. },
                 ..
-            } => Line { origin, dir: axis }.foot(*center),
-            Self::Ball(ball) => Line { origin, dir: axis }.foot(ball.center()),
-            Self::Measured { at, .. } | Self::Face { at, .. } => {
-                Line { origin, dir: axis }.foot(*at)
-            }
+            } => axis.foot(*center),
+            Self::Ball(ball) => axis.foot(ball.center()),
+            Self::Measured { at, .. } | Self::Face { at, .. } => axis.foot(*at),
         }
     }
 
@@ -1193,18 +1190,18 @@ impl<T: SpanLocate> Reach<T> {
     #[must_use]
     pub fn lever_between(
         &self,
-        line1: (Point3<T>, Vec3<T>),
-        line2: (Point3<T>, Vec3<T>),
+        line1: Line<T>,
+        line2: Line<T>,
     ) -> Lever<T> {
         self.foot_lever(line1).1.min(self.foot_lever(line2).1)
     }
 
     /// One line's half of [`Self::lever_between`]: the foot on the line
-    /// `origin + s·axis` ([`Self::foot_on`]) and its lever, floored at the
+    /// `axis` ([`Self::foot_on`]) and its lever, floored at the
     /// foot's distance from the reach's point.
     #[must_use]
-    pub fn foot_lever(&self, (origin, axis): (Point3<T>, Vec3<T>)) -> (Point3<T>, Lever<T>) {
-        let pivot = self.foot_on(origin, axis);
+    pub fn foot_lever(&self, axis: Line<T>) -> (Point3<T>, Lever<T>) {
+        let pivot = self.foot_on(axis);
         let lever = self
             .reach_from(pivot)
             .max((self.reading_point() - pivot).norm());
@@ -1213,9 +1210,9 @@ impl<T: SpanLocate> Reach<T> {
 }
 
 /// **The axis point whose farthest distance to `points` is least**: the
-/// `s*` minimising `maxᵢ √(ρᵢ² + (s − sᵢ)²)` on the line
-/// `origin + s·axis` (`axis` unit), `sᵢ` and `ρᵢ` each point's axial
-/// coordinate and distance from the line. Exact, and comparison-free
+/// `s*` minimising `maxᵢ √(ρᵢ² + (s − sᵢ)²)` on the line `axis`
+/// (its `dir` unit), `sᵢ` and `ρᵢ` each point's parameter on it and
+/// distance from it. Exact, and comparison-free
 /// (lattice `max`/`min` and [`Real::select_le_zero`]).
 ///
 /// The sublevel sets `{s : ρᵢ² + (s − sᵢ)² ≤ R}` are intervals, so by
@@ -1227,14 +1224,10 @@ impl<T: SpanLocate> Reach<T> {
 /// `Rᵢⱼ = max(ρᵢ², ρⱼ²)` when `d² ≤ Δ` (one interval holds the other's
 /// centre), else `q + ((d² + Δ)/(2d))²` (they meet where the two
 /// distances are equal, between the two points).
-fn minimax_on_axis<T: Real>(points: &[Point3<T>], origin: Point3<T>, axis: Vec3<T>) -> Point3<T> {
+fn minimax_on_axis<T: Real>(points: &[Point3<T>], axis: Line<T>) -> Point3<T> {
     let sq: Vec<(T, T)> = points
         .iter()
-        .map(|&p| {
-            let w = p - origin;
-            let s = w.dot(axis);
-            (s, (w - axis * s).dot(w - axis * s))
-        })
+        .map(|&p| (axis.param(p), axis.offset(p).norm_squared()))
         .collect();
     let two = T::from_f64(2.0);
     let mut r_star = T::zero();
@@ -1257,7 +1250,7 @@ fn minimax_on_axis<T: Real>(points: &[Point3<T>], origin: Point3<T>, axis: Vec3<
     }
     let lower = |&(s, q): &(T, T)| s - (r_star - q).max(T::zero()).sqrt();
     let s_star = sq[1..].iter().fold(lower(&sq[0]), |m, p| m.max(lower(p)));
-    origin + axis * s_star
+    axis.at(s_star)
 }
 
 #[cfg(test)]
@@ -1712,7 +1705,7 @@ mod tests {
                 vec![p(1.0, -1.0), p(0.5, 0.3), p(0.5, 0.3), p(1.0, 1.0)],
             ),
         ] {
-            let foot = minimax_on_axis(&pts, origin, axis);
+            let foot = minimax_on_axis(&pts, Line { origin, dir: axis });
             let lever = pts.iter().fold(iv(0.0), |m, q| m.max((*q - foot).norm()));
             for (what, v) in [("foot", foot.z), ("lever", lever)] {
                 assert!(
@@ -1752,7 +1745,7 @@ mod tests {
         for net in nets {
             let pts: Vec<Point3<f64>> = net.iter().map(|&(x, y, z)| Point3::new(x, y, z)).collect();
             let lever = |p: Point3<f64>| pts.iter().fold(0.0_f64, |m, q| m.max((*q - p).norm()));
-            let best = lever(minimax_on_axis(&pts, origin, axis));
+            let best = lever(minimax_on_axis(&pts, Line { origin, dir: axis }));
             for k in -4000..=4000 {
                 let z = f64::from(k) * 0.002;
                 let other = lever(Point3::new(0.0, 0.0, z));

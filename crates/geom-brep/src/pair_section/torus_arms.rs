@@ -788,7 +788,7 @@ pub(super) fn square_pose<T: Decide>(
 ) -> Option<SquareWall<T>> {
     if sign(
         "section_torus_square_wall_tilt",
-        Margin::levered(a.dot(d), super::torus::lever(ball.foot_on(o, d), ball)),
+        Margin::levered(a.dot(d), super::torus::lever(ball.foot_on(geom::Line { origin: o, dir: d }), ball)),
         band,
     ) != Some(Sign::Zero)
     {

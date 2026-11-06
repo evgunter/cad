@@ -4,7 +4,7 @@
 //!
 //! Two padded world boxes that overlap separate their loci along `x̂`,
 //! `ŷ` and `ẑ` only, and the world box of a turned face widens by how
-//! it is turned ([`super::boxes::BoxFrame`]). So an overlap read alone
+//! it is turned ([`geom::cover::BoxAxes`]). So an overlap read alone
 //! makes "may these two meet" a fact about the pose. Two disjoint
 //! convex hulls have a separating direction, and [`apart`] proposes
 //! directions fixed to the pair rather than to the world:
@@ -18,7 +18,7 @@
 //! and reads both items' reaches along each through the census lane's
 //! rule ([`crate::census::face_reach_in`],
 //! [`crate::census::edge_reach_in`]) in the frame that direction aims
-//! ([`super::boxes::BoxFrame::aimed`]). The first coordinate of that
+//! ([`geom::cover::BoxAxes::aimed`]). The first coordinate of that
 //! reach is the item's support along the direction, so the gap between
 //! two of them does not depend on how the pair is turned.
 //!
@@ -33,7 +33,7 @@
 
 use geom_core::{Band, Decide, Margin, Point3, Real, Sign, UnitVec3, Vec3};
 
-use super::boxes::BoxFrame;
+use geom::cover::BoxAxes;
 use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey};
 use crate::live::BoundaryMember;
@@ -230,7 +230,7 @@ pub(crate) fn apart<T: Decide>(
 /// A face's reach in a frame: [`crate::census::face_reach_in`], or a
 /// sharper superset of the face's locus a caller reads.
 pub(crate) type FaceReach<'r, T> =
-    dyn Fn(&Body<T>, FaceKey, &BoxFrame<T>) -> Option<(Point3<T>, Point3<T>)> + 'r;
+    dyn Fn(&Body<T>, FaceKey, &BoxAxes<T>) -> Option<(Point3<T>, Point3<T>)> + 'r;
 
 /// [`apart`], with each face's reach read by `face_reach`, which holds
 /// the face's locus in every frame it is handed.
@@ -300,7 +300,7 @@ fn span_by<T: Decide>(
     dir: UnitVec3<T>,
     face_reach: &FaceReach<'_, T>,
 ) -> Option<(T, T)> {
-    let frame = BoxFrame::aimed(dir);
+    let frame = BoxAxes::aimed(dir);
     let mut span: Option<(T, T)> = None;
     for item in items {
         let (lo, hi) = reach(body, item, &frame, face_reach)?;
@@ -313,7 +313,7 @@ fn span_by<T: Decide>(
 fn reach<T: Decide>(
     body: &Body<T>,
     item: Item<T>,
-    frame: &BoxFrame<T>,
+    frame: &BoxAxes<T>,
     face_reach: &FaceReach<'_, T>,
 ) -> Option<(Point3<T>, Point3<T>)> {
     use super::boxes::{SpanBox, ball_extent, conic_extent};
@@ -326,14 +326,14 @@ fn reach<T: Decide>(
             v_ref,
             radius,
         }) => Some(corners(conic_extent(
-            &SpanBox::point(frame.point(center)),
-            &SpanBox::vector(frame.vector(u_ref)),
-            &SpanBox::vector(frame.vector(v_ref)),
+            &SpanBox::point(super::boxes::point_in(frame, center)),
+            &SpanBox::vector(super::boxes::vector_in(frame, u_ref)),
+            &SpanBox::vector(super::boxes::vector_in(frame, v_ref)),
             radius,
             radius,
         ))),
         Item::Ball { center, radius } => Some(corners(ball_extent(
-            &SpanBox::point(frame.point(center)),
+            &SpanBox::point(super::boxes::point_in(frame, center)),
             radius,
         ))),
     }

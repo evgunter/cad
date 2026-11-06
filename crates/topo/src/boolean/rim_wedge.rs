@@ -223,13 +223,8 @@ fn same_circle<T: Decide>(
 pub(crate) enum Locus<T: Real> {
     /// A rim circle both faces' boundaries ride.
     Rim(Rim<T>),
-    /// A tangent line.
-    Line {
-        /// A point on the line.
-        origin: Point3<T>,
-        /// The unit direction.
-        dir: Vec3<T>,
-    },
+    /// A tangent line, its direction unit.
+    Line(geom::Line<T>),
 }
 
 /// Which way two faces leave a locus they are tangent along, over the
@@ -336,12 +331,12 @@ pub(crate) fn departures<T: Decide>(
     }
     let scale = match locus {
         Locus::Rim(rim) => rim.radius,
-        Locus::Line { .. } => T::one(),
+        Locus::Line(_) => T::one(),
     };
     // Ascending, by decided differences: the scalars carry no order.
     sort_params(&mut cuts, scale, band)?;
     let pieces: Vec<(T, T)> = match locus {
-        Locus::Line { .. } => cuts.windows(2).map(|w| (w[0], w[1])).collect(),
+        Locus::Line(_) => cuts.windows(2).map(|w| (w[0], w[1])).collect(),
         Locus::Rim(_) => {
             let mut out: Vec<(T, T)> = cuts.windows(2).map(|w| (w[0], w[1])).collect();
             if let (Some(&first), Some(&last)) = (cuts.first(), cuts.last()) {
@@ -489,7 +484,7 @@ impl<T: Decide> FaceOnLocus<T> {
         let tau = T::from_f64(core::f64::consts::TAU);
         let wraps: &[f64] = match locus {
             Locus::Rim(_) => &[-1.0, 0.0, 1.0],
-            Locus::Line { .. } => &[0.0],
+            Locus::Line(_) => &[0.0],
         };
         let inside = |m: T| -> Result<bool, Indeterminate> {
             Ok(
@@ -522,7 +517,7 @@ impl<T: Decide> FaceOnLocus<T> {
 /// The locus point at parameter `s`.
 fn locus_point<T: Decide>(locus: Locus<T>, s: T) -> Point3<T> {
     match locus {
-        Locus::Line { origin, dir } => origin + dir * s,
+        Locus::Line(line) => line.at(s),
         Locus::Rim(rim) => {
             let (sin, cos) = s.sin_cos();
             rim.center + (rim.u_ref * cos + rim.axis.cross(rim.u_ref) * sin) * rim.radius
@@ -540,7 +535,7 @@ fn locus_point<T: Decide>(locus: Locus<T>, s: T) -> Point3<T> {
 /// its own parameter span `t1 − t0`, carried as the ride's length.
 fn locus_param<T: Decide>(locus: Locus<T>, p: Point3<T>) -> T {
     match locus {
-        Locus::Line { origin, dir } => geom::Line { origin, dir }.param(p),
+        Locus::Line(line) => line.param(p),
         Locus::Rim(rim) => {
             let d = p - rim.center;
             let th = d.dot(rim.axis.cross(rim.u_ref)).atan2(d.dot(rim.u_ref));
@@ -634,12 +629,12 @@ fn reach<T: Decide>(
             let along = curve.carrier().deriv(mid) * if he { T::one() } else { -T::one() };
             let tangent = match locus {
                 Locus::Rim(rim) => rim.axis.cross(p - rim.center),
-                Locus::Line { dir, .. } => dir,
+                Locus::Line(line) => line.dir,
             };
             let cos = along.dot(tangent) / (along.norm() * tangent.norm());
             let name = match locus {
                 Locus::Rim(_) => "seam_rim_traversal",
-                Locus::Line { .. } => "seam_line_traversal",
+                Locus::Line(_) => "seam_line_traversal",
             };
             let sign = crate::validate::decide(name, Margin::of(cos), band)?;
             if sign == geom_core::Sign::Zero {
@@ -651,7 +646,7 @@ fn reach<T: Decide>(
                 });
             }
             let span = match locus {
-                Locus::Line { .. } => {
+                Locus::Line(_) => {
                     let (u, w) = (locus_param(locus, p0), locus_param(locus, p1));
                     (u.min(w), u.max(w))
                 }
@@ -705,10 +700,7 @@ fn curve_sense<T: Decide>(
 /// Whether `p` lies on the locus.
 fn on_locus<T: Decide>(locus: Locus<T>, p: Point3<T>, band: Band) -> Result<bool, Indeterminate> {
     let off = match locus {
-        Locus::Line { origin, dir } => {
-            let d = p - origin;
-            (d - dir * d.dot(dir)).norm()
-        }
+        Locus::Line(line) => line.offset(p).norm(),
         Locus::Rim(rim) => {
             let d = p - rim.center;
             let h = d.dot(rim.axis);
@@ -762,7 +754,7 @@ fn crossings<T: Decide>(
             let p1 = curve.carrier().eval(t1);
             let w = p1 - p0;
             match locus {
-                Locus::Line { origin, dir } => {
+                Locus::Line(geom::Line { origin, dir }) => {
                     // The closest approach of the segment's line to the
                     // locus.
                     if maybe_nonzero(w.cross(dir).norm()) {
@@ -836,13 +828,13 @@ fn crossings<T: Decide>(
                 ce + (e1 * cs + e2 * sn) * re
             };
             match locus {
-                Locus::Line { origin, dir } => {
+                Locus::Line(line @ geom::Line { origin, dir }) => {
                     let ad = ae.dot(dir);
                     if maybe_nonzero(ad) {
                         candidates.push(origin + dir * (ae.dot(ce - origin) / ad));
                     }
                     if maybe_zero(ad) && maybe_zero(ae.dot(origin - ce)) {
-                        let foot = geom::Line { origin, dir }.foot(ce);
+                        let foot = line.foot(ce);
                         let h = (foot - ce).norm();
                         if maybe_not_positive(h - re) {
                             let half = (re.powi(2) - h.powi(2)).max(T::zero()).sqrt();
@@ -933,11 +925,10 @@ fn rides<T: Decide>(
             band,
         )
         .map(|one| one.is_some()),
-        (Locus::Line { origin, dir }, geom::Curve3::Line(_)) => {
+        (Locus::Line(line), geom::Curve3::Line(_)) => {
             let (t0, t1) = curve.params();
             for p in [curve.carrier().eval(t0), curve.carrier().eval(t1)] {
-                let d = p - origin;
-                let off = (d - dir * d.dot(dir)).norm();
+                let off = line.offset(p).norm();
                 if crate::validate::decide("seam_line_collinear", Margin::of(off), band)?
                     != geom_core::Sign::Zero
                 {
@@ -1115,10 +1106,10 @@ mod cover_rows {
         let body: Body<f64> =
             crate::test_support_fixtures::brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
         let face = body.faces().next().map(|(k, _)| k).unwrap();
-        let line = Locus::Line {
+        let line = Locus::Line(geom::Line {
             origin: Point3::new(0.0, 0.0, 0.0),
             dir: Vec3::new(1.0, 0.0, 0.0),
-        };
+        });
         let at = |rides: Vec<(f64, f64, geom_core::Sign)>| {
             FaceOnLocus {
                 rides,
@@ -1558,10 +1549,10 @@ mod arc_end_rows {
             0.0,
             tol,
         );
-        let locus = Locus::Line {
+        let locus = Locus::Line(geom::Line {
             origin: q,
             dir: Vec3::unit_x(),
-        };
+        });
         let got = departures(&body, cap, &block.body, block.top_face, locus, narrow);
         assert!(
             matches!(got, Err(ref d) if straddle(d)),
@@ -1591,7 +1582,7 @@ mod boundary_midpoint_rows {
         let p = Point3::new(theta.cos(), theta.sin(), 0.0);
         let n = Vec3::new(theta.cos(), theta.sin(), 0.0);
         let t = Vec3::new(theta.sin(), -theta.cos(), 0.0);
-        (Locus::Line { origin: p, dir: t }, move |u, v| {
+        (Locus::Line(geom::Line { origin: p, dir: t }), move |u, v| {
             p + t * u + n * v
         })
     }

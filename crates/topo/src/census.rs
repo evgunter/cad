@@ -7028,7 +7028,7 @@ pub(crate) fn face_reach<T: Decide>(
     f: crate::entity::FaceKey,
     band: Band,
 ) -> Option<(Point3<T>, Point3<T>)> {
-    face_reach_in(body, f, band, &crate::boolean::boxes::BoxFrame::World)
+    face_reach_in(body, f, band, &geom::cover::BoxAxes::World)
 }
 
 /// **The axis-aligned hull of `points`**: its low and high corners, each
@@ -7046,7 +7046,7 @@ pub(crate) fn point_hull<T: Decide>(
     }))
 }
 
-/// [`face_reach`] read in `frame` ([`crate::boolean::boxes::BoxFrame`]):
+/// [`face_reach`] read in `frame` ([`geom::cover::BoxAxes`]):
 /// every point and direction the rule reads enters through the frame,
 /// and every extent is the same one.
 ///
@@ -7062,7 +7062,7 @@ pub(crate) fn face_reach_in<T: Decide>(
     body: &Body<T>,
     f: crate::entity::FaceKey,
     band: Band,
-    frame: &crate::boolean::boxes::BoxFrame<T>,
+    frame: &geom::cover::BoxAxes<T>,
 ) -> Option<(Point3<T>, Point3<T>)> {
     let face = body.proven_face(f);
     let surface = face.surface();
@@ -7077,7 +7077,7 @@ pub(crate) fn face_reach_in<T: Decide>(
             // the container, where dropping it would under-claim.
             geom::NetState::Placeholder | geom::NetState::Poisoned => None,
             geom::NetState::Described => {
-                point_hull(patch.control().iter().map(|p| frame.point(*p)))
+                point_hull(patch.control().iter().map(|p| crate::boolean::boxes::point_in(frame, *p)))
             }
         },
         crate::boolean::boxes::FaceBoxRule::SphereWindow { .. } => {
@@ -7092,8 +7092,8 @@ pub(crate) fn face_reach_in<T: Decide>(
         } => {
             use crate::boolean::boxes::{Span, SpanBox, meet, ring_window_extent, torus_extent};
             let (c, ax) = (
-                SpanBox::point(frame.point(center)),
-                SpanBox::vector(frame.vector(axis)),
+                SpanBox::point(crate::boolean::boxes::point_in(frame, center)),
+                SpanBox::vector(crate::boolean::boxes::vector_in(frame, axis)),
             );
             let whole = torus_extent(&c, &ax, major_radius, minor_radius);
             // The chart window from the boundary's own stored
@@ -7112,8 +7112,8 @@ pub(crate) fn face_reach_in<T: Decide>(
                     ring_window_extent(
                         &c,
                         (
-                            &SpanBox::vector(frame.vector(u_ref)),
-                            &SpanBox::vector(frame.vector(axis.cross(u_ref))),
+                            &SpanBox::vector(crate::boolean::boxes::vector_in(frame, u_ref)),
+                            &SpanBox::vector(crate::boolean::boxes::vector_in(frame, axis.cross(u_ref))),
                             &ax,
                         ),
                         (Span::exact(major_radius), Span::exact(minor_radius)),
@@ -7135,8 +7135,8 @@ pub(crate) fn face_reach_in<T: Decide>(
             // necessarily at a boundary VERTEX.
             let h = boundary_axial(body, face, origin, axis.get())?;
             let slab = span_pts(crate::boolean::boxes::slab_extent(
-                &crate::boolean::boxes::SpanBox::point(frame.point(origin)),
-                &frame.unit(axis),
+                &crate::boolean::boxes::SpanBox::point(crate::boolean::boxes::point_in(frame, origin)),
+                &crate::boolean::boxes::unit_in(frame, axis),
                 h,
                 radius,
             ));
@@ -7167,8 +7167,8 @@ pub(crate) fn face_reach_in<T: Decide>(
             half_angle,
         } => {
             let h = boundary_axial(body, face, apex, axis)?;
-            let apex = crate::boolean::boxes::SpanBox::point(frame.point(apex));
-            let axis = crate::boolean::boxes::SpanBox::vector(frame.vector(axis));
+            let apex = crate::boolean::boxes::SpanBox::point(crate::boolean::boxes::point_in(frame, apex));
+            let axis = crate::boolean::boxes::SpanBox::vector(crate::boolean::boxes::vector_in(frame, axis));
             Some(span_pts(crate::boolean::boxes::cone_frustum_extent(
                 &apex,
                 &axis,
@@ -7210,7 +7210,7 @@ fn held_reach_in<T: Decide>(
     body: &Body<T>,
     f: FaceKey,
     band: Band,
-    frame: &crate::boolean::boxes::BoxFrame<T>,
+    frame: &geom::cover::BoxAxes<T>,
 ) -> Option<(Point3<T>, Point3<T>)> {
     let (lo, hi) = face_reach_in(body, f, band, frame)?;
     let face = body.proven_face(f);
@@ -7300,7 +7300,7 @@ fn boundary_axial<T: Decide>(
 fn boundary_reach<T: Decide>(
     body: &Body<T>,
     face: FaceView<'_, T>,
-    frame: &crate::boolean::boxes::BoxFrame<T>,
+    frame: &geom::cover::BoxAxes<T>,
 ) -> Option<(Point3<T>, Point3<T>)> {
     let mut acc: Option<(Point3<T>, Point3<T>)> = None;
     let mut grow = |(lo, hi): (Point3<T>, Point3<T>)| {
@@ -7315,7 +7315,7 @@ fn boundary_reach<T: Decide>(
     for member in face.boundary() {
         match member {
             BoundaryMember::Isolated { point: p, .. } => {
-                let p = frame.point(p);
+                let p = crate::boolean::boxes::point_in(frame, p);
                 grow((p, p));
             }
             BoundaryMember::Edge { ek, edge, .. } => grow(edge_reach_of(body, ek, edge, frame)?),
@@ -7337,7 +7337,7 @@ fn boundary_reach<T: Decide>(
 pub(crate) fn edge_reach_in<T: Decide>(
     body: &Body<T>,
     ek: crate::entity::EdgeKey,
-    frame: &crate::boolean::boxes::BoxFrame<T>,
+    frame: &geom::cover::BoxAxes<T>,
 ) -> Option<(Point3<T>, Point3<T>)> {
     edge_reach_of(body, ek, proven(&body.edges, ek, EntityId::Edge), frame)
 }
@@ -7347,12 +7347,12 @@ fn edge_reach_of<T: Decide>(
     body: &Body<T>,
     ek: crate::entity::EdgeKey,
     e: &crate::entity::Edge,
-    frame: &crate::boolean::boxes::BoxFrame<T>,
+    frame: &geom::cover::BoxAxes<T>,
 ) -> Option<(Point3<T>, Point3<T>)> {
-    use crate::boolean::boxes::{cover_frame, edge_cover_linked};
+    use crate::boolean::boxes::edge_cover_linked;
     edge_cover_linked(body, ek, e)
         .ok()
-        .map(|c| c.box_in(&cover_frame(frame)))
+        .map(|c| c.box_in(frame))
 }
 
 /// A [`crate::boolean::boxes::SpanBox`] as this lane's `(lo, hi)`
@@ -9189,7 +9189,7 @@ type WorldReach<T> = (Point3<T>, Point3<T>);
 /// positive at this lane's scalar. Each reach encloses its face's locus
 /// along that direction, so the gap proves the loci disjoint, as a
 /// world-axis gap does. The pad covers the aimed frame's rounding
-/// ([`crate::boolean::boxes::BoxFrame`]), so the clear does not rest on
+/// ([`geom::cover::BoxAxes`]), so the clear does not rest on
 /// the user-set escalate threshold.
 fn backstop_apart<T: Decide>(
     body: &Body<T>,
@@ -18203,7 +18203,7 @@ mod tests {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod torn_reach_rows {
     use crate::body::Body;
-    use crate::boolean::boxes::BoxFrame;
+    use geom::cover::BoxAxes;
     use crate::entity::{EntityId, FaceKey, GeomRef, HalfEdgeKey, LoopBoundary};
     use crate::live::OPERATORS_KEEP_LINKS;
     use crate::review_d18::{ROW_FOUR, assert_torn_op_panics};
@@ -18222,7 +18222,7 @@ mod torn_reach_rows {
     }
 
     fn reach(body: &Body<f64>, face: FaceKey) -> bool {
-        super::face_reach_in(body, face, band(), &BoxFrame::World).is_some()
+        super::face_reach_in(body, face, band(), &BoxAxes::World).is_some()
     }
 
     /// The face's surface, `boundary_reach` and the edge rule, on a cube
@@ -18267,7 +18267,7 @@ mod torn_reach_rows {
         let mut torn = body.clone();
         let edge = torn.get_half_edge(first_member(&torn, face)).unwrap().edge;
         assert!(
-            super::edge_reach_in(&torn, edge, &BoxFrame::World).is_some(),
+            super::edge_reach_in(&torn, edge, &BoxAxes::World).is_some(),
             "the sound edge has a reach"
         );
         let curve = torn.get_edge(edge).unwrap().curve;
@@ -18287,7 +18287,7 @@ mod torn_reach_rows {
             "edge_reach_in (curve)",
             &mut torn,
             &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
-            |b| super::edge_reach_in(b, edge, &BoxFrame::World).is_some(),
+            |b| super::edge_reach_in(b, edge, &BoxAxes::World).is_some(),
         );
 
         // An edge end's point, which the edge rule reads before the curve.
