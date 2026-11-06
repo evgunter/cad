@@ -167,3 +167,4 @@ turn-gate target 7.6 GB. Two build lanes plus one reviewer is what this
 box holds; a third build lane belongs in its own cloud session
 (`memories/orchestration-model.md`, lanes may run in their own sessions),
 which is how `fillet-step-discoverability-six-door-refusals` will run.
+- 2026-11-06 — `fillet-step-discoverability-six-door-refusals` dispatched to its own cloud session (session_013mPGJ4pin8WZZttgvZtpq7), branch `round/fillet-step-discoverable`: a Transition refusal names what its state accepts, derived from the transition data; `ProgramStep::Fillet` documents its legs; the reviewer's pad rebuilt from a naive attempt as the acceptance. Review tier: single, STYLE (docs and refusal text over one derived set).
