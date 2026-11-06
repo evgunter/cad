@@ -5439,10 +5439,7 @@ fn line_cone_roots<T: Decide>(
     let w0 = origin - apex;
     let dd = dir.norm_squared();
     let at = |t: T| w0 + dir * t;
-    let foot = geom::Line { origin, dir }
-        .param(apex)
-        .max(t0.min(t1))
-        .min(t0.max(t1));
+    let foot = geom::Line { origin, dir }.param_within(apex, (t0.min(t1), t0.max(t1)));
     let [a2, b2, c2] = super::solid_contain::line_cone_quadratic(
         origin,
         dir,

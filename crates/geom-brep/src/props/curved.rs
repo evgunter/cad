@@ -558,7 +558,7 @@ pub fn require_one_chart_branch<T: Decide>(
         Surface::Cylinder { .. } => Ok(()),
         Surface::Cone { apex, .. } => {
             for (i, e) in outer.iter().enumerate() {
-                let Some(geom::Line { origin, dir }) = e.carrier.as_line() else {
+                let Some(line @ geom::Line { dir, .. }) = e.carrier.as_line() else {
                     continue;
                 };
                 // GENERATORS only, by the parse's own generator margin
@@ -582,7 +582,7 @@ pub fn require_one_chart_branch<T: Decide>(
                 // margin is its signed distance to the nearer span end,
                 // metered at the line's speed, positive exactly when the
                 // apex is interior to the span.
-                let t_apex = (apex - origin).dot(dir) / dir.norm_squared();
+                let t_apex = line.param(apex);
                 let m = (t_apex - e.t0).min(e.t1 - t_apex);
                 if matches!(
                     decide(

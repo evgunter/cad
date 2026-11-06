@@ -1298,7 +1298,7 @@ pub fn replay_error_tag(kind: &ReplayErrorKind<f64>) -> &'static str {
 /// structure).
 pub fn structure_refusal_tag(kind: &StructureRefusalKind) -> &'static str {
     match kind {
-        StructureRefusalKind::Indeterminate(_) => "indeterminate",
+        StructureRefusalKind::Indeterminate { .. } => "indeterminate",
         StructureRefusalKind::Flipped { .. } => "flipped",
     }
 }

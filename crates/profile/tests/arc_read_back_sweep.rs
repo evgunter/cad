@@ -283,7 +283,7 @@ fn read_back(kind: &ReplayErrorKind<f64>) -> Option<bool> {
     match kind {
         ReplayErrorKind::Path(PathError::ArcMissesAuthoredPoint { .. }) => Some(true),
         ReplayErrorKind::Path(PathError::ArcMissBelowSceneResolution { .. }) => Some(false),
-        ReplayErrorKind::Path(PathError::Escalated { source })
+        ReplayErrorKind::Path(PathError::Escalated { source, .. })
             if source.predicate.is_some_and(|p| {
                 [
                     "path_arc_start_on_carrier",

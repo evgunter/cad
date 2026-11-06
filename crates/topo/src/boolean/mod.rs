@@ -408,27 +408,17 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         | "bool_sphere_trim_pole_end"
         | "bool_sphere_trim_pole_interior"
         | "bool_sphere_region_arm"
-        | "bool_sphere_region_span"
+        | "bool_sphere_region_component"
         | "bool_sphere_region_at"
         | "bool_sphere_region_order"
         | "bool_sphere_region_cross"
-        | "bool_sphere_region_roots_noise"
-        | "bool_sphere_region_roots_coaxial"
-        | "bool_sphere_region_roots_extreme"
-        | "bool_sphere_region_roots_slack"
         | "bool_sphere_region_arc_span"
         | "bool_sphere_region_arc_straddle"
         | "bool_torus_region_component"
-        | "bool_torus_region_family"
-        | "bool_torus_region_span"
         | "bool_torus_region_at"
         | "bool_torus_region_corner"
         | "bool_torus_region_order"
         | "bool_torus_region_cross"
-        | "bool_torus_region_roots_noise"
-        | "bool_torus_region_roots_coaxial"
-        | "bool_torus_region_roots_extreme"
-        | "bool_torus_region_roots_slack"
         | "bool_torus_region_arc_span"
         | "bool_torus_region_arc_straddle"
         | "bool_torus_region_spiric_end"
@@ -439,17 +429,11 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         | "bool_ruled_region_frame"
         | "bool_ruled_region_nappe"
         | "bool_ruled_region_component"
-        | "bool_ruled_region_collinear"
-        | "bool_ruled_region_span"
         | "bool_ruled_region_at"
         | "bool_ruled_region_end"
         | "bool_ruled_region_corner"
         | "bool_ruled_region_order"
         | "bool_ruled_region_cross"
-        | "bool_ruled_region_roots_noise"
-        | "bool_ruled_region_roots_coaxial"
-        | "bool_ruled_region_roots_extreme"
-        | "bool_ruled_region_roots_slack"
         | "bool_ruled_region_arc_span"
         | "bool_ruled_region_arc_straddle"
         | "bool_ruled_region_edge_length"
@@ -2855,6 +2839,9 @@ pub enum SectionUnbuilt {
     /// A closed loop of the section could not be opened at its first
     /// site: the knot edit refused.
     Seat(geom_core::spline::KnotAlgebraError),
+    /// A spline component's piece walk could not run
+    /// (`geom_brep::CarryError::Unwalked`).
+    Unwalked(geom::PieceWalkRefusal),
 }
 
 impl SectionUnbuilt {
@@ -2893,6 +2880,12 @@ impl SectionUnbuilt {
             Self::Seat(e) => write!(
                 f,
                 "the section's closed loop could not be opened at its first site ({e})"
+            ),
+            Self::Unwalked(why) => write!(
+                f,
+                "whether a marched loop's points lie on its fitted carrier could not be read: \
+                 {why}. {}",
+                why.recourse()
             ),
         }
     }

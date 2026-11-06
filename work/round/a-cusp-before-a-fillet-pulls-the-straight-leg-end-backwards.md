@@ -2,13 +2,14 @@
 id: a-cusp-before-a-fillet-pulls-the-straight-leg-end-backwards
 kind: issue
 title: line(L).cusp().fillet(r) moves the straight leg's end vertex BACKWARDS: the authored end leaves the path, and past the start the declared cusp is silently dropped; both validate
-status: review
+status: closed
 opened: 2026-11-06
 priority: P0
 cost: E
 branch: round/cusp-fillet-keeps-its-leg
 refs: [carriers-are-identical-reads-carrier-identity-at-the-lattice]
 pr: 6545
+closed: 2026-11-06
 ---
 
 
@@ -49,3 +50,18 @@ is emitted as its own segment from the leg's end, with the declared
 cusp at that vertex. This holds under either answer to the open fork
 on the straight-leg merge (keep it for forward rays, or retire it), so
 it does not wait for that fork. The probes become the pins.
+
+## Closed (2026-11-06)
+
+PR 6545. `ByTangent { No, Forward, Reversed }` replaces the bool; the
+straight-leg merge test has one home, `PendingMeta::extends_straight_leg`,
+read by the line×line arm and `merge_of`, and it fires only on a
+`Forward` ray. A `.cusp()`-reversed ray emits its run as its own segment
+from the leg's end with the cusp declared there; on a straight leg that
+run lies over the leg, so validation refuses `NonSimple … Overlap`,
+exactly as `.cusp().line(..)` does, and the exact fit validates its
+cusp at the authored end. Pins: `crates/profile/tests/cusp_fillet_keeps_its_leg.rs`
+(11 rows, Interval lane included). Single FULL review: APPROVE, and a
+merge-base differential showed every non-cusp chain bit-identical.
+Follow-ups filed: `a-fillet-run-the-fit-gate-passes-validation-calls-degenerate`
+(P2), `a-cusp-fillet-overlap-refusal-names-segments-not-the-run` (P3).

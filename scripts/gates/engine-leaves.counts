@@ -16,10 +16,19 @@
 # (`use … as Q`, `type Q = …`): the kind admits no new site, and each line
 # goes when its rename does.
 #
-# Not checked here: that a PR's pins are no higher than its base's (CI
-# checks out one commit, so a raised pin reads only in review), and the
-# counter's over-counts (a name it reads as the engine's where a namesake
-# was meant; engine_leaves.py states them), which err the safe way.
+# A pin only falls against the merge base too: the gate reds a pin above
+# the base's (`GATE_BASE`, which ci.yml's `lint` job sets). The one rise
+# it admits is the migration's. A new site in a reader is paid in that
+# reader's `names-*` pin, on a line that cites the move row retiring it
+# (`names-boolean 12 x.rs  # work/<program>/<id>`), and never by a new
+# `pub(crate)` in the engine; `pin-cites-an-open-row.sh` holds the row
+# open, and the green line names each cited rise. A cited line may rise
+# again while its row is open; the row's close takes the citation, and
+# from then the line only falls. Every other kind admits no rise.
+#
+# Not checked here: the counter's over-counts (a name it reads as the
+# engine's where a namesake was meant; engine_leaves.py states them),
+# which err the safe way.
 
 
 boolean-names-splitting     2  boolean/carrier_touch.rs
@@ -63,7 +72,7 @@ crate-visible               2  boolean/plane_eq.rs
 crate-visible              20  boolean/records.rs
 crate-visible               8  boolean/reduce.rs
 crate-visible              24  boolean/refusal_routes.rs
-crate-visible              57  boolean/region.rs
+crate-visible              36  boolean/region.rs
 crate-visible               8  boolean/rim_wedge.rs
 crate-visible               6  boolean/ruled_region.rs
 crate-visible              12  boolean/section_cert.rs
@@ -75,7 +84,7 @@ crate-visible               4  boolean/sphere_region.rs
 crate-visible               1  boolean/spline_known.rs
 crate-visible              11  boolean/spline_region.rs
 crate-visible               4  boolean/spline_region_rows.rs
-crate-visible               4  boolean/torus_region.rs
+crate-visible               3  boolean/torus_region.rs
 crate-visible               2  boolean/voids.rs
 crate-visible               4  boolean/vtxfac.rs
 crate-visible               5  boolean/zip.rs
@@ -95,7 +104,7 @@ names-boolean               7  attach.rs
 names-boolean              14  body.rs
 names-boolean               4  bound_side.rs
 names-boolean              11  cell_region.rs
-names-boolean             505  census.rs
+names-boolean             506  census.rs  # work/onecopy/the-census-sort-of-a-boolean-refusal-has-no-legal-home-under-topo-homes
 names-boolean               2  census/curved.rs
 names-boolean              33  census/depth_gap.rs
 names-boolean              26  census/in_plane.rs
@@ -108,7 +117,7 @@ names-boolean               5  chart_region.rs
 names-boolean              23  chord_join.rs
 names-boolean               1  chord_join/cone_ring_rows.rs
 names-boolean               1  chord_join/sibling_escalation_rows.rs
-names-boolean               3  chord_join/sphere_island_rows.rs
+names-boolean               2  chord_join/sphere_island_rows.rs
 names-boolean              11  clearance.rs
 names-boolean              18  coincidence.rs
 names-boolean              10  construction.rs
@@ -162,7 +171,7 @@ names-boolean              31  test_support_samples.rs
 names-boolean              26  test_support_volume.rs
 names-boolean              48  tier3_tests.rs
 names-boolean               2  turn_rows.rs
-names-boolean              84  validate.rs
+names-boolean              82  validate.rs
 
 names-splitting            10  cell_region.rs
 names-splitting            56  census.rs
@@ -240,7 +249,6 @@ ambiguous classify                       # offset_axial.rs
 ambiguous face_carrier                   # readback.rs
 ambiguous face_rows                      # null.rs
 ambiguous fans                           # link/oracle_rows.rs
-ambiguous found                          # census/pierce_fuzz.rs
 ambiguous holds                          # census/depth_gap.rs
 ambiguous in_band                        # census.rs, validate.rs
 ambiguous maximal_faces_gate             # lib.rs
@@ -250,14 +258,12 @@ ambiguous no_crossings_section_report    # lib.rs
 ambiguous no_event_section_report        # lib.rs
 ambiguous ops_under_test                 # lib.rs
 ambiguous overlap                        # census/link_fuzz.rs, injective.rs
-ambiguous parallel                       # injective.rs, ring_path.rs, ring_path/torus_islands.rs
 ambiguous point_in_face                  # lib.rs
 ambiguous ray_crossings                  # ray_walk.rs
 ambiguous read                           # bound_side.rs, census.rs, census/curved.rs, census/pierce_fuzz.rs, census/point.rs, census/self_touch_curved.rs, chord_join/section_end_rows.rs, injective.rs, link.rs, link/tangent_rows.rs, test_support_volume.rs
 ambiguous rect                           # chart_region.rs
 ambiguous section_report                 # lib.rs
 ambiguous sheet                          # chart_region.rs, chord_join/cone_ring_rows.rs, chord_join/sphere_island_rows.rs, chord_join/torus_ring_rows.rs, injective.rs, row_walk_proofs.rs
-ambiguous span                           # census/curved.rs
 ambiguous spiric_cap                     # census.rs
 ambiguous split                          # census/depth_gap.rs, clearance.rs, link/cone_fuzz.rs, props.rs
 ambiguous sweep_pad                      # lib.rs
@@ -265,5 +271,4 @@ ambiguous through_the_join               # both engines
 ambiguous torus_chart_window             # census.rs
 ambiguous uncrossable                    # test_support_samples.rs, validate.rs
 ambiguous vertex_at                      # chord_join/wall_ring_rows.rs
-ambiguous walk                           # clearance.rs, ray_walk.rs
 ambiguous with_vertex_pairs_reversed     # lib.rs

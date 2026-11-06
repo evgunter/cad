@@ -403,3 +403,42 @@
 
 - 2026-11-06 — Ruled the spline foot search: polish local minima plus the 4 smallest samples. Misses fall from 3.6% to 0.085% at 2.1× per foot; the lane measures whole-suite cost against the fast-set bars before landing.
 - 2026-11-06 — Sent the 6491 lane the text of the review's taste items (S3, S4, S8, N3), preferring S8's one type.
+
+- 2026-11-06 — PR 6541 FULL review: FIX FIRST, on MAJOR-1. B is sound and every run is green, but the coplanar-ellipses change put an f64 `Rounded` charge on `Level::jet_at`, against ratified `[simple.conditioned]` and Ev's PR 6329 ruling. Ruled:
+  - revert the coplanar part out of 6541 and reopen its row;
+  - rewrite the filed row as "re-pose the subdivision's touch arm, or else `[ev]`", not "charge the window";
+  - pin and disclose the zero → e move for unbounded arcs beside a ring.
+  Lesson: a lane that meets a refusal it can fix with a charge must check `[simple.conditioned]` before adding one; a test that needs a non-zero error marks a pose to re-pose.
+
+- 2026-11-06 — The harmonic-cut unit is done locally, waiting on 6541.
+  - The harmonic phases are onto `Azimuth::near`, and the `harmonic-cut` gate class is retired.
+  - One 1e-12 pose is re-posed, citing 2a8502bb.
+  - The chart's cut side stays logged: one row (`placement_rows::a_direction_on_the_windows_cut…`) moves under `Band::least()`. So for a window read the choice is not a pure renaming, and the ledger now says so.
+  - It found three more editor-core slow reds on main (m10_bulge ×2, sym11), passed to the main-reds lane.
+
+- 2026-11-06 — PR 6540 FULL review: MERGE, with each port checked bit by bit and no outcome moved. Fix pass sent:
+  - MINOR-1: a 3D segment-distance copy left in step-import `adopt.rs`, while the row claimed done.
+  - MINOR-2: `Line::param` and `Line::offset` re-derive `project_onto` with `dot`, which is looser at Interval. Route `Line` through `norm_squared` / `reject_from` and port `cover.rs`'s `off_line`.
+  - MINOR-3: an unstated `t0 ≤ t1` precondition, to be stated and made to fail loudly.
+
+- 2026-11-06 — topo-handles opened PR 6552 at `e8aa9bdb`.
+  - `Body::face` replaces `passed_face` as the public resolving handle.
+  - `edge_vertices` is now public, and `query::edge_ends` reads both half-edges' starts.
+  - About 680 face→surface walks are ported, with a new `topology-reads-through-topo.sh` gate.
+  - The ci set passes at both ε, with 3 torn-link pins re-aimed.
+  FULL review sent to `session_013mPGJ3HVYqYAoquA4iThSZ`, with the edge-ends semantics as its first check. The three unfiled main reds it found (the needle cavity, seat7 digests, and the loop-boundary-discards selftest) went to the main-reds lane.
+
+- 2026-11-06 — Design fork dispatched on `the-census-sort-of-a-boolean-refusal-has-no-legal-home-under-topo-homes`: where a crate-internal reading of an engine's type lives under ratified `[topo.homes]`. Draw 127, 42: two designers, Opus as A. Recorded on `analysis/design-fork/onecopy-census-sort-home`. The outcome goes to Ev as `[ev]` if it changes `[topo.homes]` or the gates. The topo-handles lane takes `value-discards` (all 24 arms) and the loop doors.
+
+- 2026-11-06 — The census-sort fork converged on first reports, and both designers rejected the framing.
+  - The census's sort is in its home; the tangent-line reading it reads is arm-2 code misplaced in `boolean/`, a unit-5 move.
+  - `[topo.homes]` is unchanged, so no `[ev]` PR. The row becomes a move row (cost H): `contain`'s placement door, then `face_boundary`, then the reading, with `FaceUnread` reshaped by verdict kind.
+  - Filed `engine-leaves-passes-a-raised-pin-and-its-message-points-the-wrong-way` and `the-census-has-no-fault-arm-and-sorts-a-kernel-fault-as-unsupported`.
+  The stale local `main` (`9036ae9e5b`) misled both designers' clones; I fixed the ref.
+- 2026-11-06 — Dispatched `onecopy/engine-leaves-pins` (`session_013mPGJ2hhJzfCkPLVNf3azD`): the raised-pin gate and its message, and the census fault vocabulary. The tangent-line move waits until tranche 4 and topo-handles leave containment.
+
+- 2026-11-06 — PR 6548 FULL review: MERGE. `Stop` is sound and no answer moved. Fix pass sent:
+  - M1: pin the section's Unwalked rendering.
+  - M2: put recourse on `PieceWalkRefusal`, so the join and section renderings agree.
+  - S2 and S3.
+  - A P3 class row for three clearance walks, two `SiteRefusal` sorts and the census's `WALK_*`.

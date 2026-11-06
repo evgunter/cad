@@ -2,12 +2,13 @@
 id: region-landings-read-a-leg-against-an-edge-by-hand-rows-beside-meet
 kind: issue
 title: topo::boolean's region landings read a leg against a boundary edge by hand rows (plane crossing, collinear test, first-harmonic roots) beside curve_pair::meet
-status: dispatched
+status: closed
 opened: 2026-11-03
 priority: P1
 cost: M
 refs: [boundary-cuts-reads-line-against-conics-through-their-planes]
-branch: onecopy/meet-pose
+closed: 2026-11-06
+pr: 6491
 ---
 
 Found by the full review of PR 6451, which moved `boolean::boundary_cuts` onto the boundary pass.
@@ -55,6 +56,7 @@ So `meet` loses only by its own decision order and its fixed parametrization.
 
 Also: rename `Pose::Parallel` where it means two conics apart across a plane. Re-run every `meet` consumer's slow set (the boundary pass, `census`, `census/curved`, `ring_path`), since near-parallel conic pairs may move from an escalation to a decided `Apart`.
 
+
 ## The off-surface fork (2026-11-06): first reports
 
 Draw: bytes 145 and 34, so two designers, recorded on `analysis/design-fork/onecopy-landings-off-surface`. The question: PR 6491's two 1e-12 reds (the far ray's leg 1.2e-10 off a cylinder; the skew pair at Interval), and the cost through `meet`.
@@ -95,3 +97,11 @@ Cost returns to main's: one closed form per (leg, edge) pair.
 - `meet`'s per-call cost at Interval (5–100 ms), on its real consumers.
 - The two conic-plane spellings, which are `work/germ/circle-plane-first-harmonic-has-three-hand-built-copies.md`.
 - The far start's `q + d·t` from 10⁶ m in `solid_contain` and `side_reader`.
+
+## Implemented (PR 6491)
+
+Every item above is implemented as written but one:
+- **Item 4, the torus's orientation choice, is no longer a choice.** On the plane door, all three of main's `bool_torus_region_family` arms read a circle edge across the meridian leg's plane.
+  - The "parallel off the rims" arm placed the edge's point on the leg's half-plane, which is the root of that same reading.
+  - Reading the meridian across a parallel's plane instead touches within about `√(2·zero/r)` of the top or bottom circle, where that plane is tangent to the tube. The review's M4 row, `a_meridian_meets_a_parallel_by_the_top_circle_once`, at `v = π/2 ± 3e-5`, reads `Graze` that way.
+  - So a meridian leg reads every circle edge across its own plane, a parallel leg reads every edge's plane, and an oval's plane is read by every leg. `bool_torus_region_family` leaves the roster.

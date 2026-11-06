@@ -4,6 +4,8 @@ kind: issue
 title: A selection's body is a plain read, so a member read by index (xs[i]) cannot be selected from, and Rebind { body } would reach every member's selections
 status: open
 opened: 2026-10-10
+priority: P1
+cost: M
 ---
 
 
