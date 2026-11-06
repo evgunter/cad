@@ -2427,17 +2427,11 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
 #[cfg(debug_assertions)]
 fn record_rooted<T: Real>(operand: &Body<T>, result: &Body<T>, naming: &ShellNaming) {
     use std::collections::BTreeSet;
-    /// Every key in `keys` holds `holds`, else the postcondition names
-    /// the key and what it `breaks`: one message shape for every walk.
+    /// The postcondition's one message shape: the key, and what it
+    /// `breaks` when it does not hold.
     #[track_caller]
-    fn every<K: Copy + core::fmt::Debug>(
-        keys: impl IntoIterator<Item = K>,
-        holds: impl Fn(K) -> bool,
-        breaks: &str,
-    ) {
-        for k in keys {
-            assert!(holds(k), "shell postcondition: {k:?} {breaks} (kernel bug)");
-        }
+    fn check(holds: bool, key: &dyn core::fmt::Debug, breaks: &str) {
+        assert!(holds, "shell postcondition: {key:?} {breaks} (kernel bug)");
     }
     const SOURCE: &str = "is a row's source half, and the operand does not carry it";
     const ROOTED: &str = "is retired, and neither the operand carries it nor a row mints it";
@@ -2505,74 +2499,54 @@ fn record_rooted<T: Real>(operand: &Body<T>, result: &Body<T>, naming: &ShellNam
             vertices.extend(ring_vertices);
         }
     }
-    every(
-        thickened.iter().map(|&(_, s)| s),
-        |s| operand.get_shell(s).is_some(),
-        SOURCE,
-    );
-    every(
-        faces.iter().map(|&(_, s)| s).chain(designated),
-        |s| operand.get_face(s).is_some(),
-        SOURCE,
-    );
-    every(
-        edges.iter().map(|&(_, s)| s),
-        |s| operand.get_edge(s).is_some(),
-        SOURCE,
-    );
-    every(
-        vertices.iter().map(|&(_, s)| s),
-        |s| operand.get_vertex(s).is_some(),
-        SOURCE,
-    );
+    for &(_, s) in thickened {
+        check(operand.get_shell(s).is_some(), &s, SOURCE);
+    }
+    for s in faces.iter().map(|&(_, s)| s).chain(designated) {
+        check(operand.get_face(s).is_some(), &s, SOURCE);
+    }
+    for &(_, s) in &edges {
+        check(operand.get_edge(s).is_some(), &s, SOURCE);
+    }
+    for &(_, s) in &vertices {
+        check(operand.get_vertex(s).is_some(), &s, SOURCE);
+    }
     let minted_f: BTreeSet<FaceKey> = faces.iter().map(|&(r, _)| r).chain(rim_faces).collect();
     let minted_e: BTreeSet<EdgeKey> = edges.iter().map(|&(r, _)| r).collect();
     let minted_v: BTreeSet<VertexKey> = vertices.iter().map(|&(r, _)| r).collect();
-    every(
-        dead_faces.iter().copied(),
-        |f| minted_f.contains(&f) || operand.get_face(f).is_some(),
-        ROOTED,
-    );
-    every(
-        dead_edges.iter().copied(),
-        |e| minted_e.contains(&e) || operand.get_edge(e).is_some(),
-        ROOTED,
-    );
-    every(
-        dead_vertices.iter().copied(),
-        |v| minted_v.contains(&v) || operand.get_vertex(v).is_some(),
-        ROOTED,
-    );
-    every(
-        dead_faces.iter().copied(),
-        |f| result.get_face(f).is_none(),
-        GONE,
-    );
-    every(
-        dead_edges.iter().copied(),
-        |e| result.get_edge(e).is_none(),
-        GONE,
-    );
-    every(
-        dead_vertices.iter().copied(),
-        |v| result.get_vertex(v).is_none(),
-        GONE,
-    );
-    every(
-        dead_loops.iter().copied(),
-        |l| result.get_loop(l).is_none(),
-        GONE,
-    );
-    every(
-        dead_surfaces.iter().copied(),
-        |g| result.get_surface(g).is_none(),
-        GONE,
-    );
-    every(
-        dead_shells.iter().copied(),
-        |s| result.get_shell(s).is_none(),
-        GONE,
-    );
+    for &f in dead_faces {
+        check(
+            minted_f.contains(&f) || operand.get_face(f).is_some(),
+            &f,
+            ROOTED,
+        );
+        check(result.get_face(f).is_none(), &f, GONE);
+    }
+    for &e in dead_edges {
+        check(
+            minted_e.contains(&e) || operand.get_edge(e).is_some(),
+            &e,
+            ROOTED,
+        );
+        check(result.get_edge(e).is_none(), &e, GONE);
+    }
+    for &v in dead_vertices {
+        check(
+            minted_v.contains(&v) || operand.get_vertex(v).is_some(),
+            &v,
+            ROOTED,
+        );
+        check(result.get_vertex(v).is_none(), &v, GONE);
+    }
+    for &l in dead_loops {
+        check(result.get_loop(l).is_none(), &l, GONE);
+    }
+    for &g in dead_surfaces {
+        check(result.get_surface(g).is_none(), &g, GONE);
+    }
+    for &s in dead_shells {
+        check(result.get_shell(s).is_none(), &s, GONE);
+    }
 }
 
 /// A rim ring's two row lists: its edge rows and its vertex rows.
@@ -5633,11 +5607,12 @@ mod tests {
         use super::super::{Body, EdgeKey, ShellNaming, ShellRetired, record_rooted};
 
         fn prism() -> Body<f64> {
-            crate::splitting::reassembly::quad_prism(
+            crate::test_support::prism::<f64>(
                 &[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)],
                 1.0,
                 geom_core::Tol::witness(),
             )
+            .body
         }
 
         fn an_edge(body: &Body<f64>) -> EdgeKey {
