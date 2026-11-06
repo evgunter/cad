@@ -481,3 +481,8 @@
 
 - 2026-11-06 — The 6540 reviewer withdrew its base column: base and head shared one `CARGO_TARGET_DIR`, so base reused head's binaries, since cargo fingerprints by relative path and mtime. Its claim that the 9 slow reds are main's is unverified until the true base re-run, so the 6540 merge is held until then even if the gate passes.
   Lesson: a base-vs-head comparison needs separate target dirs, and the curve-pair-tidy lane hit the same trap with worktrees. Every brief and review prompt should say so.
+
+- 2026-11-06 — PR 6554 FULL review: FIX FIRST, one MINOR. The workflow is correct and fails open only on an unscoped dispatch, which is disclosed.
+  - The hole: a citation to `log.md` or `plan.md` (a file with no `status:`) passes as an "open row".
+  - Copies: the citation regex is in Python and in awk, and the census fault has four spellings.
+  Fix pass sent.
