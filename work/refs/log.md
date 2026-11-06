@@ -113,3 +113,13 @@
   - P4 E `a-spelled-union-clones-the-results-per-member` (unmeasured perf).
   - Priced the two unpriced P2 part-name rows M. Load is now 15/30. The three new P1s join this sitting's slate after the P0 pair, serially.
 - 2026-11-06 — **PR 6543 (the P0 pair) green at `b42816e736`; single STYLE review dispatched.** The brief's premise was corrected by the lane: the shell's `dead` record is in RESULT keys and names construction-minted cavity twins by design, so BLEND's "a retirement names a source key" is false for the shell; `record_rooted` checks "an operand key or the result half of some row" plus every row's source half, and two mutants trip it. The nameless-escalation class is fixed at its three publishers (`measure.rs` now carries `Option`, `section_cert.rs`, `clearance.rs`); its root — `Indeterminate::predicate` is optional, 35 `None` literals and ~62 raw `sign_within` calls — went to SCALAR as `an-escalation-may-carry-no-predicate-name-so-every-publisher-must-mark-one` (P3 M). **Class** (logged per the adjudication rule): a check true of one operation's record (BLEND: retirements are source keys) is false of a sibling's (SHELL: retirements may be result keys), so a guard copied across them must restate its predicate per record.
+- 2026-11-06 — **PR 6543 review: APPROVE-WITH-FIXES, no MAJOR; fix pass sent to the implementer.** Taken:
+  - `record_rooted`'s "or a row's result half" disjunct lets a live seam piece or twin pushed into `dead` pass, so the check gains "absent from the result";
+  - a permanent `#[should_panic]` row, since the "needs a hook" claim was false;
+  - the `edge_joins`/`ring` comments; the debug-assertions qualifier in the emitter docs;
+  - the measure payloads' `predicate` duplicates `source.predicate`, so it is deleted rather than made `Option`, with the sibling `*Escalated` payloads swept;
+  - one home for `"<unnamed>"`: the PR had minted a second topo home beside k_stats ×2 and profile;
+  - `Shelled::lineage` states operand-cell fates for twin keys from `dead`;
+  - the `clearance` meeting-pair `Sliver` bypassing `terminal_sliver` (checked and routed).
+
+  **Class (Q1, the fix that mints a copy):** a lane closing "an invented name" introduced a second marker home, which the brief's own trap warns of.
