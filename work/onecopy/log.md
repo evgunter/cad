@@ -420,3 +420,10 @@
   - MINOR-1: a 3D segment-distance copy left in step-import `adopt.rs`, while the row claimed done.
   - MINOR-2: `Line::param` and `Line::offset` re-derive `project_onto` with `dot`, which is looser at Interval. Route `Line` through `norm_squared` / `reject_from` and port `cover.rs`'s `off_line`.
   - MINOR-3: an unstated `t0 ≤ t1` precondition, to be stated and made to fail loudly.
+
+- 2026-11-06 — topo-handles opened PR 6552 at `e8aa9bdb`.
+  - `Body::face` replaces `passed_face` as the public resolving handle.
+  - `edge_vertices` is now public, and `query::edge_ends` reads both half-edges' starts.
+  - About 680 face→surface walks are ported, with a new `topology-reads-through-topo.sh` gate.
+  - The ci set passes at both ε, with 3 torn-link pins re-aimed.
+  FULL review sent to `session_013mPGJ3HVYqYAoquA4iThSZ`, with the edge-ends semantics as its first check. The three unfiled main reds it found (the needle cavity, seat7 digests, and the loop-boundary-discards selftest) went to the main-reds lane.
