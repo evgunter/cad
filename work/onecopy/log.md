@@ -415,3 +415,8 @@
   - One 1e-12 pose is re-posed, citing 2a8502bb.
   - The chart's cut side stays logged: one row (`placement_rows::a_direction_on_the_windows_cut…`) moves under `Band::least()`. So for a window read the choice is not a pure renaming, and the ledger now says so.
   - It found three more editor-core slow reds on main (m10_bulge ×2, sym11), passed to the main-reds lane.
+
+- 2026-11-06 — PR 6540 FULL review: MERGE, with each port checked bit by bit and no outcome moved. Fix pass sent:
+  - MINOR-1: a 3D segment-distance copy left in step-import `adopt.rs`, while the row claimed done.
+  - MINOR-2: `Line::param` and `Line::offset` re-derive `project_onto` with `dot`, which is looser at Interval. Route `Line` through `norm_squared` / `reject_from` and port `cover.rs`'s `off_line`.
+  - MINOR-3: an unstated `t0 ≤ t1` precondition, to be stated and made to fail loudly.
