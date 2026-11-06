@@ -197,6 +197,5 @@ pub const FILLET_SCENE_RESOLUTION_RECOURSE: &str = "move the geometry nearer the
      `test-support`; interior in every other build"
     )
 )]
-pub const FILLET_STORED_FORM_INBAND_RECOURSE: &str = "drop the fillet, which settles it either way; or, if the arc is too shallow to \
-     store, turn the corner further or use a larger radius; or, if it is too fine for the scene, \
-     move nearer the origin";
+pub const FILLET_STORED_FORM_INBAND_RECOURSE: &str = "drop the fillet; or, if the arc is too shallow to store, turn the corner further or \
+     enlarge the radius; or, if it is too fine for the scene, move nearer the origin";
