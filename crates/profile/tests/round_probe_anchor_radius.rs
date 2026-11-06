@@ -17,6 +17,13 @@
 //! anchor fit, bisected on the replay to adjacent floats — and replayed
 //! at the bound (exact, a relative 1e-12 below, and floored to 4 dp) to
 //! count what an author following it gets.
+//!
+//! M3: below each entry's r_P (40 radii log-spaced from r_P·(1 − 1e-9)
+//! to r_P·1e-3, and r_P floored to 4 dp and to 10 significant figures)
+//! the corner never refuses on the anchor fit again, so "r_P or less"
+//! holds wherever this corner is observed; on grid A, 52 entries have a
+//! probe radius at which the loop builds at its OTHER derived corner,
+//! which leaves this one unobserved there.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 #![allow(clippy::too_many_lines, clippy::similar_names)]
@@ -269,6 +276,9 @@ struct Census {
     no_bound: usize,
     no_bound_at: Vec<usize>,
     bound_above_flip: usize,
+    both_overrun: Vec<usize>,
+    hidden: Vec<usize>,
+    retrip: Vec<(usize, f64, bool)>,
     bound_not_below_r: usize,
     at_exact: [usize; 4],
     at_eps: [usize; 4],
@@ -449,6 +459,66 @@ fn analyse(
     } else {
         cen.four_dp_nonpositive += 1;
     }
+    // M3: below r_P, does this corner ever refuse on the anchor fit again?
+    let rsi = cands.iter().find(|c| c.0 == reported_idx).unwrap();
+    if rsi.1[0] - rsi.2[0] > 0.0 && rsi.1[1] - rsi.2[1] > 0.0 {
+        cen.both_overrun.push(n);
+    }
+    let sig10 = {
+        let e = bound.log10().floor() - 9.0;
+        let q = 10f64.powf(e);
+        (bound / q).floor() * q
+    };
+    let mut probes: Vec<f64> = (0..40)
+        .map(|i| bound * (1.0 - 1e-9) * 1e-3_f64.powf(f64::from(i) / 39.0))
+        .collect();
+    probes.push(four);
+    probes.push(sig10);
+    let mut tripped: Option<(f64, Option<usize>)> = None;
+    let mut hidden = false;
+    let other_corner = match (inc.kind, out.kind) {
+        (Kind::Circle { c: c1, .. }, Kind::Circle { c: c2, .. }) => {
+            let d = sub(c2, c1);
+            let foot = add(c1, mul(d, dot(sub(x, c1), d) / dot(d, d)));
+            Some(sub(mul(foot, 2.0), x))
+        }
+        _ => None,
+    };
+    for &rr in probes.iter().filter(|&&x| x > 0.0 && x < bound) {
+        let res = build(rr);
+        if let (Ok(lp), Some(oc)) = (&res, other_corner) {
+            // Built at the OTHER derived corner: this one is not observed.
+            let used_other = lp.segments().iter().any(|sg| match sg {
+                profile::Segment::Arc(a) if a.radius == rr => {
+                    norm(sub(p(a.centre), oc)) < norm(sub(p(a.centre), x))
+                }
+                _ => false,
+            });
+            hidden |= used_other;
+        }
+        if classify(&res, at) == Outcome::SameAnchorFit {
+            // Which candidate the re-trip reports, matched on its setback.
+            let e = res.as_ref().err().unwrap();
+            let (_, sd, sb, av) = *anchor_fit_entries(e)
+                .iter()
+                .find(|(q, ..)| (q.x - at.x).abs() < 1e-9 && (q.y - at.y).abs() < 1e-9)
+                .unwrap();
+            let j = usize::from(sd == FilletLeg::Outgoing);
+            let k = centres(&inc, &out, sigma, rr).into_iter().find_map(|o| {
+                let (c, s) = legs[j];
+                let (b, l) = c.setback_len(s, c.tangent_point(o, sigma, rr), x);
+                ((b - sb).abs() < 1e-9 && (l - av).abs() < 1e-9).then(|| index_of(&inc, &out, o))
+            });
+            tripped = Some((rr / bound, k));
+            break;
+        }
+    }
+    if hidden {
+        cen.hidden.push(n);
+    }
+    if let Some((frac, k)) = tripped {
+        cen.retrip.push((n, frac, k == Some(best_k)));
+    }
     // The kernel's own flip point.
     match flip(build, at, r, &[bound * (1.0 - 1e-9), bound * 0.5, r * 1e-3]) {
         Some(f) => {
@@ -548,7 +618,22 @@ fn pin(cen: &Census, want: Pins) {
     );
     assert_eq!(cen.simple_differs.len(), want.simple_differs);
     assert_eq!(cen.ratio_equal, want.ratio_equal);
+    assert_eq!(
+        cen.both_overrun.len(),
+        want.both_overrun,
+        "both legs overrun at r"
+    );
     if default_row() {
+        assert!(
+            cen.retrip.is_empty(),
+            "M3: a radius below r_P re-trips: {:?}",
+            cen.retrip
+        );
+        assert_eq!(
+            cen.hidden.len(),
+            want.hidden,
+            "M3: probe radii built at the other corner"
+        );
         assert_eq!(cen.at_exact, want.exact, "replayed at the exact r_P");
         assert_eq!(cen.at_eps, want.eps, "replayed 1e-12 below");
         assert_eq!(cen.at_4dp, want.four, "replayed at r_P floored to 4 dp");
@@ -562,6 +647,8 @@ struct Pins {
     exact: [usize; 4],
     eps: [usize; 4],
     four: [usize; 4],
+    both_overrun: usize,
+    hidden: usize,
 }
 
 fn report(name: &str, cen: &mut Census) {
@@ -612,6 +699,20 @@ fn report(name: &str, cen: &mut Census) {
         cen.ratio_equal,
         cen.ratio_rel.len(),
         bucket(&cen.ratio_rel)
+    );
+    println!(
+        "M3 re-trips below r_P: {} {:?}",
+        cen.retrip.len(),
+        &cen.retrip[..cen.retrip.len().min(30)]
+    );
+    println!(
+        "M3 entries with a probe radius built at the other corner (unobserved there): {}",
+        cen.hidden.len()
+    );
+    println!(
+        "M3 reported candidate overruns both legs at r: {} {:?}",
+        cen.both_overrun.len(),
+        &cen.both_overrun[..cen.both_overrun.len().min(30)]
     );
     for (k, v) in &cen.other_names {
         println!("  other: {k}: {v}");
@@ -702,6 +803,8 @@ fn m2_grid_a() {
             exact: [1_177, 504, 1_005, 499],
             eps: [18, 1_635, 0, 1_532],
             four: [2_337, 848, 0, 0],
+            both_overrun: 506,
+            hidden: 52,
         },
     );
 }
@@ -751,6 +854,8 @@ fn m2_line_arc_grid() {
             exact: [222, 0, 0, 24],
             eps: [0, 57, 0, 189],
             four: [181, 1, 0, 64],
+            both_overrun: 54,
+            hidden: 0,
         },
     );
 }
@@ -811,6 +916,8 @@ fn m2_line_line_grid() {
             exact: [382, 38, 200, 22],
             eps: [0, 414, 0, 228],
             four: [642, 0, 0, 0],
+            both_overrun: 474,
+            hidden: 0,
         },
     );
 }
