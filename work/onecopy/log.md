@@ -503,3 +503,9 @@
 - 2026-11-06 — PR 6554 delta: MERGE, with every hatch probe red. One last small pass sent: `STALE_KEY` re-spells `live::NAMES_ONLY_LIVE` (a minted copy), and the local `GATE_BASE` must be the merge base. I review that diff myself and merge.
 - 2026-11-06 — PR 6550 merged after a MERGE delta. The ceiling has one home in `Budget::verdict`, and the 1e-3 probe reads BAD. Hosted gate green at `23e1cf28`; no file overlaps with main, and the merge compiled. The quadtail row carries the 1e-12 work wall.
 - 2026-11-06 — The 6548 gate was ok at `f049121f`, but `on_carrier.rs` overlaps 6540, now on main. I merged main again (`2f68e629`, no conflict, the workspace tests compile), and the gate is re-running. Rule applied: an overlapping file means re-gate.
+
+- 2026-11-06 — The 6554 final pass is at `94517cab`, and I reviewed the diff myself.
+  - `STALE_KEY` is gone; the stale-key sites pass `live::NAMES_ONLY_LIVE`, so there is one premise and one text.
+  - The local-base recipe is now documented.
+  - I merged main (`4a15d487`). The tracker rows conflicted because the lane had carried the state branch's older copies; I took main's. It compiles, and the gates pass with the merge base. The CI gate is running.
+- 2026-11-06 — curve-pair-tidy opened PR 6559 (harmonic-cut) at `7ac43ccc`. It took main's `circle_roots` whole after 6491; the ci set is 8614/8614 at both ε. FULL review sent to `session_013mPGJ4JScywfx3zssA8yRc`.
