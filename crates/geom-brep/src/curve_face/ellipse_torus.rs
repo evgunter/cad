@@ -42,7 +42,7 @@ use geom_core::{Band, Decide};
 
 use super::circle_roots::{CircleRoots, DoorRefusal, door_refusal};
 use crate::half_angle::{
-    RootSlack, SubdivisionFrame, SubdivisionRows, TrigPoly, certified_subdivision,
+    RootSlack, SubdivisionFrame, SubdivisionRows, Terms, TrigPoly, certified_subdivision,
 };
 use crate::roots::{Roots, Unsettled};
 use geom_core::rounding_charge;
@@ -126,11 +126,11 @@ fn torus_walk<T: Decide>(
         f_per_metre_hi: h.f_per_metre_hi.min(h.f_per_metre_surface),
     });
     door_refusal(certified_subdivision(
-        &TrigPoly {
+        Terms::Harmonics(&TrigPoly {
             cos: h.cos,
             sin: h.sin,
             degree: 4,
-        },
+        }),
         &|theta| crate::implicit_residual(surface, conic.point_at(theta)),
         &SubdivisionFrame {
             t0,
@@ -140,7 +140,6 @@ fn torus_walk<T: Decide>(
             f_per_metre: h.f_per_metre_lo,
             f_per_metre_hi: h.f_per_metre_surface,
             residual_reach: Some(minor_radius / T::from_f64(2.0)),
-            jet: None,
         },
         &TORUS_ROWS,
         meter.as_ref(),
