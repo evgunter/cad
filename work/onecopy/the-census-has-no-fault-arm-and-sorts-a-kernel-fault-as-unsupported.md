@@ -2,11 +2,12 @@
 id: the-census-has-no-fault-arm-and-sorts-a-kernel-fault-as-unsupported
 kind: issue
 title: ValidationError has no kernel-fault arm: the census sorts BoundaryRefusal::Fault and FaceUnread::Uncertified as CensusUnsupported, where the op reads ClassificationInvariant
-status: open
+status: dispatched
 opened: 2026-11-06
 priority: P2
 cost: M
 refs: [the-census-sort-of-a-boolean-refusal-has-no-legal-home-under-topo-homes]
+branch: onecopy/engine-leaves-pins
 ---
 
 

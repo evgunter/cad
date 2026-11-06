@@ -2,11 +2,12 @@
 id: engine-leaves-passes-a-raised-pin-and-its-message-points-the-wrong-way
 kind: issue
 title: engine-leaves.sh passes a raised pin (it 'reads only in review') and its failure text sends a root reader into the engine
-status: open
+status: dispatched
 opened: 2026-11-06
 priority: P2
 cost: E
 refs: [the-census-sort-of-a-boolean-refusal-has-no-legal-home-under-topo-homes]
+branch: onecopy/engine-leaves-pins
 ---
 
 

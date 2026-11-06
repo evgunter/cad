@@ -435,3 +435,4 @@
   - `[topo.homes]` is unchanged, so no `[ev]` PR. The row becomes a move row (cost H): `contain`'s placement door, then `face_boundary`, then the reading, with `FaceUnread` reshaped by verdict kind.
   - Filed `engine-leaves-passes-a-raised-pin-and-its-message-points-the-wrong-way` and `the-census-has-no-fault-arm-and-sorts-a-kernel-fault-as-unsupported`.
   The stale local `main` (`9036ae9e5b`) misled both designers' clones; I fixed the ref.
+- 2026-11-06 — Dispatched `onecopy/engine-leaves-pins` (`session_013mPGJ2hhJzfCkPLVNf3azD`): the raised-pin gate and its message, and the census fault vocabulary. The tangent-line move waits until tranche 4 and topo-handles leave containment.
