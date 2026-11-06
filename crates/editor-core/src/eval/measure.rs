@@ -469,8 +469,9 @@ pub(crate) enum PrimitiveRefusal {
     /// measurement's MEANING depends on a fact the run cannot decide,
     /// so no number is reported.
     Escalated {
-        /// The existing funnel predicate that escalated.
-        predicate: &'static str,
+        /// The funnel predicate that escalated, `None` where the
+        /// escalation named none.
+        predicate: Option<&'static str>,
         /// The escalation, unaltered.
         source: geom_core::Indeterminate,
     },
@@ -567,7 +568,10 @@ fn parallel<T: Decide>(
     ) {
         Ok(Sign::Zero) => Ok(true),
         Ok(Sign::Positive | Sign::Negative) => Ok(false),
-        Err(source) => Err(PrimitiveRefusal::Escalated { predicate, source }),
+        Err(source) => Err(PrimitiveRefusal::Escalated {
+            predicate: Some(predicate),
+            source,
+        }),
     }
 }
 
@@ -1164,7 +1168,7 @@ fn beyond<T: Decide>(
         Ok(Sign::Negative) => Ok(false),
         Ok(Sign::Zero) => unsupported_as("gap", outer.class(), ON_THE_CARRIER),
         Err(source) => Err(PrimitiveRefusal::Escalated {
-            predicate: GAP_ROUND_SIDE,
+            predicate: Some(GAP_ROUND_SIDE),
             source,
         }),
     }
@@ -1212,7 +1216,7 @@ fn round_pair<T: Decide>(
             Ok(Sign::Zero) => inner.convex() || !outer.convex(),
             Err(source) => {
                 return Err(PrimitiveRefusal::Escalated {
-                    predicate: GAP_ROUND_LARGER,
+                    predicate: Some(GAP_ROUND_LARGER),
                     source,
                 });
             }
@@ -1265,7 +1269,7 @@ fn plane_round<T: Decide>(
                 Ok(_) => return not_parallel("gap", GAP_AXIS_PARALLEL_TO_PLANE, plane, round),
                 Err(source) => {
                     return Err(PrimitiveRefusal::Escalated {
-                        predicate: GAP_AXIS_PARALLEL_TO_PLANE,
+                        predicate: Some(GAP_AXIS_PARALLEL_TO_PLANE),
                         source,
                     });
                 }
@@ -1415,7 +1419,7 @@ fn link_reads<T: Decide>(
         let class = match why {
             LinkRefusal::Undecided(source) => {
                 return Err(PrimitiveRefusal::Escalated {
-                    predicate: source.predicate.unwrap_or(GAP_LINK),
+                    predicate: source.predicate,
                     source,
                 });
             }
@@ -1443,9 +1447,6 @@ fn link_reads<T: Decide>(
         unsupported_as("gap", class, read.class())
     })
 }
-
-/// The predicate a link's escalation names where its reading named none.
-const GAP_LINK: &str = "gap_link_reading";
 
 /// **How far `at` stands out of a face's material**, along its outward
 /// normal: the signed offset from a plane, and from a sphere or a

@@ -2352,11 +2352,131 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
             refusal: crate::boolean::JoinRefusal::of(&refusal),
         })?;
     validate_geometric(&out_body, tol).map_err(|errors| ShellError::NotValid { errors })?;
+    #[cfg(debug_assertions)]
+    record_rooted(body, &naming);
     naming.source = crate::SourceGeometry::of(body);
     Ok(Shelled {
         body: out_body,
         naming,
     })
+}
+
+/// **Every key the record names is rooted**: a row's source half is a
+/// key the operand carries, and a retirement is a key the operand
+/// carries or a row's result half ([`ShellRetired`]: scaffolding is in
+/// no row and not listed). A key this call minted and then killed is
+/// absent from the result, so no output-side walk sees a row naming
+/// one; only the operand and the record together do, and this is the
+/// one place that holds both.
+#[cfg(debug_assertions)]
+fn record_rooted<T: Real>(operand: &Body<T>, naming: &ShellNaming) {
+    use std::collections::BTreeSet;
+    #[track_caller]
+    fn check(rooted: bool, what: core::fmt::Arguments<'_>) {
+        assert!(rooted, "shell postcondition: {what} (kernel bug)");
+    }
+    // Exhaustive, so a new row kind cannot join the record without
+    // saying here where its two halves are.
+    let ShellNaming {
+        outer,
+        inner,
+        inner_edges,
+        inner_vertices,
+        rims,
+        thickened,
+        dead:
+            ShellRetired {
+                faces: dead_faces,
+                edges: dead_edges,
+                vertices: dead_vertices,
+                // A cavity twin's loops, surfaces and shell are minted
+                // with no row of their own.
+                loops: _,
+                surfaces: _,
+                shells: _,
+            },
+        edge_joins: _,
+        source: _,
+    } = naming;
+    let faces: Vec<(FaceKey, FaceKey)> = outer.iter().chain(inner).copied().collect();
+    let mut edges: Vec<(EdgeKey, EdgeKey)> = inner_edges.clone();
+    let mut vertices: Vec<(VertexKey, VertexKey)> = inner_vertices.clone();
+    let mut designated: Vec<FaceKey> = Vec::new();
+    // A rim face stands for a whole chart, so it has no source half.
+    let mut rim_faces: Vec<FaceKey> = Vec::new();
+    for RimNaming {
+        sources,
+        side: _,
+        rim,
+        ring: _,
+        ring_edges,
+        ring_vertices,
+        holes,
+        seam_pieces,
+    } in rims
+    {
+        designated.extend(sources);
+        rim_faces.push(*rim);
+        edges.extend(ring_edges.iter().chain(seam_pieces));
+        vertices.extend(ring_vertices);
+        for HoleRim {
+            face,
+            ring: _,
+            ring_edges,
+            ring_vertices,
+        } in holes
+        {
+            rim_faces.push(*face);
+            edges.extend(ring_edges);
+            vertices.extend(ring_vertices);
+        }
+    }
+    for (_, s) in thickened {
+        check(
+            operand.get_shell(*s).is_some(),
+            format_args!("a row names {s:?} as its source, which the operand does not carry"),
+        );
+    }
+    for s in faces.iter().map(|(_, s)| s).chain(&designated) {
+        check(
+            operand.get_face(*s).is_some(),
+            format_args!("a row names {s:?} as its source, which the operand does not carry"),
+        );
+    }
+    for (_, s) in &edges {
+        check(
+            operand.get_edge(*s).is_some(),
+            format_args!("a row names {s:?} as its source, which the operand does not carry"),
+        );
+    }
+    for (_, s) in &vertices {
+        check(
+            operand.get_vertex(*s).is_some(),
+            format_args!("a row names {s:?} as its source, which the operand does not carry"),
+        );
+    }
+    let minted_f: BTreeSet<FaceKey> = faces.iter().map(|&(r, _)| r).chain(rim_faces).collect();
+    let minted_e: BTreeSet<EdgeKey> = edges.iter().map(|&(r, _)| r).collect();
+    let minted_v: BTreeSet<VertexKey> = vertices.iter().map(|&(r, _)| r).collect();
+    let unrooted = "a retirement names a key that neither the operand carries nor a row mints";
+    for f in dead_faces {
+        check(
+            minted_f.contains(f) || operand.get_face(*f).is_some(),
+            format_args!("{unrooted}: {f:?}"),
+        );
+    }
+    for e in dead_edges {
+        check(
+            minted_e.contains(e) || operand.get_edge(*e).is_some(),
+            format_args!("{unrooted}: {e:?}"),
+        );
+    }
+    for v in dead_vertices {
+        check(
+            minted_v.contains(v) || operand.get_vertex(*v).is_some(),
+            format_args!("{unrooted}: {v:?}"),
+        );
+    }
 }
 
 /// A rim ring's two row lists: its edge rows and its vertex rows.

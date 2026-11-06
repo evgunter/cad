@@ -2,10 +2,11 @@
 id: emit-blend-cannot-observe-a-retirement-naming-a-minted-key
 kind: issue
 title: editor-core: emit_blend's retired-set guard cannot observe a retirement naming a minted key
-status: open
+status: closed
 opened: 2026-09-13
+closed: 2026-11-06
 priority: P0
-cost: D
+cost: M
 ---
 
 
@@ -69,3 +70,41 @@ EVAL's (BLEND's `program.md` `keep_out` says so), and no open program's
 rather than into another program's directory.
 
 Moved from `work/issues/` to `work/refs/` on 2026-11-03, when the `work/issues/` bucket was retired (Ev's direction, in chat); id and body unchanged.
+
+## Closed
+
+The second shape. Both emitters' module docs now say their retired-set
+guard sees only a retired key that is IN the output, and name the
+kernel check of the other direction: `sweep::blend::surgery::blend_surgery`'s
+epilogue for the blend (already there), and for the shell a new
+`#[cfg(debug_assertions)]` postcondition, `topo::shell`'s
+`record_rooted`, called at the end of `shell_open`, the one place that
+holds the operand and the record together.
+
+The shell's `dead` is in RESULT keys and legitimately names keys the
+construction minted — the cavity twins its chart reduction and glue
+kill — so the blend's predicate ("a retirement names a SOURCE key")
+would be wrong there. `ShellRetired`'s doc already states the shell's
+rule: scaffolding is in no row and not listed. The postcondition holds
+that: every retired face, edge and vertex is a key the operand carries
+or the result half of some row; and every row's source half is a key
+the operand carries. The destructure is exhaustive over `ShellNaming`,
+`RimNaming` and `HoleRim`, so a new row kind has to say where its
+halves are. `dead.loops`, `surfaces` and `shells` are left out: a
+cavity twin's loops, surfaces and shell are minted with no row.
+
+It fires on no existing row (topo, sweep, editor-core, verbs and
+step-import shell rows run locally in debug). Two mutants were run
+once and reverted: pushing the band surgery's split-minted middle
+piece into `dead.edges` (BLEND unit 8's defect, on the shell) reds
+`shell_curved_mouth::a_tubes_wall_opens_to_two_seamed_bands` with
+"a retirement names a key that neither the operand carries nor a row
+mints"; recording the end seam piece as its own source reds it with
+"a row names … as its source".
+
+The sweep over every other record that publishes kills found no
+retirement claiming source keys without a check: the boolean's and
+split's `killed_lineage` / `carved_lineage` / `joined_lineage` and the
+graft's `dead_edges` are hop maps OF minted-and-killed keys by design,
+`EdgeJoin::gone` is a join row, and `merge_faces::MergedGroup` records
+kills of its own input and mints only rings.

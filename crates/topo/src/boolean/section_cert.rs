@@ -460,6 +460,10 @@ impl<T: Real> Component<T> {
     }
 }
 
+/// The name [`Section::Tangent`] carries for an escalation that named
+/// no predicate: marked nameless rather than credited to a decision.
+const UNNAMED: &str = "<unnamed>";
+
 /// A pair's section, classified.
 #[derive(Clone, Debug)]
 pub(crate) enum Section<T: Real> {
@@ -472,7 +476,7 @@ pub(crate) enum Section<T: Real> {
         single: bool,
     },
     /// A classification margin is `Zero` or undecided: R-tan, naming the
-    /// predicate.
+    /// predicate ([`UNNAMED`] for an escalation that named none).
     Tangent(&'static str),
     /// A crossing of the carriers the classification cannot place on
     /// either side of a line it reads the section by: R-order, naming the
@@ -926,9 +930,7 @@ fn torus_pair<T: Decide>(
                         Err(tan) => tan.into(),
                     }
                 }
-                AxisPose::Undecided(diag) => {
-                    Section::Tangent(diag.predicate.unwrap_or("section_axes_offset"))
-                }
+                AxisPose::Undecided(diag) => Section::Tangent(diag.predicate.unwrap_or(UNNAMED)),
                 AxisPose::Parallel { .. } | AxisPose::Other => Section::Intractable,
             }
         }
@@ -1770,11 +1772,8 @@ pub(super) fn of_pair_section<T: Decide>(
                 single: false,
             };
         }
-        // Every row the value decides goes through `k_stats`, which names
-        // the predicate it escalates; one with no name is the value's
-        // door itself.
         Err(SectionError::Escalated(diag)) => {
-            return Section::Tangent(diag.predicate.unwrap_or("pair_section"));
+            return Section::Tangent(diag.predicate.unwrap_or(UNNAMED));
         }
         Err(SectionError::Pinched { predicate }) => return Section::Tangent(predicate),
         Err(SectionError::Unordered { predicate }) => return Section::Unordered(predicate),

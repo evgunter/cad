@@ -40,12 +40,17 @@
 //! RETIRED panics: the arenas are slotmaps whose keys carry a version,
 //! so a retired key is never reissued, and the guard is kept for the
 //! reason `emit_blend` keeps its own — the property rests on another
-//! crate's container choice. A survivor face must additionally be an
-//! `outer` row: the record lists every non-designated source face
-//! there, so a face that is neither minted nor listed has no provenance
-//! and panics the same way. Anything that is neither a survivor nor a recorded
-//! mint is [`NamingError::MissingUpstream`], loudly; the final
-//! [`check_total`] closes the other direction.
+//! crate's container choice. It sees only a retired key that is IN the
+//! output; a retirement naming a key the construction minted with no
+//! row and killed is in neither arena walked here, and the check of that
+//! direction is `topo::shell_open`'s closing postcondition
+//! (`record_rooted`), which still holds the operand. A survivor face
+//! must additionally be an `outer` row: the record lists every
+//! non-designated source face there, so a face that is neither minted
+//! nor listed has no provenance and panics the same way. Anything that
+//! is neither a survivor nor a recorded mint is
+//! [`NamingError::MissingUpstream`], loudly; the final [`check_total`]
+//! closes the other direction.
 //!
 //! # An upstream tie PROPAGATES (B1)
 //!

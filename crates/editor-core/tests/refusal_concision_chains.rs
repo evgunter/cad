@@ -1846,7 +1846,7 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
         row(
             "MeasureEscalated",
             NodeErrorKind::MeasureEscalated {
-                predicate: "bool_plane_parallel",
+                predicate: Some("bool_plane_parallel"),
                 source: named("bool_plane_parallel"),
             },
         ),

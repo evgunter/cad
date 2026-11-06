@@ -349,7 +349,7 @@ fn an_undecided_parallelism_keeps_the_measure_doors_sentence() {
     let editor_core::NodeErrorKind::MeasureEscalated { predicate, source } = kind else {
         panic!("a tilt inside the band escalates at the measure door: {kind:?}");
     };
-    assert_eq!(*predicate, "bool_plane_parallel");
+    assert_eq!(*predicate, Some("bool_plane_parallel"));
     let shown = kind.to_string();
     assert_eq!(
         shown,

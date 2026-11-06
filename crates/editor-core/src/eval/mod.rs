@@ -1764,8 +1764,8 @@ pub enum NodeErrorKind {
     /// ground): the measure door's own sentence, which [`Self::Escalated`]'s
     /// does not speak for. Its class is [`NodeErrorClass::Escalated`].
     MeasureEscalated {
-        /// The named predicate.
-        predicate: &'static str,
+        /// The named predicate, `None` where the escalation named none.
+        predicate: Option<&'static str>,
         /// The escalation, unaltered.
         source: Indeterminate,
     },
@@ -2371,8 +2371,13 @@ impl crate::spoken::Say for NodeErrorKind {
                     source.undecided(what, crate::decision::ending(predicate, source))
                 )
             }
-            Self::MeasureEscalated { predicate, source }
-            | Self::PlacementAxisEscalated { predicate, source }
+            Self::MeasureEscalated { predicate, source } => {
+                let what = predicate
+                    .and_then(crate::decision::words)
+                    .unwrap_or(geom_core::UNNAMED_DECISION);
+                write!(f, "{what} is too close to call: {source}")
+            }
+            Self::PlacementAxisEscalated { predicate, source }
             | Self::PoseDirectionEscalated { predicate, source } => {
                 let what = crate::decision::words(predicate).unwrap_or(geom_core::UNNAMED_DECISION);
                 write!(f, "{what} is too close to call: {source}")
