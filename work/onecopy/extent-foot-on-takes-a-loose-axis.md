@@ -2,10 +2,11 @@
 id: extent-foot-on-takes-a-loose-axis
 kind: issue
 title: ExtentBall::foot_on and the extent's foot_on take a loose (origin, axis) instead of a geom::Line
-status: open
+status: dispatched
 opened: 2026-11-03
 priority: P2
 cost: E
+branch: onecopy/feet-and-params
 ---
 
 

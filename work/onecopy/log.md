@@ -497,3 +497,5 @@
   Rule used: re-gate if files overlap; with disjoint files, a workspace `cargo check --tests` of the merge suffices.
 - 2026-11-06 — PR 6554 delta: FIX FIRST. The hatch still admits `program.md` (active), parked and deferred rows, because the fixture's program had no status. Four bare census faults remain. Second fix pass sent. Lesson: a self-test fixture that is not shaped like the real tree proves only the fixture.
 - 2026-11-06 — Gave the 6491 lane (`session_013mPGJ4BHWTqt3QU2NKLLBa`) the co-surface home: an `OnSurface` type and a curve_pair co-surface arm read by the region doors and `apply_cut_ins`, with the C5 sentence as an `[ev]` PR, possibly split from the refactor.
+
+- 2026-11-06 — PR 6540 merged as `1613027896`. The true-base re-run confirmed the 9 slow reds are main's. Only an audit doc overlapped main's moves; the merge compiled and every gate passed. Dispatched the geom-Line small-reads bundle (7 rows, including the plane-offset home) to the feet-and-params lane.

@@ -2,10 +2,11 @@
 id: topo-box-frame-restates-geom-cover-box-axes
 kind: issue
 title: topo::boolean::boxes::BoxFrame restates geom::cover::BoxAxes and converts between them
-status: open
+status: dispatched
 opened: 2026-11-03
 priority: P2
 cost: E
+branch: onecopy/feet-and-params
 ---
 
 

@@ -2,10 +2,11 @@
 id: three-line-offsets-wait-on-line-offset
 kind: issue
 title: Three off-line distances read p − Line::foot(p) by hand, waiting on Line::offset
-status: open
+status: dispatched
 opened: 2026-11-03
 priority: P2
 cost: E
+branch: onecopy/feet-and-params
 ---
 
 
