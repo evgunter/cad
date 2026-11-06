@@ -512,3 +512,4 @@
 - 2026-11-06 — PR 6548 merged as `69847789f0`, gated on `2f68e629`. The spline lane is opening its walks/foot PR.
 - 2026-11-06 — The PR 6554 gate is ok at `4a15d487`, but the merge was refused for conflicts, since main moved with 6548. Resolving.
 - 2026-11-06 — PR 6554 merged as `57927d44d0` after I resolved two row conflicts with main (taking main's). The code delta since the gate was main's 6548, in disjoint files; the workspace tests compile and the gates pass with the merge base. Lesson: confirm a merge's result before telling the lane or logging it.
+- 2026-11-06 — PR 6559 FULL review: MERGE. The re-pose was verified both ways, and the 6491 conflict resolution is right. I corrected M1's overstated gate claim in the PR body, merged main (`b886c310`, overlaps in `props/curved.rs` and the audit), and the gate is running.
