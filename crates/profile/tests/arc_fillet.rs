@@ -914,11 +914,14 @@ fn an_arc_side_with_no_extent_is_refused_the_same_way() {
         ],
         "got {empty_sweep:?}"
     );
+    let said = empty_sweep.to_string();
     assert!(
-        empty_sweep
-            .to_string()
-            .contains("behind the incoming ray's start"),
-        "recourse: {empty_sweep}"
+        said.contains("behind the incoming ray's start")
+            && said.ends_with(
+                "Recourse: end the incoming leg short of the corner, which is where the two \
+                 carriers cross and is never authored"
+            ),
+        "the arc door names the window's lever: {said}"
     );
     let zero_radius = Open
         .at(Point2::new(0.0, 0.0))

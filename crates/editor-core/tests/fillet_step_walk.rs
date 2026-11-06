@@ -3,6 +3,8 @@
 //! the steps a sketch would suggest and is refused; each refusal names
 //! the steps its tip state takes, read off the transition table the
 //! replay ran on, so the next attempt is the one the refusal named.
+//! Once the steps are legal, a corner the legs mis-anchor names the
+//! leg end to move.
 //!
 //! The walk below is the attempts in the order a newcomer makes them,
 //! each through the insert door a person uses.
@@ -60,6 +62,19 @@ fn toward(dx: f64, dy: f64) -> ProgramStep<editor_core::Formula> {
 
 fn far_end(x: f64, y: f64) -> ProgramStep<editor_core::Formula> {
     ProgramStep::FarEndTo([len(x), len(y)])
+}
+
+/// The sentence of a refusal the lattice admits and the geometry does
+/// not.
+fn geometry(attempt: &str, steps: Vec<ProgramStep<editor_core::Formula>>) -> String {
+    match insert(steps) {
+        Err(refusal @ ProgramRefusal::Geometry { .. }) => {
+            let said = refusal.to_string();
+            eprintln!("WALK {attempt}: {said}");
+            said
+        }
+        other => panic!("{attempt}: expected a geometry refusal, got {other:?}"),
+    }
 }
 
 /// The refusal's lattice coordinate and its sentence.
@@ -201,11 +216,38 @@ fn each_refusal_on_the_way_to_a_fillet_names_what_its_state_takes() {
         "an unclosed chain names how it continues: {said}"
     );
 
+    // 6. The lattice satisfied, the first leg drawn to the pad's
+    //    corner: the corner is where the carriers cross, so the leg
+    //    into it has to stop short of it.
+    let pad = |incoming_end: f64, arrival_end: f64| {
+        let mut steps = vec![ProgramStep::At([len(-W), len(0.0)]), pt(-W, incoming_end)];
+        steps.extend([fillet(), toward(1.0, 0.0), far_end(arrival_end, H)]);
+        steps.extend([fillet(), toward(0.0, -1.0), far_end(W, -H + 2.0 * R)]);
+        steps.extend([fillet(), toward(-1.0, 0.0), far_end(-W + 2.0 * R, -H)]);
+        steps.extend([fillet(), ProgramStep::CloseTo]);
+        steps
+    };
+    let said = geometry("incoming leg ends at its corner", pad(H, W - 2.0 * R));
+    assert!(
+        said.contains("this corner lies behind the incoming ray's start")
+            && said.ends_with(
+                "Recourse: end the incoming leg short of the corner, which is where the two \
+                 carriers cross and is never authored"
+            ),
+        "a leg ending at its corner names the leg's end as the lever: {said}"
+    );
+
+    // 7. The arrival anchored on the corner it leaves.
+    let said = geometry("arrival anchored at its corner", pad(H - 2.0 * R, -W));
+    assert!(
+        said.contains("this corner does not lie behind the arrival side's anchor")
+            && said.ends_with(
+                "Recourse: anchor the arrival side beyond the corner, which is where the two \
+                 carriers cross and is never authored"
+            ),
+        "an arrival anchored at its corner names its anchor as the lever: {said}"
+    );
+
     // The pad as the refusals led to it.
-    let mut pad = vec![ProgramStep::At([len(-W), len(0.0)]), pt(-W, H - 2.0 * R)];
-    pad.extend([fillet(), toward(1.0, 0.0), far_end(W - 2.0 * R, H)]);
-    pad.extend([fillet(), toward(0.0, -1.0), far_end(W, -H + 2.0 * R)]);
-    pad.extend([fillet(), toward(-1.0, 0.0), far_end(-W + 2.0 * R, -H)]);
-    pad.extend([fillet(), ProgramStep::CloseTo]);
-    insert(pad).expect("the pad the refusals led to builds");
+    insert(pad(H - 2.0 * R, W - 2.0 * R)).expect("the pad the refusals led to builds");
 }

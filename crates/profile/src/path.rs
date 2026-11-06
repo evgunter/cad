@@ -834,21 +834,59 @@ impl<T: Real> core::fmt::Display for CornerReason<T> {
 
 impl<T: Real> CornerReason<T> {
     /// What to change about a request this corner refused, or `None`
-    /// where the corner names no lever (it lies outside the anchors'
-    /// window, which no radius moves). A carrier pair's refusal lists
-    /// every corner and states ONE recourse after them all: the widest
-    /// of its corners', so a list of two reads as one message with one
-    /// recourse rather than two.
+    /// where the corner names no lever. A carrier pair's refusal lists
+    /// every corner and states ONE recourse after them all, so a list
+    /// of two reads as one message with one recourse rather than two.
     #[must_use]
     pub fn recourse(&self) -> Option<&'static str> {
+        self.lever().map(CornerLever::recourse)
+    }
+
+    fn lever(&self) -> Option<CornerLever> {
         match self {
-            Self::AnchorOutsideTrimmedExtent { .. } => Some("reduce the radius or move the anchor"),
+            Self::AnchorOutsideTrimmedExtent { .. } => Some(CornerLever::RadiusOrAnchor),
             Self::EnclosesLegCarrier { .. }
             | Self::NoTangentCircle(NoCornerReason::OffsetCarriersDisjoint) => {
-                Some("reduce the radius")
+                Some(CornerLever::Radius)
             }
-            Self::NoTangentCircle(NoCornerReason::NoCornerSideCandidate)
-            | Self::OutsideAnchors(_) => None,
+            Self::OutsideAnchors(CornerWindow::BehindIncomingRay) => {
+                Some(CornerLever::IncomingShortOfCorner)
+            }
+            Self::OutsideAnchors(CornerWindow::BehindArrivalAnchor) => {
+                Some(CornerLever::ArrivalBeyondCorner)
+            }
+            Self::NoTangentCircle(NoCornerReason::NoCornerSideCandidate) => None,
+        }
+    }
+}
+
+/// The lever a refused corner names, in the order a pair's refusal
+/// prefers it: the pair states the first lever any of its corners
+/// names. Moving the anchor is the wider menu of the radius levers; a
+/// window lever comes last because a carrier pair's second crossing
+/// routinely lies behind an anchor, and that corner is rarely the one
+/// the author meant to round.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+enum CornerLever {
+    RadiusOrAnchor,
+    Radius,
+    IncomingShortOfCorner,
+    ArrivalBeyondCorner,
+}
+
+impl CornerLever {
+    const fn recourse(self) -> &'static str {
+        match self {
+            Self::RadiusOrAnchor => "reduce the radius or move the anchor",
+            Self::Radius => "reduce the radius",
+            Self::IncomingShortOfCorner => {
+                "end the incoming leg short of the corner, which is where the two carriers \
+                 cross and is never authored"
+            }
+            Self::ArrivalBeyondCorner => {
+                "anchor the arrival side beyond the corner, which is where the two carriers \
+                 cross and is never authored"
+            }
         }
     }
 }
@@ -1924,17 +1962,8 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                 }) {
                     write!(f, "; these carriers may admit no fillet at all")?;
                 }
-                // One recourse for the pair: moving the anchor is the
-                // wider menu, and it is offered whenever any corner's
-                // anchor refused.
-                let recourses: Vec<&str> =
-                    corners.iter().filter_map(|c| c.reason.recourse()).collect();
-                let recourse = recourses
-                    .iter()
-                    .find(|r| r.contains("anchor"))
-                    .or(recourses.first());
-                match recourse {
-                    Some(r) => write!(f, ". Recourse: {r}"),
+                match corners.iter().filter_map(|c| c.reason.lever()).min() {
+                    Some(lever) => write!(f, ". Recourse: {}", lever.recourse()),
                     None => Ok(()),
                 }
             }
