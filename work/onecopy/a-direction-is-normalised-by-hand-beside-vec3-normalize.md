@@ -2,10 +2,11 @@
 id: a-direction-is-normalised-by-hand-beside-vec3-normalize
 kind: issue
 title: a direction is normalised by hand, v / v.norm(), at about 200 sites beside Vec3::normalize, and three files keep a fn unit of their own
-status: open
+status: dispatched
 opened: 2026-11-06
 priority: P3
 cost: M
+branch: onecopy/normalize
 ---
 
 
