@@ -15,6 +15,7 @@
 //! band: the walk names it as the edge it could not cross
 //! ([`super::containment::Uncrossable`]).
 
+use geom_brep::ladder::Evidence;
 use geom_core::bisect::{Step, bisect};
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
 
@@ -106,10 +107,9 @@ pub(crate) trait PiecedArc<T: Decide> {
                 return Ok(ArcHit::End);
             }
         }
-        // The first leaf no reading settled, by the margin it was read
-        // in the band on.
-        let mut in_band: Option<Indeterminate> = None;
-        let mut exhausted = false;
+        // What the leaves no reading settled kept ([`Evidence`]): a
+        // margin in band ahead of a piece that outlasted the walk.
+        let mut kept = Evidence::default();
         let walk = bisect(self.roots(), |p| {
             let b = self.ball(&p);
             let mut read = None;
@@ -133,15 +133,13 @@ pub(crate) trait PiecedArc<T: Decide> {
             }
             if matches!(decide(rows.leaf, Margin::of(b.reach), band), Ok(Sign::Zero)) {
                 match read {
-                    Some(diag) => {
-                        in_band.get_or_insert(diag);
-                    }
-                    None => exhausted = true,
+                    Some(diag) => kept.in_band(ArcRefusal::Escalated(diag)),
+                    None => kept.unsettled(ArcRefusal::Unsettled),
                 }
                 return Step::Settled;
             }
             if Self::depth(&p) >= MAX_DEPTH {
-                exhausted = true;
+                kept.unsettled(ArcRefusal::Unsettled);
                 return Step::Settled;
             }
             Step::Halve(self.halves(p))
@@ -149,15 +147,9 @@ pub(crate) trait PiecedArc<T: Decide> {
         match walk {
             Ok(Some(margin)) => return Ok(ArcHit::On(margin)),
             Ok(None) => {}
-            Err(_) => exhausted = true,
+            Err(_) => kept.unsettled(ArcRefusal::Unsettled),
         }
-        if let Some(diag) = in_band {
-            return Err(ArcRefusal::Escalated(diag));
-        }
-        if exhausted {
-            return Err(ArcRefusal::Unsettled);
-        }
-        Ok(ArcHit::Off)
+        kept.refusal().map_or(Ok(ArcHit::Off), Err)
     }
 
     /// **How many times the ray `q + d·t`, `t > 0`, crosses the arc**,
