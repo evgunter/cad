@@ -158,3 +158,17 @@
   - **Not taken:** a single representation, `Instances(Vec<Option<Framed>>)`. The reviewer is asked whether the bridge is a final state or a copy.
   - **Rows filed:** WIREREST, the product and interrogator readers (P2 M); REFS, a selection of a member of such a family (P2 E, on 6555's ground); PYDOOR, `Value.bodies()` (P3 E).
   - **Tier:** FULL, because the empty-member semantics decide what a union means.
+- 2026-11-06 — **PR 6557 review: APPROVE-WITH-FIXES, no MAJOR; fix pass sent.**
+  - The empty-member test fails on the pre-fix tree, and an index-shift mutant goes red, though only through `apart`'s naming check. The `named` assertion gains positions.
+  - **Taken:**
+    - a REFS P1 H row for the two payloads of "a family of bodies", with the hit list;
+    - the eighth `Body | Boolean::Body` ladder copy routes the editor-core copies through `member_body`;
+    - one spelling of the empty value;
+    - `wire_assemble`'s double classification;
+    - `EmptyOperand` naming the member;
+    - six stale docs, and the D3 citation rot;
+    - the unguarded member index;
+    - an empty member at a subtract's `from` seat;
+    - the wirerest caller list (`Evaluation::read_body` → `output_body` has seven more callers);
+    - the pydoor row's fix and home.
+  - **Class (Q1, the fix that mints a copy, second time this sitting):** a helper announced as "the one rule" beside seven unrouted copies of its predicate.
