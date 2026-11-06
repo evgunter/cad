@@ -50,3 +50,25 @@ A read-only survey checked all ten rows against main `230be11d05`.
   because both decide what `CornerRefusal`/`CornerReason` carry for an
   author (three designers drawn, byte 12). Draws on
   `analysis/design-fork/round-*`.
+
+## 2026-11-06 — turn gate, phase 1 adjudicated
+
+The lane reproduced both misclassifications: the arc pair (0.57° on a
+50ε leg) and the straight pair (`path_corner_turn`, levered by the
+ray-origin-to-anchor separation, where even a 64° corner on a 0.6ε
+separation reads "parallel"). `CarriersParallel` has four producers;
+the two unlevered ones (`path_carrier_meet` and the circle–circle reach
+Zero) are true and keep it.
+
+Ruled unilaterally (a dominant argument, so not a fork): the refusal
+kind `NoCornerForFillet` stays, because what the gate decides (no
+corner to round at tolerance) is true of every input that reaches it;
+`PathNoCornerReason` gains an arm carrying the factors (sin φ, align,
+the lever and which lever), named for what the gate decided rather than
+for a cause it cannot see. Rejected: a new `PathError` variant with its
+own Python tag. That would move exactly parallel rays, where "parallel"
+is true, to a new tag, to work around a pre-existing gap (a path
+refusal's reason has no Python spelling), which is filed on pydoor
+instead. The straight pair's definite arm names its own lever (the
+anchor separation); the escalation lane is told its in-band
+`path_corner_turn` ending must tell the same story.
