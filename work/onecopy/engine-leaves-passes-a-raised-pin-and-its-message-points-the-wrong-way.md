@@ -2,12 +2,13 @@
 id: engine-leaves-passes-a-raised-pin-and-its-message-points-the-wrong-way
 kind: issue
 title: engine-leaves.sh passes a raised pin (it 'reads only in review') and its failure text sends a root reader into the engine
-status: dispatched
+status: closed
 opened: 2026-11-06
 priority: P2
 cost: E
 refs: [the-census-sort-of-a-boolean-refusal-has-no-legal-home-under-topo-homes]
 branch: onecopy/engine-leaves-pins
+closed: 2026-11-06
 ---
 
 
@@ -20,3 +21,9 @@ From the census-sort fork (2026-11-06; both designers).
 3. **The header should state the migration practice.** A new site is paid in the reader's `names-*` pin, citing the unit-5 move row that retires it, never by a new `pub(crate)` in the engine.
 
 All of this is agent text (PR 6458), not ratified.
+
+## Closed (2026-11-06, onecopy/engine-leaves-pins)
+
+1. **A raised pin reds.** ci.yml's `lint` job checks out one commit, so it fetches the change filter's base and passes it as `GATE_BASE`. `lib.sh` `gate_base_file` reads a file at that base, and that read fails loud when the base is unreachable. `engine_leaves.py --base` prints `RAISED` for a pin above the base's pin. The one rise admitted is a reader's `names-*` pin whose line cites a `work/` row. `pin-cites-an-open-row.sh` now reads `.counts` pin lines, so that row must be open. Self-test cases cover: an uncited raise, a new line, a cited `crate-visible` raise, an unreachable base and a base with no counts file (each red); a lowered pin and a cited reader raise (each green).
+2. **The text states the remedy.** It now reads: "a red here means that what you need belongs at the root or below … move it out of the engine to the crate root (to geom-brep if it takes no body); do not move the reader into the engine".
+3. **The header states the migration practice.** A new site is paid in the reader's pin, citing its move row, never by a new `pub(crate)`. This PR does that once: census.rs `names-boolean` 505 → 507, citing the census-sort move row.
