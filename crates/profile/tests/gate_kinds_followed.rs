@@ -461,6 +461,9 @@ const READ_BACK: &str = "the read-back reads a sound construction well inside ε
                          construction defect puts it in band";
 const NO_FIXTURE: &str = "no fixture in this suite puts it in band at a door yet";
 
+/// What a sized decision says where no tolerance a run admits decides it.
+const FLOOR: &str = "no tolerance a run admits decides this";
+
 /// The words the conditional tighten opens with, and its value.
 const TIGHTEN: &str = "tighten the tolerance below ";
 
@@ -510,7 +513,22 @@ fn each_driven_gate_ends_as_following_it_shows() {
             d.id,
             d.lever
         );
+        // A sized decision whose tighten would fall below the least ε a
+        // run admits says so instead: its kind, with nothing to follow.
+        let floored = text.contains(FLOOR);
         match offered_value(&text) {
+            None if floored => {
+                assert!(
+                    d.offers,
+                    "{}: a floor note on a lever-only gate: {text}",
+                    d.id
+                );
+                println!(
+                    "SKIPPED follow ({}): the tighten would fall below the least ε a run \
+                     admits at this ε row, so there is no tolerance to follow it at",
+                    d.id
+                );
+            }
             None => assert!(!d.offers, "{}: a tighten was expected: {text}", d.id),
             Some(value) => {
                 assert!(d.offers, "{}: offers a tighten it should not: {text}", d.id);
