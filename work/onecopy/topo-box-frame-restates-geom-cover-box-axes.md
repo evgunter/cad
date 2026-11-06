@@ -2,10 +2,12 @@
 id: topo-box-frame-restates-geom-cover-box-axes
 kind: issue
 title: topo::boolean::boxes::BoxFrame restates geom::cover::BoxAxes and converts between them
-status: open
+status: closed
 opened: 2026-11-03
 priority: P2
 cost: E
+closed: 2026-11-06
+pr: 6562
 ---
 
 

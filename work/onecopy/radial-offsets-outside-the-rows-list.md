@@ -2,10 +2,12 @@
 id: radial-offsets-outside-the-rows-list
 kind: issue
 title: About fifty more spellings of a point's offset from an axis, (p − o) − a((p − o)·a), outside the radial-offset row's list
-status: open
+status: closed
 opened: 2026-11-03
 priority: P2
 cost: M
+closed: 2026-11-06
+pr: 6562
 ---
 
 
