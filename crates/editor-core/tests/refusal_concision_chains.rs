@@ -281,7 +281,6 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "ProfileReplay/Path/SeamRetrimsArcFirstSide",
     "ProfileReplay/Path/UnderdeterminedLeg",
     "ProfileReplay/Path/ZeroDirection",
-    "ProfileReplay/Transition",
     // work/profiletail/profile-arms-the-weld-renders-fall-short-of-the-shape-guard.md
     "Profile/InconsistentArc",
     // work/honeword/split-finish-arms-the-weld-renders-fall-short-of-the-shape-guard.md
@@ -4417,11 +4416,13 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
             )
         }))
         .collect();
+    // The state that takes the most verbs, so its recourse is the
+    // longest list a lattice refusal draws.
     let transition = ReplayError {
         step: 2,
         kind: ReplayErrorKind::Transition {
-            state: TipState::Closed,
-            verb: None,
+            state: TipState::DirectedPoint,
+            verb: Some(profile::Verb::CloseTo),
         },
     };
     path.into_iter()

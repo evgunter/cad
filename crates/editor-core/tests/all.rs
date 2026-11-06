@@ -225,6 +225,8 @@ mod eval9_nominal_in_the_key;
 mod f64_lane_validates_once;
 #[path = "face_face_touch_carry.rs"]
 mod face_face_touch_carry;
+#[path = "fillet_step_walk.rs"]
+mod fillet_step_walk;
 #[path = "fix_loop_polygon_expr.rs"]
 mod fix_loop_polygon_expr;
 #[path = "fix_pattern_mate_crossing.rs"]

@@ -911,6 +911,46 @@ fn lattice_violations_refuse_as_the_transition_class() {
     );
 }
 
+/// **A verb refused on its arc spec names the specs its row admits**:
+/// the state HAS a row for the verb, so the recourse is the spec, not
+/// another verb. The coordinate pin below covers the verb list.
+#[test]
+fn a_spec_refusal_names_the_specs_its_row_admits() {
+    let a = Point2::new(0.0, 0.0);
+    let said = |program: &[Step<f64>]| match replay(program, Tol::witness()) {
+        Err(
+            e @ ReplayError {
+                kind: ReplayErrorKind::Transition { .. },
+                ..
+            },
+        ) => e.to_string(),
+        other => panic!("expected a lattice violation, got {other:?}"),
+    };
+    let sweep = said(&[
+        Step::At(a),
+        Step::ArcTo(profile::ArcData::Sweep {
+            r: 1.0,
+            side: profile::ArcSide::Left,
+            angle: 0.5,
+        }),
+    ]);
+    assert!(
+        sweep.ends_with(
+            "Recourse: write the ArcTo step's arc spec as Bulge(Point/Start/StartArriving), \
+             Via(Point/Start/StartArriving) or Center(Point/Start/StartArriving)"
+        ),
+        "a verb the state has a row for was refused on its spec, and names the specs its \
+         row admits, the refused Sweep not among them: {sweep}"
+    );
+    assert_eq!(
+        TipState::Closed
+            .takes(Some(Verb::LineTo), false)
+            .to_string(),
+        "end the program at the step that closed the loop",
+        "a closed loop takes no verb"
+    );
+}
+
 /// A chain that never reaches `Start`, an empty program, and a step
 /// AFTER the close are the same class, one step past where they stop.
 #[test]
@@ -966,7 +1006,9 @@ fn a_lattice_refusal_names_the_table_coordinate_it_could_not_walk() {
     assert_eq!(
         unwalkable.to_string(),
         "step 0: the Fillet verb is not a legal continuation of tip state Entry \
-         (lattice violation — no authoring surface can produce this program)"
+         (lattice violation — no authoring surface can produce this program). Recourse: \
+         continue with At, Angle, Toward, ArcFillet, ArcFilletArc, Circle, CircleSplit or \
+         Rectangle"
     );
 
     let unclosed = replay(
@@ -980,7 +1022,9 @@ fn a_lattice_refusal_names_the_table_coordinate_it_could_not_walk() {
     assert_eq!(
         unclosed.to_string(),
         "step 2: the program ends at tip state DirectedPoint without closing the loop \
-         (lattice violation — a chain must end at Start)"
+         (lattice violation — a chain must end at Start). Recourse: continue with Angle, \
+         Toward, Tangent, Cusp, Turn, Line, LineTo, ContinueTo, ArcTo, ArcOnto, Fillet, \
+         FilletArc, ArcFillet or ArcFilletArc"
     );
 }
 

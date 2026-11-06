@@ -708,6 +708,20 @@ macro_rules! transition_table {
                     ], )*
                 }
             }
+
+            /// Whether this verb is a **complete-loop program form** —
+            /// a `free` row, the whole loop in one step — rather than a
+            /// chain step, read off the same row kinds `apply` is
+            /// expanded from.
+            #[must_use]
+            pub fn is_loop_form(self) -> bool {
+                match self {
+                    $( Verb::$name => {
+                        let free: &[&str] = &[$( stringify!($fname) ),*];
+                        !free.is_empty()
+                    } )*
+                }
+            }
         }
 
         /// **Which arc-spec forms `verb` takes at `state`**: one
@@ -2274,6 +2288,107 @@ pub enum TipState {
     Closed,
 }
 
+impl TipState {
+    /// **The verbs this state takes**, in declaration order: every
+    /// verb with a row at this state — [`Verb::states`] read the other
+    /// way, so the set is the one the replay driver has arms for.
+    pub fn verbs(self) -> impl Iterator<Item = Verb> {
+        Verb::ALL
+            .iter()
+            .copied()
+            .filter(move |verb| verb.states().contains(&self))
+    }
+
+    /// The recourse of a [`ReplayErrorKind::Transition`] at this
+    /// state: what it takes instead of `verb`, so the refusal is the
+    /// guide. `chain` leaves out the
+    /// complete-loop forms ([`Verb::is_loop_form`]), which a chain
+    /// cannot spell.
+    #[must_use]
+    pub fn takes(self, verb: Option<Verb>, chain: bool) -> Takes {
+        Takes {
+            state: self,
+            verb,
+            chain,
+        }
+    }
+}
+
+/// [`TipState::takes`]'s recourse clause, rendered in the transition
+/// table's identifiers (the `Debug` spellings, which are the lookup
+/// keys).
+///
+/// A verb the state HAS a row for was refused on its arc spec, so the
+/// clause names the arc-spec modes that row admits ([`arc_specs_at`]),
+/// each with its target forms; otherwise it names the verbs the state
+/// takes, and a closed loop takes none.
+#[derive(Clone, Copy, Debug)]
+pub struct Takes {
+    state: TipState,
+    verb: Option<Verb>,
+    chain: bool,
+}
+
+impl core::fmt::Display for Takes {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        fn list<I: Iterator<Item = String>>(
+            f: &mut core::fmt::Formatter<'_>,
+            items: I,
+        ) -> core::fmt::Result {
+            let items: Vec<String> = items.collect();
+            for (i, item) in items.iter().enumerate() {
+                let sep = match (i, items.len() - i) {
+                    (0, _) => "",
+                    (_, 1) => " or ",
+                    _ => ", ",
+                };
+                write!(f, "{sep}{item}")?;
+            }
+            Ok(())
+        }
+        let state = self.state;
+        let specs = self.verb.map_or(&[][..], |verb| arc_specs_at(verb, state));
+        if let (Some(verb), false) = (self.verb, specs.is_empty()) {
+            write!(f, "write the {verb:?} step's arc spec as ")?;
+            for (slot, forms) in specs.iter().enumerate() {
+                if slot > 0 {
+                    f.write_str(", then ")?;
+                }
+                let mut modes: Vec<ArcMode> = Vec::new();
+                for &(mode, _) in forms.forms() {
+                    if !modes.contains(&mode) {
+                        modes.push(mode);
+                    }
+                }
+                list(
+                    f,
+                    modes.into_iter().map(|mode| {
+                        let targets: Vec<String> = forms
+                            .targets(mode)
+                            .map(|target| format!("{target:?}"))
+                            .collect();
+                        if targets.is_empty() {
+                            format!("{mode:?}")
+                        } else {
+                            format!("{mode:?}({})", targets.join("/"))
+                        }
+                    }),
+                )?;
+            }
+            return Ok(());
+        }
+        let mut takes = state
+            .verbs()
+            .filter(|verb| !(self.chain && verb.is_loop_form()))
+            .peekable();
+        if takes.peek().is_none() {
+            return f.write_str("end the program at the step that closed the loop");
+        }
+        f.write_str("continue with ")?;
+        list(f, takes.map(|verb| format!("{verb:?}")))
+    }
+}
+
 /// Why a replay refused, and at which step.
 ///
 /// The `step` index is into the program slice; for a program that ENDS
@@ -2354,14 +2469,16 @@ impl<T: Real> core::fmt::Display for ReplayError<T> {
                 f,
                 "step {}: the {verb:?} verb is not a legal continuation of tip state \
                  {state:?} (lattice violation — no authoring surface can produce this \
-                 program)",
-                self.step
+                 program). {}",
+                self.step,
+                geom_core::Recourse(state.takes(Some(*verb), false))
             ),
             ReplayErrorKind::Transition { state, verb: None } => write!(
                 f,
                 "step {}: the program ends at tip state {state:?} without closing the \
-                 loop (lattice violation — a chain must end at Start)",
-                self.step
+                 loop (lattice violation — a chain must end at Start). {}",
+                self.step,
+                geom_core::Recourse(state.takes(None, false))
             ),
             ReplayErrorKind::Path(source) => {
                 write!(f, "step {}: {source}", self.step)
