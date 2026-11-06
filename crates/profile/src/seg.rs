@@ -668,7 +668,7 @@ pub(crate) enum ReadBackIssue<T: Real> {
     Escalated(Escalation),
 }
 
-/// **Which read of a constructed arc's read-back** ([`read_back_arc`]),
+/// **Which read of a constructed arc's read-back** (`seg::read_back_arc`),
 /// closed: each read's own gate and its resolution gate's.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ArcRead {

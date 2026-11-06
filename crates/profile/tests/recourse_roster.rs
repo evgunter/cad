@@ -142,7 +142,7 @@ fn the_exact_order_gates_end_in_their_lever_alone() {
         Gate::CanonicalOrderY,
     ] {
         assert!(
-            matches!(gate.ending(), Ending::Lever(_)),
+            matches!(gate.kind(), Ending::Lever(_)),
             "{gate:?} classifies against the exact-order band, where no tolerance decides it"
         );
     }
@@ -156,8 +156,8 @@ fn the_exact_order_gates_end_in_their_lever_alone() {
 fn no_lever_names_the_tolerance() {
     let offenders: Vec<String> = Gate::ALL
         .iter()
-        .filter(|gate| gate.ending().lever().contains("tolerance"))
-        .map(|gate| format!("{gate:?}: {}", gate.ending().lever()))
+        .filter(|gate| gate.kind().lever().contains("tolerance"))
+        .map(|gate| format!("{gate:?}: {}", gate.kind().lever()))
         .collect();
     assert!(offenders.is_empty(), "{offenders:#?}");
 }
@@ -386,10 +386,10 @@ fn no_lever_ending_advises_a_coarser_tolerance() {
     let offenders: Vec<String> = Gate::ALL
         .iter()
         .filter(|gate| {
-            let lever = gate.ending().lever();
+            let lever = gate.kind().lever();
             loosening.iter().any(|word| lever.contains(word))
         })
-        .map(|gate| format!("{gate:?}: {}", gate.ending().lever()))
+        .map(|gate| format!("{gate:?}: {}", gate.kind().lever()))
         .collect();
     assert!(offenders.is_empty(), "{offenders:#?}");
 }

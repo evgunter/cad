@@ -102,7 +102,7 @@ macro_rules! gates {
 
             /// How its undecided refusal ends, with its own lever.
             #[must_use]
-            pub const fn ending(self) -> Ending {
+            pub const fn kind(self) -> Ending {
                 match self {
                     $(Self::$variant => Ending::$kind($lever),)*
                 }

@@ -2,7 +2,7 @@
 //!
 //! Each sentence is a gate's own lever (D4 ¶1 (i)): [`crate::Gate`]'s
 //! table names it beside the gate, and the ending derived from the gate
-//! and its verdict ([`crate::Gate::ending`]) adds the conditional
+//! and its verdict ([`crate::Gate::kind`]) adds the conditional
 //! tolerance arm where a smaller ε decides the margin. So no sentence
 //! here names the tolerance: where it is a lever, its value comes from
 //! the margin, and at the two exact-order gates (`fillet_leg_fit`,

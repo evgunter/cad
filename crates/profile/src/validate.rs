@@ -704,7 +704,7 @@ impl fmt::Display for ProfileError {
                     "{}",
                     source.undecided(
                         format_args!("{site}, {}", gate.subject()),
-                        gate.ending().end(source)
+                        gate.kind().end(source)
                     )
                 )?;
                 // The near-tangency site note: the levers ride the

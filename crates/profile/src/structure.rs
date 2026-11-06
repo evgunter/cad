@@ -993,10 +993,7 @@ impl core::fmt::Display for StructureRefusal {
             // guided pass replays the run's ε, and an enclosure the box
             // leaves undecided names no tolerance that decides it.
             StructureRefusalKind::Indeterminate { gate, source } => {
-                let levers = format!(
-                    "{NARROW_THE_BOX} and try again, or {}",
-                    gate.ending().lever()
-                );
+                let levers = format!("{NARROW_THE_BOX} and try again, or {}", gate.kind().lever());
                 write!(
                     f,
                     "{} cannot be re-verified at this scalar: {}. {}",

@@ -380,7 +380,7 @@ fn every_fillet_gate_has_its_own_sentence_and_never_the_shared_one() {
                 terminal_sliver: false,
             },
         };
-        carries_its_own_recourse(&err, gate.ending().lever(), gate.predicate());
+        carries_its_own_recourse(&err, gate.kind().lever(), gate.predicate());
         assert!(
             !err.to_string().contains(gate.predicate()),
             "the refusal names the gate in words, not by its routing name: {err}"

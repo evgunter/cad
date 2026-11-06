@@ -2117,12 +2117,12 @@ impl<T: Real> core::fmt::Display for PathError<T> {
             // and the gate keeps only its kind.
             Self::Escalated { site, gate, source } => match site {
                 EscalatedAt::Door => source
-                    .undecided(gate.subject(), gate.ending().end(source))
+                    .undecided(gate.subject(), gate.kind().end(source))
                     .fmt(f),
                 EscalatedAt::StoredForm => source
                     .undecided(
                         "the fillet arc about to be stored",
-                        gate.ending()
+                        gate.kind()
                             .with_lever(FILLET_STORED_FORM_INBAND_RECOURSE)
                             .end(source),
                     )
