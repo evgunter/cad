@@ -87,11 +87,15 @@
 //! - **cross**: a sine times the tube's radius, the displacement the
 //!   crossing angle buys within one tube radius of the crossing.
 
-use geom_core::{Band, Decide, Margin, Point3, Vec3};
+use geom_brep::curve_face::plane_crossing::span_place;
+use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
 
 use super::region::{
-    self, End, Fault, Legs, Paths, Region, RegionEdge, RegionRefusal, Round, circle_edge_hit,
+    self, Across, End, Fault, Foot, Legs, Paths, Region, RegionEdge, RegionRefusal, Round,
+    Section, circle_edge_hit, in_band,
 };
+use crate::ray_walk::RayFault;
+use crate::validate::decide;
 use super::solid_contain::PointInSolidError;
 use crate::body::Body;
 use crate::entity::{FaceKey, LoopKey};
@@ -100,6 +104,21 @@ use crate::splitting::containment::ConicRows;
 use crate::splitting::pieced_arc::{ArcHit, ArcRefusal, ArcRows, PiecedArc};
 use crate::splitting::spiric_arc::{Oval, SpiricArc};
 use crate::splitting::{Uncrossable, UncrossableCarrier};
+
+/// Which reading a circle edge takes on a meridian leg
+/// (`bool_torus_region_family`).
+#[derive(Clone, Copy)]
+enum CircleFamily {
+    /// A parallel whose plane is transversal to the torus (`r·cos v`
+    /// definitely nonzero): the leg across its plane.
+    Parallel,
+    /// A parallel on the top or bottom circle, where its plane is tangent
+    /// to the torus, or one whose `r·cos v` is in band: across the leg's.
+    Rim,
+    /// Any other circle (a meridian, a Villarceau circle), or one whose
+    /// tilt from the axis is in band: across the leg's.
+    Other,
+}
 
 /// The row a place is read against a first leg's corner on.
 const CORNER: &str = "bool_torus_region_corner";
@@ -208,42 +227,110 @@ impl<T: Decide> TorusFaceRegion<T> {
         if self.edges.is_empty() {
             return Ok(Some(true));
         }
-        // Every leg divides by a distance from the axis, which the ring
-        // convention keeps at least `R − r` on the torus; `p`'s own is
-        // decided rather than premised, as the door does not certify `p`
-        // onto the tube.
+        // A point on the axis has no foot of its own: every azimuth names
+        // one.
         geom::require_ring_torus(self.major, self.minor, band).map_err(RegionRefusal::Escalated)?;
-        let (rho, _, _) = self.polar(p);
+        let (x, y, _) = self.frame().local(p);
+        let rho = (x.powi(2) + y.powi(2)).sqrt();
         crate::validate::decide_positive("bool_torus_frame_radius", Margin::of(rho), band)
             .map_err(RegionRefusal::Escalated)?;
-        if self.on_boundary(p, band)? {
+        let foot = Foot::read(&self.surface(), p, band);
+        if self.on_boundary(foot.at(), band)? {
             return Ok(None);
         }
-        region::walk(self, p, band).map(Some)
+        region::walk(self, foot, band).map(Some)
     }
 
-    /// `a`'s distance from the axis and its height, and the unit radial
-    /// direction.
-    fn polar(&self, a: Point3<T>) -> (T, T, Vec3<T>) {
-        region::polar(self.center, self.axis, a)
+
+    fn frame(&self) -> geom::Frame<T> {
+        geom::Frame::new(self.center, self.axis, self.u_ref)
     }
 
-    /// The parallel through `a`, run `forward` (the major angle
-    /// increasing) or back.
-    fn parallel(&self, a: Point3<T>, forward: bool) -> Leg<T> {
-        Leg::whole(region::parallel(self.center, self.axis, a, forward))
+    /// The unit radial direction at azimuth `u`.
+    fn radial(&self, u: T) -> Vec3<T> {
+        let f = self.frame();
+        let (sin, cos) = u.sin_cos();
+        f.u_ref * cos + f.v_ref() * sin
     }
 
-    /// The meridian through `a`, run `forward` (the minor angle
-    /// increasing) or back.
-    fn meridian(&self, a: Point3<T>, forward: bool) -> Leg<T> {
-        let (_, _, radial) = self.polar(a);
-        let center = self.center + radial * self.major;
-        let off = a - center;
-        let e1 = off / off.norm();
+    /// The parallel through `p`, run `forward` (the major angle
+    /// increasing) or back: the tube's circle at `p`'s tube angle.
+    fn parallel(&self, p: Foot<T>, forward: bool) -> Leg<T> {
+        let (u, v) = (p.uv().x, p.uv().y);
+        let (sin, cos) = v.sin_cos();
+        let normal = if forward { self.axis } else { -self.axis };
+        Leg::whole(Round::new(
+            self.center + self.axis * (self.minor * sin),
+            normal,
+            self.major + self.minor * cos,
+            self.radial(u),
+            Section::TubeSide {
+                toward: geom::Azimuth::of(T::zero(), cos),
+            },
+        ))
+    }
+
+    /// The meridian through `p`, run `forward` (the minor angle
+    /// increasing) or back: the tube's circle at `p`'s azimuth.
+    fn meridian(&self, p: Foot<T>, forward: bool) -> Leg<T> {
+        let (u, v) = (p.uv().x, p.uv().y);
+        let radial = self.radial(u);
+        let (sin_v, cos_v) = v.sin_cos();
         let normal = radial.cross(self.axis);
         let normal = if forward { normal } else { -normal };
-        Leg::whole(Round::new(center, normal, self.minor, e1))
+        let (sin_u, cos_u) = u.sin_cos();
+        Leg::whole(Round::new(
+            self.center + radial * self.major,
+            normal,
+            self.minor,
+            radial * cos_v + self.axis * sin_v,
+            Section::HalfPlane {
+                toward: geom::Azimuth::of(sin_u, cos_u),
+                opening: None,
+            },
+        ))
+    }
+
+    /// Which reading a circle edge `(axis, radius)` takes on a meridian
+    /// leg ([`CircleFamily`]). A margin in band of either question reads
+    /// the circle across the leg's plane, which serves every circle.
+    fn circle_family(&self, axis: Vec3<T>, radius: T, band: Band) -> CircleFamily {
+        let tilt = Margin::levered(
+            axis.cross(self.axis).norm(),
+            geom_core::Lever::curvature_radius(radius),
+        );
+        if !matches!(
+            decide("bool_torus_region_family", tilt, band),
+            Ok(Sign::Zero)
+        ) {
+            return CircleFamily::Other;
+        }
+        match decide(
+            "bool_torus_region_family",
+            Margin::of(radius - self.major),
+            band,
+        ) {
+            Ok(Sign::Positive | Sign::Negative) => CircleFamily::Parallel,
+            Ok(Sign::Zero) | Err(_) => CircleFamily::Rim,
+        }
+    }
+
+    /// Where `y`, a point of the torus on the edge arc's plane, lies on
+    /// the arc of `(t0, t1)` from its offset `(x, y)` in the arc's frame
+    /// at `lever`: its parameter within half a turn of the span's middle
+    /// against the span ([`span_place`]).
+    fn arc_place(
+        (t0, t1): (T, T),
+        (x, y): (T, T),
+        lever: T,
+        band: Band,
+    ) -> Result<Option<(T, bool)>, Fault> {
+        let theta = geom::Azimuth::of(y, x).near(geom::mid_param(t0, t1));
+        Ok(
+            span_place(theta, (t0, t1), geom_core::InfSpeed::new(lever), band)
+                .map_err(in_band)?
+                .map(|at_end| (theta, at_end)),
+        )
     }
 
     /// The unit chart normal at `y`.
@@ -321,13 +408,7 @@ impl<T: Decide> Region<T> for TorusFaceRegion<T> {
 
 impl<T: Decide> Paths<T> for TorusFaceRegion<T> {
     /// `p`'s parallel, or its meridian.
-    fn single(
-        &self,
-        p: Point3<T>,
-        parallel: bool,
-        forward: bool,
-        _: Band,
-    ) -> Result<Leg<T>, Fault> {
+    fn single(&self, p: Foot<T>, parallel: bool, forward: bool, _: Band) -> Result<Leg<T>, Fault> {
         Ok(if parallel {
             self.parallel(p, forward)
         } else {
@@ -340,28 +421,29 @@ impl<T: Decide> Paths<T> for TorusFaceRegion<T> {
     /// through the corner.
     fn aimed(
         &self,
-        p: Point3<T>,
+        p: Foot<T>,
         target: Point3<T>,
         parallel_first: bool,
         first_forward: bool,
         then_forward: bool,
-        _: Band,
+        band: Band,
     ) -> Result<(Round<T>, End<T>, impl FnOnce() -> Leg<T>), Fault> {
-        let (rho_p, h_p, radial_p) = self.polar(p);
-        let (rho_t, h_t, radial_t) = self.polar(target);
+        let surface = self.surface();
+        let target = Foot::read(&surface, target, band);
+        let ((up, vp), (ut, vt)) = ((p.uv().x, p.uv().y), (target.uv().x, target.uv().y));
         let (first, corner) = if parallel_first {
             (
                 self.parallel(p, first_forward),
-                self.center + self.axis * h_p + radial_t * rho_p,
+                Foot::of_chart(&surface, geom_core::Point2::new(ut, vp)),
             )
         } else {
             (
                 self.meridian(p, first_forward),
-                self.center + self.axis * h_t + radial_p * rho_t,
+                Foot::of_chart(&surface, geom_core::Point2::new(up, vt)),
             )
         };
         let end = End {
-            place: first.course.arc(corner),
+            place: first.course.arc(corner.at()),
             row: CORNER,
             open: false,
         };
@@ -381,11 +463,143 @@ impl<T: Decide> Legs<T> for TorusFaceRegion<T> {
 
     const AT: &'static str = "bool_torus_region_at";
 
+    const COMPONENT: &'static str = "bool_torus_region_component";
+
     const SIDE: (&'static str, &'static str) =
         ("bool_torus_region_order", "bool_torus_region_cross");
 
     fn lever(&self) -> T {
         self.minor
+    }
+
+    fn surface(&self) -> geom::Surface<T> {
+        geom::Surface::Torus {
+            center: self.center,
+            axis: self.axis,
+            major_radius: self.major,
+            minor_radius: self.minor,
+            u_ref: self.u_ref,
+        }
+    }
+
+    /// An oval across the leg's plane has no closed form, nor has a
+    /// parallel by the tube's top or bottom circle across a parallel's
+    /// tangent plane: each is read the other way, the leg across the
+    /// edge's plane. A parallel leg reads every edge that way; a meridian
+    /// leg reads a parallel off the top and bottom circles that way, at
+    /// the tube's radius (`bool_torus_region_family`), and every other
+    /// circle across its own plane, which is normal to the torus.
+    fn across(&self, leg: &Leg<T>, edge: &Edge<T>, band: Band) -> Result<Across<T>, Fault> {
+        match edge.carrier {
+            geom::Curve3::Spiric {
+                center,
+                u_ref,
+                offset,
+                ..
+            } => Ok(Across::LegOverEdge {
+                on: center + u_ref * offset,
+                normal: u_ref,
+            }),
+            geom::Curve3::Circle(geom::Circle {
+                frame: geom::Frame { origin, axis, .. },
+                radius,
+            }) => {
+                let over_edge = match leg.course.section {
+                    Section::TubeSide { .. } => true,
+                    _ => matches!(
+                        self.circle_family(axis, radius, band),
+                        CircleFamily::Parallel
+                    ),
+                };
+                Ok(if over_edge {
+                    Across::LegOverEdge {
+                        on: origin,
+                        normal: axis,
+                    }
+                } else {
+                    Across::EdgeOverLeg
+                })
+            }
+            _ => unreachable!("torus_face_region admits circles and spirics only"),
+        }
+    }
+
+    /// The edge's plane meets the torus in two curves: a parallel's in
+    /// two parallels (its tube side, on a meridian leg), a meridian's or
+    /// a Villarceau circle's in it and its mirror through the centre, an
+    /// oval's in two ovals across its trace. A root on the edge's own is
+    /// placed on its span.
+    fn on_edge_plane(
+        &self,
+        leg: &Leg<T>,
+        edge: &Edge<T>,
+        y: Point3<T>,
+        band: Band,
+    ) -> Result<Option<(T, bool)>, Fault> {
+        let row = |m: T| decide(Self::COMPONENT, Margin::of(m), band).map_err(in_band);
+        match edge.carrier {
+            geom::Curve3::Spiric {
+                center,
+                axis,
+                u_ref,
+                major_radius: major,
+                minor_radius: minor,
+                ..
+            } => {
+                let w = y - center;
+                match row(w.dot(axis.cross(u_ref)))? {
+                    Sign::Positive => {}
+                    Sign::Negative => return Ok(None),
+                    Sign::Zero => return Err(RayFault::Graze),
+                }
+                let h = w.dot(axis);
+                let rho = (w - axis * h).norm();
+                Self::arc_place((edge.t0, edge.t1), (rho - major, h), minor, band)
+            }
+            geom::Curve3::Circle(geom::Circle {
+                frame:
+                    geom::Frame {
+                        origin: center,
+                        axis,
+                        u_ref,
+                    },
+                radius,
+            }) => {
+                let w = y - center;
+                let own = match leg.course.section {
+                    // A meridian leg across a parallel's plane.
+                    Section::HalfPlane { .. } => region::on_section(
+                        self,
+                        Section::TubeSide {
+                            toward: geom::Azimuth::of(T::zero(), radius - self.major),
+                        },
+                        y,
+                        band,
+                    )?,
+                    _ => {
+                        let mirror = self.center + (self.center - center);
+                        match row((y - mirror).norm() - radius)? {
+                            Sign::Positive | Sign::Negative => true,
+                            // On the mirror, or where the two cross.
+                            Sign::Zero => match row(w.norm() - radius)? {
+                                Sign::Positive | Sign::Negative => false,
+                                Sign::Zero => return Err(RayFault::Graze),
+                            },
+                        }
+                    }
+                };
+                if !own {
+                    return Ok(None);
+                }
+                Self::arc_place(
+                    (edge.t0, edge.t1),
+                    (w.dot(u_ref), w.dot(axis.cross(u_ref))),
+                    radius,
+                    band,
+                )
+            }
+            _ => unreachable!("torus_face_region admits circles and spirics only"),
+        }
     }
 
     fn outward(&self, y: Point3<T>) -> Vec3<T> {
@@ -438,6 +652,11 @@ mod tests {
             outer: LoopKey::default(),
             edges: vec![parallel(v0, true, 1), parallel(v1, false, 2)],
         }
+    }
+
+    /// `p`'s foot on the region's torus, as the door reads it.
+    fn foot(region: &TorusFaceRegion<f64>, p: Point3<f64>) -> Foot<f64> {
+        Foot::read(&Legs::surface(region), p, Band::new(1e-9, 1e-8).unwrap())
     }
 
     /// The point at chart `(u, v)`.
@@ -769,8 +988,8 @@ mod tests {
         let top = parallel(FRAC_PI_2, true, 1);
         let region = holding(top.clone());
         for u in [0.3, 2.0, 4.4] {
-            let leg = region.meridian(at(u, 2.0), true);
-            let got = region::landings(&top, &leg, TorusFaceRegion::<f64>::AT, b).unwrap();
+            let leg = region.meridian(foot(&region, at(u, 2.0)), true);
+            let got = region::landings(&region, &top, &leg, b).unwrap();
             assert_eq!(got.len(), 1, "u {u}: {got:?}");
             assert!(
                 (got[0].0 - at(u, FRAC_PI_2)).norm() < 1e-12,
@@ -789,8 +1008,8 @@ mod tests {
         let side = meridian_arc(1.0, (-1.2, 1.2));
         let region = holding(side.clone());
         for v in [-0.9, 0.3, 1.0] {
-            let leg = region.parallel(at(0.2, v), true);
-            let got = region::landings(&side, &leg, TorusFaceRegion::<f64>::AT, b).unwrap();
+            let leg = region.parallel(foot(&region, at(0.2, v)), true);
+            let got = region::landings(&region, &side, &leg, b).unwrap();
             assert_eq!(got.len(), 1, "v {v}: {got:?}");
             assert!((got[0].0 - at(1.0, v)).norm() < 1e-12, "v {v}: {got:?}");
         }
@@ -821,8 +1040,8 @@ mod tests {
         };
         let region = holding(oval.clone());
         for p in [at(0.2, 0.0), at(2.0, 0.4), at(3.5, -0.3)] {
-            let leg = region.parallel(p, true);
-            let got = region::landings(&oval, &leg, TorusFaceRegion::<f64>::AT, b).unwrap();
+            let leg = region.parallel(foot(&region, p), true);
+            let got = region::landings(&region, &oval, &leg, b).unwrap();
             assert_eq!(got.len(), 1, "{p:?}: {got:?}");
             assert!(
                 got[0].0.y > 0.0 && (got[0].0.x - 1.0).abs() < 1e-12,
@@ -846,12 +1065,12 @@ mod tests {
             (0.0, 1.0),
         );
         let region = holding(rim.clone());
-        let leg = region.meridian(at(0.0, 1.4), false);
-        let got = region::landings(&rim, &leg, TorusFaceRegion::<f64>::AT, b).unwrap();
+        let leg = region.meridian(foot(&region, at(0.0, 1.4)), false);
+        let got = region::landings(&region, &rim, &leg, b).unwrap();
         assert_eq!(got.len(), 1, "{got:?}");
         assert!(got[0].2, "the arc's end is sideless: {got:?}");
-        let inner = region.meridian(at(0.5, 1.4), false);
-        let got = region::landings(&rim, &inner, TorusFaceRegion::<f64>::AT, b).unwrap();
+        let inner = region.meridian(foot(&region, at(0.5, 1.4)), false);
+        let got = region::landings(&region, &rim, &inner, b).unwrap();
         assert!(
             got.len() == 1 && !got[0].2,
             "the arc's interior reads its side: {got:?}"
@@ -860,7 +1079,7 @@ mod tests {
         assert!(matches!(
             region::read_path(
                 &region,
-                at(0.0, 1.4),
+                foot(&region, at(0.0, 1.4)),
                 region::Path::Single {
                     parallel: false,
                     forward: false

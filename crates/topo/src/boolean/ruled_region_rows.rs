@@ -5,6 +5,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use super::*;
+use crate::boolean::region::Foot;
 use crate::entity::EdgeKey;
 use core::f64::consts::{PI, TAU};
 use slotmap::KeyData;
@@ -479,6 +480,11 @@ fn a_cone_faces_scale_bounds_its_reach_from_the_apex() {
     assert!(scale >= sampled, "scale {scale} under the reach {sampled}");
 }
 
+/// `p`'s foot on the region's surface, as the door reads it.
+fn foot(region: &RuledFaceRegion<f64>, p: Point3<f64>) -> Foot<f64> {
+    Foot::read(&Legs::surface(region), p, b())
+}
+
 /// **A generator edge through the apex reaches both nappes**, read at
 /// its ends: its middle on the opening nappe does not keep it off the
 /// mirror one.
@@ -500,14 +506,14 @@ fn a_generator_meets_no_conic_on_the_mirror_nappe() {
     let mirror = rim(1, -ALPHA.cos(), ALPHA.sin(), (0.0, TAU), true);
     let own = cone_rim(2, 2.0, (0.0, TAU), true);
     let region = cone(vec![mirror.clone(), own.clone()], 2.0);
-    let leg = region.ruling(on_cone(0.0, 1.0), true);
+    let leg = region.ruling(foot(&region, on_cone(0.0, 1.0)), true, true);
     assert!(
-        crate::boolean::region::landings(&mirror, &leg, RuledFaceRegion::<f64>::AT, b())
+        crate::boolean::region::landings(&region, &mirror, &leg, b())
             .ok()
             .is_some_and(|l| l.is_empty())
     );
     assert_eq!(
-        crate::boolean::region::landings(&own, &leg, RuledFaceRegion::<f64>::AT, b())
+        crate::boolean::region::landings(&region, &own, &leg, b())
             .ok()
             .map(|l| l.len()),
         Some(1)
@@ -523,7 +529,7 @@ fn a_leg_along_an_edge_grazes() {
     assert!(matches!(
         region::read_path(
             &line,
-            wall(0.0, -0.5),
+            foot(&line, wall(0.0, -0.5)),
             region::Path::Single {
                 parallel: false,
                 forward: true
@@ -536,7 +542,7 @@ fn a_leg_along_an_edge_grazes() {
     assert!(matches!(
         region::read_path(
             &arc,
-            wall(2.0, 0.0),
+            foot(&arc, wall(2.0, 0.0)),
             region::Path::Single {
                 parallel: true,
                 forward: true
@@ -566,7 +572,7 @@ fn an_aimed_paths_first_leg_ends_at_its_corner() {
         then_forward: true,
     };
     assert!(matches!(
-        region::read_path(&region, wall(0.5, 0.0), spec, b()),
+        region::read_path(&region, foot(&region, wall(0.5, 0.0)), spec, b()),
         Ok(true)
     ));
 }
@@ -600,25 +606,31 @@ fn a_generator_from_the_apex_keeps_its_nappe() {
 
 /// **A generator toward the apex lands nowhere at the apex.** A ruling
 /// leg run back toward the cone's apex ends there, and every generator
-/// edge through the apex meets it at that end: the leg runs up to the
-/// apex and not onto it, so the meeting is no crossing of it. A
-/// generator edge clear of the apex is met nowhere, and the rim the leg
-/// crosses short of the apex is its one landing.
+/// edge through the apex meets its plane at that end: the leg runs up to
+/// the apex and not onto it, so the meeting is no place on it
+/// ([`region::End::open`]). A generator edge clear of the apex is met
+/// nowhere, and the rim the leg crosses short of the apex is its one
+/// crossing.
 #[test]
 fn a_generator_toward_the_apex_lands_nowhere_at_it() {
     let through = segment(1, on_cone(1.0, 0.0), on_cone(1.0, 2.0));
     let clear = segment(2, on_cone(2.0, 0.5), on_cone(2.0, 2.0));
     let below = cone_rim(3, 0.5, (0.0, TAU), true);
     let region = cone(vec![through.clone(), clear.clone(), below.clone()], 2.0);
-    let leg = region.ruling(on_cone(0.0, 1.0), false);
+    let leg = region.ruling(foot(&region, on_cone(0.0, 1.0)), true, false);
     assert!(
         leg.end.is_some_and(|end| end.open),
         "the leg ends at the apex"
     );
     let at = |e: &Edge<f64>| {
-        crate::boolean::region::landings(e, &leg, RuledFaceRegion::<f64>::AT, b())
-            .ok()
-            .map(|l| l.len())
+        let landings = crate::boolean::region::landings(&region, e, &leg, b()).ok()?;
+        let mut placed = 0;
+        for (y, _, _) in landings {
+            if leg.place(y, RuledFaceRegion::<f64>::AT, b()).ok()?.is_some() {
+                placed += 1;
+            }
+        }
+        Some(placed)
     };
     assert_eq!(at(&through), Some(0), "the generator through the apex");
     assert_eq!(at(&clear), Some(0), "a generator clear of the apex");

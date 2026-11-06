@@ -128,8 +128,8 @@
 use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
 
 use super::region::{
-    self, End, Fault, Leg, Legs, Path, Paths, Region, RegionEdge, RegionRefusal, Round,
-    circle_edge_hit, targets,
+    self, End, Fault, Foot, Leg, Legs, Path, Paths, Region, RegionEdge, RegionRefusal, Round,
+    Section, circle_edge_hit, targets,
 };
 use super::solid_contain::PointInSolidError;
 use crate::body::Body;
@@ -231,11 +231,11 @@ impl<T: Decide> SphereFaceRegion<T> {
         if self.edges.is_empty() {
             return Ok(Some(true));
         }
-        if self.on_boundary(p, band)? {
+        let foot = Foot::read(&self.surface(), p, band);
+        if self.on_boundary(foot.at(), band)? {
             return Ok(None);
         }
-        let w = p - self.center;
-        let a = w / w.norm();
+        let a = self.unit(foot);
         let aimed: Vec<Vec3<T>> = targets(&self.edges).map(|y| y - self.center).collect();
         let scheduled: Vec<Vec3<T>> = SCHEDULE.iter().map(|r| r.map(T::from_f64)).collect();
         let both_ways = |dirs: Vec<Vec3<T>>| {
@@ -274,7 +274,7 @@ impl<T: Decide> SphereFaceRegion<T> {
                         Err(diag) => Err(RayFault::InBand(RegionRefusal::Escalated(diag))),
                     }
                 }
-                Probe::Path(path) => region::read_path(self, p, path, band),
+                Probe::Path(path) => region::read_path(self, foot, path, band),
             },
             || RegionRefusal::RayExhausted { outer: self.outer },
         )
@@ -351,7 +351,20 @@ impl<T: Decide> SphereFaceRegion<T> {
     /// The ray from `a` along the unit tangent `t` (module docs, step 1):
     /// the great circle round the centre from `a` toward `t`.
     fn ray(&self, a: Vec3<T>, t: Vec3<T>) -> Leg<T, Round<T>> {
-        Leg::whole(Round::new(self.center, a.cross(t), self.radius, a))
+        Leg::whole(Round::new(
+            self.center,
+            a.cross(t),
+            self.radius,
+            a,
+            Section::Whole,
+        ))
+    }
+
+
+    /// The unit direction of `foot` from the centre.
+    fn unit(&self, foot: Foot<T>) -> Vec3<T> {
+        let w = foot.at() - self.center;
+        w / w.norm()
     }
 }
 
@@ -369,7 +382,7 @@ enum Probe<T: geom_core::Real> {
 impl<T: Decide> Paths<T> for SphereFaceRegion<T> {
     /// The door's single legs are its rays ([`SphereFaceRegion::contains`]),
     /// read there; none is read here.
-    fn single(&self, _: Point3<T>, _: bool, _: bool, _: Band) -> Result<Leg<T, Round<T>>, Fault> {
+    fn single(&self, _: Foot<T>, _: bool, _: bool, _: Band) -> Result<Leg<T, Round<T>>, Fault> {
         Err(RayFault::Unread)
     }
 
@@ -386,7 +399,7 @@ impl<T: Decide> Paths<T> for SphereFaceRegion<T> {
     /// nothing; one in band sets the path aside.
     fn aimed(
         &self,
-        p: Point3<T>,
+        p: Foot<T>,
         target: Point3<T>,
         parallel_first: bool,
         first_forward: bool,
@@ -400,7 +413,7 @@ impl<T: Decide> Paths<T> for SphereFaceRegion<T> {
             let w = y - self.center;
             w / w.norm()
         };
-        let (a, b) = (unit(p), unit(target));
+        let (a, b) = (self.unit(p), unit(target));
         let across = a.cross(b);
         let sin = across.norm();
         match decide(
@@ -422,8 +435,11 @@ impl<T: Decide> Paths<T> for SphereFaceRegion<T> {
             row: "bool_sphere_region_corner",
             open: false,
         };
-        let center = self.center;
-        let then = move || Leg::whole(region::parallel(center, a, corner, then_forward));
+        // The parallel about `a` through the corner: at `a·R cos θ` from
+        // the centre, of radius `R sin θ`, starting along `side`.
+        let (center, radius) = (self.center + a * (self.radius * cos), self.radius * sin);
+        let normal = if then_forward { a } else { -a };
+        let then = move || Leg::whole(Round::new(center, normal, radius, side, Section::Whole));
         Ok((first, end, then))
     }
 }
@@ -458,11 +474,25 @@ impl<T: Decide> Legs<T> for SphereFaceRegion<T> {
 
     const AT: &'static str = "bool_sphere_region_at";
 
+    const COMPONENT: &'static str = "bool_sphere_region_component";
+
     const SIDE: (&'static str, &'static str) =
         ("bool_sphere_region_order", "bool_sphere_region_cross");
 
     fn lever(&self) -> T {
         self.radius
+    }
+
+    /// The sphere as a surface, in a frame of its own: a foot's reading
+    /// depends on no frame.
+    fn surface(&self) -> geom::Surface<T> {
+        let (zero, one) = (T::zero(), T::one());
+        geom::Surface::Sphere {
+            center: self.center,
+            radius: self.radius,
+            axis: Vec3::new(zero, zero, one),
+            u_ref: Vec3::new(one, zero, zero),
+        }
     }
 
     fn outward(&self, y: Point3<T>) -> Vec3<T> {
@@ -1083,7 +1113,7 @@ mod tests {
             for (az, end) in [(1.25 * pi, false), (pi, true)] {
                 let toward = Vec3::new(lift(az.cos()), lift(az.sin()), lift(0.0));
                 let leg = region.ray(pole, toward);
-                let got = region::landings(&region.edges[1], &leg, SphereFaceRegion::<T>::AT, band);
+                let got = region::landings(&region, &region.edges[1], &leg, band);
                 let Ok(landings) = got else {
                     panic!("azimuth {az}: the leg lands at {scalar}, got {got:?}")
                 };
@@ -1223,7 +1253,8 @@ mod tests {
                                     first_forward,
                                     then_forward,
                                 };
-                                if let Ok(got) = region::read_path(&region, p, path, band) {
+                                let foot = region::Foot::read(&Legs::surface(&region), p, band);
+                                if let Ok(got) = region::read_path(&region, foot, path, band) {
                                     settled += 1;
                                     assert_eq!(
                                         got, want,
