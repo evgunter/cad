@@ -774,7 +774,7 @@ test_utils::f6_variants! {
     const NODE_ERROR_KIND: NodeErrorKind = [
         Expr, Profile, ProfileReplay, ProfileLaneReplay, Trace, Extrude, Revolve, Tube, Split, ContactCarry, Blend,
         Boolean, Transform, Mirror, Motion, Skin, Loft, CurvedSolidFrontier, MissingInput, UnresolvedRead, SelectResolve,
-        ToleranceConflict, ParamBox, Seed, WrongOperand, EmptyOperand,
+        ToleranceConflict, ParamBox, Seed, WrongOperand, EmptyOperand, EmptyMember,
         UnfinishedOperand, EmptyHalf, MemberOutOfRange, MemberRefused, IndicesUnrelated,
         IndexCount, IndexCountOutOfRange, NoSuchPiece, PieceShape,
         DegenerateDirection, NonFiniteDirection, UnderflowedDirection, Band, MissingSlot,
@@ -1235,6 +1235,7 @@ fn forward(kind: &NodeErrorKind) -> Forward {
         | NodeErrorKind::ToleranceConflict { .. }
         | NodeErrorKind::WrongOperand { .. }
         | NodeErrorKind::EmptyOperand { .. }
+        | NodeErrorKind::EmptyMember { .. }
         | NodeErrorKind::EmptyHalf { .. }
         | NodeErrorKind::ContactCarry { .. }
         | NodeErrorKind::MemberOutOfRange { .. }
@@ -1694,6 +1695,13 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
             "EmptyOperand",
             NodeErrorKind::EmptyOperand {
                 input: RecipeNodeId::new(0, tagged(3)),
+            },
+        ),
+        row(
+            "EmptyMember",
+            NodeErrorKind::EmptyMember {
+                input: RecipeNodeId::new(0, tagged(3)),
+                at: vec![(editor_core::VarId::new(0, tagged(2)), 1)],
             },
         ),
         row(
