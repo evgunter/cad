@@ -2,10 +2,11 @@
 id: a-corner-behind-the-incoming-rays-start-names-no-recourse
 kind: issue
 title: a fillet whose incoming leg ends at the corner refuses 'this corner lies behind the incoming ray's start' with no recourse, the first wall a newcomer hits once the lattice is satisfied
-status: open
+status: dispatched
 opened: 2026-11-06
 priority: P1
 cost: E
+branch: round/corner-behind-names-its-recourse
 ---
 
 

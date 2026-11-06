@@ -172,3 +172,18 @@ which is how `fillet-step-discoverability-six-door-refusals` will run.
 - 2026-11-06 — PR 6545 merges: the P0 cusp-fillet row closes (single FULL review APPROVE; fix pass took its one-home predicate, doc and coverage points).
 - 2026-11-06 — PR 6549 (discoverability) reviewed STYLE: APPROVE-WITH-FIXES, fix pass sent to its session. Filed `a-corner-behind-the-incoming-rays-start-names-no-recourse` (P1 E): the geometry half of the newcomer's walk, which the acceptance walk's premise could not reach.
 - 2026-11-06 — PR 6549 merges: `fillet-step-discoverability-six-door-refusals` closes (STYLE review APPROVE-WITH-FIXES; the fix pass made the `ProgramStep` docs point at the rows, one lattice sentence `profile::Refused` at every door, and filed the `AlongTrace` naming gap on DOCTAIL). Its session is archived.
+
+## 2026-11-06 — the escalation unit lands (PR 6546); the last code P1 dispatched
+
+PR 6546 merges after its dual review and fix pass: one closed
+`profile::Gate` routes every in-band ending, `fillet_offset_lever` is
+`Lever` (its margin moves against the user as ε shrinks, R1's tallied
+finding), and `tests/gate_kinds_followed.rs` pins each gate's kind by
+following its tighten. The unit and its four passengers close; the row
+is `docs/dual-review-log/rows/PR-6546.md` (tally 1). All three P1 code
+units of the original cut and both P0s are on main.
+
+`a-corner-behind-the-incoming-rays-start-names-no-recourse` (P1 E, filed
+from PR 6549's review) dispatched: `round/corner-behind-names-its-recourse`,
+single STYLE review. What remains at P0/P1 after it: the two forks with
+Ev (PRs 6542, 6547), each a build unit once ruled.
