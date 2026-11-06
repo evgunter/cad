@@ -339,3 +339,5 @@
   The geom small-reads bundle (`three-line-offsets…` and the others) waits for 6540, which touches `Line`.
 
 - 2026-11-06 — Ruled for topo-handles: B. Export `Body::face(k) -> Option<FaceView>`, so the type is the gate: 13 outside sites spelled `once(f.outer).chain(f.rings)` with four different torn-loop handlings. Conditions: check `git log -S` for a ratified decision that FaceView is crate-private; list each site whose behaviour changes when it becomes the D2 row-4 panic; expose the minimum.
+
+- 2026-11-06 — curve-pair-tidy opened PR 6541 at `9616e08d`. The coplanar level is onto `Level` and the subdivision takes charged terms; normalisation is onto `Vec3::normalize`. It filed two rows, among them `the-window-reads-the-level-uncharged-where-the-subdivision-needs-its-bound`, which bears on the across-key fork's reading. My B ruling and the span_rows red crossed its report, so I sent both back for the same PR. Review waits until they land.
