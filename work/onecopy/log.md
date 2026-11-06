@@ -436,3 +436,9 @@
   - Filed `engine-leaves-passes-a-raised-pin-and-its-message-points-the-wrong-way` and `the-census-has-no-fault-arm-and-sorts-a-kernel-fault-as-unsupported`.
   The stale local `main` (`9036ae9e5b`) misled both designers' clones; I fixed the ref.
 - 2026-11-06 — Dispatched `onecopy/engine-leaves-pins` (`session_013mPGJ2hhJzfCkPLVNf3azD`): the raised-pin gate and its message, and the census fault vocabulary. The tangent-line move waits until tranche 4 and topo-handles leave containment.
+
+- 2026-11-06 — PR 6548 FULL review: MERGE. `Stop` is sound and no answer moved. Fix pass sent:
+  - M1: pin the section's Unwalked rendering.
+  - M2: put recourse on `PieceWalkRefusal`, so the join and section renderings agree.
+  - S2 and S3.
+  - A P3 class row for three clearance walks, two `SiteRefusal` sorts and the census's `WALK_*`.
