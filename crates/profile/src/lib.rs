@@ -173,9 +173,9 @@ pub use path::program::{
 };
 pub use path::{
     ArcCarrierScalar, ArcLen, ArcSide, ArrivesTangent, Bulge, Center, ContinueTarget, CornerReason,
-    CornerRefusal, CornerWindow, FILLET_ANCHOR_TURN_RECOURSE, LineTarget, OntoTarget, Open,
-    PartialPath, PathError, PathErrorKind, PathNoCornerReason, PointLeg, Radius, Start, Sweep,
-    TangentArcTarget, TurnLever, Via, circle, circle_split, rectangle,
+    CornerRefusal, CornerWindow, LineTarget, OntoTarget, Open, PartialPath, PathError,
+    PathErrorKind, PathNoCornerReason, PointLeg, Radius, Start, Sweep, TangentArcTarget, TurnLever,
+    Via, circle, circle_split, rectangle,
 };
 /// The path door's read-back rounding bounds and its magnitude
 /// headroom (`seg::read_back_arc`), for the suites that hold a scene's

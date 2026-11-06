@@ -468,7 +468,9 @@ impl fmt::Display for NoCornerReason {
 ///
 /// Reaches the caller through [`crate::PathError::Escalated`]'s fillet
 /// arm, which selects it with [`fillet_recourse_for`]; that is where all
-/// six `FILLET_*_RECOURSE` sentences are rendered.
+/// six `FILLET_*_RECOURSE` sentences are rendered. The gate's definite
+/// arm, `PathNoCornerReason::TurnWithinTolerance` on the shorter leg,
+/// ends in it too.
 /// Gates: `fillet_corner_turn`.
 #[cfg_attr(
     not(any(test, feature = "test-support")),

@@ -504,11 +504,11 @@ fn a_real_corner_on_a_short_anchor_separation_names_its_lever() {
     );
     let shown = err.to_string();
     assert!(
-        shown.contains(profile::FILLET_ANCHOR_TURN_RECOURSE),
+        shown.contains(profile::path::FILLET_ANCHOR_TURN_RECOURSE),
         "the straight pair's recourse moves the anchor: {shown}"
     );
     assert!(
-        shown.contains("the anchors' separation") && shown.contains("φ = 64"),
+        shown.contains("over the anchors' separation of") && shown.contains("φ = 64"),
         "the sentence names both factors: {shown}"
     );
     assert!(!shown.contains("parallel"), "no carrier tangency: {shown}");

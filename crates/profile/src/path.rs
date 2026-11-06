@@ -1835,18 +1835,18 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                         lever_of,
                     } => {
                         let (lever_name, recourse) = match lever_of {
-                            TurnLever::ShorterLeg => {
-                                ("the shorter leg's arm", crate::FILLET_TURN_INBAND_RECOURSE)
-                            }
+                            TurnLever::ShorterLeg => (
+                                "the shorter leg",
+                                crate::validate::FILLET_TURN_INBAND_RECOURSE,
+                            ),
                             TurnLever::AnchorSeparation => {
                                 ("the anchors' separation", FILLET_ANCHOR_TURN_RECOURSE)
                             }
                         };
                         let degrees = sin_turn.atan2(*align) * T::from_f64(180.0) / T::pi();
                         format!(
-                            "the turn at the corner is zero at tolerance: sin φ = {sin} \
-                             (φ = {degrees}°) over {lever_name}, {lever} m, so the side to round \
-                             toward is undecided. Recourse: {recourse}",
+                            "its turn, sin φ = {sin} (φ = {degrees}°) over {lever_name} of \
+                             {lever} m, is zero at tolerance. Recourse: {recourse}",
                             sin = num(sin_turn),
                             degrees = num(&degrees),
                             lever = num(lever),

@@ -289,7 +289,7 @@ fn the_turn_gate_is_reachable_in_band_with_a_short_leg_and_a_real_angle() {
         "the definite arm ends in its in-band sibling's recourse: {shown}"
     );
     assert!(
-        shown.contains("the shorter leg's arm") && shown.contains("sin φ = "),
+        shown.contains("over the shorter leg of") && shown.contains("sin φ = "),
         "the sentence names both factors: {shown}"
     );
     assert!(
