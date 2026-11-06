@@ -148,3 +148,22 @@ Reversed }`; only a forward ray merges; a cusp-reversed ray emits its
 own segment from the leg's end, which validation refuses as an overlap
 exactly as `.cusp().line(..)`. Single FULL review dispatched; it reuses
 the probe lane's idle target because the box was down to 8 GB.
+
+## 2026-11-06 — the turn gate in review (PR 6544); friction: disk
+
+PR 6544 (CI green): `PathNoCornerReason::TurnWithinTolerance { sin_turn,
+align, lever, lever_of }` at both turn gates' Zero arms, `CarriersParallel`
+kept for its two unlevered producers; the sentence prints cos φ beside
+sin φ, because `scripts/gates/atan2-sites.sh` refuses a new `atan2`
+outside `geom::azimuth`. The lane found the same class at
+`JunctionTangent` and an undeclared `SeamTangent` after a sub-ε leg, and
+filed it on PROFILE (`a-real-junction-on-a-short-leg-refuses-as-tangent`,
+P2). Single FULL review dispatched.
+
+**Friction (a finding):** three implementer lanes and a reviewer on one
+container ran the per-session disk allowance from 28 GB free to 3.2 GB
+within an hour: the escalation lane's target alone reached 13 GB, a
+turn-gate target 7.6 GB. Two build lanes plus one reviewer is what this
+box holds; a third build lane belongs in its own cloud session
+(`memories/orchestration-model.md`, lanes may run in their own sessions),
+which is how `fillet-step-discoverability-six-door-refusals` will run.
