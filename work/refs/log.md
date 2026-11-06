@@ -187,3 +187,12 @@
   - **Readers fixed:** `output_body`, `sources_of`, Python `bodies()` and `read_named_body`. `mate/corner.rs` `read_of` reads the first body member.
   - **Rows:** the WIREREST and BIND residue rows were claimed and closed. The tree readout for an empty member is a CHROME row with three options (a user-visible choice, left open).
   - **Not ours:** the lane saw main's nightly red on editor-core (`docm2_part_interval` a7, an interval boolean escalation, and others). That is GREEN's ground, and it is noted here for the hand-back.
+- 2026-11-06 — **PR 6564 review: APPROVE-WITH-FIXES, one MAJOR (sure, probe).** The product `gather` reads `carry.member(i)` by its position in the filtered source list. With empty members dropped, a later body took the empty member's census: a false `UnrecordedContact` and a lost contact record. This path is new in this PR. The one-line fix is `member(ix)`, with the probe pinned.
+  - Minors:
+    - `wire_place`'s whole-family arm can build a member-less `Instances` with a `None`, which panics on a whole read;
+    - `corner.rs` `read_of` has two name spellings;
+    - the all-empty family's new behaviour is unpinned;
+    - `name_copy`'s `one`;
+    - `one_body` overclaims: demos and `mate/unobservable` still match `Body(b)` alone.
+  - Fix pass sent.
+  - **Class:** a reader indexing by position in a list that may skip places, through a method (`Carry::member`) that a field sweep (`.members`) cannot match. A sweep's blind spot was named in the PR and still missed this shape.
