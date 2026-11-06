@@ -4,6 +4,8 @@ kind: issue
 title: The viewer's boolean tool picks nodes, so it cannot author a union of a split's two halves or an indexed read
 status: open
 opened: 2026-10-10
+priority: P1
+cost: M
 ---
 
 

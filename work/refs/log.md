@@ -104,3 +104,11 @@
   - A move that clears sites lowers the line in the same PR. `scripts/gates/engine-leaves.sh --lines FILE` lists a file's counted sites.
   - (ONEDOOR orchestrator)
 - 2026-11-06 — **Sitting picked up (`active`).** Two P0 rows on the slate, both moved here from the retired `work/issues/` bucket on 2026-11-03 with legacy `cost: D`. Read against the tree: `flush-invents-a-predicate-name-for-a-nameless-escalation`'s cited code is gone (no `names/flush.rs`, no `SelectRefusal::PairInBand` anywhere), but its class lives on (`eval/measure.rs`'s `unwrap_or(GAP_LINK)`, `topo` `section_cert.rs`'s `unwrap_or("pair_section")`); `emit-blend-cannot-observe-a-retirement-naming-a-minted-key`'s blend half already has its kernel home (`sweep::blend::surgery`'s epilogue checks every retirement names a source key), while `topo::shell` has no such postcondition. Both are E-sized and share one lane, unit branch `reads/retired-and-nameless`. Tier **single, STYLE**: a kernel debug postcondition plus refusal-payload honesty, readable and believable on reading. Both bands look high against the README's definitions (a guard that cannot go red is P3); they are being fixed rather than re-banded because the fix is cheaper than the argument.
+- 2026-11-06 — **Banded and priced the eight unbanded legacy rows** (orchestrator's read, against the README's definitions):
+  - P1 M `slot-forms-want-one-trait` — two implementations of one logic, owed again by every new slot-bearing type;
+  - P1 M `a-selects-body-takes-an-indexed-read` — verb breadth: a selection of a family member read by index has no spelling;
+  - P1 M `viewer-boolean-tool-cannot-pick-a-read` — GUI authoring breadth. The tool now holds `Operand`s and reads a split's half by its port (`combine.rs` `pick_at`), so part of the row may be done; the dispatch re-checks the indexed member first;
+  - P2 H `an-indexed-read-of-rank-two-has-no-family`; P2 M `set-expression-is-still-slot-addressed`;
+  - P3 E `python-cannot-re-point-an-indexed-reads-index`; P3 E +design `python-set-param-reaches-no-list-member` (two viable shapes in its body);
+  - P4 E `a-spelled-union-clones-the-results-per-member` (unmeasured perf).
+  - Priced the two unpriced P2 part-name rows M. Load is now 15/30. The three new P1s join this sitting's slate after the P0 pair, serially.
