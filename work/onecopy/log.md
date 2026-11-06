@@ -470,3 +470,4 @@
   - `offset` stays subtractive rather than using `reject_from`, because the triple product widened the skew pair's enclosure past zero at 1e-12. I accept that departure.
   - `adopt.rs` is ported, and the containment arm is order-free.
   I merged main (editor-core and topo moves) as `12b3a643`; it compiles, and the gate is running.
+- 2026-11-06 — engine-leaves-pins opened PR 6554 at `25d97600`: the gate reds a raised pin against the merge base unless it cites an open row (lint now fetches the base), the message is rewritten, and a census fault panics through one door, with three more misfiled sites fixed. FULL review sent to `session_013mPGJ2b7vVaMCyapnz3dn7`.
