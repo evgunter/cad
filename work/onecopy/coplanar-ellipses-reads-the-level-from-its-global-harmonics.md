@@ -2,9 +2,10 @@
 id: coplanar-ellipses-reads-the-level-from-its-global-harmonics
 kind: issue
 title: coplanar_ellipses reads b's level from its global harmonics with a terms charge, where the window reads it locally
-status: open
+status: dispatched
 opened: 2026-11-04
 refs: [6541]
+branch: onecopy/curve-pair-tidy
 ---
 
 

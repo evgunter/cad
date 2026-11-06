@@ -2,11 +2,12 @@
 id: the-window-reads-the-level-uncharged-where-the-subdivision-needs-its-bound
 kind: issue
 title: the coplanar subdivision's touch arm refuses on an exact local jet of the level, where the window reads that jet uncharged
-status: open
+status: dispatched
 opened: 2026-11-06
 priority: P3
 cost: M
 refs: [6541]
+branch: onecopy/curve-pair-tidy
 ---
 
 
