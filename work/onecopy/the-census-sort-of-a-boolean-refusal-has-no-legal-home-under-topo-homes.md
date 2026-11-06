@@ -2,7 +2,7 @@
 id: the-census-sort-of-a-boolean-refusal-has-no-legal-home-under-topo-homes
 kind: issue
 title: The census's sort of a boolean FaceUnread has no legal home under [topo.homes]: pub(crate) in boolean is refused by engine-leaves, pub by unreachable_pub
-status: open
+status: dispatched
 opened: 2026-11-03
 priority: P2
 cost: E
