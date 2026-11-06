@@ -535,3 +535,4 @@
 - 2026-11-06 — PR 6553 delta: MERGE, with all five pins red under the reviewed rule. One minted copy (`unread_or_rest` restating two rows of `TouchUnread::refusal`) is sent back as a one-commit fix before the merge.
 - 2026-11-06 — PR 6565 merged as `874b2fde76` (confirmed), gated on `691eeda4`. The coplanar touch re-pose is done: no f64 charge, C5's stretch rule. The lane opens the kind `[ev]` PR.
 - 2026-11-06 — The 6553 last copy is fixed at `ba564ca0`. It conflicted with main (6554, 6563): the code auto-merged; I took the PR's closed rows, kept both sides of the splitdoor row, used main's cited census pin and lowered it to 503 as measured. It compiles and the gates pass with the merge base. Pushed `d36d821b`; the gate is running.
+- 2026-11-06 — `[ev]` PR 6570 opened (what kind a touch's meeting is, C5), with reading A recommended; I'm subscribed. The lane notes doc-gate.sh is red on main's rustdoc links; it is nightly-only and not ONECOPY's, so no action.
