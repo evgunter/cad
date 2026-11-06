@@ -1838,28 +1838,24 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
         row(
             "Escalated",
             NodeErrorKind::Escalated {
-                predicate: "revolve_full_vs_partial",
                 source: named("revolve_full_vs_partial"),
             },
         ),
         row(
             "MeasureEscalated",
             NodeErrorKind::MeasureEscalated {
-                predicate: "bool_plane_parallel",
                 source: named("bool_plane_parallel"),
             },
         ),
         row(
             "PlacementAxisEscalated",
             NodeErrorKind::PlacementAxisEscalated {
-                predicate: "eval_direction_norm",
                 source: named("eval_direction_norm"),
             },
         ),
         row(
             "PoseDirectionEscalated",
             NodeErrorKind::PoseDirectionEscalated {
-                predicate: topo::POSE_UNIT_NORM,
                 source: named(topo::POSE_UNIT_NORM),
             },
         ),
@@ -4070,7 +4066,7 @@ fn structure_refusal_indeterminate() -> profile::StructureRefusal {
 fn profile_replay() -> Vec<(String, NodeErrorKind)> {
     use geom_core::Point2;
     use payloads::*;
-    use profile::path::{PathError as P, PathNoCornerReason};
+    use profile::path::{PathError as P, PathNoCornerReason, TurnLever};
     use profile::{CornerReason, CornerRefusal, FilletLegCarrier, NoCornerReason};
     use profile::{FilletLeg, ReplayError, ReplayErrorKind, TipState};
     let path: Vec<(&str, P<f64>)> = vec![
@@ -4110,7 +4106,7 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
         (
             "NoCornerForFillet",
             P::NoCornerForFillet {
-                reason: PathNoCornerReason::CarriersParallel,
+                reason: PathNoCornerReason::CarriersTangent,
                 radius: 0.1,
             },
         ),
@@ -4257,6 +4253,30 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
             P::NoCornerForFillet {
                 reason: PathNoCornerReason::CarriersDoNotMeet,
                 radius: 0.1,
+            },
+        ),
+        (
+            "NoCornerForFillet(turn, leg)",
+            P::NoCornerForFillet {
+                reason: PathNoCornerReason::TurnWithinTolerance {
+                    sin_turn: 0.01,
+                    align: -0.99995,
+                    lever: 5e-8,
+                    lever_of: TurnLever::ShorterLeg,
+                },
+                radius: 0.05,
+            },
+        ),
+        (
+            "NoCornerForFillet(turn, anchors)",
+            P::NoCornerForFillet {
+                reason: PathNoCornerReason::TurnWithinTolerance {
+                    sin_turn: 0.9,
+                    align: 0.44,
+                    lever: 6e-10,
+                    lever_of: TurnLever::AnchorSeparation,
+                },
+                radius: 0.05,
             },
         ),
         (
@@ -4877,7 +4897,6 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
         (
             "Escalated",
             NamingError::Escalated {
-                predicate: "name_frag_on_member_edge",
                 source: named("name_frag_on_member_edge"),
             },
         ),

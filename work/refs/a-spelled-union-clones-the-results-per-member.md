@@ -4,6 +4,8 @@ kind: issue
 title: wire_combine projects each spelled member by cloning the whole Results map, O(members x nodes)
 status: open
 opened: 2026-10-10
+priority: P4
+cost: E
 ---
 
 

@@ -73,7 +73,7 @@ pub use ::profile::{
     ContinueTarget, CornerReason, CornerRefusal, CornerWindow, LineTarget, OntoTarget, Open,
     PartialPath, PathError, PathErrorKind, PathNoCornerReason, PointLeg, Radius, ReplayError,
     ReplayErrorKind, SpecForms, Start, Step, Sweep, Takes, TangentArcTarget, Target, TargetKind,
-    TipState, Verb, Via, arc_specs_at, circle, circle_split, rectangle, replay,
+    TipState, TurnLever, Verb, Via, arc_specs_at, circle, circle_split, rectangle, replay,
 };
 // The §2c family's traits and arrival builders: the admissibility
 // matrix (one impl per admissible (state, mode) pair) and the states a
