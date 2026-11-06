@@ -152,3 +152,9 @@
   - **Process note:** three rounds of crossing with no meeting. The arguments stay live because the deciding fact is a judgement ("is a family-table name a legitimate authored spelling at a body seat"), not a checkable one.
   - PR 6555 is subscribed. The build goes into it after Ev answers.
   - Next REFS P1, serially: `viewer-boolean-tool-cannot-pick-a-read`. Its indexed-member half follows this fork, so its premise is checked first.
+- 2026-11-06 — **PR 6557 (family of boolean results) green at `3bf9231062`; single FULL review dispatched.**
+  - **Premise narrowed:** an all-body family of booleans already reads as `Instances`. Only a family with an EMPTY boolean member fell to `Family`, so every whole read and every indexed read refused, including `cut[0]` when only its sibling `cut[1]` was empty.
+  - **Fix:** behind one bridge (`member_body` / `member_bodies`), an empty member keeps its index and names nothing, and whole reads refuse `EmptyOperand`.
+  - **Not taken:** a single representation, `Instances(Vec<Option<Framed>>)`. The reviewer is asked whether the bridge is a final state or a copy.
+  - **Rows filed:** WIREREST, the product and interrogator readers (P2 M); REFS, a selection of a member of such a family (P2 E, on 6555's ground); PYDOOR, `Value.bodies()` (P3 E).
+  - **Tier:** FULL, because the empty-member semantics decide what a union means.
