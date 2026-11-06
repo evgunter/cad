@@ -725,7 +725,7 @@ pub mod test_support {
         let line = geom::Line { origin, dir };
         let at = |v: crate::entity::VertexKey| {
             let p = crate::readback::vertex_point(body, v).expect("a vertex's point");
-            let off = line.offset(p).norm();
+            let off = line.distance(p);
             (off < 1e-9).then_some((line.param(p) * 1e6).round() / 1e6)
         };
         let mut spans: Vec<(f64, f64)> = body

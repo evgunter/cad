@@ -158,9 +158,11 @@ impl<T: Decide> Quadric<T> {
 
     /// `p`'s height along a cone's axis and its offset from the axis.
     fn axial(apex: Point3<T>, axis: Vec3<T>, p: Point3<T>) -> (T, Vec3<T>) {
-        let w = p - apex;
-        let h = w.dot(axis);
-        (h, w - axis * h)
+        geom::Line {
+            origin: apex,
+            dir: axis,
+        }
+        .param_and_offset(p)
     }
 
     /// The length a dimensionless reading at `p` is levered by: the
@@ -890,7 +892,7 @@ impl<T: Real> LoopSplit<T> {
                 origin,
                 axis,
                 radius,
-            } => (p - origin).cross(axis).norm() - radius,
+            } => geom::Line { origin, dir: axis }.distance(p) - radius,
         }
     }
 
@@ -1324,7 +1326,7 @@ pub(crate) fn path_parity<T: Decide>(
                         continue;
                     }
                     let rho_less =
-                        |p: Point3<T>| geom::Line { origin: c, dir: a }.offset(p).norm() - major;
+                        |p: Point3<T>| geom::Line { origin: c, dir: a }.distance(p) - major;
                     let side = |p| {
                         decide_m(
                             "split_ring_path_crest_side",
@@ -1463,7 +1465,7 @@ pub(crate) fn path_parity<T: Decide>(
                     if arrival {
                         continue;
                     }
-                    let gap = (from - origin).cross(dir).norm() / dir.norm();
+                    let gap = geom::Line { origin, dir }.distance(from);
                     if decide_m(
                         "split_ring_path_rulings_distinct",
                         Margin::of(charge(gap, slack)),

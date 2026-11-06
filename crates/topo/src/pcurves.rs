@@ -4334,7 +4334,7 @@ pub(crate) fn joint_arm<T: Real>(
 /// axis.
 fn axis_distance<T: Real>(chart: DescribedChart<'_, T>, vertex: geom_core::Point3<T>) -> Option<T> {
     let off_axis = |origin: geom_core::Point3<T>, axis: geom_core::Vec3<T>| {
-        geom::Line { origin, dir: axis }.offset(vertex).norm()
+        geom::Line { origin, dir: axis }.distance(vertex)
     };
     match *chart.surface() {
         Surface::Cylinder { radius, .. } => Some(radius),

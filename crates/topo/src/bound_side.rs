@@ -2171,7 +2171,7 @@ mod tests {
                     axis,
                     radius,
                     ..
-                } => geom::Line { origin, dir: axis }.offset(q).norm() - radius,
+                } => geom::Line { origin, dir: axis }.distance(q) - radius,
                 _ => unreachable!("a sphere or a cylinder"),
             };
             d * n.dot(geom_brep::implicit_gradient(s, p)).signum()

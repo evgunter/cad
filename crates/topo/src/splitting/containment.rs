@@ -1596,9 +1596,11 @@ pub(crate) fn arc_distance_floor<T: Decide>(
                 ..
             } = *conic.frame();
             let n = axis.normalize();
-            let w = q - center;
-            let height = w.dot(n);
-            let across = (w - n * height).norm();
+            let (height, across) = geom::Line {
+                origin: center,
+                dir: n,
+            }
+            .height_and_distance(q);
             let off = (minor - across).max(across - major).max(T::zero());
             ArcFloor::Conic {
                 annulus: (height.powi(2) + off.powi(2)).sqrt(),
