@@ -476,9 +476,7 @@ impl PointInSolidError {
     /// kind with no arm, a corrupt or inside-out body, a solid that is
     /// not there), so a ladder over points reading it again gains
     /// nothing: it aborts ([`geom_brep::ladder::Aborts`]).
-    pub(in crate::boolean) fn refusal(
-        &self,
-    ) -> Result<geom_brep::ladder::Refusal, geom_brep::ladder::Aborts> {
+    pub(crate) fn refusal(&self) -> Result<geom_brep::ladder::Refusal, geom_brep::ladder::Aborts> {
         use geom_brep::ladder::{Aborts, Refusal};
         if self.in_band() {
             match self {

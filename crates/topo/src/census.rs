@@ -9207,6 +9207,67 @@ fn backstop_apart<T: Decide>(
     )
 }
 
+/// What the material test of one ordering read: every vertex of
+/// `inner` against `outer`'s material ([`probe_vertices`]).
+#[derive(Debug, PartialEq, Eq)]
+enum Probe {
+    /// A vertex of `inner` strictly inside `outer`'s material.
+    In(VertexKey),
+    /// The door refused a vertex (and none was `In`).
+    Refused(&'static str),
+    /// Every vertex on `outer`'s boundary.
+    AllOn,
+    /// Every vertex outside or on the boundary, at least one outside.
+    Clear,
+    /// `inner` has no vertex to probe.
+    NoVertex,
+}
+
+/// **The material test of one ordering**: `readings`, each vertex of
+/// `inner` placed against `outer`'s material, read lazily in turn. Every
+/// vertex strictly inside says the same, so any answers
+/// ([`Answering::Any`]); a vertex `exempt` names is passed; a refusal is
+/// kept by its standing (`PointInSolidError::refusal`), and one of the
+/// whole query stops the probe with its reason.
+fn probe_vertices(
+    readings: impl IntoIterator<
+        Item = (
+            VertexKey,
+            Result<SolidContainment, crate::boolean::PointInSolidError>,
+        ),
+    >,
+    exempt: impl Fn(VertexKey) -> bool,
+) -> Probe {
+    let (mut out_seen, mut any) = (false, false);
+    let climbed = climb(Answering::Any, readings, |(v, reading)| {
+        any = true;
+        match reading {
+            Ok(SolidContainment::In) => Rung::Answers(Ok(v)),
+            Ok(SolidContainment::Out) => {
+                out_seen = true;
+                Rung::Passes
+            }
+            Ok(SolidContainment::OnBoundary) => Rung::Passes,
+            Err(_) if exempt(v) => Rung::Passes,
+            Err(e) => geom_brep::ladder::rung_or_abort(
+                e.refusal(),
+                Undecided::of_point_in_solid(&e).what(),
+                Err,
+            ),
+        }
+    });
+    match climbed {
+        Climb::Answered { answer: Ok(v), .. } => Probe::In(v),
+        Climb::Answered {
+            answer: Err(what), ..
+        }
+        | Climb::Undecided(what) => Probe::Refused(what),
+        Climb::Passed if !any => Probe::NoVertex,
+        Climb::Passed if out_seen => Probe::Clear,
+        Climb::Passed => Probe::AllOn,
+    }
+}
+
 /// **The conservative loudness backstop** (M9-2 union fix F1): the
 /// census must DECIDE or REFUSE — it must never silently not-examine
 /// (A5's letter). Two cross-solid candidate classes have no examining
@@ -10013,18 +10074,6 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
     };
     // ---- The material test of one ordering: every vertex of `inner`
     // against `outer`'s material.
-    enum Probe {
-        /// A vertex of `inner` strictly inside `outer`'s material.
-        In(VertexKey),
-        /// The door refused a vertex (and none was `In`).
-        Refused(&'static str),
-        /// Every vertex on `outer`'s boundary.
-        AllOn,
-        /// Every vertex outside or on the boundary, at least one outside.
-        Clear,
-        /// `inner` has no vertex to probe.
-        NoVertex,
-    }
     // One selection per container, shared by every pair it outers, so
     // its side at infinity is read once.
     let selections: std::collections::BTreeMap<
@@ -10056,29 +10105,18 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
                         || (y == v && solid_of_entity(x) == Some(outer)))
             })
         };
-        let (mut refused, mut out_seen, mut any) = (None, false, false);
-        for &(v, p) in geo
-            .verts
-            .iter()
-            .filter(|(v, _)| vertex_solid(*v) == Some(inner))
-        {
-            any = true;
-            match crate::boolean::point_in_solid_faces(body, sel, p, band, tol) {
-                Ok(SolidContainment::In) => return Probe::In(v),
-                Ok(SolidContainment::Out) => out_seen = true,
-                Ok(SolidContainment::OnBoundary) => {}
-                Err(_) if answered_in_band(v) => {}
-                Err(e) => {
-                    refused.get_or_insert(Undecided::of_point_in_solid(&e).what());
-                }
-            }
-        }
-        match (any, refused, out_seen) {
-            (false, _, _) => Probe::NoVertex,
-            (_, Some(what), _) => Probe::Refused(what),
-            (_, None, true) => Probe::Clear,
-            (_, None, false) => Probe::AllOn,
-        }
+        probe_vertices(
+            geo.verts
+                .iter()
+                .filter(|(v, _)| vertex_solid(*v) == Some(inner))
+                .map(|&(v, p)| {
+                    (
+                        v,
+                        crate::boolean::point_in_solid_faces(body, sel, p, band, tol),
+                    )
+                }),
+            answered_in_band,
+        )
     };
     // The pre-filter over the instances' extents (`Trees` docs): a
     // solid's extent is its vertex hull joined with its reach box,
@@ -21650,6 +21688,58 @@ mod arc_interiors {
                 "the half over [{t0}, {t1}]"
             );
         }
+    }
+}
+
+/// **The material probe climbs its vertices** ([`probe_vertices`]): a
+/// refusal of the whole query stops it, ahead of a later vertex inside;
+/// a limit outranks an in-band refusal read before it; and a vertex
+/// inside still answers past an in-band one. Fed the readings directly,
+/// since no body a constructor builds refuses two ways in one probe.
+#[cfg(test)]
+mod probe_ranking {
+    use super::{Probe, SolidContainment, Undecided, VertexKey, probe_vertices};
+    use crate::boolean::PointInSolidError as E;
+
+    fn probe(readings: Vec<Result<SolidContainment, E>>) -> Probe {
+        probe_vertices(
+            readings.into_iter().map(|r| (VertexKey::default(), r)),
+            |_| false,
+        )
+    }
+
+    fn what(e: &E) -> &'static str {
+        Undecided::of_point_in_solid(e).what()
+    }
+
+    fn gone() -> E {
+        E::NoSuchSolid {
+            solid: crate::entity::SolidKey::default(),
+        }
+    }
+
+    #[test]
+    fn an_abort_stops_the_probe_and_a_limit_outranks_in_band() {
+        assert_eq!(
+            probe(vec![Err(gone()), Ok(SolidContainment::In)]),
+            Probe::Refused(what(&gone())),
+            "a solid that is not there refuses the whole query: no later vertex is read"
+        );
+        assert_eq!(
+            probe(vec![Err(E::RayExhausted), Err(E::ZeroVolumeBody)]),
+            Probe::Refused(what(&E::ZeroVolumeBody)),
+            "a limit outranks an in-band refusal read before it"
+        );
+        assert_eq!(
+            probe(vec![Err(E::RayExhausted), Ok(SolidContainment::In)]),
+            Probe::In(VertexKey::default()),
+            "a vertex inside answers past an in-band refusal"
+        );
+        assert_eq!(
+            probe(vec![Err(E::RayExhausted), Ok(SolidContainment::Out)]),
+            Probe::Refused(what(&E::RayExhausted)),
+            "with no vertex inside, the kept refusal refuses"
+        );
     }
 }
 
