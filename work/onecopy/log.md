@@ -496,3 +496,4 @@
   Main had moved after each gate, in disjoint files (ROUND: editor-core, geom-core, sweep and others). For each, the local merge with main compiled the whole workspace's tests clean before I merged.
   Rule used: re-gate if files overlap; with disjoint files, a workspace `cargo check --tests` of the merge suffices.
 - 2026-11-06 — PR 6554 delta: FIX FIRST. The hatch still admits `program.md` (active), parked and deferred rows, because the fixture's program had no status. Four bare census faults remain. Second fix pass sent. Lesson: a self-test fixture that is not shaped like the real tree proves only the fixture.
+- 2026-11-06 — Gave the 6491 lane (`session_013mPGJ4BHWTqt3QU2NKLLBa`) the co-surface home: an `OnSurface` type and a curve_pair co-surface arm read by the region doors and `apply_cut_ins`, with the C5 sentence as an `[ev]` PR, possibly split from the refactor.
