@@ -28,4 +28,7 @@ So one thing has two readings. Give the census a fault vocabulary, or decide tha
 - `line_unread`'s `BoundaryRefusal::Fault`;
 - the census's other meeting-fault folds (`edge_crossings`, `curved.rs`, `InteriorsUnread::of`; splitdoor's two rows).
 
-`FaceUnread::Uncertified` panics with tier 2's reason. `read_containment`'s `StaleFace` already panicked (`driver_face_stale`). `boundary_crossings`' own stale face, which was typed `CensusUnsupported`, now panics too. The tests `a_boundary_fault_on_a_census_pair_panics`, `an_uncertified_boundary_on_a_census_pair_panics`, `a_stale_face_at_a_census_containment_read_panics` and `a_meetings_{desync,contradiction}_in_the_census_panics` pin them. The op's typed `ClassificationInvariant` for the same states is evidence on `work/cleavetail/classification-invariant-family-types-bug-only-states-against-d9-row-4.md`.
+The following now go through the same door, so the census has one fault door and one stale-face text (`STALE_FACE`):
+- `FaceUnread::Uncertified`, with tier 2's reason;
+- `read_containment`'s `StaleFace`, which panicked before through the boolean's `driver_face_stale`;
+- `boundary_crossings`' own stale face, which was typed `CensusUnsupported`. The tests `a_boundary_fault_on_a_census_pair_panics`, `an_uncertified_boundary_on_a_census_pair_panics`, `a_stale_face_at_a_census_containment_read_panics` and `a_meetings_{desync,contradiction}_in_the_census_panics` pin them. The op's typed `ClassificationInvariant` for the same states is evidence on `work/cleavetail/classification-invariant-family-types-bug-only-states-against-d9-row-4.md`.
