@@ -9,8 +9,8 @@
 use crate::blocks::{block, block_on};
 use crate::fixture::{self, insert};
 use editor_core::{
-    Bodies, BodyRead, BooleanValue, Evaluation, Formula, MemberAt, Node, NodeErrorKind, NodeResult,
-    Operand, ProfileDoc, RecipeNodeId, RoleSeg, StableName, TargetAxis, ValuePayload,
+    Bodies, BodyRead, BooleanValue, Entry, Evaluation, Formula, MemberAt, Node, NodeErrorKind,
+    NodeResult, Operand, ProfileDoc, RecipeNodeId, RoleSeg, StableName, TargetAxis, ValuePayload,
 };
 use geom_core::Tol;
 
@@ -42,6 +42,23 @@ fn refuses_empty(ev: &Evaluation<f64>, id: RecipeNodeId, input: RecipeNodeId) ->
     matches!(
         ev.result(id),
         Some(NodeResult::Failed(e)) if matches!(e.kind, NodeErrorKind::EmptyOperand { input: at } if at == input)
+    )
+}
+
+/// Whether `id` refuses `EmptyMember` naming `input` and the member at
+/// `at`.
+fn refuses_empty_member(
+    ev: &Evaluation<f64>,
+    id: RecipeNodeId,
+    input: RecipeNodeId,
+    at: &[(editor_core::VarId, i64)],
+) -> bool {
+    matches!(
+        ev.result(id),
+        Some(NodeResult::Failed(e)) if matches!(
+            &e.kind,
+            NodeErrorKind::EmptyMember { input: of, at: member } if *of == input && member == at
+        )
     )
 }
 
@@ -141,14 +158,15 @@ fn a_family_of_boolean_results_reads_whole_and_by_index() {
 
 /// **A member that is the empty result** (`F[k] − F[1]`: member 1 is
 /// itself less itself): every seat reading the family whole refuses
-/// `EmptyOperand` naming the family, as a seat reading one empty result
-/// refuses; a body member read by index is that member, under the
-/// family's names for it, at a placement and at a subtract; the empty
-/// member read by index is the empty value, which a placement keeps
-/// and a subtract refuses. The family names its two bodies, each at its
-/// member's place. Red if the empty member makes the family refuse as
-/// no family of bodies (`WrongOperand`), or reaches a sibling read by
-/// index.
+/// `EmptyMember` naming the family and member 1, as a seat reading one
+/// empty result refuses; a body member read by index is that member,
+/// under the family's names for it, at a placement and at a subtract;
+/// the empty member read by index is the empty value, which a
+/// placement keeps and a subtract refuses at either seat. The family
+/// names its two bodies, each at its member's place. Red if the empty
+/// member makes the family refuse as no family of bodies
+/// (`WrongOperand`), reaches a sibling read by index, or shifts a later
+/// member's place.
 #[test]
 fn a_family_with_an_empty_member_refuses_whole_and_reads_its_bodies_by_index() {
     let (doc, _, cut) =
@@ -171,6 +189,13 @@ fn a_family_with_an_empty_member_refuses_whole_and_reads_its_bodies_by_index() {
             tool: indexed(1),
         },
     );
+    let (doc, empty_less) = insert(
+        doc,
+        Node::Subtract {
+            from: indexed(1),
+            tool: indexed(0),
+        },
+    );
     let ev = run(&doc);
     assert!(
         matches!(
@@ -180,25 +205,34 @@ fn a_family_with_an_empty_member_refuses_whole_and_reads_its_bodies_by_index() {
         "the cut is a family with an absent member: {:?}",
         ev.result(cut)
     );
+    let k = doc.var_named("k").unwrap();
     for id in whole {
         assert!(
-            refuses_empty(&ev, id, cut),
+            refuses_empty_member(&ev, id, cut, &[(k, 1)]),
             "{:?}: a whole read of the family meets its empty member: {:?}",
             doc.node(id),
             ev.result(id)
         );
     }
-    let k = doc.var_named("k").unwrap();
-    let mut named: Vec<MemberAt> = fixture::table(&ev, cut)
+    // Each name with the place of the body it names: member 2's body
+    // stands at place 2, past the empty member's, not at 1.
+    let mut named: Vec<(MemberAt, u32)> = fixture::table(&ev, cut)
         .iter()
-        .filter_map(|(name, _)| member_of_name(name))
+        .filter_map(|(name, entry)| {
+            let place = match entry {
+                Entry::Unique(e) => e.body,
+                Entry::Tied(es) => es[0].body,
+            };
+            Some((member_of_name(name)?, place))
+        })
         .collect();
     named.sort_unstable();
     named.dedup();
     assert_eq!(
         named,
-        vec![vec![(k, 0)], vec![(k, 2)]],
-        "the family names its two bodies and nothing of its empty member"
+        vec![(vec![(k, 0)], 0), (vec![(k, 2)], 2)],
+        "the family names its two bodies, each at its member's place, and nothing of its \
+         empty member"
     );
     assert_eq!(span(body(&ev, first)), (0.0, 0.75), "member 0 placed");
     let held: Vec<MemberAt> = fixture::table(&ev, first)
@@ -222,9 +256,11 @@ fn a_family_with_an_empty_member_refuses_whole_and_reads_its_bodies_by_index() {
         "member 1 placed is the empty value: {:?}",
         ev.result(empty)
     );
-    assert!(
-        refuses_empty(&ev, less_empty, cut),
-        "a subtract of the empty member refuses it: {:?}",
-        ev.result(less_empty)
-    );
+    for (seat, id) in [("tool", less_empty), ("from", empty_less)] {
+        assert!(
+            refuses_empty(&ev, id, cut),
+            "a subtract reading the empty member at its {seat} refuses it: {:?}",
+            ev.result(id)
+        );
+    }
 }

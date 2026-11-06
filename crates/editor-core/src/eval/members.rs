@@ -15,12 +15,16 @@
 //! plainly at one seat and whole at another. A member that refuses
 //! refuses the family, naming the member.
 //!
-//! A family of bodies holds its members' bodies as an `Instances`
-//! payload, one per member in index order, named `Member { at, of }`
-//! over each member's own names ([`crate::names::name_family`]); any
-//! other family's payload is [`ValuePayload::Family`]. Either keeps each
-//! member's whole value ([`Members`]), which is what a reader of one
-//! member reads, and what the memo serves a member from.
+//! A family of bodies is named `Member { at, of }` over each member's
+//! own names, each body at its member's place
+//! ([`crate::names::name_family`]). Every member a body, it holds them
+//! as an `Instances` payload, one per member in index order; with a
+//! member that is a boolean's empty result, its payload is
+//! [`ValuePayload::Family`] and its bodies are its members'
+//! ([`NodeValue::member_bodies`]). A family of anything else is a
+//! `Family` with no output. Each keeps each member's whole value
+//! ([`Members`]), which is what a reader of one member reads, and what
+//! the memo serves a member from.
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -67,8 +71,9 @@ impl<T: Decide> Members<T> {
         self.at(&at?)
     }
 
-    /// Each member's position in the family's flat body list, with its
-    /// index values: the order an `Instances` payload holds them in.
+    /// **The place of the member at `at`**, its index values: its
+    /// position among the members, which is its body's place in the
+    /// family's names and in [`NodeValue::member_bodies`].
     pub(crate) fn position(&self, at: &[u32]) -> Option<usize> {
         self.members
             .binary_search_by(|(values, _)| values.as_slice().cmp(at))

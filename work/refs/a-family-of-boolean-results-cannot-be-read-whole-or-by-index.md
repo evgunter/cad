@@ -27,16 +27,19 @@ The fix starts with a test: pin the probe's document as a test, then make both r
 
 The fix makes such a family a family of bodies with an absent member.
 
-- `family_value` names the family's bodies, each at its member's place. An absent member names nothing and keeps its index, as an empty split half does. `name_family` now takes `Option` bodies.
-- `NodeValue::member_bodies` is the one door every reader of a family of bodies uses, for `Instances` and for the absent-member `Family` alike.
-- The evaluator's readers go through that door: the union's and intersect's whole read (`wire_combine`), the assemble's (`wire_assemble`), the indexed read at every body seat (`reads_projected`) and the debug `own_bodies` check.
-- A whole read that meets an absent member refuses `EmptyOperand` naming the family (D3: nothing ∅-absorbing).
-- An indexed read of an absent member is the empty value, so a placement keeps it and a subtract refuses it `EmptyOperand`.
+- `family_value` names its bodies, each at its member's place. An absent member names nothing and keeps its index; that is the empty split half's rule for naming.
+- `NodeValue::member_bodies` is the one door through which every evaluator reader of a family of bodies reads, whichever payload holds the family.
+- `ValuePayload::member_body` is the one rule for "is this one body". The editor-core ladder copies route through it.
+- A whole read that meets an absent member refuses `EmptyMember { input, at }`, naming the family and the member. That follows `[topology.conventions]` and `[loud-failure]`.
+- An indexed read of an absent member is the empty value. A placement keeps it, which is `wire_place`'s rule for an empty boolean, and a subtract refuses it `EmptyOperand` at either seat.
 
-Pinned by `g_family_of_booleans`, two tests. The empty-member test reds on the pre-fix tree with the probe's `WrongOperand`. The every-member-a-body test passes on both, and guards the case the probe suspected.
+Pinned by `g_family_of_booleans`, two tests. The empty-member test reds on the pre-fix tree with the probe's `WrongOperand`; it also asserts each name's body place. The every-member-a-body test passes on both trees and guards the case the probe suspected.
 
-The readers outside the evaluator that still read such a family as no body are filed:
+**The unification is scheduled:** `work/refs/a-family-of-bodies-has-two-payloads.md` (P1, H). It weighs one representation and holds the readers that still see only the payload.
 
-- `work/wirerest/a-family-with-an-empty-member-reads-as-no-body-at-the-product-and-the-interrogators.md`: the product gather, the at-rest checks and `output_body`.
+**Rows filed for those readers:**
+
+- `work/wirerest/a-family-with-an-empty-member-reads-as-no-body-at-the-product-and-the-interrogators.md`: the product gather, the at-rest checks, `output_body` and its callers.
 - `work/refs/a-selection-of-a-member-of-a-family-with-an-empty-member-refuses.md`: `read_named_body`, on PR 6555's ground.
-- `work/pydoor/python-value-bodies-drops-a-family-with-an-empty-member.md`: Python's `Value.bodies()`.
+- `work/bind/python-value-bodies-drops-a-family-with-an-empty-member.md`: Python's `Value.bodies()`.
+- `work/refs/editor-core-cites-a-spec-d3-no-document-numbers.md`: the stale citation chore.
