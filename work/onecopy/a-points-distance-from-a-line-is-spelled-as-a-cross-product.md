@@ -2,8 +2,10 @@
 id: a-points-distance-from-a-line-is-spelled-as-a-cross-product
 kind: issue
 title: A point's distance from a line is spelled |(p − o) × a| (/|a|) at about seven sites beside Line::offset, a tighter-or-looser trade at Interval nobody has measured
-status: open
+status: closed
 opened: 2026-11-06
+closed: 2026-11-06
+pr: 6568
 ---
 
 
