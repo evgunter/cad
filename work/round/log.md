@@ -72,3 +72,23 @@ refusal's reason has no Python spelling), which is filed on pydoor
 instead. The straight pair's definite arm names its own lever (the
 anchor separation); the escalation lane is told its in-band
 `path_corner_turn` ending must tell the same story.
+
+## 2026-11-06 — escalation, phase 1 adjudicated
+
+The lane's plan: a closed `profile::Gate` (one variant per decided
+name, 77, declared by one table), an `Escalation { gate, source }`
+minted only by the crate's funnel, so no ending can be looked up by
+name; `DECISION_ENDINGS`, `fillet_recourse_for` and their kin deleted;
+the fillet sentences in `fillet_recourse.rs`; the guided door composing
+the box lever with the gate's lever through `lever_ending`; and the
+read-back sentence's name routing replaced by a closed `seg::ArcRead`.
+Ruled: one `PathError::Escalated { site, gate, source }` with a closed
+site rather than a second variant for the stored-form read; existing
+row kinds kept (`segment_straightness` stays `Lever`). On the two
+corner turns my first answer (`Lever`, by analogy with
+`path_junction_turn`) was wrong and is withdrawn: both are levered by
+a length on the linear band, so they are `Sized` and the conditional
+tighten is derived where a smaller ε decides; `path_junction_turn`
+stays `Lever` and the lane files a row asking whether it is the odd one
+out. Review tier raised from single to **dual** (H): the closed type is
+what every path-door escalation carries from now on.
