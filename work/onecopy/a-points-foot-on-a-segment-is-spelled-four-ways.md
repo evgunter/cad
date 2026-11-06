@@ -2,12 +2,11 @@
 id: a-points-foot-on-a-segment-is-spelled-four-ways
 kind: issue
 title: A point's foot on a segment (the line's parameter held to the segment) is spelled four ways in topo, with no home beside geom::Line
-status: closed
+status: dispatched
 opened: 2026-11-03
 priority: P2
 cost: E
-closed: 2026-11-06
-pr: 6540
+branch: onecopy/feet-and-params
 ---
 
 

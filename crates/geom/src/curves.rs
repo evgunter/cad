@@ -599,7 +599,7 @@ pub enum CurveData<'a, T: Real> {
 /// [`Self::foot`].
 ///
 /// `dir` is unit by the carriers' convention; the readings divide by
-/// `dir·dir`, so they hold for any nonzero `dir`. **`dir` must be
+/// `|dir|²`, so they hold for any nonzero `dir`. **`dir` must be
 /// nonzero**: on a zero `dir` they divide `0/0`. Nothing here checks it;
 /// at rest, `topo`'s tier-3 check 1 refuses a zero direction on every
 /// edge carrier (crate docs, "Unit-vector and orthogonality fields").
@@ -612,10 +612,11 @@ pub struct Line<T: Real> {
 }
 
 impl<T: Real> Line<T> {
-    /// The parameter of `p`'s foot: `(p − origin)·dir / (dir·dir)`.
+    /// The parameter of `p`'s foot: `(p − origin)·dir / |dir|²`, the
+    /// coefficient of [`Vec3::project_onto`] in its association.
     #[must_use]
     pub fn param(&self, p: Point3<T>) -> T {
-        (p - self.origin).dot(self.dir) / self.dir.dot(self.dir)
+        (p - self.origin).dot(self.dir) / self.dir.norm_squared()
     }
 
     /// **`p`'s foot**: the point of the line nearest `p`.
@@ -648,21 +649,23 @@ impl<T: Real> Line<T> {
         self.origin + self.dir * self.param(p).max(t0)
     }
 
-    /// **`p`'s offset from its foot**, square to the line:
-    /// `(p − origin) − dir·((p − origin)·dir / (dir·dir))`, whose norm is
-    /// `p`'s distance from the line.
+    /// **`p`'s offset from its foot**, square to the line: `w = p − origin`
+    /// less its [projection](Vec3::project_onto) onto `dir`, whose norm is
+    /// `p`'s distance from the line. Subtractive rather than
+    /// [`Vec3::reject_from`]'s triple product, which amplifies a `dir`
+    /// carrying width: a computed carrier direction is that case.
     #[must_use]
     pub fn offset(&self, p: Point3<T>) -> Vec3<T> {
         let w = p - self.origin;
-        w - self.dir * (w.dot(self.dir) / self.dir.dot(self.dir))
+        w - w.project_onto(self.dir)
     }
 
     /// **`p`'s foot on the plane through `origin` square to the line**:
-    /// `p − dir·((p − origin)·dir / (dir·dir))`, the line read as that
-    /// plane's normal.
+    /// `p` less `p − origin` [projected](Vec3::project_onto) onto `dir`,
+    /// the line read as that plane's normal.
     #[must_use]
     pub fn square_foot(&self, p: Point3<T>) -> Point3<T> {
-        p - self.dir * ((p - self.origin).dot(self.dir) / self.dir.dot(self.dir))
+        p - (p - self.origin).project_onto(self.dir)
     }
 }
 

@@ -1566,7 +1566,9 @@ pub(crate) fn arc_distance_floor<T: Decide>(
     q: Point3<T>,
 ) -> Option<ArcFloor<'_, T>> {
     Some(match *carrier {
-        geom::Curve3::Line(line) => ArcFloor::Segment((q - line.foot_within(q, (t0, t1))).norm()),
+        geom::Curve3::Line(line) => {
+            ArcFloor::Segment((q - line.foot_within(q, (t0.min(t1), t0.max(t1)))).norm())
+        }
         geom::Curve3::Circle(_) | geom::Curve3::Ellipse(_) => {
             let Some(crate::ring_path::LoopArc::Conic(arc)) =
                 crate::ring_path::LoopArc::of(carrier, (t0, t1))

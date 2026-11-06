@@ -3321,7 +3321,8 @@ fn edge_meets<T: Decide>(
     rows: RayRows,
 ) -> Result<EdgeMeets<T>, RayFault<PointInSolidError>> {
     let crossed = |f: FaceKey| planes.iter().any(|c| c.face == f);
-    let far = q + d * (reach * T::from_f64(2.0));
+    let top = reach * T::from_f64(2.0);
+    let far = q + d * top;
     let passes = crate::census::line_passes(body, (q, far), |_, a, b| crossed(a) && crossed(b));
     let mut meets = EdgeMeets {
         met: Vec::new(),
@@ -3337,7 +3338,7 @@ fn edge_meets<T: Decide>(
                 body,
                 v,
                 [pass.faces.0, pass.faces.1],
-                (q, far),
+                (q, top),
                 d,
                 band,
                 rows,
@@ -3407,7 +3408,7 @@ impl<T: Decide> EdgeMeets<T> {
         body: &Body<T>,
         v: crate::entity::VertexKey,
         faces: [FaceKey; 2],
-        (q, far): (Point3<T>, Point3<T>),
+        (q, top): (Point3<T>, T),
         d: Vec3<T>,
         band: Band,
         rows: RayRows,
@@ -3425,7 +3426,7 @@ impl<T: Decide> EdgeMeets<T> {
             }))?;
         let ray = geom::Line { origin: q, dir: d };
         let along = ray.param(at);
-        let gap = (at - ray.foot_within(at, (T::zero(), ray.param(far)))).norm();
+        let gap = (at - ray.foot_within(at, (T::zero(), top))).norm();
         // The distance is a short chain (differences, a projection, a
         // norm), each rounding under half an ulp of the lengths it is
         // read from: the kernel's one charge for such a chain.

@@ -3399,7 +3399,7 @@ impl<T: Decide> Link<T> {
         let ray = |r: Point3<T>| {
             let ray = geom::Line {
                 origin: c,
-                dir: (r - c).normalize(),
+                dir: r - c,
             };
             (q - ray.foot_from(q, T::zero())).norm()
         };
@@ -3441,7 +3441,7 @@ impl<T: Decide> Link<T> {
                     || [a, b].into_iter().any(|r| {
                         let ray = geom::Line {
                             origin: s.apex,
-                            dir: (r - s.apex).normalize(),
+                            dir: r - s.apex,
                         };
                         let foot = ray.foot_from(q, T::zero());
                         near(Distance::of(q, foot, (q - foot).normalize()), LINK_TIE)
