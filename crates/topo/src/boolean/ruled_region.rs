@@ -580,8 +580,7 @@ impl<T: Decide> RuledFaceRegion<T> {
             Ruled::Cylinder { axis, .. } => (if outward { axis } else { -axis }, None),
             Ruled::Cone { apex, .. } => {
                 let g = p.at() - apex;
-                let reach = g.norm();
-                let g = g / reach;
+                let (g, reach) = g.direction_and_length();
                 if outward {
                     (g, None)
                 } else {

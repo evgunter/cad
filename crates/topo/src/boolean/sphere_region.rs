@@ -425,7 +425,7 @@ impl<T: Decide> Paths<T> for SphereFaceRegion<T> {
         };
         let (a, b) = (self.unit(p), unit(target));
         let across = a.cross(b);
-        let sin = across.norm();
+        let (side, sin) = across.direction_and_length();
         match decide(
             "bool_sphere_region_parallel",
             Margin::levered(sin, geom_core::Lever::curvature_radius(self.radius)),
@@ -435,7 +435,6 @@ impl<T: Decide> Paths<T> for SphereFaceRegion<T> {
             Ok(Sign::Zero | Sign::Negative) => return Err(RayFault::Unread),
             Err(diag) => return Err(RayFault::InBand(RegionRefusal::Escalated(diag))),
         }
-        let side = across / sin;
         let side = if first_forward { side } else { -side };
         let cos = a.dot(b);
         let first = self.ray(p, side).course;

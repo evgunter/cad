@@ -269,8 +269,7 @@ pub fn implicit_gradient<T: Real>(s: &Surface<T>, p: Point3<T>) -> Vec3<T> {
             ..
         } => {
             let (h, w) = axial_radial(p, center, axis);
-            let rho = w.norm();
-            let w_hat = w / rho;
+            let (w_hat, rho) = w.direction_and_length();
             (w_hat * (rho - major_radius) + axis * h) / minor_radius
         }
         // STAYS poison after M5 PR 3 gave the variant a payload: a NURBS
@@ -470,8 +469,7 @@ pub fn implicit_hessian_form<T: Real>(s: &Surface<T>, p: Point3<T>, d: Vec3<T>) 
         } => {
             let (_, c_a) = half_angle.sin_cos();
             let (_, w) = axial_radial(p, apex, axis);
-            let rho = w.norm();
-            let w_hat = w / rho;
+            let (w_hat, rho) = w.direction_and_length();
             let d_ax = d.dot(axis);
             let d_w = d.dot(w_hat);
             (d.norm_squared() - d_ax.powi(2) - d_w.powi(2)) * c_a / rho
@@ -493,8 +491,7 @@ pub fn implicit_hessian_form<T: Real>(s: &Surface<T>, p: Point3<T>, d: Vec3<T>) 
             ..
         } => {
             let (_, w) = axial_radial(p, center, axis);
-            let rho = w.norm();
-            let w_hat = w / rho;
+            let (w_hat, rho) = w.direction_and_length();
             let d_ax = d.dot(axis);
             let d_w = d.dot(w_hat);
             let d_perp2 = d.norm_squared() - d_ax.powi(2) - d_w.powi(2);

@@ -1035,9 +1035,9 @@ impl<T: Real> Leg<T> {
                     FilletLeg::Incoming => corner - far,
                     FilletLeg::Outgoing => far - corner,
                 };
-                let len = v.norm_squared().sqrt();
+                let (dir, len) = v.direction_and_length();
                 Self {
-                    dir: v / len,
+                    dir,
                     arc: None,
                     len,
                     arm: len,

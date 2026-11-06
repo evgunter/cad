@@ -270,7 +270,7 @@ fn try_cylinder(
     for iu in 0..nu {
         axis_sum = axis_sum + (at(iu, nv - 1) - at(iu, 0));
     }
-    let axis_norm = axis_sum.norm();
+    let (axis, axis_norm) = axis_sum.direction_and_length();
     if !axis_norm.is_finite() {
         return Ok(None);
     }
@@ -279,7 +279,6 @@ fn try_cylinder(
     if axis_norm / (nu as f64) <= eps_in {
         return Err(axis_norm / (nu as f64));
     }
-    let axis = axis_sum.normalize();
     // Three fixed samples of the v-start boundary at u-fractions
     // 0, 3/8, 6/8 of the domain — distinct azimuths even on a
     // full-period patch (where u-start and u-end coincide).
@@ -300,11 +299,10 @@ fn try_cylinder(
     // chord — collinear-at-ε_in samples determine no finite radius
     // (the near-flat patch; D7's ambiguity class).
     let chord = qb - q0;
-    let chord_norm = chord.norm();
+    let (chord_dir, chord_norm) = chord.direction_and_length();
     if !(chord_norm.is_finite() && chord_norm > 0.0) {
         return Ok(None);
     }
-    let chord_dir = chord.normalize();
     let off = geom::Line {
         origin: q0,
         dir: chord_dir,
@@ -327,7 +325,7 @@ fn try_cylinder(
     let denom = 2.0 * axb.norm_squared();
     let center = q0 + (axb.cross(a) * b.norm_squared() + b.cross(axb) * a.norm_squared()) / denom;
     let radial = q0 - center;
-    let radius = radial.norm();
+    let (radial_hat, radius) = radial.direction_and_length();
     if !(radius.is_finite() && radius > 0.0) {
         return Ok(None);
     }
@@ -335,7 +333,7 @@ fn try_cylinder(
         origin: plus_zero_point(center),
         axis: plus_zero(axis),
         radius,
-        u_ref: plus_zero(radial / radius),
+        u_ref: plus_zero(radial_hat),
     };
     // The residual's Lipschitz constant in the point (envelope docs):
     // `|∇ implicit| = ρ/r`, and with positive weights the patch lies
