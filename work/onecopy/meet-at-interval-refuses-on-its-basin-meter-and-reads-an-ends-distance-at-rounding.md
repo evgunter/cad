@@ -213,5 +213,7 @@ Three departures, disclosed in the PR:
 - the `Dual` disposition is `bounds_census`'s blind-spot item 5, not a roster line;
 - a polish step whose value is a point is taken at `T`, because `editor-core`'s coincidence door reads the pair's symbols at `Sym`.
 
-Owed elsewhere: the K roster, which `scripts/k_probe_sweep.sh` cannot run on main (geom-brep's tests need `test-support`), and `m10_sym_profile`'s two pinned rows, red on main with the same ledger at head. Tubewall r2 is measured on PR 6491's route.
+Owed elsewhere: the K roster, which `scripts/k_probe_sweep.sh` cannot run on main (geom-brep's tests need `test-support`), and `m10_sym_profile`'s two pinned rows, red on main with the same ledger at head (`main-red-m10-sym-profiles-two-pinned-rows`). Tubewall r2 is measured on PR 6491's route.
+
+**The review's fix pass (2026-11-06).** The run arm is now derived, not asserted (NOTE-4), and needs no monotone gap. The polished pair's gap reads in the zero band; any pair of the run lies within `m₋` of it; and the gap's affine part is convex between the two. So any span end the run would cross lies within `e + 2·bend` of the other carrier, and an end whose closed-form clearance is past that bounds the run. It is read in `Span::past_by` beside the reach. The basin has one home, `polish::bound`. On the `ci` set at all three ε, the census is unchanged: the same near miss, 1.5e-8 apart at the spans' ends, escalates, and no test outcome moves.
 
