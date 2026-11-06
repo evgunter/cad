@@ -52,7 +52,7 @@ A second pass shaped at those is owed: `= Some(` assignments inside
 | hit | disposition |
 |---|---|
 | `splitting::order::axis_plane` (`undecided`) | Not a ladder. The answer is a quorum: two components agreeing. No single reading answers, so no rung can. |
-| `splitting::pieced_arc::PiecedArc::contact` (`in_band`) | **Ported.** The walk's kept readings rank through `ladder::Evidence`: in band, then unsettled, as before. Its ends' `?` is filed as `an-escalation-returned-by-question-mark-ahead-of-a-later-answer`. |
+| `splitting::pieced_arc::PiecedArc::contact` (`in_band`) | **Ported.** The walk's kept readings rank through `ladder::Evidence`: in band, then unsettled, as before. Its ends' `?` is filed as `an-escalation-returned-by-question-mark-ahead-of-a-later-answer`, and its in-band keeping of a poisoned margin as `pieced-arc-contact-keeps-a-poisoned-escalation-in-band`. |
 | `census::Germ::of_holds` (`refused`) | Filed: `touch-unread-has-no-standing-and-two-loops-rank-it-by-hand`. |
 | `census::sweep_cross_solid_backstop`'s vertex probe (`refused`) | Filed: `census-vertex-probe-keeps-a-point-in-solid-abort`. |
 | `boolean::records` landing loop (`structure`) | Not a ladder. It collects every landing, not a first answer. The kept `ContactPairError` is a structure fact read by D1's exemption (`fused`, `glues`), not a band refusal. |
