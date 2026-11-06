@@ -24,7 +24,7 @@ A port onto `geom_brep::ladder::climb`:
 
 That last needs `link::Unsettled` to state each variant's standing
 beside its definition (an `Unsettled::refusal` returning
-`ladder::Refusal`).
+`Result<ladder::Refusal, ladder::Aborts>`, since `Contradicted` aborts).
 
 **The classes are to be ruled from what each variant means, before the
 port, and `Unplaced` most of all.** It may be a limit (a reading not
@@ -37,7 +37,7 @@ than in band. The starting position, from `onecopy/ladder-climb-3`:
 | `Zero` | in band: a tighter band may separate it |
 | `Slack` | in band |
 | `Unplaced` | in band: **contested**, possibly a limit |
-| `Contradicted` | `Refusal::Abort` (`reads_given`'s own; no reference read meets it) |
+| `Contradicted` | `Err(Aborts)` (`reads_given`'s own; no reference read meets it) |
 
 Reach, measured with probes at `onecopy/ladder-climb-3` (merge base
 `f4f6a24a`):
@@ -52,3 +52,17 @@ ladder's intended record change), and the ranking change is reachable
 wherever two `Near` refusals of different classes are kept. The hits are
 led by `link::cone_fuzz`, `census::tests::a_slit_reads_degenerate` and
 `link::oracle_rows`.
+
+## A second site on the same classes: `Cone::place` (2026-11-06)
+
+`link::Cone::place` (`crates/topo/src/link.rs`, the wedge loop keeping
+`in_band.get_or_insert(why)`) is the same type's second hand-rolled
+ladder, found by `kept-refusal-loops-the-ladder-row-never-listed`'s sweep
+(`onecopy/refusal-standing`). `Place::Inside` answers; `Bound` and
+`Outside` pass, `Bound` remembered beside the climb; every
+`Unsettled<T>` is kept first-of-any-class and refuses ahead of `Bound`.
+Its port is the same port: once `Unsettled::refusal` is ruled, `place`
+climbs under `Any` (one wedge holding the point inside answers for the
+cone), and the first-of-any-class order becomes `Evidence`'s. It moves
+outcomes exactly where `reads_given`'s does: two kept classes that rank
+differently.

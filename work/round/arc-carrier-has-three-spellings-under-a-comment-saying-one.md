@@ -2,11 +2,12 @@
 id: arc-carrier-has-three-spellings-under-a-comment-saying-one
 kind: issue
 title: seg.rs says arc_carrier is THE one spelling of the closed form; path.rs and lift.rs each carry another, with different association and abs placement
-status: open
+status: closed
 opened: 2026-09-12
 refs: [2409]
 priority: P1
-cost: E
+cost: C
+closed: 2026-11-06
 ---
 
 
@@ -65,3 +66,18 @@ diverge) is worth more than the consolidation on its own.
 ## Re-homed at S-BOOL's exit (2026-09-16)
 
 Moved from `work/bool/` to PATHS (opened at this exit as S-BOOL's successor for the profile lattice) when S-BOOL closed (`docs/S-BOOL-EXIT-WALK.md`); the item's content, id and history are unchanged.
+
+## Closed (2026-11-06, ROUND orchestrator)
+
+Fixed by PATHS 5b before this row was picked up. `465f43a450` (each
+construction stores the arc it builds) dropped `path.rs`'s copy and
+`65ef55b2f4` (one chord lowering in geom-core) dropped `seg::arc_carrier`:
+the one chord lowering is now `geom_core::Arc2::from_chord`, read by
+`profile::lower_arc` and `sweep`'s swept lowering, and `lift.rs` carries
+no bulge closed form. The three neighbours the row named were checked
+the same way: `perp`/`n_hat` is written several times (`seg::perp`,
+`sugar::left_normal`, inline in `path.rs`) but each is an exact negation,
+so they cannot differ in the last ulp; the sagitta's two forms
+(`seg::sagitta`, `Margin::sagitta`) play different roles; and
+`4·atan(x)` appears per construction on different inputs, not as one
+closed form copied. None is the drift this row was about.
