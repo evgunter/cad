@@ -1174,22 +1174,24 @@ fn placeable_operand<T: Decide>(
 }
 
 /// **A family read whole, as its bodies**, in index order
-/// ([`super::NodeValue::member_bodies`]). An absent member refuses
-/// [`NodeErrorKind::EmptyOperand`] naming the family, as an empty
-/// boolean read at one seat does (D3: nothing ∅-absorbing is
-/// invented); a value that is no family of bodies refuses typed,
-/// expecting `expected`.
-fn whole_bodies<'v, T: Decide>(
-    value: &'v super::NodeValue<T>,
+/// ([`super::NodeValue::member_bodies`]); `None` for a value that is no
+/// family of bodies, which its caller refuses in its own word. An
+/// absent member refuses [`NodeErrorKind::EmptyOperand`] naming the
+/// family, as an empty boolean read at one seat does (D3: nothing
+/// ∅-absorbing is invented).
+fn whole_bodies<T: Decide>(
+    value: &super::NodeValue<T>,
     at: RecipeNodeId,
-    expected: &'static str,
-) -> Result<Vec<&'v super::Framed<T>>, NodeErrorKind> {
+) -> Result<Option<Vec<&super::Framed<T>>>, NodeErrorKind> {
     value
         .member_bodies()
-        .ok_or_else(|| wrong_operand(value, at, expected))?
-        .into_iter()
-        .map(|body| body.ok_or(NodeErrorKind::EmptyOperand { input: at }))
-        .collect()
+        .map(|bodies| {
+            bodies
+                .into_iter()
+                .map(|body| body.ok_or(NodeErrorKind::EmptyOperand { input: at }))
+                .collect()
+        })
+        .transpose()
 }
 
 /// The linear classification band (kernel-ambient tolerance).
@@ -3670,7 +3672,10 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     // Each member of a family read whole, in index order, its table the
     // family's rows for that member.
     let whole = |read: crate::VarId, at: RecipeNodeId, value: &super::NodeValue<T>| {
-        whole_bodies(value, at, super::family::INSTANCES)?
+        let Some(bodies) = whole_bodies(value, at)? else {
+            return Err(wrong_operand(value, at, super::family::INSTANCES));
+        };
+        bodies
             .into_iter()
             .enumerate()
             .map(|(i, body)| {
@@ -4474,13 +4479,10 @@ fn wire_assemble<T: Decide + topo::AtRestPolicy>(
         let (bodies, family) = match value.payload.member_body() {
             Some(Some(body)) => (vec![body.clone()], false),
             Some(None) => return Err(NodeErrorKind::EmptyOperand { input: of }),
-            None => (
-                whole_bodies(value, of, super::phrase::BODY_OR_INSTANCES)?
-                    .into_iter()
-                    .cloned()
-                    .collect(),
-                true,
-            ),
+            None => match whole_bodies(value, of)? {
+                Some(bodies) => (bodies.into_iter().cloned().collect(), true),
+                None => return Err(wrong_operand(value, of, super::phrase::BODY_OR_INSTANCES)),
+            },
         };
         let table = read_table(value);
         let mut bridges = Vec::with_capacity(bodies.len());
