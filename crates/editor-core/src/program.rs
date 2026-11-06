@@ -665,7 +665,7 @@ pub trait ProfilePayload: serde::Serialize + SlotPayload<VarId> {
     /// **The payload this one is authored as**: the same program, its
     /// slots holding the formulas an edit carries ([`crate::Formula`]).
     /// The edit door lowers it ([`ProfilePayload::lower`]); re-authoring
-    /// goes back ([`ProfilePayload::authored`]).
+    /// goes back ([`ProfilePayload::authored_with`]).
     type Authored: SlotPayload<crate::Formula>
         + Clone
         + core::fmt::Debug
@@ -703,11 +703,6 @@ pub trait ProfilePayload: serde::Serialize + SlotPayload<VarId> {
         reader: &mut dyn FnMut(VarId, Dimension) -> crate::Formula,
         operand: &mut dyn FnMut(VarId) -> crate::Operand,
     ) -> Self::Authored;
-    /// **This payload re-authored**: every slot a formula reading its
-    /// variable ([`crate::Formula::var`]), every read its variable.
-    fn authored(&self) -> Self::Authored {
-        self.authored_with(&mut crate::Formula::var, &mut crate::Operand::Var)
-    }
     /// Whether any expression of this program reads the variable
     /// `var` — over `ProfilePayload::rows`, so every payload answers
     /// it the one way.
