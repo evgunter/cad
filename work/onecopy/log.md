@@ -325,3 +325,5 @@
   - **feet-and-params:** `nearest` is a certificate over `param_near`; `Line::param_within` and `foot_within`; `plane_offset` filed for want of a plane-value type.
   - **refusal-standing row 2:** file the four ranking-moving sites (census Germ, `link::judge`, the census vertex probe, and the early-`?` class) as P2 rows. The early-`?` row names a gate.
   - **curve-pair-tidy, near-tangent tilt:** B. The window also certifies a root with no found meeting, with unanchored arcs Off past the escalation. The row's stated mechanism was wrong: the guard skipped the window entirely, and the spun row's pivot was 5.5e-5 off the shared end. The row narrows to the 4 basin residues.
+
+- 2026-11-06 — The curve-pair-tidy lane reported a main red at `230be11d`: `curve_pair::span_rows::a_point_on_a_circles_axis_is_off_with_no_place_read` (span_rows.rs:364, the antipode pin is off by π), at both ε. Handed to that lane to bisect and fix, since it is likely ONECOPY's (6537 or the foot changes). My own local repro ran out of disk; reclaimed.
