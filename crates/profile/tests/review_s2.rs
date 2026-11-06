@@ -743,7 +743,7 @@ fn check_at_both_scalars(
     let (lp, lp_interval) = match (at_f64, at_interval) {
         (Ok(lp), Ok(lp_interval)) => (lp, lp_interval),
         (Err(_), Err(_)) => return false,
-        (Ok(lp), Err(PathError::Escalated { source })) => {
+        (Ok(lp), Err(PathError::Escalated { source, .. })) => {
             let predicate = source.predicate.unwrap_or("<unnamed>");
             let ErrorTextReading::Enclosure { lo, hi } =
                 source.margin.diagnostic_f64_for_error_text()

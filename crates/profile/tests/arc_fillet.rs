@@ -43,7 +43,7 @@ fn s3() -> f64 {
 /// error when it is not an escalation).
 fn escalated_predicate(err: &PathError<f64>) -> &'static str {
     match err {
-        PathError::Escalated { source } => source.predicate.unwrap_or("<unnamed>"),
+        PathError::Escalated { source, .. } => source.predicate.unwrap_or("<unnamed>"),
         other => panic!("expected an escalation, got {other:?}"),
     }
 }

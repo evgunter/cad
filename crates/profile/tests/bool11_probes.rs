@@ -293,15 +293,15 @@ fn the_off_ray_message_names_the_intent_and_the_miss() {
     assert!(!msg.contains("tolerance"), "{msg}");
 }
 
-/// **The two in-band escalations name the geometry, never a tolerance.**
-/// A target `1.5ε` off the run's line escalates on
-/// `path_continuation_target_offset`, and a `line(3ε)` leg on
-/// `path_leg_length`. Each recourse is the authored data's (move the
-/// target onto the run's line, author a longer leg), and neither
-/// advises loosening ε (D4 ¶1 (i)): both have a geometry lever, so the
-/// last resort does not apply.
+/// **The two in-band escalations lead with the geometry, and offer the
+/// tolerance only conditionally.** A target `1.5ε` off the run's line
+/// escalates on `path_continuation_target_offset`, and a `line(3ε)` leg
+/// on `path_leg_length`. Each recourse is the authored data's (move the
+/// target onto the run's line, author a longer leg); both margins are
+/// sizes a smaller ε decides, so each adds the conditional, valued
+/// tighten and neither advises loosening ε (D4 ¶1 (i)).
 #[test]
-fn the_in_band_continuation_escalations_name_no_tolerance() {
+fn the_in_band_continuation_escalations_offer_only_a_conditional_tighten() {
     let t = Tol::witness();
     let (eps, _) = band();
     let started = || {
@@ -327,8 +327,13 @@ fn the_in_band_continuation_escalations_name_no_tolerance() {
     ] {
         let msg = err.to_string();
         assert!(format!("{err:?}").contains(want), "{err:?}");
-        assert!(msg.contains(recourse), "{msg}");
-        assert!(!msg.contains("tolerance"), "{msg}");
+        assert!(
+            msg.contains(&format!(
+                "Recourse: {recourse}, or, if this size is intended, tighten the tolerance below "
+            )),
+            "{msg}"
+        );
+        assert_eq!(msg.matches("tolerance").count(), 1, "{msg}");
     }
 }
 
@@ -546,7 +551,7 @@ fn a_runs_misses_are_read_against_its_own_line_and_never_sum() {
     let bias = 0.5 * eps;
     let ys: Vec<f64> = (1..=40).map(|k| k as f64 * bias).collect();
     match run_through(&ys, t) {
-        Err((leg, PathError::Escalated { source }))
+        Err((leg, PathError::Escalated { source, .. }))
             if (1..=2).contains(&leg)
                 && source.predicate == Some("path_continuation_target_offset") => {}
         Err((leg, e)) => panic!("leg {leg} refused, but not as the in-band run: {e:?}"),
@@ -633,7 +638,7 @@ fn straight_legs_off_a_run_keep_it() {
     let eps = t.eps();
     let miss = 0.6 * eps;
     let in_band = |r: Result<_, PathError<f64>>, what: &str| match r {
-        Err(PathError::Escalated { source })
+        Err(PathError::Escalated { source, .. })
             if source.predicate == Some("path_continuation_target_offset") => {}
         Err(e) => panic!("{what}: refused, but not in band of the run's line: {e:?}"),
         Ok(_) => panic!("{what}: read against the leg's own end, not the run's line"),

@@ -30,7 +30,7 @@ type Built = Result<ProfileLoop<f64>, PathError<f64>>;
 /// The escalation's predicate, or a panic naming what came instead.
 fn escalates_under(err: &PathError<f64>, what: &str) -> &'static str {
     match err {
-        PathError::Escalated { source } => source.predicate.expect("a named predicate"),
+        PathError::Escalated { source, .. } => source.predicate.expect("a named predicate"),
         other => panic!("{what}: expected an in-band escalation, got {other:?}"),
     }
 }
@@ -308,14 +308,13 @@ fn the_lever_gate_is_reachable_in_band_on_the_lens_and_renders_its_sentence() {
     builds_and_validates(lever_lens(big, big / 10.0), "the radius moved clearly away");
 }
 
-/// **The guided replay door renders the shared coincidence recourse for
-/// an in-band fillet gate.** `StructureRefusal`'s indeterminate arm
-/// prints the `Indeterminate` whole, and that Display ends in
-/// `COINCIDENCE_RECOURSE` — so through `replay_guided` the caller
-/// reads the shared recourse at a fillet they asked for, and the gate's
-/// own sentence is nowhere in the text. A characterization.
+/// **The guided replay door names the box lever and the fillet gate's
+/// own.** Under `replay_guided` an in-band fillet gate surfaces as a
+/// structure refusal carrying its gate: the caller reads the box lever
+/// first and the gate's sentence after it, and no tolerance arm, since a
+/// guided pass replays the run's ε.
 #[test]
-fn a_guided_replay_still_renders_the_coincidence_recourse_for_a_fillet_gate() {
+fn a_guided_replay_names_the_box_lever_and_the_fillet_gates_own() {
     let eps = tol().eps();
     let closed = Open
         .at(Point2::new(0.0, 3.0))
@@ -343,15 +342,17 @@ fn a_guided_replay_still_renders_the_coincidence_recourse_for_a_fillet_gate() {
     let err = replay_guided(&steps, &structure, tol()).expect_err("in band under guidance");
     let shown = err.to_string();
     assert!(
-        format!("{err:?}").contains("\"fillet_offset_line_circle\""),
-        "names the gate: {err:?}"
+        format!("{err:?}").contains("FilletOffsetLineCircle"),
+        "carries the gate: {err:?}"
     );
     assert!(
-        shown.contains(geom_core::COINCIDENCE_RECOURSE),
-        "the guided door has stopped rendering the shared recourse — flip this row to a pin: {shown}"
+        shown.ends_with(&format!(
+            "Recourse: narrow the parameter box and try again, or {FILLET_NO_CORNER_RECOURSE}"
+        )),
+        "the box lever, then the gate's own: {shown}"
     );
     assert!(
-        !shown.contains(FILLET_NO_CORNER_RECOURSE),
-        "the guided door has started rendering the gate's sentence — flip this row to a pin: {shown}"
+        !shown.contains("tolerance"),
+        "no tolerance arm under guidance: {shown}"
     );
 }

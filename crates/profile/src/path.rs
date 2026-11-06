@@ -6891,10 +6891,7 @@ mod fillet_stored_form {
                 ),
                 j.margin,
             ),
-            Err(i) => (
-                format!("escalated ({})", i.predicate.unwrap_or("?")),
-                f64::NAN,
-            ),
+            Err(i) => (format!("escalated ({})", i.gate().predicate()), f64::NAN),
         }
     }
 
@@ -7332,7 +7329,7 @@ mod stored_arc_landing {
     /// naming `predicate`, the step and the verb.
     fn defect(
         result: Result<(), PathError<f64>>,
-        predicate: &str,
+        predicate: ArcRead,
         verb: program::Verb,
         what: &str,
     ) -> f64 {
@@ -7340,7 +7337,7 @@ mod stored_arc_landing {
             Err(PathError::ArcMissesAuthoredPoint {
                 piece,
                 verb: said,
-                predicate: read,
+                read,
                 miss,
                 ..
             }) => {
@@ -7364,7 +7361,7 @@ mod stored_arc_landing {
         let verb = program::Verb::TangentArcTo;
         let miss = defect(
             read(built(cancelling_tangent(a, u, b)), a, b, verb),
-            seg::LANDING_READ,
+            ArcRead::Landing,
             verb,
             "the cancelling tangent arc",
         );
@@ -7399,7 +7396,7 @@ mod stored_arc_landing {
         );
         let miss = defect(
             read(cancelling, a, b, verb),
-            seg::LANDING_READ,
+            ArcRead::Landing,
             verb,
             "the cancelling centre arc",
         );
@@ -7433,7 +7430,7 @@ mod stored_arc_landing {
         );
         let miss = defect(
             read(arc, a, b, verb),
-            seg::THROUGH_POINT_READ,
+            ArcRead::ThroughPoint,
             verb,
             "the cancelling Via arc",
         );
@@ -7563,14 +7560,14 @@ mod stored_arc_landing {
         match &refusal {
             PathError::ArcMissBelowSceneResolution {
                 piece,
-                predicate,
+                read,
                 scale,
                 resolution,
                 ..
             } => {
                 assert_eq!(
-                    (*piece, *predicate),
-                    (PIECE, seg::LANDING_READ),
+                    (*piece, *read),
+                    (PIECE, ArcRead::Landing),
                     "the sibling names its step and read"
                 );
                 assert!(
@@ -7634,7 +7631,7 @@ mod stored_arc_landing {
         let verb = program::Verb::ArcTo;
         defect(
             read(flat, a, b, verb),
-            seg::THROUGH_POINT_READ,
+            ArcRead::ThroughPoint,
             verb,
             "the flattened Via arc",
         );
@@ -7668,7 +7665,7 @@ mod stored_arc_landing {
         };
         let miss = defect(
             read(long, a, b, verb),
-            seg::START_READ,
+            ArcRead::Start,
             verb,
             "the long radius",
         );
@@ -7713,7 +7710,7 @@ mod stored_arc_landing {
         );
         defect(
             read(flip(via), a, b, verb),
-            seg::BRANCH_READ,
+            ArcRead::Branch,
             verb,
             "the flipped Via arc",
         );
@@ -7725,7 +7722,7 @@ mod stored_arc_landing {
         );
         defect(
             read(flip(centre), a, b, verb),
-            seg::BRANCH_READ,
+            ArcRead::Branch,
             verb,
             "the flipped centre arc",
         );
@@ -7739,7 +7736,7 @@ mod stored_arc_landing {
         );
         defect(
             read(flip(tangent), a, b, verb),
-            seg::BRANCH_READ,
+            ArcRead::Branch,
             verb,
             "the flipped tangent arc",
         );
@@ -7781,7 +7778,7 @@ mod stored_arc_landing {
         }
         defect(
             read(decided(1.0 + 2.0 * esc / r), a, b, verb),
-            seg::LANDING_READ,
+            ArcRead::Landing,
             verb,
             "a decided arc past the band",
         );
@@ -7887,7 +7884,7 @@ mod stored_arc_landing {
         };
         defect(
             read(flipped, a, b, verb),
-            seg::BRANCH_READ,
+            ArcRead::Branch,
             verb,
             "the flipped arc fillet",
         );

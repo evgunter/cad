@@ -42,7 +42,7 @@ fn tol() -> Tol {
 
 fn predicate_of(err: &PathError<f64>) -> Option<&'static str> {
     match err {
-        PathError::Escalated { source } => source.predicate,
+        PathError::Escalated { source, .. } => source.predicate,
         _ => None,
     }
 }

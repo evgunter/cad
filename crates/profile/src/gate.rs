@@ -30,7 +30,7 @@ const LEG_LENGTH_LEVER: &str = "author a longer leg";
 /// The lever of an undecided declared seam arrival: the declaration
 /// rides the target, so the geometry is what moves.
 const SEAM_ARRIVAL_LEVER: &str =
-    "move the geometry so the declared arrival and the entry's outgoing direction agree";
+    "move the geometry so the two directions agree (the declaration is the target)";
 
 /// **How a gate's undecided refusal ends** (D4 ¶1 (i)), with the gate's
 /// own lever.

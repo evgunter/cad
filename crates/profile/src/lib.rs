@@ -186,7 +186,7 @@ pub use path::program::{
 };
 pub use path::{
     ArcCarrierScalar, ArcLen, ArcSide, ArrivesTangent, Bulge, Center, ContinueTarget, CornerReason,
-    CornerRefusal, CornerWindow, LineTarget, OntoTarget, Open, PartialPath, PathError,
+    CornerRefusal, CornerWindow, EscalatedAt, LineTarget, OntoTarget, Open, PartialPath, PathError,
     PathErrorKind, PathNoCornerReason, PointLeg, Radius, Start, Sweep, TangentArcTarget, Via,
     circle, circle_split, rectangle,
 };

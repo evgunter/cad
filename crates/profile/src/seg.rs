@@ -2666,7 +2666,7 @@ mod pair_contact_tests {
                 Ok(PairOutcome::Contacts(c)) if c.is_empty() => {}
                 Ok(PairOutcome::Contacts(c)) => panic!("{name}: {} contacts", c.len()),
                 Ok(PairOutcome::Overlap) => panic!("{name}: an overlap"),
-                Err(e) => panic!("{name}: escalated on {:?}", e.predicate),
+                Err(e) => panic!("{name}: escalated on {:?}", e.source().predicate),
             }
         }
     }
@@ -2799,7 +2799,7 @@ mod pair_contact_tests {
             band,
         );
         match collinear_overlap(&s1, &s2, band) {
-            Err(e) => assert_eq!(e.predicate, Some("collinear_overlap")),
+            Err(e) => assert_eq!(e.source().predicate, Some("collinear_overlap")),
             Ok(PairOutcome::Overlap) => panic!("read an overlap"),
             Ok(PairOutcome::Contacts(c)) => panic!("read {} contacts", c.len()),
         }
@@ -2932,18 +2932,25 @@ mod pair_contact_tests {
         let leaving = line::<f64>(v, (5051.600599898648, 719.9751542338354), band);
         let arriving = line::<f64>((-483370.8154819185, 251392.89144105796), v, band);
         assert!(touches_only_near_the_shared_end(&leaving, &arriving, band));
-        match joint_tangency(&arriving, &leaving, "path_junction_turn", band) {
+        match joint_tangency(&arriving, &leaving, crate::Gate::PathJunctionTurn, band) {
             Ok(reading) => assert!(
                 matches!(reading.class, JointClass::SameCarrier),
                 "the joint reads a continuation, got {:?}",
                 reading.class
             ),
-            Err(e) => panic!("the joint decides, got an escalation on {:?}", e.predicate),
+            Err(e) => panic!(
+                "the joint decides, got an escalation on {:?}",
+                e.source().predicate
+            ),
         }
         for (host, other) in [(&leaving, &arriving), (&arriving, &leaving)] {
             for shared in [None, Some(pt(v))] {
                 match pair_contacts(host, other, shared, band) {
-                    Err(e) => assert_eq!(e.predicate, Some("collinear_overlap"), "{shared:?}"),
+                    Err(e) => assert_eq!(
+                        e.source().predicate,
+                        Some("collinear_overlap"),
+                        "{shared:?}"
+                    ),
                     Ok(_) => panic!("{shared:?}: the straddle must escalate"),
                 }
             }
@@ -3010,7 +3017,9 @@ mod pair_contact_tests {
                     continue;
                 }
                 rescued += 1;
-                if let Ok(reading) = joint_tangency(&prev, &next, "path_junction_turn", band) {
+                if let Ok(reading) =
+                    joint_tangency(&prev, &next, crate::Gate::PathJunctionTurn, band)
+                {
                     panic!(
                         "rescued, and the joint decided {:?} on {}: prev {:?}→{:?}, \
                          next {:?}→{:?} — {}",
@@ -3097,7 +3106,7 @@ mod pair_contact_tests {
         match line_arc(line, arc, g, band) {
             Ok(PairOutcome::Contacts(contacts)) => Ok(contacts.len()),
             Ok(PairOutcome::Overlap) => panic!("a line and an arc overlapped"),
-            Err(source) => Err(source.predicate),
+            Err(source) => Err(source.source().predicate),
         }
     }
 
@@ -3108,7 +3117,7 @@ mod pair_contact_tests {
         match arc_arc(s1, g1, s2, g2, band) {
             Ok(PairOutcome::Contacts(contacts)) => Ok(contacts.len()),
             Ok(PairOutcome::Overlap) => panic!("two arcs on distinct carriers overlapped"),
-            Err(source) => Err(source.predicate),
+            Err(source) => Err(source.source().predicate),
         }
     }
 
@@ -3560,7 +3569,7 @@ mod pair_contact_tests {
                             Ok(contacts.iter().map(|c| c.kind).collect())
                         }
                         Ok(PairOutcome::Overlap) => Err(Some("overlap")),
-                        Err(source) => Err(source.predicate),
+                        Err(source) => Err(source.source().predicate),
                     }
                 });
                 reads.push((format!("{name}{order}"), read));
@@ -3678,7 +3687,7 @@ mod pair_contact_tests {
                 Ok(contacts.into_iter().map(|c| (c.kind, c.point)).collect())
             }
             Ok(PairOutcome::Overlap) => Err(Some("overlap")),
-            Err(source) => Err(source.predicate),
+            Err(source) => Err(source.source().predicate),
         }
     }
 
