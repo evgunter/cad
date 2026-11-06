@@ -203,3 +203,4 @@
   - **`one_body`:** every listed demo and `mate/unobservable` reader is routed through it.
   - **`every_body`:** it now lives in `test_support`.
   - `a-family-of-bodies-has-two-payloads` is closed, with the WIREREST and BIND residue rows.
+- 2026-11-06 — **PR 6564 merged** (one payload for a family of bodies). Next REFS P1, serially: `slot-forms-want-one-trait`, unit branch `reads/slot-forms-trait`. The row is a month old and the tree has moved, so the lane re-takes the census first and may report that the need is gone. Tier **single, STYLE**: a compiler-checked refactor with no behaviour change, where the risk is the abstraction's shape and not correctness.
