@@ -51,9 +51,8 @@ fn corner_fill(big_r: f64, rho: f64, inward: bool) -> f64 {
 /// An edge's two end vertices, read off the BODY (`he_plus` start and
 /// end), not off any link record.
 fn body_ends(body: &Body<f64>, e: EdgeKey) -> (VertexKey, VertexKey) {
-    let ed = body.get_edge(e).unwrap();
-    let s = body.get_half_edge(ed.he_plus).unwrap().start;
-    let t = body.half_edge_end(ed.he_plus).unwrap();
+    let _ = body.get_edge(e).unwrap();
+    let (s, t) = body.edge_vertices(e).unwrap();
     (s, t)
 }
 

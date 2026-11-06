@@ -369,8 +369,7 @@ pub fn graft_recertify_failures(body: &Body<f64>) -> Vec<(EdgeKey, CertifyError)
             if curve.description().is_scaffold() {
                 return None;
             }
-            let start_v = body.get_half_edge(e.he_plus)?.start;
-            let end_v = body.half_edge_end(e.he_plus)?;
+            let (start_v, end_v) = body.edge_vertices(ek)?;
             EdgeCurve::certify(
                 curve.restated_spec(),
                 vertex_point(body, start_v).expect("a live vertex"),

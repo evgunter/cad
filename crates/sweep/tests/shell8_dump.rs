@@ -43,8 +43,7 @@ fn dump(label: &str, body: &Body<f64>) {
             body.face_of_half_edge(e.he_plus).unwrap(),
             body.face_of_half_edge(e.he_minus).unwrap(),
         );
-        let start = body.get_half_edge(e.he_plus).unwrap().start;
-        let end = body.half_edge_end(e.he_plus).unwrap();
+        let (start, end) = body.edge_vertices(k).unwrap();
         let c = body
             .get_curve_geom(e.curve)
             .and_then(|g| g.certified())

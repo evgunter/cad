@@ -651,9 +651,8 @@ fn split_edge_parent_key_keeps_the_start_side() {
     describe_as_intersections(&mut cube.body, Tol::witness());
     let edge = cube.mevs[0].edge;
     let ends = |body: &Body<f64>, e: topo::EdgeKey| {
-        let data = body.get_edge(e).unwrap();
-        let start = body.get_half_edge(data.he_plus).unwrap().start;
-        let end = body.half_edge_end(data.he_plus).unwrap();
+        let _ = body.get_edge(e).unwrap();
+        let (start, end) = body.edge_vertices(e).unwrap();
         (start, end)
     };
     let (u, v) = ends(&cube.body, edge);

@@ -449,9 +449,8 @@ fn stretches_on_shared_ends(bb: &topo::BooleanBody<f64>) -> usize {
         topo::Cell::Edge(_) | topo::Cell::Face(_) => None,
     };
     let mut joining: std::collections::BTreeMap<_, usize> = std::collections::BTreeMap::new();
-    for (_, e) in body.edges() {
-        let s = body.get_half_edge(e.he_plus).unwrap().start;
-        let t = body.half_edge_end(e.he_plus).unwrap();
+    for (ek, _) in body.edges() {
+        let (s, t) = body.edge_vertices(ek).unwrap();
         *joining.entry((s.min(t), s.max(t))).or_default() += 1;
     }
     bb.naming

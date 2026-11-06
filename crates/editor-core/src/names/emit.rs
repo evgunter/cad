@@ -1676,22 +1676,9 @@ pub(crate) fn loop_half_edges<T: geom_core::Real>(body: &Body<T>, l: LoopKey) ->
 /// broken link from its `he_plus` ([`TIER1`]).
 #[track_caller]
 pub(crate) fn edge_ends<T: geom_core::Real>(body: &Body<T>, e: EdgeKey) -> (VertexKey, VertexKey) {
-    let Some(edge) = body.get_edge(e) else {
-        unreachable!("edge ends: dangling edge {e:?}; {LIVE_ARGUMENT}")
-    };
-    let Some(plus) = body.get_half_edge(edge.he_plus) else {
-        unreachable!(
-            "edge ends: dangling he_plus {:?} of edge {e:?}; {TIER1}",
-            edge.he_plus
-        )
-    };
-    let Some(end) = body.half_edge_end(edge.he_plus) else {
-        unreachable!(
-            "edge ends: he_plus has no end: {:?} of edge {e:?}; {TIER1}",
-            edge.he_plus
-        )
-    };
-    (plus.start, end)
+    body.edge_vertices(e).unwrap_or_else(|| {
+        unreachable!("edge ends: edge {e:?} or one of its halves dangles; {LIVE_ARGUMENT}, {TIER1}")
+    })
 }
 
 /// TOTALITY (spec D4): every live face/edge/vertex of `body` (output
@@ -2718,27 +2705,30 @@ mod walk_tests {
     }
 
     #[test]
-    #[should_panic(expected = "edge ends: dangling edge")]
+    #[should_panic(expected = "edge ends: edge")]
     fn edge_ends_panics_on_a_dangling_edge() {
         let r = rim1();
         edge_ends(&r.without(EntityId::Edge(r.edge)), r.edge);
     }
 
+    /// Either half dangling panics in the same voice: each is a link
+    /// the edge holds.
     #[test]
-    #[should_panic(expected = "edge ends: dangling he_plus")]
-    fn edge_ends_panics_on_a_dangling_he_plus() {
+    fn edge_ends_panics_on_either_dangling_half() {
         let r = rim1();
-        let he_plus = r.body().get_edge(r.edge).unwrap().he_plus;
-        edge_ends(&r.without(EntityId::HalfEdge(he_plus)), r.edge);
-    }
-
-    #[test]
-    #[should_panic(expected = "edge ends: he_plus has no end")]
-    fn edge_ends_panics_on_a_he_plus_with_no_end() {
-        let r = rim1();
-        let he_plus = r.body().get_edge(r.edge).unwrap().he_plus;
-        let next = r.body().get_half_edge(he_plus).unwrap().next;
-        edge_ends(&r.without(EntityId::HalfEdge(next)), r.edge);
+        let e = r.body().get_edge(r.edge).unwrap().clone();
+        for he in [e.he_plus, e.he_minus] {
+            let torn = r.without(EntityId::HalfEdge(he));
+            let caught =
+                std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| edge_ends(&torn, r.edge)));
+            let msg = caught.expect_err("a dangling half panics");
+            let msg = msg
+                .downcast_ref::<String>()
+                .map(String::as_str)
+                .or_else(|| msg.downcast_ref::<&str>().copied())
+                .unwrap_or_default();
+            assert!(msg.contains("edge ends: edge"), "{he:?}: {msg}");
+        }
     }
 
     #[test]

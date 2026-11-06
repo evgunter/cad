@@ -255,9 +255,8 @@ fn p3_a_petrie_hexagon_cycle_never_assembles_into_a_closed_chain() {
         p
     };
     let ends_of = |e: EdgeKey| {
-        let ed = body.get_edge(e).unwrap();
-        let s = body.get_half_edge(ed.he_plus).unwrap().start;
-        let t = body.half_edge_end(ed.he_plus).unwrap();
+        let _ = body.get_edge(e).unwrap();
+        let (s, t) = body.edge_vertices(e).unwrap();
         (point_of(s), point_of(t))
     };
     let matches_pt = |p: Point3<f64>, q: (f64, f64, f64)| {

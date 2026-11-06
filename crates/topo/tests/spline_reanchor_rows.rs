@@ -24,8 +24,7 @@ fn spline_edges(body: &Body<f64>) -> SecondaryMap<EdgeKey, SplineEdge> {
             let Curve3::Nurbs(_) = curve.carrier() else {
                 return None;
             };
-            let start = body.get_half_edge(e.he_plus)?.start;
-            let end = body.half_edge_end(e.he_plus)?;
+            let (start, end) = body.edge_vertices(k)?;
             Some((k, (curve.carrier().clone(), curve.params(), [start, end])))
         })
         .collect()

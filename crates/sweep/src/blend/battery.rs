@@ -2612,14 +2612,9 @@ pub(crate) fn turn_reading<T: Decide>(
     let p = point_at(body, vertex)?;
     // Each edge's unit direction out of the vertex.
     let out = |e: EdgeKey| {
-        let far = body.get_edge(e).and_then(|d| {
-            let start = body.get_half_edge(d.he_plus)?.start;
-            if start == vertex {
-                body.half_edge_end(d.he_plus)
-            } else {
-                Some(start)
-            }
-        });
+        let far = body
+            .edge_vertices(e)
+            .map(|(start, end)| if start == vertex { end } else { start });
         far.and_then(|v| body.get_vertex(v))
             .and_then(|v| body.get_point(v.point))
             .map(|q| (*q - p).normalize())

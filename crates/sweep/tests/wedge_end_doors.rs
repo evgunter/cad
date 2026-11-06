@@ -343,9 +343,8 @@ fn a_split_tangent_to_a_thin_shoulder_describes_its_ruling_by_the_rule() {
             };
             let on_the_ruling = |p: Point3<f64>| p.x.abs() <= eps && (p.y - 1.0).abs() <= eps;
             // The seam: the ruling's edge between the wall and the cut.
-            for (_, e) in piece.edges() {
-                let start = piece.get_half_edge(e.he_plus).unwrap().start;
-                let end = piece.half_edge_end(e.he_plus).unwrap();
+            for (ek, e) in piece.edges() {
+                let (start, end) = piece.edge_vertices(ek).unwrap();
                 let pair = [surface_of(e.he_plus), surface_of(e.he_minus)];
                 let kinds = pair.map(|s| piece.get_surface(s).unwrap().kind());
                 if !(on_the_ruling(point(start)) && on_the_ruling(point(end)))
@@ -447,9 +446,8 @@ fn a_cut_across_a_tangent_seam_describes_each_piece_by_the_rule() {
                 let on_the_ruling = |p: Point3<f64>| p.x.abs() <= eps && (p.y - 1.0).abs() <= eps;
                 let seams: Vec<_> = piece
                     .edges()
-                    .filter(|(_, e)| {
-                        let start = piece.get_half_edge(e.he_plus).unwrap().start;
-                        let end = piece.half_edge_end(e.he_plus).unwrap();
+                    .filter(|(ek, e)| {
+                        let (start, end) = piece.edge_vertices(*ek).unwrap();
                         on_the_ruling(point(start))
                             && on_the_ruling(point(end))
                             && [e.he_plus, e.he_minus].into_iter().any(|he| {
@@ -493,9 +491,8 @@ fn shoulder_seam(piece: &Body<f64>) -> (&'static str, Vec<geom::SurfaceKind>) {
     let kind = |s| piece.get_surface(s).unwrap().kind();
     let seams: Vec<_> = piece
         .edges()
-        .filter(|(_, e)| {
-            let start = piece.get_half_edge(e.he_plus).unwrap().start;
-            let end = piece.half_edge_end(e.he_plus).unwrap();
+        .filter(|(ek, _)| {
+            let (start, end) = piece.edge_vertices(*ek).unwrap();
             on_the_ruling(point(start)) && on_the_ruling(point(end))
         })
         .collect();
@@ -994,9 +991,8 @@ fn shoulder_seam_edge(piece: &Body<f64>) -> EdgeKey {
     let point = |v| *piece.get_point(piece.get_vertex(v).unwrap().point).unwrap();
     let seams: Vec<_> = piece
         .edges()
-        .filter(|(_, e)| {
-            let start = piece.get_half_edge(e.he_plus).unwrap().start;
-            let end = piece.half_edge_end(e.he_plus).unwrap();
+        .filter(|(ek, _)| {
+            let (start, end) = piece.edge_vertices(*ek).unwrap();
             on_the_ruling(point(start)) && on_the_ruling(point(end))
         })
         .map(|(k, _)| k)

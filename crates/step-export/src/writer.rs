@@ -364,20 +364,16 @@ impl<'a> Writer<'a> {
             .ok_or(StepExportError::Corrupt {
                 what: "edge key does not resolve",
             })?;
-        let he_plus = self
-            .body
-            .get_half_edge(edge.he_plus)
-            .ok_or(StepExportError::Corrupt {
-                what: "edge he_plus does not resolve",
-            })?;
-        let start = self.vertex_point(he_plus.start)?;
-        let end_vertex = self
-            .body
-            .half_edge_end(edge.he_plus)
-            .ok_or(StepExportError::Corrupt {
-                what: "edge he_plus end does not resolve",
-            })?;
-        let end = self.vertex_point(end_vertex)?;
+        let (start_vertex, end_vertex) =
+            self.body
+                .edge_vertices(edge_key)
+                .ok_or(StepExportError::Corrupt {
+                    what: "edge half-edges do not resolve",
+                })?;
+        let (start, end) = (
+            self.vertex_point(start_vertex)?,
+            self.vertex_point(end_vertex)?,
+        );
         let carrier = printable_carrier(certified_carrier(self.body, edge_key, edge)?, edge_key)?;
         // The curve printers — one closed match over `Curve3`, every
         // arm an EXACT native AP214 entity (crate docs, "the analytic

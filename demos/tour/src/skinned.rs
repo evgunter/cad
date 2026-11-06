@@ -506,12 +506,8 @@ fn struts(body: &pncad::topo::Body<f64>) -> Vec<[f64; 4]> {
     let at = |v| pncad::topo::readback::vertex_point(body, v).expect("a live vertex");
     let mut out: Vec<[f64; 4]> = body
         .edges()
-        .filter_map(|(_, e)| {
-            let a = body
-                .get_half_edge(e.he_plus)
-                .expect("a live half-edge")
-                .start;
-            let b = body.half_edge_end(e.he_plus).expect("a forward half");
+        .filter_map(|(k, _)| {
+            let (a, b) = body.edge_vertices(k).expect("a live edge");
             let (p, q) = (at(a), at(b));
             let (lo, hi) = if p.z < q.z { (p, q) } else { (q, p) };
             (lo.z == 0.0 && hi.z == 2.0).then_some([lo.x, lo.y, hi.x, hi.y])
