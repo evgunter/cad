@@ -2,7 +2,7 @@
 id: boolean-error-states-no-standing
 kind: issue
 title: BooleanError states no standing, so a wrapper that keeps one (OverlapRefusal::Boundary, ::Corner) must abort on every kind but Escalated
-status: open
+status: dispatched
 opened: 2026-11-06
 priority: P3
 cost: M

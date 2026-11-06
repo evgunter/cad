@@ -2,7 +2,7 @@
 id: carrier-speed-is-re-spelled-with-a-default-arm-in-import
 kind: issue
 title: A carrier's speed is re-spelled per kind beside carrier_speed, one copy with a default arm
-status: open
+status: dispatched
 opened: 2026-11-02
 priority: P2
 cost: E

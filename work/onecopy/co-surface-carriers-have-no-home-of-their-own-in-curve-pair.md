@@ -2,7 +2,7 @@
 id: co-surface-carriers-have-no-home-of-their-own-in-curve-pair
 kind: issue
 title: Two carriers on one surface have no co-surface reading in curve_pair; a lane can hand them to meet, whose 3D gap is identically zero ([ev]: C5 sentence + OnSurface type)
-status: open
+status: dispatched
 opened: 2026-11-06
 priority: P2
 cost: M
