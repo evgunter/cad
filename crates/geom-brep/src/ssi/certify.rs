@@ -4181,15 +4181,38 @@ mod tests {
     /// break's floor is no more than the residual there: a conversion
     /// that divided by too much, or floored by too little, reads red.
     #[test]
-    #[allow(clippy::unwrap_used)]
     fn a_torus_carriers_limb_two_holds_its_sampled_residual() {
+        let mut rng = test_utils::fuzz::start("torus limb 2");
+        torus_limb_two_holds(
+            &mut rng,
+            test_utils::fuzz::scaled(40),
+            &test_utils::fuzz::replay(),
+        );
+    }
+
+    /// **The sample's own rounding is not the bound's**: this seed draws
+    /// a tube of radius 2e-3 about 1.27 from the origin, where the
+    /// sampled residual at span 3's t = 1/3 reads 8e-17 over its bound
+    /// while the residual of the f64 data, read exactly, is 1.5e-17 under
+    /// it. The slack charges the sample's evaluation at the point's own
+    /// scale.
+    #[test]
+    fn a_small_torus_far_out_is_not_read_over_its_bound_by_the_sample() {
+        // The stream `fuzz::start("torus limb 2")` opens at
+        // CAD_FUZZ_SEED=0x16381c9c5b5fb469: that seed with the label mixed in.
+        let mut rng = test_utils::fuzz::pinned("torus limb 2, far out", 0x7a21_e04f_c1ae_c3a1);
+        torus_limb_two_holds(&mut rng, 40, "the pinned seed");
+    }
+
+    /// [`a_torus_carriers_limb_two_holds_its_sampled_residual`]'s body,
+    /// over `cases` draws of `rng`, each failure naming `replay`.
+    #[allow(clippy::unwrap_used)]
+    fn torus_limb_two_holds(rng: &mut test_utils::fuzz::Rng, cases: usize, replay: &str) {
         use crate::ssi::enclose::tests::{on_torus, torus};
         use geom::NurbsCurve3;
         use geom_core::spline::KnotVector;
         use geom_core::{Point3, Vec3};
-        use test_utils::fuzz;
-        let mut rng = fuzz::start("torus limb 2");
-        for _ in 0..fuzz::scaled(40) {
+        for _ in 0..cases {
             let small = rng.log_uniform(1e-3, 1.0);
             let big = small * rng.range(0.5, 30.0);
             let c = [
@@ -4225,28 +4248,36 @@ mod tests {
             let carrier = NurbsCurve3::new(knots, points, vec![1.0; 6]).unwrap();
             let cuts: Vec<f64> = (1..8).map(|k| f64::from(k) / 8.0).collect();
             let (at, sup, spans, floors) = torus_readings(&carrier, &torus, &cuts);
-            let ctx = format!("{torus:?}, lift {lift:e}: {}", fuzz::replay());
+            let ctx = format!("{torus:?}, lift {lift:e}: {replay}");
             assert!(
                 sup.is_finite() || big <= small,
                 "a ring torus's bound: {ctx}"
             );
-            let residual =
-                |t: f64| crate::implicit::implicit_residual(&torus, carrier.eval(t)).abs();
-            let slack = |x: f64| x * (1.0 + 1e-9) + 1e-15 * big;
+            // The sample is read in f64 at the point, so it carries the
+            // point's own rounding, at the point's scale (its distance
+            // from the origin), whatever the torus's size; the bound is
+            // of the residual of the f64 data, read exactly.
+            let residual = |t: f64| {
+                let at = carrier.eval(t);
+                let scale = (at - Point3::origin()).norm();
+                (crate::implicit::implicit_residual(&torus, at).abs(), scale)
+            };
+            let slack =
+                |x: f64, scale: f64| x * (1.0 + 1e-9) + 1e-15 * big + 8.0 * f64::EPSILON * scale;
             for (j, span) in spans.iter().enumerate() {
                 for k in 0..=16 {
                     let t = at[j] + (at[j + 1] - at[j]) * f64::from(k) / 16.0;
-                    let m = residual(t);
+                    let (m, scale) = residual(t);
                     assert!(
-                        span.is_nan() || m <= slack(*span),
+                        span.is_nan() || m <= slack(*span, scale),
                         "span {j} at {t}: residual {m:e} over its bound {span:e}; {ctx}"
                     );
                 }
             }
             for (j, floor) in floors.iter().enumerate() {
-                let m = residual(at[j]);
+                let (m, scale) = residual(at[j]);
                 assert!(
-                    *floor <= slack(m),
+                    *floor <= slack(m, scale),
                     "break {j}: floor {floor:e} over the residual {m:e}; {ctx}"
                 );
             }
