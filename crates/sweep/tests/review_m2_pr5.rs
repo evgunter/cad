@@ -1281,6 +1281,7 @@ fn survives_near_tangent_arc_join_classification() {
         Err(ProfileError::Escalated {
             site: EscalationSite::SegmentPair(first, second),
             source,
+            ..
         }) => {
             assert_eq!(
                 (first.segment_index, second.segment_index),

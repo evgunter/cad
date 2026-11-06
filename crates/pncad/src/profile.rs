@@ -108,6 +108,12 @@ pub use ::profile::{
     JointCarriers, LoopRole, NoCornerReason, ProfileError, SegmentKind, SegmentRef, ValidatedLoop,
     ValidatedProfile, ValidatedSegment, ValueNotAPoint,
 };
+// The gate an escalation carries (`ProfileError::Escalated`,
+// `PathError::Escalated`, a guided refusal's; its ending kind is
+// `geom_core::EndingKind`), the path door's escalation site, and which
+// read-back a constructed arc missed (`PathError::ArcMissesAuthoredPoint`
+// and its sibling).
+pub use ::profile::{ArcRead, EscalatedAt, Gate};
 
 // **The structure record and the guided doors.** One vocabulary, and
 // it is carried whole for a reason the split would break: a lifted
