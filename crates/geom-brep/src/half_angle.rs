@@ -352,6 +352,11 @@ pub struct TouchRows {
     pub convex: &'static str,
     /// The most residual, in metres, over the arc of the piece where `F`
     /// lies on the far side of zero from its ends: zero is one touch.
+    /// Where `F` does not reach zero on the piece (no root: `G(θ*)` is
+    /// past zero and the fall's first term clamps at zero), the arc is
+    /// empty and the fall is the slope's share alone; the touch is then
+    /// the extremum's near-miss, whose own residual reads in the zero
+    /// band (`side`).
     pub stretch: &'static str,
 }
 

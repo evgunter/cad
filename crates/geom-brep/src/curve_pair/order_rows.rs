@@ -795,6 +795,8 @@ fn a_near_miss_in_the_gap_beside_no_meeting_escalates() {
 /// code with the reader: a grid of 400 pieces, then 90 golden-section
 /// steps about the grid's least. On the poses read here the least lies in
 /// one valley of each grid piece, and it is read to far below the band.
+/// Over a whole turn the domain's ends name one point, so the least's
+/// bracket runs a piece either side of it across the seam.
 fn oracle_least(f: &dyn Fn(f64) -> f64, (lo, hi): (f64, f64)) -> f64 {
     let n = 400;
     let step = (hi - lo) / f64::from(n);
@@ -802,10 +804,14 @@ fn oracle_least(f: &dyn Fn(f64) -> f64, (lo, hi): (f64, f64)) -> f64 {
     let best = (0..=n)
         .min_by(|&i, &j| f(at(i)).total_cmp(&f(at(j))))
         .unwrap();
-    let (mut l, mut h) = (
-        at(best.saturating_sub(1)).max(lo),
-        (at(best) + step).min(hi),
-    );
+    let (mut l, mut h) = if (hi - lo - TAU).abs() < 1e-12 {
+        (at(best) - step, at(best) + step)
+    } else {
+        (
+            at(best.saturating_sub(1)).max(lo),
+            (at(best) + step).min(hi),
+        )
+    };
     let g = 0.5 * (5f64.sqrt() - 1.0);
     for _ in 0..90 {
         let (x1, x2) = (h - g * (h - l), l + g * (h - l));
@@ -816,6 +822,20 @@ fn oracle_least(f: &dyn Fn(f64) -> f64, (lo, hi): (f64, f64)) -> f64 {
         }
     }
     f(0.5 * (l + h)).min(f(at(best)))
+}
+
+/// **The oracle reads a least at a whole turn's seam.** Points of the
+/// unit circle at angles within a grid piece of `±π` (the domain's two
+/// ends, one point): each is on the circle, and the oracle reads it so.
+/// Red where the least's bracket is clamped at the seam, which reads such
+/// a point up to `8·10⁻³` off.
+#[test]
+fn the_oracle_reads_a_least_across_a_whole_turns_seam() {
+    let c = Curve3::circle(Point3::origin(), Vec3::unit_z(), 1.0, Vec3::unit_x());
+    for theta in [4.6e-3 - PI, 1.6e-3 - PI, PI - 1e-3, PI, -PI, PI - 1.16e-2] {
+        let gap = point_gap(c.eval(theta), &c, (-PI, PI));
+        assert!(gap < 1e-12, "angle {theta}: read {gap:e} off the circle");
+    }
 }
 
 /// **`p`'s least distance from the span `sb` of `b`** ([`oracle_least`]).
