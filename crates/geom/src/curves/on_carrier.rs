@@ -415,7 +415,7 @@ impl<T: Decide> Curve3<T> {
         };
         let knots = n.knot_values();
         let (lo, hi) = knots.domain();
-        let breaks: Vec<T> = knots.runs().map(|(k, _)| k).collect();
+        let breaks: Vec<T> = knots.breakpoints().collect();
         let mut samples = vec![self.foot_at(q, lo)];
         for k in breaks.windows(2) {
             samples.extend(

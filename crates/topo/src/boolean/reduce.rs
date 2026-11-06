@@ -4212,8 +4212,7 @@ fn spline_off_carrier<T: Decide>(
         return false;
     }
     // Clamped, so the first and last runs are the domain's ends.
-    let breaks =
-        |knots: &geom_core::spline::Knots<T>| -> Vec<T> { knots.runs().map(|(v, _)| v).collect() };
+    let breaks = |knots: &geom_core::spline::Knots<T>| -> Vec<T> { knots.breakpoints().collect() };
     let (bu, bv) = (breaks(sheet.knot_values_u()), breaks(sheet.knot_values_v()));
     // The piece's centre, then four points about it, as fractions of
     // its two sides.

@@ -3406,7 +3406,7 @@ fn spans_of(
     };
     let whole = composite_of(&data)?;
     let (whole_breaks, whole_sup) = (whole.num.breaks().to_vec(), whole.span_sup_bounds());
-    let runs: Vec<f64> = knots.knot_runs().map(|(k, _)| k).collect();
+    let runs: Vec<f64> = knots.breakpoints().collect();
     let mut all_cuts: Vec<f64> = runs
         .windows(2)
         .flat_map(|w| {

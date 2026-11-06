@@ -283,8 +283,7 @@ pub(super) fn sweep(
     // knot that is no crease has a derivative along the line that is
     // continuous and zero there, which the pieces beside it read.
     let knots = |k: &geom_core::spline::Knots<f64>, d: (f64, f64)| {
-        k.runs()
-            .map(|(t, _)| t)
+        k.breakpoints()
             .filter(|&t| d.0 < t && t < d.1)
             .collect::<Vec<_>>()
     };
