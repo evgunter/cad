@@ -2,9 +2,12 @@
 id: a-point-against-a-pieced-curve-is-read-by-three-walks-and-sorted-twice
 kind: issue
 title: A point against a pieced curve is read by three clearance walks with three stop rules, its site refusal sorted at two sites, and the census spells the walk's refusal its own way
-status: open
+status: closed
 priority: P3
 opened: 2026-11-06
+closed: 2026-11-06
+pr: 6571
+branch: onecopy/spline-walks
 ---
 
 

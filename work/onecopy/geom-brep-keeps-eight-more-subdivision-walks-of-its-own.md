@@ -2,9 +2,12 @@
 id: geom-brep-keeps-eight-more-subdivision-walks-of-its-own
 kind: issue
 title: geom-brep keeps eight more hand-rolled subdivision walks beside geom_core::bisect_within, found by the sweep that ported the first eight
-status: open
+status: closed
 opened: 2026-11-06
 priority: P3
+closed: 2026-11-06
+pr: 6571
+branch: onecopy/spline-walks
 ---
 
 
