@@ -1,0 +1,72 @@
+# Every production `?` on a band decision inside a loop body, counted per
+# file (scripts/gates/escalation-question-marks.sh). A loop that returns
+# its first undecided reading refuses where a later reading would answer
+# definitely: that is `geom_brep::ladder::climb`'s job. A new site reds
+# until it is registered here with why its `?` is not a search's kept
+# reading; a count that falls reds until it is lowered.
+#
+# HAND-ROLLED: a search or an identity that returns an escalation ahead
+# of a later reading that could answer. Each is listed, with its port, in
+# work/onecopy/question-mark-ladders-the-gate-registered.md; lower the
+# count here as each is ported.
+#
+# solid_contain: point_in_faces's six on-face reads (any face holding the
+# point answers OnBoundary), hand-rolled; ray_crossings's denominator, a
+# crossing count, which needs every face.
+crates/topo/src/boolean/solid_contain.rs 7
+# rim_wedge: departures's abut (either pair abutting answers) and rides
+# (either end off the line answers "not"), hand-rolled; sort_params, a
+# sort, needs every comparison; reach reads every arc's traversal.
+crates/topo/src/boolean/rim_wedge.rs 4
+# containment: certify_plane (any margin decided apart answers "off the
+# plane"), hand-rolled; conic_crossings, a crossing count, needs both roots.
+crates/topo/src/splitting/containment.rs 2
+# sectors: the crescent search's two reads (a crescent found answers),
+# hand-rolled.
+crates/topo/src/boolean/sectors.rs 2
+# join: conic_pairs's first cut (which gap is first decided apart answers),
+# hand-rolled.
+crates/topo/src/splitting/join.rs 1
+# shell: the moved walls' overlap search (an overlap found answers),
+# hand-rolled.
+crates/topo/src/shell.rs 1
+# surface_group: Rim::holds (any coaxial margin decided apart answers "no"),
+# hand-rolled.
+crates/topo/src/boolean/surface_group.rs 1
+# reduce: the line-cone apex end search (an end at the apex answers),
+# hand-rolled.
+crates/topo/src/boolean/reduce.rs 1
+# ring_path: the lead-point read (an arc that is not a point answers
+# None), hand-rolled.
+crates/topo/src/ring_path.rs 1
+# offset_derive: nearest's comparison, an argmin whose in-band comparison
+# leaves the minimum open unless a later candidate is decided nearer than
+# both; listed with the hand-rolled sites for that argument.
+crates/topo/src/offset_derive.rs 1
+# loft stacking: rim_pinned (any pair decided apart answers "not pinned"),
+# hand-rolled.
+crates/sweep/src/loft/stacking.rs 1
+#
+# NOT A SEARCH: every element is needed, so the first refusal is as good
+# as any, or the read is the premise every later one needs.
+#
+# replace_face: every move's apex nappe and window.
+crates/topo/src/replace_face.rs 2
+# ray_walk: ray_crossings, a crossing count over every vertex and edge.
+crates/topo/src/ray_walk.rs 2
+# insert: section_chords's germ order, a sort over every group.
+crates/topo/src/splitting/insert.rs 1
+# edge_join: joinable reads both surfaces' chart class.
+crates/topo/src/boolean/edge_join.rs 1
+# blend battery: consumption_sweep strips every face.
+crates/sweep/src/blend/battery.rs 1
+# ssi section: roots decides every cluster's crossing.
+crates/geom-brep/src/ssi/section.rs 1
+# ssi march: each step's transversality, the premise of the next step.
+crates/geom-brep/src/ssi/march.rs 1
+# ssi ends: hermite reads both end states' transversality.
+crates/geom-brep/src/ssi/ends.rs 1
+# quartic: both quadratic factors' splits; every root is needed.
+crates/geom-brep/src/quartic.rs 1
+# props curved: sphere_boundary decides every edge's rim.
+crates/geom-brep/src/props/curved.rs 1

@@ -52,3 +52,26 @@ So the repair has two parts:
 
 This section leaves the row's verdict as it stands. No row in the
 topo + geom-brep `ci` set reaches a search that keeps both kinds.
+
+## 2026-11-06: `MeetFault` states its standing (onecopy/refusal-standing)
+
+`MeetFault::refusal` (`crates/geom-brep/src/curve_pair.rs`) now states
+each variant's standing beside its definition, for `boolean::overlap`'s
+witness search, which reads it through `BoundaryRefusal::refusal`:
+- `Escalated` and `Touch` are ranked by their margin;
+- `Unsettled` is unsettled, ranked after in band, as this row's dispute
+  above argues;
+- `Unsupported` is a limit;
+- `Desync` and `Contradiction` abort, as kernel faults.
+
+**Census does not read it yet.** Routing `InteriorsUnread::of` through
+`MeetFault::refusal` would move census's outcomes:
+- `Unsettled` would rank after an in-band escalation instead of ahead
+  of it (as `Unbuilt`);
+- `Desync` and `Contradiction` would stop the search instead of being
+  kept as `Unbuilt`.
+
+That is this row's decision to take, not a port's, so census is left as
+it is. Closing this row means `InteriorsUnread` reading
+`MeetFault::refusal` (with an abort kind, `Result<Refusal, Aborts>`)
+rather than re-ranking each fault in `InteriorsUnread::of`.
