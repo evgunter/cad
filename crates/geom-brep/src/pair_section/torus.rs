@@ -130,7 +130,7 @@ pub fn axis_pose<T: Decide>(
     ball: ExtentBall<T>,
     band: Band,
 ) -> AxisPose<T> {
-    let at = ball.foot_on(o, d);
+    let at = ball.foot_on(geom::Line { origin: o, dir: d });
     let tilt = a.cross(d).norm();
     if !matches!(
         geom_core::k_stats::decide(
@@ -254,7 +254,7 @@ impl<T: Decide> Ring<T> {
         else {
             return None;
         };
-        let axis = axis / axis.norm();
+        let axis = axis.normalize();
         let finite = [
             center.x, center.y, center.z, axis.x, axis.y, axis.z, u_ref.x, u_ref.y, u_ref.z,
         ]
@@ -868,7 +868,7 @@ impl<T: Decide> CylinderTorusPose<T> {
         Some((|| {
             radius_guard("ct_cylinder_radius", SectionRadius::Cylinder, radius, band)?;
             let ring = ring?;
-            let d = axis / axis.norm();
+            let d = axis.normalize();
             let line = Spine::Line(geom::Line { origin, dir: d });
             let sweep = || swept(ring, line, [ring.r, radius], &CT_GAP, band);
             let (stance, gap) = match axis_pose(

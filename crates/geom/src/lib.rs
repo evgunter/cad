@@ -182,7 +182,7 @@ pub use curves::{
     spiric_radial, spiric_rate_bounds, spiric_window_rate_bounds,
 };
 pub use datum::{AnalyticData, DatumValue};
-pub use frame::Frame;
+pub use frame::{Frame, plane_offset, plane_offset_rounded};
 pub use param::mid_param;
 pub use periodic::periodic_window_may_hold;
 // The §6.1 policy module is interior — its body is the argument for

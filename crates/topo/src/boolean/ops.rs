@@ -2491,7 +2491,7 @@ fn ball_against_plane<T: Decide>(
     normal: Vec3<T>,
     band: Band,
 ) -> Result<(NonzeroSign, T), geom_core::Indeterminate> {
-    let s = (center - origin).dot(normal);
+    let s = geom::plane_offset(origin, normal, center);
     let sign = crate::validate::decide_nonzero(
         "bool_sphere_extent_gap",
         Margin::of(radius - s.abs()),
@@ -7112,7 +7112,7 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
         let &geom::Surface::Sphere { axis, .. } = face.surface() else {
             return Err(corrupt("cut-in: the face is not on a sphere"));
         };
-        let axis = axis / axis.norm();
+        let axis = axis.normalize();
         // The meridian plane through the circle's centre direction, or
         // through a point of it where the circle is a rim of the chart.
         let toward = |d: Vec3<T>| axis.cross(d);
@@ -7126,7 +7126,7 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
                 ));
             }
         }
-        let k = k / k.norm();
+        let k = k.normalize();
         let h = k.cross(axis);
         // The cut's half-meridian, a curve on the face's sphere: its chart
         // framed on `h`, its meridian at azimuth `0`. A boundary arc lies
@@ -7161,7 +7161,7 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
                 "the section circle lies in its own meridian plane",
             ));
         }
-        let e = across / across.norm();
+        let e = across.normalize();
         let crossings = [cut.foot - e * cut.rho, cut.foot + e * cut.rho];
         for p in crossings {
             if sign("bool_sphere_cut_half", Margin::of(h.dot(p - cut.center)))? != Sign::Positive {

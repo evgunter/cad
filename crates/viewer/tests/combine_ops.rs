@@ -1209,6 +1209,7 @@ fn member_offsets(session: &mut DocSession, pattern: RecipeNodeId) -> Vec<[f64; 
     else {
         panic!("a family evaluates to its members");
     };
+    let instances = common::every_body(instances);
     instances
         .iter()
         .map(|member| {
@@ -1452,6 +1453,7 @@ fn member_motions(
     else {
         panic!("a family evaluates to its members");
     };
+    let instances = common::every_body(instances);
     instances
         .iter()
         .map(|member| {
@@ -1807,6 +1809,7 @@ fn a_skewed_grid_steps_along_both_its_picked_sides() {
     else {
         panic!("a grid evaluates to its members");
     };
+    let members = common::every_body(members);
     assert_eq!(members.len(), 6, "two by three members");
     let h = core::f64::consts::FRAC_1_SQRT_2;
     for (n, member) in members.iter().enumerate() {

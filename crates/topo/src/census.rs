@@ -1513,7 +1513,9 @@ fn distance<T: Decide>(geo: &Geo<T>, u: Point3<T>, cell: EntityId) -> Option<Mar
                 out(u.z, lo.z, hi.z),
             );
             Some(Margin::of(
-                to_box.norm().max((u - f.origin).dot(f.normal).abs()),
+                to_box
+                    .norm()
+                    .max(geom::plane_offset(f.origin, f.normal, u).abs()),
             ))
         }
         _ => None,
@@ -1601,7 +1603,7 @@ fn pair_holds_point<T: Decide>(
     errors: &mut Vec<ValidationError>,
 ) -> bool {
     for f in [fa, fb] {
-        let residual = (q - f.origin).dot(f.normal);
+        let residual = geom::plane_offset(f.origin, f.normal, q);
         if signed_is_zero(
             "pm_census_confined_carrier",
             Margin::of(residual),
@@ -1650,7 +1652,7 @@ fn pair_holds_edges<T: Decide>(
     for f in [fa, fb] {
         for e in [ea, eb] {
             for p in [e.p0, e.p1] {
-                let residual = (p - f.origin).dot(f.normal);
+                let residual = geom::plane_offset(f.origin, f.normal, p);
                 if signed_is_zero(
                     "pm_census_confined_carrier",
                     Margin::of(residual),
@@ -3309,7 +3311,7 @@ fn pair_vertex_face<T: Decide>(
                     });
                 }
             };
-            let residual = (q - f.origin).dot(f.normal);
+            let residual = geom::plane_offset(f.origin, f.normal, q);
             let mut refused = Vec::new();
             match signed_zero_reading(
                 "pm_census_vf_residual",
@@ -3577,7 +3579,7 @@ fn pair_edge_face<T: Decide>(
     {
         return;
     }
-    let r = [e.p0, e.p1].map(|p| (p - f.origin).dot(f.normal));
+    let r = [e.p0, e.p1].map(|p| geom::plane_offset(f.origin, f.normal, p));
     let read = r
         .map(|r| geom_core::k_stats::decide_reported("pm_census_ef_residual", Margin::of(r), band));
     let pair = EfPair {
@@ -7082,7 +7084,7 @@ pub(crate) fn face_reach<T: Decide>(
     f: crate::entity::FaceKey,
     band: Band,
 ) -> Option<(Point3<T>, Point3<T>)> {
-    face_reach_in(body, f, band, &crate::boolean::boxes::BoxFrame::World)
+    face_reach_in(body, f, band, &geom::cover::BoxAxes::World)
 }
 
 /// **The axis-aligned hull of `points`**: its low and high corners, each
@@ -7100,7 +7102,7 @@ pub(crate) fn point_hull<T: Decide>(
     }))
 }
 
-/// [`face_reach`] read in `frame` ([`crate::boolean::boxes::BoxFrame`]):
+/// [`face_reach`] read in `frame` ([`geom::cover::BoxAxes`]):
 /// every point and direction the rule reads enters through the frame,
 /// and every extent is the same one.
 ///
@@ -7116,7 +7118,7 @@ pub(crate) fn face_reach_in<T: Decide>(
     body: &Body<T>,
     f: crate::entity::FaceKey,
     band: Band,
-    frame: &crate::boolean::boxes::BoxFrame<T>,
+    frame: &geom::cover::BoxAxes<T>,
 ) -> Option<(Point3<T>, Point3<T>)> {
     let face = body.proven_face(f);
     let surface = face.surface();
@@ -7130,9 +7132,12 @@ pub(crate) fn face_reach_in<T: Decide>(
             // exclusion: the face's pairs refuse and its solid is never
             // the container, where dropping it would under-claim.
             geom::NetState::Placeholder | geom::NetState::Poisoned => None,
-            geom::NetState::Described => {
-                point_hull(patch.control().iter().map(|p| frame.point(*p)))
-            }
+            geom::NetState::Described => point_hull(
+                patch
+                    .control()
+                    .iter()
+                    .map(|p| crate::boolean::boxes::point_in(frame, *p)),
+            ),
         },
         crate::boolean::boxes::FaceBoxRule::SphereWindow { .. } => {
             Some(crate::boolean::boxes::sphere_reach(body, f, band, frame))
@@ -7146,8 +7151,8 @@ pub(crate) fn face_reach_in<T: Decide>(
         } => {
             use crate::boolean::boxes::{Span, SpanBox, meet, ring_window_extent, torus_extent};
             let (c, ax) = (
-                SpanBox::point(frame.point(center)),
-                SpanBox::vector(frame.vector(axis)),
+                SpanBox::point(crate::boolean::boxes::point_in(frame, center)),
+                SpanBox::vector(crate::boolean::boxes::vector_in(frame, axis)),
             );
             let whole = torus_extent(&c, &ax, major_radius, minor_radius);
             // The chart window from the boundary's own stored
@@ -7166,8 +7171,11 @@ pub(crate) fn face_reach_in<T: Decide>(
                     ring_window_extent(
                         &c,
                         (
-                            &SpanBox::vector(frame.vector(u_ref)),
-                            &SpanBox::vector(frame.vector(axis.cross(u_ref))),
+                            &SpanBox::vector(crate::boolean::boxes::vector_in(frame, u_ref)),
+                            &SpanBox::vector(crate::boolean::boxes::vector_in(
+                                frame,
+                                axis.cross(u_ref),
+                            )),
                             &ax,
                         ),
                         (Span::exact(major_radius), Span::exact(minor_radius)),
@@ -7189,8 +7197,10 @@ pub(crate) fn face_reach_in<T: Decide>(
             // necessarily at a boundary VERTEX.
             let h = boundary_axial(body, face, origin, axis.get())?;
             let slab = span_pts(crate::boolean::boxes::slab_extent(
-                &crate::boolean::boxes::SpanBox::point(frame.point(origin)),
-                &frame.unit(axis),
+                &crate::boolean::boxes::SpanBox::point(crate::boolean::boxes::point_in(
+                    frame, origin,
+                )),
+                &crate::boolean::boxes::unit_in(frame, axis),
                 h,
                 radius,
             ));
@@ -7221,8 +7231,11 @@ pub(crate) fn face_reach_in<T: Decide>(
             half_angle,
         } => {
             let h = boundary_axial(body, face, apex, axis)?;
-            let apex = crate::boolean::boxes::SpanBox::point(frame.point(apex));
-            let axis = crate::boolean::boxes::SpanBox::vector(frame.vector(axis));
+            let apex =
+                crate::boolean::boxes::SpanBox::point(crate::boolean::boxes::point_in(frame, apex));
+            let axis = crate::boolean::boxes::SpanBox::vector(crate::boolean::boxes::vector_in(
+                frame, axis,
+            ));
             Some(span_pts(crate::boolean::boxes::cone_frustum_extent(
                 &apex,
                 &axis,
@@ -7264,7 +7277,7 @@ fn held_reach_in<T: Decide>(
     body: &Body<T>,
     f: FaceKey,
     band: Band,
-    frame: &crate::boolean::boxes::BoxFrame<T>,
+    frame: &geom::cover::BoxAxes<T>,
 ) -> Option<(Point3<T>, Point3<T>)> {
     let (lo, hi) = face_reach_in(body, f, band, frame)?;
     let face = body.proven_face(f);
@@ -7354,7 +7367,7 @@ fn boundary_axial<T: Decide>(
 fn boundary_reach<T: Decide>(
     body: &Body<T>,
     face: FaceView<'_, T>,
-    frame: &crate::boolean::boxes::BoxFrame<T>,
+    frame: &geom::cover::BoxAxes<T>,
 ) -> Option<(Point3<T>, Point3<T>)> {
     let mut acc: Option<(Point3<T>, Point3<T>)> = None;
     let mut grow = |(lo, hi): (Point3<T>, Point3<T>)| {
@@ -7369,7 +7382,7 @@ fn boundary_reach<T: Decide>(
     for member in face.boundary() {
         match member {
             BoundaryMember::Isolated { point: p, .. } => {
-                let p = frame.point(p);
+                let p = crate::boolean::boxes::point_in(frame, p);
                 grow((p, p));
             }
             BoundaryMember::Edge { ek, edge, .. } => grow(edge_reach_of(body, ek, edge, frame)?),
@@ -7391,7 +7404,7 @@ fn boundary_reach<T: Decide>(
 pub(crate) fn edge_reach_in<T: Decide>(
     body: &Body<T>,
     ek: crate::entity::EdgeKey,
-    frame: &crate::boolean::boxes::BoxFrame<T>,
+    frame: &geom::cover::BoxAxes<T>,
 ) -> Option<(Point3<T>, Point3<T>)> {
     edge_reach_of(body, ek, proven(&body.edges, ek, EntityId::Edge), frame)
 }
@@ -7401,12 +7414,10 @@ fn edge_reach_of<T: Decide>(
     body: &Body<T>,
     ek: crate::entity::EdgeKey,
     e: &crate::entity::Edge,
-    frame: &crate::boolean::boxes::BoxFrame<T>,
+    frame: &geom::cover::BoxAxes<T>,
 ) -> Option<(Point3<T>, Point3<T>)> {
-    use crate::boolean::boxes::{cover_frame, edge_cover_linked};
-    edge_cover_linked(body, ek, e)
-        .ok()
-        .map(|c| c.box_in(&cover_frame(frame)))
+    use crate::boolean::boxes::edge_cover_linked;
+    edge_cover_linked(body, ek, e).ok().map(|c| c.box_in(frame))
 }
 
 /// A [`crate::boolean::boxes::SpanBox`] as this lane's `(lo, hi)`
@@ -7907,7 +7918,7 @@ mod self_touch_curved;
 
 impl TouchUnread {
     /// The cross-solid backstop's reason for a touch left unread.
-    fn refusal(self) -> Undecided {
+    fn undecided(self) -> Undecided {
         match self {
             Self::InBand => Undecided::TouchInBand,
             Self::PieceInBand => Undecided::TouchPieceInBand,
@@ -8035,7 +8046,7 @@ impl TouchVerdict {
                 Unrest::Undecided(Undecided::CorruptInstance),
                 Unrest::Crossing,
             )),
-            Self::Unread(why) => Some(Unrest::Undecided(why.refusal())),
+            Self::Unread(why) => Some(Unrest::Undecided(why.undecided())),
         }
     }
 
@@ -8742,6 +8753,25 @@ fn gather<T: Real>(
     Ok(holds)
 }
 
+/// **Every face of a link read into its sectors** by `read`, in turn:
+/// a ladder with no answer ([`Answering::First`]), since every face is
+/// needed. A refusal is kept by its standing ([`TouchUnread::refusal`]),
+/// and one of the whole query (an unreadable face, a corrupt one) stops
+/// it there. `None` where every face read.
+fn sectors_of_faces<F>(
+    faces: Vec<F>,
+    mut read: impl FnMut(F) -> Result<(), TouchUnread>,
+) -> Option<TouchUnread> {
+    let climbed = climb(Answering::First, faces, |face| match read(face) {
+        Ok(()) => Rung::Passes,
+        Err(why) => geom_brep::ladder::rung_or_abort(why.refusal(), why, |why| why),
+    });
+    match climbed {
+        Climb::Passed => None,
+        Climb::Answered { answer: why, .. } | Climb::Undecided(why) => Some(why),
+    }
+}
+
 impl<T: Decide> Germ<T> {
     /// **Solid `solid`'s material at the touch point of `keys`**: its
     /// faces there ([`gather`]) as [`Germ::of_holds`] reads them.
@@ -8797,24 +8827,15 @@ impl<T: Decide> Germ<T> {
                 reach: round.1,
             });
         }
-        // A curved face refuses at once; any other refusal waits until
-        // every face is tried. So a curved face anywhere in the link is
-        // what it refuses with, whatever order its faces are walked in.
+        // A face refusing the whole query stops the reading at once, so
+        // between two such faces the first in face order is what the link
+        // refuses with; every other refusal waits until every face is
+        // read, and is ranked ([`sectors_of_faces`]).
         let mut sectors = Vec::with_capacity(faces.len());
-        let mut refused = None;
-        for (f, hs) in faces {
-            match FaceSector::of(body, geo, f, p, &hs, band) {
-                Ok(s) => sectors.extend(s),
-                Err(TouchUnread::Unreadable) => return Err(TouchUnread::Unreadable),
-                Err(v) => {
-                    refused.get_or_insert(v);
-                }
-            }
-        }
-        if let Some(v) = refused {
-            return Err(v);
-        }
-        Link::of(p, sectors).map(Germ::Link)
+        let read = sectors_of_faces(faces, |(f, hs)| {
+            FaceSector::of(body, geo, f, p, &hs, band).map(|s| sectors.extend(s))
+        });
+        read.map_or_else(|| Link::of(p, sectors).map(Germ::Link), Err)
     }
 }
 
@@ -9243,7 +9264,7 @@ type WorldReach<T> = (Point3<T>, Point3<T>);
 /// positive at this lane's scalar. Each reach encloses its face's locus
 /// along that direction, so the gap proves the loci disjoint, as a
 /// world-axis gap does. The pad covers the aimed frame's rounding
-/// ([`crate::boolean::boxes::BoxFrame`]), so the clear does not rest on
+/// ([`geom::cover::BoxAxes`]), so the clear does not rest on
 /// the user-set escalate threshold.
 fn backstop_apart<T: Decide>(
     body: &Body<T>,
@@ -9266,6 +9287,83 @@ fn backstop_apart<T: Decide>(
         band,
         &|body, f, frame| held_reach_in(body, f, band, frame),
     )
+}
+
+/// What the material test of one ordering read: every vertex of
+/// `inner` against `outer`'s material ([`probe_vertices`]).
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) enum Probe {
+    /// A vertex of `inner` strictly inside `outer`'s material.
+    In(VertexKey),
+    /// The door refused a vertex (and none was `In`).
+    Refused(&'static str),
+    /// Every vertex on `outer`'s boundary.
+    AllOn,
+    /// Every vertex outside or on the boundary, at least one outside.
+    Clear,
+    /// `inner` has no vertex to probe.
+    NoVertex,
+}
+
+/// **The material test of one ordering**: each of `vertices`, the
+/// vertices of `inner`, placed against `outer`'s material by `place`, in
+/// turn. Every vertex strictly inside says the same, so any answers
+/// ([`Answering::Any`]); a vertex `exempt` names is passed; a refusal is
+/// kept by its standing (`PointInSolidError::refusal`) with its reason
+/// ([`Undecided::of_point_in_solid`]), and one of the whole query stops
+/// the probe with its reason.
+pub(crate) fn probe_vertices<P: Copy>(
+    vertices: &[(VertexKey, P)],
+    mut place: impl FnMut(P) -> Result<SolidContainment, crate::boolean::PointInSolidError>,
+    exempt: impl Fn(VertexKey) -> bool,
+) -> Probe {
+    let (mut out_seen, mut any) = (false, false);
+    let climbed = climb(Answering::Any, vertices, |&(v, p)| {
+        any = true;
+        match place(p) {
+            Ok(SolidContainment::In) => Rung::Answers(Ok(v)),
+            Ok(placed) => {
+                out_seen |= placed == SolidContainment::Out;
+                Rung::Passes
+            }
+            Err(_) if exempt(v) => Rung::Passes,
+            Err(e) => geom_brep::ladder::rung_or_abort(
+                e.refusal(),
+                Undecided::of_point_in_solid(&e).what(),
+                Err,
+            ),
+        }
+    });
+    match climbed {
+        Climb::Answered { answer: Ok(v), .. } => Probe::In(v),
+        Climb::Answered {
+            answer: Err(what), ..
+        }
+        | Climb::Undecided(what) => Probe::Refused(what),
+        Climb::Passed if !any => Probe::NoVertex,
+        Climb::Passed if out_seen => Probe::Clear,
+        Climb::Passed => Probe::AllOn,
+    }
+}
+
+/// **Whether vertex `v`'s touch against `outer` was answered in band**:
+/// an unread pair hiding no overlap answered for it
+/// ([`Declared::absorb`]), so it lies in band of `outer`'s boundary and
+/// that pair's finding stands for it. A placement the door refuses there
+/// hides no overlap thicker than the band, so the material probe passes
+/// it ([`probe_vertices`]).
+pub(crate) fn answered_in_band(
+    answered: &[((EntityId, EntityId), Undecidable)],
+    solid_of_entity: impl Fn(EntityId) -> Option<crate::SolidKey>,
+    outer: crate::SolidKey,
+    v: VertexKey,
+) -> bool {
+    let v = EntityId::Vertex(v);
+    answered.iter().any(|&((x, y), reason)| {
+        reason == Undecidable::ThinInBand
+            && ((x == v && solid_of_entity(y) == Some(outer))
+                || (y == v && solid_of_entity(x) == Some(outer)))
+    })
 }
 
 /// **The conservative loudness backstop** (M9-2 union fix F1): the
@@ -10019,7 +10117,7 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
                     // above: here the two resolvers of a finding's
                     // solids disagree, and nothing clears on that.
                     Said::Pierce | Said::Wedges(None) => Some(Undecided::Unresolved),
-                    Said::Wedges(Some(why)) => Some(why.refusal()),
+                    Said::Wedges(Some(why)) => Some(why.undecided()),
                     Said::CurvedTouch => Some(Undecided::TouchUnreadable),
                     Said::FacePair(a, b) => (!declared.confirmed.contains(&(a, b)))
                         .then_some(Undecided::TouchUnreadable),
@@ -10074,24 +10172,9 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
     };
     // ---- The material test of one ordering: every vertex of `inner`
     // against `outer`'s material.
-    enum Probe {
-        /// A vertex of `inner` strictly inside `outer`'s material.
-        In(VertexKey),
-        /// The door refused a vertex (and none was `In`).
-        Refused(&'static str),
-        /// Every vertex on `outer`'s boundary.
-        AllOn,
-        /// Every vertex outside or on the boundary, at least one outside.
-        Clear,
-        /// `inner` has no vertex to probe.
-        NoVertex,
-    }
     // One selection per container, shared by every pair it outers, so
     // its side at infinity is read once.
-    let selections: std::collections::BTreeMap<
-        SolidKey,
-        std::sync::OnceLock<Result<crate::boolean::SolidFaces, crate::boolean::PointInSolidError>>,
-    > = body
+    let selections: std::collections::BTreeMap<SolidKey, std::sync::OnceLock<_>> = body
         .solids()
         .map(|(s, _)| (s, std::sync::OnceLock::new()))
         .collect();
@@ -10104,42 +10187,18 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
             Ok(sel) => sel,
             Err(e) => return Probe::Refused(Undecided::of_point_in_solid(e).what()),
         };
-        // A vertex whose touch against `outer` an unread pair hiding no
-        // overlap answered for ([`Declared::absorb`]) lies in band of
-        // `outer`'s boundary, and that pair's finding stands for it: a
-        // placement the door refuses there hides no overlap thicker than
-        // the band.
-        let answered_in_band = |v: VertexKey| {
-            let v = EntityId::Vertex(v);
-            answered.iter().any(|&((x, y), reason)| {
-                reason == Undecidable::ThinInBand
-                    && ((x == v && solid_of_entity(y) == Some(outer))
-                        || (y == v && solid_of_entity(x) == Some(outer)))
-            })
-        };
-        let (mut refused, mut out_seen, mut any) = (None, false, false);
-        for &(v, p) in geo
+        let exempt = |v| answered_in_band(answered, solid_of_entity, outer, v);
+        let vertices: Vec<_> = geo
             .verts
             .iter()
             .filter(|(v, _)| vertex_solid(*v) == Some(inner))
-        {
-            any = true;
-            match crate::boolean::point_in_solid_faces(body, sel, p, band, tol) {
-                Ok(SolidContainment::In) => return Probe::In(v),
-                Ok(SolidContainment::Out) => out_seen = true,
-                Ok(SolidContainment::OnBoundary) => {}
-                Err(_) if answered_in_band(v) => {}
-                Err(e) => {
-                    refused.get_or_insert(Undecided::of_point_in_solid(&e).what());
-                }
-            }
-        }
-        match (any, refused, out_seen) {
-            (false, _, _) => Probe::NoVertex,
-            (_, Some(what), _) => Probe::Refused(what),
-            (_, None, true) => Probe::Clear,
-            (_, None, false) => Probe::AllOn,
-        }
+            .copied()
+            .collect();
+        probe_vertices(
+            &vertices,
+            |p| crate::boolean::point_in_solid_faces(body, sel, p, band, tol),
+            exempt,
+        )
     };
     // The pre-filter over the instances' extents (`Trees` docs): a
     // solid's extent is its vertex hull joined with its reach box,
@@ -10483,7 +10542,7 @@ fn confirm_edge_face<T: Decide>(
         for p in [e.p0, e.p1] {
             match signed_is_zero(
                 "pm_census_confirm_ef",
-                Margin::of((p - f.origin).dot(f.normal)),
+                Margin::of(geom::plane_offset(f.origin, f.normal, p)),
                 band,
                 errors,
             ) {
@@ -16950,7 +17009,7 @@ mod tests {
                 panic!("{scale}: the corner's link built");
             };
             assert_eq!(verdict, TouchUnread::ChordScale, "{scale}");
-            assert_eq!(verdict.refusal(), Undecided::TouchChordScale, "{scale}");
+            assert_eq!(verdict.undecided(), Undecided::TouchChordScale, "{scale}");
         }
     }
 
@@ -18308,10 +18367,10 @@ mod tests {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod torn_reach_rows {
     use crate::body::Body;
-    use crate::boolean::boxes::BoxFrame;
     use crate::entity::{EntityId, FaceKey, GeomRef, HalfEdgeKey, LoopBoundary};
     use crate::live::OPERATORS_KEEP_LINKS;
     use crate::review_d18::{ROW_FOUR, assert_torn_op_panics};
+    use geom::cover::BoxAxes;
     use geom_core::{Band, Tol};
 
     fn band() -> Band {
@@ -18327,7 +18386,7 @@ mod torn_reach_rows {
     }
 
     fn reach(body: &Body<f64>, face: FaceKey) -> bool {
-        super::face_reach_in(body, face, band(), &BoxFrame::World).is_some()
+        super::face_reach_in(body, face, band(), &BoxAxes::World).is_some()
     }
 
     /// The face's surface, `boundary_reach` and the edge rule, on a cube
@@ -18372,7 +18431,7 @@ mod torn_reach_rows {
         let mut torn = body.clone();
         let edge = torn.get_half_edge(first_member(&torn, face)).unwrap().edge;
         assert!(
-            super::edge_reach_in(&torn, edge, &BoxFrame::World).is_some(),
+            super::edge_reach_in(&torn, edge, &BoxAxes::World).is_some(),
             "the sound edge has a reach"
         );
         let curve = torn.get_edge(edge).unwrap().curve;
@@ -18392,7 +18451,7 @@ mod torn_reach_rows {
             "edge_reach_in (curve)",
             &mut torn,
             &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
-            |b| super::edge_reach_in(b, edge, &BoxFrame::World).is_some(),
+            |b| super::edge_reach_in(b, edge, &BoxAxes::World).is_some(),
         );
 
         // An edge end's point, which the edge rule reads before the curve.
@@ -21762,6 +21821,69 @@ mod arc_interiors {
                 "the half over [{t0}, {t1}]"
             );
         }
+    }
+}
+
+/// **A link's faces are read as a ladder with no answer**
+/// ([`sectors_of_faces`]): a limit outranks an in-band refusal read
+/// before it, an unsettled one ranks last, and the first refusal of the
+/// whole query stops the reading there. Fed the readings directly, since
+/// no body a constructor builds refuses at two faces of one link.
+#[cfg(test)]
+mod link_faces_ranking {
+    use super::{TouchUnread, sectors_of_faces};
+    use crate::link::EdgeTangentUnread;
+
+    fn read(faces: Vec<Result<(), TouchUnread>>) -> Option<TouchUnread> {
+        sectors_of_faces(faces, |face| face)
+    }
+
+    #[test]
+    fn a_links_faces_rank_their_refusals_by_standing() {
+        assert_eq!(
+            read(vec![Err(TouchUnread::InBand), Err(TouchUnread::Degenerate)]),
+            Some(TouchUnread::Degenerate),
+            "a limit outranks an in-band refusal read before it"
+        );
+        assert_eq!(
+            read(vec![
+                Err(TouchUnread::EdgeTangent(EdgeTangentUnread::Unwalked(
+                    geom::PieceWalkRefusal::Exhausted,
+                ))),
+                Err(TouchUnread::InBand)
+            ]),
+            Some(TouchUnread::InBand),
+            "an unsettled refusal ranks after one in band"
+        );
+        assert_eq!(
+            read(vec![
+                Err(TouchUnread::InBand),
+                Err(TouchUnread::EdgeTangent(EdgeTangentUnread::Unwalked(
+                    geom::PieceWalkRefusal::Unbounded,
+                ))),
+            ]),
+            Some(TouchUnread::EdgeTangent(EdgeTangentUnread::Unwalked(
+                geom::PieceWalkRefusal::Unbounded,
+            ))),
+            "a walk with no speed bound is a limit, outranking an in-band refusal"
+        );
+        assert_eq!(
+            read(vec![
+                Err(TouchUnread::Corrupt),
+                Err(TouchUnread::Unreadable)
+            ]),
+            Some(TouchUnread::Corrupt),
+            "the first refusal of the whole query stops the reading"
+        );
+        assert_eq!(
+            read(vec![
+                Err(TouchUnread::Degenerate),
+                Err(TouchUnread::Unreadable)
+            ]),
+            Some(TouchUnread::Unreadable),
+            "an unreadable face is what a link refuses with, past a limit"
+        );
+        assert_eq!(read(vec![Ok(()), Ok(())]), None, "every face read");
     }
 }
 

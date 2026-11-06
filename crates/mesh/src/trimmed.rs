@@ -866,10 +866,7 @@ impl TrimmedFace<'_> {
     /// NURBS arm, whose winding the census does not read.
     fn outward(&self, p: Point3<f64>) -> Option<geom_core::Vec3<f64>> {
         let radial = match *self.lane {
-            Lane::Cylinder { origin, axis, .. } => {
-                let d = p - origin;
-                d - axis * d.dot(axis)
-            }
+            Lane::Cylinder { origin, axis, .. } => geom::Line { origin, dir: axis }.offset(p),
             Lane::Sphere { center, .. } => p - center,
             Lane::Nurbs { .. } => return None,
         };

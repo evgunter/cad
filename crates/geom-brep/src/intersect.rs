@@ -1141,7 +1141,7 @@ pub(crate) struct RuledFrame<T: Real> {
 /// [`RuledFrame`] of the pair at `reach`.
 pub(crate) fn ruled_frame<T: Decide>(pc: &PlaneCylinder<T>, reach: &Reach<T>) -> RuledFrame<T> {
     let &PlaneCylinder { q, n, o, a, .. } = pc;
-    let o = reach.foot_on(o, a);
+    let o = reach.foot_on(geom::Line { origin: o, dir: a });
     let c = a.dot(n);
     let gap_signed = (o - q).dot(n);
     // The rulings this lane mints stand on the hinge through `o − n·gap`,
@@ -1338,10 +1338,10 @@ pub fn plane_sphere_section<T: Decide>(
         ),
         band,
     ) {
-        Ok(Sign::Positive) => seam_cand / seam_cand.norm(),
+        Ok(Sign::Positive) => seam_cand.normalize(),
         Ok(Sign::Zero | Sign::Negative) | Err(_) => {
             let polar_cand = n.cross(sph_axis);
-            polar_cand / polar_cand.norm()
+            polar_cand.normalize()
         }
     };
     match decide("ps_center_gap", Margin::of(r - s.abs()), band).map_err(SectionError::Escalated)? {
@@ -1554,10 +1554,10 @@ fn ss_frame_seam<T: Decide>(
         Margin::levered(seam_cand.norm() - T::from_f64(0.5), lever),
         band,
     ) {
-        Ok(Sign::Positive) => seam_cand / seam_cand.norm(),
+        Ok(Sign::Positive) => seam_cand.normalize(),
         Ok(Sign::Zero | Sign::Negative) | Err(_) => {
             let polar_cand = n.cross(axis);
-            polar_cand / polar_cand.norm()
+            polar_cand.normalize()
         }
     }
 }
@@ -1711,7 +1711,7 @@ pub fn cylinder_axes_parallel_reported<T: Decide>(
         "cc_axes_parallel",
         Margin::levered(
             line1.1.cross(line2.1).norm(),
-            reach.lever_between(line1, line2),
+            reach.lever_between(axis_line(line1), axis_line(line2)),
         ),
         band,
     )
@@ -1739,7 +1739,7 @@ pub(crate) fn parallel_swing<T: geom_core::spline::SpanLocate>(
     d: T,
 ) -> T {
     let from = |this: (Point3<T>, Vec3<T>), other: (Point3<T>, Vec3<T>)| {
-        let (foot, lever) = reach.foot_lever(this);
+        let (foot, lever) = reach.foot_lever(axis_line(this));
         let (dmin, dmax) = separation_range((foot, this.1), other, lever.length());
         (dmax - d).abs().max((d - dmin).abs())
     };
@@ -1818,8 +1818,14 @@ fn axes_feet<T: geom_core::spline::SpanLocate>(
     (o1, a1): (Point3<T>, Vec3<T>),
     (o2, a2): (Point3<T>, Vec3<T>),
 ) -> (Point3<T>, Vec3<T>) {
-    let foot1 = reach.foot_on(o1, a1);
-    (foot1, reach.foot_on(o2, a2) - foot1)
+    let foot1 = reach.foot_on(axis_line((o1, a1)));
+    (foot1, reach.foot_on(axis_line((o2, a2))) - foot1)
+}
+
+/// An axis as this module's rows carry it, `(origin, axis)`, read as
+/// its [`geom::Line`].
+pub(crate) fn axis_line<T: Real>((origin, dir): (Point3<T>, Vec3<T>)) -> geom::Line<T> {
+    geom::Line { origin, dir }
 }
 
 /// Two parallel axes read at their feet ([`axes_feet`]). Decisions read
@@ -2125,7 +2131,7 @@ pub fn cone_cone_apex_meeting<T: Real>(
     let cross = a1.cross(a2);
     ApexFansMeeting {
         base,
-        across: cross / cross.norm(),
+        across: cross.normalize(),
         disc: T::one() - along_m.powi(2) - along_n.powi(2),
     }
 }

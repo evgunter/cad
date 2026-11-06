@@ -386,7 +386,7 @@ impl<T: Decide> RegionEdge<T> {
     /// The loop's unit traversal direction at `t`.
     pub(crate) fn traversal(&self, t: T) -> Vec3<T> {
         let d = self.carrier.deriv(t);
-        let d = d / d.norm();
+        let d = d.normalize();
         if self.forward { d } else { -d }
     }
 }
@@ -936,7 +936,7 @@ impl<T: Decide> Round<T> {
     /// the circle, the shorter way, in `[0, π]` ([`between`]).
     fn swept(&self, y: Point3<T>) -> T {
         let w = y - self.circle.frame.origin;
-        between(w / w.norm(), self.circle.frame.u_ref)
+        between(w.normalize(), self.circle.frame.u_ref)
     }
 
     /// The arc length from the start round to `y`, a point of the
@@ -971,7 +971,7 @@ impl<T: Decide> Course<T> for Round<T> {
 
     fn heading(&self, y: Point3<T>) -> Vec3<T> {
         let h = self.circle.frame.axis.cross(y - self.circle.frame.origin);
-        h / h.norm()
+        h.normalize()
     }
 
     fn curve(&self) -> SurfaceCurve<T> {

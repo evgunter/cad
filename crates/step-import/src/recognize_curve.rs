@@ -301,7 +301,7 @@ fn try_line(curve: &NurbsCurve3<f64>, eps_in: f64) -> Option<(Curve3<f64>, f64)>
     if !(len > eps_in) || !len.is_finite() {
         return None;
     }
-    let dir = chord / len;
+    let dir = chord.normalize();
     // INV-C3: the zero-radius cylinder composite is `dist(P, line)²`
     // over the whole domain — meters², exact, whole-domain, no
     // schedule. NaN (a refused hull, or a structural refusal) fails the
@@ -396,7 +396,7 @@ fn try_circle(curve: &NurbsCurve3<f64>, eps_in: f64) -> Result<Option<(Curve3<f6
     if !(chord_norm.is_finite() && chord_norm > 0.0) {
         return Ok(None);
     }
-    let chord_dir = chord / chord_norm;
+    let chord_dir = chord.normalize();
     let off = geom::Line {
         origin: s0,
         dir: chord_dir,
@@ -416,7 +416,7 @@ fn try_circle(curve: &NurbsCurve3<f64>, eps_in: f64) -> Result<Option<(Curve3<f6
     if !(normal_norm.is_finite() && normal_norm > 0.0) {
         return Ok(None);
     }
-    let axis = normal / normal_norm;
+    let axis = normal.normalize();
     // The exact circumcenter of three coplanar points (the surface
     // recognizer's closed form).
     let u = s1 - s0;

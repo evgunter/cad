@@ -447,7 +447,7 @@ pub fn span_plane_meet<T: Decide>(
         }
         (None, geom::Curve3::Line(line)) => {
             let slope = line.dir.dot(plane_normal);
-            let d0 = (line.origin - plane_origin).dot(plane_normal);
+            let d0 = geom::plane_offset(plane_origin, plane_normal, line.origin);
             match decide(
                 "plane_crossing_line_parallel",
                 Margin::of(slope * (t1 - t0)),

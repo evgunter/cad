@@ -68,12 +68,13 @@
 use geom_core::{Band, Decide, Margin, Point3, Sign, UnitVec3, Vec3};
 
 use crate::body::Body;
-use crate::boolean::boxes::{BoxFrame, edge_end_point, sweep_pad};
+use crate::boolean::boxes::{edge_end_point, sweep_pad};
 use crate::boolean::separating::{Item, apart, planar_axis, world_axes};
 use crate::boolean::{CarrierRelation, CurvedPlacement, FaceContainment, face_placement};
 use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey};
 use crate::live::{BoundaryMember, proven};
 use crate::validate::decide;
+use geom::cover::BoxAxes;
 
 /// K name: a vertex's offset from the other face's plane, read by the
 /// point placement before it places the vertex.
@@ -236,7 +237,7 @@ fn standing<T: Decide>(
         return false;
     };
     let off = |e: EdgeKey| {
-        let Some((lo, hi)) = super::edge_reach_in(body, e, &BoxFrame::aimed(n)) else {
+        let Some((lo, hi)) = super::edge_reach_in(body, e, &BoxAxes::aimed(n)) else {
             return false;
         };
         let gap = match sense {

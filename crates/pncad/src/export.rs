@@ -33,8 +33,7 @@
 //! host-language read-out that never re-enters a document.
 
 use editor_core::{
-    BooleanValue, Evaluation, NodeStanding, ProductError, ProfileDoc, RecipeNodeId, Said, Say,
-    Speaker, ValuePayload,
+    Evaluation, NodeStanding, ProductError, ProfileDoc, RecipeNodeId, Said, Say, Speaker,
 };
 use geom_core::Tol;
 use step_export::{StepExportError, StepOptions, step_string};
@@ -55,7 +54,7 @@ pub enum ExportError {
         /// The node whose value was refused.
         node: RecipeNodeId,
         /// The value's kind, from the kernel's own
-        /// [`ValuePayload::kind_name`].
+        /// [`editor_core::ValuePayload::kind_name`].
         kind: &'static str,
     },
     /// The node's Boolean produced an empty result — nothing to
@@ -171,16 +170,13 @@ pub fn step_for_node(
     tol: Tol,
 ) -> Result<String, ExportError> {
     let value = evaluation.usable(node).map_err(ExportError::Standing)?;
-    let body = match &value.payload {
-        ValuePayload::Body(body) => body,
-        ValuePayload::Boolean(BooleanValue::Body { body, .. }) => body,
-        ValuePayload::Boolean(BooleanValue::Empty) => {
-            return Err(ExportError::EmptyBoolean { node });
-        }
-        other => {
+    let body = match value.payload.one_body() {
+        Some(Some(body)) => body,
+        Some(None) => return Err(ExportError::EmptyBoolean { node }),
+        None => {
             return Err(ExportError::NotABody {
                 node,
-                kind: other.kind_name(),
+                kind: value.payload.kind_name(),
             });
         }
     };

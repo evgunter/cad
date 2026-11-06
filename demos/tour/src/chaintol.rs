@@ -134,9 +134,7 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use pncad::analysis::{AnalysisPolicy, DriveConfig, ParamBox, analyzed_box, assertion_at, drive};
-use pncad::document::{
-    CancelToken, EvalOptions, Evaluation, NodeResult, ProfileDoc, ValuePayload, evaluate,
-};
+use pncad::document::{CancelToken, EvalOptions, Evaluation, NodeResult, ProfileDoc, evaluate};
 use pncad::geom_core::{Bounds, Interval, Sym, SymBudget, SymCounts, SymRules, Tol};
 
 use crate::chain::{
@@ -638,7 +636,7 @@ pub fn certified_pin_boxes(links: usize, fraction: f64, tol: Tol) -> Vec<(f64, f
             .enumerate()
             .map(|(k, id)| {
                 let payload = &ev.value(*id).expect("the pin evaluated").payload;
-                let ValuePayload::Body(body) = payload else {
+                let Some(Some(body)) = payload.one_body() else {
                     panic!("a placed pin evaluates to a body, got {payload:?}");
                 };
                 // Where the pin stands in the world: its frame composed

@@ -247,7 +247,7 @@ fn try_plane(patch: &NurbsSurface<f64>, eps_in: f64) -> Option<(Surface<f64>, f6
     // construction (a bulge needs a bulged control point).
     let mut residual = 0.0f64;
     for p in control {
-        residual = residual.max((*p - origin).dot(normal).abs());
+        residual = residual.max(geom::plane_offset(origin, normal, *p).abs());
     }
     (residual <= eps_in).then_some((plane, residual))
 }
@@ -279,7 +279,7 @@ fn try_cylinder(
     if axis_norm / (nu as f64) <= eps_in {
         return Err(axis_norm / (nu as f64));
     }
-    let axis = axis_sum / axis_norm;
+    let axis = axis_sum.normalize();
     // Three fixed samples of the v-start boundary at u-fractions
     // 0, 3/8, 6/8 of the domain — distinct azimuths even on a
     // full-period patch (where u-start and u-end coincide).
@@ -304,7 +304,7 @@ fn try_cylinder(
     if !(chord_norm.is_finite() && chord_norm > 0.0) {
         return Ok(None);
     }
-    let chord_dir = chord / chord_norm;
+    let chord_dir = chord.normalize();
     let off = geom::Line {
         origin: q0,
         dir: chord_dir,

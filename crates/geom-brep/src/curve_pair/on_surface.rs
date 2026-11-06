@@ -120,7 +120,7 @@ impl<T: Decide> SurfaceCurve<T> {
         Self {
             chart,
             shape: Shape::Circle(Circle::new(
-                Frame::new(center, normal, w / w.norm()),
+                Frame::new(center, normal, w.normalize()),
                 radius,
             )),
             plane: (center, normal),
@@ -223,7 +223,7 @@ impl<T: Decide> SurfaceCurve<T> {
             ChartArm::Cylinder { .. } => (f.axis, None),
             ChartArm::Cone { .. } => {
                 let g = start - f.origin;
-                (g / g.norm(), Some(opening))
+                (g.normalize(), Some(opening))
             }
             _ => return Err(Self::refused("ruling", surface)),
         };
@@ -251,7 +251,7 @@ impl<T: Decide> SurfaceCurve<T> {
         Ok(Self::line(
             chart,
             apex,
-            g / g.norm(),
+            g.normalize(),
             toward.x,
             Some(opening),
         ))
@@ -270,7 +270,7 @@ impl<T: Decide> SurfaceCurve<T> {
         Self {
             chart,
             shape: Shape::Line(geom::Line { origin: start, dir }),
-            plane: (start, normal / normal.norm()),
+            plane: (start, normal.normalize()),
             section: Section::HalfPlane {
                 toward: Azimuth::of(sin, cos),
                 opening,
@@ -300,8 +300,8 @@ impl<T: Decide> SurfaceCurve<T> {
         let w = start - center;
         // Unit whatever `t`'s tilt off the tangent plane: the circle is
         // the sphere's great circle in the plane of `w` and `t`.
-        let normal = (w / w.norm()).cross(t);
-        let normal = normal / normal.norm();
+        let normal = (w.normalize()).cross(t);
+        let normal = normal.normalize();
         // `t` parallel to the radius spans no plane: the zero normal over
         // its zero length is poison.
         debug_assert!(
@@ -337,7 +337,7 @@ impl<T: Decide> SurfaceCurve<T> {
         }
         let c = chart.frame().origin;
         let a = surface.eval(pole.x, pole.y) - c;
-        let a = a / a.norm();
+        let a = a.normalize();
         let q = surface.eval(through.x, through.y);
         let center = c + a * a.dot(q - c);
         let normal = if forward { a } else { -a };

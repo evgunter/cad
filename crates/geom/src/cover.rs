@@ -355,7 +355,8 @@ fn vec_of<T: Real>(p: Point3<T>) -> Vec3<T> {
     p - Point3::origin()
 }
 
-/// `v`'s part off the line direction `d`.
+/// A free direction `v`'s part off the line direction `d` (a point's
+/// offset from a line is [`Line::offset`]).
 fn off_line<T: Real>(v: Vec3<T>, d: Vec3<T>) -> Vec3<T> {
     v - v.project_onto(d)
 }
@@ -429,7 +430,7 @@ impl<T: Real> Site<T> {
     fn relative(&self, p: Vec3<T>) -> Vec3<T> {
         match self {
             Site::Point(q) => p - vec_of(*q),
-            Site::Line(line) => off_line(p - vec_of(line.origin), line.dir),
+            Site::Line(line) => line.offset(Point3::origin() + p),
         }
     }
 
@@ -864,7 +865,7 @@ impl<T: Real> Arc<T> {
         let u_len = self.frame.u_ref.norm();
         let u_hat = self.frame.u_ref / u_len;
         let v_off = self.frame.v_ref() - u_hat * self.frame.v_ref().dot(u_hat);
-        let v_hat = v_off / v_off.norm();
+        let v_hat = v_off.normalize();
         let rho = (self.semi_u * u_len + self.semi_v * self.frame.v_ref().dot(v_hat)) * half;
         let dp = self.frame.u_ref * self.semi_u - u_hat * rho;
         let dq = self.frame.v_ref() * self.semi_v - v_hat * rho;

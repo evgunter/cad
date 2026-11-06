@@ -2,10 +2,12 @@
 id: python-value-bodies-drops-a-family-with-an-empty-member
 kind: issue
 title: Python Value.bodies() returns no body for a family of bodies with an empty member
-status: open
+status: closed
 opened: 2026-11-06
 priority: P3
 cost: E
+parent: a-family-of-bodies-has-two-payloads
+closed: 2026-11-06
 ---
 
 
@@ -18,3 +20,9 @@ Found by the REFS lane that closed `a-family-of-boolean-results-cannot-be-read-w
 **Workaround.** It works today: `value.members()`, then each member's `bodies()`, which is `[]` at the empty member.
 
 **The fix.** Wait on the unification row, or list each present member's body from `members` here. Whether an absent member keeps its place (as `Value.split()` keeps an empty side as `None`) or is left out is this door's choice.
+
+## Closed
+
+**Closed by the unification row** (`a-family-of-bodies-has-two-payloads`). A family with an empty member is now `ValuePayload::Instances`, `None` at the empty member. `Value.bodies()` lists each present member's body, and the empty member contributes none. That follows this door's existing rule: an empty boolean gives `[]`, and a split's empty side is left out. `Value.split()` is the door that keeps a side's place, as `None`. `kind` for such a family is `"instances"`, the family-of-bodies word, so `"family"` now means only a family of non-bodies, as `members()`'s docstring says. `body()` and the recorded-body rule now read the kernel's one-body rule, `ValuePayload::one_body`, which is public now; the copy of that classifier in the binding is gone.
+
+**Pinned** by `test_pattern.py` `TestTheRowIsAFamily.test_a_family_with_an_empty_member_lists_its_bodies`: `row[k] − row[1]` reads kind `"instances"`, its members' `bodies()` counts read `[1, 0, 1]`, and `bodies()` gives two boxes of volume 4.

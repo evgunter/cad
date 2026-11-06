@@ -676,11 +676,11 @@ fn payload_reach<T: crate::mate::SolveScalar>(
             .map(|body| body_reach(body, at))
             .try_fold(0.0_f64, |held, r| r.map(|r| held.max(r)))
     };
-    if let Some(body) = payload.member_body() {
+    if let Some(body) = payload.one_body() {
         return body.map_or(Ok(0.0), |body| body_reach(body, at));
     }
     match payload {
-        ValuePayload::Instances(bodies) => farthest(&mut bodies.iter()),
+        ValuePayload::Instances(bodies) => farthest(&mut bodies.iter().flatten()),
         ValuePayload::Split { above, below } => farthest(
             &mut [above, below].into_iter().filter_map(|side| match side {
                 SplitSide::Body(b) => Some(b),
@@ -998,15 +998,6 @@ fn place<T: Decide>(
     }
 }
 
-/// Every body of `bodies` placed by `map`, in order: one placement of a
-/// family.
-fn place_each<T: Decide>(
-    bodies: &[super::Framed<T>],
-    map: Option<&RigidMotion<T>>,
-) -> Result<Vec<super::Framed<T>>, NodeErrorKind> {
-    bodies.iter().map(|body| place(body, map)).collect()
-}
-
 /// The (Ok) value of an input node.
 fn value_of<T: Decide>(
     results: &Results<T>,
@@ -1134,11 +1125,13 @@ pub(super) fn read_named_body<T: Decide>(
     let v = value_of(results, input)?;
     let v = if whole { v.whole() } else { v };
     match placeable_operand(v, input) {
-        Ok(Placeable::Instances(bodies)) => usize::try_from(body)
-            .ok()
-            .and_then(|k| bodies.get(k))
-            .cloned()
-            .ok_or_else(|| wrong_operand(v, input, super::family::BODY)),
+        Ok(Placeable::Instances(bodies)) => {
+            match usize::try_from(body).ok().and_then(|k| bodies.get(k)) {
+                Some(Some(body)) => Ok(body.clone()),
+                Some(None) => Err(NodeErrorKind::EmptyOperand { input }),
+                None => Err(wrong_operand(v, input, super::family::BODY)),
+            }
+        }
         Ok(Placeable::Body(b)) => Ok(b),
         Err(NodeErrorKind::WrongOperand { .. }) => {
             Err(wrong_operand(v, input, super::family::BODY))
@@ -1153,9 +1146,10 @@ pub(super) fn read_named_body<T: Decide>(
 enum Placeable<T: Decide> {
     /// One body: a `Body` value or a boolean's non-empty result.
     Body(super::Framed<T>),
-    /// Several placed bodies, in the input's own instance order; the
-    /// input's name table indexes them by that order.
-    Instances(Vec<super::Framed<T>>),
+    /// A family of bodies, in the input's own member order, `None` at
+    /// an empty member; the input's name table indexes them by that
+    /// order.
+    Instances(Vec<Option<super::Framed<T>>>),
 }
 
 /// The operand of a placer, read off its evaluated value: one body
@@ -1166,7 +1160,7 @@ fn placeable_operand<T: Decide>(
     v: &super::NodeValue<T>,
     input: RecipeNodeId,
 ) -> Result<Placeable<T>, NodeErrorKind> {
-    match (v.payload.member_body(), &v.payload) {
+    match (v.payload.one_body(), &v.payload) {
         (Some(Some(b)), _) => Ok(Placeable::Body(b.clone())),
         (Some(None), _) => Err(NodeErrorKind::EmptyOperand { input }),
         (None, ValuePayload::Instances(bodies)) => Ok(Placeable::Instances(bodies.clone())),
@@ -1174,9 +1168,9 @@ fn placeable_operand<T: Decide>(
     }
 }
 
-/// **A family read whole, as its bodies**, in index order
-/// ([`super::NodeValue::member_bodies`]); `None` for a value that is no
-/// family of bodies, which its caller refuses in its own word. An
+/// **A family read whole, as its bodies**, in index order; `None` for a
+/// value that is no family of bodies, which its caller refuses in its
+/// own word. An
 /// absent member refuses [`NodeErrorKind::EmptyMember`] naming the
 /// family and the member's index values, as an empty operand read at
 /// one seat refuses: ∅ is a typed result (`docs/DESIGN.md`
@@ -1186,30 +1180,33 @@ fn whole_bodies<T: Decide>(
     value: &super::NodeValue<T>,
     at: RecipeNodeId,
 ) -> Result<Option<Vec<&super::Framed<T>>>, NodeErrorKind> {
-    let Some(bodies) = value.member_bodies() else {
+    let ValuePayload::Instances(bodies) = &value.payload else {
         return Ok(None);
     };
     bodies
-        .into_iter()
+        .iter()
         .enumerate()
-        .map(|(i, body)| body.ok_or_else(|| empty_member(value, at, i)))
+        .map(|(i, body)| body.as_ref().ok_or_else(|| empty_member(value, at, i)))
         .collect::<Result<Vec<_>, _>>()
         .map(Some)
 }
 
 /// [`NodeErrorKind::EmptyMember`] for the member at place `i` of the
-/// family `value`. Only a [`ValuePayload::Family`] holds an absent
-/// member, and it is built from its members, so a member place it does
-/// not keep is a kernel bug.
+/// family `value`, at that member's index values. A family is built
+/// from its members and keeps them, so one that keeps none, or no
+/// member at a place it holds, is a kernel bug.
 fn empty_member<T: Decide>(
     value: &super::NodeValue<T>,
     at: RecipeNodeId,
     i: usize,
 ) -> NodeErrorKind {
-    let Some(members) = value.members.as_deref() else {
-        unreachable!("family {at:?} holds an absent member {i} and keeps no members")
+    let Some((members, (values, _))) = value
+        .members
+        .as_deref()
+        .and_then(|members| Some((members, members.members.get(i)?)))
+    else {
+        unreachable!("family {at:?} holds an empty member {i} it does not keep")
     };
-    let (values, _) = &members.members[i];
     NodeErrorKind::EmptyMember {
         input: at,
         at: members
@@ -3037,27 +3034,27 @@ fn reads_projected<T: Decide>(
         {
             let family = super::read_at(doc, seat, var)?;
             let value = value_of(results, family)?.whole();
-            let bodies = value
-                .member_bodies()
-                .ok_or_else(|| wrong_operand(value, family, super::family::INSTANCES))?;
-            let rank = node.body_read(seat).map_or(0, |read| read.at.len());
-            let index = match &value.members {
-                Some(members) => member_of(family, members, vals, seat, rank)?,
-                None => instance_of(family, bodies.len(), vals, SlotId::Index { seat, k: 0 })?,
+            let ValuePayload::Instances(bodies) = &value.payload else {
+                return Err(wrong_operand(value, family, super::family::INSTANCES));
             };
+            let rank = node.body_read(seat).map_or(0, |read| read.at.len());
+            let Some(members) = &value.members else {
+                unreachable!("family {family:?} keeps no members")
+            };
+            let index = member_of(family, members, vals, seat, rank)?;
             // A member carries its own carry: its records, the pieces and
             // the census its copy holds where it stands.
             let carry = value.carry.member(index as usize).clone();
             // `member_of` finds a member among `members`, whose bodies
-            // `member_bodies` lists one per member, and `instance_of`
-            // bounds by the list itself: a place past it is a kernel bug.
-            let Some(&place) = bodies.get(index as usize) else {
+            // the payload holds one per member: a place past them is a
+            // kernel bug.
+            let Some(place) = bodies.get(index as usize) else {
                 unreachable!(
                     "family {family:?}: member place {index} past its {} bodies",
                     bodies.len()
                 )
             };
-            let Some(body) = place.cloned() else {
+            let Some(body) = place.clone() else {
                 // An absent member is the empty value, as its one read
                 // sees it: each seat takes it as it takes an empty result.
                 let empty = OpOut::<T>::empty();
@@ -4423,8 +4420,9 @@ pub(crate) const PLANE_NORMAL_ROLE: &str = "plane normal";
 pub(crate) const AXIS_DIRECTION_ROLE: &str = "axis direction";
 
 /// **A placement** (D10 `[placement.placement]`): the copy of its
-/// source's one body ([`copy_of`]), or of a family read whole, each
-/// member placed by the one map and carrying its own carry.
+/// source's one body ([`copy_of`]). A placement whose source is a
+/// family reaches the family's index, so it is evaluated once per
+/// member and never meets the family whole.
 fn wire_place<T: Decide + topo::AtRestPolicy>(
     id: RecipeNodeId,
     (of, read, results): (RecipeNodeId, crate::VarId, &Results<T>),
@@ -4432,22 +4430,11 @@ fn wire_place<T: Decide + topo::AtRestPolicy>(
 ) -> OpResult<T> {
     let value = value_of(results, of)?;
     let cites = crate::coincide::CitedInput::Read(read);
-    let body = match (value.payload.member_body(), &value.payload) {
+    let body = match (value.payload.one_body(), &value.payload) {
         (Some(None), _) => return Ok(OpOut::empty()),
         (Some(Some(body)), _) => body,
-        (None, ValuePayload::Instances(bodies)) => {
-            let bodies = place_each(bodies, map)?;
-            let placed: Vec<&Body<T>> = bodies.iter().map(super::Framed::body).collect();
-            let table =
-                names::name_copy(id, &read_table(value), &placed).map_err(NodeErrorKind::Naming)?;
-            // Each member's records cite the placement's one read.
-            return Ok(
-                OpOut::plain(ValuePayload::Instances(bodies), table).carrying(
-                    value
-                        .carry
-                        .copied(super::carry::Stands::placed(map), &cites)?,
-                ),
-            );
+        (None, ValuePayload::Instances(_)) => {
+            unreachable!("placement {id:?} met its source {of:?}'s family whole")
         }
         (None, _) => return Err(wrong_operand(value, of, super::phrase::BODY_OR_INSTANCES)),
     };
@@ -4480,7 +4467,7 @@ fn wire_assemble<T: Decide + topo::AtRestPolicy>(
         .iter()
         .map(|&(of, read, results)| {
             let value = value_of(results, of)?.whole();
-            let (bodies, family) = match value.payload.member_body() {
+            let (bodies, family) = match value.payload.one_body() {
                 Some(Some(body)) => (vec![body.clone()], false),
                 Some(None) => return Err(NodeErrorKind::EmptyOperand { input: of }),
                 None => match whole_bodies(value, of)? {

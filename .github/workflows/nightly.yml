@@ -363,14 +363,13 @@ jobs:
           crates=$(scripts/gates/probe-suite-census.sh --crates)
           test -n "$crates"
           echo "probe-gated crates: $(echo "$crates" | tr '\n' ' ')"
+          # `probe` alone: whatever else a crate's tests need is on its
+          # own manifest's self dev-dependency
+          # (scripts/gates/test-support-self-edge.sh).
           for c in $crates; do
-            extra=$(grep -hE '^#!\[cfg\(.*feature = "probe"' "crates/$c"/tests/*.rs 2>/dev/null \
-              | grep -oE 'feature = "[a-z0-9_-]+"' | grep -v '"probe"' \
-              | sed 's/feature = //; s/"//g' | sort -u | paste -sd, -) || true
-            feats="probe${extra:+,$extra}"
-            echo "building $c with --features $feats"
-            cargo test -p "$c" --features "$feats" --all-targets --no-run
-            cargo test -p "$c" --features "$feats" --test all -- --list \
+            echo "building $c with --features probe"
+            cargo test -p "$c" --features probe --all-targets --no-run
+            cargo test -p "$c" --features probe --test all -- --list \
               | scripts/gates/probe-suite-census.sh --check-listing "$c"
           done
       - name: K-telemetry probe sweep (corpus + M2 corpus + demo scenes, 3 eps rows)
