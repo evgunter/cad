@@ -3,10 +3,12 @@
 //! Each sentence is a gate's own lever (D4 ¶1 (i)): [`crate::Gate`]'s
 //! table names it beside the gate, and the ending derived from the gate
 //! and its verdict ([`crate::Gate::kind`]) adds the conditional
-//! tolerance arm where a smaller ε decides the margin. So no sentence
-//! here names the tolerance: where it is a lever, its value comes from
-//! the margin, and at the two exact-order gates (`fillet_leg_fit`,
-//! `fillet_leg_reach`, classified against `Band::least()`) it is none.
+//! tolerance arm where a smaller ε decides the margin for the request.
+//! So no sentence here names the tolerance: where it is a lever, its
+//! value comes from the margin. At the two exact-order gates
+//! (`fillet_leg_fit`, `fillet_leg_reach`, classified against
+//! `Band::least()`) it is none, and so it is at `fillet_offset_lever`,
+//! whose least lever grows as ε shrinks.
 //!
 //! The definite sibling refusals spell their own recourse
 //! ([`crate::path::CornerReason::recourse`],
@@ -22,6 +24,7 @@
 /// real angle on a leg a few ε long, whose lever is the leg's extent.
 /// Pinned at both by `profile/tests/fillet_recourse_followability.rs`'s
 /// `the_turn_in_band_recourse_names_both_of_its_situations`.
+/// Gates: `fillet_corner_turn`.
 #[cfg_attr(
     not(any(test, feature = "test-support")),
     allow(
@@ -54,6 +57,7 @@ pub const CORNER_ANCHOR_SEPARATION_LEVER: &str =
 /// `fillet_offset_circles_internal`, `fillet_leg_reach`). Followed to a
 /// build by `the_no_corner_recourse_reduces_to_a_radius_that_builds` and
 /// `the_offset_clearance_recourse_reaches_the_caller_and_reduces`.
+/// Gates: `fillet_offset_line_circle`, `fillet_offset_circles_external`, `fillet_offset_circles_internal`, `fillet_leg_reach`.
 #[cfg_attr(
     not(any(test, feature = "test-support")),
     allow(
@@ -77,6 +81,7 @@ pub const FILLET_NO_CORNER_RECOURSE: &str =
 /// public door by
 /// `the_offset_lever_recourse_reaches_the_caller_at_its_own_site` and
 /// the two reviewer rows it cites.
+/// Gates: `fillet_offset_lever`.
 #[cfg_attr(
     not(any(test, feature = "test-support")),
     allow(
@@ -93,6 +98,7 @@ pub const FILLET_OFFSET_LEVER_RECOURSE: &str = "move the fillet radius away from
 /// with it whether the fillet would swallow that carrier, is below the
 /// tolerance. Followed to a build by
 /// `the_enclosing_recourse_endorses_a_bound_that_builds`.
+/// Gates: `fillet_enclosing_carrier`.
 #[cfg_attr(
     not(any(test, feature = "test-support")),
     allow(
@@ -107,6 +113,7 @@ pub const FILLET_ENCLOSING_RECOURSE: &str = "the fillet radius is too close to t
 /// The lever where a radius's tangent points may fall outside their
 /// legs (`fillet_leg_fit`). Both clauses are followed by
 /// `the_fit_recourse_is_followed_by_a_smaller_radius_and_by_longer_legs`.
+/// Gates: `fillet_leg_fit`.
 #[cfg_attr(
     not(any(test, feature = "test-support")),
     allow(
@@ -121,6 +128,7 @@ pub const FILLET_FIT_RECOURSE: &str =
 /// The lever of a fillet leg with no extent to round against
 /// (`fillet_corner_arm`). Followed to a build by
 /// `the_leg_extent_recourse_is_followed_by_giving_the_leg_an_extent`.
+/// Gates: `fillet_corner_arm`.
 #[cfg_attr(
     not(any(test, feature = "test-support")),
     allow(
@@ -189,6 +197,6 @@ pub const FILLET_SCENE_RESOLUTION_RECOURSE: &str = "move the geometry nearer the
      `test-support`; interior in every other build"
     )
 )]
-pub const FILLET_STORED_FORM_INBAND_RECOURSE: &str = "the arc may be too shallow to store (turn the corner further, or use a larger \
-     radius) or too fine for the scene (move nearer the origin); dropping the fillet settles \
-     either";
+pub const FILLET_STORED_FORM_INBAND_RECOURSE: &str = "drop the fillet, which settles it either way; or, if the arc is too shallow to \
+     store, turn the corner further or use a larger radius; or, if it is too fine for the scene, \
+     move nearer the origin";

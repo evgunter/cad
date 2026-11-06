@@ -112,6 +112,8 @@ mod fillet_overrun_nearest_fit;
 mod fillet_recourse_followability;
 #[path = "fillet_stored_tangency.rs"]
 mod fillet_stored_tangency;
+#[path = "gate_kinds_followed.rs"]
+mod gate_kinds_followed;
 #[path = "generic_replay.rs"]
 mod generic_replay;
 #[path = "guided_replay.rs"]

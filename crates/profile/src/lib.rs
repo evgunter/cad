@@ -177,7 +177,7 @@ pub use fillet_recourse::{
     FILLET_OFFSET_LEVER_RECOURSE, FILLET_SCENE_RESOLUTION_RECOURSE,
     FILLET_STORED_FORM_INBAND_RECOURSE, FILLET_TURN_INBAND_RECOURSE,
 };
-pub use gate::{Ending, Gate, decision_subject};
+pub use gate::{Gate, decision_subject};
 pub use lift::{Fidelity, LiftOutcome, LiftRefusal, lift, lift_checked};
 pub use path::program::{
     ArcData, ArcMode, ClosedLoop, ConstructedLoop, Pen, ReplayError, ReplayErrorKind, SpecForms,

@@ -67,8 +67,8 @@
 //! value for each gate in the closed table and reads the text off it.
 //!
 //! A guided replay (`replay_guided`) carries the same gate on its
-//! structure refusal, and renders the box lever before the gate's own:
-//! `review_fillet_recourse_arm_r1_probes::a_guided_replay_names_the_box_lever_and_the_fillet_gates_own`.
+//! structure refusal and ends it as the gate ends:
+//! `review_fillet_recourse_arm_r1_probes::a_guided_replay_ends_the_fillet_gate_as_the_gate_ends`.
 //!
 //! **The advice a caller DOES read here is inline, not a constant.**
 //! Every definite fillet refusal this file provokes ends in a second
@@ -179,7 +179,7 @@ fn builds_and_validates(lp: Result<ProfileLoop<f64>, PathError<f64>>, what: &str
 /// about the origin — the derived corner is `(2, 0)`. The offset line
 /// `y = r` and the offset circle of radius `2 − r` meet only while
 /// `r ≤ 1`, so a larger radius has no tangent circle at all.
-fn line_arc_internal(radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
+pub(crate) fn line_arc_internal(radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
     Open.at(Point2::new(0.0, 2.0))
         .line_to(Point2::new(0.0, 0.0), tol())?
         .toward(2.0, 0.0, tol())?
@@ -216,7 +216,7 @@ fn straight_leg(start_x: f64, radius: f64) -> Result<ProfileLoop<f64>, PathError
 
 /// **Two unit lobes** whose crossing is a real corner. At a radius at
 /// or above the lobe radius the fillet would swallow both carriers.
-fn two_lobes(radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
+pub(crate) fn two_lobes(radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
     let tip = 0.75f64.sqrt();
     Open.arc_fillet_arc(
         Center {
@@ -238,7 +238,7 @@ fn two_lobes(radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
 /// **The mixed-winding arc × arc corner.** The legs turn opposite ways,
 /// so the two offset carriers go to `R + r` and `R − r` and the INTERNAL
 /// clearance `d − |ρ₁ − ρ₂| = 2 − 2r` is the one that closes.
-fn mixed_corner(radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
+pub(crate) fn mixed_corner(radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
     Open.arc_fillet_arc(
         Center {
             c: Point2::new(-1.0, 0.0),
@@ -265,7 +265,11 @@ fn mixed_corner(radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
 /// levered margin is `a * sqrt(delta)`. Both factors are the caller's,
 /// which is the whole point: the margin can sit in the band with the
 /// angle nowhere near degenerate.
-fn short_leg_at_angle(a: f64, delta: f64, radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
+pub(crate) fn short_leg_at_angle(
+    a: f64,
+    delta: f64,
+    radius: f64,
+) -> Result<ProfileLoop<f64>, PathError<f64>> {
     let y = 2.0 - delta;
     let cx = -(4.0 - y * y).sqrt();
     Open.at(Point2::new(cx - a, y))
@@ -291,7 +295,7 @@ fn short_leg_at_angle(a: f64, delta: f64, radius: f64) -> Result<ProfileLoop<f64
 /// the large one. Both clearances then equal `rho2` and are definite,
 /// and the enclosing gate is definite too, so the conditioning margin
 /// `rho2 − least_lever` is the only thing that can land in the band.
-fn lever_lens(big: f64, rho2: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
+pub(crate) fn lever_lens(big: f64, rho2: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
     let r = big - rho2;
     let d = big + r;
     Open.arc_fillet_arc(
@@ -319,7 +323,7 @@ fn lever_lens(big: f64, rho2: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
 /// `sugar::ArcCarrier::offset_circles`' law with its shipped constant.
 /// A fixed point, because the threshold's scene scale depends weakly on
 /// the `rho2` being solved for.
-fn lever_lens_least_lever(big: f64, eps: f64) -> f64 {
+pub(crate) fn lever_lens_least_lever(big: f64, eps: f64) -> f64 {
     let law = |rho2: f64| {
         let r = big - rho2;
         let d = big + r;
@@ -337,7 +341,11 @@ fn lever_lens_least_lever(big: f64, eps: f64) -> f64 {
 /// A line × line bend: the incoming ray runs east from `(start_x, 0)`,
 /// the corner sits at `(4, 0)`, and the arrival leaves it at `theta`,
 /// anchored three units along. `radius` rounds the corner.
-fn bend(start_x: f64, theta: f64, radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
+pub(crate) fn bend(
+    start_x: f64,
+    theta: f64,
+    radius: f64,
+) -> Result<ProfileLoop<f64>, PathError<f64>> {
     let anchor = Point2::new(4.0 + 3.0 * theta.cos(), 3.0 * theta.sin());
     Open.at(Point2::new(start_x, 0.0))
         .angle(0.0, tol())?

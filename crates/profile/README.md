@@ -429,10 +429,13 @@ live in `src/fillet_recourse.rs`, several gates sharing one because they
 share a user situation (D4 ¶1's addendum). The door renders the corner
 it was resolving with that lever and no coincidence tail: a fillet the
 caller asked for constructs its joints, so "declare the coincidence"
-names a declaration that does not exist. A gate classified against the
-run's linear band adds the conditional, valued tighten where a smaller
-ε decides the margin; the two classified against the exact-order band,
-`fillet_leg_fit` and `fillet_leg_reach`, end in the lever alone. The
+names a declaration that does not exist. A gate whose margin is a size
+the user may intend, and which a smaller ε decides in the request's
+favour, adds the conditional, valued tighten. Every other gate ends in
+its lever alone: the two classified against the exact-order band,
+`fillet_leg_fit` and `fillet_leg_reach`, which no ε moves, and
+`fillet_offset_lever`, whose least lever grows as ε shrinks, so a smaller
+tolerance decides it against the request. The
 stored-form read is a site of its own (`EscalatedAt::StoredForm`),
 whose escalations name the stored form's levers under the gate's kind,
 and a guided replay names the parameter box first and the gate's lever

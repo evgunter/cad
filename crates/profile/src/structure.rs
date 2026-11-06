@@ -988,20 +988,17 @@ const NARROW_THE_BOX: &str = "narrow the parameter box";
 impl core::fmt::Display for StructureRefusal {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match &self.kind {
-            // The box is the lane's first lever; the gate's own lever
-            // follows it, whatever site raised it. No tolerance arm: a
-            // guided pass replays the run's ε, and an enclosure the box
-            // leaves undecided names no tolerance that decides it.
-            StructureRefusalKind::Indeterminate { gate, source } => {
-                let levers = format!("{NARROW_THE_BOX} and try again, or {}", gate.kind().lever());
-                write!(
-                    f,
-                    "{} cannot be re-verified at this scalar: {}. {}",
-                    self.decision,
-                    source.payload(),
-                    source.lever_ending(&levers)
-                )
-            }
+            // The gate ends here as it ends at its own door. The box
+            // lever is the reading's: an enclosure the box can still
+            // tighten puts "subdivide the parameter box" first, while a
+            // point pass has no box and a terminal sliver no box that
+            // helps, so neither is told to narrow one.
+            StructureRefusalKind::Indeterminate { gate, source } => write!(
+                f,
+                "{} cannot be re-verified at this scalar: {}",
+                self.decision,
+                gate.kind().under(source)
+            ),
             StructureRefusalKind::Flipped { recorded, found } => write!(
                 f,
                 "{} is decided differently at this scalar: the elaboration selected \

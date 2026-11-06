@@ -132,9 +132,9 @@ impl<T: Real> ShapeIssue<T> {
     /// the classification named.
     pub(crate) fn predicate(&self) -> &'static str {
         match self {
-            Self::Degenerate { .. } => "vertex_separation",
-            Self::DegenerateTurn { .. } => "full_turn_reach",
-            Self::NearFull { .. } => "arc_diameter_clearance",
+            Self::Degenerate { .. } => Gate::VertexSeparation.predicate(),
+            Self::DegenerateTurn { .. } => Gate::FullTurnReach.predicate(),
+            Self::NearFull { .. } => Gate::ArcDiameterClearance.predicate(),
             Self::Escalated(e) => e.gate().predicate(),
         }
     }
@@ -188,7 +188,7 @@ impl<T: Real> SegIssue<T> {
         match self {
             Self::Shape(issue) => issue.predicate(),
             Self::Inconsistent { check } => check.predicate(),
-            Self::BelowSceneResolution { .. } => "arc_carrier_resolution",
+            Self::BelowSceneResolution { .. } => Gate::ArcCarrierResolution.predicate(),
         }
     }
 }
@@ -1321,7 +1321,7 @@ pub(crate) fn joint_tangency<T: Decide>(
             if side.sign == Sign::Zero {
                 return Ok(JointReading {
                     class: JointClass::SameCarrier,
-                    predicate: "chord_side",
+                    predicate: Gate::ChordSide.predicate(),
                     margin,
                     diag: side.margin,
                     scale,
@@ -1335,7 +1335,7 @@ pub(crate) fn joint_tangency<T: Decide>(
             if same.sign != Sign::Positive {
                 return Ok(JointReading {
                     class: JointClass::SameCarrier,
-                    predicate: "carrier_circles_identity",
+                    predicate: Gate::CarrierCirclesIdentity.predicate(),
                     margin: identity,
                     diag: same.margin,
                     scale,

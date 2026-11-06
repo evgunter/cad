@@ -308,13 +308,14 @@ fn the_lever_gate_is_reachable_in_band_on_the_lens_and_renders_its_sentence() {
     builds_and_validates(lever_lens(big, big / 10.0), "the radius moved clearly away");
 }
 
-/// **The guided replay door names the box lever and the fillet gate's
-/// own.** Under `replay_guided` an in-band fillet gate surfaces as a
-/// structure refusal carrying its gate: the caller reads the box lever
-/// first and the gate's sentence after it, and no tolerance arm, since a
-/// guided pass replays the run's ε.
+/// **The guided replay door ends a fillet gate as the gate ends.** Under
+/// `replay_guided` an in-band fillet gate surfaces as a structure
+/// refusal carrying its gate, and the caller reads what the reading is
+/// and the gate's own ending: its lever, and on this value reading the
+/// conditional tighten (`gate_kinds_followed` follows it). The shared
+/// coincidence recourse is nowhere in it.
 #[test]
-fn a_guided_replay_names_the_box_lever_and_the_fillet_gates_own() {
+fn a_guided_replay_ends_the_fillet_gate_as_the_gate_ends() {
     let eps = tol().eps();
     let closed = Open
         .at(Point2::new(0.0, 3.0))
@@ -346,13 +347,10 @@ fn a_guided_replay_names_the_box_lever_and_the_fillet_gates_own() {
         "carries the gate: {err:?}"
     );
     assert!(
-        shown.ends_with(&format!(
-            "Recourse: narrow the parameter box and try again, or {FILLET_NO_CORNER_RECOURSE}"
+        shown.contains(&format!(
+            "— a near-coincidence; Recourse: {FILLET_NO_CORNER_RECOURSE}, or, if this size is \
+             intended, tighten the tolerance below "
         )),
-        "the box lever, then the gate's own: {shown}"
-    );
-    assert!(
-        !shown.contains("tolerance"),
-        "no tolerance arm under guidance: {shown}"
+        "the reading, then the gate's own ending: {shown}"
     );
 }

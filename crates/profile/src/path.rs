@@ -3202,6 +3202,17 @@ fn linear_band<T: Real>(tol: Tol) -> Result<Band, PathError<T>> {
     Band::linear(tol).map_err(PathError::Band)
 }
 
+/// The stored-form read of one joint a fillet declared: validation's
+/// joint question under the stored form's own gate, an escalation raised
+/// at the stored-form site.
+fn stored_joint<T: Decide>(
+    prev: &seg::Seg<T>,
+    next: &seg::Seg<T>,
+    band: Band,
+) -> Result<seg::JointReading<T>, PathError<T>> {
+    seg::joint_tangency(prev, next, Gate::PathFilletJointTurn, band).map_err(PathError::stored_form)
+}
+
 /// What [`Core::record_fillet_arc`]'s answer means, checked beside
 /// every emission that takes it: the recorded index is the vertex the
 /// arc leaves, which an interior emission leaves two from the end (it
@@ -4022,8 +4033,7 @@ impl<T: Decide> Core<T> {
                 } else {
                     (&arc, &other)
                 };
-                let reading = seg::joint_tangency(prev, next, Gate::PathFilletJointTurn, band)
-                    .map_err(PathError::stored_form)?;
+                let reading = stored_joint(prev, next, band)?;
                 match reading.class {
                     // A constructed joint whose carriers are tangent is
                     // the construction verified; one whose carriers are
@@ -4883,23 +4893,23 @@ fn read_back_sentence<T: Real>(
     authored: Option<ArcSweep>,
 ) -> core::fmt::Result {
     let (x, y) = (num(&point.x), num(&point.y));
-    if read == ArcRead::Branch {
-        let sense = match authored {
-            Some(ArcSweep::Ccw) => "a counter-clockwise turn",
-            Some(ArcSweep::Cw) => "a clockwise turn",
-            None => "the other turn",
-        };
-        return write!(
-            f,
-            "{piece} ({verb}) was authored as {sense} to ({x}, {y}) and built a turn of \
-             {turn} rad, the other arc between its ends",
-            turn = num(turn)
-        );
-    }
     let what = match read {
+        ArcRead::Branch => {
+            let sense = match authored {
+                Some(ArcSweep::Ccw) => "a counter-clockwise turn",
+                Some(ArcSweep::Cw) => "a clockwise turn",
+                None => "the other turn",
+            };
+            return write!(
+                f,
+                "{piece} ({verb}) was authored as {sense} to ({x}, {y}) and built a turn of \
+                 {turn} rad, the other arc between its ends",
+                turn = num(turn)
+            );
+        }
         ArcRead::Start => "its start vertex",
         ArcRead::ThroughPoint => "the through-point it was authored by",
-        ArcRead::Landing | ArcRead::Branch => "its end vertex",
+        ArcRead::Landing => "its end vertex",
     };
     write!(
         f,
@@ -5872,6 +5882,25 @@ impl<T: Decide, F: Flavor> TangentArcTarget<T, F> for ArrivesTangent {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
+
+    /// **A stored joint's escalation is raised at the stored-form site.**
+    /// The joint read takes the stored form's levers, so an in-band joint
+    /// there must not surface as the door's own escalation.
+    #[test]
+    fn a_stored_joint_escalates_at_the_stored_form_site() {
+        let band = Band::new(1e-9, 1e-8).expect("the band forms");
+        let line = |a: Point2<f64>, b: Point2<f64>| {
+            seg::build_seg(a, b, crate::Segment::Line, seg::Consistency::Decide, band)
+                .unwrap_or_else(|_| panic!("a unit line builds"))
+        };
+        let prev = line(Point2::new(0.0, 0.0), Point2::new(1.0, 0.0));
+        let next = line(Point2::new(1.0, 0.0), Point2::new(2.0, 3e-9));
+        match stored_joint(&prev, &next, band) {
+            Err(PathError::Escalated { site, .. }) => assert_eq!(site, EscalatedAt::StoredForm),
+            Err(other) => panic!("expected an escalation, got {other:?}"),
+            Ok(_) => panic!("a joint 3e-9 off its chord is in the band"),
+        }
+    }
 
     /// **The cusp door's exactness guard.**
     ///

@@ -6,7 +6,9 @@
 //! exhaustive match. No ending is looked up by predicate name: the name
 //! rides the payload and the K stream, never the routing.
 
-use geom_core::{Band, COINCIDENCE_RECOURSE, Decide, Decided, Indeterminate, Margin, Sign};
+use geom_core::{
+    Band, COINCIDENCE_RECOURSE, Decide, Decided, EndingKind, Indeterminate, Margin, Sign,
+};
 
 use crate::fillet_recourse::{
     CORNER_ANCHOR_SEPARATION_LEVER, FILLET_ENCLOSING_RECOURSE, FILLET_FIT_RECOURSE,
@@ -31,49 +33,6 @@ const LEG_LENGTH_LEVER: &str = "author a longer leg";
 /// rides the target, so the geometry is what moves.
 const SEAM_ARRIVAL_LEVER: &str =
     "move the geometry so the two directions agree (the declaration is the target)";
-
-/// **How a gate's undecided refusal ends** (D4 ¶1 (i)), with the gate's
-/// own lever.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Ending {
-    /// A size the user may intend, classified against the run's linear
-    /// band: the lever, and the conditional, valued tolerance arm where
-    /// a smaller ε decides the margin ([`Indeterminate::ending`]).
-    Sized(&'static str),
-    /// No size a smaller ε decides (an angle, a gauge, an exact-order
-    /// comparison): the lever alone, noted where the margin could not be
-    /// read ([`Indeterminate::lever_ending`]).
-    Lever(&'static str),
-}
-
-impl Ending {
-    /// The lever, after "Recourse: ".
-    #[must_use]
-    pub const fn lever(self) -> &'static str {
-        match self {
-            Self::Sized(lever) | Self::Lever(lever) => lever,
-        }
-    }
-
-    /// The same kind with another lever: a site whose levers are its
-    /// own (the stored-form read) keeps the gate's kind.
-    #[must_use]
-    pub const fn with_lever(self, lever: &'static str) -> Self {
-        match self {
-            Self::Sized(_) => Self::Sized(lever),
-            Self::Lever(_) => Self::Lever(lever),
-        }
-    }
-
-    /// The ending of `source` under this kind, read at the build.
-    #[must_use]
-    pub fn end(self, source: &Indeterminate) -> String {
-        match self {
-            Self::Sized(lever) => source.ending(lever),
-            Self::Lever(lever) => source.lever_ending(lever),
-        }
-    }
-}
 
 /// Declares [`Gate`] from one table, so each gate's name, ending and
 /// subject are written once, side by side, and [`Gate::ALL`] holds every
@@ -102,9 +61,9 @@ macro_rules! gates {
 
             /// How its undecided refusal ends, with its own lever.
             #[must_use]
-            pub const fn kind(self) -> Ending {
+            pub const fn kind(self) -> EndingKind {
                 match self {
-                    $(Self::$variant => Ending::$kind($lever),)*
+                    $(Self::$variant => EndingKind::$kind($lever),)*
                 }
             }
 
@@ -179,8 +138,10 @@ gates! {
     FilletOffsetCirclesExternal => "fillet_offset_circles_external", Sized(FILLET_NO_CORNER_RECOURSE), FILLET_CORNER_SUBJECT;
     /// Whether two offset circles meet from inside.
     FilletOffsetCirclesInternal => "fillet_offset_circles_internal", Sized(FILLET_NO_CORNER_RECOURSE), FILLET_CORNER_SUBJECT;
-    /// An offset lever's length against the least that places a tangent point within the tolerance.
-    FilletOffsetLever => "fillet_offset_lever", Sized(FILLET_OFFSET_LEVER_RECOURSE), FILLET_CORNER_SUBJECT;
+    /// An offset lever's length against the least that places a tangent point within the
+    /// tolerance. The least lever grows as ε shrinks (`∝ 1/ε`), so a smaller tolerance decides the
+    /// margin against the request: the lever alone.
+    FilletOffsetLever => "fillet_offset_lever", Lever(FILLET_OFFSET_LEVER_RECOURSE), FILLET_CORNER_SUBJECT;
     /// Whether an offset line meets an offset circle.
     FilletOffsetLineCircle => "fillet_offset_line_circle", Sized(FILLET_NO_CORNER_RECOURSE), FILLET_CORNER_SUBJECT;
     /// How far a full turn reaches from its vertex, levered by its diameter.
@@ -261,7 +222,8 @@ gates! {
     PathRunOutCarrier => "path_run_out_carrier", Sized(COINCIDENCE_RECOURSE), "whether an emitted segment lands on a fillet's arrival carrier";
     /// The lever arm the seam arrival's own turn and side gates are metered through.
     PathSeamArrivalLever => "path_seam_arrival_lever", Sized(COINCIDENCE_RECOURSE), "whether the seam arrival has a leg long enough to measure";
-    /// The cosine of the seam arrival's turn, levered by its arm; this row and the next are rendered through no door's table: the path door answers both with its own seam-arrival sentence, and validation never decides them.
+    /// The cosine of the seam arrival's turn, levered by its arm. Decided at the path door alone:
+    /// the declaration rides the target, so this row and the next name the geometry's lever.
     PathSeamArrivalSide => "path_seam_arrival_side", Lever(SEAM_ARRIVAL_LEVER), "whether the seam arrival carries straight on or doubles back into a cusp";
     /// The sine of the seam arrival's turn, levered by its arm.
     PathSeamArrivalTurn => "path_seam_arrival_turn", Lever(SEAM_ARRIVAL_LEVER), "whether the seam arrival turns";

@@ -15,8 +15,9 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom_core::EndingKind;
 use geom_core::{Band, Indeterminate, MarginDiag};
-use profile::{Ending, EscalatedAt, EscalationSite, Gate, PathError, ProfileError, SegmentRef};
+use profile::{EscalatedAt, EscalationSite, Gate, PathError, ProfileError, SegmentRef};
 
 fn census() -> test_utils::source::PredicateCensus {
     test_utils::source::predicate_census(
@@ -87,17 +88,16 @@ fn no_funnel_call_in_src_takes_a_literal_name() {
     assert!(census.unwalked.is_empty(), "{:?}", census.unwalked);
 }
 
-/// **Every row is a gate some site raises, and names one predicate.** A
-/// gate nothing in `src` outside the table spells is a stale row.
+/// **Every row is a gate some production site raises, and names one
+/// predicate.** The text read is the crate's production code alone:
+/// comments and string literals blanked, every `#[cfg(test)]` item cut,
+/// and the files `lib.rs` mounts only under test left out, with the
+/// table itself not read. A gate spelled nowhere there is a stale row:
+/// a raise site re-pointed to another gate, with the old one left in a
+/// comment or a test, reds here.
 #[test]
 fn every_gate_is_raised_and_named_once() {
-    let src = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR")).join("src");
-    let mut text = String::new();
-    for entry in walk(&src) {
-        if entry.file_name().is_some_and(|n| n != "gate.rs") {
-            text.push_str(&std::fs::read_to_string(&entry).expect("readable"));
-        }
-    }
+    let text = production_code();
     let mut names = std::collections::BTreeSet::new();
     for gate in Gate::ALL {
         assert!(
@@ -106,8 +106,8 @@ fn every_gate_is_raised_and_named_once() {
             gate.predicate()
         );
         assert!(
-            text.contains(&format!("Gate::{gate:?}")),
-            "{gate:?} has a row and no site raises it"
+            spelled(&text, &format!("Gate::{gate:?}")),
+            "{gate:?} has a row and no production site raises it"
         );
         let subject = gate.subject();
         assert!(
@@ -117,14 +117,54 @@ fn every_gate_is_raised_and_named_once() {
     }
 }
 
-fn walk(dir: &std::path::Path) -> Vec<std::path::PathBuf> {
-    let mut out = Vec::new();
-    for entry in std::fs::read_dir(dir).expect("the src tree is readable") {
-        let path = entry.expect("an entry").path();
-        if path.is_dir() {
-            out.extend(walk(&path));
-        } else if path.extension().is_some_and(|e| e == "rs") {
-            out.push(path);
+/// Whether `needle` occurs in `code` as a whole path, not as the prefix
+/// of a longer one (`Gate::ArcSweep` inside `Gate::ArcSweepRange`).
+fn spelled(code: &str, needle: &str) -> bool {
+    code.match_indices(needle)
+        .any(|(at, _)| test_utils::source::boundary_after(code, at + needle.len()))
+}
+
+/// The crate's production code, as [`every_gate_is_raised_and_named_once`]
+/// reads it.
+fn production_code() -> String {
+    let src = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR")).join("src");
+    let lib = test_utils::source::code_only(
+        &std::fs::read_to_string(src.join("lib.rs")).expect("lib.rs is readable"),
+    );
+    let test_only: Vec<String> = test_utils::source::file_module_decls(&lib)
+        .into_iter()
+        .filter(|m| !test_utils::source::file_module_decls(&without_tests(&lib)).contains(m))
+        .collect();
+    assert!(
+        test_only.iter().any(|m| m == "turn_rows"),
+        "the reader found no test-only mount it should have: {test_only:?}"
+    );
+    let mut out = String::new();
+    for file in test_utils::source::rust_sources(&src) {
+        let stem = file
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or_default();
+        if stem == "gate" || test_only.iter().any(|m| m == stem) {
+            continue;
+        }
+        let text = std::fs::read_to_string(&file).expect("a src file is readable");
+        out.push_str(&without_tests(&test_utils::source::code_only(&text)));
+        out.push('\n');
+    }
+    out
+}
+
+/// `code` with every `#[cfg(test)]` item blanked.
+fn without_tests(code: &str) -> String {
+    let mut out = code.to_string();
+    for (at, _) in code.match_indices("#[cfg(test)]") {
+        if let Some(extent) = test_utils::source::attributed_extent(code, at) {
+            let blank: String = code[extent.clone()]
+                .chars()
+                .map(|c| if c == '\n' { '\n' } else { ' ' })
+                .collect();
+            out.replace_range(extent, &blank);
         }
     }
     out
@@ -142,7 +182,7 @@ fn the_exact_order_gates_end_in_their_lever_alone() {
         Gate::CanonicalOrderY,
     ] {
         assert!(
-            matches!(gate.kind(), Ending::Lever(_)),
+            matches!(gate.kind(), EndingKind::Lever(_)),
             "{gate:?} classifies against the exact-order band, where no tolerance decides it"
         );
     }

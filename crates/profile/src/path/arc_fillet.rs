@@ -170,9 +170,9 @@ impl<T: Real> SideCarrier<T> {
 impl<T: Real> FilletSide<T> {
     /// The signed distance travelled along THIS side's carrier from
     /// `from` to `to`, in metres (an arc length `R·Δθ` on a circular
-    /// carrier), together with the funnel predicate name that
-    /// classifies it: the shipped linear `path_corner_advance` on a
-    /// straight carrier, `arc_name` on a circular one.
+    /// carrier), together with the gate that classifies it:
+    /// [`Gate::PathCornerAdvance`] on a straight carrier, `arc_gate` on a
+    /// circular one.
     ///
     /// One helper serves both gates because "ahead of the anchor" and
     /// "behind the anchor" are the same signed quantity read in the two
@@ -182,7 +182,7 @@ impl<T: Real> FilletSide<T> {
     ///
     /// So a STRAIGHT side reports `path_corner_advance` for both
     /// windows while [`super::CornerWindow`] distinguishes them, and
-    /// that is right: the predicate names the MARGIN being classified,
+    /// that is right: the gate names the MARGIN being classified,
     /// which is one margin computed one way, whereas the window names
     /// which side's anchor the corner fell outside. The two circular
     /// spellings differ only because the arc gates were new margins,

@@ -293,9 +293,9 @@ impl ArcCheck {
     #[must_use]
     pub fn predicate(self) -> &'static str {
         match self {
-            Self::OnCarrier => "arc_start_on_carrier",
-            Self::Landing => "arc_landing",
-            Self::SweepRange => "arc_sweep_range",
+            Self::OnCarrier => Gate::ArcStartOnCarrier.predicate(),
+            Self::Landing => Gate::ArcLanding.predicate(),
+            Self::SweepRange => Gate::ArcSweepRange.predicate(),
         }
     }
 }
@@ -1820,8 +1820,11 @@ impl<T: Decide> ConstructedProfile<T> {
 /// a lane scalar (`lex_min_index`, `loop_orientation`). Each is decided
 /// at that site and nowhere else, so where the guided pass decides what
 /// the recording one did, its log is the recording's less these.
-pub const PINNED_UNDER_GUIDANCE: [&str; 3] =
-    ["canonical_order_x", "canonical_order_y", "loop_orientation"];
+pub const PINNED_UNDER_GUIDANCE: [&str; 3] = [
+    Gate::CanonicalOrderX.predicate(),
+    Gate::CanonicalOrderY.predicate(),
+    Gate::LoopOrientation.predicate(),
+];
 
 /// How a validation treats its own discrete decisions: selecting
 /// freely and writing them down, or consuming a prior pass's and
