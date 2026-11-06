@@ -538,8 +538,12 @@ impl<T: Decide + Bounds> CapSliver<T> {
         // `‖q‖² = (s + b)² + d2`, `d2` read off the foot's own offset
         // as [`piece_distance`] reads it, which does not cancel far
         // from `center` as `q0·q0 − b²` does.
-        let b = q0.dot(e);
-        let d2 = (q0 - e * b).norm().powi(2);
+        let (b, rho) = geom::Line {
+            origin: self.center,
+            dir: e,
+        }
+        .height_and_distance(pa);
+        let d2 = rho.powi(2);
         let minor = self.inside.map(|s| s.minor());
         // Each floor as `a + k·s`.
         let affine = || {

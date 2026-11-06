@@ -126,7 +126,8 @@ pub(super) struct Cover<T: geom_core::Real> {
 /// A depth.
 #[derive(Clone, Copy, Debug)]
 pub(super) enum Depth<T: geom_core::Real> {
-    /// The distance from the line through `origin` along `axis`.
+    /// The distance from a line: a carrier's axis, or any line of nonzero
+    /// direction ([`geom::Line::distance`] holds for either).
     Axis(geom::Line<T>),
     /// The distance from `center`.
     Center { center: Point3<T> },
@@ -501,7 +502,7 @@ fn nearest_offset<T: Decide>(depth: Depth<T>, p: Point3<T>, q: Point3<T>) -> Opt
 /// The exact depth of the point `x`.
 pub(super) fn exact<T: Decide>(depth: Depth<T>, x: Point3<T>) -> T {
     match depth {
-        Depth::Axis(line) => line.offset(x).norm(),
+        Depth::Axis(line) => line.distance(x),
         Depth::Center { center } => (x - center).norm(),
         Depth::Core {
             center,
