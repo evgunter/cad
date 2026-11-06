@@ -390,3 +390,8 @@
   - Row 1: `clear_of` stops at its first near piece, so the hairpin escalates after about 30 readings instead of exhausting after 5,852.
   - Row 2: a walk limit is typed (`Unwalked` / `SectionUnwalked`, carrying `PieceWalkRefusal`).
   FULL review sent to `session_013mPGJ4JScywfx3zssA8yRc`.
+
+- 2026-11-06 — Rulings:
+  - **spline-walks, the subdivision walks:** (a), a caller-named shareable `Budget` with `bisect_within`, on condition that D9's own text permits it; the lane stops if D9 fixes one budget.
+  - **main-reds-k-and-m10:** not A. Moving 13.5 s of m10 rows per-PR breaks the CI policy in the `.config/nextest.toml` header (≥ 0.5 s goes to the slow set). The ruling: re-pin with the movers named, try a fast sentinel under 0.5 s, and file the class (a whole-kernel ledger pin seen only by a nightly that has been red for a week) as a CIW row.
+  The K root cause was geom-brep lacking its self dev-dep with `test-support`; it is fixed, with a new gate.
