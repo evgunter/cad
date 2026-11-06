@@ -2,10 +2,12 @@
 id: kept-refusal-loops-the-ladder-row-never-listed
 kind: issue
 title: Loops that keep a first refusal with get_or_insert, outside the hand-rolled-ladder row, each undispositioned
-status: open
+status: closed
 opened: 2026-11-05
 priority: P2
 cost: M
+closed: 2026-11-06
+pr: 6539
 ---
 
 

@@ -2,11 +2,13 @@
 id: a-refusals-standing-has-two-return-types
 kind: issue
 title: A refusal's standing beside its type has two return types: ladder::Refusal::rung and Kept (census's InteriorsUnread::kept)
-status: open
+status: closed
 opened: 2026-11-05
 priority: P3
 cost: E
 refs: [6536]
+closed: 2026-11-06
+pr: 6539
 ---
 
 
