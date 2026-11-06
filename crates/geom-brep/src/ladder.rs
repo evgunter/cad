@@ -19,6 +19,12 @@
 //!   datum decided apart answers.
 //! - [`Evidence`] is **the one ranking of what a ladder kept** when nothing
 //!   answered: a limit no tolerance moves ahead of an in-band reading.
+//! - [`Refusal`] is **a refusal's standing**, stated by its own type: a
+//!   type that never refuses the whole query returns `Refusal`, a rung by
+//!   itself ([`Refusal::rung`]) and kept by itself ([`Evidence::keep`]);
+//!   one that can returns `Result<Refusal, Aborts>`, and its caller names
+//!   the answer an abort stops the ladder with ([`rung_or_abort`]). The
+//!   return type is the type's claim about whether it can abort.
 //!
 //! [`climb`] owns the recording, and the caller declares what an answer
 //! may do with the kept readings ahead of it ([`Answering`]): where every
@@ -86,10 +92,24 @@ impl Kept<Indeterminate> {
     }
 }
 
-/// **What a refusal a ladder's reader met is to the ladder** — the
-/// one classification of a refusal, as [`Rung`] holds it — stated by
-/// the refusal's own type beside its variants (a `refusal()` method on
-/// it), so no reader spells a second table of which variant is a limit.
+/// **What a refusal a ladder's reader met is to the ladder**: the one
+/// classification of a refusal the ladder keeps, stated by the
+/// refusal's own type beside its variants (a `refusal()` method on it),
+/// so no reader spells a second table of which variant is a limit.
+///
+/// A refusal's standing has one of two types, and the type says which
+/// a refusal can do:
+///
+/// - one that never refuses the whole query returns `Refusal`, and is a
+///   rung by [`Refusal::rung`] alone: no answer is needed, so none can
+///   be supplied;
+/// - one with a variant that does (a corrupt input, two readings that
+///   contradict, a refusal every point reads alike) returns
+///   `Result<Refusal, Aborts>`, and its caller names the answer the
+///   ladder stops with ([`rung_or_abort`]).
+///
+/// [`Kept`] is not a standing: it is what a margin's reading leaves
+/// ([`decided`]), which is never unsettled and never aborts.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Refusal {
     /// Ranked by its margin ([`Kept::of`]).
@@ -98,25 +118,38 @@ pub enum Refusal {
     InBand,
     /// A limit no tolerance moves.
     Limit,
-    /// A refusal of the whole query (a corrupt input, two readings that
-    /// contradict, a refusal every point reads alike): the ladder stops
-    /// ([`Rung::Aborts`]).
-    Abort,
     /// Band-dependent with no margin ([`Rung::Unsettled`]).
     Unsettled,
 }
 
+/// A refusal of the whole query ([`Refusal`]'s docs): the ladder stops
+/// on it ([`Rung::Aborts`]) with the answer its caller names.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Aborts;
+
 impl Refusal {
-    /// The rung a reading refused with `e` stands as: kept by its kind,
-    /// or, for an abort, the rung `abort` makes of `e`.
-    pub fn rung<A, E>(self, e: E, abort: impl FnOnce(E) -> Rung<A, E>) -> Rung<A, E> {
+    /// The rung a reading refused with `e` stands as: kept by its kind.
+    pub fn rung<A, E>(self, e: E) -> Rung<A, E> {
         match self {
             Self::Margin(cause) => Kept::of(cause).map(|_| e).into(),
             Self::InBand => Rung::InBand(e),
             Self::Limit => Rung::Blocked(e),
             Self::Unsettled => Rung::Unsettled(e),
-            Self::Abort => abort(e),
         }
+    }
+}
+
+/// The rung a reading refused with `e` stands as, for a refusal that
+/// may abort: kept by its kind ([`Refusal::rung`]), or, where it
+/// refuses the whole query, stopping the ladder with `abort(e)`.
+pub fn rung_or_abort<A, E>(
+    standing: Result<Refusal, Aborts>,
+    e: E,
+    abort: impl FnOnce(E) -> A,
+) -> Rung<A, E> {
+    match standing {
+        Ok(refusal) => refusal.rung(e),
+        Err(Aborts) => Rung::Aborts(abort(e)),
     }
 }
 
@@ -339,12 +372,12 @@ pub fn climb_evidence<I, A, E>(
                 continue;
             }
             Rung::InBand(e) => {
-                kept.keep(Kept::InBand(e));
+                kept.in_band(e);
                 held.push((log, true));
                 continue;
             }
             Rung::Blocked(e) => {
-                kept.keep(Kept::Blocked(e));
+                kept.blocked(e);
                 held.push((log, true));
                 continue;
             }
@@ -471,13 +504,19 @@ impl<E> Evidence<E> {
         self.in_band.get_or_insert(e);
     }
 
-    /// Keeps `kept` as what it is, if it is the first of its kind: for a
-    /// run of readings outside a climb, which no reading of answers (the
-    /// cuts a later search reads its candidates off).
-    pub fn keep(&mut self, kept: Kept<E>) {
-        match kept {
-            Kept::InBand(e) => self.in_band(e),
-            Kept::Blocked(e) => self.blocked(e),
+    /// Keeps `e` as what `refusal` says it is ([`Refusal::rung`]'s
+    /// kinds), if it is the first of its kind: for a run of readings
+    /// outside a climb, which no reading of answers (the cuts a later
+    /// search reads its candidates off).
+    pub fn keep(&mut self, refusal: Refusal, e: E) {
+        match refusal {
+            Refusal::Margin(cause) => match Kept::of(cause) {
+                Kept::InBand(_) => self.in_band(e),
+                Kept::Blocked(_) => self.blocked(e),
+            },
+            Refusal::InBand => self.in_band(e),
+            Refusal::Limit => self.blocked(e),
+            Refusal::Unsettled => self.unsettled(e),
         }
     }
 
@@ -532,7 +571,7 @@ impl<E> Evidence<E> {
 mod tests {
     use geom_core::k_stats::Bracket;
     use geom_core::predicate::{Band, Indeterminate};
-    use geom_core::{Margin, Sign};
+    use geom_core::{Margin, MarginDiag, Sign};
 
     use super::{Answering, Climb, Evidence, IdentityLadder, Ranked, Rung, climb, read_identity};
 
@@ -569,11 +608,11 @@ mod tests {
     /// ahead of unsettled, and none where nothing was kept.
     #[test]
     fn evidence_refusal_is_the_ranked_one_of_any_kind() {
-        use super::Kept;
+        use super::Refusal;
         let mut e = Evidence::default();
         e.unsettled("unsettled");
-        e.keep(Kept::InBand("in band"));
-        e.keep(Kept::Blocked("limit"));
+        e.keep(Refusal::InBand, "in band");
+        e.keep(Refusal::Limit, "limit");
         assert_eq!(
             e.refusal(),
             Some("limit"),
@@ -581,12 +620,63 @@ mod tests {
         );
         let mut e = Evidence::default();
         e.unsettled("unsettled");
-        e.keep(Kept::InBand("in band"));
+        e.keep(Refusal::InBand, "in band");
         assert_eq!(e.refusal(), Some("in band"), "in band outranks unsettled");
         let mut e = Evidence::default();
         e.unsettled("unsettled");
         assert_eq!(e.refusal(), Some("unsettled"), "unsettled is a refusal");
         assert_eq!(Evidence::<&str>::default().refusal(), None, "nothing kept");
+    }
+
+    /// **A refusal is kept as the same kind wherever it is kept**: a
+    /// climb's rung ([`super::Refusal::rung`]) and a run outside one
+    /// ([`Evidence::keep`]) rank every standing alike, a poisoned margin
+    /// as a limit and a finite one in band; and a standing that aborts
+    /// stops the ladder with the answer its caller names.
+    #[test]
+    fn a_refusal_ranks_alike_as_a_rung_and_as_kept_evidence() {
+        use super::{Aborts, Refusal, rung_or_abort};
+        let cause = |margin| Indeterminate {
+            margin,
+            band: band(),
+            predicate: Some("t"),
+            terminal_sliver: false,
+        };
+        let standings = [
+            (Refusal::Margin(cause(MarginDiag::value(5e-9))), "in band"),
+            (Refusal::Margin(cause(MarginDiag::INVALID)), "blocked"),
+            (Refusal::InBand, "in band"),
+            (Refusal::Limit, "blocked"),
+            (Refusal::Unsettled, "unsettled"),
+        ];
+        for (refusal, kind) in standings {
+            let as_rung = match refusal.rung::<(), _>(()) {
+                Rung::InBand(_) => "in band",
+                Rung::Blocked(_) => "blocked",
+                Rung::Unsettled(_) => "unsettled",
+                other => panic!("{refusal:?} is kept, not {other:?}"),
+            };
+            assert_eq!(as_rung, kind, "{refusal:?} as a rung");
+            let mut kept = Evidence::default();
+            kept.keep(refusal, ());
+            let as_kept = match kept.ranked() {
+                Ranked::InBand(()) => "in band",
+                Ranked::Blocked(()) => "blocked",
+                Ranked::Unsettled(()) => "unsettled",
+                Ranked::Neither => "nothing",
+            };
+            assert_eq!(as_kept, kind, "{refusal:?} as kept evidence");
+            assert_eq!(
+                rung_or_abort::<Result<(), &str>, _>(Ok(refusal), kind, Err),
+                refusal.rung(kind),
+                "{refusal:?} that does not abort is its rung"
+            );
+        }
+        assert_eq!(
+            rung_or_abort::<Result<(), &str>, _>(Err(Aborts), "corrupt", Err),
+            Rung::Aborts(Err("corrupt")),
+            "an abort stops the ladder with its caller's answer"
+        );
     }
 
     /// **A later definite datum answers past an earlier in-band one**,
