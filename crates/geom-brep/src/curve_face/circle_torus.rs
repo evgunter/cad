@@ -229,7 +229,6 @@ pub fn circle_torus_roots<T: Decide>(
     };
     let two = T::from_f64(2.0);
     let v_ref = axis.cross(u_ref);
-    let w0 = center - t_center;
     let point_at = |theta: T| {
         let (s, c) = theta.sin_cos();
         center + u_ref * (radius * c) + v_ref * (radius * s)
@@ -241,8 +240,11 @@ pub fn circle_torus_roots<T: Decide>(
     // centre's distance from that axis separates coaxial from merely
     // parallel.
     let tilt = radius * axis.cross(t_axis).norm();
-    let h0 = w0.dot(t_axis);
-    let w_perp = w0 - t_axis * h0;
+    let (h0, w_perp) = geom::Line {
+        origin: t_center,
+        dir: t_axis,
+    }
+    .param_and_offset(center);
     let offset = w_perp.norm();
     let parallel = matches!(
         decide("circle_torus_coaxial_tilt", Margin::of(tilt), band),

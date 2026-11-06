@@ -3548,7 +3548,11 @@ pub(super) fn line_of<T: Decide>(
     };
     let mut at_site = [false; 2];
     for (k, d) in lines.dirs.iter().enumerate() {
-        let off = (site - lines.apex).cross(*d).norm() / d.norm();
+        let off = geom::Line {
+            origin: lines.apex,
+            dir: *d,
+        }
+        .distance(site);
         at_site[k] = on("bool_germ_apex_line", Margin::of(off))?;
     }
     let along = match at_site {
