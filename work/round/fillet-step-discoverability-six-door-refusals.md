@@ -2,11 +2,12 @@
 id: fillet-step-discoverability-six-door-refusals
 kind: issue
 title: the Fillet chain step is hard to discover: six door refusals before a reviewer's rounded pad built
-status: open
+status: dispatched
 opened: 2026-09-05
 refs: [1828]
 priority: P1
 cost: M
+branch: round/fillet-step-discoverable
 ---
 
 **Found by M10-8's R2 review, by authoring.** To build a document of

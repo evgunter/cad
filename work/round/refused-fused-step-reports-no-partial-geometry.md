@@ -7,6 +7,7 @@ opened: 2026-09-18
 priority: P1
 cost: M
 design: true
+pr: 6547
 ---
 
 **This is a DESIGN item, not a dispatchable unit.** Its question changes what the replay driver returns, and that is the interface the ratified PATHS lattice exposes. Settle it in an `[ev]` PR before anyone builds it.
