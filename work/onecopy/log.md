@@ -462,3 +462,4 @@
   - The foot search at N=4 moves the spline suites 41.7 s → 42.1 s; one row goes 0.34 → 0.57 s, under the 1 s bar.
   It waits on 6548's fix pass and merge.
 - 2026-11-06 — The 6541 fix pass is at `a898acea`: the coplanar change is fully reverted to main, NOTE-2 is pinned, and the ci set is 8606/8606 at both ε. Delta review sent to `session_013mPGJ3HVYqYAoquA4iThSZ`, ahead of its 6552 review.
+- 2026-11-06 — The topo-handles next unit is done locally: the loop doors take resolved loops through `Body::loop_cycle_linked` and `proven_loop`; all 24 value-discard arms are disposed, with one fix (`cusp`) and one new row (`ray_crossings` graze); and escalation-discards counts value discards. It waits on 6552.
