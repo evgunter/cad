@@ -231,6 +231,8 @@ mod fix_loop_polygon_expr;
 mod fix_pattern_mate_crossing;
 #[path = "fork7_shared_is_named.rs"]
 mod fork7_shared_is_named;
+#[path = "g_family_of_booleans.rs"]
+mod g_family_of_booleans;
 #[path = "g_family_review_rows.rs"]
 mod g_family_review_rows;
 #[path = "g_index_families.rs"]

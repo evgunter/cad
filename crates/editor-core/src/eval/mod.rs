@@ -921,6 +921,26 @@ impl<T: Decide> NodeValue<T> {
     pub(crate) fn whole(&self) -> &Self {
         self.family.as_deref().unwrap_or(self)
     }
+
+    /// **A family of bodies, member by member**, in index order: each
+    /// member's body, `None` at a member that is a boolean's empty
+    /// result. `None` for a value that is no family of bodies — one
+    /// body, or a family some member of which is no body. Every reader
+    /// of a family of bodies reads it here, whichever payload holds it.
+    #[must_use]
+    pub fn member_bodies(&self) -> Option<Vec<Option<&Framed<T>>>> {
+        match &self.payload {
+            ValuePayload::Instances(bodies) => Some(bodies.iter().map(Some).collect()),
+            ValuePayload::Family => self
+                .members
+                .as_ref()?
+                .members
+                .iter()
+                .map(|(_, member)| member.payload.member_body())
+                .collect(),
+            _ => None,
+        }
+    }
 }
 
 impl<T: Decide> NodeValue<T> {
@@ -1104,8 +1124,13 @@ pub enum ValuePayload<T: Decide> {
     /// vocabulary takes a verdict as an operand, so this payload is
     /// consumed by reports and by nothing else.
     Assertion(crate::measure::AssertionVerdict<T>),
-    /// **A family of anything but bodies** (D10 `[repetition]`): its
-    /// members are the value's ([`NodeValue::members`]).
+    /// **A family not every member of which is a body** (D10
+    /// `[repetition]`): its members are the value's
+    /// ([`NodeValue::members`]). Where each member is a body or a
+    /// boolean's empty result, it is a family of bodies with absent
+    /// members: its output names the bodies, each at its member's
+    /// place, and [`NodeValue::member_bodies`] reads it as
+    /// [`Self::Instances`] is read.
     Family,
 }
 
@@ -1228,6 +1253,16 @@ pub(crate) mod phrase {
 }
 
 impl<T: Decide> ValuePayload<T> {
+    /// **This value as a family's member**: its body, `Some(None)` for
+    /// a boolean's empty result, `None` for a value that is no body.
+    pub(crate) fn member_body(&self) -> Option<Option<&Framed<T>>> {
+        match self {
+            Self::Body(body) | Self::Boolean(BooleanValue::Body { body, .. }) => Some(Some(body)),
+            Self::Boolean(BooleanValue::Empty) => Some(None),
+            _ => None,
+        }
+    }
+
     /// **The body at output `index`**: a one-body value's at 0, a
     /// split's half at its port ([`crate::SplitHalf::output_body`]), a
     /// family's member at its place. The one answer to "which body does
@@ -4535,8 +4570,10 @@ fn own_bodies<T: Decide>(id: RecipeNodeId, step: &NodeStep<T>) {
     };
     let count = match &value.payload {
         ValuePayload::Body(_) | ValuePayload::Boolean(BooleanValue::Body { .. }) => 1,
-        ValuePayload::Instances(bodies) => bodies.len(),
-        _ => return,
+        _ => match value.member_bodies() {
+            Some(bodies) => bodies.len(),
+            None => return,
+        },
     };
     for names in value.outputs.iter() {
         crate::names::assert_own_bodies(names.table(), count, id);

@@ -1173,6 +1173,25 @@ fn placeable_operand<T: Decide>(
     }
 }
 
+/// **A family read whole, as its bodies**, in index order
+/// ([`super::NodeValue::member_bodies`]). An absent member refuses
+/// [`NodeErrorKind::EmptyOperand`] naming the family, as an empty
+/// boolean read at one seat does (D3: nothing ∅-absorbing is
+/// invented); a value that is no family of bodies refuses typed,
+/// expecting `expected`.
+fn whole_bodies<'v, T: Decide>(
+    value: &'v super::NodeValue<T>,
+    at: RecipeNodeId,
+    expected: &'static str,
+) -> Result<Vec<&'v super::Framed<T>>, NodeErrorKind> {
+    value
+        .member_bodies()
+        .ok_or_else(|| wrong_operand(value, at, expected))?
+        .into_iter()
+        .map(|body| body.ok_or(NodeErrorKind::EmptyOperand { input: at }))
+        .collect()
+}
+
 /// The linear classification band (kernel-ambient tolerance).
 pub(crate) fn band(tol: Tol) -> Result<Band, NodeErrorKind> {
     Band::linear(tol).map_err(NodeErrorKind::Band)
@@ -2858,43 +2877,41 @@ fn wire_mirror<T: Decide + topo::AtRestPolicy>(
     )?))
 }
 
-/// **The body of `of`'s `Instances` value the count in `slot` picks**,
-/// with its index into the value's list of bodies: a piece's family's
-/// members in index order. A negative index and one past the end refuse
-/// alike ([`NodeErrorKind::MemberOutOfRange`]). A list past u32 is its
+/// **The place among `count` bodies of `of` the count in `slot`
+/// picks**: a piece's family's members in index order. A negative index
+/// and one past the end refuse alike
+/// ([`NodeErrorKind::MemberOutOfRange`]). A list past u32 is its
 /// minting op's own emission bug, refused before any index is judged
 /// against it.
-fn instance_of<T: Decide>(
+fn instance_of(
     of: RecipeNodeId,
-    instances: &[super::Framed<T>],
-    vals: &SlotValues<T>,
+    count: usize,
+    vals: &SlotValues<impl Decide>,
     slot: SlotId,
-) -> Result<(super::Framed<T>, u32), NodeErrorKind> {
+) -> Result<u32, NodeErrorKind> {
     let index = slots::count(vals, slot).ok_or(NodeErrorKind::MissingSlot { slot })?;
-    let count = names::narrow(instances.len(), names::Numbered::OutputBody)
-        .map_err(NodeErrorKind::Naming)?;
-    let ix = u32::try_from(index).ok().filter(|i| *i < count).ok_or(
-        NodeErrorKind::MemberOutOfRange {
+    let count = names::narrow(count, names::Numbered::OutputBody).map_err(NodeErrorKind::Naming)?;
+    u32::try_from(index)
+        .ok()
+        .filter(|i| *i < count)
+        .ok_or(NodeErrorKind::MemberOutOfRange {
             input: of,
             at: vec![index],
-        },
-    )?;
-    Ok((instances[ix as usize].clone(), ix))
+        })
 }
 
-/// **The member of `of`'s family an indexed read picks**, with its
-/// place among the family's bodies: the member whose index values are
-/// the read's `rank` index slots at `seat`, in order. A read of another
+/// **The place of the member of `of`'s family an indexed read picks**,
+/// among the family's members: the member whose index values are the
+/// read's `rank` index slots at `seat`, in order. A read of another
 /// rank, or at values no member stands at, refuses as one out of range
 /// ([`NodeErrorKind::MemberOutOfRange`]).
 fn member_of<T: Decide>(
     of: RecipeNodeId,
     members: &super::members::Members<T>,
-    instances: &[super::Framed<T>],
     vals: &SlotValues<T>,
     seat: crate::OperandSlot,
     rank: usize,
-) -> Result<(super::Framed<T>, u32), NodeErrorKind> {
+) -> Result<u32, NodeErrorKind> {
     let at = (0..rank)
         .map(|k| {
             let slot = SlotId::Index { seat, k };
@@ -2914,11 +2931,7 @@ fn member_of<T: Decide>(
         .collect::<Option<_>>()
         .ok_or_else(out)?;
     let index = members.position(&narrow).ok_or_else(out)?;
-    let body = instances.get(index).cloned().ok_or_else(out)?;
-    Ok((
-        body,
-        names::narrow(index, names::Numbered::OutputBody).map_err(NodeErrorKind::Naming)?,
-    ))
+    names::narrow(index, names::Numbered::OutputBody).map_err(NodeErrorKind::Naming)
 }
 
 /// One half of a split's value, or [`NodeErrorKind::EmptyHalf`].
@@ -2996,13 +3009,28 @@ fn reads_projected<T: Decide>(
         {
             let family = super::read_at(doc, seat, var)?;
             let value = value_of(results, family)?.whole();
-            let ValuePayload::Instances(instances) = &value.payload else {
-                return Err(wrong_operand(value, family, super::family::INSTANCES));
-            };
+            let bodies = value
+                .member_bodies()
+                .ok_or_else(|| wrong_operand(value, family, super::family::INSTANCES))?;
             let rank = node.body_read(seat).map_or(0, |read| read.at.len());
-            let (body, index) = match &value.members {
-                Some(members) => member_of(family, members, instances, vals, seat, rank)?,
-                None => instance_of(family, instances, vals, SlotId::Index { seat, k: 0 })?,
+            let index = match &value.members {
+                Some(members) => member_of(family, members, vals, seat, rank)?,
+                None => instance_of(family, bodies.len(), vals, SlotId::Index { seat, k: 0 })?,
+            };
+            // A member carries its own carry: its records, the pieces and
+            // the census its copy holds where it stands.
+            let carry = value.carry.member(index as usize).clone();
+            let Some(body) = bodies[index as usize].cloned() else {
+                // An absent member is the empty value, as its one read
+                // sees it: each seat takes it as it takes an empty result.
+                let empty = super::NodeValue {
+                    payload: ValuePayload::Boolean(BooleanValue::Empty),
+                    outputs: Arc::new([super::OutputNames::new(names::empty(), Arc::default())]),
+                    carry,
+                    ..value.clone()
+                };
+                replaced.push((family, index, empty));
+                continue;
             };
             // A family's one table holds every member at its place.
             let table = read_table(value)
@@ -3010,9 +3038,6 @@ fn reads_projected<T: Decide>(
                 .map_err(|dup| NodeErrorKind::Naming(names::NamingError::from(dup)))?;
             let names = super::OutputNames::new(Arc::new(table), Arc::default());
             let (_, index_at, projected) = projected(family, value, body, names, index)?;
-            // A member carries its own carry: its records, the pieces and
-            // the census its copy holds where it stands.
-            let carry = value.carry.member(index as usize).clone();
             replaced.push((family, index_at, super::NodeValue { carry, ..projected }));
             continue;
         }
@@ -3056,7 +3081,8 @@ fn pick_of<T: Decide>(
     }
     let bodies = &piece.bodies;
     let (body, table, member_carry) = if indexed {
-        let (body, index) = instance_of(placement, bodies, vals, SlotId::Index { seat, k: 0 })?;
+        let index = instance_of(placement, bodies.len(), vals, SlotId::Index { seat, k: 0 })?;
+        let body = bodies[index as usize].clone();
         let table = piece
             .table
             .project(index)
@@ -3644,11 +3670,8 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     // Each member of a family read whole, in index order, its table the
     // family's rows for that member.
     let whole = |read: crate::VarId, at: RecipeNodeId, value: &super::NodeValue<T>| {
-        let ValuePayload::Instances(bodies) = &value.payload else {
-            return Err(wrong_operand(value, at, super::family::INSTANCES));
-        };
-        bodies
-            .iter()
+        whole_bodies(value, at, super::family::INSTANCES)?
+            .into_iter()
             .enumerate()
             .map(|(i, body)| {
                 let index =
@@ -4423,12 +4446,18 @@ fn wire_assemble<T: Decide + topo::AtRestPolicy>(
     let operands: Vec<&super::Framed<T>> = members
         .iter()
         .filter_map(|&(of, _, results)| value_of(results, of).ok())
-        .flat_map(|value| match &value.whole().payload {
-            ValuePayload::Boolean(BooleanValue::Body { body, .. }) | ValuePayload::Body(body) => {
-                vec![body]
-            }
-            ValuePayload::Instances(bodies) => bodies.iter().collect(),
-            _ => Vec::new(),
+        .flat_map(|value| {
+            let value = value.whole();
+            let bodies: Vec<&super::Framed<T>> = match value.payload.member_body() {
+                Some(body) => body.into_iter().collect(),
+                None => value
+                    .member_bodies()
+                    .into_iter()
+                    .flatten()
+                    .flatten()
+                    .collect(),
+            };
+            bodies
         })
         .collect();
     let mut computing: Option<super::Framed<T>> =
@@ -4442,15 +4471,16 @@ fn wire_assemble<T: Decide + topo::AtRestPolicy>(
     for &(of, read, results) in members {
         // Every seat of an assemble takes a family whole.
         let value = value_of(results, of)?.whole();
-        let (bodies, family) = match &value.payload {
-            ValuePayload::Boolean(BooleanValue::Empty) => {
-                return Err(NodeErrorKind::EmptyOperand { input: of });
-            }
-            ValuePayload::Boolean(BooleanValue::Body { body, .. }) | ValuePayload::Body(body) => {
-                (vec![body.clone()], false)
-            }
-            ValuePayload::Instances(bodies) => (bodies.clone(), true),
-            _ => return Err(wrong_operand(value, of, super::phrase::BODY_OR_INSTANCES)),
+        let (bodies, family) = match value.payload.member_body() {
+            Some(Some(body)) => (vec![body.clone()], false),
+            Some(None) => return Err(NodeErrorKind::EmptyOperand { input: of }),
+            None => (
+                whole_bodies(value, of, super::phrase::BODY_OR_INSTANCES)?
+                    .into_iter()
+                    .cloned()
+                    .collect(),
+                true,
+            ),
         };
         let table = read_table(value);
         let mut bridges = Vec::with_capacity(bodies.len());

@@ -418,20 +418,18 @@ pub(super) fn member_key(key: ContentKey, at: &[(VarId, i64)]) -> ContentKey {
 }
 
 /// **The family's value**: a family of bodies as their `Instances`,
-/// named member by member; any other as [`ValuePayload::Family`]. Its
-/// keys are its members', in order.
+/// named member by member; a family of bodies with an absent member (a
+/// boolean's empty result) as [`ValuePayload::Family`], its bodies
+/// named each at its member's place; any other as `Family` with no
+/// output. Its keys are its members', in order.
 fn family_value<T: Decide>(
     id: RecipeNodeId,
     members: Members<T>,
 ) -> Result<NodeValue<T>, NodeErrorKind> {
-    let bodies: Option<Vec<super::Framed<T>>> = members
+    let bodies: Option<Vec<Option<&super::Framed<T>>>> = members
         .members
         .iter()
-        .map(|(_, value)| match &value.payload {
-            ValuePayload::Body(body)
-            | ValuePayload::Boolean(super::BooleanValue::Body { body, .. }) => Some(body.clone()),
-            _ => None,
-        })
+        .map(|(_, value)| value.payload.member_body())
         .collect();
     let mut content = KeyHasher::new();
     let mut naming = KeyHasher::new();
@@ -459,11 +457,18 @@ fn family_value<T: Decide>(
                     (members.member_at(values), table)
                 })
                 .collect();
-            let raw: Vec<&topo::Body<T>> = bodies.iter().map(super::Framed::body).collect();
+            let raw: Vec<Option<&topo::Body<T>>> = bodies
+                .iter()
+                .map(|body| body.map(super::Framed::body))
+                .collect();
             let table =
                 crate::names::name_family(id, &tables, &raw).map_err(NodeErrorKind::Naming)?;
+            let payload = match bodies.into_iter().collect::<Option<Vec<_>>>() {
+                Some(every) => ValuePayload::Instances(every.into_iter().cloned().collect()),
+                None => ValuePayload::Family,
+            };
             (
-                ValuePayload::Instances(bodies),
+                payload,
                 Arc::from([super::OutputNames::new(table, Arc::default())]),
             )
         }
