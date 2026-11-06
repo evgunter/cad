@@ -2550,11 +2550,7 @@ pub(crate) fn line_wedges<T: Decide>(
             .into_iter()
             .flat_map(|(w, p)| [p.own, p.next, p.inside].map(|v| (w, v)));
         let inner = climb(Answering::Any, probes, |(w, v)| {
-            match strictly_inside(w, v, band).map_err(|r| (i, r)) {
-                Ok(true) => Rung::Answers(Ok(())),
-                Ok(false) => Rung::Passes,
-                Err(e) => kept(e),
-            }
+            probe_rung(strictly_inside(w, v, band).map_err(|r| (i, r)))
         });
         match inner {
             Climb::Answered { answer: Ok(()), .. } => Rung::Answers(Ok(i)),
@@ -2567,6 +2563,19 @@ pub(crate) fn line_wedges<T: Decide>(
         Climb::Answered { answer, .. } => answer.map(Some),
         Climb::Passed => Ok(None),
         Climb::Undecided(e) => Err(e),
+    }
+}
+
+/// One probe of [`line_wedges`] as a rung: a probe strictly inside the
+/// other wedge answers, one not passes, and a refusal is kept by its
+/// standing ([`WedgeRefusal::refusal`]).
+fn probe_rung(
+    reading: Result<bool, (usize, WedgeRefusal)>,
+) -> Rung<Result<(), (usize, WedgeRefusal)>, (usize, WedgeRefusal)> {
+    match reading {
+        Ok(true) => Rung::Answers(Ok(())),
+        Ok(false) => Rung::Passes,
+        Err(e) => geom_brep::ladder::rung_or_abort(e.1.refusal(), e, Err),
     }
 }
 
@@ -21868,6 +21877,55 @@ mod arc_interiors {
                 "the half over [{t0}, {t1}]"
             );
         }
+    }
+}
+
+/// **A probe strictly inside answers past a probe read in band**
+/// ([`line_wedges`] climbs its pairs and each pair's probes, through
+/// [`probe_rung`]), and a wedge with no reading, a limit, outranks a
+/// probe in band read before it. Fed the readings directly: no line pair
+/// a constructor builds reads in band at one probe and inside at another.
+#[cfg(test)]
+mod line_wedges_ranking {
+    use geom_brep::ladder::{Answering, Climb, climb};
+    use geom_core::{Band, Indeterminate, MarginDiag};
+
+    use super::{EdgeKey, TouchUnread, WedgeRefusal, probe_rung};
+
+    fn in_band() -> (usize, WedgeRefusal) {
+        (
+            0,
+            WedgeRefusal::Undecided(Indeterminate {
+                margin: MarginDiag::value(5e-9),
+                band: Band::new(1e-9, 1e-8).unwrap(),
+                predicate: Some("t"),
+                terminal_sliver: false,
+            }),
+        )
+    }
+
+    #[test]
+    fn a_probe_inside_answers_past_one_in_band() {
+        let read =
+            |r: Vec<Result<bool, (usize, WedgeRefusal)>>| climb(Answering::Any, r, probe_rung);
+        assert!(
+            matches!(
+                read(vec![Err(in_band()), Ok(true)]),
+                Climb::Answered { answer: Ok(()), .. }
+            ),
+            "a later probe strictly inside answers past one in band"
+        );
+        let unread = (
+            0,
+            WedgeRefusal::Unread(EdgeKey::default(), TouchUnread::Degenerate),
+        );
+        assert!(
+            matches!(
+                read(vec![Err(in_band()), Err(unread)]),
+                Climb::Undecided((_, WedgeRefusal::Unread(_, TouchUnread::Degenerate)))
+            ),
+            "a wedge with no reading outranks the probe in band read before it"
+        );
     }
 }
 
