@@ -2589,9 +2589,28 @@ struct PendingJunction<T: Real> {
 struct Tip<T: Real> {
     pos: Option<PosData<T>>,
     ang: Option<Bound<T>>,
-    /// Whether the bound angle was inherited by `.tangent()` (the
-    /// constructed-tangency continuations; drives the §4 item 4 checks).
-    ang_by_tangent: bool,
+    /// Whether the bound angle was inherited from the incoming end
+    /// tangent, and which way. Only a tip at a leg end with incoming data
+    /// inherits; a fillet opened here copies it into its
+    /// [`PendingMeta::by_tangent`].
+    ang_by_tangent: ByTangent,
+}
+
+/// How a tip's bound angle relates to its incoming end tangent. An
+/// inherited kind is only ever set at a leg end, by the verb that
+/// constructs the joint there (`.tangent()`, `.cusp()`, or the bare
+/// fillet's ray extension); only a [`Forward`](ByTangent::Forward) ray
+/// continues a straight leg's own carrier in its own direction, so only
+/// it may EXTEND that leg ([`PendingMeta::extends_straight_leg`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ByTangent {
+    /// Authored where it is bound.
+    No,
+    /// `.tangent()` (or a bare `fillet(r)` on a leg end): the end
+    /// tangent itself.
+    Forward,
+    /// `.cusp()`: the end tangent reversed.
+    Reversed,
 }
 
 /// The bound position bit: the point plus (directed flavor only) the
@@ -2679,8 +2698,9 @@ enum FirstSeg {
 
 /// Chain-side bookkeeping for an opened fillet: the authored ADDRESS
 /// its radius arguments are recorded at (`bound_at`,
-/// `incoming_radius`) and the §4 item 4 zero-fit knife-edge data
-/// (`by_tangent`, `origin_incoming`, `extends_carrier`). This is NOT
+/// `incoming_radius`) and whether its incoming emission extends the
+/// origin leg (`by_tangent` and `origin_incoming`, read together by
+/// [`PendingMeta::extends_straight_leg`]; `extends_carrier`). This is NOT
 /// part of the kernel's [`verbs::Pending`] state value: the kernel
 /// cannot name it, which is what keeps the verbs pure (§2c round 12).
 /// It is held WITH the pending side it describes ([`Core::pending`]),
@@ -2699,9 +2719,9 @@ struct PendingMeta<T: Real> {
     /// through-point or a centre authors the same carrier from no
     /// radius at all, so the arc it emits has no address to record.
     incoming_radius: bool,
-    /// The ray was bound by `.tangent()` (or ray-extended off a leg
-    /// end): its origin joint is already constructed.
-    by_tangent: bool,
+    /// Whether the ray was inherited at its origin, and which way: an
+    /// inherited ray's origin joint is already constructed.
+    by_tangent: ByTangent,
     /// The ray origin's incoming carrier, if the origin was a leg end.
     origin_incoming: Option<Incoming<T>>,
     /// **Arc extension** (§2c): the fused arc incoming CONTINUES the
@@ -2710,6 +2730,23 @@ struct PendingMeta<T: Real> {
     /// exemption, exactly as ray extension) instead of pushing a
     /// co-carrier neighbour.
     extends_carrier: bool,
+}
+
+impl<T: Real> PendingMeta<T> {
+    /// **Ray extension of a straight leg**: the ray is the origin leg's
+    /// own FORWARD end tangent and that leg is straight, so the incoming
+    /// run continues the leg and its emission moves the leg's end vertex
+    /// (the §4 item 4 exemption). A `.cusp()` ray runs back from the
+    /// leg's end and is emitted as its own piece. The one test both
+    /// straight-leg merge sites read (`Core::resolve_fillet`'s line×line
+    /// arm and `family::merge_of`).
+    fn extends_straight_leg(&self) -> bool {
+        self.by_tangent == ByTangent::Forward
+            && self
+                .origin_incoming
+                .as_ref()
+                .is_some_and(|i| i.carrier.is_none())
+    }
 }
 
 /// The accumulated lowering state: the vertex chain emitted so far
@@ -4350,15 +4387,11 @@ impl<T: Decide> Core<T> {
         // constructed (a `.tangent()` ray, or a previous fillet's arc
         // end), §4 item 4 refuses carrier identity there.
         if trims.fit_in == Sign::Positive {
-            if meta.by_tangent
-                && meta
-                    .origin_incoming
-                    .as_ref()
-                    .is_some_and(|i| i.carrier.is_none())
-            {
-                // Ray extension of a STRAIGHT leg: extend the leg
-                // itself (see `extend_leg_to`); the joint declared at
-                // the leg's end is the leg→arc tangency.
+            if meta.extends_straight_leg() {
+                // Extend the leg itself (see `extend_leg_to`); the joint
+                // declared at the leg's end is the leg→arc tangency.
+                // Otherwise (a `.cusp()` ray among them) the run is its
+                // own piece below.
                 self.extend_leg_to(trims.t1)?;
             } else {
                 self.claim(meta.bound_at, crate::structure::PieceRole::RunIn);
@@ -4624,7 +4657,7 @@ fn directed_tip<T: Real>(at: Point2<T>, incoming: Incoming<T>) -> Tip<T> {
             incoming: Some(incoming),
         }),
         ang: None,
-        ang_by_tangent: false,
+        ang_by_tangent: ByTangent::No,
     }
 }
 
@@ -4652,7 +4685,7 @@ impl Open {
                     incoming: None,
                 }),
                 ang: None,
-                ang_by_tangent: false,
+                ang_by_tangent: ByTangent::No,
             },
         )
     }
@@ -4668,7 +4701,7 @@ impl Open {
             Tip {
                 pos: None,
                 ang: Some(Bound::fresh(dir)),
-                ang_by_tangent: false,
+                ang_by_tangent: ByTangent::No,
             },
         )
     }
@@ -5045,7 +5078,9 @@ impl<T: Decide, A: AngMarker> PartialPath<T, NoPos, A> {
                     incoming: None,
                 }),
                 ang: self.tip.ang,
-                ang_by_tangent: self.tip.ang_by_tangent,
+                // A tip with no position inherits nothing (only a leg
+                // end does), and the tip at `p` has no incoming data.
+                ang_by_tangent: ByTangent::No,
             },
         ))
     }
@@ -5070,7 +5105,7 @@ impl<T: Decide, P: PosMarker> PartialPath<T, P, NoAng> {
             }
         }
         self.tip.ang = Some(Bound::fresh(dir));
-        self.tip.ang_by_tangent = false;
+        self.tip.ang_by_tangent = ByTangent::No;
         Ok(in_state(self.core, self.tip))
     }
 }
@@ -5094,7 +5129,7 @@ impl<T: Decide> PartialPath<T, HasPos<WithIncoming>, NoAng> {
     /// is the row's, not the kernel's).
     fn tangent_kernel(mut self) -> PartialPath<T, HasPos<WithIncoming>, HasAng> {
         self.tip.ang = self.inherited(false);
-        self.tip.ang_by_tangent = true;
+        self.tip.ang_by_tangent = ByTangent::Forward;
         self.core.construct_last();
         in_state(self.core, self.tip)
     }
@@ -5108,7 +5143,7 @@ impl<T: Decide> PartialPath<T, HasPos<WithIncoming>, NoAng> {
     /// construction.
     fn cusp_kernel(mut self) -> PartialPath<T, HasPos<WithIncoming>, HasAng> {
         self.tip.ang = self.inherited(true);
-        self.tip.ang_by_tangent = true;
+        self.tip.ang_by_tangent = ByTangent::Reversed;
         self.core.construct_last();
         in_state(self.core, self.tip)
     }
@@ -5128,7 +5163,7 @@ impl<T: Decide> PartialPath<T, HasPos<WithIncoming>, NoAng> {
         let theta = turned(inc.ang.unit, delta);
         self.core.pend_junction(&inc, theta, tol)?;
         self.tip.ang = Some(Bound::fresh(theta));
-        self.tip.ang_by_tangent = false;
+        self.tip.ang_by_tangent = ByTangent::No;
         Ok(in_state(self.core, self.tip))
     }
 
@@ -5404,7 +5439,7 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
             Tip {
                 pos: None,
                 ang: None,
-                ang_by_tangent: false,
+                ang_by_tangent: ByTangent::No,
             },
         ))
     }
