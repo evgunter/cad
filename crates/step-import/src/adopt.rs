@@ -928,14 +928,15 @@ fn line_column_match(
     if !(len2 > 0.0) || !len2.is_finite() {
         return None;
     }
-    for p in control {
-        let d = *p - *first;
-        let t = d.dot(chord) / len2;
-        if !t.is_finite() {
+    let line = geom::Line {
+        origin: *first,
+        dir: chord,
+    };
+    for &p in control {
+        if !line.param(p).is_finite() {
             return None;
         }
-        let clamped = t.clamp(0.0, 1.0);
-        if !((d - chord * clamped).norm() <= eps) {
+        if !((p - line.foot_within(p, (0.0, 1.0))).norm() <= eps) {
             return None;
         }
     }

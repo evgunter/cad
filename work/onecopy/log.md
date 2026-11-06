@@ -509,3 +509,4 @@
   - The local-base recipe is now documented.
   - I merged main (`4a15d487`). The tracker rows conflicted because the lane had carried the state branch's older copies; I took main's. It compiles, and the gates pass with the merge base. The CI gate is running.
 - 2026-11-06 — curve-pair-tidy opened PR 6559 (harmonic-cut) at `7ac43ccc`. It took main's `circle_roots` whole after 6491; the ci set is 8614/8614 at both ε. FULL review sent to `session_013mPGJ4JScywfx3zssA8yRc`.
+- 2026-11-06 — PR 6548 merged as `69847789f0`, gated on `2f68e629`. The spline lane is opening its walks/foot PR.

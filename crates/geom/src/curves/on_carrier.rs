@@ -357,59 +357,52 @@ impl<T: Decide> Curve3<T> {
     }
 
     /// **The parameter of `q`'s nearest point of the whole carrier**,
-    /// where the kind makes the foot that point: [`Foot::nearest`] of the
-    /// foot seeded at `near`, asked of the kind before the foot is found,
-    /// so a kind with none searches nothing. `None` on every other kind.
+    /// where the kind makes the foot that point: [`Self::param_near`] on
+    /// the kinds it is nearest on (a line, a circle), the same parameter
+    /// as [`Foot::nearest`]. `None` on every other kind.
     pub fn nearest(&self, q: Point3<T>, near: T) -> Option<T> {
         if !self.foot_is_nearest() {
             return None;
         }
-        self.foot(q, near).nearest()
+        self.param_near(q, near)
     }
 
     /// **`q`'s foot on the carrier** (module docs). `near` is a seed: the
     /// parameter a consumer already holds for `q`, or any parameter of
     /// the interval it reads.
     pub fn foot(&self, q: Point3<T>, near: T) -> Foot<'_, T> {
-        let seed = match self {
-            Self::Line(line) => line.param(q),
-            Self::Circle(c) => return self.foot_at(q, crate::Conic::azimuth(c, q).near(near)),
-            Self::Ellipse(e) => crate::Conic::azimuth(e, q).near(near),
-            Self::Spiric {
-                center,
-                axis,
-                major_radius,
-                ..
-            } => super::tube_section(*center, *axis, *major_radius, q).near(near),
-            Self::Nurbs(n) => {
-                let knots = n.knot_values();
-                let (lo, hi) = knots.domain();
-                let breaks: Vec<T> = knots.runs().map(|(k, _)| k).collect();
-                let mut best = self.foot_at(q, near.max(lo).min(hi));
-                for k in breaks.windows(2) {
-                    for s in SPLINE_SAMPLES {
-                        let f = self.foot_at(q, k[0] + (k[1] - k[0]) * T::from_f64(s));
-                        if smaller(f.gap, best.gap) {
-                            best = f;
-                        }
-                    }
-                }
-                let domain = Some((lo, hi));
-                let mut foot = self.polish(q, best, domain);
-                for end in [lo, hi] {
-                    let f = self.polish(q, self.foot_at(q, end), domain);
-                    if smaller(f.gap, foot.gap) {
-                        foot = f;
-                    }
-                }
-                return foot;
-            }
+        let Self::Nurbs(n) = self else {
+            let Some(seed) = self.param_near(q, near) else {
+                unreachable!("only a spline reads no parameter near a point")
+            };
+            let at = self.foot_at(q, seed);
+            return if self.foot_is_nearest() {
+                at
+            } else {
+                self.polish(q, at, None)
+            };
         };
-        let at = self.foot_at(q, seed);
-        match self {
-            Self::Line(_) => at,
-            _ => self.polish(q, at, None),
+        let knots = n.knot_values();
+        let (lo, hi) = knots.domain();
+        let breaks: Vec<T> = knots.runs().map(|(k, _)| k).collect();
+        let mut best = self.foot_at(q, near.max(lo).min(hi));
+        for k in breaks.windows(2) {
+            for s in SPLINE_SAMPLES {
+                let f = self.foot_at(q, k[0] + (k[1] - k[0]) * T::from_f64(s));
+                if smaller(f.gap, best.gap) {
+                    best = f;
+                }
+            }
         }
+        let domain = Some((lo, hi));
+        let mut foot = self.polish(q, best, domain);
+        for end in [lo, hi] {
+            let f = self.polish(q, self.foot_at(q, end), domain);
+            if smaller(f.gap, foot.gap) {
+                foot = f;
+            }
+        }
+        foot
     }
 
     /// The foot at `t` as read, unpolished.
@@ -466,11 +459,7 @@ impl<T: Decide> Curve3<T> {
     /// piece walk ([`Self::clear_of`]).
     pub fn clearance(&self, q: Point3<T>) -> Option<T> {
         Some(match *self {
-            Self::Line(crate::Line { origin, dir }) => {
-                let w = q - origin;
-                let u = dir * (T::one() / dir.norm());
-                (w - u * w.dot(u)).norm()
-            }
+            Self::Line(line) => line.offset(q).norm(),
             Self::Circle(c) => {
                 let (h, rho) = height_and_radius(q - c.frame.origin, c.frame.axis);
                 (h.powi(2) + (rho - c.radius).powi(2)).sqrt()
@@ -478,7 +467,7 @@ impl<T: Decide> Curve3<T> {
             Self::Ellipse(e) => {
                 let lower =
                     ellipse_level_clearance(e.frame.in_plane(q), (e.semi_u, e.semi_v)).abs();
-                (lower.powi(2) + (q - e.frame.origin).dot(e.frame.axis).powi(2)).sqrt()
+                (lower.powi(2) + e.frame.height(q).powi(2)).sqrt()
             }
             Self::Spiric {
                 center,
