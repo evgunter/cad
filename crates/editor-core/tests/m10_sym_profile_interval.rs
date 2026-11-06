@@ -2,7 +2,7 @@
 //! symbolic normal form on the M10-3 slab and the two-hole plate
 //! (`work/sym/symbolic-tier-costs-95-percent-of-the-m10-3-drive`).
 //!
-//! Every row here but one is EVIDENCE-ONLY and `#[ignore]`d: each
+//! The `#[ignore]`d rows are EVIDENCE-ONLY: each
 //! prints the tier's structural profile (`geom_core::sym::profile`,
 //! behind the test-only `sym-profile-testing` feature the
 //! dev-dependency edge turns on) for one replay or one drive, and
@@ -12,13 +12,12 @@
 //! drives (`bounded_chamber`, the row S-TCOST bisected on) and the
 //! plate the tier was built for, through the same doors.
 //!
-//! The one gating row,
-//! [`the_forms_the_walks_build_are_pinned_per_eps_row`], reads the
-//! same instrument for the one thing in it that is not a clock: the
-//! walk ledger — per walk and origin the calls, the forms, the frozen,
-//! and the digest chain of the forms built — so what the tier BUILDS
-//! on both documents is a pinned number, over and above what the
-//! pins say it DECIDES.
+//! The gating rows read the same instrument for the one thing in it
+//! that is not a clock: the walk ledger — per walk and origin the
+//! calls, the forms, the frozen, and the digest chain of the forms
+//! built — so what the tier BUILDS on both documents is a pinned
+//! number, over and above what the pins say it DECIDES
+//! ([`assert_walk_ledger`]).
 //!
 //! The one row without the profile installed,
 //! [`sym_profile_callgrind_replay`], is the callgrind target: it
@@ -27,22 +26,9 @@
 //! The command that takes it is recorded in the item body.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-// Gated to the code it profiles: the normal form and its rules, the
-// driver that replays leaves through it, and the fixtures — the shared
-// tree and the four sibling suites whose doors build the documents and
-// run the replay.
-test_utils::gated_to![
-    "crates/geom-core/src/sym.rs",
-    "crates/geom-core/src/sym/",
-    "crates/editor-core/src/drive.rs",
-    "crates/sweep/src/swept.rs",
-    "crates/editor-core/tests/fixture/",
-    "crates/editor-core/tests/m10_3_r1_probes_interval.rs",
-    "crates/editor-core/tests/m10_7_plate.rs",
-    "crates/editor-core/tests/m10_8_arc_family_interval.rs",
-    "crates/editor-core/tests/m10_8_harness.rs",
-    "crates/editor-core/src/test_support.rs",
-];
+// Not `gated_to!`: the walk ledger reads every kernel change the
+// documents meet, so no path list names what moves it, and the
+// slab's row has to run on any PR whose closure reaches it.
 
 use std::collections::BTreeMap;
 use std::time::Instant;
@@ -428,54 +414,61 @@ const PLATE_LEDGER: &str = "\
 /// decision — may not. The pins hold the decisions; this row holds
 /// the forms behind them, so a swapped term order or a coefficient
 /// normalised differently reads here even where the outcome survives
-/// it. The slab's ledger is per ε row, because its literals are
-/// multiples of ε.
+/// it.
+///
+/// One replay of `doc` at its nominal; panics unless its largest form
+/// and its ledger are the pinned ones.
+fn assert_walk_ledger(name: &str, doc: &ProfileDoc, expected: &str, max_terms: usize, tol: Tol) {
+    let (_, nominal) = boxes(doc).into_iter().next().unwrap();
+    start_profile();
+    let (_, _, counts) = replay(doc, &nominal, SymRules::shipped(), tol);
+    let profile = take_profile();
+    let ledger = profile.walk_ledger();
+    let largest = profile
+        .ops
+        .values()
+        .map(|o| o.max_terms_out)
+        .max()
+        .unwrap_or(0);
+    println!(
+        "\nLEDGER {name} eps {:e} largest form {largest}\n{ledger}",
+        tol.eps()
+    );
+    assert_eq!(
+        largest,
+        max_terms,
+        "{name} at eps {:e}: the largest form built has {largest} terms, pinned {max_terms}",
+        tol.eps()
+    );
+    assert_eq!(
+        ledger.trim(),
+        expected.trim(),
+        "{name} at eps {:e}: the walks built different forms (counts {counts:?})",
+        tol.eps()
+    );
+}
+
+/// The slab's walk ledger ([`assert_walk_ledger`]), per ε row. One
+/// replay, cheap enough for the per-PR gate, so a PR that moves what
+/// the slab's walks build sees it there: it stands in, on the gate, for
+/// [`the_forms_the_walks_build_are_pinned_per_eps_row`] and
+/// [`the_plains_ledger_lines_are_the_same_under_every_dial_set`], which
+/// replay the plate and run nightly. It does not stand in for the
+/// plate's own lines: the slab has no curved wall, so a change to how
+/// the certificate reads a cylinder's pcurve moves the plate alone.
+#[test]
+fn the_forms_the_slabs_walks_build_are_pinned_per_eps_row() {
+    let tol = Tol::witness();
+    let row = eps_row(tol.eps());
+    assert_walk_ledger("slab", &slab(), SLAB_LEDGER[row], SLAB_MAX_TERMS, tol);
+}
+
+/// The plate's walk ledger ([`assert_walk_ledger`]); its nominal reads
+/// no ε, so one pin serves every row.
 #[test]
 fn the_forms_the_walks_build_are_pinned_per_eps_row() {
     let tol = Tol::witness();
-    let row = eps_row(tol.eps());
-    let slab_doc = slab();
-    let plate_doc = the_plate(tol);
-    // Both ledgers are taken before either is read, so a red on the
-    // slab still shows the plate's.
-    let taken: Vec<_> = [
-        ("slab", &slab_doc, SLAB_LEDGER[row], SLAB_MAX_TERMS),
-        ("plate", &plate_doc, PLATE_LEDGER, PLATE_MAX_TERMS),
-    ]
-    .into_iter()
-    .map(|(name, doc, expected, max_terms)| {
-        let (_, nominal) = boxes(doc).into_iter().next().unwrap();
-        start_profile();
-        let (_, _, counts) = replay(doc, &nominal, SymRules::shipped(), tol);
-        let profile = take_profile();
-        let ledger = profile.walk_ledger();
-        let largest = profile
-            .ops
-            .values()
-            .map(|o| o.max_terms_out)
-            .max()
-            .unwrap_or(0);
-        println!(
-            "\nLEDGER {name} eps {:e} largest form {largest}\n{ledger}",
-            tol.eps()
-        );
-        (name, ledger, expected, counts, largest, max_terms)
-    })
-    .collect();
-    for (name, ledger, expected, counts, largest, max_terms) in taken {
-        assert_eq!(
-            largest,
-            max_terms,
-            "{name} at eps {:e}: the largest form built has {largest} terms, pinned {max_terms}",
-            tol.eps()
-        );
-        assert_eq!(
-            ledger.trim(),
-            expected.trim(),
-            "{name} at eps {:e}: the walks built different forms (counts {counts:?})",
-            tol.eps()
-        );
-    }
+    assert_walk_ledger("plate", &the_plate(tol), PLATE_LEDGER, PLATE_MAX_TERMS, tol);
 }
 
 /// **The walk ledger on the documents the pinned row does not
