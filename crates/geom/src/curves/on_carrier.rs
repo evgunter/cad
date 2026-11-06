@@ -16,11 +16,13 @@
 //!   Gauss–Newton. The unit-coordinate angle alone is not a foot: its
 //!   point lies up to `(1 + a/b)·d` from a point `d` off the ellipse;
 //! - a spiric oval: [`Curve3::param_near`]'s angle, then Gauss–Newton;
-//! - a spline: the best of the caller's seed and a few samples on each
-//!   knot span, then Gauss–Newton, held to the domain; and Gauss–Newton
-//!   from each end of the domain, the smallest gap kept. A closed
-//!   spline's two ends are one point, so a descent held at one end
-//!   continues from the other.
+//! - a spline: Gauss–Newton, held to the domain, from the caller's seed
+//!   and from some of a few samples on each knot span and the domain's
+//!   ends, the smallest gap kept. The samples polished from are the
+//!   ends, each local minimum of the sampled gaps, and the few least
+//!   gaps, so a branch whose nearest sample sits beside a nearer one of
+//!   another branch is still descended. A closed spline's two ends are
+//!   one point, so a descent held at one end continues from the other.
 //!
 //! A closed kind's angle is read relative to the seed's direction, or to
 //! its opposite where the point lies definitely behind it, so an
@@ -94,6 +96,10 @@ use super::Curve3;
 
 /// The Gauss–Newton steps a foot is polished by.
 const POLISH_STEPS: usize = 6;
+
+/// How many of a spline's least-gap samples its foot search polishes
+/// from, beside each local minimum of the sampled gaps.
+const LEAST_SAMPLES: usize = 4;
 
 /// Where a spline's foot search samples each knot span, as fractions of
 /// it.
@@ -410,19 +416,17 @@ impl<T: Decide> Curve3<T> {
         let knots = n.knot_values();
         let (lo, hi) = knots.domain();
         let breaks: Vec<T> = knots.runs().map(|(k, _)| k).collect();
-        let mut best = self.foot_at(q, near.max(lo).min(hi));
+        let mut samples = vec![self.foot_at(q, lo)];
         for k in breaks.windows(2) {
-            for s in SPLINE_SAMPLES {
-                let f = self.foot_at(q, k[0] + (k[1] - k[0]) * T::from_f64(s));
-                if smaller(f.gap, best.gap) {
-                    best = f;
-                }
-            }
+            samples.extend(
+                SPLINE_SAMPLES.map(|s| self.foot_at(q, k[0] + (k[1] - k[0]) * T::from_f64(s))),
+            );
         }
+        samples.push(self.foot_at(q, hi));
         let domain = Some((lo, hi));
-        let mut foot = self.polish(q, best, domain);
-        for end in [lo, hi] {
-            let f = self.polish(q, self.foot_at(q, end), domain);
+        let mut foot = self.polish(q, self.foot_at(q, near.max(lo).min(hi)), domain);
+        for i in spline_starts(&samples) {
+            let f = self.polish(q, samples[i], domain);
             if smaller(f.gap, foot.gap) {
                 foot = f;
             }
@@ -600,6 +604,32 @@ pub fn ellipse_level_clearance<T: Decide>((x, y): (T, T), (a, b): (T, T)) -> T {
 pub(super) fn height_and_radius<T: Decide>(w: Vec3<T>, axis: Vec3<T>) -> (T, T) {
     let h = w.dot(axis);
     (h, (w - axis * h).norm())
+}
+
+/// **The samples a spline's foot search polishes from**, by index, in
+/// order: both ends of the domain, each local minimum of the sampled
+/// gaps, and the [`LEAST_SAMPLES`] least gaps. A local minimum finds a
+/// branch whose samples dip toward the point; the least gaps find one
+/// whose nearest sample sits beside a nearer one on another branch
+/// (a cusp, or a hairpin narrower than the sampling).
+fn spline_starts<T: Decide>(samples: &[Foot<'_, T>]) -> Vec<usize> {
+    let gap = |i: usize| samples[i].gap;
+    let not_below = |i: usize, j: Option<usize>| j.is_none_or(|j| !smaller(gap(j), gap(i)));
+    let mut starts: Vec<usize> = (0..samples.len())
+        .filter(|&i| {
+            i == 0 || i + 1 == samples.len() || {
+                not_below(i, i.checked_sub(1)) && not_below(i, Some(i + 1))
+            }
+        })
+        .collect();
+    for _ in 0..LEAST_SAMPLES {
+        let least = (0..samples.len())
+            .filter(|i| !starts.contains(i))
+            .reduce(|a, b| if smaller(gap(b), gap(a)) { b } else { a });
+        starts.extend(least);
+    }
+    starts.sort_unstable();
+    starts
 }
 
 /// Whether `a` is decided smaller than `b`: a heuristic's choice, read
