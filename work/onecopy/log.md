@@ -403,3 +403,9 @@
 
 - 2026-11-06 — Ruled the spline foot search: polish local minima plus the 4 smallest samples. Misses fall from 3.6% to 0.085% at 2.1× per foot; the lane measures whole-suite cost against the fast-set bars before landing.
 - 2026-11-06 — Sent the 6491 lane the text of the review's taste items (S3, S4, S8, N3), preferring S8's one type.
+
+- 2026-11-06 — PR 6541 FULL review: FIX FIRST, on MAJOR-1. B is sound and every run is green, but the coplanar-ellipses change put an f64 `Rounded` charge on `Level::jet_at`, against ratified `[simple.conditioned]` and Ev's PR 6329 ruling. Ruled:
+  - revert the coplanar part out of 6541 and reopen its row;
+  - rewrite the filed row as "re-pose the subdivision's touch arm, or else `[ev]`", not "charge the window";
+  - pin and disclose the zero → e move for unbounded arcs beside a ring.
+  Lesson: a lane that meets a refusal it can fix with a charge must check `[simple.conditioned]` before adding one; a test that needs a non-zero error marks a pose to re-pose.
