@@ -2,12 +2,13 @@
 id: a-cusp-before-a-fillet-pulls-the-straight-leg-end-backwards
 kind: issue
 title: line(L).cusp().fillet(r) moves the straight leg's end vertex BACKWARDS: the authored end leaves the path, and past the start the declared cusp is silently dropped; both validate
-status: dispatched
+status: review
 opened: 2026-11-06
 priority: P0
 cost: E
 branch: round/cusp-fillet-keeps-its-leg
 refs: [carriers-are-identical-reads-carrier-identity-at-the-lattice]
+pr: 6545
 ---
 
 

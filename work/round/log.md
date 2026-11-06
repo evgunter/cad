@@ -131,3 +131,20 @@ states the question beneath the split that crossed twice: is a
 profile's segment list what the author emitted, or the maximal figure
 where merging is free (is loft correspondence the profile's job)?
 Draw bytes on `analysis/design-fork/round-carrier-identity`.
+
+## 2026-11-06 — the refused corner goes to Ev (PR 6547); the cusp fix in review
+
+The three refused-corner designers converged after two rounds and a
+measurement: the `replay_drawn` side door (PR 6306, built on Ev's
+2026-11-02 chat request) is the contract, completed; the anchor-fit
+refusal carries both legs' setback and extent plus the closed-form
+radius at the anchor, rendered strictly below, and its sentence values
+both levers; a closed `Recourse`. A sweep of 40 radii below the
+closed-form radius over 4073 entries found no re-trip, so "or less"
+holds. Draw bytes on `analysis/design-fork/round-refused-corner-payload`.
+
+The P0 cusp fix is PR 6545 (CI green): `ByTangent { No, Forward,
+Reversed }`; only a forward ray merges; a cusp-reversed ray emits its
+own segment from the leg's end, which validation refuses as an overlap
+exactly as `.cusp().line(..)`. Single FULL review dispatched; it reuses
+the probe lane's idle target because the box was down to 8 GB.
