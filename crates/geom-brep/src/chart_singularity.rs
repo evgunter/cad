@@ -60,6 +60,7 @@
 //! face's structure (`topo::surface_boundary`): this home sees no keys.
 
 use geom::{ChartArm, ChartInverse, Curve3, Surface};
+use geom_core::bisect::{Budget, Exhausted, Step, bisect_within};
 use geom_core::k_stats::{NonzeroSign, decide, decide_nonzero};
 use geom_core::predicate::Band;
 use geom_core::{Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, SizedPass, Vec3};
@@ -665,52 +666,64 @@ fn sampled_near<T: Decide>(e: &LoopEdge<T>, x: Point3<T>, band: Band) -> Near<T>
         (t, e.carrier.eval(t), i != 0 && i != SAMPLED_SPANS)
     };
     type Sample<T> = (T, Point3<T>, bool);
-    let mut pending: Vec<(Sample<T>, Sample<T>, u32)> =
-        (0..SAMPLED_SPANS).map(|i| (at(i), at(i + 1), 0)).collect();
+    // The last span first, and a span's later half before its earlier:
+    // the order the walk has always read in, which `best` rests on.
+    let roots = (0..SAMPLED_SPANS).rev().map(|i| (at(i), at(i + 1), 0u32));
     let mut best: Option<(T, T)> = None;
     let mut budget = SAMPLED_BUDGET;
     let mut unclear = false;
     let mut over_budget = false;
     let resolved = T::from_f64(band.zero() * 0.5);
-    while let Some(((a, pa, ia), (b, pb, ib), depth)) = pending.pop() {
-        for (t, p, interior) in [(a, pa, ia), (b, pb, ib)] {
-            let d = (p - x).norm();
-            if interior && best.is_none_or(|(_, bd)| below(d, bd)) {
-                if let Ok(true) = on_boundary(d, band) {
-                    return Near::On { t };
+    // Past its halvings the walk degrades rather than refusing: each
+    // piece it would halve is settled unread, and `over_budget` says so.
+    let mut reads = Budget::implied_by_halvings(SAMPLED_SPANS as usize, SAMPLED_BUDGET);
+    let walked = bisect_within(
+        roots,
+        &mut reads,
+        |((a, pa, ia), (b, pb, ib), depth): (Sample<T>, Sample<T>, u32)| {
+            for (t, p, interior) in [(a, pa, ia), (b, pb, ib)] {
+                let d = (p - x).norm();
+                if interior && best.is_none_or(|(_, bd)| below(d, bd)) {
+                    if let Ok(true) = on_boundary(d, band) {
+                        return Step::Stop(t);
+                    }
+                    best = Some((t, d));
                 }
-                best = Some((t, d));
             }
-        }
-        let mid = Point3::new(
-            (pa.x + pb.x) * T::from_f64(0.5),
-            (pa.y + pb.y) * T::from_f64(0.5),
-            (pa.z + pb.z) * T::from_f64(0.5),
-        );
-        let reach = speed * (b - a).abs() * T::from_f64(0.5);
-        if matches!(
-            decide(
-                "chart_singularity_sampled_clear",
-                Margin::of((x - mid).norm() - reach),
-                band
-            ),
-            Ok(Sign::Positive)
-        ) {
-            continue;
-        }
-        if depth >= SAMPLED_DEPTH || below(reach, resolved) {
-            unclear = true;
-            continue;
-        }
-        if budget == 0 {
-            over_budget = true;
-            continue;
-        }
-        budget -= 1;
-        let tm = (a + b) * T::from_f64(0.5);
-        let m = (tm, e.carrier.eval(tm), true);
-        pending.push(((a, pa, ia), m, depth + 1));
-        pending.push((m, (b, pb, ib), depth + 1));
+            let mid = Point3::new(
+                (pa.x + pb.x) * T::from_f64(0.5),
+                (pa.y + pb.y) * T::from_f64(0.5),
+                (pa.z + pb.z) * T::from_f64(0.5),
+            );
+            let reach = speed * (b - a).abs() * T::from_f64(0.5);
+            if matches!(
+                decide(
+                    "chart_singularity_sampled_clear",
+                    Margin::of((x - mid).norm() - reach),
+                    band
+                ),
+                Ok(Sign::Positive)
+            ) {
+                return Step::Settled;
+            }
+            if depth >= SAMPLED_DEPTH || below(reach, resolved) {
+                unclear = true;
+                return Step::Settled;
+            }
+            if budget == 0 {
+                over_budget = true;
+                return Step::Settled;
+            }
+            budget -= 1;
+            let tm = (a + b) * T::from_f64(0.5);
+            let m = (tm, e.carrier.eval(tm), true);
+            Step::Halve([(m, (b, pb, ib), depth + 1), ((a, pa, ia), m, depth + 1)])
+        },
+    );
+    match walked {
+        Ok(Some(t)) => return Near::On { t },
+        Ok(None) => {}
+        Err(Exhausted) => unreachable!("a sampled walk spends its halvings before its reads"),
     }
     if over_budget {
         return Near::Unsettled;

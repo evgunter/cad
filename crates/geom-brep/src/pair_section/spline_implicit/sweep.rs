@@ -77,6 +77,7 @@
 
 use std::cell::RefCell;
 
+use geom_core::bisect::{Budget, Exhausted, Step, bisect_within};
 use geom_core::k_stats::decide;
 use geom_core::{Band, Interval, Margin, Sign, Vec3};
 
@@ -294,62 +295,63 @@ pub(super) fn sweep(
     );
     for (line, along_u) in lines {
         let cuts = if along_u { &ku } else { &kv };
-        let mut stack: Vec<UvRect> = pieces(
+        let roots = pieces(
             line,
             if along_u { cuts } else { &[] },
             if along_u { &[] } else { cuts },
         );
-        stack.reverse();
-        let mut read = 0usize;
-        while let Some(piece) = stack.pop() {
-            read += 1;
-            if read > crate::ssi::exhaust::SSI_MAX_CELLS {
-                return Sweep::Declined(Declined::Budget);
-            }
-            let Some(jets) = &jets else {
-                return Sweep::Declined(Declined::Unread);
-            };
-            let open = |(a, b): (f64, f64)| {
-                let a = if cuts.contains(&a) { a.next_up() } else { a };
-                let b = if cuts.contains(&b) { b.next_down() } else { b };
-                Interval::from_bounds(a, b.max(a))
-            };
-            let at = if along_u {
-                (open(piece.u), iv(piece.v))
-            } else {
-                (iv(piece.u), open(piece.v))
-            };
-            let (metres, slope) = critical::along_line(jets, phi, at, along_u);
-            // A reading that does not certify is halved as an undecided
-            // one is, down to the floor.
-            let read = metres.is_certified() && slope.is_certified();
-            let along = read && off("spline_sweep_regular", Margin::levered(slope, extent));
-            if let Some(above) = side(piece, metres).filter(|_| read) {
-                excluded.borrow_mut().push(Excluded {
-                    cell: piece,
-                    above,
-                    regular: along,
-                });
-                continue;
-            }
-            if along {
-                continue;
-            }
-            let (a, b) = if along_u { piece.u } else { piece.v };
-            if b - a <= floor.width() {
-                return Sweep::Declined(Declined::Floor((
-                    0.5 * (piece.u.0 + piece.u.1),
-                    0.5 * (piece.v.0 + piece.v.1),
-                )));
-            }
-            let m = 0.5 * (a + b);
-            let (lo, hi) = if along_u {
-                (UvRect { u: (a, m), ..piece }, UvRect { u: (m, b), ..piece })
-            } else {
-                (UvRect { v: (a, m), ..piece }, UvRect { v: (m, b), ..piece })
-            };
-            stack.push(hi);
-            stack.push(lo);
+        let walked = bisect_within(
+            roots,
+            &mut Budget::new(crate::ssi::exhaust::SSI_MAX_CELLS),
+            |piece| {
+                let Some(jets) = &jets else {
+                    return Step::Stop(Sweep::Declined(Declined::Unread));
+                };
+                let open = |(a, b): (f64, f64)| {
+                    let a = if cuts.contains(&a) { a.next_up() } else { a };
+                    let b = if cuts.contains(&b) { b.next_down() } else { b };
+                    Interval::from_bounds(a, b.max(a))
+                };
+                let at = if along_u {
+                    (open(piece.u), iv(piece.v))
+                } else {
+                    (iv(piece.u), open(piece.v))
+                };
+                let (metres, slope) = critical::along_line(jets, phi, at, along_u);
+                // A reading that does not certify is halved as an undecided
+                // one is, down to the floor.
+                let read = metres.is_certified() && slope.is_certified();
+                let along = read && off("spline_sweep_regular", Margin::levered(slope, extent));
+                if let Some(above) = side(piece, metres).filter(|_| read) {
+                    excluded.borrow_mut().push(Excluded {
+                        cell: piece,
+                        above,
+                        regular: along,
+                    });
+                    return Step::Settled;
+                }
+                if along {
+                    return Step::Settled;
+                }
+                let (a, b) = if along_u { piece.u } else { piece.v };
+                if b - a <= floor.width() {
+                    return Step::Stop(Sweep::Declined(Declined::Floor((
+                        0.5 * (piece.u.0 + piece.u.1),
+                        0.5 * (piece.v.0 + piece.v.1),
+                    ))));
+                }
+                let m = 0.5 * (a + b);
+                Step::Halve(if along_u {
+                    [UvRect { u: (a, m), ..piece }, UvRect { u: (m, b), ..piece }]
+                } else {
+                    [UvRect { v: (a, m), ..piece }, UvRect { v: (m, b), ..piece }]
+                })
+            },
+        );
+        match walked {
+            Ok(None) => {}
+            Ok(Some(declined)) => return declined,
+            Err(Exhausted) => return Sweep::Declined(Declined::Budget),
         }
     }
     for &ku in &cu {

@@ -256,7 +256,7 @@ impl CarrierEscalation {
 }
 
 /// Why a spline's piece walk could not run ([`CarrierRefusal::Unwalked`]).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, strum::VariantArray)]
 pub enum PieceWalkRefusal {
     /// The walk ran past its budget.
     Exhausted,
@@ -279,12 +279,31 @@ impl PieceWalkRefusal {
     }
 }
 
-impl core::fmt::Display for PieceWalkRefusal {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.write_str(match self {
+impl PieceWalkRefusal {
+    /// **The one sentence this refusal is rendered by**, for a site that
+    /// carries a `&'static str` ([`core::fmt::Display`] writes it too).
+    #[must_use]
+    pub const fn sentence(self) -> &'static str {
+        match self {
             Self::Exhausted => "a spline's piece walk ran past its budget",
             Self::Unbounded => "a spline's speed bound is zero or poison",
-        })
+        }
+    }
+
+    /// The refusal [`Self::sentence`] renders, where it is one, over every
+    /// variant ([`strum::VariantArray`]).
+    #[must_use]
+    pub fn of_sentence(sentence: &str) -> Option<Self> {
+        <Self as strum::VariantArray>::VARIANTS
+            .iter()
+            .copied()
+            .find(|why| why.sentence() == sentence)
+    }
+}
+
+impl core::fmt::Display for PieceWalkRefusal {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(self.sentence())
     }
 }
 
@@ -541,6 +560,14 @@ impl<T: Decide> Curve3<T> {
     /// not, once its reach is within the band (`curve_carrier_piece`). A
     /// lower bound on `q`'s distance from the interval, past the band,
     /// where it is `Clear`.
+    ///
+    /// One of three readings of a point against a pieced curve, each a
+    /// [`Self::point_walk`] whose visit is its stop rule: this one decides
+    /// against the band, logged, and returns the deciding reading, so it
+    /// stops on a piece's reach. `topo`'s containment `ArcPieces::clear`
+    /// reads a caller's unlogged lever as a bool and stops on a failing
+    /// middle point; `pieced_arc`'s `contact` asks where the point sits
+    /// (an end, on, off) on its own ball cover, not a clearance.
     ///
     /// # Errors
     ///

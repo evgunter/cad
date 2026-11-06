@@ -21847,11 +21847,25 @@ mod link_faces_ranking {
         );
         assert_eq!(
             read(vec![
-                Err(TouchUnread::EdgeTangent(EdgeTangentUnread::Exhausted)),
+                Err(TouchUnread::EdgeTangent(EdgeTangentUnread::Unwalked(
+                    geom::PieceWalkRefusal::Exhausted,
+                ))),
                 Err(TouchUnread::InBand)
             ]),
             Some(TouchUnread::InBand),
             "an unsettled refusal ranks after one in band"
+        );
+        assert_eq!(
+            read(vec![
+                Err(TouchUnread::InBand),
+                Err(TouchUnread::EdgeTangent(EdgeTangentUnread::Unwalked(
+                    geom::PieceWalkRefusal::Unbounded,
+                ))),
+            ]),
+            Some(TouchUnread::EdgeTangent(EdgeTangentUnread::Unwalked(
+                geom::PieceWalkRefusal::Unbounded,
+            ))),
+            "a walk with no speed bound is a limit, outranking an in-band refusal"
         );
         assert_eq!(
             read(vec![

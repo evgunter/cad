@@ -3888,6 +3888,10 @@ fn faces_section_unbuilt<T: geom_core::Real>(
 /// A site's reading against its section: an escalation as the section
 /// undecided, a site on no component a desync, a spline component's walk
 /// that could not run as the join's ([`SplitJoinError::SectionUnwalked`]).
+/// The Boolean's own sort, not the join's (`From<(FaceKey, SiteRefusal)>`
+/// for [`SplitJoinError`]): a
+/// site the Boolean reads in band is its section's coincidence decision,
+/// with that decision's recourse, where the join's is the division's.
 pub(super) fn site_refusal(e: geom_brep::SiteRefusal) -> BooleanError {
     match e {
         geom_brep::SiteRefusal::Escalated(diag) => section_undecided(diag),
