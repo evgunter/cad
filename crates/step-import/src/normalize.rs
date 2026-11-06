@@ -426,8 +426,12 @@ fn mint_band(
                         },
                     radius,
                 }) => {
-                    let d = center - axis_point;
-                    let off_axis = (d - s_axis * d.dot(s_axis)).norm();
+                    let off_axis = geom::Line {
+                        origin: axis_point,
+                        dir: s_axis,
+                    }
+                    .offset(center)
+                    .norm();
                     let tilt = radius * n.cross(s_axis).norm();
                     if ui == 0 {
                         raises = Some(u.forward == (n.dot(s_axis) > 0.0));

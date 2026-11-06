@@ -4205,8 +4205,13 @@ impl Psi {
             Self::Linear { n, q } => n.dot(p - q),
             Self::Carrier(Implicit::Plane { o, n }) => n.dot(p - o),
             Self::Carrier(Implicit::Cylinder { o, axis, r }) => {
-                let w = p - o;
-                (w - axis * w.dot(axis)).norm() - r
+                geom::Line {
+                    origin: o,
+                    dir: axis,
+                }
+                .offset(p)
+                .norm()
+                    - r
             }
             Self::Carrier(Implicit::Sphere { c, r }) => (p - c).norm() - r,
             Self::Carrier(Implicit::Cone {
@@ -4229,8 +4234,11 @@ impl Psi {
         match *self {
             Self::Linear { n, .. } | Self::Carrier(Implicit::Plane { n, .. }) => n,
             Self::Carrier(Implicit::Cylinder { o, axis, .. }) => {
-                let w = p - o;
-                let radial = w - axis * w.dot(axis);
+                let radial = geom::Line {
+                    origin: o,
+                    dir: axis,
+                }
+                .offset(p);
                 radial * (at(1.0) / radial.norm())
             }
             Self::Carrier(Implicit::Sphere { c, .. }) => {
@@ -4244,8 +4252,11 @@ impl Psi {
                 sin,
                 nappe,
             }) => {
-                let w = p - apex;
-                let radial = w - axis * w.dot(axis);
+                let radial = geom::Line {
+                    origin: apex,
+                    dir: axis,
+                }
+                .offset(p);
                 radial * (cos / radial.norm()) - axis * (nappe * sin)
             }
             Self::Graph { m, t, slope, .. } => m - t * slope,

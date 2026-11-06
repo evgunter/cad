@@ -1194,7 +1194,7 @@ fn bisect(
     normal: Vec3<f64>,
     bracket: (f64, f64),
 ) -> f64 {
-    let phi = |t: f64| (c.eval(t) - origin).dot(normal);
+    let phi = |t: f64| geom::plane_offset(origin, normal, c.eval(t));
     let (mut a, mut b) = bracket;
     let fa = phi(a);
     for _ in 0..64 {
@@ -1283,7 +1283,7 @@ fn plane_spline_root(
     } else {
         (hi, lo)
     };
-    let phi = |t: f64| (carrier.eval(t) - origin).dot(normal).abs();
+    let phi = |t: f64| geom::plane_offset(origin, normal, carrier.eval(t)).abs();
     Ok(SplineRoot::Short {
         end: near_end,
         near_gap: phi(near_end),
