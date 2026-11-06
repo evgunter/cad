@@ -6,6 +6,7 @@ status: open
 opened: 2026-11-06
 priority: P2
 cost: M
+pr: 6553
 ---
 
 Found by `kept-refusal-loops-the-ladder-row-never-listed`'s second pass

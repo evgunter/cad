@@ -2,10 +2,12 @@
 id: overlap-witness-search-ranks-its-refusals-first-of-any-kind
 kind: issue
 title: boolean::overlap's witness search is a hand-rolled ladder ranking OverlapRefusal first-of-any-kind
-status: open
+status: closed
 opened: 2026-11-06
 priority: P2
 cost: M
+closed: 2026-11-06
+pr: 6553
 ---
 
 
@@ -43,9 +45,9 @@ None of the kept ones is ranked by `Evidence`, and a `Placement` that
 aborts is kept rather than stopping the search. A `?` refusal in the
 second list stops the search ahead of a witness the other face could
 hold. Those that read the whole query (a stale face, a spline carrier,
-opposed senses) are aborts by right. `Senses` in band is a kept reading
-returned early, which is the class of
-`an-escalation-returned-by-question-mark-ahead-of-a-later-answer`.
+opposed senses) are aborts by right. So is `Senses` in band: one sense
+is the door's premise, which every later reading needs, so its early
+return is right.
 
 ## What closing it takes
 
