@@ -103,3 +103,23 @@
   - **What it means for your open branches:** a unit that adds such a site reds on its PR, with "Move the code; do not raise the count". The signature test says where the code goes: no `Body` → geom-brep; a `Body` reading or construction naming no engine type → the crate root; names an engine type → that engine.
   - A move that clears sites lowers the line in the same PR. `scripts/gates/engine-leaves.sh --lines FILE` lists a file's counted sites.
   - (ONEDOOR orchestrator)
+- 2026-11-06 — **Sitting picked up (`active`).** Two P0 rows on the slate, both moved here from the retired `work/issues/` bucket on 2026-11-03 with legacy `cost: D`. Read against the tree: `flush-invents-a-predicate-name-for-a-nameless-escalation`'s cited code is gone (no `names/flush.rs`, no `SelectRefusal::PairInBand` anywhere), but its class lives on (`eval/measure.rs`'s `unwrap_or(GAP_LINK)`, `topo` `section_cert.rs`'s `unwrap_or("pair_section")`); `emit-blend-cannot-observe-a-retirement-naming-a-minted-key`'s blend half already has its kernel home (`sweep::blend::surgery`'s epilogue checks every retirement names a source key), while `topo::shell` has no such postcondition. Both are E-sized and share one lane, unit branch `reads/retired-and-nameless`. Tier **single, STYLE**: a kernel debug postcondition plus refusal-payload honesty, readable and believable on reading. Both bands look high against the README's definitions (a guard that cannot go red is P3); they are being fixed rather than re-banded because the fix is cheaper than the argument.
+- 2026-11-06 — **Banded and priced the eight unbanded legacy rows** (orchestrator's read, against the README's definitions):
+  - P1 M `slot-forms-want-one-trait` — two implementations of one logic, owed again by every new slot-bearing type;
+  - P1 M `a-selects-body-takes-an-indexed-read` — verb breadth: a selection of a family member read by index has no spelling;
+  - P1 M `viewer-boolean-tool-cannot-pick-a-read` — GUI authoring breadth. The tool now holds `Operand`s and reads a split's half by its port (`combine.rs` `pick_at`), so part of the row may be done; the dispatch re-checks the indexed member first;
+  - P2 H `an-indexed-read-of-rank-two-has-no-family`; P2 M `set-expression-is-still-slot-addressed`;
+  - P3 E `python-cannot-re-point-an-indexed-reads-index`; P3 E +design `python-set-param-reaches-no-list-member` (two viable shapes in its body);
+  - P4 E `a-spelled-union-clones-the-results-per-member` (unmeasured perf).
+  - Priced the two unpriced P2 part-name rows M. Load is now 15/30. The three new P1s join this sitting's slate after the P0 pair, serially.
+- 2026-11-06 — **PR 6543 (the P0 pair) green at `b42816e736`; single STYLE review dispatched.** The brief's premise was corrected by the lane: the shell's `dead` record is in RESULT keys and names construction-minted cavity twins by design, so BLEND's "a retirement names a source key" is false for the shell; `record_rooted` checks "an operand key or the result half of some row" plus every row's source half, and two mutants trip it. The nameless-escalation class is fixed at its three publishers (`measure.rs` now carries `Option`, `section_cert.rs`, `clearance.rs`); its root — `Indeterminate::predicate` is optional, 35 `None` literals and ~62 raw `sign_within` calls — went to SCALAR as `an-escalation-may-carry-no-predicate-name-so-every-publisher-must-mark-one` (P3 M). **Class** (logged per the adjudication rule): a check true of one operation's record (BLEND: retirements are source keys) is false of a sibling's (SHELL: retirements may be result keys), so a guard copied across them must restate its predicate per record.
+- 2026-11-06 — **PR 6543 review: APPROVE-WITH-FIXES, no MAJOR; fix pass sent to the implementer.** Taken:
+  - `record_rooted`'s "or a row's result half" disjunct lets a live seam piece or twin pushed into `dead` pass, so the check gains "absent from the result";
+  - a permanent `#[should_panic]` row, since the "needs a hook" claim was false;
+  - the `edge_joins`/`ring` comments; the debug-assertions qualifier in the emitter docs;
+  - the measure payloads' `predicate` duplicates `source.predicate`, so it is deleted rather than made `Option`, with the sibling `*Escalated` payloads swept;
+  - one home for `"<unnamed>"`: the PR had minted a second topo home beside k_stats ×2 and profile;
+  - `Shelled::lineage` states operand-cell fates for twin keys from `dead`;
+  - the `clearance` meeting-pair `Sliver` bypassing `terminal_sliver` (checked and routed).
+
+  **Class (Q1, the fix that mints a copy):** a lane closing "an invented name" introduced a second marker home, which the brief's own trap warns of.
