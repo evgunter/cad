@@ -2,10 +2,11 @@
 id: the-levered-turn-margin-conflates-a-short-arm-with-a-small-turn
 kind: issue
 title: fillet_corner_turn's levered margin cannot tell a short leg from a degenerate angle, and its definite arm refuses a real corner as already tangent
-status: open
+status: dispatched
 opened: 2026-09-13
 priority: P0
 cost: H
+branch: round/turn-gate-names-its-factors
 ---
 
 
