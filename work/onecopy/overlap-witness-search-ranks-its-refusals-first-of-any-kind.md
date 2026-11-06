@@ -21,14 +21,31 @@ and refuses only where none decides and some reading refused". It is
 hand-rolled across two calls. `edge_witness`'s `keep` closure holds the
 first refusal of any kind, in piece order, over both faces' pieces.
 
-`OverlapRefusal`'s kinds are mixed:
-- in band: `Senses`, `OnPlane`, and `Meeting` of an escalation;
-- limits: `SplineCarrier` and a `Boundary` that does not read;
-- `Placement(ContainError)`, whose standing `ContainError::refusal`
-  already states (`Result<Refusal, Aborts>`).
+`OverlapRefusal`'s kinds are mixed, and the door meets them two ways.
+- **Kept by `edge_witness`'s `keep`, first-of-any-kind:**
+  - `Meeting`, from a located edge's fault: in band where it is an
+    escalation;
+  - a cut sort's refusal (`sort_params`): a `Meeting` escalation;
+  - `Placement(ContainError)`, whose standing `ContainError::refusal`
+    already states (`Result<Refusal, Aborts>`);
+  - the rest of `place`'s refusals (`OnPlane`, and `Unread` and
+    `StaleFace` from its own reads) and every refusal of
+    `piece_witness` (`Corner`, `Normal`, `Unread`).
+- **Returned at once by `?`, ahead of any later witness:**
+  - `StaleFace` and `SplineCarrier`, in the door's preamble;
+  - `OppositeSenses` and `Senses`, from `one_sense`;
+  - `Boundary` and `Unread`, from `edge_witness`'s reading of `y`'s
+    boundary (`face_boundary(…)?`, and the lone-vertex and
+    uncertified-curve refusals);
+  - the `loops(x)?` and `edge_span(…)?` reads.
 
-None is ranked by `Evidence`, and a `Placement` that aborts is kept
-rather than stopping the search.
+None of the kept ones is ranked by `Evidence`, and a `Placement` that
+aborts is kept rather than stopping the search. A `?` refusal in the
+second list stops the search ahead of a witness the other face could
+hold. Those that read the whole query (a stale face, a spline carrier,
+opposed senses) are aborts by right. `Senses` in band is a kept reading
+returned early, which is the class of
+`an-escalation-returned-by-question-mark-ahead-of-a-later-answer`.
 
 ## What closing it takes
 
