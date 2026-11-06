@@ -348,3 +348,10 @@
   - The overlap row's class list corrected.
   Class lesson again: a test that exists to keep two spellings in step is the sign of a copy.
 - 2026-11-06 — Ruled for spline-walks row 2: (a). New `SectionUnwalked` arms carry `geom::PieceWalkRefusal`, with a ratified-roster check first.
+
+- 2026-11-06 — The 6491 takeover built the ruling at `91aeff79`, with the PR undrafted.
+  - The plane route goes through a new `span_plane_meet` beside the lane path. The component is read through `ChartChannels`, and `QueryFoot` is the entry.
+  - The ci set is 8605/8605 at both ε, with both reds green. Cost is main's within noise (the sphere two-leg row is faster).
+  - Four flagged decisions: miss-first, the skip of an Undecided end past the leg's end, `End::open`, and visibility.
+  FULL review sent to a new reviewer, `session_013mPGJ4JScywfx3zssA8yRc`, with an independent oracle for each door's counts and sides.
+  The lane found an unfiled main red at 1e-12 (`parallel_cylinder_join::seams_lying_on_the_walls…`). Filed as P1 `main-red-seams-lying-on-the-walls-read-the-axes-at-1e-12` and given to the same lane as a separate PR.
