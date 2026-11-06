@@ -329,27 +329,20 @@ pub struct HarmonicRoot<T> {
     /// `(cos_part, sin_part)/A₁` turned by the half-chord, with no angle
     /// in it.
     pub direction: (T, T),
-    /// `θ` itself, `φ ± half-chord`, with the phase `φ` read by `atan2`
-    /// (its cut where the phase is a half turn, `cos_part < 0`) and read
-    /// from the opposite vector (its cut where `cos_part > 0`):
-    /// [`HarmonicRoot::from`] reads the one off its cut.
-    raw: (T, T),
-    cos_part: T,
+    /// `θ` itself as `φ + turn`: the phase `φ`'s direction
+    /// `(cos_part, sin_part)`, and the signed half-chord.
+    phase: geom::Azimuth<T>,
+    turn: T,
 }
 
 impl<T: Decide> HarmonicRoot<T> {
     /// **The root's signed angle from the parameter `t`**, in `(−π, π]`:
-    /// the raw root less `t`, a difference of two near numbers where the
-    /// root lies near `t`, which keeps its relative precision there. Each
-    /// raw reading is reduced first, so the two agree where their phases
-    /// meet, and the one whose phase is off its cut is kept.
+    /// the phase read within half a turn of `t` ([`geom::Azimuth::near`],
+    /// clear of `atan2`'s cut), turned by the half-chord, less `t`. A
+    /// difference of two near numbers where the root lies near `t`, which
+    /// keeps its relative precision there.
     pub fn from(&self, t: T) -> T {
-        let tau = T::tau();
-        let (base, opposite) = self.raw;
-        (T::zero() - self.cos_part).select_le_zero(
-            (base - t).reduce_periodic_centred(tau),
-            (opposite - t).reduce_periodic_centred(tau),
-        )
+        (self.phase.near(t) + self.turn - t).reduce_periodic_centred(T::tau())
     }
 }
 
@@ -377,18 +370,17 @@ pub fn first_harmonic_root_directions<T: Decide>(
             let amplitude = (c.powi(2) + s.powi(2)).sqrt();
             let (pc, ps) = (c / amplitude, s / amplitude);
             let (sin, cos) = half_chord.sin_cos();
-            let base = s.atan2(c);
-            let opposite = T::pi() + (T::zero() - s).atan2(T::zero() - c);
+            let phase = geom::Azimuth::of(s, c);
             Roots::all([
                 HarmonicRoot {
                     direction: (pc * cos + ps * sin, ps * cos - pc * sin),
-                    raw: (base - half_chord, opposite - half_chord),
-                    cos_part: c,
+                    phase,
+                    turn: T::zero() - half_chord,
                 },
                 HarmonicRoot {
                     direction: (pc * cos - ps * sin, ps * cos + pc * sin),
-                    raw: (base + half_chord, opposite + half_chord),
-                    cos_part: c,
+                    phase,
+                    turn: half_chord,
                 },
             ])
         }

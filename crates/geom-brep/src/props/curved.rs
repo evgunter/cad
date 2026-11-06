@@ -5211,16 +5211,13 @@ fn loop_runs<I>(mut items: Vec<I>, joins: impl Fn(&I, &I) -> bool) -> Result<Vec
     Ok(runs)
 }
 
-/// `atan2(y, x)` with its branch cut kept away from the arguments:
-/// the principal branch for `x ≥ 0`, the `[0, 2π)` branch for `x < 0`,
-/// so an interval enclosure never straddles the cut. Any branch serves
+/// The tube angle of `(cos v, sin v)`, within half a turn of `0` and
+/// read clear of `atan2`'s cut ([`geom::Azimuth::near`]), so an interval
+/// enclosure stays narrow. It depends on the rim alone. Any branch serves
 /// [`torus_chart`]: a lift moved by whole periods shifts `F` and `G`
 /// by constants, which a loop with `Σ Δu = 0` sums to nothing.
-fn torus_angle<T: Decide>(sin_v: T, cos_v: T, band: Band) -> T {
-    match decide("props_torus_lift_branch", Margin::of(cos_v), band) {
-        Ok(Sign::Negative) => (T::zero() - sin_v).atan2(T::zero() - cos_v) + T::pi(),
-        Ok(Sign::Positive | Sign::Zero) | Err(_) => sin_v.atan2(cos_v),
-    }
+fn torus_angle<T: Decide>(sin_v: T, cos_v: T) -> T {
+    geom::Azimuth::of(sin_v, cos_v).near(T::zero())
 }
 
 /// **The one home of a torus face's chart Green form.**
@@ -5376,7 +5373,7 @@ fn torus_chart<T: Decide>(
                     du,
                     rho,
                 } => {
-                    let angle = torus_angle(sin_v, cos_v, band);
+                    let angle = torus_angle(sin_v, cos_v);
                     // The running `v` picks the branch, not the level.
                     let at = running.unwrap_or(angle);
                     let (turns, v) = torus_lift(at, angle, minor, band)?;
