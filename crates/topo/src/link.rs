@@ -1271,14 +1271,14 @@ fn within<T: Real>(p: Point3<T>, q: Point3<T>, r: T) -> Point3<T> {
     p + (q - p) * (r / (q - p).norm()).min(T::from_f64(1.0))
 }
 
-/// The point of the segment `a`–`b` nearest `p`: its foot on the
-/// segment's line, held to the segment.
+/// The point of the segment `a`–`b` nearest `p`: the span `(0, 1)` of
+/// the line from `a` to `b` ([`geom::Line::foot_within`]).
 fn foot<T: Real>(p: Point3<T>, (a, b): Segment<T>) -> Point3<T> {
-    let ab = b - a;
-    let t = ((p - a).dot(ab) / ab.dot(ab))
-        .max(T::zero())
-        .min(T::from_f64(1.0));
-    a + ab * t
+    geom::Line {
+        origin: a,
+        dir: b - a,
+    }
+    .foot_within(p, (T::zero(), T::one()))
 }
 
 /// `p`'s distance from the segment `a`–`b` ([`foot`]).
@@ -3397,8 +3397,11 @@ impl<T: Decide> Link<T> {
     ) -> (T, Option<bool>) {
         let (c, m) = (s.apex, s.outward);
         let ray = |r: Point3<T>| {
-            let (u, v) = ((r - c).normalize(), q - c);
-            (v - u * u.dot(v).max(T::zero())).norm()
+            let ray = geom::Line {
+                origin: c,
+                dir: (r - c).normalize(),
+            };
+            (q - ray.foot_from(q, T::zero())).norm()
         };
         let side = |r: Point3<T>, inner: Sign| match wedge_side(c, m, r, q, rd) {
             Some(Sign::Zero) | None => match ahead(c, r, q, rd) {
@@ -3436,8 +3439,11 @@ impl<T: Decide> Link<T> {
                     && near(Distance::of(q, s.apex, s.outward), LINK_PLANE);
                 plane
                     || [a, b].into_iter().any(|r| {
-                        let u = (r - s.apex).normalize();
-                        let foot = s.apex + u * u.dot(q - s.apex).max(T::zero());
+                        let ray = geom::Line {
+                            origin: s.apex,
+                            dir: (r - s.apex).normalize(),
+                        };
+                        let foot = ray.foot_from(q, T::zero());
                         near(Distance::of(q, foot, (q - foot).normalize()), LINK_TIE)
                     })
             })

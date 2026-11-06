@@ -2560,10 +2560,12 @@ pub(super) fn piece_distance<T: Decide + Bounds>(
     match *carrier {
         Curve3::Line(geom::Line { origin, dir }) => {
             let (pa, pb) = (origin + dir * ta, origin + dir * tb);
-            let d = pb - pa;
-            let s = ((c - pa).dot(d) / d.dot(d)).max(T::zero()).min(T::one());
+            let chord = geom::Line {
+                origin: pa,
+                dir: pb - pa,
+            };
             Some((
-                (pa + d * s - c).norm(),
+                (chord.foot_within(c, (T::zero(), T::one())) - c).norm(),
                 (pa - c).norm().max((pb - c).norm()),
             ))
         }

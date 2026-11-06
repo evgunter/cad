@@ -2670,7 +2670,7 @@ pub(super) fn line_cone_quadratic<T: Decide>(
     let w0 = q - apex;
     let shift = match about {
         About::Start => T::zero(),
-        About::Nearest => (T::zero() - w0.dot(d)) / d.norm_squared(),
+        About::Nearest => geom::Line { origin: q, dir: d }.param(apex),
     };
     let w = w0 + d * shift;
     let cos2 = half_angle.cos().powi(2);
@@ -3423,12 +3423,13 @@ impl<T: Decide> EdgeMeets<T> {
             .ok_or(RayFault::Fatal(PointInSolidError::CorruptFace {
                 face: faces[0],
             }))?;
-        let gap = geom_brep::sector_shape::point_segment_distance(q, far, at);
+        let ray = geom::Line { origin: q, dir: d };
+        let along = ray.param(at);
+        let gap = (at - ray.foot_within(at, (T::zero(), ray.param(far)))).norm();
         // The distance is a short chain (differences, a projection, a
         // norm), each rounding under half an ulp of the lengths it is
         // read from: the kernel's one charge for such a chain.
         let low = gap - geom_core::rounding_charge((at - q).norm() + gap);
-        let along = (at - q).dot(d);
         match geom_core::k_stats::decide_magnitude(
             rows.vertex,
             Margin::of(low.max(T::zero())),
@@ -3757,11 +3758,14 @@ pub(crate) fn edge_clearance<T: Decide>(
         .and_then(|ed| body.get_curve_geom(ed.curve))
         .and_then(crate::null::CurveGeom::certified)?;
     match *curve.carrier() {
-        geom::Curve3::Line(_) => Some(geom_brep::sector_shape::point_segment_distance(
-            at(e.ends[0])?,
-            at(e.ends[1])?,
-            m,
-        )),
+        geom::Curve3::Line(_) => {
+            let (a, b) = (at(e.ends[0])?, at(e.ends[1])?);
+            let chord = geom::Line {
+                origin: a,
+                dir: b - a,
+            };
+            Some((m - chord.foot_within(m, (T::zero(), T::one()))).norm())
+        }
         geom::Curve3::Circle(geom::Circle { radius, .. }) => {
             let (t0, t1) = curve.params();
             let n = T::from_f64(f64::from(CLEARANCE_SAMPLES));

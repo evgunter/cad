@@ -624,6 +624,30 @@ impl<T: Real> Line<T> {
         self.origin + self.dir * self.param(p)
     }
 
+    /// **The parameter of `p`'s nearest point of the span `(t0, t1)`**
+    /// of the line, `t0 ≤ t1`: [`Self::param`] held to the span by
+    /// `max`/`min`, no comparison. A segment from `a` to `b` is the span
+    /// `(0, 1)` of `Line { origin: a, dir: b − a }`, and an edge its own
+    /// parameter span. A ray is held at one end ([`Self::foot_from`]).
+    #[must_use]
+    pub fn param_within(&self, p: Point3<T>, (t0, t1): (T, T)) -> T {
+        self.param(p).max(t0).min(t1)
+    }
+
+    /// **`p`'s foot on the span `(t0, t1)`**: the line's point at
+    /// [`Self::param_within`].
+    #[must_use]
+    pub fn foot_within(&self, p: Point3<T>, span: (T, T)) -> Point3<T> {
+        self.origin + self.dir * self.param_within(p, span)
+    }
+
+    /// **`p`'s foot on the ray from `t0`**, the points `t ≥ t0`:
+    /// [`Self::param`] held at `t0` by `max`.
+    #[must_use]
+    pub fn foot_from(&self, p: Point3<T>, t0: T) -> Point3<T> {
+        self.origin + self.dir * self.param(p).max(t0)
+    }
+
     /// **`p`'s offset from its foot**, square to the line:
     /// `(p − origin) − dir·((p − origin)·dir / (dir·dir))`, whose norm is
     /// `p`'s distance from the line.
