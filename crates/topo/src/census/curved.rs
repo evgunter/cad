@@ -44,8 +44,6 @@ struct Read<T: Real> {
 const NO_CURVE: &str = "a curved edge with no certified curve";
 const NO_REACH: &str = "a curved edge whose speed bound meters no reach over its span";
 const NO_LENGTH: &str = "a curved edge whose least speed meters no length over its span";
-const WALK_EXHAUSTED: &str = "the census's reading of a point on a spline edge ran past its budget";
-const WALK_UNBOUNDED: &str = "a spline edge whose speed bound is zero or poison";
 
 fn refuse(edge: EdgeKey, what: &'static str, errors: &mut Vec<ValidationError>) {
     errors.push(ValidationError::CensusUnsupported {
@@ -297,9 +295,7 @@ pub(super) fn edge_tangent_refusal(refused: &[ValidationError]) -> crate::link::
             } => match *what {
                 NO_CURVE => Some(Why::NoCurve),
                 NO_REACH | NO_LENGTH => Some(Why::Unmetered),
-                WALK_EXHAUSTED => Some(Why::Exhausted),
-                WALK_UNBOUNDED => Some(Why::Unbounded),
-                _ => None,
+                walk => geom::PieceWalkRefusal::of_sentence(walk).map(Why::Unwalked),
             }
             .map(TouchUnread::EdgeTangent),
             _ => None,
@@ -322,14 +318,7 @@ fn on_interior_at<T: Decide>(
         Err(refusal) => {
             match refusal.escalation() {
                 Ok(cause) => errors.push(ValidationError::CensusEscalated { cause }),
-                Err(why) => refuse(
-                    r.edge,
-                    match why {
-                        geom::PieceWalkRefusal::Exhausted => WALK_EXHAUSTED,
-                        geom::PieceWalkRefusal::Unbounded => WALK_UNBOUNDED,
-                    },
-                    errors,
-                ),
+                Err(why) => refuse(r.edge, why.sentence(), errors),
             }
             None
         }
@@ -526,6 +515,47 @@ mod tests {
 
     use super::{Read, curved_interiors_meet, interior_meeting, reads_meet};
     use crate::EdgeCurveSpec;
+
+    /// **A spline walk the census could not run reads back as itself**: the
+    /// refusal it pushes names the walk by its own sentence
+    /// ([`geom::PieceWalkRefusal::sentence`]), pinned here as text, and the
+    /// edge-tangent reading of that refusal is the same walk refusal, at
+    /// both of its kinds. The census's rendered message does not show
+    /// that name: `ContactRefusal::NotCertifiable` renders no `what`.
+    #[test]
+    fn an_unwalked_edge_reads_back_as_its_walk_refusal() {
+        use crate::link::{EdgeTangentUnread, TouchUnread};
+        for (why, sentence) in [
+            (
+                geom::PieceWalkRefusal::Exhausted,
+                "a spline's piece walk ran past its budget",
+            ),
+            (
+                geom::PieceWalkRefusal::Unbounded,
+                "a spline's speed bound is zero or poison",
+            ),
+        ] {
+            let mut errors = Vec::new();
+            super::refuse(EdgeKey::default(), why.sentence(), &mut errors);
+            assert!(
+                matches!(
+                    &errors[..],
+                    [crate::ValidationError::CensusUnsupported {
+                        cause: crate::CensusUnsupportedCause::ContactLane(
+                            crate::contact::ContactRefusal::NotCertifiable { what },
+                        ),
+                        ..
+                    }] if *what == sentence
+                ),
+                "{why:?}: the census names the walk by its sentence: {errors:?}"
+            );
+            assert_eq!(
+                super::edge_tangent_refusal(&errors),
+                TouchUnread::EdgeTangent(EdgeTangentUnread::Unwalked(why)),
+                "{why:?}"
+            );
+        }
+    }
     use crate::body::Body;
     use crate::construction::MevSite;
     use crate::entity::EdgeKey;

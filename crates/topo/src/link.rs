@@ -546,7 +546,6 @@ impl TouchUnread {
 /// Why a curved edge's tangent at a touch point did not read
 /// ([`TouchUnread::EdgeTangent`]).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-#[cfg_attr(any(test, feature = "test-support"), derive(strum::EnumIter))]
 pub enum EdgeTangentUnread {
     /// The edge's span does not certify the point on its interior: two
     /// readings of one fact (the touch held inside the edge, and the
@@ -558,11 +557,10 @@ pub enum EdgeTangentUnread {
     /// The edge's speed bounds meter no reach or no length over its
     /// span. A limit.
     Unmetered,
-    /// A spline edge's piece walk ran past its budget. Unsettled: no
-    /// margin, and a coarser band may settle it.
-    Exhausted,
-    /// A spline edge's speed bound is zero or poison. A limit.
-    Unbounded,
+    /// A spline edge's piece walk could not run: unsettled where it ran
+    /// past its budget, a limit where it has no speed bound
+    /// ([`Refusal`]'s `From<geom::PieceWalkRefusal>`).
+    Unwalked(geom::PieceWalkRefusal),
 }
 
 impl EdgeTangentUnread {
@@ -574,8 +572,8 @@ impl EdgeTangentUnread {
     pub const fn refusal(self) -> Result<Refusal, Aborts> {
         match self {
             Self::OffInterior => Err(Aborts),
-            Self::NoCurve | Self::Unmetered | Self::Unbounded => Ok(Refusal::Limit),
-            Self::Exhausted => Ok(Refusal::Unsettled),
+            Self::NoCurve | Self::Unmetered => Ok(Refusal::Limit),
+            Self::Unwalked(why) => Ok(Refusal::of_walk(why)),
         }
     }
 }
