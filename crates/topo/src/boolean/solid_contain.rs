@@ -5263,12 +5263,12 @@ mod boundary_pre_pass_climbs {
         assert!(
             matches!(
                 read(vec![
-                    Err(PointInSolidError::ZeroVolumeBody),
-                    Err(escalated())
+                    Err(escalated()),
+                    Err(PointInSolidError::ZeroVolumeBody)
                 ]),
                 Climb::Undecided(PointInSolidError::ZeroVolumeBody)
             ),
-            "a limit outranks an in-band refusal read after it"
+            "a limit outranks an in-band refusal read before it"
         );
     }
 }
