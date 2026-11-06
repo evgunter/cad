@@ -2,10 +2,11 @@
 id: census-vertex-probe-keeps-a-point-in-solid-abort
 kind: issue
 title: census's vertex probe keeps a PointInSolidError that aborts, and ranks first-of-any-kind, beside the standing that type states
-status: open
+status: dispatched
 opened: 2026-11-06
 priority: P2
 cost: M
+branch: onecopy/ladder-tranche-4
 ---
 
 

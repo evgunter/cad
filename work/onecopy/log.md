@@ -359,3 +359,5 @@
 - 2026-11-06 — PR 6539 delta review: MERGE. The table is spelled once (`Refusal::kept`), and no ranking moved. The gate is running on `e0f5b8e3`.
 
 - 2026-11-06 — PR 6539 merged as `1d005523ab`, gated on `e0f5b8e3`. Main had moved only in `work/` files (ROUND's), so the gate stood.
+
+- 2026-11-06 — Gave the refusal-standing lane (`session_013mPGJ5BFZnAe1VYCrzZYNj`) ladder tranche 4 on `onecopy/ladder-tranche-4`: TouchUnread's standing, the census vertex probe, the overlap witness search, the early-`?` ports with their register gate, and pieced_arc's in-band exception.

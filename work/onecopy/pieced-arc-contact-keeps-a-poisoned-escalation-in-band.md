@@ -2,10 +2,11 @@
 id: pieced-arc-contact-keeps-a-poisoned-escalation-in-band
 kind: issue
 title: pieced_arc::contact keeps a poisoned escalation in band, where ladder::Kept::of makes it a limit
-status: open
+status: dispatched
 opened: 2026-11-06
 priority: P3
 cost: E
+branch: onecopy/ladder-tranche-4
 ---
 
 
