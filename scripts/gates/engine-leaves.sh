@@ -43,7 +43,7 @@ gate() {
   local base_args=()
   if gate_base_file "$BASELINE"; then
     base_args=(--base "$GATE_BASE_FILE")
-    base_note="none above the base $GATE_BASE's"
+    base_note="none above the base $GATE_BASE's but a reader pin citing its move row"
   fi
   mapfile -t files < <(find crates/topo/src -type f -name '*.rs' 2>/dev/null | sort)
   GATE_SCAN_FILES=${#files[@]}
