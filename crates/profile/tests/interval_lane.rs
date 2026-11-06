@@ -241,7 +241,7 @@ fn exact_fit_arc_fillet_escalates_at_interval() {
         )
         .expect_err("the knife-edge fit must escalate at Interval");
     match err {
-        profile::PathError::Escalated { ref source } => {
+        profile::PathError::Escalated { ref source, .. } => {
             assert_eq!(source.predicate, Some("fillet_leg_fit"), "{err}");
         }
         other => panic!("expected an escalation, got {other:?}"),

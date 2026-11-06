@@ -883,7 +883,7 @@ pub enum CellBudget {
 pub fn sliver(source: &geom_core::Indeterminate) -> Option<&'static str> {
     source
         .terminal_sliver
-        .then_some(source.predicate.unwrap_or("<unnamed>"))
+        .then(|| source.predicate.unwrap_or(geom_core::UNNAMED_PREDICATE))
 }
 
 /// The counting receipt of one clearance query.
@@ -1544,7 +1544,7 @@ impl Sweep {
                 // distance topology fixed at 0.
                 let sliver = |r: &Reading| match r {
                     Reading::Undecided(source) => Some(EngineRefusal::Sliver {
-                        predicate: source.predicate.unwrap_or(CLEARANCE_MARGIN),
+                        predicate: source.predicate.unwrap_or(geom_core::UNNAMED_PREDICATE),
                     }),
                     _ => None,
                 };

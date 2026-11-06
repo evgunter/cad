@@ -43,7 +43,7 @@ fn s3() -> f64 {
 /// error when it is not an escalation).
 fn escalated_predicate(err: &PathError<f64>) -> &'static str {
     match err {
-        PathError::Escalated { source } => source.predicate.unwrap_or("<unnamed>"),
+        PathError::Escalated { source, .. } => source.predicate.unwrap_or("<unnamed>"),
         other => panic!("expected an escalation, got {other:?}"),
     }
 }
@@ -807,7 +807,7 @@ fn an_already_tangent_corner_asks_for_the_tangent_construction_instead() {
         .expect_err("a tangent corner must refuse");
     match err {
         PathError::NoCornerForFillet { reason, radius } => {
-            assert_eq!(reason, PathNoCornerReason::CarriersParallel);
+            assert_eq!(reason, PathNoCornerReason::CarriersTangent);
             assert_eq!(radius, 0.5);
         }
         other => panic!("expected NoCornerForFillet, got {other:?}"),
@@ -1076,7 +1076,7 @@ fn corner_advance_trio() {
 #[test]
 fn carrier_meet_trio() {
     // definitely: the fixtures — ray and circle cross transversally.
-    // exactly zero: the tangent-carrier row (`CarriersParallel`).
+    // exactly zero: the tangent-carrier row (`CarriersTangent`).
     // in-band: push the circle δ toward the ray so the two meet by a
     // margin R − |offset| = δ inside (ε, K·ε).
     let delta = in_band();

@@ -4,6 +4,8 @@ kind: issue
 title: The per-type try_map_slots, authored and stored wrappers want one trait over a value generic in its slot form
 status: open
 opened: 2026-10-06
+priority: P1
+cost: M
 ---
 
 

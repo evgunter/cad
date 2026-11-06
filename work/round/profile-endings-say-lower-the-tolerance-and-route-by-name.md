@@ -2,12 +2,12 @@
 id: profile-endings-say-lower-the-tolerance-and-route-by-name
 kind: issue
 title: profile: the path door's turn refusal and FILLET_OFFSET_LEVER_RECOURSE say 'lower the tolerance', and PathError::Escalated routes its ending by predicate name
-status: parked
+status: closed
 opened: 2026-09-28
 priority: P1
 cost: M
-blocked_on: [the-path-doors-escalation-carries-its-gate]
 rides_with: the-path-doors-escalation-carries-its-gate
+closed: 2026-11-06
 ---
 
 (ENCL implementer, from the §5 sweep of PR 3382.) The rule is D4 ¶1 (i)
@@ -62,3 +62,7 @@ PROFILEPROSE folded into PROFILETAIL; its refusal-text rows travel as one unit. 
 Moved from `work/profiletail/` to ROUND by its orchestrator, now riding
 `the-path-doors-escalation-carries-its-gate`, which carries ROUND's
 fillet-recourse rows on the same arms. Id and body unchanged.
+
+## Closed (2026-11-06)
+
+PR 6546: one closed `profile::Gate` routes every in-band ending at the path door, validation and the guided door, derived from (gate, verdict) per D4 ¶1 (i)–(ii); see the carrier `the-path-doors-escalation-carries-its-gate` and the PR body for what this row's part became.
