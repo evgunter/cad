@@ -278,23 +278,14 @@ fn window<T: Decide>(
     };
     let span = run(ra, pa, s).max(run(rb, pb, t));
     let curvature = ra.curvature + rb.curvature;
-    let ((p, da), (q, db)) = (ra.curve().ders1(s), rb.curve().ders1(t));
-    let unit = |v: Vec3<T>| v * (T::one() / v.norm());
-    let sine_lo = unit(da).cross(unit(db)).norm() - curvature * span;
-    let premise = geom_core::k_stats::prove(
-        "curve_pair_walk_basin",
-        Margin::of(sine_lo - curvature * span),
-    );
-    if premise != Ok(Sign::Positive) {
-        return super::polish::undecided();
-    }
     super::polish::bound(
-        (p, da),
-        (q, db),
-        sine_lo,
+        ("curve_pair_walk_basin", None),
+        ra.curve().ders1(s),
+        rb.curve().ders1(t),
         curvature,
         (T::from_f64(band.escalate()), span),
     )
+    .unwrap_or_else(super::polish::undecided)
 }
 
 /// Whether the pieces `pa` of `a` and `pb` of `b` are definitely apart

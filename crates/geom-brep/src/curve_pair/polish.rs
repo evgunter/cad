@@ -30,7 +30,7 @@
 //! evaluated at `T` there.
 
 use geom_core::k_stats::prove;
-use geom_core::{Decide, Margin, Point3, Sign, Vec3};
+use geom_core::{Decide, Lever, Margin, Point3, Sign, Vec3};
 
 use super::pose::WindowBound;
 
@@ -93,24 +93,34 @@ fn mid<T: Decide>(x: T) -> Option<f64> {
         .filter(|m| m.is_finite())
 }
 
-/// **The window's bound** at the polished pair, `p` with its tangent
-/// `da` on the first carrier and `q` with `db` on the second; `sine` a
-/// lower bound on the sine between the tangents over the window,
-/// `curvature` the carriers' summed curvature bound there and `e` the
-/// band's escalation (`pose`'s module docs, "The gap's lower bound"),
-/// on the premise, the basin, proved by the caller: every pair of the
-/// window lies within `span` metres of `(p, q)` along the carriers, and
-/// `curvature · span < sine`. The floor `|w·n̂| − bend`, the reach `m₋`
-/// and the basin's `span`; floor and reach undecided (`−∞`, `+∞`) where
-/// the move's quadratic has no real root (`curve_pair_pose_move` not
-/// proved positive).
+/// **The basin, and the window's bound** at the polished pair, `p` with
+/// its tangent `da` on the first carrier and `q` with `db` on the second
+/// (`pose`'s module docs, "The gap's lower bound"): every pair of the
+/// window lies within `span` metres of `(p, q)` along the carriers,
+/// `curvature` bounds the carriers' summed curvature there, and `e` is
+/// the band's escalation. The one spelling of the basin: the sine
+/// between the tangents less the turn over `span` is the sine's lower
+/// bound `s`, and the basin is `s − curvature · span > 0`, proved on
+/// `row` (levered by `lever` where the caller has one), which puts the
+/// window below the move's larger root. `None` where the basin is not
+/// proved. Otherwise the floor `|w·n̂| − bend`, the reach `m₋` and the
+/// bend; all three undecided (`−∞`, `+∞`, `+∞`) where the move's
+/// quadratic has no real root (`curve_pair_pose_move` not proved
+/// positive).
 pub(super) fn bound<T: Decide>(
+    (row, lever): (&'static str, Option<Lever<T>>),
     (p, da): (Point3<T>, Vec3<T>),
     (q, db): (Point3<T>, Vec3<T>),
-    sine: T,
     curvature: T,
     (e, span): (T, T),
-) -> WindowBound<T> {
+) -> Option<WindowBound<T>> {
+    let unit = |v: Vec3<T>| v * (T::one() / v.norm());
+    let sine = unit(da).cross(unit(db)).norm() - curvature * span;
+    let basin = sine - curvature * span;
+    let basin = lever.map_or_else(|| Margin::of(basin), |lever| Margin::levered(basin, lever));
+    if prove(row, basin) != Ok(Sign::Positive) {
+        return None;
+    }
     let n = da.cross(db);
     let n = n * (T::one() / n.norm());
     let w = q - p;
@@ -120,28 +130,25 @@ pub(super) fn bound<T: Decide>(
     let two = T::from_f64(2.0);
     let disc = sine.powi(2) - two * curvature * excess;
     if prove(MOVE, Margin::of(disc)) != Ok(Sign::Positive) {
-        return WindowBound {
-            basin: Some(span),
-            ..undecided()
-        };
+        return Some(undecided());
     }
     // `m₋ = (sin − √disc)/K`, written without the division by `K` so
     // that a pair of lines (`K = 0`) reads `excess/sin`.
     let reach = two * excess / (sine + disc.sqrt());
     let bend = curvature * reach.powi(2) / two;
-    WindowBound {
+    Some(WindowBound {
         floor: along.abs() - bend,
         reach,
-        basin: Some(span),
-    }
+        bend,
+    })
 }
 
-/// The bound of a window nothing bounds: no floor, no reach short of the
-/// whole carriers, and no basin.
+/// The bound of a window nothing bounds: no floor, and no reach or bend
+/// short of the whole carriers.
 pub(super) fn undecided<T: Decide>() -> WindowBound<T> {
     WindowBound {
         floor: T::from_f64(f64::NEG_INFINITY),
         reach: T::from_f64(f64::INFINITY),
-        basin: None,
+        bend: T::from_f64(f64::INFINITY),
     }
 }

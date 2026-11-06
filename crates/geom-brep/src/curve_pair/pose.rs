@@ -257,31 +257,44 @@
 //!   pair of the window lies on that span ([`Span::past_by`]); `q` on the
 //!   second span alike.
 //!
-//! **The run.** The basin does more than bound the move: over the window
-//! the tangents keep at least half their angle, so each carrier's gap
-//! from the other is strictly monotone either side of the window's
-//! closest pair, and the *run*, the points of a carrier within `e` of
-//! the other over the window, is one interval. So where `p` is past a
-//! span and is itself in the run (on the other carrier, within its zero
-//! band), the run reaches into the span only through one of its ends.
-//! An end the window cannot reach (its chord to `p` past the basin's
-//! `span`, `curve_pair_meet_run_basin`) is not in the run; an end that is
-//! decidedly off the other carrier (`curve_carrier_clear`, past `e`) is
-//! not in it either. Where every end is one or the other, the run lies
-//! past the span, and so does every pair of the window within `e`: the
-//! Off prunes (`run_past`). That is main's argument, that the closest
-//! pair's run is read through the spans' ends, read first, with the
-//! premise it rested on (that the polish converged) replaced by a decided
-//! one: that `p` is in the run. `q` on the second span alike. Where no
-//! basin is proved (the walk's premise, `curve_pair_walk_basin`) there
-//! is no run arm.
+//! **The run.** The *run* is the pairs of the window within `e` of each
+//! other. Where the polished pair is itself one of them (its gap `|w|`
+//! in the zero band, `curve_pair_meet_run_pair`), an end of a span the
+//! run would cross can be read off the other carrier:
+//!
+//! - Every pair of the run lies within `m₋` of `(p, q)` along both
+//!   carriers (the move, above).
+//! - Take a pair of the run at arc parameters `(α, β)` from `(p, q)`, and
+//!   the pairs `(tα, tβ)`, `t ∈ [0, 1]`, between it and the polished
+//!   pair. Their difference is `L(t) + r(t)`, with
+//!   `L(t) = −w + t(uα − vβ)` affine in `t` and `|r(t)| ≤ K·m₋²/2`, the
+//!   *bend*, since `t·m ≤ m₋`.
+//! - A norm is convex, so `|L(t)| ≤ max(|L(0)|, |L(1)|)`. Here
+//!   `|L(0)| = |w| ≤ e` and `|L(1)| < e + bend`, since the pair at
+//!   `t = 1` is within `e` and its remainder is at most the bend.
+//! - So every point of the first carrier between `p` and the run's pair,
+//!   an end of the span among them, lies within `e + 2·bend` of the
+//!   second carrier.
+//!
+//! So where `p` is past a span and each of the span's ends is either out
+//! of the reach (its chord to `p` past `m₋`, `curve_pair_span_past_reach`)
+//! or has a closed-form clearance from the other carrier
+//! ([`geom::Curve3::clearance`]) past `e + 2·bend`
+//! (`curve_pair_span_run_end`), no pair of the run lies on the span, and
+//! the Off prunes ([`Span::past_by`]). `q` on the second span alike. This
+//! is main's argument, that the closest pair's run is read through the
+//! spans' ends: its premise, that the polish converged, is replaced by a
+//! decided one, the polished pair's own gap. It needs no premise past the
+//! basin's: no monotonicity of the gap along a carrier, only the move's
+//! bound and the bend. A spline end has no closed-form clearance, so its
+//! run arm does not read.
 //!
 //! Where `D` is not proved positive the bound is undecided: no floor, and
 //! no reach short of the carriers. **The composition is the reader's**
 //! (`Found::read`), on the candidate's [`WindowBound`]: a floor past the
 //! band is no meeting; otherwise the point is read on both spans, and On
 //! there is a meeting, with no premise on the polish. An Off prunes only
-//! where the run arm or the reach clears a span; otherwise it is a
+//! where the reach or the run arm clears a span; otherwise it is a
 //! straddle of
 //! the floor against the gap at the pair (`curve_pair_meet_window`), or
 //! the reach's own (`curve_pair_span_past_reach_straddle`), and
@@ -358,7 +371,7 @@
 mod window;
 
 use geom::{Azimuth, Curve3, CurveKind};
-use geom_core::k_stats::{check_unlogged, decide, prove, straddle};
+use geom_core::k_stats::{check_unlogged, decide, straddle};
 use geom_core::one_line::{OnOneLine, on_one_line};
 use geom_core::{Band, Decide, Lever, Margin, Point3, Sign, Vec3};
 
@@ -415,11 +428,10 @@ pub struct WindowBound<T> {
     /// parameters, at which two points of the window lie within the
     /// band's escalation of each other, `m₋`; `+∞` where undecided.
     pub reach: T,
-    /// The basin's `span`, where it is proved: every pair of the window
-    /// lies within it of the candidate's parameters, along each carrier,
-    /// and the gap is strictly monotone along each carrier either side of
-    /// the closest pair over it. `None` where no basin is proved.
-    pub basin: Option<T>,
+    /// The most metres either carrier departs from its tangent line at
+    /// the candidate over `reach`, together, `K·m₋²/2`; `+∞` where
+    /// undecided.
+    pub bend: T,
 }
 
 /// The pose of two spans' carriers (module docs).
@@ -815,19 +827,15 @@ impl<T: Decide> Polish<'_, T> {
         // polished pair, along either carrier.
         let span = region + self.a.run(s0, s).max(self.b.run(t0, t));
         let curvature = self.a.curvature_near(s0, span) + self.b.curvature_near(t0, span);
-        let sine = unit(da).cross(unit(db)).norm();
-        // The sine's lower bound over the window, and the basin: that
-        // bound past the window's turn, so the window's span lies below
-        // the move's larger root (module docs).
-        let sine_lo = sine - curvature * span;
-        if prove(
-            row::BASIN,
-            Margin::levered(sine_lo - curvature * span, self.lever),
-        ) != Ok(Sign::Positive)
-        {
+        let Some(bound) = super::polish::bound(
+            (row::BASIN, Some(self.lever)),
+            (p, da),
+            (q, db),
+            curvature,
+            (e, span),
+        ) else {
             return Err(MeetFault::Unsettled(Unsettled::Meter { row: row::BASIN }));
-        }
-        let bound = super::polish::bound((p, da), (q, db), sine_lo, curvature, (e, span));
+        };
         Ok(Some(Candidate {
             point: p,
             ta: s,

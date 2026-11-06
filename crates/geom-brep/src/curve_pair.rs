@@ -360,8 +360,7 @@ impl<T: Decide> Found<T> {
     /// meeting where its floor reads past the band
     /// (`curve_pair_pose_closest`); otherwise its point read on both is a
     /// meeting, and an Off there prunes only where the window's run lies
-    /// past a span, by the run arm ([`run_past`]) or by the reach
-    /// ([`Span::past_by`]).
+    /// past a span ([`Span::past_by`], by the reach and the run arm).
     /// Any other Off is a straddle of the floor and the gap at the pair
     /// (`curve_pair_meet_window`), and escalates.
     fn read(&mut self, a: &Span<'_, T>, b: &Span<'_, T>, c: Candidate<T>, band: Band) {
@@ -467,10 +466,12 @@ impl<T: Decide> Found<T> {
 }
 
 /// **A window's candidate read off a span** ([`Found::read`]): no
-/// meeting where the window's run lies past either span, by the run arm
-/// ([`run_past`]) or by the reach ([`Span::past_by`]); otherwise the
+/// meeting where the window's run lies past either span
+/// ([`Span::past_by`], by the reach and the run arm); otherwise the
 /// escalation, the straddle of the floor against the gap at the pair
-/// where both decide, and else whichever reading did not.
+/// where both decide, and else whichever reading did not, or, where
+/// every reading decided and none cleared, the typed refusal
+/// `Meter { row: "curve_pair_meet_window" }`.
 fn window_off<T: Decide>(
     a: &Span<'_, T>,
     b: &Span<'_, T>,
@@ -480,15 +481,20 @@ fn window_off<T: Decide>(
     band: Band,
 ) -> Result<Option<Sides<T>>, MeetFault> {
     let q = b.carrier().eval(c.tb);
-    if let Some(basin) = bound.basin
-        && (run_past((a, c.point, c.ta), (b, c.tb), basin, band)
-            || run_past((b, q, c.tb), (a, c.ta), basin, band))
-    {
-        return Ok(None);
-    }
+    // The run arm's premise (`pose`'s module docs, "The run"): the
+    // polished pair is itself a pair of the run, its gap in the zero band.
+    let in_run = geom_core::k_stats::decide(
+        "curve_pair_meet_run_pair",
+        geom_core::Margin::norm3(q - c.point),
+        band,
+    ) == Ok(geom_core::Sign::Zero);
+    let (run_a, run_b) = (
+        in_run.then(|| (b.carrier(), bound.bend)),
+        in_run.then(|| (a.carrier(), bound.bend)),
+    );
     let sides = [
-        a.past_by(c.point, c.ta, bound.reach, band),
-        b.past_by(q, c.tb, bound.reach, band),
+        a.past_by(c.point, c.ta, (bound.reach, run_a), band),
+        b.past_by(q, c.tb, (bound.reach, run_b), band),
     ];
     if sides.contains(&PastBy::Clear) {
         return Ok(None);
@@ -508,52 +514,11 @@ fn window_off<T: Decide>(
         }
         (_, _, Some(diag)) | (Err(diag), _, None) | (Ok(_), Err(diag), None) => diag,
         (Ok(_), Ok(_), None) => {
-            return Err(MeetFault::Contradiction {
-                readings: "a window's pair read on its carriers, inside both spans, and off a span",
-            });
+            return Err(MeetFault::Unsettled(Unsettled::Meter {
+                row: "curve_pair_meet_window",
+            }));
         }
     }))
-}
-
-/// **The run arm** (`pose`'s module docs, "The run"): whether the
-/// window's run, the points of `this` carrier within the band's
-/// escalation of the `other` carrier, lies past `this` span. `q` is a
-/// point of `this` carrier at about `near`, the polished pair's, and
-/// `basin` the window's proved span. It does where:
-///
-/// 1. `q` reads past the span ([`Span::place`]);
-/// 2. `q` is in the run: on the other carrier, within its zero band
-///    (`curve_carrier_gap`);
-/// 3. each end of the span the basin reaches is decidedly off the other
-///    carrier (`curve_carrier_clear`), and an end the basin does not
-///    reach is one whose chord to `q` is past the basin's span
-///    (`curve_pair_meet_run_basin`; a chord is at most its arc).
-///
-/// Within the basin the gap is strictly monotone either side of the
-/// closest pair, so the run is one interval; it holds `q`, past the
-/// span, and holds no end the basin reaches, so it reaches into the
-/// span through no end, and lies past it.
-fn run_past<T: Decide>(
-    (this, q, near): (&Span<'_, T>, Point3<T>, T),
-    (other, near_other): (&Span<'_, T>, T),
-    basin: T,
-    band: Band,
-) -> bool {
-    if !this.ended() || this.place(q, near, band) != Ok(Place::Past) {
-        return false;
-    }
-    let on = |point: Point3<T>| other.carrier().foot(point, near_other).on_carrier(band);
-    if !matches!(on(q), Ok(geom::OnCarrier::On { .. })) {
-        return false;
-    }
-    this.ends().all(|(_, end)| {
-        geom_core::k_stats::decide(
-            "curve_pair_meet_run_basin",
-            geom_core::Margin::of((q - end).norm() - basin),
-            band,
-        ) == Ok(geom_core::Sign::Positive)
-            || matches!(on(end), Ok(geom::OnCarrier::Off))
-    })
 }
 
 /// **Whether each meeting is the one meeting of its stretch** (C5): two

@@ -376,15 +376,31 @@ impl<'a, T: Decide> Span<'a, T> {
         }
     }
 
-    /// **Whether the carrier's run within `reach` metres of `q` lies past
-    /// the span** (`curve_pair::pose`'s module docs, "The gap's lower
-    /// bound"), `q` a point of the carrier at about `near`. The span's own
-    /// place reading says `q` is past it ([`Self::place`]); then each
-    /// end's chord to `q`, the end reading `place` reads, less `reach`,
-    /// must read positive (`curve_pair_span_past_reach`). A chord is at
-    /// most the arc it spans, so the arc from `q` to either end is longer
-    /// than `reach`, and the run, which holds `q`, reaches neither end.
-    pub fn past_by(&self, q: Point3<T>, near: T, reach: T, band: Band) -> PastBy {
+    /// **Whether the window's run lies past the span**
+    /// (`curve_pair::pose`'s module docs, "The gap's lower bound" and "The
+    /// run"), `q` a point of the carrier at about `near`, the polished
+    /// pair's, and every pair of the window within the band's escalation
+    /// within `reach` metres of `q` along it. The span's own place reading
+    /// says `q` is past it ([`Self::place`]); then each end is one the run
+    /// cannot reach or cannot cross:
+    ///
+    /// - **out of reach**: its chord to `q` less `reach` reads positive
+    ///   (`curve_pair_span_past_reach`). A chord is at most the arc it
+    ///   spans, so the arc from `q` to the end is longer than `reach`;
+    /// - **the run arm**, where `run` names the other carrier and the
+    ///   window's bend, given only where the polished pair is itself in
+    ///   the run: the end's closed-form clearance from the other carrier
+    ///   less twice the bend reads past the band
+    ///   (`curve_pair_span_run_end`). Any pair of the run beyond the end
+    ///   would put the end within the escalation plus twice the bend of
+    ///   the other carrier.
+    pub fn past_by(
+        &self,
+        q: Point3<T>,
+        near: T,
+        (reach, run): (T, Option<(&Curve3<T>, T)>),
+        band: Band,
+    ) -> PastBy {
         if !self.ended || self.place(q, near, band) != Ok(Place::Past) {
             return PastBy::Not;
         }
@@ -395,27 +411,44 @@ impl<'a, T: Decide> Span<'a, T> {
                 Margin::of(chord.norm() - reach),
                 band,
             );
-            match lower {
+            if matches!(
+                lower,
                 Ok(Decided {
                     sign: Sign::Positive,
                     ..
-                }) => {}
-                Ok(lower) => {
-                    let upper =
-                        decide_reported("curve_pair_span_end_chord", Margin::norm3(chord), band);
-                    return PastBy::Near(match upper {
-                        Ok(upper) if lower.sign < upper.sign => {
-                            straddle("curve_pair_span_past_reach_straddle", lower, upper, band)
-                        }
-                        Ok(_) => unreachable!(
-                            "a point the span reads past it has its chord to each end decided \
-                             past the band"
-                        ),
-                        Err(diag) => diag,
-                    });
-                }
-                Err(diag) => return PastBy::Near(diag),
+                })
+            ) {
+                continue;
             }
+            if let Some((other, bend)) = run
+                && let Some(clear) = other.clearance(end)
+                && k_stats::decide(
+                    "curve_pair_span_run_end",
+                    Margin::of(clear - bend - bend),
+                    band,
+                ) == Ok(Sign::Positive)
+            {
+                continue;
+            }
+            return match lower {
+                Ok(lower) => {
+                    // `place` read `q`'s chord to each end from `q`'s foot
+                    // on this carrier, this chord from `q` itself: where
+                    // the two disagree on the band's side no straddle is
+                    // claimed, and the reach clears nothing.
+                    match decide_reported("curve_pair_span_end_chord", Margin::norm3(chord), band) {
+                        Ok(upper) if lower.sign < upper.sign => PastBy::Near(straddle(
+                            "curve_pair_span_past_reach_straddle",
+                            lower,
+                            upper,
+                            band,
+                        )),
+                        Ok(_) => PastBy::Not,
+                        Err(diag) => PastBy::Near(diag),
+                    }
+                }
+                Err(diag) => PastBy::Near(diag),
+            };
         }
         PastBy::Clear
     }

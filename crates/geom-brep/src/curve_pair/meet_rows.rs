@@ -2389,13 +2389,15 @@ fn a_window_read_off_short_of_its_reach_escalates() {
         line([0.0; 3], [0.0, 1.0, 0.0]),
     );
     let (p, q) = (Point3::new(1e-6, 0.0, 0.0), Point3::origin());
-    let bound = super::polish::bound(
+    let Some(bound) = super::polish::bound(
+        ("test_basin", None),
         (p, Vec3::new(1.0, 0.0, 0.0)),
         (q, Vec3::new(0.0, 1.0, 0.0)),
-        1.0,
         0.0,
         (band().escalate(), 0.1),
-    );
+    ) else {
+        panic!("square lines hold the basin")
+    };
     assert!(
         bound.floor == 0.0 && (bound.reach - (1e-6 + band().escalate())).abs() < 1e-15,
         "{bound:?}"
@@ -2494,10 +2496,11 @@ fn a_candidate_with_no_window_reads_as_its_point_alone() {
 /// (`a_keel_on_a_bores_ruling`'s near-tangent pose, as `meet` met it).
 /// The polished pair lies on the line, past the rim's arc; the window's
 /// reach is far longer than its distance past the end, so the reach
-/// cannot clear it. The pair is on the line's carrier and the rim's end
-/// is decidedly off it, so the run, one interval within the basin, lies
-/// past the arc: no meeting, as main read it on its convergence meter.
-/// Read with no basin, the same candidate escalates.
+/// cannot clear it. The polished pair's gap is in the zero band and the
+/// rim's end is clear of the line past the escalation and twice the
+/// bend, so no pair of the run lies on the arc (`pose`'s module docs,
+/// "The run"): no meeting, as main read it on its convergence meter.
+/// With no bend bounded, the same candidate escalates.
 #[test]
 fn the_run_arm_reads_a_keel_wall_past_a_bores_rim_with_mains_answer() {
     let wall = Curve3::line(
@@ -2525,16 +2528,19 @@ fn the_run_arm_reads_a_keel_wall_past_a_bores_rim_with_mains_answer() {
     let Some(c) = cs.into_iter().find(|c| c.bound.is_some()) else {
         panic!("a polished candidate")
     };
-    let no_basin = super::Candidate {
-        bound: c.bound.map(|w| super::WindowBound { basin: None, ..w }),
+    let no_bend = super::Candidate {
+        bound: c.bound.map(|w| super::WindowBound {
+            bend: f64::INFINITY,
+            ..w
+        }),
         ..c
     };
     let mut found = super::Found::default();
-    found.read(&a, &b, no_basin, band());
+    found.read(&a, &b, no_bend, band());
     let got = found.finish(&a, &b, None, band());
     assert!(
         matches!(&got, Err(r) if matches!(r.fault, MeetFault::Escalated(_))),
-        "with no basin: {got:?}"
+        "with no bend bounded: {got:?}"
     );
 }
 
@@ -2545,30 +2551,32 @@ fn the_run_arm_reads_a_keel_wall_past_a_bores_rim_with_mains_answer() {
 /// carriers; the window's reach, `e/sin θ`, is longer than `X`'s chord to
 /// the start, so the reach clears nothing. At `sin θ = 0.25` the start
 /// lies `5·10⁻⁹` from the line, in the band's gap: the run may hold it,
-/// and the window escalates. At `θ = 60°` it lies `1.7·10⁻⁸` off, the run
-/// holds no end, and the window is no meeting; with no basin it
-/// escalates.
+/// and the window escalates. At `θ = 60°` it lies `1.7·10⁻⁸` off, past
+/// the escalation and twice the bend (zero on lines), the run crosses no
+/// end, and the window is no meeting; with no bend bounded it escalates.
 #[test]
 fn the_run_arm_needs_the_span_end_decidedly_off_the_other_carrier() {
     let x = line([0.0; 3], [1.0, 0.0, 0.0]);
     let at = Point3::new(-2e-8, 0.0, 0.0);
-    let read = |sine: f64, basin: bool| {
+    let read = |sine: f64, bent: bool| {
         let cosine = (1.0 - sine * sine).sqrt();
         let dir = Vec3::new(cosine, sine, 0.0);
         let other = Curve3::line(at, dir);
         let (a, b) = (Span::new(&x, (0.0, 1.0)), Span::new(&other, (-1.0, 1.0)));
-        let bound = super::polish::bound(
+        let Some(bound) = super::polish::bound(
+            ("test_basin", None),
             (at, Vec3::new(1.0, 0.0, 0.0)),
             (at, dir),
-            sine,
             0.0,
             (band().escalate(), 0.1),
-        );
-        let bound = if basin {
+        ) else {
+            panic!("lines hold the basin")
+        };
+        let bound = if bent {
             bound
         } else {
             super::WindowBound {
-                basin: None,
+                bend: f64::INFINITY,
                 ..bound
             }
         };
@@ -2595,5 +2603,5 @@ fn the_run_arm_needs_the_span_end_decidedly_off_the_other_carrier() {
         "the start decidedly off: {got:?}"
     );
     let got = read(0.75_f64.sqrt(), false);
-    assert!(escalated(&got), "with no basin: {got:?}");
+    assert!(escalated(&got), "with no bend bounded: {got:?}");
 }
