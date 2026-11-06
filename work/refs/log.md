@@ -140,3 +140,15 @@
     - DM3's wording.
   - **B's probe:** today a per-`k` read of `xs` and `xs[k]` name members differently (`Member[i] › e` against `Member[i] › Member[i] › e`), so DM3's "one read, one name" fails at node seats too. That goes to the build or to its own row once the fork settles.
   - **Filed from B's probe:** `a-family-of-boolean-results-cannot-be-read-whole-or-by-index` (P1 M). A union of a per-`k` subtract family refuses `WrongOperand`.
+- 2026-11-06 — **Fork `selects-indexed-member` went to Ev as draft `[ev]` PR 6555 after three rounds** (fork row 253, recommendation half).
+  - **Agreed:**
+    - `Select { body: BodyRead, names }`, with the member's own names and the index said once, in the read;
+    - `xs[k]` on the family's own chain stored as `xs`;
+    - no `Member`-headed stored name;
+    - mate sides take a written count or no index;
+    - `Rebind` stays addressed by the variable, the read address deferred (its doc says "address", and a row for per-member-built families);
+    - DM3 reworded (the PR's diff, with the `work/intent` path drive-by).
+  - **Split, for Ev:** a `Member`-named bare-family selection at the door, rewritten or refused. The two crossed three times. Each designer's final line claims agreement, because each moved in the same round.
+  - **Process note:** three rounds of crossing with no meeting. The arguments stay live because the deciding fact is a judgement ("is a family-table name a legitimate authored spelling at a body seat"), not a checkable one.
+  - PR 6555 is subscribed. The build goes into it after Ev answers.
+  - Next REFS P1, serially: `viewer-boolean-tool-cannot-pick-a-read`. Its indexed-member half follows this fork, so its premise is checked first.
