@@ -54,3 +54,12 @@ So `meet` loses only by its own decision order and its fixed parametrization.
 **Rows to add:** an order-symmetry row (`meet(a, b)` ≡ `meet(b, a)` over the `meet_rows` fixtures); the slim lune's equator-against-tilted-parallel pair, which reads `Apart`; the tiny cap's ray × rim pair in both orders; and a torus meridian × parallel row near the tube's top circle. One designer's probe is at `~/.local/share/cad-work/oc-land-designer-a/oc_probe.rs` and can seed these.
 
 Also: rename `Pose::Parallel` where it means two conics apart across a plane. Re-run every `meet` consumer's slow set (the boundary pass, `census`, `census/curved`, `ring_path`), since near-parallel conic pairs may move from an escalation to a decided `Apart`.
+
+## The off-surface fork (2026-11-06): first reports
+
+Draw: bytes 145 and 34, so two designers, recorded on `analysis/design-fork/onecopy-landings-off-surface`. The question: PR 6491's two 1e-12 reds (the far ray's leg 1.2e-10 off a cylinder; the skew pair at Interval), and the cost through `meet`.
+
+- **A** (likely; did not reject the framing; no ratified text). Keep `meet`, and build every leg on the surface from `Surface::chart_point`'s foot, starting at a representative midpoint of the foot's enclosure. A `ChartPoint` type on the leg constructors is what makes the next instance land right. A's probe greens both reds. The cost is `meet`'s per-call cost and must land with or before this.
+- **B** (likely; rejected the framing; proposes one clarifying sentence for Ev in `[one-way.readings]` or C5). Don't route through `meet`. A leg and an edge on one surface meet as a crossing of the leg's plane: C5's curve × plane door plus a per-door component reading, written once in `region::landings`. A co-surface 3D gap is identically zero, so deciding it is ill-conditioned. This is main's cost. A co-surface arm in `curve_pair` could follow once a second consumer exists.
+
+They disagree on the final state. Reconciliation round 1 is dispatched.
