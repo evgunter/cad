@@ -17,12 +17,15 @@
 #     red` — the `#[ignore = "…"]` reasons, the "Pinned red since PR N"
 #     comments, nightly.yml's pinned k-lint step — or, in a workflow
 #     only, `held out` (the filters that keep a test out of a row);
+#   - a pin line of a gate's `.counts` file (any line not led by `#`),
+#     which is how a pin a move retires names its move row
+#     (`engine-leaves.counts`);
 #   - a comment between a pin call (`pinned_red::row(`,
 #     `kernel_limit::pinned(`, `_at`, `_row`, `_row_at`) and the `fn`
 #     line enclosing it, or in that fn's own doc and attribute block.
 # Scanned: `*.rs` under crates/, demos/, tools/ and
-# interval-transcendentals/ (any `target/` skipped), and
-# .github/workflows/*.yml.
+# interval-transcendentals/ (any `target/` skipped),
+# .github/workflows/*.yml and scripts/gates/*.counts.
 #
 # WHAT IT CANNOT SEE: a citation in a helper fn the pin call reaches
 # through an argument, one in a `/* … */` block, one in a module doc
@@ -70,8 +73,10 @@ function walk_back(i,   j) {
 FNR == 1 {
   flush_block(); delete line
   wf = (FILENAME ~ /\.ya?ml$/)
+  pins = (FILENAME ~ /\.counts$/)
   phrase = wf ? ENVIRON["WORKFLOW_PHRASE_RE"] : ENVIRON["PIN_PHRASE_RE"]
 }
+pins { if ($0 !~ /^[[:space:]]*#/) cites(FILENAME, FNR, $0); next }
 {
   line[FNR] = $0
   if (is_comment($0)) {
@@ -116,6 +121,10 @@ gate() {
   if [ -f "${workflows[0]}" ]; then
     mapfile -t -O "${#files[@]}" files < <(gate_grep -lE "$WORKFLOW_PHRASE_RE" \
       "${workflows[@]}" | sort)
+  fi
+  local counts=(scripts/gates/*.counts)
+  if [ -f "${counts[0]}" ]; then
+    mapfile -t -O "${#files[@]}" files < <(gate_grep -lE 'work/' "${counts[@]}" | sort)
   fi
   local index cites=""
   index=$(row_index)
@@ -215,6 +224,15 @@ plant_near_misses() {
     > "$1/crates/clean/src/live.rs"
 }
 
+plant_counts_closed() {
+  mkdir -p "$1/scripts/gates"
+  printf '# a header naming work/done/gone is no pin\nnames-boolean 3 a.rs  # work/done/gone\n' > "$1/scripts/gates/x.counts"
+}
+plant_counts_live() {
+  mkdir -p "$1/scripts/gates"
+  printf '# a header naming work/done/gone is no pin\nnames-boolean 3 a.rs  # work/live/owner\n' > "$1/scripts/gates/x.counts"
+}
+
 plant_no_rows() { rm -rf "$1/work"; }
 
 gate_selftest() {
@@ -228,8 +246,10 @@ gate_selftest() {
   gate_selftest_case --also "body.rs:2:" "that row is closed" plant_call_site_body
   gate_selftest_case --also "nightly.yml:6:" "does not exist under work/" plant_workflow_held_out
   gate_selftest_case "no work/<program>/<id>.md" plant_no_rows
+  gate_selftest_case --also "x.counts:2:" "that row is closed" plant_counts_closed
+  gate_selftest_passes "a .counts pin citing a live row, under a header naming a closed one" plant_counts_live
   gate_selftest_passes "a closed row cited as history, behind another fn, or as a workflow reference" plant_near_misses
-  printf '%s selftest OK: passes a live citation and closed rows cited outside any pin; fires, at file:line, on a pin citing a closed row (an #[ignore] reason, a pin call'"'"'s doc block and its body comment), a missing row, a moved row (live or closed at its new home), a workflow hold-out citing a missing row, and a tree with no work/ rows; and stays RED when grep cannot run\n' "$(gate_name)"
+  printf '%s selftest OK: passes a live citation (a .counts pin line among them) and closed rows cited outside any pin; fires, at file:line, on a pin citing a closed row (an #[ignore] reason, a pin call'"'"'s doc block and its body comment), a missing row, a moved row (live or closed at its new home), a workflow hold-out citing a missing row, a .counts pin line citing a closed row (its header not read), and a tree with no work/ rows; and stays RED when grep cannot run\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"

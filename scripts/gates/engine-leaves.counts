@@ -16,10 +16,17 @@
 # (`use … as Q`, `type Q = …`): the kind admits no new site, and each line
 # goes when its rename does.
 #
-# Not checked here: that a PR's pins are no higher than its base's (CI
-# checks out one commit, so a raised pin reads only in review), and the
-# counter's over-counts (a name it reads as the engine's where a namesake
-# was meant; engine_leaves.py states them), which err the safe way.
+# A pin only falls against the merge base too: the gate reds a pin above
+# the base's (`GATE_BASE`, which ci.yml's `lint` job sets). The one rise
+# it admits is the migration's. A new site in a reader is paid in that
+# reader's `names-*` pin, on a line that cites the move row retiring it
+# (`names-boolean 12 x.rs  # work/<program>/<id>`), and never by a new
+# `pub(crate)` in the engine; `pin-cites-an-open-row.sh` holds the row
+# open. Every other kind admits no rise.
+#
+# Not checked here: the counter's over-counts (a name it reads as the
+# engine's where a namesake was meant; engine_leaves.py states them),
+# which err the safe way.
 
 
 boolean-names-splitting     2  boolean/carrier_touch.rs

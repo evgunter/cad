@@ -8,9 +8,10 @@ under it, BY NAME, however the name reached scope (a hub's re-export,
 `use super::X`, a glob, the root's own `pub use`) — the crate-wide
 qualifiers declared inside an engine, and the constructs it refuses.
 
-    engine_leaves.py BASELINE CARGO_TOML
+    engine_leaves.py BASELINE CARGO_TOML [--base BASE_BASELINE] [--lines FILE]
 
 Prints `ROSE kind file: was -> now (the file's counted sites: L…)`,
+`RAISED kind file: base -> pin` against `--base` (`raised`),
 `FELL kind file: was -> now`, `AMBIGUOUS-NEW name: …`, `AMBIGUOUS-GONE
 name`, `MALFORMED …`, then `TOTAL n`; `REFUSED …` on stderr when it
 cannot read its subject. The gate decides from them.
@@ -90,6 +91,8 @@ SRC = 'crates/topo/src/'
 #                                   module, or to this crate (refused_bindings)
 KINDS = ('names-boolean', 'names-splitting', 'boolean-names-splitting',
          'splitting-names-boolean', 'crate-visible', 'refused-binding')
+READER_KINDS = ('names-boolean', 'names-splitting')
+CITATION = re.compile(r'work/[a-z0-9-]+/[A-Za-z0-9_.-]*[A-Za-z0-9]')
 ITEM_KW = {'fn', 'struct', 'enum', 'trait', 'type', 'const', 'static'}
 QUALIFIERS = {'const', 'async', 'unsafe', 'extern', 'default'}
 TOKEN = re.compile(r'[A-Za-z_][A-Za-z0-9_]*|\d[\w.]*|::|\S')
@@ -585,10 +588,11 @@ def names_engine(f, e, eng):
 
 
 def baseline(path):
-    allowed, ambiguous, bad = {}, set(), []
+    allowed, ambiguous, bad, notes = {}, set(), [], {}
     with open(path, encoding='utf-8') as fh:
         for n, line in enumerate(fh, 1):
-            cols = line.split('#', 1)[0].split()
+            data, _, note = line.partition('#')
+            cols = data.split()
             if not cols:
                 continue
             if cols[0] == 'ambiguous' and len(cols) == 2:
@@ -601,15 +605,38 @@ def baseline(path):
                            f'kinds: {" ".join(KINDS)}')
                 continue
             allowed[(cols[0], cols[2])] = int(cols[1])
-    return allowed, ambiguous, bad
+            notes[(cols[0], cols[2])] = note
+    return allowed, ambiguous, bad, notes
+
+
+def raised(allowed, notes, base_path):
+    """`RAISED …` for each pin above the base's pin of its kind and file
+    (absent there: 0). A reader's pin (`names-*`) may rise only on a line
+    whose note cites the `work/` row that retires the site;
+    `pin-cites-an-open-row.sh` holds that row open. Every other kind
+    admits no new site."""
+    base, _, base_bad, _ = baseline(base_path)
+    out = [f'MALFORMED (base) {line[len("MALFORMED "):]}' for line in base_bad]
+    for key, pin in sorted(allowed.items()):
+        was = base.get(key, 0)
+        if pin <= was:
+            continue
+        if key[0] in READER_KINDS and CITATION.search(notes[key]):
+            continue
+        out.append(f'RAISED {key[0]} {key[1]}: {was} -> {pin}')
+    return out
 
 
 def main():
     args = sys.argv[1:]
-    lines_for = None
+    lines_for = base_for = None
     if '--lines' in args:
         k = args.index('--lines')
         lines_for = args[k + 1]
+        del args[k:k + 2]
+    if '--base' in args:
+        k = args.index('--base')
+        base_for = args[k + 1]
         del args[k:k + 2]
     base_path, cargo = args[0], args[1]
     ext = externs(cargo)
@@ -622,9 +649,12 @@ def main():
         raise SystemExit(f'REFUSED no {SRC}lib.rs or no engine file among the records: the census read nothing')
     files = {r: File(r, tokenize(lines)) for r, lines in recs.items()}
     sites, ambiguous = census(files, ext)
-    allowed, listed, bad = baseline(base_path)
+    allowed, listed, bad, notes = baseline(base_path)
     for line in bad:
         print(line)
+    if base_for is not None:
+        for line in raised(allowed, notes, base_for):
+            print(line)
     for key in sorted(set(sites) | set(allowed)):
         now, was = len(sites.get(key, [])), allowed.get(key, 0)
         if now > was:
