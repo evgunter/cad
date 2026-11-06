@@ -39,7 +39,7 @@ Pin with the empty-member document in `crates/editor-core/tests/g_family_of_bool
 
 ## Closed
 
-**One representation.** A family of bodies is `ValuePayload::Instances(Vec<Option<Framed>>)`: one place per member in index order, `None` at a member that is a boolean's empty result. `ValuePayload::Family` is a family of anything else, and it has no output. `family_value` is the one constructor that decides between them, and a placement of a family keeps its places.
+**One representation.** A family of bodies is `ValuePayload::Instances(Vec<Option<Framed>>)`: one place per member in index order, `None` at a member that is a boolean's empty result. `ValuePayload::Family` is a family of anything else, and it has no output. `family_value` is the one constructor of both, and every family it builds keeps its members; a placement over a family is evaluated once per member and never meets the family whole.
 
 **Why this final state.** The three were weighed as landed code.
 
