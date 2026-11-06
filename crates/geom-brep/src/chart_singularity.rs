@@ -317,10 +317,9 @@ impl<T> Unread<T> {
         }
     }
 
-    /// This reading as a ladder's rung ([`Refusal::rung`]). No reading
-    /// that does not place a point refuses the whole query.
+    /// This reading as a ladder's rung ([`Refusal::rung`]).
     pub(crate) fn rung<A>(self) -> Rung<A, Self> {
-        self.refusal().rung(self, Rung::Blocked)
+        self.refusal().rung(self)
     }
 }
 
