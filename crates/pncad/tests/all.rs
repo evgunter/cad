@@ -7170,8 +7170,8 @@ fn validated_decides_no_consistency_check_on_a_lattice_built_loop() {
     let tol = Tol::witness();
     if 0.25 * landing_reach(tol) < d_shape_reach() {
         match d_shape(1.0, tol) {
-            Err(PathError::ArcMissBelowSceneResolution { predicate, .. }) => {
-                assert_eq!(predicate, "path_arc_landing");
+            Err(PathError::ArcMissBelowSceneResolution { read, .. }) => {
+                assert_eq!(read.gate().predicate(), "path_arc_landing");
             }
             other => panic!("the 40 km D past the scene's resolution: {other:?}"),
         }
