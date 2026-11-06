@@ -167,9 +167,9 @@ use geom_core::{Affine3, Arc2, Point2, Point3, Real, RigidMotion, Tol, UnitVec3}
 
 pub use lift::{Fidelity, LiftOutcome, LiftRefusal, lift, lift_checked};
 pub use path::program::{
-    ArcData, ArcMode, ClosedLoop, ConstructedLoop, Pen, ReplayError, ReplayErrorKind, SpecForms,
-    Step, Takes, Target, TargetKind, TipState, Verb, arc_specs_at, pen, replay, replay_guided,
-    replay_recording,
+    ArcData, ArcMode, ClosedLoop, ConstructedLoop, Pen, Refused, ReplayError, ReplayErrorKind,
+    SpecForms, Step, Takes, Target, TargetKind, TipState, Verb, Vocabulary, arc_specs_at, pen,
+    replay, replay_guided, replay_recording,
 };
 pub use path::{
     ArcCarrierScalar, ArcLen, ArcSide, ArrivesTangent, Bulge, Center, ContinueTarget, CornerReason,

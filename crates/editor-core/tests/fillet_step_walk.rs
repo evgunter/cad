@@ -97,7 +97,7 @@ fn each_refusal_on_the_way_to_a_fillet_names_what_its_state_takes() {
     );
     assert!(
         said.ends_with(
-            "a LineTo step cannot follow tip state Entry. Recourse: continue with At, Angle, \
+            "the LineTo verb is not a legal continuation of tip state Entry, at loop 0 step 0. Recourse: continue with At, Angle, \
              Toward, ArcFillet or ArcFilletArc"
         ),
         "the entry names the chain's entry steps and no loop form: {said}"
@@ -115,7 +115,7 @@ fn each_refusal_on_the_way_to_a_fillet_names_what_its_state_takes() {
     );
     assert!(
         said.ends_with(
-            "a Fillet step cannot follow tip state PlainPoint. Recourse: continue with \
+            "the Fillet verb is not a legal continuation of tip state PlainPoint, at loop 0 step 1. Recourse: continue with \
              Angle, Toward, LineTo, ArcTo, ArcOnto, ArcFillet or ArcFilletArc"
         ),
         "the start point names the legs that may precede a fillet: {said}"
@@ -136,7 +136,7 @@ fn each_refusal_on_the_way_to_a_fillet_names_what_its_state_takes() {
     assert_eq!((step, state, verb), (3, TipState::Open, Some(Verb::LineTo)));
     assert!(
         said.ends_with(
-            "a LineTo step cannot follow tip state Open. Recourse: continue with At, Angle, \
+            "the LineTo verb is not a legal continuation of tip state Open, at loop 0 step 3. Recourse: continue with At, Angle, \
              Toward or CloseTo"
         ),
         "the fillet's arrival side names its directors, anchor and seam close: {said}"
@@ -158,7 +158,7 @@ fn each_refusal_on_the_way_to_a_fillet_names_what_its_state_takes() {
     assert_eq!(verb, Some(Verb::Line));
     assert!(
         said.ends_with(
-            "a Line step cannot follow tip state Angle. Recourse: continue with At or FarEndTo"
+            "the Line verb is not a legal continuation of tip state Angle, at loop 0 step 4. Recourse: continue with At or FarEndTo"
         ),
         "a bound arrival direction names the far-end anchor: {said}"
     );
@@ -195,7 +195,8 @@ fn each_refusal_on_the_way_to_a_fillet_names_what_its_state_takes() {
     assert_eq!((state, verb), (TipState::Open, None));
     assert!(
         said.ends_with(
-            "unclosed at tip state Open. Recourse: continue with At, Angle, Toward or CloseTo"
+            "the program ends at tip state Open without closing the loop, at loop 0 step 3. Recourse: continue \
+             with At, Angle, Toward or CloseTo"
         ),
         "an unclosed chain names how it continues: {said}"
     );

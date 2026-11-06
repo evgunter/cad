@@ -2299,35 +2299,82 @@ impl TipState {
             .filter(move |verb| verb.states().contains(&self))
     }
 
-    /// The recourse of a [`ReplayErrorKind::Transition`] at this
-    /// state: what it takes instead of `verb`, so the refusal is the
-    /// guide. `chain` leaves out the
-    /// complete-loop forms ([`Verb::is_loop_form`]), which a chain
-    /// cannot spell.
+    /// **The sentence for `verb` refused at this state** — or, with
+    /// `None`, for a program that ends here — said in `vocabulary`.
     #[must_use]
-    pub fn takes(self, verb: Option<Verb>, chain: bool) -> Takes {
-        Takes {
+    pub fn refused(self, verb: Option<Verb>, vocabulary: Vocabulary) -> Refused {
+        Refused {
             state: self,
             verb,
-            chain,
+            vocabulary,
         }
     }
 }
 
-/// [`TipState::takes`]'s recourse clause, rendered in the transition
-/// table's identifiers (the `Debug` spellings, which are the lookup
-/// keys).
+/// Which steps a lattice refusal's reader can write, so its recourse
+/// offers only those.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Vocabulary {
+    /// A [`Step`] program: every verb the table declares, the
+    /// complete-loop forms among them.
+    Program,
+    /// A chain's steps: the complete-loop forms ([`Verb::is_loop_form`])
+    /// are loops of their own, not steps a chain can take.
+    Chain,
+}
+
+/// **The one sentence for a step order the lattice refuses** — the
+/// [`ReplayErrorKind::Transition`] pair as a clause, with its recourse
+/// ([`Self::recourse`]). Every door that reports the pair renders this,
+/// and adds only where it was (step and loop indices) and what class
+/// of fault it is.
+///
+/// The pair is a COORDINATE in the transition table — the row a reader
+/// looks up next — so both halves render through `Debug`: the variant
+/// spelling is the lookup key, and a prose paraphrase would not find
+/// it. Each is introduced by the noun it is ("verb", "tip state") so
+/// the identifier reads as a value in the sentence and not as a dump
+/// that leaked into one.
+#[derive(Clone, Copy, Debug)]
+pub struct Refused {
+    state: TipState,
+    verb: Option<Verb>,
+    vocabulary: Vocabulary,
+}
+
+impl Refused {
+    /// What the state takes instead, as the refusal's recourse.
+    #[must_use]
+    pub fn recourse(self) -> Takes {
+        Takes(self)
+    }
+}
+
+impl core::fmt::Display for Refused {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let state = self.state;
+        match self.verb {
+            Some(verb) => write!(
+                f,
+                "the {verb:?} verb is not a legal continuation of tip state {state:?}"
+            ),
+            None => write!(
+                f,
+                "the program ends at tip state {state:?} without closing the loop"
+            ),
+        }
+    }
+}
+
+/// [`Refused::recourse`]: what the refused state takes, in the
+/// transition table's identifiers.
 ///
 /// A verb the state HAS a row for was refused on its arc spec, so the
 /// clause names the arc-spec modes that row admits ([`arc_specs_at`]),
 /// each with its target forms; otherwise it names the verbs the state
-/// takes, and a closed loop takes none.
+/// takes in the refusal's [`Vocabulary`], and a closed loop takes none.
 #[derive(Clone, Copy, Debug)]
-pub struct Takes {
-    state: TipState,
-    verb: Option<Verb>,
-    chain: bool,
-}
+pub struct Takes(Refused);
 
 impl core::fmt::Display for Takes {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
@@ -2346,9 +2393,14 @@ impl core::fmt::Display for Takes {
             }
             Ok(())
         }
-        let state = self.state;
-        let specs = self.verb.map_or(&[][..], |verb| arc_specs_at(verb, state));
-        if let (Some(verb), false) = (self.verb, specs.is_empty()) {
+        let Refused {
+            state,
+            verb,
+            vocabulary,
+            ..
+        } = self.0;
+        let specs = verb.map_or(&[][..], |verb| arc_specs_at(verb, state));
+        if let (Some(verb), false) = (verb, specs.is_empty()) {
             write!(f, "write the {verb:?} step's arc spec as ")?;
             for (slot, forms) in specs.iter().enumerate() {
                 if slot > 0 {
@@ -2379,7 +2431,7 @@ impl core::fmt::Display for Takes {
         }
         let mut takes = state
             .verbs()
-            .filter(|verb| !(self.chain && verb.is_loop_form()))
+            .filter(|verb| !(vocabulary == Vocabulary::Chain && verb.is_loop_form()))
             .peekable();
         if takes.peek().is_none() {
             return f.write_str("end the program at the step that closed the loop");
@@ -2441,45 +2493,30 @@ impl<T: Real> ReplayError<T> {
     }
 }
 
-// The one home of the (state, verb) rendering rule FOR THE COORDINATE
-// SENTENCE, which `editor-core`'s `ProgramFault::Lattice` repeats for
-// the fault this refusal raises there. This refusal is the
-// corrupt-or-hand-edited-file class, so the pair it reports is a
-// COORDINATE in the transition table — the row a reader looks up next
-// — and both halves render through `Debug`: the variant spelling is
-// the lookup key and a prose paraphrase would not find it, which is
-// the identifiers-as-location case. Each is introduced by the noun it
-// is ("verb", "tip") so the identifier reads as a value in the
-// sentence and not as a dump that leaked into one. Scalars and typed
-// payloads elsewhere in this module render as words; these do not.
+// The lattice arms are [`Refused`]'s sentence, framed by this
+// refusal's class: no authoring surface produces a `Step` program off
+// the lattice, so it is the corrupt-or-hand-edited-file class.
 //
-// A sentence about the STEP A PERSON WROTE is the other case and takes
-// the other rendering: `Verb`'s own `Display` gives the authoring
-// spelling, which is a lookup key too (it is the method name the row
-// declares), so naming the verb that way costs the reader nothing and
-// says it in the vocabulary they authored in. The sketch preview's
-// refusal is that case.
+// A sentence about the STEP A PERSON WROTE in the typed surface's
+// vocabulary is the other case and takes the other rendering: `Verb`'s
+// own `Display` gives the authoring spelling (the method name the row
+// declares). The sketch preview's refusal is that case.
 impl<T: Real> core::fmt::Display for ReplayError<T> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match &self.kind {
-            ReplayErrorKind::Transition {
-                state,
-                verb: Some(verb),
-            } => write!(
-                f,
-                "step {}: the {verb:?} verb is not a legal continuation of tip state \
-                 {state:?} (lattice violation — no authoring surface can produce this \
-                 program). {}",
-                self.step,
-                geom_core::Recourse(state.takes(Some(*verb), false))
-            ),
-            ReplayErrorKind::Transition { state, verb: None } => write!(
-                f,
-                "step {}: the program ends at tip state {state:?} without closing the \
-                 loop (lattice violation — a chain must end at Start). {}",
-                self.step,
-                geom_core::Recourse(state.takes(None, false))
-            ),
+            ReplayErrorKind::Transition { state, verb } => {
+                let refused = state.refused(*verb, Vocabulary::Program);
+                let class = match verb {
+                    Some(_) => "no authoring surface can produce this program",
+                    None => "a chain must end at Start",
+                };
+                write!(
+                    f,
+                    "step {}: {refused} (lattice violation — {class}). {}",
+                    self.step,
+                    geom_core::Recourse(refused.recourse())
+                )
+            }
             ReplayErrorKind::Path(source) => {
                 write!(f, "step {}: {source}", self.step)
             }

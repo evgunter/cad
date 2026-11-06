@@ -944,7 +944,8 @@ fn a_spec_refusal_names_the_specs_its_row_admits() {
     );
     assert_eq!(
         TipState::Closed
-            .takes(Some(Verb::LineTo), false)
+            .refused(Some(Verb::LineTo), profile::Vocabulary::Program)
+            .recourse()
             .to_string(),
         "end the program at the step that closed the loop",
         "a closed loop takes no verb"
