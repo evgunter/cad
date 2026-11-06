@@ -10,7 +10,8 @@ cost: H
 
 
 Found by `scripts/gates/escalation-question-marks.sh`'s first register
-(`onecopy/refusal-standing`, tranche 4). Each site below returns a band
+(`onecopy/refusal-standing`, tranche 4; `edge_join` moved here by PR
+6553's review). Each site below returns a band
 decision's escalation by `?` inside a loop, ahead of a later reading
 that could answer definitely. It is a hand-rolled search or identity,
 the class of `an-escalation-returned-by-question-mark-ahead-of-a-later-answer`.
@@ -32,6 +33,7 @@ measured yet.** Read each in full before porting it.
 | `ring_path`'s lead-point read | an arc that is not a point answers `None` | `climb`, `Any` |
 | `offset_derive::nearest` | an argmin | see below |
 | `sweep::loft::stacking::rim_pinned` | any pair decided apart answers "not pinned" | `read_identity` |
+| `boolean::edge_join::joinable` (the chart-class read over the two surfaces) | which surface's class decides | `climb`, `First` |
 
 `offset_derive::nearest` is listed for its argument, not as a clear
 port. An in-band comparison between the best so far and a candidate

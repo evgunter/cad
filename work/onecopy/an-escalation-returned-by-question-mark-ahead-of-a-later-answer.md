@@ -18,10 +18,17 @@ yet read already answers").
 
 ## Done (PR for `onecopy/refusal-standing`, tranche 4)
 
-- `splitting::pieced_arc::PiecedArc::contact` climbs its two ends and
-  its piece walk as one ladder (`Any`).
-- `splitting::containment::CarrierLoop::place_off` climbs its edges
-  (`First`), each escalation kept by `ReadEscalation::refusal`.
+- `splitting::pieced_arc::PiecedArc::contact` climbs its two ends as one
+  ladder (`Any`: either end at the point is `End`).
+- `splitting::pieced_arc::PiecedArc::contact`'s ends are the walk's
+  premise (PR 6553's review): an end in band blocks `On`, which says the
+  point is clear of both ends. So only the other end answers past it.
+- `splitting::containment::CarrierLoop::place_off` **keeps its early
+  return, by its consumers** (PR 6553's review). The answering edge's key
+  is the face door's `FaceContainment::OnEdge`
+  (`boolean::contain::boundary_pre_pass`, the `OnEdge::On` arm). An edge
+  read in band may be the true holder, so no later edge answers past it.
+  The site says so.
 - **The gate:** `scripts/gates/escalation-question-marks.sh` registers
   every production `decide*(…)?` inside a loop body, per file, with each
   file's disposition in `escalation-question-marks.counts`. Its blind
@@ -29,6 +36,12 @@ yet read already answers").
   decides inside it, which is how `place_off` hid.
 
 ## What remains: `boolean::contain::boundary_pre_pass`'s two caller `?`s
+
+**Read these first under `place_off`'s ruling.** The face door's answer
+names the cell that holds the point (`OnVertex(v)`, `OnEdge(e)`). A cell
+read in band may then be the true holder, and both `?`s may be right as
+they stand. A port is owed only where a later cell answers something
+the earlier cell in band could not also be.
 
 `boundary_pre_pass` (the face containment door's boundary pass) is the
 same class one level up, in two places:
