@@ -486,3 +486,4 @@
   - The hole: a citation to `log.md` or `plan.md` (a file with no `status:`) passes as an "open row".
   - Copies: the citation regex is in Python and in awk, and the census fault has four spellings.
   Fix pass sent.
+- 2026-11-06 — PR 6541 delta review: MERGE. No f64 `Rounded` charge is left, the revert matches main byte for byte, and the NOTE-2 pin goes red under the old rule. I merged main as `0570fa5f`; it compiles, and the gate is running.
