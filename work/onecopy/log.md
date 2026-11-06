@@ -282,3 +282,10 @@
     - NOTE-3 and NOTE-5: the end-chord siblings and `past_by`'s unreachable premise.
     - The PR body reconciles 132 against 24 (the census sets differ).
   The m10_sym MINOR is already filed.
+
+- 2026-11-06 — The 6537 fix pass is at head `d4cfba9fdd`.
+  - NOTE-4: the run arm is derived, not assumed. Run pairs lie within `m₋`, the affine gap is convex, so a crossed end is within `e + 2·bend`. An end clears by its chord past `m₋` or its clearance past `e + 2·bend`; spline ends are not read.
+  - NOTE-2: the basin has one home, `polish::bound`.
+  - NOTE-3: `run_past` is folded into `past_by`.
+  - NOTE-5: the unreachable is replaced by a Meter refusal.
+  The `ci` census is unchanged. Delta review sent.
