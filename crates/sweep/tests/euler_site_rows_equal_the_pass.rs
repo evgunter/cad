@@ -96,9 +96,7 @@ fn curve_of(body: &Body<f64>, e: EdgeKey) -> geom_brep::EdgeCurve<f64> {
 }
 
 fn surface_of(body: &Body<f64>, face: FaceKey) -> Surface<f64> {
-    body.get_surface(body.get_face(face).unwrap().surface)
-        .unwrap()
-        .clone()
+    body.face_surface(face).unwrap().clone()
 }
 
 /// The rims of `face`: its circle edges about the revolve axis, world

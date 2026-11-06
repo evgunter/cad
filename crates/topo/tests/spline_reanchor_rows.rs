@@ -41,9 +41,9 @@ fn point(body: &Body<f64>, v: VertexKey) -> Point3<f64> {
 /// The cube's planar face whose chart normal is `normal`.
 fn face_on(body: &Body<f64>, normal: [f64; 3]) -> topo::FaceKey {
     body.faces()
-        .find(|(_, f)| {
+        .find(|(fk, _)| {
             matches!(
-                body.get_surface(f.surface),
+                body.face_surface(*fk),
                 Some(geom::Surface::Plane { normal: n, .. })
                     if (n.x - normal[0]).abs() + (n.y - normal[1]).abs() + (n.z - normal[2]).abs() < 1e-12
             )

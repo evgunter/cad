@@ -80,7 +80,7 @@ fn assert_rims_on_caps(body: &Body<f64>, face: FaceKey) {
     let cone = moved_cone(body, face);
     let caps: Vec<(geom_core::Point3<f64>, geom_core::Vec3<f64>)> = body
         .faces()
-        .filter_map(|(_, f)| match body.get_surface(f.surface) {
+        .filter_map(|(fk, _)| match body.face_surface(fk) {
             Some(geom::Surface::Plane { origin, normal, .. }) => Some((*origin, *normal)),
             _ => None,
         })
@@ -103,8 +103,7 @@ fn assert_rims_on_caps(body: &Body<f64>, face: FaceKey) {
 
 /// The surface `face` wears after a move.
 fn moved_cone(body: &Body<f64>, face: FaceKey) -> geom::Surface<f64> {
-    body.get_face(face)
-        .and_then(|f| body.get_surface(f.surface))
+    body.face_surface(face)
         .cloned()
         .expect("the moved face has a surface")
 }
@@ -132,7 +131,7 @@ fn assert_rims_on_cylinders(body: &Body<f64>, face: FaceKey) {
     let cone = moved_cone(body, face);
     let cylinders: Vec<f64> = body
         .faces()
-        .filter_map(|(_, f)| match body.get_surface(f.surface) {
+        .filter_map(|(fk, _)| match body.face_surface(fk) {
             Some(geom::Surface::Cylinder { radius, .. }) => Some(*radius),
             _ => None,
         })
@@ -167,12 +166,7 @@ fn assert_rims_on_cylinders(body: &Body<f64>, face: FaceKey) {
 
 fn cone_face(body: &Body<f64>) -> FaceKey {
     body.faces()
-        .find(|(_, f)| {
-            matches!(
-                body.get_surface(f.surface),
-                Some(geom::Surface::Cone { .. })
-            )
-        })
+        .find(|(fk, _)| matches!(body.face_surface(*fk), Some(geom::Surface::Cone { .. })))
         .map(|(k, _)| k)
         .expect("the fixture has a cone face")
 }
@@ -346,9 +340,9 @@ fn every_err_path_leaves_the_body_bit_untouched() {
     let tube = tube(0.4, 0.8, 0.6);
     let inner = tube
         .faces()
-        .find(|(_, f)| {
+        .find(|(fk, _)| {
             matches!(
-                tube.get_surface(f.surface),
+                tube.face_surface(*fk),
                 Some(geom::Surface::Cylinder { radius, .. }) if (radius - 0.4).abs() < 1e-9
             )
         })
@@ -374,9 +368,9 @@ fn every_err_path_leaves_the_body_bit_untouched() {
         let mut body = prism();
         let wall = body
             .faces()
-            .find(|(_, f)| {
+            .find(|(fk, _)| {
                 matches!(
-                    body.get_surface(f.surface),
+                    body.face_surface(*fk),
                     Some(geom::Surface::Nurbs(n)) if !n.is_placeholder()
                 )
             })
@@ -412,19 +406,15 @@ fn a_side_wall_replacement_re_anchors_the_rim_arcs() {
     // vertical), i.e. a plane containing the revolve axis.
     let side = body
         .faces()
-        .find(|(_, f)| {
+        .find(|(fk, _)| {
             matches!(
-                body.get_surface(f.surface),
+                body.face_surface(*fk),
                 Some(geom::Surface::Plane { normal, .. }) if normal.y.abs() < 1e-9
             )
         })
         .map(|(k, _)| k)
         .expect("a partial revolve has planar side walls");
-    let Some(geom::Surface::Plane { origin, normal, .. }) = body
-        .get_face(side)
-        .and_then(|f| body.get_surface(f.surface))
-        .cloned()
-    else {
+    let Some(geom::Surface::Plane { origin, normal, .. }) = body.face_surface(side).cloned() else {
         unreachable!("the side wall is a plane")
     };
     topo::replace_face_offset(&mut body, side, 0.05, Tol::witness())
@@ -497,9 +487,9 @@ fn the_curved_fit_reaches_the_floor() {
 fn fitted_obstruction_holds(name: &str, mut body: Body<f64>, curved: bool) {
     let wall = body
         .faces()
-        .find(|(_, f)| {
+        .find(|(fk, _)| {
             matches!(
-                body.get_surface(f.surface),
+                body.face_surface(*fk),
                 Some(geom::Surface::Nurbs(n)) if !n.is_placeholder()
             )
         })
@@ -567,7 +557,7 @@ fn moved_together_outward_every_edge_leaves_the_fits_windows() {
         let kinds: Vec<geom::SurfaceKind> = [data.he_plus, data.he_minus]
             .into_iter()
             .filter_map(|he| body.face_of_half_edge(he))
-            .filter_map(|f| body.get_face(f).and_then(|f| body.get_surface(f.surface)))
+            .filter_map(|f| body.face_surface(f))
             .map(geom::Surface::kind)
             .collect();
         assert!(
@@ -636,9 +626,8 @@ fn moving_two_opposite_walls_mints_each_held_walls_chart_once() {
     ] {
         let walls: Vec<FaceKey> = body
             .faces()
-            .filter(|(_, f)| {
-                body.get_surface(f.surface).map(geom::Surface::kind)
-                    == Some(geom::SurfaceKind::Nurbs)
+            .filter(|(fk, _)| {
+                body.face_surface(*fk).map(geom::Surface::kind) == Some(geom::SurfaceKind::Nurbs)
             })
             .map(|(k, _)| k)
             .collect();
@@ -684,9 +673,9 @@ fn an_offset_as_deep_as_the_walls_collapses_their_seams() {
         let mut body = prism();
         let top = body
             .faces()
-            .find(|(_, f)| {
+            .find(|(fk, _)| {
                 matches!(
-                    body.get_surface(f.surface),
+                    body.face_surface(*fk),
                     Some(geom::Surface::Plane { origin, .. }) if origin.z > 0.5
                 )
             })
@@ -791,7 +780,7 @@ fn a_hex_prisms_side_moves_with_its_corners_on_its_oblique_neighbours() {
     .body;
     let planes: Vec<(FaceKey, geom_core::Point3<f64>, geom_core::Vec3<f64>)> = body
         .faces()
-        .filter_map(|(k, f)| match body.get_surface(f.surface) {
+        .filter_map(|(k, _)| match body.face_surface(k) {
             Some(geom::Surface::Plane { origin, normal, .. }) => Some((k, *origin, *normal)),
             _ => None,
         })
@@ -849,9 +838,9 @@ fn a_fitted_walls_rims_answer_for_themselves_behind_its_seams() {
     ] {
         let wall = body
             .faces()
-            .find(|(_, f)| {
+            .find(|(fk, _)| {
                 matches!(
-                    body.get_surface(f.surface),
+                    body.face_surface(*fk),
                     Some(geom::Surface::Nurbs(n)) if !n.is_placeholder()
                 )
             })

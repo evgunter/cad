@@ -339,9 +339,7 @@ fn p4_the_lantern_neck_rim_carves_and_one_arc_refuses_followably() {
         .into_iter()
         .filter(|f| {
             matches!(
-                source
-                    .get_surface(source.get_face(*f).unwrap().surface)
-                    .unwrap(),
+                source.face_surface(*f).unwrap(),
                 geom::Surface::Plane { .. }
             )
         })

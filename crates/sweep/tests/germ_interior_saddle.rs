@@ -255,12 +255,7 @@ fn the_pin_alone_still_answers_its_closed_form() {
 
 fn cylinder_faces(b: &Body<f64>) -> Vec<topo::FaceKey> {
     b.faces()
-        .filter(|(_, fd)| {
-            matches!(
-                b.get_surface(fd.surface),
-                Some(geom::Surface::Cylinder { .. })
-            )
-        })
+        .filter(|(fk, _)| matches!(b.face_surface(*fk), Some(geom::Surface::Cylinder { .. })))
         .map(|(k, _)| k)
         .collect()
 }

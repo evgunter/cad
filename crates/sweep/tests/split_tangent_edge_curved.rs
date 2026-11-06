@@ -198,9 +198,7 @@ fn refuses_the_knife_edge(
         matches!(e, SplitError::Reduce(_)),
         "{label}: read in the reduction, not later: {e:?}"
     );
-    let named = body
-        .get_face(knife.wall)
-        .and_then(|f| body.get_surface(f.surface));
+    let named = body.face_surface(knife.wall);
     assert_eq!(
         named.map(geom::Surface::kind),
         Some(wall),
@@ -944,7 +942,7 @@ fn a_concave_wall_beside_a_convex_one_refuses_its_knife_edge() {
         refuses_the_knife_edge(&label, &body, &p, SurfaceKind::Cylinder, Contact::Edge);
         let e = split(&operand, &p, Tol::witness()).unwrap_err();
         let wall = e.knife_edge().unwrap().wall;
-        let centre = match body.get_surface(body.get_face(wall).unwrap().surface) {
+        let centre = match body.face_surface(wall) {
             Some(geom::Surface::Cylinder { origin, .. }) => (origin.x, origin.y),
             other => panic!("{label}: {other:?}"),
         };

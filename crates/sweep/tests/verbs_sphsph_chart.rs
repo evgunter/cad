@@ -113,13 +113,12 @@ fn sphere_faces(body: &Body<f64>) -> Vec<FaceKey> {
 /// The face's own chart frame: `(centre, radius, polar axis, seam, the
 /// seam's quadrature partner)`.
 fn chart(body: &Body<f64>, face: FaceKey) -> (Point3<f64>, f64, Vec3<f64>, Vec3<f64>, Vec3<f64>) {
-    let fd = body.get_face(face).unwrap();
     let Some(&geom::Surface::Sphere {
         center,
         radius,
         axis,
         u_ref,
-    }) = body.get_surface(fd.surface)
+    }) = body.face_surface(face)
     else {
         panic!("a sphere face")
     };
@@ -377,7 +376,7 @@ fn probes_on_the_boundary_land_on_the_boundary_at_a_rim_and_at_a_meridian() {
 /// (`meridian`) or latitude rims.
 fn boundary_edges(body: &Body<f64>, face: FaceKey, meridian: bool) -> Vec<topo::EdgeKey> {
     let fd = body.get_face(face).unwrap();
-    let axis = match body.get_surface(fd.surface) {
+    let axis = match body.face_surface(face) {
         Some(&geom::Surface::Sphere { axis, .. }) => axis,
         _ => panic!("a sphere face"),
     };
@@ -859,9 +858,9 @@ fn a_sphere_face_with_a_straight_edge_refuses_at_both_doors() {
 /// normal is the polar axis.
 fn flat_disc(body: &Body<f64>) -> FaceKey {
     body.faces()
-        .find(|(_, fd)| {
+        .find(|(fk, _)| {
             matches!(
-                body.get_surface(fd.surface),
+                body.face_surface(*fk),
                 Some(geom::Surface::Plane { normal, .. }) if normal.y.abs() > 0.9
             )
         })
@@ -891,7 +890,7 @@ fn boundary_pick(
     meridian: bool,
 ) -> (topo::EdgeKey, geom::Curve3<f64>, topo::SurfaceKey) {
     let fd = body.get_face(face).unwrap();
-    let axis = match body.get_surface(fd.surface) {
+    let axis = match body.face_surface(face) {
         Some(&geom::Surface::Sphere { axis, .. }) => axis,
         _ => panic!("sphere"),
     };

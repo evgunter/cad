@@ -58,8 +58,7 @@ fn assembly(a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
 }
 
 fn is_planar(body: &Body<f64>, f: FaceKey) -> bool {
-    body.get_face(f)
-        .and_then(|d| body.get_surface(d.surface))
+    body.face_surface(f)
         .is_some_and(|s| matches!(s, Surface::Plane { .. }))
 }
 
@@ -69,14 +68,12 @@ fn is_planar(body: &Body<f64>, f: FaceKey) -> bool {
 fn faces_in_plane(body: &Body<f64>, h: f64) -> Vec<FaceKey> {
     query::all_faces(body)
         .into_iter()
-        .filter(
-            |&f| match body.get_face(f).and_then(|fd| body.get_surface(fd.surface)) {
-                Some(Surface::Plane { origin, normal, .. }) => {
-                    normal.x.abs() < 1e-12 && normal.y.abs() < 1e-12 && (origin.z - h).abs() < 1e-12
-                }
-                _ => false,
-            },
-        )
+        .filter(|&f| match body.face_surface(f) {
+            Some(Surface::Plane { origin, normal, .. }) => {
+                normal.x.abs() < 1e-12 && normal.y.abs() < 1e-12 && (origin.z - h).abs() < 1e-12
+            }
+            _ => false,
+        })
         .collect()
 }
 
@@ -261,12 +258,7 @@ fn face_pair_refusals(errors: &[ValidationError]) -> Vec<(FaceKey, FaceKey)> {
 fn walls_by_vertex(body: &Body<f64>, v: topo::VertexKey) -> (Vec<FaceKey>, Vec<FaceKey>) {
     let around = body.faces_of_vertex(v).expect("the vertex's orbit walks");
     body.faces()
-        .filter(|(_, data)| {
-            matches!(
-                body.get_surface(data.surface),
-                Some(Surface::Cylinder { .. })
-            )
-        })
+        .filter(|(fk, _)| matches!(body.face_surface(*fk), Some(Surface::Cylinder { .. })))
         .map(|(f, _)| f)
         .partition(|f| around.contains(f))
 }

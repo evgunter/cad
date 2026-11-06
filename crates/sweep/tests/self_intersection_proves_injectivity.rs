@@ -137,9 +137,7 @@ struct Witness {
 }
 
 fn surface<T: Real>(body: &Body<T>, f: FaceKey) -> Surface<T> {
-    body.get_surface(body.get_face(f).unwrap().surface)
-        .unwrap()
-        .clone()
+    body.face_surface(f).unwrap().clone()
 }
 
 /// **The witness check**: the closest pair of the two cells' on-face

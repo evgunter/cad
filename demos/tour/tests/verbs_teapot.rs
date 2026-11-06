@@ -561,8 +561,8 @@ fn the_opened_rim_is_right_on_a_box() {
     let body = boxy(tol);
     let top: Vec<_> = body
         .faces()
-        .filter(|(_, f)| {
-            matches!(body.get_surface(f.surface),
+        .filter(|(fk, _)| {
+            matches!(body.face_surface(*fk),
                 Some(Surface::Plane { origin, normal, .. })
                     if normal.x.abs() < 1e-9 && normal.y.abs() < 1e-9
                         && (origin.z - 0.25).abs() < 1e-12)

@@ -305,12 +305,7 @@ fn the_conic_quarter_torus_answers_a_bracket_holding_pappus() {
     let walls = body
         .body()
         .faces()
-        .filter(|(_, f)| {
-            matches!(
-                body.body().get_surface(f.surface),
-                Some(geom::Surface::Nurbs(_))
-            )
-        })
+        .filter(|(fk, _)| matches!(body.body().face_surface(*fk), Some(geom::Surface::Nurbs(_))))
         .count();
     // The import splits each wall at its C⁰ knots (`docs/DESIGN.md`
     // [topology]); the measure then reads one-span walls.

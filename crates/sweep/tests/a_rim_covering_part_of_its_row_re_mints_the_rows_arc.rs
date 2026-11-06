@@ -274,7 +274,7 @@ fn a_rim_against_the_charts_u_re_mints_its_pieces() {
     let mut body = arc_prism(1.0);
     let (_, edge, wall, _) = bottom_rim(&body);
     let face = body.get_face(wall).unwrap();
-    let Some(Surface::Nurbs(net)) = body.get_surface(face.surface).cloned() else {
+    let Some(Surface::Nurbs(net)) = body.face_surface(wall).cloned() else {
         panic!("the arc wall is a spline chart")
     };
     // Lifts RechartUnvouched and RechartStrandsDescriptions: the wall

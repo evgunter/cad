@@ -394,9 +394,9 @@ fn the_export_corpus_obeys_the_exactness_frame_sense_and_nurbs_laws() {
             .count();
         let nurbs_faces = body
             .faces()
-            .filter(|(_, f)| {
+            .filter(|(fk, _)| {
                 matches!(
-                    body.get_surface(f.surface).expect("surface resolves"),
+                    body.face_surface(*fk).expect("surface resolves"),
                     Surface::Nurbs(_)
                 )
             })
@@ -495,7 +495,7 @@ fn the_export_corpus_obeys_the_exactness_frame_sense_and_nurbs_laws() {
             let face_args = &recs[face_id].1;
             let surface_id = *refs(face_args).last().expect("surface ref");
             let (kw, args) = &recs[&surface_id];
-            let surface = body.get_surface(face.surface).expect("surface");
+            let surface = body.face_surface(*face_key).expect("surface");
             let a = top_args(args);
             // a[0] is the name, a[1] the placement ref.
             let place = |recs: &HashMap<u64, (String, String)>| {

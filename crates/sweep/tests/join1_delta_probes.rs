@@ -287,7 +287,7 @@ fn an_apex_edge_in_the_partners_face_is_recorded() {
             on_apex(p) && on_apex(q) && (p.z - q.z).abs() > 2.0 - 1e-12
         };
         let holder = |c| match c {
-            topo::Cell::Face(f) => match body.get_surface(body.get_face(f).unwrap().surface) {
+            topo::Cell::Face(f) => match body.face_surface(f) {
                 Some(geom::Surface::Plane { origin, normal, .. }) => {
                     !along && normal.x.abs() < 1e-12 && (origin.y - 0.5).abs() < 1e-12
                 }

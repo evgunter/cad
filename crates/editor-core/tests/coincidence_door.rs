@@ -4161,11 +4161,7 @@ fn every_band_a_revolve_mints_is_about_its_axis_output_at_sym() {
                     let body = framed.body();
                     let residuals = match key {
                         EntityKey::Face(face) => {
-                            match body
-                                .get_face(*face)
-                                .and_then(|f| body.get_surface(f.surface))
-                                .expect("a face has a surface")
-                            {
+                            match body.face_surface(*face).expect("a face has a surface") {
                                 Surface::Cylinder { origin, axis, .. } => {
                                     line_on(*origin, Some(*axis))
                                 }

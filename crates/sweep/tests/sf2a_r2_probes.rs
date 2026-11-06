@@ -181,8 +181,8 @@ fn r2a_valence4_concurring_corner_builds_in_closed_form() {
         (x / n, y / n, z / n)
     };
     let mut moves: Vec<ChartMove<f64>> = Vec::new();
-    for (k, f) in chamfered.faces() {
-        let Some(Surface::Plane { origin, normal, .. }) = chamfered.get_surface(f.surface) else {
+    for (k, _) in chamfered.faces() {
+        let Some(Surface::Plane { origin, normal, .. }) = chamfered.face_surface(k) else {
             panic!("a chamfered cube carries planes only");
         };
         let nonzero = normal.to_array().iter().filter(|v| v.abs() > 1e-9).count();
@@ -292,8 +292,8 @@ fn r2a_a_face_named_twice_across_moves() {
     let mut body = prism(&[(0.0, 0.0), (2.0, 0.0), (2.0, 3.0), (0.0, 3.0)], 4.0);
     let centroid = (1.0, 1.5, 2.0);
     let mut moves: Vec<ChartMove<f64>> = Vec::new();
-    for (k, f) in body.faces() {
-        let Some(Surface::Plane { origin, normal, .. }) = body.get_surface(f.surface) else {
+    for (k, _) in body.faces() {
+        let Some(Surface::Plane { origin, normal, .. }) = body.face_surface(k) else {
             panic!("a box is planes");
         };
         let toward_inside = normal.x * (centroid.0 - origin.x)
@@ -346,8 +346,8 @@ fn r2a_one_move_spanning_two_planes() {
     let mut body = prism(&[(0.0, 0.0), (2.0, 0.0), (2.0, 3.0), (0.0, 3.0)], 4.0);
     let centroid = (1.0, 1.5, 2.0);
     let mut per_face: Vec<(FaceKey, f64)> = Vec::new();
-    for (k, f) in body.faces() {
-        let Some(Surface::Plane { origin, normal, .. }) = body.get_surface(f.surface) else {
+    for (k, _) in body.faces() {
+        let Some(Surface::Plane { origin, normal, .. }) = body.face_surface(k) else {
             panic!("a box is planes");
         };
         let toward_inside = normal.x * (centroid.0 - origin.x)
@@ -419,7 +419,7 @@ fn r2a_one_curved_face_among_oblique_planes_takes_the_axial_door() {
     );
     let curved = body
         .faces()
-        .filter(|(_, f)| !matches!(body.get_surface(f.surface), Some(Surface::Plane { .. })))
+        .filter(|(fk, _)| !matches!(body.face_surface(*fk), Some(Surface::Plane { .. })))
         .count();
     assert_eq!(curved, 1, "the bulged side is the one curved chart");
     assert!(

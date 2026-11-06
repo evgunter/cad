@@ -86,7 +86,7 @@ fn with_void(mut dst: Body<f64>, cavity: Body<f64>) -> Body<f64> {
 /// `(origin, OUTWARD normal)` of a planar face.
 fn plane_of(body: &Body<f64>, face: FaceKey) -> (Point3<f64>, Vec3<f64>) {
     let data = body.get_face(face).expect("the face");
-    let Some(geom::Surface::Plane { origin, normal, .. }) = body.get_surface(data.surface) else {
+    let Some(geom::Surface::Plane { origin, normal, .. }) = body.face_surface(face) else {
         panic!("{face:?} is not planar")
     };
     (
@@ -110,12 +110,7 @@ fn face_on(body: &Body<f64>, shell: ShellKey, n: (f64, f64, f64), c: f64) -> Fac
         .faces
         .iter()
         .copied()
-        .filter(|&f| {
-            matches!(
-                body.get_surface(body.get_face(f).unwrap().surface),
-                Some(geom::Surface::Plane { .. })
-            )
-        })
+        .filter(|&f| matches!(body.face_surface(f), Some(geom::Surface::Plane { .. })))
         .filter(|&f| {
             let (_, nn) = plane_of(body, f);
             (nn.x - n.0).abs() < 1e-9

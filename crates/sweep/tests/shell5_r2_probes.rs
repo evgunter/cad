@@ -243,7 +243,7 @@ fn r2_a_thin_curved_wall_shells_silently_into_crossing_walls() {
 
     let mut radii: Vec<f64> = out
         .faces()
-        .filter_map(|(_, f)| match out.get_surface(f.surface) {
+        .filter_map(|(fk, _)| match out.face_surface(fk) {
             Some(geom::Surface::Cylinder { radius, .. }) => Some(*radius),
             _ => None,
         })

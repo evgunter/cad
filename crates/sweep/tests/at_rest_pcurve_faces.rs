@@ -62,7 +62,7 @@ fn torus_quarter() -> Body<f64> {
 fn torus_wall(body: &Body<f64>) -> (FaceKey, Vec<HalfEdgeKey>) {
     body.faces()
         .find_map(|(fk, f)| {
-            let Surface::Torus { .. } = *body.get_surface(f.surface).unwrap() else {
+            let Surface::Torus { .. } = *body.face_surface(fk).unwrap() else {
                 return None;
             };
             let topo::LoopBoundary::Cycle { first } = body.get_loop(f.outer).unwrap().boundary
@@ -231,10 +231,7 @@ fn a_stale_wide_row_is_refused_complete_or_half_minted() {
     let (wall, cycle) = base
         .faces()
         .find_map(|(fk, f)| {
-            if !matches!(
-                base.get_surface(f.surface).unwrap(),
-                Surface::Cylinder { .. }
-            ) {
+            if !matches!(base.face_surface(fk).unwrap(), Surface::Cylinder { .. }) {
                 return None;
             }
             let topo::LoopBoundary::Cycle { first } = base.get_loop(f.outer).unwrap().boundary
@@ -244,10 +241,7 @@ fn a_stale_wide_row_is_refused_complete_or_half_minted() {
             Some((fk, base.loop_cycle(first).unwrap()))
         })
         .expect("the boss has a cylinder wall");
-    let surface = base
-        .get_surface(base.get_face(wall).unwrap().surface)
-        .unwrap()
-        .clone();
+    let surface = base.face_surface(wall).unwrap().clone();
     let mut cases = 0;
     for (i, &h1) in cycle.iter().enumerate() {
         let edge = base.get_edge(base.get_half_edge(h1).unwrap().edge).unwrap();
@@ -398,10 +392,7 @@ fn a_row_restated_a_whole_period_over_is_no_row() {
     let (wall, cycle) = base
         .faces()
         .find_map(|(fk, f)| {
-            if !matches!(
-                base.get_surface(f.surface).unwrap(),
-                Surface::Cylinder { .. }
-            ) {
+            if !matches!(base.face_surface(fk).unwrap(), Surface::Cylinder { .. }) {
                 return None;
             }
             let topo::LoopBoundary::Cycle { first } = base.get_loop(f.outer).unwrap().boundary
@@ -411,10 +402,7 @@ fn a_row_restated_a_whole_period_over_is_no_row() {
             Some((fk, base.loop_cycle(first).unwrap()))
         })
         .expect("the boss has a cylinder wall");
-    let surface = base
-        .get_surface(base.get_face(wall).unwrap().surface)
-        .unwrap()
-        .clone();
+    let surface = base.face_surface(wall).unwrap().clone();
     let tau = core::f64::consts::TAU;
     let mut cases = 0;
     for (i, &h1) in cycle.iter().enumerate() {
@@ -462,10 +450,7 @@ fn a_loop_moved_a_period_over_is_no_rows() {
     let (wall, cycle) = base
         .faces()
         .find_map(|(fk, f)| {
-            if !matches!(
-                base.get_surface(f.surface).unwrap(),
-                Surface::Cylinder { .. }
-            ) {
+            if !matches!(base.face_surface(fk).unwrap(), Surface::Cylinder { .. }) {
                 return None;
             }
             let topo::LoopBoundary::Cycle { first } = base.get_loop(f.outer).unwrap().boundary
@@ -475,10 +460,7 @@ fn a_loop_moved_a_period_over_is_no_rows() {
             Some((fk, base.loop_cycle(first).unwrap()))
         })
         .expect("the boss has a cylinder wall");
-    let surface = base
-        .get_surface(base.get_face(wall).unwrap().surface)
-        .unwrap()
-        .clone();
+    let surface = base.face_surface(wall).unwrap().clone();
     let tau = core::f64::consts::TAU;
     for shift in [tau, -tau] {
         for &he in &cycle {
@@ -566,7 +548,7 @@ fn a_torus_face_bounded_by_a_villarceau_arc_mints_on_either_family() {
         let face = body
             .faces()
             .find_map(|(fk, f)| {
-                let Surface::Torus { .. } = *body.get_surface(f.surface).unwrap() else {
+                let Surface::Torus { .. } = *body.face_surface(fk).unwrap() else {
                     return None;
                 };
                 let topo::LoopBoundary::Cycle { first } = body.get_loop(f.outer).unwrap().boundary

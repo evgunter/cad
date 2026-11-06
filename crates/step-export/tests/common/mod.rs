@@ -766,15 +766,13 @@ pub fn composed_die() -> Body<f64> {
     .expect("the box edges blend in place")
     .body;
     let is_kind = |b: &Body<f64>, f: topo::FaceKey, want_plane: bool| -> bool {
-        b.get_face(f)
-            .and_then(|fd| b.get_surface(fd.surface))
-            .is_some_and(|s| {
-                if want_plane {
-                    matches!(s, geom::Surface::Plane { .. })
-                } else {
-                    matches!(s, geom::Surface::Sphere { .. })
-                }
-            })
+        b.face_surface(f).is_some_and(|s| {
+            if want_plane {
+                matches!(s, geom::Surface::Plane { .. })
+            } else {
+                matches!(s, geom::Surface::Sphere { .. })
+            }
+        })
     };
     let rims: Vec<topo::EdgeKey> = blanked
         .edges()

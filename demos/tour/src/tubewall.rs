@@ -132,7 +132,7 @@ fn hollow(window: TubeWindow<f64>, tol: Tol) -> pncad::sweep::Revolved<f64> {
 /// Every torus wall's stored minor radius, as the body holds it.
 fn stored_minors(body: &Body<f64>) -> Vec<f64> {
     body.faces()
-        .filter_map(|(_, face)| match body.get_surface(face.surface) {
+        .filter_map(|(fk, _)| match body.face_surface(fk) {
             Some(Surface::Torus { minor_radius, .. }) => Some(*minor_radius),
             _ => None,
         })
@@ -169,9 +169,9 @@ fn assert_intent_stored_bit_exact(body: &Body<f64>, what: &str) {
 fn wall_triangles(body: &Body<f64>, mesh: &pncad::mesh::Mesh, r: f64) -> Vec<usize> {
     let mut counts: Vec<usize> = body
         .faces()
-        .filter(|(_, face)| {
+        .filter(|(fk, _)| {
             matches!(
-                body.get_surface(face.surface),
+                body.face_surface(*fk),
                 Some(Surface::Torus { minor_radius, .. }) if minor_radius.to_bits() == r.to_bits()
             )
         })

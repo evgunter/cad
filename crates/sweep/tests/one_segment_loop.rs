@@ -455,8 +455,7 @@ fn a_revolved_one_segment_circle_is_one_torus_wall_with_a_wrap_strut() {
             let wall = walls[0][0].expect("the circle sweeps a wall");
             assert!(
                 matches!(
-                    one.body
-                        .get_surface(one.body.get_face(wall).unwrap().surface),
+                    one.body.face_surface(wall),
                     Some(geom::Surface::Torus { .. })
                 ),
                 "{what}: the wall is a torus"
@@ -1310,10 +1309,7 @@ fn a_one_segment_strut_runs_its_column_back_on_the_negated_knots() {
             let geom::Curve3::Nurbs(carrier) = c.carrier() else {
                 panic!("{z:?}: the strut is a spline")
             };
-            let Some(geom::Surface::Nurbs(chart)) = lofted
-                .body
-                .get_surface(lofted.body.get_face(wall).unwrap().surface)
-            else {
+            let Some(geom::Surface::Nurbs(chart)) = lofted.body.face_surface(wall) else {
                 panic!("{z:?}: the wall is a spline chart")
             };
             assert_eq!(c.params(), (-1.0, 0.0), "{z:?}: the strut's interval");

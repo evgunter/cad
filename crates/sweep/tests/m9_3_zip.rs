@@ -97,10 +97,8 @@ fn two_peg_plate_union_is_exactly_additive() {
     // The bore walls vanished with full engagement: no cylinder
     // surface survives anywhere in the result.
     assert!(
-        body.faces().all(|(_, f)| !matches!(
-            body.get_surface(f.surface),
-            Some(geom::Surface::Cylinder { .. })
-        )),
+        body.faces()
+            .all(|(fk, _)| !matches!(body.face_surface(fk), Some(geom::Surface::Cylinder { .. }))),
         "full-engagement patch removal deletes every wall face"
     );
     if let Err(errs) = topo::validate_geometric(&body, Tol::witness()) {
@@ -245,8 +243,7 @@ fn kissing_rounds_rim_unions_and_carries_the_tangent_intersection() {
     let face_kind = |he| {
         body.get_half_edge(he)
             .and_then(|h| body.get_loop(h.parent_loop))
-            .and_then(|l| body.get_face(l.face))
-            .and_then(|f| body.get_surface(f.surface))
+            .and_then(|l| body.face_surface(l.face))
             .map(geom::Surface::kind)
     };
     let mut rim_edges = Vec::new();

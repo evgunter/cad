@@ -799,8 +799,7 @@ fn normal_at<T: Decide>(
 }
 
 fn surface_of<T: Decide>(body: &Body<T>, face: FaceKey) -> Result<Surface<T>, BlendError> {
-    body.get_face(face)
-        .and_then(|f| body.get_surface(f.surface))
+    body.face_surface(face)
         .cloned()
         .ok_or_else(|| unresolved(EntityId::Face(face), "a face's stored surface"))
 }
@@ -3160,7 +3159,7 @@ mod tests {
         let (wall, stored) = faces
             .into_iter()
             .find_map(|f| {
-                let s = body.get_surface(body.get_face(f)?.surface)?;
+                let s = body.face_surface(f)?;
                 matches!(s, geom::Surface::Cylinder { .. }).then(|| (f, s.clone()))
             })
             .expect("the rod's wall");
@@ -3453,10 +3452,7 @@ mod tests {
         }
         #[allow(clippy::expect_used)]
         fn surface<T: geom_core::Real>(b: &topo::Body<T>, k: topo::FaceKey) -> geom::Surface<T> {
-            b.get_face(k)
-                .and_then(|face| b.get_surface(face.surface))
-                .cloned()
-                .expect("the face's surface")
+            b.face_surface(k).cloned().expect("the face's surface")
         }
         let iv = |x: f64| Interval::from_f64(x);
         let (mut clipped, mut perpendicular_walls, mut bad) = (0usize, 0usize, Vec::new());

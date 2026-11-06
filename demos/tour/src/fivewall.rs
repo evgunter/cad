@@ -166,8 +166,8 @@ fn sleeve(tol: Tol) -> Body<f64> {
 /// How many faces of each surface kind a body carries.
 fn kinds(body: &Body<f64>) -> BTreeMap<&'static str, usize> {
     let mut out = BTreeMap::new();
-    for (_, face) in body.faces() {
-        let name = match body.get_surface(face.surface) {
+    for (fk, _) in body.faces() {
+        let name = match body.face_surface(fk) {
             Some(Surface::Plane { .. }) => "Plane",
             Some(Surface::Cylinder { .. }) => "Cylinder",
             Some(Surface::Cone { .. }) => "Cone",
@@ -186,7 +186,7 @@ fn kinds(body: &Body<f64>) -> BTreeMap<&'static str, usize> {
 fn stored<F: Fn(&Surface<f64>) -> Option<f64>>(body: &Body<f64>, read: F) -> Vec<u64> {
     let mut out: Vec<u64> = body
         .faces()
-        .filter_map(|(_, f)| body.get_surface(f.surface).and_then(&read))
+        .filter_map(|(fk, _)| body.face_surface(fk).and_then(&read))
         .map(f64::to_bits)
         .collect();
     out.sort_unstable();
@@ -346,9 +346,9 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
     // ---- the same vessel, opened ----
     let mouth: Vec<FaceKey> = solid
         .faces()
-        .filter(|(_, f)| {
+        .filter(|(fk, _)| {
             matches!(
-                solid.get_surface(f.surface),
+                solid.face_surface(*fk),
                 Some(Surface::Plane { origin, .. }) if origin.y == Y_MOUTH
             )
         })

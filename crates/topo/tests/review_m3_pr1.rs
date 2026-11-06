@@ -1056,11 +1056,7 @@ fn merge_coplanar_uref_and_signed_zero_variants_merge() {
             .body
             .get_point(cube.body.get_vertex(c1).unwrap().point)
             .unwrap();
-        let top_surface = cube
-            .body
-            .get_surface(cube.body.get_face(top).unwrap().surface)
-            .unwrap()
-            .clone();
+        let top_surface = cube.body.face_surface(top).unwrap().clone();
         let variant = surface(&top_surface);
         cube.body
             .mef(

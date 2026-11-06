@@ -539,7 +539,7 @@ fn with_reversed_face(
 ) -> (AtRestBody<f64>, topo::FaceKey) {
     let picked: Vec<_> = body
         .faces()
-        .filter_map(|(k, f)| match body.get_surface(f.surface) {
+        .filter_map(|(k, f)| match body.face_surface(k) {
             Some(geom::Surface::Plane {
                 origin,
                 normal,

@@ -76,7 +76,7 @@ fn chart_and_feet(body: &Body<f64>, face: FaceKey) -> (Vec3<f64>, Vec3<f64>, Vec
         axis,
         u_ref,
         ..
-    } = body.get_surface(f.surface).expect("its surface")
+    } = body.face_surface(face).expect("its surface")
     else {
         panic!("a fillet corner patch is a sphere octant");
     };
@@ -224,7 +224,7 @@ fn r2_corner_arcs_are_sub_pi_turns_about_the_stored_centre_on_both_sides() {
         for face in corners {
             let f = body.get_face(face).expect("a minted corner face");
             let Surface::Sphere { center, radius, .. } =
-                body.get_surface(f.surface).expect("its surface")
+                body.face_surface(face).expect("its surface")
             else {
                 panic!("a fillet corner patch is a sphere octant");
             };

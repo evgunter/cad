@@ -39,14 +39,14 @@ mod review_probes {
     /// only one carrier to find.
     fn torus(b: &Body<f64>) -> (Point3<f64>, Vec3<f64>, f64, f64, Vec3<f64>) {
         let mut found = None;
-        for (_, f) in b.faces() {
+        for (fk, _) in b.faces() {
             if let Some(Surface::Torus {
                 center,
                 axis,
                 major_radius,
                 minor_radius,
                 u_ref,
-            }) = b.get_surface(f.surface)
+            }) = b.face_surface(fk)
             {
                 let t = (*center, *axis, *major_radius, *minor_radius, *u_ref);
                 if let Some(prev) = &found {
@@ -319,8 +319,8 @@ mod review_probes {
             let tv = Vec3::new(t.0, 0.0, t.1);
             let mut saw_sphere = false;
             let mut cones = 0usize;
-            for (_, f) in b.faces() {
-                match b.get_surface(f.surface) {
+            for (fk, _) in b.faces() {
+                match b.face_surface(fk) {
                     Some(Surface::Sphere {
                         center,
                         radius,
@@ -392,11 +392,7 @@ mod review_probes {
         else {
             panic!("the weld stops at the interior-loop guard: {refused:?}");
         };
-        let kind_of = |body: &AtRestBody<f64>, f| {
-            body.get_face(f)
-                .and_then(|f| body.get_surface(f.surface))
-                .map(|s| s.kind())
-        };
+        let kind_of = |body: &AtRestBody<f64>, f| body.face_surface(f).map(|s| s.kind());
         assert_eq!(
             (kind_of(lant, face), kind_of(arch, other_face)),
             (Some(SurfaceKind::Cone), Some(SurfaceKind::Torus)),
@@ -1008,9 +1004,8 @@ mod review_probes {
         // sphere rather than from the plant's construction.
         let lant = body(&ps, "lily_lantern");
         let mut centre = None;
-        for (_, f) in lant.faces() {
-            if let Some(pncad::geom::Surface::Sphere { center, radius, .. }) =
-                lant.get_surface(f.surface)
+        for (fk, _) in lant.faces() {
+            if let Some(pncad::geom::Surface::Sphere { center, radius, .. }) = lant.face_surface(fk)
             {
                 assert!((radius - FLOWER_GLOBE).abs() < 1e-12);
                 centre = Some(*center);
@@ -1023,9 +1018,9 @@ mod review_probes {
             // The margins, and the apex of each cap's two rims: the
             // keel's apex is the section's deepest point.
             let mut points: Vec<Point3<f64>> = s.vertex_points().map(|(_, p)| p).collect();
-            for (_, f) in s.faces() {
+            for (fk, _) in s.faces() {
                 if let Some(&pncad::geom::Surface::Plane { origin, normal, .. }) =
-                    s.get_surface(f.surface)
+                    s.face_surface(fk)
                 {
                     let margins: Vec<Point3<f64>> = s
                         .vertex_points()
@@ -1173,9 +1168,8 @@ mod review_probes {
             let b = body(&ps, name);
             let a = segs[i].1;
             let mut halves: Vec<Vec3<f64>> = Vec::new();
-            for (_, f) in b.faces() {
-                let Some(&pncad::geom::Surface::Plane { origin, normal, .. }) =
-                    b.get_surface(f.surface)
+            for (fk, _) in b.faces() {
+                let Some(&pncad::geom::Surface::Plane { origin, normal, .. }) = b.face_surface(fk)
                 else {
                     continue;
                 };
@@ -1270,9 +1264,9 @@ mod review_probes {
             })
             .expect("the neck the weld pin names is a cone");
         lant.faces()
-            .filter(|(_, f)| {
+            .filter(|(fk, _)| {
                 matches!(
-                    lant.get_surface(f.surface),
+                    lant.face_surface(*fk),
                     Some(&Surface::Cone { apex, .. }) if (apex - neck_apex).norm() > 1e-9
                 )
             })
@@ -1296,13 +1290,13 @@ mod review_probes {
     /// spheres can pass.
     fn sphere_of(b: &Body<f64>) -> (Point3<f64>, f64, Vec3<f64>) {
         let mut found: Option<SphereCarrier> = None;
-        for (_, f) in b.faces() {
+        for (fk, _) in b.faces() {
             if let Some(pncad::geom::Surface::Sphere {
                 center,
                 radius,
                 axis,
                 u_ref,
-            }) = b.get_surface(f.surface)
+            }) = b.face_surface(fk)
             {
                 let s = (*center, *radius, *axis, *u_ref);
                 match found {
@@ -1377,9 +1371,8 @@ mod review_probes {
 
     fn cap_frames(b: &Body<f64>) -> Vec<Cap> {
         let mut out = Vec::new();
-        for (_, f) in b.faces() {
-            let Some(&pncad::geom::Surface::Plane { origin, normal, .. }) =
-                b.get_surface(f.surface)
+        for (fk, _) in b.faces() {
+            let Some(&pncad::geom::Surface::Plane { origin, normal, .. }) = b.face_surface(fk)
             else {
                 continue;
             };
@@ -1548,7 +1541,7 @@ mod verbs_gate_r1_probes {
         let mut zone_hit = false;
         let mut zone = None;
         for (k, f) in lant.faces() {
-            match lant.get_surface(f.surface) {
+            match lant.face_surface(k) {
                 Some(&Surface::Cone {
                     apex,
                     axis,
@@ -1762,7 +1755,7 @@ mod verbs_gate_r1_probes {
         // starts).
         let weld = arch
             .faces()
-            .filter_map(|(_, f)| match arch.get_surface(f.surface) {
+            .filter_map(|(fk, _)| match arch.face_surface(fk) {
                 Some(&Surface::Plane { origin, .. }) => Some(origin),
                 _ => None,
             })
@@ -1895,7 +1888,7 @@ mod verbs_gate_r1_probes {
                 axis,
                 half_angle,
                 ..
-            }) = lant.get_surface(f.surface)
+            }) = lant.face_surface(k)
             else {
                 continue;
             };

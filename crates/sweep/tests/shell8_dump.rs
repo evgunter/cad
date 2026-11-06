@@ -35,7 +35,7 @@ fn dump(label: &str, body: &Body<f64>) {
             f.sense,
             f.rings.len(),
             f.surface,
-            body.get_surface(f.surface)
+            body.face_surface(k)
         );
     }
     for (k, e) in body.edges() {

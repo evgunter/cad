@@ -50,7 +50,7 @@ fn receipts(body: &Body<f64>) -> Vec<Receipt> {
     body.faces()
         .map(|(fk, f)| {
             let (outer, _) = topo::props::loop_edges(body, f.outer).unwrap();
-            let s = body.get_surface(f.surface).unwrap();
+            let s = body.face_surface(fk).unwrap();
             (
                 format!("{fk:?}"),
                 geom_brep::props::require_iso_rectangle(s, &outer, band())

@@ -236,9 +236,9 @@ fn a_wall_wound_against_its_sense_refuses_typed() {
     let (above, _) = halves();
     let wall = above
         .faces()
-        .find(|(_, f)| {
+        .find(|(fk, _)| {
             matches!(
-                above.get_surface(f.surface),
+                above.face_surface(*fk),
                 Some(geom::Surface::Cylinder { .. })
             )
         })

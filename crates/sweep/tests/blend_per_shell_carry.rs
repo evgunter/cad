@@ -71,7 +71,7 @@ fn snapshot(body: &Body<f64>, shell: ShellKey) -> String {
         writeln!(
             s,
             "face {f:?} {face:?} surf {:?} prov {:?}",
-            body.get_surface(face.surface),
+            body.face_surface(f),
             body.provenance(EntityId::Face(f))
         )
         .unwrap();
@@ -218,7 +218,7 @@ fn a_shell_carved_in_place_matches_it_carved_alone_then_unioned() {
     let surfaces = |b: &Body<f64>| {
         let mut v: Vec<String> = b
             .faces()
-            .map(|(_, f)| format!("{:?}", b.get_surface(f.surface)))
+            .map(|(fk, _)| format!("{:?}", b.face_surface(fk)))
             .collect();
         v.sort();
         v

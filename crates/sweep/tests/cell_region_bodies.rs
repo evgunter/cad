@@ -255,9 +255,7 @@ fn surface_f64(s: &Surface<Interval>) -> Surface<f64> {
 }
 
 fn face_surface(body: &Body<Interval>, face: FaceKey) -> Surface<Interval> {
-    body.get_surface(body.get_face(face).unwrap().surface)
-        .unwrap()
-        .clone()
+    body.face_surface(face).unwrap().clone()
 }
 
 /// Midpoints of every edge of the face's outer loop, in 3-D.

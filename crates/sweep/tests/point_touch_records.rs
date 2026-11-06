@@ -20,7 +20,7 @@ fn graft(mut a: Body<f64>, b: &Body<f64>) -> (Body<f64>, Vec<topo::FaceKey>) {
     let keys = topo::graft_disjoint_all_keyed(&mut a, b).unwrap();
     let spheres = b
         .faces()
-        .filter(|(_, f)| b.get_surface(f.surface).unwrap().kind() == SurfaceKind::Sphere)
+        .filter(|(fk, _)| b.face_surface(*fk).unwrap().kind() == SurfaceKind::Sphere)
         .map(|(k, _)| keys.face(k).unwrap())
         .collect();
     (a, spheres)
@@ -29,8 +29,8 @@ fn graft(mut a: Body<f64>, b: &Body<f64>) -> (Body<f64>, Vec<topo::FaceKey>) {
 /// The face of `body` on the plane z = `z`, outward up.
 fn top(body: &Body<f64>, z: f64) -> topo::FaceKey {
     body.faces()
-        .find(|(_, f)| {
-            matches!(body.get_surface(f.surface),
+        .find(|(fk, _)| {
+            matches!(body.face_surface(*fk),
                 Some(geom::Surface::Plane { origin, normal, .. })
                     if normal.z.abs() > 0.5 && (origin.z - z).abs() < 1e-12)
         })
@@ -160,7 +160,7 @@ fn a_ball_touching_its_cavity_from_inside_is_read_at_its_touch_point() {
     let ball = ball_poled_y(0.25, Vec3::new(2.0, 2.0, 2.25), tol());
     let walls: Vec<_> = cavity
         .faces()
-        .filter(|(_, f)| cavity.get_surface(f.surface).unwrap().kind() == SurfaceKind::Sphere)
+        .filter(|(fk, _)| cavity.face_surface(*fk).unwrap().kind() == SurfaceKind::Sphere)
         .map(|(k, _)| k)
         .collect();
     let (body, fb) = graft(cavity, &ball);

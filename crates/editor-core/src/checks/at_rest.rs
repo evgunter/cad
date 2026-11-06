@@ -1078,10 +1078,7 @@ fn pairing_read<T: Decide>(
     band: Band,
 ) -> Option<PairingRead<'_, T>> {
     use crate::eval::measure::reach_of;
-    let carrier = |key: FaceKey| {
-        let face = body.get_face(key)?;
-        Some((body.get_surface(face.surface)?, face.sense))
-    };
+    let carrier = |key: FaceKey| Some((body.face_surface(key)?, body.get_face(key)?.sense));
     let (outer_carrier, inner_carrier) = (carrier(outer)?, carrier(inner)?);
     let at = face_point(body, outer)?;
     let (r_outer, r_inner) = (reach_of(body, outer, at)?, reach_of(body, inner, at)?);
@@ -1970,8 +1967,8 @@ fn beyond(
     // Every face of the intersection a plane or a cylinder patch, whose
     // reach its own boundary bounds.
     let mut reach = 0.0_f64;
-    for (f, held) in result.faces() {
-        match result.get_surface(held.surface) {
+    for (f, _) in result.faces() {
+        match result.face_surface(f) {
             Some(topo::Surface::Plane { .. } | topo::Surface::Cylinder { .. }) => {}
             _ => return Err("a face of the overlap the containment check cannot bound".to_owned()),
         }
@@ -2022,10 +2019,7 @@ fn beyond(
     };
     // The region is turned with the carrier's own chart, so it moves
     // with the inputs and not with the computing axes.
-    let reference = match aggregate
-        .get_face(face)
-        .and_then(|f| aggregate.get_surface(f.surface))
-    {
+    let reference = match aggregate.face_surface(face) {
         Some(topo::Surface::Plane { u_ref, .. } | topo::Surface::Cylinder { u_ref, .. }) => *u_ref,
         _ => return Err("the carrier's surface is unreadable".to_owned()),
     };

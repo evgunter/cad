@@ -61,7 +61,7 @@ pub fn dump(body: &Body<f64>) -> String {
     }
     for (k, _) in body.faces() {
         let fd = body.get_face(k).unwrap();
-        let surf = body.get_surface(fd.surface).unwrap();
+        let surf = body.face_surface(k).unwrap();
         let _ = writeln!(
             s,
             "F {k:?} sense={:?} rings={} surface={surf:?}",

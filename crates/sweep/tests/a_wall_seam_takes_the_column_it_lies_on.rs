@@ -344,10 +344,7 @@ fn a_stated_column_is_offered_before_the_closed_form_it_crosses() {
     let edge = body.get_edge(middle).unwrap();
     for h in [edge.he_plus, edge.he_minus] {
         let face = body.face_of_half_edge(h).unwrap();
-        let chart = body
-            .get_surface(body.get_face(face).unwrap().surface)
-            .unwrap()
-            .clone();
+        let chart = body.face_surface(face).unwrap().clone();
         let image = derived(&body, h).unwrap();
         let Pcurve::IsoLine { p0, pl } = image else {
             panic!("{h:?}: a sub-seam takes an iso line: {image:?}")

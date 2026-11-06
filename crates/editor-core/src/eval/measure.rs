@@ -339,7 +339,7 @@ fn plane_of<T: Decide>(
     k: topo::entity::FaceKey,
 ) -> Option<(Point3<T>, Vec3<T>, Vec3<T>)> {
     let face = body.get_face(k)?;
-    match body.get_surface(face.surface)? {
+    match body.face_surface(k)? {
         Surface::Plane { origin, normal, .. } => Some((
             *origin,
             *normal,
@@ -382,7 +382,7 @@ pub(crate) fn carrier_of<T: Decide>(body: &Body<T>, ent: EntityRef) -> Carrier<'
                     reach,
                 };
             }
-            let surface = body.get_surface(face.surface);
+            let surface = body.face_surface(k);
             let round = surface.and_then(|s| topo::Round::of(s, face.sense));
             match (surface, round) {
                 (

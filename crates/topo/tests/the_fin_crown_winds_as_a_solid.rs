@@ -66,8 +66,8 @@ fn solid_angle(p: P, a: P, b: P, c: P) -> f64 {
 /// shared home yet.
 fn faces(body: &Body<f64>) -> Vec<(Vec<Vec<P>>, P)> {
     body.faces()
-        .map(|(_, f)| {
-            let geom::Surface::Plane { normal, .. } = body.get_surface(f.surface).unwrap() else {
+        .map(|(fk, f)| {
+            let geom::Surface::Plane { normal, .. } = body.face_surface(fk).unwrap() else {
                 panic!("the crown's faces are planar");
             };
             let s = if f.sense { 1.0 } else { -1.0 };

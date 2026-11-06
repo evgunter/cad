@@ -141,7 +141,7 @@ fn a_conical_ended_football_revolves() {
         let sheets: Vec<f64> = built
             .body
             .faces()
-            .filter_map(|(_, f)| match built.body.get_surface(f.surface) {
+            .filter_map(|(fk, _)| match built.body.face_surface(fk) {
                 Some(geom::Surface::Spindle { major_radius, .. }) => Some(*major_radius),
                 _ => None,
             })
@@ -182,7 +182,7 @@ fn a_conical_ended_football_revolves() {
 /// The surface kinds of a body's faces, a sheet or torus with its `R`.
 fn kinds(body: &topo::Body<f64>) -> Vec<String> {
     body.faces()
-        .map(|(_, f)| match body.get_surface(f.surface).unwrap() {
+        .map(|(fk, _)| match body.face_surface(fk).unwrap() {
             geom::Surface::Spindle { major_radius, .. } => format!("spindle({major_radius})"),
             geom::Surface::Torus { major_radius, .. } => format!("torus({major_radius})"),
             s => format!("{:?}", s.kind()),

@@ -56,7 +56,7 @@ fn filleted() -> (Body<f64>, topo::SurfaceKey, Surface<f64>, Vec<HalfEdgeKey>) {
         .body;
     let (face, key, cylinder) = body
         .faces()
-        .find_map(|(k, f)| match body.get_surface(f.surface) {
+        .find_map(|(k, f)| match body.face_surface(k) {
             Some(s @ Surface::Cylinder { .. }) => Some((k, f.surface, s.clone())),
             _ => None,
         })

@@ -131,8 +131,8 @@ pub fn ring_on_cap(body: &mut Body<f64>, h: f64, r: f64, rr: f64) {
     let tol = Tol::witness();
     let cap = body
         .faces()
-        .find(|(_, f)| {
-            matches!(body.get_surface(f.surface),
+        .find(|(fk, _)| {
+            matches!(body.face_surface(*fk),
                 Some(Surface::Plane { origin, .. }) if (origin.y - h).abs() <= 1e-12)
         })
         .expect("the cap")
@@ -325,7 +325,7 @@ pub fn two_arc_sphere() -> Body<f64> {
     );
     let sphere = body
         .faces()
-        .find(|(_, f)| matches!(body.get_surface(f.surface), Some(Surface::Sphere { .. })))
+        .find(|(fk, _)| matches!(body.face_surface(*fk), Some(Surface::Sphere { .. })))
         .expect("the sphere")
         .1
         .surface;

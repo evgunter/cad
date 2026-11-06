@@ -751,9 +751,7 @@ fn every_edge_the_two_fixtures_mint_presents_the_rule_a_lane_admitted_triple() {
                 .get_loop(body.get_half_edge(he).expect("a half-edge").parent_loop)
                 .expect("a loop")
                 .face;
-            body.get_surface(body.get_face(face).expect("a face").surface)
-                .expect("a surface")
-                .clone()
+            body.face_surface(face).expect("a surface").clone()
         };
         let mut checked = 0usize;
         for (k, e) in body.edges() {

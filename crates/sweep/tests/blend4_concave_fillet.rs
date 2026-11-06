@@ -248,10 +248,7 @@ fn the_filleted_cavity() {
     for fk in &out.corner_faces {
         let f = out_body.get_face(*fk).expect("a minted corner face");
         assert!(
-            matches!(
-                out_body.get_surface(f.surface),
-                Some(Surface::Sphere { .. })
-            ),
+            matches!(out_body.face_surface(*fk), Some(Surface::Sphere { .. })),
             "a fillet corner patch is a sphere octant"
         );
         assert!(
@@ -299,7 +296,7 @@ fn the_filleted_cavity() {
 /// mesh.
 fn outward_at_boundary(body: &Body<f64>, face: topo::FaceKey) -> Vec<(Point3<f64>, Vec3<f64>)> {
     let f = body.get_face(face).expect("a minted face");
-    let radial = |q: Point3<f64>| match body.get_surface(f.surface).expect("its surface") {
+    let radial = |q: Point3<f64>| match body.face_surface(face).expect("its surface") {
         Surface::Cylinder { origin, axis, .. } => {
             let d = q - *origin;
             (d - *axis * d.dot(*axis)).normalize()

@@ -937,7 +937,10 @@ pub(crate) fn map_isometry<T: Decide + crate::props::AtRestPolicy>(
 }
 
 /// The mapped world position of vertex `vk`.
-fn endpoint<T: Real>(body: &Body<T>, vk: crate::entity::VertexKey) -> Result<Point3<T>, TransformError> {
+fn endpoint<T: Real>(
+    body: &Body<T>,
+    vk: crate::entity::VertexKey,
+) -> Result<Point3<T>, TransformError> {
     let v = body.vertices.get(vk).ok_or(TransformError::Corrupt {
         found: "a half-edge references a missing vertex",
     })?;

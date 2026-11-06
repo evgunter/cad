@@ -265,10 +265,8 @@ fn torax_every_torus_corner_lies_on_its_own_moved_surfaces() {
     ] {
         let out = hollowed(what, &body);
         let mut metered = 0usize;
-        for (face, f) in out.faces() {
-            let surface = out
-                .get_surface(f.surface)
-                .expect("a face carries a surface");
+        for (face, _) in out.faces() {
+            let surface = out.face_surface(face).expect("a face carries a surface");
             for v in face_vertices(&out, face) {
                 let p = *out
                     .get_point(out.get_vertex(v).expect("vertex").point)
@@ -672,12 +670,7 @@ fn torax_a_two_arc_lune_re_authors_its_equator_seam_and_hollows() {
     let mut body = body;
     let sphere = body
         .faces()
-        .find(|(_, f)| {
-            matches!(
-                body.get_surface(f.surface),
-                Some(geom::Surface::Sphere { .. })
-            )
-        })
+        .find(|(fk, _)| matches!(body.face_surface(*fk), Some(geom::Surface::Sphere { .. })))
         .expect("the sphere wall")
         .1
         .surface;
@@ -806,8 +799,8 @@ fn torax_the_sphere_lune_rim_solves_in_closed_form() {
 
     // Every corner lies on every moved surface at its own faces — the
     // same outside read the torus rows make.
-    for (face, f) in cavity.faces() {
-        let surface = cavity.get_surface(f.surface).expect("surface");
+    for (face, _) in cavity.faces() {
+        let surface = cavity.face_surface(face).expect("surface");
         for v in face_vertices(&cavity, face) {
             let p = *cavity
                 .get_point(cavity.get_vertex(v).expect("vertex").point)
@@ -932,7 +925,7 @@ fn torax_the_sphere_lune_lifts_its_rims_onto_the_caps() {
     let body = lune(r, core::f64::consts::FRAC_PI_2);
     let caps: Vec<FaceKey> = body
         .faces()
-        .filter(|(_, f)| matches!(body.get_surface(f.surface), Some(Surface::Plane { .. })))
+        .filter(|(fk, _)| matches!(body.face_surface(*fk), Some(Surface::Plane { .. })))
         .map(|(k, _)| k)
         .collect();
     assert_eq!(caps.len(), 2, "a partial revolve has two meridian caps");
@@ -1145,8 +1138,8 @@ fn torax_the_reflex_lune_solves_the_mitre_on_the_material_bisector() {
     has_corner(&cavity, rho, -h, "the reflex lune's lower rim corner");
 
     let mut worst = 0.0_f64;
-    for (face, f) in cavity.faces() {
-        let surface = cavity.get_surface(f.surface).expect("surface");
+    for (face, _) in cavity.faces() {
+        let surface = cavity.face_surface(face).expect("surface");
         for v in face_vertices(&cavity, face) {
             let p = *cavity
                 .get_point(cavity.get_vertex(v).expect("vertex").point)

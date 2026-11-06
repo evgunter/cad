@@ -1234,10 +1234,7 @@ fn probe_fan_oracle_coned_volume() {
                 six_v += a.dot(b.cross(c));
             }
         }
-        let surf = t
-            .body
-            .get_surface(t.body.get_face(fk).unwrap().surface)
-            .unwrap();
+        let surf = t.body.face_surface(fk).unwrap();
         println!(
             "face {fk:?} contrib {} surf {:?}",
             six_v / 6.0,

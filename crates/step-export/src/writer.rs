@@ -775,9 +775,9 @@ impl<'a> Writer<'a> {
         let same_sense = if face.sense { ".T." } else { ".F." };
         let surface = self
             .body
-            .get_surface(face.surface)
+            .face_surface(face_key)
             .ok_or(StepExportError::Corrupt {
-                what: "face surface key does not resolve",
+                what: "face key does not resolve",
             })?;
         // The surface printers: every ELEMENTARY_SURFACE of the
         // kernel's closed enum maps to its exact AP214 twin, the

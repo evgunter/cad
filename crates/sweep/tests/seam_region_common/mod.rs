@@ -36,7 +36,7 @@ pub(crate) fn unencoded(body: &Body<f64>, key: FaceKey, tol: Tol) -> bool {
 
 pub(crate) fn sphere_faces(body: &Body<f64>) -> Vec<FaceKey> {
     body.faces()
-        .filter(|(_, f)| matches!(body.get_surface(f.surface), Some(Surface::Sphere { .. })))
+        .filter(|(fk, _)| matches!(body.face_surface(*fk), Some(Surface::Sphere { .. })))
         .map(|(k, _)| k)
         .collect()
 }

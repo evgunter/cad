@@ -376,11 +376,7 @@ fn the_lofted_cylinders_unions_refuse_at_its_own_rims() {
     let gap = topo::EdgeInFaceGap::SplineFace;
     match topo::union(&cyl, &brick, tol) {
         Err(BooleanError::EdgeInFace { edge, face, gap: g }) if g == gap => {
-            let kind = |f: topo::FaceKey| {
-                cyl.get_face(f)
-                    .and_then(|d| cyl.get_surface(d.surface))
-                    .map(geom::Surface::kind)
-            };
+            let kind = |f: topo::FaceKey| cyl.face_surface(f).map(geom::Surface::kind);
             let sides = topo::readback::edge_sides(&cyl, edge).expect("the edge is the cylinder's");
             let (fa, fb) = sides.faces();
             let mut own = [kind(fa), kind(fb)];

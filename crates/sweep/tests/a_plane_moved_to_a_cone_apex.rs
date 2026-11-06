@@ -75,9 +75,7 @@ fn cut_frustum() -> Body<f64> {
 }
 
 fn surface_of(body: &Body<f64>, face: FaceKey) -> Surface<f64> {
-    body.get_surface(body.get_face(face).unwrap().surface)
-        .unwrap()
-        .clone()
+    body.face_surface(face).unwrap().clone()
 }
 
 /// **Every rim arc of the moved face plans its section.** The cut face

@@ -155,8 +155,8 @@ fn p1_shell_open_is_a_disjoint_ring_on_my_own_revolve() {
     let body = vase(tol);
     let mouth: Vec<FaceKey> = body
         .faces()
-        .filter(|(_, f)| {
-            matches!(body.get_surface(f.surface),
+        .filter(|(fk, _)| {
+            matches!(body.face_surface(*fk),
                 Some(Surface::Plane { origin, .. }) if (origin.y - VASE_TOP).abs() < 1e-12)
         })
         .map(|(k, _)| k)
@@ -193,8 +193,8 @@ fn p1_shell_open_is_a_disjoint_ring_on_my_own_revolve() {
     };
     let rim: Vec<FaceKey> = cup
         .faces()
-        .filter(|(_, f)| {
-            matches!(cup.get_surface(f.surface),
+        .filter(|(fk, _)| {
+            matches!(cup.face_surface(*fk),
                 Some(Surface::Plane { origin, .. }) if (origin.y - VASE_TOP).abs() < 1e-12)
         })
         .map(|(k, _)| k)
@@ -252,8 +252,8 @@ fn p1_shell_open_is_a_disjoint_ring_on_my_own_revolve() {
     // stations carries its ring. None of them is on the mouth plane.
     let mouth_rings: usize = cup
         .faces()
-        .filter(|(_, f)| {
-            matches!(cup.get_surface(f.surface),
+        .filter(|(fk, _)| {
+            matches!(cup.face_surface(*fk),
                 Some(Surface::Plane { origin, .. }) if (origin.y - VASE_TOP).abs() < 1e-12)
         })
         .map(|(_, f)| f.rings.len())

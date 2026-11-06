@@ -423,8 +423,20 @@ fn half_edge_ends<T: Real>(
 pub(crate) fn edge_ends<T: Real>(body: &Body<T>, e: EdgeKey) -> (VertexKey, VertexKey) {
     use crate::live::linked;
     let edge = crate::live::proven(&body.edges, e, EntityId::Edge);
-    let start = |he, field| linked(&body.half_edges, he, EntityId::HalfEdge, EntityId::Edge(e), field).start;
-    (start(edge.he_plus, "he_plus"), start(edge.he_minus, "he_minus"))
+    let start = |he, field| {
+        linked(
+            &body.half_edges,
+            he,
+            EntityId::HalfEdge,
+            EntityId::Edge(e),
+            field,
+        )
+        .start
+    };
+    (
+        start(edge.he_plus, "he_plus"),
+        start(edge.he_minus, "he_minus"),
+    )
 }
 
 /// The seed's two surfaces as an unordered pair, stored lower key

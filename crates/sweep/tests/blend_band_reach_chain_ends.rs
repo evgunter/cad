@@ -44,10 +44,7 @@ fn band() -> Band {
 
 /// The plane of `face` as its unit normal and its offset along it.
 fn plane_of(body: &Body<f64>, face: FaceKey) -> ([f64; 3], f64) {
-    let s = body
-        .get_face(face)
-        .and_then(|f| body.get_surface(f.surface))
-        .expect("the face's surface");
+    let s = body.face_surface(face).expect("the face's surface");
     let Surface::Plane { origin, normal, .. } = s else {
         panic!("a plane face, got {s:?}");
     };

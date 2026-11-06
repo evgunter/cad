@@ -373,12 +373,11 @@ fn a_face_through_two_vertices_on_one_point_tessellates() {
         mesh::validate::check_mesh(&mesh).unwrap_or_else(|e| panic!("{tag}: check_mesh: {e:?}"));
         // A planar body's mesh is the body: its volume is exact. A
         // curved wall's falls short by its chords.
-        if bb.body.faces().all(|(_, f)| {
-            matches!(
-                bb.body.get_surface(f.surface),
-                Some(geom::Surface::Plane { .. })
-            )
-        }) {
+        if bb
+            .body
+            .faces()
+            .all(|(fk, _)| matches!(bb.body.face_surface(fk), Some(geom::Surface::Plane { .. })))
+        {
             let (got, want) = (
                 mesh::validate::signed_volume(&mesh),
                 topo::test_support::pinned_volume("the measured body", &bb.body, tol()).volume,

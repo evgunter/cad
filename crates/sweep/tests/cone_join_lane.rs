@@ -130,7 +130,7 @@ fn joined(
 /// The cone carrier of `body`'s one cone face.
 fn cone_of(body: &Body<f64>) -> Surface<f64> {
     body.faces()
-        .filter_map(|(_, f)| body.get_surface(f.surface))
+        .filter_map(|(fk, _)| body.face_surface(fk))
         .find(|s| matches!(s, Surface::Cone { .. }))
         .expect("a cone face")
         .clone()
@@ -463,11 +463,8 @@ fn lune_loops(
 ) -> Vec<(LuneRole, f64)> {
     let points: std::collections::HashMap<_, _> = body.vertex_points().collect();
     let mut found = Vec::new();
-    for (_, face) in body.faces() {
-        if !body
-            .get_surface(face.surface)
-            .is_some_and(|s| same_cone(s, cone))
-        {
+    for (fk, face) in body.faces() {
+        if !body.face_surface(fk).is_some_and(|s| same_cone(s, cone)) {
             continue;
         }
         let mut on_face = Vec::new();

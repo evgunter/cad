@@ -127,7 +127,7 @@ fn edge_ends(body: &Body<f64>, e: topo::EdgeKey) -> Option<String> {
 /// order.
 fn face_geo(body: &Body<f64>, f: topo::FaceKey) -> Option<String> {
     let face = body.get_face(f)?;
-    let (origin, normal) = match body.get_surface(face.surface)? {
+    let (origin, normal) = match body.face_surface(f)? {
         geom::Surface::Plane { origin, normal, .. } => (*origin, *normal),
         _ => return None,
     };

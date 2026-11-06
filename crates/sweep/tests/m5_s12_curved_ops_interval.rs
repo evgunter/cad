@@ -104,13 +104,13 @@ mod certified {
                 "determinism"
             );
             for (k, f) in body.faces() {
-                let curved = !matches!(body.get_surface(f.surface), Some(Surface::Plane { .. }));
+                let curved = !matches!(body.face_surface(k), Some(Surface::Plane { .. }));
                 let now = rev.get_face(k).unwrap().sense;
                 assert_eq!(now, if curved { !f.sense } else { f.sense });
                 if curved {
                     assert_eq!(
                         format!("{:?}", rev.get_surface(f.surface).unwrap()),
-                        format!("{:?}", body.get_surface(f.surface).unwrap()),
+                        format!("{:?}", body.face_surface(k).unwrap()),
                         "a chart must not widen under revert"
                     );
                 }
@@ -208,7 +208,7 @@ mod certified {
         );
         let reversed = out
             .faces()
-            .filter(|(_, f)| !matches!(out.get_surface(f.surface), Some(Surface::Plane { .. })))
+            .filter(|(fk, _)| !matches!(out.face_surface(*fk), Some(Surface::Plane { .. })))
             .filter(|(_, f)| !f.sense)
             .count();
         assert!(

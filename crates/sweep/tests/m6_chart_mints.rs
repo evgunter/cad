@@ -37,8 +37,8 @@ fn assert_curved_faces_fully_minted(name: &str, body: &Body<f64>) {
         "{name} tier 3"
     );
     let mut curved_hes = 0usize;
-    for (_, face) in body.faces() {
-        let surface = body.get_surface(face.surface).expect("surface resolves");
+    for (fk, face) in body.faces() {
+        let surface = body.face_surface(fk).expect("surface resolves");
         if matches!(surface, Surface::Plane { .. }) {
             continue;
         }
@@ -129,9 +129,9 @@ fn the_die_octants_carry_stored_sphere_pcurves_at_rest() {
     .expect("the die blank fillets")
     .body;
     let mut spheres = 0usize;
-    for (_, face) in filleted.faces() {
+    for (fk, _) in filleted.faces() {
         if matches!(
-            filleted.get_surface(face.surface).expect("surface"),
+            filleted.face_surface(fk).expect("surface"),
             Surface::Sphere { .. }
         ) {
             spheres += 1;

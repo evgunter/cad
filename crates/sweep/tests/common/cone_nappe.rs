@@ -83,16 +83,14 @@ pub fn coned_tube() -> Body<f64> {
 /// bands over ONE surface key, so a cone chart is a group.
 pub fn cone_faces(body: &Body<f64>) -> Vec<FaceKey> {
     body.faces()
-        .filter(|(_, f)| matches!(body.get_surface(f.surface), Some(Surface::Cone { .. })))
+        .filter(|(fk, _)| matches!(body.face_surface(*fk), Some(Surface::Cone { .. })))
         .map(|(k, _)| k)
         .collect()
 }
 
 /// `face`'s surface, cloned.
 pub fn surface_of(body: &Body<f64>, face: FaceKey) -> Surface<f64> {
-    body.get_surface(body.get_face(face).unwrap().surface)
-        .unwrap()
-        .clone()
+    body.face_surface(face).unwrap().clone()
 }
 
 /// Every corner of `face`, in `next` order over every loop — the very

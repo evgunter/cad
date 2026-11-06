@@ -278,9 +278,9 @@ mod wall_gap_support {
         let body = bottle::<f64>(tol).top;
         let walls: Vec<(FaceKey, BTreeSet<VertexKey>)> = body
             .faces()
-            .filter(|(_, face)| {
+            .filter(|(fk, _)| {
                 matches!(
-                    body.get_surface(face.surface).expect("a live surface"),
+                    body.face_surface(*fk).expect("a live surface"),
                     Surface::Nurbs(_)
                 )
             })

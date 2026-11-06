@@ -344,9 +344,9 @@ type FaceRow<'a> = (
 fn plane_face(body: &Body<f64>, at: Point3<f64>, normal: Vec3<f64>) -> topo::FaceKey {
     let hits: Vec<topo::FaceKey> = body
         .faces()
-        .filter(|(_, f)| {
+        .filter(|(fk, _)| {
             matches!(
-                body.get_surface(f.surface),
+                body.face_surface(*fk),
                 Some(geom::Surface::Plane { origin, normal: n, .. })
                     if n.cross(normal).norm() < 1e-12 && (at - *origin).dot(*n).abs() < 1e-12
             )
@@ -1205,8 +1205,7 @@ fn every_tilted_cut_section_face_is_counter_clockwise() {
     for case in tilted_cut_cases() {
         let mut sections = 0;
         for (key, face) in case.body.faces() {
-            let Some(geom::Surface::Plane { origin, normal, .. }) =
-                case.body.get_surface(face.surface)
+            let Some(geom::Surface::Plane { origin, normal, .. }) = case.body.face_surface(key)
             else {
                 continue;
             };

@@ -746,9 +746,9 @@ fn nurbs_bump() -> Body<f64> {
     let patch = geom::NurbsSurface::new(kv.clone(), kv, control, vec![1.0; 16]).unwrap();
     let top = body
         .faces()
-        .find(|(_, fd)| {
+        .find(|(fk, _)| {
             matches!(
-                body.get_surface(fd.surface),
+                body.face_surface(*fk),
                 Some(geom::Surface::Plane { origin, normal, .. })
                     if origin.z.abs() < 1e-12 && normal.z.abs() > 0.5
             )
@@ -800,12 +800,7 @@ fn nurbs_clamp() -> AtRestBody<f64> {
 /// The bump face's pair verdicts: `(A kind, B kind, verdict)` for every
 /// in-scope pair with a NURBS face.
 fn nurbs_verdicts(a: &Body<f64>, b: &Body<f64>) -> Vec<String> {
-    let kind = |x: &Body<f64>, f| {
-        let fd = x.get_face(f).expect("a reported face resolves");
-        x.get_surface(fd.surface)
-            .expect("its surface resolves")
-            .kind()
-    };
+    let kind = |x: &Body<f64>, f| x.face_surface(f).expect("its surface resolves").kind();
     topo::test_support::section_report(topo::BooleanOp::Union, a, b, Tol::witness())
         .expect("the reduction runs")
         .into_iter()

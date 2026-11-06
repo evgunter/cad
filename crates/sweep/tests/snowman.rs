@@ -723,11 +723,7 @@ fn the_snowman_waist_fillets() {
     let rho = ((R1 + r).powi(2) - y.powi(2)).sqrt();
     assert!(!out.band_faces.is_empty(), "the fillet mints a band");
     for &f in &out.band_faces {
-        match *out
-            .body
-            .get_surface(out.body.get_face(f).unwrap().surface)
-            .unwrap()
-        {
+        match *out.body.face_surface(f).unwrap() {
             geom::Surface::Torus {
                 center,
                 major_radius,

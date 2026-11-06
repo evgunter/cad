@@ -68,7 +68,7 @@ fn every_corner_encodes_and_holds_no_pole<T: Decide + Bounds>(
     let band = Band::linear(Tol::witness()).unwrap();
     for &face in &out.corner_faces {
         let f = body.get_face(face).expect("a minted corner face");
-        let surface = body.get_surface(f.surface).expect("its surface");
+        let surface = body.face_surface(face).expect("its surface");
         let Surface::Sphere {
             center,
             radius,

@@ -76,10 +76,7 @@ fn an_approx_faced_body_validates_at_tier_three() {
         let (body, faces) = prism_with_approx_walls(d, MINT_TARGET);
         let face = faces[0];
         assert!(
-            matches!(
-                body.get_surface(body.get_face(face).unwrap().surface),
-                Some(Surface::Approx(_))
-            ),
+            matches!(body.face_surface(face), Some(Surface::Approx(_))),
             "d = {d}: the face carries the approximating surface"
         );
         assert_eq!(
@@ -125,7 +122,7 @@ fn a_degraded_fit_on_a_face_goes_red_at_tier_three() {
     let d = 0.05;
     let (mut body, faces) = prism_with_approx_walls(d, MINT_TARGET);
     let face = faces[0];
-    let Some(Surface::Approx(live)) = body.get_surface(body.get_face(face).unwrap().surface) else {
+    let Some(Surface::Approx(live)) = body.face_surface(face) else {
         panic!("the wall carries an approximating surface")
     };
     let geom::SurfaceDescription::Offset { base, .. } = live.description();
@@ -280,7 +277,7 @@ fn rigid() -> Affine3<f64> {
 
 /// The approximating surface `face` wears.
 fn approx_face_surface(body: &Body<f64>, face: FaceKey) -> Arc<geom::ApproxSurface<f64>> {
-    match body.get_surface(body.get_face(face).unwrap().surface) {
+    match body.face_surface(face) {
         Some(Surface::Approx(a)) => Arc::clone(a),
         other => panic!("{face:?} must wear an approximating surface, got {other:?}"),
     }
@@ -881,9 +878,9 @@ fn an_approx_face_refuses_typed_at_a_scalar_with_no_fit_lane() {
     .body;
     let face = body
         .faces()
-        .find(|(_, f)| {
+        .find(|(fk, _)| {
             matches!(
-                body.get_surface(f.surface),
+                body.face_surface(*fk),
                 // The outward cap: `Interval` orders no better than its
                 // bracket does, so the choice reads the enclosure's low
                 // end — definite on these exact dyadic coordinates.
@@ -1020,10 +1017,7 @@ fn a_rim_stated_as_a_row_in_another_chart_takes_its_own_image() {
     )
     .unwrap();
     let band = geom_core::Band::linear(Tol::witness()).unwrap();
-    let chart = body
-        .get_surface(body.get_face(face).unwrap().surface)
-        .unwrap()
-        .clone();
+    let chart = body.face_surface(face).unwrap().clone();
     let rims: Vec<_> = body
         .half_edges()
         .map(|(k, _)| k)

@@ -37,8 +37,8 @@ fn wall_edges<T: SpanLocate>(body: &Body<T>) -> Vec<(EdgeKey, geom_brep::EdgeCur
 /// The face on the plane `z = 1`, which meets the wall along one edge.
 fn top_face(body: &Body<f64>) -> FaceKey {
     body.faces()
-        .find(|(_, f)| {
-            matches!(body.get_surface(f.surface),
+        .find(|(fk, _)| {
+            matches!(body.face_surface(*fk),
                 Some(geom::Surface::Plane { origin, normal, .. })
                     if normal.z.abs() > 0.5 && origin.z == 1.0)
         })

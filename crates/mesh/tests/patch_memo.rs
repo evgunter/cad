@@ -229,7 +229,7 @@ fn a_kept_tessellation_survives_the_picture_and_an_unkept_one_does_not() {
 /// The face of `body` on a surface `pick` accepts, by arena order.
 fn face_where(body: &Body<f64>, pick: impl Fn(&Surface<f64>) -> bool) -> FaceKey {
     body.faces()
-        .find(|(_, f)| pick(body.get_surface(f.surface).unwrap()))
+        .find(|(fk, _)| pick(body.face_surface(*fk).unwrap()))
         .map(|(k, _)| k)
         .expect("a face on such a surface")
 }
@@ -463,9 +463,7 @@ fn the_planar_lane_reads_neither_the_stored_plane_nor_the_sense() {
         origin,
         normal,
         u_ref,
-    } = *rotated
-        .get_surface(rotated.get_face(fk).unwrap().surface)
-        .unwrap()
+    } = *rotated.face_surface(fk).unwrap()
     else {
         panic!("a plane")
     };
@@ -509,9 +507,7 @@ fn the_curved_lane_misses_when_its_chart_or_sense_changes_and_nothing_else_does(
         axis,
         radius,
         u_ref,
-    } = *rotated
-        .get_surface(rotated.get_face(fk).unwrap().surface)
-        .unwrap()
+    } = *rotated.face_surface(fk).unwrap()
     else {
         panic!("a cylinder")
     };
@@ -557,10 +553,7 @@ fn the_trimmed_lane_misses_when_a_pcurve_changes_and_hits_when_a_plane_does() {
     // no hit.)
     let band = Band::linear(tol).unwrap();
     let nudge = 1e-2 * band.zero();
-    let surface = base
-        .get_surface(base.get_face(wall).unwrap().surface)
-        .unwrap()
-        .clone();
+    let surface = base.face_surface(wall).unwrap().clone();
     let mut moved = base.clone();
     let mut shifted_any = false;
     let wall_half_edges: Vec<HalfEdgeKey> = base
@@ -681,9 +674,7 @@ fn the_trimmed_lane_misses_when_a_pcurve_changes_and_hits_when_a_plane_does() {
         origin,
         normal,
         u_ref,
-    } = *rotated
-        .get_surface(rotated.get_face(cap).unwrap().surface)
-        .unwrap()
+    } = *rotated.face_surface(cap).unwrap()
     else {
         panic!("a plane")
     };
@@ -712,10 +703,7 @@ fn the_trimmed_nurbs_lane_misses_when_its_surface_changes() {
     // lane); the fit itself moved by one weight misses. A weight is
     // a surface parameter the lane reads and the chords, which come
     // from the edges' carriers, do not.
-    let Surface::Nurbs(net) = base
-        .get_surface(base.get_face(fk).unwrap().surface)
-        .unwrap()
-    else {
+    let Surface::Nurbs(net) = base.face_surface(fk).unwrap() else {
         panic!("a nurbs")
     };
     let mut weights = net.weights().to_vec();

@@ -201,7 +201,7 @@ fn r2_overflow_edge_needle_cone() {
     );
     let half_angle = needle
         .faces()
-        .find_map(|(_, f)| match *needle.get_surface(f.surface).unwrap() {
+        .find_map(|(fk, _)| match *needle.face_surface(fk).unwrap() {
             Surface::Cone { half_angle, .. } => Some(half_angle),
             _ => None,
         })
@@ -277,7 +277,7 @@ fn r2_cone_shape_sweep() {
         let body = revolve_polygon(&poly, theta);
         let (rho_rim, half_angle) = body
             .faces()
-            .find_map(|(_, f)| match *body.get_surface(f.surface).unwrap() {
+            .find_map(|(fk, _)| match *body.face_surface(fk).unwrap() {
                 Surface::Cone { half_angle, .. } => Some((poly[1].x, half_angle)),
                 _ => None,
             })

@@ -193,9 +193,7 @@ fn sweep_row(major: f64, delta: f64, sweep: Revolution<f64>) {
         for hek in [edge.he_plus, edge.he_minus] {
             let lp = body.get_half_edge(hek).unwrap().parent_loop;
             let fk = body.get_loop(lp).unwrap().face;
-            let surface = body
-                .get_surface(body.get_face(fk).unwrap().surface)
-                .unwrap();
+            let surface = body.face_surface(fk).unwrap();
             if let Surface::Torus { axis: taxis, .. } = *surface {
                 on_torus = Some(taxis);
             }

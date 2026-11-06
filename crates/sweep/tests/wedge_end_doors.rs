@@ -132,7 +132,7 @@ fn a_split_tangent_to_a_hole_wall_refuses_the_knife_edge_it_would_mint() {
                 .unwrap_or_else(|| panic!("normal {normal}: refused {e:?}, not the knife edge")),
             Ok(_) => panic!("normal {normal}: answered"),
         };
-        let wall = body.get_surface(body.get_face(knife.wall).unwrap().surface);
+        let wall = body.face_surface(knife.wall);
         assert_eq!(
             wall.map(geom::Surface::kind),
             Some(geom::SurfaceKind::Cylinder),
@@ -565,9 +565,9 @@ fn the_shoulder_seam_stores_one_description_through_the_chord_and_split_edge() {
 fn cap_at(piece: &Body<f64>, height: f64) -> topo::FaceKey {
     let caps: Vec<_> = piece
         .faces()
-        .filter(|(_, f)| {
+        .filter(|(fk, _)| {
             matches!(
-                piece.get_surface(f.surface),
+                piece.face_surface(*fk),
                 Some(geom::Surface::Plane { origin, normal, .. })
                     if normal.z.abs() > 0.5 && (origin.z - height).abs() < tol().eps()
             )

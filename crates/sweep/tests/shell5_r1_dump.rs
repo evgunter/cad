@@ -39,8 +39,8 @@ fn revolved(pts: &[(f64, f64)]) -> Body<f64> {
 /// outward) and plane constant `n·x = c`.
 fn planes_where(body: &Body<f64>, n: (f64, f64, f64), c: f64) -> Vec<FaceKey> {
     body.faces()
-        .filter(|(_, f)| {
-            matches!(body.get_surface(f.surface),
+        .filter(|(fk, _)| {
+            matches!(body.face_surface(*fk),
                 Some(geom::Surface::Plane { origin, normal, .. })
                     if (normal.x - n.0).abs() < 1e-9 && (normal.y - n.1).abs() < 1e-9
                         && (normal.z - n.2).abs() < 1e-9
@@ -78,7 +78,7 @@ fn dump(label: &str, out: &Result<topo::Shelled<f64>, topo::ShellError<f64>>) {
                     f.shell,
                     f.sense,
                     f.rings.len(),
-                    b.get_surface(f.surface)
+                    b.face_surface(k)
                 );
             }
             for (k, e) in b.edges() {

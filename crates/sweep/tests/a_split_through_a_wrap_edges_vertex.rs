@@ -236,7 +236,7 @@ fn is_wrap(body: &Body<f64>, edge: topo::EdgeKey) -> bool {
 fn wall_census(body: &Body<f64>) -> Result<Wall, String> {
     let on_wall = |face: topo::FaceKey| {
         matches!(
-            body.get_surface(body.get_face(face).unwrap().surface),
+            body.face_surface(face),
             Some(geom::Surface::Cylinder { .. })
         )
     };

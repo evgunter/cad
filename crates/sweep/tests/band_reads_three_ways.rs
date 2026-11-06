@@ -134,8 +134,7 @@ fn bracket(m: &ClassifiedMargin) -> (f64, f64) {
 /// `|origin · normal|` of a plane face: which plane of the fixture it
 /// lies on.
 fn plane_offset<T: Bounds>(body: &Body<T>, f: topo::FaceKey) -> f64 {
-    let face = body.get_face(f).expect("a source face");
-    match body.get_surface(face.surface) {
+    match body.face_surface(f) {
         Some(geom::Surface::Plane { origin, normal, .. }) => {
             let d = (*origin - Point3::origin()).dot(*normal);
             0.5 * (d.lo() + d.hi()).abs()
