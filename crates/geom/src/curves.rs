@@ -658,7 +658,9 @@ impl<T: Real> Line<T> {
 
     /// **`p`'s offset from its foot**, square to the line: `w = p − origin`
     /// less its [projection](Vec3::project_onto) onto `dir`, whose norm is
-    /// `p`'s distance from the line. Subtractive rather than
+    /// `p`'s distance from the line. It divides by `|dir|²`, so it holds
+    /// for any nonzero `dir` and a unit `dir`'s reading can move in the
+    /// last place against `w − dir·(w·dir)`. Subtractive rather than
     /// [`Vec3::reject_from`]'s triple product, which amplifies a `dir`
     /// carrying width: a computed carrier direction is that case.
     #[must_use]

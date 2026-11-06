@@ -2,12 +2,11 @@
 id: a-points-radial-offset-from-an-axis-is-spelled-inline
 kind: issue
 title: A point's offset from its foot on an axis, (p − o) − a((p − o)·a), is spelled inline at about twenty sites
-status: closed
+status: dispatched
 opened: 2026-11-02
 priority: P2
 cost: M
-closed: 2026-11-06
-pr: 6562
+branch: onecopy/feet-and-params
 ---
 
 

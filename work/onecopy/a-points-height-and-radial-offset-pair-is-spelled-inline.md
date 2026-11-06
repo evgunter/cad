@@ -20,6 +20,6 @@ Found by `onecopy/feet-and-params` (second unit). That unit ported the radial of
 
 Some of these, for example `ruled_region.rs`'s `mean` and `section_cert.rs`'s `delta`, may reject a free vector rather than a point's offset. Check each before porting.
 
-Why not ported in that unit: the pair is its own reading. Splitting it into `Line::param(p)` and `Line::offset(p)` computes `w` twice and moves both halves' bits (`/ |a|²`). Writing the radial half as `w − a·h` with a shared `h` is a third spelling of the offset.
+Why not ported in that unit: the pair is its own reading, and its home is the open question. That unit's ~45 radial ports already decided that `Line::offset`'s `/ |a|²` is acceptable: a last-place f64 move on a unit axis, which moved no test outcome at either ε. So the bits are no reason to keep the pair apart. What remains is that splitting it into `Line::param(p)` and `Line::offset(p)` computes `w` twice, and writing the radial half as `w − a·h` with a shared `h` is a third spelling of the offset.
 
-Before you fix it, decide the home. One option is a pair reading on `geom::Line`, e.g. `Line::split(p) -> (T, Vec3<T>)`, beside `param` and `offset`, which `on_carrier`'s `height_and_radius` and `depth_gap::split` would then read through. Say also whether its radial half must stay bit-identical to `Line::offset`.
+Before you fix it, decide the home. One option is a pair reading on `geom::Line`, e.g. `Line::split(p) -> (T, Vec3<T>)`, beside `param` and `offset`, which `on_carrier`'s `height_and_radius` and `depth_gap::split` would then read through. Its radial half should read `Line::offset`'s expression, so the two cannot drift.

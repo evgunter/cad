@@ -2,12 +2,11 @@
 id: rim-wedge-locus-line-restates-geom-line
 kind: issue
 title: rim_wedge's Locus::Line restates geom::Line, and spells two radial offsets inline; left for PR 6443
-status: closed
+status: dispatched
 opened: 2026-11-03
 priority: P2
 cost: E
-closed: 2026-11-06
-pr: 6562
+branch: onecopy/feet-and-params
 ---
 
 
