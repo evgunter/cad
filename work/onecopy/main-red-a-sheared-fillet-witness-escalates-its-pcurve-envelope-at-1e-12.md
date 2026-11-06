@@ -35,6 +35,6 @@ That held for the control as much as the witness, so the admission's
 premise was false and the admission is gone. One step downstream, the
 foot line's carrier re-read the band axis off its vertices
 (`surgery::attach_contact`'s `TrimLine` arm), which reddened shear
-±0.8. Both are re-posed: `SupportTrace::foot`, and a `TrimLine` that
+−0.8. Both are re-posed: `SupportTrace::foot`, and a `TrimLine` that
 carries the stored line. The remaining sites of the same shape are on
 `work/band/a-blend-arcs-seam-reference-is-read-off-its-vertex-less-its-centre.md`.

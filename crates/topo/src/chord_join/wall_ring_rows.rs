@@ -966,3 +966,47 @@ fn a_carried_ellipse_chord_starts_at_its_nodes_span_end() {
         );
     }
 }
+
+/// **A carried chord whose spline component cannot be walked refuses on
+/// the limit**: a component on a spline whose control points coincide,
+/// a quarter turn from the chord's ends, has no speed bound to walk its
+/// pieces by, so placing the chord's start on it refuses
+/// `SectionUnwalked`, never a section invariant.
+#[test]
+fn a_carried_chord_on_an_unwalkable_spline_refuses_unwalked() {
+    let still = at(3.0, 0.5);
+    let net = geom::NurbsCurve3::new(
+        geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
+        vec![still, still],
+        vec![1.0; 2],
+    )
+    .unwrap();
+    let component = geom_brep::CarriedComponent {
+        witness: still,
+        carrier: geom::Curve3::Nurbs(std::sync::Arc::new(net)),
+        span: (0.0, 1.0),
+        shape: geom_brep::ComponentShape::Loop,
+        certificate: None,
+        winds: [false, false],
+        pad: 0.0,
+        reach: 0.0,
+    };
+    let partner = geom::Surface::Cylinder {
+        origin: Point3::new(1.6, 0.0, 0.0),
+        axis: Vec3::unit_z(),
+        radius: 0.8,
+        u_ref: Vec3::unit_x(),
+    };
+    let ends = (at(0.8, 0.3), at(0.8, 0.7));
+    let (got, _) = closed_form_chord(component, partner, ends, Vec3::unit_z());
+    assert!(
+        matches!(
+            got,
+            Err(SplitJoinError::SectionUnwalked(
+                geom::PieceWalkRefusal::Unbounded
+            ))
+        ),
+        "a spline component with no speed bound refuses as a limit: {:?}",
+        got.err()
+    );
+}

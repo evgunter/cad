@@ -2,11 +2,14 @@
 id: nearest-parameter-by-kind-is-spelled-three-ways
 kind: issue
 title: A point's nearest parameter by kind is spelled three ways: Curve3::nearest, Curve3::param_near's line and circle arms, and geom::Line::param
-status: open
+status: closed
 opened: 2026-11-04
 priority: P2
 cost: E
 refs: [6483, 6482]
+branch: onecopy/feet-and-params
+closed: 2026-11-06
+pr: 6540
 ---
 
 

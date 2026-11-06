@@ -574,16 +574,6 @@ pub fn plane_offset_rounded<T: Real>(
     running::dot(d, running::exact_vec(normal))
 }
 
-/// **A point's distance from the closed segment `a → b`, in metres**:
-/// to the foot of the perpendicular where it falls on the segment, to
-/// the nearer end otherwise (the foot parameter clamped by `min`/`max`,
-/// no comparison). The segment has positive length.
-pub fn point_segment_distance<T: Real>(a: Point3<T>, b: Point3<T>, q: Point3<T>) -> T {
-    let (d, w) = (b - a, q - a);
-    let t = (w.dot(d) / d.norm_squared()).max(T::zero()).min(T::one());
-    (w - d * t).norm()
-}
-
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {

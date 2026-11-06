@@ -38,6 +38,14 @@ GATE_SELFTEST_ARGS=()
 # inside a process substitution too — so every subshell of one run names
 # the same file, and two gates running at once never share one.
 GATE_MATCHER_FAILED=${TMPDIR:-/tmp}/gate-matcher-failed.$$
+# A citation of a `work/` row, `work/<program>/<id>` with or without
+# `.md`: the one spelling, read by `pin-cites-an-open-row.sh` (awk) and,
+# through `engine-leaves.sh`, by `engine_leaves.py` (Python), so both
+# take the same text for a citation. An ERE both dialects read alike.
+GATE_ROW_CITATION_ERE='work/[a-z0-9-]+/[A-Za-z0-9_.-]*[A-Za-z0-9]'
+# `gate_base_file`'s copy of a file at the merge base, named and removed
+# the same way.
+GATE_BASE_FILE=${TMPDIR:-/tmp}/gate-base.$$
 
 gate_parse_args() {
   while [ $# -gt 0 ]; do
@@ -128,6 +136,28 @@ gate_require_file() {
   GATE_SCAN_FILES=1
 }
 
+# gate_base_file FILE — FILE (relative to the root) as the merge base
+# holds it, written to `$GATE_BASE_FILE`: what a pin that only falls is
+# compared against. `GATE_BASE` names the base, a commit or tree in the root's
+# repository; ci.yml's `lint` job sets it to the change filter's base and
+# fetches that commit, since its own checkout is one commit deep. Run
+# locally with `GATE_BASE=$(git merge-base HEAD origin/main)`, not
+# `origin/main`: once main lowers a pin past the branch's, a tip of main
+# reads as a rise the branch never made. Unset,
+# this returns 1 and the caller says in its green line that it compared
+# nothing. Set but unreadable is not a pass.
+gate_base_file() {
+  [ -n "${GATE_BASE:-}" ] || return 1
+  if ! git cat-file -e "$GATE_BASE^{tree}" 2>/dev/null; then
+    gate_error "$(gate_name): the base GATE_BASE=$GATE_BASE is not a commit in the repository at $PWD, so $1 cannot be compared with it; fetch it (git fetch --depth=1 origin $GATE_BASE). An unread base is not a pass"
+    exit 1
+  fi
+  if ! git show "$GATE_BASE:./$1" > "$GATE_BASE_FILE" 2>/dev/null; then
+    gate_error "$(gate_name): $1 does not exist at the base $GATE_BASE, so there is no pin to compare with; a gate that is new in this change has no base to hold, so land it before its first pin moves"
+    exit 1
+  fi
+}
+
 # A MATCHER THAT DID NOT RUN IS NOT A CLEAN SCAN — the rule above,
 # applied to the scan instead of to the file set. That asymmetry was the
 # hole: two guards proved the gate had files to read, and nothing proved
@@ -195,7 +225,7 @@ gate_grep() {
 # otherwise delete its own evidence on the way out.
 gate_matcher_marker_cleanup() {
   if [ "${BASHPID:-$$}" = "$$" ]; then
-    rm -f "$GATE_MATCHER_FAILED"
+    rm -f "$GATE_MATCHER_FAILED" "$GATE_BASE_FILE"
   fi
   return 0
 }

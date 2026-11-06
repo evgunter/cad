@@ -93,7 +93,7 @@ pub(super) fn read<T: Decide>(
     rows: RayRows,
     meets: &mut EdgeMeets<T>,
 ) -> Result<(), RayFault<PointInSolidError>> {
-    let far = q + d * (reach * T::from_f64(2.0));
+    let top = reach * T::from_f64(2.0);
     // A face's own carrier crossings on this ray, where it reads them:
     // `None` for a face read whole or not at all (a closed sphere or torus
     // group, an untrimmable face, a plane the ray runs beside).
@@ -149,7 +149,7 @@ pub(super) fn read<T: Decide>(
             let faces = [face, other];
             for v in fe.ends {
                 if !crate::boolean::is_conventional_vertex(body, v) {
-                    meets.vertex(body, v, faces, (q, far), d, band, rows)?;
+                    meets.vertex(body, v, faces, (q, top), d, band, rows)?;
                 }
             }
             let mut found: Vec<(T, Gap)> = Vec::new();
