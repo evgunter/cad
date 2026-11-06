@@ -408,27 +408,17 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         | "bool_sphere_trim_pole_end"
         | "bool_sphere_trim_pole_interior"
         | "bool_sphere_region_arm"
-        | "bool_sphere_region_span"
+        | "bool_sphere_region_component"
         | "bool_sphere_region_at"
         | "bool_sphere_region_order"
         | "bool_sphere_region_cross"
-        | "bool_sphere_region_roots_noise"
-        | "bool_sphere_region_roots_coaxial"
-        | "bool_sphere_region_roots_extreme"
-        | "bool_sphere_region_roots_slack"
         | "bool_sphere_region_arc_span"
         | "bool_sphere_region_arc_straddle"
         | "bool_torus_region_component"
-        | "bool_torus_region_family"
-        | "bool_torus_region_span"
         | "bool_torus_region_at"
         | "bool_torus_region_corner"
         | "bool_torus_region_order"
         | "bool_torus_region_cross"
-        | "bool_torus_region_roots_noise"
-        | "bool_torus_region_roots_coaxial"
-        | "bool_torus_region_roots_extreme"
-        | "bool_torus_region_roots_slack"
         | "bool_torus_region_arc_span"
         | "bool_torus_region_arc_straddle"
         | "bool_torus_region_spiric_end"
@@ -439,17 +429,11 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         | "bool_ruled_region_frame"
         | "bool_ruled_region_nappe"
         | "bool_ruled_region_component"
-        | "bool_ruled_region_collinear"
-        | "bool_ruled_region_span"
         | "bool_ruled_region_at"
         | "bool_ruled_region_end"
         | "bool_ruled_region_corner"
         | "bool_ruled_region_order"
         | "bool_ruled_region_cross"
-        | "bool_ruled_region_roots_noise"
-        | "bool_ruled_region_roots_coaxial"
-        | "bool_ruled_region_roots_extreme"
-        | "bool_ruled_region_roots_slack"
         | "bool_ruled_region_arc_span"
         | "bool_ruled_region_arc_straddle"
         | "bool_ruled_region_edge_length"
@@ -2855,6 +2839,9 @@ pub enum SectionUnbuilt {
     /// A closed loop of the section could not be opened at its first
     /// site: the knot edit refused.
     Seat(geom_core::spline::KnotAlgebraError),
+    /// A spline component's piece walk could not run
+    /// (`geom_brep::CarryError::Unwalked`).
+    Unwalked(geom::PieceWalkRefusal),
 }
 
 impl SectionUnbuilt {
@@ -2893,6 +2880,12 @@ impl SectionUnbuilt {
             Self::Seat(e) => write!(
                 f,
                 "the section's closed loop could not be opened at its first site ({e})"
+            ),
+            Self::Unwalked(why) => write!(
+                f,
+                "whether a marched loop's points lie on its fitted carrier could not be read: \
+                 {why}. {}",
+                why.recourse()
             ),
         }
     }
@@ -7075,7 +7068,7 @@ fn verify_glued_contacts<T: Decide>(
                     (fa, fb),
                     TangentCert {
                         kinds: tangency.kinds,
-                        line: matches!(tangency.locus, rim_wedge::Locus::Line { .. }),
+                        line: matches!(tangency.locus, rim_wedge::Locus::Line(_)),
                     },
                 );
             }
@@ -7359,7 +7352,7 @@ fn tangent_line<T: Decide>(
     // reading of the carriers.
     let pad = witness_pad::<T>(band);
     let extents = |across| {
-        let frame = boxes::BoxFrame::aimed(across);
+        let frame = geom::cover::BoxAxes::aimed(across);
         [(a, fa), (b, fb)].map(|(body, face)| {
             crate::census::face_reach_in(body, face, band, &frame)
                 .map(|(lo, hi)| (lo.x - pad, hi.x + pad))
@@ -7671,10 +7664,12 @@ fn verify_tangency<T: Decide>(
                 overlap = Some(line.overlap);
                 decided = line.carrier.as_line();
                 let locus = match line.carrier {
-                    geom::Curve3::Line(geom::Line { origin, dir }) => rim_wedge::Locus::Line {
-                        origin,
-                        dir: dir / dir.norm(),
-                    },
+                    geom::Curve3::Line(geom::Line { origin, dir }) => {
+                        rim_wedge::Locus::Line(geom::Line {
+                            origin,
+                            dir: dir / dir.norm(),
+                        })
+                    }
                     _ => {
                         return Err(Refused(BooleanError::ClassificationInvariant {
                             what: "the glue door: a tangent line's carrier is not a line",
@@ -7877,7 +7872,7 @@ fn witness_span<T: Decide>(
                 let aim = geom_core::UnitVec3::new(line.dir, "bool_tangent_line_aim", band)
                     .map_err(|_| invalid("the tangent line has no direction"))?;
                 let (lo, hi) =
-                    crate::census::face_reach_in(body, f, band, &boxes::BoxFrame::aimed(aim))
+                    crate::census::face_reach_in(body, f, band, &geom::cover::BoxAxes::aimed(aim))
                         .ok_or(invalid(
                             "a face of the pair has no reach along its tangent line",
                         ))?;

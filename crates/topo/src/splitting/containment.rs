@@ -1574,9 +1574,9 @@ pub(crate) fn arc_distance_floor<T: Decide>(
     q: Point3<T>,
 ) -> Option<ArcFloor<'_, T>> {
     Some(match *carrier {
-        geom::Curve3::Line(_) => ArcFloor::Segment(
-            geom_brep::sector_shape::point_segment_distance(carrier.eval(t0), carrier.eval(t1), q),
-        ),
+        geom::Curve3::Line(line) => {
+            ArcFloor::Segment((q - line.foot_within(q, (t0.min(t1), t0.max(t1)))).norm())
+        }
         geom::Curve3::Circle(_) | geom::Curve3::Ellipse(_) => {
             let Some(crate::ring_path::LoopArc::Conic(arc)) =
                 crate::ring_path::LoopArc::of(carrier, (t0, t1))
@@ -1946,7 +1946,7 @@ fn certify_plane<T: Decide>(
     if decide("point_in_loop_normal", unit, band).map_err(escalate)? != Sign::Zero {
         return Err(off_plane(OffPlaneCause::NormalNotUnit));
     }
-    let off = |p: Point3<T>| Margin::of((p - origin).dot(normal));
+    let off = |p: Point3<T>| Margin::of(geom::plane_offset(origin, normal, p));
     let tilt = |axis: Vec3<T>, arm: Lever<T>| Margin::levered(axis.cross(normal).norm(), arm);
     // A conic's whole carrier, read from its centre.
     for step in &steps {

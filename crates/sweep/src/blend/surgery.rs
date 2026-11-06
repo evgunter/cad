@@ -963,136 +963,11 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
         "surgery postcondition: the result is not tier-2 valid (kernel bug)",
     );
 
-    // **A retirement names a SOURCE key, in BOTH arenas** —
-    // [`Retired`](super::naming::Retired)'s whole meaning, and the one
-    // direction of the birth records no output-side walk can see: a key
-    // this carve minted and then killed is absent from the result, so a
-    // `dead` row naming one is invisible everywhere except against the
-    // body the caller handed in. The postcondition is here, at the one
-    // place that still holds both bodies.
-    //
-    // `test_support::assert_naming_totality`'s direction (b) opens with
-    // the same predicate, and this is deliberately not its deletion:
-    // that walk runs on the fixtures that call it, this one on EVERY
-    // carve a debug build takes, the callers no suite reaches included.
-    // The walk's second half — a retired edge does not survive — has no
-    // twin here, being a question about the OUTPUT that the output-side
-    // walk is the right home for.
+    // The records name only keys the caller handed in
+    // (`records_rooted`), checked at the one place that still holds both
+    // bodies.
     #[cfg(debug_assertions)]
-    {
-        for e in &rec.dead.edges {
-            assert!(
-                source.get_edge(*e).is_some(),
-                "surgery postcondition: a retirement names {e:?}, which the source body \
-                 does not carry (kernel bug)",
-            );
-        }
-        for v in &rec.dead.vertices {
-            assert!(
-                source.get_vertex(*v).is_some(),
-                "surgery postcondition: a retirement names {v:?}, which the source body \
-                 does not carry (kernel bug)",
-            );
-        }
-        for f in &rec.dead.faces {
-            assert!(
-                source.get_face(*f).is_some(),
-                "surgery postcondition: a retirement names {f:?}, which the source body \
-                 does not carry (kernel bug)",
-            );
-        }
-    }
-    // **A birth row's SOURCE half names a SOURCE key** — the same
-    // predicate over the birth records. A row says which entity of the
-    // caller's body an output was minted for, so every key on its source
-    // side is one the source body carries; a key this carve minted is
-    // absent there, which is how a row naming a mid-call fragment (a
-    // seam piece an earlier band of this call split, say) shows up. The
-    // output-side walks cannot see it: the name such a row renders is
-    // well-formed, just rooted at an entity the caller never had.
-    #[cfg(debug_assertions)]
-    {
-        // Exhaustive, so a new row kind cannot join the records without
-        // saying here where its source half is; `dead`'s fields are the
-        // walk above.
-        let BlendNaming {
-            blends,
-            joined_blends,
-            corners,
-            trims,
-            feet,
-            arcs,
-            mitres,
-            turn_feet,
-            bands,
-            rim_trims,
-            rim_feet,
-            meridian_splits,
-            meridian_remnants,
-            slits,
-            dead:
-                super::naming::Retired {
-                    faces: _,
-                    edges: _,
-                    vertices: _,
-                },
-            // Written below, after these rows are checked.
-            edge_joins: _,
-            source: _,
-        } = &rec;
-        let edge_sources = blends
-            .iter()
-            .map(|(_, e)| e)
-            .chain(joined_blends.iter().flat_map(|(_, b)| b))
-            .chain(trims.iter().map(|(_, e, _)| e))
-            .chain(arcs.iter().map(|(_, _, e)| e))
-            .chain(bands.iter().flat_map(|(_, b)| b))
-            .chain(rim_trims.iter().map(|(_, e, _)| e))
-            .chain(
-                meridian_splits
-                    .iter()
-                    .flat_map(|(_, e, b)| core::iter::once(e).chain(b)),
-            )
-            .chain(meridian_remnants.iter().map(|(_, e)| e))
-            .chain(
-                slits
-                    .iter()
-                    .flat_map(|(_, e, b)| core::iter::once(e).chain(b)),
-            );
-        for e in edge_sources {
-            assert!(
-                source.get_edge(*e).is_some(),
-                "surgery postcondition: a birth row names {e:?} as its source, which the \
-                 source body does not carry (kernel bug)",
-            );
-        }
-        let vertex_sources = corners
-            .iter()
-            .map(|(_, v)| v)
-            .chain(feet.iter().map(|(_, v, _)| v))
-            .chain(arcs.iter().map(|(_, v, _)| v))
-            .chain(mitres.iter().map(|(_, v)| v))
-            .chain(turn_feet.iter().map(|(_, v)| v))
-            .chain(rim_feet.iter().map(|(_, v)| v));
-        for v in vertex_sources {
-            assert!(
-                source.get_vertex(*v).is_some(),
-                "surgery postcondition: a birth row names {v:?} as its source, which the \
-                 source body does not carry (kernel bug)",
-            );
-        }
-        let face_sources = trims
-            .iter()
-            .map(|(_, _, f)| f)
-            .chain(feet.iter().map(|(_, _, f)| f));
-        for f in face_sources {
-            assert!(
-                source.get_face(*f).is_some(),
-                "surgery postcondition: a birth row names {f:?} as its source, which the \
-                 source body does not carry (kernel bug)",
-            );
-        }
-    }
+    records_rooted(source, &rec);
     // The join (`docs/DESIGN.md`, maximal edges), over the carved
     // shells: every other shell is the source's, entity for entity.
     let carved: BTreeSet<VertexKey> = body
@@ -2560,10 +2435,12 @@ pub(super) fn piece_distance<T: Decide + Bounds>(
     match *carrier {
         Curve3::Line(geom::Line { origin, dir }) => {
             let (pa, pb) = (origin + dir * ta, origin + dir * tb);
-            let d = pb - pa;
-            let s = ((c - pa).dot(d) / d.dot(d)).max(T::zero()).min(T::one());
+            let chord = geom::Line {
+                origin: pa,
+                dir: pb - pa,
+            };
             Some((
-                (pa + d * s - c).norm(),
+                (chord.foot_within(c, (T::zero(), T::one())) - c).norm(),
                 (pa - c).norm().max((pb - c).norm()),
             ))
         }
@@ -3143,8 +3020,7 @@ fn strip_clearance<T: Decide + Bounds>(
             .ok_or_else(|| unresolved(EntityId::Vertex(chord.to), "a station's point"))?;
         let [x, y] = chord.feet;
         let d = (t - o).normalize();
-        let off = x - o;
-        let m = (off - d * off.dot(d)).normalize();
+        let m = geom::Line { origin: o, dir: d }.offset(x).normalize();
         let corners = [o, t, x, y];
         let along = |u: Vec3<T>| {
             corners
@@ -5518,6 +5394,140 @@ fn merged_chord_spec<T: Decide>(
     Ok(EdgeCurveSpec::line_between(merged.start, merged.end))
 }
 
+/// **Every key the birth records name on their source side is a key the
+/// caller's body carries** — the two postconditions below, checked on
+/// every carve a debug build takes (and the release profile keeps debug
+/// assertions on, `Cargo.toml`). Its inputs are the source body and a
+/// record with public fields, so a row can hand it a record no carve
+/// writes (the tests below).
+#[cfg(debug_assertions)]
+fn records_rooted<T: Real>(source: &topo::Body<T>, rec: &BlendNaming) {
+    // **A retirement names a SOURCE key, in BOTH arenas** —
+    // [`Retired`](super::naming::Retired)'s whole meaning, and the one
+    // direction of the birth records no output-side walk can see: a key
+    // this carve minted and then killed is absent from the result, so a
+    // `dead` row naming one is invisible everywhere except against the
+    // body the caller handed in. The surgery's epilogue calls this, the
+    // one place that still holds both bodies.
+    //
+    // `test_support::assert_naming_totality`'s direction (b) opens with
+    // the same predicate, and this is deliberately not its deletion:
+    // that walk runs on the fixtures that call it, this one on EVERY
+    // carve a debug build takes, the callers no suite reaches included.
+    // The walk's second half — a retired edge does not survive — has no
+    // twin here, being a question about the OUTPUT that the output-side
+    // walk is the right home for.
+    for e in &rec.dead.edges {
+        assert!(
+            source.get_edge(*e).is_some(),
+            "surgery postcondition: a retirement names {e:?}, which the source body \
+             does not carry (kernel bug)",
+        );
+    }
+    for v in &rec.dead.vertices {
+        assert!(
+            source.get_vertex(*v).is_some(),
+            "surgery postcondition: a retirement names {v:?}, which the source body \
+             does not carry (kernel bug)",
+        );
+    }
+    for f in &rec.dead.faces {
+        assert!(
+            source.get_face(*f).is_some(),
+            "surgery postcondition: a retirement names {f:?}, which the source body \
+             does not carry (kernel bug)",
+        );
+    }
+    // **A birth row's SOURCE half names a SOURCE key** — the same
+    // predicate over the birth records. A row says which entity of the
+    // caller's body an output was minted for, so every key on its source
+    // side is one the source body carries; a key this carve minted is
+    // absent there, which is how a row naming a mid-call fragment (a
+    // seam piece an earlier band of this call split, say) shows up. The
+    // output-side walks cannot see it: the name such a row renders is
+    // well-formed, just rooted at an entity the caller never had.
+    // Exhaustive, so a new row kind cannot join the records without
+    // saying here where its source half is; `dead`'s fields are the
+    // walk above.
+    let BlendNaming {
+        blends,
+        joined_blends,
+        corners,
+        trims,
+        feet,
+        arcs,
+        mitres,
+        turn_feet,
+        bands,
+        rim_trims,
+        rim_feet,
+        meridian_splits,
+        meridian_remnants,
+        slits,
+        dead:
+            super::naming::Retired {
+                faces: _,
+                edges: _,
+                vertices: _,
+            },
+        // Written by the epilogue, after these rows are checked.
+        edge_joins: _,
+        source: _,
+    } = rec;
+    let edge_sources = blends
+        .iter()
+        .map(|(_, e)| e)
+        .chain(joined_blends.iter().flat_map(|(_, b)| b))
+        .chain(trims.iter().map(|(_, e, _)| e))
+        .chain(arcs.iter().map(|(_, _, e)| e))
+        .chain(bands.iter().flat_map(|(_, b)| b))
+        .chain(rim_trims.iter().map(|(_, e, _)| e))
+        .chain(
+            meridian_splits
+                .iter()
+                .flat_map(|(_, e, b)| core::iter::once(e).chain(b)),
+        )
+        .chain(meridian_remnants.iter().map(|(_, e)| e))
+        .chain(
+            slits
+                .iter()
+                .flat_map(|(_, e, b)| core::iter::once(e).chain(b)),
+        );
+    for e in edge_sources {
+        assert!(
+            source.get_edge(*e).is_some(),
+            "surgery postcondition: a birth row names {e:?} as its source, which the \
+             source body does not carry (kernel bug)",
+        );
+    }
+    let vertex_sources = corners
+        .iter()
+        .map(|(_, v)| v)
+        .chain(feet.iter().map(|(_, v, _)| v))
+        .chain(arcs.iter().map(|(_, v, _)| v))
+        .chain(mitres.iter().map(|(_, v)| v))
+        .chain(turn_feet.iter().map(|(_, v)| v))
+        .chain(rim_feet.iter().map(|(_, v)| v));
+    for v in vertex_sources {
+        assert!(
+            source.get_vertex(*v).is_some(),
+            "surgery postcondition: a birth row names {v:?} as its source, which the \
+             source body does not carry (kernel bug)",
+        );
+    }
+    let face_sources = trims
+        .iter()
+        .map(|(_, _, f)| f)
+        .chain(feet.iter().map(|(_, _, f)| f));
+    for f in face_sources {
+        assert!(
+            source.get_face(*f).is_some(),
+            "surgery postcondition: a birth row names {f:?} as its source, which the \
+             source body does not carry (kernel bug)",
+        );
+    }
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
@@ -5529,6 +5539,8 @@ mod tests {
 
     use super::super::battery::Convexity;
     use super::{BlendError, Breach, rim_trim_circles};
+    #[cfg(debug_assertions)]
+    use super::{BlendNaming, records_rooted};
     use crate::blend::arms::plane_sphere_blend;
     use crate::test_support::{L, cube};
 
@@ -6151,5 +6163,41 @@ mod tests {
                 "ta {ta} ±{wide}, width {w}, past {past}"
             );
         }
+    }
+
+    /// **The carve's closing postcondition goes red in each of its two
+    /// directions** (`records_rooted`): a key of a second body stands
+    /// for one the carve minted, which the source body does not carry.
+    #[cfg(debug_assertions)]
+    fn a_minted_edge() -> EdgeKey {
+        cube::<f64>(L, Tol::witness())
+            .edges()
+            .next()
+            .expect("a cube has edges")
+            .0
+    }
+
+    /// A retirement of a key the carve minted and killed (BLEND unit
+    /// 8's defect).
+    #[cfg(debug_assertions)]
+    #[test]
+    #[should_panic(expected = "which the source body does not carry")]
+    fn a_retirement_the_source_never_carried_is_red() {
+        let mut rec = BlendNaming::default();
+        rec.dead.edges.push(a_minted_edge());
+        records_rooted(&topo::Body::<f64>::new(), &rec);
+    }
+
+    /// A birth row rooted at a mid-call fragment.
+    #[cfg(debug_assertions)]
+    #[test]
+    #[should_panic(expected = "as its source, which the source body does not carry")]
+    fn a_birth_row_rooted_at_a_minted_key_is_red() {
+        let e = a_minted_edge();
+        let rec = BlendNaming {
+            meridian_remnants: vec![(e, e)],
+            ..BlendNaming::default()
+        };
+        records_rooted(&topo::Body::<f64>::new(), &rec);
     }
 }

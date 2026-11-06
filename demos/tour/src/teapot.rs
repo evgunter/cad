@@ -280,8 +280,7 @@ use pncad::prelude::AuthoredNode;
 use pncad::document::{
     Axis3, Bodies, CancelToken, Coord, Dimension, Doc, DocEdit, EvalOptions, Evaluation, Formula,
     LoftSection, LoopProgram, Node, NodeErrorKind, ProfileProgram, ProgramArcData, ProgramStep,
-    ProgramTarget, RecipeNodeId, StationMove, TargetAxis, TubeWindow, ValuePayload, apply,
-    evaluate,
+    ProgramTarget, RecipeNodeId, StationMove, TargetAxis, TubeWindow, apply, evaluate,
 };
 use pncad::geom::{Curve3, Surface};
 use pncad::geom_core::{Point3, Tol, Vec3};
@@ -1130,9 +1129,9 @@ fn body_at(ev: &Evaluation<f64>, id: RecipeNodeId, tol: Tol) -> Body<f64> {
     let value = ev
         .value(id)
         .unwrap_or_else(|| panic!("node {id:?} evaluated to a body, got {}", describe(ev, id)));
-    match &value.payload {
-        ValuePayload::Body(b) => crate::world::in_its_space(b, tol),
-        other => panic!("expected a body, got {other:?}"),
+    match value.payload.one_body() {
+        Some(Some(b)) => crate::world::in_its_space(b, tol),
+        _ => panic!("expected a body, got {:?}", value.payload),
     }
 }
 
@@ -1516,13 +1515,9 @@ fn per_rim_answers(tol: Tol) -> Vec<(&'static str, String, Option<Census>)> {
     asked
         .into_iter()
         .map(|(what, node)| {
-            let census = ev.value(node).and_then(|v| match &v.payload {
-                ValuePayload::Body(b) => Some((
-                    b.body().vertices().count(),
-                    b.body().edges().count(),
-                    b.body().faces().count(),
-                )),
-                _ => None,
+            let census = ev.value(node).and_then(|v| {
+                let b = v.payload.one_body().flatten()?.body();
+                Some((b.vertices().count(), b.edges().count(), b.faces().count()))
             });
             (what, describe(&ev, node), census)
         })

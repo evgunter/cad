@@ -10001,7 +10001,11 @@ fn window<T: Decide>(segment: MeetSegment<T>, p: geom_core::Point3<T>, band: Ban
     match segment {
         MeetSegment::Line { a, b } => {
             let len = (b - a).norm();
-            let s0 = (p - a).dot((b - a).normalize());
+            let s0 = geom::Line {
+                origin: a,
+                dir: (b - a).normalize(),
+            }
+            .param(p);
             let spans = [
                 decide("ring_outer_meet_span", Margin::of(s0), band),
                 decide("ring_outer_meet_span", Margin::of(len - s0), band),
@@ -10239,12 +10243,7 @@ fn certified_carrier<T: Real>(body: &Body<T>, edge: EdgeKey) -> Option<&geom_bre
 /// `Ellipse` and `Nurbs`.
 fn locus_gap<T: Real>(carrier: &geom::Curve3<T>, p: geom_core::Point3<T>) -> Option<T> {
     match carrier {
-        // `dir` is unit by convention, so the rejection is the residual
-        // of the projection.
-        geom::Curve3::Line(geom::Line { origin, dir }) => {
-            let d = p - *origin;
-            Some((d - *dir * d.dot(*dir)).norm())
-        }
+        geom::Curve3::Line(line) => Some(line.offset(p).norm()),
         // The distance from a point to a full circle: the in-plane
         // radial defect and the out-of-plane offset, in quadrature.
         geom::Curve3::Circle(geom::Circle {

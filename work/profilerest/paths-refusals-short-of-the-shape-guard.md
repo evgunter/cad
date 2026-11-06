@@ -116,3 +116,20 @@ for the junction and carrier names either.
 ## Re-homed at PATHS's close (2026-10-21)
 
 Moved from `work/paths/` to PROFILEREST (`work/profilerest/`) when PATHS closed. PATHS's live rows went to four programs opened at this close and cut along the priority seam (PROFILE, PROFILEREST, PROFILETAIL, PROFILEPROSE; `docs/doc-ledger/paths-leaves-the-tracker.md`). The item's id, content and history are unchanged.
+
+## A corner reason with no row (ROUND, 2026-11-06)
+
+Found by the sweep in `round/corner-behind-names-its-recourse`, which
+gave both anchor windows (`CornerWindow`) a recourse. One
+`CornerReason` arm still names no lever:
+`NoTangentCircle(NoCornerReason::NoCornerSideCandidate)`
+(`crates/profile/src/path.rs`, `CornerReason::lever`), so a pair whose
+only refused corner carries it renders "every tangent circle of that
+radius touches a side past this corner" and stops. It has no census
+row because it has no known producer (`NoCornerReason`'s own doc,
+`crates/profile/src/validate.rs`; the hunt in
+`crates/profile/tests/enclose_refusal_r2_probes.rs`,
+`p6_hunt_a_surviving_no_corner_side_candidate_witness`), so a recourse
+written for it cannot be checked by following it. Owed: the lever its
+raise site supports (`crates/profile/src/sugar.rs`, the
+`NoCornerSideCandidate` raise), or "There is no way through" if none.

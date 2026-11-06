@@ -473,6 +473,10 @@ pub enum SplitJoinError {
         /// What failed.
         what: &'static str,
     },
+    /// A site's place on its section's spline component could not be
+    /// read: the component's piece walk could not run
+    /// ([`geom_brep::SiteRefusal::Unwalked`]), a limit and not a fault.
+    SectionUnwalked(geom::PieceWalkRefusal),
     /// A plane's section of a curved face the chord layer has no arm
     /// for: valid input whose lane is not yet built (D2 addendum row 2),
     /// refused typed. The chord is minted in the curved face itself
@@ -848,6 +852,11 @@ impl SplitJoinError {
             Self::SectionInvariant { face, what } => {
                 write!(f, "curved-section invariant at face {face:?}: {what}")
             }
+            Self::SectionUnwalked(why) => write!(
+                f,
+                "where a site lies on its section's fitted component could not be read: {why}. {}",
+                why.recourse()
+            ),
             Self::SectionUnarmed { divided, wall, .. } => {
                 let wall = crate::boolean::kind_word(*wall);
                 write!(
@@ -2955,6 +2964,7 @@ fn carried_chord_spec<T: Decide>(
             Ok(end) => Ok(end),
             Err(geom_brep::SiteRefusal::Escalated(diag)) => Err(escalated(diag)),
             Err(geom_brep::SiteRefusal::Desync(what)) => Err(invariant(what)),
+            Err(geom_brep::SiteRefusal::Unwalked(why)) => Err(SplitJoinError::SectionUnwalked(why)),
         }
     };
     if leave.datum != Datum::Germ {
@@ -3410,7 +3420,11 @@ fn between_edge_is_section<T: Decide>(
             })
         }
         geom::Curve3::Circle(..) | geom::Curve3::Ellipse(..) => {
-            let margin = Margin::of((curve.mid_point() - ctx.origin).dot(ctx.normal.get()));
+            let margin = Margin::of(geom::plane_offset(
+                ctx.origin,
+                ctx.normal.get(),
+                curve.mid_point(),
+            ));
             match decide("split_conic_inplane_mid", margin, band) {
                 Ok(Sign::Zero) => Ok(Some(true)),
                 Ok(Sign::Positive | Sign::Negative) => Ok(Some(false)),

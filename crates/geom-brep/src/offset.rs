@@ -477,7 +477,7 @@ pub fn offset_distance<T: geom_core::Real>(
                 origin: onto_origin,
                 ..
             },
-        ) => Ok((*onto_origin - *origin).dot(*normal)),
+        ) => Ok(geom::plane_offset(*origin, *normal, *onto_origin)),
         (
             Surface::Cylinder { radius, .. },
             Surface::Cylinder {

@@ -360,8 +360,12 @@ fn sheet_box<T: Real>(o: Point3<T>, a: Vec3<T>, cell: &Cell<T>) -> Rect<T> {
     let (rc, zc) = sheet_of(o, a, cell.c);
     let dz = cell.spread(a);
     let across = corner_max(cell.lo, cell.hi, |x| {
-        let v = x - cell.c;
-        (v - a * v.dot(a)).norm()
+        geom::Line {
+            origin: cell.c,
+            dir: a,
+        }
+        .offset(x)
+        .norm()
     });
     let top = corner_max(cell.lo, cell.hi, |x| sheet_of(o, a, x).0);
     [(rc - across).max(T::zero()), top, zc - dz, zc + dz]
@@ -1188,8 +1192,12 @@ fn straight_reach<T: Decide + Bounds>(
             .map(|(_, b)| b)
             .collect();
         b.push(tube.clone());
-        let off = foot - st.p;
-        let n = (off - tau * off.dot(tau)).normalize();
+        let n = geom::Line {
+            origin: st.p,
+            dir: tau,
+        }
+        .offset(foot)
+        .normalize();
         let across = half_space(st.p - n * slab, n, foot);
         let gap = |p: Point3<T>| tube.at(p) + chord;
         if !screened(body, (request, taken), f, &b, Some(&across), gap, band)? {

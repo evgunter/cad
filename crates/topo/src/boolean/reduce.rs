@@ -735,11 +735,7 @@ fn vertex_face_side<T: Decide>(
         let q = x.resolve_vertex_point(far, crate::live::Proven);
         let decided = geom_core::k_stats::decide_reported(
             "bool_vertex_face_side",
-            Margin::of(geom_brep::sector_shape::plane_offset(
-                plane.origin,
-                plane.normal,
-                q,
-            )),
+            Margin::of(geom::plane_offset(plane.origin, plane.normal, q)),
             band,
         )
         .map_err(VertexRefusal::Offset)?;
@@ -750,7 +746,7 @@ fn vertex_face_side<T: Decide>(
         })
     };
     let offset = Offset {
-        value: geom_brep::sector_shape::plane_offset_rounded(origin, normal, at),
+        value: geom::plane_offset_rounded(origin, normal, at),
         normal,
     };
     crate::vertex_section::decide_vertex_on_plane(
@@ -1517,8 +1513,8 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                     // classify it against the face.
                     let curve = certified(x.get_curve_geom(edge.curve))?.clone();
                     let (t0, t1) = curve.params();
-                    let d1 = (pu - plane.origin).dot(plane.normal);
-                    let d2 = (pv - plane.origin).dot(plane.normal);
+                    let d1 = geom::plane_offset(plane.origin, plane.normal, pu);
+                    let d2 = geom::plane_offset(plane.origin, plane.normal, pv);
                     let t = t0 + (t1 - t0) * (d1 / (d1 - d2));
                     let p = curve.carrier().eval(t);
                     let (containment, on) = contfp_decided(y, face, plane.normal, p, band)
@@ -5439,10 +5435,7 @@ fn line_cone_roots<T: Decide>(
     let w0 = origin - apex;
     let dd = dir.norm_squared();
     let at = |t: T| w0 + dir * t;
-    let foot = geom::Line { origin, dir }
-        .param(apex)
-        .max(t0.min(t1))
-        .min(t0.max(t1));
+    let foot = geom::Line { origin, dir }.param_within(apex, (t0.min(t1), t0.max(t1)));
     let [a2, b2, c2] = super::solid_contain::line_cone_quadratic(
         origin,
         dir,

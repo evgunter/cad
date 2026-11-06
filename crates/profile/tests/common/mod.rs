@@ -1221,7 +1221,7 @@ pub fn grid_a(
 /// exact band.
 pub fn past_the_corner(e: &PathError<f64>) -> Option<&'static str> {
     match e {
-        PathError::Escalated { source }
+        PathError::Escalated { source, .. }
             if source.predicate.is_some_and(|p| {
                 p.starts_with("path_junction_") || p == "path_fillet_joint_turn"
             }) =>

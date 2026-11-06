@@ -914,6 +914,7 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         // A selection a node reads: a name the ladder refused.
         C::SelectResolve => "select_resolve",
         C::EmptyOperand => "empty_operand",
+        C::EmptyMember => "empty_member",
         C::UnfinishedOperand => "unfinished_operand",
         C::DegenerateDirection => "degenerate_direction",
         C::NonFiniteDirection => "non_finite_direction",
@@ -1055,6 +1056,7 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
         NodeErrorKind::UnresolvedRead { .. } => None,
         NodeErrorKind::SelectResolve { error, .. } => Some(resolve_error_tag(error)),
         NodeErrorKind::EmptyOperand { .. } => None,
+        NodeErrorKind::EmptyMember { .. } => None,
         NodeErrorKind::UnfinishedOperand { .. } => None,
         // `half` is WHICH side was empty, a value the caller asked
         // for — the payload question, not the fault one.
@@ -1298,7 +1300,7 @@ pub fn replay_error_tag(kind: &ReplayErrorKind<f64>) -> &'static str {
 /// structure).
 pub fn structure_refusal_tag(kind: &StructureRefusalKind) -> &'static str {
     match kind {
-        StructureRefusalKind::Indeterminate(_) => "indeterminate",
+        StructureRefusalKind::Indeterminate { .. } => "indeterminate",
         StructureRefusalKind::Flipped { .. } => "flipped",
     }
 }

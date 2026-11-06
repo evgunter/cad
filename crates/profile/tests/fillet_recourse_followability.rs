@@ -6,13 +6,12 @@
 //! recourse with the request it endorses; this file does the same at
 //! the profile fillet doors.
 //!
-//! **Every one of the six `FILLET_*_RECOURSE` sentences reaches the
-//! caller the gate was written for.** All six are rendered by one arm —
-//! `PathError::Escalated`'s, which asks `fillet_recourse_for` for the
-//! sentence belonging to the escalation's predicate name, names the site
-//! ("the fillet at this corner is undecided") and appends that sentence
-//! with no coincidence tail. `fillet_recourse_for` is the crate's ONE
-//! name-to-sentence map; nothing else spells it.
+//! **Every one of the six fillet gate levers reaches the caller the
+//! gate was written for.** Each fillet gate's row in `profile::Gate`
+//! names its lever, and `PathError::Escalated` renders it under the site
+//! ("the fillet at this corner is undecided") with no coincidence tail,
+//! adding the conditional tolerance arm where the gate's margin is a
+//! size a smaller ε decides.
 //!
 //! So each row below does three things:
 //!
@@ -63,21 +62,13 @@
 //! `FILLET_TURN_INBAND_RECOURSE` now names the leg extent and
 //! `FILLET_OFFSET_LEVER_RECOURSE` now names the bound on its own window.
 //!
-//! [`every_fillet_predicate_has_its_own_sentence_and_never_the_shared_one`]
+//! [`every_fillet_gate_has_its_own_sentence_and_never_the_shared_one`]
 //! holds the render rule for all nine: it renders the door's own error
-//! value for each name and reads the text off it. It is also the census
-//! the map owes — it takes the gate names from the `decide("fillet_…")`
-//! CALL SITES across `crates/profile/src`, not from one file, so a gate
-//! added anywhere in the crate without a sentence turns it red.
+//! value for each gate in the closed table and reads the text off it.
 //!
-//! **One mouth of the public door is not covered by any of this.** A
-//! guided replay (`replay_guided`) wraps an in-band `fillet_*` verdict in
-//! `StructureRefusal::indeterminate`, whose Display prints the
-//! `Indeterminate` whole — so there the caller reads the shared
-//! coincidence recourse and not the gate's sentence.
-//! `review_fillet_recourse_arm_r1_probes::a_guided_replay_still_renders_the_coincidence_recourse_for_a_fillet_gate`
-//! characterizes today's text; the repair is
-//! `work/blend/the-guided-replay-door-renders-the-shared-recourse-for-a-fillet-gate.md`.
+//! A guided replay (`replay_guided`) carries the same gate on its
+//! structure refusal and ends it as the gate ends:
+//! `review_fillet_recourse_arm_r1_probes::a_guided_replay_ends_the_fillet_gate_as_the_gate_ends`.
 //!
 //! **The advice a caller DOES read here is inline, not a constant.**
 //! Every definite fillet refusal this file provokes ends in a second
@@ -105,11 +96,11 @@
 
 use geom_core::{Point2, Tol};
 use profile::{
-    ArcSweep, Center, CornerReason, CornerWindow, FILLET_ENCLOSING_RECOURSE, FILLET_FIT_RECOURSE,
-    FILLET_FLATTENED_RECOURSE, FILLET_LEG_EXTENT_RECOURSE, FILLET_NO_CORNER_RECOURSE,
-    FILLET_OFFSET_LEVER_RECOURSE, FILLET_SCENE_RESOLUTION_RECOURSE,
-    FILLET_STORED_FORM_INBAND_RECOURSE, FILLET_TURN_INBAND_RECOURSE, Open, PathError, Profile,
-    ProfileLoop, SketchPlane, Start,
+    ArcSweep, Center, CornerReason, CornerWindow, EscalatedAt, FILLET_ENCLOSING_RECOURSE,
+    FILLET_FIT_RECOURSE, FILLET_FLATTENED_RECOURSE, FILLET_LEG_EXTENT_RECOURSE,
+    FILLET_NO_CORNER_RECOURSE, FILLET_OFFSET_LEVER_RECOURSE, FILLET_SCENE_RESOLUTION_RECOURSE,
+    FILLET_STORED_FORM_INBAND_RECOURSE, FILLET_TURN_INBAND_RECOURSE, Gate, Open, PathError,
+    Profile, ProfileLoop, SketchPlane, Start,
 };
 
 fn tol() -> Tol {
@@ -165,7 +156,7 @@ fn carries_its_own_recourse(err: &PathError<f64>, sentence: &str, what: &str) {
 /// The escalation's predicate name, or a panic naming what came instead.
 fn escalating_predicate(err: &PathError<f64>, what: &str) -> &'static str {
     match err {
-        PathError::Escalated { source } => source
+        PathError::Escalated { source, .. } => source
             .predicate
             .unwrap_or_else(|| panic!("{what}: the escalation must name its predicate")),
         other => panic!("{what}: expected an in-band escalation, got {other:?}"),
@@ -188,7 +179,7 @@ fn builds_and_validates(lp: Result<ProfileLoop<f64>, PathError<f64>>, what: &str
 /// about the origin — the derived corner is `(2, 0)`. The offset line
 /// `y = r` and the offset circle of radius `2 − r` meet only while
 /// `r ≤ 1`, so a larger radius has no tangent circle at all.
-fn line_arc_internal(radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
+pub(crate) fn line_arc_internal(radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
     Open.at(Point2::new(0.0, 2.0))
         .line_to(Point2::new(0.0, 0.0), tol())?
         .toward(2.0, 0.0, tol())?
@@ -225,7 +216,7 @@ fn straight_leg(start_x: f64, radius: f64) -> Result<ProfileLoop<f64>, PathError
 
 /// **Two unit lobes** whose crossing is a real corner. At a radius at
 /// or above the lobe radius the fillet would swallow both carriers.
-fn two_lobes(radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
+pub(crate) fn two_lobes(radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
     let tip = 0.75f64.sqrt();
     Open.arc_fillet_arc(
         Center {
@@ -247,7 +238,7 @@ fn two_lobes(radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
 /// **The mixed-winding arc × arc corner.** The legs turn opposite ways,
 /// so the two offset carriers go to `R + r` and `R − r` and the INTERNAL
 /// clearance `d − |ρ₁ − ρ₂| = 2 − 2r` is the one that closes.
-fn mixed_corner(radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
+pub(crate) fn mixed_corner(radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
     Open.arc_fillet_arc(
         Center {
             c: Point2::new(-1.0, 0.0),
@@ -274,7 +265,11 @@ fn mixed_corner(radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
 /// levered margin is `a * sqrt(delta)`. Both factors are the caller's,
 /// which is the whole point: the margin can sit in the band with the
 /// angle nowhere near degenerate.
-fn short_leg_at_angle(a: f64, delta: f64, radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
+pub(crate) fn short_leg_at_angle(
+    a: f64,
+    delta: f64,
+    radius: f64,
+) -> Result<ProfileLoop<f64>, PathError<f64>> {
     let y = 2.0 - delta;
     let cx = -(4.0 - y * y).sqrt();
     Open.at(Point2::new(cx - a, y))
@@ -300,7 +295,7 @@ fn short_leg_at_angle(a: f64, delta: f64, radius: f64) -> Result<ProfileLoop<f64
 /// the large one. Both clearances then equal `rho2` and are definite,
 /// and the enclosing gate is definite too, so the conditioning margin
 /// `rho2 − least_lever` is the only thing that can land in the band.
-fn lever_lens(big: f64, rho2: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
+pub(crate) fn lever_lens(big: f64, rho2: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
     let r = big - rho2;
     let d = big + r;
     Open.arc_fillet_arc(
@@ -328,7 +323,7 @@ fn lever_lens(big: f64, rho2: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
 /// `sugar::ArcCarrier::offset_circles`' law with its shipped constant.
 /// A fixed point, because the threshold's scene scale depends weakly on
 /// the `rho2` being solved for.
-fn lever_lens_least_lever(big: f64, eps: f64) -> f64 {
+pub(crate) fn lever_lens_least_lever(big: f64, eps: f64) -> f64 {
     let law = |rho2: f64| {
         let r = big - rho2;
         let d = big + r;
@@ -346,7 +341,11 @@ fn lever_lens_least_lever(big: f64, eps: f64) -> f64 {
 /// A line × line bend: the incoming ray runs east from `(start_x, 0)`,
 /// the corner sits at `(4, 0)`, and the arrival leaves it at `theta`,
 /// anchored three units along. `radius` rounds the corner.
-fn bend(start_x: f64, theta: f64, radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
+pub(crate) fn bend(
+    start_x: f64,
+    theta: f64,
+    radius: f64,
+) -> Result<ProfileLoop<f64>, PathError<f64>> {
     let anchor = Point2::new(4.0 + 3.0 * theta.cos(), 3.0 * theta.sin());
     Open.at(Point2::new(start_x, 0.0))
         .angle(0.0, tol())?
@@ -360,164 +359,41 @@ fn bend(start_x: f64, theta: f64, radius: f64) -> Result<ProfileLoop<f64>, PathE
 
 // ------------------------------------------------------------------ rows
 
-/// **The census: every `fillet_*` gate the CRATE decides has a sentence
-/// of its own, and none of them renders the shared one.**
-///
-/// The names are read off the `decide("fillet_…")` call sites across
-/// every `.rs` under `crates/profile/src`, not out of one file, so a
-/// gate added in `path/arc_fillet.rs` or anywhere else in the crate is
-/// as visible to this row as one added in `sugar.rs` — a `sugar.rs`-only
-/// scan would have missed it while the crate README promised flatly that
-/// it could not. For each name, the door's own error value is rendered
-/// and the text read off it: the site, the gate's sentence from the one
-/// map, and no coincidence recourse.
-///
-/// The count is asserted as well as the mapping, so a gate that
-/// DISAPPEARS is a red row too: this census is an equality with the
-/// tree, not a lower bound on it.
+/// **The census: every fillet gate has a lever of its own, and none of
+/// them renders the shared one.** The gates are read off the closed
+/// table ([`profile::Gate::ALL`]); for each, the door's own error value
+/// is rendered and the text read off it: the site, the gate's lever,
+/// and no coincidence recourse. The count is asserted as well, so a
+/// gate that disappears from the family reds too.
 #[test]
-fn every_fillet_predicate_has_its_own_sentence_and_never_the_shared_one() {
-    let decided = decided_fillet_predicates();
+fn every_fillet_gate_has_its_own_sentence_and_never_the_shared_one() {
+    let family: Vec<Gate> = Gate::ALL
+        .iter()
+        .copied()
+        .filter(|gate| gate.predicate().starts_with("fillet_"))
+        .collect();
     assert_eq!(
-        decided.len(),
+        family.len(),
         9,
-        "the fillet gate family is nine names; found {decided:?}"
+        "the fillet gate family is nine gates: {family:?}"
     );
-    for predicate in decided {
-        let sentence = profile::fillet_recourse_for(predicate).unwrap_or_else(|| {
-            panic!("`{predicate}` is decided in sugar.rs and owes a recourse sentence")
-        });
+    for gate in family {
         let err = PathError::<f64>::Escalated {
+            site: EscalatedAt::Door,
+            gate,
             source: geom_core::Indeterminate {
                 margin: geom_core::MarginDiag::value(-5.0 * tol().eps()),
                 band: geom_core::Band::linear(tol()).expect("the run's band forms"),
-                predicate: Some(predicate),
+                predicate: Some(gate.predicate()),
                 terminal_sliver: false,
             },
         };
-        carries_its_own_recourse(&err, sentence, predicate);
-        // The routed sentence names the gate in words; the predicate's
-        // own name is routing, carried on the typed refusal.
+        carries_its_own_recourse(&err, gate.kind().lever(), gate.predicate());
         assert!(
-            !err.to_string().contains(predicate),
+            !err.to_string().contains(gate.predicate()),
             "the refusal names the gate in words, not by its routing name: {err}"
         );
     }
-}
-
-/// **The pairing, checked against a prose line the map does not read.**
-///
-/// The census above proves every gate HAS a sentence; it cannot prove
-/// the gate has the RIGHT one, because it asks the map for the sentence
-/// it then looks for. The driven rows prove the pairing wherever a gate
-/// can be reached — but `fillet_leg_fit` and `fillet_leg_reach` cannot
-/// be reached at this scalar, so swapping their two sentences reddens
-/// nothing that executes them.
-///
-/// This row closes that hole from prose. Each sentence's doc comment in
-/// `validate.rs` declares the gates it serves on a `/// Gates:` line —
-/// written for a reader, not consumed by the code — and the row asserts
-/// that two gates share a sentence in the MAP exactly when they are
-/// declared under one sentence in the DOCS. A swap inside a group is
-/// invisible to that (turn ↔ arm are both singletons), which is the
-/// division of labour: the driven rows catch those, and this catches a
-/// name moved between groups, which is the only swap the unreachable
-/// pair admits.
-///
-/// This is not an independent source: the `Gates:` lines live in the
-/// same file as the map, so an edit that moves a name in BOTH stays
-/// green (measured at the fix-pass head). It guards a lone edit to
-/// either side, which is the only guard a pair no row can execute
-/// admits at this scalar.
-#[test]
-fn the_map_groups_the_gates_the_way_the_sentences_docs_say_it_does() {
-    let text = std::fs::read_to_string(
-        test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR")).join("src/validate.rs"),
-    )
-    .expect("the validation module is readable");
-    // The `Gates:` lines live in doc comments, so the PROSE view is what
-    // holds them — a code view blanks exactly this.
-    let prose = test_utils::source::comments_only(&text);
-    let mut declared: Vec<Vec<String>> = Vec::new();
-    for line in prose.lines() {
-        let Some(rest) = line.trim_start().strip_prefix("/// Gates:") else {
-            continue;
-        };
-        let group: Vec<String> = rest
-            .split('`')
-            .filter(|piece| piece.starts_with("fillet_"))
-            .map(str::to_string)
-            .collect();
-        assert!(!group.is_empty(), "a `Gates:` line names no gate: {line}");
-        declared.push(group);
-    }
-    assert_eq!(
-        declared.len(),
-        6,
-        "six sentences declare their gates; found {declared:?}"
-    );
-    let flat: Vec<&String> = declared.iter().flatten().collect();
-    let mut seen = flat.clone();
-    seen.sort();
-    let before = seen.len();
-    seen.dedup();
-    assert_eq!(before, seen.len(), "a gate is declared twice: {flat:?}");
-    assert_eq!(
-        seen.len(),
-        decided_fillet_predicates().len(),
-        "the declarations and the decided gates are not the same set"
-    );
-
-    for a in &flat {
-        for b in &flat {
-            let same_group = declared.iter().any(|g| g.contains(a) && g.contains(b));
-            let same_sentence = profile::fillet_recourse_for(a)
-                .expect("a declared gate is in the map")
-                == profile::fillet_recourse_for(b).expect("a declared gate is in the map");
-            assert_eq!(
-                same_group,
-                same_sentence,
-                "`{a}` and `{b}`: the docs group them {}, the map groups them {}",
-                if same_group { "together" } else { "apart" },
-                if same_sentence { "together" } else { "apart" }
-            );
-        }
-    }
-}
-
-/// Every `fillet_*` name the crate hands to a `decide` door, sorted.
-///
-/// **Call sites, not string literals**, and the walk is
-/// `test_utils::source::predicate_census` — the tree's one home for it.
-/// This census wrote its own copy of that walk before the shared one
-/// existed, and a hand-rolled copy is exactly what two reviewers
-/// defeated by mutation on the roster suites next door: what the shared
-/// reader cannot read it REPORTS, and the roster rows red on each kind
-/// of report, so this row inherits a walk that is checked rather than
-/// one it would have to check itself.
-///
-/// The filter is the family: `validate.rs`'s own map is not a call site
-/// (its arms are match patterns) and `path/program.rs`'s `"fillet_arc"`
-/// step name never reaches the funnel, so neither is here — without
-/// that a crate-wide scan would read the map it is supposed to check
-/// and pass by construction.
-///
-/// The names are leaked so they carry the `'static` lifetime an
-/// `Indeterminate`'s predicate needs; this is one test binary and each
-/// source file is read once.
-fn decided_fillet_predicates() -> Vec<&'static str> {
-    let src = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR")).join("src");
-    // The carriers the roster suite declares: a `fillet_*` name handed
-    // to the funnel through one of them is as much a gate as one
-    // written at the call.
-    use test_utils::source::NameCarrier::Call;
-    let carriers = [Call("travel"), Call("gate_positive"), Call("coincident")];
-    test_utils::source::predicate_census(&src, &carriers)
-        .names
-        .into_iter()
-        .filter(|name| name.starts_with("fillet_"))
-        .map(|name| -> &'static str { Box::leak(name.into_boxed_str()) })
-        .collect()
 }
 
 /// **`FILLET_NO_CORNER_RECOURSE` — "use a smaller radius".**
@@ -767,7 +643,7 @@ fn the_turn_in_band_recourse_names_both_of_its_situations() {
     // not what the caller reads there.
     let degenerate = bend(0.0, eps, 0.2).expect_err("a turn inside the band");
     match &degenerate {
-        PathError::Escalated { source } => assert!(
+        PathError::Escalated { source, .. } => assert!(
             matches!(
                 source.predicate,
                 Some("path_corner_turn" | "path_junction_turn")
@@ -826,6 +702,15 @@ fn the_leg_extent_recourse_is_followed_by_giving_the_leg_an_extent() {
         "the ray-order gate answers before the collapsed-arm one, got {err:?}"
     );
     carries_no_fillet_recourse(&err, "a leg with no extent");
+    // The incoming side opens at the corner with no leg, so the lever is
+    // its start: moved back, the same bend rounds.
+    let said = err.to_string();
+    assert!(
+        said.contains(
+            "Recourse: start the incoming side short of the corner (end its leg, or move its start)"
+        ),
+        "a side that starts at its corner names its start as the lever: {said}"
+    );
     builds_and_validates(bend(0.0, 1.0, 0.2), "a leg with a real extent");
 }
 

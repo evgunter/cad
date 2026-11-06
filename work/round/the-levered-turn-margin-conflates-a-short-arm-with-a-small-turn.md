@@ -2,11 +2,13 @@
 id: the-levered-turn-margin-conflates-a-short-arm-with-a-small-turn
 kind: issue
 title: fillet_corner_turn's levered margin cannot tell a short leg from a degenerate angle, and its definite arm refuses a real corner as already tangent
-status: dispatched
+status: closed
 opened: 2026-09-13
 priority: P0
 cost: H
 branch: round/turn-gate-names-its-factors
+pr: 6544
+closed: 2026-11-06
 ---
 
 
@@ -75,3 +77,21 @@ The reachability correction this item came out of is recorded in
 `work/blend/fillet-escalation-site-has-no-producer.md`'s landed state.
 
 Moved from `work/issues/` to `work/round/` on 2026-11-03, when the `work/issues/` bucket was retired (Ev's direction, in chat); id and body unchanged.
+
+## Closed (2026-11-06)
+
+PR 6544. The levered margin stays (D4 [tolerance.margins] (i)); the
+refusal KIND stays `NoCornerForFillet`, whose claim (no corner to round
+at tolerance) is true of every input that reaches it; the REASON is new:
+`PathNoCornerReason::TurnWithinTolerance { sin_turn, align, lever,
+lever_of: TurnLever { ShorterLeg, AnchorSeparation } }` at both turn
+gates' Zero arms (`fillet_corner_turn`, the arc door; `path_corner_turn`,
+the straight pair). The kernel does not judge which factor collapsed;
+the sentence prints sin φ, cos φ and the lever. The arc arm ends in the
+in-band sentence (`FILLET_TURN_INBAND_RECOURSE`, now leading with the
+leg-extent lever); the straight arm in `FILLET_ANCHOR_TURN_RECOURSE`
+("move both anchors away from the corner", followed to a valid loop).
+`CarriersParallel` keeps only its two unlevered producers and is
+renamed `CarriersTangent`. Single FULL review: APPROVE-WITH-FIXES, all
+taken. Siblings filed: PROFILE's `a-real-junction-on-a-short-leg-refuses-as-tangent`
+(P1), ROUND's `the-turn-refusal-names-no-corner-point` (P3).

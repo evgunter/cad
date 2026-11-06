@@ -744,7 +744,7 @@ pub enum SsiError {
     /// corner handed in as known ([`PairBoundaryCause`] says which).
     PairBoundaryUnresolved {
         /// The face pieces the walk may examine.
-        pieces: u32,
+        pieces: usize,
         /// Why.
         cause: PairBoundaryCause,
     },

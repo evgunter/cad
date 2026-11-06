@@ -355,9 +355,10 @@ fn vec_of<T: Real>(p: Point3<T>) -> Vec3<T> {
     p - Point3::origin()
 }
 
-/// `v`'s part off the line direction `d`.
+/// A free direction `v`'s part off the line direction `d` (a point's
+/// offset from a line is [`Line::offset`]).
 fn off_line<T: Real>(v: Vec3<T>, d: Vec3<T>) -> Vec3<T> {
-    v - d * (v.dot(d) / d.norm_squared())
+    v - v.project_onto(d)
 }
 
 /// The box whose row `i` spans `±` the support along row `i`.
@@ -429,7 +430,7 @@ impl<T: Real> Site<T> {
     fn relative(&self, p: Vec3<T>) -> Vec3<T> {
         match self {
             Site::Point(q) => p - vec_of(*q),
-            Site::Line(line) => off_line(p - vec_of(line.origin), line.dir),
+            Site::Line(line) => line.offset(Point3::origin() + p),
         }
     }
 

@@ -2063,7 +2063,7 @@ fn point_in_faces<T: Decide + crate::props::AtRestPolicy>(
                 // Orientation-free: a residual compared against Zero
                 // answers the same whichever way the normal points,
                 // and `point_in_face` below is ray parity (ditto).
-                let elev = (q - origin).dot(normal);
+                let elev = geom::plane_offset(origin, normal, q);
                 match decide("bool_point_in_solid_plane", Margin::of(elev), band) {
                     // In-plane: ON the boundary iff within the face
                     // region (a loop-boundary graze is also ON).
@@ -2674,7 +2674,7 @@ pub(super) fn line_cone_quadratic<T: Decide>(
     let w0 = q - apex;
     let shift = match about {
         About::Start => T::zero(),
-        About::Nearest => (T::zero() - w0.dot(d)) / d.norm_squared(),
+        About::Nearest => geom::Line { origin: q, dir: d }.param(apex),
     };
     let w = w0 + d * shift;
     let cos2 = half_angle.cos().powi(2);
@@ -3325,7 +3325,8 @@ fn edge_meets<T: Decide>(
     rows: RayRows,
 ) -> Result<EdgeMeets<T>, RayFault<PointInSolidError>> {
     let crossed = |f: FaceKey| planes.iter().any(|c| c.face == f);
-    let far = q + d * (reach * T::from_f64(2.0));
+    let top = reach * T::from_f64(2.0);
+    let far = q + d * top;
     let passes = crate::census::line_passes(body, (q, far), |_, a, b| crossed(a) && crossed(b));
     let mut meets = EdgeMeets {
         met: Vec::new(),
@@ -3341,7 +3342,7 @@ fn edge_meets<T: Decide>(
                 body,
                 v,
                 [pass.faces.0, pass.faces.1],
-                (q, far),
+                (q, top),
                 d,
                 band,
                 rows,
@@ -3411,7 +3412,7 @@ impl<T: Decide> EdgeMeets<T> {
         body: &Body<T>,
         v: crate::entity::VertexKey,
         faces: [FaceKey; 2],
-        (q, far): (Point3<T>, Point3<T>),
+        (q, top): (Point3<T>, T),
         d: Vec3<T>,
         band: Band,
         rows: RayRows,
@@ -3427,12 +3428,13 @@ impl<T: Decide> EdgeMeets<T> {
             .ok_or(RayFault::Fatal(PointInSolidError::CorruptFace {
                 face: faces[0],
             }))?;
-        let gap = geom_brep::sector_shape::point_segment_distance(q, far, at);
+        let ray = geom::Line { origin: q, dir: d };
+        let along = ray.param(at);
+        let gap = (at - ray.foot_within(at, (T::zero(), top))).norm();
         // The distance is a short chain (differences, a projection, a
         // norm), each rounding under half an ulp of the lengths it is
         // read from: the kernel's one charge for such a chain.
         let low = gap - geom_core::rounding_charge((at - q).norm() + gap);
-        let along = (at - q).dot(d);
         match geom_core::k_stats::decide_magnitude(
             rows.vertex,
             Margin::of(low.max(T::zero())),
@@ -3761,11 +3763,14 @@ pub(crate) fn edge_clearance<T: Decide>(
         .and_then(|ed| body.get_curve_geom(ed.curve))
         .and_then(crate::null::CurveGeom::certified)?;
     match *curve.carrier() {
-        geom::Curve3::Line(_) => Some(geom_brep::sector_shape::point_segment_distance(
-            at(e.ends[0])?,
-            at(e.ends[1])?,
-            m,
-        )),
+        geom::Curve3::Line(_) => {
+            let (a, b) = (at(e.ends[0])?, at(e.ends[1])?);
+            let chord = geom::Line {
+                origin: a,
+                dir: b - a,
+            };
+            Some((m - chord.foot_within(m, (T::zero(), T::one()))).norm())
+        }
         geom::Curve3::Circle(geom::Circle { radius, .. }) => {
             let (t0, t1) = curve.params();
             let n = T::from_f64(f64::from(CLEARANCE_SAMPLES));
@@ -4356,7 +4361,7 @@ pub(crate) fn ray_crossings<T: Decide>(
             // outside the face, so a miss is asked, not assumed: q
             // definitely off the plane, or the face definitely to one
             // side of the ray.
-            let clear = clear_of_carrier((q - origin).dot(normal), face, band, rows);
+            let clear = clear_of_carrier(geom::plane_offset(origin, normal, q), face, band, rows);
             if matches!(clear, Ok(true)) || ray_passes_beside(body, face, q, d, normal, band, rows)?
             {
                 continue;

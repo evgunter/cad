@@ -851,7 +851,11 @@ pub(crate) fn face_placement<T: Decide>(
     let f = body.proven_face(face);
     match *f.surface() {
         geom::Surface::Plane { origin, normal, .. } => {
-            match decide(on_plane, Margin::of((q - origin).dot(normal)), band) {
+            match decide(
+                on_plane,
+                Margin::of(geom::plane_offset(origin, normal, q)),
+                band,
+            ) {
                 Ok(Sign::Zero) => contfp(body, face, normal, q, band)
                     .map(|at| CurvedPlacement::Trim(Some(at)))
                     .map_err(PlacementError::Door),
@@ -934,8 +938,7 @@ fn curved_interior_placement<T: Decide>(
             radius,
             ..
         } => {
-            let w = q - origin;
-            let radial = w - axis * w.dot(axis);
+            let radial = geom::Line { origin, dir: axis }.offset(q);
             ruled_face_containment(body, face, radial.norm() - radius, q, band, cut)
         }
         // The whole DOUBLE cone ([`geom_brep::cone_elevation`] with no

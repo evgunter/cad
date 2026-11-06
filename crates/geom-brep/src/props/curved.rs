@@ -558,7 +558,7 @@ pub fn require_one_chart_branch<T: Decide>(
         Surface::Cylinder { .. } => Ok(()),
         Surface::Cone { apex, .. } => {
             for (i, e) in outer.iter().enumerate() {
-                let Some(geom::Line { origin, dir }) = e.carrier.as_line() else {
+                let Some(line @ geom::Line { dir, .. }) = e.carrier.as_line() else {
                     continue;
                 };
                 // GENERATORS only, by the parse's own generator margin
@@ -582,7 +582,7 @@ pub fn require_one_chart_branch<T: Decide>(
                 // margin is its signed distance to the nearer span end,
                 // metered at the line's speed, positive exactly when the
                 // apex is interior to the span.
-                let t_apex = (apex - origin).dot(dir) / dir.norm_squared();
+                let t_apex = line.param(apex);
                 let m = (t_apex - e.t0).min(e.t1 - t_apex);
                 if matches!(
                     decide(
@@ -1866,10 +1866,7 @@ fn cylinder_boundary<T: Decide>(
                 // Incidence at the true distance from the cylinder over
                 // the span: the ends' radial residuals, and how far the
                 // segment sags inside between them ([`radial_sag`]).
-                let radial = |p: Point3<T>| {
-                    let w = p - origin;
-                    w - axis * w.dot(axis)
-                };
+                let radial = |p: Point3<T>| geom::Line { origin, dir: axis }.offset(p);
                 let (q0, q1) = (radial(e.p0()), radial(e.p1()));
                 let (f0, f1) = (q0.norm() - radius, q1.norm() - radius);
                 require_zero(
@@ -1939,7 +1936,7 @@ fn cylinder_boundary<T: Decide>(
                 let w = center - origin;
                 require_zero(
                     "props_cylinder_circle_off_axis",
-                    Margin::norm3(w - axis * w.dot(axis)),
+                    Margin::norm3(geom::Line { origin, dir: axis }.offset(center)),
                     band,
                     Premise::OnSurface,
                 )?;
@@ -2536,8 +2533,11 @@ fn require_cone_generator<T: Decide>(
     band: Band,
 ) -> Result<(), PropsError> {
     let radial = |p: Point3<T>| {
-        let w = p - apex;
-        w - axis * w.dot(axis)
+        geom::Line {
+            origin: apex,
+            dir: axis,
+        }
+        .offset(p)
     };
     let (q0, q1) = (radial(e.p0()), radial(e.p1()));
     let (h0, h1) = ((e.p0() - apex).dot(axis), (e.p1() - apex).dot(axis));
@@ -2806,8 +2806,12 @@ fn require_cone_loop_vertices_distinct<T: Decide>(
             let (Some(a), Some(b)) = (a, b) else {
                 return Err(refuse());
             };
-            let r = p - apex;
-            let rho = (r - axis * r.dot(axis)).norm();
+            let rho = geom::Line {
+                origin: apex,
+                dir: axis,
+            }
+            .offset(p)
+            .norm();
             if classify(
                 "props_cone_loop_vertex_sheet",
                 Margin::metered((a - b).abs() - T::pi(), InfSpeed::new(rho)),
@@ -2833,8 +2837,11 @@ fn cone_joints<T: Decide>(
     edges: &[LoopEdge<T>],
 ) -> Vec<Joint<T, 1>> {
     let radial = |p: Point3<T>| {
-        let w = p - apex;
-        w - axis * w.dot(axis)
+        geom::Line {
+            origin: apex,
+            dir: axis,
+        }
+        .offset(p)
     };
     edges
         .iter()
@@ -2950,8 +2957,11 @@ fn cone_loop_winding<T: Decide>(
 ) -> Result<ConeWinding<T>, PropsError> {
     let refuse = |what| Err(PropsError::ConeLoop { what });
     let radial = |p: Point3<T>| {
-        let w = p - apex;
-        w - axis * w.dot(axis)
+        geom::Line {
+            origin: apex,
+            dir: axis,
+        }
+        .offset(p)
     };
     let off = |name, rho: T| {
         classify(name, Margin::of(rho), band, PropsCheck::Inventory).map(|s| s == Sign::Positive)
@@ -5211,16 +5221,13 @@ fn loop_runs<I>(mut items: Vec<I>, joins: impl Fn(&I, &I) -> bool) -> Result<Vec
     Ok(runs)
 }
 
-/// `atan2(y, x)` with its branch cut kept away from the arguments:
-/// the principal branch for `x ≥ 0`, the `[0, 2π)` branch for `x < 0`,
-/// so an interval enclosure never straddles the cut. Any branch serves
+/// The tube angle of `(cos v, sin v)`, within half a turn of `0` and
+/// read clear of `atan2`'s cut ([`geom::Azimuth::near`]), so an interval
+/// enclosure stays narrow. It depends on the rim alone. Any branch serves
 /// [`torus_chart`]: a lift moved by whole periods shifts `F` and `G`
 /// by constants, which a loop with `Σ Δu = 0` sums to nothing.
-fn torus_angle<T: Decide>(sin_v: T, cos_v: T, band: Band) -> T {
-    match decide("props_torus_lift_branch", Margin::of(cos_v), band) {
-        Ok(Sign::Negative) => (T::zero() - sin_v).atan2(T::zero() - cos_v) + T::pi(),
-        Ok(Sign::Positive | Sign::Zero) | Err(_) => sin_v.atan2(cos_v),
-    }
+fn torus_angle<T: Decide>(sin_v: T, cos_v: T) -> T {
+    geom::Azimuth::of(sin_v, cos_v).near(T::zero())
 }
 
 /// **The one home of a torus face's chart Green form.**
@@ -5376,7 +5383,7 @@ fn torus_chart<T: Decide>(
                     du,
                     rho,
                 } => {
-                    let angle = torus_angle(sin_v, cos_v, band);
+                    let angle = torus_angle(sin_v, cos_v);
                     // The running `v` picks the branch, not the level.
                     let at = running.unwrap_or(angle);
                     let (turns, v) = torus_lift(at, angle, minor, band)?;
@@ -5731,8 +5738,11 @@ fn sheet_apex_jumps<T: Decide>(
 ) -> Result<(), PropsError> {
     let apex = geom::sheet_apex(major, minor);
     let radial = |p: Point3<T>| {
-        let w = p - center;
-        w - axis * w.dot(axis)
+        geom::Line {
+            origin: center,
+            dir: axis,
+        }
+        .offset(p)
     };
     let n = pieces.len();
     for j in 0..n {

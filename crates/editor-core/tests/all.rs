@@ -225,12 +225,16 @@ mod eval9_nominal_in_the_key;
 mod f64_lane_validates_once;
 #[path = "face_face_touch_carry.rs"]
 mod face_face_touch_carry;
+#[path = "fillet_step_walk.rs"]
+mod fillet_step_walk;
 #[path = "fix_loop_polygon_expr.rs"]
 mod fix_loop_polygon_expr;
 #[path = "fix_pattern_mate_crossing.rs"]
 mod fix_pattern_mate_crossing;
 #[path = "fork7_shared_is_named.rs"]
 mod fork7_shared_is_named;
+#[path = "g_family_of_booleans.rs"]
+mod g_family_of_booleans;
 #[path = "g_family_review_rows.rs"]
 mod g_family_review_rows;
 #[path = "g_index_families.rs"]

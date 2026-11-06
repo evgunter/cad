@@ -1681,7 +1681,7 @@ fn classify_replay<T: geom_core::Decide>(
                 structure: Some(refusal),
                 ..
             } => match &refusal.kind {
-                profile::StructureRefusalKind::Indeterminate(source) => {
+                profile::StructureRefusalKind::Indeterminate { source, .. } => {
                     return indeterminate(source);
                 }
                 profile::StructureRefusalKind::Flipped { .. } => {
