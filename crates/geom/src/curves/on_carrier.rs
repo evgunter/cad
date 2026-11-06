@@ -71,7 +71,8 @@
 //!   [`crate::carrier_speed`]) decides positive (`curve_carrier_piece_clear`).
 //!   The point is off only where every piece clears, so the walk stops
 //!   at the first piece that does not clear with its reach within the
-//!   band (`curve_carrier_piece`): no later piece can make it off. A walk past [`geom_core::bisect::PIECE_BUDGET`] refuses
+//!   band (`curve_carrier_piece`): no later piece can make it off. A
+//!   walk past [`geom_core::bisect::PIECE_BUDGET`] refuses
 //!   ([`PieceWalkRefusal::Exhausted`]), and a speed bound that is zero or
 //!   poison refuses on kind ([`PieceWalkRefusal::Unbounded`]). A rational
 //!   spline's speed bound is certified at `Interval`; at `f64` and
@@ -256,6 +257,20 @@ pub enum PieceWalkRefusal {
     /// The spline's greatest speed is zero or poison: its pieces have no
     /// reach to clear by.
     Unbounded,
+}
+
+impl PieceWalkRefusal {
+    /// **The recourse every rendering of this refusal ends with**: a walk
+    /// past its budget is a kernel approximation limit, whose last resort
+    /// is the tolerance; a spline with no speed bound is a carrier no walk
+    /// reads yet.
+    #[must_use]
+    pub const fn recourse(self) -> &'static str {
+        match self {
+            Self::Exhausted => geom_core::KERNEL_LIMIT_RECOURSE,
+            Self::Unbounded => geom_core::NOT_YET_ENDING,
+        }
+    }
 }
 
 impl core::fmt::Display for PieceWalkRefusal {

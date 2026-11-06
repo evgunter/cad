@@ -7848,6 +7848,40 @@ mod of_join_rows {
             );
         }
     }
+
+    /// A carry whose spline component's walk could not run is the
+    /// section unbuilt on that limit, and its sentence ends with the
+    /// walk's own recourse, at both of the walk's refusals.
+    #[test]
+    fn an_unwalked_carry_is_the_section_unbuilt_on_the_walks_recourse() {
+        let face = FaceKey::default();
+        for why in [
+            geom::PieceWalkRefusal::Exhausted,
+            geom::PieceWalkRefusal::Unbounded,
+        ] {
+            let carry = geom_brep::CarryError::Unwalked(why);
+            let got = section_unbuilt(
+                super::super::section_table::Uncarried::Carry(&carry),
+                (face, geom::SurfaceKind::Cylinder),
+                (face, geom::SurfaceKind::Nurbs),
+            );
+            assert!(
+                matches!(
+                    &got,
+                    BooleanError::GermSectionUnbuilt {
+                        why: super::super::SectionUnbuilt::Unwalked(w),
+                        ..
+                    } if *w == why
+                ),
+                "{why:?}: {got:?}"
+            );
+            let text = got.to_string();
+            assert!(
+                text.contains(&why.to_string()) && text.ends_with(why.recourse()),
+                "{why:?}: the walk's refusal and its recourse: {text}"
+            );
+        }
+    }
 }
 
 #[cfg(test)]

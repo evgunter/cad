@@ -2900,7 +2900,8 @@ impl SectionUnbuilt {
             Self::Unwalked(why) => write!(
                 f,
                 "whether a marched loop's points lie on its fitted carrier could not be read: \
-                 {why}"
+                 {why}. {}",
+                why.recourse()
             ),
         }
     }
