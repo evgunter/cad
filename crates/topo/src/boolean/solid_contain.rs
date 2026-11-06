@@ -475,19 +475,21 @@ impl PointInSolidError {
     /// not [`Self::inconclusive`] answers the same at any point (a face
     /// kind with no arm, a corrupt or inside-out body, a solid that is
     /// not there), so a ladder over points reading it again gains
-    /// nothing: it aborts.
-    pub(in crate::boolean) fn refusal(&self) -> geom_brep::ladder::Refusal {
-        use geom_brep::ladder::Refusal;
+    /// nothing: it aborts ([`geom_brep::ladder::Aborts`]).
+    pub(in crate::boolean) fn refusal(
+        &self,
+    ) -> Result<geom_brep::ladder::Refusal, geom_brep::ladder::Aborts> {
+        use geom_brep::ladder::{Aborts, Refusal};
         if self.in_band() {
             match self {
-                Self::Escalated { diag, .. } => Refusal::Margin(*diag),
+                Self::Escalated { diag, .. } => Ok(Refusal::Margin(*diag)),
                 Self::Loop(e) => e.refusal(),
-                _ => Refusal::InBand,
+                _ => Ok(Refusal::InBand),
             }
         } else if self.confined() || self.sideless() {
-            Refusal::Limit
+            Ok(Refusal::Limit)
         } else {
-            Refusal::Abort
+            Err(Aborts)
         }
     }
 

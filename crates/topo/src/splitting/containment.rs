@@ -362,15 +362,18 @@ impl PointInLoopError {
     /// ([`geom_brep::ladder::Refusal`]): an escalation by its margin, a
     /// schedule no ray settled in band, an edge no ray crosses a limit,
     /// and a loop that does not walk or a point off its plane a refusal
-    /// of the whole query.
-    #[must_use]
-    pub fn refusal(&self) -> geom_brep::ladder::Refusal {
-        use geom_brep::ladder::Refusal;
+    /// of the whole query ([`geom_brep::ladder::Aborts`]).
+    ///
+    /// # Errors
+    ///
+    /// [`geom_brep::ladder::Aborts`], for a refusal of the whole query.
+    pub fn refusal(&self) -> Result<geom_brep::ladder::Refusal, geom_brep::ladder::Aborts> {
+        use geom_brep::ladder::{Aborts, Refusal};
         match self {
-            Self::Escalated { diag, .. } => Refusal::Margin(*diag),
-            Self::RayExhausted { .. } => Refusal::InBand,
-            Self::Uncrossable(_) => Refusal::Limit,
-            Self::CorruptLoop { .. } | Self::OffPlane(_) => Refusal::Abort,
+            Self::Escalated { diag, .. } => Ok(Refusal::Margin(*diag)),
+            Self::RayExhausted { .. } => Ok(Refusal::InBand),
+            Self::Uncrossable(_) => Ok(Refusal::Limit),
+            Self::CorruptLoop { .. } | Self::OffPlane(_) => Err(Aborts),
         }
     }
 }

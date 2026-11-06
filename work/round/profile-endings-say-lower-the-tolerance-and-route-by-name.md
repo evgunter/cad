@@ -4,10 +4,10 @@ kind: issue
 title: profile: the path door's turn refusal and FILLET_OFFSET_LEVER_RECOURSE say 'lower the tolerance', and PathError::Escalated routes its ending by predicate name
 status: parked
 opened: 2026-09-28
-priority: P3
+priority: P1
 cost: M
-blocked_on: [profile-refusals-say-what-they-mean]
-rides_with: profile-refusals-say-what-they-mean
+blocked_on: [the-path-doors-escalation-carries-its-gate]
+rides_with: the-path-doors-escalation-carries-its-gate
 ---
 
 (ENCL implementer, from the §5 sweep of PR 3382.) The rule is D4 ¶1 (i)
@@ -56,3 +56,9 @@ Moved from `work/paths/` to PROFILEPROSE (`work/profileprose/`) when PATHS close
 ## Rides with `profile-refusals-say-what-they-mean` (2026-10-26)
 
 PROFILEPROSE folded into PROFILETAIL; its refusal-text rows travel as one unit. This row is that unit's spec for its part and closes with its own evidence when the unit lands.
+
+## Claimed by ROUND (2026-11-06)
+
+Moved from `work/profiletail/` to ROUND by its orchestrator, now riding
+`the-path-doors-escalation-carries-its-gate`, which carries ROUND's
+fillet-recourse rows on the same arms. Id and body unchanged.

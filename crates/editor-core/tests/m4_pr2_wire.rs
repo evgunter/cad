@@ -296,14 +296,10 @@ fn the_kernel_refusal_maps_onto_every_arm_of_this_layers_door() {
             | (NodeErrorKind::DegenerateDirection { role }, "degenerate") => {
                 assert_eq!(*role, "placement rotation axis", "the role word travels");
             }
-            (NodeErrorKind::PlacementAxisEscalated { predicate, source }, "escalated") => {
-                assert_eq!(
-                    *predicate, "eval_direction_norm",
-                    "an in-band length escalates naming THIS layer's funnel site"
-                );
-                // The name the FUNNEL recorded, which is a different
-                // fact: the escalation carries what `decide` was
-                // actually called with.
+            (NodeErrorKind::PlacementAxisEscalated { source }, "escalated") => {
+                // The name the FUNNEL recorded: the escalation carries
+                // what `decide` was actually called with, THIS layer's
+                // funnel site, and the refusal names no other.
                 assert_eq!(
                     source.predicate,
                     Some("eval_direction_norm"),

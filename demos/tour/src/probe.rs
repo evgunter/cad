@@ -117,7 +117,7 @@ fn sweep<F: FnOnce() -> Vec<ProbeBody>>(
     let samples = k_stats::take_samples();
     *total += samples.len();
     for s in &samples {
-        if s.predicate == "<unnamed>" {
+        if s.predicate == geom_core::UNNAMED_PREDICATE {
             *unnamed += 1;
         }
         csv.push_str(&format!(

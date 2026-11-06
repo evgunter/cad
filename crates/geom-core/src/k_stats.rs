@@ -236,7 +236,7 @@ thread_local! {
     /// make the production decision path differ between build
     /// configurations, which D9 does not permit. The cost is the one
     /// `Cell` write this module has always documented.
-    static CURRENT: Cell<&'static str> = const { Cell::new("<unnamed>") };
+    static CURRENT: Cell<&'static str> = const { Cell::new(crate::UNNAMED_PREDICATE) };
     /// The installed sample sink, if any.
     #[cfg(feature = "probe")]
     static SINK: RefCell<Option<Vec<MarginSample>>> = const { RefCell::new(None) };
@@ -1078,7 +1078,7 @@ impl Escalation {
     /// funnel and exists only because the field is an `Option`.
     #[must_use]
     pub fn predicate(&self) -> &'static str {
-        self.source.predicate.unwrap_or("<unnamed>")
+        self.source.predicate.unwrap_or(crate::UNNAMED_PREDICATE)
     }
 }
 
