@@ -68,10 +68,11 @@
 //! - a spline: the certified piece walk ([`geom_core::bisect`]) over the
 //!   whole domain. A piece is cleared when its middle point's distance
 //!   less its reach (its half-span times the carrier's greatest speed,
-//!   [`crate::carrier_speed`]) decides positive (`curve_carrier_piece_clear`),
-//!   and stops once its reach is within the band
-//!   (`curve_carrier_piece`). The point is off only where every piece
-//!   clears. A walk past [`geom_core::bisect::PIECE_BUDGET`] refuses
+//!   [`crate::carrier_speed`]) decides positive (`curve_carrier_piece_clear`).
+//!   The point is off only where every piece clears, so the walk stops
+//!   at the first piece that does not clear with its reach within the
+//!   band (`curve_carrier_piece`): no later piece can make it off. A
+//!   walk past [`geom_core::bisect::PIECE_BUDGET`] refuses
 //!   ([`PieceWalkRefusal::Exhausted`]), and a speed bound that is zero or
 //!   poison refuses on kind ([`PieceWalkRefusal::Unbounded`]). A rational
 //!   spline's speed bound is certified at `Interval`; at `f64` and
@@ -192,8 +193,9 @@ pub enum Clearance {
     /// Every piece of the interval is decided past the band from the
     /// point: no point of the interval lies within the band of it.
     Clear,
-    /// A piece within the band's reach of the point is not decided clear:
-    /// its clearance's reading (zero, negative, or the escalation).
+    /// The first piece, in parameter order, whose reach is within the
+    /// band and that is not decided clear: its clearance's reading (zero,
+    /// negative, or the escalation).
     Near(Result<Decided, Indeterminate>),
 }
 
@@ -255,6 +257,29 @@ pub enum PieceWalkRefusal {
     /// The spline's greatest speed is zero or poison: its pieces have no
     /// reach to clear by.
     Unbounded,
+}
+
+impl PieceWalkRefusal {
+    /// **The recourse every rendering of this refusal ends with**: a walk
+    /// past its budget is a kernel approximation limit, whose last resort
+    /// is the tolerance; a spline with no speed bound is a carrier no walk
+    /// reads yet.
+    #[must_use]
+    pub const fn recourse(self) -> &'static str {
+        match self {
+            Self::Exhausted => geom_core::KERNEL_LIMIT_RECOURSE,
+            Self::Unbounded => geom_core::NOT_YET_ENDING,
+        }
+    }
+}
+
+impl core::fmt::Display for PieceWalkRefusal {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(match self {
+            Self::Exhausted => "a spline's piece walk ran past its budget",
+            Self::Unbounded => "a spline's speed bound is zero or poison",
+        })
+    }
 }
 
 impl CarrierRefusal {
@@ -504,9 +529,10 @@ impl<T: Decide> Curve3<T> {
     /// **Whether `q` is clear of the interval `(t0, t1)` of the carrier**
     /// by the certified piece walk (module docs): every piece's middle
     /// point's distance less its reach decides positive
-    /// (`curve_carrier_piece_clear`), a piece stopping once its reach is
-    /// within the band (`curve_carrier_piece`). A lower bound on `q`'s
-    /// distance from the interval, past the band, where it is `Clear`.
+    /// (`curve_carrier_piece_clear`); `Near` at the first piece that does
+    /// not, once its reach is within the band (`curve_carrier_piece`). A
+    /// lower bound on `q`'s distance from the interval, past the band,
+    /// where it is `Clear`.
     ///
     /// # Errors
     ///
@@ -526,12 +552,8 @@ impl<T: Decide> Curve3<T> {
         {
             return Err(PieceWalkRefusal::Unbounded.into());
         }
-        let mut kept: Option<Result<Decided, Indeterminate>> = None;
-        self.point_walk(
-            q,
-            (t0, t1),
-            hi,
-            |p| -> PieceStep<core::convert::Infallible> {
+        let near = self
+            .point_walk(q, (t0, t1), hi, |p| {
                 let clear = decide_reported(
                     "curve_carrier_piece_clear",
                     Margin::of(p.gap - p.reach),
@@ -550,14 +572,12 @@ impl<T: Decide> Curve3<T> {
                     decide("curve_carrier_piece", Margin::of(p.reach), band),
                     Ok(Sign::Negative | Sign::Zero)
                 ) {
-                    kept = kept.or(Some(clear));
-                    return PieceStep::Settled;
+                    return PieceStep::Stop(clear);
                 }
                 PieceStep::Halve
-            },
-        )
-        .map_err(|_| CarrierRefusal::from(PieceWalkRefusal::Exhausted))?;
-        Ok(kept.map_or(Clearance::Clear, Clearance::Near))
+            })
+            .map_err(|_| CarrierRefusal::from(PieceWalkRefusal::Exhausted))?;
+        Ok(near.map_or(Clearance::Clear, Clearance::Near))
     }
 }
 

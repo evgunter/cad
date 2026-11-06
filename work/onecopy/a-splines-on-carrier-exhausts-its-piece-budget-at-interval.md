@@ -2,11 +2,13 @@
 id: a-splines-on-carrier-exhausts-its-piece-budget-at-interval
 kind: issue
 title: A spline's on_carrier at Interval exhausts its piece budget at every box from ±1e-3 to ±0.05, logging some 5,800 piece escalations
-status: dispatched
+status: closed
 opened: 2026-11-03
 priority: P2
 cost: M
-branch: onecopy/spline-walks
+closed: 2026-11-06
+pr: 6548
+refs: [a-point-against-a-pieced-curve-is-read-by-three-walks-and-sorted-twice]
 ---
 
 
