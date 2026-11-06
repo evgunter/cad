@@ -205,7 +205,7 @@ impl<T: Decide> Quadric<T> {
             } => {
                 let (h, w) = Self::axial(apex, axis, p);
                 let (s, c) = half_angle.sin_cos();
-                w / w.norm() * c - axis * h.select_le_zero(-s, s)
+                w.normalize() * c - axis * h.select_le_zero(-s, s)
             }
             Self::Torus {
                 centre,
@@ -214,7 +214,7 @@ impl<T: Decide> Quadric<T> {
                 ..
             } => {
                 let tube = p - Self::core(centre, axis, major, p);
-                tube / tube.norm()
+                tube.normalize()
             }
         }
     }
@@ -222,7 +222,7 @@ impl<T: Decide> Quadric<T> {
     /// The core circle's point at `p`'s azimuth, `p` off the axis.
     fn core(centre: Point3<T>, axis: Vec3<T>, major: T, p: Point3<T>) -> Point3<T> {
         let w = Self::axial(centre, axis, p).1;
-        centre + w / w.norm() * major
+        centre + w.normalize() * major
     }
 
     /// The outward normal at `p` of a face of sense `sense`
@@ -444,7 +444,7 @@ impl<T: Decide> Quadric<T> {
         let (rise, ruling_at_to) = match *self {
             Self::Cone { .. } => {
                 let e = to - base;
-                (e.norm() - (below - base).norm(), e / e.norm())
+                (e.norm() - (below - base).norm(), e.normalize())
             }
             _ => (ht - hf, axis),
         };
@@ -455,7 +455,7 @@ impl<T: Decide> Quadric<T> {
                 Piece::Segment {
                     from: a,
                     to: b,
-                    ruling: e / e.norm(),
+                    ruling: e.normalize(),
                     lever: geom_brep::ExtentBall::point(base).lever_from(on),
                 }
             }
@@ -508,7 +508,7 @@ fn parallel<T: Decide>(
     to: Point3<T>,
 ) -> CircleArc<T> {
     let u = from - centre;
-    let u = u / u.norm();
+    let u = u.normalize();
     let w = to - centre;
     let phi = w.dot(axis.cross(u)).atan2(w.dot(u));
     // The way round is a raw pick: either is a path between the same
@@ -1085,7 +1085,7 @@ impl<T: Decide> Quadric<T> {
             return Ok(Some(arc(ArcLoop {
                 split: LoopSplit::Side {
                     origin: centre,
-                    dir: w / w.norm(),
+                    dir: w.normalize(),
                 },
                 positive: true,
             })));
@@ -1294,7 +1294,7 @@ pub(crate) fn path_parity<T: Decide>(
                     },
                 ) => {
                     let e = geom::Line { origin: c, dir: a }.offset(p.circle.frame.origin);
-                    let e = e / e.norm();
+                    let e = e.normalize();
                     let Some(roots) =
                         plane_roots(&p, (p.circle.frame.origin, e), arrival, slack, band)?
                     else {

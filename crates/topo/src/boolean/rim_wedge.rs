@@ -820,7 +820,7 @@ fn crossings<T: Decide>(
             let (ce, ae, re) = (*center, *axis, *radius);
             let e1 = {
                 let d = p0 - ce;
-                d / d.norm()
+                d.normalize()
             };
             let e2 = ae.cross(e1);
             let at = |phi: T| {

@@ -154,7 +154,7 @@ fn distance<T: Real>(surface: &geom::Surface<T>, q: Point3<T>) -> Option<(T, Poi
     // The point's height along `axis` from `origin`, and its offset
     // across it.
     let split = |origin: Point3<T>, axis: Vec3<T>| {
-        let a = axis / axis.norm();
+        let a = axis.normalize();
         let w = q - origin;
         let h = w.dot(a);
         (a * h, w - a * h)
@@ -193,7 +193,7 @@ fn distance<T: Real>(surface: &geom::Surface<T>, q: Point3<T>) -> Option<(T, Poi
             Some((d - minor_radius, core + v * (minor_radius / d), v / d))
         }
         geom::Surface::Plane { origin, normal, .. } => {
-            let n = normal / normal.norm();
+            let n = normal.normalize();
             let d = (q - origin).dot(n);
             Some((d, q - n * d, n))
         }

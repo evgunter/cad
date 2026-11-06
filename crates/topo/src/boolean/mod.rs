@@ -7667,7 +7667,7 @@ fn verify_tangency<T: Decide>(
                     geom::Curve3::Line(geom::Line { origin, dir }) => {
                         rim_wedge::Locus::Line(geom::Line {
                             origin,
-                            dir: dir / dir.norm(),
+                            dir: dir.normalize(),
                         })
                     }
                     _ => {
