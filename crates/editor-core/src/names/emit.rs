@@ -467,9 +467,8 @@ pub enum NamingError {
     /// An N2 discriminator margin escalated in-band (typed, never a
     /// silent pick — spec D3).
     Escalated {
-        /// The named predicate.
-        predicate: &'static str,
-        /// The escalation, unaltered.
+        /// The escalation, unaltered: the discriminator's name is the
+        /// one its funnel recorded ([`Indeterminate::predicate`]).
         source: Indeterminate,
     },
 }
@@ -960,14 +959,14 @@ impl crate::spoken::Say for NamingError {
                 "the naming band could not be built from the ambient tolerance, so no \
                  name can be decided: {error}"
             ),
-            Self::Escalated { predicate, source } => {
-                let what = crate::decision::words(predicate).unwrap_or(geom_core::UNNAMED_DECISION);
+            Self::Escalated { source } => {
+                let what = crate::decision::subject(source);
                 write!(
                     f,
                     "{}",
                     source.undecided(
                         format_args!("{what}, which a name rests on,"),
-                        crate::decision::ending(predicate, source)
+                        crate::decision::ending(source.predicate, source)
                     )
                 )
             }
@@ -1956,8 +1955,10 @@ mod display_tests {
             ),
             (
                 NamingError::Escalated {
-                    predicate: crate::names::discriminate::ON_MEMBER_EDGE,
-                    source: escalation(),
+                    source: Indeterminate {
+                        predicate: Some(crate::names::discriminate::ON_MEMBER_EDGE),
+                        ..escalation()
+                    },
                 },
                 vec!["a point's place along an edge"],
             ),

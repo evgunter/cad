@@ -2783,13 +2783,23 @@ NOT_BOUND = {
     # (the `path` door is one of the six it names), and not a missing
     # binding for these five types. `ArcCheck` is the sixth, on the
     # same footing: `InconsistentArc`'s payload, crossing as the word
-    # `inconsistent_arc` with its check left behind.
+    # `inconsistent_arc` with its check left behind. `Gate`,
+    # `EscalatedAt` and `ArcRead` are the same footing: the escalation
+    # arms' gate and site, and the read-back arms' read, crossing as
+    # the arm's word with the field left behind.
     "ArcCheck": INTERIOR,
+    "ArcRead": INTERIOR,
     "ContactKind": INTERIOR,
+    "EscalatedAt": INTERIOR,
     "EscalationSite": INTERIOR,
+    "Gate": INTERIOR,
     "FilletLeg": INTERIOR,
     "FilletLegCarrier": INTERIOR,
     "SegmentRef": INTERIOR,
+    # `PathNoCornerReason::TurnWithinTolerance`'s lever: the reason
+    # itself crosses nowhere (`no_corner_for_fillet` is the whole
+    # word), so its lever kind does not either.
+    "TurnLever": INTERIOR,
     "ContentBits": INTERIOR,
     # `BlendError::ConvexitySignFlip`'s payload and
     # `UnsupportedCorner`'s, the other two of the blend four.

@@ -1,7 +1,7 @@
-//! **A plane root's window beside a found meeting** (the parent
-//! module's docs, "A crossing of the other's plane"): whether the arc of a
-//! conic `a` where its height `H(θ)` above conic `b`'s plane is within the
-//! band's escalation `e` holds no meeting but those already found. Past
+//! **A plane root's window** (the parent module's docs, "A crossing of
+//! the other's plane"): whether the arc of a conic `a` where its height
+//! `H(θ)` above conic `b`'s plane is within the band's escalation `e`
+//! holds no meeting but those already found, none included. Past
 //! that window `a` is off `b`. Each found meeting `J` claims its ring, the
 //! arc within `e` of it (C5's ring rule). The window, read modulo `a`'s
 //! period over the part of it on `a`'s span, is the found meetings' own
@@ -17,7 +17,11 @@
 //! - **(ii) receding** (`curve_pair_window_recedes`): `d` strictly growing
 //!   away from the ring.
 //!
-//! An arc bounded by no ring must read off throughout.
+//! An arc bounded by no ring must read off throughout, past the band's
+//! escalation rather than its zero: it answers to no found meeting, so a
+//! point within the gap there is a near-miss the band leaves undecided,
+//! and the root goes to the polish, which escalates on it (the parent
+//! module's docs).
 //!
 //! **(ii).** `b` is planar, so `d² = H² + D²`, `D` the distance of `a(θ)`'s
 //! image `Q` in `b`'s plane to `b`. With `F` `b`'s level at `Q`
@@ -185,8 +189,16 @@ impl<T: Decide> Window<'_, T> {
     }
 
     /// **How the piece `(l, r)` reads**, `away` whether `θ` increasing
-    /// leaves the found meeting (module docs).
-    fn read(&self, (l, r): (T, T), away: bool, level: &Level<'_, T>, band: Band) -> Option<Read> {
+    /// leaves the found meeting, or `None` on an arc no ring bounds, where
+    /// off reads past the band's escalation rather than its zero (module
+    /// docs).
+    fn read(
+        &self,
+        (l, r): (T, T),
+        away: Option<bool>,
+        level: &Level<'_, T>,
+        band: Band,
+    ) -> Option<Read> {
         let two = T::from_f64(2.0);
         let (m, w) = ((l + r) / two, (r - l) / two);
         let speed = self.a.speed_hi();
@@ -203,7 +215,7 @@ impl<T: Decide> Window<'_, T> {
         let (big, small) = (self.b.speed_hi(), self.b.speed_lo());
         let height_recedes = positive(row, h.lo)
             && positive(row, h.slope_lo)
-            && same_way(row, h.at, h.slope_at, away);
+            && same_way(row, h.at, h.slope_at, away.unwrap_or(true));
         // `D` from the level, read locally (module docs, (ii)).
         let s2 = small.powi(2);
         let (six, twelve) = (T::from_f64(6.0), T::from_f64(12.0));
@@ -227,16 +239,20 @@ impl<T: Decide> Window<'_, T> {
         let level_negligible = positive(row, two * h.lo * h.slope_lo - level_drift);
         let level_recedes = positive(row, f.lo)
             && positive(row, f.slope_lo)
-            && same_way(row, f.at, f.slope_at, away)
+            && same_way(row, f.at, f.slope_at, away.unwrap_or(true))
             && positive(row, f.slope_lo - two * d_hi * speed / s2);
         // `(D²)′ ≥ 2D·(|F′| − 2D·|Q′|/s²)/|∇F(q*)|`.
-        let level_way = positive(row, f.lo) && same_way(row, f.at, f.slope_at, away);
+        let level_way =
+            positive(row, f.lo) && same_way(row, f.at, f.slope_at, away.unwrap_or(true));
         let foot_grad = (two / small).min(g_hi + two * d_hi / s2);
         let level_growth = two * d_lo * (f.slope_lo - two * d_hi * speed / s2) / foot_grad;
         let level_dominates = level_way
             && positive(row, f.slope_lo)
             && positive(row, level_growth - two * h.hi * h.slope_hi);
-        let z = T::from_f64(band.zero());
+        let z = match away {
+            Some(_) => T::from_f64(band.zero()),
+            None => T::from_f64(band.escalate()),
+        };
         if positive("curve_pair_window_off", h.lo.max(lower) - z) {
             return Some(Read::Off);
         }
@@ -289,7 +305,7 @@ impl<T: Decide> Window<'_, T> {
     fn pieces(
         &self,
         (l, r): (T, T),
-        away: bool,
+        away: Option<bool>,
         level: &Level<'_, T>,
         band: Band,
     ) -> Option<Vec<Read>> {
@@ -329,8 +345,9 @@ impl<T: Decide> Window<'_, T> {
     }
 
     /// **Whether the window `(lo, hi)` holds no meeting but the found
-    /// `joints`** (module docs). `false` where a reading cannot certify it:
-    /// the root is then polished as with no meeting found.
+    /// `joints`**, none among them included (module docs). `false` where a
+    /// reading cannot certify it: the root is then polished as with no
+    /// meeting found.
     ///
     /// The window is read modulo `a`'s period: each of its turns that
     /// meets `a`'s span is read over that part, so a window across the
@@ -366,7 +383,6 @@ impl<T: Decide> Window<'_, T> {
         let Some(centres) = copies((lo + hi) / two, half) else {
             return false;
         };
-        let mut anchored = false;
         for centre in centres {
             let (l, h) = ((centre - half).max(t0), (centre + half).min(t1));
             if !positive("curve_pair_window_width", h - l) {
@@ -393,7 +409,6 @@ impl<T: Decide> Window<'_, T> {
                     }
                 }
             }
-            anchored |= !rings.is_empty();
             // The arcs between the rings and the part's ends, each read
             // outward from the rings that bound it; one no ring bounds
             // anchors no meeting, and must read off throughout.
@@ -409,7 +424,7 @@ impl<T: Decide> Window<'_, T> {
                 sides.extend(outward((from.0, h), from.1, false));
             }
             for (arc, away) in sides {
-                let Some(reads) = self.pieces(arc, away.unwrap_or(true), &level, band) else {
+                let Some(reads) = self.pieces(arc, away, &level, band) else {
                     return false;
                 };
                 if away.is_none() && reads.iter().any(|&x| x != Read::Off) {
@@ -417,7 +432,7 @@ impl<T: Decide> Window<'_, T> {
                 }
             }
         }
-        anchored
+        true
     }
 }
 
@@ -662,6 +677,69 @@ mod rows {
         }
     }
 
+    /// **An arc no ring bounds, in a window that holds a ring, reads off
+    /// only past the escalation.** The unit circle's window `±2·10⁻⁶`
+    /// about its span's seam. A circle in the plane of the chord between
+    /// `θ = ±10⁻⁶` meets it at `10⁻⁶`, the found meeting, whose ring bounds
+    /// the part past the seam's start; near `−10⁻⁶`, in the part before the
+    /// seam's end, which no ring bounds, it passes the first at the least
+    /// gap the closed-form distance to it reads, sampled densely. Within the zero
+    /// band the window is not the joint's (a second meeting), and past the
+    /// escalation it is. In the band's gap the arc's pieces all read off
+    /// past the zero, as a ring-bounded arc's would, so the window read the
+    /// pair apart there; now it does not certify, and the root goes to the
+    /// polish. Red where an arc no ring bounds reads off past the zero.
+    #[test]
+    fn a_free_arc_in_the_gap_beside_a_ring_is_not_the_joints() {
+        let (tau, w) = (core::f64::consts::TAU, 2e-6_f64);
+        let (z, e) = (band().zero(), band().escalate());
+        let (c, s) = ((w / 2.0).cos(), (w / 2.0).sin());
+        let a = Curve3::circle(Point3::origin(), Vec3::unit_z(), 1.0, Vec3::unit_x());
+        let mut gap_seen = 0;
+        let mut bad = Vec::new();
+        for pass in [5e-10, 8e-9, 3e-8, 1e-7] {
+            let r = 2.0 * s * s / pass;
+            let centre = Point3::new(c, s, r);
+            let b = Curve3::circle(centre, Vec3::unit_x(), r, Vec3::new(0.0, 0.0, -1.0));
+            let gap = (0..=20_000)
+                .map(|i| {
+                    let q = a.eval(-w + w * f64::from(i) / 20_000.0) - centre;
+                    let h = q.x;
+                    let rho = (q - Vec3::unit_x() * h).norm();
+                    (h * h + (rho - r).powi(2)).sqrt()
+                })
+                .fold(f64::INFINITY, f64::min);
+            let got = holds((&a, (0.0, tau)), &b, (-w, w), w / 2.0);
+            let label = format!("least gap {gap:e}");
+            if gap <= z || gap > e {
+                if got != (gap > e) {
+                    bad.push(format!("{label}: holds {got}"));
+                }
+                continue;
+            }
+            gap_seen += 1;
+            let (ka, kb) = (a.conic().unwrap(), b.conic().unwrap());
+            let window = Window {
+                a: &ka,
+                span_a: (0.0, tau),
+                b: &kb,
+                carrier_b: &b,
+                height: super::super::height(&ka, kb.frame().origin, kb.frame().axis),
+            };
+            let level = super::super::level_on(&ka, &kb);
+            let past_zero = window
+                .pieces((tau - w, tau), Some(true), &level, band())
+                .is_some_and(|reads| reads.iter().all(|&x| x == super::Read::Off));
+            if !past_zero || got {
+                bad.push(format!(
+                    "{label}: off past the zero {past_zero}, holds {got}"
+                ));
+            }
+        }
+        assert_eq!(gap_seen, 2, "two passes in the band's gap");
+        assert!(bad.is_empty(), "{}", bad.join("\n"));
+    }
+
     /// **A ring lies within the band's escalation of its meeting.** A
     /// circle of radius `2`, its speed its greatest everywhere, and a found
     /// meeting `g` off its point at `θ = 0`, square to it, for `g` from
@@ -849,7 +927,7 @@ mod rows {
         let ring = w.ring(&j, 0.0, fine()).unwrap();
         let level = super::level_on(&ka, &kb);
         let past = w
-            .pieces((ring, reach), true, &level, fine())
+            .pieces((ring, reach), Some(true), &level, fine())
             .map(|r| r.len());
         (w.holds_only((-reach, reach), &[j], fine()), past)
     }
@@ -909,7 +987,7 @@ mod rows {
         );
         let level = super::level_on(&ka, &kb);
         assert_ne!(
-            w.read((0.0, 1e-5), true, &level, fine()),
+            w.read((0.0, 1e-5), Some(true), &level, fine()),
             Some(super::Read::On),
             "the piece reads on"
         );

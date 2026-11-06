@@ -2,12 +2,14 @@
 id: polish-bound-spells-unit-and-normalises-n-by-hand
 kind: issue
 title: polish::bound spells unit as a closure beside pose.rs's fn unit and normalises n by hand; past_by's disagreement refusal borrows the straddle's row
-status: dispatched
+status: closed
 opened: 2026-11-06
 priority: P3
 cost: E
 refs: [6537]
 branch: onecopy/curve-pair-tidy
+closed: 2026-11-06
+pr: 6541
 ---
 
 

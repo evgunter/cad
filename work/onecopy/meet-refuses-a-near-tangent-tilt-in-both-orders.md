@@ -1,26 +1,42 @@
 ---
 id: meet-refuses-a-near-tangent-tilt-in-both-orders
 kind: issue
-title: meet refuses two conics tilted 1e-6 to 1e-4 off tangency at a shared end, in both orders: an unanchored window that reads off still goes to the polish
-status: dispatched
+title: meet refuses four needle tilts in both orders, two on the basin and two on the extreme, where the pair holds one meeting or is apart past the band
+status: open
+refs: [6525, 6541]
 opened: 2026-11-04
-branch: onecopy/curve-pair-tidy
 ---
 
 
-Filed by `onecopy/p0-needle` (PR 6525), under item 7(b) of the decision on that PR. The review of PR 6525 measured it.
+Filed by `onecopy/p0-needle` (PR 6525), under item 7(b) of the decision on that PR. Narrowed by PR 6541.
 
-## What
+## What PR 6541 settled
 
-Take the band-turn needle's rim pair (`geom-brep` `curve_pair::order_rows::needle_pair`) and turn the near-circle about the shared vertex by about 1e-6 to 1e-4 rad. At band 1e-12/1e-11, `meet` then refuses `Unsettled::Meter` in both orders, on main and on PR 6525 alike. `order_rows::the_needle_spun_about_its_vertex_reads_one_answer_in_either_order` reads tilts up to 1e-8 only, and names this row for the rest.
+The window certified only a plane root beside a found meeting, and a root with no meeting found went to the polish. Ruled B (the orchestrator, on PR 6541): `transverse` reads the window for every plane root. An arc no ring bounds must read off past the band's **escalation**, and an anchored arc keeps off past the zero (`pose`'s module docs, "A crossing of the other's plane").
 
-The mechanism, as the review found it: the tilt splits the height's double root. The second plane root sits beside the joint, in a window that no found meeting anchors. There `pose/window.rs` `Window::holds_only` checks that an arc bounded by no ring reads off throughout, as its module docs require. But it returns `anchored`, so a window turn with no ring anywhere returns `false` even when every piece reads off. The root then goes to the polish. Its basin meets near-parallel tangents and refuses.
+- `order_rows::the_needle_tilted_about_its_far_vertex_reads_no_meeting_where_the_window_is_off` pins the three poses this decides.
+- `order_rows::a_near_miss_in_the_gap_beside_no_meeting_escalates` pins a gap near-miss that reading off past the zero would decide apart.
 
-The docs, "whether the window holds no meeting but the found joints", read `true` for a window that certifies no meeting at all. The code reads `false`.
+The spun row's pivot was `a.eval(sa.0)`, the long ellipse's far vertex. That vertex is 3.2e-7 off the near-circle and 5.5e-5 from the shared end, so a tilt parted the end. The row now turns about the shared end, `a.eval(sa.1)`, and reads tilts up to 1e-4 (`order_rows::the_needle_spun_about_its_shared_end_reads_one_answer_in_either_order`).
+
+## What remains
+
+Measured at band 1e-12/1e-11 over three axes (the tangent, the long ellipse's normal, their cross) and tilts ±1e-7, ±1e-6, ±1e-5 and ±1e-4. Each pose's true least gap comes from that row file's independent `span_gap` oracle. Every pose below refuses alike in both orders.
+
+**About the shared end**, every pose holds a meeting (gap 6.2e-15) and should read one. Three refuse:
+
+- axis 1 (the normal) by −1e-4: `Unsettled::Meter { curve_pair_pose_basin }`;
+- axis 2 (the cross) by ±1e-5: `Escalated` on `curve_pair_pose_extreme`, margin −5.0e-12.
+
+**About the far vertex**, seven refuse. Six of them part by 3.2e-12 to 5.5e-12, inside the band's gap, so refusing is the band's answer there; four of those six refuse on the basin rather than escalate. One is a true residue:
+
+- axis 1 by +1e-6: `curve_pair_pose_basin`, gap 5.48e-11 past the escalation, where the answer is none.
+
+So four are owed: two basin refusals, where near-parallel tangents leave `polish::bound`'s basin unproved, and two extreme escalations. Neither cause is the window's.
 
 ## Owed
 
-Decide whether a window that reads off throughout, with no found meeting in it, certifies that its root holds no meeting. If it does, `holds_only` returns that, and the near-tangent tilts decide. Pin them in the spun row.
+- **The basin.** Where the tangents are near-parallel, the polish's basin `sin φ − 2K·span > 0` fails. Either the window should read the root, here a meeting beside a found joint, which the ring should already answer, or the basin wants a premise that survives tangency.
+- **The extreme.** `transverse`'s `Range` reads the height's first harmonic charged with the pose's `noise` (`Range::first_harmonic(.., noise)` → `band_arc`, `extreme_sign(row::EXTREME, …, r.noise)`). At the shared end by ±1e-5 about the cross, it escalates at −5.0e-12. See `a-rounding-charge-through-rounding-charge-escapes-the-bare-epsilon-gate`.
 
-**A plausible second cause** (the delta review of PR 6525): `transverse`'s `Range` still reads the height's first harmonic charged with the pose's `noise` (`Range::first_harmonic(.., noise)` → `band_arc`, `extreme_sign(row::EXTREME, …, r.noise)`). At a spin-round tilt of 1e-5 it is the likely source of the review's `curve_pair_pose_extreme` escalation. See `a-rounding-charge-through-rounding-charge-escapes-the-bare-epsilon-gate`.
-
+The spun row lists the three shared-end residues by `(axis, tilt)` and accepts a refusal only there. A residue that comes to decide must read one meeting.

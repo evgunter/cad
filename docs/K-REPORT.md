@@ -3571,3 +3571,36 @@ the door that reads them, which has not moved; and the sector rungs
 `geom_brep::sector_shape`) already carry their module's prefix. The
 committed CSVs under `docs/k-report-data/` and the addenda above keep
 the old spellings, as the sweeps wrote them.
+
+## ONECOPY addendum (2026-11-06): the region landings read the plane door
+
+**Roster change: seventeen names leave, and two join.** The sphere, torus
+and ruled region doors (`topo/src/boolean/{sphere,torus,ruled}_region.rs`)
+read where a leg meets a boundary edge in one place, `region::landings`:
+one curve across the other's plane through the plane door
+(`geom_brep::curve_face::plane_crossing::span_plane_meet`), whose own
+`plane_crossing_*` rows now carry those roots, and the root then on its
+plane's section curve. These leave the roster:
+- `bool_sphere_region_span`, `bool_torus_region_span`,
+  `bool_ruled_region_span` and `bool_ruled_region_collinear`;
+- `bool_torus_region_family`: its three arms each read a circle edge
+  across a meridian leg's plane (a parallel off the rims by its point on
+  the leg's half-plane, the root of that same reading), so on the plane
+  door there is no choice left to make;
+- each door's four `FirstHarmonicRows` names
+  (`bool_{sphere,torus,ruled}_region_roots_{noise,coaxial,extreme,slack}`).
+
+These stay, read now by the shared landing:
+`bool_torus_region_component` and `bool_ruled_region_component` (a root's
+section, read through the chart's channels, and an edge's offset from a
+plane it is parallel to). `bool_ruled_region_nappe` stays, read by the
+cone's apex reach and its generators' targets.
+
+These join:
+- `bool_sphere_region_component`: an arc's offset from a leg's plane it
+  is parallel to;
+- `plane_crossing_line_parallel`: a line's slope across a plane times
+  the span's length, the plane door's line rung.
+
+`plane_crossing_root_in_span` and `plane_crossing_belly_graze` gain the
+region doors' populations.

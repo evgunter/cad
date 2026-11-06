@@ -489,3 +489,9 @@
 - 2026-11-06 — PR 6541 delta review: MERGE. No f64 `Rounded` charge is left, the revert matches main byte for byte, and the NOTE-2 pin goes red under the old rule. I merged main as `0570fa5f`; it compiles, and the gate is running.
 - 2026-11-06 — The 6540 gate is ok at `12b3a643`. It is held for the reviewer's true-base re-run.
 - 2026-11-06 — The 6548 fix pass is at `1da87412`. I did the delta review myself, on a small diff: `PieceWalkRefusal::recourse` is the one home, M1 is pinned, and two P3 rows are filed. I merged main as `998a3234`; it compiles, and the gate is running.
+
+- 2026-11-06 — Merged:
+  - **PR 6491** as `0cd3e0444e`, gated on `25636f41`. The region landings read a plane section; the P1 landings row is closed.
+  - **PR 6541** as `c0b7fb3d69`, gated on `0570fa5f`: the B window, the polish unit and the span_rows re-pin. The coplanar row is reopened.
+  Main had moved after each gate, in disjoint files (ROUND: editor-core, geom-core, sweep and others). For each, the local merge with main compiled the whole workspace's tests clean before I merged.
+  Rule used: re-gate if files overlap; with disjoint files, a workspace `cargo check --tests` of the merge suffices.
