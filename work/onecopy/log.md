@@ -377,3 +377,9 @@
     - S5: QueryFoot-only is prose.
   Fix pass sent; it outranks the seams red.
   Lesson: a decision written on the state branch must be carried onto the PR branch's row by the lane's brief, or the reviewer reads a PR whose own row contradicts it.
+
+- 2026-11-06 — PR 6541 updated to `48518f3f`.
+  - B is implemented, with oracle pins. Cost: 12 needle poses with gaps of 1.0–1.9e-11 refuse under B.
+  - The tilt residues are narrowed to 2 basin plus 2 extreme.
+  - The span_rows red: the pin was wrong (`Azimuth::near` reads a zero direction as its reference), and it is probe-gated, never run in CI. `ray_wall_margin_twins` is the same class and filed.
+  FULL review sent to `session_013mPGJ3HVYqYAoquA4iThSZ`.
