@@ -766,8 +766,12 @@ fn carried_refusal_payloads_are_matchable_through_the_prelude() {
             "offset_carriers_disjoint"
         )
     );
-    match PathNoCornerReason::CarriersParallel {
+    match PathNoCornerReason::<f64>::CarriersParallel {
         PathNoCornerReason::CarriersParallel | PathNoCornerReason::CarriersDoNotMeet => {}
+        PathNoCornerReason::TurnWithinTolerance {
+            lever_of: TurnLever::ShorterLeg | TurnLever::AnchorSeparation,
+            ..
+        } => {}
     }
 
     assert_eq!(

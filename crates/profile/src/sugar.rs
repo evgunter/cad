@@ -394,18 +394,14 @@ pub(crate) enum ArcTrimRefusal<T: Real> {
     /// reading of the joint: the turn is taken at the corner's legs
     /// before any setback, and validation reads the stored joint by its
     /// own rule, so it does not name the corner tangent. The payload is
-    /// the gate's own diagnostic; the surviving door maps the VARIANT
-    /// (to the parallel-carriers refusal) and reads none of it — kept
-    /// because it is the CONSTRUCTION's channel, not one caller's.
+    /// the margin's two factors, so the door can say which a caller may
+    /// move.
     TurnInBand {
+        /// `dir_in × dir_out`: the sine of the turn.
+        sin_turn: T,
         /// `dir_in · dir_out` — negative means the legs double back.
-        #[allow(dead_code)]
         align: T,
-        /// The turn margin in meters.
-        #[allow(dead_code)]
-        margin: T,
-        /// The lever arm it was levered by.
-        #[allow(dead_code)]
+        /// The lever arm the turn was levered by.
         arm: T,
     },
     /// `fillet_offset_lever` not Positive: the leg's **offset radius**
@@ -592,8 +588,8 @@ pub(crate) fn arc_fillet_trims<T: Decide>(
     let decided = decide("fillet_corner_turn", turn, band).map_err(ArcTrimRefusal::Escalated)?;
     let Some((sgn, sense)) = turn_side::<T>(decided).zip(turn_sense(decided)) else {
         return Err(ArcTrimRefusal::TurnInBand {
+            sin_turn: leg_in.dir.perp_dot(leg_out.dir),
             align: leg_in.dir.dot(leg_out.dir),
-            margin: turn.value(),
             arm,
         });
     };

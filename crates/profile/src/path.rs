@@ -557,17 +557,17 @@ impl sealed::Sealed for ArrivesTangent {}
 // ------------------------------------------------------------------
 
 /// Why a fillet's virtual corner does not exist (PATHS-DESIGN §2's
-/// DOF check: parallel/non-intersecting carriers, or an intersection
-/// behind the ray start, refuse typed). Named `Path…` to keep it
-/// distinct from the crate-root [`crate::NoCornerReason`] (the verify
-/// layer's fillet-constructor vocabulary) — different doors, different
-/// conditions.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum PathNoCornerReason {
-    /// The incoming ray and the arrival carrier are parallel at
-    /// tolerance (which includes the tangent/anti-tangent corner —
-    /// there is no corner to cut; PATHS routes the declaration through
-    /// `.tangent()`/the seam fillet instead).
+/// DOF check: parallel/non-intersecting carriers, a turn the tolerance
+/// cannot state, or an intersection behind the ray start, refuse
+/// typed). Named `Path…` to keep it distinct from the crate-root
+/// [`crate::NoCornerReason`] (the verify layer's fillet-constructor
+/// vocabulary) — different doors, different conditions.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum PathNoCornerReason<T: Real> {
+    /// The two carriers touch tangentially at tolerance — a ray tangent
+    /// to its circle, or two circles tangent to each other — read on an
+    /// unlevered metre margin. There is no corner to cut; PATHS routes
+    /// the declaration through `.tangent()`/the seam fillet instead.
     CarriersParallel,
     /// **G2**: the two carriers do not meet at all — a ray that misses
     /// its circle, or circles that are disjoint, concentric, or one
@@ -576,7 +576,41 @@ pub enum PathNoCornerReason {
     /// tangency knife edge: there they touch, and there is still no
     /// corner to cut.
     CarriersDoNotMeet,
+    /// The corner's turn, levered to metres, is zero at tolerance:
+    /// `sin_turn · lever` does not clear the band, so the side both
+    /// carriers offset toward is undecided. The margin is a product, and
+    /// either factor can be what collapsed — a degenerate angle (a
+    /// smooth run or a doubling back) or a real angle stated over too
+    /// short a lever. The kernel does not judge which; both factors ride
+    /// here so the caller can.
+    TurnWithinTolerance {
+        /// `dir_in × dir_out` at the corner: the sine of the turn.
+        sin_turn: T,
+        /// `dir_in · dir_out`: negative means the legs double back.
+        align: T,
+        /// The length the turn was levered by, meters.
+        lever: T,
+        /// Which length that is.
+        lever_of: TurnLever,
+    },
 }
+
+/// The length a fillet corner's turn is levered by
+/// ([`PathNoCornerReason::TurnWithinTolerance`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TurnLever {
+    /// The shorter leg's arm at the corner (the arc-carrier door).
+    ShorterLeg,
+    /// The separation of the incoming ray's start from the arrival
+    /// anchor (the straight pair).
+    AnchorSeparation,
+}
+
+/// The recourse for a straight pair's corner turn that is zero at
+/// tolerance: the lever there is the anchors' separation, not a leg.
+pub const FILLET_ANCHOR_TURN_RECOURSE: &str = "if the rays run smoothly into each other, construct \
+     the tangency (.tangent()); if they double back, the cusp is refused; if the angle is real, \
+     move the arrival anchor farther from the ray's start";
 
 /// Which of the two anchor windows a derived corner falls outside.
 ///
@@ -995,7 +1029,7 @@ pub enum PathError<T: Real> {
     /// [`PathNoCornerReason`]).
     NoCornerForFillet {
         /// Which structural condition failed.
-        reason: PathNoCornerReason,
+        reason: PathNoCornerReason<T>,
         /// The requested radius, meters (diagnostic).
         radius: T,
     },
@@ -1785,14 +1819,38 @@ impl<T: Real> core::fmt::Display for PathError<T> {
             ),
             Self::NoCornerForFillet { reason, radius } => {
                 let what = match reason {
-                    PathNoCornerReason::CarriersParallel => {
-                        "the incoming ray and the arrival carrier are parallel at tolerance — \
-                         no corner exists (if they are meant to run tangentially, author the \
-                         tangency: .tangent(), or the seam fillet at the seam)"
-                    }
-                    PathNoCornerReason::CarriersDoNotMeet => {
+                    PathNoCornerReason::CarriersParallel => String::from(
+                        "the two carriers touch tangentially at tolerance — no corner exists (if \
+                         they are meant to run tangentially, author the tangency: .tangent(), or \
+                         the seam fillet at the seam)",
+                    ),
+                    PathNoCornerReason::CarriersDoNotMeet => String::from(
                         "the two carriers do not meet: a ray missing its circle, or circles \
-                         disjoint, concentric, or one inside the other"
+                         disjoint, concentric, or one inside the other",
+                    ),
+                    PathNoCornerReason::TurnWithinTolerance {
+                        sin_turn,
+                        align,
+                        lever,
+                        lever_of,
+                    } => {
+                        let (lever_name, recourse) = match lever_of {
+                            TurnLever::ShorterLeg => {
+                                ("the shorter leg's arm", crate::FILLET_TURN_INBAND_RECOURSE)
+                            }
+                            TurnLever::AnchorSeparation => {
+                                ("the anchors' separation", FILLET_ANCHOR_TURN_RECOURSE)
+                            }
+                        };
+                        let degrees = sin_turn.atan2(*align) * T::from_f64(180.0) / T::pi();
+                        format!(
+                            "the turn at the corner is zero at tolerance: sin φ = {sin} \
+                             (φ = {degrees}°) over {lever_name}, {lever} m, so the side to round \
+                             toward is undecided. Recourse: {recourse}",
+                            sin = num(sin_turn),
+                            degrees = num(&degrees),
+                            lever = num(lever),
+                        )
                     }
                 };
                 write!(
@@ -4268,7 +4326,7 @@ impl<T: Decide> Core<T> {
         let u2 = arr_ang.unit;
         let w = arr_pos - pending.origin;
         let wn = w.norm_squared().sqrt();
-        // (1) parallel/tangent carriers admit no corner: the turn
+        // (1) a turn zero at tolerance admits no corner: the turn
         // margin sin φ levered by the anchor separation.
         let cross = u1.perp_dot(u2);
         let turn = decide(
@@ -4283,7 +4341,12 @@ impl<T: Decide> Core<T> {
             crate::sugar::turn_side::<T>(turn).zip(crate::sugar::turn_sense(turn))
         else {
             return Err(PathError::NoCornerForFillet {
-                reason: PathNoCornerReason::CarriersParallel,
+                reason: PathNoCornerReason::TurnWithinTolerance {
+                    sin_turn: cross,
+                    align: u1.dot(u2),
+                    lever: wn,
+                    lever_of: TurnLever::AnchorSeparation,
+                },
                 radius: pending.radius,
             });
         };

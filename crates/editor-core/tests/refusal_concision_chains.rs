@@ -4071,7 +4071,7 @@ fn structure_refusal_indeterminate() -> profile::StructureRefusal {
 fn profile_replay() -> Vec<(String, NodeErrorKind)> {
     use geom_core::Point2;
     use payloads::*;
-    use profile::path::{PathError as P, PathNoCornerReason};
+    use profile::path::{PathError as P, PathNoCornerReason, TurnLever};
     use profile::{CornerReason, CornerRefusal, FilletLegCarrier, NoCornerReason};
     use profile::{FilletLeg, ReplayError, ReplayErrorKind, TipState};
     let path: Vec<(&str, P<f64>)> = vec![
@@ -4258,6 +4258,30 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
             P::NoCornerForFillet {
                 reason: PathNoCornerReason::CarriersDoNotMeet,
                 radius: 0.1,
+            },
+        ),
+        (
+            "NoCornerForFillet(turn, leg)",
+            P::NoCornerForFillet {
+                reason: PathNoCornerReason::TurnWithinTolerance {
+                    sin_turn: 0.01,
+                    align: -0.99995,
+                    lever: 5e-8,
+                    lever_of: TurnLever::ShorterLeg,
+                },
+                radius: 0.05,
+            },
+        ),
+        (
+            "NoCornerForFillet(turn, anchors)",
+            P::NoCornerForFillet {
+                reason: PathNoCornerReason::TurnWithinTolerance {
+                    sin_turn: 0.9,
+                    align: 0.44,
+                    lever: 6e-10,
+                    lever_of: TurnLever::AnchorSeparation,
+                },
+                radius: 0.05,
             },
         ),
         (

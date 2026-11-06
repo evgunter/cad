@@ -71,7 +71,7 @@ use geom_core::{
 
 use super::{
     ArcData, CornerReason, CornerRefusal, CornerWindow, Dir, PathError, PathNoCornerReason,
-    linear_band,
+    TurnLever, linear_band,
 };
 use crate::fillet_select::{nearest_candidate, nearest_joint};
 use crate::structure::{
@@ -209,7 +209,7 @@ impl<T: Real> FilletSide<T> {
 /// Only the PAIR-level conditions reach this: a corner the gates or the
 /// construction refuse is a fact about that corner and rides the
 /// envelope instead, with its point.
-fn no_corner<T: Real>(reason: PathNoCornerReason, radius: T) -> PathError<T> {
+fn no_corner<T: Real>(reason: PathNoCornerReason<T>, radius: T) -> PathError<T> {
     PathError::NoCornerForFillet { reason, radius }
 }
 
@@ -470,12 +470,21 @@ fn map_refusal<T: Bounds>(refusal: ArcTrimRefusal<T>, radius: T) -> CornerOutcom
             })
         }
         // The corner's turn does not clear the band at the derived
-        // corner: the same situation `path_corner_turn` names on the
-        // straight pair, and a statement about the PAIR rather than
-        // about one crossing.
-        ArcTrimRefusal::TurnInBand { .. } => {
-            CornerOutcome::Whole(no_corner(PathNoCornerReason::CarriersParallel, radius))
-        }
+        // corner: a statement about the PAIR rather than about one
+        // crossing, carrying both factors of the levered margin.
+        ArcTrimRefusal::TurnInBand {
+            sin_turn,
+            align,
+            arm,
+        } => CornerOutcome::Whole(no_corner(
+            PathNoCornerReason::TurnWithinTolerance {
+                sin_turn,
+                align,
+                lever: arm,
+                lever_of: TurnLever::ShorterLeg,
+            },
+            radius,
+        )),
         ArcTrimRefusal::NoCorner { reason, .. } => {
             CornerOutcome::Reason(CornerReason::NoTangentCircle(reason))
         }

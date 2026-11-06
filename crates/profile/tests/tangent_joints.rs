@@ -427,7 +427,7 @@ fn largest_fitting_radius_succeeds_with_exact_tangency() {
 }
 
 #[test]
-fn doubled_back_fillet_corner_refuses_as_parallel_carriers() {
+fn doubled_back_fillet_corner_refuses_with_its_turn_within_tolerance() {
     // phi = pi: the arrival carrier is the incoming ray's own line,
     // traversed backwards. There is no corner to cut, and the turn
     // gate says so structurally — before any closed form is asked to
@@ -444,11 +444,74 @@ fn doubled_back_fillet_corner_refuses_as_parallel_carriers() {
         .expect_err("doubled-back corner must refuse")
     {
         PathError::NoCornerForFillet {
-            reason: profile::path::PathNoCornerReason::CarriersParallel,
+            reason:
+                profile::path::PathNoCornerReason::TurnWithinTolerance {
+                    sin_turn,
+                    align,
+                    lever,
+                    lever_of: profile::path::TurnLever::AnchorSeparation,
+                },
             radius,
-        } => assert_eq!(radius, 0.5),
-        other => panic!("expected CarriersParallel, got {other:?}"),
+        } => {
+            assert_eq!(radius, 0.5);
+            assert_eq!(sin_turn, 0.0, "the rays are collinear");
+            assert_eq!(align, -1.0, "and opposed");
+            assert_eq!(lever, 1.0, "levered by the anchors' separation");
+        }
+        other => panic!("expected TurnWithinTolerance, got {other:?}"),
     }
+}
+
+/// A real 64° corner whose arrival anchor sits a fraction of ε from the
+/// ray's start: the levered turn margin is zero at tolerance, and the
+/// refusal says so with both factors and the anchor-separation lever —
+/// it names no carrier tangency, because there is none.
+#[test]
+fn a_real_corner_on_a_short_anchor_separation_names_its_lever() {
+    let tol = Tol::witness();
+    let eps = tol.eps();
+    let phi = 64.0_f64.to_radians();
+    let (c, s) = (0.3 * eps, 0.3 * eps);
+    let anchor = Point2::new(c + s * phi.cos(), s * phi.sin());
+    let err = Open
+        .at(Point2::new(0.0, 0.0))
+        .toward(1.0, 0.0, tol)
+        .expect("the incoming ray runs +x")
+        .fillet(0.05, tol)
+        .expect("positive radius")
+        .toward(phi.cos(), phi.sin(), tol)
+        .expect("the arrival side leans 64°")
+        .to(anchor, tol)
+        .expect_err("the turn margin is zero at tolerance");
+    let PathError::NoCornerForFillet {
+        reason:
+            profile::path::PathNoCornerReason::TurnWithinTolerance {
+                sin_turn,
+                lever,
+                lever_of,
+                ..
+            },
+        ..
+    } = err
+    else {
+        panic!("expected TurnWithinTolerance, got {err:?}")
+    };
+    assert_eq!(lever_of, profile::path::TurnLever::AnchorSeparation);
+    assert!((sin_turn - phi.sin()).abs() < 1e-12, "sin φ {sin_turn}");
+    assert!(
+        (lever - (anchor - Point2::new(0.0, 0.0)).norm()).abs() < 1e-24,
+        "lever {lever:e}"
+    );
+    let shown = err.to_string();
+    assert!(
+        shown.contains(profile::FILLET_ANCHOR_TURN_RECOURSE),
+        "the straight pair's recourse moves the anchor: {shown}"
+    );
+    assert!(
+        shown.contains("the anchors' separation") && shown.contains("φ = 64"),
+        "the sentence names both factors: {shown}"
+    );
+    assert!(!shown.contains("parallel"), "no carrier tangency: {shown}");
 }
 
 // --------------------------------------- the cusp door (issue 941 item 2) --
