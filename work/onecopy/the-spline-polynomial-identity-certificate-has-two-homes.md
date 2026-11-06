@@ -2,7 +2,7 @@
 id: the-spline-polynomial-identity-certificate-has-two-homes
 kind: issue
 title: spline_off_carrier and slit::carrier_on_surface are two homes for one polynomial-identity certificate, each with its own sample schedule
-status: open
+status: dispatched
 opened: 2026-11-04
 priority: P3
 cost: M
