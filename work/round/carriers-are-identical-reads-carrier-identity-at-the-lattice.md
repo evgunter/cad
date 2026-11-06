@@ -6,7 +6,8 @@ status: open
 opened: 2026-09-08
 refs: [2135]
 priority: P1
-cost: D
+cost: M
+design: true
 ---
 
 Found by BOOL-10's seal measurement (PR 2135): after `arc_continue`'s

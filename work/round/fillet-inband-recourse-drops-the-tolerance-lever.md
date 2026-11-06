@@ -2,10 +2,12 @@
 id: fillet-inband-recourse-drops-the-tolerance-lever
 kind: issue
 title: Three fillet recourse sentences omit the tolerance lever where it is real, and two gates have none
-status: open
+status: parked
 opened: 2026-09-13
 priority: P1
 cost: E
+blocked_on: [the-path-doors-escalation-carries-its-gate]
+rides_with: the-path-doors-escalation-carries-its-gate
 ---
 
 

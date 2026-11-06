@@ -2,11 +2,13 @@
 id: validate-rs-hosts-a-quarter-of-the-fillet-subsystem-it-never-runs
 kind: issue
 title: profile/src/validate.rs carries six FILLET_*_RECOURSE consts whose own docs say no caller reads them, plus a render arm, for a subsystem the module's inventory says never fires in validation
-status: open
+status: parked
 opened: 2026-09-12
 refs: [2409]
 priority: P1
-cost: D
+cost: E
+blocked_on: [the-path-doors-escalation-carries-its-gate]
+rides_with: the-path-doors-escalation-carries-its-gate
 ---
 
 

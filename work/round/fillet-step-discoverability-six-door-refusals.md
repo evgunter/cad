@@ -6,7 +6,7 @@ status: open
 opened: 2026-09-05
 refs: [1828]
 priority: P1
-cost: D
+cost: M
 ---
 
 **Found by M10-8's R2 review, by authoring.** To build a document of
