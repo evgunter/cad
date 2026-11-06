@@ -89,10 +89,7 @@ fn disposition(body: &Body<f64>, kind: SurfaceKind, delta: f64) -> String {
             let emitted = mesh
                 .patches
                 .iter()
-                .find(|p| {
-                    let face = body.get_face(p.face).unwrap();
-                    body.get_surface(face.surface).unwrap().kind() == kind
-                })
+                .find(|p| body.face_surface(p.face).unwrap().kind() == kind)
                 .is_some_and(|p| !p.triangles.is_empty());
             let verdict = match mesh::validate::check_mesh(&mesh) {
                 Ok(()) => "watertight".to_owned(),

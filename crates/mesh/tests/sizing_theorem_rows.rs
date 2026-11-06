@@ -28,8 +28,7 @@ fn probe(body: &Body<f64>, delta: f64, order: u32) -> Result<(f64, usize), Strin
     let mut worst = 0.0_f64;
     let mut tris = 0;
     for patch in &mesh.patches {
-        let face = body.get_face(patch.face).unwrap();
-        let surface = body.get_surface(face.surface).unwrap();
+        let surface = body.face_surface(patch.face).unwrap();
         if matches!(surface, geom::Surface::Plane { .. }) {
             continue;
         }

@@ -118,8 +118,7 @@ fn sweep_row(major: f64, delta: f64, sweep: Revolution<f64>) {
     let mut worst: f64 = 0.0;
     let mut torus_patches = 0;
     for patch in &mesh.patches {
-        let face = body.get_face(patch.face).unwrap();
-        let surface = body.get_surface(face.surface).unwrap();
+        let surface = body.face_surface(patch.face).unwrap();
         let Surface::Torus { .. } = surface else {
             continue;
         };

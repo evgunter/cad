@@ -400,8 +400,7 @@ pub fn check_mesh_acceptance(body: &Body<f64>, delta: f64, exact: Option<(f64, f
     // triangle against its face's exact surface.
     let slack = delta + eps() + 1e-9;
     for patch in &mesh.patches {
-        let face = body.get_face(patch.face).expect("patch face is live");
-        let surface = body.get_surface(face.surface).unwrap();
+        let surface = body.face_surface(patch.face).unwrap();
         for tri in &patch.triangles {
             let [a, b, c] = [
                 mesh.positions[tri[0] as usize],
