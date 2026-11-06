@@ -5,7 +5,7 @@ title: profile's chord_director prescales a chord by its own witness, a second c
 status: open
 opened: 2026-11-06
 priority: P3
-cost: S
+cost: E
 refs: [6572]
 ---
 
