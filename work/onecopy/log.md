@@ -442,3 +442,9 @@
   - M2: put recourse on `PieceWalkRefusal`, so the join and section renderings agree.
   - S2 and S3.
   - A P3 class row for three clearance walks, two `SiteRefusal` sorts and the census's `WALK_*`.
+
+- 2026-11-06 — The 6491 fix pass is at `ec152e74`.
+  - The torus now reads every circle edge across the meridian leg's own plane, and `bool_torus_region_family` is retired. That departs from my Decided item 4, because a parallel's plane is tangent to the tube at the rims.
+  - One `span_place`; the lane path is miss-first too; `Round` and `Line` are built only from a foot.
+  - The records are copied.
+  Delta review sent to `session_013mPGJ4JScywfx3zssA8yRc`, with the torus oracle re-run and the cost re-timed.
