@@ -92,7 +92,6 @@ SRC = 'crates/topo/src/'
 KINDS = ('names-boolean', 'names-splitting', 'boolean-names-splitting',
          'splitting-names-boolean', 'crate-visible', 'refused-binding')
 READER_KINDS = ('names-boolean', 'names-splitting')
-CITATION = re.compile(r'work/[a-z0-9-]+/[A-Za-z0-9_.-]*[A-Za-z0-9]')
 ITEM_KW = {'fn', 'struct', 'enum', 'trait', 'type', 'const', 'static'}
 QUALIFIERS = {'const', 'async', 'unsafe', 'extern', 'default'}
 TOKEN = re.compile(r'[A-Za-z_][A-Za-z0-9_]*|\d[\w.]*|::|\S')
@@ -611,19 +610,23 @@ def baseline(path):
 
 def raised(allowed, notes, base_path):
     """`RAISED …` for each pin above the base's pin of its kind and file
-    (absent there: 0). A reader's pin (`names-*`) may rise only on a line
-    whose note cites the `work/` row that retires the site;
+    (absent there: 0), or `CITED …` for the one rise admitted: a reader's
+    pin (`names-*`) on a line whose note cites the `work/` row that retires
+    the site (`GATE_ROW_CITATION_ERE`, lib.sh);
     `pin-cites-an-open-row.sh` holds that row open. Every other kind
     admits no new site."""
+    citation = re.compile(os.environ['GATE_ROW_CITATION_ERE'])
     base, _, base_bad, _ = baseline(base_path)
     out = [f'MALFORMED (base) {line[len("MALFORMED "):]}' for line in base_bad]
     for key, pin in sorted(allowed.items()):
         was = base.get(key, 0)
         if pin <= was:
             continue
-        if key[0] in READER_KINDS and CITATION.search(notes[key]):
-            continue
-        out.append(f'RAISED {key[0]} {key[1]}: {was} -> {pin}')
+        cited = citation.search(notes[key])
+        if key[0] in READER_KINDS and cited:
+            out.append(f'CITED {key[0]} {key[1]}: {was} -> {pin} ({cited.group()})')
+        else:
+            out.append(f'RAISED {key[0]} {key[1]}: {was} -> {pin}')
     return out
 
 

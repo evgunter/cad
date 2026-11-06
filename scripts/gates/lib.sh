@@ -38,6 +38,11 @@ GATE_SELFTEST_ARGS=()
 # inside a process substitution too — so every subshell of one run names
 # the same file, and two gates running at once never share one.
 GATE_MATCHER_FAILED=${TMPDIR:-/tmp}/gate-matcher-failed.$$
+# A citation of a `work/` row, `work/<program>/<id>` with or without
+# `.md`: the one spelling, read by `pin-cites-an-open-row.sh` (awk) and,
+# through `engine-leaves.sh`, by `engine_leaves.py` (Python), so both
+# take the same text for a citation. An ERE both dialects read alike.
+GATE_ROW_CITATION_ERE='work/[a-z0-9-]+/[A-Za-z0-9_.-]*[A-Za-z0-9]'
 # `gate_base_file`'s copy of a file at the merge base, named and removed
 # the same way.
 GATE_BASE_FILE=${TMPDIR:-/tmp}/gate-base.$$

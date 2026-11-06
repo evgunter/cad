@@ -56,7 +56,7 @@ function flush_block(   k) {
   blk_n = 0; blk_hit = 0
 }
 function cites(file, n, s) {
-  while (match(s, /work\/[a-z0-9-]+\/[A-Za-z0-9_.-]*[A-Za-z0-9]/)) {
+  while (match(s, ENVIRON["CITE_ERE"])) {
     print file "\t" n "\t" substr(s, RSTART, RLENGTH)
     s = substr(s, RSTART + RLENGTH)
   }
@@ -129,7 +129,7 @@ gate() {
   local index cites=""
   index=$(row_index)
   if [ "${#files[@]}" -gt 0 ]; then
-    cites=$(FN_RE='^[[:space:]]*(pub(\([^)]*\))?[[:space:]]+)?((const|async|unsafe|extern)[[:space:]]+)*fn[[:space:]]' \
+    cites=$(CITE_ERE="$GATE_ROW_CITATION_ERE" FN_RE='^[[:space:]]*(pub(\([^)]*\))?[[:space:]]+)?((const|async|unsafe|extern)[[:space:]]+)*fn[[:space:]]' \
       PIN_PHRASE_RE="$PIN_PHRASE_RE" WORKFLOW_PHRASE_RE="$WORKFLOW_PHRASE_RE" \
       PIN_CALL_RE="$PIN_CALL_RE" awk "$extract_awk" "${files[@]}" | sort -u -t$'\t' -k1,1 -k2,2n -k3,3) \
       || gate_reader_died_refusal "the pin-citation reader (awk)" "$?"
@@ -143,7 +143,8 @@ gate() {
     {
       path = $3; sub(/\.md$/, "", path); row = path ".md"
       if (row in st) {
-        if (st[row] == "closed") print $1 ":" $2 ": cites " $3 " — that row is closed; lift the pin or point it at the open row that owns the fix"
+        if (st[row] == "-" && $1 ~ /\.counts$/) print $1 ":" $2 ": cites " $3 " — that file is not a row (it has no status:); a pin rises only for a site an open row retires, so cite that row"
+        else if (st[row] == "closed") print $1 ":" $2 ": cites " $3 " — that row is closed; lift the pin or point it at the open row that owns the fix"
         next
       }
       n = split(row, p, "/"); id = p[n]; live = ""; dead = ""
@@ -233,6 +234,21 @@ plant_counts_live() {
   printf '# a header naming work/done/gone is no pin\nnames-boolean 3 a.rs  # work/live/owner\n' > "$1/scripts/gates/x.counts"
 }
 
+plant_counts_plan() {
+  mkdir -p "$1/scripts/gates"
+  printf 'names-boolean 3 a.rs  # not work/live/plan really\n' > "$1/scripts/gates/x.counts"
+}
+plant_counts_log() {
+  mkdir -p "$1/scripts/gates"
+  printf '# log\n' > "$1/work/live/log.md"
+  printf 'names-boolean 3 a.rs  # work/live/log\n' > "$1/scripts/gates/x.counts"
+}
+plant_counts_program() {
+  mkdir -p "$1/scripts/gates"
+  printf -- '---\nid: live\nkind: program\n---\n' > "$1/work/live/program.md"
+  printf 'names-boolean 3 a.rs  # work/live/program.md\n' > "$1/scripts/gates/x.counts"
+}
+
 plant_no_rows() { rm -rf "$1/work"; }
 
 gate_selftest() {
@@ -247,9 +263,12 @@ gate_selftest() {
   gate_selftest_case --also "nightly.yml:6:" "does not exist under work/" plant_workflow_held_out
   gate_selftest_case "no work/<program>/<id>.md" plant_no_rows
   gate_selftest_case --also "x.counts:2:" "that row is closed" plant_counts_closed
+  for p in plant_counts_plan plant_counts_log plant_counts_program; do
+    gate_selftest_case --also "x.counts:1:" "that file is not a row" "$p"
+  done
   gate_selftest_passes "a .counts pin citing a live row, under a header naming a closed one" plant_counts_live
   gate_selftest_passes "a closed row cited as history, behind another fn, or as a workflow reference" plant_near_misses
-  printf '%s selftest OK: passes a live citation (a .counts pin line among them) and closed rows cited outside any pin; fires, at file:line, on a pin citing a closed row (an #[ignore] reason, a pin call'"'"'s doc block and its body comment), a missing row, a moved row (live or closed at its new home), a workflow hold-out citing a missing row, a .counts pin line citing a closed row (its header not read), and a tree with no work/ rows; and stays RED when grep cannot run\n' "$(gate_name)"
+  printf '%s selftest OK: passes a live citation (a .counts pin line among them) and closed rows cited outside any pin; fires, at file:line, on a pin citing a closed row (an #[ignore] reason, a pin call'"'"'s doc block and its body comment), a missing row, a moved row (live or closed at its new home), a workflow hold-out citing a missing row, a .counts pin line citing a closed row (its header not read) or a file that is no row (plan.md, log.md, program.md), and a tree with no work/ rows; and stays RED when grep cannot run\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"

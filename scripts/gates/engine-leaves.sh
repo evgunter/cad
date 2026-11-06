@@ -43,7 +43,7 @@ gate() {
   local base_args=()
   if gate_base_file "$BASELINE"; then
     base_args=(--base "$GATE_BASE_FILE")
-    base_note="none above the base $GATE_BASE's but a reader pin citing its move row"
+    base_note="none above the base $GATE_BASE's"
   fi
   mapfile -t files < <(find crates/topo/src -type f -name '*.rs' 2>/dev/null | sort)
   GATE_SCAN_FILES=${#files[@]}
@@ -51,7 +51,7 @@ gate() {
     gate_error "$(gate_name): no .rs file under crates/topo/src in $PWD — the gate scanned nothing, which is not a pass"
     exit 1
   fi
-  if ! report=$(gate_rust_code "${files[@]}" | python3 "$CENSUS" "$BASELINE" "$MANIFEST" ${LINES_FOR:+--lines "$LINES_FOR"} ${base_args[@]+"${base_args[@]}"}); then
+  if ! report=$(gate_rust_code "${files[@]}" | GATE_ROW_CITATION_ERE="$GATE_ROW_CITATION_ERE" python3 "$CENSUS" "$BASELINE" "$MANIFEST" ${LINES_FOR:+--lines "$LINES_FOR"} ${base_args[@]+"${base_args[@]}"}); then
     gate_error "$(gate_name): the counter failed under $PWD (its own message is above, if it had one) — the gate could not read its subject, which is not a pass"
     exit 1
   fi
@@ -97,6 +97,10 @@ gate() {
     failed=1
   fi
   [ "$failed" = 0 ] || exit 1
+  if grep -q '^CITED ' <<<"$report"; then
+    grep '^CITED ' <<<"$report"
+    base_note="$base_note but the $(grep -c '^CITED ' <<<"$report") cited rise(s) above"
+  fi
   gate_ok "the engines' doors at their pinned counts ($(sed -n 's/^TOTAL //p' <<<"$report") sites in all); pins: $base_note"
 }
 
@@ -237,6 +241,17 @@ gate_selftest() {
   GATE_BASE=refs/gate-base gate_selftest_passes "a pin lowered against the base" plant_lowered
   GATE_BASE=refs/gate-base gate_selftest_passes "a reader's pin raised on a line citing its move row" plant_raised_cited
   GATE_BASE=refs/gate-base gate_selftest_case --also "RAISED names-boolean reader.rs: 1 -> 2" "only falls" plant_raised
+  # A cited rise passes, and its green log names it.
+  local tmp out
+  tmp=$(mktemp -d)
+  gate_plant_clean "$tmp"
+  plant_raised_cited "$tmp"
+  out=$(GATE_BASE=refs/gate-base "$0" --root "$tmp" 2>&1) || { printf 'SELFTEST FAILED: a cited rise reds:\n%s\n' "$out" >&2; rm -rf "$tmp"; exit 1; }
+  rm -rf "$tmp"
+  case "$out" in
+    *"CITED names-boolean reader.rs: 1 -> 2 (work/onecopy/move-row)"*"cited rise(s) above"*) ;;
+    *) printf 'SELFTEST FAILED: a cited rise passed without naming itself in the green log:\n%s\n' "$out" >&2; exit 1 ;;
+  esac
   GATE_BASE=refs/gate-base gate_selftest_case --also "RAISED names-boolean other.rs: 0 -> 1" "cite that row" plant_new_line
   GATE_BASE=refs/gate-base gate_selftest_case --also "RAISED crate-visible boolean/mod.rs: 1 -> 2" "only falls" plant_raised_other
   GATE_BASE=refs/gate-base gate_selftest_case "is not a commit" plant_repo_without_base
@@ -247,7 +262,7 @@ gate_selftest() {
       plant_local_macro plant_lib_module_reexport; do
     gate_selftest_case --also "ROSE refused-binding" "refused outright" "$p"
   done
-  printf '%s selftest OK: passes a pinned fixture with near misses (a field, a local, a method, a type parameter, Self, another crate'"'"'s item bare and renamed, a private macro) and each counting mechanism at its pin (a glob through the engine, use super::*, a module bound through the engine, a root re-export of an ambiguous name, a crate::Name::… path of any length, super:: and super::super:: climbing to the root, topo:: as crate::, a fn-local const, an associated type in an impl, f::<, mk! and a path-qualified fn, an unknown capitalised head); fires on an engine named through a full path, a hub nested in lib.rs, use super::X, a root glob and a root re-export, across engines by path and by name, on crate-wide visibility (pub(super) in an engine mod.rs included), on a pinned site gone, on a zero, unknown or duplicate baseline line, on a pin above the base pin (an uncited reader pin, a new line, any other kind even cited) while passing one lowered or a cited reader pin, on a base that is not a commit or has no counts file, on an ambiguous name new or gone, on a module named boolean, and on every refused binding (use crate as, use topo as, #[macro_use] on an engine or inside one, a lib.rs re-export of an engine module, a type alias or macro inside a fn body, use crate::{self as}, use super::{self as} at the root, extern crate self, ::topo::, an item, module or root re-export renamed, a lib.rs re-export renamed, a type alias, a macro spelling the engine), and diagnoses a counter that cannot run or that ends without its TOTAL\n' "$(gate_name)"
+  printf '%s selftest OK: passes a pinned fixture with near misses (a field, a local, a method, a type parameter, Self, another crate'"'"'s item bare and renamed, a private macro) and each counting mechanism at its pin (a glob through the engine, use super::*, a module bound through the engine, a root re-export of an ambiguous name, a crate::Name::… path of any length, super:: and super::super:: climbing to the root, topo:: as crate::, a fn-local const, an associated type in an impl, f::<, mk! and a path-qualified fn, an unknown capitalised head); fires on an engine named through a full path, a hub nested in lib.rs, use super::X, a root glob and a root re-export, across engines by path and by name, on crate-wide visibility (pub(super) in an engine mod.rs included), on a pinned site gone, on a zero, unknown or duplicate baseline line, on a pin above the base pin (an uncited reader pin, a new line, any other kind even cited) while passing one lowered or a cited reader pin (named in the green log), on a base that is not a commit or has no counts file, on an ambiguous name new or gone, on a module named boolean, and on every refused binding (use crate as, use topo as, #[macro_use] on an engine or inside one, a lib.rs re-export of an engine module, a type alias or macro inside a fn body, use crate::{self as}, use super::{self as} at the root, extern crate self, ::topo::, an item, module or root re-export renamed, a lib.rs re-export renamed, a type alias, a macro spelling the engine), and diagnoses a counter that cannot run or that ends without its TOTAL\n' "$(gate_name)"
 }
 
 # `--lines FILE` (relative to crates/topo/src) lists that file's counted
