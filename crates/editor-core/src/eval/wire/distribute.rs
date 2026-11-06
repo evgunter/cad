@@ -210,12 +210,8 @@ pub(super) fn assembled<T: Decide + topo::AtRestPolicy>(
     // first's ([`crate::eval::Framed::computing_among`]), each other read
     // into it.
     let mut computing: Option<crate::eval::Framed<T>> = crate::eval::Framed::computing_among(
-        outs.iter().filter_map(|(_, out)| match &out.payload {
-            ValuePayload::Boolean(BooleanValue::Body { body, .. }) | ValuePayload::Body(body) => {
-                Some(body)
-            }
-            _ => None,
-        }),
+        outs.iter()
+            .filter_map(|(_, out)| out.payload.one_body().flatten()),
     )
     .cloned();
     let mut named: Vec<(crate::VarId, Arc<NameTable>, Vec<topo::GraftKeys>)> = Vec::new();

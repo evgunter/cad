@@ -2,10 +2,11 @@
 id: a-family-of-bodies-has-two-payloads
 kind: issue
 title: A family of bodies has two payloads: Instances, and Family with an absent member
-status: open
+status: closed
 opened: 2026-11-06
 priority: P1
 cost: H
+closed: 2026-11-06
 ---
 
 
@@ -35,3 +36,23 @@ Every reader that sees only the payload is still outside the bridge.
 - **`mate/corner.rs` `read_of`** reads a family through its first member and refuses `PinRefusal::NotABody` when member 0 is empty and the others are bodies. Under one representation, it would read the first present member, or refuse naming the empty one.
 
 Pin with the empty-member document in `crates/editor-core/tests/g_family_of_booleans.rs`.
+
+## Closed
+
+**One representation.** A family of bodies is `ValuePayload::Instances(Vec<Option<Framed>>)`: one place per member in index order, `None` at a member that is a boolean's empty result. `ValuePayload::Family` is a family of anything else, and it has no output. `family_value` is the one constructor that decides between them, and a placement of a family keeps its places.
+
+**Why this final state.** The three were weighed as landed code.
+
+- **A third variant**, a gapped family beside `Instances`, would keep two spellings of one concept. Every reader would match both, and `kind_name` would need two words for one thing.
+- **The bridge**, with `member_bodies` as the only public door, leaves the bad state representable. `Instances` is a public variant, so a reader that matches it alone still compiles and is still wrong. A `Family` value would also mean two things, told apart only by what its members hold, and a payload-only reader cannot see that: `output_body`, Python `Value`, the viewer.
+- **`Instances(Vec<Option<_>>)`** puts the empty member in the type. A reader of a family of bodies matches one arm and has to handle `None`. No second payload is kept in step with the first.
+
+**What changed.**
+
+- `NodeValue::member_bodies` is deleted. Its readers match the payload: `whole_bodies`, the indexed read in `reads_projected`, and `own_bodies`.
+- `ValuePayload::member_body` is now the public `one_body`, the one "is this one body" rule. The viewer's `one_body` copy is deleted, and the ladder copies in `pncad` export, the Python binding, `distribute`, the viewer's `body_reach` and test support, and the `diefillet` demo read it instead.
+- `kind_name` says `"instances"` for every family of bodies. `"family"` now names only a family of non-bodies.
+- `mate/corner.rs` `read_of` reads the first member that is a body. The corner walk only needs the names a per-member reader reads at each member, and any member spells them. The pose it writes is refused at the empty member, where it is evaluated.
+- The tree readout question is filed on CHROME (`work/chrome/the-tree-row-of-a-family-with-an-empty-member-says-nothing.md`), as a fork about what the row shows.
+
+**Pins.** `crates/editor-core/tests/g_family_of_booleans.rs`, for the payload's shape, the product, the interrogators and the corner walk, and `crates/pncad-py/tests/test_pattern.py`, for Python `Value`. Rows closed with it: `a-family-with-an-empty-member-reads-as-no-body-at-the-product-and-the-interrogators` and `python-value-bodies-drops-a-family-with-an-empty-member`. `a-selection-of-a-member-of-a-family-with-an-empty-member-refuses` stays open for its pin, which belongs with PR 6555.

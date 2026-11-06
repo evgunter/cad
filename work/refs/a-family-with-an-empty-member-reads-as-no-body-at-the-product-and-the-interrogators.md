@@ -2,10 +2,12 @@
 id: a-family-with-an-empty-member-reads-as-no-body-at-the-product-and-the-interrogators
 kind: issue
 title: A family of bodies with an empty member reads as no body at the product gather, the at-rest checks and the interrogators
-status: open
+status: closed
 opened: 2026-11-06
 priority: P2
 cost: M
+parent: a-family-of-bodies-has-two-payloads
+closed: 2026-11-06
 ---
 
 
@@ -25,3 +27,12 @@ A family whose members are each a body or a boolean's empty result (`F[k] − F[
   - viewer: `combine.rs` (`value.payload.output_body(u32::from(port))`) and `session.rs` (`.payload.output_body(body).ok()?`). These are on viewer ground, but they read through this door.
 
 Pin each with a document whose per-`k` cut has an empty member (`crates/editor-core/tests/g_family_of_booleans.rs` builds one).
+
+## Closed
+
+**Closed by the unification row** (`a-family-of-bodies-has-two-payloads`). A family whose members are each a body or a boolean's empty result is now `ValuePayload::Instances`, `None` at the empty member, so neither reader below needs the members any more.
+
+- `product::sources_of` reads the payload. Each present body gets its member's place and its member's carry, and an empty member contributes nothing and shifts no later place (the `Split` arm's rule). So the product gathers such a family, and the at-rest loops over placements reach its members.
+- `names::interrogate::output_body` answers a present member's body at its place, and `NoSuchBody` at an empty member's place (an empty half's answer). Every caller above reads through it, directly or through `Evaluation::read_body`.
+
+**Pinned** by `g_family_of_booleans::a_family_with_an_empty_member_is_its_bodies_at_the_product_and_the_interrogators`. It covers the product of the family's world copies (two solids), `read_body` at each of the three places, and `face_carrier_kind` on member 2's face by the family's name for it. The callers listed above are not pinned one by one: clearance, `select`, `geompred`, coincide replay, and the viewer's `combine` and `session`. Each reaches the body through the one door the row pins.

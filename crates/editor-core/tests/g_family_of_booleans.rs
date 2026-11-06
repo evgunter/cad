@@ -9,8 +9,9 @@
 use crate::blocks::{block, block_on};
 use crate::fixture::{self, insert};
 use editor_core::{
-    Bodies, BodyRead, BooleanValue, Entry, Evaluation, Formula, MemberAt, Node, NodeErrorKind,
-    NodeResult, Operand, ProfileDoc, RecipeNodeId, RoleSeg, StableName, TargetAxis, ValuePayload,
+    Bodies, BodyRead, BooleanValue, EntityKey, Entry, Evaluation, Formula, InterrogateError,
+    MemberAt, Node, NodeErrorKind, NodeResult, Operand, PinRefusal, ProfileDoc, RecipeNodeId,
+    RoleSeg, StableName, TargetAxis, ValuePayload,
 };
 use geom_core::Tol;
 
@@ -200,9 +201,9 @@ fn a_family_with_an_empty_member_refuses_whole_and_reads_its_bodies_by_index() {
     assert!(
         matches!(
             ev.value(cut).map(|v| &v.payload),
-            Some(ValuePayload::Family)
+            Some(ValuePayload::Instances(b)) if matches!(b[..], [Some(_), None, Some(_)])
         ),
-        "the cut is a family with an absent member: {:?}",
+        "the cut is a family of bodies with member 1 empty: {:?}",
         ev.result(cut)
     );
     let k = doc.var_named("k").unwrap();
@@ -263,4 +264,87 @@ fn a_family_with_an_empty_member_refuses_whole_and_reads_its_bodies_by_index() {
             ev.result(id)
         );
     }
+}
+
+/// **A family with an empty member is a family of bodies to every
+/// reader past the evaluator** (`F[k] − F[1]`): its kind is a family
+/// of bodies' word; an interrogator reads member 2's body at its place
+/// and its face by the family's name for it, and finds no body at the
+/// empty member's place; and the product of its world copies is its
+/// two bodies. Red if the empty member makes the family read as no
+/// body, shifts member 2 onto place 1, or makes the product refuse.
+#[test]
+fn a_family_with_an_empty_member_is_its_bodies_at_the_product_and_the_interrogators() {
+    let (doc, _, cut) =
+        cut_row(|doc, _, row| (doc, BodyRead::indexed(row, vec![Formula::count(1)])));
+    let (doc, _) = fixture::place(doc, cut);
+    let ev = run(&doc);
+    let value = ev.value(cut).expect("the cut evaluated");
+    assert_eq!(
+        value.payload.kind_name(),
+        ValuePayload::<f64>::Instances(vec![]).kind_name(),
+        "a family with an empty member is spoken as a family of bodies"
+    );
+    let var = doc.output(cut, 0).expect("the cut defines its output");
+    let read = |i| ev.read_body(var, i).expect("the cut stands");
+    assert_eq!(
+        read(0).map(|b| span(&fixture::in_space(b))),
+        Ok((0.0, 0.75)),
+        "member 0 at place 0"
+    );
+    assert!(
+        matches!(read(1), Err(InterrogateError::NoSuchBody { index: 1 })),
+        "no body at the empty member's place: {:?}",
+        read(1).err()
+    );
+    assert_eq!(
+        read(2).map(|b| span(&fixture::in_space(b))),
+        Ok((1.75, 2.5)),
+        "member 2 at place 2"
+    );
+    let face = fixture::table(&ev, cut)
+        .iter()
+        .find_map(|(name, entry)| match entry {
+            Entry::Unique(e) if e.body == 2 && matches!(e.key, EntityKey::Face(_)) => {
+                Some(name.clone())
+            }
+            _ => None,
+        })
+        .expect("the family names member 2's faces");
+    assert_eq!(
+        editor_core::face_carrier_kind(&ev, cut, &face),
+        Ok(geom::SurfaceKind::Plane),
+        "member 2's face, read by the family's name for it"
+    );
+    let product = editor_core::product(&doc, &ev, Tol::witness());
+    assert_eq!(
+        product.as_ref().ok().map(|p| p.solids().count()),
+        Some(2),
+        "the product is the family's two bodies: {:?}",
+        product.err()
+    );
+}
+
+/// **A frame read off a family whose first member is empty** (`F[k] −
+/// F[0]`) is read off its first member that is a body, member 1 — the
+/// block `[0.75, 1.75]` less `[0, 1]` — at a corner that member has.
+/// Red if the corner walk reads member 0 alone and refuses the family
+/// `NotABody`.
+#[test]
+fn a_corner_frame_over_a_family_reads_its_first_body_member() {
+    let (doc, _, cut) =
+        cut_row(|doc, _, row| (doc, BodyRead::indexed(row, vec![Formula::count(0)])));
+    let ev = run(&doc);
+    let frame: Result<Operand, PinRefusal> = editor_core::corner_frame_in(
+        &doc,
+        &ev,
+        &Operand::Node(cut),
+        [1.0, 0.0, 0.0],
+        [1.0, 0.0, 1.0],
+        [1.75, 0.0, 0.0],
+    );
+    assert!(
+        matches!(frame, Ok(Operand::Pose(_))),
+        "the frame is read off member 1's corner: {frame:?}"
+    );
 }

@@ -385,17 +385,15 @@ pub fn placed_body_digest(ev: &Evaluation<f64>, id: RecipeNodeId) -> Option<(u64
             d.u64(14);
             d.body(&crate::fixture::in_space(b));
         }
-        // A family: each member's body, in member order.
+        // A family: each member's body, in member order, and a word of
+        // its own at an empty member.
         ValuePayload::Instances(members) => {
             d.u64(15);
             d.u64(members.len() as u64);
             for b in members {
                 match b {
                     None => d.u64(0),
-                    Some(b) => {
-                        d.u64(1);
-                        d.body(&crate::fixture::in_space(b));
-                    }
+                    Some(b) => d.body(&crate::fixture::in_space(b)),
                 }
             }
         }
