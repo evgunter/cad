@@ -395,3 +395,8 @@
   - **spline-walks, the subdivision walks:** (a), a caller-named shareable `Budget` with `bisect_within`, on condition that D9's own text permits it; the lane stops if D9 fixes one budget.
   - **main-reds-k-and-m10:** not A. Moving 13.5 s of m10 rows per-PR breaks the CI policy in the `.config/nextest.toml` header (≥ 0.5 s goes to the slow set). The ruling: re-pin with the movers named, try a fast sentinel under 0.5 s, and file the class (a whole-kernel ledger pin seen only by a nightly that has been red for a week) as a CIW row.
   The K root cause was geom-brep lacking its self dev-dep with `test-support`; it is fixed, with a new gate.
+
+- 2026-11-06 — The seams lane opened PR 6550 at `a8479010`.
+  - It bisected the red to `6adc5fdd`, where `resolution_pad` replaced the shared pad. The failing measurement stopped on `Stop::Wall` short of the resolution, and `judge` never read the stop.
+  - The fix adds `judged_at_resolution`, with a new `Verdict::Unmet` that holds only when the enclosure holds the closed form. It also fixes a second unfiled 1e-12 red, `tang_circle_cylinder::a_tilted_rod…`.
+  FULL review sent to a new reviewer, `session_013mPGJ2b7vVaMCyapnz3dn7`. The lane did 6550 before 6491's fix pass, so I re-sent the fix pass to run first now.
