@@ -337,3 +337,5 @@
   - `onecopy/topo-handles` (`session_013mPGJ41WtMZGxxhdgCBrqz`): a face's loops, an edge's ends, and a face's surface, all onto topo's queries;
   - `onecopy/spline-walks` (`session_013mPGJ2b3x82WoPQQ3Ro3gw`): the Interval piece budget, and the misfiled fault.
   The geom small-reads bundle (`three-line-offsets…` and the others) waits for 6540, which touches `Line`.
+
+- 2026-11-06 — Ruled for topo-handles: B. Export `Body::face(k) -> Option<FaceView>`, so the type is the gate: 13 outside sites spelled `once(f.outer).chain(f.rings)` with four different torn-loop handlings. Conditions: check `git log -S` for a ratified decision that FaceView is crate-private; list each site whose behaviour changes when it becomes the D2 row-4 panic; expose the minimum.
