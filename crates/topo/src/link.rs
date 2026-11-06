@@ -473,11 +473,11 @@ pub(crate) enum TouchVerdict {
 /// (no way through yet) from a reading in band (move the parts)**
 /// without reading the sentence. When the façade carries the reason,
 /// delete this paragraph and the disposition row with it.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-#[cfg_attr(any(test, feature = "test-support"), derive(strum::EnumIter))]
 ///
 /// Each variant states its standing to a ladder over the faces or
 /// sectors that read it ([`Self::refusal`]), with its reason.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(any(test, feature = "test-support"), derive(strum::EnumIter))]
 pub enum TouchUnread {
     /// A sign the analysis needed is in band. In band.
     InBand,
@@ -3840,6 +3840,9 @@ pub(crate) mod rest {
             for (k, s) in link.cone.sectors.iter().enumerate() {
                 match link.pieces(s, &rays, rd) {
                     Ok(pieces) => all[side].push((k, pieces)),
+                    // A piece refuses only in band today, so the abort
+                    // return is unreached; it stays the total reading of
+                    // the standing.
                     Err(v) => {
                         if let Err(v) = kept.keep_or_abort(v.refusal(), v) {
                             return TouchVerdict::Unread(v);
@@ -3960,14 +3963,14 @@ pub(crate) mod rest {
     /// run ([`Evidence`]: a slit or a face doubled, a limit, ahead of any
     /// reading in band); a rest where nothing was kept.
     fn unread_or_rest(mut kept: Evidence<TouchUnread>, notes: Notes) -> TouchVerdict {
-        let noted = [
-            (notes.degenerate, TouchUnread::Degenerate),
-            (notes.in_band, TouchUnread::InBand),
-        ];
-        for (_, why) in noted.into_iter().filter(|(noted, _)| *noted) {
-            if let Err(why) = kept.keep_or_abort(why.refusal(), why) {
-                return TouchVerdict::Unread(why);
-            }
+        // Each note kept as its variant's standing states it
+        // ([`TouchUnread::refusal`]): a slit or a face doubled a limit, a
+        // reading in band in band. Neither aborts.
+        if notes.degenerate {
+            kept.blocked(TouchUnread::Degenerate);
+        }
+        if notes.in_band {
+            kept.in_band(TouchUnread::InBand);
         }
         kept.refusal().map_or(
             TouchVerdict::Rest(Rest { _sealed: () }),

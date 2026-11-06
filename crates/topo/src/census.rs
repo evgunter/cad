@@ -328,7 +328,7 @@ use std::collections::BTreeSet;
 
 use bvh::{Aabb, Bvh};
 use geom_brep::curve_pair::{Hit, MeetFault, Span as CarrierSpan, meet};
-use geom_brep::ladder::{Aborts, Answering, Climb, Evidence, Refusal, Rung, climb, climb_evidence};
+use geom_brep::ladder::{Answering, Climb, Evidence, Refusal, Rung, climb, climb_evidence};
 use geom_core::k_stats::{Magnitude, decide_reported, straddle};
 use geom_core::one_line::on_one_line;
 use geom_core::{
@@ -8755,6 +8755,10 @@ impl<T: Decide> Germ<T> {
                 reach: round.1,
             });
         }
+        // A face refusing the whole query stops the reading at once, so
+        // between two such faces the first in face order is what the link
+        // refuses with; every other refusal waits until every face is
+        // read, and is ranked ([`sectors_of_faces`]).
         let mut sectors = Vec::with_capacity(faces.len());
         let read = sectors_of_faces(faces, |(f, hs)| {
             FaceSector::of(body, geo, f, p, &hs, band).map(|s| sectors.extend(s))
@@ -9233,12 +9237,12 @@ pub(crate) enum Probe {
 /// vertices of `inner`, placed against `outer`'s material by `place`, in
 /// turn. Every vertex strictly inside says the same, so any answers
 /// ([`Answering::Any`]); a vertex `exempt` names is passed; a refusal is
-/// kept by its standing and its reason (`standing`), and one of the
-/// whole query stops the probe with its reason.
-pub(crate) fn probe_vertices<P: Copy, E>(
+/// kept by its standing (`PointInSolidError::refusal`) with its reason
+/// ([`Undecided::of_point_in_solid`]), and one of the whole query stops
+/// the probe with its reason.
+pub(crate) fn probe_vertices<P: Copy>(
     vertices: &[(VertexKey, P)],
-    mut place: impl FnMut(P) -> Result<SolidContainment, E>,
-    standing: impl Fn(&E) -> (Result<Refusal, Aborts>, &'static str),
+    mut place: impl FnMut(P) -> Result<SolidContainment, crate::boolean::PointInSolidError>,
     exempt: impl Fn(VertexKey) -> bool,
 ) -> Probe {
     let (mut out_seen, mut any) = (false, false);
@@ -9251,10 +9255,11 @@ pub(crate) fn probe_vertices<P: Copy, E>(
                 Rung::Passes
             }
             Err(_) if exempt(v) => Rung::Passes,
-            Err(e) => {
-                let (standing, what) = standing(&e);
-                geom_brep::ladder::rung_or_abort(standing, what, Err)
-            }
+            Err(e) => geom_brep::ladder::rung_or_abort(
+                e.refusal(),
+                Undecided::of_point_in_solid(&e).what(),
+                Err,
+            ),
         }
     });
     match climbed {
@@ -9267,6 +9272,26 @@ pub(crate) fn probe_vertices<P: Copy, E>(
         Climb::Passed if out_seen => Probe::Clear,
         Climb::Passed => Probe::AllOn,
     }
+}
+
+/// **Whether vertex `v`'s touch against `outer` was answered in band**:
+/// an unread pair hiding no overlap answered for it
+/// ([`Declared::absorb`]), so it lies in band of `outer`'s boundary and
+/// that pair's finding stands for it. A placement the door refuses there
+/// hides no overlap thicker than the band, so the material probe passes
+/// it ([`probe_vertices`]).
+pub(crate) fn answered_in_band(
+    answered: &[((EntityId, EntityId), Undecidable)],
+    solid_of_entity: impl Fn(EntityId) -> Option<crate::SolidKey>,
+    outer: crate::SolidKey,
+    v: VertexKey,
+) -> bool {
+    let v = EntityId::Vertex(v);
+    answered.iter().any(|&((x, y), reason)| {
+        reason == Undecidable::ThinInBand
+            && ((x == v && solid_of_entity(y) == Some(outer))
+                || (y == v && solid_of_entity(x) == Some(outer)))
+    })
 }
 
 /// **The conservative loudness backstop** (M9-2 union fix F1): the
@@ -10077,10 +10102,7 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
     // against `outer`'s material.
     // One selection per container, shared by every pair it outers, so
     // its side at infinity is read once.
-    let selections: std::collections::BTreeMap<
-        SolidKey,
-        std::sync::OnceLock<Result<crate::boolean::SolidFaces, crate::boolean::PointInSolidError>>,
-    > = body
+    let selections: std::collections::BTreeMap<SolidKey, std::sync::OnceLock<_>> = body
         .solids()
         .map(|(s, _)| (s, std::sync::OnceLock::new()))
         .collect();
@@ -10093,19 +10115,7 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
             Ok(sel) => sel,
             Err(e) => return Probe::Refused(Undecided::of_point_in_solid(e).what()),
         };
-        // A vertex whose touch against `outer` an unread pair hiding no
-        // overlap answered for ([`Declared::absorb`]) lies in band of
-        // `outer`'s boundary, and that pair's finding stands for it: a
-        // placement the door refuses there hides no overlap thicker than
-        // the band.
-        let answered_in_band = |v: VertexKey| {
-            let v = EntityId::Vertex(v);
-            answered.iter().any(|&((x, y), reason)| {
-                reason == Undecidable::ThinInBand
-                    && ((x == v && solid_of_entity(y) == Some(outer))
-                        || (y == v && solid_of_entity(x) == Some(outer)))
-            })
-        };
+        let exempt = |v| answered_in_band(answered, solid_of_entity, outer, v);
         let vertices: Vec<_> = geo
             .verts
             .iter()
@@ -10115,8 +10125,7 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
         probe_vertices(
             &vertices,
             |p| crate::boolean::point_in_solid_faces(body, sel, p, band, tol),
-            |e| (e.refusal(), Undecided::of_point_in_solid(e).what()),
-            answered_in_band,
+            exempt,
         )
     };
     // The pre-filter over the instances' extents (`Trees` docs): a

@@ -56,38 +56,48 @@ use crate::live::BoundaryMember;
 #[derive(Clone, Debug)]
 pub enum OverlapRefusal {
     /// A face lies on a spline carrier: its trim is read on its chart,
-    /// which this door does not read.
+    /// which this door does not read. An abort: no face of the pair is
+    /// read.
     SplineCarrier {
         /// The face.
         face: FaceKey,
     },
-    /// A face key that does not resolve in its body.
+    /// A face key that does not resolve in its body. An abort.
     StaleFace {
         /// The face.
         face: FaceKey,
     },
     /// The two faces face opposite ways where their carrier is read: the
-    /// door's premise, one sense, does not hold.
+    /// door's premise, one sense, does not hold. An abort.
     OppositeSenses,
-    /// The two faces' senses read in band against each other.
+    /// The two faces' senses read in band against each other. An abort:
+    /// one sense is the door's premise, which every later reading needs.
     Senses(Indeterminate),
     /// A point's placement in a face refused: in band, or a reading of
-    /// the containment door with no verdict.
+    /// the containment door with no verdict. As the door states it
+    /// (`ContainError::refusal`).
     Placement(super::ContainError),
-    /// A point of one face read in band of the other's plane.
+    /// A point of one face read in band of the other's plane. Ranked by
+    /// its margin.
     OnPlane(Indeterminate),
     /// The boundary pass over an edge refused: a meeting in band, or a
     /// reading that could not run. Its member's window reached a piece
-    /// read not strictly inside, or its reading faulted.
+    /// read not strictly inside, or its reading faulted. As the pass
+    /// states it ([`BoundaryRefusal::refusal`]).
     Meeting(BoundaryRefusal),
     /// A face's boundary could not be read as the boundary pass reads it.
+    /// Ranked by its margin where it escalated; any other refusal aborts,
+    /// since [`BooleanError`] states no standing of its own to tell a
+    /// limit from a fault.
     Boundary(Arc<BooleanError>),
-    /// Two corners' bounds read in band against each other.
+    /// Two corners' bounds read in band against each other. Ranked as
+    /// [`Self::Boundary`] is.
     Corner(Arc<BooleanError>),
     /// A face's outward normal at a point of its boundary could not be
-    /// read.
+    /// read. As the normal door states it ([`NormalAtError::refusal`]).
     Normal(NormalAtError),
-    /// A reading the door has no verdict for: what it is.
+    /// A reading the door has no verdict for: what it is. A limit
+    /// (`work/onecopy/overlap-refusal-unread-is-string-typed-across-classes.md`).
     Unread {
         /// The reading.
         what: &'static str,
@@ -96,32 +106,28 @@ pub enum OverlapRefusal {
 
 impl OverlapRefusal {
     /// What this refusal is to the door's search for a witness
-    /// ([`geom_brep::ladder::Refusal`]), delegating to each payload's own
-    /// standing where it states one: a sense or a point read in band by
-    /// its margin; a placement, a meeting or a normal as its door says;
-    /// a corner or a boundary read by its escalation's margin, any other
-    /// of its refusals a limit; and a reading the door has no verdict for
-    /// a limit.
+    /// ([`geom_brep::ladder::Refusal`]), as each variant's docs state it,
+    /// delegating to each payload's own standing where it states one.
     ///
     /// # Errors
     ///
-    /// [`geom_brep::ladder::Aborts`] for a refusal of the whole query: a
-    /// spline carrier, a face that does not resolve, two faces of
-    /// opposite sense, and each payload's own aborts.
+    /// [`geom_brep::ladder::Aborts`] for a refusal of the whole query (the
+    /// variants' docs), and each payload's own aborts.
     fn refusal(&self) -> Result<geom_brep::ladder::Refusal, geom_brep::ladder::Aborts> {
         use geom_brep::ladder::{Aborts, Refusal};
         match self {
-            Self::SplineCarrier { .. } | Self::StaleFace { .. } | Self::OppositeSenses => {
-                Err(Aborts)
-            }
-            Self::Senses(diag) | Self::OnPlane(diag) => Ok(Refusal::Margin(*diag)),
+            Self::SplineCarrier { .. }
+            | Self::StaleFace { .. }
+            | Self::OppositeSenses
+            | Self::Senses(_) => Err(Aborts),
+            Self::OnPlane(diag) => Ok(Refusal::Margin(*diag)),
             Self::Placement(e) => e.refusal(),
             Self::Meeting(e) => e.refusal(),
             Self::Normal(e) => e.refusal(),
-            Self::Boundary(e) | Self::Corner(e) => Ok(match **e {
-                BooleanError::Escalated { diag, .. } => Refusal::Margin(diag),
-                _ => Refusal::Limit,
-            }),
+            Self::Boundary(e) | Self::Corner(e) => match **e {
+                BooleanError::Escalated { diag, .. } => Ok(Refusal::Margin(diag)),
+                _ => Err(Aborts),
+            },
             Self::Unread { .. } => Ok(Refusal::Limit),
         }
     }
@@ -720,6 +726,16 @@ mod piece_ranking {
                 Err(OverlapRefusal::Meeting(BoundaryRefusal::Fault { .. }))
             ),
             "a kernel fault refuses the whole query: the search stops on it"
+        );
+        let mut kept = Evidence::default();
+        keep_piece_refusal(&mut kept, in_band()).expect("in band is kept");
+        let corner = OverlapRefusal::Corner(std::sync::Arc::new(
+            crate::boolean::BooleanError::TangencyUnsupported,
+        ));
+        assert!(
+            keep_piece_refusal(&mut kept, corner).is_err(),
+            "a corner refusal that did not escalate is never kept: BooleanError states \
+             no standing to tell a limit from a fault, so it stops the search"
         );
     }
 }

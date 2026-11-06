@@ -46,6 +46,9 @@ crates/topo/src/offset_derive.rs 1
 # loft stacking: rim_pinned (any pair decided apart answers "not pinned"),
 # hand-rolled.
 crates/sweep/src/loft/stacking.rs 1
+# edge_join: joinable's chart-class read over the two surfaces (which
+# surface's chart class decides is the answer: First), hand-rolled.
+crates/topo/src/boolean/edge_join.rs 1
 #
 # NOT A SEARCH: every element is needed, so the first refusal is as good
 # as any, or the read is the premise every later one needs.
@@ -56,8 +59,6 @@ crates/topo/src/replace_face.rs 2
 crates/topo/src/ray_walk.rs 2
 # insert: section_chords's germ order, a sort over every group.
 crates/topo/src/splitting/insert.rs 1
-# edge_join: joinable reads both surfaces' chart class.
-crates/topo/src/boolean/edge_join.rs 1
 # blend battery: consumption_sweep strips every face.
 crates/sweep/src/blend/battery.rs 1
 # ssi section: roots decides every cluster's crossing.

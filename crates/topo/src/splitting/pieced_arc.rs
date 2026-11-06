@@ -90,43 +90,53 @@ pub(crate) trait PiecedArc<T: Decide> {
     fn cross(&self, piece: &Self::Piece, ray: Ray<T>, band: Band) -> Option<usize>;
 
     /// **Where `q` sits against the arc.** `End` within the band of an
-    /// end; `On` within the band of a point of the arc; `Off` once every
-    /// piece's ball is definitely clear of `q`.
+    /// end; `On` within the band of a point of the arc, both ends decided
+    /// clear of `q`; `Off` once every piece's ball is definitely clear of
+    /// `q`.
+    ///
+    /// The ends are the piece walk's premise, not rungs beside it: `On`
+    /// says `q` is clear of both ends, so an end read in band blocks it.
+    /// The two ends are one ladder ([`climb`], [`Answering::Any`]: either
+    /// end decided at `q` is `End`), and the walk runs only where both
+    /// ends are decided clear.
     ///
     /// # Errors
     ///
-    /// Where neither end nor any piece places `q` definitely, the kept
-    /// reading the ladder ranks first ([`Evidence`]):
-    /// [`ArcRefusal::Escalated`] for a distance to an end in band, or a
-    /// piece whose ball is within the band's coincidence threshold
-    /// settled neither way, carrying the margin it was read on (a
-    /// poisoned one a limit, ahead of every margin in band); else
-    /// [`ArcRefusal::Unsettled`] where a piece outlasts the depth or the
-    /// piece budget before its ball is within the band.
+    /// An end read in band where the other end is not decided at `q`:
+    /// [`ArcRefusal::Escalated`], the ends' kept reading ranked
+    /// ([`Evidence`]: a poisoned margin a limit). Else, where no piece
+    /// places `q` definitely, the walk's kept reading ranked:
+    /// [`ArcRefusal::Escalated`] for a piece whose ball is within the
+    /// band's coincidence threshold settled neither way, carrying the
+    /// margin it was read on (a poisoned one a limit, ahead of every
+    /// margin in band); else [`ArcRefusal::Unsettled`] where a piece
+    /// outlasts the depth or the piece budget before its ball is within
+    /// the band.
     fn contact(&self, q: Point3<T>, rows: ArcRows, band: Band) -> Result<ArcHit, ArcRefusal> {
-        // Each end, then the pieces: every definite contact places `q`
-        // on the arc alike, so any of them answers ([`Answering::Any`]).
-        let [a, b] = self.ends();
-        let climbed = climb(Answering::Any, [Some(a), Some(b), None], |end| match end {
-            Some(end) => match decide(rows.end, Margin::norm3(q - end), band) {
+        let ends = climb(Answering::Any, self.ends(), |end| {
+            match decide(rows.end, Margin::norm3(q - end), band) {
                 Ok(Sign::Zero) => Rung::Answers(ArcHit::End),
                 Ok(_) => Rung::Passes,
                 Err(diag) => Rung::kept(diag).map_kept(ArcRefusal::Escalated),
-            },
-            None => self.pieces_contact(q, rows, band),
+            }
         });
-        match climbed {
+        match ends {
             Climb::Answered { answer, .. } => Ok(answer),
-            Climb::Passed => Ok(ArcHit::Off),
             Climb::Undecided(why) => Err(why),
+            Climb::Passed => self.pieces_contact(q, rows, band),
         }
     }
 
-    /// The piece walk of [`Self::contact`], as one rung: a point of the
-    /// arc within the band of `q` answers, every piece clear passes, and
-    /// otherwise what the leaves no reading settled kept, ranked
+    /// The piece walk of [`Self::contact`]: a point of the arc within the
+    /// band of `q` answers `On`, every piece clear reads `Off`, and
+    /// otherwise what the leaves no reading settled kept refuses, ranked
     /// ([`Evidence`]).
-    fn pieces_contact(&self, q: Point3<T>, rows: ArcRows, band: Band) -> Rung<ArcHit, ArcRefusal> {
+    fn pieces_contact(
+        &self,
+        q: Point3<T>,
+        rows: ArcRows,
+        band: Band,
+    ) -> Result<ArcHit, ArcRefusal> {
         let mut kept = Evidence::default();
         let walk = bisect(self.roots(), |p| {
             let b = self.ball(&p);
@@ -163,11 +173,11 @@ pub(crate) trait PiecedArc<T: Decide> {
             Step::Halve(self.halves(p))
         });
         match walk {
-            Ok(Some(margin)) => return Rung::Answers(ArcHit::On(margin)),
+            Ok(Some(margin)) => return Ok(ArcHit::On(margin)),
             Ok(None) => {}
             Err(_) => kept.unsettled(ArcRefusal::Unsettled),
         }
-        kept.rung()
+        kept.refusal().map_or(Ok(ArcHit::Off), Err)
     }
 
     /// **How many times the ray `q + d·t`, `t > 0`, crosses the arc**,
@@ -200,8 +210,8 @@ pub(crate) trait PiecedArc<T: Decide> {
 pub(crate) enum ArcHit {
     /// Definitely off the arc.
     Off,
-    /// Within the band of a point of the arc, at no end decided within
-    /// the band, by the margin that decided it.
+    /// Within the band of a point of the arc, clear of its ends, by the
+    /// margin that decided it.
     On(geom_core::MarginDiag),
     /// Within the band of one of the arc's two ends.
     End,
@@ -279,20 +289,14 @@ mod tests {
         }
     }
 
-    /// **A definite contact answers past an end read in band**: the
-    /// ends and the pieces are one ladder under `Any`, so an end in band
-    /// refuses only where no later reading places the point.
+    /// **The ends are the walk's premise** ([`PiecedArc::contact`]): the
+    /// second end decided at the point answers past the first in band,
+    /// since either end is `End`; but an end in band refuses ahead of a
+    /// piece through the point, since `On` says the point is clear of
+    /// both ends.
     #[test]
-    fn a_definite_contact_answers_past_an_end_in_band() {
+    fn an_end_in_band_blocks_the_walk_but_not_the_other_end() {
         let q = at(0.0);
-        let piece_on = Placed {
-            ends: [at(5e-9), at(10.0)],
-            leaves: vec![at(0.0)],
-        };
-        assert!(
-            matches!(piece_on.contact(q, ROWS, band()), Ok(ArcHit::On(_))),
-            "a piece through the point answers past the first end in band"
-        );
         let end_at = Placed {
             ends: [at(5e-9), at(0.0)],
             leaves: vec![at(10.0)],
@@ -301,16 +305,24 @@ mod tests {
             matches!(end_at.contact(q, ROWS, band()), Ok(ArcHit::End)),
             "the second end at the point answers past the first in band"
         );
-        let neither = Placed {
+        let piece_on = Placed {
             ends: [at(5e-9), at(10.0)],
-            leaves: vec![at(10.0)],
+            leaves: vec![at(0.0)],
         };
         assert!(
             matches!(
-                neither.contact(q, ROWS, band()),
+                piece_on.contact(q, ROWS, band()),
                 Err(ArcRefusal::Escalated(_))
             ),
-            "with nothing definite, the end in band refuses"
+            "an end in band refuses ahead of a piece through the point"
+        );
+        let clear = Placed {
+            ends: [at(10.0), at(20.0)],
+            leaves: vec![at(0.0)],
+        };
+        assert!(
+            matches!(clear.contact(q, ROWS, band()), Ok(ArcHit::On(_))),
+            "with both ends decided clear, a piece through the point answers"
         );
     }
 

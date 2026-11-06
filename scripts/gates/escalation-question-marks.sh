@@ -27,6 +27,12 @@
 # `)?` after it, inside the braces of a `for`, `while` or `loop` whose
 # header ends its line with `{`.
 #
+# IT MATCHES NAMES, NOT DECISIONS: a call whose name holds `decide` is
+# counted whether or not it is a band decision (`undecided(`,
+# `strip_decided(`, `Rim::decided(` are), and a band decision under any
+# other name is not. So the register holds sites that are no band
+# decision, each dispositioned as such, and misses the rest below.
+#
 # WHAT IT CANNOT SEE, each a pass where an early return exists:
 #   * a `?` on a call that decides inside its callee
 #     (`CarrierLoop::place_off`'s `edge.contact(…)?` was one). That is not
@@ -35,7 +41,9 @@
 #     visible kept reading;
 #   * a decision whose call and `?` sit on different lines;
 #   * a loop written as an iterator chain (`try_for_each`, `map(…)
-#     .collect::<Result<…>>()?`), or a header split over lines;
+#     .collect::<Result<…>>()?`), a header split over lines, or a loop
+#     that is an expression (`let x = loop {`), whose header does not
+#     start its line;
 #   * a `?` ahead of a later read outside any loop (two reads in
 #     sequence).
 set -euo pipefail

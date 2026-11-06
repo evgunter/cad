@@ -140,26 +140,28 @@ pub struct Meetings<T: geom_core::Real> {
 /// Why [`meet`] gave no answer.
 #[derive(Clone, Copy, Debug)]
 pub enum MeetFault {
-    /// A decision fell in the band's gap.
+    /// A decision fell in the band's gap. Ranked by its margin.
     Escalated(Indeterminate),
     /// A root finder read the pair in the band's gap where they can meet
     /// ([`RootRefusal::Touch`]): a meeting in band, which escalates where
     /// the spans are the model's and is the probe's where the caller
-    /// chose one.
+    /// chose one. Ranked by its margin.
     Touch(Indeterminate),
     /// A root finder, a meter or the walk's budget reached its limit
-    /// before it could certify the candidates.
+    /// before it could certify the candidates. Unsettled: no margin, and
+    /// a coarser band may settle it.
     Unsettled(Unsettled),
-    /// A pose the pair's arm has no closed form for.
+    /// A pose the pair's arm has no closed form for. A limit.
     Unsupported {
         /// The pose.
         pose: &'static str,
     },
-    /// A carrier is not of the kind its arm reads.
+    /// A carrier is not of the kind its arm reads. An abort: a kernel
+    /// fault.
     Desync,
     /// Two readings of the pose contradict each other, which their
     /// definitions rule out but for rounding: a kernel fault, never a
-    /// pose.
+    /// pose. An abort.
     Contradiction {
         /// The readings.
         readings: &'static str,
@@ -168,9 +170,7 @@ pub enum MeetFault {
 
 impl MeetFault {
     /// What this refusal is to a ladder over the readings that meet it
-    /// ([`crate::ladder::Refusal`]), as each variant's docs state it: a
-    /// decision or a meeting in band by its margin, a reading that
-    /// reached its limit unsettled, a pose with no closed form a limit.
+    /// ([`crate::ladder::Refusal`]), as each variant's docs state it.
     ///
     /// # Errors
     ///

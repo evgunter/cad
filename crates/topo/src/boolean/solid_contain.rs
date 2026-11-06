@@ -5157,28 +5157,48 @@ const AT_INFINITY_ENCLOSURE: crate::props::RoleNames =
     crate::props::RoleNames::one("bool_point_in_solid_infinity_enclosure");
 
 /// **The census's material probe ranks this door's refusals by their
-/// standing** ([`PointInSolidError::refusal`], read by
-/// [`crate::census::probe_vertices`]): a refusal of the whole query stops
-/// the probe ahead of a later vertex inside; a limit outranks an in-band
-/// refusal read before it; and a vertex inside still answers past an
-/// in-band one. Fed the readings directly, since no body a constructor
-/// builds refuses two ways in one probe.
+/// standing** ([`PointInSolidError::refusal`], read through
+/// [`crate::census::probe_vertices`], which states each refusal with the
+/// census's own reason): a refusal of the whole query stops the probe
+/// ahead of a later vertex inside; a limit outranks an in-band refusal
+/// read before it; a vertex inside still answers past an in-band one;
+/// and a vertex the census answered in band
+/// ([`crate::census::answered_in_band`]) is passed, its refusal unread.
+/// Fed the readings directly, since no body a constructor builds refuses
+/// two ways in one probe.
 #[cfg(test)]
 mod census_probe_ranking {
     use super::{PointInSolidError, SolidContainment};
-    use crate::census::{Probe, probe_vertices};
-    use crate::entity::{SolidKey, VertexKey};
+    use crate::census::{Probe, Undecided, answered_in_band, probe_vertices};
+    use crate::entity::{EntityId, SolidKey, VertexKey};
+    use crate::validate::Undecidable;
 
-    fn probe(readings: Vec<Result<SolidContainment, PointInSolidError>>) -> Probe {
-        let vertices: Vec<_> = (0..readings.len())
-            .map(|i| (VertexKey::default(), i))
-            .collect();
+    fn keys() -> (VertexKey, VertexKey) {
+        let mut keys = slotmap::SlotMap::<VertexKey, ()>::with_key();
+        (keys.insert(()), keys.insert(()))
+    }
+
+    /// The probe over `readings`, one vertex each, the first two `keys`,
+    /// with the census's exemption over `answered`.
+    fn probe(
+        readings: Vec<Result<SolidContainment, PointInSolidError>>,
+        answered: &[((EntityId, EntityId), Undecidable)],
+    ) -> Probe {
+        let (a, b) = keys();
+        let vertices: Vec<_> = [a, b].into_iter().zip(0..readings.len()).collect();
+        let solid_of = |id| match id {
+            EntityId::Solid(s) => Some(s),
+            _ => None,
+        };
         probe_vertices(
             &vertices,
             |i| readings[i].clone(),
-            |e| (e.refusal(), e.summary()),
-            |_| false,
+            |v| answered_in_band(answered, solid_of, SolidKey::default(), v),
         )
+    }
+
+    fn what(e: &PointInSolidError) -> &'static str {
+        Undecided::of_point_in_solid(e).what()
     }
 
     #[test]
@@ -5187,33 +5207,55 @@ mod census_probe_ranking {
             solid: SolidKey::default(),
         };
         assert_eq!(
-            probe(vec![Err(gone()), Ok(SolidContainment::In)]),
-            Probe::Refused(gone().summary()),
+            probe(vec![Err(gone()), Ok(SolidContainment::In)], &[]),
+            Probe::Refused(what(&gone())),
             "a solid that is not there refuses the whole query: no later vertex is read"
         );
         assert_eq!(
-            probe(vec![
-                Err(PointInSolidError::RayExhausted),
-                Err(PointInSolidError::ZeroVolumeBody)
-            ]),
-            Probe::Refused(PointInSolidError::ZeroVolumeBody.summary()),
+            probe(
+                vec![
+                    Err(PointInSolidError::RayExhausted),
+                    Err(PointInSolidError::ZeroVolumeBody)
+                ],
+                &[]
+            ),
+            Probe::Refused(what(&PointInSolidError::ZeroVolumeBody)),
             "a limit outranks an in-band refusal read before it"
         );
+        let (first, _) = keys();
         assert_eq!(
-            probe(vec![
-                Err(PointInSolidError::RayExhausted),
-                Ok(SolidContainment::In)
-            ]),
-            Probe::In(VertexKey::default()),
+            probe(
+                vec![
+                    Err(PointInSolidError::RayExhausted),
+                    Ok(SolidContainment::In)
+                ],
+                &[]
+            ),
+            Probe::In(keys().1),
             "a vertex inside answers past an in-band refusal"
         );
         assert_eq!(
-            probe(vec![
-                Err(PointInSolidError::RayExhausted),
-                Ok(SolidContainment::Out)
-            ]),
-            Probe::Refused(PointInSolidError::RayExhausted.summary()),
+            probe(
+                vec![
+                    Err(PointInSolidError::RayExhausted),
+                    Ok(SolidContainment::Out)
+                ],
+                &[]
+            ),
+            Probe::Refused(what(&PointInSolidError::RayExhausted)),
             "with no vertex inside, the kept refusal refuses"
+        );
+        let answered = [(
+            (
+                EntityId::Vertex(first),
+                EntityId::Solid(SolidKey::default()),
+            ),
+            Undecidable::ThinInBand,
+        )];
+        assert_eq!(
+            probe(vec![Err(gone()), Ok(SolidContainment::Out)], &answered),
+            Probe::Clear,
+            "a vertex answered in band is passed, even where its refusal would abort"
         );
     }
 }

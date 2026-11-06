@@ -134,7 +134,6 @@
 use geom::Conic;
 use geom::cover::{Cover, Site};
 use geom_brep::ExtentBall;
-use geom_brep::ladder::{Answering, Climb, Rung, climb};
 use geom_brep::recourse::{LeverOnly, RefusedArm, RefusedSide, SizedDecision, SizedPass};
 use geom_core::period::{Exact, Extent, Period, Turn, TurnRow, TurnRows, TurnUndecided, Within};
 use geom_core::{
@@ -306,20 +305,6 @@ pub(crate) struct ReadEscalation {
     pub(crate) escalation: Escalation,
     /// The diagnostic (named predicate inside).
     pub(crate) diag: Indeterminate,
-}
-
-impl ReadEscalation {
-    /// What this escalation is to a ladder ([`geom_brep::ladder::Refusal`]):
-    /// a margin ranked by itself, and a straddle a limit, since no
-    /// tolerance narrows two bounds' enclosure.
-    #[must_use]
-    const fn refusal(&self) -> geom_brep::ladder::Refusal {
-        use geom_brep::ladder::Refusal;
-        match self.escalation {
-            Escalation::Margin => Refusal::Margin(self.diag),
-            Escalation::Straddle => Refusal::Limit,
-        }
-    }
 }
 
 impl From<Indeterminate> for ReadEscalation {
@@ -1362,14 +1347,16 @@ pub(crate) struct OnLoop<T: geom_core::Real> {
 impl<T: Decide> CarrierLoop<T> {
     /// **The boundary pass**: [`LoopEdge::contact`] of `q` against each
     /// edge in turn, under `rows`, to the first that places it on the
-    /// edge or at an end: a ladder ([`climb`], [`Answering::First`]: which
-    /// edge holds `q` is the answer), so an edge whose reading escalates
-    /// refuses only where no later edge places `q`.
+    /// edge or at an end.
+    ///
+    /// Which edge holds `q` is the answer (its key is what the face door
+    /// reports, `FaceContainment::OnEdge`), so an edge read in band may be
+    /// the true holder and no later edge answers past it: the first
+    /// escalation refuses.
     ///
     /// # Errors
     ///
-    /// Where no edge places `q` and one escalated, the escalation the
-    /// ladder ranks first ([`ReadEscalation::refusal`]).
+    /// The first edge's escalation.
     pub(crate) fn place_off(
         self,
         q: Point3<T>,
@@ -1378,28 +1365,23 @@ impl<T: Decide> CarrierLoop<T> {
     ) -> Result<Result<OffLoop<T>, OnLoop<T>>, ReadEscalation> {
         let n = self.verts.len();
         let mut off = Vec::with_capacity(n);
-        let climbed = climb(
-            Answering::First,
-            self.edges.iter().enumerate(),
-            |(i, edge)| match edge.contact((self.verts[i], self.verts[(i + 1) % n]), q, rows, band)
+        let mut hit = None;
+        for (i, edge) in self.edges.iter().enumerate() {
+            match edge
+                .contact((self.verts[i], self.verts[(i + 1) % n]), q, rows, band)?
+                .off()
             {
-                Ok(contact) => match contact.off() {
-                    Ok(reading) => {
-                        off.push(reading);
-                        Rung::Passes
-                    }
-                    Err(on) => Rung::Answers((i, on)),
-                },
-                Err(why) => why.refusal().rung(why),
-            },
-        );
-        match climbed {
-            Climb::Passed => Ok(Ok(OffLoop { lp: self, off })),
-            Climb::Answered {
-                answer: (edge, on), ..
-            } => Ok(Err(OnLoop { lp: self, edge, on })),
-            Climb::Undecided(why) => Err(why),
+                Ok(reading) => off.push(reading),
+                Err(on) => {
+                    hit = Some((i, on));
+                    break;
+                }
+            }
         }
+        Ok(match hit {
+            None => Ok(OffLoop { lp: self, off }),
+            Some((edge, on)) => Err(OnLoop { lp: self, edge, on }),
+        })
     }
 }
 
@@ -2219,13 +2201,13 @@ mod tests {
     use super::*;
     use geom_brep::recourse::Reading;
 
-    /// **An edge read in band refuses only where no later edge places
-    /// the point** ([`CarrierLoop::place_off`] climbs its edges): a point
-    /// at the band's distance past a square's corner along its second
-    /// edge lies in band of the first edge and on the second, which
-    /// answers.
+    /// **An edge read in band refuses ahead of a later edge that places
+    /// the point** ([`CarrierLoop::place_off`]): which edge holds the
+    /// point is the face door's answer, and the edge in band may be it. A
+    /// point at the band's distance past a square's corner along its
+    /// second edge lies in band of the first edge and on the second.
     #[test]
-    fn a_later_edge_places_the_point_past_an_edge_in_band() {
+    fn an_edge_in_band_refuses_ahead_of_a_later_edge_that_places_the_point() {
         let band = Band::new(1e-9, 1e-8).expect("a valid band");
         let p = |x: f64, y: f64| Point3::new(x, y, 0.0);
         let square = || CarrierLoop {
@@ -2234,26 +2216,13 @@ mod tests {
             edges: (0..4).map(|_| LoopEdge::Chord).collect(),
             covers: Vec::new(),
         };
-        match square().place_off(p(1.0, 5e-9), WALK_ROWS, band) {
+        assert!(
+            square().place_off(p(1.0, 5e-9), WALK_ROWS, band).is_err(),
+            "the first edge in band refuses: it may be the edge that holds the point"
+        );
+        match square().place_off(p(1.0, 0.5), WALK_ROWS, band) {
             Ok(Err(OnLoop { edge, .. })) => assert_eq!(edge, 1, "the second edge holds the point"),
-            Ok(Ok(_)) => panic!("the point is on the second edge, not off the loop"),
-            Err(e) => panic!("the second edge answers past the first in band, not {e:?}"),
-        }
-        match square().place_off(p(0.5, 5e-9), WALK_ROWS, band) {
-            Err(e) => assert!(
-                !e.diag.margin.is_invalid(),
-                "with no edge placing it, the edge in band refuses"
-            ),
-            Ok(_) => panic!("the first edge reads the point in band"),
-        }
-        let mut poisoned = square();
-        poisoned.verts[2] = p(1.0, f64::NAN);
-        match poisoned.place_off(p(0.5, 5e-9), WALK_ROWS, band) {
-            Err(e) => assert!(
-                e.diag.margin.is_invalid(),
-                "a poisoned edge is a limit, ranked ahead of the earlier edge in band"
-            ),
-            Ok(_) => panic!("no edge places the point"),
+            _ => panic!("a point on the second edge, clear of the first, is on it"),
         }
     }
 
