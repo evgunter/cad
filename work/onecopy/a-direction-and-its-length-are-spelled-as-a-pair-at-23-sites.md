@@ -2,7 +2,7 @@
 id: a-direction-and-its-length-are-spelled-as-a-pair-at-23-sites
 kind: issue
 title: 23 sites spell (v / |v|, |v|) by hand beside Vec3::normalize: give the pair one home (Vec3::direction_and_length through the same prescale)
-status: open
+status: dispatched
 opened: 2026-11-06
 priority: P2
 cost: M
