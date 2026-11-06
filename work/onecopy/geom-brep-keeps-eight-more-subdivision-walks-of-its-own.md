@@ -25,3 +25,16 @@ Blind spot: the pattern matches only `while let … pop()`. A second pass looked
 - `pcurve_cache/projected.rs` `refine` (`depth: u32`, recursing on halves). It is depth-first halving, and the eighth walk here.
 
 That pass cannot see a recursion whose depth is carried another way (a width, or a level folded into a struct).
+
+## Outcome (`onecopy/spline-walks`)
+
+Six walks are ported onto `geom_core::bisect::bisect_within`, each reading the same pieces in the same order and refusing at the same point:
+- `pair_section/spline_implicit/sweep.rs`: `Budget::new(SSI_MAX_CELLS)`.
+- `pair_section/gap.rs`: `GAP_CELLS`, in the visit.
+- `pair_section/ruling.rs`: `COVERAGE_CELLS` / `COVERAGE_DEPTH`, in the visit; its roots last first, as read before.
+- `pcurve_cache/projected.rs`: the `parts` walk (`LEVER_DEPTH`) and the recursive `refine` (`MAX_REFINE`), both depth caps in the visit.
+- `chart_singularity.rs`. **Correction:** this walk is bisect-shaped. Its last-first order is only the order of its roots and halves, which the port passes unchanged. Its degrade-past-budget is a halving wall in the visit, which settles a piece rather than halving it.
+
+Two stay apart, each with its reason stated at the site:
+- `pcurve_cache/spline_incidence.rs`: best first from a `BinaryHeap`, not depth first.
+- `pcurve_cache.rs`'s dyadic cover. **Correction:** the list above called it bisect-shaped, and it is not. A span is replaced by one span (its re-read clipped to the window) or by the one or two `halves` the window keeps, where a bisect step halves into exactly two.

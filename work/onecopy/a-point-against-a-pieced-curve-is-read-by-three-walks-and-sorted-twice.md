@@ -24,3 +24,19 @@ They read different balls (a carrier's speed-bound reach, against `pieced_arc`'s
 The `Unwalked` arm reaches the same `SplitJoinError::SectionUnwalked` both ways, but the `Escalated` and `Desync` arms are sorted twice. A `From<SiteRefusal> for SplitJoinError` (with the face) would be the one home.
 
 **The census's own spelling of a walk's refusal.** `topo::census::curved` `on_interior_at` (`crates/topo/src/census/curved.rs`) maps `geom::PieceWalkRefusal` to its own `WALK_EXHAUSTED` / `WALK_UNBOUNDED` strings, which it then parses back (`Why::Exhausted` / `Why::Unbounded`). It sits beside `PieceWalkRefusal`'s `Display` and `recourse`. It runs parallel to the join's rendering, not through it.
+
+## Outcome (`onecopy/spline-walks`)
+
+**Correction: the three walks were never one question.** They already share one home with the stop rule as a parameter: `geom::Curve3::point_walk`, whose visit is the stop rule. Each now states its question at its site, pointing at the others:
+- `clear_of` decides against the band, logged, and returns the deciding reading.
+- `ArcPieces::clear` reads the caller's unlogged lever as a bool.
+- `pieced_arc::contact` places the point (End/On/Off) on its own ball cover.
+
+**The two `SiteRefusal` sorts stay two vocabularies:**
+- chord_join's inline match is now one `From<(FaceKey, SiteRefusal)> for SplitJoinError`.
+- `join::site_refusal` states why the Boolean keeps its own: its in-band site is the section's coincidence decision, with that decision's recourse.
+
+**The census's parallel spelling is gone:**
+- `census::curved` pushes `geom::PieceWalkRefusal::sentence()` and reads it back through `PieceWalkRefusal::of_sentence`.
+- `link::EdgeTangentUnread`'s `Exhausted`/`Unbounded` arms are now one `Unwalked(geom::PieceWalkRefusal)`.
+- The census's rendered sentence for a walk refusal moves to the payload's, pinned by `census::curved::tests::an_unwalked_edge_reads_back_as_its_walk_refusal`.
