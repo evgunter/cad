@@ -8,6 +8,7 @@ opened: 2026-11-06
 closed: 2026-11-06
 pr: 6571
 branch: onecopy/spline-walks
+refs: [census-reads-its-contact-refusals-by-string-equality]
 ---
 
 
@@ -45,4 +46,4 @@ The `Unwalked` arm reaches the same `SplitJoinError::SectionUnwalked` both ways,
 - Pinned by `census::curved::tests::an_unwalked_edge_reads_back_as_its_walk_refusal`, which checks the `what` text and the round trip, and by `census::link_faces_ranking` for both standings.
 - Nothing rendered moved: `NotCertifiable` renders no `what`.
 
-**What is left:** the census still identifies the walk refusal by **string equality on `what`** (`edge_tangent_refusal`), as it does for its other `NO_*` reasons. A typed `what` on `ContactRefusal::NotCertifiable`, or a typed census refusal, would end the round trip.
+**What is left** (`census-reads-its-contact-refusals-by-string-equality`): the census still identifies the walk refusal by **string equality on `what`** (`edge_tangent_refusal`), as it does for its other `NO_*` reasons. A typed `what` on `ContactRefusal::NotCertifiable`, or a typed census refusal, would end the round trip.
