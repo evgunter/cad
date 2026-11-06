@@ -383,3 +383,5 @@
   - The tilt residues are narrowed to 2 basin plus 2 extreme.
   - The span_rows red: the pin was wrong (`Azimuth::near` reads a zero direction as its reference), and it is probe-gated, never run in CI. `ray_wall_margin_twins` is the same class and filed.
   FULL review sent to `session_013mPGJ3HVYqYAoquA4iThSZ`.
+
+- 2026-11-06 — Gave the curve-pair-tidy lane its next unit: the harmonic phases' cut side, and whether the chart's cut-side choice can leave the log. It goes on a new branch, or on its own branch after 6541 merges.

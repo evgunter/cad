@@ -2,7 +2,7 @@
 id: the-charts-cut-side-choice-may-leave-the-log-once-measured
 kind: issue
 title: Whether the chart's cut-side choice (pcurve_chart_cut_side) is a renaming that may leave the log is unmeasured: sym11, m10_10, r2_rounded_pad, revalue and the census goldens may read it by name
-status: open
+status: dispatched
 opened: 2026-11-03
 priority: P2
 cost: M
