@@ -15,7 +15,7 @@
 //! band: the walk names it as the edge it could not cross
 //! ([`super::containment::Uncrossable`]).
 
-use geom_brep::ladder::Evidence;
+use geom_brep::ladder::{Answering, Climb, Evidence, Refusal, Rung, climb};
 use geom_core::bisect::{Step, bisect};
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
 
@@ -90,25 +90,53 @@ pub(crate) trait PiecedArc<T: Decide> {
     fn cross(&self, piece: &Self::Piece, ray: Ray<T>, band: Band) -> Option<usize>;
 
     /// **Where `q` sits against the arc.** `End` within the band of an
-    /// end; `On` within the band of a point of the arc; `Off` once every
-    /// piece's ball is definitely clear of `q`.
+    /// end; `On` within the band of a point of the arc, both ends decided
+    /// clear of `q`; `Off` once every piece's ball is definitely clear of
+    /// `q`.
+    ///
+    /// The ends are the piece walk's premise, not rungs beside it: `On`
+    /// says `q` is clear of both ends, so an end read in band blocks it.
+    /// The two ends are one ladder ([`climb`], [`Answering::Any`]: either
+    /// end decided at `q` is `End`), and the walk runs only where both
+    /// ends are decided clear.
     ///
     /// # Errors
     ///
-    /// [`ArcRefusal::Escalated`]: an in-band distance to an end; or,
-    /// where a piece whose ball is within the band's coincidence
-    /// threshold is settled neither way and no other piece puts `q` on
-    /// the arc, the in-band margin it was read on.
-    /// [`ArcRefusal::Unsettled`] where a piece outlasts the depth or the
-    /// piece budget before its ball is within the band.
+    /// An end read in band where the other end is not decided at `q`:
+    /// [`ArcRefusal::Escalated`], the ends' kept reading ranked
+    /// ([`Evidence`]: a poisoned margin a limit). Else, where no piece
+    /// places `q` definitely, the walk's kept reading ranked:
+    /// [`ArcRefusal::Escalated`] for a piece whose ball is within the
+    /// band's coincidence threshold settled neither way, carrying the
+    /// margin it was read on (a poisoned one a limit, ahead of every
+    /// margin in band); else [`ArcRefusal::Unsettled`] where a piece
+    /// outlasts the depth or the piece budget before its ball is within
+    /// the band.
     fn contact(&self, q: Point3<T>, rows: ArcRows, band: Band) -> Result<ArcHit, ArcRefusal> {
-        for end in self.ends() {
-            if decide(rows.end, Margin::norm3(q - end), band)? == Sign::Zero {
-                return Ok(ArcHit::End);
+        let ends = climb(Answering::Any, self.ends(), |end| {
+            match decide(rows.end, Margin::norm3(q - end), band) {
+                Ok(Sign::Zero) => Rung::Answers(ArcHit::End),
+                Ok(_) => Rung::Passes,
+                Err(diag) => Rung::kept(diag).map_kept(ArcRefusal::Escalated),
             }
+        });
+        match ends {
+            Climb::Answered { answer, .. } => Ok(answer),
+            Climb::Undecided(why) => Err(why),
+            Climb::Passed => self.pieces_contact(q, rows, band),
         }
-        // What the leaves no reading settled kept ([`Evidence`]): a
-        // margin in band ahead of a piece that outlasted the walk.
+    }
+
+    /// The piece walk of [`Self::contact`]: a point of the arc within the
+    /// band of `q` answers `On`, every piece clear reads `Off`, and
+    /// otherwise what the leaves no reading settled kept refuses, ranked
+    /// ([`Evidence`]).
+    fn pieces_contact(
+        &self,
+        q: Point3<T>,
+        rows: ArcRows,
+        band: Band,
+    ) -> Result<ArcHit, ArcRefusal> {
         let mut kept = Evidence::default();
         let walk = bisect(self.roots(), |p| {
             let b = self.ball(&p);
@@ -133,7 +161,7 @@ pub(crate) trait PiecedArc<T: Decide> {
             }
             if matches!(decide(rows.leaf, Margin::of(b.reach), band), Ok(Sign::Zero)) {
                 match read {
-                    Some(diag) => kept.in_band(ArcRefusal::Escalated(diag)),
+                    Some(diag) => kept.keep(Refusal::Margin(diag), ArcRefusal::Escalated(diag)),
                     None => kept.unsettled(ArcRefusal::Unsettled),
                 }
                 return Step::Settled;
@@ -202,5 +230,118 @@ pub(crate) enum ArcRefusal {
 impl From<Indeterminate> for ArcRefusal {
     fn from(diag: Indeterminate) -> Self {
         Self::Escalated(diag)
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic)]
+mod tests {
+    use geom_core::{Band, MarginDiag, Point3};
+
+    use super::{ArcHit, ArcRefusal, ArcRows, PieceBall, PiecedArc, Ray};
+
+    const ROWS: ArcRows = ArcRows {
+        end: "point_in_arc_loop_spline_end",
+        clear: "point_in_arc_loop_spline_clear",
+        on: "point_in_arc_loop_spline_on",
+        leaf: "point_in_arc_loop_spline_leaf",
+    };
+
+    fn band() -> Band {
+        Band::new(1e-9, 1e-8).expect("a valid band")
+    }
+
+    fn at(x: f64) -> Point3<f64> {
+        Point3::new(x, 0.0, 0.0)
+    }
+
+    /// An arc read as hand-placed leaves: each piece a ball of no
+    /// reach, so every piece is a leaf and none is halved.
+    struct Placed {
+        ends: [Point3<f64>; 2],
+        leaves: Vec<Point3<f64>>,
+    }
+
+    impl PiecedArc<f64> for Placed {
+        type Piece = usize;
+        fn ends(&self) -> [Point3<f64>; 2] {
+            self.ends
+        }
+        fn roots(&self) -> Vec<usize> {
+            (0..self.leaves.len()).collect()
+        }
+        fn depth(_: &usize) -> u32 {
+            0
+        }
+        fn halves(&self, _: usize) -> [usize; 2] {
+            panic!("every placed piece is a leaf")
+        }
+        fn ball(&self, piece: &usize) -> PieceBall<f64> {
+            let c = self.leaves[*piece];
+            PieceBall {
+                center: c,
+                reach: 0.0,
+                on: c,
+            }
+        }
+        fn cross(&self, _: &usize, _: Ray<f64>, _: Band) -> Option<usize> {
+            panic!("contact reads no crossing")
+        }
+    }
+
+    /// **The ends are the walk's premise** ([`PiecedArc::contact`]): the
+    /// second end decided at the point answers past the first in band,
+    /// since either end is `End`; but an end in band refuses ahead of a
+    /// piece through the point, since `On` says the point is clear of
+    /// both ends.
+    #[test]
+    fn an_end_in_band_blocks_the_walk_but_not_the_other_end() {
+        let q = at(0.0);
+        let end_at = Placed {
+            ends: [at(5e-9), at(0.0)],
+            leaves: vec![at(10.0)],
+        };
+        assert!(
+            matches!(end_at.contact(q, ROWS, band()), Ok(ArcHit::End)),
+            "the second end at the point answers past the first in band"
+        );
+        let piece_on = Placed {
+            ends: [at(5e-9), at(10.0)],
+            leaves: vec![at(0.0)],
+        };
+        assert!(
+            matches!(
+                piece_on.contact(q, ROWS, band()),
+                Err(ArcRefusal::Escalated(_))
+            ),
+            "an end in band refuses ahead of a piece through the point"
+        );
+        let clear = Placed {
+            ends: [at(10.0), at(20.0)],
+            leaves: vec![at(0.0)],
+        };
+        assert!(
+            matches!(clear.contact(q, ROWS, band()), Ok(ArcHit::On(_))),
+            "with both ends decided clear, a piece through the point answers"
+        );
+    }
+
+    /// **A poisoned leaf is a limit, ranked ahead of a leaf in band read
+    /// before it** (the ladder's rule for a margin, `Kept::of`): the walk
+    /// refuses with the poisoned reading.
+    #[test]
+    fn a_poisoned_leaf_outranks_an_earlier_leaf_in_band() {
+        let arc = Placed {
+            ends: [at(10.0), at(20.0)],
+            leaves: vec![at(5e-9), at(f64::NAN)],
+        };
+        match arc.contact(at(0.0), ROWS, band()) {
+            Err(ArcRefusal::Escalated(diag)) => assert_eq!(
+                diag.margin,
+                MarginDiag::INVALID,
+                "the poisoned leaf's reading refuses, not the in-band one's"
+            ),
+            other => panic!("the leaves refuse in band, not {other:?}"),
+        }
     }
 }

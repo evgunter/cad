@@ -195,18 +195,22 @@ pub enum Boundary<T: geom_core::Real> {
 #[derive(Clone, Copy, Debug)]
 pub enum BoundaryRefusal {
     /// Where a boundary vertex sits on the span fell in the band's gap.
+    /// Ranked by its margin.
     Escalated(Indeterminate),
-    /// A decision of the meeting reading fell in the band's gap.
+    /// A decision of the meeting reading fell in the band's gap. Ranked
+    /// by its margin.
     Meeting(Indeterminate),
     /// The span and a boundary edge meet in band ([`MeetFault::Touch`]).
+    /// Ranked by its margin.
     Touch(Indeterminate),
     /// A reading could not run: a root finder, a meter or a walk that
     /// could not certify, or a pose with no closed form. Nothing is known
     /// of where the member meets the span, outside its window
-    /// ([`located`]) or in it.
+    /// ([`located`]) or in it. As the fault stands
+    /// ([`MeetFault::refusal`]).
     Unread(MeetFault),
     /// The meeting table misread a carrier, or two of its readings
-    /// contradict: a kernel fault, never a pose.
+    /// contradict: a kernel fault, never a pose. An abort.
     Fault {
         /// The carrier misread, or the readings that contradict.
         what: &'static str,
@@ -505,6 +509,22 @@ pub fn boundary<T: Decide>(
 }
 
 impl BoundaryRefusal {
+    /// What this refusal is to a ladder ([`crate::ladder::Refusal`]), as
+    /// each variant's docs state it.
+    ///
+    /// # Errors
+    ///
+    /// [`crate::ladder::Aborts`] for a kernel fault.
+    pub const fn refusal(&self) -> Result<crate::ladder::Refusal, crate::ladder::Aborts> {
+        match self {
+            Self::Escalated(diag) | Self::Meeting(diag) | Self::Touch(diag) => {
+                Ok(crate::ladder::Refusal::Margin(*diag))
+            }
+            Self::Unread(fault) => fault.refusal(),
+            Self::Fault { .. } => Err(crate::ladder::Aborts),
+        }
+    }
+
     /// A meeting reading's refusal, as the pass types it.
     #[must_use]
     pub fn of(fault: MeetFault) -> Self {

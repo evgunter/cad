@@ -28,7 +28,7 @@ use bvh::test_support::ray;
 use geom_core::{Point3, Vec3};
 
 use crate::{
-    Dimension, DocEdit, Expr, Formula, HitTestError, LoopProgram, Node, PickHit, ProfileDoc,
+    Dimension, DocEdit, Formula, HitTestError, LoopProgram, Node, PickHit, ProfileDoc,
     ProfileProgram, RecipeNodeId,
 };
 
@@ -101,22 +101,12 @@ pub fn scratch(tol: geom_core::Tol) -> ProfileDoc {
     ProfileDoc::empty_derived("scratch", tol)
 }
 
-/// The stored node `node` lowers to in `doc`: what the edit door would
-/// write for it, every variable it mints minted into `doc`, for a row
-/// that places a node in a document by hand.
-///
-/// # Panics
-///
-/// If `node` does not lower in `doc`.
-pub fn stored(doc: &mut ProfileDoc, node: &crate::AuthoredNode) -> Node<ProfileProgram> {
-    crate::edit::lower_node_into(doc, node).expect("a node the document can answer lowers")
-}
-
 /// **A stored node read as given**: every slot lowered into `doc` as
-/// [`stored`] lowers it, and every operand stored as the read it names
-/// with no door around it — a variable by id as itself, a node or a
-/// port as the id `read` hands for it — for a row about a node's own
-/// shape, whose operands need name no live output.
+/// the edit door lowers it, every variable it mints minted into `doc`,
+/// and every operand stored as the read it names with no door around
+/// it — a variable by id as itself, a node or a port as the id `read`
+/// hands for it — for a row about a node's own shape, whose operands
+/// need name no live output.
 ///
 /// # Panics
 ///
@@ -217,15 +207,6 @@ pub fn as_written(doc: &ProfileDoc, node: &Node<ProfileProgram>) -> crate::Autho
     node.written(doc)
 }
 
-/// The stored expression `formula` lowers to where no name is held.
-///
-/// # Panics
-///
-/// If `formula` reads a variable by name.
-pub fn stored_expr(formula: &Formula) -> Expr {
-    Expr::try_from(formula).expect("a formula with no name leaf lowers in any scope")
-}
-
 /// The stored program `program` lowers to in `doc`, its plane read as
 /// given ([`stored_reading`]): a plane naming node `n` is stored as the
 /// read with `n`'s own id, for a row about a program's own shape,
@@ -243,7 +224,8 @@ pub fn stored_program(doc: &mut ProfileDoc, program: &ProfileProgram<Formula>) -
     }
 }
 
-/// The stored loop `program` lowers to in `doc` ([`stored`]).
+/// The stored loop `program` lowers to in `doc`, every variable it
+/// mints minted into `doc`.
 ///
 /// # Panics
 ///

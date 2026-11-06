@@ -169,7 +169,7 @@ pub(crate) fn face_plane<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<(Po
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum NormalAtError {
     /// A margin landed in the band: the torus's own convention, or the
-    /// one certifying `p` on the chart.
+    /// one certifying `p` on the chart. Ranked by its margin.
     Escalated {
         /// Which of the three decisions escalated.
         decision: NormalDecision,
@@ -178,7 +178,7 @@ pub enum NormalAtError {
     },
     /// The face's torus is definitely outside the ring convention: a
     /// shape with no regular normal on its tube, refused with the lever
-    /// the in-band arm of the same half names.
+    /// the in-band arm of the same half names. A limit: a decided shape.
     DegenerateTorus {
         /// The half of the convention that refused.
         convention: TorusConvention,
@@ -188,12 +188,14 @@ pub enum NormalAtError {
     /// `p` is definitely NOT on the face's surface, so the surface has
     /// no normal there to fold a sense into. The door's contract is a
     /// point ON the face, so this is the caller's invariant, not a
-    /// remainder.
+    /// remainder. An abort.
     OffSurface,
     /// `p` is not definitely off a cone face's surface and stands within
     /// the band of its axis, so near the apex, where the face has no
     /// tangent plane: definite or in band, there is no normal to answer
-    /// with.
+    /// with. In band: it carries no reading to tell a point at the apex
+    /// from one in band of the axis, and a tighter tolerance may part the
+    /// latter from it.
     AtConeApex {
         /// The band the distance off the axis was classified against.
         band: Band,
@@ -202,7 +204,8 @@ pub enum NormalAtError {
     /// chart's normal is not continuous across (an interior knot run of
     /// multiplicity at least the degree, a closed chart's seam): the face
     /// has a normal on each side, and no one of them is the normal there
-    /// ([`geom_brep::chart_normal_at`]).
+    /// ([`geom_brep::chart_normal_at`]). Ranked by its distance's margin
+    /// where the distance is in band; a limit where it is decided zero.
     SplineCrease {
         /// The band the distance from the line was classified against.
         band: Band,
@@ -211,13 +214,41 @@ pub enum NormalAtError {
     },
     /// A spline face's chart point lies within the band of a point where
     /// `S_u × S_v` vanishes (a pole, coincident control rows): the face
-    /// has no normal there ([`geom_brep::regular_jet`]).
+    /// has no normal there ([`geom_brep::regular_jet`]). Ranked as
+    /// [`Self::SplineCrease`] is.
     SplineIrregular {
         /// The band the distance from the point was classified against.
         band: Band,
         /// That distance, as decided: zero, or in band.
         reading: geom_brep::CreaseReading,
     },
+}
+
+impl NormalAtError {
+    /// What this refusal is to a ladder over the points it is read at
+    /// ([`geom_brep::ladder::Refusal`]), as each variant's docs state it.
+    ///
+    /// # Errors
+    ///
+    /// [`geom_brep::ladder::Aborts`] for a point definitely off the
+    /// face's surface: the caller's invariant broken.
+    pub const fn refusal(&self) -> Result<geom_brep::ladder::Refusal, geom_brep::ladder::Aborts> {
+        use geom_brep::ladder::{Aborts, Refusal};
+        match self {
+            Self::Escalated { diag, .. }
+            | Self::SplineCrease {
+                reading: Err(diag), ..
+            }
+            | Self::SplineIrregular {
+                reading: Err(diag), ..
+            } => Ok(Refusal::Margin(*diag)),
+            Self::AtConeApex { .. } => Ok(Refusal::InBand),
+            Self::DegenerateTorus { .. }
+            | Self::SplineCrease { reading: Ok(_), .. }
+            | Self::SplineIrregular { reading: Ok(_), .. } => Ok(Refusal::Limit),
+            Self::OffSurface => Err(Aborts),
+        }
+    }
 }
 
 /// Why [`spline_outward_normal_at`] could not answer.
@@ -679,6 +710,53 @@ mod tests {
     use super::{NormalAtError, TorusConvention, face_outward_normal, face_outward_normal_at};
     use crate::euler::FaceSurface;
     use geom_brep::recourse::Refused;
+
+    /// **A point near a cone's apex, or in band of a spline's crease, is
+    /// a reading in band; a crease decided zero is a limit**
+    /// ([`NormalAtError::refusal`]): kept together, the limit outranks
+    /// the in-band apex read before it.
+    #[test]
+    fn an_apex_and_a_crease_in_band_rank_below_a_decided_crease() {
+        use geom_brep::ladder::{Evidence, Refusal};
+        let in_band = geom_core::Indeterminate {
+            margin: geom_core::MarginDiag::value(5e-9),
+            band: band(),
+            predicate: Some("t"),
+            terminal_sliver: false,
+        };
+        let apex = NormalAtError::AtConeApex { band: band() };
+        let crease_in_band = NormalAtError::SplineCrease {
+            band: band(),
+            reading: Err(in_band),
+        };
+        let crease = NormalAtError::SplineCrease {
+            band: band(),
+            reading: Ok(geom_core::MarginDiag::value(0.0)),
+        };
+        assert_eq!(apex.refusal(), Ok(Refusal::InBand), "an apex is in band");
+        assert_eq!(
+            crease_in_band.refusal(),
+            Ok(Refusal::Margin(in_band)),
+            "a crease in band is ranked by its margin"
+        );
+        assert_eq!(
+            crease.refusal(),
+            Ok(Refusal::Limit),
+            "a crease decided zero is a limit"
+        );
+        let mut kept = Evidence::default();
+        kept.keep_or_abort(apex.refusal(), apex)
+            .expect("an apex is kept");
+        kept.keep_or_abort(crease.refusal(), crease)
+            .expect("a crease is kept");
+        assert!(
+            matches!(
+                kept.refusal(),
+                Some(NormalAtError::SplineCrease { reading: Ok(_), .. })
+            ),
+            "the decided crease, a limit, outranks the apex read before it"
+        );
+    }
 
     fn band() -> Band {
         Band::linear(Tol::witness()).unwrap()

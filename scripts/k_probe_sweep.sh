@@ -126,7 +126,10 @@ finish_run() {
 # probe suite needs. Three suites (the E6 driver's and two `Sym<Interval>`
 # ones) needed `interval` besides while the certified lane sat behind that
 # feature, and compiled to NOTHING without it; the feature is deleted
-# (RING-4), so they compile under `probe` alone.
+# (RING-4), so they compile under `probe` alone. Whatever else a crate's
+# own tests need (`test-support`) is on that crate's self dev-dependency,
+# not here: scripts/gates/test-support-self-edge.sh holds every manifest
+# to it.
 feats_for() {
   echo probe
 }
