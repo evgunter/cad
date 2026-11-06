@@ -858,12 +858,8 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
             let p = vertex_point(self.body, c);
             let mut at = Vec::with_capacity(2);
             for (i, q) in ends.iter().enumerate() {
-                let off = decide(ON_MEMBER_EDGE, Margin::of((p - *q).norm()), self.bnd).map_err(
-                    |source| NamingError::Escalated {
-                        predicate: ON_MEMBER_EDGE,
-                        source,
-                    },
-                )?;
+                let off = decide(ON_MEMBER_EDGE, Margin::of((p - *q).norm()), self.bnd)
+                    .map_err(|source| NamingError::Escalated { source })?;
                 if off == Sign::Zero {
                     at.push(i);
                 }
@@ -1291,10 +1287,7 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
             let gap = Margin::of((at - p).norm());
             decide(ON_MEMBER_EDGE, gap, self.bnd)
                 .map(|off| off == Sign::Zero)
-                .map_err(|source| NamingError::Escalated {
-                    predicate: ON_MEMBER_EDGE,
-                    source,
-                })
+                .map_err(|source| NamingError::Escalated { source })
         };
         let mut sides: [Option<bool>; 2] = [None, None];
         let mut piece = BTreeSet::new();
@@ -1649,12 +1642,8 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
                     continue;
                 }
                 let gap = Margin::of((vertex_point(m.body, w) - p).norm());
-                let at = decide(ON_MEMBER_EDGE, gap, self.bnd).map_err(|source| {
-                    NamingError::Escalated {
-                        predicate: ON_MEMBER_EDGE,
-                        source,
-                    }
-                })?;
+                let at = decide(ON_MEMBER_EDGE, gap, self.bnd)
+                    .map_err(|source| NamingError::Escalated { source })?;
                 if at != Sign::Zero {
                     continue;
                 }

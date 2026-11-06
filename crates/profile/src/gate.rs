@@ -11,7 +11,7 @@ use geom_core::{
 };
 
 use crate::fillet_recourse::{
-    CORNER_ANCHOR_SEPARATION_LEVER, FILLET_ENCLOSING_RECOURSE, FILLET_FIT_RECOURSE,
+    FILLET_ANCHOR_TURN_RECOURSE, FILLET_ENCLOSING_RECOURSE, FILLET_FIT_RECOURSE,
     FILLET_LEG_EXTENT_RECOURSE, FILLET_NO_CORNER_RECOURSE, FILLET_OFFSET_LEVER_RECOURSE,
     FILLET_STORED_FORM_INBAND_RECOURSE, FILLET_TURN_INBAND_RECOURSE,
 };
@@ -203,7 +203,7 @@ gates! {
     /// The swept extent from the corner forward to a circular arrival's anchor, levered to metres.
     PathCornerReachArc => "path_corner_reach_arc", Sized(COINCIDENCE_RECOURSE), "whether the corner lies short of an arc arrival's anchor";
     /// The turn BETWEEN the two carriers at the corner, levered by the anchor separation.
-    PathCornerTurn => "path_corner_turn", Sized(CORNER_ANCHOR_SEPARATION_LEVER), "whether the two carriers turn at the corner";
+    PathCornerTurn => "path_corner_turn", Sized(FILLET_ANCHOR_TURN_RECOURSE), "whether the two carriers turn at the corner";
     /// A director's length metered against zero.
     PathDirectorNorm => "path_director_norm", Sized(COINCIDENCE_RECOURSE), geom_core::DIRECTION_LENGTH_SUBJECT;
     /// The same turn read off a fillet's STORED joints by the door's stored-form re-read (`seg::joint_tangency` under this name): its levers are the stored form's, not `.tangent()`.

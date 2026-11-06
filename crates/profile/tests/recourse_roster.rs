@@ -310,7 +310,7 @@ fn the_undecided_endings_follow_the_gates_kind() {
                 "whether the two carriers turn at the corner is undecided: margin 5e-9 lies \
                  inside the ambiguity band (1e-9, 1e-8). Recourse: {}, or, if this size is \
                  intended, tighten the tolerance below 5e-10 m",
-                profile::CORNER_ANCHOR_SEPARATION_LEVER
+                profile::FILLET_ANCHOR_TURN_RECOURSE
             ),
         ),
         (

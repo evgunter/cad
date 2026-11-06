@@ -204,3 +204,6 @@ test_utils::every_suite_file_is_aggregated!();
 mod review_fillet_e2_probes;
 #[path = "review_fillet_stored_tangency_r2_probes.rs"]
 mod review_fillet_stored_tangency_r2_probes;
+
+#[path = "cusp_fillet_keeps_its_leg.rs"]
+mod cusp_fillet_keeps_its_leg;

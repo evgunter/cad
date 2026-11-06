@@ -647,10 +647,7 @@ mod tests {
             C::MissingSlot => K::MissingSlot {
                 slot: SlotId::Distance,
             },
-            C::Escalated => K::Escalated {
-                predicate: "side_of_plane",
-                source: diag(),
-            },
+            C::Escalated => K::Escalated { source: diag() },
             C::PoseRead => K::PoseRead {
                 pose: crate::VarKind::Axis,
                 fault: crate::pose::PoseReadFault::NoAxis {

@@ -138,9 +138,9 @@ use super::arc_fillet::{self, ArcCarrierScalar, carrier_tangent};
 use super::program::{ArcData, ClosedLoop, Step, Target};
 use super::verbs::{self, ArcLen, Center, DirectedPoint, PendingArc, Radius, Sweep, Via};
 use super::{
-    ArcData as SegArc, Core, Dir, FirstSeg, Flavor, HasAng, HasPos, Incoming, NoAng, NoPos, Open,
-    PAIRED, PartialPath, PathError, PendingMeta, Plain, SeamArrival, Start, Tip, WithIncoming,
-    carriers_are_identical, in_state, leg_end_tip, linear_band, seam_joint,
+    ArcData as SegArc, ByTangent, Core, Dir, FirstSeg, Flavor, HasAng, HasPos, Incoming, NoAng,
+    NoPos, Open, PAIRED, PartialPath, PathError, PendingMeta, Plain, SeamArrival, Start, Tip,
+    WithIncoming, carriers_are_identical, in_state, leg_end_tip, linear_band, seam_joint,
 };
 
 // ------------------------------------------------------------------
@@ -155,7 +155,7 @@ pub(super) fn open_ray<T: geom_core::Decide>(
     at: Point2<T>,
     dir: Dir<T>,
     radius: T,
-    by_tangent: bool,
+    by_tangent: ByTangent,
     origin_incoming: Option<Incoming<T>>,
     tol: Tol,
 ) -> Result<(), PathError<T>> {
@@ -210,7 +210,7 @@ pub(super) fn open_arc_from_tip<T: ArcCarrierScalar>(
     let meta = PendingMeta {
         bound_at: core.current_step()?,
         incoming_radius,
-        by_tangent: false,
+        by_tangent: ByTangent::No,
         origin_incoming,
         extends_carrier,
     };
@@ -224,13 +224,7 @@ pub(super) fn open_arc_from_tip<T: ArcCarrierScalar>(
 /// verb and read at every resolution site.
 fn merge_of<T: Real>(pending: &verbs::Pending<T>, meta: &PendingMeta<T>) -> bool {
     match pending {
-        verbs::Pending::Ray(_) => {
-            meta.by_tangent
-                && meta
-                    .origin_incoming
-                    .as_ref()
-                    .is_some_and(|i| i.carrier.is_none())
-        }
+        verbs::Pending::Ray(_) => meta.extends_straight_leg(),
         verbs::Pending::Arc(_) => meta.extends_carrier,
     }
 }
@@ -1367,7 +1361,7 @@ impl Open {
             Tip {
                 pos: None,
                 ang: None,
-                ang_by_tangent: false,
+                ang_by_tangent: ByTangent::No,
             },
         ))
     }
@@ -1463,7 +1457,7 @@ impl<T: ArcCarrierScalar, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
             Tip {
                 pos: None,
                 ang: None,
-                ang_by_tangent: false,
+                ang_by_tangent: ByTangent::No,
             },
         ))
     }
@@ -1560,7 +1554,7 @@ impl<T: ArcCarrierScalar> PartialPath<T, HasPos<Plain>, NoAng> {
             Tip {
                 pos: None,
                 ang: None,
-                ang_by_tangent: false,
+                ang_by_tangent: ByTangent::No,
             },
         ))
     }
@@ -1630,7 +1624,7 @@ impl<T: ArcCarrierScalar> PartialPath<T, HasPos<WithIncoming>, NoAng> {
             Tip {
                 pos: None,
                 ang: None,
-                ang_by_tangent: false,
+                ang_by_tangent: ByTangent::No,
             },
         ))
     }
@@ -1662,7 +1656,15 @@ impl<T: ArcCarrierScalar> PartialPath<T, HasPos<WithIncoming>, NoAng> {
             site: "ray extension on a tip without incoming data",
         })?;
         self.core.construct_last();
-        open_ray(&mut self.core, at, inc.ang, radius, true, Some(inc), tol)
+        open_ray(
+            &mut self.core,
+            at,
+            inc.ang,
+            radius,
+            ByTangent::Forward,
+            Some(inc),
+            tol,
+        )
     }
 
     /// The kernel behind the table's leg-end fused row (recording is
@@ -1679,7 +1681,7 @@ impl<T: ArcCarrierScalar> PartialPath<T, HasPos<WithIncoming>, NoAng> {
             Tip {
                 pos: None,
                 ang: None,
-                ang_by_tangent: false,
+                ang_by_tangent: ByTangent::No,
             },
         ))
     }

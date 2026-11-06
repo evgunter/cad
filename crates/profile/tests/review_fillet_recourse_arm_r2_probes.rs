@@ -214,8 +214,7 @@ fn r2_the_reachable_clearance_verdicts_render_their_own_sentence() {
 /// arm of `10.5 eps` it is `9.45 eps`, inside the band, while the arm
 /// itself (`10.5 eps`) is above it, so no length-shaped gate answers
 /// first and the raw carriers cross at 64 degrees rather than being
-/// parallel. The sentence's third lever — move the geometry so a real
-/// corner exists — is followed: the same corner with a leg the fillet
+/// parallel. The sentence's leg-extent lever is followed: the same corner with a leg the fillet
 /// can sit on builds and validates.
 #[test]
 fn r2_a_definite_turn_on_a_short_leg_renders_the_turn_sentence() {

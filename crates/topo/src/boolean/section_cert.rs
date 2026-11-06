@@ -472,7 +472,8 @@ pub(crate) enum Section<T: Real> {
         single: bool,
     },
     /// A classification margin is `Zero` or undecided: R-tan, naming the
-    /// predicate.
+    /// predicate ([`geom_core::UNNAMED_PREDICATE`] for an escalation that
+    /// named none).
     Tangent(&'static str),
     /// A crossing of the carriers the classification cannot place on
     /// either side of a line it reads the section by: R-order, naming the
@@ -927,7 +928,7 @@ fn torus_pair<T: Decide>(
                     }
                 }
                 AxisPose::Undecided(diag) => {
-                    Section::Tangent(diag.predicate.unwrap_or("section_axes_offset"))
+                    Section::Tangent(diag.predicate.unwrap_or(geom_core::UNNAMED_PREDICATE))
                 }
                 AxisPose::Parallel { .. } | AxisPose::Other => Section::Intractable,
             }
@@ -1770,11 +1771,8 @@ pub(super) fn of_pair_section<T: Decide>(
                 single: false,
             };
         }
-        // Every row the value decides goes through `k_stats`, which names
-        // the predicate it escalates; one with no name is the value's
-        // door itself.
         Err(SectionError::Escalated(diag)) => {
-            return Section::Tangent(diag.predicate.unwrap_or("pair_section"));
+            return Section::Tangent(diag.predicate.unwrap_or(geom_core::UNNAMED_PREDICATE));
         }
         Err(SectionError::Pinched { predicate }) => return Section::Tangent(predicate),
         Err(SectionError::Unordered { predicate }) => return Section::Unordered(predicate),

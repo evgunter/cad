@@ -5,6 +5,7 @@ title: A host's name through a part's product ⊔ moves with every edit the part
 status: open
 priority: P2
 opened: 2026-10-23
+cost: M
 ---
 
 

@@ -172,7 +172,7 @@ use geom_core::{Affine3, Arc2, Point2, Point3, Real, RigidMotion, Tol, UnitVec3}
 /// than restating the strings.
 #[cfg(any(test, feature = "test-support"))]
 pub use fillet_recourse::{
-    CORNER_ANCHOR_SEPARATION_LEVER, FILLET_ENCLOSING_RECOURSE, FILLET_FIT_RECOURSE,
+    FILLET_ANCHOR_TURN_RECOURSE, FILLET_ENCLOSING_RECOURSE, FILLET_FIT_RECOURSE,
     FILLET_FLATTENED_RECOURSE, FILLET_LEG_EXTENT_RECOURSE, FILLET_NO_CORNER_RECOURSE,
     FILLET_OFFSET_LEVER_RECOURSE, FILLET_SCENE_RESOLUTION_RECOURSE,
     FILLET_STORED_FORM_INBAND_RECOURSE, FILLET_TURN_INBAND_RECOURSE,
@@ -187,8 +187,8 @@ pub use path::program::{
 pub use path::{
     ArcCarrierScalar, ArcLen, ArcSide, ArrivesTangent, Bulge, Center, ContinueTarget, CornerReason,
     CornerRefusal, CornerWindow, EscalatedAt, LineTarget, OntoTarget, Open, PartialPath, PathError,
-    PathErrorKind, PathNoCornerReason, PointLeg, Radius, Start, Sweep, TangentArcTarget, Via,
-    circle, circle_split, rectangle,
+    PathErrorKind, PathNoCornerReason, PointLeg, Radius, Start, Sweep, TangentArcTarget, TurnLever,
+    Via, circle, circle_split, rectangle,
 };
 pub use seg::ArcRead;
 /// The path door's read-back rounding bounds and its magnitude

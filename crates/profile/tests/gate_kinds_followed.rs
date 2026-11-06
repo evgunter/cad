@@ -275,7 +275,7 @@ const DRIVEN: &[Driven] = &[
     Driven {
         id: "a straight pair's degenerate corner turn",
         gate: Gate::PathCornerTurn,
-        lever: profile::CORNER_ANCHOR_SEPARATION_LEVER,
+        lever: profile::FILLET_ANCHOR_TURN_RECOURSE,
         offers: true,
         run: |e| path(bend(0.0, e, 0.2)),
     },
@@ -612,10 +612,16 @@ fn each_fillet_lever_serves_the_gates_its_docs_name() {
             declared.push((group, name.to_string()));
         }
     }
+    // Every fillet gate, and every other gate a `Gates:` line names.
     let fillet: Vec<Gate> = Gate::ALL
         .iter()
         .copied()
-        .filter(|g| g.predicate().starts_with("fillet_"))
+        .filter(|g| {
+            g.predicate().starts_with("fillet_")
+                || declared
+                    .iter()
+                    .any(|(group, _)| group.iter().any(|n| n == g.predicate()))
+        })
         .collect();
     for gate in &fillet {
         let (_, sentence) = declared
@@ -655,5 +661,9 @@ const FILLET_LEVERS: &[(&str, &str)] = &[
     (
         "FILLET_LEG_EXTENT_RECOURSE",
         profile::FILLET_LEG_EXTENT_RECOURSE,
+    ),
+    (
+        "FILLET_ANCHOR_TURN_RECOURSE",
+        profile::FILLET_ANCHOR_TURN_RECOURSE,
     ),
 ];

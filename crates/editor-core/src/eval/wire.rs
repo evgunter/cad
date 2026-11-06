@@ -1222,12 +1222,9 @@ pub(crate) fn unit<T: Decide>(
     UnitVec3::new(v, decision.name(), band).map_err(|e| {
         refusal(e, role, |source| {
             if role == crate::placement::PLACEMENT_AXIS_ROLE {
-                NodeErrorKind::PlacementAxisEscalated {
-                    predicate: decision.name(),
-                    source,
-                }
+                NodeErrorKind::PlacementAxisEscalated { source }
             } else {
-                escalated(decision)(source)
+                NodeErrorKind::Escalated { source }
             }
         })
     })
@@ -1258,10 +1255,7 @@ fn refusal(
 /// decided under [`POSE_UNIT_NORM`]: the arm D10's pose ground keeps,
 /// [`NodeErrorKind::PoseDirectionEscalated`].
 fn pose_direction_escalated(source: geom_core::Indeterminate) -> NodeErrorKind {
-    NodeErrorKind::PoseDirectionEscalated {
-        predicate: POSE_UNIT_NORM,
-        source,
-    }
+    NodeErrorKind::PoseDirectionEscalated { source }
 }
 
 /// A named scalar slot of an evaluated node, with the typed backstop
@@ -2444,8 +2438,8 @@ fn wire_measure<'r, T: Decide + topo::AtRestPolicy + crate::mate::SolveScalar>(
         super::measure::primitive(primitive, ca, cb, band(tol)?).and_then(super::measure::finite);
     let value = measured.map_err(|refusal| match refusal {
         super::measure::PrimitiveRefusal::Unsupported(u) => NodeErrorKind::MeasureUnsupported(u),
-        super::measure::PrimitiveRefusal::Escalated { predicate, source } => {
-            NodeErrorKind::MeasureEscalated { predicate, source }
+        super::measure::PrimitiveRefusal::Escalated(source) => {
+            NodeErrorKind::MeasureEscalated { source }
         }
         super::measure::PrimitiveRefusal::NonFinite(source) => {
             NodeErrorKind::MeasureNonFinite { source }
@@ -4533,15 +4527,7 @@ fn turns_off<T: Decide>(
     band: Band,
 ) -> Result<Sign, NodeErrorKind> {
     geom_core::k_stats::decide_flagged(decision.name(), angle.max(-angle) - whole, band, "F14")
-        .map_err(escalated(decision))
-}
-
-/// `decision`, which could not be called, as the node's refusal.
-fn escalated(decision: Decision) -> impl FnOnce(geom_core::Indeterminate) -> NodeErrorKind {
-    move |source| NodeErrorKind::Escalated {
-        predicate: decision.name(),
-        source,
-    }
+        .map_err(|source| NodeErrorKind::Escalated { source })
 }
 
 // ---------------------------------------------------------------------

@@ -69,7 +69,7 @@ use geom_core::{Band, Bounds, Circles, Decide, Margin, Point2, Real, Sign, Tol, 
 
 use super::{
     ArcData, CornerReason, CornerRefusal, CornerWindow, Dir, PathError, PathNoCornerReason,
-    linear_band,
+    TurnLever, linear_band,
 };
 use crate::fillet_select::{nearest_candidate, nearest_joint};
 use crate::structure::{
@@ -207,7 +207,7 @@ impl<T: Real> FilletSide<T> {
 /// Only the PAIR-level conditions reach this: a corner the gates or the
 /// construction refuse is a fact about that corner and rides the
 /// envelope instead, with its point.
-fn no_corner<T: Real>(reason: PathNoCornerReason, radius: T) -> PathError<T> {
+fn no_corner<T: Real>(reason: PathNoCornerReason<T>, radius: T) -> PathError<T> {
     PathError::NoCornerForFillet { reason, radius }
 }
 
@@ -249,7 +249,7 @@ fn ray_circle<T: Decide>(
     match decide(Gate::PathCarrierMeet, Margin::of(margin), band) {
         Ok(Sign::Positive) => {}
         Ok(Sign::Zero) => {
-            return Err(no_corner(PathNoCornerReason::CarriersParallel, radius));
+            return Err(no_corner(PathNoCornerReason::CarriersTangent, radius));
         }
         Ok(Sign::Negative) => {
             return Err(no_corner(PathNoCornerReason::CarriersDoNotMeet, radius));
@@ -288,7 +288,7 @@ fn circle_circle<T: Decide>(
     // Concentric carriers name no corner (identical ones name every
     // point of the circle, which is worse, not better).
     let gone = PathNoCornerReason::CarriersDoNotMeet;
-    let tangent = PathNoCornerReason::CarriersParallel;
+    let tangent = PathNoCornerReason::CarriersTangent;
     for (margin, on_zero) in [
         // concentric: no transversal crossing at any radius pair
         (carriers.d(), gone),
@@ -423,9 +423,9 @@ enum CornerOutcome<T: Real> {
     /// A statement about this corner: it becomes an envelope entry,
     /// beside the corner point.
     Reason(CornerReason<T>),
-    /// A refusal that names no corner — the pair is parallel at the
-    /// derived corner, a leg has no length scale, the band failed, or
-    /// the conditioning gate aborted. First one wins, and it OUTRANKS
+    /// A refusal that names no corner — the pair's carriers touch, the
+    /// turn at the derived corner is zero at tolerance, a leg has no
+    /// length scale, the band failed, or the conditioning gate aborted. First one wins, and it OUTRANKS
     /// the envelope: a fact about the pair answers before any fact
     /// about one of its corners does.
     Whole(PathError<T>),
@@ -468,12 +468,21 @@ fn map_refusal<T: Bounds>(refusal: ArcTrimRefusal<T>, radius: T) -> CornerOutcom
             })
         }
         // The corner's turn does not clear the band at the derived
-        // corner: the same situation `path_corner_turn` names on the
-        // straight pair, and a statement about the PAIR rather than
-        // about one crossing.
-        ArcTrimRefusal::TurnInBand { .. } => {
-            CornerOutcome::Whole(no_corner(PathNoCornerReason::CarriersParallel, radius))
-        }
+        // corner: a statement about the PAIR rather than about one
+        // crossing, carrying both factors of the levered margin.
+        ArcTrimRefusal::TurnInBand {
+            sin_turn,
+            align,
+            arm,
+        } => CornerOutcome::Whole(no_corner(
+            PathNoCornerReason::TurnWithinTolerance {
+                sin_turn,
+                align,
+                lever: arm,
+                lever_of: TurnLever::ShorterLeg,
+            },
+            radius,
+        )),
         ArcTrimRefusal::NoCorner { reason, .. } => {
             CornerOutcome::Reason(CornerReason::NoTangentCircle(reason))
         }
@@ -831,8 +840,8 @@ pub(crate) fn resolve<T: Decide + Bounds>(
     // (4) the lifted ladder over the flattened joint space.
     if joints.is_empty() {
         // A whole-pair refusal OUTRANKS the envelope, as it did before
-        // the envelope existed. It is a fact about the pair — these
-        // carriers are tangent at a derived corner, a leg has no length
+        // the envelope existed. It is a fact about the pair — the turn
+        // at a derived corner is zero at tolerance, a leg has no length
         // scale, the band could not classify — so a per-corner sentence
         // beside it, or instead of it, would be a smaller and weaker
         // claim about a situation the whole pair is in. Nothing is

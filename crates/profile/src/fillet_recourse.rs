@@ -23,7 +23,9 @@
 /// legs run smoothly into each other, or double back into a cusp), and a
 /// real angle on a leg a few ε long, whose lever is the leg's extent.
 /// Pinned at both by `profile/tests/fillet_recourse_followability.rs`'s
-/// `the_turn_in_band_recourse_names_both_of_its_situations`.
+/// `the_turn_in_band_recourse_names_both_of_its_situations`. The gate's
+/// definite arm, `PathNoCornerReason::TurnWithinTolerance` on the shorter
+/// leg, ends in it too.
 /// Gates: `fillet_corner_turn`.
 #[cfg_attr(
     not(any(test, feature = "test-support")),
@@ -33,13 +35,19 @@
      `test-support`; interior in every other build"
     )
 )]
-pub const FILLET_TURN_INBAND_RECOURSE: &str = "if the legs run smoothly into each other, construct the tangency (.tangent()); \
-     if they double back, the cusp is refused; if the angle is real, give the shorter \
-     leg a longer extent; otherwise move the geometry";
+pub const FILLET_TURN_INBAND_RECOURSE: &str = "if the angle is real, give the shorter leg a longer extent; if the legs \
+     continue smoothly, construct the tangency (.tangent()); if they exactly double back, the \
+     cusp is refused; otherwise move the geometry";
 
-/// The lever of an undecided corner turn on a STRAIGHT pair
-/// (`path_corner_turn`), whose margin is levered by the separation from
-/// the incoming ray's start to the arrival's anchor rather than by a leg.
+/// The lever of a straight pair's corner turn (`path_corner_turn`),
+/// undecided or zero at tolerance
+/// ([`crate::PathNoCornerReason::TurnWithinTolerance`] on the anchors'
+/// separation). The margin is levered by the separation of the incoming
+/// ray's start from the arrival anchor, and at a real angle it is short
+/// only when the corner sits close to BOTH anchors: the corner has to lie
+/// definitely ahead of the ray's start and behind the arrival anchor, so
+/// moving one anchor alone leaves the other window refusing.
+/// Gates: `path_corner_turn`.
 #[cfg_attr(
     not(any(test, feature = "test-support")),
     allow(
@@ -48,8 +56,9 @@ pub const FILLET_TURN_INBAND_RECOURSE: &str = "if the legs run smoothly into eac
      `test-support`; interior in every other build"
     )
 )]
-pub const CORNER_ANCHOR_SEPARATION_LEVER: &str =
-    "if the angle is real, move the arrival anchor farther from the ray's start";
+pub const FILLET_ANCHOR_TURN_RECOURSE: &str = "if the angle is real, move both anchors away \
+     from the corner; if the rays continue smoothly, construct the tangency (.tangent()); if \
+     they exactly double back, the cusp is refused; otherwise move the geometry";
 
 /// The lever where no corner of the requested radius may exist: the
 /// three offset-carrier clearances and the corner-side reach gate

@@ -311,7 +311,7 @@ impl crate::spoken::Say for SelectRefusal {
                         name.kind.noun(),
                         by.name(name)
                     ),
-                    crate::decision::ending(predicate, source)
+                    crate::decision::ending(Some(predicate), source)
                 )
             ),
             Self::TiedDisagrees {
