@@ -133,8 +133,8 @@
 use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
 
 use super::region::{
-    self, End, Fault, QueryFoot, Leg, Legs, Path, Paths, Region, RegionEdge, RegionRefusal, Round,
-    LegSection, circle_edge_hit, targets,
+    self, End, Fault, Leg, LegSection, Legs, Path, Paths, QueryFoot, Region, RegionEdge,
+    RegionRefusal, Round, circle_edge_hit, targets,
 };
 use super::solid_contain::PointInSolidError;
 use crate::body::Body;
@@ -386,7 +386,13 @@ enum Probe<T: geom_core::Real> {
 impl<T: Decide> Paths<T> for SphereFaceRegion<T> {
     /// The door's single legs are its rays ([`SphereFaceRegion::contains`]),
     /// read there; none is read here.
-    fn single(&self, _: QueryFoot<T>, _: bool, _: bool, _: Band) -> Result<Leg<T, Round<T>>, Fault> {
+    fn single(
+        &self,
+        _: QueryFoot<T>,
+        _: bool,
+        _: bool,
+        _: Band,
+    ) -> Result<Leg<T, Round<T>>, Fault> {
         Err(RayFault::Unread)
     }
 
@@ -1257,7 +1263,8 @@ mod tests {
                                     first_forward,
                                     then_forward,
                                 };
-                                let foot = region::QueryFoot::read(&Legs::surface(&region), p, band);
+                                let foot =
+                                    region::QueryFoot::read(&Legs::surface(&region), p, band);
                                 if let Ok(got) = region::read_path(&region, foot, path, band) {
                                     settled += 1;
                                     assert_eq!(

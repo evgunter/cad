@@ -112,8 +112,8 @@
 use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
 
 use super::region::{
-    self, End, Fault, QueryFoot, Legs, Line, Paths, Region, RegionEdge, RegionRefusal, Round, LegSection,
-    circle_edge_hit, in_band, targets,
+    self, End, Fault, LegSection, Legs, Line, Paths, QueryFoot, Region, RegionEdge, RegionRefusal,
+    Round, circle_edge_hit, in_band, targets,
 };
 use super::solid_contain::PointInSolidError;
 use crate::body::Body;

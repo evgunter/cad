@@ -100,8 +100,8 @@ use geom_brep::curve_face::plane_crossing::span_place;
 use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
 
 use super::region::{
-    self, ReadAcross, End, Fault, QueryFoot, Legs, Paths, Region, RegionEdge, RegionRefusal, Round, LegSection,
-    circle_edge_hit, in_band,
+    self, End, Fault, LegSection, Legs, Paths, QueryFoot, ReadAcross, Region, RegionEdge,
+    RegionRefusal, Round, circle_edge_hit, in_band,
 };
 use super::solid_contain::PointInSolidError;
 use crate::body::Body;
@@ -416,7 +416,13 @@ impl<T: Decide> Region<T> for TorusFaceRegion<T> {
 
 impl<T: Decide> Paths<T> for TorusFaceRegion<T> {
     /// `p`'s parallel, or its meridian.
-    fn single(&self, p: QueryFoot<T>, parallel: bool, forward: bool, _: Band) -> Result<Leg<T>, Fault> {
+    fn single(
+        &self,
+        p: QueryFoot<T>,
+        parallel: bool,
+        forward: bool,
+        _: Band,
+    ) -> Result<Leg<T>, Fault> {
         Ok(if parallel {
             self.parallel(p, forward)
         } else {
