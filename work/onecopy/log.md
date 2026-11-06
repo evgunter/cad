@@ -320,3 +320,8 @@
   - `onecopy/refusal-standing` (`session_013mPGJ5BFZnAe1VYCrzZYNj`): the two return types, and the kept-refusal loops.
 
 - 2026-11-06 — Ruled for refusal-standing row 1: option C. Abort is split out of `Refusal`; `rung` takes no closure; a type that can abort returns `Result<Refusal, Aborts>`; `Kept` is the margin verdict only. The return type is the type-level gate. The row's suggested rule broke on `chart_singularity::Unread`, which has an Unsettled kind and no abort. Conditions: no outcome moves; check `git log -S` for ratified text describing `Refusal`.
+
+- 2026-11-06 — Rulings to lanes:
+  - **feet-and-params:** `nearest` is a certificate over `param_near`; `Line::param_within` and `foot_within`; `plane_offset` filed for want of a plane-value type.
+  - **refusal-standing row 2:** file the four ranking-moving sites (census Germ, `link::judge`, the census vertex probe, and the early-`?` class) as P2 rows. The early-`?` row names a gate.
+  - **curve-pair-tidy, near-tangent tilt:** B. The window also certifies a root with no found meeting, with unanchored arcs Off past the escalation. The row's stated mechanism was wrong: the guard skipped the window entirely, and the spun row's pivot was 5.5e-5 off the shared end. The row narrows to the 4 basin residues.
