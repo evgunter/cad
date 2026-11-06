@@ -774,8 +774,7 @@ impl<T: Real> core::fmt::Display for CornerReason<T> {
             },
             // The carrier rides the payload; the sentence names the
             // anchor and the two lengths that decide it. The recourse is
-            // the pair's, stated once after every corner
-            // ([`CornerReason::recourse`]).
+            // the pair's, stated once after every corner.
             Self::AnchorOutsideTrimmedExtent {
                 side,
                 setback,
@@ -833,15 +832,7 @@ impl<T: Real> core::fmt::Display for CornerReason<T> {
 }
 
 impl<T: Real> CornerReason<T> {
-    /// What to change about a request this corner refused, or `None`
-    /// where the corner names no lever. A carrier pair's refusal lists
-    /// every corner and states ONE recourse after them all, so a list
-    /// of two reads as one message with one recourse rather than two.
-    #[must_use]
-    pub fn recourse(&self) -> Option<&'static str> {
-        self.lever().map(CornerLever::recourse)
-    }
-
+    /// The lever this corner names, or `None` where it names none.
     fn lever(&self) -> Option<CornerLever> {
         match self {
             Self::AnchorOutsideTrimmedExtent { .. } => Some(CornerLever::RadiusOrAnchor),
@@ -860,13 +851,20 @@ impl<T: Real> CornerReason<T> {
     }
 }
 
-/// The lever a refused corner names, in the order a pair's refusal
-/// prefers it: the pair states the first lever any of its corners
-/// names. Moving the anchor is the wider menu of the radius levers; a
-/// window lever comes last because a carrier pair's second crossing
-/// routinely lies behind an anchor, and that corner is rarely the one
-/// the author meant to round.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+/// What a refused corner's author changes. A pair's refusal states one
+/// recourse after its corners: their common lever, or, where its two
+/// corners name different levers, each corner's beside its ordinal.
+///
+/// The levers that meet in one pair are those of one channel
+/// (`crates/profile/README.md`, "Which corners are entries"): the
+/// straight door lists one corner, and the arc door lists either the
+/// corners its anchor windows discarded or those its construction
+/// refused, never both. So two window corners can disagree (one behind
+/// the incoming side, the other past the arrival anchor), and there the
+/// author's lever is the one for the corner they meant, which only they
+/// know; two construction corners agree up to the anchor, which
+/// [`CornerLever::subsumes`] folds into the wider menu.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum CornerLever {
     RadiusOrAnchor,
     Radius,
@@ -874,21 +872,85 @@ enum CornerLever {
     ArrivalBeyondCorner,
 }
 
+/// Why a window lever's corner is the author's to move a leg end
+/// around, not to place.
+const CORNER_IS_NEVER_AUTHORED: &str =
+    "a fillet's corner is where its carriers cross, never an authored point";
+
 impl CornerLever {
-    const fn recourse(self) -> &'static str {
+    /// Whether naming `self` already names `other`'s repair: moving the
+    /// anchor is the wider menu of the two radius levers.
+    const fn subsumes(self, other: Self) -> bool {
+        matches!(
+            (self, other),
+            (Self::RadiusOrAnchor, Self::Radius | Self::RadiusOrAnchor)
+                | (Self::Radius, Self::Radius)
+                | (Self::IncomingShortOfCorner, Self::IncomingShortOfCorner)
+                | (Self::ArrivalBeyondCorner, Self::ArrivalBeyondCorner)
+        )
+    }
+
+    /// The lever as the pair's whole recourse.
+    fn write_whole(self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::RadiusOrAnchor => f.write_str("reduce the radius or move the anchor"),
+            Self::Radius => f.write_str("reduce the radius"),
+            Self::IncomingShortOfCorner => write!(
+                f,
+                "start the incoming side short of the corner (end its leg, or move its \
+                 start); {CORNER_IS_NEVER_AUTHORED}"
+            ),
+            Self::ArrivalBeyondCorner => write!(
+                f,
+                "anchor the arrival side beyond the corner, within half a turn on an arc; \
+                 {CORNER_IS_NEVER_AUTHORED}"
+            ),
+        }
+    }
+
+    /// The lever for one of two corners, which the clause names as
+    /// "it".
+    const fn for_one(self) -> &'static str {
         match self {
             Self::RadiusOrAnchor => "reduce the radius or move the anchor",
             Self::Radius => "reduce the radius",
-            Self::IncomingShortOfCorner => {
-                "end the incoming leg short of the corner, which is where the two carriers \
-                 cross and is never authored"
-            }
+            Self::IncomingShortOfCorner => "start the incoming side short of it",
             Self::ArrivalBeyondCorner => {
-                "anchor the arrival side beyond the corner, which is where the two carriers \
-                 cross and is never authored"
+                "anchor the arrival side beyond it, within half a turn on an arc"
             }
         }
     }
+}
+
+/// The pair's one recourse over its corners' levers, in list order.
+fn write_pair_recourse(
+    f: &mut core::fmt::Formatter<'_>,
+    levers: &[Option<CornerLever>],
+) -> core::fmt::Result {
+    let named: Vec<CornerLever> = levers.iter().flatten().copied().collect();
+    if named.is_empty() {
+        return Ok(());
+    }
+    f.write_str(". Recourse: ")?;
+    if let Some(common) = named
+        .iter()
+        .copied()
+        .find(|l| named.iter().all(|other| l.subsumes(*other)))
+    {
+        return common.write_whole(f);
+    }
+    let mut sep = "";
+    for (k, lever) in levers.iter().enumerate() {
+        let Some(lever) = lever else { continue };
+        let at = match k {
+            0 => "at the first corner",
+            1 => "at the second",
+            _ => "at the next",
+        };
+        write!(f, "{sep}{at}, {}", lever.for_one())?;
+        sep = "; ";
+    }
+    Ok(())
 }
 
 /// Typed refusals of the authoring algebra — geometry the lattice
@@ -1962,10 +2024,9 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                 }) {
                     write!(f, "; these carriers may admit no fillet at all")?;
                 }
-                match corners.iter().filter_map(|c| c.reason.lever()).min() {
-                    Some(lever) => write!(f, ". Recourse: {}", lever.recourse()),
-                    None => Ok(()),
-                }
+                let levers: Vec<Option<CornerLever>> =
+                    corners.iter().map(|c| c.reason.lever()).collect();
+                write_pair_recourse(f, &levers)
             }
             Self::FilletOffsetLeverTooShort {
                 side,

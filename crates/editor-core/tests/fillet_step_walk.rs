@@ -231,8 +231,8 @@ fn each_refusal_on_the_way_to_a_fillet_names_what_its_state_takes() {
     assert!(
         said.contains("this corner lies behind the incoming ray's start")
             && said.ends_with(
-                "Recourse: end the incoming leg short of the corner, which is where the two \
-                 carriers cross and is never authored"
+                "Recourse: start the incoming side short of the corner (end its leg, or move its \
+                 start); a fillet's corner is where its carriers cross, never an authored point"
             ),
         "a leg ending at its corner names the leg's end as the lever: {said}"
     );
@@ -242,8 +242,8 @@ fn each_refusal_on_the_way_to_a_fillet_names_what_its_state_takes() {
     assert!(
         said.contains("this corner does not lie behind the arrival side's anchor")
             && said.ends_with(
-                "Recourse: anchor the arrival side beyond the corner, which is where the two \
-                 carriers cross and is never authored"
+                "Recourse: anchor the arrival side beyond the corner, within half a turn on an \
+                 arc; a fillet's corner is where its carriers cross, never an authored point"
             ),
         "an arrival anchored at its corner names its anchor as the lever: {said}"
     );
