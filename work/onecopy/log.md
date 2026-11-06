@@ -478,3 +478,6 @@
   - Cost is at or below main (the sphere row 1.6 s against 2.6 s).
   - Note: `Round::through` and `Line::from` still take a raw centre, normal and dir, so on-surface is by convention past the start. That goes on the co-surface row.
   I merged main as `25636f41`; it compiles and the gates pass. The CI gate is running.
+
+- 2026-11-06 — The 6540 reviewer withdrew its base column: base and head shared one `CARGO_TARGET_DIR`, so base reused head's binaries, since cargo fingerprints by relative path and mtime. Its claim that the 9 slow reds are main's is unverified until the true base re-run, so the 6540 merge is held until then even if the gate passes.
+  Lesson: a base-vs-head comparison needs separate target dirs, and the curve-pair-tidy lane hit the same trap with worktrees. Every brief and review prompt should say so.
