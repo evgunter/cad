@@ -505,6 +505,23 @@ pub fn boundary<T: Decide>(
 }
 
 impl BoundaryRefusal {
+    /// What this refusal is to a ladder ([`crate::ladder::Refusal`]): a
+    /// reading in band by its margin, an unread meeting as its fault
+    /// stands ([`MeetFault::refusal`]).
+    ///
+    /// # Errors
+    ///
+    /// [`crate::ladder::Aborts`] for a kernel fault.
+    pub const fn refusal(&self) -> Result<crate::ladder::Refusal, crate::ladder::Aborts> {
+        match self {
+            Self::Escalated(diag) | Self::Meeting(diag) | Self::Touch(diag) => {
+                Ok(crate::ladder::Refusal::Margin(*diag))
+            }
+            Self::Unread(fault) => fault.refusal(),
+            Self::Fault { .. } => Err(crate::ladder::Aborts),
+        }
+    }
+
     /// A meeting reading's refusal, as the pass types it.
     #[must_use]
     pub fn of(fault: MeetFault) -> Self {

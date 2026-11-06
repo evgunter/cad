@@ -220,6 +220,30 @@ pub enum NormalAtError {
     },
 }
 
+impl NormalAtError {
+    /// What this refusal is to a ladder over the points it is read at
+    /// ([`geom_brep::ladder::Refusal`]): an escalation by its margin; a
+    /// torus outside the ring convention, a cone's apex, a crease or a
+    /// pole of a spline's chart a limit, since the face has no normal
+    /// there definite or in band.
+    ///
+    /// # Errors
+    ///
+    /// [`geom_brep::ladder::Aborts`] for a point definitely off the
+    /// face's surface: the caller's invariant broken.
+    pub const fn refusal(&self) -> Result<geom_brep::ladder::Refusal, geom_brep::ladder::Aborts> {
+        use geom_brep::ladder::{Aborts, Refusal};
+        match self {
+            Self::Escalated { diag, .. } => Ok(Refusal::Margin(*diag)),
+            Self::DegenerateTorus { .. }
+            | Self::AtConeApex { .. }
+            | Self::SplineCrease { .. }
+            | Self::SplineIrregular { .. } => Ok(Refusal::Limit),
+            Self::OffSurface => Err(Aborts),
+        }
+    }
+}
+
 /// Why [`spline_outward_normal_at`] could not answer.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) enum SplineNormalError {

@@ -166,6 +166,27 @@ pub enum MeetFault {
     },
 }
 
+impl MeetFault {
+    /// What this refusal is to a ladder over the readings that meet it
+    /// ([`crate::ladder::Refusal`]), as each variant's docs state it: a
+    /// decision or a meeting in band by its margin, a reading that
+    /// reached its limit unsettled, a pose with no closed form a limit.
+    ///
+    /// # Errors
+    ///
+    /// [`crate::ladder::Aborts`] for a carrier the arm misread or two
+    /// readings that contradict: a kernel fault, never a pose.
+    pub const fn refusal(&self) -> Result<crate::ladder::Refusal, crate::ladder::Aborts> {
+        use crate::ladder::{Aborts, Refusal};
+        match self {
+            Self::Escalated(diag) | Self::Touch(diag) => Ok(Refusal::Margin(*diag)),
+            Self::Unsettled(_) => Ok(Refusal::Unsettled),
+            Self::Unsupported { .. } => Ok(Refusal::Limit),
+            Self::Desync | Self::Contradiction { .. } => Err(Aborts),
+        }
+    }
+}
+
 impl From<RootRefusal> for MeetFault {
     fn from(refusal: RootRefusal) -> Self {
         match refusal {

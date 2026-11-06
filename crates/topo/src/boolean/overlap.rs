@@ -41,6 +41,7 @@ use std::sync::Arc;
 use geom_brep::LeverBounds;
 use geom_brep::curve_face::BoundaryRefusal;
 use geom_brep::curve_pair::Span;
+use geom_brep::ladder::Evidence;
 use geom_core::{Band, Decide, Indeterminate, Lever, Margin, Point3, Sign, Vec3};
 
 use super::BooleanError;
@@ -94,6 +95,37 @@ pub enum OverlapRefusal {
 }
 
 impl OverlapRefusal {
+    /// What this refusal is to the door's search for a witness
+    /// ([`geom_brep::ladder::Refusal`]), delegating to each payload's own
+    /// standing where it states one: a sense or a point read in band by
+    /// its margin; a placement, a meeting or a normal as its door says;
+    /// a corner or a boundary read by its escalation's margin, any other
+    /// of its refusals a limit; and a reading the door has no verdict for
+    /// a limit.
+    ///
+    /// # Errors
+    ///
+    /// [`geom_brep::ladder::Aborts`] for a refusal of the whole query: a
+    /// spline carrier, a face that does not resolve, two faces of
+    /// opposite sense, and each payload's own aborts.
+    pub(crate) fn refusal(&self) -> Result<geom_brep::ladder::Refusal, geom_brep::ladder::Aborts> {
+        use geom_brep::ladder::{Aborts, Refusal};
+        match self {
+            Self::SplineCarrier { .. } | Self::StaleFace { .. } | Self::OppositeSenses => {
+                Err(Aborts)
+            }
+            Self::Senses(diag) | Self::OnPlane(diag) => Ok(Refusal::Margin(*diag)),
+            Self::Placement(e) => e.refusal(),
+            Self::Meeting(e) => e.refusal(),
+            Self::Normal(e) => e.refusal(),
+            Self::Boundary(e) | Self::Corner(e) => Ok(match **e {
+                BooleanError::Escalated { diag, .. } => Refusal::Margin(diag),
+                _ => Refusal::Limit,
+            }),
+            Self::Unread { .. } => Ok(Refusal::Limit),
+        }
+    }
+
     fn write(
         &self,
         f: &mut core::fmt::Formatter<'_>,
@@ -210,13 +242,13 @@ pub(crate) fn overlap_as<T: Decide>(
         }
     }
     one_sense(a, (b, reversed), band)?;
-    let mut refused = None;
+    let mut kept = Evidence::default();
     for (x, y) in [((a, false), (b, reversed)), ((b, reversed), (a, false))] {
-        if edge_witness(x, y, band, &mut refused)? {
+        if edge_witness(x, y, band, &mut kept)? {
             return Ok(true);
         }
     }
-    refused.map_or(Ok(false), Err)
+    kept.refusal().map_or(Ok(false), Err)
 }
 
 /// The middle of `a`'s first boundary edge, and a's and b's outward
@@ -535,15 +567,29 @@ fn piece_witness<T: Decide>(
     Ok(false)
 }
 
+/// Keeps a piece's refusal `r` in `kept` by its standing
+/// ([`OverlapRefusal::refusal`]), ranked with every other piece's.
+///
+/// # Errors
+///
+/// `r`, where it refuses the whole query: the search stops on it.
+fn keep_piece_refusal(
+    kept: &mut Evidence<OverlapRefusal>,
+    r: OverlapRefusal,
+) -> Result<(), OverlapRefusal> {
+    kept.keep_or_abort(r.refusal(), r)
+}
+
 /// Whether a piece of a boundary edge of face `x` is a witness in face
-/// `y` (module docs). A piece whose reading refused is passed over, the
-/// first such refusal kept in `refused`; a boundary of `x` or `y` that
-/// cannot be read refuses at once.
+/// `y` (module docs). A piece whose reading refused is passed over, its
+/// refusal kept in `kept` by its standing ([`OverlapRefusal::refusal`]),
+/// and one of the whole query refuses at once, as does a boundary of `x`
+/// or `y` that cannot be read.
 fn edge_witness<T: Decide>(
     (x, x_rev): ((&Body<T>, FaceKey), bool),
     (y, y_rev): ((&Body<T>, FaceKey), bool),
     band: Band,
-    refused: &mut Option<OverlapRefusal>,
+    kept: &mut Evidence<OverlapRefusal>,
 ) -> Result<bool, OverlapRefusal> {
     let boundary = super::carrier_cross::face_boundary(y.0, y.1)
         .map_err(|e| OverlapRefusal::Boundary(Arc::new(e)))?
@@ -555,16 +601,14 @@ fn edge_witness<T: Decide>(
             what: "a face holding a lone vertex",
         });
     }
-    let mut keep = |r: OverlapRefusal| {
-        refused.get_or_insert(r);
-    };
+    let mut keep = |r: OverlapRefusal| keep_piece_refusal(kept, r);
     for cycle in loops(x)? {
         for he in cycle {
             let (carrier, (t0, t1)) = edge_span(x.0, he)?;
             let span = Span::new(carrier, (t0, t1));
             let located = boundary.located(&span, band);
             if let Some(fault) = located.fault() {
-                keep(OverlapRefusal::Meeting(fault));
+                keep(OverlapRefusal::Meeting(fault))?;
                 continue;
             }
             // The ends sorted with the cuts, so a window's end at one is
@@ -572,7 +616,7 @@ fn edge_witness<T: Decide>(
             let mut cuts = [t0, t1].into_iter().chain(located.cuts()).collect();
             let speed = carrier.deriv(geom::mid_param(t0, t1)).norm();
             if let Err(r) = sort_params(&mut cuts, speed, band) {
-                keep(r);
+                keep(r)?;
                 continue;
             }
             for w in cuts.windows(2) {
@@ -583,15 +627,15 @@ fn edge_witness<T: Decide>(
                 if let Some(u) = located.undecided_over((w[0], w[1]), speed, band) {
                     match place(y, q, band) {
                         Ok(FaceContainment::In) => return Ok(true),
-                        Ok(_) => keep(OverlapRefusal::Meeting(u.why)),
-                        Err(r) => keep(r),
+                        Ok(_) => keep(OverlapRefusal::Meeting(u.why))?,
+                        Err(r) => keep(r)?,
                     }
                     continue;
                 }
                 match piece_witness((x, x_rev), he, (y, y_rev), q, band) {
                     Ok(true) => return Ok(true),
                     Ok(false) => {}
-                    Err(r) => keep(r),
+                    Err(r) => keep(r)?,
                 }
             }
         }
@@ -627,4 +671,55 @@ fn sort_params<T: Decide>(params: &mut Vec<T>, speed: T, band: Band) -> Result<(
     }
     *params = out;
     Ok(())
+}
+
+/// **The witness search ranks its pieces' refusals by their standing**
+/// ([`keep_piece_refusal`]): a limit outranks a reading in band kept
+/// before it, and a refusal of the whole query stops the search. Fed the
+/// refusals directly, since no pair of faces a constructor builds
+/// refuses two ways in one search.
+#[cfg(test)]
+#[allow(clippy::expect_used)]
+mod piece_ranking {
+    use geom_brep::curve_face::BoundaryRefusal;
+    use geom_brep::ladder::Evidence;
+    use geom_core::{Band, Indeterminate, MarginDiag};
+
+    use super::{OverlapRefusal, keep_piece_refusal};
+
+    fn in_band() -> OverlapRefusal {
+        OverlapRefusal::OnPlane(Indeterminate {
+            margin: MarginDiag::value(5e-9),
+            band: Band::new(1e-9, 1e-8).expect("a valid band"),
+            predicate: Some("t"),
+            terminal_sliver: false,
+        })
+    }
+
+    fn unread() -> OverlapRefusal {
+        OverlapRefusal::Unread {
+            what: "a boundary edge whose carrier places no parameter",
+        }
+    }
+
+    #[test]
+    fn a_limit_outranks_in_band_and_a_fault_stops_the_search() {
+        let mut kept = Evidence::default();
+        keep_piece_refusal(&mut kept, in_band()).expect("in band is kept");
+        keep_piece_refusal(&mut kept, unread()).expect("a limit is kept");
+        assert!(
+            matches!(kept.refusal(), Some(OverlapRefusal::Unread { .. })),
+            "a limit outranks the in-band reading kept before it"
+        );
+        let mut kept = Evidence::default();
+        keep_piece_refusal(&mut kept, in_band()).expect("in band is kept");
+        let fault = OverlapRefusal::Meeting(BoundaryRefusal::Fault { what: "a misread" });
+        assert!(
+            matches!(
+                keep_piece_refusal(&mut kept, fault),
+                Err(OverlapRefusal::Meeting(BoundaryRefusal::Fault { .. }))
+            ),
+            "a kernel fault refuses the whole query: the search stops on it"
+        );
+    }
 }
