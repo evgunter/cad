@@ -630,11 +630,21 @@ fn parallel_axes_roots<T: Decide>(
             / (two * radius * offset);
         let slack = radius * (charge / slope + rounding / sin_spread);
         match decide("circle_torus_root_slack", Margin::of(slack), band) {
-            Ok(Sign::Positive) => return Err(Unsettled::Meter.into()),
+            Ok(Sign::Positive) => {
+                return Err(Unsettled::Meter {
+                    row: "circle_torus_root_slack",
+                }
+                .into());
+            }
             // A NaN slack (a zero slope, which the placements above have
             // already refused as a graze) is `Err` and refuses too.
             Ok(Sign::Zero | Sign::Negative) => {}
-            Err(_) => return Err(Unsettled::Meter.into()),
+            Err(_) => {
+                return Err(Unsettled::Meter {
+                    row: "circle_torus_root_slack",
+                }
+                .into());
+            }
         }
         // Each root within half a turn of the span's middle, by
         // `Period::near`'s span argument. What a caller may assume: the
@@ -1599,7 +1609,8 @@ mod tests {
                 assert!(
                     refused
                         .iter()
-                        .all(|&(d, why)| d == -1.6e-8 && why == Some(Unsettled::Meter)),
+                        .all(|&(d, why)| d == -1.6e-8
+                            && matches!(why, Some(Unsettled::Meter { .. }))),
                     "ρ {rho}: refused {refused:?}"
                 );
             }
@@ -1622,7 +1633,7 @@ mod tests {
             assert!(
                 refused
                     .iter()
-                    .all(|&(d, why)| d < 0.0 && why == Some(Unsettled::Meter)),
+                    .all(|&(d, why)| d < 0.0 && matches!(why, Some(Unsettled::Meter { .. }))),
                 "ρ {rho}: refused {refused:?}"
             );
         }

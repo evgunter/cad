@@ -682,6 +682,26 @@ pub fn decide<T: Decide>(
     classify(name, margin.value(), band).map(|d| d.sign)
 }
 
+/// **A proof's inequality, read exactly**, and logged under `name`: the
+/// sign of `margin` with no band but the least pair of positive `f64`s,
+/// so only an enclosure that straddles zero fails to decide. It is for
+/// an inequality a generator's argument rests on, such as a basin's
+/// sine over its curvature or the order of two parameters, where a
+/// refusal is an outcome a narrower box can answer, and for nothing
+/// read in metres of gap, which [`decide`] reads against the band.
+/// There is no `Band` parameter, so such a margin cannot be read
+/// against the band by mistake. A heuristic's choice between sound
+/// candidates is neither: it is read unlogged under its ledger row
+/// ([`check_unlogged`]), beside which a choice door is owed
+/// (`work/onecopy/a-heuristics-choice-has-no-door-of-its-own`).
+///
+/// # Errors
+///
+/// [`decide`]'s, at the least band: an enclosure that holds zero.
+pub fn prove<T: Decide>(name: &'static str, margin: Margin<T>) -> Result<Sign, Indeterminate> {
+    decide(name, margin, Band::least())
+}
+
 /// [`decide`], keeping the reporting margin the classifier decided on
 /// ([`Decided`]): for a decision whose refusal quotes it — a sized
 /// decision's tolerance offer (D4 ¶1 (i)), and a residual's definite

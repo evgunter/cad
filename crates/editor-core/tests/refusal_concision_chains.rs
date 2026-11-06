@@ -4505,7 +4505,9 @@ fn trace() -> Vec<(String, NodeErrorKind)> {
         ),
         (
             "Carrier/Unsettled",
-            F::Carrier(TraceFault::Unsettled(geom_brep::roots::Unsettled::Meter)),
+            F::Carrier(TraceFault::Unsettled(geom_brep::roots::Unsettled::Meter {
+                row: "test_meter",
+            })),
         ),
     ];
     faults

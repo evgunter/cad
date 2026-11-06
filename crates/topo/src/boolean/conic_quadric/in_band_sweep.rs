@@ -749,7 +749,7 @@ fn certified_near_gap(family: &[geom::Curve3<f64>]) -> usize {
         .filter(|c| {
             let found = match conic_quadric_roots(c, -1.0, 1.0, &wall(1.0), band) {
                 Ok(Ok(CircleRoots::Certified(found))) => found,
-                Ok(Err(Unsettled::Meter)) => return false,
+                Ok(Err(Unsettled::Meter { .. })) => return false,
                 other => panic!("{c:?}: answered neither certified nor `Meter`: {other:?}"),
             };
             let truth = exact::truth(c, &wall(1.0));

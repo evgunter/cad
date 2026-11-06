@@ -52,8 +52,8 @@ pub mod pose;
 pub mod span;
 mod walk;
 
-pub use pose::{Candidate, Pose, PoseRefusal, Sense, pose};
-pub use span::{Hit, Place, Reading, Span, SpanEnd};
+pub use pose::{Candidate, Pose, PoseRefusal, Sense, WindowBound, pose};
+pub use span::{Hit, PastBy, Place, Reading, Span, SpanEnd};
 
 use geom::CurveKind;
 use geom_core::{Band, Decide, Indeterminate, Point3};
@@ -289,6 +289,7 @@ fn candidate<T: Decide>(a: &Span<'_, T>, b: &Span<'_, T>, m: &Meeting<T>) -> Can
         point: m.point,
         ta: a.at(m.on_a),
         tb: b.at(m.on_b),
+        bound: None,
     }
 }
 
@@ -315,9 +316,12 @@ fn ringed_by<T: Decide>(
     })
 }
 
+/// A meeting's two sides: where its point sits on each span.
+type Sides<T> = (Hit<T>, Hit<T>);
+
 /// A point read on both spans: a meeting's two sides, `None` off either,
 /// or the first refusal.
-type Both<T> = Result<Option<(Hit<T>, Hit<T>)>, geom::CarrierRefusal>;
+type Both<T> = Result<Option<Sides<T>>, geom::CarrierRefusal>;
 
 /// Two point-on-span readings as one [`Both`].
 fn both<T>(
@@ -335,7 +339,7 @@ fn both<T>(
 /// candidate by candidate under C5's stretch rule.
 struct Found<T: geom_core::Real> {
     points: Vec<Meeting<T>>,
-    held: Vec<(Point3<T>, geom::CarrierRefusal)>,
+    held: Vec<(Point3<T>, MeetFault)>,
 }
 
 impl<T: geom_core::Real> Default for Found<T> {
@@ -348,29 +352,69 @@ impl<T: geom_core::Real> Default for Found<T> {
 }
 
 impl<T: Decide> Found<T> {
-    /// `c` read on both spans at its own parameters, unless it is ringed.
+    /// **`c` read on both spans at its own parameters**, unless it is
+    /// ringed: the one composition of a candidate's point with what its
+    /// generator states of its window ([`pose::WindowBound`], `pose`'s
+    /// module docs, "The gap's lower bound"). A candidate with no window
+    /// is its point's reading on both spans. One with a window is no
+    /// meeting where its floor reads past the band
+    /// (`curve_pair_pose_closest`); otherwise its point read on both is a
+    /// meeting, and an Off there prunes only where the window's run lies
+    /// past a span ([`Span::past_by`], by the reach and the run arm).
+    /// Any other Off is a straddle of the floor and the gap at the pair
+    /// (`curve_pair_meet_window`), and escalates.
     fn read(&mut self, a: &Span<'_, T>, b: &Span<'_, T>, c: Candidate<T>, band: Band) {
+        let on_both = || {
+            both(
+                a.contact(c.point, c.ta, band),
+                b.contact(c.point, c.tb, band),
+            )
+        };
+        let Some(bound) = c.bound else {
+            self.offer(c.point, on_both, band);
+            return;
+        };
+        if ringed(&self.points, c.point, band) {
+            return;
+        }
+        let floor = geom_core::k_stats::decide_reported(
+            "curve_pair_pose_closest",
+            geom_core::Margin::of(bound.floor),
+            band,
+        );
+        if matches!(
+            floor,
+            Ok(geom_core::Decided {
+                sign: geom_core::Sign::Positive,
+                ..
+            })
+        ) {
+            return;
+        }
         self.offer(
             c.point,
-            || {
-                both(
-                    a.contact(c.point, c.ta, band),
-                    b.contact(c.point, c.tb, band),
-                )
+            || match on_both() {
+                Ok(None) => window_off(a, b, c, bound, floor, band),
+                read => read.map_err(MeetFault::from),
             },
             band,
         );
     }
 
     /// `point` read on both spans by `read`, unless it is ringed.
-    fn offer(&mut self, point: Point3<T>, read: impl FnOnce() -> Both<T>, band: Band) {
+    fn offer<E: Into<MeetFault>>(
+        &mut self,
+        point: Point3<T>,
+        read: impl FnOnce() -> Result<Option<Sides<T>>, E>,
+        band: Band,
+    ) {
         if ringed(&self.points, point, band) {
             return;
         }
         match read() {
             Ok(None) => {}
             Ok(Some((on_a, on_b))) => self.points.push(Meeting { point, on_a, on_b }),
-            Err(diag) => self.held.push((point, diag)),
+            Err(why) => self.held.push((point, why.into())),
         }
     }
 
@@ -388,7 +432,7 @@ impl<T: Decide> Found<T> {
             .held
             .iter()
             .find(|(q, _)| !ringed(&self.points, *q, band))
-            .map(|&(_, diag)| MeetFault::from(diag));
+            .map(|&(_, fault)| fault);
         let fault = match (held, shared) {
             (Some(fault), _) => Some(fault),
             (None, Some(_)) => None,
@@ -419,6 +463,62 @@ impl<T: Decide> Found<T> {
             }),
         }
     }
+}
+
+/// **A window's candidate read off a span** ([`Found::read`]): no
+/// meeting where the window's run lies past either span
+/// ([`Span::past_by`], by the reach and the run arm); otherwise the
+/// escalation, the straddle of the floor against the gap at the pair
+/// where both decide, and else whichever reading did not, or, where
+/// every reading decided and none cleared, the typed refusal
+/// `Meter { row: "curve_pair_meet_window" }`.
+fn window_off<T: Decide>(
+    a: &Span<'_, T>,
+    b: &Span<'_, T>,
+    c: Candidate<T>,
+    bound: pose::WindowBound<T>,
+    floor: Result<geom_core::Decided, Indeterminate>,
+    band: Band,
+) -> Result<Option<Sides<T>>, MeetFault> {
+    let q = b.carrier().eval(c.tb);
+    // The run arm's premise (`pose`'s module docs, "The run"): the
+    // polished pair is itself a pair of the run, its gap in the zero band.
+    let in_run = geom_core::k_stats::decide(
+        "curve_pair_meet_run_pair",
+        geom_core::Margin::norm3(q - c.point),
+        band,
+    ) == Ok(geom_core::Sign::Zero);
+    let (run_a, run_b) = (
+        in_run.then(|| (b.carrier(), bound.bend)),
+        in_run.then(|| (a.carrier(), bound.bend)),
+    );
+    let sides = [
+        a.past_by(c.point, c.ta, (bound.reach, run_a), band),
+        b.past_by(q, c.tb, (bound.reach, run_b), band),
+    ];
+    if sides.contains(&PastBy::Clear) {
+        return Ok(None);
+    }
+    let gap = geom_core::k_stats::decide_reported(
+        "curve_pair_meet_window_gap",
+        geom_core::Margin::norm3(q - c.point),
+        band,
+    );
+    let near = sides.iter().find_map(|side| match side {
+        PastBy::Near(diag) => Some(*diag),
+        PastBy::Not | PastBy::Clear => None,
+    });
+    Err(MeetFault::Escalated(match (floor, gap, near) {
+        (Ok(lower), Ok(upper), _) if upper.sign == geom_core::Sign::Positive => {
+            geom_core::k_stats::straddle("curve_pair_meet_window", lower, upper, band)
+        }
+        (_, _, Some(diag)) | (Err(diag), _, None) | (Ok(_), Err(diag), None) => diag,
+        (Ok(_), Ok(_), None) => {
+            return Err(MeetFault::Unsettled(Unsettled::Meter {
+                row: "curve_pair_meet_window",
+            }));
+        }
+    }))
 }
 
 /// **Whether each meeting is the one meeting of its stretch** (C5): two
@@ -517,12 +617,12 @@ fn before<T: Decide>(s: T, t: T) -> bool {
     compare("curve_pair_meet_order", s, t) == Some(geom_core::Sign::Negative)
 }
 
-/// **Two parameters compared, read exactly** (the least pair of positive
-/// `f64`s) under `row`: the sign of `s − t`, `None` where an enclosure
-/// straddles. A parameter is no distance the band resolves, so the band
-/// plays no part.
+/// **Two parameters compared, read exactly** under `row`, a proof's
+/// inequality ([`geom_core::k_stats::prove`]): the sign of `s − t`,
+/// `None` where an enclosure straddles. A parameter is no distance the
+/// band resolves, so the band plays no part.
 pub(super) fn compare<T: Decide>(row: &'static str, s: T, t: T) -> Option<geom_core::Sign> {
-    geom_core::k_stats::decide(row, geom_core::Margin::of(s - t), Band::least()).ok()
+    geom_core::k_stats::prove(row, geom_core::Margin::of(s - t)).ok()
 }
 
 impl From<geom::CarrierRefusal> for MeetFault {

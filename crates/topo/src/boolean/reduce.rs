@@ -5536,7 +5536,11 @@ fn line_cone_roots<T: Decide>(
             band,
         ) {
             Ok(Sign::Zero | Sign::Negative) => {}
-            Ok(Sign::Positive) | Err(_) => return Ok(Err(Unsettled::Meter)),
+            Ok(Sign::Positive) | Err(_) => {
+                return Ok(Err(Unsettled::Meter {
+                    row: "bool_line_cone_root_slack",
+                }));
+            }
         }
     }
     Ok(Ok(Roots::<T, 2>::all(roots).widen()))
