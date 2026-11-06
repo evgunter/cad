@@ -3963,14 +3963,17 @@ pub(crate) mod rest {
     /// run ([`Evidence`]: a slit or a face doubled, a limit, ahead of any
     /// reading in band); a rest where nothing was kept.
     fn unread_or_rest(mut kept: Evidence<TouchUnread>, notes: Notes) -> TouchVerdict {
-        // Each note kept as its variant's standing states it
-        // ([`TouchUnread::refusal`]): a slit or a face doubled a limit, a
-        // reading in band in band. Neither aborts.
-        if notes.degenerate {
-            kept.blocked(TouchUnread::Degenerate);
-        }
-        if notes.in_band {
-            kept.in_band(TouchUnread::InBand);
+        let noted = [
+            (notes.degenerate, TouchUnread::Degenerate),
+            (notes.in_band, TouchUnread::InBand),
+        ];
+        for (_, why) in noted.into_iter().filter(|(noted, _)| *noted) {
+            if kept.keep_or_abort(why.refusal(), why).is_err() {
+                unreachable!(
+                    "a note is a slit or a face doubled, or a reading in band: neither refuses \
+                     the whole query (TouchUnread::refusal)"
+                );
+            }
         }
         kept.refusal().map_or(
             TouchVerdict::Rest(Rest { _sealed: () }),
