@@ -10001,7 +10001,11 @@ fn window<T: Decide>(segment: MeetSegment<T>, p: geom_core::Point3<T>, band: Ban
     match segment {
         MeetSegment::Line { a, b } => {
             let len = (b - a).norm();
-            let s0 = (p - a).dot((b - a).normalize());
+            let s0 = geom::Line {
+                origin: a,
+                dir: (b - a).normalize(),
+            }
+            .param(p);
             let spans = [
                 decide("ring_outer_meet_span", Margin::of(s0), band),
                 decide("ring_outer_meet_span", Margin::of(len - s0), band),

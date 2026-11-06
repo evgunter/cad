@@ -16,7 +16,7 @@
 use core::f64::consts::PI;
 
 use crate::common::crossed_cylinders::{self as crossed, Cylinder, Op};
-use crate::common::differential::{judged_within, outcome, resolution_pad};
+use crate::common::differential::{judged_at_resolution, outcome};
 use crate::conic_edge_curved_face::{DRUM_RADIUS, TILT, drum_lower};
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use sweep::test_support::finished;
@@ -24,10 +24,18 @@ use topo::{AtRestBody, BooleanError, BooleanErrorKind, BooleanResult};
 
 /// **A regression guard, not a soundness claim**: four times the widest
 /// volume half-width the turned pose's six runs measured at ε `1e-9`
-/// (`2.26e-6`, PR 6478), under [`resolution_pad`]'s sound ceiling
-/// (`1.61e-5` here). Read at that ε only; the other ε rows are held by
-/// the ceiling alone.
+/// (`2.26e-6`, PR 6478), under the resolution's sound ceiling
+/// (`1.61e-5` there, [`judged_at_resolution`]). Read at that ε only.
 const TURNED_PAD_GUARD: f64 = 9.1e-6;
+
+/// **The turned pose's stopped-short ceiling, a regression guard**: four
+/// times the widest volume half-width its six runs measured at ε `1e-12`
+/// (`4.02e-8`; every run stops at the work wall there, short of the
+/// pinned resolution,
+/// `work/quadtail/chorded-walls-reach-the-work-wall-short-of-the-pinned-resolution-at-1e-12.md`).
+/// The resolution's ceiling (`1.6e-8` at 1e-12) does not bound a
+/// measurement that stopped short; this does ([`judged_at_resolution`]).
+const TURNED_WALL_GUARD: f64 = 1.7e-7;
 
 /// A vertical rod of radius `r` about `(x, y)` over `z ∈ [z0, z1]`.
 fn rod(r: f64, (x, y): (f64, f64), (z0, z1): (f64, f64)) -> AtRestBody<f64> {
@@ -604,7 +612,9 @@ fn seams_on_the_walls(axis: Vec3<f64>, theta: f64) -> Pose {
 /// carries the skew walls' marched section and every op builds SOUND
 /// against the crossed cylinders' sliced volume
 /// (`common::crossed_cylinders`), its spline-chorded walls measured by
-/// the rotational lane, and about `y` an edge pierces a curved face the
+/// the rotational lane (off the witness band UNMET where the measurement
+/// stops at the work wall, every run at 1e-12, under
+/// [`TURNED_WALL_GUARD`]), and about `y` an edge pierces a curved face the
 /// Boolean cannot yet read (`CurvedPierceUnsupported`).
 #[test]
 fn seams_lying_on_the_walls_read_the_axes_across_the_region() {
@@ -671,12 +681,12 @@ fn seams_lying_on_the_walls_read_the_axes_across_the_region() {
                     };
                     // The two rods' area together, `6π + 4π`: their chorded
                     // walls accept a round that only just meets the
-                    // resolution ([`resolution_pad`]).
-                    let budget = resolution_pad(tol, 10.0 * PI);
+                    // resolution ([`judged_at_resolution`]).
                     let line = if escalated {
                         String::from("escalated")
                     } else {
-                        let read = judged_within(r, Some(want), tol, budget);
+                        let read =
+                            judged_at_resolution(r, Some(want), tol, 10.0 * PI, TURNED_WALL_GUARD);
                         assert!(
                             tol.eps() != 1e-9 || read.pad.is_none_or(|pad| pad <= TURNED_PAD_GUARD),
                             "{} | {op}: the half-width {:?} past the regression guard",
@@ -685,8 +695,14 @@ fn seams_lying_on_the_walls_read_the_axes_across_the_region() {
                         );
                         read.line
                     };
+                    // Off the witness band the chorded walls may reach the
+                    // work wall short of the pinned resolution (at 1e-12,
+                    // all six runs), as an escalation may come first: the
+                    // enclosure still holds the closed form, under
+                    // `TURNED_WALL_GUARD`.
+                    let unmet = !witness && line.starts_with("OK UNMET");
                     assert!(
-                        escalated || line.starts_with("OK SOUND"),
+                        escalated || unmet || line.starts_with("OK SOUND"),
                         "{} | {op}: {line}",
                         turned.label
                     );

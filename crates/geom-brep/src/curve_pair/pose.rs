@@ -346,13 +346,27 @@
 //! other's plane marks a window, about `e/|d̂·n̂|` of arc either side,
 //! where it lies within the band's escalation of that plane, and that
 //! window can hold more than one meeting, each in a stretch of its own.
-//! A conic's plane root whose window holds a found meeting is read
-//! instead (`window`): where the window certainly holds no meeting but
-//! the found ones, the root is not polished. Every other plane root is
-//! polished and bounded as it would be with no meeting found; a
-//! candidate it gives nearer a found meeting than the escalation is that
-//! meeting again (C5's ring rule), and a basin that is not proved
-//! refuses. The coplanar subdivisions divide nothing out: their roots
+//! A conic's plane root is read through its window first (`window`),
+//! and where the window certainly holds no meeting but the found ones,
+//! none among them included, the root is not polished. What the window
+//! certifies is two claims, one per kind of arc:
+//!
+//! - **beside a found meeting**, an arc past its ring, read outward,
+//!   holds no point within the band's zero of the other carrier: every
+//!   piece reads off past the zero, or receding, and so no second
+//!   meeting adjoins the ring. A point there within the band's gap of the
+//!   other carrier is the found meeting's own stretch (C5), which the
+//!   found meeting already answers;
+//! - **with no ring**, an arc holds no point within the band's
+//!   escalation of the other carrier: every piece reads off past the
+//!   escalation. Here a near-miss in the gap answers to nothing found, so
+//!   reading it off past the zero would decide a pair the band leaves
+//!   undecided. Past the escalation, it is decided apart.
+//!
+//! Every other plane root is polished and bounded as it would be with no
+//! meeting found; a candidate it gives nearer a found meeting than the
+//! escalation is that meeting again (C5's ring rule), and a basin that is
+//! not proved refuses. The coplanar subdivisions divide nothing out: their roots
 //! nearer a found meeting than the escalation are not read again.
 //!
 //! # The band
@@ -611,11 +625,6 @@ fn line_ends<T: Decide>(s: &Span<'_, T>) -> Result<Ends<T>, MeetFault> {
 /// A conic carrier's frame.
 fn conic_of<T: Decide>(c: &Curve3<T>) -> Result<&dyn Conic<T>, MeetFault> {
     c.conic().ok_or(MeetFault::Desync)
-}
-
-/// `v` scaled to unit length.
-fn unit<T: Decide>(v: Vec3<T>) -> Vec3<T> {
-    v * (T::one() / v.norm())
 }
 
 /// The metres a span runs at most: its parameter run at the carrier's
@@ -959,7 +968,7 @@ fn line_line<T: Decide>(
 ) -> Result<Pose<T>, MeetFault> {
     let (la, lb) = (line_of(a.carrier())?, line_of(b.carrier())?);
     let ((o1, d1), (o2, d2)) = (la, lb);
-    let (u1, u2) = (unit(d1), unit(d2));
+    let (u1, u2) = (d1.normalize(), d2.normalize());
     let n = u1.cross(u2);
     let s = n.norm();
     // Read from `a`'s span start along its carrier, never from either
@@ -1023,7 +1032,7 @@ fn line_conic<T: Decide>(
     let line = line_of(a.carrier())?;
     let k = conic_of(b.carrier())?;
     let (o, d) = line;
-    let u = unit(d);
+    let u = d.normalize();
     let n = k.frame().axis;
     let den = u.dot(n);
     // Where they can meet (module docs): the line's span and the conic's
@@ -1074,7 +1083,7 @@ fn line_conic<T: Decide>(
     }
     // In the plane: the conic's signed distance from the line, along the
     // line's normal in the plane, a first harmonic in the conic's angle.
-    let m = unit(n.cross(u));
+    let m = n.cross(u).normalize();
     let c0 = (k.frame().origin - o).dot(m);
     let (cp, sp) = k.along(m);
     let swing = (cp.powi(2) + sp.powi(2)).sqrt();
@@ -1194,7 +1203,11 @@ fn conic_conic<T: Decide>(
     if one_curve(&ka, &kb, band)? {
         let (foot_a, foot_b) = (|q| foot(a, q), |q| foot(b, q));
         return Ok(Pose::Coincident {
-            sense: sense(unit(oriented(&ka)).dot(unit(oriented(&kb))), arm, band)?,
+            sense: sense(
+                oriented(&ka).normalize().dot(oriented(&kb).normalize()),
+                arm,
+                band,
+            )?,
             witnesses: witnesses(a, b, &foot_a, &foot_b),
         });
     }
@@ -1319,7 +1332,7 @@ fn transverse<T: Decide>(
         .collect();
     let near = |theta: T| {
         let arc = range.band_arc(theta, band);
-        if !joints.is_empty() && window.holds_only((theta - arc, theta + arc), &joints, band) {
+        if window.holds_only((theta - arc, theta + arc), &joints, band) {
             return Ok(None);
         }
         let q = ka.point_at(theta);

@@ -309,7 +309,7 @@ fn pieces_apart<T: Decide>(
     // separation rather than their offset along it.
     let across = |d: Vec3<T>| gap - d * (gap.dot(d) / d.dot(d));
     [gap, across(da), across(db)].into_iter().any(|n| {
-        let n = n / n.norm();
+        let n = n.normalize();
         clear(n.dot(gap).abs() - n.dot(da).abs() * ha - n.dot(db).abs() * hb - bend)
     })
 }

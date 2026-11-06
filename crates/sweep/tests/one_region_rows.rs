@@ -843,14 +843,10 @@ fn a_torus_cycle_missing_a_joint_element_is_not_read_as_contractible() {
 /// span and disjoint tube spans, `(-1, -0.1)` and `(0.1, 1)` about the
 /// donut face's middle, validate; so does every point of the face on a
 /// window's meridian line off the window, which the uncut door places in
-/// the face. At `Interval` both were once unread: a parallel leg from a
-/// point on a meridian edge's plane has a root at its own start, and the
-/// torus door unwound its roots onto the branch of a whole turn about
-/// `π`, whose cut that root straddles, so the root's enclosure was the
-/// whole turn and every parallel path from the point was set aside
-/// (`bool_torus_region_span` over about `[-1.5, 1.4]`). A leg whose start
-/// lies on the plane now has its roots unwound onto no branch
-/// (`first_harmonic_leg_roots`); every other leg reads them as before.
+/// the face. A parallel leg from a point on a meridian edge's plane meets
+/// that edge at its own start, and the leg is a whole turn, endless, so
+/// its start is no end of it (`region::landings`): at `Interval` the
+/// meeting is no cut's hull.
 fn windows_on_an_azimuth_grid<T: Scalar>(scalar: &str) {
     let at_f64 = donut::<f64>();
     let (face64, frame) = wall(&at_f64, is_torus);
