@@ -51,7 +51,9 @@ fn on_path(closed: &ClosedLoop<f64>, p: Point2<f64>) -> bool {
         let ap = p - a;
         let cross = ab.perp_dot(ap);
         let t = ap.dot(ab) / ab.norm_squared();
-        matches!(lp.segments()[i], profile::Segment::Line) && cross.abs() < 1e-12 && (-1e-12..=1.0 + 1e-12).contains(&t)
+        matches!(lp.segments()[i], profile::Segment::Line)
+            && cross.abs() < 1e-12
+            && (-1e-12..=1.0 + 1e-12).contains(&t)
     })
 }
 
@@ -116,11 +118,20 @@ fn m1a_bare_fillet_after_a_straight_leg() {
     let c = bare();
     dump("M1a", &c);
     let vs = c.loop_.as_loop().vertices().to_vec();
-    assert!(vs[1].x == 2.5 && vs[1].y == 0.0, "the leg end moved forward to t1");
+    assert!(
+        vs[1].x == 2.5 && vs[1].y == 0.0,
+        "the leg end moved forward to t1"
+    );
     assert_eq!(c.loop_.constructed_joints(), &[1, 2]);
-    assert!(on_path(&c, Point2::new(2.0, 0.0)), "the authored end stays on the path");
+    assert!(
+        on_path(&c, Point2::new(2.0, 0.0)),
+        "the authored end stays on the path"
+    );
     let (re, _) = replay_recording(&c.program, Tol::witness()).expect("replays");
-    assert_eq!(bits(re.as_loop().vertices()), bits(c.loop_.as_loop().vertices()));
+    assert_eq!(
+        bits(re.as_loop().vertices()),
+        bits(c.loop_.as_loop().vertices())
+    );
 }
 
 #[test]
@@ -155,10 +166,16 @@ fn m1c_cusp_then_fillet_corner_inside_the_leg() {
     let c = cusp(1.0).expect("measured: builds");
     dump("M1c(x=1)", &c);
     let (re, _) = replay_recording(&c.program, Tol::witness()).expect("replays");
-    assert_eq!(bits(re.as_loop().vertices()), bits(c.loop_.as_loop().vertices()));
+    assert_eq!(
+        bits(re.as_loop().vertices()),
+        bits(c.loop_.as_loop().vertices())
+    );
     let cusps = validated_cusps(&c);
     assert_eq!(cusps.len(), 1, "the declared cusp is present");
-    assert!(cusps[0].x == 1.5 && cusps[0].y == 0.0, "re-sited at t1: {cusps:?}");
+    assert!(
+        cusps[0].x == 1.5 && cusps[0].y == 0.0,
+        "re-sited at t1: {cusps:?}"
+    );
     assert!(
         on_path(&c, Point2::new(2.0, 0.0)),
         "the authored leg end (2, 0) is off the final path: vertices {:?}",

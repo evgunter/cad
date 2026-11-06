@@ -205,5 +205,7 @@ mod review_fillet_stored_tangency_r2_probes;
 
 #[path = "review_recourse_roster_r1_probes.rs"]
 mod review_recourse_roster_r1_probes;
+#[path = "round_probe_anchor_radius.rs"]
+mod round_probe_anchor_radius;
 #[path = "round_probe_ray_extension_joints.rs"]
 mod round_probe_ray_extension_joints;
