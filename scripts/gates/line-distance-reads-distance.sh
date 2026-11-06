@@ -19,7 +19,12 @@
 # an argument nested more than two parentheses deep is not matched; a
 # cross product whose operand is not a written `(a − b)` difference (a
 # named vector) is not matched, since a free vector's cross norm is a
-# different fact; and a norm spelled `.norm_squared().sqrt()` passes.
+# different fact; a norm spelled `.norm_squared().sqrt()` passes; and a
+# norm taken of a local helper that returns a line's offset vector (as
+# `geom::cover`'s `Site::relative` was read) passes, since the helper's
+# name carries no shape a grep can key on. Where such a helper exists,
+# give its owner a distance reading that calls `Line::distance`, as
+# `Site::distance` does.
 set -euo pipefail
 # shellcheck source=scripts/gates/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
@@ -42,7 +47,7 @@ gate() {
     | gate_grep -vE "^($EXEMPT)")
   if [ -n "$hits" ]; then
     printf '%s\n' "$hits"
-    gate_error "a line's distance read as offset(…).norm(): read Line::distance, the tight reading on a unit axis"
+    gate_error "a line's distance read as offset(…).norm(): read Line::distance, correct for any nonzero dir"
     exit 1
   fi
   gate_ok "no line distance read as offset(…).norm()"

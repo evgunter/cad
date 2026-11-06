@@ -2,11 +2,9 @@
 id: a-points-height-and-radial-offset-pair-is-spelled-inline
 kind: issue
 title: A point's (height, radial offset) pair about an axis, h = w·a then w − a·h, is spelled at about thirty sites beside two helpers, with no home on geom::Line
-status: closed
+status: dispatched
 opened: 2026-11-06
 branch: onecopy/feet-and-params
-closed: 2026-11-06
-pr: 6568
 ---
 
 

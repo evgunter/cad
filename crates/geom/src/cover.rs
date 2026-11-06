@@ -416,14 +416,18 @@ fn box_range<T: Real>((lo, hi): (Point3<T>, Point3<T>), q: Point3<T>) -> (T, T) 
 
 /// A ball's distance range from a site.
 fn ball_range<T: Real>((c, r): Ball<T>, site: &Site<T>) -> (T, T) {
-    let delta = site.offset(c);
+    let delta = site.distance(c);
     ((delta - r).max(T::zero()), delta + r)
 }
 
 impl<T: Real> Site<T> {
-    /// How far `p` stands from the site.
-    fn offset(&self, p: Point3<T>) -> T {
-        self.relative(vec_of(p)).norm()
+    /// How far `p` stands from the site: from the point, or from the line
+    /// ([`Line::distance`]).
+    fn distance(&self, p: Point3<T>) -> T {
+        match self {
+            Site::Point(q) => (p - *q).norm(),
+            Site::Line(line) => line.distance(p),
+        }
     }
 
     /// `p`, as a vector from the site: from the point, or off the line.
@@ -1043,9 +1047,9 @@ fn points_support<T: Real>(points: &[Point3<T>], e: Vec3<T>) -> T {
 /// greatest is also a net's hull's: a distance from a point or a line is convex, so its greatest over a
 /// hull is at a point of it.
 fn points_range<T: Real>(points: &[Point3<T>], site: &Site<T>) -> (T, T) {
-    let d0 = site.offset(points[0]);
+    let d0 = site.distance(points[0]);
     points[1..].iter().fold((d0, d0), |(near, far), &p| {
-        let d = site.offset(p);
+        let d = site.distance(p);
         (near.min(d), far.max(d))
     })
 }
