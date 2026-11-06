@@ -38,9 +38,10 @@
 //! M2, and it is rostered and runs under the default selection. What
 //! had no differential was the EVALUATION lane — a whole document
 //! through this crate's evaluator, its bodies, keys, name tables and
-//! decision logs — which is what the row below compares. On main the
-//! two lanes' content and naming keys currently split on the nodes it
-//! pins (`PINNED_KEY_SPLITS`), and everything else it compares agrees.
+//! decision logs — which is what the row below compares. The two
+//! lanes' content and naming keys differ exactly on the nodes that read
+//! a profile's second pass ([`lane_pass_nodes`]), and everything else it
+//! compares agrees.
 
 #![cfg(feature = "probe")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -152,7 +153,7 @@ fn dump_corpus_k_samples() {
 /// two**: greenness at `Probe` is evidence for that claim, not a check
 /// of it, and greenness is tolerance-dependent, so this says what it
 /// says at one ε. The check at this lane is
-/// [`probe_agrees_with_f64_bit_for_bit_save_the_pinned_key_splits`] below, which
+/// [`probe_agrees_with_f64_bit_for_bit_save_the_lane_pass_keys`] below, which
 /// compares the two evaluations' bits at every ε row the dump is swept
 /// at; this row stays because it is the one of the two the DEFAULT
 /// selection runs, and because a one-sided greenness failure names its
@@ -206,103 +207,45 @@ fn arm<T: geom_core::Decide>(r: Option<&NodeResult<T>>) -> &'static str {
     }
 }
 
-/// The nodes whose content and naming keys split between the lanes on
-/// main: per document, the mint ordinals of the nodes that split, every
-/// one splitting both keys. Pinned so the rest of the differential runs
-/// (`work/tally/probe-lane-content-and-naming-keys-split-from-f64-on-every-corpus-document.md`);
-/// every other comparison holds on them, and the pin goes red the day
-/// the set moves.
-const PINNED_KEY_SPLITS: &[(&str, &[u32])] = &[
-    (
-        "die",
-        &[
-            10, 18, 29, 36, 47, 54, 65, 72, 83, 90, 101, 108, 119, 126, 160, 163, 196, 199, 232,
-            235, 268, 271, 304, 307, 340, 343, 390, 393, 440, 443, 483, 486, 526, 529, 569, 572,
-            612, 615, 655, 658, 705, 708, 755, 758, 805, 808, 841, 844, 877, 880, 913, 916, 949,
-            952, 992, 995, 1003,
-        ],
-    ),
-    (
-        "corner_table",
-        &[
-            9, 17, 28, 36, 50, 56, 66, 74, 88, 94, 104, 112, 126, 132, 142, 150, 164, 170, 178,
-        ],
-    ),
-    ("heat_sink", &[10, 18, 29, 37, 48, 56, 64, 78, 86]),
-    (
-        "crossing_slots",
-        &[9, 17, 28, 36, 50, 56, 66, 74, 88, 94, 102],
-    ),
-    (
-        "nested_islands_105",
-        &[
-            9, 17, 28, 36, 47, 55, 69, 75, 88, 94, 104, 112, 126, 132, 140,
-        ],
-    ),
-    (
-        "nested_islands_106_depth1",
-        &[
-            9, 17, 28, 36, 47, 55, 69, 75, 88, 94, 104, 112, 126, 132, 140,
-        ],
-    ),
-    (
-        "nested_islands_106_depth2",
-        &[
-            9, 17, 28, 36, 47, 55, 69, 75, 88, 94, 104, 112, 126, 132, 142, 150, 164, 170, 178,
-        ],
-    ),
-    ("declared_tangency", &[16, 28, 44, 57, 66, 80, 88]),
-    (
-        "kitchen_sink",
-        &[
-            26, 35, 46, 54, 64, 70, 78, 88, 102, 111, 122, 131, 141, 152, 166, 180, 196, 212, 228,
-            236,
-        ],
-    ),
-    ("cut_cylinder", &[5, 9, 36, 45, 59, 67]),
-    ("measured_web", &[10, 18, 23, 27, 32, 36, 46, 54, 65]),
-    ("boss_union", &[9, 17, 24, 28, 42, 48, 56]),
-    ("die_fillet", &[9, 17, 22, 30]),
-    ("die_chamfer", &[9, 17, 22, 30]),
-    ("die_pips", &[9, 17, 25, 34, 80, 85, 93]),
-    ("heat_sink_fins", &[10, 18, 29, 37, 45]),
-    (
-        "die_tool",
-        &[9, 17, 25, 34, 52, 63, 77, 91, 105, 119, 133, 141, 143, 151],
-    ),
-    ("face_sketch", &[9, 17, 28, 36, 45, 65, 73]),
-    ("part_select", &[11, 18, 28, 31, 41, 55, 70, 78]),
-    ("symmetric_plate", &[14, 23, 28, 30, 38]),
-    ("loft_prism", &[9, 24, 39, 49, 58]),
-    ("die_composed", &[9, 17, 25, 34, 80, 85, 89, 97]),
-    (
-        "die_composed_tour",
-        &[
-            9, 17, 22, 29, 38, 98, 173, 248, 323, 398, 473, 548, 623, 698, 773, 848, 923, 998,
-            1073, 1148, 1223, 1298, 1373, 1448, 1523, 1598, 1603, 1605, 1609, 1613, 1621,
-        ],
-    ),
-    ("plate_param", &[14, 24, 35, 43, 57, 63, 71]),
-    ("kiss_carry", &[9, 17, 28, 36, 50, 56, 66, 74, 88, 94, 102]),
-    ("reshaped_rod", &[14, 24, 29, 55]),
-    (
-        "pin_in_bore",
-        &[9, 20, 34, 47, 57, 71, 98, 109, 123, 136, 146, 162, 170],
-    ),
-    ("axis_projection", &[17, 32, 38, 43, 51]),
-    (
-        "blocks_on_one_floor",
-        &[9, 17, 28, 36, 45, 73, 81, 90, 110, 118, 132, 140],
-    ),
-    ("revolves_on_one_axis", &[11, 20, 32, 41, 51, 59, 67]),
-];
+/// **The nodes whose content and naming keys read a profile's second
+/// pass**: every `Profile` node, and every node that reads one of them
+/// as an operand (`Node::operand_rows` through `Doc::read_ports`, whose
+/// content keys enter the reader's), walked in evaluation order. A
+/// value read through a definition (an assertion over a measure) feeds
+/// the value's bits rather than its definer's key, so it does not carry
+/// the pass. `ProfileLane` hands only the `f64` lane the first pass's
+/// validated form, so `Probe` resolves the program again at its own
+/// scalar — that pass is what records the profile's K margins — and
+/// the key carries it under the `LANE` tag, as the key's own rule says
+/// a second pass must. So these keys differ from `f64`'s by that tag
+/// and by nothing else, and the set is derived here rather than pinned
+/// by ordinal, which renumbers whenever a corpus document is re-minted.
+fn lane_pass_nodes(
+    doc: &editor_core::ProfileDoc,
+    order: &[editor_core::RecipeNodeId],
+) -> std::collections::BTreeSet<editor_core::RecipeNodeId> {
+    let mut reads = std::collections::BTreeSet::new();
+    for &id in order {
+        let Some(node) = doc.node(id) else { continue };
+        if matches!(node, editor_core::Node::Profile(_))
+            || node
+                .operand_rows()
+                .into_iter()
+                .flat_map(|(_, var)| doc.read_ports(var))
+                .any(|(at, _)| reads.contains(&at))
+        {
+            reads.insert(id);
+        }
+    }
+    reads
+}
 
 /// **The wrapper property at the EVALUATION lane, as a differential
 /// rather than as a claim: evaluating the corpus at `Probe` and at
-/// `f64` produces BIT-IDENTICAL results** — save, today, the content and
-/// naming keys of the nodes [`PINNED_KEY_SPLITS`] names, which split
-/// between the lanes on 30 documents while everything else about those
-/// nodes agrees.
+/// `f64` produces BIT-IDENTICAL results** — save the content and naming
+/// keys of the nodes that read a profile's second pass
+/// ([`lane_pass_nodes`]), which differ by the pass's tag and which this
+/// row requires to differ on exactly those nodes.
 ///
 /// Scope, because the scope is the part that was got wrong once: the
 /// wrapper property as such was already checked one crate over —
@@ -394,7 +337,7 @@ const PINNED_KEY_SPLITS: &[(&str, &[u32])] = &[
 
 #[test]
 #[ignore = "swept at every eps row beside the dump; one process per eps (see module docs)"]
-fn probe_agrees_with_f64_bit_for_bit_save_the_pinned_key_splits() {
+fn probe_agrees_with_f64_bit_for_bit_save_the_lane_pass_keys() {
     let eps = Tol::witness().get().eps;
     let docs = documents();
     assert!(
@@ -425,6 +368,7 @@ fn probe_agrees_with_f64_bit_for_bit_save_the_pinned_key_splits() {
     let mut rolled: Vec<u64> = Vec::new();
     let mut content_splits: Vec<(&str, u32)> = Vec::new();
     let mut naming_splits: Vec<(&str, u32)> = Vec::new();
+    let mut lane_splits: Vec<(&str, u32)> = Vec::new();
 
     for d in &docs {
         let ev_f = corpus::eval::<f64>(&d.doc);
@@ -440,6 +384,7 @@ fn probe_agrees_with_f64_bit_for_bit_save_the_pinned_key_splits() {
         assert_eq!(ev_f.order, ev_p.order, "{}: evaluation order", d.name);
         assert_eq!(ev_f.outcome, ev_p.outcome, "{}: evaluation outcome", d.name);
 
+        let lane_pass = lane_pass_nodes(&d.doc, &ev_f.order);
         for &id in &ev_f.order {
             let rf = ev_f.result(id);
             let rp = ev_p.result(id);
@@ -461,6 +406,9 @@ fn probe_agrees_with_f64_bit_for_bit_save_the_pinned_key_splits() {
                     Some(NodeResult::Poisoned { through: tp }),
                 ) => assert_eq!(tf, tp, "{}: node {id:?}: poisoned through", d.name),
                 (Some(NodeResult::Ok(vf)), Some(NodeResult::Ok(vp))) => {
+                    if lane_pass.contains(&id) {
+                        lane_splits.push((d.name, id.0.ordinal()));
+                    }
                     if vf.content_key != vp.content_key {
                         content_splits.push((d.name, id.0.ordinal()));
                     }
@@ -619,9 +567,11 @@ fn probe_agrees_with_f64_bit_for_bit_save_the_pinned_key_splits() {
          digests agree, and that agreement is not the wrapper property",
         docs.len()
     );
-    let pinned: Vec<(&str, u32)> = (PINNED_KEY_SPLITS.iter())
-        .flat_map(|&(doc, nodes)| nodes.iter().map(move |&n| (doc, n)))
-        .collect();
+    assert!(
+        !lane_splits.is_empty(),
+        "no corpus node read a profile's second pass, so the key rule below was checked on \
+         nothing"
+    );
     let by_doc = |splits: &[(&'static str, u32)]| {
         let mut out: Vec<(&str, Vec<u32>)> = Vec::new();
         for &(doc, n) in splits {
@@ -634,12 +584,12 @@ fn probe_agrees_with_f64_bit_for_bit_save_the_pinned_key_splits() {
     };
     for (key, splits) in [("content", &content_splits), ("naming", &naming_splits)] {
         assert!(
-            *splits == pinned,
-            "the {key} keys split between the lanes on other nodes than the pinned ones — \
-             `ContentBits for Probe` feeds the wrapped f64's bits, so the two lanes' memo keys \
-             should be the same word, and on main they split on the documents and nodes \
-             `PINNED_KEY_SPLITS` names: {:?}",
-            by_doc(splits)
+            *splits == lane_splits,
+            "the {key} keys differ between the lanes on other nodes than those reading a \
+             profile's second pass — `ContentBits for Probe` feeds the wrapped f64's bits, so \
+             only the pass's `LANE` word may part them. Split: {:?}; reading the pass: {:?}",
+            by_doc(splits),
+            by_doc(&lane_splits)
         );
     }
     assert!(
