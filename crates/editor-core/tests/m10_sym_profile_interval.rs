@@ -24,11 +24,13 @@
 //! replays one box a chosen number of times and nothing else, so an
 //! instruction count over it is the tier's and not the instrument's.
 //! The command that takes it is recorded in the item body.
+//!
+//! **This file is ungated**: it carries no `gated_to!` marker, so every
+//! row here outside the `ci` slow set runs on every PR whose closure
+//! reaches editor-core. A new fast row inherits that. The walk ledger
+//! reads every kernel change the documents meet, so no path list could
+//! name what moves it.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-
-// Not `gated_to!`: the walk ledger reads every kernel change the
-// documents meet, so no path list names what moves it, and the
-// slab's row has to run on any PR whose closure reaches it.
 
 use std::collections::BTreeMap;
 use std::time::Instant;
@@ -397,10 +399,10 @@ const PLATE_MAX_TERMS: usize = 28;
 /// form).
 const PLATE_LEDGER: &str = "\
      Plain/Decision calls 1203 forms 51397 frozen 36 digest e1a0881c42c8942d3a8deb75d65e99a2\n\
-     Plain/Assertion calls 824 forms 9139 frozen 193 digest 9b81f192c986e3a1a4b87c85f4bf8135\n\
+     Plain/Assertion calls 824 forms 9141 frozen 193 digest 2a1f468584d9b7ec779b0f2855f7a552\n\
      Early/Decision calls 412 forms 42497 frozen 0 digest e500ec5f5ac549b729cd212cfa9d672a\n\
-     Early/Assertion calls 824 forms 10540 frozen 0 digest 2fe73a9570160c3325d695cfce33709e\n\
-     Door/Decision calls 557 forms 13459 frozen 0 digest 2d65775be1381545cd9761d564205694";
+     Early/Assertion calls 824 forms 10542 frozen 0 digest 7c396dba756b8da505f6f3646649fc6b\n\
+     Door/Decision calls 557 forms 13461 frozen 0 digest ba27b6a98b755848531d408511178a7e";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**
 /// For the slab and the plate at their nominals, every (walk, origin)
@@ -451,7 +453,7 @@ fn assert_walk_ledger(name: &str, doc: &ProfileDoc, expected: &str, max_terms: u
 /// The slab's walk ledger ([`assert_walk_ledger`]), per ε row. One
 /// replay, cheap enough for the per-PR gate, so a PR that moves what
 /// the slab's walks build sees it there: it stands in, on the gate, for
-/// [`the_forms_the_walks_build_are_pinned_per_eps_row`] and
+/// [`the_forms_the_plates_walks_build_are_pinned`] and
 /// [`the_plains_ledger_lines_are_the_same_under_every_dial_set`], which
 /// replay the plate and run nightly. It does not stand in for the
 /// plate's own lines: the slab has no curved wall, so a change to how
@@ -466,7 +468,7 @@ fn the_forms_the_slabs_walks_build_are_pinned_per_eps_row() {
 /// The plate's walk ledger ([`assert_walk_ledger`]); its nominal reads
 /// no ε, so one pin serves every row.
 #[test]
-fn the_forms_the_walks_build_are_pinned_per_eps_row() {
+fn the_forms_the_plates_walks_build_are_pinned() {
     let tol = Tol::witness();
     assert_walk_ledger("plate", &the_plate(tol), PLATE_LEDGER, PLATE_MAX_TERMS, tol);
 }
