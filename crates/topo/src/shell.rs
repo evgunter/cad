@@ -5231,7 +5231,7 @@ impl<T: Decide> MovedWall<T> {
                     let along = line.param(c);
                     // The offset off `L` as a vector, not `|w|² − along²`,
                     // which cancels to noise when a small ball sits close.
-                    let perp = line.offset(c).norm();
+                    let perp = line.distance(c);
                     // Undecided reaches: the read only grows the set.
                     if !matches!(
                         decide("shell_moved_wall_ball_reach", Margin::of(rho - perp), band),

@@ -107,10 +107,11 @@ pub(crate) fn axial_radial<T: Real>(
     anchor: Point3<T>,
     axis: Vec3<T>,
 ) -> (T, Vec3<T>) {
-    let q = p - anchor;
-    let h = q.dot(axis);
-    let w = q - axis * h;
-    (h, w)
+    geom::Line {
+        origin: anchor,
+        dir: axis,
+    }
+    .param_and_offset(p)
 }
 
 /// **A point's elevation off a cone, in metres** — the cone's residual

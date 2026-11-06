@@ -501,7 +501,7 @@ fn nearest_offset<T: Decide>(depth: Depth<T>, p: Point3<T>, q: Point3<T>) -> Opt
 /// The exact depth of the point `x`.
 pub(super) fn exact<T: Decide>(depth: Depth<T>, x: Point3<T>) -> T {
     match depth {
-        Depth::Axis(line) => line.offset(x).norm(),
+        Depth::Axis(line) => line.distance(x),
         Depth::Center { center } => (x - center).norm(),
         Depth::Core {
             center,

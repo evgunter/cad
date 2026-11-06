@@ -2810,8 +2810,7 @@ fn require_cone_loop_vertices_distinct<T: Decide>(
                 origin: apex,
                 dir: axis,
             }
-            .offset(p)
-            .norm();
+            .distance(p);
             if classify(
                 "props_cone_loop_vertex_sheet",
                 Margin::metered((a - b).abs() - T::pi(), InfSpeed::new(rho)),
@@ -4899,9 +4898,12 @@ fn sphere_boundary<T: Decide>(
     // A point's latitude, its sine and cosine each off its own offset
     // from the centre: along the axis, and out from it.
     let latitude = |p: Point3<T>| {
-        let w = p - center;
-        let h = w.dot(axis);
-        (h / radius, (w - axis * h).norm() / radius)
+        let (h, rho) = geom::Line {
+            origin: center,
+            dir: axis,
+        }
+        .param_and_distance(p);
+        (h / radius, rho / radius)
     };
     for e in edges {
         let Curve3::Circle(geom::Circle {
@@ -5037,9 +5039,11 @@ fn torus_ends<T: Real>(
     orient: Sign,
 ) -> (T, T, T, T) {
     // Anchor latitude from the meridian's t0 endpoint.
-    let wa = m0.anchor - center;
-    let ha = wa.dot(axis);
-    let rho_a = (wa - axis * ha).norm();
+    let (ha, rho_a) = geom::Line {
+        origin: center,
+        dir: axis,
+    }
+    .param_and_distance(m0.anchor);
     let (sin_a, cos_a) = (ha / minor, (rho_a - major) / minor);
     // Rotate the anchor latitude by the signed span where needed.
     let (sd, cd) = m0.dt.sin_cos();
@@ -5928,9 +5932,12 @@ fn torus_classify<'a, T: Decide>(
                 )?));
             }
             Sign::Zero => {
-                let w = c_c - center;
-                let h = w.dot(axis);
-                let rho = (w - axis * h).norm();
+                let axis_line = geom::Line {
+                    origin: center,
+                    dir: axis,
+                };
+                let (h, off) = axis_line.param_and_offset(c_c);
+                let rho = axis_line.distance(c_c);
                 require_zero(
                     "props_meridian_fit",
                     Margin::of(
@@ -5950,7 +5957,7 @@ fn torus_classify<'a, T: Decide>(
                 // tube-center distance (lever arm ρ ≈ R, meters).
                 require_zero(
                     "props_meridian_plane",
-                    Margin::of(n_c.dot(w - axis * h)),
+                    Margin::of(n_c.dot(off)),
                     band,
                     Premise::Inventory,
                 )?;

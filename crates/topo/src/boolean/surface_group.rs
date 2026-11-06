@@ -52,7 +52,7 @@ use super::solid_contain::PointInSolidError;
 
 /// The distance of `c` from the axis line `(origin, axis)`.
 pub(super) fn off_axis<T: Decide>(origin: Point3<T>, axis: Vec3<T>, c: Point3<T>) -> T {
-    geom::Line { origin, dir: axis }.offset(c).norm()
+    geom::Line { origin, dir: axis }.distance(c)
 }
 
 /// **The coaxial test, in one home**: the two margins that are zero

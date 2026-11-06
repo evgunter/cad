@@ -290,9 +290,8 @@ enum Bound<T: Real> {
 /// The axial coordinate and the distance from the axis of `x`, about
 /// the unit axis `a` through `o`, as `(ρ, z)`.
 fn sheet_of<T: Real>(o: Point3<T>, a: Vec3<T>, x: Point3<T>) -> (T, T) {
-    let v = x - o;
-    let z = v.dot(a);
-    ((v - a * z).norm(), z)
+    let (z, rho) = geom::Line { origin: o, dir: a }.param_and_distance(x);
+    (rho, z)
 }
 
 /// The largest of a box's eight corner values of `f`.
@@ -364,8 +363,7 @@ fn sheet_box<T: Real>(o: Point3<T>, a: Vec3<T>, cell: &Cell<T>) -> Rect<T> {
             origin: cell.c,
             dir: a,
         }
-        .offset(x)
-        .norm()
+        .distance(x)
     });
     let top = corner_max(cell.lo, cell.hi, |x| sheet_of(o, a, x).0);
     [(rc - across).max(T::zero()), top, zc - dz, zc + dz]

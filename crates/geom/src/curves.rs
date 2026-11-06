@@ -623,7 +623,14 @@ impl<T: Real> Line<T> {
     /// coefficient of [`Vec3::project_onto`] in its association.
     #[must_use]
     pub fn param(&self, p: Point3<T>) -> T {
-        (p - self.origin).dot(self.dir) / self.dir.norm_squared()
+        self.coefficient(p - self.origin)
+    }
+
+    /// `w`'s coefficient along `dir`, `w·dir / |dir|²`: the one spelling
+    /// [`Self::param`], [`Self::param_and_offset`] and
+    /// [`Self::param_and_distance`] read.
+    fn coefficient(&self, w: Vec3<T>) -> T {
+        w.dot(self.dir) / self.dir.norm_squared()
     }
 
     /// **`p`'s foot**: the point of the line nearest `p`.
@@ -657,16 +664,68 @@ impl<T: Real> Line<T> {
     }
 
     /// **`p`'s offset from its foot**, square to the line: `w = p − origin`
-    /// less its [projection](Vec3::project_onto) onto `dir`, whose norm is
-    /// `p`'s distance from the line. It divides by `|dir|²`, so it holds
+    /// less its [projection](Vec3::project_onto) onto `dir`, the vector a
+    /// reader of a radial direction needs; its norm is `p`'s distance from
+    /// the line, which a reader of the distance alone reads as
+    /// [`Self::distance`]. It divides by `|dir|²`, so it holds
     /// for any nonzero `dir` and a unit `dir`'s reading can move in the
     /// last place against `w − dir·(w·dir)`. Subtractive rather than
     /// [`Vec3::reject_from`]'s triple product, which amplifies a `dir`
     /// carrying width: a computed carrier direction is that case.
     #[must_use]
     pub fn offset(&self, p: Point3<T>) -> Vec3<T> {
+        self.param_and_offset(p).1
+    }
+
+    /// **`p`'s distance from the line**: `|(p − origin) × dir| / |dir|`,
+    /// the one scalar reading of it. A reader that needs only the
+    /// distance reads this, not [`Self::offset`]'s norm: the cross
+    /// product names `w = p − origin` once per component where the
+    /// offset's `w − dir·t` names it twice, so at `Interval` a point that
+    /// carries width reads tighter here. Measured enclosure widths (a
+    /// point at `(0.7, 0.2, −0.4)` off the origin, of half-width `r`;
+    /// tilted axes normalized at `Interval`; at the world origin and at
+    /// `(1234.5, −987.25, 456)`, alike):
+    ///
+    /// | axis | `r` | this | `offset(p).norm()` |
+    /// |---|---|---|---|
+    /// | `ẑ`, exact | 1e-9 | 2.47e-9 | 2.47e-9 |
+    /// | `(0.3, −0.5, 0.81)` | 0 | 3.1e-15 | 1.7e-15 |
+    /// | `(0.3, −0.5, 0.81)` | 1e-9 | 2.85e-9 | 4.55e-9 |
+    /// | `(1, 2, 3)` | 1e-9 | 3.55e-9 | 5.48e-9 |
+    ///
+    /// The exact point's row is rounding alone, the division by `|dir|`.
+    #[must_use]
+    pub fn distance(&self, p: Point3<T>) -> T {
+        self.across(p - self.origin)
+    }
+
+    /// **`p`'s parameter and distance together**: [`Self::param`]'s `t`
+    /// and [`Self::distance`], from one `w = p − origin`, for a reader of
+    /// a point's height on an axis and its radius about it.
+    #[must_use]
+    pub fn param_and_distance(&self, p: Point3<T>) -> (T, T) {
         let w = p - self.origin;
-        w - w.project_onto(self.dir)
+        (self.coefficient(w), self.across(w))
+    }
+
+    /// `w`'s length square to `dir`, `|w × dir| / |dir|`: the one spelling
+    /// [`Self::distance`] and [`Self::param_and_distance`] read.
+    fn across(&self, w: Vec3<T>) -> T {
+        w.cross(self.dir).norm() / self.dir.norm()
+    }
+
+    /// **`p`'s parameter and offset together**: [`Self::param`]'s `t` and
+    /// [`Self::offset`]'s `w − dir·t`, from one `w = p − origin` and one
+    /// `t`, so a reader of both (a point's height on an axis and its
+    /// radial part) reads them consistent with each other and with the
+    /// two readings alone, bit for bit. `t` is a length along the line
+    /// only where `dir` is unit.
+    #[must_use]
+    pub fn param_and_offset(&self, p: Point3<T>) -> (T, Vec3<T>) {
+        let w = p - self.origin;
+        let t = self.coefficient(w);
+        (t, w - self.dir * t)
     }
 
     /// **`p`'s foot on the plane through `origin` square to the line**:
@@ -905,7 +964,11 @@ fn tube_section<T: Decide>(
     major_radius: T,
     p: Point3<T>,
 ) -> Azimuth<T> {
-    let (h, rho) = on_carrier::height_and_radius(p - center, axis);
+    let (h, rho) = Line {
+        origin: center,
+        dir: axis,
+    }
+    .param_and_distance(p);
     Azimuth::tube(h, rho, major_radius)
 }
 

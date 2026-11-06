@@ -4209,8 +4209,7 @@ impl Psi {
                     origin: o,
                     dir: axis,
                 }
-                .offset(p)
-                .norm()
+                .distance(p)
                     - r
             }
             Self::Carrier(Implicit::Sphere { c, r }) => (p - c).norm() - r,
@@ -4221,9 +4220,12 @@ impl Psi {
                 sin,
                 nappe,
             }) => {
-                let w = p - apex;
-                let h = w.dot(axis);
-                (w - axis * h).norm() * cos - nappe * h * sin
+                let (h, rho) = geom::Line {
+                    origin: apex,
+                    dir: axis,
+                }
+                .param_and_distance(p);
+                rho * cos - nappe * h * sin
             }
             Self::Graph { .. } => return None,
         })

@@ -909,7 +909,7 @@ fn magnitude<T: Decide>(d: T) -> T {
 /// of the separation orthogonal to a UNIT direction. A metre quantity
 /// throughout.
 fn axis_offset<T: Decide>(origin: Point3<T>, axis: Vec3<T>, point: Point3<T>) -> T {
-    geom::Line { origin, dir: axis }.offset(point).norm()
+    geom::Line { origin, dir: axis }.distance(point)
 }
 
 /// `angle(a, b)` -> Angle: the unsigned angle in `[0, pi]` between two

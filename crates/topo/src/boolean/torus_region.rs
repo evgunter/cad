@@ -512,8 +512,11 @@ impl<T: Decide> Legs<T> for TorusFaceRegion<T> {
                     Sign::Negative => return Ok(None),
                     Sign::Zero => return Err(RayFault::Graze),
                 }
-                let h = w.dot(axis);
-                let rho = (w - axis * h).norm();
+                let (h, rho) = geom::Line {
+                    origin: center,
+                    dir: axis,
+                }
+                .param_and_distance(y);
                 Self::arc_place((edge.t0, edge.t1), (rho - major, h), minor, band)
             }
             geom::Curve3::Circle(geom::Circle {

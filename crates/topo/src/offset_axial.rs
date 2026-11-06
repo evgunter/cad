@@ -2329,7 +2329,7 @@ fn mint_carrier<T: Decide>(
             let Some(line) = l.as_line() else {
                 unreachable!("{edge:?}: a generator pair is two lines")
             };
-            line.offset(q_mid).norm()
+            line.distance(q_mid)
         };
         let chosen = match decide(
             "offset_axial_generator_side",

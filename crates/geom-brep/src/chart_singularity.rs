@@ -1112,8 +1112,7 @@ impl<T: Decide> Shape<T> {
             origin: self.anchor,
             dir: self.axis,
         }
-        .offset(p)
-        .norm()
+        .distance(p)
     }
 }
 

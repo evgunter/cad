@@ -1218,9 +1218,11 @@ pub(super) fn torus_elevation<T: Decide>(
     minor_radius: T,
     p: Point3<T>,
 ) -> T {
-    let w = p - center;
-    let h = w.dot(axis);
-    let rho = (w - axis * h).norm();
+    let (h, rho) = geom::Line {
+        origin: center,
+        dir: axis,
+    }
+    .param_and_distance(p);
     ((rho - major_radius).powi(2) + h.powi(2)).sqrt() - minor_radius
 }
 
@@ -1356,9 +1358,12 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
     let mut levels: Vec<(T, T)> = Vec::new();
     // A point's own exact meridian-half-plane pair.
     let pair = |p: Point3<T>| -> (T, T) {
-        let w = p - center;
-        let h = w.dot(axis);
-        (h, (w - axis * h).norm())
+        let (h, rho) = geom::Line {
+            origin: center,
+            dir: axis,
+        }
+        .param_and_distance(p);
+        (h, rho)
     };
     for he in body
         .loop_cycle(first)
@@ -3527,9 +3532,7 @@ fn wall_crosses_by_turn<T: Decide>(
     let axis = axis / axis.norm();
     let radius = radius.abs();
     let split = |x: Point3<T>| {
-        let w = x - origin;
-        let h = w.dot(axis);
-        let radial = w - axis * h;
+        let (h, radial) = geom::Line { origin, dir: axis }.param_and_offset(x);
         (h, radial / radial.norm())
     };
     let (h_p, e1) = split(p);
@@ -3591,7 +3594,7 @@ fn wall_crosses_by_turn<T: Decide>(
                 radius: r,
             }) => {
                 r.abs() * (normal / normal.norm()).cross(axis).norm()
-                    + geom::Line { origin, dir: axis }.offset(center).norm()
+                    + geom::Line { origin, dir: axis }.distance(center)
             }
             _ => return Ok(None),
         };
