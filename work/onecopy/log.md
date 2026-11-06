@@ -341,3 +341,10 @@
 - 2026-11-06 — Ruled for topo-handles: B. Export `Body::face(k) -> Option<FaceView>`, so the type is the gate: 13 outside sites spelled `once(f.outer).chain(f.rings)` with four different torn-loop handlings. Conditions: check `git log -S` for a ratified decision that FaceView is crate-private; list each site whose behaviour changes when it becomes the D2 row-4 panic; expose the minimum.
 
 - 2026-11-06 — curve-pair-tidy opened PR 6541 at `9616e08d`. The coplanar level is onto `Level` and the subdivision takes charged terms; normalisation is onto `Vec3::normalize`. It filed two rows, among them `the-window-reads-the-level-uncharged-where-the-subdivision-needs-its-bound`, which bears on the across-key fork's reading. My B ruling and the span_rows red crossed its report, so I sent both back for the same PR. Review waits until they land.
+
+- 2026-11-06 — PR 6539 FULL review: MERGE, with no outcome or ranking moved. Fix pass sent:
+  - MINOR-1: `Evidence::keep` restated `Refusal::rung`'s table, kept in step by a test. It now gets one home through `rung`.
+  - NOTE-3: a comment on pieced_arc's in-band exception.
+  - The overlap row's class list corrected.
+  Class lesson again: a test that exists to keep two spellings in step is the sign of a copy.
+- 2026-11-06 — Ruled for spline-walks row 2: (a). New `SectionUnwalked` arms carry `geom::PieceWalkRefusal`, with a ratified-roster check first.
