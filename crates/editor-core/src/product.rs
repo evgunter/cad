@@ -98,7 +98,7 @@ use geom_core::Decide;
 use topo::{AtRestPolicy, Body, ContactRecords, ValidationError};
 
 use crate::doc::Doc;
-use crate::eval::{BooleanValue, Evaluation, NodeStanding, NodeValue, SplitSide, ValuePayload};
+use crate::eval::{Evaluation, NodeStanding, NodeValue, SplitSide, ValuePayload};
 use crate::names::{CarriedRows, EntityKey, NameTable, SplitHalf};
 use crate::node::RecipeNodeId;
 use crate::sentence::{Labelled, Labels, Staged};
@@ -625,11 +625,14 @@ pub(crate) fn sources_of<T: Decide>(value: &NodeValue<T>) -> Option<Vec<Source0<
     let carried = || Arc::clone(&value.carry.contacts);
     let rows = || Arc::clone(&value.carry.findings);
     let norows = || Arc::new(crate::checks::at_rest::CarriedFindings::default());
+    if let Some(body) = value.payload.member_body() {
+        return Some(
+            body.map(|body| (0, body.clone(), carried(), rows()))
+                .into_iter()
+                .collect(),
+        );
+    }
     match &value.payload {
-        ValuePayload::Body(body) | ValuePayload::Boolean(BooleanValue::Body { body, .. }) => {
-            Some(vec![(0, body.clone(), carried(), rows())])
-        }
-        ValuePayload::Boolean(BooleanValue::Empty) => Some(Vec::new()),
         // Cannot refuse: an instance list is minted by the pattern op,
         // which refuses any index `names::narrow` does not fit, or
         // by `Placeable::map`, which rebuilds an existing list one body
@@ -679,6 +682,9 @@ pub(crate) fn sources_of<T: Decide>(value: &NodeValue<T>) -> Option<Vec<Source0<
         // an assertion's verdict denote no material, so a document
         // whose only addition is an assertion has the same product it
         // had without one.
+        ValuePayload::Body(_) | ValuePayload::Boolean(_) => {
+            unreachable!("`member_body` answers every one-body value")
+        }
         ValuePayload::Profile(_)
         | ValuePayload::Measure { .. }
         | ValuePayload::Assertion(_)

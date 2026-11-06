@@ -2,10 +2,11 @@
 id: overlap-witness-search-ranks-its-refusals-first-of-any-kind
 kind: issue
 title: boolean::overlap's witness search is a hand-rolled ladder ranking OverlapRefusal first-of-any-kind
-status: open
+status: dispatched
 opened: 2026-11-06
 priority: P2
 cost: M
+branch: onecopy/refusal-standing
 ---
 
 
