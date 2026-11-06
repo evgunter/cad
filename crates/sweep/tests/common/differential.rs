@@ -206,6 +206,11 @@ pub enum Verdict {
     Bad,
     /// A body whose volume could not be measured.
     Unmeasured,
+    /// A body passing every check, whose measurement stopped short of the
+    /// resolution a ceiling read at the resolution needs
+    /// ([`judged_at_resolution`]), with its enclosure holding the closed
+    /// form (or none given).
+    Unmet,
 }
 
 /// One pose as [`judged`] read it: its line, the volume the result
@@ -221,6 +226,8 @@ pub struct Judgement {
     pub pad: Option<f64>,
     /// The verdict the line prints.
     pub verdict: Verdict,
+    /// Why the measurement stopped, where a volume was measured.
+    pub stop: Option<topo::Stop>,
 }
 
 /// [`outcome`] where a pose may have no closed form (`want` `None`),
@@ -234,7 +241,7 @@ pub fn judged(
     want: Option<f64>,
     tol: Tol,
 ) -> Judgement {
-    judge(r, want, tol, true, VOLUME_PAD_BUDGET)
+    judge(r, want, tol, true, Budget::Fixed(VOLUME_PAD_BUDGET))
 }
 
 /// [`judged`] against an enclosure no wider than `pad_budget` in
@@ -247,7 +254,40 @@ pub fn judged_within(
     tol: Tol,
     pad_budget: f64,
 ) -> Judgement {
-    judge(r, want, tol, true, pad_budget)
+    judge(r, want, tol, true, Budget::Fixed(pad_budget))
+}
+
+/// [`judged`] for a body of surface area at most `area` whose faces
+/// accept a round that only just meets the pinned resolution: an
+/// enclosure that met it is held to [`resolution_pad`], the widest the
+/// resolution admits. One that stopped short of it (at the work wall on
+/// a fine ε) has no ceiling of that kind, whose premise is that every
+/// face met the resolution: it reads [`Verdict::Unmet`] where the checks
+/// pass and its enclosure holds the closed form, and `BAD` otherwise.
+/// Its line names the stop.
+pub fn judged_at_resolution(
+    r: Result<BooleanResult<f64>, BooleanError>,
+    want: Option<f64>,
+    tol: Tol,
+    area: f64,
+) -> Judgement {
+    judge(
+        r,
+        want,
+        tol,
+        true,
+        Budget::Resolution(resolution_pad(tol, area)),
+    )
+}
+
+/// The widest enclosure [`judge`] accepts.
+#[derive(Clone, Copy)]
+enum Budget {
+    /// This half-width, whatever the measurement's stop.
+    Fixed(f64),
+    /// This half-width where every face met the resolution, and
+    /// [`Verdict::Unmet`] where the measurement stopped short.
+    Resolution(f64),
 }
 
 /// **The widest volume half-width the pinned resolution admits** on a
@@ -269,7 +309,7 @@ fn judge(
     want: Option<f64>,
     tol: Tol,
     extra: bool,
-    pad_budget: f64,
+    budget: Budget,
 ) -> Judgement {
     let want_col = want.map_or("want=none".to_string(), |w| format!("want={w:.9}"));
     let of = |line: String, volume, verdict| Judgement {
@@ -277,6 +317,7 @@ fn judge(
         volume,
         pad: None,
         verdict,
+        stop: None,
     };
     match r {
         Err(e) => {
@@ -309,11 +350,18 @@ fn judge(
                     tol,
                     topo::test_support::pinned_resolution(tol),
                 )
-                .map(|m| (m.enclosure.volume, m.enclosure.volume_pad))
+                .map(|m| (m.enclosure.volume, m.enclosure.volume_pad, m.stop))
                 {
-                    Ok((v, pad)) => {
+                    Ok((v, pad, stop)) => {
+                        let (pad_budget, unmet) = match budget {
+                            Budget::Fixed(ceiling) => (ceiling, false),
+                            Budget::Resolution(ceiling) => (ceiling, stop != topo::Stop::Met),
+                        };
+                        let holds = want.is_none_or(|w| (v - w).abs() <= VOLUME_CLAIM + pad);
                         let verdict = match want {
                             _ if !(t2 && t3 && cert && operand && extra) => Verdict::Bad,
+                            _ if unmet && holds => Verdict::Unmet,
+                            _ if unmet => Verdict::Bad,
                             _ if pad > pad_budget => Verdict::Bad,
                             None => Verdict::Unjudged,
                             Some(w) if (v - w).abs() <= VOLUME_CLAIM + pad => Verdict::Sound,
@@ -322,6 +370,7 @@ fn judge(
                         let word = match verdict {
                             Verdict::Sound => "SOUND",
                             Verdict::Unjudged => "UNJUDGED",
+                            Verdict::Unmet => "UNMET",
                             _ => "BAD",
                         };
                         let pad_col = if pad > 0.0 {
@@ -329,12 +378,19 @@ fn judge(
                         } else {
                             String::new()
                         };
+                        let stop_col = match (budget, stop) {
+                            (Budget::Resolution(_), topo::Stop::Met) | (Budget::Fixed(_), _) => {
+                                String::new()
+                            }
+                            (Budget::Resolution(_), stop) => format!(" stop={}", stop.word()),
+                        };
                         Judgement {
                             pad: Some(pad),
+                            stop: Some(stop),
                             ..of(
                                 format!(
                                     "OK {word} t2={t2} t3p={t3} cert={cert} operand={operand} \
-                                     v={v:.9}{pad_col} {want_col}"
+                                     v={v:.9}{pad_col}{stop_col} {want_col}"
                                 ),
                                 Some(v),
                                 verdict,
@@ -414,7 +470,7 @@ pub fn judged_with_seams(
         .and_then(BooleanResult::body)
         .map(|bb| seams(&bb.body));
     let clean = seams.is_none_or(|(sk, _, z)| sk == 0 && z == 0);
-    let mut j = judge(r, want, tol, clean, VOLUME_PAD_BUDGET);
+    let mut j = judge(r, want, tol, clean, Budget::Fixed(VOLUME_PAD_BUDGET));
     if let Some((sk, cp, z)) = seams {
         j.line = format!("{} samekey={sk} coplanar={cp} zero={z}", j.line);
     }
