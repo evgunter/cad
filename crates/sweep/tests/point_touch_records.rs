@@ -210,12 +210,12 @@ fn a_ball_on_a_slab_edge_is_read_at_its_touch_point() {
     };
     let edge = body
         .edges()
-        .find(|(_, e)| {
-            let ends = [e.he_plus, e.he_minus].map(|h| at(body.get_half_edge(h).unwrap().start));
+        .map(|(k, _)| k)
+        .find(|&k| {
+            let ends = <[_; 2]>::from(body.edge_vertices(k).expect("a live edge")).map(at);
             let (p, q) = ([0.0, 0.0, 1.0], [4.0, 0.0, 1.0]);
             ends == [p, q] || ends == [q, p]
         })
-        .map(|(k, _)| k)
         .unwrap();
     assert_eq!(
         reads(&body, &balls, Cell::Edge(edge)),

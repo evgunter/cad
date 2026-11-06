@@ -163,10 +163,7 @@ fn extruded_continuation_builds_one_wall_and_unions_as_built() {
     );
     // The station has no entity: each rim of the wall is one edge
     // over the run, ending at the wall's two struts.
-    let strut_ends = |e: EdgeKey| {
-        let edge = ex.body.get_edge(e).unwrap();
-        [edge.he_plus, edge.he_minus].map(|h| ex.body.get_half_edge(h).unwrap().start)
-    };
+    let strut_ends = |e: EdgeKey| <[_; 2]>::from(ex.body.edge_vertices(e).unwrap());
     let next = &ex.walls[0][1];
     for rim in [wall.bottom_rim, wall.top_rim] {
         let ends = strut_ends(rim);

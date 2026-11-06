@@ -956,9 +956,8 @@ fn split_tube(ri: f64, ro: f64, h: f64) -> Body<f64> {
     .unwrap();
     // The seam now parts two faces, so it is no longer a wrap edge.
     let ends = {
-        let e = body.get_edge(seam).unwrap();
-        let start = |he| body.get_half_edge(he).unwrap().start;
-        (p(&body, start(e.he_plus)), p(&body, start(e.he_minus)))
+        let (a, b) = body.edge_vertices(seam).unwrap();
+        (p(&body, a), p(&body, b))
     };
     body.set_edge_curve(
         seam,

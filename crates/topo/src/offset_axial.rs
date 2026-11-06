@@ -714,15 +714,7 @@ pub(crate) fn offset_charts_together_staged<T: Decide + crate::props::AtRestPoli
             chart_of(fa).unwrap_or_else(|| unmoved_in_scope(fa)),
             chart_of(fb).unwrap_or_else(|| unmoved_in_scope(fb)),
         );
-        let start = linked(
-            &body.half_edges,
-            edge_data.he_plus,
-            EntityId::HalfEdge,
-            EntityId::Edge(edge),
-            "he_plus",
-        )
-        .start;
-        let end = body.proven_half_edge_end(edge_data.he_plus);
+        let (start, end) = crate::query::edge_ends(body, edge);
         let (p_start, p_end) = (
             point_at(start).unwrap_or_else(|| unplaced_in_scope(start)),
             point_at(end).unwrap_or_else(|| unplaced_in_scope(end)),

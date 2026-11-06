@@ -308,8 +308,7 @@ fn a_lone_wrap_edge_has_two_tips() {
         .find(|&e| body.both_sides_face(e) == Some(Some(face)))
         .expect("the strut lies in the sphere face");
     let ends = {
-        let e = body.get_edge(strut).unwrap();
-        let mut ends = [e.he_plus, e.he_minus].map(|h| body.get_half_edge(h).unwrap().start);
+        let mut ends = <[_; 2]>::from(body.edge_vertices(strut).unwrap());
         ends.sort();
         ends
     };

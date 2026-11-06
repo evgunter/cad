@@ -11,7 +11,7 @@ use topo::{Body, FaceKey};
 use rayon::prelude::*;
 
 use crate::budget;
-use crate::chords::{compute_chords, edge_vertices};
+use crate::chords::{compute_chords, edge_ends};
 use crate::curved::tessellate_curved;
 use crate::memo::{FaceInputs, FaceMemo, PatchKeys, PatchMemo, Placement};
 use crate::nurbs_cert::FaceBounds;
@@ -355,7 +355,7 @@ fn tessellate_impl(
     let shared_below = positions.len();
     let mut boundaries = Vec::new();
     for (ek, _) in body.edges() {
-        let (start_vertex, end_vertex) = edge_vertices(body, ek)?;
+        let (start_vertex, end_vertex) = edge_ends(body, ek)?;
         let points = chords
             .ids
             .get(&ek)

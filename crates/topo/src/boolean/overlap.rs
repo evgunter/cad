@@ -420,19 +420,21 @@ fn half_plane<T: Decide>(
     };
     // The piece from `p` to a vertex: the edge's start at `t0`, its end
     // at `t1`.
-    let edge = body
+    let (v0, v1) = body
         .get_half_edge(he)
-        .and_then(|h| body.get_edge(h.edge))
+        .and_then(|h| body.edge_vertices(h.edge))
         .ok_or(OverlapRefusal::Unread {
             what: "a boundary edge that does not resolve",
         })?;
-    let vertex = |end| {
-        body.half_edge_start_point(end)
+    let vertex = |v| {
+        body.get_vertex(v)
+            .and_then(|d| body.get_point(d.point))
+            .copied()
             .ok_or(OverlapRefusal::Unread {
                 what: "a boundary edge whose vertex does not resolve",
             })
     };
-    let (at_t0, at_t1) = (vertex(edge.he_plus)?, vertex(edge.he_minus)?);
+    let (at_t0, at_t1) = (vertex(v0)?, vertex(v1)?);
     let reach = |ta: T, (tb, end): (T, Point3<T>)| match carrier {
         geom::Curve3::Line(_) => {
             LeverBounds::Exact(geom_brep::ExtentBall::point(carrier.eval(tb)).lever_from(p))

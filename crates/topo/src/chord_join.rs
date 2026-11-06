@@ -4129,15 +4129,7 @@ fn along_edge_spec<T: Decide>(
     }
     // The chord starts at the copy of whichever end of the edge null
     // edges tie `u1` to; the curve runs from its `he_plus` start.
-    let e_start = linked(
-        &body.half_edges,
-        e.he_plus,
-        EntityId::HalfEdge,
-        EntityId::Edge(edge),
-        "he_plus",
-    )
-    .start;
-    let e_end = body.proven_half_edge_end(e.he_plus);
+    let (e_start, e_end) = crate::query::edge_ends(body, edge);
     let forward = match (
         same_site(body, face, (u1, e_start))?,
         same_site(body, face, (u1, e_end))?,

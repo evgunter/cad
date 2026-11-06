@@ -399,9 +399,7 @@ fn the_lofted_cylinders_unions_refuse_at_its_own_rims() {
                 kind(face) == Some(SurfaceKind::Nurbs) && face != fa && face != fb,
                 "the face is the cylinder's other spline wall"
             );
-            let e = cyl.get_edge(edge).expect("the arc");
-            let start = |h| cyl.get_half_edge(h).expect("its half-edge").start;
-            let (a, b) = (start(e.he_plus), start(e.he_minus));
+            let (a, b) = cyl.edge_vertices(edge).expect("the arc");
             let of = |v| cyl.faces_of_vertex(v).unwrap_or_default();
             assert!(
                 of(a).contains(&face) && of(b).contains(&face),

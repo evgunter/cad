@@ -127,9 +127,9 @@ fn shape(body: &Body<f64>) -> (Vec<Vec<Point>>, Vec<[Point; 2]>) {
     faces.sort_unstable();
     let mut edges: Vec<[Point; 2]> = body
         .edges()
-        .map(|(_, e)| {
-            let mut ps =
-                [e.he_plus, e.he_minus].map(|he| at(body.half_edge_start_point(he).unwrap()));
+        .map(|(k, _)| {
+            let mut ps = <[_; 2]>::from(body.edge_vertices(k).unwrap())
+                .map(|v| at(topo::readback::vertex_point(body, v).unwrap()));
             ps.sort_unstable();
             ps
         })
