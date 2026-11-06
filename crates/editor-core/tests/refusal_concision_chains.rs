@@ -774,7 +774,7 @@ test_utils::f6_variants! {
     const NODE_ERROR_KIND: NodeErrorKind = [
         Expr, Profile, ProfileReplay, ProfileLaneReplay, Trace, Extrude, Revolve, Tube, Split, ContactCarry, Blend,
         Boolean, Transform, Mirror, Motion, Skin, Loft, CurvedSolidFrontier, MissingInput, UnresolvedRead, SelectResolve,
-        ToleranceConflict, ParamBox, Seed, WrongOperand, EmptyOperand,
+        ToleranceConflict, ParamBox, Seed, WrongOperand, EmptyOperand, EmptyMember,
         UnfinishedOperand, EmptyHalf, MemberOutOfRange, MemberRefused, IndicesUnrelated,
         IndexCount, IndexCountOutOfRange, NoSuchPiece, PieceShape,
         DegenerateDirection, NonFiniteDirection, UnderflowedDirection, Band, MissingSlot,
@@ -1235,6 +1235,7 @@ fn forward(kind: &NodeErrorKind) -> Forward {
         | NodeErrorKind::ToleranceConflict { .. }
         | NodeErrorKind::WrongOperand { .. }
         | NodeErrorKind::EmptyOperand { .. }
+        | NodeErrorKind::EmptyMember { .. }
         | NodeErrorKind::EmptyHalf { .. }
         | NodeErrorKind::ContactCarry { .. }
         | NodeErrorKind::MemberOutOfRange { .. }
@@ -1694,6 +1695,13 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
             "EmptyOperand",
             NodeErrorKind::EmptyOperand {
                 input: RecipeNodeId::new(0, tagged(3)),
+            },
+        ),
+        row(
+            "EmptyMember",
+            NodeErrorKind::EmptyMember {
+                input: RecipeNodeId::new(0, tagged(3)),
+                at: vec![(editor_core::VarId::new(0, tagged(2)), 1)],
             },
         ),
         row(
@@ -4077,7 +4085,7 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
     use payloads::*;
     use profile::path::{PathError as P, PathNoCornerReason, TurnLever};
     use profile::{CornerReason, CornerRefusal, FilletLegCarrier, NoCornerReason};
-    use profile::{FilletLeg, ReplayError, ReplayErrorKind, TipState};
+    use profile::{CornerWindow, FilletLeg, ReplayError, ReplayErrorKind, TipState};
     let path: Vec<(&str, P<f64>)> = vec![
         (
             "JunctionTangent",
@@ -4402,6 +4410,32 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
                             setback: 0.412_345_678,
                             available: 0.301_234_567,
                         },
+                    },
+                ],
+            },
+        ),
+        (
+            "NoCornerOfPair(behind the incoming ray)",
+            P::NoCornerOfPair {
+                radius: 0.312_345_678,
+                corners: vec![CornerRefusal {
+                    at: Point2::new(-1.234_567, 0.987_654),
+                    reason: CornerReason::OutsideAnchors(CornerWindow::BehindIncomingRay),
+                }],
+            },
+        ),
+        (
+            "NoCornerOfPair(both windows)",
+            P::NoCornerOfPair {
+                radius: 0.312_345_678,
+                corners: vec![
+                    CornerRefusal {
+                        at: Point2::new(1.234_567, -0.987_654),
+                        reason: CornerReason::OutsideAnchors(CornerWindow::BehindArrivalAnchor),
+                    },
+                    CornerRefusal {
+                        at: Point2::new(-1.234_567, 0.987_654),
+                        reason: CornerReason::OutsideAnchors(CornerWindow::BehindIncomingRay),
                     },
                 ],
             },

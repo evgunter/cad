@@ -921,6 +921,26 @@ impl<T: Decide> NodeValue<T> {
     pub(crate) fn whole(&self) -> &Self {
         self.family.as_deref().unwrap_or(self)
     }
+
+    /// **A family of bodies, member by member**, in index order: each
+    /// member's body, `None` at a member that is a boolean's empty
+    /// result. `None` for a value that is no family of bodies — one
+    /// body, or a family some member of which is no body. Every reader
+    /// of a family of bodies reads it here, whichever payload holds it.
+    #[must_use]
+    pub fn member_bodies(&self) -> Option<Vec<Option<&Framed<T>>>> {
+        match &self.payload {
+            ValuePayload::Instances(bodies) => Some(bodies.iter().map(Some).collect()),
+            ValuePayload::Family => self
+                .members
+                .as_ref()?
+                .members
+                .iter()
+                .map(|(_, member)| member.payload.member_body())
+                .collect(),
+            _ => None,
+        }
+    }
 }
 
 impl<T: Decide> NodeValue<T> {
@@ -1061,8 +1081,9 @@ pub enum ValuePayload<T: Decide> {
     /// A single body: every one-body op (extrude, revolve, the tubes,
     /// loft, sweep, blends, shell, union, assemble, instantiate) and a
     /// `Place` of one body — a placement over one shape has that shape's
-    /// shape, so a placement of a family read whole is
-    /// [`Self::Instances`].
+    /// shape, so a placement of a family is a family of bodies
+    /// ([`Self::Instances`], or [`Self::Family`] where a member is the
+    /// empty result).
     Body(Framed<T>),
     /// A boolean's result: a body with its contact records, or the
     /// typed empty success (F8; D3).
@@ -1075,18 +1096,20 @@ pub enum ValuePayload<T: Decide> {
         below: SplitSide<T>,
     },
     /// **A family's members AS DATA** (D10 `[repetition]`): one body
-    /// per value of the family's indices, outermost index first, the
-    /// value a family's output holds read whole.
+    /// per value of the family's indices, outermost index first — a
+    /// family of bodies every member of which is a body, read whole.
     ///
     /// **Who takes it, and who refuses.** A reader of the same index
-    /// reads one member, never this value. A reader that reads the
-    /// family whole takes it at a member seat (a union's, an
-    /// intersect's or an assemble's), an indexed read takes one member
-    /// out of it by its tuple, and the product gather takes every
-    /// member in order. Any other body seat that meets it whole takes
-    /// ONE body and refuses it typed (`WrongOperand`): a boolean of N
-    /// bodies is N booleans or one union of them, and the recipe does
-    /// not guess which (D3).
+    /// reads one member, never this value. A reader of a family of
+    /// bodies reads it through [`NodeValue::member_bodies`], which
+    /// reads this payload and [`Self::Family`]'s absent-member case
+    /// alike: a member seat (a union's, an intersect's or an
+    /// assemble's) takes every member, and an indexed read takes one
+    /// member out of it by its tuple. The product gather and
+    /// [`Self::output_body`] read this payload's bodies alone. Any other
+    /// body seat that meets it whole takes ONE body and refuses it
+    /// typed (`WrongOperand`): a boolean of N bodies is N booleans or
+    /// one union of them, and the recipe does not guess which.
     Instances(Vec<Framed<T>>),
     /// A `Measure` node's typed F1 quantity (E3): the measured value
     /// in kernel units with the dimension it was measured in. Not
@@ -1104,8 +1127,18 @@ pub enum ValuePayload<T: Decide> {
     /// vocabulary takes a verdict as an operand, so this payload is
     /// consumed by reports and by nothing else.
     Assertion(crate::measure::AssertionVerdict<T>),
-    /// **A family of anything but bodies** (D10 `[repetition]`): its
-    /// members are the value's ([`NodeValue::members`]).
+    /// **A family not every member of which is a body** (D10
+    /// `[repetition]`): its members are the value's
+    /// ([`NodeValue::members`]), and the payload holds no body. It is
+    /// one of two things:
+    ///
+    /// - **a family of bodies with an absent member**: each member is
+    ///   a body or a boolean's empty result, and at least one is
+    ///   empty. Its one output names the bodies, each at its member's
+    ///   place, and [`NodeValue::member_bodies`] reads it as it reads
+    ///   [`Self::Instances`];
+    /// - **a family of anything else** (profiles, measures, splits, a
+    ///   family of families): it has no output.
     Family,
 }
 
@@ -1228,10 +1261,25 @@ pub(crate) mod phrase {
 }
 
 impl<T: Decide> ValuePayload<T> {
+    /// **This value as one body**: its body (a `Body` value or a
+    /// boolean's non-empty result), `Some(None)` for a boolean's empty
+    /// result, `None` for a value that is no body. The one rule for
+    /// "is this one body" every reader of one body in this crate asks.
+    pub(crate) fn member_body(&self) -> Option<Option<&Framed<T>>> {
+        match self {
+            Self::Body(body) | Self::Boolean(BooleanValue::Body { body, .. }) => Some(Some(body)),
+            Self::Boolean(BooleanValue::Empty) => Some(None),
+            _ => None,
+        }
+    }
+
     /// **The body at output `index`**: a one-body value's at 0, a
     /// split's half at its port ([`crate::SplitHalf::output_body`]), a
-    /// family's member at its place. The one answer to "which body does
-    /// a read of this output hold".
+    /// family's member at its place — for a value whose payload holds
+    /// its bodies. A family of bodies with an absent member holds them
+    /// in its members, not its payload, so this answers it
+    /// [`crate::InterrogateError::NoBodies`];
+    /// [`NodeValue::member_bodies`] reads its bodies.
     ///
     /// # Errors
     ///
@@ -1617,11 +1665,22 @@ pub enum NodeErrorKind {
         found: &'static str,
     },
     /// A body operand evaluated to the typed empty value — the kernel
-    /// ops take real bodies only (v1; ∅-absorbing semantics would be
-    /// invented behavior, spec D3's "wire, don't invent").
+    /// ops take real bodies only: ∅ is a typed result
+    /// (`docs/DESIGN.md` `[topology.conventions]`), and an op that
+    /// absorbed it would answer where it declined (`[loud-failure]`).
     EmptyOperand {
         /// The empty input node.
         input: RecipeNodeId,
+    },
+    /// **A family read whole holds a member that is the typed empty
+    /// value** (D10 `[repetition]`): a seat that takes the family's
+    /// bodies refuses it as [`Self::EmptyOperand`] refuses one empty
+    /// operand, naming the member.
+    EmptyMember {
+        /// The family's node.
+        input: RecipeNodeId,
+        /// Each index the family reaches, at the empty member's value.
+        at: Vec<(crate::VarId, i64)>,
     },
     /// A body operand is not a finished body: the at-rest gate
     /// ([`topo::AtRestPolicy::gate_at_rest_kept`], tier 3) refuses the
@@ -2235,6 +2294,23 @@ impl crate::spoken::Say for NodeErrorKind {
                 "{} is the empty value — the body ops take real bodies",
                 by.node_as(*input, "input")
             ),
+            Self::EmptyMember { input, at } => {
+                let at: Vec<String> = at
+                    .iter()
+                    .map(|&(index, value)| format!("{} = {value}", by.read(index)))
+                    .collect();
+                write!(
+                    f,
+                    "the member of {} at {} is the empty value — the body ops take real \
+                     bodies. {}",
+                    by.node_as(*input, "input"),
+                    at.join(", "),
+                    crate::sentence::Recourse(
+                        "read the members that are bodies by index, or change the member's \
+                         operands so it keeps material"
+                    )
+                )
+            }
             Self::UnfinishedOperand { input, errors } => write!(
                 f,
                 "{} shipped a body that does not finish: {}",
@@ -4533,10 +4609,13 @@ fn own_bodies<T: Decide>(id: RecipeNodeId, step: &NodeStep<T>) {
     let Some(value) = step.result.value() else {
         return;
     };
-    let count = match &value.payload {
-        ValuePayload::Body(_) | ValuePayload::Boolean(BooleanValue::Body { .. }) => 1,
-        ValuePayload::Instances(bodies) => bodies.len(),
-        _ => return,
+    let count = match value.payload.member_body() {
+        Some(Some(_)) => 1,
+        Some(None) => return,
+        None => match value.member_bodies() {
+            Some(bodies) => bodies.len(),
+            None => return,
+        },
     };
     for names in value.outputs.iter() {
         crate::names::assert_own_bodies(names.table(), count, id);

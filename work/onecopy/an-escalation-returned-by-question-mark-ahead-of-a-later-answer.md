@@ -2,10 +2,11 @@
 id: an-escalation-returned-by-question-mark-ahead-of-a-later-answer
 kind: issue
 title: A reading's escalation returned by ? ahead of a later reading that could still answer: pieced_arc::contact's ends, CarrierLoop::place_off
-status: open
+status: dispatched
 opened: 2026-11-06
 priority: P2
 cost: M
+branch: onecopy/refusal-standing
 ---
 
 

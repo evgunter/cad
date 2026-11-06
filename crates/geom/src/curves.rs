@@ -612,6 +612,13 @@ pub struct Line<T: Real> {
 }
 
 impl<T: Real> Line<T> {
+    /// **The line's point at `t`**: `origin + dir·t`, the carrier's own
+    /// parameterization ([`Curve3::eval`] on a line).
+    #[must_use]
+    pub fn at(&self, t: T) -> Point3<T> {
+        self.origin + self.dir * t
+    }
+
     /// The parameter of `p`'s foot: `(p − origin)·dir / |dir|²`, the
     /// coefficient of [`Vec3::project_onto`] in its association.
     #[must_use]
@@ -622,7 +629,7 @@ impl<T: Real> Line<T> {
     /// **`p`'s foot**: the point of the line nearest `p`.
     #[must_use]
     pub fn foot(&self, p: Point3<T>) -> Point3<T> {
-        self.origin + self.dir * self.param(p)
+        self.at(self.param(p))
     }
 
     /// **The parameter of `p`'s nearest point of the span `(t0, t1)`**
@@ -639,19 +646,21 @@ impl<T: Real> Line<T> {
     /// [`Self::param_within`].
     #[must_use]
     pub fn foot_within(&self, p: Point3<T>, span: (T, T)) -> Point3<T> {
-        self.origin + self.dir * self.param_within(p, span)
+        self.at(self.param_within(p, span))
     }
 
     /// **`p`'s foot on the ray from `t0`**, the points `t ≥ t0`:
     /// [`Self::param`] held at `t0` by `max`.
     #[must_use]
     pub fn foot_from(&self, p: Point3<T>, t0: T) -> Point3<T> {
-        self.origin + self.dir * self.param(p).max(t0)
+        self.at(self.param(p).max(t0))
     }
 
     /// **`p`'s offset from its foot**, square to the line: `w = p − origin`
     /// less its [projection](Vec3::project_onto) onto `dir`, whose norm is
-    /// `p`'s distance from the line. Subtractive rather than
+    /// `p`'s distance from the line. It divides by `|dir|²`, so it holds
+    /// for any nonzero `dir` and a unit `dir`'s reading can move in the
+    /// last place against `w − dir·(w·dir)`. Subtractive rather than
     /// [`Vec3::reject_from`]'s triple product, which amplifies a `dir`
     /// carrying width: a computed carrier direction is that case.
     #[must_use]
@@ -1382,7 +1391,7 @@ impl<T: SpanLocate> Curve3<T> {
     ///   the sealed seam; all-poison for the placeholder state).
     pub fn eval(&self, t: T) -> Point3<T> {
         match self {
-            Curve3::Line(Line { origin, dir }) => *origin + *dir * t,
+            Curve3::Line(line) => line.at(t),
             Curve3::Circle(c) => c.point_at(t),
             Curve3::Ellipse(e) => e.point_at(t),
             Curve3::Spiric {
@@ -1481,7 +1490,7 @@ impl<T: SpanLocate> Curve3<T> {
     /// passes and are not projections of this one.
     pub fn ders1(&self, t: T) -> (Point3<T>, Vec3<T>) {
         match self {
-            Curve3::Line(Line { origin, dir }) => (*origin + *dir * t, *dir),
+            Curve3::Line(line) => (line.at(t), line.dir),
             Curve3::Circle(c) => c.jet_at(t),
             Curve3::Ellipse(e) => e.jet_at(t),
             Curve3::Spiric {

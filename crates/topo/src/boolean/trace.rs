@@ -219,7 +219,7 @@ pub fn ray_crossings<T: Decide>(
                 Sign::Zero => return on_carrier(),
                 Sign::Positive | Sign::Negative => {}
             }
-            vec![(o - origin).dot(normal) / lead]
+            vec![geom::plane_offset(origin, normal, o) / lead]
         }
         Surface::Nurbs(_) | Surface::Approx(_) => {
             return Err(TraceFault::Unsupported {
@@ -277,7 +277,7 @@ pub fn circle_crossings<T: Decide>(
             // `A cos θ + B sin θ + K = 0`, solved for the cosine and sine.
             let a = normal.dot(u_ref) * radius;
             let b = normal.dot(v_ref) * radius;
-            let k = (center - origin).dot(normal);
+            let k = geom::plane_offset(origin, normal, center);
             let r2 = a.powi(2) + b.powi(2);
             let r = r2.sqrt();
             match sign(TRACE_PLANE_LEAD, Margin::of(r), band)? {

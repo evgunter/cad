@@ -2491,7 +2491,7 @@ fn ball_against_plane<T: Decide>(
     normal: Vec3<T>,
     band: Band,
 ) -> Result<(NonzeroSign, T), geom_core::Indeterminate> {
-    let s = (center - origin).dot(normal);
+    let s = geom::plane_offset(origin, normal, center);
     let sign = crate::validate::decide_nonzero(
         "bool_sphere_extent_gap",
         Margin::of(radius - s.abs()),
