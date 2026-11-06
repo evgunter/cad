@@ -72,6 +72,7 @@
 
 use geom::Surface;
 use geom_core::Bounds;
+use geom_core::bisect::{Budget, Exhausted, Step, bisect_within};
 use geom_core::interval::certification::Certification;
 use geom_core::interval::max_bound;
 use geom_core::{Interval, Point3, SizedPass, SupSpeed};
@@ -865,9 +866,10 @@ impl SweepTally {
 
 /// **The one recursion**, shared by both lanes and its three duties.
 ///
-/// Iterative (an explicit stack, so recursion depth is not a stack-
-/// overflow path) and depth-first with the two halves pushed in a fixed
-/// order — same cells, same order, every run (D9). `excluded` answers
+/// The kernel's bisection walk ([`geom_core::bisect::bisect_within`]):
+/// iterative, so recursion depth is not a stack-overflow path, and
+/// depth-first, earlier half first — same cells, same order, every run
+/// (D9) — within the cell budget ([`SSI_MAX_CELLS`]). `excluded` answers
 /// the lane's own question: does a certified enclosure over this cell
 /// exclude its locus, or is the enclosure unusable (a typed refusal)?
 ///
@@ -889,77 +891,83 @@ fn sweep<C: SweepCell>(
     let (lane, width) = (floor.lane, floor.width());
     let mut stats = SweepTally::default();
     let mut out = Vec::new();
-    let mut stack = vec![(floor.root, 0u32)];
-    while let Some((cell, depth)) = stack.pop() {
-        if stats.examined as usize >= SSI_MAX_CELLS {
-            return Err(SsiError::CellBudget {
-                budget: SSI_MAX_CELLS,
-            });
-        }
-        stats.examined += 1;
-        stats.max_depth = stats.max_depth.max(depth);
+    let walked = bisect_within(
+        [(floor.root, 0u32)],
+        &mut Budget::new(SSI_MAX_CELLS),
+        |(cell, depth)| -> Step<(C, u32), Result<(), SsiError>> {
+            stats.examined += 1;
+            stats.max_depth = stats.max_depth.max(depth);
 
-        // (i) exclusion: no solution can be in this cell.
-        if excluded(cell)? {
-            stats.excluded += 1;
-            continue;
-        }
-        // (ii) accounted: inside a found branch's uniqueness tube, or
-        // a boundary contact's certified region.
-        match duty.accounts(cell) {
-            Some(Accounted::Clear) => {
-                stats.excluded += 1;
-                continue;
-            }
-            Some(Accounted::Tube) => {
-                stats.accounted += 1;
-                continue;
-            }
-            Some(Accounted::Contact) => {
-                stats.contact += 1;
-                continue;
-            }
-            Some(Accounted::Regular) => {
-                stats.regular += 1;
-                continue;
-            }
-            None => {}
-        }
-        // (iii) refine, unless we are at the floor.
-        if cell.width() <= width {
-            match duty {
-                SweepDuty::Seed => {
-                    out.push(cell.seed());
-                    continue;
+            // (i) exclusion: no solution can be in this cell.
+            match excluded(cell) {
+                Ok(true) => {
+                    stats.excluded += 1;
+                    return Step::Settled;
                 }
-                // A cell the sweep cannot read is a critical point's to
-                // decide; past the cap, there are more than one point
-                // can hold, and the sweep stops.
-                SweepDuty::Regular(_) => {
-                    out.push(cell.seed());
-                    if out.len() > REGULAR_SURVIVORS {
-                        return Ok((stats, out));
+                Ok(false) => {}
+                Err(e) => return Step::Stop(Err(e)),
+            }
+            // (ii) accounted: inside a found branch's uniqueness tube, or
+            // a boundary contact's certified region.
+            match duty.accounts(cell) {
+                Some(Accounted::Clear) => {
+                    stats.excluded += 1;
+                    return Step::Settled;
+                }
+                Some(Accounted::Tube) => {
+                    stats.accounted += 1;
+                    return Step::Settled;
+                }
+                Some(Accounted::Contact) => {
+                    stats.contact += 1;
+                    return Step::Settled;
+                }
+                Some(Accounted::Regular) => {
+                    stats.regular += 1;
+                    return Step::Settled;
+                }
+                None => {}
+            }
+            // (iii) refine, unless we are at the floor.
+            if cell.width() <= width {
+                return match duty {
+                    SweepDuty::Seed => {
+                        out.push(cell.seed());
+                        Step::Settled
                     }
-                    continue;
-                }
-                SweepDuty::Account { .. } => {
-                    return Err(SsiError::ExhaustivenessInconclusive(
-                        ExhaustivenessRefusal {
+                    // A cell the sweep cannot read is a critical point's to
+                    // decide; past the cap, there are more than one point
+                    // can hold, and the sweep stops.
+                    SweepDuty::Regular(_) => {
+                        out.push(cell.seed());
+                        if out.len() > REGULAR_SURVIVORS {
+                            Step::Stop(Ok(()))
+                        } else {
+                            Step::Settled
+                        }
+                    }
+                    SweepDuty::Account { .. } => Step::Stop(Err(
+                        SsiError::ExhaustivenessInconclusive(ExhaustivenessRefusal {
                             lane,
                             cell_width: cell.width(),
                             floor: width,
                             examined: stats.examined,
-                        },
-                    ));
-                }
+                        }),
+                    )),
+                };
             }
-        }
-        stats.refined += 1;
-        let (a, b) = cell.split();
-        stack.push((b, depth + 1));
-        stack.push((a, depth + 1));
+            stats.refined += 1;
+            let (a, b) = cell.split();
+            Step::Halve([(a, depth + 1), (b, depth + 1)])
+        },
+    );
+    match walked {
+        Err(Exhausted) => Err(SsiError::CellBudget {
+            budget: SSI_MAX_CELLS,
+        }),
+        Ok(Some(Err(e))) => Err(e),
+        Ok(Some(Ok(())) | None) => Ok((stats, out)),
     }
-    Ok((stats, out))
 }
 
 /// **Seed generation**, ℝ³ lane: the centers of the cells that survived

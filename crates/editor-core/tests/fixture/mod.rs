@@ -1341,7 +1341,7 @@ pub fn band() -> geom_core::Band {
 /// imports them from here beside the rest of its authoring doors.
 // Not every suite that mounts the fixture reads each one.
 #[allow(unused_imports)]
-pub use editor_core::test_support::{ang, axes_at, len, len2, scl};
+pub use editor_core::test_support::{ang, axes_at, every_body, len, len2, scl};
 
 /// [`editor_core::test_support::in_world`] at the witness tolerance,
 /// the copy in the product ([`assemble_world_copies`]).

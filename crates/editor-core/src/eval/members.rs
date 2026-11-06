@@ -15,16 +15,14 @@
 //! plainly at one seat and whole at another. A member that refuses
 //! refuses the family, naming the member.
 //!
-//! A family of bodies is named `Member { at, of }` over each member's
-//! own names, each body at its member's place
-//! ([`crate::names::name_family`]). Every member a body, it holds them
-//! as an `Instances` payload, one per member in index order; with a
-//! member that is a boolean's empty result, its payload is
-//! [`ValuePayload::Family`] and its bodies are its members'
-//! ([`NodeValue::member_bodies`]). A family of anything else is a
-//! `Family` with no output. Each keeps each member's whole value
-//! ([`Members`]), which is what a reader of one member reads, and what
-//! the memo serves a member from.
+//! A family of bodies is its members' bodies as an `Instances`
+//! payload, one place per member in index order, `None` at a member
+//! that is a boolean's empty result; it is named `Member { at, of }`
+//! over each member's own names, each body at its member's place
+//! ([`crate::names::name_family`]). A family of anything else is
+//! [`ValuePayload::Family`], with no output. Each keeps each member's
+//! whole value ([`Members`]), which is what a reader of one member
+//! reads, and what the memo serves a member from.
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -73,7 +71,7 @@ impl<T: Decide> Members<T> {
 
     /// **The place of the member at `at`**, its index values: its
     /// position among the members, which is its body's place in the
-    /// family's names and in [`NodeValue::member_bodies`].
+    /// family's names and in its `Instances` payload.
     pub(crate) fn position(&self, at: &[u32]) -> Option<usize> {
         self.members
             .binary_search_by(|(values, _)| values.as_slice().cmp(at))
@@ -423,10 +421,9 @@ pub(super) fn member_key(key: ContentKey, at: &[(VarId, i64)]) -> ContentKey {
 }
 
 /// **The family's value**: a family of bodies as their `Instances`,
-/// named member by member; a family of bodies with an absent member (a
-/// boolean's empty result) as [`ValuePayload::Family`], its bodies
-/// named each at its member's place; any other as `Family` with no
-/// output. Its keys are its members', in order.
+/// each body named at its member's place; any other as
+/// [`ValuePayload::Family`] with no output. Its keys are its members',
+/// in order.
 fn family_value<T: Decide>(
     id: RecipeNodeId,
     members: Members<T>,
@@ -434,7 +431,7 @@ fn family_value<T: Decide>(
     let bodies: Option<Vec<Option<&super::Framed<T>>>> = members
         .members
         .iter()
-        .map(|(_, value)| value.payload.member_body())
+        .map(|(_, value)| value.payload.one_body())
         .collect();
     let mut content = KeyHasher::new();
     let mut naming = KeyHasher::new();
@@ -468,12 +465,8 @@ fn family_value<T: Decide>(
                 .collect();
             let table =
                 crate::names::name_family(id, &tables, &raw).map_err(NodeErrorKind::Naming)?;
-            let payload = match bodies.into_iter().collect::<Option<Vec<_>>>() {
-                Some(every) => ValuePayload::Instances(every.into_iter().cloned().collect()),
-                None => ValuePayload::Family,
-            };
             (
-                payload,
+                ValuePayload::Instances(bodies.into_iter().map(|body| body.cloned()).collect()),
                 Arc::from([super::OutputNames::new(table, Arc::default())]),
             )
         }

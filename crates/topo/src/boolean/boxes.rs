@@ -30,10 +30,10 @@
 //! # Which way LOOSENESS runs is the door's property, not the box's
 //!
 //! A box bigger than it needs to be is free only where the box
-//! PRUNES. That is **four** of the thirteen doors that read a box from
-//! here; at five of the other nine, box NON-overlap is the answer being
-//! sought, so a bigger box is a REFUSAL, and at the other four it is
-//! more exact work AND can be a refusal:
+//! PRUNES. At some doors that read a box from here, box NON-overlap is
+//! the answer being sought, so a bigger box is a REFUSAL; at others it
+//! is more exact work AND can be a refusal; and where a cover sizes a
+//! lever, a bigger one lengthens the lever, which can only refuse more:
 //!
 //! - `boolean::reduce`'s C10 tree PRUNES. Loose costs a candidate
 //!   pair's worth of exact work and can never change a verdict; a
@@ -149,9 +149,34 @@
 //!   for a face on the point's carrier whose trim the chart door cannot
 //!   read, which is not cleared, so there a bigger box REFUSES
 //!   (`HeldPierceUnbuilt`) a point the face stays clear of.
+//! - `shell`'s wall-clearance gate (`footprints_may_overlap`, over each
+//!   planar face's footprint from its edges' covers, [`edge_cover_linked`])
+//!   GRANTS on non-overlap: two faces whose grown footprints clear are
+//!   never read for clearance, so a bigger footprint sends a pair that
+//!   clears to the wall reading, which REFUSES (`WallClearance`) a pair
+//!   whose planes stand closer than twice the offset. A footprint TIGHTER
+//!   than its face is the unsound direction: it could pass walls that
+//!   cross.
+//! - `shell`'s moved walls (`moved_walls`, each wall's box from its
+//!   edges' covers, [`edge_cover_linked`]) PRUNE: two walls whose boxes
+//!   are apart are never read for a crossing, and whether two walls
+//!   overlap is decided along their shared line through `Decide`. A
+//!   bigger box costs that reading and lengthens the extent lever it
+//!   reads transversality on, so it is more exact work, never a crossing
+//!   claimed on box overlap.
+//! - `splitting::containment`'s loop extent (`extent_from`, each edge's
+//!   [`edge_cover`] folded into a ball about the point) sizes the lever
+//!   the point-in-loop decisions are read on: a bigger cover lengthens
+//!   it, so a decision lands in band more readily and the walk REFUSES
+//!   more, never a wrong side. A cover TIGHTER than its edge is the
+//!   unsound direction: the lever could under-state a reading's reach.
+//! - `boolean::ruled_region`'s reach bound (`reach_bound`, each boundary
+//!   edge's [`edge_cover`]) sizes the lever of a ruled face's crossings
+//!   in the same direction: a bigger cover lengthens it and can only
+//!   REFUSE more, never place a crossing wrongly.
 //!
 //! So nothing here may say "loose is free" about a BOX. It is a claim
-//! about a door, and the door has to be named. The thirteen are not
+//! about a door, and the door has to be named. The doors are not
 //! recited: `every_door_that_reads_a_box_is_inventoried` below walks
 //! `topo/src` and pins them per file — both rules, face and edge — so
 //! a new door cannot land unargued. **It pins WHERE the doors are
@@ -3507,19 +3532,22 @@ pub(crate) mod tests {
         // `boolean/carrier_touch_rows.rs`' one: a spiric-edge witness
         // calls `edge_box` to show its ball lies inside the edge's box,
         // so that only the edge's own floor can clear it.
-        const PINNED: [(&str, usize); 13] = [
+        const PINNED: [(&str, usize); 16] = [
             ("boolean/carrier_touch.rs", 1),
             ("boolean/carrier_touch_rows.rs", 1),
             ("boolean/glue.rs", 2),
             ("boolean/mod.rs", 1),
             ("boolean/ops.rs", 4),
             ("boolean/reduce.rs", 6),
+            ("boolean/ruled_region.rs", 1),
             ("boolean/torn_hop_rows.rs", 4),
             ("census.rs", 10),
             ("census/depth_gap.rs", 1),
             ("face_boxes.rs", 1),
             ("pieces.rs", 1),
             ("separation.rs", 2),
+            ("shell.rs", 2),
+            ("splitting/containment.rs", 1),
             ("validate.rs", 1),
         ];
         const HOME: &str = "boolean/boxes.rs";

@@ -430,7 +430,7 @@ impl<'a> PairLane<'a> {
         let pair = self.boxes();
         let r = Box4::of_charts(self.a.surface(), self.b.surface());
         let unresolved = |cause| SsiError::PairBoundaryUnresolved {
-            pieces: PAIR_BOUNDARY_PIECES,
+            pieces: PAIR_BOUNDARY_PIECES.left(),
             cause,
         };
         let rungs = self.cover_rungs(r)?;
@@ -566,7 +566,7 @@ impl<'a> PairLane<'a> {
             }
         }
         Err(SsiError::PairBoundaryUnresolved {
-            pieces: PAIR_BOUNDARY_PIECES,
+            pieces: PAIR_BOUNDARY_PIECES.left(),
             cause: PairBoundaryCause::CoverUnread,
         })
     }

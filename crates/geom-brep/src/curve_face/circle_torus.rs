@@ -148,7 +148,7 @@ use super::circle_roots::{
     CircleRoots, DoorRefusal, constant_residual_roots, door_half_angle_roots, door_refusal,
 };
 use crate::half_angle::{
-    DegreeTwo, HalfAngleFrame, HalfAngleRows, RootSlack, SubdivisionFrame, SubdivisionRows,
+    DegreeTwo, HalfAngleFrame, HalfAngleRows, Local, RootSlack, SubdivisionFrame, SubdivisionRows,
 };
 use crate::quartic::QuarticRows;
 use crate::roots::{OnCarrier, RootRefusal, Roots, Unsettled};
@@ -357,6 +357,7 @@ pub fn circle_torus_roots<T: Decide>(
     let jet = |theta| {
         crate::conic_torus_jet(&circle, t_center, t_axis, major_radius, minor_radius, theta)
     };
+    let noise = rounding_charge(h.terms) + T::from_f64(16.0) * dropped;
     door_half_angle_roots(
         &harmonics,
         |theta| crate::implicit_residual(torus, point_at(theta)),
@@ -365,14 +366,18 @@ pub fn circle_torus_roots<T: Decide>(
                 t0,
                 t1,
                 speed_hi: radius,
-                noise: rounding_charge(h.terms) + T::from_f64(16.0) * dropped,
+                noise,
                 f_per_metre: h.f_per_metre_lo,
                 // The clear margin is read through the FLOOR, which
                 // overstates it (`work/hone/circle-torus-clear-margin-reads-the-floor.md`).
                 f_per_metre_hi: h.f_per_metre_lo,
                 residual_reach: None,
-                jet: Some(&jet),
             },
+            jet: Some(Local {
+                at: &jet,
+                fourth: harmonics.poly().fourth_bound(noise),
+                degree: 2,
+            }),
             speed_lo: radius,
             lever,
         },

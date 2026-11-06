@@ -21,9 +21,9 @@
 #![allow(clippy::panic)]
 
 use pncad::document::{
-    AuthoredNode, BooleanValue, CancelToken, ContentPin, Dimension, Doc, DocEdit, DocRef,
-    DocumentId, EditError, EvalOptions, Evaluation, Formula, FreeVar, LoopProgram, Node,
-    NodeErrorKind, PartFault, ProfileProgram, RecipeNodeId, ValuePayload, VarName, apply, evaluate,
+    AuthoredNode, CancelToken, ContentPin, Dimension, Doc, DocEdit, DocRef, DocumentId, EditError,
+    EvalOptions, Evaluation, Formula, FreeVar, LoopProgram, Node, NodeErrorKind, PartFault,
+    ProfileProgram, RecipeNodeId, VarName, apply, evaluate,
 };
 use pncad::geom_core::{Point2, Tol};
 #[cfg(test)]
@@ -41,7 +41,7 @@ use crate::scene::DisplayTolerance;
 /// `editor_core::test_support`'s, over the same `Expr` the façade
 /// re-exports, so this crate reads the kernel's fixtures rather than a
 /// second spelling of them.
-pub use editor_core::test_support::{ang, len, len2, scl};
+pub use editor_core::test_support::{ang, every_body, len, len2, scl};
 
 /// A length literal that remembers it was WRITTEN in millimetres —
 /// `len` lowers canonically and carries no notation, which is what a
@@ -623,10 +623,11 @@ pub fn evaluated_volume(eval: &Evaluation<f64>, node: RecipeNodeId, tol: Tol) ->
     let value = eval
         .value(node)
         .unwrap_or_else(|| panic!("the node evaluated: {:?}", eval.node_error(node)));
-    let body = match &value.payload {
-        ValuePayload::Body(body) | ValuePayload::Boolean(BooleanValue::Body { body, .. }) => body,
-        other => panic!("expected a body, got {other:?}"),
-    };
+    let body = value
+        .payload
+        .one_body()
+        .flatten()
+        .unwrap_or_else(|| panic!("expected a body, got {:?}", value.payload));
     pncad::topo::mass_properties(
         &pncad::topo::AtRestBody::validate(body.body().clone(), tol)
             .expect("the measured body passes tier 3"),
