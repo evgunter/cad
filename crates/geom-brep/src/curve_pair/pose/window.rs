@@ -80,6 +80,7 @@
 mod oracle;
 
 use geom::Curve3;
+use geom_core::bisect::Step;
 use geom_core::k_stats::decide;
 use geom_core::{Band, Decide, Margin, Point3, Sign};
 
@@ -295,25 +296,21 @@ impl<T: Decide> Window<'_, T> {
     ) -> Option<Vec<Read>> {
         let speed = self.a.speed_hi();
         let mut out = Vec::new();
-        let mut stack = vec![(l, r)];
-        let mut budget = geom_core::bisect::PIECE_BUDGET;
-        while let Some((pl, pr)) = stack.pop() {
-            budget = budget.checked_sub(1)?;
+        let walked = geom_core::bisect::bisect([(l, r)], |(pl, pr)| {
             if let Some(read) = self.read((pl, pr), away, level, band) {
                 out.push(read);
-                continue;
+                return Step::Settled;
             }
             if !positive(
                 "curve_pair_window_width",
                 speed * (pr - pl) - T::from_f64(band.zero()),
             ) {
-                return None;
+                return Step::Stop(());
             }
             let mid = (pl + pr) / T::from_f64(2.0);
-            stack.push((mid, pr));
-            stack.push((pl, mid));
-        }
-        Some(out)
+            Step::Halve([(pl, mid), (mid, pr)])
+        });
+        matches!(walked, Ok(None)).then_some(out)
     }
 
     /// **The half-width of `j`'s ring on `a`, in `a`'s parameter**: the arc

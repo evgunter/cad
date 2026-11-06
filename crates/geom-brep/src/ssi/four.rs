@@ -25,6 +25,7 @@
 use std::rc::Rc;
 
 use geom::{NurbsCurve2, NurbsSurface};
+use geom_core::bisect::{Budget, Exhausted, Step, bisect_within};
 use geom_core::interval::certification::Certification;
 use geom_core::{Bounds, CertifiedBounds, Interval, Point2};
 
@@ -428,32 +429,27 @@ fn face_walk<T: CertifiedBounds>(
     pair: &PairBoxes<'_, T>,
     (x, k): (Box4, usize),
     roots: &mut Vec<Box4>,
-    (pieces, budget): (&mut u32, u32),
+    pieces: &mut Budget,
     skip: &[Box4],
 ) -> Result<(), Option<Box4>> {
     let free = free_of(k);
     if !x.is_box() {
         return Err(None);
     }
-    let mut stack = vec![(x, 0u32)];
-    while let Some((x, depth)) = stack.pop() {
-        *pieces += 1;
-        if *pieces > budget {
-            return Err(None);
-        }
+    let walked = bisect_within([(x, 0u32)], pieces, |(x, depth)| {
         if pair.residual(x).iter().any(|c| sign(*c).is_some()) || covered(x, skip) {
-            continue;
+            return Step::Settled;
         }
         match krawczyk(pair, x, free) {
             Some(Krawczyk::One(root)) => {
                 roots.push(root);
-                continue;
+                return Step::Settled;
             }
-            Some(Krawczyk::None) => continue,
+            Some(Krawczyk::None) => return Step::Settled,
             None => {}
         }
         if depth >= EXIT_DEPTH {
-            return Err(Some(x));
+            return Step::Stop(x);
         }
         let a = pair.widest(x, &free);
         let (lo, hi) = x.0[a];
@@ -461,8 +457,12 @@ fn face_walk<T: CertifiedBounds>(
         let (mut l, mut h) = (x, x);
         l.0[a] = (lo, cut);
         h.0[a] = (cut, hi);
-        stack.push((h, depth + 1));
-        stack.push((l, depth + 1));
+        Step::Halve([(l, depth + 1), (h, depth + 1)])
+    });
+    match walked {
+        Ok(None) => {}
+        Ok(Some(x)) => return Err(Some(x)),
+        Err(Exhausted) => return Err(None),
     }
     Ok(())
 }
@@ -518,11 +518,13 @@ const COVER_CUTS: u32 = 256;
 /// pieces each held. Past [`COVER_CUTS`] cuts in total it answers `false`,
 /// which only ever leaves a piece to be read.
 pub(crate) fn covered(x: Box4, cover: &[Box4]) -> bool {
-    let mut work = vec![x];
     let mut cuts = 0u32;
-    while let Some(x) = work.pop() {
+    // The wall is in cuts; each cut reads two pieces, so the read budget
+    // it implies never binds first.
+    let mut reads = Budget::new(1 + 2 * COVER_CUTS as usize);
+    let walked = bisect_within([x], &mut reads, |x| {
         if cover.iter().any(|c| x.contained_in(*c)) {
-            continue;
+            return Step::Settled;
         }
         // A box that meets `x` with a side strictly inside it: cut there.
         let cut = cover
@@ -538,20 +540,23 @@ pub(crate) fn covered(x: Box4, cover: &[Box4]) -> bool {
                 })
             });
         let Some((k, t)) = cut else {
-            return false;
+            return Step::Stop(());
         };
         cuts += 1;
         if cuts > COVER_CUTS {
-            return false;
+            return Step::Stop(());
         }
         let (lo, hi) = x.0[k];
         let (mut l, mut h) = (x, x);
         l.0[k] = (lo, t);
         h.0[k] = (t, hi);
-        work.push(h);
-        work.push(l);
+        Step::Halve([l, h])
+    });
+    match walked {
+        Ok(None) => true,
+        Ok(Some(())) => false,
+        Err(Exhausted) => unreachable!("a cover read spends its cuts before its reads"),
     }
-    true
 }
 
 /// [`face_roots`], with the piece its walk stopped in where it stopped
@@ -563,17 +568,11 @@ fn walk_faces<T: CertifiedBounds>(
     skip: &[Box4],
 ) -> Result<Vec<(Box4, usize, bool)>, Option<Box4>> {
     let mut out = Vec::new();
-    let mut pieces = 0u32;
+    let mut pieces = Budget::new(budget as usize);
     for k in 0..4 {
         for (high, c) in [(false, r.0[k].0), (true, r.0[k].1)] {
             let mut roots = Vec::new();
-            face_walk(
-                pair,
-                (r.holding(k, c), k),
-                &mut roots,
-                (&mut pieces, budget),
-                skip,
-            )?;
+            face_walk(pair, (r.holding(k, c), k), &mut roots, &mut pieces, skip)?;
             out.extend(roots.into_iter().map(|q| (q, k, high)));
         }
     }
@@ -633,7 +632,7 @@ fn reaches_end<T: CertifiedBounds>(
         pair,
         (r.holding(k, c), k),
         &mut on_slice,
-        (&mut 0, PAIR_EXIT_PIECES),
+        &mut Budget::new(PAIR_EXIT_PIECES as usize),
         &[],
     )
     .ok();
@@ -1009,7 +1008,7 @@ pub(crate) fn row_cover<T: CertifiedBounds>(
     let pair = PairBoxes::new(&ca, &cb, [sa.u.get(), sa.v.get(), sb.u.get(), sb.v.get()]);
     let domain = Box4::of_charts(a, b);
     #[allow(clippy::cast_precision_loss)]
-    let mut work: Vec<(f64, f64, u32)> = (0..ROW_PIECES)
+    let roots: Vec<(f64, f64, u32)> = (0..ROW_PIECES)
         .map(|k| {
             let at = |k: usize| t0 + (t1 - t0) * (k as f64 / ROW_PIECES as f64);
             (at(k), at(k + 1), 0)
@@ -1019,9 +1018,10 @@ pub(crate) fn row_cover<T: CertifiedBounds>(
     // is zero-free (`None` for a piece read at depth with no sign).
     let mut pieces: Vec<(f64, Box4, Option<bool>)> = Vec::new();
     let mut least = f64::INFINITY;
-    // Read from the back, the first piece last pushed: depth first.
-    work.reverse();
-    while let Some((lo, hi, depth)) = work.pop() {
+    // The wall is the depth cap: each root reads at most a full tree of
+    // `ROW_DEPTH` halvings, so the read budget it implies never binds.
+    let mut reads = Budget::new(ROW_PIECES << (ROW_DEPTH + 1));
+    let walked = bisect_within(roots, &mut reads, |(lo, hi, depth)| {
         let (x, chord) = read(lo, hi);
         let x = Box4(core::array::from_fn(|k| {
             let ((l, h), (d0, d1)) = (x.0[k], domain.0[k]);
@@ -1048,15 +1048,23 @@ pub(crate) fn row_cover<T: CertifiedBounds>(
             Some((m, positive)) => {
                 least = least.min(m);
                 pieces.push((lo, x, Some(positive)));
+                Step::Settled
             }
             None if depth < ROW_DEPTH => {
                 let half = lo * 0.5 + hi * 0.5;
-                work.push((half, hi, depth + 1));
-                work.push((lo, half, depth + 1));
+                Step::Halve([(lo, half, depth + 1), (half, hi, depth + 1)])
             }
-            None if give_up => return Ok((RowCrossing::Unread, Vec::new())),
-            None => pieces.push((lo, x, None)),
+            None if give_up => Step::Stop(()),
+            None => {
+                pieces.push((lo, x, None));
+                Step::Settled
+            }
         }
+    });
+    match walked {
+        Ok(None) => {}
+        Ok(Some(())) => return Ok((RowCrossing::Unread, Vec::new())),
+        Err(Exhausted) => unreachable!("a row's walk spends its depth before its reads"),
     }
     pieces.sort_by(|p, q| p.0.total_cmp(&q.0));
     let signed: Vec<usize> = (0..pieces.len())

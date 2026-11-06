@@ -13,6 +13,16 @@
 //! budget), count cuts only to choose which side to halve, or stop on a
 //! decided length. A cap the core imposed would be a second budget,
 //! binding where the first already does.
+//!
+//! **The budget is a named resource wall** (D9's "every traversal is
+//! bounded"): pieces read, counted by the core and refused typed
+//! ([`Exhausted`]) when spent. [`bisect`] walks within [`PIECE_BUDGET`].
+//! A walk whose wall is its own names it as a [`Budget`] and walks
+//! [`bisect_within`] it; one budget may span several walks, so a proof
+//! that reads many pieces spends one wall across all of them. A wall
+//! counted in something other than pieces read (halvings, a depth) stays
+//! in the visit, as a depth cap does, and the walk passes the read
+//! budget that wall implies, which never binds first.
 
 use crate::{Margin, Real, SupSpeed};
 
@@ -49,25 +59,63 @@ pub enum Step<P, R> {
     Stop(R),
 }
 
-/// The walk ran past [`PIECE_BUDGET`].
+/// The walk ran past its budget.
 #[derive(Clone, Copy, Debug)]
 pub struct Exhausted;
 
-/// Walks `roots` in order, each depth first, earlier half first, until
-/// every piece is settled (`Ok(None)`) or a visit stops the walk with
-/// its answer (`Ok(Some(_))`).
+/// **The pieces a walk may still read** ([`bisect_within`]): a wall the
+/// caller names, spent one piece a read, and shared by every walk it is
+/// passed to.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Budget {
+    left: usize,
+}
+
+impl Budget {
+    /// A wall of `pieces` reads.
+    #[must_use]
+    pub const fn new(pieces: usize) -> Self {
+        Self { left: pieces }
+    }
+
+    /// The reads left.
+    #[must_use]
+    pub const fn left(&self) -> usize {
+        self.left
+    }
+}
+
+/// [`bisect_within`] a [`PIECE_BUDGET`] of its own.
+///
+/// # Errors
+///
+/// [`Exhausted`] past [`PIECE_BUDGET`] reads.
 pub fn bisect<P, R>(
     roots: impl IntoIterator<Item = P>,
+    visit: impl FnMut(P) -> Step<P, R>,
+) -> Result<Option<R>, Exhausted> {
+    bisect_within(roots, &mut Budget::new(PIECE_BUDGET), visit)
+}
+
+/// Walks `roots` in order, each depth first, earlier half first, until
+/// every piece is settled (`Ok(None)`) or a visit stops the walk with
+/// its answer (`Ok(Some(_))`), each read spending one piece of `budget`.
+///
+/// # Errors
+///
+/// [`Exhausted`] where a piece is due with `budget` spent.
+pub fn bisect_within<P, R>(
+    roots: impl IntoIterator<Item = P>,
+    budget: &mut Budget,
     mut visit: impl FnMut(P) -> Step<P, R>,
 ) -> Result<Option<R>, Exhausted> {
     let mut stack: Vec<P> = roots.into_iter().collect();
     stack.reverse();
-    let mut read = 0;
     while let Some(piece) = stack.pop() {
-        read += 1;
-        if read > PIECE_BUDGET {
+        if budget.left == 0 {
             return Err(Exhausted);
         }
+        budget.left -= 1;
         match visit(piece) {
             Step::Settled => {}
             Step::Halve([first, second]) => stack.extend([second, first]),
