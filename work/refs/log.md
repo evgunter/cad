@@ -196,3 +196,10 @@
     - `one_body` overclaims: demos and `mate/unobservable` still match `Body(b)` alone.
   - Fix pass sent.
   - **Class:** a reader indexing by position in a list that may skip places, through a method (`Carry::member`) that a field sweep (`.members`) cannot match. A sweep's blind spot was named in the PR and still missed this shape.
+- 2026-11-06 — **PR 6564 fix pass green (`6f33e679e3`); merged on the orchestrator's read of the delta.** All the findings were taken:
+  - **The MAJOR:** `gather` now reads each body's carry at its place, and the pin goes red if the old indexing is restored. The `Carry::member` class sweep is clean.
+  - **Dead arms deleted** (`unreachable!`) rather than generalised: `wire_place`'s member-less whole-family arm and `place_each`, and `read_of`'s member-less arm. `family_value` is now the only builder of a family.
+  - **All-empty family:** it gathers as one empty boolean does, and is pinned in Rust and Python.
+  - **`one_body`:** every listed demo and `mate/unobservable` reader is routed through it.
+  - **`every_body`:** it now lives in `test_support`.
+  - `a-family-of-bodies-has-two-payloads` is closed, with the WIREREST and BIND residue rows.
